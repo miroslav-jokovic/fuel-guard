@@ -1,6 +1,7 @@
 import { computed, type Ref } from "vue";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/vue-query";
 import { apiFetch } from "@/lib/api";
+import { recordOrThrow } from "@/lib/notFound";
 import type {
   AssetDto,
   KitExpectationDto,
@@ -60,11 +61,13 @@ export function useUnitKitQuery(kind: Ref<"tractor" | "trailer">, unitId: Ref<st
     queryKey: ["inventory", "unit", kind, unitId] as const,
     enabled: computed(() => Boolean(unitId.value)),
     queryFn: async (): Promise<{ unit: UnitKitDto; assets: AssetDto[] }> => {
-      const r = await apiFetch<{ unit: UnitKitDto; assets: AssetDto[] }>(
-        `/api/maintenance/inventory/units/${kind.value}/${unitId.value}`,
+      // A 404 is `NotFoundError` (F21): a unit that is not on the fleet is not a failed read.
+      return recordOrThrow(
+        await apiFetch<{ unit: UnitKitDto; assets: AssetDto[] }>(
+          `/api/maintenance/inventory/units/${kind.value}/${unitId.value}`,
+        ),
+        "Could not load the unit's kit",
       );
-      if (!r.ok || !r.data) throw new Error(r.error?.message ?? "Could not load the unit's kit");
-      return r.data;
     },
   });
 }

@@ -18,7 +18,7 @@ const card = {
 const data = ref({ card, capabilities: null, effective: { infos: [] }, staleAfterMinutes: 60, detailStaleAfterMinutes: 1440 });
 
 vi.mock("@/features/fuelCards/useEfsCards", () => ({
-  useEfsCard: () => ({ data, isError: ref(false), error: ref(null), refetch: vi.fn() }),
+  useEfsCard: () => ({ data, isPending: ref(false), isError: ref(false), error: ref(null), isFetching: ref(false), refetch: vi.fn() }),
 }));
 vi.mock("@/features/fuelCards/useCardControl", () => ({ useRefreshCard: () => ({ mutate: vi.fn(), isPending: ref(false) }) }));
 vi.mock("@/stores/session", () => ({ useSessionStore: () => ({ admin: true, can: () => true, canView: () => true }) }));

@@ -13,6 +13,7 @@ import {
   type LoadDispatchSummary,
 } from "@silvicom/shared";
 import { apiFetch } from "@/lib/api";
+import { recordOrThrow } from "@/lib/notFound";
 
 /**
  * Dispatch load workspace (Phase 3D / D49) — the board's reads and the exceptions it clears.
@@ -183,9 +184,11 @@ export function useLoadDetailQuery(loadId: Ref<string | null>) {
     queryKey: computed(() => [...loadKeyPrefix, loadId.value] as const),
     enabled: computed(() => loadId.value != null),
     queryFn: async (): Promise<LoadDetail> => {
-      const res = await apiFetch<{ load: LoadDetail }>(`/api/dispatch/loads/${loadId.value}`);
-      if (!res.ok || !res.data) throw new Error(res.error?.message ?? "Could not load this load.");
-      return res.data.load;
+      // A 404 is `NotFoundError` (F21): a load that no longer exists is not a failed read.
+      return recordOrThrow(
+        await apiFetch<{ load: LoadDetail }>(`/api/dispatch/loads/${loadId.value}`),
+        "Could not load this load.",
+      ).load;
     },
   });
 }

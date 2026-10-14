@@ -1,6 +1,7 @@
 import { computed, type Ref } from "vue";
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/vue-query";
 import { apiFetch } from "@/lib/api";
+import { recordOrThrow } from "@/lib/notFound";
 import { uploadContentType } from "@/lib/fileFormat";
 import { INVENTORY_PHOTO_CONTENT_TYPES } from "@silvicom/shared";
 import type {
@@ -81,9 +82,11 @@ export function usePartQuery(id: Ref<string>) {
     queryKey: ["inventory", "part", id] as const,
     enabled: computed(() => Boolean(id.value)),
     queryFn: async (): Promise<PartDetail> => {
-      const r = await apiFetch<PartDetail>(`/api/maintenance/inventory/parts/${id.value}`);
-      if (!r.ok || !r.data) throw new Error(r.error?.message ?? "Could not load the part");
-      return r.data;
+      // A 404 is `NotFoundError` (F21): a part that is not in the catalogue is not a failed read.
+      return recordOrThrow(
+        await apiFetch<PartDetail>(`/api/maintenance/inventory/parts/${id.value}`),
+        "Could not load the part",
+      );
     },
   });
 }
@@ -263,11 +266,11 @@ export function useCountSessionQuery(id: Ref<string>) {
     queryKey: ["inventory", "count-session", id] as const,
     enabled: computed(() => Boolean(id.value)),
     queryFn: async (): Promise<CountSessionDto> => {
-      const r = await apiFetch<{ session: CountSessionDto }>(
-        `/api/maintenance/inventory/count-sessions/${id.value}`,
-      );
-      if (!r.ok || !r.data) throw new Error(r.error?.message ?? "Could not load the count");
-      return r.data.session;
+      // A 404 is `NotFoundError` (F21): a walk that is not on file is not a failed read.
+      return recordOrThrow(
+        await apiFetch<{ session: CountSessionDto }>(`/api/maintenance/inventory/count-sessions/${id.value}`),
+        "Could not load the count",
+      ).session;
     },
   });
 }

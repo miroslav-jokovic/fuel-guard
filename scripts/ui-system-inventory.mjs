@@ -559,6 +559,44 @@ function statTileViolations(item) {
 }
 const unguardedStats = pagesAndFeatures.flatMap(statTileViolations).filter((at) => !siteMarked(at, "stat-guarded"));
 
+/**
+ * A record page says when its record does not exist (US6b F21, 2026-10-14; D-US5).
+ *
+ * The browser pass opened eight record pages on an id nobody held: five drew a blank body under the
+ * header, Vehicle drew a truck with no data, Fuel card said "Loading the card…" for good, and Driver
+ * printed TanStack's own message — and the sweep that followed found six more pages with no answer at
+ * all. Not-found is the one state a detail page meets that a list never does, so it is the one every
+ * new detail page forgets. The routes are the inventory: a page whose path names a record (`/:id`,
+ * `/:sessionId`) gives its `QueryState` a `not-found-text`, which `QueryState` draws when the read
+ * throws `NotFoundError` (`@/lib/notFound`). A page behind a parameter that is not a record — a
+ * jurisdiction code, a public link with its own dead-link answer — says why at the top of the file:
+ * `ui-adoption: not-a-record — <why>`.
+ *
+ * ⚠ What this cannot see: whether the read behind it really throws `NotFoundError` on a 404. That is
+ * `recordOrThrow`'s job, and `pages/recordNotFound.test.ts` asks the whole chain page by page.
+ */
+const NOT_A_RECORD = /ui-adoption: not-a-record\s+—\s+\S/;
+function recordRoutePages(routeSource) {
+  return stripComments(routeSource).split(/\bpath:\s*"/).slice(1).flatMap((chunk) => {
+    const path = chunk.slice(0, chunk.indexOf('"'));
+    const page = chunk.match(/import\("@\/pages\/([^"]+\.vue)"\)/)?.[1];
+    // The catch-all names no record: `NotFoundPage` IS the not-found answer for an address.
+    return /\/:/.test(path) && !/\/:pathMatch\b/.test(path) && page ? [{ path, page }] : [];
+  });
+}
+function recordPageViolations(routes, readPage) {
+  return routes
+    .filter(({ page }) => {
+      const raw = readPage(page);
+      return !NOT_A_RECORD.test(raw) && !/\snot-found-text=/.test(stripComments(raw));
+    })
+    .map(({ path, page }) => `${page} (${path})`);
+}
+const recordPagesWithoutNotFound = recordPageViolations(
+  filesUnder(join(webSrc, "router/routes"), new Set([".ts"])).flatMap((file) => recordRoutePages(readFileSync(file, "utf8"))),
+  (page) => readFileSync(join(webSrc, "pages", page), "utf8"),
+);
+
 const handBuiltFacts = structureViolations.flatMap((item) => item.handBuiltFacts).filter((at) => !siteMarked(at, "not-a-fact-list"));
 
 /**
@@ -838,6 +876,30 @@ function verifyAdoption() {
     if (hits.some((h) => h.length !== 1) || JSON.stringify(hits[2]) !== JSON.stringify(["s.vue:1"]) || clean.some((c) => c.length))
       failures.push("stat-tile checker failed its regression fixture");
   }
+  {
+    const routes = recordRoutePages(`[
+      { path: "/parts", component: () => import("@/pages/PartsPage.vue") },
+      { path: "/parts/:id", component: () => import("@/pages/PartPage.vue") },
+      // { path: "/old/:id", component: () => import("@/pages/OldPage.vue") },
+      { path: "/compliance/:id", redirect: (to) => ({ name: "driver" }) },
+      { path: "/units/:kind/:id", component: () => import("@/pages/UnitPage.vue") },
+      { path: "/ifta/:code", component: () => import("@/pages/CodePage.vue") },
+      { path: "/:pathMatch(.*)*", component: () => import("@/pages/NotFoundPage.vue") },
+    ]`);
+    const pages = {
+      "PartPage.vue": `<template><QueryState :error="e" error-text="x" /></template>`,
+      "UnitPage.vue": `<template><QueryState :error="e" error-text="x" not-found-text="That unit is not on the fleet." /></template>`,
+      "CodePage.vue": `<!-- ui-adoption: not-a-record — a jurisdiction code -->\n<template><QueryState /></template>`,
+    };
+    const quoted = recordPageViolations([{ path: "/q/:id", page: "Q.vue" }], () => `<!-- not-found-text="x" --><template />`);
+    const bareMark = recordPageViolations([{ path: "/b/:id", page: "B.vue" }], () => `<!-- ui-adoption: not-a-record --><template />`);
+    if (JSON.stringify(routes.map((r) => r.page)) !== JSON.stringify(["PartPage.vue", "UnitPage.vue", "CodePage.vue"]) ||
+        JSON.stringify(recordPageViolations(routes, (page) => pages[page])) !== JSON.stringify(["PartPage.vue (/parts/:id)"]) ||
+        quoted.length !== 1 || bareMark.length !== 1)
+      failures.push("record-page not-found checker failed its regression fixture");
+  }
+  if (recordPagesWithoutNotFound.length)
+    failures.push(`record page with no not-found state (give its QueryState a not-found-text and throw NotFoundError from the read, or mark ui-adoption: not-a-record — <why>): ${recordPagesWithoutNotFound.join(", ")}`);
   if (unguardedStats.length)
     failures.push(`stat tile with a :loading but no :error, or a :value falling back to zero (bind :error, show a dash, or mark ui-adoption: stat-guarded — <why>): ${unguardedStats.join(", ")}`);
   if (serverMessages.length)

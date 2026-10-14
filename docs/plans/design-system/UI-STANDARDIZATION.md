@@ -152,6 +152,15 @@ names its `error-text`. Where the server's words ARE the answer (a scanned code 
 that says why it cannot be drawn) the site says `ui-adoption: server-message — <why>`. An action's
 toast still carries the raw text as its detail — that is for the person who just pressed the button.
 
+**D-US10 — A record that does not exist is a fourth state, not a failure.** A record read turns a 404
+(or a PostgREST `.maybeSingle()` with no row) into `NotFoundError` (`lib/notFound.ts`, through
+`recordOrThrow`); the query client never retries it (`retryUnlessNotFound`, the app default); and
+`QueryState` draws `NotFoundState` — the page's `not-found-text` and one way out, "Back to <list>",
+read from the route's `meta.parent` (the dashboard when the list does not open for the reader). No
+Retry, because asking again cannot conjure the record. Every routed page whose path names a record
+gives its `QueryState` a `not-found-text`; a parameter that is not a record says
+`ui-adoption: not-a-record — <why>` at the top of the page (US6b F21).
+
 ## 6. Open questions
 
 **Q-US1 — Does the admin console adopt the web list composites?** `DataWorkspace`, `FilterBar` and
@@ -348,3 +357,46 @@ reads' retries, ~14 s) and looked at; Coverage and Settings re-shot with the emp
 | F32 | Labels | both | The shelves are ONE response from `/stock`, capped at 200 lines (`PAGE_MAX`), then searched and paged on the client — a shop past 200 shelf lines would see the first 200 and no sign of the rest. 0 lines in production today | D-US8 · needs server paging with a server search, as the asset list has |
 
 Next: batch 3 (F21, F25–F32).
+
+### 2026-10-14 — US6b batch 3, F21: not-found is its own state (D-US10)
+
+The finding named eight record pages; the gate rule written for it found six more, so fourteen
+routed record pages now answer a missing record the same way:
+
+- **One error type, one helper, one retry rule.** `lib/notFound.ts` holds `NotFoundError`,
+  `recordOrThrow` (a 404 is `NotFoundError`, any other refusal a plain `Error`) and
+  `retryUnlessNotFound`, which `main.ts` installs as the query default. A real 404 used to cost
+  three retries — seven seconds of "Loading the asset…" — and then "Could not load" beside a Retry
+  that could only fail again. Its own module, not `lib/api.ts`, because 88 test files replace
+  `@/lib/api` with a factory that knows `apiFetch` alone.
+- **`QueryState` draws it.** A `NotFoundError` renders `NotFoundState` (sentence + "Back to <list>"
+  from `meta.parent`, through `useOpens`), and the compact form says the sentence alone.
+  `not-found-text` is the page's sentence.
+- **The eight pages of F21.** Asset, Part, Unit, Annual inspection and Invoice check give their
+  `QueryState` a sentence; Invoice check's `null`-for-404 and its hand-written callout went. Vehicle's
+  `.maybeSingle()` with no row is `NotFoundError`, and its kit, MPG, fills and anomalies panels go
+  with the truck. Fuel card left `ErrorState` and the header's permanent "Loading the card…" for
+  `QueryState`; its card read turns EFS's 404 into `NotFoundError` and its 429 rule folds in
+  `retryUnlessNotFound`. Driver had never shown its own read at all: it has a loading line, a
+  failure with Retry, and not-found replaces the page (the export button goes too).
+- **Vehicle and Driver gained `meta.parent`** (`/vehicles`, `/drivers`), so they now have the
+  breadcrumb, the shell's Back and the way back that the other record pages had.
+- **Six more, found by the rule.** Roadside inspection, Hazmat load, Load details and Count (their
+  reads through `recordOrThrow`), and Applicant record (its `.maybeSingle()`; the checklist,
+  disposition and drawers go with the applicant). Count's failure sentence lost "It may not be on
+  file", because a missing walk now says so on its own.
+- **Gate rule.** `lint:ui-adoption` reads the route table: a page behind a path with a parameter
+  (the catch-all aside) has a `not-found-text`, or says `ui-adoption: not-a-record — <why>` — Apply
+  (a public token with its own dead-link card) and IFTA jurisdiction (a code, not a record). The
+  self-test fixture was proven by disabling the rule. What it cannot see — whether the read really
+  throws `NotFoundError` — is `pages/recordNotFound.test.ts`, which mounts all fourteen pages with
+  their real hooks, a real query client on the app's defaults and the real route table against an
+  API that answers 404, and asks for the sentence, the way back, no Retry, one request, and the
+  sections gone. Sixteen mutants (the 404 branch, the retry rule, `QueryState`'s branch, the way
+  back, each page's conversion and each page's hiding) all fail it.
+
+Shot at 1280 and 390 against a fixture that answers 404 for every record endpoint, and looked at.
+Not covered: a malformed id (not a UUID). A route that queries before it validates — Driver's roster
+route is one — meets Postgres's `22P02` and answers 500, so the page says "Could not load" with a
+Retry rather than not-found. Recorded, not routed around: what the API accepts as an id is Q-US3's
+question, and the answer belongs in the routes, not in a guess the browser makes.

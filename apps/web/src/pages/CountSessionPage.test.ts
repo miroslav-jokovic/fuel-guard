@@ -86,7 +86,8 @@ vi.mock("@/features/inventory/useInventory", async () => {
       data: walk,
       isLoading: r(false),
       isError: r(sessionFail.on),
-      error: r(sessionFail.on ? new Error("404") : null),
+      // A 502, not a 404: a walk that is not on file is `NotFoundError` now (F21, `recordNotFound.test.ts`).
+      error: r(sessionFail.on ? new Error("502") : null),
       isFetching: r(false),
       refetch: sessionFail.refetch,
     }),
@@ -173,7 +174,9 @@ describe("a walk that will not load", () => {
   it("says it could not load the walk and retries the fetch in place", async () => {
     sessionFail.on = true;
     const w = page();
-    expect(w.text()).toContain("Could not load this walk. It may not be on file.");
+    // "It may not be on file" left the sentence: a missing walk now says so on its own (F21).
+    expect(w.text()).toContain("Could not load this walk.");
+    expect(w.text()).not.toContain("not on file");
     await w.findAll("button").find((b) => b.text() === "Retry")!.trigger("click");
     expect(sessionFail.refetch).toHaveBeenCalledTimes(1);
   });

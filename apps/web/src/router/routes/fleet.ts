@@ -12,7 +12,9 @@ export const fleetRoutes: RouteRecordRaw[] = [
     path: "/vehicles/:id",
     name: "vehicle-detail",
     component: () => import("@/pages/VehicleDetailPage.vue"),
-    meta: { requiresAuth: true, title: "Vehicle" },
+    // `parent` gives the page its breadcrumb, the shell's Back, and the not-found answer's way back
+    // to the list (F21) — the three are one walk over this key.
+    meta: { requiresAuth: true, title: "Vehicle", parent: "/vehicles" },
   },
   {
     path: "/odometer",

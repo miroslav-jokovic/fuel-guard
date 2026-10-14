@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/vue-query";
 import { computed, type Ref } from "vue";
 import type { CardCapabilities, EfsCardSummary, EfsLocation } from "@silvicom/shared";
 import { apiFetch } from "@/lib/api";
+import { NotFoundError, retryUnlessNotFound } from "@/lib/notFound";
 
 /**
  * Reading EFS cards.
@@ -25,9 +26,12 @@ export class EfsCardQueryError extends Error {
   }
 }
 
-/** Keep the normal query retry budget, except a 429: retrying it only extends the vendor lockout. */
+/**
+ * Keep the app's retry rule (a missing card is asked about once, F21), and add a 429: retrying it
+ * only extends the vendor lockout.
+ */
 export function shouldRetryEfsCardQuery(failureCount: number, error: unknown): boolean {
-  return !(error instanceof EfsCardQueryError && error.status === 429) && failureCount < 3;
+  return !(error instanceof EfsCardQueryError && error.status === 429) && retryUnlessNotFound(failureCount, error);
 }
 
 /** `apiFetch` never throws; vue-query needs it to, so errors surface instead of caching as data. */
@@ -145,9 +149,18 @@ export function useEfsCards(filters: { search: Ref<string>; status: Ref<string> 
 }
 
 export function useEfsCard(id: Ref<string>) {
-  return useQuery<EfsCardDetailResponse, EfsCardQueryError>({
+  return useQuery<EfsCardDetailResponse, EfsCardQueryError | NotFoundError>({
     queryKey: computed(() => [...cardsKey, "detail", id.value] as const),
-    queryFn: (): Promise<EfsCardDetailResponse> => call(`/api/fuel-cards/${id.value}`),
+    queryFn: async (): Promise<EfsCardDetailResponse> => {
+      try {
+        return await call<EfsCardDetailResponse>(`/api/fuel-cards/${id.value}`);
+      } catch (e) {
+        // "That card is not in this company." is not a failed read (F21): the page says so once and
+        // offers the way back to the cards, rather than a Retry that can only fail again.
+        if (e instanceof EfsCardQueryError && e.status === 404) throw new NotFoundError(e.message);
+        throw e;
+      }
+    },
     retry: shouldRetryEfsCardQuery,
     enabled: computed(() => !!id.value),
     refetchInterval: POLL_MS,

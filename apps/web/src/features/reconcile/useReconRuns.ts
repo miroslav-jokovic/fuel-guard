@@ -19,6 +19,7 @@ import { computed, type Ref } from "vue";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/vue-query";
 import type { PilotReportFill, ReconResult, ReconRow, ReconSummary, StatementWord } from "@silvicom/shared";
 import { apiFetch } from "@/lib/api";
+import { recordOrThrow } from "@/lib/notFound";
 
 export interface ReconRunSummaryRow {
   id: string;
@@ -121,11 +122,14 @@ export function useReconRunQuery(id: Ref<string>) {
     queryKey: ["fuel_recon_runs", "one", id],
     enabled: computed(() => id.value !== ""),
     staleTime: 5 * 60_000,
-    queryFn: async (): Promise<ReconRunDetail | null> => {
-      const res = await apiFetch<{ ok: boolean } & ReconRunDetail>(`/api/fueling/recon-runs/${encodeURIComponent(id.value)}`);
-      if (res.status === 404) return null;
-      if (!res.ok || !res.data) throw new Error(res.error?.message ?? "Could not load that invoice check");
-      return { run: res.data.run, lines: res.data.lines, unmatchable: res.data.unmatchable };
+    queryFn: async (): Promise<ReconRunDetail> => {
+      // A 404 is `NotFoundError` (F21). It was `null`, which the page could not tell from "not
+      // asked yet" and so drew nothing under the header.
+      const data = recordOrThrow(
+        await apiFetch<{ ok: boolean } & ReconRunDetail>(`/api/fueling/recon-runs/${encodeURIComponent(id.value)}`),
+        "Could not load that invoice check",
+      );
+      return { run: data.run, lines: data.lines, unmatchable: data.unmatchable };
     },
   });
 }

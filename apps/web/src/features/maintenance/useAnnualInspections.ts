@@ -1,6 +1,7 @@
 import { computed, type Ref } from "vue";
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/vue-query";
 import { apiFetch } from "@/lib/api";
+import { recordOrThrow } from "@/lib/notFound";
 import type {
   InspectionItemDto,
   InspectionIssue,
@@ -112,11 +113,11 @@ export function useInspectionQuery(id: Ref<string>) {
     queryKey: ["maintenance", "inspection", id] as const,
     enabled: computed(() => Boolean(id.value)),
     queryFn: async (): Promise<InspectionResponse> => {
-      const r = await apiFetch<InspectionResponse>(
-        `/api/maintenance/inspections/${id.value}`,
+      // A 404 is `NotFoundError` (F21): an inspection that is not on file is not a failed read.
+      return recordOrThrow(
+        await apiFetch<InspectionResponse>(`/api/maintenance/inspections/${id.value}`),
+        "Could not load the inspection",
       );
-      if (!r.ok || !r.data) throw new Error(r.error?.message ?? "Could not load the inspection");
-      return r.data;
     },
   });
 }

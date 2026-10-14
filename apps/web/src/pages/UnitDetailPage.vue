@@ -128,6 +128,7 @@ const kitLines = computed<UnitKitLineDto[]>(() =>
       :retrying="isFetching"
       loading-text="Loading the unit…"
       error-text="Could not load the unit."
+      not-found-text="That unit is not on the fleet. The link may be incomplete, or the unit belongs to another company."
       @retry="refetch()"
     >
       <template v-if="unit">

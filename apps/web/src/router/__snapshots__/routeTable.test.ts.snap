@@ -773,6 +773,7 @@ exports[`the route table survives being split by area > route table 1`] = `
   },
   {
     "meta": {
+      "parent": "/drivers",
       "requiresAuth": true,
       "title": "Driver",
     },
@@ -1637,6 +1638,7 @@ exports[`the route table survives being split by area > route table 1`] = `
   },
   {
     "meta": {
+      "parent": "/vehicles",
       "requiresAuth": true,
       "title": "Vehicle",
     },

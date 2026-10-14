@@ -6,6 +6,8 @@ import type { Driver, HiringStepKey } from "@silvicom/shared";
 import { supabase } from "@/lib/supabase";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import ExplainerPanel from "@/components/ui/ExplainerPanel.vue";
+import QueryState from "@/components/ui/QueryState.vue";
+import { NotFoundError, isNotFound } from "@/lib/notFound";
 import DispositionSection from "@/features/recruitment/DispositionSection.vue";
 import HiringChecklistCard from "@/features/recruitment/HiringChecklistCard.vue";
 import HiringStepDrawer from "@/features/recruitment/HiringStepDrawer.vue";
@@ -65,15 +67,20 @@ const invitationId = computed(
   () => liveApplicationInvitation(invitesQ.data.value ?? [])?.id ?? null,
 );
 
-const { data: driver } = useQuery({
+const driverQ = useQuery({
   queryKey: ["driver-detail", id],
   enabled: computed(() => Boolean(id.value)),
-  queryFn: async (): Promise<Driver | null> => {
+  queryFn: async (): Promise<Driver> => {
     const { data, error } = await supabase.from("drivers").select("*").eq("id", id.value).maybeSingle();
     if (error) throw new Error(error.message);
-    return (data as Driver | null) ?? null;
+    // No row is not-found (F21): the page drew an "Applicant" checklist that could not load, for
+    // somebody who was never on file.
+    if (!data) throw new NotFoundError("That applicant is not on file.");
+    return data as Driver;
   },
 });
+const driver = driverQ.data;
+const missing = computed(() => isNotFound(driverQ.error.value));
 
 /**
  * The step whose drawer is open — its KEY, and the row itself derived from the live fold.
@@ -117,62 +124,76 @@ function openOrder(medstopId: string): void {
       description="Everything needed before this driver can be hired, and who owes the next move."
     />
 
-    <HiringChecklistCard
-      :driver-id="id"
-      :checklist="checklistQ.data.value ?? null"
-      :loading="checklistQ.isLoading.value"
-      :error="checklistQ.error.value ? 'Could not load the hiring checklist.' : null"
-      :retrying="checklistQ.isFetching.value"
-      @retry="checklistQ.refetch()"
-      @open="openStepKey = $event.key"
+    <!-- The applicant's own read: loading, failure with a Retry, or the not-found answer that
+         replaces the page (F21). The checklist below has its own read and its own states. -->
+    <QueryState
+      :loading="driverQ.isPending.value"
+      :error="driverQ.isError.value ? driverQ.error.value : null"
+      :retrying="driverQ.isFetching.value"
+      loading-text="Loading the applicant…"
+      error-text="Could not load the applicant."
+      not-found-text="That applicant is not on file. They may have been removed, or the link is incomplete."
+      @retry="driverQ.refetch()"
     />
 
-    <!-- ⚠ Collapsed, and below the work. D-HUI3's rule that a row answers three questions only
-         holds if the caveats have somewhere else to be; a page that explains itself in front of the
-         work is the surface this rebuild replaced. -->
-    <ExplainerPanel title="How this checklist is worked out">
-      <p>
-        Every row is derived from the records on file — an authorization, a qualification record, a
-        packet mark — rather than from a box somebody ticked. Recording the evidence is what moves a
-        step; there is nothing to mark as done.
-      </p>
-      <p>
-        A step only appears when this system holds something that can prove it. Orientation videos,
-        the orientation day and the handbook are part of the process and are not listed yet, which is
-        why “ready to travel” stays open even when every row above is green.
-      </p>
-      <p>
-        Steps are blocked only by law or by a rule the database enforces. Anything else can be done in
-        whatever order suits the day.
-      </p>
-    </ExplainerPanel>
+    <template v-if="!missing">
+      <HiringChecklistCard
+        :driver-id="id"
+        :checklist="checklistQ.data.value ?? null"
+        :loading="checklistQ.isLoading.value"
+        :error="checklistQ.error.value ? 'Could not load the hiring checklist.' : null"
+        :retrying="checklistQ.isFetching.value"
+        @retry="checklistQ.refetch()"
+        @open="openStepKey = $event.key"
+      />
 
-    <!-- Not a step: how an application ENDS without a hire (0238). See the header for why it did not
-         go behind a row. -->
-    <DispositionSection :driver-id="id" :driver-status="driver?.status ?? ''" />
+      <!-- ⚠ Collapsed, and below the work. D-HUI3's rule that a row answers three questions only
+           holds if the caveats have somewhere else to be; a page that explains itself in front of the
+           work is the surface this rebuild replaced. -->
+      <ExplainerPanel title="How this checklist is worked out">
+        <p>
+          Every row is derived from the records on file — an authorization, a qualification record, a
+          packet mark — rather than from a box somebody ticked. Recording the evidence is what moves a
+          step; there is nothing to mark as done.
+        </p>
+        <p>
+          A step only appears when this system holds something that can prove it. Orientation videos,
+          the orientation day and the handbook are part of the process and are not listed yet, which is
+          why “ready to travel” stays open even when every row above is green.
+        </p>
+        <p>
+          Steps are blocked only by law or by a rule the database enforces. Anything else can be done in
+          whatever order suits the day.
+        </p>
+      </ExplainerPanel>
 
-    <HiringStepDrawer
-      :open="openStep !== null"
-      :step="openStep"
-      :driver-id="id"
-      :driver-status="driver?.status ?? ''"
-      :invitation-id="invitationId"
-      :identity="driver ?? null"
-      @close="openStepKey = null"
-      @review="openReview"
-      @order-test="openOrder"
-    />
+      <!-- Not a step: how an application ENDS without a hire (0238). See the header for why it did not
+           go behind a row. -->
+      <DispositionSection :driver-id="id" :driver-status="driver?.status ?? ''" />
 
-    <!-- Reading the answers, correcting them, and approving them so the applicant can sign. The
-         owner's words: *"complete application should be reviewable and editable on our side in
-         dashboard and after that when approved and reviewed we should send it back to driver for
-         signing"* — and until F4 there was no surface that showed a filed application at all. -->
-    <ApplicationReviewDrawer
-      :open="reviewing !== null"
-      :invitation-id="reviewing"
-      @close="reviewing = null"
-    />
+      <HiringStepDrawer
+        :open="openStep !== null"
+        :step="openStep"
+        :driver-id="id"
+        :driver-status="driver?.status ?? ''"
+        :invitation-id="invitationId"
+        :identity="driver ?? null"
+        @close="openStepKey = null"
+        @review="openReview"
+        @order-test="openOrder"
+      />
 
-    <OrderTestDrawer :open="ordering !== null" :seed="ordering" @close="ordering = null" />
+      <!-- Reading the answers, correcting them, and approving them so the applicant can sign. The
+           owner's words: *"complete application should be reviewable and editable on our side in
+           dashboard and after that when approved and reviewed we should send it back to driver for
+           signing"* — and until F4 there was no surface that showed a filed application at all. -->
+      <ApplicationReviewDrawer
+        :open="reviewing !== null"
+        :invitation-id="reviewing"
+        @close="reviewing = null"
+      />
+
+      <OrderTestDrawer :open="ordering !== null" :seed="ordering" @close="ordering = null" />
+    </template>
   </div>
 </template>

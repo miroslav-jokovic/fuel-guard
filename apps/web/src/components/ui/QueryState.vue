@@ -2,6 +2,8 @@
 import { AppIcon, AppButton as BaseButton } from "@silvicom/ui";
 import { ArrowPathIcon, ExclamationTriangleIcon } from "@silvicom/ui/icons";
 import ErrorState from "@/components/ErrorState.vue";
+import NotFoundState from "@/components/ui/NotFoundState.vue";
+import { isNotFound } from "@/lib/notFound";
 
 /**
  * Loading, failure and content for anything that fetches and is NOT a table (D-US5,
@@ -24,6 +26,12 @@ import ErrorState from "@/components/ErrorState.vue";
  * section. `compact` is one line with the retry beside it, for a panel or a card inside a drawer,
  * where a block twelve units tall would push the drawer's own content off screen.
  *
+ * ── NOT FOUND IS A FOURTH STATE (F21) ──────────────────────────────────────────────────────────
+ * A record read that throws `NotFoundError` is not a failure: there is nothing to retry. It draws
+ * `NotFoundState` — a sentence and the way back to the record's list — in place of the failure, and
+ * the compact size says the sentence alone. `notFoundText` is the page's own sentence; without it
+ * the API's reason is shown ("That asset is not on the books.").
+ *
  * ⚠ The loading line is a polite live region, so a screen reader hears "Loading the part…" once and
  * then the content, rather than nothing.
  */
@@ -38,8 +46,17 @@ withDefaults(
     /** Say WHAT is loading where there is room: "Loading the part…". */
     loadingText?: string;
     compact?: boolean;
+    /** What is missing when the read threw `NotFoundError`: "That asset is not on the books." */
+    notFoundText?: string;
   }>(),
-  { error: undefined, errorText: undefined, retrying: false, loadingText: "Loading…", compact: false },
+  {
+    error: undefined,
+    errorText: undefined,
+    retrying: false,
+    loadingText: "Loading…",
+    compact: false,
+    notFoundText: undefined,
+  },
 );
 const emit = defineEmits<{ retry: [] }>();
 
@@ -49,6 +66,10 @@ const messageOf = (error: unknown, fallback?: string) =>
 
 <template>
   <p v-if="loading" role="status" aria-live="polite" class="text-sm text-ink-muted">{{ loadingText }}</p>
+  <template v-else-if="isNotFound(error)">
+    <p v-if="compact" role="status" class="text-sm text-ink-secondary">{{ notFoundText ?? error.message }}</p>
+    <NotFoundState v-else :message="notFoundText ?? error.message" />
+  </template>
   <template v-else-if="error">
     <div v-if="compact" role="alert" class="flex flex-wrap items-center gap-2 text-sm text-ink-secondary">
       <AppIcon :icon="ExclamationTriangleIcon" class="size-4 shrink-0 text-warning-500" aria-hidden="true" />

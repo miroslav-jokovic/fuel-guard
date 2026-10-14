@@ -14,7 +14,7 @@ import { useRoute } from "vue-router";
 import { } from "@silvicom/ui/icons";
 import { AppButton as BaseButton } from "@silvicom/ui";
 import { AppCard as BaseCard } from "@silvicom/ui";
-import ErrorState from "@/components/ErrorState.vue";
+import QueryState from "@/components/ui/QueryState.vue";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import FactList, { type Fact } from "@/components/ui/FactList.vue";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
@@ -172,162 +172,169 @@ const facts = computed<Fact[]>(() => {
 
 <template>
   <div class="space-y-6">
-    <PageHeader :description="card ? `${card.maskedRef} — settings EFS reports right now.` : 'Loading the card…'">
+    <PageHeader :description="card ? `${card.maskedRef} — settings EFS reports right now.` : undefined">
       <!-- No single "Card actions…" button: Phase 6's whole point is one button per operation, and
            the Actions card below is where they live. A header button would be a seventh way in. -->
     </PageHeader>
 
-    <ErrorState
-      v-if="query.isError.value"
-      :message="'Could not load that card'"
+    <!-- D-US5 and F21: the header used to say "Loading the card…" in place of a description, so a
+         card that did not exist read as one still loading, for good. Loading, failure and not-found
+         are now QueryState's, and each says which it is. -->
+    <QueryState
+      :loading="query.isPending.value"
+      :error="query.isError.value ? query.error.value : null"
+      :retrying="query.isFetching.value"
+      loading-text="Loading the card…"
+      error-text="Could not load that card."
+      not-found-text="That card is not in this company."
       @retry="query.refetch()"
-    />
-
-    <template v-else-if="card">
-      <!-- Section 1 — the card itself, with its own ⋮ (Step 6.5.3). -->
-      <BaseCard>
-        <div class="flex flex-wrap items-start justify-between gap-3">
-          <div class="flex flex-wrap items-center gap-3">
-            <span class="text-lg font-medium text-ink">{{ card.maskedRef }}</span>
-          <span :class="[BADGE_BASE, toneClass(cardStatusTone(card.status))]">
-            {{ cardStatusLabel(card.status) }}
-          </span>
-          <!--
-            Step 7.8. The count and the age of the read that produced it are ONE statement, never two
-            things a reader has to join up: `1 use left` next to `read 9 hours ago` is a different
-            fact from `1 use left`, and the nine-hour version is the one that was on screen while a
-            driver spent the exception.
-          -->
-          <span
-            v-if="override.known && (card.overrideUses ?? 0) > 0"
-            :class="[BADGE_BASE, toneClass('warning')]"
-          >
-            Override: {{ card.overrideUses }} use{{ card.overrideUses === 1 ? "" : "s" }} left · {{ override.ageText }}
-          </span>
-          <span
-            v-else-if="!override.known && (card.overrideUses ?? 0) > 0"
-            :class="[BADGE_BASE, toneClass('caution')]"
-          >
-            Override: unknown · {{ override.ageText }}
-          </span>
+    >
+      <template v-if="card">
+        <!-- Section 1 — the card itself, with its own ⋮ (Step 6.5.3). -->
+        <BaseCard>
+          <div class="flex flex-wrap items-start justify-between gap-3">
+            <div class="flex flex-wrap items-center gap-3">
+              <span class="text-lg font-medium text-ink">{{ card.maskedRef }}</span>
+            <span :class="[BADGE_BASE, toneClass(cardStatusTone(card.status))]">
+              {{ cardStatusLabel(card.status) }}
+            </span>
+            <!--
+              Step 7.8. The count and the age of the read that produced it are ONE statement, never two
+              things a reader has to join up: `1 use left` next to `read 9 hours ago` is a different
+              fact from `1 use left`, and the nine-hour version is the one that was on screen while a
+              driver spent the exception.
+            -->
+            <span
+              v-if="override.known && (card.overrideUses ?? 0) > 0"
+              :class="[BADGE_BASE, toneClass('warning')]"
+            >
+              Override: {{ card.overrideUses }} use{{ card.overrideUses === 1 ? "" : "s" }} left · {{ override.ageText }}
+            </span>
+            <span
+              v-else-if="!override.known && (card.overrideUses ?? 0) > 0"
+              :class="[BADGE_BASE, toneClass('caution')]"
+            >
+              Override: unknown · {{ override.ageText }}
+            </span>
+            </div>
+            <KebabMenu v-if="canAct && !neverRead && cardOperations.length > 0" trigger-label="Card actions">
+              <BaseButton
+                v-for="row in cardOperations"
+                :key="row.op.id"
+                class="kebab-item"
+                :disabled="row.blocked !== null"
+                :title="row.reason ?? undefined"
+                @click="openOperation = row.op"
+              >
+                {{ row.op.menuLabel }}
+              </BaseButton>
+            </KebabMenu>
           </div>
-          <KebabMenu v-if="canAct && !neverRead && cardOperations.length > 0" trigger-label="Card actions">
-            <BaseButton
-              v-for="row in cardOperations"
-              :key="row.op.id"
-              class="kebab-item"
-              :disabled="row.blocked !== null"
-              :title="row.reason ?? undefined"
-              @click="openOperation = row.op"
-            >
-              {{ row.op.menuLabel }}
+
+          <FactList class="mt-4" :facts="facts" :columns="3" />
+
+          <div class="mt-4 flex flex-wrap items-center gap-3">
+            <p class="text-sm" :class="cardFreshness.stale ? 'text-caution-700' : 'text-ink-muted'">
+              {{ cardFreshness.text }}
+            </p>
+            <!-- Step 7.8: the first caller `POST /:id/refresh` has ever had. The sentence beside it
+                 has been saying "Refresh to see current settings." on a page with no refresh. -->
+            <BaseButton variant="soft" size="sm" :disabled="refresh.isPending.value" @click="onRefresh">
+              {{ refresh.isPending.value ? "Reading EFS…" : "Refresh" }}
             </BaseButton>
-          </KebabMenu>
-        </div>
-
-        <FactList class="mt-4" :facts="facts" :columns="3" />
-
-        <div class="mt-4 flex flex-wrap items-center gap-3">
-          <p class="text-sm" :class="cardFreshness.stale ? 'text-caution-700' : 'text-ink-muted'">
-            {{ cardFreshness.text }}
+          </div>
+          <!--
+            Step 7.5. `absent_since` is maintained by the mirror and, until EFS_CARD_LIST_COLS carried
+            it, could not be rendered anywhere: two production cards WEX de-listed on 2026-08-14 read
+            as ordinary live cards showing whatever status EFS last reported.
+          -->
+          <p v-if="card.absentSince" class="mt-1 text-sm text-caution-700">
+            EFS stopped listing this card {{ relativeAge(card.absentSince) ?? "at an unknown time" }}. Its history is kept.
           </p>
-          <!-- Step 7.8: the first caller `POST /:id/refresh` has ever had. The sentence beside it
-               has been saying "Refresh to see current settings." on a page with no refresh. -->
-          <BaseButton variant="soft" size="sm" :disabled="refresh.isPending.value" @click="onRefresh">
-            {{ refresh.isPending.value ? "Reading EFS…" : "Refresh" }}
-          </BaseButton>
-        </div>
-        <!--
-          Step 7.5. `absent_since` is maintained by the mirror and, until EFS_CARD_LIST_COLS carried
-          it, could not be rendered anywhere: two production cards WEX de-listed on 2026-08-14 read
-          as ordinary live cards showing whatever status EFS last reported.
-        -->
-        <p v-if="card.absentSince" class="mt-1 text-sm text-caution-700">
-          EFS stopped listing this card {{ relativeAge(card.absentSince) ?? "at an unknown time" }}. Its history is kept.
-        </p>
-        <p v-if="neverRead" class="mt-1 text-sm text-caution-700">
-          Not yet read from EFS — only the summary from the card list is available, so its settings
-          cannot be shown or changed. Press Refresh.
-        </p>
-        <p v-if="card.syncError" class="mt-1 text-sm text-caution-700">
-          <!-- Step 7.5: WHICH pass failed, and WHEN. One column used to carry a bare string that the
-               roster pass then cleared on a card nothing had re-read. -->
-          {{ card.syncErrorSource === "roster" ? "The card list" : "The last full read" }} failed{{
-            relativeAge(card.syncErrorAt) ? ` ${relativeAge(card.syncErrorAt)}` : ""
-          }}: {{ card.syncError }}
-        </p>
-      </BaseCard>
+          <p v-if="neverRead" class="mt-1 text-sm text-caution-700">
+            Not yet read from EFS — only the summary from the card list is available, so its settings
+            cannot be shown or changed. Press Refresh.
+          </p>
+          <p v-if="card.syncError" class="mt-1 text-sm text-caution-700">
+            <!-- Step 7.5: WHICH pass failed, and WHEN. One column used to carry a bare string that the
+                 roster pass then cleared on a card nothing had re-read. -->
+            {{ card.syncErrorSource === "roster" ? "The card list" : "The last full read" }} failed{{
+              relativeAge(card.syncErrorAt) ? ` ${relativeAge(card.syncErrorAt)}` : ""
+            }}: {{ card.syncError }}
+          </p>
+        </BaseCard>
 
-      <!-- The honest answer to "why can't I lock it?", shown instead of the actions. -->
-      <BaseCard v-if="notice && notice.mode === 'disabled'">
-        <div class="space-y-2">
-          <h2 class="text-sm font-semibold text-ink">Card actions</h2>
-          <p class="text-sm text-ink-muted">{{ notice.message }}</p>
-          <BaseButton
-            v-if="notice.actionTo"
-            variant="soft"
-            size="sm"
-            :to="notice.actionTo"
-          >
-            {{ notice.actionLabel }}
-          </BaseButton>
-        </div>
-      </BaseCard>
-
-      <!-- Section 2 — what the pump asks for, with its own ⋮. Limits and time restrictions render
-           alongside it and carry no menu: neither has a capability behind it yet. -->
-      <CardEffectiveConfig
-        v-if="query.data.value"
-        :effective="query.data.value.effective"
-        :policy-number="card.policyNumber"
-        :limit-options="allowedLimitsFrom(capabilities)"
-      >
-        <template #actions="{ section }">
-          <KebabMenu
-            v-if="section === 'prompts' && canAct && !neverRead && promptOperations.length > 0"
-            trigger-label="Prompt actions"
-          >
+        <!-- The honest answer to "why can't I lock it?", shown instead of the actions. -->
+        <BaseCard v-if="notice && notice.mode === 'disabled'">
+          <div class="space-y-2">
+            <h2 class="text-sm font-semibold text-ink">Card actions</h2>
+            <p class="text-sm text-ink-muted">{{ notice.message }}</p>
             <BaseButton
-              v-for="row in promptOperations"
-              :key="row.op.id"
-              class="kebab-item"
-              :disabled="row.blocked !== null"
-              :title="row.reason ?? undefined"
-              @click="openOperation = row.op"
+              v-if="notice.actionTo"
+              variant="soft"
+              size="sm"
+              :to="notice.actionTo"
             >
-              {{ row.op.menuLabel }}
+              {{ notice.actionLabel }}
             </BaseButton>
-          </KebabMenu>
-        </template>
-      </CardEffectiveConfig>
+          </div>
+        </BaseCard>
 
-      <!--
-        Step 6.5.5 — no change-history section here.
+        <!-- Section 2 — what the pump asks for, with its own ⋮. Limits and time restrictions render
+             alongside it and carry no menu: neither has a capability behind it yet. -->
+        <CardEffectiveConfig
+          v-if="query.data.value"
+          :effective="query.data.value.effective"
+          :policy-number="card.policyNumber"
+          :limit-options="allowedLimitsFrom(capabilities)"
+        >
+          <template #actions="{ section }">
+            <KebabMenu
+              v-if="section === 'prompts' && canAct && !neverRead && promptOperations.length > 0"
+              trigger-label="Prompt actions"
+            >
+              <BaseButton
+                v-for="row in promptOperations"
+                :key="row.op.id"
+                class="kebab-item"
+                :disabled="row.blocked !== null"
+                :title="row.reason ?? undefined"
+                @click="openOperation = row.op"
+              >
+                {{ row.op.menuLabel }}
+              </BaseButton>
+            </KebabMenu>
+          </template>
+        </CardEffectiveConfig>
 
-        Miki, 2026-08-16: "audit log section should belong on Audit Log page we have in settings and
-        not on this page." A per-card audit table on the operating screen is a second place to look
-        for something the Settings page already owns, and it pushed the card's own settings below
-        the fold. The Current card ⋮ carries a "Change history…" link to that tab, filtered to this
-        card, so the question still has one click from here.
-      -->
+        <!--
+          Step 6.5.5 — no change-history section here.
 
-      <CardOperationDrawer
-        v-if="capabilities"
-        :open="openOperation !== null"
-        :operation="openOperation"
-        :card-id="id"
-        :masked-ref="card.maskedRef"
-        :version="card.version"
-        :status="card.status"
-        :override-uses="card.overrideUses"
-        :override-all-locations="card.overrideAllLocations"
-        :location-override-id="card.locationOverrideId"
-        :prompts="cardPrompts"
-        :capabilities="capabilities"
-        :scopes="capabilities.scopes ?? []"
-        @close="openOperation = null"
-        @changed="query.refetch()"
-      />
-    </template>
+          Miki, 2026-08-16: "audit log section should belong on Audit Log page we have in settings and
+          not on this page." A per-card audit table on the operating screen is a second place to look
+          for something the Settings page already owns, and it pushed the card's own settings below
+          the fold. The Current card ⋮ carries a "Change history…" link to that tab, filtered to this
+          card, so the question still has one click from here.
+        -->
+
+        <CardOperationDrawer
+          v-if="capabilities"
+          :open="openOperation !== null"
+          :operation="openOperation"
+          :card-id="id"
+          :masked-ref="card.maskedRef"
+          :version="card.version"
+          :status="card.status"
+          :override-uses="card.overrideUses"
+          :override-all-locations="card.overrideAllLocations"
+          :location-override-id="card.locationOverrideId"
+          :prompts="cardPrompts"
+          :capabilities="capabilities"
+          :scopes="capabilities.scopes ?? []"
+          @close="openOperation = null"
+          @changed="query.refetch()"
+        />
+      </template>
+    </QueryState>
   </div>
 </template>
