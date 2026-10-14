@@ -1,6 +1,6 @@
 import type { Router } from "express";
 import { z } from "zod";
-import { MEDSTOP_ORDER_ROLES, medstopOrderInputSchema, type CalendarDay } from "@silvicom/shared";
+import { MEDSTOP_ORDER_REASONS, MEDSTOP_ORDER_ROLES, medstopOrderInputSchema, type CalendarDay } from "@silvicom/shared";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { requireRole } from "../../../middleware/auth.js";
 import { apiError, asyncHandler } from "../../../lib/http.js";
@@ -8,7 +8,7 @@ import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
 import { writeAudit } from "../../../lib/audit.js";
 import { getCredential } from "../credentials.js";
-import { findSites, orderablePeople, orderClient, placeOrder, prepareOrder, truckPositionOf, type OrderRefusal } from "../order.js";
+import { findSites, orderablePeople, orderClient, placeOrder, prepareOrder, siteObservedFor, truckPositionOf, type OrderRefusal } from "../order.js";
 
 /**
  * Order a Med-Stop test (MEDSTOP-PLAN.md §7A.4, UX3). Gated on `MEDSTOP_ORDER_ROLES` (owner answer 1:
@@ -18,9 +18,11 @@ import { findSites, orderablePeople, orderClient, placeOrder, prepareOrder, truc
  * Every placed order writes `medstop.order.placed`, with what was sent (no personal data: Med-Stop's
  * ids, the reason, the site and the day — the office contact is the org's own).
  */
+// The reason (and, for an observed test, the person) decides which sites can collect — UX5d.
+const planned = { service: z.enum(["drug", "alcohol"]), reason: z.enum(MEDSTOP_ORDER_REASONS), medstopId: z.string().trim().min(1).optional(), requestDate: z.string(), requestTime: z.string() };
 const sitesQuery = z.union([
-  z.object({ service: z.enum(["drug", "alcohol"]), requestDate: z.string(), requestTime: z.string(), zip: z.string().regex(/^\d{5}$/) }),
-  z.object({ service: z.enum(["drug", "alcohol"]), requestDate: z.string(), requestTime: z.string(), driverId: z.string().uuid() }),
+  z.object({ ...planned, zip: z.string().regex(/^\d{5}$/) }),
+  z.object({ ...planned, driverId: z.string().uuid() }),
 ]);
 
 export function registerOrderRoutes(router: Router, orgToday: (admin: SupabaseClient, orgId: string) => Promise<CalendarDay>): void {
@@ -53,7 +55,7 @@ export function registerOrderRoutes(router: Router, orgToday: (admin: SupabaseCl
       const admin = getSupabaseAdmin(env);
       const orgId = req.auth!.orgId!;
       const q = sitesQuery.safeParse(req.query);
-      if (!q.success) return void res.status(400).json(apiError("bad_request", "Give the test, the day and time, and a 5-digit ZIP or the driver."));
+      if (!q.success) return void res.status(400).json(apiError("bad_request", "Give the test, its reason, the day and time, and a 5-digit ZIP or the driver."));
       const opened = await orderClient(admin, env, orgId);
       if ("refusal" in opened) return void refused(res, opened.refusal);
       let near: { zip: string } | { lat: number; lng: number };
@@ -65,7 +67,9 @@ export function registerOrderRoutes(router: Router, orgToday: (admin: SupabaseCl
         near = { lat: fix.lat, lng: fix.lng };
         where = fix.where;
       }
-      const sites = await findSites(opened.client, { service: q.data.service, requestDate: q.data.requestDate, requestTime: q.data.requestTime, ...near });
+      const observed = await siteObservedFor(admin, opened.client, orgId, q.data);
+      if ("refusal" in observed) return void refused(res, observed.refusal);
+      const sites = await findSites(opened.client, { service: q.data.service, requestDate: q.data.requestDate, requestTime: q.data.requestTime, ...observed, ...near });
       res.json({ ok: true, data: { sites, near: where } });
     }),
   );

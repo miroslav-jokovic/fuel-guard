@@ -3,7 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { MedstopOrderInput } from "@silvicom/shared";
 import { createSupabaseRecorder, expectOrgScoped } from "../../testing/supabaseRecorder.js";
 import { MedstopClient } from "./client.js";
-import { placeOrder, prepareOrder } from "./order.js";
+import { findSites, placeOrder, prepareOrder, siteObservedFor } from "./order.js";
 
 /**
  * Ordering a Med-Stop test (MEDSTOP-PLAN.md §7A.4, UX3). Every order is billed and real — there is no
@@ -35,7 +35,7 @@ const db = (selections: unknown[] = []) =>
   createSupabaseRecorder({ tables: { drivers, medstop_employees: employees, medstop_selections: selections } });
 
 type Call = { method: string; path: string; body: unknown };
-function medstop(opts: { open?: unknown[]; post?: () => Response } = {}) {
+function medstop(opts: { open?: unknown[]; post?: () => Response; gender?: string | null } = {}) {
   const calls: Call[] = [];
   const fetchImpl = (async (url: string, init?: RequestInit) => {
     const u = new URL(url);
@@ -45,6 +45,10 @@ function medstop(opts: { open?: unknown[]; post?: () => Response } = {}) {
       const rows = opts.open ?? [];
       return rows.length ? new Response(JSON.stringify({ rows: [rows] }), { status: 200 }) : new Response("{}", { status: 404 });
     }
+    if (/^\/Employee\/EE-[A-Z]+$/.test(u.pathname))
+      // Med-Stop's own record of the person (measured 2026-10-13: `gender` in capitals).
+      return new Response(JSON.stringify({ data: { id: u.pathname.slice(10), gender: opts.gender === undefined ? "MALE" : opts.gender } }), { status: 200 });
+    if (u.pathname === "/Request/location") return new Response(JSON.stringify({ rows: [[{ id: "LOC-7", name: "Observed site" }]] }), { status: 200 });
     if (u.pathname.startsWith("/Request/new/"))
       // Measured 2026-10-13: the prefilled form already carries the DRIVER's phone in `tosms`.
       return new Response(JSON.stringify({ data: { id: "REQ-FORM-1", eeid: "ee-ann", tosms: "7735550199", toemail: "" } }), { status: 200 });
@@ -166,6 +170,76 @@ describe("placeOrder — the one write", () => {
     const { client, calls } = medstop({ open: [{ status: "TESTING", service: "TD" }] });
     await placeOrder(db().client as unknown as SupabaseClient, client, office, ORG, base, TODAY);
     expect(calls.filter((c) => c.method === "POST")).toHaveLength(0);
+  });
+});
+
+/**
+ * UX5d — return-to-duty and follow-up drug tests are directly observed (§40.67(b)). The donor's gender
+ * is Med-Stop's: read live at order time (Q-MSUX10), used to refuse and to pick the site search, and
+ * never in what is sent or returned.
+ */
+describe("observed orders (UX5d)", () => {
+  const rtd = { ...base, reason: "RETURN TO DUTY" as const };
+
+  it("reads the donor's gender from Med-Stop live and sends the order observed — with no gender in it", async () => {
+    const { client, calls } = medstop();
+    const r = await placeOrder(db().client as unknown as SupabaseClient, client, office, ORG, rtd, TODAY);
+    expect(r).toMatchObject({ requestId: "REQ-FORM-1", payload: { observed: "Y" } });
+    expect(calls.filter((c) => c.path === "/Employee/EE-ANN")).toHaveLength(1);
+    const post = calls.find((c) => c.method === "POST")!;
+    expect(post.body).toMatchObject({ reason: "RETURN TO DUTY", observed: "Y", observedreason: expect.stringContaining("40.67(b)"), sendsms: "N", sendemail: "N" });
+    expect(JSON.stringify(post.body)).not.toMatch(/gender|MALE/i);
+    expect(JSON.stringify(r)).not.toMatch(/gender|MALE/i);
+  });
+
+  it("refuses, in the office's words and before anything is billed, a donor Med-Stop holds no gender for", async () => {
+    for (const gender of [null, "", "U"]) {
+      const { client, calls } = medstop({ gender });
+      const r = await placeOrder(db().client as unknown as SupabaseClient, client, office, ORG, { ...rtd, reason: "FOLLOW-UP" }, TODAY);
+      expect(r).toMatchObject({ refusal: { status: 409, code: "medstop_gender_missing", message: "Med-Stop has no gender for this driver — order it in Med-Stop." } });
+      expect(calls.filter((c) => c.method === "POST")).toHaveLength(0);
+    }
+  });
+
+  it("orders the same reason's alcohol test unobserved, without reading anybody's gender", async () => {
+    const { client, calls } = medstop({ gender: null });
+    const r = await prepareOrder(db().client as unknown as SupabaseClient, client, office, ORG, { ...rtd, service: "alcohol" }, TODAY);
+    expect(r).toMatchObject({ payload: { observed: "N", category: "TA" } });
+    expect(calls.some((c) => c.path.startsWith("/Employee/"))).toBe(false);
+  });
+
+  it("keeps R3 for observed reasons: a name-only match is refused before its gender is read", async () => {
+    const { client, calls } = medstop();
+    const r = await prepareOrder(db().client as unknown as SupabaseClient, client, office, ORG, { ...rtd, medstopId: "EE-NAM" }, TODAY);
+    expect(r).toMatchObject({ refusal: { code: "medstop_person_unknown" } });
+    expect(calls).toEqual([]);
+  });
+
+  it("keeps the live open-order refusal for observed reasons", async () => {
+    const { client } = medstop({ open: [{ status: "OPEN", category: "DRUG TEST" }] });
+    const r = await prepareOrder(db().client as unknown as SupabaseClient, client, office, ORG, rtd, TODAY);
+    expect(r).toMatchObject({ refusal: { code: "medstop_order_open" } });
+  });
+
+  it("searches sites for an observer of the donor's gender, and reads no gender for an unobserved test", async () => {
+    const { client, calls } = medstop({ gender: "FEMALE" });
+    const run = (q: Parameters<typeof siteObservedFor>[3]) => siteObservedFor(db().client as unknown as SupabaseClient, client, ORG, q);
+    expect(await run({ reason: "POST-ACCIDENT", service: "drug", medstopId: "EE-ANN" })).toEqual({ observed: "N" });
+    expect(await run({ reason: "RETURN TO DUTY", service: "alcohol", medstopId: "EE-ANN" })).toEqual({ observed: "N" });
+    expect(calls).toEqual([]);
+    expect(await run({ reason: "RETURN TO DUTY", service: "drug", medstopId: "EE-ANN" })).toEqual({ observed: "F", eeid: "EE-ANN" });
+    expect(await run({ reason: "FOLLOW-UP", service: "drug" })).toMatchObject({ refusal: { status: 400 } });
+    expect(await run({ reason: "FOLLOW-UP", service: "drug", medstopId: "EE-NAM" })).toMatchObject({ refusal: { code: "medstop_person_unknown" } });
+    expect(calls.filter((c) => c.path.startsWith("/Employee/"))).toHaveLength(1);
+    await findSites(client, { service: "drug", requestDate: "2026-10-15", requestTime: "09:30", observed: "F", eeid: "EE-ANN", zip: "60601" });
+    const search = new URL(`https://x${calls.at(-1)!.path}`).searchParams;
+    expect([search.get("observed"), search.get("eeid")]).toEqual(["F", "EE-ANN"]);
+  });
+
+  it("org-scopes the observed person's roster read", async () => {
+    const rec = db();
+    await siteObservedFor(rec.client as unknown as SupabaseClient, medstop().client, ORG, { reason: "FOLLOW-UP", service: "drug", medstopId: "EE-ANN" });
+    expectOrgScoped(rec, ORG);
   });
 });
 

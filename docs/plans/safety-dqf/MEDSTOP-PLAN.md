@@ -568,8 +568,67 @@ STATUSDOT Y|N|B. STATUSEMPLOYEE answers "not found" as a list; `APPLICANT` is re
     APPLICANT, no start date, CDL id = licence, gender, address, phone `(999) 999-9999`, class and
     expiry. If Med-Stop refused the empty start date, the step shows its sentence: record it in §9 and
     decide then.
-- **UX5d:** RETURN TO DUTY and FOLLOW-UP from Safety's drawer, `observed: "Y"`, with `employeegender`
-  read from Med-Stop's own employee record at order time (Q-MSUX10).
+- **UX5d:** RETURN TO DUTY and FOLLOW-UP from Safety's drawer, observed, with the donor's gender
+  read from Med-Stop's own employee record at order time (Q-MSUX10). Built as §7A.14 says — the
+  gender is NOT sent in the order (Med-Stop's order form has no gender key).
+
+### 7A.14 UX5d — return-to-duty and follow-up, observed (2026-10-14)
+
+**Read from the spec first (`docs/Med-Stop/openapi.json`, local) [V]** — and it changed the plan:
+- The order form, `POST /Request/new`'s body, is `Dto.WizRequest`: `observed` (BOOLEAN Y/N) and
+  `observedreason` (text, ≤ 1000), and **no gender key**. `employeegender` is on `Dto.Request`, the
+  READ shape of a request. So the order does not carry the gender. Med-Stop checks the site against
+  its own record of the donor: "observed collections require a site able to perform them".
+- The site search, `GET /Request/location` (`Dto.RequestLocation`), takes `observed` from list
+  OBSERVED: **Y · F = female observer only · M = male observer only · N**, and an `eeid`. "Observed
+  collections only return sites able to perform a gender-matched observed collection."
+- The reason codes are MS0's measured REASONTEST values: `RETURN TO DUTY`, `FOLLOW-UP`.
+
+**Built:**
+- D-MSUX12 — **what is observed.** `medstopOrderIsObserved` (shared): a return-to-duty or follow-up
+  **drug** test (§40.67(b)). Observation is a urine-collection rule (Part 40 Subpart E), so the same
+  reasons' alcohol test is a breath test, sent `observed: "N"`, and reads nobody's gender.
+- Both reasons join `MEDSTOP_ORDER_REASONS` on the ACTIVE roster (D-MSUX9). `MEDSTOP_HEADER_ORDER_REASONS`
+  derives them unchanged: Safety's header now offers post-accident, reasonable suspicion, return to
+  duty, follow-up.
+- The order: `observed: "Y"` and `observedreason` = "Return to duty drug test: directly observed
+  collection required by 49 CFR 40.67(b)." (or "Follow-up …"), for the collector.
+- D-MSUX13 — **the gender's two uses, and nothing else.** `GET /Employee/{id}` (the path measured
+  2026-10-13; `gender` in capitals) is read live:
+  1. by the site search, which then asks for `observed=M` or `F` with the `eeid` — a site that can
+     observe THIS donor, rather than Y and hoping;
+  2. by preview and place, which refuse with "Med-Stop has no gender for this driver — order it in
+     Med-Stop." (`medstop_gender_missing`, 409) before anything is billed.
+  Anything but MALE / FEMALE counts as no gender. The value is never written, logged, audited, put in
+  the payload, or sent to the browser; a test asserts the POST body and the api's answer carry no
+  gender.
+- The person comes first: the site search for an observed test needs the driver, who must be
+  orderable (active roster, licence or name+DOB match, R3) before their record is read — the drawer's
+  Search waits for the driver. Changing the test, reason or driver drops the sites found.
+- The review shows **"DOT, observed (same-gender observer)"** and never the gender (recommended in the
+  handoff; adopted).
+- Re-proved for observed orders: R3 (a name-only match is refused before any read), the live
+  open-order refusal, single-shot POST, `sendsms`/`sendemail` = N with the office contact, the off
+  switch (`orderClient`, unchanged), and the allow-list (still exactly two writes).
+
+**Not built — return to duty from the dispatch hold.** MS2b's `returnToDutyHold` stops dispatch until
+an RTD record dated on or after the violation. Offering "Order return-to-duty test" from that hold
+would be the shortest path, but no Safety surface shows the hold yet (MS2's open item: the driver
+file, compliance overview and DQ binder), so there is nowhere in Safety to put the button; and
+§40.305 puts the SAP's evaluation and prescribed treatment before any return-to-duty test, a step the
+product does not hold. **Recommend:** leave it out until the hold is shown on the driver file (the MS2 open
+item), then offer the order there to the order roles only, with "SAP evaluation done?" as an
+explicit confirmation.
+
+**What only the first real orders answer [?]** — step 6 of §7A.11's runbook records these:
+1. The exact `requesttime` format Med-Stop accepts (sent as `HH:MM`).
+2. Whether the POST's answer carries the request id.
+3. How Med-Stop links a random order to its selection.
+4. Whether `/Request/{id}/messages` reads zero messages to the driver.
+5. Whether Med-Stop accepts `observed: "Y"` with `observedreason` as sent, and shows the observed
+   requirement on the request (and its eCCF) in the portal.
+6. Whether `GET /Employee/{id}` is the record that carries `gender` for every active driver (measured
+   on one), and whether a site from an `observed=M|F` search is accepted at place time.
 
 ## 8. Open questions
 
@@ -772,3 +831,10 @@ STATUSDOT Y|N|B. STATUSEMPLOYEE answers "not found" as a list; `APPLICANT` is re
   Med-Stop's own form. Ordering off = nobody created. Claim before the POST, sent once. The step shows
   the outcome. The client's refusal text is now Med-Stop's bare sentence; each caller says what was
   refused.
+- 2026-10-14 — **UX5d built** (branch `claude/medstop-ux5d`, no migration): return-to-duty and
+  follow-up from Safety's drawer. The spec showed the order form has no gender key, so the donor's
+  gender (read live from Med-Stop's employee record, never kept) picks an `observed=M|F` site search
+  and refuses a donor without one; the order goes `observed: "Y"` with the rule as its reason. Alcohol
+  tests for those reasons stay unobserved. RTD from the dispatch hold deferred (§7A.14). Workstation
+  IP still refused by Med-Stop (new address 173.9.238.30 not on the key), so nothing was read live
+  this session. Ordering still OFF everywhere.
