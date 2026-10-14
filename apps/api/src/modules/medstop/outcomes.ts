@@ -7,6 +7,7 @@ import {
   isMedstopDerAlert,
   isMedstopViolation,
   medstopFilesHiringDrugTest,
+  medstopRefusalDay,
   medstopResultNotice,
   medstopTestOutcome,
   shiftDay,
@@ -58,6 +59,8 @@ export interface MedstopOutcomeResult {
   filed: number;
   alerted: number;
   handled: number;
+  /** REFUSAL requests the DER was told of this sweep (§7A.16) — a re-send is the ledger's no-op. */
+  refusedRequests: number;
 }
 
 async function unhandledTests(admin: SupabaseClient, orgId: string): Promise<PendingTest[]> {
@@ -134,7 +137,8 @@ async function markHandled(admin: SupabaseClient, orgId: string, testId: string,
 }
 
 export async function actOnMedstopResults(admin: SupabaseClient, orgId: string, today: string): Promise<MedstopOutcomeResult> {
-  const result: MedstopOutcomeResult = { filed: 0, alerted: 0, handled: 0 };
+  const result: MedstopOutcomeResult = { filed: 0, alerted: 0, handled: 0, refusedRequests: 0 };
+  result.refusedRequests = await alertRefusedRequests(admin, orgId);
   const tests = await unhandledTests(admin, orgId);
   if (tests.length === 0) return result;
   const people = await peopleFor(admin, orgId, [...new Set(tests.map((t) => t.employee_medstop_id).filter((e): e is string => e !== null))]);
@@ -186,3 +190,52 @@ export async function actOnMedstopResults(admin: SupabaseClient, orgId: string, 
   }
   return result;
 }
+
+/**
+ * A request Med-Stop closed as REFUSAL (MEDSTOP-PLAN §7A.16): the donor refused before a specimen
+ * existed, so there is no test row and `actOnMedstopResults` never saw it — yet §40.191 makes it the
+ * same violation as a refused specimen. The dispatch door already reads it (`medstopViolationOn`);
+ * this tells the DER, in the same words a refused test gets.
+ *
+ * ⚠ No "acted on" column: `medstop_requests` is Med-Stop's mirror and has none (0464). "Once" is the
+ * notification ledger's (0432, durable past the inbox's pruning): the dedupe key is the request id,
+ * so every sweep may re-send and only the first lands. History (`medstopRefusalDay` null — D-MS5's
+ * age rule, read off the row) is never sent, as a baseline test is not.
+ */
+async function alertRefusedRequests(admin: SupabaseClient, orgId: string): Promise<number> {
+  const { data, error } = await admin
+    .from("medstop_requests")
+    .select("medstop_id, employee_medstop_id, service, reason, status, requested_local, tested_local, first_seen_at")
+    .eq("org_id", orgId)
+    .ilike("status", "%refus%")
+    .limit(1000);
+  if (error) throw new Error(`medstop_requests read failed: ${error.message}`);
+  const refused = ((data ?? []) as {
+    medstop_id: string; employee_medstop_id: string | null; service: string | null; reason: string | null;
+    status: string | null; requested_local: string | null; tested_local: string | null; first_seen_at: string | null;
+  }[]).map((r) => ({ r, day: medstopRefusalDay(r) })).filter((x): x is { r: typeof x.r; day: string } => x.day !== null);
+  if (refused.length === 0) return 0;
+
+  const people = await peopleFor(admin, orgId, [...new Set(refused.map((x) => x.r.employee_medstop_id).filter((e): e is string => e !== null))]);
+  const recipients = await usersInRoles(admin, orgId, TESTING_RECORD_ROLES);
+  if (recipients.length === 0) console.warn(`[medstop] org ${orgId}: a refusal needs the DER and nobody may read testing records`);
+  for (const { r, day } of refused) {
+    const person = (r.employee_medstop_id && people.get(r.employee_medstop_id)) || null;
+    const notice = medstopResultNotice({
+      outcome: "refusal",
+      service: r.service,
+      reason: r.reason,
+      collectedOn: day === "0001-01-01" ? null : formatDisplayDate(day),
+      personName: person?.name ?? null,
+      dispatchStopped: Boolean(person?.certain),
+    });
+    for (const userId of recipients)
+      await notify(admin, {
+        orgId, userId, category: "drug_alcohol_result", ...notice,
+        entityType: "medstop_request", entityId: r.medstop_id,
+        dedupeKey: `medstop-request-refusal:${r.medstop_id}`,
+      });
+  }
+  return refused.length;
+}
+

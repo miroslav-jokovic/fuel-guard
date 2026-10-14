@@ -666,7 +666,37 @@ state the result.
 - The 91-day alert scheduler and the weekly digest pass no violations: they do not know their reader.
   The DER already has MS2b's alert.
 
-**Still open:** a request-level REFUSAL (MS2's other open item) is not acted on — next.
+**Still open:** a request-level REFUSAL (MS2's other open item) is not acted on — §7A.16.
+
+### 7A.16 A request Med-Stop closes as REFUSAL (2026-10-14)
+
+**The gap [V]:** a donor who refuses before a specimen exists leaves no test row. The refusal lives on
+the REQUEST (`STATUSREQUEST` REFUSAL), which the sweep mirrors into `medstop_requests` — and nothing
+read it: no DER alert, no dispatch stop. §40.191 makes it the same violation as a refused specimen.
+None in 2,152 requests (MS2a, 2026-10-13), so this is built for the first one, not for a backlog.
+
+**Built (no migration):**
+- D-MSUX16 — **one meaning, in shared.** `medstopRefusalDay`: a REFUSAL request's violation day — the
+  visit's (`tested_local`), else the appointment's (`requested_local`), else the earliest day there
+  is (as a test with no stamp, so only a return-to-duty record discharges it).
+- D-MSUX17 — **D-MS5 without a column.** A request has no `baseline`, but it carries when it was made
+  and when our sweep first saw it. One made more than `MEDSTOP_HISTORY_DAYS` (14, now shared with the
+  test sweep's baseline) before we first saw it was decided before the product watched: history,
+  never alerted or held on.
+- **The hold:** both violation reads (`medstopViolationOn` for the dispatch door, `medstopViolationsByDriver`
+  for the queue and the binder, §7A.15) take the newest of a person's violating tests AND refused
+  requests. Certain matches only, as before.
+- **The DER alert:** after every sweep, each refused, non-history request is sent to the roles
+  `canReadTestingRecords` admits, in a refused test's own words (`medstopResultNotice`, "refusal to
+  test … Dispatch is stopped" or "… was NOT stopped — confirm who this is"). `medstop_requests` is
+  Med-Stop's mirror and has no "acted on" column, so "once" is the notification ledger's (0432,
+  durable past inbox pruning): dedupe key `medstop-request-refusal:<request id>`.
+- The sweep line counts them ("N refused orders").
+
+**Not built:** Safety › Drug & Alcohol's **Results to review** lists tests only, so a refused request
+reaches the DER by notification and holds the driver, but is not listed on that tab. Recommend adding
+it to the same list (a request row has no test id; the row key would become the request id) when the
+first one is seen, so its shape is measured rather than guessed.
 
 ## 8. Open questions
 
@@ -881,3 +911,7 @@ state the result.
   Med-Stop violation to admin and safety manager; every other reader is told only that a safety review
   holds the driver. One rule (`returnToDutyCause`) decides the file item and the dispatch door. Next:
   the request-level REFUSAL.
+- 2026-10-14 — **#1531 merged. A refused request acts** (branch `claude/medstop-refusal`, no
+  migration; §7A.16): a request Med-Stop closes as REFUSAL holds the driver (both violation reads) and
+  reaches the DER once (the notification ledger's dedupe). History by its own dates (D-MS5's 14 days,
+  now one shared constant). Not yet listed under Results to review.

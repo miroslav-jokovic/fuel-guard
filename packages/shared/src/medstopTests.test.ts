@@ -5,6 +5,8 @@ import {
   medstopResultNotice,
   isMedstopViolation,
   medstopRequestRefused,
+  medstopRefusalDay,
+  MEDSTOP_HISTORY_DAYS,
   medstopResultExpectedOn,
   medstopTestOutcome,
   medstopStageLabel,
@@ -131,5 +133,28 @@ describe("medstopOrderOpen / medstopTestKind", () => {
   });
   it("names the service", () => {
     expect([medstopTestKind("TD"), medstopTestKind("TA"), medstopTestKind("TM")]).toEqual(["drug", "alcohol", "medical"]);
+  });
+});
+
+/** MEDSTOP-PLAN §7A.16: what a REFUSAL request means, and when it is history. */
+describe("medstopRefusalDay", () => {
+  const r = (extra: Partial<Parameters<typeof medstopRefusalDay>[0]>) =>
+    ({ status: "REFUSAL", requested_local: "2026-10-10T09:00:00", tested_local: null, first_seen_at: "2026-10-10T15:00:00Z", ...extra });
+
+  it("is the visit's day, else the appointment's, else the earliest day there is", () => {
+    expect(medstopRefusalDay(r({ tested_local: "2026-10-11T08:00:00" }))).toBe("2026-10-11");
+    expect(medstopRefusalDay(r({}))).toBe("2026-10-10");
+    expect(medstopRefusalDay(r({ requested_local: null }))).toBe("0001-01-01");
+  });
+
+  it("is null for any status but REFUSAL", () => {
+    for (const status of ["NO SHOW", "CANCELED", "COMPLETED", "TEST CANCELED", null]) expect(medstopRefusalDay(r({ status }))).toBeNull();
+    expect(medstopRefusalDay(r({ status: " refusal " }))).toBe("2026-10-10");
+  });
+
+  it("is history — null — when made more than MEDSTOP_HISTORY_DAYS before we first saw it", () => {
+    expect(medstopRefusalDay(r({ requested_local: "2026-09-26T09:00:00", first_seen_at: "2026-10-10T00:00:00Z" }))).toBe("2026-09-26");
+    expect(medstopRefusalDay(r({ requested_local: "2026-09-25T09:00:00", first_seen_at: "2026-10-10T00:00:00Z" }))).toBeNull();
+    expect(MEDSTOP_HISTORY_DAYS).toBe(14);
   });
 });

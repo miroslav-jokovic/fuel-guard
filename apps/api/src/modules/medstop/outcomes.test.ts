@@ -30,10 +30,11 @@ const PEOPLE = [
   { medstop_id: "e-name", driver_id: "d2", match_rule: "name", first_name: "SAM", last_name: "SAME" },
 ];
 
-function recorder(qualification: object = {}) {
+function recorder(qualification: object = {}, requests: unknown[] = []) {
   return createSupabaseRecorder({
     tables: {
       medstop_tests: TESTS,
+      medstop_requests: requests,
       medstop_employees: PEOPLE,
       drivers: [{ id: "d1", full_name: "Pat Driver" }, { id: "d2", full_name: "Sam Same" }],
       memberships: [{ user_id: "u-admin" }, { user_id: "u-safety" }],
@@ -77,7 +78,7 @@ describe("actOnMedstopResults", () => {
       { id: "t-pos", outcome: "positive" },
       { id: "t-ref", outcome: "refusal" },
     ]);
-    expect(result).toEqual({ filed: 1, alerted: 3, handled: 5 });
+    expect(result).toEqual({ filed: 1, alerted: 3, handled: 5, refusedRequests: 0 });
 
     const unhandled = db.forTable("medstop_tests").find((q) => !q.write)!;
     expect(unhandled.filters()).toContainEqual({ col: "baseline", val: false });
@@ -98,3 +99,45 @@ describe("actOnMedstopResults", () => {
     expect(result.filed).toBe(1);
   });
 });
+
+/**
+ * A request Med-Stop closed as REFUSAL (MEDSTOP-PLAN §7A.16): no specimen, so no test row — and
+ * §40.191 makes it the same violation. The recorder applies no filters, so a not-refused and a
+ * history request are given too, and the code must drop them itself.
+ */
+describe("a refused request", () => {
+  const r = (id: string, extra: Record<string, unknown>) => ({
+    medstop_id: id, employee_medstop_id: "e-certain", service: "TD", reason: "RANDOM", status: "REFUSAL",
+    requested_local: "2026-10-10T09:00:00", tested_local: null, first_seen_at: "2026-10-10T15:00:00Z", ...extra,
+  });
+  const REQUESTS = [
+    r("r-new", {}),
+    r("r-name", { employee_medstop_id: "e-name" }),
+    r("r-noshow", { status: "NO SHOW" }),
+    // Made in July, first seen by the product in October: decided before it watched (D-MS5).
+    r("r-old", { requested_local: "2026-07-01T09:00:00", first_seen_at: "2026-10-01T15:00:00Z" }),
+  ];
+  const sentFor = (db: ReturnType<typeof recorder>) =>
+    db.rpcs().filter((x) => x.fn === "emit_notification").map((x) => x.args as Record<string, string>).filter((a) => a.p_entity_type === "medstop_request");
+
+  it("tells the DER once per request — new, refused ones only — and says whether dispatch stopped", async () => {
+    const db = recorder({}, REQUESTS);
+    const result = await actOnMedstopResults(db.client, ORG, TODAY);
+    const sent = sentFor(db);
+    expect([...new Set(sent.map((x) => x.p_entity_id))].sort()).toEqual(["r-name", "r-new"]);
+    expect(sent.map((x) => x.p_user).sort()).toEqual(["u-admin", "u-admin", "u-safety", "u-safety"]);
+    const certain = sent.find((x) => x.p_entity_id === "r-new")!;
+    expect(certain).toMatchObject({ p_category: "drug_alcohol_result", p_severity: "critical", p_dedupe_key: "medstop-request-refusal:r-new" });
+    expect(certain.p_body).toContain("Pat Driver: refusal to test on a random drug test collected 10/10/2026. Dispatch is stopped");
+    expect(sent.find((x) => x.p_entity_id === "r-name")!.p_body).toContain("dispatch was NOT stopped");
+    expect(result.refusedRequests).toBe(2);
+    expectOrgScoped(db, ORG);
+  });
+
+  it("sends nothing about a request that is not refused", async () => {
+    const db = recorder({}, [r("r-noshow", { status: "NO SHOW" })]);
+    await actOnMedstopResults(db.client, ORG, TODAY);
+    expect(sentFor(db)).toEqual([]);
+  });
+});
+
