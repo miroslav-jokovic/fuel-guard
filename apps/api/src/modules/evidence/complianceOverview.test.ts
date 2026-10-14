@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, it, expect } from "vitest";
 import { createSupabaseRecorder, expectOrgScoped } from "../../testing/supabaseRecorder.js";
-import { getComplianceOverview } from "./complianceOverview.js";
+import { getComplianceOverview, overviewViolationsFor } from "./complianceOverview.js";
 import { DQ_ROSTER_COLUMN_KEYS, isRestrictedQualificationKind } from "@silvicom/shared";
 
 /**
@@ -155,5 +155,38 @@ describe("getComplianceOverview — the driver predicate", () => {
     const result = await getComplianceOverview(rec.client, ORG, "2026-08-19");
     expect(result.drivers.map((d) => d.state)).toEqual(["not_started", "not_started"]);
     expect(result.truncated).toBe(false);
+  });
+});
+
+/**
+ * MS2's open item (MEDSTOP-PLAN §7A.15): a Med-Stop hold in the fleet queue — for the readers
+ * §382.401(a) admits, and for nobody else, who would otherwise read the result off a new "missing".
+ */
+describe("the Med-Stop hold in the fleet queue", () => {
+  const rtd = (o: Awaited<ReturnType<typeof getComplianceOverview>>) =>
+    o.drivers[0]!.attention.find((a) => a.key === "return_to_duty");
+
+  it("asks for return-to-duty documentation for a driver the caller's violations name", async () => {
+    const rec = makeRecorder([{ id: "d1", full_name: "A Driver", status: "active" }]);
+    const o = await getComplianceOverview(rec.client, ORG, "2026-10-14", { medstopViolations: new Map([["d1", "2026-10-01"]]) });
+    expect(rtd(o)).toMatchObject({ state: "missing" });
+  });
+
+  it("adds nothing without them — the scheduler, the digest, and every non-testing reader", async () => {
+    const rec = makeRecorder([{ id: "d1", full_name: "A Driver", status: "active" }]);
+    expect(rtd(await getComplianceOverview(rec.client, ORG, "2026-10-14"))).toBeUndefined();
+  });
+
+  it("reads Med-Stop for an admin or a safety manager, and not at all for anybody else", async () => {
+    for (const role of ["admin", "safety_manager"] as const) {
+      const rec = createSupabaseRecorder({ tables: { medstop_employees: [{ medstop_id: "e1", driver_id: "d1", match_rule: "licence" }], medstop_tests: [{ employee_medstop_id: "e1", service: "TD", status: "CLOSED", result: "POSITIVE", collected_local: "2026-10-01T09:00:00" }] } });
+      expect(Object.fromEntries((await overviewViolationsFor(rec.client, ORG, role))!)).toEqual({ d1: "2026-10-01" });
+      expectOrgScoped(rec, ORG);
+    }
+    for (const role of ["fleet_manager", "dispatcher", "recruiter", "auditor", null] as const) {
+      const rec = createSupabaseRecorder({ tables: {} });
+      expect(await overviewViolationsFor(rec.client, ORG, role)).toBeUndefined();
+      expect(rec.queries).toHaveLength(0);
+    }
   });
 });

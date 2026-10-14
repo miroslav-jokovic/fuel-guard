@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { DQ_KIND_LABELS } from "./dqCatalogue.js";
 import { QUALIFICATION_RECORD_KINDS } from "./complianceContract.js";
 import { hiringGapsAfterHire } from "./hireHandoff.js";
+import { returnToDutyCause } from "./returnToDuty.js";
 import {
   buildDqFile,
   dqAttention,
@@ -100,6 +101,35 @@ describe("the return-to-duty requirement", () => {
    * item it cannot evaluate must not be reported. Listing this one would tell every carrier that
    * every hire is missing §40.25(j) paperwork. The real warning is `HireResult.returnToDutyBlocked`.
    */
+  /**
+   * MS2's open item (MEDSTOP-PLAN §7A.15): a Med-Stop positive or refusal stops dispatch, and until
+   * now the file never said so. Only a record dated on or after the violation discharges it — the
+   * same answer the dispatch door gives, because the file asks the door's own function.
+   */
+  it("appears for a Med-Stop violation, and only a record dated on or after it discharges it", () => {
+    const rtd = (occurredOn: string) => record({ kind: "return_to_duty", occurredOn });
+    const v = { returnToDutyViolationOn: "2026-05-10" };
+    expect(item(build(v), "return_to_duty").state).toBe("missing");
+    // An earlier process's paperwork is not this one's — and it is not shown as this one's evidence.
+    const older = item(build({ ...v, records: [rtd("2026-03-01")] }), "return_to_duty");
+    expect([older.state, older.evidenceDate]).toEqual(["missing", null]);
+    expect(item(build({ ...v, records: [rtd("2026-05-10")] }), "return_to_duty").state).toBe("current");
+    expect(item(build({ ...v, records: [rtd("2026-06-01T00:00:00Z")] }), "return_to_duty").state).toBe("current");
+    expect(dqCapturableSpecs({ includeHazmat: true, ...v }).map((s) => s.key)).toContain("return_to_duty");
+  });
+
+  it("reads missing exactly when the dispatch door holds the driver, over every combination", () => {
+    for (const required of [false, true])
+      for (const violationOn of [null, "2026-05-10"])
+        for (const filed of [null, "2026-03-01", "2026-05-10", "2026-07-01"]) {
+          const f = build({ returnToDutyRequired: required, returnToDutyViolationOn: violationOn, records: filed ? [record({ kind: "return_to_duty", occurredOn: filed })] : [] });
+          const held = returnToDutyCause({ returnToDutyRequired: required, returnToDutyDocumented: filed !== null, violationOn, lastReturnToDutyOn: filed }) !== null;
+          const i = f.items.find((x) => x.spec.key === "return_to_duty");
+          expect({ required, violationOn, filed, missing: i?.state === "missing" }).toEqual({ required, violationOn, filed, missing: held });
+          if (!required && violationOn === null) expect(i).toBeUndefined();
+        }
+  });
+
   it("is never reported as a hiring gap, because that function cannot know whether it applies", () => {
     expect(hiringGapsAfterHire([], []).map((g) => g.key)).not.toContain("return_to_duty");
   });

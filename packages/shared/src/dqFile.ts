@@ -18,6 +18,7 @@
 
 import { DQ_ITEMS, DQ_GROUPS, DQ_GROUP_LABELS } from "./dqCatalogue.js";
 import type { DqGroup, DqItemSpec, DqItemState } from "./dqCatalogue.js";
+import { returnToDutyCause } from "./returnToDuty.js";
 
 // The catalogue is part of this module's public surface — a consumer should not have to know the
 // vocabulary moved house.
@@ -77,6 +78,13 @@ export interface DqFileInput {
    * and the honest answer to "did this driver admit something" when nobody looked is no.
    */
   returnToDutyRequired?: boolean;
+  /**
+   * The collection day of the Med-Stop positive or refusal that holds this driver (`medstopViolationOn`,
+   * MS2), or null. It raises the same item, and only a record dated ON OR AFTER it discharges it — the
+   * dispatch door's own rule, `returnToDutyCause`, called below rather than restated. ⚠ A §382.401(a)
+   * fact: callers pass it only for a reader `canReadTestingRecords` admits (MEDSTOP-PLAN §7A.15).
+   */
+  returnToDutyViolationOn?: string | null;
 }
 
 // ── output ────────────────────────────────────────────────────────────────────────────────────────
@@ -310,7 +318,7 @@ export interface ComplianceOverviewResponse {
  * re-derives the applicability rules and drifts.
  */
 export function dqCapturableSpecs(
-  input: { includeHazmat: boolean; hasCdl?: boolean; returnToDutyRequired?: boolean },
+  input: { includeHazmat: boolean; hasCdl?: boolean; returnToDutyRequired?: boolean; returnToDutyViolationOn?: string | null },
 ): DqItemSpec[] {
   return DQ_ITEMS.filter((spec) => (spec.scope === "always" || input.includeHazmat) && applies(spec, input));
 }
@@ -325,10 +333,10 @@ export function dqCapturableSpecs(
  */
 function applies(
   spec: DqItemSpec,
-  input: { hasCdl?: boolean; returnToDutyRequired?: boolean },
+  input: { hasCdl?: boolean; returnToDutyRequired?: boolean; returnToDutyViolationOn?: string | null },
 ): boolean {
   if (spec.appliesWhen === "no_cdl") return !input.hasCdl;
-  if (spec.appliesWhen === "return_to_duty") return Boolean(input.returnToDutyRequired);
+  if (spec.appliesWhen === "return_to_duty") return Boolean(input.returnToDutyRequired) || input.returnToDutyViolationOn != null;
   return true;
 }
 
@@ -415,7 +423,14 @@ export function buildDqFile(input: DqFileInput): DqFileSummary {
   )
     .map((spec) => {
       const cert = spec.source === "certification" ? matchCert(spec, input.certs) : undefined;
-      const record = spec.source === "record" ? matchRecord(spec, input.records) : undefined;
+      const found = spec.source === "record" ? matchRecord(spec, input.records) : undefined;
+      // A return-to-duty record older than the Med-Stop violation documents an EARLIER process, not
+      // this one: the item stays missing exactly while dispatch stays stopped.
+      const stale = spec.appliesWhen === "return_to_duty" && returnToDutyCause({
+        returnToDutyRequired: Boolean(input.returnToDutyRequired), returnToDutyDocumented: Boolean(found),
+        violationOn: input.returnToDutyViolationOn ?? null, lastReturnToDutyOn: found ? day(found.occurredOn) : null,
+      }) !== null;
+      const record = stale ? undefined : found;
       const present = Boolean(cert ?? record);
       const goodUntil = goodUntilFor(spec, cert, record);
       // A filed document id that points at nothing is not a filed document. The register and the

@@ -15,6 +15,7 @@ import {
   type QualificationSeedRequest,
   type ExistingCertKey,
   canReadRestrictedKind,
+  dispatchHoldForReader,
   filterRestrictedRows,
   shouldDerive,
 } from "@silvicom/shared";
@@ -25,6 +26,7 @@ import { apiError, asyncHandler, validateBody } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
 import { writeAudit } from "../../../lib/audit.js";
+import { returnToDutyStanding } from "../../recruiting/index.js";
 import {
   insertCertification,
   listCertifications,
@@ -34,7 +36,7 @@ import {
   listDocuments,
   signDocumentDownload,
 } from "../compliance.js";
-import { getComplianceOverview } from "../complianceOverview.js";
+import { getComplianceOverview, overviewViolationsFor } from "../complianceOverview.js";
 import { complianceExportsRouter } from "./complianceExports.js";
 
 /**
@@ -238,7 +240,26 @@ export function complianceRouter(): Router {
     asyncHandler(async (req: Request, res: Response) => {
       const admin = getSupabaseAdmin(getAppLocals(req).env);
       const today = new Date().toISOString().slice(0, 10);
-      res.json(await getComplianceOverview(admin, req.auth!.orgId!, today));
+      const orgId = req.auth!.orgId!;
+      // A Med-Stop violation raises the return-to-duty item for the testing-record readers only.
+      const medstopViolations = await overviewViolationsFor(admin, orgId, req.auth!.role);
+      res.json(await getComplianceOverview(admin, orgId, today, { medstopViolations }));
+    }),
+  );
+
+  /**
+   * Is this driver held out of dispatch, and — for a testing-record reader only — because of which
+   * Med-Stop result (MEDSTOP-PLAN §7A.15). The dispatch door's own read (`returnToDutyStanding`), so the
+   * driver page cannot say "clear" about a driver the door refuses. Every query inside org-filters.
+   */
+  router.get(
+    "/drivers/:driverId/dispatch-hold",
+    requireOrg,
+    canView,
+    asyncHandler(async (req: Request, res: Response) => {
+      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      const standing = await returnToDutyStanding(admin, req.auth!.orgId!, String(req.params.driverId));
+      res.json(dispatchHoldForReader(standing, req.auth!.role));
     }),
   );
 

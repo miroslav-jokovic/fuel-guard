@@ -23,6 +23,19 @@ export async function returnToDutyHold(
   orgId: string,
   driverId: string,
 ): Promise<"violation" | "admission" | null> {
+  return (await returnToDutyStanding(admin, orgId, driverId)).cause;
+}
+
+/**
+ * The hold AND the Med-Stop violation day behind it — the driver page's read (MEDSTOP-PLAN §7A.15),
+ * which `dispatchHoldForReader` redacts per reader. One function under both, so the page and the
+ * dispatch door cannot disagree about whether this driver is held.
+ */
+export async function returnToDutyStanding(
+  admin: SupabaseClient,
+  orgId: string,
+  driverId: string,
+): Promise<{ cause: "violation" | "admission" | null; violationOn: string | null }> {
   // MS2 (MEDSTOP-PLAN.md F-5): the second obligation, a Med-Stop positive or refusal, read where it
   // lives. Not a second flag on `drivers`: the fact is Med-Stop's result, and a copy of it would
   // outlive an MRO correction that the read sees the next hour.
@@ -36,7 +49,7 @@ export async function returnToDutyHold(
     medstopViolationOn(admin, orgId, driverId),
   ]);
   const required = Boolean((driver as { return_to_duty_required?: boolean } | null)?.return_to_duty_required);
-  if (!required && violationOn === null) return null;
+  if (!required && violationOn === null) return { cause: null, violationOn: null };
 
   // The NEWEST record, because a violation is discharged only by one dated on or after it.
   const { data: records } = await admin
@@ -49,12 +62,13 @@ export async function returnToDutyHold(
     .limit(1);
   const filed = (records ?? []) as { occurred_on?: string | null }[];
 
-  return returnToDutyCause({
+  const cause = returnToDutyCause({
     returnToDutyRequired: required,
     returnToDutyDocumented: filed.length > 0,
     violationOn,
     lastReturnToDutyOn: filed[0]?.occurred_on ?? null,
   });
+  return { cause, violationOn };
 }
 
 /** May this driver NOT be put behind the wheel? The dispatch door's question (`returnToDutyHold`). */

@@ -1,3 +1,6 @@
+import { canReadTestingRecords } from "./auth.js";
+import type { UserRole } from "./constants.js";
+
 /**
  * §40.25(j) — the obligation an application's admission creates, and the one thing that ends it.
  *
@@ -109,3 +112,39 @@ export const RETURN_TO_DUTY_BLOCK = {
   /** The item as it reads in the driver's file. */
   label: "Return-to-duty documentation",
 } as const;
+
+/**
+ * The driver page's view of the hold (MEDSTOP-PLAN §7A.15, the MS2 open item: the file never showed a
+ * Med-Stop hold). EVERY reader learns THAT the driver is held — the dispatcher must not find out by
+ * having a load refused. Only a reader `canReadTestingRecords` admits learns that it is a Med-Stop
+ * violation, and on which day: that is the §382.401(a) record itself.
+ *
+ * The admission stays visible to every reader, as it always has (`drivers.return_to_duty_required`
+ * is not a testing record, auth.ts) — so a violation must not read differently from "held, cause not
+ * yours to know" for anybody else.
+ */
+export interface DriverDispatchHold {
+  held: boolean;
+  /** `violation` only for a testing-record reader; `admission` for every reader. */
+  cause: "violation" | "admission" | null;
+  /** The violation's collection day, for a testing-record reader; else null. */
+  violationOn: string | null;
+}
+
+export function dispatchHoldForReader(
+  standing: { cause: "violation" | "admission" | null; violationOn: string | null },
+  role: UserRole | null | undefined,
+): DriverDispatchHold {
+  if (canReadTestingRecords(role)) return { held: standing.cause !== null, cause: standing.cause, violationOn: standing.violationOn };
+  return { held: standing.cause !== null, cause: standing.cause === "admission" ? "admission" : null, violationOn: null };
+}
+
+/** What the driver page's notice says for one reader's view, or null when the driver is not held. */
+export function dispatchHoldNotice(hold: DriverDispatchHold, formatDay: (day: string) => string): string | null {
+  if (!hold.held) return null;
+  if (hold.cause === "admission") return RETURN_TO_DUTY_BLOCK.hire;
+  if (hold.cause === "violation" && hold.violationOn)
+    return `Med-Stop reported a positive or refused test collected ${formatDay(hold.violationOn)}. This driver cannot be dispatched until return-to-duty documentation dated on or after that day is filed below.`;
+  return RETURN_TO_DUTY_BLOCK.dispatch;
+}
+

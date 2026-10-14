@@ -35,7 +35,7 @@ import { readMedicalStates } from "../evidence/index.js";
 const PAGE = 1000;
 
 /** Every page of one mirror read. Each caller names its table literally, so the table gates can see it. */
-async function readAll<T>(
+export async function readAll<T>(
   page: (from: number, to: number) => PromiseLike<{ data: unknown[] | null; error: { message: string } | null }>,
   label: string,
 ): Promise<T[]> {

@@ -387,6 +387,12 @@ const API_ALLOW = new Set([
   //   refusal through `medstopViolationOn`, never `.from("medstop_*")` (F-5). medstop imports nothing
   //   of recruiting's, so the arrow points one way.
   "recruiting -> medstop",
+  // · evidence -> medstop — the fleet queue and the restricted DQ binder show a Med-Stop hold to the
+  //   §382.401(a) readers (MEDSTOP-PLAN §7A.15), reading `medstopViolationsByDriver`, the dispatch
+  //   door's own read made org-wide, never `.from("medstop_*")`. The reverse arrow (medstop -> evidence)
+  //   files a drug-test record; the two cross through each other's index only, like evidence and
+  //   recruiting above.
+  "evidence -> medstop",
   //   · fleetpal -> mcleod — the coverage bound's DENOMINATOR and its accounts-payable side, both
   //     through McLeod's own exported readers (`readLedgerTotalsRange`, `readVoucherNumbersWindow`)
   //     and never a `.from("mcleod_*")`, which `lint:table-access` would refuse outright. The edge
