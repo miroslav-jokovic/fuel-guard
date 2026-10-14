@@ -251,8 +251,8 @@ describe("POST /reads/:id/reviews", () => {
   const batch = {
     consumer: "hazmat_calculator",
     reviews: [
-      { path: "shipper.name", action: "corrected", oldValue: "ACME", newValue: "ACME Corp" },
-      { path: "carrier", action: "confirmed", oldValue: null, newValue: null },
+      { path: "shipper.name", action: "corrected", oldValue: "ACME", newValue: "ACME Corp", explicit: true },
+      { path: "carrier", action: "confirmed", oldValue: null, newValue: null, explicit: false },
     ],
   };
   const withRead = (status: string) =>
@@ -276,7 +276,7 @@ describe("POST /reads/:id/reviews", () => {
     });
     rec = withRead("done");
     await withServer(async (base) => {
-      const res = await post(`${base}/reads/${READ}/reviews`, { ...batch, reviews: [{ path: "shipper.name", action: "confirmed", oldValue: "X", newValue: "X" }] });
+      const res = await post(`${base}/reads/${READ}/reviews`, { ...batch, reviews: [{ path: "shipper.name", action: "confirmed", oldValue: "X", newValue: "X", explicit: false }] });
       expect(res.status).toBe(400);
       expect(await res.json()).toMatchObject({ error: { code: "invalid_review" } });
     });
