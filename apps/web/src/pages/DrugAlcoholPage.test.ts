@@ -141,11 +141,19 @@ describe("DrugAlcoholPage", () => {
   });
 
   it("results show one list at a time — history from the first read is a choice, not a second table", async () => {
-    const row = (id: string, outcome: "positive" | "refusal", name: string) => ({ testId: id, person: person(id, name), kind: "drug" as const, reason: "RANDOM", collectedOn: "2026-10-09", outcome });
+    const row = (id: string, outcome: "positive" | "refusal", name: string) => ({ source: "test" as const, medstopId: id, person: person(id, name), kind: "drug" as const, reason: "RANDOM", collectedOn: "2026-10-09", outcome });
     const w = await render(program({ results: { recent: [row("t1", "positive", "Pat Positive")], history: [row("t0", "refusal", "Old Case")] } }), "/drug-alcohol?tab=results");
     expect(w.text()).toContain("Pat Positive");
     expect(w.text()).not.toContain("Old Case");
     expect(w.text()).toContain("Show");
+  });
+
+  it("a refused order reads as refused before collection; a refused test does not (§7A.16)", async () => {
+    const row = (source: "test" | "order", name: string) => ({ source, medstopId: name, person: person(name, name), kind: "drug" as const, reason: "RANDOM", collectedOn: "2026-10-09", outcome: "refusal" as const });
+    const w = await render(program({ results: { recent: [row("order", "Rita Refused"), row("test", "Tom Tested")], history: [] } }), "/drug-alcohol?tab=results");
+    expect(w.text()).toContain("Rita Refused");
+    expect(w.text()).toContain("Tom Tested");
+    expect(w.text().match(/Refused before a specimen was collected/g)).toHaveLength(1);
   });
 
   it("says so when Med-Stop has not been read for more than two hours", async () => {
