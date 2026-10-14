@@ -68,6 +68,20 @@ const stockRow = (over: Record<string, unknown> = {}) => ({
   ...over,
 });
 
+/** The same line as `part_stock_lines` (0474) returns it: one row, the names flattened onto it. */
+const stockLineRow = (over: Record<string, unknown> = {}) => {
+  const { parts, stock_locations, ...line } = stockRow();
+  return {
+    ...line,
+    part_number: parts.part_number,
+    part_description: parts.description,
+    unit_of_measure: parts.unit_of_measure,
+    last_cost: parts.last_cost,
+    location_name: stock_locations.name,
+    ...over,
+  };
+};
+
 const movementRow = (over: Record<string, unknown> = {}) => ({
   id: MOVEMENT,
   part_id: PART,
@@ -97,6 +111,7 @@ describe("inventory reads", () => {
       tables: {
         parts: [partRow()],
         part_stock: [stockRow()],
+        part_stock_lines: [stockLineRow()],
         part_movements: [movementRow()],
         stock_locations: [{ id: LOCATION, name: "Main bay", code: "MAIN", address: null, active: true }],
       },
@@ -115,6 +130,24 @@ describe("inventory reads", () => {
     // only for a DEPARTED actor, and only for ids that came off org-scoped rows in the first place —
     // `listMovements` never asks it for anybody it did not already read out of this org's ledger.
     expectOrgScoped(rec, ORG, { exempt: ["user_profiles"] });
+  });
+
+  // F32 (US6b): Labels searched one 200-line page in the browser. The search is the server's now, over
+  // the three names `part_stock_lines` flattens onto one row.
+  it("searches part number, description and location name in ONE quoted or(), and pages in a stable order", async () => {
+    const out = await listStock(rec.client, ORG, { search: " filter, oil ", limit: 20, offset: 40 });
+    expect("lines" in out && out.lines[0]).toMatchObject({ partNumber: "LF-9009", partDescription: "Oil filter", locationName: "Main bay" });
+    const ops = rec.forTable("part_stock_lines")[0]!.ops;
+    const or = ops.find((o) => o.method === "or")?.args[0] as string;
+    expect(or).toBe('part_number.ilike."%filter, oil%",part_description.ilike."%filter, oil%",location_name.ilike."%filter, oil%"');
+    expect(ops.filter((o) => o.method === "order").map((o) => o.args[0])).toEqual(["part_id", "location_id"]);
+    expect(ops.find((o) => o.method === "range")?.args).toEqual([40, 59]);
+    expect(rec.forTable("part_stock")).toHaveLength(0);
+  });
+
+  it("sends no or() at all for a blank search", async () => {
+    await listStock(rec.client, ORG, { search: "   " });
+    expect(rec.forTable("part_stock_lines")[0]!.ops.some((o) => o.method === "or")).toBe(false);
   });
 
   it("converts a numeric cost from the string PostgREST actually sends", async () => {

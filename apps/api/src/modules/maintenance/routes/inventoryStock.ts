@@ -42,6 +42,7 @@ const stockListSchema = z.object({
   locationId: z.uuid().optional(),
   partId: z.uuid().optional(),
   includeInactive: z.coerce.boolean().optional(),
+  search: z.string().max(120).optional(),
   limit: z.coerce.number().int().min(1).max(200).optional(),
   offset: z.coerce.number().int().min(0).optional(),
 });

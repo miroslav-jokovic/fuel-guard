@@ -299,20 +299,37 @@ export function useStockQuery(locationId: Ref<string | undefined>) {
   });
 }
 
+/** Shelf lines on one page of the label screen — a page the server counts and searches. */
+export const STOCK_PAGE_SIZE = 20;
+
 /**
- * Every shelf line in the shop, across locations — what the label screen picks from.
+ * One page of the shop's shelf lines, across locations, searched by the server — what the label
+ * screen picks from (US6b F32).
  *
- * Its own query, not `useStockQuery(ref(undefined))`: that call is what Labels made from 2026-09-10,
- * and since the shelf walk's `enabled` guard (2026-09-09) an undefined location means "not chosen
- * yet", so the read was never sent and Shelves always said "Nothing on the shelves yet" (found by
- * US6b, F3). The route answers every location when none is named.
+ * Until 2026-10-14 this was one `/stock` response, capped at the route's 200 lines (`PAGE_MAX`) and
+ * searched and paged in the browser: a shop past 200 shelf lines saw the first 200 and no sign of the
+ * rest. Now the page and the search go to the route, as the asset list's do, and the route reads
+ * `part_stock_lines` (0474) so one search reaches the part number, its description and the location.
  *
- * ⚠ One response, so at most the route's page cap (200 lines, `PAGE_MAX`): a shop past that would see
- * its first 200 shelves and no sign of the rest. Recorded as F32 (UI-STANDARDIZATION.md §7); the fix
- * is server paging WITH a server search, as the asset list has, not a bigger page.
+ * Its own query, not `useStockQuery(ref(undefined))`: that is the shelf walk's, whose `enabled` guard
+ * reads an undefined location as "not chosen yet" — which is how Labels' shelves were never fetched
+ * at all before US6b F3.
  */
-export function useAllStockQuery() {
-  return useQuery({ queryKey: ["inventory", "stock", "all"] as const, queryFn: () => fetchStock() });
+export function useStockPageQuery(filter: Ref<{ page: number; search?: string }>) {
+  return useQuery({
+    queryKey: ["inventory", "stock", "page", filter] as const,
+    placeholderData: keepPreviousData,
+    queryFn: async (): Promise<StockPage> => {
+      const params = new URLSearchParams({
+        limit: String(STOCK_PAGE_SIZE),
+        offset: String((filter.value.page - 1) * STOCK_PAGE_SIZE),
+      });
+      if (filter.value.search) params.set("search", filter.value.search);
+      const r = await apiFetch<StockPage>(`/api/maintenance/inventory/stock?${params}`);
+      if (!r.ok || !r.data) throw new Error(r.error?.message ?? "Could not load the shelves");
+      return r.data;
+    },
+  });
 }
 
 export function useOpenCountSession() {

@@ -447,3 +447,28 @@ question, and the answer belongs in the routes, not in a guess the browser makes
 
 Re-shot at 1280 and 390 with the failure, empty and row fixtures (Driver Qualification with six drivers,
 Drug & Alcohol with 178 outside the pool, Messages with the plan and a failed conversations read).
+
+### 2026-10-14 — US6b batch 3, F32: the Labels shelves page and search on the server
+
+Two merges, as `MIGRATION-DISCIPLINE.md` asks of a new relation and its reader:
+
+- **0474 `part_stock_lines`** (claude/labels-server-search): a stock line with its part number,
+  description and location name on one row, `security_invoker = on`. PostgREST refuses an OR across a
+  row and its embedded tables ("failed to parse logic tree", measured), and those are the three fields
+  Labels searches. Matrix `part-stock-lines`: the three names on the row, one `or()` finding a line by
+  each, a technician's token seeing only its own org through the view (four checks fail without
+  `security_invoker` — the leak is in the output). `migrate-staging` applied it before the reader merged.
+- **The reader** (claude/labels-shelf-search): `listStock` reads the view and takes `search` (one quoted
+  `or()` over the three names), ordered by part then location so a page boundary cannot move; the view
+  row is adapted back to `StockRow`, so `toStockLineDto` stays the one place a line is shaped.
+  `useStockPageQuery` asks for one page of 20 with the search; the 200-line browser filter is gone and
+  the pager counts the server's total. "No shelf matches that search." when a search finds nothing.
+  Ten mutants across the two sides, all killed.
+
+⚠ **A sibling, recorded rather than folded in:** the shelf walk's `useStockQuery(location)` reads the
+same route with no `limit`, so a bay past 200 lines would be counted from its first 200. A walk must
+count EVERY line — a page is the wrong answer there, as it was for `/low-stock` (which pages to the
+end). Measured bays today: 0 lines in production. Fix with the walk's own read-to-the-end, not here.
+
+Batch 3 is complete except F31 (Q-US3). Next: the sweep for what the gate does not check (§ after
+batch 3), then US7 once Q-US1 is ruled.

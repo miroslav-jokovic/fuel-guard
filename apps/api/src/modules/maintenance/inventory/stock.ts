@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { isLowStock, type StockLineDto, type StockLocationDto } from "@silvicom/shared";
 import { traced } from "../inspections/serviceError.js";
 import { PAGE_MAX } from "./parts.js";
+import { orFilterValue } from "../../../lib/postgrestFilters.js";
 import type { ServiceError } from "./types.js";
 
 /**
@@ -95,10 +96,44 @@ export interface ListStockOptions {
   locationId?: string;
   partId?: string;
   includeInactive?: boolean;
+  /** Free text over the part number, its description and the location's name (US6b F32). */
+  search?: string;
   limit?: number;
   offset?: number;
 }
 
+/** `part_stock_lines` (0474): the same inner join `STOCK_COLUMNS` asks for, flattened onto one row. */
+const STOCK_LINE_VIEW_COLUMNS =
+  "part_id, location_id, quantity_on_hand, reorder_point, reorder_quantity, aisle, row, bin, tag_code, active, " +
+  "part_number, part_description, unit_of_measure, last_cost, location_name";
+
+interface StockLineViewRow extends Omit<StockRow, "parts" | "stock_locations"> {
+  part_number: string;
+  part_description: string;
+  unit_of_measure: StockLineDto["unitOfMeasure"];
+  last_cost: number | string | null;
+  location_name: string;
+}
+
+/** Back into `StockRow`'s shape, so `toStockLineDto` stays the one place a stock line is shaped. */
+const fromViewRow = ({ part_number, part_description, unit_of_measure, last_cost, location_name, ...line }: StockLineViewRow): StockRow => ({
+  ...line,
+  parts: { part_number, description: part_description, unit_of_measure, last_cost },
+  stock_locations: { name: location_name },
+});
+
+/**
+ * One page of stock lines, searched and counted by the server (US6b F32).
+ *
+ * Read from `part_stock_lines` rather than `part_stock` with embedded resources, because the search
+ * is over the part's number and description and the location's name, and PostgREST cannot OR across a
+ * row and its embeds — `or=(parts.part_number.ilike…)` is "failed to parse logic tree". On the view
+ * the three are columns of one row. Until this, Labels fetched one 200-line page and searched it in the
+ * browser, so a shop past 200 shelf lines saw the first 200 and no sign of the rest.
+ *
+ * Ordered by part, then location: the key is the pair, and a page boundary inside one part's lines
+ * would otherwise move between two requests.
+ */
 export async function listStock(
   admin: SupabaseClient,
   orgId: string,
@@ -107,17 +142,24 @@ export async function listStock(
   const limit = Math.min(opts.limit ?? PAGE_MAX, PAGE_MAX);
   const offset = Math.max(opts.offset ?? 0, 0);
 
-  let q = admin.from("part_stock").select(STOCK_COLUMNS, { count: "exact" }).eq("org_id", orgId);
+  let q = admin.from("part_stock_lines").select(STOCK_LINE_VIEW_COLUMNS, { count: "exact" }).eq("org_id", orgId);
   if (!opts.includeInactive) q = q.eq("active", true);
   if (opts.locationId) q = q.eq("location_id", opts.locationId);
   if (opts.partId) q = q.eq("part_id", opts.partId);
+  if (opts.search?.trim()) {
+    // QUOTED, never interpolated raw, for `listAssets`'s reason: `.or()` is one string PostgREST
+    // parses, and a description with a comma in it would otherwise build a filter nobody wrote.
+    const term = orFilterValue(`%${opts.search.trim()}%`);
+    q = q.or(`part_number.ilike.${term},part_description.ilike.${term},location_name.ilike.${term}`);
+  }
 
   const { data, error, count } = await q
     .order("part_id", { ascending: true })
+    .order("location_id", { ascending: true })
     .range(offset, offset + limit - 1);
   if (error) return traced("listStock", "db_error", "Could not load stock", error);
 
-  const lines = ((data ?? []) as unknown as StockRow[]).map(toStockLineDto);
+  const lines = ((data ?? []) as unknown as StockLineViewRow[]).map(fromViewRow).map(toStockLineDto);
   return { lines, total: count ?? 0 };
 }
 

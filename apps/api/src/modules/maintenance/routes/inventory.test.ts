@@ -141,7 +141,7 @@ const receipt = {
 beforeEach(() => {
   audit.writeAudit.mockClear();
   rec = createSupabaseRecorder({
-    tables: { parts: [partRow()], part_stock: [], part_movements: [movementRow()], stock_locations: [] },
+    tables: { parts: [partRow()], part_stock: [], part_stock_lines: [], part_movements: [movementRow()], stock_locations: [] },
     rpc: { record_part_movement: movementRow() },
   });
 });
@@ -274,6 +274,16 @@ describe("the catalogue", () => {
     expect((await bodyOf(res)).error?.code).toBe("duplicate_part_number");
   });
 
+  // F32 (US6b): the Labels search reaches the server, and a search too long to be a person's is refused.
+  it("hands the stock search to the read, and refuses one past 120 characters", async () => {
+    await withServer(async (base) => {
+      expect((await fetch(`${base}/api/maintenance/inventory/stock?search=${encodeURIComponent("LF-9")}`)).status).toBe(200);
+      expect((await fetch(`${base}/api/maintenance/inventory/stock?search=${"x".repeat(121)}`)).status).toBe(400);
+    });
+    const or = rec.forTable("part_stock_lines")[0]!.ops.find((o) => o.method === "or")?.args[0];
+    expect(or).toContain('part_number.ilike."%LF-9%"');
+  });
+
   it("scopes every read to the org", async () => {
     await withServer(async (base) => {
       await fetch(`${base}/api/maintenance/inventory/parts?search=filter`);
@@ -281,6 +291,7 @@ describe("the catalogue", () => {
       await fetch(`${base}/api/maintenance/inventory/parts/${PART}`);
       await fetch(`${base}/api/maintenance/inventory/locations`);
       await fetch(`${base}/api/maintenance/inventory/stock`);
+      await fetch(`${base}/api/maintenance/inventory/stock?search=main&limit=20&offset=20`);
       await fetch(`${base}/api/maintenance/inventory/low-stock`);
       await fetch(`${base}/api/maintenance/inventory/movements?partId=${PART}`);
     });
