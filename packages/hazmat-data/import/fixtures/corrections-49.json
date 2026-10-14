@@ -5418,6 +5418,32 @@
       "last_modified": "2026-03-24"
     },
     {
+      "id": 4421,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 171.7",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "I",
+            "subchapter": "C",
+            "part": "171",
+            "subpart": "A",
+            "section": "171.7"
+          }
+        }
+      ],
+      "corrective_action": "(g)(2) correctly amended; (h) correctly removed; (i) designated as (h) and second (h) designated as (i)",
+      "error_corrected": "2026-09-14",
+      "error_occurred": "2026-09-03",
+      "fr_citation": "91 FR 49319",
+      "position": 1,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2026,
+      "last_modified": "2026-09-15"
+    },
+    {
       "id": 4379,
       "cfr_references": [
         {
@@ -5437,11 +5463,37 @@
       "error_corrected": "2026-02-18",
       "error_occurred": "2024-04-03",
       "fr_citation": "89 FR 15667",
-      "position": 1,
+      "position": 2,
       "display_in_toc": false,
       "title": 49,
       "year": 2026,
-      "last_modified": "2026-02-19"
+      "last_modified": "2026-09-15"
+    },
+    {
+      "id": 4422,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 171.7",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "I",
+            "subchapter": "C",
+            "part": "171",
+            "subpart": "A",
+            "section": "171.7"
+          }
+        }
+      ],
+      "corrective_action": "Table 1 to 171.7 corrected",
+      "error_corrected": "2026-09-15",
+      "error_occurred": "2026-09-03",
+      "fr_citation": "91 FR 49324",
+      "position": 3,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2026,
+      "last_modified": "2026-09-16"
     },
     {
       "id": 4385,
@@ -5463,11 +5515,11 @@
       "error_corrected": "2026-03-12",
       "error_occurred": "2026-01-16",
       "fr_citation": "89 FR 107021",
-      "position": 2,
+      "position": 4,
       "display_in_toc": false,
       "title": 49,
       "year": 2026,
-      "last_modified": "2026-03-13"
+      "last_modified": "2026-09-16"
     },
     {
       "id": 4380,
@@ -5488,11 +5540,11 @@
       "error_corrected": "2026-02-25",
       "error_occurred": "2026-01-15",
       "fr_citation": "91 FR 1715",
-      "position": 3,
+      "position": 5,
       "display_in_toc": false,
       "title": 49,
       "year": 2026,
-      "last_modified": "2026-03-13"
+      "last_modified": "2026-09-16"
     },
     {
       "id": 4394,
@@ -5513,11 +5565,11 @@
       "error_corrected": "2026-04-10",
       "error_occurred": "2026-04-06",
       "fr_citation": "91 FR 17158",
-      "position": 4,
+      "position": 6,
       "display_in_toc": false,
       "title": 49,
       "year": 2026,
-      "last_modified": "2026-04-13"
+      "last_modified": "2026-09-16"
     }
   ]
 }

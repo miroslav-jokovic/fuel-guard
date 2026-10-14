@@ -96,6 +96,11 @@ typecheck:import` (uses `import/tsconfig.json`).
   print no lb+kg RQ (`**`, `§`, `(##)`, a heading) with their reason; an unknown RQ cell throws.
 - **`cerclaCrossCheck.ts`** — the 302.4 two-source check (eCFR vs GovInfo, multiset over every field);
   `crossCheckAll({ cercla: true })` adds it to the gate on a 302.4 cut.
+- **`reconciliations.ts`** — the cited-rule reconciliations (Q-DR14a (b)): each eCFR↔GovInfo HMT
+  difference a Federal Register rule explains, listed row by row with the exact value in each source. The
+  gate accepts a difference only on an exact match, from a rule in force after the edition's date and by the
+  pinned eCFR date (`fixtures/ecfr-provenance.json`, written by `captureFixtures.ts`); a listed row that no
+  longer matches anything fails the gate until it is deleted. The fuel rows' own gate is never reconciled.
 - **`hazSubstancesDiff.ts`** — read-only report of Appendix A vs Table 302.4 (`npx tsx import/hazSubstancesDiff.ts`).
 - **`namesChemicalGroup.ts`** — derives the per-entry `namesChemicalGroup` flag (§172.203(k)(2)(iii)/(iv),
   Q-DR17) from each G / n.o.s. entry's own name; applied by `buildDataset.ts` from version 2026.09.0 on and

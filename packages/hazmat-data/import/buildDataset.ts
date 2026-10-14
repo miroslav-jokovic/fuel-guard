@@ -33,7 +33,7 @@ import {
 } from "../src/schema.js";
 import { z } from "zod";
 import { defaultSourceA } from "./diff.js";
-import { crossCheckAll, formatTriangulation, type TriangulationResult } from "./govinfoCrossCheck.js";
+import { capturedEcfrDate, crossCheckAll, formatTriangulation, type TriangulationResult } from "./govinfoCrossCheck.js";
 import { parsePlacardTables } from "./parsePlacards.js";
 import { parseSegregationGrid } from "./parseSegregation.js";
 import { parseMarinePollutants } from "./parseAppendices.js";
@@ -146,6 +146,14 @@ function requireFixture(...names: string[]): string {
   throw new Error(`buildDataset: none of the fixtures found: ${names.join(", ")} (run captureFixtures.ts).`);
 }
 
+/** The cited rules a cut's triangulation leaned on, for the dataset's own provenance line. */
+function reconciledNote(t: TriangulationResult): string {
+  const e = t.hmtReconciliation.explained;
+  if (!e.length) return "";
+  const cites = [...new Set(e.map((x) => `${x.citation} (FR doc ${x.frDoc})`))].join(", ");
+  return `, ${e.length} HMT field difference(s) explained by ${cites}`;
+}
+
 export interface CutResult {
   dataset: Dataset;
   path: string;
@@ -173,6 +181,13 @@ export function cutDataset(opts: {
   attestedBy?: string | null;
   attestedOn?: string | null;
 }): CutResult {
+  // The cut's `sourceEcfrDate` is printed into the dataset as the text it was cut from, and the cited
+  // reconciliations are judged against the capture's own date — so the two must be the same day. A
+  // capture from before ecfr-provenance.json existed (2026-07-28) has no date to check against.
+  const captured = capturedEcfrDate();
+  if (captured && opts.sourceEcfrDate && opts.sourceEcfrDate !== captured) {
+    throw new Error(`buildDataset: sourceEcfrDate ${opts.sourceEcfrDate} is not the captured eCFR date ${captured} (fixtures/ecfr-provenance.json).`);
+  }
   const entries = entriesForVersion(opts.version, defaultSourceA());
   const erg = loadErgEntries();
   // Placards/segregation from their own committed section fixtures; App. B from the full §172.101 file if
@@ -197,6 +212,7 @@ export function cutDataset(opts: {
     `${t.hmt.sourceRef}; automated eCFR↔GovInfo triangulation (D5 v7) ` +
     `${t.allClean ? "ALL CLEAN" : "NOT CLEAN"} — HMT ${t.hmt.full.matched}/${t.hmt.totals.aKeys} keys, ` +
     `placards ${t.placards.matched}/${t.placards.aCount}, segregation ${t.segregation.matched}/${t.segregation.aCount}` +
+    reconciledNote(t) +
     (t.cercla ? `, 40 CFR 302.4 ${t.cercla.matched}/${t.cercla.aCount} (${t.cercla.sourceRef})` : "") +
     cerclaSourceNote(haz) +
     attestClause;

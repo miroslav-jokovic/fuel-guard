@@ -31,10 +31,11 @@ const RAW: Readonly<Record<string, unknown>> = {
   "2026.07.1": raw2026071,
   // 2026.08.0 (H-LQ groundwork): same captured sources as 2026.07.1, parser now carries columns
   // 8A (exceptionsRef — the §173.150ff LQ trigger) and 8B (nonBulkPackagingRef). Triangulation ALL
-  // CLEAN; ships PROVISIONAL because it is not yet human-attested — attest with
-  // `npx tsx import/buildDataset.ts 2026.08.0 2026-07-28 2026-08-15 --attested-by "<name>"` and then
-  // move LATEST_DATASET_VERSION here. LATEST deliberately stays 2026.07.1 until that happens so no
-  // production load regresses to a provisional dataset.
+  // CLEAN; ships PROVISIONAL because it was never human-attested. Its attested re-cut is no longer
+  // possible from the committed fixtures: Q-DR14a was ruled (b) on 2026-10-14 and Title 49 was
+  // recaptured at 2026-10-09, so the attestable cuts are the newer ones (PROMOTION-CHECKLIST.md).
+  // LATEST deliberately stays 2026.07.1 until an attested file is in, so no production load
+  // regresses to a provisional dataset.
   "2026.08.0": raw2026080,
 };
 
