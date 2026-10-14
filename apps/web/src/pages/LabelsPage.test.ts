@@ -88,13 +88,20 @@ let extraLines: ReturnType<typeof line>[] = [];
 let assetsFilter: { value: { page: number; search?: string } } | null = null;
 let assetsTotal = 1;
 
-vi.mock("@/features/inventory/useInventory", () => ({
-  useAllStockQuery: () => ({
-    isError: ref(fail.stock),
-    isFetching: ref(false),
-    refetch: refetch.stock,
-    data: ref(fail.stock ? undefined : {
-      lines: [
+/** The filter the page last handed `useStockPageQuery` — the server page and search it asks for (F32). */
+let stockFilter: { value: { page: number; search?: string } } | null = null;
+/** What the server says the whole list holds; null = the lines given. */
+let stockTotal: number | null = null;
+
+vi.mock("@/features/inventory/useInventory", async () => {
+  const { computed: c } = await import("vue");
+  return {
+    STOCK_PAGE_SIZE: 20,
+    // The SERVER's page: the mock slices as the route does and never searches — searching is the
+    // route's job now (F32), so a test that wants a search asks what the page SENT.
+    useStockPageQuery: (filter: { value: { page: number; search?: string } }) => {
+      stockFilter = filter;
+      const all = () => [
         ...extraLines,
         {
           partId: PART,
@@ -113,12 +120,21 @@ vi.mock("@/features/inventory/useInventory", () => ({
           lastCost: null,
           active: true,
         },
-      ],
-      total: 1,
-    }),
-    isLoading: ref(false),
-  }),
-}));
+      ];
+      return {
+        isError: ref(fail.stock),
+        isFetching: ref(false),
+        refetch: refetch.stock,
+        data: c(() =>
+          fail.stock
+            ? undefined
+            : { lines: all().slice((filter.value.page - 1) * 20, filter.value.page * 20), total: stockTotal ?? all().length },
+        ),
+        isLoading: ref(false),
+      };
+    },
+  };
+});
 
 vi.mock("@/features/inventory/useAssets", () => ({
   ASSETS_PAGE_SIZE: 50,
@@ -186,6 +202,7 @@ beforeEach(() => {
   fetchSheet.mockClear();
   extraLines = [];
   assetsTotal = 1;
+  stockTotal = null;
   Object.assign(fail, { stock: false, assets: false, presets: false, faces: false });
   Object.values(refetch).forEach((f) => f.mockClear());
 });
@@ -385,17 +402,31 @@ describe("paging the two lists", () => {
     expect(w.findComponent({ name: "DataTable" }).props("selected")).toEqual(ticked);
   });
 
-  it("a pasted ?page=2 shows shelves 21–40, and a search returns to page 1", async () => {
+  it("a pasted ?page=2 asks the server for shelves 21–40, and a search goes to the server from page 1", async () => {
     extraLines = Array.from({ length: 44 }, (_, i) =>
       line(`aaaaaaaa-aaaa-4aaa-8aaa-${String(i + 1).padStart(12, "0")}`, `P-${String(i + 1).padStart(2, "0")}`),
     );
     const w = await render("/labels?page=2");
     const parts = () => (w.findComponent({ name: "DataTable" }).props("rows") as Array<{ partNumber: string }>).map((r) => r.partNumber);
+    expect(stockFilter!.value).toMatchObject({ page: 2 });
     expect(parts()).toEqual(extraLines.slice(20, 40).map((l) => l.partNumber));
     w.findComponent({ name: "FilterBar" }).vm.$emit("update:search", "P-");
     await flushPromises();
     expect(router.currentRoute.value.query).toEqual({ search: "P-" });
-    expect(parts()).toEqual(extraLines.slice(0, 20).map((l) => l.partNumber));
+    expect(stockFilter!.value).toEqual({ page: 1, search: "P-" });
+  });
+
+  // F32 (US6b): the shelves were one 200-line response searched here, so line 201 could not be reached
+  // and a search could not find it. The page draws what the server sent and counts what it says.
+  it("draws the server's page as it came, and pages to the server's total past 200", async () => {
+    stockTotal = 250;
+    const w = await render("/labels?search=north");
+    expect(stockFilter!.value).toEqual({ page: 1, search: "north" });
+    // "north" is in none of the mock line's fields: the server's answer is shown as sent, and a page
+    // that filtered it again in the browser would draw nothing here.
+    const rows = w.findComponent({ name: "DataTable" }).props("rows") as Array<{ partNumber: string }>;
+    expect(rows.map((r) => r.partNumber)).toEqual(["P-100"]);
+    expect(pager(w).props()).toMatchObject({ total: 250, pageSize: 20 });
   });
 
   it("switching lists returns to page 1", async () => {

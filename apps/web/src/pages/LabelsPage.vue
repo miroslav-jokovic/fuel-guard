@@ -13,7 +13,7 @@ import TablePagination from "@/components/TablePagination.vue";
 import LabelSheetPreview from "@/features/inventory/LabelSheetPreview.vue";
 import LabelStockControls from "@/features/inventory/LabelStockControls.vue";
 import { ASSETS_PAGE_SIZE, useAssetsQuery } from "@/features/inventory/useAssets";
-import { useAllStockQuery } from "@/features/inventory/useInventory";
+import { STOCK_PAGE_SIZE, useStockPageQuery } from "@/features/inventory/useInventory";
 import { fetchLabelSheet, useLabelFaces, useLabelPresetsQuery } from "@/features/inventory/useLabels";
 import { useToastStore } from "@/stores/toast";
 import { useQueryState } from "@/composables/useQueryState";
@@ -71,28 +71,21 @@ const {
   isFetching: presetsFetching,
   refetch: refetchPresets,
 } = useLabelPresetsQuery();
-const {
-  data: stock,
-  isLoading: stockLoading,
-  isError: stockFailed,
-  isFetching: stockFetching,
-  refetch: refetchStock,
-} = useAllStockQuery();
 
 /**
  * D-US8: both lists page, one page in the URL (D-US2) for whichever list is showing — they are never
  * on screen together, and the switch returns to page 1 as it clears the ticks.
  *
- * ── THE ASSETS PAGE THROUGH THE SERVER, THE SHELVES ON THE CLIENT ──────────────────────────────
+ * ── BOTH LISTS PAGE AND SEARCH THROUGH THE SERVER ─────────────────────────────────────────────
  * `/assets` answers fifty rows at a time with a `total` (ASSETS_PAGE_SIZE), and this table used to ask
  * for page 1 and show no pager — so asset 51 onward could never be ticked, and nothing on screen said
- * the list stopped. It now asks for the page the pager is on, as AssetsPage does. The stock is one
- * response, so its pages are slices of it.
+ * the list stopped. It now asks for the page the pager is on, as AssetsPage does. The shelves did the
+ * same thing one size up until US6b F32: one 200-line response, searched and sliced here, so line 201
+ * was unreachable. They ask the route for their page and their search too (`useStockPageQuery`).
  *
  * The ticks are a Set of keys held here, not the table's rows: a page change leaves a ticked row off
  * screen and still in the run, which is what a sheet of 240 labels across several pages needs.
  */
-const STOCK_PAGE_SIZE = 20;
 const page = qs.page();
 watch(search, () => (page.value = 1));
 const assetsFilter = computed(() => ({
@@ -101,6 +94,18 @@ const assetsFilter = computed(() => ({
   page: source.value === "assets" ? page.value : 1,
   search: search.value.trim() || undefined,
 }));
+// Each list asks for its page only while it is the one on screen, for the reason given just below.
+const stockFilter = computed(() => ({
+  page: source.value === "stock" ? page.value : 1,
+  search: search.value.trim() || undefined,
+}));
+const {
+  data: stock,
+  isLoading: stockLoading,
+  isError: stockFailed,
+  isFetching: stockFetching,
+  refetch: refetchStock,
+} = useStockPageQuery(stockFilter);
 const {
   data: assets,
   isLoading: assetsLoading,
@@ -169,21 +174,9 @@ async function readFaces(list: LabelTarget[]) {
 }
 watch(targets, readFaces, { deep: true, immediate: true });
 
-const stockRows = computed(() => {
-  const term = search.value.trim().toLowerCase();
-  const lines = stock.value?.lines ?? [];
-  if (!term) return lines;
-  return lines.filter(
-    (l) =>
-      l.partNumber.toLowerCase().includes(term) ||
-      l.partDescription.toLowerCase().includes(term) ||
-      l.locationName.toLowerCase().includes(term),
-  );
-});
-
-const stockPage = computed(() => stockRows.value.slice((page.value - 1) * STOCK_PAGE_SIZE, page.value * STOCK_PAGE_SIZE));
+const stockPage = computed(() => stock.value?.lines ?? []);
 /** The showing list's row count, and the clamp that pulls the page back when that list shrinks. */
-const listTotal = computed(() => (source.value === "assets" ? (assets.value?.total ?? null) : stockRows.value.length));
+const listTotal = computed(() => (source.value === "assets" ? assets.value?.total : stock.value?.total) ?? null);
 watch(listTotal, (total) => {
   if (total === null) return;
   const maxPage = Math.max(1, Math.ceil(total / (source.value === "assets" ? ASSETS_PAGE_SIZE : STOCK_PAGE_SIZE)));
@@ -292,9 +285,9 @@ async function print() {
                    when one is first printed, which is what this screen is for. -->
               <span v-else class="text-xs text-ink-tertiary">None yet</span>
             </template>
-            <template #empty>Nothing on the shelves yet.</template>
+            <template #empty>{{ search.trim() ? "No shelf matches that search." : "Nothing on the shelves yet." }}</template>
             <template #footer>
-              <TablePagination :page="page" :page-size="STOCK_PAGE_SIZE" :total="stockRows.length" :loading="stockLoading" @update:page="page = $event" />
+              <TablePagination :page="page" :page-size="STOCK_PAGE_SIZE" :total="stock?.total ?? 0" :loading="stockLoading" @update:page="page = $event" />
             </template>
           </DataTable>
 
