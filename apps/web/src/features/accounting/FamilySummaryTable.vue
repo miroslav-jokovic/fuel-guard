@@ -87,7 +87,7 @@ const drift = computed(() => {
           statement below has the same money in McLeod's own ninety-four rows.
         </p>
       </div>
-      <DataTable embedded :columns="columns" :rows="expense" row-key="id" :loading="loading">
+      <DataTable embedded :columns="columns" :rows="expense" row-key="id" :loading="loading" empty-text="No expense posted in this period.">
         <template #cell-label="{ row }">
           <span :class="row.isUnassigned ? 'text-warning-700' : 'text-ink'">{{ row.label }}</span>
           <!-- How many McLeod accounts are inside this family. Glanced at, not read, so text-2xs
@@ -123,6 +123,7 @@ const drift = computed(() => {
     <!-- Hidden rather than shown empty: a period with no income at all is a fact the overview
          states, and an empty table under a heading reads as a loading failure. -->
     <BaseCard v-if="revenue.length" padding="none">
+      <!-- ui-adoption: never-empty — the card hides itself on a period with no income, as the comment above says. -->
       <DataTable embedded :columns="revenueColumns" :rows="revenue" row-key="id" :loading="loading">
         <template #cell-label="{ row }">
           <span :class="row.isUnassigned ? 'text-warning-700' : 'text-ink'">{{ row.label }}</span>

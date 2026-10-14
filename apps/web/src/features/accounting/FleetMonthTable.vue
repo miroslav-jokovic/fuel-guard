@@ -67,6 +67,7 @@ const rowClass = (row: Row) => (row.isCurrent ? "bg-brand-50/60 font-semibold" :
 </script>
 
 <template>
+  <!-- ui-adoption: never-empty — FleetTrendChart renders this only when the range has a month. -->
   <DataTable :columns="columns" :rows="rows" row-key="id" dense embedded :sticky-header="false" :row-class="rowClass">
     <template #cell-label="{ row }">
       <span :class="row.isCurrent ? 'text-ink' : 'text-ink-secondary'">{{ row.label }}</span>

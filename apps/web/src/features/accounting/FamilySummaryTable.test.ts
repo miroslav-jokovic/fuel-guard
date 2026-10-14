@@ -60,6 +60,12 @@ describe("FamilySummaryTable", () => {
     expect(w.text()).toContain("Fuel and fluids");
   });
 
+  /** The expense table can meet a quiet period; it says so rather than DataTable's bare "No results." */
+  it("says a period with no expense posted has none", () => {
+    const w = render({ expense: [] });
+    expect(w.findAllComponents(DataTable)[0]!.text()).toContain("No expense posted in this period.");
+  });
+
   it("shows no income table at all rather than an empty one", () => {
     const w = render({ revenue: [] });
     expect(w.findAllComponents(DataTable)).toHaveLength(1);

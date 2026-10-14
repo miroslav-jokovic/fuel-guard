@@ -472,3 +472,48 @@ end). Measured bays today: 0 lines in production. Fix with the walk's own read-t
 
 Batch 3 is complete except F31 (Q-US3). Next: the sweep for what the gate does not check (§ after
 batch 3), then US7 once Q-US1 is ruled.
+
+### 2026-10-14 — The sweep after batch 3, part 1: tables that say nothing when empty, and row actions beside each other
+
+Measured across `pages/`, `features/` and `components/` before anything changed (four kinds the gate did
+not check):
+
+| Kind | Found | Verdict |
+|---|---:|---|
+| `DataTable` with no `empty-text` / `#empty` | 17 | 5 reachable, 12 never empty |
+| Row `#actions` with 2+ buttons outside a `KebabMenu` | 2 | both moved into a menu |
+| `divide-y` lists | 33 | 4 hold records that read as a table (part 2) |
+| `<p>`/`<div>`/`<span>` styled as a heading | 30 | ~7 are headings (part 2) |
+
+**This part** (claude/ui-sweep-gate-blind):
+
+- **Empty tables.** Two tables had a hand-written paragraph doing the table's job (the same-card fills
+  in a case, the Fuel Log's card assignments); both now say it through `empty-text`. Three could show
+  DataTable's bare "No results." — the expense families on a quiet period, the shelf walk's and the
+  unit check's review — and now say what is empty. Twelve sit inside a `v-if` on their own rows (or are
+  a fixed reference list) and carry `ui-adoption: never-empty — <why>`.
+- **Row actions.** The applicant's invitation table (Review, Revoke) and the prior-employer inquiries
+  (They answered, Document no reply) put two buttons side by side; both are a `KebabMenu`, Revoke last
+  and `kebab-item-danger`.
+- **Gate:** `lint:ui-adoption` fails a `DataTable` without `empty-text`/`#empty` (or the marker), and a
+  row `#actions` slot with two or more buttons outside a `KebabMenu`. Self-test fixture: bare,
+  self-closing, slot-filled, nested-in-`#expanded`, kebab, single-button and `PageHeader #actions`
+  cases; four mutants of the checker (each half disabled, `#empty` ignored, `KebabMenu` ignored) all fail
+  it. Contract §1 (empty state) and §5.6 (row actions) say so.
+
+**Part 2, recorded for the next merge:** the four lists that are tables — `ActiveOverridesPanel`
+(card, unit/driver, uses, scope, read age, two actions), `LocationsDrawer` (name, code, address, state,
+three actions), `SignatoryRegister` and `IncidentDetail`'s attempts — and the headings drawn as text
+(Messages' conversation title, the live map's unit panel, the load page's reference, the declined
+attempt drawer's unit, the assistant's opening prompt). Found on the way and worse than the look:
+`LocationsDrawer` and `AssetTypesDrawer` draw nothing while loading and "No locations yet" when the
+read FAILS, and `ActiveOverridesPanel` hides itself on a failed read — a failure shown as an empty or
+absent answer. Those come first in part 2.
+
+Not gated, on purpose: whether a `divide-y` list "is a table" and whether bold text "is a heading" are
+questions about meaning, and every markup rule tried against the 63 candidates flagged figures, list
+item titles and button labels as often as real drift. They stay a review item.
+
+Re-shot at 1280 and 390 with the empty fixture: the Fuel Log's card assignments drawer draws the
+table's own empty line in the drawer.
+

@@ -17,7 +17,7 @@ const fill = (id: string, extra: Record<string, unknown> = {}) => ({
   gallons: 101.5, price_per_gal: 3.5, location_text: null, city: "Joliet", state: "IL", ...extra,
 });
 
-const load = vi.hoisted(() => ({ siblingsFail: false, refetches: 0 }));
+const load = vi.hoisted(() => ({ siblingsFail: false, siblingsEmpty: false, refetches: 0 }));
 vi.mock("@/features/anomalies/useAnomalyDetail", () => ({
   useAnomalyDetail: () => ({
     txnLoading: ref(false), txnError: ref(null), txnFetching: ref(false), refetchTxn: vi.fn(),
@@ -30,7 +30,7 @@ vi.mock("@/features/anomalies/useAnomalyDetail", () => ({
     hasCardSignal: ref(true),
     cardRef: ref("1234"),
     windowHours: ref(48),
-    siblingFills: ref([fill("t1"), fill("t2", { vehicle_id: "v2", price_per_gal: null, odometer: null, city: null, state: null })]),
+    siblingFills: ref(load.siblingsEmpty ? [] : [fill("t1"), fill("t2", { vehicle_id: "v2", price_per_gal: null, odometer: null, city: null, state: null })]),
     siblingLoading: ref(false),
     driverName: () => "Ann Lee",
     unitNumber: (id: string | null) => (id === "v1" ? "654" : "655"),
@@ -115,5 +115,26 @@ describe("the anomaly's facts (D-US6)", () => {
     const t = facts(dls[dls.length - 1]!);
     expect(Object.keys(t)).toEqual(["Vehicle", "Driver", "Card #", "When", "Odometer", "Gallons", "$/gal", "MPG", "Location", "Source"]);
     expect(t).toMatchObject({ Vehicle: "654", Driver: "Ann Lee", "Card #": "1234", Odometer: "1,000 mi", "$/gal": "$3.50", MPG: "—", Location: "Joliet, IL" });
+  });
+});
+
+/**
+ * An empty window is the table's own empty state, not a paragraph beside it (the sweep after US6b
+ * batch 3, 2026-10-14): one place says what empty means, in the table's place on the page.
+ */
+describe("same-card fills when the window holds none", () => {
+  it("draws the table with its own empty sentence", () => {
+    load.siblingsEmpty = true;
+    const w = mount(AnomalyDetail, {
+      props: {
+        anomaly: { id: "a1", rule_id: "card_multi_vehicle", severity: "high", status: "open", message: "m", evidence: {} } as never,
+        vehicleUnit: "654",
+      },
+      global: { stubs: { EntityHistory: true, AnomalyAudit: true, StatusBadge: true } },
+    });
+    load.siblingsEmpty = false;
+    const table = w.findComponent(DataTable);
+    expect(table.exists()).toBe(true);
+    expect(table.text()).toContain("No other fills on this card in this window.");
   });
 });

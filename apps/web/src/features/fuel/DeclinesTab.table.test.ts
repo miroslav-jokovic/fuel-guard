@@ -30,10 +30,11 @@ vi.mock("vue-router", async (importOriginal) => ({
   ),
   useRouter: () => ({ push: () => {} }),
 }));
+const cards = vi.hoisted(() => ({ none: false }));
 vi.mock("@/composables/useCardAssignments", () => ({
   useCardAssignments: () => ({
     data: {
-      value: [
+      value: cards.none ? [] : [
         { id: "a1", card_ref: "••1234", card_last4: "1234", vehicle_id: "v1", assignment_source: "learned", updated_at: null },
         { id: "a2", card_ref: "••5678", card_last4: "5678", vehicle_id: null, assignment_source: "manual", updated_at: null },
       ],
@@ -74,6 +75,19 @@ describe("card assignments drawer", () => {
     expect(learned!.findAll("td").map((td) => td.text())).toEqual(["••1234", "654", "learned"]);
     // A card with no truck shows the table's own em dash, not a hand-written one.
     expect(manual!.findAll("td").map((td) => td.text())).toEqual(["••5678", "—", "manual"]);
+  });
+
+  /** The table owns its empty state (the sweep after US6b batch 3, 2026-10-14), not a paragraph in its place. */
+  it("says no card has a truck yet in the table's own empty state", () => {
+    cards.none = true;
+    const w = mount(DeclinesTab, {
+      shallow: true,
+      props: { shared: shared() },
+      global: { plugins: [VueQueryPlugin, createPinia()], stubs: { DataTable: false, SlideOver } },
+    });
+    cards.none = false;
+    const table = w.findAllComponents(DataTable).find((t) => t.text().includes("No card has a truck yet."));
+    expect(table).toBeDefined();
   });
 });
 

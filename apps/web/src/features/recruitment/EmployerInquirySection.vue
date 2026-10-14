@@ -17,6 +17,7 @@ import {
 } from "@silvicom/ui";
 import SlideOver from "@/components/SlideOver.vue";
 import DataTable from "@/components/ui/DataTable.vue";
+import KebabMenu from "@/components/KebabMenu.vue";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { useSessionStore } from "@/stores/session";
@@ -212,10 +213,10 @@ const FORM_ID = "employer-inquiry-form";
           <span v-if="row.outcome_on" class="ml-2 text-xs text-ink-muted">{{ row.outcome_on }}</span>
         </template>
         <template #actions="{ row }">
-          <div v-if="canInvestigate && row.outcome === 'awaiting'" class="flex items-center gap-2">
-            <BaseButton size="sm" @click="answering = row">They answered</BaseButton>
-            <BaseButton size="sm" @click="close(row, 'no_response')">Document no reply</BaseButton>
-          </div>
+          <KebabMenu v-if="canInvestigate && row.outcome === 'awaiting'" :trigger-label="`Record the answer from ${row.employer_name}`">
+            <BaseButton class="kebab-item" @click="answering = row">They answered</BaseButton>
+            <BaseButton class="kebab-item" @click="close(row, 'no_response')">Document no reply</BaseButton>
+          </KebabMenu>
         </template>
       </DataTable>
     </BaseCard>
