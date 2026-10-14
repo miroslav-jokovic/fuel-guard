@@ -1,6 +1,7 @@
 import { computed, type Ref } from "vue";
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/vue-query";
 import { apiFetch } from "@/lib/api";
+import { recordOrThrow } from "@/lib/notFound";
 import { uploadContentType } from "@/lib/fileFormat";
 import type {
   AssetCreateInput,
@@ -83,9 +84,11 @@ export function useAssetQuery(id: Ref<string>) {
     queryKey: ["inventory", "asset", id] as const,
     enabled: computed(() => Boolean(id.value)),
     queryFn: async (): Promise<AssetDetail> => {
-      const r = await apiFetch<AssetDetail>(`/api/maintenance/inventory/assets/${id.value}`);
-      if (!r.ok || !r.data) throw new Error(r.error?.message ?? "Could not load the asset");
-      return r.data;
+      // A 404 is `NotFoundError` (F21): an asset that is not on the books is not a failed read.
+      return recordOrThrow(
+        await apiFetch<AssetDetail>(`/api/maintenance/inventory/assets/${id.value}`),
+        "Could not load the asset",
+      );
     },
   });
 }

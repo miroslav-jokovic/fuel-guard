@@ -1,3 +1,6 @@
+<!-- ui-adoption: not-a-record — `:jurisdiction` is a state or province code, and the page reads a
+     quarter's miles and gallons for it. The API reads any two-letter code, and one with no activity
+     is an empty quarter, not a missing record. -->
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import { useRoute, RouterLink } from "vue-router";

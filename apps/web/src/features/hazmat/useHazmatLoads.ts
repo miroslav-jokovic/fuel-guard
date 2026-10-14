@@ -7,6 +7,7 @@ import type {
   HazmatRunsResponse,
 } from "@silvicom/shared";
 import { apiFetch } from "@/lib/api";
+import { recordOrThrow } from "@/lib/notFound";
 
 /**
  * Load Workspace data layer (plan H5). Reads/writes go through the API (never PostgREST): every lifecycle
@@ -28,7 +29,10 @@ export function useHazmatLoadQuery(id: Ref<string | undefined>) {
   return useQuery({
     queryKey: computed(() => [...loadsKey, "one", id.value] as const),
     enabled: computed(() => Boolean(id.value)),
-    queryFn: async (): Promise<HazmatLoadRow> => call<HazmatLoadRow>(`/api/hazmat/loads/${id.value}`),
+    // Not through `call`: a 404 here is `NotFoundError` (F21), a load that does not exist rather than
+    // a failed read, and `call` serves the lifecycle moves too, where a 404 is a refusal to show.
+    queryFn: async (): Promise<HazmatLoadRow> =>
+      recordOrThrow(await apiFetch<HazmatLoadRow>(`/api/hazmat/loads/${id.value}`), "Could not load this hazmat load."),
     // Poll while an analysis is in flight; stop the moment the status settles.
     refetchInterval: (q) => (isAnalyzing((q.state.data as HazmatLoadRow | undefined)?.status) ? 2_000 : false),
   });

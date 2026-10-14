@@ -1,3 +1,6 @@
+<!-- ui-adoption: not-a-record — the token is a public link, not a record id: every dead link answers
+     identically by design (`ApplyPhaseRouter`'s dead-link card), and the applicant has no list to go
+     back to, so the record pages' not-found state has nothing to offer here. -->
 <script setup lang="ts">
 import { computed, nextTick, reactive, ref, watch } from "vue";
 import { useRoute } from "vue-router";

@@ -33,6 +33,7 @@ import SevenDayStatementSection from "@/features/roster/SevenDayStatementSection
 import DriverContactSection from "@/features/roster/DriverContactSection.vue";
 import { useDriverQuery } from "@/composables/useDrivers";
 import QueryState from "@/components/ui/QueryState.vue";
+import { isNotFound } from "@/lib/notFound";
 import { useRequestBinder } from "@/composables/useDqExports";
 import { useToastStore } from "@/stores/toast";
 import { useSessionStore } from "@/stores/session";
@@ -169,7 +170,13 @@ async function fetchAllFills(driverId: string): Promise<FuelTransaction[]> {
  * `select("*")` would mean the page asked for every column it does not render, including ones a
  * future migration might add.
  */
-const { data: driver } = useDriverQuery(id);
+const driverQuery = useDriverQuery(id);
+const driver = driverQuery.data;
+/**
+ * No such driver in this company (F21). The page used to read only `data`, so a missing driver was a
+ * page of blank sections under "Driver" and a failed read was never said at all.
+ */
+const missing = computed(() => isNotFound(driverQuery.error.value));
 const binderExportScope = computed(() =>
   driver.value?.full_name
     ? `${driver.value.full_name} · Complete qualification file`
@@ -304,7 +311,7 @@ const fillColumns: DataTableColumn[] = [
         <!-- No longer gated on the qualification TAB being open: there are no tabs, and the button
              exports the §391.51 file whichever part of the page the reader has scrolled to. -->
         <ExportButton
-          v-if="session.can('roster')"
+          v-if="session.can('roster') && !missing"
           :run="exportWholeFile"
           :scope="binderExportScope"
           label="Export this file"
@@ -315,127 +322,141 @@ const fillColumns: DataTableColumn[] = [
       </template>
     </PageHeader>
 
-    <!-- §40.25(j) (0237). Above the tab strip and outside every section, because it is not a fact
-         about one part of this driver's file — it is a limit on what the driver may be given to do,
-         and somebody arriving on the fuel history has as much reason to see it as somebody on
-         qualification. ⚠ It says the same thing to everybody who can open this page; the document
-         that lifts it is a testing record and lives behind Qualification's own access rules. -->
-    <AppCallout v-if="driver?.return_to_duty_required" tone="warning">
-      {{ RETURN_TO_DUTY_BLOCK.hire }}
-    </AppCallout>
-
-    <!-- U4/D-UI4's strip, now a JUMP NAV rather than a tab strip: every section is on the page and
-         this scrolls to one. ⚠ Still no `id-prefix` — `aria-controls` names a panel the strip
-         controls, and these sections are named by the URL rather than owned by the strip. -->
-    <AppTabs
-      :model-value="section"
-      :tabs="SECTIONS"
-      label="Driver sections"
-      @update:model-value="setSection($event as Section)"
+    <!-- The driver's own read: its loading line, its failure with a Retry, or the not-found answer
+         that replaces the whole page (F21). Every section below has its own read and its own states. -->
+    <QueryState
+      :loading="driverQuery.isPending.value"
+      :error="driverQuery.isError.value ? driverQuery.error.value : null"
+      :retrying="driverQuery.isFetching.value"
+      loading-text="Loading the driver…"
+      error-text="Could not load the driver."
+      not-found-text="That driver is not in this company."
+      @retry="driverQuery.refetch()"
     />
 
-    <section id="section-qualification" class="scroll-mt-6">
-      <QualificationSection :driver-id="id" />
-    </section>
+    <template v-if="!missing">
+      <!-- §40.25(j) (0237). Above the tab strip and outside every section, because it is not a fact
+           about one part of this driver's file — it is a limit on what the driver may be given to do,
+           and somebody arriving on the fuel history has as much reason to see it as somebody on
+           qualification. ⚠ It says the same thing to everybody who can open this page; the document
+           that lifts it is a testing record and lives behind Qualification's own access rules. -->
+      <AppCallout v-if="driver?.return_to_duty_required" tone="warning">
+        {{ RETURN_TO_DUTY_BLOCK.hire }}
+      </AppCallout>
 
-    <!-- §395.8(j)(2) — a record about EMPLOYMENT, not about hiring, so R7 left it behind when the
-         recruiting sections went. It sits under Profile until R6b gives it the "Employment & pay"
-         section it belongs in; parking it on the recruitment surface would have been filing an
-         hours-of-service record with the hiring paperwork because that is where it happened to be. -->
-    <SevenDayStatementSection :driver-id="id" />
+      <!-- U4/D-UI4's strip, now a JUMP NAV rather than a tab strip: every section is on the page and
+           this scrolls to one. ⚠ Still no `id-prefix` — `aria-controls` names a panel the strip
+           controls, and these sections are named by the URL rather than owned by the strip. -->
+      <AppTabs
+        :model-value="section"
+        :tabs="SECTIONS"
+        label="Driver sections"
+        @update:model-value="setSection($event as Section)"
+      />
 
-    <!-- D-ROS1's "the record page writes", scoped by D-ROS2: the fields no sync owns and nothing
-         legal turns on, editable in place. Everything dangerous stays in the roster's drawer, which
-         warns before it claims and reports what the edit meant (R6a) — no field is editable in two
-         places, which is the whole answer to §6 Q8. -->
-    <div id="section-profile" class="scroll-mt-6">
-      <DriverContactSection :driver="driver ?? null" />
-    </div>
+      <section id="section-qualification" class="scroll-mt-6">
+        <QualificationSection :driver-id="id" />
+      </section>
 
-    <BaseCard v-if="driver">
-      <div class="flex items-center justify-between">
-        <div>
-          <h2 class="text-sm font-semibold text-ink">Driver summary</h2>
-        </div>
-        <StatusBadge :status="driver.status" />
+      <!-- §395.8(j)(2) — a record about EMPLOYMENT, not about hiring, so R7 left it behind when the
+           recruiting sections went. It sits under Profile until R6b gives it the "Employment & pay"
+           section it belongs in; parking it on the recruitment surface would have been filing an
+           hours-of-service record with the hiring paperwork because that is where it happened to be. -->
+      <SevenDayStatementSection :driver-id="id" />
+
+      <!-- D-ROS1's "the record page writes", scoped by D-ROS2: the fields no sync owns and nothing
+           legal turns on, editable in place. Everything dangerous stays in the roster's drawer, which
+           warns before it claims and reports what the edit meant (R6a) — no field is editable in two
+           places, which is the whole answer to §6 Q8. -->
+      <div id="section-profile" class="scroll-mt-6">
+        <DriverContactSection :driver="driver ?? null" />
       </div>
-      <FactList v-if="canSeeFuel" class="mt-4" :facts="fuelFacts">
-        <!-- Why there is no MPG, under the dash: the reason belongs to the figure, not to a tooltip only. -->
-        <template #value-mpg="{ fact }">
-          <span :title="driverMpg.reason ?? undefined">
-            <template v-if="fact.value != null">{{ fact.value }}</template>
-            <span v-else class="font-normal text-ink-tertiary">—</span>
-          </span>
-          <span v-if="driverMpg.reason" class="block text-xs font-normal text-ink-tertiary">{{ driverMpg.reason }}</span>
-        </template>
-      </FactList>
-    </BaseCard>
 
-    <BaseCard v-if="canSeeFuel" id="section-fuel" class="scroll-mt-6">
-      <h3 class="mb-3 text-sm font-semibold text-ink">MPG history</h3>
-      <QueryState
-        compact
-        :loading="txnsQuery.isLoading.value"
-        :error="txnsQuery.isError.value"
-        :retrying="txnsQuery.isFetching.value"
-        loading-text="Loading the fills…"
-        error-text="Could not load the fills."
-        @retry="txnsQuery.refetch()"
-      >
-        <BaseChart v-if="mpgPoints.length" :config="mpgChart" :height="260" />
-        <p v-else class="text-sm text-ink-muted">Not enough valid data to chart MPG yet.</p>
-      </QueryState>
-    </BaseCard>
+      <BaseCard v-if="driver">
+        <div class="flex items-center justify-between">
+          <div>
+            <h2 class="text-sm font-semibold text-ink">Driver summary</h2>
+          </div>
+          <StatusBadge :status="driver.status" />
+        </div>
+        <FactList v-if="canSeeFuel" class="mt-4" :facts="fuelFacts">
+          <!-- Why there is no MPG, under the dash: the reason belongs to the figure, not to a tooltip only. -->
+          <template #value-mpg="{ fact }">
+            <span :title="driverMpg.reason ?? undefined">
+              <template v-if="fact.value != null">{{ fact.value }}</template>
+              <span v-else class="font-normal text-ink-tertiary">—</span>
+            </span>
+            <span v-if="driverMpg.reason" class="block text-xs font-normal text-ink-tertiary">{{ driverMpg.reason }}</span>
+          </template>
+        </FactList>
+      </BaseCard>
 
-    <div v-if="canSeeFuel" class="grid grid-cols-1 gap-4 lg:grid-cols-2">
-      <div class="space-y-3">
-        <h3 class="text-sm font-semibold text-ink">Recent fills</h3>
-        <DataTable
-          :columns="fillColumns"
-          :rows="recent"
-          row-key="id"
+      <BaseCard v-if="canSeeFuel" id="section-fuel" class="scroll-mt-6">
+        <h3 class="mb-3 text-sm font-semibold text-ink">MPG history</h3>
+        <QueryState
+          compact
           :loading="txnsQuery.isLoading.value"
-          :error="txnsQuery.isError.value ? 'Could not load the fills.' : null"
+          :error="txnsQuery.isError.value"
           :retrying="txnsQuery.isFetching.value"
-          empty-text="No fills yet."
+          loading-text="Loading the fills…"
+          error-text="Could not load the fills."
           @retry="txnsQuery.refetch()"
         >
-          <template #cell-fueled_at="{ row }">{{ fmt(row.fueled_at, row.state ?? null) }}</template>
-          <template #cell-gallons="{ value }">{{ value != null ? `${value} gal` : "—" }}</template>
-          <template #cell-computed_mpg="{ value }">{{ value != null ? `${value} mpg` : "—" }}</template>
-        </DataTable>
-      </div>
-      <BaseCard padding="none">
-        <h3 class="border-b border-edge-subtle px-5 py-3 text-sm font-semibold text-ink">
-          Anomalies
-        </h3>
-        <!-- `isPending`: the read waits on the fills and the detection epoch, and while it is
-             disabled `isLoading` is false — which drew "No anomalies" before anything was asked. -->
-        <div v-if="anomaliesQuery.isPending.value || anomaliesFailed" class="px-5 py-3">
-          <QueryState
-            compact
-            :loading="!anomaliesFailed"
-            :error="anomaliesFailed"
-            :retrying="anomaliesQuery.isFetching.value || txnsQuery.isFetching.value"
-            loading-text="Loading the anomalies…"
-            error-text="Could not load the anomalies."
-            @retry="retryAnomalies"
-          />
-        </div>
-        <ul v-else class="divide-y divide-edge-subtle text-sm">
-          <li
-            v-for="a in anomalies ?? []"
-            :key="a.id"
-            class="flex items-center justify-between px-5 py-2"
-          >
-            <span class="text-ink-secondary" :title="a.rule_id">{{ a.rule_id }}</span>
-            <StatusBadge :status="a.status" />
-          </li>
-          <li v-if="(anomalies ?? []).length === 0" class="px-5 py-3 text-ink-muted">
-            No anomalies.
-          </li>
-        </ul>
+          <BaseChart v-if="mpgPoints.length" :config="mpgChart" :height="260" />
+          <p v-else class="text-sm text-ink-muted">Not enough valid data to chart MPG yet.</p>
+        </QueryState>
       </BaseCard>
-    </div>
+
+      <div v-if="canSeeFuel" class="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <div class="space-y-3">
+          <h3 class="text-sm font-semibold text-ink">Recent fills</h3>
+          <DataTable
+            :columns="fillColumns"
+            :rows="recent"
+            row-key="id"
+            :loading="txnsQuery.isLoading.value"
+            :error="txnsQuery.isError.value ? 'Could not load the fills.' : null"
+            :retrying="txnsQuery.isFetching.value"
+            empty-text="No fills yet."
+            @retry="txnsQuery.refetch()"
+          >
+            <template #cell-fueled_at="{ row }">{{ fmt(row.fueled_at, row.state ?? null) }}</template>
+            <template #cell-gallons="{ value }">{{ value != null ? `${value} gal` : "—" }}</template>
+            <template #cell-computed_mpg="{ value }">{{ value != null ? `${value} mpg` : "—" }}</template>
+          </DataTable>
+        </div>
+        <BaseCard padding="none">
+          <h3 class="border-b border-edge-subtle px-5 py-3 text-sm font-semibold text-ink">
+            Anomalies
+          </h3>
+          <!-- `isPending`: the read waits on the fills and the detection epoch, and while it is
+               disabled `isLoading` is false — which drew "No anomalies" before anything was asked. -->
+          <div v-if="anomaliesQuery.isPending.value || anomaliesFailed" class="px-5 py-3">
+            <QueryState
+              compact
+              :loading="!anomaliesFailed"
+              :error="anomaliesFailed"
+              :retrying="anomaliesQuery.isFetching.value || txnsQuery.isFetching.value"
+              loading-text="Loading the anomalies…"
+              error-text="Could not load the anomalies."
+              @retry="retryAnomalies"
+            />
+          </div>
+          <ul v-else class="divide-y divide-edge-subtle text-sm">
+            <li
+              v-for="a in anomalies ?? []"
+              :key="a.id"
+              class="flex items-center justify-between px-5 py-2"
+            >
+              <span class="text-ink-secondary" :title="a.rule_id">{{ a.rule_id }}</span>
+              <StatusBadge :status="a.status" />
+            </li>
+            <li v-if="(anomalies ?? []).length === 0" class="px-5 py-3 text-ink-muted">
+              No anomalies.
+            </li>
+          </ul>
+        </BaseCard>
+      </div>
+    </template>
   </div>
 </template>

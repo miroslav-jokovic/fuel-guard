@@ -12,7 +12,9 @@ export const driverRoutes: RouteRecordRaw[] = [
     path: "/drivers/:id",
     name: "driver-detail",
     component: () => import("@/pages/DriverDetailPage.vue"),
-    meta: { requiresAuth: true, title: "Driver" },
+    // `parent` gives the page its breadcrumb, the shell's Back, and the not-found answer's way back
+    // to the list (F21) — the three are one walk over this key.
+    meta: { requiresAuth: true, title: "Driver", parent: "/drivers" },
   },
   {
     path: "/compliance",

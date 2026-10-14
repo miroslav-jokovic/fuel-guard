@@ -43,13 +43,10 @@ const exportName = computed(() => {
       :retrying="isFetching"
       loading-text="Loading the check…"
       error-text="Could not load that invoice check."
+      not-found-text="There's no invoice check with that link. It may belong to another company, or the link is incomplete."
       @retry="refetch()"
     >
-      <AppCallout v-if="data === null" tone="caution">
-        There's no invoice check with that link. It may belong to another company, or the link is incomplete.
-      </AppCallout>
-
-      <template v-else-if="data && run">
+      <template v-if="data && run">
         <AppCallout v-if="run.superseded_by" tone="caution">
           This invoice was checked again on {{ formatDateTime(run.superseded_at) }}; the newer check is the one
           on the Pilot invoices list. This one is kept as it was.

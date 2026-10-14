@@ -2,6 +2,7 @@ import { computed, type Ref } from "vue";
 import { useQuery } from "@tanstack/vue-query";
 import type { CalendarDay, RoadsideInspectionDetailDto, RoadsideInspectionDto, RoadsideSummary } from "@silvicom/shared";
 import { apiFetch } from "@/lib/api";
+import { recordOrThrow } from "@/lib/notFound";
 
 /**
  * Our FMCSA roadside inspections (INSPECTION-CHALLENGE-PLAN §6's first slice; FLEET-MANAGER-HOME-PLAN
@@ -11,9 +12,8 @@ import { apiFetch } from "@/lib/api";
  * The feed refreshes once a day (`FMCSA_FEED_HOURS`), so neither read needs to be fresher than that.
  */
 async function read<T>(path: string, what: string): Promise<T> {
-  const r = await apiFetch<{ data: T }>(path);
-  if (!r.ok || !r.data) throw new Error(r.error?.message ?? `Could not load ${what}`);
-  return r.data.data;
+  // A 404 is `NotFoundError` (F21) — only the one-inspection read can meet one.
+  return recordOrThrow(await apiFetch<{ data: T }>(path), `Could not load ${what}`).data;
 }
 
 export function useRoadsideSummaryQuery() {

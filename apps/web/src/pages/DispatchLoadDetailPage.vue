@@ -165,6 +165,7 @@ function markBroken(id: string) {
       :retrying="isFetching"
       loading-text="Loading the load…"
       error-text="Could not open this load."
+      not-found-text="That load no longer exists. It may have been cancelled in McLeod, or the link is incomplete."
       @retry="refetch()"
     >
       <template v-if="load">

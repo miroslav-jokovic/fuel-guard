@@ -190,6 +190,7 @@ const uploadAccept = acceptFor(INVENTORY_PHOTO_CONTENT_TYPES);
       :retrying="isFetching"
       loading-text="Loading the asset…"
       error-text="Could not load the asset."
+      not-found-text="That asset is not on the books. It may have been entered under another number, or the link is incomplete."
       @retry="refetch()"
     >
       <template v-if="asset">

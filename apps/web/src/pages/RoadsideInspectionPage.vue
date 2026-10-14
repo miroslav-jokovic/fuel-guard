@@ -155,6 +155,7 @@ const VIOLATION_COLUMNS: DataTableColumn[] = [
       :retrying="isFetching"
       loading-text="Loading the inspection…"
       error-text="Could not load the roadside inspection."
+      not-found-text="That roadside inspection is not on file for this carrier. The link may be incomplete."
       @retry="refetch()"
     >
       <template v-if="inspection">

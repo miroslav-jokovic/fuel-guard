@@ -149,6 +149,7 @@ const canPrimary = computed(() => ["draft", "submitted"].includes(load.value?.st
       :retrying="isFetching"
       loading-text="Loading the hazmat load…"
       error-text="Could not load this hazmat load."
+      not-found-text="That hazmat load is not on file. It may belong to another company, or the link is incomplete."
       @retry="refetch()"
     >
       <template v-if="load">

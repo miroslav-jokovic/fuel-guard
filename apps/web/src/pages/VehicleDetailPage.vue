@@ -18,6 +18,7 @@ import { viz, areaFill } from "@/lib/chartTheme";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import FactList, { type Fact } from "@/components/ui/FactList.vue";
 import QueryState from "@/components/ui/QueryState.vue";
+import { NotFoundError, isNotFound } from "@/lib/notFound";
 
 const route = useRoute();
 const id = computed(() => String(route.params.id));
@@ -38,13 +39,18 @@ const canSeeFuel = computed(() => session.canView("fuel"));
  */
 const vehicleQuery = useQuery({
   queryKey: ["vehicle", id],
-  queryFn: async (): Promise<Vehicle | null> => {
+  queryFn: async (): Promise<Vehicle> => {
     const { data, error } = await supabase.from("vehicles").select("*").eq("id", id.value).maybeSingle();
     if (error) throw new Error(error.message);
-    return (data as Vehicle | null) ?? null;
+    // No row is not-found (F21), not a vehicle with no data: it was `null`, and the page drew the
+    // header, an empty kit card and "No fills yet" for a truck that was never on the fleet.
+    if (!data) throw new NotFoundError("That vehicle is not on the fleet.");
+    return data as Vehicle;
   },
 });
 const vehicle = vehicleQuery.data;
+/** The truck does not exist, so none of the panels below has a truck to describe. */
+const missing = computed(() => isNotFound(vehicleQuery.error.value));
 
 const txnsQuery = useQuery({
   queryKey: ["vehicle_txns", id],
@@ -151,10 +157,11 @@ const fillColumns: DataTableColumn[] = [
     />
     <QueryState
       :loading="vehicleQuery.isLoading.value"
-      :error="vehicleQuery.isError.value"
+      :error="vehicleQuery.isError.value ? vehicleQuery.error.value : null"
       :retrying="vehicleQuery.isFetching.value"
       loading-text="Loading the vehicle…"
       error-text="Could not load this vehicle."
+      not-found-text="That vehicle is not on the fleet. The link may be incomplete, or the truck belongs to another company."
       @retry="vehicleQuery.refetch()"
     >
       <BaseCard v-if="vehicle">
@@ -172,70 +179,72 @@ const fillColumns: DataTableColumn[] = [
       </BaseCard>
     </QueryState>
 
-    <!-- What this truck is carrying (INVENTORY-PLAN.md I9, D-AVI17). Read only and gated
-         `maintenance: view`: the equipment section owns the truck's file and the shop owns what is
-         inside it, so this is a window and never a control. A reader without the shop section gets
-         no card at all — a card full of blanks would say "this truck carries nothing", which is a
-         different and alarming claim. -->
-    <UnitKitCard v-if="id" kind="tractor" :unit-id="id" />
+    <template v-if="!missing">
+      <!-- What this truck is carrying (INVENTORY-PLAN.md I9, D-AVI17). Read only and gated
+           `maintenance: view`: the equipment section owns the truck's file and the shop owns what is
+           inside it, so this is a window and never a control. A reader without the shop section gets
+           no card at all — a card full of blanks would say "this truck carries nothing", which is a
+           different and alarming claim. -->
+      <UnitKitCard v-if="id" kind="tractor" :unit-id="id" />
 
-    <BaseCard v-if="canSeeFuel">
-      <h3 class="mb-3 text-sm font-semibold text-ink">MPG history</h3>
-      <QueryState
-        compact
-        :loading="txnsQuery.isLoading.value"
-        :error="txnsQuery.isError.value"
-        :retrying="txnsQuery.isFetching.value"
-        loading-text="Loading the fills…"
-        error-text="Could not load the fills."
-        @retry="txnsQuery.refetch()"
-      >
-        <BaseChart v-if="mpgPoints.length" :config="mpgChart" :height="260" />
-        <p v-else class="text-sm text-ink-muted">Not enough data to chart MPG yet.</p>
-      </QueryState>
-    </BaseCard>
-
-    <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
-      <div v-if="canSeeFuel" class="space-y-3">
-        <h3 class="text-sm font-semibold text-ink">Recent fills</h3>
-        <DataTable
-          :columns="fillColumns"
-          :rows="recent"
-          row-key="id"
+      <BaseCard v-if="canSeeFuel">
+        <h3 class="mb-3 text-sm font-semibold text-ink">MPG history</h3>
+        <QueryState
+          compact
           :loading="txnsQuery.isLoading.value"
-          :error="txnsQuery.isError.value ? 'Could not load the fills.' : null"
+          :error="txnsQuery.isError.value"
           :retrying="txnsQuery.isFetching.value"
-          empty-text="No fills yet."
+          loading-text="Loading the fills…"
+          error-text="Could not load the fills."
           @retry="txnsQuery.refetch()"
         >
-          <template #cell-fueled_at="{ row }">{{ fmt(row.fueled_at, row.state ?? null) }}</template>
-          <template #cell-gallons="{ value }">{{ value != null ? `${value} gal` : "—" }}</template>
-          <template #cell-computed_mpg="{ value }">{{ value != null ? `${value} mpg` : "—" }}</template>
-        </DataTable>
-      </div>
-      <BaseCard padding="none">
-        <h3 class="border-b border-edge-subtle px-5 py-3 text-sm font-semibold text-ink">Anomalies</h3>
-        <!-- `isPending`, not `isLoading`: the read waits on the detection epoch, and while it is
-             disabled `isLoading` is false — which drew "No anomalies" before anything was asked. -->
-        <div v-if="anomaliesQuery.isPending.value || anomaliesQuery.isError.value" class="px-5 py-3">
-          <QueryState
-            compact
-            :loading="anomaliesQuery.isPending.value && !anomaliesQuery.isError.value"
-            :error="anomaliesQuery.isError.value"
-            :retrying="anomaliesQuery.isFetching.value"
-            loading-text="Loading the anomalies…"
-            error-text="Could not load the anomalies."
-            @retry="anomaliesQuery.refetch()"
-          />
-        </div>
-        <ul v-else class="divide-y divide-edge-subtle text-sm">
-          <li v-for="a in anomalies ?? []" :key="a.id" class="flex items-center justify-between px-5 py-2">
-            <span class="text-sm text-ink-secondary" :title="a.rule_id">{{ formatRuleId(a.rule_id) }}</span>
-            <StatusBadge :status="a.status" />
-          </li>
-          <li v-if="(anomalies ?? []).length === 0" class="px-5 py-3 text-ink-muted">No anomalies.</li>
-        </ul>
+          <BaseChart v-if="mpgPoints.length" :config="mpgChart" :height="260" />
+          <p v-else class="text-sm text-ink-muted">Not enough data to chart MPG yet.</p>
+        </QueryState>
       </BaseCard>
-    </div>
+
+      <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <div v-if="canSeeFuel" class="space-y-3">
+          <h3 class="text-sm font-semibold text-ink">Recent fills</h3>
+          <DataTable
+            :columns="fillColumns"
+            :rows="recent"
+            row-key="id"
+            :loading="txnsQuery.isLoading.value"
+            :error="txnsQuery.isError.value ? 'Could not load the fills.' : null"
+            :retrying="txnsQuery.isFetching.value"
+            empty-text="No fills yet."
+            @retry="txnsQuery.refetch()"
+          >
+            <template #cell-fueled_at="{ row }">{{ fmt(row.fueled_at, row.state ?? null) }}</template>
+            <template #cell-gallons="{ value }">{{ value != null ? `${value} gal` : "—" }}</template>
+            <template #cell-computed_mpg="{ value }">{{ value != null ? `${value} mpg` : "—" }}</template>
+          </DataTable>
+        </div>
+        <BaseCard padding="none">
+          <h3 class="border-b border-edge-subtle px-5 py-3 text-sm font-semibold text-ink">Anomalies</h3>
+          <!-- `isPending`, not `isLoading`: the read waits on the detection epoch, and while it is
+               disabled `isLoading` is false — which drew "No anomalies" before anything was asked. -->
+          <div v-if="anomaliesQuery.isPending.value || anomaliesQuery.isError.value" class="px-5 py-3">
+            <QueryState
+              compact
+              :loading="anomaliesQuery.isPending.value && !anomaliesQuery.isError.value"
+              :error="anomaliesQuery.isError.value"
+              :retrying="anomaliesQuery.isFetching.value"
+              loading-text="Loading the anomalies…"
+              error-text="Could not load the anomalies."
+              @retry="anomaliesQuery.refetch()"
+            />
+          </div>
+          <ul v-else class="divide-y divide-edge-subtle text-sm">
+            <li v-for="a in anomalies ?? []" :key="a.id" class="flex items-center justify-between px-5 py-2">
+              <span class="text-sm text-ink-secondary" :title="a.rule_id">{{ formatRuleId(a.rule_id) }}</span>
+              <StatusBadge :status="a.status" />
+            </li>
+            <li v-if="(anomalies ?? []).length === 0" class="px-5 py-3 text-ink-muted">No anomalies.</li>
+          </ul>
+        </BaseCard>
+      </div>
+    </template>
   </div>
 </template>

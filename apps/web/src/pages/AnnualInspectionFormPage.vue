@@ -249,7 +249,7 @@ async function openPdf(kind: "report" | "preview") {
 
 <template>
   <div class="space-y-6">
-    <PageHeader description="Every part below carries a result before this inspection can be completed." />
+    <PageHeader :description="report ? 'Every part below carries a result before this inspection can be completed.' : undefined" />
 
     <QueryState
       :loading="isLoading"
@@ -257,6 +257,7 @@ async function openPdf(kind: "report" | "preview") {
       :retrying="isFetching"
       loading-text="Loading the inspection…"
       error-text="Could not load this inspection."
+      not-found-text="That inspection is not on file. A draft that was discarded is gone, and its link with it."
       @retry="refetch()"
     >
       <template v-if="report">

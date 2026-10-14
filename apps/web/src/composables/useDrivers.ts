@@ -9,6 +9,7 @@ import type {
   DriverUpdateResponse,
 } from "@silvicom/shared";
 import { apiFetch } from "@/lib/api";
+import { recordOrThrow } from "@/lib/notFound";
 import { supabase } from "@/lib/supabase";
 
 // `identity_source` is selected because the roster's edit form must be able to say what an edit
@@ -27,10 +28,13 @@ export function useDriverQuery(id: Ref<string>) {
   return useQuery({
     queryKey: ["roster", "driver", id] as const,
     enabled: computed(() => Boolean(id.value)),
-    queryFn: async (): Promise<DriverDetail | null> => {
-      const res = await apiFetch<{ driver: DriverDetail }>(`/api/roster/drivers/${id.value}`);
-      if (!res.ok || !res.data) throw new Error(res.error?.message ?? "Could not load the driver.");
-      return res.data.driver;
+    queryFn: async (): Promise<DriverDetail> => {
+      // A 404 is `NotFoundError` (F21): a driver who is not in this company is not a failed read.
+      const data = recordOrThrow(
+        await apiFetch<{ driver: DriverDetail }>(`/api/roster/drivers/${id.value}`),
+        "Could not load the driver.",
+      );
+      return data.driver;
     },
   });
 }

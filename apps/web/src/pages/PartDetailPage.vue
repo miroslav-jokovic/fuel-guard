@@ -205,6 +205,7 @@ const uploadAccept = acceptFor(INVENTORY_PHOTO_CONTENT_TYPES);
       :retrying="isFetching"
       loading-text="Loading the part…"
       error-text="Could not load the part."
+      not-found-text="That part is not in the catalogue. The link may be incomplete, or the part belongs to another company."
       @retry="refetch()"
     >
       <template v-if="part">

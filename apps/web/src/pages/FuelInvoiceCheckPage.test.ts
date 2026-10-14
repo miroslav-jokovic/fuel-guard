@@ -21,12 +21,14 @@ const RUN = {
   },
 };
 
-const answer = vi.hoisted(() => ({ value: undefined as unknown, error: false, refetch: vi.fn() }));
+const answer = vi.hoisted(() => ({ value: undefined as unknown, error: false, missing: false, refetch: vi.fn() }));
 const askedFor: string[] = [];
 vi.mock("@/features/reconcile/useReconRuns", () => ({
   useReconRunQuery: (id: Ref<string>) => {
     askedFor.push(id.value);
-    return { data: ref(answer.value), isLoading: ref(false), isError: ref(answer.error), error: ref(answer.error ? new Error("Could not load that invoice check") : null), isFetching: ref(false), refetch: answer.refetch };
+    // A 404 is the hook's `NotFoundError` (F21), no longer a `null` answer.
+    const error = answer.missing ? new NotFoundError("No invoice check with that id.") : answer.error ? new Error("Could not load that invoice check") : null;
+    return { data: ref(answer.value), isLoading: ref(false), isError: ref(error !== null), error: ref(error), isFetching: ref(false), refetch: answer.refetch };
   },
 }));
 vi.mock("@/features/reconcile/ReconResultView.vue", () => ({
@@ -34,6 +36,7 @@ vi.mock("@/features/reconcile/ReconResultView.vue", () => ({
 }));
 
 import FuelInvoiceCheckPage from "./FuelInvoiceCheckPage.vue";
+import { NotFoundError } from "@/lib/notFound";
 
 async function mountAt(path: string) {
   const router = createRouter({
@@ -50,6 +53,7 @@ async function mountAt(path: string) {
 beforeEach(() => {
   askedFor.length = 0;
   answer.error = false;
+  answer.missing = false;
   answer.value = { run: RUN, lines: [], unmatchable: [] };
 });
 
@@ -80,10 +84,13 @@ describe("FuelInvoiceCheckPage", () => {
   });
 
   it("tells a check that isn't there apart from one that failed to load", async () => {
-    answer.value = null;
+    answer.value = undefined;
+    answer.missing = true;
     const missing = (await mountAt("/fuel-invoices/nope")).text();
     expect(missing).toContain("no invoice check with that link");
     expect(missing).not.toContain("Could not load");
+    expect(missing).not.toContain("Retry");
+    answer.missing = false;
 
     answer.value = undefined;
     answer.error = true;
