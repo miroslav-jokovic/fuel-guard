@@ -6,6 +6,9 @@ import {
   medstopRequestIsOpen,
   medstopRequestService,
   canOrderDrugTests,
+  medstopDonorGender,
+  medstopOrderIsObserved,
+  medstopSiteObserved,
   MEDSTOP_HEADER_ORDER_REASONS,
   MEDSTOP_ORDER_ROSTER,
   type MedstopOrderInput,
@@ -47,8 +50,10 @@ describe("medstopOrderInputSchema", () => {
     expect(medstopOrderInputSchema.safeParse({ ...input, reason: "RANDOM", selectionId: "S-1" }).success).toBe(true);
     expect(medstopOrderInputSchema.safeParse({ ...input, selectionId: "S-1" }).success).toBe(false);
   });
-  it("refuses the observed reasons until the donor's gender is held (UX5)", () => {
+  it("accepts the observed reasons now that the donor's gender is read from Med-Stop (UX5d), and no reason it does not order", () => {
     for (const reason of ["RETURN TO DUTY", "FOLLOW-UP"])
+      expect(medstopOrderInputSchema.safeParse({ ...input, reason }).success).toBe(true);
+    for (const reason of ["EXAMINATION", "RECERTIFICATION", "OTHER"])
       expect(medstopOrderInputSchema.safeParse({ ...input, reason }).success).toBe(false);
   });
   it("refuses a field it does not know — nothing reaches Med-Stop that the preview did not show", () => {
@@ -89,13 +94,59 @@ describe("canOrderDrugTests (owner answer 1)", () => {
 
 describe("which roster a reason orders on (UX4)", () => {
   it("orders pre-employment on Med-Stop's applicant roster and every other reason on its active one", () => {
-    expect(MEDSTOP_ORDER_ROSTER).toEqual({ "PRE-EMPLOYMENT": "applicant", RANDOM: "active", "POST-ACCIDENT": "active", "REASONABLE SUSPICION": "active" });
+    expect(MEDSTOP_ORDER_ROSTER).toEqual({
+      "PRE-EMPLOYMENT": "applicant", RANDOM: "active", "POST-ACCIDENT": "active", "REASONABLE SUSPICION": "active",
+      "RETURN TO DUTY": "active", "FOLLOW-UP": "active",
+    });
   });
   it("keeps pre-employment and random off Safety's header — one comes from hiring, the other from its selection", () => {
-    expect(MEDSTOP_HEADER_ORDER_REASONS).toEqual(["POST-ACCIDENT", "REASONABLE SUSPICION"]);
+    expect(MEDSTOP_HEADER_ORDER_REASONS).toEqual(["POST-ACCIDENT", "REASONABLE SUSPICION", "RETURN TO DUTY", "FOLLOW-UP"]);
   });
   it("accepts a pre-employment order, which carries no selection", () => {
     expect(medstopOrderInputSchema.safeParse({ ...input, reason: "PRE-EMPLOYMENT" }).success).toBe(true);
     expect(medstopOrderInputSchema.safeParse({ ...input, reason: "PRE-EMPLOYMENT", selectionId: "SEL-1" }).success).toBe(false);
+  });
+});
+
+/**
+ * §40.67(b): every return-to-duty and follow-up DRUG test is a directly observed collection (UX5d).
+ * Observation is a urine-collection rule, so the same reasons' alcohol (breath) test is not observed,
+ * and the donor's gender — read from Med-Stop, never stored — chooses the site, never the payload.
+ */
+describe("observed collections (UX5d)", () => {
+  it("observes the return-to-duty and follow-up drug tests, and nothing else", () => {
+    for (const reason of ["RETURN TO DUTY", "FOLLOW-UP"] as const) {
+      expect(medstopOrderIsObserved({ reason, service: "drug" })).toBe(true);
+      expect(medstopOrderIsObserved({ reason, service: "alcohol" })).toBe(false);
+    }
+    for (const reason of ["PRE-EMPLOYMENT", "RANDOM", "POST-ACCIDENT", "REASONABLE SUSPICION"] as const)
+      expect(medstopOrderIsObserved({ reason, service: "drug" })).toBe(false);
+  });
+
+  it("sends an observed drug test as observed, with the rule for the collector — and no gender in the order", () => {
+    const p = buildMedstopOrderPayload({ ...input, reason: "RETURN TO DUTY" }, office);
+    expect(p).toMatchObject({ reason: "RETURN TO DUTY", observed: "Y", observedreason: expect.stringContaining("49 CFR 40.67(b)") });
+    expect(Object.keys(p).filter((k) => /gender/i.test(k))).toEqual([]);
+    expect(buildMedstopOrderPayload({ ...input, reason: "FOLLOW-UP" }, office)).toMatchObject({ observed: "Y", observedreason: expect.stringMatching(/^Follow-up drug test/) });
+  });
+
+  it("sends the same reasons' alcohol test unobserved, with no observed reason", () => {
+    const p = buildMedstopOrderPayload({ ...input, service: "alcohol", reason: "RETURN TO DUTY" }, office);
+    expect(p.observed).toBe("N");
+    expect(p).not.toHaveProperty("observedreason");
+  });
+
+  it("reads Med-Stop's gender as MALE or FEMALE only — anything else is no gender, never a guess", () => {
+    expect(medstopDonorGender("MALE")).toBe("MALE");
+    expect(medstopDonorGender(" female ")).toBe("FEMALE");
+    for (const v of ["", "M", "F", "U", "UNKNOWN", null, undefined, 1]) expect(medstopDonorGender(v)).toBeNull();
+  });
+
+  it("searches sites for an observer of the donor's own gender, and for no observer otherwise", () => {
+    expect(medstopSiteObserved(false, null)).toBe("N");
+    expect(medstopSiteObserved(false, "FEMALE")).toBe("N");
+    expect(medstopSiteObserved(true, "MALE")).toBe("M");
+    expect(medstopSiteObserved(true, "FEMALE")).toBe("F");
+    expect(() => medstopSiteObserved(true, null)).toThrow(/gender/);
   });
 });

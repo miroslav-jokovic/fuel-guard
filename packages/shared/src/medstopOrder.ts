@@ -30,8 +30,8 @@ export const MEDSTOP_ORDER_SERVICE_CODE: Record<MedstopOrderService, "TD" | "TA"
 
 /**
  * The reasons this drawer orders. Not every Med-Stop reason:
- * - RETURN TO DUTY and FOLLOW-UP must be OBSERVED collections (§40.67(b)), and an observer is
- *   gender-matched — we do not hold the donor's gender until Part 1 asks it (D-MSUX3, batch UX5).
+ * - RETURN TO DUTY and FOLLOW-UP drug tests are OBSERVED collections (§40.67(b)), so they are sent
+ *   observed and their site is searched for a same-gender observer (UX5d, `medstopOrderIsObserved`).
  * - EXAMINATION / RECERTIFICATION are medical exams (TM), not drug or alcohol tests.
  * - RANDOM is offered only FROM a random selection: a random test with no selection behind it is not
  *   a random test in the §382.305 sense, and the selection is what Med-Stop links the order to.
@@ -40,13 +40,15 @@ export const MEDSTOP_ORDER_SERVICE_CODE: Record<MedstopOrderService, "TD" | "TA"
  *   says which, and the api looks the person up on that roster alone — a pre-employment test cannot
  *   be ordered on a working driver, nor a post-accident test on somebody not yet hired.
  */
-export const MEDSTOP_ORDER_REASONS = ["PRE-EMPLOYMENT", "RANDOM", "POST-ACCIDENT", "REASONABLE SUSPICION"] as const;
+export const MEDSTOP_ORDER_REASONS = ["PRE-EMPLOYMENT", "RANDOM", "POST-ACCIDENT", "REASONABLE SUSPICION", "RETURN TO DUTY", "FOLLOW-UP"] as const;
 export type MedstopOrderReason = (typeof MEDSTOP_ORDER_REASONS)[number];
 export const MEDSTOP_ORDER_REASON_LABEL: Record<MedstopOrderReason, string> = {
   "PRE-EMPLOYMENT": "Pre-employment",
   RANDOM: "Random selection",
   "POST-ACCIDENT": "Post-accident",
   "REASONABLE SUSPICION": "Reasonable suspicion",
+  "RETURN TO DUTY": "Return to duty",
+  "FOLLOW-UP": "Follow-up",
 };
 
 /** The Med-Stop roster a reason's person must be on — and, matched to it, which of OUR statuses. */
@@ -56,10 +58,47 @@ export const MEDSTOP_ORDER_ROSTER: Record<MedstopOrderReason, MedstopOrderRoster
   RANDOM: "active",
   "POST-ACCIDENT": "active",
   "REASONABLE SUSPICION": "active",
+  "RETURN TO DUTY": "active",
+  "FOLLOW-UP": "active",
 };
 
 /** The reasons Safety's header button offers: a working driver's, less RANDOM (that one comes from its selection). */
 export const MEDSTOP_HEADER_ORDER_REASONS = MEDSTOP_ORDER_REASONS.filter((r) => MEDSTOP_ORDER_ROSTER[r] === "active" && r !== "RANDOM");
+
+/**
+ * Which orders are directly observed (UX5d). §40.67(b): the employer MUST direct an observed collection
+ * for every return-to-duty and follow-up DRUG test. Observation is a urine-collection rule (Part 40
+ * Subpart E), so an alcohol test for the same reason is a breath test and is not observed. No other
+ * reason is observed from this drawer: §40.67's other cases follow a laboratory, MRO or collector finding.
+ */
+export const MEDSTOP_OBSERVED_REASONS = ["RETURN TO DUTY", "FOLLOW-UP"] as const satisfies readonly MedstopOrderReason[];
+export const medstopOrderIsObserved = (o: Pick<MedstopOrderInput, "reason" | "service">): boolean =>
+  o.service === "drug" && (MEDSTOP_OBSERVED_REASONS as readonly string[]).includes(o.reason);
+
+/**
+ * The donor's gender, as Med-Stop's own employee record holds it (`gender`, capitals — measured
+ * 2026-10-13; `/List/GENDER` is MALE | FEMALE). Read at order time and never stored here (Q-MSUX10):
+ * an observer is of the donor's gender (§40.67), so an observed order needs it and nothing else does.
+ * Anything but those two values is "no gender" — the order is refused rather than guessed.
+ */
+export type MedstopDonorGender = "MALE" | "FEMALE";
+export function medstopDonorGender(v: unknown): MedstopDonorGender | null {
+  const g = typeof v === "string" ? v.trim().toUpperCase() : "";
+  return g === "MALE" || g === "FEMALE" ? g : null;
+}
+export const MEDSTOP_NO_GENDER_REFUSAL = "Med-Stop has no gender for this driver — order it in Med-Stop.";
+
+/**
+ * Med-Stop's site search filter (`observed`, list OBSERVED: Y · F = female observer only · M = male
+ * observer only · N). An observed order asks for the donor's own gender's observer by name rather than
+ * Y, so the sites offered are ones that can observe THIS donor — Med-Stop's spec: "observed collections
+ * only return sites able to perform a gender-matched observed collection".
+ */
+export function medstopSiteObserved(observed: boolean, gender: MedstopDonorGender | null): "N" | "M" | "F" {
+  if (!observed) return "N";
+  if (!gender) throw new Error("An observed collection's site search needs the donor's gender.");
+  return gender === "MALE" ? "M" : "F";
+}
 
 /**
  * Where the office adds a person Med-Stop does not hold yet. Until UX5 creates the Med-Stop applicant
@@ -111,7 +150,9 @@ export interface MedstopOrderPayload {
   category: "TD" | "TA";
   reason: MedstopOrderReason;
   dotstatus: "Y";
-  observed: "N";
+  observed: "Y" | "N";
+  /** Only on an observed order: why, for the collector (Med-Stop's `observedreason`, ≤ 1000). */
+  observedreason?: string;
   requestdate: string;
   requesttime: string;
   locationid: string;
@@ -127,7 +168,11 @@ export interface MedstopOrderPayload {
  * The order, as sent. Fixed parts and why:
  * - `dotstatus: "Y"` — every person this drawer offers is a DOT driver (170/170 on 2026-10-13), or an
  *   applicant for a DOT driving job — the only job the hiring flow hires for.
- * - `observed: "N"` — the observed reasons are not offered (above).
+ * - `observed` — "Y" for a return-to-duty or follow-up drug test, with `observedreason` citing the rule;
+ *   "N" otherwise (`medstopOrderIsObserved`). The donor's gender is NOT sent: Med-Stop's order form
+ *   (`Dto.WizRequest`) has no gender key, and Med-Stop checks the site against its own record of the
+ *   donor ("observed collections require a site able to perform them"). The gender is read only to
+ *   choose the site search and to refuse, before billing, a donor Med-Stop holds none for.
  * - `payment: "EMPLOYER"` — "company Med-Stop credit"; every order in the last 12 months was (MS0).
  * - `sendsms`/`sendemail` "N", and `tosms`/`toemail` the OFFICE's: Med-Stop's form arrives with the
  *   driver's phone already in `tosms` (measured 2026-10-13), so it is overwritten, never left.
@@ -138,7 +183,9 @@ export function buildMedstopOrderPayload(input: MedstopOrderInput, contact: Meds
     category: MEDSTOP_ORDER_SERVICE_CODE[input.service],
     reason: input.reason,
     dotstatus: "Y",
-    observed: "N",
+    ...(medstopOrderIsObserved(input)
+      ? { observed: "Y" as const, observedreason: `${MEDSTOP_ORDER_REASON_LABEL[input.reason]} drug test: directly observed collection required by 49 CFR 40.67(b).` }
+      : { observed: "N" as const }),
     requestdate: input.requestDate,
     requesttime: input.requestTime,
     locationid: input.locationId,

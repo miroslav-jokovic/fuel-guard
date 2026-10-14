@@ -1,12 +1,17 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
+  MEDSTOP_NO_GENDER_REFUSAL,
   MEDSTOP_ORDER_ROSTER,
   MEDSTOP_ORDER_SERVICE_CODE,
   buildMedstopOrderPayload,
+  medstopDonorGender,
+  medstopOrderIsObserved,
   medstopOrderRefusal,
+  medstopSiteObserved,
   medstopRequestIsOpen,
   medstopRequestService,
   type CalendarDay,
+  type MedstopDonorGender,
   type MedstopOrderInput,
   type MedstopOrderPreview,
   type MedstopOrderRoster,
@@ -31,6 +36,9 @@ import { readRosterDrivers } from "./sync.js";
  *   4. Med-Stop holds no unfinished order for that person and test — asked LIVE, because the mirror is
  *      up to an hour old and a second order is a second bill (§7A.4: "refuses a second open order").
  *   5. The collection day is today … +30 (`medstopOrderRefusal`).
+ *   6. An observed order (return-to-duty, follow-up drug test — UX5d) is for a donor whose gender
+ *      Med-Stop's own record holds, read LIVE and never kept (Q-MSUX10): without it no site can be
+ *      matched to an observer, so the order is refused before it is billed.
  *
  * Preview and place run the same checks and build the payload with the same shared function, so the
  * preview is what is sent. Only placing fetches a request form (Med-Stop issues the request id there)
@@ -94,13 +102,45 @@ export async function truckPositionOf(admin: SupabaseClient, orgId: string, driv
 
 const text = (v: unknown): string | null => (typeof v === "string" && v.trim() ? v.trim() : null);
 
+/**
+ * The donor's gender from Med-Stop's own employee record (`GET /Employee/{id}`, `gender` in capitals —
+ * measured 2026-10-13). Returned to the caller and dropped: it is never written, logged, audited or
+ * sent to the browser (Q-MSUX10). `null` when Med-Stop holds none, or anything but MALE / FEMALE.
+ */
+export async function donorGenderOf(client: MedstopClient, medstopId: string): Promise<MedstopDonorGender | null> {
+  const record = (await client.read(`/Employee/${encodeURIComponent(medstopId)}`)) as { data?: { gender?: unknown } } | null;
+  return medstopDonorGender(record?.data?.gender);
+}
+
+/**
+ * The site search's `observed` filter for one planned test: "N" unless the test is observed, then the
+ * donor's own observer gender. The donor must be orderable on the active roster (R3) — the gender of
+ * anybody else is not read at all.
+ */
+export async function siteObservedFor(
+  admin: SupabaseClient,
+  client: MedstopClient,
+  orgId: string,
+  q: Pick<MedstopOrderInput, "reason" | "service"> & { medstopId?: string },
+): Promise<{ observed: "N" | "M" | "F"; eeid?: string } | { refusal: OrderRefusal }> {
+  if (!medstopOrderIsObserved(q)) return { observed: "N" };
+  if (!q.medstopId) return refuse(400, "bad_request", "Pick the driver first — an observed collection's site depends on who is tested.");
+  const roster = MEDSTOP_ORDER_ROSTER[q.reason];
+  if (!(await orderablePeople(admin, orgId, roster)).some((p) => p.medstopId === q.medstopId))
+    return refuse(404, "medstop_person_unknown", "This person is not on Med-Stop's active roster with a licence or date-of-birth match, so a test cannot be ordered from here.");
+  const gender = await donorGenderOf(client, q.medstopId);
+  if (!gender) return refuse(409, "medstop_gender_missing", MEDSTOP_NO_GENDER_REFUSAL);
+  return { observed: medstopSiteObserved(true, gender), eeid: q.medstopId };
+}
+
 /** Collection sites near a ZIP or a point, ranked by Med-Stop (its own sites first, then distance, rating). */
 export async function findSites(
   client: MedstopClient,
-  q: { service: MedstopOrderInput["service"]; requestDate: string; requestTime: string } & ({ zip: string } | { lat: number; lng: number }),
+  q: { service: MedstopOrderInput["service"]; requestDate: string; requestTime: string; observed: "N" | "M" | "F"; eeid?: string } & ({ zip: string } | { lat: number; lng: number }),
 ): Promise<MedstopSite[]> {
   const params = new URLSearchParams({
-    service: MEDSTOP_ORDER_SERVICE_CODE[q.service], dotstatus: "Y", observed: "N", requestdate: q.requestDate, requesttime: q.requestTime,
+    service: MEDSTOP_ORDER_SERVICE_CODE[q.service], dotstatus: "Y", observed: q.observed, requestdate: q.requestDate, requesttime: q.requestTime,
+    ...(q.eeid ? { eeid: q.eeid } : {}),
     ...("zip" in q ? { zip: q.zip } : { lat: String(q.lat), lng: String(q.lng) }),
   });
   const body = (await client.read(`/Request/location?${params}`)) as { rows?: unknown[][] } | null;
@@ -112,7 +152,7 @@ export async function findSites(
     }));
 }
 
-/** Checks 2–5, and the exact payload. Shared by preview and place, so they cannot disagree. */
+/** Checks 2–6, and the exact payload. Shared by preview and place, so they cannot disagree. */
 export async function prepareOrder(
   admin: SupabaseClient,
   client: MedstopClient,
@@ -160,6 +200,14 @@ export async function prepareOrder(
       return refuse(409, "medstop_order_open", `Med-Stop already has an unfinished ${input.service} test order for ${person.name}. Finish or cancel that one in Med-Stop first.`);
   } catch (e) {
     return refuse(502, "medstop_unreachable", `Could not ask Med-Stop for open orders, so nothing was ordered: ${e instanceof Error ? e.message : String(e)}`);
+  }
+
+  if (medstopOrderIsObserved(input)) {
+    try {
+      if (!(await donorGenderOf(client, input.medstopId))) return refuse(409, "medstop_gender_missing", MEDSTOP_NO_GENDER_REFUSAL);
+    } catch (e) {
+      return refuse(502, "medstop_unreachable", `Could not read the driver's record in Med-Stop, so nothing was ordered: ${e instanceof Error ? e.message : String(e)}`);
+    }
   }
 
   return { payload: buildMedstopOrderPayload(input, contact), person };

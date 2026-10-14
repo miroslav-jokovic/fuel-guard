@@ -7,6 +7,7 @@ import {
   MEDSTOP_NOTIFY_BY_LABEL,
   MEDSTOP_ORDER_MAX_DAYS_AHEAD,
   MEDSTOP_ORDER_REASON_LABEL,
+  medstopOrderIsObserved,
   shiftDay,
   todayInZone,
   type MedstopNotifyBy,
@@ -122,12 +123,20 @@ const input = computed((): MedstopOrderInput | null =>
 );
 // A review describes one exact order; change anything and it no longer does.
 watch(input, () => (reviewed.value = null), { deep: true });
+// The sites found were for one test, reason and person: an observed drug test only lists sites with an
+// observer of the donor's gender (UX5d), so a search for anything else no longer applies.
+const observed = computed(() => medstopOrderIsObserved({ reason: reason.value, service: service.value }));
+watch([service, reason, medstopId], () => {
+  sites.value = [];
+  siteId.value = "";
+  near.value = null;
+});
 
 async function find(by: "zip" | "truck"): Promise<void> {
   if (!requestDate.value) return;
   searching.value = true;
   try {
-    const base = { service: service.value, requestDate: requestDate.value, requestTime: requestTime.value };
+    const base = { service: service.value, reason: reason.value, requestDate: requestDate.value, requestTime: requestTime.value, ...(medstopId.value ? { medstopId: medstopId.value } : {}) };
     const found = await searchSites(by === "zip" ? { ...base, zip: zip.value.trim() } : { ...base, driverId: person.value!.driverId });
     sites.value = found.sites;
     near.value = by === "truck" ? (found.near ?? "the truck's last position") : `ZIP ${zip.value.trim()}`;
@@ -168,7 +177,8 @@ const reviewFacts = computed((): Fact[] => {
   const p = r.payload;
   return [
     { label: applicant.value ? "Applicant" : "Driver", value: r.person.name },
-    { label: "Test", value: `${p.category === "TD" ? "Drug" : "Alcohol"} · ${MEDSTOP_ORDER_REASON_LABEL[p.reason]} · DOT, unobserved` },
+    // An observed order says so, and says nothing more: the donor's gender is Med-Stop's, never shown here (Q-MSUX10).
+    { label: "Test", value: `${p.category === "TD" ? "Drug" : "Alcohol"} · ${MEDSTOP_ORDER_REASON_LABEL[p.reason]} · DOT, ${p.observed === "Y" ? "observed (same-gender observer)" : "unobserved"}` },
     { label: "When", value: `${formatDate(p.requestdate)} at ${p.requesttime}` },
     { label: "Where", value: site.value ? `${site.value.name}${site.value.city ? `, ${site.value.city}` : ""}` : p.locationid },
     { label: "Paid by", value: "Billed to the company's Med-Stop credit" },
@@ -190,7 +200,7 @@ const reviewFacts = computed((): Fact[] => {
 
       <AppSegmentedControl v-model="service" :options="serviceOptions" label="Test" :disabled="seed?.kind === 'selection' || off" />
 
-      <FormField v-if="!seed" v-slot="{ id }" label="Reason" hint="Return-to-duty and follow-up tests are observed collections and come once the application asks the driver's gender.">
+      <FormField v-if="!seed" v-slot="{ id }" label="Reason" hint="Return-to-duty and follow-up drug tests are observed by a same-gender observer (49 CFR 40.67), so pick the driver before searching for a site.">
         <AppSelect :id="id" v-model="reason" :options="reasonOptions" :disabled="off" />
       </FormField>
 
@@ -208,7 +218,7 @@ const reviewFacts = computed((): Fact[] => {
           <FormField v-slot="{ id }" label="Collection site near ZIP" class="flex-1">
             <BaseInput :id="id" v-model="zip" inputmode="numeric" maxlength="5" placeholder="60601" :disabled="off" />
           </FormField>
-          <BaseButton :disabled="off || searching || !/^\d{5}$/.test(zip.trim())" @click="find('zip')">Search</BaseButton>
+          <BaseButton :disabled="off || searching || !/^\d{5}$/.test(zip.trim()) || (observed && !medstopId)" @click="find('zip')">Search</BaseButton>
           <BaseButton v-if="!applicant" :disabled="off || searching || !person" @click="find('truck')">Near the truck</BaseButton>
         </div>
         <p v-if="near" class="text-xs text-ink-muted">{{ sites.length }} sites near {{ near }}, Med-Stop's own first.</p>

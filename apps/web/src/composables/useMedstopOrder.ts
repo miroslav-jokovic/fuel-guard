@@ -28,7 +28,8 @@ export function useOrderContext(enabled: Ref<boolean>) {
   });
 }
 
-export type SiteSearch = Pick<MedstopOrderInput, "service" | "requestDate" | "requestTime"> & ({ zip: string } | { driverId: string });
+/** The reason, and the person, travel with the search: an observed test's sites are matched to the donor (UX5d). */
+export type SiteSearch = Pick<MedstopOrderInput, "service" | "reason" | "requestDate" | "requestTime"> & { medstopId?: string } & ({ zip: string } | { driverId: string });
 
 export async function searchSites(q: SiteSearch): Promise<{ sites: MedstopSite[]; near: string | null }> {
   const params = new URLSearchParams(Object.entries(q).map(([k, v]) => [k, String(v)]));

@@ -9,23 +9,25 @@ import type { MedstopOrderInput } from "@silvicom/shared";
  * the review has been shown — the review says Med-Stop will not text or e-mail the driver and names the
  * office contact the order carries (owner answer 5), and with ordering switched off it orders nothing.
  * UX4: seeded with an applicant it orders PRE-EMPLOYMENT on that Med-Stop id, with no selection and no
- * truck to search near.
+ * truck to search near. UX5d: from the header, a return-to-duty drug test is searched with its reason
+ * and person (its sites are matched to the donor) and reviewed as observed — never naming a gender.
  */
 const api = vi.hoisted(() => ({
   context: { enabled: true, contactSet: true, people: [{ medstopId: "EE-ANN", driverId: "d-ann", name: "Ann Pooled" }] } as unknown,
   previewed: [] as MedstopOrderInput[],
   placed: [] as MedstopOrderInput[],
+  searched: [] as Record<string, unknown>[],
 }));
 vi.mock("@/composables/useMedstopOrder", () => ({
   useOrderContext: () => ({ data: computed(() => api.context), isLoading: ref(false) }),
-  searchSites: async () => ({ sites: [{ id: "LOC-1", name: "Med-Stop Loop", address: "1 Main St", city: "Chicago", state: "IL", zip: "60601", distance: "1.2 mi", booked: 0 }], near: null }),
+  searchSites: async (q: Record<string, unknown>) => (api.searched.push(q), { sites: [{ id: "LOC-1", name: "Med-Stop Loop", address: "1 Main St", city: "Chicago", state: "IL", zip: "60601", distance: "1.2 mi", booked: 0 }], near: null }),
   useOrderPreview: () => ({
     isPending: ref(false),
     mutateAsync: async (input: MedstopOrderInput) => {
       api.previewed.push(input);
       return {
         person: { medstopId: input.medstopId, driverId: "d-ann", name: "Ann Pooled" },
-        payload: { eeid: input.medstopId, category: "TD", reason: input.reason, dotstatus: "Y", observed: "N", requestdate: input.requestDate,
+        payload: { eeid: input.medstopId, category: "TD", reason: input.reason, dotstatus: "Y", observed: input.reason === "RETURN TO DUTY" ? "Y" : "N", requestdate: input.requestDate,
           requesttime: input.requestTime, locationid: input.locationId, payment: "EMPLOYER", notifyby: input.notifyBy,
           sendsms: "N", sendemail: "N", tosms: "3125550100", toemail: "der@silvicom.test" },
       };
@@ -49,6 +51,7 @@ const field = (selector: string) => document.body.querySelector(selector) as HTM
 beforeEach(() => {
   api.previewed = [];
   api.placed = [];
+  api.searched = [];
   api.context = { enabled: true, contactSet: true, people: [{ medstopId: "EE-ANN", driverId: "d-ann", name: "Ann Pooled" }] };
   document.body.innerHTML = "";
 });
@@ -109,6 +112,48 @@ describe("OrderTestDrawer", () => {
     expect(api.placed).toHaveLength(1);
     expect(api.placed[0]).toMatchObject({ medstopId: "EE-APP", reason: "PRE-EMPLOYMENT", service: "drug" });
     expect(api.placed[0]).not.toHaveProperty("selectionId");
+  });
+
+  it("orders an observed return-to-duty test from the header: searched for this donor, reviewed as observed, no gender shown", async () => {
+    await render(null as unknown as OrderSeed);
+    const reason = document.body.querySelector("select") as HTMLSelectElement;
+    expect([...reason.options].filter((o) => o.value).map((o) => o.textContent?.trim())).toEqual(["Post-accident", "Reasonable suspicion", "Return to duty", "Follow-up"]);
+    reason.value = "RETURN TO DUTY";
+    reason.dispatchEvent(new Event("change"));
+    await flushPromises();
+    const zip = field('input[placeholder="60601"]');
+    zip.value = "60601";
+    zip.dispatchEvent(new Event("input"));
+    await flushPromises();
+    // Its sites depend on who is tested, so there is no search before the driver is picked.
+    expect(button("Search")!.disabled).toBe(true);
+    const driver = field('input[placeholder="Search a name"]');
+    driver.click();
+    driver.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter" }));
+    await flushPromises();
+    button("Search")!.click();
+    await flushPromises();
+    expect(api.searched[0]).toMatchObject({ reason: "RETURN TO DUTY", medstopId: "EE-ANN", service: "drug", zip: "60601" });
+    button("Review order")!.click();
+    await flushPromises();
+    expect(api.previewed[0]).toMatchObject({ reason: "RETURN TO DUTY", medstopId: "EE-ANN" });
+    expect(document.body.textContent).toContain("Return to duty · DOT, observed (same-gender observer)");
+    expect(document.body.textContent).not.toMatch(/\b(fe)?male\b/i);
+  });
+
+  it("drops the sites found when the reason changes — an observed test's sites are not an unobserved one's", async () => {
+    await render(null as unknown as OrderSeed);
+    const driver = field('input[placeholder="Search a name"]');
+    driver.click();
+    driver.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter" }));
+    await flushPromises();
+    await pickSite();
+    expect(document.body.textContent).toContain("Med-Stop Loop");
+    const reason = document.body.querySelector("select") as HTMLSelectElement;
+    reason.value = "FOLLOW-UP";
+    reason.dispatchEvent(new Event("change"));
+    await flushPromises();
+    expect(document.body.textContent).not.toContain("Med-Stop Loop");
   });
 
   it("orders nothing while ordering is switched off, and says where to switch it on", async () => {
