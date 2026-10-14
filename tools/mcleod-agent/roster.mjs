@@ -235,6 +235,32 @@ export function diffAgainstState(entity, rows, state, full = false) {
   return { changed, vanished, nextState: next };
 }
 
+/**
+ * Forget the rows the API could not settle, so the next sweep sends them again (D-MR16, 2026-10-14).
+ *
+ * `diffAgainstState` remembers every row it sends, placed or not. A driver McLeod hired before our
+ * row existed — the usual order for a new hire — was sent once, came back unmatched, and was never sent
+ * again, because nothing in McLeod's record changed after our row appeared: 11 of 11 such drivers sat
+ * unlinked on 2026-10-14. The API now names what it did not settle (`retry`); an older API that does
+ * not, still names `unmatched`, and those are forgotten too. Mutates and returns `entityState`.
+ */
+export function forgetUnsettled(entityState, res) {
+  for (const id of res.retry ?? res.unmatched ?? []) delete entityState[id];
+  return entityState;
+}
+
+/**
+ * The state file's shape version. Bumped to 1 with `forgetUnsettled` (2026-10-14): a state written
+ * before it still remembers the drivers stranded by the old rule, and nothing they will ever do in
+ * McLeod would make them "changed" again. So a state below this version is dropped once, and the
+ * first sweep after the update sends the whole roster — safe by the API's contract (every roster
+ * endpoint is idempotent on McLeod's id) and exactly what `--full` does by hand.
+ */
+export const ROSTER_STATE_VERSION = 1;
+export function upgradeRosterState(state) {
+  return state?.version === ROSTER_STATE_VERSION ? state : { version: ROSTER_STATE_VERSION };
+}
+
 export function loadState(path) {
   if (!existsSync(path)) return {};
   try {

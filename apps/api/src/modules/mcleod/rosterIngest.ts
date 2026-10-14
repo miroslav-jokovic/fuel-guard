@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { TmsDriverInput, TmsVehicleInput, TmsTrailerInput } from "@silvicom/shared";
-import { deriveFullName, TMS_CLAIMABLE_SOURCES, todayInZone, DEFAULT_ORG_TIMEZONE } from "@silvicom/shared";
+import { deriveFullName, todayInZone, DEFAULT_ORG_TIMEZONE } from "@silvicom/shared";
+import { mayClaimIdentity, rehireFormerDrivers, withRetry } from "./rosterDriverSettle.js";
 import { driverPatch, vehiclePatch, trailerPatch } from "./rosterFields.js";
 import { recordSyncedCredentials } from "../evidence/index.js";
 import { recordFuelTaxExclusion } from "../ifta/index.js";
@@ -36,11 +37,9 @@ import {
  *              it. DQ1 exists because the Samsara sync once reverted hand-corrected names silently.
  *
  *   'efs'    — a fuel-card name auto-provisioned so a fill always had somebody to point at (0204).
- *              These carry no licence, so they can only ever be reached by the NAME fallback — which
- *              is exactly the irreversible-merge case that belongs in a review queue, not in a sync.
- *              Measured 2026-08-24: of 163 matches, 162 were by licence and 1 by name, and ALL 163
- *              landed on 'samsara' rows — not one EFS stub was touched. The exclusion therefore costs
- *              nothing today and stops the structural risk from ever arriving.
+ *              Reached by NAME it stays excluded — the irreversible-merge case that belongs in a
+ *              review queue. Reached by its licence or McLeod's id it is claimed (D-MR16, 2026-10-14:
+ *              new hires now get their fuel card before McLeod's record; `rosterDriverSettle`).
  *
  * THE RULE THIS MODULE EXISTS TO ENFORCE (CODEBASE-IMPACT-ANALYSIS §5):
  *   **the sync writes a fixed allowlist of columns, never a row.**
@@ -119,6 +118,11 @@ export interface RosterIngestResult {
   fleetCodeChanges?: number;
   /** vehicles: trucks that started or stopped winding down this run (DISPATCH-BOARD-PLAN D-DB11, 0462). */
   windingDownChanges?: number;
+  /** External ids this run could not settle, which the agent must send again (D-MR16) — see `withRetry`. */
+  retry: string[];
+  /** drivers: former rows restored because McLeod rehired them, and those left for a human (D-MR7a). */
+  rehired?: string[];
+  rehireReview?: string[];
 }
 
 const empty = (): RosterIngestResult => ({
@@ -135,11 +139,8 @@ const empty = (): RosterIngestResult => ({
   needsCompletion: [],
   credentialsFiled: 0,
   credentialFailures: [],
+  retry: [],
 });
-
-/** Provenances whose identity McLeod may claim. See the header for why the other two are excluded.
- *  Read from @silvicom/shared since 2026-09-22, because the web asks the same question (Q-7). */
-const CLAIMABLE = new Set(TMS_CLAIMABLE_SOURCES);
 
 /** The link half of the write surface, per entity. */
 const LINK_COLUMNS = {
@@ -223,8 +224,10 @@ async function applyOutcome(
 
       // A row the office or the EFS path owns is counted and left exactly as it is — no link refresh,
       // no field write. Reported so the operator can see the sync is deliberately standing off.
-      if (patch && !CLAIMABLE.has(candidateSource(outcome.id) ?? "")) {
+      if (patch && !mayClaimIdentity(candidateSource(outcome.id), outcome)) {
         out.skippedOwned++;
+        // An EFS row stood off today is claimable once its licence arrives; the office's never is.
+        if (candidateSource(outcome.id) === "efs") out.retry.push(externalId);
         return null;
       }
 
@@ -329,6 +332,8 @@ export async function ingestDrivers(
 ): Promise<RosterIngestResult> {
   const out = empty();
   out.received = rows.length;
+  // Before the candidates load, so a restored row is linked and refreshed by this same sweep.
+  if (writesIdentity(mode) || mode === "report") Object.assign(out, await rehireFormerDrivers(admin, orgId, rows, WRITES[mode]));
   const candidates = await loadCandidates(admin, orgId, "drivers");
   const sourceOf = provenanceLookup(candidates);
   const matcher = makeDriverMatcher(candidates);
@@ -381,7 +386,7 @@ export async function ingestDrivers(
       for (const f of filed.failed) out.credentialFailures.push(`${r.external_id}:${f.kind}`);
     }
   }
-  return out;
+  return withRetry(out);
 }
 
 export async function ingestVehicles(
@@ -458,7 +463,7 @@ export async function ingestVehicles(
   // is McLeod's by construction (it writes `mcleod_tractor_id`), so the provider is too.
   if (fleets.length > 0) out.fleetCodeChanges = await recordFleetCodes(admin, orgId, "mcleod", fleets);
   if (winding.length > 0) out.windingDownChanges = await recordVehicleWindingDown(admin, orgId, winding);
-  return out;
+  return withRetry(out);
 }
 
 export async function ingestTrailers(
@@ -484,5 +489,5 @@ export async function ingestTrailers(
       mode === "create" ? { ...patch, unit_number: r.unit_number ?? r.external_id, status: "active" } : null;
     await applyOutcome(admin, orgId, "trailers", r.external_id, r.company_id, outcome, out, patch, sourceOf, inspectionOwned, insert, WRITES[mode]);
   }
-  return out;
+  return withRetry(out);
 }
