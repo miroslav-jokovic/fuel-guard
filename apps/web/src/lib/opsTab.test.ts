@@ -79,6 +79,8 @@ const VEHICLES = [
   { id: "t3", status: "active", assigned_driver_id: null, dot_annual_inspection_expires_at: null, registration_expires_at: null },
   { id: "t4", status: "ordered", assigned_driver_id: null, dot_annual_inspection_expires_at: null, registration_expires_at: null },
   { id: "t5", status: "retired", assigned_driver_id: "b", dot_annual_inspection_expires_at: "2020-01-01", registration_expires_at: null },
+  // Sold and awaiting pickup (McLeod `tractor_status = 'I'`, D-DB11): still `active`, never to be seated.
+  { id: "t6", status: "active", winding_down: true, assigned_driver_id: null, dot_annual_inspection_expires_at: "2027-06-01", registration_expires_at: "2027-06-01" },
 ];
 const DRIVERS = [
   { id: "a", status: "active", archived_at: null },
@@ -201,6 +203,14 @@ describe("every count is the row count behind its door (D-FM7)", () => {
     expect([n(w, "no-driver"), n(w, "no-truck"), n(w, "ordered")]).toEqual(["2", "2", "1"]);
   });
 
+  it("seats: a truck being wound down is on its own line, not an empty seat, and not in the readout", () => {
+    // 2026-10-14: the card read "159 of 198" when 27 of the 198 were sold or retiring — 159 of 171.
+    const w = render();
+    expect(n(w, "winding-down")).toBe("1");
+    expect(n(w, "no-driver")).toBe("2"); // t2, t3 — not t6
+    expect(w.get("[data-test='widget-ops.seats']").text()).toContain("1 of 3");
+  });
+
   it("paperwork: active trucks only, on the carrier's calendar day, with unknowns on their own line", () => {
     const w = render();
     expect([n(w, "inspection_overdue"), n(w, "inspection_due"), n(w, "inspection_missing")]).toEqual(["1", "1", "1"]);
@@ -255,7 +265,7 @@ describe("every count is the row count behind its door (D-FM7)", () => {
       "/assignments?scope=all", "/assignments?scope=all&queue=empty", "/assignments?scope=all&queue=late",
       "/assignments?scope=all&queue=hos-low", "/loads?queue=uncovered&scope=all",
       "/drivers?dq=expired", "/drivers?dq=not_started",
-      "/vehicles?check=no_driver", "/drivers?status=active&seat=none", "/vehicles?status=ordered",
+      "/vehicles?check=no_driver", "/drivers?status=active&seat=none", "/vehicles?status=ordered", "/vehicles?check=winding_down",
       "/vehicles?check=inspection_overdue", "/vehicles?check=registration_missing",
       "/?tab=fleet", "/anomalies", "/idling", "/hazmat/review", "/recruitment", "/recruitment?waiting=them",
       "/shop/work-orders", "/shop/defects", "/shop/inventory?stock=low",

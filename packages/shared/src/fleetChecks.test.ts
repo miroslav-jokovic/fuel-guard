@@ -1,16 +1,35 @@
 import { describe, expect, it } from "vitest";
 import { INSPECTION_EXPIRY_WARNING_DAYS } from "./annualInspectionContract.js";
-import { matchesVehicleCheck, seatedDriverIds, VEHICLE_CHECKS, VEHICLE_CHECK_LABELS } from "./fleetChecks.js";
+import { isRunningTruck, matchesVehicleCheck, seatedDriverIds, VEHICLE_CHECKS, VEHICLE_CHECK_LABELS } from "./fleetChecks.js";
 
 const TODAY = "2026-10-12";
-const truck = (over: Partial<{ assigned_driver_id: string | null; dot_annual_inspection_expires_at: string | null; registration_expires_at: string | null }> = {}) => ({
+const truck = (over: Partial<{ assigned_driver_id: string | null; dot_annual_inspection_expires_at: string | null; registration_expires_at: string | null; winding_down: boolean | null }> = {}) => ({
   assigned_driver_id: "d1",
   dot_annual_inspection_expires_at: "2027-06-01",
   registration_expires_at: "2027-06-01",
   ...over,
 });
 
+describe("isRunningTruck", () => {
+  it("is an active truck McLeod is not winding down — silence counts as running", () => {
+    expect(isRunningTruck({ status: "active", winding_down: null })).toBe(true);
+    expect(isRunningTruck({ status: "active" })).toBe(true);
+    expect(isRunningTruck({ status: "active", winding_down: false })).toBe(true);
+    expect(isRunningTruck({ status: "active", winding_down: true })).toBe(false);
+    expect(isRunningTruck({ status: "maintenance", winding_down: false })).toBe(false);
+    expect(isRunningTruck({ status: "ordered" })).toBe(false);
+  });
+});
+
 describe("matchesVehicleCheck", () => {
+  it("does not call a truck being wound down a truck without a driver; it has its own check", () => {
+    const sold = truck({ assigned_driver_id: null, winding_down: true });
+    expect(matchesVehicleCheck(sold, "no_driver", TODAY)).toBe(false);
+    expect(matchesVehicleCheck(sold, "winding_down", TODAY)).toBe(true);
+    expect(matchesVehicleCheck(truck({ assigned_driver_id: null, winding_down: null }), "no_driver", TODAY)).toBe(true);
+    expect(matchesVehicleCheck(truck({ winding_down: null }), "winding_down", TODAY)).toBe(false);
+  });
+
   it("finds a truck nobody is assigned to", () => {
     expect(matchesVehicleCheck(truck({ assigned_driver_id: null }), "no_driver", TODAY)).toBe(true);
     expect(matchesVehicleCheck(truck(), "no_driver", TODAY)).toBe(false);

@@ -12,12 +12,19 @@
  * view `roster` — `moneyGate`'s per-element pattern, for a section rather than for money. Asked through
  * `session.canView`, never a role.
  *
- * Population: trucks at `active` (the Vehicles page's default status, so the door needs no status
- * parameter) and drivers at `active` and not archived.
+ * Population: RUNNING trucks (`isRunningTruck` — `active` and not being wound down) and drivers at
+ * `active` and not archived. The door keeps working without a status parameter because `active` is
+ * the Vehicles page's default and `no_driver` itself leaves wound-down trucks out.
+ *
+ * ── WHY RUNNING, NOT ACTIVE ──────────────────────────────────────────────────────────────────────
+ * Until 2026-10-14 this read "159 of 198": 27 of the 198 were trucks McLeod is winding down (sold or
+ * retiring, `winding_down`, D-DB11), all without a driver and none ever to get one. The truth was 159
+ * of 171, and "Trucks without a driver" said 39 when 12 were waiting. They are counted on their own
+ * line so the 27 stay visible and the readout's denominator stays the trucks somebody can drive.
  */
 import { computed } from "vue";
 import { UserGroupIcon } from "@silvicom/ui/icons";
-import { matchesVehicleCheck, seatedDriverIds, todayInZone } from "@silvicom/shared";
+import { isRunningTruck, matchesVehicleCheck, seatedDriverIds, todayInZone } from "@silvicom/shared";
 import ChartCard from "@/components/ui/ChartCard.vue";
 import CountList, { type CountRow } from "@/components/ui/CountList.vue";
 import { useVehiclesQuery } from "@/composables/useVehicles";
@@ -30,10 +37,10 @@ const { zone } = useOrgTimezone();
 const { data: vehicles } = useVehiclesQuery();
 const { data: drivers } = useDriversQuery();
 
-const active = computed(() => (vehicles.value ? vehicles.value.filter((v) => v.status === "active") : null));
+const running = computed(() => (vehicles.value ? vehicles.value.filter(isRunningTruck) : null));
 const noDriver = computed(() => {
   const today = todayInZone(new Date(), zone.value);
-  return active.value ? active.value.filter((v) => matchesVehicleCheck(v, "no_driver", today)).length : null;
+  return running.value ? running.value.filter((v) => matchesVehicleCheck(v, "no_driver", today)).length : null;
 });
 const unseated = computed(() => {
   if (!vehicles.value || !drivers.value) return null;
@@ -41,16 +48,21 @@ const unseated = computed(() => {
   return drivers.value.filter((d) => d.status === "active" && !d.archived_at && !seated.has(d.id)).length;
 });
 const ordered = computed(() => (vehicles.value ? vehicles.value.filter((v) => v.status === "ordered").length : null));
+const windingDown = computed(() => {
+  const today = todayInZone(new Date(), zone.value);
+  return vehicles.value ? vehicles.value.filter((v) => v.status === "active" && matchesVehicleCheck(v, "winding_down", today)).length : null;
+});
 
 const rows = computed<CountRow[]>(() => [
-  { key: "no-driver", label: "Trucks without a driver", value: noDriver.value, caption: "active trucks nobody is assigned to", to: "/vehicles?check=no_driver", door: "Vehicles", alarm: true },
+  { key: "no-driver", label: "Trucks without a driver", value: noDriver.value, caption: "running trucks nobody is assigned to", to: "/vehicles?check=no_driver", door: "Vehicles", alarm: true },
   ...(session.canView("roster")
     ? [{ key: "no-truck", label: "Drivers without a truck", value: unseated.value, caption: "active drivers holding no truck", to: "/drivers?status=active&seat=none", door: "Drivers" }]
     : []),
+  { key: "winding-down", label: "Trucks being wound down", value: windingDown.value, caption: "sold or retiring in McLeod — not counted above", to: "/vehicles?check=winding_down", door: "Vehicles" },
   { key: "ordered", label: "Trucks on order", value: ordered.value, caption: "not in service yet", to: "/vehicles?status=ordered", door: "Vehicles" },
 ]);
 
-const seatedCount = computed(() => (active.value && noDriver.value != null ? active.value.length - noDriver.value : null));
+const seatedCount = computed(() => (running.value && noDriver.value != null ? running.value.length - noDriver.value : null));
 </script>
 
 <template>
@@ -59,8 +71,8 @@ const seatedCount = computed(() => (active.value && noDriver.value != null ? act
     subtitle="Trucks and the drivers in them"
     :icon="UserGroupIcon"
     tone="info"
-    :readout="seatedCount == null || !active ? '—' : `${seatedCount} of ${active.length}`"
-    caption="active trucks have a driver"
+    :readout="seatedCount == null || !running ? '—' : `${seatedCount} of ${running.length}`"
+    caption="running trucks have a driver"
     class="h-full"
   >
     <CountList :rows="rows" />

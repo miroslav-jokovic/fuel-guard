@@ -21,6 +21,14 @@
  * 51 of 244 trucks had no date on 2026-10-12. Counting them as current would make the card read
  * better the less we know, so they get their own check and their own line — `inspectionExpiry`'s
  * `unknown`, which it keeps apart from `expired` for the same reason.
+ *
+ * ── A TRUCK BEING WOUND DOWN IS NOT A TRUCK WITHOUT A DRIVER ─────────────────────────────────────
+ * The Seats card read "159 of 198" on 2026-10-14 when the true answer was 159 of 171: 27 of the 198
+ * were trucks McLeod marks `tractor_status = 'I'` — sold and awaiting pickup, or retiring — which stay
+ * `active` by design (D-FC0, D-DB11) and which nobody will ever seat. Counted as "no driver", they made
+ * the empty-truck line 39 when 12 trucks were actually waiting for a driver. So `isRunningTruck` is the
+ * Seats population, `no_driver` asks only of running trucks, and the wound-down trucks get their own
+ * check, so they are counted on a line of their own rather than vanishing.
  */
 import { INSPECTION_EXPIRY_WARNING_DAYS, inspectionExpiry, type InspectionExpiryState } from "./annualInspectionContract.js";
 import type { CalendarDay } from "./calendarDay.js";
@@ -28,6 +36,7 @@ import type { Vehicle } from "./fleet.js";
 
 export const VEHICLE_CHECKS = [
   "no_driver",
+  "winding_down",
   "inspection_overdue",
   "inspection_due",
   "inspection_missing",
@@ -39,6 +48,7 @@ export type VehicleCheck = (typeof VEHICLE_CHECKS)[number];
 
 export const VEHICLE_CHECK_LABELS: Record<VehicleCheck, string> = {
   no_driver: "No driver assigned",
+  winding_down: "Being wound down (sold or retiring)",
   inspection_overdue: "Annual inspection overdue",
   inspection_due: `Annual inspection due in ${INSPECTION_EXPIRY_WARNING_DAYS} days`,
   inspection_missing: "Annual inspection not on file",
@@ -47,7 +57,16 @@ export const VEHICLE_CHECK_LABELS: Record<VehicleCheck, string> = {
   registration_missing: "Registration not on file",
 };
 
-type Checked = Pick<Vehicle, "assigned_driver_id" | "dot_annual_inspection_expires_at" | "registration_expires_at">;
+type Checked = Pick<Vehicle, "assigned_driver_id" | "dot_annual_inspection_expires_at" | "registration_expires_at" | "winding_down">;
+
+/**
+ * A truck the carrier is running: in service, and not one the TMS reports as being wound down. `null`
+ * (not reported — every org without McLeod, and any truck before its first sweep) counts as running:
+ * the fact is McLeod saying "this one is leaving", and silence is not that.
+ */
+export function isRunningTruck(v: Pick<Vehicle, "status" | "winding_down">): boolean {
+  return v.status === "active" && v.winding_down !== true;
+}
 
 /** A check's suffix, in `inspectionExpiry`'s own vocabulary. */
 const STATE_OF: Record<string, InspectionExpiryState> = { overdue: "expired", due: "expiring", missing: "unknown" };
@@ -60,7 +79,9 @@ const STATE_OF: Record<string, InspectionExpiryState> = { overdue: "expired", du
 export function matchesVehicleCheck(v: Checked, check: string, today: CalendarDay): boolean {
   switch (check) {
     case "no_driver":
-      return v.assigned_driver_id == null;
+      return v.assigned_driver_id == null && v.winding_down !== true;
+    case "winding_down":
+      return v.winding_down === true;
     case "inspection_overdue":
     case "inspection_due":
     case "inspection_missing":
