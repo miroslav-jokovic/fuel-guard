@@ -722,3 +722,29 @@ about three merges.
   - **Not built:** showing the driver on the inspection page with a "confirm" action (next merge);
     EFS, annual-inspection and credential snapshots (D-IC4's other kinds, with the rules that read
     them, IC6); freezing DVIR photos.
+- **2026-10-14 — IC5, second merge: the driver on the Inspection page, and a person's decision.**
+  `/roadside-inspections/:id` gains a Driver card (§6): the engine's latest reading with its
+  confidence, the instant on the inspection's own clock with its zone, the GPS location check, and a
+  person's latest decision. `POST /api/roadside-inspections/:id/attribution` records the decision; it
+  needs the `safety` section's manage level. Code: `read/inspectionAttribution.ts`,
+  `attribution/decide.ts`, `apps/web/src/features/roadside/InspectionDriverCard.vue`.
+  - **Two decisions.** *Confirm* stands behind a reading of one driver as it is. *Choose a driver*
+    names one of our drivers, former ones included (an inspection may be years old), with a required
+    note saying what shows it was them. Naming the driver the reading already resolves to is refused as
+    a correction (it is a confirmation). A reading of several drivers, nobody, or a unit not ours can
+    only be decided by choosing.
+  - **A decision is a new row that restates the reading.** The person's row copies the engine's latest
+    reading column for column and adds `decided_by`, the note, and for a correction `driver_id`; 0473's
+    checks hold for it as for the engine's row. The page sends back the row it showed (`basedOn`, the
+    newer of the reading and the decision, computed by the API); a decision over a row that is no
+    longer the latest is refused (409 `changed`) and the page says someone else decided first. Each
+    decision writes an audit row (`roadside.attribution_confirmed` / `_corrected`) with the previous row.
+  - **Measured on production, 2026-10-14: the roster cannot name most Samsara drivers.** Of the 1,117
+    Samsara drivers in our HOS history, 916 have no `drivers` row with their Samsara id (all last seen
+    in September, so former drivers the roster never took in); 97 of our 299 drivers have no Samsara
+    id. So the card shows Samsara's name with "in Samsara, not on our roster" — never a roster row with
+    a similar name (D-IC7) — and an older inspection will usually read that way.
+  - **A corrected driver later merged away** (`merge_driver` deletes the duplicate, and `driver_id`
+    has no FK, 0473) shows as "a driver record that has since been merged". The decision itself stands.
+  - **Not built:** the driver column and filter on the inbox (§6), which need the reading on the list
+    read; the timeline from the frozen evidence.

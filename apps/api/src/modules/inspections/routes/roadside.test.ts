@@ -24,6 +24,8 @@ import {
 
 const ORG = "org-1";
 let rec: SupabaseRecorder;
+/** The caller holds the `safety` section at view only: a route asking for more must answer 403. */
+let viewOnly = false;
 
 vi.mock("../../../lib/supabaseAdmin.js", () => ({ getSupabaseAdmin: () => rec.client }));
 vi.mock("../../../lib/appLocals.js", () => ({ getAppLocals: () => ({ env: {} }) }));
@@ -34,7 +36,8 @@ vi.mock("../../../middleware/auth.js", () => ({
   },
   requireOrg: (_req: Request, _res: Response, next: NextFunction) => next(),
   requireRole: () => (_req: Request, _res: Response, next: NextFunction) => next(),
-  requireSection: () => (_req: Request, _res: Response, next: NextFunction) => next(),
+  requireSection: (_section: string, level = "manage") => (_req: Request, res: Response, next: NextFunction) =>
+    viewOnly && level !== "view" ? void res.status(403).json({ error: { code: "forbidden" } }) : next(),
   requireAnySection: () => (_req: Request, _res: Response, next: NextFunction) => next(),
 }));
 
@@ -163,6 +166,26 @@ async function call(path: string): Promise<{ status: number; body: { ok?: boolea
   try {
     const port = (server.address() as AddressInfo).port;
     const res = await fetch(`http://127.0.0.1:${port}/api/roadside-inspections${path}`);
+    return { status: res.status, body: (await res.json()) as never };
+  } finally {
+    await closeTestServer(server);
+  }
+}
+
+async function post(path: string, body: unknown): Promise<{ status: number; body: { ok?: boolean; data?: unknown; error?: { code: string; message: string } } }> {
+  const app = express();
+  app.use(express.json());
+  app.use("/api/roadside-inspections", roadsideInspectionsRouter());
+  const server: Server = await new Promise((resolve) => {
+    const s = app.listen(0, () => resolve(s));
+  });
+  try {
+    const port = (server.address() as AddressInfo).port;
+    const res = await fetch(`http://127.0.0.1:${port}/api/roadside-inspections${path}`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    });
     return { status: res.status, body: (await res.json()) as never };
   } finally {
     await closeTestServer(server);
@@ -409,5 +432,69 @@ describe("CSA points on the inspection (D-IC6)", () => {
       p3: { status: "excluded", basic: "hos_compliance", reason: "dismissed" },
     });
     expect(d.sms!.basics).toEqual([{ basic: "vehicle_maintenance", verified: true, severitySum: 4, capped: 4, points: 12 }]);
+  });
+});
+
+describe("who was driving (IC5)", () => {
+  const A = "11111111-1111-4111-8111-111111111111";
+  const ENGINE = "44444444-4444-4444-8444-444444444444";
+  const reading = {
+    id: ENGINE, org_id: ORG, inspection_id: A, source: "engine", engine_version: "ic5.1", created_at: "2026-10-13T01:00:00Z",
+    outcome: "one_driver", confidence: "high", basis: "covering", zone: "America/Chicago", zone_method: "gps",
+    started_at: "2026-10-09T18:04:00Z", ended_at: "2026-10-09T18:27:00Z", location_check: "confirmed", vehicle_id: "veh-701",
+    samsara_vehicle_id: "2120", samsara_driver_id: "s-ann", samsara_driver_name: "Ann (Samsara)", candidates: [], decided_by: null, driver_id: null, note: null,
+  };
+  beforeEach(() => {
+    rec = createSupabaseRecorder({
+      tables: {
+        organizations: [{ operating_hours: { tz: "America/Los_Angeles" } }],
+        roadside_inspections: inspectionsFixture([insp(A, "2026-10-09")]),
+        inspection_attributions: (q) =>
+          q.write ? [{ id: "new-1" }] : [reading].filter((r) => r.org_id === val(q, "eq", "org_id") && r.inspection_id === val(q, "eq", "inspection_id") && r.source === val(q, "eq", "source")),
+        drivers: (q) => [{ id: "d-ann", org_id: ORG, samsara_driver_id: "s-ann", full_name: "Ann Roster" }].filter((d) => d.org_id === val(q, "eq", "org_id")),
+      },
+    });
+    viewOnly = false;
+  });
+  afterEach(() => {
+    viewOnly = false;
+  });
+
+  it("the page carries the reading with Samsara's driver resolved to ours", async () => {
+    const d = (await call(`/${A}`)).body.data as RoadsideInspectionDetailDto;
+    expect(d.attribution.reading).toMatchObject({ id: ENGINE, confidence: "high", driver: { id: "d-ann", name: "Ann Roster" } });
+    expect(d.attribution.decision).toBeNull();
+    expectOrgScoped(rec, ORG);
+  });
+
+  it("records a confirmation as the signed-in person", async () => {
+    const res = await post(`/${A}/attribution`, { action: "confirm", basedOn: ENGINE });
+    expect(res).toEqual({ status: 201, body: { ok: true, data: { id: "new-1" } } });
+    expect(rec.writtenRows("inspection_attributions")[0]).toMatchObject({ source: "person", decided_by: "u-1", driver_id: null });
+  });
+
+  it.each([
+    ["a correction without a note", { action: "correct", basedOn: ENGINE, driverId: "55555555-5555-4555-8555-555555555555", note: "  " }],
+    ["an unknown action", { action: "approve", basedOn: ENGINE }],
+    ["no basedOn", { action: "confirm" }],
+  ])("refuses %s as a bad request, writing nothing", async (_what, body) => {
+    expect((await post(`/${A}/attribution`, body)).status).toBe(400);
+    expect(rec.writes()).toEqual([]);
+  });
+
+  it("answers the decision's own refusal with its status and code", async () => {
+    const res = await post(`/${A}/attribution`, { action: "confirm", basedOn: "66666666-6666-4666-8666-666666666666" });
+    expect([res.status, res.body.error?.code]).toEqual([409, "changed"]);
+  });
+
+  it("answers 404 for an id that is not one", async () => {
+    expect((await post(`/not-a-uuid/attribution`, { action: "confirm", basedOn: ENGINE })).status).toBe(404);
+  });
+
+  it("needs the safety section's manage level, while reading needs only view", async () => {
+    viewOnly = true;
+    expect((await post(`/${A}/attribution`, { action: "confirm", basedOn: ENGINE })).status).toBe(403);
+    expect((await call(`/${A}`)).status).toBe(200);
+    expect(rec.writes()).toEqual([]);
   });
 });

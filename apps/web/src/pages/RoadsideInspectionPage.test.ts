@@ -17,6 +17,8 @@ import { ROUTE_TABLE } from "@/router/table";
  *   4. **The report's local clock is shifted or the level is given a name** the sources do not hold.
  *   5. **A withheld category shows a number, or a violation with no points shows a blank** instead of
  *      the reason the API gave (D-IC6), or the cap is said of the wrong figure.
+ *   6. **The driver card is missing**, or the report still says the driver is not shown. What the card
+ *      says is `InspectionDriverCard.test.ts`'s.
  */
 
 const inspection = ref<RoadsideInspectionDetailDto | undefined>(undefined);
@@ -28,10 +30,16 @@ vi.mock("@/features/roadside/useRoadsideInspections", async () => {
       watchEffect(() => (askedId.value = id.value));
       return { data: inspection, isLoading: r(false), isError: r(false), error: r(null), isFetching: r(false), refetch: vi.fn() };
     },
+    useDecideAttribution: () => ({ mutate: vi.fn(), reset: vi.fn(), error: r(null), isPending: r(false) }),
+    AttributionDecisionError: class extends Error {},
   };
 });
 let truckOpens = true;
 vi.mock("@/composables/useOpens", () => ({ useOpens: () => () => truckOpens }));
+vi.mock("@/composables/useDrivers", async () => {
+  const { ref: r } = await import("vue");
+  return { useDriversQuery: () => ({ data: r([]) }) };
+});
 // The desktop table: jsdom has no `matchMedia`, and DataTable would otherwise draw its narrow cards.
 vi.mock("@vueuse/core", async (orig) => {
   const { ref: r } = await import("vue");
@@ -70,6 +78,7 @@ const detail = (o: Partial<RoadsideInspectionDetailDto> = {}): RoadsideInspectio
       v2: { status: "scored", basic: "vehicle_maintenance", severityWeight: 4, oosWeight: 2, timeWeight: 3, points: 18 },
     },
   },
+  attribution: { reading: null, decision: null, basedOn: null },
   ...o,
 });
 
@@ -114,6 +123,12 @@ describe("one roadside inspection", () => {
     const denied = await page();
     expect(denied.find("a[href='/vehicles/veh-701']").exists()).toBe(false);
     expect(denied.findAll("[data-test='match']")[0]!.text()).toBe("Ours, by unit number");
+  });
+
+  it("has the driver card, and no longer says the driver is not shown", async () => {
+    const w = await page();
+    expect(w.get("[data-test='driver-pending']").text()).toContain("Samsara has not been read for this inspection yet");
+    expect(w.text()).not.toContain("so it is not shown here");
   });
 
   it("says when there are no violations, without calling the inspection clean (Q-FM8)", async () => {

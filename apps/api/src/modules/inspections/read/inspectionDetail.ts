@@ -10,6 +10,7 @@ import {
 } from "@silvicom/shared";
 import { INSPECTION_COLS, MATCHED, inspectionDto, kindOf, type DbError, type InspectionRow } from "./inspectionsList.js";
 import { inspectionSms } from "./inspectionSms.js";
+import { readInspectionAttribution } from "./inspectionAttribution.js";
 
 /**
  * One roadside inspection with its units, violations and court results — the Inspection page's first
@@ -24,7 +25,8 @@ import { inspectionSms } from "./inspectionSms.js";
  * ── WHAT IS DELIBERATELY ABSENT ────────────────────────────────────────────────────────────────
  * The county is a FIPS code with no name table here. (The violation category and the defect
  * verification ARE shown, named from FMCSA's data dictionary — plan Q-IC5.)
- * The driver is not on FMCSA's public record at all (attribution is IC5, D-IC7).
+ * The driver is not on FMCSA's public record at all: who was driving is IC5's reading of Samsara and a
+ * person's decision over it (`inspectionAttribution.ts`, D-IC7), never a field of the report.
  */
 
 interface DetailRow extends InspectionRow {
@@ -102,7 +104,7 @@ export async function readRoadsideInspection(
   if (!head.data) return null;
   const r = head.data as unknown as DetailRow;
 
-  const [units, violations, citations] = await Promise.all([
+  const [units, violations, citations, attribution] = await Promise.all([
     admin
       .from("roadside_inspection_units")
       .select("unit_seq, unit_type_id, make, company_number, plate, plate_state, vin, decal, vehicle_id, match_method")
@@ -124,9 +126,11 @@ export async function readRoadsideInspection(
       .eq("inspection_id", id)
       .is("vanished_at", null)
       .order("adjseq", { ascending: true }),
+    readInspectionAttribution(admin, orgId, id),
   ]);
   const failed = units.error ?? violations.error ?? citations.error;
   if (failed) return { error: failed };
+  if ("error" in attribution) return attribution;
 
   const results = new Map<string, string[]>();
   // The adjudication SMS reads is the latest one FMCSA holds (rows come in `adjseq` order, so the last
@@ -192,5 +196,6 @@ export async function readRoadsideInspection(
       },
       today,
     ),
+    attribution,
   };
 }

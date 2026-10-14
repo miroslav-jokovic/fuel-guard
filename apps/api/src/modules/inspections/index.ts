@@ -14,7 +14,9 @@
  *
  * IC5 (`attribution/`) reads who was driving at each inspection from Samsara — only through the
  * `samsara` module's index (`inspections -> samsara` in `API_ALLOW`) — freezes the answers as received,
- * and records the reading in `inspection_attributions` (0473). It will file documents only through
+ * and records the reading in `inspection_attributions` (0473). The Inspection page shows the reading
+ * (`read/inspectionAttribution.ts`) and a person confirms or corrects it (`attribution/decide.ts`), a
+ * new row restating the reading it was made over. It will file documents only through
  * `evidence`'s `registerDocument`; that edge arrives with IC2.
  */
 export { startFmcsaFeedScheduler, isFmcsaFeedDue } from "./feed/scheduler.js";
