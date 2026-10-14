@@ -2,6 +2,8 @@ import raw202602 from "../datasets/2026.02.json" with { type: "json" };
 import raw202607 from "../datasets/2026.07.0.json" with { type: "json" };
 import raw2026071 from "../datasets/2026.07.1.json" with { type: "json" };
 import raw2026080 from "../datasets/2026.08.0.json" with { type: "json" };
+import raw2026100 from "../datasets/2026.10.0.json" with { type: "json" };
+import raw2026120 from "../datasets/2026.12.0.json" with { type: "json" };
 import rawReferenceText from "../datasets/referenceText.json" with { type: "json" };
 import rawInterpretations from "../datasets/interpretations.json" with { type: "json" };
 import { parseDataset, type Dataset } from "./schema.js";
@@ -37,6 +39,15 @@ const RAW: Readonly<Record<string, unknown>> = {
   // LATEST deliberately stays 2026.07.1 until an attested file is in, so no production load
   // regresses to a provisional dataset.
   "2026.08.0": raw2026080,
+  // 2026.10.0 and 2026.12.0 (Q-DR14a ruled (b), 2026-10-14): cut from eCFR 2026-10-09, triangulation
+  // ALL CLEAN with 91 FR 51098's four fireworks-row differences explained by citation
+  // (import/reconciliations.ts). Both carry column 8A and the namesChemicalGroup flag (Q-DR17).
+  // 2026.10.0 reads hazSubstances from §172.101 Appendix A; 2026.12.0 is the same text with Table 302.4
+  // instead, because 91 FR 49305 makes Appendix A a pointer to 40 CFR 302.4 on 2026-12-02. Both ship
+  // PROVISIONAL until a named person attests (datasets/2026.10.0/PROMOTION-CHECKLIST.md); LATEST moves to
+  // 2026.10.0 on attestation and to 2026.12.0 no earlier than 2026-12-02.
+  "2026.10.0": raw2026100,
+  "2026.12.0": raw2026120,
 };
 
 /** The newest published dataset — the default the API loads unless a caller pins an older version. */
