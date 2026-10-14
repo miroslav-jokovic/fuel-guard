@@ -378,6 +378,16 @@ const review = (org, readId, action = "confirmed", consumer = "hazmat_calculator
    values ($1, $2, 'identity.bolNumber', $3, '"123"', '"123"', $4, $5)`, [org, readId, action, USER, consumer]);
 ok("a confirmation is recorded", (await review(ORG, R1)) === null);
 const RV = (await one(`select id from document_read_reviews where read_id = $1`, [R1])).id;
+// 0472 (D-DR24): a writer that does not say whether the dispatcher acted counts for nothing.
+ok("a review that does not say it was explicit is recorded as implicit",
+  (await one(`select explicit from document_read_reviews where id = $1`, [RV])).explicit === false);
+ok("an explicit review is recorded as explicit", (await sqlstate(
+  `insert into document_read_reviews (org_id, read_id, field_path, action, old_value, new_value, actor, consumer, explicit)
+   values ($1, $2, 'identity.date', 'corrected', '"1"', '"2"', $3, 'hazmat_calculator', true)`, [ORG, R1, USER])) === null
+  && (await one(`select explicit from document_read_reviews where field_path = 'identity.date'`)).explicit === true);
+ok("explicit cannot be null", (await sqlstate(
+  `insert into document_read_reviews (org_id, read_id, field_path, action, old_value, new_value, actor, consumer, explicit)
+   values ($1, $2, 'identity.date', 'confirmed', '"1"', '"1"', $3, 'hazmat_calculator', null)`, [ORG, R1, USER])) === "23502");
 ok("an action outside REVIEW_ACTIONS is refused", (await review(ORG, R1, "approved")) === "23514");
 ok("a consumer outside REVIEW_CONSUMERS is refused", (await review(ORG, R1, "confirmed", "billing")) === "23514");
 const RX = await newRead(OTHER, SX);
