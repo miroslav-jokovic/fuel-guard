@@ -91,7 +91,12 @@ describe("the parity baseline", () => {
       expect(actual.contrastRms, `${f.name} contrastRms`).toBeCloseTo(f.metrics.contrastRms, 5);
       expect(actual.shadowRange, `${f.name} shadowRange`).toBeCloseTo(f.metrics.shadowRange, 5);
     }
-  });
+    // Decoding every fixture and running the full reference over it is ~0.5 s on a laptop but
+    // 4.7–4.8 s on a CI runner while the other workspaces' suites share its cores — against vitest's
+    // 5 s default. On 2026-10-14 it crossed that line and failed main's CI on b74d7d9, the release
+    // candidate, with a timeout rather than a wrong number. The work grows with the corpus, so the
+    // budget is sized for the corpus, not the default; a real drift still fails on the assertion.
+  }, 30_000);
 
   it("carries the tolerances the native suites must use, in one place", () => {
     // Phase 3's XCTest and JUnit read these rather than each choosing a number under deadline
