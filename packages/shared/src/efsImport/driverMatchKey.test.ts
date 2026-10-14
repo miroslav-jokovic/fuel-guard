@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { driverMatchKey } from "./reconcile.js";
+import { driverFirstLastKey, driverMatchKey } from "./reconcile.js";
 
 describe("driverMatchKey", () => {
   it("is order-independent and case/punctuation-insensitive (LAST, FIRST vs First Last)", () => {
@@ -35,5 +35,27 @@ describe("driverMatchKey", () => {
     expect(driverMatchKey(null)).toBe("");
     expect(driverMatchKey("")).toBe("");
     expect(driverMatchKey("   ")).toBe("");
+  });
+});
+
+describe("driverFirstLastKey", () => {
+  it("meets a middle name one side carries and the other does not (722, 2026-10-14)", () => {
+    expect(driverFirstLastKey("DEONICA SHENISE MCMILLON")).toBe("deonica mcmillon");
+    expect(driverFirstLastKey("DEONICA MCMILLON")).toBe("deonica mcmillon");
+    expect(driverMatchKey("DEONICA SHENISE MCMILLON")).not.toBe(driverMatchKey("DEONICA MCMILLON"));
+  });
+
+  it("reads the EFS card order as given name first", () => {
+    expect(driverFirstLastKey("MCMILLON, DEONICA SHENISE")).toBe("deonica mcmillon");
+    expect(driverFirstLastKey("SMITH, JOHN")).toBe(driverFirstLastKey("John Smith"));
+  });
+
+  it("drops initials and annotations as driverMatchKey does", () => {
+    expect(driverFirstLastKey("John Q Smith SR")).toBe("john smith");
+  });
+
+  it("has no key for a name with fewer than two usable tokens", () => {
+    expect(driverFirstLastKey("ESTEBAN OW")).toBe("");
+    expect(driverFirstLastKey(null)).toBe("");
   });
 });

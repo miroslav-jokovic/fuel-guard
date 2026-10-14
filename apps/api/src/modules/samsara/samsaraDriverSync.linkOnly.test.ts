@@ -92,3 +92,71 @@ describe("samsara driver sync under TMS roster mastery", () => {
     expect(r.unlinked).toBeUndefined();
   });
 });
+
+/**
+ * The two gaps the Seats card audit found on 2026-10-14 (truck 722; 11 new hires with no McLeod link).
+ * Each test seeds the production shape: an EFS-provisioned row with no licence and no Samsara id.
+ */
+describe("linking a driver the EFS path created", () => {
+  const efsRow = (o: Record<string, unknown> = {}) => ({
+    id: "d-efs", org_id: ORG, full_name: "DEONICA MCMILLON", phone: null, samsara_driver_id: null,
+    identity_source: "efs", status: "active", cdl_number: null, archived_at: null, ...o,
+  });
+  const deonica = { id: "51348661", name: "DEONICA SHENISE MCMILLON", licenseNumber: "801762204", licenseState: "MS", isDeactivated: false };
+
+  it("links across a middle name only one side carries, and says so", async () => {
+    const rec = seed([efsRow()], true);
+    const r = await syncDriversFromSamsara(rec.client, env, ORG, async () => [deonica]);
+    expect(r.unlinked).toEqual([]);
+    expect(r.linkedByFirstLast).toEqual(["DEONICA SHENISE MCMILLON"]);
+    expect(rec.writtenRows("drivers")[0]).toMatchObject({ samsara_driver_id: "51348661" });
+  });
+
+  it("fills the licence a row has none of, so McLeod can meet it on the licence", async () => {
+    const rec = seed([efsRow({ full_name: "DEONICA SHENISE MCMILLON" })], true);
+    await syncDriversFromSamsara(rec.client, env, ORG, async () => [deonica]);
+    expect(rec.writtenRows("drivers")[0]).toMatchObject({ cdl_number: "801762204", cdl_state: "MS" });
+  });
+
+  it("never overwrites a licence the row already has", async () => {
+    const rec = seed([efsRow({ full_name: "DEONICA SHENISE MCMILLON", cdl_number: "OTHER1" })], true);
+    await syncDriversFromSamsara(rec.client, env, ORG, async () => [deonica]);
+    expect(rec.writtenRows("drivers")[0]).not.toHaveProperty("cdl_number");
+  });
+
+  it("refuses the short name when two of our unlinked rows share it", async () => {
+    const rec = seed([efsRow(), efsRow({ id: "d-efs-2", full_name: "MCMILLON, DEONICA" })], true);
+    const r = await syncDriversFromSamsara(rec.client, env, ORG, async () => [deonica]);
+    expect(r.unlinked).toEqual(["DEONICA SHENISE MCMILLON"]);
+    expect(rec.writes()).toEqual([]);
+  });
+
+  it("refuses the short name when two Samsara drivers share it", async () => {
+    const rec = seed([efsRow()], true);
+    const twin = { ...deonica, id: "99", name: "DEONICA ANNE MCMILLON", licenseNumber: "X" };
+    const r = await syncDriversFromSamsara(rec.client, env, ORG, async () => [deonica, twin]);
+    expect(r.linkedByFirstLast).toEqual([]);
+    expect(rec.writes()).toEqual([]);
+  });
+
+  it("never reaches a row already linked, archived, or an applicant", async () => {
+    for (const o of [{ samsara_driver_id: "OTHER" }, { archived_at: "2026-09-14T00:00:00Z" }, { status: "applicant" }]) {
+      const rec = seed([efsRow(o)], true);
+      const r = await syncDriversFromSamsara(rec.client, env, ORG, async () => [deonica]);
+      expect(r.linkedByFirstLast, JSON.stringify(o)).toEqual([]);
+    }
+  });
+
+  it("lets an ambiguous FULL name stand — the short key never overrules a refusal", async () => {
+    // Two linked rows share Samsara's full name (a refusal); one unlinked row shares only the short
+    // name. Without the rule, the short key would hand the driver to that third row.
+    const rec = seed([
+      efsRow(),
+      efsRow({ id: "d-2", full_name: "DEONICA SHENISE MCMILLON", samsara_driver_id: "S-2" }),
+      efsRow({ id: "d-3", full_name: "MCMILLON, DEONICA SHENISE", samsara_driver_id: "S-3" }),
+    ], true);
+    const r = await syncDriversFromSamsara(rec.client, env, ORG, async () => [deonica]);
+    expect(r.linkedByFirstLast).toEqual([]);
+    expect(rec.writes()).toEqual([]);
+  });
+});
