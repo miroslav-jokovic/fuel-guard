@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { FIRST_VERSION_WITH_GROUP_FLAG, assembleDataset, compareDatasetVersions, cutDataset, datasetChecksum, entriesForVersion, verifyChecksum } from "./buildDataset.js";
 import { capturedEcfrDate } from "./govinfoCrossCheck.js";
+import { LATEST_DATASET_VERSION, listDatasetVersions, loadDataset } from "../src/index.js";
 import { parseDataset, type HmtEntry } from "../src/schema.js";
 
 function fuelEntry(over: Partial<HmtEntry> = {}): HmtEntry {
@@ -111,5 +112,30 @@ describe("a cut names the eCFR text it was cut from", () => {
     expect(() => cutDataset({ version: "2099.01.0", sourceEcfrDate: "2026-07-28", effectiveDate: "2026-08-15" })).toThrow(
       /sourceEcfrDate 2026-07-28 is not the captured eCFR date 2026-10-09/,
     );
+  });
+});
+
+describe("the registered datasets are the files their cuts wrote", () => {
+  it("every registered dataset's stored checksum matches its content (no hand edit since its cut)", () => {
+    for (const v of listDatasetVersions()) {
+      const ds = loadDataset(v);
+      if (ds.checksum) expect(verifyChecksum(ds), v).toBe(true);
+    }
+  });
+
+  it("2026.10.0 and 2026.12.0 are one text, Appendix A against Table 302.4, both waiting on attestation", () => {
+    const oct = loadDataset("2026.10.0");
+    const dec = loadDataset("2026.12.0");
+    for (const ds of [oct, dec]) {
+      expect(ds).toMatchObject({ provisional: true, sourceEcfrDate: "2026-10-09" });
+      expect(ds.sourceSecondaryRef).toMatch(/ALL CLEAN.*explained by 91 FR 51098/);
+    }
+    expect(oct.effectiveDate).toBe("2026-10-14");
+    expect(dec.effectiveDate).toBe("2026-12-02");
+    expect(oct.hazSubstances).toHaveLength(1351);
+    expect(dec.hazSubstances).toHaveLength(1340);
+    expect(dec.sourceSecondaryRef).toMatch(/hazSubstances from 40 CFR 302\.4/);
+    expect(JSON.stringify(dec.entries)).toBe(JSON.stringify(oct.entries));
+    expect(LATEST_DATASET_VERSION).toBe("2026.07.1");
   });
 });

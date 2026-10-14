@@ -8,8 +8,9 @@
 > stays provisional as a record. A cut from the current text triangulates ALL CLEAN (HMT 2397/2400 keys
 > plus 4 cited differences, placards 23/23, segregation 173/173, and for a 302.4 cut Table 302.4
 > 1340/1340), so the attestable datasets are the next cuts: one effective now (Appendix A, column 8A, the
-> `namesChemicalGroup` flag) and one effective 2026-12-02 (Table 302.4). §2 and §4 still describe what
-> promotion changes; §1 is the record of why.
+> `namesChemicalGroup` flag) and one effective 2026-12-02 (Table 302.4) — cut as 2026.10.0 and
+> 2026.12.0; their checklist is `datasets/2026.10.0/PROMOTION-CHECKLIST.md`. §2 and §4 still describe
+> what promotion changes; §1 is the record of why.
 
 Owner ruling Q-DR14 (2026-10-09): release the dataset that carries HMT column 8A, through
 `RELEASING.md`, in this order — (1) step-0 currency check, (2) pin the pre-8A golden guard, (3) a
