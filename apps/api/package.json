@@ -29,6 +29,7 @@
     "@silvicom/capture-engine": "workspace:*",
     "@silvicom/qr": "workspace:*",
     "@silvicom/shared": "workspace:*",
+    "@silvicom/sms-engine": "workspace:*",
     "@supabase/supabase-js": "2.110.0",
     "@xmldom/xmldom": "0.9.12",
     "compression": "^1.8.2",

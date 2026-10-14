@@ -2,7 +2,18 @@
 import { computed } from "vue";
 import { useRoute } from "vue-router";
 import { AppCard as BaseCard, AppButton as BaseButton } from "@silvicom/ui";
-import { inspectionLevelLabel, type RoadsideMatchMethod, type RoadsideUnitDetailDto, type RoadsideViolationDto } from "@silvicom/shared";
+import {
+  SMS_BASIC_NAMES,
+  SMS_EXCLUSION_TEXT,
+  SMS_TIME_WEIGHT_TEXT,
+  inspectionLevelLabel,
+  smsPointsWithheldReason,
+  type RoadsideMatchMethod,
+  type RoadsideSmsBasicDto,
+  type RoadsideUnitDetailDto,
+  type RoadsideViolationDto,
+  type RoadsideViolationSmsDto,
+} from "@silvicom/shared";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import QueryState from "@/components/ui/QueryState.vue";
 import FactList, { type Fact } from "@/components/ui/FactList.vue";
@@ -21,9 +32,16 @@ import { formatDate } from "@/lib/format";
  * Times are the report's local clock, as written: resolving them to an instant needs the truck's GPS
  * and is IC5's (D-IC8). The level, the violation category and the defect's outcome are named from
  * FMCSA's own data dictionary (plan Q-IC5), never paraphrased. A violation's code and
- * description are FMCSA's words; its SMS weight and BASIC are IC3's. A unit says how it matched one
+ * description are FMCSA's words. A unit says how it matched one
  * of ours, because a unit-number match is the weakest of the three (0458), and an unmatched one says
  * so rather than borrowing a near match (D-IC7).
+ *
+ * ── CSA POINTS ARE THE API'S, THE PAGE ONLY SAYS THEM ─────────────────────────────────────────
+ * Every figure and every "why not" comes from `@silvicom/sms-engine`, run by the API on today's date
+ * (`inspectionSms.ts`); nothing here weighs a violation. A violation's points are before the
+ * inspection's 30-point cap, which the per-category total applies, so the card says which is which. A
+ * category the calculator does not reproduce FMCSA in (Hazardous Materials, plan Q-IC9) shows why its
+ * points are withheld, on the row, rather than a number or a blank (D-IC6).
  *
  * ── NO DRIVER ──────────────────────────────────────────────────────────────────────────────────
  * FMCSA's public record does not name the driver. Attribution is IC5's, and a guessed driver is the
@@ -69,6 +87,24 @@ const counts = computed<Fact[]>(() => {
   ];
 });
 
+const sms = computed(() => inspection.value?.sms ?? null);
+/** A violation's points cell: the figure, or why there is none, with how it was reached beneath. */
+const pointsCell = (v: RoadsideViolationDto): { value: string; why: string | null; tone: string } => {
+  const s: RoadsideViolationSmsDto | undefined = sms.value?.violations[v.id];
+  if (!s) return { value: "—", why: null, tone: "text-ink-tertiary" };
+  if (s.status === "scored") {
+    const oos = s.oosWeight ? ` + ${s.oosWeight} out of service` : "";
+    return { value: String(s.points), why: `${SMS_BASIC_NAMES[s.basic]}: severity ${s.severityWeight}${oos}, × ${s.timeWeight}`, tone: "font-medium tabular-nums" };
+  }
+  if (s.status === "withheld") return { value: "Not shown", why: smsPointsWithheldReason(s.basic), tone: "text-ink-muted" };
+  return { value: "None", why: SMS_EXCLUSION_TEXT[s.reason], tone: "text-ink-tertiary" };
+};
+const basicTotal = (b: RoadsideSmsBasicDto) => {
+  if (!b.verified) return smsPointsWithheldReason(b.basic);
+  const sum = b.capped < b.severitySum ? `${b.severitySum}, capped at ${b.capped}` : String(b.capped);
+  return `${sum} × ${sms.value!.timeWeight} = ${b.points} points`;
+};
+
 const unitName = (u: RoadsideUnitDetailDto) => [KIND[u.kind], u.companyNumber].filter(Boolean).join(" ");
 const againstLabel = (v: RoadsideViolationDto) => {
   if (!v.against) return null;
@@ -102,6 +138,7 @@ const VIOLATION_COLUMNS: DataTableColumn[] = [
   { key: "outOfService", label: "Out of service", width: "sm" },
   { key: "citationNumber", label: "Citation", width: "md" },
   { key: "courtResults", label: "Court result", width: "lg" },
+  { key: "points", label: "CSA points", width: "lg" },
 ];
 </script>
 
@@ -130,6 +167,26 @@ const VIOLATION_COLUMNS: DataTableColumn[] = [
           <p class="mt-4 text-xs text-ink-tertiary">The driver is not on FMCSA's public record, so it is not shown here.</p>
         </BaseCard>
 
+        <BaseCard v-if="sms" data-test="sms">
+          <h2 class="text-sm font-semibold text-ink">CSA points</h2>
+          <p class="mt-1 text-xs text-ink-tertiary">
+            Measured today, {{ formatDate(sms.measuredOn) }}, by FMCSA's SMS rules (Appendix A v{{ sms.appendixVersion }}).
+            <template v-if="sms.timeWeight">This inspection is {{ SMS_TIME_WEIGHT_TEXT[sms.timeWeight] }}.</template>
+          </p>
+          <ul v-if="sms.basics.length" class="mt-4 space-y-2 text-sm">
+            <li v-for="b in sms.basics" :key="b.basic" data-test="sms-basic">
+              <span class="font-medium text-ink">{{ SMS_BASIC_NAMES[b.basic] }}</span>
+              <span :class="b.verified ? 'text-ink tabular-nums' : 'text-ink-muted'"> — {{ basicTotal(b) }}</span>
+            </li>
+          </ul>
+          <p v-else class="mt-4 text-sm text-ink-muted" data-test="sms-none">
+            {{ inspection.violationList.length ? "No violation on this inspection adds CSA points; each row says why." : "No violations, so no CSA points." }}
+          </p>
+          <p v-if="sms.basics.length" class="mt-3 text-xs text-ink-tertiary">
+            Each category's severity on one inspection is capped at {{ sms.cap }} before the time weight. The points beside each violation are before that cap.
+          </p>
+        </BaseCard>
+
         <section class="space-y-3" aria-labelledby="violations-heading">
           <h2 id="violations-heading" class="text-sm font-semibold text-ink">Violations</h2>
           <DataTable :columns="VIOLATION_COLUMNS" :rows="inspection.violationList" row-key="id" :nowrap="false" empty-text="No violations recorded on this inspection.">
@@ -152,6 +209,10 @@ const VIOLATION_COLUMNS: DataTableColumn[] = [
             <template #cell-courtResults="{ value }">
               <span v-if="(value as string[]).length">{{ (value as string[]).join("; ") }}</span>
               <span v-else class="text-ink-tertiary">—</span>
+            </template>
+            <template #cell-points="{ row }">
+              <span :class="pointsCell(row as RoadsideViolationDto).tone" data-test="points">{{ pointsCell(row as RoadsideViolationDto).value }}</span>
+              <p v-if="pointsCell(row as RoadsideViolationDto).why" class="mt-0.5 text-xs text-ink-muted" data-test="points-why">{{ pointsCell(row as RoadsideViolationDto).why }}</p>
             </template>
           </DataTable>
         </section>

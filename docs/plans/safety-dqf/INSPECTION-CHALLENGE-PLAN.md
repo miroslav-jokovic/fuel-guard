@@ -656,3 +656,29 @@ about three merges.
 - **2026-10-13 — Q-IC8's fix paused for Q-IC10.** Building "retired McLeod units as `vehicles` rows"
   met `rosterRetire.ts`'s rule that the roster never creates a retired row. Recorded as Q-IC10 with
   three options; recommendation (b), a former-equipment register matched as `former_unit`.
+- **2026-10-14 — CSA points per violation on the Inspection page (IC3's calculator, first reader).**
+  `GET /api/roadside-inspections/:id` now carries `sms`: the API runs `@silvicom/sms-engine` over the
+  inspection on today's date in the org's zone (`modules/inspections/read/inspectionSms.ts`) and the
+  page only says the answer — no rule is restated in the web (contract `roadsideSmsContract.ts`).
+  - **Per violation:** points = (severity + 2 when out of service) × time weight, before the cap, with
+    how they were reached beneath ("Vehicle Maintenance: severity 4 + 2 out of service, × 3"). A
+    violation SMS leaves out shows "None" and the engine's reason (wrong level, crash-related, HM not
+    placardable, dismissed in court, counted once, not in Appendix A, older than 24 months, not yet
+    loaded).
+  - **Per BASIC:** the card "CSA points" gives each BASIC's sum, the 30-point cap when it bites, × the
+    time weight. The per-violation points are before the cap, and the card says so.
+  - **HM Compliance is withheld (D-IC6):** its rows say "Not shown" and why — FMCSA leaves out the
+    shipper's duties by a flag its public data does not carry, so our figure could be higher (Q-IC9).
+  - **Inputs read for it:** each violation's adjudication code (`roadside_citations.citation_code`,
+    latest `adjseq`), and the MCMIS load date, which 0458 did not type — read from the inspection's raw
+    record through `raw_row_id`. A record without one is read as loaded (the feed served it).
+  - The shared keys (`SMS_BASIC_NAMES`, `SMS_EXCLUSION_TEXT`) are held equal to the engine's
+    `SmsBasic` / `ExclusionReason` at compile time (`SmsKeysAgree`): a reason added on one side only
+    fails typecheck. Mutation-checked both ways.
+  - **Measured on production, 2026-10-14**, the real read over all 1,391 current inspections: every
+    violation carries an entry; 651 scored, 110 HM withheld, 656 excluded (477 outside the window,
+    111 not in Appendix A, 35 counted once, 22 HM not placardable, 8 wrong level, 2 dismissed,
+    1 crash-related). Three inspections hit the 30-point cap.
+  - **Not built:** the list's points column (it reads no violations today, and 1,417 of them cross
+    PostgREST's 1,000-row page — a paged read of its own), and "points if removed", which is IC4's case
+    impact.

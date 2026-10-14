@@ -15,6 +15,8 @@ import { ROUTE_TABLE } from "@/router/table";
  *   2. **A unit reads as ours when it is not**, or as ours with no word on how (D-IC7, 0458).
  *   3. **The truck link shows to a reader the router would bounce** (SP5).
  *   4. **The report's local clock is shifted or the level is given a name** the sources do not hold.
+ *   5. **A withheld category shows a number, or a violation with no points shows a blank** instead of
+ *      the reason the API gave (D-IC6), or the cap is said of the wrong figure.
  */
 
 const inspection = ref<RoadsideInspectionDetailDto | undefined>(undefined);
@@ -60,6 +62,14 @@ const detail = (o: Partial<RoadsideInspectionDetailDto> = {}): RoadsideInspectio
     { id: "v1", seq: 1, code: "392.2-SLLS1", description: "Speeding 1-5 mph", against: { driver: true }, outOfService: false, category: "Speeding", defectVerification: "Not out of service", citationNumber: "E061", courtResults: ["Not Guilty/Dismissed"] },
     { id: "v2", seq: 2, code: "393.47D2", description: "Drum brake lining", against: { unitSeq: 2 }, outOfService: true, category: "Brakes, All Other Violations", defectVerification: "Repaired at scene", citationNumber: null, courtResults: [] },
   ],
+  sms: {
+    measuredOn: "2026-10-14", appendixVersion: "3.21", timeWeight: 3, cap: 30,
+    basics: [{ basic: "vehicle_maintenance", verified: true, severitySum: 34, capped: 30, points: 90 }],
+    violations: {
+      v1: { status: "excluded", basic: "unsafe_driving", reason: "dismissed" },
+      v2: { status: "scored", basic: "vehicle_maintenance", severityWeight: 4, oosWeight: 2, timeWeight: 3, points: 18 },
+    },
+  },
   ...o,
 });
 
@@ -111,5 +121,47 @@ describe("one roadside inspection", () => {
     const w = await page();
     expect(w.text()).toContain("No violations recorded on this inspection.");
     expect(w.text().toLowerCase()).not.toContain("clean");
+  });
+
+  it("gives each violation its CSA points with how they were reached, or the reason it has none", async () => {
+    const w = await page();
+    expect(w.findAll("[data-test='points']").map((c) => c.text())).toEqual(["None", "18"]);
+    expect(w.findAll("[data-test='points-why']").map((c) => c.text())).toEqual([
+      "The citation was dismissed in court.",
+      "Vehicle Maintenance: severity 4 + 2 out of service, × 3",
+    ]);
+    const card = w.get("[data-test='sms']").text();
+    expect(card).toContain("10/14/2026");
+    expect(card).toContain("under 6 months old");
+    expect(w.get("[data-test='sms-basic']").text()).toBe("Vehicle Maintenance — 34, capped at 30 × 3 = 90 points");
+  });
+
+  it("withholds a category the calculator does not match FMCSA in, and says why on the row and in the total", async () => {
+    inspection.value = detail({
+      sms: {
+        measuredOn: "2026-10-14", appendixVersion: "3.21", timeWeight: 3, cap: 30,
+        basics: [{ basic: "hm_compliance", verified: false }],
+        violations: { v1: { status: "withheld", basic: "hm_compliance" }, v2: { status: "excluded", basic: "vehicle_maintenance", reason: "level_not_relevant" } },
+      },
+    });
+    const w = await page();
+    expect(w.findAll("[data-test='points']").map((c) => c.text())).toEqual(["Not shown", "None"]);
+    expect(w.findAll("[data-test='points-why']")[0]!.text()).toMatch(/charges to the shipper/);
+    const total = w.get("[data-test='sms-basic']").text();
+    expect(total).toMatch(/^Hazardous Materials Compliance — Points not shown/);
+    expect(total).not.toMatch(/\d+ points/);
+  });
+
+  it("says no violation adds points rather than showing an empty total", async () => {
+    inspection.value = detail({
+      sms: { measuredOn: "2026-10-14", appendixVersion: "3.21", timeWeight: null, cap: 30, basics: [], violations: {
+        v1: { status: "excluded", basic: "unsafe_driving", reason: "outside_window" },
+        v2: { status: "excluded", basic: "vehicle_maintenance", reason: "outside_window" },
+      } },
+    });
+    const w = await page();
+    expect(w.get("[data-test='sms-none']").text()).toBe("No violation on this inspection adds CSA points; each row says why.");
+    expect(w.get("[data-test='sms']").text()).not.toContain("This inspection is");
+    expect(w.findAll("[data-test='points-why']").map((c) => c.text())).toEqual(Array(2).fill("Older than 24 months, so SMS no longer counts it."));
   });
 });

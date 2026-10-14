@@ -44,6 +44,8 @@ type Insp = {
   id: string; org_id: string; inspection_date: string | null; vanished_at: string | null;
   report_number: string; report_state: string; level: number; location_desc: string; hazmat_placard_required: boolean;
   violations_total: number | null; driver_oos_total: number | null; vehicle_oos_total: number | null; hazmat_oos_total: number | null;
+  /** The detail's embed of its raw record, for the MCMIS load date. */
+  raw?: { mcmis_add_date: string | null } | null;
 };
 const insp = (id: string, day: string | null, oos: [number, number, number] = [0, 0, 0], extra: Partial<Insp> = {}): Insp => ({
   id, org_id: ORG, inspection_date: day, vanished_at: null, report_number: `R-${id}`, report_state: "IL", level: 2,
@@ -78,7 +80,7 @@ const viol = (id: string, inspection_id: string, seq: number, unitCol: string, o
   out_of_service: oos, category_id: 16, defect_verification_id: oos ? "1" : "3", citation_number: null, vanished_at: null, ...extra,
 });
 const VIOLATIONS: Viol[] = [];
-type Cit = { org_id: string; inspection_id: string; violation_id: string; adjseq: number; citation_result: string; vanished_at: string | null };
+type Cit = { org_id: string; inspection_id: string; violation_id: string; adjseq: number; citation_code?: number | null; citation_result: string; vanished_at: string | null };
 const CITATIONS: Cit[] = [];
 /** Rows of a child table filtered by what the query asked for: org, inspection, vanished, and ordered by `col`. */
 const childFixture = <T extends { org_id: string; inspection_id: string; vanished_at: string | null }>(rows: T[], col: keyof T) => (q: RecordedQuery) => {
@@ -363,5 +365,49 @@ describe("FMCSA's names for its codes (Q-IC5)", () => {
       ["n3", "77", "8"],
       ["n4", null, null],
     ]);
+  });
+});
+
+describe("CSA points on the inspection (D-IC6)", () => {
+  const A = "44444444-4444-4444-8444-444444444444";
+  const B = "55555555-5555-4555-8555-555555555555";
+  beforeEach(() => {
+    VIOLATIONS.push(
+      viol("p1", A, 1, "1", true, { viol_code: "393.75A3-TAOL" }),
+      viol("p2", B, 1, "1", false, { viol_code: "393.45" }),
+      viol("p3", B, 2, "D", false, { viol_code: "395.8(e)" }),
+    );
+    // The current adjudication is the one SMS reads: a vanished "original charge" beside it changes nothing.
+    CITATIONS.push(
+      { org_id: ORG, inspection_id: B, violation_id: "p3", adjseq: 1, citation_code: 3, citation_result: "Not Guilty/Dismissed", vanished_at: null },
+      { org_id: ORG, inspection_id: B, violation_id: "p3", adjseq: 2, citation_code: 1, citation_result: "Conviction", vanished_at: "2026-10-01T00:00:00Z" },
+    );
+    rec = recorder({
+      inspections: [
+        // Reached MCMIS on 10/12 — before today in Chicago and in UTC, but today itself in Los Angeles.
+        insp(A, "2026-10-11", [0, 1, 0], { raw: { mcmis_add_date: "20261012 0300" } }),
+        insp(B, "2026-09-02", [0, 0, 0], { raw: { mcmis_add_date: "20260903 2140" } }),
+      ],
+    });
+  });
+  afterEach(() => {
+    for (const list of [VIOLATIONS, CITATIONS] as { inspection_id: string }[][]) {
+      list.splice(0, list.length, ...list.filter((r) => r.inspection_id !== A && r.inspection_id !== B));
+    }
+  });
+
+  it("measures on the org's calendar day, so a record MCMIS took in today does not count yet", async () => {
+    const d = (await call(`/${A}`)).body.data as RoadsideInspectionDetailDto;
+    expect(d.sms).toMatchObject({ measuredOn: "2026-10-12", appendixVersion: "3.21", timeWeight: null, basics: [] });
+    expect(d.sms!.violations.p1).toMatchObject({ status: "excluded", reason: "not_loaded" });
+  });
+
+  it("scores each violation from its code, its OOS order and its court result", async () => {
+    const d = (await call(`/${B}`)).body.data as RoadsideInspectionDetailDto;
+    expect(d.sms!.violations).toEqual({
+      p2: { status: "scored", basic: "vehicle_maintenance", severityWeight: 4, oosWeight: 0, timeWeight: 3, points: 12 },
+      p3: { status: "excluded", basic: "hos_compliance", reason: "dismissed" },
+    });
+    expect(d.sms!.basics).toEqual([{ basic: "vehicle_maintenance", verified: true, severitySum: 4, capped: 4, points: 12 }]);
   });
 });
