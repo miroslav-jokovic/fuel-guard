@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   DEFECT_VERIFICATION_NAMES,
+  type CalendarDay,
   VIOLATION_CATEGORY_NAMES,
   type RoadsideInspectionDetailDto,
   type RoadsideMatchMethod,
@@ -8,6 +9,7 @@ import {
   type RoadsideViolationDto,
 } from "@silvicom/shared";
 import { INSPECTION_COLS, MATCHED, inspectionDto, kindOf, type DbError, type InspectionRow } from "./inspectionsList.js";
+import { inspectionSms } from "./inspectionSms.js";
 
 /**
  * One roadside inspection with its units, violations and court results — the Inspection page's first
@@ -33,6 +35,8 @@ interface DetailRow extends InspectionRow {
   shipper_name: string | null;
   gross_weight_lb: number | null;
   oos_total: number | null;
+  /** The raw record this row was projected from — only for the MCMIS load date, which 0458 did not type. */
+  raw: { mcmis_add_date: string | null } | null;
 }
 interface UnitRow {
   unit_seq: number | null;
@@ -58,7 +62,7 @@ interface ViolationRow {
   citation_number: string | null;
 }
 
-const DETAIL_COLS = `${INSPECTION_COLS}, start_hhmm, end_hhmm, facility, post_accident, shipper_name, gross_weight_lb, oos_total`;
+const DETAIL_COLS = `${INSPECTION_COLS}, start_hhmm, end_hhmm, facility, post_accident, shipper_name, gross_weight_lb, oos_total, raw:fmcsa_raw_rows(mcmis_add_date:payload->>mcmis_add_date)`;
 
 /** `viol_unit` is `D` for the driver or the unit's position on the report; anything else is shown as unknown. */
 function againstOf(v: string | null): RoadsideViolationDto["against"] {
@@ -77,11 +81,15 @@ function named(table: Readonly<Record<number, string>>, code: number | string | 
 const facilityOf = (f: string | null): RoadsideInspectionDetailDto["facility"] =>
   f === "F" ? "fixed" : f === "R" ? "roadside" : null;
 
-/** The inspection, or null when this org has no current one with that id. Errors are the route's to log. */
+/**
+ * The inspection, or null when this org has no current one with that id. Errors are the route's to log.
+ * `today` is the carrier's calendar day, the date its CSA points are measured on.
+ */
 export async function readRoadsideInspection(
   admin: SupabaseClient,
   orgId: string,
   id: string,
+  today: CalendarDay,
 ): Promise<RoadsideInspectionDetailDto | null | { error: DbError }> {
   const head = await admin
     .from("roadside_inspections")
@@ -111,7 +119,7 @@ export async function readRoadsideInspection(
       .order("seq_no", { ascending: true }),
     admin
       .from("roadside_citations")
-      .select("violation_id, adjseq, citation_result")
+      .select("violation_id, adjseq, citation_code, citation_result")
       .eq("org_id", orgId)
       .eq("inspection_id", id)
       .is("vanished_at", null)
@@ -121,10 +129,15 @@ export async function readRoadsideInspection(
   if (failed) return { error: failed };
 
   const results = new Map<string, string[]>();
-  for (const c of (citations.data ?? []) as { violation_id: string | null; citation_result: string | null }[]) {
-    if (!c.violation_id || !c.citation_result) continue;
-    results.set(c.violation_id, [...(results.get(c.violation_id) ?? []), c.citation_result]);
+  // The adjudication SMS reads is the latest one FMCSA holds (rows come in `adjseq` order, so the last
+  // wins). Measured 2026-10-13: no violation has two, so this is the rule for a case not yet seen.
+  const citationCode = new Map<string, number>();
+  for (const c of (citations.data ?? []) as { violation_id: string | null; citation_code: number | null; citation_result: string | null }[]) {
+    if (!c.violation_id) continue;
+    if (c.citation_code != null) citationCode.set(c.violation_id, c.citation_code);
+    if (c.citation_result) results.set(c.violation_id, [...(results.get(c.violation_id) ?? []), c.citation_result]);
   }
+  const violationRows = (violations.data ?? []) as ViolationRow[];
 
   return {
     ...inspectionDto(r),
@@ -150,7 +163,7 @@ export async function readRoadsideInspection(
         vehicleId: u.vehicle_id,
       }),
     ),
-    violationList: ((violations.data ?? []) as ViolationRow[]).map((v) => ({
+    violationList: violationRows.map((v) => ({
       id: v.id,
       seq: v.seq_no,
       code: v.viol_code,
@@ -162,5 +175,22 @@ export async function readRoadsideInspection(
       citationNumber: v.citation_number,
       courtResults: results.get(v.id) ?? [],
     })),
+    sms: inspectionSms(
+      {
+        id: r.id,
+        date: r.inspection_date,
+        level: r.level,
+        hazmatPlacard: r.hazmat_placard_required,
+        postAccident: r.post_accident,
+        mcmisAddDate: r.raw?.mcmis_add_date ?? null,
+        violations: violationRows.map((v) => ({
+          id: v.id,
+          code: v.viol_code,
+          outOfService: v.out_of_service,
+          citationCode: citationCode.get(v.id) ?? null,
+        })),
+      },
+      today,
+    ),
   };
 }

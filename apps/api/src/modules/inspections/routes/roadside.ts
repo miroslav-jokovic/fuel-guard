@@ -8,8 +8,10 @@ import {
   shiftDay,
   summarizeRoadside,
   todayInZone,
+  type CalendarDay,
   type RoadsideSummary,
 } from "@silvicom/shared";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { requireAuth, requireOrg, requireSection } from "../../../middleware/auth.js";
 import { apiError, asyncHandler, dbErrorResponse } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
@@ -30,6 +32,12 @@ import { readRoadsideFeed } from "../feed/store.js";
  * the same window with `roadsidePeriodStart` on its own clock, so the page's row count is the card's
  * figure (D-FM7) — the summary is that list's rows counted by `summarizeRoadside`, not a second query.
  */
+/** Today on the carrier's calendar: the card's window ends on it and an inspection's CSA points are measured on it. */
+async function orgToday(admin: SupabaseClient, orgId: string): Promise<CalendarDay> {
+  const { data: org } = await admin.from("organizations").select("operating_hours").eq("id", orgId).maybeSingle();
+  return todayInZone(new Date(), organizationTimezone(org?.operating_hours));
+}
+
 export function roadsideInspectionsRouter(): Router {
   const router = Router();
   router.use(requireAuth, requireOrg);
@@ -41,9 +49,7 @@ export function roadsideInspectionsRouter(): Router {
     asyncHandler(async (req, res) => {
       const admin = getSupabaseAdmin(getAppLocals(req).env);
       const orgId = req.auth!.orgId!;
-      const { data: org } = await admin.from("organizations").select("operating_hours").eq("id", orgId).maybeSingle();
-      const today = todayInZone(new Date(), organizationTimezone(org?.operating_hours));
-      const from = roadsidePeriodStart(ROADSIDE_CARD_PERIOD, today)!;
+      const from = roadsidePeriodStart(ROADSIDE_CARD_PERIOD, await orgToday(admin, orgId))!;
       const rows = await readRoadsideInspections(admin, orgId, { from });
       if ("error" in rows) {
         dbErrorResponse(res, "roadside-inspections.summary", rows.error, "Could not load the roadside inspections");
@@ -88,7 +94,9 @@ export function roadsideInspectionsRouter(): Router {
         res.status(404).json(apiError("not_found", "Roadside inspection not found"));
         return;
       }
-      const found = await readRoadsideInspection(getSupabaseAdmin(getAppLocals(req).env), req.auth!.orgId!, id.data);
+      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      const orgId = req.auth!.orgId!;
+      const found = await readRoadsideInspection(admin, orgId, id.data, await orgToday(admin, orgId));
       if (found && "error" in found) {
         dbErrorResponse(res, "roadside-inspections.detail", found.error, "Could not load the roadside inspection");
         return;

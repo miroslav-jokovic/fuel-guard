@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { lastDaysStart, type CalendarDay } from "./calendarDay.js";
+import type { RoadsideInspectionSmsDto } from "./roadsideSmsContract.js";
 
 /**
  * `GET /api/roadside-inspections` and `/summary` — our FMCSA roadside inspections as a list, and the
@@ -199,9 +200,9 @@ export interface RoadsideViolationDto {
 
 /**
  * `GET /api/roadside-inspections/:id` — one inspection as FMCSA records it (INSPECTION-CHALLENGE-PLAN §6,
- * the Inspection page's header, units and violations). The driver, the resolved instant, SMS weights
- * and cases are IC4–IC6's and are not here: FMCSA's public record does not name the driver, and a
- * guessed one is what D-IC7 forbids.
+ * the Inspection page's header, units and violations, and each violation's CSA points). The driver, the
+ * resolved instant and cases are IC4–IC6's and are not here: FMCSA's public record does not name the
+ * driver, and a guessed one is what D-IC7 forbids.
  */
 export interface RoadsideInspectionDetailDto extends Omit<RoadsideInspectionDto, "units"> {
   /** The report's local clock times, HHMM as written, in the inspection's own zone — never shifted. */
@@ -216,6 +217,8 @@ export interface RoadsideInspectionDetailDto extends Omit<RoadsideInspectionDto,
   units: RoadsideUnitDetailDto[];
   /** The violations themselves, in report order (`violations` above is FMCSA's count of them). */
   violationList: RoadsideViolationDto[];
+  /** CSA points, measured today (`roadsideSmsContract.ts`); null when no Appendix A edition is in force. */
+  sms: RoadsideInspectionSmsDto | null;
 }
 
 /**
