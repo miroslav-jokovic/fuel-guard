@@ -233,11 +233,11 @@ describe("identity mode (M4)", () => {
     expect(rec.writes()).toEqual([]);
   });
 
-  it("stands off an EFS stub — that merge belongs in a review queue, not a sync", async () => {
-    // EFS stubs carry no licence, so they can only be reached by the NAME fallback. Measured
-    // 2026-08-24: all 163 real matches landed on 'samsara' rows and not one stub was touched, so this
-    // costs nothing today and stops the structural risk arriving later.
-    const rec = seed({ drivers: [driver({ mcleod_driver_id: "D0001", identity_source: "efs", cdl_number: null })] });
+  it("stands off an EFS stub reached by NAME — that merge belongs in a review queue, not a sync", async () => {
+    // Measured 2026-08-24: all 163 real matches landed on 'samsara' rows and not one stub was touched.
+    // Since D-MR16 (2026-10-14) a stub reached by its licence or McLeod's id IS claimed —
+    // `rosterIngest.settle.test.ts` — so this fixture carries neither, and only the name can reach it.
+    const rec = seed({ drivers: [driver({ mcleod_driver_id: null, identity_source: "efs", cdl_number: null })] });
     const r = await ingestDrivers(rec.client, ORG, [mcleodDriver], "identity");
     expect(r.skippedOwned).toBe(1);
     expect(rec.writes()).toEqual([]);

@@ -23,7 +23,7 @@
 import { readFileSync, writeFileSync, existsSync, openSync, closeSync, unlinkSync, statSync, renameSync, appendFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve as resolvePath } from "node:path";
-import { fetchRoster, fetchRetirements, diffAgainstState, loadState, persistRosterState, runInspection } from "./roster.mjs";
+import { fetchRoster, fetchRetirements, diffAgainstState, forgetUnsettled, loadState, upgradeRosterState, persistRosterState, runInspection } from "./roster.mjs";
 import { financialWindow, monthsTouching } from "./windows.mjs";
 import { INSPECTION } from "./inspect.mjs";
 import { fetchSettlements } from "./settlements.mjs";
@@ -265,6 +265,8 @@ async function sendBatched(path, key, rows, extra = {}, batchSize = 1000) {
     created = 0,
     skippedOwned = 0;
   const unmatched = new Set();
+  // Undefined until a batch answers with it, so an API older than `retry` falls back to `unmatched`.
+  let retry;
   for (const batch of chunk(rows, batchSize)) {
     const r = await postToFuelGuard(path, { ...extra, [key]: batch });
     received += r.received ?? 0;
@@ -273,8 +275,9 @@ async function sendBatched(path, key, rows, extra = {}, batchSize = 1000) {
     created += r.created ?? 0;
     skippedOwned += r.skippedOwned ?? 0;
     for (const u of r.unmatched ?? []) unmatched.add(u);
+    if (Array.isArray(r.retry)) retry = [...(retry ?? []), ...r.retry];
   }
-  return { received, upserted, updated, created, skippedOwned, unmatched: [...unmatched] };
+  return { received, upserted, updated, created, skippedOwned, unmatched: [...unmatched], retry };
 }
 
 // ── source: mock ────────────────────────────────────────────────────────────────────────────────────
@@ -495,7 +498,7 @@ async function runOnce() {
  * deactivation pass carries the guard that can (never retire more rows than the incoming roster size).
  */
 async function runRoster() {
-  const state = loadState(CFG.rosterStatePath);
+  const state = upgradeRosterState(loadState(CFG.rosterStatePath));
   log(`roster: reading ${CFG.sql.database} on ${CFG.sql.server} as company ${CFG.sql.companyId} (mode=${CFG.rosterMode}${CFG.rosterFull ? ", full" : ""})`);
   const roster = await fetchRoster({ ...CFG.sql, mode: CFG.rosterMode });
   log(`roster: McLeod reports ${JSON.stringify(roster.counts)}`);
@@ -520,7 +523,8 @@ async function runRoster() {
       continue;
     }
     const res = await sendBatched(path, key, changed);
-    log(`roster: ${entity} sent=${changed.length} received=${res.received} linked=${res.upserted} updated=${res.updated ?? 0} created=${res.created ?? 0}${res.skippedOwned ? ` office-owned=${res.skippedOwned}` : ""}${res.unmatched.length ? ` UNMATCHED=${res.unmatched.length}` : ""}`);
+    forgetUnsettled(ns, res);
+    log(`roster: ${entity} sent=${changed.length} received=${res.received} linked=${res.upserted} updated=${res.updated ?? 0} created=${res.created ?? 0}${res.skippedOwned ? ` office-owned=${res.skippedOwned}` : ""}${res.unmatched.length ? ` UNMATCHED=${res.unmatched.length}` : ""}${res.retry?.length ? ` retry=${res.retry.length}` : ""}`);
     if (res.unmatched.length) log(`roster: ${entity} unmatched → ${res.unmatched.slice(0, 25).join(", ")}${res.unmatched.length > 25 ? "…" : ""}`);
   }
   persistRosterState(CFG.rosterStatePath, nextState, { dryRun: CFG.dryRun });

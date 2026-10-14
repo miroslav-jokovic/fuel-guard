@@ -343,6 +343,17 @@ Plus `'mcleod'` in the three `identity_source` CHECK constraints.
 > **D-MR7 (confirmed):** the sync may **set** `termination_date` / move status to inactive; it may **never
 > clear** a termination date and never delete. Re-hire surfaces as a review item, not an auto-reactivation.
 > The mass-deactivation guard from `samsaraDriverSync` carries over verbatim.
+>
+> **D-MR7a (owner, 2026-10-14) — a rehire McLeod's own dates prove is restored, not reported.**
+> When McLeod reports a driver ACTIVE whose McLeod id or licence answers exactly one former row of
+> ours (terminated, inactive or archived; never an applicant, never `manual`), and McLeod's
+> `hire_date` is AFTER that row's `termination_date`, the identity sweep restores the row — status
+> `active`, unarchived, termination date cleared — and writes `driver.rehired_from_tms` with the old
+> date. Everything weaker (no date to compare, a hire on or before it, two rows answering, a name
+> alone) stays the review item D-MR7 made it, reported as `rehireReview`. Clearing the date is what
+> PROTECTS the §391.51(c) clock: `rosterRetire` never moves a date already set, so keeping it would
+> start the clock at the first termination when the driver leaves again. Measured case: Youness Alam,
+> archived by the 09-14 reconcile run, rehired 09-30, drove 809 on 10-13. `rosterDriverSettle.ts`.
 
 ### 5.4 Trailer unit-number normalisation — new, and it matters a lot
 
@@ -614,3 +625,10 @@ The rule it reduces to, which M3 must build to from the first commit:
 - **Does not auto-merge the EFS stubs.** 36 active EFS-sourced drivers remain, none with a CDL — so they
   cannot be matched to McLeod on the one reliable key, and name matching alone is not enough to justify an
   irreversible `merge_driver`. Ships later as a review queue in `driverReconcile.ts`.
+  **D-MR16 (2026-10-14) — not a merge, and no longer blocked for a stub a licence reaches.** New hires
+  now get a fuel card BEFORE McLeod's record exists (11 of 11 drivers hired 09-16..10-08), so their
+  row is an EFS stub for good. The Samsara sync fills a licence on stubs it links (enrich-only, D6); a
+  stub McLeod then reaches by that licence, or by its own McLeod id, is claimed like a `samsara` row
+  (link + identity, no merge). A stub reached by NAME alone is still refused. The agent also re-sends
+  every row the API could not settle (`retry`): before, an unmatched driver was remembered as sent and
+  never sent again, so a hire who reached McLeod first stayed unlinked forever.
