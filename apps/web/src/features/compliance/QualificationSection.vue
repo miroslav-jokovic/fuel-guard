@@ -22,6 +22,7 @@ import { useModulesQuery } from "@/composables/useModules";
 import { useDriverQuery } from "@/composables/useDrivers";
 import {
   useCertificationsQuery,
+  useDispatchHoldQuery,
   useDocumentsQuery,
   useQualificationRecordsQuery,
 } from "@/composables/useCompliance";
@@ -54,6 +55,9 @@ const subjectType = ref("driver");
 const certsQ = useCertificationsQuery(subjectType, driverId);
 const recordsQ = useQualificationRecordsQuery(driverId);
 const docsQ = useDocumentsQuery(subjectType, driverId);
+// A Med-Stop violation's day reaches only a testing-record reader (the api redacts it); for them the
+// return-to-duty item appears and stays missing until a record dated on or after it (§7A.15).
+const holdQ = useDispatchHoldQuery(driverId);
 const modules = useModulesQuery();
 
 const loading = computed(
@@ -62,6 +66,7 @@ const loading = computed(
     certsQ.isLoading.value ||
     recordsQ.isLoading.value ||
     docsQ.isLoading.value ||
+    holdQ.isLoading.value ||
     modules.isLoading.value,
 );
 const retrying = computed(
@@ -70,10 +75,11 @@ const retrying = computed(
     certsQ.isFetching.value ||
     recordsQ.isFetching.value ||
     docsQ.isFetching.value ||
+    holdQ.isFetching.value ||
     modules.isFetching.value,
 );
 const errorMessage = computed<string | null>(() => {
-  const failed = [driverQ, certsQ, recordsQ, docsQ, modules].find((q) => q.isError.value);
+  const failed = [driverQ, certsQ, recordsQ, docsQ, holdQ, modules].find((q) => q.isError.value);
   return failed ? "Could not load the qualification file." : null;
 });
 function retry(): void {
@@ -81,6 +87,7 @@ function retry(): void {
   void certsQ.refetch();
   void recordsQ.refetch();
   void docsQ.refetch();
+  void holdQ.refetch();
   void modules.refetch();
 }
 
@@ -96,6 +103,7 @@ const file = computed(() =>
     // §40.25(j) (0237). Without this the file would never show the requirement, and the paperwork
     // that lifts a dispatch block would have nowhere to be filed from.
     returnToDutyRequired: driverQ.data.value?.return_to_duty_required === true,
+    returnToDutyViolationOn: holdQ.data.value?.violationOn ?? null,
     certs: (certsQ.data.value ?? []).map((c) => ({
       kind: c.kind,
       qualifier: c.qualifier,
@@ -242,6 +250,7 @@ const dropItems = computed(() =>
     includeHazmat: moduleEnabled(modules.data.value ?? null, "hazmatguard"),
     hasCdl: Boolean(driverQ.data.value?.cdl_number),
     returnToDutyRequired: driverQ.data.value?.return_to_duty_required === true,
+    returnToDutyViolationOn: holdQ.data.value?.violationOn ?? null,
   })
     .filter(
       (spec) =>

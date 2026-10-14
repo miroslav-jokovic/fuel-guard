@@ -5,8 +5,8 @@ import { useRoute, useRouter } from "vue-router";
 import { useQuery } from "@tanstack/vue-query";
 import type { ChartConfiguration } from "chart.js";
 import {
-  RETURN_TO_DUTY_BLOCK,
   computeSubjectMpg,
+  dispatchHoldNotice,
   plausibleFillMpg,
   type Anomaly,
   type FuelTransaction,
@@ -32,6 +32,8 @@ import QualificationSection from "@/features/compliance/QualificationSection.vue
 import SevenDayStatementSection from "@/features/roster/SevenDayStatementSection.vue";
 import DriverContactSection from "@/features/roster/DriverContactSection.vue";
 import { useDriverQuery } from "@/composables/useDrivers";
+import { useDispatchHoldQuery } from "@/composables/useCompliance";
+import { formatDate } from "@/lib/format";
 import QueryState from "@/components/ui/QueryState.vue";
 import { isNotFound } from "@/lib/notFound";
 import { useRequestBinder } from "@/composables/useDqExports";
@@ -177,6 +179,10 @@ const driver = driverQuery.data;
  * page of blank sections under "Driver" and a failed read was never said at all.
  */
 const missing = computed(() => isNotFound(driverQuery.error.value));
+// The dispatch door's own answer (MEDSTOP-PLAN §7A.15), so a Med-Stop hold shows here too — and only a
+// testing-record reader is told it is Med-Stop's; everybody else reads "outstanding safety review".
+const holdQ = useDispatchHoldQuery(id);
+const holdNotice = computed(() => (holdQ.data.value ? dispatchHoldNotice(holdQ.data.value, formatDate) : null));
 const binderExportScope = computed(() =>
   driver.value?.full_name
     ? `${driver.value.full_name} · Complete qualification file`
@@ -338,10 +344,11 @@ const fillColumns: DataTableColumn[] = [
       <!-- §40.25(j) (0237). Above the tab strip and outside every section, because it is not a fact
            about one part of this driver's file — it is a limit on what the driver may be given to do,
            and somebody arriving on the fuel history has as much reason to see it as somebody on
-           qualification. ⚠ It says the same thing to everybody who can open this page; the document
-           that lifts it is a testing record and lives behind Qualification's own access rules. -->
-      <AppCallout v-if="driver?.return_to_duty_required" tone="warning">
-        {{ RETURN_TO_DUTY_BLOCK.hire }}
+           qualification. ⚠ The admission reads the same to everybody who can open this page; a Med-Stop
+           violation names its result and day only to a testing-record reader (`dispatchHoldNotice`).
+           The document that lifts either is a testing record behind Qualification's own access rules. -->
+      <AppCallout v-if="holdNotice" tone="warning">
+        {{ holdNotice }}
       </AppCallout>
 
       <!-- U4/D-UI4's strip, now a JUMP NAV rather than a tab strip: every section is on the page and

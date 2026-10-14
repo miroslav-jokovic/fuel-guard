@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { isMedstopViolation, medstopTestOutcome } from "@silvicom/shared";
+import { readAll } from "./program.js";
 
 /**
  * "Does Med-Stop hold a violation for this driver, and from which day?" — the half of the dispatch
@@ -35,15 +36,52 @@ export async function medstopViolationOn(admin: SupabaseClient, orgId: string, d
 
   const { data: tests, error } = await admin
     .from("medstop_tests")
-    .select("service, status, result, collected_local")
+    .select("employee_medstop_id, service, status, result, collected_local")
     .eq("org_id", orgId)
     .in("employee_medstop_id", ids)
     .eq("baseline", false)
     .not("result", "is", null);
   if (error) throw new Error(`medstop_tests read failed: ${error.message}`);
+  return newestViolation((tests ?? []) as TestRow[]);
+}
 
+/**
+ * The same answer for a whole org at once — driver id → newest violation day, drivers with none
+ * absent. For the fleet overview and the binder (MEDSTOP-PLAN §7A.15), which must agree with the
+ * dispatch door driver by driver, so both read through `newestViolation`.
+ *
+ * Two org-wide reads joined here rather than an `.in()` of every Med-Stop id: a fleet's worth of ids
+ * overflows the request line (Node 22's header limit), and both reads are small.
+ */
+export async function medstopViolationsByDriver(admin: SupabaseClient, orgId: string): Promise<Map<string, string>> {
+  const [people, tests] = await Promise.all([
+    readAll<{ medstop_id: string; driver_id: string | null; match_rule: string | null }>((a, b) => admin.from("medstop_employees")
+      .select("medstop_id, driver_id, match_rule")
+      .eq("org_id", orgId).in("match_rule", CERTAIN_MATCH).not("driver_id", "is", null).order("medstop_id").range(a, b), "medstop_employees"),
+    readAll<TestRow>((a, b) => admin.from("medstop_tests")
+      .select("employee_medstop_id, service, status, result, collected_local")
+      .eq("org_id", orgId).eq("baseline", false).not("result", "is", null).order("medstop_id").range(a, b), "medstop_tests"),
+  ]);
+  // The query's filter, held again: only a certain match stops anybody (above).
+  const driverOf = new Map(people.filter((p) => p.driver_id && CERTAIN_MATCH.includes(p.match_rule ?? "")).map((p) => [p.medstop_id, p.driver_id as string]));
+  const byDriver = new Map<string, TestRow[]>();
+  for (const t of tests) {
+    const driver = t.employee_medstop_id ? driverOf.get(t.employee_medstop_id) : undefined;
+    if (driver) byDriver.set(driver, [...(byDriver.get(driver) ?? []), t]);
+  }
+  const out = new Map<string, string>();
+  for (const [driver, rows] of byDriver) {
+    const day = newestViolation(rows);
+    if (day) out.set(driver, day);
+  }
+  return out;
+}
+
+type TestRow = { employee_medstop_id: string | null; service: string | null; status: string | null; result: string | null; collected_local: string | null };
+
+function newestViolation(tests: readonly TestRow[]): string | null {
   let newest: string | null = null;
-  for (const t of (tests ?? []) as { service: string | null; status: string | null; result: string | null; collected_local: string | null }[]) {
+  for (const t of tests) {
     if (!isMedstopViolation(medstopTestOutcome(t))) continue;
     // A violation with no collection stamp still counts — from the earliest day there is, so that
     // only a return-to-duty record can discharge it, never the absence of a date.

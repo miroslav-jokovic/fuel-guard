@@ -1,6 +1,7 @@
 import { computed, type Ref } from "vue";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/vue-query";
 import type {
+  DriverDispatchHold,
   CertificationCreateRequest,
   CertificationRow,
   DocumentKind,
@@ -79,6 +80,23 @@ export function useQualificationRecordsQuery(driverId: Ref<string | null>) {
       );
       if (!res.ok) throw new Error(res.error?.message ?? "Failed to load qualification records.");
       return res.data?.records ?? [];
+    },
+  });
+}
+
+/**
+ * Is this driver held out of dispatch — the dispatch door's own answer, redacted for this reader by the
+ * api (`dispatchHoldForReader`): a Med-Stop violation and its day reach a testing-record reader only
+ * (MEDSTOP-PLAN §7A.15). The driver page's notice and the qualification file both read it, one query.
+ */
+export function useDispatchHoldQuery(driverId: Ref<string | null>) {
+  return useQuery({
+    queryKey: ["compliance", "dispatch-hold", driverId] as const,
+    enabled: computed(() => !!driverId.value),
+    queryFn: async (): Promise<DriverDispatchHold> => {
+      const res = await apiFetch<DriverDispatchHold>(`/api/compliance/drivers/${driverId.value}/dispatch-hold`);
+      if (!res.ok || !res.data) throw new Error(res.error?.message ?? "Failed to load the dispatch hold.");
+      return res.data;
     },
   });
 }

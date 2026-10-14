@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { createSupabaseRecorder, expectOrgScoped } from "../../testing/supabaseRecorder.js";
-import { returnToDutyBlocked, returnToDutyHold } from "./returnToDuty.js";
+import { returnToDutyBlocked, returnToDutyHold, returnToDutyStanding } from "./returnToDuty.js";
 
 /**
  * §40.25(j)'s read (0237) — two facts, two homes, and the org filter on both.
@@ -108,3 +108,26 @@ describe("the Med-Stop violation read", () => {
     expect(r.forTable("medstop_tests")).toHaveLength(0);
   });
 });
+
+/** The driver page's read (MEDSTOP-PLAN §7A.15): the door's own answer, with the violation's day beside it. */
+describe("returnToDutyStanding", () => {
+  const db = (tests: unknown[], records: unknown[] = []) =>
+    createSupabaseRecorder({
+      tables: { drivers: [{ return_to_duty_required: false }], medstop_employees: [{ medstop_id: "e1" }], medstop_tests: tests, qualification_records: records },
+    });
+  const positive = { service: "TD", status: "CLOSED", result: "POSITIVE", collected_local: "2026-10-09T14:24:00" };
+
+  it("returns the cause the dispatch door returns, and the violation's day", async () => {
+    expect(await returnToDutyStanding(db([positive]).client, ORG, DRIVER)).toEqual({ cause: "violation", violationOn: "2026-10-09" });
+    expect(await returnToDutyHold(db([positive]).client, ORG, DRIVER)).toBe("violation");
+  });
+
+  it("keeps the day once a later record discharges the hold — the file still needs it to judge that record", async () => {
+    expect(await returnToDutyStanding(db([positive], [{ occurred_on: "2026-10-12" }]).client, ORG, DRIVER)).toEqual({ cause: null, violationOn: "2026-10-09" });
+  });
+
+  it("is clear, with no day, for a driver nothing holds", async () => {
+    expect(await returnToDutyStanding(db([]).client, ORG, DRIVER)).toEqual({ cause: null, violationOn: null });
+  });
+});
+

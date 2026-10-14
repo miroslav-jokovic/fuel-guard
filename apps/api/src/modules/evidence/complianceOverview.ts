@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   buildDqFile,
+  canReadTestingRecords,
   dqAttention,
   dqGroups,
   dqDocumentCount,
@@ -13,7 +14,9 @@ import {
   type DqRecordInput,
   type DqDocumentCount,
   type DqRosterCell,
+  type UserRole,
 } from "@silvicom/shared";
+import { medstopViolationsByDriver } from "../medstop/index.js";
 
 /**
  * The fleet-wide qualification picture (DQ redesign, D-DQ6).
@@ -101,7 +104,15 @@ export async function getComplianceOverview(
    * this (91); the route, the driver page and the binder all stay on the default so the queue and
    * the file keep agreeing, which is this module's founding invariant.
    */
-  opts: { expiringWithinDays?: number } = {},
+  opts: {
+    expiringWithinDays?: number;
+    /**
+     * MS2 (MEDSTOP-PLAN §7A.15): driver id → the day of a Med-Stop positive or refusal holding them
+     * (`medstopViolationsByDriver`). A §382.401(a) fact, so ONLY the route passes it, and only for a
+     * reader `canReadTestingRecords` admits; the scheduler and the digest do not know their reader.
+     */
+    medstopViolations?: ReadonlyMap<string, string>;
+  } = {},
 ): Promise<ComplianceOverview> {
   const [driversRes, certsRes, recordsRes, docsRes, hazmatRes] = await Promise.all([
     // Employed drivers only, and only real ones. A §391.51 obligation attaches to people who drive
@@ -166,6 +177,7 @@ export async function getComplianceOverview(
       // §40.25(j) (0237). Threaded here too, not only on the driver page, or the fleet queue would
       // report a file complete that the page beside it reports as missing a requirement.
       returnToDutyRequired: d.return_to_duty_required === true,
+      returnToDutyViolationOn: opts.medstopViolations?.get(d.id) ?? null,
       certs: (certsBy.get(d.id) ?? []).map(toCert),
       records: (recordsBy.get(d.id) ?? []).map(toRecord),
       documents: (docsBy.get(d.id) ?? []).map((x): DqDocumentInput => ({ id: x.id, kind: x.kind })),
@@ -184,6 +196,15 @@ export async function getComplianceOverview(
   });
 
   return { drivers: out, includesHazmat, truncated: records.length >= RECORD_CAP };
+}
+
+/**
+ * The Med-Stop violations the overview may use for THIS reader (MEDSTOP-PLAN §7A.15): every one for a
+ * reader `canReadTestingRecords` admits, and none — not even read — for anybody else. For the
+ * dispatcher or recruiter beside them, a new "missing" item would itself state the result.
+ */
+export async function overviewViolationsFor(admin: SupabaseClient, orgId: string, role: UserRole | null | undefined): Promise<ReadonlyMap<string, string> | undefined> {
+  return canReadTestingRecords(role) ? medstopViolationsByDriver(admin, orgId) : undefined;
 }
 
 const toCert = (c: CertRow): DqCertInput => ({

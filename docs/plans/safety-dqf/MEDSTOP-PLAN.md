@@ -630,6 +630,44 @@ explicit confirmation.
 6. Whether `GET /Employee/{id}` is the record that carries `gender` for every active driver (measured
    on one), and whether a site from an `observed=M|F` search is accepted at place time.
 
+### 7A.15 The Med-Stop hold on the driver file, the fleet queue and the binder (2026-10-14)
+
+**The gap (MS2's open item) [V]:** a Med-Stop positive or refusal stops dispatch (`returnToDutyHold`,
+MS2b), but the four surfaces that show return-to-duty paperwork — the driver page's notice, its
+qualification file, the fleet queue (`/api/compliance/overview`) and the DQ binder — read only the
+application's admission flag (`drivers.return_to_duty_required`). A held driver's file read clean,
+and the office could not see why a load was refused or where to file the paperwork that lifts it.
+
+**Who may know [V]:** the fleet queue is `roster` view — admin, fleet manager, auditor, dispatcher,
+safety manager, recruiter. A Med-Stop result is a §382.401(a) record: admin and safety manager only
+(`canReadTestingRecords`), and `return_to_duty` is itself a testing-record kind. So a violation cannot
+simply join everyone's file: for a dispatcher, a new "Return-to-duty documentation — missing" would
+state the result.
+
+**Built:**
+- D-MSUX14 — **one rule, the door's.** `buildDqFile` takes `returnToDutyViolationOn`. The item
+  applies on the admission OR a violation, and its state is decided by `returnToDutyCause` itself, so
+  a return-to-duty record dated BEFORE the violation documents an earlier process: the item stays
+  missing exactly while dispatch stays stopped (a test walks every combination against the door).
+- D-MSUX15 — **who sees what.**
+  - Admin, safety manager: the driver page names the result and its day ("Med-Stop reported a
+    positive or refused test collected MM/DD/YYYY …"); the file, the fleet queue and a RESTRICTED
+    binder ask for return-to-duty documentation.
+  - Everyone else: the driver page says only that the driver cannot be dispatched until a safety
+    review is closed (`RETURN_TO_DUTY_BLOCK.dispatch`, the dispatcher's existing words). Their file,
+    their queue and a default binder are unchanged — Med-Stop is not even read for them.
+  - The admission notice is unchanged and still reads the same to every reader.
+- `GET /api/compliance/drivers/:id/dispatch-hold` (roster view) returns `dispatchHoldForReader` of the
+  dispatch door's own read (`returnToDutyStanding`), so the page cannot say "clear" about a driver
+  the door refuses.
+- The queue and the binder read the org at once (`medstopViolationsByDriver`: two org-scoped reads,
+  certain matches only, D-MS5's baseline excluded), through the same `newestViolation` the door uses.
+- The binder judges as at its date: a violation after it was not yet owed.
+- The 91-day alert scheduler and the weekly digest pass no violations: they do not know their reader.
+  The DER already has MS2b's alert.
+
+**Still open:** a request-level REFUSAL (MS2's other open item) is not acted on — next.
+
 ## 8. Open questions
 
 - ~~Q-MS1~~ — base URL: `https://api.med-stop.com` (API-Key-access.md).
@@ -838,3 +876,8 @@ explicit confirmation.
   tests for those reasons stay unobserved. RTD from the dispatch hold deferred (§7A.14). Workstation
   IP still refused by Med-Stop (new address 173.9.238.30 not on the key), so nothing was read live
   this session. Ordering still OFF everywhere.
+- 2026-10-14 — **The Med-Stop hold reaches the file** (branch `claude/medstop-hold`, no migration;
+  §7A.15). The driver page, its qualification file, the fleet queue and a restricted binder show a
+  Med-Stop violation to admin and safety manager; every other reader is told only that a safety review
+  holds the driver. One rule (`returnToDutyCause`) decides the file item and the dispatch door. Next:
+  the request-level REFUSAL.

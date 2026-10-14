@@ -16,6 +16,7 @@ vi.mock("@/composables/useCompliance", () => ({
   useCertificationsQuery: () => query([]),
   useDocumentsQuery: () => query([]),
   useQualificationRecordsQuery: () => query([]),
+  useDispatchHoldQuery: () => query({ held: false, cause: null, violationOn: null }),
 }));
 vi.mock("@/composables/useModules", () => ({ useModulesQuery: () => query(null) }));
 /** F10: the driver read refused. */

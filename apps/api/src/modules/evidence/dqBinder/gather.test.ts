@@ -67,3 +67,43 @@ describe("gatherSample — restricted evidence (Phase G)", () => {
     expect(d.documentsById.has(DRUG_DOC)).toBe(true);
   });
 });
+
+/**
+ * A Med-Stop positive or refusal (MS2) in the binder (MEDSTOP-PLAN §7A.15). It is a §382.401(a) fact:
+ * a RESTRICTED binder asks for the return-to-duty documentation it raises; a default binder neither
+ * shows the item nor reads Med-Stop — an item there would state the result to whoever opens the PDF.
+ */
+describe("gatherSample — a Med-Stop hold", () => {
+  const withViolation = (day: string) =>
+    createSupabaseRecorder({
+      tables: {
+        drivers: [{ id: DRIVER, full_name: "A Driver", employee_id: null, hire_date: null, termination_date: null, status: "active" }],
+        certifications: [],
+        qualification_records: [],
+        documents: [],
+        medstop_employees: [{ medstop_id: "e1", driver_id: DRIVER, match_rule: "licence" }],
+        medstop_tests: [{ employee_medstop_id: "e1", service: "TD", status: "CLOSED", result: "POSITIVE", collected_local: `${day}T09:00:00` }],
+      },
+    });
+  const rtd = (d: { file: { items: Array<{ spec: { key: string }; state: string }> } }) => d.file.items.find((i) => i.spec.key === "return_to_duty");
+
+  it("asks for return-to-duty documentation in a restricted binder", async () => {
+    const rec = withViolation("2026-08-01");
+    const { drivers } = await gatherSample(rec.client, ORG, [DRIVER], "2026-08-19", false, true);
+    expect(rtd(drivers[0]!)).toMatchObject({ state: "missing" });
+    expectOrgScoped(rec, ORG);
+  });
+
+  it("shows nothing of it in a default binder, and never reads Med-Stop for one", async () => {
+    const rec = withViolation("2026-08-01");
+    const { drivers } = await gatherSample(rec.client, ORG, [DRIVER], "2026-08-19", false, false);
+    expect(rtd(drivers[0]!)).toBeUndefined();
+    expect(rec.forTable("medstop_tests")).toHaveLength(0);
+  });
+
+  it("judges the file as at the binder's date — a later violation was not yet owed", async () => {
+    const rec = withViolation("2026-09-01");
+    const { drivers } = await gatherSample(rec.client, ORG, [DRIVER], "2026-08-19", false, true);
+    expect(rtd(drivers[0]!)).toBeUndefined();
+  });
+});

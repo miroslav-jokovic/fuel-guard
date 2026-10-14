@@ -25,6 +25,8 @@ const driver = ref<Record<string, unknown> | null>({
   status: "active",
 });
 const requestBinder = vi.hoisted(() => vi.fn());
+/** The api's per-reader view of the dispatch hold (`dispatchHoldForReader`), as the page receives it. */
+const hold = vi.hoisted(() => ({ value: { held: false, cause: null, violationOn: null } as { held: boolean; cause: string | null; violationOn: string | null } }));
 
 vi.mock("@/lib/supabase", () => ({
   supabase: {
@@ -39,7 +41,8 @@ vi.mock("@/lib/supabase", () => ({
 }));
 vi.mock("@/lib/api", () => ({
   apiDownload: vi.fn(async () => undefined),
-  apiFetch: vi.fn(async () => ({ ok: true, data: { driver: driver.value } })),
+  apiFetch: vi.fn(async (path: string) =>
+    path.endsWith("/dispatch-hold") ? { ok: true, data: hold.value } : { ok: true, data: { driver: driver.value } }),
 }));
 vi.mock("@/stores/session", () => ({
   useSessionStore: () => ({ can: () => true, canView: () => true }),
@@ -82,6 +85,7 @@ const mountAt = async (query = "") => {
 };
 
 beforeEach(() => {
+  hold.value = { held: false, cause: null, violationOn: null };
   requestBinder.mockReset();
   requestBinder.mockResolvedValue(undefined);
   scrollIntoView.mockClear();
@@ -186,5 +190,36 @@ describe("DriverDetailPage — a failed fills read is not a driver with no fills
     expect(w.text()).not.toContain("Not enough valid data to chart MPG yet");
     expect(w.text()).not.toContain("No anomalies.");
     expect(w.findAll("button").filter((b) => b.text() === "Retry").length).toBeGreaterThanOrEqual(2);
+  });
+});
+
+/**
+ * MS2's open item (MEDSTOP-PLAN §7A.15): a Med-Stop hold stopped dispatch while this page said nothing.
+ * The notice now reads the dispatch door's own answer — and names the result only to the reader the
+ * api told (a testing-record reader); everyone else is told there is a safety review to close.
+ */
+describe("DriverDetailPage — the dispatch hold notice", () => {
+  it("says nothing for a driver who is not held", async () => {
+    const { w } = await mountAt();
+    expect(w.text()).not.toContain("cannot be");
+  });
+
+  it("names the Med-Stop result and its day to a testing-record reader", async () => {
+    hold.value = { held: true, cause: "violation", violationOn: "2026-10-01" };
+    const { w } = await mountAt();
+    expect(w.text()).toContain("Med-Stop reported a positive or refused test collected 10/01/2026");
+  });
+
+  it("tells every other reader only that a safety review is outstanding", async () => {
+    hold.value = { held: true, cause: null, violationOn: null };
+    const { w } = await mountAt();
+    expect(w.text()).toContain("outstanding safety review");
+    expect(w.text()).not.toMatch(/Med-Stop|positive|refused/);
+  });
+
+  it("keeps the application's admission notice for every reader", async () => {
+    hold.value = { held: true, cause: "admission", violationOn: null };
+    const { w } = await mountAt();
+    expect(w.text()).toContain("This applicant said they had a positive or refused pre-employment test");
   });
 });

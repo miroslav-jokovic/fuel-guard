@@ -9,6 +9,7 @@ import {
   type DqGroupSummary,
   type DqRecordInput,
 } from "@silvicom/shared";
+import { medstopViolationsByDriver } from "../../medstop/index.js";
 
 /**
  * Everything a binder renders, read before a single page is drawn (DQ-BINDER-PLAN §3).
@@ -195,6 +196,10 @@ export async function gatherSample(
 
   const failed = [driversRes, certsRes, recordsRes, docsRes].find((r) => r.error);
   if (failed?.error) throw new BinderGatherError(failed.error.message);
+  // A Med-Stop positive or refusal (MS2) is a §382.401(a) fact: it raises the return-to-duty item in a
+  // RESTRICTED binder only — a default binder states no testing record, by item or by omission of one
+  // (MEDSTOP-PLAN §7A.15). As at the binder's date: a later violation was not yet owed then.
+  const violations = includeRestricted ? await medstopViolationsByDriver(admin, orgId) : new Map<string, string>();
 
   const driverRows = (driversRes.data ?? []) as unknown as DriverRow[];
   const byId = new Map(driverRows.map((d) => [d.id, d]));
@@ -223,6 +228,7 @@ export async function gatherSample(
         // §40.25(j) (0237). The binder is the document an auditor reads; a requirement the driver's
         // own page shows and the binder omits is the disagreement this file exists to prevent.
         returnToDutyRequired: d.return_to_duty_required === true,
+        returnToDutyViolationOn: asOfDay(violations.get(d.id), asAt),
         certs: currentCerts.map(toCertInput),
         records: myRecords.map(toRecordInput),
         documents: myDocs.map((x): DqDocumentInput => ({ id: x.id, kind: x.kind })),
@@ -255,6 +261,8 @@ export async function gatherSample(
 
   return { drivers, missingIds };
 }
+
+const asOfDay = (day: string | undefined, asAt: string): string | null => (day && day <= asAt.slice(0, 10) ? day : null);
 
 const toCertInput = (c: CertRow): DqCertInput => ({
   kind: c.kind,
