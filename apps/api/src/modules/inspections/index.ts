@@ -12,9 +12,10 @@
  * The first reader of that projection is the Inspections inbox's first slice (§6) and the Operations
  * tab's Roadside card counting it (`routes/roadside.ts`, FLEET-MANAGER-HOME-PLAN Q-FM7 (a)).
  *
- * It will file documents only through `evidence`'s `registerDocument` and read Samsara only through
- * the `samsara` module's index; neither edge exists yet, and each arrives in `API_ALLOW` with the
- * step that needs it.
+ * IC5 (`attribution/`) reads who was driving at each inspection from Samsara — only through the
+ * `samsara` module's index (`inspections -> samsara` in `API_ALLOW`) — freezes the answers as received,
+ * and records the reading in `inspection_attributions` (0473). It will file documents only through
+ * `evidence`'s `registerDocument`; that edge arrives with IC2.
  */
 export { startFmcsaFeedScheduler, isFmcsaFeedDue } from "./feed/scheduler.js";
 export { syncFmcsaFeed, type DatasetOutcome } from "./feed/sync.js";

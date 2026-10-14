@@ -20,6 +20,10 @@
  *    `idle`) with that carve-out — the writer manifest, not this comment, is the enforcement.
  */
 export { syncDriversFromSamsara } from "./samsaraDriverSync.js";
+// Raw answers for the roadside inspection's frozen evidence (INSPECTION-CHALLENGE-PLAN IC5, D-IC4):
+// every page as Samsara sent it, so `inspections` hashes bytes, not our parse of them.
+export { makeSamsaraRawFetcher, type SamsaraRawAnswer, type SamsaraRawFetcher } from "./lib/samsaraEvidence.js";
+export { loadSamsaraToken } from "./lib/samsaraToken.js";
 // The owner's read for `vehicle_positions` — a raw table `check-table-access.mjs` seals to this
 // module, so the live map reaches it through here rather than selecting from it (LM6, D-ARC3).
 export {

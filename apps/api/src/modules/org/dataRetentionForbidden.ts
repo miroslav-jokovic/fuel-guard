@@ -199,6 +199,12 @@ export const RETENTION_FORBIDDEN = [
    */
   "fmcsa_fetch_runs", "fmcsa_raw_rows",
   /**
+   * Who was driving at an inspection and the telematics frozen around it (0473, D-IC4, D-IC7). The
+   * snapshot is the only copy that survives Samsara's own retention and the 24-month SMS window; the
+   * attribution is the record a DataQs filing names its driver from. Corrections are new rows.
+   */
+  "inspection_attributions", "inspection_evidence_snapshots",
+  /**
    * The driver's account-closure request (0330, D-PR8).
    *
    * ── THE ONE ENTRY ON THIS LIST THAT INVERTS ITS OWN SUBJECT ───────────────────────────────────

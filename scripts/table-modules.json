@@ -1322,6 +1322,28 @@
         "why": "raw import envelopes. Measured 212/day. Retention unruled \u2014 L9."
       }
     },
+    "inspection_attributions": {
+      "module": "inspections",
+      "layer": "derived",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 40,
+        "why": "who was driving at each roadside inspection (0473, IC5): one engine row per inspection per engine version (~1,400 once, then ~1.3/day) plus a person's confirmations. RETENTION_FORBIDDEN: a filing names its driver from it."
+      }
+    },
+    "inspection_evidence_snapshots": {
+      "module": "inspections",
+      "layer": "raw",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 160,
+        "why": "Samsara answers frozen around each inspection (0473, D-IC4): at most four rows per inspection per engine version (~5,600 once, then ~5/day); the bytes live gzipped in the inspection-evidence bucket, not the row. RETENTION_FORBIDDEN."
+      }
+    },
     "integration_credentials": {
       "module": "org",
       "layer": "infra",
