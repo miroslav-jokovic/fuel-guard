@@ -1,3 +1,5 @@
+import { formatDisplayDateRange } from "@silvicom/shared";
+
 /**
  * Turning a filtered page into the address of its file (FUEL-P2, D-FUI15).
  *
@@ -33,7 +35,8 @@ export function exportHref(path: string, params: Record<string, string | undefin
  * into something visible, which is what `ReportExportButton` learnt on the spend page.
  */
 export function windowScope(from: string | undefined, to: string | undefined, trucks: number): string {
-  const window = from && to ? `${from} → ${to}` : from ? `from ${from}` : to ? `to ${to}` : "all dates";
+  // The product's date (F27): the file's own first line says the same, from the same function.
+  const window = from || to ? formatDisplayDateRange(from, to) : "all dates";
   const t = trucks === 0 ? "all trucks" : `${trucks} truck${trucks === 1 ? "" : "s"}`;
   return `${window} · ${t}`;
 }

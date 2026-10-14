@@ -86,7 +86,7 @@ const numFields: { key: string; label: string }[] = [
 </script>
 
 <template>
-  <div class="mx-auto max-w-2xl space-y-6">
+  <div class="space-y-6">
     <PageHeader description="Set the limits that decide when a fill is flagged. Changes apply to new fills only; fills already checked keep their result." />
 
     <!-- The form waits for a failed read too (D-US5): its defaults, saved, would replace the fleet's real limits. -->

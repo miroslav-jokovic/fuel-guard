@@ -96,7 +96,7 @@ async function onSave() {
 </script>
 
 <template>
-  <div class="mx-auto max-w-2xl space-y-6">
+  <div class="space-y-6">
     <PageHeader description="Manage organization identity, access domains, and operating hours." />
     <!-- The form waits for a failed read too (D-US5): before, a failed read drew an empty form that
          read as an organization with nothing on file, rather than as a read that failed. -->

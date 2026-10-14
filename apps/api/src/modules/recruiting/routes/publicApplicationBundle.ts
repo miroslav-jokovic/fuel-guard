@@ -110,7 +110,9 @@ export const applicationBundleHandler = asyncHandler(async (req, res) => {
     // The carrier's name, and — since C3c1 — the one address §391.21(b)(1) puts on the application
     // itself ("The name and address of the employing motor carrier"), the same `legal_address` the filed
     // PDF prints (`carrierOf`). Nothing else about them: an application link is not a directory.
-    carrier: (org as { name?: string } | null)?.name ?? "the carrier",
+    // Trimmed before the fallback (US6b F29): `??` let an empty name through, and the applicant read
+    // "This is 's driver application." The page capitalises the fallback where it opens a sentence.
+    carrier: (org as { name?: string } | null)?.name?.trim() || "the carrier",
     carrierAddress: (org as { legal_address?: string | null } | null)?.legal_address ?? null,
     carrierToday,
     expiresAt: invitation.expires_at,

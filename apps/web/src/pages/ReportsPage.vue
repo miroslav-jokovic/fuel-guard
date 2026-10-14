@@ -9,7 +9,7 @@ import { RouterLink } from "vue-router";
 import GatedLink from "@/components/GatedLink.vue";
 import { useSessionStore } from "@/stores/session";
 import { useOpens } from "@/composables/useOpens";
-import { dayRangeInstants, shiftDay, todayInZone } from "@silvicom/shared";
+import { dayRangeInstants, formatDisplayDateRange, shiftDay, todayInZone } from "@silvicom/shared";
 import { useOrgTimezone } from "@/composables/useOrgTimezone";
 import { downloadReport } from "@/features/reports/download";
 import DateRangeFilter from "@/components/DateRangeFilter.vue";
@@ -47,7 +47,7 @@ const to = ref<string | undefined>();
 const fromDay = computed(() => from.value ?? shiftDay(today.value, -30));
 const toDay = computed(() => to.value ?? today.value);
 
-const rangeLabel = computed(() => (from.value && to.value ? `${from.value} → ${to.value}` : "last 30 days"));
+const rangeLabel = computed(() => (from.value && to.value ? formatDisplayDateRange(from.value, to.value) : "last 30 days"));
 /*
  * These report endpoints filter `fuel_transactions.fueled_at`, a `timestamptz`, so this range IS an
  * instant interval (D-PREC5 case 2) — and it is built in the carrier's zone, not the viewer's. The

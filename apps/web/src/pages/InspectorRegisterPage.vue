@@ -23,6 +23,7 @@ import {
 import { useSessionStore } from "@/stores/session";
 import { useQueryState } from "@/composables/useQueryState";
 import { INSPECTOR_QUALIFICATION_BASES } from "@silvicom/shared";
+import { formatDate, formatDateRange } from "@/lib/format";
 
 /**
  * Who may perform an annual inspection.
@@ -82,7 +83,7 @@ const rows = computed(() => {
       ...i,
       basis_label: BASIS_LABEL[i.qualification_basis] ?? i.qualification_basis,
       brakes: i.brake_qualified ? "Yes" : "No",
-      period: i.effective_to ? `${i.effective_from} — ${i.effective_to}` : `Since ${i.effective_from}`,
+      period: i.effective_to ? formatDateRange(i.effective_from, i.effective_to) : `Since ${formatDate(i.effective_from)}`,
     }));
 });
 

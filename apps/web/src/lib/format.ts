@@ -1,6 +1,6 @@
 /** Small display-only formatters for table cells. Pure, no locale deps. */
 
-import { formatDisplayDate, formatDisplayDateTime } from "@silvicom/shared";
+import { formatDisplayDate, formatDisplayDateRange, formatDisplayDateTime } from "@silvicom/shared";
 
 /**
  * Format a US/NANP phone number for display: "(512) 555-0134".
@@ -34,6 +34,7 @@ export function formatPhone(raw: string | null | undefined): string {
  */
 export const formatDate = formatDisplayDate;
 export const formatDateTime = formatDisplayDateTime;
+export const formatDateRange = formatDisplayDateRange;
 
 /**
  * What a driver edit turned out to mean, as a sentence — or null when it meant only itself (R6a).

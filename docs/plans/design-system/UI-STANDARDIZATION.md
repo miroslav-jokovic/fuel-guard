@@ -400,3 +400,50 @@ Not covered: a malformed id (not a UUID). A route that queries before it validat
 route is one — meets Postgres's `22P02` and answers 500, so the page says "Could not load" with a
 Retry rather than not-found. Recorded, not routed around: what the API accepts as an id is Q-US3's
 question, and the answer belongs in the routes, not in a guess the browser makes.
+
+### 2026-10-14 — US6b batch 3, F25–F30 (F31 waits on Q-US3; F32 is its own pair of PRs)
+
+- **F25 — a label-less column is a control, not a field.** `DataTableCards` made the first column the
+  card's heading, and the qualification table's first column is its expand chevron (label `""`), so
+  every phone card opened with an empty row holding only the chevron. A column with no label now sits
+  on the card's top line beside the status, and the heading is the first named column — for every
+  table, not one page. Test fails on the old file.
+- **F26 — the Drug & Alcohol lists page.** `useClientPage` (`composables/`) pages a list one response
+  answers whole; the two roster lists, the results and both medical-card lists use it, with the pager
+  only past one page. Their page stays local: no toolbar, nothing for a link to keep (D-US2).
+- **F27 — one date range, from `displayDate.ts`.** `formatDisplayDateRange` (`10/12/2026 → 10/18/2026`;
+  one day once; an open end in words). The contract's named blind spot — raw ISO interpolated into a
+  template — had produced six ranges, not one: Driver Performance's week (three sites), Reports' range,
+  the Inspectors register's period, the EFS import preview, Employment history's two windows and its
+  gaps, and the export scope beside the Fuel Log's button — whose server twin, the `#` first line of
+  every CSV (`csvExport.scopeLine`), now says the same in the same words. Filenames keep ISO, which
+  sorts. A gate was tried and not kept: `to` is also an email recipient, `start`/`end` are as often
+  clock times, and half the hits were already formatted — a rule that needs a marker on most of what
+  it finds is a rule people learn to ignore. The blind spot stays named in the contract (§1.4).
+- **F28 — one settings layout** (contract §3.3). Eight settings forms were a centred
+  `max-w-2xl|3xl|5xl` column and six were full width, so the header moved 136 px between neighbouring
+  entries of one menu. All are the full-width root now; Planned Fueling and Thresholds show a form
+  reads well there. Gate rule: a page in `router/routes/settings.ts` whose root carries `mx-auto` or a
+  `max-w-*` is refused (fixture proven by disabling the rule; the rule refuses the old Thresholds).
+- **F29 — a carrier with no name is "the carrier", and a sentence opens in a capital.** The API's
+  `?? "the carrier"` let an empty name through ("This is 's driver application."); it trims first now.
+  Sixteen applicant sentences open with the carrier's name and read the fallback in lower case; they go
+  through `sentenceCase` (a real name is unchanged). No migration: the Organization form already refuses
+  a blank name and nothing else writes one.
+- **F30 — Messages waits for the plan.** "New message" showed without Messages in the plan; and while
+  the module read waited, or when it failed, the page told a customer who HAD Messages that it was not
+  in their plan. The button follows the entitlement, and the entitlement read and the conversations
+  read each draw loading / failure with Retry / answer. Four of the five page tests fail on the old page.
+- **Found on the way: Messages' two columns never existed.** `lg:grid-cols-[320px,1fr]` — Tailwind 4
+  builds nothing for a comma between tracks, so the thread list and the conversation stacked at every
+  width. Fixed, and a gate rule refuses a comma before any `(` in an arbitrary grid template (fixture
+  proven; the rule refuses the old page). It was the only one.
+- **F31** stays open on Q-US3.
+- **F32 needs schema.** PostgREST refuses an OR across a row and its embedded tables (measured: "failed
+  to parse logic tree" for `parts.part_number…,stock_locations.name…`), so a server search over part
+  number, description and location — the three fields Labels searches today — needs a view joining
+  them. The view ships in one merge and its reader in the next (`MIGRATION-DISCIPLINE.md`). Production holds 0 parts and 0
+  stock lines, so nothing is at risk while the pair lands.
+
+Re-shot at 1280 and 390 with the failure, empty and row fixtures (Driver Qualification with six drivers,
+Drug & Alcohol with 178 outside the pool, Messages with the plan and a failed conversations read).

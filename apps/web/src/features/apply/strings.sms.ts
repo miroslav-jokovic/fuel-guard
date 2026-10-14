@@ -1,3 +1,4 @@
+import { sentenceCase } from "./sentenceCase";
 /**
  * The words on the optional text-message card (SMS-OPT-IN-PLAN SMS2, D-SMS1).
  *
@@ -16,7 +17,7 @@ export const APPLY_SMS_COPY = {
     heading: "Get a text when it is your turn",
     optional: "Optional",
     intro: (carrier: string): string =>
-      `${carrier} can text you when your application is ready to fill in, and about your application after that. Email still comes either way.`,
+      `${sentenceCase(carrier)} can text you when your application is ready to fill in, and about your application after that. Email still comes either way.`,
     phoneLabel: "Mobile number",
     phoneHint: "A US mobile number that can receive texts.",
     phoneInvalid: "Enter a 10-digit US mobile number.",

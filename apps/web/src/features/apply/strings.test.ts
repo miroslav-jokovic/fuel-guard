@@ -24,7 +24,7 @@ import { APPLY_COPY } from "./strings";
 const FORBIDDEN = /§|\bCFR\b|\b49\s*C\.?F\.?R\b/;
 
 /** Every leaf string in APPLY_COPY, with functions invoked so their output is covered too. */
-function leaves(node: unknown, path: string): Array<{ path: string; text: string }> {
+function leaves(node: unknown, path: string, carrier = "Silvicom"): Array<{ path: string; text: string }> {
   if (typeof node === "string") return [{ path, text: node }];
   if (typeof node === "function") {
     /**
@@ -42,8 +42,8 @@ function leaves(node: unknown, path: string): Array<{ path: string; text: string
      */
     const fn = node as (...args: unknown[]) => unknown;
     const candidates: unknown[][] = [
-      ["Silvicom", 2],
-      ["Silvicom"],
+      [carrier, 2],
+      [carrier],
       [[5, 6, 9]],
       [2],
       [[5]],
@@ -62,7 +62,7 @@ function leaves(node: unknown, path: string): Array<{ path: string; text: string
     );
   }
   if (node && typeof node === "object") {
-    return Object.entries(node).flatMap(([k, v]) => leaves(v, `${path}.${k}`));
+    return Object.entries(node).flatMap(([k, v]) => leaves(v, `${path}.${k}`, carrier));
   }
   return [];
 }
@@ -107,5 +107,30 @@ describe("apply copy", () => {
     expect(APPLY_COPY.identity.ssnHint).toMatch(/driving-record checks match on it/);
     expect(APPLY_COPY.employment.addressHint).toMatch(/record where we wrote to/);
     expect(APPLY_COPY.identity.otherNamesHint).toMatch(/cannot find you under a name/);
+  });
+});
+
+/**
+ * F29 (US6b, 2026-10-14). A carrier with no name on file is "the carrier" — the API's word for it
+ * (`publicApplicationBundle.ts`) — and sixteen sentences open with the carrier's name. Before
+ * `sentenceCase` they opened in lower case ("the carrier has read your application."), and before the
+ * API trimmed the name an empty one printed "This is 's driver application."
+ */
+describe("apply copy, for a carrier with no name on file", () => {
+  it("opens every sentence that starts with the carrier in a capital, and never names nobody", () => {
+    // Only the sentences whose first argument IS the carrier: the walk feeds every copy function the
+    // same first argument, and a count printed as "the carrier minutes" is the walk's, not the copy's.
+    const carrierFns = new Set<string>();
+    const collect = (node: unknown, path: string): void => {
+      if (typeof node === "function" && /^\(?\s*carrier\b/.test(node.toString())) carrierFns.add(`${path}()`);
+      else if (node && typeof node === "object") for (const [k, v] of Object.entries(node)) collect(v, `${path}.${k}`);
+    };
+    collect(APPLY_COPY, "APPLY_COPY");
+    const texts = leaves(APPLY_COPY, "APPLY_COPY", "the carrier").filter((t) => carrierFns.has(t.path));
+    expect(texts.length).toBeGreaterThan(15);
+    const lowerStarts = texts.filter((t) => /(^|[.?!]\s+)the carrier\b/.test(t.text)).map((t) => t.path);
+    expect(lowerStarts).toEqual([]);
+    expect(texts.find((t) => t.path === "APPLY_COPY.expectations.lead()")?.text).toBe("This is the carrier's driver application.");
+    expect(texts.some((t) => /The carrier has read your application\./.test(t.text))).toBe(true);
   });
 });

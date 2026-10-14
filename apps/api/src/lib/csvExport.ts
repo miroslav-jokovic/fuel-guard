@@ -1,4 +1,4 @@
-import { csvCell } from "@silvicom/shared";
+import { csvCell, formatDisplayDateRange } from "@silvicom/shared";
 
 /**
  * A scoped, server-rendered CSV of a filtered list (FUEL-P2, D-FUI15).
@@ -61,7 +61,8 @@ export class ExportTooLargeError extends Error {
  * file, which is the first thing anybody does.
  */
 export function scopeLine(s: ExportScope, rows: number): string {
-  const window = s.from && s.to ? `${s.from} → ${s.to}` : s.from ? `from ${s.from}` : s.to ? `to ${s.to}` : "all dates";
+  // MM/DD/YYYY like the button beside the export (F27, D-DS18). The FILENAME keeps ISO, which sorts.
+  const window = s.from || s.to ? formatDisplayDateRange(s.from, s.to) : "all dates";
   const trucks = s.trucks === 0 ? "all trucks" : `${s.trucks} truck${s.trucks === 1 ? "" : "s"}`;
   return `# ${s.title} · ${window} · ${trucks} · ${rows.toLocaleString("en-US")} rows · generated ${s.generatedAt}`;
 }

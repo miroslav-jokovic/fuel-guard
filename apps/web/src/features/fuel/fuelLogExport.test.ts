@@ -53,10 +53,10 @@ describe("the export URL is the page's own parameters, unrewritten", () => {
 
   it("says what the file will cover, in the sentence the server prints on it", () => {
     expect(fuelLogExportTarget({ dataset: "fills", from: "2026-08-01", to: "2026-08-31", units: ["654"] }).scope)
-      .toBe("2026-08-01 → 2026-08-31 · 1 truck");
+      .toBe("08/01/2026 → 08/31/2026 · 1 truck");
     expect(fuelLogExportTarget({ dataset: "fills", units: [] }).scope).toBe("all dates · all trucks");
     expect(fuelLogExportTarget({ dataset: "fills", from: "2026-08-01", units: ["654", "655"] }).scope)
-      .toBe("from 2026-08-01 · 2 trucks");
+      .toBe("from 08/01/2026 · 2 trucks");
   });
 });
 

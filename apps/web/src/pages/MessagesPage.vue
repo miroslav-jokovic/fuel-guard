@@ -26,6 +26,7 @@ import { AppCheckbox as BaseCheckbox } from "@silvicom/ui";
 import { AppInput as BaseInput } from "@silvicom/ui";
 import { AppFormField as FormField } from "@silvicom/ui";
 import PageHeader from "@/components/ui/PageHeader.vue";
+import QueryState from "@/components/ui/QueryState.vue";
 
 /**
  * The dispatch inbox (hardening plan Phase 7, D-PM4 — Samsara's model): thread list + open
@@ -42,6 +43,12 @@ const router = useRouter();
 
 const modules = useModulesQuery();
 const messagesEntitled = computed(() => modules.data.value?.has("messages") ?? false);
+/**
+ * Whether the plan has been ASKED (F30, US6b). Until the module read answers, "not in your plan" is a
+ * guess — it was drawn while the read waited and when it failed, to customers who had Messages — and
+ * "New message" was offered to customers who did not. Both wait for the answer now.
+ */
+const entitlementKnown = computed(() => modules.data.value !== undefined);
 
 const threadsQ = useThreadsQuery(messagesEntitled);
 const selectedId = ref<string | null>(
@@ -146,11 +153,21 @@ function timeLabel(iso: string): string {
   <div class="space-y-6">
     <PageHeader description="Driver conversations — the last 90 days. Messages can't be deleted; they're part of the record.">
       <template #actions>
-        <BaseButton @click="composing = !composing">{{ composing ? "Cancel" : "New message" }}</BaseButton>
+        <BaseButton v-if="messagesEntitled" @click="composing = !composing">{{ composing ? "Cancel" : "New message" }}</BaseButton>
       </template>
     </PageHeader>
 
-    <BaseCard v-if="!messagesEntitled">
+    <QueryState
+      v-if="!entitlementKnown"
+      :loading="modules.isPending.value && !modules.isError.value"
+      :error="modules.isError.value ? modules.error.value : null"
+      :retrying="modules.isFetching.value"
+      loading-text="Loading your messages…"
+      error-text="Could not check whether Messages is part of your plan."
+      @retry="modules.refetch()"
+    />
+
+    <BaseCard v-else-if="!messagesEntitled">
       <p class="text-sm text-ink-muted">Messages isn't part of your plan. Contact Silvicom 360 to enable it.</p>
     </BaseCard>
 
@@ -186,7 +203,9 @@ function timeLabel(iso: string): string {
       </div>
     </BaseCard>
 
-    <div v-if="messagesEntitled" class="grid gap-4 lg:grid-cols-[320px,1fr]">
+    <!-- `_`, not `,`: Tailwind 4 reads a comma here as part of one value, so `[320px,1fr]` built no
+         rule and the list and the conversation stacked at every width (found by US6b batch 3). -->
+    <div v-if="messagesEntitled" class="grid gap-4 lg:grid-cols-[20rem_minmax(0,1fr)]">
       <!-- Thread list -->
       <BaseCard padding="none" class="max-h-[70vh] overflow-y-auto">
         <ul class="divide-y divide-edge-subtle">
@@ -210,8 +229,19 @@ function timeLabel(iso: string): string {
               </div>
             </BaseButton>
           </li>
+          <!-- Loading, failed and empty are three answers (D-US5); a failed read said "No conversations". -->
           <li v-if="visibleThreads.length === 0" class="px-4 py-8 text-center text-sm text-ink-muted">
-            {{ threadsQ.isLoading.value ? "Loading…" : "No conversations in the last 90 days." }}
+            <QueryState
+              compact
+              :loading="threadsQ.isPending.value && !threadsQ.isError.value"
+              :error="threadsQ.isError.value ? threadsQ.error.value : null"
+              :retrying="threadsQ.isFetching.value"
+              loading-text="Loading the conversations…"
+              error-text="Could not load the conversations."
+              @retry="threadsQ.refetch()"
+            >
+              No conversations in the last 90 days.
+            </QueryState>
           </li>
         </ul>
       </BaseCard>

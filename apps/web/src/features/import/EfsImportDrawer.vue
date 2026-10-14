@@ -43,6 +43,7 @@ import FileDropzone from "@/components/ui/FileDropzone.vue";
 import DataTable from "@/components/ui/DataTable.vue";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
+import { formatDateRange } from "@/lib/format";
 
 defineProps<{ open: boolean }>();
 const emit = defineEmits<{ close: [] }>();
@@ -216,7 +217,7 @@ const previewTotal = (p: ImportPreview) =>
               </h3>
               <p class="mt-0.5 text-sm text-ink-muted">
                 {{ preview.source.toUpperCase() }} · {{ preview.totalRows }} rows
-                <span v-if="preview.reportFrom" class="text-ink-tertiary"> · {{ preview.reportFrom }} → {{ preview.reportTo }}</span>
+                <span v-if="preview.reportFrom" class="text-ink-tertiary"> · {{ formatDateRange(preview.reportFrom, preview.reportTo) }}</span>
               </p>
               <p class="mt-1 text-xs text-ink-tertiary">
                 Rows already in Silvicom 360 are detected and skipped automatically — safe to upload an overlapping period.

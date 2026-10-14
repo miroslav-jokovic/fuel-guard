@@ -12,6 +12,7 @@ import {
   EMPLOYMENT_WINDOW_YEARS,
   MVR_LOOKBACK_YEARS,
 } from "@silvicom/shared";
+import { sentenceCase } from "./sentenceCase";
 
 /**
  * Every word the applicant reads, in one place (A3).
@@ -143,7 +144,7 @@ export const APPLY_COPY = {
      * A driver told "the application follows" would sit on the waiting screen wondering what broke.
      */
     signFirst: (carrier: string): string =>
-      `${carrier} asks for your licence details and a few signed permissions first. After checking your record, they send you the application itself — we will email you the link.`,
+      `${sentenceCase(carrier)} asks for your licence details and a few signed permissions first. After checking your record, they send you the application itself — we will email you the link.`,
     /**
      * ⚠ AF5 (D-AF3): the signing is no longer a visit to this link. It happens in the carrier's
      * office, on the same visit as the road test — and saying "we will send you the link" would

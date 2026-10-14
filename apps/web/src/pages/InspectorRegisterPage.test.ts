@@ -105,9 +105,10 @@ describe("what the register shows", () => {
   });
 
   it("shows an open period as 'Since', and a closed one as a range", () => {
-    expect(page([inspector()]).text()).toContain("Since 2024-01-01");
+    // MM/DD/YYYY since US6b F27: this pinned the raw ISO the register printed (D-DS18).
+    expect(page([inspector()]).text()).toContain("Since 01/01/2024");
     const retired = page([inspector({ effective_to: "2026-01-31", qualified: false })]).text();
-    expect(retired).toContain("2024-01-01 — 2026-01-31");
+    expect(retired).toContain("01/01/2024 → 01/31/2026");
     expect(retired).toContain("Retired");
   });
 

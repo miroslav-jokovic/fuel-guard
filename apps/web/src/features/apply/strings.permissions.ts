@@ -1,4 +1,5 @@
 import { APPLY_FLOW_COPY } from "./strings.flow";
+import { sentenceCase } from "./sentenceCase";
 
 /**
  * The permissions step's words (AF6, D-AF2): six documents, each a PDF, each signed where it says.
@@ -29,7 +30,7 @@ export const APPLY_PERMISSIONS_COPY = {
       adoptHeading: "Your signature",
       adoptHeadingWithInitials: "Your signature and initials",
       adoptIntro: (carrier: string, count: number): string =>
-        `${carrier} needs you to sign ${count} permissions before they can check your record. Each one is its own document. Make your signature and initials once below, then we show you each document and where to sign it.`,
+        `${sentenceCase(carrier)} needs you to sign ${count} permissions before they can check your record. Each one is its own document. Make your signature and initials once below, then we show you each document and where to sign it.`,
       initialsHint:
         "A few pages of your application ask for your initials instead of your full name. We keep these for them.",
       adoptHint: "Type it as it appears on your licence. This is the name each document is signed in.",

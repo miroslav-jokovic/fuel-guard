@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { formatDisplayDate, formatDisplayDateTime, formatDisplayDayShort } from "./displayDate.js";
+import { formatDisplayDate, formatDisplayDateRange, formatDisplayDateTime, formatDisplayDayShort } from "./displayDate.js";
 
 /**
  * The two cases that matter are the two the 13 deleted copies got wrong: the ordering (which they
@@ -108,5 +108,16 @@ describe("formatDisplayDateTime", () => {
 describe("formatDisplayDayShort", () => {
   it("drops the year for dense axes", () => {
     expect(formatDisplayDayShort("2026-09-20")).toBe("09/20");
+  });
+});
+
+// F27 (US6b): Driver Performance's week read `2026-10-12 → 2026-10-18`.
+describe("formatDisplayDateRange", () => {
+  it("draws a span in the product's date, a single day once, and an open end in words", () => {
+    expect(formatDisplayDateRange("2026-10-12", "2026-10-18")).toBe("10/12/2026 → 10/18/2026");
+    expect(formatDisplayDateRange("2026-10-12T05:00:00Z", "2026-10-12")).toBe("10/12/2026");
+    expect(formatDisplayDateRange("2026-10-12", null)).toBe("from 10/12/2026");
+    expect(formatDisplayDateRange(undefined, "2026-10-18")).toBe("to 10/18/2026");
+    expect(formatDisplayDateRange(null, null)).toBe("—");
   });
 });

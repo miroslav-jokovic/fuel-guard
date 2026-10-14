@@ -1,3 +1,4 @@
+import { sentenceCase } from "./sentenceCase";
 /**
  * The words of the walk through the carrier's own packet — adoption, confirm, and each stop.
  *
@@ -32,7 +33,7 @@ export const APPLY_PACKET_COPY = {
      * walk, and a driver told only about the first number would meet the second as a surprise.
      */
     adoptIntro: (carrier: string, count: number, handbook: number): string =>
-      `${carrier} has approved your application. It now needs your signature in ${count} places on their own form, `
+      `${sentenceCase(carrier)} has approved your application. It now needs your signature in ${count} places on their own form, `
       + `then in ${handbook} places in their driver handbook. Give your signature once below — then we take you to each `
       + "place, one at a time, and show you what you are signing.",
     /**

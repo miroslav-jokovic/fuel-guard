@@ -597,6 +597,39 @@ const recordPagesWithoutNotFound = recordPageViolations(
   (page) => readFileSync(join(webSrc, "pages", page), "utf8"),
 );
 
+/**
+ * Every settings page has one layout: the standard page root, full width (US6b F28, 2026-10-14).
+ *
+ * The browser pass at 1280 found two: Organization, Notifications, Thresholds, EFS, FleetPal, Med-Stop,
+ * Driver Performance and Driver App were a narrow centred column (`mx-auto max-w-2xl|3xl|5xl`), and
+ * Users, Data & Sync, McLeod fleets, Card control, Recruiting and Planned Fueling were full width. So
+ * the breadcrumb and the title moved 136 px sideways between two neighbouring entries of one menu,
+ * and the eye had to find the page again on every click. Planned Fueling, the longest settings form,
+ * already read well at full width, so the full-width shell is the one kept. The inventory is the
+ * settings route file; the check is the page root (its template's first element).
+ */
+const settingsRoutePages = (routeSource) =>
+  [...new Set([...stripComments(routeSource).matchAll(/import\("@\/pages\/([^"]+\.vue)"\)/g)].map((m) => m[1]))];
+const pageRootClass = (source) => stripComments(source).match(/<template>\s*<div\b[^>]*\bclass="([^"]*)"/)?.[1] ?? "";
+const settingsLayoutViolations = (pages, readPage) =>
+  pages.filter((page) => /\b(mx-auto|max-w-\S+)/.test(pageRootClass(readPage(page))));
+/**
+ * An arbitrary grid template separates its tracks with `_`, never `,` (US6b batch 3, 2026-10-14).
+ *
+ * Tailwind 4 reads `grid-cols-[320px,1fr]` as one value it cannot place, builds no rule for it, and
+ * says nothing: Messages' thread list and conversation stacked at every width for as long as the page
+ * has existed, and no test could see it — jsdom has no layout. A comma INSIDE a function
+ * (`minmax(0,1fr)`) is the function's own and is fine; this looks only for one before any `(`.
+ */
+const GRID_COMMA = /\b(?:[a-z0-9]+:)*grid-(?:cols|rows)-\[[^\](]*,[^\]]*\]/g;
+const gridCommaViolations = (item) =>
+  [...item.source.matchAll(GRID_COMMA)].map((m) => `${item.relativePath}:${item.source.slice(0, m.index).split("\n").length}`);
+const gridCommas = webVue.flatMap(gridCommaViolations);
+const narrowSettingsPages = settingsLayoutViolations(
+  settingsRoutePages(readFileSync(join(webSrc, "router/routes/settings.ts"), "utf8")),
+  (page) => readFileSync(join(webSrc, "pages", page), "utf8"),
+);
+
 const handBuiltFacts = structureViolations.flatMap((item) => item.handBuiltFacts).filter((at) => !siteMarked(at, "not-a-fact-list"));
 
 /**
@@ -898,6 +931,29 @@ function verifyAdoption() {
         quoted.length !== 1 || bareMark.length !== 1)
       failures.push("record-page not-found checker failed its regression fixture");
   }
+  {
+    const pages = settingsRoutePages(`[{ component: () => import("@/pages/A.vue") }, { component: () => import("@/pages/B.vue") },
+      // { component: () => import("@/pages/Old.vue") },
+      { component: () => import("@/pages/A.vue") }, { component: () => import("@/pages/C.vue") }]`);
+    const src = {
+      "A.vue": `<template>\n  <div class="space-y-6"><div class="mx-auto max-w-2xl">form</div></div>\n</template>`,
+      "B.vue": `<template>\n  <div class="mx-auto max-w-2xl space-y-6" />\n</template>`,
+      "C.vue": `<template>\n  <!-- a comment -->\n  <div class="max-w-3xl space-y-6" />\n</template>`,
+    };
+    if (JSON.stringify(pages) !== JSON.stringify(["A.vue", "B.vue", "C.vue"]) ||
+        JSON.stringify(settingsLayoutViolations(pages, (p) => src[p])) !== JSON.stringify(["B.vue", "C.vue"]))
+      failures.push("settings-layout checker failed its regression fixture");
+  }
+  if (narrowSettingsPages.length)
+    failures.push(`settings page with a narrow or centred root (every settings page is the full-width \`<div class="space-y-6">\`): ${narrowSettingsPages.join(", ")}`);
+  {
+    const at = (source) => gridCommaViolations({ relativePath: "g.vue", source });
+    if (JSON.stringify(at(`<div class="grid lg:grid-cols-[320px,1fr]">\n<div class="grid-rows-[auto,1fr]">`)) !== JSON.stringify(["g.vue:1", "g.vue:2"]) ||
+        at(`<div class="grid-cols-[minmax(0,1fr)_15rem] lg:grid-cols-[20rem_minmax(0,1fr)]">`).length)
+      failures.push("grid-template checker failed its regression fixture");
+  }
+  if (gridCommas.length)
+    failures.push(`arbitrary grid template with a comma between tracks (Tailwind 4 builds nothing for it — write \`_\`): ${gridCommas.join(", ")}`);
   if (recordPagesWithoutNotFound.length)
     failures.push(`record page with no not-found state (give its QueryState a not-found-text and throw NotFoundError from the read, or mark ui-adoption: not-a-record — <why>): ${recordPagesWithoutNotFound.join(", ")}`);
   if (unguardedStats.length)

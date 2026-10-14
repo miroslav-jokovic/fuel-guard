@@ -39,8 +39,18 @@ const cellValue = (row: Row, key: string) => row[key];
 const isSelected = (row: Row) => props.selected?.has(props.keyOf(row)) ?? false;
 const isExpanded = (row: Row) => props.expanded?.has(props.keyOf(row)) ?? false;
 
-/** The first column is the card's heading; the others become its body. */
-const headingColumn = computed(() => props.columns[0]);
+/**
+ * A column with no label is a CONTROL — an expand chevron, a "View" link — not a field (F25, US6b).
+ * A table header can hold it in a narrow unlabelled cell; a card cannot, because a card names every
+ * value it shows. When the qualification table's chevron came first it became the card's heading, and
+ * every phone card opened with an empty row holding only the chevron. So controls sit on the card's
+ * top line, beside the status, and the heading is the first column that has a name.
+ */
+const isControl = (col: DataTableColumn) => !col.label;
+const headingColumn = computed(() => props.columns.find((col) => !isControl(col)) ?? props.columns[0]);
+const controlColumns = computed(() =>
+  props.columns.filter((col) => isControl(col) && col.key !== headingColumn.value?.key && !STATUS_KEYS.test(col.key)),
+);
 /**
  * The card's shape, decided from what a person actually scans on a phone.
  *
@@ -55,7 +65,9 @@ const headingColumn = computed(() => props.columns[0]);
 const STATUS_KEYS = /^(status|state|result|outcome|severity|disposition)$/;
 const statusColumn = computed(() => props.columns.find((col) => STATUS_KEYS.test(col.key)));
 const bodyColumns = computed(() =>
-  props.columns.slice(1).filter((col) => col.key !== statusColumn.value?.key),
+  props.columns.filter(
+    (col) => col.key !== headingColumn.value?.key && col.key !== statusColumn.value?.key && !isControl(col),
+  ),
 );
 
 /** Quantities read as a block on their own row; words read better in a two-column grid. */
@@ -128,6 +140,9 @@ function onCardSort(key: string) {
               <slot :name="`cell-${statusColumn.key}`" :row="row" :value="cellValue(row, statusColumn.key)">
                 {{ isBlank(cellValue(row, statusColumn.key)) ? "—" : cellValue(row, statusColumn.key) }}
               </slot>
+            </div>
+            <div v-for="col in controlColumns" :key="col.key" class="shrink-0">
+              <slot :name="`cell-${col.key}`" :row="row" :value="cellValue(row, col.key)" />
             </div>
           </div>
 

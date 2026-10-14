@@ -142,6 +142,7 @@ first.
 | `09/20/2026` | `formatDisplayDate` | every date shown as a field, a cell or a sentence |
 | `09/20/2026 2:03 PM` | `formatDisplayDateTime` | a date that also needs its moment — audit rows, sync stamps |
 | `09/20` | `formatDisplayDayShort` | chart axis ticks and dense rows, where the year is already established |
+| `09/20/2026 → 09/26/2026` | `formatDisplayDateRange` | a span of days — a week, a filter window, an export's scope; one day prints once (US6b F27) |
 
 All three live in `packages/shared/src/displayDate.ts` and are re-exported in `apps/web` as
 `formatDate` / `formatDateTime` from `@/lib/format`, and in `apps/admin` as `fmtDate` / `fmtDateTime`.
@@ -169,7 +170,8 @@ clock pinned to somebody else's timezone (a fuel station's local time, F-H2). Ea
 **Known blind spot, stated rather than left to be found:** raw ISO reaching a template —
 `{{ row.expires_at }}` — is invisible to the gate, which would have to know that `expires_at` holds a
 date, and a name is not a type. Eleven such sites were fixed by hand on 2026-09-20; a twelfth would
-pass CI. If you interpolate a column straight into a template, that is on you.
+pass CI. If you interpolate a column straight into a template, that is on you. (It did: on 2026-10-14 US6b found
+six raw `${from} → ${to}` ranges on screen, which is why a range is now a function.)
 
 ---
 
@@ -285,7 +287,7 @@ Full width with small gutters — tables use the whole screen. There is no `max-
 ```
 
 - Page root is **always** `<div class="space-y-6">`. 61 occurrences; every well-built page starts this way.
-- Narrow pages add `mx-auto max-w-2xl` (settings/forms) or `max-w-3xl` (content).
+- Narrow pages add `mx-auto max-w-3xl` (content: a document, a public page). **Settings pages never do** (US6b F28, 2026-10-14): every page in `router/routes/settings.ts` is the full-width root, so the breadcrumb and title sit where every other page puts them. Until then eight settings forms were a centred `max-w-2xl|3xl|5xl` column beside six full-width settings lists, and the header moved 136 px sideways between two entries of one menu. A form keeps its fields readable with its own grid (Planned Fueling, Thresholds), not by narrowing the page. `lint:ui-adoption` refuses a settings page whose root carries `mx-auto` or a `max-w-*`.
 - Two-column detail layouts: `grid grid-cols-1 gap-6 lg:grid-cols-[…]` (`HazmatEquipmentPage.vue:120`).
 - A figure is an answer: a tile whose read has not answered is a skeleton, one whose read failed is a dash with the failure and its Retry (`:error`), and a share of nothing (a zero denominator) is a dash with the reason in the caption, never a red "0%" or a green "100%" (US6b F14). Likewise a toolbar's count and a tab's badge are printed only once their list has answered — `DataWorkspace` holds its table's state for its `FilterBar` (F15).
 - KPI tiles are **`StatCard`**, in a grid `grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4`. The figure's verdict colour is `value-tone` (a class — only the caller knows whether high is good; money takes none, Q-FSV15 ruling 2), a unit after it is `unit`, further caption lines go in the default slot. Tiles that share ONE surface — the divided strip `div.grid grid-cols-2 divide-y divide-edge-subtle sm:grid-cols-3 sm:divide-y-0 sm:divide-x lg:grid-cols-6` inside a `BaseCard padding="none"` (`FillsTab.vue`), or the stat row inside a report card — are `StatCard embedded`, with the caller giving each cell its padding (`px-5 py-4`). Until 2026-10-12 thirty-three tiles in seven files, plus a `FuelStatTile` copy, were drawn by hand: bold beside semibold, three label styles, three ways of tinting a verdict.

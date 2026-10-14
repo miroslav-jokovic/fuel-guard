@@ -77,7 +77,7 @@ function when(at: string | null): string {
 </script>
 
 <template>
-  <div class="mx-auto max-w-3xl space-y-6">
+  <div class="space-y-6">
     <PageHeader>
       FleetPal is the shop's repair record. Once connected, Silvicom 360 reads its work orders, repair
       costs, defects and purchase invoices every hour. It never writes to FleetPal.

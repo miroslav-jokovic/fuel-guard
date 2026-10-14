@@ -5,6 +5,8 @@ import { AppCard as BaseCard } from "@silvicom/ui";
 import DataTable from "@/components/ui/DataTable.vue";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import PersonCell from "@/features/drugAlcohol/PersonCell.vue";
+import TablePagination from "@/components/TablePagination.vue";
+import { useClientPage } from "@/composables/useClientPage";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { formatDate } from "@/lib/format";
 
@@ -34,6 +36,9 @@ const disagreeColumns: DataTableColumn[] = [
 const asRows = (rows: MedicalCardRow[]) => rows.map((r) => ({ ...r, name: r.person.name, key: r.person.driverId }));
 const due = computed(() => asRows(props.medical.due));
 const disagree = computed(() => asRows(props.medical.disagree));
+// Paged (F26): both lists are one response with no bound but the fleet's size.
+const duePage = useClientPage(due);
+const disagreePage = useClientPage(disagree);
 
 const tone = (days: number) => (days < 0 ? "danger" : days <= 30 ? "warning" : "neutral");
 const sourceDate = (row: MedicalCardRow, s: MedicalSource) => row.sources.find((c) => c.source === s)?.expiresOn ?? null;
@@ -50,13 +55,21 @@ const basis = (row: MedicalCardRow) =>
           A driver may not drive on an expired card. The date is the one the qualification file keeps: a scanned card wins; otherwise the earliest date McLeod or Med-Stop gives.
         </p>
       </div>
-      <DataTable embedded dense :sticky-header="false" :columns="dueColumns" :rows="due" row-key="key" empty-text="No medical card expires in the next 60 days.">
+      <DataTable embedded dense :sticky-header="false" :columns="dueColumns" :rows="duePage.pageRows.value" row-key="key" empty-text="No medical card expires in the next 60 days.">
         <template #cell-name="{ row }"><PersonCell :person="row.person" /></template>
         <template #cell-expiresOn="{ row }">{{ formatDate(row.expiresOn) }}</template>
         <template #cell-daysLeft="{ row }">
           <span :class="[BADGE_BASE, toneClass(tone(row.daysLeft))]">{{ row.daysLeft < 0 ? `Expired ${-row.daysLeft} d ago` : row.daysLeft === 0 ? "Today" : `${row.daysLeft} d` }}</span>
         </template>
         <template #cell-basis="{ row }">{{ basis(row) }}</template>
+        <template v-if="duePage.paged.value" #footer>
+          <TablePagination
+            :page="duePage.page.value"
+            :page-size="duePage.pageSize"
+            :total="duePage.total.value"
+            @update:page="duePage.page.value = $event"
+          />
+        </template>
       </DataTable>
     </BaseCard>
 
@@ -67,12 +80,20 @@ const basis = (row: MedicalCardRow) =>
           Check the driver's card. Filing its scan in the qualification file settles it — a scanned card wins over every source.
         </p>
       </div>
-      <DataTable embedded dense :sticky-header="false" :columns="disagreeColumns" :rows="disagree" row-key="key" empty-text="Every source agrees on every working driver's medical card.">
+      <DataTable embedded dense :sticky-header="false" :columns="disagreeColumns" :rows="disagreePage.pageRows.value" row-key="key" empty-text="Every source agrees on every working driver's medical card.">
         <template #cell-name="{ row }"><PersonCell :person="row.person" /></template>
         <template #cell-expiresOn="{ row }">{{ formatDate(row.expiresOn) }}</template>
         <template #cell-basis="{ row }">{{ basis(row) }}</template>
         <template v-for="s in MEDICAL_SOURCES" :key="s" #[`cell-src-${s}`]="{ row }">
           {{ sourceDate(row, s) ? formatDate(sourceDate(row, s)!) : "—" }}
+        </template>
+        <template v-if="disagreePage.paged.value" #footer>
+          <TablePagination
+            :page="disagreePage.page.value"
+            :page-size="disagreePage.pageSize"
+            :total="disagreePage.total.value"
+            @update:page="disagreePage.page.value = $event"
+          />
         </template>
       </DataTable>
     </BaseCard>

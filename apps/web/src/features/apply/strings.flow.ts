@@ -1,4 +1,5 @@
 import { APPLY_PACKET_COPY } from "./strings.packet";
+import { sentenceCase } from "./sentenceCase";
 
 /**
  * The words the applicant reads OUTSIDE the form itself (F4).
@@ -34,7 +35,7 @@ export const APPLY_FLOW_COPY = {
   permissionsReceived: {
     heading: "We have your permissions",
     body: (carrier: string): string =>
-      `Thank you. ${carrier} will check your driving record and safety history, then send you the application itself.`,
+      `Thank you. ${sentenceCase(carrier)} will check your driving record and safety history, then send you the application itself.`,
     note: "Nothing more to do for now. We will email you a new link for the application — this one will stop working when it arrives.",
   },
 
@@ -44,7 +45,7 @@ export const APPLY_FLOW_COPY = {
     failed: "That did not send. Check your signal and try again — nothing you typed is lost.",
     waitingHeading: "They have your application",
     waitingBody: (carrier: string): string =>
-      `${carrier} is reading it now. When they are done, they will contact you about coming to their office, where you sign it.`,
+      `${sentenceCase(carrier)} is reading it now. When they are done, they will contact you about coming to their office, where you sign it.`,
     /**
      * ⚠ It promises an email SINCE Q-AX4 SHIPPED, and the promise is why nothing about the approval
      * ROTATES the token. `notifyApplicationApproved` sends from the approval itself. The applicant is
@@ -80,7 +81,7 @@ export const APPLY_FLOW_COPY = {
   signInOffice: {
     heading: "Your application is approved",
     body: (carrier: string): string =>
-      `${carrier} has read your application. You sign it in their office, on the same visit as your road test and orientation — they will contact you about coming in, and send a link to your phone while you are there.`,
+      `${sentenceCase(carrier)} has read your application. You sign it in their office, on the same visit as your road test and orientation — they will contact you about coming in, and send a link to your phone while you are there.`,
     note: "Nothing more to do on this link for now. Nothing you filled in has been lost.",
   },
 
@@ -94,7 +95,7 @@ export const APPLY_FLOW_COPY = {
   signOff: {
     heading: "Ready for your signature",
     intro: (carrier: string): string =>
-      `${carrier} has read your application. Check it once more and sign it — this is the version that goes in your file.`,
+      `${sentenceCase(carrier)} has read your application. Check it once more and sign it — this is the version that goes in your file.`,
     changedHeading: "What the carrier changed",
     changedIntro:
       "They corrected these while checking your application. Read them before you sign — if any of them is wrong, tell them before you do.",
@@ -117,7 +118,7 @@ export const APPLY_FLOW_COPY = {
   done: {
     heading: "Your application is in",
     body: (carrier: string): string =>
-      `${carrier} has it, certified in your name. They will contact you about what happens next.`,
+      `${sentenceCase(carrier)} has it, certified in your name. They will contact you about what happens next.`,
     reopen:
       "You can close this page. Your link still opens to this message, and it cannot be used to send a second application.",
     /**
@@ -168,7 +169,7 @@ export const APPLY_FLOW_COPY = {
    */
   notOpen: {
     banner: (carrier: string): string =>
-      `${carrier} is still finalising the wording of the documents that go with this application, so it cannot be sent yet. Fill in what you can — everything you type is saved, and this link will still be here.`,
+      `${sentenceCase(carrier)} is still finalising the wording of the documents that go with this application, so it cannot be sent yet. Fill in what you can — everything you type is saved, and this link will still be here.`,
     cannotSend:
       "You cannot sign these yet, and the application cannot be sent until the carrier publishes the final wording. Ask the person who invited you when that will be.",
     sendLabel: "Not ready to send yet",
@@ -177,7 +178,7 @@ export const APPLY_FLOW_COPY = {
   consent: {
     heading: "Before you start",
     intro: (carrier: string): string =>
-      `${carrier} would like to send you this application, and take your signature on it, electronically. The law says you have to agree to that first — and that you have to be told the following before you do.`,
+      `${sentenceCase(carrier)} would like to send you this application, and take your signature on it, electronically. The law says you have to agree to that first — and that you have to be told the following before you do.`,
     /** 7001(c)(1)(C)(ii): the affirmation itself, given in the browser they just read it in. */
     action: "I agree — continue",
     working: "One moment…",

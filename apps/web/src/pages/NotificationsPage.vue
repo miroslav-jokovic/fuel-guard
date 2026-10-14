@@ -61,7 +61,7 @@ async function onSave() {
 </script>
 
 <template>
-  <div class="mx-auto max-w-2xl space-y-6">
+  <div class="space-y-6">
     <PageHeader description="Turn the carrier's alerts on or off, and choose who is emailed." />
     <!-- The form waits for a failed read too (D-US5): before, a failed read drew the form on its defaults
          (alerts on, nobody emailed) with a Save that quietly did nothing, because `onSave` needs the row. -->

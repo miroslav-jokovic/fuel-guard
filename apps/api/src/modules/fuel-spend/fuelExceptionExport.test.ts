@@ -105,7 +105,7 @@ describe("the ledger export covers what the screen covers", () => {
       orgId: ORG, filters: {}, scope: { ...SCOPE, trucks: 1 },
     });
     expect(out.csv.split("\r\n")[0]).toBe(
-      "# Fuel findings · 2026-08-01 → 2026-08-31 · 1 truck · 1 rows · generated 2026-09-04T12:00:00.000Z",
+      "# Fuel findings · 08/01/2026 → 08/31/2026 · 1 truck · 1 rows · generated 2026-09-04T12:00:00.000Z",
     );
   });
 });
