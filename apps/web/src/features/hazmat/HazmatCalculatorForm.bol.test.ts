@@ -10,10 +10,13 @@ import { DIESEL, DIESEL_REF, ok, PAINT, PAINT_REF, PRODUCTS, read } from "./bolR
  * first read's lines instead of adding its weight again while a typed line stays, a failed lookup changes
  * nothing, and the paper's non-hazmat freight answers the "rest of the load" question.
  */
-const api = vi.hoisted(() => ({ calls: [] as string[], fail: false }));
+const api = vi.hoisted(() => ({ calls: [] as string[], fail: false, posts: [] as { url: string; body: unknown }[] }));
 vi.mock("@/lib/api", () => ({
-  apiFetch: vi.fn(async (url: string) => {
+  apiFetch: vi.fn(async (url: string, opts?: { method?: string; body?: unknown }) => {
     api.calls.push(url);
+    if (opts?.method === "POST") api.posts.push({ url, body: opts.body });
+    if (url.endsWith("/reviews")) return { ok: true, status: 201, data: { recorded: 1 } };
+    if (url.endsWith("/calc")) return new Promise(() => {}); // the placards are not what these tests check
     if (url.includes("refs=")) {
       if (api.fail) return { ok: false, status: 503, error: { code: "x", message: "Busy" } };
       const refs = decodeURIComponent(url.split("refs=")[1]!).split(",");
@@ -34,6 +37,7 @@ describe("HazmatCalculatorForm with a BOL read", () => {
   beforeEach(() => {
     setActivePinia(createPinia());
     api.calls = [];
+    api.posts = [];
     api.fail = false;
   });
 
@@ -164,5 +168,67 @@ describe("HazmatCalculatorForm with a BOL read", () => {
     expect(w.find("[data-testid='bol-prefill']").text()).toContain("1 line is not matched to the Hazardous Materials Table");
     expect(w.text()).toContain("The UN/NA number is not in the Hazardous Materials Table.");
     expect(w.html()).toContain("Yes — other freight rides along (mixed load)");
+  });
+
+  // D-DR24 — the external audit of 2026-10-14: Calculate took a disputed count as pass A's value, and no
+  // review was ever recorded.
+  describe("a disputed field and the review a Calculate press records (D-DR24)", () => {
+    const disputed = () => read([{ a: { ...PAINT, packageCount: 9 }, b: PAINT, table: ok(PAINT_REF) }]);
+    const submit = (w: ReturnType<typeof mountForm>) => w.find("button[type='submit']");
+    async function withEquipment() {
+      const w = mountForm();
+      await w.setProps({ bolRead: disputed() });
+      await flushPromises();
+      const picker = w.findAllComponents({ name: "AppCombobox" }).find((c) => c.props("placeholder") === "Select…")!;
+      picker.vm.$emit("update:modelValue", "van");
+      await flushPromises();
+      return w;
+    }
+
+    it("keeps Calculate disabled, and says why, until a person picks one of the two readings", async () => {
+      const w = await withEquipment();
+      expect(submit(w).attributes("disabled")).toBeDefined();
+      expect(w.find("[data-testid='bol-pending']").text()).toMatch(/^1 field filled from the BOL needs a check against the page/);
+      const use = w.findAll("[data-testid='bol-field-choose']");
+      expect(use.map((b) => b.text())).toEqual(["Use 9", "Use 6"]);
+      await use[1]!.trigger("click");
+      expect((w.findAll("input[placeholder='1056']").at(-1)!.element as HTMLInputElement).value).toBe("6");
+      expect(w.find("[data-testid='bol-pending']").exists()).toBe(false);
+      expect(submit(w).attributes("disabled")).toBeUndefined();
+    });
+
+    it("counts picking pass A's own reading as an act: the value does not change, the review says explicit", async () => {
+      const w = await withEquipment();
+      await w.findAll("[data-testid='bol-field-choose']")[0]!.trigger("click");
+      expect(w.find("[data-testid='bol-pending']").exists()).toBe(false);
+      await w.find("form").trigger("submit");
+      await flushPromises();
+      const body = api.posts.find((p) => p.url.endsWith("/reviews"))!.body as { reviews: { path: string; action: string; explicit: boolean }[] };
+      expect(body.reviews.find((r) => r.path.endsWith("packageCount"))).toMatchObject({ action: "confirmed", explicit: true });
+    });
+
+    it("refuses a submitted form while a field waits, and records nothing", async () => {
+      const w = await withEquipment();
+      await w.find("form").trigger("submit");
+      await flushPromises();
+      expect(api.posts).toEqual([]);
+    });
+
+    it("posts one review batch per Calculate, the picked count corrected and explicit, and none for a repeat press", async () => {
+      const w = await withEquipment();
+      await w.findAll("[data-testid='bol-field-choose']")[1]!.trigger("click");
+      await w.find("form").trigger("submit");
+      await flushPromises();
+      const reviews = api.posts.filter((p) => p.url.endsWith("/reviews"));
+      expect(reviews.map((p) => p.url)).toEqual([`/api/documents/reads/${disputed().id}/reviews`]);
+      const body = reviews[0]!.body as { consumer: string; reviews: { path: string; action: string; explicit: boolean; newValue: unknown }[] };
+      expect(body.consumer).toBe("hazmat_calculator");
+      expect(body.reviews.find((r) => r.path.endsWith("packageCount"))).toMatchObject({ action: "corrected", newValue: 6, explicit: true });
+      expect(body.reviews.find((r) => r.path.endsWith("idText"))).toMatchObject({ action: "confirmed", explicit: false });
+      expect(api.posts.some((p) => p.url.endsWith("/calc"))).toBe(true);
+      await w.find("form").trigger("submit");
+      await flushPromises();
+      expect(api.posts.filter((p) => p.url.endsWith("/reviews"))).toHaveLength(1);
+    });
   });
 });

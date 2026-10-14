@@ -430,6 +430,12 @@ export const reviewEntrySchema = z.object({
   oldValue: z.json(),
   /** The dispatcher's value. Equal to `oldValue` for `confirmed`, null for `unreadable`. */
   newValue: z.json(),
+  /**
+   * Whether the dispatcher acted on this field — ticked it, picked a reading, or changed it — rather than
+   * leaving a prefilled value untouched at Calculate. D-DR5 graduation counts explicit rows only (D-DR24,
+   * 0472): a click-through records what was sent without vouching for it.
+   */
+  explicit: z.boolean(),
 });
 export type ReviewEntry = z.infer<typeof reviewEntrySchema>;
 

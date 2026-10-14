@@ -6,7 +6,6 @@ import {
   rowWitnessesBack,
   shippingDocumentSchema,
   valueAtPath,
-  valuesAgree,
   type FieldEvidence,
   type FieldStatus,
   type HazmatProduct,
@@ -15,6 +14,7 @@ import {
 } from "@silvicom/shared";
 import { declaresLimitedQuantity } from "@hazmat/engine";
 import { emptyLine, type CalcLineForm } from "../calcModel";
+import { changedFrom, fieldPending, readingChoices, type Acted } from "./bolReview";
 
 /**
  * A finished BOL read → the Placard calculator's lines, each field with the state the dispatcher sees
@@ -267,16 +267,16 @@ function judged(es: (FieldEvidence | undefined)[], paths: string[], reason: stri
 // ── what the form shows under each filled field ───────────────────────────────────────────────────────
 
 export type NoteTone = "neutral" | "warning" | "success";
-export interface FieldNote { text: string; tone: NoteTone }
-
-/** The form's value of each prefilled field, to tell a person's change from the reader's value. */
-const FORM_VALUE: Record<PrefillKey, (l: CalcLineForm) => unknown> = {
-  product: (l) => l.product?.hmtRef ?? null,
-  packageType: (l) => l.packageType,
-  packageCount: (l) => l.packageCount.trim(),
-  grossWeight: (l) => `${l.grossWeightValue.trim()} ${l.grossWeightUnit}`,
-  limitedQuantity: (l) => l.isLimitedQuantity,
-};
+export interface FieldNote {
+  text: string;
+  tone: NoteTone;
+  /** Calculate waits on a person here (bolReview.ts, D-DR24). */
+  pending?: boolean;
+  /** The note offers "Matches the page" — not for a line with no product, which needs one chosen. */
+  confirmable?: boolean;
+  /** The readings a person can pick in one click — a disputed count or weight only. */
+  choices?: number[];
+}
 
 const shown = (v: unknown): string =>
   v == null || v === "" ? "nothing" : Array.isArray(v) ? (v.length ? v.join(", ") : "nothing") : typeof v === "number" ? v.toLocaleString("en-US") : String(v);
@@ -287,8 +287,9 @@ const shown = (v: unknown): string =>
  * note says where the value came from without asking for anything the panel's callout has not already asked.
  * Once the person changes the value, the reader's account no longer describes it, so the note says so.
  */
-export function fieldNote(field: PrefillField, changed: boolean): FieldNote {
+export function fieldNote(field: PrefillField, changed: boolean, checked = false): FieldNote {
   if (changed) return { text: "Changed by you.", tone: "neutral" };
+  if (checked) return { text: "Checked against the page by you.", tone: "neutral" };
   if (field.reason) return { text: field.reason, tone: "warning" };
   if (field.state === "not_read") return { text: "Not read on the BOL. Enter it if the paper shows it.", tone: "neutral" };
   if (field.agree === false) {
@@ -306,12 +307,19 @@ export interface BolLineView {
   fields: Record<PrefillKey, FieldNote>;
 }
 
-/** A prefilled line as it stands now: its notes, and each field's note against the value the read put there. */
-export function bolLineView(prefill: PrefillLine, current: CalcLineForm): BolLineView {
+/**
+ * A prefilled line as it stands now: its notes, and each field's note against the value the read put there
+ * — with what Calculate still waits on (D-DR24) and, for a disputed count or weight, the readings to pick.
+ */
+export function bolLineView(prefill: PrefillLine, current: CalcLineForm, acted: Acted = new Map()): BolLineView {
   const fields = Object.fromEntries(
-    (Object.keys(FORM_VALUE) as PrefillKey[]).map((k) => [
-      k, fieldNote(prefill.fields[k], !valuesAgree(FORM_VALUE[k](current), FORM_VALUE[k](prefill.form))),
-    ]),
+    (Object.keys(prefill.fields) as PrefillKey[]).map((k) => {
+      const note = fieldNote(prefill.fields[k], changedFrom(prefill, current, k), acted.get(prefill)?.has(k) ?? false);
+      const pending = fieldPending(prefill, current, k, acted);
+      const choices = pending ? readingChoices(prefill.fields[k], k) : [];
+      const confirmable = pending && !(k === "product" && current.product === null);
+      return [k, { ...note, ...(pending ? { pending, confirmable, tone: "warning" as const } : {}), ...(choices.length ? { choices } : {}) }];
+    }),
   ) as Record<PrefillKey, FieldNote>;
   return { printed: prefill.printed, notes: prefill.notes, fields };
 }

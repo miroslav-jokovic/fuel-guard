@@ -139,8 +139,11 @@ describe("routes and refusals", () => {
   });
 
   it("accepts a review batch only on field paths", () => {
-    const entry = { path: "hazmat.lines[0].pg", action: "corrected", oldValue: "II", newValue: "III" };
+    const entry = { path: "hazmat.lines[0].pg", action: "corrected", oldValue: "II", newValue: "III", explicit: true };
     expect(reviewBatchRequestSchema.safeParse({ consumer: "hazmat_calculator", reviews: [entry] }).success).toBe(true);
+    // D-DR24: every entry says whether the dispatcher acted on it — a missing answer is refused, not defaulted.
+    const { explicit: _drop, ...unsaid } = entry;
+    expect(reviewBatchRequestSchema.safeParse({ consumer: "hazmat_calculator", reviews: [unsaid] }).success).toBe(false);
     expect(reviewBatchRequestSchema.safeParse({ consumer: "hazmat_calculator", reviews: [{ ...entry, path: "pg!" }] }).success).toBe(false);
     expect(reviewBatchRequestSchema.safeParse({ consumer: "hazmat_calculator", reviews: [] }).success).toBe(false);
   });

@@ -10,7 +10,9 @@ import { AppFormField as FormField } from "@silvicom/ui";
 import { AppCombobox as ComboSelect } from "@silvicom/ui";
 import VerdictPanel from "@/features/hazmat/VerdictPanel.vue";
 import HazmatProductLines from "@/features/hazmat/HazmatProductLines.vue";
-import { bolLineView, bolPrefill, hmtRefsOf, type PrefillLine } from "@/features/hazmat/bolRead/bolPrefill";
+import { bolLineView, bolPrefill, hmtRefsOf, type PrefillKey, type PrefillLine } from "@/features/hazmat/bolRead/bolPrefill";
+import { pendingCount, type FilledLine } from "@/features/hazmat/bolRead/bolReview";
+import { useBolReviews } from "@/features/hazmat/bolRead/useBolReviews";
 import BolFindingsPanel from "@/features/hazmat/bolRead/BolFindingsPanel.vue";
 import { bolFindings, type BolFindings } from "@/features/hazmat/bolRead/bolFindings";
 import { useHazmatTrailersQuery } from "@/features/hazmat/useHazmatEquipment";
@@ -65,7 +67,13 @@ const form = reactive<CalcForm>(emptyForm());
 const calc = useHazmatCalc(props.basePath);
 const result = ref<CalcResult | null>(null);
 
-const canCalculate = computed(() => calcFormReady(form));
+// D-DR24: a BOL-filled field the evidence disputes waits on a person before Calculate (bolReview.ts).
+const reviews = useBolReviews();
+const filledLines = computed<FilledLine[]>(() =>
+  form.lines.flatMap((current) => { const prefill = prefilled.get(toRaw(current)); return prefill ? [{ prefill, current }] : []; }),
+);
+const pending = computed(() => pendingCount(filledLines.value, reviews.acted.value));
+const canCalculate = computed(() => calcFormReady(form) && pending.value === 0);
 
 // ── fleet equipment (authenticated calculator only) ─────────────────────────────────────────────
 const fleetEnabled = computed(() => props.fleet);
@@ -167,13 +175,17 @@ const bolError = ref<string | null>(null);
 const findings = ref<BolFindings | null>(null);
 const bolView = (line: (typeof form.lines)[number]) => {
   const p = prefilled.get(toRaw(line));
-  return p ? bolLineView(p, line) : null;
+  return p ? bolLineView(p, line, reviews.acted.value) : null;
 };
+const prefillAt = (i: number) => { const line = form.lines[i]; const p = line ? prefilled.get(toRaw(line)) : undefined; return p && line ? { p, line } : null; };
+function confirmField(i: number, key: PrefillKey) { const at = prefillAt(i); if (at) reviews.act(at.p, key); }
+function chooseReading(i: number, key: PrefillKey, value: number) { const at = prefillAt(i); if (at) reviews.choose(at.p, at.line, key, value); }
 /** A line nobody has touched — replaced by the read rather than left above it. */
 const untouched = (l: (typeof form.lines)[number]) => l.product === null && l.packageCount === "" && l.grossWeightValue === "";
 
 watch(() => props.bolRead, async (read) => {
   if (!read) return;
+  reviews.reset();
   bolError.value = null;
   findings.value = null;
   bolNoHazmat.value = null;
@@ -210,6 +222,9 @@ watch(() => props.bolRead, async (read) => {
   result.value = null;
 });
 async function calculate() {
+  if (!canCalculate.value) return; // the disabled button is not the only way to submit a form
+  // The review is the record of what this press sent (plan §6); it never holds up the placards.
+  if (props.bolRead && filledLines.value.length) void reviews.post(props.bolRead.id, props.bolRead.result, filledLines.value);
   result.value = await calc.mutateAsync(buildCalcRequest(form));
 }
 function resetAll() {
@@ -217,6 +232,7 @@ function resetAll() {
   equipmentOverride.value = false;
   sourceMode.value = props.fleet ? "fleet" : "manual";
   Object.assign(form, emptyForm());
+  reviews.reset();
   result.value = null;
   bolSummary.value = null;
   bolError.value = null;
@@ -353,6 +369,8 @@ function resetAll() {
         @remove-line="form.lines.splice($event, 1)"
         @select-product="(index, product) => (form.lines[index]!.product = product)"
         @clear-product="(index) => (form.lines[index]!.product = null)"
+        @confirm-field="confirmField"
+        @choose-reading="chooseReading"
       />
 
       <!-- ── the rest of the load (H-MX) ─────────────────────────────────────────────────────── -->
@@ -403,7 +421,11 @@ function resetAll() {
         </BaseButton>
         <BaseButton variant="secondary" type="button" @click="resetAll">Reset</BaseButton>
       </div>
-      <p v-if="!canCalculate" class="text-xs text-ink-muted">Choose the equipment and add at least one regulated product to calculate.</p>
+      <p v-if="pending > 0" class="text-xs text-warning-800" data-testid="bol-pending">
+        {{ pending }} {{ pending === 1 ? "field filled from the BOL needs" : "fields filled from the BOL need" }} a check against the page
+        first — each one says why. Confirm it, pick a reading, or change it.
+      </p>
+      <p v-else-if="!canCalculate" class="text-xs text-ink-muted">Choose the equipment and add at least one regulated product to calculate.</p>
 
       <AppCallout v-if="calc.isError.value" tone="danger">
         {{ calc.error.value instanceof Error ? calc.error.value.message : "Calculation failed." }}

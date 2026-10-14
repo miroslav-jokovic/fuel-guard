@@ -243,6 +243,7 @@ export async function recordReviews(
     new_value: r.newValue,
     actor: userId,
     consumer: batch.consumer,
+    explicit: r.explicit,
   }));
   const { error: iErr } = await admin.from("document_read_reviews").insert(rows);
   if (iErr) return fail("insert_failed", iErr.message);

@@ -225,16 +225,19 @@ describe("reviewEntryProblem", () => {
 });
 
 describe("recordReviews", () => {
-  const batch = { consumer: "hazmat_calculator" as const, reviews: [{ path: "shipper.name", action: "corrected" as const, oldValue: "ACME", newValue: "ACME Corp" }] };
+  const batch = { consumer: "hazmat_calculator" as const, reviews: [{ path: "shipper.name", action: "corrected" as const, oldValue: "ACME", newValue: "ACME Corp", explicit: true }] };
   const world = (status: string | null) =>
     createSupabaseRecorder({ tables: { document_reads: status ? [{ id: READ, status, result: { shipper: { name: "ACME" } } }] : [] } });
 
-  it("records each verdict with its actor and consumer", async () => {
+  it("records each verdict with its actor, consumer and whether the dispatcher acted on it", async () => {
     const rec = world("done");
-    expect(await recordReviews(rec.client, ORG, USER, READ, batch)).toEqual({ recorded: 1 });
-    expect(rec.writtenRows("document_read_reviews")).toEqual([{
-      org_id: ORG, read_id: READ, field_path: "shipper.name", action: "corrected", old_value: "ACME", new_value: "ACME Corp", actor: USER, consumer: "hazmat_calculator",
-    }]);
+    const both = { ...batch, reviews: [...batch.reviews, { path: "shipper.name", action: "corrected" as const, oldValue: "ACME", newValue: "ACME Inc", explicit: false }] };
+    expect(await recordReviews(rec.client, ORG, USER, READ, both)).toEqual({ recorded: 2 });
+    const row = { org_id: ORG, read_id: READ, field_path: "shipper.name", action: "corrected", old_value: "ACME", actor: USER, consumer: "hazmat_calculator" };
+    expect(rec.writtenRows("document_read_reviews")).toEqual([
+      { ...row, new_value: "ACME Corp", explicit: true },
+      { ...row, new_value: "ACME Inc", explicit: false },
+    ]);
     expectOrgScoped(rec, ORG);
   });
 
@@ -245,7 +248,7 @@ describe("recordReviews", () => {
       expect(rec.writes()).toEqual([]);
     }
     const rec = world("done");
-    const bad = { ...batch, reviews: [...batch.reviews, { path: "shipper.name", action: "confirmed" as const, oldValue: "WRONG", newValue: "WRONG" }] };
+    const bad = { ...batch, reviews: [...batch.reviews, { path: "shipper.name", action: "confirmed" as const, oldValue: "WRONG", newValue: "WRONG", explicit: true }] };
     expect(await recordReviews(rec.client, ORG, USER, READ, bad)).toMatchObject({ code: "invalid_review" });
     expect(rec.writes()).toEqual([]);
   });
