@@ -25,6 +25,7 @@ vi.mock("@/features/drugAlcohol/useDrugAlcoholProgram", () => ({
 }));
 
 import DrugAlcoholPage from "./DrugAlcoholPage.vue";
+import FilterSelect from "@/components/ui/FilterSelect.vue";
 
 const person = (id: string, name: string) => ({ driverId: id, medstopId: `m-${id}`, name });
 // Unscanned card, sources disagree: the file keeps the earlier (Med-Stop's). A scanned card that
@@ -47,8 +48,11 @@ const program = (over: Partial<DrugAlcoholProgram> = {}): DrugAlcoholProgram => 
     currentPercent: 42.58, membersAvg: 155, completedTests: 66, requiredTests: 83, testsOwed: 17, scheduledTests: 17, lostSelections: 12,
   }],
   selections: {
-    due: [{ selectionId: "s1", service: "drug", selectedOn: "2026-10-06", daysSince: 7, person: person("d9", "Dee Due"), ordered: false }],
-    reserves: [],
+    draws: [
+      { selectionId: "s1", service: "drug", selectedOn: "2026-10-06", daysSince: 7, person: person("d9", "Dee Due"), ordered: false, state: "due", medstopStatus: "OPEN" },
+      { selectionId: "s2", service: "drug", selectedOn: "2026-11-20", daysSince: -38, person: person("d8", "Uma Upcoming"), ordered: false, state: "upcoming", medstopStatus: "OPEN" },
+      { selectionId: "s3", service: "alcohol", selectedOn: "2026-03-02", daysSince: 225, person: person("d7", "Tia Tested"), ordered: true, state: "tested", medstopStatus: "COMPLETED" },
+    ],
   },
   inProgress: [
     { key: "test:t1", person: person("d5", "Pat Pending"), kind: "drug", reason: "PRE-EMPLOYMENT", stage: "At the lab", orderedOn: null, collectedOn: "2026-10-09", expectedOn: "2026-10-13", daysWaiting: 4 },
@@ -89,6 +93,21 @@ describe("DrugAlcoholPage", () => {
     expect(w.text()).toContain("Dee Due");
     expect(w.text()).toContain("Not ordered");
     expect(w.text()).toContain("17 more tests needed for 53% by 12/31/2026");
+  });
+
+  it("opens Random on the whole year's draws — due, upcoming and tested — and Due now narrows it (D-MSUX18)", async () => {
+    state.role = "safety_manager";
+    const w = await render(program());
+    state.role = null;
+    for (const name of ["Dee Due", "Uma Upcoming", "Tia Tested"]) expect(w.text()).toContain(name);
+    expect(w.text()).toContain("Upcoming");
+    // Only a due draw offers an order; the upcoming one is never orderable ahead of its date.
+    expect(w.findAll("button").filter((b) => b.text() === "Order test")).toHaveLength(1);
+    w.findComponent(FilterSelect).vm.$emit("update:modelValue", "due");
+    await flushPromises();
+    expect(w.text()).toContain("Dee Due");
+    expect(w.text()).not.toContain("Uma Upcoming");
+    expect(w.text()).not.toContain("Tia Tested");
   });
 
   it("does not draw Random or Results at all for a role the API holds them from", async () => {

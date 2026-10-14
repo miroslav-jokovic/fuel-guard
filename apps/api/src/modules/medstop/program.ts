@@ -4,8 +4,8 @@ import {
   inProgressRows,
   medicalCards,
   poolPace,
+  randomDrawsThisYear,
   reconcileRosters,
-  selectionsAwaitingTest,
   shiftDay,
   type CalendarDay,
   type DrugAlcoholProgram,
@@ -145,7 +145,7 @@ export async function readDrugAlcoholProgram(
           selectionRows,
         ),
       ),
-    selections: testingRoles ? selectionsAwaitingTest(selectionRows, personOf, today) : null,
+    selections: testingRoles ? { draws: randomDrawsThisYear(selectionRows, personOf, today) } : null,
     inProgress: inProgressRows(moving.orders, moving.tests, personOf, today, testingRoles),
     // MS2c: the results themselves — testing records, so the same rule as the selections above.
     results: testingRoles ? await readResultReview(admin, orgId, shiftDay(today, -RESULT_REVIEW_DAYS), personOf) : null,

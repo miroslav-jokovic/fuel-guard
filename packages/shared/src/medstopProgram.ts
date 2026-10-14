@@ -1,8 +1,9 @@
 import type { CalendarDay } from "./calendarDay.js";
 import type {
-  DueSelection,
   PoolPace,
   ProgramPerson,
+  RandomDraw,
+  RandomDrawState,
 } from "./medstopContract.js";
 
 /**
@@ -191,42 +192,59 @@ const daysBetween = (from: CalendarDay, to: CalendarDay): number =>
   Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000);
 
 /**
- * The Random tab's two lists (MS-UX §7A.3, R4). `due`: OPEN draws dated on or before today with no
- * test yet, longest-waiting first. `reserves`: alternates dated on or before today, for when a primary
- * cannot be tested.
+ * The Random tab's list (MS-UX §7A.3, D-MSUX18): every draw of `today`'s pool year — drawn, tested,
+ * lost and ahead — each with its state, plus any earlier draw still due. The DER's to-do (`due`) leads, longest-waiting first; then
+ * what is ahead, soonest first; then the rest, newest first.
  *
- * ⚠ NOTHING DATED AFTER TODAY, EVER. Med-Stop draws the quarter ahead (30 future-dated selections on
- * 2026-10-13), and §382.305(l) requires the test to be unannounced. A list that showed next week's
- * draw — even to the DER — is a list that can be read over a shoulder. MS1 showed seven days ahead;
- * the owner's review removed it.
+ * ⚠ FUTURE DRAWS ARE IN THIS LIST, ON THE OWNER'S RULING (2026-10-14). MS1 showed seven days ahead
+ * and the owner's first review removed it (R4); the second review asked for the complete list of who
+ * is scheduled, shown by default. §382.305(l) is about the DRIVER being told early, not the DER
+ * knowing the schedule — so the list stays held to the roles that read testing records, and nothing
+ * here, nor anything it feeds, tells a driver anything.
  */
-export function selectionsAwaitingTest(
+export function randomDrawsThisYear(
   selections: readonly SelectionRow[],
   personOf: (medstopId: string | null) => ProgramPerson,
   today: CalendarDay,
-): { due: DueSelection[]; reserves: DueSelection[] } {
-  const due: DueSelection[] = [];
-  const reserves: DueSelection[] = [];
+): RandomDraw[] {
+  const yearPrefix = `${today.slice(0, 4)}-`;
+  const draws: RandomDraw[] = [];
   for (const s of selections) {
-    const status = normaliseStatus(s.status);
-    if (s.testMedstopId || !s.selectedOn) continue;
-    // 'EXPIRED RESERVE' normalises to RESERVE; an expired one is over, not an alternate.
-    if (status === "RESERVE" && (s.status ?? "").toUpperCase().includes("EXPIRED")) continue;
-    if (status !== "OPEN" && status !== "RESERVE") continue;
+    if (!s.selectedOn) continue;
     const day = s.selectedOn.slice(0, 10);
-    if (day > today) continue;
-    const row: DueSelection = {
+    const state = drawState(s, day, today);
+    // An earlier year's draw still OPEN and untested is not history: it is still the DER's to-do.
+    if (!s.selectedOn.startsWith(yearPrefix) && state !== "due") continue;
+    draws.push({
       selectionId: s.medstopId,
       service: serviceOf(s.service),
       selectedOn: day,
       daysSince: daysBetween(day, today),
       person: personOf(s.employeeMedstopId),
       ordered: s.requestMedstopId !== null,
-    };
-    (status === "OPEN" ? due : reserves).push(row);
+      state,
+      medstopStatus: s.status?.trim() || null,
+    });
   }
-  const longestFirst = (a: DueSelection, b: DueSelection) => b.daysSince - a.daysSince || a.person.name.localeCompare(b.person.name);
-  return { due: due.sort(longestFirst), reserves: reserves.sort(longestFirst) };
+  const byName = (a: RandomDraw, b: RandomDraw) => a.person.name.localeCompare(b.person.name);
+  const of = (keep: (d: RandomDraw) => boolean) => draws.filter(keep);
+  return [
+    ...of((d) => d.state === "due").sort((a, b) => b.daysSince - a.daysSince || byName(a, b)),
+    ...of((d) => d.state === "upcoming").sort((a, b) => a.selectedOn.localeCompare(b.selectedOn) || byName(a, b)),
+    ...of((d) => d.state !== "due" && d.state !== "upcoming").sort((a, b) => b.selectedOn.localeCompare(a.selectedOn) || byName(a, b)),
+  ];
+}
+
+function drawState(s: SelectionRow, day: CalendarDay, today: CalendarDay): RandomDrawState {
+  // A test is the fact that settles a draw, whatever Med-Stop's status word (REFUSAL, TEST CANCELED).
+  if (s.testMedstopId) return "tested";
+  const raw = (s.status ?? "").toUpperCase();
+  const status = normaliseStatus(s.status);
+  if (status === "RESERVE") return raw.includes("EXPIRED") ? "alternate_unused" : "alternate";
+  if (status === "OPEN") return day > today ? "upcoming" : "due";
+  if (status === "CANCELED") return "cancelled";
+  if (status === "EXPIRED") return "expired";
+  return "other";
 }
 
 export interface MatchedPerson extends MedstopPersonRow {

@@ -80,15 +80,27 @@ export interface PoolPace {
   lostSelections: number;
 }
 
-export interface DueSelection {
+/**
+ * Where a random draw stands (D-MSUX18). `due`: drawn on or before today, OPEN, not tested — the DER's
+ * to-do. `upcoming`: drawn ahead of today. `alternate`: a reserve not yet used; `alternate_unused`:
+ * one that expired unused (not a lost draw). `cancelled` and `expired` ended without a test — both
+ * count against the year's rate. `other`: a Med-Stop status nobody mapped, shown as Med-Stop wrote it.
+ */
+export type RandomDrawState = "due" | "upcoming" | "tested" | "alternate" | "alternate_unused" | "cancelled" | "expired" | "other";
+
+/** One of the year's random draws, as the Random tab lists it. Built only for testing-record readers. */
+export interface RandomDraw {
   selectionId: string;
   service: "drug" | "alcohol" | "other";
   selectedOn: string;
-  /** Negative for a selection still ahead (the upcoming week). */
+  /** Days from the draw to today; negative for a draw still ahead. */
   daysSince: number;
   person: ProgramPerson;
   /** A request exists — the test is ordered and waiting on the driver. */
   ordered: boolean;
+  state: RandomDrawState;
+  /** Med-Stop's own status, verbatim — what `other` shows. */
+  medstopStatus: string | null;
 }
 
 /** One Med-Stop test as a screen shows it (MS2c, F-4). */
@@ -204,11 +216,11 @@ export interface DrugAlcoholProgram {
   lastError: string | null;
   pools: PoolPace[];
   /**
-   * Who is selected and not yet tested. NULL — not empty — when the reader may not see it: a
-   * selection names a person before they are told, and §382.305(l) wants that notice immediate
-   * and unannounced, so the list is held to the roles that read testing records.
+   * The pool year's random draws, past and ahead (D-MSUX18). NULL — not empty — when the reader may
+   * not see it: a selection names a person before they are told, and §382.305(l) wants that notice
+   * immediate and unannounced, so the list is held to the roles that read testing records.
    */
-  selections: { due: DueSelection[]; reserves: DueSelection[] } | null;
+  selections: { draws: RandomDraw[] } | null;
   inProgress: InProgressRow[];
   /**
    * MS2c (F-5): results the DER must see. NULL for roles that may not read testing records.

@@ -117,7 +117,7 @@ describe("GET /api/drug-alcohol/program", () => {
 
   it("shows the DER who is selected and untested, by our driver's name", async () => {
     const { body } = await read();
-    expect(body.data.selections?.due.map((s) => s.person.name)).toEqual(["Ann Pooled"]);
+    expect(body.data.selections?.draws.filter((s) => s.state === "due").map((s) => s.person.name)).toEqual(["Ann Pooled"]);
   });
 
   it("holds the selection lists back — null, not empty — from a fleet manager", async () => {

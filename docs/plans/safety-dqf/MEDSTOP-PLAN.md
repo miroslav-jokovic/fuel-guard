@@ -274,7 +274,7 @@ A primary **"Order a test"** button in the page header opens one SlideOver from 
 
 | Tab | Who sees it | Rows | Row action |
 |---|---|---|---|
-| **Random selections** (default) | admin, safety_manager only (§382.305(l)) | OPEN selections due today or earlier, oldest first: driver, drug/alcohol, selected, days waiting, ordered? · then reserves · pool pace strip on top (rate, tests still needed, draws ahead) | **Order test** (prefilled: random, the selection id as Med-Stop's seed) |
+| **Random selections** (default) | admin, safety_manager only (§382.305(l)) | The pool year's draws, all of them, by default (D-MSUX18): due now (longest-waiting first), then upcoming (soonest first), then tested / cancelled / expired / alternates (newest first), each with its status · a **Show** filter (All, Due now, Upcoming, Tested, Not tested, Alternates) · pool pace strip on top (rate, tests still needed, draws ahead) | **Order test** on a due draw only (prefilled: random, the selection id as Med-Stop's seed) |
 | **In progress** | safety (stage + expected by); the result column only for testing-record roles | every order not collected + every test not final, any reason (pre-employment, random, post-accident…): person, reason, stage, collected, expected by, days | open the person; "call the site" info |
 | **Results** | admin, safety_manager | last 12 months, filter by outcome; violations and dilutes first; MS2c's "found on first read" as a filter, not a second table | file return-to-duty (existing door) |
 | **Medical cards** | safety | drivers whose card (from `certifications`, the alerting source) expires ≤ 60 d or has expired; Med-Stop's date only where it differs | open the qualification file |
@@ -313,7 +313,8 @@ the step says "Add this applicant in Med-Stop first" with the portal link.
   — sample 10 against the cards on file (needs a production read the session could not make).
 - **R3 Only certain matches act or name a person's result** (already true for the stop and the
   hiring card); name-only matches are shown as "Unconfirmed — check the licence".
-- **R4 A future draw never shows early**; reserves are shown as reserves, never as due.
+- **R4 A future draw is never shown as due**; reserves are shown as reserves, never as due. (Until
+  2026-10-14 a future draw was not shown at all — superseded by D-MSUX18, §7A.17.)
 - **R5 Every count on a tab is the length of the list under it** — no separately computed numbers.
 
 ### 7A.7 Sidebar
@@ -703,6 +704,26 @@ else the appointment's. An undated refusal is shown, because it stops dispatch. 
 before a specimen was collected". No real refusal has been seen yet (§7A.16); if the first one carries
 a field this row needs, that is a follow-up, not a reason to hide it until then.
 
+### 7A.17 The Random tab lists the whole year (D-MSUX18, 2026-10-14)
+
+The owner's second review: the Random tab showed only draws due now and not tested (3 of 148 in
+2026, counted in production 10/14: 3 due, 83 tested, 33 cancelled or expired, 29 scheduled ahead from
+10/25 to 12/31), not the complete list of who is scheduled for a random test.
+
+- D-MSUX18 — **The list is every draw of the pool year, shown by default**, each with its state
+  (`randomDrawsThisYear`, shared): Due now, Upcoming, Tested, Alternate, Alternate (not used),
+  Cancelled, Expired (not tested), or Med-Stop's own word for a status nobody mapped. An earlier
+  year's draw still OPEN and untested is listed too, because it is still due. The **Show** filter
+  narrows the list; "Due now" is the DER's to-do and the tab's badge (R5: the badge is the length of
+  the list that filter shows).
+- This reverses MS1-review's R4 ("a future draw never shows early"). §382.305(l) requires that the
+  DRIVER is not told in advance. It does not stop the DER from knowing the schedule. So the list is
+  still held to `canReadTestingRecords` (null for every other role), it reaches no driver-facing
+  surface, and **Order test** is offered only on a draw that is due. An upcoming draw cannot be
+  ordered ahead of its date from here.
+- `DueSelection` and the separate Alternates card are gone. The contract is
+  `selections: { draws: RandomDraw[] }`.
+
 ## 8. Open questions
 
 - ~~Q-MS1~~ — base URL: `https://api.med-stop.com` (API-Key-access.md).
@@ -923,3 +944,6 @@ a field this row needs, that is a follow-up, not a reason to hide it until then.
 - 2026-10-14 — **#1533 merged; refused orders listed under Results to review** (branch
   `claude/medstop-refused-results`, no migration; §7A.16): `MedstopResultRow` gains `source` and
   `medstopId` (was `testId`); refused orders are split recent/history the way the alert splits them.
+- 2026-10-14 — **Random tab lists the whole year** (branch `claude/medstop-random-full-list`, no
+  migration; §7A.17, D-MSUX18, owner's ruling): every draw of the pool year by default, with a Show
+  filter; R4 narrowed to "never shown as due".
