@@ -517,3 +517,49 @@ item titles and button labels as often as real drift. They stay a review item.
 Re-shot at 1280 and 390 with the empty fixture: the Fuel Log's card assignments drawer draws the
 table's own empty line in the drawer.
 
+### 2026-10-14 — The sweep after batch 3, part 2: failures shown as empty, two lists that were tables, four headings
+
+(claude/ui-sweep-part2)
+
+**Failure states first — each was a failed read showing as an answer:**
+
+- **Asset kinds** (`AssetTypesDrawer`): `empty` was `(types ?? []).length === 0`. It was true while the
+  read was in flight and true when it failed. So a shop whose kinds could not be read was offered
+  "Set it up", and adopting the standard kit OVERWRITES the fleet's kit rules with the catalogue's
+  numbers (the drawer's own header). Empty is now an answered read. Loading, and a failure with Retry,
+  come from `QueryState`.
+- **Stock locations** (`LocationsDrawer`): a failed read said "No locations yet. Add the shop itself
+  first" to a shop that has bays. It now has three answers. The list is a `DataTable` (the code beside
+  the name: a separate column pushed the row's menu 30 px past the drawer's 400 px edge, as measured in
+  the browser). Edit and Close/Reopen are in the row's menu, and Close is the danger item.
+- **Active fuel exceptions** (`ActiveOverridesPanel`): a failed read drew nothing, the same as before
+  first data. It now says "Could not load the active fuel exceptions." with Retry. Nothing-before-data
+  stays, for the panel's own reason. The rows (card, unit and driver, uses, where, read age) are a
+  `DataTable`, and Re-read and Remove exception… are the row's menu. Remove exception… still opens the
+  card's drawer with its confirmation.
+
+**Headings drawn as text, now headings:** Messages' open conversation (`h2`, `text-sm`), the live map's
+selected unit (`h2`, `text-sm`), the load page's reference (`h2`, `text-lg`, which is the record's own
+title) and the declined attempt drawer's unit (`h3`, moved from `text-lg` to `text-sm`, the drawer
+size, because it sat larger than the drawer's own title).
+
+**Read and left as they are:**
+- `SignatoryRegister` already has its three states, and each row reads as one sentence with one
+  action. `IncidentDetail`'s attempts are a time and a source.
+- `ScanPage` and `ScanResultCard` set their titles at `text-base` for the scan screen, which is read at
+  arm's length in `ShopLayout`. The assistant's opening prompt, the Fleet readiness disclosure label
+  (inside a button, where a heading may not go), the trip plan's timeline nodes and list item titles
+  are not section headings.
+
+**Seen on the way, not changed here:** on the Fuel Cards page at 390, the cards table's phone sort
+picker opens blank, and its failure line "Could not load cards" has no full stop.
+
+Tests that fail on the old code (with a `cp` backup, restored byte for byte):
+- `inventoryDrawersReadStates.test.ts`: 3 of 5 fail on the old locations drawer and 1 of 5 on the old
+  kinds drawer. The other cases pin behaviour that is kept.
+- `ActiveOverridesPanel.test.ts`: 2 of 3 fail on the old panel.
+- `DeclinesTab.table.test.ts`: the drill-down heading test fails with the old `div` in place.
+
+Re-shot at 1280 and 390 with the rows, empty and failure fixtures (both drawers and the Fuel Cards
+page), and looked at.
+

@@ -8,6 +8,9 @@ import {
   AppInput as BaseInput,
 } from "@silvicom/ui";
 import SlideOver from "@/components/SlideOver.vue";
+import KebabMenu from "@/components/KebabMenu.vue";
+import DataTable, { type DataTableColumn } from "@/components/ui/DataTable.vue";
+import QueryState from "@/components/ui/QueryState.vue";
 import { useCreateLocation, useLocationsQuery, useUpdateLocation } from "./useInventory";
 import { useToastStore } from "@/stores/toast";
 
@@ -40,6 +43,12 @@ import { useToastStore } from "@/stores/toast";
  * movement into it (`IV012`). So every picker in the product asks for active locations only, and
  * this screen is the one place that shows the closed ones — because reopening one has to be
  * possible from somewhere.
+ *
+ * ── A TABLE, AND A READ WITH THREE ANSWERS (2026-10-14) ───────────────────────────────────────
+ * The sweep after US6b batch 3 found this list drawing nothing while it loaded and "No locations
+ * yet. Add the shop itself first" when the read FAILED — telling a shop with bays to create its
+ * first one. Loading, failure (with Retry) and empty are now three answers. The rows are a table
+ * (name, code, address, state) and Edit / Close / Reopen sit in the row's menu (contract §5.6).
  */
 
 defineProps<{ open: boolean }>();
@@ -48,7 +57,15 @@ const emit = defineEmits<{ close: [] }>();
 const FORM_ID = "location-form";
 
 const toast = useToastStore();
-const { data: locations, isLoading } = useLocationsQuery(true);
+const { data: locations, isLoading, isError, isFetching, refetch } = useLocationsQuery(true);
+
+const COLUMNS: DataTableColumn[] = [
+  // The code rides beside the name, as it is said: a drawer is 400px, and a column of its own pushed
+  // the row's menu past the edge (measured 430px, 2026-10-14).
+  { key: "name", label: "Location" },
+  { key: "address", label: "Address" },
+  { key: "active", label: "State" },
+];
 const create = useCreateLocation();
 const update = useUpdateLocation();
 
@@ -119,33 +136,42 @@ async function setActive(location: StockLocationDto, active: boolean) {
     @close="emit('close')"
   >
     <div class="space-y-4">
-      <ul v-if="locations?.length" class="divide-y divide-edge-subtle">
-        <li v-for="location in locations" :key="location.id" class="flex items-start justify-between gap-3 py-3">
-          <div class="min-w-0">
-            <p class="text-sm font-medium text-ink">
-              {{ location.name }}
-              <span class="ml-1 font-mono text-xs text-ink-tertiary">{{ location.code }}</span>
-            </p>
-            <p v-if="location.address" class="mt-0.5 text-xs text-ink-tertiary">{{ location.address }}</p>
-            <AppBadge v-if="!location.active" tone="neutral" class="mt-1">Closed</AppBadge>
-          </div>
-          <div class="flex shrink-0 gap-2">
-            <BaseButton variant="ghost" size="sm" @click="startEdit(location)">Edit</BaseButton>
-            <BaseButton
-              v-if="location.active"
-              variant="ghost"
-              size="sm"
-              @click="setActive(location, false)"
-            >
-              Close
-            </BaseButton>
-            <BaseButton v-else variant="ghost" size="sm" @click="setActive(location, true)">Reopen</BaseButton>
-          </div>
-        </li>
-      </ul>
-      <p v-else-if="!isLoading" class="text-sm text-ink-tertiary">
-        No locations yet. Add the shop itself first — everything on a shelf is somewhere.
-      </p>
+      <QueryState
+        :loading="isLoading"
+        :error="isError"
+        :retrying="isFetching"
+        loading-text="Loading the locations…"
+        error-text="Could not load the stock locations."
+        @retry="refetch()"
+      >
+        <DataTable
+          embedded
+          dense
+          :sticky-header="false"
+          :columns="COLUMNS"
+          :rows="locations ?? []"
+          row-key="id"
+          empty-text="No locations yet. Add the shop itself first — everything on a shelf is somewhere."
+        >
+          <template #cell-name="{ row }">
+            <span class="font-medium text-ink">{{ row.name }}</span>
+            <span class="ml-1 font-mono text-xs text-ink-tertiary">{{ row.code }}</span>
+          </template>
+          <template #cell-active="{ row }">
+            <AppBadge v-if="!row.active" tone="neutral">Closed</AppBadge>
+            <span v-else class="text-ink-secondary">Open</span>
+          </template>
+          <template #actions="{ row }">
+            <KebabMenu :trigger-label="`Actions for ${row.name}`">
+              <BaseButton class="kebab-item" @click="startEdit(row)">Edit</BaseButton>
+              <BaseButton v-if="row.active" class="kebab-item kebab-item-danger" @click="setActive(row, false)">
+                Close
+              </BaseButton>
+              <BaseButton v-else class="kebab-item" @click="setActive(row, true)">Reopen</BaseButton>
+            </KebabMenu>
+          </template>
+        </DataTable>
+      </QueryState>
 
       <form v-if="adding" :id="FORM_ID" class="border-t border-edge-subtle pt-5" @submit.prevent="onSubmit">
         <h3 class="text-sm font-semibold text-ink">{{ editing ? "Edit location" : "New location" }}</h3>

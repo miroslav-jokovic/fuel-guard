@@ -7,6 +7,10 @@ import { cardIdentityLabel } from "./cardIdentityLabel";
 import { useEfsCards } from "./useEfsCards";
 import { useRefreshCard } from "./useCardControl";
 import { AppButton as BaseButton } from "@silvicom/ui";
+import { RouterLink, useRouter } from "vue-router";
+import KebabMenu from "@/components/KebabMenu.vue";
+import DataTable, { type DataTableColumn } from "@/components/ui/DataTable.vue";
+import QueryState from "@/components/ui/QueryState.vue";
 
 /** One rule for naming a card to a human, shared with the inventory — see cardIdentityLabel.ts. */
 const identity = cardIdentityLabel;
@@ -42,10 +46,26 @@ const identity = cardIdentityLabel;
  * exception (`docs/22` H4). A stale row is annotated rather than dropped — "we last read this two
  * days ago" is not the same answer as "no", and filtering would make the panel quietest exactly when
  * the mirror is worst — and `Re-read` spends one paced vendor call, on one card, when a person asks.
+ *
+ * ── A table, and a failure that says so (2026-10-14) ────────────────────────────────────────────
+ * The sweep after US6b batch 3 found the rows hand-built as a wrapping line of five facts and two
+ * actions, and a failed read drawing NOTHING — the same as before first data. Nothing-before-data
+ * stays (see the template), but a failed read is now "Could not load…" with Retry: an account-wide
+ * claim that silently vanishes when the read fails is the panel being quietest exactly when it
+ * knows least. The rows are a `DataTable`, and Re-read / Remove exception… are the row's menu.
  */
 
 // Unfiltered on purpose — see the docblock. Refs are stable for the component's lifetime.
 const query = useEfsCards({ search: ref(""), status: ref("") });
+const router = useRouter();
+
+const COLUMNS: DataTableColumn[] = [
+  { key: "maskedRef", label: "Card" },
+  { key: "identity", label: "Unit and driver" },
+  { key: "uses", label: "Exception" },
+  { key: "scopeLabel", label: "Where" },
+  { key: "freshness", label: "Read" },
+];
 
 const rows = computed(() =>
   // The detail clock, not the roster one: override SCOPE is read only by the daily detail pass.
@@ -73,8 +93,18 @@ const loaded = computed(() => query.data.value !== undefined);
 
 <template>
   <!-- Nothing renders before first data: a flash of "No exceptions" that corrects itself to two
-       rows teaches operators the panel guesses. Absence of the panel claims nothing. -->
-  <section v-if="loaded" class="space-y-3">
+       rows teaches operators the panel guesses. A FAILED read is not "before first data" — it says
+       so, with Retry. -->
+  <QueryState
+    v-if="!loaded && query.isError.value"
+    compact
+    :loading="false"
+    :error="query.isError.value"
+    :retrying="query.isFetching.value"
+    error-text="Could not load the active fuel exceptions."
+    @retry="query.refetch()"
+  />
+  <section v-else-if="loaded" class="space-y-3">
     <div class="flex items-baseline gap-2">
       <h2 class="text-sm font-semibold text-ink">Active fuel exceptions</h2>
       <span v-if="rows.length > 0" :class="[BADGE_BASE, toneClass('warning')]">{{ rows.length }}</span>
@@ -82,60 +112,51 @@ const loaded = computed(() => query.data.value !== undefined);
 
     <!-- The empty state is a positive assertion, not a hidden panel: "none" is the answer an
          auditor is looking for, and silence is indistinguishable from "didn't check". -->
-    <p v-if="rows.length === 0" class="text-sm text-ink-muted">
-      No card currently carries a fuel exception.
-    </p>
-
-    <ul v-else class="divide-y divide-edge rounded-control border border-edge bg-surface">
-      <li v-for="row in rows" :key="row.id" class="flex flex-wrap items-center justify-between gap-2 pr-3">
-        <RouterLink
-          :to="`/fuel-cards/${row.id}`"
-          class="flex flex-1 flex-wrap items-center gap-x-4 gap-y-1 px-3 py-2 text-left text-sm hover:bg-surface-subtle"
-        >
-          <span class="font-medium text-ink">{{ row.maskedRef }}</span>
-          <!--
-            Step 7.7: unit AND driver, not one-or-the-other. `driverName ?? unitPrompt` printed
-            whichever came first and HID the other — on a fleet where 40 last-4 groups hold more than
-            one card, the hidden field is often the only thing telling two rows apart.
-          -->
-          <span v-if="!identity(row).unidentified" class="text-ink-muted">{{ identity(row).qualifier }}</span>
-          <span v-else class="text-ink-muted italic">no unit or driver</span>
-          <!-- `known` gates the NUMBER, not the row. Past a sync cycle the count is what EFS said,
-               not what EFS says, and it decrements without us — so it stops being asserted while the
-               card stays listed. Same rule on the card page; one flag decides it in both. -->
-          <span v-if="row.freshness.known" :class="[BADGE_BASE, toneClass('warning')]">
-            {{ row.uses }} use{{ row.uses === 1 ? "" : "s" }} left
-          </span>
-          <span v-else :class="[BADGE_BASE, toneClass('caution')]">
-            uses unknown
-          </span>
-          <span class="text-ink-muted">{{ row.scopeLabel }}</span>
-          <!-- Step 7.8. Muted while the read is current, cautioned once it is older than a sweep:
-               past that the count is what EFS said, not what EFS says, and the count decrements
-               without us. -->
-          <span class="text-xs" :class="row.freshness.known ? 'text-ink-tertiary' : 'text-caution-700'">
-            {{ row.freshness.ageText }}
-          </span>
-        </RouterLink>
-        <div class="flex shrink-0 items-center gap-3 py-2">
+    <DataTable
+      dense
+      :sticky-header="false"
+      :columns="COLUMNS"
+      :rows="rows"
+      row-key="id"
+      empty-text="No card currently carries a fuel exception."
+    >
+      <template #cell-maskedRef="{ row }">
+        <RouterLink :to="`/fuel-cards/${row.id}`" class="font-medium text-link hover:text-link-hover">{{ row.maskedRef }}</RouterLink>
+      </template>
+      <!--
+        Step 7.7: unit AND driver, not one-or-the-other. `driverName ?? unitPrompt` printed
+        whichever came first and HID the other — on a fleet where 40 last-4 groups hold more than
+        one card, the hidden field is often the only thing telling two rows apart.
+      -->
+      <template #cell-identity="{ row }">
+        <span v-if="!identity(row).unidentified" class="text-ink-muted">{{ identity(row).qualifier }}</span>
+        <span v-else class="text-ink-muted italic">no unit or driver</span>
+      </template>
+      <!-- `known` gates the NUMBER, not the row. Past a sync cycle the count is what EFS said,
+           not what EFS says, and it decrements without us — so it stops being asserted while the
+           card stays listed. Same rule on the card page; one flag decides it in both. -->
+      <template #cell-uses="{ row }">
+        <span v-if="row.freshness.known" :class="[BADGE_BASE, toneClass('warning')]">
+          {{ row.uses }} use{{ row.uses === 1 ? "" : "s" }} left
+        </span>
+        <span v-else :class="[BADGE_BASE, toneClass('caution')]">uses unknown</span>
+      </template>
+      <!-- Step 7.8. Muted while the read is current, cautioned once it is older than a sweep:
+           past that the count is what EFS said, not what EFS says, and the count decrements
+           without us. -->
+      <template #cell-freshness="{ row }">
+        <span class="text-xs" :class="row.freshness.known ? 'text-ink-tertiary' : 'text-caution-700'">
+          {{ refreshing === row.id ? "Reading…" : row.freshness.ageText }}
+        </span>
+      </template>
+      <template #actions="{ row }">
+        <KebabMenu :trigger-label="`Actions for card ${row.maskedRef}`">
           <!-- One paced vendor call, on one card, when a person asks for it. See the docblock. -->
-          <BaseButton
-            variant="soft"
-            size="sm"
-            :disabled="refreshing === row.id"
-            @click="onReRead(row.id)"
-          >
-            {{ refreshing === row.id ? "Reading…" : "Re-read" }}
-          </BaseButton>
+          <BaseButton class="kebab-item" :disabled="refreshing === row.id" @click="onReRead(row.id)">Re-read</BaseButton>
           <!-- Opens the drawer on the card, with its confirmation and its diff. Not a one-click clear. -->
-          <RouterLink
-            :to="operationLink(row.id, clearOperation)"
-            class="text-sm font-medium text-brand-700 hover:underline"
-          >
-            Remove exception…
-          </RouterLink>
-        </div>
-      </li>
-    </ul>
+          <BaseButton class="kebab-item" @click="router.push(operationLink(row.id, clearOperation))">Remove exception…</BaseButton>
+        </KebabMenu>
+      </template>
+    </DataTable>
   </section>
 </template>

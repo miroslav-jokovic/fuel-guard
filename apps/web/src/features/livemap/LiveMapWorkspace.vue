@@ -367,7 +367,7 @@ watch(railVisible, async () => {
         <template v-if="selected">
           <div class="mb-2 flex items-start gap-2">
             <div class="min-w-0 flex-1">
-              <p class="truncate text-sm font-semibold text-ink">Unit {{ selected.unitNumber }}</p>
+              <h2 class="truncate text-sm font-semibold text-ink">Unit {{ selected.unitNumber }}</h2>
               <p
                 class="truncate text-xs"
                 :class="selected.driver ? 'text-ink-secondary' : 'text-ink-muted'"

@@ -174,7 +174,7 @@ function markBroken(id: string) {
           <div class="flex flex-wrap items-start justify-between gap-3">
             <div>
               <div class="flex flex-wrap items-center gap-2">
-                <span class="text-lg font-semibold text-ink">{{ load.ref }}</span>
+                <h2 class="text-lg font-semibold text-ink">{{ load.ref }}</h2>
                 <span v-if="boardState" :class="[BADGE_BASE, toneClass(boardState.tone)]" :title="boardState.mcleodWords ?? undefined">
                   {{ boardState.label }}
                 </span>
