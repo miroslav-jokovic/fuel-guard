@@ -188,6 +188,7 @@ const updateRows = computed(() =>
           CSV field reference ▾
         </summary>
         <div class="border-t border-edge">
+          <!-- ui-adoption: never-empty — a fixed reference list of the CSV's columns. -->
           <DataTable
             embedded
             dense
@@ -248,6 +249,7 @@ const updateRows = computed(() =>
         <div class="bg-success-50 px-3 py-2 text-xs font-semibold text-success-800 border-b border-success-100">
           New vehicles ({{ preview.toCreate.length }})
         </div>
+        <!-- ui-adoption: never-empty — its wrapper renders only when the file adds a vehicle. -->
         <DataTable
           embedded
           dense
@@ -270,6 +272,7 @@ const updateRows = computed(() =>
         <div class="bg-brand-50 px-3 py-2 text-xs font-semibold text-brand-800 border-b border-brand-100">
           Setup updates ({{ preview.toUpdate.length }}) — existing vehicles, tank &amp; MPG only
         </div>
+        <!-- ui-adoption: never-empty — its wrapper renders only when the file updates a vehicle. -->
         <DataTable
           embedded
           dense

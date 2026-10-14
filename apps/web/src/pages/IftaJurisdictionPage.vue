@@ -321,6 +321,7 @@ const boughtSub = computed(() => {
           <template #cell-fillCount="{ row }">{{ row.fillCount || "—" }}</template>
           <template #cell-spent="{ row }">{{ Number(row.spent) ? usd(Number(row.spent)) : "—" }}</template>
           <template #expanded="{ row }">
+            <!-- ui-adoption: never-empty — a row opens only when it has fills (hasFills). -->
             <DataTable
               embedded
               dense

@@ -257,6 +257,7 @@ const previewTotal = (p: ImportPreview) =>
             <p class="text-xs font-medium text-ink-muted">
               Preview (first {{ Math.min(previewTotal(preview), 10) }} of {{ previewTotal(preview) }})
             </p>
+            <!-- ui-adoption: never-empty — its wrapper renders only when the preview has rows. -->
             <DataTable
               embedded
               dense

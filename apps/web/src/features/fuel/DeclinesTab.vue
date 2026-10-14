@@ -400,12 +400,10 @@ const columns: DataTableColumn[] = [
           at least 5 of its fills, and 70% or more of them, were on one truck. A card that moves between
           trucks gets none. An assignment set by hand is never changed.
         </p>
-        <p v-if="!cardList.length" class="text-ink-tertiary">
-          No card has a truck yet. Assignments appear when a card has enough fills, or after Recheck.
-        </p>
         <DataTable
-          v-else embedded dense :sticky-header="false"
+          embedded dense :sticky-header="false"
           :columns="cardColumns" :rows="cardList" row-key="id"
+          empty-text="No card has a truck yet. Assignments appear when a card has enough fills, or after Recheck."
         >
           <template #cell-source="{ row }">
             <span :class="[BADGE_BASE, toneClass(row.source === 'manual' ? 'brand' : 'neutral')]">{{ row.source }}</span>

@@ -364,6 +364,7 @@ const integrity = computed(() => {
             </p>
 
             <div v-if="coverage.byMonth.length" class="mt-4">
+              <!-- ui-adoption: never-empty — its wrapper renders only when coverage has a month. -->
               <DataTable embedded :columns="coverageColumns" :rows="coverage.byMonth" row-key="month">
                 <template #cell-month="{ row }">{{ monthLabel(row.month) }}</template>
                 <template #cell-noData="{ row }">

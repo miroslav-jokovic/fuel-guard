@@ -218,6 +218,7 @@ function handleExportError(error: unknown, retry: ExportRetry): boolean {
         description="No access while suspended. Reinstating them on the Users page restores what is shown here."
         :note="`${result.suspended.length} ${result.suspended.length === 1 ? 'person' : 'people'}`"
       >
+        <!-- ui-adoption: never-empty — the card renders only when somebody is suspended. -->
         <DataTable :columns="columns" :rows="toRows(result.suspended)" embedded>
           <template #cell-layer="{ row }">
             <AppBadge :tone="row.layer.tone">{{ row.layer.label }}</AppBadge>

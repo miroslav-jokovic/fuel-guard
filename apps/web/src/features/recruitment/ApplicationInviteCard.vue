@@ -3,6 +3,7 @@ import { computed, ref } from "vue";
 import { AppButton as BaseButton, AppCard as BaseCard, AppInput as BaseInput, AppFormField as FormField } from "@silvicom/ui";
 import { canResendApplicationLink } from "@silvicom/shared";
 import DataTable from "@/components/ui/DataTable.vue";
+import KebabMenu from "@/components/KebabMenu.vue";
 import ApplicationLinkOnce from "@/features/recruitment/ApplicationLinkOnce.vue";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
@@ -221,17 +222,17 @@ const columns: DataTableColumn[] = [
                what state it is in — an application still being filled in is a thing a recruiter is
                entitled to look at, and a button that appears only once it is finished is a button
                nobody finds the first time they want it. -->
-          <BaseButton v-if="!row.revoked_at" size="sm" @click="emit('review', row.id)">
-            Review
-          </BaseButton>
-          <BaseButton
-            v-if="canInvite && stateOf(row) === 'open'"
-            size="sm"
-            :disabled="revoke.isPending.value"
-            @click="revokeInvite(row)"
-          >
-            Revoke
-          </BaseButton>
+          <KebabMenu v-if="!row.revoked_at" :trigger-label="`Actions for the invitation sent ${formatDate(row.created_at)}`">
+            <BaseButton class="kebab-item" @click="emit('review', row.id)">Review</BaseButton>
+            <BaseButton
+              v-if="canInvite && stateOf(row) === 'open'"
+              class="kebab-item kebab-item-danger"
+              :disabled="revoke.isPending.value"
+              @click="revokeInvite(row)"
+            >
+              Revoke
+            </BaseButton>
+          </KebabMenu>
         </template>
       </DataTable>
     </BaseCard>

@@ -178,6 +178,7 @@ function when(at: string | null): string {
 
       <BaseCard v-if="s!.resources.length > 0" as="section">
         <h2 class="text-sm font-semibold text-ink">What each collection last brought in</h2>
+        <!-- ui-adoption: never-empty — the card renders only when FleetPal has reported a collection. -->
         <DataTable
           class="mt-3"
           embedded

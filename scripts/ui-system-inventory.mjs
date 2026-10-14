@@ -656,6 +656,61 @@ function drawerSubmitViolations(item) {
   return found;
 }
 const drawerSubmits = pagesAndFeatures.flatMap(drawerSubmitViolations);
+
+/**
+ * A table says what its empty means, and a row with more than one thing to do puts them in a menu
+ * (the sweep after US6b batch 3, 2026-10-14).
+ *
+ * Empty: `DataTable` draws "No results." when a page gives it nothing to say, and seventeen tables
+ * did — two of them beside a hand-written "No other fills" paragraph doing the table's job, one (the
+ * expense families) able to show the bare default on a quiet month. So every `DataTable` binds
+ * `empty-text` or fills `#empty`. A table that can never be empty — wrapped in a `v-if` on its own
+ * rows, or a fixed reference list — says so where it stands: `ui-adoption: never-empty — <why>`.
+ *
+ * Row actions: the contract's rule since 2026-08-16 is a `KebabMenu` for a row's actions, with one
+ * ghost button allowed when there is a single one (§5.6). Two `#actions` slots carried two buttons
+ * side by side — Review beside Revoke, "They answered" beside "Document no reply" — so the row's
+ * width, and which button was the destructive one, depended on the page. Counted per slot, outside
+ * any `KebabMenu`; reported at the slot.
+ */
+const ROW_ACTION = /^(BaseButton|AppButton|RouterLink|DoorLink)$/;
+function dataTableViolations(item) {
+  const empty = [];
+  const rowActions = [];
+  const tables = [];
+  const templates = [];
+  const at = (offset) => `${item.relativePath}:${item.source.slice(0, offset).split("\n").length}`;
+  for (const tag of templateTags(item.source)) {
+    if (tag.name === "DataTable") {
+      if (tag.closing) {
+        const table = tables.pop();
+        if (table && !table.saysEmpty) empty.push(at(table.start));
+      } else if (tag.selfClosing) {
+        if (!/\s:?empty-text=/.test(tag.raw)) empty.push(at(tag.start));
+      } else tables.push({ start: tag.start, saysEmpty: /\s:?empty-text=/.test(tag.raw) });
+      continue;
+    }
+    const slot = templates.findLast((entry) => entry.actions);
+    if (tag.name === "template" && !tag.selfClosing) {
+      if (tag.closing) {
+        const closed = templates.pop();
+        if (closed?.actions && !closed.kebab && closed.buttons >= 2) rowActions.push(at(closed.start));
+        continue;
+      }
+      const name = tag.raw.match(/(?:#|v-slot:)([\w-]+)/)?.[1];
+      if (name === "empty" && tables.length) tables.at(-1).saysEmpty = true;
+      templates.push({ start: tag.start, actions: name === "actions" && tables.length > 0, kebab: false, buttons: 0 });
+      continue;
+    }
+    if (!slot || tag.closing) continue;
+    if (tag.name === "KebabMenu") slot.kebab = true;
+    else if (ROW_ACTION.test(tag.name) && !slot.kebab) slot.buttons += 1;
+  }
+  return { empty, rowActions };
+}
+const dataTableFindings = pagesAndFeatures.map(dataTableViolations);
+const silentEmptyTables = dataTableFindings.flatMap((item) => item.empty).filter((at) => !siteMarked(at, "never-empty"));
+const inlineRowActions = dataTableFindings.flatMap((item) => item.rowActions);
 function siteMarkerSelfTest() {
   const raw = ["<div>", "  <!-- ui-adoption: not-a-notice — a record panel -->", "  <div class=\"bg-danger-50 ring-1\">", "  <!-- ui-adoption: not-a-notice -->", "  <p class=\"bg-info-50 ring-1\">x</p>"].join("\n");
   const rawOf = () => raw;
@@ -952,6 +1007,27 @@ function verifyAdoption() {
         at(`<div class="grid-cols-[minmax(0,1fr)_15rem] lg:grid-cols-[20rem_minmax(0,1fr)]">`).length)
       failures.push("grid-template checker failed its regression fixture");
   }
+  {
+    const at = (source) => dataTableViolations({ relativePath: "t.vue", source: `<template>\n${source}\n</template>` });
+    const bare = at(`<DataTable :rows="r" />\n<DataTable :rows="r"><template #cell-a="{ row }">{{ row.a }}</template></DataTable>`);
+    const said = at(`<DataTable :rows="r" empty-text="No parts." /><DataTable :rows="r" :empty-text="t" />\n<DataTable :rows="r"><template #empty>None yet.</template></DataTable>`);
+    const nested = at(`<DataTable :rows="r" empty-text="x"><template #expanded><DataTable :rows="f" /></template></DataTable>`);
+    const two = at(`<DataTable :rows="r" empty-text="x">\n<template #actions="{ row }"><template v-if="row.open"><BaseButton>Review</BaseButton></template><BaseButton>Revoke</BaseButton></template></DataTable>`);
+    const kebab = at(`<DataTable :rows="r" empty-text="x"><template #actions><KebabMenu><BaseButton class="kebab-item">A</BaseButton><BaseButton class="kebab-item">B</BaseButton></KebabMenu></template></DataTable>`);
+    const one = at(`<DataTable :rows="r" empty-text="x"><template #actions><BaseButton>Open</BaseButton></template></DataTable>`);
+    const header = at(`<PageHeader><template #actions><BaseButton>A</BaseButton><BaseButton>B</BaseButton></template></PageHeader>`);
+    const raw = "<!-- ui-adoption: never-empty — the card hides itself on no rows -->\n<DataTable :rows=\"r\" />";
+    if (JSON.stringify(bare.empty) !== JSON.stringify(["t.vue:2", "t.vue:3"]) || said.empty.length ||
+        JSON.stringify(nested.empty) !== JSON.stringify(["t.vue:2"]) ||
+        JSON.stringify(two.rowActions) !== JSON.stringify(["t.vue:3"]) || kebab.rowActions.length || one.rowActions.length ||
+        header.rowActions.length || !siteMarked("t.vue:2", "never-empty", () => raw) ||
+        siteMarked("t.vue:2", "never-empty", () => "<!-- ui-adoption: never-empty -->\n<DataTable />"))
+      failures.push("data-table empty / row-action checker failed its regression fixture");
+  }
+  if (silentEmptyTables.length)
+    failures.push(`DataTable with no empty-text (say what an empty table means, or mark ui-adoption: never-empty — <why>): ${silentEmptyTables.join(", ")}`);
+  if (inlineRowActions.length)
+    failures.push(`row #actions with two or more buttons outside a KebabMenu (contract §5.6 — one ghost button, or a KebabMenu): ${inlineRowActions.join(", ")}`);
   if (gridCommas.length)
     failures.push(`arbitrary grid template with a comma between tracks (Tailwind 4 builds nothing for it — write \`_\`): ${gridCommas.join(", ")}`);
   if (recordPagesWithoutNotFound.length)

@@ -94,3 +94,26 @@ describe("the application link on an applicant's record", () => {
     }
   });
 });
+
+/**
+ * A row's actions are its ⋮ menu (contract §5.6; the sweep after US6b batch 3, 2026-10-14). Review and
+ * Revoke used to sit side by side as two equal buttons, so the destructive one looked like the other
+ * and the row's width depended on the invitation's state.
+ */
+describe("an invitation's row actions", () => {
+  it("puts Review and Revoke in the row's menu, Revoke last and marked as destructive", async () => {
+    state.invitations = [invitation({ expires_at: "2099-01-01T00:00:00Z" })];
+    const w = mount(ApplicationInviteCard, {
+      props: { driverId: "d-1", driverStatus: "applicant" },
+      global: { plugins: [VueQueryPlugin] },
+      attachTo: document.body,
+    });
+    await settle(w);
+    expect(buttons(w)).not.toContain("Revoke");
+    await w.get('[aria-label^="Actions for the invitation sent"]').trigger("click");
+    const items = [...document.querySelectorAll<HTMLElement>("button.kebab-item")];
+    expect(items.map((el) => el.textContent!.trim())).toEqual(["Review", "Revoke"]);
+    expect(items[1]!.classList.contains("kebab-item-danger")).toBe(true);
+    w.unmount();
+  });
+});

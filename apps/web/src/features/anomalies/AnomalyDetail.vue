@@ -246,16 +246,14 @@ const transactionFacts = computed<Fact[]>(() => {
         error-text="Could not load the related fills."
         @retry="refetchSiblings()"
       >
-      <p v-if="!siblingFills?.length" class="text-sm text-ink-tertiary italic">No other fills found in this window.</p>
-
       <DataTable
-        v-else
         embedded
         dense
         :sticky-header="false"
         :columns="siblingColumns"
         :rows="siblingRows"
         row-key="id"
+        empty-text="No other fills on this card in this window."
         :row-class="thisFillClass"
       >
         <template #cell-vehicle="{ row }">

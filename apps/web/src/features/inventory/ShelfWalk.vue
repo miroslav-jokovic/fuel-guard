@@ -383,7 +383,7 @@ async function close() {
       <!-- Review: sorted by how far off it is, because that is the order somebody acts in. -->
       <section v-else class="space-y-3">
         <h2 class="text-sm font-semibold text-ink">Review</h2>
-        <DataTable :columns="REVIEW_COLUMNS" :rows="reviewRows" row-key="key">
+        <DataTable :columns="REVIEW_COLUMNS" :rows="reviewRows" row-key="key" empty-text="Nothing on this shelf to review.">
           <template #cell-state="{ row }">
             <span class="inline-flex flex-wrap items-center gap-1">
               <span :class="[BADGE_BASE, toneClass(TONE[row.state as keyof typeof TONE])]">{{ row.label }}</span>
