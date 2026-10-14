@@ -116,4 +116,22 @@ describe("decline drill-down facts", () => {
     expect(values[0]).toMatch(/^—\s*EFS does not say who used the card/);
     expect(values.slice(1)).toEqual(["••1234", "—", "Pilot 412", "Amarillo", "TX", "imp-9"]);
   });
+
+  /** The subject of the drawer is its heading, at the drawer's size (the two-size ruling), not bold text. */
+  it("heads the drill-down with the unit as a heading", async () => {
+    const w = mount(DeclinesTab, {
+      shallow: true,
+      props: { shared: shared() },
+      global: { plugins: [VueQueryPlugin, createPinia()], stubs: { FactList: false, SlideOver: DeclineDrawer } },
+    });
+    (w.vm as unknown as { selectedRow: Record<string, unknown> }).selectedRow = {
+      unit: "654", declined_at: "2026-10-01T12:00:00Z", state: "TX", error_code: "R3", error_description: null,
+      policy_name: null, suspicion_level: "clear", suspicion_reasons: [], driver_name: null, driver_name_source: null,
+      card_ref: "••1234", invoice: "", location_text: "Pilot 412", city: "Amarillo", import_id: "imp-9",
+    };
+    await w.vm.$nextTick();
+    const heading = w.get("h3");
+    expect(heading.text()).toBe("Unit 654");
+    expect(heading.classes()).toEqual(expect.arrayContaining(["text-sm", "font-semibold"]));
+  });
 });

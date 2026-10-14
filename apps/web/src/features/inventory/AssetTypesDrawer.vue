@@ -8,6 +8,7 @@ import {
   AppInput as BaseInput,
 } from "@silvicom/ui";
 import SlideOver from "@/components/SlideOver.vue";
+import QueryState from "@/components/ui/QueryState.vue";
 import {
   useAdoptStandardKit,
   useAssetTypesQuery,
@@ -49,12 +50,17 @@ const emit = defineEmits<{ close: [] }>();
 const FORM_ID = "asset-type-form";
 
 const toast = useToastStore();
-const { data: types } = useAssetTypesQuery();
+const { data: types, isLoading, isError, isFetching, refetch } = useAssetTypesQuery();
 const create = useCreateAssetType();
 const update = useUpdateAssetType();
 const adopt = useAdoptStandardKit();
 
-const empty = computed(() => (types.value ?? []).length === 0);
+/**
+ * Empty is a READ's answer, never its absence (2026-10-14). This was `(types ?? []).length === 0`,
+ * true while the read was in flight and true when it FAILED — so a shop whose kinds could not be
+ * read was offered "Set it up", which overwrites the kit rules it had made its own (see above).
+ */
+const empty = computed(() => types.value !== undefined && types.value.length === 0);
 const busy = computed(() => create.isPending.value || update.isPending.value || adopt.isPending.value);
 
 const adding = ref(false);
@@ -127,30 +133,39 @@ async function adoptKit() {
     @close="emit('close')"
   >
     <div class="space-y-4">
-      <!-- A4's answer, and only while there is nothing. See the header for why it disappears. -->
-      <div v-if="empty" class="rounded-control bg-surface-subtle px-3 py-2.5 ring-1 ring-edge">
-        <p class="text-sm font-medium text-ink">Start from the standard kit</p>
-        <p class="mt-0.5 text-xs text-ink-muted">
-          Twelve kinds of thing and the kit each truck, dry van and reefer carries — the five
-          §393.95 asks about, plus this fleet's securement. Every number is editable afterwards.
-        </p>
-        <BaseButton class="mt-2" variant="primary" :disabled="busy" @click="adoptKit">
-          Set it up
-        </BaseButton>
-      </div>
+      <QueryState
+        :loading="isLoading"
+        :error="isError"
+        :retrying="isFetching"
+        loading-text="Loading the kinds of thing…"
+        error-text="Could not load the kinds of thing."
+        @retry="refetch()"
+      >
+        <!-- A4's answer, and only while there is nothing. See the header for why it disappears. -->
+        <div v-if="empty" class="rounded-control bg-surface-subtle px-3 py-2.5 ring-1 ring-edge">
+          <p class="text-sm font-medium text-ink">Start from the standard kit</p>
+          <p class="mt-0.5 text-xs text-ink-muted">
+            Twelve kinds of thing and the kit each truck, dry van and reefer carries — the five
+            §393.95 asks about, plus this fleet's securement. Every number is editable afterwards.
+          </p>
+          <BaseButton class="mt-2" variant="primary" :disabled="busy" @click="adoptKit">
+            Set it up
+          </BaseButton>
+        </div>
 
-      <ul v-if="!empty" class="divide-y divide-edge-subtle">
-        <li v-for="type in types ?? []" :key="type.id" class="flex items-center justify-between gap-3 py-2">
-          <div class="min-w-0">
-            <p class="truncate text-sm font-medium text-ink">{{ type.name }}</p>
-            <p class="mt-0.5 text-xs text-ink-tertiary">
-              {{ type.category ?? "No category" }}
-              <span v-if="type.serialized"> · tracked one by one</span>
-            </p>
-          </div>
-          <BaseButton size="sm" @click="startEdit(type)">Edit</BaseButton>
-        </li>
-      </ul>
+        <ul v-if="!empty" class="divide-y divide-edge-subtle">
+          <li v-for="type in types ?? []" :key="type.id" class="flex items-center justify-between gap-3 py-2">
+            <div class="min-w-0">
+              <p class="truncate text-sm font-medium text-ink">{{ type.name }}</p>
+              <p class="mt-0.5 text-xs text-ink-tertiary">
+                {{ type.category ?? "No category" }}
+                <span v-if="type.serialized"> · tracked one by one</span>
+              </p>
+            </div>
+            <BaseButton size="sm" @click="startEdit(type)">Edit</BaseButton>
+          </li>
+        </ul>
+      </QueryState>
 
       <form v-if="adding" :id="FORM_ID" class="border-t border-edge-subtle pt-5" @submit.prevent="submit">
         <h3 class="text-sm font-semibold text-ink">{{ editing ? "Edit kind" : "New kind of thing" }}</h3>

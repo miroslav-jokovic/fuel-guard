@@ -249,9 +249,9 @@ function timeLabel(iso: string): string {
       <!-- Open conversation -->
       <BaseCard v-if="selectedId && detailQ.data.value" padding="none" class="flex max-h-[70vh] flex-col">
         <div class="border-b border-edge-subtle px-4 py-3">
-          <div class="text-sm font-semibold text-ink">
+          <h2 class="text-sm font-semibold text-ink">
             {{ threadTitle(detailQ.data.value.thread, session.userId ?? "") }}
-          </div>
+          </h2>
           <div v-if="detailQ.data.value.thread.load_ref" class="text-xs text-ink-muted">
             About load {{ detailQ.data.value.thread.load_ref }}
           </div>

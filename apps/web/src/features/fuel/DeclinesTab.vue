@@ -417,7 +417,7 @@ const columns: DataTableColumn[] = [
       <div v-if="selectedRow" class="space-y-5 text-sm">
         <div class="flex items-center justify-between">
           <div>
-            <div class="text-lg font-semibold text-ink">Unit {{ selectedRow.unit || "—" }}</div>
+            <h3 class="text-sm font-semibold text-ink">Unit {{ selectedRow.unit || "—" }}</h3>
             <div class="text-ink-muted">{{ fmt(selectedRow.declined_at, selectedRow.state) }}</div>
             <div v-if="stationLocalNote(selectedRow.declined_at, selectedRow.state)" class="text-xs text-ink-tertiary">
               Station local: {{ stationLocalNote(selectedRow.declined_at, selectedRow.state) }}
