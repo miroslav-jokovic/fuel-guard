@@ -227,7 +227,7 @@ const testChipClass = computed(() => {
 </script>
 
 <template>
-  <div class="mx-auto max-w-3xl space-y-6">
+  <div class="space-y-6">
     <PageHeader>
       The direct connection to EFS. It brings in your completed fuel purchases and the card
       attempts EFS declined. One sign-in covers both.

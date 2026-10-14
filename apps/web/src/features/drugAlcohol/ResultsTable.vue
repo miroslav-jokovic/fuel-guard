@@ -1,8 +1,11 @@
 <script setup lang="ts">
+import { computed } from "vue";
 import { MEDSTOP_OUTCOME_LABELS, type MedstopResultRow } from "@silvicom/shared";
 import { AppCard as BaseCard } from "@silvicom/ui";
 import DataTable from "@/components/ui/DataTable.vue";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
+import TablePagination from "@/components/TablePagination.vue";
+import { useClientPage } from "@/composables/useClientPage";
 import { BADGE_BASE, medstopOutcomeTone } from "@/lib/badges";
 import { formatDate } from "@/lib/format";
 
@@ -10,7 +13,7 @@ import { formatDate } from "@/lib/format";
  * A list of Med-Stop results on Safety › Drug & Alcohol (MEDSTOP-PLAN.md §6 F-5, MS2c). Only ever
  * given rows by a page whose API answered `results` — i.e. a reader `canReadTestingRecords` admits.
  */
-defineProps<{ title: string; why: string; rows: MedstopResultRow[]; emptyText: string }>();
+const props = defineProps<{ title: string; why: string; rows: MedstopResultRow[]; emptyText: string }>();
 
 const columns: DataTableColumn[] = [
   { key: "name", label: "Person", cellClass: "font-medium text-ink" },
@@ -18,6 +21,9 @@ const columns: DataTableColumn[] = [
   { key: "collectedOn", label: "Collected" },
   { key: "outcome", label: "Result" },
 ];
+// Paged (F26): a year of results is one response, and the first read's history has no bound at all.
+const tableRows = computed(() => props.rows.map((r) => ({ ...r, name: r.person.name, driverId: r.person.driverId })));
+const { page, pageRows, total, paged, pageSize } = useClientPage(tableRows);
 const kindText = (kind: string) => (kind === "drug" ? "Drug" : kind === "alcohol" ? "Alcohol" : "Medical");
 </script>
 
@@ -34,7 +40,7 @@ const kindText = (kind: string) => (kind === "drug" ? "Drug" : kind === "alcohol
       dense
       :sticky-header="false"
       :columns="columns"
-      :rows="rows.map((r) => ({ ...r, name: r.person.name, driverId: r.person.driverId }))"
+      :rows="pageRows"
       row-key="testId"
       :empty-text="emptyText"
     >
@@ -46,6 +52,9 @@ const kindText = (kind: string) => (kind === "drug" ? "Drug" : kind === "alcohol
       <template #cell-collectedOn="{ row }">{{ row.collectedOn ? formatDate(row.collectedOn) : "—" }}</template>
       <template #cell-outcome="{ row }">
         <span :class="[BADGE_BASE, medstopOutcomeTone(row.outcome)]">{{ MEDSTOP_OUTCOME_LABELS[row.outcome as MedstopResultRow["outcome"]] }}</span>
+      </template>
+      <template v-if="paged" #footer>
+        <TablePagination :page="page" :page-size="pageSize" :total="total" @update:page="page = $event" />
       </template>
     </DataTable>
   </BaseCard>

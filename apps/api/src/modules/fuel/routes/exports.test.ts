@@ -164,7 +164,7 @@ describe("the URL the page holds is the URL the file comes from", () => {
     const res = await get("/api/fueling/exports/fills.csv?from=2026-08-01&to=2026-08-31&unit=654");
     expect(res.headers.get("content-disposition")).toContain("fuel-log-fills-2026-08-01-to-2026-08-31.csv");
     const body = await res.text();
-    expect(body.split("\r\n")[0]).toContain("2026-08-01 → 2026-08-31 · 1 truck");
+    expect(body.split("\r\n")[0]).toContain("08/01/2026 → 08/31/2026 · 1 truck");
   });
 
   /**

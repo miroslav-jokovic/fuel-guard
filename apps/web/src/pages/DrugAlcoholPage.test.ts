@@ -116,6 +116,23 @@ describe("DrugAlcoholPage", () => {
     expect(link?.attributes("href")).toBe("/drivers/d1");
   });
 
+  // F26 (US6b): "Driving here, not in Med-Stop's random pool" drew 178 drivers in one card on staging.
+  it("pages a long roster list twenty at a time, says how many there are, and leaves a short one unpaged", async () => {
+    const many = Array.from({ length: 45 }, (_, i) => person(`p${i}`, `Driver ${String(i + 1).padStart(2, "0")}`));
+    const w = await render(program({ roster: { notInPool: many, leftButInPool: [person("x1", "Left Early")] } }), "/drug-alcohol?tab=roster");
+    const [pool, left] = w.findAll("section");
+    expect(pool!.findAll("tbody tr, li").length).toBe(20);
+    expect(pool!.text()).toContain("Driver 01");
+    expect(pool!.text()).not.toContain("Driver 21");
+    expect(pool!.text()).toContain("45");
+    await pool!.findAll("button").find((b) => b.text() === "Next")!.trigger("click");
+    expect(pool!.text()).toContain("Driver 21");
+    expect(pool!.text()).not.toContain("Driver 01");
+    // One row: no footer to page through.
+    expect(left!.text()).toContain("Left Early");
+    expect(left!.findAll("button").some((b) => b.text() === "Next")).toBe(false);
+  });
+
   it("in progress shows the stage and when the result is due", async () => {
     const w = await render(program(), "/drug-alcohol?tab=progress");
     expect(w.text()).toContain("At the lab");

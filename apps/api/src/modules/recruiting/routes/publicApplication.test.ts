@@ -303,6 +303,15 @@ describe("opening the link", () => {
     expect(other.localKey).not.toBe(viaEmail.localKey);
   });
 
+  // F29 (US6b): `?? "the carrier"` let an empty name through — "This is 's driver application."
+  it("names the carrier as 'the carrier' when its name is blank, never as nothing", async () => {
+    for (const name of ["", "   "]) {
+      holder.client = seed({}, { organizations: [{ name }] }).client;
+      const body = (await (await call(`/${TOKEN}`)).json()) as { carrier: string };
+      expect(body.carrier).toBe("the carrier");
+    }
+  });
+
   it("needs no bearer token and names the carrier", async () => {
     holder.client = seed().client;
     const res = await call(`/${TOKEN}`);

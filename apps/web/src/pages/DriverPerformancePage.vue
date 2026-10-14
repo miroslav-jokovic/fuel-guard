@@ -18,6 +18,7 @@ import DataWorkspace from "@/components/ui/DataWorkspace.vue";
 import ReportScopeBar from "@/components/ui/ReportScopeBar.vue";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import { toneClass } from "@/lib/badges";
+import { formatDate, formatDateRange } from "@/lib/format";
 import { sortRows } from "@/lib/sort";
 import { useQueryState } from "@/composables/useQueryState";
 import { SORT_DIRECTIONS, useUrlSort } from "@/composables/useUrlSort";
@@ -79,7 +80,7 @@ const weekProxy = computed({
 });
 const weekOptions = computed(() => [
   { value: "", label: "This week (live)" },
-  ...(weeksList.value ?? []).map((w) => ({ value: w.weekStart, label: `${w.weekStart} → ${w.weekEnd}` })),
+  ...(weeksList.value ?? []).map((w) => ({ value: w.weekStart, label: formatDateRange(w.weekStart, w.weekEnd) })),
 ]);
 const statusOptions = [
   { value: "", label: "All drivers" },
@@ -129,10 +130,10 @@ watch([search, statusSel, selectedWeek], () => (page.value = 1));
 const weekLabel = computed(() => {
   if (isLive.value) {
     const v = live.data.value;
-    return v ? `${v.weekStart} → ${v.weekEnd} · live` : "This week (live)";
+    return v ? `${formatDateRange(v.weekStart, v.weekEnd)} · live` : "This week (live)";
   }
   const w = (weeksList.value ?? []).find((x) => x.weekStart === selectedWeek.value);
-  return w ? `${w.weekStart} → ${w.weekEnd} · final` : (selectedWeek.value ?? "");
+  return w ? `${formatDateRange(w.weekStart, w.weekEnd)} · final` : formatDate(selectedWeek.value ?? null, "");
 });
 const methodLabel = computed(() => {
   const m = isLive.value ? live.data.value?.methodUsed : frozen.data.value?.[0]?.method_used;

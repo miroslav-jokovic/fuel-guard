@@ -1,3 +1,4 @@
+import { sentenceCase } from "./sentenceCase";
 /**
  * The identity step's words (AF3, D-AF1) — the date of birth and licence, asked with the permissions.
  *
@@ -16,7 +17,7 @@ export const APPLY_IDENTITY_COPY = {
   identityStep: {
     heading: "Your driver's licence",
     intro: (carrier: string): string =>
-      `${carrier} checks your driving record and safety history with these before sending you the application. Enter them as they appear on your licence.`,
+      `${sentenceCase(carrier)} checks your driving record and safety history with these before sending you the application. Enter them as they appear on your licence.`,
     dateOfBirth: "Date of birth",
     number: "Licence number",
     state: "Issuing state",
@@ -38,7 +39,7 @@ export const APPLY_IDENTITY_COPY = {
     },
     /** Fill-only (D-AF8): a value the carrier already held was kept. Says so without saying what it is. */
     kept: (carrier: string): string =>
-      `${carrier} already had some of these on file, so those were kept. If anything is wrong, tell ${carrier}.`,
+      `${sentenceCase(carrier)} already had some of these on file, so those were kept. If anything is wrong, tell ${carrier}.`,
     /** On the form, once the identity is on file (AF3): the three fields are shown and not editable. */
     lockedHint: (carrier: string): string => `To change this, contact ${carrier}.`,
   },

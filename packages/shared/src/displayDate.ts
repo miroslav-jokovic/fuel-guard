@@ -192,3 +192,19 @@ export function formatDisplayDayShort(value: string | Date | null | undefined, f
   if (!p) return typeof value === "string" ? value.trim() : fallback;
   return `${pad2(p.m)}/${pad2(p.d)}`;
 }
+
+/**
+ * `10/12/2026 → 10/18/2026` — two calendar days as a span, and one day when they are the same day.
+ *
+ * Six screens spelled a range by hand — `${weekStart} → ${weekEnd}` — and every one of them printed
+ * the raw ISO it was handed (US6b F27, 2026-10-14: Driver Performance's week read `2026-10-12 →
+ * 2026-10-18`). `lint:date-format` cannot see an interpolated column, because a name is not a type
+ * (its named blind spot), so the range is a function here and the sites read it. The arrow is the
+ * one the export scope already printed beside its button and on the file itself.
+ */
+export function formatDisplayDateRange(from: string | Date | null | undefined, to: string | Date | null | undefined): string {
+  const a = formatDisplayDate(from, "");
+  const b = formatDisplayDate(to, "");
+  if (a && b) return a === b ? a : `${a} → ${b}`;
+  return a ? `from ${a}` : b ? `to ${b}` : EM_DASH;
+}

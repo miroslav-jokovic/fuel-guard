@@ -169,6 +169,24 @@ describe("DataTable narrow-screen card view", () => {
     expect(card.findAll("dt").map((dt) => dt.text())).not.toContain("Status");
   });
 
+  // F25 (US6b): the qualification table's first column is its expand chevron, label "". It became the
+  // card's heading, so every phone card opened with an empty row holding only the chevron.
+  it("puts a label-less control column on the top line and heads the card with the first named column", () => {
+    const withControl: DataTableColumn[] = [{ key: "expand", label: "" }, ...columns];
+    const wrapper = mount(DataTable, {
+      props: { columns: withControl, rows: [rows[0]!], rowKey: "unit" },
+      slots: { "cell-expand": "<button>›</button>" },
+      global: { stubs: { RouterLink: true, AppIcon: true, TableSkeleton: true, ErrorState: true } },
+    });
+    const card = wrapper.findAll("li")[0]!;
+    const heading = card.get(".font-semibold");
+    expect(heading.text()).toBe("Unit 204");
+    // The chevron shares the heading's line, and is not a labelled row with an empty label.
+    expect(heading.element.parentElement!.querySelector("button")?.textContent).toBe("›");
+    expect(card.findAll("dt").map((dt) => dt.text())).toEqual(["Driver"]);
+    expect(card.findAll("button")).toHaveLength(1);
+  });
+
   it("shows an em-dash for a blank value rather than an empty row", () => {
     const card = mountNarrow().findAll("li")[1]!;
     expect(card.findAll("dd")[0]!.text()).toBe("—");

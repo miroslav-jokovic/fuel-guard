@@ -73,7 +73,7 @@ async function onToggle(enabled: boolean) {
 </script>
 
 <template>
-  <div class="mx-auto max-w-3xl space-y-6">
+  <div class="space-y-6">
     <PageHeader>
       Med-Stop runs the company's DOT drug and alcohol program: the random pools, the selections, and
       every test. Once connected, Silvicom 360 reads its roster and random pools every hour and shows

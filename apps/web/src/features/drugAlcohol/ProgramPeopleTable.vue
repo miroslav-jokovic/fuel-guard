@@ -1,14 +1,17 @@
 <script setup lang="ts">
+import { computed } from "vue";
 import type { ProgramPerson } from "@silvicom/shared";
 import { AppCard as BaseCard } from "@silvicom/ui";
 import DataTable from "@/components/ui/DataTable.vue";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
+import TablePagination from "@/components/TablePagination.vue";
+import { useClientPage } from "@/composables/useClientPage";
 
 /**
  * One reconciliation list on Safety › Drug & Alcohol: a heading that says what the list MEANS and
  * what to do about it, then the people, each linked to the driver page when we hold the driver.
  */
-defineProps<{
+const props = defineProps<{
   title: string;
   why: string;
   people: ProgramPerson[];
@@ -22,6 +25,10 @@ const columns = (withDetail: boolean): DataTableColumn[] => [
   { key: "name", label: "Driver", cellClass: "font-medium text-ink" },
   ...(withDetail ? [{ key: "detail", label: "" } as DataTableColumn] : []),
 ];
+
+// Paged (F26): the pool reconciliation drew 178 drivers in one card on staging.
+const rows = computed(() => props.people.map((p) => ({ ...p, key: p.driverId ?? p.medstopId ?? p.name })));
+const { page, pageRows, total, paged, pageSize } = useClientPage(rows);
 </script>
 
 <template>
@@ -37,7 +44,7 @@ const columns = (withDetail: boolean): DataTableColumn[] => [
       dense
       :sticky-header="false"
       :columns="columns(Boolean(detail)).map((c) => (c.key === 'detail' ? { ...c, label: detailLabel ?? '' } : c))"
-      :rows="people.map((p) => ({ ...p, key: p.driverId ?? p.medstopId ?? p.name }))"
+      :rows="pageRows"
       row-key="key"
       :empty-text="emptyText"
     >
@@ -48,6 +55,9 @@ const columns = (withDetail: boolean): DataTableColumn[] => [
         <span v-else>{{ row.name }}</span>
       </template>
       <template #cell-detail="{ row }">{{ detail ? detail(row as ProgramPerson) : "" }}</template>
+      <template v-if="paged" #footer>
+        <TablePagination :page="page" :page-size="pageSize" :total="total" @update:page="page = $event" />
+      </template>
     </DataTable>
   </BaseCard>
 </template>

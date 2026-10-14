@@ -80,7 +80,7 @@ const idleScoreOptions = IDLE_SCORE_BASES.map((value) => ({
 </script>
 
 <template>
-  <div class="mx-auto max-w-2xl space-y-6">
+  <div class="space-y-6">
     <PageHeader description="How drivers are graded and rewarded each week. Changes apply to future weeks and re-grade the current one." />
     <!-- The form waits for the fetch AND for its failure: before D-US5 a failed read fell through to
          the form with its built-in defaults, and saving that would have overwritten the org's real

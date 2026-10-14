@@ -134,7 +134,7 @@ describe("the fills export describes the same rows the screen does", () => {
       orgId: ORG, filters: {}, scope: { ...SCOPE, trucks: 2 },
     });
     expect(out.csv.split("\r\n")[0]).toBe(
-      "# Fuel log — fills · 2026-08-01 → 2026-08-31 · 2 trucks · 1 rows · generated 2026-09-04T12:00:00.000Z",
+      "# Fuel log — fills · 08/01/2026 → 08/31/2026 · 2 trucks · 1 rows · generated 2026-09-04T12:00:00.000Z",
     );
   });
 

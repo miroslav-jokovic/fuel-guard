@@ -1,3 +1,4 @@
+import { sentenceCase } from "./sentenceCase";
 /**
  * Part 1's words — "Get started" (APPLICATION-FLOW-V2-PLAN.md §6.2, AW3, C3a).
  *
@@ -29,13 +30,13 @@ export const APPLY_PART_ONE_COPY = {
     /** A screen some of whose boxes were filled from the licence's barcode (AW5) — the driver confirms them. */
     fromLicence: "Some answers below were read from your licence. Check them, and change anything that is wrong.",
     kept: (carrier: string): string =>
-      `${carrier} already had some of these on file, so those were kept. If anything is wrong, tell ${carrier}.`,
+      `${sentenceCase(carrier)} already had some of these on file, so those were kept. If anything is wrong, tell ${carrier}.`,
     yes: "Yes",
     no: "No",
     about: {
       heading: "About you",
       intro: (carrier: string): string =>
-        `${carrier} uses these to check your driving record and to reach you about your application.`,
+        `${sentenceCase(carrier)} uses these to check your driving record and to reach you about your application.`,
       phone: "Mobile phone number",
       phoneHint: "A US number. We will only text you if you agree to it later.",
       dateOfBirth: "Date of birth",
@@ -159,7 +160,7 @@ export const APPLY_PART_ONE_COPY = {
         outline: "Your face",
         howTo: "Take off sunglasses and a hat. Face a window or a light, not away from it.",
         why: (carrier: string, days: number): string =>
-          `${carrier} will look at it next to your licence photo, to check the application is really yours. A person looks — no face-recognition software. It is not added to your file, and it is deleted ${days} days after you take it.`,
+          `${sentenceCase(carrier)} will look at it next to your licence photo, to check the application is really yours. A person looks — no face-recognition software. It is not added to your file, and it is deleted ${days} days after you take it.`,
         check: "Is your whole face in the picture, and clear? If not, retake it.",
         receivedEarlier: "Received on an earlier visit. Take it again only if it did not show your face clearly.",
         cannot: "I can't take a photo of myself",

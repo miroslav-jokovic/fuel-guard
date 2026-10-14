@@ -1,3 +1,4 @@
+import { sentenceCase } from "./sentenceCase";
 /**
  * The driver handbook's words on the applicant's page (HANDBOOK-SIGNING-PLAN.md, D-HB1).
  *
@@ -31,7 +32,7 @@ export const APPLY_HANDBOOK_COPY = {
     signing: "Signing…",
     signFailed: "That signature did not go through. Try again.",
     allSigned: (carrier: string): string =>
-      `You have signed every place. ${carrier} countersigns it now, and a copy is filed with your application.`,
+      `You have signed every place. ${sentenceCase(carrier)} countersigns it now, and a copy is filed with your application.`,
     filed: "Your driver handbook is signed and filed.",
     download: "Download your signed handbook",
     downloadFailed: "That did not open just now. Try again in a moment, or ask the carrier for a paper copy.",

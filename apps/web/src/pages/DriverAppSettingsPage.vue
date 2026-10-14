@@ -216,7 +216,7 @@ async function removeOverride(featureKey: string) {
 }
 </script>
 <template>
-  <div class="mx-auto max-w-5xl space-y-6">
+  <div class="space-y-6">
     <PageHeader description="Shape the Driver App experience for your fleet. Changes reach drivers on their next refresh—no app update required." />
     <!-- The catalogue below draws from code, so it stays on screen (switches disabled) while the org's
          choices are missing; only the failure is drawn here, with a Retry (D-US5). Empty slot on purpose. -->

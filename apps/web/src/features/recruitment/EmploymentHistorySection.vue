@@ -18,6 +18,7 @@ import DataTable from "@/components/ui/DataTable.vue";
 import FactList, { type Fact } from "@/components/ui/FactList.vue";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
+import { formatDateRange } from "@/lib/format";
 import { employmentInquiryBadge } from "@/lib/badges.recruiting";
 import { useSessionStore } from "@/stores/session";
 import { useToastStore } from "@/stores/toast";
@@ -152,13 +153,13 @@ const sourceLabel = (s: string): string =>
       <div class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div class="rounded-surface bg-surface-muted p-3">
           <p class="text-xs font-medium text-ink-secondary">
-            All employment · {{ coverage.segmentA.start }} → {{ coverage.segmentA.end }}
+            All employment · {{ formatDateRange(coverage.segmentA.start, coverage.segmentA.end) }}
           </p>
           <FactList class="mt-2" :columns="3" :facts="allEmploymentFacts" />
         </div>
         <div class="rounded-surface bg-surface-muted p-3">
           <p class="text-xs font-medium text-ink-secondary">
-            Commercial driving only · {{ coverage.segmentB.start }} → {{ coverage.segmentB.end }}
+            Commercial driving only · {{ formatDateRange(coverage.segmentB.start, coverage.segmentB.end) }}
           </p>
           <FactList class="mt-2" :columns="3" :facts="cmvFacts" />
           <!-- No gap figure here, deliberately: (b)(11) asks only for the CMV jobs, so a stretch
@@ -172,7 +173,7 @@ const sourceLabel = (s: string): string =>
       <ul v-if="coverage.segmentA.gaps.length" class="mt-4 space-y-1 text-sm">
         <li v-for="g in coverage.segmentA.gaps" :key="g.from" class="text-ink-secondary">
           <span :class="[BADGE_BASE, toneClass('warning')]">{{ g.days }} days</span>
-          <span class="ml-2">{{ g.from }} → {{ g.to }} is not accounted for.</span>
+          <span class="ml-2">{{ formatDateRange(g.from, g.to) }} is not accounted for.</span>
         </li>
       </ul>
       <p v-if="coverage.segmentA.gaps.length" class="mt-2 text-xs text-ink-muted">
