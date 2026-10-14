@@ -159,6 +159,28 @@ export function driverMatchKey(name: string | null | undefined): string {
   return tokens.sort().join(" ");
 }
 
+/**
+ * A driver's GIVEN name and SURNAME only — the key for a middle name one system carries and the other
+ * does not. Measured 2026-10-14: Samsara holds "DEONICA SHENISE MCMILLON" and the EFS-provisioned row
+ * holds "DEONICA MCMILLON". `driverMatchKey` keeps every token, so the two never met, the row never got
+ * its Samsara id, and truck 722 showed no driver while McLeod and Samsara both had her in it.
+ *
+ * Deliberately NOT a replacement for `driverMatchKey`: dropping tokens makes more names collide, so
+ * the caller uses this only after the full key found nothing, and only where it is unique on BOTH
+ * sides (`samsaraDriverSync`). "LAST, FIRST MIDDLE" (the EFS card order) is read as given name first;
+ * a name with fewer than two usable tokens has no key, for the reason `driverMatchKey` keeps one-token
+ * names single.
+ */
+export function driverFirstLastKey(name: string | null | undefined): string {
+  if (!name) return "";
+  const words = (s: string) =>
+    s.toLowerCase().replace(/[^a-z\s]/g, " ").split(/\s+/).filter((t) => t.length > 1 && !NAME_ANNOTATION_TOKENS.has(t));
+  const comma = name.indexOf(",");
+  const t = comma >= 0 ? [...words(name.slice(comma + 1)), ...words(name.slice(0, comma))] : words(name);
+  if (t.length < 2) return "";
+  return [t[0], t[t.length - 1]].sort().join(" ");
+}
+
 /** Build a lookup that maps each key to a single id, marking keys shared by 2+ records as ambiguous. */
 function buildKeyIndex(entries: { id: string; keys: string[] }[]): Map<string, string | null> {
   const idx = new Map<string, string | null>();

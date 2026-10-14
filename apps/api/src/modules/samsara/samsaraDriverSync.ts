@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { parseSamsaraDrivers, driverMatchKey } from "@silvicom/shared";
+import { parseSamsaraDrivers, driverFirstLastKey, driverMatchKey } from "@silvicom/shared";
 import type { Env } from "../../env.js";
 import { loadSamsaraToken } from "./lib/samsaraToken.js";
 import { makeSamsaraDriverLister, type SamsaraDriverLister } from "./lib/samsara.js";
@@ -14,6 +14,9 @@ export interface DriverSyncResult {
   /** LINK-ONLY mode: Samsara drivers matching no Silvicom 360 row. Reported, never created — somebody is
    *  driving who is not on the carrier's HR roster, which is a finding for a human, not a row to invent. */
   unlinked?: string[];
+  /** Samsara drivers linked by given name + surname alone (`driverFirstLastKey`), because the full name
+   *  differed only by a middle name. Reported by name so every such link is visible in the run. */
+  linkedByFirstLast?: string[];
 }
 
 interface ExistingDriver {
@@ -25,6 +28,7 @@ interface ExistingDriver {
   identity_source: string | null;
   status: string | null;
   cdl_number: string | null;
+  archived_at: string | null;
 }
 
 /**
@@ -54,7 +58,7 @@ export async function syncDriversFromSamsara(
 
   const { data: existingData } = await admin
     .from("drivers")
-    .select("id, samsara_driver_id, full_name, phone, samsara_username, identity_source, status, cdl_number")
+    .select("id, samsara_driver_id, full_name, phone, samsara_username, identity_source, status, cdl_number, archived_at")
     .eq("org_id", orgId);
   const existing = (existingData ?? []) as ExistingDriver[];
 
@@ -69,7 +73,9 @@ export async function syncDriversFromSamsara(
     byName.set(k, byName.has(k) ? null : r);
   }
 
-  const result: DriverSyncResult = { total: drivers.length, created: 0, updated: 0, deactivated: 0 };
+  const byFirstLast = firstLastFallback(existing, drivers);
+
+  const result: DriverSyncResult = { total: drivers.length, created: 0, updated: 0, deactivated: 0, linkedByFirstLast: [] };
 
   // ── LINK-ONLY MODE ────────────────────────────────────────────────────────────────────────────
   // When the carrier's TMS masters the roster, this sync stops deciding WHO IS EMPLOYED and keeps
@@ -92,10 +98,16 @@ export async function syncDriversFromSamsara(
   if (linkOnly) result.unlinked = [];
 
   for (const sd of drivers) {
-    const match =
+    const nameHit = byName.get(driverMatchKey(sd.name));
+    const strong =
       bySamsara.get(sd.samsaraId) ??
       (sd.phone ? byPhone.get(normPhone(sd.phone)) : undefined) ??
-      (byName.get(driverMatchKey(sd.name)) ?? undefined);
+      (nameHit ?? undefined);
+    // Only when the full name found NOTHING — an ambiguous full name (`null`) is a refusal, and a
+    // shorter key must never overrule it.
+    const shortHit = !strong && nameHit === undefined ? byFirstLast(sd) : undefined;
+    if (shortHit) result.linkedByFirstLast!.push(sd.name);
+    const match = strong ?? shortHit;
 
     // Identity fields Samsara owns for the rows it owns; name + the numeric id are refreshed each sync.
     const identity: Record<string, unknown> = { full_name: sd.name, samsara_driver_id: sd.samsaraId };
@@ -127,6 +139,13 @@ export async function syncDriversFromSamsara(
       if (match.identity_source !== "manual") {
         if (sd.phone) patch.phone = sd.phone;
         if (sd.username) patch.samsara_username = sd.username;
+        // The licence, when the row has none (D6's enrich-only rule, the one full mode follows). Until
+        // 2026-10-14 link-only mode skipped it, so a driver whose row the EFS path created carried no
+        // licence for good: McLeod's sweep could reach that row only by NAME, which it refuses to
+        // claim, and the new hire never got their McLeod link (measured: 11 of 11 such rows). Filled
+        // here, McLeod meets them on the licence; McLeod's own value replaces this one when it claims
+        // the row, so the carrier's system of record still has the last word.
+        Object.assign(patch, licence);
       }
       await admin.from("drivers").update(patch).eq("id", match.id).eq("org_id", orgId);
       result.updated++;
@@ -187,3 +206,37 @@ export async function syncDriversFromSamsara(
 }
 
 const normPhone = (p: string) => p.replace(/\D/g, "");
+
+/**
+ * The last resort: given name + surname, for a middle name one side carries and the other does not
+ * (`driverFirstLastKey`; truck 722, 2026-10-14). Shorter keys collide more, so it answers only when the
+ * answer is unique on BOTH sides:
+ *
+ *  · on ours, among rows that are not linked to Samsara yet, not archived and not applicants — a row
+ *    already linked has its answer, and the other two are not somebody driving today;
+ *  · on Samsara's, among every driver in this response — two Samsara drivers who shorten to the same
+ *    name could each be the person, so neither is.
+ *
+ * Anything else is `undefined`, and the driver stays unlinked and reported, as before.
+ */
+function firstLastFallback(
+  existing: ExistingDriver[],
+  drivers: ReadonlyArray<{ name: string }>,
+): (sd: { name: string }) => ExistingDriver | undefined {
+  const ours = new Map<string, ExistingDriver | null>();
+  for (const r of existing) {
+    if (r.samsara_driver_id || r.archived_at || r.status === "applicant") continue;
+    const k = driverFirstLastKey(r.full_name);
+    if (k) ours.set(k, ours.has(k) ? null : r);
+  }
+  const theirs = new Map<string, number>();
+  for (const d of drivers) {
+    const k = driverFirstLastKey(d.name);
+    if (k) theirs.set(k, (theirs.get(k) ?? 0) + 1);
+  }
+  return (sd) => {
+    const k = driverFirstLastKey(sd.name);
+    if (!k || theirs.get(k) !== 1) return undefined;
+    return ours.get(k) ?? undefined;
+  };
+}
