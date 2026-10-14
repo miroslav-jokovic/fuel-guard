@@ -35,6 +35,8 @@ export { rosterCredentialsRouter } from "./routes/credentials.js";
  *  app's own account closure (P4.2): the driver-side close and the fleet-side hold must mean the
  *  same thing to GoTrue, so there is one implementation and driver-app calls it through here. */
 export { disableDriverLogin } from "./driverCredentials.js";
+// A former driver the TMS has rehired (D-MR7a): `mcleod` proves it, roster writes it.
+export { restoreRehiredDriver, type RehireFacts } from "./driverRehire.js";
 export { rosterSevenDayRouter } from "./routes/sevenDay.js";
 export { recordInferredTrailerPairing } from "./trailerPairing.js";
 // The equipment half of the §396.17 inspection — `maintenance` reads identity and projects the

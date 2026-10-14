@@ -1,7 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { TmsDriverInput } from "@silvicom/shared";
 import { TMS_CLAIMABLE_SOURCES } from "@silvicom/shared";
-import { writeAudit } from "../../lib/audit.js";
+import { restoreRehiredDriver } from "../roster/index.js";
 import { cdlKey, type MatchOutcome } from "./rosterMatch.js";
 
 /**
@@ -110,28 +110,14 @@ export async function rehireFormerDrivers(
     out.rehired.push(r.external_id);
     if (!write) continue;
 
-    const { error: upErr } = await admin
-      .from("drivers")
-      .update({ status: "active", archived_at: null, termination_date: null })
-      .eq("id", row.id)
-      .eq("org_id", orgId);
-    if (upErr) throw new Error(upErr.message);
-    const recorded = await writeAudit(admin, {
-      orgId,
-      actorId: null,
-      action: "driver.rehired_from_tms",
-      entity: "drivers",
-      entityId: row.id,
-      meta: {
-        externalId: r.external_id,
-        tmsHireDate: r.hire_date,
-        previousTerminationDate: row.termination_date,
-        previousStatus: row.status,
-        wasArchived: row.archived_at !== null,
-        source: "mcleod_active_roster",
-      },
+    await restoreRehiredDriver(admin, orgId, {
+      driverId: row.id,
+      externalId: r.external_id,
+      tmsHireDate: r.hire_date!,
+      previousTerminationDate: row.termination_date!,
+      previousStatus: row.status,
+      wasArchived: row.archived_at !== null,
     });
-    if (!recorded) throw new Error(`Could not audit the rehire of ${r.external_id}`);
   }
   return out;
 }
