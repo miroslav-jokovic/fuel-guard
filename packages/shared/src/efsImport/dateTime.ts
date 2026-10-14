@@ -93,6 +93,37 @@ export function stateTimeZone(state: string | null | undefined): string | null {
 }
 
 /**
+ * The OTHER zone a split state keeps, beside its dominant one above: west Texas (El Paso, Hudspeth),
+ * west Kentucky, east Tennessee, north-west and south-west Indiana, the Florida panhandle, Michigan's
+ * Upper Peninsula border counties, south-west North Dakota, west South Dakota and Nebraska, Kansas's
+ * four western counties, north Idaho, Oregon's Malheur county, and the Navajo Nation in Arizona (which
+ * keeps daylight time where the rest of the state does not). Added for the roadside inspection's
+ * zone (INSPECTION-CHALLENGE-PLAN D-IC8), where the dominant-zone shortcut EFS accepts would put an
+ * El Paso inspection an hour wrong.
+ */
+const STATE_SECONDARY_TZ: Record<string, string> = {
+  TX: "America/Denver", KY: "America/Chicago", TN: "America/New_York", IN: "America/Chicago",
+  FL: "America/Chicago", MI: "America/Chicago", ND: "America/Denver", SD: "America/Denver",
+  NE: "America/Denver", KS: "America/Denver", ID: "America/Los_Angeles", OR: "America/Denver",
+  AZ: "America/Denver",
+};
+
+/** The mainland zones a federal report ("US") or an unknown state could be in. */
+const MAINLAND_TZ = ["America/New_York", "America/Chicago", "America/Denver", "America/Phoenix", "America/Los_Angeles"];
+
+/**
+ * Every zone a state's local clock could be on, dominant first. A federal report (`US`) or a code not
+ * in the table could be anywhere on the mainland, so it gets all five.
+ */
+export function stateTimeZoneCandidates(state: string | null | undefined): string[] {
+  const s = str(state)?.toUpperCase() ?? null;
+  const dominant = s ? STATE_IANA_TZ[s] : undefined;
+  if (!s || !dominant) return [...MAINLAND_TZ];
+  const second = STATE_SECONDARY_TZ[s];
+  return second ? [dominant, second] : [dominant];
+}
+
+/**
  * One formatter per timezone, built once. WHY (incident 2026-10-06): constructing an Intl.DateTimeFormat
  * costs ~100× a `formatToParts` call, and this ran it twice per conversion. The idle rollup converts every
  * day boundary of every park session and of every driver↔vehicle assignment (85k in 30 days), so building

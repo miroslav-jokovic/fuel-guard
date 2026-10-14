@@ -221,6 +221,7 @@ export * from "./fleetpalContract.js";
 export * from "./shopSummaryContract.js";
 export * from "./roadsideInspectionsContract.js";
 export * from "./roadsideSmsContract.js";
+export * from "./roadsideAttributionContract.js";
 export * from "./medstopContract.js";
 export * from "./medstopProgram.js";
 export * from "./medstopTests.js";

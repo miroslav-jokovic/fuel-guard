@@ -2366,6 +2366,15 @@ async function main() {
       roadside_citations: (org) =>
         `${rsRaw(org)} ${rsInsp(org)}, ci as (insert into roadside_citations (org_id, inspection_id, natural_key, raw_row_id) ` +
         `select '${org}', i.id, 'rls', raw.id from i, raw returning id) select 1`,
+      // 0473: both name their inspection through the composite (id, org_id) FK, like 0458's children;
+      // a snapshot's object must also sit under its own org's prefix.
+      inspection_attributions: (org) =>
+        `${rsRaw(org)} ${rsInsp(org)}, ia as (insert into inspection_attributions (org_id, inspection_id, source, engine_version, zone_method, location_check, outcome) ` +
+        `select '${org}', i.id, 'engine', 'rls', 'unresolved', 'no_gps', 'no_assignment' from i returning id) select 1`,
+      inspection_evidence_snapshots: (org) =>
+        `${rsRaw(org)} ${rsInsp(org)}, es as (insert into inspection_evidence_snapshots (org_id, inspection_id, kind, temporal_class, source_endpoint, request, ` +
+        `window_start, window_end, retrieved_at, http_status, sha256, byte_size, storage_path, item_count) ` +
+        `select '${org}', i.id, 'gps_window', 'contemporaneous', '/x', '{}'::jsonb, now(), now(), now(), 200, repeat('a', 64), 0, '${org}/x.json.gz', 0 from i returning id) select 1`,
       samsara_ifta_fetches: (org) =>
         `insert into samsara_ifta_fetches (org_id, period_year, period_month) values ('${org}', 2026, 4)`,
       // 0341: `(vehicle_id, org_id) references vehicles (id, org_id)` — a COMPOSITE FK, which the

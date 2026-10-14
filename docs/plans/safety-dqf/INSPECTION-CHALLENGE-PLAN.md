@@ -682,3 +682,43 @@ about three merges.
   - **Not built:** the list's points column (it reads no violations today, and 1,417 of them cross
     PostgREST's 1,000-row page — a paged read of its own), and "points if removed", which is IC4's case
     impact.
+- **2026-10-14 — IC5, first merge: who was driving, and when (the engine; the page is the next merge).**
+  Migration 0473: `inspection_attributions` and `inspection_evidence_snapshots`, both append-only
+  (`IA010`) and RETENTION_FORBIDDEN, plus the private bucket `inspection-evidence`. The scheduler's
+  hourly FMCSA tick now also attributes up to 25 inspections without a reading at the current engine
+  version (`ATTRIBUTION_ENGINE_VERSION`, D-IC5), newest first; the three-year backlog clears in about
+  two and a half days. Code: `apps/api/src/modules/inspections/attribution/`.
+  - **The instant (D-IC8).** The report's state proposes the zones (`stateTimeZoneCandidates`: the
+    dominant zone EFS already used, plus the second zone of TX, KY, TN, IN, FL, MI, ND, SD, NE, KS, ID,
+    OR and AZ's Navajo Nation; all five mainland zones for a federal "US" report). The GPS chooses: the
+    candidate in which the truck spent at least half the interval under 3 mph. Then the GPS position's
+    state is checked against the report's (`confirmed`, `other_state`, `unplaced`, `moving`, `no_gps`).
+  - **Measured, and why the rule is a share.** The first rule ("every fix under 3 mph") called 49 of
+    145 real inspections moving: trucks reposition at a scale, and the officer's end time often falls
+    after the truck has left. Time-weighted, the right zone reads 0.9–1.0 stopped and the wrong one
+    0–0.4; a few trucks were parked through both candidates, and those stay unresolved.
+  - **The driver (D-IC7).** Samsara's driver–vehicle assignments on the truck within two hours. One
+    driver covering or bracketing the settled interval is a strong reading — measured on 698 at the
+    Erwinville scale (2026-09-22): Samsara closed the HOS assignment at 18:04Z and reopened it at
+    18:42Z around the stop, so "during" alone would find nobody. Two drivers, a passenger (a team) or
+    nobody goes to a person. Confidence is `high` only when the reading cannot be wrong about *when*:
+    the zone settled and the GPS did not contradict it, or the zone unresolved but the same driver
+    covers or brackets every candidate while the truck stood still in the state.
+  - **The evidence (D-IC4).** Frozen BEFORE the reading is written, and read from the frozen bytes:
+    the GPS and engine state ±2 h, the assignments ±2 h, the one driver's HOS log a day either side,
+    and the fleet's DVIRs from 16 h before to 8 h after (`/dvirs/stream` ignores `vehicleIds`; the
+    summary lists this truck's reports, each before or after the inspection). Each answer is hashed as
+    received and stored gzipped under the org's prefix; the row keeps hash, size, request and status.
+    A refusal or an empty answer is frozen too. The DVIR photo links Samsara signs expire in a day;
+    freezing the photos themselves is not built.
+  - **No `drivers` FK.** The reading names Samsara's driver id and name (the evidence); our driver is
+    resolved through `drivers.samsara_driver_id` when read. An append-only table cannot sit in
+    `merge_driver`'s move list.
+  - **Dry run on production data, 2026-10-14** (199 inspections spread over three years, real Samsara
+    answers, nothing written): 132 high (73% of the 182 whose truck Samsara knows), 21 low, 28 no
+    assignment (mostly 2024), 1 two drivers, 16 unit not ours (Q-IC10), 1 truck without a Samsara id.
+    Seven low readings have the GPS putting the stopped truck in another state than the report's —
+    the first "not my truck / wrong information" leads for IC6.
+  - **Not built:** showing the driver on the inspection page with a "confirm" action (next merge);
+    EFS, annual-inspection and credential snapshots (D-IC4's other kinds, with the rules that read
+    them, IC6); freezing DVIR photos.

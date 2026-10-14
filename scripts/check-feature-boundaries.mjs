@@ -378,6 +378,10 @@ const API_ALLOW = new Set([
   //   the matrix's own answer for who acts on the safety section. Neither module imports inspections.
   "inspections -> messaging",
   "inspections -> org",
+  // · inspections -> samsara — IC5 (INSPECTION-CHALLENGE-PLAN D-IC12): who was driving at an inspection,
+  //   asked of Samsara and frozen as received through the collector's own `makeSamsaraRawFetcher` and
+  //   `loadSamsaraToken`. samsara imports nothing of inspections'.
+  "inspections -> samsara",
   // · medstop -> samsara — "find a collection site near the truck" (UX3, MEDSTOP-PLAN §7A.4) reads the
   //   assigned truck's newest fix through `readVehiclePositions`, the collector's own read interface,
   //   never `.from("vehicle_positions")` (a raw table sealed to its collector). samsara imports nothing

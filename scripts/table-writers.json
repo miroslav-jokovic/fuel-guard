@@ -310,6 +310,12 @@
     "apps/api/src/modules/efs/services/efsIngestShared.ts",
     "apps/api/src/modules/efs/services/efsSync.ts"
   ],
+  "inspection_attributions": [
+    "apps/api/src/modules/inspections/attribution/attribute.ts"
+  ],
+  "inspection_evidence_snapshots": [
+    "apps/api/src/modules/inspections/attribution/freeze.ts"
+  ],
   "integration_credentials": [
     "apps/api/src/modules/org/integrationSync.ts",
     "apps/api/src/modules/samsara/lib/samsaraToken.ts",

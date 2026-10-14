@@ -16,6 +16,10 @@
  *
  * Every tick then asks whether the org's record has gone stale (`staleAlert.ts`, IC1c) — due or not,
  * because a fetch that keeps failing is exactly the org whose run is always due.
+ *
+ * Last, it works a batch of the attribution backlog (IC5, `attribution/pass.ts`): who was driving at
+ * each inspection, read from Samsara and frozen. It runs on Samsara's backfill lane, after the feed, and
+ * its failure is logged on its own so it can never stop the fetch or the stale check.
  */
 import { organizationTimezone } from "@silvicom/shared";
 import type { Env } from "../../../env.js";
@@ -25,6 +29,8 @@ import { lastSucceededAt } from "./store.js";
 import { projectRoadside } from "./project.js";
 import { syncFmcsaFeed } from "./sync.js";
 import { alertIfFeedStale } from "./staleAlert.js";
+import { loadSamsaraToken, makeSamsaraRawFetcher } from "../../samsara/index.js";
+import { attributeBacklog } from "../attribution/pass.js";
 
 const TICK_MS = 60 * 60_000;
 /** After boot, behind the vendor feeds that are measured in minutes. */
@@ -87,6 +93,20 @@ export async function tickOrg(
     console.error(`[fmcsa-feed] org ${org.id}: run failed —`, e instanceof Error ? e.message : e);
   }
   await alertIfFeedStale(admin, org.id, Date.now(), org.timeZone);
+  try {
+    await attributeOrg(admin, env, org.id);
+  } catch (e) {
+    console.error(`[inspection-attribution] org ${org.id}: pass failed —`, e instanceof Error ? e.message : e);
+  }
+}
+
+/** One batch of the org's attribution backlog. An org with no Samsara token has nothing to ask. */
+async function attributeOrg(admin: ReturnType<typeof getSupabaseAdmin>, env: Env, orgId: string): Promise<void> {
+  const token = await loadSamsaraToken(admin, env, orgId);
+  if (!token) return;
+  const tally = await attributeBacklog(admin, orgId, makeSamsaraRawFetcher(env, token), Date.now());
+  const read = Object.entries(tally).map(([k, n]) => `${n} ${k}`).join(", ");
+  if (read) console.log(`[inspection-attribution] org ${orgId}: ${read}`);
 }
 
 /** One org's fetch and projection. Throws; the tick logs it and goes on to the stale check. */
