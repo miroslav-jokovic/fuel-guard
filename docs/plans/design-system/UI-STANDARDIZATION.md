@@ -72,7 +72,9 @@ merged result: nothing in it is missing from `main`.
 | US6 | Detail-page anatomy (G5): one shared `FactList` for label/value facts, gated | MERGED 2026-10-13 |
 | US6c | Every list with a toolbar pages; the product's confirm replaces `window.confirm`; "Failed to" copy gone (D-US7, D-US8) | MERGED 2026-10-13 (#1497) |
 | US6b | A browser pass of every routed page at 1280 px and 390 px | PASS DONE 2026-10-13 (§7); fixes in batches |
-| US7 | Admin console onto the same list composites (G7) — after US6, its own decision | planned, Q-US1 |
+| US7 | The list composites move into `@silvicom/ui` (web repointed, no shim); every admin page onto them; the gate covers `apps/admin/src` (G7, D-US11) | planned — answered 2026-10-15 |
+| US8 | The audit log's page is its cursor in the URL; the route reads backwards too; the pager names the date range (D-US12) | planned — answered 2026-10-15 |
+| US9 | One `recordId` schema for all 249 id sites, and a gate against a bare `z.uuid()`; closes F31 (D-US13) | planned — answered 2026-10-15 |
 
 Each step is one PR (large batches, per the release practice), merged on green CI, released by the
 train.
@@ -161,7 +163,56 @@ Retry, because asking again cannot conjure the record. Every routed page whose p
 gives its `QueryState` a `not-found-text`; a parameter that is not a record says
 `ui-adoption: not-a-record — <why>` at the top of the page (US6b F21).
 
+**D-US11 — The list composites live in `@silvicom/ui`, and the admin console is held to the same
+rules (answers Q-US1, 2026-10-15).** `DataWorkspace`, `FilterBar`, `DataTable`, `DataTableCards`,
+`QueryState`, `BulkActionBar`, `FactList` and the states they draw (`ErrorState`, `NotFoundState`,
+`TableSkeleton`) MOVE into `packages/ui` together with the code they stand on (`useQueryState`,
+`workspaceTable`, `dataTable`, `sort`, `plural`, `notFound`). They are moved, not copied, and the web
+app's 131 importers are repointed — there is no re-export shim left in `apps/web/src/components/ui`,
+because a shim is a second address for one component. Nothing in them blocks the move: their only
+outside dependencies are `vue-router` (already a peer of `@silvicom/ui`), `@vueuse/core` and
+`@floating-ui/vue`, and `QueryState` takes props, not a TanStack query. Then every admin page is
+rebuilt on them, and `lint:ui-adoption` runs every D-US rule over `apps/admin/src` as it does over
+`apps/web/src`.
+Measured on `origin/main` at 97b7ecb: admin's three tables are hand-headed `AppTable`s (Customers,
+Customer detail's members, the idle engine's two), its states are hand-written "Loading…" lines, and
+every failure prints `e.message` ahead of the page's own sentence — the exact G3/G4/D-US9 findings
+the web app has closed. Option (b), "an internal tool with six pages", was rejected because the
+reason it gave is the reason against it: this console is where support staff read a customer's data
+to answer that customer, so a misread there is a wrong answer given to a customer; and its Customers
+list grows with every customer signed, which is the list that most needs paging, sort and a link
+that reopens it.
+
+**D-US12 — A page of the audit log is linked by its cursor, never by a page number (answers Q-US2,
+2026-10-15).** The audit log is evidence. A link to "what the log showed" has to reopen the same rows
+next week, when an auditor or counsel follows it; a page number cannot do that on a log that grows at
+its newest end — page 3 today is not page 3 tomorrow — so offset paging, option (a) as written, is
+refused for the same reason the current in-memory page number is. The route already pages by a
+stable keyset (`created_at`, `id`, `audit.ts`), so the URL carries that keyset: `?before=<cursor>`
+opens the page that starts after it, and the route grows the backwards half (`?after=<cursor>`, read
+ascending and turned round) so Previous works from a pasted link as well as from a walk. The
+in-memory cursor stack is deleted. The pager says what the rows ARE — the date range they span — and
+"Newest" returns to the head; it does not say "page 3", which on a keyset is a number nobody can
+check. Option (b), "leave it until somebody asks", was rejected: the person who needs the link is
+the one auditing us, and they will not ask first.
+
+**D-US13 — One record-id schema, which accepts every id Postgres accepts (answers Q-US3,
+2026-10-15).** `packages/shared` exports one `recordId` schema built on `z.guid()` (8-4-4-4-12 hex:
+what the `uuid` column type stores), and every one of the 249 `z.uuid()` sites on `origin/main`
+(40 files in `packages/shared`, 15 in `apps/api`, 3 in `apps/web`, 1 in `apps/admin-api`) reads it. A
+gate refuses a bare `z.uuid()` / `z.guid()` outside that definition, so the next contract cannot
+restate it. Option (a), re-keying staging's org, was rejected: it would hide the bug, not remove it.
+`docs/11-DEPLOYMENT.md` Stage 2 tells whoever bootstraps a carrier to create the org with the fixed
+id `…0000a1`, and the seed, the PGlite matrices and the duty tests all hold it. Our contracts would
+then refuse a value our own database issues and our own runbook prescribes. Postgres is the authority
+on what an id is. A contract may be stricter about a field's MEANING, but not about the id's
+spelling. The id schema exists to turn a malformed id into a 400 before the database turns it into a
+500, and `z.guid()` does exactly that (proved on Zod 4.4.3: the staging id passes, `"x"` fails).
+
 ## 6. Open questions
+
+Q-US1, Q-US2 and Q-US3 were answered on 2026-10-15 — D-US11, D-US12 and D-US13 above. The questions
+are kept as asked.
 
 **Q-US1 — Does the admin console adopt the web list composites?** `DataWorkspace`, `FilterBar` and
 `DataTable` live in `apps/web/src/components/ui/`, not in `@silvicom/ui`, so admin cannot import them.
@@ -598,3 +649,24 @@ with a 450-line bay (three requests, "0 of 450 counted"), and looked at.
 
 **Seen on the way, not changed here:** on the shelf walk at 390, the Ask AI orb sits over the bottom
 bar's "Record count" button.
+
+### 2026-10-15 — the three open questions answered (D-US11, D-US12, D-US13)
+
+The owner asked for each question to be answered for what is right, not for what is cheaper to
+build. All three were measured on `origin/main` at 97b7ecb before being answered:
+
+- **Q-US1 → D-US11 (US7).** The composites' imports were read file by file. Nothing outside
+  `vue-router`, `@vueuse/core` and `@floating-ui/vue` ties them to the web app, so they can move as
+  they are. Admin has 11 `.vue` files: four tables are hand-headed `AppTable`s, and every read state
+  is a hand-written "Loading…" with `e.message` ahead of the sentence.
+- **Q-US2 → D-US12 (US8).** `GET /api/audit/log` already pages on a `(created_at, id)` keyset with
+  `.lt` comparisons, so the cursor itself is the stable address. The recommendation in the question
+  was "(b) until somebody asks". It is reversed, because the reader who needs the link is an
+  auditor, not a teammate.
+- **Q-US3 → D-US13 (US9).** There are 249 `z.uuid()` sites, not 237. The fixed `…0000a1` id is not
+  only staging's seed: `docs/11-DEPLOYMENT.md` Stage 2 prescribes it for bootstrapping a real org.
+  The id defaults are `gen_random_uuid()` in all 163 migrations that set one. On Zod 4.4.3,
+  `z.guid()` accepts the staging id and refuses non-hex input.
+
+Build order: US9 first (it unblocks F31 and every staging check), then US8 (one route and one page),
+then US7 (the largest, a move of ~130 imports plus the admin rebuild).
