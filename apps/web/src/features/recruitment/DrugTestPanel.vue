@@ -1,8 +1,13 @@
 <script setup lang="ts">
 import { computed, reactive, ref } from "vue";
 import { formatDisplayDateTime, type DrugTestAppointment } from "@silvicom/shared";
-import { AppButton as BaseButton, AppInput as BaseInput, AppDateTimeField, AppFormField as FormField } from "@silvicom/ui";
-import { QueryState } from "@silvicom/ui";
+import {
+  AppButton as BaseButton,
+  AppInput as BaseInput,
+  AppDateTimeField,
+  AppFormField as FormField,
+  QueryState,
+} from "@silvicom/ui";
 import { useSessionStore } from "@/stores/session";
 import { useToastStore } from "@/stores/toast";
 import {

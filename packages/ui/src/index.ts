@@ -52,6 +52,7 @@ export { default as TablePagination } from "./components/TablePagination.vue";
 export { default as BulkActionBar } from "./components/BulkActionBar.vue";
 export { default as QueryState } from "./components/QueryState.vue";
 export { default as FactList } from "./components/FactList.vue";
+export { default as StatCard } from "./components/StatCard.vue";
 export type { Fact } from "./components/FactList.vue";
 export { default as ErrorState } from "./components/ErrorState.vue";
 export { default as ErrorPanel } from "./components/ErrorPanel.vue";

@@ -8,14 +8,19 @@ import {
   type HiringRecordedActStep,
   type QualificationRecordRow,
 } from "@silvicom/shared";
-import { AppButton as BaseButton, AppIcon } from "@silvicom/ui";
-import { AppInput as BaseInput } from "@silvicom/ui";
-import { AppCombobox as ComboSelect, AppDateField, AppFormField as FormField } from "@silvicom/ui";
+import {
+  AppButton as BaseButton,
+  AppIcon,
+  AppInput as BaseInput,
+  AppCombobox as ComboSelect,
+  AppDateField,
+  AppFormField as FormField,
+  QueryState,
+} from "@silvicom/ui";
 import { ClipboardDocumentCheckIcon } from "@silvicom/ui/icons";
 import FileDropzone from "@/components/ui/FileDropzone.vue";
 import { useSessionStore } from "@/stores/session";
 import { useToastStore } from "@/stores/toast";
-import { QueryState } from "@silvicom/ui";
 import { useDocumentsQuery, useQualificationRecordsQuery } from "@/composables/useCompliance";
 import { useRecordHiringAct } from "@/features/recruitment/useHiringEvidence";
 

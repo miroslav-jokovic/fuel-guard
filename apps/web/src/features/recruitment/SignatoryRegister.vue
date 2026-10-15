@@ -1,12 +1,10 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import { ROAD_TEST_EXAMINER_SECTION, formatDisplayDate, type AppSection } from "@silvicom/shared";
-import { AppButton as BaseButton } from "@silvicom/ui";
+import { AppButton as BaseButton, useConfirm, QueryState } from "@silvicom/ui";
 import SignatoryAddForm from "@/features/recruitment/SignatoryAddForm.vue";
 import { useSessionStore } from "@/stores/session";
 import { useToastStore } from "@/stores/toast";
-import { useConfirm } from "@silvicom/ui";
-import { QueryState } from "@silvicom/ui";
 import { useDeleteRepresentative, useRepresentatives } from "@/features/recruitment/useHandbook";
 import { useRetireRoadTestExaminer, useRoadTestExaminers } from "@/features/recruitment/useRoadTest";
 

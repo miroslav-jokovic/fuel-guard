@@ -1,9 +1,8 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import { canOrderDrugTests, type RandomDraw } from "@silvicom/shared";
-import { AppButton as BaseButton, AppCallout, AppTabs } from "@silvicom/ui";
+import { AppButton as BaseButton, AppCallout, AppTabs, QueryState, useQueryState } from "@silvicom/ui";
 import PageHeader from "@/components/ui/PageHeader.vue";
-import { QueryState } from "@silvicom/ui";
 import InProgressTab from "@/features/drugAlcohol/InProgressTab.vue";
 import MedicalTab from "@/features/drugAlcohol/MedicalTab.vue";
 import OrderTestDrawer, { type OrderSeed } from "@/components/medstop/OrderTestDrawer.vue";
@@ -11,7 +10,6 @@ import ProgramPeopleTable from "@/features/drugAlcohol/ProgramPeopleTable.vue";
 import RandomTab from "@/features/drugAlcohol/RandomTab.vue";
 import ResultsTab from "@/features/drugAlcohol/ResultsTab.vue";
 import { useDrugAlcoholProgram } from "@/features/drugAlcohol/useDrugAlcoholProgram";
-import { useQueryState } from "@silvicom/ui";
 import { formatDateTime } from "@/lib/format";
 import { useSessionStore } from "@/stores/session";
 

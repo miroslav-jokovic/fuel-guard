@@ -1,6 +1,5 @@
 <script setup lang="ts">
-import { AppButton as BaseButton } from "@silvicom/ui";
-import { BaseModal } from "@silvicom/ui";
+import { AppButton as BaseButton, BaseModal } from "@silvicom/ui";
 
 /**
  * The confirmation before a person disappears from a list (migration 0235).

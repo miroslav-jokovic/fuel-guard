@@ -1,9 +1,16 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { AppButton, AppIcon, AppCard as BaseCard, AppDelta, AppIconChip, type ChipTone, type DeltaDirection, type DeltaTone } from "@silvicom/ui";
-import { ArrowPathIcon, ExclamationTriangleIcon, type Icon } from "@silvicom/ui/icons";
+import AppButton from "./AppButton.vue";
+import AppIcon from "./AppIcon.vue";
+import BaseCard from "./AppCard.vue";
+import AppDelta from "./AppDelta.vue";
+import AppIconChip from "./AppIconChip.vue";
+import type { ChipTone } from "./AppIconChip.vue";
+import type { DeltaDirection } from "./AppDelta.vue";
+import type { DeltaTone } from "./AppDelta.vue";
+import { ArrowPathIcon, ExclamationTriangleIcon, type Icon } from "../icons";
 import { RouterLink } from "vue-router";
-import SparkLine from "@/components/SparkLine.vue";
+import SparkLine from "./SparkLine.vue";
 
 /**
  * The one KPI tile (U3, D-UI2).

@@ -1,5 +1,13 @@
 <script setup lang="ts">
-import StatCard from "@/components/ui/StatCard.vue";
+import {
+  StatCard,
+  AppCallout,
+  AppIcon,
+  AppCard as BaseCard,
+  AppButton as BaseButton,
+  DataTable,
+  type DataTableColumn,
+} from "@silvicom/ui";
 /**
  * Backfill a period from an EFS report file (FUEL-C4, D-FUI3).
  *
@@ -27,7 +35,6 @@ import StatCard from "@/components/ui/StatCard.vue";
  * **Repair fuel data**, which moved to Settings → Data & Sync where the other repair actions already
  * live and where it gains the progress and freshness a job-backed action should have had.
  */
-import { AppCallout, AppIcon } from "@silvicom/ui";
 import {
   DocumentTextIcon,
   ExclamationTriangleIcon,
@@ -37,11 +44,7 @@ import { computed, ref } from "vue";
 import { analyzeImport, useCommitImport, type ImportPreview } from "./useImport";
 import { useToastStore } from "@/stores/toast";
 import SlideOver from "@/components/SlideOver.vue";
-import { AppCard as BaseCard } from "@silvicom/ui";
-import { AppButton as BaseButton } from "@silvicom/ui";
 import FileDropzone from "@/components/ui/FileDropzone.vue";
-import { DataTable } from "@silvicom/ui";
-import { type DataTableColumn } from "@silvicom/ui";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { formatDateRange } from "@/lib/format";
 

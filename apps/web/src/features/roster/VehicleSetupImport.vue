@@ -1,6 +1,5 @@
 <script setup lang="ts">
-import StatCard from "@/components/ui/StatCard.vue";
-import { AppCallout, AppIcon } from "@silvicom/ui";
+import { StatCard, AppCallout, AppIcon, AppButton as BaseButton, DataTable, type DataTableColumn } from "@silvicom/ui";
 import {
   CsvIcon,
 } from "@silvicom/ui/icons";
@@ -14,10 +13,7 @@ import {
   type VehicleImportPreview,
 } from "./useVehicleSetupImport";
 import { useToastStore } from "@/stores/toast";
-import { AppButton as BaseButton } from "@silvicom/ui";
 import FileDropzone from "@/components/ui/FileDropzone.vue";
-import { DataTable } from "@silvicom/ui";
-import { type DataTableColumn } from "@silvicom/ui";
 
 const props = defineProps<{ vehicles: Vehicle[] }>();
 const emit = defineEmits<{ done: [] }>();

@@ -33,7 +33,7 @@ vi.mock("@/stores/toast", () => ({ useToastStore: () => ({ success: vi.fn(), err
 vi.mock("@/stores/session", () => ({ useSessionStore: () => ({ restrictedAccess: false, orgId: "o", can: () => false, canView: () => true }) }));
 
 import CompliancePage from "./CompliancePage.vue";
-import StatCard from "@/components/ui/StatCard.vue";
+import { StatCard } from "@silvicom/ui";
 
 async function mountAt(url: string) {
   const router = createRouter({ history: createMemoryHistory(), routes: [{ path: "/:any(.*)*", component: { template: "<div/>" }, meta: { title: "Qualification" } }] });

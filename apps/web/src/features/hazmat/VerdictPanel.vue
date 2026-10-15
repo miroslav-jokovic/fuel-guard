@@ -1,13 +1,12 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { AppCard as BaseCard, AppCallout } from "@silvicom/ui";
+import { AppCard as BaseCard, AppCallout, FactList, type Fact } from "@silvicom/ui";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import type { CalcResult } from "./useHazmatCalc";
 import PlacardDiamond from "./PlacardDiamond.vue";
 import CitationText from "./CitationText.vue";
 import FindingRow from "./FindingRow.vue";
 import VerdictDetails from "./VerdictDetails.vue";
-import { FactList, type Fact } from "@silvicom/ui";
 
 /**
  * The verdict panel (plan H5). Renders the deterministic engine output — each with its CFR citation

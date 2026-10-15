@@ -7,11 +7,10 @@ import {
   liveAuthorization,
   type AuthorizationPurpose,
 } from "@silvicom/shared";
-import { AppButton, AppIcon } from "@silvicom/ui";
+import { AppButton, AppIcon, QueryState } from "@silvicom/ui";
 import { CheckCircleIcon, ClockIcon } from "@silvicom/ui/icons";
 import { formatDate, formatDateTime } from "@/lib/format";
 import DocumentPreview from "@/components/DocumentPreview.vue";
-import { QueryState } from "@silvicom/ui";
 import type { RenderedDocument } from "@/lib/documentDownload";
 import type { AuthorizationDetail } from "@/features/recruitment/useAuthorizations";
 import PaperAuthorizationForm from "@/features/recruitment/PaperAuthorizationForm.vue";

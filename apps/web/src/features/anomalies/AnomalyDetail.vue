@@ -2,16 +2,21 @@
 import { formatRuleId, DISPOSITION_LABELS, type Anomaly, CORRELATION_THRESHOLDS } from "@silvicom/shared";
 import AnomalyAudit from "./AnomalyAudit.vue";
 import StatusBadge from "@/components/StatusBadge.vue";
-import { AppButton as BaseButton, AppTabs, type TabItem } from "@silvicom/ui";
-import { AppTextarea } from "@silvicom/ui";
+import {
+  AppButton as BaseButton,
+  AppTabs,
+  type TabItem,
+  AppTextarea,
+  DataTable,
+  FactList,
+  type Fact,
+  QueryState,
+  type DataTableColumn,
+} from "@silvicom/ui";
 import { BADGE_BASE, severityTone } from "@/lib/badges";
 import EntityHistory from "./EntityHistory.vue";
 import { useAnomalyDetail } from "./useAnomalyDetail";
 import { computed } from "vue";
-import { DataTable } from "@silvicom/ui";
-import { FactList, type Fact } from "@silvicom/ui";
-import { QueryState } from "@silvicom/ui";
-import { type DataTableColumn } from "@silvicom/ui";
 
 const DETAIL_TABS: TabItem[] = [
   { value: "overview", label: "Overview" },

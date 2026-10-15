@@ -7,11 +7,16 @@ import {
   type PartMovementInput,
   type StockLineDto,
 } from "@silvicom/shared";
-import { AppButton as BaseButton, AppCallout, AppCard as BaseCard } from "@silvicom/ui";
+import {
+  AppButton as BaseButton,
+  AppCallout,
+  AppCard as BaseCard,
+  QueryState,
+  DataTable,
+  type DataTableColumn,
+  useConfirm,
+} from "@silvicom/ui";
 import PageHeader from "@/components/ui/PageHeader.vue";
-import { QueryState } from "@silvicom/ui";
-import { DataTable } from "@silvicom/ui";
-import { type DataTableColumn } from "@silvicom/ui";
 import QuantityStepper from "@/components/ui/QuantityStepper.vue";
 import { useWakeLock } from "@/composables/useWakeLock";
 import {
@@ -24,7 +29,6 @@ import { useWalk } from "@/features/inventory/useWalk";
 import WalkActions, { type WalkAction } from "@/features/inventory/WalkActions.vue";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { useToastStore } from "@/stores/toast";
-import { useConfirm } from "@silvicom/ui";
 import { useSessionStore } from "@/stores/session";
 
 /**

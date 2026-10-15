@@ -1,9 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, toRef } from "vue";
 import { DQ_KIND_LABELS, type CertificationRow } from "@silvicom/shared";
-import { AppCard as BaseCard } from "@silvicom/ui";
-import { AppButton as BaseButton } from "@silvicom/ui";
-import { DataTable, type DataTableColumn } from "@silvicom/ui";
+import { AppCard as BaseCard, AppButton as BaseButton, DataTable, type DataTableColumn } from "@silvicom/ui";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { formatDate } from "@/lib/format";
 import { useCertificationHistoryQuery } from "@/composables/useCompliance";

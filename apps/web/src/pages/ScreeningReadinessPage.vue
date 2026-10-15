@@ -1,17 +1,21 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
-import { useQueryState } from "@silvicom/ui";
+import {
+  useQueryState,
+  AppCard as BaseCard,
+  AppButton as BaseButton,
+  AppDateField,
+  FilterBar,
+  DataTable,
+  DataWorkspace,
+  type DataTableColumn,
+  TablePagination,
+  StatCard,
+} from "@silvicom/ui";
 import { useQueryClient } from "@tanstack/vue-query";
 import { screeningFieldLabel, type ScreeningRow } from "@silvicom/shared";
-import { AppCard as BaseCard, AppButton as BaseButton, AppDateField } from "@silvicom/ui";
 import PageHeader from "@/components/ui/PageHeader.vue";
-import { FilterBar } from "@silvicom/ui";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
-import { DataTable } from "@silvicom/ui";
-import { DataWorkspace } from "@silvicom/ui";
-import { type DataTableColumn } from "@silvicom/ui";
-import { TablePagination } from "@silvicom/ui";
-import StatCard from "@/components/ui/StatCard.vue";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { useSessionStore } from "@/stores/session";
 import GatedLink from "@/components/GatedLink.vue";

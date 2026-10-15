@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { AppButton as BaseButton } from "@silvicom/ui";
+import { AppButton as BaseButton, QueryState } from "@silvicom/ui";
 /**
  * Entity-intelligence panel (2026-08, Phases 1–2) — CONTEXT for the reviewer, never a score input.
  * Phase 1: the derived-on-read risk snapshot for the case's driver / vehicle / card (open cases,
@@ -13,7 +13,6 @@ import { formatRuleId } from "@silvicom/shared";
 import { apiFetch } from "@/lib/api";
 import CaseTimeline from "@/features/anomalies/CaseTimeline.vue";
 import { formatDateTime } from "@/lib/format";
-import { QueryState } from "@silvicom/ui";
 
 const props = defineProps<{ anomalyId: string }>();
 

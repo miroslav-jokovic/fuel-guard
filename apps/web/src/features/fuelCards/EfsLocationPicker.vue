@@ -1,9 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import type { EfsLocation } from "@silvicom/shared";
-import { AppButton as BaseButton } from "@silvicom/ui";
-import { DataTable, type DataTableColumn } from "@silvicom/ui";
-import { AppSearchField as SearchInput } from "@silvicom/ui";
+import { AppButton as BaseButton, DataTable, type DataTableColumn, AppSearchField as SearchInput } from "@silvicom/ui";
 import { useEfsLocationSearch } from "./useEfsCards";
 
 /**

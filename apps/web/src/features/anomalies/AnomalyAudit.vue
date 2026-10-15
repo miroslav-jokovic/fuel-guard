@@ -2,8 +2,7 @@
 import { formatDisplayDateTime } from "@silvicom/shared";
 import { computed } from "vue";
 import { stateTimeZone } from "@silvicom/shared";
-import { AppCallout } from "@silvicom/ui";
-import { FactList, type Fact } from "@silvicom/ui";
+import { AppCallout, FactList, type Fact } from "@silvicom/ui";
 import type { AnomalyTxnDetail } from "./useAnomalies";
 
 const props = defineProps<{

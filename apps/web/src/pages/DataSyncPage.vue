@@ -1,17 +1,19 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import { apiFetch } from "@/lib/api";
-import { AppButton as BaseButton } from "@silvicom/ui";
+import {
+  AppButton as BaseButton,
+  QueryState,
+  AppCard as BaseCard,
+  DataTable,
+  type DataTableColumn,
+} from "@silvicom/ui";
 import JobActionCard from "@/features/jobs/JobActionCard.vue";
 import FeedFreshnessCard from "@/features/settings/FeedFreshnessCard.vue";
 import { useTelematicsCoverageQuery, useWebhookStatusQuery } from "@/features/settings/useSamsaraStatus";
-import { QueryState } from "@silvicom/ui";
 import { useJob } from "@/features/jobs/useJob";
 import { useSessionStore } from "@/stores/session";
-import { AppCard as BaseCard } from "@silvicom/ui";
 import PageHeader from "@/components/ui/PageHeader.vue";
-import { DataTable } from "@silvicom/ui";
-import { type DataTableColumn } from "@silvicom/ui";
 import { formatDateTime } from "@/lib/format";
 
 const session = useSessionStore();

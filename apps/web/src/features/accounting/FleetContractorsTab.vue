@@ -1,9 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, watch } from "vue";
 import { useRoute } from "vue-router";
-import { useQueryState } from "@silvicom/ui";
-import { DataWorkspace } from "@silvicom/ui";
-import { FilterBar } from "@silvicom/ui";
+import { useQueryState, DataWorkspace, FilterBar } from "@silvicom/ui";
 import CpmOwnerOperatorTable from "./CpmOwnerOperatorTable.vue";
 import FleetSplitCard from "./FleetSplitCard.vue";
 import type { FleetReportResponse, OwnerOperatorRow } from "./useFleetReport";

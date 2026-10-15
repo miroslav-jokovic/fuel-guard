@@ -16,10 +16,9 @@
  */
 import { computed } from "vue";
 import { useRoute } from "vue-router";
-import { AppButton as BaseButton } from "@silvicom/ui";
+import { AppButton as BaseButton, ErrorPanel } from "@silvicom/ui";
 import { ExclamationTriangleIcon } from "@silvicom/ui/icons";
 import PageHeader from "@/components/ui/PageHeader.vue";
-import { ErrorPanel } from "@silvicom/ui";
 import { errorReference } from "@/lib/errorReference";
 
 const route = useRoute();

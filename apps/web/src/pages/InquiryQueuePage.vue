@@ -1,20 +1,22 @@
 <script setup lang="ts">
 import { computed, watch } from "vue";
-import { useQueryState } from "@silvicom/ui";
+import {
+  useQueryState,
+  AppCard as BaseCard,
+  FilterBar,
+  DataTable,
+  DataWorkspace,
+  type DataTableColumn,
+  TablePagination,
+  StatCard,
+} from "@silvicom/ui";
 import {
   INQUIRY_STATE_LABELS,
   INVESTIGATION_FILE_DAYS,
   type InquiryState,
 } from "@silvicom/shared";
-import { AppCard as BaseCard } from "@silvicom/ui";
 import PageHeader from "@/components/ui/PageHeader.vue";
-import { FilterBar } from "@silvicom/ui";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
-import { DataTable } from "@silvicom/ui";
-import { DataWorkspace } from "@silvicom/ui";
-import { type DataTableColumn } from "@silvicom/ui";
-import { TablePagination } from "@silvicom/ui";
-import StatCard from "@/components/ui/StatCard.vue";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { inquiryStateTone } from "@/lib/badges.recruiting";
 import { useInquiryQueueQuery, type InquiryQueueRow } from "@/features/recruitment/useInquiryQueue";

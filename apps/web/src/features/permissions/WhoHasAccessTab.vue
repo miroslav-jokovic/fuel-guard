@@ -13,10 +13,15 @@ import {
   type ReviewTarget,
   type UserRole,
 } from "@silvicom/shared";
-import { AppBadge, AppFormField, AppCombobox as ComboSelect } from "@silvicom/ui";
+import {
+  AppBadge,
+  AppFormField,
+  AppCombobox as ComboSelect,
+  DataTable,
+  type DataTableColumn,
+  QueryState,
+} from "@silvicom/ui";
 import ExportButton, { type ExportRetry } from "@/components/ExportButton.vue";
-import { DataTable, type DataTableColumn } from "@silvicom/ui";
-import { QueryState } from "@silvicom/ui";
 import { useToastStore } from "@/stores/toast";
 import AccessCard from "./AccessCard.vue";
 import { reviewLayerTag } from "./rows";

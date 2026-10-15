@@ -1,15 +1,17 @@
 <script setup lang="ts">
 import { computed, watch } from "vue";
 import { parseYmd } from "@silvicom/shared";
-import { useQueryState } from "@silvicom/ui";
+import {
+  useQueryState,
+  DataWorkspace,
+  FilterBar,
+  TablePagination,
+  DataTable,
+  type DataTableColumn,
+} from "@silvicom/ui";
 import { useInvoicesQuery, INVOICES_PAGE_SIZE } from "@/features/billing/useInvoices";
 import { trailingDays } from "@/lib/dateWindow";
 import DateRangeFilter from "@/components/DateRangeFilter.vue";
-import { DataWorkspace } from "@silvicom/ui";
-import { FilterBar } from "@silvicom/ui";
-import { TablePagination } from "@silvicom/ui";
-import { DataTable } from "@silvicom/ui";
-import { type DataTableColumn } from "@silvicom/ui";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import ExplainerPanel from "@/components/ui/ExplainerPanel.vue";
 import { BADGE_BASE, toneClass } from "@/lib/badges";

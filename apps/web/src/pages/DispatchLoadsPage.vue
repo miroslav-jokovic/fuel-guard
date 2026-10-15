@@ -50,19 +50,25 @@ import {
   loadBoardState,
   loadTypeOf,
 } from "@silvicom/shared";
-import { AppCallout, AppTabs } from "@silvicom/ui";
+import {
+  AppCallout,
+  AppTabs,
+  TablePagination,
+  FilterBar,
+  DataWorkspace,
+  useQueryState,
+  SORT_DIRECTIONS,
+  useUrlSort,
+  AppButton as BaseButton,
+  DataTable,
+  type DataTableColumn,
+  sortRows,
+} from "@silvicom/ui";
 import { useSessionStore } from "@/stores/session";
 import { useToastStore } from "@/stores/toast";
 import { useOrgTimezone } from "@/composables/useOrgTimezone";
 import KebabMenu from "@/components/KebabMenu.vue";
-import { TablePagination } from "@silvicom/ui";
-import { FilterBar } from "@silvicom/ui";
-import { DataWorkspace } from "@silvicom/ui";
-import { useQueryState } from "@silvicom/ui";
-import { SORT_DIRECTIONS, useUrlSort } from "@silvicom/ui";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
-import { AppButton as BaseButton } from "@silvicom/ui";
-import { DataTable, type DataTableColumn } from "@silvicom/ui";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import {
   QUEUE_TABS,
@@ -81,7 +87,6 @@ import DispatchScopeControls from "@/features/dispatch/DispatchScopeControls.vue
 import { admitsScope, useScopeChoice } from "@/features/dispatch/dispatchScope";
 import { loadsOnBoard } from "@/features/dispatch/loadsOnBoard";
 import { BADGE_BASE, onTimeBadge, toneClass } from "@/lib/badges";
-import { sortRows } from "@silvicom/ui";
 import { formatDateTime } from "@/lib/format";
 
 const PAGE_SIZE = 20;

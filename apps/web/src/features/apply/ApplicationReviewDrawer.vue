@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, toRef, watch } from "vue";
-import { AppButton as BaseButton, AppCallout } from "@silvicom/ui";
+import { AppButton as BaseButton, AppCallout, QueryState } from "@silvicom/ui";
 import {
   APPLICATION_REVIEW_STATE_LABELS,
   questionnaireForApplicant,
@@ -8,7 +8,6 @@ import {
 } from "@silvicom/shared";
 import SlideOver from "@/components/SlideOver.vue";
 import DocumentPreview from "@/components/DocumentPreview.vue";
-import { QueryState } from "@silvicom/ui";
 import type { RenderedDocument } from "@/lib/documentDownload";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { formatDateTime } from "@/lib/format";

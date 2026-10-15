@@ -7,7 +7,7 @@ import PublicLayout from "@/layouts/PublicLayout.vue";
 import ApplyLayout from "@/layouts/ApplyLayout.vue";
 import ShopLayout from "@/layouts/ShopLayout.vue";
 import ToastContainer from "@/components/ToastContainer.vue";
-import { ConfirmHost } from "@silvicom/ui";
+import { ConfirmHost, provideRouteOpens } from "@silvicom/ui";
 import ErrorBoundary from "@/components/ErrorBoundary.vue";
 import UpdateBanner from "@/components/UpdateBanner.vue";
 import EnvironmentBanner from "@/components/EnvironmentBanner.vue";
@@ -15,7 +15,6 @@ import SkipLink from "@/components/SkipLink.vue";
 import AssistantLauncher from "@/components/assistant/AssistantLauncher.vue";
 import { useSessionStore } from "@/stores/session";
 import { resolveLayout } from "@/lib/layout";
-import { provideRouteOpens } from "@silvicom/ui";
 import { useOpens } from "@/composables/useOpens";
 
 const route = useRoute();

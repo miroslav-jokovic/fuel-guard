@@ -59,8 +59,7 @@ vi.mock("@/features/idle/useIdleSettings", () => ({
 vi.mock("@/features/idle/useIdleConfidence", () => ({ useIdleConfidence: () => ({ data: computed(() => null) }) }));
 
 import IdlingPage from "./IdlingPage.vue";
-import { DataWorkspace } from "@silvicom/ui";
-import { FilterBar } from "@silvicom/ui";
+import { DataWorkspace, FilterBar } from "@silvicom/ui";
 
 beforeEach(() => {
   Object.assign(caps, { loading: false, failed: false, refetch: vi.fn() });

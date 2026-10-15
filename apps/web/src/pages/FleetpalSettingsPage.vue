@@ -1,11 +1,17 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import { AppButton as BaseButton, AppCard as BaseCard, AppFormField as FormField, AppIcon, AppInput as BaseInput } from "@silvicom/ui";
+import {
+  AppButton as BaseButton,
+  AppCard as BaseCard,
+  AppFormField as FormField,
+  AppIcon,
+  AppInput as BaseInput,
+  QueryState,
+  DataTable,
+  type DataTableColumn,
+} from "@silvicom/ui";
 import { CheckCircleIcon, ExclamationTriangleIcon, InformationCircleIcon } from "@silvicom/ui/icons";
 import PageHeader from "@/components/ui/PageHeader.vue";
-import { QueryState } from "@silvicom/ui";
-import { DataTable } from "@silvicom/ui";
-import { type DataTableColumn } from "@silvicom/ui";
 import JobActionCard from "@/features/jobs/JobActionCard.vue";
 import StepUpPrompt from "@/components/StepUpPrompt.vue";
 import { useStepUpRetry } from "@/composables/useStepUpRetry";

@@ -4,13 +4,15 @@ import GatedLink from "@/components/GatedLink.vue";
 import { orgProfileFormSchema } from "@silvicom/shared";
 import { useOrgSettingsQuery, useSaveOrgProfile } from "@/composables/useOrgSettings";
 import { useToastStore } from "@/stores/toast";
-import { AppButton as BaseButton } from "@silvicom/ui";
-import { AppCard as BaseCard } from "@silvicom/ui";
-import { AppCheckbox as BaseCheckbox } from "@silvicom/ui";
-import { AppInput as BaseInput } from "@silvicom/ui";
-import { AppFormField as FormField } from "@silvicom/ui";
+import {
+  AppButton as BaseButton,
+  AppCard as BaseCard,
+  AppCheckbox as BaseCheckbox,
+  AppInput as BaseInput,
+  AppFormField as FormField,
+  QueryState,
+} from "@silvicom/ui";
 import PageHeader from "@/components/ui/PageHeader.vue";
-import { QueryState } from "@silvicom/ui";
 
 const { data, isLoading, isError, error, isFetching, refetch } = useOrgSettingsQuery();
 const save = useSaveOrgProfile();

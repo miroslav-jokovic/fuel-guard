@@ -13,8 +13,7 @@
  * the enforced row reads normally, the superseded one sits beneath it in muted text.
  */
 import { computed } from "vue";
-import { AppCard as BaseCard } from "@silvicom/ui";
-import { DataTable, type DataTableColumn } from "@silvicom/ui";
+import { AppCard as BaseCard, DataTable, type DataTableColumn } from "@silvicom/ui";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import {
   type EffectiveDisplayRow,

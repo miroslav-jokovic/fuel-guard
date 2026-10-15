@@ -1,8 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import { AppCard as BaseCard, AppButton as BaseButton, AppIcon } from "@silvicom/ui";
+import { AppCard as BaseCard, AppButton as BaseButton, AppIcon, DataTable, type DataTableColumn } from "@silvicom/ui";
 import { ChevronDownIcon, ChevronRightIcon } from "@silvicom/ui/icons";
-import { DataTable, type DataTableColumn } from "@silvicom/ui";
 import type { StatementSection, StatementLine } from "./useIncomeStatement";
 
 /**

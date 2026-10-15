@@ -3,19 +3,21 @@ import { computed, watch } from "vue";
 import { RouterLink } from "vue-router";
 import { useDetectionCoverage, useCapacityHealth } from "@/features/fuel/useDetectionCoverage";
 import { useVehiclesQuery } from "@/composables/useVehicles";
-import { DataTable } from "@silvicom/ui";
-import { DataWorkspace } from "@silvicom/ui";
-import { type DataTableColumn } from "@silvicom/ui";
-import { AppCard as BaseCard } from "@silvicom/ui";
-import { FilterBar } from "@silvicom/ui";
+import {
+  DataTable,
+  DataWorkspace,
+  type DataTableColumn,
+  AppCard as BaseCard,
+  FilterBar,
+  StatCard,
+  TablePagination,
+  useQueryState,
+} from "@silvicom/ui";
 import PageHeader from "@/components/ui/PageHeader.vue";
-import StatCard from "@/components/ui/StatCard.vue";
 import SamsaraFeedLine from "@/components/SamsaraFeedLine.vue";
-import { TablePagination } from "@silvicom/ui";
 import { formatDateTime as fmtDateTime } from "@/lib/format";
 import GatedLink from "@/components/GatedLink.vue";
 import { useOpens } from "@/composables/useOpens";
-import { useQueryState } from "@silvicom/ui";
 
 const { data, isLoading, isError, refetch, isFetching } = useDetectionCoverage();
 const { data: capacity } = useCapacityHealth();

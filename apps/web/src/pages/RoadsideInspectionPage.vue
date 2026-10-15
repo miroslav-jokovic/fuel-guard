@@ -1,7 +1,15 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { useRoute } from "vue-router";
-import { AppCard as BaseCard, AppButton as BaseButton } from "@silvicom/ui";
+import {
+  AppCard as BaseCard,
+  AppButton as BaseButton,
+  QueryState,
+  FactList,
+  type Fact,
+  DataTable,
+  type DataTableColumn,
+} from "@silvicom/ui";
 import {
   SMS_BASIC_NAMES,
   SMS_EXCLUSION_TEXT,
@@ -15,10 +23,6 @@ import {
   type RoadsideViolationSmsDto,
 } from "@silvicom/shared";
 import PageHeader from "@/components/ui/PageHeader.vue";
-import { QueryState } from "@silvicom/ui";
-import { FactList, type Fact } from "@silvicom/ui";
-import { DataTable } from "@silvicom/ui";
-import { type DataTableColumn } from "@silvicom/ui";
 import { useRoadsideInspectionQuery } from "@/features/roadside/useRoadsideInspections";
 import InspectionDriverCard from "@/features/roadside/InspectionDriverCard.vue";
 import InspectionDocumentsCard from "@/features/roadside/InspectionDocumentsCard.vue";

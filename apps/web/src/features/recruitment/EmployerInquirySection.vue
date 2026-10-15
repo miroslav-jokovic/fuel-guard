@@ -16,9 +16,8 @@ import {
   AppFormField as FormField,
 } from "@silvicom/ui";
 import SlideOver from "@/components/SlideOver.vue";
-import { DataTable } from "@silvicom/ui";
+import { DataTable, type DataTableColumn } from "@silvicom/ui";
 import KebabMenu from "@/components/KebabMenu.vue";
-import { type DataTableColumn } from "@silvicom/ui";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { useSessionStore } from "@/stores/session";
 import { useToastStore } from "@/stores/toast";

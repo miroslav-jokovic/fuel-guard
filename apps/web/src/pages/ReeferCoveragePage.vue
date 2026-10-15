@@ -1,20 +1,22 @@
 <script setup lang="ts">
 import { computed, watch } from "vue";
-import { AppCallout } from "@silvicom/ui";
+import {
+  AppCallout,
+  FilterBar,
+  DataTable,
+  TablePagination,
+  DataWorkspace,
+  type DataTableColumn,
+  useQueryState,
+} from "@silvicom/ui";
 import GatedLink from "@/components/GatedLink.vue";
 import { useReeferCoverage } from "@/features/fuel/useReeferCoverage";
 import { useVehiclesQuery } from "@/composables/useVehicles";
 import { useTrailersQuery } from "@/composables/useTrailers";
 import { useDriversQuery } from "@/composables/useDrivers";
-import { FilterBar } from "@silvicom/ui";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
 import PageHeader from "@/components/ui/PageHeader.vue";
-import { DataTable } from "@silvicom/ui";
-import { TablePagination } from "@silvicom/ui";
-import { DataWorkspace } from "@silvicom/ui";
-import { type DataTableColumn } from "@silvicom/ui";
 import { formatDate } from "@/lib/format";
-import { useQueryState } from "@silvicom/ui";
 
 const { data, isLoading, isError, refetch, isFetching } = useReeferCoverage();
 const { data: vehicles } = useVehiclesQuery();

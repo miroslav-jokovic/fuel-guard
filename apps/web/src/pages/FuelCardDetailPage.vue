@@ -12,11 +12,8 @@
 import { computed, ref, watch } from "vue";
 import { useRoute } from "vue-router";
 import { } from "@silvicom/ui/icons";
-import { AppButton as BaseButton } from "@silvicom/ui";
-import { AppCard as BaseCard } from "@silvicom/ui";
-import { QueryState } from "@silvicom/ui";
+import { AppButton as BaseButton, AppCard as BaseCard, QueryState, FactList, type Fact } from "@silvicom/ui";
 import PageHeader from "@/components/ui/PageHeader.vue";
-import { FactList, type Fact } from "@silvicom/ui";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { allowedInfoIdsFrom, allowedLimitsFrom } from "@/features/fuelCards/promptDrafts";
 import { useSessionStore } from "@/stores/session";

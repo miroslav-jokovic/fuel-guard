@@ -19,11 +19,8 @@
 import { computed } from "vue";
 import { useQuery } from "@tanstack/vue-query";
 import { apiFetch } from "@/lib/api";
-import { AppCard as BaseCard } from "@silvicom/ui";
-import { DataTable } from "@silvicom/ui";
-import { type DataTableColumn } from "@silvicom/ui";
+import { AppCard as BaseCard, DataTable, type DataTableColumn, QueryState } from "@silvicom/ui";
 import type { SamsaraFeedHealth } from "@silvicom/shared";
-import { QueryState } from "@silvicom/ui";
 
 interface FeedFreshness {
   feeds: SamsaraFeedHealth[];

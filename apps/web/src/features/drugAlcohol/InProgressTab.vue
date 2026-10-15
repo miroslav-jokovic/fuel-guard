@@ -1,8 +1,6 @@
 <script setup lang="ts">
 import type { InProgressRow } from "@silvicom/shared";
-import { AppCard as BaseCard } from "@silvicom/ui";
-import { DataTable } from "@silvicom/ui";
-import { type DataTableColumn } from "@silvicom/ui";
+import { AppCard as BaseCard, DataTable, type DataTableColumn } from "@silvicom/ui";
 import PersonCell from "@/features/drugAlcohol/PersonCell.vue";
 import { formatDate } from "@/lib/format";
 

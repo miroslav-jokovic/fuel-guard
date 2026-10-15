@@ -1,23 +1,28 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import { useRouter } from "vue-router";
-import { useQueryState } from "@silvicom/ui";
-import { SORT_DIRECTIONS, useUrlSort } from "@silvicom/ui";
+import {
+  useQueryState,
+  SORT_DIRECTIONS,
+  useUrlSort,
+  AppButton as BaseButton,
+  AppIcon,
+  FilterBar,
+  DataTable,
+  DataWorkspace,
+  type DataTableColumn,
+  TablePagination,
+  sortRows,
+} from "@silvicom/ui";
 import {
   HIRING_PHASE_LABELS,
   canPurgeApplicant,
   type HiringPhase,
 } from "@silvicom/shared";
-import { AppButton as BaseButton, AppIcon } from "@silvicom/ui";
 import KebabMenu from "@/components/KebabMenu.vue";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import ExplainerPanel from "@/components/ui/ExplainerPanel.vue";
-import { FilterBar } from "@silvicom/ui";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
-import { DataTable } from "@silvicom/ui";
-import { DataWorkspace } from "@silvicom/ui";
-import { type DataTableColumn } from "@silvicom/ui";
-import { TablePagination } from "@silvicom/ui";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import {
   applicantDispositionBadge,
@@ -25,7 +30,6 @@ import {
   hiringWaitingOnBadge,
 } from "@/lib/badges.recruiting";
 import { formatDate } from "@/lib/format";
-import { sortRows } from "@silvicom/ui";
 import { useSessionStore } from "@/stores/session";
 import { useToastStore } from "@/stores/toast";
 import { useArchiveDriver } from "@/composables/useDrivers";

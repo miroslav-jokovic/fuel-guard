@@ -1,11 +1,9 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import type { DispatchBoardRow } from "@silvicom/shared";
-import { AppButton as BaseButton } from "@silvicom/ui";
+import { AppButton as BaseButton, QueryState, FactList, type Fact } from "@silvicom/ui";
 import SlideOver from "@/components/SlideOver.vue";
 import TimelineRail, { type TimelineEntry } from "@/components/ui/TimelineRail.vue";
-import { QueryState } from "@silvicom/ui";
-import { FactList, type Fact } from "@silvicom/ui";
 import { useLoadRoute } from "@/composables/useLoadRoute";
 import { BADGE_BASE, hosStatusBadge, onTimeBadge, stopMarker, toneClass } from "@/lib/badges";
 import { formatDateTime } from "@/lib/format";

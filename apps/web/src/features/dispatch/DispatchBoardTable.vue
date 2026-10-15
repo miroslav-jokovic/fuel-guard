@@ -1,12 +1,14 @@
 <script setup lang="ts">
-import { AppButton as BaseButton } from "@silvicom/ui";
+import {
+  AppButton as BaseButton,
+  DataTable,
+  TablePagination,
+  type SortState,
+  type DataTableColumn,
+} from "@silvicom/ui";
 import { loadBoardState, movedByOther, needsAttention, type DispatchBoardRow, type LoadStatus } from "@silvicom/shared";
-import { DataTable } from "@silvicom/ui";
-import { TablePagination } from "@silvicom/ui";
-import { type SortState } from "@silvicom/ui";
 import { BADGE_BASE, hosStatusBadge, onTimeBadge, toneClass } from "@/lib/badges";
 import { formatDateTime } from "@/lib/format";
-import { type DataTableColumn } from "@silvicom/ui";
 import { dispatcherName, durationWords, gpsAgeWords, legalDriveLeft, stopPlace } from "./dispatchBoardView";
 import { BOARD_HOS_LOW_MS } from "@silvicom/shared";
 

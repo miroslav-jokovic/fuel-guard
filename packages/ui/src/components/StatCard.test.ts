@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { mount } from "@vue/test-utils";
-import { TruckIcon } from "@silvicom/ui/icons";
-import StatCard from "@/components/ui/StatCard.vue";
+import { TruckIcon } from "../icons";
+import StatCard from "./StatCard.vue";
 
 /**
  * The tile's anatomy, pinned by a test rather than by a document (U3, D-UI2).

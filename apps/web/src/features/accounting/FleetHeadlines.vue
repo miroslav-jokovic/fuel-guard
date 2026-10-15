@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import StatCard from "@/components/ui/StatCard.vue";
+import { StatCard } from "@silvicom/ui";
 import { MONEY_COLORS } from "@/lib/chartTheme";
 import { changeTone, formatPercentChange, percentChange } from "@/lib/periodChange";
 import { monthKey, shiftMonth, type ReportPeriod } from "@/lib/reportPeriod";

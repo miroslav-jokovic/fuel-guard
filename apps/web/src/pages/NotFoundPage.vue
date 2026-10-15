@@ -13,10 +13,9 @@
  */
 import { computed } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import { AppButton as BaseButton } from "@silvicom/ui";
+import { AppButton as BaseButton, ErrorPanel } from "@silvicom/ui";
 import { MagnifyingGlassIcon } from "@silvicom/ui/icons";
 import PageHeader from "@/components/ui/PageHeader.vue";
-import { ErrorPanel } from "@silvicom/ui";
 import { useSessionStore } from "@/stores/session";
 
 const route = useRoute();

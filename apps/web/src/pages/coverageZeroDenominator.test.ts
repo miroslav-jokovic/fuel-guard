@@ -26,7 +26,7 @@ vi.mock("@/composables/useVehicles", () => ({ useVehiclesQuery: () => ({ data: r
 vi.mock("@/stores/session", () => ({ useSessionStore: () => ({ can: () => true, canView: () => true, canManage: true }) }));
 
 import CoveragePage from "./CoveragePage.vue";
-import StatCard from "@/components/ui/StatCard.vue";
+import { StatCard } from "@silvicom/ui";
 
 describe("Detection coverage with nothing to measure (F14)", () => {
   it("draws every tile as a dash with its reason, and no tile as a verdict", async () => {

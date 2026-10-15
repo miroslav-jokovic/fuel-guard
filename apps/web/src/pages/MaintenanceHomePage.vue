@@ -1,6 +1,14 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import { AppButton as BaseButton, AppCallout, AppIcon } from "@silvicom/ui";
+import {
+  AppButton as BaseButton,
+  AppCallout,
+  AppIcon,
+  StatCard,
+  QueryState,
+  DataTable,
+  type DataTableColumn,
+} from "@silvicom/ui";
 import {
   ArrowsRightLeftIcon,
   ChecklistIcon,
@@ -13,10 +21,6 @@ import {
   WrenchIcon,
 } from "@silvicom/ui/icons";
 import PageHeader from "@/components/ui/PageHeader.vue";
-import StatCard from "@/components/ui/StatCard.vue";
-import { QueryState } from "@silvicom/ui";
-import { DataTable } from "@silvicom/ui";
-import { type DataTableColumn } from "@silvicom/ui";
 import { lastFullMonth } from "@/lib/dateWindow";
 import { fmtMoney } from "@/lib/chartTheme";
 import { useMaintenanceSpendQuery } from "@/features/maintenance/useMaintenanceSpend";

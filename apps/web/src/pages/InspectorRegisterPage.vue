@@ -1,19 +1,24 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
-import { AppBadge, AppButton as BaseButton, AppCallout } from "@silvicom/ui";
+import {
+  AppBadge,
+  AppButton as BaseButton,
+  AppCallout,
+  AppIcon,
+  DataWorkspace,
+  FilterBar,
+  DataTable,
+  type DataTableColumn,
+  TablePagination,
+  useConfirm,
+  useQueryState,
+} from "@silvicom/ui";
 import { PlusIcon } from "@silvicom/ui/icons";
-import { AppIcon } from "@silvicom/ui";
 import PageHeader from "@/components/ui/PageHeader.vue";
-import { DataWorkspace } from "@silvicom/ui";
-import { FilterBar } from "@silvicom/ui";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
-import { DataTable } from "@silvicom/ui";
-import { type DataTableColumn } from "@silvicom/ui";
 import KebabMenu from "@/components/KebabMenu.vue";
-import { TablePagination } from "@silvicom/ui";
 import InspectorDrawer from "@/features/maintenance/InspectorDrawer.vue";
 import { useToastStore } from "@/stores/toast";
-import { useConfirm } from "@silvicom/ui";
 import {
   useDeleteInspector,
   useInspectorsQuery,
@@ -21,7 +26,6 @@ import {
   type Inspector,
 } from "@/features/maintenance/useAnnualInspections";
 import { useSessionStore } from "@/stores/session";
-import { useQueryState } from "@silvicom/ui";
 import { INSPECTOR_QUALIFICATION_BASES } from "@silvicom/shared";
 import { formatDate, formatDateRange } from "@/lib/format";
 

@@ -2,14 +2,16 @@
 import { computed, reactive, ref } from "vue";
 import { useMutation, useQueryClient } from "@tanstack/vue-query";
 import type { QualificationSeedRequest } from "@silvicom/shared";
-import { AppCard as BaseCard } from "@silvicom/ui";
-import { AppButton as BaseButton } from "@silvicom/ui";
-import { AppInput as BaseInput } from "@silvicom/ui";
-import { AppDateField } from "@silvicom/ui";
-import { AppCheckbox as BaseCheckbox } from "@silvicom/ui";
-import { AppFormField as FormField } from "@silvicom/ui";
-import { DataTable } from "@silvicom/ui";
-import { type DataTableColumn } from "@silvicom/ui";
+import {
+  AppCard as BaseCard,
+  AppButton as BaseButton,
+  AppInput as BaseInput,
+  AppDateField,
+  AppCheckbox as BaseCheckbox,
+  AppFormField as FormField,
+  DataTable,
+  type DataTableColumn,
+} from "@silvicom/ui";
 import { apiFetch } from "@/lib/api";
 import { useToastStore } from "@/stores/toast";
 

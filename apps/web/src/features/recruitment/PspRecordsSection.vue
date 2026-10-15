@@ -8,14 +8,17 @@ import {
   pspRecordSource,
   type QualificationRecordRow,
 } from "@silvicom/shared";
-import { AppCard as BaseCard } from "@silvicom/ui";
-import { AppButton as BaseButton } from "@silvicom/ui";
-import { AppInput as BaseInput } from "@silvicom/ui";
-import { AppCheckbox as BaseCheckbox } from "@silvicom/ui";
-import { AppDateField, AppFormField as FormField } from "@silvicom/ui";
+import {
+  AppCard as BaseCard,
+  AppButton as BaseButton,
+  AppInput as BaseInput,
+  AppCheckbox as BaseCheckbox,
+  AppDateField,
+  AppFormField as FormField,
+  DataTable,
+  type DataTableColumn,
+} from "@silvicom/ui";
 import SlideOver from "@/components/SlideOver.vue";
-import { DataTable } from "@silvicom/ui";
-import { type DataTableColumn } from "@silvicom/ui";
 import FileDropzone from "@/components/ui/FileDropzone.vue";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { useSessionStore } from "@/stores/session";

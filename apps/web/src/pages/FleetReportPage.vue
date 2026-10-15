@@ -1,11 +1,9 @@
 <script setup lang="ts">
-import { useQueryState } from "@silvicom/ui";
+import { useQueryState, AppButton as BaseButton, AppCallout, AppTabs, type TabItem, QueryState } from "@silvicom/ui";
 import { computed, ref, watch } from "vue";
 import { ledgerMonthWhy } from "@silvicom/shared";
-import { AppButton as BaseButton, AppCallout, AppTabs, type TabItem } from "@silvicom/ui";
 import ExplainerPanel from "@/components/ui/ExplainerPanel.vue";
 import PageHeader from "@/components/ui/PageHeader.vue";
-import { QueryState } from "@silvicom/ui";
 import ActivityTable from "@/features/accounting/ActivityTable.vue";
 import FleetContractorsTab from "@/features/accounting/FleetContractorsTab.vue";
 import FleetDispatchersTab from "@/features/accounting/FleetDispatchersTab.vue";

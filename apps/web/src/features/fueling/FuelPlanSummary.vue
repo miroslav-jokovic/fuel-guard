@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import StatCard from "@/components/ui/StatCard.vue";
+import { StatCard } from "@silvicom/ui";
 import type { PlanResult } from "./useFuelPlan";
 
 const props = defineProps<{ result: PlanResult }>();

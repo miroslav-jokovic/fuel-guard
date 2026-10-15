@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { AppIcon } from "@silvicom/ui";
+import { AppIcon, FilterBar, DataWorkspace, AppButton as BaseButton, AppSelect, sortRows } from "@silvicom/ui";
 import { PlusIcon } from "@silvicom/ui/icons";
 import { ref, computed, watch } from "vue";
 import type { Driver, DriverInput } from "@silvicom/shared";
@@ -12,16 +12,11 @@ import {
 } from "@/composables/useDrivers";
 import SlideOver from "@/components/SlideOver.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
-import { FilterBar } from "@silvicom/ui";
 import ArchiveDriverModal from "@/components/ArchiveDriverModal.vue";
 import RosterFreshnessLine from "@/components/RosterFreshnessLine.vue";
 import PageHeader from "@/components/ui/PageHeader.vue";
-import { DataWorkspace } from "@silvicom/ui";
-import { AppButton as BaseButton } from "@silvicom/ui";
-import { AppSelect } from "@silvicom/ui";
 import DriverForm from "@/features/roster/DriverForm.vue";
 import { useToastStore } from "@/stores/toast";
-import { sortRows } from "@silvicom/ui";
 import { describeDriverEdit } from "@/lib/format";
 import { useDriverReconcile } from "@/features/roster/useDriverReconcile";
 import DriverAccessModal from "@/features/roster/DriverAccessModal.vue";

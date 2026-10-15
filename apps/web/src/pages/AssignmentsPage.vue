@@ -1,19 +1,24 @@
 <script setup lang="ts">
 import { computed, watch } from "vue";
 import type { DispatchBoardRow } from "@silvicom/shared";
-import { AppCallout, AppTabs, AppButton as BaseButton } from "@silvicom/ui";
+import {
+  AppCallout,
+  AppTabs,
+  AppButton as BaseButton,
+  FilterBar,
+  DataWorkspace,
+  useQueryState,
+  SORT_DIRECTIONS,
+  useUrlSort,
+  sortRows,
+} from "@silvicom/ui";
 import PageHeader from "@/components/ui/PageHeader.vue";
-import { FilterBar } from "@silvicom/ui";
 import ColumnPicker from "@/components/ui/ColumnPicker.vue";
 import SavedViewMenu from "@/components/ui/SavedViewMenu.vue";
-import { DataWorkspace } from "@silvicom/ui";
 import { useOrgTimezone } from "@/composables/useOrgTimezone";
-import { useQueryState } from "@silvicom/ui";
 import { useSavedViewMenu } from "@/composables/useSavedViewMenu";
 import { useTableColumns } from "@/composables/useTableColumns";
-import { SORT_DIRECTIONS, useUrlSort } from "@silvicom/ui";
 import { formatDateTime } from "@/lib/format";
-import { sortRows } from "@silvicom/ui";
 import AssignmentHistory from "@/features/dispatch/AssignmentHistory.vue";
 import DispatchBoardTable from "@/features/dispatch/DispatchBoardTable.vue";
 import DispatchTruckDrawer from "@/features/dispatch/DispatchTruckDrawer.vue";

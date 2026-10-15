@@ -1,17 +1,20 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import { useRouter } from "vue-router";
-import { useQueryState } from "@silvicom/ui";
-import { AppButton as BaseButton, AppIcon } from "@silvicom/ui";
+import {
+  useQueryState,
+  AppButton as BaseButton,
+  AppIcon,
+  DataWorkspace,
+  FilterBar,
+  DataTable,
+  type DataTableColumn,
+  TablePagination,
+} from "@silvicom/ui";
 import { Cog6ToothIcon, PlusIcon, ScanIcon } from "@silvicom/ui/icons";
 import { ASSET_STATUSES, ASSET_STATUS_LABELS, type AssetDto } from "@silvicom/shared";
 import PageHeader from "@/components/ui/PageHeader.vue";
-import { DataWorkspace } from "@silvicom/ui";
-import { FilterBar } from "@silvicom/ui";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
-import { DataTable } from "@silvicom/ui";
-import { type DataTableColumn } from "@silvicom/ui";
-import { TablePagination } from "@silvicom/ui";
 import KebabMenu from "@/components/KebabMenu.vue";
 import AssetDrawer from "@/features/inventory/AssetDrawer.vue";
 import AssetTypesDrawer from "@/features/inventory/AssetTypesDrawer.vue";

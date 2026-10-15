@@ -1,13 +1,11 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
-import { AppButton as BaseButton, AppInput } from "@silvicom/ui";
+import { AppButton as BaseButton, AppInput, QueryState, FactList, type Fact } from "@silvicom/ui";
 import {
   FUEL_EXCEPTION_KIND_LABELS, FUEL_EXCEPTION_STATUS_LABELS,
   type FuelExceptionStatus,
 } from "@silvicom/shared";
 import SlideOver from "@/components/SlideOver.vue";
-import { QueryState } from "@silvicom/ui";
-import { FactList, type Fact } from "@silvicom/ui";
 import { BADGE_BASE, toneClass, fuelExceptionStatusBadge } from "@/lib/badges";
 import { useToastStore } from "@/stores/toast";
 import { useSessionStore } from "@/stores/session";

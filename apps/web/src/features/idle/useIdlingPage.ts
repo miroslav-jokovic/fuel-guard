@@ -9,9 +9,7 @@ import { useIdleConfidence } from "./useIdleConfidence";
 import { avoidableCoverageLine, idlePricingLine, idleScopeLine, reducibleCoverageLine } from "./idleEstimateLines";
 import { useToastStore } from "@/stores/toast";
 import { toneClass } from "@/lib/badges";
-import { sortRows } from "@silvicom/ui";
-import { useQueryState } from "@silvicom/ui";
-import { SORT_DIRECTIONS, useUrlSort } from "@silvicom/ui";
+import { sortRows, useQueryState, SORT_DIRECTIONS, useUrlSort, type DataTableColumn } from "@silvicom/ui";
 import {
   APU_TYPE_LABELS,
   BEHAVES_LIKE_LABELS,
@@ -22,7 +20,6 @@ import {
   type ApuType,
   type BehavesLike,
 } from "@silvicom/shared";
-import { type DataTableColumn } from "@silvicom/ui";
 
 /** All state + logic for IdlingPage.vue: fleet KPIs, tabs, and the three tab tables. */
 export function useIdlingPage() {

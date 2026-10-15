@@ -1,5 +1,15 @@
 <script setup lang="ts">
-import { AppIcon } from "@silvicom/ui";
+import {
+  AppIcon,
+  useConfirm,
+  AppButton as BaseButton,
+  AppCard as BaseCard,
+  AppInput as BaseInput,
+  AppFormField as FormField,
+  QueryState,
+  AppSelect,
+  type SelectOption,
+} from "@silvicom/ui";
 import {
   CheckCircleIcon,
   ExclamationTriangleIcon,
@@ -16,14 +26,7 @@ import {
   type TestConnectionResult,
 } from "@/features/settings/useEfsSoap";
 import { useToastStore } from "@/stores/toast";
-import { useConfirm } from "@silvicom/ui";
-import { AppButton as BaseButton } from "@silvicom/ui";
-import { AppCard as BaseCard } from "@silvicom/ui";
-import { AppInput as BaseInput } from "@silvicom/ui";
-import { AppFormField as FormField } from "@silvicom/ui";
 import PageHeader from "@/components/ui/PageHeader.vue";
-import { QueryState } from "@silvicom/ui";
-import { AppSelect, type SelectOption } from "@silvicom/ui";
 import JobActionCard from "@/features/jobs/JobActionCard.vue";
 import EfsClientCertCard from "@/features/settings/EfsClientCertCard.vue";
 import StepUpPrompt from "@/components/StepUpPrompt.vue";

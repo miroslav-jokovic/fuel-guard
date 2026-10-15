@@ -4,23 +4,28 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import { useRoute, RouterLink } from "vue-router";
-import { AppButton as BaseButton, AppIcon } from "@silvicom/ui";
+import {
+  AppButton as BaseButton,
+  AppIcon,
+  FilterBar,
+  DataTable,
+  type DataTableColumn,
+  StatCard,
+  TablePagination,
+  DataWorkspace,
+  sortRows,
+  useQueryState,
+  QueryState,
+  SORT_DIRECTIONS,
+  useUrlSort,
+} from "@silvicom/ui";
 import { ChevronDownIcon, ChevronRightIcon } from "@silvicom/ui/icons";
 import { STATE_NAMES, type IftaJurisdictionTruck } from "@silvicom/shared";
 import PageHeader from "@/components/ui/PageHeader.vue";
-import { FilterBar } from "@silvicom/ui";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
-import { DataTable, type DataTableColumn } from "@silvicom/ui";
-import StatCard from "@/components/ui/StatCard.vue";
-import { TablePagination } from "@silvicom/ui";
-import { DataWorkspace } from "@silvicom/ui";
 import ReportScopeBar from "@/components/ui/ReportScopeBar.vue";
 import { useOpens } from "@/composables/useOpens";
 import { formatDate } from "@/lib/format";
-import { sortRows } from "@silvicom/ui";
-import { useQueryState } from "@silvicom/ui";
-import { QueryState } from "@silvicom/ui";
-import { SORT_DIRECTIONS, useUrlSort } from "@silvicom/ui";
 import {
   parseQuarterKey, quarterKey, quarterLabel, selectableQuarters, useIftaJurisdictionQuery,
   type IftaQuarter,

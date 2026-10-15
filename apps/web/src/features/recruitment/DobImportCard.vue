@@ -2,9 +2,8 @@
 import { computed, ref } from "vue";
 import { useQueryClient } from "@tanstack/vue-query";
 import { DOB_REJECT_LABELS, type DobImportPlan } from "@silvicom/shared";
-import { AppButton as BaseButton, AppCard as BaseCard } from "@silvicom/ui";
+import { AppButton as BaseButton, AppCard as BaseCard, FactList, type Fact } from "@silvicom/ui";
 import FileDropzone from "@/components/ui/FileDropzone.vue";
-import { FactList, type Fact } from "@silvicom/ui";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { apiFetch } from "@/lib/api";
 import { useToastStore } from "@/stores/toast";

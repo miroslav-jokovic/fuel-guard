@@ -4,8 +4,7 @@ import { flushPromises, mount } from "@vue/test-utils";
 import { createMemoryHistory, createRouter, type Router } from "vue-router";
 import type { DqAttentionItem, DriverOverviewRow } from "@silvicom/shared";
 import QualificationFleetTable from "@/features/compliance/QualificationFleetTable.vue";
-import { DataWorkspace } from "@silvicom/ui";
-import { FilterBar } from "@silvicom/ui";
+import { DataWorkspace, FilterBar } from "@silvicom/ui";
 
 /**
  * The fleet table's filter semantics — pinned BEFORE R4b moves them into `@silvicom/shared`.

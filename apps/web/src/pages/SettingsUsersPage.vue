@@ -2,25 +2,27 @@
 import { ref, computed, watch } from "vue";
 import { OFFICE_ROLES, USER_ROLE_LABELS, type UserRole, type OrgMember } from "@silvicom/shared";
 import { apiFetch } from "@/lib/api";
-import { useQueryState } from "@silvicom/ui";
+import {
+  useQueryState,
+  AppSelect,
+  DataTable,
+  BulkActionBar,
+  DataWorkspace,
+  FilterBar,
+  type DataTableColumn,
+  AppCard as BaseCard,
+  AppButton as BaseButton,
+  AppInput as BaseInput,
+  AppFormField as FormField,
+  TablePagination,
+  useConfirm,
+} from "@silvicom/ui";
 import { useMemberLists } from "./useMemberLists";
-import { AppSelect } from "@silvicom/ui";
 import KebabMenu from "@/components/KebabMenu.vue";
-import { DataTable } from "@silvicom/ui";
-import { BulkActionBar } from "@silvicom/ui";
-import { DataWorkspace } from "@silvicom/ui";
-import { FilterBar } from "@silvicom/ui";
-import { type DataTableColumn } from "@silvicom/ui";
-import { AppCard as BaseCard } from "@silvicom/ui";
-import { AppButton as BaseButton } from "@silvicom/ui";
-import { AppInput as BaseInput } from "@silvicom/ui";
-import { AppFormField as FormField } from "@silvicom/ui";
 import SlideOver from "@/components/SlideOver.vue";
-import { TablePagination } from "@silvicom/ui";
 import { BADGE_BASE, inviteTone, suspendedBadge, toneClass } from "@/lib/badges";
 import { useToastStore } from "@/stores/toast";
 import { useSessionStore } from "@/stores/session";
-import { useConfirm } from "@silvicom/ui";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import { formatDate } from "@/lib/format";
 import MemberPasswordResetDrawer from "@/features/settings/MemberPasswordResetDrawer.vue";

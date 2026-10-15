@@ -20,13 +20,15 @@ import {
   useThreadsQuery,
 } from "@/features/messages/useMessages";
 import { useToastStore } from "@/stores/toast";
-import { AppButton as BaseButton } from "@silvicom/ui";
-import { AppCard as BaseCard } from "@silvicom/ui";
-import { AppCheckbox as BaseCheckbox } from "@silvicom/ui";
-import { AppInput as BaseInput } from "@silvicom/ui";
-import { AppFormField as FormField } from "@silvicom/ui";
+import {
+  AppButton as BaseButton,
+  AppCard as BaseCard,
+  AppCheckbox as BaseCheckbox,
+  AppInput as BaseInput,
+  AppFormField as FormField,
+  QueryState,
+} from "@silvicom/ui";
 import PageHeader from "@/components/ui/PageHeader.vue";
-import { QueryState } from "@silvicom/ui";
 
 /**
  * The dispatch inbox (hardening plan Phase 7, D-PM4 — Samsara's model): thread list + open

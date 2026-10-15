@@ -1,18 +1,21 @@
 <script setup lang="ts">
 import { computed, watch } from "vue";
-import { useQueryState } from "@silvicom/ui";
-import { SORT_DIRECTIONS, useUrlSort } from "@silvicom/ui";
+import {
+  useQueryState,
+  SORT_DIRECTIONS,
+  useUrlSort,
+  DataWorkspace,
+  FilterBar,
+  DataTable,
+  type DataTableColumn,
+  TablePagination,
+  sortRows,
+} from "@silvicom/ui";
 import { daysSince, shopDayOf, todayInZone, type ShopDefectDto } from "@silvicom/shared";
 import PageHeader from "@/components/ui/PageHeader.vue";
-import { DataWorkspace } from "@silvicom/ui";
-import { FilterBar } from "@silvicom/ui";
-import { DataTable } from "@silvicom/ui";
-import { type DataTableColumn } from "@silvicom/ui";
-import { TablePagination } from "@silvicom/ui";
 import { useUnresolvedDefectsQuery } from "@/features/maintenance/useShopBacklog";
 import { useOrgTimezone } from "@/composables/useOrgTimezone";
 import { formatDate } from "@/lib/format";
-import { sortRows } from "@silvicom/ui";
 
 /**
  * Open defects — what inspections found wrong and FleetPal has not marked resolved

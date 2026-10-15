@@ -1,11 +1,23 @@
 <script setup lang="ts">
-import { AppIcon } from "@silvicom/ui";
+import {
+  AppIcon,
+  useQueryState,
+  SORT_DIRECTIONS,
+  useUrlSort,
+  FilterBar,
+  TablePagination,
+  DataTable,
+  BulkActionBar,
+  type DataTableColumn,
+  DataWorkspace,
+  AppButton as BaseButton,
+  useConfirm,
+  sortRows,
+} from "@silvicom/ui";
 import {
   PlusIcon,
 } from "@silvicom/ui/icons";
 import { ref, computed, watch } from "vue";
-import { useQueryState } from "@silvicom/ui";
-import { SORT_DIRECTIONS, useUrlSort } from "@silvicom/ui";
 import { VEHICLE_CHECKS, VEHICLE_CHECK_LABELS, VEHICLE_STATUSES, isStatusFromTms, matchesVehicleCheck, todayInZone, type Vehicle, type VehicleInput } from "@silvicom/shared";
 import { useSessionStore } from "@/stores/session";
 import { useVehiclesQuery, useCreateVehicle, useUpdateVehicle, useRetireVehicle, useBulkUpdateVehicles } from "@/composables/useVehicles";
@@ -13,23 +25,14 @@ import { useDriversQuery } from "@/composables/useDrivers";
 import SlideOver from "@/components/SlideOver.vue";
 import StatusBadge from "@/components/StatusBadge.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
-import { FilterBar } from "@silvicom/ui";
 import KebabMenu from "@/components/KebabMenu.vue";
-import { TablePagination } from "@silvicom/ui";
-import { DataTable } from "@silvicom/ui";
-import { BulkActionBar } from "@silvicom/ui";
-import { type DataTableColumn } from "@silvicom/ui";
 import InspectionExpiryCell from "@/features/maintenance/InspectionExpiryCell.vue";
 import RosterFreshnessLine from "@/components/RosterFreshnessLine.vue";
 import PageHeader from "@/components/ui/PageHeader.vue";
-import { DataWorkspace } from "@silvicom/ui";
-import { AppButton as BaseButton } from "@silvicom/ui";
 import VehicleForm from "@/features/roster/VehicleForm.vue";
 import VehicleSetupImport from "@/features/roster/VehicleSetupImport.vue";
 import { useToastStore } from "@/stores/toast";
-import { useConfirm } from "@silvicom/ui";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
-import { sortRows } from "@silvicom/ui";
 import { formatDate } from "@/lib/format";
 import { useOrgTimezone } from "@/composables/useOrgTimezone";
 

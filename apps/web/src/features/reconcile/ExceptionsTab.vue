@@ -1,10 +1,15 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import { AppCard as BaseCard } from "@silvicom/ui";
+import {
+  AppCard as BaseCard,
+  DataTable,
+  type DataTableColumn,
+  StatCard,
+  sortRows,
+  toggleSort,
+  type SortState,
+} from "@silvicom/ui";
 import type { ExceptionReport } from "@silvicom/shared";
-import { DataTable, type DataTableColumn } from "@silvicom/ui";
-import StatCard from "@/components/ui/StatCard.vue";
-import { sortRows, toggleSort, type SortState } from "@silvicom/ui";
 import { downloadCsv } from "@/lib/csv";
 import ExportButton from "@/components/ExportButton.vue";
 import { usd, usd3, gal, pct1 } from "./format";

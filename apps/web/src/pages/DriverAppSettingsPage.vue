@@ -1,6 +1,17 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import { AppIcon, AppTabs, type TabItem } from "@silvicom/ui";
+import {
+  AppIcon,
+  AppTabs,
+  type TabItem,
+  AppSelect,
+  AppButton as BaseButton,
+  AppCard as BaseCard,
+  AppInput as BaseInput,
+  AppSwitch as BaseSwitch,
+  AppFormField as FormField,
+  QueryState,
+} from "@silvicom/ui";
 import {
   ArrowsRightLeftIcon,
   BellIcon,
@@ -37,14 +48,7 @@ import {
 } from "@/features/settings/useDriverAppFeatures";
 import { useToastStore } from "@/stores/toast";
 import ClosureRequestsCard from "@/features/settings/ClosureRequestsCard.vue";
-import { AppSelect } from "@silvicom/ui";
-import { AppButton as BaseButton } from "@silvicom/ui";
-import { AppCard as BaseCard } from "@silvicom/ui";
-import { AppInput as BaseInput } from "@silvicom/ui";
-import { AppSwitch as BaseSwitch } from "@silvicom/ui";
-import { AppFormField as FormField } from "@silvicom/ui";
 import PageHeader from "@/components/ui/PageHeader.vue";
-import { QueryState } from "@silvicom/ui";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import ScoreFeatureOptions from "@/features/settings/ScoreFeatureOptions.vue";
 type SettingsTab = "features" | "app" | "exceptions";

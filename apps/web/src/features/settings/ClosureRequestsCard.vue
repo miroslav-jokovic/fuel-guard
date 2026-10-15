@@ -1,10 +1,9 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import { AppCard as BaseCard, AppButton as BaseButton, AppInput as BaseInput } from "@silvicom/ui";
+import { AppCard as BaseCard, AppButton as BaseButton, AppInput as BaseInput, QueryState } from "@silvicom/ui";
 import type { ClosureRequest } from "@silvicom/shared";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { formatDateTime } from "@/lib/format";
-import { QueryState } from "@silvicom/ui";
 import { useToastStore } from "@/stores/toast";
 import { useClosureRequestsQuery, useResolveClosureRequest } from "./useClosureRequests";
 

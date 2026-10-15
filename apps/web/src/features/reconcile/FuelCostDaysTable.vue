@@ -1,9 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
-import { AppCard as BaseCard } from "@silvicom/ui";
+import { AppCard as BaseCard, DataTable, type DataTableColumn, TablePagination } from "@silvicom/ui";
 import ExportButton from "@/components/ExportButton.vue";
-import { DataTable, type DataTableColumn } from "@silvicom/ui";
-import { TablePagination } from "@silvicom/ui";
 import { downloadCsv } from "@/lib/csv";
 import { costDayCells, costDayHeaders, costDaysCsv, type CostDayRow } from "@silvicom/shared";
 

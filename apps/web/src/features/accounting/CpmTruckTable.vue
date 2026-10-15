@@ -1,9 +1,7 @@
 <script setup lang="ts">
 import type { FleetTruck } from "./useFleetReport";
-import { type SortState } from "@silvicom/ui";
-import { DataTable } from "@silvicom/ui";
+import { type SortState, DataTable, TablePagination } from "@silvicom/ui";
 import { CPM_TRUCK_COLUMNS } from "./cpmTruckColumns";
-import { TablePagination } from "@silvicom/ui";
 
 /**
  * The per-truck table — **only the columns that are precise per truck** (G7, §2 Tab 4).

@@ -7,10 +7,16 @@ import {
   type ApplicantTravel,
   type TravelMode,
 } from "@silvicom/shared";
-import { AppButton as BaseButton, AppInput as BaseInput, AppDateTimeField, AppFormField as FormField, AppSelect } from "@silvicom/ui";
+import {
+  AppButton as BaseButton,
+  AppInput as BaseInput,
+  AppDateTimeField,
+  AppFormField as FormField,
+  AppSelect,
+  QueryState,
+} from "@silvicom/ui";
 import { useSessionStore } from "@/stores/session";
 import { useToastStore } from "@/stores/toast";
-import { QueryState } from "@silvicom/ui";
 import { useApplicantTravelQuery, useBookTravel, useCancelTravel } from "@/features/recruitment/useApplicantTravel";
 
 /**

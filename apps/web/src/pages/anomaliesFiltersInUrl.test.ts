@@ -64,8 +64,7 @@ vi.mock("@vueuse/core", async (orig) => {
 });
 
 import AnomaliesPage from "./AnomaliesPage.vue";
-import { DataWorkspace } from "@silvicom/ui";
-import { FilterBar } from "@silvicom/ui";
+import { DataWorkspace, FilterBar } from "@silvicom/ui";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
 import DateRangeFilter from "@/components/DateRangeFilter.vue";
 

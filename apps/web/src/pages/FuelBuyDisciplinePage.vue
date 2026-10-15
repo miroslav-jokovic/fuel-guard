@@ -1,9 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import { AppCallout } from "@silvicom/ui";
+import { AppCallout, QueryState, FilterBar } from "@silvicom/ui";
 import PageHeader from "@/components/ui/PageHeader.vue";
-import { QueryState } from "@silvicom/ui";
-import { FilterBar } from "@silvicom/ui";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
 import DateRangeFilter from "@/components/DateRangeFilter.vue";
 import BuyDisciplineTab from "@/features/reconcile/BuyDisciplineTab.vue";
