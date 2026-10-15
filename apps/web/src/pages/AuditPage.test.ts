@@ -14,16 +14,20 @@ import AuditPage from "@/pages/AuditPage.vue";
 const state = vi.hoisted(() => ({
   urls: [] as string[],
   refuse: null as null | { code: string; message: string },
-  /** cursor ("" for the first page) → the page the API answers. */
-  pages: {} as Record<string, { rows: unknown[]; hasNext: boolean; nextCursor: string | null }>,
+  /** "" for the newest page, `before:<cursor>` / `after:<cursor>` otherwise → the page the API answers. */
+  pages: {} as Record<
+    string,
+    { rows: unknown[]; hasNext: boolean; nextCursor: string | null; hasNewer: boolean; newerCursor: string | null }
+  >,
 }));
 
 vi.mock("@/lib/api", () => ({
   apiFetch: vi.fn(async (url: string) => {
     state.urls.push(url);
     if (state.refuse) return { ok: false, error: state.refuse };
-    const cursor = new URL(url, "http://x").searchParams.get("cursor") ?? "";
-    return { ok: true, data: state.pages[cursor] ?? { rows: [], hasNext: false, nextCursor: null } };
+    const sp = new URL(url, "http://x").searchParams;
+    const key = sp.get("before") ? `before:${sp.get("before")}` : sp.get("after") ? `after:${sp.get("after")}` : "";
+    return { ok: true, data: state.pages[key] ?? { rows: [], hasNext: false, nextCursor: null, hasNewer: false, newerCursor: null } };
   }),
 }));
 
@@ -35,10 +39,14 @@ const row = (n: number): AuditLog => ({
   entity: null,
   entity_id: null,
   meta: {},
-  created_at: "2026-09-30T12:00:00+00:00",
+  // Newest first: row 0 is the newest, a minute apart, so a page spans a range of time.
+  created_at: new Date(Date.UTC(2026, 8, 30, 18, 0) - n * 60_000).toISOString(),
 });
 const PAGE_ONE = Array.from({ length: AUDIT_LOG_PAGE_SIZE }, (_, i) => row(i));
-const CURSOR = "2026-09-30T12:00:00+00:00|00000000-0000-4000-8000-000000000049";
+const cursorOf = (r: AuditLog) => `${r.created_at}|${r.id}`;
+const OLDER = cursorOf(PAGE_ONE.at(-1)!);
+const PAGE_TWO = [row(50), row(51)];
+const NEWER = cursorOf(PAGE_TWO[0]!);
 
 enableAutoUnmount(afterEach);
 const settle = async (w: ReturnType<typeof mount>) => {
@@ -103,26 +111,58 @@ describe("the Audit log page (SP4)", () => {
     expect(w.text()).not.toContain("No audit entries.");
   });
 
-  it("pages on hasNext without a total, handing the server's cursor back", async () => {
-    state.pages[""] = { rows: PAGE_ONE, hasNext: true, nextCursor: CURSOR };
-    state.pages[CURSOR] = { rows: [row(50), row(51)], hasNext: false, nextCursor: null };
+  it("names the time a page spans, never a page number or a row count (D-US12)", async () => {
+    state.pages[""] = { rows: PAGE_ONE, hasNext: true, nextCursor: OLDER, hasNewer: false, newerCursor: null };
     const w = await page();
-    expect(w.text()).toContain("Showing 1–50");
-    expect(w.text()).not.toMatch(/Showing 1–50\s*of/);
-
-    await button(w, "Next").trigger("click");
-    await settle(w);
-    expect(new URL(state.urls.at(-1)!, "http://x").searchParams.get("cursor")).toBe(CURSOR);
-    expect(w.text()).toContain("action.number-51");
-    expect(w.text()).toContain("Showing 51–52");
-    expect(button(w, "Next").attributes("disabled")).toBeDefined();
-    expect(button(w, "Prev").attributes("disabled")).toBeUndefined();
+    const footer = w.text();
+    expect(footer).toMatch(/\d{2}\/\d{2}\/2026 [^–]+ – \d{2}\/\d{2}\/2026/);
+    expect(footer).not.toMatch(/Showing|Page \d/);
+    expect(button(w, "Newer").attributes("disabled")).toBeDefined();
+    expect(button(w, "Newest")).toBeUndefined();
   });
 
-  it("offers no next page when the server says there is none", async () => {
-    state.pages[""] = { rows: PAGE_ONE, hasNext: false, nextCursor: null };
+  it("puts the older page's cursor in the URL, so the link it makes reopens those rows", async () => {
+    state.pages[""] = { rows: PAGE_ONE, hasNext: true, nextCursor: OLDER, hasNewer: false, newerCursor: null };
+    state.pages[`before:${OLDER}`] = { rows: PAGE_TWO, hasNext: false, nextCursor: null, hasNewer: true, newerCursor: NEWER };
     const w = await page();
-    expect(button(w, "Next").attributes("disabled")).toBeDefined();
+
+    await button(w, "Older").trigger("click");
+    await settle(w);
+    expect(query().before).toBe(OLDER);
+    expect(new URL(state.urls.at(-1)!, "http://x").searchParams.get("before")).toBe(OLDER);
+    expect(w.text()).toContain("action.number-51");
+    expect(button(w, "Older").attributes("disabled")).toBeDefined();
+    expect(button(w, "Newer").attributes("disabled")).toBeUndefined();
+
+    // The link, pasted: a fresh page on that URL asks for the same rows, with no walk before it.
+    state.urls = [];
+    const pasted = await page(`/audit?before=${encodeURIComponent(OLDER)}`);
+    expect(state.urls).toEqual([`/api/audit/log?before=${encodeURIComponent(OLDER)}`]);
+    expect(pasted.text()).toContain("action.number-51");
+  });
+
+  it("walks Newer from a pasted link by the server's cursor, and Newest clears the URL", async () => {
+    state.pages[`before:${OLDER}`] = { rows: PAGE_TWO, hasNext: false, nextCursor: null, hasNewer: true, newerCursor: NEWER };
+    state.pages[`after:${NEWER}`] = { rows: PAGE_ONE, hasNext: true, nextCursor: OLDER, hasNewer: true, newerCursor: cursorOf(PAGE_ONE[0]!) };
+    const w = await page(`/audit?before=${encodeURIComponent(OLDER)}`);
+
+    await button(w, "Newer").trigger("click");
+    await settle(w);
+    expect(query()).toEqual({ after: NEWER });
+    expect(w.text()).toContain("action.number-0");
+
+    await button(w, "Newest").trigger("click");
+    await settle(w);
+    expect(query()).toEqual({});
+    expect(state.urls.at(-1)).toBe("/api/audit/log?");
+  });
+
+  it("starts a new search from its newest page", async () => {
+    const w = await page(`/audit?before=${encodeURIComponent(OLDER)}`);
+    await w.find('input[type="search"], input').setValue("invite");
+    await new Promise((r) => setTimeout(r, 400));
+    await settle(w);
+    expect(query()).toEqual({ action: "invite" });
   });
 
   it("sends the search as the action prefix", async () => {
@@ -137,7 +177,7 @@ describe("the Audit log page (SP4)", () => {
 /**
  * D-US2 (UI-STANDARDIZATION, 2026-10-12): the tab and the Activity search are in the URL, so Back from
  * a card the Card changes tab linked to lands on that tab, and a forwarded search reopens. The page is
- * not — the keyset walk cannot be rebuilt from a page number; the page's own comment says why.
+ * in it too, as its cursor (D-US12) — tested above.
  */
 describe("the Audit log keeps its view in the URL (D-US2)", () => {
   it("opens on Activity with nothing in the URL, and a tab click writes the tab", async () => {

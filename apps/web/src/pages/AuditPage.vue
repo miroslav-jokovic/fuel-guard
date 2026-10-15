@@ -1,8 +1,7 @@
 <script setup lang="ts">
-import { ref, computed, watch } from "vue";
+import { computed, watch } from "vue";
 import { useQueryState } from "@/composables/useQueryState";
-import { AUDIT_LOG_PAGE_SIZE as PAGE_SIZE } from "@silvicom/shared";
-import { useAuditQuery, type AuditFilters } from "@/features/audit/useAudit";
+import { useAuditQuery, type AuditFilters, type AuditPosition } from "@/features/audit/useAudit";
 import TablePagination from "@/components/TablePagination.vue";
 import FilterBar from "@/components/ui/FilterBar.vue";
 import DataTable from "@/components/ui/DataTable.vue";
@@ -42,30 +41,45 @@ const cardFilter = computed(() => qs.one("cardId"));
  * The action search is in the URL (D-US2) under `?action=`, the same word the API takes — the page owns
  * the route's unscoped keys; the Card changes tab writes under `cards.`.
  *
- * ⚠ The PAGE is deliberately not. This log pages on a keyset cursor (Q-SET5: no count, ~5 M rows), and
- * page N is only reachable by walking the N − 1 cursors before it, which this page holds in memory. A
- * `?page=3` read back on a reload would have no cursor to stand on and would show page 1's rows under a
- * "page 3" label. Putting the cursor itself in the URL would fix reload but not Prev, which needs every
- * earlier one; that is an API change (a backwards cursor), not a page change, so the walk restarts on
- * reload, as Assignment history's "Load more" does for the same reason.
+ * So is the PAGE, as the cursor that addresses it (D-US12): `?before=<cursor>` is the page of rows
+ * older than that row, `?after=<cursor>` the page newer than it, neither is the newest. The log is
+ * evidence. A link to what it showed must reopen the same rows when an auditor follows it next week, and
+ * a page number cannot: page 3 moves every time a row is written at the top. Until 2026-10-15 the page
+ * number lived in memory over a stack of walked cursors, so a reload or a pasted link opened the newest
+ * page. That stack is gone; the server now answers Newer from any cursor.
  */
 const action = qs.param("action");
+const before = qs.param("before");
+const after = qs.param("after");
 const filters = computed<AuditFilters>(() => ({ action: action.value.trim() || undefined }));
-const page = ref(1);
-const cursors = ref<(string | null)[]>([null]);
-const cursor = computed(() => cursors.value[page.value - 1] ?? null);
-const { data: auditPage, isLoading, isError, isFetching, refetch } = useAuditQuery(filters, cursor);
+const position = computed<AuditPosition>(() =>
+  before.value ? { before: before.value } : after.value ? { after: after.value } : {},
+);
+const { data: auditPage, isLoading, isError, isFetching, refetch } = useAuditQuery(filters, position);
 
 // Watched by VALUE: `filters` reads the URL, so it recomputes on every navigation (a tab click
-// included), and a reset on each of those would throw away the cursor walk for nothing.
-watch(() => filters.value.action, () => {
-  page.value = 1;
-  cursors.value = [null];
-});
-watch(() => auditPage.value?.nextCursor, (next) => {
-  if (next && cursors.value.length === page.value) cursors.value.push(next);
+// included). A new search is a new list, so it starts from its newest page.
+watch(() => filters.value.action, (next, prev) => {
+  if (next !== prev) qs.set({ before: undefined, after: undefined });
 });
 const pageRows = computed(() => auditPage.value?.rows ?? []);
+
+/** The page names the time its rows span, newest first: oldest – newest, as a reader reads a range. */
+const span = computed(() => {
+  const rows = pageRows.value;
+  if (!rows.length) return null;
+  const newest = fmt(rows[0]!.created_at);
+  const oldest = fmt(rows.at(-1)!.created_at);
+  return newest === oldest ? newest : `${oldest} – ${newest}`;
+});
+const pager = computed(() => ({
+  span: span.value,
+  hasNewer: auditPage.value?.hasNewer ?? false,
+  hasOlder: auditPage.value?.hasNext ?? false,
+}));
+const toNewest = () => qs.set({ before: undefined, after: undefined });
+const toNewer = () => qs.set({ before: undefined, after: auditPage.value?.newerCursor ?? undefined });
+const toOlder = () => qs.set({ after: undefined, before: auditPage.value?.nextCursor ?? undefined });
 
 /** The FilterBar's search box, over `?action=`. */
 const search = action;
@@ -120,15 +134,13 @@ const columns: DataTableColumn[] = [
         </template>
         <template #footer>
           <TablePagination
-            v-if="pageRows.length > 0 || page > 1"
-            :page="page"
-            :page-size="PAGE_SIZE"
+            v-if="pageRows.length > 0 || before || after"
             :total="null"
-            :has-next="auditPage?.hasNext ?? false"
-            :page-rows="pageRows.length"
+            :log="pager"
             :loading="isFetching"
-            :jumpable="false"
-            @update:page="page = $event"
+            @newest="toNewest"
+            @newer="toNewer"
+            @older="toOlder"
           />
         </template>
       </DataTable>

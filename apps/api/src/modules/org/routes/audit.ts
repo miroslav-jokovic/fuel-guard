@@ -66,31 +66,72 @@ export function auditRouter(): Router {
         res.status(400).json(apiError("invalid_request", parsed.error.issues[0]?.message ?? "Invalid query"));
         return;
       }
-      const { action, cursor } = parsed.data;
+      const { action, before, after } = parsed.data;
       const admin = getSupabaseAdmin(getAppLocals(req).env);
-      // One more than a page, so the page knows whether there is a next one without counting.
-      let q = admin
-        .from("audit_logs")
-        .select("id, org_id, actor_id, action, entity, entity_id, meta, created_at")
-        .eq("org_id", req.auth!.orgId!)
-        .order("created_at", { ascending: false })
-        .order("id", { ascending: false })
-        .limit(AUDIT_LOG_PAGE_SIZE + 1);
-      // A typed `%` or `_` is a character to find, not a wildcard (`\` is ilike's default escape).
-      if (action) q = q.ilike("action", `${action.replace(/[\\%_]/g, "\\$&")}%`);
-      // Both halves were parsed to a timestamp and a uuid, so neither can carry a `,` or `)` into
-      // the filter. Ties on `created_at` are real — one transaction's rows share its `now()`.
-      if (cursor) q = q.or(`created_at.lt.${cursor.createdAt},and(created_at.eq.${cursor.createdAt},id.lt.${cursor.id})`);
-      const { data, error } = await q;
-      if (error) {
-        dbErrorResponse(res, "audit log read", error, "Could not load the audit log");
+      const orgId = req.auth!.orgId!;
+      // The keyset predicate on (created_at, id), one side of a row. Both halves were parsed to a
+      // timestamp and an id, so neither can carry a `,` or `)` into the filter. Ties on `created_at`
+      // are real: one transaction's rows share its `now()`.
+      const side = (op: "lt" | "gt", c: { createdAt: string; id: string }) =>
+        `created_at.${op}.${c.createdAt},and(created_at.eq.${c.createdAt},id.${op}.${c.id})`;
+      const read = (columns: string, ascending: boolean, limit: number, edge: string | null) => {
+        let q = admin
+          .from("audit_logs")
+          .select(columns)
+          .eq("org_id", orgId)
+          .order("created_at", { ascending })
+          .order("id", { ascending })
+          .limit(limit);
+        // A typed `%` or `_` is a character to find, not a wildcard (`\` is ilike's default escape).
+        if (action) q = q.ilike("action", `${action.replace(/[\\%_]/g, "\\$&")}%`);
+        if (edge) q = q.or(edge);
+        return q;
+      };
+
+      // D-US12: `after` reads the NEWER side ascending, nearest the cursor first, and turns it round,
+      // so Newer from a pasted link shows the rows that sit just above that link's page. One row more
+      // than a page tells each read whether its own direction goes on, without counting (Q-SET5).
+      const ascending = Boolean(after);
+      const main = await read(
+        "id, org_id, actor_id, action, entity, entity_id, meta, created_at",
+        ascending,
+        AUDIT_LOG_PAGE_SIZE + 1,
+        after ? side("gt", after) : before ? side("lt", before) : null,
+      );
+      if (main.error) {
+        dbErrorResponse(res, "audit log read", main.error, "Could not load the audit log");
         return;
       }
-      const batch = (data ?? []) as AuditLog[];
-      const hasNext = batch.length > AUDIT_LOG_PAGE_SIZE;
-      const rows = hasNext ? batch.slice(0, AUDIT_LOG_PAGE_SIZE) : batch;
-      const last = rows.at(-1);
-      const page: AuditLogPage = { rows, hasNext, nextCursor: hasNext && last ? auditLogCursor(last) : null };
+      const batch = (main.data ?? []) as unknown as AuditLog[];
+      const more = batch.length > AUDIT_LOG_PAGE_SIZE;
+      const rows = more ? batch.slice(0, AUDIT_LOG_PAGE_SIZE) : batch;
+      if (ascending) rows.reverse();
+      const newest = rows[0];
+      const oldest = rows.at(-1);
+
+      // The far side is ASKED, one row, never assumed from the cursor having come from somewhere: a
+      // hand-edited or filtered-out cursor must not offer a Newer that opens onto nothing. From the
+      // newest page there is no newer side to ask about.
+      let farSide = false;
+      const edge = ascending ? (oldest ?? null) : (newest ?? null);
+      const from = edge ? { createdAt: edge.created_at, id: edge.id } : (after ?? before);
+      if (from && (before || after)) {
+        const probe = await read("id", !ascending, 1, side(ascending ? "lt" : "gt", from));
+        if (probe.error) {
+          dbErrorResponse(res, "audit log read", probe.error, "Could not load the audit log");
+          return;
+        }
+        farSide = (probe.data ?? []).length > 0;
+      }
+      const hasOlder = ascending ? farSide : more;
+      const hasNewer = ascending ? more : farSide;
+      const page: AuditLogPage = {
+        rows,
+        hasNext: hasOlder,
+        nextCursor: hasOlder && oldest ? auditLogCursor(oldest) : null,
+        hasNewer,
+        newerCursor: hasNewer && newest ? auditLogCursor(newest) : null,
+      };
       res.json(page);
     }),
   );

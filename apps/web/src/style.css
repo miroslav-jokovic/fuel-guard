@@ -82,6 +82,18 @@ body {
 }
 
 @layer components {
+  /*
+   * The shell's content ends far enough above the Ask AI launcher to scroll clear of it. The launcher
+   * floats over the page, so a list's last row or its pager (the Audit log's Older, every table's
+   * Next) sat under it once the page was scrolled to its end (seen in Chromium 2026-10-15, US8).
+   * `--assistant-clearance` is written by the launcher from its own measured position and size, and
+   * is 0 when it is not drawn (AssistantLauncher.vue). 1.5rem is the gutter the page had before.
+   */
+  .shell-main-padding {
+    padding-top: 1.5rem;
+    padding-bottom: max(1.5rem, var(--assistant-clearance, 0px));
+  }
+
   .sidebar-glass {
     position: relative;
     isolation: isolate;

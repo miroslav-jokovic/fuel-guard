@@ -177,4 +177,16 @@ describe("AssistantLauncher", () => {
     expect(launcher()!.style.bottom).toBe("8px");
     w.unmount();
   });
+
+  it("asks the shell for room under the page as tall as it reaches, and for none where it is not drawn", async () => {
+    const clearance = () => document.documentElement.style.getPropertyValue("--assistant-clearance");
+    const { w, router } = await mountAt("/");
+    // Its home: 24 px up, 52 px tall, and the 8 px edge margin above it.
+    expect(clearance()).toBe("84px");
+    await router.push("/ask");
+    await flushPromises();
+    expect(clearance()).toBe("0px");
+    w.unmount();
+    expect(clearance()).toBe("");
+  });
 });

@@ -28,6 +28,8 @@ const HOLDERS = rolesThatCanView("settings").filter((r) => r !== "admin");
 const OUTSIDERS = USER_ROLES.filter((r) => !rolesThatCanView("settings").includes(r));
 
 let rec: SupabaseRecorder;
+/** D-US12: when set, the one-row probe of the far side finds nothing (the fixture ignores `or=`). */
+let farSideEmpty = false;
 let grants: Record<string, Record<string, boolean>> = {};
 
 vi.mock("./lib/supabaseAdmin.js", () => ({ getSupabaseAdmin: () => rec.client }));
@@ -69,6 +71,7 @@ const ROWS: FixtureRow[] = [
 
 beforeEach(() => {
   grants = {};
+  farSideEmpty = false;
   rec = createSupabaseRecorder({
     tables: {
       org_role_surface_access: (q) => {
@@ -76,7 +79,8 @@ beforeEach(() => {
         return Object.entries(grants[role] ?? {}).map(([surface_key, allowed]) => ({ role, surface_key, allowed }));
       },
       user_surface_access: [],
-      audit_logs: postgrestFixture(ROWS),
+      audit_logs: (q) =>
+        farSideEmpty && q.ops.find((o) => o.method === "select")?.args[0] === "id" ? [] : postgrestFixture(ROWS)(q),
     },
   });
 });
@@ -158,7 +162,7 @@ describe("the Audit log pages and filters like the page always did", () => {
     const cursor = first.body!.nextCursor!;
     const [createdAt, id] = cursor.split("|");
     await get("admin", `?cursor=${encodeURIComponent(cursor)}`);
-    const or = reads().at(-1)!.ops.find((o) => o.method === "or");
+    const or = reads()[1]!.ops.find((o) => o.method === "or");
     expect(or?.args[0]).toBe(`created_at.lt.${createdAt},and(created_at.eq.${createdAt},id.lt.${id})`);
     expectOrgScoped(rec, ORG);
   });
@@ -187,6 +191,69 @@ describe("the Audit log pages and filters like the page always did", () => {
     expect((await get("admin", `?action=${encodeURIComponent("100%")}`)).body!.rows.map((r) => r.action)).toEqual(["100%.saved"]);
   });
 
+  it("opens the newest page with no newer side, and asks nothing more to know it (D-US12)", async () => {
+    const { body } = await get("admin");
+    expect(body!.hasNewer).toBe(false);
+    expect(body!.newerCursor).toBeNull();
+    expect(reads()).toHaveLength(1);
+  });
+
+  it("opens the page before a cursor from the URL, and asks one row whether anything is newer", async () => {
+    const cursor = `${at(30)}|${uuid(30)}`;
+    const { body } = await get("admin", `?before=${encodeURIComponent(cursor)}`);
+    const [main, probe] = reads();
+    expect(main!.ops.find((o) => o.method === "or")!.args[0]).toBe(
+      `created_at.lt.${at(30)},and(created_at.eq.${at(30)},id.lt.${uuid(30)})`,
+    );
+    expect(main!.ops.find((o) => o.method === "order")!.args[1]).toEqual({ ascending: false });
+    // The probe starts from the page's NEWEST row, upwards, one row, ids only.
+    const newest = body!.rows[0]!;
+    expect(probe!.ops.find((o) => o.method === "or")!.args[0]).toBe(
+      `created_at.gt.${newest.created_at},and(created_at.eq.${newest.created_at},id.gt.${newest.id})`,
+    );
+    expect(probe!.ops.find((o) => o.method === "order")!.args[1]).toEqual({ ascending: true });
+    expect(probe!.ops.find((o) => o.method === "limit")!.args[0]).toBe(1);
+    expect(body!.hasNewer).toBe(true);
+    expect(body!.newerCursor).toBe(`${newest.created_at}|${newest.id}`);
+    expectOrgScoped(rec, ORG);
+  });
+
+  it("reads the page after a cursor upwards from it and shows it newest first", async () => {
+    const cursor = `${at(10)}|${uuid(10)}`;
+    const { body } = await get("admin", `?after=${encodeURIComponent(cursor)}`);
+    const [main, probe] = reads();
+    expect(main!.ops.find((o) => o.method === "or")!.args[0]).toBe(
+      `created_at.gt.${at(10)},and(created_at.eq.${at(10)},id.gt.${uuid(10)})`,
+    );
+    expect(main!.ops.find((o) => o.method === "order")!.args[1]).toEqual({ ascending: true });
+    expect(main!.ops.find((o) => o.method === "limit")!.args[0]).toBe(AUDIT_LOG_PAGE_SIZE + 1);
+    const times = body!.rows.map((r) => r.created_at);
+    expect(times).toEqual([...times].sort().reverse());
+    // More than a page above the cursor, so there is a newer side; the older side is the probe's.
+    expect(body!.hasNewer).toBe(true);
+    const oldest = body!.rows.at(-1)!;
+    expect(probe!.ops.find((o) => o.method === "or")!.args[0]).toBe(
+      `created_at.lt.${oldest.created_at},and(created_at.eq.${oldest.created_at},id.lt.${oldest.id})`,
+    );
+    expect(probe!.ops.find((o) => o.method === "order")!.args[1]).toEqual({ ascending: false });
+    expect(body!.hasNext).toBe(true);
+    expect(body!.nextCursor).toBe(`${oldest.created_at}|${oldest.id}`);
+    expectOrgScoped(rec, ORG);
+  });
+
+  it("offers no Newer when nothing is newer, rather than assuming from the cursor", async () => {
+    farSideEmpty = true;
+    const { body } = await get("admin", `?before=${encodeURIComponent(`${at(30)}|${uuid(30)}`)}`);
+    expect(body!.hasNewer).toBe(false);
+    expect(body!.newerCursor).toBeNull();
+  });
+
+  it("refuses a page asked to be both before one row and after another", async () => {
+    const c = encodeURIComponent(`${at(1)}|${uuid(1)}`);
+    expect((await get("admin", `?before=${c}&after=${c}`)).status).toBe(400);
+    expect(reads()).toEqual([]);
+  });
+
   for (const [what, cursor] of [
     ["not a cursor at all", "garbage"],
     ["an id that is not a uuid", `${at(1)}|not-a-uuid`],
@@ -194,7 +261,9 @@ describe("the Audit log pages and filters like the page always did", () => {
     ["a third part", `${at(1)}|${uuid(1)}|x`],
   ] as const) {
     it(`refuses ${what} with 400, and reads nothing`, async () => {
-      expect((await get("admin", `?cursor=${encodeURIComponent(cursor)}`)).status).toBe(400);
+      for (const key of ["cursor", "before", "after"]) {
+        expect((await get("admin", `?${key}=${encodeURIComponent(cursor)}`)).status).toBe(400);
+      }
       expect(reads()).toEqual([]);
     });
   }
