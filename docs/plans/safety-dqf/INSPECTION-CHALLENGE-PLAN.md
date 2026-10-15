@@ -748,3 +748,17 @@ about three merges.
     has no FK, 0473) shows as "a driver record that has since been merged". The decision itself stands.
   - **Not built:** the driver column and filter on the inbox (§6), which need the reading on the list
     read; the timeline from the frozen evidence.
+- **2026-10-15 — IC2, first merge: `documents` can hold an inspection's paper (schema only).** Migration
+  0476 widens two CHECKs: subject `roadside_inspection` (subject_id = `roadside_inspections.id`, no FK,
+  as every subject in 0146) and §3's five kinds — `roadside_inspection_report`, `citation`,
+  `court_disposition`, `dataqs_packet`, `dataqs_correspondence`. Its first writer, the upload on the
+  Inspection page, is the next merge (§3: the widening and its writer in two merges).
+  - **A document belongs to the inspection, not to one violation.** Measured on production
+    2026-10-15: 155 inspections carry a citation number, 12 on more than one violation, 5 with two
+    different ticket numbers. Which violation a court result answers is recorded by IC4's disposition
+    record citing the document — the `certifications.document_id` shape.
+  - **The upload cannot ride `/api/compliance/documents`:** that route is gated on the `roster` section,
+    and a roster manager is not a safety reader. The next merge adds the inspection's own route behind
+    `safety` (D-IC12), and keeps the compliance route refusing the new subject.
+  - Matrix `roadside-documents.test.mjs` (12 checks), mutation-checked: dropping a new kind, an old kind
+    (`psp_report`), an old subject (`load`) or the new subject each fails it.
