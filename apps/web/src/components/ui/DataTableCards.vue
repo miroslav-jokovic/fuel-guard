@@ -81,6 +81,16 @@ const textBodyColumns = computed(() => bodyColumns.value.filter((c) => !c.numeri
  */
 const sortableColumns = computed(() => props.columns.filter((col) => col.sortable));
 
+/**
+ * The column ordering the cards, or null for the page's own default order. A page may name a default
+ * that is no column (Fuel Cards' `assignment`): bound straight to `sort.key`, the select matched no
+ * option and opened blank on a phone (2026-10-15), beside an arrow for an order no header shows.
+ */
+const sortedColumn = computed(() => {
+  const col = sortableColumns.value.find((c) => c.key === props.sort?.key);
+  return col ? { key: col.key, dir: props.sort!.dir } : null;
+});
+
 /** A stable id so the card view's sort control can label itself without colliding across tables. */
 const listId = `dt-${Math.random().toString(36).slice(2, 8)}`;
 
@@ -100,20 +110,20 @@ function onCardSort(key: string) {
     <select
       :id="`${listId}-sort`"
       class="min-w-0 flex-1 rounded-control bg-surface px-2 py-1.5 text-sm text-ink-secondary ring-1 ring-inset ring-edge-control"
-      :value="sort?.key ?? ''"
+      :value="sortedColumn?.key ?? ''"
       @change="onCardSort(($event.target as HTMLSelectElement).value)"
     >
       <option value="">Default order</option>
       <option v-for="col in sortableColumns" :key="col.key" :value="col.key">{{ col.label }}</option>
     </select>
     <button
-      v-if="sort?.key"
+      v-if="sortedColumn"
       type="button"
       class="rounded-control px-2 py-1.5 text-sm font-medium text-ink-secondary ring-1 ring-inset ring-edge-control"
-      :aria-label="sort.dir === 'asc' ? 'Sorted ascending, switch to descending' : 'Sorted descending, switch to ascending'"
-      @click="emit('sort', sort.key)"
+      :aria-label="sortedColumn.dir === 'asc' ? 'Sorted ascending, switch to descending' : 'Sorted descending, switch to ascending'"
+      @click="emit('sort', sortedColumn.key)"
     >
-      {{ sort.dir === "asc" ? "↑" : "↓" }}
+      {{ sortedColumn.dir === "asc" ? "↑" : "↓" }}
     </button>
   </div>
 

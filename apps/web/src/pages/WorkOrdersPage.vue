@@ -94,7 +94,7 @@ watch([search, () => sort.value.key, () => sort.value.dir], () => (page.value = 
         :rows="pageRows"
         row-key="id"
         :loading="orders.isLoading.value"
-        :error="orders.isError.value ? 'Could not load the open work orders' : null"
+        :error="orders.isError.value ? 'Could not load the open work orders.' : null"
         :sort="sort"
         @sort="onSort"
         @retry="() => orders.refetch()"

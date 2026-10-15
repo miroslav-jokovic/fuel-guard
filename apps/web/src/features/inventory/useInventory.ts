@@ -277,12 +277,31 @@ export function useCountSessionQuery(id: Ref<string>) {
 
 type StockPage = { lines: StockLineDto[]; total: number };
 
-async function fetchStock(locationId?: string): Promise<StockPage> {
-  const r = await apiFetch<StockPage>(
-    `/api/maintenance/inventory/stock${locationId ? `?locationId=${locationId}` : ""}`,
-  );
-  if (!r.ok || !r.data) throw new Error(r.error?.message ?? "Could not load the shelf");
-  return r.data;
+/** The most lines `/stock` returns in one response — the route's `limit` ceiling (`PAGE_MAX`). */
+const STOCK_READ_PAGE = 200;
+
+/**
+ * Every shelf line at one location, read to the end — `/low-stock`'s reason, one layer up.
+ *
+ * Until 2026-10-15 this was one `/stock` request with no `limit`, which the route answers with its
+ * first 200 lines. A walk of a bay holding line 201 would have shown 200 bins, counted them all and
+ * said "Every line is counted" over a shelf nobody had finished: the under-report the 2026-09-09
+ * review took out of the low-stock list. On 2026-10-14 every bay held 0 lines, so nobody had met it.
+ *
+ * A short page is the end, and the page size trusted is the one received, not the one asked for, as
+ * `listLowStock` does. Throws on a failed page rather than returning the pages so far: a shelf cut
+ * short is the defect, and the walk already says "Could not load the shelf" with Retry.
+ */
+async function fetchWholeShelf(locationId: string): Promise<StockPage> {
+  const lines: StockLineDto[] = [];
+  for (let offset = 0; ; offset += STOCK_READ_PAGE) {
+    const params = new URLSearchParams({ locationId, limit: String(STOCK_READ_PAGE), offset: String(offset) });
+    const r = await apiFetch<StockPage>(`/api/maintenance/inventory/stock?${params}`);
+    if (!r.ok || !r.data) throw new Error(r.error?.message ?? "Could not load the shelf");
+    lines.push(...r.data.lines);
+    if (r.data.lines.length < STOCK_READ_PAGE) break;
+  }
+  return { lines, total: lines.length };
 }
 
 /**
@@ -295,7 +314,7 @@ export function useStockQuery(locationId: Ref<string | undefined>) {
   return useQuery({
     queryKey: ["inventory", "stock", locationId] as const,
     enabled: computed(() => Boolean(locationId.value)),
-    queryFn: () => fetchStock(locationId.value),
+    queryFn: () => fetchWholeShelf(locationId.value!),
   });
 }
 

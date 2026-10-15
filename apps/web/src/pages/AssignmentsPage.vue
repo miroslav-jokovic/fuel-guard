@@ -216,7 +216,7 @@ const emptyText = computed(() =>
           :rows="pageRows"
           :columns="boardColumns.visible.value"
           :loading="isLoading"
-          :error="isError ? 'Could not load the dispatch board' : null"
+          :error="isError ? 'Could not load the dispatch board.' : null"
           :retrying="isFetching"
           :empty-text="emptyText"
           :zone="zone"
