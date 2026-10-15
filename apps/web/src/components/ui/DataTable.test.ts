@@ -202,6 +202,23 @@ describe("DataTable narrow-screen card view", () => {
     expect(wrapper.emitted("sort")?.[0]).toEqual(["gallons"]);
   });
 
+  // 2026-10-15: Fuel Cards' default order is `assignment`, which is no column. The select was bound
+  // to it, matched no option, and opened blank on a phone, with a direction arrow for an order no
+  // header could show either.
+  it("reads a default order that is no column as Default order, with no direction arrow", () => {
+    const wrapper = mountNarrow({ sort: { key: "assignment", dir: "asc" } });
+    const select = wrapper.get("select").element as HTMLSelectElement;
+    expect(select.value).toBe("");
+    expect(select.selectedOptions[0]?.textContent).toBe("Default order");
+    expect(wrapper.find('button[aria-label^="Sorted"]').exists()).toBe(false);
+  });
+
+  it("shows the chosen column and its direction once a column orders the cards", () => {
+    const wrapper = mountNarrow({ sort: { key: "gallons", dir: "desc" } });
+    expect((wrapper.get("select").element as HTMLSelectElement).value).toBe("gallons");
+    expect(wrapper.get('button[aria-label^="Sorted"]').text()).toBe("↓");
+  });
+
   it("keeps selection reachable", () => {
     const wrapper = mountNarrow({ selectable: true, selected: new Set<string>() });
     const box = wrapper.find('input[type="checkbox"]');

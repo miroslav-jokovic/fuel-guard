@@ -146,7 +146,7 @@ const openInspection = (row: Row) => void router.push({ name: "roadside-inspecti
         :rows="pageRows"
         row-key="id"
         :loading="inspections.isLoading.value"
-        :error="inspections.isError.value ? 'Could not load the roadside inspections' : null"
+        :error="inspections.isError.value ? 'Could not load the roadside inspections.' : null"
         :sort="sort"
         @sort="onSort"
         :row-class="() => 'cursor-pointer'"

@@ -347,7 +347,7 @@ const columns: DataTableColumn[] = [
       :rows="rows"
       row-key="id"
       :loading="isLoading"
-      :error="isError ? 'Could not load declines' : null"
+      :error="isError ? 'Could not load declines.' : null"
       :retrying="isFetching"
       :sort="sort"
       pin-first-column

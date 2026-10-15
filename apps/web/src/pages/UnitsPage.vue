@@ -166,7 +166,7 @@ const rulesOpen = ref(false);
         :rows="pageRows"
         row-key="unitId"
         :loading="units.isLoading.value"
-        :error="units.isError.value ? 'Could not load the fleet' : null"
+        :error="units.isError.value ? 'Could not load the fleet.' : null"
         :sort="sort"
         :row-class="() => 'cursor-pointer'"
         @sort="onSort"

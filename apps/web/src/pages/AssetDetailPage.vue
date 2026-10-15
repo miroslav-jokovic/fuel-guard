@@ -285,7 +285,7 @@ const uploadAccept = acceptFor(INVENTORY_PHOTO_CONTENT_TYPES);
               :columns="LEDGER_COLUMNS"
               :rows="rows"
               :loading="movements.isLoading.value"
-              :error="movements.isError.value ? 'Could not load the history' : null"
+              :error="movements.isError.value ? 'Could not load the history.' : null"
               @retry="() => movements.refetch()"
             >
               <template #cell-occurredAt="{ value }">{{ fmtWhen(value) }}</template>

@@ -563,3 +563,38 @@ Tests that fail on the old code (with a `cp` backup, restored byte for byte):
 Re-shot at 1280 and 390 with the rows, empty and failure fixtures (both drawers and the Fuel Cards
 page), and looked at.
 
+
+### 2026-10-15 — the three owed items from sweep step 2
+
+Q-US1 and Q-US3 are still with the owner, so US7 and F31 wait; this entry closes what sweep step 2
+saw and left.
+
+**Shelf walk read a bay's first 200 lines.** `useStockQuery(location)` sent one `/stock` request with
+no `limit`, which the route answers with its first 200 lines (`PAGE_MAX`). A bay holding line 201
+would have walked as 200 bins and then "Every line is counted". It now reads to the end, 200 a
+request, stopping on a short page and failing the whole read if any page fails, as `listLowStock`
+does at the API. Every bay held 0 lines on 2026-10-14, so nobody had met it.
+
+**Fuel Cards' phone sort picker opened blank.** The page's default order is `assignment`, which is
+no column. `DataTableCards` bound the select straight to `sort.key`, matched no option, and drew a
+direction arrow for an order no header shows. The card view now reads a key that is no sortable
+column as "Default order", with no arrow. Fixed in the component, so no other page can hit it.
+
+**Read-state sentences without a full stop.** "Could not load cards" was one of 18 table `:error`
+sentences without one, beside 50 with. All 18 now end with a full stop, and `lint:ui-adoption` gained
+`unstoppedFailureViolations`: a "Could not …" literal in a read state's `error` / `error-text` /
+`message` (static or quoted in a binding) must end with one. Its self-test fixture fails with the
+rule disabled. It cannot see a sentence built in the script and passed by name; contract §11 records
+the rule.
+
+Tests that fail on the old code (with a `cp` backup, restored byte for byte):
+- `useInventory.wholeShelf.test.ts`: 2 of 3 fail on the old hook (the 450-line read, the failed
+  later page). A mutant that breaks after the first page fails too.
+- `DataTable.test.ts`: "reads a default order that is no column as Default order, with no direction
+  arrow" fails on the old card view.
+
+Re-shot at 1280 and 390 with the failure, empty and rows fixtures (Fuel Cards), plus the shelf walk
+with a 450-line bay (three requests, "0 of 450 counted"), and looked at.
+
+**Seen on the way, not changed here:** on the shelf walk at 390, the Ask AI orb sits over the bottom
+bar's "Record count" button.

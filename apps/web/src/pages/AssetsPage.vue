@@ -158,7 +158,7 @@ const creating = qs.flag("new");
         :columns="COLUMNS"
         :rows="assets.data.value?.assets ?? []"
         :loading="assets.isLoading.value"
-        :error="assets.isError.value ? 'Could not load assets' : null"
+        :error="assets.isError.value ? 'Could not load assets.' : null"
         :row-class="() => 'cursor-pointer'"
         @row-click="openAsset"
         @retry="() => assets.refetch()"

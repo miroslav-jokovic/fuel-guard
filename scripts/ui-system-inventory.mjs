@@ -535,6 +535,26 @@ function serverMessageViolations(item) {
 const serverMessages = pagesAndFeatures.flatMap(serverMessageViolations).filter((at) => !siteMarked(at, "server-message"));
 
 /**
+ * And that sentence ends with a full stop (contract §11: error bodies are full sentences; a toast's
+ * TITLE is not, and is not a read state). On 2026-10-15, 18 tables' `:error` said "Could not load
+ * cards" beside 50 that said "Could not load the vehicles." — one voice, written two ways. Only a
+ * "Could not …" literal in a read-state binding is read: a static `error-text="…"` / `message="…"`,
+ * or a quoted string inside a bound `:error` / `:error-text` / `:message`. Reported at the tag.
+ */
+const READ_FAILURE_ATTR = /\s(:?)(?:error|error-text|message)="([^"]*)"/g;
+const unstoppedSentence = (text) => /^Could not\b/.test(text) && !/[.?!]$/.test(text.trim());
+function unstoppedFailureViolations(item) {
+  return [...item.source.matchAll(COMPONENT_TAG)]
+    .filter(([tag]) =>
+      [...tag.matchAll(READ_FAILURE_ATTR)].some(([, bound, value]) =>
+        bound
+          ? [...value.matchAll(/'((?:[^'\\]|\\.)*)'/g)].some(([, literal]) => unstoppedSentence(literal))
+          : unstoppedSentence(value)))
+    .map((m) => `${item.relativePath}:${item.source.slice(0, m.index).split("\n").length}`);
+}
+const unstoppedFailures = pagesAndFeatures.flatMap(unstoppedFailureViolations);
+
+/**
  * A figure is an answer, so a stat tile over a read says what it shows when the read fails (US6b F1,
  * F4, F11, 2026-10-13).
  *
@@ -949,6 +969,24 @@ function verifyAdoption() {
       failures.push("server-message checker failed its regression fixture");
   }
   {
+    const at = (source) => unstoppedFailureViolations({ relativePath: "f.vue", source });
+    const hits = [
+      at(`<DataTable :error="query.isError.value ? 'Could not load cards' : undefined" />`),
+      at(`<QueryState :error="e" error-text="Could not load the part" />`),
+      at(`<DataTable\n  :rows="r"\n  :error="failed ? 'Could not read the trucks\\' idle equipment' : null" />`),
+      at(`<ErrorState message="Could not load the shelf" />`),
+    ];
+    const clean = [
+      at(`<DataTable :error="isError ? 'Could not load the vehicles.' : null" />`),
+      at(`<DataTable :error="failed ? 'Could not load this driver\\'s folder.' : null" />`),
+      at(`<QueryState :error="e" error-text="Could not load the part." />`),
+      at(`<PlanStatusBanner :status="s" :message="result.message" />`),
+      at(`<AppCallout message="Saved" />`),
+    ];
+    if (hits.some((h) => h.length !== 1) || JSON.stringify(hits[2]) !== JSON.stringify(["f.vue:1"]) || clean.some((c) => c.length))
+      failures.push("unstopped-failure checker failed its regression fixture");
+  }
+  {
     const at = (source) => statTileViolations({ relativePath: "s.vue", source });
     const hits = [
       at(`<StatCard label="Open" :value="n" :loading="q.isLoading.value" />`),
@@ -1036,6 +1074,8 @@ function verifyAdoption() {
     failures.push(`stat tile with a :loading but no :error, or a :value falling back to zero (bind :error, show a dash, or mark ui-adoption: stat-guarded — <why>): ${unguardedStats.join(", ")}`);
   if (serverMessages.length)
     failures.push(`read state showing the error's message (say the page's own sentence, or mark ui-adoption: server-message — <why>): ${serverMessages.join(", ")}`);
+  if (unstoppedFailures.length)
+    failures.push(`read state's "Could not …" sentence without a full stop (contract §11): ${unstoppedFailures.join(", ")}`);
   if (vagueFailureCopy.length)
     failures.push(`"That did not work" in user copy (say what could not be done): ${vagueFailureCopy.join(", ")}`);
   if (unpagedLists.length)

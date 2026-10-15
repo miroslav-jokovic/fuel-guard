@@ -89,7 +89,7 @@ watch([search, () => sort.value.key, () => sort.value.dir], () => (page.value = 
         :rows="pageRows"
         row-key="id"
         :loading="defects.isLoading.value"
-        :error="defects.isError.value ? 'Could not load the open defects' : null"
+        :error="defects.isError.value ? 'Could not load the open defects.' : null"
         :sort="sort"
         @sort="onSort"
         @retry="() => defects.refetch()"
