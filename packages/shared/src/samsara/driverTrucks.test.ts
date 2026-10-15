@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseDriverCurrentTrucks, planDriverSeats } from "./index.js";
+import { parseDriverCurrentTrucks, planDriverSeats, type SeatTruck } from "./index.js";
 
 /** Every id in these fixtures is a truck and a driver we carry unless a test says otherwise. */
 const all = { isTruck: () => true, isDriver: () => true };
@@ -199,7 +199,7 @@ describe("planDriverSeats (who may hold a truck)", () => {
     });
   });
 
-  function parseRows(rows: ReturnType<typeof row>[], trucks: ReturnType<typeof t>[], drivers: ReturnType<typeof d>[]) {
+  function parseRows(rows: ReturnType<typeof row>[], trucks: SeatTruck[], drivers: ReturnType<typeof d>[]) {
     return planDriverSeats({ data: rows }, trucks, drivers);
   }
 });
