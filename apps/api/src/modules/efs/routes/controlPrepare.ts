@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import type { Request, Response } from "express";
 import { z } from "zod";
+import { recordId } from "@silvicom/shared";
 import { getAppLocals } from "../../../lib/appLocals.js";
 import { EfsSoapError } from "../lib/efsSoapSession.js";
 import { redactCardXml } from "../lib/efsCardXml.js";
@@ -30,7 +31,7 @@ import { recordCardRefusal } from "./refusalAudit.js";
  */
 
 /** Idempotency-Key header. uuid v4 from the browser, one per drawer-open per intent. */
-const idempotencyKeySchema = z.string().uuid();
+const idempotencyKeySchema = recordId();
 
 export interface Prepared {
   ctx: CardMutationContext;

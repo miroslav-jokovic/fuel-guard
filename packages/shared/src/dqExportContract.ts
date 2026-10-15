@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { recordId } from "./recordId.js";
 import { isoDateSchema } from "./rosterContract.js";
 
 /**
@@ -49,7 +50,7 @@ export type DqExportStatus = (typeof DQ_EXPORT_STATUSES)[number];
  * audit, and `buildDqFile` has always taken the evaluation date as a parameter. Omitted means today.
  */
 export const binderRequestSchema = z.object({
-  driverIds: z.array(z.uuid()).min(1).max(DQ_EXPORT_MAX_DRIVERS),
+  driverIds: z.array(recordId()).min(1).max(DQ_EXPORT_MAX_DRIVERS),
   asAt: isoDateSchema,
   /** Include §382.401/§391.53 restricted kinds (Phase G, D-DQ15). Privileged roles only — the API
    *  refuses it otherwise, and the ask is recorded on the export ledger row. */
@@ -66,7 +67,7 @@ export type BinderRequest = z.infer<typeof binderRequestSchema>;
  * it looked them up rather than being told them.
  */
 export const documentExportRequestSchema = z.object({
-  driverId: z.uuid(),
+  driverId: recordId(),
   requirementKey: z.string().min(1).max(64),
   asAt: isoDateSchema,
 });

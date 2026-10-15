@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { recordId } from "./recordId.js";
 import { formatDisplayDayShort } from "./displayDate.js";
 
 /**
@@ -112,13 +113,13 @@ export function isMutable(category: NotificationCategory): boolean {
 
 // ── read shapes ───────────────────────────────────────────────────────────────
 export const notificationEventSchema = z.object({
-  id: z.uuid(),
+  id: recordId(),
   category: z.enum(NOTIFICATION_CATEGORIES),
   title: z.string(),
   body: z.string().nullable(),
   severity: z.enum(NOTIFICATION_SEVERITIES),
   entity_type: z.string().nullable(),
-  entity_id: z.uuid().nullable(),
+  entity_id: recordId().nullable(),
   deep_link: z.string().nullable(),
   created_at: z.string(),
   read_at: z.string().nullable().default(null),
@@ -150,7 +151,7 @@ export type RegisterPushTokenRequest = z.infer<typeof registerPushTokenRequestSc
 
 export const markReadRequestSchema = z.object({
   /** Omit to mark everything read — the "clear the badge" action. */
-  ids: z.array(z.uuid()).max(200).optional(),
+  ids: z.array(recordId()).max(200).optional(),
 });
 export type MarkReadRequest = z.infer<typeof markReadRequestSchema>;
 

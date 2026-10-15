@@ -9,6 +9,7 @@ import {
   returnStockSchema,
   transferStockSchema,
   type PartMovementInput,
+  recordId,
 } from "@silvicom/shared";
 import { requireAuth, requireOrg, requireSection } from "../../../middleware/auth.js";
 import { apiError, asyncHandler, validateBody } from "../../../lib/http.js";
@@ -39,8 +40,8 @@ import { isServiceError } from "../inventory/types.js";
  */
 
 const stockListSchema = z.object({
-  locationId: z.uuid().optional(),
-  partId: z.uuid().optional(),
+  locationId: recordId().optional(),
+  partId: recordId().optional(),
   includeInactive: z.coerce.boolean().optional(),
   search: z.string().max(120).optional(),
   limit: z.coerce.number().int().min(1).max(200).optional(),
@@ -48,14 +49,14 @@ const stockListSchema = z.object({
 });
 
 /** No `limit`/`offset`: the answer is the whole list or it is misleading (see the route). */
-const lowStockSchema = z.object({ locationId: z.uuid().optional() });
+const lowStockSchema = z.object({ locationId: recordId().optional() });
 
 const movementListSchema = z.object({
-  partId: z.uuid().optional(),
-  locationId: z.uuid().optional(),
-  vehicleId: z.uuid().optional(),
-  trailerId: z.uuid().optional(),
-  countSessionId: z.uuid().optional(),
+  partId: recordId().optional(),
+  locationId: recordId().optional(),
+  vehicleId: recordId().optional(),
+  trailerId: recordId().optional(),
+  countSessionId: recordId().optional(),
   since: z.string().optional(),
   until: z.string().optional(),
   limit: z.coerce.number().int().min(1).max(200).optional(),

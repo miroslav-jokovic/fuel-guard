@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { recordId } from "@silvicom/shared";
 import { EXPERIMENT_VARIANTS } from "../lib/efsCardExperiments.js";
 
 /**
@@ -27,12 +28,12 @@ export const experimentSchema = z.discriminatedUnion("experiment", [
   z.object({
     experiment: z.literal("read_state"),
     cardNumber: z.string().trim().regex(/^[0-9]{10,25}$/).optional(),
-    efsCardId: z.string().uuid().optional(),
+    efsCardId: recordId().optional(),
   }),
   z.object({
     experiment: z.literal("set_status"),
     cardNumber: z.string().trim().regex(/^[0-9]{10,25}$/).optional(),
-    efsCardId: z.string().uuid().optional(),
+    efsCardId: recordId().optional(),
     /** Sent VERBATIM — casing is hypothesis H1. Allowlist enforced below with a readable error. */
     status: z.string().trim().min(1),
     /**
@@ -67,7 +68,7 @@ export const experimentSchema = z.discriminatedUnion("experiment", [
   z.object({
     experiment: z.literal("set_override"),
     cardNumber: z.string().trim().regex(/^[0-9]{10,25}$/).optional(),
-    efsCardId: z.string().uuid().optional(),
+    efsCardId: recordId().optional(),
     /** Vendor range (p194). The experiment grants the smallest useful state; 1 is the default ask. */
     uses: z.coerce.number().int().min(1).max(9).default(1),
     /** A 6-digit EFS location id makes it a single-location override; absent = all locations. */
@@ -104,7 +105,7 @@ export const experimentSchema = z.discriminatedUnion("experiment", [
   z.object({
     experiment: z.literal("delete_override"),
     cardNumber: z.string().trim().regex(/^[0-9]{10,25}$/).optional(),
-    efsCardId: z.string().uuid().optional(),
+    efsCardId: recordId().optional(),
     confirm: z.string().trim(),
   }),
   /** The production FALLBACK mechanism (three-field echo clear) as an experiment: the cleanup path
@@ -112,7 +113,7 @@ export const experimentSchema = z.discriminatedUnion("experiment", [
   z.object({
     experiment: z.literal("clear_override"),
     cardNumber: z.string().trim().regex(/^[0-9]{10,25}$/).optional(),
-    efsCardId: z.string().uuid().optional(),
+    efsCardId: recordId().optional(),
     confirm: z.string().trim(),
   }),
 ]);

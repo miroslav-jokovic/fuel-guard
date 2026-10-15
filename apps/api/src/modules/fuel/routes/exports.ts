@@ -1,3 +1,4 @@
+import { isRecordId } from "@silvicom/shared";
 import type { Request, Response, Router } from "express";
 import { requireOrg, requireSection } from "../../../middleware/auth.js";
 import { apiError, asyncHandler } from "../../../lib/http.js";
@@ -29,11 +30,10 @@ import { exportDeclines, exportFills, fillFiltersFromQuery, readRosters } from "
  */
 
 const YMD = /^\d{4}-\d{2}-\d{2}$/;
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const str = (v: unknown): string | null => (typeof v === "string" && v.trim() !== "" ? v.trim() : null);
 const ymd = (v: unknown): string | null => (typeof v === "string" && YMD.test(v) ? v : null);
-const uuid = (v: unknown): string | null => (typeof v === "string" && UUID.test(v) ? v : null);
+const uuid = (v: unknown): string | null => (typeof v === "string" && isRecordId(v) ? v : null);
 const oneOf = <T extends string>(v: unknown, allowed: readonly T[]): T | null =>
   typeof v === "string" && (allowed as readonly string[]).includes(v) ? (v as T) : null;
 

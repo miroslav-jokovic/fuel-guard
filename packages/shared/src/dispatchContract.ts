@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { recordId } from "./recordId.js";
 
 /**
  * Dispatch API contract (Phase 3D, D49): the assignments board, its history, and the exceptions feed.
@@ -14,10 +15,10 @@ import { z } from "zod";
 // `started_at` remain for the legacy shift gating ("End shift" is hidden unless a real in-app session
 // is open), so the shape only EXTENDS.
 export const assignmentRowSchema = z.object({
-  driver_id: z.uuid(),
+  driver_id: recordId(),
   driver_name: z.string(),
   driver_status: z.string().nullable().default(null),
-  session_id: z.uuid().nullable(),
+  session_id: recordId().nullable(),
   started_at: z.string().nullable(),
   /** Live HOS duty status (off_duty|sleeper|driving|on_duty|yard_move|personal_conveyance|unknown). */
   duty_status: z.string().nullable().default(null),
@@ -25,12 +26,12 @@ export const assignmentRowSchema = z.object({
   duty_since: z.string().nullable().default(null),
   /** Driver's current "City, ST" from their truck's GPS snapshot. */
   location: z.string().nullable().default(null),
-  vehicle_id: z.uuid().nullable(),
+  vehicle_id: recordId().nullable(),
   vehicle_unit: z.string().nullable(),
-  trailer_id: z.uuid().nullable(),
+  trailer_id: recordId().nullable(),
   trailer_unit: z.string().nullable(),
   /** The load they are actively working, if any. */
-  load_id: z.uuid().nullable(),
+  load_id: recordId().nullable(),
   load_ref: z.string().nullable(),
   load_status: z.string().nullable(),
   /**
@@ -58,9 +59,9 @@ export type AssignmentsResponse = z.infer<typeof assignmentsResponseSchema>;
 export const assignmentHistoryQuerySchema = z.object({
   from: z.string().min(1),
   to: z.string().min(1),
-  driverId: z.uuid().optional(),
-  vehicleId: z.uuid().optional(),
-  trailerId: z.uuid().optional(),
+  driverId: recordId().optional(),
+  vehicleId: recordId().optional(),
+  trailerId: recordId().optional(),
   limit: z.coerce.number().int().min(1).max(200).default(50),
   /** Keyset cursor — the `from_at` of the last row seen. Offset paging skips rows on a live table. */
   cursor: z.string().optional(),
@@ -68,13 +69,13 @@ export const assignmentHistoryQuerySchema = z.object({
 export type AssignmentHistoryQuery = z.infer<typeof assignmentHistoryQuerySchema>;
 
 export const assignmentHistoryRowSchema = z.object({
-  session_id: z.uuid(),
-  segment_id: z.uuid(),
-  driver_id: z.uuid(),
+  session_id: recordId(),
+  segment_id: recordId(),
+  driver_id: recordId(),
   driver_name: z.string().nullable(),
-  vehicle_id: z.uuid().nullable(),
+  vehicle_id: recordId().nullable(),
   vehicle_unit: z.string().nullable(),
-  trailer_id: z.uuid().nullable(),
+  trailer_id: recordId().nullable(),
   trailer_unit: z.string().nullable(),
   seat: z.string(),
   confirmed_by: z.string(),
@@ -130,7 +131,7 @@ export const dispatchExceptionSchema = z.object({
   /** The event id, or a synthetic id for the two derived (non-event) kinds. */
   id: z.string(),
   kind: z.enum(EXCEPTION_KINDS),
-  load_id: z.uuid().nullable(),
+  load_id: recordId().nullable(),
   load_ref: z.string().nullable(),
   driver_name: z.string().nullable(),
   /** One sentence: what happened, in the words a dispatcher would use. */
@@ -148,7 +149,7 @@ export type ExceptionsResponse = z.infer<typeof exceptionsResponseSchema>;
 /** Resolving an exception is itself an event (`exception_resolved`) — the log is append-only. */
 export const resolveExceptionRequestSchema = z.object({
   /** The `load_events.id` being resolved, absent for the two derived kinds. */
-  event_id: z.uuid().nullish(),
+  event_id: recordId().nullish(),
   kind: z.enum(EXCEPTION_KINDS),
   action: z.enum(EXCEPTION_ACTIONS),
   note: z.string().max(500).nullish(),

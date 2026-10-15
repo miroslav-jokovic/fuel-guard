@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { recordId } from "./recordId.js";
 import { DQ_ITEMS } from "./dqCatalogue.js";
 
 /**
@@ -39,7 +40,7 @@ export const HIRE_HANDOFF_SOURCE = "recruitment_handoff";
 export const HIRE_DATE_MAX_FUTURE_DAYS = 365;
 
 export const hireApplicantSchema = z.object({
-  driver_id: z.uuid(),
+  driver_id: recordId(),
   /** The date employment begins — not the date the decision was made. */
   hire_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Expected a date as YYYY-MM-DD"),
   note: z.string().max(1000).nullish(),

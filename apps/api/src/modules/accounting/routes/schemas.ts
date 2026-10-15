@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { recordId } from "@silvicom/shared";
 
 /**
  * Query parsing for the accounting surface, kept out of the router so it can be tested as the
@@ -80,8 +81,8 @@ export const entriesSchema = z
     q: z.string().max(80).optional(),
     category: z.string().max(30).optional(),
     direction: z.enum(["earning", "expense"]).optional(),
-    vehicleId: z.string().uuid().optional(),
-    driverId: z.string().uuid().optional(),
+    vehicleId: recordId().optional(),
+    driverId: recordId().optional(),
     all: queryFlag.optional(), // drill-down: include non-canonical + void rows
     limit: z.coerce.number().int().min(1).max(200).optional(),
     offset: z.coerce.number().int().min(0).optional(),

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { recordId } from "./recordId.js";
 import { isoDateSchema } from "./rosterContract.js";
 
 /**
@@ -46,8 +47,8 @@ export const EMPLOYMENT_SOURCE_LABELS: Record<EmploymentSource, string> = {
 
 /** One row as the API returns it. */
 export const employmentHistorySchema = z.object({
-  id: z.uuid(),
-  driver_id: z.uuid(),
+  id: recordId(),
+  driver_id: recordId(),
   employer_name: z.string(),
   usdot_number: z.string().nullable(),
   employer_city: z.string().nullable(),
@@ -111,7 +112,7 @@ const datesOrdered = (v: { started_on?: string; ended_on?: unknown }): boolean =
   !v.started_on || typeof v.ended_on !== "string" || v.ended_on >= v.started_on;
 
 export const employmentHistoryCreateSchema = z
-  .object({ driver_id: z.uuid(), ...employmentFields })
+  .object({ driver_id: recordId(), ...employmentFields })
   .strict()
   .refine(datesOrdered, { message: "The end date cannot be before the start date", path: ["ended_on"] });
 export type EmploymentHistoryCreate = z.infer<typeof employmentHistoryCreateSchema>;

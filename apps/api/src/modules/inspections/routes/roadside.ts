@@ -1,5 +1,4 @@
 import { Router } from "express";
-import { z } from "zod";
 import {
   ROADSIDE_CARD_PERIOD,
   isCalendarDay,
@@ -12,6 +11,7 @@ import {
   todayInZone,
   type CalendarDay,
   type RoadsideSummary,
+  recordId,
 } from "@silvicom/shared";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { requireAuth, requireOrg, requireSection } from "../../../middleware/auth.js";
@@ -95,7 +95,7 @@ export function roadsideInspectionsRouter(): Router {
     "/:id",
     canView,
     asyncHandler(async (req, res) => {
-      const id = z.uuid().safeParse(req.params.id);
+      const id = recordId().safeParse(req.params.id);
       if (!id.success) {
         res.status(404).json(apiError("not_found", "Roadside inspection not found"));
         return;
@@ -120,7 +120,7 @@ export function roadsideInspectionsRouter(): Router {
     "/:id/documents",
     canView,
     asyncHandler(async (req, res) => {
-      const id = z.uuid().safeParse(req.params.id);
+      const id = recordId().safeParse(req.params.id);
       if (!id.success) {
         res.status(404).json(apiError("not_found", "Roadside inspection not found"));
         return;
@@ -143,8 +143,8 @@ export function roadsideInspectionsRouter(): Router {
     "/:id/documents/:documentId/download",
     canView,
     asyncHandler(async (req, res) => {
-      const id = z.uuid().safeParse(req.params.id);
-      const documentId = z.uuid().safeParse(req.params.documentId);
+      const id = recordId().safeParse(req.params.id);
+      const documentId = recordId().safeParse(req.params.documentId);
       if (!id.success || !documentId.success) {
         res.status(404).json(apiError("not_found", "That document is not on file for this inspection."));
         return;
@@ -168,7 +168,7 @@ export function roadsideInspectionsRouter(): Router {
     "/:id/documents",
     requireSection("safety"),
     asyncHandler(async (req, res) => {
-      const id = z.uuid().safeParse(req.params.id);
+      const id = recordId().safeParse(req.params.id);
       if (!id.success) {
         res.status(404).json(apiError("not_found", "Roadside inspection not found"));
         return;
@@ -196,7 +196,7 @@ export function roadsideInspectionsRouter(): Router {
     "/:id/attribution",
     requireSection("safety"),
     asyncHandler(async (req, res) => {
-      const id = z.uuid().safeParse(req.params.id);
+      const id = recordId().safeParse(req.params.id);
       if (!id.success) {
         res.status(404).json(apiError("not_found", "Roadside inspection not found"));
         return;

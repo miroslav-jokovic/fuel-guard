@@ -1,5 +1,6 @@
 import type { Router } from "express";
 import { z } from "zod";
+import { recordId } from "@silvicom/shared";
 import { requireOrg, requireSection } from "../../../middleware/auth.js";
 import { apiError, asyncHandler } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
@@ -21,7 +22,7 @@ import { linkDispatcherUser, linkFleet, readDispatchLinks } from "../dispatchLin
  * Asen" must have an answer.
  */
 const fleetBody = z.object({ dispatcherId: z.string().trim().min(1).max(64).nullable() });
-const userBody = z.object({ userId: z.uuid().nullable() });
+const userBody = z.object({ userId: recordId().nullable() });
 
 export function registerDispatchLinkRoutes(router: Router): void {
   router.get(

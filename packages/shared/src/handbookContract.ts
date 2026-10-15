@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { recordId } from "./recordId.js";
 
 /**
  * The carrier's DRIVER HANDBOOK, signed on screen — HANDBOOK-SIGNING-PLAN.md (D-HB1..D-HB5).
@@ -88,7 +89,7 @@ export type HandbookMark = z.infer<typeof handbookMarkSchema>;
 
 /** `POST /api/recruitment/applicants/:driverId/handbook/countersign` — the office signs for the carrier. */
 export const handbookCountersignSchema = z.object({
-  representative_id: z.uuid(),
+  representative_id: recordId(),
 });
 export type HandbookCountersign = z.infer<typeof handbookCountersignSchema>;
 

@@ -8,8 +8,9 @@ import { useDeleteInspectionRecord } from "@/features/maintenance/useAnnualInspe
 /**
  * Destroying a §396.17 report, and everything it created (D-AVI29).
  *
- * ── WHY THIS IS A DRAWER AND NOT A `window.confirm` ────────────────────────────────────────────
- * Discarding a draft uses `window.confirm`, and that is right for it: nothing has been certified and
+ * ── WHY THIS IS A DRAWER AND NOT THE CONFIRM DIALOG ────────────────────────────────────────────
+ * Discarding a draft uses the product's confirm (`useConfirm`, D-US7; it was `window.confirm`
+ * until 2026-10-13), and that is right for it: nothing has been certified and
  * nothing is filed. This is a different act — the report, its 56 components, the certification, the
  * filed PDF and the object in storage all go, and the equipment's inspection date goes back to what the
  * remaining reports justify. A dialog with an OK button cannot carry that list, cannot take a

@@ -4,6 +4,7 @@ import {
   toJurisdictionCode,
   type DriverApplication,
   type QuestionnaireQuestion,
+  recordId,
 } from "@silvicom/shared";
 import {
   emptyDraft,
@@ -55,9 +56,13 @@ export function cleanQuestionnaire(answers: Record<string, unknown>): Record<str
 
 const text = (v: string): string | null => (v.trim() === "" ? null : v.trim());
 
-const EMPLOYER_KEY = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-/** A stored `key` the contract will accept (`z.uuid()`); anything else is re-minted, never sent. */
-const isEmployerKey = (v: unknown): v is string => typeof v === "string" && EMPLOYER_KEY.test(v);
+/**
+ * A stored `key` the contract will accept; anything else is re-minted, never sent. Asked of the
+ * contract's own id schema rather than a regex beside it (D-US13): the regex this replaced was
+ * looser than the contract's old `z.uuid()`, so a key it passed could still be refused on submit.
+ */
+const EMPLOYER_KEY = recordId();
+const isEmployerKey = (v: unknown): v is string => EMPLOYER_KEY.safeParse(v).success;
 const num = (v: string): number => {
   const n = Number.parseInt(v, 10);
   return Number.isFinite(n) ? n : 0;

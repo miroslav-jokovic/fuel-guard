@@ -50,6 +50,7 @@ export * from "./fleetpal/coverage.js";
 // from the vendor's spec, and a schema of ours in there would be a field the vendor never declared.
 
 import { z } from "zod";
+import { recordId } from "./recordId.js";
 
 /**
  * Link one FleetPal unit to one of our vehicles or trailers by hand, or break the link.
@@ -67,7 +68,7 @@ import { z } from "zod";
 export const fleetpalUnitLinkSchema = z.union([
   z.object({
     kind: z.enum(["tractor", "trailer"]),
-    equipmentId: z.string().uuid(),
+    equipmentId: recordId(),
   }),
   z.object({ unlink: z.literal(true) }),
 ]);

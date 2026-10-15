@@ -1,3 +1,4 @@
+import { isRecordId } from "@silvicom/shared";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 export interface AuditEntry {
@@ -23,10 +24,9 @@ export interface AuditEntry {
  * composite `${driverId}:${featureKey}` keys and a comma-joined id list — each losing its whole audit
  * row, silently, every time it ran.
  */
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export function isAuditEntityId(value: string): boolean {
-  return UUID_RE.test(value);
+  return isRecordId(value);
 }
 
 /**

@@ -1,7 +1,6 @@
 import { Router } from "express";
 import type { Request, Response } from "express";
-import { z } from "zod";
-import { applicantTravelSchema, type ApplicantTravelBooking } from "@silvicom/shared";
+import { applicantTravelSchema, type ApplicantTravelBooking, recordId } from "@silvicom/shared";
 import { requireAuth, requireOrg, requireSection } from "../../../middleware/auth.js";
 import { apiError, asyncHandler, validateBody } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
@@ -88,7 +87,7 @@ export function recruitmentTravelRouter(): Router {
     asyncHandler(async (req: Request, res: Response) => {
       const travelId = String(req.params.travelId ?? "");
       // A malformed id would reach PostgREST as a 22P02 and come back a 500; it names no trip.
-      if (!z.uuid().safeParse(travelId).success) {
+      if (!recordId().safeParse(travelId).success) {
         return send(res, { code: "not_found", message: "That trip is not on this applicant's application." });
       }
       const admin = getSupabaseAdmin(getAppLocals(req).env);

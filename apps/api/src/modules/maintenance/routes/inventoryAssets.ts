@@ -6,6 +6,7 @@ import {
   moveAssetSchema,
   reportAssetSchema,
   type AssetMovementInput,
+  recordId,
 } from "@silvicom/shared";
 import { requireAuth, requireOrg, requireSection } from "../../../middleware/auth.js";
 import { apiError, asyncHandler, validateBody } from "../../../lib/http.js";
@@ -46,11 +47,11 @@ import { isServiceError } from "../inventory/types.js";
 
 const listSchema = z.object({
   search: z.string().max(120).optional(),
-  assetTypeId: z.uuid().optional(),
+  assetTypeId: recordId().optional(),
   status: z.enum(["in_service", "in_repair", "spare", "lost", "retired"]).optional(),
-  locationId: z.uuid().optional(),
-  vehicleId: z.uuid().optional(),
-  trailerId: z.uuid().optional(),
+  locationId: recordId().optional(),
+  vehicleId: recordId().optional(),
+  trailerId: recordId().optional(),
   unassigned: z.coerce.boolean().optional(),
   limit: z.coerce.number().int().min(1).max(200).optional(),
   offset: z.coerce.number().int().min(0).optional(),
@@ -64,7 +65,7 @@ const historySchema = z.object({
 const patchSchema = assetInputSchema.partial();
 
 const photoSchema = z.object({
-  photoId: z.uuid(),
+  photoId: recordId(),
   contentType: z.string().min(1).max(80),
 });
 

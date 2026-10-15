@@ -1,5 +1,4 @@
 import { Router } from "express";
-import { z } from "zod";
 import {
   EDITABLE_ROLES,
   GRANTABLE_SURFACES,
@@ -11,6 +10,7 @@ import {
   type SurfaceOverrides,
   type UserRole,
   type UserSurfaceAccessSetRequest,
+  recordId,
 } from "@silvicom/shared";
 import { requireAuth, requireRole, requireOrg } from "../../../middleware/auth.js";
 import { requireFreshAuth } from "../../../middleware/requireFreshAuth.js";
@@ -214,7 +214,7 @@ export function surfaceAccessRouter(): Router {
     asyncHandler(async (req, res) => {
       const admin = getSupabaseAdmin(getAppLocals(req).env);
       const orgId = req.auth!.orgId!;
-      const parsedId = z.uuid().safeParse(req.params.userId);
+      const parsedId = recordId().safeParse(req.params.userId);
       if (!parsedId.success) {
         res.status(400).json(apiError("bad_request", "That is not a member id"));
         return;

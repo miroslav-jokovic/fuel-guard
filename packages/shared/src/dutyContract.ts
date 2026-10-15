@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { recordId } from "./recordId.js";
 
 /**
  * Driver App — duty sessions & equipment contract (Phase 3A, migration 0086, decisions D43/D44).
@@ -43,7 +44,7 @@ export const DUTY_END_REASON_LABELS: Record<DutyEndReason, string> = {
  * after.
  */
 export const equipmentOptionSchema = z.object({
-  id: z.uuid(),
+  id: recordId(),
   unit_number: z.string(),
   make: z.string().nullable().default(null),
   model: z.string().nullable().default(null),
@@ -62,10 +63,10 @@ export type MeEquipmentResponse = z.infer<typeof meEquipmentResponseSchema>;
 
 // ── read shapes ───────────────────────────────────────────────────────────────
 export const dutySegmentSchema = z.object({
-  id: z.uuid(),
-  vehicle_id: z.uuid(),
+  id: recordId(),
+  vehicle_id: recordId(),
   vehicle_unit: z.string().nullable().default(null),
-  trailer_id: z.uuid().nullable(),
+  trailer_id: recordId().nullable(),
   trailer_unit: z.string().nullable().default(null),
   seat: z.enum(DUTY_SEATS),
   from_at: z.string(),
@@ -76,8 +77,8 @@ export const dutySegmentSchema = z.object({
 export type DutySegment = z.infer<typeof dutySegmentSchema>;
 
 export const dutySessionSchema = z.object({
-  id: z.uuid(),
-  driver_id: z.uuid(),
+  id: recordId(),
+  driver_id: recordId(),
   started_at: z.string(),
   ended_at: z.string().nullable(),
   ended_reason: z.enum(DUTY_END_REASONS).nullable(),
@@ -103,10 +104,10 @@ export type MeShiftResponse = z.infer<typeof meShiftResponseSchema>;
  * the server still stamps its own authoritative timestamps.
  */
 export const startShiftRequestSchema = z.object({
-  session_id: z.uuid(),
-  segment_id: z.uuid(),
-  vehicle_id: z.uuid(),
-  trailer_id: z.uuid().nullish(),
+  session_id: recordId(),
+  segment_id: recordId(),
+  vehicle_id: recordId(),
+  trailer_id: recordId().nullish(),
   start_odometer: z.number().nonnegative().max(9_999_999).optional(),
   started_at: z.string().optional(),
   device_id: z.string().max(200).optional(),
@@ -122,9 +123,9 @@ export type StartShiftRequest = z.infer<typeof startShiftRequestSchema>;
  */
 export const changeEquipmentRequestSchema = z
   .object({
-    segment_id: z.uuid(),
-    vehicle_id: z.uuid().optional(),
-    trailer_id: z.uuid().optional(),
+    segment_id: recordId(),
+    vehicle_id: recordId().optional(),
+    trailer_id: recordId().optional(),
     clear_trailer: z.boolean().default(false),
     from_at: z.string().optional(),
     note: z.string().max(500).optional(),

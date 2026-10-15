@@ -1,8 +1,10 @@
 import type { Router } from "express";
 import { z } from "zod";
 import {
-  iftaReceiptUploadRequestSchema, iftaReceiptVoidRequestSchema,
+  iftaReceiptUploadRequestSchema,
+  iftaReceiptVoidRequestSchema,
   type IftaReceiptUploadRequest,
+  recordId,
 } from "@silvicom/shared";
 import { requireOrg, requireSection } from "../../../middleware/auth.js";
 import { apiError, asyncHandler, validateBody } from "../../../lib/http.js";
@@ -12,7 +14,7 @@ import { writeAudit } from "../../../lib/audit.js";
 import { ReceiptUploadError, runReceiptUpload } from "../receiptUpload.js";
 import { listUploads, voidUpload } from "../uploadedReceipts.js";
 
-const idParam = z.object({ id: z.uuid() });
+const idParam = z.object({ id: recordId() });
 
 /**
  * Driver-paid fuel uploads (IFTA-PRECISION-PLAN IP8). Seeing the list is the IFTA page's own gate,

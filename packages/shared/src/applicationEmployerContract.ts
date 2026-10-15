@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { recordId } from "./recordId.js";
 import { isoDateSchema } from "./rosterContract.js";
 import { usdotNumberSchema } from "./recruitmentContract.js";
 import { EMPLOYMENT_WINDOW_YEARS, CMV_WINDOW_YEARS, yearsBefore } from "./employmentCoverage.js";
@@ -35,7 +36,7 @@ export const applicationEmployerSchema = z
      * filed before AW1 has entries without one, `driver_applications` is append-only, and this base
      * schema must go on parsing them.
      */
-    key: z.uuid().nullish(),
+    key: recordId().nullish(),
     employer_name: z.string().min(1).max(200),
     usdot_number: usdotNumberSchema,
     address_line1: z.string().max(200).nullish(),

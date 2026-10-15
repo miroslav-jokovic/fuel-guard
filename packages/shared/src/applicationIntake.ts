@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { recordId } from "./recordId.js";
 import { driverApplicationSchema, type ApplicationEmployer, type DriverApplication } from "./applicationContract.js";
 import {
   AUTHORIZATION_PURPOSES,
@@ -28,7 +29,7 @@ export const INVITE_TTL_DAYS_DEFAULT = 14;
 export const INVITE_TTL_DAYS_MAX = 60;
 
 export const applicationInviteCreateSchema = z.object({
-  driver_id: z.uuid(),
+  driver_id: recordId(),
   /** Where the link is being sent, recorded so a recruiter can see who was invited. */
   email: z.email().max(200).nullish(),
   /**

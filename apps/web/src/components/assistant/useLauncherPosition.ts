@@ -1,5 +1,6 @@
 import { computed, onMounted, ref, type Ref } from "vue";
 import { useEventListener, useResizeObserver } from "@vueuse/core";
+import { bottomChromeHeight } from "@/composables/bottomChrome";
 
 /**
  * Where the Ask AI launcher sits, and the drag that moves it (owner, 2026-10-09: "sometimes it is
@@ -66,6 +67,8 @@ export interface LauncherBounds {
   height: number;
   /** Where the page's content starts — the sidebar's right edge on desktop, 0 when it is a drawer. */
   left?: number;
+  /** Chrome fixed along the bottom (a phone's action bar, `bottomChrome.ts`) the launcher stays above. */
+  bottom?: number;
 }
 
 /** Keeps the whole launcher on screen, however small the window became since it was parked. */
@@ -73,7 +76,7 @@ export function clampOffset(offset: LauncherOffset, size: number, viewport: Laun
   const clamp = (v: number, max: number) => Math.round(Math.min(Math.max(v, EDGE_MARGIN), Math.max(EDGE_MARGIN, max)));
   return {
     right: clamp(offset.right, viewport.width - (viewport.left ?? 0) - size - EDGE_MARGIN),
-    bottom: clamp(offset.bottom, viewport.height - size - EDGE_MARGIN),
+    bottom: Math.max(clamp(offset.bottom, viewport.height - size - EDGE_MARGIN), (viewport.bottom ?? 0) + EDGE_MARGIN),
   };
 }
 
@@ -136,7 +139,13 @@ export function useLauncherPosition(target: Ref<HTMLElement | null>, size: numbe
 
   const stored = ref<LauncherOffset>(read());
   /** What is rendered: the stored position, re-clamped against the CURRENT bounds on every resize. */
-  const offset = computed(() => clampOffset(stored.value, size, bounds.value));
+  /**
+   * The bounds with the bottom chrome on screen now, read live because a bar mounts with its page.
+   * Applied to what is RENDERED, never to what is stored: lifting the launcher above one page's bar
+   * must not leave it parked high on every other page.
+   */
+  const withChrome = (): LauncherBounds => ({ ...bounds.value, bottom: bottomChromeHeight.value });
+  const offset = computed(() => clampOffset(stored.value, size, withChrome()));
 
   const dragging = ref(false);
   let press: { x: number; y: number; from: LauncherOffset; pointerId: number } | null = null;
@@ -189,7 +198,7 @@ export function useLauncherPosition(target: Ref<HTMLElement | null>, size: numbe
   return {
     offset,
     dragging,
-    anchor: computed(() => dockAnchor(offset.value, size, bounds.value)),
+    anchor: computed(() => dockAnchor(offset.value, size, withChrome())),
     /** True exactly once after a drag ends — the click the browser fires on release is not a click. */
     consumeClick() {
       const was = swallowClick;

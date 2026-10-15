@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { recordId } from "./recordId.js";
 import type { AppSection } from "./auth.js";
 
 /**
@@ -54,9 +55,9 @@ export const ROAD_TEST_TRAILER_LABELS: Record<RoadTestTrailerType, string> = {
  * licence the file does not hold.
  */
 export const roadTestRecordSchema = z.object({
-  examiner_id: z.uuid(),
+  examiner_id: recordId(),
   /** The power unit, from the roster. Its year and make print as "Type of Power Unit". */
-  vehicle_id: z.uuid(),
+  vehicle_id: recordId(),
   trailer_type: z.enum(ROAD_TEST_TRAILER_TYPES),
   /** The date the test was given — the date on the certificate. */
   tested_on: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Expected a date as YYYY-MM-DD"),

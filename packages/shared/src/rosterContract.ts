@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { recordId } from "./recordId.js";
 import { DRIVER_STATUSES } from "./constants.js";
 import { DRIVER_TYPES } from "./loadsLifecycle.js";
 
@@ -183,7 +184,7 @@ export type EndorsementCode = (typeof ENDORSEMENT_CODES)[number];
  * The full profile is the M3 detail endpoint, not this.
  */
 export const driverListItemSchema = z.object({
-  id: z.uuid(),
+  id: recordId(),
   full_name: z.string(),
   status: z.string(),
   employee_id: z.string().nullable(),
@@ -194,7 +195,7 @@ export const driverListItemSchema = z.object({
   /** True once an invite bound a login to this row — the "has the app" column. */
   app_access_enabled: z.boolean(),
   /** Non-null = a login is linked. The UI shows presence only; the id itself is not rendered. */
-  user_id: z.uuid().nullable(),
+  user_id: recordId().nullable(),
   cdl_number: z.string().nullable(),
   cdl_expires_at: z.string().nullable(),
   medical_card_expires_at: z.string().nullable(),

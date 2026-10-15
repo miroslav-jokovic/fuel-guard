@@ -8,6 +8,7 @@ import {
   type FindingKind,
   type FindingSource,
   type UserRole,
+  isRecordId,
 } from "@silvicom/shared";
 import { assignAnomalies, assignCardFraudIncidents } from "../anomalies/index.js";
 
@@ -49,7 +50,6 @@ export const FINDING_SOURCE_TABLE: Record<FindingSource, string> = {
   incident: "card_fraud_incidents",
 };
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** The refs in an assign request body that name a known source and a uuid; anything else is dropped.
  *  `Object.hasOwn`, not `in`: `"toString" in map` is true. */
@@ -57,7 +57,7 @@ export function findingRefsFrom(findings: unknown): FindingRef[] {
   if (!Array.isArray(findings)) return [];
   return findings.filter(
     (r): r is FindingRef =>
-      !!r && typeof r === "object" && UUID.test(String((r as FindingRef).id)) &&
+      !!r && typeof r === "object" && isRecordId(String((r as FindingRef).id)) &&
       Object.hasOwn(FINDING_SOURCE_TABLE, String((r as FindingRef).source)),
   );
 }

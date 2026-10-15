@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { recordId } from "../recordId.js";
 import { PSP_IMPORT_SOURCE } from "./provenance.js";
 
 /**
@@ -59,8 +60,8 @@ export const PSP_IMPORT_CONTENT_TYPE = "application/pdf";
  * (0217) — a PSP report registered as `other` would be a PSP report anyone in the section can open.
  */
 export const pspImportUploadSchema = z.object({
-  driver_id: z.uuid(),
-  document_id: z.uuid(),
+  driver_id: recordId(),
+  document_id: recordId(),
   sha256: z.string().regex(/^[0-9a-f]{64}$/, "sha256 must be 64 lowercase hex characters"),
   bytes: z.number().int().positive().nullish(),
 });
@@ -75,8 +76,8 @@ export type PspImportUpload = z.infer<typeof pspImportUploadSchema>;
  * what is being asserted and why an attestation is the right instrument here.
  */
 export const pspImportSchema = z.object({
-  driver_id: z.uuid(),
-  document_id: z.uuid(),
+  driver_id: recordId(),
+  document_id: recordId(),
   /** The date the record was pulled from the portal, off the PDF's own header. */
   obtained_on: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Expected a date as YYYY-MM-DD"),
   consent_obtained: z.literal(true),

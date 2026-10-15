@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { recordId } from "@silvicom/shared";
 
 /**
  * The EFS integration's environment, lifted out of `env.ts` (A11b, 2026-08-21).
@@ -50,7 +51,7 @@ export const efsEnvFields = {
   EFS_SOAP_PASSWORD: z.string().optional(),                  // fallback if per-org row not set
   EFS_SOAP_ACCOUNT_ID: z.string().optional(),                // optional account identifier; not sent to CardManagementWS
   // Optional production-org scope for the env fallback. Without this, the fallback applies to every org.
-  EFS_SOAP_ORG_ID: z.string().uuid().optional(),
+  EFS_SOAP_ORG_ID: recordId().optional(),
   // Poll cadences per feed. Defaults are CONSERVATIVE — tighten once EFS confirms the minimum allowed
   // interval. Rejections are polled more frequently than posted transactions because they're the
   // fraud/control signal we want fresh.
@@ -90,7 +91,7 @@ export const efsEnvFields = {
   // The ONE user who may accept their own capability proof on production (harness/promote.ts, the
   // owner exception). A deploy variable on purpose, not a setting: an admin whose login was stolen
   // must not be able to name themselves. Unset = strict two-person rule for everyone.
-  EFS_PROMOTION_OWNER_USER_ID: z.string().uuid().optional(),
+  EFS_PROMOTION_OWNER_USER_ID: recordId().optional(),
   // Explicit emergency escape hatch for a production probe. Default FALSE so a probe cannot write a live card by accident.
   EFS_ALLOW_PRODUCTION_PROBE: z.string().default("false").transform((s) => s.toLowerCase() === "true"),
   // D1: clear overrides via the dedicated `deleteOverride` operation (guide p27) instead of the

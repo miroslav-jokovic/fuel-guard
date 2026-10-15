@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { recordId } from "./recordId.js";
 
 /**
  * What a card change LEAVES BEHIND, and who is allowed to make one.
@@ -42,10 +43,10 @@ export const CARD_MUTATION_STATUSES = [
 export type CardMutationStatus = (typeof CARD_MUTATION_STATUSES)[number];
 
 export const cardMutationSchema = z.object({
-  id: z.string().uuid(),
+  id: recordId(),
   intent: z.enum(CARD_MUTATION_INTENTS),
   status: z.enum(CARD_MUTATION_STATUSES),
-  requestedBy: z.string().uuid().nullable(),
+  requestedBy: recordId().nullable(),
   requestedByName: z.string().nullable(),
   createdAt: z.string(),
   completedAt: z.string().nullable(),
@@ -159,11 +160,11 @@ export const cardApproverGrantSchema = z.object({
 export type CardApproverGrant = z.infer<typeof cardApproverGrantSchema>;
 
 export const cardApproverSchema = z.object({
-  userId: z.string().uuid(),
+  userId: recordId(),
   email: z.string().nullable(),
   role: z.string().nullable(),
   scopes: z.array(z.string()),
-  grantedBy: z.string().uuid().nullable(),
+  grantedBy: recordId().nullable(),
   grantedAt: z.string().nullable(),
 });
 export type CardApprover = z.infer<typeof cardApproverSchema>;

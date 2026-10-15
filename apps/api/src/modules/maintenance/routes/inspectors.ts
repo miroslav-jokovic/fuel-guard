@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
-import { inspectorQualificationBasisSchema } from "@silvicom/shared";
+import { inspectorQualificationBasisSchema, recordId } from "@silvicom/shared";
 import { requireAuth, requireOrg, requireSection } from "../../../middleware/auth.js";
 import { requireSurface } from "../../../middleware/requireSurface.js";
 import { apiError, asyncHandler, validateBody } from "../../../lib/http.js";
@@ -25,10 +25,10 @@ import {
 const createSchema = z.object({
   fullName: z.string().min(1).max(200),
   address: z.string().max(400).nullish(),
-  userId: z.uuid().nullish(),
+  userId: recordId().nullish(),
   qualificationBasis: inspectorQualificationBasisSchema,
   brakeQualified: z.boolean(),
-  evidenceDocumentId: z.uuid().nullish(),
+  evidenceDocumentId: recordId().nullish(),
   effectiveFrom: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   effectiveTo: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullish(),
   notes: z.string().max(2000).nullish(),

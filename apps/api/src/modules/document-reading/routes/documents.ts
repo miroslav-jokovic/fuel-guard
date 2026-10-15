@@ -10,6 +10,7 @@ import {
   type CreateReadRequest,
   type CreateSourceRequest,
   type ReviewBatchRequest,
+  isRecordId,
 } from "@silvicom/shared";
 import { requireAuth, requireOrg, requireSection } from "../../../middleware/auth.js";
 import { requireModule } from "../../../middleware/requireModule.js";
@@ -52,11 +53,10 @@ const STATUS: Record<string, number> = {
 const send = (res: Response, e: Pick<ReaderError, "error"> & { code: string }): void => {
   res.status(STATUS[e.code] ?? 500).json(apiError(e.code, e.error));
 };
-const UUID_RX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 /** An id that is not a uuid is "not found" before it reaches PostgREST, which would answer 400/500. */
 const idParam = (req: Request, res: Response): string | null => {
   const id = String(req.params.id ?? "");
-  if (UUID_RX.test(id)) return id;
+  if (isRecordId(id)) return id;
   res.status(404).json(apiError("not_found", "Not found."));
   return null;
 };

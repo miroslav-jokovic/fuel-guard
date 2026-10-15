@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { recordId } from "./recordId.js";
 
 /**
  * Shop inventory — the fungible half (`docs/plans/maintenance/INVENTORY-PLAN.md` §5 I1, tables at
@@ -189,7 +190,7 @@ export type BinAddress = z.infer<typeof binAddressSchema>;
  * that is ever rebuilt; it does not wait for it.
  */
 export const stockLocationDtoSchema = z.object({
-  id: z.uuid(),
+  id: recordId(),
   name: trimmedText(120),
   code: trimmedText(24),
   address: optionalText(240),
@@ -222,7 +223,7 @@ export type StockLocationInput = z.infer<typeof stockLocationInputSchema>;
  * part issue is not a spend event.
  */
 export const partDtoSchema = z.object({
-  id: z.uuid(),
+  id: recordId(),
   partNumber: trimmedText(64),
   description: trimmedText(240),
   manufacturer: optionalText(120),
@@ -263,8 +264,8 @@ export type PartInput = z.infer<typeof partInputSchema>;
  * what makes a scan land on this row, not what makes the row exist.
  */
 export const stockLineDtoSchema = binAddressSchema.extend({
-  partId: z.uuid(),
-  locationId: z.uuid(),
+  partId: recordId(),
+  locationId: recordId(),
   partNumber: trimmedText(64),
   partDescription: trimmedText(240),
   locationName: trimmedText(120),
@@ -298,20 +299,20 @@ export type StockLineSettings = z.infer<typeof stockLineSettingsSchema>;
  * clock is wrong without discarding a legitimate replay.
  */
 export const partMovementDtoSchema = z.object({
-  id: z.uuid(),
-  partId: z.uuid(),
-  locationId: z.uuid(),
+  id: recordId(),
+  partId: recordId(),
+  locationId: recordId(),
   reason: partMovementReasonSchema,
   adjustReason: adjustReasonSchema.nullable(),
   quantityDelta: z.number().int(),
   countedTotal: z.number().int().nonnegative().nullable(),
-  countSessionId: z.uuid().nullable(),
+  countSessionId: recordId().nullable(),
   unitCost: costSchema,
-  vehicleId: z.uuid().nullable(),
-  trailerId: z.uuid().nullable(),
+  vehicleId: recordId().nullable(),
+  trailerId: recordId().nullable(),
   workOrderRef: optionalText(64),
   note: optionalText(2000),
-  actorUserId: z.uuid().nullable(),
+  actorUserId: recordId().nullable(),
   actorName: z.string().nullable(),
   blind: z.boolean().nullable(),
   /**
@@ -335,7 +336,7 @@ export const partMovementDtoSchema = z.object({
    * somebody writing SQL: the movements list rendered a transfer as two unexplained rows, one
    * negative and one positive, with nothing tying them together.
    */
-  transferGroupId: z.uuid().nullable(),
+  transferGroupId: recordId().nullable(),
   occurredAt: z.string(),
   receivedAt: z.string(),
 });
@@ -347,9 +348,9 @@ export type PartMovementDto = z.infer<typeof partMovementDtoSchema>;
  * it already has rather than moving the shelf twice.
  */
 const movementBaseSchema = z.object({
-  id: z.uuid(),
-  partId: z.uuid(),
-  locationId: z.uuid(),
+  id: recordId(),
+  partId: recordId(),
+  locationId: recordId(),
   occurredAt: z.string(),
   note: optionalText(2000).optional(),
 });
@@ -374,8 +375,8 @@ export const issueStockSchema = movementBaseSchema
   .extend({
     reason: z.literal("issued"),
     quantity: z.number().int().positive(),
-    vehicleId: z.uuid().nullable().optional(),
-    trailerId: z.uuid().nullable().optional(),
+    vehicleId: recordId().nullable().optional(),
+    trailerId: recordId().nullable().optional(),
     workOrderRef: optionalText(64).optional(),
   })
   .refine((v) => Boolean(v.vehicleId) !== Boolean(v.trailerId), {
@@ -394,7 +395,7 @@ export const transferStockSchema = movementBaseSchema
   .extend({
     reason: z.literal("transferred"),
     quantity: z.number().int().positive(),
-    toLocationId: z.uuid(),
+    toLocationId: recordId(),
   })
   .refine((v) => v.toLocationId !== v.locationId, {
     message: "Transfer to a different location.",
@@ -404,8 +405,8 @@ export const transferStockSchema = movementBaseSchema
 export const returnStockSchema = movementBaseSchema.extend({
   reason: z.literal("returned"),
   quantity: z.number().int().positive(),
-  vehicleId: z.uuid().nullable().optional(),
-  trailerId: z.uuid().nullable().optional(),
+  vehicleId: recordId().nullable().optional(),
+  trailerId: recordId().nullable().optional(),
 });
 
 /**
@@ -420,7 +421,7 @@ export const returnStockSchema = movementBaseSchema.extend({
 export const countStockSchema = movementBaseSchema.extend({
   reason: z.literal("counted"),
   countedTotal: z.number().int().nonnegative(),
-  countSessionId: z.uuid().nullable().optional(),
+  countSessionId: recordId().nullable().optional(),
   blind: z.boolean(),
 });
 
@@ -446,13 +447,13 @@ export type PartMovementInput = z.infer<typeof partMovementInputSchema>;
  * a session is about one place, not a parallel registry of everything being counted anywhere.
  */
 export const countSessionDtoSchema = z.object({
-  id: z.uuid(),
+  id: recordId(),
   kind: countSessionKindSchema,
-  locationId: z.uuid().nullable(),
-  vehicleId: z.uuid().nullable(),
-  trailerId: z.uuid().nullable(),
+  locationId: recordId().nullable(),
+  vehicleId: recordId().nullable(),
+  trailerId: recordId().nullable(),
   holderLabel: z.string().nullable(),
-  startedBy: z.uuid().nullable(),
+  startedBy: recordId().nullable(),
   startedByName: z.string().nullable(),
   blind: z.boolean(),
   status: countSessionStatusSchema,
@@ -465,9 +466,9 @@ export type CountSessionDto = z.infer<typeof countSessionDtoSchema>;
 export const countSessionInputSchema = z
   .object({
     kind: countSessionKindSchema,
-    locationId: z.uuid().nullable().optional(),
-    vehicleId: z.uuid().nullable().optional(),
-    trailerId: z.uuid().nullable().optional(),
+    locationId: recordId().nullable().optional(),
+    vehicleId: recordId().nullable().optional(),
+    trailerId: recordId().nullable().optional(),
     blind: z.boolean(),
     note: optionalText(2000).optional(),
   })

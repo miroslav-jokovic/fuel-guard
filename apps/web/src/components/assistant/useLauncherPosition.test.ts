@@ -37,4 +37,13 @@ describe("clampOffset", () => {
   it("never lets the launcher touch an edge", () => {
     expect(clampOffset({ right: -40, bottom: 0 }, 52, viewport)).toEqual({ right: 8, bottom: 8 });
   });
+
+  it("keeps the launcher above a phone's fixed bottom bar, and leaves one parked higher alone", () => {
+    const phone = { width: 390, height: 844, bottom: 76 };
+    // The corner home (24) sits inside a 76 px bar: lifted to 76 + 8.
+    expect(clampOffset({ right: 24, bottom: 24 }, 52, phone)).toEqual({ right: 24, bottom: 84 });
+    expect(clampOffset({ right: 24, bottom: 300 }, 52, phone)).toEqual({ right: 24, bottom: 300 });
+    // No bar: the corner is the corner.
+    expect(clampOffset({ right: 24, bottom: 24 }, 52, { ...phone, bottom: 0 }).bottom).toBe(24);
+  });
 });

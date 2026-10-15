@@ -1,3 +1,4 @@
+import { isRecordId } from "@silvicom/shared";
 import type { Router } from "express";
 import { requireSection, requireOrg } from "../../../middleware/auth.js";
 import { apiError, asyncHandler, dbErrorResponse } from "../../../lib/http.js";
@@ -9,7 +10,6 @@ import { ingestFuelStatement, STATEMENT_BUCKET } from "../fuelStatementIngest.js
 import { runFuelReconciliation } from "../fuelReconRun.js";
 import { listReconRuns, readReconRun } from "../reconRunRead.js";
 
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** Statement + reconciliation routes — moved here from routes/fueling/networks.ts at the P1.6
  *  split (2026-08-27): fuel_statements, fuel_recon_runs and the statement bucket are this
@@ -138,7 +138,7 @@ export function registerStatementRoutes(router: Router): void {
     asyncHandler(async (req, res) => {
       const id = String(req.params.id);
       // Not a uuid is not a run: Postgres would answer 22P02 and the reader would see a 500.
-      if (!UUID_RE.test(id)) {
+      if (!isRecordId(id)) {
         res.status(404).json(apiError("not_found", "No invoice check with that id."));
         return;
       }

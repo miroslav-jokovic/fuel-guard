@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
-import { cardLast4 } from "@silvicom/shared";
+import { cardLast4, recordId } from "@silvicom/shared";
 import { getAppLocals } from "../../../lib/appLocals.js";
 import { apiError, asyncHandler } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
@@ -39,7 +39,7 @@ const restoreSchema = z.object({
   confirm: z.string().trim().min(1),
 });
 
-const uuid = z.uuid();
+const uuid = recordId();
 
 interface LedgerRow {
   id: string;

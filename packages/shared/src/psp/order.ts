@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { recordId } from "../recordId.js";
 
 /**
  * Ordering a PSP record — OUR endpoint's contract, not the vendor's (P9).
@@ -16,7 +17,7 @@ import { z } from "zod";
  * what costs another transaction (D-PSP4). The flag arrives with the consumer, not before it.
  */
 export const pspOrderRequestSchema = z.object({
-  driver_id: z.uuid(),
+  driver_id: recordId(),
 });
 export type PspOrderRequest = z.infer<typeof pspOrderRequestSchema>;
 

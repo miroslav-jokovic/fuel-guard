@@ -50,7 +50,7 @@ const SECOND_LINE = ORG_LINE({
   quantityOnHand: 4,
 });
 
-/** A real uuid: `countStockSchema.countSessionId` is `z.uuid()`, so a short stub is refused. */
+/** A real uuid: `countStockSchema.countSessionId` is `recordId()`, so a short stub is refused. */
 const SESSION = "44444444-4444-4444-8444-444444444444";
 
 const walk = ref<Record<string, unknown> | undefined>({

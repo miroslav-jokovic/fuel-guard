@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { recordId } from "./recordId.js";
 
 /**
  * Who was driving at a roadside inspection, and when it happened — the vocabulary of IC5
@@ -172,7 +173,7 @@ export interface RoadsideAttributionDto {
  * never overwrite each other unseen. A correction must say what shows it was that driver.
  */
 export const roadsideAttributionDecisionSchema = z.discriminatedUnion("action", [
-  z.object({ action: z.literal("confirm"), basedOn: z.uuid(), note: z.string().trim().max(1000).optional() }),
-  z.object({ action: z.literal("correct"), basedOn: z.uuid(), driverId: z.uuid(), note: z.string().trim().min(1).max(1000) }),
+  z.object({ action: z.literal("confirm"), basedOn: recordId(), note: z.string().trim().max(1000).optional() }),
+  z.object({ action: z.literal("correct"), basedOn: recordId(), driverId: recordId(), note: z.string().trim().min(1).max(1000) }),
 ]);
 export type RoadsideAttributionDecision = z.infer<typeof roadsideAttributionDecisionSchema>;

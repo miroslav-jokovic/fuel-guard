@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { recordId } from "./recordId.js";
 
 /**
  * Why an application ended without a hire (0238).
@@ -47,7 +48,7 @@ export const isCarrierDecision = (outcome: ApplicantDispositionOutcome): boolean
  * product follows (`recorded_by` on the seven-day statement, `p_actor` on the security-definer RPCs).
  */
 export const applicantDispositionCreateSchema = z.object({
-  driver_id: z.uuid(),
+  driver_id: recordId(),
   outcome: z.enum(APPLICANT_DISPOSITIONS),
   decided_on: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use a calendar date"),
   /**
@@ -72,13 +73,13 @@ export const applicantDispositionCreateSchema = z.object({
 export type ApplicantDispositionCreate = z.infer<typeof applicantDispositionCreateSchema>;
 
 export const applicantDispositionRowSchema = z.object({
-  id: z.uuid(),
-  driver_id: z.uuid(),
+  id: recordId(),
+  driver_id: recordId(),
   outcome: z.enum(APPLICANT_DISPOSITIONS),
   decided_on: z.string(),
   reason: z.string().nullable(),
   rested_on_consumer_report: z.boolean(),
-  decided_by: z.uuid().nullable(),
+  decided_by: recordId().nullable(),
   created_at: z.string(),
 });
 export type ApplicantDispositionRow = z.infer<typeof applicantDispositionRowSchema>;

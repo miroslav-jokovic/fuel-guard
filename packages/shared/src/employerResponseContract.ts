@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { recordId } from "./recordId.js";
 import { applicationAccidentSchema } from "./applicationContract.js";
 
 /**
@@ -49,7 +50,7 @@ export type EmployerResponse = z.infer<typeof employerResponseSchema>;
  *  restriction, exactly as the PSP import does. */
 export const EMPLOYER_RESPONSE_CONTENT_TYPES = ["application/pdf", "image/jpeg", "image/png", "image/webp"] as const;
 export const employerResponseDocumentSchema = z.object({
-  document_id: z.uuid(),
+  document_id: recordId(),
   content_type: z.enum(EMPLOYER_RESPONSE_CONTENT_TYPES),
   sha256: z.string().regex(/^[0-9a-f]{64}$/, "sha256 must be 64 lowercase hex characters"),
   bytes: z.number().int().positive().nullish(),

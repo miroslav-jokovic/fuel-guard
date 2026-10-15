@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { recordId } from "./recordId.js";
 import { orgModuleSchema } from "./entitlements.js";
 import { featureStateSchema } from "./featureCatalog.js";
 
@@ -6,7 +7,7 @@ import { featureStateSchema } from "./featureCatalog.js";
 // raw shapes. Numeric columns arrive as number|string from PostgREST, so coerce.
 
 export const meDriverSchema = z.object({
-  id: z.uuid(),
+  id: recordId(),
   full_name: z.string(),
   status: z.string(),
   employee_id: z.string().nullable(),
@@ -15,7 +16,7 @@ export const meDriverSchema = z.object({
 export type MeDriver = z.infer<typeof meDriverSchema>;
 
 export const meAssignedVehicleSchema = z.object({
-  id: z.uuid(),
+  id: recordId(),
   unit_number: z.string(),
   make: z.string().nullable(),
   model: z.string().nullable(),

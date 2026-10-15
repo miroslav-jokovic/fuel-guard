@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { recordId } from "./recordId.js";
 import { hiringStep, type HiringStepKey } from "./hiringSteps.js";
 import type { QualificationRecordKind } from "./complianceContract.js";
 import { LICENSING_AUTHORITY_MAX_LENGTH } from "./mvrJurisdictions.js";
@@ -132,7 +133,7 @@ export const HIRING_RECORDED_ACT_PREREQUISITE: Readonly<Record<HiringRecordedAct
  * copy of the same PDF.
  */
 export const hiringEvidenceUploadSchema = z.object({
-  document_id: z.uuid(),
+  document_id: recordId(),
   sha256: z.string().regex(/^[0-9a-f]{64}$/, "sha256 must be 64 lowercase hex characters"),
   bytes: z.number().int().positive().nullish(),
   /** PDFs and photographs — the same set `DOCUMENT_CONTENT_TYPES` admits, checked by the route. */
@@ -152,7 +153,7 @@ export type HiringEvidenceUpload = z.infer<typeof hiringEvidenceUploadSchema>;
 export const hiringEvidenceFileSchema = z.object({
   /** The date the act happened — the date on the record itself, not the day it was typed in. */
   occurred_on: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Expected a date as YYYY-MM-DD"),
-  document_id: z.uuid().nullish(),
+  document_id: recordId().nullish(),
   /** What came back, in the operator's words. Never invented, never defaulted. */
   result: z.string().max(200).nullish(),
   /** The agency, the lab or the person who performed it. */

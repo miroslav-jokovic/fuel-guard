@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
-import { kitExpectationInputSchema } from "@silvicom/shared";
+import { kitExpectationInputSchema, recordId } from "@silvicom/shared";
 import { requireAuth, requireOrg, requireSection } from "../../../middleware/auth.js";
 import { apiError, asyncHandler, validateBody } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
@@ -43,8 +43,8 @@ const listSchema = z.object({
 
 const expectationListSchema = z.object({
   unitKind: z.enum(["tractor", "trailer", "reefer_trailer"]).optional(),
-  vehicleId: z.uuid().optional(),
-  trailerId: z.uuid().optional(),
+  vehicleId: recordId().optional(),
+  trailerId: recordId().optional(),
   fleetOnly: z.coerce.boolean().optional(),
 });
 

@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
-import { CARD_CAPABILITY_CONTRACTS } from "@silvicom/shared";
+import { CARD_CAPABILITY_CONTRACTS, recordId } from "@silvicom/shared";
 import { getAppLocals } from "../../../lib/appLocals.js";
 import { writeAudit } from "../../../lib/audit.js";
 import { apiError, asyncHandler } from "../../../lib/http.js";
@@ -31,7 +31,7 @@ const promoteSchema = z.object({
   /** Required both ways. "Why was this allowed" and "why was this stopped" are both audit questions. */
   reason: z.string().trim().min(3).max(500),
   /** The proof being cited. Required to enable; meaningless to suspend. */
-  proofId: z.string().uuid().optional(),
+  proofId: recordId().optional(),
 });
 
 /**
