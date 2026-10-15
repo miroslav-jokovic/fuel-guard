@@ -16,8 +16,10 @@
  * `samsara` module's index (`inspections -> samsara` in `API_ALLOW`) — freezes the answers as received,
  * and records the reading in `inspection_attributions` (0473). The Inspection page shows the reading
  * (`read/inspectionAttribution.ts`) and a person confirms or corrects it (`attribution/decide.ts`), a
- * new row restating the reading it was made over. It will file documents only through
- * `evidence`'s `registerDocument`; that edge arrives with IC2.
+ * new row restating the reading it was made over.
+ *
+ * IC2 (`documents/`) files an inspection's paper — ticket, court result, officer's copy — only through
+ * `evidence`'s `registerDocument` and lists it through `listDocuments` (`inspections -> evidence`).
  */
 export { startFmcsaFeedScheduler, isFmcsaFeedDue } from "./feed/scheduler.js";
 export { syncFmcsaFeed, type DatasetOutcome } from "./feed/sync.js";

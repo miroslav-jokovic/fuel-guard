@@ -21,6 +21,7 @@ import DataTable from "@/components/ui/DataTable.vue";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import { useRoadsideInspectionQuery } from "@/features/roadside/useRoadsideInspections";
 import InspectionDriverCard from "@/features/roadside/InspectionDriverCard.vue";
+import InspectionDocumentsCard from "@/features/roadside/InspectionDocumentsCard.vue";
 import { useOpens } from "@/composables/useOpens";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { formatDate } from "@/lib/format";
@@ -170,6 +171,8 @@ const VIOLATION_COLUMNS: DataTableColumn[] = [
         </BaseCard>
 
         <InspectionDriverCard :inspection-id="inspection.id" :attribution="inspection.attribution" />
+
+        <InspectionDocumentsCard :inspection-id="inspection.id" />
 
         <BaseCard v-if="sms" data-test="sms">
           <h2 class="text-sm font-semibold text-ink">CSA points</h2>

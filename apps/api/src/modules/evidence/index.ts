@@ -17,7 +17,7 @@
  * existing: `certifications` is the qualification gate's source of truth, and D-ARC3's matrix
  * says the `drivers.cdl_*` columns become a projection of it at the roster carve-out.
  */
-export { registerDocument, listDocuments } from "./compliance.js";
+export { registerDocument, listDocuments, signDocumentDownload } from "./compliance.js";
 // Filing a document the SERVER rendered — the browser-upload path above cannot serve a caller that
 // already holds the bytes. Generalised from recruiting's application PDF at its second caller.
 export { fileGeneratedDocument } from "./generatedDocuments.js";

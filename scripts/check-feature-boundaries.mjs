@@ -382,6 +382,10 @@ const API_ALLOW = new Set([
   //   asked of Samsara and frozen as received through the collector's own `makeSamsaraRawFetcher` and
   //   `loadSamsaraToken`. samsara imports nothing of inspections'.
   "inspections -> samsara",
+  // · inspections -> evidence — IC2 (INSPECTION-CHALLENGE-PLAN D-IC12): an inspection's ticket, court
+  //   result and officer's copy are filed through `registerDocument` and listed through `listDocuments`,
+  //   the DQ file's own door to `documents` (0476 adds the subject). evidence imports nothing of inspections'.
+  "inspections -> evidence",
   // · medstop -> samsara — "find a collection site near the truck" (UX3, MEDSTOP-PLAN §7A.4) reads the
   //   assigned truck's newest fix through `readVehiclePositions`, the collector's own read interface,
   //   never `.from("vehicle_positions")` (a raw table sealed to its collector). samsara imports nothing

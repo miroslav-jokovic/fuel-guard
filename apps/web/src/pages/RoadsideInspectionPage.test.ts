@@ -19,10 +19,13 @@ import { ROUTE_TABLE } from "@/router/table";
  *      the reason the API gave (D-IC6), or the cap is said of the wrong figure.
  *   6. **The driver card is missing**, or the report still says the driver is not shown. What the card
  *      says is `InspectionDriverCard.test.ts`'s.
+ *   7. **The documents card is missing**, or is asked about another inspection than the page's. What it
+ *      says is `InspectionDocumentsCard.test.ts`'s.
  */
 
 const inspection = ref<RoadsideInspectionDetailDto | undefined>(undefined);
 const askedId = ref<string | undefined>(undefined);
+const documentsAskedId = ref<string | undefined>(undefined);
 vi.mock("@/features/roadside/useRoadsideInspections", async () => {
   const { ref: r, watchEffect } = await import("vue");
   return {
@@ -32,6 +35,11 @@ vi.mock("@/features/roadside/useRoadsideInspections", async () => {
     },
     useDecideAttribution: () => ({ mutate: vi.fn(), reset: vi.fn(), error: r(null), isPending: r(false) }),
     AttributionDecisionError: class extends Error {},
+    useInspectionDocumentsQuery: (id: Ref<string>) => {
+      watchEffect(() => (documentsAskedId.value = id.value));
+      return { data: r([]), isLoading: r(false), isError: r(false), error: r(null), isFetching: r(false), refetch: vi.fn() };
+    },
+    useUploadInspectionDocument: () => ({ mutateAsync: vi.fn(), isPending: r(false) }),
   };
 });
 let truckOpens = true;
@@ -129,6 +137,12 @@ describe("one roadside inspection", () => {
     const w = await page();
     expect(w.get("[data-test='driver-pending']").text()).toContain("Samsara has not been read for this inspection yet");
     expect(w.text()).not.toContain("so it is not shown here");
+  });
+
+  it("has the documents card, asked about this inspection", async () => {
+    const w = await page();
+    expect(w.find("[data-test='documents-card']").exists()).toBe(true);
+    expect(documentsAskedId.value).toBe(inspection.value!.id);
   });
 
   it("says when there are no violations, without calling the inspection clean (Q-FM8)", async () => {
