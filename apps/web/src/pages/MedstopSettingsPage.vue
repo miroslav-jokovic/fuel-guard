@@ -2,7 +2,7 @@
 import { computed, ref } from "vue";
 import { AppButton as BaseButton, AppCard as BaseCard, AppDateField, AppFormField as FormField, AppIcon, AppInput as BaseInput } from "@silvicom/ui";
 import { CheckCircleIcon, ExclamationTriangleIcon, InformationCircleIcon } from "@silvicom/ui/icons";
-import { shiftDay, todayInZone, DEFAULT_ORG_TIMEZONE } from "@silvicom/shared";
+import { MEDSTOP_KEY_NOTICE_DAYS, shiftDay, todayInZone, DEFAULT_ORG_TIMEZONE } from "@silvicom/shared";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import QueryState from "@/components/ui/QueryState.vue";
 import JobActionCard from "@/features/jobs/JobActionCard.vue";
@@ -45,7 +45,8 @@ const expiry = computed<"none" | "expired" | "soon" | "ok">(() => {
   const on = s.value?.keyExpiresOn;
   if (!on) return "none";
   if (on < today) return "expired";
-  return on <= shiftDay(today, 30) ? "soon" : "ok";
+  // The admins' first notice comes on the same day (D-MSUX21), so the page and the bell agree on "soon".
+  return on <= shiftDay(today, MEDSTOP_KEY_NOTICE_DAYS[0]) ? "soon" : "ok";
 });
 
 async function onSaveKey() {

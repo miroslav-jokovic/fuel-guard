@@ -1041,3 +1041,7 @@ screen shows the last good read. Production on 2026-10-15 was healthy: 13 sweeps
 - 2026-10-15 — **0477, the `medstop_connection` category** (branch `claude/medstop-sync-alerts`; §7A.20):
   the first of two merges. The sender — key expiry at 30/14/7/3/1/0 days, and a failed or stopped
   sweep, to the admins — follows.
+- 2026-10-15 — **The sender** (branch `claude/medstop-sync-alerts-sender`, no migration; §7A.20): the api's
+  Med-Stop scheduler judges every connected org each tick (`alertMedstopConnection`); the rules are
+  shared (`medstopKeyThreshold`, `medstopSweepTrouble`), and Settings › Med-Stop's "expires soon" now
+  starts at the same first threshold. A connection never swept yet is not judged.

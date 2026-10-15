@@ -3,6 +3,7 @@ import { getSupabaseAdmin } from "../../lib/supabaseAdmin.js";
 import { dispatchJob } from "../../queue/dispatch.js";
 import { lastDoneJob } from "../org/index.js";
 import { orgsWithMedstop } from "./credentials.js";
+import { alertMedstopConnection } from "./connectionAlert.js";
 
 /**
  * The Med-Stop poller (MEDSTOP-PLAN.md §6, MS1).
@@ -35,6 +36,9 @@ export function startMedstopScheduler(env: Env): void {
     try {
       const admin = getSupabaseAdmin(env);
       for (const orgId of await orgsWithMedstop(admin)) {
+        // Every tick, due or not (§7A.20): a key nearing expiry, a failed sweep, and a sweep that never
+        // runs are all judged here. It never throws into the loop.
+        await alertMedstopConnection(admin, orgId);
         try {
           const lastDone = await lastDoneJob(admin, orgId, "medstop_sync");
           const finished = lastDone?.finished_at ? Date.parse(lastDone.finished_at) : NaN;
