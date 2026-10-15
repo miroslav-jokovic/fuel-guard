@@ -848,6 +848,19 @@ What the rebuild fixed, beyond the kit:
 
 `answerConfirm` is `@silvicom/ui/testing`, shared by both suites.
 
-Open: Q-US4 (one shell or two). Next: the owner's release, then a browser pass of the admin
-console on staging.
+**Browser pass (built admin console in Chromium, admin-api stubbed, 1280 and 390, rows / failure /
+not found).** The failure states read the page's own sentence after the shared three-retry backoff,
+and the revoke dialog names what stops. The pass found three things, all fixed here:
+- **Every admin page ran 3 px wide at 390.** The header row put the plane's name, the email and
+  Sign out side by side. The name and the email now show from `sm` up.
+- **The TMS integration read "Mcleod".** The key was capitalised; it does that on production
+  today. `TMS_PROVIDER_LABELS` sits beside `TMS_PROVIDERS` in `packages/shared/src/tms.ts`, the
+  table's own catalogue, and the page reads it.
+- **Not found offered the dashboard, not the list.** Admin's record routes had no `meta.parent`.
+  All three have `/customers` now, and the page says "Back to Customers". The test harness mounts
+  over the console's real route table so the test sees it, and removing the parent fails the
+  test.
+
+Open: Q-US4 (one shell or two). Next: the owner's release, then the same pass on staging with a
+real login.
 

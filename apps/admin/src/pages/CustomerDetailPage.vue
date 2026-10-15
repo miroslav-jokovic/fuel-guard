@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import { MODULE_LABELS, type ModuleKey } from "@silvicom/shared";
+import { MODULE_LABELS, TMS_PROVIDER_LABELS, type ModuleKey, type TmsProvider } from "@silvicom/shared";
 import {
   AppButton,
   AppCallout,
@@ -43,7 +43,8 @@ const canImpersonate = computed(() => me.data.value !== undefined && me.data.val
 const integrations = computed<OrgSwitch[]>(() =>
   (org.data.value?.modules ?? []).map((m) => ({
     key: m.provider,
-    label: m.provider.charAt(0).toUpperCase() + m.provider.slice(1),
+    // `org_integrations` holds the TMS connections; a provider the catalogue does not name yet shows its key.
+    label: TMS_PROVIDER_LABELS[m.provider as TmsProvider] ?? m.provider,
     on: m.enabled,
     status: m.enabled ? "enabled" : "off",
   })),
@@ -134,7 +135,7 @@ async function startSession() {
           :org-id="id"
           kind="modules"
           title="Integrations"
-          description="Connected data providers. This is a kill switch: it never provisions credentials."
+          description="Connected dispatch systems (TMS). This is a kill switch: it never provisions credentials."
           :items="integrations"
           :can-manage="canManage"
           :verbs="['Enable', 'Disable']"

@@ -54,6 +54,7 @@ describe("one customer (US7, D-US11)", () => {
     const { wrapper } = await mountPage(CustomerDetailPage, `/customers/${ID}`);
     expect(wrapper.text()).toContain("No customer has that id.");
     expect(wrapper.text()).not.toContain("Retry");
+    expect(wrapper.find('[data-state="not-found"] a[href="/customers"]').text()).toBe("Back to Customers");
   });
 
   it("asks before revoking a module, naming what disappears, and sends nothing on No", async () => {

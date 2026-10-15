@@ -62,10 +62,12 @@ async function signOut() {
       <div class="flex h-12 items-center justify-between px-4 sm:px-6">
         <div class="flex items-center gap-3">
           <span class="rounded-control bg-brand-accent px-2 py-0.5 text-xs font-bold tracking-wide text-ink">PLATFORM</span>
-          <span class="text-sm font-semibold">Silvicom 360 Control Plane</span>
+          <!-- The plane's name and the operator's email give way on a phone; the PLATFORM mark and
+               Sign out are what a narrow screen keeps (seen at 390 px, US7: the row ran 3 px wide). -->
+          <span class="hidden text-sm font-semibold sm:inline">Silvicom 360 Control Plane</span>
         </div>
         <div class="flex items-center gap-3 text-sm">
-          <span class="text-ink-inverse/70">{{ session.email }}</span>
+          <span class="hidden text-ink-inverse/70 sm:inline">{{ session.email }}</span>
           <AppButton size="sm" variant="soft" @click="signOut">Sign out</AppButton>
         </div>
       </div>
