@@ -14,6 +14,7 @@ import {
 } from "@silvicom/shared";
 import { declaresLimitedQuantity } from "@hazmat/engine";
 import { emptyLine, type CalcLineForm } from "../calcModel";
+import { noHazmatEvidence, type NoHazmatEvidence } from "./bolNoHazmat";
 import { changedFrom, fieldPending, readingChoices, type Acted } from "./bolReview";
 
 /**
@@ -93,6 +94,8 @@ export interface BolPrefill {
    * (pass B refused or failed, executeRead.ts), and the screen must not say both readers looked.
    */
   bothReaders: boolean;
+  /** When `noHazmat`, what backs it beyond the readers and what does not (bolNoHazmat.ts); otherwise null. */
+  noHazmatEvidence: NoHazmatEvidence | null;
   /** The non-hazardous lines the paper prints, as read, for the no-hazmat sentence. */
   otherLines: string[];
 }
@@ -167,7 +170,8 @@ export function bolPrefill(read: ReadResponse, products: readonly HazmatProduct[
   const other = byPath.get("otherLines")?.value ?? doc.otherLines;
   const otherLines = Array.isArray(other) ? other.filter((l): l is string => typeof l === "string") : [];
   const bothReaders = read.evidence.some((e) => e.sources.some((s) => s.reader === "passB"));
-  return { lines, notLoaded, otherFreight: otherLines.length > 0 ? "yes" : "", noHazmat: count === 0, bothReaders, otherLines };
+  return { lines, notLoaded, otherFreight: otherLines.length > 0 ? "yes" : "", noHazmat: count === 0, bothReaders,
+    noHazmatEvidence: count === 0 ? noHazmatEvidence(read) : null, otherLines };
 }
 
 function valueOf(byPath: Map<string, FieldEvidence>, doc: unknown, path: string): unknown {

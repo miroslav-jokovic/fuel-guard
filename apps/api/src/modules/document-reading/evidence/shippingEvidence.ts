@@ -1,5 +1,6 @@
 import { leafFieldPaths, valueAtPath, type FieldEvidence, type PrintedHazmatLine, type ShippingDocument } from "@silvicom/shared";
 import { alignLines } from "./alignLines.js";
+import { hazmatMarks } from "./hazmatMarkWitness.js";
 import { HMT_JUDGED_KEYS, hmtVerdict, type HmtVerdict } from "./hmtWitness.js";
 import { anchorOf, classTokens, ROW_JUDGED_KEYS, rowBacks, rowOf, type OcrPage, type Row } from "./rowWitness.js";
 
@@ -16,6 +17,11 @@ import { anchorOf, classTokens, ROW_JUDGED_KEYS, rowBacks, rowOf, type OcrPage, 
  *           (engine off, failed, or a cache replay of a read made without it) or the row is ambiguous.
  *   textLayer a born-digital PDF's own characters on the same row, by the same rules (A4,
  *           textLayerWitness.ts). Absent unless every read page carries a text layer.
+ *
+ * When pass A reads NO hazmat line, `hazmat.lines` is itself a leaf (the empty list), and the same two
+ * engines are its witnesses too: each records the hazmat marks — UN/NA ids, RQ, an X in the HM column — it
+ * finds anywhere on the read pages (hazmatMarkWitness.ts), so [] backs the empty list and anything else is a
+ * page that prints what the readers did not read. Absent, as on a line, when there was no OCR or text layer.
  *
  * Status under rule 2: `not_read` when both readers read nothing there; otherwise `check`. Agreement is
  * RECORDED, not yet acted on: a field moves to *Read* only by graduation (D-DR5 — N confirmations with no
@@ -76,6 +82,13 @@ export function shippingEvidence(
       for (const [reader, rowAt] of rowWitnesses) {
         const row = rowAt(i);
         if (row) sources.push({ reader, page: row.page, bbox: row.bbox, value: rowBacks(row, [av, bv], unprovable) as never });
+      }
+    }
+    if (path === "hazmat.lines") {
+      for (const [reader, pages] of [["ocr", ocr], ["textLayer", textLayer]] as const) {
+        if (!pages) continue;
+        const marks = hazmatMarks(pages);
+        sources.push({ reader, page: marks[0]?.page ?? null, bbox: marks[0]?.bbox ?? null, value: marks.map((k) => k.mark) });
       }
     }
     const nothing = av == null && bv == null && av !== undefined && bv !== undefined;

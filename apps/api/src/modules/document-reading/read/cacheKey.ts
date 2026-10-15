@@ -38,8 +38,11 @@ import { createHash } from "node:crypto";
  *          under 3 every correctly printed combustible diesel line was a class mismatch.
  *   5    — 2026-10-13, §7B A4: a born-digital PDF's text layer is a second row-bound witness on a line's
  *          count, weight and quantity, beside the OCR (textLayerWitness.ts); statuses unchanged.
+ *   6    — 2026-10-15, after D-DR24: a read with no hazmat line carries the OCR's and the text layer's scan of
+ *          every read page for hazmat marks on `hazmat.lines` (hazmatMarkWitness.ts), the evidence the
+ *          screen needs before it says "No hazardous materials"; statuses unchanged.
  */
-export const ACCEPTANCE_RULE_VERSION = "5";
+export const ACCEPTANCE_RULE_VERSION = "6";
 
 export interface CacheKeyInput {
   profileVersion: string;
