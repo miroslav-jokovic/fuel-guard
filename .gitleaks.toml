@@ -51,7 +51,7 @@ regex = '''\b(708305\d{13})\b'''
 secretGroup = 1
 keywords = ["708305"]
 
-[[rules.allowlists]]
+[rules.allowlist]
 description = "The synthetic fixture range - not issued to any card."
-regexTarget = "secret"
+regexTarget = "match"
 regexes = ['''^7083050099\d{9}$''']

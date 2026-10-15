@@ -46,7 +46,7 @@ const ROWS: Array<[string, string, string, string, string, boolean, string]> = [
 const declines = ROWS.map(([at, tail, unit, city, state, matched, desc], i) => ({
   row: {
     id: `decl-${String(i).padStart(2, "0")}`, org_id: ORG, vehicle_id: `veh-${unit}`, driver_id: null, driver_ext_id: null,
-    declined_at: at, card_ref: `70830500000003${tail}`, city, state, location_text: null, error_code: null, error_description: desc,
+    declined_at: at, card_ref: `70830500990023${tail}`, city, state, location_text: null, error_code: null, error_description: desc,
   },
   unit,
   matched,
