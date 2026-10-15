@@ -67,6 +67,13 @@ export const NOTIFICATION_CATEGORIES = [
    * today's. Safety readers, at most once a day per org. Mirrored in the CHECK (0470).
    */
   "roadside_feed_stale",
+  /**
+   * The Med-Stop connection is about to stop or has stopped (MEDSTOP-PLAN §7A.20): the API key nears
+   * its expiry, or the hourly sweep has failed or not run. Without the sweep a positive result is not
+   * alerted and a violation does not stop dispatch, while every screen still shows the last good read.
+   * Sent to the admins who can paste a new key. Mirrored in the CHECK (0477).
+   */
+  "medstop_connection",
 ] as const;
 export type NotificationCategory = (typeof NOTIFICATION_CATEGORIES)[number];
 
@@ -98,6 +105,7 @@ export const NOTIFICATION_CATEGORY_LABELS: Record<NotificationCategory, string> 
   card_status_changed: "Fuel card status changes",
   drug_alcohol_result: "Drug & alcohol results",
   roadside_feed_stale: "FMCSA record freshness",
+  medstop_connection: "Med-Stop connection",
 };
 
 /**
