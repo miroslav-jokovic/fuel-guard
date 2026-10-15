@@ -72,7 +72,7 @@ merged result: nothing in it is missing from `main`.
 | US6 | Detail-page anatomy (G5): one shared `FactList` for label/value facts, gated | MERGED 2026-10-13 |
 | US6c | Every list with a toolbar pages; the product's confirm replaces `window.confirm`; "Failed to" copy gone (D-US7, D-US8) | MERGED 2026-10-13 (#1497) |
 | US6b | A browser pass of every routed page at 1280 px and 390 px | PASS DONE 2026-10-13 (§7); fixes in batches |
-| US7 | The list composites move into `@silvicom/ui` (web repointed, no shim); every admin page onto them; the gate covers `apps/admin/src` (G7, D-US11) | planned — answered 2026-10-15 |
+| US7 | The list composites move into `@silvicom/ui` (web repointed, no shim); every admin page onto them; the gate covers `apps/admin/src` (G7, D-US11) | DONE 2026-10-15 (`claude/ui-us7-shared-lists`) |
 | US8 | The audit log's page is its cursor in the URL; the route reads backwards too; the pager names the date range (D-US12) | DONE 2026-10-15 (`claude/ui-us8-audit-cursor`) |
 | US9 | One `recordId` schema for every id site (283), and a gate against a bare `z.uuid()` or a hand-written id regex; closes F31 (D-US13) | DONE 2026-10-15 (`claude/ui-us9-record-id`) |
 
@@ -234,6 +234,17 @@ UUID, so production is unaffected — but staging is where a release is checked.
 org to a v4 UUID; (b) validate ids with `z.guid()` (format only, what Postgres itself accepts) across
 the 237 sites. Recommendation: (b) — Postgres is the authority on what an id is, and a contract that
 refuses ids the database issues is the narrower bug; (a) only hides it.
+
+**Q-US4 — Do the two consoles share one shell?** US7 moved the list kit, not the shells. The admin
+console's sidebar and header are its own (`apps/admin/src/layouts/AppShell.vue`), and the web's are a
+whole sidebar system in `apps/web/src/style.css` (`.sidebar-nav-active` and its forced-colours twin,
+glass, flyouts). The admin's active nav item copied the web's accent bar as an arbitrary class, which
+`lint:tokens` refused once it read the admin tree, so it is now token-only (`bg-selected-surface
+font-semibold text-ink`) and has no bar. (a) Promote the sidebar's item styles, or the whole shell,
+into `@silvicom/ui` and put the admin console on it; (b) keep two shells, since the admin console is a
+different plane and its chrome says so on purpose ("PLATFORM", the inverse header). Recommendation: (a)
+for the nav ITEM only (one active-state definition), (b) for the frame. The plane must stay visibly
+different, but the same "you are here" mark should not be drawn two ways.
 
 ## 7. Progress log
 
@@ -762,3 +773,94 @@ shell for room under the page as tall as it reaches, and for none where it is no
 the room is asked for regardless of whether the launcher is drawn.
 
 Next: US7.
+
+### 2026-10-15 — US7: one list kit for both consoles (D-US11)
+
+**What moved into `@silvicom/ui`, moved and not copied.** `DataWorkspace`, `FilterBar`, `DataTable`
+(with `DataTableCards`), `TablePagination`, `BulkActionBar`, `QueryState` (with `ErrorState`,
+`ErrorPanel`, `TableSkeleton`, `NotFoundState`), `FactList`, `StatCard` (with `SparkLine`), and
+`BaseModal` with `ConfirmHost` / `useConfirm`. Also the helpers they stand on: `useQueryState`
+(its interface is `UrlQueryState` now, since `QueryState` is the component's name), `useUrlSort`,
+`sortRows` / `toggleSort`, `countLabelFor`, `NotFoundError` / `recordOrThrow` / `QUERY_DEFAULTS`,
+`provideWorkspaceTable`. Their tests moved with them, including the `DataTable` snapshot.
+
+All web importers were repointed: 221 files in step 1, 20 for the confirm and modal, 26 for
+`StatCard`. Each file imports the kit in one statement. Nothing is left at the old addresses.
+
+Three pieces went further than the decision as first written, each because the admin console
+needed them:
+- `StatCard`: admin's figures were hand-built tiles with off-scale `text-xl`.
+- The confirm dialog: admin removed an alert recipient through `window.confirm`.
+- `useUrlSort`: a list's sort is part of the list.
+
+**Two web dependencies, cut properly.**
+- `NotFoundState` imported the web's `useOpens`. It now injects the app's answer:
+  `provideRouteOpens`, which the web provides in `App.vue`, and with nothing provided every
+  route opens.
+- `recordOrThrow` typed its input as the web's `ApiResult`. It reads the shape now
+  (`RecordResult`), which admin's results also have.
+
+**The gates moved with the code, or they would have stopped reading it.**
+- `lint:tokens` read only `apps/web/src`. It now reads `packages/ui/src` and `apps/admin/src`
+  too. It found 8 admin violations (`text-xl` ×4, `z-40`, `rounded-md`, an arbitrary
+  `shadow-[…]` and the colour role in it), all fixed.
+- `lint:ui-adoption` holds admin's pages and components to every page rule: native dialogs,
+  "Failed to" copy, the grid-comma rule, and record pages needing a not-found state (it reads
+  admin's route file too).
+- The barrel rule "every export has a caller" checked only `App*` components. It now checks every
+  name, so 15 exports with no caller anywhere were removed: 6 older type exports and 9 of this
+  move's.
+- `plural.test.ts` scanned `process.cwd()/src` for `count-label` call sites. Run from
+  `packages/ui` that is the wrong tree, and it would have passed with nothing checked. It now
+  reads the apps by its own path.
+- The jsdom setup (`ResizeObserver` stub) moved to `packages/ui/vitest.setup.ts`, and the web
+  config points there: one copy, not two.
+
+**The admin console, rebuilt on the kit.**
+- It reads through TanStack Query (`lib/queries.ts`), with the web's `QUERY_DEFAULTS`.
+- `apiGet` throws `ApiRequestError` with the status and code. `apiRecord` turns a 404 into
+  `NotFoundError`.
+- admin-api answers 404 for an org id that is not an id (it was a uuid cast failing as a 500).
+  Its tests used `"org-1"` as an org id and now use real ids.
+
+What the rebuild fixed, beyond the kit:
+- **A refused module or entitlement switch blanked the whole customer page.** It wrote the
+  page's one `error` ref. A refusal now stays in its card (`OrgSwitchCard`).
+- **Revoking or disabling did not ask.** It asks now, naming what stops. Granting does not ask.
+- **The customer view printed a failure above "No alerts."** It is a table error now.
+- **The alert-recipient list said "No one on the list" on a failed read.** On that list, those
+  words mean release alarms reach nobody.
+- **A failed two-factor setup showed a code form with no factor behind it**, so Verify did
+  nothing. Setup is now its own read with a Retry.
+- **The release card shared one error between "could not load" and "approval refused".**
+- **The Overview could say "checking…" for good.**
+- The customer page restated `MODULE_LABELS`; it reads the shared one now.
+
+**Tests.** Admin had no test runner. It has one now (vitest, the shared jsdom setup), and
+`test-packages` runs it. 10 tests, and every one of these mutants is caught:
+- revoke without asking
+- a failed read drawn as an empty list
+- the two-factor dead end
+- no not-found state
+- a refusal not shown
+- the UI gate reading admin, checked twice: a planted "Loading…" line and a planted
+  `window.confirm` each fail it.
+
+`answerConfirm` is `@silvicom/ui/testing`, shared by both suites.
+
+**Browser pass (built admin console in Chromium, admin-api stubbed, 1280 and 390, rows / failure /
+not found).** The failure states read the page's own sentence after the shared three-retry backoff,
+and the revoke dialog names what stops. The pass found three things, all fixed here:
+- **Every admin page ran 3 px wide at 390.** The header row put the plane's name, the email and
+  Sign out side by side. The name and the email now show from `sm` up.
+- **The TMS integration read "Mcleod".** The key was capitalised; it does that on production
+  today. `TMS_PROVIDER_LABELS` sits beside `TMS_PROVIDERS` in `packages/shared/src/tms.ts`, the
+  table's own catalogue, and the page reads it.
+- **Not found offered the dashboard, not the list.** Admin's record routes had no `meta.parent`.
+  All three have `/customers` now, and the page says "Back to Customers". The test harness mounts
+  over the console's real route table so the test sees it, and removing the parent fails the
+  test.
+
+Open: Q-US4 (one shell or two). Next: the owner's release, then the same pass on staging with a
+real login.
+

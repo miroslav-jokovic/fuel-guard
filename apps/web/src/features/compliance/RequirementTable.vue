@@ -1,8 +1,7 @@
 <script setup lang="ts">
 import type { DqGroup, DqItemState } from "@silvicom/shared";
-import { AppIcon, AppButton as BaseButton } from "@silvicom/ui";
+import { AppIcon, AppButton as BaseButton, DataTable, type DataTableColumn } from "@silvicom/ui";
 import { ArrowDownTrayIcon, ArrowPathIcon, ClipboardDocumentCheckIcon, EyeIcon } from "@silvicom/ui/icons";
-import DataTable, { type DataTableColumn } from "@/components/ui/DataTable.vue";
 import KebabMenu from "@/components/KebabMenu.vue";
 import { BADGE_BASE, dqItemBadge, toneClass } from "@/lib/badges";
 import { formatDate } from "@/lib/format";

@@ -1,30 +1,25 @@
 <script setup lang="ts">
-import { ref, onMounted } from "vue";
-import { AppCard, AppPageHeader } from "@silvicom/ui";
-import { supabase, ADMIN_API_URL } from "@/lib/supabase";
+import { computed } from "vue";
+import { AppCard, AppPageHeader, FactList, QueryState } from "@silvicom/ui";
 import AppShell from "@/layouts/AppShell.vue";
+import { useMeQuery } from "@/lib/queries";
 
-// End-to-end proof of the gate: call admin-api /admin/me with the current aal2 token.
-const me = ref<{ email: string; role: string } | null>(null);
-const meError = ref<string | null>(null);
-
-onMounted(async () => {
-  try {
-    const { data } = await supabase.auth.getSession();
-    const token = data.session?.access_token;
-    if (!token) return;
-    const res = await fetch(`${ADMIN_API_URL}/admin/me`, {
-      headers: { authorization: `Bearer ${token}` },
-    });
-    if (!res.ok) {
-      meError.value = `admin-api returned ${res.status}`;
-      return;
-    }
-    me.value = (await res.json()) as { email: string; role: string };
-  } catch (e) {
-    meError.value = e instanceof Error ? e.message : "Could not reach admin-api";
-  }
-});
+/**
+ * End-to-end proof of the gate: call admin-api /admin/me with the current aal2 token.
+ *
+ * Since US7 (D-US11) through the console's one read (`useMeQuery`) and `QueryState`. The hand-rolled
+ * fetch it replaced returned early with no token and left "checking…" on screen for good, and printed
+ * "admin-api returned 503" where the page's own sentence belongs.
+ */
+const me = useMeQuery();
+const facts = computed(() =>
+  me.data.value
+    ? [
+        { label: "admin-api", value: `Connected · ${me.data.value.role}`, tone: "text-success-700" },
+        { label: "Signed in as", value: me.data.value.email },
+      ]
+    : [],
+);
 </script>
 
 <template>
@@ -33,20 +28,18 @@ onMounted(async () => {
 
     <AppCard class="mt-5">
       <h2 class="text-sm font-semibold text-ink-secondary">Platform session</h2>
-      <dl class="mt-3 space-y-1 text-sm">
-        <div class="flex gap-2">
-          <dt class="w-28 text-ink-muted">admin-api</dt>
-          <dd class="text-ink">
-            <span v-if="me" class="text-success-700">connected · {{ me.role }}</span>
-            <span v-else-if="meError" class="text-danger-600">{{ meError }}</span>
-            <span v-else class="text-ink-muted">checking…</span>
-          </dd>
-        </div>
-        <div v-if="me" class="flex gap-2">
-          <dt class="w-28 text-ink-muted">Signed in as</dt>
-          <dd class="text-ink">{{ me.email }}</dd>
-        </div>
-      </dl>
+      <QueryState
+        class="mt-3"
+        compact
+        :loading="me.isPending.value"
+        :error="me.error.value"
+        error-text="Could not reach admin-api."
+        loading-text="Checking admin-api…"
+        :retrying="me.isFetching.value"
+        @retry="() => me.refetch()"
+      >
+        <FactList :facts="facts" layout="rows" />
+      </QueryState>
     </AppCard>
   </AppShell>
 </template>

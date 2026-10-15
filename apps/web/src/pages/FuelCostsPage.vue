@@ -2,12 +2,9 @@
 import { computed } from "vue";
 import { RouterLink } from "vue-router";
 import { STATE_NAMES, FUEL_REPORT_TRUCK_FIGURES_NOTE, type FuelNetwork } from "@silvicom/shared";
-import { AppCallout } from "@silvicom/ui";
+import { AppCallout, QueryState, FilterBar, type FilterChip, StatCard } from "@silvicom/ui";
 import PageHeader from "@/components/ui/PageHeader.vue";
-import QueryState from "@/components/ui/QueryState.vue";
-import FilterBar, { type FilterChip } from "@/components/ui/FilterBar.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
-import StatCard from "@/components/ui/StatCard.vue";
 import ExplainerPanel from "@/components/ui/ExplainerPanel.vue";
 import DateRangeFilter from "@/components/DateRangeFilter.vue";
 import ReportExportButton from "@/features/reconcile/ReportExportButton.vue";

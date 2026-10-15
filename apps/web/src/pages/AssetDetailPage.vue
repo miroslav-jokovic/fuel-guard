@@ -2,7 +2,17 @@
 import { acceptFor, INVENTORY_PHOTO_CONTENT_TYPES } from "@silvicom/shared";
 import { computed, ref } from "vue";
 import { useRoute } from "vue-router";
-import { AppButton as BaseButton, AppCard as BaseCard, AppIcon } from "@silvicom/ui";
+import {
+  AppButton as BaseButton,
+  AppCard as BaseCard,
+  AppIcon,
+  DataTable,
+  type DataTableColumn,
+  TablePagination,
+  QueryState,
+  FactList,
+  type Fact,
+} from "@silvicom/ui";
 import {
   ArchiveBoxIcon,
   ArrowsRightLeftIcon,
@@ -20,12 +30,7 @@ import {
   type AssetMovementReason,
 } from "@silvicom/shared";
 import PageHeader from "@/components/ui/PageHeader.vue";
-import DataTable from "@/components/ui/DataTable.vue";
-import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import TimelineRail, { type TimelineEntry } from "@/components/ui/TimelineRail.vue";
-import TablePagination from "@/components/TablePagination.vue";
-import QueryState from "@/components/ui/QueryState.vue";
-import FactList, { type Fact } from "@/components/ui/FactList.vue";
 import FileDropzone from "@/components/ui/FileDropzone.vue";
 import AssetDrawer from "@/features/inventory/AssetDrawer.vue";
 import AssetMoveDrawer from "@/features/inventory/AssetMoveDrawer.vue";

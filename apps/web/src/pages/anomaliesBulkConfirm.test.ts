@@ -3,7 +3,7 @@ import { mount, flushPromises } from "@vue/test-utils";
 import { createRouter, createMemoryHistory } from "vue-router";
 import { createPinia, setActivePinia } from "pinia";
 import { ref } from "vue";
-import { answerConfirm } from "@/testing/confirm";
+import { answerConfirm } from "@silvicom/ui/testing";
 
 /**
  * Alerts' bulk Resolve and False alarm ask through the product's dialog, not the browser's (D-US7).

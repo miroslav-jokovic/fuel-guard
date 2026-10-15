@@ -1,7 +1,7 @@
 import { computed, type Ref } from "vue";
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/vue-query";
 import { apiFetch } from "@/lib/api";
-import { recordOrThrow } from "@/lib/notFound";
+import { recordOrThrow } from "@silvicom/ui";
 import { uploadContentType } from "@/lib/fileFormat";
 import type {
   AssetCreateInput,

@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { defineComponent, h, ref } from "vue";
 import { mount, flushPromises } from "@vue/test-utils";
 import { createRouter, createMemoryHistory, type Router } from "vue-router";
-import type { DataTableColumn } from "@/components/ui/DataTable.vue";
+import { type DataTableColumn } from "@silvicom/ui";
 import { useTableColumns, type TableColumns } from "@/composables/useTableColumns";
 
 /**

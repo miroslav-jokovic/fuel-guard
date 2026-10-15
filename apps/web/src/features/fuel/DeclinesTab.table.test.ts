@@ -45,7 +45,7 @@ vi.mock("@/composables/useCardAssignments", () => ({
 vi.mock("@/lib/api", () => ({ apiFetch: vi.fn(async () => ({ ok: true, data: null })) }));
 
 import DeclinesTab from "./DeclinesTab.vue";
-import DataTable from "@/components/ui/DataTable.vue";
+import { DataTable } from "@silvicom/ui";
 import type { FuelLogSharedFilters } from "./useFuelLogFilters";
 
 const shared = () =>

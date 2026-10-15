@@ -1,17 +1,23 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import { useRouter } from "vue-router";
-import { AppTabs, AppBadge, AppButton as BaseButton, AppIcon } from "@silvicom/ui";
+import {
+  AppTabs,
+  AppBadge,
+  AppButton as BaseButton,
+  AppIcon,
+  useQueryState,
+  DataWorkspace,
+  FilterBar,
+  DataTable,
+  type DataTableColumn,
+  TablePagination,
+  useConfirm,
+} from "@silvicom/ui";
 import { PlusIcon } from "@silvicom/ui/icons";
 import { INSPECTION_SUBJECT_TYPES, type InspectionSubjectType } from "@silvicom/shared";
-import { useQueryState } from "@/composables/useQueryState";
 import PageHeader from "@/components/ui/PageHeader.vue";
-import DataWorkspace from "@/components/ui/DataWorkspace.vue";
-import FilterBar from "@/components/ui/FilterBar.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
-import DataTable from "@/components/ui/DataTable.vue";
-import type { DataTableColumn } from "@/components/ui/DataTable.vue";
-import TablePagination from "@/components/TablePagination.vue";
 import KebabMenu from "@/components/KebabMenu.vue";
 import DeleteInspectionDrawer from "@/features/maintenance/DeleteInspectionDrawer.vue";
 import NewInspectionDrawer from "@/features/maintenance/NewInspectionDrawer.vue";
@@ -22,7 +28,6 @@ import {
   inspectionPdfPath,
 } from "@/features/maintenance/inspectionDocuments";
 import { useToastStore } from "@/stores/toast";
-import { useConfirm } from "@/stores/confirm";
 import {
   INSPECTIONS_PAGE_SIZE,
   useDiscardInspection,

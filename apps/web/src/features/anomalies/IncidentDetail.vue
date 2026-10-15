@@ -1,12 +1,11 @@
 <script setup lang="ts">
 import { computed, ref, toRef } from "vue";
-import { AppButton as BaseButton, AppTextarea } from "@silvicom/ui";
+import { AppButton as BaseButton, AppTextarea, QueryState } from "@silvicom/ui";
 import {
   ANOMALY_DISPOSITIONS, DISPOSITION_LABELS, incidentStory,
   type AnomalyDisposition, type CardFraudIncidentTransition,
 } from "@silvicom/shared";
 import { formatDateTime } from "@/lib/format";
-import QueryState from "@/components/ui/QueryState.vue";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { useSessionStore } from "@/stores/session";
 import { useToastStore } from "@/stores/toast";

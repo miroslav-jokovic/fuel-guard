@@ -10,15 +10,19 @@ import { useSessionStore } from "@/stores/session";
 import { stationDate } from "@/lib/stationTime";
 import BaseChart from "@/components/BaseChart.vue";
 import StatusBadge from "@/components/StatusBadge.vue";
-import { AppCard as BaseCard } from "@silvicom/ui";
+import {
+  AppCard as BaseCard,
+  DataTable,
+  type DataTableColumn,
+  FactList,
+  type Fact,
+  QueryState,
+  NotFoundError,
+  isNotFound,
+} from "@silvicom/ui";
 import UnitKitCard from "@/features/inventory/UnitKitCard.vue";
-import DataTable from "@/components/ui/DataTable.vue";
-import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import { viz, areaFill } from "@/lib/chartTheme";
 import PageHeader from "@/components/ui/PageHeader.vue";
-import FactList, { type Fact } from "@/components/ui/FactList.vue";
-import QueryState from "@/components/ui/QueryState.vue";
-import { NotFoundError, isNotFound } from "@/lib/notFound";
 
 const route = useRoute();
 const id = computed(() => String(route.params.id));

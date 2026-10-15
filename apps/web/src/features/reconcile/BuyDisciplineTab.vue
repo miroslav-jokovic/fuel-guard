@@ -1,18 +1,23 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
-import { AppCard as BaseCard } from "@silvicom/ui";
+import {
+  AppCard as BaseCard,
+  DataTable,
+  type DataTableColumn,
+  TablePagination,
+  StatCard,
+  QueryState,
+  sortRows,
+  toggleSort,
+  type SortState,
+} from "@silvicom/ui";
 import {
   analyzeCarriedFuel, rankStatesByFuelCost, policyDivergence, listStates, STATE_NAMES,
   gradePolicyCells, NO_FUEL_TARGETS, AVOIDED_STATE_TARGET_PERIOD, formatDisplayDate,
   type CarriedFuelFill, type FuelPolicy, type PolicyGallonCell, type TargetVariance,
 } from "@silvicom/shared";
-import DataTable, { type DataTableColumn } from "@/components/ui/DataTable.vue";
-import TablePagination from "@/components/TablePagination.vue";
-import StatCard from "@/components/ui/StatCard.vue";
-import QueryState from "@/components/ui/QueryState.vue";
 import ExplainerPanel from "@/components/ui/ExplainerPanel.vue";
 import ExportButton from "@/components/ExportButton.vue";
-import { sortRows, toggleSort, type SortState } from "@/lib/sort";
 import { downloadCsv } from "@/lib/csv";
 import { usd, usd3, gal, pct1 } from "./format";
 

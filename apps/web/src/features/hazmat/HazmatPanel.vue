@@ -1,15 +1,13 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import { useQueryClient } from "@tanstack/vue-query";
-import { AppCallout, AppIcon } from "@silvicom/ui";
+import { AppCallout, AppIcon, AppCard as BaseCard, AppButton as BaseButton, FactList, type Fact } from "@silvicom/ui";
 import { ChevronRightIcon, ShieldExclamationIcon } from "@silvicom/ui/icons";
 import {
   HAZMAT_LOAD_STATUS_LABELS,
   type HazmatCreateLoadRequest,
   type HazmatLoadStatus,
 } from "@silvicom/shared";
-import { AppCard as BaseCard } from "@silvicom/ui";
-import { AppButton as BaseButton } from "@silvicom/ui";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { apiFetch } from "@/lib/api";
 import { useToastStore } from "@/stores/toast";
@@ -18,7 +16,6 @@ import { TANK_STATE_OPTIONS } from "@/features/hazmat/calcModel";
 import { useDefensePacket } from "@/features/hazmat/useDefensePacket";
 import { formatDateTime } from "@/lib/format";
 import { useOpens } from "@/composables/useOpens";
-import FactList, { type Fact } from "@/components/ui/FactList.vue";
 
 interface HazmatPanelRecord {
   id: string;

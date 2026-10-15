@@ -19,7 +19,7 @@ import { computed, type Ref } from "vue";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/vue-query";
 import type { PilotReportFill, ReconResult, ReconRow, ReconSummary, StatementWord } from "@silvicom/shared";
 import { apiFetch } from "@/lib/api";
-import { recordOrThrow } from "@/lib/notFound";
+import { recordOrThrow } from "@silvicom/ui";
 
 export interface ReconRunSummaryRow {
   id: string;

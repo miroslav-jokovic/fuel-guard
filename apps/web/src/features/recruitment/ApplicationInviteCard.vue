@@ -1,11 +1,16 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import { AppButton as BaseButton, AppCard as BaseCard, AppInput as BaseInput, AppFormField as FormField } from "@silvicom/ui";
+import {
+  AppButton as BaseButton,
+  AppCard as BaseCard,
+  AppInput as BaseInput,
+  AppFormField as FormField,
+  DataTable,
+  type DataTableColumn,
+} from "@silvicom/ui";
 import { canResendApplicationLink } from "@silvicom/shared";
-import DataTable from "@/components/ui/DataTable.vue";
 import KebabMenu from "@/components/KebabMenu.vue";
 import ApplicationLinkOnce from "@/features/recruitment/ApplicationLinkOnce.vue";
-import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { applicationInviteBadge } from "@/lib/badges.recruiting";
 import { useSessionStore } from "@/stores/session";

@@ -9,7 +9,7 @@ import {
 } from "@silvicom/ui";
 import { applicantIdentitySchema, jurisdictionOptions } from "@silvicom/shared";
 import { formatDate } from "@/lib/format";
-import FactList, { type Fact } from "@/components/ui/FactList.vue";
+import { FactList, type Fact } from "@silvicom/ui";
 import { useSessionStore } from "@/stores/session";
 import { useToastStore } from "@/stores/toast";
 import { useCorrectApplicantIdentity } from "@/features/recruitment/useApplicantIdentity";

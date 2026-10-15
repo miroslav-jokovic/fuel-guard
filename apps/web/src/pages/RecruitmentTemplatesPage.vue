@@ -5,10 +5,8 @@ import {
   RECRUITMENT_TEMPLATE_GROUP_LABELS,
   type RecruitmentTemplate,
 } from "@silvicom/shared";
-import { AppCard as BaseCard, AppButton as BaseButton } from "@silvicom/ui";
+import { AppCard as BaseCard, AppButton as BaseButton, DataTable, type DataTableColumn } from "@silvicom/ui";
 import PageHeader from "@/components/ui/PageHeader.vue";
-import DataTable from "@/components/ui/DataTable.vue";
-import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import DocumentPreview from "@/components/DocumentPreview.vue";
 import type { RenderedDocument } from "@/lib/documentDownload";
 import RecruitmentTabs from "@/features/recruitment/RecruitmentTabs.vue";

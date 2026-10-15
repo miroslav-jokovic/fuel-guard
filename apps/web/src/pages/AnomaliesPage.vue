@@ -4,15 +4,19 @@ import SlideOver from "@/components/SlideOver.vue";
 import AnomalyDetail from "@/features/anomalies/AnomalyDetail.vue";
 import DateRangeFilter from "@/components/DateRangeFilter.vue";
 import KebabMenu from "@/components/KebabMenu.vue";
-import TablePagination from "@/components/TablePagination.vue";
-import { AppButton as BaseButton, AppTabs, type TabItem } from "@silvicom/ui";
-import FilterBar from "@/components/ui/FilterBar.vue";
+import {
+  TablePagination,
+  AppButton as BaseButton,
+  AppTabs,
+  type TabItem,
+  FilterBar,
+  DataTable,
+  BulkActionBar,
+  DataWorkspace,
+  AppCard as BaseCard,
+} from "@silvicom/ui";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
-import DataTable from "@/components/ui/DataTable.vue";
-import BulkActionBar from "@/components/ui/BulkActionBar.vue";
-import DataWorkspace from "@/components/ui/DataWorkspace.vue";
 import PageHeader from "@/components/ui/PageHeader.vue";
-import { AppCard as BaseCard } from "@silvicom/ui";
 import { BADGE_BASE, severityTone, statusTone } from "@/lib/badges";
 import { useAnomaliesPage } from "./useAnomaliesPage";
 import { useOpens } from "@/composables/useOpens";

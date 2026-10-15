@@ -12,6 +12,10 @@
       "types": "./src/icons.ts",
       "default": "./src/icons.ts"
     },
+    "./testing": {
+      "types": "./src/testing/confirm.ts",
+      "default": "./src/testing/confirm.ts"
+    },
     "./tokens.css": "./src/tokens.generated.css"
   },
   "types": "./src/index.ts",
@@ -20,13 +24,16 @@
     "test": "vitest run"
   },
   "peerDependencies": {
+    "pinia": "^3.0.0",
     "vue": "^3.5.0",
     "vue-router": "^5.0.0"
   },
   "devDependencies": {
+    "@types/node": "26.0.1",
     "@vitejs/plugin-vue": "6.0.7",
     "@vue/test-utils": "2.4.11",
     "jsdom": "29.1.1",
+    "pinia": "3.0.4",
     "typescript": "6.0.3",
     "vitest": "4.1.9",
     "vue": "3.5.39",
@@ -34,8 +41,11 @@
     "vue-tsc": "3.3.6"
   },
   "dependencies": {
+    "@floating-ui/vue": "^2.0.0",
+    "@headlessui/vue": "1.7.23",
     "@hugeicons/core-free-icons": "4.2.3",
     "@hugeicons/vue": "1.0.7",
-    "@vuepic/vue-datepicker": "14.0.0"
+    "@vuepic/vue-datepicker": "14.0.0",
+    "@vueuse/core": "14.4.0"
   }
 }

@@ -31,8 +31,8 @@ import {
  * the catalogue and shows it exactly when `surfaceAllowed` would let the router open it. What stays
  * here is presentation only — the icon (which cannot live in `shared`, for `navIcons.ts`'s reason),
  * the sentence under the name, and which of the page's two blocks it sits in. Array order is card
- * order. `SettingsPage.test.ts` holds the split: every screen the catalogue says is reached from
- * Settings has a card, and every card names a real surface.
+ * order. `apps/web/src/pages/SettingsPage.test.ts` holds the split: every screen the catalogue says
+ * is reached from Settings has a card, and every card names a real surface.
  */
 export interface SettingsCard {
   /** A surface key — its label, path and gate are read from the catalogue, never restated here. */

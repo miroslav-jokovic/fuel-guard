@@ -9,7 +9,7 @@ import type {
   DriverUpdateResponse,
 } from "@silvicom/shared";
 import { apiFetch } from "@/lib/api";
-import { recordOrThrow } from "@/lib/notFound";
+import { recordOrThrow } from "@silvicom/ui";
 import { supabase } from "@/lib/supabase";
 
 // `identity_source` is selected because the roster's edit form must be able to say what an edit

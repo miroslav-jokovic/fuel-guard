@@ -1,16 +1,21 @@
 <script setup lang="ts">
-import TablePagination from "@/components/TablePagination.vue";
-import FilterBar from "@/components/ui/FilterBar.vue";
+import {
+  TablePagination,
+  FilterBar,
+  AppButton as BaseButton,
+  AppTabs,
+  AppCard as BaseCard,
+  AppIcon,
+  DataTable,
+  DataWorkspace,
+  StatCard,
+  FactList,
+  type Fact,
+} from "@silvicom/ui";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
 import DateRangeFilter from "@/components/DateRangeFilter.vue";
-import { AppButton as BaseButton, AppTabs } from "@silvicom/ui";
-import { AppCard as BaseCard, AppIcon } from "@silvicom/ui";
 import { ChevronDownIcon, ChevronRightIcon } from "@silvicom/ui/icons";
-import DataTable from "@/components/ui/DataTable.vue";
-import DataWorkspace from "@/components/ui/DataWorkspace.vue";
 import PageHeader from "@/components/ui/PageHeader.vue";
-import StatCard from "@/components/ui/StatCard.vue";
-import FactList, { type Fact } from "@/components/ui/FactList.vue";
 import SamsaraFeedLine from "@/components/SamsaraFeedLine.vue";
 import { toneClass } from "@/lib/badges";
 import { useIdlingPage } from "@/features/idle/useIdlingPage";

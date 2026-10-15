@@ -6,11 +6,10 @@ import {
   type SectionAccess,
   type UserRole,
 } from "@silvicom/shared";
-import { AppButton as BaseButton, AppTabs, type TabItem } from "@silvicom/ui";
+import { AppButton as BaseButton, AppTabs, type TabItem, QueryState } from "@silvicom/ui";
 import { useModulesQuery } from "@/composables/useModules";
 import { useToastStore } from "@/stores/toast";
 import AccessCard from "./AccessCard.vue";
-import QueryState from "@/components/ui/QueryState.vue";
 import RoleAccessStrip from "./RoleAccessStrip.vue";
 import ScreenRows from "./ScreenRows.vue";
 import SectionRows, { type SectionRowModel } from "./SectionRows.vue";

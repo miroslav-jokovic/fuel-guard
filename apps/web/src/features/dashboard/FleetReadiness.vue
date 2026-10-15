@@ -1,6 +1,5 @@
 <script setup lang="ts">
-import { AppButton as BaseButton } from "@silvicom/ui";
-import { AppIcon } from "@silvicom/ui";
+import { AppButton as BaseButton, AppIcon, AppCard as BaseCard, QueryState } from "@silvicom/ui";
 import {
   CheckCircleIcon,
   ChevronDownIcon,
@@ -8,13 +7,11 @@ import {
 } from "@silvicom/ui/icons";
 import { computed, ref } from "vue";
 import { RouterLink } from "vue-router";
-import { AppCard as BaseCard } from "@silvicom/ui";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { useVehiclesQuery } from "@/composables/useVehicles";
 import { useDriversQuery } from "@/composables/useDrivers";
 import { useOrgSettingsQuery } from "@/composables/useOrgSettings";
 import { useOpens } from "@/composables/useOpens";
-import QueryState from "@/components/ui/QueryState.vue";
 
 /**
  * "Fix →" shows only where the page that fixes the gap opens for the reader (SP5, plan §4b). The

@@ -2,13 +2,16 @@
 import { CPM_TRUCK_SORT_KEYS } from "./cpmTruckColumns";
 import { computed, onBeforeUnmount, watch } from "vue";
 import { useRoute } from "vue-router";
-import { AppButton as BaseButton } from "@silvicom/ui";
-import DataWorkspace from "@/components/ui/DataWorkspace.vue";
-import FilterBar from "@/components/ui/FilterBar.vue";
+import {
+  AppButton as BaseButton,
+  DataWorkspace,
+  FilterBar,
+  useQueryState,
+  SORT_DIRECTIONS,
+  useUrlSort,
+  sortRows,
+} from "@silvicom/ui";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
-import { useQueryState } from "@/composables/useQueryState";
-import { SORT_DIRECTIONS, useUrlSort } from "@/composables/useUrlSort";
-import { sortRows } from "@/lib/sort";
 import CpmTruckTable from "./CpmTruckTable.vue";
 import type { FleetTruck } from "./useFleetReport";
 

@@ -1,6 +1,5 @@
 <script setup lang="ts">
-import { AppCard } from "@silvicom/ui";
-import { countLabelFor } from "@/lib/plural";
+import { AppCard, countLabelFor } from "@silvicom/ui";
 
 withDefaults(
   defineProps<{

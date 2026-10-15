@@ -147,7 +147,7 @@ describe("DriverDetailPage — the relocated sections still land somewhere (R7)"
 
 describe("DriverDetailPage — the summary's fuel facts (D-US6)", () => {
   it("pairs each fuel figure with its label, and a dash for an MPG no fill can give", async () => {
-    const FactList = (await import("@/components/ui/FactList.vue")).default;
+    const FactList = (await import("@silvicom/ui")).FactList;
     const { w } = await mountAt();
     const facts = w.findAllComponents(FactList).find((c) => c.text().includes("Fills"))!;
     expect(facts.findAll("dt").map((d) => d.text())).toEqual([

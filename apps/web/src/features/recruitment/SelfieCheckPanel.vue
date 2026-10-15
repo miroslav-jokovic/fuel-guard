@@ -1,11 +1,10 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import { AppButton as BaseButton } from "@silvicom/ui";
+import { AppButton as BaseButton, QueryState } from "@silvicom/ui";
 import { SELFIE_VERDICTS, SELFIE_VERDICT_LABELS, type SelfieVerdict } from "@silvicom/shared";
 import { formatDateTime } from "@/lib/format";
 import { useSessionStore } from "@/stores/session";
 import { useToastStore } from "@/stores/toast";
-import QueryState from "@/components/ui/QueryState.vue";
 import { useRecordSelfieVerdict, useSelfieCheckQuery } from "@/features/recruitment/useSelfieCheck";
 
 /**

@@ -30,8 +30,7 @@
  */
 import { computed } from "vue";
 import { contractHeadline, type ContractTotals, type SpendLine } from "@silvicom/shared";
-import StatCard from "@/components/ui/StatCard.vue";
-import QueryState from "@/components/ui/QueryState.vue";
+import { StatCard, QueryState } from "@silvicom/ui";
 import DiscountCaptureTab from "./DiscountCaptureTab.vue";
 import { usd, pct1 } from "./format";
 

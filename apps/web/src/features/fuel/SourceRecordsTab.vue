@@ -22,14 +22,18 @@ import { ref, computed, watch } from "vue";
 import { useEfsTransactions, useEfsFacets, useEfsRowCoverage, EFS_PAGE_SIZE, type EfsFilters } from "./useEfsData";
 import DateRangeFilter from "@/components/DateRangeFilter.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
-import FilterBar, { type FilterChip } from "@/components/ui/FilterBar.vue";
-import DataTable from "@/components/ui/DataTable.vue";
-import type { DataTableColumn } from "@/components/ui/DataTable.vue";
+import {
+  FilterBar,
+  type FilterChip,
+  DataTable,
+  type DataTableColumn,
+  DataWorkspace,
+  TablePagination,
+  useUrlSort,
+  SORT_DIRECTIONS,
+} from "@silvicom/ui";
 import FeedFreshnessLine from "@/components/FeedFreshnessLine.vue";
 import RowCoverageLine from "@/components/RowCoverageLine.vue";
-import DataWorkspace from "@/components/ui/DataWorkspace.vue";
-import TablePagination from "@/components/TablePagination.vue";
-import { useUrlSort, SORT_DIRECTIONS } from "@/composables/useUrlSort";
 import { efsTime, businessDate, FUEL_LOG_DATES_NOTE } from "@/lib/stationTime";
 import { useUnitOptions } from "./unitFilter";
 import ExportButton from "@/components/ExportButton.vue";

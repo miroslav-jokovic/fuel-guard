@@ -1,67 +1,108 @@
 <script setup lang="ts">
-import { ref, onMounted } from "vue";
-import { AppCard, AppPageHeader, AppTable } from "@silvicom/ui";
+import { computed, watch } from "vue";
+import { RouterLink } from "vue-router";
+import {
+  AppPageHeader,
+  DataTable,
+  DataWorkspace,
+  FilterBar,
+  SORT_DIRECTIONS,
+  TablePagination,
+  sortRows,
+  useQueryState,
+  useUrlSort,
+  type DataTableColumn,
+} from "@silvicom/ui";
 import AppShell from "@/layouts/AppShell.vue";
-import { apiGet, type OrgOverview } from "@/lib/api";
+import { useOrgsQuery } from "@/lib/queries";
 import { fmtDate } from "@/lib/format";
 
-const orgs = ref<OrgOverview[]>([]);
-const error = ref<string | null>(null);
-const loading = ref(true);
+/**
+ * Every customer on the platform, on the web app's list kit (US7, D-US11).
+ *
+ * Until US7 this was a hand-headed `AppTable` with no search, no sort, no paging and a red
+ * `e.message` for a failure. It is the console list that grows with every customer signed, so it gets
+ * what every web list has: search, sort and page in the URL (D-US2), a page of 20 (D-US8), and the
+ * read's own sentence when it fails (D-US9). The list arrives whole, so it searches, sorts and pages
+ * itself, as `WorkOrdersPage.vue` does in the web app.
+ */
+const PAGE_SIZE = 20;
 
-onMounted(async () => {
-  try {
-    const { orgs: list } = await apiGet<{ orgs: OrgOverview[] }>("/admin/orgs");
-    orgs.value = list;
-  } catch (e) {
-    error.value = e instanceof Error ? e.message : "Could not load customers";
-  } finally {
-    loading.value = false;
-  }
+const qs = useQueryState();
+const search = qs.param("search");
+const activeFilterCount = computed(() => (search.value.trim() ? 1 : 0));
+
+const orgs = useOrgsQuery();
+
+const COLUMNS: DataTableColumn[] = [
+  { key: "name", label: "Organization", sortable: true, cellClass: "font-medium text-ink" },
+  { key: "memberCount", label: "Members", sortable: true, numeric: true, width: "sm" },
+  { key: "activeVehicleCount", label: "Vehicles", sortable: true, numeric: true, width: "sm" },
+  { key: "driverCount", label: "Drivers", sortable: true, numeric: true, width: "sm" },
+  { key: "openAnomalyCount", label: "Open alerts", sortable: true, numeric: true, width: "sm" },
+  { key: "lastTxnAt", label: "Last activity", sortable: true, width: "md" },
+];
+const { sort, onSort } = useUrlSort(
+  qs.param("sort", COLUMNS.filter((c) => c.sortable).map((c) => c.key)),
+  qs.param("dir", SORT_DIRECTIONS),
+);
+
+const rows = computed(() => {
+  const term = search.value.trim().toLowerCase();
+  const all = orgs.data.value ?? [];
+  return sortRows(term ? all.filter((o) => o.name.toLowerCase().includes(term)) : all, sort.value);
 });
+const page = qs.page();
+const pageRows = computed(() => rows.value.slice((page.value - 1) * PAGE_SIZE, page.value * PAGE_SIZE));
+watch([search, () => sort.value.key, () => sort.value.dir], () => (page.value = 1));
 </script>
 
 <template>
   <AppShell>
     <AppPageHeader title="Customers" description="Every organization on the platform." />
 
-    <AppCard padding="none" class="mt-5">
-      <div v-if="loading" class="p-6 text-sm text-ink-muted">Loading…</div>
-      <div v-else-if="error" class="p-6 text-sm text-danger-600">{{ error }}</div>
-      <AppTable v-else class="w-full text-sm">
-        <thead class="bg-surface-subtle text-left text-xs font-semibold uppercase tracking-wide text-ink-muted">
-          <tr>
-            <th class="px-4 py-2.5">Organization</th>
-            <th class="px-4 py-2.5 text-right">Members</th>
-            <th class="px-4 py-2.5 text-right">Vehicles</th>
-            <th class="px-4 py-2.5 text-right">Drivers</th>
-            <th class="px-4 py-2.5 text-right">Open alerts</th>
-            <th class="px-4 py-2.5">Last activity</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr
-            v-for="o in orgs"
-            :key="o.orgId"
-            class="cursor-pointer border-t border-edge-subtle hover:bg-surface-subtle"
-            @click="$router.push({ name: 'customer', params: { id: o.orgId } })"
-          >
-            <td class="px-4 py-2.5 font-medium text-ink">{{ o.name }}</td>
-            <td class="px-4 py-2.5 text-right text-ink-secondary">{{ o.memberCount }}</td>
-            <td class="px-4 py-2.5 text-right text-ink-secondary">{{ o.activeVehicleCount }}/{{ o.vehicleCount }}</td>
-            <td class="px-4 py-2.5 text-right text-ink-secondary">{{ o.driverCount }}</td>
-            <td class="px-4 py-2.5 text-right">
-              <span :class="o.openAnomalyCount > 0 ? 'font-semibold text-danger-600' : 'text-ink-muted'">
-                {{ o.openAnomalyCount }}
-              </span>
-            </td>
-            <td class="px-4 py-2.5 text-ink-secondary">{{ fmtDate(o.lastTxnAt) }}</td>
-          </tr>
-          <tr v-if="orgs.length === 0">
-            <td colspan="6" class="px-4 py-6 text-center text-ink-muted">No organizations yet.</td>
-          </tr>
-        </tbody>
-      </AppTable>
-    </AppCard>
+    <DataWorkspace class="mt-5">
+      <FilterBar
+        v-model:search="search"
+        embedded
+        search-placeholder="Search organizations…"
+        :count="rows.length"
+        count-label="organizations"
+        :active-count="activeFilterCount"
+        @clear-all="search = ''"
+      />
+
+      <DataTable
+        embedded
+        :columns="COLUMNS"
+        :rows="pageRows"
+        row-key="orgId"
+        :loading="orgs.isPending.value"
+        :error="orgs.isError.value ? 'Could not load the customers.' : null"
+        :retrying="orgs.isFetching.value"
+        :sort="sort"
+        @sort="onSort"
+        @retry="() => orgs.refetch()"
+      >
+        <template #cell-name="{ row }">
+          <RouterLink :to="{ name: 'customer', params: { id: row.orgId } }" class="hover:underline">{{ row.name }}</RouterLink>
+        </template>
+        <template #cell-activeVehicleCount="{ row }">{{ row.activeVehicleCount }}/{{ row.vehicleCount }}</template>
+        <template #cell-openAnomalyCount="{ value }">
+          <span :class="value > 0 ? 'font-semibold text-danger-600' : 'text-ink-muted'">{{ value }}</span>
+        </template>
+        <template #cell-lastTxnAt="{ value }">
+          <span v-if="value">{{ fmtDate(value) }}</span>
+          <span v-else class="text-ink-tertiary">—</span>
+        </template>
+        <template #empty>
+          <p v-if="search">No organization matches that.</p>
+          <p v-else>No organizations yet.</p>
+        </template>
+        <template #footer>
+          <TablePagination :page="page" :page-size="PAGE_SIZE" :total="rows.length" @update:page="page = $event" />
+        </template>
+      </DataTable>
+    </DataWorkspace>
   </AppShell>
 </template>

@@ -1,7 +1,13 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import { AppButton as BaseButton, AppCard as BaseCard } from "@silvicom/ui";
+import {
+  AppButton as BaseButton,
+  AppCard as BaseCard,
+  DataTable,
+  type DataTableColumn,
+  QueryState,
+} from "@silvicom/ui";
 import {
   KIT_EXPECTATION_SOURCE_LABELS,
   UNIT_KIND_LABELS,
@@ -9,10 +15,7 @@ import {
   type UnitKitLineDto,
 } from "@silvicom/shared";
 import PageHeader from "@/components/ui/PageHeader.vue";
-import DataTable from "@/components/ui/DataTable.vue";
-import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import KebabMenu from "@/components/KebabMenu.vue";
-import QueryState from "@/components/ui/QueryState.vue";
 import AssetMoveDrawer from "@/features/inventory/AssetMoveDrawer.vue";
 import UnitOverrideDrawer from "@/features/inventory/UnitOverrideDrawer.vue";
 import { useUnitKitQuery } from "@/features/inventory/useUnits";

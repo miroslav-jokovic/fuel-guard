@@ -1,5 +1,5 @@
 import { computed, type ComputedRef, type WritableComputedRef } from "vue";
-import { useQueryState } from "@/composables/useQueryState";
+import { useQueryState } from "@silvicom/ui";
 
 /**
  * The Fuel Log's state, which is its URL (FUEL-C2 and FUEL-C3, D-FUI1/D-FUI8).

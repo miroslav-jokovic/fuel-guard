@@ -31,7 +31,7 @@ vi.mock("@/components/SamsaraFeedLine.vue", () => ({ default: { template: "<div 
 vi.mock("@vueuse/core", async (orig) => ({ ...((await orig()) as object), useMediaQuery: () => ref(true) }));
 
 import CoveragePage from "./CoveragePage.vue";
-import TablePagination from "@/components/TablePagination.vue";
+import { TablePagination } from "@silvicom/ui";
 
 async function mountAt(url: string) {
   const router: Router = createRouter({

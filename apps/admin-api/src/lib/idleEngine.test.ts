@@ -21,8 +21,8 @@ import { readOrgIdleEngine } from "./idleEngine.js";
  * different number, rather than passing on a fixture with only one tenant in it.
  */
 
-const ORG = "org-1";
-const OTHER = "org-2";
+const ORG = "00000000-0000-4000-8000-0000000000a1";
+const OTHER = "00000000-0000-4000-8000-0000000000a2";
 const H = 3600;
 
 type Row = Record<string, unknown>;
@@ -186,7 +186,7 @@ describe("readOrgIdleEngine", () => {
 
   it("returns null for an org that does not exist, and reads nothing else", async () => {
     const f = seed();
-    expect(await readOrgIdleEngine(f.client, "org-missing", NOW)).toBeNull();
+    expect(await readOrgIdleEngine(f.client, "00000000-0000-4000-8000-0000000000ff", NOW)).toBeNull();
     expect(f.calls.map((c) => c.table)).toEqual(["organizations"]);
   });
 });
@@ -226,7 +226,7 @@ describe("GET /admin/orgs/:id/idle-engine", () => {
 
   it("404s an org that does not exist, and audits no read it did not make", async () => {
     const before = f.audits.length;
-    const res = await fetch(`${ctx.baseUrl}/admin/orgs/org-missing/idle-engine`, { headers: H_AUTH });
+    const res = await fetch(`${ctx.baseUrl}/admin/orgs/00000000-0000-4000-8000-0000000000ff/idle-engine`, { headers: H_AUTH });
     expect(res.status).toBe(404);
     expect(f.audits.length).toBe(before);
   });

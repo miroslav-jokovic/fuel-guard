@@ -9,7 +9,7 @@ import {
 } from "@silvicom/ui";
 import { sevenDayTotal, sevenDayWindow, type SevenDayEntry } from "@silvicom/shared";
 import SlideOver from "@/components/SlideOver.vue";
-import QueryState from "@/components/ui/QueryState.vue";
+import { QueryState } from "@silvicom/ui";
 import { useSessionStore } from "@/stores/session";
 import { useToastStore } from "@/stores/toast";
 import {

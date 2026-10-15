@@ -117,12 +117,12 @@ describe("impersonation lifecycle (read-only)", () => {
   afterAll(async () => new Promise<void>((r) => ctx.server.close(() => r())));
 
   it("denies view-as before any grant (403)", async () => {
-    const res = await fetch(`${ctx.baseUrl}/admin/orgs/org-1/view/anomalies`, { headers: H });
+    const res = await fetch(`${ctx.baseUrl}/admin/orgs/00000000-0000-4000-8000-0000000000a1/view/anomalies`, { headers: H });
     expect(res.status).toBe(403);
   });
 
   it("starts a reason-required grant and dual-audits it", async () => {
-    const res = await fetch(`${ctx.baseUrl}/admin/orgs/org-1/impersonation`, {
+    const res = await fetch(`${ctx.baseUrl}/admin/orgs/00000000-0000-4000-8000-0000000000a1/impersonation`, {
       method: "POST", headers: H, body: JSON.stringify({ reason: "investigating a reefer alert" }),
     });
     expect(res.status).toBe(200);
@@ -130,18 +130,18 @@ describe("impersonation lifecycle (read-only)", () => {
     expect(body.grant.scope).toBe("read_only");
     grantId = body.grant.id;
     expect(store.platformAudit.some((a) => a.action === "impersonation.start")).toBe(true);
-    expect(store.tenantAudit.some((a) => a.action === "platform.impersonation.start" && a.org_id === "org-1")).toBe(true);
+    expect(store.tenantAudit.some((a) => a.action === "platform.impersonation.start" && a.org_id === "00000000-0000-4000-8000-0000000000a1")).toBe(true);
   });
 
   it("rejects a start with no/short reason (400)", async () => {
-    const res = await fetch(`${ctx.baseUrl}/admin/orgs/org-1/impersonation`, {
+    const res = await fetch(`${ctx.baseUrl}/admin/orgs/00000000-0000-4000-8000-0000000000a1/impersonation`, {
       method: "POST", headers: H, body: JSON.stringify({ reason: "" }),
     });
     expect(res.status).toBe(400);
   });
 
   it("allows the grant-gated view and audits the access", async () => {
-    const res = await fetch(`${ctx.baseUrl}/admin/orgs/org-1/view/anomalies`, { headers: H });
+    const res = await fetch(`${ctx.baseUrl}/admin/orgs/00000000-0000-4000-8000-0000000000a1/view/anomalies`, { headers: H });
     expect(res.status).toBe(200);
     const body = (await res.json()) as { anomalies: { id: string }[] };
     expect(body.anomalies[0]!.id).toBe("an1");
@@ -155,7 +155,7 @@ describe("impersonation lifecycle (read-only)", () => {
     const rev = await fetch(`${ctx.baseUrl}/admin/impersonation/${grantId}/revoke`, { method: "POST", headers: H });
     expect(rev.status).toBe(200);
 
-    const after = await fetch(`${ctx.baseUrl}/admin/orgs/org-1/view/anomalies`, { headers: H });
+    const after = await fetch(`${ctx.baseUrl}/admin/orgs/00000000-0000-4000-8000-0000000000a1/view/anomalies`, { headers: H });
     expect(after.status).toBe(403);
   });
 });
@@ -167,7 +167,7 @@ describe("impersonation RBAC", () => {
   afterAll(async () => new Promise<void>((r) => ctx.server.close(() => r())));
 
   it("forbids a read-only platform role from starting a session (403)", async () => {
-    const res = await fetch(`${ctx.baseUrl}/admin/orgs/org-1/impersonation`, {
+    const res = await fetch(`${ctx.baseUrl}/admin/orgs/00000000-0000-4000-8000-0000000000a1/impersonation`, {
       method: "POST", headers: H, body: JSON.stringify({ reason: "should not be allowed" }),
     });
     expect(res.status).toBe(403);

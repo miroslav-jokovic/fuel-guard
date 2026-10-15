@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import type { OwnerOperatorSummary } from "@silvicom/shared";
-import DataTable, { type DataTableColumn } from "@/components/ui/DataTable.vue";
-import TablePagination from "@/components/TablePagination.vue";
+import { DataTable, type DataTableColumn, TablePagination } from "@silvicom/ui";
 
 /**
  * Contractors, kept apart from the company trucks because the arithmetic is a different question.

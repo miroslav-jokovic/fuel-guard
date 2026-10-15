@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { AppIcon } from "@silvicom/ui";
+import { AppIcon, AppCard as BaseCard, FactList, type Fact } from "@silvicom/ui";
 import {
   BoltIcon,
   CheckCircleIcon,
@@ -11,8 +11,6 @@ import {
   TruckIcon,
 } from "@silvicom/ui/icons";
 import { computed } from "vue";
-import { AppCard as BaseCard } from "@silvicom/ui";
-import FactList, { type Fact } from "@/components/ui/FactList.vue";
 import type { PlanResult } from "./useFuelPlan";
 
 const props = defineProps<{

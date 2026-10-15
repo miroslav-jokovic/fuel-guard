@@ -1,15 +1,18 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import { dateOfBirthIssue, type DriverDetail } from "@silvicom/shared";
-import { AppCard as BaseCard } from "@silvicom/ui";
-import { AppButton as BaseButton } from "@silvicom/ui";
-import { AppDateField } from "@silvicom/ui";
-import { AppFormField as FormField } from "@silvicom/ui";
+import {
+  AppCard as BaseCard,
+  AppButton as BaseButton,
+  AppDateField,
+  AppFormField as FormField,
+  FactList,
+  type Fact,
+} from "@silvicom/ui";
 import { useSessionStore } from "@/stores/session";
 import { useToastStore } from "@/stores/toast";
 import { useUpdateDriverProfile } from "@/composables/useDrivers";
 import { formatDate } from "@/lib/format";
-import FactList, { type Fact } from "@/components/ui/FactList.vue";
 
 /**
  * The four values a driver-screening lookup matches on (PSP-PLAN.md P0).

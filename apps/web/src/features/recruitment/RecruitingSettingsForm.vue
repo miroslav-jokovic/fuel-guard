@@ -8,10 +8,15 @@ import {
   recruitingSettingsSchema,
   type RecruitingSettings,
 } from "@silvicom/shared";
-import { AppButton as BaseButton, AppFormField as FormField, AppInput as BaseInput, AppSwitch } from "@silvicom/ui";
+import {
+  AppButton as BaseButton,
+  AppFormField as FormField,
+  AppInput as BaseInput,
+  AppSwitch,
+  QueryState,
+} from "@silvicom/ui";
 import { useSessionStore } from "@/stores/session";
 import { useToastStore } from "@/stores/toast";
-import QueryState from "@/components/ui/QueryState.vue";
 import { useRecruitingSettings, useSaveRecruitingSettings } from "@/features/recruitment/useRecruitingSettings";
 
 /**

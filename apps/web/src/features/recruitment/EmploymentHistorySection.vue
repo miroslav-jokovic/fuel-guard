@@ -10,13 +10,16 @@ import {
   type EmploymentPeriod,
   type EmploymentSource,
 } from "@silvicom/shared";
-import { AppCard as BaseCard } from "@silvicom/ui";
-import { AppButton as BaseButton } from "@silvicom/ui";
+import {
+  AppCard as BaseCard,
+  AppButton as BaseButton,
+  DataTable,
+  FactList,
+  type Fact,
+  type DataTableColumn,
+} from "@silvicom/ui";
 import SlideOver from "@/components/SlideOver.vue";
 import KebabMenu from "@/components/KebabMenu.vue";
-import DataTable from "@/components/ui/DataTable.vue";
-import FactList, { type Fact } from "@/components/ui/FactList.vue";
-import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { formatDateRange } from "@/lib/format";
 import { employmentInquiryBadge } from "@/lib/badges.recruiting";

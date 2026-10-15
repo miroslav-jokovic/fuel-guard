@@ -1,16 +1,18 @@
 import { createRouter, createWebHistory, type RouteRecordRaw } from "vue-router";
 import { useSessionStore } from "@/stores/session";
 
-const routes: RouteRecordRaw[] = [
+// `meta.parent` is the list a record page belongs to: the shared `NotFoundState` offers "Back to
+// <its title>" from it, as in the web app (D-US10), instead of the dashboard.
+export const routes: RouteRecordRaw[] = [
   { path: "/login", name: "login", component: () => import("@/pages/LoginPage.vue"), meta: { public: true } },
   // MFA is the ONLY authenticated route reachable at aal1 (enroll/challenge to reach aal2).
   { path: "/mfa", name: "mfa", component: () => import("@/pages/MfaPage.vue"), meta: { allowAal1: true } },
   { path: "/", name: "dashboard", component: () => import("@/pages/DashboardPage.vue"), meta: { title: "Overview" } },
   { path: "/customers", name: "customers", component: () => import("@/pages/CustomersPage.vue"), meta: { title: "Customers" } },
-  { path: "/customers/:id", name: "customer", component: () => import("@/pages/CustomerDetailPage.vue"), meta: { title: "Customer" } },
-  { path: "/customers/:id/idle-engine", name: "customer-idle-engine", component: () => import("@/pages/CustomerIdleEnginePage.vue"), meta: { title: "Idle engine checks" } },
+  { path: "/customers/:id", name: "customer", component: () => import("@/pages/CustomerDetailPage.vue"), meta: { title: "Customer", parent: "/customers" } },
+  { path: "/customers/:id/idle-engine", name: "customer-idle-engine", component: () => import("@/pages/CustomerIdleEnginePage.vue"), meta: { title: "Idle engine checks", parent: "/customers" } },
   { path: "/settings", name: "settings", component: () => import("@/pages/SettingsPage.vue"), meta: { title: "Settings" } },
-  { path: "/customers/:id/view", name: "customer-view", component: () => import("@/pages/CustomerViewPage.vue"), meta: { title: "Customer view" } },
+  { path: "/customers/:id/view", name: "customer-view", component: () => import("@/pages/CustomerViewPage.vue"), meta: { title: "Customer view", parent: "/customers" } },
 ];
 
 export const router = createRouter({ history: createWebHistory(), routes });

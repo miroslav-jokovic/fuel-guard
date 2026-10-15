@@ -1,5 +1,14 @@
 <script setup lang="ts">
-import { AppIcon } from "@silvicom/ui";
+import {
+  AppIcon,
+  AppButton as BaseButton,
+  AppCard as BaseCard,
+  AppInput as BaseInput,
+  AppCheckbox as BaseCheckbox,
+  AppSelect,
+  AppFormField as FormField,
+  QueryState,
+} from "@silvicom/ui";
 import {
   PlusIcon,
   XMarkIcon,
@@ -8,14 +17,7 @@ import { reactive, ref, computed, watch } from "vue";
 import { routeFuelSettingsFormSchema, ROUTE_FUEL_SETTINGS_DEFAULTS, BRAND_LABELS, EQUIPMENT_TYPES, AVOIDED_STATE_TARGET_PERIOD, STATE_NAMES, type RouteFuelSettingsForm } from "@silvicom/shared";
 import { useRouteFuelSettings, useSaveRouteFuelSettings } from "@/composables/useRouteFuelSettings";
 import { useToastStore } from "@/stores/toast";
-import { AppButton as BaseButton } from "@silvicom/ui";
-import { AppCard as BaseCard } from "@silvicom/ui";
-import { AppInput as BaseInput } from "@silvicom/ui";
-import { AppCheckbox as BaseCheckbox } from "@silvicom/ui";
-import { AppSelect } from "@silvicom/ui";
-import { AppFormField as FormField } from "@silvicom/ui";
 import PageHeader from "@/components/ui/PageHeader.vue";
-import QueryState from "@/components/ui/QueryState.vue";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { useDiscountRules, useSaveDiscountRules, DISCOUNT_TYPES, type DiscountRule } from "@/features/fueling/useDiscountRules";
 

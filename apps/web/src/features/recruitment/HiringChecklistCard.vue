@@ -1,11 +1,10 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { hiringStep, type HiringChecklist, type HiringStep, type HiringStepKey } from "@silvicom/shared";
-import { AppButton as BaseButton, AppCard as BaseCard, AppIcon } from "@silvicom/ui";
+import { AppButton as BaseButton, AppCard as BaseCard, AppIcon, QueryState } from "@silvicom/ui";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { hiringStepStateBadge } from "@/lib/badges.recruiting";
 import { hiringArtifactLink } from "@/features/recruitment/hiringArtifacts";
-import QueryState from "@/components/ui/QueryState.vue";
 
 /**
  * Where one applicant has got to, a row at a time (B5, `HIRING-UI-PLAN.md` §5, mockup screen 2).

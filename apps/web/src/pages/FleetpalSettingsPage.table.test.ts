@@ -33,7 +33,7 @@ vi.mock("@/composables/useStepUpRetry", () => ({
 vi.mock("@/stores/toast", () => ({ useToastStore: () => ({ success: vi.fn(), error: vi.fn(), info: vi.fn() }) }));
 
 import FleetpalSettingsPage from "./FleetpalSettingsPage.vue";
-import DataTable from "@/components/ui/DataTable.vue";
+import { DataTable } from "@silvicom/ui";
 
 describe("FleetPal collections table", () => {
   it("renders through DataTable with its three columns and a collection's row", () => {

@@ -1,7 +1,21 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import { RouterLink } from "vue-router";
-import { AppIcon, AppButton as BaseButton, AppCheckbox as BaseCheckbox } from "@silvicom/ui";
+import {
+  AppIcon,
+  AppButton as BaseButton,
+  AppCheckbox as BaseCheckbox,
+  DataTable,
+  type DataTableColumn,
+  DataWorkspace,
+  FilterBar,
+  BulkActionBar,
+  TablePagination,
+  sortRows,
+  useQueryState,
+  SORT_DIRECTIONS,
+  useUrlSort,
+} from "@silvicom/ui";
 import { ArrowDownTrayIcon, ChevronDownIcon, ChevronRightIcon } from "@silvicom/ui/icons";
 import {
   DQ_DUE_FILTERS,
@@ -15,18 +29,10 @@ import {
   type DqAttentionItem,
   type DqItemState,
 } from "@silvicom/shared";
-import DataTable, { type DataTableColumn } from "@/components/ui/DataTable.vue";
-import DataWorkspace from "@/components/ui/DataWorkspace.vue";
-import FilterBar from "@/components/ui/FilterBar.vue";
-import BulkActionBar from "@/components/ui/BulkActionBar.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
-import TablePagination from "@/components/TablePagination.vue";
 import KebabMenu from "@/components/KebabMenu.vue";
 import { BADGE_BASE, dqFileBadge, dqItemBadge, toneClass } from "@/lib/badges";
 import { formatDate } from "@/lib/format";
-import { sortRows } from "@/lib/sort";
-import { useQueryState } from "@/composables/useQueryState";
-import { SORT_DIRECTIONS, useUrlSort } from "@/composables/useUrlSort";
 import { useComplianceOverviewQuery } from "@/composables/useCompliance";
 import { useToastStore } from "@/stores/toast";
 import { useSessionStore } from "@/stores/session";

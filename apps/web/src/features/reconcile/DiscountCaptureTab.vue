@@ -1,10 +1,8 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import GatedLink from "@/components/GatedLink.vue";
-import { AppCallout, AppCard as BaseCard } from "@silvicom/ui";
+import { AppCallout, AppCard as BaseCard, DataTable, type DataTableColumn, FactList, type Fact } from "@silvicom/ui";
 import { analyzeContractCapture, weeklyContractCapture, type SpendLine } from "@silvicom/shared";
-import DataTable, { type DataTableColumn } from "@/components/ui/DataTable.vue";
-import FactList, { type Fact } from "@/components/ui/FactList.vue";
 import { downloadCsv } from "@/lib/csv";
 import ExportButton from "@/components/ExportButton.vue";
 import { usd, usd3, gal, pct1 } from "./format";

@@ -58,7 +58,7 @@ vi.mock("@/features/inventory/useAssets", async () => {
 vi.mock("@/stores/session", () => ({ useSessionStore: () => ({ can: () => true, canView: () => true }) }));
 
 const UnitsPage = (await import("@/pages/UnitsPage.vue")).default;
-const DataTable = (await import("@/components/ui/DataTable.vue")).default;
+const DataTable = (await import("@silvicom/ui")).DataTable;
 const FilterSelect = (await import("@/components/ui/FilterSelect.vue")).default;
 
 /**

@@ -7,7 +7,7 @@ import PublicLayout from "@/layouts/PublicLayout.vue";
 import ApplyLayout from "@/layouts/ApplyLayout.vue";
 import ShopLayout from "@/layouts/ShopLayout.vue";
 import ToastContainer from "@/components/ToastContainer.vue";
-import ConfirmHost from "@/components/ConfirmHost.vue";
+import { ConfirmHost, provideRouteOpens } from "@silvicom/ui";
 import ErrorBoundary from "@/components/ErrorBoundary.vue";
 import UpdateBanner from "@/components/UpdateBanner.vue";
 import EnvironmentBanner from "@/components/EnvironmentBanner.vue";
@@ -15,10 +15,14 @@ import SkipLink from "@/components/SkipLink.vue";
 import AssistantLauncher from "@/components/assistant/AssistantLauncher.vue";
 import { useSessionStore } from "@/stores/session";
 import { resolveLayout } from "@/lib/layout";
+import { useOpens } from "@/composables/useOpens";
 
 const route = useRoute();
 const router = useRouter();
 const session = useSessionStore();
+// Whether a route opens for this reader, for the shared pieces in `@silvicom/ui` that offer a way to
+// one (`NotFoundState`'s "Back to <list>"). The answer is the app's (SP5), so the app provides it.
+provideRouteOpens(useOpens());
 /**
  * No shell until the router has resolved the first URL (2026-10-13).
  *

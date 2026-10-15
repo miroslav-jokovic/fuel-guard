@@ -1,22 +1,27 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import { useRoute } from "vue-router";
-import { AppButton as BaseButton, AppCard as BaseCard, AppSegmentedControl } from "@silvicom/ui";
+import {
+  AppButton as BaseButton,
+  AppCard as BaseCard,
+  AppSegmentedControl,
+  QueryState,
+  DataTable,
+  type DataTableColumn,
+  DataWorkspace,
+  FilterBar,
+  TablePagination,
+  useQueryState,
+} from "@silvicom/ui";
 import type { LabelPresetId } from "@silvicom/qr";
 import type { LabelTarget } from "@silvicom/shared";
 import PageHeader from "@/components/ui/PageHeader.vue";
-import QueryState from "@/components/ui/QueryState.vue";
-import DataTable, { type DataTableColumn } from "@/components/ui/DataTable.vue";
-import DataWorkspace from "@/components/ui/DataWorkspace.vue";
-import FilterBar from "@/components/ui/FilterBar.vue";
-import TablePagination from "@/components/TablePagination.vue";
 import LabelSheetPreview from "@/features/inventory/LabelSheetPreview.vue";
 import LabelStockControls from "@/features/inventory/LabelStockControls.vue";
 import { ASSETS_PAGE_SIZE, useAssetsQuery } from "@/features/inventory/useAssets";
 import { STOCK_PAGE_SIZE, useStockPageQuery } from "@/features/inventory/useInventory";
 import { fetchLabelSheet, useLabelFaces, useLabelPresetsQuery } from "@/features/inventory/useLabels";
 import { useToastStore } from "@/stores/toast";
-import { useQueryState } from "@/composables/useQueryState";
 
 /**
  * Printing labels (INVENTORY-PLAN.md I10 PR 2; D-INV25, research §5.15).

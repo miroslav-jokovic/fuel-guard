@@ -444,11 +444,20 @@ const webUiSource = inspectFiles(filesUnder(webSrc, new Set([".vue", ".ts", ".cs
 const adminVue = inspectFiles(filesUnder(adminSrc));
 const webPages = webVue.filter((item) => item.relativePath.startsWith("apps/web/src/pages/"));
 const adminPages = adminVue.filter((item) => item.relativePath.startsWith("apps/admin/src/pages/"));
-const pagesAndFeatures = webVue.filter(
-  (item) =>
-    item.relativePath.startsWith("apps/web/src/pages/") ||
-    item.relativePath.startsWith("apps/web/src/features/"),
-);
+// The admin console's pages and components are held to every page rule the web app's are, since US7
+// (D-US11): the same list behaving two ways in two consoles is the drift this gate exists to stop.
+const pagesAndFeatures = [
+  ...webVue.filter(
+    (item) =>
+      item.relativePath.startsWith("apps/web/src/pages/") ||
+      item.relativePath.startsWith("apps/web/src/features/"),
+  ),
+  ...adminVue.filter(
+    (item) =>
+      item.relativePath.startsWith("apps/admin/src/pages/") ||
+      item.relativePath.startsWith("apps/admin/src/components/"),
+  ),
+];
 const structureViolations = pagesAndFeatures.map(templateStructureViolations);
 const nestedTables = structureViolations.flatMap((item) => item.nestedTables);
 const filterBarChildren = structureViolations.flatMap((item) => item.filterBarChildren);
@@ -492,8 +501,11 @@ const unpagedLists = pagesAndFeatures.flatMap(unpagedListViolations).filter((at)
  * capture's `io.confirm`) and a local function definition are not the browser's.
  */
 const NATIVE_DIALOG = /(?<![.\w])(?:window\.)?(?:confirm|alert|prompt)\(|\bwindow\.(?:confirm|alert|prompt)\(/g;
-const webSourceFiles = inspectFiles(filesUnder(webSrc, new Set([".vue", ".ts"])))
-  .filter((item) => !/\.test\.ts$/.test(item.relativePath));
+// Both consoles' source (US7): the admin console's alert-recipient removal was a `window.confirm`.
+const webSourceFiles = inspectFiles([
+  ...filesUnder(webSrc, new Set([".vue", ".ts"])),
+  ...filesUnder(adminSrc, new Set([".vue", ".ts"])),
+]).filter((item) => !/\.test\.ts$/.test(item.relativePath));
 const nativeDialogs = webSourceFiles.flatMap((item) =>
   [...item.source.matchAll(NATIVE_DIALOG)]
     .filter((m) => !/function\s+$/.test(item.source.slice(Math.max(0, m.index - 12), m.index)))
@@ -612,10 +624,17 @@ function recordPageViolations(routes, readPage) {
     })
     .map(({ path, page }) => `${page} (${path})`);
 }
-const recordPagesWithoutNotFound = recordPageViolations(
-  filesUnder(join(webSrc, "router/routes"), new Set([".ts"])).flatMap((file) => recordRoutePages(readFileSync(file, "utf8"))),
-  (page) => readFileSync(join(webSrc, "pages", page), "utf8"),
-);
+const recordPagesWithoutNotFound = [
+  ...recordPageViolations(
+    filesUnder(join(webSrc, "router/routes"), new Set([".ts"])).flatMap((file) => recordRoutePages(readFileSync(file, "utf8"))),
+    (page) => readFileSync(join(webSrc, "pages", page), "utf8"),
+  ),
+  // The admin console's record pages (US7): one route file, the same `import("@/pages/…")` shape.
+  ...recordPageViolations(
+    recordRoutePages(readFileSync(join(adminSrc, "router/index.ts"), "utf8")),
+    (page) => readFileSync(join(adminSrc, "pages", page), "utf8"),
+  ),
+];
 
 /**
  * Every settings page has one layout: the standard page root, full width (US6b F28, 2026-10-14).
@@ -644,7 +663,7 @@ const settingsLayoutViolations = (pages, readPage) =>
 const GRID_COMMA = /\b(?:[a-z0-9]+:)*grid-(?:cols|rows)-\[[^\](]*,[^\]]*\]/g;
 const gridCommaViolations = (item) =>
   [...item.source.matchAll(GRID_COMMA)].map((m) => `${item.relativePath}:${item.source.slice(0, m.index).split("\n").length}`);
-const gridCommas = webVue.flatMap(gridCommaViolations);
+const gridCommas = [...webVue, ...adminVue].flatMap(gridCommaViolations);
 const narrowSettingsPages = settingsLayoutViolations(
   settingsRoutePages(readFileSync(join(webSrc, "router/routes/settings.ts"), "utf8")),
   (page) => readFileSync(join(webSrc, "pages", page), "utf8"),
@@ -1170,17 +1189,32 @@ function verifyAdoption() {
    * A component used only INSIDE packages/ui counts as alive — AppIconButton has no app call site
    * but three internal ones, and it is a real primitive, not a leftover.
    */
+  //
+  // Every NAME the barrel exports, not only its `App*` components: since US7 (D-US11) it also carries
+  // the list composites, their helpers and their types, and a helper exported for nobody is the same
+  // broken promise. A name's own module does not count as its caller.
   const barrel = readFileSync(join(root, "packages/ui/src/index.ts"), "utf8");
-  const exported = [...barrel.matchAll(/export \{ default as (App[A-Za-z]+) \}/g)].map((m) => m[1]);
+  const exported = [];
+  for (const m of barrel.matchAll(/export (?:type )?\{([^}]+)\} from "\.\/([^"]+)";/g)) {
+    const module = join(root, "packages/ui/src", m[2].endsWith(".vue") ? m[2] : `${m[2]}.ts`);
+    for (const part of m[1].split(",")) {
+      const name = part.trim().replace(/^type\s+/, "").split(/\s+as\s+/).pop();
+      if (name) exported.push({ name, module });
+    }
+  }
   const consumers = [
     ...inspectFiles(filesUnder(webSrc, new Set([".vue", ".ts"]))),
     ...inspectFiles(filesUnder(adminSrc, new Set([".vue", ".ts"]))),
-    ...inspectFiles(filesUnder(join(root, "packages/ui/src/components"), new Set([".vue", ".ts"]))),
+    ...inspectFiles(filesUnder(join(root, "packages/ui/src"), new Set([".vue", ".ts"]))).filter(
+      (file) => !file.path.endsWith("/index.ts") && !file.path.endsWith(".test.ts"),
+    ),
   ];
-  const dead = exported.filter((name) => {
-    const used = new RegExp(`\\b${name}\\b`);
-    return !consumers.some((file) => used.test(file.source));
-  });
+  const dead = exported
+    .filter(({ name, module }) => {
+      const used = new RegExp(`\\b${name}\\b`);
+      return !consumers.some((file) => file.path !== module && used.test(file.source));
+    })
+    .map(({ name }) => name);
   if (dead.length)
     failures.push(`exports with no caller anywhere: ${dead.join(", ")}`);
 

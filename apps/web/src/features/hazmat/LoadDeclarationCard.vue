@@ -22,7 +22,7 @@ import { useHazmatTrailersQuery } from "@/features/hazmat/useHazmatEquipment";
 import { TANK_STATE_OPTIONS } from "@/features/hazmat/calcModel";
 import { useUpdateLoad } from "@/features/hazmat/useHazmatLoads";
 import { formatDateTime } from "@/lib/format";
-import FactList, { type Fact } from "@/components/ui/FactList.vue";
+import { FactList, type Fact } from "@silvicom/ui";
 
 /**
  * Everything the record declares that is not a product — read-only on every status, editable on a

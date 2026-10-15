@@ -22,16 +22,22 @@ import { rejectDateTime, stationLocalNote, FUEL_LOG_DATES_NOTE } from "@/lib/sta
 import { useVehiclesQuery } from "@/composables/useVehicles";
 import DateRangeFilter from "@/components/DateRangeFilter.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
-import FilterBar, { type FilterChip } from "@/components/ui/FilterBar.vue";
-import DataTable from "@/components/ui/DataTable.vue";
-import type { DataTableColumn } from "@/components/ui/DataTable.vue";
+import {
+  FilterBar,
+  type FilterChip,
+  DataTable,
+  type DataTableColumn,
+  AppButton as BaseButton,
+  TablePagination,
+  FactList,
+  type Fact,
+  useUrlSort,
+  SORT_DIRECTIONS,
+  DataWorkspace,
+} from "@silvicom/ui";
 import FeedFreshnessLine from "@/components/FeedFreshnessLine.vue";
 import RowCoverageLine from "@/components/RowCoverageLine.vue";
-import { AppButton as BaseButton } from "@silvicom/ui";
-import TablePagination from "@/components/TablePagination.vue";
 import SlideOver from "@/components/SlideOver.vue";
-import FactList, { type Fact } from "@/components/ui/FactList.vue";
-import { useUrlSort, SORT_DIRECTIONS } from "@/composables/useUrlSort";
 import { apiFetch } from "@/lib/api";
 import { useSessionStore } from "@/stores/session";
 import { useToastStore } from "@/stores/toast";
@@ -39,7 +45,6 @@ import { BADGE_BASE, suspicionTone, toneClass } from "@/lib/badges";
 import { useCardAssignments, maskCardRef } from "@/composables/useCardAssignments";
 import { useUnitOptions } from "./unitFilter";
 import ExportButton from "@/components/ExportButton.vue";
-import DataWorkspace from "@/components/ui/DataWorkspace.vue";
 import { fuelLogExportTarget } from "./fuelLogExport";
 import type { FuelLogSharedFilters } from "./useFuelLogFilters";
 

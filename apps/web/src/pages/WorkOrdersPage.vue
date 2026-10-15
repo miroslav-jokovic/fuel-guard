@@ -1,18 +1,21 @@
 <script setup lang="ts">
 import { computed, watch } from "vue";
-import { useQueryState } from "@/composables/useQueryState";
-import { SORT_DIRECTIONS, useUrlSort } from "@/composables/useUrlSort";
+import {
+  useQueryState,
+  SORT_DIRECTIONS,
+  useUrlSort,
+  DataWorkspace,
+  FilterBar,
+  DataTable,
+  type DataTableColumn,
+  TablePagination,
+  sortRows,
+} from "@silvicom/ui";
 import { daysSince, shopDayOf, todayInZone, type ShopWorkOrderDto } from "@silvicom/shared";
 import PageHeader from "@/components/ui/PageHeader.vue";
-import DataWorkspace from "@/components/ui/DataWorkspace.vue";
-import FilterBar from "@/components/ui/FilterBar.vue";
-import DataTable from "@/components/ui/DataTable.vue";
-import type { DataTableColumn } from "@/components/ui/DataTable.vue";
-import TablePagination from "@/components/TablePagination.vue";
 import { useOpenWorkOrdersQuery } from "@/features/maintenance/useShopBacklog";
 import { useOrgTimezone } from "@/composables/useOrgTimezone";
 import { formatDate } from "@/lib/format";
-import { sortRows } from "@/lib/sort";
 
 /**
  * Open work orders — FleetPal's in-flight repairs (FLEET-MANAGER-HOME-PLAN Q-FM6 (a)).

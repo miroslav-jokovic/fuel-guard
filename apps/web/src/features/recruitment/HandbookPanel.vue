@@ -1,9 +1,13 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import { HANDBOOK_PLACEMENTS, formatDisplayDate, formatDisplayDateTime } from "@silvicom/shared";
-import { AppButton as BaseButton, AppCombobox as ComboSelect, AppFormField as FormField } from "@silvicom/ui";
+import {
+  AppButton as BaseButton,
+  AppCombobox as ComboSelect,
+  AppFormField as FormField,
+  QueryState,
+} from "@silvicom/ui";
 import { useToastStore } from "@/stores/toast";
-import QueryState from "@/components/ui/QueryState.vue";
 import SignatoryRegister from "@/features/recruitment/SignatoryRegister.vue";
 import {
   useCountersignHandbook,

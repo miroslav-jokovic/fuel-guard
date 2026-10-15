@@ -1,15 +1,17 @@
 <script setup lang="ts">
 import { computed, watch } from "vue";
 import { parseYmd } from "@silvicom/shared";
-import { useQueryState } from "@/composables/useQueryState";
+import {
+  useQueryState,
+  DataWorkspace,
+  FilterBar,
+  TablePagination,
+  DataTable,
+  type DataTableColumn,
+} from "@silvicom/ui";
 import { useMaintenanceSpendQuery } from "@/features/maintenance/useMaintenanceSpend";
 import { lastFullMonth } from "@/lib/dateWindow";
 import DateRangeFilter from "@/components/DateRangeFilter.vue";
-import DataWorkspace from "@/components/ui/DataWorkspace.vue";
-import FilterBar from "@/components/ui/FilterBar.vue";
-import TablePagination from "@/components/TablePagination.vue";
-import DataTable from "@/components/ui/DataTable.vue";
-import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import { formatDate as fmtDate } from "@/lib/format";
 import { useOpens } from "@/composables/useOpens";

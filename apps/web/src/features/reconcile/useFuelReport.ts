@@ -9,7 +9,7 @@ import { computed, type Ref } from "vue";
 import { keepPreviousData, useQuery } from "@tanstack/vue-query";
 import { FUEL_NETWORKS, type FuelNetwork, type FuelReport } from "@silvicom/shared";
 import { apiFetch } from "@/lib/api";
-import { useQueryState } from "@/composables/useQueryState";
+import { useQueryState } from "@silvicom/ui";
 import { useSpendFilters } from "./useSpendFilters";
 
 export interface FuelReportParams {

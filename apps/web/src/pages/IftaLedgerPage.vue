@@ -1,14 +1,18 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import { useRoute, useRouter, RouterLink } from "vue-router";
-import { AppButton as BaseButton, AppCallout } from "@silvicom/ui";
+import {
+  AppButton as BaseButton,
+  AppCallout,
+  QueryState,
+  DataTable,
+  type DataTableColumn,
+  StatCard,
+} from "@silvicom/ui";
 import { STATE_NAMES } from "@silvicom/shared";
 import PageHeader from "@/components/ui/PageHeader.vue";
-import QueryState from "@/components/ui/QueryState.vue";
 import SamsaraFeedLine from "@/components/SamsaraFeedLine.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
-import DataTable, { type DataTableColumn } from "@/components/ui/DataTable.vue";
-import StatCard from "@/components/ui/StatCard.vue";
 import ReportScopeBar from "@/components/ui/ReportScopeBar.vue";
 import {
   parseQuarterKey, quarterKey, quarterLabel, selectableQuarters, useIftaPeriodQuery,

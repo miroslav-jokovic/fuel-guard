@@ -7,12 +7,20 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { join, relative } from "node:path";
 
-const SRC = new URL("../src", import.meta.url).pathname;
+/**
+ * The trees this gate reads. The web app's own source, and since US7 (D-US11) the shared package and
+ * the admin console as well: the list composites moved from `apps/web/src` into `@silvicom/ui`, and a
+ * gate that kept reading only the web tree would have let them out of its reach on the day they
+ * moved. Paths in the report are relative to the repository so a finding names its tree.
+ */
+const REPO = new URL("../../../", import.meta.url).pathname;
+const ROOTS = ["apps/web/src", "packages/ui/src", "apps/admin/src"];
 
 // Files allowed to contain raw color values, with the reason.
 const ALLOW = new Set([
-  "style.css", // defines the tokens themselves
-  "lib/chartTheme.ts", // jsdom fallbacks for canvas charts
+  "apps/web/src/style.css", // defines the tokens themselves
+  "apps/web/src/lib/chartTheme.ts", // jsdom fallbacks for canvas charts
+  "packages/ui/src/tokens.generated.css", // the token layer itself, generated from the token source
 ]);
 
 /**
@@ -237,8 +245,8 @@ function* walk(dir) {
 }
 
 let failures = 0;
-for (const file of walk(SRC)) {
-  const rel = relative(SRC, file);
+for (const file of ROOTS.flatMap((root) => [...walk(join(REPO, root))])) {
+  const rel = relative(REPO, file);
   if (ALLOW.has(rel)) continue;
   const lines = readFileSync(file, "utf8").split("\n");
   lines.forEach((line, i) => {

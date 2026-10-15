@@ -7,10 +7,15 @@ import {
   type SectionAccess,
   type UserRole,
 } from "@silvicom/shared";
-import { AppButton as BaseButton, AppCallout, AppCombobox as ComboSelect, AppFormField } from "@silvicom/ui";
+import {
+  AppButton as BaseButton,
+  AppCallout,
+  AppCombobox as ComboSelect,
+  AppFormField,
+  QueryState,
+} from "@silvicom/ui";
 import { useModulesQuery } from "@/composables/useModules";
 import { useToastStore } from "@/stores/toast";
-import QueryState from "@/components/ui/QueryState.vue";
 import AccessCard from "./AccessCard.vue";
 import ScreenRows from "./ScreenRows.vue";
 import SectionRows, { type SectionRowModel } from "./SectionRows.vue";

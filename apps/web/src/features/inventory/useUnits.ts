@@ -1,7 +1,7 @@
 import { computed, type Ref } from "vue";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/vue-query";
 import { apiFetch } from "@/lib/api";
-import { recordOrThrow } from "@/lib/notFound";
+import { recordOrThrow } from "@silvicom/ui";
 import type {
   AssetDto,
   KitExpectationDto,

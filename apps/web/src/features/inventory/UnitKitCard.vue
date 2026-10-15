@@ -1,13 +1,11 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { AppCard as BaseCard } from "@silvicom/ui";
+import { AppCard as BaseCard, QueryState, FactList, type Fact } from "@silvicom/ui";
 import { type UnitKitDto } from "@silvicom/shared";
 import { BADGE_BASE, kitStatusBadge, toneClass } from "@/lib/badges";
 import { useUnitKitQuery } from "./useUnits";
 import { useSessionStore } from "@/stores/session";
 import { useOpens } from "@/composables/useOpens";
-import QueryState from "@/components/ui/QueryState.vue";
-import FactList, { type Fact } from "@/components/ui/FactList.vue";
 
 /**
  * What this truck or trailer is carrying — read only (INVENTORY-PLAN.md I9, D-AVI17).

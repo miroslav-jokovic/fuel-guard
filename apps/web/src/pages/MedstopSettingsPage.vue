@@ -1,10 +1,17 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import { AppButton as BaseButton, AppCard as BaseCard, AppDateField, AppFormField as FormField, AppIcon, AppInput as BaseInput } from "@silvicom/ui";
+import {
+  AppButton as BaseButton,
+  AppCard as BaseCard,
+  AppDateField,
+  AppFormField as FormField,
+  AppIcon,
+  AppInput as BaseInput,
+  QueryState,
+} from "@silvicom/ui";
 import { CheckCircleIcon, ExclamationTriangleIcon, InformationCircleIcon } from "@silvicom/ui/icons";
 import { MEDSTOP_KEY_NOTICE_DAYS, shiftDay, todayInZone, DEFAULT_ORG_TIMEZONE } from "@silvicom/shared";
 import PageHeader from "@/components/ui/PageHeader.vue";
-import QueryState from "@/components/ui/QueryState.vue";
 import JobActionCard from "@/features/jobs/JobActionCard.vue";
 import MedstopOrderingCard from "@/features/settings/MedstopOrderingCard.vue";
 import StepUpPrompt from "@/components/StepUpPrompt.vue";

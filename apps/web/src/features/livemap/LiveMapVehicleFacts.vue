@@ -5,8 +5,7 @@ import { BADGE_BASE, toneClass, vehicleStateTone } from "@/lib/badges";
 import { STATE_LABEL } from "./liveMapLayer";
 import { engineWords, formatAge, fuelMetric, routeWords, stopAddress } from "./liveMapWords";
 import GatedLink from "@/components/GatedLink.vue";
-import FactList, { type Fact } from "@/components/ui/FactList.vue";
-import { AppButton as BaseButton, AppIconButton } from "@silvicom/ui";
+import { FactList, type Fact, AppButton as BaseButton, AppIconButton } from "@silvicom/ui";
 import { RouteIcon, UserIcon, VehicleIcon } from "@silvicom/ui/icons";
 import { useOpens } from "@/composables/useOpens";
 

@@ -103,8 +103,7 @@ vi.mock("@/features/anomalies/IncidentDetail.vue", async () => {
 });
 
 import FuelProblemsPage from "./FuelProblemsPage.vue";
-import DataWorkspace from "@/components/ui/DataWorkspace.vue";
-import FilterBar from "@/components/ui/FilterBar.vue";
+import { DataWorkspace, FilterBar } from "@silvicom/ui";
 import ExportButton, { type ExportItem } from "@/components/ExportButton.vue";
 import MoneyExportActions from "@/features/reconcile/MoneyExportActions.vue";
 import { fuelRoutes } from "@/router/routes/fuel";

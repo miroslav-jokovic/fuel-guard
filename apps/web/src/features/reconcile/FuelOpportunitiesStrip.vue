@@ -17,7 +17,7 @@
  */
 import { RouterLink } from "vue-router";
 import { formatDisplayDate, type FuelOpportunity } from "@silvicom/shared";
-import QueryState from "@/components/ui/QueryState.vue";
+import { QueryState } from "@silvicom/ui";
 import { usd } from "./format";
 
 const props = defineProps<{

@@ -6,12 +6,8 @@ import { useToastStore } from "@/stores/toast";
 import { useSessionStore } from "@/stores/session";
 import GatedLink from "@/components/GatedLink.vue";
 import type { AuditVerdict } from "@silvicom/shared";
-import QueryState from "@/components/ui/QueryState.vue";
-import { AppButton as BaseButton } from "@silvicom/ui";
-import { AppCard as BaseCard } from "@silvicom/ui";
+import { QueryState, AppButton as BaseButton, AppCard as BaseCard, StatCard, FactList, type Fact } from "@silvicom/ui";
 import PageHeader from "@/components/ui/PageHeader.vue";
-import StatCard from "@/components/ui/StatCard.vue";
-import FactList, { type Fact } from "@/components/ui/FactList.vue";
 import { formatDate as fmtDate } from "@/lib/format";
 
 const toast = useToastStore();

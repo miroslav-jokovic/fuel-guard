@@ -1,5 +1,6 @@
 import { Router, type Request, type Response } from "express";
 import { z } from "zod";
+import { isRecordId } from "@silvicom/shared";
 import {
   requirePlatformAuth,
   requireAAL2,
@@ -34,8 +35,11 @@ export function orgsRouter(): Router {
   r.get("/:id", async (req: Request, res: Response) => {
     try {
       const id = req.params.id;
-      if (typeof id !== "string") {
-        res.status(400).json(apiError("invalid_request", "Invalid organization id"));
+      if (typeof id !== "string" || !isRecordId(id)) {
+        // Not an id at all names no organization: a 404, the same answer as an id nobody holds, and
+        // never a uuid cast failing inside Postgres as a 500 (US7: the admin record pages read 404 as
+        // "not found").
+        res.status(404).json(apiError("not_found", "Organization not found"));
         return;
       }
       const admin = adminClient(req);
@@ -62,8 +66,11 @@ export function orgsRouter(): Router {
   // Members of one org (emails resolved via the auth admin API). Read.
   r.get("/:id/members", async (req: Request, res: Response) => {
     const id = req.params.id;
-    if (typeof id !== "string") {
-      res.status(400).json(apiError("invalid_request", "Invalid organization id"));
+    if (typeof id !== "string" || !isRecordId(id)) {
+      // Not an id at all names no organization: a 404, the same answer as an id nobody holds, and
+      // never a uuid cast failing inside Postgres as a 500 (US7: the admin record pages read 404 as
+      // "not found").
+      res.status(404).json(apiError("not_found", "Organization not found"));
       return;
     }
     try {
@@ -79,8 +86,11 @@ export function orgsRouter(): Router {
   // the customer's fleet data, so it is audited like the detail view — any platform role may look.
   r.get("/:id/idle-engine", async (req: Request, res: Response) => {
     const id = req.params.id;
-    if (typeof id !== "string") {
-      res.status(400).json(apiError("invalid_request", "Invalid organization id"));
+    if (typeof id !== "string" || !isRecordId(id)) {
+      // Not an id at all names no organization: a 404, the same answer as an id nobody holds, and
+      // never a uuid cast failing inside Postgres as a 500 (US7: the admin record pages read 404 as
+      // "not found").
+      res.status(404).json(apiError("not_found", "Organization not found"));
       return;
     }
     try {
@@ -120,7 +130,7 @@ export function orgsRouter(): Router {
     async (req: Request, res: Response) => {
       const id = req.params.id;
       const provider = req.params.provider;
-      if (typeof id !== "string" || typeof provider !== "string") {
+      if (typeof id !== "string" || !isRecordId(id) || typeof provider !== "string") {
         res.status(400).json(apiError("invalid_request", "Invalid parameters"));
         return;
       }
@@ -170,7 +180,7 @@ export function orgsRouter(): Router {
     async (req: Request, res: Response) => {
       const id = req.params.id;
       const moduleKey = req.params.moduleKey;
-      if (typeof id !== "string" || typeof moduleKey !== "string") {
+      if (typeof id !== "string" || !isRecordId(id) || typeof moduleKey !== "string") {
         res.status(400).json(apiError("invalid_request", "Invalid parameters"));
         return;
       }
@@ -219,8 +229,11 @@ export function orgsRouter(): Router {
     requireStepUp,
     async (req: Request, res: Response) => {
       const id = req.params.id;
-      if (typeof id !== "string") {
-        res.status(400).json(apiError("invalid_request", "Invalid organization id"));
+      if (typeof id !== "string" || !isRecordId(id)) {
+        // Not an id at all names no organization: a 404, the same answer as an id nobody holds, and
+        // never a uuid cast failing inside Postgres as a 500 (US7: the admin record pages read 404 as
+        // "not found").
+        res.status(404).json(apiError("not_found", "Organization not found"));
         return;
       }
       const parsed = startSchema.safeParse(req.body);
@@ -260,8 +273,11 @@ export function orgsRouter(): Router {
   // A grant-gated read-only customer view (recent anomalies). Requires the caller's ACTIVE grant for the org.
   r.get("/:id/view/anomalies", async (req: Request, res: Response) => {
     const id = req.params.id;
-    if (typeof id !== "string") {
-      res.status(400).json(apiError("invalid_request", "Invalid organization id"));
+    if (typeof id !== "string" || !isRecordId(id)) {
+      // Not an id at all names no organization: a 404, the same answer as an id nobody holds, and
+      // never a uuid cast failing inside Postgres as a 500 (US7: the admin record pages read 404 as
+      // "not found").
+      res.status(404).json(apiError("not_found", "Organization not found"));
       return;
     }
     try {

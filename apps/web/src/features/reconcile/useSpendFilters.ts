@@ -21,7 +21,7 @@
  */
 import { computed } from "vue";
 import { normalizeWindow, describeFixes, defaultWindow, todayInZone, type SpendGrain } from "@silvicom/shared";
-import { useQueryState } from "@/composables/useQueryState";
+import { useQueryState } from "@silvicom/ui";
 import { useOrgTimezone } from "@/composables/useOrgTimezone";
 
 /** Kept for existing importers; the span itself is `DEFAULT_WINDOW_DAYS` in `@silvicom/shared`. */

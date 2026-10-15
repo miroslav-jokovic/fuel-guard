@@ -1,7 +1,5 @@
 import { computed, type ComputedRef, type WritableComputedRef } from "vue";
-import type { SortState } from "@/lib/sort";
-import { toggleSort } from "@/lib/sort";
-import { useQueryState } from "@/composables/useQueryState";
+import { type SortState, toggleSort, useQueryState } from "@silvicom/ui";
 
 /**
  * Everything that decides which drivers the roster is showing, held in the URL (R3c, D-ROS14).

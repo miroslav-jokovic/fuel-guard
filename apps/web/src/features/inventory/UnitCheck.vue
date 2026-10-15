@@ -8,11 +8,16 @@ import {
   type AssetMovementInput,
   type UnitKitLineDto,
 } from "@silvicom/shared";
-import { AppButton as BaseButton, AppCallout, AppCard as BaseCard } from "@silvicom/ui";
+import {
+  AppButton as BaseButton,
+  AppCallout,
+  AppCard as BaseCard,
+  QueryState,
+  DataTable,
+  type DataTableColumn,
+  useConfirm,
+} from "@silvicom/ui";
 import PageHeader from "@/components/ui/PageHeader.vue";
-import QueryState from "@/components/ui/QueryState.vue";
-import DataTable from "@/components/ui/DataTable.vue";
-import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { useWakeLock } from "@/composables/useWakeLock";
 import { useCloseCountSession, useCountSessionQuery } from "@/features/inventory/useInventory";
@@ -21,7 +26,6 @@ import { useUnitKitQuery } from "@/features/inventory/useUnits";
 import { useWalk } from "@/features/inventory/useWalk";
 import WalkActions, { type WalkAction } from "@/features/inventory/WalkActions.vue";
 import { useToastStore } from "@/stores/toast";
-import { useConfirm } from "@/stores/confirm";
 
 /**
  * A truck's kit, walked (INVENTORY-PLAN.md I9; D-INV17 as amended 2026-09-10, D-INV19, D-INV24).

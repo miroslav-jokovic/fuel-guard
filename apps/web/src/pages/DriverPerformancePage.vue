@@ -1,6 +1,18 @@
 <script setup lang="ts">
-import { AppButton as BaseButton } from "@silvicom/ui";
-import { AppIcon } from "@silvicom/ui";
+import {
+  AppButton as BaseButton,
+  AppIcon,
+  AppCard as BaseCard,
+  FilterBar,
+  TablePagination,
+  DataTable,
+  DataWorkspace,
+  type DataTableColumn,
+  sortRows,
+  useQueryState,
+  SORT_DIRECTIONS,
+  useUrlSort,
+} from "@silvicom/ui";
 import {
   TrophyIcon,
 } from "@silvicom/ui/icons";
@@ -9,19 +21,10 @@ import { useDriverPerformance, type PerformanceDisplayRow } from "@/features/dri
 import { useDriverPerformanceWeeksList, useDriverPerformanceWeek } from "@/features/drivers/useDriverPerformanceWeeks";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import SamsaraFeedLine from "@/components/SamsaraFeedLine.vue";
-import { AppCard as BaseCard } from "@silvicom/ui";
-import FilterBar from "@/components/ui/FilterBar.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
-import TablePagination from "@/components/TablePagination.vue";
-import DataTable from "@/components/ui/DataTable.vue";
-import DataWorkspace from "@/components/ui/DataWorkspace.vue";
 import ReportScopeBar from "@/components/ui/ReportScopeBar.vue";
-import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import { toneClass } from "@/lib/badges";
 import { formatDate, formatDateRange } from "@/lib/format";
-import { sortRows } from "@/lib/sort";
-import { useQueryState } from "@/composables/useQueryState";
-import { SORT_DIRECTIONS, useUrlSort } from "@/composables/useUrlSort";
 
 
 const PAGE_SIZE = 20;

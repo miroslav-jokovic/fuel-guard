@@ -1,10 +1,9 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
-import { AppIcon, AppButton as BaseButton } from "@silvicom/ui";
+import { AppIcon, AppButton as BaseButton, BaseModal } from "@silvicom/ui";
 import { DocumentTextIcon } from "@silvicom/ui/icons";
 import type { DocumentRow } from "@silvicom/shared";
 import { DQ_KIND_LABELS } from "@silvicom/shared";
-import BaseModal from "@/components/ui/BaseModal.vue";
 import DocumentPreview from "@/components/DocumentPreview.vue";
 import { formatDate } from "@/lib/format";
 

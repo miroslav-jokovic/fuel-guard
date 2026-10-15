@@ -10,11 +10,8 @@ import {
   type DqFileItem,
   type DocumentRow,
 } from "@silvicom/shared";
-import { AppCard as BaseCard } from "@silvicom/ui";
-import { AppButton as BaseButton } from "@silvicom/ui";
-import FilterBar from "@/components/ui/FilterBar.vue";
+import { AppCard as BaseCard, AppButton as BaseButton, FilterBar, DataWorkspace, useQueryState } from "@silvicom/ui";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
-import DataWorkspace from "@/components/ui/DataWorkspace.vue";
 import { BADGE_BASE, dqItemBadge, toneClass } from "@/lib/badges";
 import { useSessionStore } from "@/stores/session";
 import { useToastStore } from "@/stores/toast";
@@ -33,7 +30,6 @@ import CertificationHistory from "@/features/compliance/CertificationHistory.vue
 import DocumentPreview from "@/components/DocumentPreview.vue";
 import RequirementTable, { type RequirementRow } from "@/features/compliance/RequirementTable.vue";
 import { useExportDocument } from "@/composables/useDqExports";
-import { useQueryState } from "@/composables/useQueryState";
 
 /**
  * One driver's §391.51 file (DQ redesign, D-DQ7).

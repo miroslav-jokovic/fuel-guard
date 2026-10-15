@@ -52,6 +52,10 @@ export type DriverTimeOffPayload = z.infer<typeof driverTimeOffPayloadSchema>;
 /** TMS providers we support (extensible). */
 export const TMS_PROVIDERS = ["mcleod"] as const;
 export type TmsProvider = (typeof TMS_PROVIDERS)[number];
+/** How each TMS is written for a person: its own spelling, which capitalising the key gets wrong ("Mcleod"). */
+export const TMS_PROVIDER_LABELS: Record<TmsProvider, string> = {
+  mcleod: "McLeod",
+};
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // Dispatchable loads from the TMS (Phase 3E, D48)

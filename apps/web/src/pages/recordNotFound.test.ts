@@ -52,7 +52,7 @@ vi.mock("@/features/anomalies/useDetectionEpoch", async () => {
 });
 
 import { ROUTE_TABLE } from "@/router/table";
-import { QUERY_DEFAULTS } from "@/lib/notFound";
+import { QUERY_DEFAULTS } from "@silvicom/ui";
 
 const ID = "00000000-0000-4000-8000-000000000001";
 

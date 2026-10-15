@@ -3,7 +3,7 @@ import { nextTick, ref } from "vue";
 import { flushPromises, mount } from "@vue/test-utils";
 import { createMemoryHistory, createRouter, type Router } from "vue-router";
 import { createPinia, setActivePinia } from "pinia";
-import { answerConfirm } from "@/testing/confirm";
+import { answerConfirm } from "@silvicom/ui/testing";
 import { useToastStore } from "@/stores/toast";
 
 /**

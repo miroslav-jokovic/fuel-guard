@@ -1,5 +1,14 @@
 <script setup lang="ts">
-import { AppIcon } from "@silvicom/ui";
+import {
+  AppIcon,
+  AppSelect,
+  AppButton as BaseButton,
+  AppCard as BaseCard,
+  DataTable,
+  type DataTableColumn,
+  QueryState,
+  StatCard,
+} from "@silvicom/ui";
 import {
   ArrowDownTrayIcon,
   CsvIcon,
@@ -14,17 +23,10 @@ import { useOrgTimezone } from "@/composables/useOrgTimezone";
 import { downloadReport } from "@/features/reports/download";
 import DateRangeFilter from "@/components/DateRangeFilter.vue";
 import ReportScopeBar from "@/components/ui/ReportScopeBar.vue";
-import { AppSelect } from "@silvicom/ui";
-import { AppButton as BaseButton } from "@silvicom/ui";
-import { AppCard as BaseCard } from "@silvicom/ui";
-import DataTable from "@/components/ui/DataTable.vue";
-import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import { apiFetch } from "@/lib/api";
 import type { DetectionMetrics, RecallMetrics } from "@silvicom/shared";
 import { useToastStore } from "@/stores/toast";
 import PageHeader from "@/components/ui/PageHeader.vue";
-import QueryState from "@/components/ui/QueryState.vue";
-import StatCard from "@/components/ui/StatCard.vue";
 
 const toast = useToastStore();
 /**

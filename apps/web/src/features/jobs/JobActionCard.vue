@@ -2,11 +2,8 @@
 import { computed } from "vue";
 import { apiFetch } from "@/lib/api";
 import { useToastStore } from "@/stores/toast";
-import { useConfirm } from "@/stores/confirm";
+import { useConfirm, AppCard as BaseCard, AppButton as BaseButton, QueryState } from "@silvicom/ui";
 import { useJob } from "./useJob";
-import { AppCard as BaseCard } from "@silvicom/ui";
-import { AppButton as BaseButton } from "@silvicom/ui";
-import QueryState from "@/components/ui/QueryState.vue";
 
 const props = defineProps<{
   title: string;

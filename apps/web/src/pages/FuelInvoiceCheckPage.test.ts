@@ -36,7 +36,7 @@ vi.mock("@/features/reconcile/ReconResultView.vue", () => ({
 }));
 
 import FuelInvoiceCheckPage from "./FuelInvoiceCheckPage.vue";
-import { NotFoundError } from "@/lib/notFound";
+import { NotFoundError } from "@silvicom/ui";
 
 async function mountAt(path: string) {
   const router = createRouter({

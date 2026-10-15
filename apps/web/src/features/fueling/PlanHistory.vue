@@ -1,20 +1,23 @@
 <script setup lang="ts">
-import { AppButton as BaseButton } from "@silvicom/ui";
+import {
+  AppButton as BaseButton,
+  DataTable,
+  type DataTableColumn,
+  DataWorkspace,
+  FilterBar,
+  BulkActionBar,
+  TablePagination,
+  useConfirm,
+  useQueryState,
+} from "@silvicom/ui";
 import { computed, ref, watch } from "vue";
-import DataTable, { type DataTableColumn } from "@/components/ui/DataTable.vue";
-import DataWorkspace from "@/components/ui/DataWorkspace.vue";
-import FilterBar from "@/components/ui/FilterBar.vue";
-import BulkActionBar from "@/components/ui/BulkActionBar.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
 import DateRangeFilter from "@/components/DateRangeFilter.vue";
 import KebabMenu from "@/components/KebabMenu.vue";
-import TablePagination from "@/components/TablePagination.vue";
 import { BADGE_BASE, toneClass, type BadgeTone } from "@/lib/badges";
 import { useFuelPlanHistory, useDeleteFuelPlan, useDeleteFuelPlans, type PlanHistoryRow } from "./useFuelPlan";
 import { useToastStore } from "@/stores/toast";
-import { useConfirm } from "@/stores/confirm";
 import { formatDateTime as fmtDate } from "@/lib/format";
-import { useQueryState } from "@/composables/useQueryState";
 import { parseYmd } from "@silvicom/shared";
 
 const toast = useToastStore();

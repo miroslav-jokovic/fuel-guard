@@ -1,14 +1,17 @@
 <script setup lang="ts">
 import { computed, watch } from "vue";
-import { useQueryState } from "@/composables/useQueryState";
+import {
+  useQueryState,
+  TablePagination,
+  FilterBar,
+  DataTable,
+  DataWorkspace,
+  type DataTableColumn,
+  AppTabs,
+  type TabItem,
+} from "@silvicom/ui";
 import { useAuditQuery, type AuditFilters, type AuditPosition } from "@/features/audit/useAudit";
-import TablePagination from "@/components/TablePagination.vue";
-import FilterBar from "@/components/ui/FilterBar.vue";
-import DataTable from "@/components/ui/DataTable.vue";
-import DataWorkspace from "@/components/ui/DataWorkspace.vue";
-import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import PageHeader from "@/components/ui/PageHeader.vue";
-import { AppTabs, type TabItem } from "@silvicom/ui";
 import CardChangeLog from "@/features/fuelCards/CardChangeLog.vue";
 import { formatDateTime as fmt } from "@/lib/format";
 

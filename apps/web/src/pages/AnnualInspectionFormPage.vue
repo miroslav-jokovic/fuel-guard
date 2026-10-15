@@ -7,15 +7,20 @@ import {
   deriveInspectionOutcome,
   type InspectionResult,
 } from "@silvicom/shared";
-import { AppButton as BaseButton, AppCallout, AppBadge, AppCard as BaseCard } from "@silvicom/ui";
-import QueryState from "@/components/ui/QueryState.vue";
+import {
+  AppButton as BaseButton,
+  AppCallout,
+  AppBadge,
+  AppCard as BaseCard,
+  QueryState,
+  useConfirm,
+} from "@silvicom/ui";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import InspectionHeaderFields from "@/features/maintenance/InspectionHeaderFields.vue";
 import InspectionItemRow from "@/features/maintenance/InspectionItemRow.vue";
 import PrintInspectionDrawer from "@/features/maintenance/PrintInspectionDrawer.vue";
 import DeleteInspectionDrawer from "@/features/maintenance/DeleteInspectionDrawer.vue";
 import { useToastStore } from "@/stores/toast";
-import { useConfirm } from "@/stores/confirm";
 import { useOrgSettingsQuery } from "@/composables/useOrgSettings";
 import { useSessionStore } from "@/stores/session";
 import {

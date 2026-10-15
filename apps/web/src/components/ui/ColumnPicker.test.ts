@@ -3,7 +3,7 @@ import { computed, ref } from "vue";
 import { mount } from "@vue/test-utils";
 import ColumnPicker from "@/components/ui/ColumnPicker.vue";
 import type { TableColumns } from "@/composables/useTableColumns";
-import type { DataTableColumn } from "@/components/ui/DataTable.vue";
+import { type DataTableColumn } from "@silvicom/ui";
 
 /**
  * The toolbar half of column management (R3b). `useTableColumns` owns the rules and is tested on its

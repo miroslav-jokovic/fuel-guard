@@ -1,10 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { MEDSTOP_OUTCOME_LABELS, type MedstopResultRow } from "@silvicom/shared";
-import { AppCard as BaseCard } from "@silvicom/ui";
-import DataTable from "@/components/ui/DataTable.vue";
-import type { DataTableColumn } from "@/components/ui/DataTable.vue";
-import TablePagination from "@/components/TablePagination.vue";
+import { AppCard as BaseCard, DataTable, type DataTableColumn, TablePagination } from "@silvicom/ui";
 import { useClientPage } from "@/composables/useClientPage";
 import { BADGE_BASE, medstopOutcomeTone } from "@/lib/badges";
 import { formatDate } from "@/lib/format";

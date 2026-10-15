@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import DataTable, { type DataTableColumn } from "@/components/ui/DataTable.vue";
+import { DataTable, type DataTableColumn } from "@silvicom/ui";
 import { monthName } from "./fleetProvenance";
 import type { FleetTrendPoint } from "./useFleetTrend";
 

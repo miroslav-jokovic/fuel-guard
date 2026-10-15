@@ -2,7 +2,17 @@
 import { acceptFor, INVENTORY_PHOTO_CONTENT_TYPES } from "@silvicom/shared";
 import { computed, ref } from "vue";
 import { useRoute } from "vue-router";
-import { AppButton as BaseButton, AppCard as BaseCard, AppIcon } from "@silvicom/ui";
+import {
+  AppButton as BaseButton,
+  AppCard as BaseCard,
+  AppIcon,
+  DataTable,
+  type DataTableColumn,
+  TablePagination,
+  QueryState,
+  FactList,
+  type Fact,
+} from "@silvicom/ui";
 import { PlusIcon } from "@silvicom/ui/icons";
 import {
   ADJUST_REASON_LABELS,
@@ -11,12 +21,7 @@ import {
   type StockLineDto,
 } from "@silvicom/shared";
 import PageHeader from "@/components/ui/PageHeader.vue";
-import DataTable from "@/components/ui/DataTable.vue";
-import type { DataTableColumn } from "@/components/ui/DataTable.vue";
-import TablePagination from "@/components/TablePagination.vue";
 import KebabMenu from "@/components/KebabMenu.vue";
-import QueryState from "@/components/ui/QueryState.vue";
-import FactList, { type Fact } from "@/components/ui/FactList.vue";
 import PartDrawer from "@/features/inventory/PartDrawer.vue";
 import StockLineDrawer from "@/features/inventory/StockLineDrawer.vue";
 import MovementDrawer, { type DeskVerb } from "@/features/inventory/MovementDrawer.vue";

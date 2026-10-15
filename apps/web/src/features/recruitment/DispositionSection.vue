@@ -18,7 +18,7 @@ import {
   type ApplicantDispositionOutcome,
 } from "@silvicom/shared";
 import SlideOver from "@/components/SlideOver.vue";
-import QueryState from "@/components/ui/QueryState.vue";
+import { QueryState } from "@silvicom/ui";
 import { useSessionStore } from "@/stores/session";
 import { useToastStore } from "@/stores/toast";
 import { useDispositionsQuery, useRecordDisposition } from "@/features/recruitment/useDispositions";

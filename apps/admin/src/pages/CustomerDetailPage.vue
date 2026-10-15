@@ -1,267 +1,215 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from "vue";
+import { computed, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import { AppCard, AppButton, AppInput, AppPageHeader, AppTable } from "@silvicom/ui";
+import { MODULE_LABELS, TMS_PROVIDER_LABELS, type ModuleKey, type TmsProvider } from "@silvicom/shared";
+import {
+  AppButton,
+  AppCallout,
+  AppCard,
+  AppInput,
+  AppPageHeader,
+  DataTable,
+  FactList,
+  QueryState,
+  StatCard,
+  type DataTableColumn,
+} from "@silvicom/ui";
 import AppShell from "@/layouts/AppShell.vue";
-import { apiGet, apiPost, type OrgDetail, type OrgMember, type Me } from "@/lib/api";
+import OrgSwitchCard, { type OrgSwitch } from "@/components/OrgSwitchCard.vue";
 import { useImpersonationStore } from "@/stores/impersonation";
+import { useMeQuery, useOrgMembersQuery, useOrgQuery } from "@/lib/queries";
 import { fmtDate } from "@/lib/format";
 
+/**
+ * One customer (US7, D-US11): the web app's record-page anatomy — `QueryState` around the record
+ * (with its not-found state, D-US10), `StatCard` for the four figures, `FactList` for the facts, a
+ * `DataTable` for the members — where it was hand-built tiles, a `<dl>`, an `AppTable`, and one
+ * `error` ref that any refused change also wrote, blanking the page.
+ *
+ * The members are their own read with their own states: a customer whose member list fails to load
+ * is still a customer whose switches work.
+ */
 const route = useRoute();
 const router = useRouter();
-const id = route.params.id as string;
+const id = computed(() => String(route.params.id));
 
-const org = ref<OrgDetail | null>(null);
-const members = ref<OrgMember[]>([]);
-const me = ref<Me | null>(null);
-const error = ref<string | null>(null);
-const loading = ref(true);
-const toggling = ref<string | null>(null);
+const org = useOrgQuery(id);
+const members = useOrgMembersQuery(id);
+const me = useMeQuery();
 
-const canManageModules = computed(() => me.value?.role === "platform_owner" || me.value?.role === "platform_admin");
-const canImpersonate = computed(() => me.value?.role !== undefined && me.value.role !== "platform_readonly");
+const canManage = computed(() => me.data.value?.role === "platform_owner" || me.data.value?.role === "platform_admin");
+const canImpersonate = computed(() => me.data.value !== undefined && me.data.value.role !== "platform_readonly");
 
+const integrations = computed<OrgSwitch[]>(() =>
+  (org.data.value?.modules ?? []).map((m) => ({
+    key: m.provider,
+    // `org_integrations` holds the TMS connections; a provider the catalogue does not name yet shows its key.
+    label: TMS_PROVIDER_LABELS[m.provider as TmsProvider] ?? m.provider,
+    on: m.enabled,
+    status: m.enabled ? "enabled" : "off",
+  })),
+);
+const entitlements = computed<OrgSwitch[]>(() =>
+  (org.data.value?.entitlements ?? []).map((e) => ({
+    key: e.moduleKey,
+    label: MODULE_LABELS[e.moduleKey as ModuleKey] ?? e.moduleKey,
+    on: e.enabled,
+    status: e.enabled ? "granted" : e.granted ? "revoked" : "not granted",
+  })),
+);
+
+const facts = computed(() => {
+  const o = org.data.value;
+  if (!o) return [];
+  return [
+    { label: "Allowed domains", value: o.allowedDomains.length ? o.allowedDomains.join(", ") : "Any" },
+    { label: "Created", value: fmtDate(o.createdAt) },
+    { label: "Last activity", value: o.lastTxnAt ? fmtDate(o.lastTxnAt) : null },
+  ];
+});
+
+const MEMBER_COLUMNS: DataTableColumn[] = [
+  { key: "email", label: "Email", cellClass: "text-ink" },
+  { key: "role", label: "Role", cellClass: "capitalize text-ink-secondary", width: "md" },
+  { key: "createdAt", label: "Joined", cellClass: "text-ink-secondary", width: "md" },
+];
+
+// ── support access ─────────────────────────────────────────────────────────────────────────────
 const imp = useImpersonationStore();
+void imp.load().catch(() => {});
+const activeGrant = computed(() => imp.activeForOrg(id.value));
 const reason = ref("");
 const starting = ref(false);
 const startError = ref<string | null>(null);
-const activeGrant = computed(() => imp.activeForOrg(id));
-
 async function startSession() {
   if (reason.value.trim().length < 3) {
-    startError.value = "Please enter a reason (at least 3 characters).";
+    startError.value = "Enter a reason of at least 3 characters.";
     return;
   }
   startError.value = null;
   starting.value = true;
   try {
-    await imp.start(id, reason.value.trim());
-    await router.push({ name: "customer-view", params: { id } });
-  } catch (e) {
-    startError.value = e instanceof Error ? e.message : "Could not start the session";
+    await imp.start(id.value, reason.value.trim());
+    await router.push({ name: "customer-view", params: { id: id.value } });
+  } catch {
+    startError.value = "Could not start the session.";
   } finally {
     starting.value = false;
-  }
-}
-
-onMounted(async () => {
-  try {
-    const [{ org: detail }, { members: mem }, whoami] = await Promise.all([
-      apiGet<{ org: OrgDetail }>(`/admin/orgs/${id}`),
-      apiGet<{ members: OrgMember[] }>(`/admin/orgs/${id}/members`),
-      apiGet<Me>("/admin/me"),
-    ]);
-    org.value = detail;
-    members.value = mem;
-    me.value = whoami;
-    await imp.load().catch(() => {});
-  } catch (e) {
-    error.value = e instanceof Error ? e.message : "Could not load this customer";
-  } finally {
-    loading.value = false;
-  }
-});
-
-async function toggleModule(provider: string, enabled: boolean) {
-  if (!org.value) return;
-  toggling.value = provider;
-  try {
-    await apiPost(`/admin/orgs/${id}/modules/${provider}`, { enabled });
-    const m = org.value.modules.find((x) => x.provider === provider);
-    if (m) m.enabled = enabled;
-  } catch (e) {
-    error.value = e instanceof Error ? e.message : "Could not update the module";
-  } finally {
-    toggling.value = null;
-  }
-}
-
-/** Sellable-module entitlements (org_modules) — the commercial grant, distinct from integrations. */
-const MODULE_LABELS: Record<string, string> = {
-  hazmatguard: "HazmatGuard",
-  training: "Safety Training",
-  messages: "Messages",
-  notifications: "Notifications",
-  dispatch: "Dispatch",
-  navigation: "Navigation",
-};
-const togglingEntitlement = ref<string | null>(null);
-async function toggleEntitlement(moduleKey: string, enabled: boolean) {
-  if (!org.value) return;
-  togglingEntitlement.value = moduleKey;
-  try {
-    await apiPost(`/admin/orgs/${id}/entitlements/${moduleKey}`, { enabled });
-    const e = org.value.entitlements.find((x) => x.moduleKey === moduleKey);
-    if (e) {
-      e.enabled = enabled;
-      e.granted = true;
-    }
-  } catch (e) {
-    error.value = e instanceof Error ? e.message : "Could not update the entitlement";
-  } finally {
-    togglingEntitlement.value = null;
   }
 }
 </script>
 
 <template>
   <AppShell>
-    <div v-if="loading" class="mt-4 text-sm text-ink-muted">Loading…</div>
-    <div v-else-if="error" class="mt-4 text-sm text-danger-600">{{ error }}</div>
+    <AppPageHeader :title="org.data.value?.name ?? 'Customer'" :description="org.data.value ? `Created ${fmtDate(org.data.value.createdAt)}` : undefined">
+      <template #back>
+        <AppButton size="sm" variant="ghost" :to="{ name: 'customers' }">← Customers</AppButton>
+      </template>
+    </AppPageHeader>
 
-    <template v-else-if="org">
-      <AppPageHeader :title="org.name" :description="`Created ${fmtDate(org.createdAt)}`">
-        <template #back>
-          <AppButton size="sm" variant="ghost" :to="{ name: 'customers' }">← Customers</AppButton>
-        </template>
-      </AppPageHeader>
+    <QueryState
+      class="mt-5"
+      :loading="org.isPending.value"
+      :error="org.error.value"
+      error-text="Could not load this customer."
+      not-found-text="No customer has that id."
+      loading-text="Loading the customer…"
+      :retrying="org.isFetching.value"
+      @retry="() => org.refetch()"
+    >
+      <template v-if="org.data.value">
+        <div class="grid grid-cols-2 gap-4 sm:grid-cols-4">
+          <StatCard label="Members" :value="org.data.value.memberCount" />
+          <StatCard label="Vehicles" :value="`${org.data.value.activeVehicleCount}/${org.data.value.vehicleCount}`" sub="active of all" />
+          <StatCard label="Drivers" :value="org.data.value.driverCount" />
+          <StatCard label="Open alerts" :value="org.data.value.openAnomalyCount" />
+        </div>
 
-      <div class="mt-5 grid grid-cols-2 gap-4 sm:grid-cols-4">
-        <AppCard>
-          <div class="text-xs font-medium uppercase text-ink-muted">Members</div>
-          <div class="mt-1 text-2xl font-semibold text-ink">{{ org.memberCount }}</div>
-        </AppCard>
-        <AppCard>
-          <div class="text-xs font-medium uppercase text-ink-muted">Vehicles</div>
-          <div class="mt-1 text-2xl font-semibold text-ink">{{ org.activeVehicleCount }}<span class="text-base text-ink-muted">/{{ org.vehicleCount }}</span></div>
-        </AppCard>
-        <AppCard>
-          <div class="text-xs font-medium uppercase text-ink-muted">Drivers</div>
-          <div class="mt-1 text-2xl font-semibold text-ink">{{ org.driverCount }}</div>
-        </AppCard>
-        <AppCard>
-          <div class="text-xs font-medium uppercase text-ink-muted">Open alerts</div>
-          <div class="mt-1 text-2xl font-semibold" :class="org.openAnomalyCount > 0 ? 'text-danger-600' : 'text-ink'">{{ org.openAnomalyCount }}</div>
-        </AppCard>
-      </div>
-
-      <div class="mt-4 grid gap-4 sm:grid-cols-2">
-        <AppCard>
+        <AppCard class="mt-4">
           <h2 class="text-sm font-semibold text-ink-secondary">Settings</h2>
-          <dl class="mt-3 space-y-2 text-sm">
-            <div class="flex gap-2">
-              <dt class="w-32 shrink-0 text-ink-muted">Allowed domains</dt>
-              <dd class="text-ink">{{ org.allowedDomains.length ? org.allowedDomains.join(", ") : "— (any)" }}</dd>
-            </div>
-            <div class="flex gap-2">
-              <dt class="w-32 shrink-0 text-ink-muted">Last activity</dt>
-              <dd class="text-ink">{{ fmtDate(org.lastTxnAt) }}</dd>
-            </div>
-          </dl>
+          <FactList class="mt-3" :facts="facts" :columns="3" />
         </AppCard>
 
-        <AppCard>
-          <h2 class="text-sm font-semibold text-ink-secondary">Integrations</h2>
-          <p class="mt-1 text-xs text-ink-muted">Connected data providers (kill switch — never provisions credentials).</p>
-          <ul class="mt-3 space-y-2 text-sm">
-            <li v-for="m in org.modules" :key="m.provider" class="flex items-center justify-between gap-2">
-              <span class="capitalize text-ink">{{ m.provider }}</span>
-              <div class="flex items-center gap-2">
-                <span :class="m.enabled ? 'text-success-700' : 'text-ink-muted'">{{ m.enabled ? "enabled" : "off" }}</span>
-                <AppButton
-                  v-if="canManageModules"
-                  size="sm"
-                  :variant="m.enabled ? 'soft' : 'primary'"
-                  :disabled="toggling === m.provider"
-                  @click="toggleModule(m.provider, !m.enabled)"
-                >
-                  {{ m.enabled ? "Disable" : "Enable" }}
-                </AppButton>
-              </div>
-            </li>
-            <li v-if="org.modules.length === 0" class="text-ink-muted">No integrations connected.</li>
-          </ul>
-        </AppCard>
-      </div>
+        <OrgSwitchCard
+          class="mt-4"
+          :org-id="id"
+          kind="modules"
+          title="Integrations"
+          description="Connected dispatch systems (TMS). This is a kill switch: it never provisions credentials."
+          :items="integrations"
+          :can-manage="canManage"
+          :verbs="['Enable', 'Disable']"
+          :off-consequence="(label) => `${label} stops syncing for this customer until it is enabled again. Nothing already synced is removed.`"
+          empty-text="No integrations connected."
+        />
 
-      <AppCard class="mt-4">
-        <h2 class="text-sm font-semibold text-ink-secondary">Entitlements</h2>
-        <p class="mt-1 text-xs text-ink-muted">
-          Which Silvicom 360 products this customer has bought (org_modules). Granting a module is what
-          makes its surfaces exist for their org — their own dashboard then controls what drivers see.
-          Every change is recorded in the platform log and the customer's audit trail.
-        </p>
-        <ul class="mt-3 grid gap-2 text-sm sm:grid-cols-2">
-          <li
-            v-for="e in org.entitlements"
-            :key="e.moduleKey"
-            class="flex items-center justify-between gap-2 rounded-control border border-edge-subtle px-3 py-2"
+        <OrgSwitchCard
+          class="mt-4"
+          :org-id="id"
+          kind="entitlements"
+          title="Entitlements"
+          description="Which Silvicom 360 products this customer has bought. Granting a module is what makes its screens exist for their organization. Every change is recorded in the platform log and the customer's audit trail."
+          :items="entitlements"
+          :can-manage="canManage"
+          :verbs="['Grant', 'Revoke']"
+          :off-consequence="(label) => `${label}'s screens disappear for everyone at this customer. Their data is kept, and granting it again brings the screens back.`"
+          empty-text="No modules are offered yet."
+        />
+
+        <AppCard class="mt-4">
+          <div class="flex items-center justify-between gap-3">
+            <div>
+              <h2 class="text-sm font-semibold text-ink-secondary">Idle engine checks</h2>
+              <p class="mt-1 text-xs text-ink-muted">
+                Whether the new idle measurement agrees with the trucks' own computers, and what their engines
+                burn while parked. Opening it is recorded in the platform log.
+              </p>
+            </div>
+            <AppButton size="sm" variant="soft" :to="{ name: 'customer-idle-engine', params: { id } }">Open</AppButton>
+          </div>
+        </AppCard>
+
+        <AppCard padding="none" class="mt-4">
+          <h2 class="px-5 pt-5 text-sm font-semibold text-ink-secondary">Members</h2>
+          <DataTable
+            class="mt-3"
+            embedded
+            :columns="MEMBER_COLUMNS"
+            :rows="members.data.value ?? []"
+            row-key="userId"
+            :loading="members.isPending.value"
+            :error="members.isError.value ? 'Could not load the members.' : null"
+            :retrying="members.isFetching.value"
+            empty-text="No members."
+            @retry="() => members.refetch()"
           >
-            <span class="text-ink">{{ MODULE_LABELS[e.moduleKey] ?? e.moduleKey }}</span>
-            <div class="flex items-center gap-2">
-              <span :class="e.enabled ? 'text-success-700' : 'text-ink-muted'">
-                {{ e.enabled ? "granted" : e.granted ? "revoked" : "not granted" }}
-              </span>
-              <AppButton
-                v-if="canManageModules"
-                size="sm"
-                :variant="e.enabled ? 'soft' : 'primary'"
-                :disabled="togglingEntitlement === e.moduleKey"
-                @click="toggleEntitlement(e.moduleKey, !e.enabled)"
-              >
-                {{ e.enabled ? "Revoke" : "Grant" }}
-              </AppButton>
+            <template #cell-email="{ value }">{{ value ?? "—" }}</template>
+            <template #cell-role="{ value }">{{ String(value).replace("_", " ") }}</template>
+            <template #cell-createdAt="{ value }">{{ fmtDate(value) }}</template>
+          </DataTable>
+        </AppCard>
+
+        <AppCard v-if="canImpersonate" class="mt-4">
+          <h2 class="text-sm font-semibold text-ink-secondary">Support access</h2>
+          <p class="mt-1 text-sm text-ink-muted">
+            Open a time-boxed, read-only view of this customer's data. The reason is required and recorded in
+            both our platform log and the customer's own audit trail.
+          </p>
+          <div v-if="activeGrant" class="mt-3 flex items-center gap-3">
+            <span class="text-sm text-success-700">A read-only session is active.</span>
+            <AppButton size="sm" variant="primary" :to="{ name: 'customer-view', params: { id } }">Open view</AppButton>
+          </div>
+          <form v-else class="mt-3 flex items-start gap-2" @submit.prevent="startSession">
+            <div class="flex-1">
+              <AppInput v-model="reason" placeholder="Reason (e.g. investigating a reefer alert)" />
+              <AppCallout v-if="startError" tone="danger" class="mt-2" role="alert">{{ startError }}</AppCallout>
             </div>
-          </li>
-        </ul>
-      </AppCard>
-
-      <AppCard class="mt-4">
-        <div class="flex items-center justify-between gap-3">
-          <div>
-            <h2 class="text-sm font-semibold text-ink-secondary">Idle engine checks</h2>
-            <p class="mt-1 text-xs text-ink-muted">
-              Whether the new idle measurement agrees with the trucks' own computers, and what their engines
-              burn while parked. Opening it is recorded in the platform log.
-            </p>
-          </div>
-          <AppButton size="sm" variant="soft" :to="{ name: 'customer-idle-engine', params: { id } }">Open</AppButton>
-        </div>
-      </AppCard>
-
-      <AppCard padding="none" class="mt-4">
-        <h2 class="px-5 pt-5 text-sm font-semibold text-ink-secondary">Members</h2>
-        <AppTable class="mt-3 w-full text-sm">
-          <thead class="bg-surface-subtle text-left text-xs font-semibold uppercase tracking-wide text-ink-muted">
-            <tr>
-              <th class="px-5 py-2">Email</th>
-              <th class="px-5 py-2">Role</th>
-              <th class="px-5 py-2">Joined</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="mem in members" :key="mem.userId" class="border-t border-edge-subtle">
-              <td class="px-5 py-2 text-ink">{{ mem.email ?? "—" }}</td>
-              <td class="px-5 py-2 capitalize text-ink-secondary">{{ mem.role.replace("_", " ") }}</td>
-              <td class="px-5 py-2 text-ink-secondary">{{ fmtDate(mem.createdAt) }}</td>
-            </tr>
-            <tr v-if="members.length === 0">
-              <td colspan="3" class="px-5 py-6 text-center text-ink-muted">No members.</td>
-            </tr>
-          </tbody>
-        </AppTable>
-      </AppCard>
-
-      <AppCard v-if="canImpersonate" class="mt-4">
-        <h2 class="text-sm font-semibold text-ink-secondary">Support access</h2>
-        <p class="mt-1 text-sm text-ink-muted">
-          Open a time-boxed, read-only view of this customer's data. The reason is required and recorded in
-          both our platform log and the customer's own audit trail.
-        </p>
-        <div v-if="activeGrant" class="mt-3 flex items-center gap-3">
-          <span class="text-sm text-success-700">A read-only session is active.</span>
-          <AppButton size="sm" variant="primary" :to="{ name: 'customer-view', params: { id } }">Open view</AppButton>
-        </div>
-        <form v-else class="mt-3 flex items-start gap-2" @submit.prevent="startSession">
-          <div class="flex-1">
-            <AppInput v-model="reason" placeholder="Reason (e.g. investigating a reefer alert)" />
-            <p v-if="startError" class="mt-1 text-sm text-danger-600">{{ startError }}</p>
-          </div>
-          <AppButton type="submit" variant="primary" :disabled="starting">
-            {{ starting ? "Starting…" : "Start read-only session" }}
-          </AppButton>
-        </form>
-      </AppCard>
-    </template>
+            <AppButton type="submit" variant="primary" :disabled="starting">
+              {{ starting ? "Starting…" : "Start read-only session" }}
+            </AppButton>
+          </form>
+        </AppCard>
+      </template>
+    </QueryState>
   </AppShell>
 </template>

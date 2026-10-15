@@ -3,7 +3,7 @@ import { flushPromises, mount, shallowMount } from "@vue/test-utils";
 import { createRouter, createMemoryHistory, type Router } from "vue-router";
 import { ref } from "vue";
 import FuelStationsPage from "@/pages/FuelStationsPage.vue";
-import FilterBar from "@/components/ui/FilterBar.vue";
+import { FilterBar } from "@silvicom/ui";
 
 const state = vi.hoisted(() => ({
   data: undefined as undefined | { stations: Record<string, unknown>[] },

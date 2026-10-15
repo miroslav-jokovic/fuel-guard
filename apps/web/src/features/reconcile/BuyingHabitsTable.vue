@@ -1,9 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
-import { AppCard as BaseCard } from "@silvicom/ui";
+import { AppCard as BaseCard, DataTable, type DataTableColumn, TablePagination } from "@silvicom/ui";
 import { FUEL_EXCEPTION_KIND_LABELS, formatDisplayMonth, type BuyingHabitsTable } from "@silvicom/shared";
-import DataTable, { type DataTableColumn } from "@/components/ui/DataTable.vue";
-import TablePagination from "@/components/TablePagination.vue";
 import { usd2 } from "./format";
 
 /**
