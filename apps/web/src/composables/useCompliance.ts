@@ -4,7 +4,7 @@ import type {
   DriverDispatchHold,
   CertificationCreateRequest,
   CertificationRow,
-  DocumentKind,
+  ComplianceDocumentKind,
   DocumentRegisterRequest,
   DocumentRegisterResponse,
   DocumentRow,
@@ -127,53 +127,71 @@ export async function sha256Hex(bytes: ArrayBuffer): Promise<string> {
 }
 
 export interface UploadDocumentInput {
-  subjectType: "driver" | "tractor" | "trailer" | "load" | "organization";
+  subjectType: DocumentRegisterRequest["subjectType"];
   subjectId: string;
-  kind: DocumentKind;
+  kind: ComplianceDocumentKind;
   file: File;
 }
+
+/** The fields every register request carries about the file itself, whichever route files it. */
+export type DocumentFileFields = Pick<DocumentRegisterRequest, "id" | "contentType" | "sha256" | "bytes">;
 
 /**
  * Register, then PUT. The bytes never pass through our API: it hands back a short-lived signed upload
  * URL and the browser sends the file straight to Storage, which is the same shape the driver app's
  * hazmat capture uses. Registration happens first on purpose — a scan in the bucket that no row
  * points at is an orphan the reconciler sweeps, whereas a row with no bytes is visible and fixable.
+ *
+ * `register` is the route's own call: the DQ file's `/api/compliance/documents`, or an inspection's
+ * `/api/roadside-inspections/:id/documents` (IC2), each behind its own section's gate. The file's
+ * type, hash and upload are decided here once, so the two cannot drift.
  */
+export async function uploadDocumentFile(
+  file: File,
+  register: (fields: DocumentFileFields) => Promise<DocumentRegisterResponse>,
+): Promise<{ documentId: string }> {
+  const contentType = await uploadContentType(file, DOCUMENT_CONTENT_TYPES);
+  if (!contentType) {
+    throw new Error("Upload a PDF or an image (JPEG, PNG, WebP or HEIC).");
+  }
+  const bytes = await file.arrayBuffer();
+  const signed = await register({
+    id: crypto.randomUUID(),
+    contentType,
+    sha256: await sha256Hex(bytes),
+    bytes: file.size,
+  });
+
+  const { error } = await supabase.storage
+    .from(DOCUMENTS_BUCKET)
+    .uploadToSignedUrl(signed.storagePath, signed.token, file, { contentType });
+  // A 409 means the object is already there — a retry of an upload that in fact succeeded.
+  if (error && !/already exists|duplicate/i.test(error.message)) throw new Error(error.message);
+
+  return { documentId: signed.documentId };
+}
+
 export function useUploadDocument() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (input: UploadDocumentInput): Promise<{ documentId: string }> => {
-      const contentType = await uploadContentType(input.file, DOCUMENT_CONTENT_TYPES);
-      if (!contentType) {
-        throw new Error("Upload a PDF or an image (JPEG, PNG, WebP or HEIC).");
-      }
-      const bytes = await input.file.arrayBuffer();
-      const body: DocumentRegisterRequest = {
-        id: crypto.randomUUID(),
-        subjectType: input.subjectType,
-        subjectId: input.subjectId,
-        kind: input.kind,
-        contentType,
-        sha256: await sha256Hex(bytes),
-        bytes: input.file.size,
-        page: 1,
-        variant: "original",
-      };
-      const res = await apiFetch<DocumentRegisterResponse>("/api/compliance/documents", {
-        method: "POST",
-        body,
-      });
-      if (!res.ok || !res.data)
-        throw new Error(res.error?.message ?? "Could not register the document.");
-
-      const { error } = await supabase.storage
-        .from(DOCUMENTS_BUCKET)
-        .uploadToSignedUrl(res.data.storagePath, res.data.token, input.file, { contentType });
-      // A 409 means the object is already there — a retry of an upload that in fact succeeded.
-      if (error && !/already exists|duplicate/i.test(error.message)) throw new Error(error.message);
-
-      return { documentId: res.data.documentId };
-    },
+    mutationFn: (input: UploadDocumentInput): Promise<{ documentId: string }> =>
+      uploadDocumentFile(input.file, async (fields) => {
+        const body: DocumentRegisterRequest = {
+          ...fields,
+          subjectType: input.subjectType,
+          subjectId: input.subjectId,
+          kind: input.kind,
+          page: 1,
+          variant: "original",
+        };
+        const res = await apiFetch<DocumentRegisterResponse>("/api/compliance/documents", {
+          method: "POST",
+          body,
+        });
+        if (!res.ok || !res.data)
+          throw new Error(res.error?.message ?? "Could not register the document.");
+        return res.data;
+      }),
     onSuccess: () => void qc.invalidateQueries({ queryKey: ["compliance"] }),
   });
 }

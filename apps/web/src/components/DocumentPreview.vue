@@ -68,8 +68,14 @@ const props = withDefaults(
     doc?: DocumentRow | null;
     /** A document the API renders on demand: a path to fetch, and no evidence to print. */
     rendered?: RenderedDocument | null;
+    /**
+     * Where a filed document's signed download is asked for. The DQ file's route by default; a roadside
+     * inspection's paper is the `safety` section's and has its own (IC2), since the default is gated
+     * on `roster` and refuses that subject.
+     */
+    downloadPath?: string | null;
   }>(),
-  { doc: null, rendered: null },
+  { doc: null, rendered: null, downloadPath: null },
 );
 const emit = defineEmits<{ close: [] }>();
 
@@ -130,7 +136,7 @@ async function download(): Promise<void> {
       saveObjectUrl(objectUrl.value, props.rendered.filename);
     } else if (props.doc) {
       const res = await apiFetch<{ url: string; filename: string }>(
-        `/api/compliance/documents/${props.doc.id}/download`,
+        props.downloadPath ?? `/api/compliance/documents/${props.doc.id}/download`,
       );
       if (!res.ok || !res.data) throw new Error(res.error?.message ?? "Could not sign the download.");
       // Content-Disposition: attachment is on the URL itself (server-side, B6) — a plain navigation

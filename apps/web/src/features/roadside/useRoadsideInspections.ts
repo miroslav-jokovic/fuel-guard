@@ -2,13 +2,17 @@ import { computed, type Ref } from "vue";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/vue-query";
 import type {
   CalendarDay,
+  DocumentRegisterResponse,
+  DocumentRow,
   RoadsideAttributionDecision,
+  RoadsideDocumentRegisterRequest,
   RoadsideInspectionDetailDto,
   RoadsideInspectionDto,
   RoadsideSummary,
 } from "@silvicom/shared";
 import { apiFetch } from "@/lib/api";
 import { recordOrThrow } from "@/lib/notFound";
+import { uploadDocumentFile } from "@/composables/useCompliance";
 
 /**
  * Our FMCSA roadside inspections (INSPECTION-CHALLENGE-PLAN §6's first slice; FLEET-MANAGER-HOME-PLAN
@@ -74,5 +78,35 @@ export function useDecideAttribution(id: Ref<string>) {
       if (!res.ok) throw new AttributionDecisionError(res.error?.message ?? "The decision could not be saved.", res.error?.code ?? null);
     },
     onSettled: () => client.invalidateQueries({ queryKey: ["roadside-inspections", "one", id.value] }),
+  });
+}
+
+/**
+ * The inspection's paper (IC2). Its own query, never part of the inspection's: each row carries a signed
+ * URL that lives five minutes, so it is read fresh on every visit and not kept for the inspection's ten.
+ */
+export function useInspectionDocumentsQuery(id: Ref<string>) {
+  return useQuery({
+    queryKey: computed(() => ["roadside-inspections", "documents", id.value] as const),
+    staleTime: 0,
+    queryFn: () => read<DocumentRow[]>(`/api/roadside-inspections/${encodeURIComponent(id.value)}/documents`, "the inspection's documents"),
+  });
+}
+
+/** File one ticket, court result or officer's copy: register with the inspection, then PUT the bytes. */
+export function useUploadInspectionDocument(id: Ref<string>) {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { kind: RoadsideDocumentRegisterRequest["kind"]; file: File }) =>
+      uploadDocumentFile(input.file, async (fields) => {
+        const body: RoadsideDocumentRegisterRequest = { ...fields, kind: input.kind };
+        const res = await apiFetch<{ data: DocumentRegisterResponse }>(
+          `/api/roadside-inspections/${encodeURIComponent(id.value)}/documents`,
+          { method: "POST", body },
+        );
+        if (!res.ok || !res.data) throw new Error(res.error?.message ?? "The document could not be filed.");
+        return res.data.data;
+      }),
+    onSettled: () => client.invalidateQueries({ queryKey: ["roadside-inspections", "documents", id.value] }),
   });
 }

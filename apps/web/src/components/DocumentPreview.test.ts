@@ -107,6 +107,28 @@ describe("DocumentPreview (B6)", () => {
     const w = mountPreview({ ...base, contentType: "application/pdf" });
     expect(w.text()).toContain("abababababab");
   });
+
+  /**
+   * IC2: a roadside inspection's paper is the `safety` section's, and the DQ file's download route is
+   * gated on `roster` and answers it as not on file — so the caller names its own route. Both halves
+   * are asserted, so a viewer that ignored the prop, or one that dropped the default, fails.
+   */
+  it("asks the DQ file's route for a signed download by default, and the caller's route when given one", async () => {
+    const { apiFetch } = await import("@/lib/api");
+    const asked = vi.mocked(apiFetch);
+    const press = async (w: ReturnType<typeof mountPreview>) => {
+      await w.findAll("button").find((b) => b.text().includes("Download"))!.trigger("click");
+      await settle(w);
+    };
+    asked.mockClear();
+    await press(mountPreview(base));
+    expect(asked).toHaveBeenLastCalledWith(`/api/compliance/documents/${base.id}/download`);
+
+    setActivePinia(createPinia());
+    const path = `/api/roadside-inspections/insp-1/documents/${base.id}/download`;
+    await press(mount(DocumentPreview, { props: { open: true, label: "Citation", doc: base, downloadPath: path }, global: { stubs: MODAL_STUB } }));
+    expect(asked).toHaveBeenLastCalledWith(path);
+  });
 });
 
 /**

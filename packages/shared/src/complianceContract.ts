@@ -76,12 +76,22 @@ export const complianceStatusSchema = z.enum(COMPLIANCE_STATUSES);
 export type ComplianceStatus = (typeof COMPLIANCE_STATUSES)[number];
 
 /**
+ * The subjects `/api/compliance/documents` files and lists — the `roster` section's route.
+ *
  * `organization` joined this list with the `documents` table (0146). It was always implied:
  * `certifications.subject_type` accepts an organization subject, the hazmat gate blocks on org-level
- * certifications, and a PHMSA registration certificate is a scan like any other. Mirrors the SQL
- * check constraint exactly.
+ * certifications, and a PHMSA registration certificate is a scan like any other.
  */
-export const DOCUMENT_SUBJECT_TYPES = ["driver", "tractor", "trailer", "load", "organization"] as const;
+export const COMPLIANCE_DOCUMENT_SUBJECT_TYPES = ["driver", "tractor", "trailer", "load", "organization"] as const;
+/**
+ * Every subject `documents` admits — mirrors the SQL check constraint exactly (0476).
+ *
+ * `roadside_inspection` (0476, INSPECTION-CHALLENGE-PLAN IC2) is the `safety` section's (D-IC12): its
+ * paper is filed and listed only through `/api/roadside-inspections/:id/documents`. It is kept out of
+ * the compliance route's list above on purpose — that route is gated on `roster`, and a roster
+ * manager is not a safety reader, so widening its schema would have let one read a citation.
+ */
+export const DOCUMENT_SUBJECT_TYPES = [...COMPLIANCE_DOCUMENT_SUBJECT_TYPES, "roadside_inspection"] as const;
 export const documentSubjectTypeSchema = z.enum(DOCUMENT_SUBJECT_TYPES);
 export type DocumentSubjectType = (typeof DOCUMENT_SUBJECT_TYPES)[number];
 
@@ -90,11 +100,23 @@ export const documentVariantSchema = z.enum(DOCUMENT_VARIANTS);
 export type DocumentVariant = (typeof DOCUMENT_VARIANTS)[number];
 
 /**
- * What a document can be filed as: every certification kind, every qualification-record kind, plus
- * `other`. A document is uploaded BEFORE the record that cites it exists — you scan the medical card,
- * then record the certification — so it cannot borrow its parent's kind. Mirrors 0146's check.
+ * What the compliance route files a document as: every certification kind, every qualification-record
+ * kind, plus `other`. A document is uploaded BEFORE the record that cites it exists — you scan the
+ * medical card, then record the certification — so it cannot borrow its parent's kind.
  */
-export const DOCUMENT_KINDS = [...CERTIFICATION_KINDS, ...QUALIFICATION_RECORD_KINDS, "other"] as const;
+export const COMPLIANCE_DOCUMENT_KINDS = [...CERTIFICATION_KINDS, ...QUALIFICATION_RECORD_KINDS, "other"] as const;
+export type ComplianceDocumentKind = (typeof COMPLIANCE_DOCUMENT_KINDS)[number];
+/**
+ * An inspection's paper (0476, INSPECTION-CHALLENGE-PLAN §3): the officer's copy (D-IC1's cross-check),
+ * the ticket, the certified court result (R-ADJ1), and IC4's DataQs packet and correspondence. Filed
+ * only against a `roadside_inspection` subject; `roadsideDocumentsContract.ts` says which a person uploads.
+ */
+export const ROADSIDE_DOCUMENT_KINDS = [
+  "roadside_inspection_report", "citation", "court_disposition", "dataqs_packet", "dataqs_correspondence",
+] as const;
+export type RoadsideDocumentKind = (typeof ROADSIDE_DOCUMENT_KINDS)[number];
+/** Every kind `documents` admits — mirrors the SQL check constraint exactly (0476). */
+export const DOCUMENT_KINDS = [...COMPLIANCE_DOCUMENT_KINDS, ...ROADSIDE_DOCUMENT_KINDS] as const;
 export const documentKindSchema = z.enum(DOCUMENT_KINDS);
 export type DocumentKind = (typeof DOCUMENT_KINDS)[number];
 
@@ -278,11 +300,12 @@ export type QualificationRecordRow = z.infer<typeof qualificationRecordRowSchema
  * process for metadata, none for a 20MB scan. The id is client-generated so a retry after a dropped
  * response is a replay, not a duplicate.
  */
+/** POST /api/compliance/documents — the compliance route's subjects and kinds only (see above). */
 export const documentRegisterSchema = z.object({
   id: z.uuid(),
-  subjectType: documentSubjectTypeSchema,
+  subjectType: z.enum(COMPLIANCE_DOCUMENT_SUBJECT_TYPES),
   subjectId: z.uuid(),
-  kind: documentKindSchema,
+  kind: z.enum(COMPLIANCE_DOCUMENT_KINDS),
   contentType: documentContentTypeSchema,
   /** Lowercase hex SHA-256 of the bytes about to be uploaded — §390.32(c) integrity evidence. */
   sha256: z.string().regex(/^[0-9a-f]{64}$/, "sha256 must be 64 lowercase hex characters"),
@@ -293,6 +316,15 @@ export const documentRegisterSchema = z.object({
   capturedAt: z.string().nullish(),
 });
 export type DocumentRegisterRequest = z.infer<typeof documentRegisterSchema>;
+/**
+ * What `registerDocument` files: a register request for any subject and kind `documents` admits. Each
+ * route narrows it to its own section's — `documentRegisterSchema` above, `roadsideDocumentRegisterSchema`
+ * for an inspection — so the one writer serves both and neither gate widens the other.
+ */
+export type DocumentRegistration = Omit<DocumentRegisterRequest, "subjectType" | "kind"> & {
+  subjectType: DocumentSubjectType;
+  kind: DocumentKind;
+};
 
 export const documentRegisterResponseSchema = z.object({
   documentId: z.uuid(),
@@ -302,12 +334,14 @@ export const documentRegisterResponseSchema = z.object({
 });
 export type DocumentRegisterResponse = z.infer<typeof documentRegisterResponseSchema>;
 
+/** GET /api/compliance/documents — the compliance route's subjects only, as its register. */
 export const documentListQuerySchema = z.object({
-  subjectType: documentSubjectTypeSchema,
+  subjectType: z.enum(COMPLIANCE_DOCUMENT_SUBJECT_TYPES),
   subjectId: z.uuid(),
-  kind: documentKindSchema.optional(),
+  kind: z.enum(COMPLIANCE_DOCUMENT_KINDS).optional(),
 });
-export type DocumentListQuery = z.infer<typeof documentListQuerySchema>;
+/** What `listDocuments` reads: any subject, narrowed by the route that asks (as `DocumentRegistration`). */
+export type DocumentListQuery = { subjectType: DocumentSubjectType; subjectId: string; kind?: DocumentKind };
 
 export const documentRowSchema = z.object({
   id: z.uuid(),

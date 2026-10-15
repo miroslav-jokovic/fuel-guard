@@ -11,6 +11,7 @@ import { pg_trgm } from "@electric-sql/pglite/contrib/pg_trgm";
 import { readFileSync, readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
+import { DOCUMENT_KINDS, DOCUMENT_SUBJECT_TYPES } from "../../packages/shared/dist/index.js";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const SUPA = join(HERE, "..");
@@ -63,6 +64,19 @@ const doc = (kind, subjectType, subjectId) =>
   sqlstate(`insert into documents (id, org_id, subject_type, subject_id, kind, storage_path, content_type, sha256)
             values (gen_random_uuid(), $1, $2, $3, $4, $5, 'application/pdf', 'ab')`,
     [ORG, subjectType, subjectId, kind, `${ORG}/${subjectType}/${subjectId}/${kind}-${Math.random()}.pdf`]);
+
+// ── 0. One vocabulary: the shared lists ARE the applied constraints ─────────────────────────────
+// `DOCUMENT_KINDS` / `DOCUMENT_SUBJECT_TYPES` say they mirror the CHECKs exactly; a word added on one
+// side only fails here instead of as a refused insert (or an unreachable kind) in production.
+const checkValues = async (column) => {
+  const c = await one(`select pg_get_constraintdef(oid) d from pg_constraint where conrelid = 'public.documents'::regclass and conname = $1`,
+    [`documents_${column}_check`]);
+  return [...c.d.matchAll(/'([^']*)'::text/g)].map((m) => m[1]).sort();
+};
+ok("documents.kind's CHECK equals DOCUMENT_KINDS",
+  JSON.stringify(await checkValues("kind")) === JSON.stringify([...DOCUMENT_KINDS].sort()));
+ok("documents.subject_type's CHECK equals DOCUMENT_SUBJECT_TYPES",
+  JSON.stringify(await checkValues("subject_type")) === JSON.stringify([...DOCUMENT_SUBJECT_TYPES].sort()));
 
 // ── 1. The new subject and the five new kinds ───────────────────────────────────────────────────
 const NEW_KINDS = ["roadside_inspection_report", "citation", "court_disposition", "dataqs_packet", "dataqs_correspondence"];

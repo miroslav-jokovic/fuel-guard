@@ -5,6 +5,7 @@ import {
   isCalendarDay,
   organizationTimezone,
   roadsideAttributionDecisionSchema,
+  roadsideDocumentRegisterSchema,
   roadsidePeriodStart,
   shiftDay,
   summarizeRoadside,
@@ -21,13 +22,15 @@ import { readRoadsideInspections } from "../read/inspectionsList.js";
 import { readRoadsideInspection } from "../read/inspectionDetail.js";
 import { readRoadsideFeed } from "../feed/store.js";
 import { decideAttribution } from "../attribution/decide.js";
+import { listInspectionDocuments, registerInspectionDocument, signInspectionDocumentDownload } from "../documents/inspectionDocuments.js";
 
 /**
  * `GET /api/roadside-inspections` — the Inspections inbox's first slice — `/:id`, the inspection a
  * row opens, and `/summary`, the Operations tab's Roadside card (INSPECTION-CHALLENGE-PLAN §6, D-IC12:
- * the `safety` section; FLEET-MANAGER-HOME-PLAN FM5, Q-FM7 (a)). The one write is `POST /:id/attribution`,
- * a person confirming or correcting who was driving (IC5, `attribution/decide.ts`), which needs the
- * section's manage level. Nothing here is a case or a filing yet.
+ * the `safety` section; FLEET-MANAGER-HOME-PLAN FM5, Q-FM7 (a)). The two writes need the section's manage
+ * level: `POST /:id/attribution`, a person confirming or correcting who was driving (IC5,
+ * `attribution/decide.ts`), and `POST /:id/documents`, filing the ticket, the court's result or the
+ * officer's copy (IC2, `documents/inspectionDocuments.ts`). Nothing here is a case or a filing yet.
  *
  * ── THE CARD'S WINDOW IS CUT ON THE CARRIER'S CALENDAR, HERE ───────────────────────────────────
  * "Last 90 days" ends on today in the org zone, not on the server's (UTC on Railway, so a Chicago
@@ -109,6 +112,83 @@ export function roadsideInspectionsRouter(): Router {
         return;
       }
       res.json({ ok: true, data: found });
+    }),
+  );
+
+  /** The inspection's paper (IC2), newest first. Its own read: the signed URLs live five minutes and the page caches the inspection for ten. */
+  router.get(
+    "/:id/documents",
+    canView,
+    asyncHandler(async (req, res) => {
+      const id = z.uuid().safeParse(req.params.id);
+      if (!id.success) {
+        res.status(404).json(apiError("not_found", "Roadside inspection not found"));
+        return;
+      }
+      const out = await listInspectionDocuments(getSupabaseAdmin(getAppLocals(req).env), req.auth!.orgId!, id.data);
+      if ("error" in out) {
+        dbErrorResponse(res, "roadside-inspections.documents", out.error, "Could not load the inspection's documents");
+        return;
+      }
+      if (!out.ok) {
+        res.status(out.status).json(apiError(out.code, out.message));
+        return;
+      }
+      res.json({ ok: true, data: out.data });
+    }),
+  );
+
+  /** One document as a download (the viewer's button). Its own route: the DQ file's is gated on `roster`. */
+  router.get(
+    "/:id/documents/:documentId/download",
+    canView,
+    asyncHandler(async (req, res) => {
+      const id = z.uuid().safeParse(req.params.id);
+      const documentId = z.uuid().safeParse(req.params.documentId);
+      if (!id.success || !documentId.success) {
+        res.status(404).json(apiError("not_found", "That document is not on file for this inspection."));
+        return;
+      }
+      const out = await signInspectionDocumentDownload(
+        getSupabaseAdmin(getAppLocals(req).env), req.auth!.orgId!, id.data, documentId.data, req.auth!.userId,
+      );
+      if ("error" in out) {
+        dbErrorResponse(res, "roadside-inspections.document-download", out.error, "Could not sign the download");
+        return;
+      }
+      if (!out.ok) {
+        res.status(out.status).json(apiError(out.code, out.message));
+        return;
+      }
+      res.json(out.data);
+    }),
+  );
+
+  router.post(
+    "/:id/documents",
+    requireSection("safety"),
+    asyncHandler(async (req, res) => {
+      const id = z.uuid().safeParse(req.params.id);
+      if (!id.success) {
+        res.status(404).json(apiError("not_found", "Roadside inspection not found"));
+        return;
+      }
+      const body = roadsideDocumentRegisterSchema.safeParse(req.body);
+      if (!body.success) {
+        res.status(400).json(apiError("bad_request", body.error.issues[0]?.message ?? "Invalid document"));
+        return;
+      }
+      const { env } = getAppLocals(req);
+      const out = await registerInspectionDocument(getSupabaseAdmin(env), env, req.auth!.orgId!, id.data, req.auth!.userId, body.data);
+      if ("error" in out) {
+        dbErrorResponse(res, "roadside-inspections.document-register", out.error, "Could not file the document");
+        return;
+      }
+      if (!out.ok) {
+        res.status(out.status).json(apiError(out.code, out.message));
+        return;
+      }
+      res.status(201).json({ ok: true, data: out.data });
     }),
   );
 

@@ -1,6 +1,7 @@
 import { Router } from "express";
 import type { Request, Response } from "express";
 import {
+  COMPLIANCE_DOCUMENT_SUBJECT_TYPES,
   certificationCreateSchema,
   type CertificationCreateRequest,
   certificationListQuerySchema,
@@ -352,6 +353,12 @@ export function complianceRouter(): Router {
       const result = await signDocumentDownload(admin, orgId, String(req.params.id));
       if ("code" in result) {
         res.status(result.code === "not_found" ? 404 : 500).json(apiError(result.code, result.error));
+        return;
+      }
+      // A roadside inspection's paper is the `safety` section's (0476, D-IC12) and this route is gated on
+      // `roster`: answered as not on file here, as the list and the register already refuse that subject.
+      if (!(COMPLIANCE_DOCUMENT_SUBJECT_TYPES as readonly string[]).includes(result.subjectType)) {
+        res.status(404).json(apiError("not_found", "That document is not on file."));
         return;
       }
       if (!canReadRestrictedKind(result.kind, req.auth!.role)) {

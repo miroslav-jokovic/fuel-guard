@@ -2,7 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   DOCUMENTS_BUCKET, documentStoragePath,
   type CertificationCreateRequest, type CertificationListQuery,
-  type DocumentListQuery, type DocumentRegisterRequest, type DocumentRegisterResponse, type DocumentRow,
+  type DocumentListQuery, type DocumentRegistration, type DocumentRegisterResponse, type DocumentRow,
   type QualificationRecordCreateRequest,
 } from "@silvicom/shared";
 
@@ -118,7 +118,7 @@ const DOCUMENT_COLUMNS =
  * (page ≤ 50, one file per call) is in the schema.
  */
 export async function registerDocument(
-  admin: SupabaseClient, orgId: string, userId: string, req: DocumentRegisterRequest,
+  admin: SupabaseClient, orgId: string, userId: string, req: DocumentRegistration,
 ): Promise<DocumentRegisterResponse | ServiceError> {
   const storagePath = documentStoragePath(orgId, req.subjectType, req.subjectId, req.id, req.contentType);
   const { data: signed, error: signErr } = await admin.storage.from(DOCUMENTS_BUCKET).createSignedUploadUrl(storagePath);
@@ -170,7 +170,7 @@ export async function listDocuments(
  */
 export async function signDocumentDownload(
   admin: SupabaseClient, orgId: string, documentId: string,
-): Promise<{ url: string; filename: string; kind: string } | ServiceError> {
+): Promise<{ url: string; filename: string; kind: string; subjectType: string; subjectId: string } | ServiceError> {
   const { data, error } = await admin.from("documents")
     .select("id, subject_type, subject_id, kind, content_type, storage_path, captured_at, created_at, variant")
     .eq("org_id", orgId).eq("id", documentId).maybeSingle();
@@ -192,7 +192,7 @@ export async function signDocumentDownload(
   const { data: signed, error: signErr } = await admin.storage.from(DOCUMENTS_BUCKET)
     .createSignedUrl(doc.storage_path, DOCUMENT_URL_TTL_SEC, { download: filename });
   if (signErr || !signed) return err("sign_failed", signErr?.message ?? "Could not sign the download.");
-  return { url: signed.signedUrl, filename, kind: doc.kind };
+  return { url: signed.signedUrl, filename, kind: doc.kind, subjectType: doc.subject_type, subjectId: doc.subject_id };
 }
 
 /** ONE batch Storage call for the whole set — originals AND derivatives, unchanged TTL — never one

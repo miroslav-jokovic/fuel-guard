@@ -762,3 +762,25 @@ about three merges.
     `safety` (D-IC12), and keeps the compliance route refusing the new subject.
   - Matrix `roadside-documents.test.mjs` (12 checks), mutation-checked: dropping a new kind, an old kind
     (`psp_report`), an old subject (`load`) or the new subject each fails it.
+- **2026-10-15 — IC2, second merge: the ticket and the court's result on the Inspection page.** A
+  Documents card on `/roadside-inspections/:id` lists the inspection's paper and, for the `safety`
+  section's managers, takes a file and asks what it is: Citation (ticket), Court result, or Officer's
+  inspection report. The two DataQs kinds are IC4's to write and are not offered. Viewing is
+  `DocumentPreview`, the one viewer. Code: `modules/inspections/documents/inspectionDocuments.ts`,
+  shared `roadsideDocumentsContract.ts`, web `features/roadside/InspectionDocumentsCard.vue`.
+  - **Its own routes, behind `safety` (D-IC12):** `GET`/`POST /api/roadside-inspections/:id/documents`
+    and `GET …/documents/:documentId/download`, filing through `evidence`'s `registerDocument`
+    (`inspections -> evidence`). Each asks first that the inspection is ours and on the record
+    (`vanished_at is null`), since `documents.subject_id` has no FK; the download also asks that the
+    document is THIS inspection's, because a document id alone would otherwise hand a safety reader
+    any of the carrier's documents, a medical card included.
+  - **The compliance route keeps it out.** `/api/compliance/documents` is gated on `roster`; its register
+    and list schemas now take only the DQ file's subjects and kinds (`COMPLIANCE_DOCUMENT_SUBJECT_TYPES`,
+    `COMPLIANCE_DOCUMENT_KINDS`), and its download answers an inspection's document as not on file.
+    `DOCUMENT_KINDS`/`DOCUMENT_SUBJECT_TYPES` stay the table's whole vocabulary; the matrix holds them
+    equal to 0476's CHECKs.
+  - **One upload path.** `useCompliance`'s register → PUT is now `uploadDocumentFile(file, register)`;
+    the DQ file and the inspection each pass their own register call, so the type check, the hash and
+    the signed PUT are decided once. `DocumentPreview` gains `downloadPath`, defaulting to the DQ file's.
+  - Not built: the court-result task list (IC2 → IC4's next step), linking a court result to the
+    violation it answers (IC4's disposition record), and the driver app's ticket intake (Q-IC4, owner).

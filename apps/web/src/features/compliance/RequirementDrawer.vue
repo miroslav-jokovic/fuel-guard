@@ -9,7 +9,7 @@ import {
   HAZMAT_TRAINING_TYPES,
   type CertificationCreateRequest,
   type CertificationKind,
-  type DocumentKind,
+  type ComplianceDocumentKind,
   type QualificationRecordCreateRequest,
   type QualificationRecordKind,
 } from "@silvicom/shared";
@@ -140,7 +140,7 @@ async function save(): Promise<void> {
       const res = await upload.mutateAsync({
         subjectType: "driver",
         subjectId: props.driverId,
-        kind: s.evidenceKinds[0] as DocumentKind,
+        kind: s.evidenceKinds[0] as ComplianceDocumentKind,
         file: scan.value,
       });
       documentId = res.documentId;
