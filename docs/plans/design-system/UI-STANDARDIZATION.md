@@ -73,7 +73,7 @@ merged result: nothing in it is missing from `main`.
 | US6c | Every list with a toolbar pages; the product's confirm replaces `window.confirm`; "Failed to" copy gone (D-US7, D-US8) | MERGED 2026-10-13 (#1497) |
 | US6b | A browser pass of every routed page at 1280 px and 390 px | PASS DONE 2026-10-13 (§7); fixes in batches |
 | US7 | The list composites move into `@silvicom/ui` (web repointed, no shim); every admin page onto them; the gate covers `apps/admin/src` (G7, D-US11) | planned — answered 2026-10-15 |
-| US8 | The audit log's page is its cursor in the URL; the route reads backwards too; the pager names the date range (D-US12) | planned — answered 2026-10-15 |
+| US8 | The audit log's page is its cursor in the URL; the route reads backwards too; the pager names the date range (D-US12) | DONE 2026-10-15 (`claude/ui-us8-audit-cursor`) |
 | US9 | One `recordId` schema for every id site (283), and a gate against a bare `z.uuid()` or a hand-written id regex; closes F31 (D-US13) | DONE 2026-10-15 (`claude/ui-us9-record-id`) |
 
 Each step is one PR (large batches, per the release practice), merged on green CI, released by the
@@ -712,3 +712,53 @@ that answered 400.
 
 Next: US8 (the audit log's cursor in the URL), then US7.
 
+### 2026-10-15 — US8: a page of the audit log is its cursor (D-US12)
+
+**The URL carries the page.** `?before=<cursor>` is the page of rows older than that row,
+`?after=<cursor>` the page newer than it, and neither is the newest page. Older writes `before`,
+Newer writes `after`, and Newest clears both (`qs.set`, one write). A new search clears them, so it
+starts from its own newest page. The in-memory page number and its stack of walked cursors are gone,
+so a reload or a pasted link opens the same rows.
+
+**The route reads both ways** (`GET /api/audit/log`). `after` reads ascending from the cursor,
+nearest first, and turns the page round, so Newer from a pasted link shows the rows just above that
+page. Each side is answered, not assumed: the page's own direction by its one-row-over read (as
+before, no count, Q-SET5), the far side by a one-row probe (`select id … limit 1`) from the page's
+edge row. That way a hand-edited or filtered-out cursor does not offer a Newer that opens onto
+nothing. The newest page asks no probe. `before` and `after` together answer 400.
+
+**Deploy window.** The API serves the SPA, so the two ship together. Only a tab left open across the
+deploy sees the other side, so `cursor` is still read as `before`, and `hasNext` / `nextCursor` keep
+their names as the older side. `hasNewer` / `newerCursor` are new. The `cursor` alias goes in the
+release after this one.
+
+**The pager.** `TablePagination` has a `log` mode (contract §2 table): the left side says the span of
+time the rows cover ("09/30/2026 12:11 PM – 09/30/2026 1:00 PM"), never "Showing 51–100" or a page
+number, and the right side is Newest (only when there is a newer side), Newer and Older. Assignment
+history keeps the uncounted mode. It is a truck's dispatch history, not evidence anyone links to,
+and its walk restarting on reload is the "Load more" behaviour it always had.
+
+**Tests that fail on the old code or on a mutant (each restored with `cp`):**
+- API (`auditLog.test.ts`, 26): the after-read not turned round → "reads the page after a cursor
+  upwards from it and shows it newest first" fails. Far side assumed → "offers no Newer when nothing
+  is newer, rather than assuming from the cursor" fails. `cursor` alias dropped → "hands the cursor
+  back as the keyset filter, ties on created_at broken by id" fails. Both sides allowed → "refuses a
+  page asked to be both before one row and after another" fails.
+- Web (`AuditPage.test.ts`): no reset on a search → "starts a new search from its newest page"
+  fails. Newer leaving `before` in the URL → "walks Newer from a pasted link by the server's cursor,
+  and Newest clears the URL" fails. "puts the older page's cursor in the URL, so the link it makes
+  reopens those rows" mounts a fresh page on the link and checks that the one request it makes is
+  for those rows.
+
+**Found on the way: the Ask AI launcher covered every list's last control.** The browser check of
+this pager, built and run in Chromium, showed the launcher over **Older** at both 1280 and 390 once
+the page was scrolled to its end. The same was true of every table's Next on any page whose table
+ends the page. The shell's content now ends far enough above the launcher to scroll clear of it.
+`AssistantLauncher` writes `--assistant-clearance` from its own measured position (offset + size +
+`EDGE_MARGIN`; 84 px at home, more if dragged higher, 0 where it is not drawn), and `<main>` pads by
+`max(1.5rem, var(--assistant-clearance))` (`.shell-main-padding`, style.css). Re-shot: Older's
+bottom at 804, the launcher's top at 824, at both widths. `AssistantLauncher.test.ts`: "asks the
+shell for room under the page as tall as it reaches, and for none where it is not drawn" fails when
+the room is asked for regardless of whether the launcher is drawn.
+
+Next: US7.

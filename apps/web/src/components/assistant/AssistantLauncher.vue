@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, ref, watch } from "vue";
+import { computed, nextTick, onBeforeUnmount, ref, watch, watchEffect } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { useEventListener, useMediaQuery } from "@vueuse/core";
 import { AppIcon, AppIconButton } from "@silvicom/ui";
@@ -9,7 +9,7 @@ import AssistantMark from "./AssistantMark.vue";
 import AssistantThread from "./AssistantThread.vue";
 import { suggestionsFor } from "./suggestions";
 import { useAssistantAccess } from "./useAssistantAccess";
-import { useLauncherPosition } from "./useLauncherPosition";
+import { EDGE_MARGIN, useLauncherPosition } from "./useLauncherPosition";
 
 /**
  * The assistant on every page: a launcher bottom-right, opening a docked panel (F21 redesign).
@@ -57,6 +57,16 @@ const thread = ref<InstanceType<typeof AssistantThread> | null>(null);
 /** 52px, `size-13` — the drag clamp needs the number, the template the class; keep them together. */
 const LAUNCHER_SIZE = 52;
 const position = useLauncherPosition(launcher, LAUNCHER_SIZE);
+/**
+ * How far up from the window's bottom the launcher reaches, for the shell to end its content above
+ * (`.shell-main-padding`, style.css). Written from where the launcher IS, so a launcher dragged
+ * higher asks for more room and one that is not drawn (no access, the Ask AI page) asks for none.
+ */
+watchEffect(() => {
+  const reach = visible.value ? position.offset.value.bottom + LAUNCHER_SIZE + EDGE_MARGIN : 0;
+  document.documentElement.style.setProperty("--assistant-clearance", `${reach}px`);
+});
+onBeforeUnmount(() => document.documentElement.style.removeProperty("--assistant-clearance"));
 const launcherStyle = computed(() => ({ right: `${position.offset.value.right}px`, bottom: `${position.offset.value.bottom}px` }));
 
 /**

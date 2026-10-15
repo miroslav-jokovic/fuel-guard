@@ -8,15 +8,22 @@ import { computed, ref, watch } from "vue";
 import { AppButton as BaseButton } from "@silvicom/ui";
 
 /**
- * `total: null` is a keyset-paged list that does not count its rows — the Audit log, where counting
- * was a scan of a 5 M-row table (Q-SET5). It pages on `hasNext` and `pageRows` instead, and says
- * "Showing 51–100" with no "of"; there are no page numbers to jump to without a total.
+ * `total: null` is a keyset-paged list that does not count its rows (Assignment history). It pages on
+ * `hasNext` and `pageRows` instead, and says "Showing 51–100" with no "of"; there are no page numbers
+ * to jump to without a total.
+ *
+ * `log` is a time-ordered log addressed by its cursor (D-US12, the Audit log). It has no page
+ * number at all, because the page a URL names must reopen the same rows next week, and "page 3" of a
+ * log that grows at its newest end does not. So the pager says what the rows ARE (the span of time
+ * they cover, formatted by the page) and moves Newer, Older, or back to the Newest.
  */
 const props = withDefaults(
   defineProps<{
-    page: number;
+    page?: number;
     pageSize?: number;
     total: number | null;
+    /** A log addressed by its cursor: `span` is the rows' time range, already formatted. */
+    log?: { span: string | null; hasNewer: boolean; hasOlder: boolean };
     /** Uncounted mode only: whether a page follows this one. */
     hasNext?: boolean;
     /** Uncounted mode only: rows on this page. */
@@ -24,9 +31,9 @@ const props = withDefaults(
     loading?: boolean;
     jumpable?: boolean;
   }>(),
-  { pageSize: 20, hasNext: false, pageRows: 0, loading: false, jumpable: true },
+  { page: 1, pageSize: 20, hasNext: false, pageRows: 0, loading: false, jumpable: true, log: undefined },
 );
-const emit = defineEmits<{ "update:page": [n: number] }>();
+const emit = defineEmits<{ "update:page": [n: number]; newest: []; newer: []; older: [] }>();
 
 const counted = computed(() => props.total !== null);
 const totalPages = computed(() => (props.total === null ? null : Math.max(1, Math.ceil(props.total / props.pageSize))));
@@ -61,7 +68,24 @@ const commitJump = () => {
 </script>
 
 <template>
-  <div class="flex items-center justify-between border-t border-edge-subtle px-4 py-3 sm:px-6">
+  <div v-if="log" class="flex flex-wrap items-center justify-between gap-2 border-t border-edge-subtle px-4 py-3 sm:px-6">
+    <p class="text-sm text-ink-secondary">
+      <span v-if="log.span" class="font-medium">{{ log.span }}</span>
+      <template v-else>No results</template>
+    </p>
+    <div class="flex items-center gap-2">
+      <BaseButton v-if="log.hasNewer" size="sm" variant="ghost" :disabled="loading" @click="emit('newest')">
+        Newest
+      </BaseButton>
+      <BaseButton size="sm" :disabled="!log.hasNewer || loading" @click="emit('newer')">
+        <AppIcon :icon="ChevronLeftIcon" class="size-4" aria-hidden="true" /> Newer
+      </BaseButton>
+      <BaseButton size="sm" :disabled="!log.hasOlder || loading" @click="emit('older')">
+        Older <AppIcon :icon="ChevronRightIcon" class="size-4" aria-hidden="true" />
+      </BaseButton>
+    </div>
+  </div>
+  <div v-else class="flex items-center justify-between border-t border-edge-subtle px-4 py-3 sm:px-6">
     <p class="text-sm text-ink-secondary">
       <template v-if="shown > 0">
         Showing <span class="font-medium">{{ from }}</span>–<span class="font-medium">{{ to }}</span>

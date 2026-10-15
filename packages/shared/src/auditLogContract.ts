@@ -47,22 +47,51 @@ const cursorSchema = z
     return { createdAt: ts.data, id: uuid.data };
   });
 
-export const auditLogQuerySchema = z.object({
-  /** Prefix of `action`, as typed in the search box ("invite", "anomaly", …). */
-  action: z.string().trim().max(100).optional().transform((v) => v || undefined),
-  cursor: cursorSchema.optional(),
-});
+/**
+ * Which page: the rows OLDER than `before`, the rows NEWER than `after`, or, with neither, the newest
+ * page (D-US12).
+ *
+ * The page is addressed by its cursor, never by a number. The log is evidence: a link to "what it
+ * showed" has to reopen the same rows next week, when an auditor or counsel follows it. A page number
+ * cannot do that on a log that grows at its newest end, because page 3 today is not page 3 tomorrow.
+ * So the cursor is what the page's URL carries, and `after` lets Newer work from a pasted link as
+ * well as from a walk.
+ *
+ * `cursor` is the name `before` had until 2026-10-15. A tab still open on the old page sends it for
+ * the minutes of the deploy. It is read as `before` and goes in the release after this one.
+ */
+export const auditLogQuerySchema = z
+  .object({
+    /** Prefix of `action`, as typed in the search box ("invite", "anomaly", …). */
+    action: z.string().trim().max(100).optional().transform((v) => v || undefined),
+    before: cursorSchema.optional(),
+    after: cursorSchema.optional(),
+    cursor: cursorSchema.optional(),
+  })
+  .transform(({ cursor, ...q }, ctx) => {
+    const before = q.before ?? cursor;
+    if (before && q.after) {
+      ctx.addIssue({ code: "custom", message: "A page is before one row or after one, not both" });
+      return z.NEVER;
+    }
+    return { action: q.action, before, after: q.after };
+  });
 export type AuditLogQuery = z.infer<typeof auditLogQuerySchema>;
 
 /**
- * One page. No total, by Q-SET5: counting the org's rows was a sequential scan of the whole 1.2 GB
- * table on every load and every keystroke (measured 2026-09-30: 3.2 s warm, 36.9 s cold), and the
- * pager only ever needed to know whether there is a next page.
+ * One page, newest first. No total, by Q-SET5: counting the org's rows was a sequential scan of the
+ * whole 1.2 GB table on every load and every keystroke (measured 2026-09-30: 3.2 s warm, 36.9 s cold).
+ * The pager only needs to know whether there is more on either side.
+ *
+ * `hasNext` / `nextCursor` are the OLDER side (their names from before D-US12, kept so an open tab on
+ * the old page still pages). `hasNewer` / `newerCursor` are the side D-US12 added.
  */
 export const auditLogPageSchema = z.object({
   rows: z.array(auditLogRowSchema),
   hasNext: z.boolean(),
   nextCursor: z.string().nullable(),
+  hasNewer: z.boolean(),
+  newerCursor: z.string().nullable(),
 });
 export type AuditLogPage = z.infer<typeof auditLogPageSchema>;
 
