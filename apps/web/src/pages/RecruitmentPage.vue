@@ -2,7 +2,7 @@
 import { computed, ref, watch } from "vue";
 import { useRouter } from "vue-router";
 import { useQueryState } from "@silvicom/ui";
-import { SORT_DIRECTIONS, useUrlSort } from "@/composables/useUrlSort";
+import { SORT_DIRECTIONS, useUrlSort } from "@silvicom/ui";
 import {
   HIRING_PHASE_LABELS,
   canPurgeApplicant,

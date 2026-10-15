@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { defineComponent, h } from "vue";
 import { mount, flushPromises } from "@vue/test-utils";
 import { createRouter, createMemoryHistory, type Router } from "vue-router";
-import { useQueryState } from "@silvicom/ui";
+import { useQueryState } from "./useQueryState";
 import { useUrlSort, SORT_DIRECTIONS } from "./useUrlSort";
 
 /**

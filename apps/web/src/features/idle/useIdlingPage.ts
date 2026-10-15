@@ -11,7 +11,7 @@ import { useToastStore } from "@/stores/toast";
 import { toneClass } from "@/lib/badges";
 import { sortRows } from "@silvicom/ui";
 import { useQueryState } from "@silvicom/ui";
-import { SORT_DIRECTIONS, useUrlSort } from "@/composables/useUrlSort";
+import { SORT_DIRECTIONS, useUrlSort } from "@silvicom/ui";
 import {
   APU_TYPE_LABELS,
   BEHAVES_LIKE_LABELS,

@@ -31,7 +31,7 @@ import { AppButton as BaseButton } from "@silvicom/ui";
 import { TablePagination } from "@silvicom/ui";
 import SlideOver from "@/components/SlideOver.vue";
 import { FactList, type Fact } from "@silvicom/ui";
-import { useUrlSort, SORT_DIRECTIONS } from "@/composables/useUrlSort";
+import { useUrlSort, SORT_DIRECTIONS } from "@silvicom/ui";
 import { apiFetch } from "@/lib/api";
 import { useSessionStore } from "@/stores/session";
 import { useToastStore } from "@/stores/toast";

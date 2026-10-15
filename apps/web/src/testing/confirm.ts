@@ -1,6 +1,6 @@
 import { vi } from "vitest";
 import { getActivePinia, type Pinia } from "pinia";
-import { useConfirmStore, type ConfirmRequest } from "@/stores/confirm";
+import { useConfirmStore, type ConfirmRequest } from "@silvicom/ui";
 
 /**
  * Answer every `useConfirm()` question in a test (D-US7), and keep what was asked.

@@ -2,7 +2,7 @@ import { isRosterIssuedRole, type OrgMember } from "@silvicom/shared";
 import { apiFetch } from "@/lib/api";
 import { apiRefusal } from "@/composables/useStepUpRetry";
 import { useToastStore } from "@/stores/toast";
-import type { ConfirmRequest } from "@/stores/confirm";
+import { type ConfirmRequest } from "@silvicom/ui";
 
 /**
  * The Users page's access acts on one office member — remove, suspend, reinstate — and the sentences

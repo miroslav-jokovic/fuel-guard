@@ -29,7 +29,7 @@ import FeedFreshnessLine from "@/components/FeedFreshnessLine.vue";
 import RowCoverageLine from "@/components/RowCoverageLine.vue";
 import { DataWorkspace } from "@silvicom/ui";
 import { TablePagination } from "@silvicom/ui";
-import { useUrlSort, SORT_DIRECTIONS } from "@/composables/useUrlSort";
+import { useUrlSort, SORT_DIRECTIONS } from "@silvicom/ui";
 import { efsTime, businessDate, FUEL_LOG_DATES_NOTE } from "@/lib/stationTime";
 import { useUnitOptions } from "./unitFilter";
 import ExportButton from "@/components/ExportButton.vue";

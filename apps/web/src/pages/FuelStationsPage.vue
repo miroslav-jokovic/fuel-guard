@@ -15,7 +15,7 @@ import { useSessionStore } from "@/stores/session";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { sortRows } from "@silvicom/ui";
 import { useQueryState } from "@silvicom/ui";
-import { SORT_DIRECTIONS, useUrlSort } from "@/composables/useUrlSort";
+import { SORT_DIRECTIONS, useUrlSort } from "@silvicom/ui";
 
 const PAGE_SIZE = 25;
 const { data, isLoading, isError, isFetching, refetch } = useFuelStations();

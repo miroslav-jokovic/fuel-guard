@@ -16,7 +16,7 @@ import {
   type TestConnectionResult,
 } from "@/features/settings/useEfsSoap";
 import { useToastStore } from "@/stores/toast";
-import { useConfirm } from "@/stores/confirm";
+import { useConfirm } from "@silvicom/ui";
 import { AppButton as BaseButton } from "@silvicom/ui";
 import { AppCard as BaseCard } from "@silvicom/ui";
 import { AppInput as BaseInput } from "@silvicom/ui";

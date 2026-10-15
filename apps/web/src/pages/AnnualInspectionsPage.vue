@@ -22,7 +22,7 @@ import {
   inspectionPdfPath,
 } from "@/features/maintenance/inspectionDocuments";
 import { useToastStore } from "@/stores/toast";
-import { useConfirm } from "@/stores/confirm";
+import { useConfirm } from "@silvicom/ui";
 import {
   INSPECTIONS_PAGE_SIZE,
   useDiscardInspection,

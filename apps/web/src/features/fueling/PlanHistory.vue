@@ -12,7 +12,7 @@ import { TablePagination } from "@silvicom/ui";
 import { BADGE_BASE, toneClass, type BadgeTone } from "@/lib/badges";
 import { useFuelPlanHistory, useDeleteFuelPlan, useDeleteFuelPlans, type PlanHistoryRow } from "./useFuelPlan";
 import { useToastStore } from "@/stores/toast";
-import { useConfirm } from "@/stores/confirm";
+import { useConfirm } from "@silvicom/ui";
 import { formatDateTime as fmtDate } from "@/lib/format";
 import { useQueryState } from "@silvicom/ui";
 import { parseYmd } from "@silvicom/shared";

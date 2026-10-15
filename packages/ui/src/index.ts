@@ -59,10 +59,17 @@ export { default as TableSkeleton } from "./components/TableSkeleton.vue";
 export { useQueryState } from "./lists/useQueryState";
 export type { UrlQueryState } from "./lists/useQueryState";
 export { sortRows, toggleSort } from "./lists/sort";
+export { useUrlSort, SORT_DIRECTIONS } from "./lists/useUrlSort";
 export type { SortState } from "./lists/sort";
 export { countLabelFor } from "./lists/plural";
 export { isBlank } from "./lists/dataTable";
 export { provideWorkspaceTable, reportToWorkspace, useWorkspaceTable } from "./lists/workspaceTable";
 export { NotFoundError, isNotFound, retryUnlessNotFound, QUERY_DEFAULTS, recordOrThrow } from "./lists/notFound";
 export { provideRouteOpens } from "./lists/routeOpens";
+// "Are you sure?" (D-US7) and the dialog it draws in, moved with the list kit so the admin console
+// asks the same way the web app does instead of through `window.confirm`.
+export { default as BaseModal } from "./components/BaseModal.vue";
+export { default as ConfirmHost } from "./components/ConfirmHost.vue";
+export { useConfirm, useConfirmStore } from "./lists/confirm";
+export type { ConfirmRequest } from "./lists/confirm";
 

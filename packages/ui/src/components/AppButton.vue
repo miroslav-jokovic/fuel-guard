@@ -35,7 +35,7 @@ const VARIANTS: Record<NonNullable<typeof props.variant>, string> = {
    *
    * Added 2026-09-30 for the applicant page's live licence scanner, which had shipped writing
    * `variant="ghost" class="text-ink-inverse"`: the class lost to `ghost`'s own `text-ink-secondary`, so the
-   * close button and "Use the camera app instead" rendered #5C5C66 on the scrim — about 2.6:1, under WCAG's
+   * close button and "Use the camera app instead" rendered in ghost's mid grey on the scrim — about 2.6:1, under WCAG's
    * 4.5:1 for text — and nothing failed, because the override looked like it worked in the source. Measured
    * in the built page, not inferred. Same lesson as `link`, `icon` and `row`: the variant was missing.
    */

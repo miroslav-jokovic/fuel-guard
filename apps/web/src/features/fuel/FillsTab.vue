@@ -40,7 +40,7 @@ import { type DataTableColumn } from "@silvicom/ui";
 import FeedFreshnessLine from "@/components/FeedFreshnessLine.vue";
 import RowCoverageLine from "@/components/RowCoverageLine.vue";
 import { TablePagination } from "@silvicom/ui";
-import { useUrlSort, SORT_DIRECTIONS } from "@/composables/useUrlSort";
+import { useUrlSort, SORT_DIRECTIONS } from "@silvicom/ui";
 import { useUnitOptions, useVehicleIdsForUnits } from "./unitFilter";
 import ExportButton from "@/components/ExportButton.vue";
 import { fuelLogExportTarget } from "./fuelLogExport";

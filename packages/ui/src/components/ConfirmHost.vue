@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { AppButton as BaseButton } from "@silvicom/ui";
-import BaseModal from "@/components/ui/BaseModal.vue";
-import { useConfirmStore } from "@/stores/confirm";
+import BaseButton from "./AppButton.vue";
+import BaseModal from "./BaseModal.vue";
+import { useConfirmStore } from "../lists/confirm";
 
 /**
  * Draws the one pending `useConfirm()` question (D-US7). Mounted once in `App.vue`, beside the

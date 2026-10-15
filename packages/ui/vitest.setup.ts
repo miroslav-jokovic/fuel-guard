@@ -1,5 +1,6 @@
 /**
- * What jsdom does not have and every drawer needs.
+ * What jsdom does not have and every drawer needs. Shared by `@silvicom/ui`'s suite and the web app's
+ * (`apps/web/vitest.config.ts` points here) since US7 moved `BaseModal` into this package.
  *
  * ── WHY THIS FILE EXISTS RATHER THAN A FOURTH COPY OF THE STUB ──────────────────────────────────
  * Headless UI's `Dialog` observes its panel, and jsdom has no `ResizeObserver` at all. A suite that

@@ -11,7 +11,7 @@ import { useOrgTimezone } from "@/composables/useOrgTimezone";
 import { useQueryState } from "@silvicom/ui";
 import { useSavedViewMenu } from "@/composables/useSavedViewMenu";
 import { useTableColumns } from "@/composables/useTableColumns";
-import { SORT_DIRECTIONS, useUrlSort } from "@/composables/useUrlSort";
+import { SORT_DIRECTIONS, useUrlSort } from "@silvicom/ui";
 import { formatDateTime } from "@/lib/format";
 import { sortRows } from "@silvicom/ui";
 import AssignmentHistory from "@/features/dispatch/AssignmentHistory.vue";

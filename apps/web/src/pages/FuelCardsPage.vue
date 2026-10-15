@@ -27,7 +27,7 @@ import { useEfsCards, type EfsCardRow } from "@/features/fuelCards/useEfsCards";
 import { useQueryState } from "@silvicom/ui";
 import ExportButton from "@/components/ExportButton.vue";
 import { exportHref } from "@/lib/exportTarget";
-import { SORT_DIRECTIONS } from "@/composables/useUrlSort";
+import { SORT_DIRECTIONS } from "@silvicom/ui";
 import { EFS_CARD_STATUSES, matchesCardFilters, type EfsCardFilters } from "@silvicom/shared";
 import { formatDateTime } from "@/lib/format";
 

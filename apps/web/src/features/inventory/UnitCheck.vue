@@ -21,7 +21,7 @@ import { useUnitKitQuery } from "@/features/inventory/useUnits";
 import { useWalk } from "@/features/inventory/useWalk";
 import WalkActions, { type WalkAction } from "@/features/inventory/WalkActions.vue";
 import { useToastStore } from "@/stores/toast";
-import { useConfirm } from "@/stores/confirm";
+import { useConfirm } from "@silvicom/ui";
 
 /**
  * A truck's kit, walked (INVENTORY-PLAN.md I9; D-INV17 as amended 2026-09-10, D-INV19, D-INV24).

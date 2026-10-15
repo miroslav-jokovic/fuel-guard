@@ -1,14 +1,14 @@
 import { ref, computed, watch } from "vue";
 import { ANOMALY_SEVERITIES, type Anomaly, type AnomalyDisposition } from "@silvicom/shared";
 import { useQueryState } from "@silvicom/ui";
-import { SORT_DIRECTIONS } from "@/composables/useUrlSort";
+import { SORT_DIRECTIONS } from "@silvicom/ui";
 import { useVehiclesQuery } from "@/composables/useVehicles";
 import { useTrailersQuery } from "@/composables/useTrailers";
 import { useDriversQuery } from "@/composables/useDrivers";
 import { useAnomaliesQuery, useAnomalyTransition, useAnomalyTxnDrivers, type AnomalyFilters } from "@/features/anomalies/useAnomalies";
 import { useSessionStore } from "@/stores/session";
 import { useToastStore } from "@/stores/toast";
-import { useConfirm } from "@/stores/confirm";
+import { useConfirm } from "@silvicom/ui";
 import { toggleSort, sortRows, type SortState } from "@silvicom/ui";
 import { type DataTableColumn } from "@silvicom/ui";
 import { formatDate as fmt } from "@/lib/format";

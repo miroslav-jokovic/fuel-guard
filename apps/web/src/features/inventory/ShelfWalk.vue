@@ -24,7 +24,7 @@ import { useWalk } from "@/features/inventory/useWalk";
 import WalkActions, { type WalkAction } from "@/features/inventory/WalkActions.vue";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { useToastStore } from "@/stores/toast";
-import { useConfirm } from "@/stores/confirm";
+import { useConfirm } from "@silvicom/ui";
 import { useSessionStore } from "@/stores/session";
 
 /**

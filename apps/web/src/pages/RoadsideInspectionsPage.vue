@@ -3,7 +3,7 @@ import { computed, watch } from "vue";
 import { useRouter } from "vue-router";
 import { AppButton as BaseButton, AppCallout } from "@silvicom/ui";
 import { useQueryState } from "@silvicom/ui";
-import { SORT_DIRECTIONS, useUrlSort } from "@/composables/useUrlSort";
+import { SORT_DIRECTIONS, useUrlSort } from "@silvicom/ui";
 import {
   ROADSIDE_OOS_KINDS,
   ROADSIDE_PERIODS,

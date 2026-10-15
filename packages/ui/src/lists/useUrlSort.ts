@@ -1,5 +1,5 @@
 import { computed, type ComputedRef, type WritableComputedRef } from "vue";
-import { toggleSort, type SortState } from "@silvicom/ui";
+import { toggleSort, type SortState } from "./sort";
 
 /**
  * A table's sort, held in the URL as two parameters (FUEL-C3, D-FUI8).

@@ -15,7 +15,7 @@ import InspectionItemRow from "@/features/maintenance/InspectionItemRow.vue";
 import PrintInspectionDrawer from "@/features/maintenance/PrintInspectionDrawer.vue";
 import DeleteInspectionDrawer from "@/features/maintenance/DeleteInspectionDrawer.vue";
 import { useToastStore } from "@/stores/toast";
-import { useConfirm } from "@/stores/confirm";
+import { useConfirm } from "@silvicom/ui";
 import { useOrgSettingsQuery } from "@/composables/useOrgSettings";
 import { useSessionStore } from "@/stores/session";
 import {

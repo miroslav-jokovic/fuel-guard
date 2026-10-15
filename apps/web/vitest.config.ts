@@ -17,6 +17,7 @@ export default defineConfig({
     include: ["src/**/*.test.ts"],
     // What jsdom is missing and any suite opening a dialog needs — see the file's own header for
     // why it is here rather than copied into a fourth test file.
-    setupFiles: ["./vitest.setup.ts"],
+    // The one jsdom setup, in the package whose dialogs need it (US7: BaseModal moved there).
+    setupFiles: ["../../packages/ui/vitest.setup.ts"],
   },
 });

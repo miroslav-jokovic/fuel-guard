@@ -3,7 +3,7 @@ import { computed, onBeforeUnmount, ref, watch } from "vue";
 import type { DocumentRow } from "@silvicom/shared";
 import { AppIcon, AppButton as BaseButton } from "@silvicom/ui";
 import { ArrowDownTrayIcon, PrinterIcon } from "@silvicom/ui/icons";
-import BaseModal from "@/components/ui/BaseModal.vue";
+import { BaseModal } from "@silvicom/ui";
 import { apiFetch, fetchObjectUrl } from "@/lib/api";
 import { saveObjectUrl, type RenderedDocument } from "@/lib/documentDownload";
 import { useToastStore } from "@/stores/toast";

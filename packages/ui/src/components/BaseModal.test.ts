@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { mount } from "@vue/test-utils";
-import BaseModal from "@/components/ui/BaseModal.vue";
+import BaseModal from "./BaseModal.vue";
 
 /**
  * B5 — the centred dialog's two escape hatches, pinned. Headless UI closes on Escape and on a

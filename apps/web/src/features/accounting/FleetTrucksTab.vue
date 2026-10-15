@@ -7,7 +7,7 @@ import { DataWorkspace } from "@silvicom/ui";
 import { FilterBar } from "@silvicom/ui";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
 import { useQueryState } from "@silvicom/ui";
-import { SORT_DIRECTIONS, useUrlSort } from "@/composables/useUrlSort";
+import { SORT_DIRECTIONS, useUrlSort } from "@silvicom/ui";
 import { sortRows } from "@silvicom/ui";
 import CpmTruckTable from "./CpmTruckTable.vue";
 import type { FleetTruck } from "./useFleetReport";

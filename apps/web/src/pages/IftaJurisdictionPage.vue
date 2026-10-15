@@ -20,7 +20,7 @@ import { formatDate } from "@/lib/format";
 import { sortRows } from "@silvicom/ui";
 import { useQueryState } from "@silvicom/ui";
 import { QueryState } from "@silvicom/ui";
-import { SORT_DIRECTIONS, useUrlSort } from "@/composables/useUrlSort";
+import { SORT_DIRECTIONS, useUrlSort } from "@silvicom/ui";
 import {
   parseQuarterKey, quarterKey, quarterLabel, selectableQuarters, useIftaJurisdictionQuery,
   type IftaQuarter,

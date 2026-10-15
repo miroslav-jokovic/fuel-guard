@@ -2,7 +2,7 @@
 import { computed, ref, watch } from "vue";
 import { useRouter } from "vue-router";
 import { useQueryState } from "@silvicom/ui";
-import { SORT_DIRECTIONS, useUrlSort } from "@/composables/useUrlSort";
+import { SORT_DIRECTIONS, useUrlSort } from "@silvicom/ui";
 import { AppButton as BaseButton, AppIcon } from "@silvicom/ui";
 import { Cog6ToothIcon } from "@silvicom/ui/icons";
 import { UNIT_KIND_LABELS, type UnitKitDto } from "@silvicom/shared";

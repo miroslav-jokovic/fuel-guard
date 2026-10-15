@@ -685,6 +685,9 @@ importers:
       '@floating-ui/vue':
         specifier: ^2.0.0
         version: 2.0.0(vue@3.5.39(typescript@6.0.3))
+      '@headlessui/vue':
+        specifier: 1.7.23
+        version: 1.7.23(vue@3.5.39(typescript@6.0.3))
       '@hugeicons/core-free-icons':
         specifier: 4.2.3
         version: 4.2.3
@@ -710,6 +713,9 @@ importers:
       jsdom:
         specifier: 29.1.1
         version: 29.1.1(@noble/hashes@1.8.0)
+      pinia:
+        specifier: 3.0.4
+        version: 3.0.4(typescript@6.0.3)(vue@3.5.39(typescript@6.0.3))
       typescript:
         specifier: 6.0.3
         version: 6.0.3

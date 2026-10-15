@@ -16,7 +16,7 @@ import { AppCard as BaseCard } from "@silvicom/ui";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { sortRows } from "@silvicom/ui";
 import { useQueryState } from "@silvicom/ui";
-import { SORT_DIRECTIONS, useUrlSort } from "@/composables/useUrlSort";
+import { SORT_DIRECTIONS, useUrlSort } from "@silvicom/ui";
 import { formatDate as fmtDate, formatDateTime as fmtDateTime } from "@/lib/format";
 
 const { data, isLoading, isError, refetch, isFetching } = useOdometerMismatches();

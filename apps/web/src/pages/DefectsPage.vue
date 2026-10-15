@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, watch } from "vue";
 import { useQueryState } from "@silvicom/ui";
-import { SORT_DIRECTIONS, useUrlSort } from "@/composables/useUrlSort";
+import { SORT_DIRECTIONS, useUrlSort } from "@silvicom/ui";
 import { daysSince, shopDayOf, todayInZone, type ShopDefectDto } from "@silvicom/shared";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import { DataWorkspace } from "@silvicom/ui";

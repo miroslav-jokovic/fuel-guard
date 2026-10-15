@@ -7,7 +7,7 @@ import PublicLayout from "@/layouts/PublicLayout.vue";
 import ApplyLayout from "@/layouts/ApplyLayout.vue";
 import ShopLayout from "@/layouts/ShopLayout.vue";
 import ToastContainer from "@/components/ToastContainer.vue";
-import ConfirmHost from "@/components/ConfirmHost.vue";
+import { ConfirmHost } from "@silvicom/ui";
 import ErrorBoundary from "@/components/ErrorBoundary.vue";
 import UpdateBanner from "@/components/UpdateBanner.vue";
 import EnvironmentBanner from "@/components/EnvironmentBanner.vue";

@@ -5,7 +5,7 @@ import {
 } from "@silvicom/ui/icons";
 import { ref, computed, watch } from "vue";
 import { useQueryState } from "@silvicom/ui";
-import { SORT_DIRECTIONS, useUrlSort } from "@/composables/useUrlSort";
+import { SORT_DIRECTIONS, useUrlSort } from "@silvicom/ui";
 import { VEHICLE_CHECKS, VEHICLE_CHECK_LABELS, VEHICLE_STATUSES, isStatusFromTms, matchesVehicleCheck, todayInZone, type Vehicle, type VehicleInput } from "@silvicom/shared";
 import { useSessionStore } from "@/stores/session";
 import { useVehiclesQuery, useCreateVehicle, useUpdateVehicle, useRetireVehicle, useBulkUpdateVehicles } from "@/composables/useVehicles";
@@ -27,7 +27,7 @@ import { AppButton as BaseButton } from "@silvicom/ui";
 import VehicleForm from "@/features/roster/VehicleForm.vue";
 import VehicleSetupImport from "@/features/roster/VehicleSetupImport.vue";
 import { useToastStore } from "@/stores/toast";
-import { useConfirm } from "@/stores/confirm";
+import { useConfirm } from "@silvicom/ui";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { sortRows } from "@silvicom/ui";
 import { formatDate } from "@/lib/format";

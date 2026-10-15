@@ -13,7 +13,7 @@ import KebabMenu from "@/components/KebabMenu.vue";
 import { TablePagination } from "@silvicom/ui";
 import InspectorDrawer from "@/features/maintenance/InspectorDrawer.vue";
 import { useToastStore } from "@/stores/toast";
-import { useConfirm } from "@/stores/confirm";
+import { useConfirm } from "@silvicom/ui";
 import {
   useDeleteInspector,
   useInspectorsQuery,

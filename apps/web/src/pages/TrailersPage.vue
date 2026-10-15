@@ -3,7 +3,7 @@ import { AppIcon } from "@silvicom/ui";
 import { PlusIcon } from "@silvicom/ui/icons";
 import { ref, computed, watch } from "vue";
 import { useQueryState } from "@silvicom/ui";
-import { SORT_DIRECTIONS, useUrlSort } from "@/composables/useUrlSort";
+import { SORT_DIRECTIONS, useUrlSort } from "@silvicom/ui";
 import { TRAILER_TYPE_LABELS, VEHICLE_STATUSES, isStatusFromTms, type Trailer, type TrailerInput } from "@silvicom/shared";
 import { useSessionStore } from "@/stores/session";
 import {
@@ -30,7 +30,7 @@ import { DataWorkspace } from "@silvicom/ui";
 import { AppButton as BaseButton } from "@silvicom/ui";
 import TrailerForm from "@/features/roster/TrailerForm.vue";
 import { useToastStore } from "@/stores/toast";
-import { useConfirm } from "@/stores/confirm";
+import { useConfirm } from "@silvicom/ui";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { sortRows } from "@silvicom/ui";
 

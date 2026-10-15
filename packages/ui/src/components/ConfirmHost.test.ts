@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { mount, flushPromises } from "@vue/test-utils";
 import { createPinia, setActivePinia } from "pinia";
 import ConfirmHost from "./ConfirmHost.vue";
-import { useConfirm } from "@/stores/confirm";
+import { useConfirm } from "../lists/confirm";
 
 /** D-US7 — the product's confirm, in place of `window.confirm`. */
 const button = (label: string) =>

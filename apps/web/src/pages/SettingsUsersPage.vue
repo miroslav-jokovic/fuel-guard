@@ -20,7 +20,7 @@ import { TablePagination } from "@silvicom/ui";
 import { BADGE_BASE, inviteTone, suspendedBadge, toneClass } from "@/lib/badges";
 import { useToastStore } from "@/stores/toast";
 import { useSessionStore } from "@/stores/session";
-import { useConfirm } from "@/stores/confirm";
+import { useConfirm } from "@silvicom/ui";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import { formatDate } from "@/lib/format";
 import MemberPasswordResetDrawer from "@/features/settings/MemberPasswordResetDrawer.vue";

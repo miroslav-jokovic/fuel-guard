@@ -8,7 +8,7 @@ import StatCard from "@/components/ui/StatCard.vue";
 import { TablePagination } from "@silvicom/ui";
 import { useDispatcherEarningsQuery, type DispatcherEarnings } from "@/composables/useDispatcherEarnings";
 import { useQueryState } from "@silvicom/ui";
-import { SORT_DIRECTIONS, useUrlSort } from "@/composables/useUrlSort";
+import { SORT_DIRECTIONS, useUrlSort } from "@silvicom/ui";
 import { sortRows } from "@silvicom/ui";
 import type { FleetReportResponse } from "./useFleetReport";
 import type { MileageCoverageResponse } from "./useMileageCoverage";

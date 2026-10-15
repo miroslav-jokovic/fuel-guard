@@ -4,7 +4,7 @@ import {
   AppButton as BaseButton, AppCallout, AppCard as BaseCard, AppCombobox as ComboSelect, AppFormField, AppTextarea,
 } from "@silvicom/ui";
 import { STATE_NAMES, gal, type IftaReceiptUploadResponse, type IftaTruckBasis } from "@silvicom/shared";
-import BaseModal from "@/components/ui/BaseModal.vue";
+import { BaseModal } from "@silvicom/ui";
 import FileDropzone from "@/components/ui/FileDropzone.vue";
 import { DataTable, type DataTableColumn } from "@silvicom/ui";
 import { useVehiclesQuery } from "@/composables/useVehicles";

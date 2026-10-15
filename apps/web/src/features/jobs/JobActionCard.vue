@@ -2,7 +2,7 @@
 import { computed } from "vue";
 import { apiFetch } from "@/lib/api";
 import { useToastStore } from "@/stores/toast";
-import { useConfirm } from "@/stores/confirm";
+import { useConfirm } from "@silvicom/ui";
 import { useJob } from "./useJob";
 import { AppCard as BaseCard } from "@silvicom/ui";
 import { AppButton as BaseButton } from "@silvicom/ui";
