@@ -86,6 +86,12 @@ describe("the board's ETA recorder", () => {
     expect(rec.writtenRows("load_stop_eta_predictions")[0]).toMatchObject({ hos_known: false, rest_added: false });
   });
 
+  it("records a fix age with milliseconds as whole seconds, since the column is an integer", async () => {
+    const rec = recorder({ positions: [position({ sampled_at: new Date(NOW.getTime() - 5_803).toISOString() })] });
+    await recordBoardEtas(rec.client, ORG, NOW);
+    expect(rec.writtenRows("load_stop_eta_predictions")[0]!.gps_age_seconds).toBe(6);
+  });
+
   it("writes nothing for a truck with no load or no position — there is no estimate to score", async () => {
     const rec = recorder({
       vehicles: [vehicle(), vehicle({ id: "veh-660", unit_number: "660" })],

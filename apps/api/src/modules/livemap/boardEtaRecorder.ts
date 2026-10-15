@@ -42,7 +42,9 @@ export async function recordBoardEtas(admin: SupabaseClient, orgId: string, now:
       etaAt: r.eta.at,
       miles: r.eta.miles,
       restAdded: r.eta.restAdded,
-      gpsAgeSeconds: r.position?.ageSeconds ?? null,
+      // `secondsSince` keeps the milliseconds (5.803) and the column is an integer: unrounded, Postgres
+      // refused every insert from 2026-10-10 to 10-15 and the table stayed empty (prod log, "[board-eta]").
+      gpsAgeSeconds: r.position?.ageSeconds != null ? Math.round(r.position.ageSeconds) : null,
       hosKnown: r.hos != null,
       windowClosesAt: stop.appointmentEnd ?? stop.appointmentStart,
       verdict: r.onTime,
