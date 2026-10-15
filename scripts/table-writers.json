@@ -315,6 +315,9 @@
     "apps/api/src/modules/inspections/attribution/attribute.ts",
     "apps/api/src/modules/inspections/attribution/decide.ts"
   ],
+  "inspection_report_reads": [
+    "apps/api/src/modules/inspections/report/pass.ts"
+  ],
   "inspection_evidence_snapshots": [
     "apps/api/src/modules/inspections/attribution/freeze.ts"
   ],

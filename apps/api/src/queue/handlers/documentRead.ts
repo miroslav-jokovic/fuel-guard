@@ -12,6 +12,7 @@ import {
   type RecognisePage,
 } from "../../modules/document-reading/index.js";
 import { shippingDocumentReadGate } from "../../modules/hazmat/index.js";
+import { roadsideReportReadGate } from "../../modules/inspections/index.js";
 import type { JobHandler } from "../types.js";
 
 /**
@@ -38,10 +39,12 @@ import type { JobHandler } from "../types.js";
  * now ends `model_unavailable`, an operational failure that READ_FAILURE_KIND keeps out of the reader's
  * accuracy, and the cause stays in the job's error for whoever fixes it.
  */
-const GATES = {
-  shipping_document: (admin, orgId) => shippingDocumentReadGate(admin, orgId),
-} as const satisfies Record<DocumentProfileId, (...a: Parameters<ReadGateFor>) => ReturnType<ReadGateFor>>;
-const gateFor: ReadGateFor = (admin, orgId, profile) => GATES[profile](admin, orgId);
+const gatesFor = (env: Env) =>
+  ({
+    shipping_document: (admin, orgId) => shippingDocumentReadGate(admin, orgId),
+    roadside_inspection_report: async () => roadsideReportReadGate(env),
+  }) as const satisfies Record<DocumentProfileId, (...a: Parameters<ReadGateFor>) => ReturnType<ReadGateFor>>;
+const gateForEnv = (env: Env): ReadGateFor => (admin, orgId, profile) => gatesFor(env)[profile](admin, orgId);
 
 // The OCR witness's engine (§7B A5): one per process, started by the first read that needs it.
 let engine: RecognisePage | undefined;
@@ -52,7 +55,7 @@ export const documentReadHandler: JobHandler = async (ctx, job) => {
   const readId = typeof job.payload.readId === "string" ? job.payload.readId : "";
   if (!readId) throw new Error("document_read job has no readId");
   try {
-    const r = await executeRead(ctx.admin, job.org_id, readId, { client: anthropicClient(ctx.env), gateFor, env: ctx.env, ocr: ocrFor(ctx.env) });
+    const r = await executeRead(ctx.admin, job.org_id, readId, { client: anthropicClient(ctx.env), gateFor: gateForEnv(ctx.env), env: ctx.env, ocr: ocrFor(ctx.env) });
     return { readId, ...r };
   } catch (e) {
     const retried = e instanceof TransientModelError && job.attempts < job.max_attempts;

@@ -43,9 +43,13 @@ describe("wireSchemaFor — the profile schema as structured outputs accepts it"
     expect(keys.filter((k) => KEYWORDS_THE_API_REFUSES.includes(k))).toEqual([]);
   });
 
+  // How many objects each profile's wire schema holds at least — the guard that the walk below found the
+  // profile's objects at all, so "every object is closed" cannot pass over an empty list. The officer's
+  // report has four: the document, its driver, a unit, a violation.
+  const MIN_OBJECTS = { shipping_document: 6, roadside_inspection_report: 4 } as const satisfies Record<(typeof DOCUMENT_PROFILE_IDS)[number], number>;
   it.each(DOCUMENT_PROFILE_IDS)("%s: every object is closed and lists every property as required", (id) => {
     const objects = everyObject(wireSchemaFor(DOCUMENT_PROFILES[id].schema));
-    expect(objects.length).toBeGreaterThan(5);
+    expect(objects.length).toBeGreaterThanOrEqual(MIN_OBJECTS[id]);
     for (const o of objects) {
       expect(o.additionalProperties).toBe(false);
       expect([...(o.required as string[])].sort()).toEqual(Object.keys(o.properties as object).sort());

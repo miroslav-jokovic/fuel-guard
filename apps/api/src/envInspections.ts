@@ -14,4 +14,8 @@ export const inspectionsEnvFields = {
   // Optional Socrata app token. Without one, requests share the anonymous per-IP pool, which is
   // enough for one carrier's ~30 requests a day; a token only raises that ceiling.
   FMCSA_SOCRATA_APP_TOKEN: z.string().optional(),
+  // Reading the officer's report with the document reader (IC10, D-IC13) — model spend, so it has a
+  // switch of its own. On by default: a report is read only when a safety manager or a driver filed one
+  // (~12–30 a month at USDOT 1864495, 2026-10-15), and the read is what names the driver at all.
+  ROADSIDE_REPORT_READING: z.enum(["on", "off"]).default("on"),
 };

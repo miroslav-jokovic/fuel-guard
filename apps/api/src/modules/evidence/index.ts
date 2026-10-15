@@ -18,6 +18,8 @@
  * says the `drivers.cdl_*` columns become a projection of it at the roster carve-out.
  */
 export { registerDocument, listDocuments, signDocumentDownload } from "./compliance.js";
+// A filed document's bytes, hash-checked, for a module that reads the paper (IC10, the officer's report).
+export { downloadDocumentBytes, listFiledDocuments, type DocumentBytes, type FiledDocumentRef } from "./documentBytes.js";
 // Filing a document the SERVER rendered — the browser-upload path above cannot serve a caller that
 // already holds the bytes. Generalised from recruiting's application PDF at its second caller.
 export { fileGeneratedDocument } from "./generatedDocuments.js";

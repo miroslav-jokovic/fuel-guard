@@ -539,8 +539,8 @@ about three merges.
   Either (b) or (c), attribution of a retired truck reads McLeod's dispatch history (`movement`), not
   Samsara, which deleted them at sale (Q-IC8).
 
-- **Q-IC11 — May two agreeing sources confirm the driver without a person? (opened 2026-10-15, owner's
-  call).** D-IC7 says a guessed driver never reaches a draft, and today every driver is Samsara's
+- **Q-IC11 — RESOLVED 2026-10-15 (owner): (a).** Was: May two agreeing sources confirm the driver without a person? (opened 2026-10-15, owner's
+  call). D-IC7 says a guessed driver never reaches a draft, and today every driver is Samsara's
   reading until a safety manager confirms it (459 high, 85 low, 74 no assignment of 625 on 10/15).
   The report (D-IC13) adds an independent second source.
   The licence key is there to match: 168 of 169 active roster drivers carry `drivers.cdl_number`
@@ -552,15 +552,17 @@ about three merges.
   - (c) Auto-confirm on licence alone, even without Samsara.
   *Recommended: (a).* Two independent sources agreeing on a licence number is stronger than a person
   clicking "confirm" on one, and the disagreements — the cases that matter — still reach a person.
-- **Q-IC12 — What is "the receipt" on a repair? (opened 2026-10-15, owner's call).** FleetPal's API
+- **Q-IC12 — RESOLVED 2026-10-15 (owner): (a), with (b)'s upload offered but not required.** Was: What is "the receipt" on a repair? (opened 2026-10-15, owner's call). FleetPal's API
   serves no files. (a) **Our rendered repair document** from FleetPal's data (work order, jobs, parts,
   labour, PO invoice number/date/amount), labelled as rendered from FleetPal at a stated time.
   (b) (a) plus a required photo/PDF of the vendor's paper invoice when the repair was done outside
   our shop. (c) Upload only, no rendering. *Recommended: (a), with (b)'s upload offered but not
   required* — FleetPal is the maintenance record 396.9(d)(2) asks for; a vendor invoice image is
   evidence a person may add.
-- **Q-IC13 — Who certifies, and is the signed report returned to the state? (opened 2026-10-15,
-  owner's call).** 396.9(d)(3)(i) needs a carrier official's signature, title and date on the form;
+- **Q-IC13 — RESOLVED 2026-10-15 (owner): as recommended** — maintenance accepts the work order, safety
+  certifies, the product renders the certification page beside the report image, and returning it stays a
+  person's act recorded with the date sent. Was: Who certifies, and is the signed report returned to the state? (opened 2026-10-15,
+  owner's call). 396.9(d)(3)(i) needs a carrier official's signature, title and date on the form;
   (ii) needs the form returned only "if requested by the issuing State agency", and a copy kept 12
   months in every case. Candidates: the `maintenance` section's managers certify the repair and the
   `safety` section files the form; or `safety` does both. And: does the product produce the signed
@@ -884,4 +886,35 @@ about three merges.
     Q-IC14's measurement waits for it to reach production.
   - **Uploads:** zero roadside documents in production yet; IC2's writer reaches production with the
     next release.
+- **2026-10-15 — Owner rulings: Q-IC11 (a), Q-IC12 (a), Q-IC13 as recommended.** Q-IC14 stays a
+  measurement, taken once the FleetPal units sync (FLEETPAL-INTEGRATION-PLAN §8, 2026-10-15) is in production.
+- **2026-10-15 — IC10, first merge: the officer's report is read (migrations 0478, 0479).** A report filed on an
+  inspection's Documents card is handed to the document reader within the hour and read under a new
+  profile, `roadside_inspection_report` (D-DR1: a profile, never a second pipeline).
+  - **Profile** (`packages/shared/src/roadsideInspectionReportContract.ts`): report number and state, date,
+    times, level, location, carrier USDOT, driver name + licence number + licence state, units (number,
+    type, company number, VIN, plate), violations (code, unit, OOS, citation number, description). No date
+    of birth or address. Read whole (four objects, no sections). EVERY page class is read: the classifier's
+    vocabulary is the BOL's, so a report page can only be `other`; it still runs for the rotation.
+  - **Evidence** (`document-reading/evidence/roadsideReportEvidence.ts`): both readers on every field, rows
+    paired by position; on report number, licence number and VIN the OCR and text-layer witnesses say
+    which readers' value the page prints, compared as letters and digits (≥ 5 characters, or it proves
+    nothing). This is what Q-IC11 (a)'s "read alike by both readers" will stand on.
+  - **Hand-over** (`inspections/report/pass.ts`, on the FMCSA hourly tick after attribution): every
+    `roadside_inspection_report` original with no `inspection_report_reads` row is fetched through
+    `evidence.downloadDocumentBytes` (hash-checked against what was filed — the row is written at
+    registration, before the PUT), given to `document-reading.intakeStoredBytes` (the office upload's own
+    intake with the browser taken out; bytes the org already holds are not stored twice), and only THEN
+    linked. 10 a tick. `ROADSIDE_REPORT_READING` (on by default) is both the pass's switch and the read gate.
+  - **Gate** (`inspections/report/readGate.ts`): no `org_modules` key exists for safety (six on production,
+    none of them it), so the gate is the switch; no budget until a month is measured.
+  - **0478** (document-reading): `document_reads.profile` takes the profile. **0479** (inspections):
+    `inspection_attributions.source` takes `report`
+    (Q-IC11 (a)'s row, written next merge; a `report` row may not carry a decider); new append-only
+    `inspection_report_reads` (document, sha256 — the read is found through the source's sha256, never a
+    stored id, because two intakes of the same bytes fold into one source). Matrix
+    `roadside-report-reads.test.mjs` (15).
+  - **Next merge:** the comparison (report number/state vs the FMCSA row, VINs vs the inspection's units,
+    licence vs `drivers.cdl_number` and vs Samsara's driver), the `report` confirmation when they agree,
+    a task when they do not, and what the report says on the inspection's driver card.
 

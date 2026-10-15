@@ -1333,6 +1333,17 @@
         "why": "who was driving at each roadside inspection (0473, IC5): one engine row per inspection per engine version (~1,400 once, then ~1.3/day) plus a person's confirmations. RETENTION_FORBIDDEN: a filing names its driver from it."
       }
     },
+    "inspection_report_reads": {
+      "module": "inspections",
+      "layer": "derived",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 5,
+        "why": "which filed officer's report went to the document reader, by its sha256 (0479, IC10): one row per report, written once (~12\u201330 a month at USDOT 1864495, 2026-10-15)."
+      }
+    },
     "inspection_evidence_snapshots": {
       "module": "inspections",
       "layer": "raw",

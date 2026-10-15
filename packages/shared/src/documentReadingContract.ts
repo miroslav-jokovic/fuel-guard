@@ -10,12 +10,18 @@ import {
   shippingFieldCriticality,
   type FieldCriticality,
 } from "./shippingDocumentContract.js";
+import {
+  ROADSIDE_INSPECTION_REPORT_PROFILE_VERSION,
+  emptyRoadsideInspectionReport,
+  roadsideInspectionReportSchema,
+  roadsideReportFieldCriticality,
+} from "./roadsideInspectionReportContract.js";
 
 /**
  * The document reader's routes, closed vocabularies and profile registry (DOCUMENT-READER-PLAN.md §2).
  *
- * The module knows no trucking vocabulary (D-DR1): what it reads is a PROFILE registered below, and the
- * only profile is `shipping_document`. Each vocabulary here mirrors a CHECK constraint in the module's
+ * The module knows no trucking vocabulary (D-DR1): what it reads is a PROFILE registered below —
+ * `shipping_document`, and since 2026-10-15 `roadside_inspection_report` (INSPECTION-CHALLENGE-PLAN IC10). Each vocabulary here mirrors a CHECK constraint in the module's
  * migration, so the database and the API refuse the same values.
  */
 
@@ -184,6 +190,18 @@ export const DOCUMENT_PROFILES = {
     sections: SHIPPING_DOCUMENT_SECTIONS,
     empty: emptyShippingDocument,
     criticality: shippingFieldCriticality,
+  },
+  // The officer's report (D-IC13). Read WHOLE, not in sections: one or two pages and a few dozen fields.
+  // EVERY page class is read, because the classifier's vocabulary is the shipping document's — it can only
+  // call a report page `other` — and the person or driver who filed it as `roadside_inspection_report` has
+  // already said what it is. The classifier still runs for its other answer, which way is up: a report is
+  // most often a phone photo taken sideways in a cab.
+  roadside_inspection_report: {
+    version: ROADSIDE_INSPECTION_REPORT_PROFILE_VERSION,
+    schema: roadsideInspectionReportSchema,
+    readsPageClasses: PAGE_CLASSES,
+    empty: emptyRoadsideInspectionReport,
+    criticality: roadsideReportFieldCriticality,
   },
 } as const satisfies Record<string, DocumentProfile>;
 export type DocumentProfileId = keyof typeof DOCUMENT_PROFILES;
