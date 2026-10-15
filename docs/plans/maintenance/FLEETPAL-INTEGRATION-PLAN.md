@@ -1717,3 +1717,23 @@ out-of-order retry does not overwrite newer state — each proved by a test, and
   Like #1278, this reaches production with the next release, not on merge. The post-release check
   is the handoff's: every resource has rows and no `last_error`. That includes defects (46 open,
   plus whatever was detected in the overlap window) and expirations (0 rows, no error).
+
+- **2026-10-15 — the sweep never walked `/v1/units/`; it does now, first.** Found while auditing
+  the roadside-inspection plan (a maintenance violation is to be tied to its FleetPal repair).
+  Production that morning: 5,512 work orders, their jobs, items, purchase orders and invoices all
+  syncing hourly with no `last_error` — and `fleetpal_units` **empty**, with no `units` row in
+  `fleetpal_sync_state`. `stageUnit` (F2) had no caller since it was written; the handler's comment
+  said "units first" and neither it nor `sweepRepairRecord` walked them. So `resolveStagedUnits` had
+  nothing to resolve, and per-unit cost, the shop backlog and every unit join read no truck. No
+  resource reported a failure because the missing one had no position to fail against.
+
+  `ingestUnits` (`ingest/equipment.ts`) now runs first in `sweepRepairRecord`: watermarked on
+  `updated` (`updated_after`, exclusive), walked without `is_archived` — measured the same day, the
+  bare list answers **489** units of which **81** are archived — and staged one row at a time through
+  `stageUnit`, which leaves `vehicle_id`/`trailer_id`/`match_method`/`matched_at` alone. No migration.
+  Tests in `ingest/units.test.ts`; removing the sweep's call fails "walks units FIRST", and staging
+  past a refused row fails "stops at a refused unit".
+
+  Reaches production with the next release. The check after it: `fleetpal_units` ≈ 489 rows, a
+  `units` row in `fleetpal_sync_state` with no `last_error`, and the unmatched count on the
+  FleetPal units page — F4 measured 48 unmatched of 474.

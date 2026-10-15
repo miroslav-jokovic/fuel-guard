@@ -1,5 +1,5 @@
 import { ingestDefects, ingestExpirations, issuesIngest } from "./condition.js";
-import { ingestPmSchedules, metersIngest } from "./equipment.js";
+import { ingestPmSchedules, ingestUnits, metersIngest } from "./equipment.js";
 import { jobItemsIngest, jobsIngest, serviceHistoryIngest, workOrdersIngest } from "./repair.js";
 import { poInvoicesIngest, poItemsIngest, poPaymentsIngest, purchaseOrdersIngest } from "./purchasing.js";
 import { ingestShops, vendorsIngest } from "./reference.js";
@@ -25,6 +25,9 @@ import type { IngestContext, IngestResult } from "./types.js";
  */
 export async function sweepRepairRecord(ctx: IngestContext): Promise<IngestResult[]> {
   const results: IngestResult[] = [];
+  // Units first: a work order arriving for a truck FleetPal added this morning then already has its
+  // unit row, and `resolveStagedUnits`, after the sweep, sees every unit this one brought in.
+  results.push(await ingestUnits(ctx));
   results.push(await runIngest(ctx, vendorsIngest));
   results.push(await ingestShops(ctx));
   results.push(await runIngest(ctx, workOrdersIngest));
@@ -53,7 +56,7 @@ export async function sweepRepairRecord(ctx: IngestContext): Promise<IngestResul
 export { runIngest } from "./run.js";
 export { poInvoicesIngest, poItemsIngest, poPaymentsIngest, purchaseOrdersIngest } from "./purchasing.js";
 export { ingestDefects, ingestExpirations, issuesIngest } from "./condition.js";
-export { ingestPmSchedules, metersIngest } from "./equipment.js";
+export { ingestPmSchedules, ingestUnits, metersIngest } from "./equipment.js";
 export { jobItemsIngest, jobsIngest, serviceHistoryIngest, workOrdersIngest } from "./repair.js";
 export { ingestShops, vendorsIngest } from "./reference.js";
 export type { IngestContext, IngestResult, ResourceIngest } from "./types.js";
