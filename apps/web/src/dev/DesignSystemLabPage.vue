@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import DataTable, { type DataTableColumn } from "@/components/ui/DataTable.vue";
+import { DataTable, type DataTableColumn } from "@silvicom/ui";
 import { AppButton, AppAvatar, AppCheckbox, AppIconChip, AppSegmentedControl, AppTabs } from "@silvicom/ui";
 import { FuelCardIcon, TruckIcon, UserGroupIcon, ShieldCheckIcon } from "@silvicom/ui/icons";
 import SidebarNavSection from "@/layouts/SidebarNavSection.vue";

@@ -5,7 +5,7 @@ import { SELFIE_VERDICTS, SELFIE_VERDICT_LABELS, type SelfieVerdict } from "@sil
 import { formatDateTime } from "@/lib/format";
 import { useSessionStore } from "@/stores/session";
 import { useToastStore } from "@/stores/toast";
-import QueryState from "@/components/ui/QueryState.vue";
+import { QueryState } from "@silvicom/ui";
 import { useRecordSelfieVerdict, useSelfieCheckQuery } from "@/features/recruitment/useSelfieCheck";
 
 /**

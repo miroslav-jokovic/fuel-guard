@@ -52,7 +52,7 @@ export const oneParam = (v: unknown): string | undefined => {
  */
 export const ANY_PARAM = "any";
 
-export interface QueryState {
+export interface UrlQueryState {
   /** The query as it will be once the router settles. Read this, never `route.query`. */
   q: ComputedRef<Record<string, unknown>>;
   /** One parameter, or undefined when it is absent or empty. */
@@ -103,7 +103,7 @@ const buffers = new WeakMap<Router, Ref<Record<string, string | undefined>>>();
  * its route with another list — Assignment history beside the board, the qualification file inside
  * the driver page. Without it, two lists on one page would both own `?search=`.
  */
-export function useQueryState(scope?: string): QueryState {
+export function useQueryState(scope?: string): UrlQueryState {
   const route = useRoute();
   const router = useRouter();
   const k = (key: string) => (scope ? `${scope}.${key}` : key);

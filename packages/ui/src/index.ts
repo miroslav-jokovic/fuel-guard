@@ -35,11 +35,34 @@ export { default as AppAvatar } from "./components/AppAvatar.vue";
 export { default as AppTabs } from "./components/AppTabs.vue";
 export { default as AppSegmentedControl } from "./components/AppSegmentedControl.vue";
 export { default as AppCallout } from "./components/AppCallout.vue";
-export type { SelectOption, SelectValue } from "./components/AppSelect.vue";
-export type { RadioOption, RadioValue } from "./components/AppRadioGroup.vue";
-export type { DateRangeValue } from "./components/AppDateRangePicker.vue";
-export type { ComboboxOption } from "./components/AppCombobox.vue";
+export type { SelectOption } from "./components/AppSelect.vue";
 export type { TabItem } from "./components/AppTabs.vue";
 export type { SegmentOption } from "./components/AppSegmentedControl.vue";
-export type { CalloutTone } from "./components/AppCallout.vue";
 export { provideTouchTargets } from "./touchTargets";
+
+// The list and read-state composites (US7, D-US11 — UI-STANDARDIZATION.md). They lived in
+// `apps/web/src/components/ui` until 2026-10-15, where the admin console could not reach them, so the
+// same list behaved two ways in two consoles. Moved, not copied: there is one address for each.
+export { default as DataWorkspace } from "./components/DataWorkspace.vue";
+export { default as FilterBar } from "./components/FilterBar.vue";
+export type { FilterChip } from "./components/FilterBar.vue";
+export { default as DataTable } from "./components/DataTable.vue";
+export type { DataTableColumn } from "./components/DataTable.vue";
+export { default as TablePagination } from "./components/TablePagination.vue";
+export { default as BulkActionBar } from "./components/BulkActionBar.vue";
+export { default as QueryState } from "./components/QueryState.vue";
+export { default as FactList } from "./components/FactList.vue";
+export type { Fact } from "./components/FactList.vue";
+export { default as ErrorState } from "./components/ErrorState.vue";
+export { default as ErrorPanel } from "./components/ErrorPanel.vue";
+export { default as TableSkeleton } from "./components/TableSkeleton.vue";
+export { useQueryState } from "./lists/useQueryState";
+export type { UrlQueryState } from "./lists/useQueryState";
+export { sortRows, toggleSort } from "./lists/sort";
+export type { SortState } from "./lists/sort";
+export { countLabelFor } from "./lists/plural";
+export { isBlank } from "./lists/dataTable";
+export { provideWorkspaceTable, reportToWorkspace, useWorkspaceTable } from "./lists/workspaceTable";
+export { NotFoundError, isNotFound, retryUnlessNotFound, QUERY_DEFAULTS, recordOrThrow } from "./lists/notFound";
+export { provideRouteOpens } from "./lists/routeOpens";
+

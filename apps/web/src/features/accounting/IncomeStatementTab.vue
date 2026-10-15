@@ -2,7 +2,7 @@
 import { computed, ref } from "vue";
 import { AppSearchField, AppSegmentedControl, type SegmentOption } from "@silvicom/ui";
 import StatCard from "@/components/ui/StatCard.vue";
-import QueryState from "@/components/ui/QueryState.vue";
+import { QueryState } from "@silvicom/ui";
 import { monthKey, shiftMonth, type ReportPeriod } from "@/lib/reportPeriod";
 import FamilySummaryTable from "./FamilySummaryTable.vue";
 import IncomeStatementTable from "./IncomeStatementTable.vue";

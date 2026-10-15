@@ -6,13 +6,13 @@ import {
   gradePolicyCells, NO_FUEL_TARGETS, AVOIDED_STATE_TARGET_PERIOD, formatDisplayDate,
   type CarriedFuelFill, type FuelPolicy, type PolicyGallonCell, type TargetVariance,
 } from "@silvicom/shared";
-import DataTable, { type DataTableColumn } from "@/components/ui/DataTable.vue";
-import TablePagination from "@/components/TablePagination.vue";
+import { DataTable, type DataTableColumn } from "@silvicom/ui";
+import { TablePagination } from "@silvicom/ui";
 import StatCard from "@/components/ui/StatCard.vue";
-import QueryState from "@/components/ui/QueryState.vue";
+import { QueryState } from "@silvicom/ui";
 import ExplainerPanel from "@/components/ui/ExplainerPanel.vue";
 import ExportButton from "@/components/ExportButton.vue";
-import { sortRows, toggleSort, type SortState } from "@/lib/sort";
+import { sortRows, toggleSort, type SortState } from "@silvicom/ui";
 import { downloadCsv } from "@/lib/csv";
 import { usd, usd3, gal, pct1 } from "./format";
 

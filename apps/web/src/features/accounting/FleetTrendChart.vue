@@ -4,7 +4,7 @@ import { ledgerMonthWhy } from "@silvicom/shared";
 import type { ChartConfiguration } from "chart.js";
 import { AppCard as BaseCard } from "@silvicom/ui";
 import BaseChart from "@/components/BaseChart.vue";
-import QueryState from "@/components/ui/QueryState.vue";
+import { QueryState } from "@silvicom/ui";
 import { MONEY_COLORS, areaFill, trendOptions, fmtMonth, viz } from "@/lib/chartTheme";
 import FleetMonthTable from "./FleetMonthTable.vue";
 import { useFleetTrendQuery, type FleetTrendPoint } from "./useFleetTrend";

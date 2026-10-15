@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { defineComponent, h } from "vue";
 import { mount, flushPromises } from "@vue/test-utils";
 import { createRouter, createMemoryHistory, type Router } from "vue-router";
-import { useQueryState } from "./useQueryState";
+import { useQueryState } from "@silvicom/ui";
 import { useUrlSort, SORT_DIRECTIONS } from "./useUrlSort";
 
 /**
@@ -12,7 +12,7 @@ import { useUrlSort, SORT_DIRECTIONS } from "./useUrlSort";
  * either order. It is not: the interesting row is usually the first one, which is a property of the
  * sort rather than of the filters, so a link that dropped it arrives showing something else.
  *
- * The assertions below are the whole contract — the cycle is `lib/sort.ts`'s and pinned there; what
+ * The assertions below are the whole contract — the cycle is `sort.ts`'s (@silvicom/ui) and pinned there; what
  * is pinned HERE is that each state survives a round trip through the address bar, and that the
  * cleared state leaves no parameter behind describing a table that is no longer sorted.
  */

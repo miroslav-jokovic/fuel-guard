@@ -1,24 +1,24 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import { useRouter } from "vue-router";
-import { useQueryState } from "@/composables/useQueryState";
+import { useQueryState } from "@silvicom/ui";
 import { SORT_DIRECTIONS, useUrlSort } from "@/composables/useUrlSort";
 import { AppButton as BaseButton, AppIcon } from "@silvicom/ui";
 import { Cog6ToothIcon, PlusIcon, ScanIcon } from "@silvicom/ui/icons";
 import { UNIT_OF_MEASURE_LABELS, type StockLineDto } from "@silvicom/shared";
 import PageHeader from "@/components/ui/PageHeader.vue";
-import DataWorkspace from "@/components/ui/DataWorkspace.vue";
-import FilterBar from "@/components/ui/FilterBar.vue";
+import { DataWorkspace } from "@silvicom/ui";
+import { FilterBar } from "@silvicom/ui";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
-import DataTable from "@/components/ui/DataTable.vue";
-import type { DataTableColumn } from "@/components/ui/DataTable.vue";
-import TablePagination from "@/components/TablePagination.vue";
+import { DataTable } from "@silvicom/ui";
+import { type DataTableColumn } from "@silvicom/ui";
+import { TablePagination } from "@silvicom/ui";
 import KebabMenu from "@/components/KebabMenu.vue";
 import PartDrawer from "@/features/inventory/PartDrawer.vue";
 import StockLevelCell from "@/features/inventory/StockLevelCell.vue";
 import LocationsDrawer from "@/features/inventory/LocationsDrawer.vue";
 import { INVENTORY_PAGE_SIZE, useLowStockQuery, usePartsQuery } from "@/features/inventory/useInventory";
-import { sortRows } from "@/lib/sort";
+import { sortRows } from "@silvicom/ui";
 import { useSessionStore } from "@/stores/session";
 import { useOpens } from "@/composables/useOpens";
 

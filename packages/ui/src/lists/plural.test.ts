@@ -1,10 +1,12 @@
+/// <reference types="node" />
+// Node types for this file alone: it reads the apps' source, and the package itself stays browser-only.
 import { describe, expect, it } from "vitest";
 import { readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 import { countLabelFor, singularLabel } from "./plural";
 
 /**
- * The guarantee behind `lib/plural.ts` (D-DS1's "one primitive per job", applied to its copy).
+ * The guarantee behind `lists/plural.ts` (D-DS1's "one primitive per job", applied to its copy).
  *
  * ── WHY THE CORPUS IS READ OUT OF THE SOURCE ────────────────────────────────────────────────────
  * English singularisation cannot be computed: `-ies → -y` is right for "entries" and wrong for
@@ -13,7 +15,8 @@ import { countLabelFor, singularLabel } from "./plural";
  * share, and nobody will be looking at that page when it happens.
  *
  * The rules are therefore not trusted — they are CHECKED, against every `count-label` that actually
- * exists in this app. `EXPECTED` below is the whole shipped vocabulary with the singular a person
+ * exists in the apps that draw a `FilterBar` (the web app and, since US7, the admin console).
+ * `EXPECTED` below is the whole shipped vocabulary with the singular a person
  * confirmed, and the scan asserts the two sets are equal in both directions. A new call site whose
  * noun the rules get wrong fails here with the noun named; a vocabulary entry for a label nobody
  * passes any more fails too, so the table shrinks as pages change.
@@ -23,7 +26,13 @@ import { countLabelFor, singularLabel } from "./plural";
  * it found the call sites before it asserts anything about them.
  */
 
-const WEB_SRC = path.join(process.cwd(), "src");
+/**
+ * The call sites live in the apps, not in this package: read from the repository, by this file's own
+ * location, never from `process.cwd()`. Until US7 (D-US11) this test ran inside `apps/web` and read
+ * `cwd/src`; run from here, `cwd/src` would be this package, which passes no `count-label` at all.
+ */
+const REPO = path.resolve(path.dirname(new URL(import.meta.url).pathname), "../../../..");
+const APP_SOURCES = ["apps/web/src", "apps/admin/src"].map((dir) => path.join(REPO, dir));
 
 /**
  * Call sites whose label is built in `<script>` and passed through a variable, so no scan of the
@@ -53,7 +62,7 @@ function scanSource(): Scan {
       if (entry.isDirectory()) walk(p);
       else if (entry.name.endsWith(".vue")) {
         const src = readFileSync(p, "utf8");
-        const rel = path.relative(WEB_SRC, p).split(path.sep).join("/");
+        const rel = path.relative(REPO, p).split(path.sep).join("/");
         // `count-label="entries"` — the static form, which is most of them.
         for (const m of src.matchAll(/(?<!:)\bcount-label="([^"{}]+)"/g)) {
           sites += 1;
@@ -69,14 +78,14 @@ function scanSource(): Scan {
       }
     }
   };
-  walk(WEB_SRC);
+  for (const dir of APP_SOURCES) walk(dir);
 
   /**
    * FilterBar's own default is a shipped label too — a caller that passes `:count` and no
    * `count-label` renders it, and "1 results" is the very thing this file exists to stop. No page
    * relies on it today (measured 2026-09-09), which is exactly why nothing else would cover it.
    */
-  const bar = readFileSync(path.join(WEB_SRC, "components/ui/FilterBar.vue"), "utf8");
+  const bar = readFileSync(path.join(REPO, "packages/ui/src/components/FilterBar.vue"), "utf8");
   const fallback = bar.match(/countLabel:\s*"([^"]+)"/)?.[1];
   if (!fallback) throw new Error("FilterBar's countLabel default not found — fix this parser with the component");
   sites += 1;

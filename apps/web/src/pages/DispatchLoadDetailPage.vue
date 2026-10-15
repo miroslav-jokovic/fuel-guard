@@ -5,8 +5,8 @@ import { isDispatchable, loadBoardState, LOAD_EVENT_LABELS } from "@silvicom/sha
 import PageHeader from "@/components/ui/PageHeader.vue";
 import { AppCard as BaseCard } from "@silvicom/ui";
 import { AppButton as BaseButton, AppCallout } from "@silvicom/ui";
-import QueryState from "@/components/ui/QueryState.vue";
-import FactList, { type Fact } from "@/components/ui/FactList.vue";
+import { QueryState } from "@silvicom/ui";
+import { FactList, type Fact } from "@silvicom/ui";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { useSessionStore } from "@/stores/session";
 import HazmatPanel from "@/features/hazmat/HazmatPanel.vue";

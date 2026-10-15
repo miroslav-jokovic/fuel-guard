@@ -34,7 +34,7 @@ changing UI. The rules below are the ones most often violated; the contract has 
 - Omit `align` on DataTable columns — text left-aligns by default and `numeric: true` right-aligns
   with tabular figures. `align` overrides; `align: "center"` is for control columns (checkbox, icon,
   status dot) and never for text or numbers (D-DS1; pinned by "never centres by default, for any
-  combination the contract allows" in `components/ui/DataTable.test.ts`).
+  combination the contract allows" in `packages/ui/src/components/DataTable.test.ts`).
 - Seven text sizes only (`text-sm` default, `text-2xs`, `text-xs`, `text-base`, `text-lg`, `text-2xl`,
   `text-3xl`) — `text-[…]` and Tailwind's other sizes fail `lint:tokens`. `text-2xs` (11px) is for
   dense metadata that is *glanced at* — chart legends, stage labels, timestamps; anything meant to be

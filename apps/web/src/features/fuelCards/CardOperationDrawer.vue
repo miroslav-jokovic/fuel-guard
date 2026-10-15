@@ -4,7 +4,7 @@ import type { CardCapabilities, WsCard } from "@silvicom/shared";
 import { AppButton as BaseButton } from "@silvicom/ui";
 import SlideOver from "@/components/SlideOver.vue";
 import StepUpPrompt from "@/components/StepUpPrompt.vue";
-import DataTable, { type DataTableColumn } from "@/components/ui/DataTable.vue";
+import { DataTable, type DataTableColumn } from "@silvicom/ui";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { useToastStore } from "@/stores/toast";
 import CardOperationInputs from "./CardOperationInputs.vue";

@@ -2,8 +2,8 @@
 import { computed, ref, watch } from "vue";
 import { AppCard as BaseCard } from "@silvicom/ui";
 import ExportButton from "@/components/ExportButton.vue";
-import DataTable, { type DataTableColumn } from "@/components/ui/DataTable.vue";
-import TablePagination from "@/components/TablePagination.vue";
+import { DataTable, type DataTableColumn } from "@silvicom/ui";
+import { TablePagination } from "@silvicom/ui";
 import { downloadCsv } from "@/lib/csv";
 import { costDayCells, costDayHeaders, costDaysCsv, type CostDayRow } from "@silvicom/shared";
 

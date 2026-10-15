@@ -26,7 +26,7 @@ vi.mock("@vueuse/core", async (orig) => ({ ...((await orig()) as object), useMed
 
 import MaintenanceSpendPage from "./MaintenanceSpendPage.vue";
 import DateRangeFilter from "@/components/DateRangeFilter.vue";
-import TablePagination from "@/components/TablePagination.vue";
+import { TablePagination } from "@silvicom/ui";
 
 async function mountAt(url: string) {
   const router: Router = createRouter({

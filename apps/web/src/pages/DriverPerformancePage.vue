@@ -10,17 +10,17 @@ import { useDriverPerformanceWeeksList, useDriverPerformanceWeek } from "@/featu
 import PageHeader from "@/components/ui/PageHeader.vue";
 import SamsaraFeedLine from "@/components/SamsaraFeedLine.vue";
 import { AppCard as BaseCard } from "@silvicom/ui";
-import FilterBar from "@/components/ui/FilterBar.vue";
+import { FilterBar } from "@silvicom/ui";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
-import TablePagination from "@/components/TablePagination.vue";
-import DataTable from "@/components/ui/DataTable.vue";
-import DataWorkspace from "@/components/ui/DataWorkspace.vue";
+import { TablePagination } from "@silvicom/ui";
+import { DataTable } from "@silvicom/ui";
+import { DataWorkspace } from "@silvicom/ui";
 import ReportScopeBar from "@/components/ui/ReportScopeBar.vue";
-import type { DataTableColumn } from "@/components/ui/DataTable.vue";
+import { type DataTableColumn } from "@silvicom/ui";
 import { toneClass } from "@/lib/badges";
 import { formatDate, formatDateRange } from "@/lib/format";
-import { sortRows } from "@/lib/sort";
-import { useQueryState } from "@/composables/useQueryState";
+import { sortRows } from "@silvicom/ui";
+import { useQueryState } from "@silvicom/ui";
 import { SORT_DIRECTIONS, useUrlSort } from "@/composables/useUrlSort";
 
 

@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { AppIcon, AppButton as BaseButton } from "@silvicom/ui";
-import { ArrowPathIcon, ExclamationTriangleIcon } from "@silvicom/ui/icons";
-import ErrorState from "@/components/ErrorState.vue";
-import NotFoundState from "@/components/ui/NotFoundState.vue";
-import { isNotFound } from "@/lib/notFound";
+import AppIcon from "./AppIcon.vue";
+import BaseButton from "./AppButton.vue";
+import { ArrowPathIcon, ExclamationTriangleIcon } from "../icons";
+import ErrorState from "./ErrorState.vue";
+import NotFoundState from "./NotFoundState.vue";
+import { isNotFound } from "../lists/notFound";
 
 /**
  * Loading, failure and content for anything that fetches and is NOT a table (D-US5,

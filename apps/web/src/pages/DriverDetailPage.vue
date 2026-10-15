@@ -22,11 +22,11 @@ import {
   resolveDriverSection,
   type DriverSection,
 } from "./driverSections";
-import DataTable from "@/components/ui/DataTable.vue";
-import type { DataTableColumn } from "@/components/ui/DataTable.vue";
+import { DataTable } from "@silvicom/ui";
+import { type DataTableColumn } from "@silvicom/ui";
 import { viz, areaFill } from "@/lib/chartTheme";
 import PageHeader from "@/components/ui/PageHeader.vue";
-import FactList, { type Fact } from "@/components/ui/FactList.vue";
+import { FactList, type Fact } from "@silvicom/ui";
 import ExportButton from "@/components/ExportButton.vue";
 import QualificationSection from "@/features/compliance/QualificationSection.vue";
 import SevenDayStatementSection from "@/features/roster/SevenDayStatementSection.vue";
@@ -34,8 +34,8 @@ import DriverContactSection from "@/features/roster/DriverContactSection.vue";
 import { useDriverQuery } from "@/composables/useDrivers";
 import { useDispatchHoldQuery } from "@/composables/useCompliance";
 import { formatDate } from "@/lib/format";
-import QueryState from "@/components/ui/QueryState.vue";
-import { isNotFound } from "@/lib/notFound";
+import { QueryState } from "@silvicom/ui";
+import { isNotFound } from "@silvicom/ui";
 import { useRequestBinder } from "@/composables/useDqExports";
 import { useToastStore } from "@/stores/toast";
 import { useSessionStore } from "@/stores/session";

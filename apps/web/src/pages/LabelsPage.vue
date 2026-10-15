@@ -5,18 +5,18 @@ import { AppButton as BaseButton, AppCard as BaseCard, AppSegmentedControl } fro
 import type { LabelPresetId } from "@silvicom/qr";
 import type { LabelTarget } from "@silvicom/shared";
 import PageHeader from "@/components/ui/PageHeader.vue";
-import QueryState from "@/components/ui/QueryState.vue";
-import DataTable, { type DataTableColumn } from "@/components/ui/DataTable.vue";
-import DataWorkspace from "@/components/ui/DataWorkspace.vue";
-import FilterBar from "@/components/ui/FilterBar.vue";
-import TablePagination from "@/components/TablePagination.vue";
+import { QueryState } from "@silvicom/ui";
+import { DataTable, type DataTableColumn } from "@silvicom/ui";
+import { DataWorkspace } from "@silvicom/ui";
+import { FilterBar } from "@silvicom/ui";
+import { TablePagination } from "@silvicom/ui";
 import LabelSheetPreview from "@/features/inventory/LabelSheetPreview.vue";
 import LabelStockControls from "@/features/inventory/LabelStockControls.vue";
 import { ASSETS_PAGE_SIZE, useAssetsQuery } from "@/features/inventory/useAssets";
 import { STOCK_PAGE_SIZE, useStockPageQuery } from "@/features/inventory/useInventory";
 import { fetchLabelSheet, useLabelFaces, useLabelPresetsQuery } from "@/features/inventory/useLabels";
 import { useToastStore } from "@/stores/toast";
-import { useQueryState } from "@/composables/useQueryState";
+import { useQueryState } from "@silvicom/ui";
 
 /**
  * Printing labels (INVENTORY-PLAN.md I10 PR 2; D-INV25, research §5.15).

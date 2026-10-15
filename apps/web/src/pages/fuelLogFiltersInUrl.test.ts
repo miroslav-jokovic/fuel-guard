@@ -77,7 +77,7 @@ vi.mock("@vueuse/core", async (orig) => {
 import FuelLogPage from "./FuelLogPage.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
 import DateRangeFilter from "@/components/DateRangeFilter.vue";
-import FilterBar from "@/components/ui/FilterBar.vue";
+import { FilterBar } from "@silvicom/ui";
 
 async function mountAt(url: string) {
   const router: Router = createRouter({

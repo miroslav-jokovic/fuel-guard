@@ -6,8 +6,8 @@ import { BADGE_BASE, kitStatusBadge, toneClass } from "@/lib/badges";
 import { useUnitKitQuery } from "./useUnits";
 import { useSessionStore } from "@/stores/session";
 import { useOpens } from "@/composables/useOpens";
-import QueryState from "@/components/ui/QueryState.vue";
-import FactList, { type Fact } from "@/components/ui/FactList.vue";
+import { QueryState } from "@silvicom/ui";
+import { FactList, type Fact } from "@silvicom/ui";
 
 /**
  * What this truck or trailer is carrying — read only (INVENTORY-PLAN.md I9, D-AVI17).

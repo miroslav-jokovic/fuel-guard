@@ -10,9 +10,9 @@ import {
 } from "@silvicom/shared";
 import { AppButton as BaseButton, AppCallout, AppCard as BaseCard } from "@silvicom/ui";
 import PageHeader from "@/components/ui/PageHeader.vue";
-import QueryState from "@/components/ui/QueryState.vue";
-import DataTable from "@/components/ui/DataTable.vue";
-import type { DataTableColumn } from "@/components/ui/DataTable.vue";
+import { QueryState } from "@silvicom/ui";
+import { DataTable } from "@silvicom/ui";
+import { type DataTableColumn } from "@silvicom/ui";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { useWakeLock } from "@/composables/useWakeLock";
 import { useCloseCountSession, useCountSessionQuery } from "@/features/inventory/useInventory";

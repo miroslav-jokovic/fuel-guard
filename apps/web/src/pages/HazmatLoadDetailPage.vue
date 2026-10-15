@@ -10,7 +10,7 @@ import { useDefensePacket } from "@/features/hazmat/useDefensePacket";
 import LoadDeclarationCard from "@/features/hazmat/LoadDeclarationCard.vue";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import { AppCallout, AppCard as BaseCard } from "@silvicom/ui";
-import QueryState from "@/components/ui/QueryState.vue";
+import { QueryState } from "@silvicom/ui";
 import { AppButton as BaseButton } from "@silvicom/ui";
 import { apiFetch } from "@/lib/api";
 import { useToastStore } from "@/stores/toast";

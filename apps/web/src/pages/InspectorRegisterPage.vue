@@ -4,13 +4,13 @@ import { AppBadge, AppButton as BaseButton, AppCallout } from "@silvicom/ui";
 import { PlusIcon } from "@silvicom/ui/icons";
 import { AppIcon } from "@silvicom/ui";
 import PageHeader from "@/components/ui/PageHeader.vue";
-import DataWorkspace from "@/components/ui/DataWorkspace.vue";
-import FilterBar from "@/components/ui/FilterBar.vue";
+import { DataWorkspace } from "@silvicom/ui";
+import { FilterBar } from "@silvicom/ui";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
-import DataTable from "@/components/ui/DataTable.vue";
-import type { DataTableColumn } from "@/components/ui/DataTable.vue";
+import { DataTable } from "@silvicom/ui";
+import { type DataTableColumn } from "@silvicom/ui";
 import KebabMenu from "@/components/KebabMenu.vue";
-import TablePagination from "@/components/TablePagination.vue";
+import { TablePagination } from "@silvicom/ui";
 import InspectorDrawer from "@/features/maintenance/InspectorDrawer.vue";
 import { useToastStore } from "@/stores/toast";
 import { useConfirm } from "@/stores/confirm";
@@ -21,7 +21,7 @@ import {
   type Inspector,
 } from "@/features/maintenance/useAnnualInspections";
 import { useSessionStore } from "@/stores/session";
-import { useQueryState } from "@/composables/useQueryState";
+import { useQueryState } from "@silvicom/ui";
 import { INSPECTOR_QUALIFICATION_BASES } from "@silvicom/shared";
 import { formatDate, formatDateRange } from "@/lib/format";
 

@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import { parseYmd, shiftDuration, type AssignmentHistoryRow } from "@silvicom/shared";
-import DataTable, { type DataTableColumn } from "@/components/ui/DataTable.vue";
-import DataWorkspace from "@/components/ui/DataWorkspace.vue";
-import FilterBar, { type FilterChip } from "@/components/ui/FilterBar.vue";
+import { DataTable, type DataTableColumn } from "@silvicom/ui";
+import { DataWorkspace } from "@silvicom/ui";
+import { FilterBar, type FilterChip } from "@silvicom/ui";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
-import TablePagination from "@/components/TablePagination.vue";
+import { TablePagination } from "@silvicom/ui";
 import DateRangeFilter from "@/components/DateRangeFilter.vue";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { useDriversQuery } from "@/composables/useDrivers";
@@ -17,7 +17,7 @@ import {
   type AssignmentHistoryFilters,
 } from "@/features/dispatch/useAssignments";
 import { formatDateTime } from "@/lib/format";
-import { useQueryState } from "@/composables/useQueryState";
+import { useQueryState } from "@silvicom/ui";
 
 /**
  * The attribution trail (loads plan L5 / D-L6).

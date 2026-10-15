@@ -2,10 +2,10 @@
 import { computed } from "vue";
 import { MEDICAL_SOURCES, MEDICAL_SOURCE_LABEL, type MedicalCardRow, type MedicalCards, type MedicalSource } from "@silvicom/shared";
 import { AppCard as BaseCard } from "@silvicom/ui";
-import DataTable from "@/components/ui/DataTable.vue";
-import type { DataTableColumn } from "@/components/ui/DataTable.vue";
+import { DataTable } from "@silvicom/ui";
+import { type DataTableColumn } from "@silvicom/ui";
 import PersonCell from "@/features/drugAlcohol/PersonCell.vue";
-import TablePagination from "@/components/TablePagination.vue";
+import { TablePagination } from "@silvicom/ui";
 import { useClientPage } from "@/composables/useClientPage";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { formatDate } from "@/lib/format";

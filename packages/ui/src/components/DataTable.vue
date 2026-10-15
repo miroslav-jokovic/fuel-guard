@@ -1,15 +1,15 @@
 <script setup lang="ts" generic="Row extends Record<string, any>">
-import { AppIcon } from "@silvicom/ui";
-import { ChevronUpIcon, ChevronDownIcon, ChevronUpDownIcon } from "@silvicom/ui/icons";
+import AppIcon from "./AppIcon.vue";
+import { ChevronUpIcon, ChevronDownIcon, ChevronUpDownIcon } from "../icons";
 import { computed, useSlots } from "vue";
 import { useMediaQuery } from "@vueuse/core";
-import { AppCard as BaseCard } from "@silvicom/ui";
-import TableSkeleton from "@/components/TableSkeleton.vue";
-import DataTableCards from "@/components/ui/DataTableCards.vue";
-import ErrorState from "@/components/ErrorState.vue";
-import type { SortState } from "@/lib/sort";
-import { isBlank } from "@/components/ui/dataTable";
-import { reportToWorkspace } from "@/components/ui/workspaceTable";
+import BaseCard from "./AppCard.vue";
+import TableSkeleton from "./TableSkeleton.vue";
+import DataTableCards from "./DataTableCards.vue";
+import ErrorState from "./ErrorState.vue";
+import type { SortState } from "../lists/sort";
+import { isBlank } from "../lists/dataTable";
+import { reportToWorkspace } from "../lists/workspaceTable";
 
 /**
  * The one data table. Column-definition driven so alignment, selection,

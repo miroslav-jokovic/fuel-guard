@@ -9,8 +9,8 @@ import { useRefreshCard } from "./useCardControl";
 import { AppButton as BaseButton } from "@silvicom/ui";
 import { RouterLink, useRouter } from "vue-router";
 import KebabMenu from "@/components/KebabMenu.vue";
-import DataTable, { type DataTableColumn } from "@/components/ui/DataTable.vue";
-import QueryState from "@/components/ui/QueryState.vue";
+import { DataTable, type DataTableColumn } from "@silvicom/ui";
+import { QueryState } from "@silvicom/ui";
 
 /** One rule for naming a card to a human, shared with the inventory — see cardIdentityLabel.ts. */
 const identity = cardIdentityLabel;

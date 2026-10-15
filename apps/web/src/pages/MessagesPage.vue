@@ -26,7 +26,7 @@ import { AppCheckbox as BaseCheckbox } from "@silvicom/ui";
 import { AppInput as BaseInput } from "@silvicom/ui";
 import { AppFormField as FormField } from "@silvicom/ui";
 import PageHeader from "@/components/ui/PageHeader.vue";
-import QueryState from "@/components/ui/QueryState.vue";
+import { QueryState } from "@silvicom/ui";
 
 /**
  * The dispatch inbox (hardening plan Phase 7, D-PM4 — Samsara's model): thread list + open

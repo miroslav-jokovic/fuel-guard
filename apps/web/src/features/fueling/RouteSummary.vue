@@ -12,7 +12,7 @@ import {
 } from "@silvicom/ui/icons";
 import { computed } from "vue";
 import { AppCard as BaseCard } from "@silvicom/ui";
-import FactList, { type Fact } from "@/components/ui/FactList.vue";
+import { FactList, type Fact } from "@silvicom/ui";
 import type { PlanResult } from "./useFuelPlan";
 
 const props = defineProps<{

@@ -2,11 +2,11 @@
 import { computed, ref } from "vue";
 import type { DrawDispatch, PoolPace, RandomDraw, RandomDrawPeriod, RandomDrawState } from "@silvicom/shared";
 import { AppButton as BaseButton, AppCard as BaseCard } from "@silvicom/ui";
-import DataTable from "@/components/ui/DataTable.vue";
-import type { DataTableColumn } from "@/components/ui/DataTable.vue";
+import { DataTable } from "@silvicom/ui";
+import { type DataTableColumn } from "@silvicom/ui";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
 import StatCard from "@/components/ui/StatCard.vue";
-import TablePagination from "@/components/TablePagination.vue";
+import { TablePagination } from "@silvicom/ui";
 import { useClientPage } from "@/composables/useClientPage";
 import PersonCell from "@/features/drugAlcohol/PersonCell.vue";
 import { BADGE_BASE, toneClass } from "@/lib/badges";

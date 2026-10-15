@@ -2,7 +2,7 @@
 import { computed, watch } from "vue";
 import { useRouter } from "vue-router";
 import { AppButton as BaseButton, AppCallout } from "@silvicom/ui";
-import { useQueryState } from "@/composables/useQueryState";
+import { useQueryState } from "@silvicom/ui";
 import { SORT_DIRECTIONS, useUrlSort } from "@/composables/useUrlSort";
 import {
   ROADSIDE_OOS_KINDS,
@@ -16,17 +16,17 @@ import {
   type RoadsidePeriod,
 } from "@silvicom/shared";
 import PageHeader from "@/components/ui/PageHeader.vue";
-import DataWorkspace from "@/components/ui/DataWorkspace.vue";
-import FilterBar from "@/components/ui/FilterBar.vue";
+import { DataWorkspace } from "@silvicom/ui";
+import { FilterBar } from "@silvicom/ui";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
-import DataTable from "@/components/ui/DataTable.vue";
-import type { DataTableColumn } from "@/components/ui/DataTable.vue";
-import TablePagination from "@/components/TablePagination.vue";
+import { DataTable } from "@silvicom/ui";
+import { type DataTableColumn } from "@silvicom/ui";
+import { TablePagination } from "@silvicom/ui";
 import { useRoadsideInspectionsQuery, useRoadsideSummaryQuery } from "@/features/roadside/useRoadsideInspections";
 import { roadsideFeedSentence } from "@/features/roadside/feedFreshness";
 import { useOrgTimezone } from "@/composables/useOrgTimezone";
 import { formatDate } from "@/lib/format";
-import { sortRows } from "@/lib/sort";
+import { sortRows } from "@silvicom/ui";
 
 /**
  * Roadside inspections — every inspection FMCSA records against our USDOT number, newest first

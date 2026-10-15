@@ -2,7 +2,7 @@
 import { computed, ref } from "vue";
 import { useRouter } from "vue-router";
 import { AppButton as BaseButton, AppFormField as FormField, AppInput as BaseInput } from "@silvicom/ui";
-import ErrorState from "@/components/ErrorState.vue";
+import { ErrorState } from "@silvicom/ui";
 import { useScanInput } from "@/composables/useScanInput";
 import { useLocationsQuery } from "@/features/inventory/useInventory";
 import { useScanQuery } from "@/features/inventory/useScan";

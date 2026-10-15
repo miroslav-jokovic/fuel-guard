@@ -32,16 +32,12 @@ vi.mock("@silvicom/ui", async (importOriginal) => ({
     emits: ["update:modelValue"],
     template: `<input data-testid="search" :value="modelValue" @input="$emit('update:modelValue', $event.target.value)" />`,
   },
-}));
-
-vi.mock("@/components/ui/DataTable.vue", () => ({
-  default: {
+  DataTable: {
     props: ["columns", "rows", "rowKey", "dense", "loading", "error", "emptyText"],
     template: `<table data-testid="results"><tr v-for="row in rows" :key="row.locId">
       <td>{{ row.name }}</td><td><slot name="actions" :row="row" /></td></tr></table>`,
   },
 }));
-
 const loves = (over: Partial<EfsLocation> = {}): EfsLocation => ({
   locId: "442013", name: "LOVES 442", city: "Effingham", state: "IL",
   country: "USA", addr1: null, phone: null, ...over,

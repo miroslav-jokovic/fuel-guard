@@ -2,10 +2,10 @@
 import { computed, ref } from "vue";
 import { AppButton as BaseButton, AppCard as BaseCard, AppInput as BaseInput, AppFormField as FormField } from "@silvicom/ui";
 import { canResendApplicationLink } from "@silvicom/shared";
-import DataTable from "@/components/ui/DataTable.vue";
+import { DataTable } from "@silvicom/ui";
 import KebabMenu from "@/components/KebabMenu.vue";
 import ApplicationLinkOnce from "@/features/recruitment/ApplicationLinkOnce.vue";
-import type { DataTableColumn } from "@/components/ui/DataTable.vue";
+import { type DataTableColumn } from "@silvicom/ui";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { applicationInviteBadge } from "@/lib/badges.recruiting";
 import { useSessionStore } from "@/stores/session";

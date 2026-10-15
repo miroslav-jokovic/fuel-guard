@@ -3,7 +3,7 @@ import { computed, reactive, toRef } from "vue";
 import type { CertificationCreateRequest, CertificationRow, CertificationKind } from "@silvicom/shared";
 import { HAZMAT_TRAINING_TYPES } from "@silvicom/shared";
 import { AppButton as BaseButton } from "@silvicom/ui";
-import DataTable, { type DataTableColumn } from "@/components/ui/DataTable.vue";
+import { DataTable, type DataTableColumn } from "@silvicom/ui";
 import { BADGE_BASE, dqItemBadge, toneClass } from "@/lib/badges";
 import { AppInput as BaseInput } from "@silvicom/ui";
 import { AppDateField } from "@silvicom/ui";

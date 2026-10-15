@@ -4,17 +4,17 @@ import { AppCallout, AppCard as BaseCard } from "@silvicom/ui";
 import { RECON_DISCREPANCIES, RECON_STATUS_LABELS, type ReconRow, type ReconStatus, type ReconSummary } from "@silvicom/shared";
 import { BADGE_BASE, toneClass, reconStatusBadge } from "@/lib/badges";
 import { formatDate } from "@/lib/format";
-import FilterBar from "@/components/ui/FilterBar.vue";
+import { FilterBar } from "@silvicom/ui";
 import StatCard from "@/components/ui/StatCard.vue";
-import FactList, { type Fact } from "@/components/ui/FactList.vue";
+import { FactList, type Fact } from "@silvicom/ui";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
-import DataTable from "@/components/ui/DataTable.vue";
-import DataWorkspace from "@/components/ui/DataWorkspace.vue";
+import { DataTable } from "@silvicom/ui";
+import { DataWorkspace } from "@silvicom/ui";
 import ExportButton from "@/components/ExportButton.vue";
-import TablePagination from "@/components/TablePagination.vue";
+import { TablePagination } from "@silvicom/ui";
 import { downloadCsv } from "@/lib/csv";
-import type { DataTableColumn } from "@/components/ui/DataTable.vue";
-import { useQueryState } from "@/composables/useQueryState";
+import { type DataTableColumn } from "@silvicom/ui";
+import { useQueryState } from "@silvicom/ui";
 
 /**
  * What one invoice check found — the counts, the money and the lines — as the SERVER recorded it.

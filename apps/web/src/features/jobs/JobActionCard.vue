@@ -6,7 +6,7 @@ import { useConfirm } from "@/stores/confirm";
 import { useJob } from "./useJob";
 import { AppCard as BaseCard } from "@silvicom/ui";
 import { AppButton as BaseButton } from "@silvicom/ui";
-import QueryState from "@/components/ui/QueryState.vue";
+import { QueryState } from "@silvicom/ui";
 
 const props = defineProps<{
   title: string;

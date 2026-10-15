@@ -13,7 +13,7 @@ import { formatRuleId } from "@silvicom/shared";
 import { apiFetch } from "@/lib/api";
 import CaseTimeline from "@/features/anomalies/CaseTimeline.vue";
 import { formatDateTime } from "@/lib/format";
-import QueryState from "@/components/ui/QueryState.vue";
+import { QueryState } from "@silvicom/ui";
 
 const props = defineProps<{ anomalyId: string }>();
 

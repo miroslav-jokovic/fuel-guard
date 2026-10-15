@@ -4,10 +4,10 @@ import { useRoute, useRouter, RouterLink } from "vue-router";
 import { AppButton as BaseButton, AppCallout } from "@silvicom/ui";
 import { STATE_NAMES } from "@silvicom/shared";
 import PageHeader from "@/components/ui/PageHeader.vue";
-import QueryState from "@/components/ui/QueryState.vue";
+import { QueryState } from "@silvicom/ui";
 import SamsaraFeedLine from "@/components/SamsaraFeedLine.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
-import DataTable, { type DataTableColumn } from "@/components/ui/DataTable.vue";
+import { DataTable, type DataTableColumn } from "@silvicom/ui";
 import StatCard from "@/components/ui/StatCard.vue";
 import ReportScopeBar from "@/components/ui/ReportScopeBar.vue";
 import {

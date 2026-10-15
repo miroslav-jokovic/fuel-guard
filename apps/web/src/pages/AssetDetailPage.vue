@@ -20,12 +20,12 @@ import {
   type AssetMovementReason,
 } from "@silvicom/shared";
 import PageHeader from "@/components/ui/PageHeader.vue";
-import DataTable from "@/components/ui/DataTable.vue";
-import type { DataTableColumn } from "@/components/ui/DataTable.vue";
+import { DataTable } from "@silvicom/ui";
+import { type DataTableColumn } from "@silvicom/ui";
 import TimelineRail, { type TimelineEntry } from "@/components/ui/TimelineRail.vue";
-import TablePagination from "@/components/TablePagination.vue";
-import QueryState from "@/components/ui/QueryState.vue";
-import FactList, { type Fact } from "@/components/ui/FactList.vue";
+import { TablePagination } from "@silvicom/ui";
+import { QueryState } from "@silvicom/ui";
+import { FactList, type Fact } from "@silvicom/ui";
 import FileDropzone from "@/components/ui/FileDropzone.vue";
 import AssetDrawer from "@/features/inventory/AssetDrawer.vue";
 import AssetMoveDrawer from "@/features/inventory/AssetMoveDrawer.vue";

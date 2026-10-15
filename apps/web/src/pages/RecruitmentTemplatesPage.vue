@@ -7,8 +7,8 @@ import {
 } from "@silvicom/shared";
 import { AppCard as BaseCard, AppButton as BaseButton } from "@silvicom/ui";
 import PageHeader from "@/components/ui/PageHeader.vue";
-import DataTable from "@/components/ui/DataTable.vue";
-import type { DataTableColumn } from "@/components/ui/DataTable.vue";
+import { DataTable } from "@silvicom/ui";
+import { type DataTableColumn } from "@silvicom/ui";
 import DocumentPreview from "@/components/DocumentPreview.vue";
 import type { RenderedDocument } from "@/lib/documentDownload";
 import RecruitmentTabs from "@/features/recruitment/RecruitmentTabs.vue";

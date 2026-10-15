@@ -10,18 +10,19 @@
  * ── THE WAY BACK IS THE ROUTE'S PARENT, NOT A PROP ────────────────────────────────────────────
  * Every record page names its list in `meta.parent` already — the breadcrumb trail and the shell's
  * Back chevron walk it — so the button reads that rather than taking a second copy per page
- * (D-DS17). It is offered only when the list opens for this reader (`useOpens`, SP5); otherwise, and
- * for a route with no parent, the way out is the dashboard, as on `NotFoundPage`.
+ * (D-DS17). It is offered only when the list opens for this reader (the app's answer, provided
+ * through `provideRouteOpens`: the web's `useOpens`, SP5); otherwise, and for a route with no parent,
+ * the way out is the dashboard, as on `NotFoundPage`.
  *
  * `inject` rather than `useRoute`/`useRouter`: `QueryState` is mounted in hundreds of component tests
  * that install no router, and this must render (with the dashboard fallback) in every one of them.
  */
 import { computed, inject } from "vue";
 import { routeLocationKey, routerKey } from "vue-router";
-import { AppButton as BaseButton } from "@silvicom/ui";
-import { MagnifyingGlassIcon } from "@silvicom/ui/icons";
-import ErrorPanel from "@/components/ErrorPanel.vue";
-import { useOpens } from "@/composables/useOpens";
+import BaseButton from "./AppButton.vue";
+import { MagnifyingGlassIcon } from "../icons";
+import ErrorPanel from "./ErrorPanel.vue";
+import { injectRouteOpens } from "../lists/routeOpens";
 
 defineProps<{
   /** What is missing, in the voice's "That asset is not on the books." form. */
@@ -31,7 +32,8 @@ defineProps<{
 const router = inject(routerKey, null);
 const route = inject(routeLocationKey, null);
 // No router, no route, no parent to offer — so no session to ask either (a component test).
-const opens = router ? useOpens() : () => false;
+const routeOpens = injectRouteOpens();
+const opens = router ? routeOpens : () => false;
 
 const back = computed(() => {
   const parent = route?.meta.parent;

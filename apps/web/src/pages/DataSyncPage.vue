@@ -5,13 +5,13 @@ import { AppButton as BaseButton } from "@silvicom/ui";
 import JobActionCard from "@/features/jobs/JobActionCard.vue";
 import FeedFreshnessCard from "@/features/settings/FeedFreshnessCard.vue";
 import { useTelematicsCoverageQuery, useWebhookStatusQuery } from "@/features/settings/useSamsaraStatus";
-import QueryState from "@/components/ui/QueryState.vue";
+import { QueryState } from "@silvicom/ui";
 import { useJob } from "@/features/jobs/useJob";
 import { useSessionStore } from "@/stores/session";
 import { AppCard as BaseCard } from "@silvicom/ui";
 import PageHeader from "@/components/ui/PageHeader.vue";
-import DataTable from "@/components/ui/DataTable.vue";
-import type { DataTableColumn } from "@/components/ui/DataTable.vue";
+import { DataTable } from "@silvicom/ui";
+import { type DataTableColumn } from "@silvicom/ui";
 import { formatDateTime } from "@/lib/format";
 
 const session = useSessionStore();

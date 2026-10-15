@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { mount } from "@vue/test-utils";
-import DataTable, { type DataTableColumn } from "@/components/ui/DataTable.vue";
+import DataTable, { type DataTableColumn } from "./DataTable.vue";
 
 /**
  * jsdom has no `matchMedia`, so `useMediaQuery` reports false and DataTable renders its NARROW card

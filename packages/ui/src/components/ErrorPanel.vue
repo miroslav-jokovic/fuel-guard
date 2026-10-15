@@ -8,8 +8,8 @@
  * quoting, one or two ways out) and the only thing that differs is the wording. Three copies of
  * that would drift, and a dead-end page nobody looks at is exactly where drift survives.
  */
-import { AppIcon } from "@silvicom/ui";
-import type { Icon } from "@silvicom/ui/icons";
+import AppIcon from "./AppIcon.vue";
+import type { Icon } from "../icons";
 
 defineProps<{
   /** Icon from `@silvicom/ui/icons` — the concept, not decoration. */

@@ -1170,17 +1170,32 @@ function verifyAdoption() {
    * A component used only INSIDE packages/ui counts as alive — AppIconButton has no app call site
    * but three internal ones, and it is a real primitive, not a leftover.
    */
+  //
+  // Every NAME the barrel exports, not only its `App*` components: since US7 (D-US11) it also carries
+  // the list composites, their helpers and their types, and a helper exported for nobody is the same
+  // broken promise. A name's own module does not count as its caller.
   const barrel = readFileSync(join(root, "packages/ui/src/index.ts"), "utf8");
-  const exported = [...barrel.matchAll(/export \{ default as (App[A-Za-z]+) \}/g)].map((m) => m[1]);
+  const exported = [];
+  for (const m of barrel.matchAll(/export (?:type )?\{([^}]+)\} from "\.\/([^"]+)";/g)) {
+    const module = join(root, "packages/ui/src", m[2].endsWith(".vue") ? m[2] : `${m[2]}.ts`);
+    for (const part of m[1].split(",")) {
+      const name = part.trim().replace(/^type\s+/, "").split(/\s+as\s+/).pop();
+      if (name) exported.push({ name, module });
+    }
+  }
   const consumers = [
     ...inspectFiles(filesUnder(webSrc, new Set([".vue", ".ts"]))),
     ...inspectFiles(filesUnder(adminSrc, new Set([".vue", ".ts"]))),
-    ...inspectFiles(filesUnder(join(root, "packages/ui/src/components"), new Set([".vue", ".ts"]))),
+    ...inspectFiles(filesUnder(join(root, "packages/ui/src"), new Set([".vue", ".ts"]))).filter(
+      (file) => !file.path.endsWith("/index.ts") && !file.path.endsWith(".test.ts"),
+    ),
   ];
-  const dead = exported.filter((name) => {
-    const used = new RegExp(`\\b${name}\\b`);
-    return !consumers.some((file) => used.test(file.source));
-  });
+  const dead = exported
+    .filter(({ name, module }) => {
+      const used = new RegExp(`\\b${name}\\b`);
+      return !consumers.some((file) => file.path !== module && used.test(file.source));
+    })
+    .map(({ name }) => name);
   if (dead.length)
     failures.push(`exports with no caller anywhere: ${dead.join(", ")}`);
 

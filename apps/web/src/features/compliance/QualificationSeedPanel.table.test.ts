@@ -15,7 +15,7 @@ vi.mock("@/lib/api", () => ({ apiFetch: vi.fn(async () => ({ ok: true, data: nul
 vi.mock("@/stores/toast", () => ({ useToastStore: () => ({ success: vi.fn(), error: vi.fn() }) }));
 
 import QualificationSeedPanel from "./QualificationSeedPanel.vue";
-import DataTable from "@/components/ui/DataTable.vue";
+import { DataTable } from "@silvicom/ui";
 
 const mountWith = (drivers: Array<{ id: string; full_name: string; state: string }>) =>
   mount(QualificationSeedPanel, {

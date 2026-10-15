@@ -9,7 +9,7 @@ import { AppCheckbox as BaseCheckbox } from "@silvicom/ui";
 import { AppInput as BaseInput } from "@silvicom/ui";
 import { AppFormField as FormField } from "@silvicom/ui";
 import PageHeader from "@/components/ui/PageHeader.vue";
-import QueryState from "@/components/ui/QueryState.vue";
+import { QueryState } from "@silvicom/ui";
 
 const { data, isLoading, isError, error, isFetching, refetch } = useThresholdsQuery();
 const save = useSaveThresholds();

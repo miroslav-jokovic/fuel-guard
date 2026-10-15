@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { AppButton as BaseButton } from "@silvicom/ui";
+import BaseButton from "./AppButton.vue";
 
 /**
  * The strip that appears between a list's FilterBar and its DataTable once rows are ticked:

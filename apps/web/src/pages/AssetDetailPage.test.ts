@@ -117,7 +117,7 @@ const AssetDetailPage = (await import("@/pages/AssetDetailPage.vue")).default;
  * would have read 60 for a page rendering thirty.
  */
 const TimelineRail = (await import("@/components/ui/TimelineRail.vue")).default;
-const DataTable = (await import("@/components/ui/DataTable.vue")).default;
+const DataTable = (await import("@silvicom/ui")).DataTable;
 const page = () => mount(AssetDetailPage, { global: { stubs: { SlideOver: true, FileDropzone: true } } });
 
 beforeEach(() => {

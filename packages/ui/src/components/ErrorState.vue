@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import { AppIcon } from "@silvicom/ui";
+import AppIcon from "./AppIcon.vue";
 import {
   ArrowPathIcon,
   ExclamationTriangleIcon,
-} from "@silvicom/ui/icons";
-import { AppButton as BaseButton } from "@silvicom/ui";
+} from "../icons";
+import BaseButton from "./AppButton.vue";
 
 withDefaults(defineProps<{ message?: string; retrying?: boolean }>(), {
   message: "Something went wrong while loading this data.",

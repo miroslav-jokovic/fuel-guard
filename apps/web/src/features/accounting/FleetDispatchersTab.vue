@@ -1,15 +1,15 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, watch } from "vue";
 import { useRoute } from "vue-router";
-import DataTable, { type DataTableColumn } from "@/components/ui/DataTable.vue";
-import DataWorkspace from "@/components/ui/DataWorkspace.vue";
-import FilterBar from "@/components/ui/FilterBar.vue";
+import { DataTable, type DataTableColumn } from "@silvicom/ui";
+import { DataWorkspace } from "@silvicom/ui";
+import { FilterBar } from "@silvicom/ui";
 import StatCard from "@/components/ui/StatCard.vue";
-import TablePagination from "@/components/TablePagination.vue";
+import { TablePagination } from "@silvicom/ui";
 import { useDispatcherEarningsQuery, type DispatcherEarnings } from "@/composables/useDispatcherEarnings";
-import { useQueryState } from "@/composables/useQueryState";
+import { useQueryState } from "@silvicom/ui";
 import { SORT_DIRECTIONS, useUrlSort } from "@/composables/useUrlSort";
-import { sortRows } from "@/lib/sort";
+import { sortRows } from "@silvicom/ui";
 import type { FleetReportResponse } from "./useFleetReport";
 import type { MileageCoverageResponse } from "./useMileageCoverage";
 

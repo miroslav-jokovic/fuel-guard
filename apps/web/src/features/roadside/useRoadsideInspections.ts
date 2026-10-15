@@ -11,7 +11,7 @@ import type {
   RoadsideSummary,
 } from "@silvicom/shared";
 import { apiFetch } from "@/lib/api";
-import { recordOrThrow } from "@/lib/notFound";
+import { recordOrThrow } from "@silvicom/ui";
 import { uploadDocumentFile } from "@/composables/useCompliance";
 
 /**

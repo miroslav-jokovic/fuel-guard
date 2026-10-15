@@ -1,5 +1,5 @@
 import { legalDriveMs, needsAttention, type DispatchBoardRow, type DispatchScope, type SavedViewTable } from "@silvicom/shared";
-import type { DataTableColumn } from "@/components/ui/DataTable.vue";
+import { type DataTableColumn } from "@silvicom/ui";
 import { POOL_FLEET, admitsScope, type ScopeFilter } from "./dispatchScope";
 
 export { NO_FLEET_OPTION, POOL_FLEET, POOL_OPTION, dispatcherName } from "./dispatchScope";

@@ -7,7 +7,7 @@ import PlacardDiamond from "./PlacardDiamond.vue";
 import CitationText from "./CitationText.vue";
 import FindingRow from "./FindingRow.vue";
 import VerdictDetails from "./VerdictDetails.vue";
-import FactList, { type Fact } from "@/components/ui/FactList.vue";
+import { FactList, type Fact } from "@silvicom/ui";
 
 /**
  * The verdict panel (plan H5). Renders the deterministic engine output — each with its CFR citation

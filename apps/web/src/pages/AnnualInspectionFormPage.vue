@@ -8,7 +8,7 @@ import {
   type InspectionResult,
 } from "@silvicom/shared";
 import { AppButton as BaseButton, AppCallout, AppBadge, AppCard as BaseCard } from "@silvicom/ui";
-import QueryState from "@/components/ui/QueryState.vue";
+import { QueryState } from "@silvicom/ui";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import InspectionHeaderFields from "@/features/maintenance/InspectionHeaderFields.vue";
 import InspectionItemRow from "@/features/maintenance/InspectionItemRow.vue";

@@ -14,9 +14,9 @@ import {
 } from "@silvicom/ui/icons";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import StatCard from "@/components/ui/StatCard.vue";
-import QueryState from "@/components/ui/QueryState.vue";
-import DataTable from "@/components/ui/DataTable.vue";
-import type { DataTableColumn } from "@/components/ui/DataTable.vue";
+import { QueryState } from "@silvicom/ui";
+import { DataTable } from "@silvicom/ui";
+import { type DataTableColumn } from "@silvicom/ui";
 import { lastFullMonth } from "@/lib/dateWindow";
 import { fmtMoney } from "@/lib/chartTheme";
 import { useMaintenanceSpendQuery } from "@/features/maintenance/useMaintenanceSpend";

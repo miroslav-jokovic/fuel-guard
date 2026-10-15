@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { AppCard as BaseCard } from "@silvicom/ui";
-import FactList, { type Fact } from "@/components/ui/FactList.vue";
+import { FactList, type Fact } from "@silvicom/ui";
 import type { FleetReportResponse } from "./useFleetReport";
 
 /**

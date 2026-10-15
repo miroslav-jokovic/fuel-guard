@@ -1,11 +1,11 @@
 <script setup lang="ts">
-import { AppIcon } from "@silvicom/ui";
+import AppIcon from "./AppIcon.vue";
 import {
   ChevronLeftIcon,
   ChevronRightIcon,
-} from "@silvicom/ui/icons";
+} from "../icons";
 import { computed, ref, watch } from "vue";
-import { AppButton as BaseButton } from "@silvicom/ui";
+import BaseButton from "./AppButton.vue";
 
 /**
  * `total: null` is a keyset-paged list that does not count its rows (Assignment history). It pages on

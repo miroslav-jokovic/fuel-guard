@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import type { DispatchBoardRow, DispatchScope } from "@silvicom/shared";
-import { sortRows } from "@/lib/sort";
+import { sortRows } from "@silvicom/ui";
 import { boardSortValue, filterBoard, durationWords, gpsAgeWords, POOL_OPTION, NO_FLEET_OPTION, type BoardFilter } from "./dispatchBoardView";
 
 const flags = { lateRisk: false, noNextLoad: false, emptyNow: false, hosLow: false, noGps: false };

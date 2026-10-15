@@ -2,7 +2,7 @@
 import { computed } from "vue";
 import { MEDSTOP_OUTCOME_LABELS, MEDSTOP_PORTAL_URL, canOrderDrugTests } from "@silvicom/shared";
 import { AppButton as BaseButton } from "@silvicom/ui";
-import QueryState from "@/components/ui/QueryState.vue";
+import { QueryState } from "@silvicom/ui";
 import { useMedstopTestsQuery } from "@/features/recruitment/useApplicantScreening";
 import { BADGE_BASE, medstopOutcomeTone } from "@/lib/badges";
 import { formatDate } from "@/lib/format";

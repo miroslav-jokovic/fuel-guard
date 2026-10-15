@@ -14,7 +14,7 @@ import { useVehiclesQuery } from "@/composables/useVehicles";
 import { useDriversQuery } from "@/composables/useDrivers";
 import { useOrgSettingsQuery } from "@/composables/useOrgSettings";
 import { useOpens } from "@/composables/useOpens";
-import QueryState from "@/components/ui/QueryState.vue";
+import { QueryState } from "@silvicom/ui";
 
 /**
  * "Fix →" shows only where the page that fixes the gap opens for the reader (SP5, plan §4b). The

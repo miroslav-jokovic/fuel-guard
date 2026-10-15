@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { mount } from "@vue/test-utils";
 import QueryState from "./QueryState.vue";
-import { NotFoundError } from "@/lib/notFound";
+import { NotFoundError } from "../lists/notFound";
 
 /** D-US5 — the three states every non-table fetch draws, in the table's order. */
 const mountState = (props: Record<string, unknown>) =>

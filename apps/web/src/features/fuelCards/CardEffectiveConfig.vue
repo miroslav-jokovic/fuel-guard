@@ -14,7 +14,7 @@
  */
 import { computed } from "vue";
 import { AppCard as BaseCard } from "@silvicom/ui";
-import DataTable, { type DataTableColumn } from "@/components/ui/DataTable.vue";
+import { DataTable, type DataTableColumn } from "@silvicom/ui";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import {
   type EffectiveDisplayRow,

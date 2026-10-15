@@ -1,6 +1,6 @@
 import { computed, type Ref } from "vue";
 import { dispatcherName, inMyScope, type DispatchBoardResponse, type DispatchScope } from "@silvicom/shared";
-import type { QueryState } from "@/composables/useQueryState";
+import type { UrlQueryState } from "@silvicom/ui";
 
 /**
  * Whose work a list shows — My fleet · All, Fleet, Dispatched by — for BOTH dispatch pages
@@ -79,7 +79,7 @@ export type ScopeChoice = "mine" | "all";
  * on an uncovered load (0 of 32, 2026-10-09) and the queue would read empty under My fleet — a link
  * must not land on a list that contradicts it. Anything else in the parameter reads as not chosen.
  */
-export function useScopeChoice(linked: Ref<boolean>, qs: Pick<QueryState, "one" | "set">) {
+export function useScopeChoice(linked: Ref<boolean>, qs: Pick<UrlQueryState, "one" | "set">) {
   const choice = computed<ScopeChoice>(() => {
     const v = qs.one("scope");
     if (v === "mine" || v === "all") return v;

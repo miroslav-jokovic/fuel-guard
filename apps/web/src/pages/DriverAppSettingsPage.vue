@@ -44,7 +44,7 @@ import { AppInput as BaseInput } from "@silvicom/ui";
 import { AppSwitch as BaseSwitch } from "@silvicom/ui";
 import { AppFormField as FormField } from "@silvicom/ui";
 import PageHeader from "@/components/ui/PageHeader.vue";
-import QueryState from "@/components/ui/QueryState.vue";
+import { QueryState } from "@silvicom/ui";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import ScoreFeatureOptions from "@/features/settings/ScoreFeatureOptions.vue";
 type SettingsTab = "features" | "app" | "exceptions";

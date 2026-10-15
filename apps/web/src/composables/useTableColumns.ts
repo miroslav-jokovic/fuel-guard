@@ -1,6 +1,6 @@
 import { computed, type ComputedRef } from "vue";
-import type { DataTableColumn } from "@/components/ui/DataTable.vue";
-import { useQueryState } from "@/composables/useQueryState";
+import { type DataTableColumn } from "@silvicom/ui";
+import { useQueryState } from "@silvicom/ui";
 
 /**
  * Which columns of a table this reader wants to see (R3b, D-ROS3/D-ROS15).

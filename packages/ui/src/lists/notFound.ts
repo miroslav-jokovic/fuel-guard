@@ -1,7 +1,16 @@
-// Beside `@/lib/api` rather than in it, importing only its TYPE: 88 test files replace `@/lib/api`
-// with a factory that knows `apiFetch` alone, and a record read's `recordOrThrow` must not vanish
-// from under every one of them that mounts a detail page.
-import type { ApiResult } from "./api";
+// Not in an app's `api` module: 88 web test files replace `@/lib/api` with a factory that knows
+// `apiFetch` alone, and a record read's `recordOrThrow` must not vanish from under every one of
+// them that mounts a detail page. In `@silvicom/ui` since US7 (D-US11), so the admin console's
+// record pages meet a missing record the same way. It reads the result by its SHAPE, which both
+// apps' fetch wrappers answer, rather than importing either app's type.
+
+/** What a record read answered: the shape the web's `apiFetch` and the admin's `apiGet` share. */
+export interface RecordResult<T> {
+  ok: boolean;
+  status: number;
+  data?: T | null;
+  error?: { message?: string } | null;
+}
 
 /**
  * The read asked for one record and there is no such record (D-US5, F21 — UI-STANDARDIZATION.md).
@@ -39,7 +48,7 @@ export const QUERY_DEFAULTS = { queries: { retry: retryUnlessNotFound } };
  * One record's read, unwrapped for a `queryFn`: the body when there is one, `NotFoundError` on a 404,
  * and a plain `Error` carrying `failure` (or the API's own reason) on anything else.
  */
-export function recordOrThrow<T>(r: ApiResult<T>, failure: string): T {
+export function recordOrThrow<T>(r: RecordResult<T>, failure: string): T {
   if (r.status === 404) throw new NotFoundError(r.error?.message);
   if (!r.ok || r.data == null) throw new Error(r.error?.message ?? failure);
   return r.data;

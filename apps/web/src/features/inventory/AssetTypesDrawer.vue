@@ -8,7 +8,7 @@ import {
   AppInput as BaseInput,
 } from "@silvicom/ui";
 import SlideOver from "@/components/SlideOver.vue";
-import QueryState from "@/components/ui/QueryState.vue";
+import { QueryState } from "@silvicom/ui";
 import {
   useAdoptStandardKit,
   useAssetTypesQuery,

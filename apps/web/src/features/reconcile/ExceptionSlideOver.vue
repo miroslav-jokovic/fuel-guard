@@ -6,8 +6,8 @@ import {
   type FuelExceptionStatus,
 } from "@silvicom/shared";
 import SlideOver from "@/components/SlideOver.vue";
-import QueryState from "@/components/ui/QueryState.vue";
-import FactList, { type Fact } from "@/components/ui/FactList.vue";
+import { QueryState } from "@silvicom/ui";
+import { FactList, type Fact } from "@silvicom/ui";
 import { BADGE_BASE, toneClass, fuelExceptionStatusBadge } from "@/lib/badges";
 import { useToastStore } from "@/stores/toast";
 import { useSessionStore } from "@/stores/session";

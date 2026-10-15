@@ -3,7 +3,7 @@ import { createApp } from "vue";
 import * as Sentry from "@sentry/vue";
 import { createPinia } from "pinia";
 import { VueQueryPlugin } from "@tanstack/vue-query";
-import { QUERY_DEFAULTS } from "@/lib/notFound";
+import { QUERY_DEFAULTS } from "@silvicom/ui";
 import App from "@/App.vue";
 import { router } from "@/router";
 import "@vuepic/vue-datepicker/dist/main.css";
@@ -29,6 +29,6 @@ if (import.meta.env.VITE_SENTRY_DSN) {
 app
   .use(createPinia())
   .use(router)
-  // A missing record is asked about once, not four times (F21, `NotFoundError` in `@/lib/notFound`).
+  // A missing record is asked about once, not four times (F21, `NotFoundError` in `@silvicom/ui`).
   .use(VueQueryPlugin, { queryClientConfig: { defaultOptions: QUERY_DEFAULTS } })
   .mount("#app");

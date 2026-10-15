@@ -6,7 +6,7 @@ import SignatoryAddForm from "@/features/recruitment/SignatoryAddForm.vue";
 import { useSessionStore } from "@/stores/session";
 import { useToastStore } from "@/stores/toast";
 import { useConfirm } from "@/stores/confirm";
-import QueryState from "@/components/ui/QueryState.vue";
+import { QueryState } from "@silvicom/ui";
 import { useDeleteRepresentative, useRepresentatives } from "@/features/recruitment/useHandbook";
 import { useRetireRoadTestExaminer, useRoadTestExaminers } from "@/features/recruitment/useRoadTest";
 

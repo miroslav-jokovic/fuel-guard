@@ -13,7 +13,7 @@ import {
 import { AppButton as BaseButton, AppInput as BaseInput, AppDateTimeField, AppFormField as FormField, AppSelect } from "@silvicom/ui";
 import { useSessionStore } from "@/stores/session";
 import { useToastStore } from "@/stores/toast";
-import QueryState from "@/components/ui/QueryState.vue";
+import { QueryState } from "@silvicom/ui";
 import { useEmployerCallsQuery, useRecordEmployerCall } from "@/features/recruitment/useApplicantScreening";
 
 /**

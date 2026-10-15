@@ -9,10 +9,10 @@ import {
   type UnitKitLineDto,
 } from "@silvicom/shared";
 import PageHeader from "@/components/ui/PageHeader.vue";
-import DataTable from "@/components/ui/DataTable.vue";
-import type { DataTableColumn } from "@/components/ui/DataTable.vue";
+import { DataTable } from "@silvicom/ui";
+import { type DataTableColumn } from "@silvicom/ui";
 import KebabMenu from "@/components/KebabMenu.vue";
-import QueryState from "@/components/ui/QueryState.vue";
+import { QueryState } from "@silvicom/ui";
 import AssetMoveDrawer from "@/features/inventory/AssetMoveDrawer.vue";
 import UnitOverrideDrawer from "@/features/inventory/UnitOverrideDrawer.vue";
 import { useUnitKitQuery } from "@/features/inventory/useUnits";

@@ -6,7 +6,7 @@ import {
   type AnomalyDisposition, type CardFraudIncidentTransition,
 } from "@silvicom/shared";
 import { formatDateTime } from "@/lib/format";
-import QueryState from "@/components/ui/QueryState.vue";
+import { QueryState } from "@silvicom/ui";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { useSessionStore } from "@/stores/session";
 import { useToastStore } from "@/stores/toast";

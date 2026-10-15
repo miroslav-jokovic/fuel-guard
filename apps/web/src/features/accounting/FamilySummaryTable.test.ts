@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { mount } from "@vue/test-utils";
 import FamilySummaryTable from "./FamilySummaryTable.vue";
-import DataTable from "@/components/ui/DataTable.vue";
+import { DataTable } from "@silvicom/ui";
 import type { FamilyRow, FamilySummaryResponse } from "./useFleetReport";
 
 /**

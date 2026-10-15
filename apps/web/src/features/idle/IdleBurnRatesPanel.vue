@@ -2,7 +2,7 @@
 import { computed } from "vue";
 import { AppRadioGroup as RadioGroup } from "@silvicom/ui";
 import type { IdleBurnPricing } from "@silvicom/shared";
-import DataTable, { type DataTableColumn } from "@/components/ui/DataTable.vue";
+import { DataTable, type DataTableColumn } from "@silvicom/ui";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { useSessionStore } from "@/stores/session";
 import { useToastStore } from "@/stores/toast";

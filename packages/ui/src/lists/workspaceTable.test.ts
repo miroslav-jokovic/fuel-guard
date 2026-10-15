@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { mount } from "@vue/test-utils";
 import { defineComponent, h, ref } from "vue";
-import DataWorkspace from "./DataWorkspace.vue";
-import FilterBar from "./FilterBar.vue";
-import DataTable from "./DataTable.vue";
+import DataWorkspace from "../components/DataWorkspace.vue";
+import FilterBar from "../components/FilterBar.vue";
+import DataTable from "../components/DataTable.vue";
 
 /**
  * F15 (US6b) — a toolbar list's count is printed only once its table has answered. The browser pass

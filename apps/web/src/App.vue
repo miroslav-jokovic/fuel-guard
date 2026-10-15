@@ -15,10 +15,15 @@ import SkipLink from "@/components/SkipLink.vue";
 import AssistantLauncher from "@/components/assistant/AssistantLauncher.vue";
 import { useSessionStore } from "@/stores/session";
 import { resolveLayout } from "@/lib/layout";
+import { provideRouteOpens } from "@silvicom/ui";
+import { useOpens } from "@/composables/useOpens";
 
 const route = useRoute();
 const router = useRouter();
 const session = useSessionStore();
+// Whether a route opens for this reader, for the shared pieces in `@silvicom/ui` that offer a way to
+// one (`NotFoundState`'s "Back to <list>"). The answer is the app's (SP5), so the app provides it.
+provideRouteOpens(useOpens());
 /**
  * No shell until the router has resolved the first URL (2026-10-13).
  *

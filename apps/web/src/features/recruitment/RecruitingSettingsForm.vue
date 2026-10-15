@@ -11,7 +11,7 @@ import {
 import { AppButton as BaseButton, AppFormField as FormField, AppInput as BaseInput, AppSwitch } from "@silvicom/ui";
 import { useSessionStore } from "@/stores/session";
 import { useToastStore } from "@/stores/toast";
-import QueryState from "@/components/ui/QueryState.vue";
+import { QueryState } from "@silvicom/ui";
 import { useRecruitingSettings, useSaveRecruitingSettings } from "@/features/recruitment/useRecruitingSettings";
 
 /**

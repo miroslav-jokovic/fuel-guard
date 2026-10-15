@@ -15,7 +15,7 @@ import ExportHistory from "@/features/compliance/ExportHistory.vue";
 import { buildAttentionStrip } from "@/features/compliance/attentionStrip";
 import { useRequestBinder } from "@/composables/useDqExports";
 import { useToastStore } from "@/stores/toast";
-import { useQueryState } from "@/composables/useQueryState";
+import { useQueryState } from "@silvicom/ui";
 import { DQ_DUE_FILTERS, DQ_STATE_FILTERS } from "@silvicom/shared";
 
 /**

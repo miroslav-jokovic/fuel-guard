@@ -11,7 +11,7 @@ import { AppButton, AppIcon } from "@silvicom/ui";
 import { CheckCircleIcon, ClockIcon } from "@silvicom/ui/icons";
 import { formatDate, formatDateTime } from "@/lib/format";
 import DocumentPreview from "@/components/DocumentPreview.vue";
-import QueryState from "@/components/ui/QueryState.vue";
+import { QueryState } from "@silvicom/ui";
 import type { RenderedDocument } from "@/lib/documentDownload";
 import type { AuthorizationDetail } from "@/features/recruitment/useAuthorizations";
 import PaperAuthorizationForm from "@/features/recruitment/PaperAuthorizationForm.vue";

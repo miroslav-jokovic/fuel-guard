@@ -32,7 +32,7 @@ vi.mock("./useVehicleSetupImport", () => ({
 }));
 
 import VehicleSetupImport from "./VehicleSetupImport.vue";
-import DataTable from "@/components/ui/DataTable.vue";
+import { DataTable } from "@silvicom/ui";
 import FileDropzone from "@/components/ui/FileDropzone.vue";
 
 const headers = (t: ReturnType<ReturnType<typeof mount>["findComponent"]>) => t.findAll("th").map((th) => th.text());

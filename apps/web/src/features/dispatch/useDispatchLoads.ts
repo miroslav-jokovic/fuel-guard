@@ -13,7 +13,7 @@ import {
   type LoadDispatchSummary,
 } from "@silvicom/shared";
 import { apiFetch } from "@/lib/api";
-import { recordOrThrow } from "@/lib/notFound";
+import { recordOrThrow } from "@silvicom/ui";
 
 /**
  * Dispatch load workspace (Phase 3D / D49) — the board's reads and the exceptions it clears.

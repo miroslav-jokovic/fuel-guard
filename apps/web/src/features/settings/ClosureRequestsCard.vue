@@ -4,7 +4,7 @@ import { AppCard as BaseCard, AppButton as BaseButton, AppInput as BaseInput } f
 import type { ClosureRequest } from "@silvicom/shared";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { formatDateTime } from "@/lib/format";
-import QueryState from "@/components/ui/QueryState.vue";
+import { QueryState } from "@silvicom/ui";
 import { useToastStore } from "@/stores/toast";
 import { useClosureRequestsQuery, useResolveClosureRequest } from "./useClosureRequests";
 

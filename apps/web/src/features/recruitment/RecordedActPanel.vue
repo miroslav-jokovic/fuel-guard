@@ -15,7 +15,7 @@ import { ClipboardDocumentCheckIcon } from "@silvicom/ui/icons";
 import FileDropzone from "@/components/ui/FileDropzone.vue";
 import { useSessionStore } from "@/stores/session";
 import { useToastStore } from "@/stores/toast";
-import QueryState from "@/components/ui/QueryState.vue";
+import { QueryState } from "@silvicom/ui";
 import { useDocumentsQuery, useQualificationRecordsQuery } from "@/composables/useCompliance";
 import { useRecordHiringAct } from "@/features/recruitment/useHiringEvidence";
 

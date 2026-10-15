@@ -682,6 +682,9 @@ importers:
 
   packages/ui:
     dependencies:
+      '@floating-ui/vue':
+        specifier: ^2.0.0
+        version: 2.0.0(vue@3.5.39(typescript@6.0.3))
       '@hugeicons/core-free-icons':
         specifier: 4.2.3
         version: 4.2.3
@@ -691,7 +694,13 @@ importers:
       '@vuepic/vue-datepicker':
         specifier: 14.0.0
         version: 14.0.0(vue@3.5.39(typescript@6.0.3))
+      '@vueuse/core':
+        specifier: 14.4.0
+        version: 14.4.0(vue@3.5.39(typescript@6.0.3))
     devDependencies:
+      '@types/node':
+        specifier: 26.0.1
+        version: 26.0.1
       '@vitejs/plugin-vue':
         specifier: 6.0.7
         version: 6.0.7(vite@8.1.1(@types/node@26.0.1)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0))(vue@3.5.39(typescript@6.0.3))

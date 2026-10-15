@@ -1,6 +1,6 @@
 import { computed } from "vue";
 import type { FindingSource } from "@silvicom/shared";
-import { useQueryState } from "@/composables/useQueryState";
+import { useQueryState } from "@silvicom/ui";
 
 /**
  * Which drawer is open on Fuel problems, held in the URL (F02-F04 chunk 8c4).

@@ -32,14 +32,14 @@ import { useDriversQuery } from "@/composables/useDrivers";
 import { useFuelTransactions, useFuelRangeTotals, FUEL_PAGE_SIZE, type FuelFilters } from "@/composables/useFuelLog";
 import { useFleetMpg } from "@/composables/useFleetMpg";
 import DateRangeFilter from "@/components/DateRangeFilter.vue";
-import FilterBar, { type FilterChip } from "@/components/ui/FilterBar.vue";
+import { FilterBar, type FilterChip } from "@silvicom/ui";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
-import DataTable from "@/components/ui/DataTable.vue";
+import { DataTable } from "@silvicom/ui";
 import StatCard from "@/components/ui/StatCard.vue";
-import type { DataTableColumn } from "@/components/ui/DataTable.vue";
+import { type DataTableColumn } from "@silvicom/ui";
 import FeedFreshnessLine from "@/components/FeedFreshnessLine.vue";
 import RowCoverageLine from "@/components/RowCoverageLine.vue";
-import TablePagination from "@/components/TablePagination.vue";
+import { TablePagination } from "@silvicom/ui";
 import { useUrlSort, SORT_DIRECTIONS } from "@/composables/useUrlSort";
 import { useUnitOptions, useVehicleIdsForUnits } from "./unitFilter";
 import ExportButton from "@/components/ExportButton.vue";
@@ -47,7 +47,7 @@ import { fuelLogExportTarget } from "./fuelLogExport";
 import { flaggedCasesLink } from "./flaggedCasesLink";
 import DoorLink from "@/components/ui/DoorLink.vue";
 import type { FuelLogSharedFilters } from "./useFuelLogFilters";
-import DataWorkspace from "@/components/ui/DataWorkspace.vue";
+import { DataWorkspace } from "@silvicom/ui";
 
 const props = defineProps<{ shared: FuelLogSharedFilters }>();
 

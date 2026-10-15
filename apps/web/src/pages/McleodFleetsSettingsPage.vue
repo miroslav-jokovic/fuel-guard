@@ -3,7 +3,7 @@ import { computed } from "vue";
 import { AppSelect } from "@silvicom/ui";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import SettingsSection from "@/components/ui/SettingsSection.vue";
-import DataTable, { type DataTableColumn } from "@/components/ui/DataTable.vue";
+import { DataTable, type DataTableColumn } from "@silvicom/ui";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { useSessionStore } from "@/stores/session";
 import { useToastStore } from "@/stores/toast";

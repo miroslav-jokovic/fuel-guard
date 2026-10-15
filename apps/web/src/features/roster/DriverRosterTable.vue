@@ -7,16 +7,16 @@ import { AppButton as BaseButton } from "@silvicom/ui";
 import { useSessionStore } from "@/stores/session";
 import { useComplianceOverviewQuery } from "@/composables/useCompliance";
 import { useVehiclesQuery } from "@/composables/useVehicles";
-import DataTable from "@/components/ui/DataTable.vue";
-import type { DataTableColumn } from "@/components/ui/DataTable.vue";
+import { DataTable } from "@silvicom/ui";
+import { type DataTableColumn } from "@silvicom/ui";
 import KebabMenu from "@/components/KebabMenu.vue";
 import GatedLink from "@/components/GatedLink.vue";
 import { useOpens } from "@/composables/useOpens";
 import StatusBadge from "@/components/StatusBadge.vue";
-import TablePagination from "@/components/TablePagination.vue";
+import { TablePagination } from "@silvicom/ui";
 import { formatPhone, formatDate } from "@/lib/format";
 import { BADGE_BASE, appAccessBadge, dqExpiryBadge, dqFileBadge, hosStatusBadge, toneClass } from "@/lib/badges";
-import type { SortState } from "@/lib/sort";
+import { type SortState } from "@silvicom/ui";
 
 /**
  * The roster grid (D-ROS1: it reads and navigates; the record page writes).

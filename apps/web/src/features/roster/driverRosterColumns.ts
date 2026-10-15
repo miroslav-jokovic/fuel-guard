@@ -1,4 +1,4 @@
-import type { DataTableColumn } from "@/components/ui/DataTable.vue";
+import { type DataTableColumn } from "@silvicom/ui";
 
 /**
  * The roster's column catalogue.

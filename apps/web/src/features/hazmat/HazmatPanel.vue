@@ -18,7 +18,7 @@ import { TANK_STATE_OPTIONS } from "@/features/hazmat/calcModel";
 import { useDefensePacket } from "@/features/hazmat/useDefensePacket";
 import { formatDateTime } from "@/lib/format";
 import { useOpens } from "@/composables/useOpens";
-import FactList, { type Fact } from "@/components/ui/FactList.vue";
+import { FactList, type Fact } from "@silvicom/ui";
 
 interface HazmatPanelRecord {
   id: string;

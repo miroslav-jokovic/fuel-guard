@@ -29,7 +29,7 @@ import {
   AppSelect,
 } from "@silvicom/ui";
 import SlideOver from "@/components/SlideOver.vue";
-import FactList, { type Fact } from "@/components/ui/FactList.vue";
+import { FactList, type Fact } from "@silvicom/ui";
 import { useToastStore } from "@/stores/toast";
 import { formatDate } from "@/lib/format";
 import { searchSites, useOrderContext, useOrderPreview, usePlaceOrder } from "@/composables/useMedstopOrder";

@@ -19,7 +19,7 @@
 import { AppButton as BaseButton } from "@silvicom/ui";
 import { ClockIcon } from "@silvicom/ui/icons";
 import PageHeader from "@/components/ui/PageHeader.vue";
-import ErrorPanel from "@/components/ErrorPanel.vue";
+import { ErrorPanel } from "@silvicom/ui";
 </script>
 
 <template>

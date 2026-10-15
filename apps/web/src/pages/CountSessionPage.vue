@@ -5,7 +5,7 @@ import ShelfWalk from "@/features/inventory/ShelfWalk.vue";
 import UnitCheck from "@/features/inventory/UnitCheck.vue";
 import { useCountSessionQuery } from "@/features/inventory/useInventory";
 import PageHeader from "@/components/ui/PageHeader.vue";
-import QueryState from "@/components/ui/QueryState.vue";
+import { QueryState } from "@silvicom/ui";
 
 /**
  * A walk, on a phone — of a shelf or of a truck (D-INV19; INVENTORY-PLAN.md I5 PR 2b and I9).

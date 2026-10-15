@@ -19,7 +19,7 @@ import {
 } from "@silvicom/shared";
 import DocumentPreview from "@/components/DocumentPreview.vue";
 import FileDropzone from "@/components/ui/FileDropzone.vue";
-import QueryState from "@/components/ui/QueryState.vue";
+import { QueryState } from "@silvicom/ui";
 import { useSessionStore } from "@/stores/session";
 import { useToastStore } from "@/stores/toast";
 import { formatDateTime } from "@/lib/format";

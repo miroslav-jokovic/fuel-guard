@@ -39,7 +39,7 @@ describe("FilterBar slots", () => {
 /**
  * The count reads as a sentence, at one as well as at many.
  *
- * Every one of this component's 41 call sites passes a PLURAL noun, so before `lib/plural.ts` a
+ * Every one of this component's 41 call sites passes a PLURAL noun, so before `lists/plural.ts` a
  * single result rendered "1 entries", "1 shelves", "1 truck stops" — on 41 surfaces, none of which
  * had noticed. The fix belongs in the component precisely because no call site changed: the 42nd
  * one will also pass a plural and will also be right.

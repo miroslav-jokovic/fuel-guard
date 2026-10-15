@@ -75,7 +75,7 @@ vi.mock("@/stores/session", async () => {
 });
 
 const PartsPage = (await import("@/pages/PartsPage.vue")).default;
-const DataTable = (await import("@/components/ui/DataTable.vue")).default;
+const DataTable = (await import("@silvicom/ui")).DataTable;
 const FilterSelect = (await import("@/components/ui/FilterSelect.vue")).default;
 
 /**

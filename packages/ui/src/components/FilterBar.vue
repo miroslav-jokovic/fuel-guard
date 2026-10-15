@@ -1,16 +1,16 @@
 <script setup lang="ts">
-import { AppIcon } from "@silvicom/ui";
+import AppIcon from "./AppIcon.vue";
 import {
   FunnelIcon,
   XMarkIcon,
-} from "@silvicom/ui/icons";
+} from "../icons";
 import { computed, ref } from "vue";
 import { useFloating, offset, flip, shift, autoUpdate } from "@floating-ui/vue";
-import { AppSearchField as SearchInput } from "@silvicom/ui";
-import { AppCard as BaseCard } from "@silvicom/ui";
-import { AppButton as BaseButton } from "@silvicom/ui";
-import { countLabelFor } from "@/lib/plural";
-import { useWorkspaceTable } from "@/components/ui/workspaceTable";
+import SearchInput from "./AppSearchField.vue";
+import BaseCard from "./AppCard.vue";
+import BaseButton from "./AppButton.vue";
+import { countLabelFor } from "../lists/plural";
+import { useWorkspaceTable } from "../lists/workspaceTable";
 
 /**
  * The standard table toolbar (see docs/DESIGN-SYSTEM-CONTRACT.md). One card:
@@ -43,7 +43,7 @@ const props = withDefaults(
     count?: number | null;
     /**
      * The PLURAL noun for the result count, always — "transactions", "shelves", "truck stops".
-     * `lib/plural.ts` renders it singular at exactly one, so no caller passes both forms and no
+     * `lists/plural.ts` renders it singular at exactly one, so no caller passes both forms and no
      * caller has to remember that a count of one exists.
      */
     countLabel?: string;

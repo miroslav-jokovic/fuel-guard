@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/vue-query";
 import { computed, type Ref } from "vue";
 import type { CardCapabilities, EfsCardSummary, EfsLocation } from "@silvicom/shared";
 import { apiFetch } from "@/lib/api";
-import { NotFoundError, retryUnlessNotFound } from "@/lib/notFound";
+import { NotFoundError, retryUnlessNotFound } from "@silvicom/ui";
 
 /**
  * Reading EFS cards.

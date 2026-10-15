@@ -1,4 +1,4 @@
-import type { DataTableColumn } from "@/components/ui/DataTable.vue";
+import { type DataTableColumn } from "@silvicom/ui";
 
 /**
  * The per-truck table's columns, in a module rather than inside `CpmTruckTable.vue`'s `<script setup>`

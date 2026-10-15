@@ -9,8 +9,8 @@ import {
 } from "@silvicom/ui";
 import SlideOver from "@/components/SlideOver.vue";
 import KebabMenu from "@/components/KebabMenu.vue";
-import DataTable, { type DataTableColumn } from "@/components/ui/DataTable.vue";
-import QueryState from "@/components/ui/QueryState.vue";
+import { DataTable, type DataTableColumn } from "@silvicom/ui";
+import { QueryState } from "@silvicom/ui";
 import { useCreateLocation, useLocationsQuery, useUpdateLocation } from "./useInventory";
 import { useToastStore } from "@/stores/toast";
 

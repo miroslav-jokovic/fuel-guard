@@ -34,7 +34,7 @@ vi.mock("@vueuse/core", async (orig) => ({ ...((await orig()) as object), useMed
 
 import OdometerPage from "./OdometerPage.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
-import TablePagination from "@/components/TablePagination.vue";
+import { TablePagination } from "@silvicom/ui";
 
 async function mountAt(url: string) {
   const router: Router = createRouter({

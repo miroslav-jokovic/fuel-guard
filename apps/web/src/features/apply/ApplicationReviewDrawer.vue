@@ -8,7 +8,7 @@ import {
 } from "@silvicom/shared";
 import SlideOver from "@/components/SlideOver.vue";
 import DocumentPreview from "@/components/DocumentPreview.vue";
-import QueryState from "@/components/ui/QueryState.vue";
+import { QueryState } from "@silvicom/ui";
 import type { RenderedDocument } from "@/lib/documentDownload";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { formatDateTime } from "@/lib/format";

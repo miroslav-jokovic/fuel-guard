@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { defineComponent, h } from "vue";
 import { mount, flushPromises } from "@vue/test-utils";
 import { createRouter, createMemoryHistory, type Router } from "vue-router";
-import { useQueryState, oneParam, ANY_PARAM, type QueryState } from "./useQueryState";
+import { useQueryState, oneParam, ANY_PARAM, type UrlQueryState } from "./useQueryState";
 
 /**
  * The buffer promoted out of `features/reconcile/useSpendFilters.ts` at R3a (D-ROS14).
@@ -13,12 +13,12 @@ import { useQueryState, oneParam, ANY_PARAM, type QueryState } from "./useQueryS
  * writes columns through the same buffer, it is pinned here in the general form — any two parameters,
  * any two writers, one tick.
  */
-async function mountStates(initial: string, scopes: (string | undefined)[]): Promise<{ states: QueryState[]; router: Router }> {
+async function mountStates(initial: string, scopes: (string | undefined)[]): Promise<{ states: UrlQueryState[]; router: Router }> {
   const router = createRouter({
     history: createMemoryHistory(),
     routes: [{ path: "/t", component: { template: "<div/>" } }],
   });
-  const states: QueryState[] = [];
+  const states: UrlQueryState[] = [];
   const C = defineComponent({
     setup() {
       for (const scope of scopes) states.push(useQueryState(scope));
@@ -31,12 +31,12 @@ async function mountStates(initial: string, scopes: (string | undefined)[]): Pro
   return { states, router };
 }
 
-async function mountState(initial = "/t"): Promise<{ s: QueryState; router: Router }> {
+async function mountState(initial = "/t"): Promise<{ s: UrlQueryState; router: Router }> {
   const router = createRouter({
     history: createMemoryHistory(),
     routes: [{ path: "/t", component: { template: "<div/>" } }],
   });
-  let s!: QueryState;
+  let s!: UrlQueryState;
   const C = defineComponent({
     setup() {
       s = useQueryState();

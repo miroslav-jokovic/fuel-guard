@@ -8,8 +8,8 @@ import { AppInput as BaseInput } from "@silvicom/ui";
 import { AppDateField } from "@silvicom/ui";
 import { AppCheckbox as BaseCheckbox } from "@silvicom/ui";
 import { AppFormField as FormField } from "@silvicom/ui";
-import DataTable from "@/components/ui/DataTable.vue";
-import type { DataTableColumn } from "@/components/ui/DataTable.vue";
+import { DataTable } from "@silvicom/ui";
+import { type DataTableColumn } from "@silvicom/ui";
 import { apiFetch } from "@/lib/api";
 import { useToastStore } from "@/stores/toast";
 

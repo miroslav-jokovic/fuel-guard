@@ -47,7 +47,7 @@ vi.mock("@/features/anomalies/useAnomalyDetail", () => ({
 }));
 
 import AnomalyDetail from "./AnomalyDetail.vue";
-import DataTable from "@/components/ui/DataTable.vue";
+import { DataTable } from "@silvicom/ui";
 
 describe("same-card fills table", () => {
   it("renders through DataTable with its columns, values and blanks as dashes", () => {

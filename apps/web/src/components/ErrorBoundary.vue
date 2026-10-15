@@ -31,7 +31,7 @@ import { useRoute } from "vue-router";
 import { AppButton as BaseButton } from "@silvicom/ui";
 import { ExclamationTriangleIcon } from "@silvicom/ui/icons";
 import { captureException, getClient } from "@sentry/vue";
-import ErrorPanel from "@/components/ErrorPanel.vue";
+import { ErrorPanel } from "@silvicom/ui";
 import { errorReference } from "@/lib/errorReference";
 
 const route = useRoute();

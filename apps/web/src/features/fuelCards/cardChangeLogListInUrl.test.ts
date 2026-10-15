@@ -27,7 +27,7 @@ vi.mock("@vueuse/core", async (orig) => ({ ...((await orig()) as object), useMed
 
 import CardChangeLog from "./CardChangeLog.vue";
 import DateRangeFilter from "@/components/DateRangeFilter.vue";
-import TablePagination from "@/components/TablePagination.vue";
+import { TablePagination } from "@silvicom/ui";
 
 const filters = () => (asked.filters as Ref<CardMutationLogFilters>).value;
 const page = () => (asked.page as Ref<number>).value;

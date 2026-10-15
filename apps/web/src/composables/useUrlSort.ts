@@ -1,5 +1,5 @@
 import { computed, type ComputedRef, type WritableComputedRef } from "vue";
-import { toggleSort, type SortState } from "@/lib/sort";
+import { toggleSort, type SortState } from "@silvicom/ui";
 
 /**
  * A table's sort, held in the URL as two parameters (FUEL-C3, D-FUI8).
@@ -18,7 +18,7 @@ import { toggleSort, type SortState } from "@/lib/sort";
  * `useQueryState`'s `param(key, allowed)` with the caller's own column list, and this helper's whole
  * contract is that `sort.key` is either one of those columns or `null`.
  *
- * ── THE CYCLE IS `lib/sort.ts`'s, UNCHANGED ─────────────────────────────────────────────────────
+ * ── THE CYCLE IS `sort.ts`'s (@silvicom/ui), UNCHANGED────────────────────────────────────────────────────
  * none → asc → desc → none, from `toggleSort`. The third press clears BOTH parameters rather than
  * leaving `?dir=asc` behind on a table that is no longer sorted — a parameter that describes nothing
  * is the kind of thing somebody later tries to make mean something.

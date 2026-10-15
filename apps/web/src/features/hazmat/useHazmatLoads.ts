@@ -7,7 +7,7 @@ import type {
   HazmatRunsResponse,
 } from "@silvicom/shared";
 import { apiFetch } from "@/lib/api";
-import { recordOrThrow } from "@/lib/notFound";
+import { recordOrThrow } from "@silvicom/ui";
 
 /**
  * Load Workspace data layer (plan H5). Reads/writes go through the API (never PostgREST): every lifecycle

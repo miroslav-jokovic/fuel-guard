@@ -2,7 +2,7 @@
 import { computed, ref } from "vue";
 import type { EfsLocation } from "@silvicom/shared";
 import { AppButton as BaseButton } from "@silvicom/ui";
-import DataTable, { type DataTableColumn } from "@/components/ui/DataTable.vue";
+import { DataTable, type DataTableColumn } from "@silvicom/ui";
 import { AppSearchField as SearchInput } from "@silvicom/ui";
 import { useEfsLocationSearch } from "./useEfsCards";
 

@@ -1,8 +1,8 @@
 <script setup lang="ts" generic="Row extends Record<string, any>">
 import { computed } from "vue";
-import type { DataTableColumn } from "@/components/ui/DataTable.vue";
-import type { SortState } from "@/lib/sort";
-import { isBlank } from "@/components/ui/dataTable";
+import type { DataTableColumn } from "./DataTable.vue";
+import type { SortState } from "../lists/sort";
+import { isBlank } from "../lists/dataTable";
 
 /**
  * The narrow-screen half of `DataTable` — one card per row, no table.

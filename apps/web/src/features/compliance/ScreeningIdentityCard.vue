@@ -9,7 +9,7 @@ import { useSessionStore } from "@/stores/session";
 import { useToastStore } from "@/stores/toast";
 import { useUpdateDriverProfile } from "@/composables/useDrivers";
 import { formatDate } from "@/lib/format";
-import FactList, { type Fact } from "@/components/ui/FactList.vue";
+import { FactList, type Fact } from "@silvicom/ui";
 
 /**
  * The four values a driver-screening lookup matches on (PSP-PLAN.md P0).

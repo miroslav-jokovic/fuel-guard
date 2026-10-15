@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { useQueryState } from "@/composables/useQueryState";
+import { useQueryState } from "@silvicom/ui";
 import { AppButton as BaseButton, AppIcon, AppTabs, type TabItem } from "@silvicom/ui";
 import {
   ArrowPathIcon,
