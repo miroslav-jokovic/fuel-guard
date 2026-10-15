@@ -112,6 +112,16 @@ describe("arithmeticWitness — weights", () => {
     expect(arithmeticWitness(doc(L0134831, {}), null).size).toBe(0);
   });
 
+  it("backs nothing on a one-line paper, whose total is that line, and still flags one that cannot fit", () => {
+    // 0135006: 8 fiber drums, 650 lb, nothing else on the paper
+    const one = arithmeticWitness(doc([row(8, 650)], { weight: 650, pieces: 8 }), doc([row(8, 650)], { weight: 650, pieces: 8 }));
+    expect(one.size).toBe(0);
+    const heavy = arithmeticWitness(doc([row(8, 6500)], { netWeight: 650 }), null);
+    expect(heavy.get(W(0))).toBeNull();
+    // a template row beside it does not make a second row
+    expect(arithmeticWitness(doc([row(8, 650), row(null, null)], { weight: 650 }), null).size).toBe(0);
+  });
+
   it("leaves a dormant template row out of the sum", () => {
     const sums = arithmeticWitness(doc([...L0134831, row(null, null)], P0134831), null);
     expect(sums.get(W(0))).toBe(30452.6);

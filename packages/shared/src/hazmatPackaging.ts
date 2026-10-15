@@ -141,6 +141,12 @@ export function packagingKindFor(value: string): PackagingKind | null {
  * every phrase fell through to the vehicle default (2026-08-08). A bare "tank" is other bulk, not a cargo
  * tank — the paper has not said which. "" is the honest answer for a phrase this does not know: the form
  * then asks, as it does on a fresh line, rather than inheriting a guess.
+ *
+ * ABBREVIATIONS (2026-10-15). Shipper systems print the package column as the NMFC/UCC short codes — "6 DR",
+ * "40 CTN", "2 CYL" — and the reader copies the column as printed, which the profile's own field description
+ * asks for ('6 DR'). Each code is a whole word, so "DR" never matches inside "DRY" or an address's "DR."
+ * is not a packaging phrase this reads. "PL" is left out on purpose: shippers print it for pallets as often
+ * as for pails, and a pallet is not a package type. A jerrican is the calculator's "Pail / jerrican" type.
  */
 export function packageTypeFromPrinted(phrase: string | null): string {
   const t = (phrase ?? "").toLowerCase();
@@ -148,11 +154,11 @@ export function packageTypeFromPrinted(phrase: string | null): string {
   if (/\b(totes?|ibcs?)\b/.test(t)) return "ibc_tote";
   if (/\b(cargo tanks?|bulk|hoppers?|pneumatics?)\b/.test(t)) return "bulk_cargo";
   if (/\btanks?\b/.test(t)) return "other_bulk";
-  if (/\bdrums?\b/.test(t)) return "drum";
+  if (/\b(drums?|drs?|drms?)\b/.test(t)) return "drum";
   if (/\b(pails?|jerricans?)\b/.test(t)) return "pail";
-  if (/\bcylinders?\b/.test(t)) return "cylinder";
-  if (/\b(cases?|cartons?|boxes|box)\b/.test(t)) return "box";
-  if (/\bbags?\b/.test(t)) return "bag";
+  if (/\b(cylinders?|cyls?)\b/.test(t)) return "cylinder";
+  if (/\b(cases?|cartons?|boxes|box|cs|ctns?|bx|bxs)\b/.test(t)) return "box";
+  if (/\b(bags?|sacks?|bgs?|sks?)\b/.test(t)) return "bag";
   if (/\bpackages?\b/.test(t)) return "other_non_bulk";
   return "";
 }

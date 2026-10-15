@@ -140,6 +140,22 @@ describe("packageTypeFromPrinted — the one reading of a printed packaging phra
     expect(packageTypeFromPrinted("3 packages")).toBe("other_non_bulk");
   });
 
+  it("reads the short codes shipper systems print in the package column, each only as a whole word", () => {
+    expect(packageTypeFromPrinted("6 DR")).toBe("drum");
+    expect(packageTypeFromPrinted("10 DRS")).toBe("drum");
+    expect(packageTypeFromPrinted("4 DRM")).toBe("drum");
+    expect(packageTypeFromPrinted("40 CTN")).toBe("box");
+    expect(packageTypeFromPrinted("12 CS")).toBe("box");
+    expect(packageTypeFromPrinted("3 BX")).toBe("box");
+    expect(packageTypeFromPrinted("36 SACKS")).toBe("bag");
+    expect(packageTypeFromPrinted("20 BG")).toBe("bag");
+    expect(packageTypeFromPrinted("2 CYL")).toBe("cylinder");
+    expect(packageTypeFromPrinted("48 Non-Removable Head Plastic Jerrican")).toBe("pail");
+    expect(packageTypeFromPrinted("6 DRY")).toBe("");
+    expect(packageTypeFromPrinted("12 PL")).toBe("");
+    expect(packageTypeFromPrinted("1 IBC of 6 DR")).toBe("ibc_tote");
+  });
+
   it("lets a bulk word win over a package word (toward bulk, D2), and knows nothing it was not told", () => {
     expect(packageTypeFromPrinted("4 totes of drums")).toBe("ibc_tote");
     expect(packageTypeFromPrinted("1 TT")).toBe("");
