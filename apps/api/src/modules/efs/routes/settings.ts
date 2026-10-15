@@ -1,5 +1,4 @@
 import { Router } from "express";
-import { z } from "zod";
 import {
   CARD_CONTROL_AUDIT_ACTIONS,
   CARD_CONTROL_SCOPES,
@@ -8,6 +7,7 @@ import {
   rolesThatManage,
   type CardControlScope,
   type UserRole,
+  recordId,
 } from "@silvicom/shared";
 import { getAppLocals } from "../../../lib/appLocals.js";
 import { writeAudit } from "../../../lib/audit.js";
@@ -50,7 +50,7 @@ import { memberLabels } from "../../../lib/memberLabels.js";
  * card id that was never a card id. There is a test for it.
  */
 
-const userIdSchema = z.string().uuid();
+const userIdSchema = recordId();
 
 interface MembershipRow {
   user_id: string;

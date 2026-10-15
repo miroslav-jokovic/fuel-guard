@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { recordId } from "./recordId.js";
 
 /**
  * Messages (Phase 5M, decision D54) — office↔driver, optionally bound to a load.
@@ -20,9 +21,9 @@ export type ParticipantRole = (typeof PARTICIPANT_ROLES)[number];
 
 // ── read shapes ───────────────────────────────────────────────────────────────
 export const messageSchema = z.object({
-  id: z.uuid(),
-  thread_id: z.uuid(),
-  sender_user_id: z.uuid().nullable(),
+  id: recordId(),
+  thread_id: recordId(),
+  sender_user_id: recordId().nullable(),
   sender_name: z.string().nullable().default(null),
   body: z.string(),
   created_at: z.string(),
@@ -32,7 +33,7 @@ export const messageSchema = z.object({
 export type Message = z.infer<typeof messageSchema>;
 
 export const threadParticipantSchema = z.object({
-  user_id: z.uuid(),
+  user_id: recordId(),
   name: z.string().nullable().default(null),
   role: z.enum(PARTICIPANT_ROLES),
   last_read_at: z.string().nullable(),
@@ -40,9 +41,9 @@ export const threadParticipantSchema = z.object({
 export type ThreadParticipant = z.infer<typeof threadParticipantSchema>;
 
 export const threadSchema = z.object({
-  id: z.uuid(),
+  id: recordId(),
   subject: z.string().nullable(),
-  load_id: z.uuid().nullable(),
+  load_id: recordId().nullable(),
   load_ref: z.string().nullable().default(null),
   status: z.enum(THREAD_STATUSES),
   last_message_at: z.string(),
@@ -74,20 +75,20 @@ export type ThreadDetailResponse = z.infer<typeof threadDetailResponseSchema>;
  */
 export const createThreadRequestSchema = z.object({
   /** Client UUID: the thread and its first message are one queued unit. */
-  thread_id: z.uuid(),
-  message_id: z.uuid(),
+  thread_id: recordId(),
+  message_id: recordId(),
   subject: z.string().max(200).optional(),
   /** Bind it to a load whenever there is one — see the note at the top of this file. */
-  load_id: z.uuid().nullish(),
+  load_id: recordId().nullish(),
   /** Office-side only: which driver this is with. A driver's own thread targets dispatch. */
-  driver_id: z.uuid().nullish(),
+  driver_id: recordId().nullish(),
   body: z.string().min(1).max(4000),
 });
 export type CreateThreadRequest = z.infer<typeof createThreadRequestSchema>;
 
 export const sendMessageRequestSchema = z.object({
   /** Client UUID and the row PK — a replayed outbox drain collides and no-ops. */
-  message_id: z.uuid(),
+  message_id: recordId(),
   body: z.string().min(1).max(4000),
   occurred_at: z.string().optional(),
 });

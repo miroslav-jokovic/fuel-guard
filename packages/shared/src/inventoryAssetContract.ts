@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { recordId } from "./recordId.js";
 import { holderKindSchema, itemConditionSchema } from "./inventoryContract.js";
 import { KIT_STATES } from "./inventoryRules.js";
 
@@ -148,7 +149,7 @@ const optionalText = (max: number) => trimmedText(max).nullable();
  */
 export const assetHolderSchema = z.object({
   kind: holderKindSchema,
-  id: z.uuid().nullable(),
+  id: recordId().nullable(),
   label: z.string().nullable(),
   /**
    * The driver of the holding vehicle, by inference and never stored (D-INV3). Null for a trailer,
@@ -172,7 +173,7 @@ export type AssetHolder = z.infer<typeof assetHolderSchema>;
  * which is what makes A4's "ship empty and let the first check populate it" survivable.
  */
 export const assetTypeDtoSchema = z.object({
-  id: z.uuid(),
+  id: recordId(),
   name: trimmedText(120),
   category: optionalText(64),
   serialized: z.boolean(),
@@ -202,10 +203,10 @@ export type AssetTypeInput = z.infer<typeof assetTypeInputSchema>;
  * every later feature that prints, scans or cites it.
  */
 export const assetDtoSchema = z.object({
-  id: z.uuid(),
+  id: recordId(),
   tagCode: optionalText(16),
   displayNo: trimmedText(16),
-  assetTypeId: z.uuid(),
+  assetTypeId: recordId(),
   assetTypeName: z.string(),
   name: trimmedText(120),
   serialNumber: optionalText(64),
@@ -223,7 +224,7 @@ export const assetDtoSchema = z.object({
 export type AssetDto = z.infer<typeof assetDtoSchema>;
 
 export const assetInputSchema = z.object({
-  assetTypeId: z.uuid(),
+  assetTypeId: recordId(),
   name: trimmedText(120).min(1, "Name the asset."),
   serialNumber: optionalText(64).optional(),
   model: optionalText(64).optional(),
@@ -240,18 +241,18 @@ export type AssetInput = z.infer<typeof assetInputSchema>;
 // ── asset movements ──────────────────────────────────────────────────────────────────────────────
 
 export const assetMovementDtoSchema = z.object({
-  id: z.uuid(),
-  assetId: z.uuid(),
+  id: recordId(),
+  assetId: recordId(),
   reason: assetMovementReasonSchema,
   fromHolder: assetHolderSchema.nullable(),
   toHolder: assetHolderSchema.nullable(),
   condition: itemConditionSchema.nullable(),
   note: optionalText(2000),
-  actorUserId: z.uuid().nullable(),
+  actorUserId: recordId().nullable(),
   actorName: z.string().nullable(),
   /** Text, not an FK — see the file header on D-INV3 and `merge_driver_v2`. */
   actorDriverId: optionalText(64),
-  countSessionId: z.uuid().nullable(),
+  countSessionId: recordId().nullable(),
   occurredAt: z.string(),
   receivedAt: z.string(),
 });
@@ -268,15 +269,15 @@ export type AssetMovementDto = z.infer<typeof assetMovementDtoSchema>;
  */
 export const assetMovementInputSchema = z
   .object({
-    id: z.uuid(),
-    assetId: z.uuid(),
+    id: recordId(),
+    assetId: recordId(),
     reason: assetMovementReasonSchema,
-    toLocationId: z.uuid().nullable().optional(),
-    toVehicleId: z.uuid().nullable().optional(),
-    toTrailerId: z.uuid().nullable().optional(),
+    toLocationId: recordId().nullable().optional(),
+    toVehicleId: recordId().nullable().optional(),
+    toTrailerId: recordId().nullable().optional(),
     condition: itemConditionSchema.optional(),
     note: optionalText(2000).optional(),
-    countSessionId: z.uuid().nullable().optional(),
+    countSessionId: recordId().nullable().optional(),
     occurredAt: z.string(),
   })
   .refine(
@@ -308,22 +309,22 @@ export type AssetMovementInput = z.infer<typeof assetMovementInputSchema>;
  * it an override for that unit alone.
  */
 export const kitExpectationDtoSchema = z.object({
-  id: z.uuid(),
-  assetTypeId: z.uuid(),
+  id: recordId(),
+  assetTypeId: recordId(),
   assetTypeName: z.string(),
   unitKind: unitKindSchema,
-  vehicleId: z.uuid().nullable(),
-  trailerId: z.uuid().nullable(),
+  vehicleId: recordId().nullable(),
+  trailerId: recordId().nullable(),
   quantity: z.number().int().nonnegative(),
 });
 export type KitExpectationDto = z.infer<typeof kitExpectationDtoSchema>;
 
 export const kitExpectationInputSchema = z
   .object({
-    assetTypeId: z.uuid(),
+    assetTypeId: recordId(),
     unitKind: unitKindSchema,
-    vehicleId: z.uuid().nullable().optional(),
-    trailerId: z.uuid().nullable().optional(),
+    vehicleId: recordId().nullable().optional(),
+    trailerId: recordId().nullable().optional(),
     /** Zero is meaningful: an override that says this truck carries none of something. */
     quantity: z.number().int().nonnegative(),
   })
@@ -378,9 +379,9 @@ export type ReportAssetInput = z.infer<typeof reportAssetSchema>;
  */
 export const assetCreateSchema = assetInputSchema
   .extend({
-    locationId: z.uuid().nullable().optional(),
-    vehicleId: z.uuid().nullable().optional(),
-    trailerId: z.uuid().nullable().optional(),
+    locationId: recordId().nullable().optional(),
+    vehicleId: recordId().nullable().optional(),
+    trailerId: recordId().nullable().optional(),
   })
   .refine((v) => [v.locationId, v.vehicleId, v.trailerId].filter(Boolean).length <= 1, {
     message: "An asset starts in one place.",
@@ -414,7 +415,7 @@ export const KIT_EXPECTATION_SOURCE_LABELS: Record<KitExpectationSource, string>
 };
 
 export const unitKitLineDtoSchema = z.object({
-  assetTypeId: z.uuid(),
+  assetTypeId: recordId(),
   assetTypeName: z.string(),
   expected: z.number().int().nonnegative(),
   held: z.number().int().nonnegative(),
@@ -440,7 +441,7 @@ export type UnitKitLineDto = z.infer<typeof unitKitLineDtoSchema>;
  */
 export const unitKitDtoSchema = z.object({
   kind: unitKindSchema,
-  unitId: z.uuid(),
+  unitId: recordId(),
   unitNumber: z.string(),
   inferredDriverName: z.string().nullable(),
   /** `deriveKitStatus`'s own three words — `KIT_STATES`, not a copy of them. */

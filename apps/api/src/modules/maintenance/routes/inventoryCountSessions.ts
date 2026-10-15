@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
-import { countSessionInputSchema } from "@silvicom/shared";
+import { countSessionInputSchema, recordId } from "@silvicom/shared";
 import { requireAuth, requireOrg, requireSection } from "../../../middleware/auth.js";
 import { apiError, asyncHandler, validateBody } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
@@ -35,7 +35,7 @@ import { isServiceError } from "../inventory/types.js";
 const listSchema = z.object({
   status: z.enum(["open", "closed"]).optional(),
   kind: z.enum(["location", "unit"]).optional(),
-  locationId: z.uuid().optional(),
+  locationId: recordId().optional(),
   limit: z.coerce.number().int().min(1).max(200).optional(),
   offset: z.coerce.number().int().min(0).optional(),
 });

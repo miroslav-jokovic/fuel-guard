@@ -1,5 +1,6 @@
 import { Router, type Request, type Response } from "express";
 import { z } from "zod";
+import { recordId } from "@silvicom/shared";
 import {
   requirePlatformAuth,
   requireAAL2,
@@ -101,7 +102,7 @@ export function alertRecipientsRouter(): Router {
     requireStepUp,
     async (req: Request, res: Response) => {
       const id = req.params.id;
-      if (typeof id !== "string" || !z.uuid().safeParse(id).success) {
+      if (typeof id !== "string" || !recordId().safeParse(id).success) {
         res.status(400).json(apiError("invalid_request", "Invalid recipient id"));
         return;
       }

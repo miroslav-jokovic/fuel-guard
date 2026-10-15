@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
-import { partInputSchema } from "@silvicom/shared";
+import { partInputSchema, recordId } from "@silvicom/shared";
 import { requireAuth, requireOrg, requireSection } from "../../../middleware/auth.js";
 import { apiError, asyncHandler, validateBody } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
@@ -32,7 +32,7 @@ const listSchema = z.object({
 const patchSchema = partInputSchema.partial();
 
 const photoSchema = z.object({
-  photoId: z.uuid(),
+  photoId: recordId(),
   contentType: z.string().min(1).max(80),
 });
 

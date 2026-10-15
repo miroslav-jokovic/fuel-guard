@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { recordId } from "./recordId.js";
 
 /**
  * What goes on a label, and what a print run asks for (INVENTORY-PLAN.md I10; D-INV18, D-INV25).
@@ -35,8 +36,8 @@ import { z } from "zod";
  * its primary key and there is no surrogate id to send. An asset has one.
  */
 export const labelTargetSchema = z.discriminatedUnion("kind", [
-  z.object({ kind: z.literal("stock"), partId: z.uuid(), locationId: z.uuid() }),
-  z.object({ kind: z.literal("asset"), assetId: z.uuid() }),
+  z.object({ kind: z.literal("stock"), partId: recordId(), locationId: recordId() }),
+  z.object({ kind: z.literal("asset"), assetId: recordId() }),
 ]);
 export type LabelTarget = z.infer<typeof labelTargetSchema>;
 

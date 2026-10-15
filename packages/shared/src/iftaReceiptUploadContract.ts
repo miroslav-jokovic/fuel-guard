@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { recordId } from "./recordId.js";
 import type { DriverFuelFileFormat, DriverFuelRefusal, DriverFuelStatedTotal } from "./ifta/driverFuelFile.js";
 
 /**
@@ -23,7 +24,7 @@ export const iftaReceiptUploadRequestSchema = z.object({
    * The truck for each question the preview asked (`truckQuestions[].key` → vehicle id). Applies only
    * to the rows that question covers; a row whose truck the file or Samsara already decided keeps it.
    */
-  truckChoices: z.record(z.string().min(1).max(200), z.uuid()).default({}),
+  truckChoices: z.record(z.string().min(1).max(200), recordId()).default({}),
 });
 export type IftaReceiptUploadRequest = z.input<typeof iftaReceiptUploadRequestSchema>;
 

@@ -21,6 +21,7 @@ import {
   rolesAssignableIn,
   type FuelExceptionStatus,
   type UserRole,
+  isRecordId,
 } from "@silvicom/shared";
 import { exceptionTotals, listExceptions, moveException, readException } from "../fuelExceptions.js";
 import { readFindings, readFindingsSummary } from "../findingsRead.js";
@@ -30,7 +31,6 @@ import { renderDisputePacket } from "../fuelDisputePacket.js";
 import { ExportTooLargeError, MAX_EXPORT_ROWS } from "../../../lib/csvExport.js";
 
 const YMD = /^\d{4}-\d{2}-\d{2}$/;
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** Express 5 types a route param as `string | string[] | undefined`; an id here is one value. */
 const param = (v: unknown): string => (typeof v === "string" ? v : "");
@@ -66,7 +66,7 @@ export const ymd = (raw: unknown): string | null => (typeof raw === "string" && 
 export const idsFrom = (raw: unknown): string[] | null => {
   const ids = (typeof raw === "string" ? raw.split(",") : [])
     .map((s) => s.trim())
-    .filter((s) => UUID.test(s))
+    .filter((s) => isRecordId(s))
     .slice(0, 500);
   return ids.length ? ids : null;
 };
@@ -78,7 +78,7 @@ async function unitsForVehicles(
 ): Promise<string[] | null> {
   const ids = (typeof raw === "string" ? raw.split(",") : [])
     .map((s) => s.trim())
-    .filter((s) => UUID.test(s))
+    .filter((s) => isRecordId(s))
     .slice(0, 500);
   if (ids.length === 0) return null;
   const { data, error } = await admin.from("vehicles").select("unit_number").eq("org_id", orgId).in("id", ids);
@@ -134,7 +134,7 @@ export function registerExceptionRoutes(router: Router): void {
       const body = req.body as { assignee?: unknown; findings?: unknown };
 
       const assignee =
-        body?.assignee == null ? null : typeof body.assignee === "string" && UUID.test(body.assignee) ? body.assignee : undefined;
+        body?.assignee == null ? null : typeof body.assignee === "string" && isRecordId(body.assignee) ? body.assignee : undefined;
       if (assignee === undefined) {
         res.status(400).json(apiError("bad_request", "That is not somebody we can assign a finding to."));
         return;
@@ -208,7 +208,7 @@ export function registerExceptionRoutes(router: Router): void {
         // `?vehicles=` with ids, the same parameter every other fuel surface sends.
         vehicleIds: idsFrom(req.query.vehicles),
         assignedTo:
-          typeof req.query.assignedTo === "string" && UUID.test(req.query.assignedTo) ? req.query.assignedTo : null,
+          typeof req.query.assignedTo === "string" && isRecordId(req.query.assignedTo) ? req.query.assignedTo : null,
         from: ymd(req.query.from),
         to: ymd(req.query.to),
         limit: Number(req.query.limit) || 50,
@@ -276,7 +276,7 @@ export function registerExceptionRoutes(router: Router): void {
       const { rows, total } = await listExceptions(admin, req.auth!.orgId!, {
         status: closedSet(req.query.status, FUEL_EXCEPTION_STATUSES),
         kind: closedSet(req.query.kind, FUEL_EXCEPTION_KINDS),
-        assignedTo: typeof req.query.assignedTo === "string" && UUID.test(req.query.assignedTo) ? req.query.assignedTo : null,
+        assignedTo: typeof req.query.assignedTo === "string" && isRecordId(req.query.assignedTo) ? req.query.assignedTo : null,
         unitNumbers: await unitsForVehicles(admin, req.auth!.orgId!, req.query.vehicles),
         from: ymd(req.query.from),
         to: ymd(req.query.to),
@@ -300,7 +300,7 @@ export function registerExceptionRoutes(router: Router): void {
         // The tiles take the same truck and owner scope the list takes, or they answer a different
         // question from the rows beneath them.
         unitNumbers: await unitsForVehicles(admin, req.auth!.orgId!, req.query.vehicles),
-        assignedTo: typeof req.query.assignedTo === "string" && UUID.test(req.query.assignedTo) ? req.query.assignedTo : null,
+        assignedTo: typeof req.query.assignedTo === "string" && isRecordId(req.query.assignedTo) ? req.query.assignedTo : null,
       });
       res.json({ ok: true, totals });
     }),
@@ -324,7 +324,7 @@ export function registerExceptionRoutes(router: Router): void {
       const filters = {
         status: closedSet(req.query.status, FUEL_EXCEPTION_STATUSES),
         kind: closedSet(req.query.kind, FUEL_EXCEPTION_KINDS),
-        assignedTo: typeof req.query.assignedTo === "string" && UUID.test(req.query.assignedTo) ? req.query.assignedTo : null,
+        assignedTo: typeof req.query.assignedTo === "string" && isRecordId(req.query.assignedTo) ? req.query.assignedTo : null,
         unitNumbers: await unitsForVehicles(admin, orgId, req.query.vehicles),
         from: ymd(req.query.from),
         to: ymd(req.query.to),
@@ -389,7 +389,7 @@ export function registerExceptionRoutes(router: Router): void {
       const admin = getSupabaseAdmin(getAppLocals(req).env);
       const ids = (typeof req.query.ids === "string" ? req.query.ids.split(",") : [])
         .map((s) => s.trim())
-        .filter((s) => UUID.test(s))
+        .filter((s) => isRecordId(s))
         .slice(0, 500);
       if (ids.length === 0) {
         res.status(400).json(apiError("bad_request", "Name the findings to claim, as a comma-separated list of ids."));
@@ -459,7 +459,7 @@ export function registerExceptionRoutes(router: Router): void {
         status,
         assignedTo: body?.assignedTo === undefined
           ? undefined
-          : typeof body.assignedTo === "string" && UUID.test(body.assignedTo) ? body.assignedTo : null,
+          : typeof body.assignedTo === "string" && isRecordId(body.assignedTo) ? body.assignedTo : null,
         note: typeof body?.note === "string" ? body.note.slice(0, 4000) : undefined,
         creditedAmount: body?.creditedAmount == null ? null : Number(body.creditedAmount) || 0,
         creditedOn: ymd(body?.creditedOn),

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { recordId } from "./recordId.js";
 import {
   INSPECTION_ITEMS,
   INSPECTION_RESULTS,
@@ -217,10 +218,10 @@ export const inspectionItemAnswerSchema = z.object({
 
 /** POST — the draft. Client-generated id so a retried submit does not create a second report. */
 export const inspectionCreateSchema = z.object({
-  id: z.uuid(),
+  id: recordId(),
   subjectType: inspectionSubjectTypeSchema,
-  subjectId: z.uuid(),
-  inspectorId: z.uuid(),
+  subjectId: recordId(),
+  inspectorId: recordId(),
   inspectedOn: inspectionDateSchema,
   /**
    * The two header values the office has in front of it when it starts, and which nothing could
@@ -242,7 +243,7 @@ export type InspectionCreateRequest = z.infer<typeof inspectionCreateSchema>;
 
 /** PATCH — draft only. Every field optional; the items array is a sparse upsert by key. */
 export const inspectionPatchSchema = z.object({
-  inspectorId: z.uuid().optional(),
+  inspectorId: recordId().optional(),
   inspectedOn: inspectionDateSchema.optional(),
   vehicleIdentificationMethod: vehicleIdentificationMethodSchema.optional(),
   vehicleIdentificationValue: z.string().max(60).nullish(),
@@ -346,11 +347,11 @@ export const inspectionDeleteRequestSchema = z.object({
 export type InspectionDeleteRequest = z.infer<typeof inspectionDeleteRequestSchema>;
 
 export const inspectionDtoSchema = z.object({
-  id: z.uuid(),
+  id: recordId(),
   subjectType: inspectionSubjectTypeSchema,
-  subjectId: z.uuid(),
+  subjectId: recordId(),
   subjectUnitNumber: z.string().nullable(),
-  inspectorId: z.uuid(),
+  inspectorId: recordId(),
   inspectorName: z.string().nullable(),
   inspectedOn: z.string(),
   nextDueOn: z.string().nullable(),
@@ -362,9 +363,9 @@ export const inspectionDtoSchema = z.object({
   otherConditions: z.string().nullable(),
   status: inspectionStatusSchema,
   outcome: inspectionOutcomeSchema.nullable(),
-  supersedesId: z.uuid().nullable(),
-  documentId: z.uuid().nullable(),
-  certificationId: z.uuid().nullable(),
+  supersedesId: recordId().nullable(),
+  documentId: recordId().nullable(),
+  certificationId: recordId().nullable(),
   finalizedAt: z.string().nullable(),
   createdAt: z.string(),
   items: z.array(inspectionItemDtoSchema),

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { recordId } from "./recordId.js";
 import { APPLICATION_SECTION_ORDER, type ApplicationSection } from "./applicationSections.js";
 import { AUTHORIZATION_PURPOSES, type AuthorizationPurpose } from "./authorizationContract.js";
 
@@ -106,7 +107,7 @@ export const SCREEN_EVENTS_MAX = 50;
  */
 export const applicationScreenEventSchema = z
   .object({
-    id: z.uuid(),
+    id: recordId(),
     screen: z.string().refine(isApplyScreen, { message: "Not a screen of this page." }),
     entered_at: z.iso.datetime(),
     left_at: z.iso.datetime().nullable(),

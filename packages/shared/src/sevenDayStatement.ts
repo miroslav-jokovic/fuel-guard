@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { recordId } from "./recordId.js";
 
 /**
  * The §395.8(j)(2) seven-day work statement (P7, D-PKT7, migration 0236).
@@ -35,7 +36,7 @@ export type SevenDayEntry = z.infer<typeof sevenDayEntrySchema>;
 export const SEVEN_DAY_LENGTH = 7;
 
 export const sevenDayStatementCreateSchema = z.object({
-  driver_id: z.uuid(),
+  driver_id: recordId(),
   /** The day the statement is made — the packet's "Today's date". */
   statement_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Expected a date as YYYY-MM-DD"),
   /**

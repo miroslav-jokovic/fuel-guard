@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { recordId } from "./recordId.js";
 import { carrierWallTimeSchema } from "./applicantScreeningContract.js";
 
 /**
@@ -63,7 +64,7 @@ export const VERIFICATION_CORRECTION_MAX_LENGTH = 500;
  */
 export const employerVerificationCallSchema = z
   .object({
-    employer_key: z.uuid(),
+    employer_key: recordId(),
     answered_by: z.string().trim().min(1).max(VERIFICATION_ANSWERED_BY_MAX_LENGTH),
     called_at: carrierWallTimeSchema,
     outcomes: z.object(

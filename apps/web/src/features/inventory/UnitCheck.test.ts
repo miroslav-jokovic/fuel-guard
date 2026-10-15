@@ -29,7 +29,7 @@ const SESSION = "44444444-4444-4444-8444-444444444444";
 const TRUCK = "11111111-1111-4111-8111-111111111111";
 const TABLET = "22222222-2222-4222-8222-222222222222";
 const ELSEWHERE = "66666666-6666-4666-8666-666666666666";
-/** ⚠ A real uuid: `assetMovementInputSchema.assetId` is `z.uuid()`, so a short stub like "as-01" is
+/** ⚠ A real uuid: `assetMovementInputSchema.assetId` is `recordId()`, so a short stub like "as-01" is
  *  refused at the edge — and the screen would then record nothing for a reason that is the
  *  fixture's, not the code's. `MovementDrawer.test.ts` carries the same note. */
 const ON_UNIT = "77777777-7777-4777-8777-777777777777";

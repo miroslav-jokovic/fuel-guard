@@ -74,7 +74,7 @@ merged result: nothing in it is missing from `main`.
 | US6b | A browser pass of every routed page at 1280 px and 390 px | PASS DONE 2026-10-13 (§7); fixes in batches |
 | US7 | The list composites move into `@silvicom/ui` (web repointed, no shim); every admin page onto them; the gate covers `apps/admin/src` (G7, D-US11) | planned — answered 2026-10-15 |
 | US8 | The audit log's page is its cursor in the URL; the route reads backwards too; the pager names the date range (D-US12) | planned — answered 2026-10-15 |
-| US9 | One `recordId` schema for all 249 id sites, and a gate against a bare `z.uuid()`; closes F31 (D-US13) | planned — answered 2026-10-15 |
+| US9 | One `recordId` schema for every id site (283), and a gate against a bare `z.uuid()` or a hand-written id regex; closes F31 (D-US13) | DONE 2026-10-15 (`claude/ui-us9-record-id`) |
 
 Each step is one PR (large batches, per the release practice), merged on green CI, released by the
 train.
@@ -670,3 +670,45 @@ build. All three were measured on `origin/main` at 97b7ecb before being answered
 
 Build order: US9 first (it unblocks F31 and every staging check), then US8 (one route and one page),
 then US7 (the largest, a move of ~130 imports plus the admin rebuild).
+
+### 2026-10-15 — US9: one record-id schema (D-US13), F31 closed
+
+**The count was 283, not 249.** The 249 was `z.uuid()` alone. Another 31 sites spelled it
+`z.string().uuid()` (16 in `packages/shared`, 15 in `apps/api`), and Zod 4 makes that just as
+strict. Every one now reads `recordId()` from `packages/shared/src/recordId.ts`, built on `z.guid()`.
+`fuel.ts`'s form sentence survives as `recordId("Select a vehicle")`.
+
+**Eleven more copies, found on the way.** Eleven API files each held their own id regex
+(`requestMetrics`, `audit`, `findingsAssign`, the fuel-spend statement/report/spend/exceptions
+routes, fuel exports, document reading, livemap, applicant employer calls). They now call
+`isRecordId()` from the same file. The apply draft's `EMPLOYER_KEY` regex was looser than the
+contract's old `z.uuid()`, so it could keep a key the contract would then refuse on submit. It now
+asks the contract's schema. `isRecordId` returns `boolean`, not a type guard: a guard narrows a
+string that fails it to `never`, which the request-metrics path normaliser tripped on.
+
+**The gate.** `lint:record-id` (`scripts/check-record-id.mjs`, in CI's `gates` job beside
+`lint:date-format`) refuses a Zod id check (`z.uuid(` / `z.guid(` / `z.uuidv4|6|7(` / a chained
+`.uuid()`) or a hand-written id regex anywhere outside `recordId.ts`. Comments are skipped. Test
+files may use a regex to assert a VERSION (`draft.test.ts` checks a minted key is v4), but not a
+Zod id check. Its `--self-test` has 14 cases, and planting a regex copy plus a `z.uuid()` in
+`audit.ts` failed it.
+
+**Tests that fail on the old code:** `recordId.test.ts`. With `z.guid` mutated back to `z.uuid`,
+"accepts an id Postgres stores that is not an RFC 9562 uuid (version nibble 0)" and "lets Driver
+Qualification read the carrier's own records on staging (US6b F31)" both fail. The second parses
+`certificationListQuerySchema` with the staging org as an `organization` subject: the request
+that answered 400.
+
+**Two owed items in the same PR.**
+- The Ask AI launcher no longer covers the shelf walk's "Record count" at 390. A fixed bottom bar
+  registers its measured height (`composables/bottomChrome.ts`; `WalkActions` is the only such
+  bar today), and `clampOffset` keeps the launcher at least that far plus `EDGE_MARGIN` above the
+  bottom. The lift applies to what is rendered, never to the stored position, so the launcher is
+  not left parked high on every other page. `useLauncherPosition.test.ts`: "keeps the launcher
+  above a phone's fixed bottom bar, and leaves one parked higher alone" fails without the clamp.
+  Seen in Chromium on the built app at 390 × 844: launcher bottom 775, bar top 783. At 1280 the
+  launcher stays in its corner.
+- `DeleteInspectionDrawer.vue`'s header no longer says that discarding a draft uses `window.confirm`.
+
+Next: US8 (the audit log's cursor in the URL), then US7.
+

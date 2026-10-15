@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { recordId } from "./recordId.js";
 import { REQUIRED_TRAINING_TYPES } from "./qualificationGate.js";
 import { certificationCreateSchema, type CertificationCreateRequest } from "./complianceContract.js";
 
@@ -26,7 +27,7 @@ export const SEED_ENDORSEMENT_LETTERS = ["H", "N", "X"] as const;
 
 export const qualificationSeedDriverSchema = z
   .object({
-    driverId: z.uuid(),
+    driverId: recordId(),
     /** ISO dates (YYYY-MM-DD). A blank field seeds nothing for that kind — never a guessed expiry. */
     cdlExpiresAt: z.string().nullish(),
     medicalExpiresAt: z.string().nullish(),

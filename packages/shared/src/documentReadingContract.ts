@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { recordId } from "./recordId.js";
 import { FORMAT_MIMES, READABLE_FORMATS_TEXT, SOURCE_FORMATS, type SourceFormat } from "./documentFormats.js";
 import { fieldEvidenceSchema, fieldPathSchema, leafFieldPaths, parseFieldPath } from "./fieldEvidenceContract.js";
 import {
@@ -309,7 +310,7 @@ export const createSourceRequestSchema = z.object({
 });
 export type CreateSourceRequest = z.infer<typeof createSourceRequestSchema>;
 export const createSourceResponseSchema = z.object({
-  sourceId: z.uuid(),
+  sourceId: recordId(),
   /** Null exactly when `duplicate`: nothing to upload. */
   uploadUrl: z.url().nullable(),
   /** True when this org already holds these exact bytes — no upload needed (D-DR12 dedupe). */
@@ -325,7 +326,7 @@ export const completeSourceRequestSchema = z.object({
   profile: z.enum(DOCUMENT_PROFILE_IDS).nullable().default(null),
 });
 export type CompleteSourceRequest = z.infer<typeof completeSourceRequestSchema>;
-export const completeSourceResponseSchema = z.object({ jobId: z.uuid() });
+export const completeSourceResponseSchema = z.object({ jobId: recordId() });
 
 /**
  * `refused` is the FILE's fault (a refusal code with its sentence); `failed` is ours — the intake job
@@ -337,19 +338,19 @@ export const SOURCE_STATUSES = ["uploading", "normalising", "ready", "refused", 
 export type SourceStatus = (typeof SOURCE_STATUSES)[number];
 /** `GET /api/documents/sources/:id` — polled after `complete` until `ready` or `refused`. */
 export const sourceStatusResponseSchema = z.object({
-  sourceId: z.uuid(),
+  sourceId: recordId(),
   status: z.enum(SOURCE_STATUSES),
   /** Set exactly when `refused`; its sentence is `INTAKE_REFUSALS[refusal]`. */
   refusal: z.enum(Object.keys(INTAKE_REFUSALS) as [IntakeRefusalCode, ...IntakeRefusalCode[]]).nullable(),
   pageCount: z.number().int().positive().nullable(),
   /** The read the intake queued (`complete` with a profile), once it exists. */
-  readId: z.uuid().nullable(),
+  readId: recordId().nullable(),
 });
 export type SourceStatusResponse = z.infer<typeof sourceStatusResponseSchema>;
 
 /** `POST /api/documents/sources/from-samsara` — copy a Samsara document's photos in (D-DR9). */
 export const sourceFromSamsaraRequestSchema = z.object({ samsaraDocumentId: z.string().min(1) });
-export const sourceFromSamsaraResponseSchema = z.object({ sourceId: z.uuid(), pageCount: z.number().int() });
+export const sourceFromSamsaraResponseSchema = z.object({ sourceId: recordId(), pageCount: z.number().int() });
 
 /**
  * `POST /api/documents/assemblies` — say which pages, in which order, are one document (D-DR14, 0454).
@@ -361,22 +362,22 @@ export const sourceFromSamsaraResponseSchema = z.object({ sourceId: z.uuid(), pa
  *                            when someone else already replaced that version.
  */
 const idList = (max: number) =>
-  z.array(z.uuid()).min(1).max(max).refine((ids) => new Set(ids).size === ids.length, "each id once");
+  z.array(recordId()).min(1).max(max).refine((ids) => new Set(ids).size === ids.length, "each id once");
 export const createAssemblyRequestSchema = z.union([
   z.strictObject({ sourceIds: idList(ASSEMBLY_MAX_PAGES) }),
-  z.strictObject({ supersedes: z.uuid(), pageIds: idList(ASSEMBLY_MAX_PAGES) }),
+  z.strictObject({ supersedes: recordId(), pageIds: idList(ASSEMBLY_MAX_PAGES) }),
 ]);
 export type CreateAssemblyRequest = z.infer<typeof createAssemblyRequestSchema>;
-export const createAssemblyResponseSchema = z.object({ assemblyId: z.uuid(), pageCount: z.number().int().min(1) });
+export const createAssemblyResponseSchema = z.object({ assemblyId: recordId(), pageCount: z.number().int().min(1) });
 export type CreateAssemblyResponse = z.infer<typeof createAssemblyResponseSchema>;
 
 /** `POST /api/documents/reads` — queue a read of a source, or of an assembly (0455), under a profile. */
 export const createReadRequestSchema = z.union([
-  z.strictObject({ sourceId: z.uuid(), profile: z.enum(DOCUMENT_PROFILE_IDS) }),
-  z.strictObject({ assemblyId: z.uuid(), profile: z.enum(DOCUMENT_PROFILE_IDS) }),
+  z.strictObject({ sourceId: recordId(), profile: z.enum(DOCUMENT_PROFILE_IDS) }),
+  z.strictObject({ assemblyId: recordId(), profile: z.enum(DOCUMENT_PROFILE_IDS) }),
 ]);
 export type CreateReadRequest = z.infer<typeof createReadRequestSchema>;
-export const createReadResponseSchema = z.object({ readId: z.uuid() });
+export const createReadResponseSchema = z.object({ readId: recordId() });
 
 export const readPageSchema = z.object({
   /** The page's place in the document read: its page number in a source, its position in an assembly. */
@@ -407,10 +408,10 @@ export type PaperAuditView = z.infer<typeof paperAuditSchema>;
 
 /** `GET /api/documents/reads/:id` — the dispatcher's page polls this until `status` is terminal. */
 export const readResponseSchema = z.object({
-  id: z.uuid(),
+  id: recordId(),
   /** Exactly one of the two is set: what the read was given (0455). */
-  sourceId: z.uuid().nullable(),
-  assemblyId: z.uuid().nullable(),
+  sourceId: recordId().nullable(),
+  assemblyId: recordId().nullable(),
   profile: z.enum(DOCUMENT_PROFILE_IDS),
   profileVersion: z.string(),
   status: z.enum(READ_STATUSES),

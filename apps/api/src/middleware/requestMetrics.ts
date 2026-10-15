@@ -1,3 +1,4 @@
+import { isRecordId } from "@silvicom/shared";
 import { monitorEventLoopDelay } from "node:perf_hooks";
 import type { Request, Response, NextFunction, RequestHandler } from "express";
 
@@ -63,7 +64,6 @@ const MAX_TRACKED_ROUTES = 200;
 /** Durations kept per route for percentiles. Bounded, because a busy route must not grow forever. */
 const SAMPLES_PER_ROUTE = 128;
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
  * Turn a concrete request path into a route SHAPE safe to use as a metrics key.
@@ -81,7 +81,7 @@ export function normalizeRoutePath(rawPath: string): string {
     return path === "/healthz" ? "/healthz" : "<non-api>";
   }
   const segments = path.split("/").filter(Boolean).map((segment) => {
-    if (UUID.test(segment)) return ":id";
+    if (isRecordId(segment)) return ":id";
     if (/^\d+$/.test(segment)) return ":n";
     // Opaque credentials and long tokens travel in paths too (invite links, public applications).
     if (segment.length >= 24) return ":id";

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { recordId } from "./recordId.js";
 import type { FuelType, AnomalySeverity } from "./constants.js";
 import type { FuelBalanceEvidence } from "./anomalyRules/types.js";
 
@@ -31,9 +32,9 @@ const PAYMENT_METHOD_VALUES = PAYMENT_METHODS.map((p) => p.value) as [PaymentMet
  * prefix (audit H8/M6). org_id, price_per_gal, entered_by, source are added by the caller on insert.
  */
 export const fillUpInputSchema = z.object({
-  id: z.uuid(),
-  vehicle_id: z.uuid("Select a vehicle"),
-  driver_id: z.preprocess((v) => (v === "" || v == null ? undefined : v), z.uuid().optional()),
+  id: recordId(),
+  vehicle_id: recordId("Select a vehicle"),
+  driver_id: z.preprocess((v) => (v === "" || v == null ? undefined : v), recordId().optional()),
   fueled_at: z.string().min(1, "Fuel time is required"),
   odometer: z.preprocess(
     (v) => (v === "" || v == null ? undefined : v),

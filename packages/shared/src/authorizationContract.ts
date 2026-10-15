@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { recordId } from "./recordId.js";
 
 /**
  * Driver authorizations — the disclosure catalogue and the "may we pull this" rule (0215, H1).
@@ -320,8 +321,8 @@ export function esignConsentBody(doc: EsignConsentDocument = ESIGN_CONSENT): str
 // ── the wire shape ────────────────────────────────────────────────────────────
 
 export const driverAuthorizationSchema = z.object({
-  id: z.uuid(),
-  driver_id: z.uuid(),
+  id: recordId(),
+  driver_id: recordId(),
   purpose: z.string(),
   disclosure_version: z.string(),
   disclosure_text: z.string(),
@@ -330,10 +331,10 @@ export const driverAuthorizationSchema = z.object({
   intent_statement: z.string(),
   esign_consent_at: z.string().nullable(),
   accepted_at: z.string(),
-  evidence_document_id: z.uuid().nullable(),
+  evidence_document_id: recordId().nullable(),
   /** G-9: the day a paper signature was written; null for `esign`. */
   signed_on: z.string().nullable(),
-  revokes: z.uuid().nullable(),
+  revokes: recordId().nullable(),
   revoke_reason: z.string().nullable(),
   created_at: z.string(),
 });
@@ -346,13 +347,13 @@ export type DriverAuthorization = z.infer<typeof driverAuthorizationSchema>;
  */
 export const authorizationGrantSchema = z
   .object({
-    driver_id: z.uuid(),
+    driver_id: recordId(),
     purpose: z.enum(AUTHORIZATION_PURPOSES),
     method: z.enum(AUTHORIZATION_METHODS),
     signed_name: z.string().min(1).max(200),
     /** Present when the signer agreed to transact electronically; required for `method: 'esign'`. */
     esign_consent: z.boolean().optional(),
-    evidence_document_id: z.uuid().nullish(),
+    evidence_document_id: recordId().nullish(),
     /**
      * G-9 (Q-AW15's default): the day written beside a PAPER signature, `YYYY-MM-DD`. Required for
      * `wet_signature` and `verbal_documented`, refused for `esign` (0376's CHECK) — an electronic
@@ -373,7 +374,7 @@ export const authorizationGrantSchema = z
 export type AuthorizationGrant = z.infer<typeof authorizationGrantSchema>;
 
 export const authorizationRevokeSchema = z
-  .object({ revokes: z.uuid(), reason: z.string().min(1).max(500) })
+  .object({ revokes: recordId(), reason: z.string().min(1).max(500) })
   .strict();
 export type AuthorizationRevoke = z.infer<typeof authorizationRevokeSchema>;
 

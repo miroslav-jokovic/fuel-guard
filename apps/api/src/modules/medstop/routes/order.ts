@@ -1,6 +1,6 @@
 import type { Router } from "express";
 import { z } from "zod";
-import { MEDSTOP_ORDER_REASONS, MEDSTOP_ORDER_ROLES, medstopOrderInputSchema, type CalendarDay } from "@silvicom/shared";
+import { MEDSTOP_ORDER_REASONS, MEDSTOP_ORDER_ROLES, medstopOrderInputSchema, type CalendarDay, recordId } from "@silvicom/shared";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { requireRole } from "../../../middleware/auth.js";
 import { apiError, asyncHandler } from "../../../lib/http.js";
@@ -22,7 +22,7 @@ import { findSites, orderablePeople, orderClient, placeOrder, prepareOrder, site
 const planned = { service: z.enum(["drug", "alcohol"]), reason: z.enum(MEDSTOP_ORDER_REASONS), medstopId: z.string().trim().min(1).optional(), requestDate: z.string(), requestTime: z.string() };
 const sitesQuery = z.union([
   z.object({ ...planned, zip: z.string().regex(/^\d{5}$/) }),
-  z.object({ ...planned, driverId: z.string().uuid() }),
+  z.object({ ...planned, driverId: recordId() }),
 ]);
 
 export function registerOrderRoutes(router: Router, orgToday: (admin: SupabaseClient, orgId: string) => Promise<CalendarDay>): void {

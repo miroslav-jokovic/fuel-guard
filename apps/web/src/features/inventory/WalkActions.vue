@@ -1,5 +1,7 @@
 <script setup lang="ts">
+import { ref } from "vue";
 import { AppButton as BaseButton } from "@silvicom/ui";
+import { useBottomChrome } from "@/composables/bottomChrome";
 
 /**
  * A walk's actions, rendered where the hand is (I5 PR 2b, I9; D-INV17 as amended 2026-09-10).
@@ -30,10 +32,14 @@ defineProps<{
   /** Render as the phone's bottom bar (hidden from `sm` up) instead of the header row (hidden below it). */
   bar?: boolean;
 }>();
+
+/** The bar tells the shell how tall it is, so the Ask AI launcher parks above it (bottomChrome.ts). */
+const barEl = ref<HTMLElement | null>(null);
+useBottomChrome(barEl);
 </script>
 
 <template>
-  <div v-if="bar" class="walk-bar fixed inset-x-0 bottom-0 z-raised border-t border-edge bg-surface px-4 sm:hidden">
+  <div v-if="bar" ref="barEl" class="walk-bar fixed inset-x-0 bottom-0 z-raised border-t border-edge bg-surface px-4 sm:hidden">
     <div class="flex gap-2">
       <BaseButton
         v-for="action in actions"

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { recordId } from "./recordId.js";
 import {
   FUEL_TYPES,
   VEHICLE_STATUSES,
@@ -37,7 +38,7 @@ export const vehicleInputSchema = z
     status: z.enum(VEHICLE_STATUSES).default("active"),
     assigned_driver_id: z.preprocess(
       (v) => (v === "" || v == null ? undefined : v),
-      z.uuid().optional(),
+      recordId().optional(),
     ),
     samsara_vehicle_id: optionalText, // maps this vehicle to its Samsara telematics id
     // Does the truck have an APU / optimized-idle option (auxiliary power unit, battery HVAC, shore power)?
@@ -277,7 +278,7 @@ export const trailerInputSchema = z.object({
   /** Manual tractor pairing fallback when Samsara assignments aren't available. */
   assigned_vehicle_id: z.preprocess(
     (v) => (v === "" || v == null ? undefined : v),
-    z.uuid().optional(),
+    recordId().optional(),
   ),
   samsara_asset_id: optionalText,
 });

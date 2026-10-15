@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { recordId } from "./recordId.js";
 import type { UserRole } from "./constants.js";
 
 /**
@@ -97,26 +98,26 @@ export const hazmatDocKindSchema = z.enum(["bol", "securement", "placard_photo",
 
 // ── POST /hazmat/loads ─────────────────────────────────────────────────────────
 export const hazmatCreateLoadRequestSchema = z.object({
-  id: z.string().uuid(), // client-generated (idempotency, 02 §10.2)
-  vehicleId: z.string().uuid().nullable().default(null),
-  trailerId: z.string().uuid().nullable().default(null),
-  driverId: z.string().uuid().nullable().default(null),
+  id: recordId(), // client-generated (idempotency, 02 §10.2)
+  vehicleId: recordId().nullable().default(null),
+  trailerId: recordId().nullable().default(null),
+  driverId: recordId().nullable().default(null),
   tankState: hazmatTankStateSchema.default("loaded"),
   carrierRelationship: hazmatCarrierRelationshipSchema.default("unknown"),
   plannedPickupAt: z.string().nullable().default(null),
   declaredLines: z.array(z.record(z.string(), z.unknown())).default([]), // LoadInput.lines
   specialPermitNumbers: z.array(z.string()).default([]),
   claimedNoPlacards: z.boolean().default(false),
-  supersedesLoadId: z.string().uuid().nullable().default(null),
+  supersedesLoadId: recordId().nullable().default(null),
 });
 export type HazmatCreateLoadRequest = z.infer<typeof hazmatCreateLoadRequestSchema>;
 
 // ── PATCH /hazmat/loads/:id (draft only — enforced by the state machine `canEditLoad`) ──────────
 export const hazmatUpdateLoadRequestSchema = z
   .object({
-    vehicleId: z.string().uuid().nullable().optional(),
-    trailerId: z.string().uuid().nullable().optional(),
-    driverId: z.string().uuid().nullable().optional(),
+    vehicleId: recordId().nullable().optional(),
+    trailerId: recordId().nullable().optional(),
+    driverId: recordId().nullable().optional(),
     tankState: hazmatTankStateSchema.optional(),
     carrierRelationship: hazmatCarrierRelationshipSchema.optional(),
     plannedPickupAt: z.string().nullable().optional(),
@@ -148,19 +149,19 @@ export type HazmatCancelRequest = z.infer<typeof hazmatCancelRequestSchema>;
  * The link is what turns hazmat from a second product back into a property of a load: once it exists,
  * the hazmat workspace can open FROM the load rather than from a parallel list of its own.
  */
-export const hazmatLinkLoadRequestSchema = z.object({ loadId: z.uuid() });
+export const hazmatLinkLoadRequestSchema = z.object({ loadId: recordId() });
 export type HazmatLinkLoadRequest = z.infer<typeof hazmatLinkLoadRequestSchema>;
 
 export const hazmatLinkLoadResponseSchema = z.object({
-  linked: z.uuid(),
+  linked: recordId(),
   /** The record the link was taken from, when this one supersedes it. Null in the ordinary case. */
-  unlinked: z.uuid().nullable(),
+  unlinked: recordId().nullable(),
 });
 export type HazmatLinkLoadResponse = z.infer<typeof hazmatLinkLoadResponseSchema>;
 
 // ── POST /hazmat/loads/:id/documents → registers a row + returns a signed upload URL ────────────
 export const hazmatRegisterDocumentRequestSchema = z.object({
-  id: z.string().uuid(), // client-generated document id (idempotent replay)
+  id: recordId(), // client-generated document id (idempotent replay)
   kind: hazmatDocKindSchema,
   page: z.number().int().min(1).default(1),
   sha256: z.string().min(1),
@@ -375,7 +376,7 @@ export interface HazmatDocumentsResponse {
 // ── POST /hazmat/loads/:id/review — reviewer field action (the clear itself is POST /clear) ─────
 export const hazmatReviewActionSchema = z.enum(["field_confirmed", "field_corrected", "cant_read", "rejected", "override"]);
 export const hazmatReviewRequestSchema = z.object({
-  runId: z.string().uuid(),
+  runId: recordId(),
   action: hazmatReviewActionSchema,
   fieldPath: z.string().optional(),
   oldValue: z.unknown().optional(),
@@ -388,7 +389,7 @@ export type HazmatReviewRequest = z.infer<typeof hazmatReviewRequestSchema>;
 // attestation itself via buildHazmatAttestation (D4) — a client-authored attestation string is never
 // stored. `attestation` is accepted for backward compatibility and ignored server-side.
 export const hazmatClearRequestSchema = z.object({
-  runId: z.string().uuid(),
+  runId: recordId(),
   /** Deprecated (D4): ignored — the server composes the attestation from the verified gate result. */
   attestation: z.string().optional(),
   overrideReason: z.string().nullable().default(null),

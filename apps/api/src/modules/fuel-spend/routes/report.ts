@@ -3,7 +3,7 @@ import { requireSection, requireOrg } from "../../../middleware/auth.js";
 import { apiError, asyncHandler } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
-import { FUEL_NETWORKS, parseYmd, windowDays, type FuelNetwork } from "@silvicom/shared";
+import { FUEL_NETWORKS, parseYmd, windowDays, type FuelNetwork, isRecordId } from "@silvicom/shared";
 import { writeAudit } from "../../../lib/audit.js";
 import { readFuelReport, type FuelReportFilterArgs } from "../fuelReport.js";
 import { renderFuelCostsReport } from "../fuelCostsReport.js";
@@ -14,7 +14,6 @@ import { renderFuelCostsReport } from "../fuelCostsReport.js";
  * each call well inside the statement timeout rather than trusting whatever the URL asks for.
  */
 const MAX_WINDOW_DAYS = 366;
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const STATE = /^[A-Z]{2}$/;
 
 const list = (v: unknown): string[] =>
@@ -42,9 +41,9 @@ export function parseReportQuery(query: Record<string, unknown>): ReportQuery {
     networks: list(query.networks),
   };
   const filters: FuelReportFilterArgs = {
-    vehicleIds: raw.vehicles.filter((v) => UUID.test(v)),
+    vehicleIds: raw.vehicles.filter((v) => isRecordId(v)),
     states: raw.states.filter((s) => STATE.test(s)),
-    siteIds: raw.sites.filter((v) => UUID.test(v)),
+    siteIds: raw.sites.filter((v) => isRecordId(v)),
     networks: raw.networks.filter((x): x is FuelNetwork => (FUEL_NETWORKS as readonly string[]).includes(x)),
   };
   const dropped =

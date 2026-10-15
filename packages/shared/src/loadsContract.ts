@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { recordId } from "./recordId.js";
 
 /**
  * Driver App — loads & assignments contract (Phase 3, migration 0085).
@@ -57,7 +58,7 @@ export function photoSlotLabel(slot: string): string {
 
 // ── read shapes ───────────────────────────────────────────────────────────────
 export const loadStopPhotoSchema = z.object({
-  id: z.uuid(),
+  id: recordId(),
   slot: z.string(),
   storage_path: z.string(),
   captured_at: z.string().nullable(),
@@ -66,7 +67,7 @@ export const loadStopPhotoSchema = z.object({
 export type LoadStopPhoto = z.infer<typeof loadStopPhotoSchema>;
 
 export const loadStopSchema = z.object({
-  id: z.uuid(),
+  id: recordId(),
   seq: z.number().int(),
   kind: z.enum(STOP_KINDS),
   name: z.string(),
@@ -89,7 +90,7 @@ export const loadStopSchema = z.object({
 export type LoadStop = z.infer<typeof loadStopSchema>;
 
 export const loadSchema = z.object({
-  id: z.uuid(),
+  id: recordId(),
   ref: z.string(),
   status: z.enum(LOAD_STATUSES),
   equipment: z.string().nullable(),
@@ -127,7 +128,7 @@ export type AcceptLoadRequest = z.infer<typeof acceptLoadRequestSchema>;
 /** One captured photo being reported after its file is already uploaded to Storage. */
 export const stopPhotoInputSchema = z.object({
   /** Client UUID — the row PK, so a replayed sync collides and no-ops (idempotency). */
-  id: z.uuid(),
+  id: recordId(),
   slot: z.string().min(1),
   storage_path: z.string().min(1),
   captured_at: z.string().optional(),

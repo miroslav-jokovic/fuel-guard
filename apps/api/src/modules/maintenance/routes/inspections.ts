@@ -8,6 +8,7 @@ import {
   type InspectionPatchRequest,
   inspectionDeleteRequestSchema,
   type InspectionDeleteRequest,
+  recordId,
 } from "@silvicom/shared";
 import { requireSection, requireAuth, requireOrg, requireRole } from "../../../middleware/auth.js";
 import { apiError, asyncHandler, validateBody } from "../../../lib/http.js";
@@ -42,11 +43,11 @@ import { getPrintProfile } from "../inspections/printProfiles.js";
  * state of this feature rather than a gap — nothing here can produce a certification.
  */
 
-const correctSchema = z.object({ id: z.uuid() });
+const correctSchema = z.object({ id: recordId() });
 
 const listSchema = z.object({
   subjectType: z.enum(["tractor", "trailer"]).optional(),
-  subjectId: z.uuid().optional(),
+  subjectId: recordId().optional(),
   status: z.enum(["draft", "final"]).optional(),
   outcome: z.enum(["pass", "fail"]).optional(),
   q: z.string().max(120).optional(),

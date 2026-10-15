@@ -8,6 +8,7 @@ import {
   type VerifiableEmployer,
   type VerificationOutcome,
   type VerificationQuestion,
+  isRecordId,
 } from "@silvicom/shared";
 import { readLiveInvitation } from "./applicantChecklist.js";
 import { carrierZone, instantOf } from "./carrierClock.js";
@@ -66,7 +67,6 @@ const toCall = (r: CallRow): EmployerVerificationCall => ({
   copiedInquiryId: r.copied_inquiry_id,
 });
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const textOf = (v: unknown): string | null => (typeof v === "string" && v.trim() !== "" ? v.trim() : null);
 
 /**
@@ -88,7 +88,7 @@ async function draftEmployers(admin: SupabaseClient, orgId: string, invitationId
     const name = textOf(e.employer_name);
     if (!name) return [];
     return [{
-      key: typeof e.key === "string" && UUID.test(e.key) ? e.key.toLowerCase() : null,
+      key: typeof e.key === "string" && isRecordId(e.key) ? e.key.toLowerCase() : null,
       name,
       startedOn: textOf(e.started_on),
       endedOn: textOf(e.ended_on),

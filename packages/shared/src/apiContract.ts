@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { recordId } from "./recordId.js";
 import { newPasswordSchema } from "./passwordResetContract.js";
 import { USER_ROLES } from "./constants.js";
 import { GRANTABLE_SURFACES, SURFACES } from "./surfaceCatalogue.js";
@@ -57,7 +58,7 @@ export type SectionAccessSetRequest = z.infer<typeof sectionAccessSetSchema>;
  * because that one IS a security boundary rather than a matter of manners.
  */
 export const userSectionAccessSetSchema = z.object({
-  userId: z.uuid(),
+  userId: recordId(),
   section: z.string().refine(isEditableSection, "That section's access cannot be changed"),
   access: z.enum(["none", "view", "manage"]).nullable(),
 });
@@ -115,7 +116,7 @@ export type SurfaceAccessSetRequest = z.infer<typeof surfaceAccessSetSchema>;
  * either table. Migration 0298's header records why a CHECK constraint cannot do it here.
  */
 export const userSurfaceAccessSetSchema = z.object({
-  userId: z.uuid(),
+  userId: recordId(),
   surfaceKey: answerableSurfaceKey(),
   allowed: z.boolean().nullable(),
 });
@@ -175,8 +176,8 @@ export const invitePreviewSchema = z.object({
 export type InvitePreview = z.infer<typeof invitePreviewSchema>;
 
 export const inviteSchema = z.object({
-  id: z.uuid(),
-  org_id: z.uuid(),
+  id: recordId(),
+  org_id: recordId(),
   email: z.email(),
   role: roleSchema,
   status: z.enum(["pending", "accepted", "revoked", "expired"]),
@@ -193,7 +194,7 @@ export type InviteListResponse = z.infer<typeof inviteListResponseSchema>;
 
 // ── Members ───────────────────────────────────────────────────────────────────
 export const orgMemberSchema = z.object({
-  userId: z.uuid(),
+  userId: recordId(),
   email: z.string().nullable(),
   /** From `org_member_directory()` (0301): the profile's name, else the roster's for a driver, else null. */
   fullName: z.string().nullable(),
@@ -221,11 +222,11 @@ export type MemberListResponse = z.infer<typeof memberListResponseSchema>;
 
 // ── Session / me ────────────────────────────────────────────────────────────
 export const meResponseSchema = z.object({
-  userId: z.uuid(),
+  userId: recordId(),
   email: z.string().nullable(),
   /** Read fail-open: a missing profile (or table, during a deploy window) is null, never an error. */
   fullName: z.string().nullable().optional(),
-  orgId: z.uuid().nullable(),
+  orgId: recordId().nullable(),
   role: roleSchema.nullable(),
 });
 export type MeResponse = z.infer<typeof meResponseSchema>;

@@ -1,6 +1,6 @@
 import { z } from "zod";
 import type { Request, Response } from "express";
-import { maskPan } from "@silvicom/shared";
+import { maskPan, recordId } from "@silvicom/shared";
 import { getAppLocals } from "../../../lib/appLocals.js";
 import { apiError, dbErrorResponse } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
@@ -30,7 +30,7 @@ import { toMutationView } from "./mutationView.js";
  * ledger — including every org's worth of rows the range would otherwise span — in one request.
  */
 export const mutationLogQuerySchema = z.object({
-  cardId: z.string().uuid().optional(),
+  cardId: recordId().optional(),
   search: z.string().trim().min(1).max(64).optional(),
   from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),

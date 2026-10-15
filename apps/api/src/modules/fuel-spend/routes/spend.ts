@@ -1,3 +1,4 @@
+import { isRecordId } from "@silvicom/shared";
 import type { Router } from "express";
 import { requireSection, requireOrg } from "../../../middleware/auth.js";
 import { apiError, asyncHandler } from "../../../lib/http.js";
@@ -25,7 +26,6 @@ import { type SpendGrain } from "@silvicom/shared";
 /** A rebuild reads every fill and engine day in its window, so the window is bounded rather than trusted. */
 const MAX_WINDOW_DAYS = 400;
 const YMD = /^\d{4}-\d{2}-\d{2}$/;
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const GRAINS = new Set(["day", "week", "month"]);
 
@@ -56,7 +56,7 @@ export function registerSpendRoutes(router: Router): void {
       // reaches `.in()` on a service-role query, where the org filter is the only tenant boundary.
       const vehicleIds = (typeof req.query.vehicles === "string" ? req.query.vehicles.split(",") : [])
         .map((v) => v.trim())
-        .filter((v) => UUID.test(v));
+        .filter((v) => isRecordId(v));
 
       // The org's own idle burn rate, so the document and the Idling page cost an idle hour identically.
       const { data: idleCfg } = await admin
@@ -134,7 +134,7 @@ export function registerSpendRoutes(router: Router): void {
       const vehicles =
         rawVehicles === ""
           ? null
-          : rawVehicles.split(",").map((v) => v.trim()).filter((v) => UUID.test(v));
+          : rawVehicles.split(",").map((v) => v.trim()).filter((v) => isRecordId(v));
 
       const admin = getSupabaseAdmin(getAppLocals(req).env);
       const orgId = req.auth!.orgId!;

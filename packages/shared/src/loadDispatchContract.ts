@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { recordId } from "./recordId.js";
 import { formatDisplayDateTime } from "./displayDate.js";
 
 /**
@@ -11,7 +12,7 @@ import { formatDisplayDateTime } from "./displayDate.js";
  */
 
 export const dispatchLoadRequestSchema = z.object({
-  driverId: z.uuid(),
+  driverId: recordId(),
 });
 export type DispatchLoadRequest = z.infer<typeof dispatchLoadRequestSchema>;
 

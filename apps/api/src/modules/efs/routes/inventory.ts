@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
+import { recordId } from "@silvicom/shared";
 import { getAppLocals } from "../../../lib/appLocals.js";
 import {
   getCardRefreshingLimits,
@@ -111,7 +112,7 @@ const inventorySchema = z.object({
    * `loadCardNumber`, which is org-scoped, so no card number reaches a request body, an access log,
    * a Referer header or browser history. Standing rule 13.
    */
-  sampleCards: z.array(z.string().uuid()).max(MAX_SAMPLE_CARDS).optional(),
+  sampleCards: z.array(recordId()).max(MAX_SAMPLE_CARDS).optional(),
 });
 
 interface InventoryTruncation {

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { recordId } from "./recordId.js";
 import { employerResponseSchema } from "./employerResponseContract.js";
 
 /**
@@ -165,7 +166,7 @@ export const inquiryWindow = (startedOn: string, endedOn: string | null): string
  * request says who was contacted and how, never what they were told.
  */
 export const inquiryAttemptSchema = z.object({
-  employment_id: z.uuid(),
+  employment_id: recordId(),
   kind: z.enum(INQUIRY_KINDS).default("safety_performance"),
   method: z.enum(INQUIRY_METHODS),
   /** When the contact was made. Backdating is normal here — the office posted it on Tuesday. */
@@ -204,6 +205,6 @@ export const inquiryOutcomeSchema = z.object({
    */
   response: employerResponseSchema.nullish(),
   /** The returned letter or fax, registered and uploaded first. */
-  document_id: z.uuid().nullish(),
+  document_id: recordId().nullish(),
 });
 export type InquiryOutcomeUpdate = z.infer<typeof inquiryOutcomeSchema>;

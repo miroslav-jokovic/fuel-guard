@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { recordId } from "./recordId.js";
 
 /**
  * Compliance master data contract — `/api/compliance/*` (PLAN §3, M1.5).
@@ -145,9 +146,9 @@ export const DOCUMENT_EXTENSIONS: Record<DocumentContentType, string> = {
 /** POST /api/compliance/certifications — insert with automatic supersede (§10.1). */
 export const certificationCreateSchema = z
   .object({
-    id: z.uuid(), // client-generated for idempotent replay, matching the repo's document pattern
+    id: recordId(), // client-generated for idempotent replay, matching the repo's document pattern
     subjectType: complianceSubjectTypeSchema,
-    subjectId: z.uuid(),
+    subjectId: recordId(),
     kind: certificationKindSchema,
     /** Endorsement letter H/N/X/T/P/S — REQUIRED when kind='endorsement' (H and X are two rows). */
     qualifier: z.string().max(10).nullish(),
@@ -161,7 +162,7 @@ export const certificationCreateSchema = z
     trainingProviderAddress: z.string().max(400).nullish(),
     trainingMaterials: z.string().max(2000).nullish(),
     trainingCertified: z.boolean().nullish(),
-    documentId: z.uuid().nullish(),
+    documentId: recordId().nullish(),
     notes: z.string().max(2000).nullish(),
   })
   .superRefine((v, ctx) => {
@@ -191,9 +192,9 @@ export const certificationCreateSchema = z
 export type CertificationCreateRequest = z.infer<typeof certificationCreateSchema>;
 
 export const certificationRowSchema = z.object({
-  id: z.uuid(),
+  id: recordId(),
   subject_type: z.string(),
-  subject_id: z.uuid(),
+  subject_id: recordId(),
   kind: z.string(),
   qualifier: z.string().nullable(),
   training_type: z.string().nullable(),
@@ -204,24 +205,24 @@ export const certificationRowSchema = z.object({
   expires_at: z.string().nullable(),
   training_provider_name: z.string().nullable(),
   training_certified: z.boolean().nullable(),
-  superseded_by: z.uuid().nullable(),
+  superseded_by: recordId().nullable(),
   superseded_at: z.string().nullable(),
-  document_id: z.uuid().nullable(),
+  document_id: recordId().nullable(),
   notes: z.string().nullable(),
   created_at: z.string(),
 });
 export type CertificationRow = z.infer<typeof certificationRowSchema>;
 
 export const certificationCreateResponseSchema = z.object({
-  id: z.uuid(),
+  id: recordId(),
   /** The certification this insert automatically superseded, if one was current (§10.1). */
-  supersededId: z.uuid().nullable(),
+  supersededId: recordId().nullable(),
 });
 export type CertificationCreateResponse = z.infer<typeof certificationCreateResponseSchema>;
 
 export const certificationListQuerySchema = z.object({
   subjectType: complianceSubjectTypeSchema,
-  subjectId: z.uuid(),
+  subjectId: recordId(),
   kind: certificationKindSchema.optional(),
   /** Default false: only current rows. true = the full supersede chain (the temporal model visible). */
   includeHistory: z.coerce.boolean().default(false),
@@ -244,8 +245,8 @@ export const CEREMONY_OWNED_KINDS = {
 } as const satisfies Partial<Record<QualificationRecordKind, string>>;
 
 export const qualificationRecordCreateSchema = z.object({
-  id: z.uuid(),
-  driverId: z.uuid(),
+  id: recordId(),
+  driverId: recordId(),
   kind: qualificationRecordKindSchema,
   occurredOn: z.string(),
   /** An annual MVR covers occurred_on .. +1y (§3.2). */
@@ -253,7 +254,7 @@ export const qualificationRecordCreateSchema = z.object({
   result: z.string().max(400).nullish(),
   performedBy: z.string().max(200).nullish(),
   reference: z.string().max(200).nullish(),
-  documentId: z.uuid().nullish(),
+  documentId: recordId().nullish(),
   detail: z.record(z.string(), z.unknown()).default({}),
 })
   .superRefine((v, ctx) => {
@@ -276,15 +277,15 @@ export const qualificationRecordCreateSchema = z.object({
 export type QualificationRecordCreateRequest = z.infer<typeof qualificationRecordCreateSchema>;
 
 export const qualificationRecordRowSchema = z.object({
-  id: z.uuid(),
-  driver_id: z.uuid(),
+  id: recordId(),
+  driver_id: recordId(),
   kind: z.string(),
   occurred_on: z.string(),
   covers_until: z.string().nullable(),
   result: z.string().nullable(),
   performed_by: z.string().nullable(),
   reference: z.string().nullable(),
-  document_id: z.uuid().nullable(),
+  document_id: recordId().nullable(),
   detail: z.record(z.string(), z.unknown()),
   created_at: z.string(),
 });
@@ -302,9 +303,9 @@ export type QualificationRecordRow = z.infer<typeof qualificationRecordRowSchema
  */
 /** POST /api/compliance/documents — the compliance route's subjects and kinds only (see above). */
 export const documentRegisterSchema = z.object({
-  id: z.uuid(),
+  id: recordId(),
   subjectType: z.enum(COMPLIANCE_DOCUMENT_SUBJECT_TYPES),
-  subjectId: z.uuid(),
+  subjectId: recordId(),
   kind: z.enum(COMPLIANCE_DOCUMENT_KINDS),
   contentType: documentContentTypeSchema,
   /** Lowercase hex SHA-256 of the bytes about to be uploaded — §390.32(c) integrity evidence. */
@@ -327,7 +328,7 @@ export type DocumentRegistration = Omit<DocumentRegisterRequest, "subjectType" |
 };
 
 export const documentRegisterResponseSchema = z.object({
-  documentId: z.uuid(),
+  documentId: recordId(),
   storagePath: z.string(),
   uploadUrl: z.string(),
   token: z.string(),
@@ -337,16 +338,16 @@ export type DocumentRegisterResponse = z.infer<typeof documentRegisterResponseSc
 /** GET /api/compliance/documents — the compliance route's subjects only, as its register. */
 export const documentListQuerySchema = z.object({
   subjectType: z.enum(COMPLIANCE_DOCUMENT_SUBJECT_TYPES),
-  subjectId: z.uuid(),
+  subjectId: recordId(),
   kind: z.enum(COMPLIANCE_DOCUMENT_KINDS).optional(),
 });
 /** What `listDocuments` reads: any subject, narrowed by the route that asks (as `DocumentRegistration`). */
 export type DocumentListQuery = { subjectType: DocumentSubjectType; subjectId: string; kind?: DocumentKind };
 
 export const documentRowSchema = z.object({
-  id: z.uuid(),
+  id: recordId(),
   subjectType: documentSubjectTypeSchema,
-  subjectId: z.uuid(),
+  subjectId: recordId(),
   kind: z.string(),
   contentType: z.string(),
   bytes: z.number().nullable(),

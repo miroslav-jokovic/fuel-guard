@@ -1,7 +1,6 @@
 import { Router } from "express";
 import type { Request, Response } from "express";
-import { z } from "zod";
-import { drugTestAppointmentSchema, type DrugTestAppointmentBooking } from "@silvicom/shared";
+import { drugTestAppointmentSchema, type DrugTestAppointmentBooking, recordId } from "@silvicom/shared";
 import { requireAuth, requireOrg, requireSection } from "../../../middleware/auth.js";
 import { apiError, asyncHandler, validateBody } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
@@ -110,7 +109,7 @@ export function recruitmentDrugTestRouter(): Router {
     asyncHandler(async (req: Request, res: Response) => {
       const appointmentId = String(req.params.appointmentId ?? "");
       // A malformed id would reach PostgREST as a 22P02 and come back a 500; it names no appointment.
-      if (!z.uuid().safeParse(appointmentId).success) {
+      if (!recordId().safeParse(appointmentId).success) {
         return send(res, { code: "not_found", message: "That appointment is not on this applicant's application." });
       }
       const admin = getSupabaseAdmin(getAppLocals(req).env);
@@ -140,7 +139,7 @@ export function recruitmentDrugTestRouter(): Router {
     requireSection("recruitment"),
     asyncHandler(async (req: Request, res: Response) => {
       const appointmentId = String(req.params.appointmentId ?? "");
-      if (!z.uuid().safeParse(appointmentId).success) {
+      if (!recordId().safeParse(appointmentId).success) {
         return send(res, { code: "not_found", message: "That appointment is not on this applicant's application." });
       }
       const { env } = getAppLocals(req);

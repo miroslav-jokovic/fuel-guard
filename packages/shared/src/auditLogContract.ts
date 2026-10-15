@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { recordId } from "./recordId.js";
 
 /**
  * The Audit log screen's read, through the API (SETTINGS-PERMISSIONS-PLAN.md SP4).
@@ -38,7 +39,7 @@ const cursorSchema = z
   .transform((raw, ctx) => {
     const [createdAt = "", id = "", ...rest] = raw.split("|");
     const ts = z.iso.datetime({ offset: true }).safeParse(createdAt);
-    const uuid = z.uuid().safeParse(id);
+    const uuid = recordId().safeParse(id);
     if (rest.length || !ts.success || !uuid.success) {
       ctx.addIssue({ code: "custom", message: "Invalid cursor" });
       return z.NEVER;

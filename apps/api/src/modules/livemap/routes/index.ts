@@ -1,3 +1,4 @@
+import { isRecordId } from "@silvicom/shared";
 import { Router } from "express";
 import { requireAuth, requireOrg, requireSection } from "../../../middleware/auth.js";
 import { requireModule } from "../../../middleware/requireModule.js";
@@ -63,7 +64,7 @@ export function liveMapRouter(): Router {
     requireSection("dispatch", "view"),
     asyncHandler(async (req, res) => {
       const id = String(req.params.id ?? "");
-      if (!UUID.test(id)) {
+      if (!isRecordId(id)) {
         res.status(404).json(apiError("not_found", "That load no longer exists"));
         return;
       }
@@ -80,4 +81,3 @@ export function liveMapRouter(): Router {
   return router;
 }
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

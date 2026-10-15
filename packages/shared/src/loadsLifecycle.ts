@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { recordId } from "./recordId.js";
 import type { LoadStatus } from "./loadsContract.js";
 
 /**
@@ -157,7 +158,7 @@ export const LOAD_EVENT_KINDS = [
 export type LoadEventKind = (typeof LOAD_EVENT_KINDS)[number];
 
 export const loadEventSchema = z.object({
-  id: z.uuid(),
+  id: recordId(),
   kind: z.enum(LOAD_EVENT_KINDS),
   from_status: z.string().nullable(),
   to_status: z.string().nullable(),
