@@ -1,5 +1,5 @@
 import { computed, type Ref } from "vue";
-import { inMyScope, type DispatchBoardResponse, type DispatchScope } from "@silvicom/shared";
+import { dispatcherName, inMyScope, type DispatchBoardResponse, type DispatchScope } from "@silvicom/shared";
 import type { QueryState } from "@/composables/useQueryState";
 
 /**
@@ -42,11 +42,8 @@ export function admitsScope(item: ScopedItem, scope: DispatchScope, f: ScopeFilt
   return true;
 }
 
-/** A dispatcher's display name from the McLeod roster, falling back to the login. */
-export function dispatcherName(id: string | null | undefined, dispatchers: ReadonlyArray<{ id: string; name: string | null }>): string {
-  if (!id) return "";
-  return dispatchers.find((d) => d.id === id)?.name || id;
-}
+// The rule lives in shared since the random-draw list names dispatchers server-side (MEDSTOP-PLAN §7A.19).
+export { dispatcherName };
 
 type Board = Pick<DispatchBoardResponse, "fleets" | "dispatchers"> | null | undefined;
 

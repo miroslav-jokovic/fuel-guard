@@ -114,6 +114,22 @@ export interface RandomDraw {
   medstopStatus: string | null;
 }
 
+/**
+ * Who dispatches a drawn driver (MEDSTOP-PLAN §7A.19): the person the DER calls to take the driver off
+ * the road for the collection. Read off the dispatch board's own row for the driver's truck, so the
+ * two pages can never name different people. Two axes, never merged (D-DB1): the dispatcher who runs
+ * the truck's fleet, and the one dispatching the load on it now — a colleague covering, 18% of loads.
+ */
+export interface DrawDispatch {
+  unitNumber: string;
+  /** McLeod's fleet code ('VINNIEV'); null = the truck is in no fleet. */
+  fleetCode: string | null;
+  /** Who runs that fleet — null until an office links the fleet in Settings › McLeod fleets. */
+  fleetDispatcher: string | null;
+  /** Who dispatched the load the truck carries now; null = no load on it. */
+  loadDispatcher: string | null;
+}
+
 /** One Med-Stop test as a screen shows it (MS2c, F-4). */
 export interface MedstopTestView {
   testId: string;
@@ -232,7 +248,12 @@ export interface DrugAlcoholProgram {
    * not see it: a selection names a person before they are told, and §382.305(l) wants that notice
    * immediate and unannounced, so the list is held to the roles that read testing records.
    */
-  selections: { draws: RandomDraw[]; currentPeriod: RandomDrawPeriod | null } | null;
+  selections: {
+    draws: RandomDraw[];
+    currentPeriod: RandomDrawPeriod | null;
+    /** Keyed by our driver id, for the drawn drivers who hold a truck (§7A.19). */
+    dispatch: Record<string, DrawDispatch>;
+  } | null;
   inProgress: InProgressRow[];
   /**
    * MS2c (F-5): results the DER must see. NULL for roles that may not read testing records.

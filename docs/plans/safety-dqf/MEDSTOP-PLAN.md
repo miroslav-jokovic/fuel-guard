@@ -756,6 +756,34 @@ Owner's ruling:
   Med-Stop's roster". `/Random/selections` carries `fname`/`lname` itself; storing them is a
   migration and then a reader, in two merges.
 
+### 7A.19 The dispatcher beside each draw (2026-10-15)
+
+The owner asked for the name of the dispatcher in charge of each driver on the Random tab: the person
+the DER calls to take a drawn driver off the road for the collection.
+
+**Measured in production first (2026-10-15, counts only) [V]:** 202 trucks carry a McLeod fleet code
+and McLeod has sent 14 fleets and 17 dispatcher logins. **None of the 14 fleets is linked to a
+dispatcher yet.** That link is an office act in Settings › McLeod fleets (D-LM4), and the feed never
+writes it. 161 trucks have an assigned driver.
+
+**Built (no migration):**
+- D-MSUX20 — **the board's answer, not a second one.** `readDriverDispatch` (livemap) reads the dispatch
+  board's own rows: the roster's driver-to-truck pairing, the truck's fleet, the load on it now. So the
+  Random tab and the board can never name different people. It reaches the medstop module through
+  the index only (arrow `medstop -> livemap`). The scope-free half of `readDispatchLinks` became
+  `readFleetDispatchers`, and `dispatcherName` moved to shared, so the server and the board name a
+  login the same way.
+- Two axes, never merged (D-DB1): the fleet's dispatcher, and the dispatcher of the load the truck
+  carries now. The column shows the fleet's dispatcher, with "load dispatched by …" when a colleague is
+  covering. Until the fleet is linked, it shows the load's dispatcher and says that is who it is
+  ("dispatching its load"). With no load either, it shows the fleet code and says the fleet is not
+  linked. A drawn driver with no truck on the board reads "No truck".
+- Held to the testing-record roles with the rest of `selections`: a dispatcher's name beside a draw
+  still names the draw (§382.305(l)).
+
+**Owed by the office:** link the 14 fleets in Settings › McLeod fleets. Until then the column names
+the dispatcher from the current load, and a truck with no load shows only its fleet code.
+
 ## 8. Open questions
 
 - ~~Q-MS1~~ — base URL: `https://api.med-stop.com` (API-Key-access.md).
@@ -979,3 +1007,7 @@ Owner's ruling:
 - 2026-10-14 — **Random tab lists the whole year** (branch `claude/medstop-random-full-list`, no
   migration; §7A.17, D-MSUX18, owner's ruling): every draw of the pool year by default, with a Show
   filter; R4 narrowed to "never shown as due".
+- 2026-10-15 — **Dispatcher beside each draw** (branch `claude/medstop-draw-dispatcher`, no migration;
+  §7A.19, D-MSUX20): the Random tab names the fleet's dispatcher and the load's, read off the dispatch
+  board's own rows. Production has 0 of 14 fleets linked, so today the column mostly shows the load's
+  dispatcher.

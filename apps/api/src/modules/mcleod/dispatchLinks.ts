@@ -25,6 +25,20 @@ export interface DispatchLinks {
 }
 
 export async function readDispatchLinks(admin: SupabaseClient, orgId: string, userId: string): Promise<DispatchLinks> {
+  const { fleets, dispatchers } = await readFleetDispatchers(admin, orgId);
+  const dispatcherIds = dispatchers.filter((d) => d.userId === userId).map((d) => d.id);
+  const fleetCodes = fleets.filter((f) => f.dispatcherId && dispatcherIds.includes(f.dispatcherId)).map((f) => f.code);
+  return { scope: { linked: dispatcherIds.length > 0, fleetCodes, dispatcherIds }, fleets, dispatchers };
+}
+
+/**
+ * The two link tables without a caller's scope — for a reader that asks "whose fleet is this truck in?"
+ * about somebody else's driver (Safety's random-draw list, MEDSTOP-PLAN §7A.19), not "which are mine?".
+ */
+export async function readFleetDispatchers(
+  admin: SupabaseClient,
+  orgId: string,
+): Promise<Pick<DispatchLinks, "fleets" | "dispatchers">> {
   const { data: dData, error: dErr } = await admin
     .from("tms_dispatchers")
     .select("external_id, display_name, is_system, is_active, user_id")
@@ -46,10 +60,7 @@ export async function readDispatchLinks(admin: SupabaseClient, orgId: string, us
   const fleets = ((fData ?? []) as Array<{ code: string; dispatcher_external_id: string | null }>)
     .map((f) => ({ code: f.code, dispatcherId: f.dispatcher_external_id }))
     .sort((a, b) => a.code.localeCompare(b.code));
-
-  const dispatcherIds = dispatchers.filter((d) => d.userId === userId).map((d) => d.id);
-  const fleetCodes = fleets.filter((f) => f.dispatcherId && dispatcherIds.includes(f.dispatcherId)).map((f) => f.code);
-  return { scope: { linked: dispatcherIds.length > 0, fleetCodes, dispatcherIds }, fleets, dispatchers };
+  return { fleets, dispatchers };
 }
 
 export type LinkWrite = { ok: true } | { ok: false; status: 404; code: string; message: string };

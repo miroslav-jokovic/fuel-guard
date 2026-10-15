@@ -66,6 +66,10 @@ beforeEach(() => {
         { driver_id: "d-in", source: "medstop", expires_on: inDays(20) },
       ],
       medstop_requests: [{ medstop_id: "r-rand", employee_medstop_id: "m-ann", service: "TD", reason: "RANDOM", status: "OPEN", requested_local: `${inDays(-1)}T09:00:00`, test_medstop_id: null }],
+      // The dispatch board's inputs (§7A.19): Ann drives 773 in Vinnie's fleet.
+      vehicles: [{ id: "veh-773", unit_number: "773", status: "active", assigned_driver_id: "d-in", mcleod_fleet_code: "VINNIEV" }],
+      tms_fleets: [{ code: "VINNIEV", dispatcher_external_id: "vinniev" }],
+      tms_dispatchers: [{ external_id: "vinniev", display_name: "Vinnie V", is_system: false, is_active: true, user_id: null }],
       medstop_tests: [{ medstop_id: "t-pre", employee_medstop_id: "m-ann", service: "TD", reason: "PRE-EMPLOYMENT", status: "AT LAB", result: null, collected_local: `${inDays(-2)}T09:00:00` }],
     },
   });
@@ -118,6 +122,13 @@ describe("GET /api/drug-alcohol/program", () => {
   it("shows the DER who is selected and untested, by our driver's name", async () => {
     const { body } = await read();
     expect(body.data.selections?.draws.filter((s) => s.state === "due").map((s) => s.person.name)).toEqual(["Ann Pooled"]);
+  });
+
+  it("names who dispatches a drawn driver, from the dispatch board's row for their truck (§7A.19)", async () => {
+    const { body } = await read();
+    expect(body.data.selections?.dispatch).toEqual({
+      "d-in": { unitNumber: "773", fleetCode: "VINNIEV", fleetDispatcher: "Vinnie V", loadDispatcher: null },
+    });
   });
 
   it("holds the selection lists back — null, not empty — from a fleet manager", async () => {

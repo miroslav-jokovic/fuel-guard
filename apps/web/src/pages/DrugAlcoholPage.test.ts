@@ -57,6 +57,13 @@ const program = (over: Partial<DrugAlcoholProgram> = {}): DrugAlcoholProgram => 
       { selectionId: "s3", service: "alcohol", selectedOn: "2026-03-02", daysSince: 225, person: person("d7", "Tia Tested"), ordered: true, state: "tested", period: "earlier", medstopStatus: "COMPLETED" },
     ],
     currentPeriod: { startsOn: "2026-10-01", endsOn: "2026-12-31", months: 3 },
+    // §7A.19: Dee's fleet is linked and a colleague moves her load; Fay's fleet is not linked; Alma has
+    // a truck in no fleet and no load; Tia holds no truck.
+    dispatch: {
+      d9: { unitNumber: "773", fleetCode: "VINNIEV", fleetDispatcher: "Vinnie V", loadDispatcher: "asen" },
+      d4: { unitNumber: "512", fleetCode: "KANE", fleetDispatcher: null, loadDispatcher: "kane" },
+      d3: { unitNumber: "88", fleetCode: null, fleetDispatcher: null, loadDispatcher: null },
+    },
   },
   inProgress: [
     { key: "test:t1", person: person("d5", "Pat Pending"), kind: "drug", reason: "PRE-EMPLOYMENT", stage: "At the lab", orderedOn: null, collectedOn: "2026-10-09", expectedOn: "2026-10-13", daysWaiting: 4 },
@@ -114,9 +121,21 @@ describe("DrugAlcoholPage", () => {
     expect(w.findAll("button").filter((b) => b.text() === "Order test")).toHaveLength(2);
   });
 
+  it("names whom to call for each drawn driver — the fleet's dispatcher, a covering colleague beside it (§7A.19)", async () => {
+    const w = await render(program());
+    w.findComponent(FilterSelect).vm.$emit("update:modelValue", "all");
+    await flushPromises();
+    // jsdom lays the table out as cards, so the four answers are read off the rendered text.
+    const text = w.text();
+    expect(text).toContain("Vinnie VTruck 773 · load dispatched by asen");
+    expect(text).toContain("kaneTruck 512 · dispatching its load");
+    expect(text).toContain("—Truck 88 · in no fleet, no load");
+    expect(text).toContain("No truck");
+  });
+
   it("opens on the whole year when no pool covers today", async () => {
     const base = program();
-    const w = await render(program({ selections: { draws: base.selections!.draws, currentPeriod: null } }));
+    const w = await render(program({ selections: { draws: base.selections!.draws, currentPeriod: null, dispatch: {} } }));
     expect(w.text()).toContain("Random draws: whole year");
     expect(w.text()).toContain("Tia Tested");
   });

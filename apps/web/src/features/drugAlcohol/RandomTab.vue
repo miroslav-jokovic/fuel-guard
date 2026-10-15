@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import type { PoolPace, RandomDraw, RandomDrawPeriod, RandomDrawState } from "@silvicom/shared";
+import type { DrawDispatch, PoolPace, RandomDraw, RandomDrawPeriod, RandomDrawState } from "@silvicom/shared";
 import { AppButton as BaseButton, AppCard as BaseCard } from "@silvicom/ui";
 import DataTable from "@/components/ui/DataTable.vue";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
@@ -18,7 +18,13 @@ import { formatDate } from "@/lib/format";
  * what the tab shows first. "To test" is the DER's to-do across the year; "Whole year" is D-MSUX18's
  * complete list. Only ever mounted for a reader the API sent selections to (admin, safety_manager).
  */
-const props = defineProps<{ draws: RandomDraw[]; currentPeriod: RandomDrawPeriod | null; pools: PoolPace[]; canOrder: boolean }>();
+const props = defineProps<{
+  draws: RandomDraw[];
+  currentPeriod: RandomDrawPeriod | null;
+  dispatch: Record<string, DrawDispatch>;
+  pools: PoolPace[];
+  canOrder: boolean;
+}>();
 // UX3: "Order test" on every due draw not yet ordered — the drawer takes it as the seed (§7A.4).
 // Due includes a draw Med-Stop dated later in the current quarter (D-MSUX19).
 const emit = defineEmits<{ order: [selection: RandomDraw] }>();
@@ -65,14 +71,32 @@ const heading = computed(() =>
 
 const columns: DataTableColumn[] = [
   { key: "name", label: "Driver", cellClass: "font-medium text-ink" },
+  { key: "dispatch", label: "Dispatcher" },
   { key: "service", label: "Test" },
   { key: "selectedOn", label: "Selected" },
   { key: "state", label: "Status" },
   { key: "daysSince", label: "Waiting", numeric: true },
   { key: "ordered", label: "Order" },
 ];
-const tableRows = computed(() => shown.value.map((s) => ({ ...s, name: s.person.name })));
+const tableRows = computed(() => shown.value.map((s) => ({ ...s, name: s.person.name, dispatcher: dispatchLines(s.person.driverId) })));
 const { page, pageRows, total, paged, pageSize } = useClientPage(tableRows);
+/**
+ * Whom the DER calls to take the driver off the road (§7A.19). The fleet's dispatcher first; a load
+ * dispatched by a colleague is said beside it. Until an office links the fleet (Settings › McLeod
+ * fleets) the load's dispatcher is the one name there is, and the line says why it is that one.
+ */
+function dispatchLines(driverId: string | null): { who: string; sub: string } | null {
+  const d = driverId ? props.dispatch[driverId] : undefined;
+  if (!d) return null;
+  const truck = `Truck ${d.unitNumber}`;
+  if (d.fleetDispatcher) {
+    const other = d.loadDispatcher && d.loadDispatcher !== d.fleetDispatcher ? ` · load dispatched by ${d.loadDispatcher}` : "";
+    return { who: d.fleetDispatcher, sub: `${truck}${other}` };
+  }
+  if (d.loadDispatcher) return { who: d.loadDispatcher, sub: `${truck} · dispatching its load` };
+  if (d.fleetCode) return { who: `Fleet ${d.fleetCode}`, sub: `${truck} · fleet not linked to a dispatcher` };
+  return { who: "—", sub: `${truck} · in no fleet, no load` };
+}
 const testLabel = (s: RandomDraw["service"]) => (s === "drug" ? "Drug" : s === "alcohol" ? "Alcohol" : "Other");
 
 const paceSub = (pool: PoolPace) =>
@@ -110,6 +134,14 @@ const paceTone = (pool: PoolPace) =>
       </div>
       <DataTable embedded dense :sticky-header="false" :columns="columns" :rows="pageRows" row-key="selectionId" :empty-text="show === 'period' ? `No random draws this ${periodName}.` : 'No random draws.'">
         <template #cell-name="{ row }"><PersonCell :person="row.person" /></template>
+        <template #cell-dispatch="{ row }">
+          <template v-if="row.dispatcher">
+            <span class="text-ink">{{ row.dispatcher.who }}</span>
+            <span class="block text-xs text-ink-muted">{{ row.dispatcher.sub }}</span>
+          </template>
+          <span v-else-if="row.person.driverId" class="text-ink-muted">No truck</span>
+          <span v-else class="text-ink-muted">—</span>
+        </template>
         <template #cell-service="{ row }">{{ testLabel(row.service) }}</template>
         <template #cell-selectedOn="{ row }">{{ formatDate(row.selectedOn) }}</template>
         <template #cell-state="{ row }">
