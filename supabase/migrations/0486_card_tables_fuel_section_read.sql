@@ -19,6 +19,8 @@
 -- the fuel section at VIEW level, answered through `auth_section_or_default` so an organisation's override
 -- reaches it (a role the org has granted fuel gets in, one it has revoked is refused, the admin cannot be
 -- narrowed, D-PERM7). The default list is `rolesThatCanView("fuel")`, which `lint:section-policies` checks.
+-- `auth_role()` is wrapped in a scalar subquery so it is evaluated once per statement, not once per row
+-- (0460, the `rls-wrapped-helpers` matrix).
 -- Unlike 0417 there is NO driver branch. The ledger holds a driver's own fills; these tables hold no row
 -- a driver needs (the driver app reads none of them — read from apps/driver 2026-10-15). A driver is then
 -- refused by the helper itself, which pins `driver` to its shipped default and ignores any override
@@ -66,7 +68,7 @@ create policy fuel_cards_section_read on public.fuel_cards
   for select
   using (
     auth_section_or_default('fuel', 'view',
-      auth_role() in ('admin', 'fleet_manager', 'dispatcher', 'safety_manager', 'auditor', 'accountant'))
+      (select auth_role()) in ('admin', 'fleet_manager', 'dispatcher', 'safety_manager', 'auditor', 'accountant'))
   );
 
 drop policy if exists efs_txn_section_read on public.efs_transactions;
@@ -75,7 +77,7 @@ create policy efs_txn_section_read on public.efs_transactions
   for select
   using (
     auth_section_or_default('fuel', 'view',
-      auth_role() in ('admin', 'fleet_manager', 'dispatcher', 'safety_manager', 'auditor', 'accountant'))
+      (select auth_role()) in ('admin', 'fleet_manager', 'dispatcher', 'safety_manager', 'auditor', 'accountant'))
   );
 
 drop policy if exists declined_section_read on public.declined_transactions;
@@ -84,7 +86,7 @@ create policy declined_section_read on public.declined_transactions
   for select
   using (
     auth_section_or_default('fuel', 'view',
-      auth_role() in ('admin', 'fleet_manager', 'dispatcher', 'safety_manager', 'auditor', 'accountant'))
+      (select auth_role()) in ('admin', 'fleet_manager', 'dispatcher', 'safety_manager', 'auditor', 'accountant'))
   );
 
 drop policy if exists efs_processing_runs_section_read on public.efs_processing_runs;
@@ -93,5 +95,5 @@ create policy efs_processing_runs_section_read on public.efs_processing_runs
   for select
   using (
     auth_section_or_default('fuel', 'view',
-      auth_role() in ('admin', 'fleet_manager', 'dispatcher', 'safety_manager', 'auditor', 'accountant'))
+      (select auth_role()) in ('admin', 'fleet_manager', 'dispatcher', 'safety_manager', 'auditor', 'accountant'))
   );
