@@ -55,7 +55,7 @@ function recorder(rows: Record<string, unknown>[]) {
 describe("the reading", () => {
   it("is null until the engine reaches the inspection, and asks for no driver", async () => {
     const rec = recorder([]);
-    expect(await readInspectionAttribution(rec.client as never, ORG, INSP)).toEqual({ reading: null, decision: null, basedOn: null });
+    expect(await readInspectionAttribution(rec.client as never, ORG, INSP)).toEqual({ reading: null, decision: null, basedOn: null, reports: [] });
     expect(rec.forTable("drivers")).toEqual([]);
   });
 

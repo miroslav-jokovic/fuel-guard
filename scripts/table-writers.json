@@ -313,7 +313,11 @@
   ],
   "inspection_attributions": [
     "apps/api/src/modules/inspections/attribution/attribute.ts",
-    "apps/api/src/modules/inspections/attribution/decide.ts"
+    "apps/api/src/modules/inspections/attribution/decide.ts",
+    "apps/api/src/modules/inspections/report/check.ts"
+  ],
+  "inspection_report_checks": [
+    "apps/api/src/modules/inspections/report/check.ts"
   ],
   "inspection_report_reads": [
     "apps/api/src/modules/inspections/report/pass.ts"

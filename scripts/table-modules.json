@@ -1333,6 +1333,17 @@
         "why": "who was driving at each roadside inspection (0473, IC5): one engine row per inspection per engine version (~1,400 once, then ~1.3/day) plus a person's confirmations. RETENTION_FORBIDDEN: a filing names its driver from it."
       }
     },
+    "inspection_report_checks": {
+      "module": "inspections",
+      "layer": "derived",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 5,
+        "why": "each officer's report compared with FMCSA, the units, the roster and Samsara (0480, IC10): one row per report per check version (~12\u201330 a month, 2026-10-15). A confirmation names the attribution it wrote."
+      }
+    },
     "inspection_report_reads": {
       "module": "inspections",
       "layer": "derived",

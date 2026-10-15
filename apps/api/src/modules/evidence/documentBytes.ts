@@ -59,7 +59,7 @@ const PAGE = 1_000;
 export async function listFiledDocuments(
   admin: SupabaseClient,
   orgId: string,
-  q: { subjectType: string; kind: string },
+  q: { subjectType: string; kind: string; subjectId?: string },
 ): Promise<FiledDocumentRef[]> {
   // Paged: PostgREST answers at most 1,000 rows, and three years of inspections is 1,390 (2026-10-15).
   const rows: { id: string; subject_id: string; sha256: string; uploaded_by: string | null; created_at: string }[] = [];
@@ -71,6 +71,7 @@ export async function listFiledDocuments(
       .eq("subject_type", q.subjectType)
       .eq("kind", q.kind)
       .eq("variant", "original")
+      .match(q.subjectId ? { subject_id: q.subjectId } : {})
       .order("created_at", { ascending: true })
       .order("id", { ascending: true })
       .range(from, from + PAGE - 1);

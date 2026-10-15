@@ -2371,6 +2371,10 @@ async function main() {
       inspection_attributions: (org) =>
         `${rsRaw(org)} ${rsInsp(org)}, ia as (insert into inspection_attributions (org_id, inspection_id, source, engine_version, zone_method, location_check, outcome) ` +
         `select '${org}', i.id, 'engine', 'rls', 'unresolved', 'no_gps', 'no_assignment' from i returning id) select 1`,
+      // 0480: the same composite FK to its inspection.
+      inspection_report_checks: (org) =>
+        `${rsRaw(org)} ${rsInsp(org)}, rc as (insert into inspection_report_checks (org_id, inspection_id, document_id, read_id, check_version, outcome) ` +
+        `select '${org}', i.id, gen_random_uuid(), gen_random_uuid(), 'rls', 'unreadable' from i returning id) select 1`,
       // 0479: the same composite FK to its inspection.
       inspection_report_reads: (org) =>
         `${rsRaw(org)} ${rsInsp(org)}, rr as (insert into inspection_report_reads (org_id, inspection_id, document_id, sha256) ` +

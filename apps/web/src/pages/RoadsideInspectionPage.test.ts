@@ -86,7 +86,7 @@ const detail = (o: Partial<RoadsideInspectionDetailDto> = {}): RoadsideInspectio
       v2: { status: "scored", basic: "vehicle_maintenance", severityWeight: 4, oosWeight: 2, timeWeight: 3, points: 18 },
     },
   },
-  attribution: { reading: null, decision: null, basedOn: null },
+  attribution: { reading: null, decision: null, basedOn: null, reports: [] },
   ...o,
 });
 
