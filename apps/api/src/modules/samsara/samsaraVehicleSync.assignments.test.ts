@@ -181,4 +181,29 @@ describe("syncVehiclesFromSamsara — driver assignments", () => {
     await done;
     expect(driverWrites(rec)).toEqual([]);
   });
+
+  it("records a team truck's second driver, naming the value it expects to replace (0475)", async () => {
+    // 729 on 2026-10-15: both of the team in the truck; one seat; the teammate had no truck at all.
+    const team = [driver("d-feagin", "s-feagin"), driver("d-sital", "s-sital")];
+    const { rec, done } = run(
+      [{ ...truck("729", "sv-729", "d-feagin"), co_driver_id: null }],
+      [
+        { vehicle: { id: "sv-729" }, driver: { id: "s-feagin" }, startTime: "2026-09-15T15:22:00Z" },
+        { vehicle: { id: "sv-729" }, driver: { id: "s-sital" }, startTime: "2026-10-09T11:48:00Z" },
+        { vehicle: { id: "sv-729" }, driver: { id: "s-feagin" }, startTime: "2026-10-10T06:00:00Z" },
+      ],
+      team,
+    );
+    await done;
+    const writes = rec
+      .forTable("vehicles")
+      .filter((q) => q.write?.method === "update" && "co_driver_id" in (q.write.payload as object))
+      .map((q) => ({ payload: q.write!.payload, filters: Object.fromEntries(q.filters().map((f) => [f.col, f.val])), ops: q.ops.map((o) => o.method) }));
+    expect(writes).toHaveLength(1);
+    expect(writes[0]!.payload).toEqual({ co_driver_id: "d-sital" });
+    expect(writes[0]!.filters).toMatchObject({ id: "729", org_id: ORG });
+    expect(writes[0]!.ops).toContain("is"); // expects the seat still empty
+    expect(driverWrites(rec)).toEqual([]); // the first seat was already right
+    expectOrgScoped(rec, ORG);
+  });
 });

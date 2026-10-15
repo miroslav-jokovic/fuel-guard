@@ -49,6 +49,10 @@ export interface DriverTrucks {
   current: VehicleDriverLink[];
   /** One per truck: the driver for its single driver slot. */
   seats: VehicleDriverLink[];
+  /** One per TEAM truck: of the drivers currently in it, the one who started latest after the seat
+   *  holder — `vehicles.co_driver_id` (0475). A third driver in one truck is ranked out, as a second
+   *  is from `seats`. */
+  teammates: VehicleDriverLink[];
 }
 
 type Latest = { start: number; id: string };
@@ -61,8 +65,12 @@ export function parseDriverCurrentTrucks(
 ): DriverTrucks {
   // 1. Per driver, the truck of their latest start.
   const perDriver = new Map<string, Latest>();
+  // Each driver's FIRST start in each truck, for step 3's team test.
+  const firstIn = new Map<string, number>();
   for (const iv of parseAssignmentIntervals(response)) {
     if (!carried.isTruck(iv.vehicleSamsaraId) || !carried.isDriver(iv.driverSamsaraId)) continue;
+    const key = `${iv.driverSamsaraId}|${iv.vehicleSamsaraId}`;
+    if (!(iv.startMs >= (firstIn.get(key) ?? Infinity))) firstIn.set(key, iv.startMs);
     if (newer(iv.startMs, iv.vehicleSamsaraId, perDriver.get(iv.driverSamsaraId))) {
       perDriver.set(iv.driverSamsaraId, { start: iv.startMs, id: iv.vehicleSamsaraId });
     }
@@ -74,9 +82,23 @@ export function parseDriverCurrentTrucks(
     if (newer(start, driverId, perTruck.get(vehicleId))) perTruck.set(vehicleId, { start, id: driverId });
   }
 
+  // 3. Per truck, the runner-up: the teammate the one seat left out (729, 697, 717 on 2026-10-15) —
+  //    but only one who drove it SINCE the seat holder first did. A team interleaves; a hand-over
+  //    does not. Replayed against production that day, "anyone else whose current truck this is"
+  //    also named Daryal Williams on 657 and Marjan Mitev on 641: each last drove it (09-16, 09-30)
+  //    before its new driver's first trip (10-13, 10-08), and neither had driven anything since.
+  const second = new Map<string, Latest>();
+  for (const [driverId, { start, id: vehicleId }] of perDriver) {
+    const holder = perTruck.get(vehicleId)!;
+    if (holder.id === driverId) continue;
+    if (start < (firstIn.get(`${holder.id}|${vehicleId}`) ?? Infinity)) continue;
+    if (newer(start, driverId, second.get(vehicleId))) second.set(vehicleId, { start, id: driverId });
+  }
+
   return {
     current: [...perDriver].map(([driverSamsaraId, v]) => ({ vehicleSamsaraId: v.id, driverSamsaraId })),
     seats: [...perTruck].map(([vehicleSamsaraId, d]) => ({ vehicleSamsaraId, driverSamsaraId: d.id })),
+    teammates: [...second].map(([vehicleSamsaraId, d]) => ({ vehicleSamsaraId, driverSamsaraId: d.id })),
   };
 }
 
@@ -85,6 +107,8 @@ export interface SeatTruck {
   id: string;
   samsaraVehicleId: string | null;
   assignedDriverId: string | null;
+  /** `vehicles.co_driver_id` (0475). Optional so a caller that does not read it plans no teammates. */
+  coDriverId?: string | null;
 }
 
 /** A driver as the assignment pass sees it — every roster row, with or without a Samsara id. */
@@ -102,6 +126,12 @@ export interface SeatPlan {
   clear: Array<{ vehicleId: string; driverId: string }>;
   /** Trucks Samsara gave a driver this pass, written or already right (the sync's `assigned`). */
   seated: number;
+  /**
+   * Trucks whose second seat changes — set to the teammate, or `null` to empty it. Each names the
+   * value it expects to find, so a write can repeat it. Only planned for trucks whose `coDriverId`
+   * the caller read (not `undefined`).
+   */
+  teammates: Array<{ vehicleId: string; driverId: string | null; expected: string | null }>;
 }
 
 /**
@@ -131,13 +161,13 @@ export function planDriverSeats(
   const bySamsaraTruck = new Map(trucks.filter((t) => t.samsaraVehicleId).map((t) => [t.samsaraVehicleId!, t]));
   const bySamsaraDriver = new Map(drivers.filter((d) => d.samsaraDriverId && mayHold(d)).map((d) => [d.samsaraDriverId!, d.id]));
 
-  const { current, seats } = parseDriverCurrentTrucks(response, {
+  const { current, seats, teammates } = parseDriverCurrentTrucks(response, {
     isTruck: (id) => bySamsaraTruck.has(id),
     isDriver: (id) => bySamsaraDriver.has(id),
   });
 
   const holder = new Map(trucks.map((t) => [t.id, t.assignedDriverId]));
-  const plan: SeatPlan = { set: [], clear: [], seated: seats.length };
+  const plan: SeatPlan = { set: [], clear: [], seated: seats.length, teammates: [] };
   for (const s of seats) {
     const truck = bySamsaraTruck.get(s.vehicleSamsaraId)!;
     const driverId = bySamsaraDriver.get(s.driverSamsaraId)!;
@@ -154,6 +184,16 @@ export function planDriverSeats(
     const former = d !== undefined && !mayHold(d);
     const elsewhere = placed.has(driverId) && placed.get(driverId) !== t.id;
     if (former || elsewhere) plan.clear.push({ vehicleId: t.id, driverId });
+  }
+
+  // The second seat is CURRENT STATE, unlike the first: nobody types a co-driver in, so a truck no
+  // team is in now has none. A teammate is only ever a driver who may hold a truck (`isDriver` above),
+  // and never the truck's seat holder: step 3 of `parseDriverCurrentTrucks` ranks everyone else.
+  const teammateOf = new Map(teammates.map((m) => [bySamsaraTruck.get(m.vehicleSamsaraId)!.id, bySamsaraDriver.get(m.driverSamsaraId)!]));
+  for (const t of trucks) {
+    if (t.coDriverId === undefined) continue;
+    const want = teammateOf.get(t.id) ?? null;
+    if (want !== (t.coDriverId ?? null)) plan.teammates.push({ vehicleId: t.id, driverId: want, expected: t.coDriverId ?? null });
   }
   return plan;
 }

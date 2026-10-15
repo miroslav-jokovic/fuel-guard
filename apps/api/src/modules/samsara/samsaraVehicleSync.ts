@@ -301,7 +301,7 @@ async function syncDriverAssignments(
     const [{ data: vRows }, { data: dRows }] = await Promise.all([
       admin
         .from("vehicles")
-        .select("id, samsara_vehicle_id, assigned_driver_id")
+        .select("id, samsara_vehicle_id, assigned_driver_id, co_driver_id")
         .eq("org_id", orgId),
       // Every roster row, not only those with a Samsara id or still employed: the plan must also see
       // a former driver a truck still names, to take them off it (`planDriverSeats`).
@@ -310,14 +310,14 @@ async function syncDriverAssignments(
         .select("id, samsara_driver_id, status, archived_at")
         .eq("org_id", orgId),
     ]);
-    type V = { id: string; samsara_vehicle_id: string | null; assigned_driver_id: string | null };
+    type V = { id: string; samsara_vehicle_id: string | null; assigned_driver_id: string | null; co_driver_id: string | null };
     type D = { id: string; samsara_driver_id: string | null; status: string | null; archived_at: string | null };
     // One truck per driver, one driver per truck, former drivers on none — the whole rule, and the
     // production cases behind it (506/807, the team on 799, the trailer tie, 563), live in
     // `driverTrucks.ts`. This function only reads and writes.
     const plan = planDriverSeats(
       rawAssign,
-      ((vRows ?? []) as V[]).map((v) => ({ id: v.id, samsaraVehicleId: v.samsara_vehicle_id, assignedDriverId: v.assigned_driver_id })),
+      ((vRows ?? []) as V[]).map((v) => ({ id: v.id, samsaraVehicleId: v.samsara_vehicle_id, assignedDriverId: v.assigned_driver_id, coDriverId: v.co_driver_id })),
       ((dRows ?? []) as D[]).map((d) => ({ id: d.id, samsaraDriverId: d.samsara_driver_id, status: d.status, archived: d.archived_at !== null })),
     );
     for (const s of plan.set) {
@@ -331,6 +331,11 @@ async function syncDriverAssignments(
         .eq("id", c.vehicleId)
         .eq("org_id", orgId)
         .eq("assigned_driver_id", c.driverId);
+    }
+    // A team truck's second driver (0475), written the same way: each change names what it expects.
+    for (const m of plan.teammates) {
+      const q = admin.from("vehicles").update({ co_driver_id: m.driverId }).eq("id", m.vehicleId).eq("org_id", orgId);
+      await (m.expected === null ? q.is("co_driver_id", null) : q.eq("co_driver_id", m.expected));
     }
     return plan.seated;
   } catch {
