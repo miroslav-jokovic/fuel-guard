@@ -51,7 +51,7 @@ const reading = (o: Partial<RoadsideAttributionReadingDto> = {}): RoadsideAttrib
   zone: "America/Denver", zoneMethod: "gps", startedAt: "2026-09-22T18:04:00Z", endedAt: "2026-09-22T18:42:00Z", locationCheck: "confirmed",
   samsaraDriver: { id: "s-ann", name: "Ann (Samsara)" }, driver: { id: "d-ann", name: "Ann Roster" }, candidates: [], ...o,
 });
-const attribution = (o: Partial<RoadsideAttributionDto> = {}): RoadsideAttributionDto => ({ reading: reading(), decision: null, basedOn: "eng-1", ...o });
+const attribution = (o: Partial<RoadsideAttributionDto> = {}): RoadsideAttributionDto => ({ reading: reading(), decision: null, basedOn: "eng-1", reports: [], ...o });
 
 async function card(a: RoadsideAttributionDto) {
   const router = createRouter({ history: createMemoryHistory(), routes: [...ROUTE_TABLE] });
@@ -103,7 +103,7 @@ describe("the reading", () => {
   });
 
   it("says the engine has not read it yet, with nothing to decide", async () => {
-    const w = await card({ reading: null, decision: null, basedOn: null });
+    const w = await card({ reading: null, decision: null, basedOn: null, reports: [] });
     expect(w.find("[data-test='driver-pending']").exists()).toBe(true);
     expect(w.find("[data-test='driver-actions']").exists()).toBe(false);
   });
@@ -171,3 +171,36 @@ describe("deciding", () => {
     expect(w.get("[data-test='driver-error']").text()).toBe("That driver is not on our roster.");
   });
 });
+
+describe("the officer's report (IC10)", () => {
+  it("says a report confirmed the driver — nobody decided, so no person is named", async () => {
+    const w = await card(attribution({
+      decision: { id: "r-1", kind: "confirmed_by_report", driver: { id: "d-ann", name: "Ann Roster" }, decidedBy: null, decidedAt: "2026-10-15T15:00:00Z", note: null, engineVersion: "ic5.1" },
+      basedOn: "r-1",
+    }));
+    expect(w.get("[data-test='driver-badge']").text()).toBe("Confirmed by the report");
+    const text = w.get("[data-test='driver-decision']").text();
+    expect(text).toMatch(/Confirmed by the officer's report:\s+Ann Roster\s+holds the licence on the report/);
+    expect(text).not.toContain("by a former user");
+  });
+
+  it("lists each filed report with its check — what it names, and why it needs a person", async () => {
+    const w = await card(attribution({
+      reports: [
+        { documentId: "doc-1", state: "checked", outcome: "needs_review", nameOnReport: "ANN ROSTER", licenceLast4: "8901", driver: { id: "d-ann", name: "Ann Roster" }, checkedAt: "2026-10-15T15:00:00Z",
+          reasons: [{ code: "samsara_other_driver", text: "Samsara puts a different driver on the truck than the licence on the report." }] },
+        { documentId: "doc-2", state: "reading", outcome: null, nameOnReport: null, licenceLast4: null, driver: null, checkedAt: null, reasons: [] },
+      ],
+    }));
+    const rows = w.findAll("[data-test='driver-report']");
+    expect(rows).toHaveLength(2);
+    expect(rows[0]!.text()).toMatch(/Needs a person[\s\S]*Names ANN ROSTER, licence ending 8901 — on our roster as Ann Roster[\s\S]*Samsara puts a different driver/);
+    expect(rows[1]!.text()).toContain("Being read");
+  });
+
+  it("shows no report section when none is filed", async () => {
+    const w = await card(attribution());
+    expect(w.find("[data-test='driver-reports']").exists()).toBe(false);
+  });
+});
+

@@ -918,3 +918,21 @@ about three merges.
     licence vs `drivers.cdl_number` and vs Samsara's driver), the `report` confirmation when they agree,
     a task when they do not, and what the report says on the inspection's driver card.
 
+- **2026-10-15 — IC10, second merge: the report is checked, and confirms the driver when everything agrees
+  (migration 0480; Q-IC11 (a)).** `inspections/report/check.ts` runs on the hourly tick after the hand-over.
+  For each read report it compares (`report/compare.ts`, pure): the paper's report number against FMCSA's
+  (letters and digits only, with or without the state in front); every VIN on the paper against the
+  inspection's units (skipped while FMCSA has not published them); the licence number — both readers alike,
+  printed on the page when OCR or a PDF's text was read — against `drivers.cdl_number` (state must match
+  when both say one); and that licence holder against the driver Samsara put on the truck. All agreeing,
+  it writes a `report` row to `inspection_attributions` restating the engine reading and naming our driver,
+  with an audit row (`roadside.attribution_confirmed_by_report`) — unless a person has already decided, whom
+  a report never overrules (`agrees`). A name is compared and a difference shown, but never confirms or
+  vetoes. Every check is a row in new append-only `inspection_report_checks` (outcome, reasons, the name as
+  printed, the licence's last four — never the whole number — and the driver), one per report per
+  `REPORT_CHECK_VERSION`. The driver card shows a report confirmation ("Confirmed by the report"), and each
+  filed report with its state and reasons. Matrix `inspection-report-checks.test.mjs` (13); mutations of the
+  Samsara check, the two-readers check and the person guard each fail a test.
+  - **Not yet:** the safety office's alert for a report that needs a person (it needs a notification category
+    — a CHECK on `notification_events` — one merge before its writer), and the inbox's "needs a person"
+    filter. Until then the card is where a disagreement shows.

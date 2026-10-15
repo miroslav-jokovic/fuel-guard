@@ -1,3 +1,4 @@
+import type { RoadsideReportCheckDto } from "./roadsideReportCheckContract.js";
 import { z } from "zod";
 import { recordId } from "./recordId.js";
 
@@ -153,8 +154,9 @@ export interface RoadsideAttributionReadingDto {
  */
 export interface RoadsideAttributionDecisionDto {
   id: string;
-  kind: "confirmed" | "corrected";
-  /** The corrected driver; null for a confirmation, and for a correction whose driver row is gone (merged). */
+  /** `confirmed_by_report`: the officer's report's licence and Samsara agreed (IC10, Q-IC11 (a)); nobody decided. */
+  kind: "confirmed" | "corrected" | "confirmed_by_report";
+  /** The driver named: the corrected one, or the report's licence holder; null for a person's confirmation, and when the row is gone (merged). */
   driver: AttributionDriverRefDto | null;
   decidedBy: string | null;
   decidedAt: string;
@@ -167,8 +169,10 @@ export interface RoadsideAttributionDecisionDto {
 export interface RoadsideAttributionDto {
   reading: RoadsideAttributionReadingDto | null;
   decision: RoadsideAttributionDecisionDto | null;
-  /** The row a decision is made over — the newer of the two — sent back as the decision's `basedOn`. */
+  /** The row a decision is made over — the newest — sent back as the decision's `basedOn`. */
   basedOn: string | null;
+  /** Each officer's report filed on the inspection and what its check found (IC10). */
+  reports: RoadsideReportCheckDto[];
 }
 
 /**

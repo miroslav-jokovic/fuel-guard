@@ -10,6 +10,7 @@ import type {
   RoadsideAttributionDto,
 } from "@silvicom/shared";
 import { labelOf, memberLabels } from "../../../lib/memberLabels.js";
+import { readReportChecks } from "../report/readChecks.js";
 import type { DbError } from "./inspectionsList.js";
 
 /**
@@ -56,6 +57,8 @@ const COLS =
 export interface LatestAttribution {
   engine: AttributionRow | null;
   person: AttributionRow | null;
+  /** The officer's report's confirmation (0479, IC10): written by the check, never by a person. */
+  report: AttributionRow | null;
 }
 
 /** The latest row of each source. A newer engine version does not undo a person's decision; the page says which version it was over. */
@@ -74,17 +77,27 @@ export async function readLatestAttribution(
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle();
-  const [engine, person] = await Promise.all([latest("engine"), latest("person")]);
-  const failed = engine.error ?? person.error;
+  const [engine, person, report] = await Promise.all([latest("engine"), latest("person"), latest("report")]);
+  const failed = engine.error ?? person.error ?? report.error;
   if (failed) return { error: failed };
-  return { engine: engine.data as AttributionRow | null, person: person.data as AttributionRow | null };
+  return {
+    engine: engine.data as AttributionRow | null,
+    person: person.data as AttributionRow | null,
+    report: report.data as AttributionRow | null,
+  };
 }
 
-/** The row a decision must be made over: the newest of the two. */
+const newest = (rows: (AttributionRow | null)[]): AttributionRow | null =>
+  rows.reduce<AttributionRow | null>((best, r) => (r && (!best || Date.parse(r.created_at) >= Date.parse(best.created_at)) ? r : best), null);
+
+/** The latest decision over the reading: a person's or the report's, whichever is newer. */
+export function decisionRow(l: LatestAttribution): AttributionRow | null {
+  return newest([l.report, l.person]);
+}
+
+/** The row a decision must be made over: the newest of the three. */
 export function currentRow(l: LatestAttribution): AttributionRow | null {
-  if (!l.person) return l.engine;
-  if (!l.engine) return l.person;
-  return Date.parse(l.person.created_at) >= Date.parse(l.engine.created_at) ? l.person : l.engine;
+  return newest([l.engine, l.report, l.person]);
 }
 
 interface DriverRow {
@@ -124,7 +137,8 @@ export async function readInspectionAttribution(
 ): Promise<RoadsideAttributionDto | { error: DbError }> {
   const latest = await readLatestAttribution(admin, orgId, inspectionId);
   if ("error" in latest) return latest;
-  const { engine, person } = latest;
+  const { engine } = latest;
+  const person = decisionRow(latest);
   const candidates = engine?.candidates ?? [];
   const samsaraIds = [engine?.samsara_driver_id, ...candidates.map((c) => c.samsaraDriverId)].filter((s): s is string => !!s);
   const [roster, labels] = await Promise.all([
@@ -157,7 +171,7 @@ export async function readInspectionAttribution(
     },
     decision: person && {
       id: person.id,
-      kind: person.driver_id ? "corrected" : "confirmed",
+      kind: person.source === "report" ? "confirmed_by_report" : person.driver_id ? "corrected" : "confirmed",
       driver: person.driver_id ? ref(roster.byId.get(person.driver_id)) : null,
       decidedBy: person.decided_by ? labelOf(labels.get(person.decided_by)) : null,
       decidedAt: person.created_at,
@@ -165,5 +179,17 @@ export async function readInspectionAttribution(
       engineVersion: person.engine_version,
     },
     basedOn: currentRow(latest)?.id ?? null,
+    // A failure here degrades the card to "no report" rather than failing the page: the reading and the
+    // decision above are what the page is for, and on staging this read can meet the code before its
+    // table (0480) is applied (`check-migration-ordering.mjs`'s window).
+    reports: await readReportChecks(admin, orgId, inspectionId, async (id) => {
+      const known = roster.byId.get(id);
+      if (known) return ref(known);
+      const r = await rosterOf(admin, orgId, [], [id]);
+      return "error" in r ? null : ref(r.byId.get(id));
+    }).catch((e: unknown) => {
+      console.error(`[inspection-report] org ${orgId} inspection ${inspectionId}: report checks unread —`, e instanceof Error ? e.message : e);
+      return [];
+    }),
   };
 }

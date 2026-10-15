@@ -22,7 +22,8 @@
  * its failure is logged on its own so it can never stop the fetch or the stale check.
  *
  * And after that, the officer's reports filed since the last tick go to the document reader (IC10,
- * `report/pass.ts`), with the same isolation.
+ * `report/pass.ts`), and those it has read are checked against the record (`report/check.ts`), with
+ * the same isolation.
  */
 import { organizationTimezone } from "@silvicom/shared";
 import type { Env } from "../../../env.js";
@@ -34,6 +35,7 @@ import { syncFmcsaFeed } from "./sync.js";
 import { alertIfFeedStale } from "./staleAlert.js";
 import { loadSamsaraToken, makeSamsaraRawFetcher } from "../../samsara/index.js";
 import { attributeBacklog } from "../attribution/pass.js";
+import { checkReportBacklog } from "../report/check.js";
 import { readReportBacklog } from "../report/pass.js";
 
 const TICK_MS = 60 * 60_000;
@@ -102,9 +104,10 @@ export async function tickOrg(
   } catch (e) {
     console.error(`[inspection-attribution] org ${org.id}: pass failed —`, e instanceof Error ? e.message : e);
   }
-  // Last, the officer's reports filed since the last tick go to the document reader (IC10).
+  // Last, the officer's reports filed since the last tick go to the document reader, and the ones it has
+  // read are checked against the record — confirming the driver when everything agrees (IC10).
   try {
-    const tally = await readReportBacklog(admin, env, org.id);
+    const tally = { ...(await readReportBacklog(admin, env, org.id)), ...(await checkReportBacklog(admin, org.id)) };
     const read = Object.entries(tally).map(([k, n]) => `${n} ${k}`).join(", ");
     if (read) console.log(`[inspection-report] org ${org.id}: ${read}`);
   } catch (e) {

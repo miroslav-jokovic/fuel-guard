@@ -13,7 +13,10 @@ import {
   ATTRIBUTION_OUTCOME_TEXT,
   ATTRIBUTION_ZONE_TEXT,
   type AttributionDriverRefDto,
+  type ReportCheckOutcome,
+  type ReportCheckState,
   type RoadsideAttributionDto,
+  type RoadsideReportCheckDto,
 } from "@silvicom/shared";
 import { useDriversQuery } from "@/composables/useDrivers";
 import { useOpens } from "@/composables/useOpens";
@@ -63,10 +66,40 @@ const when = computed(() => {
 });
 
 const badge = computed((): { text: string; tone: "success" | "warning" | "brand" } | null => {
-  if (decision.value) return { text: decision.value.kind === "confirmed" ? "Confirmed by a person" : "Corrected by a person", tone: "brand" };
+  if (decision.value) {
+    const text = { confirmed: "Confirmed by a person", corrected: "Corrected by a person", confirmed_by_report: "Confirmed by the report" }[decision.value.kind];
+    return { text, tone: decision.value.kind === "confirmed_by_report" ? "success" : "brand" };
+  }
   if (!reading.value) return null;
   return reading.value.confidence === "high" ? { text: "Strong reading", tone: "success" } : { text: "Needs a person", tone: "warning" };
 });
+
+/**
+ * Each officer's report filed on the inspection and what its check found (IC10). The words are the API's
+ * reasons; only the label is said here, keyed so a new state or outcome without one fails the typecheck.
+ */
+const reports = computed(() => props.attribution.reports);
+const REPORT_LABEL: Record<ReportCheckState | ReportCheckOutcome, string> = {
+  waiting_for_file: "Waiting to be read",
+  reading: "Being read",
+  read_failed: "Could not be read",
+  checked: "Checked",
+  confirmed: "Confirms the driver",
+  agrees: "Agrees with the decision",
+  needs_review: "Needs a person",
+  unreadable: "Could not be read",
+};
+const REPORT_TONE: Record<ReportCheckState | ReportCheckOutcome, "success" | "warning" | "neutral" | "danger"> = {
+  waiting_for_file: "neutral",
+  reading: "neutral",
+  read_failed: "danger",
+  checked: "neutral",
+  confirmed: "success",
+  agrees: "success",
+  needs_review: "warning",
+  unreadable: "danger",
+};
+const reportLabel = (r: RoadsideReportCheckDto) => REPORT_LABEL[r.state === "checked" ? r.outcome! : r.state];
 
 const canConfirm = computed(
   () =>
@@ -149,17 +182,39 @@ const canSave = computed(() => !!driverId.value && note.value.trim().length > 0 
       <div v-if="decision" class="mt-4 border-t border-edge pt-4 text-sm" data-test="driver-decision">
         <p class="text-ink">
           <template v-if="decision.kind === 'confirmed'">Confirmed</template>
+          <template v-else-if="decision.kind === 'confirmed_by_report'">
+            Confirmed by the officer's report:
+            <BaseButton v-if="driverLink(decision.driver)" variant="link" :to="driverLink(decision.driver)!">{{ decision.driver!.name }}</BaseButton>
+            <span v-else class="font-medium">{{ decision.driver?.name ?? "a driver record that has since been merged" }}</span>
+            holds the licence on the report, and Samsara put them on the truck
+          </template>
           <template v-else>
             Corrected to
             <BaseButton v-if="driverLink(decision.driver)" variant="link" :to="driverLink(decision.driver)!">{{ decision.driver!.name }}</BaseButton>
             <span v-else class="font-medium">{{ decision.driver?.name ?? "a driver record that has since been merged" }}</span>
           </template>
-          by {{ decision.decidedBy ?? "a former user" }} on {{ formatDateTime(decision.decidedAt) }}.
+          <template v-if="decision.kind === 'confirmed_by_report'"> on {{ formatDateTime(decision.decidedAt) }}.</template>
+          <template v-else> by {{ decision.decidedBy ?? "a former user" }} on {{ formatDateTime(decision.decidedAt) }}.</template>
         </p>
         <p v-if="decision.note" class="mt-1 text-ink-muted">“{{ decision.note }}”</p>
         <p v-if="decision.engineVersion !== reading.engineVersion" class="mt-1 text-xs text-ink-tertiary" data-test="driver-decision-older">
           Decided over an earlier reading. Samsara has been read again since; the reading above is the new one.
         </p>
+      </div>
+
+      <div v-if="reports.length" class="mt-4 space-y-3 border-t border-edge pt-4 text-sm" data-test="driver-reports">
+        <div v-for="r in reports" :key="r.documentId" data-test="driver-report">
+          <p class="text-ink">
+            <span class="font-medium">Officer's report</span>
+            <span :class="['ml-2', BADGE_BASE, toneClass(REPORT_TONE[r.state === 'checked' ? r.outcome! : r.state])]">{{ reportLabel(r) }}</span>
+          </p>
+          <p v-if="r.nameOnReport || r.licenceLast4" class="mt-1 text-ink-muted">
+            <template v-if="r.nameOnReport">Names {{ r.nameOnReport }}</template><template v-if="r.licenceLast4">{{ r.nameOnReport ? ", licence" : "Licence" }} ending {{ r.licenceLast4 }}</template><template v-if="r.driver"> — on our roster as {{ r.driver.name }}</template>.
+          </p>
+          <ul v-if="r.reasons.length" class="mt-1 list-disc pl-5 text-ink-muted" data-test="driver-report-reasons">
+            <li v-for="reason in r.reasons" :key="reason.code">{{ reason.text }}</li>
+          </ul>
+        </div>
       </div>
 
       <div v-if="canDecide && !choosing" class="mt-4 flex flex-wrap gap-2" data-test="driver-actions">
