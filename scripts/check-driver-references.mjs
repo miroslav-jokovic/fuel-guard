@@ -39,6 +39,10 @@ const HANDLED_IN_FUNCTION = new Set([
   "driver_app_feature_overrides.driver_id", // PK (org,driver,feature) — canonical's override wins (0264)
 ]);
 const EXEMPT = new Map([
+  ["vehicles.co_driver_id",
+    "0475: the second driver of a team truck, CURRENT STATE the Samsara seat sync rewrites every " +
+    "identity pass. A merge clears it (on delete set null) and the next pass seats the canonical " +
+    "driver; moving it could seat a merged-away duplicate's stale placement."],
   // The application PDF's capture rows key on the application, not the driver, once certified;
   // driver_id there is provenance. Anything listed here carries the argument with it.
   ["credential_source_dates.driver_id",
