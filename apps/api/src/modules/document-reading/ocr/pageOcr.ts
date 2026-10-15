@@ -36,6 +36,23 @@ export async function ocrPages(pages: readonly PageForOcr[], recognise: Recognis
 
 export interface EngineOptions { cacheDir: string; idleMs?: number; timeoutMs?: number }
 
+/**
+ * The engine thread's entry: a two-line bootstrap that registers tsx in the thread, THEN imports the worker.
+ *
+ * Why not `new Worker(ocrWorker.ts)`. The API runs TypeScript through `node --import tsx` with no build step,
+ * and whether that loader reaches a worker thread depends on the Node release. Production's Node 24.10.0
+ * (nixpacks `nodejs_24`) starts the thread WITHOUT it: Node's own type stripping loads ocrWorker.ts and then
+ * cannot resolve its `./ocrModels.js` import to the .ts beside it. Every page failed with "Cannot find module
+ * …/ocrModels.js imported from …/ocrWorker.ts" (production log, 2026-10-13), so the OCR witness has never
+ * run there — on 24.22 and 26 the loader carries over, which is why no local run saw it. Registering tsx in
+ * the thread itself works on every release. Its URL is resolved here, from this module, as the main thread
+ * resolved it, so the thread does not depend on its working directory.
+ */
+export function workerBootstrap(workerUrl: URL = new URL("./ocrWorker.ts", import.meta.url)): string {
+  const tsxApi = import.meta.resolve("tsx/esm/api");
+  return `import(${JSON.stringify(tsxApi)}).then((m) => { m.register(); return import(${JSON.stringify(workerUrl.href)}); });`;
+}
+
 /** The process's engine thread behind a `RecognisePage`. */
 export function ocrEngine({ cacheDir, idleMs = 120_000, timeoutMs = 180_000 }: EngineOptions): RecognisePage {
   let worker: Worker | null = null;
@@ -52,7 +69,7 @@ export function ocrEngine({ cacheDir, idleMs = 120_000, timeoutMs = 180_000 }: E
     pending.clear();
   };
   const start = (): Worker => {
-    const w = new Worker(new URL("./ocrWorker.ts", import.meta.url), { workerData: { cacheDir } });
+    const w = new Worker(workerBootstrap(), { eval: true, workerData: { cacheDir } });
     w.on("message", (m: { id: number; items?: OcrItem[]; error?: string }) => {
       const settle = pending.get(m.id);
       pending.delete(m.id);

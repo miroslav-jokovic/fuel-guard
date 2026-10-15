@@ -1,6 +1,7 @@
 import sharp from "sharp";
+import { Worker } from "node:worker_threads";
 import { describe, expect, it, vi } from "vitest";
-import { ocrPages, type RecognisePage } from "./pageOcr.js";
+import { ocrPages, workerBootstrap, type RecognisePage } from "./pageOcr.js";
 
 /** The read's pages to the OCR engine (§7B A5): upright, in order, all or nothing. */
 const png = (width: number, height: number) => sharp({ create: { width, height, channels: 3, background: "#fff" } }).png().toBuffer();
@@ -21,5 +22,22 @@ describe("ocrPages", () => {
   it("is null when any page has no OCR, so a row's anchor count is never taken over part of the document", async () => {
     const recognise = vi.fn<RecognisePage>().mockResolvedValueOnce([item]).mockResolvedValueOnce(null);
     expect(await ocrPages([{ originalPng: await png(10, 10), rotation: 0 }, { originalPng: await png(10, 10), rotation: 0 }], recognise)).toBeNull();
+  });
+});
+
+describe("workerBootstrap", () => {
+  // The thread is started with NO loader from its parent (`execArgv: []`), which is what production's Node
+  // 24.10.0 gave the engine thread: a worker importing a sibling .ts by its .js name must still load.
+  it("loads a TypeScript worker that imports a sibling by its .js name, with nothing inherited from the parent", async () => {
+    const w = new Worker(workerBootstrap(new URL("./fixtures/bootProbeWorker.ts", import.meta.url)), { eval: true, execArgv: [] });
+    try {
+      const answer = await new Promise((resolve, reject) => {
+        w.once("message", resolve);
+        w.once("error", reject);
+      });
+      expect(answer).toBe("loaded");
+    } finally {
+      await w.terminate();
+    }
   });
 });
