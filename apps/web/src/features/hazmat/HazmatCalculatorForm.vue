@@ -14,6 +14,8 @@ import { bolLineView, bolPrefill, hmtRefsOf, type PrefillKey, type PrefillLine }
 import { pendingCount, type FilledLine } from "@/features/hazmat/bolRead/bolReview";
 import { useBolReviews } from "@/features/hazmat/bolRead/useBolReviews";
 import BolFindingsPanel from "@/features/hazmat/bolRead/BolFindingsPanel.vue";
+import BolNoHazmatNote from "@/features/hazmat/bolRead/BolNoHazmatNote.vue";
+import type { NoHazmatEvidence } from "@/features/hazmat/bolRead/bolNoHazmat";
 import { bolFindings, type BolFindings } from "@/features/hazmat/bolRead/bolFindings";
 import { useHazmatTrailersQuery } from "@/features/hazmat/useHazmatEquipment";
 import {
@@ -170,7 +172,7 @@ const isTank = computed(() => equipmentSpec(form.equipmentType)?.vehicleKind ===
 const prefilled = new WeakMap<object, PrefillLine>();
 const bolSummary = ref<{ added: number; unmatched: number; notLoaded: string[] } | null>(null);
 /** The read found no hazmat line: what the paper carries instead, to say so (bolPrefill.ts `noHazmat`). */
-const bolNoHazmat = ref<{ otherLines: string[]; bothReaders: boolean } | null>(null);
+const bolNoHazmat = ref<{ otherLines: string[]; bothReaders: boolean; evidence: NoHazmatEvidence } | null>(null);
 const bolError = ref<string | null>(null);
 const findings = ref<BolFindings | null>(null);
 const bolView = (line: (typeof form.lines)[number]) => {
@@ -198,14 +200,14 @@ watch(() => props.bolRead, async (read) => {
   }
   const p = bolPrefill(read, products, form.equipmentType);
   if (!p) { bolError.value = "The read could not be used. Read the BOL again."; return; }
-  if (p.noHazmat) {
+  if (p.noHazmat && p.noHazmatEvidence) {
     // Nothing to fill and nothing to audit: the shipping-paper rules are hazmat rules, and over zero lines
     // they "pass" without having checked anything. The lines a person typed stay; an earlier read's go,
     // because this read is the BOL now on screen.
     form.lines = form.lines.filter((l) => !untouched(l) && !prefilled.has(toRaw(l)));
     if (form.lines.length === 0) form.lines = [emptyLine(form.equipmentType)];
     bolSummary.value = null;
-    bolNoHazmat.value = { otherLines: p.otherLines, bothReaders: p.bothReaders };
+    bolNoHazmat.value = { otherLines: p.otherLines, bothReaders: p.bothReaders, evidence: p.noHazmatEvidence };
     result.value = null;
     return;
   }
@@ -332,17 +334,7 @@ function resetAll() {
 
       <BolFindingsPanel v-if="findings" :findings="findings" />
       <AppCallout v-if="bolError" tone="danger" data-testid="bol-prefill">{{ bolError }}</AppCallout>
-      <AppCallout v-else-if="bolNoHazmat" tone="info" data-testid="bol-prefill">
-        <div class="space-y-1">
-          <p class="font-semibold">{{ bolNoHazmat.bothReaders ? "No hazardous materials on this BOL." : "No hazardous materials read on this BOL — check the page." }}</p>
-          <p>
-            {{ bolNoHazmat.bothReaders ? "Both readers" : "Only one reader" }} read it and found no hazmat line<template v-if="bolNoHazmat.otherLines.length">, only: {{ bolNoHazmat.otherLines.join("; ") }}</template>.
-            <template v-if="bolNoHazmat.bothReaders">Nothing on this BOL needs a placard.</template>
-            <template v-else>Look at the page for a UN or NA number before you rely on it.</template>
-            If other freight on the truck is hazmat, read its BOL too, or add the product below.
-          </p>
-        </div>
-      </AppCallout>
+      <BolNoHazmatNote v-else-if="bolNoHazmat" v-bind="bolNoHazmat" />
       <AppCallout v-else-if="bolSummary" tone="info" data-testid="bol-prefill">
         <div class="space-y-1">
           <p>

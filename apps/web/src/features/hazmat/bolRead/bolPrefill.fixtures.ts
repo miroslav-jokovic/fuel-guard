@@ -44,7 +44,7 @@ export interface LineSpec {
 }
 
 /** A finished read of these lines, each at its index. */
-export function read(specs: LineSpec[], over: Partial<ReadResponse> & { otherLines?: string[] } = {}): ReadResponse {
+export function read(specs: LineSpec[], over: Partial<ReadResponse> & { otherLines?: string[]; scan?: string[] } = {}): ReadResponse {
   const evidence: FieldEvidence[] = [];
   const aLines = specs.filter((s) => s.a).map((s) => ({ ...LINE_DEFAULTS, ...s.a }));
   specs.forEach((s, i) => {
@@ -68,11 +68,22 @@ export function read(specs: LineSpec[], over: Partial<ReadResponse> & { otherLin
   // As shippingEvidence records it: a leaf list both readers read.
   const reader = (r: "passA" | "passB") => ({ reader: r, page: null, bbox: null, value: otherLines as never });
   evidence.push({ path: "otherLines", value: otherLines, status: "check", sources: [reader("passA"), reader("passB")], ruleVersion: "4" });
+  // Pass A read no line: `hazmat.lines` is the empty-list leaf, with the OCR's page scan when `scan` is given (rule 6).
+  if (aLines.length === 0) {
+    const sources: FieldEvidence["sources"] = [{ reader: "passA", page: null, bbox: null, value: [] }, { reader: "passB", page: null, bbox: null, value: [] }];
+    if (over.scan) sources.push({ reader: "ocr", page: over.scan.length ? 1 : null, bbox: null, value: over.scan });
+    evidence.push({ path: "hazmat.lines", value: [], status: "check", sources, ruleVersion: "6" });
+  }
+  const { scan: _scan, ...rest } = over;
   return {
     id: "00000000-0000-4000-8000-000000000001", sourceId: null, assemblyId: "00000000-0000-4000-8000-000000000002",
     profile: "shipping_document", profileVersion: "1.1.0", status: "done", failureCode: null,
-    result: { hazmat: { lines: aLines }, otherLines }, evidence, pages: [], paperAudit: null, ...over,
+    result: { hazmat: { lines: aLines }, otherLines }, evidence, pages: [], paperAudit: null, ...rest,
   } as ReadResponse;
 }
+
+/** The audit's §172.201(c) page rule, answered `outcome` — what a no-hazmat read needs to pass (bolNoHazmat.ts). */
+export const pagesAudit = (outcome: "pass" | "fail" | "cannot_tell") =>
+  ({ datasetVersion: "t", results: [{ ruleId: "paper_page_complete", outcome, reason: outcome === "pass" ? "single_page" : "pages_missing", lineIndex: null, facts: {} }] });
 
 export const ok = (hmtRef: string) => ({ consistent: true as const, hmtRef });

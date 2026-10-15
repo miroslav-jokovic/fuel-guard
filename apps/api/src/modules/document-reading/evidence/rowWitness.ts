@@ -36,7 +36,8 @@ const ROW_BELOW = 2.5;
 
 const norm = (t: string) =>
   t.toUpperCase().replace(/(\d),(\d{3})/g, "$1$2").replace(/(\d)\.(\d{3})\b/g, "$1$2").replace(/\bUN\s+(\d{4})/g, "UN$1").replace(/\bNA\s+(\d{4})/g, "NA$1");
-const tokens = (t: string): string[] => norm(t).match(/[A-Z]*\d+(?:\.\d+)?|[A-Z]+/g) ?? [];
+/** An item's text as the row witness compares it: ids joined ("UN 1263" → "UN1263"), numbers without separators. */
+export const tokens = (t: string): string[] => norm(t).match(/[A-Z]*\d+(?:\.\d+)?|[A-Z]+/g) ?? [];
 // Two number tokens are the same printed value when they are the same number: "20030.00" is 20030, as
 // 0134527 prints its weights (measured in A5's build; the spike's string match missed both).
 const NUMBER = /^\d+(?:\.\d+)?$/;
