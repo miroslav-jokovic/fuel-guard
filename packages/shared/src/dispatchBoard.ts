@@ -162,3 +162,9 @@ export function movedByOther(
 ): boolean {
   return fleetDispatcherId != null && load?.dispatcherId != null && load.dispatcherId !== fleetDispatcherId;
 }
+
+/** A dispatcher's display name from the McLeod roster, falling back to the login. */
+export function dispatcherName(id: string | null | undefined, dispatchers: ReadonlyArray<{ id: string; name: string | null }>): string {
+  if (!id) return "";
+  return dispatchers.find((d) => d.id === id)?.name || id;
+}

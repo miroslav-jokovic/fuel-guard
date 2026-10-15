@@ -102,7 +102,7 @@ const stale = computed(() => {
 
         <AppTabs v-model="tab" :tabs="tabs" label="Drug and alcohol" scrollable />
 
-        <RandomTab v-if="tab === 'random' && p.selections" :draws="p.selections.draws" :current-period="p.selections.currentPeriod" :pools="p.pools" :can-order="canOrder" @order="openOrder" />
+        <RandomTab v-if="tab === 'random' && p.selections" :draws="p.selections.draws" :current-period="p.selections.currentPeriod" :dispatch="p.selections.dispatch" :pools="p.pools" :can-order="canOrder" @order="openOrder" />
         <InProgressTab v-else-if="tab === 'progress'" :rows="p.inProgress" />
         <ResultsTab v-else-if="tab === 'results' && p.results" :recent="p.results.recent" :history="p.results.history" />
         <MedicalTab v-else-if="tab === 'medical'" :medical="p.medical" />

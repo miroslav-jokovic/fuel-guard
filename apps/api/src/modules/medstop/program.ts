@@ -8,6 +8,7 @@ import {
   reconcileRosters,
   shiftDay,
   type CalendarDay,
+  type DrawDispatch,
   type DrugAlcoholProgram,
   type MatchedPerson,
   type MedstopRoster,
@@ -20,6 +21,7 @@ import { readRosterDrivers } from "./sync.js";
 import { RESULT_REVIEW_DAYS, readResultReview } from "./results.js";
 import { readInProgress } from "./inProgress.js";
 import { readMedicalStates } from "../evidence/index.js";
+import { readDriverDispatch } from "../livemap/index.js";
 
 /**
  * Safety › Drug & Alcohol's one read (MEDSTOP-PLAN.md §6, §7A — five tabs since MS-UX1). The mirror
@@ -146,14 +148,7 @@ export async function readDrugAlcoholProgram(
           selectionRows,
         ),
       ),
-    selections: testingRoles
-      ? randomDrawsThisYear(
-          selectionRows,
-          pools.map((p) => ({ medstopId: p.medstop_id, startsOn: p.starts_on, endsOn: p.ends_on, frequency: p.frequency })),
-          personOf,
-          today,
-        )
-      : null,
+    selections: testingRoles ? await readSelections(admin, orgId, selectionRows, pools, personOf, today) : null,
     inProgress: inProgressRows(moving.orders, moving.tests, personOf, today, testingRoles),
     // MS2c: the results themselves — testing records, so the same rule as the selections above.
     results: testingRoles ? await readResultReview(admin, orgId, shiftDay(today, -RESULT_REVIEW_DAYS), personOf) : null,
@@ -164,4 +159,31 @@ export async function readDrugAlcoholProgram(
     ),
     roster: reconciled,
   };
+}
+
+/**
+ * The year's draws, and who dispatches each drawn driver (§7A.19) — read only for the testing-record
+ * roles, since naming the driver's dispatcher beside a draw is still naming the draw.
+ */
+async function readSelections(
+  admin: SupabaseClient,
+  orgId: string,
+  selectionRows: SelectionRow[],
+  pools: ReadonlyArray<{ medstop_id: string; starts_on: string | null; ends_on: string | null; frequency: string | null }>,
+  personOf: (id: string | null) => ProgramPerson,
+  today: CalendarDay,
+): Promise<NonNullable<DrugAlcoholProgram["selections"]>> {
+  const drawn = randomDrawsThisYear(
+    selectionRows,
+    pools.map((p) => ({ medstopId: p.medstop_id, startsOn: p.starts_on, endsOn: p.ends_on, frequency: p.frequency })),
+    personOf,
+    today,
+  );
+  const byDriver = await readDriverDispatch(admin, orgId);
+  const dispatch: Record<string, DrawDispatch> = {};
+  for (const d of drawn.draws) {
+    const found = d.person.driverId ? byDriver.get(d.person.driverId) : undefined;
+    if (found) dispatch[d.person.driverId!] = found;
+  }
+  return { ...drawn, dispatch };
 }

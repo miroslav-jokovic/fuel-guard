@@ -391,6 +391,10 @@ const API_ALLOW = new Set([
   //   never `.from("vehicle_positions")` (a raw table sealed to its collector). samsara imports nothing
   //   of medstop's.
   "medstop -> samsara",
+  // · medstop -> livemap — the random-draw list names who dispatches each drawn driver (MEDSTOP-PLAN
+  //   §7A.19) through `readDriverDispatch`, the dispatch board's own rows, so the DER and the board name
+  //   one person. livemap imports nothing of medstop's.
+  "medstop -> livemap",
   // · recruiting -> medstop — the dispatch door (`returnToDutyHold`) reads a Med-Stop positive or
   //   refusal through `medstopViolationOn`, never `.from("medstop_*")` (F-5). medstop imports nothing
   //   of recruiting's, so the arrow points one way.
