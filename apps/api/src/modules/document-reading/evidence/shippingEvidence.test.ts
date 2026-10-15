@@ -31,6 +31,20 @@ describe("valuesAgree", () => {
     expect(valuesAgree(null, 6)).toBe(false);
     expect(valuesAgree(["ERG#128"], ["erg#128"])).toBe(true);
   });
+
+  it("reads a decimal without its trailing zeros, and touches nothing else about the number", () => {
+    // production read d0f2831a: the same 48 jerricans, one reader copying the shipper's four decimals
+    expect(valuesAgree("48.0000 Non-Removable Head Plastic Jerrican", "48 Non-Removable Head Plastic Jerrican")).toBe(true);
+    expect(valuesAgree("5.00 EA", "5 EA")).toBe(true);
+    expect(valuesAgree("20,030.00", "20030")).toBe(true);
+    expect(valuesAgree("5.50", "5.5")).toBe(true);
+    expect(valuesAgree("5.05", "5.5")).toBe(false);
+    expect(valuesAgree("48.0001", "48")).toBe(false);
+    expect(valuesAgree("480", "48.0")).toBe(false);
+    expect(valuesAgree("10.10.2026", "10.1.2026")).toBe(false);
+    expect(valuesAgree("1.20.0", "1.2.0")).toBe(false);
+    expect(valuesAgree("1.2.10", "1.2.1")).toBe(false);
+  });
 });
 
 describe("alignLines", () => {
