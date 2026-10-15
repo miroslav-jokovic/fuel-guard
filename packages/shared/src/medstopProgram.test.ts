@@ -4,6 +4,7 @@ import {
   matchMedstopPerson,
   poolPace,
   reconcileRosters,
+  drawPeriodOf,
   randomDrawsThisYear,
   type MatchedPerson,
   type MedstopPersonRow,
@@ -117,6 +118,7 @@ describe("poolPace", () => {
   it("counts this year's cancelled and expired draws of the same service, not reserves or other years", () => {
     const s = (id: string, status: string, over: Partial<SelectionRow> = {}): SelectionRow => ({
       medstopId: id,
+      poolMedstopId: "p",
       employeeMedstopId: "e",
       service: "TD",
       selectedOn: "2026-03-01",
@@ -138,8 +140,12 @@ describe("poolPace", () => {
 });
 
 describe("randomDrawsThisYear", () => {
+  const POOL = { medstopId: "p26", startsOn: "2026-01-01T00:00:00", endsOn: "2026-12-31T23:59:00", frequency: "QUARTERLY" };
+  const POOL25 = { medstopId: "p25", startsOn: "2025-01-01T00:00:00", endsOn: "2025-12-31T23:59:00", frequency: "QUARTERLY" };
+  const pools = [POOL, POOL25];
   const sel = (id: string, day: string, over: Partial<SelectionRow> = {}): SelectionRow => ({
     medstopId: id,
+    poolMedstopId: day.startsWith("2025") ? "p25" : "p26",
     employeeMedstopId: `e${id}`,
     service: "TD",
     selectedOn: `${day}T17:00:00`,
@@ -151,30 +157,57 @@ describe("randomDrawsThisYear", () => {
   const who = (id: string | null) => ({ driverId: null, medstopId: id, name: id ?? "?" });
   const states = (draws: { selectionId: string; state: string }[]) => draws.map((d) => [d.selectionId, d.state]);
 
-  it("lists the whole year, and an earlier draw only while still due — due longest-waiting first, then upcoming soonest first, then the rest newest first (D-MSUX18)", () => {
-    const out = randomDrawsThisYear(
+  it("calls every OPEN draw of the current quarter due — the office's paper list — whatever day Med-Stop dated it inside the quarter (D-MSUX19)", () => {
+    const { draws, currentPeriod } = randomDrawsThisYear(
       [
-        sel("a", "2026-10-08"), sel("b", "2026-10-06"), sel("t", "2026-10-13"),
-        sel("u2", "2026-12-21"), sel("u1", "2026-10-25"),
+        sel("a", "2026-10-08"), sel("b", "2026-10-06"), sel("t", "2026-10-15"),
+        sel("f1", "2026-11-08"), sel("f2", "2026-12-20"),
         sel("x1", "2026-03-01", { status: "COMPLETED", testMedstopId: "t1" }),
         sel("x2", "2026-09-01", { status: "COMPLETED", testMedstopId: "t2" }),
-        // Newer than every due draw, so plain date order would put it first.
-        sel("x3", "2026-10-12", { status: "COMPLETED", testMedstopId: "t3" }),
         sel("old", "2025-12-30", { status: "COMPLETED", testMedstopId: "t0" }),
         sel("late", "2025-12-29"),
       ],
+      pools,
       who,
-      "2026-10-13",
+      "2026-10-15",
     );
-    expect(out.map((d) => [d.selectionId, d.state, d.daysSince])).toEqual([
-      ["late", "due", 288], ["b", "due", 7], ["a", "due", 5], ["t", "due", 0],
-      ["u1", "upcoming", -12], ["u2", "upcoming", -69],
-      ["x3", "tested", 1], ["x2", "tested", 42], ["x1", "tested", 226],
+    expect(currentPeriod).toEqual({ startsOn: "2026-10-01", endsOn: "2026-12-31", months: 3 });
+    expect(draws.map((d) => [d.selectionId, d.state, d.period, d.daysSince])).toEqual([
+      ["late", "due", "earlier", 290], ["b", "due", "current", 9], ["a", "due", "current", 7], ["t", "due", "current", 0],
+      ["f1", "due", "current", -24], ["f2", "due", "current", -66],
+      ["x2", "tested", "earlier", 44], ["x1", "tested", "earlier", 228],
     ]);
   });
 
+  it("keeps a draw in a LATER quarter upcoming, and an earlier quarter's open draw due", () => {
+    const { draws } = randomDrawsThisYear([sel("q3", "2026-09-29"), sel("q4", "2026-10-02")], pools, who, "2026-09-30");
+    expect(draws.map((d) => [d.selectionId, d.state, d.period])).toEqual([["q3", "due", "current"], ["q4", "upcoming", "later"]]);
+  });
+
+  it("derives the period from the pool's own start and frequency, never the calendar", () => {
+    expect(drawPeriodOf({ medstopId: "m", startsOn: "2026-02-15", endsOn: "2027-02-14", frequency: "QUARTERLY" }, "2026-05-15"))
+      .toEqual({ startsOn: "2026-05-15", endsOn: "2026-08-14", months: 3 });
+    expect(drawPeriodOf({ medstopId: "m", startsOn: "2026-01-01", endsOn: "2026-12-31", frequency: "MONTHLY" }, "2026-10-15"))
+      .toEqual({ startsOn: "2026-10-01", endsOn: "2026-10-31", months: 1 });
+    // An unknown word makes the whole pool the period: more listed as due, nothing hidden.
+    expect(drawPeriodOf({ medstopId: "m", startsOn: "2026-01-01", endsOn: "2026-12-31", frequency: "BIWEEKLY" }, "2026-10-15"))
+      .toEqual({ startsOn: "2026-01-01", endsOn: "2026-12-31", months: null });
+    expect(drawPeriodOf(POOL, "2027-01-01")).toBeNull();
+  });
+
+  it("has no current period between pool years, and falls back to the date for a selection whose pool we do not hold", () => {
+    const { draws, currentPeriod } = randomDrawsThisYear(
+      [sel("n", "2026-10-20", { poolMedstopId: null }), sel("p", "2026-10-01", { poolMedstopId: "gone" })],
+      [POOL25],
+      who,
+      "2026-10-15",
+    );
+    expect(currentPeriod).toBeNull();
+    expect(draws.map((d) => [d.selectionId, d.state, d.period])).toEqual([["p", "due", "earlier"], ["n", "upcoming", "later"]]);
+  });
+
   it("names every way a draw ends — and a test settles it whatever Med-Stop's word", () => {
-    const out = randomDrawsThisYear(
+    const { draws } = randomDrawsThisYear(
       [
         sel("r", "2026-12-27", { status: "RESERVE" }),
         sel("re", "2026-09-29", { status: "EXPIRED RESERVE" }),
@@ -183,18 +216,19 @@ describe("randomDrawsThisYear", () => {
         sel("rf", "2026-09-26", { status: "REFUSAL", testMedstopId: "t" }),
         sel("q", "2026-09-25", { status: "SOMETHING NEW" }),
       ],
+      pools,
       who,
       "2026-10-13",
     );
-    expect(states(out)).toEqual([
+    expect(states(draws)).toEqual([
       ["r", "alternate"], ["re", "alternate_unused"], ["k", "cancelled"], ["e", "expired"], ["rf", "tested"], ["q", "other"],
     ]);
-    expect(out.find((d) => d.selectionId === "q")?.medstopStatus).toBe("SOMETHING NEW");
+    expect(draws.find((d) => d.selectionId === "q")?.medstopStatus).toBe("SOMETHING NEW");
   });
 
   it("marks a draw whose request is placed as ordered", () => {
-    const out = randomDrawsThisYear([sel("a", "2026-10-10", { requestMedstopId: "req" }), sel("b", "2026-10-10")], who, "2026-10-13");
-    expect(out.map((d) => [d.selectionId, d.ordered])).toEqual([["a", true], ["b", false]]);
+    const { draws } = randomDrawsThisYear([sel("a", "2026-10-10", { requestMedstopId: "req" }), sel("b", "2026-10-10")], pools, who, "2026-10-13");
+    expect(draws.map((d) => [d.selectionId, d.ordered])).toEqual([["a", true], ["b", false]]);
   });
 });
 

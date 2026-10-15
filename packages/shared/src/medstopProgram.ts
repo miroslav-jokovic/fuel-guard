@@ -1,8 +1,9 @@
-import type { CalendarDay } from "./calendarDay.js";
+import { shiftDay, type CalendarDay } from "./calendarDay.js";
 import type {
   PoolPace,
   ProgramPerson,
   RandomDraw,
+  RandomDrawPeriod,
   RandomDrawState,
 } from "./medstopContract.js";
 
@@ -124,6 +125,7 @@ export interface PoolRow {
 
 export interface SelectionRow {
   medstopId: string;
+  poolMedstopId: string | null;
   employeeMedstopId: string | null;
   service: string | null;
   selectedOn: string | null;
@@ -191,28 +193,74 @@ function normaliseStatus(s: string | null): string {
 const daysBetween = (from: CalendarDay, to: CalendarDay): number =>
   Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000);
 
+/** A pool as the draw periods need it: its own start, end and frequency, so the quarter is derived, never assumed. */
+export interface DrawPool {
+  medstopId: string;
+  startsOn: string | null;
+  endsOn: string | null;
+  frequency: string | null;
+}
+
 /**
- * The Random tab's list (MS-UX §7A.3, D-MSUX18): every draw of `today`'s pool year — drawn, tested,
- * lost and ahead — each with its state, plus any earlier draw still due. The DER's to-do (`due`) leads, longest-waiting first; then
- * what is ahead, soonest first; then the rest, newest first.
+ * Months per period for Med-Stop's frequency word. Only QUARTERLY has been seen (all 18 pools,
+ * 2018–2026, read 2026-10-15); the others are the obvious spellings. An unknown word makes the period
+ * the whole pool — the widest honest answer, which lists more draws as due rather than hiding one.
+ */
+const PERIOD_MONTHS: Record<string, number> = { MONTHLY: 1, QUARTERLY: 3, "SEMI-ANNUALLY": 6, SEMIANNUALLY: 6, ANNUALLY: 12, YEARLY: 12 };
+
+const addMonths = (day: CalendarDay, n: number): CalendarDay => {
+  const [y, m, d] = day.split("-").map(Number) as [number, number, number];
+  const at = new Date(Date.UTC(y, m - 1 + n, d));
+  return at.toISOString().slice(0, 10);
+};
+
+/** The period of `pool` that `day` falls in, or null when the pool has no start or `day` lies outside it. */
+export function drawPeriodOf(pool: DrawPool, day: CalendarDay): RandomDrawPeriod | null {
+  const start = pool.startsOn?.slice(0, 10);
+  const end = pool.endsOn?.slice(0, 10) ?? null;
+  if (!start || day < start || (end !== null && day > end)) return null;
+  const months = PERIOD_MONTHS[(pool.frequency ?? "").trim().toUpperCase()] ?? null;
+  if (months === null) return { startsOn: start, endsOn: end ?? day, months: null };
+  let k = 0;
+  while (addMonths(start, (k + 1) * months) <= day) k++;
+  const next = addMonths(start, (k + 1) * months);
+  const last = shiftDay(next, -1);
+  return { startsOn: addMonths(start, k * months), endsOn: end !== null && end < last ? end : last, months };
+}
+
+/**
+ * The Random tab's list (MS-UX §7A.3, §7A.18): every draw of `today`'s pool year — drawn, tested,
+ * lost and ahead — each with its state and its period against today's, plus any earlier draw still
+ * due; and the period today falls in, which the tab opens on. The DER's to-do (`due`) leads,
+ * earliest-dated first; then what is ahead, soonest first; then the rest, newest first.
  *
- * ⚠ FUTURE DRAWS ARE IN THIS LIST, ON THE OWNER'S RULING (2026-10-14). MS1 showed seven days ahead
- * and the owner's first review removed it (R4); the second review asked for the complete list of who
- * is scheduled, shown by default. §382.305(l) is about the DRIVER being told early, not the DER
- * knowing the schedule — so the list stays held to the roles that read testing records, and nothing
- * here, nor anything it feeds, tells a driver anything.
+ * ⚠ A DRAW'S DATE IS NOT WHEN IT WAS DRAWN (D-MSUX19, 2026-10-15). Med-Stop draws a quarter's names
+ * when the quarter opens and spreads their dates across it: on 10/15 the Q4 drug pool already held
+ * 16 OPEN draws dated 10/06–12/20, and the office's paper list "HM TESTING 2026" is exactly those
+ * people. D-MSUX18 called a draw dated after today "upcoming" and offered no order on it, which split
+ * the office's one list into 3 due and 19 not yet. Every OPEN draw of the current period (or an earlier
+ * one) is now `due` and orderable; only a draw in a LATER period is `upcoming`.
+ *
+ * ⚠ FUTURE DRAWS ARE IN THIS LIST, ON THE OWNER'S RULING (2026-10-14). §382.305(l) is about the
+ * DRIVER being told early, not the DER knowing the schedule — so the list stays held to the roles that
+ * read testing records, and nothing here, nor anything it feeds, tells a driver anything.
  */
 export function randomDrawsThisYear(
   selections: readonly SelectionRow[],
+  pools: readonly DrawPool[],
   personOf: (medstopId: string | null) => ProgramPerson,
   today: CalendarDay,
-): RandomDraw[] {
+): { draws: RandomDraw[]; currentPeriod: RandomDrawPeriod | null } {
   const yearPrefix = `${today.slice(0, 4)}-`;
+  const poolById = new Map(pools.map((p) => [p.medstopId, p]));
+  const currentPeriod =
+    [...pools].sort((a, b) => a.medstopId.localeCompare(b.medstopId)).map((p) => drawPeriodOf(p, today)).find((p) => p !== null) ?? null;
   const draws: RandomDraw[] = [];
   for (const s of selections) {
     if (!s.selectedOn) continue;
     const day = s.selectedOn.slice(0, 10);
-    const state = drawState(s, day, today);
+    const period = periodAgainstToday(s.poolMedstopId ? poolById.get(s.poolMedstopId) : undefined, day, today);
+    const state = drawState(s, period);
     // An earlier year's draw still OPEN and untested is not history: it is still the DER's to-do.
     if (!s.selectedOn.startsWith(yearPrefix) && state !== "due") continue;
     draws.push({
@@ -223,25 +271,43 @@ export function randomDrawsThisYear(
       person: personOf(s.employeeMedstopId),
       ordered: s.requestMedstopId !== null,
       state,
+      period,
       medstopStatus: s.status?.trim() || null,
     });
   }
   const byName = (a: RandomDraw, b: RandomDraw) => a.person.name.localeCompare(b.person.name);
   const of = (keep: (d: RandomDraw) => boolean) => draws.filter(keep);
-  return [
-    ...of((d) => d.state === "due").sort((a, b) => b.daysSince - a.daysSince || byName(a, b)),
-    ...of((d) => d.state === "upcoming").sort((a, b) => a.selectedOn.localeCompare(b.selectedOn) || byName(a, b)),
-    ...of((d) => d.state !== "due" && d.state !== "upcoming").sort((a, b) => b.selectedOn.localeCompare(a.selectedOn) || byName(a, b)),
-  ];
+  return {
+    draws: [
+      ...of((d) => d.state === "due").sort((a, b) => b.daysSince - a.daysSince || byName(a, b)),
+      ...of((d) => d.state === "upcoming").sort((a, b) => a.selectedOn.localeCompare(b.selectedOn) || byName(a, b)),
+      ...of((d) => d.state !== "due" && d.state !== "upcoming").sort((a, b) => b.selectedOn.localeCompare(a.selectedOn) || byName(a, b)),
+    ],
+    currentPeriod,
+  };
 }
 
-function drawState(s: SelectionRow, day: CalendarDay, today: CalendarDay): RandomDrawState {
+/**
+ * A draw's period against today's, in the draw's own pool. A pool that ended before today is all
+ * `earlier`; one not yet begun is all `later`. A selection whose pool we do not hold (none in 866,
+ * measured 10/15) falls back to its date — ahead of today is `later`, the D-MSUX18 rule; anything else
+ * is `earlier`, so an OPEN one is still due and listed under "To test", though not in the period view.
+ */
+function periodAgainstToday(pool: DrawPool | undefined, day: CalendarDay, today: CalendarDay): RandomDraw["period"] {
+  const own = pool ? drawPeriodOf(pool, day) : null;
+  if (!pool || !own) return day > today ? "later" : "earlier";
+  const now = drawPeriodOf(pool, today);
+  if (!now) return (pool.startsOn ?? "").slice(0, 10) > today ? "later" : "earlier";
+  return own.startsOn === now.startsOn ? "current" : own.startsOn < now.startsOn ? "earlier" : "later";
+}
+
+function drawState(s: SelectionRow, period: RandomDraw["period"]): RandomDrawState {
   // A test is the fact that settles a draw, whatever Med-Stop's status word (REFUSAL, TEST CANCELED).
   if (s.testMedstopId) return "tested";
   const raw = (s.status ?? "").toUpperCase();
   const status = normaliseStatus(s.status);
   if (status === "RESERVE") return raw.includes("EXPIRED") ? "alternate_unused" : "alternate";
-  if (status === "OPEN") return day > today ? "upcoming" : "due";
+  if (status === "OPEN") return period === "later" ? "upcoming" : "due";
   if (status === "CANCELED") return "cancelled";
   if (status === "EXPIRED") return "expired";
   return "other";

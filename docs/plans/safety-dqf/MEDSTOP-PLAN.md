@@ -724,6 +724,38 @@ The owner's second review: the Random tab showed only draws due now and not test
 - `DueSelection` and the separate Alternates card are gone. The contract is
   `selections: { draws: RandomDraw[] }`.
 
+### 7A.18 The Random tab opens on the current quarter's draw (D-MSUX19, 2026-10-15)
+
+The owner checked the staging Random tab against the office's paper list ("HM TESTING 2026") and
+called it wrong. Measured against Med-Stop's API the same day (GET only, counts only):
+
+- **The data was complete.** `/Random/selections` gave 866 rows, the same as the 18 pools' own
+  `/Random/pool/{id}/selections` summed, with no duplicates. Our 2026 OPEN and COMPLETED counts
+  equal each pool's `scheduledtests` and `completedtests` (drug 16/67, alcohol 6/18). The 7 future
+  RESERVE rows are alternates, not scheduled tests.
+- **The paper list is the Q4 draw.** All 21 legible names are Q4 2026 selections, dated 10/06–12/21
+  (one person drawn for both drug and alcohol). The only other Q4 rows are 7 alternates, two tests
+  already done, one cancelled draw and one open draw. The two crossed-out lines are likely among
+  those.
+- **The cause was the date rule.** Med-Stop draws a quarter's names when the quarter opens and
+  spreads their dates across it. D-MSUX18 called an OPEN draw dated after today "upcoming", with no
+  order button, which split the office's one list into 3 due and 19 not yet.
+
+Owner's ruling:
+
+- D-MSUX19 — **The tab opens on the current quarter's draw**: every draw of the pool period today
+  falls in, alternates aside (they are under Show). The period is derived from the pool's own
+  `starts_on` and `frequency` (`drawPeriodOf`), not assumed from the calendar. An unknown frequency
+  word makes the whole pool the period. **Every OPEN untested draw of the current or an earlier
+  period is `due` and has Order test**, whatever day Med-Stop dated it. Only a draw in a later
+  period is `upcoming`. "Due now" is renamed "To test", and the badge still counts it. "Whole year"
+  is D-MSUX18's list, and the default when no pool covers today. Still held to
+  `canReadTestingRecords`; nothing reaches a driver.
+- Not done here: 70 selections (29 people, 7 in 2026) point at Med-Stop employees on none of the
+  three roster lists we copy (`/Employee/{id}` still answers for each). They show "Unknown to
+  Med-Stop's roster". `/Random/selections` carries `fname`/`lname` itself; storing them is a
+  migration and then a reader, in two merges.
+
 ## 8. Open questions
 
 - ~~Q-MS1~~ — base URL: `https://api.med-stop.com` (API-Key-access.md).
