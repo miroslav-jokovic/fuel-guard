@@ -1,0 +1,283 @@
+# Dispatch board v2: availability first, fewer facts, the warnings dispatchers ask for — plan
+
+**Status: PROPOSED — waits on the owner's rulings in §6.** Written 2026-10-15 after the owner tested the
+Dispatch board and Loads pages with the dispatchers. Decision IDs `D-DBV*`, open questions `Q-DBV*`. This
+plan extends `DISPATCH-BOARD-PLAN.md` (`D-DB*`; it answers that plan's Q-DB7, "ask two dispatchers")
+and `docs/plans/livemap/TRUCK-CARD-ROUTE-PLAN.md` (`D-TC*`; §5 changes D-TC3/D-TC6's fixed route). It
+restates neither.
+
+---
+
+## 0. The request
+
+The owner, after a session with the dispatchers:
+
+1. *"A lot of information and data, a little bit confusing."* That applies to both pages.
+2. *"Dispatch needs to see how many trucks each dispatcher has assigned. We have that, but it is not
+   transparent in numbers."*
+3. *"Availability based on truck location and delivery date: type a state and get which trucks will be
+   available in that state and city, and at what time."*
+4. *"A column with how many miles the driver has left to the destination, for a precise estimate."*
+5. *Routing bug:* "the route is calculated but does not take into consideration the route the truck has
+   taken; sometimes the truck is on a completely different route from our proposed one."
+6. *"From FleetPal, a column with warnings for annual inspections and scheduled maintenance, and if a
+   driver is selected for a random drug test, show that too."*
+
+The reference is the board the dispatchers use today, `board.silvicominc.com/dashboard` (photo taken
+2026-10-15 15:17).
+
+## 1. What the dispatchers' current board does that ours does not
+
+One table and **seven columns**: Truck · Full name · Trailer · Dispatcher · **Available date** · **Available
+city** · State. Header links carry counts: *Dispatchers (14)*, *States (34)*, *Dashboard (167)*.
+
+- **It answers one question: when and where each truck empties.** It is sorted by available date
+  ascending and coloured red (already passed, so the truck needs a load), amber (today), green (later).
+  The columns are exactly the TMW `AvailDate` + `LocationCity` pair that research ranked first
+  (`DISPATCH-BOARD-PLAN.md` §4, pattern 1).
+- **Warnings sit on the unit they belong to.** Under the truck: *Oil Change Due 1,133 mi*, *6-Month
+  Inspection Overdue 2026-09-29*. Under the trailer: *Annual DOT Inspection Due 2026-09-16*. They are
+  small, and they appear only when something is due.
+- **A state filter** (the `fl` box) is how a dispatcher asks "what is coming free in Florida".
+
+What ours shows today (`AssignmentsPage.vue`, `DispatchBoardTable.vue`, measured 2026-10-15):
+
+| | Current board | Our Dispatch board |
+|---|---|---|
+| Columns | 7 | 9 (Truck, Driver, HOS, Now, Current load, Next stop, On time, Empties, Next load) |
+| Facts per row | ~8 | **~18** |
+| Tabs / queues | 0 | 7 queue tabs + History |
+| Scope controls | dispatcher column | My fleet / All toggle + Fleet select + Dispatched-by select + saved views + column picker |
+| Trucks per dispatcher | "Dispatchers (14)" page | **nowhere**: the Fleet select has no counts |
+| Available when/where | the two main columns, default sort | `Empties`, the 8th of 9 columns; place is free text ("City, ST") with no state field to filter on |
+| State filter | yes | no (search does not match the delivery city or state) |
+| Maintenance warnings | truck + trailer | only "In shop" |
+| Random drug test | no | no |
+| Miles left | no | a tooltip only: straight-line miles to the *next* stop |
+
+**The diagnosis.** Our board answers five questions at once (HOS, GPS, on-time, next stop, next load).
+Theirs answers one, and it is the one a dispatcher plans the next load from. Everything ours adds is
+true and useful, but it is in the wrong place: it belongs in the drawer, a click away, and not in every
+row.
+
+## 2. The numbers behind the asks (production, 2026-10-15 ~20:30Z)
+
+**Per-dispatcher counts already exist in our data.** Fleet codes have been arriving since the VM update:
+202 trucks carry `vehicles.mcleod_fleet_code`, 14 fleets, and 13 of 14 `tms_fleets` are linked to a
+dispatcher. Working trucks only (not winding down, fleet `'1'` excluded):
+
+| Fleet | Trucks | Loaded | Empty | Next load assigned |
+|---|---|---|---|---|
+| KANE | 15 | 9 | 6 | 1 |
+| PETE | 15 | 9 | 6 | 4 |
+| MIRO | 14 | 10 | 4 | 0 |
+| ROMAN | 14 | 9 | 5 | 0 |
+| CHRIS | 14 | 10 | 4 | 1 |
+| VLADI | 13 | 10 | 3 | 1 |
+| IVO | 13 | 7 | 6 | 3 |
+| ROBERT | 13 | 11 | 2 | 3 |
+| STEVE | 13 | 10 | 3 | 4 |
+| ARTURK | 12 | 8 | 4 | 3 |
+| KONI | 10 | 9 | 1 | 1 |
+| ANETA | 9 | 3 | 6 | 7 |
+| VINNIEV | 8 | 6 | 2 | 2 |
+
+Fleet `'1'` (the pool): 33 trucks, 6 working. Only 2 `tms_dispatchers` are linked to a Silvicom user, so
+"My fleet" falls back to All for almost everybody. That is the LM11 link, not a code gap.
+
+**FleetPal already holds the warnings the old board shows.** In `fleetpal_pm_schedules`: *Annual DOT
+Inspection* 427, *6-Month Inspection* 420, *Oil Change* 252, plus a dozen free-text variants ("Oil
+Chnage", "6-Month Isnpection", "DOT Annual"). Each schedule has `last_done`, and its
+`fleetpal_pm_intervals` row has `value_int` / `threshold_int` / `last_done_meter_value` (time or meter).
+**Nothing computes "due / overdue / miles left" from them.** `vehicles.next_pm_due_*` has never had a
+writer (FleetPal plan F11, unbuilt), and `fleetpal_expirations` has 0 rows.
+
+**The board's ETA has never been measured.** `load_stop_eta_predictions` (0453, DB7's recorder) had **0
+rows**. Every hourly insert since 2026-10-10 failed: `invalid input syntax for type integer: "5.803"`.
+The GPS fix age carried milliseconds into an integer column. Fixed in #1578. The two-week measurement
+that Q-DB4 waits on starts when #1578 is released.
+
+## 3. The design
+
+**D-DBV1 — One question per row, the old board's question.** The row stays one truck (D-DB2). The
+default columns become the old board's seven plus the two the dispatchers asked for:
+
+| # | Column | Content | Source |
+|---|---|---|---|
+| 1 | Truck | unit; trailer unit beneath | roster; load's trailer |
+| 2 | Driver | name (team: both) | as today |
+| 3 | Dispatcher | fleet code, plus a quiet "moved by asen" when it differs (D-DB1) | as today |
+| 4 | **Available** | date + time; **default sort, ascending**; red = passed or now, amber = within 24 h, green = later; "Now" for an empty truck | `emptiesAt` (exists) |
+| 5 | **Available in** | City, ST zip | last stop, or GPS place when empty |
+| 6 | **Miles left** | road miles from the truck to the final delivery, "≈" when estimated | §3.3 |
+| 7 | **Warnings** | chips only when something is due: *Annual · 6-mo · Oil 1,133 mi · Random test*, truck and trailer | §3.4, §3.5 |
+| 8 | Status | one line: *Loaded · On time* / *At risk* / *Late* / *Empty 2 d* / *In shop*, plus *Next: 291013* | as today, merged |
+
+HOS clocks, GPS age and speed, the next stop and its appointment, and the next load's stops **move to the
+drawer** (DB6 already shows them). They stay reachable through a **Live** column preset in the
+ColumnPicker for whoever wants the dense board. Facts per row drop from ~18 to ~10, and every fact left
+is one the dispatchers named.
+
+**D-DBV2 — Per-dispatcher counts are the scope control.** One strip of chips replaces the My fleet toggle
+and the Fleet select:
+
+`All 186 · KANE 15 (6 empty) · PETE 15 (6) · MIRO 14 (4) · … · VINNIEV 8 (2) · Pool 6`
+
+A click filters. The linked user's own chip is selected on open (D-DB3 unchanged). Counts come from the
+same rows, so the chip and the table can never disagree. "Dispatched by" moves to a *More filters*
+popover; it is the rarer question. The 7 queue tabs become 3: **All** · **Available ≤ 24 h** · **Needs
+attention** (late risk, HOS low, no GPS, a warning due). The predicates stay in `packages/shared` and are
+re-grouped, not rewritten.
+
+**D-DBV3 — "Available near" is a filter, not a page.** Toolbar: **State** (multi-select, with counts,
+like the old *States (34)*) · **City** (optional, with radius 50 / 100 / 150 mi) · **By** (date + time).
+A truck matches when its availability place is in the state, or within the radius of the city, and its
+available time is at or before *By*. Empty trucks match on their GPS position and *now*. Sorted by
+available time. This is the question the old board's `fl` box answers, made precise.
+
+### 3.1 What the row needs on the wire
+
+`emptiesAt` returns `{ place: "City, ST", at }`. Filtering by state cannot parse a display string, so
+availability becomes structured, in one shared rule:
+`availability: { city, state, postalCode, lat, lng, at, basis: "appointment" | "eta" | "now" }`.
+`load_stops.postal_code` already exists (0085) but is not selected (`truckLoadPlanReads.ts:96`). The
+radius test is a pure function beside `boardEta`. City → point uses the stops' own coordinates for a
+typed city that appears on any stop. A city never seen falls back to state only and says so, so no
+geocoder is bought for v1.
+
+### 3.2 Loads page (the second half of "confusing")
+
+The Loads page is less dense (7 columns), but it carries a **Dispatch** column for an action used **0
+times ever** (`load_dispatches` = 0 rows; Q-DB9). Recommend hiding the column and moving the action to the
+kebab until the driver app is used for it, and adding **Miles left** and the delivery appointment to the
+Delivery cell so the two pages give the same answer.
+
+### 3.3 Miles left (D-DBV4)
+
+The board has rough miles today, only to the *next* stop (haversine × 1.2, `boardEta`). Two steps:
+
+- **v1, free, every row:** chain the legs. Truck → next stop → each remaining stop → final delivery, each
+  leg haversine × 1.2, shown as "≈ 412 mi". The last-stop ETA is already computed for `empties`
+  (`dispatchBoard.ts:106`), but its miles are dropped. This keeps them.
+- **v2, precise:** HERE road miles from the truck's **current position** over the stops not yet reached.
+  That is the same call §5 needs to fix the routing bug, so the two share one cached route. A 15-minute
+  server job computes it for loaded trucks only (~110), cached by position bucket. The row shows the HERE
+  figure when it is under 30 min old, else the ≈ figure. Cost is the open question Q-DBV4. DB7 (now
+  recording, #1578) tells us how wrong v1 is before we pay for v2.
+
+### 3.4 Maintenance warnings (D-DBV5)
+
+A **per-unit maintenance status** reader, owned by `fleetpal`, exported to `livemap`. This is the read
+model the agent found missing. For each truck and trailer (`fleetpal_units.vehicle_id` / `trailer_id`):
+
+- Classify each PM schedule by kind: annual DOT / 6-month / oil change / other. Classification is by
+  normalised keyword, because the names are free text with typos. The classifier lives in
+  `packages/shared` with the typo list as test cases.
+- Next due: time intervals use `last_done + value`. Meter intervals use `last_done_meter_value +
+  value_int` against the current odometer (`fleetpal_meters`, else Samsara's). The verdict is
+  **overdue** / **due** (inside `threshold_int`) / **upcoming** / ok. Units are metres in the source and
+  miles on screen.
+- Open and scheduled work orders on the unit (`fleetpal_work_orders`, not only `OPEN`).
+- **The annual inspection is already a record** (`vehicles` / `trailers.dot_annual_inspection_expires_at`,
+  the annual-inspection module, `inspectionExpiry()`). Two sources for one fact is the workaround
+  `CLAUDE.md` warns about, so the chip reads the record and FleetPal's annual PM is used only to raise a
+  disagreement (Q-DBV2).
+- Trailers: the row has only `trailerUnit` (a string). The reader resolves it to `trailers.id`.
+
+This reader is also FleetPal plan **F11**'s missing writer input (`next_pm_due_*`). Build it once, where F11
+wants it, and do not restate it for the board.
+
+### 3.5 Random drug test (D-DBV6)
+
+Selections exist (`medstop_selections`, 0463; `drawState`: due / upcoming / tested …). The existing
+dispatch stop covers **violations only** (`returnToDutyBlocked`). Nothing tells dispatch "this driver was
+drawn; send them to test". The draw list is restricted to testing-record roles (§382.305(l), owner ruling
+at `medstopProgram.ts:244`). So the board gets a **redacted fact**: *Random test: send to collection*,
+present while a draw is due or ordered and untested. It carries no date, no pool and no result, on the
+`dispatchHoldForReader` pattern (`packages/shared/src/returnToDuty.ts:134`). Q-DBV3 asks whether that is
+allowed.
+
+## 4. Other drivers' blockers (not asked; listed so the choice is explicit)
+
+Medical card and CDL expiry (`drivers.*_expires_at`) and the DQ attention list (`dqAttention`) exist, and
+none reach the board. Recommend adding *Med card 12 d* / *CDL* to the same Warnings column in the same
+PR as §3.5, because a dispatcher who books a load for a driver whose card expires mid-trip has the same
+problem as one booking a truck overdue for its annual.
+
+## 5. The routing bug (D-DBV7)
+
+**Confirmed, and it is by design, not a slip.** The drawn route never starts at the truck:
+
+- `liveMapLoadRoute.ts:51-60` routes **pickup → middle stops → delivery** through HERE (truck profile),
+  per D-TC3/D-TC6 (Q-TC1 ruled (a)). The stops query does not read arrival status, so stops already
+  done stay in the route.
+- The route is cached in `route_geometries` (0059) by a key of stops + profile, **with no expiry**. One
+  early HERE choice (I-80 vs I-76) is permanent for that load.
+- Off-route detection exists (`nearestOnRoute`, `OFF_ROUTE_MILES = 1`). When the truck is off, the only
+  effect is a note ("Truck is N mi off this route"). Then `coveredMiles = 0`, so the drawer's "still
+  ahead" shows the **whole** pickup → delivery distance mid-trip, and fuel stops are planned from the
+  pickup on a road the truck is not on.
+- No breadcrumb is stored (`vehicle_positions` is one row per truck), and nothing draws where the truck
+  actually went.
+
+Fix, one PR each:
+
+1. **Route from the truck.** When the truck is off route, or always once the truck is past the pickup,
+   origin = the truck's GPS (rounded to ~0.05° for cache hits, with `course=<heading>` so HERE does not
+   turn a moving truck around), via/destination = stops **not yet arrived**. The fuel solver runs on the
+   line drawn, so D-TC6's "one line" holds. This changes D-TC3/Q-TC1(a); the TC plan gets a log entry,
+   not an edit.
+2. **Route cache expiry**, 24 h on `created_at` (the column exists).
+3. **Driven path.** An on-demand endpoint pulls Samsara GPS history for the load's truck since pickup
+   departure, thins it, and caches it for 60 s. The map draws it as its own "driven" line, replacing
+   today's "covered" segment, which is only the plan up to the truck's projected point.
+4. The drawer's "still ahead" uses the re-routed distance. That figure is §3.3's v2 Miles left.
+
+## 6. Open questions — owner rulings
+
+- **Q-DBV1 — Columns.** Adopt §3's eight columns as the default and move HOS, GPS, next stop and next
+  load to the drawer and the *Live* preset? *Recommend yes.* Best confirmed by showing the dispatchers a
+  mock first (one screen, half a day).
+- **Q-DBV2 — Annual inspection: which source?** Our annual-inspection record or FleetPal's PM? *Recommend
+  the record*, with a disagreement shown to the shop manager. The 6-month and oil change come from
+  FleetPal, since they exist nowhere else.
+- **Q-DBV3 — May a dispatcher see "Random test: send to collection"?** The driver has to go promptly once
+  told, and the dispatcher plans around it, but §382.305(l) limits who sees testing records. *Recommend
+  yes, redacted as §3.5, visible only for the dispatcher's own drivers*; the DER notification is unchanged.
+  Worth one line to counsel with the counsel package.
+- **Q-DBV4 — HERE per-row miles.** ~110 loaded trucks every 15 min is ~10,500 routing calls a day before
+  cache hits. *Recommend v1 (≈, free) now, and v2 only after 14 days of DB7 numbers show v1's error
+  matters.* The routing fix (§5) needs HERE only when a drawer opens, so it ships regardless.
+- **Q-DBV5 — Colours.** Keep the old board's red/amber/green on Available, so the habit carries over (red
+  = needs a load now)? *Recommend yes*; our badge tones map one to one.
+- **Q-DBV6 — Loads page Dispatch column** (Q-DB9 again, now with the dispatchers' answer implied): hide it
+  until used? *Recommend yes.*
+- **Q-DBV7 — Idle Tractors / Idle Trailers.** The old board has both pages. Our "Empty now" covers idle
+  tractors. Idle trailers are not on our board at all. Ask the dispatchers if they use them.
+
+## 7. Steps (one PR each)
+
+- **DBV0** — #1578: the ETA recorder writes again (merged before anything here).
+- **DBV1** — Shared rules: structured `availability`, `availableNear`, chained miles (§3.1, §3.3 v1).
+  Contract + API. No UI.
+- **DBV2** — The page: eight columns, the dispatcher chip strip with counts, State/City/By filter, 3
+  queues, the Live preset (waits on Q-DBV1, Q-DBV5).
+- **DBV3** — Maintenance reader (FleetPal, trucks + trailers), with the classifier and its typo cases; the
+  Warnings column (waits on Q-DBV2).
+- **DBV4** — Random-test redacted fact, plus med card and CDL in Warnings (waits on Q-DBV3).
+- **DBV5** — Routing: route from truck over unreached stops, cache TTL, drawer miles (§5.1, 5.2, 5.4).
+- **DBV6** — Driven path on the map (§5.3).
+- **DBV7** — Loads page: Dispatch column, Miles left and appointment in Delivery (Q-DBV6).
+- **Later** — HERE miles per row (Q-DBV4, after DB7's 14 days).
+
+## 8. What this does NOT do
+
+No writes to McLeod (D-LMR1). No second map. No new page: Available near is a filter on the board, and the
+dispatcher counts are its scope control.
+
+## 9. Progress log
+
+### 2026-10-15 — Written; the ETA recorder fixed
+
+Research by reading the board, routing and data sources and measuring production (§2). Found and fixed
+the ETA recorder writing nothing (#1578). Waiting on §6.
