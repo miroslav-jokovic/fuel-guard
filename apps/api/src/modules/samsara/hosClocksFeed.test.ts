@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { createSupabaseRecorder, expectOrgScoped } from "../../testing/supabaseRecorder.js";
 import { testEnv } from "../../testing/testEnv.js";
-import { syncHosClocks } from "./hosClocksFeed.js";
+import { syncHosClocks, syncHosClocksAndSeats } from "./hosClocksFeed.js";
 
 /**
  * The dispatch board's HOS clocks poll (DISPATCH-BOARD-PLAN DB3, 0450): every driver Samsara returns is
@@ -73,5 +73,36 @@ describe("syncHosClocks", () => {
     };
     await expect(syncHosClocks(rec.client, env, ORG, { clocksFetcher: failing, now: NOW })).rejects.toThrow("503");
     expect(rec.forTable("driver_hos_clocks")).toEqual([]);
+  });
+});
+
+describe("syncHosClocksAndSeats — the clocks poll also keeps each driver's truck current (2026-10-15)", () => {
+  const seed = () =>
+    createSupabaseRecorder({
+      tables: {
+        driver_hos_clocks: { data: [], count: 0 },
+        drivers: [{ id: "d-1", samsara_driver_id: "5551", status: "active", archived_at: null, current_hos_status: "driving", current_hos_vehicle: "771", current_location: null }],
+        vehicles: [],
+        driver_vehicle_assignments: [],
+      },
+    });
+
+  it("asks Samsara once and writes the clocks and the driver's current truck from that one answer", async () => {
+    const rec = seed();
+    let calls = 0;
+    const r = await syncHosClocksAndSeats(rec.client, env, ORG, {
+      clocksFetcher: async () => {
+        calls++;
+        return { data: [VINNIE_DRIVER] };
+      },
+      gpsFetcher: async () => ({ data: [] }),
+      assignmentFetcher: async () => ({ data: [] }),
+    });
+    expect(calls).toBe(1);
+    expect(r).toMatchObject({ drivers: 1, statusDrivers: 1 });
+    expect(rec.writtenRows("drivers")).toEqual([
+      expect.objectContaining({ current_hos_vehicle: "773", current_hos_status: "driving" }),
+    ]);
+    expectOrgScoped(rec, ORG);
   });
 });

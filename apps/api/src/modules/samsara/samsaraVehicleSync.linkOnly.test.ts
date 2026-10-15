@@ -146,6 +146,55 @@ describe("a VIN or name match never takes a row from another device Samsara stil
   });
 });
 
+describe("a gateway swap is followed though Samsara still lists the old record (2026-10-15)", () => {
+  // Units 705, 767, 787, 800 on 10/14: the old record renamed "NNN - OLD" with its gateway removed, a
+  // new record named "NNN" with the new gateway — and the row held against the dead one for a day.
+  const VIN = "3HSDZAPR1PN100705";
+  const t705 = () => ({ ...mcleodTruck, id: "v-705", unit_number: "705", vin: VIN, samsara_vehicle_id: "SV-DEAD" });
+  const dead = { id: "SV-DEAD", name: "705 - OLD", vin: VIN };
+  const fresh = { id: "SV-LIVE", name: "705", vin: VIN, gateway: { serial: "GMTS-KJ5-CS9", model: "VG55NA" } };
+  const runWith = (rec: ReturnType<typeof seed>, list: Record<string, unknown>[]) =>
+    syncVehiclesFromSamsara(rec.client, env, ORG, async () => list, async () => ({ data: [] }), async () => ({ data: [] }));
+  const lastLink = (rec: ReturnType<typeof seed>) => rec.writtenRows("vehicles").map((w) => w.samsara_vehicle_id).at(-1);
+
+  // Both orders: Samsara's list order is not ours to rely on, and the dead record's id match is
+  // exactly what would take the row back if it came second and the maps were not re-pointed.
+  for (const [label, list] of [["dead record first", [dead, fresh]], ["dead record second", [fresh, dead]]] as const) {
+    for (const master of [true, false]) {
+      it(`moves the row to the record with a gateway — ${label} (${master ? "link-only" : "full"} mode)`, async () => {
+        const rec = seed([t705()], master);
+        const r = await runWith(rec, [...list]);
+        expect(lastLink(rec)).toBe("SV-LIVE");
+        expect(r.followedSwaps).toEqual(["705: SV-DEAD → SV-LIVE"]);
+        expect(r.created).toBe(0);
+        expectOrgScoped(rec, ORG);
+      });
+    }
+  }
+
+  it("leaves the row alone on the next pass, reporting the dead record as held", async () => {
+    const rec = seed([{ ...t705(), samsara_vehicle_id: "SV-LIVE" }], true);
+    const r = await runWith(rec, [dead, fresh]);
+    expect(r.followedSwaps).toEqual([]);
+    expect(r.heldByOtherDevice).toEqual(["705 - OLD"]);
+    expect(rec.writtenRows("vehicles").map((w) => w.samsara_vehicle_id)).toEqual(["SV-LIVE"]);
+  });
+
+  it("never lets a record without a gateway take a row from one that has one", async () => {
+    const rec = seed([{ ...t705(), samsara_vehicle_id: "SV-LIVE" }], true);
+    const r = await runWith(rec, [fresh, { ...dead, name: "705" }]);
+    expect(r.heldByOtherDevice).toEqual(["705"]);
+    expect(rec.writtenRows("vehicles").map((w) => w.samsara_vehicle_id)).not.toContain("SV-DEAD");
+  });
+
+  it("holds between two records that both have a gateway — that is two live devices, not a swap", async () => {
+    const rec = seed([t705()], true);
+    const r = await runWith(rec, [{ ...dead, gateway: { serial: "GOLD-STI-LL1" } }, fresh]);
+    expect(r.heldByOtherDevice).toEqual(["705"]);
+    expect(rec.writtenRows("vehicles").map((w) => w.samsara_vehicle_id)).not.toContain("SV-LIVE");
+  });
+});
+
 describe("the Samsara record's name is kept on the truck (FL2, Q-FL8, migration 0401)", () => {
   const runWith = (rec: ReturnType<typeof seed>, list: Record<string, unknown>[]) =>
     syncVehiclesFromSamsara(rec.client, env, ORG, async () => list, async () => ({ data: [] }), async () => ({ data: [] }));

@@ -241,7 +241,18 @@ describe("parseSamsaraVehicles", () => {
       model: "Cascadia",
       year: 2021,
       licensePlate: "SIL101",
+      gatewaySerial: null,
     });
+  });
+  it("keeps the gateway serial, and reads a swapped-out record's empty or absent gateway as none", () => {
+    const v = parseSamsaraVehicles({
+      data: [
+        { id: "1", name: "705", gateway: { serial: "GMTS-KJ5-CS9", model: "VG55NA" } },
+        { id: "2", name: "732 - OLD", gateway: { serial: "", model: "none" } },
+        { id: "3", name: "705 - OLD" },
+      ],
+    });
+    expect(v.map((x) => x.gatewaySerial)).toEqual(["GMTS-KJ5-CS9", null, null]);
   });
   it("skips entries with no id and blanks empty fields; falls back name→id", () => {
     const v = parseSamsaraVehicles({ data: [{ id: "", name: "x" }, { id: "9", name: "  ", vin: "", year: "n/a" }] });

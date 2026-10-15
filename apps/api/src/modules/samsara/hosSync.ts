@@ -284,6 +284,9 @@ export async function syncHosDutySegments(
   return { fetched: segments.length, upserted, removed };
 }
 
+/** Driver ids per `current_hos_at` stamp statement — 100 uuids is a ~4 KB query string. */
+const STAMP_CHUNK = 100;
+
 export interface HosCurrentStatusResult {
   drivers: number; // driver rows whose live HOS status was refreshed
   located: number; // of those, how many also got a current city location
@@ -333,24 +336,35 @@ export async function syncHosCurrentStatus(
     opts.gpsFetcher ?? makeSamsaraGpsSnapshotFetcher(env, token),
   );
 
+  // The stored values are read too, so a row is written only when something on it moved (below).
+  type Stored = {
+    id: string;
+    samsara_driver_id: string;
+    current_hos_status: string | null;
+    current_hos_vehicle: string | null;
+    current_location: string | null;
+  };
   const { data: ds } = await admin
     .from("drivers")
-    .select("id, samsara_driver_id")
+    .select("id, samsara_driver_id, current_hos_status, current_hos_vehicle, current_location")
     .eq("org_id", orgId)
     .not("samsara_driver_id", "is", null);
-  const byS = new Map(
-    ((ds ?? []) as { id: string; samsara_driver_id: string }[]).map((d) => [
-      d.samsara_driver_id,
-      d.id,
-    ]),
-  );
+  const byS = new Map(((ds ?? []) as Stored[]).map((d) => [d.samsara_driver_id, d]));
 
+  // ── WRITE WHAT MOVED, STAMP THE REST IN ONE STATEMENT (2026-10-15) ─────────────────────────────
+  // This ran every six hours until the five-minute clocks tier took it over (`hosClocksFeed.ts`). At
+  // that cadence one UPDATE per driver is ~170 × 288 ≈ 49,000 row writes a day on a database already
+  // measured swapping, almost all of them rewriting the value already there — a parked driver is
+  // off duty on the same truck in the same city for hours. So a driver whose status, truck or city
+  // changed gets their own row; everyone else Samsara answered for shares one `current_hos_at` stamp,
+  // which still says "checked at" for them, because it is true.
   const now = new Date().toISOString();
   let drivers = 0;
   let located = 0;
+  const unchanged: string[] = [];
   for (const st of statuses) {
-    const id = byS.get(st.driverId);
-    if (!id) continue;
+    const row = byS.get(st.driverId);
+    if (!row) continue;
     const patch: {
       current_hos_status: string;
       current_hos_vehicle: string | null;
@@ -370,11 +384,27 @@ export async function syncHosCurrentStatus(
         : null;
       patch.current_location = city;
     }
-    const { error } = await admin.from("drivers").update(patch).eq("id", id).eq("org_id", orgId);
+    const city = "current_location" in patch ? patch.current_location : row.current_location;
+    const moved =
+      row.current_hos_status !== patch.current_hos_status ||
+      row.current_hos_vehicle !== patch.current_hos_vehicle ||
+      ("current_location" in patch && row.current_location !== patch.current_location);
+    if (!moved) {
+      unchanged.push(row.id);
+      if (city) located++;
+      continue;
+    }
+    const { error } = await admin.from("drivers").update(patch).eq("id", row.id).eq("org_id", orgId);
     if (!error) {
       drivers++;
-      if (patch.current_location) located++;
+      if (city) located++;
     }
+  }
+  // Chunked: a long `.in()` list overflows Node 22's header limit and surfaces as "fetch failed".
+  for (let i = 0; i < unchanged.length; i += STAMP_CHUNK) {
+    const ids = unchanged.slice(i, i + STAMP_CHUNK);
+    const { error } = await admin.from("drivers").update({ current_hos_at: now }).in("id", ids).eq("org_id", orgId);
+    if (!error) drivers += ids.length;
   }
   return { drivers, located };
 }
