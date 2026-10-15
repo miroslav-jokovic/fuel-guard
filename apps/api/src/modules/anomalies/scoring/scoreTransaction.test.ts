@@ -225,7 +225,7 @@ describe("scoreTransaction — characterization (skipRecon rebuild path)", () =>
   // CF2 (chunk 5c): once the score is stored, an approved fill Samsara placed away from its station goes
   // to the card fraud hook. The hook's own behaviour is ../cardFraudFill.test.ts; this pins the wiring.
   // This fake answers every RPC with the scoring shape, so the incident write fails and is logged.
-  const awayFill = { ...txnRow, card_ref: "7083050000000367559", samsara_location_matched: false as boolean | null, samsara_location_confidence: "mismatch" };
+  const awayFill = { ...txnRow, card_ref: "7083050099003367559", samsara_location_matched: false as boolean | null, samsara_location_confidence: "mismatch" };
   const fraudWrites = (row: typeof awayFill) => async () => {
     const { admin, rpcCalls } = makeAdmin((q) => {
       if (q.table === "fuel_transactions" && q.eq.id === "t1") return [row];

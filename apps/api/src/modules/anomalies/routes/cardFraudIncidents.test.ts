@@ -17,7 +17,7 @@ vi.mock("../../../lib/supabaseAdmin.js", () => ({ getSupabaseAdmin: () => holder
 const ORG = "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d";
 const ID = "44444444-4444-4444-8444-444444444444";
 const env = loadEnv({ NODE_ENV: "test", SECRETS_ENCRYPTION_KEY: Buffer.alloc(32, 7).toString("base64") } as NodeJS.ProcessEnv);
-const FULL_CARD = "7083050000000107967";
+const FULL_CARD = "7083050099001107967";
 const INCIDENT_ROW = {
   id: ID, status: "open", version: 1, disposition: null, resolution_note: null, card_ref: FULL_CARD,
   vehicle_id: "66666666-6666-4666-8666-666666666666", opened_at: "2026-10-05T14:10:00Z", last_attempt_at: "2026-10-05T16:00:00Z",

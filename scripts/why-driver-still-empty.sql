@@ -81,12 +81,12 @@ checks as (
     )
 
   -- ── 5. THE CARD FROM THE TOP ROW OF YOUR SCREENSHOT ──────────────────────────────────────────
-  -- 7083050030039077420 is BRYANT ALLEN in the sample transaction export. If this returns 0, the
+  -- 7083050099013077420 is BRYANT ALLEN in the sample transaction export. If this returns 0, the
   -- posted feed is not storing the name; if it returns rows, the resolver simply has not run.
   union all
   select 8, '5. one known card (…7420)', 'named posted rows for that exact card',
          count(*)
-  from p where card_digits = '7083050030039077420'
+  from p where card_digits = '7083050099013077420'
     and nullif(btrim(driver_name),'') is not null
 
   union all

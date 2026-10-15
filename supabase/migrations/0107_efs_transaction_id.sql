@@ -26,8 +26,8 @@
 -- swipe produces a single transactionId with two line items, which we deliberately split into two
 -- fuel_transactions rows so reefer gallons never inflate the tractor's capacity/MPG checks. Observed:
 --
---   7083050030485897149|1539602272|2026-06-04           113.63 gal   (tractor)
---   7083050030485897149|1539602272|2026-06-04|reefer     13.49 gal   (reefer)
+--   7083050099031897149|1539602272|2026-06-04           113.63 gal   (tractor)
+--   7083050099031897149|1539602272|2026-06-04|reefer     13.49 gal   (reefer)
 --
 -- So the unique identity of a fueling event is (org, transactionId, tank_type). A unique index on
 -- transactionId alone would reject the reefer line as a duplicate and silently lose the gallons.

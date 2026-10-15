@@ -97,7 +97,7 @@ reported as "missing in our system"** — a permanent false-positive block.
 - **`Loc.`** = the Pilot-family store number. **All 319 distinct sites on this statement resolve to a
   brand** by joining `fuel_stations` on `(store_number, state)` restricted to `PILOT_FAMILY_BRANDS`.
   Zero unresolved. This is the ONE9 detector.
-- **`Card Number`** is the **last 6 digits** of the EFS PAN (`7083050030490367971` → `367971`), not the
+- **`Card Number`** is the **last 6 digits** of the EFS PAN (`7083050099040367971` → `367971`), not the
   last 4 the current matcher uses. Stricter, collision-free join key, available for free.
 - **`Odometer Reading`** — an independent odometer per fill, from the pump, usable to cross-check MPG.
 - **5 merchandise lines** ($86.60) posted through the `Misc./Disc.` column with sales tax — in-store

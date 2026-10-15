@@ -22,7 +22,7 @@ const rf = (o: Partial<PilotReportFill> & { rowNumber: number }): PilotReportFil
   product: "diesel", productCode: "020", productDescription: "Truck Diesel", ...o,
 });
 const sf = (o: Partial<SystemFill> & { id: string }): SystemFill => ({
-  cardRef: "7083050030490367971", controlId: null, unit: "701", fueledAt: "2026-08-17T18:00:00Z",
+  cardRef: "7083050099040367971", controlId: null, unit: "701", fueledAt: "2026-08-17T18:00:00Z",
   tranDate: "2026-08-17", tank: "tractor", gallons: 100, totalCost: 500, ...o,
 });
 const WINDOW = { from: "2026-08-17", to: "2026-08-23" };
@@ -90,9 +90,9 @@ describe("reconFindings", () => {
       ],
       [
         sf({ id: "s1" }),
-        sf({ id: "s3", cardRef: "7083050030490317971", gallons: 90, totalCost: 450 }),
-        sf({ id: "s4", cardRef: "7083050030490447971", tranDate: "2026-08-17" }),
-        sf({ id: "s9", cardRef: "7083050030490555555", gallons: 60, totalCost: 300, tranDate: "2026-08-20" }), // never billed
+        sf({ id: "s3", cardRef: "7083050099037317971", gallons: 90, totalCost: 450 }),
+        sf({ id: "s4", cardRef: "7083050099042447971", tranDate: "2026-08-17" }),
+        sf({ id: "s9", cardRef: "7083050099043555555", gallons: 60, totalCost: 300, tranDate: "2026-08-20" }), // never billed
       ],
       { window: WINDOW },
     );

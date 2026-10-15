@@ -65,7 +65,7 @@ order by t.ok, t.label;
 
 with
 
--- EFS space-pads card refs ('7083050030485867142      '), so every comparison is digits-only.
+-- EFS space-pads card refs ('7083050099030867142      '), so every comparison is digits-only.
 -- last4 is the one key both sides can always produce; the full PAN is the exact one.
 d as (
   select dt.id,

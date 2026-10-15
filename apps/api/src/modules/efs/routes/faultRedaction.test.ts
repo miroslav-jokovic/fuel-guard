@@ -11,7 +11,7 @@ import { efsErrorResponse } from "./read.js";
  * routers put `error.message` in the response; `probe.ts` already redacted its copy, these two did not.
  */
 
-const PAN = "7083050012345678901";
+const PAN = "7083050099005678901";
 
 function capture(): { res: Response; sent: () => { error: { message: string } } } {
   let body: unknown;

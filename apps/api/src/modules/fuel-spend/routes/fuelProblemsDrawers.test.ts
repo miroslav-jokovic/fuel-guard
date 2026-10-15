@@ -61,7 +61,7 @@ beforeEach(() => {
       }],
       fuel_exception_events: [],
       card_fraud_incidents: [{
-        id: INCIDENT, status: "open", version: 1, disposition: null, resolution_note: null, card_ref: "7083050000000107967",
+        id: INCIDENT, status: "open", version: 1, disposition: null, resolution_note: null, card_ref: "7083050099001107967",
         vehicle_id: TRUCK, opened_at: "2026-10-05T14:10:00Z", last_attempt_at: "2026-10-05T16:00:00Z", level: "alert",
         attempt_count: 1, fuel_taken: false, failed_prompts: [], places: [{ city: "Jacksonville", state: "FL", attempts: 1 }],
         last_truck: null, assigned_to: null,

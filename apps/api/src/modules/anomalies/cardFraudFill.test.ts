@@ -13,7 +13,7 @@ const ORG = "org-real";
 // Production, read-only 2026-10-07: card …67559 (truck 604) bought 136.63 gal in Bellemont, AZ at 17:34
 // on 06-06 while Samsara had the truck in Stratford, TX; the same card filled in Stratford at 20:27.
 const bellemont = {
-  id: "5cfca745-9ac1-4cd3-a99a-c9244949d014", fueled_at: "2026-06-06 17:34:00+00", card_ref: "7083050000000367559",
+  id: "5cfca745-9ac1-4cd3-a99a-c9244949d014", fueled_at: "2026-06-06 17:34:00+00", card_ref: "7083050099003367559",
   vehicle_id: "veh-604", city: "BELLEMONT", state: "AZ",
 };
 const away = {
@@ -33,7 +33,7 @@ describe("the fill scorer's card fraud hook (CF2, chunk 5c)", () => {
     await recordCardFraud(admin, ORG, fillFraudAttempt(bellemont, away));
     expect(writes()).toHaveLength(1);
     expect(writes()[0]).toMatchObject({
-      p_org: ORG, p_card_key: "7083050000000367559", p_attempt_source: "fill", p_attempt_id: bellemont.id,
+      p_org: ORG, p_card_key: "7083050099003367559", p_attempt_source: "fill", p_attempt_id: bellemont.id,
       p_attempted_at: "2026-06-06T17:34:00.000Z", p_level: "escalated", p_fuel_taken: true, p_step: "opened",
       p_failed_prompts: [],
       p_last_truck: { at: "2026-06-06T19:58:00.000Z", city: "Stratford", state: "TX", milesToStation: 225.5 },

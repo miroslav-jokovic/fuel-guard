@@ -35,3 +35,23 @@ regexes = [
   # docs/plans/WP3C-FALSE-ALERT-FIX-AND-ALERT-RESET.md:330.
   '''-----BEGIN[ A-Z]*PRIVATE KEY-----(\\n|\n)[A-Za-z0-9+/=]*\.\.\.''',
 ]
+
+# EFS fuel-card numbers (audit 2026-10-15). A card number is cardholder data: it belongs sealed in
+# the database, never in a fixture, a plan or a pasted export. gitleaks' default rules know nothing
+# about a fleet-card PAN, so without this rule nothing would notice one.
+#
+# Every EFS card number starts 708305. A fixture that needs a full-length number uses the synthetic
+# range 7083050099xxxxxxxxx (no card in production carries it - measured 2026-10-15) and keeps
+# the last six digits the test reasons about, because an EFS statement prints the last six.
+# Anything else of that shape fails the build.
+[[rules]]
+id = "efs-card-number"
+description = "Full EFS fuel-card number (PAN). Use the synthetic 7083050099 range in fixtures."
+regex = '''\b(708305\d{13})\b'''
+secretGroup = 1
+keywords = ["708305"]
+
+[[rules.allowlists]]
+description = "The synthetic fixture range - not issued to any card."
+regexTarget = "secret"
+regexes = ['''^7083050099\d{9}$''']

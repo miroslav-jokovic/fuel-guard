@@ -200,7 +200,7 @@ describe("describeAtPath", () => {
   });
 
   it("redacts — the failing path can be a field that carries a card number", () => {
-    expect(describeAtPath({ matchValue: "7083050013944594622" }, ["matchValue"])).not.toMatch(/\d{12}/);
+    expect(describeAtPath({ matchValue: "7083050099008594622" }, ["matchValue"])).not.toMatch(/\d{12}/);
   });
 });
 

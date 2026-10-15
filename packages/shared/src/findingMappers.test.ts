@@ -108,7 +108,7 @@ describe("aging", () => {
 
 describe("a card-fraud incident read as a finding (chunk 8c1)", () => {
   const base = {
-    id: "i-1", status: "open" as const, disposition: null, card_ref: "7083050000000107967",
+    id: "i-1", status: "open" as const, disposition: null, card_ref: "7083050099001107967",
     opened_at: "2026-10-05T14:10:00Z", attempt_count: 3, fuel_taken: false,
     places: [{ city: "Jacksonville", state: "FL" }, { city: "Baldwin", state: "FL" }], assigned_to: null,
   };
@@ -116,7 +116,7 @@ describe("a card-fraud incident read as a finding (chunk 8c1)", () => {
   it("names the card by its last four only, never the full number", () => {
     const r = findingFromIncident(base);
     expect(r.summary).toBe("Card ••••7967 tried 3 times in Jacksonville, FL");
-    expect(r.summary).not.toContain("7083050000000107967");
+    expect(r.summary).not.toContain("7083050099001107967");
   });
 
   it("says once, the first place, and when fuel left the pump", () => {

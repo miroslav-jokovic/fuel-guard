@@ -20,17 +20,17 @@ describe("mask detection (WP3c — EFS stopped sending full card numbers)", () =
     expect(isMaskedCardRef("708305XXXXXX1234")).toBe(true);
     expect(isMaskedCardRef("****1234")).toBe(true);
     expect(isMaskedCardRef("••••1234")).toBe(true);
-    expect(isMaskedCardRef("7083050030485867142")).toBe(false);
+    expect(isMaskedCardRef("7083050099030867142")).toBe(false);
     expect(cardDigits("708305XXXXXX1234")).toBe("1234");
     expect(cardDigits("****1234")).toBe("1234");
-    expect(cardDigits("7083050030485867142  ")).toBe("7083050030485867142");
+    expect(cardDigits("7083050099030867142  ")).toBe("7083050099030867142");
   });
   it("a masked ref is NEVER a full card number, however many digits survive the mask", () => {
     // `708305XXXXXX1234` → 10 digits under a naive digits-only view. That is what the pre-WP3c
     // ≥8-digit test misread as a PAN, silencing the control id and conflating every card that
     // shares this BIN + last-4.
     expect(isFullCardNumber("708305XXXXXX1234")).toBe(false);
-    expect(isFullCardNumber("7083050030485867142")).toBe(true);
+    expect(isFullCardNumber("7083050099030867142")).toBe(true);
     expect(isFullCardNumber("1234")).toBe(false);
   });
   it("leaves genuinely alphanumeric fleet refs alone ('x' only masks in an otherwise-numeric ref)", () => {
@@ -41,8 +41,8 @@ describe("mask detection (WP3c — EFS stopped sending full card numbers)", () =
 
 describe("cardIdentityKey / cardLast4 / cardRefsMatch", () => {
   it("full PAN (EFS pads with spaces) → digits key", () => {
-    expect(cardIdentityKey("7083050030485867142      ")).toBe("7083050030485867142");
-    expect(cardLast4("7083050030485867142      ")).toBe("7142");
+    expect(cardIdentityKey("7083050099030867142      ")).toBe("7083050099030867142");
+    expect(cardLast4("7083050099030867142      ")).toBe("7142");
   });
   it("masked last-4 needs a control id to identify a card; bare last-4 never guesses", () => {
     expect(cardIdentityKey("7521", "WCHRISTO")).toBe("7521|WCHRISTO");
@@ -61,21 +61,21 @@ describe("cardIdentityKey / cardLast4 / cardRefsMatch", () => {
     expect(cardIdentityKey("708305XXXXXX1234", null)).toBeNull();
   });
   it("cardRefsDefinitelyMatch only trusts two unmasked full numbers", () => {
-    expect(cardRefsDefinitelyMatch("7083050030281917521", "7083050030281917521 ")).toBe(true);
-    expect(cardRefsDefinitelyMatch("7083050030281917521", "7521")).toBe(false);
+    expect(cardRefsDefinitelyMatch("7083050099023917521", "7083050099023917521 ")).toBe(true);
+    expect(cardRefsDefinitelyMatch("7083050099023917521", "7521")).toBe(false);
     expect(cardRefsDefinitelyMatch("7521", "7521")).toBe(false);
   });
   it("cardRefsMatch handles full-vs-masked (F5): full PAN matches its own last-4", () => {
-    expect(cardRefsMatch("7083050030281917521", "7521")).toBe(true);
-    expect(cardRefsMatch("7521", "7083050030281917521")).toBe(true);
-    expect(cardRefsMatch("7083050030281917521", "7083050030281917521 ")).toBe(true);
-    expect(cardRefsMatch("7083050030281917521", "9999")).toBe(false);
-    expect(cardRefsMatch("752", "7083050030281917521")).toBe(false); // <4 digits never matches
+    expect(cardRefsMatch("7083050099023917521", "7521")).toBe(true);
+    expect(cardRefsMatch("7521", "7083050099023917521")).toBe(true);
+    expect(cardRefsMatch("7083050099023917521", "7083050099023917521 ")).toBe(true);
+    expect(cardRefsMatch("7083050099023917521", "9999")).toBe(false);
+    expect(cardRefsMatch("752", "7083050099023917521")).toBe(false); // <4 digits never matches
     expect(cardRefsMatch(null, "7521")).toBe(false);
   });
 });
 
-const fills = (vehicleId: string, n: number, card = "7083050030281917521"): CardFillRow[] =>
+const fills = (vehicleId: string, n: number, card = "7083050099023917521"): CardFillRow[] =>
   Array.from({ length: n }, () => ({ cardRef: card, controlId: null, vehicleId }));
 
 describe("learnCardAssignments", () => {
@@ -95,7 +95,7 @@ describe("learnCardAssignments", () => {
   it("unattributed fills and unidentifiable cards are ignored", () => {
     const rows: CardFillRow[] = [
       ...fills("vehA", 5),
-      { cardRef: "7083050030281917521", controlId: null, vehicleId: null }, // unattributed → ignored
+      { cardRef: "7083050099023917521", controlId: null, vehicleId: null }, // unattributed → ignored
       { cardRef: "7521", controlId: null, vehicleId: "vehB" }, // bare last-4, no control → no identity
     ];
     const learned = learnCardAssignments(rows);
@@ -139,15 +139,15 @@ describe("sameCardFill (WP3 — the card_multi_vehicle identity test)", () => {
   it("a full PAN vs a bare last-4 is NOT proof of one card — a suffix is shared by every card ending in it", () => {
     // Pre-WP3c this returned true, so one masked fill collected every full-PAN fill ending in 7521
     // (i.e. other drivers' trucks) and fired card_multi_vehicle at high severity.
-    expect(sameCardFill({ cardRef: "7083050030281917521", controlId: null }, { cardRef: "7521", controlId: "WCHRISTO" })).toBe(false);
+    expect(sameCardFill({ cardRef: "7083050099023917521", controlId: null }, { cardRef: "7521", controlId: "WCHRISTO" })).toBe(false);
   });
   it("cross-era (PAN history vs masked present) resolves when BOTH carry the same control id", () => {
-    expect(sameCardFill({ cardRef: "7083050030281917521", controlId: "WCHRISTO" }, { cardRef: "708305XXXXXX7521", controlId: "WCHRISTO" })).toBe(true);
-    expect(sameCardFill({ cardRef: "7083050030281917521", controlId: "WCHRISTO" }, { cardRef: "708305XXXXXX7521", controlId: "OTHERDRV" })).toBe(false);
+    expect(sameCardFill({ cardRef: "7083050099023917521", controlId: "WCHRISTO" }, { cardRef: "708305XXXXXX7521", controlId: "WCHRISTO" })).toBe(true);
+    expect(sameCardFill({ cardRef: "7083050099023917521", controlId: "WCHRISTO" }, { cardRef: "708305XXXXXX7521", controlId: "OTHERDRV" })).toBe(false);
   });
   it("two unmasked PANs are decided by their digits alone", () => {
-    expect(sameCardFill({ cardRef: "7083050030281917521", controlId: null }, { cardRef: "7083050030281917521 ", controlId: null })).toBe(true);
-    expect(sameCardFill({ cardRef: "7083050030281917521", controlId: "AAA" }, { cardRef: "7083050030999917521", controlId: "AAA" })).toBe(false);
+    expect(sameCardFill({ cardRef: "7083050099023917521", controlId: null }, { cardRef: "7083050099023917521 ", controlId: null })).toBe(true);
+    expect(sameCardFill({ cardRef: "7083050099023917521", controlId: "AAA" }, { cardRef: "7083050099071917521", controlId: "AAA" })).toBe(false);
   });
   it("BIN-prefixed masks sharing a last-4 are two cards unless the control ids agree", () => {
     expect(sameCardFill({ cardRef: "708305XXXXXX1234", controlId: "AAA" }, { cardRef: "708305XXXXXX1234", controlId: "BBB" })).toBe(false);
@@ -155,7 +155,7 @@ describe("sameCardFill (WP3 — the card_multi_vehicle identity test)", () => {
     expect(sameCardFill({ cardRef: "708305XXXXXX1234", controlId: "AAA" }, { cardRef: "****1234", controlId: "AAA" })).toBe(true);
   });
   it("is symmetric", () => {
-    const a = { cardRef: "7083050030281917521", controlId: null };
+    const a = { cardRef: "7083050099023917521", controlId: null };
     const b = { cardRef: "7521", controlId: "WCHRISTO" };
     expect(sameCardFill(a, b)).toBe(sameCardFill(b, a));
   });

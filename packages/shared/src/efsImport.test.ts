@@ -400,7 +400,7 @@ describe("normalizeRejectRows", () => {
   const rows = [
     {
       Date: "2026-06-29 12:15:00", Time: "2026-06-29 12:15:00",
-      "Card Number": "7083050030485897149      ", Invoice: "0808024975  ", "Location ID": "516025",
+      "Card Number": "7083050099031897149      ", Invoice: "0808024975  ", "Location ID": "516025",
       "Location Name": "PILOT CARTERSVILLE 067", "Location City": "CARTERSVILLE", "State/Prov": "GA",
       "Error Code": "3", "Error Description": "INACTIVE CARD IN0808024975|Non-Active Card|",
       Unit: "702", "Driver ID": "1967", "Driver Name": "DERRICK KELLY",
@@ -420,11 +420,11 @@ describe("normalizeRejectRows", () => {
     // out, which is enough to move it outside the window the "was the truck at this station?" check
     // searches, quietly turning a real signal into a miss.
     expect(d.declined_at).toBe("2026-06-29T17:15:00.000Z");
-    expect(d.card_ref).toBe("7083050030485897149");
+    expect(d.card_ref).toBe("7083050099031897149");
     expect(d.error_code).toBe("3");
     expect(d.driver_ext_id).toBe("1967");
     expect(d.unit).toBe("702");
-    expect(d.external_ref).toBe("7083050030485897149|0808024975|3|2026-06-29");
+    expect(d.external_ref).toBe("7083050099031897149|0808024975|3|2026-06-29");
     expect(skipped).toHaveLength(0);
   });
 
@@ -560,7 +560,7 @@ describe("deriveFuelEventsFromEfsStore (repair path)", () => {
 // the two paths mint two rows the unique index can't reconcile.
 describe("cross-path external_ref consistency (transactionId-keyed SOAP fill)", () => {
   it("normalizeTransactionRows and deriveFuelEventsFromEfsStore agree", () => {
-    const CARD = "7083050013944595371", TXN = "1562529156", INV = "0501726762", DATE = "2026-08-02";
+    const CARD = "7083050099009595371", TXN = "1562529156", INV = "0501726762", DATE = "2026-08-02";
     const direct = normalizeTransactionRows([
       {
         "Card #": CARD, "Stable Transaction ID": TXN, TransactionId: TXN, Invoice: INV,
@@ -588,7 +588,7 @@ describe("normalizeRejectRows — WP1 golden rows + optional alert fields", () =
     const { declined } = normalizeRejectRows([
       {
         Date: "2026-07-17 06:29:00", Time: "2026-07-17 06:29:00",
-        "Card Number": "7083050030485867142      ", Invoice: "53790       ", "Location ID": "545350",
+        "Card Number": "7083050099030867142      ", Invoice: "53790       ", "Location ID": "545350",
         "Location Name": "LOVES #646 TRAVEL STOP", "Location City": "WILLINGTON", "State/Prov": "CT",
         "Error Code": "1", "Error Description": "INVALID TRUCKSTOP IN53790|Failed restrictions|",
         Unit: "667", "Driver ID": "1995", "Driver Name": "YOEL VALLADARES ALBARENG",
@@ -607,7 +607,7 @@ describe("normalizeRejectRows — WP1 golden rows + optional alert fields", () =
     const { declined } = normalizeRejectRows([
       {
         Date: "2026-07-11 15:37:00", Time: "2026-07-11 15:37:00",
-        "Card Number": "7083050030281917521", Invoice: "0851226257",
+        "Card Number": "7083050099023917521", Invoice: "0851226257",
         "Location Name": "PILOT N LAS VEGAS", "Location City": "N LAS VEGAS", "State/Prov": "NV",
         "Error Code": "1", "Error Description": "INVALID TRUCKSTOP|Merchant Position Too Far|",
         Unit: "576", "Driver ID": "1988", "Driver Name": "TEHONE CARTER",
@@ -679,7 +679,7 @@ describe("learnEfsDriverIds (WP1 D5)", () => {
 
 describe("52-column transexport variant — faithful capture (WP1 D5/F6)", () => {
   const row = {
-    TransactionId: "1556179899", CardNumber: "7083050030095947565", TransactionPOSDate: "2026-07-17",
+    TransactionId: "1556179899", CardNumber: "7083050099018947565", TransactionPOSDate: "2026-07-17",
     TransactionPOSTime: "01:33:00", Invoice: "0854555567", Unit: "574", TrailerNumber: "539224",
     Odometer: "586163", DriverName: "CHRISTOPHER WEAVER", DriverId: "1981", Trip: "0132234",
     Control: "WCHRISTO", LocationName: "PILOT RAYVILLE 335", LocationCity: "RAYVILLE", LocationState: "LA",

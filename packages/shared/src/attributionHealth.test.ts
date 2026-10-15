@@ -4,7 +4,7 @@ import { computeAttributionHealth } from "./attributionHealth.js";
 const row = (over: Partial<{ vehicle_id: string | null; driver_id: string | null; card_ref: string | null; control_id: string | null }> = {}) => ({
   vehicle_id: "v1" as string | null,
   driver_id: "d1" as string | null,
-  card_ref: "7083050030281917521" as string | null,
+  card_ref: "7083050099023917521" as string | null,
   control_id: null as string | null,
   ...over,
 });

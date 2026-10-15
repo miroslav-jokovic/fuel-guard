@@ -97,7 +97,7 @@ describe("scoreDeclinedAttempt records card fraud incidents (CF2, chunk 5c)", ()
     await score(SOUTH_BEND_0016);
     expect(fraudWrites()).toHaveLength(1);
     expect(fraudWrites()[0]).toMatchObject({
-      p_org: ORG, p_card_key: "7083050000000327564", p_attempt_source: "decline", p_attempt_id: SOUTH_BEND_0016,
+      p_org: ORG, p_card_key: "7083050099002327564", p_attempt_source: "decline", p_attempt_id: SOUTH_BEND_0016,
       p_attempted_at: "2026-09-23T00:16:00.000Z", p_level: "escalated", p_step: "opened",
       p_last_truck: { at: "2026-09-23T00:10:00Z", city: "Memphis", state: "TN", milesToStation: 495.5 },
       p_places: [expect.objectContaining({ city: "SOUTH BEND", state: "IN" })],
@@ -107,7 +107,7 @@ describe("scoreDeclinedAttempt records card fraud incidents (CF2, chunk 5c)", ()
   });
 
   it("the scorer's corrective fill explains it (wrong_unit_number): nothing is recorded", async () => {
-    const corrective = { vehicle_id: "veh-other", driver_id: null, card_ref: "7083050000000327564", city: "SOUTH BEND", state: "IN", location_text: null, fueled_at: "2026-09-23T00:30:00Z" };
+    const corrective = { vehicle_id: "veh-other", driver_id: null, card_ref: "7083050099002327564", city: "SOUTH BEND", state: "IN", location_text: null, fueled_at: "2026-09-23T00:30:00Z" };
     const { rec, score, fraudWrites } = setup({ fills: [corrective] });
     await score(SOUTH_BEND_0016);
     const verdict = rec.writtenRows("declined_transactions")[0]!;

@@ -50,7 +50,7 @@ Table created in `0007_imports.sql:13-28` with `card_ref → vehicle_id, driver_
 Repo-wide grep: only migrations reference it. Nothing writes, nothing reads.
 
 ### F5 · NEW FINDING — Card-identity matching between declines and approvals is fragile
-- Reject report carries the **full 19-digit PAN** (`7083050030485867142`).
+- Reject report carries the **full 19-digit PAN** (`7083050099030867142`).
 - Transaction exports sometimes carry the full PAN (verified in `transexport-1.xlsx`) but per migration
   `0075_driver_control_id.sql`, EFS has also shipped exports masked to the **last 4** — which is why
   `control_id` was added.

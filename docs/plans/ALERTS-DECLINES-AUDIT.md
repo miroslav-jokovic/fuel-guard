@@ -29,7 +29,7 @@ Net: the event is genuinely worth attention, and our alerting **missed it** and 
 | Alert / reason | Failed Proximity Validation · Merchant Position Too Far | "INVALID TRUCKSTOP … Merchant Position Too Far" | EFS decline reason |
 | Proximity | **644.26 mi** | *(not stored)* | EFS telematics geofence |
 | Truck location time | 15:33 | *(not stored)* | EFS telematics |
-| Card # | `7083050030281917521` | `…7521` | — |
+| Card # | `7083050099023917521` | `…7521` | — |
 | Driver | — | TEHONE CARTER | EFS |
 | Our suspicion score | — | **Clear** | our scorer |
 
