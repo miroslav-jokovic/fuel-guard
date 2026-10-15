@@ -36,8 +36,9 @@ export type Acted = ReadonlyMap<PrefillLine, ReadonlySet<PrefillKey>>;
 /** Whether the evidence asks a person to look before this field reaches the engine. */
 export function fieldNeedsAct(field: PrefillField): boolean {
   // A field neither reader read needs nothing: the two agree on nothing and nothing was filled — unless the
-  // OCR row shows a value they both missed, which is worth a look.
-  return field.agree !== true || field.rowBacked === false || field.reason !== null;
+  // OCR row shows a value they both missed, which is worth a look. The paper's totals that no reading of the rows
+  // fits (Q-DR26 L3) are worth a look too, on every weight they judged.
+  return field.agree !== true || field.rowBacked === false || field.sumBacked === false || field.reason !== null;
 }
 
 /** The form's value of each filled field, to tell a person's change from the read's value. */

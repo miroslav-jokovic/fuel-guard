@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { emptyShippingDocument, printedHazmatLineSchema, type FieldEvidence, type PrintedHazmatLine } from "@silvicom/shared";
+import { emptyShippingDocument, printedHazmatLineSchema, type FieldEvidence, type PrintedHazmatLine, type ShippingDocument } from "@silvicom/shared";
 import { shippingEvidence } from "./shippingEvidence.js";
 import { auditFieldStates, auditForRead } from "./paperAudit.js";
 
@@ -76,6 +76,21 @@ describe("auditForRead", () => {
       .toMatchObject({ outcome: "cannot_tell", reason: "field_unconfirmed" });
   });
 
+  it("asks whether non-hazmat lines are printed, not how the readers worded them (profile 1.3.0 rows)", () => {
+    const PAINT = { ...PAINT_NO_PG, pg: "II" as const };
+    const a = { ...doc([PAINT]), otherLines: [{ description: "Not Regulated", packageCount: 178, grossWeightLb: 3659 }] };
+    const b = { ...doc([PAINT]), otherLines: [{ description: "NOT REGULATED SAP 5348472", packageCount: 178, grossWeightLb: 3659 }] };
+    const mixed = (x: ShippingDocument, y: ShippingDocument | null) => outcome(auditForRead(x, shippingEvidence(x, y, "7")), "paper_hm_column")?.reason;
+    expect(outcome(auditForRead(a, shippingEvidence(a, b, "7")), "paper_hm_column")?.facts).toMatchObject({ mixedPaper: true });
+    expect(mixed(doc([PAINT]), doc([PAINT]))).toBe("not_mixed");
+    // one reader read a non-hazmat row and the other none: the audit cannot tell
+    expect(outcome(auditForRead(a, shippingEvidence(a, doc([PAINT]), "7")), "paper_hm_column")?.facts).toMatchObject({ mixedPaper: null });
+    // a 1.2.0 read stored the rows as strings: they parse, and still count
+    const legacy = { ...doc([PAINT]), otherLines: ["Not Regulated"] };
+    expect(auditForRead(legacy, [{ path: "otherLines", value: ["Not Regulated"], status: "check", ruleVersion: "6",
+      sources: [{ reader: "passA", page: null, bbox: null, value: ["Not Regulated"] }, { reader: "passB", page: null, bbox: null, value: ["Not regulated"] }] }])).not.toBeNull();
+  });
+
   it("answers nothing for a result that is not a shipping document", () => {
     expect(auditForRead({ hazmat: { lines: "nope" } }, [])).toBeNull();
   });
@@ -108,5 +123,11 @@ describe("auditFieldStates", () => {
     expect(state(e([A(6), B(6), T(null)]))).toBe("check");
     // Two row witnesses must both back it: the OCR finding 6 does not outvote the text layer finding none.
     expect(state(e([A(6), B(6), O(6), T(null)]))).toBe("check");
+  });
+
+  it("does not confirm a value the paper's totals fit no reading of (Q-DR26 L3), and confirms one they back", () => {
+    const S = (v: unknown) => ({ reader: "arithmetic" as const, page: null, bbox: null, value: v as never });
+    expect(state(e([A(6), B(6), O(6), S(null)]))).toBe("check");
+    expect(state(e([A(6), B(6), S(6)]))).toBe("read");
   });
 });

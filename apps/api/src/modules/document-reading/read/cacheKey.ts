@@ -41,8 +41,11 @@ import { createHash } from "node:crypto";
  *   6    — 2026-10-15, after D-DR24: a read with no hazmat line carries the OCR's and the text layer's scan of
  *          every read page for hazmat marks on `hazmat.lines` (hazmatMarkWitness.ts), the evidence the
  *          screen needs before it says "No hazardous materials"; statuses unchanged.
+ *   7    — 2026-10-15, Q-DR26 L3: every row's count and weight, non-hazmat rows included (profile 1.3.0), carries
+ *          the paper's own totals as the `arithmetic` witness (arithmeticWitness.ts), and the non-hazmat rows
+ *          are matched reader to reader (alignOtherLines); statuses unchanged.
  */
-export const ACCEPTANCE_RULE_VERSION = "6";
+export const ACCEPTANCE_RULE_VERSION = "7";
 
 export interface CacheKeyInput {
   profileVersion: string;

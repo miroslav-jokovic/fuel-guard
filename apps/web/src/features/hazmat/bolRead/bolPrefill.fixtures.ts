@@ -41,6 +41,8 @@ export interface LineSpec {
   ocr?: Record<string, unknown>;
   /** What a born-digital page's text layer showed on the row, likewise (§7B A4); absent = no text layer. */
   textLayer?: Record<string, unknown>;
+  /** What the paper's totals backed for a count or weight (Q-DR26 L3); absent = the totals did not judge it. */
+  sum?: Record<string, unknown>;
 }
 
 /** A finished read of these lines, each at its index. */
@@ -60,6 +62,7 @@ export function read(specs: LineSpec[], over: Partial<ReadResponse> & { otherLin
       if (JUDGED.includes(key) && s.table) sources.push({ reader: "table", page: null, bbox: null, value: s.table as never });
       if (ROW.includes(key) && s.ocr && key in s.ocr) sources.push({ reader: "ocr", page: 1, bbox: null, value: s.ocr[key] as never });
       if (ROW.includes(key) && s.textLayer && key in s.textLayer) sources.push({ reader: "textLayer", page: 1, bbox: null, value: s.textLayer[key] as never });
+      if (s.sum && key in s.sum) sources.push({ reader: "arithmetic", page: null, bbox: null, value: s.sum[key] as never });
       const nothing = (av ?? null) === null && (bv ?? null) === null;
       evidence.push({ path, value: (av ?? bv ?? null) as never, status: nothing ? "not_read" : "check", sources, ruleVersion: "4" });
     }

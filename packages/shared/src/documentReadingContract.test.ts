@@ -30,6 +30,15 @@ describe("ShippingDocument", () => {
     expect(d.otherLines).toEqual([]);
   });
 
+  it("holds each non-hazmat row with its count and weight, and reads a 1.2.0 read's string as a row with neither", () => {
+    const d = shippingDocumentSchema.parse({ otherLines: [{ description: "Not Regulated", packageCount: 178, grossWeightLb: 3659 }, "Paper products"] });
+    expect(d.otherLines).toEqual([
+      { description: "Not Regulated", packageCount: 178, grossWeightLb: 3659 },
+      { description: "Paper products", packageCount: null, grossWeightLb: null },
+    ]);
+    expect(() => shippingDocumentSchema.parse({ otherLines: [{ packageCount: 1 }] })).toThrow();
+  });
+
   it("holds one page marker per image, null for an image that prints none, and refuses a number", () => {
     const d = shippingDocumentSchema.parse({ identity: { printedPageNumbers: ["Page 1 of 2", null] } });
     expect(d.identity.printedPageNumbers).toEqual(["Page 1 of 2", null]);

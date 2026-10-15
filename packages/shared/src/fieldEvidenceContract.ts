@@ -21,7 +21,9 @@ export type FieldStatus = (typeof FIELD_STATUSES)[number];
 /**
  * Every kind of reader that can vote on a value. `textLayer` is a born-digital PDF's own characters
  * (D-DR3), `deviceOcr` the driver scanner's word boxes (Phase 6.3), `region` a re-read of a crop (Phase 5),
- * `arithmetic` a sum or product that reproduces the value (§4.4), `order` the McLeod order (§4.5),
+ * `arithmetic` a sum or product that reproduces the value (§4.4) — since Q-DR26 L3 the paper's own totals over
+ * every row's count and weight (arithmeticWitness.ts): the reading they back, or null where none fits them —
+ * `order` the McLeod order (§4.5),
  * `declaration` something the sender stated, `reviewer` a person's confirmation or correction.
  * `table` is a regulatory table the value must be consistent with — the Hazardous Materials Table for a
  * hazmat line (DOCUMENT-READER-PLAN §7B, D-DR19). It reads no page: its `value` is its verdict on the
@@ -167,6 +169,28 @@ export function readersAgree(e: Pick<FieldEvidence, "sources">): boolean | null 
   const a = e.sources.find((s) => s.reader === "passA");
   const b = e.sources.find((s) => s.reader === "passB");
   return a && b ? valuesAgree(a.value, b.value) : null;
+}
+
+/**
+ * Whether the paper's totals back a field's value (the `arithmetic` reader, Q-DR26 L3): true when they show
+ * that value, false when they show another reading or none fits, null when they did not judge it.
+ */
+export function arithmeticBacks(e: Pick<FieldEvidence, "value" | "sources">): boolean | null {
+  const s = e.sources.find((x) => x.reader === "arithmetic");
+  return s === undefined ? null : s.value !== null && valuesAgree(s.value, e.value);
+}
+
+/**
+ * The one reading every printed witness that judged a field shows — the row witnesses and the paper's
+ * totals — when there is exactly one and a model reader read it; null otherwise. This is what a screen
+ * may put first for a person to confirm (the owner, 2026-10-15: "keep the click"): never a value no reader
+ * read, and never one the witnesses split on.
+ */
+export function witnessedReading(e: Pick<FieldEvidence, "sources">): unknown {
+  const shown = e.sources.filter((s) => s.reader === "arithmetic" || (ROW_WITNESS_READERS as readonly string[]).includes(s.reader));
+  if (shown.length === 0 || shown.some((s) => s.value === null || !valuesAgree(s.value, shown[0]!.value))) return null;
+  const read = e.sources.some((s) => (s.reader === "passA" || s.reader === "passB") && valuesAgree(s.value, shown[0]!.value));
+  return read ? shown[0]!.value : null;
 }
 
 /**

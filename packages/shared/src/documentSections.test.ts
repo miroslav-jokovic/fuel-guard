@@ -15,12 +15,12 @@ function fullDocument(): ShippingDocument {
     identity: { bolNumber: "1", date: "d", pageOf: { page: 1, of: 1 }, printedPageNumbers: ["Page 1 of 1"] },
     parties: { shipper: party, consignee: party, billTo: party },
     references: { po: ["p"], customer: ["c"], consignee: ["r"] },
-    freight: { pieces: 1, pallets: 1, weight: 1, weightUnit: "lb", seals: ["s"], trailer: "t" },
+    freight: { pieces: 1, pallets: 1, weight: 1, weightUnit: "lb", netWeight: 1, tareWeight: 1, seals: ["s"], trailer: "t" },
     hazmat: {
       lines: [{ idText: "UN1203", descriptionText: "UN1203, Gasoline, 3, PG II", quantity: { value: 1, unit: "gal" }, marks: ["HOT"] }],
       emergencyPhone: "800", shipperCertification: true, offeror: "o", emergencyContactText: "CHEMTREC",
     },
-    otherLines: ["Paper products"],
+    otherLines: [{ description: "Paper products", packageCount: 2, grossWeightLb: 40 }],
     execution: { receiverSignaturePresent: true, receiverName: "n", deliveredAt: "d", osdNotations: ["x"] },
   });
 }
@@ -105,7 +105,7 @@ describe("mergeSections — the section answers back into one document", () => {
     const before = JSON.stringify(parts);
     const merged = mergeSections(P, parts) as ShippingDocument;
     expect(JSON.stringify(parts)).toBe(before);
-    merged.otherLines.push("mutated");
-    expect((parts.lines as ShippingDocument).otherLines).toEqual(["Paper products"]);
+    merged.otherLines.push({ description: "mutated", packageCount: null, grossWeightLb: null });
+    expect((parts.lines as ShippingDocument).otherLines).toEqual([{ description: "Paper products", packageCount: 2, grossWeightLb: 40 }]);
   });
 });
