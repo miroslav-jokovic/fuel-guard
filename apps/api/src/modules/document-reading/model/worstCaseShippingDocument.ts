@@ -45,7 +45,7 @@ export function worstCaseShippingDocument(): ShippingDocument {
       consignee: ["RCV-2026-10-0088123", "DOCK-APPT-0812"],
     },
     freight: {
-      pieces: 148, pallets: 26, weight: 43987.5, weightUnit: "lb",
+      pieces: 148, pallets: 26, weight: 43987.5, weightUnit: "lb", netWeight: 42867.25, tareWeight: 1120.25,
       seals: ["SEAL-00987123", "SEAL-00987124"], trailer: "TRL 538812 / CHASSIS 77812",
     },
     hazmat: {
@@ -64,9 +64,9 @@ export function worstCaseShippingDocument(): ShippingDocument {
       emergencyContactText: "EMERGENCY CONTACT: CHEMTREC 24 HR — Contract CCN 812345 — Midwest Specialty Chemical",
     },
     otherLines: [
-      "22 PLT Paper products, corrugated cartons (not regulated) 18,450 LBS CLASS 55",
-      "4 PLT Plastic pails, empty, new (not regulated) 1,120 LBS CLASS 85",
-      "1 CTN Material safety data sheets and shipping documents (not regulated) 12 LBS",
+      { description: "22 PLT Paper products, corrugated cartons (not regulated) 18,450 LBS CLASS 55", packageCount: 22, grossWeightLb: 18450 },
+      { description: "4 PLT Plastic pails, empty, new (not regulated) 1,120 LBS CLASS 85", packageCount: 4, grossWeightLb: 1120 },
+      { description: "1 CTN Material safety data sheets and shipping documents (not regulated) 12 LBS", packageCount: 1, grossWeightLb: 12 },
     ],
     execution: {
       receiverSignaturePresent: true,

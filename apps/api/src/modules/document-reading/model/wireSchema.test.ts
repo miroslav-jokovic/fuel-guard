@@ -131,12 +131,12 @@ describe("schemaComplexity — measured against the documented compilation limit
 
   // The measurement the Step 1.4 report rests on: the shipping document has no optional parameter (every
   // field defaults, so `io: "output"` requires all of them) but one union per nullable field, which is
-  // well over the documented 16 — 37 at profile 1.0.0, refused live with 400 (Q-DR11); 40 at 1.1.0. This
+  // well over the documented 16 — 37 at profile 1.0.0, refused live with 400 (Q-DR11); 40 at 1.1.0; 44 at 1.3.0. This
   // is why the profile is read in sections (below), and it stays pinned so the whole-document count is
   // never mistaken for one that a single request could send.
-  it("shipping_document whole: 0 optional parameters, 40 union parameters (limit 16)", () => {
+  it("shipping_document whole: 0 optional parameters, 44 union parameters (limit 16)", () => {
     const c = schemaComplexity(wireSchemaFor(DOCUMENT_PROFILES.shipping_document.schema));
-    expect(c).toEqual({ optionalParameters: 0, unionParameters: 40 });
+    expect(c).toEqual({ optionalParameters: 0, unionParameters: 44 });
     expect(c.optionalParameters).toBeLessThanOrEqual(STRUCTURED_OUTPUT_LIMITS.optionalParameters);
     expect(c.unionParameters).toBeGreaterThan(STRUCTURED_OUTPUT_LIMITS.unionParameters);
   });
@@ -164,12 +164,12 @@ describe("profile sections — each one request the API will compile", () => {
       expect(c.optionalParameters).toBeLessThanOrEqual(STRUCTURED_OUTPUT_LIMITS.optionalParameters);
     },
   );
-  it("shipping_document's measured packing: identity 15, load 12, lines 13 unions; none optional", () => {
+  it("shipping_document's measured packing: identity 15, load 14, lines 15 unions; none optional", () => {
     const counts = sectionWireSchemas("shipping_document").map((s) => [s.name, schemaComplexity(s.wire)]);
     expect(Object.fromEntries(counts)).toEqual({
       identity: { optionalParameters: 0, unionParameters: 15 },
-      load: { optionalParameters: 0, unionParameters: 12 },
-      lines: { optionalParameters: 0, unionParameters: 13 },
+      load: { optionalParameters: 0, unionParameters: 14 },
+      lines: { optionalParameters: 0, unionParameters: 15 },
     });
   });
   it("the sections' unions add up to the whole document's — none is lost or counted twice", () => {

@@ -56,6 +56,15 @@ describe("which fields stop Calculate", () => {
     expect(pendingCount(lines, actedOn(lines[0]!.prefill, "limitedQuantity"))).toBe(0);
   });
 
+  it("a weight both readers read alike that the BOL's totals cannot be made to fit (Q-DR26 L3)", () => {
+    const { lines } = fill(read([{ a: PAINT, table: ok(PAINT_REF), ocr: { grossWeightLb: 3806 }, sum: { grossWeightLb: null } }]));
+    expect(lines[0]!.prefill.fields.grossWeight).toMatchObject({ agree: true, rowBacked: true, sumBacked: false });
+    expect(pendingCount(lines, NONE)).toBe(1);
+    expect(pendingCount(lines, actedOn(lines[0]!.prefill, "grossWeight"))).toBe(0);
+    const fits = fill(read([{ a: PAINT, table: ok(PAINT_REF), sum: { grossWeightLb: 3806, packageCount: 6 } }]));
+    expect(pendingCount(fits.lines, NONE)).toBe(0);
+  });
+
   it("nothing for a field neither reader read: there is no value to vouch for", () => {
     const { lines } = fill(read([{ a: { ...PAINT, packageCount: null }, table: ok(PAINT_REF), ocr: { grossWeightLb: 3806 } }]));
     expect(lines[0]!.prefill.fields.packageCount.state).toBe("not_read");
@@ -71,6 +80,28 @@ describe("what the field says while it waits", () => {
     const after = bolLineView(prefill, current, actedOn(prefill, "packageCount")).fields.packageCount;
     expect(after).toMatchObject({ text: "Checked against the page by you.", tone: "neutral" });
     expect(after.pending).toBeUndefined();
+  });
+
+  it("puts first the reading the page's own figures back, and still waits for the click", () => {
+    // 0135071: 3,808 against 3,806 — the row backs 3,806; the totals, inside rounding, judge neither
+    const { lines } = fill(read([{ a: { ...PAINT, grossWeightLb: 3808 }, b: PAINT, table: ok(PAINT_REF), ocr: { grossWeightLb: 3806 } }]));
+    const { prefill, current } = lines[0]!;
+    const note = bolLineView(prefill, current).fields.grossWeight;
+    expect(note).toMatchObject({ pending: true, choices: [3806, 3808], backed: 3806 });
+    expect(note.text).toBe("The two readers disagree: 3,808 or 3,806. The page's own figures back 3,806. Check the page.");
+    expect(current.grossWeightValue).toBe("3808");
+  });
+
+  it("backs nothing when the row and the totals point at different readings", () => {
+    const { lines } = fill(read([{ a: { ...PAINT, grossWeightLb: 3808 }, b: PAINT, table: ok(PAINT_REF), ocr: { grossWeightLb: 3806 }, sum: { grossWeightLb: 3808 } }]));
+    const note = bolLineView(lines[0]!.prefill, lines[0]!.current).fields.grossWeight;
+    expect(note).toMatchObject({ choices: [3808, 3806] });
+    expect(note.backed).toBeUndefined();
+  });
+
+  it("never puts first a value neither reader read", () => {
+    const { lines } = fill(read([{ a: { ...PAINT, grossWeightLb: 3808 }, b: PAINT, table: ok(PAINT_REF), sum: { grossWeightLb: 4000 } }]));
+    expect(lines[0]!.prefill.fields.grossWeight.witnessed).toBeNull();
   });
 
   it("offers no 'Matches the page' on a line with no product", () => {

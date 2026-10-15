@@ -127,6 +127,23 @@ export function classifyLineLoadState(line: Pick<PrintedHazmatLine, "quantity" |
   return "partial";
 }
 
+/**
+ * A non-hazmat row of the freight table: what `otherLines` holds (profile 1.3.0). The count and weight carry
+ * a hazmat line's own descriptions word for word, so one printed column is one field on either kind of row.
+ * A bare string — what a 1.2.0 read stored — parses as a row with no count or weight: an old read keeps
+ * its description and simply gives the arithmetic nothing to add. The wire schema is the object alone
+ * (`z.toJSONSchema` with `io: "output"` emits the preprocess's target), so the reader never sees a union.
+ */
+export const otherLineSchema = z.preprocess(
+  (v) => (typeof v === "string" ? { description: v } : v),
+  z.object({
+    description: z.string().describe("The line's description of the articles as printed, without its count or weight."),
+    packageCount: printedHazmatLineSchema.shape.packageCount,
+    grossWeightLb: printedHazmatLineSchema.shape.grossWeightLb,
+  }),
+);
+export type OtherLine = z.infer<typeof otherLineSchema>;
+
 const pageOfSchema = z.object({ page: int(), of: int() });
 
 /**
@@ -177,17 +194,39 @@ export const shippingDocumentSchema = z.object({
       consignee: z.array(z.string()).default([]),
     })
     .default({ po: [], customer: [], consignee: [] }),
+  /**
+   * The paper's own totals — the arithmetic witness's inputs (Q-DR26, L3), so each total a paper prints has
+   * exactly one field. Measured 2026-10-15 on the ten office BOLs under 1.2.0, which had `weight` alone:
+   * 0134831 prints WEIGHT 36,446.7 (its two lines), PALLET WEIGHT 760.00 and TOTAL WEIGHT 37,206.7, and both
+   * readers rightly took the total; 0136043 prints NET 22,046, TARE 1,235 and GROSS 23,281, and both took
+   * the NET. With one field the readers had to choose which total, and the sum of the lines could be checked
+   * against neither paper. All weights are in `weightUnit` — never converted here (plan §6).
+   */
   freight: z
     .object({
       pieces: int(),
       pallets: int(),
       /** The printed load total with its own unit — never converted here (plan §6: "never converted silently"). */
-      weight: num(),
+      weight: z
+        .number()
+        .nullable()
+        .default(null)
+        .describe("The paper's total or gross weight of the whole load (TOTAL WEIGHT, GROSS, the weight total), pallets included."),
       weightUnit: z.enum(["lb", "kg"]).nullable().default(null),
+      netWeight: z
+        .number()
+        .nullable()
+        .default(null)
+        .describe("The weight of the goods without pallets or tare, when printed separately from the total (NET, or the WEIGHT beside TOTAL PKGS); null if not printed."),
+      tareWeight: z
+        .number()
+        .nullable()
+        .default(null)
+        .describe("The weight printed for pallets, dunnage or tare (PALLET WEIGHT, TARE); null if not printed."),
       seals: z.array(z.string()).default([]),
       trailer: str(),
     })
-    .default({ pieces: null, pallets: null, weight: null, weightUnit: null, seals: [], trailer: null }),
+    .default({ pieces: null, pallets: null, weight: null, weightUnit: null, netWeight: null, tareWeight: null, seals: [], trailer: null }),
   hazmat: z
     .object({
       lines: z.array(printedHazmatLineSchema).default([]),
@@ -233,13 +272,20 @@ export const shippingDocumentSchema = z.object({
    * boundary is structural: a consumer of `hazmat` cannot receive a non-hazmat line by construction.
    * It is read in the same section as `hazmat.lines` (SHIPPING_DOCUMENT_SECTIONS) so the one answer
    * that sorts the paper's lines has both bins.
+   *
+   * WHY A ROW, NOT A STRING (profile 1.3.0, Q-DR26). Under 1.2.0 a non-hazmat line was its description only,
+   * so on a mixed paper the line weights could never be added up: production read d0f2831a (2026-10-15)
+   * read 7,759 lb of hazmat lines against a printed 17,983, the other 10,224 lb sitting in eleven lines the
+   * profile held as text. A row now carries its count and weight in the same fields a hazmat line uses, so
+   * every printed row of the freight table is read the same way and the paper's totals can witness them.
+   * A stored 1.2.0 read holds strings; they parse as rows with no count or weight (`otherLineSchema`).
    */
   otherLines: z
-    .array(z.string())
+    .array(otherLineSchema)
     .default([])
     .describe(
-      "Each line that is NOT hazardous material: its description of the articles as printed, without its count or " +
-        "weight. Never put these in hazmat.lines.",
+      "Each line that is NOT hazardous material (no X or RQ in its HM column, no UN/NA description), with its count " +
+        "and weight. Never put these in hazmat.lines.",
     ),
   /** The delivery half: what the receiver wrote on the signed copy (Phase 6.2's stop readiness). */
   execution: z
@@ -260,7 +306,7 @@ export function emptyShippingDocument(): ShippingDocument {
 }
 
 /** Bumped on any change to the schema above; stored on every read and in the cache key (§4.6). */
-export const SHIPPING_DOCUMENT_PROFILE_VERSION = "1.2.0";
+export const SHIPPING_DOCUMENT_PROFILE_VERSION = "1.3.0";
 
 // ── read sections (Q-DR11, ruled 2026-10-09) ───────────────────────────────────────────────────────
 /**
@@ -276,8 +322,10 @@ export const SHIPPING_DOCUMENT_PROFILE_VERSION = "1.2.0";
  * Packing, counted by `schemaComplexity` over each section's wire schema (unions; optional is 0 in all):
  *   identity  — identity + parties: 15. Parties are three nullable objects of two nullable strings (9);
  *               printedPageNumbers counts one (its items are nullable).
- *   load      — freight + references + execution + hazmat's header items: 12.
- *   lines     — hazmat.lines + otherLines: 13 (twelve per line plus descriptionText; a list counts once).
+ *   load      — freight + references + execution + hazmat's header items: 14 (1.3.0 added the net and
+ *               tare weights, Q-DR26).
+ *   lines     — hazmat.lines + otherLines: 15 — thirteen per hazmat line (a list counts once) and two per
+ *               other line, its count and weight (1.3.0; its description is a plain string, never null).
  * `otherLines` sits with `hazmat.lines`, not with the load section the research packing first gave it:
  * the measured failure (a non-hazmat line written into `hazmat.lines`) is a sorting error, and only an
  * answer that holds BOTH bins can sort; a lines request with no other bin would repeat it.

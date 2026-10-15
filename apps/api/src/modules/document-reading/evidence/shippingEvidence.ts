@@ -1,5 +1,6 @@
 import { leafFieldPaths, valueAtPath, type FieldEvidence, type PrintedHazmatLine, type ShippingDocument } from "@silvicom/shared";
-import { alignLines } from "./alignLines.js";
+import { alignLines, alignOtherLines } from "./alignLines.js";
+import { arithmeticWitness } from "./arithmeticWitness.js";
 import { hazmatMarks } from "./hazmatMarkWitness.js";
 import { HMT_JUDGED_KEYS, hmtVerdict, type HmtVerdict } from "./hmtWitness.js";
 import { anchorOf, classTokens, ROW_JUDGED_KEYS, rowBacks, rowOf, type OcrPage, type Row } from "./rowWitness.js";
@@ -17,6 +18,13 @@ import { anchorOf, classTokens, ROW_JUDGED_KEYS, rowBacks, rowOf, type OcrPage, 
  *           (engine off, failed, or a cache replay of a read made without it) or the row is ambiguous.
  *   textLayer a born-digital PDF's own characters on the same row, by the same rules (A4,
  *           textLayerWitness.ts). Absent unless every read page carries a text layer.
+ *   arithmetic the paper's own totals, on every row's count and weight (Q-DR26 L3, arithmeticWitness.ts):
+ *           the reading the totals back, or null where no reading of the rows fits them. Absent where the
+ *           totals cannot tell (two readings both fit; a total in dispute; no total printed).
+ *
+ * The non-hazmat rows (`otherLines`, profile 1.3.0) are matched the same way, by their own rule (`alignOtherLines`:
+ * in order when both read as many, else by an exactly agreeing description), and a row only pass B saw is
+ * recorded after pass A's last. Their count and weight carry no row witness: a row has no UN id to anchor on.
  *
  * When pass A reads NO hazmat line, `hazmat.lines` is itself a leaf (the empty list), and the same two
  * engines are its witnesses too: each records the hazmat marks — UN/NA ids, RQ, an X in the HM column — it
@@ -31,7 +39,8 @@ import { anchorOf, classTokens, ROW_JUDGED_KEYS, rowBacks, rowOf, type OcrPage, 
  */
 
 const LINE_RX = /^hazmat\.lines\[(\d+)\]\.(.+)$/;
-type Doc = Pick<ShippingDocument, "hazmat">;
+const OTHER_RX = /^otherLines\[(\d+)\]\./;
+type Doc = Pick<ShippingDocument, "hazmat"> & Partial<Pick<ShippingDocument, "otherLines" | "freight">>;
 
 export function shippingEvidence(
   a: Doc,
@@ -42,8 +51,12 @@ export function shippingEvidence(
 ): FieldEvidence[] {
   const aLines = a.hazmat?.lines ?? [];
   const { aligned, extra } = b ? alignLines(aLines, b.hazmat?.lines ?? []) : { aligned: aLines.map(() => null), extra: [] };
-  // Pass B as it would read at pass A's positions; its unpaired lines after A's last.
-  const bAtA = b ? { ...b, hazmat: { ...b.hazmat, lines: [...aligned, ...extra] } } : null;
+  const aOther = a.otherLines ?? [];
+  const other = b ? alignOtherLines(aOther, b.otherLines ?? []) : { aligned: aOther.map(() => null), extra: [] };
+  // Pass B as it would read at pass A's positions; its unpaired lines and rows after A's last.
+  const bAtA = b
+    ? { ...b, hazmat: { ...b.hazmat, lines: [...aligned, ...extra] }, otherLines: [...other.aligned, ...other.extra] }
+    : null;
   const verdicts = new Map<number, HmtVerdict>();
   const verdictOf = (i: number, line: PrintedHazmatLine) => verdicts.get(i) ?? verdicts.set(i, hmtVerdict(line)).get(i)!;
   const lineAt = (i: number) => (i < aLines.length ? aLines[i] : extra[i - aLines.length])!;
@@ -63,6 +76,11 @@ export function shippingEvidence(
   };
   // Each row witness in the order its source is recorded: the OCR engine (A5), then the text layer (A4).
   const rowWitnesses = [["ocr", rowsOver(ocr)], ["textLayer", rowsOver(textLayer)]] as const;
+
+  // The totals witness needs whole documents; a caller passing only the hazmat section gets none.
+  const sums = a.freight && a.otherLines && (bAtA === null || (bAtA.freight && bAtA.otherLines))
+    ? arithmeticWitness({ hazmat: a.hazmat, otherLines: a.otherLines, freight: a.freight }, bAtA && { hazmat: bAtA.hazmat, otherLines: bAtA.otherLines, freight: bAtA.freight! })
+    : new Map<string, number | null>();
 
   const out: FieldEvidence[] = [];
   const emit = (path: string, aHas: boolean, bHas: boolean) => {
@@ -84,6 +102,7 @@ export function shippingEvidence(
         if (row) sources.push({ reader, page: row.page, bbox: row.bbox, value: rowBacks(row, [av, bv], unprovable) as never });
       }
     }
+    if (sums.has(path)) sources.push({ reader: "arithmetic", page: null, bbox: null, value: sums.get(path)! });
     if (path === "hazmat.lines") {
       for (const [reader, pages] of [["ocr", ocr], ["textLayer", textLayer]] as const) {
         if (!pages) continue;
@@ -97,13 +116,19 @@ export function shippingEvidence(
 
   for (const path of leafFieldPaths(a)) {
     const m = LINE_RX.exec(path);
-    const partnered = m ? aligned[Number(m[1])] != null : true;
+    const o = OTHER_RX.exec(path);
+    const partnered = m ? aligned[Number(m[1])] != null : o ? other.aligned[Number(o[1])] != null : true;
     emit(path, true, bAtA !== null && partnered);
   }
   // Lines only pass B saw: a line pass A missed is a disagreement, shown, never dropped.
   extra.forEach((line, k) => {
     for (const path of leafFieldPaths({ hazmat: { lines: [line] } })) {
       emit(path.replace("hazmat.lines[0]", `hazmat.lines[${aLines.length + k}]`), false, true);
+    }
+  });
+  other.extra.forEach((row, k) => {
+    for (const path of leafFieldPaths({ otherLines: [row] })) {
+      emit(path.replace("otherLines[0]", `otherLines[${aOther.length + k}]`), false, true);
     }
   });
   return out;

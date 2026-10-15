@@ -181,3 +181,45 @@ describe("shippingEvidence — the OCR witness (§7B A5)", () => {
     expect(ocrOf(all, "hazmat.lines[1].packageCount").map((s) => s.value)).toEqual([24]);
   });
 });
+
+describe("shippingEvidence — non-hazmat rows and the paper's totals (Q-DR26, profile 1.3.0)", () => {
+  type Other = ShippingDocument["otherLines"][number];
+  const other = (description: string, packageCount: number | null, grossWeightLb: number | null): Other => ({ description, packageCount, grossWeightLb });
+  const withRows = (lines: PrintedHazmatLine[], rows: Other[], freight: Partial<ShippingDocument["freight"]> = {}): ShippingDocument => {
+    const d = doc(lines);
+    return { ...d, otherLines: rows, freight: { ...d.freight, weightUnit: "lb", ...freight } };
+  };
+  const src = (all: ReturnType<typeof ev>, path: string, reader: string) => at(all, path)?.sources.find((s) => s.reader === reader)?.value;
+
+  it("pairs the rows in order when both readers read as many, whatever their wording", () => {
+    const a = withRows([], [other("Not Regulated", 178, 3659), other("Not Regulated", 23, 16480)]);
+    const b = withRows([], [other("NOT REGULATED (SAP 5348472)", 178, 3659), other("Not regulated", 23, 16480)]);
+    const all = ev(a, b);
+    expect(readersAgree(at(all, "otherLines[1].grossWeightLb"))).toBe(true);
+    expect(readersAgree(at(all, "otherLines[0].description"))).toBe(false);
+  });
+
+  it("pairs by an agreeing description when one reader read more rows, and records the row only one saw after the rest", () => {
+    const a = withRows([], [other("Paper", 10, 200)]);
+    const b = withRows([], [other("Pails", 4, 120), other("Paper", 10, 200)]);
+    const all = ev(a, b);
+    expect(readersAgree(at(all, "otherLines[0].packageCount"))).toBe(true);
+    expect(at(all, "otherLines[1].description").sources.map((s) => s.reader)).toEqual(["passB"]);
+    expect(src(all, "otherLines[1].grossWeightLb", "passB")).toBe(120);
+  });
+
+  it("records the totals' word on every row's count and weight, hazmat and not", () => {
+    const freight = { netWeight: 22046 + 1000, pieces: 20 };
+    const a = withRows([line({ ...UN2735, packageCount: 10, grossWeightLb: 1000 })], [other("Not regulated", 10, 22046)], freight);
+    const all = ev(a, a);
+    expect(src(all, "hazmat.lines[0].grossWeightLb", "arithmetic")).toBe(1000);
+    expect(src(all, "otherLines[0].grossWeightLb", "arithmetic")).toBe(22046);
+    expect(src(all, "otherLines[0].packageCount", "arithmetic")).toBe(10);
+    expect(fieldEvidenceSchema.array().parse(all)).toHaveLength(all.length);
+  });
+
+  it("adds no totals' word when only the hazmat section is given", () => {
+    const all = shippingEvidence({ hazmat: doc([line({ ...UN2735, grossWeightLb: 1000 })]).hazmat }, null, "7");
+    expect(all.flatMap((e) => e.sources).some((s) => s.reader === "arithmetic")).toBe(false);
+  });
+});

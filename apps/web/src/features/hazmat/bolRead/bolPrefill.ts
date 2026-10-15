@@ -1,4 +1,5 @@
 import {
+  arithmeticBacks,
   classifyLineLoadState,
   isVehiclePackaging,
   packageTypeFromPrinted,
@@ -6,9 +7,11 @@ import {
   rowWitnessesBack,
   shippingDocumentSchema,
   valueAtPath,
+  witnessedReading,
   type FieldEvidence,
   type FieldStatus,
   type HazmatProduct,
+  type OtherLine,
   type PrintedHazmatLine,
   type ReadResponse,
 } from "@silvicom/shared";
@@ -58,6 +61,10 @@ export interface PrefillField {
   readings: [unknown, unknown][];
   /** The OCR engine found this value on the line's own printed row (true), judged the row and did not (false), or did not judge (null). */
   rowBacked: boolean | null;
+  /** The paper's totals back this value (true), back another reading or fit none (false), or did not judge (null). */
+  sumBacked: boolean | null;
+  /** The reading every printed witness that judged the field shows, when one reader read it (`witnessedReading`). */
+  witnessed: unknown;
   /** Why the field is blank or needs a person, in words for the screen; null when there is nothing to say. */
   reason: string | null;
   /** The evidence paths behind the field — what a Calculate press confirms or corrects (plan §6). */
@@ -167,11 +174,29 @@ export function bolPrefill(read: ReadResponse, products: readonly HazmatProduct[
     lines.push(prefillLine(i, line, printed, byPath, byRef, equipmentType, i >= doc.hazmat.lines.length));
   }
 
-  const other = byPath.get("otherLines")?.value ?? doc.otherLines;
-  const otherLines = Array.isArray(other) ? other.filter((l): l is string => typeof l === "string") : [];
+  const otherLines = otherDescriptions(read.evidence, doc.otherLines);
   const bothReaders = read.evidence.some((e) => e.sources.some((s) => s.reader === "passB"));
   return { lines, notLoaded, otherFreight: otherLines.length > 0 ? "yes" : "", noHazmat: count === 0, bothReaders,
     noHazmatEvidence: count === 0 ? noHazmatEvidence(read) : null, otherLines };
+}
+
+const OTHER_DESCRIPTION_RX = /^otherLines\[(\d+)\]\.description$/;
+
+/**
+ * The non-hazmat lines' descriptions, from the evidence when it holds them — so a line only pass B saw is
+ * listed too, as shippingEvidence.ts records it after pass A's last — else from the document. A read made
+ * under profile 1.2.0 recorded `otherLines` as one leaf list of strings; it is read the same way.
+ */
+function otherDescriptions(evidence: readonly FieldEvidence[], doc: readonly OtherLine[]): string[] {
+  const rows = evidence
+    .map((e) => [OTHER_DESCRIPTION_RX.exec(e.path), e.value] as const)
+    .filter(([m, v]) => m !== null && typeof v === "string")
+    .sort(([a], [b]) => Number(a![1]) - Number(b![1]))
+    .map(([, v]) => v as string);
+  if (rows.length > 0) return rows;
+  const legacy = evidence.find((e) => e.path === "otherLines")?.value;
+  if (Array.isArray(legacy) && legacy.length > 0) return legacy.filter((l): l is string => typeof l === "string");
+  return doc.map((l) => l.description);
 }
 
 function valueOf(byPath: Map<string, FieldEvidence>, doc: unknown, path: string): unknown {
@@ -278,12 +303,16 @@ function judged(es: (FieldEvidence | undefined)[], paths: string[], reason: stri
   const agree = agreements.includes(false) ? false : agreements.length > 0 && agreements.every((a) => a === true) ? true : null;
   const rows = known.map(rowWitnessesBack).filter((r): r is boolean => r !== null);
   const rowBacked = rows.length === 0 ? null : rows.every(Boolean);
+  const sums = known.map(arithmeticBacks).filter((r): r is boolean => r !== null);
+  const sumBacked = sums.length === 0 ? null : sums.every(Boolean);
+  // One path only: a field made of several (the product) has no single reading to put first.
+  const witnessed = known.length === 1 ? witnessedReading(known[0]!) : null;
   const readings = known.flatMap((e): [unknown, unknown][] => {
     if (readersAgree(e) !== false) return [];
     const of = (r: string) => e.sources.find((x) => x.reader === r)?.value ?? null;
     return [[of("passA"), of("passB")]];
   });
-  return { state, agree, readings, rowBacked, reason, paths };
+  return { state, agree, readings, rowBacked, sumBacked, witnessed, reason, paths };
 }
 
 // ── what the form shows under each filled field ───────────────────────────────────────────────────────
@@ -298,6 +327,8 @@ export interface FieldNote {
   confirmable?: boolean;
   /** The readings a person can pick in one click — a disputed count or weight only. */
   choices?: number[];
+  /** The one of `choices` the page's own figures back, shown first — still a person's click (owner, 2026-10-15). */
+  backed?: number;
 }
 
 const shown = (v: unknown): string =>
@@ -316,11 +347,16 @@ export function fieldNote(field: PrefillField, changed: boolean, checked = false
   if (field.state === "not_read") return { text: "Not read on the BOL. Enter it if the paper shows it.", tone: "neutral" };
   if (field.agree === false) {
     const pairs = field.readings.map(([a, b]) => `${shown(a)} or ${shown(b)}`).join("; ");
-    return { text: `The two readers disagree: ${pairs}. Check the page.`, tone: "warning" };
+    const backed = field.witnessed != null ? ` The page's own figures back ${shown(field.witnessed)}.` : "";
+    return { text: `The two readers disagree: ${pairs}.${backed} Check the page.`, tone: "warning" };
   }
   if (field.agree === null) return { text: "Only one reader read this. Check it against the page.", tone: "warning" };
+  if (field.sumBacked === false) {
+    return { text: "Both readers read this, but the weights on this BOL do not add up to its printed total. Check the page.", tone: "warning" };
+  }
   if (field.state === "read") return { text: "Read from the BOL.", tone: "success" };
-  return { text: field.rowBacked ? "From the BOL · both readers agree · found on the line's printed row" : "From the BOL · both readers agree", tone: "neutral" };
+  const found = [field.rowBacked && "found on the line's printed row", field.sumBacked && "adds up to the BOL's total"].filter(Boolean);
+  return { text: ["From the BOL · both readers agree", ...found].join(" · "), tone: "neutral" };
 }
 
 export interface BolLineView {
@@ -339,8 +375,11 @@ export function bolLineView(prefill: PrefillLine, current: CalcLineForm, acted: 
       const note = fieldNote(prefill.fields[k], changedFrom(prefill, current, k), acted.get(prefill)?.has(k) ?? false);
       const pending = fieldPending(prefill, current, k, acted);
       const choices = pending ? readingChoices(prefill.fields[k], k) : [];
+      const w = prefill.fields[k].witnessed;
+      const backed = typeof w === "number" && choices.includes(w) ? w : undefined;
+      const ordered = backed === undefined ? choices : [backed, ...choices.filter((v) => v !== backed)];
       const confirmable = pending && !(k === "product" && current.product === null);
-      return [k, { ...note, ...(pending ? { pending, confirmable, tone: "warning" as const } : {}), ...(choices.length ? { choices } : {}) }];
+      return [k, { ...note, ...(pending ? { pending, confirmable, tone: "warning" as const } : {}), ...(ordered.length ? { choices: ordered } : {}), ...(backed !== undefined ? { backed } : {}) }];
     }),
   ) as Record<PrefillKey, FieldNote>;
   return { printed: prefill.printed, notes: prefill.notes, fields };

@@ -1,5 +1,6 @@
 import { auditPrintedPaper, parsePageMarker, type PaperFieldStates } from "@hazmat/engine";
 import {
+  arithmeticBacks,
   classifyLineLoadState,
   normalizeUnit,
   packageTypeFromPrinted,
@@ -27,7 +28,8 @@ import { hmtResolution, witnessDataset } from "./hmtWitness.js";
  * bar for trusting a value: two independent witnesses agree. So a field counts as confirmed FOR THE AUDIT when
  * both model readers read the same value — including both reading nothing, which is how a missing packing
  * group or phone number is ever found — and no row witness (the OCR, a born-digital page's text layer:
- * `ROW_WITNESS_READERS`), where one judged the field, found a different one. Everything else keeps its own status. The form's field states do not change: this decides only what
+ * `ROW_WITNESS_READERS`), where one judged the field, found a different one — nor did the paper's own totals
+ * (`arithmeticBacks`, Q-DR26 L3) find that no reading fits them. Everything else keeps its own status. The form's field states do not change: this decides only what
  * the audit may reason over, and each finding quotes the printed value so a person sees what it rests on.
  *
  * The page markers are compared by what `paper_page_complete` reads from them — each image's page and total —
@@ -58,7 +60,6 @@ export function auditForRead(result: unknown, evidence: readonly FieldEvidence[]
     const at = aboard.indexOf(Number(m[1]));
     return at < 0 ? [] : [[path.replace(m[0], `hazmat.lines[${at}]`), st]];
   }));
-  const other = evidence.find((e) => e.path === "otherLines");
   // Parsed into the wire contract here, so a fact type the engine adds and the contract lacks fails loudly.
   const audit = paperAuditSchema.parse(auditPrintedPaper(
     doc,
@@ -70,7 +71,7 @@ export function auditForRead(result: unknown, evidence: readonly FieldEvidence[]
         packagingKind: packagingKindFor(packageTypeFromPrinted(l.packaging)),
       })),
       // §172.201(a)(1)'s mixed paper, only when both readers agree on whether non-hazmat lines are printed.
-      mixedPaper: other && readersAgree(other) === true ? doc.otherLines.length > 0 : null,
+      mixedPaper: mixedPaperRead(evidence),
     },
     states,
   ));
@@ -93,6 +94,23 @@ export function auditFieldStates(evidence: readonly FieldEvidence[]): PaperField
 /** The readers' page markers, as `paper_page_complete` reads them: each image's page and total. */
 const markerMeaning = (v: unknown) => (Array.isArray(v) ? v.map((m) => parsePageMarker(typeof m === "string" ? m : null)) : v);
 
+/**
+ * Whether the paper prints non-hazmat lines, when both readers say the same: true or false, null when they
+ * differ or only one read the paper. Since profile 1.3.0 each non-hazmat row is fields of its own
+ * (`otherLines[i].description`, a row only pass B saw recorded with pass B alone); a 1.2.0 read, and any read
+ * with no such row, carries `otherLines` as one leaf list. Their WORDING is not the question here — the
+ * audit asks only whether there are any — so two readers who described the same rows differently agree.
+ */
+function mixedPaperRead(evidence: readonly FieldEvidence[]): boolean | null {
+  const readers = ["passA", "passB"] as const;
+  if (!readers.every((r) => evidence.some((e) => e.sources.some((s) => s.reader === r)))) return null;
+  const leaf = evidence.find((e) => e.path === "otherLines");
+  const has = (r: (typeof readers)[number]) =>
+    evidence.some((e) => /^otherLines\[\d+\]\./.test(e.path) && e.sources.some((s) => s.reader === r)) ||
+    (leaf?.sources.some((s) => s.reader === r && Array.isArray(s.value) && s.value.length > 0) ?? false);
+  return has("passA") === has("passB") ? has("passA") : null;
+}
+
 function readersAgreeForAudit(e: FieldEvidence): boolean | null {
   if (e.path !== "identity.printedPageNumbers") return readersAgree(e);
   const a = e.sources.find((s) => s.reader === "passA");
@@ -102,5 +120,5 @@ function readersAgreeForAudit(e: FieldEvidence): boolean | null {
 
 function confirmedForAudit(e: FieldEvidence): boolean {
   if (readersAgreeForAudit(e) !== true) return false;
-  return rowWitnessesBack(e) !== false;
+  return rowWitnessesBack(e) !== false && arithmeticBacks(e) !== false;
 }

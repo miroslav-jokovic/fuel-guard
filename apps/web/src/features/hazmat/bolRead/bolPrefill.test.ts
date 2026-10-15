@@ -130,6 +130,19 @@ describe("bolPrefill", () => {
     expect(bolPrefill(read([{ a: PAINT }]), PRODUCTS, "van")!.otherFreight).toBe("");
   });
 
+  it("lists the non-hazmat rows a 1.3.0 read records one by one, a row only the second reader saw included", () => {
+    const r = read([], { otherLines: [] });
+    const row = (i: number, value: string, readers: ("passA" | "passB")[]) => ({
+      path: `otherLines[${i}].description`, value, status: "check" as const, ruleVersion: "7",
+      sources: readers.map((reader) => ({ reader, page: null, bbox: null, value })),
+    });
+    const rows = { ...r, result: { hazmat: { lines: [] }, otherLines: [{ description: "Not Regulated" }] },
+      evidence: [...r.evidence.filter((e) => e.path !== "otherLines"), row(1, "Pails, empty", ["passB"]), row(0, "Not Regulated", ["passA", "passB"])] };
+    const p = bolPrefill(rows, PRODUCTS, "van")!;
+    expect(p.otherLines).toEqual(["Not Regulated", "Pails, empty"]);
+    expect(p.otherFreight).toBe("yes");
+  });
+
   it("is Not read only where every part of the field is, and Check without evidence", () => {
     const p = bolPrefill(read([{ a: { ...PAINT, packaging: null }, table: ok(PAINT_REF) }]), PRODUCTS, "van")!;
     expect(p.lines[0]!.fields.packageType.state).toBe("not_read");
@@ -155,7 +168,7 @@ describe("bolPrefill", () => {
 });
 
 describe("fieldNote — the line under a filled field", () => {
-  const f = (over: Partial<PrefillField>): PrefillField => ({ state: "check", agree: true, readings: [], rowBacked: null, reason: null, paths: [], ...over });
+  const f = (over: Partial<PrefillField>): PrefillField => ({ state: "check", agree: true, readings: [], rowBacked: null, sumBacked: null, witnessed: null, reason: null, paths: [], ...over });
 
   it("asks a person to look where the readers disagree, naming both readings", () => {
     expect(fieldNote(f({ agree: false, readings: [[9, 6], [3808, 3806]] }), false))
@@ -172,6 +185,8 @@ describe("fieldNote — the line under a filled field", () => {
   it("only says where an agreed value came from, with the OCR's word when it found it", () => {
     expect(fieldNote(f({}), false)).toEqual({ text: "From the BOL · both readers agree", tone: "neutral" });
     expect(fieldNote(f({ rowBacked: true }), false).text).toBe("From the BOL · both readers agree · found on the line's printed row");
+    expect(fieldNote(f({ rowBacked: true, sumBacked: true }), false).text).toBe("From the BOL · both readers agree · found on the line's printed row · adds up to the BOL's total");
+    expect(fieldNote(f({ sumBacked: false }), false)).toMatchObject({ tone: "warning", text: expect.stringMatching(/do not add up to its printed total/) });
     expect(fieldNote(f({ state: "not_read", agree: true }), false).text).toMatch(/^Not read on the BOL/);
     expect(fieldNote(f({ state: "read" }), false)).toEqual({ text: "Read from the BOL.", tone: "success" });
   });
