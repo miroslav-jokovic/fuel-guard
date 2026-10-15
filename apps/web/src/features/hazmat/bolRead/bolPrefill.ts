@@ -237,12 +237,30 @@ function prefillLine(
     notes,
     fields: {
       product: field([p("idText"), p("psn"), p("hazardClass"), p("pg")], productReason),
-      packageType: field([p("packaging")], packageReason),
+      packageType: packageTypeField(field([p("packaging")], packageReason), byPath.get(p("packaging"))),
       packageCount: field([p("packageCount")]),
       grossWeight: field([p("grossWeightLb")]),
       limitedQuantity: lq,
     },
   };
+}
+
+/**
+ * The package type field is the calculator's READING of the printed phrase (`packageTypeFromPrinted`), so the
+ * readers agree on it when their phrases read as the same type — "2 DRUM" and "2 Steel Drums" are one drum
+ * line. The count inside the phrase is not this field's to judge: `packageCount` is, from its own path, so a
+ * count the readers split on is still disputed there. When either phrase reads as no known type, the raw
+ * comparison stands (an unknown phrase already carries the reason that asks a person to choose).
+ */
+function packageTypeField(f: PrefillField, e: FieldEvidence | undefined): PrefillField {
+  const of = (r: string) => e?.sources.find((s) => s.reader === r);
+  const a = of("passA");
+  const b = of("passB");
+  if (!a || !b || f.agree !== false) return f;
+  const ta = packageTypeFromPrinted(a.value as string | null);
+  const tb = packageTypeFromPrinted(b.value as string | null);
+  if (!ta || !tb || ta !== tb) return f;
+  return { ...f, agree: true, readings: [] };
 }
 
 /**

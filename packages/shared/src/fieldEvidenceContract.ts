@@ -132,11 +132,25 @@ export function leafFieldPaths(doc: unknown, prefix: Segment[] = []): string[] {
  * The one comparison two readers' values are judged by (DOCUMENT-READER-PLAN §7B A3, D-DR19), shared so
  * the API that records agreement and the screen that shows it cannot disagree about it. Deliberately
  * narrow: case, surrounding space and runs of space are not differences (one model writes "DRUMS", another
- * "Drums"); a thousands comma in a number written as text is not; ANY other difference is — a digit, a
- * letter, a decimal place, null against a value. Never fuzzy: a near-miss is a disagreement for a person.
+ * "Drums"); a thousands comma in a number written as text is not; trailing zeros after a decimal point are
+ * not; ANY other difference is — a digit, a letter, a significant decimal place, null against a value.
+ * Never fuzzy: a near-miss is a disagreement for a person.
+ *
+ * WHY TRAILING ZEROS. Production read d0f2831a (2026-10-15, four hazmat lines) had both readers agree on
+ * every count and weight, yet all four package fields were disputed: one reader copied the shipper's
+ * system-printed "48.0000 Non-Removable Head Plastic Jerrican", the other wrote "48 …". The same number
+ * twice stopped Calculate four times. A decimal token is rewritten without its trailing zeros ("48.0000" →
+ * "48", "5.50" → "5.5"); its integer part is never touched, and a token inside a dotted run ("10.10.2026",
+ * "1.2.0") is left whole, so a date or a version that differs in one zero still disagrees.
  */
 export function normalisedForAgreement(v: unknown): unknown {
-  if (typeof v === "string") return v.trim().replace(/\s+/g, " ").toUpperCase().replace(/(\d),(\d{3})(?!\d)/g, "$1$2");
+  if (typeof v === "string") {
+    return v.trim().replace(/\s+/g, " ").toUpperCase().replace(/(\d),(\d{3})(?!\d)/g, "$1$2")
+      .replace(/(?<![\d.])(\d+)\.(\d+)(?![\d]|\.\d)/g, (_, int: string, frac: string) => {
+        const f = frac.replace(/0+$/, "");
+        return f ? `${int}.${f}` : int;
+      });
+  }
   if (Array.isArray(v)) return v.map(normalisedForAgreement);
   return v ?? null;
 }

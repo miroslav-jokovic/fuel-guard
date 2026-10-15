@@ -42,6 +42,27 @@ describe("bolPrefill", () => {
     expect(p.lines[0]!.form.packageCount).toBe("9");
   });
 
+  it("judges the package type by what each reader's phrase reads as, and leaves the count to its own field", () => {
+    // production read d0f2831a: "2.0000 DRUM" against "2 DRUM" — and wording the same drums two ways
+    const decimals = bolPrefill(read([{ a: { ...PAINT, packaging: "6.0000 DRUM" }, b: { ...PAINT, packaging: "6 DRUM" }, table: ok(PAINT_REF) }]), PRODUCTS, "van")!;
+    expect(decimals.lines[0]!.fields.packageType).toMatchObject({ agree: true, readings: [] });
+    const wording = bolPrefill(read([{ a: { ...PAINT, packaging: "6 Steel Drums" }, b: PAINT, table: ok(PAINT_REF) }]), PRODUCTS, "van")!;
+    expect(wording.lines[0]!.fields.packageType).toMatchObject({ agree: true, readings: [] });
+    const counts = bolPrefill(read([{ a: { ...PAINT, packaging: "9 DRUMS", packageCount: 9 }, b: PAINT, table: ok(PAINT_REF) }]), PRODUCTS, "van")!;
+    expect(counts.lines[0]!.fields.packageType.agree).toBe(true);
+    expect(counts.lines[0]!.fields.packageCount).toMatchObject({ agree: false, readings: [[9, 6]] });
+  });
+
+  it("keeps a package type disputed when the phrases read as different types, or one as none", () => {
+    const types = bolPrefill(read([{ a: { ...PAINT, packaging: "6 PAILS" }, b: PAINT, table: ok(PAINT_REF) }]), PRODUCTS, "van")!;
+    expect(types.lines[0]!.fields.packageType).toMatchObject({ agree: false, readings: [["6 PAILS", "6 DRUMS"]] });
+    const unknown = bolPrefill(read([{ a: { ...PAINT, packaging: "5.00 EA" }, b: { ...PAINT, packaging: "1 TOTE" }, table: ok(PAINT_REF) }]), PRODUCTS, "van")!;
+    expect(unknown.lines[0]!.fields.packageType.agree).toBe(false);
+    // 0134527 and 0133459: two phrases neither of which names a type are two readings, not one
+    const neither = bolPrefill(read([{ a: { ...PAINT, packaging: "5.00 EA" }, b: { ...PAINT, packaging: "12" }, table: ok(PAINT_REF) }]), PRODUCTS, "van")!;
+    expect(neither.lines[0]!.fields.packageType.agree).toBe(false);
+  });
+
   it("says whether the OCR found the value on the line's row", () => {
     const backed = bolPrefill(read([{ a: PAINT, table: ok(PAINT_REF), ocr: { grossWeightLb: 3806, packageCount: null } }]), PRODUCTS, "van")!;
     expect(backed.lines[0]!.fields.grossWeight.rowBacked).toBe(true);
