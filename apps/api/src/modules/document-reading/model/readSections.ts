@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { DOCUMENT_PROFILES, mergeSections, sectionSchema, type ReadFailureCode } from "@silvicom/shared";
+import { DOCUMENT_PROFILES, mergeSections, sectionSchema, type DocumentProfile, type ReadFailureCode } from "@silvicom/shared";
 import { readWithSchema, type ModelClient, type ReadPagesInput, type ReadPagesResult, type ReadUsage } from "./readPages.js";
 import { schemaHash, wireSchemaFor } from "./wireSchema.js";
 
@@ -72,7 +72,9 @@ function sumUsage(all: readonly ReadUsage[]): ReadUsage {
 
 export async function readSections(input: ReadPagesInput, client: ModelClient): Promise<ReadSectionsResult> {
   if (input.pages.length === 0) throw new Error("readSections needs at least one page");
-  const profile = DOCUMENT_PROFILES[input.profile];
+  const profile: DocumentProfile = DOCUMENT_PROFILES[input.profile];
+  // Only a profile that declares sections comes here (`executeRead`'s `read1`); one read whole has none.
+  if (!profile.sections?.length) throw new Error(`profile ${input.profile} is not read in sections`);
   const sections = profile.sections.map((s) => ({ name: s.name, schema: sectionSchema(profile, s.name) }));
   const results = await Promise.all(sections.map((s) => readWithSchema(input, s.schema, client)));
 
@@ -105,8 +107,8 @@ export async function readSections(input: ReadPagesInput, client: ModelClient): 
 
 /** Each section's wire schema in profile order — what the gate test and the live check measure. */
 export function sectionWireSchemas(profileId: ReadPagesInput["profile"]) {
-  const profile = DOCUMENT_PROFILES[profileId];
-  return profile.sections.map((s) => {
+  const profile: DocumentProfile = DOCUMENT_PROFILES[profileId];
+  return (profile.sections ?? []).map((s) => {
     const wire = wireSchemaFor(sectionSchema(profile, s.name));
     return { name: s.name, wire, hash: schemaHash(wire) };
   });

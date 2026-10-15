@@ -1,5 +1,6 @@
-import type { DocumentProfileId, FieldEvidence, ShippingDocument } from "@silvicom/shared";
+import type { DocumentProfileId, FieldEvidence, RoadsideInspectionReport, ShippingDocument } from "@silvicom/shared";
 import type { OcrPage } from "./rowWitness.js";
+import { roadsideReportEvidence } from "./roadsideReportEvidence.js";
 import { shippingEvidence } from "./shippingEvidence.js";
 
 /**
@@ -12,6 +13,8 @@ import { shippingEvidence } from "./shippingEvidence.js";
 export const EVIDENCE_FOR = {
   shipping_document: (a: unknown, b: unknown | null, ruleVersion: string, ocr: readonly OcrPage[] | null, textLayer: readonly OcrPage[] | null) =>
     shippingEvidence(a as ShippingDocument, b as ShippingDocument | null, ruleVersion, ocr, textLayer),
+  roadside_inspection_report: (a: unknown, b: unknown | null, ruleVersion: string, ocr: readonly OcrPage[] | null, textLayer: readonly OcrPage[] | null) =>
+    roadsideReportEvidence(a as RoadsideInspectionReport, b as RoadsideInspectionReport | null, ruleVersion, ocr, textLayer),
 } as const satisfies Record<
   DocumentProfileId,
   (a: unknown, b: unknown | null, ruleVersion: string, ocr: readonly OcrPage[] | null, textLayer: readonly OcrPage[] | null) => FieldEvidence[]

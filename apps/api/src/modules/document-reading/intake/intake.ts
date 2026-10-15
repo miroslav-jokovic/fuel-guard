@@ -34,7 +34,7 @@ import { DOCUMENT_BUCKET, pageObjectPaths, sourceObjectPath } from "../storage.j
 type IntakeError = Pick<ReaderError, "error"> & { code: "sign_failed" | "query_failed" };
 const fail = (code: IntakeError["code"], error: string): IntakeError => ({ code, error });
 
-async function sourceBySha(admin: SupabaseClient, orgId: string, sha256: string): Promise<{ id: string; page_count: number } | null> {
+export async function sourceBySha(admin: SupabaseClient, orgId: string, sha256: string): Promise<{ id: string; page_count: number } | null> {
   const { data, error } = await admin
     .from("document_sources").select("id, page_count").eq("org_id", orgId).eq("sha256", sha256).maybeSingle();
   if (error) throw new Error(`document_sources: ${error.message}`);

@@ -386,6 +386,11 @@ const API_ALLOW = new Set([
   //   result and officer's copy are filed through `registerDocument` and listed through `listDocuments`,
   //   the DQ file's own door to `documents` (0476 adds the subject). evidence imports nothing of inspections'.
   "inspections -> evidence",
+  // · inspections -> document-reading — IC10 (INSPECTION-CHALLENGE-PLAN D-IC13): a filed officer's report
+  //   is handed to the reader through `intakeStoredBytes`, read under the `roadside_inspection_report`
+  //   profile (D-DR1: a profile, never a second pipeline). document-reading imports nothing of inspections';
+  //   the read gate is wired at the composition root (queue/handlers/documentRead.ts).
+  "inspections -> document-reading",
   // · medstop -> samsara — "find a collection site near the truck" (UX3, MEDSTOP-PLAN §7A.4) reads the
   //   assigned truck's newest fix through `readVehiclePositions`, the collector's own read interface,
   //   never `.from("vehicle_positions")` (a raw table sealed to its collector). samsara imports nothing

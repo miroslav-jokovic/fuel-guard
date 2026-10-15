@@ -33,4 +33,13 @@ export const READ_PROMPTS = {
       "materials line is one entry, in the order printed; a line that is not hazardous material goes " +
       "where the schema puts other lines.",
   },
+  // D-IC13 (INSPECTION-CHALLENGE-PLAN). The report is usually a phone photo of a printed or handwritten
+  // Driver/Vehicle Examination Report; the field names and their `describe()` text are in the contract.
+  roadside_inspection_report: {
+    version: "roadside_inspection_report-1.0.0",
+    system:
+      "You are a transcription tool for a United States roadside inspection report (a Driver/Vehicle " +
+      `Examination Report), possibly over several pages. ${RULES} Each vehicle and each violation is one ` +
+      "entry, in the order printed.",
+  },
 } as const satisfies Record<DocumentProfileId, ReadPrompt>;

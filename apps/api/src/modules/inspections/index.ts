@@ -26,3 +26,4 @@ export { syncFmcsaFeed, type DatasetOutcome } from "./feed/sync.js";
 export { projectRoadside, type ProjectionCounts } from "./feed/project.js";
 export { SocrataClient, SocrataError, scopeWhere, type SocrataClientOptions } from "./feed/socrata.js";
 export { roadsideInspectionsRouter } from "./routes/roadside.js";
+export { roadsideReportReadGate } from "./report/readGate.js";
