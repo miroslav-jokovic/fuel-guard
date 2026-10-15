@@ -113,7 +113,7 @@ describe("planDriverSeats (who may hold a truck)", () => {
   it("seats the latest driver who may hold a truck, skipping a former one who drove it later", () => {
     const plan = parseRows([row("sv-647", "s-term", "2026-10-08T00:00:00Z"), row("sv-647", "s-a", "2026-09-14T00:00:00Z")],
       [t("647", "sv-647", null)], [d("term", "s-term", "terminated"), d("a", "s-a")]);
-    expect(plan).toEqual({ set: [{ vehicleId: "647", driverId: "a" }], clear: [], seated: 1 });
+    expect(plan).toEqual({ set: [{ vehicleId: "647", driverId: "a" }], clear: [], seated: 1, teammates: [] });
   });
 
   it("clears a truck a former or archived driver still holds, and keeps one a driver on leave holds", () => {
@@ -126,11 +126,77 @@ describe("planDriverSeats (who may hold a truck)", () => {
   it("does not clear a truck whose seat it just gave to someone else", () => {
     const plan = parseRows([row("sv-1", "s-b", "2026-10-05T00:00:00Z")], [t("1", "sv-1", "former")],
       [d("former", null, "terminated"), d("b", "s-b")]);
-    expect(plan).toEqual({ set: [{ vehicleId: "1", driverId: "b" }], clear: [], seated: 1 });
+    expect(plan).toEqual({ set: [{ vehicleId: "1", driverId: "b" }], clear: [], seated: 1, teammates: [] });
   });
 
   it("leaves a truck alone whose driver the roster read did not return", () => {
     expect(parseRows([], [t("1", "sv-1", "ghost")], []).clear).toEqual([]);
+  });
+
+  describe("the team truck's second seat (0475)", () => {
+    // 729 on 2026-10-15: McLeod has CSITAL and LFEAGIN on it; Samsara has both in it; one seat.
+    // A team interleaves: each has driven it since the other first did.
+    const team = [
+      row("sv-729", "s-feagin", "2026-09-15T15:22:00Z"), row("sv-729", "s-sital", "2026-09-15T20:46:00Z"),
+      row("sv-729", "s-sital", "2026-10-09T11:48:00Z"), row("sv-729", "s-feagin", "2026-10-10T06:00:00Z"),
+    ];
+    const tc = (holder: string | null, co: string | null | undefined) => ({ ...t("729", "sv-729", holder), coDriverId: co });
+
+    it("puts the teammate the one seat left out in the second seat", () => {
+      const plan = parseRows(team, [tc("feagin", null)], [d("sital", "s-sital"), d("feagin", "s-feagin")]);
+      expect(plan.teammates).toEqual([{ vehicleId: "729", driverId: "sital", expected: null }]);
+    });
+
+    it("writes nothing when the second seat is already right", () => {
+      expect(parseRows(team, [tc("feagin", "sital")], [d("sital", "s-sital"), d("feagin", "s-feagin")]).teammates).toEqual([]);
+    });
+
+    it("empties the second seat once the team is no longer in the truck — it is current state", () => {
+      const solo = [row("sv-729", "s-feagin", "2026-10-10T06:00:00Z"), row("sv-800", "s-sital", "2026-10-12T00:00:00Z")];
+      const plan = parseRows(solo, [tc("feagin", "sital"), t("800", "sv-800", null)], [d("sital", "s-sital"), d("feagin", "s-feagin")]);
+      expect(plan.teammates).toEqual([{ vehicleId: "729", driverId: null, expected: "sital" }]);
+    });
+
+    it("does not call a hand-over a team — 657 on 2026-10-15", () => {
+      // Williams last drove 657 on 09-16; Baroni took it on 10-13. Williams has driven nothing since,
+      // so 657 is still his "current" truck — but he is not in it with Baroni.
+      const handOver = [row("sv-657", "s-williams", "2026-09-16T16:00:00Z"), row("sv-657", "s-baroni", "2026-10-13T14:15:00Z")];
+      const plan = parseRows(handOver, [{ ...t("657", "sv-657", "baroni"), coDriverId: null }], [d("williams", "s-williams"), d("baroni", "s-baroni")]);
+      expect(plan.teammates).toEqual([]);
+    });
+
+    it("keeps a team whose drivers interleave, whoever started last", () => {
+      const interleaved = [
+        row("sv-729", "s-feagin", "2026-09-15T15:22:00Z"), row("sv-729", "s-sital", "2026-09-15T20:46:00Z"),
+        row("sv-729", "s-sital", "2026-10-08T09:19:00Z"), row("sv-729", "s-feagin", "2026-10-09T11:44:00Z"),
+      ];
+      const plan = parseRows(interleaved, [tc("feagin", null)], [d("sital", "s-sital"), d("feagin", "s-feagin")]);
+      expect(plan.teammates).toEqual([{ vehicleId: "729", driverId: "sital", expected: null }]);
+    });
+
+    it("never seats a former driver as the teammate", () => {
+      const plan = parseRows(team, [tc("feagin", null)], [d("sital", "s-sital", "terminated"), d("feagin", "s-feagin")]);
+      expect(plan.teammates).toEqual([]);
+    });
+
+    it("gives the first seat by Samsara's order and the second to the one it displaced", () => {
+      // The office seated SITAL by hand; Samsara ranks FEAGIN first. Step 1 hands the seat to FEAGIN,
+      // so SITAL is the teammate — not FEAGIN in both seats.
+      const plan = parseRows(team, [tc("sital", null)], [d("sital", "s-sital"), d("feagin", "s-feagin")]);
+      expect(plan.set).toEqual([{ vehicleId: "729", driverId: "feagin" }]);
+      expect(plan.teammates).toEqual([{ vehicleId: "729", driverId: "sital", expected: null }]);
+    });
+
+    it("plans no second seat for a caller that did not read the column", () => {
+      expect(parseRows(team, [t("729", "sv-729", "feagin")], [d("sital", "s-sital"), d("feagin", "s-feagin")]).teammates).toEqual([]);
+    });
+
+    it("ranks a third driver out, as the first seat ranks the second", () => {
+      // The oldest start comes FIRST in the feed, so taking whoever is seen first would pick it.
+      const three = [row("sv-729", "s-x", "2026-10-01T00:00:00Z"), ...team];
+      const plan = parseRows(three, [tc("feagin", null)], [d("sital", "s-sital"), d("feagin", "s-feagin"), d("x", "s-x")]);
+      expect(plan.teammates).toEqual([{ vehicleId: "729", driverId: "sital", expected: null }]);
+    });
   });
 
   function parseRows(rows: ReturnType<typeof row>[], trucks: ReturnType<typeof t>[], drivers: ReturnType<typeof d>[]) {

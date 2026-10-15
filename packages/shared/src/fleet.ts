@@ -111,6 +111,9 @@ export interface Vehicle {
    *  `tractor_status = 'I'`, 0462, D-DB11). A fact, never membership: `status` stays `active` until
    *  McLeod deactivates it. Null = not reported yet. Optional for the same reason as `identity_source`. */
   winding_down?: boolean | null;
+  /** The second driver of a team truck, placed by the Samsara seat sync (0475); null = solo. Optional
+   *  because not every read selects it — and a read that does not, counts no teammate. */
+  co_driver_id?: string | null;
   /** Manual source of truth: is the truck ENGINE-OFF capable at rest (real APU / battery HVAC / shore power)? null = unknown/unset. */
   has_apu?: boolean | null;
   /** Idle-reduction equipment detail (refines has_apu). null = unknown/unset. */

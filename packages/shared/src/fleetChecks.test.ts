@@ -82,4 +82,12 @@ describe("seatedDriverIds", () => {
     ]);
     expect([...ids].sort()).toEqual(["a", "b"]);
   });
+
+  it("counts a team's second driver as holding the truck, but not on a retired one", () => {
+    const ids = seatedDriverIds([
+      { assigned_driver_id: "feagin", co_driver_id: "sital", status: "active" },
+      { assigned_driver_id: null, co_driver_id: "gone", status: "retired" },
+    ]);
+    expect([...ids].sort()).toEqual(["feagin", "sital"]);
+  });
 });

@@ -96,12 +96,18 @@ export function matchesVehicleCheck(v: Checked, check: string, today: CalendarDa
 }
 
 /**
- * Drivers who hold a truck: everyone named as `assigned_driver_id` on a vehicle that is not retired.
- * A retired truck's last driver does not hold it — that is the case #1471 closed on the board.
+ * Drivers who hold a truck: everyone named as `assigned_driver_id` — or as the team's second driver,
+ * `co_driver_id` (0475) — on a vehicle that is not retired. A retired truck's last driver does not hold
+ * it — that is the case #1471 closed on the board. The second seat counts because the driver is in the
+ * truck: on 2026-10-15 three of the eight "drivers without a truck" were the second driver of a team.
  */
-export function seatedDriverIds(vehicles: readonly Pick<Vehicle, "assigned_driver_id" | "status">[]): Set<string> {
+export function seatedDriverIds(vehicles: readonly Pick<Vehicle, "assigned_driver_id" | "co_driver_id" | "status">[]): Set<string> {
   const ids = new Set<string>();
-  for (const v of vehicles) if (v.assigned_driver_id && v.status !== "retired") ids.add(v.assigned_driver_id);
+  for (const v of vehicles) {
+    if (v.status === "retired") continue;
+    if (v.assigned_driver_id) ids.add(v.assigned_driver_id);
+    if (v.co_driver_id) ids.add(v.co_driver_id);
+  }
   return ids;
 }
 
