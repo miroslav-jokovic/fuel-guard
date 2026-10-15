@@ -34,6 +34,7 @@ export {
   FINANCIAL_PROVIDER,
 } from "./tmsIngest.js";
 export { registerMcleodIntegrationRoutes } from "./routes/integration.js";
+export { dispatchLinksRouter } from "./routes/dispatchLinks.js";
 export { readVoucherNumbersWindow, type StagedVoucherNumber } from "./maintenanceVouchers.js";
 export {
   readSettlementsWindow,

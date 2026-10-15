@@ -1,7 +1,7 @@
-import type { Router } from "express";
+import { Router } from "express";
 import { z } from "zod";
 import { recordId } from "@silvicom/shared";
-import { requireOrg, requireSection } from "../../../middleware/auth.js";
+import { requireAuth, requireOrg, requireSection } from "../../../middleware/auth.js";
 import { apiError, asyncHandler } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
@@ -24,7 +24,26 @@ import { linkDispatcherUser, linkFleet, readDispatchLinks } from "../dispatchLin
 const fleetBody = z.object({ dispatcherId: z.string().trim().min(1).max(64).nullable() });
 const userBody = z.object({ userId: recordId().nullable() });
 
-export function registerDispatchLinkRoutes(router: Router): void {
+/**
+ * The office links on their own router, mounted at `/api/integrations` AHEAD of that prefix's strict limiter
+ * (app.ts, `mountOfficeLinks`), so the paths are unchanged and the general `/api` budget is theirs.
+ *
+ * WHY NOT THE STRICT BUDGET. The prefix's 30 requests per 15 minutes per address dates from the first
+ * commit (2026-07-01), when everything under it connected a vendor or issued a credential. These three
+ * routes do neither: an audited write to our own two tables and the read that lists them. On 2026-10-15 the
+ * owner linked the fleets and their dispatchers on Settings → McLeod fleets; each pick is a save and a
+ * reload, so about a dozen picks spent the office's 30, and every later request was refused with 429
+ * — production logged 12 refused in two minutes — which the page shows as "Could not load the McLeod
+ * fleets" and which stopped 13 of the 15 login-to-person links from being made.
+ */
+export function dispatchLinksRouter(): Router {
+  const router = Router();
+  router.use(requireAuth);
+  registerDispatchLinkRoutes(router);
+  return router;
+}
+
+function registerDispatchLinkRoutes(router: Router): void {
   router.get(
     "/mcleod/dispatch-links",
     requireOrg,

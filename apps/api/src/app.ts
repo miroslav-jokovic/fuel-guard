@@ -33,7 +33,7 @@ import { tagsRouter } from "./tags/routes.js";
 import { registerTagResolvers } from "./tags/resolvers.js";
 import { auditRouter } from "./modules/org/index.js";
 import { integrationsRouter } from "./routes/integrations.js";
-import { tmsIngestRouter, tmsRosterMasterRouter } from "./modules/mcleod/index.js";
+import { dispatchLinksRouter, tmsIngestRouter, tmsRosterMasterRouter } from "./modules/mcleod/index.js";
 import { fuelingRouter } from "./routes/fueling.js";
 import { fuelCardCapabilityRouter } from "./modules/efs/router.js";
 import { fuelCardEchoScanRouter } from "./modules/efs/routes/echoScan.js";
@@ -374,6 +374,8 @@ export function createApp(env: Env): Express {
   app.use("/api/invites", strictLimiter);
   app.use("/api/auth", strictLimiter); // public login exchange — worst-case abuse target
   app.use("/api/reports", strictLimiter);
+  // Ahead of the strict budget: office links, not a vendor or credential (mcleod/routes/dispatchLinks.ts).
+  app.use("/api/integrations", dispatchLinksRouter());
   app.use("/api/integrations", strictLimiter);
   mountFuelCardPrefix(app, env, fuelCardVendorLimiter);
   app.use("/api/ai", strictLimiter);
