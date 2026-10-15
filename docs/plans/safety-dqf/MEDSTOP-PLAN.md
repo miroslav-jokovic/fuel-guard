@@ -783,6 +783,33 @@ writes it. 161 trucks have an assigned driver.
 
 **Owed by the office:** link the 14 fleets in Settings › McLeod fleets. Until then the column names
 the dispatcher from the current load, and a truck with no load shows only its fleet code.
+### 7A.20 Telling an admin before the connection stops (2026-10-15)
+
+**The gap [V]:** everything the product does with Med-Stop reads the hourly sweep's mirror: the DER's
+result alert, the dispatch stop, the Random and Results tabs. Two things end the sweep without anyone
+being told.
+- **The key expires.** Keys live at most 180 days, and an expired key answers the same 401 as a wrong
+  one. Production's key expires **2026-12-28** (read 2026-10-15). The warning is a line on Settings ›
+  Med-Stop, 30 days ahead, and nobody opens that page while things work.
+- **The sweep fails or stops.** The Drug & Alcohol page shows a caution after two hours, to whoever
+  opens it.
+
+Either way a positive result goes unalerted and a violation does not stop dispatch, while every
+screen shows the last good read. Production on 2026-10-15 was healthy: 13 sweeps in 24 h, no error.
+
+**Shape (two merges, 0465's and 0470's order):**
+- **0477:** the `medstop_connection` category, its label and its link (Settings › Med-Stop). Nothing
+  sends it yet.
+- **The sender:**
+  - The api's Med-Stop scheduler judges every org with a connection on each hourly tick, whether a
+    sweep is due or not, so a sweep that never runs is judged as well as one that failed.
+  - Sent to the admins (`isAdmin`, the role Settings › Med-Stop admits), never typed as a list.
+  - D-MSUX21 — **the key:** a notice at 30, 14, 7, 3 and 1 days, and on the day it expires. Each
+    threshold is sent once per key (the dedupe key carries the expiry date and the threshold), so a new
+    key starts over, and a missed tick still sends the threshold it fell into.
+  - D-MSUX22 — **the sweep:** a notice when the last sweep failed, or when no sweep has succeeded for
+    3 hours (three missed hourly runs, past the page's 2-hour caution). Once a day while it lasts, the
+    same daily reminder `roadside_feed_stale` gives. It names Med-Stop's error when there is one.
 
 ## 8. Open questions
 
@@ -1011,3 +1038,6 @@ the dispatcher from the current load, and a truck with no load shows only its fl
   §7A.19, D-MSUX20): the Random tab names the fleet's dispatcher and the load's, read off the dispatch
   board's own rows. Production has 0 of 14 fleets linked, so today the column mostly shows the load's
   dispatcher.
+- 2026-10-15 — **0477, the `medstop_connection` category** (branch `claude/medstop-sync-alerts`; §7A.20):
+  the first of two merges. The sender — key expiry at 30/14/7/3/1/0 days, and a failed or stopped
+  sweep, to the admins — follows.

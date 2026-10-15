@@ -30,6 +30,7 @@ describe("notificationRoute", () => {
   it("a Med-Stop result opens Safety › Drug & Alcohol, which decides what the reader may see", () => {
     expect(notificationRoute("drug_alcohol_result", null, null)).toBe("/drug-alcohol");
     expect(notificationRoute("roadside_feed_stale", null, null)).toBe("/roadside-inspections");
+    expect(notificationRoute("medstop_connection", null, null)).toBe("/settings/medstop");
   });
 
   it("messages go to the messages page", () => {

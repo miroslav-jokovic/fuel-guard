@@ -41,6 +41,8 @@ function destination(category: string, entityType: string | null, entityId: stri
   if (category === "drug_alcohol_result") return "/drug-alcohol";
   // The FMCSA record has stopped refreshing (IC1c): the list says how old it is, above its rows.
   if (category === "roadside_feed_stale") return "/roadside-inspections";
+  // A key about to expire, or a sweep that stopped (§7A.20): the fix — a new key, the sweep's error — is on Settings › Med-Stop.
+  if (category === "medstop_connection") return "/settings/medstop";
   if (category.startsWith("hazmat_") && entityType === "load" && entityId) {
     return `/hazmat/loads/${entityId}`;
   }
