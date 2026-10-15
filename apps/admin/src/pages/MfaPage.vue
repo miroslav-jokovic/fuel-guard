@@ -65,7 +65,7 @@ async function verify() {
     });
     if (vErr) throw vErr;
     await done();
-  } catch (e) {
+  } catch {
     error.value = "That code was not accepted. Enter the current code from your authenticator app.";
   } finally {
     busy.value = false;

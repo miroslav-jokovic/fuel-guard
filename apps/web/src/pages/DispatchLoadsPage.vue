@@ -50,20 +50,8 @@ import {
   loadBoardState,
   loadTypeOf,
 } from "@silvicom/shared";
-import {
-  AppCallout,
-  AppTabs,
-  TablePagination,
-  FilterBar,
-  DataWorkspace,
-  useQueryState,
-  SORT_DIRECTIONS,
-  useUrlSort,
-  AppButton as BaseButton,
-  DataTable,
-  type DataTableColumn,
-  sortRows,
-} from "@silvicom/ui";
+import { AppCallout, AppTabs, AppButton as BaseButton, DataTable, DataWorkspace, FilterBar } from "@silvicom/ui";
+import { SORT_DIRECTIONS, TablePagination, sortRows, useQueryState, useUrlSort, type DataTableColumn } from "@silvicom/ui";
 import { useSessionStore } from "@/stores/session";
 import { useToastStore } from "@/stores/toast";
 import { useOrgTimezone } from "@/composables/useOrgTimezone";
