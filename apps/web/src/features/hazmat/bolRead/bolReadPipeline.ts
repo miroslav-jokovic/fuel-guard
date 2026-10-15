@@ -17,7 +17,8 @@ import type { BolFile } from "./bolFiles";
  *   then            poll each source until `ready` — a REFUSED file stops here, named, with the intake's
  *                   own sentence, so the dispatcher unticks or retakes it before anything is read
  *   then            `POST /assemblies { sourceIds }` in the order shown → `POST /reads { assemblyId }`
- *                   → poll the read until `done` or `failed` (its READ_FAILURES sentence)
+ *                   → poll the read until `done` or `failed` (its READ_FAILURES sentence), or until
+ *                   `READ_TIMEOUT_MS` has passed — then the read is `waiting`, never failed (`followRead`)
  *
  * The bytes go to Storage directly on the signed URL and never through the API. A file this org already
  * holds (`duplicate`) is neither uploaded nor rendered again. `complete` answering 409 means the same
@@ -36,17 +37,26 @@ export interface BolReadIo {
 export type BolReadStage =
   | { kind: "uploading"; done: number; total: number }
   | { kind: "preparing"; done: number; total: number }
-  | { kind: "reading" };
+  /** The read exists on the server from here on, whatever happens to this page: `followRead` finds it again. */
+  | { kind: "reading"; readId: string };
 
 export type BolReadOutcome =
   | { kind: "done"; read: ReadResponse }
   | { kind: "refused"; files: { name: string; reason: string }[] }
-  | { kind: "failed"; message: string };
+  | { kind: "failed"; message: string }
+  /** Still reading when the screen stopped asking. Not a failure: the server finishes it, and `followRead` resumes. */
+  | { kind: "waiting"; readId: string };
 
-/** How often, and for how long, to ask. A read's target is p95 ≤ 30 s for two pages (plan §2 Queue). */
+/**
+ * How often, and for how long, to ask. A read's target is p95 ≤ 30 s for two pages (plan §2 Queue), but a
+ * read's length grows with its pages: the owner's 13-photo BOL took 4 min 44 s on 2026-10-15 (read 795bf4bc)
+ * and the screen, which gave up at 3 min with "check back in a minute" and forgot the read, never showed
+ * it. So the wait is ten minutes — past any read that is running, short of the queue's 30-min lease on one
+ * whose worker died — and what follows is `waiting`, which the panel can resume, not a failure.
+ */
 export const POLL_MS = 1500;
 export const SOURCE_TIMEOUT_MS = 120_000;
-export const READ_TIMEOUT_MS = 180_000;
+export const READ_TIMEOUT_MS = 600_000;
 
 const BASE = "/api/documents";
 class Stop extends Error {}
@@ -104,8 +114,22 @@ async function waitForRead(io: BolReadIo, readId: string): Promise<BolReadOutcom
     if (read.status === "failed") {
       return { kind: "failed", message: read.failureCode ? READ_FAILURES[read.failureCode] : "The read did not finish." };
     }
-    if (waited >= READ_TIMEOUT_MS) stop("The read is taking longer than it should. It will keep going; check back in a minute.");
+    if (waited >= READ_TIMEOUT_MS) return { kind: "waiting", readId };
     await io.sleep(POLL_MS);
+  }
+}
+
+/** Where the panel keeps a started read's id (this tab only) until the read ends — see BolReadPanel.vue. */
+export const PENDING_READ_KEY = "silvicom.bolRead.pending";
+
+/** Pick up a read already started — after `waiting`, or after the page was reloaded mid-read. */
+export async function followRead(io: BolReadIo, readId: string, onStage: (s: BolReadStage) => void): Promise<BolReadOutcome> {
+  onStage({ kind: "reading", readId });
+  try {
+    return await waitForRead(io, readId);
+  } catch (e) {
+    if (e instanceof Stop) return { kind: "failed", message: e.message };
+    throw e;
   }
 }
 
@@ -127,13 +151,13 @@ export async function readBol(io: BolReadIo, files: readonly BolFile[], onStage:
     const { refused, resolved } = await waitForSources(io, sent, onStage);
     if (refused.length > 0) return { kind: "refused", files: refused };
 
-    onStage({ kind: "reading" });
     // A file the org already held under another name comes back as the same source; list it once.
     const sourceIds = [...new Set(sent.map((s) => resolved.get(s.id) ?? s.id))];
     const assembly = must(await io.api<CreateAssemblyResponse>(`${BASE}/assemblies`, { method: "POST", body: { sourceIds } }), "Grouping the pages");
     const read = must(await io.api<{ readId: string }>(`${BASE}/reads`, {
       method: "POST", body: { assemblyId: assembly.assemblyId, profile: "shipping_document" },
     }), "Starting the read");
+    onStage({ kind: "reading", readId: read.readId });
     return await waitForRead(io, read.readId);
   } catch (e) {
     if (e instanceof Stop) return { kind: "failed", message: e.message };

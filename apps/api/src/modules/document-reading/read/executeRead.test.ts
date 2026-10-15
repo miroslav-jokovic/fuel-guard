@@ -45,15 +45,16 @@ interface World {
   used?: number;
   gate?: ReadGate;
   missing?: string[];
-  model?: () => Anthropic.Message;
+  /** Answers every read request; a Promise lets a test hold the answer back. */
+  model?: () => Anthropic.Message | Promise<Anthropic.Message>;
   env?: Partial<typeof ENV>;
   /** The read names an assembly of these page ids, in this order, instead of the source (0455). */
   assembly?: string[];
   /**
    * The classifier's answer for a page with no verdict yet (P2), by page id; a page absent here is
-   * answered `bol`, upright. A function lets a test make the classifier refuse.
+   * answered `bol`, upright. A function lets a test make the classifier refuse, fail, or hold its answer back.
    */
-  classifier?: Record<string, { pageClass: string; rotation: string }> | ((pageId: string) => Anthropic.Message);
+  classifier?: Record<string, { pageClass: string; rotation: string }> | ((pageId: string) => Anthropic.Message | Promise<Anthropic.Message>);
   /** The OCR witness's engine (§7B A5); absent = none, as with DOC_OCR_WITNESS=off. */
   ocr?: RecognisePage;
 }
@@ -114,7 +115,7 @@ async function world(w: World = {}) {
   const requests: Anthropic.MessageCreateParamsNonStreaming[] = [];
   const classifyRequests: Anthropic.MessageCreateParamsNonStreaming[] = [];
   const unclassified = pages.filter((p) => !(w.classes ?? {})[p.id]).map((p) => p.id);
-  const classifierAnswer = (pageId: string): Anthropic.Message => {
+  const classifierAnswer = (pageId: string): Anthropic.Message | Promise<Anthropic.Message> => {
     if (typeof w.classifier === "function") return w.classifier(pageId);
     const a = w.classifier?.[pageId] ?? { pageClass: "bol", rotation: "0" };
     return message({ content: [{ type: "text", text: JSON.stringify(a), citations: null }], usage: { input_tokens: 500, output_tokens: 20, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 } } as Partial<Anthropic.Message>);
@@ -263,8 +264,9 @@ describe("executeRead — a read that reaches the model", () => {
 
   it("ends failed with the section's code and the tokens it spent when the model refuses", async () => {
     const w = await world({ model: () => message({ stop_reason: "refusal", content: [] }), classes: { p1: "bol", p2: "bol" } });
-    expect(await w.run()).toEqual({ outcome: "failed", code: "refusal", inputTokens: 9000, outputTokens: 1200 });
-    expect(w.transitions()[1]).toMatchObject({ p_to: "failed", p_failure_code: "refusal", p_input_tokens: 9000 });
+    // Both readers' three sections, 3,000 / 400 each: pass B was asked at the same moment as pass A.
+    expect(await w.run()).toEqual({ outcome: "failed", code: "refusal", inputTokens: 18_000, outputTokens: 2400 });
+    expect(w.transitions()[1]).toMatchObject({ p_to: "failed", p_failure_code: "refusal", p_input_tokens: 18_000 });
   });
 
   it("rethrows a transient model error with the read left reading, for the queue to retry", async () => {
@@ -307,6 +309,34 @@ describe("executeRead — P2, classify and orient (§7A.3, Q-DR19 (a))", () => {
     expect(`${meta.width}x${meta.height}`).toBe("40x60");
   });
 
+  it("asks the classifier about every unclassified page before the first answer, and writes the verdicts in page order", async () => {
+    const pages = await Promise.all(Array.from({ length: 10 }, async (_, i) => ({ id: `p${i + 1}`, page_number: i + 1, path: `o/${i + 1}.png`, bytes: await png(40 + i) })));
+    let answered = 0;
+    const asked: number[] = [];
+    const later = (m: Anthropic.Message) => new Promise<Anthropic.Message>((r) => setTimeout(() => (answered++, r(m)), 5));
+    const w = await world({
+      pages,
+      classifier: (id) => (asked.push(answered), later(message({ content: [{ type: "text", text: JSON.stringify({ pageClass: id === "p2" ? "placard" : "bol", rotation: "0" }), citations: null }] } as Partial<Anthropic.Message>))),
+    });
+    expect(await w.run()).toMatchObject({ outcome: "done", pages: 9 });
+    // CLASSIFY_AT_ONCE = 8: the first eight went out together, and the last two once those had answered.
+    expect(asked).toEqual([0, 0, 0, 0, 0, 0, 0, 0, 8, 8]);
+    expect(w.rec.writtenRows("document_page_classes").map((r) => [r.page_id, r.page_class]))
+      .toEqual(pages.map((p) => [p.id, p.id === "p2" ? "placard" : "bol"]));
+  });
+
+  it("writes the verdicts its siblings answered before rethrowing one page's transient failure", async () => {
+    const w = await world({
+      classifier: (id) => {
+        if (id === "p1") throw new Anthropic.APIError(529, { type: "error", error: { type: "overloaded_error" } }, "overloaded", new Headers());
+        return message({ content: [{ type: "text", text: JSON.stringify({ pageClass: "bol", rotation: "0" }), citations: null }] } as Partial<Anthropic.Message>);
+      },
+    });
+    await expect(w.run()).rejects.toBeInstanceOf(TransientModelError);
+    expect(w.rec.writtenRows("document_page_classes").map((r) => r.page_id)).toEqual(["p2"]);
+    expect(w.requests).toEqual([]);
+  });
+
   it("still reads a page the classifier could not answer, writing no verdict for it", async () => {
     const w = await world({ classifier: () => message({ stop_reason: "refusal", content: [] }) });
     expect(await w.run()).toMatchObject({ outcome: "done", pages: 2 });
@@ -329,7 +359,7 @@ describe("executeRead — P2, classify and orient (§7A.3, Q-DR19 (a))", () => {
 
   it("counts a refused read's classification tokens too: the model was asked", async () => {
     const w = await world({ model: () => message({ stop_reason: "refusal", content: [] }) });
-    expect(await w.run()).toEqual({ outcome: "failed", code: "refusal", inputTokens: 10_000, outputTokens: 1240 });
+    expect(await w.run()).toEqual({ outcome: "failed", code: "refusal", inputTokens: 19_000, outputTokens: 2440 });
   });
 });
 
@@ -367,10 +397,17 @@ describe("executeRead — evidence (§7B A2 + A3)", () => {
     expect(ev.every((e) => !e.sources.some((s) => s.reader === "passB"))).toBe(true);
   });
 
-  it("does not pay for pass B when pass A fails", async () => {
-    const w = await world({ classes: { p1: "bol", p2: "bol" }, model: () => message({ stop_reason: "refusal", content: [] }) });
-    expect(await w.run()).toMatchObject({ outcome: "failed", code: "refusal" });
-    expect(w.requests.every((r) => r.model === "claude-sonnet-4-6")).toBe(true);
+  it("asks both readers at once, before either answers, and counts pass B's spend when pass A fails", async () => {
+    let answered = 0;
+    const asked: number[] = [];
+    const w = await world({
+      classes: { p1: "bol", p2: "bol" },
+      model: () => (asked.push(answered), new Promise<Anthropic.Message>((r) => setTimeout(() => (answered++, r(message({ stop_reason: "refusal", content: [] }))), 5))),
+    });
+    expect(await w.run()).toMatchObject({ outcome: "failed", code: "refusal", inputTokens: 18_000 });
+    expect(w.requests.map((r) => r.model)).toEqual([...Array(3).fill("claude-sonnet-4-6"), ...Array(3).fill("claude-sonnet-5-5")]);
+    // All six section requests went out before the first answer came back: nobody waited on pass A.
+    expect(asked).toEqual([0, 0, 0, 0, 0, 0]);
   });
 
   it("replays a cache hit's own evidence with its result", async () => {

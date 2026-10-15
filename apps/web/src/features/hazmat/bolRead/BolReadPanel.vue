@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, shallowRef, watch } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from "vue";
 import { AppButton as BaseButton, AppCallout, AppCard as BaseCard, AppCheckbox, AppIcon, AppIconButton } from "@silvicom/ui";
 import { ChevronLeftIcon, ChevronRightIcon, DocumentTextIcon, XMarkIcon } from "@silvicom/ui/icons";
 import { INTAKE_LIMITS, READABLE_FORMATS_TEXT, type ReadResponse } from "@silvicom/shared";
@@ -10,7 +10,7 @@ import { useToastStore } from "@/stores/toast";
 import {
   addFiles, BOL_ACCEPT, canPreview, includedFiles, moveFile, removeFile, toggleFile, type BolFile,
 } from "./bolFiles";
-import { readBol, type BolReadIo, type BolReadOutcome, type BolReadStage } from "./bolReadPipeline";
+import { followRead, PENDING_READ_KEY, readBol, type BolReadIo, type BolReadOutcome, type BolReadStage } from "./bolReadPipeline";
 
 /**
  * "Read from a bill of lading" on the Placard calculator (DOCUMENT-READER-PLAN §7A N2, the owner's flow of
@@ -22,6 +22,10 @@ import { readBol, type BolReadIo, type BolReadOutcome, type BolReadStage } from 
  * The read's result is EMITTED (`read`), not used here: filling the form from it, with each field's
  * state and what the shipper left out, is N6 (`bolPrefill.ts`, Step 3.3). Until then the panel says
  * what was read — how many pages, and which were taken for the BOL.
+ *
+ * A read outlives the page that started it. Its id is kept in this tab's sessionStorage from the moment the
+ * server has it until it ends, so a reload — or a read longer than the screen waits — picks it up again
+ * instead of leaving "check back in a minute" with nothing to check (owner's 13-page BOL, 2026-10-15).
  */
 const emit = defineEmits<{ read: [read: ReadResponse] }>();
 
@@ -69,27 +73,58 @@ const io: BolReadIo = {
   sleep: (ms) => new Promise((r) => setTimeout(r, ms)),
 };
 
-async function read() {
+// Seconds since the read started, for the line beside the button: a long BOL takes minutes, and a clock
+// that moves says it is still being read.
+const readingSince = ref<number | null>(null);
+const now = ref(Date.now());
+const tick = setInterval(() => (now.value = Date.now()), 1000);
+onBeforeUnmount(() => clearInterval(tick));
+
+function onStage(s: BolReadStage) {
+  stage.value = s;
+  if (s.kind === "reading") {
+    sessionStorage.setItem(PENDING_READ_KEY, s.readId);
+    readingSince.value ??= Date.now();
+  }
+}
+
+async function run(go: () => Promise<BolReadOutcome>) {
   outcome.value = null;
-  stage.value = { kind: "uploading", done: 0, total: pages.value.length };
+  readingSince.value = null;
   let out: BolReadOutcome;
   try {
-    out = await readBol(io, pages.value, (s) => (stage.value = s));
+    out = await go();
   } catch (e) {
     out = { kind: "failed", message: e instanceof Error ? e.message : "The read did not finish." };
   } finally {
     stage.value = null;
   }
+  if (out.kind !== "waiting") sessionStorage.removeItem(PENDING_READ_KEY);
   outcome.value = out;
   if (out.kind === "done") emit("read", out.read);
 }
 
+function read() {
+  stage.value = { kind: "uploading", done: 0, total: pages.value.length };
+  return run(() => readBol(io, pages.value, onStage));
+}
+const resume = (readId: string) => run(() => followRead(io, readId, onStage));
+
+onMounted(() => {
+  const pending = sessionStorage.getItem(PENDING_READ_KEY);
+  if (pending) void resume(pending);
+});
+
+const clock = (ms: number) => {
+  const sec = Math.max(0, Math.floor(ms / 1000));
+  return `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, "0")}`;
+};
 const stageText = computed(() => {
   const s = stage.value;
   if (!s) return "";
   if (s.kind === "uploading") return `Uploading page ${Math.min(s.done + 1, s.total)} of ${s.total}…`;
   if (s.kind === "preparing") return `Preparing pages… ${s.done} of ${s.total} ready`;
-  return "Reading the bill of lading…";
+  return `Reading the bill of lading… ${clock(now.value - (readingSince.value ?? now.value))}`;
 });
 
 const readPages = computed(() => (outcome.value?.kind === "done" ? outcome.value.read.pages : []));
@@ -148,8 +183,8 @@ const hint = `Several photos of one BOL are its pages, read in the order shown. 
         </li>
       </ol>
 
-      <div v-if="files.length" class="flex flex-wrap items-center gap-3">
-        <BaseButton variant="primary" :disabled="busy || pages.length === 0" data-testid="bol-read" @click="read">
+      <div v-if="files.length || busy" class="flex flex-wrap items-center gap-3">
+        <BaseButton v-if="files.length" variant="primary" :disabled="busy || pages.length === 0" data-testid="bol-read" @click="read">
           {{ pages.length === 1 ? "Read 1 page" : `Read ${pages.length} pages` }}
         </BaseButton>
         <p class="text-sm text-ink-secondary" aria-live="polite">{{ stageText }}</p>
@@ -167,6 +202,12 @@ const hint = `Several photos of one BOL are its pages, read in the order shown. 
         </div>
       </AppCallout>
       <AppCallout v-else-if="outcome?.kind === 'failed'" tone="danger" data-testid="bol-outcome">{{ outcome.message }}</AppCallout>
+      <AppCallout v-else-if="outcome?.kind === 'waiting'" tone="warning" data-testid="bol-outcome">
+        <div class="space-y-2">
+          <p>Still reading. A BOL with many pages can take several minutes; nothing is lost, and this page picks it up when it finishes.</p>
+          <BaseButton variant="secondary" size="sm" data-testid="bol-check-again" @click="resume(outcome.readId)">Check again</BaseButton>
+        </div>
+      </AppCallout>
     </div>
   </BaseCard>
 </template>

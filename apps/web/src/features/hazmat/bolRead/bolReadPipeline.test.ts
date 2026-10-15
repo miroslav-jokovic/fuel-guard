@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { INTAKE_REFUSALS, READ_FAILURES } from "@silvicom/shared";
 import type { ApiResult } from "@/lib/api";
 import type { BolFile } from "./bolFiles";
-import { READ_TIMEOUT_MS, POLL_MS, readBol, type BolReadIo, type BolReadStage } from "./bolReadPipeline";
+import { followRead, READ_TIMEOUT_MS, POLL_MS, readBol, type BolReadIo, type BolReadStage } from "./bolReadPipeline";
 
 /**
  * Send → prepare → group → read (N2). What must hold: the document is grouped in the order shown, a
@@ -85,7 +85,7 @@ describe("readBol", () => {
     expect(calls.find((c) => c.path.endsWith("/complete"))!.body).toEqual({ sha256: SHA("b.jpg"), profile: null });
     expect(calls.find((c) => c.path.endsWith("/assemblies"))!.body).toEqual({ sourceIds: ["src-b.jpg", "src-a.jpg"] });
     expect(calls.find((c) => c.path.endsWith("/reads"))!.body).toEqual({ assemblyId: "asm-1", profile: "shipping_document" });
-    expect(stages.at(-1)).toEqual({ kind: "reading" });
+    expect(stages.at(-1)).toEqual({ kind: "reading", readId: "read-1" });
     expect(stages).toContainEqual({ kind: "preparing", done: 1, total: 2 });
   });
 
@@ -128,14 +128,26 @@ describe("readBol", () => {
     expect(await readBol(io, picked("a.jpg"), () => {})).toEqual({ kind: "failed", message: READ_FAILURES.no_readable_page });
   });
 
-  it("says so when an upload breaks, or a read outlasts its wait, rather than spinning", async () => {
+  it("says so when an upload breaks, rather than spinning", async () => {
     expect(await readBol(fakeIo({ putFails: true }).io, picked("a.jpg"), () => {}))
       .toEqual({ kind: "failed", message: "a.jpg did not finish uploading. Check the connection and press Read again." });
+  });
+
+  it("calls a read that outlasts ten minutes of asking waiting, with its id, never failed", async () => {
     const slow = fakeIo({ read: [{ status: "reading" }] });
     let slept = 0;
     slow.io.sleep = async () => void slept++;
-    expect(await readBol(slow.io, picked("a.jpg"), () => {})).toMatchObject({ kind: "failed", message: expect.stringContaining("longer than it should") });
+    expect(await readBol(slow.io, picked("a.jpg"), () => {})).toEqual({ kind: "waiting", readId: "read-1" });
+    expect(READ_TIMEOUT_MS).toBe(600_000);
     expect(slept).toBe(READ_TIMEOUT_MS / POLL_MS);
+  });
+
+  it("picks up a read already started, asking only about that read, until it ends", async () => {
+    const { io, calls } = fakeIo({ read: [{ status: "reading" }, { status: "reading" }, { status: "done" }] });
+    const stages: BolReadStage[] = [];
+    expect(await followRead(io, "read-1", (s) => stages.push(s))).toMatchObject({ kind: "done", read: { id: "read-1" } });
+    expect(stages).toEqual([{ kind: "reading", readId: "read-1" }]);
+    expect(new Set(calls.map((c) => `${c.method} ${c.path}`))).toEqual(new Set(["GET /api/documents/reads/read-1"]));
   });
 
   it("refuses to start with no page ticked", async () => {
