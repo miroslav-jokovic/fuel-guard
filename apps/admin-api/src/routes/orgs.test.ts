@@ -11,7 +11,7 @@ import { STEP_UP_WINDOW_MS } from "../middleware/platformAuth.js";
 
 const OVERVIEW = [
   {
-    org_id: "org-1", name: "Silvicom", created_at: "2026-01-01T00:00:00Z",
+    org_id: "00000000-0000-4000-8000-0000000000a1", name: "Silvicom", created_at: "2026-01-01T00:00:00Z",
     member_count: 2, vehicle_count: 150, active_vehicle_count: 148,
     driver_count: 160, open_anomaly_count: 5, last_txn_at: "2026-07-20T10:00:00Z",
   },
@@ -45,7 +45,7 @@ function fakeClient(): SupabaseClient {
     b.select = () => b;
     b.single = async () => ({
       data: {
-        id: "grant-1", org_id: "org-1", admin_id: "a1", scope: "read_only", reason: "support review",
+        id: "grant-1", org_id: "00000000-0000-4000-8000-0000000000a1", admin_id: "a1", scope: "read_only", reason: "support review",
         created_at: new Date().toISOString(), expires_at: new Date(Date.now() + 60_000).toISOString(), revoked_at: null,
       },
       error: null,
@@ -116,15 +116,21 @@ describe("/admin/orgs (read-only oversight)", () => {
 
   it("returns detail AND audits the access", async () => {
     const before = auditInserts.length;
-    const res = await fetch(`${ctx.baseUrl}/admin/orgs/org-1`, { headers: H });
+    const res = await fetch(`${ctx.baseUrl}/admin/orgs/00000000-0000-4000-8000-0000000000a1`, { headers: H });
     expect(res.status).toBe(200);
     const body = (await res.json()) as { org: { modules: { provider: string }[] } };
     expect(body.org.modules[0]!.provider).toBe("mcleod");
-    expect(auditInserts.slice(before).some((w) => w.action === "org.view" && w.target_org_id === "org-1")).toBe(true);
+    expect(auditInserts.slice(before).some((w) => w.action === "org.view" && w.target_org_id === "00000000-0000-4000-8000-0000000000a1")).toBe(true);
+  });
+
+  it("answers 404 for an id that is not an id, and reads nothing (US7)", async () => {
+    const res = await fetch(`${ctx.baseUrl}/admin/orgs/not-an-id`, { headers: H });
+    expect(res.status).toBe(404);
+    expect(((await res.json()) as { error: { code: string } }).error.code).toBe("not_found");
   });
 
   it("lists members with resolved emails", async () => {
-    const res = await fetch(`${ctx.baseUrl}/admin/orgs/org-1/members`, { headers: H });
+    const res = await fetch(`${ctx.baseUrl}/admin/orgs/00000000-0000-4000-8000-0000000000a1/members`, { headers: H });
     expect(res.status).toBe(200);
     const body = (await res.json()) as { members: { email: string; role: string }[] };
     expect(body.members[0]!.email).toBe("owner@silvicominc.com");
@@ -133,7 +139,7 @@ describe("/admin/orgs (read-only oversight)", () => {
 
   it("toggles a module (owner) and audits it", async () => {
     const before = auditInserts.length;
-    const res = await fetch(`${ctx.baseUrl}/admin/orgs/org-1/modules/mcleod`, {
+    const res = await fetch(`${ctx.baseUrl}/admin/orgs/00000000-0000-4000-8000-0000000000a1/modules/mcleod`, {
       method: "POST", headers: H, body: JSON.stringify({ enabled: false }),
     });
     expect(res.status).toBe(200);
@@ -149,9 +155,9 @@ describe("/admin/orgs — step-up (recent second factor) on sensitive writes", (
   //
   // Every case below uses the platform_owner, so a 403 here can only come from step-up, never RBAC.
   const gated: [string, string, unknown][] = [
-    ["module kill-switch", "/admin/orgs/org-1/modules/mcleod", { enabled: false }],
-    ["entitlement grant", "/admin/orgs/org-1/entitlements/hazmatguard", { enabled: true }],
-    ["impersonation start", "/admin/orgs/org-1/impersonation", { reason: "customer raised a ticket" }],
+    ["module kill-switch", "/admin/orgs/00000000-0000-4000-8000-0000000000a1/modules/mcleod", { enabled: false }],
+    ["entitlement grant", "/admin/orgs/00000000-0000-4000-8000-0000000000a1/entitlements/hazmatguard", { enabled: true }],
+    ["impersonation start", "/admin/orgs/00000000-0000-4000-8000-0000000000a1/impersonation", { reason: "customer raised a ticket" }],
   ];
 
   for (const [label, path, body] of gated) {
@@ -173,7 +179,7 @@ describe("/admin/orgs — step-up (recent second factor) on sensitive writes", (
 
   it("DENIED when the session only ever proved a password — aal2 alone is not a second factor", async () => {
     const c = await start(owner, passwordOnly);
-    const res = await fetch(`${c.baseUrl}/admin/orgs/org-1/impersonation`, {
+    const res = await fetch(`${c.baseUrl}/admin/orgs/00000000-0000-4000-8000-0000000000a1/impersonation`, {
       method: "POST", headers: H, body: JSON.stringify({ reason: "customer raised a ticket" }),
     });
     expect(res.status).toBe(403);
@@ -182,7 +188,7 @@ describe("/admin/orgs — step-up (recent second factor) on sensitive writes", (
 
   it("DENIED when the token carries no amr at all — fails closed, never open", async () => {
     const c = await start(owner, noAmr);
-    const res = await fetch(`${c.baseUrl}/admin/orgs/org-1/impersonation`, {
+    const res = await fetch(`${c.baseUrl}/admin/orgs/00000000-0000-4000-8000-0000000000a1/impersonation`, {
       method: "POST", headers: H, body: JSON.stringify({ reason: "customer raised a ticket" }),
     });
     expect(res.status).toBe(403);
@@ -203,7 +209,7 @@ describe("/admin/orgs module toggle — RBAC", () => {
   afterAll(async () => new Promise<void>((r) => ctx.server.close(() => r())));
 
   it("rejects a read-only admin from toggling a module (403)", async () => {
-    const res = await fetch(`${ctx.baseUrl}/admin/orgs/org-1/modules/mcleod`, {
+    const res = await fetch(`${ctx.baseUrl}/admin/orgs/00000000-0000-4000-8000-0000000000a1/modules/mcleod`, {
       method: "POST", headers: H, body: JSON.stringify({ enabled: false }),
     });
     expect(res.status).toBe(403);

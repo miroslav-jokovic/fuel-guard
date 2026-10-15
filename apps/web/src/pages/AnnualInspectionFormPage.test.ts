@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ref } from "vue";
 import { flushPromises, mount } from "@vue/test-utils";
 import { createPinia, setActivePinia } from "pinia";
-import { answerConfirm } from "@/testing/confirm";
+import { answerConfirm } from "@silvicom/ui/testing";
 import { defaultInspectionItems, deriveInspectionOutcome, INSPECTION_ITEMS } from "@silvicom/shared";
 
 /**

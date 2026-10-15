@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
-import { AppBadge, AppButton, AppCallout, AppCard, AppInput } from "@silvicom/ui";
+import { computed, ref } from "vue";
+import { useQuery } from "@tanstack/vue-query";
+import { AppBadge, AppButton, AppCallout, AppCard, AppInput, QueryState } from "@silvicom/ui";
 import { apiGet, apiPost, ApiRequestError, type ReleaseApproval, type ReleaseState } from "@/lib/api";
 import { fmtDateTime } from "@/lib/format";
 import { supabase } from "@/lib/supabase";
@@ -15,8 +16,6 @@ import { useSessionStore } from "@/stores/session";
  * not something anyone does at bedtime.
  */
 const session = useSessionStore();
-const state = ref<ReleaseState | null>(null);
-const loading = ref(true);
 const error = ref<string | null>(null);
 const code = ref("");
 const busy = ref(false);
@@ -53,18 +52,13 @@ function explain(e: unknown, fallback: string): string {
   return e instanceof Error && e.message ? e.message : fallback;
 }
 
-async function load() {
-  try {
-    state.value = await apiGet<ReleaseState>("/admin/release");
-    error.value = null;
-  } catch {
-    // apiGet's error carries only a status; GitHub not answering (502) is the usual cause.
-    error.value = "Could not load tonight's release. GitHub or the console's API did not answer; try again shortly.";
-  } finally {
-    loading.value = false;
-  }
-}
-onMounted(load);
+/**
+ * Tonight's release, as a query (US7): its read failing is its own state with a Retry, and no longer
+ * shares one `error` with the approve button — a refused approval used to read as "could not load".
+ * The page's sentence names the usual cause, GitHub not answering (admin-api answers 502 then).
+ */
+const release = useQuery({ queryKey: ["release"], queryFn: () => apiGet<ReleaseState>("/admin/release") });
+const state = computed(() => release.data.value ?? null);
 
 /** A fresh second factor, proved here: the token's amr gains a new TOTP time, which the API checks. */
 async function proveSecondFactor() {
@@ -91,7 +85,7 @@ async function act(path: "approve" | "revoke") {
     error.value = explain(e, path === "approve" ? "Could not approve the release" : "Could not withdraw the approval");
   } finally {
     busy.value = false;
-    await load();
+    await release.refetch();
   }
 }
 </script>
@@ -99,7 +93,7 @@ async function act(path: "approve" | "revoke") {
 <template>
   <AppCard>
     <div class="flex flex-wrap items-center justify-between gap-2">
-      <h2 class="text-base font-semibold text-ink">Tonight's release</h2>
+      <h2 class="text-sm font-semibold text-ink-secondary">Tonight's release</h2>
       <AppBadge v-if="current" tone="success">Approved — ships at 01:07 CT</AppBadge>
       <AppBadge v-else-if="candidate" tone="warning">Waiting for approval</AppBadge>
     </div>
@@ -108,13 +102,22 @@ async function act(path: "approve" | "revoke") {
       Without an approval nothing ships and the work waits for the next night.
     </p>
 
-    <div v-if="loading" class="mt-4 text-sm text-ink-muted">Loading…</div>
-    <p v-else-if="!candidate && !error" class="mt-4 text-sm text-ink-secondary">
+    <QueryState
+      class="mt-4"
+      compact
+      :loading="release.isPending.value"
+      :error="release.error.value"
+      error-text="Could not load tonight's release. GitHub or the console's API did not answer; try again shortly."
+      loading-text="Loading tonight's release…"
+      :retrying="release.isFetching.value"
+      @retry="() => release.refetch()"
+    >
+    <p v-if="!candidate" class="text-sm text-ink-secondary">
       Nothing is waiting: production already runs everything that has been merged.
     </p>
 
-    <template v-else-if="candidate">
-      <p class="mt-4 text-sm text-ink">
+    <template v-else>
+      <p class="text-sm text-ink">
         <a :href="candidate.url" target="_blank" rel="noopener" class="font-medium text-brand-700 underline">
           Release #{{ candidate.number }}
         </a>
@@ -134,7 +137,7 @@ async function act(path: "approve" | "revoke") {
         {{ short(candidate.shipsSha) }}. Tonight ships {{ short(state!.approvals[0]!.commitSha) }} unless you approve again.
       </AppCallout>
 
-      <div class="mt-4 max-h-80 overflow-y-auto rounded-md border border-edge-subtle p-3 text-sm">
+      <div class="mt-4 max-h-80 overflow-y-auto rounded-control border border-edge-subtle p-3 text-sm">
         <template v-for="(l, i) in noteLines" :key="i">
           <p v-if="l.kind === 'heading'" class="mt-2 font-semibold text-ink first:mt-0">{{ l.text }}</p>
           <p v-else-if="l.kind === 'item'" class="ml-4 text-ink-secondary">• {{ l.text }}</p>
@@ -156,7 +159,8 @@ async function act(path: "approve" | "revoke") {
         </AppButton>
       </form>
     </template>
+    </QueryState>
 
-    <p v-if="error" class="mt-3 text-sm text-danger-600" role="alert">{{ error }}</p>
+    <AppCallout v-if="error" tone="danger" class="mt-3" role="alert">{{ error }}</AppCallout>
   </AppCard>
 </template>

@@ -1,7 +1,7 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { flushPromises, mount } from "@vue/test-utils";
 import { createPinia, setActivePinia } from "pinia";
-import { answerConfirm } from "@/testing/confirm";
+import { answerConfirm } from "@silvicom/ui/testing";
 
 /**
  * The EFS integration and Card control pages speak to an office admin, not to the engineer who built

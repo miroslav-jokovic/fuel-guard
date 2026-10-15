@@ -26,8 +26,10 @@ changing UI. The rules below are the ones most often violated; the contract has 
 - Primitives come from `@silvicom/ui`, aliased to the old local names at the import:
   `import { AppCard as BaseCard, AppButton as BaseButton } from "@silvicom/ui"`. There is no
   `BaseButton.vue` in `@/components/ui/` — a local clone of a shared primitive fails `lint:ui-adoption`.
-  `@/components/ui/` holds the web-only composites: `DataTable`, `PageHeader`, `FilterBar`, `FilterSelect`,
-  `DataWorkspace`, `StatCard`, `BaseModal`, `FileDropzone`, `SettingsSection`.
+  The list kit is `@silvicom/ui` too, shared with the admin console since US7 (D-US11): `DataWorkspace`,
+  `FilterBar`, `DataTable`, `TablePagination`, `BulkActionBar`, `StatCard`, `QueryState`, `FactList`,
+  `BaseModal`, `useConfirm`, `useQueryState`, `useUrlSort`. `@/components/ui/` holds what is web-only:
+  `PageHeader`, `FilterSelect`, `FileDropzone`, `SettingsSection` and the like.
   Never import `@hugeicons/core-free-icons` directly — add to `packages/ui/src/icons.ts` first.
 - Every badge is `[BADGE_BASE, toneClass(...)]` from `@/lib/badges` — no local tone maps, no
   status string literals in templates.

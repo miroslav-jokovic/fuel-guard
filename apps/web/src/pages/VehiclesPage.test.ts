@@ -4,7 +4,7 @@ import { ref } from "vue";
 import { createMemoryHistory, createRouter } from "vue-router";
 import { VueQueryPlugin } from "@tanstack/vue-query";
 import { createPinia, setActivePinia } from "pinia";
-import { answerConfirm } from "@/testing/confirm";
+import { answerConfirm } from "@silvicom/ui/testing";
 
 /**
  * The Vehicles page arrives narrowed from the Operations tab's doors (FLEET-MANAGER-HOME-PLAN D-FM9):

@@ -5,7 +5,7 @@ import { createMemoryHistory, createRouter, type Router } from "vue-router";
 import { QueryClient, VueQueryPlugin } from "@tanstack/vue-query";
 import { AppSelect } from "@silvicom/ui";
 import SettingsUsersPage from "@/pages/SettingsUsersPage.vue";
-import { answerConfirm } from "@/testing/confirm";
+import { answerConfirm } from "@silvicom/ui/testing";
 
 /**
  * The Users page after 0301 (S9): members have names.

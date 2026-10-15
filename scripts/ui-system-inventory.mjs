@@ -444,11 +444,20 @@ const webUiSource = inspectFiles(filesUnder(webSrc, new Set([".vue", ".ts", ".cs
 const adminVue = inspectFiles(filesUnder(adminSrc));
 const webPages = webVue.filter((item) => item.relativePath.startsWith("apps/web/src/pages/"));
 const adminPages = adminVue.filter((item) => item.relativePath.startsWith("apps/admin/src/pages/"));
-const pagesAndFeatures = webVue.filter(
-  (item) =>
-    item.relativePath.startsWith("apps/web/src/pages/") ||
-    item.relativePath.startsWith("apps/web/src/features/"),
-);
+// The admin console's pages and components are held to every page rule the web app's are, since US7
+// (D-US11): the same list behaving two ways in two consoles is the drift this gate exists to stop.
+const pagesAndFeatures = [
+  ...webVue.filter(
+    (item) =>
+      item.relativePath.startsWith("apps/web/src/pages/") ||
+      item.relativePath.startsWith("apps/web/src/features/"),
+  ),
+  ...adminVue.filter(
+    (item) =>
+      item.relativePath.startsWith("apps/admin/src/pages/") ||
+      item.relativePath.startsWith("apps/admin/src/components/"),
+  ),
+];
 const structureViolations = pagesAndFeatures.map(templateStructureViolations);
 const nestedTables = structureViolations.flatMap((item) => item.nestedTables);
 const filterBarChildren = structureViolations.flatMap((item) => item.filterBarChildren);
@@ -492,8 +501,11 @@ const unpagedLists = pagesAndFeatures.flatMap(unpagedListViolations).filter((at)
  * capture's `io.confirm`) and a local function definition are not the browser's.
  */
 const NATIVE_DIALOG = /(?<![.\w])(?:window\.)?(?:confirm|alert|prompt)\(|\bwindow\.(?:confirm|alert|prompt)\(/g;
-const webSourceFiles = inspectFiles(filesUnder(webSrc, new Set([".vue", ".ts"])))
-  .filter((item) => !/\.test\.ts$/.test(item.relativePath));
+// Both consoles' source (US7): the admin console's alert-recipient removal was a `window.confirm`.
+const webSourceFiles = inspectFiles([
+  ...filesUnder(webSrc, new Set([".vue", ".ts"])),
+  ...filesUnder(adminSrc, new Set([".vue", ".ts"])),
+]).filter((item) => !/\.test\.ts$/.test(item.relativePath));
 const nativeDialogs = webSourceFiles.flatMap((item) =>
   [...item.source.matchAll(NATIVE_DIALOG)]
     .filter((m) => !/function\s+$/.test(item.source.slice(Math.max(0, m.index - 12), m.index)))
@@ -612,10 +624,17 @@ function recordPageViolations(routes, readPage) {
     })
     .map(({ path, page }) => `${page} (${path})`);
 }
-const recordPagesWithoutNotFound = recordPageViolations(
-  filesUnder(join(webSrc, "router/routes"), new Set([".ts"])).flatMap((file) => recordRoutePages(readFileSync(file, "utf8"))),
-  (page) => readFileSync(join(webSrc, "pages", page), "utf8"),
-);
+const recordPagesWithoutNotFound = [
+  ...recordPageViolations(
+    filesUnder(join(webSrc, "router/routes"), new Set([".ts"])).flatMap((file) => recordRoutePages(readFileSync(file, "utf8"))),
+    (page) => readFileSync(join(webSrc, "pages", page), "utf8"),
+  ),
+  // The admin console's record pages (US7): one route file, the same `import("@/pages/…")` shape.
+  ...recordPageViolations(
+    recordRoutePages(readFileSync(join(adminSrc, "router/index.ts"), "utf8")),
+    (page) => readFileSync(join(adminSrc, "pages", page), "utf8"),
+  ),
+];
 
 /**
  * Every settings page has one layout: the standard page root, full width (US6b F28, 2026-10-14).
@@ -644,7 +663,7 @@ const settingsLayoutViolations = (pages, readPage) =>
 const GRID_COMMA = /\b(?:[a-z0-9]+:)*grid-(?:cols|rows)-\[[^\](]*,[^\]]*\]/g;
 const gridCommaViolations = (item) =>
   [...item.source.matchAll(GRID_COMMA)].map((m) => `${item.relativePath}:${item.source.slice(0, m.index).split("\n").length}`);
-const gridCommas = webVue.flatMap(gridCommaViolations);
+const gridCommas = [...webVue, ...adminVue].flatMap(gridCommaViolations);
 const narrowSettingsPages = settingsLayoutViolations(
   settingsRoutePages(readFileSync(join(webSrc, "router/routes/settings.ts"), "utf8")),
   (page) => readFileSync(join(webSrc, "pages", page), "utf8"),

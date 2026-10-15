@@ -4,7 +4,7 @@ import { flushPromises, mount } from "@vue/test-utils";
 import { createMemoryHistory, createRouter, type Router } from "vue-router";
 import { createPinia, setActivePinia } from "pinia";
 import { useToastStore } from "@/stores/toast";
-import { answerConfirm } from "@/testing/confirm";
+import { answerConfirm } from "@silvicom/ui/testing";
 
 /**
  * The inspector register (B3, closes §6 Q8).

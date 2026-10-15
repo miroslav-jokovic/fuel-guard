@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from "vue";
 import { useRouter } from "vue-router";
-import { AppButton, AppInput, AppCard } from "@silvicom/ui";
+import { AppButton, AppCallout, AppCard, AppInput, QueryState } from "@silvicom/ui";
 import { supabase } from "@/lib/supabase";
 import { useSessionStore } from "@/stores/session";
 
@@ -15,6 +15,8 @@ const qrSvg = ref<string | null>(null); // data-URL SVG for the authenticator QR
 const secret = ref<string | null>(null);
 const code = ref("");
 const error = ref<string | null>(null);
+/** Setting the factor up failed: its own state with a Retry, never a code form with nothing behind it. */
+const setupError = ref<unknown>(null);
 const busy = ref(false);
 
 async function done() {
@@ -22,7 +24,9 @@ async function done() {
   await router.push({ name: "dashboard" });
 }
 
-onMounted(async () => {
+async function setup() {
+  setupError.value = null;
+  mode.value = "loading";
   try {
     const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
     if (aal?.currentLevel === "aal2") return done();
@@ -44,10 +48,11 @@ onMounted(async () => {
     secret.value = enrolled.totp.secret;
     mode.value = "enroll";
   } catch (e) {
-    error.value = e instanceof Error ? e.message : "Could not start MFA";
-    mode.value = "challenge";
+    // Until US7 this showed the code form with no factor behind it, and Verify did nothing.
+    setupError.value = e;
   }
-});
+}
+onMounted(setup);
 
 async function verify() {
   if (!factorId.value) return;
@@ -61,7 +66,7 @@ async function verify() {
     if (vErr) throw vErr;
     await done();
   } catch (e) {
-    error.value = e instanceof Error ? e.message : "Invalid code";
+    error.value = "That code was not accepted. Enter the current code from your authenticator app.";
   } finally {
     busy.value = false;
   }
@@ -76,10 +81,16 @@ async function verify() {
         {{ mode === "enroll" ? "Scan this with your authenticator app, then enter the 6-digit code." : "Enter the 6-digit code from your authenticator app." }}
       </p>
 
-      <div v-if="mode === 'loading'" class="mt-6 text-sm text-ink-muted">Loading…</div>
-
-      <template v-else>
-        <div v-if="mode === 'enroll' && qrSvg" class="mt-4 flex flex-col items-center gap-2">
+      <QueryState
+        class="mt-5"
+        compact
+        :loading="mode === 'loading' && !setupError"
+        :error="setupError"
+        error-text="Could not start two-factor sign-in."
+        loading-text="Preparing two-factor sign-in…"
+        @retry="setup"
+      >
+        <div v-if="mode === 'enroll' && qrSvg" class="flex flex-col items-center gap-2">
           <img :src="qrSvg" alt="Authenticator QR code" class="h-44 w-44" />
           <code v-if="secret" class="rounded-control bg-surface-muted px-2 py-1 text-xs text-ink-secondary">{{ secret }}</code>
         </div>
@@ -93,12 +104,12 @@ async function verify() {
             maxlength="6"
             required
           />
-          <p v-if="error" class="text-sm text-danger-600">{{ error }}</p>
+          <AppCallout v-if="error" tone="danger" role="alert">{{ error }}</AppCallout>
           <AppButton type="submit" variant="primary" block :disabled="busy">
             {{ busy ? "Verifying…" : "Verify" }}
           </AppButton>
         </form>
-      </template>
+      </QueryState>
     </AppCard>
   </div>
 </template>

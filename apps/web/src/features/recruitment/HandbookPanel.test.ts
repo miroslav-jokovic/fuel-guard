@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { mount } from "@vue/test-utils";
 import { QueryClient, VueQueryPlugin } from "@tanstack/vue-query";
 import { createPinia, setActivePinia } from "pinia";
-import { answerConfirm } from "@/testing/confirm";
+import { answerConfirm } from "@silvicom/ui/testing";
 import { sectionAccess } from "@silvicom/shared";
 import { formatDisplayDateTime } from "@silvicom/shared";
 import { useToastStore } from "@/stores/toast";

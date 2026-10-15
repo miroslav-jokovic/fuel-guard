@@ -1,9 +1,21 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
-import { AppButton, AppCard, AppInput, AppPageHeader, AppSelect, AppTable, type SelectOption } from "@silvicom/ui";
+import { computed, ref } from "vue";
+import {
+  AppButton,
+  AppCallout,
+  AppCard,
+  AppInput,
+  AppPageHeader,
+  AppSelect,
+  DataTable,
+  useConfirm,
+  type DataTableColumn,
+  type SelectOption,
+} from "@silvicom/ui";
 import AppShell from "@/layouts/AppShell.vue";
 import ReleaseApprovalCard from "@/components/ReleaseApprovalCard.vue";
-import { apiGet, apiPost, ApiRequestError, type AlertRecipient } from "@/lib/api";
+import { ApiRequestError, type AlertRecipient } from "@/lib/api";
+import { useAlertRecipientChange, useAlertRecipientsQuery } from "@/lib/queries";
 import { fmtDate } from "@/lib/format";
 
 /**
@@ -11,24 +23,34 @@ import { fmtDate } from "@/lib/format";
  * who hears a platform alarm (0427) — the nightly release's
  * outcome by email, and a failed or rolled-back release by text as well. Added and removed here,
  * without a deploy; scripts/release-notify.mjs reads the list at send time.
+ *
+ * Since US7 (D-US11) the list is a `DataTable` with its own read states: a failed read says so in the
+ * table rather than drawing "No one on the list", which on THIS list is the sentence that says
+ * release alarms reach nobody. Removing asks in the product's dialog, not `window.confirm` (D-US7).
  */
-const recipients = ref<AlertRecipient[]>([]);
-const loading = ref(true);
-const error = ref<string | null>(null);
+const recipients = useAlertRecipientsQuery();
+const { add, remove } = useAlertRecipientChange();
+const ask = useConfirm();
 
 const channel = ref<"sms" | "email">("sms");
 const address = ref("");
 const label = ref("");
-const saving = ref(false);
-const removing = ref<string | null>(null);
+const failure = ref<string | null>(null);
 
 const CHANNELS: SelectOption[] = [
   { value: "sms", label: "Text message" },
   { value: "email", label: "Email" },
 ];
 
-const texts = computed(() => recipients.value.filter((r) => r.channel === "sms"));
-const emails = computed(() => recipients.value.filter((r) => r.channel === "email"));
+const texts = computed(() => (recipients.data.value ?? []).filter((r) => r.channel === "sms"));
+const rows = computed(() => [...texts.value, ...(recipients.data.value ?? []).filter((r) => r.channel === "email")]);
+
+const COLUMNS: DataTableColumn[] = [
+  { key: "channel", label: "Type", cellClass: "text-ink-secondary", width: "sm" },
+  { key: "address", label: "Address", cellClass: "font-medium text-ink tabular-nums" },
+  { key: "label", label: "Who", cellClass: "text-ink-secondary" },
+  { key: "createdAt", label: "Added", cellClass: "text-ink-secondary", width: "md" },
+];
 
 /** What to tell the person about a refused change, from the API's own error code. */
 function explain(e: unknown, fallback: string): string {
@@ -40,47 +62,34 @@ function explain(e: unknown, fallback: string): string {
   return fallback;
 }
 
-async function load() {
-  try {
-    recipients.value = (await apiGet<{ recipients: AlertRecipient[] }>("/admin/alert-recipients")).recipients;
-    error.value = null;
-  } catch (e) {
-    error.value = explain(e, "Could not load alert recipients");
-  } finally {
-    loading.value = false;
-  }
-}
-onMounted(load);
-
-async function add() {
+async function addRecipient() {
   if (!address.value.trim()) return;
-  saving.value = true;
+  failure.value = null;
   try {
-    await apiPost("/admin/alert-recipients", { channel: channel.value, address: address.value, label: label.value || undefined });
+    await add.mutateAsync({ channel: channel.value, address: address.value, label: label.value || undefined });
     address.value = "";
     label.value = "";
-    await load();
   } catch (e) {
-    error.value = explain(e, "Could not add the recipient");
-  } finally {
-    saving.value = false;
+    failure.value = explain(e, "Could not add the recipient.");
   }
 }
 
-async function remove(r: AlertRecipient) {
+async function removeRecipient(r: AlertRecipient) {
   const last = r.channel === "sms" && texts.value.length === 1;
-  const ask = last
-    ? `Remove ${r.address}? It is the last phone on the list: a failed release at night will then reach nobody by text.`
-    : `Remove ${r.address} from the alert list?`;
-  if (!window.confirm(ask)) return;
-  removing.value = r.id;
+  const yes = await ask({
+    title: `Remove ${r.address}?`,
+    message: last
+      ? "It is the last phone on the list: a failed release at night will then reach nobody by text."
+      : "They stop hearing about production releases.",
+    confirmLabel: "Remove",
+    tone: "danger",
+  });
+  if (!yes) return;
+  failure.value = null;
   try {
-    await apiPost(`/admin/alert-recipients/${r.id}/remove`, {});
-    await load();
+    await remove.mutateAsync(r.id);
   } catch (e) {
-    error.value = explain(e, "Could not remove the recipient");
-  } finally {
-    removing.value = null;
+    failure.value = explain(e, "Could not remove the recipient.");
   }
 }
 </script>
@@ -92,13 +101,13 @@ async function remove(r: AlertRecipient) {
     <ReleaseApprovalCard class="mt-5" />
 
     <AppCard class="mt-5">
-      <h2 class="text-base font-semibold text-ink">Alert recipients</h2>
+      <h2 class="text-sm font-semibold text-ink-secondary">Alert recipients</h2>
       <p class="mt-1 text-sm text-ink-secondary">
         Who hears about production releases. Everyone here gets an email for every release night. Phones also get a text
         when a release fails or is rolled back.
       </p>
 
-      <form class="mt-4 flex flex-wrap items-end gap-3" @submit.prevent="add">
+      <form class="mt-4 flex flex-wrap items-end gap-3" @submit.prevent="addRecipient">
         <label class="w-40 text-sm">
           <span class="mb-1 block text-xs font-medium text-ink-secondary">Type</span>
           <AppSelect v-model="channel" :options="CHANNELS" />
@@ -111,45 +120,37 @@ async function remove(r: AlertRecipient) {
           <span class="mb-1 block text-xs font-medium text-ink-secondary">Who is it (optional)</span>
           <AppInput v-model="label" placeholder="Miki — mobile" />
         </label>
-        <AppButton type="submit" variant="primary" :disabled="saving || !address.trim()">
-          {{ saving ? "Adding…" : "Add" }}
+        <AppButton type="submit" variant="primary" :disabled="add.isPending.value || !address.trim()">
+          {{ add.isPending.value ? "Adding…" : "Add" }}
         </AppButton>
       </form>
-      <p v-if="error" class="mt-3 text-sm text-danger-600" role="alert">{{ error }}</p>
+      <AppCallout v-if="failure" tone="danger" class="mt-3" role="alert">{{ failure }}</AppCallout>
     </AppCard>
 
     <AppCard padding="none" class="mt-5">
-      <div v-if="loading" class="p-6 text-sm text-ink-muted">Loading…</div>
-      <AppTable v-else class="w-full text-sm">
-        <thead class="bg-surface-subtle text-left text-xs font-semibold uppercase tracking-wide text-ink-muted">
-          <tr>
-            <th class="px-4 py-2.5">Type</th>
-            <th class="px-4 py-2.5">Address</th>
-            <th class="px-4 py-2.5">Who</th>
-            <th class="px-4 py-2.5">Added</th>
-            <th class="px-4 py-2.5"><span class="sr-only">Actions</span></th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="r in [...texts, ...emails]" :key="r.id" class="border-t border-edge-subtle">
-            <td class="px-4 py-2.5 text-ink-secondary">{{ r.channel === "sms" ? "Text" : "Email" }}</td>
-            <td class="px-4 py-2.5 font-medium text-ink tabular-nums">{{ r.address }}</td>
-            <td class="px-4 py-2.5 text-ink-secondary">{{ r.label ?? "—" }}</td>
-            <td class="px-4 py-2.5 text-ink-secondary">{{ fmtDate(r.createdAt) }}</td>
-            <td class="px-4 py-2.5 text-right">
-              <AppButton size="sm" variant="ghost" :disabled="removing === r.id" @click="remove(r)">
-                {{ removing === r.id ? "Removing…" : "Remove" }}
-              </AppButton>
-            </td>
-          </tr>
-          <tr v-if="recipients.length === 0">
-            <td colspan="5" class="px-4 py-6 text-center text-ink-muted">
-              No one on the list. Until someone is added, release alerts go to the addresses set in the repository's
-              RELEASE_NOTIFY secrets.
-            </td>
-          </tr>
-        </tbody>
-      </AppTable>
+      <DataTable
+        embedded
+        :columns="COLUMNS"
+        :rows="rows"
+        row-key="id"
+        :loading="recipients.isPending.value"
+        :error="recipients.isError.value ? 'Could not load the alert recipients.' : null"
+        :retrying="recipients.isFetching.value"
+        @retry="() => recipients.refetch()"
+      >
+        <template #cell-channel="{ value }">{{ value === "sms" ? "Text" : "Email" }}</template>
+        <template #cell-label="{ value }">{{ value ?? "—" }}</template>
+        <template #cell-createdAt="{ value }">{{ fmtDate(value) }}</template>
+        <template #actions="{ row }">
+          <AppButton size="sm" variant="ghost" :disabled="remove.isPending.value" @click="removeRecipient(row)">Remove</AppButton>
+        </template>
+        <template #empty>
+          <p>
+            No one on the list. Until someone is added, release alerts go to the addresses set in the repository's
+            RELEASE_NOTIFY secrets.
+          </p>
+        </template>
+      </DataTable>
     </AppCard>
   </AppShell>
 </template>

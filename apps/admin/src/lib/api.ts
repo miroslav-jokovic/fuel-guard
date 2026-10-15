@@ -1,14 +1,36 @@
+import { NotFoundError } from "@silvicom/ui";
 import { supabase, ADMIN_API_URL } from "@/lib/supabase";
 
-/** GET a JSON resource from admin-api with the current aal2 bearer token. Throws on non-2xx. */
+/**
+ * GET a JSON resource from admin-api with the current aal2 bearer token. Throws `ApiRequestError` on
+ * non-2xx, carrying the status and the API's own code, as `apiPost` does: a page decides what to say
+ * from those (US7), and a record read turns a 404 into `NotFoundError` (`apiRecord`).
+ */
 export async function apiGet<T>(path: string): Promise<T> {
   const { data } = await supabase.auth.getSession();
   const token = data.session?.access_token;
   const res = await fetch(`${ADMIN_API_URL}${path}`, {
     headers: token ? { authorization: `Bearer ${token}` } : {},
   });
-  if (!res.ok) throw new Error(`Request failed (${res.status})`);
+  if (!res.ok) {
+    const err = (await res.json().catch(() => null)) as { error?: { code?: string; message?: string } } | null;
+    throw new ApiRequestError(res.status, err?.error?.code ?? null, err?.error?.message ?? null);
+  }
   return (await res.json()) as T;
+}
+
+/**
+ * One record's read: the body, or `NotFoundError` when admin-api says there is no such record, so
+ * `QueryState` draws the page's not-found sentence and the query is never retried (D-US10). Anything
+ * else stays an `ApiRequestError`, which the page's read state answers with its own sentence.
+ */
+export async function apiRecord<T>(path: string): Promise<T> {
+  try {
+    return await apiGet<T>(path);
+  } catch (e) {
+    if (e instanceof ApiRequestError && e.status === 404) throw new NotFoundError();
+    throw e;
+  }
 }
 
 /**

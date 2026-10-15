@@ -12,6 +12,10 @@
       "types": "./src/icons.ts",
       "default": "./src/icons.ts"
     },
+    "./testing": {
+      "types": "./src/testing/confirm.ts",
+      "default": "./src/testing/confirm.ts"
+    },
     "./tokens.css": "./src/tokens.generated.css"
   },
   "types": "./src/index.ts",

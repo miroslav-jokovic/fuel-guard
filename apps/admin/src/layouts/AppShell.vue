@@ -58,7 +58,7 @@ async function signOut() {
 <template>
   <div class="min-h-full">
     <!-- Persistent PLATFORM chrome so an operator always knows which plane they're in. -->
-    <header class="sticky top-0 z-40 border-b border-ink-inverse/10 bg-surface-inverse text-ink-inverse">
+    <header class="sticky top-0 z-chrome border-b border-ink-inverse/10 bg-surface-inverse text-ink-inverse">
       <div class="flex h-12 items-center justify-between px-4 sm:px-6">
         <div class="flex items-center gap-3">
           <span class="rounded-control bg-brand-accent px-2 py-0.5 text-xs font-bold tracking-wide text-ink">PLATFORM</span>
@@ -103,7 +103,7 @@ async function signOut() {
             v-else-if="item.to"
             :to="item.to"
             class="block min-h-9 whitespace-nowrap rounded-control px-3 py-2 text-sm font-medium text-ink-secondary hover:bg-surface-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
-            active-class="bg-selected-surface text-ink shadow-[inset_3px_0_var(--brand-accent-strong)]"
+            active-class="bg-selected-surface font-semibold text-ink"
           >
             {{ item.label }}
           </RouterLink>
