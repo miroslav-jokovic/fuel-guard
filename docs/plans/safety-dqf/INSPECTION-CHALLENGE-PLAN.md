@@ -203,6 +203,48 @@ a new version, not a rewrite) · automated DataQs submission · state court repr
   `registerDocument` (`API_ALLOW`: `inspections -> evidence`) and reads Samsara only through the
   `samsara` module's client. Who may approve a filing is the section × role matrix, and the
   `safety` write permission. It does not get a new global boolean (CLAUDE.md, "No workarounds").
+- **D-IC13 — The officer's report is read, and the driver it names is compared, never trusted alone
+  (added 2026-10-15).** Measured that day: none of the six FMCSA datasets carries a driver name,
+  licence number or date of birth — FMCSA strips them before publishing — so the only document that
+  names the driver is the officer's report itself (the paper or PDF the driver is handed). An
+  uploaded `roadside_inspection_report` is read by `document-reading` under a new profile
+  `roadside_inspection_report`: report number and state, inspection date and times, level, driver
+  name, licence number and state, unit VINs and plates, each violation's code and unit. The read is
+  then compared three ways — report number/state against the FMCSA row (it is the same inspection,
+  or it is not), VIN against `roadside_inspection_units`, and driver name + licence against the IC5
+  Samsara reading and our roster (`drivers.cdl_number`). The comparison is a FINDING stored with the
+  read's hash, not a new attribution source: agreement raises confidence, disagreement opens a task
+  for the safety office, and whether agreement may confirm without a person is Q-IC11. A report
+  whose number matches no FMCSA row is kept and matched when the feed catches up (D-IC1).
+- **D-IC14 — A maintenance violation is closed by its repair, and the repair is FleetPal's record
+  (added 2026-10-15).** 49 CFR 396.9(d), eCFR point-in-time 2026-10-01 (sha256 b22fc7bf…ea49c0):
+  "(2) Motor carriers and intermodal equipment providers shall examine the report. Violations or
+  defects noted thereon shall be corrected in accordance with § 396.11(a)(3). Repairs of items of
+  intermodal equipment placed out-of-service are also to be documented in the maintenance records
+  for such equipment. (3) Within 15 days following the date of the inspection, the motor carrier or
+  intermodal equipment provider shall— (i) Certify that all violations noted have been corrected by
+  completing the 'Signature of Carrier/Intermodal Equipment Provider Official, Title, and Date
+  Signed' portions of the form; and (ii) If requested by the issuing State agency, return the
+  completed roadside inspection form to the issuing State agency at the address indicated on the
+  form and, in all instances, retain a copy at the motor carrier's principal place of business […]
+  or where the vehicle is housed for 12 months from the date of the inspection." So every
+  inspection with a vehicle violation (Parts 393/396) gets a **repair record**: a 15-day clock from
+  the inspection date, the FleetPal work orders on that unit proposed as the repair (unit via
+  `fleetpal_units`, opened on or after the inspection date), the person who accepts one, and the
+  certification. FleetPal's API has no attachment, file or PDF endpoint (its OpenAPI, 2026-10-15),
+  so the "work order and receipt" attached to the inspection is OUR rendering of FleetPal's record —
+  work order, jobs, parts and labour, purchase-order invoice number, date and amount — filed as a
+  document that says so, with the FleetPal ids and the sync time it was rendered from; a photo of a
+  paper receipt is a separate upload (Q-IC12). A violation the officer marked repaired at the scene
+  (`defect_verification_id` 1) needs no work order and says why. Post-event by definition, a repair
+  is never evidence that a defect did not exist (D-IC4's temporal rule); it closes the record, it
+  does not argue the case.
+- **D-IC15 — The driver sends the report from the cab (added 2026-10-15).** 396.9(d)(1) already
+  requires the driver to deliver the report to the carrier — within 24 hours when not at a terminal.
+  The driver app photographs it through the existing scanner and files it to the inspection's
+  documents; the uploader is a known driver on a known truck at a known time, which is itself an
+  attribution signal, and the read (D-IC13) starts within minutes instead of when someone in the
+  office remembers. It shares its intake with Q-IC4's ticket photograph.
 
 ---
 
@@ -379,6 +421,9 @@ are not specified here.
 | **IC7** | AI drafting + claim verifier | IC6 |
 | **IC8** | R-DUP1, R-OOS1 | Q-IC3 |
 | **IC9** | Outcome learning: feed-derived outcomes, grant rate by rule/code/state, threshold review (D-IC10). Report the first 90 days | IC4 + 90 days of filings |
+| **IC10** | Report reading + identity comparison (D-IC13): `roadside_inspection_report` profile in `@silvicom/shared`'s `DOCUMENT_PROFILES`, read on upload, the three comparisons stored as findings, mismatch → safety task, the result on the inspection's driver card | IC2, IC5, Q-IC11 |
+| **IC11** | Repair record (D-IC14): migration for `inspection_repairs` (append-only versions: violation → proposed/accepted FleetPal work orders, due date, certified by/at), proposal from `fleetpal_units` + `fleetpal_work_orders`, rendered repair document, 15-day clock in the inbox and the bell, certification action | FleetPal units sync (2026-10-15), Q-IC12, Q-IC13, Q-IC14 |
+| **IC12** | Driver-app intake (D-IC15): photograph the officer's report (and a ticket, Q-IC4) to the inspection; a report with no FMCSA row yet waits for it | IC10, Q-IC4 |
 
 IC1 and IC3 can run in parallel. IC4 is the first step a user can act on, and should be reachable in
 about three merges.
@@ -493,6 +538,43 @@ about three merges.
     then has to work from the inspection's VIN alone for those 41 trucks.
   Either (b) or (c), attribution of a retired truck reads McLeod's dispatch history (`movement`), not
   Samsara, which deleted them at sale (Q-IC8).
+
+- **Q-IC11 — May two agreeing sources confirm the driver without a person? (opened 2026-10-15, owner's
+  call).** D-IC7 says a guessed driver never reaches a draft, and today every driver is Samsara's
+  reading until a safety manager confirms it (459 high, 85 low, 74 no assignment of 625 on 10/15).
+  The report (D-IC13) adds an independent second source.
+  The licence key is there to match: 168 of 169 active roster drivers carry `drivers.cdl_number`
+  (production, 2026-10-15; 188 of 300 including former drivers).
+  - (a) **Auto-confirm when the report's licence number equals the roster driver's AND Samsara named
+    the same driver**; recorded as a confirmation by the engine with both hashes, reversible by a
+    person like any other. Name alone never confirms (spelling, middle names, shared names).
+  - (b) **Raise confidence only**; a person still confirms every one.
+  - (c) Auto-confirm on licence alone, even without Samsara.
+  *Recommended: (a).* Two independent sources agreeing on a licence number is stronger than a person
+  clicking "confirm" on one, and the disagreements — the cases that matter — still reach a person.
+- **Q-IC12 — What is "the receipt" on a repair? (opened 2026-10-15, owner's call).** FleetPal's API
+  serves no files. (a) **Our rendered repair document** from FleetPal's data (work order, jobs, parts,
+  labour, PO invoice number/date/amount), labelled as rendered from FleetPal at a stated time.
+  (b) (a) plus a required photo/PDF of the vendor's paper invoice when the repair was done outside
+  our shop. (c) Upload only, no rendering. *Recommended: (a), with (b)'s upload offered but not
+  required* — FleetPal is the maintenance record 396.9(d)(2) asks for; a vendor invoice image is
+  evidence a person may add.
+- **Q-IC13 — Who certifies, and is the signed report returned to the state? (opened 2026-10-15,
+  owner's call).** 396.9(d)(3)(i) needs a carrier official's signature, title and date on the form;
+  (ii) needs the form returned only "if requested by the issuing State agency", and a copy kept 12
+  months in every case. Candidates: the `maintenance` section's managers certify the repair and the
+  `safety` section files the form; or `safety` does both. And: does the product produce the signed
+  form (the report image with the certification stamped and the signer recorded), or record that a
+  person signed the paper? *Recommended:* maintenance accepts the work order, safety certifies and
+  the product renders the certification page beside the report image; returning it stays a person's
+  act, recorded with the date sent.
+- **Q-IC14 — When does a work order count as THE repair? (opened 2026-10-15, measure first).** A truck
+  in for a violation may have an unrelated PM the same day. Candidate rule: same unit, opened on or
+  after the inspection date and within 15 days, ranked by VMRS component agreeing with the violation's
+  part/section (e.g. 393.75 tyres → VMRS 017) and by a FleetPal defect/issue raised from the
+  inspection. Proposed, never accepted automatically, until measured: after the units sync is live,
+  take the last year's 126 inspections with vehicle violations and count how many have exactly one
+  plausible work order. *Recommendation:* decide auto-accept only on that measurement.
 
 ---
 
@@ -784,3 +866,22 @@ about three merges.
     the signed PUT are decided once. `DocumentPreview` gains `downloadPath`, defaulting to the DQ file's.
   - Not built: the court-result task list (IC2 → IC4's next step), linking a court result to the
     violation it answers (IC4's disposition record), and the driver app's ticket intake (Q-IC4, owner).
+- **2026-10-15 — Audit: freshness, the driver's name, and the repair (D-IC13–15, IC10–12, Q-IC11–14).**
+  Measured on production the same day:
+  - **The feed is current.** All six datasets succeeded at 15:31 UTC, no failure in 7 days; our latest
+    inspection is 10/13, which is also the latest FMCSA has published for any carrier. Publication lag
+    over the last 180 days (`mcmis_add_date − insp_date`, 246 inspections): median **2** days, 90th
+    percentile **5**, worst 92 — so most inspections arrive with 10+ of 396.9(d)'s 15 days left.
+  - **Attribution (IC5):** every inspection of the last year is attributed; 625 total, 459 high, 85
+    low, 74 no assignment; 442 of 544 named Samsara drivers resolve to our roster. ~770 older
+    inspections still in the 25-an-hour backfill.
+  - **No driver name in FMCSA's data.** Every key of every payload in `fmcsa_raw_rows` was listed: no
+    name, licence or date of birth in any dataset. Hence D-IC13: the name comes from the report.
+  - **Vehicle violations:** 126 inspections in the last 365 days carry a Part 393/396 violation (36 in
+    the last 90 days, ~12 a month); 18 violation-unit rows were repaired at the scene.
+  - **FleetPal could not answer.** `fleetpal_units` was empty in production — the sweep never walked
+    `/v1/units/` (FLEETPAL-INTEGRATION-PLAN §8, 2026-10-15). Fixed on `claude/fleetpal-units-sweep`;
+    Q-IC14's measurement waits for it to reach production.
+  - **Uploads:** zero roadside documents in production yet; IC2's writer reaches production with the
+    next release.
+
