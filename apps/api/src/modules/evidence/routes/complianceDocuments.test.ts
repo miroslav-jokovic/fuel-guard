@@ -60,7 +60,10 @@ beforeEach(() => {
   });
 });
 
-async function send(method: "GET" | "POST", path: string, body?: unknown): Promise<{ status: number; body: any }> {
+/** What these routes answer: `{ ok, data }`, an `error`, or a download's `{ url, filename }`. */
+type Body = { ok?: boolean; data?: unknown; error?: { code: string; message?: string }; url?: string; filename?: string };
+
+async function send(method: "GET" | "POST", path: string, body?: unknown): Promise<{ status: number; body: Body }> {
   const app = express();
   app.use(express.json());
   app.use("/api/compliance", complianceRouter());
@@ -74,7 +77,7 @@ async function send(method: "GET" | "POST", path: string, body?: unknown): Promi
       headers: body === undefined ? {} : { "content-type": "application/json" },
       body: body === undefined ? undefined : JSON.stringify(body),
     });
-    return { status: res.status, body: await res.json() };
+    return { status: res.status, body: (await res.json()) as Body };
   } finally {
     await closeTestServer(server);
   }

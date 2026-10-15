@@ -19,6 +19,7 @@ import {
 } from "@silvicom/shared";
 import DocumentPreview from "@/components/DocumentPreview.vue";
 import FileDropzone from "@/components/ui/FileDropzone.vue";
+import QueryState from "@/components/ui/QueryState.vue";
 import { useSessionStore } from "@/stores/session";
 import { useToastStore } from "@/stores/toast";
 import { formatDateTime } from "@/lib/format";
@@ -42,7 +43,7 @@ const session = useSessionStore();
 const canFile = computed(() => session.can("safety"));
 const toast = useToastStore();
 
-const { data: documents, isLoading, isError, refetch } = useInspectionDocumentsQuery(id);
+const { data: documents, isLoading, isError, error, isFetching, refetch } = useInspectionDocumentsQuery(id);
 const upload = useUploadInspectionDocument(id);
 
 const kindText = (kind: string) => ROADSIDE_DOCUMENT_KIND_TEXT[kind as RoadsideDocumentKind] ?? kind;
@@ -76,21 +77,28 @@ const viewing = ref<DocumentRow | null>(null);
       The ticket, the court's result, or the officer's copy of the report. Each file is kept as uploaded; a wrong one is answered by filing the right one.
     </p>
 
-    <p v-if="isLoading && !documents" class="mt-4 text-sm text-ink-muted" data-test="documents-loading">Loading the documents…</p>
-    <p v-else-if="isError" class="mt-4 text-sm text-danger-700" role="alert" data-test="documents-error">
-      Could not load the documents.
-      <BaseButton variant="link" @click="refetch()">Try again</BaseButton>
-    </p>
-    <p v-else-if="!documents?.length" class="mt-4 text-sm text-ink-tertiary" data-test="documents-none">No documents filed for this inspection.</p>
-    <ul v-else class="mt-4 divide-y divide-edge text-sm" data-test="documents-list">
-      <li v-for="d in documents" :key="d.id" class="flex flex-wrap items-center justify-between gap-2 py-2" data-test="document">
-        <div>
-          <p class="font-medium text-ink">{{ kindText(d.kind) }}</p>
-          <p class="text-xs text-ink-muted">Filed {{ formatDateTime(d.createdAt) }}</p>
-        </div>
-        <BaseButton variant="link" data-test="document-view" @click="viewing = d">View</BaseButton>
-      </li>
-    </ul>
+    <div class="mt-4" data-test="documents-state">
+      <QueryState
+        compact
+        :loading="isLoading && !documents"
+        :error="isError ? error : null"
+        :retrying="isFetching"
+        loading-text="Loading the documents…"
+        error-text="Could not load the documents."
+        @retry="refetch()"
+      >
+        <p v-if="!documents?.length" class="text-sm text-ink-tertiary" data-test="documents-none">No documents filed for this inspection.</p>
+        <ul v-else class="divide-y divide-edge text-sm" data-test="documents-list">
+          <li v-for="d in documents" :key="d.id" class="flex flex-wrap items-center justify-between gap-2 py-2" data-test="document">
+            <div>
+              <p class="font-medium text-ink">{{ kindText(d.kind) }}</p>
+              <p class="text-xs text-ink-muted">Filed {{ formatDateTime(d.createdAt) }}</p>
+            </div>
+            <BaseButton variant="link" data-test="document-view" @click="viewing = d">View</BaseButton>
+          </li>
+        </ul>
+      </QueryState>
+    </div>
 
     <div v-if="canFile" class="mt-5 space-y-4 border-t border-edge pt-5" data-test="documents-upload">
       <FileDropzone

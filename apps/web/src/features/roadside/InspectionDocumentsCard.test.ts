@@ -22,7 +22,7 @@ const isError = ref(false);
 let canManage = true;
 const toast = { success: vi.fn(), error: vi.fn() };
 vi.mock("./useRoadsideInspections", () => ({
-  useInspectionDocumentsQuery: () => ({ data: docs, isLoading: ref(false), isError, refetch: vi.fn() }),
+  useInspectionDocumentsQuery: () => ({ data: docs, isLoading: ref(false), isError, error: ref(new Error("boom")), isFetching: ref(false), refetch: vi.fn() }),
   useUploadInspectionDocument: () => ({ mutateAsync, isPending: ref(false) }),
 }));
 vi.mock("@/stores/session", () => ({ useSessionStore: () => ({ can: (s: string) => s === "safety" && canManage }) }));
@@ -72,7 +72,9 @@ describe("the list", () => {
   it("says when nothing is filed, and when the list could not be read", async () => {
     expect((await card()).find("[data-test='documents-none']").exists()).toBe(true);
     isError.value = true;
-    expect((await card()).get("[data-test='documents-error']").text()).toContain("Could not load the documents.");
+    const failed = await card();
+    expect(failed.get("[data-test='documents-state'] [role='alert']").text()).toContain("Could not load the documents.");
+    expect(failed.find("[data-test='documents-none']").exists()).toBe(false);
   });
 });
 

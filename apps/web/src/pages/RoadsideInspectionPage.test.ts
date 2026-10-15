@@ -37,7 +37,7 @@ vi.mock("@/features/roadside/useRoadsideInspections", async () => {
     AttributionDecisionError: class extends Error {},
     useInspectionDocumentsQuery: (id: Ref<string>) => {
       watchEffect(() => (documentsAskedId.value = id.value));
-      return { data: r([]), isLoading: r(false), isError: r(false), refetch: vi.fn() };
+      return { data: r([]), isLoading: r(false), isError: r(false), error: r(null), isFetching: r(false), refetch: vi.fn() };
     },
     useUploadInspectionDocument: () => ({ mutateAsync: vi.fn(), isPending: r(false) }),
   };
