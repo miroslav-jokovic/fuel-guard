@@ -204,14 +204,46 @@ export const shippingDocumentSchema = z.object({
    */
   freight: z
     .object({
-      pieces: int(),
-      pallets: int(),
+      /**
+       * The two counts, as TOTALS the paper prints — never worked out. Measured 2026-10-15 on the ten office
+       * BOLs (profile 1.3.0), the second reader filled `pieces` on four papers that print no piece total:
+       * 0132900 (35 = its rows 6 + 24 + 5), 0136043 (10, its one line), 0134527 (10 = 5 + 5, while it missed
+       * the printed "Pallet count: 0"); and the readers filed 0133809's "Number of Totes/Pallets … 15" one as
+       * pieces, one as pallets. A worked-out total is the rows again, so the arithmetic witness would confirm
+       * the rows against themselves. One printed total, one field: a total that counts both goes in `pieces`.
+       * A paper with ONE line has no separate total, and the two readers split on it under "never add up"
+       * (Sonnet 4.6 copied the line, Sonnet 5.5 left it blank, on three papers in two runs) — so that case is
+       * named: the line's count and weight ARE the load's. The arithmetic witness gives such a paper no
+       * backing (arithmeticWitness.ts, one row), so the copy cannot confirm itself.
+       */
+      pieces: z
+        .number()
+        .int()
+        .nullable()
+        .default(null)
+        .describe(
+          "The total number of pieces or packages printed as a TOTAL for the load (TOTAL PIECES, TOTAL PKGS, a count " +
+            "on a total line). On a paper with one line, that line's count. Otherwise null when no total is printed — " +
+            "never add up the lines yourself.",
+        ),
+      pallets: z
+        .number()
+        .int()
+        .nullable()
+        .default(null)
+        .describe(
+          "The number of pallets or skids printed as such (PALLET COUNT, NO. PALLETS), 0 when the paper prints 0. A total " +
+            "labelled for packages and pallets together goes in pieces, not here.",
+        ),
       /** The printed load total with its own unit — never converted here (plan §6: "never converted silently"). */
       weight: z
         .number()
         .nullable()
         .default(null)
-        .describe("The paper's total or gross weight of the whole load (TOTAL WEIGHT, GROSS, the weight total), pallets included."),
+        .describe(
+          "The paper's total or gross weight of the whole load, pallets included: TOTAL WEIGHT, GROSS, or the figure " +
+            "printed under the weight column as its total even with no label. On a paper with one line, that line's weight.",
+        ),
       weightUnit: z.enum(["lb", "kg"]).nullable().default(null),
       netWeight: z
         .number()
@@ -306,7 +338,7 @@ export function emptyShippingDocument(): ShippingDocument {
 }
 
 /** Bumped on any change to the schema above; stored on every read and in the cache key (§4.6). */
-export const SHIPPING_DOCUMENT_PROFILE_VERSION = "1.3.0";
+export const SHIPPING_DOCUMENT_PROFILE_VERSION = "1.4.0";
 
 // ── read sections (Q-DR11, ruled 2026-10-09) ───────────────────────────────────────────────────────
 /**

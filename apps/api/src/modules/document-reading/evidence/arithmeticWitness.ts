@@ -24,6 +24,11 @@ import { valuesAgree, type ShippingDocument } from "@silvicom/shared";
  *   - ONLY AGREED TOTALS PICK. A total the readers read differently backs no reading (0135071's tare: 1,050
  *     by one reader, nothing by the other). And it cannot make a flag either: rows are said not to fit only
  *     when they fit neither reader's totals, so a dispute widens what is acceptable and never adds a doubt.
+ *   - ONE ROW BACKS NOTHING. On a paper with one line the total IS that line — the profile tells the readers to
+ *     copy it (shippingDocumentContract.ts, 1.4.0) — so a "match" is the number agreeing with itself. Measured
+ *     2026-10-15: under 1.3.0 five of the ten office BOLs were "backed" this way (0133459, 0134322, 0135006,
+ *     0135964, 0136043). A single row is still FLAGGED when it cannot fit the totals: that is a real second
+ *     printed number disagreeing, as when a paper prints 650 lb on its line and 6,500 as its total.
  *   - COUNTS ONLY CONFIRM. "Pieces" is packages on one form (0135071: 832 = its rows) and handling units on
  *     another (0134831: 99 = 79 packages + 20 pallets), so a count that adds to nothing proves nothing.
  *
@@ -96,8 +101,12 @@ function combinations(options: number[][]): number[][] | null {
 
 const distinct = (vs: number[]): number[] => vs.filter((v, i) => vs.findIndex((w) => valuesAgree(w, v)) === i);
 
-/** The paths each closing combination agrees on: a row's value when every closing combination gives it. */
+/**
+ * The paths each closing combination agrees on: a row's value when every closing combination gives it. Nothing
+ * for a single loaded row — its total is itself (ONE ROW BACKS NOTHING, above).
+ */
 function record(paths: string[], closing: number[][], out: Map<string, number | null>) {
+  if (paths.length < 2) return;
   paths.forEach((path, i) => {
     const vals = distinct(closing.map((c) => c[i]!));
     if (vals.length === 1) out.set(path, vals[0] === 0 ? null : vals[0]!);
