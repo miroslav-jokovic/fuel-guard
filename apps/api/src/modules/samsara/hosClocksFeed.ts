@@ -2,8 +2,15 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { parseHosClockReadings } from "@silvicom/shared";
 import type { Env } from "../../env.js";
 import { loadSamsaraToken } from "./lib/samsaraToken.js";
-import { makeSamsaraHosClocksFetcher, type SamsaraHosClocksFetcher } from "./lib/samsara.js";
-import { NoSamsaraTokenError } from "./samsaraVehicleSync.js";
+import {
+  makeSamsaraHosClocksFetcher,
+  makeSamsaraGpsSnapshotFetcher,
+  type SamsaraHosClocksFetcher,
+  type SamsaraGpsSnapshotFetcher,
+  type SamsaraAssignmentFetcher,
+} from "./lib/samsara.js";
+import { NoSamsaraTokenError, syncDriverSeatsFromSamsara } from "./samsaraVehicleSync.js";
+import { syncHosCurrentStatus } from "./hosSync.js";
 import { orgsToSync, startTier } from "./lib/tierRunner.js";
 
 /**
@@ -19,9 +26,11 @@ import { orgsToSync, startTier } from "./lib/tierRunner.js";
  *
  * ── NOT IN THE JOBS LEDGER, AND KEPT TINY ────────────────────────────────────────────────────────
  * The positions tier's reasoning: a ledger row for every five-minute poll is 288 rows a day per org to
- * record that a poll ran, and the freshness signal is the data's own `fetched_at`. And this does no
- * per-row work in JavaScript beyond one parse — the 2026-10-06 incident (`sync_hos` froze the API for
- * five minutes every six hours) was a per-row loop on the request process, and this tier runs there too.
+ * record that a poll ran, and the freshness signal is the data's own `fetched_at`. And it stays light in
+ * JavaScript — the 2026-10-06 incident (`sync_hos` froze the API for five minutes every six hours) was a
+ * SYNCHRONOUS per-row loop on the request process, and this tier runs there too. Since 2026-10-15 it
+ * also writes drivers and seats (`syncHosClocksAndSeats`, below): awaited I/O, one row per driver who
+ * actually moved, and a pure seat plan over ~1,700 assignment rows — nothing that holds the event loop.
  *
  * ── REPLACE THE SET ──────────────────────────────────────────────────────────────────────────────
  * The poll writes every driver Samsara returned, stamped with one `fetched_at`, then deletes the org's
@@ -79,6 +88,41 @@ export async function syncHosClocks(
 }
 
 /**
+ * ── THE SAME FETCH ALSO SAYS WHO IS IN WHICH TRUCK, SO IT WRITES THAT TOO (2026-10-15) ────────────
+ * `/fleet/hos/clocks` carries each driver's duty status and current truck. This tier fetched it every
+ * five minutes for the board while `drivers.current_hos_status` / `current_hos_vehicle` — what the
+ * Drivers page and the board's driver column read — were stamped from the SAME endpoint only inside
+ * the six-hour driver-scores tier, behind a 41-minute idle run. Measured that day: Damar Ousley moved
+ * 771 → 817 at 17:32Z; Samsara knew, McLeod's loads knew, and every one of 167 drivers on our side was
+ * still as of 16:02Z. So the one response is handed to both writers, and the truck's own driver slot
+ * (`vehicles.assigned_driver_id`, 12-hourly with identity until now) gets the seats-only pass beside it.
+ *
+ * Each step stands alone: a failed status or seat pass is logged and does not undo the clocks.
+ */
+export async function syncHosClocksAndSeats(
+  admin: SupabaseClient,
+  env: Env,
+  orgId: string,
+  opts: { clocksFetcher?: SamsaraHosClocksFetcher; gpsFetcher?: SamsaraGpsSnapshotFetcher; assignmentFetcher?: SamsaraAssignmentFetcher } = {},
+): Promise<HosClocksResult & { statusDrivers: number; seated: number }> {
+  const token = opts.clocksFetcher ? "test" : await loadSamsaraToken(admin, env, orgId);
+  if (!token) throw new NoSamsaraTokenError();
+  const raw = await (opts.clocksFetcher ?? makeSamsaraHosClocksFetcher(env, token))();
+  const once: SamsaraHosClocksFetcher = async () => raw;
+  const clocks = await syncHosClocks(admin, env, orgId, { clocksFetcher: once });
+
+  let statusDrivers = 0;
+  try {
+    const gpsFetcher = opts.gpsFetcher ?? makeSamsaraGpsSnapshotFetcher(env, token);
+    statusDrivers = (await syncHosCurrentStatus(admin, env, orgId, { clocksFetcher: once, gpsFetcher })).drivers;
+  } catch (e) {
+    console.error(`[samsara-sched] driver status failed for org ${orgId}:`, e instanceof Error ? e.message : e);
+  }
+  const seated = await syncDriverSeatsFromSamsara(admin, env, orgId, opts.assignmentFetcher); // best-effort inside
+  return { ...clocks, statusDrivers, seated };
+}
+
+/**
  * Started by `startSamsaraScheduler`. First tick at five minutes: the deploy window
  * (docs/MIGRATION-DISCIPLINE.md §the-deploy-window) can serve this code before 0450 exists, and a
  * tick inside it simply fails and is repeated by the next one.
@@ -87,7 +131,7 @@ export function startHosClocksTier(env: Env): void {
   startTier(env, "hos-clocks", 300_000, env.SAMSARA_HOS_CLOCKS_SYNC_MINUTES * 60_000, async (admin) => {
     for (const orgId of await orgsToSync(admin, env)) {
       try {
-        await syncHosClocks(admin, env, orgId);
+        await syncHosClocksAndSeats(admin, env, orgId);
       } catch (e) {
         if (e instanceof NoSamsaraTokenError) continue; // an unconfigured org is not a failure
         console.error(`[samsara-sched] hos-clocks failed for org ${orgId}:`, e instanceof Error ? e.message : e);

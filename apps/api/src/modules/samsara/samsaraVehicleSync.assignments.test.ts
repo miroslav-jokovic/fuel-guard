@@ -2,7 +2,7 @@
 // the production state of 2026-10-12, when 23 drivers were assigned to two trucks each.
 import { describe, it, expect } from "vitest";
 import { createSupabaseRecorder, expectOrgScoped } from "../../testing/supabaseRecorder.js";
-import { syncVehiclesFromSamsara } from "./samsaraVehicleSync.js";
+import { syncVehiclesFromSamsara, syncDriverSeatsFromSamsara } from "./samsaraVehicleSync.js";
 
 const ORG = "org-1";
 const noVehicles = async () => [];
@@ -205,5 +205,49 @@ describe("syncVehiclesFromSamsara — driver assignments", () => {
     expect(writes[0]!.ops).toContain("is"); // expects the seat still empty
     expect(driverWrites(rec)).toEqual([]); // the first seat was already right
     expectOrgScoped(rec, ORG);
+  });
+});
+
+describe("syncDriverSeatsFromSamsara — the five-minute seat pass (2026-10-15)", () => {
+  const seatsRun = (vehicles: unknown[], assignments: unknown[], drivers: unknown[] = ROSTER) => {
+    const rec = createSupabaseRecorder({
+      tables: { vehicles: { data: vehicles }, drivers: { data: drivers }, driver_vehicle_assignments: { data: [] } },
+    });
+    return { rec, done: syncDriverSeatsFromSamsara(rec.client, {} as never, ORG, async () => ({ data: assignments })) };
+  };
+
+  it("puts a driver on the truck they moved to this morning and takes them off the old one", async () => {
+    // Damar Ousley: 771 → 817 at 17:32Z, and our side said 771 until the next 12-hour identity run.
+    const { rec, done } = seatsRun(
+      [truck("771", "sv-771", "d-gromeo"), truck("817", "sv-817", null)],
+      [
+        { vehicle: { id: "sv-817" }, driver: { id: "s-gromeo" }, startTime: "2026-10-15T17:32:19Z" },
+        { vehicle: { id: "sv-771" }, driver: { id: "s-gromeo" }, startTime: "2026-10-15T11:02:00Z", endTime: "2026-10-15T15:01:00Z" },
+      ],
+    );
+    expect(await done).toBe(1);
+    expect(driverWrites(rec)).toEqual([
+      { driver: "d-gromeo", filters: { id: "817", org_id: ORG } },
+      { driver: null, filters: { id: "771", org_id: ORG, assigned_driver_id: "d-gromeo" } },
+    ]);
+    expectOrgScoped(rec, ORG);
+  });
+
+  it("leaves a team truck's second driver and the assignment history to the 30-day pass", async () => {
+    const team = [driver("d-feagin", "s-feagin"), driver("d-sital", "s-sital")];
+    const { rec, done } = seatsRun(
+      [{ ...truck("729", "sv-729", "d-feagin"), co_driver_id: null }],
+      // The same three rows the 30-day pass seats Sital from (test above) — so a teammate IS planned here.
+      [
+        { vehicle: { id: "sv-729" }, driver: { id: "s-feagin" }, startTime: "2026-09-15T15:22:00Z" },
+        { vehicle: { id: "sv-729" }, driver: { id: "s-sital" }, startTime: "2026-10-09T11:48:00Z" },
+        { vehicle: { id: "sv-729" }, driver: { id: "s-feagin" }, startTime: "2026-10-10T06:00:00Z" },
+      ],
+      team,
+    );
+    await done;
+    const coWrites = rec.forTable("vehicles").filter((q) => q.write?.method === "update" && "co_driver_id" in (q.write.payload as object));
+    expect(coWrites).toEqual([]);
+    expect(rec.forTable("driver_vehicle_assignments").filter((q) => q.write)).toEqual([]);
   });
 });

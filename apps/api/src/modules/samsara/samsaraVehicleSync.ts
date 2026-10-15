@@ -1,8 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
-  parseSamsaraVehicles,
-  parseVehicleStatsOdometer,
-  parseVehicleFuelPercents,
   parseDriverCurrentTrucks,
   planDriverSeats,
   parseAssignmentIntervals,
@@ -13,14 +10,13 @@ import type { Env } from "../../env.js";
 import { loadSamsaraToken } from "./lib/samsaraToken.js";
 import { isTmsRosterMaster } from "../mcleod/index.js";
 import {
-  makeSamsaraVehicleLister,
-  makeSamsaraOdometerFetcher,
   makeSamsaraAssignmentFetcher,
   type SamsaraVehicleLister,
   type SamsaraOdometerFetcher,
   type SamsaraAssignmentFetcher,
 } from "./lib/samsara.js";
 import { recordMove } from "./vehicleRecordMoved.js";
+import { fetchSamsaraVehicles, buildVehicleMaps, type ExistingRow } from "./lib/samsaraVehicleFetch.js";
 
 export interface VehicleSyncResult {
   total: number; // vehicles returned by Samsara
@@ -44,6 +40,9 @@ export interface VehicleSyncResult {
   /** Samsara records that moved to another of our trucks and were re-linked to it, as
    *  "<old unit> → <new unit>" (`vehicleRecordMoved.ts`: 603 → 819 on 2026-10-12). */
   movedRecords: string[];
+  /** Gateway swaps followed: a row moved off a record Samsara lists without a gateway, onto the record
+   *  that has one, as "<unit>: <old id> → <new id>" (705, 767, 787, 800 on 2026-10-15). */
+  followedSwaps: string[];
 }
 
 export class NoSamsaraTokenError extends Error {
@@ -51,53 +50,6 @@ export class NoSamsaraTokenError extends Error {
     super("No Samsara API token configured for this organization");
     this.name = "NoSamsaraTokenError";
   }
-}
-
-interface ExistingRow {
-  id: string;
-  samsara_vehicle_id: string | null;
-  vin: string | null;
-  unit_number: string;
-  status: string | null;
-  samsara_missing_since: string | null;
-}
-
-/**
- * Pull the org's powered vehicles from Samsara and upsert them into `vehicles`. Matching precedence:
- * samsara_vehicle_id → VIN → unit number. On a match we refresh identity (make/model/year/plate/vin)
- * and stamp `samsara_vehicle_id`, but never clobber user-owned fields (unit_number, tank capacity,
- * baseline MPG, fuel type). New trucks are created with tank capacity 0 / no baseline and reported in
- * `needsCompletion` so the admin knows to finish them before those drive fuel/efficiency detection.
- */
-async function fetchSamsaraVehicles(
-  env: Env,
-  token: string,
-  listerOverride?: SamsaraVehicleLister,
-  odometerOverride?: SamsaraOdometerFetcher,
-): Promise<{ vehicles: SamsaraVehicle[]; odometerMiles: Map<string, number>; fuelByVehicle: Map<string, VehicleFuelLevel> }> {
-  const lister = listerOverride ?? makeSamsaraVehicleLister(env, token);
-  const raw = await lister();
-  const vehicles = parseSamsaraVehicles({ data: raw as { id?: string }[] });
-
-  let odometerMiles = new Map<string, number>();
-  let fuelByVehicle = new Map<string, VehicleFuelLevel>();
-  try {
-    const fetcher = odometerOverride ?? makeSamsaraOdometerFetcher(env, token);
-    const stats = (await fetcher()) as Parameters<typeof parseVehicleStatsOdometer>[0];
-    odometerMiles = parseVehicleStatsOdometer(stats);
-    fuelByVehicle = parseVehicleFuelPercents(stats);
-  } catch {
-    /* leave stats unset; not fatal */
-  }
-  return { vehicles, odometerMiles, fuelByVehicle };
-}
-
-function buildVehicleMaps(existing: ExistingRow[]) {
-  return {
-    bySamsara: new Map(existing.filter((r) => r.samsara_vehicle_id).map((r) => [r.samsara_vehicle_id!, r])),
-    byVin: new Map(existing.filter((r) => r.vin).map((r) => [r.vin!.toUpperCase(), r])),
-    byUnit: new Map(existing.map((r) => [r.unit_number, r])),
-  };
 }
 
 async function applyReplacementLifecycle(
@@ -147,7 +99,8 @@ async function upsertSamsaraVehicle(
   maps: ReturnType<typeof buildVehicleMaps>,
   linkOnly: boolean,
   liveIds: Set<string>,
-): Promise<{ kind: "created" | "updated" | "unlinked" | "held"; unit?: string; moved?: string }> {
+  reportingIds: Set<string>,
+): Promise<{ kind: "created" | "updated" | "unlinked" | "held"; unit?: string; moved?: string; swapped?: string }> {
   const identity = {
     make: sv.make,
     model: sv.model,
@@ -208,12 +161,19 @@ async function upsertSamsaraVehicle(
   // is reported instead. A row whose device Samsara no longer lists is fair game: that IS the swap
   // this fallback exists to follow.
   // (An id match always carries its own id, so only the two fallbacks can reach this.)
-  if (
-    match?.samsara_vehicle_id != null &&
-    match.samsara_vehicle_id !== sv.samsaraId &&
-    liveIds.has(match.samsara_vehicle_id)
-  ) {
-    return { kind: "held", unit: sv.name };
+  //
+  // ── ...UNLESS THE DEVICE STILL LISTED HAS NO GATEWAY AND THIS ONE HAS (2026-10-15) ──────────────
+  // "Still lists" turned out not to mean "still reports". Samsara never deletes a swapped-out record:
+  // it renames it `NNN - OLD` and removes its gateway. Measured 2026-10-15, units 705, 767, 787 and 800
+  // got new gateways on 10/14 and every one was held here against its own dead record, so the map
+  // showed them a day stale while Samsara had them moving. A record with a gateway may therefore take
+  // a row from a record without one. Never the reverse, and never between two gateway-less records:
+  // 568's `- SOLD` and `- OLD` both lack one, and letting either take the row from the other is the
+  // flip-flop this guard exists to stop.
+  const holder = match?.samsara_vehicle_id;
+  if (holder != null && holder !== sv.samsaraId && liveIds.has(holder)) {
+    const swap = sv.gatewaySerial != null && !reportingIds.has(holder);
+    if (!swap) return { kind: "held", unit: sv.name };
   }
   if (match) {
     // ── LINK-ONLY: the link and the MEASUREMENTS, never the identity (D-MR5) ─────────────────────
@@ -233,6 +193,14 @@ async function upsertSamsaraVehicle(
       ? withStats({ samsara_vehicle_id: sv.samsaraId })
       : withStats({ ...identity, samsara_vehicle_id: sv.samsaraId });
     await admin.from("vehicles").update(patch).eq("id", match.id).eq("org_id", orgId);
+    // A followed swap re-points the maps too, so the dead record — later in this same pass — finds the
+    // row held by a gateway and is reported, rather than matching by its stale id and taking it back.
+    if (holder != null && holder !== sv.samsaraId) {
+      maps.bySamsara.delete(holder);
+      maps.bySamsara.set(sv.samsaraId, match);
+      match.samsara_vehicle_id = sv.samsaraId;
+      return { kind: "updated", moved, swapped: `${match.unit_number}: ${holder} → ${sv.samsaraId}` };
+    }
     return { kind: "updated", moved };
   }
 
@@ -270,18 +238,33 @@ async function upsertSamsaraVehicle(
   return { kind: "created", unit };
 }
 
+/**
+ * The seat pass, in two depths. `full` — the identity tier's 30-day read — also keeps the assignment
+ * history (`driver_vehicle_assignments`) and a team truck's second driver. `seats` — every five
+ * minutes from the clocks tier — writes only who is in which truck.
+ *
+ * ── WHY THE FAST PASS LEAVES THE TEAMMATE AND THE HISTORY ALONE (2026-10-15) ────────────────────
+ * Replayed against production that day with the same roster: a 24-hour window planned exactly the
+ * seats and clears the 30-day window did (0 differences), in 7 s against 270 s. Seats depend only on
+ * each driver's LATEST start, and an assignment still open overlaps any window. A teammate does not:
+ * `parseDriverCurrentTrucks` asks whether they drove the truck since the holder FIRST did, which needs
+ * history — the 24-hour plan would have emptied 2 co-driver slots and even a 7-day one 1, and the
+ * 12-hour pass would put them back, forever. So the fast pass leaves `co_driver_id` to the pass that can
+ * see far enough back, and rewriting ~1,700 history rows every five minutes would buy nothing either.
+ */
 async function syncDriverAssignments(
   admin: SupabaseClient,
   env: Env,
   token: string,
   orgId: string,
   assignmentOverride?: SamsaraAssignmentFetcher,
+  depth: "full" | "seats" = "full",
 ): Promise<number> {
   try {
-    const fetcher = assignmentOverride ?? makeSamsaraAssignmentFetcher(env, token);
+    const fetcher = assignmentOverride ?? makeSamsaraAssignmentFetcher(env, token, depth === "seats" ? 24 : undefined);
     const rawAssign = (await fetcher()) as Parameters<typeof parseDriverCurrentTrucks>[0];
     const intervals = parseAssignmentIntervals(rawAssign);
-    if (intervals.length) {
+    if (intervals.length && depth === "full") {
       const now = new Date().toISOString();
       const arows = intervals.map((iv) => ({
         org_id: orgId,
@@ -333,7 +316,7 @@ async function syncDriverAssignments(
         .eq("assigned_driver_id", c.driverId);
     }
     // A team truck's second driver (0475), written the same way: each change names what it expects.
-    for (const m of plan.teammates) {
+    for (const m of depth === "full" ? plan.teammates : []) {
       const q = admin.from("vehicles").update({ co_driver_id: m.driverId }).eq("id", m.vehicleId).eq("org_id", orgId);
       await (m.expected === null ? q.is("co_driver_id", null) : q.eq("co_driver_id", m.expected));
     }
@@ -344,6 +327,25 @@ async function syncDriverAssignments(
   }
 }
 
+/** Who is in which truck now, from a 24-hour window — the clocks tier's five-minute seat pass. */
+export async function syncDriverSeatsFromSamsara(
+  admin: SupabaseClient,
+  env: Env,
+  orgId: string,
+  assignmentOverride?: SamsaraAssignmentFetcher,
+): Promise<number> {
+  const token = assignmentOverride ? "test" : await loadSamsaraToken(admin, env, orgId);
+  if (!token) throw new NoSamsaraTokenError();
+  return syncDriverAssignments(admin, env, token, orgId, assignmentOverride, "seats");
+}
+
+/**
+ * Pull the org's powered vehicles from Samsara and upsert them into `vehicles`. Matching precedence:
+ * samsara_vehicle_id → VIN → unit number. On a match we refresh identity (make/model/year/plate/vin)
+ * and stamp `samsara_vehicle_id`, but never clobber user-owned fields (unit_number, tank capacity,
+ * baseline MPG, fuel type). New trucks are created with tank capacity 0 / no baseline and reported in
+ * `needsCompletion` so the admin knows to finish them before those drive fuel/efficiency detection.
+ */
 export async function syncVehiclesFromSamsara(
   admin: SupabaseClient,
   env: Env,
@@ -388,6 +390,7 @@ export async function syncVehiclesFromSamsara(
   // writes NO identity at all rather than carving out an exception nothing in the data supports.
   const linkOnly = await isTmsRosterMaster(admin, orgId);
   const liveIds = new Set(vehicles.map((sv) => sv.samsaraId));
+  const reportingIds = new Set(vehicles.filter((sv) => sv.gatewaySerial != null).map((sv) => sv.samsaraId));
 
   const result: VehicleSyncResult = {
     total: vehicles.length,
@@ -403,10 +406,11 @@ export async function syncVehiclesFromSamsara(
     unlinked: linkOnly ? [] : undefined,
     heldByOtherDevice: [],
     movedRecords: [],
+    followedSwaps: [],
   };
 
   for (const sv of vehicles) {
-    const synced = await upsertSamsaraVehicle(admin, orgId, sv, odometerMiles, fuelByVehicle, maps, linkOnly, liveIds);
+    const synced = await upsertSamsaraVehicle(admin, orgId, sv, odometerMiles, fuelByVehicle, maps, linkOnly, liveIds, reportingIds);
     if (synced.kind === "held") {
       result.heldByOtherDevice.push(synced.unit!);
     } else if (synced.kind === "created") {
@@ -417,6 +421,7 @@ export async function syncVehiclesFromSamsara(
     } else {
       result.updated++;
       if (synced.moved) result.movedRecords.push(synced.moved);
+      if (synced.swapped) result.followedSwaps.push(synced.swapped);
     }
   }
 
@@ -426,6 +431,9 @@ export async function syncVehiclesFromSamsara(
   // sync's bad-fetch guard and the trailer sync's pairing pass report from.
   if (result.unlinked?.length) {
     console.warn(`[vehicle-sync] ${result.unlinked.length} Samsara vehicle(s) are not on the TMS fleet list: ${result.unlinked.join(", ")}`);
+  }
+  if (result.followedSwaps.length) {
+    console.warn(`[vehicle-sync] ${result.followedSwaps.length} gateway swap(s) followed: ${result.followedSwaps.join(", ")}`);
   }
   if (result.movedRecords.length) {
     console.warn(`[vehicle-sync] ${result.movedRecords.length} Samsara vehicle(s) moved to another truck and were re-linked: ${result.movedRecords.join(", ")}`);

@@ -60,9 +60,10 @@ export {
   parseSamsaraTrailers,
   parseTrailerAssignments,
   parseSamsaraDrivers,
-  parseSamsaraVehicles,
   locationDistanceMiles,
 } from "./entities.js";
+export { parseSamsaraVehicles } from "./vehicleRecords.js";
+export type { SamsaraVehicle } from "./vehicleRecords.js";
 export { parseDriverCurrentTrucks, planDriverSeats } from "./driverTrucks.js";
 export type { SeatTruck, SeatDriver, SeatPlan } from "./driverTrucks.js";
 export {
@@ -79,7 +80,6 @@ export type {
   RawIftaResponse,
 } from "./ifta.js";
 export type {
-  SamsaraVehicle,
   VehicleFuelLevel,
   VehicleGpsSnapshot,
   SamsaraDriver,

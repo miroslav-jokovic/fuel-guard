@@ -233,6 +233,29 @@ describe("syncHosCurrentStatus (clocks + GPS city)", () => {
     expect(res).toEqual({ drivers: 2, located: 0 });
     expect(rec.writtenRows("drivers")[0]).toMatchObject({ current_location: null });
   });
+
+  // Every five minutes since 2026-10-15 (the clocks tier): a row is rewritten only when it moved.
+  it("rewrites only a driver whose status, truck or city moved; stamps the rest in one statement", async () => {
+    const rec = createSupabaseRecorder({
+      tables: {
+        drivers: [
+          // Damar Ousley's morning: 771 → 817. Stored still says 771.
+          { id: "d1", samsara_driver_id: "op1", current_hos_status: "driving", current_hos_vehicle: "771", current_location: null },
+          // Parked, nothing changed since the last pass.
+          { id: "d2", samsara_driver_id: "op2", current_hos_status: "off_duty", current_hos_vehicle: null, current_location: null },
+        ],
+      },
+    });
+    const res = await syncHosCurrentStatus(rec.client, testEnv(), ORG, { clocksFetcher, gpsFetcher: async () => ({ data: [] }) });
+    expect(res).toEqual({ drivers: 2, located: 0 });
+    const writes = rec.forTable("drivers").filter((q) => q.write?.method === "update");
+    expect(writes).toHaveLength(2);
+    expect(writes[0]!.write!.payload).toMatchObject({ current_hos_vehicle: "556", current_hos_status: "driving" });
+    // The unchanged driver gets the freshness stamp alone — and only that.
+    expect(Object.keys(writes[1]!.write!.payload as object)).toEqual(["current_hos_at"]);
+    expect(writes[1]!.filters().find((f) => f.col === "id")!.val).toEqual(["d2"]);
+    expectOrgScoped(rec, ORG);
+  });
 });
 
 describe("syncHosDutySegments — diff-before-write + chunked fetch", () => {

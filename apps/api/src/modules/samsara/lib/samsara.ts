@@ -442,14 +442,15 @@ export function makeSamsaraDriverLister(env: Env, token: string): SamsaraDriverL
 /** Fetches current driver↔vehicle assignments (grouped by vehicle). */
 export type SamsaraAssignmentFetcher = () => Promise<{ data?: unknown[] }>;
 
-export function makeSamsaraAssignmentFetcher(env: Env, token: string): SamsaraAssignmentFetcher {
+export function makeSamsaraAssignmentFetcher(env: Env, token: string, lookbackHours = 30 * 24): SamsaraAssignmentFetcher {
   return async () => {
     // A window ending now (not a zero-width now→now, which can return nothing). Any assignment active
     // now overlaps this window; the shared parser keeps only those still active at "now".
-    // Look back 30 days (matches the idle window) so idle events can be attributed to the driver assigned at
-    // that time, and a truck idle for days still resolves to its last driver.
+    // Look back 30 days by default (matches the idle window) so idle events can be attributed to the
+    // driver assigned at that time, and a truck idle for days still resolves to its last driver. The
+    // five-minute seat pass asks for 24 hours instead — see `syncDriverSeatsFromSamsara`.
     const end = new Date();
-    const start = new Date(end.getTime() - 30 * 24 * 3_600_000);
+    const start = new Date(end.getTime() - lookbackHours * 3_600_000);
     const data = await listAllPages(env, token, "/fleet/driver-vehicle-assignments", {
       filterBy: "vehicles",
       startTime: start.toISOString(),
