@@ -19,7 +19,7 @@
  * *honest about which fills it is confident in* rather than to pretend to a key it does not have.
  *
  * ── THE CARD IS SIX DIGITS, NOT FOUR (D-FR6) ────────────────────────────────────────────────────
- * The statement prints the last SIX of the EFS PAN (`7083050030490367971` → `367971`). The old matcher
+ * The statement prints the last SIX of the EFS PAN (`7083050099040367971` → `367971`). The old matcher
  * used four. Measured on the same window, across the 171 cards actually in use:
  *
  *     39 last-4 groups collide, covering 121 of 171 cards (71%)

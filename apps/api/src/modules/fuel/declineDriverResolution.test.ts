@@ -14,8 +14,8 @@ import { testEnv } from "../../testing/testEnv.js";
 const ORG = "86d6b3ea-4361-4f71-877f-e8373615769b";
 const env = testEnv({ SECRETS_ENCRYPTION_KEY: Buffer.alloc(32, 7).toString("base64") });
 
-const PAN_A = "7083050030485867142";
-const PAN_B = "7083050013944594507";
+const PAN_A = "7083050099030867142";
+const PAN_B = "7083050099007594507";
 
 /** The update statements this service issued, as {ids, payload} — its whole observable effect. */
 const updatesTo = (rec: { forTable(t: string): RecordedQuery[] }, table: string) =>

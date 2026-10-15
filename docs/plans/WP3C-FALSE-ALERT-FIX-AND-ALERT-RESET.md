@@ -46,7 +46,7 @@ The existing test suite encoded this as correct behaviour, which is why it never
 
 ```ts
 it("full PAN matches its masked last-4 (cross-report)", () => {
-  expect(sameCardFill({ cardRef: "7083050030281917521", controlId: null },
+  expect(sameCardFill({ cardRef: "7083050099023917521", controlId: null },
                       { cardRef: "7521", controlId: "WCHRISTO" })).toBe(true);   // ← the bug
 });
 ```

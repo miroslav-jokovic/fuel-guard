@@ -1255,17 +1255,17 @@ describe("WP2 — explainCaseOutcome (every outcome is explainable, including cl
 describe("WP3b card_multi_vehicle (169-false-alarm regression suite)", () => {
   it("THE 169 CLASS: a LEARNED-assignment mismatch alone (count 1) NEVER fires — era changes and", () => {
     // slip-seat secondary trucks are not misuse; statistical inference can't raise an alarm by itself.
-    const c = ctx({ txn: txn({ cardRef: "7083050030281917521" }), cardVehicleCountInWindow: 1, cardAssignedVehicleId: "other-truck" });
+    const c = ctx({ txn: txn({ cardRef: "7083050099023917521" }), cardVehicleCountInWindow: 1, cardAssignedVehicleId: "other-truck" });
     expect(runAllRules(c).find((r) => r.ruleId === "card_multi_vehicle")).toBeUndefined();
   });
   it("a MANUAL (human-declared) assignment mismatch fires even as a single event", () => {
-    const c = ctx({ txn: txn({ cardRef: "7083050030281917521" }), cardVehicleCountInWindow: 1, cardManualAssignedVehicleId: "other-truck" });
+    const c = ctx({ txn: txn({ cardRef: "7083050099023917521" }), cardVehicleCountInWindow: 1, cardManualAssignedVehicleId: "other-truck" });
     const out = runAllRules(c).find((r) => r.ruleId === "card_multi_vehicle");
     expect(out).toBeTruthy();
     expect(out!.evidence.manualAssignedVehicleId).toBe("other-truck");
   });
   it("manual assignment matching the fill's truck stays silent", () => {
-    expect(ids(ctx({ txn: txn({ cardRef: "7083050030281917521" }), cardVehicleCountInWindow: 1, cardManualAssignedVehicleId: "v1" }))).not.toContain("card_multi_vehicle");
+    expect(ids(ctx({ txn: txn({ cardRef: "7083050099023917521" }), cardVehicleCountInWindow: 1, cardManualAssignedVehicleId: "v1" }))).not.toContain("card_multi_vehicle");
   });
   it("the classic ≥2-vehicles split-use signal still fires, enriched by the as-of assignment", () => {
     const out = runAllRules(ctx({ txn: txn({ cardRef: "93509" }), cardVehicleCountInWindow: 2, cardAssignedVehicleId: "other-truck" })).find((r) => r.ruleId === "card_multi_vehicle");
@@ -1298,7 +1298,7 @@ describe("WP3c card_multi_vehicle identifiability gate (masked-card false-alert 
     expect(runAllRules(c).find((r) => r.ruleId === "card_multi_vehicle")).toBeUndefined();
   });
   it("still fires normally once the card IS identifiable", () => {
-    const c = ctx({ txn: txn({ cardRef: "7083050030281917521" }), cardIdentifiable: true, cardVehicleCountInWindow: 3 });
+    const c = ctx({ txn: txn({ cardRef: "7083050099023917521" }), cardIdentifiable: true, cardVehicleCountInWindow: 3 });
     expect(ids(c)).toContain("card_multi_vehicle");
   });
 });

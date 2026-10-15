@@ -311,7 +311,7 @@ describe("ingestReport — transaction report", () => {
     const baseRow = {
       // Full (unmasked) card number: content identity requires a REAL card identity — a bare
       // truncated ref never matches (sameCardFill needs full=full, or last-4 + control id).
-      "Card #": "7083050013944594036", "Tran Date": "2026-06-29", "POS Time": "10:15:00", Invoice: "0801987714",
+      "Card #": "7083050099006594036", "Tran Date": "2026-06-29", "POS Time": "10:15:00", Invoice: "0801987714",
       Unit: "691", "Driver Name": "DONOVAN BOOTHE", Odometer: "293580",
       "Location Name": "PILOT JAMESTOWN 305", City: "JAMESTOWN", "State/ Prov": "NM", Fees: "0.0",
       Item: "ULSD", "Unit Price": "4.227", Qty: "141.7", Amt: "598.91", DB: "Y", Currency: "USD/Gallons",

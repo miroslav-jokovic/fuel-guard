@@ -46,7 +46,7 @@ const ROWS: Array<[string, string, string, string, string, boolean, string]> = [
 const declines = ROWS.map(([at, tail, unit, city, state, matched, desc], i) => ({
   row: {
     id: `decl-${String(i).padStart(2, "0")}`, org_id: ORG, vehicle_id: `veh-${unit}`, driver_id: null, driver_ext_id: null,
-    declined_at: at, card_ref: `70830500000003${tail}`, city, state, location_text: null, error_code: null, error_description: desc,
+    declined_at: at, card_ref: `70830500990023${tail}`, city, state, location_text: null, error_code: null, error_description: desc,
   },
   unit,
   matched,
@@ -97,7 +97,7 @@ describe("scoreDeclinedAttempt records card fraud incidents (CF2, chunk 5c)", ()
     await score(SOUTH_BEND_0016);
     expect(fraudWrites()).toHaveLength(1);
     expect(fraudWrites()[0]).toMatchObject({
-      p_org: ORG, p_card_key: "7083050000000327564", p_attempt_source: "decline", p_attempt_id: SOUTH_BEND_0016,
+      p_org: ORG, p_card_key: "7083050099002327564", p_attempt_source: "decline", p_attempt_id: SOUTH_BEND_0016,
       p_attempted_at: "2026-09-23T00:16:00.000Z", p_level: "escalated", p_step: "opened",
       p_last_truck: { at: "2026-09-23T00:10:00Z", city: "Memphis", state: "TN", milesToStation: 495.5 },
       p_places: [expect.objectContaining({ city: "SOUTH BEND", state: "IN" })],
@@ -107,7 +107,7 @@ describe("scoreDeclinedAttempt records card fraud incidents (CF2, chunk 5c)", ()
   });
 
   it("the scorer's corrective fill explains it (wrong_unit_number): nothing is recorded", async () => {
-    const corrective = { vehicle_id: "veh-other", driver_id: null, card_ref: "7083050000000327564", city: "SOUTH BEND", state: "IN", location_text: null, fueled_at: "2026-09-23T00:30:00Z" };
+    const corrective = { vehicle_id: "veh-other", driver_id: null, card_ref: "7083050099002327564", city: "SOUTH BEND", state: "IN", location_text: null, fueled_at: "2026-09-23T00:30:00Z" };
     const { rec, score, fraudWrites } = setup({ fills: [corrective] });
     await score(SOUTH_BEND_0016);
     const verdict = rec.writtenRows("declined_transactions")[0]!;

@@ -16,8 +16,8 @@ import type { PilotReportFill } from "./pilotFuelReport.js";
  * last six do not. So the PANs below share their last four on purpose.
  */
 
-const PAN_A = "7083050030490367971"; // last6 367971, last4 7971
-const PAN_B = "7083050030490317971"; // last6 317971, last4 7971  ← same last four, different truck
+const PAN_A = "7083050099040367971"; // last6 367971, last4 7971
+const PAN_B = "7083050099037317971"; // last6 317971, last4 7971  ← same last four, different truck
 
 const rf = (o: Partial<PilotReportFill> & { rowNumber: number }): PilotReportFill => ({
   authNo: "a1", unit: "701", cardRef: "367971", site: "436", city: "Amarillo", state: "TX",
@@ -226,7 +226,7 @@ describe("reconcileFuelReport", () => {
       [
         sf({ id: "s1", totalCost: 500 }),
         sf({ id: "s2", cardRef: PAN_B, gallons: 90, totalCost: 450 }),
-        sf({ id: "s3", cardRef: "7083050030490355555", gallons: 60, totalCost: 300, tranDate: "2026-08-21" }), // never billed
+        sf({ id: "s3", cardRef: "7083050099039355555", gallons: 60, totalCost: 300, tranDate: "2026-08-21" }), // never billed
       ],
     );
     const e = r.summary.exposure;
@@ -323,8 +323,8 @@ describe("reconcileFuelReport", () => {
       // Four planted defects. The two "missing" ones use cards belonging to no truck in the corpus and
       // sharing no last-four with it — otherwise the last-4 fallback finds them a partner, which is
       // realistic behaviour but makes a golden about something else.
-      const LONE_A = "7083050030490990123";
-      const LONE_B = "7083050030490990456";
+      const LONE_A = "7083050099044990123";
+      const LONE_B = "7083050099045990456";
       report.push(rf({ rowNumber: 9001, cardRef: LONE_A.slice(-6), gallons: 120, netAmount: 700, tranDate: "2026-08-19" })); // billed, never recorded
       system.push(sf({ id: "z001", cardRef: LONE_B, gallons: 111, totalCost: 560, tranDate: "2026-08-20" }));                // recorded, never billed
       // Row 5 is i=4, which the generator dated the 21st. One day earlier, and exactly one.

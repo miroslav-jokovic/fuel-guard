@@ -145,7 +145,7 @@ describe("paging a queue merged in memory", () => {
 describe("card-fraud incidents", () => {
   const EPOCH = "2026-10-08T15:28:02Z";
   const INCIDENT = {
-    id: "i-1", status: "open", disposition: null, card_ref: "7083050000000107967", opened_at: "2026-10-09T08:00:00Z",
+    id: "i-1", status: "open", disposition: null, card_ref: "7083050099001107967", opened_at: "2026-10-09T08:00:00Z",
     attempt_count: 2, fuel_taken: false, places: [{ city: "Jacksonville", state: "FL" }], assigned_to: null, vehicle_id: V1,
   };
 

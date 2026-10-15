@@ -148,7 +148,7 @@ const pagingEnv = testEnv({
 const postedPage = (n: number, tag: string): string =>
   soap(`<getMCTransExtLocV2Response><result>${Array.from({ length: n }, (_, i) =>
     `<value><transactionId>${tag}-${i}</transactionId><POSDate>2026-06-01T10:00:00Z</POSDate>` +
-    `<cardNumber>7083050030281917521</cardNumber><invoice>INV-${tag}-${i}</invoice>` +
+    `<cardNumber>7083050099023917521</cardNumber><invoice>INV-${tag}-${i}</invoice>` +
     `<lineItems><category>ULSD</category><quantity>50</quantity><ppu>3.5</ppu><amount>175</amount></lineItems>` +
     `</value>`).join("")}</result></getMCTransExtLocV2Response>`);
 

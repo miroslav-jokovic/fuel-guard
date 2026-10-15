@@ -203,7 +203,7 @@ ok("an attempt already in an older incident is refused as a duplicate",
   (await outcomeOf(write(ORG, southBend, latestSb, late))) === "duplicate");
 
 // ── 3. Two workers on one card ──────────────────────────────────────────────────────────────
-const card = "7083050000000399999";
+const card = "7083050099004399999";
 const veh = (await one(`insert into vehicles (org_id, unit_number, tank_capacity_gal) values ($1, '901', 150) returning id`, [ORG])).id;
 const tryAt = (at, o = {}) => ({
   id: crypto.randomUUID(), source: "decline", at, cardRef: card, vehicleId: veh, city: "GARY", state: "IN",

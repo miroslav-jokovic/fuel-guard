@@ -46,7 +46,7 @@
   "txn": {
    "id": "dcc0567d-59a3-42d2-9336-a195158684e1",
    "fueled_at": "2026-06-30T15:34:00+00:00",
-   "card_ref": "7083050030482807141",
+   "card_ref": "7083050099026807141",
    "control_id": null,
    "vehicle_id": "03fd65dd-144f-45df-a4c1-a96cf6e4224d",
    "gallons": 153.07,
@@ -104,7 +104,7 @@
   "txn": {
    "id": "1af9b1b4-1b49-4aea-bd72-0724c5f7bfa2",
    "fueled_at": "2026-06-30T09:02:00+00:00",
-   "card_ref": "7083050013944595561",
+   "card_ref": "7083050099010595561",
    "control_id": null,
    "vehicle_id": "6ac915ff-d7b3-499f-bfbe-bca7dcbdb081",
    "gallons": 159.04,
@@ -162,7 +162,7 @@
   "txn": {
    "id": "88b6408f-dc57-412d-bf8d-a860b5bf90d7",
    "fueled_at": "2026-07-01T13:08:00+00:00",
-   "card_ref": "7083050030490347973",
+   "card_ref": "7083050099038347973",
    "control_id": null,
    "vehicle_id": "0ddec2b9-f6a7-4e70-a929-a266b2552bff",
    "gallons": 149.77,
@@ -220,7 +220,7 @@
   "txn": {
    "id": "d936a388-cf31-46e6-afed-8fe23943b155",
    "fueled_at": "2026-07-01T08:30:00+00:00",
-   "card_ref": "7083050030092957559",
+   "card_ref": "7083050099015957559",
    "control_id": null,
    "vehicle_id": "4b09aa8e-4fe4-40eb-91fe-c5ab2f57a21e",
    "gallons": 93.56,
@@ -278,7 +278,7 @@
   "txn": {
    "id": "b4f09166-7848-4dad-8a02-f00897f18764",
    "fueled_at": "2026-07-01T16:32:00+00:00",
-   "card_ref": "7083050030093917552",
+   "card_ref": "7083050099016917552",
    "control_id": null,
    "vehicle_id": "dc0b2176-50e3-44bc-848f-6da84b5a8611",
    "gallons": 157.01,
@@ -335,7 +335,7 @@
   "txn": {
    "id": "fa20b193-021b-4fe4-ab69-07b141f21f27",
    "fueled_at": "2026-06-26T16:33:00+00:00",
-   "card_ref": "7083050030488827143",
+   "card_ref": "7083050099034827143",
    "control_id": null,
    "vehicle_id": "d044a433-87b9-4c74-a243-364b9157e18c",
    "gallons": 147.22,
@@ -377,7 +377,7 @@
   "txn": {
    "id": "585a80c6-a078-4ac3-8918-2fec4660636f",
    "fueled_at": "2026-06-25T18:26:00+00:00",
-   "card_ref": "7083050030495337979",
+   "card_ref": "7083050099053337979",
    "control_id": null,
    "vehicle_id": "69dd7bca-b268-457b-b1f6-1569fd77672e",
    "gallons": 144.98,
@@ -419,7 +419,7 @@
   "txn": {
    "id": "df33db74-fc57-43f6-9504-e2079bea8e0f",
    "fueled_at": "2026-06-26T19:27:00+00:00",
-   "card_ref": "7083050030495337979",
+   "card_ref": "7083050099053337979",
    "control_id": null,
    "vehicle_id": "69dd7bca-b268-457b-b1f6-1569fd77672e",
    "gallons": 113.55,
@@ -477,7 +477,7 @@
   "txn": {
    "id": "c4cafc40-82e6-47f1-a0da-479721ee8d7f",
    "fueled_at": "2026-07-01T12:34:00+00:00",
-   "card_ref": "7083050030494347961",
+   "card_ref": "7083050099050347961",
    "control_id": null,
    "vehicle_id": "6b8ffd00-ca68-4845-832a-9c8bd7ca9b3d",
    "gallons": 128.33,
@@ -512,7 +512,7 @@
   "txn": {
    "id": "6570e106-bcff-468c-828a-2e8d56ba9f03",
    "fueled_at": "2026-07-01T12:16:00+00:00",
-   "card_ref": "7083050030488867149",
+   "card_ref": "7083050099036867149",
    "control_id": null,
    "vehicle_id": "fa36abf9-37f0-49fb-87a9-8839fed3c24f",
    "gallons": 149.97,
@@ -570,7 +570,7 @@
   "txn": {
    "id": "742275b0-0cfa-4d52-af0e-230b40b63544",
    "fueled_at": "2026-06-30T08:36:00+00:00",
-   "card_ref": "7083050030098927564",
+   "card_ref": "7083050099020927564",
    "control_id": null,
    "vehicle_id": "554ae205-8bb1-46c7-9512-3e94c2029efc",
    "gallons": 127.28,
@@ -628,7 +628,7 @@
   "txn": {
    "id": "3e384765-2ef1-43d9-b632-5ae1918cbf4e",
    "fueled_at": "2026-07-01T12:24:00+00:00",
-   "card_ref": "7083050030494387967",
+   "card_ref": "7083050099051387967",
    "control_id": null,
    "vehicle_id": "de980762-3cd8-41b4-930e-536c5a0012f1",
    "gallons": 129.33,
@@ -686,7 +686,7 @@
   "txn": {
    "id": "42c9e420-bdc0-44ea-8911-d2a2e54d457f",
    "fueled_at": "2026-06-30T12:56:00+00:00",
-   "card_ref": "7083050030481807142",
+   "card_ref": "7083050099025807142",
    "control_id": null,
    "vehicle_id": "913f2a7d-e6b4-43da-b32b-da4ebc7ad5ac",
    "gallons": 97.35,
@@ -744,7 +744,7 @@
   "txn": {
    "id": "b87bbbf9-c9f3-4963-b7d5-90c40e22d2f9",
    "fueled_at": "2026-07-01T13:35:00+00:00",
-   "card_ref": "7083050030539233366",
+   "card_ref": "7083050099057233366",
    "control_id": null,
    "vehicle_id": "88c36645-1da2-4ac4-81bd-aa5bb7fbe587",
    "gallons": 153.02,
@@ -828,7 +828,7 @@
   "txn": {
    "id": "1ad2fb3d-d05d-4378-8d94-05da732cb3a8",
    "fueled_at": "2026-06-23T02:22:00+00:00",
-   "card_ref": "7083050030490397978",
+   "card_ref": "7083050099041397978",
    "control_id": null,
    "vehicle_id": "ddd6fcd9-39c0-439a-b426-1460044f1412",
    "gallons": 71.06,
@@ -912,7 +912,7 @@
   "txn": {
    "id": "80fa6e29-1b6b-4068-aa45-89a8557916f4",
    "fueled_at": "2026-06-24T12:52:00+00:00",
-   "card_ref": "7083050030493397967",
+   "card_ref": "7083050099049397967",
    "control_id": null,
    "vehicle_id": "ddd6fcd9-39c0-439a-b426-1460044f1412",
    "gallons": 114.5,
@@ -1046,7 +1046,7 @@
   "txn": {
    "id": "2b162c81-7e3d-456a-927f-4544f93a9916",
    "fueled_at": "2026-06-26T13:10:00+00:00",
-   "card_ref": "7083050030484817148",
+   "card_ref": "7083050099028817148",
    "control_id": null,
    "vehicle_id": "44e776b1-5895-4852-9799-a2e1961ea377",
    "gallons": 168.3,
@@ -1264,7 +1264,7 @@
   "txn": {
    "id": "466d7f5e-6fb1-45b3-ba33-3866ec2a0b6b",
    "fueled_at": "2026-07-16T22:22:00+00:00",
-   "card_ref": "7083050030493327964",
+   "card_ref": "7083050099047327964",
    "control_id": null,
    "vehicle_id": "f7b254af-1dde-411e-afd1-a14e4d64a96e",
    "gallons": 116.72,
@@ -1306,7 +1306,7 @@
   "txn": {
    "id": "e02c1b2e-9471-4a30-a309-6e6b7856dfc2",
    "fueled_at": "2026-07-16T22:05:00+00:00",
-   "card_ref": "7083050013944596585",
+   "card_ref": "7083050099011596585",
    "control_id": null,
    "vehicle_id": "95a33259-45fa-47ad-8188-969e76058ccc",
    "gallons": 137.32,
@@ -1356,7 +1356,7 @@
   "txn": {
    "id": "79cc580d-5cfe-4ab9-8cfb-24a35f23eb0c",
    "fueled_at": "2026-07-06T22:50:00+00:00",
-   "card_ref": "7083050030494397966",
+   "card_ref": "7083050099052397966",
    "control_id": null,
    "vehicle_id": "dd322d62-0496-4bac-a922-adcb68068c48",
    "gallons": 156.66,
@@ -1398,7 +1398,7 @@
   "txn": {
    "id": "4ce87a56-fd1c-4a87-bac2-ee8c3a51572b",
    "fueled_at": "2026-06-17T03:48:00+00:00",
-   "card_ref": "7083050030491307976",
+   "card_ref": "7083050099046307976",
    "control_id": null,
    "vehicle_id": "9d7b5ff1-e25f-439b-9494-760f0ebb9604",
    "gallons": 69.26,
@@ -1448,7 +1448,7 @@
   "txn": {
    "id": "314e4a05-5077-4a39-817f-4cbddee74609",
    "fueled_at": "2026-06-06T22:50:00+00:00",
-   "card_ref": "7083050030493377969",
+   "card_ref": "7083050099048377969",
    "control_id": null,
    "vehicle_id": "15697b85-66e7-412d-8003-5e613911cbf6",
    "gallons": 121.35,
@@ -1616,7 +1616,7 @@
   "txn": {
    "id": "fc792e05-1db2-41d1-8068-613d4d5ebbd2",
    "fueled_at": "2026-06-18T22:38:00+00:00",
-   "card_ref": "7083050030486887149",
+   "card_ref": "7083050099033887149",
    "control_id": null,
    "vehicle_id": "ee667acb-a291-4e69-a2a5-9252f921340e",
    "gallons": 139.7,
@@ -1756,7 +1756,7 @@
   "txn": {
    "id": "10429759-d07b-4304-8900-19ef8a5a8aa7",
    "fueled_at": "2026-07-17T08:38:00+00:00",
-   "card_ref": "7083050030098927564",
+   "card_ref": "7083050099020927564",
    "control_id": null,
    "vehicle_id": "554ae205-8bb1-46c7-9512-3e94c2029efc",
    "gallons": 113.45,
@@ -1806,7 +1806,7 @@
   "txn": {
    "id": "e2d1f7e1-3dee-4a5f-b507-849081276a28",
    "fueled_at": "2026-06-23T06:51:00+00:00",
-   "card_ref": "7083050030482807141",
+   "card_ref": "7083050099026807141",
    "control_id": null,
    "vehicle_id": "03fd65dd-144f-45df-a4c1-a96cf6e4224d",
    "gallons": 118.96,
@@ -1890,7 +1890,7 @@
   "txn": {
    "id": "bae7f06d-8fad-4753-b94f-931f6e15b6b9",
    "fueled_at": "2026-06-24T15:06:00+00:00",
-   "card_ref": "7083050030099937562",
+   "card_ref": "7083050099021937562",
    "control_id": null,
    "vehicle_id": "de57e742-22bd-4b93-887f-fb538fce4cf1",
    "gallons": 43.01,
@@ -1974,7 +1974,7 @@
   "txn": {
    "id": "1ae62741-1f74-44f7-9ea0-9dc829263ba7",
    "fueled_at": "2026-07-09T10:32:00+00:00",
-   "card_ref": "7083050030282997522",
+   "card_ref": "7083050099024997522",
    "control_id": null,
    "vehicle_id": "745c84ac-7e5c-4c22-9142-5ddb3db6c938",
    "gallons": 169.62,
@@ -2023,7 +2023,7 @@
   "txn": {
    "id": "70e67852-410e-4103-b9ba-60e294f4a239",
    "fueled_at": "2026-07-12T20:45:00+00:00",
-   "card_ref": "7083050013944596759",
+   "card_ref": "7083050099012596759",
    "control_id": null,
    "vehicle_id": "b174808b-8dc8-41db-a0aa-dbf378468882",
    "gallons": 166.79,
@@ -2065,7 +2065,7 @@
   "txn": {
    "id": "60f4ee47-38ef-466e-89fd-6303d679b107",
    "fueled_at": "2026-07-03T15:53:00+00:00",
-   "card_ref": "7083050030092917553",
+   "card_ref": "7083050099014917553",
    "control_id": null,
    "vehicle_id": "2442a481-1d34-466e-b62a-30f32a6871b3",
    "gallons": 74.18,
@@ -2149,7 +2149,7 @@
   "txn": {
    "id": "fe06b87b-f4d9-4822-95e2-3c875a777e79",
    "fueled_at": "2026-06-09T14:59:00+00:00",
-   "card_ref": "7083050030493377969",
+   "card_ref": "7083050099048377969",
    "control_id": null,
    "vehicle_id": "15697b85-66e7-412d-8003-5e613911cbf6",
    "gallons": 0.28,
@@ -2198,7 +2198,7 @@
   "txn": {
    "id": "bf7e7358-ac19-4510-b92c-4a7e3f7f5b02",
    "fueled_at": "2026-06-14T15:54:00+00:00",
-   "card_ref": "7083050030488857140",
+   "card_ref": "7083050099035857140",
    "control_id": null,
    "vehicle_id": "08d992d1-a44d-46fb-9f64-8b0c345f1325",
    "gallons": 173.54,
@@ -2684,7 +2684,7 @@
   "txn": {
    "id": "0b53fc88-4fa6-48b4-bb79-f9c59a8b4017",
    "fueled_at": "2026-06-01T23:32:00+00:00",
-   "card_ref": "7083050030493377969",
+   "card_ref": "7083050099048377969",
    "control_id": null,
    "vehicle_id": "15697b85-66e7-412d-8003-5e613911cbf6",
    "gallons": 91.36,
@@ -2776,7 +2776,7 @@
   "txn": {
    "id": "bd110804-b459-417a-9ee5-e1c58634ec1b",
    "fueled_at": "2026-06-23T22:41:00+00:00",
-   "card_ref": "7083050030093967557",
+   "card_ref": "7083050099017967557",
    "control_id": null,
    "vehicle_id": "28ec4b8e-4b81-4535-a9f7-36863c3fa85c",
    "gallons": 165.92,
@@ -2818,7 +2818,7 @@
   "txn": {
    "id": "1330f5ec-8bed-4a72-b3f8-99ef651f03ee",
    "fueled_at": "2026-06-19T13:23:00+00:00",
-   "card_ref": "7083050030482857146",
+   "card_ref": "7083050099027857146",
    "control_id": null,
    "vehicle_id": "73631f4b-cac4-45ea-84a7-8b19cbbcf821",
    "gallons": 140.1,
@@ -2875,7 +2875,7 @@
   "txn": {
    "id": "3a2d7c22-56fc-4fd4-9679-15ea1408a022",
    "fueled_at": "2026-06-17T17:54:00+00:00",
-   "card_ref": "7083050030486887149",
+   "card_ref": "7083050099033887149",
    "control_id": null,
    "vehicle_id": "ee667acb-a291-4e69-a2a5-9252f921340e",
    "gallons": 111.14,
@@ -3057,7 +3057,7 @@
   "txn": {
    "id": "1d6a2398-13df-4859-a4f6-92ee164e6487",
    "fueled_at": "2026-06-27T07:48:00+00:00",
-   "card_ref": "7083050030098927564",
+   "card_ref": "7083050099020927564",
    "control_id": null,
    "vehicle_id": "554ae205-8bb1-46c7-9512-3e94c2029efc",
    "gallons": 113.38,
@@ -3107,7 +3107,7 @@
   "txn": {
    "id": "8201dc2c-4af6-414c-8337-dbcaf39c7cf3",
    "fueled_at": "2026-06-28T11:12:00+00:00",
-   "card_ref": "7083050030486857142",
+   "card_ref": "7083050099032857142",
    "control_id": null,
    "vehicle_id": "c0aff724-e22b-4763-aecd-f9c5315bf84c",
    "gallons": 135.87,
@@ -3163,7 +3163,7 @@
   "txn": {
    "id": "50fa0bd5-20ec-4822-9bf7-67b9a8d5e943",
    "fueled_at": "2026-07-03T19:45:00+00:00",
-   "card_ref": "7083050030098927564",
+   "card_ref": "7083050099020927564",
    "control_id": null,
    "vehicle_id": "554ae205-8bb1-46c7-9512-3e94c2029efc",
    "gallons": 121.74,
@@ -3219,7 +3219,7 @@
   "txn": {
    "id": "69e1b351-04ce-41bd-9302-d103638386a0",
    "fueled_at": "2026-06-28T08:23:00+00:00",
-   "card_ref": "7083050030098927564",
+   "card_ref": "7083050099020927564",
    "control_id": null,
    "vehicle_id": "554ae205-8bb1-46c7-9512-3e94c2029efc",
    "gallons": 156.23,
@@ -3268,7 +3268,7 @@
   "txn": {
    "id": "9446593f-8271-4598-8c24-8ff8879fe595",
    "fueled_at": "2026-06-01T15:19:00+00:00",
-   "card_ref": "7083050030482807141",
+   "card_ref": "7083050099026807141",
    "control_id": null,
    "vehicle_id": "03fd65dd-144f-45df-a4c1-a96cf6e4224d",
    "gallons": 62.18,
@@ -3359,7 +3359,7 @@
   "txn": {
    "id": "3e591847-0abb-44ac-a97f-261c222d2d8b",
    "fueled_at": "2026-06-09T21:49:00+00:00",
-   "card_ref": "7083050013944596759",
+   "card_ref": "7083050099012596759",
    "control_id": null,
    "vehicle_id": "b174808b-8dc8-41db-a0aa-dbf378468882",
    "gallons": 161.43,
@@ -3409,7 +3409,7 @@
   "txn": {
    "id": "b122c8ab-5f49-4f8e-9f31-fc1d258396fa",
    "fueled_at": "2026-07-14T21:01:00+00:00",
-   "card_ref": "7083050030482857146",
+   "card_ref": "7083050099027857146",
    "control_id": null,
    "vehicle_id": "73631f4b-cac4-45ea-84a7-8b19cbbcf821",
    "gallons": 50.09,
@@ -3493,7 +3493,7 @@
   "txn": {
    "id": "1288badc-cee3-4104-b372-170b99ee3962",
    "fueled_at": "2026-06-02T22:54:00+00:00",
-   "card_ref": "7083050030493377969",
+   "card_ref": "7083050099048377969",
    "control_id": null,
    "vehicle_id": "15697b85-66e7-412d-8003-5e613911cbf6",
    "gallons": 75.25,
@@ -3592,7 +3592,7 @@
   "txn": {
    "id": "df2fe69c-bcd3-41a8-9b6a-f3afd855fbdc",
    "fueled_at": "2026-06-04T11:13:00+00:00",
-   "card_ref": "7083050030093967557",
+   "card_ref": "7083050099017967557",
    "control_id": null,
    "vehicle_id": "28ec4b8e-4b81-4535-a9f7-36863c3fa85c",
    "gallons": 88.47,
@@ -3886,7 +3886,7 @@
   "txn": {
    "id": "1234291b-3b19-4b4d-8a36-8b450dae4c25",
    "fueled_at": "2026-06-09T14:59:00+00:00",
-   "card_ref": "7083050030493377969",
+   "card_ref": "7083050099048377969",
    "control_id": null,
    "vehicle_id": "15697b85-66e7-412d-8003-5e613911cbf6",
    "gallons": 96.1,
@@ -4096,7 +4096,7 @@
   "txn": {
    "id": "188b499c-992d-4a4d-ad67-4833fef541d4",
    "fueled_at": "2026-07-20T00:18:00+00:00",
-   "card_ref": "7083050030484847145",
+   "card_ref": "7083050099029847145",
    "control_id": null,
    "vehicle_id": "ac877253-6894-4672-94bd-6a9f8a517971",
    "gallons": 97.07,
@@ -4272,7 +4272,7 @@
   "txn": {
    "id": "718ce81b-810b-4c5d-b1fa-63d1f49e103d",
    "fueled_at": "2026-07-18T17:51:00+00:00",
-   "card_ref": "7083050030484847145",
+   "card_ref": "7083050099029847145",
    "control_id": null,
    "vehicle_id": "ac877253-6894-4672-94bd-6a9f8a517971",
    "gallons": 141.73,
@@ -4623,7 +4623,7 @@
   "txn": {
    "id": "364f5d6d-6dbc-4214-ad44-fdd63423dc63",
    "fueled_at": "2026-06-13T21:13:00+00:00",
-   "card_ref": "7083050030495357977",
+   "card_ref": "7083050099054357977",
    "control_id": null,
    "vehicle_id": "b8b66f5e-0dab-4f3d-b5da-bbe435060a86",
    "gallons": 188.47,
@@ -4848,7 +4848,7 @@
   "txn": {
    "id": "61dba6d9-aa01-4db8-9efd-e83701ff3b55",
    "fueled_at": "2026-07-18T16:56:00+00:00",
-   "card_ref": "7083050030498377972",
+   "card_ref": "7083050099056377972",
    "control_id": null,
    "vehicle_id": "79f58d31-809a-4aee-8faf-fb8bdeb22309",
    "gallons": 122.64,
@@ -4890,7 +4890,7 @@
   "txn": {
    "id": "c77a4670-aeb6-4cad-9ca9-6c34813e8846",
    "fueled_at": "2026-07-15T23:12:00+00:00",
-   "card_ref": "7083050030498377972",
+   "card_ref": "7083050099056377972",
    "control_id": null,
    "vehicle_id": "79f58d31-809a-4aee-8faf-fb8bdeb22309",
    "gallons": 156.07,
@@ -4932,7 +4932,7 @@
   "txn": {
    "id": "7908383f-378c-4087-8a86-8f89f6055636",
    "fueled_at": "2026-07-13T18:36:00+00:00",
-   "card_ref": "7083050030498377972",
+   "card_ref": "7083050099056377972",
    "control_id": null,
    "vehicle_id": "79f58d31-809a-4aee-8faf-fb8bdeb22309",
    "gallons": 64.01,
@@ -4974,7 +4974,7 @@
   "txn": {
    "id": "30f1592d-2365-45c1-96f5-95ce28f214cb",
    "fueled_at": "2026-07-11T10:47:00+00:00",
-   "card_ref": "7083050030498377972",
+   "card_ref": "7083050099056377972",
    "control_id": null,
    "vehicle_id": "79f58d31-809a-4aee-8faf-fb8bdeb22309",
    "gallons": 136.54,
@@ -5016,7 +5016,7 @@
   "txn": {
    "id": "8f0c719c-22a6-4deb-bb1b-b8b6f88a4bba",
    "fueled_at": "2026-06-10T17:10:00+00:00",
-   "card_ref": "7083050030493377969",
+   "card_ref": "7083050099048377969",
    "control_id": null,
    "vehicle_id": "15697b85-66e7-412d-8003-5e613911cbf6",
    "gallons": 75.2,
@@ -5166,7 +5166,7 @@
   "txn": {
    "id": "7282c73d-61be-45b5-899e-541c4c83ce74",
    "fueled_at": "2026-06-05T12:29:00+00:00",
-   "card_ref": "7083050030493377969",
+   "card_ref": "7083050099048377969",
    "control_id": null,
    "vehicle_id": "15697b85-66e7-412d-8003-5e613911cbf6",
    "gallons": 78.75,
@@ -5208,7 +5208,7 @@
   "txn": {
    "id": "395243f4-e27f-4e73-975f-b6bff73f430b",
    "fueled_at": "2026-06-03T23:37:00+00:00",
-   "card_ref": "7083050030493377969",
+   "card_ref": "7083050099048377969",
    "control_id": null,
    "vehicle_id": "15697b85-66e7-412d-8003-5e613911cbf6",
    "gallons": 75.49,
@@ -5322,7 +5322,7 @@
   "txn": {
    "id": "f557924f-57e0-4a3d-86a7-a9feeb51f57f",
    "fueled_at": "2026-06-07T22:55:00+00:00",
-   "card_ref": "7083050030495357977",
+   "card_ref": "7083050099054357977",
    "control_id": null,
    "vehicle_id": "b8b66f5e-0dab-4f3d-b5da-bbe435060a86",
    "gallons": 66.18,
@@ -6306,7 +6306,7 @@
   "txn": {
    "id": "1a28de67-8c46-4ed0-8470-6308cb310957",
    "fueled_at": "2026-07-09T17:08:00+00:00",
-   "card_ref": "7083050030498377972",
+   "card_ref": "7083050099056377972",
    "control_id": null,
    "vehicle_id": "79f58d31-809a-4aee-8faf-fb8bdeb22309",
    "gallons": 162.45,
@@ -6390,7 +6390,7 @@
   "txn": {
    "id": "226e537a-baee-43a7-b387-25c2e3ff14a3",
    "fueled_at": "2026-06-13T01:39:00+00:00",
-   "card_ref": "7083050030493377969",
+   "card_ref": "7083050099048377969",
    "control_id": null,
    "vehicle_id": "894142d2-54f7-4a69-a22f-ddaf0d6dd575",
    "gallons": 151.58,
@@ -6432,7 +6432,7 @@
   "txn": {
    "id": "5120f0f4-554e-4dfd-b68a-e99550ef93a0",
    "fueled_at": "2026-06-14T03:37:00+00:00",
-   "card_ref": "7083050030493377969",
+   "card_ref": "7083050099048377969",
    "control_id": null,
    "vehicle_id": "894142d2-54f7-4a69-a22f-ddaf0d6dd575",
    "gallons": 129.38,
@@ -6474,7 +6474,7 @@
   "txn": {
    "id": "459a1f5d-885b-4619-af5f-6f5b6f53884d",
    "fueled_at": "2026-06-16T01:28:00+00:00",
-   "card_ref": "7083050030493377969",
+   "card_ref": "7083050099048377969",
    "control_id": null,
    "vehicle_id": "894142d2-54f7-4a69-a22f-ddaf0d6dd575",
    "gallons": 68.93,
@@ -6516,7 +6516,7 @@
   "txn": {
    "id": "def1091d-5d30-436b-ad33-f70e6ca2999c",
    "fueled_at": "2026-06-17T18:46:00+00:00",
-   "card_ref": "7083050030491307976",
+   "card_ref": "7083050099046307976",
    "control_id": null,
    "vehicle_id": "9d7b5ff1-e25f-439b-9494-760f0ebb9604",
    "gallons": 101.42,
@@ -6558,7 +6558,7 @@
   "txn": {
    "id": "7a0d9a97-0b3a-4b2c-9dad-34d5c72ee50b",
    "fueled_at": "2026-06-18T22:30:00+00:00",
-   "card_ref": "7083050030493377969",
+   "card_ref": "7083050099048377969",
    "control_id": null,
    "vehicle_id": "894142d2-54f7-4a69-a22f-ddaf0d6dd575",
    "gallons": 87.01,
@@ -6600,7 +6600,7 @@
   "txn": {
    "id": "ddabb69d-09c9-4981-a1cd-5b732c9ce782",
    "fueled_at": "2026-06-20T01:33:00+00:00",
-   "card_ref": "7083050030493377969",
+   "card_ref": "7083050099048377969",
    "control_id": null,
    "vehicle_id": "894142d2-54f7-4a69-a22f-ddaf0d6dd575",
    "gallons": 147.85,
@@ -6642,7 +6642,7 @@
   "txn": {
    "id": "25b1493f-8e0d-4a09-95e2-6f269c2e30f7",
    "fueled_at": "2026-06-17T02:35:00+00:00",
-   "card_ref": "7083050030493377969",
+   "card_ref": "7083050099048377969",
    "control_id": null,
    "vehicle_id": "894142d2-54f7-4a69-a22f-ddaf0d6dd575",
    "gallons": 78.84,
@@ -6768,7 +6768,7 @@
   "txn": {
    "id": "6abbcd9e-b6a5-4cea-85ef-938acf463728",
    "fueled_at": "2026-06-23T21:16:00+00:00",
-   "card_ref": "7083050030493377969",
+   "card_ref": "7083050099048377969",
    "control_id": null,
    "vehicle_id": "894142d2-54f7-4a69-a22f-ddaf0d6dd575",
    "gallons": 125.65,
@@ -6810,7 +6810,7 @@
   "txn": {
    "id": "836e359f-2fb6-4433-9793-cc753b6e72c6",
    "fueled_at": "2026-07-16T16:30:00+00:00",
-   "card_ref": "7083050030484847145",
+   "card_ref": "7083050099029847145",
    "control_id": null,
    "vehicle_id": "ac877253-6894-4672-94bd-6a9f8a517971",
    "gallons": 114.84,
@@ -6852,7 +6852,7 @@
   "txn": {
    "id": "4ae728fa-1d34-4297-bd85-ede6caaa53c5",
    "fueled_at": "2026-06-20T19:02:00+00:00",
-   "card_ref": "7083050030493377969",
+   "card_ref": "7083050099048377969",
    "control_id": null,
    "vehicle_id": "894142d2-54f7-4a69-a22f-ddaf0d6dd575",
    "gallons": 60.74,
@@ -6894,7 +6894,7 @@
   "txn": {
    "id": "5894d9c9-e7b9-4adc-9fba-70ea3a8f7265",
    "fueled_at": "2026-06-21T11:39:00+00:00",
-   "card_ref": "7083050030493397967",
+   "card_ref": "7083050099049397967",
    "control_id": null,
    "vehicle_id": "c0f7cc53-528b-4d93-93f7-b18ab5f13f22",
    "gallons": 115.96,
@@ -7230,7 +7230,7 @@
   "txn": {
    "id": "ca895762-b52f-4ba0-aeaa-40d7e2d8604e",
    "fueled_at": "2026-07-19T18:22:00+00:00",
-   "card_ref": "7083050013944596585",
+   "card_ref": "7083050099011596585",
    "control_id": null,
    "vehicle_id": "95a33259-45fa-47ad-8188-969e76058ccc",
    "gallons": 172.43,
@@ -7272,7 +7272,7 @@
   "txn": {
    "id": "ade93f8f-b4d7-4e5b-9df6-5515f9532a09",
    "fueled_at": "2026-06-03T12:28:00+00:00",
-   "card_ref": "7083050030098907566",
+   "card_ref": "7083050099019907566",
    "control_id": null,
    "vehicle_id": "bf1a9aec-4d5b-4549-954c-f3e4ba430aa6",
    "gallons": 146.18,
@@ -7406,7 +7406,7 @@
   "txn": {
    "id": "1b968bf6-7b0d-4cdc-8764-73e41b060a5b",
    "fueled_at": "2026-07-15T22:00:00+00:00",
-   "card_ref": "7083050030498317978",
+   "card_ref": "7083050099055317978",
    "control_id": null,
    "vehicle_id": "c0f7cc53-528b-4d93-93f7-b18ab5f13f22",
    "gallons": 171.04,
@@ -7448,7 +7448,7 @@
   "txn": {
    "id": "da9227a4-6bcc-4b69-a766-de1d13a8bb2e",
    "fueled_at": "2026-06-06T08:58:00+00:00",
-   "card_ref": "7083050030098907566",
+   "card_ref": "7083050099019907566",
    "control_id": null,
    "vehicle_id": "bf1a9aec-4d5b-4549-954c-f3e4ba430aa6",
    "gallons": 67.54,
@@ -7490,7 +7490,7 @@
   "txn": {
    "id": "ab0256bd-66ea-4200-b4f2-65d22462075b",
    "fueled_at": "2026-06-03T07:01:00+00:00",
-   "card_ref": "7083050030493397967",
+   "card_ref": "7083050099049397967",
    "control_id": null,
    "vehicle_id": "c0f7cc53-528b-4d93-93f7-b18ab5f13f22",
    "gallons": 38.96,
@@ -7532,7 +7532,7 @@
   "txn": {
    "id": "8abe5d52-a1be-4e65-bbf8-31a236900ba5",
    "fueled_at": "2026-06-02T08:11:00+00:00",
-   "card_ref": "7083050030493397967",
+   "card_ref": "7083050099049397967",
    "control_id": null,
    "vehicle_id": "c0f7cc53-528b-4d93-93f7-b18ab5f13f22",
    "gallons": 106.78,
@@ -7674,7 +7674,7 @@
   "txn": {
    "id": "59d95f92-d8fe-4c53-b9a1-d7531514d864",
    "fueled_at": "2026-07-18T15:06:00+00:00",
-   "card_ref": "7083050030498317978",
+   "card_ref": "7083050099055317978",
    "control_id": null,
    "vehicle_id": "c0f7cc53-528b-4d93-93f7-b18ab5f13f22",
    "gallons": 153.05,
@@ -7724,7 +7724,7 @@
   "txn": {
    "id": "c6ecd835-77da-4de3-a89e-63d996e336a3",
    "fueled_at": "2026-06-22T18:03:00+00:00",
-   "card_ref": "7083050030493397967",
+   "card_ref": "7083050099049397967",
    "control_id": null,
    "vehicle_id": "c0f7cc53-528b-4d93-93f7-b18ab5f13f22",
    "gallons": 143.16,
@@ -7766,7 +7766,7 @@
   "txn": {
    "id": "2bfe0c80-ec46-4980-ab03-496ea13fd01d",
    "fueled_at": "2026-06-18T17:41:00+00:00",
-   "card_ref": "7083050030493397967",
+   "card_ref": "7083050099049397967",
    "control_id": null,
    "vehicle_id": "c0f7cc53-528b-4d93-93f7-b18ab5f13f22",
    "gallons": 97.19,
@@ -7858,7 +7858,7 @@
   "txn": {
    "id": "0c27cbf6-ebd0-4b2e-b4d7-d10b388c4b79",
    "fueled_at": "2026-06-04T22:17:00+00:00",
-   "card_ref": "7083050030098907566",
+   "card_ref": "7083050099019907566",
    "control_id": null,
    "vehicle_id": "bf1a9aec-4d5b-4549-954c-f3e4ba430aa6",
    "gallons": 114.92,
@@ -7900,7 +7900,7 @@
   "txn": {
    "id": "26390ad8-9170-434b-8c9a-d746a749c9b5",
    "fueled_at": "2026-06-03T11:02:00+00:00",
-   "card_ref": "7083050030493397967",
+   "card_ref": "7083050099049397967",
    "control_id": null,
    "vehicle_id": "c0f7cc53-528b-4d93-93f7-b18ab5f13f22",
    "gallons": 63.72,
@@ -7984,7 +7984,7 @@
   "txn": {
    "id": "fcc955ed-3912-436b-954c-cc7233c6fe98",
    "fueled_at": "2026-06-09T13:14:00+00:00",
-   "card_ref": "7083050030493397967",
+   "card_ref": "7083050099049397967",
    "control_id": null,
    "vehicle_id": "c0f7cc53-528b-4d93-93f7-b18ab5f13f22",
    "gallons": 90.17,
@@ -8026,7 +8026,7 @@
   "txn": {
    "id": "38a6f671-c1d1-43a4-94da-efbcfb35c794",
    "fueled_at": "2026-06-17T15:02:00+00:00",
-   "card_ref": "7083050030493397967",
+   "card_ref": "7083050099049397967",
    "control_id": null,
    "vehicle_id": "c0f7cc53-528b-4d93-93f7-b18ab5f13f22",
    "gallons": 135.41,
@@ -8068,7 +8068,7 @@
   "txn": {
    "id": "42460fa1-0a90-4440-8a85-1530185cc4ad",
    "fueled_at": "2026-06-08T02:28:00+00:00",
-   "card_ref": "7083050030098907566",
+   "card_ref": "7083050099019907566",
    "control_id": null,
    "vehicle_id": "bf1a9aec-4d5b-4549-954c-f3e4ba430aa6",
    "gallons": 103.4,
@@ -8110,7 +8110,7 @@
   "txn": {
    "id": "631399ad-7bcf-40e8-98bb-a0051b79551f",
    "fueled_at": "2026-06-07T09:16:00+00:00",
-   "card_ref": "7083050030493397967",
+   "card_ref": "7083050099049397967",
    "control_id": null,
    "vehicle_id": "c0f7cc53-528b-4d93-93f7-b18ab5f13f22",
    "gallons": 74.65,
@@ -8152,7 +8152,7 @@
   "txn": {
    "id": "63e2b3b9-34a7-4e9f-9ae8-60d9f29bf21f",
    "fueled_at": "2026-06-05T10:32:00+00:00",
-   "card_ref": "7083050030493397967",
+   "card_ref": "7083050099049397967",
    "control_id": null,
    "vehicle_id": "c0f7cc53-528b-4d93-93f7-b18ab5f13f22",
    "gallons": 134.86,
@@ -8278,7 +8278,7 @@
   "txn": {
    "id": "9d1f831b-9b9c-4084-827f-b00a6f37f050",
    "fueled_at": "2026-06-08T08:35:00+00:00",
-   "card_ref": "7083050030493397967",
+   "card_ref": "7083050099049397967",
    "control_id": null,
    "vehicle_id": "c0f7cc53-528b-4d93-93f7-b18ab5f13f22",
    "gallons": 93.07,
@@ -8370,7 +8370,7 @@
   "txn": {
    "id": "8849e664-fa4a-404f-a6c7-100efd098555",
    "fueled_at": "2026-07-11T15:01:00+00:00",
-   "card_ref": "7083050030495357977",
+   "card_ref": "7083050099054357977",
    "control_id": null,
    "vehicle_id": "c0f7cc53-528b-4d93-93f7-b18ab5f13f22",
    "gallons": 164.16,
@@ -8714,7 +8714,7 @@
   "txn": {
    "id": "98f9d51b-fc07-4a12-873e-948fed08d875",
    "fueled_at": "2026-07-18T12:28:00+00:00",
-   "card_ref": "7083050030494397966",
+   "card_ref": "7083050099052397966",
    "control_id": null,
    "vehicle_id": "dd322d62-0496-4bac-a922-adcb68068c48",
    "gallons": 112.21,
@@ -8756,7 +8756,7 @@
   "txn": {
    "id": "dbda78a4-fa8a-4472-a476-ad1f6098d67d",
    "fueled_at": "2026-07-11T14:24:00+00:00",
-   "card_ref": "7083050030494397966",
+   "card_ref": "7083050099052397966",
    "control_id": null,
    "vehicle_id": "dd322d62-0496-4bac-a922-adcb68068c48",
    "gallons": 135.63,
@@ -8798,7 +8798,7 @@
   "txn": {
    "id": "2fc45692-0ec0-49c2-8ea0-e3483dd15ff4",
    "fueled_at": "2026-07-08T22:12:00+00:00",
-   "card_ref": "7083050030494397966",
+   "card_ref": "7083050099052397966",
    "control_id": null,
    "vehicle_id": "dd322d62-0496-4bac-a922-adcb68068c48",
    "gallons": 161.19,
@@ -8840,7 +8840,7 @@
   "txn": {
    "id": "19252fc3-04f0-45f9-8c80-bf1fe57c7bf8",
    "fueled_at": "2026-06-21T02:38:00+00:00",
-   "card_ref": "7083050030490397978",
+   "card_ref": "7083050099041397978",
    "control_id": null,
    "vehicle_id": "c496e8ea-25ea-41ac-9959-67f0253ea4ad",
    "gallons": 155.4,
@@ -8966,7 +8966,7 @@
   "txn": {
    "id": "66661332-333f-4dff-876a-1c11a578b3f6",
    "fueled_at": "2026-06-28T21:20:00+00:00",
-   "card_ref": "7083050030493397967",
+   "card_ref": "7083050099049397967",
    "control_id": null,
    "vehicle_id": "ddd6fcd9-39c0-439a-b426-1460044f1412",
    "gallons": 116.56,
@@ -9008,7 +9008,7 @@
   "txn": {
    "id": "b7b1a9c3-826f-4160-9099-1fbf427c74ff",
    "fueled_at": "2026-06-26T13:16:00+00:00",
-   "card_ref": "7083050030493397967",
+   "card_ref": "7083050099049397967",
    "control_id": null,
    "vehicle_id": "ddd6fcd9-39c0-439a-b426-1460044f1412",
    "gallons": 116.62,
@@ -9260,7 +9260,7 @@
   "txn": {
    "id": "04ef49cc-8ad8-464c-96be-6063e99bc15f",
    "fueled_at": "2026-07-11T11:43:00+00:00",
-   "card_ref": "7083050030493397967",
+   "card_ref": "7083050099049397967",
    "control_id": null,
    "vehicle_id": "ddd6fcd9-39c0-439a-b426-1460044f1412",
    "gallons": 84.49,
@@ -9302,7 +9302,7 @@
   "txn": {
    "id": "bc484541-354c-487e-98e3-1bd45bf32688",
    "fueled_at": "2026-06-30T18:24:00+00:00",
-   "card_ref": "7083050030493397967",
+   "card_ref": "7083050099049397967",
    "control_id": null,
    "vehicle_id": "ddd6fcd9-39c0-439a-b426-1460044f1412",
    "gallons": 118.76,
@@ -9470,7 +9470,7 @@
   "txn": {
    "id": "90c271d4-6de8-48ac-80c1-d7733be25bcd",
    "fueled_at": "2026-07-02T08:49:00+00:00",
-   "card_ref": "7083050030493397967",
+   "card_ref": "7083050099049397967",
    "control_id": null,
    "vehicle_id": "ddd6fcd9-39c0-439a-b426-1460044f1412",
    "gallons": 98.6,
@@ -9554,7 +9554,7 @@
   "txn": {
    "id": "e3b5d5ee-367a-4ad0-be78-209abc1c59ae",
    "fueled_at": "2026-07-03T13:30:00+00:00",
-   "card_ref": "7083050030493397967",
+   "card_ref": "7083050099049397967",
    "control_id": null,
    "vehicle_id": "ddd6fcd9-39c0-439a-b426-1460044f1412",
    "gallons": 95.53,
@@ -9646,7 +9646,7 @@
   "txn": {
    "id": "e0f27fb7-6909-4b18-bbfe-df8d76b6a76f",
    "fueled_at": "2026-07-05T15:31:00+00:00",
-   "card_ref": "7083050030493397967",
+   "card_ref": "7083050099049397967",
    "control_id": null,
    "vehicle_id": "ddd6fcd9-39c0-439a-b426-1460044f1412",
    "gallons": 86.51,
@@ -9864,7 +9864,7 @@
   "txn": {
    "id": "979674b3-6d3d-4a7b-a79d-195078a37e86",
    "fueled_at": "2026-07-06T18:05:00+00:00",
-   "card_ref": "7083050030493397967",
+   "card_ref": "7083050099049397967",
    "control_id": null,
    "vehicle_id": "ddd6fcd9-39c0-439a-b426-1460044f1412",
    "gallons": 104.92,
@@ -9914,7 +9914,7 @@
   "txn": {
    "id": "5596393f-6b53-480c-8a56-c1e0d6640f0c",
    "fueled_at": "2026-07-08T16:45:00+00:00",
-   "card_ref": "7083050030493397967",
+   "card_ref": "7083050099049397967",
    "control_id": null,
    "vehicle_id": "ddd6fcd9-39c0-439a-b426-1460044f1412",
    "gallons": 99.55,
@@ -9998,7 +9998,7 @@
   "txn": {
    "id": "e87c564e-85c0-4cbc-92e6-f35c70f30519",
    "fueled_at": "2026-07-09T16:38:00+00:00",
-   "card_ref": "7083050030493397967",
+   "card_ref": "7083050099049397967",
    "control_id": null,
    "vehicle_id": "ddd6fcd9-39c0-439a-b426-1460044f1412",
    "gallons": 76.14,
@@ -10292,7 +10292,7 @@
   "txn": {
    "id": "d82138a2-6fab-465e-9c2d-70ba75ad6ce9",
    "fueled_at": "2026-07-19T07:53:00+00:00",
-   "card_ref": "7083050030493327964",
+   "card_ref": "7083050099047327964",
    "control_id": null,
    "vehicle_id": "f7b254af-1dde-411e-afd1-a14e4d64a96e",
    "gallons": 55.58,
@@ -10334,7 +10334,7 @@
   "txn": {
    "id": "b49ffe0c-bab3-4c1f-843e-5fcdad8c5620",
    "fueled_at": "2026-07-18T13:58:00+00:00",
-   "card_ref": "7083050030493327964",
+   "card_ref": "7083050099047327964",
    "control_id": null,
    "vehicle_id": "f7b254af-1dde-411e-afd1-a14e4d64a96e",
    "gallons": 59.86,
@@ -10384,7 +10384,7 @@
   "txn": {
    "id": "0b62587b-32b1-4703-85c9-fe1032458f57",
    "fueled_at": "2026-07-15T22:34:00+00:00",
-   "card_ref": "7083050030493327964",
+   "card_ref": "7083050099047327964",
    "control_id": null,
    "vehicle_id": "f7b254af-1dde-411e-afd1-a14e4d64a96e",
    "gallons": 48.75,

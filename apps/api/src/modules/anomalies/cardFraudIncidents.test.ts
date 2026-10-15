@@ -11,7 +11,7 @@ import { recordCardFraud, recordFraudAttempt } from "./cardFraudIncidents.js";
 // 0438's contract, so these tests prove what the service does with each of its answers.
 
 const ORG = "org-real";
-const CARD = "7083050000000327564"; // card …27564, the South Bend card (CARD-FRAUD-ALERTS-PLAN.md §1)
+const CARD = "7083050099002327564"; // card …27564, the South Bend card (CARD-FRAUD-ALERTS-PLAN.md §1)
 
 const attempt = (id: string, at: string, over: Partial<FraudAttempt> = {}): FraudAttempt => ({
   id, source: "decline", at, cardRef: CARD, vehicleId: "veh-729", city: "SOUTH BEND", state: "IN",

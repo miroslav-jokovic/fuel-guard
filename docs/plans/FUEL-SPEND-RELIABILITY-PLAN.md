@@ -315,7 +315,7 @@ built (below) instead of waiting on a key nobody can measure yet.
 **Two F4 decisions already exist and were verified against all five real statements.** They belong to
 `FUEL-SPEND-RECONCILIATION-PLAN.md` §3 and WP6 shipped without either:
 - **D-FR6** — the statement's `Card Number` is the **last 6** of the EFS PAN
-  (`7083050030490367971` → `367971`), verified. The matcher uses `last4`. A strictly stronger,
+  (`7083050099040367971` → `367971`), verified. The matcher uses `last4`. A strictly stronger,
   collision-free key is available for free, with last-4 as a labelled weaker fallback.
 - **D-FR7** — drop the `tank_type = 'tractor'` filter and match **within product class**
   (`020→tractor`, `033→reefer`, `021→tractor`, `140→def`), the codes resolved empirically against

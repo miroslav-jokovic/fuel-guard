@@ -16,7 +16,7 @@ import { statementWords } from "./statementWords.fixture.js";
  */
 
 const ORG = "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d";
-const PAN = "7083050030490367971";
+const PAN = "7083050099040367971";
 
 /** The `All Transactions` sheet's real shape: metadata rows, then the header, then lines. */
 const grid = (rows: unknown[][] = []): unknown[][] => [
@@ -193,7 +193,7 @@ describe("runFuelReconciliation", () => {
   it("keeps six digits of a card number, never the full number our side holds", async () => {
     const rec = seed();
     await runFuelReconciliation(rec.client, ORG, "user-1", {
-      grid: grid([line(100, 500, 20, "Truck Diesel", "7083050030490367971")]),
+      grid: grid([line(100, 500, 20, "Truck Diesel", "7083050099040367971")]),
       pivotGrid: pivot(100),
     });
     const rows = rec.writtenRows("fuel_recon_run_rows")[0]!.rows as Array<{
