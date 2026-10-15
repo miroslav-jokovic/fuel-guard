@@ -32,6 +32,7 @@ vi.mock("@/lib/api", () => ({
 }));
 
 import BolReadPanel from "./BolReadPanel.vue";
+import { PENDING_READ_KEY } from "./bolReadPipeline";
 
 // A JPEG's leading bytes, then the name — the picker reads what a file IS from its bytes (bolFiles.ts `formatOf`).
 const photo = (name: string) => new File([new Uint8Array([0xff, 0xd8, 0xff, 0xe0]), name], name, { type: "image/jpeg", lastModified: 1 });
@@ -75,5 +76,30 @@ describe("BolReadPanel", () => {
     expect(w.get("[data-testid='bol-read']").text()).toBe("Read 1 page");
     await w.get("[data-testid='bol-file-0'] input[type='checkbox']").setValue(false);
     expect(w.get("[data-testid='bol-read']").attributes("disabled")).toBeDefined();
+  });
+
+  it("keeps a started read's id until it ends, and picks it up again after a reload with no files", async () => {
+    // Every write to the key, in order: the panel must set it once the server has the read and clear it at the end.
+    const store = new Map<string, string>();
+    const writes: (string | null)[] = [];
+    vi.stubGlobal("sessionStorage", {
+      getItem: (k: string) => store.get(k) ?? null,
+      setItem: (k: string, v: string) => { if (k === PENDING_READ_KEY) writes.push(v); store.set(k, v); },
+      removeItem: (k: string) => { if (k === PENDING_READ_KEY) writes.push(null); store.delete(k); },
+    });
+    store.set(PENDING_READ_KEY, "read-1");
+    const w = mount(BolReadPanel);
+    await vi.waitFor(() => expect(w.find("[data-testid='bol-outcome']").exists()).toBe(true));
+    expect(calls.map((c) => c.path)).toEqual(["/api/documents/reads/read-1"]);
+    expect(w.emitted("read")?.[0]?.[0]).toMatchObject({ id: "read-1" });
+    expect(writes).toEqual(["read-1", null]);
+
+    writes.length = 0;
+    w.findComponent(FileDropzone).vm.$emit("files", [photo("a.jpg")]);
+    await flushPromises();
+    await w.get("[data-testid='bol-read']").trigger("click");
+    await vi.waitFor(() => expect(w.emitted("read")).toHaveLength(2));
+    expect(writes).toEqual(["read-1", null]);
+    vi.unstubAllGlobals();
   });
 });

@@ -46,7 +46,30 @@ export interface ClassifyOutcome {
   outputTokens: number;
 }
 
-/** Classify `todo` — pages with no verdict yet — one model call each, writing each answer to the ledger. */
+/**
+ * How many pages are classified at once. One at a time cost a 13-page BOL 89 s of its 4 min 44 s (read
+ * 795bf4bc, 2026-10-15: ~7 s a page, back to back); eight at once is one round for any single file
+ * (INTAKE_LIMITS.maxPages is 10) and keeps a long assembly's burst well inside the classifier's rate limit.
+ */
+export const CLASSIFY_AT_ONCE = 8;
+
+type SentImage = Awaited<ReturnType<typeof sentCopyOf>>;
+
+/** The copy the classifier sees of a page, or null when its original is gone or no longer hashes (see above). */
+async function classifyCopyOf(admin: SupabaseClient, p: PageRef, limits: ReturnType<typeof sendLimitsFor>): Promise<SentImage | null> {
+  const { data: blob, error } = await admin.storage.from(DOCUMENT_BUCKET).download(p.original_path);
+  if (error || !blob) return null;
+  const png = Buffer.from(await blob.arrayBuffer());
+  if (createHash("sha256").update(png).digest("hex") !== p.original_sha256) return null;
+  return sentCopyOf(png, limits);
+}
+
+/**
+ * Classify `todo` — pages with no verdict yet — one model call each, `CLASSIFY_AT_ONCE` at a time, writing
+ * each answer to the ledger in page order. A transient failure of one call (429, 5xx) is rethrown for the
+ * queue's retry only after its siblings' answers are written: they were paid for, and the retry then asks
+ * only about the pages still without a verdict.
+ */
 export async function classifyPages(
   admin: SupabaseClient,
   orgId: string,
@@ -60,27 +83,33 @@ export async function classifyPages(
   // One page per request: the classifier judges each photo on its own, and a page is one image whatever
   // the assembly's length, so the standard limits for a single image apply.
   const limits = sendLimitsFor(model, 1);
-  for (const p of todo) {
-    const { data: blob, error } = await admin.storage.from(DOCUMENT_BUCKET).download(p.original_path);
-    if (error || !blob) continue;
-    const png = Buffer.from(await blob.arrayBuffer());
-    if (createHash("sha256").update(png).digest("hex") !== p.original_sha256) continue;
-    const sent = await sentCopyOf(png, limits);
-    const res = await classifyPage({ base64: sent.bytes.toString("base64"), mediaType: sent.mediaType }, model, client);
-    inputTokens += res.usage.input;
-    outputTokens += res.usage.output;
-    if (res.kind !== "ok") continue;
-    const { error: iErr } = await admin.from("document_page_classes").insert({
-      org_id: orgId,
-      page_id: p.id,
-      page_class: res.pageClass,
-      set_by: "classifier",
-      model: res.model,
-      prompt_version: CLASSIFY_PROMPT.version,
-      rotation: res.rotation,
-    });
-    if (iErr) throw new Error(`document_page_classes: ${iErr.message}`);
-    verdicts.set(p.id, { pageClass: res.pageClass, rotation: res.rotation });
+  for (let i = 0; i < todo.length; i += CLASSIFY_AT_ONCE) {
+    const batch = todo.slice(i, i + CLASSIFY_AT_ONCE);
+    const copies = await Promise.all(batch.map((p) => classifyCopyOf(admin, p, limits)));
+    const answers = await Promise.allSettled(copies.map((c) =>
+      c ? classifyPage({ base64: c.bytes.toString("base64"), mediaType: c.mediaType }, model, client) : Promise.resolve(null)));
+    let transient: unknown = null;
+    for (const [k, settled] of answers.entries()) {
+      if (settled.status === "rejected") { transient ??= settled.reason; continue; }
+      const res = settled.value;
+      if (!res) continue;
+      inputTokens += res.usage.input;
+      outputTokens += res.usage.output;
+      if (res.kind !== "ok") continue;
+      const p = batch[k]!;
+      const { error: iErr } = await admin.from("document_page_classes").insert({
+        org_id: orgId,
+        page_id: p.id,
+        page_class: res.pageClass,
+        set_by: "classifier",
+        model: res.model,
+        prompt_version: CLASSIFY_PROMPT.version,
+        rotation: res.rotation,
+      });
+      if (iErr) throw new Error(`document_page_classes: ${iErr.message}`);
+      verdicts.set(p.id, { pageClass: res.pageClass, rotation: res.rotation });
+    }
+    if (transient !== null) throw transient;
   }
   return { verdicts, inputTokens, outputTokens };
 }

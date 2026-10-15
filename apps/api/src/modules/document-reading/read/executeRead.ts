@@ -130,18 +130,19 @@ async function loadImages(
   rotationOf: (pageId: string) => PageRotation,
 ): Promise<{ images: PageImage[]; originals: PageForOcr[] } | "integrity_mismatch"> {
   const limits = sendLimitsFor(model, pages.length);
-  const images: PageImage[] = [];
-  const originals: PageForOcr[] = [];
-  for (const p of pages) {
+  // Every page at once: a 13-page assembly fetched one by one waited on 13 round trips to Storage.
+  const loaded = await Promise.all(pages.map(async (p) => {
     const { data: blob, error } = await admin.storage.from(DOCUMENT_BUCKET).download(p.original_path);
     // A missing object is a stored page that no longer matches what was received — the same failure.
-    if (error || !blob) return "integrity_mismatch";
+    if (error || !blob) return null;
     const png = Buffer.from(await blob.arrayBuffer());
-    if (createHash("sha256").update(png).digest("hex") !== p.original_sha256) return "integrity_mismatch";
+    if (createHash("sha256").update(png).digest("hex") !== p.original_sha256) return null;
     const sent = await sentCopyOf(png, limits, rotationOf(p.id));
-    images.push({ base64: sent.bytes.toString("base64"), mediaType: sent.mediaType });
-    originals.push({ originalPng: png, rotation: rotationOf(p.id) });
-  }
+    return { image: { base64: sent.bytes.toString("base64"), mediaType: sent.mediaType }, original: { originalPng: png, rotation: rotationOf(p.id) } };
+  }));
+  if (loaded.some((l) => l === null)) return "integrity_mismatch";
+  const images: PageImage[] = loaded.map((l) => l!.image);
+  const originals: PageForOcr[] = loaded.map((l) => l!.original);
   return { images, originals };
 }
 
@@ -281,12 +282,14 @@ export async function executeRead(admin: SupabaseClient, orgId: string, readId: 
   // The OCR witness (§7B A5) runs on its own thread while the models read; it costs no tokens, and its
   // failure is its absence, never the read's.
   const ocrRun = deps.ocr ? ocrPages(originals, deps.ocr).catch(() => null) : Promise.resolve(null);
-  // Pass A is the document; pass B is a second, independent witness to it (§7B A3). They run in turn, not
-  // in parallel: a refusal or failure of A ends the read before B is paid for.
-  const a = await read1(pins.A);
-  if (a.kind !== "ok") return fail(a.kind, spend(a.usage).input, spend(a.usage).output);
-  const b = await read1(pins.B);
+  // Pass A is the document; pass B is a second, independent witness to it (§7B A3). They are asked AT ONCE.
+  // Until 2026-10-15 they ran in turn so that a refusal of A ended the read before B was paid for; that
+  // saving is a rare refusal's tokens, and its price was every read's wait doubled — a 13-page BOL spent
+  // ~195 s of its 4 min 44 s on the two readers back to back (read 795bf4bc), past the screen's patience.
+  // The owner asked for fast (2026-10-15), so a failed A now costs B's tokens too, and they are counted.
+  const [a, b] = await Promise.all([read1(pins.A), read1(pins.B)]);
   const total = { input: spend(a.usage).input + b.usage.input, output: spend(a.usage).output + b.usage.output };
+  if (a.kind !== "ok") return fail(a.kind, total.input, total.output);
   // Pass B failing (refusal, truncation, off-schema) does not fail the read: its fields are one reader's.
   const text = textLayerPages(pages.map((p) => ({ textLayer: p.text_layer, rotation: rotationOf(p.id) })));
   const evidence = EVIDENCE_FOR[read.profile](a.document, b.kind === "ok" ? b.document : null, ACCEPTANCE_RULE_VERSION, await ocrRun, text);
