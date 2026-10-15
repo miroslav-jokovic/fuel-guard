@@ -230,6 +230,7 @@ export * from "./medstopTabs.js";
 export * from "./credentialSources.js";
 export * from "./medstopOrder.js";
 export * from "./medstopApplicant.js";
+export * from "./medstopConnection.js";
 export * from "./basemap.js";
 export * from "./livemap.js";
 export * from "./livemapContract.js";
