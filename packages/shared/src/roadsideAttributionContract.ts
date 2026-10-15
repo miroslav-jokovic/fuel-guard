@@ -60,8 +60,12 @@ export type AttributionBasis = (typeof ATTRIBUTION_BASES)[number];
 export const ATTRIBUTION_CONFIDENCES = ["high", "low"] as const;
 export type AttributionConfidence = (typeof ATTRIBUTION_CONFIDENCES)[number];
 
-/** The engine wrote it, or a person confirmed or corrected it (a correction is a new row, never an edit). */
-export const ATTRIBUTION_SOURCES = ["engine", "person"] as const;
+/**
+ * The engine wrote it, a person confirmed or corrected it (a correction is a new row, never an edit), or
+ * the officer's report confirmed it: its licence number, read alike by both readers, belongs to the roster
+ * driver Samsara put on the truck (0479, IC10, Q-IC11 (a)). A `report` row has no person behind it.
+ */
+export const ATTRIBUTION_SOURCES = ["engine", "person", "report"] as const;
 export type AttributionSource = (typeof ATTRIBUTION_SOURCES)[number];
 
 /** What a frozen snapshot holds (D-IC4). The plan's other kinds (EFS, credentials, documents) arrive with their rules. */
