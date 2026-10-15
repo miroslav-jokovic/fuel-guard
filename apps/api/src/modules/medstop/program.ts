@@ -73,14 +73,14 @@ export async function readDrugAlcoholProgram(
     readAll<EmployeeRow>((a, b) => admin.from("medstop_employees")
       .select("medstop_id, roster, first_name, last_name, birth_date, license_number, license_state, medical_expires_on, driver_id, match_rule")
       .eq("org_id", orgId).order("medstop_id").range(a, b), "medstop_employees"),
-    readAll<{ service: string; name: string | null; pool_year: number; ends_on: string | null; frequency: string | null;
+    readAll<{ medstop_id: string; service: string; name: string | null; pool_year: number; starts_on: string | null; ends_on: string | null; frequency: string | null;
       target_percent: number | null; current_percent: number | null; members_avg: number | null; completed_tests: number | null;
       scheduled_tests: number | null }>((a, b) => admin.from("medstop_pools")
-      .select("medstop_id, service, name, pool_year, ends_on, frequency, target_percent, current_percent, members_avg, completed_tests, scheduled_tests")
+      .select("medstop_id, service, name, pool_year, starts_on, ends_on, frequency, target_percent, current_percent, members_avg, completed_tests, scheduled_tests")
       .eq("org_id", orgId).order("medstop_id").range(a, b), "medstop_pools"),
-    readAll<{ medstop_id: string; employee_medstop_id: string | null; service: string | null; selected_on: string | null;
+    readAll<{ medstop_id: string; pool_medstop_id: string | null; employee_medstop_id: string | null; service: string | null; selected_on: string | null;
       request_medstop_id: string | null; test_medstop_id: string | null; status: string | null }>((a, b) => admin.from("medstop_selections")
-      .select("medstop_id, employee_medstop_id, service, selected_on, request_medstop_id, test_medstop_id, status")
+      .select("medstop_id, pool_medstop_id, employee_medstop_id, service, selected_on, request_medstop_id, test_medstop_id, status")
       .eq("org_id", orgId).order("medstop_id").range(a, b), "medstop_selections"),
     readRosterDrivers(admin, orgId),
     // UX2: the card on file and each source's claim, through evidence — the same state it files from.
@@ -101,6 +101,7 @@ export async function readDrugAlcoholProgram(
   }));
   const selectionRows: SelectionRow[] = selections.map((s) => ({
     medstopId: s.medstop_id,
+    poolMedstopId: s.pool_medstop_id,
     employeeMedstopId: s.employee_medstop_id,
     service: s.service,
     selectedOn: s.selected_on,
@@ -145,7 +146,14 @@ export async function readDrugAlcoholProgram(
           selectionRows,
         ),
       ),
-    selections: testingRoles ? { draws: randomDrawsThisYear(selectionRows, personOf, today) } : null,
+    selections: testingRoles
+      ? randomDrawsThisYear(
+          selectionRows,
+          pools.map((p) => ({ medstopId: p.medstop_id, startsOn: p.starts_on, endsOn: p.ends_on, frequency: p.frequency })),
+          personOf,
+          today,
+        )
+      : null,
     inProgress: inProgressRows(moving.orders, moving.tests, personOf, today, testingRoles),
     // MS2c: the results themselves — testing records, so the same rule as the selections above.
     results: testingRoles ? await readResultReview(admin, orgId, shiftDay(today, -RESULT_REVIEW_DAYS), personOf) : null,

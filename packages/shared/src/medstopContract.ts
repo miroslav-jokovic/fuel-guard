@@ -81,12 +81,21 @@ export interface PoolPace {
 }
 
 /**
- * Where a random draw stands (D-MSUX18). `due`: drawn on or before today, OPEN, not tested — the DER's
- * to-do. `upcoming`: drawn ahead of today. `alternate`: a reserve not yet used; `alternate_unused`:
+ * Where a random draw stands (D-MSUX18, D-MSUX19). `due`: OPEN and not tested, drawn in the current
+ * period or an earlier one — the DER's to-do, orderable whatever day Med-Stop dated it inside the
+ * period. `upcoming`: OPEN in a LATER period. `alternate`: a reserve not yet used; `alternate_unused`:
  * one that expired unused (not a lost draw). `cancelled` and `expired` ended without a test — both
  * count against the year's rate. `other`: a Med-Stop status nobody mapped, shown as Med-Stop wrote it.
  */
 export type RandomDrawState = "due" | "upcoming" | "tested" | "alternate" | "alternate_unused" | "cancelled" | "expired" | "other";
+
+/** The pool period today falls in — the quarter whose draw the Random tab opens on (D-MSUX19). */
+export interface RandomDrawPeriod {
+  startsOn: string;
+  endsOn: string;
+  /** Months per period from the pool's frequency (3 = quarterly); null when Med-Stop's word is unknown and the period is the whole pool year. */
+  months: number | null;
+}
 
 /** One of the year's random draws, as the Random tab lists it. Built only for testing-record readers. */
 export interface RandomDraw {
@@ -99,6 +108,8 @@ export interface RandomDraw {
   /** A request exists — the test is ordered and waiting on the driver. */
   ordered: boolean;
   state: RandomDrawState;
+  /** The draw's pool period (a quarter, for every pool Med-Stop has run since 2018) against today's. */
+  period: "earlier" | "current" | "later";
   /** Med-Stop's own status, verbatim — what `other` shows. */
   medstopStatus: string | null;
 }
@@ -216,11 +227,12 @@ export interface DrugAlcoholProgram {
   lastError: string | null;
   pools: PoolPace[];
   /**
-   * The pool year's random draws, past and ahead (D-MSUX18). NULL — not empty — when the reader may
+   * The pool year's random draws, past and ahead (D-MSUX18), and the period today falls in — the
+   * tab's default view (D-MSUX19); `currentPeriod` is null when no pool covers today. NULL — not empty — when the reader may
    * not see it: a selection names a person before they are told, and §382.305(l) wants that notice
    * immediate and unannounced, so the list is held to the roles that read testing records.
    */
-  selections: { draws: RandomDraw[] } | null;
+  selections: { draws: RandomDraw[]; currentPeriod: RandomDrawPeriod | null } | null;
   inProgress: InProgressRow[];
   /**
    * MS2c (F-5): results the DER must see. NULL for roles that may not read testing records.

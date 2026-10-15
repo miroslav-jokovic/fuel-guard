@@ -49,10 +49,14 @@ const program = (over: Partial<DrugAlcoholProgram> = {}): DrugAlcoholProgram => 
   }],
   selections: {
     draws: [
-      { selectionId: "s1", service: "drug", selectedOn: "2026-10-06", daysSince: 7, person: person("d9", "Dee Due"), ordered: false, state: "due", medstopStatus: "OPEN" },
-      { selectionId: "s2", service: "drug", selectedOn: "2026-11-20", daysSince: -38, person: person("d8", "Uma Upcoming"), ordered: false, state: "upcoming", medstopStatus: "OPEN" },
-      { selectionId: "s3", service: "alcohol", selectedOn: "2026-03-02", daysSince: 225, person: person("d7", "Tia Tested"), ordered: true, state: "tested", medstopStatus: "COMPLETED" },
+      { selectionId: "s1", service: "drug", selectedOn: "2026-10-06", daysSince: 7, person: person("d9", "Dee Due"), ordered: false, state: "due", period: "current", medstopStatus: "OPEN" },
+      // Dated ahead of today inside the current quarter: still the quarter's draw, still to test (D-MSUX19).
+      { selectionId: "s4", service: "alcohol", selectedOn: "2026-11-20", daysSince: -38, person: person("d4", "Fay Future"), ordered: false, state: "due", period: "current", medstopStatus: "OPEN" },
+      { selectionId: "s5", service: "drug", selectedOn: "2026-12-27", daysSince: -75, person: person("d3", "Alma Alternate"), ordered: false, state: "alternate", period: "current", medstopStatus: "RESERVE" },
+      { selectionId: "s2", service: "drug", selectedOn: "2027-01-20", daysSince: -99, person: person("d8", "Uma Upcoming"), ordered: false, state: "upcoming", period: "later", medstopStatus: "OPEN" },
+      { selectionId: "s3", service: "alcohol", selectedOn: "2026-03-02", daysSince: 225, person: person("d7", "Tia Tested"), ordered: true, state: "tested", period: "earlier", medstopStatus: "COMPLETED" },
     ],
+    currentPeriod: { startsOn: "2026-10-01", endsOn: "2026-12-31", months: 3 },
   },
   inProgress: [
     { key: "test:t1", person: person("d5", "Pat Pending"), kind: "drug", reason: "PRE-EMPLOYMENT", stage: "At the lab", orderedOn: null, collectedOn: "2026-10-09", expectedOn: "2026-10-13", daysWaiting: 4 },
@@ -89,25 +93,32 @@ const tabLabels = (w: Awaited<ReturnType<typeof render>>) => w.findAll('[role="t
 describe("DrugAlcoholPage", () => {
   it("draws five tabs with their counts and opens on Random selections for the DER", async () => {
     const w = await render(program());
-    expect(tabLabels(w)).toEqual(["Random selections 1", "In progress 1", "Results", "Medical cards 1", "Roster check 1"]);
+    expect(tabLabels(w)).toEqual(["Random selections 2", "In progress 1", "Results", "Medical cards 1", "Roster check 1"]);
     expect(w.text()).toContain("Dee Due");
     expect(w.text()).toContain("Not ordered");
     expect(w.text()).toContain("17 more tests needed for 53% by 12/31/2026");
   });
 
-  it("opens Random on the whole year's draws — due, upcoming and tested — and Due now narrows it (D-MSUX18)", async () => {
+  it("opens Random on this quarter's draw — every open one orderable, whatever day Med-Stop dated it — and Whole year lists the rest (D-MSUX19)", async () => {
     state.role = "safety_manager";
     const w = await render(program());
     state.role = null;
-    for (const name of ["Dee Due", "Uma Upcoming", "Tia Tested"]) expect(w.text()).toContain(name);
-    expect(w.text()).toContain("Upcoming");
-    // Only a due draw offers an order; the upcoming one is never orderable ahead of its date.
-    expect(w.findAll("button").filter((b) => b.text() === "Order test")).toHaveLength(1);
-    w.findComponent(FilterSelect).vm.$emit("update:modelValue", "due");
+    expect(w.text()).toContain("This quarter's draw, 10/01/2026 – 12/31/2026");
+    for (const name of ["Dee Due", "Fay Future"]) expect(w.text()).toContain(name);
+    for (const name of ["Alma Alternate", "Uma Upcoming", "Tia Tested"]) expect(w.text()).not.toContain(name);
+    expect(w.findAll("button").filter((b) => b.text() === "Order test")).toHaveLength(2);
+    w.findComponent(FilterSelect).vm.$emit("update:modelValue", "all");
     await flushPromises();
-    expect(w.text()).toContain("Dee Due");
-    expect(w.text()).not.toContain("Uma Upcoming");
-    expect(w.text()).not.toContain("Tia Tested");
+    for (const name of ["Dee Due", "Fay Future", "Alma Alternate", "Uma Upcoming", "Tia Tested"]) expect(w.text()).toContain(name);
+    // A draw in a LATER period is the only open one not offered.
+    expect(w.findAll("button").filter((b) => b.text() === "Order test")).toHaveLength(2);
+  });
+
+  it("opens on the whole year when no pool covers today", async () => {
+    const base = program();
+    const w = await render(program({ selections: { draws: base.selections!.draws, currentPeriod: null } }));
+    expect(w.text()).toContain("Random draws: whole year");
+    expect(w.text()).toContain("Tia Tested");
   });
 
   it("does not draw Random or Results at all for a role the API holds them from", async () => {
