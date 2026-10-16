@@ -174,6 +174,14 @@ const API_ALLOW = new Set([
   // dispatch board's Warnings (DISPATCH-BOARD-V2-PLAN D-DBV5, 2026-10-16). FleetPal's PM tables are
   // fleetpal's, and the verdict is the shared `pmWarning`; fleetpal imports nothing of livemap's.
   "livemap -> fleetpal",
+  // The driver's half of the same column (DBV4, 2026-10-16). The medical card and the CDL are the
+  // driver's §391.51 file as evidence computes it (`getComplianceOverview`, the roster's own cells,
+  // D-DQ6) — never `drivers.*_expires_at`. The random test is medstop's `readDriversDueForRandomTest`,
+  // a bare set of driver ids the board redacts per reader (Q-DBV3). medstop already reads the board's
+  // rows (`medstop -> livemap`, below), so the two cross through each other's index only, like
+  // evidence and medstop; every call is at request time, never at module load.
+  "livemap -> evidence",
+  "livemap -> medstop",
   // The driver's own account closure (P4.2) closes their login by calling the roster module's
   // `disableDriverLogin` through its index — the ban, the push-token revoke and the
   // `app_access_enabled` flag. A second ban path in driver-app would be two implementations of

@@ -89,17 +89,22 @@ export const dispatchBoardAvailableSchema = z.object({
 export type DispatchBoardAvailable = z.infer<typeof dispatchBoardAvailableSchema>;
 
 /**
- * An inspection or service due on the truck or its trailer (`maintenanceDue.ts`, D-DBV5): the annual
- * from our record, the 6-month and the oil change from FleetPal, an open FleetPal repair order. Only
- * what is due or overdue is sent — the dispatchers' board shows a unit's warnings and nothing else.
+ * One thing due on the row, in the Warnings column. Only what is due or overdue is sent — the
+ * dispatchers' board shows a unit's warnings and nothing else.
+ *
+ * - The truck and its trailer (`maintenanceDue.ts`, DBV3): the annual from our record, the 6-month and
+ *   the oil change from FleetPal, an open FleetPal repair order.
+ * - The driver (`boardDriverWarnings.ts`, DBV4): the medical card and the CDL from the driver's DQ
+ *   file, and a random test to send them to, redacted to "send to collection" (Q-DBV3).
  */
-export const maintenanceWarningSchema = z.object({
-  unit: z.enum(["truck", "trailer"]),
-  kind: z.enum(["annual", "six_month", "oil", "repair_order"]),
+export const boardWarningSchema = z.object({
+  unit: z.enum(["driver", "truck", "trailer"]),
+  kind: z.enum(["random_test", "medical_card", "cdl", "annual", "six_month", "oil", "repair_order"]),
   verdict: z.enum(["overdue", "due"]),
   dueOn: z.string().nullable(),
   milesLeft: z.number().nullable(),
 });
+export type BoardWarning = z.infer<typeof boardWarningSchema>;
 
 export const dispatchBoardFlagsSchema = z.object({
   lateRisk: z.boolean(),
@@ -107,8 +112,11 @@ export const dispatchBoardFlagsSchema = z.object({
   emptyNow: z.boolean(),
   hosLow: z.boolean(),
   noGps: z.boolean(),
-  /** An inspection or service on the truck or its trailer is past due (D-DBV5) — a dispatcher acts on it. */
-  maintenanceOverdue: z.boolean(),
+  /**
+   * Something in Warnings must be acted on now (`warningIsUrgent`): an overdue item on the driver, the
+   * truck or its trailer, or a random test to send the driver to.
+   */
+  warningUrgent: z.boolean(),
 });
 export type DispatchBoardFlags = z.infer<typeof dispatchBoardFlagsSchema>;
 
@@ -142,8 +150,12 @@ export const dispatchBoardRowSchema = z.object({
    * no load, no fix, or a stop without coordinates.
    */
   milesLeft: z.number().int().nullable(),
-  /** Due and overdue inspections and service on the truck and the current load's trailer, worst first. */
-  warnings: z.array(maintenanceWarningSchema),
+  /**
+   * What is due on the driver, the truck and the current load's trailer, most pressing first. The
+   * driver's are the reader's: none without `roster: view`, and the random test only for a testing-record
+   * reader or on the reader's own trucks (`readDispatchBoard`).
+   */
+  warnings: z.array(boardWarningSchema),
   flags: dispatchBoardFlagsSchema,
 });
 export type DispatchBoardRow = z.infer<typeof dispatchBoardRowSchema>;

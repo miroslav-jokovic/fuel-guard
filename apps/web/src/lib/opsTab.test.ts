@@ -34,7 +34,7 @@ vi.mock("@/composables/useOrgTimezone", () => ({
 }));
 
 // ── the board ───────────────────────────────────────────────────────────────────────────────────
-const flags = { lateRisk: false, noNextLoad: false, emptyNow: false, hosLow: false, noGps: false, maintenanceOverdue: false };
+const flags = { lateRisk: false, noNextLoad: false, emptyNow: false, hosLow: false, noGps: false, warningUrgent: false };
 const load = { loadId: "l", ref: "291013", status: "in_transit", source: "tms", externalStatus: "P", customerName: "Viking Packing",
   dispatcherId: null, driverName: null, trailerUnit: null, nextStop: null, lastStop: null, stopsLeft: 1 };
 const boardRow = (unitNumber: string, o: Partial<DispatchBoardRow> = {}): DispatchBoardRow => ({

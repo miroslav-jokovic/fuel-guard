@@ -288,6 +288,23 @@ export function randomDrawsThisYear(
 }
 
 /**
+ * The drivers to send to a random test now (DISPATCH-BOARD-V2-PLAN §3.5, DBV4): every draw the Random
+ * tab lists as `due` — open and untested in the current period or an earlier one, ordered or not —
+ * read off that list, so the board and the DER's tab cannot disagree about who is drawn. A draw in a
+ * later period is not here: telling anybody of it early is what §382.305(l) forbids.
+ */
+export function driversDueForRandomTest(
+  selections: readonly SelectionRow[],
+  pools: readonly DrawPool[],
+  driverOfEmployee: (medstopId: string | null) => string | null,
+  today: CalendarDay,
+): Set<string> {
+  const personOf = (id: string | null): ProgramPerson => ({ driverId: driverOfEmployee(id), medstopId: id, name: "" });
+  const { draws } = randomDrawsThisYear(selections, pools, personOf, today);
+  return new Set(draws.flatMap((d) => (d.state === "due" && d.person.driverId ? [d.person.driverId] : [])));
+}
+
+/**
  * A draw's period against today's, in the draw's own pool. A pool that ended before today is all
  * `earlier`; one not yet begun is all `later`. A selection whose pool we do not hold (none in 866,
  * measured 10/15) falls back to its date — ahead of today is `later`, the D-MSUX18 rule; anything else

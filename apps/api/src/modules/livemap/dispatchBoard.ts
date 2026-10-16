@@ -23,11 +23,24 @@
  * ── ALL TRUCKS, AND THE SCOPE BESIDE THEM ────────────────────────────────────────────────────────
  * The rows are the whole fleet and `scope` says which are the caller's: My fleet / All is a filter, not
  * a permission (plan §4 #2) — anyone with `dispatch: view` may already see every truck on the live map.
+ *
+ * ── EXCEPT THE DRIVER'S WARNINGS, WHICH ARE THE READER'S (DBV4) ──────────────────────────────────
+ * The truck's rows are the same for every caller (`readBoardRows`, which the ETA recorder shares). The
+ * driver's warnings are added per reader, after: the medical card and the CDL only for a reader the
+ * org's `roster: view` admits — the DQ file's own gate — and "Random test: send to collection" only on
+ * the reader's own trucks, or on every truck for a testing-record reader (Q-DBV3, `randomTestVisible`).
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   annualWarning,
   availableAt,
+  callerCanView,
+  canReadTestingRecords,
+  credentialWarnings,
+  inMyScope,
+  randomTestVisible,
+  RANDOM_TEST_WARNING,
+  warningIsUrgent,
   boardEta,
   boardEtaAlong,
   boardFlags,
@@ -35,30 +48,37 @@ import {
   onTimeVerdict,
   secondsSince,
   sortWarnings,
+  type AuthContext,
   type DispatchBoardResponse,
   type DispatchBoardRow,
+  type DispatchScope,
 } from "@silvicom/shared";
 import { readHosClocks, readVehiclePositions } from "../samsara/index.js";
 import { readFleetIdentities, readTrailerAnnualInspections } from "../roster/index.js";
 import { readUnitMaintenance } from "../fleetpal/index.js";
 import { readTruckLoadPlans } from "../loads/index.js";
 import { readDispatchLinks } from "../mcleod/index.js";
+import { getComplianceOverview } from "../evidence/index.js";
+import { readDriversDueForRandomTest } from "../medstop/index.js";
 
 /** The live map's Q-LM8a ruling, for the same reason: a retired truck is no work anybody can dispatch. */
 const HIDDEN_VEHICLE_STATUS = "retired";
 const IN_SHOP_VEHICLE_STATUS = "maintenance";
 
+/** Who is reading the board: what they may see of the driver depends on it (DBV4). */
+export type BoardReader = Pick<AuthContext, "userId" | "role" | "sections">;
+
 export async function readDispatchBoard(
   admin: SupabaseClient,
   orgId: string,
-  userId: string,
+  reader: BoardReader,
   now: Date = new Date(),
 ): Promise<DispatchBoardResponse> {
   const board = await readBoardRows(admin, orgId, now);
-  const links = await readDispatchLinks(admin, orgId, userId);
+  const links = await readDispatchLinks(admin, orgId, reader.userId);
   return {
     generatedAt: now.toISOString(),
-    rows: board.rows,
+    rows: await withDriverWarnings(admin, orgId, board.rows, links.scope, reader, now),
     scope: links.scope,
     fleets: links.fleets,
     dispatchers: links.dispatchers.map(({ id, name, isSystem }) => ({ id, name, isSystem })),
@@ -152,4 +172,40 @@ export async function readBoardRows(
   rows.sort((a, b) => a.unitNumber.localeCompare(b.unitNumber, undefined, { numeric: true }));
 
   return { rows, uncoveredCount: plans.uncoveredCount, hosAsOf: clocks.newestAt };
+}
+
+/**
+ * The driver's warnings for THIS reader, merged into each row's list and its urgent flag. A read the
+ * reader may not see is not made at all, so nothing withheld is ever in memory beside the response.
+ */
+async function withDriverWarnings(
+  admin: SupabaseClient,
+  orgId: string,
+  rows: DispatchBoardRow[],
+  scope: DispatchScope,
+  reader: BoardReader,
+  now: Date,
+): Promise<DispatchBoardRow[]> {
+  const today = now.toISOString().slice(0, 10);
+  const credentials = new Map<string, ReturnType<typeof credentialWarnings>>();
+  if (callerCanView(reader.role, "roster", reader.sections)) {
+    for (const d of (await getComplianceOverview(admin, orgId, today)).drivers) credentials.set(d.driver_id, credentialWarnings(d.requirements));
+  }
+  // A reader who is neither a testing-record reader nor anybody's dispatcher can be shown no draw.
+  const drawn = canReadTestingRecords(reader.role) || scope.linked ? await readDriversDueForRandomTest(admin, orgId, today) : new Set<string>();
+
+  return rows.map((r) => {
+    const driverId = r.driver?.id;
+    if (!driverId) return r;
+    const extra = [
+      ...(randomTestVisible(drawn.has(driverId), reader.role, inMyScope(r, scope)) ? [RANDOM_TEST_WARNING] : []),
+      ...(credentials.get(driverId) ?? []),
+    ];
+    if (extra.length === 0) return r;
+    return {
+      ...r,
+      warnings: sortWarnings([...extra, ...r.warnings]),
+      flags: { ...r.flags, warningUrgent: r.flags.warningUrgent || extra.some(warningIsUrgent) },
+    };
+  });
 }

@@ -49,7 +49,7 @@ export function liveMapRouter(): Router {
     requireSection("dispatch", "view"),
     asyncHandler(async (req, res) => {
       const admin = getSupabaseAdmin(getAppLocals(req).env);
-      const board = await readDispatchBoard(admin, req.auth!.orgId!, req.auth!.userId);
+      const board = await readDispatchBoard(admin, req.auth!.orgId!, req.auth!);
       res.json({ ok: true, data: board });
     }),
   );

@@ -19,6 +19,7 @@
  * annual from the record.
  */
 import { inspectionExpiry } from "./annualInspectionContract.js";
+import type { BoardWarning } from "./dispatchBoardContract.js";
 
 export const PM_KINDS = ["annual", "six_month", "oil", "other"] as const;
 export type PmKind = (typeof PM_KINDS)[number];
@@ -42,17 +43,13 @@ export interface PmInterval {
   lastDoneMeterMeters: number | null;
 }
 
-export type DueVerdict = "overdue" | "due";
+export type DueVerdict = BoardWarning["verdict"];
 
-export interface MaintenanceWarning {
-  unit: "truck" | "trailer";
-  kind: "annual" | "six_month" | "oil" | "repair_order";
-  verdict: DueVerdict;
-  /** When it falls (or fell) due, `YYYY-MM-DD`; null for a mileage interval and a repair order. */
-  dueOn: string | null;
-  /** Miles until it is due (negative when overdue); only for a mileage interval. */
-  milesLeft: number | null;
-}
+/**
+ * A unit's warning: the contract's `BoardWarning` (`dueOn` is `YYYY-MM-DD`, null for a mileage interval
+ * and a repair order; `milesLeft` is negative when overdue, set only for a mileage interval).
+ */
+export type MaintenanceWarning = BoardWarning & { unit: "truck" | "trailer"; kind: "annual" | "six_month" | "oil" | "repair_order" };
 
 const METERS_PER_MILE = 1609.344;
 
@@ -112,13 +109,26 @@ export function annualWarning(unit: "truck" | "trailer", expiresOn: string | nul
   return null;
 }
 
-/** Overdue first, then the truck before its trailer, then by kind — the order a dispatcher reads them. */
-const KIND_ORDER: Record<MaintenanceWarning["kind"], number> = { annual: 0, six_month: 1, oil: 2, repair_order: 3 };
-export function sortWarnings(w: readonly MaintenanceWarning[]): MaintenanceWarning[] {
+/**
+ * Must a dispatcher act on it now? Anything overdue, and a random test: a drawn driver is sent to
+ * collection promptly once told (§382.305(l)), which is the dispatcher's move to plan around (Q-DBV3).
+ * It is red on the board and puts the truck on Needs attention.
+ */
+export const warningIsUrgent = (w: Pick<BoardWarning, "verdict" | "kind">): boolean => w.verdict === "overdue" || w.kind === "random_test";
+
+/**
+ * Urgent first, then the driver before the truck before its trailer — whether the driver may drive at
+ * all comes before what the equipment needs — then by kind: the order a dispatcher reads them.
+ */
+const UNIT_ORDER: Record<BoardWarning["unit"], number> = { driver: 0, truck: 1, trailer: 2 };
+const KIND_ORDER: Record<BoardWarning["kind"], number> = {
+  random_test: 0, medical_card: 1, cdl: 2, annual: 3, six_month: 4, oil: 5, repair_order: 6,
+};
+export function sortWarnings<W extends BoardWarning>(w: readonly W[]): W[] {
   return [...w].sort(
     (a, b) =>
-      (a.verdict === "overdue" ? 0 : 1) - (b.verdict === "overdue" ? 0 : 1) ||
-      (a.unit === "truck" ? 0 : 1) - (b.unit === "truck" ? 0 : 1) ||
+      (warningIsUrgent(a) ? 0 : 1) - (warningIsUrgent(b) ? 0 : 1) ||
+      UNIT_ORDER[a.unit] - UNIT_ORDER[b.unit] ||
       KIND_ORDER[a.kind] - KIND_ORDER[b.kind],
   );
 }

@@ -60,4 +60,13 @@ describe("sortWarnings", () => {
       "truck:six_month:overdue", "trailer:annual:overdue", "truck:annual:due", "truck:oil:due",
     ]);
   });
+
+  it("puts a random test with the overdue items, and the driver's before the truck's (DBV4)", () => {
+    const w = (unit: "driver" | "truck", kind: "random_test" | "medical_card" | "cdl" | "oil", verdict: "due" | "overdue") =>
+      ({ unit, kind, verdict, dueOn: null, milesLeft: null });
+    const sorted = sortWarnings([w("driver", "cdl", "due"), w("truck", "oil", "overdue"), w("driver", "medical_card", "overdue"), w("driver", "random_test", "due")]);
+    expect(sorted.map((x) => `${x.unit}:${x.kind}:${x.verdict}`)).toEqual([
+      "driver:random_test:due", "driver:medical_card:overdue", "truck:oil:overdue", "driver:cdl:due",
+    ]);
+  });
 });
