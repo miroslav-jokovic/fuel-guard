@@ -41,10 +41,12 @@ stripped before Claude reads the file. -->
   `package.json` and in neither list is not a gate** — `lint:wsdl` once crashed on a stale path for
   ten days without anybody being able to notice. Adding a gate means adding it to `ci.yml` in the
   same PR, or chaining it onto a neighbour and saying so in its `"//lint:*"` comment.
-- CI is **seven parallel jobs**: `gates`, `typecheck-build`, `test-api`, `test-web`, `test-packages`,
-  `matrices`, `native-android` — plus a do-nothing `build` job that aggregates them and must keep
-  that name, because main's branch protection requires a check called exactly `build`. Put a new
-  gate in `gates`; put anything needing `apps/web/dist` in `typecheck-build`, the only job that builds.
+- CI is **eight parallel jobs**: `gates`, `typecheck`, `bundle`, `test-api`, `test-web`,
+  `test-packages`, `matrices`, `native-android` — the api, web and matrix jobs each fan out into
+  shards whose i/n come from GitHub's strategy context — plus a do-nothing `build` job that
+  aggregates them and must keep that name, because main's branch protection requires a check called
+  exactly `build`. Put a new gate in `gates`; put anything needing `apps/web/dist` in `bundle`, the
+  only job that builds. Sharding plan and measurements: `docs/plans/ci/CI-FEEDBACK-LOOP-V2-PLAN.md`.
 - `native-android` compiles the capture module's Kotlin (nothing else does) and runs its
   metric-parity test. On a PR it skips unless one of its `NATIVE_INPUTS` changed — anything the job
   starts reading goes on that list in the same PR; on main it always builds. **There is no iOS job**
@@ -58,7 +60,7 @@ stripped before Claude reads the file. -->
   main verifies the STAGING hosts (`STAGING_*` variables); `release.yml` calls it for production.
   Every push-triggered production job (`migrate`, `driver-ota`, `driver-android`, smoke) skips while
   the repository variable `RELEASE_TRAIN` is `on`; deleting that variable is half of the undo.
-- **Browser tests run in `typecheck-build`**: `pnpm --filter @silvicom/web e2e:apply` runs
+- **Browser tests run in `bundle`**: `pnpm --filter @silvicom/web e2e:apply` runs
   `apps/web/e2e-apply/` — the applicant's page, built, in Chromium, against a stubbed API
   (`e2e-apply/stubApi.ts`, raw JSON). They are the ONLY Playwright specs CI runs: `apps/web/e2e/` is
   `smoke.yml`'s, against production after a deploy, so a stubbed spec must never go there. Locally:

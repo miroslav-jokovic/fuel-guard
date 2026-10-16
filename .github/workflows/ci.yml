@@ -19,6 +19,12 @@ name: CI
 # requires a check called exactly `build`. It is the only job that must keep that name — the others
 # are free to be renamed.
 #
+# 2026-10-16 (docs/plans/ci/CI-FEEDBACK-LOOP-V2-PLAN.md): the next MAX was ~9 minutes, and it was
+# three jobs at once — test-web ~530 s, test-api 340–550 s, matrices 300–460 s — each a single
+# runner doing work that splits cleanly, while setup costs only 15–24 s per runner. So those three
+# now fan out into shards, and typecheck and the bundle run side by side instead of in sequence.
+# Every PR run still runs every gate, test and matrix; only how many machines share them changed.
+#
 # Nothing was dropped in the split. Every gate below is the same gate, in the same order, with the
 # comment that records why it exists; the matrices are still DISCOVERED from disk by
 # scripts/run-tests.mjs rather than listed here, and the non-api/web unit suites are selected by
@@ -193,6 +199,12 @@ jobs:
       - name: Matrices release their database
         run: pnpm lint:matrix-exit
 
+      # Added 2026-10-16 with the matrix shards below. Each shard keeps the discovered matrices at
+      # its own positions mod n; this proves every position has exactly one owner for 1–7 shards and
+      # that a malformed --shard is refused rather than read as "run nothing".
+      - name: Matrix shards cover every matrix once
+        run: node scripts/run-tests.mjs --self-test
+
       - name: Design tokens
         run: pnpm --filter ./apps/web lint:tokens
 
@@ -328,10 +340,24 @@ jobs:
       - name: McLeod recon pack is safe to hand over
         run: pnpm lint:mcleod-recon
 
-  # ── Types and the production bundle ───────────────────────────────────────────────────────────
-  # These two stay together because the third step needs the second one's output: lint:light-dark
-  # reads apps/web/dist, which only exists after a build.
-  typecheck-build:
+  # ── Types, and the production bundle ──────────────────────────────────────────────────────────
+  # Two jobs since 2026-10-16; they were one, run back to back (123 s typecheck, then 105 s build,
+  # then the browser), which made it ~335 s and the next critical path once the suites sharded.
+  # Neither reads the other's output, so they run side by side. They overlap on purpose: most
+  # workspaces' `build` IS `tsc --noEmit`, but `typecheck` also covers the four with no build
+  # (driver, driver-dist, hazmat/golden, ui) and `build` alone makes the vite bundles and tokens.
+  # Dropping either loses something; making `build` scripts bundle-only is the plan's later step.
+  typecheck:
+    runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+      - name: Typecheck
+        run: pnpm typecheck
+
+  # The rest stay together because they need the build's output: lint:light-dark and the browser
+  # tests read apps/web/dist, which only exists after a build. This is the only job that builds.
+  bundle:
     runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
     env:
       VITE_SUPABASE_URL: https://example.supabase.co
@@ -339,9 +365,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup
-
-      - name: Typecheck
-        run: pnpm typecheck
 
       - name: Build
         run: pnpm build
@@ -385,18 +408,33 @@ jobs:
   # `isolate: false` was measured on 2026-09-05 as the obvious alternative and rejected: it hangs
   # apps/api indefinitely (>5 min against an 18s baseline), because suites here rely on a fresh
   # module registry per file. Do not reach for it again without fixing that first.
+  #
+  # Sharded since 2026-10-16: one runner apiece had grown to ~500 s for each suite (453 and 311
+  # files), with 15–24 s of setup per runner. vitest's own --shard partitions the files it collects,
+  # so every shard collects the same list and each file runs in exactly one shard. i and n come from
+  # GitHub's strategy context, never from a second hand-written number: adding a shard means adding
+  # one value to `shard`. `fail-fast: false` so every shard returns a verdict, and `build` below
+  # sees a matrix job as failed if any one shard failed.
   test-api:
     runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup
         with:
           build-shared: "false"
       - name: apps/api unit suites
-        run: pnpm --filter @silvicom/api test
+        run: pnpm --filter @silvicom/api test --shard=$(( ${{ strategy.job-index }} + 1 ))/${{ strategy.job-total }}
 
   test-web:
     runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup
@@ -406,7 +444,7 @@ jobs:
         env:
           VITE_SUPABASE_URL: https://example.supabase.co
           VITE_SUPABASE_ANON_KEY: ci-test-anon-key
-        run: pnpm --filter @silvicom/web test
+        run: pnpm --filter @silvicom/web test --shard=$(( ${{ strategy.job-index }} + 1 ))/${{ strategy.job-total }}
 
   # Everything else, selected by EXCLUSION rather than by name. A hand-written list of the other
   # twelve packages would be a second source of truth about what this repo contains, and the day
@@ -421,12 +459,21 @@ jobs:
         run: pnpm -r --filter '!@silvicom/api' --filter '!@silvicom/web' test
 
   # ── Behavioural matrices ──────────────────────────────────────────────────────────────────────
-  # Still one process running every matrix it finds on disk, because that discovery is the whole
-  # point of scripts/run-tests.mjs and sharding them across runners would reintroduce exactly the
-  # failure it was written to prevent: a matrix that nobody notices stopped running. They now run
-  # concurrently WITHIN the job instead, bounded by core count.
+  # Every matrix is still DISCOVERED from disk by scripts/run-tests.mjs — that discovery is the whole
+  # point of the runner, and a hand-written list here would reintroduce exactly the failure it was
+  # written to prevent: a matrix that nobody notices stopped running. Within a runner they run
+  # concurrently, bounded by core count.
+  #
+  # Sharded since 2026-10-16, and the split is the RUNNER's, not this file's: each shard discovers
+  # the full list and keeps its own positions mod n (the gates job self-tests that), with i and n from
+  # the strategy context exactly as the unit suites take theirs. One runner had reached 300–460 s for
+  # 153 matrices. Each matrix's seconds are in its shard's summary, for rebalancing.
   matrices:
     runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
     steps:
       - uses: actions/checkout@v4
       # build-shared stays ON here, and it is not obvious why: `@silvicom/shared` resolves to src
@@ -437,7 +484,7 @@ jobs:
       # one matrix on the first run of this split (2026-09-05).
       - uses: ./.github/actions/setup
       - name: Behavioural matrices (PGlite)
-        run: pnpm test:rls
+        run: pnpm test:rls --shard=$(( ${{ strategy.job-index }} + 1 ))/${{ strategy.job-total }}
 
   # ── The native half of the driver app ─────────────────────────────────────────────────────────
   # Until this job, CI compiled NO Swift, Kotlin, Gradle or Xcode step at all. The driver app's
@@ -686,7 +733,7 @@ jobs:
   # never be what a deploy reads anyway, since the gate only ever looks at a merge commit on main.
   build:
     if: always()
-    needs: [gates, typecheck-build, test-api, test-web, test-packages, matrices, native-android]
+    needs: [gates, typecheck, bundle, test-api, test-web, test-packages, matrices, native-android]
     runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
     permissions:
       contents: read
