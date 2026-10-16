@@ -2,7 +2,12 @@ import { describe, it, expect } from "vitest";
 import {
   boardEta,
   onTimeVerdict,
-  emptiesAt,
+  availableAt,
+  availableNear,
+  boardEtaAlong,
+  boardMiles,
+  knownCityPoints,
+  usPlaceParts,
   freshHos,
   boardFlags,
   inMyScope,
@@ -16,7 +21,7 @@ const H = 3_600_000;
 // Joliet, IL → Indianapolis, IN: ~150 straight-line miles.
 const JOLIET = { lat: 41.525, lng: -88.0817 };
 const stop = (over: Partial<DispatchBoardStop> = {}): DispatchBoardStop => ({
-  seq: 2, kind: "dropoff", name: "Kroger DC", city: "Indianapolis", state: "IN",
+  seq: 2, kind: "dropoff", name: "Kroger DC", city: "Indianapolis", state: "IN", postalCode: "46241",
   appointmentStart: "2026-10-10T02:00:00Z", appointmentEnd: "2026-10-10T04:00:00Z",
   arrivedAt: null, lat: 39.7684, lng: -86.1581, ...over,
 });
@@ -75,15 +80,86 @@ describe("onTimeVerdict — against the window's close", () => {
   });
 });
 
-describe("emptiesAt — the PTA pair", () => {
-  it("is the last delivery's city at the later of its appointment and the arrival", () => {
+describe("availableAt — the PTA pair, structured (D-DBV3)", () => {
+  it("is the last delivery at the later of its appointment and the arrival, and says which set it", () => {
     const late = { at: "2026-10-10T05:00:00Z", miles: 180, restAdded: false };
-    expect(emptiesAt(load(), late, null, NOW)).toEqual({ place: "Indianapolis, IN", at: "2026-10-10T05:00:00.000Z" });
+    expect(availableAt(load(), late, null, NOW)).toEqual({
+      place: "Indianapolis, IN", city: "Indianapolis", state: "IN", postalCode: "46241",
+      lat: 39.7684, lng: -86.1581, at: "2026-10-10T05:00:00.000Z", basis: "eta",
+    });
     const early = { at: "2026-10-09T23:00:00Z", miles: 180, restAdded: false };
-    expect(emptiesAt(load(), early, null, NOW)).toEqual({ place: "Indianapolis, IN", at: "2026-10-10T02:00:00.000Z" });
+    expect(availableAt(load(), early, null, NOW)).toMatchObject({ at: "2026-10-10T02:00:00.000Z", basis: "appointment" });
   });
-  it("is here and now for a truck with no load", () => {
-    expect(emptiesAt(null, null, { place: "Joliet, IL" }, NOW)).toEqual({ place: "Joliet, IL", at: NOW.toISOString() });
+  it("has no time, and no basis, with neither an appointment nor an ETA", () => {
+    const last = stop({ appointmentStart: null, appointmentEnd: null });
+    expect(availableAt(load({ lastStop: last }), null, null, NOW)).toMatchObject({ at: null, basis: null, state: "IN" });
+  });
+  it("is here and now for a truck with no load, its state read from Samsara's place", () => {
+    const here = { place: "1101 West Ruth Avenue, Sallisaw, OK, 74955", lat: 35.46, lng: -94.79 };
+    expect(availableAt(null, null, here, NOW)).toEqual({
+      place: here.place, city: "Sallisaw", state: "OK", postalCode: "74955", lat: 35.46, lng: -94.79,
+      at: NOW.toISOString(), basis: "now",
+    });
+  });
+});
+
+describe("usPlaceParts — Samsara's reverse-geocoded place", () => {
+  it("reads city, state and ZIP from the end, with or without a street or a ZIP", () => {
+    expect(usPlaceParts("I 75, Cecil, GA, 31627")).toEqual({ city: "Cecil", state: "GA", postalCode: "31627" });
+    expect(usPlaceParts("Waco, TX, 76711")).toEqual({ city: "Waco", state: "TX", postalCode: "76711" });
+    expect(usPlaceParts("Joliet, IL")).toEqual({ city: "Joliet", state: "IL", postalCode: null });
+  });
+  it("guesses nothing from a place that does not end in a state code", () => {
+    expect(usPlaceParts("Near the yard")).toEqual({ city: null, state: null, postalCode: null });
+    expect(usPlaceParts("Ontario, Canada")).toEqual({ city: null, state: null, postalCode: null });
+    expect(usPlaceParts(null)).toEqual({ city: null, state: null, postalCode: null });
+  });
+});
+
+describe("boardMiles — miles left, the legs chained (D-DBV4)", () => {
+  // Joliet → Lafayette, IN → Indianapolis is longer than Joliet → Indianapolis straight.
+  const LAFAYETTE = { lat: 40.4167, lng: -86.8753 };
+  it("drives through a stop on the way rather than cutting across it", () => {
+    const direct = boardMiles(JOLIET, [stop()])!;
+    const via = boardMiles(JOLIET, [LAFAYETTE, stop()])!;
+    expect(via).toBeGreaterThan(direct);
+    expect(boardEtaAlong(JOLIET, [LAFAYETTE, stop()], hos(), NOW)!.miles).toBe(Math.round(via));
+  });
+  it("is unknown, not short, when any stop on the path has no coordinates", () => {
+    expect(boardMiles(JOLIET, [{ lat: null, lng: null }, stop()])).toBeNull();
+    expect(boardMiles(null, [stop()])).toBeNull();
+    expect(boardMiles(JOLIET, [])).toBeNull();
+  });
+});
+
+describe("availableNear — the dispatchers' state box, made precise (D-DBV3)", () => {
+  const orlando = { lat: 28.5384, lng: -81.3789 };
+  const fl = availableAt(null, null, { place: "Lakeland, FL, 33801", lat: 28.0395, lng: -81.9498 }, NOW);
+  it("matches by state, case-insensitively, and everything when nothing is asked", () => {
+    expect(availableNear(fl, { states: ["fl"] })).toBe(true);
+    expect(availableNear(fl, { states: ["GA"] })).toBe(false);
+    expect(availableNear(fl, {})).toBe(true);
+  });
+  it("matches within a straight-line radius of a city", () => {
+    // Lakeland is ~50 straight-line miles from Orlando.
+    expect(availableNear(fl, { near: { ...orlando, radiusMiles: 60 } })).toBe(true);
+    expect(availableNear(fl, { near: { ...orlando, radiusMiles: 40 } })).toBe(false);
+  });
+  it("matches by time only when the truck is free at or before it, and never with no time", () => {
+    expect(availableNear(fl, { by: NOW.toISOString() })).toBe(true);
+    expect(availableNear(fl, { by: new Date(NOW.getTime() - 1).toISOString() })).toBe(false);
+    expect(availableNear({ ...fl!, at: null }, { by: NOW.toISOString() })).toBe(false);
+  });
+  it("finds no truck that has nowhere to be free, once anything is asked", () => {
+    expect(availableNear(null, { states: ["FL"] })).toBe(false);
+  });
+});
+
+describe("knownCityPoints — a typed city, found on the board's own rows", () => {
+  it("keys each city once by name and state, and skips a row without coordinates", () => {
+    const a = availableAt(load(), null, null, NOW);
+    const pts = knownCityPoints([{ available: a }, { available: { ...a!, lat: null } }, { available: null }]);
+    expect([...pts.keys()]).toEqual(["INDIANAPOLIS|IN"]);
   });
 });
 

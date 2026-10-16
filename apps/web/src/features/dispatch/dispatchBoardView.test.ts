@@ -6,7 +6,7 @@ import { boardSortValue, filterBoard, durationWords, gpsAgeWords, POOL_OPTION, N
 const flags = { lateRisk: false, noNextLoad: false, emptyNow: false, hosLow: false, noGps: false };
 const row = (unitNumber: string, o: Partial<DispatchBoardRow> = {}): DispatchBoardRow => ({
   vehicleId: `v-${unitNumber}`, unitNumber, inShop: false, fleetCode: "VINNIEV", driver: null, hos: null, position: null,
-  fuelPercent: null, current: null, next: null, eta: null, onTime: "unknown", empties: null, flags, ...o,
+  fuelPercent: null, current: null, next: null, eta: null, onTime: "unknown", available: null, milesLeft: null, flags, ...o,
 });
 const load = (dispatcherId: string | null) => ({
   loadId: "l", ref: "291013", status: "in_transit", source: "tms", externalStatus: "P", customerName: "Viking Packing",

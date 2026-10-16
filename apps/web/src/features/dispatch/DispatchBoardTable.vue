@@ -150,11 +150,11 @@ const loadLabel = (l: NonNullable<DispatchBoardRow["current"]>) =>
     </template>
 
     <template #cell-empties="{ row }">
-      <template v-if="row.empties && row.current">
-        <div>{{ row.empties.place ?? "—" }}</div>
-        <div class="whitespace-nowrap text-xs text-ink-muted">{{ at(row.empties.at) }}</div>
+      <template v-if="row.available && row.current">
+        <div>{{ row.available.place ?? "—" }}</div>
+        <div class="whitespace-nowrap text-xs text-ink-muted">{{ at(row.available.at) }}</div>
       </template>
-      <span v-else-if="row.empties">Now</span>
+      <span v-else-if="row.available">Now</span>
       <span v-else class="text-ink-tertiary">—</span>
     </template>
 

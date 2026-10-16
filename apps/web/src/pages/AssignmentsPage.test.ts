@@ -21,7 +21,7 @@ vi.mock("@/features/dispatch/DispatchTruckDrawer.vue", () => ({
 const flags = { lateRisk: false, noNextLoad: false, emptyNow: false, hosLow: false, noGps: false };
 const row = (unitNumber: string, fleetCode: string): DispatchBoardRow => ({
   vehicleId: `v-${unitNumber}`, unitNumber, inShop: false, fleetCode, driver: null, hos: null, position: null,
-  fuelPercent: null, current: null, next: null, eta: null, onTime: "unknown", empties: null, flags: { ...flags, emptyNow: true },
+  fuelPercent: null, current: null, next: null, eta: null, onTime: "unknown", available: null, milesLeft: null, flags: { ...flags, emptyNow: true },
 });
 // A ref, so a test can land the board AFTER the page opened, as the first fetch does in production.
 const board = await vi.hoisted(async () => {

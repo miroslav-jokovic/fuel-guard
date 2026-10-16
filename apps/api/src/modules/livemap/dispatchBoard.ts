@@ -8,7 +8,7 @@
  * dispatcher links from mcleod. Five owner reads and a few `Map` lookups, bounded by fleet size.
  *
  * ── EVERY VERDICT IS THE SHARED RULE'S ───────────────────────────────────────────────────────────
- * ETA, on-time, empties, flags and "mine" come from `@silvicom/shared`'s `dispatchBoard.ts` and are
+ * ETA, on-time, availability, miles left, flags and "mine" come from `@silvicom/shared`'s `dispatchBoard.ts` and are
  * computed here against ONE clock, so a slow read cannot rank two trucks by when each row happened to
  * be processed. The browser filters and sorts; it decides nothing.
  *
@@ -25,9 +25,10 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
+  availableAt,
   boardEta,
+  boardEtaAlong,
   boardFlags,
-  emptiesAt,
   freshHos,
   onTimeVerdict,
   secondsSince,
@@ -82,7 +83,7 @@ export async function readBoardRows(
   for (const id of identities.byVehicleId.values()) {
     if (id.status === HIDDEN_VEHICLE_STATUS) continue;
     const p = positionOf.get(id.vehicleId);
-    const plan = plans.byVehicleId.get(id.vehicleId) ?? { current: null, next: null };
+    const plan = plans.byVehicleId.get(id.vehicleId) ?? { current: null, next: null, currentAhead: [] };
     if (id.windingDown && !plan.current && !plan.next) continue;
     // The roster's assigned driver — the map's pairing (Q-DB6), so the board and the map name one person.
     const driver = id.driver;
@@ -101,9 +102,12 @@ export async function readBoardRows(
     const nextStop = plan.current?.nextStop ?? null;
     const eta = nextStop && !nextStop.arrivedAt ? boardEta(from, nextStop, hos, now) : null;
     const onTime = plan.current ? onTimeVerdict(nextStop, eta) : "unknown";
-    // The last stop's ETA is the next stop's when they are the same stop — one leg, one estimate.
+    // The last stop's ETA runs through every stop still ahead (D-DBV4), so a drop on the way is driven to,
+    // not cut across. Its miles are the row's miles left: one path, one estimate, two readings of it.
     const last = plan.current?.lastStop ?? null;
-    const lastEta = last && last === nextStop ? eta : last && !last.arrivedAt ? boardEta(from, last, hos, now) : null;
+    // A stop after the last delivery (a trailer drop McLeod lists as "other") is past where it is free.
+    const path = last ? plan.currentAhead.filter((s) => s.seq != null && last.seq != null && s.seq <= last.seq) : [];
+    const lastEta = last && !last.arrivedAt ? boardEtaAlong(from, path, hos, now) : null;
     const inShop = id.status === IN_SHOP_VEHICLE_STATUS;
     rows.push({
       vehicleId: id.vehicleId,
@@ -118,7 +122,8 @@ export async function readBoardRows(
       next: plan.next,
       eta,
       onTime,
-      empties: emptiesAt(plan.current, lastEta, position, now),
+      available: availableAt(plan.current, lastEta, position, now),
+      milesLeft: lastEta?.miles ?? null,
       flags: boardFlags({ inShop, current: plan.current, next: plan.next, onTime, hos, gpsAgeSeconds: position?.ageSeconds ?? null }),
     });
   }

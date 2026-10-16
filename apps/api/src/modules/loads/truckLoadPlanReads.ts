@@ -54,6 +54,7 @@ type StopRow = {
   location_name: string | null;
   city: string | null;
   state: string | null;
+  postal_code: string | null;
   appointment_start: string | null;
   appointment_end: string | null;
   status: string | null;
@@ -66,6 +67,11 @@ type StopRow = {
 export interface TruckLoadPlan {
   current: DispatchBoardLoad | null;
   next: DispatchBoardLoad | null;
+  /**
+   * The current load's stops the truck has not reached, in order — the path its miles left are chained
+   * along (D-DBV4). Not on the wire: the row carries the sum, and the drawer reads the load's stops itself.
+   */
+  currentAhead: DispatchBoardStop[];
 }
 
 export async function readTruckLoadPlans(
@@ -93,7 +99,7 @@ export async function readTruckLoadPlans(
     const { data: sData, error: sErr } = await admin
       .from("load_stops")
       .select(
-        "load_id, seq, kind, name, location_name, city, state, appointment_start, appointment_end, status, " +
+        "load_id, seq, kind, name, location_name, city, state, postal_code, appointment_start, appointment_end, status, " +
           "external_status, actual_arrival_at, lat, lon",
       )
       .eq("org_id", orgId)
@@ -121,9 +127,13 @@ export async function readTruckLoadPlans(
       list
         .filter((l) => l !== current && !isLoadOnTruck(l))
         .sort((a, b) => firstAt(a).localeCompare(firstAt(b)) || (a.ref ?? "").localeCompare(b.ref ?? ""))[0] ?? null;
+    const currentStops = current ? (stops.get(current.id) ?? []) : [];
     byVehicleId.set(vehicleId, {
-      current: current ? toBoardLoad(current, stops.get(current.id) ?? []) : null,
+      current: current ? toBoardLoad(current, currentStops) : null,
       next: next ? toBoardLoad(next, stops.get(next.id) ?? []) : null,
+      // Already in seq order (the read orders by it); a stop with no seq is McLeod's oddity and is skipped,
+      // since where it falls on the path is unknown.
+      currentAhead: currentStops.filter((s) => s.seq != null && !isStopBehindTruck(s)).map(toBoardStop),
     });
   }
   return { byVehicleId, uncoveredCount, truncated: loads.length >= PAGE_CAP };
@@ -136,6 +146,7 @@ function toBoardStop(s: StopRow): DispatchBoardStop {
     name: s.location_name ?? s.name,
     city: s.city,
     state: s.state,
+    postalCode: s.postal_code,
     appointmentStart: s.appointment_start,
     appointmentEnd: s.appointment_end,
     arrivedAt: s.actual_arrival_at,

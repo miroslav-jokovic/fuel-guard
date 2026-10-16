@@ -217,7 +217,7 @@ const description = computed(() => {
           <span class="text-ink-muted"> · {{ stopPlace(row.next.nextStop) || row.next.customerName || "—" }}</span>
         </p>
         <p v-else class="text-sm text-ink-muted">None planned behind the current load.</p>
-        <p v-if="row.empties?.place" class="text-xs text-ink-muted">Empties in {{ row.empties.place }} at {{ at(row.empties.at) }}.</p>
+        <p v-if="row.available?.place" class="text-xs text-ink-muted">Empties in {{ row.available.place }} at {{ at(row.available.at) }}.</p>
       </section>
     </div>
 
