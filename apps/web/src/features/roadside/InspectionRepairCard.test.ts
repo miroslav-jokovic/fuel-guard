@@ -157,7 +157,7 @@ describe("certifying (IC11 B2, Q-IC13)", () => {
     repairs.value = [decided("u-1", "row-7"), repair({ unitId: "u-3", basedOn: "row-3" })];
     const w = await card();
     expect(w.find("[data-test='repair-certify-form']").exists()).toBe(false);
-    expect(w.get("[data-test='repair-certification-waits']").exists()).toBe(true);
+    expect(w.find("[data-test='repair-certification-waits']").exists()).toBe(true);
   });
 
   it("certifies with the title given, over every unit's row as shown", async () => {
