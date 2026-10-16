@@ -9,14 +9,25 @@ import {
 import { loadBoardState, movedByOther, needsAttention, type DispatchBoardRow, type LoadStatus } from "@silvicom/shared";
 import { BADGE_BASE, hosStatusBadge, onTimeBadge, toneClass } from "@/lib/badges";
 import { formatDateTime } from "@/lib/format";
-import { dispatcherName, durationWords, gpsAgeWords, legalDriveLeft, stopPlace } from "./dispatchBoardView";
+import {
+  availablePlace,
+  availableTone,
+  dispatcherName,
+  durationWords,
+  gpsAgeWords,
+  legalDriveLeft,
+  milesLeftWords,
+  POOL_FLEET,
+  stopPlace,
+} from "./dispatchBoardView";
 import { BOARD_HOS_LOW_MS } from "@silvicom/shared";
 
 /**
- * The dispatch board's table (DISPATCH-BOARD-PLAN §5): one row per truck, the columns a long-haul
- * planner reads left to right — who, how long they can drive, where, what, when it arrives, when it
- * empties, what is next. Every verdict on it (on time, the flags) arrived from the server; this only
- * draws. Times are on the CARRIER's clock (`zone`), never the viewer's, like the Loads page.
+ * The dispatch board's table (DISPATCH-BOARD-V2-PLAN D-DBV1): one row per truck, read left to right the
+ * way the dispatchers' own board reads — who, whose, when and where it is free, how far it still has to
+ * drive, its state. The v1 board's live columns (HOS, Now, Current load, Next stop, Next load) are still
+ * drawn here when the reader turns them on. Every verdict (on time, the flags, the availability) arrived
+ * from the server; this only draws. Times are on the CARRIER's clock (`zone`), never the viewer's.
  *
  * It pages (D-US8): 197 active trucks were one table on 2026-10-13, and the owner named this board as
  * the list nobody could get to the bottom of. Filtering, sorting and slicing stay with the page, which
@@ -36,6 +47,8 @@ const props = defineProps<{
   dispatchers: ReadonlyArray<{ id: string; name: string | null }>;
   fleetOwner: (code: string | null) => string | null;
   sort: SortState;
+  /** The board's own clock (`generatedAt`), so Available's colour is judged when the ETAs were made. */
+  now: Date;
   page: number;
   pageSize: number;
   /** Total rows behind the pagination, i.e. the filtered count, not `rows.length`. */
@@ -83,7 +96,57 @@ const loadLabel = (l: NonNullable<DispatchBoardRow["current"]>) =>
           {{ row.unitNumber }}
         </BaseButton>
       </div>
-      <div class="text-xs text-ink-muted">{{ row.inShop ? "In shop" : (row.fleetCode ?? "No fleet") }}</div>
+      <div class="text-xs text-ink-muted">{{ row.current?.trailerUnit ? `Trailer ${row.current.trailerUnit}` : "No trailer" }}</div>
+    </template>
+
+    <template #cell-dispatcher="{ row }">
+      <div>{{ row.fleetCode === POOL_FLEET ? "Pool" : (row.fleetCode ?? "—") }}</div>
+      <div v-if="movedByOther(fleetOwner(row.fleetCode), row.current)" class="text-xs text-ink-muted">
+        Moved by {{ dispatcherName(row.current!.dispatcherId, dispatchers) }}
+      </div>
+    </template>
+
+    <template #cell-available="{ row }">
+      <span v-if="row.inShop" :class="[BADGE_BASE, toneClass('neutral')]">In shop</span>
+      <template v-else-if="row.available?.at">
+        <span :class="[BADGE_BASE, toneClass(availableTone(row, now)), 'whitespace-nowrap']">
+          {{ row.current ? at(row.available.at) : "Now" }}
+        </span>
+        <div v-if="row.available.basis === 'eta'" class="text-xs text-ink-muted">by our ETA, after the appointment</div>
+      </template>
+      <span v-else class="text-ink-tertiary">—</span>
+    </template>
+
+    <template #cell-availableIn="{ row }">
+      {{ availablePlace(row) || "—" }}
+    </template>
+
+    <template #cell-milesLeft="{ row }">
+      <span :title="row.milesLeft != null ? 'Estimated road miles to the final delivery, through every stop still to make' : undefined">
+        {{ row.current ? milesLeftWords(row.milesLeft) : "—" }}
+      </span>
+    </template>
+
+    <template #cell-status="{ row }">
+      <span v-if="row.inShop" :class="[BADGE_BASE, toneClass('neutral')]">In shop</span>
+      <template v-else-if="row.current">
+        <span
+          :class="[BADGE_BASE, toneClass(onTimeBadge(row.onTime).tone)]"
+          :title="row.eta ? `ETA ${at(row.eta.at)} · ${row.eta.miles} mi by distance at 50 mph${row.eta.restAdded ? ', including a 10-hour reset' : ''}` : 'No ETA: the truck or the stop has no position'"
+        >
+          {{ onTimeBadge(row.onTime).label }}
+        </span>
+        <div class="text-xs text-ink-muted">
+          <BaseButton variant="link" :to="{ name: 'load-detail', params: { id: row.current.loadId } }" class="text-xs" @click.stop>
+            {{ row.current.ref ?? "Load" }}
+          </BaseButton>
+          <template v-if="row.next"> · next {{ row.next.ref ?? "load" }}</template>
+        </div>
+      </template>
+      <template v-else>
+        <span :class="[BADGE_BASE, toneClass('warning')]">Empty</span>
+        <div v-if="row.next" class="text-xs text-ink-muted">next {{ row.next.ref ?? "load" }}</div>
+      </template>
     </template>
 
     <template #cell-driver="{ row }">
@@ -118,9 +181,6 @@ const loadLabel = (l: NonNullable<DispatchBoardRow["current"]>) =>
         </BaseButton>
         <span class="text-ink-muted"> · {{ loadLabel(row.current) }}</span>
         <div class="text-xs text-ink-muted">{{ row.current.customerName ?? "—" }}</div>
-        <div v-if="movedByOther(fleetOwner(row.fleetCode), row.current)" class="text-xs text-ink-muted">
-          Moved by {{ dispatcherName(row.current.dispatcherId, dispatchers) }}
-        </div>
       </template>
       <!-- A state the dispatcher acts on is a badge; a value that is simply not there is the table's dash. -->
       <span v-else-if="row.inShop" :class="[BADGE_BASE, toneClass('neutral')]">In shop</span>
@@ -135,26 +195,6 @@ const loadLabel = (l: NonNullable<DispatchBoardRow["current"]>) =>
           <span class="whitespace-nowrap">{{ at(row.current.nextStop.appointmentEnd ?? row.current.nextStop.appointmentStart) }}</span>
         </div>
       </template>
-      <span v-else class="text-ink-tertiary">—</span>
-    </template>
-
-    <template #cell-onTime="{ row }">
-      <span
-        v-if="row.current"
-        :class="[BADGE_BASE, toneClass(onTimeBadge(row.onTime).tone)]"
-        :title="row.eta ? `ETA ${at(row.eta.at)} · ${row.eta.miles} mi by distance at 50 mph${row.eta.restAdded ? ', including a 10-hour reset' : ''}` : 'No ETA: the truck or the stop has no position'"
-      >
-        {{ onTimeBadge(row.onTime).label }}
-      </span>
-      <span v-else class="text-ink-tertiary">—</span>
-    </template>
-
-    <template #cell-empties="{ row }">
-      <template v-if="row.available && row.current">
-        <div>{{ row.available.place ?? "—" }}</div>
-        <div class="whitespace-nowrap text-xs text-ink-muted">{{ at(row.available.at) }}</div>
-      </template>
-      <span v-else-if="row.available">Now</span>
       <span v-else class="text-ink-tertiary">—</span>
     </template>
 

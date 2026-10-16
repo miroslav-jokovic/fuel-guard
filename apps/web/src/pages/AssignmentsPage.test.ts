@@ -19,9 +19,15 @@ vi.mock("@/features/dispatch/DispatchTruckDrawer.vue", () => ({
  * to the Loads page rather than a second list (D-DB5).
  */
 const flags = { lateRisk: false, noNextLoad: false, emptyNow: false, hosLow: false, noGps: false };
-const row = (unitNumber: string, fleetCode: string): DispatchBoardRow => ({
+const NOW = Date.parse("2026-10-09T20:00:00Z");
+/** An empty truck, free now where it stands — or, with `hours`, free that many hours from the board's clock. */
+const row = (unitNumber: string, fleetCode: string, o: { hours?: number; state?: string } = {}): DispatchBoardRow => ({
   vehicleId: `v-${unitNumber}`, unitNumber, inShop: false, fleetCode, driver: null, hos: null, position: null,
-  fuelPercent: null, current: null, next: null, eta: null, onTime: "unknown", available: null, milesLeft: null, flags: { ...flags, emptyNow: true },
+  fuelPercent: null, current: null, next: null, eta: null, onTime: "unknown", milesLeft: null, flags: { ...flags, emptyNow: true },
+  available: {
+    place: null, ...(o.state === "GA" ? { city: "Savannah", state: "GA", postalCode: "31401", lat: 32.08, lng: -81.09 } : { city: "Lakeland", state: "FL", postalCode: "33801", lat: 28.04, lng: -81.95 }),
+    at: new Date(NOW + (o.hours ?? 0) * 3_600_000).toISOString(), basis: o.hours ? "appointment" : "now",
+  },
 });
 // A ref, so a test can land the board AFTER the page opened, as the first fetch does in production.
 const board = await vi.hoisted(async () => {
@@ -53,7 +59,8 @@ import AssignmentsPage from "./AssignmentsPage.vue";
 
 const response = (linked: boolean): DispatchBoardResponse => ({
   generatedAt: "2026-10-09T20:00:00Z",
-  rows: [row("773", "VINNIEV"), row("669", "VINNIEV"), row("801", "VLADI"), row("550", "1")],
+  // Soonest free first is the board's order: 773 now, 669 in 5 h, 801 (Georgia) in 30 h.
+  rows: [row("801", "VLADI", { hours: 30, state: "GA" }), row("669", "VINNIEV", { hours: 5 }), row("773", "VINNIEV"), row("550", "1")],
   scope: linked ? { linked, fleetCodes: ["VINNIEV"], dispatcherIds: ["vinniev"] } : { linked, fleetCodes: [], dispatcherIds: [] },
   fleets: [{ code: "VINNIEV", dispatcherId: "vinniev" }, { code: "VLADI", dispatcherId: null }, { code: "1", dispatcherId: null }],
   dispatchers: [{ id: "vinniev", name: "vinniev", isSystem: false }],
@@ -133,14 +140,11 @@ describe("the dispatch board page", () => {
     expect(w.get("[data-test=drawer]").text()).toBe("closed");
   });
 
-  it("shows the queues as tabs with their counts, and History as the last tab", async () => {
+  it("shows three queues as tabs with their counts, and History as the last tab", async () => {
     board.value = response(true);
     const w = await mountPage();
     const tabs = w.findAll("[role=tab]").map((t) => t.text().replace(/\s+/g, " "));
-    expect(tabs[0]).toBe("All trucks 2");
-    expect(tabs).toContain("Empty now 2");
-    expect(tabs).toContain("Late risk 0");
-    expect(tabs.at(-1)).toBe("History");
+    expect(tabs).toEqual(["All trucks 2", "Needs a load 2", "Needs attention 0", "History"]);
     await w.findAll("[role=tab]").at(-1)!.trigger("click");
     await flushPromises();
     expect(w.router.currentRoute.value.query).toEqual({ queue: "history" });
@@ -150,6 +154,8 @@ describe("the dispatch board page", () => {
   it("sorts by a column and keeps the sort in the URL, so a link reopens it", async () => {
     board.value = response(false);
     const w = await mountPage();
+    // Soonest free first until somebody asks otherwise.
+    expect(units(w)).toEqual(["773", "669", "801"]);
     await w.findAll("thead button").find((b) => b.text() === "Truck")!.trigger("click");
     await flushPromises();
     expect(w.router.currentRoute.value.query).toEqual({ sort: "unit", dir: "asc" });
@@ -167,7 +173,8 @@ describe("the dispatch board page", () => {
 
   it("clears a narrowed board back to every truck in its scope, keeping the scope and the sort", async () => {
     board.value = response(true);
-    const w = await mountPage("/assignments?scope=all&fleet=VLADI&sort=unit&dir=asc");
+    const w = await mountPage("/assignments?scope=all&state=GA&within=48&sort=unit&dir=asc");
+    expect(units(w)).toEqual(["801"]);
     const clear = () => w.findAll("button").find((b) => b.text() === "Clear filters");
     await clear()!.trigger("click");
     await flushPromises();
@@ -178,26 +185,35 @@ describe("the dispatch board page", () => {
 
   it("shows the columns a link leaves in, never hiding the truck, and offers the column picker", async () => {
     board.value = response(true);
-    const w = await mountPage("/assignments?hide=empties,next,unit");
+    const w = await mountPage("/assignments?hide=milesLeft,next,unit");
     const headers = w.findAll("thead th").map((th) => th.text().trim());
     expect(headers).toContain("Truck");
-    expect(headers).toContain("On time");
-    expect(headers).not.toContain("Empties");
+    expect(headers).toContain("Available");
+    expect(headers).not.toContain("Miles left");
     expect(headers).not.toContain("Next load");
-    // The picker says what is hidden; the truck is the row's name and cannot be turned off.
+    // A link's own hidden-list wins, so the Live columns it does not hide show; the truck cannot be hidden.
+    expect(headers).toContain("HOS");
     expect(w.findAll("button").find((b) => b.text().startsWith("Columns"))!.text()).toContain("2 hidden");
+  });
+
+  it("opens on the dispatchers' seven columns, the live ones one tick away in the picker", async () => {
+    board.value = response(true);
+    const w = await mountPage();
+    const headers = w.findAll("thead th").map((th) => th.text().trim());
+    expect(headers).toEqual(["Truck", "Driver", "Dispatcher", "Available", "Available in", "Miles left", "Status"]);
+    expect(w.findAll("button").find((b) => b.text().startsWith("Columns"))!.text()).toContain("5 hidden");
   });
 
   it("saves the board's whole URL as a view, applies one by navigating, and names the one showing", async () => {
     board.value = response(true);
     savedViews.views = [{ table_id: "dispatch.board", name: "VLADI late", query: "scope=all&fleet=VLADI", updated_at: "2026-10-10T00:00:00Z" }];
-    const w = await mountPage("/assignments?queue=late&sort=onTime&dir=asc&hide=empties");
+    const w = await mountPage("/assignments?queue=late&sort=status&dir=asc&hide=milesLeft");
     expect(savedViews.table).toBe("dispatch.board");
     const menu = w.findComponent(SavedViewMenu);
     expect(menu.props("builtIns")).toEqual([]);
     menu.vm.$emit("save", "Late, by risk");
     await flushPromises();
-    expect(savedViews.save).toHaveBeenCalledWith("Late, by risk", "queue=late&sort=onTime&dir=asc&hide=empties");
+    expect(savedViews.save).toHaveBeenCalledWith("Late, by risk", "queue=late&sort=status&dir=asc&hide=milesLeft");
     menu.vm.$emit("apply", "scope=all&fleet=VLADI");
     await flushPromises();
     expect(w.router.currentRoute.value.query).toEqual({ scope: "all", fleet: "VLADI" });
@@ -205,13 +221,41 @@ describe("the dispatch board page", () => {
     expect(w.findComponent(SavedViewMenu).props("activeName")).toBe("VLADI late");
   });
 
-  it("writes the scope a person chooses into the URL", async () => {
+  it("counts trucks per dispatcher, and a dispatcher's count is the filter", async () => {
     board.value = response(true);
     const w = await mountPage();
-    await w.findAll("[role=radio], button").find((b) => b.text() === "All")!.trigger("click");
+    const census = w.get("[aria-label='Trucks per dispatcher']").findAll("button");
+    expect(census.map((b) => b.attributes("aria-label"))).toEqual([
+      "Mine: 2 trucks",
+      "All: 3 trucks, 3 empty now",
+      "VINNIEV: 2 trucks, 2 empty now",
+      "VLADI: 1 truck, 1 empty now",
+      "Pool: 1 truck",
+    ]);
+    expect(census[0]!.attributes("aria-pressed")).toBe("true");
+    await census[3]!.trigger("click");
+    await flushPromises();
+    expect(w.router.currentRoute.value.query).toEqual({ scope: "all", fleet: "VLADI" });
+    expect(units(w)).toEqual(["801"]);
+    await w.get("[aria-label='Trucks per dispatcher']").findAll("button")[1]!.trigger("click");
     await flushPromises();
     expect(w.router.currentRoute.value.query).toEqual({ scope: "all" });
     expect(units(w)).toEqual(["773", "669", "801"]);
+  });
+
+  it("finds the trucks free in a state within a horizon, from a link", async () => {
+    board.value = response(false);
+    expect(units(await mountPage("/assignments?state=FL"))).toEqual(["773", "669"]);
+    expect(units(await mountPage("/assignments?state=fl,ga&within=12"))).toEqual(["773", "669"]);
+    expect(units(await mountPage("/assignments?within=0"))).toEqual(["773"]);
+  });
+
+  it("finds trucks near a city the board knows, and falls back to its state — saying so — for one it does not", async () => {
+    board.value = response(false);
+    expect(units(await mountPage("/assignments?near=LAKELAND|FL&radius=50"))).toEqual(["773", "669"]);
+    const gone = await mountPage("/assignments?near=MACON|GA");
+    expect(units(gone)).toEqual(["801"]);
+    expect(gone.text()).toContain("No truck is free in that city any more");
   });
 
   /**
@@ -222,7 +266,7 @@ describe("the dispatch board page", () => {
   describe("pages twenty trucks at a time", () => {
     const many = (): DispatchBoardResponse => ({
       ...response(true),
-      rows: Array.from({ length: 45 }, (_, i) => row(String(1001 + i), "VINNIEV")),
+      rows: Array.from({ length: 45 }, (_, i) => row(String(1001 + i), "VINNIEV", { hours: i })),
     });
 
     it("shows trucks 21–40 on a pasted ?page=2, and keeps it when the board arrives after the page opened", async () => {
