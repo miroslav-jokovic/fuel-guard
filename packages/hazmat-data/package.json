@@ -8,7 +8,6 @@
   "types": "./src/index.ts",
   "files": ["src", "datasets"],
   "scripts": {
-    "build": "tsc -p tsconfig.json --noEmit",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "typecheck:import": "tsc -p import/tsconfig.json --noEmit",
     "test": "vitest run"

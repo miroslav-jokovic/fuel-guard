@@ -82,7 +82,7 @@ FuelGuard is a monorepo with **two services** off one repo.
 
    **Service `api`**
    - Root directory: `apps/api`
-   - Build: `pnpm install && pnpm --filter @silvicom/api build`
+   - Build: `pnpm install` (the API runs from source through tsx; it has no build step)
    - Start: `node apps/api/dist/index.js` (adjust to your build output)
    - Variables: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `ALLOWED_ORIGINS`, mail vars,
      `NODE_ENV=production`, `PORT` (Railway provides one).

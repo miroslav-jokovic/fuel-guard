@@ -28,7 +28,7 @@ stripped before Claude reads the file. -->
 
 - `pnpm test` — unit suites AND every `supabase/tests/*.test.mjs` matrix, unconditionally. Matrices are
   auto-discovered and must print a `RESULT` line; a silent matrix fails.
-- `pnpm typecheck` · `pnpm lint` · `pnpm build` (mostly `tsc --noEmit`).
+- `pnpm typecheck` · `pnpm lint` · `pnpm build` (artefacts only: the web and admin bundles and tokens.css — `pnpm typecheck` is the one type gate).
 - `pnpm verify:live` — answers "why don't I see my changes?": compares a deployed `GET /api/version`
   (commit, release tag, migration) with the git ref that host follows. Production trails main BY
   DESIGN until the next release, so it takes a target: no argument = production vs

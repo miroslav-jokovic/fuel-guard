@@ -150,9 +150,10 @@ gone.
 typecheck back** — at that point Railway becomes the only thing standing between a bad commit and
 production, because it is the one pipeline that does not wait for CI.
 
-`railway.admin.json` still calls `pnpm --filter @silvicom/admin build`, which has the same
-`vue-tsc &&` shape. It was left alone deliberately: the admin service is on its own watch patterns
-and is not on the merge-to-live path this was measured against. The same reasoning would apply.
+`railway.admin.json` calls `pnpm --filter @silvicom/admin build`, which had the same `vue-tsc &&`
+shape until 2026-10-16. That day every workspace's `build` became artefacts-only (CI feedback loop
+v2, step 4), so the admin deploy now skips the typecheck too, on the reasoning above: CI's
+`typecheck` job runs admin's `vue-tsc` before anything reaches `main`.
 
 ## Exactly one service runs the schedulers, and it is enforced by an env var only
 
