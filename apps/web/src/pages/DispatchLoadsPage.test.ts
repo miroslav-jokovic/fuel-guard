@@ -179,15 +179,90 @@ describe("the Loads page beside the dispatch board", () => {
     expect(w.text()).not.toContain("Clear all");
   });
 
-  it("clears a narrowed list back to every load, keeping the queue and the scope it was opened on", async () => {
+  it("clears a narrowed list back to the census choice, keeping the queue and the fleet it was opened on", async () => {
     board.value = response(true);
-    const w = await mountPage("/loads?queue=in_transit&scope=all&fleet=VLADI");
+    const w = await mountPage("/loads?queue=in_transit&scope=all&fleet=VLADI&dispatcher=asen&type=Reefer");
+    expect(refs(w)).toEqual([]);
     const clear = () => w.findAll("button").find((b) => b.text() === "Clear filters");
     await clear()!.trigger("click");
     await flushPromises();
-    expect(w.router.currentRoute.value.query).toEqual({ queue: "in_transit", scope: "all" });
-    expect(refs(w)).toEqual(["L-mine-fleet", "L-i-dispatch", "L-not-mine"]);
+    // Dispatched by and Type narrow the list; the census choice (VLADI) says WHICH list it is, as on the board.
+    expect(w.router.currentRoute.value.query).toEqual({ queue: "in_transit", scope: "all", fleet: "VLADI" });
+    expect(refs(w)).toEqual(["L-i-dispatch", "L-not-mine"]);
     expect(clear()).toBeUndefined();
+  });
+
+  /**
+   * Q-DBV8 (ruled 2026-10-16): the board's strip, counting THIS list — loads in the open tab, per fleet
+   * of their truck — so each button's number is the rows it shows when pressed.
+   */
+  describe("counts loads per dispatcher (DBV8)", () => {
+    const census = (w: Awaited<ReturnType<typeof mountPage>>, noun = "Loads") =>
+      w.get(`[aria-label='${noun} per dispatcher']`).findAll("button");
+    const labels = (w: Awaited<ReturnType<typeof mountPage>>, noun?: string) => census(w, noun).map((b) => b.attributes("aria-label"));
+
+    it("counts the open tab's loads, Mine first, every working fleet even at 0", async () => {
+      board.value = response(true);
+      const w = await mountPage();
+      expect(labels(w)).toEqual(["Mine: 2 loads", "All: 3 loads", "VINNIEV (Vinnie V): 1 load", "VLADI: 2 loads"]);
+      expect(census(w)[0]!.attributes("aria-pressed")).toBe("true");
+      await openTab(w, "Upcoming");
+      expect(labels(w)).toEqual(["Mine: 1 load", "All: 1 load", "VINNIEV (Vinnie V): 1 load", "VLADI: 0 loads"]);
+    });
+
+    it("shows exactly the loads a button counted when it is pressed", async () => {
+      board.value = response(true);
+      const w = await mountPage();
+      await census(w)[3]!.trigger("click");
+      await flushPromises();
+      expect(w.router.currentRoute.value.query).toEqual({ scope: "all", fleet: "VLADI" });
+      expect(refs(w)).toEqual(["L-i-dispatch", "L-not-mine"]);
+      expect(census(w).map((b) => b.attributes("aria-pressed"))).toEqual(["false", "false", "false", "true"]);
+      await census(w)[1]!.trigger("click");
+      await flushPromises();
+      expect(w.router.currentRoute.value.query).toEqual({ scope: "all" });
+      expect(refs(w)).toHaveLength(3);
+    });
+
+    it("names a load with no truck apart from a fleet, and counts Uncovered under Mine as the table does", async () => {
+      board.value = response(true);
+      const w = await mountPage("/loads?queue=uncovered");
+      expect(labels(w)).toEqual(["Mine: 1 load", "All: 1 load", "VINNIEV (Vinnie V): 0 loads", "VLADI: 0 loads", "No truck: 1 load"]);
+      await census(w)[4]!.trigger("click");
+      await flushPromises();
+      expect(refs(w)).toEqual(["L-uncovered"]);
+      expect(census(w)[4]!.attributes("aria-pressed")).toBe("true");
+      // A pressed choice keeps its button on a tab where it counts nothing, so it can be seen and left.
+      await openTab(w, "In transit");
+      expect(labels(w).at(-1)).toBe("No truck: 0 loads");
+    });
+
+    it("offers no Mine to a reader linked to no McLeod login", async () => {
+      board.value = response(false);
+      const w = await mountPage();
+      expect(labels(w)).toEqual(["All: 3 loads", "VINNIEV (Vinnie V): 1 load", "VLADI: 2 loads"]);
+    });
+
+    it("counts under the search and Dispatched by, which narrow every button alike", async () => {
+      board.value = response(true);
+      const w = await mountPage("/loads?dispatcher=asen");
+      expect(labels(w)).toEqual(["Mine: 1 load", "All: 2 loads", "VINNIEV (Vinnie V): 1 load", "VLADI: 1 load"]);
+      // Dispatched by sits under the toolbar's Filters, which counts it, and shows as a chip.
+      expect(w.findAll("button").find((b) => b.text().startsWith("Filters"))!.text()).toBe("Filters 1");
+      expect(w.text()).toContain("Dispatched by");
+      const searched = await mountPage("/loads?search=801");
+      expect(labels(searched)).toEqual(["Mine: 1 load", "All: 1 load", "VINNIEV (Vinnie V): 0 loads", "VLADI: 1 load"]);
+    });
+
+    it("counts exceptions on Exceptions, the one with no load in All and Mine only", async () => {
+      board.value = response(true);
+      const w = await mountPage("/loads?queue=exceptions");
+      expect(labels(w, "Exceptions")).toEqual(["Mine: 2 exceptions", "All: 3 exceptions", "VINNIEV (Vinnie V): 1 exception", "VLADI: 1 exception"]);
+      // Dispatched by names a property a load-less exception lacks, so it leaves every count.
+      expect(labels(await mountPage("/loads?queue=exceptions&dispatcher=asen"), "Exceptions").slice(0, 2)).toEqual(["Mine: 1 exception", "All: 2 exceptions"]);
+      // And the census counts what the search left, as the table does.
+      expect(labels(await mountPage("/loads?queue=exceptions&search=auto-closed"), "Exceptions").slice(0, 2)).toEqual(["Mine: 1 exception", "All: 1 exception"]);
+    });
   });
 
   it("writes the queue and the sort into the URL", async () => {

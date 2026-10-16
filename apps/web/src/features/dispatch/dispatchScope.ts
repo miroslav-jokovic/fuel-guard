@@ -18,6 +18,11 @@ import type { UrlQueryState } from "@silvicom/ui";
 export const POOL_FLEET = "1";
 export const POOL_OPTION = "__pool__";
 export const NO_FLEET_OPTION = "__none__";
+/**
+ * Loads only: a load with no truck yet (Q-DBV8). Its fleet is unknown for a different reason from a
+ * truck's with no fleet code, and the Loads census names the two apart; the board never sees one.
+ */
+export const NO_TRUCK_OPTION = "__no_truck__";
 
 export interface ScopeFilter {
   mine: boolean;
@@ -28,6 +33,8 @@ export interface ScopeFilter {
 /** What scope is judged on: the truck's fleet, and the dispatcher of each load in question. */
 export interface ScopedItem {
   fleetCode: string | null;
+  /** False for a load with no truck; absent on a board row, which is always a truck. */
+  hasTruck?: boolean;
   current: { dispatcherId: string | null } | null;
   next: { dispatcherId: string | null } | null;
 }
@@ -36,8 +43,9 @@ export interface ScopedItem {
 export function admitsScope(item: ScopedItem, scope: DispatchScope, f: ScopeFilter): boolean {
   if (f.mine && !inMyScope(item, scope)) return false;
   if (f.fleet === POOL_OPTION && item.fleetCode !== POOL_FLEET) return false;
-  if (f.fleet === NO_FLEET_OPTION && item.fleetCode !== null) return false;
-  if (f.fleet && f.fleet !== POOL_OPTION && f.fleet !== NO_FLEET_OPTION && item.fleetCode !== f.fleet) return false;
+  if (f.fleet === NO_FLEET_OPTION && (item.fleetCode !== null || item.hasTruck === false)) return false;
+  if (f.fleet === NO_TRUCK_OPTION && item.hasTruck !== false) return false;
+  if (f.fleet && ![POOL_OPTION, NO_FLEET_OPTION, NO_TRUCK_OPTION].includes(f.fleet) && item.fleetCode !== f.fleet) return false;
   if (f.dispatcher && item.current?.dispatcherId !== f.dispatcher && item.next?.dispatcherId !== f.dispatcher) return false;
   return true;
 }
@@ -46,18 +54,6 @@ export function admitsScope(item: ScopedItem, scope: DispatchScope, f: ScopeFilt
 export { dispatcherName };
 
 type Board = Pick<DispatchBoardResponse, "fleets" | "dispatchers"> | null | undefined;
-
-export function fleetOptions(board: Board): { value: string; label: string }[] {
-  const dispatchers = board?.dispatchers ?? [];
-  return [
-    { value: "", label: "All fleets" },
-    ...(board?.fleets ?? [])
-      .filter((f) => f.code !== POOL_FLEET)
-      .map((f) => ({ value: f.code, label: f.dispatcherId ? `${f.code} · ${dispatcherName(f.dispatcherId, dispatchers)}` : f.code })),
-    { value: POOL_OPTION, label: "Unassigned pool" },
-    { value: NO_FLEET_OPTION, label: "No fleet" },
-  ];
-}
 
 export function dispatcherOptions(board: Board): { value: string; label: string }[] {
   return [

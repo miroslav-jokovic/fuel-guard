@@ -269,6 +269,7 @@ Fix, one PR each:
   with different controls that mean the same thing.
   *Recommend (a)*, as DBV8, after the dispatchers have seen DBV7 — they named the board, not Loads, when
   they asked for counts. Until ruled, Loads keeps (c); nothing borrows the strip around the mismatch.
+  **Ruled 2026-10-16 (owner: "proceed as proposed"): (a), built as DBV8.**
 
 ## 7. Steps (one PR each)
 
@@ -283,7 +284,7 @@ Fix, one PR each:
 - **DBV5** — Routing: route from truck over unreached stops, cache TTL, drawer miles (§5.1, 5.2, 5.4).
 - **DBV6** — Driven path on the map (§5.3).
 - **DBV7** — Loads page: Dispatch column, Miles left and appointment in Delivery (Q-DBV6).
-- **DBV8** — Loads page scope control, if Q-DBV8 is ruled (a).
+- **DBV8** — Loads page scope control: the census strip counting loads (Q-DBV8 (a)).
 - **Later** — HERE miles per row (Q-DBV4, after DB7's 14 days).
 
 ## 8. What this does NOT do
@@ -446,3 +447,24 @@ Build order: DBV1 → DBV2 → DBV5 → DBV3 → DBV4 → DBV6 → DBV7.
   The stop's display name is one function, `loadStopName`, read by the cell and by the page's search.
 - **Census strip not adopted** — counts would be trucks over a list of loads. Written up as Q-DBV8
   with a recommendation; Loads keeps the v1 scope control until it is ruled.
+
+### 2026-10-16 — DBV8 the Loads page counts its own loads
+
+- **Ruling.** The owner answered Q-DBV8 "proceed as proposed", so (a) was built.
+- **One strip, two counters.** `DispatcherCensus` now only draws buttons, and `censusItems.ts` builds
+  them. `truckCensusItems` is the board's strip moved out unchanged (the board's census test passes
+  as it was). `loadCensusItems` counts the Loads list by running the page's own `admits` with each
+  button's choice. That is the very test the table runs, so a button's number is always the rows it
+  shows, the Uncovered exemption from My fleet included.
+- **What it counts.** The open tab's loads under its Type, search and Dispatched by. On Exceptions it
+  counts the exceptions, each by its load; one with no load counts under All and Mine only, as
+  before. Every working fleet the board knows gets a button, even at 0, so the strip does not shift
+  between tabs. Pool, No fleet and **No truck** close it only when they hold something, or while
+  pressed.
+- **No truck** is a new scope choice (`NO_TRUCK_OPTION`). A load with no truck is unfleeted for a
+  different reason from a truck with no fleet code, and the button names it. Board rows carry no
+  `hasTruck`, so the board's No fleet is unchanged.
+- **Dispatched by** moved under Filters with a chip, as on the board. Clear filters now keeps the
+  census choice (a fleet), as the board's does.
+- `DispatchScopeControls.vue` (the v1 control) and `fleetOptions` had no other reader and are gone. The
+  Type filter and the hazmat chip words moved to `loadType.ts`, so the page is 475 lines.
