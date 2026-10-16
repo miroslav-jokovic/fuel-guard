@@ -17,6 +17,7 @@ import {
   type UserRole,
 } from "@silvicom/shared";
 import { medstopViolationsByDriver } from "../medstop/index.js";
+import { fetchAllPaged } from "../../lib/paging.js";
 
 /**
  * The fleet-wide qualification picture (DQ redesign, D-DQ6).
@@ -32,7 +33,16 @@ import { medstopViolationsByDriver } from "../medstop/index.js";
  * not four hundred.
  */
 
-/** Bound on the qualification-record read. Reported, never silently applied — see `truncated`. */
+/**
+ * Bound on the qualification-record read. Reported, never silently applied — see `truncated`.
+ *
+ * ⚠ Until 2026-10-16 this was a `.limit(10_000)` on ONE request, and PostgREST answers at most 1,000
+ * rows a request whatever the limit says: the 1,001st record would have been dropped and `truncated`
+ * (which compares against 10,000) could never have said so. Every read below now pages
+ * (`fetchAllPaged`), each in a stable order so a page boundary neither skips nor repeats a row. Sizes
+ * then (production): 171 drivers, 375 certifications, 7 records, 2 documents — under the cap today,
+ * but the certifications grow with every upload (DISPATCH-BOARD-V2-PLAN, DBV4's open item).
+ */
 const RECORD_CAP = 10_000;
 
 export interface DriverOverview {
@@ -61,6 +71,13 @@ export interface ComplianceOverview {
   truncated: boolean;
 }
 
+interface DriverRow {
+  id: string;
+  full_name: string;
+  status: string;
+  cdl_number: string | null;
+  return_to_duty_required: boolean | null;
+}
 interface CertRow {
   subject_id: string;
   kind: string;
@@ -114,53 +131,60 @@ export async function getComplianceOverview(
     medstopViolations?: ReadonlyMap<string, string>;
   } = {},
 ): Promise<ComplianceOverview> {
-  const [driversRes, certsRes, recordsRes, docsRes, hazmatRes] = await Promise.all([
+  const [drivers, certs, records, docs, hazmatRes] = await Promise.all([
     // Employed drivers only, and only real ones. A §391.51 obligation attaches to people who drive
     // for the carrier; terminated and deactivated rows kept flooding the queue as "not started"
     // files nobody was ever going to build, and EFS name-stubs (identity_source 'efs', 0204 / A6)
     // are payment identities that assert `active` with no employment behind them — a third of the
     // measured queue. Their records are retained and their file pages stay reachable — they just
     // leave the work queue.
-    admin
-      .from("drivers")
-      .select("id, full_name, status, cdl_number, return_to_duty_required")
-      .eq("org_id", orgId)
-      .in("status", ["active", "on_leave"])
-      .neq("identity_source", "efs")
-      .order("full_name"),
-    admin
-      .from("certifications")
-      .select("subject_id, kind, qualifier, training_type, issued_at, expires_at, document_id")
-      .eq("org_id", orgId)
-      .eq("subject_type", "driver")
-      .is("superseded_by", null),
-    admin
-      .from("qualification_records")
-      .select("driver_id, kind, occurred_on, covers_until, document_id")
-      .eq("org_id", orgId)
-      .order("occurred_on", { ascending: false })
-      .limit(RECORD_CAP),
-    admin
-      .from("documents")
-      .select("id, subject_id, kind")
-      .eq("org_id", orgId)
-      .eq("subject_type", "driver"),
+    fetchAllPaged<DriverRow>((from, to) =>
+      admin
+        .from("drivers")
+        .select("id, full_name, status, cdl_number, return_to_duty_required")
+        .eq("org_id", orgId)
+        .in("status", ["active", "on_leave"])
+        .neq("identity_source", "efs")
+        .order("full_name")
+        .order("id")
+        .range(from, to),
+    ),
+    fetchAllPaged<CertRow>((from, to) =>
+      admin
+        .from("certifications")
+        .select("subject_id, kind, qualifier, training_type, issued_at, expires_at, document_id")
+        .eq("org_id", orgId)
+        .eq("subject_type", "driver")
+        .is("superseded_by", null)
+        .order("id")
+        .range(from, to),
+    ),
+    // Newest first, stopping at the first page past the cap, so a capped read keeps the records that
+    // decide a file today.
+    fetchAllPaged<RecordRow>((from, to) =>
+      from >= RECORD_CAP
+        ? Promise.resolve({ data: [], error: null })
+        : admin
+            .from("qualification_records")
+            .select("driver_id, kind, occurred_on, covers_until, document_id")
+            .eq("org_id", orgId)
+            .order("occurred_on", { ascending: false })
+            .order("id")
+            .range(from, to),
+    ),
+    fetchAllPaged<DocRow>((from, to) =>
+      admin
+        .from("documents")
+        .select("id, subject_id, kind")
+        .eq("org_id", orgId)
+        .eq("subject_type", "driver")
+        .order("id")
+        .range(from, to),
+    ),
     admin.rpc("org_module_enabled", { p_org: orgId, p_module: "hazmatguard" }),
   ]);
 
-  const failed = [driversRes, certsRes, recordsRes, docsRes, hazmatRes].find((result) => result.error);
-  if (failed?.error) throw new Error(failed.error.message);
-
-  const drivers = (driversRes.data ?? []) as unknown as {
-    id: string;
-    full_name: string;
-    status: string;
-    cdl_number: string | null;
-    return_to_duty_required: boolean | null;
-  }[];
-  const certs = (certsRes.data ?? []) as unknown as CertRow[];
-  const records = (recordsRes.data ?? []) as unknown as RecordRow[];
-  const docs = (docsRes.data ?? []) as unknown as DocRow[];
+  if (hazmatRes.error) throw new Error(hazmatRes.error.message);
   const includesHazmat = hazmatRes.data === true;
 
   const certsBy = groupBy(certs, (c) => c.subject_id);

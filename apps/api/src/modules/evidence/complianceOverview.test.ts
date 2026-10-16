@@ -190,3 +190,47 @@ describe("the Med-Stop hold in the fleet queue", () => {
     }
   });
 });
+
+/**
+ * PostgREST answers at most 1,000 rows a request, whatever `.limit()` asks for. Each table here answers
+ * like that — the slice its `.range()` asked for, and never more than 1,000 — so a read that does not
+ * page sees only its first thousand, which is what the overview did with all four until 2026-10-16.
+ */
+describe("reads every row, a page at a time", () => {
+  const CAP = 1000;
+  const paged = (rows: unknown[]) => (q: { ops: { method: string; args: unknown[] }[] }) => {
+    const r = q.ops.find((op) => op.method === "range");
+    const [from, to] = r ? (r.args as [number, number]) : [0, rows.length - 1];
+    return rows.slice(from, Math.min(to + 1, from + CAP));
+  };
+  // One driver past the first thousand, whose medical card is the 1,201st certification.
+  const drivers = Array.from({ length: 1001 }, (_, i) => ({ id: `d${i}`, full_name: `Driver ${String(i).padStart(4, "0")}`, status: "active" }));
+  const medCard = (subject: string, expires: string) => ({ subject_id: subject, kind: "medical_card", qualifier: null, training_type: null, issued_at: "2026-01-01", expires_at: expires, document_id: null });
+  const certs = [...Array.from({ length: 1200 }, (_, i) => medCard(`d${i % 1000}`, "2027-06-01")), medCard("d1000", "2026-09-01")];
+
+  it("finds the 1,001st driver and the 1,201st certification", async () => {
+    const rec = createSupabaseRecorder({
+      tables: { drivers: paged(drivers), certifications: paged(certs), qualification_records: paged([]), documents: paged([]) },
+      rpc: { org_module_enabled: false },
+    });
+    const result = await getComplianceOverview(rec.client, ORG, "2026-10-16");
+    expect(result.drivers).toHaveLength(1001);
+    const last = result.drivers.find((d) => d.driver_id === "d1000")!;
+    // Read, the expired card puts the driver in the queue; unread, it would say the card is missing.
+    expect(last.attention.find((a) => a.key.includes("medical"))).toMatchObject({ state: "expired" });
+    expect(rec.forTable("certifications").length).toBe(2);
+    expectOrgScoped(rec, ORG);
+  });
+
+  it("says the record read was cut at its cap, which a single request never could", async () => {
+    const records = Array.from({ length: 10_050 }, (_, i) => ({ driver_id: "d0", kind: "annual_review", occurred_on: "2026-01-01", covers_until: null, document_id: null, id: i }));
+    const rec = createSupabaseRecorder({
+      tables: { drivers: paged(drivers.slice(0, 1)), certifications: paged([]), qualification_records: paged(records), documents: paged([]) },
+      rpc: { org_module_enabled: false },
+    });
+    const result = await getComplianceOverview(rec.client, ORG, "2026-10-16");
+    expect(result.truncated).toBe(true);
+    // Ten pages and no eleventh: the cap stops the read, it is not a filter applied afterwards.
+    expect(rec.forTable("qualification_records").length).toBe(10);
+  });
+});
