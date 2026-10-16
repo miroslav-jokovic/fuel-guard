@@ -107,6 +107,7 @@ const apart = (days: number | null) => (days == null ? "—" : `${Math.abs(days)
         :columns="COLUMNS"
         :rows="pageRows"
         row-key="unitId"
+        :nowrap="false"
         :loading="annuals.isLoading.value"
         :error="annuals.isError.value ? 'Could not load the annual dates.' : null"
         @retry="() => annuals.refetch()"
@@ -122,9 +123,11 @@ const apart = (days: number | null) => (days == null ? "—" : `${Math.abs(days)
         <template #cell-fleetpal="{ row }"><InspectionExpiryCell :expires-on="row.fleetpalDueOn" :today="today" /></template>
         <template #cell-gapDays="{ row }">{{ apart(row.gapDays) }}</template>
         <template #cell-check="{ row }">
-          <span class="text-ink-secondary">{{ whatToCheck(row) }}</span>
+          <!-- Cells wrap rather than widen: unwrapped, this sentence ran the table to 1,658 px at a 1,440 px
+               screen (browser pass, 2026-10-16). -->
+          <p class="text-ink-secondary">{{ whatToCheck(row) }}</p>
           <!-- The rows that change what the board says, named, since they are why this list exists. -->
-          <AppBadge v-if="row.ours !== row.fleetpal" tone="caution" class="mt-1">The board would read it differently</AppBadge>
+          <div v-if="row.ours !== row.fleetpal" class="mt-1"><AppBadge tone="caution">The board would read it differently</AppBadge></div>
         </template>
         <template #empty>
           <p v-if="activeFilterCount">No unit matches that.</p>

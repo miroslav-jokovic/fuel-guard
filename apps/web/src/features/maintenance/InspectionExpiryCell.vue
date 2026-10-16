@@ -44,7 +44,8 @@ const label = computed(() => {
 
 <template>
   <span class="inline-flex items-center gap-2">
-    <AppBadge v-if="status.state !== 'valid'" :tone="tone">{{ label }}</AppBadge>
+    <!-- One line, in a table that wraps its cells too (Annual dates to check, 2026-10-16). -->
+    <AppBadge v-if="status.state !== 'valid'" :tone="tone" class="whitespace-nowrap">{{ label }}</AppBadge>
     <span v-else class="text-ink-secondary">{{ label }}</span>
     <span v-if="status.state === 'expiring' || status.state === 'expired'" class="text-xs text-ink-tertiary">
       {{ formatDate(status.expiresOn) }}

@@ -193,14 +193,14 @@ describe("the shop summary", () => {
   });
 
   it("gives each count as the length of the list its door opens (D-FM7)", async () => {
-    const summary = (await call("shop-summary")).body.data as { openWorkOrders: number; unresolvedDefects: number };
+    const summary = (await call("shop-summary")).body.data as { openWorkOrders: number; unresolvedDefects: number; annualDisagreements: number };
     rec = recorder();
     const orders = (await call("work-orders")).body.data as unknown[];
     rec = recorder();
     const defects = (await call("defects")).body.data as unknown[];
     rec = recorder();
     const annuals = (await call("annual-disagreements")).body.data as unknown[];
-    expect([summary.openWorkOrders, summary.unresolvedDefects, (summary as { annualDisagreements: number }).annualDisagreements])
+    expect([summary.openWorkOrders, summary.unresolvedDefects, summary.annualDisagreements])
       .toEqual([orders.length, defects.length, annuals.length]);
   });
 

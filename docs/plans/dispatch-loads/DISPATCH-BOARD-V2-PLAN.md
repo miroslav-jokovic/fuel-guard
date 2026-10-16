@@ -498,4 +498,6 @@ Build order: DBV1 → DBV2 → DBV5 → DBV3 → DBV4 → DBV6 → DBV7.
 - **Today is the board's** (the UTC day), so a badge on the page matches the board's chip. Both move
   to the carrier's day together.
 - Found on the way: `InspectionExpiryCell` printed a valid date raw (`2027-06-16`) on Vehicles and
-  Trailers. It now uses `formatDate`.
+  Trailers. It now uses `formatDate`, and its badge stays on one line.
+- The browser pass caught the list running to 1,658 px at 1,440: the "What to check" sentence did not
+  wrap. Its cells wrap now, as the board's do.
