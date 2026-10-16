@@ -18,7 +18,7 @@ vi.mock("@/features/dispatch/DispatchTruckDrawer.vue", () => ({
  * for a linked dispatcher and on All — saying why — for anyone else, and the uncovered loads are a link
  * to the Loads page rather than a second list (D-DB5).
  */
-const flags = { lateRisk: false, noNextLoad: false, emptyNow: false, hosLow: false, noGps: false, maintenanceOverdue: false };
+const flags = { lateRisk: false, noNextLoad: false, emptyNow: false, hosLow: false, noGps: false, warningUrgent: false };
 const NOW = Date.parse("2026-10-09T20:00:00Z");
 /** An empty truck, free now where it stands — or, with `hours`, free that many hours from the board's clock. */
 const row = (unitNumber: string, fleetCode: string, o: { hours?: number; state?: string } = {}): DispatchBoardRow => ({

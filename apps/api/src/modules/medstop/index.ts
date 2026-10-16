@@ -18,5 +18,7 @@ export { MedstopClient } from "./client.js";
 export { getApiKey, recordSweep } from "./credentials.js";
 export { sweepMedstop, type MedstopSweepResult } from "./sync.js";
 export { medstopViolationOn, medstopViolationsByDriver } from "./violations.js";
+// The dispatch board's "Random test: send to collection" (DBV4): a set of driver ids, nothing more.
+export { readDriversDueForRandomTest } from "./drawnDrivers.js";
 export { readMedstopTestsForDriver } from "./personTests.js";
 export { createMedstopApplicants, type MedstopApplicantCreateResult } from "./applicantCreate.js";

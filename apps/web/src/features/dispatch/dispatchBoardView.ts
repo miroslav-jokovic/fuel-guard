@@ -2,9 +2,10 @@ import {
   availableNear,
   legalDriveMs,
   needsAttention,
+  warningIsUrgent,
   type DispatchBoardRow,
   type DispatchScope,
-  type MaintenanceWarning,
+  type BoardWarning,
   type SavedViewTable,
 } from "@silvicom/shared";
 import { type DataTableColumn } from "@silvicom/ui";
@@ -191,8 +192,8 @@ export function boardSortValue(r: DispatchBoardRow, key: string): unknown {
     case "milesLeft":
       return r.milesLeft;
     case "warnings":
-      // Most pressing first: overdue items count three times a due one.
-      return r.warnings.length ? r.warnings.reduce((n, w) => n + (w.verdict === "overdue" ? 3 : 1), 0) * -1 : null;
+      // Most pressing first: an urgent item (overdue, or a random test) counts three times a due one.
+      return r.warnings.length ? r.warnings.reduce((n, w) => n + (warningIsUrgent(w) ? 3 : 1), 0) * -1 : null;
     case "status":
       return r.inShop ? 4 : !r.current ? 0 : (ON_TIME_RANK[r.onTime] ?? 3) + 0.5;
     case "hos":
@@ -242,11 +243,20 @@ export function availablePlace(r: DispatchBoardRow): string {
 }
 
 /**
- * One warning in the dispatchers' words (D-DBV5): "Annual overdue 09/30/2026", "6-month due 11/01/2026",
+ * One warning in the dispatchers' words (D-DBV5, DBV4): "Random test: send to collection", "Med card
+ * expired 10/01/2026", "CDL expires 11/02/2026", "Annual overdue 09/30/2026", "6-month due 11/01/2026",
  * "Oil in 1,133 mi", "Oil 5,062 mi over", "Repair order open" — the trailer's prefixed "Trailer".
  */
-const KIND_WORDS: Record<MaintenanceWarning["kind"], string> = { annual: "Annual", six_month: "6-month", oil: "Oil", repair_order: "Repair order" };
-export function warningWords(w: MaintenanceWarning): string {
+const KIND_WORDS: Record<BoardWarning["kind"], string> = {
+  random_test: "Random test", medical_card: "Med card", cdl: "CDL", annual: "Annual", six_month: "6-month", oil: "Oil", repair_order: "Repair order",
+};
+export function warningWords(w: BoardWarning): string {
+  // The redacted fact, and nothing else: no date, no pool, no result (Q-DBV3).
+  if (w.kind === "random_test") return "Random test: send to collection";
+  // A licence or a card expires; a dated inspection falls due.
+  if (w.kind === "medical_card" || w.kind === "cdl") {
+    return `${KIND_WORDS[w.kind]} ${w.verdict === "overdue" ? "expired" : "expires"}${w.dueOn ? ` ${formatDate(w.dueOn)}` : ""}`;
+  }
   const what = `${w.unit === "trailer" ? "Trailer " : ""}${w.unit === "trailer" ? KIND_WORDS[w.kind].toLowerCase() : KIND_WORDS[w.kind]}`;
   if (w.kind === "repair_order") return `${what} open`;
   if (w.milesLeft != null) {

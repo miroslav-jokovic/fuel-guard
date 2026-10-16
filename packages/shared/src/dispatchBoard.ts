@@ -9,7 +9,9 @@
 import { haversineMiles } from "./ai.js";
 import { legalDriveMs } from "./smartFueling/hos.js";
 import { OFFLINE_BOUND_SECONDS } from "./livemap.js";
+import { warningIsUrgent } from "./maintenanceDue.js";
 import type {
+  BoardWarning,
   DispatchBoardAvailable,
   DispatchBoardEta,
   DispatchBoardFlags,
@@ -225,7 +227,7 @@ export function boardFlags(input: {
   onTime: OnTimeVerdict;
   hos: DispatchBoardHos | null;
   gpsAgeSeconds: number | null;
-  warnings?: ReadonlyArray<{ verdict: string }>;
+  warnings?: ReadonlyArray<Pick<BoardWarning, "verdict" | "kind">>;
 }): DispatchBoardFlags {
   const legal = input.hos ? legalDriveMs({ ...input.hos, timeUntilBreakMs: input.hos.breakRemainingMs }) : null;
   return {
@@ -235,12 +237,12 @@ export function boardFlags(input: {
     // Low drive time matters only for a truck with work ahead of it; an empty truck's clock is not a risk.
     hosLow: input.current != null && legal != null && legal < BOARD_HOS_LOW_MS,
     noGps: input.gpsAgeSeconds == null || input.gpsAgeSeconds > OFFLINE_BOUND_SECONDS,
-    maintenanceOverdue: (input.warnings ?? []).some((w) => w.verdict === "overdue"),
+    warningUrgent: (input.warnings ?? []).some(warningIsUrgent),
   };
 }
 
 /** Does any flag call for a dispatcher? The row's left-edge dot (plan §4 #4). */
-export const needsAttention = (f: DispatchBoardFlags): boolean => f.lateRisk || f.hosLow || f.noGps || f.maintenanceOverdue;
+export const needsAttention = (f: DispatchBoardFlags): boolean => f.lateRisk || f.hosLow || f.noGps || f.warningUrgent;
 
 /**
  * Is this truck "mine" (D-DB1, D-DB3)? Two axes, never merged: the truck is in a fleet my login runs,

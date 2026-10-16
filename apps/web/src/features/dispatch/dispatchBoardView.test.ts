@@ -16,7 +16,7 @@ import {
   type BoardFilter,
 } from "./dispatchBoardView";
 
-const flags = { lateRisk: false, noNextLoad: false, emptyNow: false, hosLow: false, noGps: false, maintenanceOverdue: false };
+const flags = { lateRisk: false, noNextLoad: false, emptyNow: false, hosLow: false, noGps: false, warningUrgent: false };
 const row = (unitNumber: string, o: Partial<DispatchBoardRow> = {}): DispatchBoardRow => ({
   vehicleId: `v-${unitNumber}`, unitNumber, inShop: false, fleetCode: "VINNIEV", driver: null, hos: null, position: null,
   fuelPercent: null, current: null, next: null, eta: null, onTime: "unknown", available: null, milesLeft: null, warnings: [], flags, ...o,
@@ -124,6 +124,12 @@ describe("warningWords — the dispatchers' board's chips (D-DBV5)", () => {
     expect(w({ kind: "oil", verdict: "overdue", milesLeft: -5062 })).toBe("Oil 5,062 mi over");
     expect(w({ kind: "repair_order" })).toBe("Repair order open");
   });
+
+  it("says a driver's card or licence expired or expires, and a random test as the redacted fact alone (DBV4)", () => {
+    expect(w({ unit: "driver", kind: "medical_card", verdict: "overdue", dueOn: "2026-10-01" })).toBe("Med card expired 10/01/2026");
+    expect(w({ unit: "driver", kind: "cdl", dueOn: "2026-10-30" })).toBe("CDL expires 10/30/2026");
+    expect(w({ unit: "driver", kind: "random_test" })).toBe("Random test: send to collection");
+  });
 });
 
 describe("words", () => {
@@ -170,5 +176,8 @@ describe("boardSortValue", () => {
       row("one-over", { warnings: [warn("overdue")] }),
     ];
     expect(sorted(rows, "warnings")).toEqual(["one-over", "two-due", "one-due", "none"]);
+    // A random test is urgent though it is only "due": it weighs as much as an overdue item.
+    const drawn = row("drawn", { warnings: [{ unit: "driver", kind: "random_test", verdict: "due", dueOn: null, milesLeft: null }] });
+    expect(sorted([rows[2]!, drawn], "warnings")).toEqual(["drawn", "two-due"]);
   });
 });

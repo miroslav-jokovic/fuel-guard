@@ -6,6 +6,7 @@ import {
   reconcileRosters,
   drawPeriodOf,
   randomDrawsThisYear,
+  driversDueForRandomTest,
   type MatchedPerson,
   type MedstopPersonRow,
   type RosterDriverRow,
@@ -224,6 +225,25 @@ describe("randomDrawsThisYear", () => {
       ["r", "alternate"], ["re", "alternate_unused"], ["k", "cancelled"], ["e", "expired"], ["rf", "tested"], ["q", "other"],
     ]);
     expect(draws.find((d) => d.selectionId === "q")?.medstopStatus).toBe("SOMETHING NEW");
+  });
+
+  it("sends to collection every driver the Random tab lists as due — ordered or not — and nobody drawn for a later quarter, tested, or unmatched", () => {
+    const driverOf = (id: string | null) => (id === "eunmatched" ? null : id ? `drv-${id}` : null);
+    const due = driversDueForRandomTest(
+      [
+        sel("now", "2026-09-06"),
+        sel("ordered", "2026-09-08", { requestMedstopId: "req" }),
+        sel("last-q", "2026-06-29"),
+        sel("next-q", "2026-10-02"),
+        sel("tested", "2026-09-02", { status: "COMPLETED", testMedstopId: "t" }),
+        sel("cancelled", "2026-09-03", { status: "CANCELED" }),
+        sel("unmatched", "2026-09-04"),
+      ],
+      pools,
+      driverOf,
+      "2026-09-30",
+    );
+    expect([...due].sort()).toEqual(["drv-elast-q", "drv-enow", "drv-eordered"]);
   });
 
   it("marks a draw whose request is placed as ordered", () => {

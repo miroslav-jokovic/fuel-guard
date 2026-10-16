@@ -59,7 +59,7 @@ function recorder(o: { vehicles?: unknown[]; positions?: unknown[]; loads?: unkn
 describe("the board's ETA recorder", () => {
   it("records the ETA the board shows for a truck's next stop, keyed by load and stop, with its basis", async () => {
     const rec = recorder();
-    const shown = (await readDispatchBoard(rec.client, ORG, "user-1", NOW)).rows[0]!;
+    const shown = (await readDispatchBoard(rec.client, ORG, { userId: "user-1", role: "dispatcher", sections: null }, NOW)).rows[0]!;
     rec.reset();
 
     expect(await recordBoardEtas(rec.client, ORG, NOW)).toBe(1);

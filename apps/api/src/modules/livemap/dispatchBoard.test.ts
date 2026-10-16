@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { readDispatchBoard } from "./dispatchBoard.js";
 import { createSupabaseRecorder, expectOrgScoped } from "../../testing/supabaseRecorder.js";
+import { USER_ROLES, canReadTestingRecords, canViewSection } from "@silvicom/shared";
 
 /**
  * The dispatch board's composition (DISPATCH-BOARD-PLAN DB4): one row per non-retired truck, built
@@ -8,6 +9,8 @@ import { createSupabaseRecorder, expectOrgScoped } from "../../testing/supabaseR
  */
 const ORG = "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d";
 const USER = "7e3c1a2b-0000-4000-8000-000000000001";
+// A dispatcher, as the board is mostly read: `roster: view` by default, and no testing records.
+const READER = { userId: USER, role: "dispatcher" as const, sections: null };
 const NOW = new Date("2026-10-09T20:00:00.000Z");
 const H = 3_600_000;
 const ago = (s: number) => new Date(NOW.getTime() - s * 1000).toISOString();
@@ -38,12 +41,20 @@ const pickup = stop({ seq: 1, kind: "pickup", location_name: "Viking Packing", c
 function recorder(o: {
   vehicles?: unknown[]; positions?: unknown[]; loads?: unknown[]; stops?: unknown[]; clocks?: unknown[];
   dispatchers?: unknown[]; fleets?: unknown[]; shop?: Record<string, unknown[]>; trailers?: unknown[];
+  certifications?: unknown[]; medstop?: Record<string, unknown[]>;
 } = {}) {
   return createSupabaseRecorder({
     tables: {
       vehicles: { data: o.vehicles ?? [vehicle()] },
       // Both owners read `drivers` — roster for the name, samsara to resolve its clocks' driver id.
-      drivers: { data: [{ id: "drv-1", first_name: "Ana", last_name: "Ruiz", samsara_driver_id: "5551" }] },
+      // …and evidence reads it for the driver's DQ file (DBV4).
+      drivers: { data: [{ id: "drv-1", first_name: "Ana", last_name: "Ruiz", samsara_driver_id: "5551", full_name: "Ana Ruiz", status: "active", cdl_number: "R123" }] },
+      certifications: { data: o.certifications ?? [] },
+      qualification_records: { data: [] },
+      documents: { data: [] },
+      medstop_employees: { data: o.medstop?.employees ?? [] },
+      medstop_pools: { data: o.medstop?.pools ?? [] },
+      medstop_selections: { data: o.medstop?.selections ?? [] },
       vehicle_positions: { data: o.positions ?? [position()] },
       driver_hos_clocks: {
         data: o.clocks ?? [{
@@ -66,12 +77,13 @@ function recorder(o: {
       },
       tms_fleets: { data: o.fleets ?? [{ code: "VINNIEV", dispatcher_external_id: "vinniev" }, { code: "VLADI", dispatcher_external_id: null }] },
     },
+    rpc: { org_module_enabled: false },
   });
 }
 
 describe("the dispatch board", () => {
   it("composes a truck's driver, clocks, place, load, next stop, ETA and when it empties into one row", async () => {
-    const b = await readDispatchBoard(recorder().client, ORG, USER, NOW);
+    const b = await readDispatchBoard(recorder().client, ORG, READER, NOW);
     expect(b.rows).toHaveLength(1);
     const r = b.rows[0]!;
     expect(r).toMatchObject({
@@ -83,7 +95,7 @@ describe("the dispatch board", () => {
       next: null,
       onTime: "on_time",
       available: { place: "Indianapolis, IN", state: "IN", postalCode: "46241", basis: "appointment" },
-      flags: { lateRisk: false, noNextLoad: true, emptyNow: false, hosLow: false, noGps: false, maintenanceOverdue: false },
+      flags: { lateRisk: false, noNextLoad: true, emptyNow: false, hosLow: false, noGps: false, warningUrgent: false },
     });
     // The pickup McLeod has departed is behind the truck; the delivery is next.
     expect(r.current!.nextStop!.name).toBe("Kroger DC");
@@ -98,8 +110,8 @@ describe("the dispatch board", () => {
     const kokomo = stop({ seq: 2, location_name: "Kokomo DC", city: "Kokomo", lat: 40.4864, lon: -86.1336 });
     const indy = stop({ seq: 3 });
     const trailerDrop = stop({ seq: 4, kind: "other", city: "Joliet", state: "IL", lat: 41.52, lon: -88.08 });
-    const one = (await readDispatchBoard(recorder().client, ORG, USER, NOW)).rows[0]!;
-    const via = (await readDispatchBoard(recorder({ stops: [pickup, kokomo, indy, trailerDrop] }).client, ORG, USER, NOW)).rows[0]!;
+    const one = (await readDispatchBoard(recorder().client, ORG, READER, NOW)).rows[0]!;
+    const via = (await readDispatchBoard(recorder({ stops: [pickup, kokomo, indy, trailerDrop] }).client, ORG, READER, NOW)).rows[0]!;
     expect(via.current!.nextStop!.name).toBe("Kokomo DC");
     expect(via.milesLeft!).toBeGreaterThan(one.milesLeft!);
     // The trailer drop would add ~150 miles back to Joliet; it is past where the truck is free.
@@ -130,25 +142,94 @@ describe("the dispatch board", () => {
         orders: [{ unit_fleetpal_id: "fp-773" }],
       },
     });
-    const r = (await readDispatchBoard(rec.client, ORG, USER, NOW)).rows[0]!;
+    const r = (await readDispatchBoard(rec.client, ORG, READER, NOW)).rows[0]!;
     expect(r.warnings).toEqual([
       { unit: "truck", kind: "annual", verdict: "overdue", dueOn: "2026-09-30", milesLeft: null },
       { unit: "trailer", kind: "six_month", verdict: "overdue", dueOn: "2026-09-01", milesLeft: null },
       { unit: "truck", kind: "oil", verdict: "due", dueOn: null, milesLeft: 1_133 },
       { unit: "truck", kind: "repair_order", verdict: "due", dueOn: null, milesLeft: null },
     ]);
-    expect(r.flags.maintenanceOverdue).toBe(true);
+    expect(r.flags.warningUrgent).toBe(true);
     expectOrgScoped(rec, ORG);
   });
 
   it("says nothing is due when nothing is — no chips, and no attention for it", async () => {
-    const r = (await readDispatchBoard(recorder().client, ORG, USER, NOW)).rows[0]!;
+    const r = (await readDispatchBoard(recorder().client, ORG, READER, NOW)).rows[0]!;
     expect(r.warnings).toEqual([]);
-    expect(r.flags.maintenanceOverdue).toBe(false);
+    expect(r.flags.warningUrgent).toBe(false);
+  });
+
+  describe("the driver's warnings, which depend on who reads them (DBV4)", () => {
+    // Ana is drawn for a random drug test this quarter (Q4 opened 10/01; drawn for 10/06), untested.
+    const drawn = {
+      employees: [{ medstop_id: "e1", driver_id: "drv-1" }],
+      pools: [{ medstop_id: "p1", starts_on: "2026-01-01", ends_on: "2026-12-31", frequency: "QUARTERLY" }],
+      selections: [{
+        medstop_id: "sel-1", pool_medstop_id: "p1", employee_medstop_id: "e1", service: "DRUG", selected_on: "2026-10-06",
+        request_medstop_id: null, test_medstop_id: null, status: "OPEN",
+      }],
+    };
+    // 773 in a fleet nobody of ours runs, on a load a colleague dispatches: not the reader's truck.
+    const notMine = { vehicles: [vehicle({ mcleod_fleet_code: "VLADI" })], loads: [load({ dispatcher_external_id: "asen" })] };
+    const RANDOM = { unit: "driver", kind: "random_test", verdict: "due", dueOn: null, milesLeft: null };
+    // Derived from the matrix, never a typed role list: whoever sees the board AND reads testing records.
+    const TESTING_READER = { userId: "der-1", role: USER_ROLES.find((r) => canReadTestingRecords(r) && canViewSection(r, "dispatch"))!, sections: null };
+
+    it("tells a dispatcher to send their own driver to collection — nothing more — and calls it urgent", async () => {
+      expect(canReadTestingRecords(READER.role)).toBe(false);
+      const r = (await readDispatchBoard(recorder({ medstop: drawn }).client, ORG, READER, NOW)).rows[0]!;
+      expect(r.warnings).toEqual([RANDOM]);
+      expect(r.flags.warningUrgent).toBe(true);
+    });
+
+    it("⚠ does not tell a dispatcher about a driver on somebody else's truck", async () => {
+      const r = (await readDispatchBoard(recorder({ ...notMine, medstop: drawn }).client, ORG, READER, NOW)).rows[0]!;
+      expect(r.warnings).toEqual([]);
+      expect(r.flags.warningUrgent).toBe(false);
+    });
+
+    it("tells a testing-record reader about every drawn driver, whoever's truck", async () => {
+      const r = (await readDispatchBoard(recorder({ ...notMine, medstop: drawn }).client, ORG, TESTING_READER, NOW)).rows[0]!;
+      expect(r.warnings).toEqual([RANDOM]);
+    });
+
+    it("⚠ never reads the draws for a reader who is nobody's dispatcher and no testing-record reader", async () => {
+      const rec = recorder({ medstop: drawn });
+      const r = (await readDispatchBoard(rec.client, ORG, { userId: "office-1", role: "fleet_manager", sections: null }, NOW)).rows[0]!;
+      expect(canReadTestingRecords("fleet_manager")).toBe(false);
+      expect(r.warnings).toEqual([]);
+      expect(rec.forTable("medstop_selections")).toHaveLength(0);
+    });
+
+    it("warns of a lapsed medical card and a CDL inside its 30 days, from the driver's DQ file", async () => {
+      const rec = recorder({
+        certifications: [
+          { subject_id: "drv-1", kind: "medical_card", qualifier: null, training_type: null, issued_at: "2024-10-01", expires_at: "2026-10-01", document_id: null },
+          { subject_id: "drv-1", kind: "cdl", qualifier: null, training_type: null, issued_at: "2022-10-30", expires_at: "2026-10-30", document_id: null },
+        ],
+        medstop: drawn,
+      });
+      const r = (await readDispatchBoard(rec.client, ORG, READER, NOW)).rows[0]!;
+      expect(r.warnings).toEqual([
+        RANDOM,
+        { unit: "driver", kind: "medical_card", verdict: "overdue", dueOn: "2026-10-01", milesLeft: null },
+        { unit: "driver", kind: "cdl", verdict: "due", dueOn: "2026-10-30", milesLeft: null },
+      ]);
+      expectOrgScoped(rec, ORG, { exempt: ["rpc:org_module_enabled"] });
+    });
+
+    it("⚠ shows no card or licence to a reader the org's permissions keep off the driver file", async () => {
+      const rec = recorder({
+        certifications: [{ subject_id: "drv-1", kind: "medical_card", qualifier: null, training_type: null, issued_at: null, expires_at: "2026-10-01", document_id: null }],
+      });
+      const r = (await readDispatchBoard(rec.client, ORG, { ...READER, sections: { roster: "none" } }, NOW)).rows[0]!;
+      expect(r.warnings).toEqual([]);
+      expect(rec.forTable("certifications")).toHaveLength(0);
+    });
   });
 
   it("returns the caller's scope from the two office links, and every fleet beside it", async () => {
-    const b = await readDispatchBoard(recorder().client, ORG, USER, NOW);
+    const b = await readDispatchBoard(recorder().client, ORG, READER, NOW);
     expect(b.scope).toEqual({ linked: true, fleetCodes: ["VINNIEV"], dispatcherIds: ["vinniev"] });
     expect(b.fleets).toEqual([{ code: "VINNIEV", dispatcherId: "vinniev" }, { code: "VLADI", dispatcherId: null }]);
   });
@@ -158,7 +239,7 @@ describe("the dispatch board", () => {
       loads: [load(), load({ id: "load-2", ref: "291386", status: "pending_approval", external_status: "A", dispatcher_external_id: null })],
       stops: [pickup, stop(), stop({ load_id: "load-2", seq: 1, kind: "pickup", appointment_start: "2026-10-10T12:00:00Z" })],
     });
-    const r = (await readDispatchBoard(rec.client, ORG, USER, NOW)).rows[0]!;
+    const r = (await readDispatchBoard(rec.client, ORG, READER, NOW)).rows[0]!;
     expect(r.current!.ref).toBe("291013");
     expect(r.next!.ref).toBe("291386");
     expect(r.flags.noNextLoad).toBe(false);
@@ -169,14 +250,14 @@ describe("the dispatch board", () => {
       loads: [load(), load({ id: "load-3", ref: "291999", status: "approved", external_status: "P" })],
       stops: [pickup, stop(), stop({ load_id: "load-3", seq: 1, kind: "pickup", appointment_start: "2026-10-09T10:00:00Z" })],
     });
-    const r = (await readDispatchBoard(rec.client, ORG, USER, NOW)).rows[0]!;
+    const r = (await readDispatchBoard(rec.client, ORG, READER, NOW)).rows[0]!;
     expect(r.current!.ref).toBe("291013");
     expect(r.next).toBeNull();
   });
 
   it("counts loads no truck carries, and gives them no row", async () => {
     const rec = recorder({ loads: [load(), load({ id: "load-9", vehicle_id: null, driver_id: null, status: "pending_approval", dispatcher_external_id: null })] });
-    const b = await readDispatchBoard(rec.client, ORG, USER, NOW);
+    const b = await readDispatchBoard(rec.client, ORG, READER, NOW);
     expect(b.uncoveredCount).toBe(1);
     expect(b.rows).toHaveLength(1);
   });
@@ -187,7 +268,7 @@ describe("the dispatch board", () => {
       loads: [],
       clocks: [{ samsara_driver_id: "5551", duty_status: "off_duty", drive_remaining_ms: 11 * H, shift_remaining_ms: 14 * H, cycle_remaining_ms: 60 * H, break_remaining_ms: 8 * H, fetched_at: ago(3600) }],
     });
-    const b = await readDispatchBoard(rec.client, ORG, USER, NOW);
+    const b = await readDispatchBoard(rec.client, ORG, READER, NOW);
     expect(b.rows.map((r) => r.unitNumber)).toEqual(["660", "773"]);
     const shop = b.rows[0]!;
     expect(shop).toMatchObject({ inShop: true, current: null, flags: { emptyNow: false } });
@@ -204,7 +285,7 @@ describe("the dispatch board", () => {
         vehicle({ id: "veh-601", unit_number: "601", assigned_driver_id: null, winding_down: false }),
       ],
     });
-    const b = await readDispatchBoard(rec.client, ORG, USER, NOW);
+    const b = await readDispatchBoard(rec.client, ORG, READER, NOW);
     expect(b.rows.map((r) => r.unitNumber)).toEqual(["552", "601", "773"]);
   });
 
@@ -214,20 +295,20 @@ describe("the dispatch board", () => {
       loads: [load({ id: "load-2", vehicle_id: "veh-506", ref: "291386", status: "pending_approval", external_status: "A", dispatcher_external_id: null })],
       stops: [stop({ load_id: "load-2", seq: 1, kind: "pickup", appointment_start: "2026-10-10T12:00:00Z" })],
     });
-    const b = await readDispatchBoard(rec.client, ORG, USER, NOW);
+    const b = await readDispatchBoard(rec.client, ORG, READER, NOW);
     // 773 has no load here and is winding down, so it goes; 506's only load is its NEXT one, so it stays.
     expect(b.rows.map((r) => r.unitNumber)).toEqual(["506"]);
     expect(b.rows[0]!.next!.ref).toBe("291386");
   });
 
   it("keeps a winding-down truck that is carrying a load right now", async () => {
-    const b = await readDispatchBoard(recorder({ vehicles: [vehicle({ winding_down: true })] }).client, ORG, USER, NOW);
+    const b = await readDispatchBoard(recorder({ vehicles: [vehicle({ winding_down: true })] }).client, ORG, READER, NOW);
     expect(b.rows.map((r) => r.current?.ref)).toEqual(["291013"]);
   });
 
   it("scopes every read to the caller's org", async () => {
     const rec = recorder();
-    await readDispatchBoard(rec.client, ORG, USER, NOW);
+    await readDispatchBoard(rec.client, ORG, READER, NOW);
     expectOrgScoped(rec, ORG);
   });
 });

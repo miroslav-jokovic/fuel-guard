@@ -44,7 +44,8 @@ for that applicant**. That is why we are asking now.
    has decided to send them from Silvicom 360 and needs your approval of the notice text.
 3. **Approval of four instruments we drafted or adapted** (Part C, §6), and **five structural
    questions** (Part D, §7) — the fifth, Q18, added on September 28, 2026: may the fines the
-   packet and the handbook set be deducted from what a driver is paid?
+   packet and the handbook set be deducted from what a driver is paid? The sixth, Q19, added on
+   October 16, 2026: may a dispatcher be told that one of their drivers must go for a random test?
 
 **What a response looks like** (§9): for each question, *approve*, *approve with changes* (with a
 redline), or *reject* (with your replacement text or instruction). Any change to a signed instrument
@@ -58,7 +59,7 @@ shows which text each person signed.
 | **1 — before the first packet is signed** | Q1 page 4 · Q2 certification · Q3 electronic use of pages 15/20/22 · Q4 page 15 and the blanket-release rule · Q5 page 22 · Q6 page 19 | Applicants sign these today, and a signed packet cannot be amended afterwards |
 | **2 — before the first decline based on a report** | Q7 PSP status · Q8 remote-application exception · Q9 notice text | The carrier's signed PSP form already promises these notices |
 | **3 — approve the drafted instruments** | Q10 Clearinghouse · Q11 e-sign consent · Q12 SMS consent · Q13 §40.25 letter | Q12 and Q13 are unused until approved; Q10 and Q11 are in use now |
-| **4 — structural** | Q14 employee vs. owner-operator · Q15 owner-operator agreement · Q16 §391.23(i) rights · Q17 smaller items · Q18 fines and deductions | Affects how the packet may need to be split, not whether it works today. Q18 must be answered before any fine is deducted |
+| **4 — structural** | Q14 employee vs. owner-operator · Q15 owner-operator agreement · Q16 §391.23(i) rights · Q17 smaller items · Q18 fines and deductions · Q19 random test on the dispatch board | Affects how the packet may need to be split, not whether it works today. Q18 must be answered before any fine is deducted. Q19 is live once released; the carrier withdraws it if you object |
 
 ---
 
@@ -623,6 +624,28 @@ We have no reading on the rest.
    referring to it?
 9. **The outcome.** For each fine: may it stay as written, does it need a separate signed
    authorization at the time of deduction, or should it be withdrawn?
+
+### Q19. Telling a dispatcher that a driver must go for a random test · **Priority 4** *(added October 16, 2026)*
+
+**Facts.** The carrier's Drug & Alcohol page lists the random selections, and only the safety
+manager (the designated employer representative) and the administrator can see it. Once a driver has been told of a selection
+they must go to the collection site promptly, and it is the dispatcher who plans the truck around
+that. So the dispatch board now shows a dispatcher one line on a drawn driver's truck: *"Random test:
+send to collection"*. It shows only the dispatcher's own trucks. It gives no date, no pool, no
+service and never a result. It appears only for a selection in the current testing period, never one
+in a later period. It disappears once the test is recorded. The safety manager and the
+administrator see it on every truck they can see on the board.
+
+**Law.** §382.305(l) requires that a driver go to the test site immediately after being notified of a
+selection. §382.401 and §40.321 restrict who may have a driver's testing records.
+
+**Our reading.** The line tells the dispatcher what to do, not a testing record. It names no result,
+and the dispatcher learns no more than they would when the driver tells them they have to leave for a
+test. It must never reach a driver before the employer representative notifies them, which is why
+nothing about a later period is shown.
+
+**What we need.** May the carrier show this line to the dispatcher of the driver's own truck? If not,
+the carrier withdraws it and the employer representative calls the dispatcher instead.
 
 ---
 

@@ -354,3 +354,37 @@ Build order: DBV1 → DBV2 → DBV5 → DBV3 → DBV4 → DBV6 → DBV7.
   due. It sorts most-pressing first.
 - **Still owed from Q-DBV2:** showing the shop manager where FleetPal's annual PM and our record
   disagree. Not built here.
+
+### 2026-10-16 — DBV4 the driver's warnings: random test, medical card, CDL
+
+- **Random test (§3.5, Q-DBV3).** The Warnings column says *"Random test: send to collection"* while
+  the driver has a draw the Drug & Alcohol page's Random tab lists as **due**: open and untested, in
+  the current period or an earlier one, ordered or not (`driversDueForRandomTest` reads that list, so
+  the two pages cannot disagree). It carries no date, pool, service or result. A draw in a later
+  period never shows, because that would be notice before the driver's. Measured in production: 22
+  open untested draws, none ordered yet; ordering leaves a draw `OPEN` until its test lands.
+- **Who sees it.** `randomTestVisible` follows `dispatchHoldForReader`'s shape. A testing-record reader
+  (admin, safety manager) sees it on every truck. Anybody else sees it only on their own trucks
+  (`inMyScope`), and the draws are not even read for a reader who is nobody's dispatcher. Until an
+  office links a dispatcher in Settings › McLeod fleets, that dispatcher sees none. Only 2
+  `tms_dispatchers` were linked on 10-16. That is the honest consequence of the ruling, not a
+  defect to route around.
+- **Medical card and CDL (§4).** From the driver's DQ file, through evidence's `getComplianceOverview`
+  (the roster's own cells, D-DQ6), never `drivers.*_expires_at`. Expired is overdue and inside the
+  file's 30 days is due. *Missing* shows nothing: it is the qualification queue's work, and a synced
+  record with no date would otherwise read as a false alarm. They show only to a reader the org's
+  `roster: view` admits, the DQ file's own gate. Every role that sees the board has it by default; an
+  org override that removes it removes the chips and the read.
+- **Urgent, not only overdue.** The flag is renamed `warningUrgent` (was `maintenanceOverdue`), and
+  `warningIsUrgent` is anything overdue or a random test. Red chip, Needs attention, and the heavy
+  weight in the Warnings sort. Sort order: urgent first, then the driver before the truck before the
+  trailer.
+- **Per reader, after the shared rows.** `readBoardRows` stays the same for every caller (the ETA
+  recorder shares it); `readDispatchBoard` adds the driver's warnings for the reader. Two new module
+  edges: `livemap -> evidence` and `livemap -> medstop`. Med-Stop already read the board's rows, so
+  the two cross through each other's index, like evidence and medstop.
+- **Counsel.** The one line the ruling owed is **Q19** in `COUNSEL-REVIEW-PACKAGE.md`. If counsel
+  objects, the random-test chip is withdrawn and the DER calls the dispatcher instead.
+- **Bound noted, not changed.** `getComplianceOverview` reads `certifications` unpaged. Production
+  holds 375 current driver certifications, under PostgREST's 1,000. Past that cap the DQ queue itself
+  would be short too, so the fix belongs there, for both readers at once.

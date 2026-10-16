@@ -6,7 +6,7 @@ import {
   type SortState,
   type DataTableColumn,
 } from "@silvicom/ui";
-import { loadBoardState, movedByOther, needsAttention, type DispatchBoardRow, type LoadStatus } from "@silvicom/shared";
+import { loadBoardState, movedByOther, needsAttention, warningIsUrgent, type DispatchBoardRow, type LoadStatus } from "@silvicom/shared";
 import { BADGE_BASE, hosStatusBadge, onTimeBadge, toneClass } from "@/lib/badges";
 import { formatDateTime } from "@/lib/format";
 import {
@@ -158,7 +158,7 @@ const loadLabel = (l: NonNullable<DispatchBoardRow["current"]>) =>
         <span
           v-for="(w, i) in row.warnings"
           :key="i"
-          :class="[BADGE_BASE, toneClass(w.verdict === 'overdue' ? 'danger' : 'warning')]"
+          :class="[BADGE_BASE, toneClass(warningIsUrgent(w) ? 'danger' : 'warning')]"
         >
           {{ warningWords(w) }}
         </span>
