@@ -160,4 +160,15 @@ describe("boardSortValue", () => {
     const rows = [row("ten", { hos: hos(10 * 3_600_000) }), row("two", { hos: hos(2 * 3_600_000 + 5 * 60_000) }), row("unknown")];
     expect(sorted(rows, "hos")).toEqual(["two", "ten", "unknown"]);
   });
+
+  it("sorts Warnings most pressing first, an overdue item outweighing two that are only due", () => {
+    const warn = (verdict: "overdue" | "due") => ({ unit: "truck", kind: "oil", verdict, dueOn: null, milesLeft: null }) as const;
+    const rows = [
+      row("none"),
+      row("one-due", { warnings: [warn("due")] }),
+      row("two-due", { warnings: [warn("due"), warn("due")] }),
+      row("one-over", { warnings: [warn("overdue")] }),
+    ];
+    expect(sorted(rows, "warnings")).toEqual(["one-over", "two-due", "one-due", "none"]);
+  });
 });
