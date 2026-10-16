@@ -282,6 +282,7 @@ stops — the same five entries, no new one.
   close. *Recommend (b) while the driver app's duty check-in is unused, and (a) when it ships.* The
   board must not quietly lose an action either way, so cleanup of `GET /api/dispatch/assignments`
   waits on this ruling.
+  **Ruled 2026-10-16 (owner: "proceed as recommended"): (b), built — see the log.**
 - **Q-DB11 — Trucks McLeod is winding down (added and RULED 2026-10-12, D-DB11).** The owner saw 506,
   552 and others on the board as if running. Two causes. (1) A driver stayed on a truck they had left:
   the Samsara sync only ever set `assigned_driver_id` (23 drivers on two trucks), fixed in
@@ -575,3 +576,19 @@ users; **Q-DB4** distance ETA first, measured before HERE; **Q-DB5** "Dispatch b
   `recordVehicleWindingDown` shares the fleet code's write-on-change helper; the board drops a
   winding-down truck with neither a current nor a next load. The first sweep records `false` on every
   running truck once (null → false), then writes only on change.
+
+### 2026-10-16 — Q-DB10 ruled (b): the office's End shift is retired
+
+- **Ruling.** The owner took the recommendation: retire, do not restore. Production still has no duty
+  session ever opened and no `dispatch.shift_ended` audit row, so nothing a person did is lost.
+- **Gone:** `GET /api/dispatch/assignments` (the duty board's list, unread since #1426),
+  `POST /api/dispatch/assignments/:sessionId/end`, `listAssignments` and `endDutySession` in
+  `loads/dispatchLoads`, the contract's `assignmentRowSchema`, and the web's `useAssignmentsQuery` and
+  `useEndShift`. `dispatchRoutes.test.ts` now pins both paths at 404, beside LR6's retired writes.
+- **Kept:** `GET /api/dispatch/assignments/history` and the Assignments history page (the attribution
+  trail, D-L6); the driver app's own End shift (`/api/me` duty routes); the 16-hour sweeper, now the
+  only office-side close; and `end_duty_session_by_id` (0151), unused for now but the RPC option (a)
+  would call. No migration.
+- **When (a) comes back:** once drivers check in through the app, End shift goes in the truck drawer,
+  shown only when that driver has an open session, calling 0151 by session id as L5 required.
+

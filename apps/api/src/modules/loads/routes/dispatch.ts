@@ -9,11 +9,9 @@ import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
 import { writeAudit } from "../../../lib/audit.js";
 import {
-  endDutySession,
   getLoadDetail,
   listExceptions,
   resolveException,
-  listAssignments,
   listEvents,
   listLoads,
   type DispatchResult,
@@ -33,7 +31,12 @@ import { dispatchLoad, previewLoadDispatch } from "../dispatchToDriver.js";
  * like any other; `dispatchRoutes.test.ts` pins that each retired one does.
  *
  * What remains: the reads, the exceptions a driver's decline or a timed-out shift still raise, the
- * assignments board, and Dispatch itself.
+ * assignment history, and Dispatch itself.
+ *
+ * The assignments board went next (DISPATCH-BOARD-PLAN.md Q-DB10, ruled (b) 2026-10-16): its list
+ * had had no screen since the Dispatch board replaced the Assignments page (#1426), and its one write,
+ * End shift on a driver's stuck in-app shift, had never had a shift to end — production has opened no
+ * duty session. The 16-hour sweeper still closes any that is left open.
  *
  * Authorization reuses the existing section matrix (`packages/shared/src/auth.ts`): `dispatch:manage`
  * is already granted to admin / fleet_manager / dispatcher, and `auditor` gets `dispatch:view`. No
@@ -153,15 +156,6 @@ export function dispatchRouter(): Router {
     }),
   );
 
-  router.get(
-    "/assignments",
-    canView,
-    asyncHandler(async (req, res) => {
-      const admin = getSupabaseAdmin(getAppLocals(req).env);
-      res.json({ assignments: await listAssignments(admin, req.auth!.orgId!) });
-    }),
-  );
-
   // ── Dispatch: the office sends a McLeod load to a driver (LR-D2; D-LMR5, D-LMR6) ────────────────
   // `canManage` is the section matrix's `dispatch:manage` — the same roles that could Release, which is
   // the act Dispatch replaces. The preview is `canManage` too: it exists only for the person about to
@@ -220,30 +214,6 @@ export function dispatchRouter(): Router {
         },
       });
       res.status(201).json({ dispatch: result.data });
-    }),
-  );
-
-  // ── the assignments board ───────────────────────────────────────────────────
-  /** Close a shift a driver forgot to end, so their truck is selectable again (D44.5). */
-  router.post(
-    "/assignments/:sessionId/end",
-    canManage,
-    asyncHandler(async (req, res) => {
-      const admin = getSupabaseAdmin(getAppLocals(req).env);
-      const sessionId = param(req, "sessionId");
-      const result = await endDutySession(admin, req.auth!.orgId!, sessionId);
-      if (!result.ok) {
-        res.status(result.status).json(apiError(result.code, result.message));
-        return;
-      }
-      await writeAudit(admin, {
-        orgId: req.auth!.orgId!,
-        actorId: req.auth!.userId,
-        action: "dispatch.shift_ended",
-        entity: "driver_duty_sessions",
-        entityId: sessionId,
-      });
-      res.json({ ok: true });
     }),
   );
 

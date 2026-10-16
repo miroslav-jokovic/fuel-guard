@@ -74,6 +74,23 @@ describe("the retired office write paths (LR6)", () => {
   });
 });
 
+/**
+ * Q-DB10 (DISPATCH-BOARD-PLAN.md, ruled (b) 2026-10-16): the assignments board's list and its End
+ * shift write are gone with the screen that used them. Production never opened a duty session; the
+ * 16-hour sweeper is now the only close of one a driver leaves open.
+ */
+describe("the retired assignments board (Q-DB10)", () => {
+  const SESSION = "33333333-2222-4333-8444-000000000001";
+  it.each([
+    ["GET", "/assignments", "the duty board's list — no screen has read it since #1426"],
+    ["POST", `/assignments/${SESSION}/end`, "End shift from the office"],
+  ])("%s %s is gone — %s", async (method, path) => {
+    expect(await call(method, path)).toBe(404);
+    expect(rec.writes()).toHaveLength(0);
+    expect(rec.rpcs().map((r) => r.fn)).not.toContain("end_duty_session_by_id");
+  });
+});
+
 describe("what stays", () => {
   // The control for the block above: the same harness reaches a live route, so a 404 there is the
   // route's absence and not a harness that 404s everything.
@@ -88,6 +105,10 @@ describe("what stays", () => {
       action: "reassign",
     });
     expect(status).toBe(200);
+  });
+
+  it("still serves the assignment history, which outlives the board it sat beside", async () => {
+    expect(await call("GET", "/assignments/history?from=bad")).toBe(400);
   });
 
   it("still validates Dispatch rather than 404ing it", async () => {
