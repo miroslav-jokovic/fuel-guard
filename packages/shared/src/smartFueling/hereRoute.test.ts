@@ -32,6 +32,14 @@ describe("buildTruckRouteUrl", () => {
     );
     expect(avoided).toContain("avoid%5Bfeatures%5D=tunnel");
   });
+  it("sends a moving truck's heading as the origin's course, and nothing for a stop", () => {
+    const moving = buildTruckRouteUrl(
+      { origin: { lat: 41.8, lng: -87.6 }, destination: { lat: 39.1, lng: -94.6 }, profile, originCourseDegrees: 360 },
+      "KEY123",
+    );
+    expect(moving).toContain("origin=41.8%2C-87.6%3Bcourse%3D0");
+    expect(url).not.toContain("course");
+  });
 });
 
 describe("parseHereRoute", () => {

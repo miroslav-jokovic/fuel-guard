@@ -191,3 +191,19 @@ setting.
     truck replaces it; closing the card or clicking empty map keeps it. The earlier rule "off
     whenever the selection moves" is superseded: its reason — no line nobody can account for — is
     now met by the bar naming the truck and load.
+
+### 2026-10-16 — Off the line, the road ahead is routed from the truck (DISPATCH-BOARD-V2-PLAN §5)
+
+The owner, after the dispatchers' session: *"the route is calculated but not taking into consideration
+the route the truck has taken."* Q-TC1 (a) had left a truck more than `OFF_ROUTE_MILES` from the line on
+the planned line, with fuel planned from the pickup. The drawer then showed the whole trip as "still
+ahead". The card now does this instead:
+- It asks HERE for a second route from the truck's fix (0.01° grid) and heading (`course`, 15° steps),
+  over the stops not yet reached (`isStopBehindTruck`).
+- It draws that route as "ahead" and plans fuel on it, so D-TC6's one line holds.
+- It sends the plan as `planned`, drawn thin, dashed and faint.
+
+"Still ahead" is now the server's `aheadMiles`/`aheadHours`. The route cache serves a row for at most 24 h
+(`ROUTE_CACHE_MAX_AGE_MS`). A truck on its way to the pickup is routed there first, which answers Q-TC1's
+other case. Without a HERE key for the second call, the card does what it did before. Q-TC1 (a) is
+superseded by this entry; the ruling above is left as written.

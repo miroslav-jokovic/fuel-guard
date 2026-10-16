@@ -205,7 +205,7 @@ describe("LiveMapVehicleFacts — the route toggle (D-TC7)", () => {
     const pending = mountCard({ route: { ...off, shown: true, pending: true } });
     expect(pending.text()).toContain("Planning the route…");
     const data: LiveMapLoadRoute = {
-      loadId: "l1", covered: [], ahead: [], distanceMiles: 690, durationHours: 11.1, truckOnRoute: true, coveredMiles: 100,
+      loadId: "l1", covered: [], ahead: [], distanceMiles: 690, durationHours: 11.1, truckOnRoute: true, coveredMiles: 100, aheadMiles: 590, aheadHours: 9.5,
       offRouteMiles: 0.2, fuelStops: [], fuelNote: "No fuel stop needed to reach the delivery.", hazmatNotApplied: false,
     };
     const w = mountCard({ route: { ...off, shown: true, data } });

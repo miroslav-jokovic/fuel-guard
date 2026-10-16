@@ -14,7 +14,13 @@ import { tokenColor } from "@/composables/useMapLibre";
  * both halves, the covered half at a third of the opacity, so the eye reads one route with a "you are
  * here" in it rather than two routes. The colours come from tokens and are re-read on a theme flip,
  * since every ramp here is a `light-dark()` pair.
+ *
+ * ── OFF THE PLAN, TWO ROADS (DISPATCH-BOARD-V2-PLAN §5.1, 2026-10-16) ────────────────────────────
+ * When the truck had left the planned line, the server routes the road ahead from where it is
+ * (`fromTruck`) and sends the plan as `planned`. The plan is drawn thin, dashed and faint beneath, so the
+ * dispatcher sees which road the truck took against the one we proposed without reading two routes.
  */
+const PLANNED = "load-route-planned";
 const COVERED = "load-route-covered";
 const AHEAD = "load-route-ahead";
 
@@ -27,8 +33,10 @@ export function lineFeature(line: Line): LineFeature {
 }
 
 /** The rectangle that shows the whole route and every fuel stop, as maplibre's [[w, s], [e, n]]. */
-export function routeBounds(route: Pick<LiveMapLoadRoute, "covered" | "ahead" | "fuelStops">): [[number, number], [number, number]] | null {
-  const pts = [...route.covered, ...route.ahead, ...route.fuelStops];
+export function routeBounds(
+  route: Pick<LiveMapLoadRoute, "covered" | "ahead" | "fuelStops" | "planned">,
+): [[number, number], [number, number]] | null {
+  const pts = [...(route.planned ?? []), ...route.covered, ...route.ahead, ...route.fuelStops];
   if (pts.length === 0) return null;
   let w = Infinity, s = Infinity, e = -Infinity, n = -Infinity;
   for (const p of pts) {
@@ -78,13 +86,15 @@ export function syncRoute(map: RouteMap, route: LiveMapLoadRoute | null, beneath
  */
 export function showRoute(map: RouteMap, route: LiveMapLoadRoute, beneathLayerId: string): void {
   const colour = tokenColor("text-brand-600");
-  for (const [id, line, opacity] of [[COVERED, route.covered, 0.35], [AHEAD, route.ahead, 0.9]] as const) {
+  const lines = [[PLANNED, route.planned ?? [], 0.3], [COVERED, route.covered, 0.35], [AHEAD, route.ahead, 0.9]] as const;
+  for (const [id, line, opacity] of lines) {
     const source = map.getSource(id) as maplibregl.GeoJSONSource | undefined;
     if (source) source.setData(lineFeature(line));
     else map.addSource(id, { type: "geojson", data: lineFeature(line) });
     if (!map.getLayer(id)) {
+      const paint = id === PLANNED ? { "line-width": 3, "line-dasharray": [2, 2] } : { "line-width": 5 };
       map.addLayer(
-        { id, type: "line", source: id, layout: { "line-join": "round", "line-cap": "round" }, paint: { "line-width": 5 } },
+        { id, type: "line", source: id, layout: { "line-join": "round", "line-cap": "round" }, paint },
         map.getLayer(beneathLayerId) ? beneathLayerId : undefined,
       );
     }
@@ -99,7 +109,7 @@ export function showRoute(map: RouteMap, route: LiveMapLoadRoute, beneathLayerId
 }
 
 export function clearRoute(map: RouteMap): void {
-  for (const id of [COVERED, AHEAD]) {
+  for (const id of [PLANNED, COVERED, AHEAD]) {
     if (map.getLayer(id)) map.removeLayer(id);
     if (map.getSource(id)) map.removeSource(id);
   }

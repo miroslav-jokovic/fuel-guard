@@ -12,6 +12,8 @@ describe("the route layer's geometry and words", () => {
     const stop = { lat: 43, lng: -85 } as LiveMapRouteFuelStop;
     expect(routeBounds({ covered: [{ lat: 41, lng: -88 }], ahead: [{ lat: 42, lng: -86 }], fuelStops: [stop] })).toEqual([[-88, 41], [-85, 43]]);
     expect(routeBounds({ covered: [], ahead: [], fuelStops: [] })).toBeNull();
+    // Off the plan, the faint planned line is part of what the dispatcher must see.
+    expect(routeBounds({ covered: [], ahead: [{ lat: 42, lng: -86 }], fuelStops: [], planned: [{ lat: 40, lng: -90 }] })).toEqual([[-90, 40], [-86, 42]]);
   });
 
   it("names a fuel stop and its address, leaving out what the station file does not have", () => {
@@ -31,8 +33,8 @@ describe("the route layer's geometry and words", () => {
  */
 describe("syncRoute", () => {
   function fakeMap() {
-    const sources = new Set<string>(["load-route-covered", "load-route-ahead"]);
-    const layers = new Set<string>(["load-route-covered", "load-route-ahead", "selected"]);
+    const sources = new Set<string>(["load-route-planned", "load-route-covered", "load-route-ahead"]);
+    const layers = new Set<string>(["load-route-planned", "load-route-covered", "load-route-ahead", "selected"]);
     return {
       isStyleLoaded: () => false,
       getSource: (id: string) => (sources.has(id) ? { setData: () => {} } : undefined),

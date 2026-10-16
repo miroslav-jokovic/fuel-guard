@@ -7,6 +7,7 @@ import TimelineRail, { type TimelineEntry } from "@/components/ui/TimelineRail.v
 import { useLoadRoute } from "@/composables/useLoadRoute";
 import { BADGE_BASE, hosStatusBadge, onTimeBadge, stopMarker, toneClass } from "@/lib/badges";
 import { formatDateTime } from "@/lib/format";
+import { offRouteWords } from "@/lib/loadRouteWords";
 import { dispatcherName, durationWords, legalDriveLeft, stopPlace } from "./dispatchBoardView";
 import { useLoadDetailQuery, type DispatchStopDetail } from "./useDispatchLoads";
 
@@ -82,10 +83,11 @@ const clocks = computed<Fact[]>(() => {
 const routeSummary = computed(() => {
   const r = route.data.value;
   if (!r) return null;
-  const ahead = Math.max(0, r.distanceMiles - r.coveredMiles);
+  // "Still ahead" is the server's: on the line the truck is on, which off the plan is a route from the
+  // truck — planned minus covered read as the whole trip for an off-route truck (V2 plan §5).
   return {
-    line: `${Math.round(r.distanceMiles)} mi pickup to delivery · ${Math.round(ahead)} mi still ahead · about ${durationWords(r.durationHours * 3_600_000)} of driving`,
-    offRoute: !r.truckOnRoute && r.offRouteMiles != null ? `The truck is ${Math.round(r.offRouteMiles)} mi off this route.` : null,
+    line: `${Math.round(r.distanceMiles)} mi pickup to delivery · ${Math.round(r.aheadMiles)} mi still ahead · about ${durationWords(r.aheadHours * 3_600_000)} of driving left`,
+    offRoute: offRouteWords(r),
     fuel: r.fuelStops[0] ?? null,
     fuelNote: r.fuelNote,
     hazmatNotApplied: r.hazmatNotApplied,

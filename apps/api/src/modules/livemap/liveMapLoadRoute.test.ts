@@ -15,11 +15,21 @@ const here = vi.hoisted(() => ({
     polyline: Array.from({ length: 30 }, (_, i) => ({ lat: 41.6, lng: -87.6 + i * 0.47 })),
     distanceMeters: 1_110_000, durationSeconds: 40_000, steps: [], cacheKey: "k", cached: true,
   },
+  // From a truck up at 42.5 N back down to the delivery: a different road from the planned one.
+  live: {
+    polyline: Array.from({ length: 12 }, (_, i) => ({ lat: 42.5 - i * 0.08, lng: -86 + i * 0.4 })),
+    distanceMeters: 480_000, durationSeconds: 18_000, steps: [], cacheKey: "live", cached: false,
+  },
+  // Set by a test: the route from the truck fails as it would with no HERE key and a cached planned line.
+  liveFails: null as Error | null,
 }));
 vi.mock("../routing/routeGeometry.js", () => ({
-  getOrComputeRoute: vi.fn(async (_a: unknown, _e: unknown, req: unknown) => {
+  getOrComputeRoute: vi.fn(async (_a: unknown, _e: unknown, req: { origin: { lat: number } }) => {
     here.calls.push(req);
-    return here.route;
+    // Every planned route in these tests starts at the pickup, on 41.6 N; anything else is from the truck.
+    if (req.origin.lat === 41.6) return here.route;
+    if (here.liveFails) throw here.liveFails;
+    return here.live;
   }),
 }));
 vi.mock("../../lib/hereGeocode.js", () => ({ hereReverseGeocodeState: vi.fn(async () => null) }));
@@ -31,6 +41,7 @@ vi.mock("../samsara/lib/samsara.js", () => ({
 }));
 
 const { readLoadRoute } = await import("./liveMapLoadRoute.js");
+const { NoHereKeyError } = await import("../../lib/here.js");
 
 const ORG = "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d";
 const LOAD = "11111111-2222-4333-8444-000000000001";
@@ -46,7 +57,9 @@ const stations = Array.from({ length: 10 }, (_, i) => ({
   lat: 41.603, lng: -87.6 + (i + 1) * 1.3, state: i < 3 ? "IN" : "OH", exit: String(10 + i), has_diesel: true,
 }));
 
-function recorder(o: { truckAt?: { lat: number; lng: number } | null; hazmat?: boolean; stops?: unknown[]; vehicleId?: string | null } = {}) {
+function recorder(o: {
+  truckAt?: { lat: number; lng: number } | null; heading?: number | null; hazmat?: boolean; stops?: unknown[]; vehicleId?: string | null;
+} = {}) {
   const truckAt = o.truckAt === undefined ? { lat: 41.6, lng: -87.6 + 8.2 * 0.47 } : o.truckAt;
   return createSupabaseRecorder({
     tables: {
@@ -61,7 +74,9 @@ function recorder(o: { truckAt?: { lat: number; lng: number } | null; hazmat?: b
       route_fuel_settings: { data: [] },
       vehicles: { data: [{ id: "veh-1", samsara_vehicle_id: "sam-1", tank_capacity_gal: 200, observed_max_fill_gal: null, baseline_mpg: 6.5, height_in: null, length_in: null, width_in: null, axle_count: null }] },
       trailers: { data: [] },
-      vehicle_positions: { data: truckAt ? [{ vehicle_id: "veh-1", lat: truckAt.lat, lng: truckAt.lng, sampled_at: NOW.toISOString() }] : [] },
+      vehicle_positions: {
+        data: truckAt ? [{ vehicle_id: "veh-1", lat: truckAt.lat, lng: truckAt.lng, heading_degrees: o.heading ?? null, sampled_at: NOW.toISOString() }] : [],
+      },
       fuel_stations: (q: RecordedQuery) =>
         q.filters().some((f) => f.col === "id")
           ? stations.map((s) => ({ id: s.id, address: `${s.store_number} Interstate Dr`, city: "Somewhere", zip: "46000" }))
@@ -78,6 +93,7 @@ describe("readLoadRoute", () => {
     vi.useFakeTimers();
     vi.setSystemTime(NOW);
     here.calls.length = 0;
+    here.liveFails = null;
   });
   afterEach(() => vi.useRealTimers());
 
@@ -121,13 +137,54 @@ describe("readLoadRoute", () => {
     expect(answer.route.end).toEqual({ lat: 41.6, lng: -87.6 + 29 * 0.47, name: "Consignee DC", kind: "dropoff" });
   });
 
-  it("does not split a route the truck is off, and plans from the pickup", async () => {
+  it("counts what is still ahead on the line the truck is on, and asks HERE once", async () => {
+    const answer = await readLoadRoute(recorder().client, env, ORG, LOAD);
+    if (!answer.ok) throw new Error(answer.message);
+    const r = answer.route;
+    expect(here.calls).toHaveLength(1);
+    expect(r.fromTruck).toBe(false);
+    expect(r).not.toHaveProperty("planned");
+    // The truck is 8.2 of 29 segments along, so a little under three quarters of the trip is left.
+    expect(r.aheadMiles).toBeLessThan(r.distanceMiles * 0.75);
+    expect(r.aheadMiles).toBeGreaterThan(r.distanceMiles * 0.65);
+  });
+
+  it("off the planned line, routes from the truck's fix and heading, and plans fuel on the road it is on", async () => {
+    // Nothing marks the pickup done here, so the truck is on its way TO it — Q-TC1's case, now routed.
+    const answer = await readLoadRoute(recorder({ truckAt: { lat: 42.5012, lng: -86.0031 }, heading: 97 }).client, env, ORG, LOAD);
+    if (!answer.ok) throw new Error(answer.message);
+    const r = answer.route;
+    expect(here.calls[1]).toMatchObject({
+      // Snapped to the 0.01° grid and a 15° heading, so presses minutes apart share a cache row.
+      origin: { lat: 42.5, lng: -86 }, originCourseDegrees: 90,
+      via: [{ lat: 41.6, lng: -87.6 }], destination: { lat: 41.6, lng: -87.6 + 29 * 0.47 },
+    });
+    expect(r.truckOnRoute).toBe(false);
+    expect(r.fromTruck).toBe(true);
+    expect(r.covered).toEqual([]);
+    expect(r.ahead).toEqual(here.live.polyline);
+    expect(r.planned).toEqual(here.route.polyline);
+    // "Still ahead" is the new road's length, not the whole planned trip.
+    expect(r.aheadMiles).toBeCloseTo(480_000 / 1609.344, 0);
+    expect(r.distanceMiles).toBeGreaterThan(r.aheadMiles);
+    expect(r.offRouteMiles).toBeGreaterThan(1);
+  });
+
+  it("routes from the truck over the stops it has not reached, skipping one McLeod says it left", async () => {
+    const stops = [
+      { seq: 1, kind: "pickup", name: "Shipper", lat: 41.6, lon: -87.6, status: "pending", external_status: "D" },
+      { seq: 2, kind: "dropoff", name: "Drop 1", lat: 41.9, lon: -84, status: "pending", external_status: null },
+      { seq: 3, kind: "dropoff", name: "Drop 2", lat: 41.6, lon: -87.6 + 29 * 0.47, status: "pending", external_status: null },
+    ];
+    await readLoadRoute(recorder({ stops, truckAt: { lat: 42.5, lng: -86 } }).client, env, ORG, LOAD);
+    expect(here.calls[1]).toMatchObject({ via: [{ lat: 41.9, lng: -84 }], destination: { lat: 41.6, lng: -87.6 + 29 * 0.47 }, originCourseDegrees: null });
+  });
+
+  it("with no HERE key for the second route, keeps the planned line and says the truck is off it", async () => {
+    here.liveFails = new NoHereKeyError();
     const answer = await readLoadRoute(recorder({ truckAt: { lat: 42.5, lng: -86 } }).client, env, ORG, LOAD);
     if (!answer.ok) throw new Error(answer.message);
-    expect(answer.route.truckOnRoute).toBe(false);
-    expect(answer.route.covered).toEqual([]);
-    expect(answer.route.ahead).toEqual(here.route.polyline);
-    expect(answer.route.offRouteMiles).toBeGreaterThan(1);
+    expect(answer.route).toMatchObject({ truckOnRoute: false, fromTruck: false, ahead: here.route.polyline });
   });
 
   it("draws the route with no position at all, and says nothing about distance off it", async () => {

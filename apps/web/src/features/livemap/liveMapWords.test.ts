@@ -274,7 +274,7 @@ describe("stopAddress", () => {
 describe("routeWords (TRUCK-CARD-ROUTE-PLAN D-TC3)", () => {
   const route = (o: Partial<LiveMapLoadRoute> = {}): LiveMapLoadRoute => ({
     loadId: "l1", covered: [], ahead: [], distanceMiles: 1234.4, durationHours: 21.6, truckOnRoute: true,
-    coveredMiles: 300, offRouteMiles: 0.1, fuelStops: [], fuelNote: null, hazmatNotApplied: false, ...o,
+    coveredMiles: 300, offRouteMiles: 0.1, aheadMiles: 934.4, aheadHours: 16.3, fuelStops: [], fuelNote: null, hazmatNotApplied: false, ...o,
   });
 
   it("sums the route up on one line, and says nothing more in the ordinary case", () => {
@@ -284,9 +284,13 @@ describe("routeWords (TRUCK-CARD-ROUTE-PLAN D-TC3)", () => {
 
   it("says when the truck is off the route, has no position, or carries hazmat, and passes the fuel note on", () => {
     expect(routeWords(route({ truckOnRoute: false, offRouteMiles: 42.4 })).notes).toEqual([
-      "Truck is 42 mi off this route; fuel stops are planned from the pickup.",
+      "Truck is 42 mi off the planned route; fuel stops are planned from the pickup.",
     ]);
     expect(routeWords(route({ truckOnRoute: false, offRouteMiles: null })).notes[0]).toMatch(/^No position for this truck/);
+    // Routed from the truck (V2 plan §5.1): the note says the road ahead is the truck's, the plan faint.
+    expect(routeWords(route({ truckOnRoute: false, offRouteMiles: 42.4, fromTruck: true })).notes[0]).toBe(
+      "Truck is 42 mi off the planned route; the road ahead is routed from where it is, and the planned route is shown faint.",
+    );
     expect(routeWords(route({ hazmatNotApplied: true, fuelNote: "No fuel stop needed to reach the delivery." })).notes).toEqual([
       "Hazmat load: this route does not yet avoid hazmat-restricted roads.",
       "No fuel stop needed to reach the delivery.",

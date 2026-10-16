@@ -29,7 +29,7 @@ vi.mock("@/lib/api", () => ({
           ok: true,
           data: {
             loadId: LOAD, covered: [], ahead: [], distanceMiles: 812.4, durationHours: 13.5, truckOnRoute: true,
-            coveredMiles: 300.2, offRouteMiles: 0,
+            coveredMiles: 300.2, offRouteMiles: 0, aheadMiles: 512.2, aheadHours: 8.5,
             fuelStops: [{ name: "Pilot 412", brand: "Pilot", address: null, city: "Joplin", state: "MO", zip: null, exit: null, lat: 37, lng: -94, milesAhead: 88.6 }],
             fuelNote: null, hazmatNotApplied: false,
           },
@@ -145,7 +145,7 @@ describe("DispatchTruckDrawer", () => {
   it("summarises the route as the miles still ahead and the next fuel stop", async () => {
     const w = await mountIt(loaded);
     expect(w.get("[data-testid=truck-route-summary]").text()).toBe(
-      "812 mi pickup to delivery · 512 mi still ahead · about 13h 30m of driving",
+      "812 mi pickup to delivery · 512 mi still ahead · about 8h 30m of driving left",
     );
     expect(w.text()).toContain("Next fuel stop: Pilot 412, Joplin, MO, 89 mi ahead");
   });

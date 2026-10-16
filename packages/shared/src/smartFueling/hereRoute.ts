@@ -25,6 +25,12 @@ export interface HereRouteRequest {
   /** Route around ALL tunnels (HERE avoid[features]=tunnel). Hazmat/oversized safety — hazmat is barred from
    *  nearly every tunnel, so dispatchers can force a tunnel-free route regardless of the ADR category. */
   avoidTunnels?: boolean;
+  /**
+   * The truck's heading at `origin`, degrees clockwise from north — sent as HERE's `course` so a route
+   * started from a MOVING truck continues the way it is going instead of U-turning to the nearest ramp
+   * (DISPATCH-BOARD-V2-PLAN §5.1). Only for an origin that is a truck's GPS fix, never a stop.
+   */
+  originCourseDegrees?: number | null;
 }
 
 /** Build the HERE v8 truck-route URL. apiKey + baseUrl are injected so the pure builder never reads env. */
@@ -32,7 +38,7 @@ export function buildTruckRouteUrl(req: HereRouteRequest, apiKey: string, baseUr
   // Build the query manually (no URLSearchParams — the shared package is DOM-free/portable).
   const params: [string, string][] = [
     ["transportMode", "truck"],
-    ["origin", `${req.origin.lat},${req.origin.lng}`],
+    ["origin", `${req.origin.lat},${req.origin.lng}${req.originCourseDegrees != null ? `;course=${Math.round(req.originCourseDegrees) % 360}` : ""}`],
   ];
   for (const v of req.via ?? []) params.push(["via", `${v.lat},${v.lng}`]);
   params.push(["destination", `${req.destination.lat},${req.destination.lng}`]);
