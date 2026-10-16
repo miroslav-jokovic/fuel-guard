@@ -135,7 +135,7 @@ describe("the dispatchers' numbers and colours", () => {
  */
 describe("stateCounts / rowsBeforeScope — counts that match the table", () => {
   const at = (state: string, o: Partial<DispatchBoardRow> = {}) =>
-    row(`${state}-${o.fleetCode ?? "VINNIEV"}-${o.inShop ? "shop" : "ok"}`, { available: { ...free(1), state }, ...o });
+    row(`${state}-${o.fleetCode ?? "VINNIEV"}-${o.inShop ? "shop" : "ok"}`, { available: free(1, state), ...o });
   const rows = [at("AL", { fleetCode: "VLADI" }), at("AL", { fleetCode: "VLADI", inShop: true }), at("AL", { fleetCode: "1" }), at("GA")];
 
   it("counts a state under the fleet chosen, leaving out the pool and trucks in the shop", () => {
