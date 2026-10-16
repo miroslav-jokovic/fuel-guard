@@ -300,3 +300,28 @@ Owner: *"proceed as recommended."* So:
 - **Q-DBV7** stays a question for the dispatchers (idle trailers); nothing is built for it.
 
 Build order: DBV1 → DBV2 → DBV5 → DBV3 → DBV4 → DBV6 → DBV7.
+
+### 2026-10-16 — DBV1, DBV5 merged; DBV2 the page
+
+- **DBV1 (merged #1583):** the row carries a structured `available` (city, state, ZIP, coordinates, time,
+  basis) and `milesLeft`, chained through every stop still to make. Shared `availableNear` and
+  `knownCityPoints` back the filter.
+- **DBV5 (merged #1584):** a truck off the planned line gets the road ahead routed from its fix and
+  heading. The route cache is refreshed after 24 h. The drawer's "still ahead" is the server's figure.
+- **DBV2:**
+  - **Columns.** Truck (trailer beneath) · Driver · Dispatcher · Available (red/amber/green, the
+    default sort) · Available in (with ZIP) · Miles left (≈) · Status. The Live columns are hidden by
+    default (`useTableColumns`'s new `defaultHidden`). Their storage key is versioned so v1
+    preferences do not bring them back.
+  - **Census strip.** Mine · All · each fleet with its trucks and how many are empty · Pool. It
+    replaces the My fleet toggle and the Fleet select.
+  - **Filters.** State, Near and Free (within N h) are the primary filters. Within (radius) and
+    Dispatched by are under More.
+  - **Queues.** Three tabs: All · Needs a load · Needs attention. The narrow queues stay as filters,
+    because the Operations cards open the board on them (D-FM7). Such a queue shows as a fourth tab
+    only while a link has it in force.
+  - **Choices made in building.** "Free" is a horizon in hours, not a date, so a saved view means the
+    same thing tomorrow. There is no "Live preset" button: the Live columns are one tick each in the
+    column picker. The Loads page keeps the v1 scope control (`DispatchScopeControls`); DBV7 revisits it.
+  - **Browser pass.** Done at 1440 and 390 on a stubbed board. It found the census strip drawing only
+    its first tile, because `row` buttons are full-width; fixed.

@@ -45,6 +45,7 @@ const COLUMNS: DataTableColumn[] = [
 async function mountColumns(
   initial = "/drivers",
   columns = ref<DataTableColumn[]>([...COLUMNS]),
+  options: { defaultHidden?: string[] } = {},
 ): Promise<{ c: TableColumns; router: Router; columns: typeof columns }> {
   const router = createRouter({
     history: createMemoryHistory(),
@@ -53,7 +54,7 @@ async function mountColumns(
   let c!: TableColumns;
   const C = defineComponent({
     setup() {
-      c = useTableColumns("roster.drivers", () => columns.value);
+      c = useTableColumns("roster.drivers", () => columns.value, options);
       return () => h("div");
     },
   });
@@ -168,5 +169,23 @@ describe("useTableColumns", () => {
     expect(() => c.toggle("phone")).not.toThrow();
     await settle();
     expect(keys(c)).toEqual(["full_name", "status"]);
+  });
+
+  describe("a table's default hidden columns (DISPATCH-BOARD-V2-PLAN D-DBV1)", () => {
+    it("starts a reader who never chose with them hidden, and stops applying once the reader chooses", async () => {
+      const store = installStorage();
+      const { c } = await mountColumns("/drivers", undefined, { defaultHidden: ["phone"] });
+      expect(c.visible.value.map((col) => col.key)).toEqual(["full_name", "status"]);
+      c.showAll();
+      await flushPromises();
+      expect(c.visible.value.map((col) => col.key)).toEqual(["full_name", "phone", "status"]);
+      expect(store.get("fg.cols.roster.drivers")).toBe("[]");
+    });
+    it("lets a reader's own stored choice and a link's hidden-list win over the default", async () => {
+      installStorage({ "fg.cols.roster.drivers": JSON.stringify(["status"]) });
+      expect((await mountColumns("/drivers", undefined, { defaultHidden: ["phone"] })).c.visible.value.map((col) => col.key)).toEqual(["full_name", "phone"]);
+      installStorage();
+      expect((await mountColumns("/drivers?hide=status", undefined, { defaultHidden: ["phone"] })).c.visible.value.map((col) => col.key)).toEqual(["full_name", "phone"]);
+    });
   });
 });

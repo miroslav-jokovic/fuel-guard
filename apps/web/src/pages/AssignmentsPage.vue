@@ -22,14 +22,22 @@ import { formatDateTime } from "@/lib/format";
 import AssignmentHistory from "@/features/dispatch/AssignmentHistory.vue";
 import DispatchBoardTable from "@/features/dispatch/DispatchBoardTable.vue";
 import DispatchTruckDrawer from "@/features/dispatch/DispatchTruckDrawer.vue";
-import DispatchScopeControls from "@/features/dispatch/DispatchScopeControls.vue";
-import { useScopeChoice } from "@/features/dispatch/dispatchScope";
+import DispatcherCensus from "@/features/dispatch/DispatcherCensus.vue";
+import FilterSelect from "@/components/ui/FilterSelect.vue";
+import { dispatcherOptions, useScopeChoice } from "@/features/dispatch/dispatchScope";
+import { RADIUS_OPTIONS, WITHIN_OPTIONS, useAvailableFilter } from "@/features/dispatch/useAvailableFilter";
 import { useDispatchBoardQuery } from "@/features/dispatch/useDispatchBoard";
+import { inMyScope } from "@silvicom/shared";
 import {
   BOARD_COLUMNS,
+  BOARD_COLUMNS_ID,
+  BOARD_DEFAULT_SORT,
+  BOARD_LIVE_COLUMNS,
   BOARD_QUEUES,
   BOARD_SORT_KEYS,
   BOARD_TABLE,
+  BOARD_TABS,
+  POOL_FLEET,
   boardSortValue,
   filterBoard,
   type BoardQueue,
@@ -60,6 +68,13 @@ import {
  *
  * The History tab is the L5 attribution trail, unchanged.
  *
+ * ── V2: THE DISPATCHERS' OWN QUESTION FIRST (DISPATCH-BOARD-V2-PLAN, ruled 2026-10-16) ───────────
+ * Tested with the dispatchers on 2026-10-15: "a lot of information, a little bit confusing". Their own
+ * board answers one question — when and where each truck is free — so this one now opens on it: sorted
+ * by Available, seven columns, three queues. Trucks per dispatcher are counted in the census strip,
+ * which is also the scope control (D-DBV2), and the toolbar filters by where and when a truck is free
+ * (D-DBV3). Dispatched by, the rarer question, moved under More.
+ *
  * ── THE DRAWER IS IN THE URL (DB6) ───────────────────────────────────────────────────────────────
  * A row opens its truck's drawer, and `?truck=773` opens it from anywhere — the Loads page's truck
  * links here that way (D-DB6 point 4), so a load's truck is one click from its board row. The query
@@ -78,26 +93,29 @@ const tab = computed({
 const queue = computed<BoardQueue>(() => (BOARD_QUEUES.find((q) => q.value === tab.value)?.value ?? "all"));
 
 const scope = computed(() => board.value?.scope ?? { linked: false, fleetCodes: [], dispatcherIds: [] });
-const { choice: scopeChoice, choose: setScope } = useScopeChoice(computed(() => scope.value.linked), qs);
+const { choice: scopeChoice } = useScopeChoice(computed(() => scope.value.linked), qs);
 
 const search = qs.param("search");
 const fleet = qs.param("fleet");
 const dispatcher = qs.param("dispatcher");
+const rows = computed(() => board.value?.rows ?? []);
+const avail = useAvailableFilter(qs, rows);
 /**
- * FilterBar's "Clear filters": Fleet, Dispatched by and the search narrow the board. The queue tab and
- * My fleet · All choose WHICH board it is, and the sort and an open truck are not filters, so clearing
- * keeps all four.
+ * FilterBar's "Clear filters": where-and-when, Dispatched by and the search narrow the board. The census
+ * choice (a fleet, Mine or All) and the queue tab choose WHICH board it is, and the sort and an open
+ * truck are not filters, so clearing keeps them.
  */
-const activeFilterCount = computed(() => [search.value.trim(), fleet.value, dispatcher.value].filter(Boolean).length);
-const clearFilters = (): void => qs.set({ search: undefined, fleet: undefined, dispatcher: undefined });
-const { sort, onSort } = useUrlSort(qs.param("sort", BOARD_SORT_KEYS), qs.param("dir", SORT_DIRECTIONS));
+const activeFilterCount = computed(() => [search.value.trim(), dispatcher.value].filter(Boolean).length + avail.activeCount.value);
+const clearFilters = (): void => qs.set({ search: undefined, dispatcher: undefined, ...avail.clear });
+const { sort, onSort } = useUrlSort(qs.param("sort", BOARD_SORT_KEYS, BOARD_DEFAULT_SORT), qs.param("dir", SORT_DIRECTIONS));
+const pickCensus = (v: { scope: "mine" | "all"; fleet: string }) => qs.set({ scope: v.scope, fleet: v.fleet || undefined });
 
 /**
  * Which columns show (`useTableColumns`): a hidden list in `?hide=`, with this browser's own choice as
  * the default, so a long-haul planner can drop Empties and a local one Next stop without either
  * losing the column for the other. The truck stays; it is the row's name.
  */
-const boardColumns = useTableColumns(BOARD_TABLE, () => BOARD_COLUMNS);
+const boardColumns = useTableColumns(BOARD_COLUMNS_ID, () => BOARD_COLUMNS, { defaultHidden: BOARD_LIVE_COLUMNS });
 /**
  * Saved views: a name and this page's URL — queue, scope, fleet, dispatcher, search, sort and hidden
  * columns — so "late trucks in VINNIEV, by appointment" is one click. Applying one is a navigation,
@@ -105,12 +123,17 @@ const boardColumns = useTableColumns(BOARD_TABLE, () => BOARD_COLUMNS);
  */
 const viewMenu = useSavedViewMenu(BOARD_TABLE, "board");
 
-const rows = computed(() => board.value?.rows ?? []);
 const dispatchers = computed(() => board.value?.dispatchers ?? []);
 const fleetOwner = (code: string | null) => board.value?.fleets.find((f) => f.code === code)?.dispatcherId ?? null;
 
-const base = computed(() => ({ mine: scopeChoice.value === "mine", fleet: fleet.value, dispatcher: dispatcher.value, search: search.value }));
-const filtered = computed(() => filterBoard(rows.value, scope.value, { ...base.value, queue: queue.value }));
+const now = computed(() => (board.value ? new Date(board.value.generatedAt) : new Date()));
+const base = computed(() => ({
+  mine: scopeChoice.value === "mine", fleet: fleet.value, dispatcher: dispatcher.value, search: search.value, available: avail.filter.value,
+}));
+const filtered = computed(() => filterBoard(rows.value, scope.value, { ...base.value, queue: queue.value }, now.value));
+const mineCount = computed(() =>
+  scope.value.linked ? rows.value.filter((r) => r.fleetCode !== POOL_FLEET && inMyScope(r, scope.value)).length : null,
+);
 const sorted = computed(() => sortRows(filtered.value, sort.value, boardSortValue));
 
 /**
@@ -125,7 +148,8 @@ const sorted = computed(() => sortRows(filtered.value, sort.value, boardSortValu
  */
 const PAGE_SIZE = 20;
 const page = qs.page();
-watch([search, fleet, dispatcher, () => qs.one("scope"), queue], () => (page.value = 1));
+// The where-and-when filter by value: it is rebuilt on every URL write, and its identity would loop.
+watch([search, fleet, dispatcher, () => qs.one("scope"), queue, () => JSON.stringify(avail.filter.value)], () => (page.value = 1));
 watch(
   () => filtered.value.length,
   (n) => {
@@ -135,10 +159,10 @@ watch(
 );
 const pageRows = computed(() => sorted.value.slice((page.value - 1) * PAGE_SIZE, page.value * PAGE_SIZE));
 const tabItems = computed(() => [
-  ...BOARD_QUEUES.map((q) => ({
+  ...BOARD_QUEUES.filter((q) => BOARD_TABS.includes(q.value) || q.value === queue.value).map((q) => ({
     value: q.value,
     label: q.label,
-    badge: board.value ? filterBoard(rows.value, scope.value, { ...base.value, queue: q.value }).length : undefined,
+    badge: board.value ? filterBoard(rows.value, scope.value, { ...base.value, queue: q.value }, now.value).length : undefined,
   })),
   { value: HISTORY, label: "History" },
 ]);
@@ -152,8 +176,15 @@ const at = (iso: string | null | undefined) => formatDateTime(iso, "—", zone.v
 const description = computed(() => {
   if (tab.value === HISTORY) return "Who held which truck and trailer, and when. The attribution trail behind every evidence panel.";
   const hos = board.value?.hosAsOf ? ` HOS as of ${at(board.value.hosAsOf)}.` : "";
-  return `Every truck, what it is hauling, and whether it will make its appointment.${hos}`;
+  return `When and where every truck is next free, soonest first.${hos}`;
 });
+/** Chips mirror only the `#more` filters (contract §5.5 rule 6). */
+const moreChips = computed(() => [
+  ...(avail.near.value ? [{ key: "radius", label: "Within", value: `${avail.radius.value} mi` }] : []),
+  ...(dispatcher.value ? [{ key: "dispatcher", label: "Dispatched by", value: dispatcherOptions(board.value).find((o) => o.value === dispatcher.value)?.label ?? dispatcher.value }] : []),
+]);
+const removeChip = (key: string) => qs.set(key === "radius" ? { radius: undefined } : { dispatcher: undefined });
+
 const emptyText = computed(() =>
   rows.value.length === 0 ? "No trucks on the roster yet." : "No trucks match these filters.",
 );
@@ -174,25 +205,43 @@ const emptyText = computed(() =>
         in Settings → McLeod fleets, and the board then opens on your fleet.
       </AppCallout>
 
+      <DispatcherCensus
+        v-if="board"
+        :rows="rows"
+        :mine-count="mineCount"
+        :board="board"
+        :choice="scopeChoice"
+        :fleet="fleet"
+        @pick="pickCensus"
+      />
+
+      <AppCallout v-if="avail.nearFellBack.value" tone="info">
+        No truck is free in that city any more, so the board shows its whole state instead.
+      </AppCallout>
+
       <DataWorkspace>
         <FilterBar
           v-model:search="search"
           embedded
-          search-placeholder="Search truck, driver, load, customer, city…"
+          search-placeholder="Search truck, driver, trailer, load, city, ZIP…"
           :count="filtered.length"
           count-label="trucks"
           :active-count="activeFilterCount"
+          :more-count="(dispatcher ? 1 : 0) + (avail.near.value ? 1 : 0)"
+          :chips="moreChips"
+          @remove="removeChip"
           @clear-all="clearFilters"
         >
           <template #filters>
-            <DispatchScopeControls
-              v-model:fleet="fleet"
-              v-model:dispatcher="dispatcher"
-              :board="board"
-              :linked="scope.linked"
-              :choice="scopeChoice"
-              @choose="setScope"
-            />
+            <FilterSelect v-model="avail.states.value" label="State" :options="avail.stateOptions.value" multiple />
+            <FilterSelect v-model="avail.near.value" label="Near" :options="avail.cityOptions.value" />
+            <FilterSelect v-model="avail.within.value" label="Free" :options="WITHIN_OPTIONS" />
+          </template>
+          <!-- Secondaries (contract §5.5 rule 3): how far "near" reaches, and who is moving the load —
+               the second axis of D-DB1, asked less often than whose fleet a truck is in. -->
+          <template #more>
+            <FilterSelect v-model="avail.radius.value" label="Within" :options="RADIUS_OPTIONS" block />
+            <FilterSelect v-model="dispatcher" label="Dispatched by" :options="dispatcherOptions(board)" block />
           </template>
           <template #actions>
             <BaseButton
@@ -228,6 +277,7 @@ const emptyText = computed(() =>
           :dispatchers="dispatchers"
           :fleet-owner="fleetOwner"
           :sort="sort"
+          :now="now"
           :page="page"
           :page-size="PAGE_SIZE"
           :total="filtered.length"

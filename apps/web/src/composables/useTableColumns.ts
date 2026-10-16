@@ -35,13 +35,16 @@ const PINNED_INDEX = 0;
 
 const storageKey = (tableId: string) => `fg.cols.${tableId}`;
 
-function readStored(tableId: string): string[] {
+/** This reader's stored hidden-list, or null when they never expressed one. */
+function readStored(tableId: string): string[] | null {
   try {
-    const parsed: unknown = JSON.parse(localStorage.getItem(storageKey(tableId)) ?? "[]");
+    const raw = localStorage.getItem(storageKey(tableId));
+    if (raw == null) return null;
+    const parsed: unknown = JSON.parse(raw);
     return Array.isArray(parsed) ? parsed.filter((v): v is string => typeof v === "string") : [];
   } catch {
     // No storage — Safari private mode throws, and this project's own jsdom has none at all.
-    return [];
+    return null;
   }
 }
 
@@ -64,15 +67,22 @@ export interface TableColumns {
   showAll: () => void;
 }
 
+/**
+ * `defaultHidden` is the set a reader who never chose starts with — for columns kept for a dense view
+ * rather than read by everyone (the dispatch board's Live columns, DISPATCH-BOARD-V2-PLAN D-DBV1). It is
+ * not for a column somebody's compliance depends on: the reasoning above, that a new column must appear
+ * for everybody, is why this is opt-in per table and empty unless a table names one.
+ */
 export function useTableColumns(
   tableId: string,
   columns: () => DataTableColumn[],
+  options: { defaultHidden?: readonly string[] } = {},
 ): TableColumns {
   const { one, list, set } = useQueryState();
 
-  /** The link's answer if it has one, else this reader's own. */
+  /** The link's answer if it has one, else this reader's own, else the table's default. */
   const hidden = computed<Set<string>>(
-    () => new Set(one("hide") !== undefined ? list("hide") : readStored(tableId)),
+    () => new Set(one("hide") !== undefined ? list("hide") : (readStored(tableId) ?? options.defaultHidden ?? [])),
   );
 
   const lockedKey = () => columns()[PINNED_INDEX]?.key;
