@@ -411,6 +411,11 @@ exports[`the route table survives being split by area > resolution 1`] = `
     "url": "/shop/defects",
   },
   {
+    "name": "annual-dates",
+    "params": {},
+    "url": "/shop/annual-dates",
+  },
+  {
     "name": "count-session",
     "params": {
       "sessionId": "cs_1",
@@ -1411,6 +1416,16 @@ exports[`the route table survives being split by area > route table 1`] = `
     },
     "name": "shop",
     "path": "/shop",
+    "redirect": null,
+  },
+  {
+    "meta": {
+      "parent": "/shop/inspections",
+      "requiresAuth": true,
+      "title": "Annual dates to check",
+    },
+    "name": "annual-dates",
+    "path": "/shop/annual-dates",
     "redirect": null,
   },
   {

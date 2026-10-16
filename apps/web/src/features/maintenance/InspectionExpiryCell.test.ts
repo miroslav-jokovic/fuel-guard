@@ -13,8 +13,8 @@ const cell = (expiresOn: string | null, today = "2026-06-16") =>
   mount(InspectionExpiryCell, { props: { expiresOn, today } });
 
 describe("what the yard reads", () => {
-  it("shows the date plainly when it is far off", () => {
-    expect(cell("2027-06-16").text()).toContain("2027-06-16");
+  it("shows the date plainly when it is far off, in the product's date format", () => {
+    expect(cell("2027-06-16").text()).toBe("06/16/2027");
   });
 
   it("counts down inside the warning window", () => {

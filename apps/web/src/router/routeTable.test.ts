@@ -77,7 +77,7 @@ const PROBES = [
   "/shop/assets", "/shop/assets/ast_1",
   // I9's units. TWO params, not one — the roster's kind and the id — because a truck and a trailer
   // share neither a table nor a number space.
-  "/shop/units", "/shop/units/tractor/veh_1", "/shop/units/trailer/tr_1", "/shop/work-orders", "/shop/defects",
+  "/shop/units", "/shop/units/tractor/veh_1", "/shop/units/trailer/tr_1", "/shop/work-orders", "/shop/defects", "/shop/annual-dates",
   // I5 PR 2b's count screen — a desk page in `AppShell` since 2026-09-10 (D-INV17 as amended) —
   // and I6's scan screen, the one route in the product still carrying `layout: "shop"`, so its
   // meta is worth pinning as much as its component: a shell swapped by accident is a sidebar

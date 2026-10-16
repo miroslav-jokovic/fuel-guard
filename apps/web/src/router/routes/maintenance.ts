@@ -151,6 +151,16 @@ export const maintenanceRoutes: RouteRecordRaw[] = [
     component: () => import("@/pages/AnnualInspectionsPage.vue"),
     meta: { requiresAuth: true, title: "Annual inspections", parent: "/shop" },
   },
+  /**
+   * Where FleetPal's annual and our record disagree (DISPATCH-BOARD-V2-PLAN Q-DBV2) — the list behind
+   * the Shop card's "Annual dates to check". Not under `/shop/inspections/`, which `:id` owns.
+   */
+  {
+    path: "/shop/annual-dates",
+    name: "annual-dates",
+    component: () => import("@/pages/AnnualDatesPage.vue"),
+    meta: { requiresAuth: true, title: "Annual dates to check", parent: "/shop/inspections" },
+  },
   {
     path: "/shop/inspectors",
     name: "inspector-register",

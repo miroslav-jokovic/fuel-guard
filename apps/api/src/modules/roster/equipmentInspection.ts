@@ -232,6 +232,34 @@ export async function listEquipmentIdentities(
 }
 
 /**
+ * Every in-service unit of a kind with its annual's expiry as our record holds it (McLeod's inspection
+ * date, or an inspection filed here — see the claim below), for the shop's check against FleetPal
+ * (DISPATCH-BOARD-V2-PLAN Q-DBV2). "In service" is `listEquipmentIdentities`' meaning, so the check
+ * covers exactly the units the annual register does.
+ */
+export async function listAnnualInspectionExpiries(
+  admin: SupabaseClient,
+  orgId: string,
+  kind: InspectionSubjectType,
+): Promise<{ id: string; unitNumber: string; expiresOn: string | null }[] | EquipmentError> {
+  type Row = { id: string; unit_number: string; dot_annual_inspection_expires_at: string | null };
+  try {
+    const rows = await fetchAllPaged<Row>((from, to) =>
+      (kind === "tractor"
+        ? admin.from("vehicles").select("id, unit_number, dot_annual_inspection_expires_at").eq("org_id", orgId).in("status", [...IN_SERVICE_VEHICLE_STATUSES])
+        : admin.from("trailers").select("id, unit_number, dot_annual_inspection_expires_at").eq("org_id", orgId).in("status", [...IN_SERVICE_VEHICLE_STATUSES])
+      )
+        .order("unit_number", { ascending: true })
+        .order("id", { ascending: true })
+        .range(from, to),
+    );
+    return rows.map((r) => ({ id: r.id, unitNumber: r.unit_number, expiresOn: r.dot_annual_inspection_expires_at }));
+  } catch {
+    return { error: "Could not list the equipment records", code: "db_error" };
+  }
+}
+
+/**
  * Project a finalized inspection's expiry onto the equipment row, and CLAIM the row while doing it.
  *
  * ── THE CLAIM IS THE WHOLE POINT, AND IT IS EASY TO GET WRONG ──────────────────────────────────

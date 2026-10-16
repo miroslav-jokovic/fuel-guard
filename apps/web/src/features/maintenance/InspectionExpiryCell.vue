@@ -37,7 +37,8 @@ const label = computed(() => {
     const d = s.daysRemaining ?? 0;
     return d === 0 ? "Due today" : `Due in ${d} day${d === 1 ? "" : "s"}`;
   }
-  return s.expiresOn ?? "—";
+  // The product's one date format (MM/DD/YYYY, `formatDate`) — it printed `2027-06-16` raw until 2026-10-16.
+  return s.expiresOn ? formatDate(s.expiresOn) : "—";
 });
 </script>
 

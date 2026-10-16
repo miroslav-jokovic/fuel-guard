@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { daysInRange, todayInZone, type CalendarDay } from "./calendarDay.js";
+import type { InspectionExpiryState } from "./annualInspectionContract.js";
 
 /**
  * `GET /api/maintenance/shop-summary` — what is broken or waiting on the shop, as four figures
@@ -26,6 +27,8 @@ export const shopSummarySchema = z.object({
    * that list's own total.
    */
   lowStockLines: z.number().int().min(0),
+  /** Trucks and trailers whose annual in FleetPal and in our record disagree — the length of `/annual-disagreements`. */
+  annualDisagreements: z.number().int().min(0),
 });
 export type ShopSummary = z.infer<typeof shopSummarySchema>;
 
@@ -67,3 +70,19 @@ export interface ShopDefectDto {
 export const shopDayOf = (at: string, zone: string): CalendarDay => todayInZone(new Date(at), zone);
 export const daysSince = (at: string, today: CalendarDay, zone: string): number =>
   daysInRange(shopDayOf(at, zone), today) - 1;
+
+/**
+ * One unit whose annual inspection date FleetPal and our record disagree on (`annualDisagreement`,
+ * DISPATCH-BOARD-V2-PLAN Q-DBV2) — the rows behind the Shop card's "Annual dates to check". `unitNumber`
+ * is OUR roster's, because the record being checked is ours; the FleetPal date is that unit's.
+ */
+export interface AnnualDisagreementDto {
+  subjectType: "tractor" | "trailer";
+  unitId: string;
+  unitNumber: string;
+  ourExpiresOn: string | null;
+  fleetpalDueOn: string;
+  ours: InspectionExpiryState;
+  fleetpal: InspectionExpiryState;
+  gapDays: number | null;
+}
