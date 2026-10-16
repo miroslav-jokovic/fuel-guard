@@ -27,6 +27,9 @@
  * And after that, the officer's reports filed since the last tick go to the document reader (IC10,
  * `report/pass.ts`), and those it has read are checked against the record (`report/check.ts`), with
  * the same isolation.
+ *
+ * Last of all, the repair record (IC11, `repair/pass.ts`): for each inspected unit with a vehicle
+ * violation, the FleetPal work orders that could be its repair, proposed until a person decides.
  */
 import { organizationTimezone } from "@silvicom/shared";
 import type { Env } from "../../../env.js";
@@ -41,6 +44,7 @@ import { loadSamsaraToken, makeSamsaraRawFetcher } from "../../samsara/index.js"
 import { attributeBacklog } from "../attribution/pass.js";
 import { checkReportBacklog } from "../report/check.js";
 import { readReportBacklog } from "../report/pass.js";
+import { proposeRepairs } from "../repair/pass.js";
 
 const TICK_MS = 60 * 60_000;
 /** After boot, behind the vendor feeds that are measured in minutes. */
@@ -126,6 +130,14 @@ export async function tickOrg(
     if (read) console.log(`[inspection-report] org ${org.id}: ${read}`);
   } catch (e) {
     console.error(`[inspection-report] org ${org.id}: pass failed —`, e instanceof Error ? e.message : e);
+  }
+  // And the repair record: the FleetPal work orders proposed for each unit with a vehicle violation (IC11).
+  try {
+    const tally = await proposeRepairs(admin, org.id, org.timeZone, Date.now());
+    const read = Object.entries(tally).map(([k, n]) => `${n} ${k}`).join(", ");
+    if (read) console.log(`[inspection-repair] org ${org.id}: ${read}`);
+  } catch (e) {
+    console.error(`[inspection-repair] org ${org.id}: pass failed —`, e instanceof Error ? e.message : e);
   }
 }
 

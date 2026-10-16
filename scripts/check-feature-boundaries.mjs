@@ -403,6 +403,10 @@ const API_ALLOW = new Set([
   //   profile (D-DR1: a profile, never a second pipeline). document-reading imports nothing of inspections';
   //   the read gate is wired at the composition root (queue/handlers/documentRead.ts).
   "inspections -> document-reading",
+  // · inspections -> fleetpal — IC11 (INSPECTION-CHALLENGE-PLAN D-IC14): the repair record proposes the
+  //   FleetPal work orders on an inspected unit; FleetPal's tables are read through its index
+  //   (`readWorkOrdersOnUnits`), as the dispatch board reads `readUnitMaintenance`.
+  "inspections -> fleetpal",
   // · medstop -> samsara — "find a collection site near the truck" (UX3, MEDSTOP-PLAN §7A.4) reads the
   //   assigned truck's newest fix through `readVehiclePositions`, the collector's own read interface,
   //   never `.from("vehicle_positions")` (a raw table sealed to its collector). samsara imports nothing
