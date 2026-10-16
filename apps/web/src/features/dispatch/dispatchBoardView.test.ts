@@ -10,15 +10,16 @@ import {
   durationWords,
   gpsAgeWords,
   milesLeftWords,
+  warningWords,
   POOL_OPTION,
   NO_FLEET_OPTION,
   type BoardFilter,
 } from "./dispatchBoardView";
 
-const flags = { lateRisk: false, noNextLoad: false, emptyNow: false, hosLow: false, noGps: false };
+const flags = { lateRisk: false, noNextLoad: false, emptyNow: false, hosLow: false, noGps: false, maintenanceOverdue: false };
 const row = (unitNumber: string, o: Partial<DispatchBoardRow> = {}): DispatchBoardRow => ({
   vehicleId: `v-${unitNumber}`, unitNumber, inShop: false, fleetCode: "VINNIEV", driver: null, hos: null, position: null,
-  fuelPercent: null, current: null, next: null, eta: null, onTime: "unknown", available: null, milesLeft: null, flags, ...o,
+  fuelPercent: null, current: null, next: null, eta: null, onTime: "unknown", available: null, milesLeft: null, warnings: [], flags, ...o,
 });
 const load = (dispatcherId: string | null) => ({
   loadId: "l", ref: "291013", status: "in_transit", source: "tms", externalStatus: "P", customerName: "Viking Packing",
@@ -114,6 +115,17 @@ describe("the dispatchers' numbers and colours", () => {
   });
 });
 
+describe("warningWords — the dispatchers' board's chips (D-DBV5)", () => {
+  const w = (o: Partial<Parameters<typeof warningWords>[0]>) => warningWords({ unit: "truck", kind: "annual", verdict: "due", dueOn: null, milesLeft: null, ...o });
+  it("says a date, a mileage either way, a repair order, and names the trailer's", () => {
+    expect(w({ verdict: "overdue", dueOn: "2026-09-30" })).toBe("Annual overdue 09/30/2026");
+    expect(w({ kind: "six_month", unit: "trailer", dueOn: "2026-11-01" })).toBe("Trailer 6-month due 11/01/2026");
+    expect(w({ kind: "oil", milesLeft: 1133 })).toBe("Oil in 1,133 mi");
+    expect(w({ kind: "oil", verdict: "overdue", milesLeft: -5062 })).toBe("Oil 5,062 mi over");
+    expect(w({ kind: "repair_order" })).toBe("Repair order open");
+  });
+});
+
 describe("words", () => {
   it("says a duration and a GPS age the way the board does", () => {
     expect(durationWords(5 * 3_600_000 + 12 * 60_000)).toBe("5h 12m");
@@ -147,5 +159,16 @@ describe("boardSortValue", () => {
     // As text, "10h 00m" sorts before "2h 05m"; as time it is the other way round.
     const rows = [row("ten", { hos: hos(10 * 3_600_000) }), row("two", { hos: hos(2 * 3_600_000 + 5 * 60_000) }), row("unknown")];
     expect(sorted(rows, "hos")).toEqual(["two", "ten", "unknown"]);
+  });
+
+  it("sorts Warnings most pressing first, an overdue item outweighing two that are only due", () => {
+    const warn = (verdict: "overdue" | "due") => ({ unit: "truck", kind: "oil", verdict, dueOn: null, milesLeft: null }) as const;
+    const rows = [
+      row("none"),
+      row("one-due", { warnings: [warn("due")] }),
+      row("two-due", { warnings: [warn("due"), warn("due")] }),
+      row("one-over", { warnings: [warn("overdue")] }),
+    ];
+    expect(sorted(rows, "warnings")).toEqual(["one-over", "two-due", "one-due", "none"]);
   });
 });

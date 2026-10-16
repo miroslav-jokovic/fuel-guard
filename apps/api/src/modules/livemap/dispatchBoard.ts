@@ -3,9 +3,10 @@
  * hauling, when it empties, what it hauls next, and what is wrong (DISPATCH-BOARD-PLAN DB4, D-DB2).
  *
  * ── IT OWNS NO TABLE, AND READS ALL OF THEM THROUGH THEIR OWNERS ─────────────────────────────────
- * The live map's rule (`liveMapBoard.ts`), applied to five owners instead of three: positions and HOS
- * clocks from samsara, identity and fleet code from roster, loads and stops from loads, the fleet and
- * dispatcher links from mcleod. Five owner reads and a few `Map` lookups, bounded by fleet size.
+ * The live map's rule (`liveMapBoard.ts`), applied to six owners instead of three: positions and HOS
+ * clocks from samsara, identity, fleet code and the annuals from roster, loads and stops from loads,
+ * what is due in the shop from fleetpal, the fleet and dispatcher links from mcleod. Owner reads and a
+ * few `Map` lookups, bounded by fleet size.
  *
  * ── EVERY VERDICT IS THE SHARED RULE'S ───────────────────────────────────────────────────────────
  * ETA, on-time, availability, miles left, flags and "mine" come from `@silvicom/shared`'s `dispatchBoard.ts` and are
@@ -25,6 +26,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
+  annualWarning,
   availableAt,
   boardEta,
   boardEtaAlong,
@@ -32,11 +34,13 @@ import {
   freshHos,
   onTimeVerdict,
   secondsSince,
+  sortWarnings,
   type DispatchBoardResponse,
   type DispatchBoardRow,
 } from "@silvicom/shared";
 import { readHosClocks, readVehiclePositions } from "../samsara/index.js";
-import { readFleetIdentities } from "../roster/index.js";
+import { readFleetIdentities, readTrailerAnnualInspections } from "../roster/index.js";
+import { readUnitMaintenance } from "../fleetpal/index.js";
 import { readTruckLoadPlans } from "../loads/index.js";
 import { readDispatchLinks } from "../mcleod/index.js";
 
@@ -77,13 +81,22 @@ export async function readBoardRows(
   const positions = await readVehiclePositions(admin, orgId);
   const clocks = await readHosClocks(admin, orgId);
   const plans = await readTruckLoadPlans(admin, orgId);
+  // What is due on each truck and its trailer (D-DBV5): FleetPal's 6-month, oil and repair orders,
+  // judged on the roster's odometer; the annuals from our own record (Q-DBV2).
+  const odometers = new Map([...identities.byVehicleId.values()].map((i) => [i.vehicleId, i.odometerMiles]));
+  const shop = await readUnitMaintenance(admin, orgId, odometers, now);
+  const trailerIds = [...plans.byVehicleId.values()].map((p) => p.currentTrailerId).filter((id): id is string => !!id);
+  const trailerAnnuals = await readTrailerAnnualInspections(admin, orgId, trailerIds);
+  // The record's dates are calendar days; the board's clock's UTC day is within a few hours of the
+  // carrier's, and a 30-day warning window does not turn on those hours.
+  const today = now.toISOString().slice(0, 10);
 
   const positionOf = new Map(positions.rows.map((p) => [p.vehicle_id, p]));
   const rows: DispatchBoardRow[] = [];
   for (const id of identities.byVehicleId.values()) {
     if (id.status === HIDDEN_VEHICLE_STATUS) continue;
     const p = positionOf.get(id.vehicleId);
-    const plan = plans.byVehicleId.get(id.vehicleId) ?? { current: null, next: null, currentAhead: [] };
+    const plan = plans.byVehicleId.get(id.vehicleId) ?? { current: null, next: null, currentAhead: [], currentTrailerId: null };
     if (id.windingDown && !plan.current && !plan.next) continue;
     // The roster's assigned driver — the map's pairing (Q-DB6), so the board and the map name one person.
     const driver = id.driver;
@@ -109,6 +122,13 @@ export async function readBoardRows(
     const path = last ? plan.currentAhead.filter((s) => s.seq != null && last.seq != null && s.seq <= last.seq) : [];
     const lastEta = last && !last.arrivedAt ? boardEtaAlong(from, path, hos, now) : null;
     const inShop = id.status === IN_SHOP_VEHICLE_STATUS;
+    const trailerId = plan.currentTrailerId;
+    const warnings = sortWarnings([
+      annualWarning("truck", id.annualInspectionExpiresOn, today),
+      ...(shop.byVehicleId.get(id.vehicleId) ?? []),
+      trailerId ? annualWarning("trailer", trailerAnnuals.get(trailerId) ?? null, today) : null,
+      ...(trailerId ? (shop.byTrailerId.get(trailerId) ?? []) : []),
+    ].filter((w): w is NonNullable<typeof w> => w != null));
     rows.push({
       vehicleId: id.vehicleId,
       unitNumber: id.unitNumber,
@@ -124,7 +144,8 @@ export async function readBoardRows(
       onTime,
       available: availableAt(plan.current, lastEta, position, now),
       milesLeft: lastEta?.miles ?? null,
-      flags: boardFlags({ inShop, current: plan.current, next: plan.next, onTime, hos, gpsAgeSeconds: position?.ageSeconds ?? null }),
+      warnings,
+      flags: boardFlags({ inShop, current: plan.current, next: plan.next, onTime, hos, gpsAgeSeconds: position?.ageSeconds ?? null, warnings }),
     });
   }
   // A stable order for a first paint; the page sorts as the dispatcher asks.

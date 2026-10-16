@@ -11,6 +11,7 @@
  * display name — and nothing else. Anything wider belongs to the roster's own surfaces.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { chunks } from "@silvicom/shared";
 
 export interface FleetIdentity {
   vehicleId: string;
@@ -38,6 +39,13 @@ export interface FleetIdentity {
    * yet: until a sweep records it, every truck is shown as it was before the fact existed.
    */
   windingDown: boolean;
+  /**
+   * The §396.17 annual's expiry on our record (`YYYY-MM-DD`), and the odometer in miles — what the
+   * dispatch board judges the annual and the oil change by (DISPATCH-BOARD-V2-PLAN D-DBV5). Read here
+   * for the reason `unitNumber` is: `vehicles` is this module's table.
+   */
+  annualInspectionExpiresOn: string | null;
+  odometerMiles: number | null;
 }
 
 const PAGE_CAP = 1000;
@@ -52,6 +60,9 @@ type VehicleRow = {
   samsara_fuel_at: string | null;
   mcleod_fleet_code: string | null;
   winding_down: boolean | null;
+  dot_annual_inspection_expires_at: string | null;
+  /** `numeric`, so a STRING on the wire — `toFuel`'s reason. Zero is the column's default, not a reading. */
+  current_odometer: number | string | null;
 };
 type DriverRow = { id: string; first_name: string | null; last_name: string | null };
 
@@ -103,7 +114,10 @@ export async function readFleetIdentities(
 ): Promise<{ byVehicleId: Map<string, FleetIdentity>; truncated: boolean }> {
   const { data: vData, error: vErr } = await admin
     .from("vehicles")
-    .select("id, unit_number, status, assigned_driver_id, samsara_fuel_percent, samsara_fuel_at, mcleod_fleet_code, winding_down")
+    .select(
+      "id, unit_number, status, assigned_driver_id, samsara_fuel_percent, samsara_fuel_at, mcleod_fleet_code, winding_down, " +
+        "dot_annual_inspection_expires_at, current_odometer",
+    )
     .eq("org_id", orgId)
     .limit(PAGE_CAP);
   if (vErr) throw new Error(vErr.message);
@@ -135,7 +149,33 @@ export async function readFleetIdentities(
       fuel: toFuel(v),
       fleetCode: v.mcleod_fleet_code?.trim() || null,
       windingDown: v.winding_down === true,
+      annualInspectionExpiresOn: v.dot_annual_inspection_expires_at,
+      odometerMiles: Number(v.current_odometer) > 0 ? Number(v.current_odometer) : null,
     });
   }
   return { byVehicleId, truncated: vehicles.length >= PAGE_CAP };
+}
+
+/**
+ * The annual's expiry for the trailers named (DISPATCH-BOARD-V2-PLAN D-DBV5) — the board's trailer is
+ * the current load's, so it asks for those and no others. Org-scoped: the ids alone would be scoped by
+ * accident (`readFleetIdentities`' rule).
+ */
+export async function readTrailerAnnualInspections(
+  admin: SupabaseClient,
+  orgId: string,
+  trailerIds: readonly string[],
+): Promise<Map<string, string | null>> {
+  const out = new Map<string, string | null>();
+  for (const ids of chunks([...new Set(trailerIds)])) {
+    const { data, error } = await admin
+      .from("trailers")
+      .select("id, dot_annual_inspection_expires_at")
+      .eq("org_id", orgId)
+      .in("id", ids)
+      .limit(PAGE_CAP);
+    if (error) throw new Error(error.message);
+    for (const t of (data ?? []) as { id: string; dot_annual_inspection_expires_at: string | null }[]) out.set(t.id, t.dot_annual_inspection_expires_at);
+  }
+  return out;
 }

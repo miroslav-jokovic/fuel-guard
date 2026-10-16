@@ -18,12 +18,12 @@ vi.mock("@/features/dispatch/DispatchTruckDrawer.vue", () => ({
  * for a linked dispatcher and on All — saying why — for anyone else, and the uncovered loads are a link
  * to the Loads page rather than a second list (D-DB5).
  */
-const flags = { lateRisk: false, noNextLoad: false, emptyNow: false, hosLow: false, noGps: false };
+const flags = { lateRisk: false, noNextLoad: false, emptyNow: false, hosLow: false, noGps: false, maintenanceOverdue: false };
 const NOW = Date.parse("2026-10-09T20:00:00Z");
 /** An empty truck, free now where it stands — or, with `hours`, free that many hours from the board's clock. */
 const row = (unitNumber: string, fleetCode: string, o: { hours?: number; state?: string } = {}): DispatchBoardRow => ({
   vehicleId: `v-${unitNumber}`, unitNumber, inShop: false, fleetCode, driver: null, hos: null, position: null,
-  fuelPercent: null, current: null, next: null, eta: null, onTime: "unknown", milesLeft: null, flags: { ...flags, emptyNow: true },
+  fuelPercent: null, current: null, next: null, eta: null, onTime: "unknown", milesLeft: null, warnings: [], flags: { ...flags, emptyNow: true },
   available: {
     place: null, ...(o.state === "GA" ? { city: "Savannah", state: "GA", postalCode: "31401", lat: 32.08, lng: -81.09 } : { city: "Lakeland", state: "FL", postalCode: "33801", lat: 28.04, lng: -81.95 }),
     at: new Date(NOW + (o.hours ?? 0) * 3_600_000).toISOString(), basis: o.hours ? "appointment" : "now",
@@ -196,11 +196,11 @@ describe("the dispatch board page", () => {
     expect(w.findAll("button").find((b) => b.text().startsWith("Columns"))!.text()).toContain("2 hidden");
   });
 
-  it("opens on the dispatchers' seven columns, the live ones one tick away in the picker", async () => {
+  it("opens on the dispatchers' columns and the Warnings, the live ones one tick away in the picker", async () => {
     board.value = response(true);
     const w = await mountPage();
     const headers = w.findAll("thead th").map((th) => th.text().trim());
-    expect(headers).toEqual(["Truck", "Driver", "Dispatcher", "Available", "Available in", "Miles left", "Status"]);
+    expect(headers).toEqual(["Truck", "Driver", "Dispatcher", "Available", "Available in", "Miles left", "Status", "Warnings"]);
     expect(w.findAll("button").find((b) => b.text().startsWith("Columns"))!.text()).toContain("5 hidden");
   });
 

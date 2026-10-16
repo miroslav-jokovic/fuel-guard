@@ -170,6 +170,10 @@ const API_ALLOW = new Set([
   // this way and not routing -> livemap, and the endpoint lives here rather than in routing, because
   // `routing -> samsara/index` would close a module cycle (`samsara -> routing` exists, below).
   "livemap -> routing",
+  // What is due on each truck and trailer — the 6-month, the oil change, an open repair order — for the
+  // dispatch board's Warnings (DISPATCH-BOARD-V2-PLAN D-DBV5, 2026-10-16). FleetPal's PM tables are
+  // fleetpal's, and the verdict is the shared `pmWarning`; fleetpal imports nothing of livemap's.
+  "livemap -> fleetpal",
   // The driver's own account closure (P4.2) closes their login by calling the roster module's
   // `disableDriverLogin` through its index — the ban, the push-token revoke and the
   // `app_access_enabled` flag. A second ban path in driver-app would be two implementations of

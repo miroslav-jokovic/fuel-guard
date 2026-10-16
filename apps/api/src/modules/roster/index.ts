@@ -25,7 +25,7 @@
  */
 // Unit number + assigned driver for a whole fleet, for the live map's board (LM6). Narrow on
 // purpose: `vehicles` and `drivers` are roster's, and one question is what this answers.
-export { readFleetIdentities, type FleetIdentity } from "./fleetIdentityReads.js";
+export { readFleetIdentities, readTrailerAnnualInspections, type FleetIdentity } from "./fleetIdentityReads.js";
 // The truck's TMS home fleet, written by mcleod's roster sweep (DISPATCH-BOARD-PLAN DB1).
 export { recordVehicleFleetCodes, recordVehicleWindingDown, type FleetPlacement, type WindingDownPlacement } from "./vehicleFleetCodes.js";
 export { rosterDriversRouter } from "./routes/drivers.js";

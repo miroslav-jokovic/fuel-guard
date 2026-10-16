@@ -88,12 +88,27 @@ export const dispatchBoardAvailableSchema = z.object({
 });
 export type DispatchBoardAvailable = z.infer<typeof dispatchBoardAvailableSchema>;
 
+/**
+ * An inspection or service due on the truck or its trailer (`maintenanceDue.ts`, D-DBV5): the annual
+ * from our record, the 6-month and the oil change from FleetPal, an open FleetPal repair order. Only
+ * what is due or overdue is sent — the dispatchers' board shows a unit's warnings and nothing else.
+ */
+export const maintenanceWarningSchema = z.object({
+  unit: z.enum(["truck", "trailer"]),
+  kind: z.enum(["annual", "six_month", "oil", "repair_order"]),
+  verdict: z.enum(["overdue", "due"]),
+  dueOn: z.string().nullable(),
+  milesLeft: z.number().nullable(),
+});
+
 export const dispatchBoardFlagsSchema = z.object({
   lateRisk: z.boolean(),
   noNextLoad: z.boolean(),
   emptyNow: z.boolean(),
   hosLow: z.boolean(),
   noGps: z.boolean(),
+  /** An inspection or service on the truck or its trailer is past due (D-DBV5) — a dispatcher acts on it. */
+  maintenanceOverdue: z.boolean(),
 });
 export type DispatchBoardFlags = z.infer<typeof dispatchBoardFlagsSchema>;
 
@@ -127,6 +142,8 @@ export const dispatchBoardRowSchema = z.object({
    * no load, no fix, or a stop without coordinates.
    */
   milesLeft: z.number().int().nullable(),
+  /** Due and overdue inspections and service on the truck and the current load's trailer, worst first. */
+  warnings: z.array(maintenanceWarningSchema),
   flags: dispatchBoardFlagsSchema,
 });
 export type DispatchBoardRow = z.infer<typeof dispatchBoardRowSchema>;

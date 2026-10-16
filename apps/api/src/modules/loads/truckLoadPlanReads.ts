@@ -43,6 +43,7 @@ type LoadRow = {
   external_status: string | null;
   customer_name: string | null;
   dispatcher_external_id: string | null;
+  trailer_id: string | null;
   drivers: { full_name: string | null } | null;
   trailers: { unit_number: string | null } | null;
 };
@@ -72,6 +73,8 @@ export interface TruckLoadPlan {
    * along (D-DBV4). Not on the wire: the row carries the sum, and the drawer reads the load's stops itself.
    */
   currentAhead: DispatchBoardStop[];
+  /** The current load's trailer, by id — what its inspections are looked up by (D-DBV5). Not on the wire. */
+  currentTrailerId: string | null;
 }
 
 export async function readTruckLoadPlans(
@@ -81,7 +84,7 @@ export async function readTruckLoadPlans(
   const { data, error } = await admin
     .from("loads")
     .select(
-      "id, vehicle_id, driver_id, ref, status, source, external_status, customer_name, dispatcher_external_id, " +
+      "id, vehicle_id, driver_id, ref, status, source, external_status, customer_name, dispatcher_external_id, trailer_id, " +
         "drivers(full_name), trailers(unit_number)",
     )
     .eq("org_id", orgId)
@@ -134,6 +137,7 @@ export async function readTruckLoadPlans(
       // Already in seq order (the read orders by it); a stop with no seq is McLeod's oddity and is skipped,
       // since where it falls on the path is unknown.
       currentAhead: currentStops.filter((s) => s.seq != null && !isStopBehindTruck(s)).map(toBoardStop),
+      currentTrailerId: current?.trailer_id ?? null,
     });
   }
   return { byVehicleId, uncoveredCount, truncated: loads.length >= PAGE_CAP };

@@ -37,7 +37,7 @@ const pickup = stop({ seq: 1, kind: "pickup", location_name: "Viking Packing", c
 
 function recorder(o: {
   vehicles?: unknown[]; positions?: unknown[]; loads?: unknown[]; stops?: unknown[]; clocks?: unknown[];
-  dispatchers?: unknown[]; fleets?: unknown[];
+  dispatchers?: unknown[]; fleets?: unknown[]; shop?: Record<string, unknown[]>; trailers?: unknown[];
 } = {}) {
   return createSupabaseRecorder({
     tables: {
@@ -52,6 +52,11 @@ function recorder(o: {
         }],
       },
       loads: { data: o.loads ?? [load()] },
+      trailers: { data: o.trailers ?? [] },
+      fleetpal_units: { data: o.shop?.units ?? [] },
+      fleetpal_pm_schedules: { data: o.shop?.schedules ?? [] },
+      fleetpal_pm_intervals: { data: o.shop?.intervals ?? [] },
+      fleetpal_work_orders: { data: o.shop?.orders ?? [] },
       load_stops: { data: o.stops ?? [pickup, stop()] },
       tms_dispatchers: {
         data: o.dispatchers ?? [
@@ -78,7 +83,7 @@ describe("the dispatch board", () => {
       next: null,
       onTime: "on_time",
       available: { place: "Indianapolis, IN", state: "IN", postalCode: "46241", basis: "appointment" },
-      flags: { lateRisk: false, noNextLoad: true, emptyNow: false, hosLow: false, noGps: false },
+      flags: { lateRisk: false, noNextLoad: true, emptyNow: false, hosLow: false, noGps: false, maintenanceOverdue: false },
     });
     // The pickup McLeod has departed is behind the truck; the delivery is next.
     expect(r.current!.nextStop!.name).toBe("Kroger DC");
@@ -100,6 +105,46 @@ describe("the dispatch board", () => {
     // The trailer drop would add ~150 miles back to Joliet; it is past where the truck is free.
     expect(via.milesLeft!).toBeLessThan(one.milesLeft! + 60);
     expect(via.available).toMatchObject({ city: "Indianapolis", basis: "appointment" });
+  });
+
+  it("warns of what is due on the truck and on the current load's trailer, worst first, and calls overdue attention", async () => {
+    const MI = 1609.344;
+    const rec = recorder({
+      // 773's annual expired on our record; FleetPal: its oil is due in ~1,100 mi and a repair order is open,
+      // and trailer 3152's 6-month lapsed. A Replace Suction Manifold schedule says nothing.
+      vehicles: [vehicle({ dot_annual_inspection_expires_at: "2026-09-30", current_odometer: "118867.0" })],
+      loads: [load({ trailer_id: "trl-3152" })],
+      trailers: [{ id: "trl-3152", dot_annual_inspection_expires_at: "2027-05-01" }],
+      shop: {
+        units: [{ fleetpal_id: "fp-773", vehicle_id: "veh-773", trailer_id: null }, { fleetpal_id: "fp-3152", vehicle_id: null, trailer_id: "trl-3152" }],
+        schedules: [
+          { fleetpal_id: "s1", unit_fleetpal_id: "fp-773", name: "Oil Chnage", last_done: "2026-08-01T00:00:00Z" },
+          { fleetpal_id: "s2", unit_fleetpal_id: "fp-3152", name: "6-Month Inspection", last_done: "2026-03-01T00:00:00Z" },
+          { fleetpal_id: "s3", unit_fleetpal_id: "fp-773", name: "Replace Suction Manifold", last_done: "2026-01-01T00:00:00Z" },
+        ],
+        intervals: [
+          { pm_schedule_fleetpal_id: "s1", interval_type: "ODOMETER", value_int: 20_000 * MI, value_time_type: null, threshold_int: 7_000 * MI, threshold_time_type: null, last_done_meter_value: 100_000 * MI },
+          { pm_schedule_fleetpal_id: "s2", interval_type: "TIME", value_int: 6, value_time_type: "MONTH", threshold_int: 30, threshold_time_type: "DAY", last_done_meter_value: null },
+          { pm_schedule_fleetpal_id: "s3", interval_type: "ODOMETER", value_int: 1, value_time_type: null, threshold_int: 1, threshold_time_type: null, last_done_meter_value: 0 },
+        ],
+        orders: [{ unit_fleetpal_id: "fp-773" }],
+      },
+    });
+    const r = (await readDispatchBoard(rec.client, ORG, USER, NOW)).rows[0]!;
+    expect(r.warnings).toEqual([
+      { unit: "truck", kind: "annual", verdict: "overdue", dueOn: "2026-09-30", milesLeft: null },
+      { unit: "trailer", kind: "six_month", verdict: "overdue", dueOn: "2026-09-01", milesLeft: null },
+      { unit: "truck", kind: "oil", verdict: "due", dueOn: null, milesLeft: 1_133 },
+      { unit: "truck", kind: "repair_order", verdict: "due", dueOn: null, milesLeft: null },
+    ]);
+    expect(r.flags.maintenanceOverdue).toBe(true);
+    expectOrgScoped(rec, ORG);
+  });
+
+  it("says nothing is due when nothing is — no chips, and no attention for it", async () => {
+    const r = (await readDispatchBoard(recorder().client, ORG, USER, NOW)).rows[0]!;
+    expect(r.warnings).toEqual([]);
+    expect(r.flags.maintenanceOverdue).toBe(false);
   });
 
   it("returns the caller's scope from the two office links, and every fleet beside it", async () => {

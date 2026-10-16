@@ -19,6 +19,7 @@ import {
   milesLeftWords,
   POOL_FLEET,
   stopPlace,
+  warningWords,
 } from "./dispatchBoardView";
 import { BOARD_HOS_LOW_MS } from "@silvicom/shared";
 
@@ -147,6 +148,22 @@ const loadLabel = (l: NonNullable<DispatchBoardRow["current"]>) =>
         <span :class="[BADGE_BASE, toneClass('warning')]">Empty</span>
         <div v-if="row.next" class="text-xs text-ink-muted">next {{ row.next.ref ?? "load" }}</div>
       </template>
+    </template>
+
+    <template #cell-warnings="{ row }">
+      <!-- Only what is due shows, as the dispatchers' board does it; nothing due is the table's dash.
+           The chips wrap, unlike Available's: "Trailer annual overdue 10/01/2026" is wider than the
+           column, and unwrapped it ran past the table's edge at 1440 px (browser pass, 2026-10-16). -->
+      <div v-if="row.warnings.length" class="flex flex-col items-start gap-0.5">
+        <span
+          v-for="(w, i) in row.warnings"
+          :key="i"
+          :class="[BADGE_BASE, toneClass(w.verdict === 'overdue' ? 'danger' : 'warning')]"
+        >
+          {{ warningWords(w) }}
+        </span>
+      </div>
+      <span v-else class="text-ink-tertiary">—</span>
     </template>
 
     <template #cell-driver="{ row }">

@@ -71,6 +71,7 @@ export {
   type ShopBacklog,
 } from "./shopBacklog.js";
 export { readUnitCost, resolveUnitIds, type UnitCostAnswer, type UnitRepair } from "./unitCost.js";
+export { readUnitMaintenance, type UnitMaintenance } from "./unitMaintenance.js";
 export { describeComponents, clearComponentCache, type ComponentLabel } from "./vmrs.js";
 export { labelRepairs } from "./componentLabels.js";
 export {
