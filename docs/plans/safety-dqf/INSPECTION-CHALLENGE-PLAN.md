@@ -964,3 +964,25 @@ about three merges.
   - **The driver question:** zero roadside documents uploaded, so IC10 never ran. Q-IC15 opened and ruled (b).
   - **FleetPal:** 489 units, 441 matched; Q-IC14 measured (above). IC11 is next after IC1d and IC13.
   - **Order, ruled 2026-10-16:** IC1d → IC11 (two merges) → IC13 → IC12 (report intake) → IC14.
+
+- **2026-10-16 — IC1d merged** (hourly republish check; the 24-hour run is the backstop).
+- **2026-10-16 — IC11, first merge: the engine proposes each repair (migration 0482).** New append-only
+  `inspection_repairs` (RETENTION_FORBIDDEN): one row per inspected unit with a current Part 393/396
+  violation on an inspection of the last 365 days — engine rows (`repaired_at_scene`, `one_candidate`,
+  `several_candidates`, `no_candidate`, `no_fleetpal_unit`, `unit_not_ours`) with the FleetPal work orders
+  opened from the inspection day through the due day (org's zone, earliest first, cancelled left out, job
+  names frozen), and the shape of the person rows the next merge writes (`accepted` names its work order,
+  `repaired_outside_fleetpal` says where; the engine may write neither). Pass `inspections/repair/pass.ts`
+  on the FMCSA tick: a row only when the unit's reading hash changes, never after a person, followed until
+  30 days past due. FleetPal is read through its index (`readWorkOrdersOnUnits`; new edge
+  `inspections -> fleetpal`). Matrix `inspection-repairs.test.mjs` (19); 10 mutations of the rule and the
+  pass each fail a test.
+  - **Measured, not used yet:** VMRS reason-for-repair 43 "Roadside Inspection" exists in FleetPal, and a
+    job carrying it would identify THE repair exactly — but only 14 jobs ever carry it (2 of 84 violated
+    units with work orders). Ranking by it needs the reason's FleetPal id resolved through the API, so it
+    waits until the shop uses the code. *Recommendation to the shop:* set reason 43 on any job opened for
+    a roadside violation; then the proposal can rank it first.
+  - **Next merge (IC11 B):** the Repair card on the inspection page (candidates, due-day countdown),
+    maintenance's accept / "outside FleetPal" action (person rows), safety's certification, the rendered
+    repair document (Q-IC12 (a)), and the "no repair recorded, N days left" alert (its notification
+    category one merge before its writer).

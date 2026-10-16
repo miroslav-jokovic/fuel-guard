@@ -228,6 +228,7 @@ export * from "./roadsideAttributionContract.js";
 export * from "./roadsideDocumentsContract.js";
 export * from "./roadsideInspectionReportContract.js";
 export * from "./roadsideReportCheckContract.js";
+export * from "./roadsideRepairContract.js";
 export * from "./medstopContract.js";
 export * from "./medstopProgram.js";
 export * from "./medstopTests.js";

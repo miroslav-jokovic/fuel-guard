@@ -1333,6 +1333,17 @@
         "why": "who was driving at each roadside inspection (0473, IC5): one engine row per inspection per engine version (~1,400 once, then ~1.3/day) plus a person's confirmations. RETENTION_FORBIDDEN: a filing names its driver from it."
       }
     },
+    "inspection_repairs": {
+      "module": "inspections",
+      "layer": "derived",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 10,
+        "why": "the repair record of each inspected unit with a Part 393/396 violation (0482, IC11): an engine row when its FleetPal candidates change, a person's when maintenance decides (~150 units a year, a few rows each, measured 2026-10-16). RETENTION_FORBIDDEN: it is the 396.9(d) record."
+      }
+    },
     "inspection_report_checks": {
       "module": "inspections",
       "layer": "derived",

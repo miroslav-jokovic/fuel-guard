@@ -205,6 +205,11 @@ export const RETENTION_FORBIDDEN = [
    */
   "inspection_attributions", "inspection_evidence_snapshots",
   /**
+   * The repair record of a roadside inspection's vehicle violations (0482, IC11): what was proposed and
+   * what maintenance accepted is the 396.9(d) answer an auditor asks for. Corrections are new rows.
+   */
+  "inspection_repairs",
+  /**
    * The driver's account-closure request (0330, D-PR8).
    *
    * ── THE ONE ENTRY ON THIS LIST THAT INVERTS ITS OWN SUBJECT ───────────────────────────────────
