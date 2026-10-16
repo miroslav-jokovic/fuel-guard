@@ -5,6 +5,11 @@ import { createRouter, createMemoryHistory } from "vue-router";
 import { createPinia, setActivePinia } from "pinia";
 import { VueQueryPlugin } from "@tanstack/vue-query";
 import { hiringChecklist, APPLICATION_RELEASE_ORDER } from "@silvicom/shared";
+// Imported here, not inside the mount helper: imported there, the first test in the file paid for
+// compiling the whole page tree (~2.2 s alone on a laptop) against vitest's 5 s per-test budget, and
+// on a busy CI runner it crossed it at random ("opens on what is waiting on the office" timed out on
+// main, 2026-10). At the top it is the file's import time, which has no such budget.
+import ApplicantRecordPage from "@/pages/ApplicantRecordPage.vue";
 
 /**
  * One applicant's record — the page that holds the checklist and the drawer behind a row (B6).
@@ -104,9 +109,9 @@ afterEach(() => {
 
 async function mountPage() {
   setActivePinia(createPinia());
-  // ⚠ The page is imported BEFORE the fold is set: importing it is what runs the mock factory that
-  // creates the ref, so setting a value first writes through a `fold.set` that is still null.
-  const ApplicantRecordPage = (await import("@/pages/ApplicantRecordPage.vue")).default;
+  // ⚠ The page must be imported BEFORE the fold is set: importing it is what runs the mock factory
+  // that creates the ref, so setting a value first writes through a `fold.set` that is still null.
+  // The static import at the top of this file guarantees that order for every test.
   fold.set!(BEFORE);
   await router.push("/recruitment/00000000-0000-4000-8000-0000000000d1");
   await router.isReady();
