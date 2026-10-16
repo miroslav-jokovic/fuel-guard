@@ -1,6 +1,7 @@
 # Dispatch board v2: availability first, fewer facts, the warnings dispatchers ask for — plan
 
-**Status: PROPOSED — waits on the owner's rulings in §6.** Written 2026-10-15 after the owner tested the
+**Status: RULED 2026-10-16 — building.** Owner: *"proceed as recommended"*; every §6 recommendation is a
+ruling (§9). Written 2026-10-15 after the owner tested the
 Dispatch board and Loads pages with the dispatchers. Decision IDs `D-DBV*`, open questions `Q-DBV*`. This
 plan extends `DISPATCH-BOARD-PLAN.md` (`D-DB*`; it answers that plan's Q-DB7, "ask two dispatchers")
 and `docs/plans/livemap/TRUCK-CARD-ROUTE-PLAN.md` (`D-TC*`; §5 changes D-TC3/D-TC6's fixed route). It
@@ -280,4 +281,22 @@ dispatcher counts are its scope control.
 ### 2026-10-15 — Written; the ETA recorder fixed
 
 Research by reading the board, routing and data sources and measuring production (§2). Found and fixed
-the ETA recorder writing nothing (#1578). Waiting on §6.
+the ETA recorder writing nothing (#1578, merged f1d7a50). Waiting on §6.
+
+### 2026-10-16 — Rulings: every recommendation adopted
+
+Owner: *"proceed as recommended."* So:
+- **Q-DBV1** the eight columns are the default, and HOS, GPS, next stop and next load go to the drawer and
+  the Live preset. The "mock first" step is the staging build itself: the owner shows it to the
+  dispatchers there before the release is approved.
+- **Q-DBV2** the annual inspection reads our inspection record. FleetPal's annual PM only raises a
+  disagreement. 6-month and oil change come from FleetPal.
+- **Q-DBV3** the redacted "Random test: send to collection" is shown, for the dispatcher's own scope.
+  One line to counsel is owed and goes in the counsel package. The flag ships behind that line's answer
+  only if counsel objects.
+- **Q-DBV4** miles left are the free estimate (≈) now. HERE per row waits on DB7's 14 days.
+- **Q-DBV5** keep red/amber/green on Available.
+- **Q-DBV6** the Loads page Dispatch column is hidden, and the action stays in the kebab.
+- **Q-DBV7** stays a question for the dispatchers (idle trailers); nothing is built for it.
+
+Build order: DBV1 → DBV2 → DBV5 → DBV3 → DBV4 → DBV6 → DBV7.
