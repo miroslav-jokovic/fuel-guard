@@ -100,3 +100,11 @@ authority · draft-deferred full CI · merge queue (needs an organization-owned 
   ordinary PR the pole is now **`bundle` at ~212 s**, so a typical run should finish in ~3½–4 min.
   The shards are already below `bundle`, so a 4th shard buys nothing until step 4 shortens it
   (answers Q-CIF1: stay at 3). Next lever in order: step 4 (bundle), then step 2.
+- 2026-10-16 — **Step 1 merged (#1585, `277d722`). Step 4 built** (`claude/ci-bundle-only-builds`):
+  the `build` script is deleted from the nine workspaces where it equalled `typecheck`
+  (`tsc --noEmit`: api, admin-api, shared, qr, sms-engine, capture-engine, hazmat data/engine/
+  placards), and web/admin `build` is `vite build` alone. Railway was checked first: web's
+  `railway.json` already ran `vite build` directly (DEPLOYMENT.md §"does NOT typecheck"); admin's
+  calls `build` and now skips `vue-tsc` on the same reasoning. Nothing else calls a removed script
+  (one stale setup-guide line fixed). Local `pnpm build`: 2.6 s, web + admin + tokens produced;
+  all 39 gate commands from ci.yml, `typecheck`, `build` and `lint:light-dark` green.
