@@ -9,7 +9,10 @@
  * ── DUE BY THE LEDGER, NOT BY THE CLOCK ───────────────────────────────────────────────────────
  * It ticks hourly and runs an org when that org's last SUCCESSFUL inspection-file run is older than
  * `FMCSA_FEED_HOURS` (24): a deploy, a failed run or a day FMCSA was down is caught up on the next
- * tick instead of waiting a day. The inspection file is the clock because the other datasets hang
+ * tick instead of waiting a day. That 24 hours is the BACKSTOP since 2026-10-16: a tick that is not
+ * due asks Socrata whether FMCSA has republished any dataset since our last run, and runs the hour
+ * it has (`published.ts`, IC1d — FMCSA publishes at a different time each day, and a fixed daily
+ * run missed it by fifteen minutes). The inspection file is the clock because the other datasets hang
  * off it; `fmcsa_fetch_runs` is the ledger, so there is no jobs-ledger row (the boardEtaRecorder's
  * reasoning). An org with no `dot_number` has no FMCSA record to fetch and is skipped. After the
  * fetch, the typed `roadside_*` record is re-projected (0458, `project.ts`).
@@ -32,6 +35,7 @@ import { SocrataClient } from "./socrata.js";
 import { lastSucceededAt } from "./store.js";
 import { projectRoadside } from "./project.js";
 import { syncFmcsaFeed } from "./sync.js";
+import { publishedSinceLastRun } from "./published.js";
 import { alertIfFeedStale } from "./staleAlert.js";
 import { loadSamsaraToken, makeSamsaraRawFetcher } from "../../samsara/index.js";
 import { attributeBacklog } from "../attribution/pass.js";
@@ -94,7 +98,17 @@ export async function tickOrg(
   intervalMs: number,
 ): Promise<void> {
   try {
-    if (isFmcsaFeedDue(await lastSucceededAt(admin, org.id, "fx4q-ay7w"), Date.now(), intervalMs)) await runOrg(admin, env, org.id, org.dot);
+    const client = new SocrataClient({ appToken: env.FMCSA_SOCRATA_APP_TOKEN });
+    if (isFmcsaFeedDue(await lastSucceededAt(admin, org.id, "fx4q-ay7w"), Date.now(), intervalMs)) {
+      await runOrg(admin, client, org.id, org.dot);
+    } else {
+      // Not due by the backstop: run anyway the hour FMCSA republishes (`published.ts`, IC1d).
+      const moved = await publishedSinceLastRun(admin, org.id, client);
+      if (moved.length > 0) {
+        console.log(`[fmcsa-feed] org ${org.id}: FMCSA republished ${moved.join(", ")}; fetching`);
+        await runOrg(admin, client, org.id, org.dot);
+      }
+    }
   } catch (e) {
     console.error(`[fmcsa-feed] org ${org.id}: run failed —`, e instanceof Error ? e.message : e);
   }
@@ -125,8 +139,8 @@ async function attributeOrg(admin: ReturnType<typeof getSupabaseAdmin>, env: Env
 }
 
 /** One org's fetch and projection. Throws; the tick logs it and goes on to the stale check. */
-async function runOrg(admin: ReturnType<typeof getSupabaseAdmin>, env: Env, id: string, dot: string): Promise<void> {
-  const client = new SocrataClient({ appToken: env.FMCSA_SOCRATA_APP_TOKEN });
+async function runOrg(admin: ReturnType<typeof getSupabaseAdmin>, client: SocrataClient, id: string, dot: string): Promise<void> {
+  const requestsBefore = client.requestCount;
   const results = await syncFmcsaFeed(admin, id, dot, client);
   const summary = results
     .map((r) => (r.outcome === "succeeded" ? `${r.dataset} ${r.rowsSeen} seen/${r.rowsNew + r.rowsChanged + r.rowsReappeared} new/${r.rowsVanished} vanished` : `${r.dataset} FAILED`))
@@ -135,6 +149,6 @@ async function runOrg(admin: ReturnType<typeof getSupabaseAdmin>, env: Env, id: 
   // failed dataset leaves its last good versions current, so projecting them is still right.
   const p = await projectRoadside(admin, id);
   console.log(
-    `[fmcsa-feed] org ${id}: ${summary} (${client.requestCount} requests); projected ${p.inspections} inspections, ${p.units} units, ${p.violations} violations, ${p.citations} citations changed`,
+    `[fmcsa-feed] org ${id}: ${summary} (${client.requestCount - requestsBefore} requests); projected ${p.inspections} inspections, ${p.units} units, ${p.violations} violations, ${p.citations} citations changed`,
   );
 }
