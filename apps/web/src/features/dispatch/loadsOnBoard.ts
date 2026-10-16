@@ -11,6 +11,10 @@ import type { ScopedItem } from "./dispatchScope";
  * again here from a list that has neither would be the second answer D-DB4 rules out. So a load gets
  * a badge exactly when it is some truck's current load on the board, and none otherwise: an upcoming
  * load has no ETA yet, and saying "unknown" on every one of them would be noise, not a fact.
+ *
+ * Miles left (DBV7, DISPATCH-BOARD-V2-PLAN §3.2) is read the same way and for the same reason: the board
+ * chains it from the truck's GPS fix through every stop still to make (`boardMiles`), and the list has
+ * no fix. A second figure computed here could only disagree with the board's.
  */
 type Board = Pick<DispatchBoardResponse, "rows"> | null | undefined;
 
@@ -19,14 +23,20 @@ export interface LoadsOnBoard {
   scopeItem(load: { vehicle_id: string | null; dispatcher_external_id?: string | null }): ScopedItem;
   /** The board's verdict for a load some truck is hauling now; null for any other load. */
   onTimeOf(loadId: string): OnTimeVerdict | null;
+  /** The board's miles left for a load some truck is hauling now; null for any other, or with no figure. */
+  milesLeftOf(loadId: string): number | null;
 }
 
 export function loadsOnBoard(board: Board): LoadsOnBoard {
   const fleetByVehicle = new Map<string, string | null>();
   const onTimeByLoad = new Map<string, OnTimeVerdict>();
+  const milesByLoad = new Map<string, number | null>();
   for (const r of board?.rows ?? []) {
     fleetByVehicle.set(r.vehicleId, r.fleetCode);
-    if (r.current) onTimeByLoad.set(r.current.loadId, r.onTime);
+    if (r.current) {
+      onTimeByLoad.set(r.current.loadId, r.onTime);
+      milesByLoad.set(r.current.loadId, r.milesLeft);
+    }
   }
   return {
     scopeItem: (load) => ({
@@ -35,5 +45,6 @@ export function loadsOnBoard(board: Board): LoadsOnBoard {
       next: null,
     }),
     onTimeOf: (loadId) => onTimeByLoad.get(loadId) ?? null,
+    milesLeftOf: (loadId) => milesByLoad.get(loadId) ?? null,
   };
 }

@@ -54,8 +54,8 @@ vi.mock("@/features/dispatch/useDispatchLoads", async (orig) => ({
   useResolveException: () => ({ isPending: ref(false), mutateAsync: async () => {} }),
 }));
 
-const boardRow = (vehicleId: string, fleetCode: string | null, loadId: string | null, onTime: DispatchBoardRow["onTime"]) =>
-  ({ vehicleId, fleetCode, current: loadId ? { loadId, dispatcherId: null } : null, next: null, onTime }) as unknown as DispatchBoardRow;
+const boardRow = (vehicleId: string, fleetCode: string | null, loadId: string | null, onTime: DispatchBoardRow["onTime"], milesLeft: number | null = null) =>
+  ({ vehicleId, fleetCode, current: loadId ? { loadId, dispatcherId: null } : null, next: null, onTime, milesLeft }) as unknown as DispatchBoardRow;
 const board = vi.hoisted(() => ({ value: null as DispatchBoardResponse | null }));
 vi.mock("@/features/dispatch/useDispatchBoard", () => ({
   useDispatchBoardQuery: () => ({ data: computed(() => board.value) }),
@@ -243,6 +243,88 @@ describe("the Loads page beside the dispatch board", () => {
         exceptionsData.value = EXCEPTIONS;
       }
     });
+  });
+});
+
+/**
+ * DBV7 (DISPATCH-BOARD-V2-PLAN §3.2, Q-DBV6): the Dispatch column starts hidden, and the Delivery cell
+ * gives the board's answer — its appointment, and for the load a truck hauls now, the board's miles left.
+ */
+describe("the Loads page as the dispatchers read it (DBV7)", () => {
+  // The column picker's choice is per browser, and the repo's jsdom has no storage of its own.
+  beforeEach(() => {
+    const map = new Map<string, string>();
+    Object.defineProperty(globalThis, "localStorage", {
+      configurable: true, writable: true,
+      value: { getItem: (k: string) => map.get(k) ?? null, setItem: (k: string, v: string) => void map.set(k, v), removeItem: (k: string) => void map.delete(k) },
+    });
+  });
+  afterEach(() => Reflect.deleteProperty(globalThis, "localStorage"));
+  const stop = (seq: number, kind: "pickup" | "dropoff", extra = {}) => ({
+    seq, kind, name: `Stop ${seq}`, city: "Joliet", state: "IL", appointment_start: "2026-10-16T19:00:00Z", appointment_end: null,
+    required_photos: [], ...extra,
+  });
+  const headers = (w: Awaited<ReturnType<typeof mountPage>>) => w.findAll("thead th").map((th) => th.text());
+  const deliveryOf = (w: Awaited<ReturnType<typeof mountPage>>, ref: string) =>
+    w.findAll("tbody tr").find((tr) => tr.text().includes(ref))!.findAll("td")[4]!.text();
+
+  it("hides the Dispatch column until a reader turns it on, and remembers that they did", async () => {
+    board.value = response(false);
+    const w = await mountPage();
+    expect(headers(w)).not.toContain("Dispatch");
+    expect(headers(w)).toContain("Delivery");
+    const picker = w.findComponent({ name: "ColumnPicker" });
+    (picker.props("columns") as { toggle: (k: string) => void }).toggle("dispatch");
+    await flushPromises();
+    expect(headers(w)).toContain("Dispatch");
+    // A bare /loads in the same browser keeps the choice.
+    const again = await mountPage();
+    expect(headers(again)).toContain("Dispatch");
+  });
+
+  it("offers no column picker on Exceptions, another table", async () => {
+    board.value = response(false);
+    const w = await mountPage("/loads?queue=exceptions");
+    expect(w.findComponent({ name: "ColumnPicker" }).exists()).toBe(false);
+  });
+
+  it("puts the board's miles left under the delivery appointment of the load a truck hauls, and on no other", async () => {
+    const saved = LOADS.splice(0, LOADS.length,
+      load("L-hauled", "in_transit", "v-773", "773", "asen", { stops: [stop(1, "pickup"), stop(2, "dropoff")] }),
+      load("L-no-fix", "in_transit", "v-801", "801", "asen", { stops: [stop(1, "pickup"), stop(2, "dropoff")] }),
+      load("L-later", "pending_approval", "v-773", "773", "asen", { stops: [stop(1, "pickup"), stop(2, "dropoff")] }),
+    );
+    try {
+      board.value = { ...response(false), rows: [boardRow("v-773", "VINNIEV", "L-hauled", "on_time", 1412), boardRow("v-801", "VLADI", "L-no-fix", "unknown", null)] };
+      const w = await mountPage("/loads?queue=all");
+      expect(deliveryOf(w, "L-hauled")).toContain("Appt 10/16/2026");
+      expect(deliveryOf(w, "L-hauled")).toContain("≈ 1,412 mi left");
+      // Hauled with no figure from the board: nothing, rather than a dash that reads as a number.
+      expect(deliveryOf(w, "L-no-fix")).not.toContain("left");
+      expect(deliveryOf(w, "L-later")).not.toContain("left");
+    } finally {
+      LOADS.splice(0, LOADS.length, ...saved);
+    }
+  });
+
+  it("keeps the delivery appointment once the truck has arrived, the arrival beneath it", async () => {
+    const saved = LOADS.splice(0, LOADS.length,
+      load("L-there", "in_transit", "v-773", "773", "asen", {
+        stops: [stop(1, "pickup", { actual_arrival_at: "2026-10-15T14:00:00Z" }), stop(2, "dropoff", { actual_arrival_at: "2026-10-16T18:00:00Z" })],
+      }),
+    );
+    try {
+      board.value = { ...response(false), rows: [boardRow("v-773", "VINNIEV", "L-there", "on_time", 3)] };
+      const w = await mountPage();
+      expect(deliveryOf(w, "L-there")).toMatch(/Appt 10\/16\/2026.*Arrived 10\/16\/2026/);
+      expect(deliveryOf(w, "L-there")).not.toContain("mi left");
+      // A pickup's arrival still replaces its appointment.
+      const pickup = w.findAll("tbody tr")[0]!.findAll("td")[3]!.text();
+      expect(pickup).toContain("Arrived 10/15/2026");
+      expect(pickup).not.toContain("Appt");
+    } finally {
+      LOADS.splice(0, LOADS.length, ...saved);
+    }
   });
 });
 

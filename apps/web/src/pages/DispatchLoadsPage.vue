@@ -30,7 +30,9 @@
  * They share one scope control (My fleet · All, Fleet, Dispatched by — `dispatchScope.ts`), which
  * replaced this page's own Dispatcher filter, and one on-time verdict, read off the board rather than
  * computed twice (`loadsOnBoard.ts`). A load's truck links to that truck on the board; HOS and GPS are
- * never re-drawn here.
+ * never re-drawn here. The board's v2 census strip (D-DBV2) counts TRUCKS, and this list's rows are
+ * loads, so it is not borrowed here: this page keeps the v1 control until DISPATCH-BOARD-V2-PLAN Q-DBV8
+ * is ruled. DBV7 (Q-DBV6): Dispatch starts hidden, and Delivery carries the board's miles left.
  *
  * ── ONE LIST PATTERN WITH THE BOARD (owner, 2026-10-10) ─────────────────────────────────────────
  * One surface (`DataWorkspace`): the toolbar and the table are one card, and the toolbar stays when the
@@ -55,6 +57,8 @@ import { SORT_DIRECTIONS, TablePagination, sortRows, useQueryState, useUrlSort, 
 import { useSessionStore } from "@/stores/session";
 import { useToastStore } from "@/stores/toast";
 import { useOrgTimezone } from "@/composables/useOrgTimezone";
+import { useTableColumns } from "@/composables/useTableColumns";
+import ColumnPicker from "@/components/ui/ColumnPicker.vue";
 import KebabMenu from "@/components/KebabMenu.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
 import PageHeader from "@/components/ui/PageHeader.vue";
@@ -65,7 +69,6 @@ import {
   useResolveException,
   useLoadsQuery,
   type DispatchLoad,
-  type DispatchStop,
   type QueueTab,
 } from "@/features/dispatch/useDispatchLoads";
 import DispatchLoadDrawer from "@/features/dispatch/DispatchLoadDrawer.vue";
@@ -74,6 +77,8 @@ import { useDispatchBoardQuery } from "@/features/dispatch/useDispatchBoard";
 import DispatchScopeControls from "@/features/dispatch/DispatchScopeControls.vue";
 import { admitsScope, useScopeChoice } from "@/features/dispatch/dispatchScope";
 import { loadsOnBoard } from "@/features/dispatch/loadsOnBoard";
+import { loadStopName } from "@/features/dispatch/dispatchBoardView";
+import LoadStopCell from "@/features/dispatch/LoadStopCell.vue";
 import { BADGE_BASE, onTimeBadge, toneClass } from "@/lib/badges";
 import { formatDateTime } from "@/lib/format";
 
@@ -237,20 +242,11 @@ const filtered = computed(() => {
     .filter((load) => {
       if (!term) return true;
       const { pickup, delivery } = boardStops(load.stops);
-      return [load.ref, load.customer_name, load.driver_name, load.vehicle_unit, load.trailer_unit, load.dispatcher_name, load.commodity, placeOf(pickup), placeOf(delivery)]
+      return [load.ref, load.customer_name, load.driver_name, load.vehicle_unit, load.trailer_unit, load.dispatcher_name, load.commodity, loadStopName(pickup), loadStopName(delivery)]
         .filter((value): value is string => Boolean(value))
         .some((value) => value.toLowerCase().includes(term));
     });
 });
-
-/** A stop as the board names it: McLeod's real location name first, then city and state. */
-function placeOf(stop: DispatchStop | null): string {
-  if (!stop) return "";
-  return stop.location_name || stop.name || "";
-}
-function cityOf(stop: DispatchStop | null): string {
-  return stop ? [stop.city, stop.state].filter(Boolean).join(", ") : "";
-}
 
 const columns: DataTableColumn[] = [
   { key: "ref", label: "Load #", sortable: true, width: "sm", cellClass: "font-medium text-ink" },
@@ -262,6 +258,12 @@ const columns: DataTableColumn[] = [
   // D-LMR7: whether the office sent it is its own fact, beside McLeod's status — never folded into it.
   { key: "dispatch", label: "Dispatch", width: "md" },
 ];
+/**
+ * Dispatch starts hidden (Q-DBV6, ruled 2026-10-16): it reports an action used 0 times ever
+ * (`load_dispatches` = 0 rows), so it is a column nobody reads. The action stays in the row menu, and
+ * the column stays one ColumnPicker click away until the driver app is used for it.
+ */
+const tableColumns = useTableColumns("dispatch.loads", () => columns, { defaultHidden: ["dispatch"] });
 
 function sortValue(load: DispatchLoad, key: string): unknown {
   const { pickup, delivery } = boardStops(load.stops);
@@ -358,6 +360,10 @@ function openDetail(load: DispatchLoad) {
           />
           <FilterSelect v-model="typeFilter" label="Type" :options="typeOptions" />
         </template>
+        <!-- The loads table's columns; Exceptions is another table, with none to choose. -->
+        <template v-if="tab !== 'exceptions'" #actions>
+          <ColumnPicker :columns="tableColumns" />
+        </template>
       </FilterBar>
 
       <!-- Exceptions is its own feed, not a filter over the loads list: most of its sources exist only
@@ -404,7 +410,7 @@ function openDetail(load: DispatchLoad) {
 
       <DataTable
         v-else
-        :columns="columns"
+        :columns="tableColumns.visible.value"
         :rows="pageRows"
         row-key="id"
         :loading="isLoading"
@@ -440,19 +446,14 @@ function openDetail(load: DispatchLoad) {
           </p>
         </template>
         <template v-for="end in ['pickup', 'delivery'] as const" :key="end" #[`cell-${end}`]="{ row }">
-          <template v-for="stop in [boardStops(row.stops)[end]]" :key="stop?.seq ?? 'none'">
-            <div v-if="stop" class="min-w-0">
-              <p class="truncate text-ink" :title="placeOf(stop)">{{ placeOf(stop) || "Unnamed stop" }}</p>
-              <p class="truncate text-xs text-ink-muted">{{ cityOf(stop) }}</p>
-              <!-- McLeod's actual when it has one; the appointment otherwise. Both on the carrier's clock. -->
-              <p v-if="stop.actual_arrival_at" class="text-xs tabular-nums text-ink-secondary">Arrived {{ at(stop.actual_arrival_at) }}</p>
-              <p v-else class="text-xs tabular-nums text-ink-muted">{{ stop.appointment_start ? at(stop.appointment_start) : "No appointment" }}</p>
-              <p v-if="end === 'delivery' && boardStops(row.stops).extra" class="text-xs text-ink-secondary" :title="`${row.stops.length} stops in all`">
-                +{{ boardStops(row.stops).extra }} more {{ boardStops(row.stops).extra === 1 ? "stop" : "stops" }}
-              </p>
-            </div>
-            <span v-else class="text-ink-tertiary">—</span>
-          </template>
+          <LoadStopCell
+            :stop="boardStops(row.stops)[end]"
+            :end="end"
+            :extra="boardStops(row.stops).extra"
+            :total="row.stops.length"
+            :miles-left="onBoard.milesLeftOf(row.id)"
+            :zone="zone"
+          />
         </template>
         <template #cell-type="{ row }">
           <div class="flex flex-wrap gap-1">

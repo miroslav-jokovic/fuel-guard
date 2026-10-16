@@ -277,3 +277,8 @@ export function stopPlace(s: { city: string | null; state: string | null; name: 
   return [s.city, s.state].filter(Boolean).join(", ") || s.name || "";
 }
 
+
+/** A Loads-page stop as the board names it: McLeod's real location name first, then the stop's own name. */
+export function loadStopName(s: { location_name?: string | null; name: string | null } | null | undefined): string {
+  return s ? s.location_name || s.name || "" : "";
+}
