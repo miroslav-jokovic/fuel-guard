@@ -2375,6 +2375,10 @@ async function main() {
       inspection_repairs: (org) =>
         `${rsRaw(org)} ${rsInsp(org)}, ${rsUnit(org)}, rp as (insert into inspection_repairs (org_id, inspection_id, inspection_unit_id, source, engine_version, outcome, due_on, candidates_sha256) ` +
         `select '${org}', i.id, u.id, 'engine', 'rls', 'no_candidate', current_date, repeat('a', 64) from i, u returning id) select 1`,
+      // 0485: the same composite FK to its inspection; a certification names what it certified.
+      inspection_repair_certifications: (org) =>
+        `${rsRaw(org)} ${rsInsp(org)}, rc as (insert into inspection_repair_certifications (org_id, inspection_id, certified_by, signer_name, signer_title, signed_on, repairs, document_id) ` +
+        `select '${org}', i.id, gen_random_uuid(), 'rls', 'rls', current_date, '[{}]'::jsonb, gen_random_uuid() from i returning id) select 1`,
       // 0480: the same composite FK to its inspection.
       inspection_report_checks: (org) =>
         `${rsRaw(org)} ${rsInsp(org)}, rc as (insert into inspection_report_checks (org_id, inspection_id, document_id, read_id, check_version, outcome) ` +
