@@ -4,6 +4,7 @@ import {
   type RepairCandidate,
   type RepairEngineOutcome,
   type RepairOutcome,
+  type RoadsideRepairCertificationDto,
   type RoadsideRepairDto,
 } from "@silvicom/shared";
 import { labelOf, memberLabels } from "../../../lib/memberLabels.js";
@@ -98,4 +99,42 @@ export async function readInspectionRepairs(
     });
   }
   return out.sort((a, b) => (a.unit.seq ?? 99) - (b.unit.seq ?? 99));
+}
+
+/**
+ * The inspection's newest certification by safety (0485, IC11 B2), and whether it still stands: `current`
+ * while every unit's newest repair row is the one it certified. A later row — a re-read, a corrected
+ * decision — leaves the old certification true of what it named, and asks for a new one.
+ */
+export async function readRepairCertification(
+  admin: SupabaseClient,
+  orgId: string,
+  inspectionId: string,
+): Promise<RoadsideRepairCertificationDto | null | { error: DbError }> {
+  const [cert, repairs] = await Promise.all([
+    admin
+      .from("inspection_repair_certifications")
+      .select("id, signer_name, signer_title, signed_on, repairs, document_id, created_at")
+      .eq("org_id", orgId)
+      .eq("inspection_id", inspectionId)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+    admin.from("inspection_repairs").select(REPAIR_COLS).eq("org_id", orgId).eq("inspection_id", inspectionId),
+  ]);
+  if (cert.error) return { error: cert.error };
+  if (repairs.error) return { error: repairs.error };
+  if (!cert.data) return null;
+  const c = cert.data as { id: string; signer_name: string; signer_title: string; signed_on: string; repairs: { repairId: string }[]; document_id: string; created_at: string };
+  const newest = [...latestByUnit((repairs.data ?? []) as RepairRow[]).values()].filter((l) => l.engine).map((l) => l.newest.id).sort();
+  const certified = c.repairs.map((r) => r.repairId).sort();
+  return {
+    id: c.id,
+    signerName: c.signer_name,
+    signerTitle: c.signer_title,
+    signedOn: c.signed_on,
+    certifiedAt: c.created_at,
+    documentId: c.document_id,
+    current: JSON.stringify(newest) === JSON.stringify(certified),
+  };
 }

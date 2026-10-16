@@ -135,6 +135,50 @@ export const roadsideRepairDecisionSchema = z.discriminatedUnion("action", [
 ]);
 export type RoadsideRepairDecision = z.infer<typeof roadsideRepairDecisionSchema>;
 
+/** How a violated unit is named — on the Repair card, the rendered record and the "repair due" alert alike. */
+export function repairUnitName(r: Pick<RoadsideRepairDto, "unit">): string {
+  const kind = r.unit.kind === "tractor" ? "Truck" : r.unit.kind === "trailer" ? "Trailer" : "Unit";
+  return r.unit.companyNumber ? `${kind} ${r.unit.companyNumber}` : `${kind} ${r.unit.seq ?? ""}`.trim();
+}
+
+/**
+ * A unit whose repair is settled for the certification (IC11 B2): a person named its repair (a FleetPal work
+ * order, or outside FleetPal and where), or the officer recorded it repaired at the scene. Anything else —
+ * candidates nobody chose, none, a unit FleetPal or FMCSA cannot tie to us — still needs a person, because
+ * 396.9(d)(3)(i) certifies that EVERY violation was corrected. One definition: the card's button and the
+ * API's refusal agree.
+ */
+export function repairSettled(r: Pick<RoadsideRepairDto, "decision" | "proposal">): boolean {
+  return r.decision !== null || r.proposal.outcome === "repaired_at_scene";
+}
+
+/**
+ * The inspection's certification by safety (396.9(d)(3)(i), Q-IC13), as `GET /:id/repairs/certification`
+ * returns it: the newest certifying act, and whether it still stands over the units' newest rows.
+ */
+export interface RoadsideRepairCertificationDto {
+  id: string;
+  signerName: string;
+  signerTitle: string;
+  /** The carrier's calendar day the server recorded — never one the page sent. */
+  signedOn: string;
+  certifiedAt: string;
+  /** The rendered repair record (`roadside_repair_record`), on the inspection's Documents card. */
+  documentId: string;
+  /** False once any unit has a newer repair row than the one certified: certify again. */
+  current: boolean;
+}
+
+/**
+ * `POST /api/roadside-inspections/:id/repairs/certify` — safety certifies (Q-IC13). `basedOn` is every unit's
+ * `basedOn` as the page showed them: a certification over a record that has since moved is refused (409).
+ */
+export const roadsideRepairCertifySchema = z.object({
+  signerTitle: z.string().trim().min(1, "Give your title — the regulation asks for it.").max(120),
+  basedOn: z.array(recordId()).min(1).max(20),
+});
+export type RoadsideRepairCertifyRequest = z.infer<typeof roadsideRepairCertifySchema>;
+
 /**
  * Where a unit stands against its 396.9(d) due day, on the carrier's calendar: days left (0 = due today) or
  * days overdue. One definition, so the Repair card and the "repair due" alert (IC11 B2) never disagree.

@@ -108,6 +108,24 @@ const { REPAIR_OUTCOMES } = await import("../../packages/shared/dist/index.js");
 const allowed = (await one(`select pg_get_constraintdef(oid) d from pg_constraint where conname = 'inspection_repairs_outcome_check'`)).d.match(/'([a-z_]+)'/g).map((s) => s.slice(1, -1)).sort();
 ok("the CHECK allows exactly the contract's outcomes", JSON.stringify(allowed) === JSON.stringify([...REPAIR_OUTCOMES].sort()), JSON.stringify(allowed));
 
+// 0485 — safety's certification (IC11 B2, Q-IC13): who, title, date, what was certified and its rendered record.
+const certify = (o = {}) => {
+  const cols = { org_id: ORG, inspection_id: INSP, certified_by: USER, signer_name: "Dana Reyes", signer_title: "Safety Director",
+    signed_on: "2026-10-16", repairs: JSON.stringify([{ unitId: UNIT, repairId: crypto.randomUUID() }]), document_id: crypto.randomUUID(), ...o };
+  const keys = Object.keys(cols);
+  return sqlstate(`insert into inspection_repair_certifications (${keys.join(", ")}) values (${keys.map((_, i) => `$${i + 1}`).join(", ")})`, Object.values(cols));
+};
+ok("a certification writes", (await certify()) === null);
+ok("⚠ a certification without a title is refused", (await certify({ signer_title: "  " })) === "23514");
+ok("⚠ a certification without the signer's name is refused", (await certify({ signer_name: "" })) === "23514");
+ok("⚠ a certification over no repairs is refused", (await certify({ repairs: "[]" })) === "23514");
+ok("⚠ a certification without its rendered record is refused", (await certify({ document_id: null })) === "23502");
+ok("a certification of another org's inspection is refused", (await certify({ inspection_id: FOREIGN_INSP })) === "23503");
+ok("a certification is never rewritten", (await sqlstate(`update inspection_repair_certifications set signer_title = 'x' where inspection_id = $1`, [INSP])) === "IA010");
+ok("a certification is never deleted", (await sqlstate(`delete from inspection_repair_certifications where inspection_id = $1`, [INSP])) === "IA010");
+ok("certifications: RLS is on, with no client policy", (await one(`select relrowsecurity r from pg_class where oid = 'public.inspection_repair_certifications'::regclass`)).r === true
+  && (await one(`select count(*)::int n from pg_policies where tablename = 'inspection_repair_certifications'`)).n === 0);
+
 await db.close();
 console.log(`\nRESULT: ${pass} passed, ${fail} failed`);
 process.exitCode = fail === 0 ? 0 : 1;

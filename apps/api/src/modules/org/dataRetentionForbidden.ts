@@ -210,6 +210,11 @@ export const RETENTION_FORBIDDEN = [
    */
   "inspection_repairs",
   /**
+   * Safety's certification of those repairs (0485, IC11 B2): the carrier official's signature, title and
+   * date 396.9(d)(3)(i) asks for. A later certification is a new row; the earlier one stays true of what it named.
+   */
+  "inspection_repair_certifications",
+  /**
    * The driver's account-closure request (0330, D-PR8).
    *
    * ── THE ONE ENTRY ON THIS LIST THAT INVERTS ITS OWN SUBJECT ───────────────────────────────────

@@ -1344,6 +1344,17 @@
         "why": "the repair record of each inspected unit with a Part 393/396 violation (0482, IC11): an engine row when its FleetPal candidates change, a person's when maintenance decides (~150 units a year, a few rows each, measured 2026-10-16). RETENTION_FORBIDDEN: it is the 396.9(d) record."
       }
     },
+    "inspection_repair_certifications": {
+      "module": "inspections",
+      "layer": "derived",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 5,
+        "why": "safety's 396.9(d)(3)(i) certification of a roadside inspection's repairs (0485, IC11 B2): one row per certifying act, ~120 inspections with vehicle violations a year (measured 2026-10-16). RETENTION_FORBIDDEN: it is the carrier official's signature."
+      }
+    },
     "inspection_report_checks": {
       "module": "inspections",
       "layer": "derived",

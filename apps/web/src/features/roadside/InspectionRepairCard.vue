@@ -4,15 +4,16 @@ import {
   AppButton as BaseButton,
   AppCard as BaseCard,
   AppFormField as FormField,
+  AppInput as BaseInput,
   AppTextarea as BaseTextarea,
   QueryState,
 } from "@silvicom/ui";
-import { REPAIR_OUTCOME_TEXT, repairClock, todayInZone, type RepairCandidate, type RoadsideRepairDto } from "@silvicom/shared";
+import { REPAIR_OUTCOME_TEXT, repairClock, repairSettled, repairUnitName, todayInZone, type RepairCandidate, type RoadsideRepairDto } from "@silvicom/shared";
 import { useOrgTimezone } from "@/composables/useOrgTimezone";
 import { useSessionStore } from "@/stores/session";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { formatDate, formatDateTime } from "@/lib/format";
-import { RepairDecisionError, useDecideRepair, useInspectionRepairsQuery } from "./useRoadsideInspections";
+import { RepairDecisionError, useCertifyRepairs, useDecideRepair, useInspectionRepairsQuery, useRepairCertificationQuery } from "./useRoadsideInspections";
 
 /**
  * The repair of the inspection's vehicle violations (INSPECTION-CHALLENGE-PLAN IC11, D-IC14; 49 CFR
@@ -24,7 +25,16 @@ import { RepairDecisionError, useDecideRepair, useInspectionRepairsQuery } from 
  * Measured 2026-10-16, one work order in the window is the repair only some of the time (Q-IC14), so
  * nothing is pre-chosen: a person accepts the work order whose jobs answer the violations, or says the
  * repair was done outside FleetPal and where. Deciding needs the MAINTENANCE section's manage level
- * (Q-IC13), which the API checks; the buttons only follow it. Safety's certification is the next step.
+ * (Q-IC13), which the API checks; the buttons only follow it.
+ *
+ * ── THEN SAFETY CERTIFIES THE REPORT ───────────────────────────────────────────────────────────
+ * Once every unit is settled (`repairSettled`), a safety manager certifies — 396.9(d)(3)(i)'s signature,
+ * title and date. The name and the date are the server's; the person gives only their title. The rendered
+ * repair record is filed on the Documents card with it. A unit re-read or re-decided afterwards leaves the
+ * old certification standing for what it named and asks for a new one (`current: false`).
+ *
+ * A unit FMCSA could not tie to our fleet may still be closed as "outside FleetPal" with where — an
+ * interchange trailer is repaired by its owner — or no inspection carrying one could ever be certified.
  *
  * Hidden when the engine has read no unit: an inspection with no vehicle violation, or older than a year.
  */
@@ -42,10 +52,7 @@ const decide = useDecideRepair(id);
 
 const show = computed(() => isLoading.value || isError.value || (repairs.value?.length ?? 0) > 0);
 
-const unitName = (r: RoadsideRepairDto) => {
-  const kind = r.unit.kind === "tractor" ? "Truck" : r.unit.kind === "trailer" ? "Trailer" : "Unit";
-  return r.unit.companyNumber ? `${kind} ${r.unit.companyNumber}` : `${kind} ${r.unit.seq ?? ""}`.trim();
-};
+const unitName = repairUnitName;
 
 /** The badge: closed when decided or repaired at the scene; otherwise the clock, red once overdue. */
 function badge(r: RoadsideRepairDto): { text: string; tone: string } {
@@ -57,7 +64,7 @@ function badge(r: RoadsideRepairDto): { text: string; tone: string } {
 }
 
 /** What may be decided on a unit: anything the engine could not close by itself. */
-const decidable = (r: RoadsideRepairDto) => canDecide.value && r.proposal.outcome !== "repaired_at_scene" && r.proposal.outcome !== "unit_not_ours";
+const decidable = (r: RoadsideRepairDto) => canDecide.value && r.proposal.outcome !== "repaired_at_scene";
 
 const writingFor = ref<string | null>(null);
 const note = ref("");
@@ -79,6 +86,24 @@ function startOutside(r: RoadsideRepairDto) {
 }
 function saveOutside(r: RoadsideRepairDto) {
   decide.mutate({ action: "outside", unitId: r.unitId, basedOn: r.basedOn, note: note.value.trim() }, { onSuccess: () => (writingFor.value = null) });
+}
+
+const canCertify = computed(() => session.can("safety"));
+const { data: certification } = useRepairCertificationQuery(id);
+const certify = useCertifyRepairs(id);
+const settled = computed(() => (repairs.value?.length ?? 0) > 0 && repairs.value!.every(repairSettled));
+/** The form shows when there is something to certify: settled, and never certified or no longer current. */
+const certifiable = computed(() => canCertify.value && settled.value && !certification.value?.current);
+const signerTitle = ref("");
+const certifyFailure = computed(() => {
+  const e = certify.error.value;
+  if (!e) return null;
+  return e instanceof RepairDecisionError && e.code === "changed"
+    ? "The repair record changed while the page was open. It is shown again above; look before certifying."
+    : e.message;
+});
+function submitCertification() {
+  certify.mutate({ signerTitle: signerTitle.value.trim(), basedOn: (repairs.value ?? []).map((r) => r.basedOn) });
 }
 </script>
 
@@ -159,5 +184,32 @@ function saveOutside(r: RoadsideRepairDto) {
     </div>
 
     <p v-if="failure" class="mt-3 text-sm text-danger-700" role="alert" data-test="repair-error">{{ failure }}</p>
+
+    <section v-if="repairs?.length" class="mt-4 border-t border-edge pt-4 text-sm" data-test="repair-certification">
+      <h3 class="text-sm font-semibold text-ink">Certification</h3>
+      <p v-if="certification?.current" class="mt-1 text-ink" data-test="repair-certified">
+        Certified by {{ certification.signerName }}, {{ certification.signerTitle }}, on {{ formatDate(certification.signedOn) }}. The repair record is on the Documents card.
+      </p>
+      <p v-else-if="certification" class="mt-1 text-warning-700" data-test="repair-certification-stale">
+        Certified by {{ certification.signerName }} on {{ formatDate(certification.signedOn) }}, but a repair changed afterwards. Certify again.
+      </p>
+      <p v-else-if="!settled" class="mt-1 text-ink-muted" data-test="repair-certification-waits">
+        Safety certifies the report once every unit's repair is recorded.
+      </p>
+      <p v-else-if="!canCertify" class="mt-1 text-ink-muted">Every repair is recorded. A safety manager certifies the report.</p>
+
+      <form v-if="certifiable" class="mt-3 space-y-3" data-test="repair-certify-form" @submit.prevent="submitCertification">
+        <p class="text-ink-muted">
+          You certify that every violation on this report was corrected. Your name and today's date are recorded with it, and the repair record is filed on the Documents card.
+        </p>
+        <FormField v-slot="{ id: fieldId }" label="Your title" required>
+          <BaseInput :id="fieldId" v-model="signerTitle" maxlength="120" placeholder="For example: Safety Director" data-test="repair-certify-title" />
+        </FormField>
+        <BaseButton variant="primary" type="submit" :disabled="!signerTitle.trim() || certify.isPending.value" data-test="repair-certify">
+          Certify repairs
+        </BaseButton>
+      </form>
+      <p v-if="certifyFailure" class="mt-3 text-danger-700" role="alert" data-test="repair-certify-error">{{ certifyFailure }}</p>
+    </section>
   </BaseCard>
 </template>

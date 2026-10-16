@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { flushPromises, mount } from "@vue/test-utils";
 import { ref } from "vue";
-import type { RoadsideRepairDto } from "@silvicom/shared";
+import type { RoadsideRepairCertificationDto, RoadsideRepairDto } from "@silvicom/shared";
 
 /**
  * The Repair card on the Inspection page (IC11, D-IC14). What it can get wrong that the API's tests would
@@ -10,18 +10,25 @@ import type { RoadsideRepairDto } from "@silvicom/shared";
  *   1. **The clock reads the browser's day**, or counts "due today" as overdue.
  *   2. **The decide buttons show to a reader without maintenance's manage level** — safety's is not it (Q-IC13).
  *   3. **A work order is accepted without the row the page showed**, so a re-read could be overwritten unseen.
- *   4. **A unit that needs no decision** (repaired at the scene, not ours) still offers one.
+ *   4. **A unit that needs no decision** (repaired at the scene) still offers one — or a unit FMCSA could not
+ *      tie to us offers none, and the inspection can never be certified.
  *   5. **The card shows for an inspection with no vehicle violation**, as an empty box.
+ *   6. **Certify shows before every unit is settled**, or to a reader without safety's manage level, or over a
+ *      certification that still stands; or it sends a record other than the one shown (IC11 B2).
  */
 
 const mutate = vi.fn();
 const reset = vi.fn();
 const repairs = ref<RoadsideRepairDto[] | undefined>([]);
 const decideError = ref<Error | null>(null);
+const certifyMutate = vi.fn();
+const certification = ref<RoadsideRepairCertificationDto | null | undefined>(null);
 let sections = new Set(["safety", "maintenance"]);
 vi.mock("./useRoadsideInspections", () => ({
   useInspectionRepairsQuery: () => ({ data: repairs, isLoading: ref(false), isError: ref(false), error: ref(null), isFetching: ref(false), refetch: vi.fn() }),
   useDecideRepair: () => ({ mutate, reset, isPending: ref(false), error: decideError }),
+  useRepairCertificationQuery: () => ({ data: certification }),
+  useCertifyRepairs: () => ({ mutate: certifyMutate, isPending: ref(false), error: ref(null) }),
   RepairDecisionError: class extends Error {
     constructor(m: string, readonly code: string | null) {
       super(m);
@@ -59,6 +66,8 @@ beforeEach(() => {
   reset.mockReset();
   repairs.value = [repair()];
   decideError.value = null;
+  certifyMutate.mockReset();
+  certification.value = null;
   sections = new Set(["safety", "maintenance"]);
 });
 
@@ -111,6 +120,11 @@ describe("deciding", () => {
     expect(w.find("[data-test='repair-outside']").exists()).toBe(false);
   });
 
+  it("offers 'outside FleetPal' on a unit FMCSA could not tie to our fleet", async () => {
+    repairs.value = [repair({ proposal: { outcome: "unit_not_ours", candidates: [], readAt: "2026-10-16T12:00:00Z" } })];
+    expect((await card()).find("[data-test='repair-outside']").exists()).toBe(true);
+  });
+
   it("shows the decision with who made it, and closes the clock", async () => {
     repairs.value = [repair({ decision: { outcome: "accepted", workOrder: candidate("wo-2", "WO-102"), note: null, decidedBy: "Pat Shop", decidedAt: "2026-10-16T15:00:00Z" } })];
     const w = await card();
@@ -129,4 +143,51 @@ describe("deciding", () => {
 it("is not shown for an inspection with no vehicle violation", async () => {
   repairs.value = [];
   expect((await card()).find("[data-test='repair-card']").exists()).toBe(false);
+});
+
+describe("certifying (IC11 B2, Q-IC13)", () => {
+  const decided = (unitId: string, basedOn: string) =>
+    repair({ unitId, basedOn, decision: { outcome: "repaired_outside_fleetpal", workOrder: null, note: "TA Joliet", decidedBy: "Pat Shop", decidedAt: "2026-10-16T15:00:00Z" } });
+  const scene = repair({ unitId: "u-2", basedOn: "row-9", proposal: { outcome: "repaired_at_scene", candidates: [], readAt: "2026-10-16T12:00:00Z" } });
+  const cert = (current: boolean): RoadsideRepairCertificationDto => ({
+    id: "c-1", signerName: "Dana Reyes", signerTitle: "Safety Director", signedOn: "2026-10-16", certifiedAt: "2026-10-16T17:30:00Z", documentId: "d-1", current,
+  });
+
+  it("⚠ waits until every unit's repair is recorded", async () => {
+    repairs.value = [decided("u-1", "row-7"), repair({ unitId: "u-3", basedOn: "row-3" })];
+    const w = await card();
+    expect(w.find("[data-test='repair-certify-form']").exists()).toBe(false);
+    expect(w.get("[data-test='repair-certification-waits']").exists()).toBe(true);
+  });
+
+  it("certifies with the title given, over every unit's row as shown", async () => {
+    repairs.value = [decided("u-1", "row-7"), scene];
+    const w = await card();
+    expect(w.get("[data-test='repair-certify']").attributes("disabled")).toBeDefined();
+    await w.get("[data-test='repair-certify-title']").setValue("  Safety Director ");
+    await w.get("[data-test='repair-certify-form']").trigger("submit");
+    expect(certifyMutate).toHaveBeenCalledWith({ signerTitle: "Safety Director", basedOn: ["row-7", "row-9"] });
+  });
+
+  it("⚠ offers no certification to a reader who manages maintenance but not safety", async () => {
+    sections = new Set(["maintenance"]);
+    repairs.value = [decided("u-1", "row-7")];
+    expect((await card()).find("[data-test='repair-certify-form']").exists()).toBe(false);
+  });
+
+  it("shows a standing certification and offers no second one", async () => {
+    repairs.value = [decided("u-1", "row-7")];
+    certification.value = cert(true);
+    const w = await card();
+    expect(w.get("[data-test='repair-certified']").text()).toContain("Dana Reyes, Safety Director, on 10/16/2026");
+    expect(w.find("[data-test='repair-certify-form']").exists()).toBe(false);
+  });
+
+  it("⚠ asks again once a repair changed after the certification", async () => {
+    repairs.value = [decided("u-1", "row-8")];
+    certification.value = cert(false);
+    const w = await card();
+    expect(w.get("[data-test='repair-certification-stale']").text()).toContain("Certify again");
+    expect(w.find("[data-test='repair-certify-form']").exists()).toBe(true);
+  });
 });

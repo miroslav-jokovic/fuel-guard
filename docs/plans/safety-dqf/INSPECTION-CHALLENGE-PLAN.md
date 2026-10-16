@@ -1006,3 +1006,30 @@ about three merges.
     deep link (`notificationRoute`) move with them.
   - **Next (B2):** safety's certification (who, title, date — 396.9(d)(3)(i)), the rendered repair document
     filed on the inspection, the "repair due" alert to maintenance managers, and the maintenance-side list.
+
+- **2026-10-16 — IC11, third merge (B2a): safety certifies, and the repair record is rendered (migration 0485).**
+  - **Certification** (`repair/certify.ts`, `POST /:id/repairs/certify`, safety's manage level — Q-IC13): new
+    append-only `inspection_repair_certifications` (RETENTION_FORBIDDEN), one row per certifying act over the
+    whole REPORT — 396.9(d)(3)(i) certifies the form, not a unit — so it sits beside 0482 rather than widening its
+    per-unit outcome CHECK. Allowed only when every unit is settled (`repairSettled`: a person named the repair,
+    or the officer recorded it repaired at the scene) and `basedOn` is exactly the units' newest rows (409
+    `changed`). The signer is the signed-in person, name frozen from the member directory (refused, `no_name`,
+    when the product has neither name nor email); the date is the carrier's calendar day on the server; the
+    person gives only the title. `GET /:id/repairs/certification` returns the newest act and `current` — false
+    once any unit has a newer row, and the card asks for a new certification while the old one stays true of
+    what it named.
+  - **Rendered record** (`repair/renderRecord.ts`, Q-IC12 (a)): carrier, report, each unit's violations and its
+    repair — the accepted FleetPal work order with jobs, part and labour lines, and vendor invoices billed
+    through a purchase order raised on it (`fleetpal.readWorkOrderRecords`, new); "outside FleetPal" with where;
+    "repaired at the scene" — then the certification block. Its head says it is rendered from FleetPal and as of
+    when (the stalest of the five FleetPal resources read). Filed through `evidence.fileGeneratedDocument` as
+    `roadside_repair_record` BEFORE the certification row, which names it (`document_id` NOT NULL). Both ids are
+    derived from what is certified, by whom, on which day and with which title (`lib/derivedUuid.ts`, lifted from
+    the annual inspection's finalize), so a retried click lands on the same rows. Rendered and looked at
+    (short and long fixtures, 80 dpi); the certification block is kept on one page.
+  - **A unit FMCSA could not tie to us** (`unit_not_ours`) may now be closed as "outside FleetPal, where" on the
+    card — an interchange trailer is repaired by its owner. Without it an inspection carrying one could never be
+    certified.
+  - **Not here:** returning the signed form to the state ((d)(3)(ii), "if requested") stays a person's act to be
+    recorded later. **Next (B2b):** the `roadside_repair_due` alert to maintenance managers and the
+    maintenance-side "repairs due" list (the technician seam above).

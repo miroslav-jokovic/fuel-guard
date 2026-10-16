@@ -5,6 +5,7 @@ import {
   organizationTimezone,
   roadsideAttributionDecisionSchema,
   roadsideDocumentRegisterSchema,
+  roadsideRepairCertifySchema,
   roadsideRepairDecisionSchema,
   roadsidePeriodStart,
   shiftDay,
@@ -23,8 +24,9 @@ import { readRoadsideInspections } from "../read/inspectionsList.js";
 import { readRoadsideInspection } from "../read/inspectionDetail.js";
 import { readRoadsideFeed } from "../feed/store.js";
 import { decideAttribution } from "../attribution/decide.js";
-import { readInspectionRepairs } from "../read/inspectionRepairs.js";
+import { readInspectionRepairs, readRepairCertification } from "../read/inspectionRepairs.js";
 import { decideRepair } from "../repair/decide.js";
+import { certifyRepairs } from "../repair/certify.js";
 import { listInspectionDocuments, registerInspectionDocument, signInspectionDocumentDownload } from "../documents/inspectionDocuments.js";
 
 /**
@@ -39,6 +41,8 @@ import { listInspectionDocuments, registerInspectionDocument, signInspectionDocu
  * the maintenance section's manage level (`POST /:id/repairs`): Q-IC13 ruled that maintenance names THE
  * work order and safety certifies. A technician holds maintenance but not safety and so cannot open this
  * page — their way to the same decision is a maintenance-side list of repairs due (plan §8, IC11 B2).
+ * Safety then certifies the report (`POST /:id/repairs/certify`, 396.9(d)(3)(i), `repair/certify.ts`) on its
+ * own manage level, which files the rendered repair record on the Documents card.
  *
  * ── THE CARD'S WINDOW IS CUT ON THE CARRIER'S CALENDAR, HERE ───────────────────────────────────
  * "Last 90 days" ends on today in the org zone, not on the server's (UTC on Railway, so a Chicago
@@ -243,6 +247,52 @@ export function roadsideInspectionsRouter(): Router {
         return;
       }
       res.status(201).json({ ok: true, data: { id: out.id } });
+    }),
+  );
+
+  /** The newest certification and whether it still stands over the record (IC11 B2); `null` before the first. */
+  router.get(
+    "/:id/repairs/certification",
+    canView,
+    asyncHandler(async (req, res) => {
+      const id = recordId().safeParse(req.params.id);
+      if (!id.success) {
+        res.status(404).json(apiError("not_found", "Roadside inspection not found"));
+        return;
+      }
+      const out = await readRepairCertification(getSupabaseAdmin(getAppLocals(req).env), req.auth!.orgId!, id.data);
+      if (out && "error" in out) {
+        dbErrorResponse(res, "roadside-inspections.repair-certification", out.error, "Could not load the certification");
+        return;
+      }
+      res.json({ ok: true, data: out });
+    }),
+  );
+
+  router.post(
+    "/:id/repairs/certify",
+    requireSection("safety"),
+    asyncHandler(async (req, res) => {
+      const id = recordId().safeParse(req.params.id);
+      if (!id.success) {
+        res.status(404).json(apiError("not_found", "Roadside inspection not found"));
+        return;
+      }
+      const body = roadsideRepairCertifySchema.safeParse(req.body);
+      if (!body.success) {
+        res.status(400).json(apiError("bad_request", body.error.issues[0]?.message ?? "Invalid certification"));
+        return;
+      }
+      const out = await certifyRepairs(getSupabaseAdmin(getAppLocals(req).env), req.auth!.orgId!, id.data, req.auth!.userId, body.data);
+      if ("error" in out) {
+        dbErrorResponse(res, "roadside-inspections.repair-certify", out.error, "Could not certify the repairs");
+        return;
+      }
+      if (!out.ok) {
+        res.status(out.status).json(apiError(out.code, out.message));
+        return;
+      }
+      res.status(201).json({ ok: true, data: out.data });
     }),
   );
 

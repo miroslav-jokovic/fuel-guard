@@ -8,6 +8,8 @@ import type {
   RoadsideDocumentRegisterRequest,
   RoadsideInspectionDetailDto,
   RoadsideInspectionDto,
+  RoadsideRepairCertificationDto,
+  RoadsideRepairCertifyRequest,
   RoadsideRepairDecision,
   RoadsideRepairDto,
   RoadsideSummary,
@@ -137,5 +139,33 @@ export function useDecideRepair(id: Ref<string>) {
       if (!res.ok) throw new RepairDecisionError(res.error?.message ?? "The repair could not be saved.", res.error?.code ?? null);
     },
     onSettled: () => client.invalidateQueries({ queryKey: ["roadside-inspections", "repairs", id.value] }),
+  });
+}
+
+/**
+ * Safety's certification (IC11 B2, 396.9(d)(3)(i)). Keyed UNDER the repair record, so every decision that
+ * invalidates the record also re-asks whether the certification still stands over it (`current`).
+ */
+export function useRepairCertificationQuery(id: Ref<string>) {
+  return useQuery({
+    queryKey: computed(() => ["roadside-inspections", "repairs", id.value, "certification"] as const),
+    staleTime: 60_000,
+    queryFn: () => read<RoadsideRepairCertificationDto | null>(`/api/roadside-inspections/${encodeURIComponent(id.value)}/repairs/certification`, "the certification"),
+  });
+}
+
+/** Safety certifies (Q-IC13). The record and the Documents card are read again: the rendered record is filed there. */
+export function useCertifyRepairs(id: Ref<string>) {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: RoadsideRepairCertifyRequest): Promise<void> => {
+      const res = await apiFetch(`/api/roadside-inspections/${encodeURIComponent(id.value)}/repairs/certify`, { method: "POST", body: input });
+      if (!res.ok) throw new RepairDecisionError(res.error?.message ?? "The certification could not be saved.", res.error?.code ?? null);
+    },
+    onSettled: () =>
+      Promise.all([
+        client.invalidateQueries({ queryKey: ["roadside-inspections", "repairs", id.value] }),
+        client.invalidateQueries({ queryKey: ["roadside-inspections", "documents", id.value] }),
+      ]),
   });
 }

@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto";
+import { derivedUuid } from "../../../lib/derivedUuid.js";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   INSPECTION_CATALOGUE_VERSION,
@@ -306,22 +306,9 @@ export async function finalizeInspection(
 }
 
 /**
- * A stable uuid for a child row of one inspection.
- *
- * Derived rather than random so a retried finalize lands on the SAME document and certification —
- * both of those tables key their idempotency on a caller-supplied id, and a `randomUUID()` here
- * would file a second copy of the same report every time somebody clicked twice.
+ * A stable uuid for a child row of one inspection: a retried finalize lands on the SAME document and
+ * certification (`derivedUuid` says why).
  */
 function deterministicChildId(inspectionId: string, role: "document" | "certification"): string {
-  // A v5-shaped uuid derived by hashing, rather than a dependency for one function. The version and
-  // variant nibbles are forced so the result is a VALID uuid — Postgres rejects one that is not, and
-  // a malformed id here would fail at the insert rather than at the hash.
-  const hex = createHash("sha256").update(`${inspectionId}:${role}`).digest("hex");
-  return [
-    hex.slice(0, 8),
-    hex.slice(8, 12),
-    `5${hex.slice(13, 16)}`,
-    `8${hex.slice(17, 20)}`,
-    hex.slice(20, 32),
-  ].join("-");
+  return derivedUuid(`${inspectionId}:${role}`);
 }
