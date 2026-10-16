@@ -12,8 +12,8 @@
  * appears — every age is either computed by the server (`ageSeconds`) or derived from two values of
  * one response (`fuelMetric`), so nothing here reads a clock.
  */
-import { secondsSince } from "@silvicom/shared";
-import type { LiveMapBoard, LiveMapLoadRoute, LiveMapScope, LiveMapStop, LiveMapVehicle } from "@silvicom/shared";
+import { DRIVEN_PATH_MAX_HOURS, secondsSince } from "@silvicom/shared";
+import type { LiveMapBoard, LiveMapDrivenPath, LiveMapLoadRoute, LiveMapScope, LiveMapStop, LiveMapVehicle } from "@silvicom/shared";
 import { offRouteWords } from "@/lib/loadRouteWords";
 
 /**
@@ -246,9 +246,13 @@ export function stopAddress(stop: Pick<LiveMapStop, "addressLine" | "city" | "st
 /**
  * What the card says under a drawn route (TRUCK-CARD-ROUTE-PLAN D-TC3/D-TC4): one summary line, then
  * each caveat the answer carries, in the order a dispatcher acts on them. Nothing is said for the
- * ordinary case beyond the summary.
+ * ordinary case beyond the summary. The driven path (DBV6) adds a line only when it is missing or cut
+ * short — why there is no solid line behind the truck, or that it starts later than the pickup.
  */
-export function routeWords(route: LiveMapLoadRoute): { summary: string; notes: string[] } {
+export function routeWords(
+  route: LiveMapLoadRoute,
+  driven: Pick<LiveMapDrivenPath, "note" | "capped" | "points"> | null = null,
+): { summary: string; notes: string[] } {
   const stops = route.fuelStops.length;
   const summary = [
     `${Math.round(route.distanceMiles).toLocaleString("en-US")} mi`,
@@ -260,5 +264,7 @@ export function routeWords(route: LiveMapLoadRoute): { summary: string; notes: s
   else if (!route.truckOnRoute) notes.push(offRouteWords(route)!);
   if (route.hazmatNotApplied) notes.push("Hazmat load: this route does not yet avoid hazmat-restricted roads.");
   if (route.fuelNote) notes.push(route.fuelNote);
+  if (driven?.note) notes.push(driven.note);
+  else if (driven?.capped && driven.points.length) notes.push(`The road driven is shown for the last ${DRIVEN_PATH_MAX_HOURS} hours only.`);
   return { summary, notes };
 }

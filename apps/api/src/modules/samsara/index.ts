@@ -33,6 +33,8 @@ export {
 } from "./vehiclePositionReads.js";
 // The owner's read for `driver_hos_clocks` (raw, sealed here) — the dispatch board's HOS column (DB4).
 export { readHosClocks } from "./hosClocksReads.js";
+// One truck's GPS history on demand: the live map's driven path (DISPATCH-BOARD-V2-PLAN DBV6).
+export { readVehicleTrail, type TrailPoint, type VehicleTrail } from "./vehicleTrailReads.js";
 export {
   syncVehiclesFromSamsara,
   NoSamsaraTokenError,

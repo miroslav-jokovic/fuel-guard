@@ -275,3 +275,19 @@ export interface LiveMapLoadRoute {
   /** A hazmat-marked load routed WITHOUT hazmat restrictions: no cleared record supplies its classes yet. */
   hazmatNotApplied: boolean;
 }
+
+/**
+ * `GET /api/livemap/loads/:id/driven` (DISPATCH-BOARD-V2-PLAN §5.3, DBV6): where the load's truck has
+ * actually been since it left the pickup, from Samsara's GPS history, thinned (`thinPath`). Its own
+ * request beside the route's, so a slow Samsara answer never holds the route back. Empty `points` with
+ * a `note` when there is nothing to draw, and why — never a guess.
+ */
+export interface LiveMapDrivenPath {
+  loadId: string;
+  points: { lat: number; lng: number }[];
+  /** Where the line starts: the pickup's departure, or `DRIVEN_PATH_MAX_HOURS` ago when `capped`. */
+  since: string | null;
+  capped: boolean;
+  /** One sentence when `points` is empty: not yet departed, no Samsara link, no GPS in the window. */
+  note: string | null;
+}

@@ -19,12 +19,23 @@ import { tokenColor } from "@/composables/useMapLibre";
  * When the truck had left the planned line, the server routes the road ahead from where it is
  * (`fromTruck`) and sends the plan as `planned`. The plan is drawn thin, dashed and faint beneath, so the
  * dispatcher sees which road the truck took against the one we proposed without reading two routes.
+ *
+ * ── BEHIND THE TRUCK, THE ROAD IT DROVE (DBV6, §5.3) ─────────────────────────────────────────────
+ * "Covered" is the plan up to the truck's projected point: where we said it would go. When Samsara's
+ * history arrives (`driven`, its own request) it is drawn instead, solid at the covered line's weight
+ * and a little stronger, and `covered` is emptied — two lines behind the truck would be the "two
+ * routes" this file exists to avoid. Without it (not departed, no Samsara link, a slow answer) the
+ * covered line stays as before.
  */
 const PLANNED = "load-route-planned";
 const COVERED = "load-route-covered";
+const DRIVEN = "load-route-driven";
 const AHEAD = "load-route-ahead";
 
 type Line = { lat: number; lng: number }[];
+
+/** The route as the map draws it: the server's route, and the driven path when it has arrived. */
+export type DrawnRoute = LiveMapLoadRoute & { driven?: Line };
 type LineFeature = { type: "Feature"; properties: Record<string, never>; geometry: { type: "LineString"; coordinates: number[][] } };
 
 /** A polyline as GeoJSON — maplibre's coordinates are [lng, lat], the reverse of ours. */
@@ -34,9 +45,9 @@ export function lineFeature(line: Line): LineFeature {
 
 /** The rectangle that shows the whole route and every fuel stop, as maplibre's [[w, s], [e, n]]. */
 export function routeBounds(
-  route: Pick<LiveMapLoadRoute, "covered" | "ahead" | "fuelStops" | "planned">,
+  route: Pick<DrawnRoute, "covered" | "ahead" | "fuelStops" | "planned" | "driven">,
 ): [[number, number], [number, number]] | null {
-  const pts = [...(route.planned ?? []), ...route.covered, ...route.ahead, ...route.fuelStops];
+  const pts = [...(route.planned ?? []), ...route.covered, ...(route.driven ?? []), ...route.ahead, ...route.fuelStops];
   if (pts.length === 0) return null;
   let w = Infinity, s = Infinity, e = -Infinity, n = -Infinity;
   for (const p of pts) {
@@ -73,7 +84,7 @@ export type RouteMap = Pick<
  * has finished its own `load` (its layers exist); adding and removing a GeoJSON source and layer is
  * legal at any time after that.
  */
-export function syncRoute(map: RouteMap, route: LiveMapLoadRoute | null, beneathLayerId: string): void {
+export function syncRoute(map: RouteMap, route: DrawnRoute | null, beneathLayerId: string): void {
   if (!route) return clearRoute(map);
   showRoute(map, route, beneathLayerId);
   const bounds = routeBounds(route);
@@ -84,9 +95,15 @@ export function syncRoute(map: RouteMap, route: LiveMapLoadRoute | null, beneath
  * Draw (or redraw) a route beneath the truck markers. Idempotent: called again with a new answer or
  * after a theme flip, it updates the two sources and re-reads the colours rather than stacking layers.
  */
-export function showRoute(map: RouteMap, route: LiveMapLoadRoute, beneathLayerId: string): void {
+export function showRoute(map: RouteMap, route: DrawnRoute, beneathLayerId: string): void {
   const colour = tokenColor("text-brand-600");
-  const lines = [[PLANNED, route.planned ?? [], 0.3], [COVERED, route.covered, 0.35], [AHEAD, route.ahead, 0.9]] as const;
+  const driven = route.driven && route.driven.length >= 2 ? route.driven : [];
+  const lines = [
+    [PLANNED, route.planned ?? [], 0.3],
+    [COVERED, driven.length ? [] : route.covered, 0.35],
+    [DRIVEN, driven, 0.5],
+    [AHEAD, route.ahead, 0.9],
+  ] as const;
   for (const [id, line, opacity] of lines) {
     const source = map.getSource(id) as maplibregl.GeoJSONSource | undefined;
     if (source) source.setData(lineFeature(line));
@@ -109,7 +126,7 @@ export function showRoute(map: RouteMap, route: LiveMapLoadRoute, beneathLayerId
 }
 
 export function clearRoute(map: RouteMap): void {
-  for (const id of [PLANNED, COVERED, AHEAD]) {
+  for (const id of [PLANNED, COVERED, DRIVEN, AHEAD]) {
     if (map.getLayer(id)) map.removeLayer(id);
     if (map.getSource(id)) map.removeSource(id);
   }

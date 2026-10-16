@@ -10,6 +10,7 @@ import LiveMapCanvas from "./LiveMapCanvas.vue";
 import LiveMapRail from "./LiveMapRail.vue";
 import LiveMapVehicleFacts from "./LiveMapVehicleFacts.vue";
 import { useLoadRoute } from "@/composables/useLoadRoute";
+import { useDrivenPath } from "@/composables/useDrivenPath";
 import { useLiveMapView } from "./useLiveMapView";
 import { LIVE_MAP_POLL_MS } from "./useLiveMapBoard";
 
@@ -94,6 +95,8 @@ type RouteOn = { loadId: string; vehicleId: string; unitNumber: string; ref: str
 const routeOn = ref<RouteOn | null>(null);
 const routeLoadId = computed(() => routeOn.value?.loadId ?? null);
 const routeQuery = useLoadRoute(routeLoadId);
+// DBV6: the road driven since the pickup, its own request so the route never waits on Samsara.
+const drivenQuery = useDrivenPath(routeLoadId);
 watch(selectedId, (id) => {
   if (id != null && id !== routeOn.value?.vehicleId) routeOn.value = null;
 });
@@ -113,7 +116,13 @@ const routeCard = computed(() => ({
   pending: routeQuery.isFetching.value && !routeQuery.data.value,
   error: routeQuery.error.value?.message ?? null,
   data: routeQuery.data.value ?? null,
+  driven: drivenQuery.data.value ?? null,
 }));
+/** What the map draws: the route, with the driven path laid in when it has arrived (`DrawnRoute`). */
+const drawnRoute = computed(() => {
+  const r = routeOn.value ? routeCard.value.data : null;
+  return r ? { ...r, driven: drivenQuery.data.value?.points } : null;
+});
 
 /**
  * The truck card's own element, handed to the canvas so its marker popover can show it (D-LM28).
@@ -247,7 +256,7 @@ watch(railVisible, async () => {
         :generated-at="board.data.value.generatedAt"
         :selected-id="selectedId"
         :card-el="cardEl"
-        :route="routeOn ? routeCard.data : null"
+        :route="drawnRoute"
         @select="selectedId = $event"
         @viewport="onViewport"
       />

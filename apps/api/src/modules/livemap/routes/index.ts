@@ -7,6 +7,7 @@ import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
 import { readLiveMapBoardCached } from "../liveMapBoardCache.js";
 import { readLoadRoute } from "../liveMapLoadRoute.js";
+import { readDrivenPathCached } from "../liveMapDrivenPath.js";
 import { readDispatchBoard } from "../dispatchBoard.js";
 
 /**
@@ -75,6 +76,30 @@ export function liveMapRouter(): Router {
         return;
       }
       res.json({ ok: true, data: answer.route });
+    }),
+  );
+
+  /**
+   * Where the load's truck has actually been since it left the pickup (DISPATCH-BOARD-V2-PLAN DBV6), for
+   * the map to draw beside the route. Its own request, so a slow Samsara answer never holds the route
+   * back. The route's gate (D-TC5), cached a minute per load; a read, so no audit.
+   */
+  router.get(
+    "/loads/:id/driven",
+    requireSection("dispatch", "view"),
+    asyncHandler(async (req, res) => {
+      const id = String(req.params.id ?? "");
+      if (!isRecordId(id)) {
+        res.status(404).json(apiError("not_found", "That load no longer exists"));
+        return;
+      }
+      const env = getAppLocals(req).env;
+      const answer = await readDrivenPathCached(getSupabaseAdmin(env), env, req.auth!.orgId!, id);
+      if (!answer.ok) {
+        res.status(answer.status).json(apiError(answer.code, answer.message));
+        return;
+      }
+      res.json({ ok: true, data: answer.path });
     }),
   );
 

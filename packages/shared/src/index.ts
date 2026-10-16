@@ -239,6 +239,7 @@ export * from "./medstopConnection.js";
 export * from "./basemap.js";
 export * from "./livemap.js";
 export * from "./livemapContract.js";
+export * from "./drivenPath.js";
 export * from "./paging.js";
 export * from "./iftaReceiptUploadContract.js";
 export * from "./fmcsaDatasets.js";

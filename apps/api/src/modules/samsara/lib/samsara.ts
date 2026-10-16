@@ -102,6 +102,7 @@ async function fetchAssetGpsHistory(
   ids: string[],
   startIso: string,
   endIso: string,
+  priority: "live" | "backfill" = "backfill",
 ): Promise<{ data: AssetGpsRaw[] }> {
   const merged = new Map<string, AssetGpsRaw>();
   let after: string | undefined;
@@ -114,7 +115,7 @@ async function fetchAssetGpsHistory(
     url.searchParams.set("endTime", endIso);
     if (after) url.searchParams.set("after", after);
     const res = await samsaraFetch(env, token, url, {
-      priority: "backfill",
+      priority,
       maxRps: STATS_HISTORY_MAX_RPS,
     });
     if (!res.ok) throw new Error(`Samsara API ${res.status}`);
@@ -150,6 +151,16 @@ export function makeSamsaraTrailerGpsFetcher(env: Env, token: string): AssetGpsF
 export function makeSamsaraVehiclesGpsFetcher(env: Env, token: string): AssetGpsFetcher {
   return (ids, s, e) =>
     fetchAssetGpsHistory(env, token, "/fleet/vehicles/stats/history", "vehicleIds", ids, s, e);
+}
+
+/**
+ * One truck's GPS history in the LIVE lane — a dispatcher is waiting on it (the map's driven path,
+ * DISPATCH-BOARD-V2-PLAN DBV6). The bulk fetcher above stays in the backfill lane, which gets only the
+ * share live traffic leaves.
+ */
+export function makeSamsaraVehicleTrailFetcher(env: Env, token: string): AssetGpsFetcher {
+  return (ids, s, e) =>
+    fetchAssetGpsHistory(env, token, "/fleet/vehicles/stats/history", "vehicleIds", ids, s, e, "live");
 }
 
 /** Vehicle engineStates history decorated with gps (speed), for idle park-session / mode analysis. */
