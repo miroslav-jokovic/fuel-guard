@@ -55,7 +55,10 @@ stripped before Claude reads the file. -->
 - **A merge does not wait for main's CI when main's tree is the one the PR tested.** `build` posts a
   `ci/tested-tree` status on the PR head, and `require-ci-green` (migrate, driver-ota/android/store)
   accepts it when main's merge commit has that exact tree — else it polls main's run. Rules in
-  `.github/actions/require-ci-green/tested-tree.sh`. `deploy-verify` passes pushes that touch only
+  `.github/actions/require-ci-green/tested-tree.sh`. Main's own CI asks the same question in its
+  `plan` job and, on a yes, skips every heavy job but `native-android`; `build` accepts those skips
+  only then (`scripts/check-ci-verdict.sh`, run in `gates`). A nightly `schedule` run (09:30 UTC)
+  and `workflow_dispatch` always run everything. `deploy-verify` passes pushes that touch only
   paths `railway.json`'s `watchPatterns` exclude, and a host serving a later main commit. A push to
   main verifies the STAGING hosts (`STAGING_*` variables); `release.yml` calls it for production.
   Every push-triggered production job (`migrate`, `driver-ota`, `driver-android`, smoke) skips while

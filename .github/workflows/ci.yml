@@ -47,6 +47,14 @@ on:
   push:
     branches: [main]
   pull_request:
+  # The nightly full run (CI-FEEDBACK-LOOP-V2-PLAN.md D-CIF5). Since 2026-10-16 a push to main whose
+  # tree a PR run already proved skips the heavy jobs (the `plan` job below), so this is what still
+  # exercises main end to end every day, independently of how anything was merged. 09:30 UTC
+  # (04:30 CT) keeps it clear of release.yml's 01:07 CT train, which reads CI runs for its commit.
+  schedule:
+    - cron: "30 9 * * *"
+  # A full run on demand, for when a reused proof is in doubt. It never posts ci/tested-tree.
+  workflow_dispatch:
 
 # Pushing twice to a PR used to leave both runs racing for the same four-core pool, so the one that
 # mattered finished later than it needed to. Superseded PR runs are cancelled; main runs are NEVER
@@ -59,6 +67,8 @@ on:
 # middle two main runs were cancelled, and migrate.yml refused migration 0393 on 5255378 with
 # "CI concluded 'cancelled'" while the code expecting it went live. So a push to main gets a group
 # of its own SHA — nothing can supersede it — and only a pull request's runs share a group.
+# The nightly and on-demand runs key on their event as well, so neither can share (and so cancel)
+# the group of a push run on the same commit.
 # ⚠ On the Mac, vitest is capped at 3 workers per job. Its default is one per core, so five jobs
 # sharing 14 cores started ~65 workers: the first run measured a load average of 58 with 0% idle,
 # and eight tests that take under a second on an idle Mac hit vitest's 5 s timeout (the capture
@@ -68,15 +78,64 @@ env:
   VITEST_MAX_WORKERS: ${{ vars.CI_RUNNER && '3' || '' }}
 
 concurrency:
-  group: ci-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
+  group: ci-${{ github.event_name == 'pull_request' && github.ref || format('{0}-{1}', github.event_name, github.sha) }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  # ── Was this exact tree already proven? (push to main only, 2026-10-16) ──────────────────────────
+  # A PR's green `build` records the tree of the merge it tested as `ci/tested-tree` on the PR head.
+  # When main's merge commit has that identical tree, a second full run here proves nothing new:
+  # same bytes, same workflows. It also cost a full set of runners on every merge, and with the
+  # suites sharded (15 jobs a run) a PR run and a main run together would pass the account's 20
+  # concurrent jobs and queue the PR somebody is waiting on. So on a push this job asks the same
+  # question require-ci-green already asks before a deploy, with the same script
+  # (.github/actions/require-ci-green/tested-tree.sh — its header has the rules and why each holds),
+  # and the heavy jobs skip when the answer is yes.
+  #
+  # It fails CLOSED towards more testing: no status, a different tree, a status not from
+  # github-actions[bot], an API error, or this job failing outright — every one of them leaves
+  # `reuse` unset, and every heavy job runs. The job is skipped entirely on a pull request, the
+  # nightly and a dispatch, which is why the heavy jobs' `if:` starts with `!cancelled()`: without a
+  # status function a skipped `needs` would skip them too.
+  #
+  # native-android does NOT read this. On main it still always builds, because a PR skips its steps
+  # unless NATIVE_INPUTS changed, and main is where a path that list forgot gets caught (its own
+  # comment). It costs one runner nobody waits for.
+  plan:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      statuses: read
+    outputs:
+      reuse: ${{ steps.proof.outputs.reuse }}
+      proof: ${{ steps.proof.outputs.proof }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: .github/actions/require-ci-green
+      - name: Look for a PR run that proved this tree
+        id: proof
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if proof=$(.github/actions/require-ci-green/tested-tree.sh "$GITHUB_SHA"); then
+            read -r head run <<<"$proof"
+            echo "reuse=true" >> "$GITHUB_OUTPUT"
+            echo "proof=$run" >> "$GITHUB_OUTPUT"
+            echo "✓ ${GITHUB_SHA::7}'s tree was proven green by the PR run on ${head::7}: $run"
+            echo "Heavy jobs skipped: tree of \`${GITHUB_SHA::7}\` already proven by [the PR run on \`${head::7}\`]($run)." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "No proof for ${GITHUB_SHA::7}'s tree — running everything."
+          fi
+
   # ── Static gates ──────────────────────────────────────────────────────────────────────────────
   # Every check that reads source and answers in seconds. They share a runner because together they
   # are ~95s; giving each its own would spend more on runner start-up than the checks themselves
   # cost, and would turn one red X into twenty.
   gates:
+    needs: plan
+    if: ${{ !cancelled() && needs.plan.outputs.reuse != 'true' }}
     runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
     steps:
       - uses: actions/checkout@v4
@@ -204,6 +263,11 @@ jobs:
       # that a malformed --shard is refused rather than read as "run nothing".
       - name: Matrix shards cover every matrix once
         run: node scripts/run-tests.mjs --self-test
+
+      # Added 2026-10-16 with `plan`: `build` may now pass with heavy jobs skipped, and only on a
+      # reused proof. The script says why the rule needs a test of its own and what proves it bites.
+      - name: The required check accepts a skip only on a reused proof
+        run: bash scripts/check-ci-verdict.sh
 
       - name: Design tokens
         run: pnpm --filter ./apps/web lint:tokens
@@ -353,6 +417,8 @@ jobs:
   # check belongs in a workspace's `typecheck` script; a `build` that re-checks types is the
   # duplication this removed.
   typecheck:
+    needs: plan
+    if: ${{ !cancelled() && needs.plan.outputs.reuse != 'true' }}
     runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
     steps:
       - uses: actions/checkout@v4
@@ -363,6 +429,8 @@ jobs:
   # The rest stay together because they need the build's output: lint:light-dark and the browser
   # tests read apps/web/dist, which only exists after a build. This is the only job that builds.
   bundle:
+    needs: plan
+    if: ${{ !cancelled() && needs.plan.outputs.reuse != 'true' }}
     runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
     env:
       VITE_SUPABASE_URL: https://example.supabase.co
@@ -421,6 +489,8 @@ jobs:
   # one value to `shard`. `fail-fast: false` so every shard returns a verdict, and `build` below
   # sees a matrix job as failed if any one shard failed.
   test-api:
+    needs: plan
+    if: ${{ !cancelled() && needs.plan.outputs.reuse != 'true' }}
     runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
     strategy:
       fail-fast: false
@@ -435,6 +505,8 @@ jobs:
         run: pnpm --filter @silvicom/api test --shard=$(( ${{ strategy.job-index }} + 1 ))/${{ strategy.job-total }}
 
   test-web:
+    needs: plan
+    if: ${{ !cancelled() && needs.plan.outputs.reuse != 'true' }}
     runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
     strategy:
       fail-fast: false
@@ -456,6 +528,8 @@ jobs:
   # somebody adds the thirteenth its suites would simply never run — the same shape of bug
   # `lint:tests` exists to catch one level down, at the file.
   test-packages:
+    needs: plan
+    if: ${{ !cancelled() && needs.plan.outputs.reuse != 'true' }}
     runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
     steps:
       - uses: actions/checkout@v4
@@ -474,6 +548,8 @@ jobs:
   # the strategy context exactly as the unit suites take theirs. One runner had reached 300–460 s for
   # 153 matrices. Each matrix's seconds are in its shard's summary, for rebalancing.
   matrices:
+    needs: plan
+    if: ${{ !cancelled() && needs.plan.outputs.reuse != 'true' }}
     runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
     strategy:
       fail-fast: false
@@ -559,7 +635,7 @@ jobs:
         id: native
         run: |
           if [ "${{ github.event_name }}" != "pull_request" ]; then
-            echo "Push to main: always build."
+            echo "Not a pull request (${{ github.event_name }}): always build."
             echo "build=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
@@ -736,9 +812,14 @@ jobs:
   #
   # Only for a PR from this repository: a fork's token cannot write statuses, and a fork's PR could
   # never be what a deploy reads anyway, since the gate only ever looks at a merge commit on main.
+  #
+  # And it is where a REUSED proof is accepted (2026-10-16): a heavy job may be `skipped` only when
+  # a successful `plan` said the tree was already proven, and nowhere else; native-android never.
+  # `plan`'s own result is not a verdict — skipped on a PR, and if it breaks, its answer is
+  # ignored and the heavy jobs (which then ran) decide. Everything else must be `success`, as before.
   build:
     if: always()
-    needs: [gates, typecheck, bundle, test-api, test-web, test-packages, matrices, native-android]
+    needs: [plan, gates, typecheck, bundle, test-api, test-web, test-packages, matrices, native-android]
     runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
     permissions:
       contents: read
@@ -746,16 +827,35 @@ jobs:
     steps:
       - name: Require every CI job to have succeeded
         env:
-          RESULTS: ${{ join(needs.*.result, ' ') }}
+          NEEDS: ${{ toJSON(needs) }}
+          REUSE: ${{ needs.plan.outputs.reuse }}
+          PROOF: ${{ needs.plan.outputs.proof }}
         run: |
-          echo "Job results: $RESULTS"
-          for r in $RESULTS; do
-            if [ "$r" != "success" ]; then
-              echo "::error::At least one CI job did not succeed ($RESULTS)."
-              exit 1
-            fi
-          done
-          echo "All CI jobs succeeded."
+          set -euo pipefail
+          jq -r 'to_entries[] | "  \(.key): \(.value.result)"' <<<"$NEEDS"
+          # One line per job that is not acceptable. `plan`'s own result is never a verdict: when it
+          # is anything but success its answer is ignored, every heavy job ran, and they decide. A
+          # heavy job may be skipped only when a SUCCESSFUL plan said reuse=true.
+          reuse=$(jq -r --arg reuse "${REUSE:-}" \
+            'if .plan.result == "success" and $reuse == "true" then "true" else "false" end' <<<"$NEEDS")
+          bad=$(jq -r --arg reuse "$reuse" '
+            to_entries[]
+            | select(
+                if .key == "plan" then false
+                elif .value.result == "success" then false
+                elif .value.result == "skipped" and $reuse == "true" and .key != "native-android" then false
+                else true end)
+            | "\(.key)=\(.value.result)"' <<<"$NEEDS")
+          if [ -n "$bad" ]; then
+            echo "::error::CI jobs did not succeed: ${bad//$'\n'/ }"
+            exit 1
+          fi
+          if [ "$reuse" = "true" ]; then
+            echo "All jobs succeeded or were skipped on a reused proof: $PROOF"
+            echo "Tree already proven green by $PROOF; native-android built here." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "All CI jobs succeeded."
+          fi
 
       # Runs only if the step above passed, so a status is never posted for a red run.
       - name: Record the tree this run proved green

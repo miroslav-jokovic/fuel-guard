@@ -108,3 +108,17 @@ authority · draft-deferred full CI · merge queue (needs an organization-owned 
   calls `build` and now skips `vue-tsc` on the same reasoning. Nothing else calls a removed script
   (one stale setup-guide line fixed). Local `pnpm build`: 2.6 s, web + admin + tokens produced;
   all 39 gate commands from ci.yml, `typecheck`, `build` and `lint:light-dark` green.
+- 2026-10-16 — **Step 4 merged (#1587, `7fce904`): `bundle` 212 → 107 s** (its Build step 105 → 5 s)
+  on run 38918926831, 359 s wall with native-android building (ci.yml changed). No single pole left
+  on an ordinary PR: test shards 130–220 s, gates 130–245 s, typecheck ~160 s.
+- 2026-10-16 — **Step 2 built** (`claude/ci-main-reuses-proof`). A `plan` job, push only, runs
+  `tested-tree.sh` on main's commit; on a yes the seven heavy jobs skip (`!cancelled() && reuse !=
+  'true'`), native-android still builds, and `build` accepts `skipped` only from a SUCCESSFUL plan
+  that said reuse, never for native-android. A plan that breaks is ignored, not a verdict: the heavy
+  jobs ran, so they decide. Nightly `schedule` 09:30 UTC (clear of the 01:07 CT train) and
+  `workflow_dispatch` run everything; the concurrency key now includes the event so neither shares
+  a push run's group. Proof: `scripts/check-ci-verdict.sh` (new step in `gates`) extracts the
+  verdict step from ci.yml and runs 15 `needs` fixtures; four mutants each turn a case WRONG, and
+  an unparseable ci.yml exits 2 rather than passing. Real data: `tested-tree.sh` on the last six
+  main merges → 5 reuse, 1 full run (`277d722`, main moved during its PR run). Owed: the first real
+  reused push on main, and the first nightly.
