@@ -12,8 +12,13 @@ import { writeEvent, type DispatchResult } from "./shared.js";
  * gate that create, edit and assign carried: it moved to Dispatch, the one act left that puts a driver
  * on a load, rather than leave with its doors.
  *
- * What is left writes no `loads` column: an exception is closed by appending an event, and a stuck
- * shift is closed through its own RPC.
+ * What is left writes no `loads` column: an exception is closed by appending an event.
+ *
+ * Closing a driver's stuck in-app shift from the office went too (DISPATCH-BOARD-PLAN.md Q-DB10,
+ * ruled (b) 2026-10-16): the board remodel had already dropped its button, production had never
+ * opened a duty session, and the 16-hour sweeper (`dutySessionSweeper.ts`) closes any shift left open.
+ * The RPC it called, `end_duty_session_by_id` (0151), stays in the schema for option (a) — End shift
+ * in the truck drawer — when the driver app's duty check-in is in use.
  */
 
 /**
@@ -36,33 +41,4 @@ export async function resolveException(
     payload: { resolves, kind: input.kind, action: input.action, note: input.note ?? null },
   });
   return { ok: true, data: { id: loadId } };
-}
-
-/**
- * Close a stuck shift from the board — releases the truck for the next driver (D44.5).
- *
- * Targets the SESSION, not the driver (L5). The board is a snapshot refetched every sixty seconds; a
- * driver who signs off and checks into another truck inside that window would otherwise turn a click
- * on a stale row into a close of the shift that just started, reported as success. Closing a session
- * that has already ended is a no-op; a session id from another org is a 404.
- */
-export async function endDutySession(
-  admin: SupabaseClient,
-  orgId: string,
-  sessionId: string,
-): Promise<DispatchResult<{ id: string }>> {
-  const { error } = await admin.rpc("end_duty_session_by_id", {
-    p_org: orgId,
-    p_session_id: sessionId,
-    p_ended_at: null,
-    p_odometer: null,
-    p_reason: "dispatch",
-  });
-  if (error) {
-    if (error.code === "DG010") {
-      return { ok: false, status: 404, code: "not_found", message: "That shift no longer exists" };
-    }
-    throw new Error(error.message);
-  }
-  return { ok: true, data: { id: sessionId } };
 }

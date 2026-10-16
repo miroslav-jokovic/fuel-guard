@@ -2,50 +2,13 @@ import { z } from "zod";
 import { recordId } from "./recordId.js";
 
 /**
- * Dispatch API contract (Phase 3D, D49): the assignments board, its history, and the exceptions feed.
+ * Dispatch API contract (Phase 3D, D49): the assignment history and the exceptions feed. The
+ * assignments board's row went with its route (DISPATCH-BOARD-PLAN.md Q-DB10, ruled (b) 2026-10-16).
  *
  * The request shapes for creating, editing, reassigning and transitioning a load lived here until
  * LOADS-MIRROR-PLAN.md LR6 removed those routes: every load is McLeod's (D-LMR2) and reaches its driver
  * by Dispatch (`loadDispatchContract.ts`, D-LMR5), so the office no longer writes one.
  */
-
-// ── the assignments board (D49, rewired to telematics) ───────────────────────
-// The board is sourced from Samsara HOS (drivers.current_hos_* + hos_duty_segments), NOT the in-app
-// driver-shift feature this fleet never used — that left it showing only names. `session_id`/
-// `started_at` remain for the legacy shift gating ("End shift" is hidden unless a real in-app session
-// is open), so the shape only EXTENDS.
-export const assignmentRowSchema = z.object({
-  driver_id: recordId(),
-  driver_name: z.string(),
-  driver_status: z.string().nullable().default(null),
-  session_id: recordId().nullable(),
-  started_at: z.string().nullable(),
-  /** Live HOS duty status (off_duty|sleeper|driving|on_duty|yard_move|personal_conveyance|unknown). */
-  duty_status: z.string().nullable().default(null),
-  /** When the current duty status began (latest matching ELD segment) — drives "in status for". */
-  duty_since: z.string().nullable().default(null),
-  /** Driver's current "City, ST" from their truck's GPS snapshot. */
-  location: z.string().nullable().default(null),
-  vehicle_id: recordId().nullable(),
-  vehicle_unit: z.string().nullable(),
-  trailer_id: recordId().nullable(),
-  trailer_unit: z.string().nullable(),
-  /** The load they are actively working, if any. */
-  load_id: recordId().nullable(),
-  load_ref: z.string().nullable(),
-  load_status: z.string().nullable(),
-  /**
-   * Where the load came from (`tms` = McLeod) and McLeod's movement code, so the board words the
-   * status with `loadBoardState`, as the Loads board does. Defaulted because web and api deploy
-   * separately: a response from an api older than 2026-09-28 lacks both, and must still parse.
-   */
-  load_source: z.string().nullable().default(null),
-  load_external_status: z.string().nullable().default(null),
-});
-export type AssignmentRow = z.infer<typeof assignmentRowSchema>;
-
-export const assignmentsResponseSchema = z.object({ assignments: z.array(assignmentRowSchema) });
-export type AssignmentsResponse = z.infer<typeof assignmentsResponseSchema>;
 
 // ── assignment history (L5 / D-L6) — the attribution trail ────────────────────────────
 
