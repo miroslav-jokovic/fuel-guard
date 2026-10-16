@@ -26,7 +26,7 @@ import { APPLY_E2E_PORT, ORIGIN } from "./e2e-apply/stubApi";
  * own `blob:` URL back with `fetch`, which `connect-src` refuses. A spec that cannot see the header
  * cannot see that — `serveWebDist.ts` says why the header is served rather than copied here.
  *
- * ⚠ `dist` must exist: CI builds it in `typecheck-build` before this runs; locally,
+ * ⚠ `dist` must exist: CI builds it in the `bundle` job before this runs; locally,
  * `VITE_SUPABASE_URL=https://example.supabase.co VITE_SUPABASE_ANON_KEY=ci-test-anon-key pnpm --filter
  * @silvicom/web build` first. The two values are CI's placeholders — the page never calls Supabase.
  */

@@ -37,6 +37,69 @@ const ROOT = join(fileURLToPath(new URL(".", import.meta.url)), "..");
 const MATRIX_DIR = join(ROOT, "supabase", "tests");
 const matricesOnly = process.argv.includes("--matrices-only");
 
+/**
+ * `--shard=i/n` runs the i-th of n slices of the discovered matrices (CI-FEEDBACK-LOOP-V2-PLAN.md
+ * step 2, 2026-10-16). One runner took 300–460 s for 128 matrices, and once the unit suites were
+ * sharded that single job became the whole run's critical path.
+ *
+ * The split is taken HERE, over the list this file discovered, and never from a list written in
+ * ci.yml — a hand-written partition is exactly the "matrix nobody notices stopped running" that
+ * discovery exists to prevent. Every shard discovers the same sorted list from the same tree and
+ * keeps the indices congruent to i-1 mod n, so each matrix lands in exactly one shard by
+ * construction; `--self-test` checks that property, and ci.yml derives i and n from GitHub's own
+ * `strategy.job-index` / `strategy.job-total` so the job list and the arithmetic cannot disagree.
+ */
+function parseShard(argv) {
+  const arg = argv.find((a) => a.startsWith("--shard="));
+  if (!arg) return null;
+  const m = arg.slice("--shard=".length).match(/^(\d+)\/(\d+)$/);
+  const index = m ? Number(m[1]) : NaN;
+  const total = m ? Number(m[2]) : NaN;
+  if (!(total >= 1 && index >= 1 && index <= total)) {
+    throw new Error(`${arg}: expected --shard=i/n with 1 <= i <= n`);
+  }
+  return { index, total };
+}
+
+const inShard = (position, shard) => !shard || position % shard.total === shard.index - 1;
+
+if (process.argv.includes("--self-test")) {
+  const bad = [];
+  for (let total = 1; total <= 7; total++) {
+    for (let count = 0; count <= 40; count++) {
+      for (let p = 0; p < count; p++) {
+        const owners = [];
+        for (let index = 1; index <= total; index++) {
+          if (inShard(p, { index, total })) owners.push(index);
+        }
+        if (owners.length !== 1) bad.push(`${total} shards, item ${p}: owned by [${owners}]`);
+      }
+    }
+  }
+  for (const s of ["--shard=0/3", "--shard=4/3", "--shard=1/0", "--shard=a/b", "--shard=2"]) {
+    try {
+      parseShard([s]);
+      bad.push(`${s} was accepted`);
+    } catch {
+      // refused, as it should be
+    }
+  }
+  const ok = parseShard(["--shard=2/3"]);
+  if (ok?.index !== 2 || ok?.total !== 3) bad.push(`--shard=2/3 parsed as ${JSON.stringify(ok)}`);
+  for (const b of bad.slice(0, 10)) console.error(`FAIL: ${b}`);
+  if (bad.length > 10) console.error(`FAIL: ...and ${bad.length - 10} more`);
+  console.log(bad.length ? "run-tests self-test FAILED" : "run-tests self-test passed");
+  process.exit(bad.length ? 1 : 0);
+}
+
+const shard = parseShard(process.argv);
+if (shard && !matricesOnly) {
+  // The unit suites shard through vitest's own --shard in ci.yml; this runner only splits what it
+  // discovers. Refusing the combination keeps `pnpm test` from silently running a slice of them.
+  console.error("FAIL: --shard applies to the matrices only; pass --matrices-only with it.");
+  process.exit(1);
+}
+
 /** Every behavioural matrix on disk. Discovered, never hand-listed - that is the whole point. */
 function discoverMatrices() {
   let names;
@@ -134,10 +197,24 @@ const PER_MATRIX_BYTES = 1.3e9;
 const memoryBound = Math.floor((totalmem() * 0.6) / PER_MATRIX_BYTES);
 const CONCURRENCY =
   Number(process.env.MATRIX_CONCURRENCY) || Math.max(2, Math.min(cpus().length, memoryBound));
-const matrices = discoverMatrices();
-const outcomes = await pool(matrices, CONCURRENCY, (m) =>
-  run(`Matrix: ${m.name}`, "node", [m.path], { stream: false }),
-);
+const discovered = discoverMatrices();
+const matrices = discovered.filter((_, i) => inShard(i, shard));
+if (shard) {
+  console.log(
+    `Shard ${shard.index}/${shard.total}: ${matrices.length} of ${discovered.length} discovered matrices.`,
+  );
+  if (matrices.length === 0) {
+    console.error("FAIL: this shard holds no matrices — more shards than matrices.");
+    process.exit(1);
+  }
+}
+// Each matrix's wall time goes in its row, so a lopsided shard can be seen and rebalanced from
+// the run's summary rather than guessed at.
+const outcomes = await pool(matrices, CONCURRENCY, async (m) => {
+  const started = Date.now();
+  const r = await run(`Matrix: ${m.name}`, "node", [m.path], { stream: false });
+  return { ...r, seconds: Math.round((Date.now() - started) / 1000) };
+});
 
 for (const [i, m] of matrices.entries()) {
   const r = outcomes[i];
@@ -161,13 +238,13 @@ for (const [i, m] of matrices.entries()) {
   if (r.code !== 0 || Number(failed) > 0) anyFailed = true;
   rows.push({
     suite: `Matrix \`${m.name}\``,
-    result: `${passed} passed, ${failed} failed${r.code === 0 ? "" : ` (exit ${r.code})`}`,
+    result: `${passed} passed, ${failed} failed${r.code === 0 ? "" : ` (exit ${r.code})`} · ${r.seconds} s`,
   });
 }
 
 // ---- report ---------------------------------------------------------------
 const summaryLines = [
-  "### Test results",
+  shard ? `### Test results — matrix shard ${shard.index}/${shard.total}` : "### Test results",
   "",
   "| Suite | Result |",
   "| --- | --- |",

@@ -135,7 +135,7 @@ relatively faster at the typecheck than at bundling. Extrapolating one phase's s
 another phase is not a measurement; take the deploy timing from a deploy.
 
 This is safe because of a fact about `main`, not a fact about the build: branch protection has
-`enforce_admins: true` with `build` as a required check, and CI's `typecheck-build` job runs
+`enforce_admins: true` with `build` as a required check, and CI's `typecheck` job runs
 `pnpm typecheck`, which is `pnpm -r typecheck`, which includes that exact `vue-tsc`. Nothing
 reaches `main` without it having passed — not a force-push (disabled), not an admin. The copy
 inside the deploy was a second execution of a check that cannot fail by the time Railway sees the
