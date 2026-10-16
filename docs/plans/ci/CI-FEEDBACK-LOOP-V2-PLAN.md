@@ -93,3 +93,10 @@ authority · draft-deferred full CI · merge queue (needs an organization-owned 
 - 2026-10-16 — Plan rewritten from the Codex proposal: kept sharding and main-tree reuse, dropped
   the draft lane and affected-test preflight (D-CIF1), added matrix sharding (D-CIF2) and
   `ci:local` (D-CIF4). Step 1 built and proven locally; CI measurement owed.
+- 2026-10-16 — **Step 1 measured on its own PR run (38916104315): 345 s wall, all green**, against
+  443–580 s. Per job: test-web 161/195/192, test-api 188/146/132, matrices 158/179/122, typecheck
+  157, bundle 212, gates 134, test-packages 122; queue 2–4 s with 15 jobs. That run's pole was
+  native-android (332 s), which built in full because `ci.yml` is one of its `NATIVE_INPUTS`; on an
+  ordinary PR the pole is now **`bundle` at ~212 s**, so a typical run should finish in ~3½–4 min.
+  The shards are already below `bundle`, so a 4th shard buys nothing until step 4 shortens it
+  (answers Q-CIF1: stay at 3). Next lever in order: step 4 (bundle), then step 2.
