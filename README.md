@@ -33,7 +33,7 @@ TemplatesTailwind/  licensed Tailwind UI v4 (Vue) source — build UI from here
 ```bash
 pnpm install        # install all workspaces
 pnpm dev            # run web + api in parallel
-pnpm build          # build all packages (topological: shared → api/web)
+pnpm build          # build the artefacts: web + admin bundles, tokens.css (no type check)
 pnpm typecheck      # type-check all packages
 pnpm test           # run unit tests (Vitest)
 pnpm lint           # ESLint (flat config)

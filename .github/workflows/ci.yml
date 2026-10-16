@@ -343,10 +343,15 @@ jobs:
   # ── Types, and the production bundle ──────────────────────────────────────────────────────────
   # Two jobs since 2026-10-16; they were one, run back to back (123 s typecheck, then 105 s build,
   # then the browser), which made it ~335 s and the next critical path once the suites sharded.
-  # Neither reads the other's output, so they run side by side. They overlap on purpose: most
-  # workspaces' `build` IS `tsc --noEmit`, but `typecheck` also covers the four with no build
-  # (driver, driver-dist, hazmat/golden, ui) and `build` alone makes the vite bundles and tokens.
-  # Dropping either loses something; making `build` scripts bundle-only is the plan's later step.
+  # Neither reads the other's output, so they run side by side.
+  #
+  # And they no longer overlap (plan step 4, same day). Eight workspaces' `build` was the very same
+  # `tsc --noEmit` as their `typecheck`, and web's and admin's ran `vue-tsc` before `vite build`, so
+  # the bundle job re-checked every type the typecheck job had just checked: ~100 s of a 105 s step.
+  # Those `build` scripts are gone and web/admin build with `vite build` alone, so `pnpm typecheck`
+  # is the ONE type gate and `pnpm build` only makes artefacts (web, admin, tokens.css). A type
+  # check belongs in a workspace's `typecheck` script; a `build` that re-checks types is the
+  # duplication this removed.
   typecheck:
     runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
     steps:
