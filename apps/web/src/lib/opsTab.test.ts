@@ -39,7 +39,7 @@ const load = { loadId: "l", ref: "291013", status: "in_transit", source: "tms", 
   dispatcherId: null, driverName: null, trailerUnit: null, nextStop: null, lastStop: null, stopsLeft: 1 };
 const boardRow = (unitNumber: string, o: Partial<DispatchBoardRow> = {}): DispatchBoardRow => ({
   vehicleId: `v-${unitNumber}`, unitNumber, inShop: false, fleetCode: "VINNIEV", driver: null, hos: null, position: null,
-  fuelPercent: null, current: null, next: null, eta: null, onTime: "unknown", empties: null, flags, ...o,
+  fuelPercent: null, current: null, next: null, eta: null, onTime: "unknown", available: null, milesLeft: null, flags, ...o,
 });
 const BOARD: DispatchBoardResponse = {
   generatedAt: "2026-10-12T15:00:00.000Z",

@@ -10,6 +10,7 @@ import { haversineMiles } from "./ai.js";
 import { legalDriveMs } from "./smartFueling/hos.js";
 import { OFFLINE_BOUND_SECONDS } from "./livemap.js";
 import type {
+  DispatchBoardAvailable,
   DispatchBoardEta,
   DispatchBoardFlags,
   DispatchBoardHos,
@@ -48,24 +49,54 @@ function windowCloses(stop: DispatchBoardStop): number | null {
   return t ? Date.parse(t) : null;
 }
 
+/** A point the board can measure from or to; a stop McLeod sent without coordinates is not one. */
+type Point = { lat: number | null; lng: number | null };
+
 /**
- * When the truck reaches `to`, by the v1 basis above. Null when either end has no coordinates — an
- * ETA from nowhere is not shown. A truck already within a mile of the stop is there now.
+ * Road miles by the v1 basis, truck → each point in order — the legs chained, so a load with a stop
+ * between here and the delivery is not measured as if it drove straight past it. Null when the truck or
+ * any point has no coordinates: a partial sum would read as the whole distance.
  */
-export function boardEta(
+export function boardMiles(from: { lat: number; lng: number } | null, path: readonly Point[]): number | null {
+  if (!from || !path.length) return null;
+  let miles = 0;
+  let at = from;
+  for (const p of path) {
+    if (p.lat == null || p.lng == null) return null;
+    miles += haversineMiles(at.lat, at.lng, p.lat, p.lng) * BOARD_ROAD_FACTOR;
+    at = { lat: p.lat, lng: p.lng };
+  }
+  return miles;
+}
+
+/**
+ * When the truck reaches the last point of `path`, by the v1 basis above. Null when an end has no
+ * coordinates — an ETA from nowhere is not shown.
+ */
+export function boardEtaAlong(
   from: { lat: number; lng: number } | null,
-  to: DispatchBoardStop | null,
+  path: readonly Point[],
   hos: DispatchBoardHos | null,
   now: Date,
 ): DispatchBoardEta | null {
-  if (!from || !to || to.lat == null || to.lng == null) return null;
-  const miles = haversineMiles(from.lat, from.lng, to.lat, to.lng) * BOARD_ROAD_FACTOR;
+  const miles = boardMiles(from, path);
+  if (miles == null) return null;
   const driveMs = (miles / BOARD_PLANNING_MPH) * HOUR_MS;
   // The legal drive left is the binding clock of drive / shift / cycle (smartFueling's rule, reused).
   const legal = hos ? legalDriveMs({ ...hos, timeUntilBreakMs: hos.breakRemainingMs }) : null;
   const restAdded = legal != null && driveMs > legal;
   const at = new Date(now.getTime() + driveMs + (restAdded ? BOARD_RESET_MS : 0));
   return { at: at.toISOString(), miles: Math.round(miles), restAdded };
+}
+
+/** When the truck reaches `to` — one leg of `boardEtaAlong`. */
+export function boardEta(
+  from: { lat: number; lng: number } | null,
+  to: DispatchBoardStop | null,
+  hos: DispatchBoardHos | null,
+  now: Date,
+): DispatchBoardEta | null {
+  return to ? boardEtaAlong(from, [to], hos, now) : null;
 }
 
 /**
@@ -87,23 +118,94 @@ const placeOf = (s: { city: string | null; state: string | null } | null): strin
   s ? [s.city, s.state].filter(Boolean).join(", ") || null : null;
 
 /**
- * Where and when the truck is next empty — the "PTA" pair long-haul planning runs on (plan §4 #1).
- * With a load: the last delivery's city, at the later of its appointment and the truck's arrival there
- * (an ETA to the LAST stop, which on a single-drop load is the next stop). With none: where it is, now.
+ * City, state and ZIP out of Samsara's reverse-geocoded place, which ends "…, City, ST, 12345" (or
+ * "City, ST" with no ZIP) — measured on production positions 2026-10-15. Anything else gives nulls, and
+ * the truck can still be found by its coordinates; a guessed state would put it in the wrong filter.
  */
-export function emptiesAt(
+export function usPlaceParts(place: string | null): { city: string | null; state: string | null; postalCode: string | null } {
+  const none = { city: null, state: null, postalCode: null };
+  if (!place) return none;
+  const parts = place.split(",").map((p) => p.trim()).filter(Boolean);
+  const zip = parts.length && /^\d{5}(-\d{4})?$/.test(parts[parts.length - 1]!) ? parts.pop()! : null;
+  const state = parts.pop();
+  const city = parts.pop();
+  if (!state || !/^[A-Z]{2}$/.test(state) || !city) return none;
+  return { city, state, postalCode: zip };
+}
+
+/**
+ * Where and when the truck is next available — the "PTA" pair long-haul planning runs on (plan §4 #1),
+ * and the question the dispatchers' own board is built around (V2 plan §1). With a load: the last
+ * delivery, at the later of its appointment and the truck's arrival there. With none: where it is, now.
+ * Structured, not a display string, so the board can filter by state and by distance (D-DBV3).
+ */
+export function availableAt(
   current: DispatchBoardLoad | null,
   lastStopEta: DispatchBoardEta | null,
-  position: { place: string | null } | null,
+  position: { place: string | null; lat: number; lng: number } | null,
   now: Date,
-): { place: string | null; at: string | null } | null {
-  if (!current) return position ? { place: position.place, at: now.toISOString() } : null;
+): DispatchBoardAvailable | null {
+  if (!current) {
+    if (!position) return null;
+    return { place: position.place, ...usPlaceParts(position.place), lat: position.lat, lng: position.lng, at: now.toISOString(), basis: "now" };
+  }
   const last = current.lastStop;
   if (!last) return null;
-  const candidates = [last.appointmentStart, lastStopEta?.at].filter((t): t is string => !!t).map(Date.parse);
-  const at = candidates.length ? new Date(Math.max(...candidates)).toISOString() : null;
-  return { place: placeOf(last), at };
+  const appt = last.appointmentStart ? Date.parse(last.appointmentStart) : null;
+  const eta = lastStopEta ? Date.parse(lastStopEta.at) : null;
+  // The later one decides, and the basis says which: an ETA past the appointment is the truck running late.
+  const basis = eta != null && (appt == null || eta > appt) ? "eta" : appt != null ? "appointment" : null;
+  return {
+    place: placeOf(last),
+    city: last.city,
+    state: last.state,
+    postalCode: last.postalCode,
+    lat: last.lat,
+    lng: last.lng,
+    at: basis ? new Date(basis === "eta" ? eta! : appt!).toISOString() : null,
+    basis,
+  };
 }
+
+/**
+ * "Which trucks will be free in Florida, or within 100 miles of Orlando, by Friday 08:00?" (D-DBV3).
+ * Every criterion given must hold; none given matches all. The radius is straight-line on purpose —
+ * it is "near", and a road factor would make 100 miles mean 83 on the map.
+ */
+export function availableNear(
+  available: DispatchBoardAvailable | null,
+  q: { states?: readonly string[]; near?: { lat: number; lng: number; radiusMiles: number } | null; by?: string | null },
+): boolean {
+  const states = (q.states ?? []).map((s) => s.toUpperCase());
+  if (!states.length && !q.near && !q.by) return true;
+  if (!available) return false;
+  if (states.length && !(available.state && states.includes(available.state.toUpperCase()))) return false;
+  if (q.near) {
+    if (available.lat == null || available.lng == null) return false;
+    if (haversineMiles(q.near.lat, q.near.lng, available.lat, available.lng) > q.near.radiusMiles) return false;
+  }
+  if (q.by && !(available.at && Date.parse(available.at) <= Date.parse(q.by))) return false;
+  return true;
+}
+
+/**
+ * The points a typed city can be found by, from the board's own rows — every delivery and every truck
+ * position names a city with its coordinates. No geocoder is bought for v1 (V2 plan §3.1): a city that
+ * no row has ever named is not found, and the filter falls back to its state and says so.
+ */
+export function knownCityPoints(
+  rows: ReadonlyArray<{ available: DispatchBoardAvailable | null }>,
+): Map<string, { city: string; state: string; lat: number; lng: number }> {
+  const out = new Map<string, { city: string; state: string; lat: number; lng: number }>();
+  for (const { available: a } of rows) {
+    if (!a?.city || !a.state || a.lat == null || a.lng == null) continue;
+    const key = cityKey(a.city, a.state);
+    if (!out.has(key)) out.set(key, { city: a.city, state: a.state, lat: a.lat, lng: a.lng });
+  }
+  return out;
+}
+
+export const cityKey = (city: string, state: string): string => `${city.trim().toUpperCase()}|${state.trim().toUpperCase()}`;
 
 /** HOS clocks the board may present as current; older ones are dropped rather than shown as now. */
 export function freshHos(hos: DispatchBoardHos | null, now: Date): DispatchBoardHos | null {

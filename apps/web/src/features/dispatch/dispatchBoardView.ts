@@ -107,7 +107,7 @@ export function boardSortValue(r: DispatchBoardRow, key: string): unknown {
     case "onTime":
       return r.current ? (ON_TIME_RANK[r.onTime] ?? null) : null;
     case "empties":
-      return r.empties?.at ?? null;
+      return r.available?.at ?? null;
     case "next":
       return r.next?.ref ?? null;
     default:

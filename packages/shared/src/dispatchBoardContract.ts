@@ -21,6 +21,7 @@ export const dispatchBoardStopSchema = z.object({
   name: z.string().nullable(),
   city: z.string().nullable(),
   state: z.string().nullable(),
+  postalCode: z.string().nullable(),
   appointmentStart: iso.nullable(),
   appointmentEnd: iso.nullable(),
   /** The truck reached the stop (McLeod's actual arrival); null while it is still on its way. */
@@ -71,6 +72,22 @@ export const dispatchBoardEtaSchema = z.object({
 });
 export type DispatchBoardEta = z.infer<typeof dispatchBoardEtaSchema>;
 
+/**
+ * Where and when the truck is next free (`availableAt`, D-DBV3): the last delivery, or where an empty
+ * truck stands. `basis` says what set the time — the appointment, our ETA when it is later, or "now".
+ */
+export const dispatchBoardAvailableSchema = z.object({
+  place: z.string().nullable(),
+  city: z.string().nullable(),
+  state: z.string().nullable(),
+  postalCode: z.string().nullable(),
+  lat: z.number().nullable(),
+  lng: z.number().nullable(),
+  at: iso.nullable(),
+  basis: z.enum(["appointment", "eta", "now"]).nullable(),
+});
+export type DispatchBoardAvailable = z.infer<typeof dispatchBoardAvailableSchema>;
+
 export const dispatchBoardFlagsSchema = z.object({
   lateRisk: z.boolean(),
   noNextLoad: z.boolean(),
@@ -103,8 +120,13 @@ export const dispatchBoardRowSchema = z.object({
   next: dispatchBoardLoadSchema.nullable(),
   eta: dispatchBoardEtaSchema.nullable(),
   onTime: z.enum(ON_TIME_VERDICTS),
-  /** Where and when the truck is next empty — the delivery city and the later of its appointment and the ETA. */
-  empties: z.object({ place: z.string().nullable(), at: iso.nullable() }).nullable(),
+  available: dispatchBoardAvailableSchema.nullable(),
+  /**
+   * Road miles still to drive to the final delivery, through every stop not yet reached (`boardMiles`,
+   * the v1 estimate — shown "≈"; Q-DBV4 keeps HERE off the row until DB7 has measured this). Null with
+   * no load, no fix, or a stop without coordinates.
+   */
+  milesLeft: z.number().int().nullable(),
   flags: dispatchBoardFlagsSchema,
 });
 export type DispatchBoardRow = z.infer<typeof dispatchBoardRowSchema>;

@@ -28,7 +28,7 @@ const load = (o: Record<string, unknown> = {}) => ({
 });
 const stop = (o: Record<string, unknown> = {}) => ({
   load_id: "load-1", seq: 2, kind: "dropoff", name: null, location_name: "Kroger DC", city: "Indianapolis", state: "IN",
-  appointment_start: "2026-10-10T02:00:00Z", appointment_end: "2026-10-10T04:00:00Z", status: "pending",
+  postal_code: "46241", appointment_start: "2026-10-10T02:00:00Z", appointment_end: "2026-10-10T04:00:00Z", status: "pending",
   external_status: null, actual_arrival_at: null, lat: 39.7684, lon: -86.1581, ...o,
 });
 const pickup = stop({ seq: 1, kind: "pickup", location_name: "Viking Packing", city: "Joliet", state: "IL",
@@ -77,13 +77,29 @@ describe("the dispatch board", () => {
       current: { ref: "291013", customerName: "Viking Packing", dispatcherId: "vinniev", trailerUnit: "3152", stopsLeft: 1 },
       next: null,
       onTime: "on_time",
-      empties: { place: "Indianapolis, IN" },
+      available: { place: "Indianapolis, IN", state: "IN", postalCode: "46241", basis: "appointment" },
       flags: { lateRisk: false, noNextLoad: true, emptyNow: false, hosLow: false, noGps: false },
     });
     // The pickup McLeod has departed is behind the truck; the delivery is next.
     expect(r.current!.nextStop!.name).toBe("Kroger DC");
     expect(r.eta!.miles).toBeGreaterThan(170);
+    // One drop: miles left to the delivery are the miles to the next stop.
+    expect(r.milesLeft).toBe(r.eta!.miles);
     expect(b.hosAsOf).toBe(ago(120));
+  });
+
+  it("chains miles left through a drop on the way, and stops counting at the last delivery", async () => {
+    // Joliet → Kokomo, IN (a drop, east of the straight line) → Indianapolis, then a trailer drop back in Joliet.
+    const kokomo = stop({ seq: 2, location_name: "Kokomo DC", city: "Kokomo", lat: 40.4864, lon: -86.1336 });
+    const indy = stop({ seq: 3 });
+    const trailerDrop = stop({ seq: 4, kind: "other", city: "Joliet", state: "IL", lat: 41.52, lon: -88.08 });
+    const one = (await readDispatchBoard(recorder().client, ORG, USER, NOW)).rows[0]!;
+    const via = (await readDispatchBoard(recorder({ stops: [pickup, kokomo, indy, trailerDrop] }).client, ORG, USER, NOW)).rows[0]!;
+    expect(via.current!.nextStop!.name).toBe("Kokomo DC");
+    expect(via.milesLeft!).toBeGreaterThan(one.milesLeft!);
+    // The trailer drop would add ~150 miles back to Joliet; it is past where the truck is free.
+    expect(via.milesLeft!).toBeLessThan(one.milesLeft! + 60);
+    expect(via.available).toMatchObject({ city: "Indianapolis", basis: "appointment" });
   });
 
   it("returns the caller's scope from the two office links, and every fleet beside it", async () => {
