@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { deflateSync, inflateSync } from "node:zlib";
@@ -964,15 +964,45 @@ describe("drawing the field values", () => {
    * invisible in both the rasterised page and the extracted text, so "the page reads the same" is
    * true whether the value was skipped or drawn — that assertion passed with the guard removed and
    * proved nothing. What changes is the content stream: a drawn `"   "` emits its own Tj.
+   *
+   * ⚠ The clock is pinned, because the size is not a function of the drawing alone. pdf-lib's
+   * `save()` stamps the current time into the document and compresses it, so the same overlay
+   * measured 650367 bytes at 17:25:59 and 650365 at 17:26:00 (2026-10-16). Unpinned, `none` and
+   * `blank` straddled such a tick on a docs-only PR (run 38939104378: expected 650367 to be 650368)
+   * and failed it at random — the flake class of the labelPdf test (#829), one renderer over. Only
+   * `Date` is faked: faking every timer captures the stream plumbing and hangs the render.
    */
   it("draws nothing at all for a blank value, down to the bytes", async () => {
-    const line = fieldLineFor("p01.heard_from")!;
-    const none = await renderPacketOverlay({ marks: [], fields: [] });
-    const blank = await renderPacketOverlay({ marks: [], fields: [{ line, text: "   " }] });
-    const real = await renderPacketOverlay({ marks: [], fields: [{ line, text: "Indeed" }] });
-    expect(blank.length).toBe(none.length);
-    expect(real.length).not.toBe(none.length);
-    expect(pageText((await readBack(real))[0]!)).toContain("Indeed");
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-10-16T17:25:59Z"));
+    try {
+      const line = fieldLineFor("p01.heard_from")!;
+      const none = await renderPacketOverlay({ marks: [], fields: [] });
+      const blank = await renderPacketOverlay({ marks: [], fields: [{ line, text: "   " }] });
+      const real = await renderPacketOverlay({ marks: [], fields: [{ line, text: "Indeed" }] });
+      expect(blank.length).toBe(none.length);
+      expect(real.length).not.toBe(none.length);
+      expect(pageText((await readBack(real))[0]!)).toContain("Indeed");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  /**
+   * The reason the test above pins the clock, kept as a test so the pin cannot quietly become
+   * superstition: if pdf-lib stops writing the time, this fails and the pin can go.
+   */
+  it("measures a different size at a different second, which is why the bytes test pins the clock", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      vi.setSystemTime(new Date("2026-10-16T17:25:59Z"));
+      const before = await renderPacketOverlay({ marks: [], fields: [] });
+      vi.setSystemTime(new Date("2026-10-16T20:00:00Z"));
+      const after = await renderPacketOverlay({ marks: [], fields: [] });
+      expect(after.length).not.toBe(before.length);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   /**

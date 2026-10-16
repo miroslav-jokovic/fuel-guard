@@ -5,6 +5,11 @@ import { createRouter, createMemoryHistory, type Router } from "vue-router";
 import { createPinia, setActivePinia } from "pinia";
 import { VueQueryPlugin } from "@tanstack/vue-query";
 import type { PipelineApplicant } from "@/features/recruitment/useEmployment";
+// Imported here, not inside the mount helper: imported there, the first test in the file paid for
+// compiling the whole page tree (~2.2 s alone on a laptop) against vitest's 5 s per-test budget, and
+// on a busy CI runner it crossed it at random ("opens on what is waiting on the office" timed out on
+// main, 2026-10). At the top it is the file's import time, which has no such budget.
+import RecruitmentPage from "@/pages/RecruitmentPage.vue";
 
 /**
  * The hiring board (B4).
@@ -177,7 +182,6 @@ async function mountBoard(wide = true, url = "/recruitment") {
   router = newRouter();
   await router.push(url);
   await router.isReady();
-  const RecruitmentPage = (await import("@/pages/RecruitmentPage.vue")).default;
   /**
    * ⚠ `attachTo: document.body`, and NOT `stubs: { teleport: true }` — this is what
    * `FilterSelect.test.ts` does and the reason is floating-ui. Its `useFloating(…, {

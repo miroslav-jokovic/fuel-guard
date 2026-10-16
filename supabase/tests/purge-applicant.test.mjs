@@ -123,6 +123,13 @@ const purge = (org, driver, actor = ADMIN) =>
  * filed and its envelope sent (which opens the handbook, D-AW16), so handbook_marks' insert guard
  * admits a mark.
  */
+// Each seeded applicant's STOP number, from a counter rather than Math.random(). The suppression
+// table allows one live row per (org, phone), and every applicant here shares one org: sixteen
+// random 4-digit suffixes collided about once in 75 runs (16·15/2 ÷ 9000), and when they did the
+// seed threw before any RESULT line — main's CI on 8d1193c, 2026-10-16: "duplicate key value
+// violates unique constraint uq_sms_suppressions_live", reported as a matrix that did not execute.
+let stopPhoneSeq = 1000;
+
 async function seedApplicant(org, name) {
   const d = (await one(`insert into drivers (org_id, full_name, photo_path, status) values ($1,$2,$3,'applicant') returning id`,
     [org, name, `${org}/drivers/${name}.jpg`])).id;
@@ -196,7 +203,7 @@ async function seedApplicant(org, name) {
     `insert into sms_consents (org_id, driver_id, phone, consent_text, consent_version, intent_statement, source)
      values ($1,$2,'+13125550100','text','v1','I agree','application')`, [org, d]);
   await db.query(`insert into sms_suppressions (org_id, driver_id, phone, reason) values ($1,$2,$3,'stop')`,
-    [org, d, `+1312555${String(Math.floor(Math.random() * 9000) + 1000)}`]);
+    [org, d, `+1312555${stopPhoneSeq++}`]);
   await db.query(`insert into application_edits (org_id, invitation_id, path) values ($1,$2,'["employers",0,"city"]')`, [org, inv]);
   await db.query(`insert into application_drafts (org_id, invitation_id, driver_id) values ($1,$2,$3)`, [org, inv, d]);
   await db.query(
