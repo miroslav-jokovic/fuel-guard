@@ -22,13 +22,11 @@ import { formatDateTime } from "@/lib/format";
 import AssignmentHistory from "@/features/dispatch/AssignmentHistory.vue";
 import DispatchBoardTable from "@/features/dispatch/DispatchBoardTable.vue";
 import DispatchTruckDrawer from "@/features/dispatch/DispatchTruckDrawer.vue";
-import DispatcherCensus from "@/features/dispatch/DispatcherCensus.vue";
-import { truckCensusItems } from "@/features/dispatch/censusItems";
+import { censusSelectOptions, censusValue, pickOf, truckCensusItems } from "@/features/dispatch/censusItems";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
 import { dispatcherOptions, useScopeChoice } from "@/features/dispatch/dispatchScope";
 import { RADIUS_OPTIONS, WITHIN_OPTIONS, useAvailableFilter } from "@/features/dispatch/useAvailableFilter";
 import { useDispatchBoardQuery } from "@/features/dispatch/useDispatchBoard";
-import { inMyScope } from "@silvicom/shared";
 import {
   BOARD_COLUMNS,
   BOARD_COLUMNS_ID,
@@ -38,9 +36,10 @@ import {
   BOARD_SORT_KEYS,
   BOARD_TABLE,
   BOARD_TABS,
-  POOL_FLEET,
   boardSortValue,
   filterBoard,
+  rowsBeforeScope,
+  stateCounts,
   type BoardQueue,
 } from "@/features/dispatch/dispatchBoardView";
 
@@ -72,9 +71,14 @@ import {
  * ── V2: THE DISPATCHERS' OWN QUESTION FIRST (DISPATCH-BOARD-V2-PLAN, ruled 2026-10-16) ───────────
  * Tested with the dispatchers on 2026-10-15: "a lot of information, a little bit confusing". Their own
  * board answers one question — when and where each truck is free — so this one now opens on it: sorted
- * by Available, seven columns, three queues. Trucks per dispatcher are counted in the census strip,
- * which is also the scope control (D-DBV2), and the toolbar filters by where and when a truck is free
- * (D-DBV3). Dispatched by, the rarer question, moved under More.
+ * by Available, seven columns, three queues. Trucks per dispatcher are counted in the Dispatcher
+ * select, which is also the scope control (D-DBV2; a strip of buttons until Q-DBV9), and the toolbar
+ * filters by where and when a truck is free (D-DBV3). Dispatched by, the rarer question, is under More.
+ *
+ * ── EVERY COUNT IS THE ROWS IT WOULD SHOW (Q-DBV9, 2026-10-16) ───────────────────────────────────
+ * A Dispatcher or State option's number is taken over the rows every OTHER filter admits, so choosing
+ * it shows that many trucks. The first cut counted every row the board returned: AL said 8 and showed
+ * none, because the table was on one fleet.
  *
  * ── THE DRAWER IS IN THE URL (DB6) ───────────────────────────────────────────────────────────────
  * A row opens its truck's drawer, and `?truck=773` opens it from anywhere — the Loads page's truck
@@ -100,7 +104,8 @@ const search = qs.param("search");
 const fleet = qs.param("fleet");
 const dispatcher = qs.param("dispatcher");
 const rows = computed(() => board.value?.rows ?? []);
-const avail = useAvailableFilter(qs, rows);
+// The State options count over `stateCountsNow`, defined below with the filter it leaves State out of.
+const avail = useAvailableFilter(qs, rows, () => stateCountsNow.value);
 /**
  * FilterBar's "Clear filters": where-and-when, Dispatched by and the search narrow the board. The census
  * choice (a fleet, Mine or All) and the queue tab choose WHICH board it is, and the sort and an open
@@ -109,7 +114,6 @@ const avail = useAvailableFilter(qs, rows);
 const activeFilterCount = computed(() => [search.value.trim(), dispatcher.value].filter(Boolean).length + avail.activeCount.value);
 const clearFilters = (): void => qs.set({ search: undefined, dispatcher: undefined, ...avail.clear });
 const { sort, onSort } = useUrlSort(qs.param("sort", BOARD_SORT_KEYS, BOARD_DEFAULT_SORT), qs.param("dir", SORT_DIRECTIONS));
-const pickCensus = (v: { scope: "mine" | "all"; fleet: string }) => qs.set({ scope: v.scope, fleet: v.fleet || undefined });
 
 /**
  * Which columns show (`useTableColumns`): a hidden list in `?hide=`, with this browser's own choice as
@@ -131,11 +135,23 @@ const now = computed(() => (board.value ? new Date(board.value.generatedAt) : ne
 const base = computed(() => ({
   mine: scopeChoice.value === "mine", fleet: fleet.value, dispatcher: dispatcher.value, search: search.value, available: avail.filter.value,
 }));
-const filtered = computed(() => filterBoard(rows.value, scope.value, { ...base.value, queue: queue.value }, now.value));
+const boardFilter = computed(() => ({ ...base.value, queue: queue.value }));
+const filtered = computed(() => filterBoard(rows.value, scope.value, boardFilter.value, now.value));
+const stateCountsNow = computed(() => stateCounts(rows.value, scope.value, boardFilter.value, now.value));
+/** Mine's count is the table's under Mine, the same filter run, so the two cannot disagree. */
 const mineCount = computed(() =>
-  scope.value.linked ? rows.value.filter((r) => r.fleetCode !== POOL_FLEET && inMyScope(r, scope.value)).length : null,
+  scope.value.linked ? filterBoard(rows.value, scope.value, { ...boardFilter.value, mine: true, fleet: "" }, now.value).length : null,
 );
-const census = computed(() => truckCensusItems(rows.value, mineCount.value, board.value, scopeChoice.value, fleet.value));
+const census = computed(() =>
+  truckCensusItems(rowsBeforeScope(rows.value, scope.value, boardFilter.value, now.value), mineCount.value, board.value, scopeChoice.value, fleet.value),
+);
+const whose = computed({
+  get: () => censusValue(census.value),
+  set: (key: string) => {
+    const pick = pickOf(census.value, key);
+    if (pick) qs.set({ scope: pick.scope, fleet: pick.fleet || undefined });
+  },
+});
 const sorted = computed(() => sortRows(filtered.value, sort.value, boardSortValue));
 
 /**
@@ -207,8 +223,6 @@ const emptyText = computed(() =>
         in Settings → McLeod fleets, and the board then opens on your fleet.
       </AppCallout>
 
-      <DispatcherCensus v-if="board" :items="census" noun="truck" @pick="pickCensus" />
-
       <AppCallout v-if="avail.nearFellBack.value" tone="info">
         No truck is free in that city any more, so the board shows its whole state instead.
       </AppCallout>
@@ -227,6 +241,7 @@ const emptyText = computed(() =>
           @clear-all="clearFilters"
         >
           <template #filters>
+            <FilterSelect v-model="whose" label="Dispatcher" :options="censusSelectOptions(census)" />
             <FilterSelect v-model="avail.states.value" label="State" :options="avail.stateOptions.value" multiple />
             <FilterSelect v-model="avail.near.value" label="Near" :options="avail.cityOptions.value" />
             <FilterSelect v-model="avail.within.value" label="Free" :options="WITHIN_OPTIONS" />

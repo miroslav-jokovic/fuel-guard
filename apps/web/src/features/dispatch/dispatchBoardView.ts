@@ -10,7 +10,7 @@ import {
 } from "@silvicom/shared";
 import { type DataTableColumn } from "@silvicom/ui";
 import { formatDate } from "@/lib/format";
-import { POOL_FLEET, admitsScope, type ScopeFilter } from "./dispatchScope";
+import { POOL_FLEET, POOL_OPTION, admitsScope, type ScopeFilter } from "./dispatchScope";
 
 export { NO_FLEET_OPTION, POOL_FLEET, POOL_OPTION, dispatcherName } from "./dispatchScope";
 
@@ -88,6 +88,33 @@ export function filterBoard(
       .filter((v): v is string => Boolean(v))
       .some((v) => v.toLowerCase().includes(term));
   });
+}
+
+/**
+ * The rows every filter but the Dispatcher choice admits — what that choice's counts are of (Q-DBV9).
+ * The parked pool is asked for by name (`filterBoard`), so it is read apart and added: the two halves
+ * cannot overlap.
+ */
+export function rowsBeforeScope(rows: readonly DispatchBoardRow[], scope: DispatchScope, f: BoardFilter, now: Date = new Date()): DispatchBoardRow[] {
+  const open = { ...f, mine: false };
+  return [...filterBoard(rows, scope, { ...open, fleet: "" }, now), ...filterBoard(rows, scope, { ...open, fleet: POOL_OPTION }, now)];
+}
+
+/**
+ * Trucks free in each state, over the rows every filter but State admits (Q-DBV9). The owner chose AL
+ * (8) on 2026-10-16 and got an empty table: the count had been taken over every row the board
+ * returned — other fleets, the pool, trucks in the shop — while the table showed one fleet. Now the
+ * number beside a state is the rows choosing it adds, and a truck in the shop, which no state filter
+ * admits, is not counted in any.
+ */
+export function stateCounts(rows: readonly DispatchBoardRow[], scope: DispatchScope, f: BoardFilter, now: Date = new Date()): Map<string, number> {
+  const a = f.available ?? NO_AVAILABLE_FILTER;
+  const out = new Map<string, number>();
+  for (const r of filterBoard(rows, scope, { ...f, available: { ...a, states: [] } }, now)) {
+    const st = r.inShop ? null : r.available?.state?.toUpperCase();
+    if (st) out.set(st, (out.get(st) ?? 0) + 1);
+  }
+  return out;
 }
 
 /**
@@ -190,7 +217,7 @@ export function boardSortValue(r: DispatchBoardRow, key: string): unknown {
     case "availableIn":
       return r.available ? [r.available.state, r.available.city].filter(Boolean).join(" ") || null : null;
     case "milesLeft":
-      return r.milesLeft;
+      return milesLeftOf(r);
     case "warnings":
       // Most pressing first: an urgent item (overdue, or a random test) counts three times a due one.
       return r.warnings.length ? r.warnings.reduce((n, w) => n + (warningIsUrgent(w) ? 3 : 1), 0) * -1 : null;
@@ -266,9 +293,21 @@ export function warningWords(w: BoardWarning): string {
   return `${what} ${w.verdict}${w.dueOn ? ` ${formatDate(w.dueOn)}` : ""}`;
 }
 
-/** "≈ 412 mi" — the v1 estimate says it is one (Q-DBV4). */
+/**
+ * The row's miles left. An empty truck has none to drive, so it reads 0 rather than a dash: the board
+ * opens soonest-free first, and on 2026-10-16 its whole first page was empty trucks, so the column
+ * looked broken (owner: "Miles left column is empty"). A truck in the shop, or a load the estimate could
+ * not measure, has no figure.
+ */
+export function milesLeftOf(r: DispatchBoardRow): number | null {
+  if (r.inShop) return null;
+  return r.current ? r.milesLeft : 0;
+}
+
+/** "≈ 412 mi" — the v1 estimate says it is one (Q-DBV4); an empty truck's 0 is exact, not estimated. */
 export function milesLeftWords(miles: number | null): string {
-  return miles == null ? "—" : `≈ ${miles.toLocaleString("en-US")} mi`;
+  if (miles == null) return "—";
+  return miles === 0 ? "0 mi" : `≈ ${miles.toLocaleString("en-US")} mi`;
 }
 
 /** "Indianapolis, IN" from a stop's parts, or the place name when the city is missing. */

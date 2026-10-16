@@ -29,7 +29,11 @@ export const WITHIN_OPTIONS = [
   { value: "72", label: "Within 72 h" },
 ];
 
-export function useAvailableFilter(qs: UrlQueryState, rows: ComputedRef<readonly DispatchBoardRow[]>) {
+/**
+ * `stateCounts` is a getter: the page counts states over the rows every OTHER filter admits
+ * (`stateCounts` in `dispatchBoardView`, Q-DBV9), and that filter includes this one's Near and Free.
+ */
+export function useAvailableFilter(qs: UrlQueryState, rows: ComputedRef<readonly DispatchBoardRow[]>, stateCounts: () => ReadonlyMap<string, number>) {
   const states = computed({
     get: () => qs.list("state").map((s) => s.toUpperCase()),
     set: (v: string[]) => qs.set({ state: v.length ? v.join(",") : undefined }),
@@ -40,10 +44,13 @@ export function useAvailableFilter(qs: UrlQueryState, rows: ComputedRef<readonly
 
   const points = computed(() => knownCityPoints(rows.value));
 
-  /** Every state a truck is free in, with how many — the dispatchers' "States (34)", as a filter. */
+  /**
+   * Every state a truck is free in, with how many choosing it would show — the dispatchers' "States
+   * (34)", as a filter. A chosen state stays listed at 0, so it can be unticked.
+   */
   const stateOptions = computed(() => {
-    const count = new Map<string, number>();
-    for (const r of rows.value) if (r.available?.state) count.set(r.available.state, (count.get(r.available.state) ?? 0) + 1);
+    const count = new Map(stateCounts());
+    for (const s of states.value) if (!count.has(s)) count.set(s, 0);
     return [...count.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([s, n]) => ({ value: s, label: `${s} (${n})` }));
   });
   const cityOptions = computed(() => [

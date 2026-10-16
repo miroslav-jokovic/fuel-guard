@@ -193,33 +193,41 @@ describe("the Loads page beside the dispatch board", () => {
   });
 
   /**
-   * Q-DBV8 (ruled 2026-10-16): the board's strip, counting THIS list — loads in the open tab, per fleet
-   * of their truck — so each button's number is the rows it shows when pressed.
+   * Q-DBV8 (ruled 2026-10-16): the board's Dispatcher choice, counting THIS list — loads in the open tab,
+   * per fleet of their truck — so each option's number is the rows it shows when chosen. Q-DBV9 made it
+   * a select in the filter row rather than a strip of buttons.
    */
-  describe("counts loads per dispatcher (DBV8)", () => {
-    const census = (w: Awaited<ReturnType<typeof mountPage>>, noun = "Loads") =>
-      w.get(`[aria-label='${noun} per dispatcher']`).findAll("button");
-    const labels = (w: Awaited<ReturnType<typeof mountPage>>, noun?: string) => census(w, noun).map((b) => b.attributes("aria-label"));
+  describe("counts loads per dispatcher (DBV8, Q-DBV9)", () => {
+    const select = async (w: Awaited<ReturnType<typeof mountPage>>) => {
+      const FilterSelect = (await import("@/components/ui/FilterSelect.vue")).default;
+      return w.findAllComponents(FilterSelect).find((c) => c.props("label") === "Dispatcher")!;
+    };
+    const labels = async (w: Awaited<ReturnType<typeof mountPage>>) =>
+      ((await select(w)).props("options") as { label: string }[]).map((o) => o.label);
+    const choose = async (w: Awaited<ReturnType<typeof mountPage>>, key: string) => {
+      (await select(w)).vm.$emit("update:modelValue", key);
+      await flushPromises();
+    };
+    const chosen = async (w: Awaited<ReturnType<typeof mountPage>>) => (await select(w)).props("modelValue");
 
     it("counts the open tab's loads, Mine first, every working fleet even at 0", async () => {
       board.value = response(true);
       const w = await mountPage();
-      expect(labels(w)).toEqual(["Mine: 2 loads", "All: 3 loads", "VINNIEV (Vinnie V): 1 load", "VLADI: 2 loads"]);
-      expect(census(w)[0]!.attributes("aria-pressed")).toBe("true");
+      expect(w.find("[aria-label='Loads per dispatcher']").exists()).toBe(false);
+      expect(await labels(w)).toEqual(["Mine (2)", "All (3)", "VINNIEV · Vinnie V (1)", "VLADI (2)"]);
+      expect(await chosen(w)).toBe("mine");
       await openTab(w, "Upcoming");
-      expect(labels(w)).toEqual(["Mine: 1 load", "All: 1 load", "VINNIEV (Vinnie V): 1 load", "VLADI: 0 loads"]);
+      expect(await labels(w)).toEqual(["Mine (1)", "All (1)", "VINNIEV · Vinnie V (1)", "VLADI (0)"]);
     });
 
-    it("shows exactly the loads a button counted when it is pressed", async () => {
+    it("shows exactly the loads an option counted when it is chosen", async () => {
       board.value = response(true);
       const w = await mountPage();
-      await census(w)[3]!.trigger("click");
-      await flushPromises();
+      await choose(w, "VLADI");
       expect(w.router.currentRoute.value.query).toEqual({ scope: "all", fleet: "VLADI" });
       expect(refs(w)).toEqual(["L-i-dispatch", "L-not-mine"]);
-      expect(census(w).map((b) => b.attributes("aria-pressed"))).toEqual(["false", "false", "false", "true"]);
-      await census(w)[1]!.trigger("click");
-      await flushPromises();
+      expect(await chosen(w)).toBe("VLADI");
+      await choose(w, "");
       expect(w.router.currentRoute.value.query).toEqual({ scope: "all" });
       expect(refs(w)).toHaveLength(3);
     });
@@ -227,41 +235,40 @@ describe("the Loads page beside the dispatch board", () => {
     it("names a load with no truck apart from a fleet, and counts Uncovered under Mine as the table does", async () => {
       board.value = response(true);
       const w = await mountPage("/loads?queue=uncovered");
-      expect(labels(w)).toEqual(["Mine: 1 load", "All: 1 load", "VINNIEV (Vinnie V): 0 loads", "VLADI: 0 loads", "No truck: 1 load"]);
-      await census(w)[4]!.trigger("click");
-      await flushPromises();
+      expect(await labels(w)).toEqual(["Mine (1)", "All (1)", "VINNIEV · Vinnie V (0)", "VLADI (0)", "No truck (1)"]);
+      await choose(w, "__no_truck__");
       expect(refs(w)).toEqual(["L-uncovered"]);
-      expect(census(w)[4]!.attributes("aria-pressed")).toBe("true");
-      // A pressed choice keeps its button on a tab where it counts nothing, so it can be seen and left.
+      expect(await chosen(w)).toBe("__no_truck__");
+      // A chosen option stays listed on a tab where it counts nothing, so it can be seen and left.
       await openTab(w, "In transit");
-      expect(labels(w).at(-1)).toBe("No truck: 0 loads");
+      expect((await labels(w)).at(-1)).toBe("No truck (0)");
     });
 
     it("offers no Mine to a reader linked to no McLeod login", async () => {
       board.value = response(false);
       const w = await mountPage();
-      expect(labels(w)).toEqual(["All: 3 loads", "VINNIEV (Vinnie V): 1 load", "VLADI: 2 loads"]);
+      expect(await labels(w)).toEqual(["All (3)", "VINNIEV · Vinnie V (1)", "VLADI (2)"]);
     });
 
-    it("counts under the search and Dispatched by, which narrow every button alike", async () => {
+    it("counts under the search and Dispatched by, which narrow every option alike", async () => {
       board.value = response(true);
       const w = await mountPage("/loads?dispatcher=asen");
-      expect(labels(w)).toEqual(["Mine: 1 load", "All: 2 loads", "VINNIEV (Vinnie V): 1 load", "VLADI: 1 load"]);
+      expect(await labels(w)).toEqual(["Mine (1)", "All (2)", "VINNIEV · Vinnie V (1)", "VLADI (1)"]);
       // Dispatched by sits under the toolbar's Filters, which counts it, and shows as a chip.
       expect(w.findAll("button").find((b) => b.text().startsWith("Filters"))!.text()).toBe("Filters 1");
       expect(w.text()).toContain("Dispatched by");
       const searched = await mountPage("/loads?search=801");
-      expect(labels(searched)).toEqual(["Mine: 1 load", "All: 1 load", "VINNIEV (Vinnie V): 0 loads", "VLADI: 1 load"]);
+      expect(await labels(searched)).toEqual(["Mine (1)", "All (1)", "VINNIEV · Vinnie V (0)", "VLADI (1)"]);
     });
 
     it("counts exceptions on Exceptions, the one with no load in All and Mine only", async () => {
       board.value = response(true);
       const w = await mountPage("/loads?queue=exceptions");
-      expect(labels(w, "Exceptions")).toEqual(["Mine: 2 exceptions", "All: 3 exceptions", "VINNIEV (Vinnie V): 1 exception", "VLADI: 1 exception"]);
+      expect(await labels(w)).toEqual(["Mine (2)", "All (3)", "VINNIEV · Vinnie V (1)", "VLADI (1)"]);
       // Dispatched by names a property a load-less exception lacks, so it leaves every count.
-      expect(labels(await mountPage("/loads?queue=exceptions&dispatcher=asen"), "Exceptions").slice(0, 2)).toEqual(["Mine: 1 exception", "All: 2 exceptions"]);
-      // And the census counts what the search left, as the table does.
-      expect(labels(await mountPage("/loads?queue=exceptions&search=auto-closed"), "Exceptions").slice(0, 2)).toEqual(["Mine: 1 exception", "All: 1 exception"]);
+      expect((await labels(await mountPage("/loads?queue=exceptions&dispatcher=asen"))).slice(0, 2)).toEqual(["Mine (1)", "All (2)"]);
+      // And the choice counts what the search left, as the table does.
+      expect((await labels(await mountPage("/loads?queue=exceptions&search=auto-closed"))).slice(0, 2)).toEqual(["Mine (1)", "All (1)"]);
     });
   });
 
