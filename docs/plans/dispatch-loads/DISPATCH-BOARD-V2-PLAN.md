@@ -255,6 +255,20 @@ Fix, one PR each:
   until used? *Recommend yes.*
 - **Q-DBV7 — Idle Tractors / Idle Trailers.** The old board has both pages. Our "Empty now" covers idle
   tractors. Idle trailers are not on our board at all. Ask the dispatchers if they use them.
+- **Q-DBV8 — Does the Loads page take the board's census strip?** (raised by DBV7, 2026-10-16) The
+  board's strip (D-DBV2) counts TRUCKS per fleet; a Loads row is a LOAD, and an uncovered load has no
+  truck and so no fleet. Borrowing the strip as it is would print truck counts above a list of loads —
+  the chip and the table disagreeing, which is exactly what D-DBV2's "counts come from the same rows"
+  forbids. Candidates:
+  (a) a load census on Loads: the same strip anatomy, counting the list's own rows (loads in the open
+  queue) per fleet of their truck, with Uncovered as its own chip and Dispatched by moved under *More*
+  as on the board. `DispatcherCensus` becomes a strip over `{label, count, sub}` items fed by a truck
+  counter on the board and a load counter here. About half a day with tests.
+  (b) the truck strip as it is — rejected above.
+  (c) keep the v1 control (My fleet · All, Fleet, Dispatched by) on Loads; the two pages then scope
+  with different controls that mean the same thing.
+  *Recommend (a)*, as DBV8, after the dispatchers have seen DBV7 — they named the board, not Loads, when
+  they asked for counts. Until ruled, Loads keeps (c); nothing borrows the strip around the mismatch.
 
 ## 7. Steps (one PR each)
 
@@ -269,6 +283,7 @@ Fix, one PR each:
 - **DBV5** — Routing: route from truck over unreached stops, cache TTL, drawer miles (§5.1, 5.2, 5.4).
 - **DBV6** — Driven path on the map (§5.3).
 - **DBV7** — Loads page: Dispatch column, Miles left and appointment in Delivery (Q-DBV6).
+- **DBV8** — Loads page scope control, if Q-DBV8 is ruled (a).
 - **Later** — HERE miles per row (Q-DBV4, after DB7's 14 days).
 
 ## 8. What this does NOT do
@@ -414,3 +429,20 @@ Build order: DBV1 → DBV2 → DBV5 → DBV3 → DBV4 → DBV6 → DBV7.
   cycle that predates DBV6: the existing route module hits it alone, and through `app.js` everything
   loads. It matters only to a one-off script, which must import `app.js` first.
 - §5's four fixes are now all built: §5.1 and §5.2 in DBV5, §5.4 in DBV5's `aheadMiles`, §5.3 here.
+
+### 2026-10-16 — DBV7 the Loads page
+
+- **Dispatch starts hidden** (Q-DBV6). The page now has the board's ColumnPicker (`useTableColumns`,
+  table `dispatch.loads`, `defaultHidden: ["dispatch"]`), so the column is one click away for whoever
+  still wants it, and the choice is per browser and in `?hide=` like the board's. The *Dispatch…* action
+  was already in the row menu and stays there. Exceptions is another table, so it shows no picker.
+- **Delivery gives the board's answer.** The appointment now always shows, labelled *Appt*; an arrival
+  is printed beneath it rather than in its place, because the board judges Available against that
+  appointment. A pickup's arrival still replaces its appointment. For the load a truck hauls now, the
+  cell adds the board row's miles left ("≈ 412 mi left"), READ off the board like the on-time verdict
+  (`loadsOnBoard.milesLeftOf`) — the chain runs from the truck's GPS fix, which the list does not have.
+  No figure (no fix, a stop without coordinates) prints nothing, never "—".
+- The stop cell moved into `LoadStopCell.vue`, which keeps the page under its 500-line budget (491).
+  The stop's display name is one function, `loadStopName`, read by the cell and by the page's search.
+- **Census strip not adopted** — counts would be trucks over a list of loads. Written up as Q-DBV8
+  with a recommendation; Loads keeps the v1 scope control until it is ruled.
