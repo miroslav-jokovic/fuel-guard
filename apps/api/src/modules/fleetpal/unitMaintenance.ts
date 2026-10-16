@@ -17,7 +17,7 @@
  * judged and the worst counts, which is what "whichever comes first" means.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { classifyPmName, fetchAllPaged, pmWarning, type MaintenanceWarning, type PmInterval } from "@silvicom/shared";
+import { classifyPmName, fetchAllPaged, pmDueOn, pmWarning, type MaintenanceWarning, type PmInterval } from "@silvicom/shared";
 
 const OPEN_WORK_ORDER_STATUS = "OPEN";
 
@@ -41,12 +41,8 @@ export interface UnitMaintenance {
   byTrailerId: Map<string, MaintenanceWarning[]>;
 }
 
-export async function readUnitMaintenance(
-  admin: SupabaseClient,
-  orgId: string,
-  odometerMilesByVehicleId: ReadonlyMap<string, number | null>,
-  now: Date,
-): Promise<UnitMaintenance> {
+/** The units, their PM schedules and each schedule's intervals — read once, for both readers below. */
+async function readPmSchedules(admin: SupabaseClient, orgId: string) {
   // Each table named as a literal: a dynamic `.from(table)` is invisible to the table-access gates.
   const units = await fetchAllPaged<UnitRow>((from, to) =>
     admin.from("fleetpal_units").select("fleetpal_id, vehicle_id, trailer_id").eq("org_id", orgId).order("id").range(from, to),
@@ -62,6 +58,24 @@ export async function readUnitMaintenance(
       .order("id")
       .range(from, to),
   );
+  const unitOf = new Map(units.map((u) => [u.fleetpal_id, u]));
+  const intervalsOf = new Map<string, IntervalRow[]>();
+  for (const i of intervals) intervalsOf.set(i.pm_schedule_fleetpal_id, [...(intervalsOf.get(i.pm_schedule_fleetpal_id) ?? []), i]);
+  return { unitOf, schedules, intervalsOf };
+}
+
+const toInterval = (i: IntervalRow): PmInterval => ({
+  intervalType: i.interval_type, value: num(i.value_int), valueUnit: i.value_time_type,
+  threshold: num(i.threshold_int), thresholdUnit: i.threshold_time_type, lastDoneMeterMeters: num(i.last_done_meter_value),
+});
+
+export async function readUnitMaintenance(
+  admin: SupabaseClient,
+  orgId: string,
+  odometerMilesByVehicleId: ReadonlyMap<string, number | null>,
+  now: Date,
+): Promise<UnitMaintenance> {
+  const { unitOf, schedules, intervalsOf } = await readPmSchedules(admin, orgId);
   const openOrders = await fetchAllPaged<{ unit_fleetpal_id: string | null }>((from, to) =>
     admin
       .from("fleetpal_work_orders")
@@ -71,10 +85,6 @@ export async function readUnitMaintenance(
       .order("id")
       .range(from, to),
   );
-
-  const unitOf = new Map(units.map((u) => [u.fleetpal_id, u]));
-  const intervalsOf = new Map<string, IntervalRow[]>();
-  for (const i of intervals) intervalsOf.set(i.pm_schedule_fleetpal_id, [...(intervalsOf.get(i.pm_schedule_fleetpal_id) ?? []), i]);
 
   const out: UnitMaintenance = { byVehicleId: new Map(), byTrailerId: new Map() };
   const add = (u: UnitRow, w: MaintenanceWarning) => {
@@ -95,11 +105,7 @@ export async function readUnitMaintenance(
     const unit = u.vehicle_id ? "truck" : "trailer";
     const odometer = u.vehicle_id ? (odometerMilesByVehicleId.get(u.vehicle_id) ?? null) : null;
     for (const i of intervalsOf.get(s.fleetpal_id) ?? []) {
-      const interval: PmInterval = {
-        intervalType: i.interval_type, value: num(i.value_int), valueUnit: i.value_time_type,
-        threshold: num(i.threshold_int), thresholdUnit: i.threshold_time_type, lastDoneMeterMeters: num(i.last_done_meter_value),
-      };
-      const w = pmWarning(kind, unit, interval, s.last_done, odometer, now);
+      const w = pmWarning(kind, unit, toInterval(i), s.last_done, odometer, now);
       if (w) add(u, w);
     }
   }
@@ -108,6 +114,31 @@ export async function readUnitMaintenance(
     if (u && (u.vehicle_id || u.trailer_id)) {
       add(u, { unit: u.vehicle_id ? "truck" : "trailer", kind: "repair_order", verdict: "due", dueOn: null, milesLeft: null });
     }
+  }
+  return out;
+}
+
+/**
+ * When FleetPal says each truck's and trailer's annual inspection next falls due (Q-DBV2, second half),
+ * `YYYY-MM-DD` by our roster id. Used for one thing only: showing the shop manager where it disagrees
+ * with our record (`annualDisagreement`), which is the annual the board reads.
+ *
+ * Every annual schedule in production is a TIME interval with a last-done date (2026-10-16: 336 of
+ * "12 MONTH", 96 of "365 DAY", 4 of "1 YEAR"). A schedule with time AND mileage falls due at the first.
+ * A unit with two annual schedules (a typo'd duplicate) takes the LATER: the most recent inspection
+ * FleetPal holds; the other is a schedule nobody moved on.
+ */
+export async function readFleetPalAnnualDue(admin: SupabaseClient, orgId: string): Promise<{ byVehicleId: Map<string, string>; byTrailerId: Map<string, string> }> {
+  const { unitOf, schedules, intervalsOf } = await readPmSchedules(admin, orgId);
+  const out = { byVehicleId: new Map<string, string>(), byTrailerId: new Map<string, string>() };
+  for (const s of schedules) {
+    const u = s.unit_fleetpal_id ? unitOf.get(s.unit_fleetpal_id) : undefined;
+    if (!u || (!u.vehicle_id && !u.trailer_id) || classifyPmName(s.name) !== "annual") continue;
+    const dues = (intervalsOf.get(s.fleetpal_id) ?? []).map((i) => pmDueOn(toInterval(i), s.last_done)).filter((d): d is string => d != null);
+    if (!dues.length) continue;
+    const first = dues.sort()[0]!;
+    const [map, id] = u.vehicle_id ? [out.byVehicleId, u.vehicle_id] : [out.byTrailerId, u.trailer_id!];
+    if (!map.has(id) || first > map.get(id)!) map.set(id, first);
   }
   return out;
 }

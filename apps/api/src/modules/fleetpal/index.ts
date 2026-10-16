@@ -71,7 +71,7 @@ export {
   type ShopBacklog,
 } from "./shopBacklog.js";
 export { readUnitCost, resolveUnitIds, type UnitCostAnswer, type UnitRepair } from "./unitCost.js";
-export { readUnitMaintenance, type UnitMaintenance } from "./unitMaintenance.js";
+export { readFleetPalAnnualDue, readUnitMaintenance, type UnitMaintenance } from "./unitMaintenance.js";
 export { readWorkOrdersOnUnits, type UnitWorkOrder, type UnitWorkOrderIndex } from "./unitWorkOrders.js";
 export { readWorkOrderRecords, type WorkOrderRecord, type WorkOrderRecords } from "./workOrderRecord.js";
 export { describeComponents, clearComponentCache, type ComponentLabel } from "./vmrs.js";

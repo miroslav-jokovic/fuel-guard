@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { annualWarning, classifyPmName, pmWarning, sortWarnings, type PmInterval } from "./maintenanceDue.js";
+import { annualDisagreement, annualWarning, classifyPmName, pmDueOn, pmWarning, sortWarnings, type PmInterval } from "./maintenanceDue.js";
 
 const NOW = new Date("2026-10-16T12:00:00Z");
 const MI = 1609.344;
@@ -68,5 +68,50 @@ describe("sortWarnings", () => {
     expect(sorted.map((x) => `${x.unit}:${x.kind}:${x.verdict}`)).toEqual([
       "driver:random_test:due", "driver:medical_card:overdue", "truck:oil:overdue", "driver:cdl:due",
     ]);
+  });
+});
+
+describe("pmDueOn — when a time interval next falls due", () => {
+  const annual = (value: number, unit: string): PmInterval => ({ intervalType: "TIME", value, valueUnit: unit, threshold: null, thresholdUnit: null, lastDoneMeterMeters: null });
+
+  it("adds the interval to the day it was done, in FleetPal's three annual shapes (12 MONTH, 365 DAY, 1 YEAR)", () => {
+    expect(pmDueOn(annual(12, "MONTH"), "2025-11-03T15:00:00Z")).toBe("2026-11-03");
+    expect(pmDueOn(annual(365, "DAY"), "2025-11-03T15:00:00Z")).toBe("2026-11-03");
+    expect(pmDueOn(annual(1, "YEAR"), "2025-11-03T15:00:00Z")).toBe("2026-11-03");
+  });
+
+  it("says nothing for a mileage interval, a schedule never done, or a unit it does not know", () => {
+    expect(pmDueOn({ ...annual(20_000, "MONTH"), intervalType: "ODOMETER" }, "2025-11-03T15:00:00Z")).toBeNull();
+    expect(pmDueOn(annual(12, "MONTH"), null)).toBeNull();
+    expect(pmDueOn(annual(12, "FORTNIGHT"), "2025-11-03T15:00:00Z")).toBeNull();
+    expect(pmDueOn(annual(0, "MONTH"), "2025-11-03T15:00:00Z")).toBeNull();
+  });
+});
+
+describe("annualDisagreement — FleetPal's annual against our record (Q-DBV2, second half)", () => {
+  const T = "2026-10-16";
+
+  it("is silent when both say the same and are within the 30-day warning window of each other", () => {
+    expect(annualDisagreement("2027-03-01", "2027-03-01", T)).toBeNull();
+    expect(annualDisagreement("2027-03-01", "2027-03-31", T)).toBeNull();
+    expect(annualDisagreement("2027-03-31", "2027-03-01", T)).toBeNull();
+  });
+
+  it("flags two valid dates more than 30 days apart, with the gap signed FleetPal minus ours", () => {
+    expect(annualDisagreement("2027-03-01", "2027-04-01", T)).toEqual({ ours: "valid", fleetpal: "valid", gapDays: 31 });
+    expect(annualDisagreement("2027-04-01", "2027-03-01", T)).toEqual({ ours: "valid", fleetpal: "valid", gapDays: -31 });
+  });
+
+  it("flags any pair whose verdicts differ, however close — the board's chip would change", () => {
+    // Ours expired yesterday, FleetPal's in five days: four days apart, but red against amber.
+    expect(annualDisagreement("2026-10-15", "2026-10-21", T)).toEqual({ ours: "expired", fleetpal: "expiring", gapDays: 6 });
+    // FleetPal says due inside the window, ours a day past it.
+    expect(annualDisagreement("2026-11-16", "2026-11-14", T)).toEqual({ ours: "valid", fleetpal: "expiring", gapDays: -2 });
+  });
+
+  it("flags a unit we hold no record for, and is silent where FleetPal schedules no annual", () => {
+    expect(annualDisagreement(null, "2027-01-01", T)).toEqual({ ours: "unknown", fleetpal: "valid", gapDays: null });
+    expect(annualDisagreement("2027-01-01", null, T)).toBeNull();
+    expect(annualDisagreement(null, null, T)).toBeNull();
   });
 });

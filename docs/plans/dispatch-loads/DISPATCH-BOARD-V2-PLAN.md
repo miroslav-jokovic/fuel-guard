@@ -468,3 +468,36 @@ Build order: DBV1 → DBV2 → DBV5 → DBV3 → DBV4 → DBV6 → DBV7.
   census choice (a fleet), as the board's does.
 - `DispatchScopeControls.vue` (the v1 control) and `fleetOptions` had no other reader and are gone. The
   Type filter and the hazmat chip words moved to `loadType.ts`, so the page is 475 lines.
+
+### 2026-10-16 — Q-DBV2's second half: annual dates the shop should check
+
+- **What the shop sees.** The Operations tab's Shop card has a fourth figure, **Annual dates to
+  check**. It opens `/shop/annual-dates`, a list of the trucks and trailers whose annual inspection
+  date in FleetPal disagrees with our record, the one the board reads. Each row shows both dates in
+  the record's own words (`InspectionExpiryCell`), how far apart they are, and what to fix and where.
+  The rows where the board's verdict would change say so. The unit links to the annual register.
+- **The rule** (`annualDisagreement`, `packages/shared`): both dates are judged by `inspectionExpiry`.
+  A unit is listed when the two **verdicts differ** (expired, expiring or valid), or when the dates
+  are **more than the 30-day warning window apart**. A unit with no record of ours but an annual in
+  FleetPal is listed. One FleetPal does not schedule is not: 12 such units, 2026-10-16.
+- **Measured in production** (2026-10-16, in-service units in both systems):
+  - Gaps: 409 pairs; 265 within 10 days, 61 at 11–31, and 83 beyond 31.
+  - The reader lists **84**, 14 of them where the verdict differs:
+    - 10 where FleetPal says expired or expiring and ours says valid;
+    - 3 the other way round;
+    - 1 truck with no record at all.
+  - The run over production returned exactly the SQL measurement's numbers.
+  - Most gaps have FleetPal about a year behind ours: this year's inspection reached our record and
+    FleetPal's schedule was never marked done.
+- **Where it lives.**
+  - `fleetpal.readFleetPalAnnualDue` reads FleetPal's next due date: last done plus the interval,
+    whichever interval comes first; for a duplicate schedule, the later date.
+  - `roster.listAnnualInspectionExpiries` reads ours, over the units the annual register covers.
+  - `maintenance/inspections/annualDisagreements.ts` joins the two.
+  - The PM reads `readUnitMaintenance` already made are shared, not repeated.
+- **Today is the board's** (the UTC day), so a badge on the page matches the board's chip. Both move
+  to the carrier's day together.
+- Found on the way: `InspectionExpiryCell` printed a valid date raw (`2027-06-16`) on Vehicles and
+  Trailers. It now uses `formatDate`, and its badge stays on one line.
+- The browser pass caught the list running to 1,658 px at 1,440: the "What to check" sentence did not
+  wrap. Its cells wrap now, as the board's do.

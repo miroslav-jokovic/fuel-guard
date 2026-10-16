@@ -18,7 +18,7 @@
  * so `pmWarning` answers for the 6-month inspection and the oil change only; the board takes the
  * annual from the record.
  */
-import { inspectionExpiry } from "./annualInspectionContract.js";
+import { INSPECTION_EXPIRY_WARNING_DAYS, inspectionExpiry, type InspectionExpiryState } from "./annualInspectionContract.js";
 import type { BoardWarning } from "./dispatchBoardContract.js";
 
 export const PM_KINDS = ["annual", "six_month", "oil", "other"] as const;
@@ -99,6 +99,47 @@ export function pmWarning(
   const warnFrom = i.threshold && i.thresholdUnit ? addTime(due.toISOString(), -i.threshold, i.thresholdUnit) : due;
   if (warnFrom && now.getTime() >= warnFrom.getTime()) return { unit, kind, verdict: "due", dueOn: ymd(due), milesLeft: null };
   return null;
+}
+
+/**
+ * When a TIME interval next falls due: the day it was last done plus the interval, `YYYY-MM-DD`. Null
+ * for a mileage interval, a schedule never done, or a unit this does not know — never a guess.
+ */
+export function pmDueOn(i: PmInterval, lastDone: string | null): string | null {
+  if ((i.intervalType ?? "").toUpperCase() === "ODOMETER" || i.value == null || i.value <= 0) return null;
+  if (!lastDone || !i.valueUnit) return null;
+  const due = addTime(lastDone, i.value, i.valueUnit);
+  return due ? ymd(due) : null;
+}
+
+/**
+ * Where FleetPal's annual and our record disagree (DISPATCH-BOARD-V2-PLAN Q-DBV2, second half). The board
+ * takes the annual from our record; FleetPal's own annual PM is used for nothing but this — showing the
+ * shop manager which of the two needs correcting.
+ *
+ * Both dates are judged by the record's own rule (`inspectionExpiry`), so "expired" means one thing on
+ * both sides. They disagree when:
+ * - their VERDICTS differ — one says expired or due within the warning window and the other does not, so
+ *   the board's chip would change if the other date were the true one; or
+ * - they are more than the warning window apart (`INSPECTION_EXPIRY_WARNING_DAYS`): too far to be one
+ *   inspection entered on two days, even while both still say "valid". Measured 2026-10-16 on the
+ *   active fleet: 265 of 409 pairs within 10 days, 61 at 11–31, 83 beyond 31.
+ * A unit with no record of ours but an annual in FleetPal disagrees too: the board shows it nothing.
+ * One FleetPal has no annual for is not a disagreement — FleetPal simply does not schedule it.
+ */
+export interface AnnualDisagreement {
+  ours: InspectionExpiryState;
+  fleetpal: InspectionExpiryState;
+  /** FleetPal's date minus ours, in days: positive when FleetPal's is later. Null with no record of ours. */
+  gapDays: number | null;
+}
+export function annualDisagreement(ourExpiresOn: string | null, fleetpalDueOn: string | null, today: string): AnnualDisagreement | null {
+  if (!fleetpalDueOn) return null;
+  const ours = inspectionExpiry(ourExpiresOn, today);
+  const fleetpal = inspectionExpiry(fleetpalDueOn, today);
+  const gapDays = ours.daysRemaining == null ? null : fleetpal.daysRemaining! - ours.daysRemaining;
+  if (ours.state === fleetpal.state && gapDays != null && Math.abs(gapDays) <= INSPECTION_EXPIRY_WARNING_DAYS) return null;
+  return { ours: ours.state, fleetpal: fleetpal.state, gapDays };
 }
 
 /** The annual from our own record (Q-DBV2): expired is overdue, inside the record's 30 days is due. */

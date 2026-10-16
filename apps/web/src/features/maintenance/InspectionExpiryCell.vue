@@ -37,13 +37,15 @@ const label = computed(() => {
     const d = s.daysRemaining ?? 0;
     return d === 0 ? "Due today" : `Due in ${d} day${d === 1 ? "" : "s"}`;
   }
-  return s.expiresOn ?? "—";
+  // The product's one date format (MM/DD/YYYY, `formatDate`) — it printed `2027-06-16` raw until 2026-10-16.
+  return s.expiresOn ? formatDate(s.expiresOn) : "—";
 });
 </script>
 
 <template>
   <span class="inline-flex items-center gap-2">
-    <AppBadge v-if="status.state !== 'valid'" :tone="tone">{{ label }}</AppBadge>
+    <!-- One line, in a table that wraps its cells too (Annual dates to check, 2026-10-16). -->
+    <AppBadge v-if="status.state !== 'valid'" :tone="tone" class="whitespace-nowrap">{{ label }}</AppBadge>
     <span v-else class="text-ink-secondary">{{ label }}</span>
     <span v-if="status.state === 'expiring' || status.state === 'expired'" class="text-xs text-ink-tertiary">
       {{ formatDate(status.expiresOn) }}

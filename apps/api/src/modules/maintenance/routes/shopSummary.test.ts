@@ -1,8 +1,8 @@
-import { describe, expect, it, vi, beforeEach } from "vitest";
+import { afterEach, describe, expect, it, vi, beforeEach } from "vitest";
 import express, { type NextFunction, type Request, type Response } from "express";
 import type { AddressInfo } from "node:net";
 import type { Server } from "node:http";
-import { shopSummarySchema, type ShopDefectDto, type ShopWorkOrderDto } from "@silvicom/shared";
+import { shopSummarySchema, type AnnualDisagreementDto, type ShopDefectDto, type ShopWorkOrderDto } from "@silvicom/shared";
 import { closeTestServer } from "../../../testing/httpServer.js";
 import {
   createSupabaseRecorder,
@@ -59,6 +59,65 @@ const defect = (id: string, resolved: boolean | null) => ({
 });
 const DEFECTS = [defect("d1", false), defect("d2", false), defect("d3", true), defect("d4", null)];
 
+/**
+ * The annual check (Q-DBV2), judged on 2026-10-16 (the clock is set below). Our record per unit, and
+ * FleetPal's annual schedule for it:
+ * - 654: ours 2027-03-01, FleetPal 12 months from 2026-04-01 → 31 days apart, both valid: disagrees.
+ *   Its schedule also carries a 24-month interval; whichever comes first decides, so 2027-04-01.
+ * - 655: ours 2027-03-01, FleetPal 365 days from 2026-03-05 → 4 days apart: agrees.
+ * - 656: no record of ours, FleetPal due 2027-01-01: disagrees (the board shows it nothing).
+ * - 657: ours, and FleetPal schedules no annual (only an oil change): nothing to compare.
+ * - 658: retired, with a stale FleetPal annual: not in service, so not on the list.
+ * - trailer 9001: ours valid to 2026-11-20, FleetPal's lapsed 2026-10-10 → verdicts differ.
+ * - 659: two annual schedules (a typo'd duplicate) — the LATER one (2027-02-01) is FleetPal's word,
+ *   one day off ours: agrees. Taking the earlier (2026-05-01) would flag it as lapsed.
+ * - 660: ours 2027-03-01, FleetPal 2028-06-01 — the widest gap of all, but both valid, so it sorts
+ *   AFTER the trailer whose verdicts differ.
+ */
+const inService = (q: RecordedQuery) => (r: { status: string }) => {
+  const f = q.filters().find((x) => x.col === "status");
+  return !f || (Array.isArray(f.val) && f.val.includes(r.status));
+};
+const VEHICLES = [
+  { id: "v-654", unit_number: "654", status: "active", dot_annual_inspection_expires_at: "2027-03-01" },
+  { id: "v-655", unit_number: "655", status: "active", dot_annual_inspection_expires_at: "2027-03-01" },
+  { id: "v-656", unit_number: "656", status: "maintenance", dot_annual_inspection_expires_at: null },
+  { id: "v-657", unit_number: "657", status: "active", dot_annual_inspection_expires_at: "2027-01-01" },
+  { id: "v-658", unit_number: "658", status: "retired", dot_annual_inspection_expires_at: "2027-06-01" },
+  { id: "v-659", unit_number: "659", status: "active", dot_annual_inspection_expires_at: "2027-01-31" },
+  { id: "v-660", unit_number: "660", status: "active", dot_annual_inspection_expires_at: "2027-03-01" },
+];
+const TRAILERS = [{ id: "t-9001", unit_number: "9001", status: "active", dot_annual_inspection_expires_at: "2026-11-20" }];
+const UNITS = [
+  { fleetpal_id: "fpu-1", number: "654", vehicle_id: "v-654", trailer_id: null },
+  { fleetpal_id: "fpu-2", number: "655", vehicle_id: "v-655", trailer_id: null },
+  { fleetpal_id: "fpu-3", number: "656", vehicle_id: "v-656", trailer_id: null },
+  { fleetpal_id: "fpu-4", number: "657", vehicle_id: "v-657", trailer_id: null },
+  { fleetpal_id: "fpu-5", number: "658", vehicle_id: "v-658", trailer_id: null },
+  { fleetpal_id: "fpu-6", number: "9001", vehicle_id: null, trailer_id: "t-9001" },
+  { fleetpal_id: "fpu-7", number: "659", vehicle_id: "v-659", trailer_id: null },
+  { fleetpal_id: "fpu-8", number: "660", vehicle_id: "v-660", trailer_id: null },
+];
+const sched = (id: string, unit: string, name: string, lastDone: string) => ({ fleetpal_id: id, unit_fleetpal_id: unit, name, last_done: lastDone });
+const SCHEDULES = [
+  sched("s1", "fpu-1", "Annual DOT Inspection", "2026-04-01T14:00:00Z"),
+  sched("s2", "fpu-2", "DOT Annual", "2026-03-05T14:00:00Z"),
+  sched("s3", "fpu-3", "Annual DOT Inspection", "2026-01-01T14:00:00Z"),
+  sched("s4", "fpu-4", "Oil Change", "2026-09-01T14:00:00Z"),
+  sched("s5", "fpu-5", "Annual DOT Inspection", "2024-01-01T14:00:00Z"),
+  sched("s6", "fpu-6", "Annual lDOT Inspection", "2025-10-10T14:00:00Z"),
+  sched("s7", "fpu-7", "Annual DOT Inspection", "2026-02-01T14:00:00Z"),
+  sched("s8", "fpu-7", "Annual DOT Inspecton", "2025-05-01T14:00:00Z"),
+  sched("s9", "fpu-8", "DOT Annual", "2027-06-01T14:00:00Z"),
+];
+const interval = (schedule: string, value: number, unit: string) => ({
+  pm_schedule_fleetpal_id: schedule, interval_type: "TIME", value_int: value, value_time_type: unit, threshold_int: 30, threshold_time_type: "DAY", last_done_meter_value: null,
+});
+const INTERVALS = [
+  interval("s1", 12, "MONTH"), interval("s1", 24, "MONTH"), interval("s9", 12, "MONTH"), interval("s2", 365, "DAY"), interval("s3", 12, "MONTH"), interval("s4", 6, "MONTH"),
+  interval("s5", 12, "MONTH"), interval("s6", 12, "MONTH"), interval("s7", 12, "MONTH"), interval("s8", 1, "YEAR"),
+];
+
 const line = (partId: string, onHand: number, reorderPoint: number | null) => ({
   part_id: partId, location_id: "loc-1", quantity_on_hand: onHand, reorder_point: reorderPoint, reorder_quantity: 10,
   aisle: null, row: null, bin: null, tag_code: null, active: true,
@@ -84,7 +143,11 @@ function recorder(o: { noneOpen?: boolean; workOrderError?: boolean } = {}) {
         });
       },
       fleetpal_defects: (q) => DEFECTS.filter((d) => !has(q, "is_resolved", false) || d.is_resolved === false),
-      fleetpal_units: [{ fleetpal_id: "fpu-1", number: "654" }],
+      fleetpal_units: UNITS,
+      fleetpal_pm_schedules: SCHEDULES,
+      fleetpal_pm_intervals: INTERVALS,
+      vehicles: (q) => VEHICLES.filter(inService(q)),
+      trailers: (q) => TRAILERS.filter(inService(q)),
       part_stock: [line("p1", 1, 4), line("p2", 4, 4), line("p3", 9, 4)],
     },
   });
@@ -107,6 +170,12 @@ async function call(path: string): Promise<{ status: number; body: { ok?: boolea
 
 beforeEach(() => {
   rec = recorder();
+  // Only the Date: the routes' own server and fetch must keep real timers.
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(new Date("2026-10-16T15:00:00Z"));
+});
+afterEach(() => {
+  vi.useRealTimers();
 });
 
 describe("the shop summary", () => {
@@ -119,16 +188,20 @@ describe("the shop summary", () => {
       unresolvedDefects: 2,
       // p1 is under its point and p2 sits on it; p3 is above it. `isLowStock` decides, not this file.
       lowStockLines: 2,
+      annualDisagreements: 4,
     });
   });
 
   it("gives each count as the length of the list its door opens (D-FM7)", async () => {
-    const summary = (await call("shop-summary")).body.data as { openWorkOrders: number; unresolvedDefects: number };
+    const summary = (await call("shop-summary")).body.data as { openWorkOrders: number; unresolvedDefects: number; annualDisagreements: number };
     rec = recorder();
     const orders = (await call("work-orders")).body.data as unknown[];
     rec = recorder();
     const defects = (await call("defects")).body.data as unknown[];
-    expect([summary.openWorkOrders, summary.unresolvedDefects]).toEqual([orders.length, defects.length]);
+    rec = recorder();
+    const annuals = (await call("annual-disagreements")).body.data as unknown[];
+    expect([summary.openWorkOrders, summary.unresolvedDefects, summary.annualDisagreements])
+      .toEqual([orders.length, defects.length, annuals.length]);
   });
 
   it("has no oldest age when nothing is open, and says zero rather than nothing", async () => {
@@ -164,8 +237,28 @@ describe("the lists behind it", () => {
     expect(rows[0]).toMatchObject({ unitNumber: "654", name: "Air leak", driverComment: "Hissing at the trailer glad hand" });
   });
 
-  it("scopes every read on all three routes to the caller's org", async () => {
-    for (const path of ["shop-summary", "work-orders", "defects"]) {
+  it("lists the units whose annual FleetPal and our record disagree on, the ones the board would read differently first", async () => {
+    const rows = (await call("annual-disagreements")).body.data as AnnualDisagreementDto[];
+    // Verdicts that differ first — no record of ours at all, then the trailer the board calls valid and
+    // FleetPal lapsed — then the widest gap among the rest.
+    expect(rows.map((r) => r.unitNumber)).toEqual(["656", "9001", "660", "654"]);
+    expect(rows[1]).toEqual({
+      subjectType: "trailer", unitId: "t-9001", unitNumber: "9001", ourExpiresOn: "2026-11-20", fleetpalDueOn: "2026-10-10",
+      ours: "valid", fleetpal: "expired", gapDays: -41,
+    });
+    expect(rows[3]).toMatchObject({ subjectType: "tractor", ours: "valid", fleetpal: "valid", gapDays: 31, fleetpalDueOn: "2027-04-01" });
+    expect(rows[0]).toMatchObject({ ourExpiresOn: null, ours: "unknown", fleetpalDueOn: "2027-01-01", gapDays: null });
+  });
+
+  it("refuses the annual list whole when a read fails, never echoing the database", async () => {
+    rec = createSupabaseRecorder({ tables: { vehicles: () => ({ data: null, error: { message: "relation vehicles: boom" } }) } });
+    const { status, body } = await call("annual-disagreements");
+    expect(status).toBe(500);
+    expect(JSON.stringify(body)).not.toContain("boom");
+  });
+
+  it("scopes every read on all four routes to the caller's org", async () => {
+    for (const path of ["shop-summary", "work-orders", "defects", "annual-disagreements"]) {
       rec = recorder();
       await call(path);
       expect(rec.forTable("fleetpal_units").length, path).toBeGreaterThan(0);
