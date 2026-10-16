@@ -1,6 +1,6 @@
 # UI standardization — every page and component on one set of rules
 
-**Status:** IN EXECUTION — US0–US6c merged 2026-10-12/13; US6b browser pass done 10/13, its fixes in batches; US7 (admin) waits on Q-US1.
+**Status:** BUILT AND RELEASED — US0–US9 merged and in production since release v2026.10.15.3 (checked 2026-10-16: #1552, #1567 US9, #1569 US8 and #1574 US7 are ancestors of `production`). Two things are still open: the owner question Q-US4 (one shell or two), and the post-release browser pass on staging with a real login, which the 2026-10-15 entry names and nothing records as done.
 **Owner ruling:** "proceed as suggested and let's do this properly so we have all pages and components
 100% production ready" (2026-10-12).
 **Canonical rules it feeds:** `docs/DESIGN-SYSTEM-CONTRACT.md` (what a page must look like) and
@@ -863,4 +863,4 @@ and the revoke dialog names what stops. The pass found three things, all fixed h
 
 Open: Q-US4 (one shell or two). Next: the owner's release, then the same pass on staging with a
 real login.
-
+- 2026-10-16 — Status audit: every US step is merged and released (v2026.10.15.3). US6b's three open points are closed: the orb over the shelf walk's "Record count" by `composables/bottomChrome.ts` (#1567) and `--assistant-clearance` (#1569); F31 by US9 (#1567); #1552 released. Still open: Q-US4, and the post-release staging pass with a real login (not yet run).
