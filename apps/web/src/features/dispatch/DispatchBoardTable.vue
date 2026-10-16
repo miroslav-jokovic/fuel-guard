@@ -16,6 +16,7 @@ import {
   durationWords,
   gpsAgeWords,
   legalDriveLeft,
+  milesLeftOf,
   milesLeftWords,
   POOL_FLEET,
   stopPlace,
@@ -59,6 +60,14 @@ const emit = defineEmits<{ retry: []; open: [row: DispatchBoardRow]; sort: [key:
 
 const at = (iso: string | null | undefined) => formatDateTime(iso, "—", props.zone);
 
+/** Why a Miles left cell reads what it does — an estimate, an empty truck, or no figure and why. */
+function milesLeftTitle(r: DispatchBoardRow): string | undefined {
+  if (r.inShop) return undefined;
+  if (!r.current) return "Empty: no load left to drive";
+  return r.milesLeft != null
+    ? "Estimated road miles to the final delivery, through every stop still to make"
+    : "No estimate: the last stop is reached, or the truck or a stop has no position";
+}
 const loadLabel = (l: NonNullable<DispatchBoardRow["current"]>) =>
   loadBoardState({ status: l.status as LoadStatus, source: l.source ?? "", external_status: l.externalStatus }).label;
 </script>
@@ -123,9 +132,7 @@ const loadLabel = (l: NonNullable<DispatchBoardRow["current"]>) =>
     </template>
 
     <template #cell-milesLeft="{ row }">
-      <span :title="row.milesLeft != null ? 'Estimated road miles to the final delivery, through every stop still to make' : undefined">
-        {{ row.current ? milesLeftWords(row.milesLeft) : "—" }}
-      </span>
+      <span :title="milesLeftTitle(row)">{{ milesLeftWords(milesLeftOf(row)) }}</span>
     </template>
 
     <template #cell-status="{ row }">

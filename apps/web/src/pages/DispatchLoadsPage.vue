@@ -32,9 +32,9 @@
  * HOS and GPS are never re-drawn here. DBV7 (Q-DBV6): Dispatch starts hidden, and Delivery carries the
  * board's miles left.
  *
- * ── THE SAME STRIP, COUNTING THIS LIST (DISPATCH-BOARD-V2-PLAN Q-DBV8, DBV8) ──────────────────────
- * Whose work is the board's census strip: Mine, All and a button per fleet, each with its count, and the
- * button IS the filter. Here it counts LOADS — the open tab's, under its type and search — never the
+ * ── THE SAME CHOICE, COUNTING THIS LIST (DISPATCH-BOARD-V2-PLAN Q-DBV8, DBV8, Q-DBV9) ─────────────
+ * Whose work is the board's Dispatcher select: Mine, All and an entry per fleet, each with its count,
+ * and the entry IS the filter (a strip of buttons until Q-DBV9). Here it counts LOADS — the open tab's, under its type and search — never the
  * board's trucks, so a button's number is the rows it shows. A load with no truck yet is "No truck",
  * apart from a truck with no fleet. Dispatched by moved under Filters, as on the board.
  *
@@ -76,8 +76,7 @@ import {
 import DispatchLoadDrawer from "@/features/dispatch/DispatchLoadDrawer.vue";
 import { dispatchHeadline } from "@/features/dispatch/useLoadDispatch";
 import { useDispatchBoardQuery } from "@/features/dispatch/useDispatchBoard";
-import DispatcherCensus from "@/features/dispatch/DispatcherCensus.vue";
-import { loadCensusItems, type CensusPick } from "@/features/dispatch/censusItems";
+import { censusSelectOptions, censusValue, loadCensusItems, pickOf } from "@/features/dispatch/censusItems";
 import { admitsScope, dispatcherOptions, useScopeChoice } from "@/features/dispatch/dispatchScope";
 import { loadsOnBoard } from "@/features/dispatch/loadsOnBoard";
 import { loadStopName } from "@/features/dispatch/dispatchBoardView";
@@ -233,7 +232,7 @@ const unscoped = computed(() => {
 });
 const filtered = computed(() => unscoped.value.filter(inScope));
 /**
- * Loads per dispatcher (Q-DBV8): the board's strip, counting this list — on Exceptions, the exceptions,
+ * Loads per dispatcher (Q-DBV8): the board's Dispatcher choice, counting this list — on Exceptions, the exceptions,
  * each by its load. Picking one is the census choice; Dispatched by moved under More, as on the board.
  */
 const census = computed(() =>
@@ -242,7 +241,13 @@ const census = computed(() =>
     admits, scope.value.linked, board.value, scopeChoice.value, fleet.value,
   ),
 );
-const pickCensus = (v: CensusPick) => qs.set({ scope: v.scope, fleet: v.fleet || undefined });
+const whose = computed({
+  get: () => censusValue(census.value),
+  set: (key: string) => {
+    const pick = pickOf(census.value, key);
+    if (pick) qs.set({ scope: pick.scope, fleet: pick.fleet || undefined });
+  },
+});
 const moreChips = computed(() =>
   dispatcher.value ? [{ key: "dispatcher", label: "Dispatched by", value: dispatcherOptions(board.value).find((o) => o.value === dispatcher.value)?.label ?? dispatcher.value }] : [],
 );
@@ -323,7 +328,6 @@ function openDetail(load: DispatchLoad) {
       Uncovered loads have no dispatcher in McLeod yet, so this queue shows all of them.
     </AppCallout>
 
-    <DispatcherCensus v-if="board" :items="census" :noun="tab === 'exceptions' ? 'exception' : 'load'" @pick="pickCensus" />
 
     <DataWorkspace>
       <FilterBar
@@ -339,6 +343,7 @@ function openDetail(load: DispatchLoad) {
         @clear-all="clearFilters"
       >
         <template #filters>
+          <FilterSelect v-model="whose" label="Dispatcher" :options="censusSelectOptions(census)" />
           <FilterSelect v-model="typeFilter" label="Type" :options="TYPE_OPTIONS" />
         </template>
         <template #more>

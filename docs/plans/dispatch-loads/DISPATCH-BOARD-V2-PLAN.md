@@ -270,6 +270,10 @@ Fix, one PR each:
   *Recommend (a)*, as DBV8, after the dispatchers have seen DBV7 — they named the board, not Loads, when
   they asked for counts. Until ruled, Loads keeps (c); nothing borrows the strip around the mismatch.
   **Ruled 2026-10-16 (owner: "proceed as proposed"): (a), built as DBV8.**
+- **Q-DBV9 — The census strip as a control, and counts that disagree with the table** (raised by the
+  owner, 2026-10-16, after looking at DBV2 and DBV8). *"This solution with cards with dispatcher names
+  is not the correct UI/UX — create a dropdown select for this in the filter section."* And: State said
+  **AL (8)**, and choosing it showed nothing. **Ruled the same day: build it.** See the log.
 
 ## 7. Steps (one PR each)
 
@@ -501,3 +505,26 @@ Build order: DBV1 → DBV2 → DBV5 → DBV3 → DBV4 → DBV6 → DBV7.
   Trailers. It now uses `formatDate`, and its badge stays on one line.
 - The browser pass caught the list running to 1,658 px at 1,440: the "What to check" sentence did not
   wrap. Its cells wrap now, as the board's do.
+
+### 2026-10-16 — Q-DBV9: dispatchers in a select, counts that are the rows they show, miles for empties
+
+- **The strip is a select.** The row of fleet cards (D-DBV2, and the Loads page's from DBV8) is now the
+  **Dispatcher** select, the first filter in the toolbar on both pages, with the same counts in its
+  labels: "KANE · Kane Smith (15, 6 empty now)". All is the select's empty value, so its trigger reads
+  as a filter only when it narrows and its ✕ goes back to All. `DispatcherCensus.vue` is deleted;
+  `censusItems.ts` still counts, and `censusSelectOptions` words it.
+- **Why AL said 8 and showed nothing.** Measured in production: 8 trucks free in Alabama, across seven
+  fleets. The State count was taken over every row the board returned, while the table showed one
+  fleet, and the pool and trucks in the shop were counted though no state filter admits them. Now
+  every count is taken over the rows every OTHER filter admits (`stateCounts`, `rowsBeforeScope`):
+  State counts under the dispatcher and Free chosen, and the Dispatcher counts under the State and
+  Free chosen. A chosen state stays listed at 0, so it can be unticked, and every working fleet is
+  listed even at 0, so the select keeps its shape.
+- **Why Miles left was empty.** It was not missing: production had 123 loaded trucks and only 3
+  without a figure, all with the last stop already reached. But the board opens soonest-free first,
+  and the 51 trucks free now are empty, so its whole first page read "—". An empty truck now reads
+  **0 mi** (exact, so no ≈), and sorts as 0; a truck in the shop and an unmeasured load still have no
+  figure, and the cell's tooltip says which.
+- Browser pass (stubbed board, 1,440 px): the select in the filter row with counts; KANE then State
+  lists only KANE's states, and AL (8) shows 8.
+

@@ -9,7 +9,10 @@ import {
   fleetCensus,
   durationWords,
   gpsAgeWords,
+  milesLeftOf,
   milesLeftWords,
+  rowsBeforeScope,
+  stateCounts,
   warningWords,
   POOL_OPTION,
   NO_FLEET_OPTION,
@@ -112,6 +115,46 @@ describe("the dispatchers' numbers and colours", () => {
     expect(availablePlace(row("x", { available: free(1) }))).toBe("Lakeland, FL 33801");
     expect(milesLeftWords(1412)).toBe("≈ 1,412 mi");
     expect(milesLeftWords(null)).toBe("—");
+    expect(milesLeftWords(0)).toBe("0 mi");
+  });
+
+  /** Owner, 2026-10-16: "Miles left column is empty" — page 1 of soonest-free is empty trucks. */
+  it("gives an empty truck 0 miles left, and a truck in the shop or an unmeasured load none", () => {
+    expect(milesLeftOf(row("x"))).toBe(0);
+    expect(milesLeftOf(row("x", { current: load("v"), milesLeft: 412 }))).toBe(412);
+    expect(milesLeftOf(row("x", { current: load("v"), milesLeft: null }))).toBeNull();
+    expect(milesLeftOf(row("x", { inShop: true }))).toBeNull();
+    // and sorts by the same figure, so the empties sort with 0, not with the unknowns
+    expect(boardSortValue(row("x"), "milesLeft")).toBe(0);
+  });
+});
+
+/**
+ * Q-DBV9: every count is the rows its option would show — taken over what every OTHER filter admits.
+ * The owner chose AL (8) on 2026-10-16 and got an empty table: the count had been over every row.
+ */
+describe("stateCounts / rowsBeforeScope — counts that match the table", () => {
+  const at = (state: string, o: Partial<DispatchBoardRow> = {}) =>
+    row(`${state}-${o.fleetCode ?? "VINNIEV"}-${o.inShop ? "shop" : "ok"}`, { available: { ...free(1), state }, ...o });
+  const rows = [at("AL", { fleetCode: "VLADI" }), at("AL", { fleetCode: "VLADI", inShop: true }), at("AL", { fleetCode: "1" }), at("GA")];
+
+  it("counts a state under the fleet chosen, leaving out the pool and trucks in the shop", () => {
+    expect([...stateCounts(rows, scope, all, NOW)]).toEqual([["AL", 1], ["GA", 1]]);
+    expect([...stateCounts(rows, scope, { ...all, fleet: "VINNIEV" }, NOW)]).toEqual([["GA", 1]]);
+    // and each count is what choosing that state then shows
+    const al = { ...all, available: { states: ["AL"], near: null, withinHours: null } };
+    expect(filterBoard(rows, scope, al, NOW)).toHaveLength(1);
+  });
+
+  it("ignores its own choice, so every state keeps its count while one is chosen", () => {
+    const chosen = { ...all, available: { states: ["GA"], near: null, withinHours: null } };
+    expect([...stateCounts(rows, scope, chosen, NOW)]).toEqual([["AL", 1], ["GA", 1]]);
+  });
+
+  it("counts each fleet under every other filter, the pool included once", () => {
+    const ga = { ...all, mine: true, fleet: "VLADI", available: { states: ["GA"], near: null, withinHours: null } };
+    expect(units(rowsBeforeScope(rows, scope, ga, NOW))).toEqual(["GA-VINNIEV-ok"]);
+    expect(units(rowsBeforeScope(rows, scope, all, NOW))).toEqual(["AL-VLADI-ok", "AL-VLADI-shop", "GA-VINNIEV-ok", "AL-1-ok"]);
   });
 });
 

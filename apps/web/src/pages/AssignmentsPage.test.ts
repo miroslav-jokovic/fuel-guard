@@ -221,26 +221,54 @@ describe("the dispatch board page", () => {
     expect(w.findComponent(SavedViewMenu).props("activeName")).toBe("VLADI late");
   });
 
-  it("counts trucks per dispatcher, and a dispatcher's count is the filter", async () => {
+  /**
+   * Q-DBV9 (owner, 2026-10-16): the dispatchers are one select in the filter row, not a strip of cards,
+   * and every number beside an option is the rows choosing it shows — AL said 8 and showed none when
+   * the count was taken over every truck the board returned.
+   */
+  const select = async (w: Awaited<ReturnType<typeof mountPage>>, label: string) => {
+    const FilterSelect = (await import("@/components/ui/FilterSelect.vue")).default;
+    return w.findAllComponents(FilterSelect).find((c) => c.props("label") === label)!;
+  };
+  const labels = async (w: Awaited<ReturnType<typeof mountPage>>, label: string) =>
+    ((await select(w, label)).props("options") as { label: string }[]).map((o) => o.label);
+
+  it("chooses whose trucks from a Dispatcher select, each option counting the trucks it shows", async () => {
     board.value = response(true);
     const w = await mountPage();
-    const census = w.get("[aria-label='Trucks per dispatcher']").findAll("button");
-    expect(census.map((b) => b.attributes("aria-label"))).toEqual([
-      "Mine: 2 trucks",
-      "All: 3 trucks, 3 empty now",
-      "VINNIEV: 2 trucks, 2 empty now",
-      "VLADI: 1 truck, 1 empty now",
-      "Pool: 1 truck",
+    expect(w.find("[aria-label='Trucks per dispatcher']").exists()).toBe(false);
+    expect(await labels(w, "Dispatcher")).toEqual([
+      "Mine (2)",
+      "All (3, 3 empty now)",
+      "VINNIEV (2, 2 empty now)",
+      "VLADI (1, 1 empty now)",
+      "Pool (1)",
     ]);
-    expect(census[0]!.attributes("aria-pressed")).toBe("true");
-    await census[3]!.trigger("click");
+    expect((await select(w, "Dispatcher")).props("modelValue")).toBe("mine");
+    (await select(w, "Dispatcher")).vm.$emit("update:modelValue", "VLADI");
     await flushPromises();
     expect(w.router.currentRoute.value.query).toEqual({ scope: "all", fleet: "VLADI" });
     expect(units(w)).toEqual(["801"]);
-    await w.get("[aria-label='Trucks per dispatcher']").findAll("button")[1]!.trigger("click");
+    (await select(w, "Dispatcher")).vm.$emit("update:modelValue", "");
     await flushPromises();
     expect(w.router.currentRoute.value.query).toEqual({ scope: "all" });
     expect(units(w)).toEqual(["773", "669", "801"]);
+  });
+
+  it("counts a state's trucks under the dispatcher chosen, so a state's number is the rows it shows", async () => {
+    board.value = response(true);
+    const w = await mountPage("/assignments?scope=all&fleet=VLADI");
+    // VLADI's one truck is free in Georgia; Florida's two are VINNIEV's and are not on this board.
+    expect(await labels(w, "State")).toEqual(["GA (1)"]);
+    const chosen = await mountPage("/assignments?scope=all&fleet=VLADI&state=FL");
+    expect(units(chosen)).toEqual([]);
+    expect(await labels(chosen, "State")).toEqual(["FL (0)", "GA (1)"]);
+  });
+
+  it("counts a dispatcher's trucks under the state chosen", async () => {
+    board.value = response(true);
+    const w = await mountPage("/assignments?scope=all&state=GA");
+    expect(await labels(w, "Dispatcher")).toEqual(["Mine (0)", "All (1, 1 empty now)", "VINNIEV (0, 0 empty now)", "VLADI (1, 1 empty now)"]);
   });
 
   it("finds the trucks free in a state within a horizon, from a link", async () => {
