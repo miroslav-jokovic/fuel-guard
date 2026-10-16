@@ -422,8 +422,11 @@ are not specified here.
 | **IC8** | R-DUP1, R-OOS1 | Q-IC3 |
 | **IC9** | Outcome learning: feed-derived outcomes, grant rate by rule/code/state, threshold review (D-IC10). Report the first 90 days | IC4 + 90 days of filings |
 | **IC10** | Report reading + identity comparison (D-IC13): `roadside_inspection_report` profile in `@silvicom/shared`'s `DOCUMENT_PROFILES`, read on upload, the three comparisons stored as findings, mismatch → safety task, the result on the inspection's driver card | IC2, IC5, Q-IC11 |
-| **IC11** | Repair record (D-IC14): migration for `inspection_repairs` (append-only versions: violation → proposed/accepted FleetPal work orders, due date, certified by/at), proposal from `fleetpal_units` + `fleetpal_work_orders`, rendered repair document, 15-day clock in the inbox and the bell, certification action | FleetPal units sync (2026-10-15), Q-IC12, Q-IC13, Q-IC14 |
-| **IC12** | Driver-app intake (D-IC15): photograph the officer's report (and a ticket, Q-IC4) to the inspection; a report with no FMCSA row yet waits for it | IC10, Q-IC4 |
+| **IC11** | Repair record (D-IC14): migration for `inspection_repairs` (append-only versions: violation → proposed/accepted FleetPal work orders, due date, certified by/at), proposal from `fleetpal_units` + `fleetpal_work_orders`, rendered repair document, 15-day clock in the inbox and the bell, certification action | FleetPal units sync (LIVE v2026.10.15.3: 489 units, 441 matched), Q-IC12, Q-IC13, Q-IC14 (measured 2026-10-16: propose, never auto-accept). Two merges: the table, then the proposal + card + clock |
+| **IC12** | Driver-app intake (D-IC15): photograph the officer's report (and a ticket, Q-IC4) to the inspection; a report with no FMCSA row yet waits for it | IC10 (the report intake); Q-IC4 only for the ticket photograph |
+| **IC1d** | Fetch the hour FMCSA republishes: an hourly Socrata metadata check (`rowsUpdatedAt`) against the last run's, the 24-hour run kept as the backstop (2026-10-16) | IC1 |
+| **IC13** | Ask only when it matters (Q-IC15 (b)): a high-confidence Samsara reading of a roster driver is shown as the answer, labelled as Samsara's; the card asks a person only for low, none, several, not-ours and a report disagreement; a person still confirms before any DataQs filing (D-IC7) | IC5, Q-IC15 |
+| **IC14** | Safety alert for a report that needs a person, and the inbox's "needs a person" filter (the notification category one merge before its writer) | IC10 |
 
 IC1 and IC3 can run in parallel. IC4 is the first step a user can act on, and should be reachable in
 about three merges.
@@ -577,6 +580,20 @@ about three merges.
   inspection. Proposed, never accepted automatically, until measured: after the units sync is live,
   take the last year's 126 inspections with vehicle violations and count how many have exactly one
   plausible work order. *Recommendation:* decide auto-accept only on that measurement.
+  **MEASURED 2026-10-16 (production, units sync live): never auto-accept.** Last 365 days, 148 violated
+  units on Part 393/396 inspections: **56** have exactly one FleetPal work order opened 0–15 days after
+  the inspection, **28** have several, **49** have none, **15** were repaired at the scene. Exactly one
+  is 38% — not a rule. So IC11 proposes (ranked: VMRS component agreeing with the violation, then the
+  nearest date), maintenance accepts, and "none in 15 days" is the alert, because those 49 are the
+  396.9(d) gap itself: a repair outside FleetPal, or no recorded repair.
+- **Q-IC15 — RESOLVED 2026-10-16 (owner): (b).** May a high-confidence Samsara reading of a roster driver
+  stop asking? Measured the same day: zero officer's reports uploaded, so Q-IC11 (a)'s confirmation had
+  never run and every inspection waited on a person — last 90 days 109: 76 high and on the roster, 19
+  low, 12 none/several, 1 confirmed. (a) keep asking every time; **(b) show the high + roster reading as
+  the answer, labelled "From Samsara", upgraded to "Confirmed by the report" when one is read; ask only
+  for low, none, several, not-ours and a disagreement; a person still confirms before a DataQs filing
+  (18 USC 1001, D-IC7)**; (c) as (b) but only after a report. Built as IC13. Not a new attribution row:
+  the card's question is what changes; the record still says it is the engine's reading.
 
 ---
 
@@ -936,3 +953,14 @@ about three merges.
   - **Not yet:** the safety office's alert for a report that needs a person (it needs a notification category
     — a CHECK on `notification_events` — one merge before its writer), and the inbox's "needs a person"
     filter. Until then the card is where a disagreement shows.
+
+- **2026-10-16 — Owner audit: "still asks me to confirm the driver, the data is not fresh, no FleetPal
+  link". Measured on production (v2026.10.15.3, schema 0480 — IC10 and the FleetPal units sync are live).**
+  - **Part of the lag was ours.** The feed ran once per 24 h, which pinned it to ~15:30–15:40 UTC; FMCSA
+    publishes at a different time each day (inspection file 10-14 11:04, 10-15 10:52, 10-16 15:55 UTC). On
+    10-16 we ran at 15:40 and missed that day's publication by fifteen minutes. **IC1d** fixes it. The rest
+    is FMCSA's: on 10-16 the newest inspection published for ANY carrier was dated 10-13. Nothing public is
+    fresher (the FMCSA Portal shows the same MCMIS data); the same-day source is the driver's paper (IC12).
+  - **The driver question:** zero roadside documents uploaded, so IC10 never ran. Q-IC15 opened and ruled (b).
+  - **FleetPal:** 489 units, 441 matched; Q-IC14 measured (above). IC11 is next after IC1d and IC13.
+  - **Order, ruled 2026-10-16:** IC1d → IC11 (two merges) → IC13 → IC12 (report intake) → IC14.

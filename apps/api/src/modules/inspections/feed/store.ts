@@ -112,6 +112,29 @@ export async function readRoadsideFeed(admin: SupabaseClient, orgId: string, now
   return { fetchedAt, sourceUpdatedAt, state: roadsideFeedState(fetchedAt, sourceUpdatedAt, nowMs) };
 }
 
+/**
+ * FMCSA's publication time as the org's last successful run of a dataset read it: `undefined` when
+ * there has been no successful run, `null` when that run could not read it. The hourly "has FMCSA
+ * republished?" check (`published.ts`) compares Socrata's current time against this.
+ */
+export async function lastSourceRowsUpdatedAt(
+  admin: SupabaseClient,
+  orgId: string,
+  dataset: FmcsaDataset,
+): Promise<string | null | undefined> {
+  const { data, error } = await admin
+    .from("fmcsa_fetch_runs")
+    .select("source_rows_updated_at")
+    .eq("org_id", orgId)
+    .eq("dataset", dataset)
+    .eq("outcome", "succeeded")
+    .order("finished_at", { ascending: false })
+    .limit(1);
+  if (error) throw new Error(`fmcsa_fetch_runs read: ${error.message}`);
+  const run = data?.[0] as { source_rows_updated_at: string | null } | undefined;
+  return run ? run.source_rows_updated_at : undefined;
+}
+
 /** When the org's last successful run of a dataset finished, or null when there has been none. */
 export async function lastSucceededAt(
   admin: SupabaseClient,

@@ -7,6 +7,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const calls: string[] = [];
 let lastSucceeded: string | null = null;
 let syncFails = false;
+let republished: string[] = [];
 vi.mock("./store.js", () => ({ lastSucceededAt: vi.fn(async () => lastSucceeded) }));
 vi.mock("./sync.js", () => ({
   syncFmcsaFeed: vi.fn(async () => {
@@ -15,6 +16,7 @@ vi.mock("./sync.js", () => ({
     return [];
   }),
 }));
+vi.mock("./published.js", () => ({ publishedSinceLastRun: vi.fn(async () => (calls.push("published?"), republished)) }));
 vi.mock("./project.js", () => ({ projectRoadside: vi.fn(async () => (calls.push("project"), { inspections: 0, units: 0, violations: 0, citations: 0 })) }));
 vi.mock("./staleAlert.js", () => ({ alertIfFeedStale: vi.fn(async (_a: unknown, _o: string, _n: number, tz: string) => (calls.push(`stale-check ${tz}`), 0)) }));
 
@@ -26,6 +28,7 @@ const tick = () => tickOrg({} as never, { FMCSA_SOCRATA_APP_TOKEN: undefined } a
 beforeEach(() => {
   calls.length = 0;
   syncFails = false;
+  republished = [];
 });
 
 describe("one org's tick", () => {
@@ -47,6 +50,15 @@ describe("one org's tick", () => {
   it("checks freshness when no run was due", async () => {
     lastSucceeded = new Date(Date.now() - 3_600_000).toISOString();
     await tick();
-    expect(calls).toEqual(["stale-check America/Chicago"]);
+    expect(calls).toEqual(["published?", "stale-check America/Chicago"]);
+  });
+
+  it("fetches before the backstop is due when FMCSA has republished since the last run", async () => {
+    lastSucceeded = new Date(Date.now() - 3_600_000).toISOString();
+    republished = ["fx4q-ay7w"];
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    await tick();
+    log.mockRestore();
+    expect(calls).toEqual(["published?", "sync", "project", "stale-check America/Chicago"]);
   });
 });
