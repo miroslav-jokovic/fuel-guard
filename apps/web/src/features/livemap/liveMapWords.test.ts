@@ -296,4 +296,13 @@ describe("routeWords (TRUCK-CARD-ROUTE-PLAN D-TC3)", () => {
       "No fuel stop needed to reach the delivery.",
     ]);
   });
+
+  it("says why there is no driven line, or that it is cut to three days, and nothing when it is whole (DBV6)", () => {
+    const line = [{ lat: 41, lng: -88 }, { lat: 42, lng: -88 }];
+    expect(routeWords(route(), { points: line, capped: false, note: null }).notes).toEqual([]);
+    expect(routeWords(route(), { points: line, capped: true, note: null }).notes).toEqual(["The road driven is shown for the last 72 hours only."]);
+    expect(routeWords(route(), { points: [], capped: false, note: "Samsara is not connected for this organization." }).notes).toEqual([
+      "Samsara is not connected for this organization.",
+    ]);
+  });
 });

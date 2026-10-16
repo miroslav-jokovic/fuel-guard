@@ -82,14 +82,29 @@ vi.mock("./useLiveMapBoard", () => ({
   useLiveMapBoard: () => board,
 }));
 
-/** The route query, faked like the board: it records which load it was asked for (D-TC7). */
-const routeAsked = vi.hoisted(() => ({ loadId: null as { value: string | null } | null }));
+/**
+ * The route query, faked like the board: it records which load it was asked for (D-TC7). The driven
+ * path (DBV6) the same way, with answers a test can set: its own query beside the route's.
+ */
+const routeAsked = vi.hoisted(() => ({ loadId: null as { value: string | null } | null, data: null as { value: unknown } | null }));
 vi.mock("@/composables/useLoadRoute", async () => {
   const { ref } = await import("vue");
   return {
     useLoadRoute: (loadId: { value: string | null }) => {
       routeAsked.loadId = loadId;
-      return { data: ref(null), error: ref(null), isFetching: ref(false) };
+      routeAsked.data = ref(null);
+      return { data: routeAsked.data, error: ref(null), isFetching: ref(false) };
+    },
+  };
+});
+const drivenAsked = vi.hoisted(() => ({ loadId: null as { value: string | null } | null, data: null as { value: unknown } | null }));
+vi.mock("@/composables/useDrivenPath", async () => {
+  const { ref } = await import("vue");
+  return {
+    useDrivenPath: (loadId: { value: string | null }) => {
+      drivenAsked.loadId = loadId;
+      drivenAsked.data = ref(null);
+      return { data: drivenAsked.data, error: ref(null), isFetching: ref(false) };
     },
   };
 });
@@ -107,7 +122,7 @@ const stub = { template: "<div />" };
  */
 const canvasStub = {
   name: "LiveMapCanvas",
-  props: ["vehicles", "generatedAt", "selectedId", "fit"],
+  props: ["vehicles", "generatedAt", "selectedId", "fit", "route"],
   emits: ["select"],
   template: "<div data-testid='canvas' />",
   methods: {
@@ -431,6 +446,31 @@ describe("LiveMapWorkspace (DR5)", () => {
       await bar().findAll("button").find((b) => b.text() === "Hide route")!.trigger("click");
       expect(asked()).toBeNull();
       expect(bar().exists()).toBe(false);
+    } finally {
+      board.data.value = BOARD;
+    }
+  });
+
+  it("asks for the road driven with the route, and hands the map the route with it laid in once it arrives (DBV6)", async () => {
+    board.data.value = { ...BOARD, vehicles: [{ ...BOARD.vehicles[0]!, load: { id: "load-1", ref: "0001", status: "in_transit", nextStop: null } }] };
+    try {
+      const wrapper = await mountWorkspace();
+      const canvas = wrapper.findComponent({ name: "LiveMapCanvas" });
+      await canvas.vm.$emit("select", "veh-1");
+      await wrapper.vm.$nextTick();
+      await wrapper.find('[aria-label="Show route"]').trigger("click");
+      expect(drivenAsked.loadId?.value).toBe("load-1");
+
+      const route = { loadId: "load-1", covered: [], ahead: [{ lat: 41.5, lng: -88 }], distanceMiles: 70, durationHours: 1, aheadMiles: 35,
+        aheadHours: 0.5, truckOnRoute: true, coveredMiles: 35, offRouteMiles: 0, fuelStops: [], fuelNote: null, hazmatNotApplied: false };
+      routeAsked.data!.value = route;
+      await wrapper.vm.$nextTick();
+      // The route draws at once; the driven path is not waited for.
+      expect(canvas.props("route")).toEqual({ ...route, driven: undefined });
+      const points = [{ lat: 41, lng: -88 }, { lat: 41.5, lng: -88 }];
+      drivenAsked.data!.value = { loadId: "load-1", points, since: "2026-10-15T18:59:00Z", capped: false, note: null };
+      await wrapper.vm.$nextTick();
+      expect(canvas.props("route")).toEqual({ ...route, driven: points });
     } finally {
       board.data.value = BOARD;
     }

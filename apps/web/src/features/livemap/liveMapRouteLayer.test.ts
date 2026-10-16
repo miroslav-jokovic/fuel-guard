@@ -33,8 +33,8 @@ describe("the route layer's geometry and words", () => {
  */
 describe("syncRoute", () => {
   function fakeMap() {
-    const sources = new Set<string>(["load-route-planned", "load-route-covered", "load-route-ahead"]);
-    const layers = new Set<string>(["load-route-planned", "load-route-covered", "load-route-ahead", "selected"]);
+    const sources = new Set<string>(["load-route-planned", "load-route-covered", "load-route-driven", "load-route-ahead"]);
+    const layers = new Set<string>(["load-route-planned", "load-route-covered", "load-route-driven", "load-route-ahead", "selected"]);
     return {
       isStyleLoaded: () => false,
       getSource: (id: string) => (sources.has(id) ? { setData: () => {} } : undefined),
@@ -49,6 +49,26 @@ describe("syncRoute", () => {
       layers,
     };
   }
+
+  it("draws the road driven instead of the plan's covered part once it arrives, and the covered part without it (DBV6)", () => {
+    const data = new Map<string, unknown>();
+    const map = { ...fakeMap(), getSource: (id: string) => ({ setData: (d: unknown) => void data.set(id, d) }) };
+    const coords = (id: string) => (data.get(id) as { geometry: { coordinates: number[][] } }).geometry.coordinates;
+    const route = {
+      loadId: "l1", covered: [{ lat: 41, lng: -88 }, { lat: 41.5, lng: -88 }], ahead: [{ lat: 41.5, lng: -88 }, { lat: 42, lng: -88 }],
+      distanceMiles: 70, durationHours: 1, aheadMiles: 35, aheadHours: 0.5, truckOnRoute: true, coveredMiles: 35, offRouteMiles: 0,
+      fuelStops: [], fuelNote: null, hazmatNotApplied: false,
+    };
+    syncRoute(map as unknown as RouteMap, route, "selected");
+    expect(coords("load-route-covered")).toEqual([[-88, 41], [-88, 41.5]]);
+    expect(coords("load-route-driven")).toEqual([]);
+
+    syncRoute(map as unknown as RouteMap, { ...route, driven: [{ lat: 41, lng: -88 }, { lat: 41.3, lng: -88.2 }, { lat: 41.5, lng: -88 }] }, "selected");
+    expect(coords("load-route-covered")).toEqual([]);
+    expect(coords("load-route-driven")).toEqual([[-88, 41], [-88.2, 41.3], [-88, 41.5]]);
+    // A detour off the plan widens the view to show it.
+    expect(map.fitBounds).toHaveBeenLastCalledWith([[-88.2, 41], [-88, 42]], expect.anything());
+  });
 
   it("clears a drawn route while the map is still loading tiles", () => {
     const map = fakeMap();

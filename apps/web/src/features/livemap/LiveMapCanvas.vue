@@ -1,13 +1,13 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from "vue";
 import maplibregl from "maplibre-gl";
-import { basemapFor, type BasemapChoice, type LiveMapLoadRoute, type LiveMapVehicle } from "@silvicom/shared";
+import { basemapFor, type BasemapChoice, type LiveMapVehicle } from "@silvicom/shared";
 import { useMapLibre, tokenColor } from "@/composables/useMapLibre";
 import { useColorScheme } from "@/composables/useColorScheme";
 import LiveMapControls from "./LiveMapControls.vue";
 import { planCameraMove, SELECT_ZOOM } from "./liveMapCamera";
 import { installLiveMapIcons } from "./liveMapIcons";
-import { isMarkerClick, showRoute, syncRoute } from "./liveMapRouteLayer";
+import { isMarkerClick, showRoute, syncRoute, type DrawnRoute } from "./liveMapRouteLayer";
 import { toFeatureCollection, type MapBounds, type RenderedPlace } from "./liveMapLayer";
 import { planTweens, sampleTweens, tweensSettled, type Tween } from "./liveMapMotion";
 
@@ -50,7 +50,7 @@ const props = withDefaults(
      */
     cardEl?: HTMLElement | null;
     /** The load route the card's toggle turned on, drawn under the trucks (D-TC7); null clears it. */
-    route?: LiveMapLoadRoute | null;
+    route?: DrawnRoute | null;
   }>(),
   { fit: "card", cardEl: null, route: null },
 );

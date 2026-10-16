@@ -388,3 +388,29 @@ Build order: DBV1 → DBV2 → DBV5 → DBV3 → DBV4 → DBV6 → DBV7.
 - **Bound noted, not changed.** `getComplianceOverview` reads `certifications` unpaged. Production
   holds 375 current driver certifications, under PostgREST's 1,000. Past that cap the DQ queue itself
   would be short too, so the fix belongs there, for both readers at once.
+
+### 2026-10-16 — DBV6 the road the truck drove
+
+- **What the map draws.** With a route open, the map now draws where the truck actually went since it
+  left the pickup: a solid line, from Samsara's GPS history. It replaces "covered", which was only the
+  plan up to the truck's projected point. Without it (not departed, no Samsara link, no GPS, or a slow
+  answer) "covered" stays as before, and the card says why in one line.
+- **Its own request.** `GET /api/livemap/loads/:id/driven`, beside the route's and on the route's gate
+  (`dispatch: view`), so the route never waits on Samsara. Cached a minute per load, server and
+  browser. Same cache rules as the board: TTL from the start of the read, one shared read, failures
+  not cached. Expired entries are swept on each call. The Samsara call is in the **live** rate lane:
+  the existing bulk GPS fetcher ran in the backfill lane, which gets only what live traffic leaves.
+- **The window** starts at McLeod's `actual_departure_at` on the first stop (107 of 108 loads in
+  transit, 2026-10-16), else the driver app's `completed_at`. Those trips were 25 h old at the median
+  and 70 h at p90, and one was 18 days. So the window is capped at **72 h**, and the card says when
+  the line was cut.
+- **Thinning.** Samsara answers a fix every ~6 s (6,088 points for 21 h). `thinPath` is Douglas–Peucker
+  at 0.02 mi. On that trail it kept 629 points (22 KB, 13 ms) and lost 0.15% of the length; 0.05 mi
+  started cutting corners.
+- **Measured end to end** on six real loads in transit: 0.6–2.3 s, 33–1,192 points, each starting at
+  its pickup departure, none capped.
+- **Found on the way, not changed.** Importing `liveMapLoadRoute.ts` (or this file) as the FIRST module
+  throws `Cannot access 'IDLE_SOURCE_WINDOW_DAYS' before initialization`. That is a samsara-module load
+  cycle that predates DBV6: the existing route module hits it alone, and through `app.js` everything
+  loads. It matters only to a one-off script, which must import `app.js` first.
+- §5's four fixes are now all built: §5.1 and §5.2 in DBV5, §5.4 in DBV5's `aheadMiles`, §5.3 here.

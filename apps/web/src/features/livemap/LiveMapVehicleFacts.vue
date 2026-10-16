@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { loadBoardState, type LiveMapBoard, type LiveMapLoadRoute, type LiveMapStop, type LiveMapVehicle, type LoadStatus } from "@silvicom/shared";
+import { loadBoardState, type LiveMapBoard, type LiveMapDrivenPath, type LiveMapLoadRoute, type LiveMapStop, type LiveMapVehicle, type LoadStatus } from "@silvicom/shared";
 import { BADGE_BASE, toneClass, vehicleStateTone } from "@/lib/badges";
 import { STATE_LABEL } from "./liveMapLayer";
 import { engineWords, formatAge, fuelMetric, routeWords, stopAddress } from "./liveMapWords";
@@ -54,7 +54,7 @@ const props = defineProps<{
    * map and must clear when the selection changes, neither of which this card can see. Omitted, the
    * card has no route button — the rail's reading of the facts does not draw on a map.
    */
-  route?: { shown: boolean; pending: boolean; error: string | null; data: LiveMapLoadRoute | null };
+  route?: { shown: boolean; pending: boolean; error: string | null; data: LiveMapLoadRoute | null; driven?: LiveMapDrivenPath | null };
 }>();
 
 const emit = defineEmits<{ toggleRoute: [] }>();
@@ -97,7 +97,7 @@ const heading = computed(() => {
  */
 const fuel = computed(() => fuelMetric(props.vehicle, props.board));
 
-const routeText = computed(() => (props.route?.shown && props.route.data ? routeWords(props.route.data) : null));
+const routeText = computed(() => (props.route?.shown && props.route.data ? routeWords(props.route.data, props.route.driven ?? null) : null));
 
 /**
  * The truck's facts (D-US6). A blank is `null`, so FactList draws the table's em dash.

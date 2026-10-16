@@ -197,6 +197,12 @@ export interface LoadForRoute {
   /** In McLeod's sequence. A stop without coordinates is dropped and counted in `unlocatedStops`. */
   stops: LoadRouteStop[];
   unlocatedStops: number;
+  /**
+   * When the truck left the first stop: McLeod's `actual_departure_at` (107 of 108 loads in transit,
+   * 2026-10-16), else the driver app's `completed_at`; null before it has left. Where the driven path
+   * starts (DBV6).
+   */
+  departedAt: string | null;
 }
 
 /**
@@ -215,7 +221,7 @@ export async function readLoadForRoute(admin: SupabaseClient, orgId: string, loa
   if (!load) return null;
   const { data: stops, error: sErr } = await admin
     .from("load_stops")
-    .select("seq, kind, name, location_name, lat, lon, status, external_status")
+    .select("seq, kind, name, location_name, lat, lon, status, external_status, actual_departure_at, completed_at")
     .eq("org_id", orgId)
     .eq("load_id", loadId)
     .order("seq", { ascending: true });
@@ -223,11 +229,17 @@ export async function readLoadForRoute(admin: SupabaseClient, orgId: string, loa
   const rows = (stops ?? []) as {
     seq: number | null; kind: string | null; name: string | null; location_name: string | null;
     lat: number | string | null; lon: number | string | null; status: string | null; external_status: string | null;
+    actual_departure_at: string | null; completed_at: string | null;
   }[];
   const located = rows
     .filter((s) => s.seq != null && s.lat != null && s.lon != null)
     .map((s) => ({ seq: s.seq!, kind: s.kind, name: s.location_name ?? s.name, lat: Number(s.lat), lng: Number(s.lon), behind: isStopBehindTruck(s) }))
     .sort((a, b) => a.seq - b.seq);
   const l = load as { id: string; ref: string | null; vehicle_id: string | null; hazmat: boolean | null };
-  return { id: l.id, ref: l.ref, vehicleId: l.vehicle_id, hazmat: Boolean(l.hazmat), stops: located, unlocatedStops: rows.length - located.length };
+  // The first stop by sequence, located or not: the truck left the pickup whether or not we can map it.
+  const first = rows.filter((s) => s.seq != null).sort((a, b) => a.seq! - b.seq!)[0];
+  return {
+    id: l.id, ref: l.ref, vehicleId: l.vehicle_id, hazmat: Boolean(l.hazmat), stops: located, unlocatedStops: rows.length - located.length,
+    departedAt: first?.actual_departure_at ?? first?.completed_at ?? null,
+  };
 }
