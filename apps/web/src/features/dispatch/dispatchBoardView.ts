@@ -4,9 +4,11 @@ import {
   needsAttention,
   type DispatchBoardRow,
   type DispatchScope,
+  type MaintenanceWarning,
   type SavedViewTable,
 } from "@silvicom/shared";
 import { type DataTableColumn } from "@silvicom/ui";
+import { formatDate } from "@/lib/format";
 import { POOL_FLEET, admitsScope, type ScopeFilter } from "./dispatchScope";
 
 export { NO_FLEET_OPTION, POOL_FLEET, POOL_OPTION, dispatcherName } from "./dispatchScope";
@@ -122,8 +124,8 @@ export function availableTone(r: DispatchBoardRow, now: Date): "danger" | "warni
  * were eighteen; what left the row went to the drawer, one click away.
  *
  * Widths are budgeted to fit the table's 1104 px at a 1440 px screen with the sidebar open (measured
- * 2026-10-10, when a first cut at 1664 px hid the columns the board exists for): the defaults sum to
- * 848 px, which leaves room for the Warnings column DBV3 adds. Cells wrap rather than widen.
+ * 2026-10-10, when a first cut at 1664 px hid the columns the board exists for): the defaults, Warnings
+ * (DBV3) included, sum to 976 px. Cells wrap rather than widen.
  *
  * The LIVE columns — HOS, Now, Current load, Next stop, Next load — are the old board's, and stay one
  * tick away in the column picker for whoever runs the dense board (`BOARD_LIVE_COLUMNS`, hidden by
@@ -137,6 +139,7 @@ export const BOARD_COLUMNS: DataTableColumn[] = [
   { key: "availableIn", label: "Available in", width: "lg", sortable: true },
   { key: "milesLeft", label: "Miles left", width: "sm", sortable: true, numeric: true },
   { key: "status", label: "Status", width: "md", sortable: true },
+  { key: "warnings", label: "Warnings", width: "md", sortable: true },
   { key: "hos", label: "HOS", width: "sm", sortable: true },
   { key: "now", label: "Now", width: "md", sortable: true },
   { key: "load", label: "Current load", width: "md", sortable: true },
@@ -187,6 +190,9 @@ export function boardSortValue(r: DispatchBoardRow, key: string): unknown {
       return r.available ? [r.available.state, r.available.city].filter(Boolean).join(" ") || null : null;
     case "milesLeft":
       return r.milesLeft;
+    case "warnings":
+      // Most pressing first: overdue items count three times a due one.
+      return r.warnings.length ? r.warnings.reduce((n, w) => n + (w.verdict === "overdue" ? 3 : 1), 0) * -1 : null;
     case "status":
       return r.inShop ? 4 : !r.current ? 0 : (ON_TIME_RANK[r.onTime] ?? 3) + 0.5;
     case "hos":
@@ -233,6 +239,21 @@ export function availablePlace(r: DispatchBoardRow): string {
   if (!a) return "";
   const region = [a.state, a.postalCode].filter(Boolean).join(" ");
   return [a.city, region].filter(Boolean).join(", ") || a.place || "";
+}
+
+/**
+ * One warning in the dispatchers' words (D-DBV5): "Annual overdue 09/30/2026", "6-month due 11/01/2026",
+ * "Oil in 1,133 mi", "Oil 5,062 mi over", "Repair order open" — the trailer's prefixed "Trailer".
+ */
+const KIND_WORDS: Record<MaintenanceWarning["kind"], string> = { annual: "Annual", six_month: "6-month", oil: "Oil", repair_order: "Repair order" };
+export function warningWords(w: MaintenanceWarning): string {
+  const what = `${w.unit === "trailer" ? "Trailer " : ""}${w.unit === "trailer" ? KIND_WORDS[w.kind].toLowerCase() : KIND_WORDS[w.kind]}`;
+  if (w.kind === "repair_order") return `${what} open`;
+  if (w.milesLeft != null) {
+    const mi = Math.abs(w.milesLeft).toLocaleString("en-US");
+    return w.verdict === "overdue" ? `${what} ${mi} mi over` : `${what} in ${mi} mi`;
+  }
+  return `${what} ${w.verdict}${w.dueOn ? ` ${formatDate(w.dueOn)}` : ""}`;
 }
 
 /** "≈ 412 mi" — the v1 estimate says it is one (Q-DBV4). */

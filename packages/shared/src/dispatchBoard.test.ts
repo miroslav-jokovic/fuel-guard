@@ -173,7 +173,7 @@ describe("freshHos", () => {
 describe("boardFlags — one flag per problem", () => {
   const base = { inShop: false, current: load(), next: load({ loadId: "l-2" }), onTime: "on_time" as const, hos: hos(), gpsAgeSeconds: 30 };
   it("raises nothing for a healthy truck with its next load planned", () => {
-    expect(boardFlags(base)).toEqual({ lateRisk: false, noNextLoad: false, emptyNow: false, hosLow: false, noGps: false });
+    expect(boardFlags(base)).toEqual({ lateRisk: false, noNextLoad: false, emptyNow: false, hosLow: false, noGps: false, maintenanceOverdue: false });
   });
   it("flags no next load, empty, low HOS and stale GPS separately", () => {
     expect(boardFlags({ ...base, next: null }).noNextLoad).toBe(true);

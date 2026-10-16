@@ -325,3 +325,32 @@ Build order: DBV1 → DBV2 → DBV5 → DBV3 → DBV4 → DBV6 → DBV7.
     column picker. The Loads page keeps the v1 scope control (`DispatchScopeControls`); DBV7 revisits it.
   - **Browser pass.** Done at 1440 and 390 on a stubbed board. It found the census strip drawing only
     its first tile, because `row` buttons are full-width; fixed.
+
+### 2026-10-16 — DBV3 maintenance warnings
+
+- **Where each fact comes from.** The truck's annual reads `vehicles.dot_annual_inspection_expires_at`
+  and the trailer's reads `trailers`, both through roster and judged by `inspectionExpiry()` (Q-DBV2).
+  The 6-month, the oil change and open repair orders come from FleetPal through the new
+  `readUnitMaintenance` in the `fleetpal` module. `livemap` reads it through that module's index; the
+  boundary gate has the edge. The trailer is the current load's `trailer_id`, so a bobtail truck shows
+  only its own chips.
+- **The rules are shared** (`packages/shared/src/maintenanceDue.ts`): `classifyPmName` (typo-tolerant;
+  the production misspellings are its test cases), `pmWarning`, `annualWarning`, `sortWarnings`. F11's
+  `next_pm_due_*` writer reads these when it is built, not a second copy.
+- **Measured in production, and built to it.** Oil intervals are ODOMETER in metres: 20,000 mi, warn
+  inside 7,000. The 6-month is TIME: 6 months, warn inside 30 days. The odometer is
+  `vehicles.current_odometer`, which matches FleetPal's to within ~200 mi, so §3.4's `fleetpal_meters`
+  read is not needed. Work orders are CLOSED 5,497 · OPEN 20 · CANCELED 6 · COMPLETED 1. There is no
+  "scheduled" status, so "open" means `OPEN`.
+- **Choices made in building.**
+  - Only **overdue** and **due** (inside FleetPal's own warning window) show. §3.4's "upcoming" is
+    dropped: the dispatchers' board shows only what needs acting on.
+  - A schedule that cannot be judged (never done, no odometer, unknown unit) shows nothing rather
+    than a false "overdue".
+  - Two schedules of one kind on a unit (typo'd duplicates) show once, the worse of the two.
+  - An overdue item sets `flags.maintenanceOverdue`, which puts the truck on Needs attention.
+- **The column.** Warnings is a default column, the last before the hidden Live ones: "Annual overdue 09/30/2026",
+  "Oil in 1,133 mi", "Trailer 6-month due 11/01/2026", "Repair order open". Red for overdue, amber for
+  due. It sorts most-pressing first.
+- **Still owed from Q-DBV2:** showing the shop manager where FleetPal's annual PM and our record
+  disagree. Not built here.
