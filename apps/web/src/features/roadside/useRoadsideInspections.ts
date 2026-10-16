@@ -8,6 +8,8 @@ import type {
   RoadsideDocumentRegisterRequest,
   RoadsideInspectionDetailDto,
   RoadsideInspectionDto,
+  RoadsideRepairDecision,
+  RoadsideRepairDto,
   RoadsideSummary,
 } from "@silvicom/shared";
 import { apiFetch } from "@/lib/api";
@@ -108,5 +110,32 @@ export function useUploadInspectionDocument(id: Ref<string>) {
         return res.data.data;
       }),
     onSettled: () => client.invalidateQueries({ queryKey: ["roadside-inspections", "documents", id.value] }),
+  });
+}
+
+/**
+ * The repair record of the inspection's vehicle violations (IC11). Its own query: the engine re-reads it
+ * hourly as FleetPal work orders open, and a decision must reload it without reloading the inspection.
+ */
+export function useInspectionRepairsQuery(id: Ref<string>) {
+  return useQuery({
+    queryKey: computed(() => ["roadside-inspections", "repairs", id.value] as const),
+    staleTime: 60_000,
+    queryFn: () => read<RoadsideRepairDto[]>(`/api/roadside-inspections/${encodeURIComponent(id.value)}/repairs`, "the repair record"),
+  });
+}
+
+/** The repair decision's refusal, kept whole like the driver's: `changed` means reload before deciding again. */
+export class RepairDecisionError extends AttributionDecisionError {}
+
+/** Maintenance names the repair (Q-IC13). Settled either way the record is read again, as for the driver. */
+export function useDecideRepair(id: Ref<string>) {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: async (decision: RoadsideRepairDecision): Promise<void> => {
+      const res = await apiFetch(`/api/roadside-inspections/${encodeURIComponent(id.value)}/repairs`, { method: "POST", body: decision });
+      if (!res.ok) throw new RepairDecisionError(res.error?.message ?? "The repair could not be saved.", res.error?.code ?? null);
+    },
+    onSettled: () => client.invalidateQueries({ queryKey: ["roadside-inspections", "repairs", id.value] }),
   });
 }

@@ -21,11 +21,14 @@ import { ROUTE_TABLE } from "@/router/table";
  *      says is `InspectionDriverCard.test.ts`'s.
  *   7. **The documents card is missing**, or is asked about another inspection than the page's. What it
  *      says is `InspectionDocumentsCard.test.ts`'s.
+ *   8. **The repair card is asked about another inspection** than the page's (IC11). What it says is
+ *      `InspectionRepairCard.test.ts`'s.
  */
 
 const inspection = ref<RoadsideInspectionDetailDto | undefined>(undefined);
 const askedId = ref<string | undefined>(undefined);
 const documentsAskedId = ref<string | undefined>(undefined);
+const repairsAskedId = ref<string | undefined>(undefined);
 vi.mock("@/features/roadside/useRoadsideInspections", async () => {
   const { ref: r, watchEffect } = await import("vue");
   return {
@@ -40,7 +43,17 @@ vi.mock("@/features/roadside/useRoadsideInspections", async () => {
       return { data: r([]), isLoading: r(false), isError: r(false), error: r(null), isFetching: r(false), refetch: vi.fn() };
     },
     useUploadInspectionDocument: () => ({ mutateAsync: vi.fn(), isPending: r(false) }),
+    useInspectionRepairsQuery: (id: Ref<string>) => {
+      watchEffect(() => (repairsAskedId.value = id.value));
+      return { data: r([]), isLoading: r(false), isError: r(false), error: r(null), isFetching: r(false), refetch: vi.fn() };
+    },
+    useDecideRepair: () => ({ mutate: vi.fn(), reset: vi.fn(), error: r(null), isPending: r(false) }),
+    RepairDecisionError: class extends Error {},
   };
+});
+vi.mock("@/composables/useOrgTimezone", async () => {
+  const { ref: r } = await import("vue");
+  return { useOrgTimezone: () => ({ zone: r("America/Chicago") }) };
 });
 let truckOpens = true;
 vi.mock("@/composables/useOpens", () => ({ useOpens: () => () => truckOpens }));
@@ -143,6 +156,11 @@ describe("one roadside inspection", () => {
     const w = await page();
     expect(w.find("[data-test='documents-card']").exists()).toBe(true);
     expect(documentsAskedId.value).toBe(inspection.value!.id);
+  });
+
+  it("asks the repair card about this inspection", async () => {
+    await page();
+    expect(repairsAskedId.value).toBe(inspection.value!.id);
   });
 
   it("says when there are no violations, without calling the inspection clean (Q-FM8)", async () => {

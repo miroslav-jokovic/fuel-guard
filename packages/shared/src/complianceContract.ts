@@ -85,7 +85,7 @@ export type ComplianceStatus = (typeof COMPLIANCE_STATUSES)[number];
  */
 export const COMPLIANCE_DOCUMENT_SUBJECT_TYPES = ["driver", "tractor", "trailer", "load", "organization"] as const;
 /**
- * Every subject `documents` admits — mirrors the SQL check constraint exactly (0476).
+ * Every subject `documents` admits — mirrors the SQL check constraint exactly (0476, 0484).
  *
  * `roadside_inspection` (0476, INSPECTION-CHALLENGE-PLAN IC2) is the `safety` section's (D-IC12): its
  * paper is filed and listed only through `/api/roadside-inspections/:id/documents`. It is kept out of
@@ -114,9 +114,11 @@ export type ComplianceDocumentKind = (typeof COMPLIANCE_DOCUMENT_KINDS)[number];
  */
 export const ROADSIDE_DOCUMENT_KINDS = [
   "roadside_inspection_report", "citation", "court_disposition", "dataqs_packet", "dataqs_correspondence",
+  // 0483 (IC11, Q-IC12 (a)): our rendering of FleetPal's repair record, filed with the certification.
+  "roadside_repair_record",
 ] as const;
 export type RoadsideDocumentKind = (typeof ROADSIDE_DOCUMENT_KINDS)[number];
-/** Every kind `documents` admits — mirrors the SQL check constraint exactly (0476). */
+/** Every kind `documents` admits — mirrors the SQL check constraint exactly (0476, 0484). */
 export const DOCUMENT_KINDS = [...COMPLIANCE_DOCUMENT_KINDS, ...ROADSIDE_DOCUMENT_KINDS] as const;
 export const documentKindSchema = z.enum(DOCUMENT_KINDS);
 export type DocumentKind = (typeof DOCUMENT_KINDS)[number];

@@ -75,6 +75,16 @@ export const NOTIFICATION_CATEGORIES = [
    * Sent to the admins who can paste a new key. Mirrored in the CHECK (0477).
    */
   "medstop_connection",
+  /**
+   * A roadside vehicle violation with no repair recorded as its 396.9(d) due day nears or passes
+   * (INSPECTION-CHALLENGE-PLAN IC11, D-IC14). Maintenance managers. Mirrored in the CHECK (0483).
+   */
+  "roadside_repair_due",
+  /**
+   * An officer's report whose check disagreed with the record (IC10 `needs_review`, IC14): the driver
+   * card says why. Safety managers. Mirrored in the CHECK (0483).
+   */
+  "roadside_report_needs_review",
 ] as const;
 export type NotificationCategory = (typeof NOTIFICATION_CATEGORIES)[number];
 
@@ -107,6 +117,8 @@ export const NOTIFICATION_CATEGORY_LABELS: Record<NotificationCategory, string> 
   drug_alcohol_result: "Drug & alcohol results",
   roadside_feed_stale: "FMCSA record freshness",
   medstop_connection: "Med-Stop connection",
+  roadside_repair_due: "Roadside repairs due",
+  roadside_report_needs_review: "Inspection reports to review",
 };
 
 /**

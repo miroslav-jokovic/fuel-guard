@@ -1,3 +1,8 @@
+import { z } from "zod";
+import { recordId } from "./recordId.js";
+import { daysInRange, type CalendarDay } from "./calendarDay.js";
+import type { RoadsideInspectionUnitDto } from "./roadsideInspectionsContract.js";
+
 /**
  * The repair record of a roadside inspection's vehicle violations (INSPECTION-CHALLENGE-PLAN IC11, D-IC14;
  * Q-IC12 (a), Q-IC13, Q-IC14 — owner and measurement, 2026-10-15/16).
@@ -80,4 +85,60 @@ export function repairDueOn(inspectionDate: string): string {
   const d = new Date(`${inspectionDate.slice(0, 10)}T00:00:00Z`);
   d.setUTCDate(d.getUTCDate() + REPAIR_DUE_DAYS);
   return d.toISOString().slice(0, 10);
+}
+
+/** What each outcome says on the Repair card; keyed, so a new outcome without words fails the typecheck. */
+export const REPAIR_OUTCOME_TEXT: Record<RepairOutcome, string> = {
+  repaired_at_scene: "Repaired at the scene — the officer recorded it, so no work order is needed.",
+  one_candidate: "One FleetPal work order was opened on this unit before the due date.",
+  several_candidates: "Several FleetPal work orders were opened on this unit before the due date. Choose the one that repaired the violations.",
+  no_candidate: "No FleetPal work order has been opened on this unit since the inspection.",
+  no_fleetpal_unit: "FleetPal has no unit matched to this truck or trailer, so its work orders cannot be found.",
+  unit_not_ours: "FMCSA's record does not tie this unit to one of our trucks or trailers.",
+  accepted: "The repair is this FleetPal work order.",
+  repaired_outside_fleetpal: "Repaired outside FleetPal.",
+};
+
+/**
+ * `GET /api/roadside-inspections/:id/repairs` — one entry per inspected unit with a Part 393/396
+ * violation the engine has read (IC11). Empty for an inspection with none, or older than a year.
+ */
+export interface RoadsideRepairDto {
+  unitId: string;
+  unit: Pick<RoadsideInspectionUnitDto, "seq" | "kind" | "companyNumber">;
+  /** The 393/396 violations on the unit, as FMCSA wrote them. */
+  violations: { code: string | null; description: string | null }[];
+  dueOn: string;
+  /** The engine's latest reading of the unit. */
+  proposal: { outcome: RepairEngineOutcome; candidates: RepairCandidate[]; readAt: string };
+  /** A person's latest decision, when there is one; it closes the unit to the engine. */
+  decision: {
+    outcome: (typeof REPAIR_PERSON_OUTCOMES)[number];
+    /** The accepted work order as the proposal showed it; null for "outside FleetPal". */
+    workOrder: RepairCandidate | null;
+    note: string | null;
+    decidedBy: string | null;
+    decidedAt: string;
+  } | null;
+  /** The row a decision is made over — the newest — sent back as the decision's `basedOn`. */
+  basedOn: string;
+}
+
+/**
+ * `POST /api/roadside-inspections/:id/repairs` — maintenance names THE repair (Q-IC13). `accept` takes a
+ * work order the proposal listed; `outside` says where it was repaired instead. `basedOn` is the row the
+ * page showed: a decision over a row that is no longer the unit's latest is refused (409 `changed`).
+ */
+export const roadsideRepairDecisionSchema = z.discriminatedUnion("action", [
+  z.object({ action: z.literal("accept"), unitId: recordId(), basedOn: recordId(), workOrderId: z.string().trim().min(1).max(64) }),
+  z.object({ action: z.literal("outside"), unitId: recordId(), basedOn: recordId(), note: z.string().trim().min(1).max(1000) }),
+]);
+export type RoadsideRepairDecision = z.infer<typeof roadsideRepairDecisionSchema>;
+
+/**
+ * Where a unit stands against its 396.9(d) due day, on the carrier's calendar: days left (0 = due today) or
+ * days overdue. One definition, so the Repair card and the "repair due" alert (IC11 B2) never disagree.
+ */
+export function repairClock(dueOn: CalendarDay, today: CalendarDay): { overdue: boolean; days: number } {
+  return today <= dueOn ? { overdue: false, days: daysInRange(today, dueOn) - 1 } : { overdue: true, days: daysInRange(dueOn, today) - 1 };
 }

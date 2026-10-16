@@ -5,6 +5,7 @@ import {
   organizationTimezone,
   roadsideAttributionDecisionSchema,
   roadsideDocumentRegisterSchema,
+  roadsideRepairDecisionSchema,
   roadsidePeriodStart,
   shiftDay,
   summarizeRoadside,
@@ -22,6 +23,8 @@ import { readRoadsideInspections } from "../read/inspectionsList.js";
 import { readRoadsideInspection } from "../read/inspectionDetail.js";
 import { readRoadsideFeed } from "../feed/store.js";
 import { decideAttribution } from "../attribution/decide.js";
+import { readInspectionRepairs } from "../read/inspectionRepairs.js";
+import { decideRepair } from "../repair/decide.js";
 import { listInspectionDocuments, registerInspectionDocument, signInspectionDocumentDownload } from "../documents/inspectionDocuments.js";
 
 /**
@@ -31,6 +34,11 @@ import { listInspectionDocuments, registerInspectionDocument, signInspectionDocu
  * level: `POST /:id/attribution`, a person confirming or correcting who was driving (IC5,
  * `attribution/decide.ts`), and `POST /:id/documents`, filing the ticket, the court's result or the
  * officer's copy (IC2, `documents/inspectionDocuments.ts`). Nothing here is a case or a filing yet.
+ *
+ * The repair record (IC11, D-IC14) is read on the safety section like the rest of the page, but DECIDED on
+ * the maintenance section's manage level (`POST /:id/repairs`): Q-IC13 ruled that maintenance names THE
+ * work order and safety certifies. A technician holds maintenance but not safety and so cannot open this
+ * page — their way to the same decision is a maintenance-side list of repairs due (plan §8, IC11 B2).
  *
  * ── THE CARD'S WINDOW IS CUT ON THE CARRIER'S CALENDAR, HERE ───────────────────────────────────
  * "Last 90 days" ends on today in the org zone, not on the server's (UTC on Railway, so a Chicago
@@ -189,6 +197,52 @@ export function roadsideInspectionsRouter(): Router {
         return;
       }
       res.status(201).json({ ok: true, data: out.data });
+    }),
+  );
+
+  /** The repair record of the inspection's vehicle violations (IC11): one entry per violated unit the engine has read. */
+  router.get(
+    "/:id/repairs",
+    canView,
+    asyncHandler(async (req, res) => {
+      const id = recordId().safeParse(req.params.id);
+      if (!id.success) {
+        res.status(404).json(apiError("not_found", "Roadside inspection not found"));
+        return;
+      }
+      const out = await readInspectionRepairs(getSupabaseAdmin(getAppLocals(req).env), req.auth!.orgId!, id.data);
+      if ("error" in out) {
+        dbErrorResponse(res, "roadside-inspections.repairs", out.error, "Could not load the repair record");
+        return;
+      }
+      res.json({ ok: true, data: out });
+    }),
+  );
+
+  router.post(
+    "/:id/repairs",
+    requireSection("maintenance"),
+    asyncHandler(async (req, res) => {
+      const id = recordId().safeParse(req.params.id);
+      if (!id.success) {
+        res.status(404).json(apiError("not_found", "Roadside inspection not found"));
+        return;
+      }
+      const body = roadsideRepairDecisionSchema.safeParse(req.body);
+      if (!body.success) {
+        res.status(400).json(apiError("bad_request", body.error.issues[0]?.message ?? "Invalid decision"));
+        return;
+      }
+      const out = await decideRepair(getSupabaseAdmin(getAppLocals(req).env), req.auth!.orgId!, id.data, req.auth!.userId, body.data);
+      if ("error" in out) {
+        dbErrorResponse(res, "roadside-inspections.repair-decide", out.error, "Could not record the repair");
+        return;
+      }
+      if (!out.ok) {
+        res.status(out.status).json(apiError(out.code, out.message));
+        return;
+      }
+      res.status(201).json({ ok: true, data: { id: out.id } });
     }),
   );
 
