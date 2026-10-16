@@ -27,7 +27,7 @@
  *     `git ls-files`, so uncommitted or untracked files are warned about up front.
  */
 import { execFileSync, spawn } from "node:child_process";
-import { createWriteStream, mkdirSync } from "node:fs";
+import { createWriteStream, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { cpus, tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -232,6 +232,31 @@ function warnIfUncommitted() {
   );
 }
 
+/**
+ * What CI's `./.github/actions/setup` does before every job and this file skips as a toolchain step:
+ * `pnpm install --frozen-lockfile`, then the React Native build of @silvicom/shared. Without them every
+ * step fails for a reason that is not the change — `eslint: command not found`, `Cannot find module
+ * 'typescript'`, a matrix importing packages/shared/dist — and a fresh worktree reported 7 of 41 gates
+ * red that way twice on 2026-10-16. So the run stops first and names the two commands instead.
+ *
+ * "Installed from THIS lockfile" is exact, not guessed from a timestamp: pnpm keeps a byte-identical
+ * copy of the lockfile it installed at node_modules/.pnpm/lock.yaml, so a lockfile changed by a pull
+ * or a rebase since the last install is caught too.
+ */
+function setupProblems(root = ROOT) {
+  const problems = [];
+  const lock = join(root, "pnpm-lock.yaml");
+  const installed = join(root, "node_modules", ".pnpm", "lock.yaml");
+  if (!existsSync(installed)) problems.push("the workspace is not installed");
+  else if (!readFileSync(lock).equals(readFileSync(installed))) {
+    problems.push("pnpm-lock.yaml changed since the last install");
+  }
+  if (!existsSync(join(root, "packages", "shared", "dist", "index.js"))) {
+    problems.push("packages/shared/dist is missing (the driver app's and one matrix's build of @silvicom/shared)");
+  }
+  return problems;
+}
+
 /** Fixture checks of the evaluator, then a full plan of the real ci.yml. */
 function selfTest() {
   const bad = [];
@@ -252,6 +277,23 @@ function selfTest() {
   if (sharded.steps[0].run !== "x --shard=$(( 0 + 1 ))/1") bad.push(`shard rewrite gave: ${sharded.steps[0].run}`);
   const [newJob] = plan({ jobs: { brand_new: { steps: [{ run: "true" }] } } });
   if (newJob.skip || newJob.steps[0].skip) bad.push("a job ci:local has never heard of was not run");
+
+  // The setup check, against a throwaway root: absent, stale lockfile, missing dist, then ready.
+  const tmp = mkdtempSync(join(tmpdir(), "ci-local-setup-"));
+  const put = (rel, text) => {
+    mkdirSync(join(tmp, rel, ".."), { recursive: true });
+    writeFileSync(join(tmp, rel), text);
+  };
+  put("pnpm-lock.yaml", "lockfileVersion: '9.0'\n");
+  const said = () => setupProblems(tmp).join(" | ");
+  if (!said().includes("not installed")) bad.push(`an uninstalled workspace read as: ${said() || "ready"}`);
+  put("node_modules/.pnpm/lock.yaml", "lockfileVersion: '9.0'\n# older\n");
+  if (!said().includes("changed since")) bad.push(`a stale install read as: ${said() || "ready"}`);
+  put("node_modules/.pnpm/lock.yaml", "lockfileVersion: '9.0'\n");
+  if (!said().includes("shared/dist")) bad.push(`a missing shared build read as: ${said() || "ready"}`);
+  put("packages/shared/dist/index.js", "");
+  if (said()) bad.push(`a ready workspace read as: ${said()}`);
+  rmSync(tmp, { recursive: true, force: true });
 
   const jobs = plan(loadWorkflow(WORKFLOW));
   const runnable = jobs.flatMap((j) => j.steps.filter((s) => !s.skip));
@@ -279,6 +321,12 @@ async function main() {
     return 0;
   }
 
+  const problems = setupProblems();
+  if (problems.length) {
+    console.error(`ci:local: not set up the way CI's setup step leaves a runner — ${problems.join("; ")}.`);
+    console.error("Run: pnpm install --frozen-lockfile && pnpm --filter @silvicom/shared build:rn");
+    return 2;
+  }
   warnIfUncommitted();
   const runnable = jobs.filter((j) => !j.skip);
   for (const j of jobs.filter((x) => x.skip)) console.log(`- ${j.name}: skipped — ${j.skip}`);
