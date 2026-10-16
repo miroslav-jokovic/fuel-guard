@@ -11,7 +11,7 @@
  * The board renders each with `load: null` and says nothing about it.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { ON_TRUCK_CANDIDATE_STATUSES, boardStops, compareLoadsOnTruck, isLoadOnTruck, nextStopOnRoute } from "@silvicom/shared";
+import { ON_TRUCK_CANDIDATE_STATUSES, boardStops, compareLoadsOnTruck, isLoadOnTruck, isStopBehindTruck, nextStopOnRoute } from "@silvicom/shared";
 import { chunks } from "../../lib/paging.js";
 
 /** A stop still to be worked, in the shape the board hands to the map. */
@@ -185,6 +185,8 @@ export interface LoadRouteStop {
   name: string | null;
   lat: number;
   lng: number;
+  /** The truck has left it, by either source (`isStopBehindTruck`) — a route from the truck skips it. */
+  behind: boolean;
 }
 
 export interface LoadForRoute {
@@ -213,15 +215,18 @@ export async function readLoadForRoute(admin: SupabaseClient, orgId: string, loa
   if (!load) return null;
   const { data: stops, error: sErr } = await admin
     .from("load_stops")
-    .select("seq, kind, name, location_name, lat, lon")
+    .select("seq, kind, name, location_name, lat, lon, status, external_status")
     .eq("org_id", orgId)
     .eq("load_id", loadId)
     .order("seq", { ascending: true });
   if (sErr) throw new Error(sErr.message);
-  const rows = (stops ?? []) as { seq: number | null; kind: string | null; name: string | null; location_name: string | null; lat: number | string | null; lon: number | string | null }[];
+  const rows = (stops ?? []) as {
+    seq: number | null; kind: string | null; name: string | null; location_name: string | null;
+    lat: number | string | null; lon: number | string | null; status: string | null; external_status: string | null;
+  }[];
   const located = rows
     .filter((s) => s.seq != null && s.lat != null && s.lon != null)
-    .map((s) => ({ seq: s.seq!, kind: s.kind, name: s.location_name ?? s.name, lat: Number(s.lat), lng: Number(s.lon) }))
+    .map((s) => ({ seq: s.seq!, kind: s.kind, name: s.location_name ?? s.name, lat: Number(s.lat), lng: Number(s.lon), behind: isStopBehindTruck(s) }))
     .sort((a, b) => a.seq - b.seq);
   const l = load as { id: string; ref: string | null; vehicle_id: string | null; hazmat: boolean | null };
   return { id: l.id, ref: l.ref, vehicleId: l.vehicle_id, hazmat: Boolean(l.hazmat), stops: located, unlocatedStops: rows.length - located.length };

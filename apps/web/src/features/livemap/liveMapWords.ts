@@ -14,6 +14,7 @@
  */
 import { secondsSince } from "@silvicom/shared";
 import type { LiveMapBoard, LiveMapLoadRoute, LiveMapScope, LiveMapStop, LiveMapVehicle } from "@silvicom/shared";
+import { offRouteWords } from "@/lib/loadRouteWords";
 
 /**
  * A fix's age in words (D-LM10 — shown per truck, never hidden behind the marker).
@@ -256,7 +257,7 @@ export function routeWords(route: LiveMapLoadRoute): { summary: string; notes: s
   ].join(" · ");
   const notes: string[] = [];
   if (route.offRouteMiles == null) notes.push("No position for this truck, so the whole route is shown ahead.");
-  else if (!route.truckOnRoute) notes.push(`Truck is ${Math.round(route.offRouteMiles)} mi off this route; fuel stops are planned from the pickup.`);
+  else if (!route.truckOnRoute) notes.push(offRouteWords(route)!);
   if (route.hazmatNotApplied) notes.push("Hazmat load: this route does not yet avoid hazmat-restricted roads.");
   if (route.fuelNote) notes.push(route.fuelNote);
   return { summary, notes };

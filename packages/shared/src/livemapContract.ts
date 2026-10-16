@@ -213,7 +213,7 @@ export interface LiveMapRouteFuelStop {
   exit: string | null;
   lat: number;
   lng: number;
-  /** Miles ahead of the truck (or of the pickup, when the truck is off the route). */
+  /** Miles ahead of the truck (or of the pickup, when there is no position for it). */
   milesAhead: number;
 }
 
@@ -235,11 +235,29 @@ export interface LiveMapLoadRoute {
   loadId: string;
   /** Already driven: start → the truck's point on the line. Empty when the truck is off the route. */
   covered: { lat: number; lng: number }[];
-  /** Still ahead: the truck's point → delivery. The whole line when the truck is off it. */
+  /**
+   * Still ahead: the truck's point → delivery. When the truck is off the planned line this is a NEW
+   * route from where the truck is, over the stops it has not reached (`fromTruck`); with no position
+   * for the truck, the whole planned line.
+   */
   ahead: { lat: number; lng: number }[];
-  /** The whole route, pickup → delivery. */
+  /** The planned route, pickup → delivery. */
   distanceMiles: number;
   durationHours: number;
+  /**
+   * Road miles and hours still to drive — the part ahead, whichever line it is on. The one figure the
+   * drawer and the card show as "still ahead"; before 2026-10-16 the drawer worked it out as planned
+   * minus covered, which read as the whole trip for a truck off the line (V2 plan §5).
+   */
+  aheadMiles: number;
+  aheadHours: number;
+  /**
+   * The truck was off the planned line, so `ahead` was routed from its GPS fix and heading. Fuel stops are
+   * then planned on that line. Optional: an api from before it sends neither this nor `planned`.
+   */
+  fromTruck?: boolean;
+  /** The planned line, sent only when `fromTruck` — drawn faint, so the dispatcher sees both roads. */
+  planned?: { lat: number; lng: number }[];
   /** Where the truck is against the line. `offRouteMiles` is null when there is no position for it. */
   truckOnRoute: boolean;
   coveredMiles: number;
