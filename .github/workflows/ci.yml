@@ -269,6 +269,12 @@ jobs:
       - name: The required check accepts a skip only on a reused proof
         run: bash scripts/check-ci-verdict.sh
 
+      # Added 2026-10-16 with `pnpm ci:local`, which runs THIS file's steps on a laptop. It refuses an
+      # `if:` or `${{ }}` it cannot evaluate rather than skip the step, so a step added here that it
+      # cannot read must fail on its own PR — not on the first laptop that tries.
+      - name: ci:local can read every step of this workflow
+        run: node scripts/ci-local.mjs --self-test
+
       - name: Design tokens
         run: pnpm --filter ./apps/web lint:tokens
 
