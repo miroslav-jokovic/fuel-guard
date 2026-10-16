@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { nextTick, ref } from "vue";
 import type { DispatchBoardRow } from "@silvicom/shared";
-import { NO_FLEET_OPTION, POOL_OPTION, admitsScope, useScopeChoice, type ScopedItem } from "./dispatchScope";
+import { NO_FLEET_OPTION, NO_TRUCK_OPTION, POOL_OPTION, admitsScope, useScopeChoice, type ScopedItem } from "./dispatchScope";
 import { loadsOnBoard } from "./loadsOnBoard";
 
 /**
@@ -35,6 +35,19 @@ describe("admitsScope", () => {
     expect(admitsScope(item("VLADI", null), scope, { ...none, fleet: POOL_OPTION })).toBe(false);
     expect(admitsScope(item(null, null), scope, { ...none, fleet: NO_FLEET_OPTION })).toBe(true);
     expect(admitsScope(item("VLADI", null), scope, { ...none, fleet: NO_FLEET_OPTION })).toBe(false);
+  });
+
+  it("tells a load with no truck from a truck with no fleet, and leaves a board row (always a truck) as it was", () => {
+    const noTruck = { ...item(null, null), hasTruck: false };
+    const unfleeted = { ...item(null, null), hasTruck: true };
+    expect(admitsScope(noTruck, scope, { ...none, fleet: NO_TRUCK_OPTION })).toBe(true);
+    expect(admitsScope(noTruck, scope, { ...none, fleet: NO_FLEET_OPTION })).toBe(false);
+    expect(admitsScope(unfleeted, scope, { ...none, fleet: NO_TRUCK_OPTION })).toBe(false);
+    expect(admitsScope(unfleeted, scope, { ...none, fleet: NO_FLEET_OPTION })).toBe(true);
+    // A board row carries no `hasTruck`: No fleet still finds it, and No truck never does.
+    expect(admitsScope(item(null, null), scope, { ...none, fleet: NO_TRUCK_OPTION })).toBe(false);
+    // No truck is not a fleet code to match literally.
+    expect(admitsScope({ ...item("VLADI", null), hasTruck: true }, scope, { ...none, fleet: NO_TRUCK_OPTION })).toBe(false);
   });
 
   it("matches Dispatched by on the current OR the next load", () => {
@@ -84,10 +97,11 @@ describe("loadsOnBoard", () => {
     const on = loadsOnBoard(board);
     expect(on.scopeItem({ vehicle_id: "v-773", dispatcher_external_id: "asen" })).toEqual({
       fleetCode: "VINNIEV",
+      hasTruck: true,
       current: { dispatcherId: "asen" },
       next: null,
     });
-    expect(on.scopeItem({ vehicle_id: null }).fleetCode).toBeNull();
+    expect(on.scopeItem({ vehicle_id: null })).toMatchObject({ fleetCode: null, hasTruck: false });
     expect(on.scopeItem({ vehicle_id: "v-gone" }).fleetCode).toBeNull();
   });
 

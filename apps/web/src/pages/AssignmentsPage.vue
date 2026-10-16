@@ -23,6 +23,7 @@ import AssignmentHistory from "@/features/dispatch/AssignmentHistory.vue";
 import DispatchBoardTable from "@/features/dispatch/DispatchBoardTable.vue";
 import DispatchTruckDrawer from "@/features/dispatch/DispatchTruckDrawer.vue";
 import DispatcherCensus from "@/features/dispatch/DispatcherCensus.vue";
+import { truckCensusItems } from "@/features/dispatch/censusItems";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
 import { dispatcherOptions, useScopeChoice } from "@/features/dispatch/dispatchScope";
 import { RADIUS_OPTIONS, WITHIN_OPTIONS, useAvailableFilter } from "@/features/dispatch/useAvailableFilter";
@@ -134,6 +135,7 @@ const filtered = computed(() => filterBoard(rows.value, scope.value, { ...base.v
 const mineCount = computed(() =>
   scope.value.linked ? rows.value.filter((r) => r.fleetCode !== POOL_FLEET && inMyScope(r, scope.value)).length : null,
 );
+const census = computed(() => truckCensusItems(rows.value, mineCount.value, board.value, scopeChoice.value, fleet.value));
 const sorted = computed(() => sortRows(filtered.value, sort.value, boardSortValue));
 
 /**
@@ -205,15 +207,7 @@ const emptyText = computed(() =>
         in Settings → McLeod fleets, and the board then opens on your fleet.
       </AppCallout>
 
-      <DispatcherCensus
-        v-if="board"
-        :rows="rows"
-        :mine-count="mineCount"
-        :board="board"
-        :choice="scopeChoice"
-        :fleet="fleet"
-        @pick="pickCensus"
-      />
+      <DispatcherCensus v-if="board" :items="census" noun="truck" @pick="pickCensus" />
 
       <AppCallout v-if="avail.nearFellBack.value" tone="info">
         No truck is free in that city any more, so the board shows its whole state instead.

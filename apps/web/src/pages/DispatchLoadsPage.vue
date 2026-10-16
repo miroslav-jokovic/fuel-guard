@@ -27,26 +27,28 @@
  *
  * ── THE ORDER RECORD BESIDE THE DISPATCH BOARD (DISPATCH-BOARD-PLAN §5.3, DB5b) ────────────────────
  * This page answers "what is the state of this order"; the board answers "what do my trucks need now".
- * They share one scope control (My fleet · All, Fleet, Dispatched by — `dispatchScope.ts`), which
- * replaced this page's own Dispatcher filter, and one on-time verdict, read off the board rather than
- * computed twice (`loadsOnBoard.ts`). A load's truck links to that truck on the board; HOS and GPS are
- * never re-drawn here. The board's v2 census strip (D-DBV2) counts TRUCKS, and this list's rows are
- * loads, so it is not borrowed here: this page keeps the v1 control until DISPATCH-BOARD-V2-PLAN Q-DBV8
- * is ruled. DBV7 (Q-DBV6): Dispatch starts hidden, and Delivery carries the board's miles left.
+ * They share one scope rule (`admitsScope`, `dispatchScope.ts`) and one on-time verdict, read off the
+ * board rather than computed twice (`loadsOnBoard.ts`). A load's truck links to that truck on the board;
+ * HOS and GPS are never re-drawn here. DBV7 (Q-DBV6): Dispatch starts hidden, and Delivery carries the
+ * board's miles left.
+ *
+ * ── THE SAME STRIP, COUNTING THIS LIST (DISPATCH-BOARD-V2-PLAN Q-DBV8, DBV8) ──────────────────────
+ * Whose work is the board's census strip: Mine, All and a button per fleet, each with its count, and the
+ * button IS the filter. Here it counts LOADS — the open tab's, under its type and search — never the
+ * board's trucks, so a button's number is the rows it shows. A load with no truck yet is "No truck",
+ * apart from a truck with no fleet. Dispatched by moved under Filters, as on the board.
  *
  * ── ONE LIST PATTERN WITH THE BOARD (owner, 2026-10-10) ─────────────────────────────────────────
  * One surface (`DataWorkspace`): the toolbar and the table are one card, and the toolbar stays when the
  * tab is Exceptions — same scope, same search, its own count — so switching tabs never moves the page.
- * Every filter, the queue and the sort live in the URL (`useQueryState`). Fleet, Dispatched by and Type
- * are primary filters: their triggers show their value, so they add no chip (contract §5.5 rules 3, 5).
+ * Every filter, the queue and the sort live in the URL (`useQueryState`). Type is a primary filter: its
+ * trigger shows its value, so it adds no chip; Dispatched by, a secondary, does (contract §5.5).
  */
 import { computed, ref, watch } from "vue";
 import { useRouter } from "vue-router";
 import {
   type DispatchException,
   EXCEPTION_LABELS,
-  HAZMAT_LOAD_STATUS_LABELS,
-  type HazmatLoadStatus,
   boardStops,
   isDispatchable,
   loadBoardState,
@@ -74,11 +76,13 @@ import {
 import DispatchLoadDrawer from "@/features/dispatch/DispatchLoadDrawer.vue";
 import { dispatchHeadline } from "@/features/dispatch/useLoadDispatch";
 import { useDispatchBoardQuery } from "@/features/dispatch/useDispatchBoard";
-import DispatchScopeControls from "@/features/dispatch/DispatchScopeControls.vue";
-import { admitsScope, useScopeChoice } from "@/features/dispatch/dispatchScope";
+import DispatcherCensus from "@/features/dispatch/DispatcherCensus.vue";
+import { loadCensusItems, type CensusPick } from "@/features/dispatch/censusItems";
+import { admitsScope, dispatcherOptions, useScopeChoice } from "@/features/dispatch/dispatchScope";
 import { loadsOnBoard } from "@/features/dispatch/loadsOnBoard";
 import { loadStopName } from "@/features/dispatch/dispatchBoardView";
 import LoadStopCell from "@/features/dispatch/LoadStopCell.vue";
+import { TYPE_OPTIONS, TYPE_VALUES, hazmatChipLabel, hazmatTone, matchesType } from "@/features/dispatch/loadType";
 import { BADGE_BASE, onTimeBadge, toneClass } from "@/lib/badges";
 import { formatDateTime } from "@/lib/format";
 
@@ -136,7 +140,7 @@ const tab = computed<QueueTab>({
 // Whose loads (D-DB3): the board's scope, and the fleet of each load's truck, read off the board.
 const scope = computed(() => board.value?.scope ?? { linked: false, fleetCodes: [], dispatcherIds: [] });
 const onBoard = computed(() => loadsOnBoard(board.value));
-const { choice: scopeChoice, choose: setScope } = useScopeChoice(computed(() => scope.value.linked), qs);
+const { choice: scopeChoice } = useScopeChoice(computed(() => scope.value.linked), qs);
 const fleet = qs.param("fleet");
 const dispatcher = qs.param("dispatcher");
 const scopeFilter = computed(() => ({ mine: scopeChoice.value === "mine", fleet: fleet.value, dispatcher: dispatcher.value }));
@@ -147,11 +151,15 @@ const scopeFilter = computed(() => ({ mine: scopeChoice.value === "mine", fleet:
  * the same uncovered loads the Uncovered tab does. The page says so above that list. Fleet and
  * Dispatched by still apply, and simply match nothing, which is the truth.
  */
-const inScope = (load: DispatchLoad): boolean =>
-  admitsScope(onBoard.value.scopeItem(load), scope.value, {
-    ...scopeFilter.value,
-    mine: scopeFilter.value.mine && loadBoardState(load).queue !== "uncovered",
-  });
+const admits = (load: DispatchLoad | undefined, pick: { mine: boolean; fleet: string }): boolean =>
+  load
+    ? admitsScope(onBoard.value.scopeItem(load), scope.value, {
+        fleet: pick.fleet,
+        dispatcher: dispatcher.value,
+        mine: pick.mine && loadBoardState(load).queue !== "uncovered",
+      })
+    : !pick.fleet && !dispatcher.value; // an exception with no load: see `scopedExceptions`
+const inScope = (load: DispatchLoad): boolean => admits(load, scopeFilter.value);
 // One `?page=` (D-US2) for both tables (D-US8): one shows at a time, and a tab change restarts at 1.
 const page = qs.page();
 
@@ -174,26 +182,8 @@ const headerText = computed(() =>
     : "Loads come from McLeod. A load reaches a driver only when you dispatch it.",
 );
 
-const TYPE_VALUES = ["Regular", "Reefer", "hazmat", "attention"];
 const typeFilter = qs.param("type", TYPE_VALUES);
-const typeOptions = [
-  { value: "", label: "All types" },
-  { value: "Regular", label: "Regular" },
-  { value: "Reefer", label: "Reefer" },
-  { value: "hazmat", label: "Hazmat" },
-  { value: "attention", label: "Hazmat — not cleared" },
-];
-/** H-C1: a hazmat load "needs attention" until its record is CLEARED — including never started. */
-const hazmatNeedsAttention = (load: DispatchLoad): boolean =>
-  load.hazmat && load.hazmat_status !== "cleared" && load.hazmat_status !== "cancelled" && load.hazmat_status !== "superseded";
-
-function matchesType(load: DispatchLoad): boolean {
-  const t = loadTypeOf(load);
-  if (!typeFilter.value) return true;
-  if (typeFilter.value === "hazmat") return t.hazmat;
-  if (typeFilter.value === "attention") return hazmatNeedsAttention(load);
-  return t.base === typeFilter.value;
-}
+const typed = (load: DispatchLoad) => matchesType(load, typeFilter.value);
 
 const counts = computed(() => {
   const result = Object.fromEntries(QUEUE_TABS.map((q) => [q.value, 0])) as Record<QueueTab, number>;
@@ -216,29 +206,23 @@ const tabItems = computed(() => QUEUE_TABS.map((q) => ({ value: q.value, label: 
  * names a property it does not have.
  */
 const loadById = computed(() => new Map((loads.value ?? []).map((l) => [l.id, l])));
-const scopedExceptions = computed(() =>
-  (exceptions.value ?? []).filter((e) => {
-    const load = e.load_id ? loadById.value.get(e.load_id) : undefined;
-    if (!load) return !fleet.value && !dispatcher.value && !typeFilter.value;
-    return inScope(load) && matchesType(load);
-  }),
-);
-const filteredExceptions = computed(() => {
+const loadOf = (e: DispatchException) => (e.load_id ? loadById.value.get(e.load_id) : undefined);
+const exceptionTyped = (e: DispatchException) => (loadOf(e) ? typed(loadOf(e)!) : !typeFilter.value);
+const exceptionFound = (e: DispatchException) => {
   const term = search.value.trim().toLowerCase();
-  if (!term) return scopedExceptions.value;
-  return scopedExceptions.value.filter((e) =>
-    [e.summary, e.driver_name, e.load_ref, EXCEPTION_LABELS[e.kind]].some((v) => v?.toLowerCase().includes(term)),
-  );
-});
+  return !term || [e.summary, e.driver_name, e.load_ref, EXCEPTION_LABELS[e.kind]].some((v) => v?.toLowerCase().includes(term));
+};
+const scopedExceptions = computed(() => (exceptions.value ?? []).filter((e) => exceptionTyped(e) && admits(loadOf(e), scopeFilter.value)));
+const filteredExceptions = computed(() => scopedExceptions.value.filter(exceptionFound));
 
-const filtered = computed(() => {
+/** The open tab's loads under its type and search, before whose-work — what the census counts. */
+const unscoped = computed(() => {
   const term = search.value.trim().toLowerCase();
   const queue = tab.value;
   if (queue === "exceptions") return [];
   return (loads.value ?? [])
     .filter((load) => inQueue(load, queue))
-    .filter(inScope)
-    .filter(matchesType)
+    .filter(typed)
     .filter((load) => {
       if (!term) return true;
       const { pickup, delivery } = boardStops(load.stops);
@@ -247,6 +231,21 @@ const filtered = computed(() => {
         .some((value) => value.toLowerCase().includes(term));
     });
 });
+const filtered = computed(() => unscoped.value.filter(inScope));
+/**
+ * Loads per dispatcher (Q-DBV8): the board's strip, counting this list — on Exceptions, the exceptions,
+ * each by its load. Picking one is the census choice; Dispatched by moved under More, as on the board.
+ */
+const census = computed(() =>
+  loadCensusItems(
+    tab.value === "exceptions" ? (exceptions.value ?? []).filter((e) => exceptionTyped(e) && exceptionFound(e)).map(loadOf) : unscoped.value,
+    admits, scope.value.linked, board.value, scopeChoice.value, fleet.value,
+  ),
+);
+const pickCensus = (v: CensusPick) => qs.set({ scope: v.scope, fleet: v.fleet || undefined });
+const moreChips = computed(() =>
+  dispatcher.value ? [{ key: "dispatcher", label: "Dispatched by", value: dispatcherOptions(board.value).find((o) => o.value === dispatcher.value)?.label ?? dispatcher.value }] : [],
+);
 
 const columns: DataTableColumn[] = [
   { key: "ref", label: "Load #", sortable: true, width: "sm", cellClass: "font-medium text-ink" },
@@ -284,29 +283,14 @@ const emptyText = computed(() => {
   return scopeFilter.value.mine ? "No loads in your fleet match. Switch to All to search every load." : "No loads match these filters.";
 });
 
-/** Chip copy + tone for the linked hazmat record's state. "Not started" is the loudest (H-C1). */
-function hazmatChipLabel(status: string | null | undefined): string {
-  if (!status) return "Hazmat · not started";
-  return `Hazmat · ${HAZMAT_LOAD_STATUS_LABELS[status as HazmatLoadStatus] ?? status}`;
-}
-function hazmatTone(status: string | null | undefined): string {
-  if (!status) return "warning";
-  if (status === "cleared") return "success";
-  if (status === "needs_review") return "warning";
-  if (status === "rejected") return "danger";
-  if (status === "submitted" || status === "extracting") return "brand";
-  return "neutral"; // draft / cancelled / superseded
-}
-
 
 /**
- * FilterBar's "Clear filters": Fleet, Dispatched by, Type and the search narrow the list in front of
- * you. The queue tab and My fleet · All do not — they choose WHICH list it is, so clearing keeps them.
+ * FilterBar's "Clear filters": Dispatched by, Type and the search narrow the list in front of you. The
+ * queue tab and the census choice (Mine, All or a fleet) do not — they choose WHICH list it is, as on
+ * the board, so clearing keeps them.
  */
-const activeFilterCount = computed(
-  () => [search.value.trim(), fleet.value, dispatcher.value, typeFilter.value].filter(Boolean).length,
-);
-const clearFilters = (): void => qs.set({ search: undefined, fleet: undefined, dispatcher: undefined, type: undefined });
+const activeFilterCount = computed(() => [search.value.trim(), dispatcher.value, typeFilter.value].filter(Boolean).length);
+const clearFilters = (): void => qs.set({ search: undefined, dispatcher: undefined, type: undefined });
 
 // The scope's PARAMETER, not `scopeChoice`, whose default flips when the board arrives and would
 // reset a pasted `?page=2`. The clamp follows the table on screen and waits for its feed to arrive.
@@ -339,6 +323,8 @@ function openDetail(load: DispatchLoad) {
       Uncovered loads have no dispatcher in McLeod yet, so this queue shows all of them.
     </AppCallout>
 
+    <DispatcherCensus v-if="board" :items="census" :noun="tab === 'exceptions' ? 'exception' : 'load'" @pick="pickCensus" />
+
     <DataWorkspace>
       <FilterBar
         v-model:search="search"
@@ -347,18 +333,16 @@ function openDetail(load: DispatchLoad) {
         :count="tab === 'exceptions' ? filteredExceptions.length : filtered.length"
         :count-label="tab === 'exceptions' ? 'exceptions' : 'loads'"
         :active-count="activeFilterCount"
+        :more-count="dispatcher ? 1 : 0"
+        :chips="moreChips"
+        @remove="qs.set({ dispatcher: undefined })"
         @clear-all="clearFilters"
       >
         <template #filters>
-          <DispatchScopeControls
-            v-model:fleet="fleet"
-            v-model:dispatcher="dispatcher"
-            :board="board"
-            :linked="scope.linked"
-            :choice="scopeChoice"
-            @choose="setScope"
-          />
-          <FilterSelect v-model="typeFilter" label="Type" :options="typeOptions" />
+          <FilterSelect v-model="typeFilter" label="Type" :options="TYPE_OPTIONS" />
+        </template>
+        <template #more>
+          <FilterSelect v-model="dispatcher" label="Dispatched by" :options="dispatcherOptions(board)" block />
         </template>
         <!-- The loads table's columns; Exceptions is another table, with none to choose. -->
         <template v-if="tab !== 'exceptions'" #actions>

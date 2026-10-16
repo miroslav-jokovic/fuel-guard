@@ -41,6 +41,7 @@ export function loadsOnBoard(board: Board): LoadsOnBoard {
   return {
     scopeItem: (load) => ({
       fleetCode: load.vehicle_id ? (fleetByVehicle.get(load.vehicle_id) ?? null) : null,
+      hasTruck: load.vehicle_id != null,
       current: { dispatcherId: load.dispatcher_external_id ?? null },
       next: null,
     }),
