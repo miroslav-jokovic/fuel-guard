@@ -26,6 +26,9 @@ stripped before Claude reads the file. -->
 
 ## Commands
 
+- `pnpm ci:local` — before a push: runs on this machine the steps `ci.yml` runs on a PR, read from
+  `ci.yml` (never a guessed subset), and lists every failure, not the first. `--list` shows the plan,
+  `--job gates,typecheck` narrows it. Commit first: CI tests the commit, and so do some gates.
 - `pnpm test` — unit suites AND every `supabase/tests/*.test.mjs` matrix, unconditionally. Matrices are
   auto-discovered and must print a `RESULT` line; a silent matrix fails.
 - `pnpm typecheck` · `pnpm lint` · `pnpm build` (artefacts only: the web and admin bundles and tokens.css — `pnpm typecheck` is the one type gate).

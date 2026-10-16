@@ -47,6 +47,12 @@ Ten successful PR runs, per job (seconds):
   duplicate type analysis inside `pnpm build` stays for now (see step 4).
 - **D-CIF4 — The fast lane is the developer's machine.** `pnpm ci:local` runs exactly the `run:`
   lines of `ci.yml` (derived, not restated) so a push is preceded by the same gates CI will run.
+- **D-CIF6 — Stop tuning the test runner (2026-10-16).** Researched what has worked elsewhere
+  and measured each option here (step 5). Remote build caches, affected-only testing, merge queue
+  and larger runners don't fit: our time is tests, not builds; affected-only can't be the merge
+  authority; merge queue needs an org-owned repo; bigger runners are paid even on public repos.
+  The only large proven win, `isolate: false`, needs ~120 test files' mocks fixed and has a known
+  vitest leak bug, so it is parked as optional step 6.
 - **D-CIF5 — Main reuses a proven tree.** When main's merge commit carries the exact tree a PR's
   green `build` recorded in `ci/tested-tree`, main's run skips the heavy jobs and says so; anything
   else runs everything. A nightly full run of main stays as the independent safety net.
@@ -63,17 +69,28 @@ Ten successful PR runs, per job (seconds):
    together would queue. Reuse `.github/actions/require-ci-green/tested-tree.sh`; fail closed (no
    proof / tree differs / API error → full run). `require-ci-green` keeps polling main's `build`,
    which now concludes success with a "proof reused" summary.
-3. **`pnpm ci:local` (D-CIF4).** Parses `ci.yml`'s `run:` lines (the memory note's recipe), skips
-   CI-only steps (Chromium install, native), excludes `lint:fix`, runs independent groups in
-   parallel, reports exit codes, not output.
+3. **`pnpm ci:local` (D-CIF4)** — `scripts/ci-local.mjs`. Reads every job and step from `ci.yml`
+   (Ruby parses the YAML, as in `check-ci-verdict.sh`). It skips only `plan`, `build`,
+   `native-android` and toolchain installs, and runs matrix jobs once as shard 1/1. Jobs run a few at
+   a time, each with its share of the cores; every step reports, not just the first failure. It
+   refuses an `if:` or `${{ }}` it cannot evaluate, and its `--self-test` in `gates` keeps that true.
 4. **Remove the duplicate type analysis.** Make workspace `build` scripts bundle-only where they are
    `tsc --noEmit` today, keeping `pnpm typecheck` as the sole type gate. Needs Railway's build
    command checked first (it may rely on `build` typechecking). Saves ~100 s in `bundle`, which is
    then the likely critical path.
-5. **Per-file overhead (measure first).** Candidates: cache vitest's transform output between runs,
-   share one jsdom per worker where suites allow it. Measured and rejected locally 2026-10-16:
-   `deps.optimizer` (41 → 43 s) and `pool: threads` (41 → 60 s). `isolate: false` stays rejected (it
-   hangs `apps/api`, ci.yml's comment).
+5. **Per-file overhead — CLOSED for now (D-CIF6).** Every cheap option was measured on the web
+   suite at 4 workers (CI's core count), against a 106–108 s baseline, 2026-10-16:
+   - `deps.optimizer`: 41 → 43 s (14 workers). `pool: threads`: 41 → 60 s.
+   - `pool: vmThreads`: crashed both times, "Worker exited unexpectedly", after 153–159 s.
+   - `NODE_COMPILE_CACHE`: cold 113 s, warm 112 s. No gain.
+   - Only 120 of 417 web files avoid the DOM, so giving jsdom only to the DOM tests saves ~7%.
+   - `--no-isolate`: **15 s, but 122–125 of 417 files fail.** `vi.mock` stubs (vue-router, the
+     query client) leak between files, the known vitest #11152.
+6. **Optional, not scheduled: the isolated/non-isolated split (D-CIF6).** The one proven large win
+   (ekino: ~6× on a jsdom-heavy suite). Two vitest `projects`: a file joins the non-isolated one only
+   after `--no-isolate --sequence.shuffle.files` passes five runs in a row, and shared resets live in
+   the setup file. Not scheduled because the PR critical path is now spread across several ~200 s
+   jobs, so even 6× on web alone barely moves the wait. Revisit only if web becomes the pole again.
 
 ## 4. Open questions
 
@@ -122,3 +139,16 @@ authority · draft-deferred full CI · merge queue (needs an organization-owned 
   an unparseable ci.yml exits 2 rather than passing. Real data: `tested-tree.sh` on the last six
   main merges → 5 reuse, 1 full run (`277d722`, main moved during its PR run). Owed: the first real
   reused push on main, and the first nightly.
+- 2026-10-16 — **Step 2 merged (#1589, `b01320c`).** Its own main run (38922358021) was the
+  fail-closed case: main had moved during the PR run, so `plan` found no proof and all 15 jobs ran,
+  green, 394 s. Still owed: a merge that reuses, and the first nightly.
+- 2026-10-16 — **Step 3 built** (`claude/ci-local`). `pnpm ci:local` passed 49/49 runnable steps
+  (50 once its own self-test joined `gates`) at 2, 3 and 4 jobs at once. Two findings set its
+  design. (1) With all 7 jobs at once and no cap, 3 suites failed (75 vitest 5 s timeouts, and a
+  Playwright server that never started in 60 s): each job took all 14 cores. So each job now gets
+  `VITEST_MAX_WORKERS`/`MATRIX_CONCURRENCY` = cores ÷ jobs, and with that every run passed, even at
+  load 60–73 while another session ran its own suite on the same Mac. (2) Wall times on a shared
+  laptop are noise (258–651 s for the same work), so the default of 3 jobs is chosen for headroom,
+  not speed. Self-test: four mutants are caught (an unknown expression or `if:` skipped instead of
+  refused, an unknown job dropped, a new ci.yml step it cannot read).
+- 2026-10-16 — **D-CIF6: research closed step 5.** See step 5's measurements; step 6 parked.
