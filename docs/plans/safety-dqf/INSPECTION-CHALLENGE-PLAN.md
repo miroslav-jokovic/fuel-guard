@@ -986,3 +986,23 @@ about three merges.
     maintenance's accept / "outside FleetPal" action (person rows), safety's certification, the rendered
     repair document (Q-IC12 (a)), and the "no repair recorded, N days left" alert (its notification
     category one merge before its writer).
+
+- **2026-10-16 — IC11, second merge (B1): the Repair card, and maintenance names the repair (migration 0483).**
+  - **Card** (`InspectionRepairCard.vue`, on `/roadside-inspections/:id` under Documents): per violated unit, its
+    393/396 violations, the due day and the shared `repairClock` (days left / due today / overdue, on the
+    carrier's calendar), the proposed FleetPal work orders with their job names, and the decision once made.
+    Hidden when the engine read no unit. `GET /:id/repairs` (safety view).
+  - **Decision** (`repair/decide.ts`, `POST /:id/repairs`): `accept` a work order the proposal LISTED, or
+    `outside` with where it was done; a person row restating the proposal it was made over, `basedOn` = the
+    unit's newest row (409 `changed` otherwise), audit `roadside.repair_accepted` / `_outside_fleetpal`.
+    Gated on the **maintenance** section's manage level (Q-IC13), not safety's.
+  - **Seam recorded, not routed around:** a `technician` manages maintenance but has no safety view, so cannot
+    open the inspection page that carries the card. Today fleet managers and admins (both sections) decide.
+    The technician's way in is a maintenance-side "repairs due" list reading the same `GET`'s shape — next
+    to the alert in B2, whose recipients are exactly maintenance managers.
+  - **0483 + 0484** widen two CHECKs one merge before their writers: notification categories `roadside_repair_due`
+    (B2) and `roadside_report_needs_review` (IC14), and document kind `roadside_repair_record` (0484; B2's rendered
+    repair document, Q-IC12 (a)). `NOTIFICATION_CATEGORIES`, `ROADSIDE_DOCUMENT_KINDS` and the bell's
+    deep link (`notificationRoute`) move with them.
+  - **Next (B2):** safety's certification (who, title, date — 396.9(d)(3)(i)), the rendered repair document
+    filed on the inspection, the "repair due" alert to maintenance managers, and the maintenance-side list.
