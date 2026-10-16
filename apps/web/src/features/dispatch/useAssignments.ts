@@ -7,7 +7,7 @@ import { apiFetch } from "@/lib/api";
  * The attribution trail is all that is left here. The duty board's list and its End shift write
  * (`useAssignmentsQuery`, `useEndShift`) were retired with their routes (DISPATCH-BOARD-PLAN.md
  * Q-DB10, ruled (b) 2026-10-16): no screen had read them since the Dispatch board replaced the
- * Assignments page (#1426), and production never opened a duty session for End shift to close.
+ * Assignments page (wave 3b), and production never opened a duty session for End shift to close.
  */
 
 // ── the attribution trail (L5 / D-L6) ────────────────────────────────────────────────
