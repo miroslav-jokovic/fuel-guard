@@ -33,7 +33,7 @@ const insp = (id: string, reportNumber: string, inspectionDate: string): Roadsid
 });
 const INSPECTIONS = [insp("a", "3282002265", "2026-10-06"), insp("b", "CV44901292", "2026-10-09"), insp("c", "1455001139", "2026-09-01")];
 const work = new Map<string, RoadsideInspectionWorkDto>([
-  ["c", { id: "c", driver: null, open: { total: 1, byOwner: { safety: 1, maintenance: 0 } }, next: null, points: 0, awaitsReport: true }],
+  ["c", { id: "c", driver: null, open: { total: 1, byOwner: { safety: 1, maintenance: 0 } }, next: null, points: 0, awaitsReport: true, categories: [] }],
 ]);
 const file = (name: string) => new File(["%PDF"], name, { type: "application/pdf" });
 

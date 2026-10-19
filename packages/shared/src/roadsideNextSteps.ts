@@ -285,6 +285,8 @@ export interface RoadsideInspectionWorkDto {
   points: number | null;
   /** Its "Upload the officer's report" step is open — the inbox's bulk upload offers these first. */
   awaitsReport: boolean;
+  /** FMCSA's violation categories on it (`VIOLATION_CATEGORY_NAMES` keys), each once — the list's category filter and the card's top three. */
+  categories: number[];
 }
 
 /** The work line of one inspection from its steps, its attribution and its points. Pure. */
@@ -293,6 +295,7 @@ export function roadsideWork(
   steps: readonly RoadsideStep[],
   attribution: RoadsideAttributionDto,
   sms: Pick<RoadsideInspectionSmsDto, "basics"> | null,
+  categories: readonly (number | null)[] = [],
 ): RoadsideInspectionWorkDto {
   const first = steps.find((s) => s.state === "open");
   return {
@@ -302,5 +305,6 @@ export function roadsideWork(
     next: first ? { title: first.title, owner: first.owner, dueOn: first.dueOn, clock: first.clock } : null,
     points: sms ? sms.basics.reduce((n, b) => n + (b.verified ? b.points : 0), 0) : null,
     awaitsReport: steps.some((s) => s.key === "report" && s.state === "open"),
+    categories: [...new Set(categories.filter((c): c is number => c != null))].sort((a, b) => a - b),
   };
 }

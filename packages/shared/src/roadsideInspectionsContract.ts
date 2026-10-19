@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { lastDaysStart, type CalendarDay } from "./calendarDay.js";
+import type { CalendarDay } from "./calendarDay.js";
 import type { RoadsideInspectionSmsDto } from "./roadsideSmsContract.js";
 import type { RoadsideAttributionDto } from "./roadsideAttributionContract.js";
 
@@ -23,24 +23,6 @@ import type { RoadsideAttributionDto } from "./roadsideAttributionContract.js";
  */
 export const ROADSIDE_OOS_KINDS = ["driver", "vehicle", "hazmat"] as const;
 export type RoadsideOosKind = (typeof ROADSIDE_OOS_KINDS)[number];
-
-/** How far back the list looks. FMCSA publishes three years, so "all" is at most that. */
-export const ROADSIDE_PERIODS = ["90d", "365d", "all"] as const;
-export type RoadsidePeriod = (typeof ROADSIDE_PERIODS)[number];
-
-/** The card's window (plan §4 card 10): the last 90 calendar days, today included. */
-export const ROADSIDE_CARD_PERIOD: RoadsidePeriod = "90d";
-
-/**
- * The first calendar day a period includes, or null for "all". `today` is the carrier's day
- * (`todayInZone` in the org zone) — the server cuts the card's window and the page cuts the list's
- * with this one function, so "last 90 days" is the same 90 days on both.
- */
-export function roadsidePeriodStart(period: RoadsidePeriod, today: CalendarDay): CalendarDay | null {
-  if (period === "90d") return lastDaysStart(today, 90);
-  if (period === "365d") return lastDaysStart(today, 365);
-  return null;
-}
 
 export interface RoadsideInspectionUnitDto {
   /** Position on the report: 1 is the power unit, 2 the first trailer. */
@@ -268,25 +250,3 @@ const OOS_COUNT: Record<RoadsideOosKind, (i: RoadsideInspectionDto) => number | 
 
 /** Does this inspection carry an out-of-service order of this kind? The list's filter and the card's count. */
 export const hasOosOf = (inspection: RoadsideInspectionDto, kind: RoadsideOosKind): boolean => (OOS_COUNT[kind](inspection) ?? 0) > 0;
-
-/**
- * The card's figures: each the length of the list `/roadside-inspections?view=all&period=90d[&oos=<kind>]`
- * shows, computed on the server by filtering that list with `hasOosOf` (D-FM7, D-FM9).
- * `from` is the window's first day, so the page and the card can be checked against each other.
- */
-export const roadsideSummarySchema = z.object({
-  from: z.iso.date(),
-  inspections: z.number().int().min(0),
-  driverOos: z.number().int().min(0),
-  vehicleOos: z.number().int().min(0),
-  hazmatOos: z.number().int().min(0),
-  /** How current the record behind these figures is (IC1c). */
-  feed: roadsideFeedSchema,
-});
-export type RoadsideSummary = z.infer<typeof roadsideSummarySchema>;
-
-/** The summary from the window's list. One definition, so the server's count cannot drift from the filter. */
-export function summarizeRoadside(from: CalendarDay, rows: readonly RoadsideInspectionDto[], feed: RoadsideFeed): RoadsideSummary {
-  const count = (kind: RoadsideOosKind) => rows.filter((r) => hasOosOf(r, kind)).length;
-  return { from, inspections: rows.length, driverOos: count("driver"), vehicleOos: count("vehicle"), hazmatOos: count("hazmat"), feed };
-}
