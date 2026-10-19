@@ -21,6 +21,7 @@ import { geocodeAddress } from "./geocode.js";
 import { loadSamsaraToken } from "../samsara/lib/samsaraToken.js";
 import { makeSamsaraFetcher, makeSamsaraHosFetcher } from "../samsara/lib/samsara.js";
 import { hereReverseGeocodeState } from "../../lib/hereGeocode.js";
+import { readTruckLoadTrailer } from "../loads/index.js";
 
 export interface PlanPoint { lat?: number | null; lng?: number | null; text?: string | null }
 export interface PlanRequest {
@@ -117,7 +118,9 @@ async function resolvePoint(env: Env, p: PlanPoint): Promise<LatLng | null> {
 }
 
 export async function planFuelRoute(admin: SupabaseClient, env: Env, orgId: string, req: PlanRequest): Promise<PlanResult> {
-  const truck = await loadPlanningTruck(admin, orgId, req.vehicleId, req.equipmentType ?? null);
+  // The truck's current load says what it pulls (D-TL2); a truck on no load falls back to its GPS pairing.
+  const onLoad = await readTruckLoadTrailer(admin, orgId, req.vehicleId);
+  const truck = await loadPlanningTruck(admin, orgId, req.vehicleId, req.equipmentType ?? null, onLoad?.trailerIsReefer);
   if (!truck) return { status: "error", message: "Vehicle not found" };
   const { veh, cfg } = truck;
 
@@ -156,11 +159,10 @@ export type PlanningVehicle = VehState & { id: string; height_in: number | null;
  * before there is a line (TRUCK-CARD-ROUTE-PLAN D-TC6). Null when the truck is not this org's.
  *
  * ── WHOSE TRAILER (TRAILER-LINK-PLAN D-TL2) ───────────────────────────────────────────────────────
- * A caller planning a LOAD passes `loadTrailerIsReefer`, read off the trailer McLeod put on it: that is
- * the trailer dispatch planned, and it is current to the last McLeod sync. Without a load (the fuel
- * planner) the truck's GPS pairing still decides, which is two months stale as of 2026-10-19 — the
- * planner's switch to the truck's current load is TRAILER-LINK-PLAN step TL3, which needs a
- * `routing -> loads` edge this module does not have yet.
+ * Both callers pass `loadTrailerIsReefer`, read off the trailer McLeod put on a load: the live map's route
+ * from its own load, the fuel planner from the load the truck is hauling now (`readTruckLoadTrailer`,
+ * TL3). That is the trailer dispatch planned, current to the last McLeod sync. Only a truck on no load
+ * falls back to its GPS pairing (TL3: when there is no load, nothing else says what it pulls).
  */
 export async function loadPlanningTruck(
   admin: SupabaseClient, orgId: string, vehicleId: string, equipmentType: string | null, loadTrailerIsReefer?: boolean,

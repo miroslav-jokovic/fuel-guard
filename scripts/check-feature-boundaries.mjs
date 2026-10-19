@@ -250,6 +250,10 @@ const API_ALLOW = new Set([
   // typed fetchers — routing's stop-selection math needs where the truck IS. The deeper
   // vendor/math split inside fuelPlanning is the routing module's named debt (P1.7).
   "routing -> samsara",
+  // The fuel planner asks which trailer the truck's current load carries, to know whether it burns
+  // reefer fuel (TRAILER-LINK-PLAN D-TL2, TL3): McLeod's load, not the truck's stale GPS trailer
+  // pairing. One narrow reader (`readTruckLoadTrailer`); loads imports nothing from routing.
+  "routing -> loads",
   // Recon resolves a fill's station coordinates through routing's geocoder — a support
   // service by charter; the pair is deliberately narrow (geocodeStation only).
   "samsara -> routing",

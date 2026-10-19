@@ -252,3 +252,28 @@ export async function readLoadForRoute(admin: SupabaseClient, orgId: string, loa
     trailerIsReefer: Boolean(l.trailers?.is_reefer),
   };
 }
+
+/**
+ * The trailer on the load one truck is hauling now, for the fuel planner's reefer burn (TRAILER-LINK-PLAN
+ * TL3, D-TL2). The load is chosen by the map's own rule (`isLoadOnTruck`, then `compareLoadsOnTruck`), so
+ * the planner and the map agree on which load the truck is on. Null when the truck is on no load: then
+ * no load says what it pulls, and the caller decides. Org-scoped like every read here.
+ */
+export async function readTruckLoadTrailer(
+  admin: SupabaseClient,
+  orgId: string,
+  vehicleId: string,
+): Promise<{ loadId: string; trailerIsReefer: boolean } | null> {
+  const { data, error } = await admin
+    .from("loads")
+    .select("id, ref, status, source, trailers(is_reefer)")
+    .eq("org_id", orgId)
+    .eq("vehicle_id", vehicleId)
+    .in("status", [...ON_TRUCK_CANDIDATE_STATUSES]);
+  if (error) throw new Error(error.message);
+  const rows = (data ?? []) as unknown as {
+    id: string; ref: string | null; status: string; source: string | null; trailers: { is_reefer: boolean | null } | null;
+  }[];
+  const current = rows.filter(isLoadOnTruck).sort(compareLoadsOnTruck)[0];
+  return current ? { loadId: current.id, trailerIsReefer: Boolean(current.trailers?.is_reefer) } : null;
+}
