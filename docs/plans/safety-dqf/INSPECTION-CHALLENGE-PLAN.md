@@ -427,6 +427,7 @@ are not specified here.
 | **IC1d** | Fetch the hour FMCSA republishes: an hourly Socrata metadata check (`rowsUpdatedAt`) against the last run's, the 24-hour run kept as the backstop (2026-10-16) | IC1 |
 | **IC13** | Ask only when it matters (Q-IC15 (b)): a high-confidence Samsara reading of a roster driver is shown as the answer, labelled as Samsara's; the card asks a person only for low, none, several, not-ours and a report disagreement; a person still confirms before any DataQs filing (D-IC7) | IC5, Q-IC15 |
 | **IC14** | Safety alert for a report that needs a person, and the inbox's "needs a person" filter (the notification category one merge before its writer) | IC10 |
+| **IC16** | The Roadside card and the list standardized (owner 2026-10-19): the card over the Operations tab's range with FMCSA's OOS rates, clean, CSA points, needs action and the top categories (`roadsideStats`); the list on a date range with a statistics strip and the card's filters; then the Shop repairs page as a standard list and the inspection page's tables in cards | IC15 |
 | **IC15** | Next steps (Q-IC17): `roadsideNextSteps` in shared; the inspection page leads with them, settled sections fold, the CSA card becomes the violations' header line. Then the Shop's "Roadside repairs due" section and page with the B2b alert (Q-IC16 (a)), the inbox's "Needs action" tab with next-step, driver and points columns and bulk report upload, and the former-equipment register (Q-IC10 (b)). Order ruled 2026-10-19: IC15 page + IC13 → B2b → inbox → IC4 → IC12 → IC6 onward | IC11, IC13 |
 
 IC1 and IC3 can run in parallel. IC4 is the first step a user can act on, and should be reachable in
@@ -1136,3 +1137,24 @@ about three merges.
   - **Next (IC4, second merge):** read a filed court result (a `court_disposition` read profile on the document
     reader, as IC10's report), match it to its violation, and R-ADJ2 — a dismissal FMCSA does not show yet becomes a
     ready-to-file DataQs case with the 18 USC 1001 attestation and the hand-off.
+- **2026-10-19 — IC16, first merge: the Roadside card counts the page's days, FMCSA's way.** Owner: "Roadside block is
+  displaying incorrect data … more statistics … precise data". No migration.
+  - **What was wrong:** the counts were right (checked against FMCSA's totals and each violation: 0 mismatches) but the
+    days were not — the card counted a fixed 90 days under an Operations page whose range said 30 (111 inspections and 19
+    vehicle OOS shown; the page's 30 days held 32 and 4), and OOS was a bare count.
+  - **`roadsideStats`** (`packages/shared/src/roadsideStats.ts`): inspections; clean (Q-FM8 (a): no violation; a blank count
+    is not clean); vehicle OOS over Vehicle Inspections (Level 1, 2, 5, 6) and driver OOS over Driver Inspections (1, 2, 3, 6)
+    — SMS Methodology §2's own definitions, so FMCSA's 2 Level 3s carrying a vehicle order are outside the vehicle rate;
+    hazmat OOS as a count; CSA points added (verified categories); needs action; the three categories on most inspections.
+    A rate of nothing has no share (a dash), never 0% or 100%. No national benchmark: none is held with a source.
+  - **The card** (`ops.roadside` joins `WIDGETS_TAKING_RANGE`): `GET /summary?from=&to=` (default the last 30 days), every
+    row a door to the list with the same predicate — `clean=1`, `oos=vehicle&insp=vehicle`, `view=needs`, `category=`.
+    Production 2026-10-19, last 30 days: 32 inspections, 19 clean (59%), vehicle OOS 4 of 23 (17%), driver OOS 1 of 32 (3%),
+    hazmat 2, 318 CSA points, 13 needing action, top: Brakes (all other) 4, Traffic enforcement 4, Brakes out of adjustment 3;
+    read in 1.4 s.
+  - **The list**: the Period select is replaced by the standard `DateRangeFilter` (`from`/`to` in the URL; the whole record
+    by default); new filters Inspection type, Result (clean) and Violation category; a `StatCard` strip of the range's
+    `roadsideStats`; the freshness line from its own small read (`GET /feed`). The fixed-period helpers
+    (`ROADSIDE_PERIODS`, `roadsidePeriodStart`, `summarizeRoadside`) are gone, so nothing can count the old way.
+  - **Next (IC16, second merge):** the Shop's roadside repairs as a standard list with a drawer, and the inspection page's
+    violations and units tables in cards.

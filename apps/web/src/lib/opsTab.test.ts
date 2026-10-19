@@ -98,11 +98,25 @@ const shop = ref<typeof SHOP>(SHOP);
 vi.mock("@/features/maintenance/useShopBacklog", () => ({ useShopSummaryQuery: () => ({ data: shop }) }));
 
 // ── roadside ────────────────────────────────────────────────────────────────────────────────────
-// Production's 90 days on 2026-10-13: 111 inspections; 1 / 18 / 2 carrying a driver / vehicle / hazmat OOS order.
+// Production's 30 days 09-20..10-19 (2026-10-19): 32 inspections, 19 clean; 4 of 23 vehicle and 1 of 32 driver inspections OOS.
 const FEED = { fetchedAt: "2026-10-13T14:17:00Z", sourceUpdatedAt: "2026-10-13T03:02:00Z", state: "fresh" as "fresh" | "ours_late" | "fmcsa_late" | "never" };
-const ROADSIDE = { from: "2026-07-15", inspections: 111, driverOos: 1, vehicleOos: 18, hazmatOos: 2, feed: FEED };
+const rate = (count: number, of: number) => ({ count, of, share: of ? count / of : null });
+const ROADSIDE = {
+  from: "2026-09-12", to: "2026-10-12", feed: FEED,
+  stats: {
+    inspections: 32, clean: rate(19, 32), vehicleOos: rate(4, 23), driverOos: rate(1, 32), hazmatOos: 1, points: 214, needsAction: 9,
+    topCategories: [{ categoryId: 23, inspections: 6 }],
+  },
+};
 const roadside = ref<typeof ROADSIDE | undefined>(ROADSIDE);
-vi.mock("@/features/roadside/useRoadsideInspections", () => ({ useRoadsideSummaryQuery: () => ({ data: roadside }) }));
+/** The range each mount asked the summary for — the page's, never a fixed window. */
+const roadsideAsked: { from: string; to: string }[] = [];
+vi.mock("@/features/roadside/useRoadsideInspections", () => ({
+  useRoadsideSummaryQuery: (r: import("vue").Ref<{ from: string; to: string }>) => {
+    roadsideAsked.push({ ...r.value });
+    return { data: roadside, isError: ref(false) };
+  },
+}));
 
 // ── hazmat, hiring, fuel ────────────────────────────────────────────────────────────────────────
 vi.mock("@/features/hazmat/useHazmatReview", () => ({ useHazmatReviewCountQuery: () => ({ data: ref(2) }) }));
@@ -232,11 +246,20 @@ describe("every count is the row count behind its door (D-FM7)", () => {
     expect([n(w, "work-orders"), n(w, "defects"), n(w, "low-stock")]).toEqual(["—", "—", "—"]);
   });
 
-  it("roadside: the summary's counts, each the length of the inspections list on the server", () => {
+  it("roadside: asks for the page's range, and gives FMCSA's rates with what each is of (IC16)", () => {
     const w = render();
-    expect([n(w, "inspections"), n(w, "driver-oos"), n(w, "vehicle-oos"), n(w, "hazmat-oos")]).toEqual(["111", "1", "18", "2"]);
-    // The kinds overlap (a hazmat OOS order is also a vehicle one), so nothing on the card totals them.
-    expect(w.get("[data-test='widget-ops.roadside']").text()).not.toMatch(/\b21\b/);
+    expect(roadsideAsked.at(-1)).toEqual({ from: "2026-09-12", to: "2026-10-12" });
+    expect([n(w, "inspections"), n(w, "clean"), n(w, "vehicle-oos"), n(w, "driver-oos"), n(w, "hazmat-oos"), n(w, "points"), n(w, "needs")])
+      .toEqual(["32", "59%", "17%", "3%", "1", "214", "9"]);
+    const card = w.get("[data-test='widget-ops.roadside']").text();
+    expect(card).toContain("4 of 23 vehicle inspections");
+    expect(card).toContain("1 of 32 driver inspections");
+    expect(card).toContain("Tires");
+  });
+
+  it("roadside: a rate of no inspections is a dash, never 0%", () => {
+    roadside.value = { ...ROADSIDE, stats: { ...ROADSIDE.stats, vehicleOos: rate(0, 0) } };
+    expect(n(render(), "vehicle-oos")).toBe("—");
   });
 
   it("roadside: says how current FMCSA's record is, and says it plainly when the feed has stopped (IC1c)", () => {
@@ -250,7 +273,7 @@ describe("every count is the row count behind its door (D-FM7)", () => {
   it("roadside: a dash — never a zero — before the answer arrives", () => {
     roadside.value = undefined;
     const w = render();
-    expect([n(w, "inspections"), n(w, "driver-oos"), n(w, "vehicle-oos"), n(w, "hazmat-oos")]).toEqual(["—", "—", "—", "—"]);
+    expect([n(w, "inspections"), n(w, "clean"), n(w, "vehicle-oos"), n(w, "driver-oos"), n(w, "hazmat-oos")]).toEqual(["—", "—", "—", "—", "—"]);
   });
 
   it("hiring and hazmat: the board's split and the badge's count", () => {
@@ -269,8 +292,13 @@ describe("every count is the row count behind its door (D-FM7)", () => {
       "/vehicles?check=inspection_overdue", "/vehicles?check=registration_missing",
       "/?tab=fleet", "/anomalies", "/idling", "/hazmat/review", "/recruitment", "/recruitment?waiting=them",
       "/shop/work-orders", "/shop/defects", "/shop/inventory?stock=low",
-      "/roadside-inspections?view=all&period=90d", "/roadside-inspections?view=all&period=90d&oos=driver",
-      "/roadside-inspections?view=all&period=90d&oos=vehicle", "/roadside-inspections?view=all&period=90d&oos=hazmat",
+      "/roadside-inspections?view=all&from=2026-09-12&to=2026-10-12",
+      "/roadside-inspections?view=all&from=2026-09-12&to=2026-10-12&clean=1",
+      "/roadside-inspections?view=all&from=2026-09-12&to=2026-10-12&oos=vehicle&insp=vehicle",
+      "/roadside-inspections?view=all&from=2026-09-12&to=2026-10-12&oos=driver&insp=driver",
+      "/roadside-inspections?view=all&from=2026-09-12&to=2026-10-12&oos=hazmat",
+      "/roadside-inspections?view=needs&from=2026-09-12&to=2026-10-12",
+      "/roadside-inspections?view=all&from=2026-09-12&to=2026-10-12&category=23",
     ]) expect(h, door).toContain(door);
   });
 });

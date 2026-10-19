@@ -94,6 +94,8 @@ async function unitsByInspection(
 export interface ReadRoadsideOptions {
   /** First calendar day included (`inspection_date >= from`); omitted for the whole record. */
   from?: CalendarDay | null;
+  /** Last calendar day included (`inspection_date <= to`); omitted for up to today. */
+  to?: CalendarDay | null;
   /** Attach each inspection's units. The summary counts rows and skips the extra reads. */
   withUnits?: boolean;
 }
@@ -108,6 +110,7 @@ export async function readRoadsideInspections(
   for (let offset = 0; ; offset += PAGE) {
     let q = admin.from("roadside_inspections").select(INSPECTION_COLS).eq("org_id", orgId).is("vanished_at", null);
     if (opts.from) q = q.gte("inspection_date", opts.from);
+    if (opts.to) q = q.lte("inspection_date", opts.to);
     const { data, error } = await q
       .order("inspection_date", { ascending: false, nullsFirst: false })
       .order("id", { ascending: true })

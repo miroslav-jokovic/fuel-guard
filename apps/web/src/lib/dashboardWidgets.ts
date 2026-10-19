@@ -84,4 +84,6 @@ export const WIDGETS_TAKING_RANGE = new Set([
   "fleet.activity",
   "fleet.concentration",
   "fleet.savings",
+  // IC16 (2026-10-19): the Roadside card counted a fixed 90 days under this page's 30.
+  "ops.roadside",
 ]);

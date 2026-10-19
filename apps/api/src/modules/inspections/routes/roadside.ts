@@ -1,6 +1,5 @@
 import { Router } from "express";
 import {
-  ROADSIDE_CARD_PERIOD,
   isCalendarDay,
   organizationTimezone,
   roadsideAttributionDecisionSchema,
@@ -8,12 +7,12 @@ import {
   roadsideRepairCertifySchema,
   roadsideCitationActionSchema,
   roadsideRepairDecisionSchema,
-  roadsidePeriodStart,
   shiftDay,
-  summarizeRoadside,
   todayInZone,
   type CalendarDay,
   type RoadsideSummary,
+  VIOLATION_CATEGORY_NAMES,
+  roadsideStats,
   recordId,
 } from "@silvicom/shared";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -61,25 +60,66 @@ async function orgToday(admin: SupabaseClient, orgId: string): Promise<CalendarD
   return todayInZone(new Date(), organizationTimezone(org?.operating_hours));
 }
 
+/**
+ * `?from=&to=` as calendar days, either optional. `isCalendarDay` is shape only; a day that does not exist
+ * (02-31) would reach Postgres and come back a 500, so each must also survive a round trip through the calendar.
+ */
+function dayRange(q: Record<string, unknown>): { from: CalendarDay | null; to: CalendarDay | null } | { error: string } {
+  const out: { from: CalendarDay | null; to: CalendarDay | null } = { from: null, to: null };
+  for (const key of ["from", "to"] as const) {
+    const v = typeof q[key] === "string" ? (q[key] as string) : null;
+    if (v !== null && (!isCalendarDay(v) || shiftDay(v, 0) !== v)) return { error: `${key} must be a calendar day, YYYY-MM-DD.` };
+    out[key] = v;
+  }
+  if (out.from && out.to && out.from > out.to) return { error: "from must not be after to." };
+  return out;
+}
+
 export function roadsideInspectionsRouter(): Router {
   const router = Router();
   router.use(requireAuth, requireOrg);
   const canView = requireSection("safety", "view");
 
+  /**
+   * The Roadside card's answer over `?from=&to=` (IC16): the statistics of that range's inspections, from the
+   * list and the work lines the Roadside inspections page reads, through `roadsideStats` — so the card's every
+   * figure is a list the page shows. No range: the last 30 days, the Operations tab's own default.
+   */
   router.get(
     "/summary",
     canView,
     asyncHandler(async (req, res) => {
-      const admin = getSupabaseAdmin(getAppLocals(req).env);
-      const orgId = req.auth!.orgId!;
-      const from = roadsidePeriodStart(ROADSIDE_CARD_PERIOD, await orgToday(admin, orgId))!;
-      const rows = await readRoadsideInspections(admin, orgId, { from });
-      if ("error" in rows) {
-        dbErrorResponse(res, "roadside-inspections.summary", rows.error, "Could not load the roadside inspections");
+      const range = dayRange(req.query);
+      if ("error" in range) {
+        res.status(400).json(apiError("bad_request", range.error));
         return;
       }
-      const data: RoadsideSummary = summarizeRoadside(from, rows, await readRoadsideFeed(admin, orgId, Date.now()));
+      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      const orgId = req.auth!.orgId!;
+      const today = await orgToday(admin, orgId);
+      const from = range.from ?? shiftDay(today, -30);
+      const to = range.to ?? today;
+      const [rows, work] = await Promise.all([
+        readRoadsideInspections(admin, orgId, { from, to }),
+        readInspectionsWork(admin, orgId, { from, to, today }),
+      ]);
+      if ("error" in rows || "error" in work) {
+        dbErrorResponse(res, "roadside-inspections.summary", ("error" in rows ? rows : (work as { error: { message: string } })).error, "Could not load the roadside inspections");
+        return;
+      }
+      const stats = roadsideStats(rows, new Map(work.map((w) => [w.id, w])), (id) => VIOLATION_CATEGORY_NAMES[id] ?? String(id));
+      const data: RoadsideSummary = { from, to, stats, feed: await readRoadsideFeed(admin, orgId, Date.now()) };
       res.json({ ok: true, data });
+    }),
+  );
+
+  /** How current our copy of FMCSA's record is (IC1c) — the list's line above its rows, without the card's statistics. */
+  router.get(
+    "/feed",
+    canView,
+    asyncHandler(async (req, res) => {
+      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      res.json({ ok: true, data: await readRoadsideFeed(admin, req.auth!.orgId!, Date.now()) });
     }),
   );
 
@@ -88,15 +128,13 @@ export function roadsideInspectionsRouter(): Router {
     "/",
     canView,
     asyncHandler(async (req, res) => {
-      const from = typeof req.query.from === "string" ? req.query.from : null;
-      // `isCalendarDay` is shape only; a day that does not exist (02-31) would reach Postgres and come
-      // back a 500, so it must also survive a round trip through the calendar unchanged.
-      if (from !== null && (!isCalendarDay(from) || shiftDay(from, 0) !== from)) {
-        res.status(400).json(apiError("bad_request", "from must be a calendar day, YYYY-MM-DD."));
+      const range = dayRange(req.query);
+      if ("error" in range) {
+        res.status(400).json(apiError("bad_request", range.error));
         return;
       }
       const rows = await readRoadsideInspections(getSupabaseAdmin(getAppLocals(req).env), req.auth!.orgId!, {
-        from,
+        ...range,
         withUnits: true,
       });
       if ("error" in rows) {
@@ -115,14 +153,14 @@ export function roadsideInspectionsRouter(): Router {
     "/work",
     canView,
     asyncHandler(async (req, res) => {
-      const from = typeof req.query.from === "string" ? req.query.from : null;
-      if (from !== null && (!isCalendarDay(from) || shiftDay(from, 0) !== from)) {
-        res.status(400).json(apiError("bad_request", "from must be a calendar day, YYYY-MM-DD."));
+      const range = dayRange(req.query);
+      if ("error" in range) {
+        res.status(400).json(apiError("bad_request", range.error));
         return;
       }
       const admin = getSupabaseAdmin(getAppLocals(req).env);
       const orgId = req.auth!.orgId!;
-      const out = await readInspectionsWork(admin, orgId, { from, today: await orgToday(admin, orgId) });
+      const out = await readInspectionsWork(admin, orgId, { ...range, today: await orgToday(admin, orgId) });
       if ("error" in out) {
         dbErrorResponse(res, "roadside-inspections.work", out.error, "Could not work out what is left on the roadside inspections");
         return;

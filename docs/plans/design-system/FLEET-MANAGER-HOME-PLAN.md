@@ -287,7 +287,7 @@ needs a migration.
   period and OOS filters, and no cases or tasks), owned by `inspections` under `safety`, then the card
   on top with counts = list lengths; or (b) wait for IC4/IC6 to ship the whole inbox. (a) was
   recommended because it is the inbox's own first slice, not throwaway work.
-- **Q-FM8 — the clean-inspection rate (found building FM5, 2026-10-13).** §4 card 10 lists a
+- **Q-FM8 — RESOLVED 2026-10-19 (owner): (a), no violations at all; built with the Roadside card's rework (INSPECTION-CHALLENGE-PLAN IC16).** Was: the clean-inspection rate (found building FM5, 2026-10-13). §4 card 10 lists a
   "clean-inspection rate", and nothing defines "clean". No document in `docs/regulatory/fmcsa/`
   defines it (the SMS methodology, the DataQs manual and the SMS updates guide were searched). The
   feed gives two candidate meanings. Production's last 90 days: 111 inspections.

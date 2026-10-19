@@ -68,7 +68,7 @@ interface HeadRow {
   post_accident: boolean | null;
   raw: { mcmis_add_date: string | null } | null;
 }
-interface ViolationRow { id: string; inspection_id: string; viol_code: string | null; out_of_service: boolean | null; description: string | null; citation_number: string | null }
+interface ViolationRow { id: string; inspection_id: string; viol_code: string | null; out_of_service: boolean | null; description: string | null; citation_number: string | null; category_id: number | null }
 interface CitationRow { violation_id: string | null; citation_code: number | null; citation_result: string | null; adjseq: number | null }
 type AttrRow = AttributionRow & { inspection_id: string };
 
@@ -144,13 +144,14 @@ async function reportsFor(admin: SupabaseClient, orgId: string, ids: readonly st
 export async function readInspectionsWork(
   admin: SupabaseClient,
   orgId: string,
-  opts: { from: CalendarDay | null; today: CalendarDay },
+  opts: { from: CalendarDay | null; to?: CalendarDay | null; today: CalendarDay },
 ): Promise<RoadsideInspectionWorkDto[] | { error: DbError }> {
   const heads = await paged<HeadRow>((from, to) => {
     let q = admin.from("roadside_inspections")
       .select("id, inspection_date, level, hazmat_placard_required, post_accident, raw:fmcsa_raw_rows(mcmis_add_date:payload->>mcmis_add_date)")
       .eq("org_id", orgId).is("vanished_at", null);
     if (opts.from) q = q.gte("inspection_date", opts.from);
+    if (opts.to) q = q.lte("inspection_date", opts.to);
     return q.order("id").range(from, to);
   });
   if (heads.error) return { error: heads.error };
@@ -158,7 +159,7 @@ export async function readInspectionsWork(
   if (ids.length === 0) return [];
 
   const [violations, citations, attributions, acts, due] = await Promise.all([
-    overIds<ViolationRow>(ids, (c, f, t) => admin.from("roadside_violations").select("id, inspection_id, viol_code, out_of_service, description, citation_number")
+    overIds<ViolationRow>(ids, (c, f, t) => admin.from("roadside_violations").select("id, inspection_id, viol_code, out_of_service, description, citation_number, category_id")
       .eq("org_id", orgId).in("inspection_id", c).is("vanished_at", null).order("id").range(f, t)),
     overIds<CitationRow>(ids, (c, f, t) => admin.from("roadside_citations").select("violation_id, citation_code, citation_result, adjseq")
       .eq("org_id", orgId).in("inspection_id", c).is("vanished_at", null).order("id").range(f, t)),
@@ -234,6 +235,6 @@ export async function readInspectionsWork(
       },
       opts.today,
     );
-    return roadsideWork(h.id, steps, attribution, sms);
+    return roadsideWork(h.id, steps, attribution, sms, (violationsOf.get(h.id) ?? []).map((v) => v.category_id));
   });
 }
