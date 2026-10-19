@@ -22,12 +22,17 @@ const here = vi.hoisted(() => ({
   },
   // Set by a test: the route from the truck fails as it would with no HERE key and a cached planned line.
   liveFails: null as Error | null,
+  // Set by a test: the planned route fails too, as every route did while HERE answered 503 (2026-10-16).
+  plannedFails: null as Error | null,
 }));
 vi.mock("../routing/routeGeometry.js", () => ({
   getOrComputeRoute: vi.fn(async (_a: unknown, _e: unknown, req: { origin: { lat: number } }) => {
     here.calls.push(req);
     // Every planned route in these tests starts at the pickup, on 41.6 N; anything else is from the truck.
-    if (req.origin.lat === 41.6) return here.route;
+    if (req.origin.lat === 41.6) {
+      if (here.plannedFails) throw here.plannedFails;
+      return here.route;
+    }
     if (here.liveFails) throw here.liveFails;
     return here.live;
   }),
@@ -41,7 +46,7 @@ vi.mock("../samsara/lib/samsara.js", () => ({
 }));
 
 const { readLoadRoute } = await import("./liveMapLoadRoute.js");
-const { NoHereKeyError } = await import("../../lib/here.js");
+const { HereUnavailableError, NoHereKeyError } = await import("../../lib/here.js");
 
 const ORG = "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d";
 const LOAD = "11111111-2222-4333-8444-000000000001";
@@ -94,6 +99,7 @@ describe("readLoadRoute", () => {
     vi.setSystemTime(NOW);
     here.calls.length = 0;
     here.liveFails = null;
+    here.plannedFails = null;
   });
   afterEach(() => vi.useRealTimers());
 
@@ -185,6 +191,20 @@ describe("readLoadRoute", () => {
     const answer = await readLoadRoute(recorder({ truckAt: { lat: 42.5, lng: -86 } }).client, env, ORG, LOAD);
     if (!answer.ok) throw new Error(answer.message);
     expect(answer.route).toMatchObject({ truckOnRoute: false, fromTruck: false, ahead: here.route.polyline });
+  });
+
+  it("with HERE not answering for the second route, keeps the planned line rather than failing the whole route", async () => {
+    here.liveFails = new HereUnavailableError("HTTP 503");
+    const answer = await readLoadRoute(recorder({ truckAt: { lat: 42.5, lng: -86 } }).client, env, ORG, LOAD);
+    if (!answer.ok) throw new Error(answer.message);
+    expect(answer.route).toMatchObject({ truckOnRoute: false, fromTruck: false, ahead: here.route.polyline });
+  });
+
+  it("with HERE not answering for the planned route, answers 503 routing_unavailable, not an unhandled error", async () => {
+    here.plannedFails = new HereUnavailableError("HTTP 503");
+    const answer = await readLoadRoute(recorder().client, env, ORG, LOAD);
+    expect(answer).toMatchObject({ ok: false, status: 503, code: "routing_unavailable" });
+    if (!answer.ok) expect(answer.message).toMatch(/not answering/);
   });
 
   it("draws the route with no position at all, and says nothing about distance off it", async () => {

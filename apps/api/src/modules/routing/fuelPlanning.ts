@@ -16,7 +16,7 @@ export type { PlanStopView } from "./planStopView.js";
 import type { Env } from "../../env.js";
 import { getOrComputeRoute, type RouteGeometry } from "./routeGeometry.js";
 import { breakFuelAdvice } from "@silvicom/shared";
-import { NoHereKeyError } from "../../lib/here.js";
+import { HereUnavailableError, NoHereKeyError } from "../../lib/here.js";
 import { geocodeAddress } from "./geocode.js";
 import { loadSamsaraToken } from "../samsara/lib/samsaraToken.js";
 import { makeSamsaraFetcher, makeSamsaraHosFetcher } from "../samsara/lib/samsara.js";
@@ -137,6 +137,9 @@ export async function planFuelRoute(admin: SupabaseClient, env: Env, orgId: stri
     route = await getOrComputeRoute(admin, env, { origin, via, destination, profile, hazmat: req.hazmat, tunnelCategory: req.tunnelCategory ?? null, avoidTunnels: req.avoidTunnels ?? false });
   } catch (e) {
     if (e instanceof NoHereKeyError) return { status: "routing_unavailable", message: "Route planning needs a HERE routing key — configure HERE_API_KEY to enable it.", origin, destination };
+    // Not `routing_unavailable`: the planner's banner titles that "Routing not configured", and HERE being
+    // down is not a setting anyone should go looking for.
+    if (e instanceof HereUnavailableError) return { status: "error", message: "The routing service is not answering right now. Try again in a few minutes.", origin, destination };
     return { status: "error", message: e instanceof Error ? e.message : "Routing failed", origin, destination };
   }
   return solveOnRoute(admin, env, orgId, {
