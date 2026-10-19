@@ -206,7 +206,7 @@ const VIOLATION_COLUMNS: DataTableColumn[] = [
           </div>
         </BaseCard>
 
-        <InspectionNextSteps :inspection-id="inspection.id" :attribution="inspection.attribution" @go="go" />
+        <InspectionNextSteps :inspection-id="inspection.id" :inspection-date="inspection.inspectionDate" :attribution="inspection.attribution" @go="go" />
 
         <section class="space-y-3" aria-labelledby="violations-heading">
           <div>

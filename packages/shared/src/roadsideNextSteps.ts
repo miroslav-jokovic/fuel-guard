@@ -1,4 +1,4 @@
-import type { CalendarDay } from "./calendarDay.js";
+import { shiftDay, type CalendarDay } from "./calendarDay.js";
 import { ATTRIBUTION_BASIS_TEXT, ATTRIBUTION_OUTCOME_TEXT, type RoadsideAttributionDto } from "./roadsideAttributionContract.js";
 import {
   REPAIR_OUTCOME_TEXT,
@@ -8,6 +8,7 @@ import {
   type RoadsideRepairCertificationDto,
   type RoadsideRepairDto,
 } from "./roadsideRepairContract.js";
+import type { RoadsideInspectionSmsDto } from "./roadsideSmsContract.js";
 
 /**
  * What is left to do on one roadside inspection (INSPECTION-CHALLENGE-PLAN Q-IC17, IC15; owner 2026-10-19).
@@ -99,15 +100,35 @@ export function attributionQuestion(a: RoadsideAttributionDto): { reason: Attrib
   return null;
 }
 
-/** The driver as the record now stands: the person's or the report's choice, else Samsara's reading. */
-function driverName(a: RoadsideAttributionDto): string | null {
-  return a.decision?.driver?.name ?? a.reading?.driver?.name ?? a.reading?.samsaraDriver?.name ?? null;
+/**
+ * How long after an inspection the driver question is asked on its own (Q-IC17's inbox, measured 2026-10-19 on
+ * production): open on 33 inspections of the last 90 days, but on 840 across the three years — most of them
+ * older drivers Samsara knows and our roster does not. Asked of all of them, "Needs action" would be a list
+ * nobody finishes. Past this window the question waits for the one moment it must be answered: a person
+ * confirms the driver before any DataQs filing (D-IC7). 90 days is the Roadside card's own window.
+ */
+export const DRIVER_ASK_DAYS = 90;
+
+/** Who was driving as the record now stands, and on whose word; null when nobody is named. */
+export function attributionAnswer(a: RoadsideAttributionDto): { name: string; by: "samsara" | "report" | "person" } | null {
+  const d = a.decision;
+  if (d) {
+    const name = d.driver?.name ?? a.reading?.driver?.name ?? a.reading?.samsaraDriver?.name;
+    return name ? { name, by: d.kind === "confirmed_by_report" ? "report" : "person" } : null;
+  }
+  const r = a.reading;
+  if (r?.outcome !== "one_driver") return null;
+  const name = r.driver?.name ?? r.samsaraDriver?.name;
+  return name ? { name, by: "samsara" } : null;
 }
 
-function driverStep(a: RoadsideAttributionDto): RoadsideStep {
+function driverStep(a: RoadsideAttributionDto, inspectionDate: CalendarDay | null, today: CalendarDay): RoadsideStep {
   const base = { key: "driver", section: "driver", owner: "safety", dueOn: null, clock: null } as const;
   const ask = attributionQuestion(a);
   if (ask?.reason === "not_read") return { ...base, state: "waiting", title: "Who was driving", detail: ask.text };
+  if (ask && (!inspectionDate || inspectionDate < shiftDay(today, -DRIVER_ASK_DAYS))) {
+    return { ...base, state: "waiting", title: "Who was driving", detail: `${ask.text} Not asked of an inspection older than ${DRIVER_ASK_DAYS} days; it is confirmed when a DataQs request is prepared.` };
+  }
   if (ask) {
     return {
       ...base,
@@ -116,7 +137,7 @@ function driverStep(a: RoadsideAttributionDto): RoadsideStep {
       detail: a.reports.length ? ask.text : `${ask.text} Uploading the officer's report can settle it: its licence number is checked against our roster and Samsara.`,
     };
   }
-  const name = driverName(a) ?? "A driver";
+  const name = attributionAnswer(a)?.name ?? "A driver";
   const how = !a.decision
     ? "from Samsara"
     : a.decision.kind === "confirmed_by_report"
@@ -185,12 +206,14 @@ const STATE_ORDER: Record<RoadsideStepState, number> = { open: 0, waiting: 1, do
  */
 export function roadsideNextSteps(input: {
   attribution: RoadsideAttributionDto;
+  /** The inspection's calendar day: the driver question is asked on its own for `DRIVER_ASK_DAYS`. */
+  inspectionDate: CalendarDay | null;
   repairs: readonly RoadsideRepairDto[];
   certification: RoadsideRepairCertificationDto | null;
   today: CalendarDay;
 }): RoadsideStep[] {
-  const { attribution, repairs, certification, today } = input;
-  const steps: RoadsideStep[] = [driverStep(attribution)];
+  const { attribution, inspectionDate, repairs, certification, today } = input;
+  const steps: RoadsideStep[] = [driverStep(attribution, inspectionDate, today)];
   if (repairs.length) {
     steps.push(reportStep(attribution), ...repairs.map((r) => repairStep(r, today)), certifyStep(repairs, certification, today));
   }
@@ -207,4 +230,37 @@ export function roadsideOpenSteps(steps: readonly RoadsideStep[]): { total: numb
   const byOwner: Record<RoadsideStepOwner, number> = { safety: 0, maintenance: 0 };
   for (const s of steps) if (s.state === "open") byOwner[s.owner] += 1;
   return { total: byOwner.safety + byOwner.maintenance, byOwner };
+}
+
+/**
+ * `GET /api/roadside-inspections/work?from=` — one line of work per inspection, for the inbox's "Needs action"
+ * tab and its Next step, Driver and CSA points columns (Q-IC17, IC15). Computed on the server from the same
+ * `roadsideNextSteps` the inspection page reads, so the inbox and the page cannot disagree; its own read
+ * because it costs more than the list (attributions, repairs, violations), and the list draws without it.
+ */
+export interface RoadsideInspectionWorkDto {
+  id: string;
+  driver: { name: string; by: "samsara" | "report" | "person" } | null;
+  open: { total: number; byOwner: Record<RoadsideStepOwner, number> };
+  /** The first open step — what the Next step column says; null when nothing is open. */
+  next: Pick<RoadsideStep, "title" | "owner" | "dueOn" | "clock"> | null;
+  /** CSA points the inspection adds today, verified categories only (D-IC6); null when no edition is in force. */
+  points: number | null;
+}
+
+/** The work line of one inspection from its steps, its attribution and its points. Pure. */
+export function roadsideWork(
+  id: string,
+  steps: readonly RoadsideStep[],
+  attribution: RoadsideAttributionDto,
+  sms: Pick<RoadsideInspectionSmsDto, "basics"> | null,
+): RoadsideInspectionWorkDto {
+  const first = steps.find((s) => s.state === "open");
+  return {
+    id,
+    driver: attributionAnswer(attribution),
+    open: roadsideOpenSteps(steps),
+    next: first ? { title: first.title, owner: first.owner, dueOn: first.dueOn, clock: first.clock } : null,
+    points: sms ? sms.basics.reduce((n, b) => n + (b.verified ? b.points : 0), 0) : null,
+  };
 }

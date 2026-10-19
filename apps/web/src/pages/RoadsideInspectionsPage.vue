@@ -13,6 +13,7 @@ import {
   type DataTableColumn,
   TablePagination,
   sortRows,
+  AppTabs,
 } from "@silvicom/ui";
 import {
   ROADSIDE_OOS_KINDS,
@@ -22,12 +23,14 @@ import {
   roadsidePeriodStart,
   todayInZone,
   type RoadsideInspectionDto,
+  type RoadsideInspectionWorkDto,
   type RoadsideOosKind,
   type RoadsidePeriod,
 } from "@silvicom/shared";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
-import { useRoadsideInspectionsQuery, useRoadsideSummaryQuery } from "@/features/roadside/useRoadsideInspections";
+import { useRoadsideInspectionsQuery, useRoadsideSummaryQuery, useRoadsideWorkQuery } from "@/features/roadside/useRoadsideInspections";
+import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { roadsideFeedSentence } from "@/features/roadside/feedFreshness";
 import { useOrgTimezone } from "@/composables/useOrgTimezone";
 import { formatDate } from "@/lib/format";
@@ -61,6 +64,13 @@ const periodOptions = ROADSIDE_PERIODS.map((p) => ({ value: p, label: PERIOD_LAB
 const oosOptions = ROADSIDE_OOS_KINDS.map((k) => ({ value: k, label: OOS_LABEL[k] }));
 
 const qs = useQueryState();
+/**
+ * "Needs action" first (Q-IC17, owner 2026-10-19): the inspections with a step open on `roadsideNextSteps`,
+ * the most urgent first. "All" is the record; the Roadside card's figures link to it (`view=all`), because
+ * each is the length of the whole list it opens (D-FM7).
+ */
+const VIEWS = ["needs", "all"] as const;
+const view = qs.param("view", VIEWS, "needs");
 const search = qs.param("search");
 const period = qs.param("period", ROADSIDE_PERIODS, "all");
 const oos = qs.param("oos", ROADSIDE_OOS_KINDS);
@@ -71,6 +81,8 @@ const from = computed(() => roadsidePeriodStart(period.value as RoadsidePeriod, 
 const inspections = useRoadsideInspectionsQuery(from);
 // How current FMCSA's record is (IC1c) — the card's own read, so the two never disagree about it.
 const { data: summary } = useRoadsideSummaryQuery();
+const work = useRoadsideWorkQuery(from);
+const workOf = computed(() => new Map((work.data.value ?? []).map((w) => [w.id, w])));
 const freshness = computed(() => (summary.value ? roadsideFeedSentence(summary.value.feed, zone.value) : null));
 
 const unitLabel = (u: NonNullable<RoadsideInspectionDto["units"]>[number]) =>
@@ -78,7 +90,16 @@ const unitLabel = (u: NonNullable<RoadsideInspectionDto["units"]>[number]) =>
 const oosText = (i: RoadsideInspectionDto) =>
   ROADSIDE_OOS_KINDS.filter((k) => hasOosOf(i, k)).map((k) => OOS_LABEL[k]).join(" · ");
 
-type Row = RoadsideInspectionDto & { oosOrders: number };
+type Row = RoadsideInspectionDto & {
+  oosOrders: number;
+  work: RoadsideInspectionWorkDto | null;
+  /** For sorting: the CSA points today, and how urgent the next step is (overdue first, then soonest due). */
+  points: number | null;
+  urgency: number;
+};
+/** Overdue days count down from the most overdue; an undated open step after every dated one; nothing open last. */
+const urgencyOf = (w: RoadsideInspectionWorkDto | null) =>
+  !w?.next ? Number.MAX_SAFE_INTEGER : !w.next.clock ? Number.MAX_SAFE_INTEGER - 1 : w.next.clock.overdue ? -w.next.clock.days : w.next.clock.days;
 const rows = computed<Row[]>(() => {
   const term = search.value.trim().toLowerCase();
   const kind = oos.value as RoadsideOosKind | "";
@@ -92,8 +113,14 @@ const rows = computed<Row[]>(() => {
         ),
     )
     // How many kinds carry an order, for sorting only: the kinds overlap, so this is not a count of orders.
-    .map((i) => ({ ...i, oosOrders: ROADSIDE_OOS_KINDS.filter((k) => hasOosOf(i, k)).length }));
-  return sortRows(found, sort.value);
+    .map((i) => {
+      const w = workOf.value.get(i.id) ?? null;
+      return { ...i, oosOrders: ROADSIDE_OOS_KINDS.filter((k) => hasOosOf(i, k)).length, work: w, points: w?.points ?? null, urgency: urgencyOf(w) };
+    });
+  const shown = view.value === "needs" ? found.filter((r) => (r.work?.open.total ?? 0) > 0) : found;
+  // Needs action reads most urgent first until the reader sorts by a column themselves.
+  if (view.value === "needs" && !sort.value.key) return [...shown].sort((a, b) => a.urgency - b.urgency || (b.inspectionDate ?? "").localeCompare(a.inspectionDate ?? ""));
+  return sortRows(shown, sort.value);
 });
 
 const page = qs.page();
@@ -106,14 +133,31 @@ const COLUMNS: DataTableColumn[] = [
   { key: "level", label: "Level", sortable: true, width: "md" },
   { key: "locationDesc", label: "Location" },
   { key: "units", label: "Units", width: "md" },
+  { key: "next", label: "Next step", width: "xl" },
+  { key: "driver", label: "Driver", width: "md" },
   { key: "violations", label: "Violations", sortable: true, numeric: true, width: "sm" },
+  { key: "points", label: "CSA points", sortable: true, numeric: true, width: "sm" },
   { key: "oosOrders", label: "Out of service", sortable: true, width: "md" },
 ];
+const needsCount = computed(() => (work.data.value ?? []).filter((w) => w.open.total > 0).length);
+const tabs = computed(() => [
+  { value: "needs", label: "Needs action", badge: work.data.value ? needsCount.value || undefined : undefined },
+  { value: "all", label: "All" },
+]);
+const OWNER = { safety: "Safety", maintenance: "Maintenance" } as const;
+const DRIVER_BY = { samsara: "from Samsara", report: "by the report", person: "confirmed" } as const;
+/** "Due 10/21/2026 · 2 days left" or "3 days overdue", for the Next step cell. */
+function dueLine(w: RoadsideInspectionWorkDto): { text: string; tone: string } | null {
+  const c = w.next?.clock;
+  if (!c || !w.next?.dueOn) return null;
+  if (c.overdue) return { text: `${c.days} ${c.days === 1 ? "day" : "days"} overdue`, tone: "text-danger-700 font-medium" };
+  return { text: `Due ${formatDate(w.next.dueOn)} · ${c.days === 0 ? "today" : `${c.days} ${c.days === 1 ? "day" : "days"} left`}`, tone: c.days <= 3 ? "text-warning-700" : "text-ink-muted" };
+}
 const { sort, onSort } = useUrlSort(
   qs.param("sort", COLUMNS.filter((c) => c.sortable).map((c) => c.key)),
   qs.param("dir", SORT_DIRECTIONS),
 );
-watch([search, period, oos, () => sort.value.key, () => sort.value.dir], () => (page.value = 1));
+watch([view, search, period, oos, () => sort.value.key, () => sort.value.dir], () => (page.value = 1));
 
 const clearAll = () => qs.set({ search: undefined, period: undefined, oos: undefined });
 
@@ -127,6 +171,8 @@ const openInspection = (row: Row) => void router.push({ name: "roadside-inspecti
     <PageHeader description="Every roadside inspection on our FMCSA record, newest first. From FMCSA's public data, refreshed daily." />
     <AppCallout v-if="freshness?.late" tone="caution" data-test="feed">{{ freshness.text }}</AppCallout>
     <p v-else-if="freshness" class="-mt-3 text-xs text-ink-tertiary" data-test="feed">{{ freshness.text }}</p>
+
+    <AppTabs v-model="view" :tabs="tabs" label="Roadside inspections" />
 
     <DataWorkspace>
       <FilterBar
@@ -149,12 +195,18 @@ const openInspection = (row: Row) => void router.push({ name: "roadside-inspecti
         :columns="COLUMNS"
         :rows="pageRows"
         row-key="id"
-        :loading="inspections.isLoading.value"
-        :error="inspections.isError.value ? 'Could not load the roadside inspections.' : null"
+        :loading="inspections.isLoading.value || (view === 'needs' && work.isLoading.value)"
+        :error="
+          inspections.isError.value
+            ? 'Could not load the roadside inspections.'
+            : view === 'needs' && work.isError.value
+              ? 'Could not work out what is left on the roadside inspections.'
+              : null
+        "
         :sort="sort"
         @sort="onSort"
         :row-class="() => 'cursor-pointer'"
-        @retry="() => inspections.refetch()"
+        @retry="() => (inspections.isError.value ? inspections.refetch() : work.refetch())"
         @row-click="openInspection"
       >
         <template #cell-inspectionDate="{ value }">{{ value ? formatDate(value) : "—" }}</template>
@@ -175,13 +227,36 @@ const openInspection = (row: Row) => void router.push({ name: "roadside-inspecti
             {{ unitLabel(u) }}<span v-if="!u.matched" class="text-ink-tertiary"> · not matched</span>
           </span>
         </template>
+        <template #cell-next="{ row }">
+          <template v-if="(row as Row).work?.next">
+            <p class="font-medium text-ink" data-test="next-step">
+              {{ (row as Row).work!.next!.title }}
+              <span :class="['ml-1', BADGE_BASE, toneClass('neutral')]">{{ OWNER[(row as Row).work!.next!.owner] }}</span>
+            </p>
+            <p v-if="dueLine((row as Row).work!)" :class="['text-xs', dueLine((row as Row).work!)!.tone]">{{ dueLine((row as Row).work!)!.text }}</p>
+            <p v-if="(row as Row).work!.open.total > 1" class="text-xs text-ink-muted">and {{ (row as Row).work!.open.total - 1 }} more</p>
+          </template>
+          <span v-else-if="(row as Row).work" class="text-ink-tertiary" data-test="next-step">Nothing left</span>
+          <span v-else class="text-ink-tertiary">—</span>
+        </template>
+        <template #cell-driver="{ row }">
+          <template v-if="(row as Row).work?.driver">
+            <span class="text-ink" data-test="driver">{{ (row as Row).work!.driver!.name }}</span>
+            <p class="text-xs text-ink-muted">{{ DRIVER_BY[(row as Row).work!.driver!.by] }}</p>
+          </template>
+          <span v-else class="text-ink-tertiary">—</span>
+        </template>
+        <template #cell-points="{ row }">
+          <span :class="(row as Row).points ? 'font-medium tabular-nums text-ink' : 'text-ink-tertiary'" data-test="points">{{ (row as Row).points ?? "—" }}</span>
+        </template>
         <template #cell-violations="{ value }">{{ value ?? "—" }}</template>
         <template #cell-oosOrders="{ row }">
           <span v-if="oosText(row as Row)" class="font-medium text-ink" data-test="oos">{{ oosText(row as Row) }}</span>
           <span v-else class="text-ink-tertiary">None</span>
         </template>
         <template #empty>
-          <p v-if="activeFilterCount">No roadside inspection matches that.</p>
+          <p v-if="view === 'needs' && !activeFilterCount">Nothing needs action. Every recent inspection's steps are done.</p>
+          <p v-else-if="activeFilterCount">No roadside inspection matches that.</p>
           <p v-else>No roadside inspections on our FMCSA record.</p>
         </template>
         <template #footer>

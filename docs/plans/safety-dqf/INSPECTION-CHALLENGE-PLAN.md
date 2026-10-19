@@ -1088,3 +1088,17 @@ about three merges.
     reader who can, else the inspection (`notificationRoute` now takes a category's doors best first).
   - **Next:** the inbox's "Needs action" tab, next-step / driver / points columns and bulk report upload, reading
     `roadsideNextSteps` (plan §8 IC15).
+- **2026-10-19 — IC15, inbox: "Needs action", and the Next step, Driver and CSA points columns.** No migration.
+  - **Measured first:** asked of every inspection, the driver question is open on 840 (33 in the last 90 days —
+    the rest older drivers Samsara knows and our roster does not). So `roadsideNextSteps` asks it on its own for
+    `DRIVER_ASK_DAYS` (90, the Roadside card's window); past that the step waits, saying it is confirmed when a
+    DataQs request is prepared (D-IC7). The inspection page's strip reads the same rule.
+  - **`GET /api/roadside-inspections/work?from=`** (`read/inspectionsWork.ts`): one line per inspection — open
+    steps by owner, the first open step, the driver on whose word (`attributionAnswer`), the verified CSA points
+    today. Built from the page's own builders, now pure and shared: `attributionDto` (lifted from
+    `readInspectionAttribution`), `reportCheckDtos` (from `readReportChecks`), `readRepairsDue`, `inspectionSms`,
+    then `roadsideNextSteps` + `roadsideWork`. Reads batched a hundred ids to an `.in()`, every table paged.
+  - **The inbox** opens on **Needs action** (open steps, most overdue first, then soonest due, then undated),
+    with **All** beside it. The Roadside card's figures now link to `view=all`, since each counts the whole list.
+    Every decision on the page or the Shop invalidates the work read.
+  - **Next:** bulk upload of officer's reports on the inbox (each filed by its report number), then IC4.
