@@ -151,11 +151,14 @@ describe("DrugAlcoholPage", () => {
     const w = await render(program(), "/drug-alcohol?tab=medical");
     expect(w.text()).toContain("Medical cards expiring in the next 60 days");
     expect(w.text()).toContain("Med Diff");
-    expect(w.text()).toContain("01/01/2027");
     expect(w.text()).toContain("11/10/2026");
-    // The flagged list names each source and why the file keeps its date.
-    expect(w.text()).toContain("Sources disagree");
+    // The flagged list is Show's other choice, and names each source and why the file keeps its date.
+    expect(w.text()).not.toContain("Scan Kept");
+    w.findComponent(FilterSelect).vm.$emit("update:modelValue", "disagree");
+    await flushPromises();
+    expect(router.currentRoute.value.query["medical.show"]).toBe("disagree");
     expect(w.text()).toContain("Scan Kept");
+    expect(w.text()).toContain("01/01/2027");
     expect(w.text()).toContain("Scanned card on file");
     expect(w.text()).toContain("Earliest of the sources");
     await w.findAll('[role="tab"]').find((t) => t.text().startsWith("Roster check"))!.trigger("click");
@@ -166,20 +169,55 @@ describe("DrugAlcoholPage", () => {
   });
 
   // F26 (US6b): "Driving here, not in Med-Stop's random pool" drew 178 drivers in one card on staging.
-  it("pages a long roster list twenty at a time, says how many there are, and leaves a short one unpaged", async () => {
+  it("pages a long roster list twenty at a time with its page in the URL, and Show switches to the other list", async () => {
     const many = Array.from({ length: 45 }, (_, i) => person(`p${i}`, `Driver ${String(i + 1).padStart(2, "0")}`));
     const w = await render(program({ roster: { notInPool: many, leftButInPool: [person("x1", "Left Early")] } }), "/drug-alcohol?tab=roster");
-    const [pool, left] = w.findAll("section");
-    expect(pool!.findAll("tbody tr, li").length).toBe(20);
-    expect(pool!.text()).toContain("Driver 01");
-    expect(pool!.text()).not.toContain("Driver 21");
-    expect(pool!.text()).toContain("45");
-    await pool!.findAll("button").find((b) => b.text() === "Next")!.trigger("click");
-    expect(pool!.text()).toContain("Driver 21");
-    expect(pool!.text()).not.toContain("Driver 01");
-    // One row: no footer to page through.
-    expect(left!.text()).toContain("Left Early");
-    expect(left!.findAll("button").some((b) => b.text() === "Next")).toBe(false);
+    expect(w.findAll("tbody tr, li").length).toBe(20);
+    expect(w.text()).toContain("Driver 01");
+    expect(w.text()).not.toContain("Driver 21");
+    expect(w.text()).toContain("45 people");
+    await w.findAll("button").find((b) => b.text() === "Next")!.trigger("click");
+    await flushPromises();
+    expect(router.currentRoute.value.query["roster.page"]).toBe("2");
+    expect(w.text()).toContain("Driver 21");
+    expect(w.text()).not.toContain("Driver 01");
+    w.findComponent(FilterSelect).vm.$emit("update:modelValue", "left");
+    await flushPromises();
+    expect(w.text()).toContain("In Med-Stop's pool, no longer driving here");
+    expect(w.text()).toContain("Left Early");
+    expect(w.text()).not.toContain("Driver 21");
+  });
+
+  it("searches each tab, keeps the search in the URL under the tab's own name, and Clear filters keeps Show", async () => {
+    const w = await render(program(), "/drug-alcohol?random.show=all");
+    await w.find('input[type="search"]').setValue("tia");
+    await new Promise((r) => setTimeout(r, 300));
+    await flushPromises();
+    expect(router.currentRoute.value.query["random.search"]).toBe("tia");
+    expect(w.text()).toContain("Tia Tested");
+    expect(w.text()).not.toContain("Dee Due");
+    await w.findAll("button").find((b) => b.text() === "Clear filters")!.trigger("click");
+    await flushPromises();
+    expect(router.currentRoute.value.query["random.search"]).toBeUndefined();
+    expect(router.currentRoute.value.query["random.show"]).toBe("all");
+    expect(w.text()).toContain("Dee Due");
+  });
+
+  it("filters by test, and a link with the filter opens the list already narrowed", async () => {
+    const w = await render(program(), "/drug-alcohol?random.show=all&random.test=alcohol");
+    expect(w.text()).toContain("Fay Future");
+    expect(w.text()).toContain("Tia Tested");
+    expect(w.text()).not.toContain("Dee Due");
+    expect(w.text()).toContain("2 random draws");
+  });
+
+  it("filters results by what they were, offering only results the list holds", async () => {
+    const row = (id: string, outcome: "positive" | "refusal", name: string) => ({ source: "test" as const, medstopId: id, person: person(id, name), kind: "drug" as const, reason: "RANDOM", collectedOn: "2026-10-09", outcome });
+    const w = await render(program({ results: { recent: [row("t1", "positive", "Pat Positive"), row("t2", "refusal", "Rae Refused")], history: [] } }), "/drug-alcohol?tab=results&results.result=refusal");
+    expect(w.text()).toContain("Rae Refused");
+    expect(w.text()).not.toContain("Pat Positive");
+    const resultSelect = w.findAllComponents(FilterSelect).find((f) => f.props("label") === "Result")!;
+    expect((resultSelect.props("options") as { value: string }[]).map((o) => o.value)).toEqual(["positive", "refusal"]);
   });
 
   it("in progress shows the stage and when the result is due", async () => {

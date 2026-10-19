@@ -6,9 +6,9 @@ import PageHeader from "@/components/ui/PageHeader.vue";
 import InProgressTab from "@/features/drugAlcohol/InProgressTab.vue";
 import MedicalTab from "@/features/drugAlcohol/MedicalTab.vue";
 import OrderTestDrawer, { type OrderSeed } from "@/components/medstop/OrderTestDrawer.vue";
-import ProgramPeopleTable from "@/features/drugAlcohol/ProgramPeopleTable.vue";
 import RandomTab from "@/features/drugAlcohol/RandomTab.vue";
 import ResultsTab from "@/features/drugAlcohol/ResultsTab.vue";
+import RosterTab from "@/features/drugAlcohol/RosterTab.vue";
 import { useDrugAlcoholProgram } from "@/features/drugAlcohol/useDrugAlcoholProgram";
 import { formatDateTime } from "@/lib/format";
 import { useSessionStore } from "@/stores/session";
@@ -21,6 +21,12 @@ import { useSessionStore } from "@/stores/session";
  * The house queue-list pattern (DESIGN-SYSTEM-CONTRACT §5.1 #2): `AppTabs` with counts, the tab in the
  * URL. Each count is the length of the list under it (R5), and an empty list shows none (AppTabs: omit, not 0). Random and Results exist only for the
  * roles the API sends them to (admin, safety_manager) — a tab nobody may open is not drawn.
+ *
+ * Under the strip every tab is the house list (§5.2b): one `DataWorkspace` — what the list means, a
+ * `FilterBar` with a search, the tab's filters and its count, then the paged table — with each tab's
+ * search, filters, sort and page in the URL under its own prefix (`useProgramList`). Until 2026-10-19
+ * the tabs were bare cards with no search, two of them stacked a second table under the first, and
+ * their pages reset on every reload.
  */
 const program = useDrugAlcoholProgram();
 const p = computed(() => program.data.value);
@@ -71,8 +77,7 @@ const stale = computed(() => {
 
 <template>
   <div class="space-y-6">
-    <PageHeader>
-      Random selections, tests in progress, results and medical cards, read from Med-Stop every hour.
+    <PageHeader description="Random selections, tests in progress, results and medical cards, read from Med-Stop every hour.">
       <template v-if="canOrder" #actions>
         <BaseButton variant="primary" @click="openOrder()">Order a test</BaseButton>
       </template>
@@ -96,28 +101,15 @@ const stale = computed(() => {
         <AppCallout v-else-if="stale" tone="caution">
           {{ p.syncedAt ? `Last read from Med-Stop ${formatDateTime(p.syncedAt)} — more than two hours ago, so this may be out of date.` : "Med-Stop has not been read yet. The first read runs within the hour." }}
         </AppCallout>
-        <p v-else class="text-xs text-ink-muted">Read from Med-Stop {{ formatDateTime(p.syncedAt!) }}.</p>
+        <p v-else class="-mt-3 text-xs text-ink-tertiary">Read from Med-Stop {{ formatDateTime(p.syncedAt!) }}.</p>
 
-        <AppTabs v-model="tab" :tabs="tabs" label="Drug and alcohol" scrollable />
+        <AppTabs v-model="tab" :tabs="tabs" label="Drug and alcohol" />
 
         <RandomTab v-if="tab === 'random' && p.selections" :draws="p.selections.draws" :current-period="p.selections.currentPeriod" :dispatch="p.selections.dispatch" :pools="p.pools" :can-order="canOrder" @order="openOrder" />
         <InProgressTab v-else-if="tab === 'progress'" :rows="p.inProgress" />
         <ResultsTab v-else-if="tab === 'results' && p.results" :recent="p.results.recent" :history="p.results.history" />
         <MedicalTab v-else-if="tab === 'medical'" :medical="p.medical" />
-        <div v-else-if="tab === 'roster'" class="space-y-6">
-          <ProgramPeopleTable
-            title="Driving here, not in Med-Stop's random pool"
-            why="Every active DOT driver must be in the random pool (49 CFR 382.305). Add each one in Med-Stop, or end their employment here if they no longer drive."
-            :people="p.roster.notInPool"
-            empty-text="Every active driver is in Med-Stop's pool."
-          />
-          <ProgramPeopleTable
-            title="In Med-Stop's pool, no longer driving here"
-            why="Med-Stop can still select these people. Terminate them in Med-Stop. A name with no link is someone Med-Stop lists that no driver here matches."
-            :people="p.roster.leftButInPool"
-            empty-text="Med-Stop's pool holds no one who has left."
-          />
-        </div>
+        <RosterTab v-else-if="tab === 'roster'" :not-in-pool="p.roster.notInPool" :left-but-in-pool="p.roster.leftButInPool" />
       </template>
     </QueryState>
 

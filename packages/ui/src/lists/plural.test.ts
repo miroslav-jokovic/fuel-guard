@@ -142,6 +142,10 @@ const EXPECTED: Record<string, string> = {
   "open work orders": "open work order",
   // US7: the admin console's Customers list, the first count label outside the web app.
   organizations: "organization",
+  // Safety › Drug & Alcohol (2026-10-19): Roster check, Random selections, In progress.
+  people: "person",
+  "random draws": "random draw",
+  "tests in progress": "test in progress",
   parts: "part",
   plans: "plan",
   // F02-F04 8c4: Fuel problems, which counted "findings" until the queue held more than findings.
