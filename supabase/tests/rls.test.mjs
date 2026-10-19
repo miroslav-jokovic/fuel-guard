@@ -2379,6 +2379,12 @@ async function main() {
       inspection_repair_certifications: (org) =>
         `${rsRaw(org)} ${rsInsp(org)}, rc as (insert into inspection_repair_certifications (org_id, inspection_id, certified_by, signer_name, signer_title, signed_on, repairs, document_id) ` +
         `select '${org}', i.id, gen_random_uuid(), 'rls', 'rls', current_date, '[{}]'::jsonb, gen_random_uuid() from i returning id) select 1`,
+      // 0489: composite FKs to its inspection AND its violation; a request carries its day to follow up.
+      inspection_citation_actions: (org) =>
+        `${rsRaw(org)} ${rsInsp(org)}, v as (insert into roadside_violations (org_id, inspection_id, fmcsa_violation_id, raw_row_id) ` +
+        `select '${org}', i.id, (random() * 1e12)::bigint, raw.id from i, raw returning id), ` +
+        `ca as (insert into inspection_citation_actions (org_id, inspection_id, violation_id, action, acted_by) ` +
+        `select '${org}', i.id, v.id, 'not_contested', gen_random_uuid() from i, v returning id) select 1`,
       // 0480: the same composite FK to its inspection.
       inspection_report_checks: (org) =>
         `${rsRaw(org)} ${rsInsp(org)}, rc as (insert into inspection_report_checks (org_id, inspection_id, document_id, read_id, check_version, outcome) ` +

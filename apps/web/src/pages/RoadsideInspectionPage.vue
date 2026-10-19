@@ -29,6 +29,7 @@ import InspectionDriverCard from "@/features/roadside/InspectionDriverCard.vue";
 import InspectionDocumentsCard from "@/features/roadside/InspectionDocumentsCard.vue";
 import InspectionRepairCard from "@/features/roadside/InspectionRepairCard.vue";
 import InspectionNextSteps from "@/features/roadside/InspectionNextSteps.vue";
+import InspectionTicketsCard from "@/features/roadside/InspectionTicketsCard.vue";
 import { useOpens } from "@/composables/useOpens";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { formatDate } from "@/lib/format";
@@ -265,6 +266,14 @@ const VIOLATION_COLUMNS: DataTableColumn[] = [
         <InspectionDriverCard id="inspection-driver" tabindex="-1" :inspection-id="inspection.id" :attribution="inspection.attribution" />
 
         <InspectionRepairCard id="inspection-repair" tabindex="-1" :inspection-id="inspection.id" />
+
+        <InspectionTicketsCard
+          id="inspection-citations"
+          tabindex="-1"
+          :inspection-id="inspection.id"
+          :inspection-date="inspection.inspectionDate"
+          @file-result="go('documents')"
+        />
 
         <InspectionDocumentsCard id="inspection-documents" tabindex="-1" :inspection-id="inspection.id" />
 

@@ -323,6 +323,9 @@
   "inspection_repair_certifications": [
     "apps/api/src/modules/inspections/repair/certify.ts"
   ],
+  "inspection_citation_actions": [
+    "apps/api/src/modules/inspections/citation/act.ts"
+  ],
   "inspection_report_checks": [
     "apps/api/src/modules/inspections/report/check.ts"
   ],

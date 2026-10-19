@@ -215,6 +215,11 @@ export const RETENTION_FORBIDDEN = [
    */
   "inspection_repair_certifications",
   /**
+   * What the safety office did about a roadside ticket with no court result (0489, IC4): asked the court, or
+   * did not contest it. A correction is a new row.
+   */
+  "inspection_citation_actions",
+  /**
    * The driver's account-closure request (0330, D-PR8).
    *
    * ── THE ONE ENTRY ON THIS LIST THAT INVERTS ITS OWN SUBJECT ───────────────────────────────────

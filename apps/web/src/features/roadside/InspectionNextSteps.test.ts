@@ -19,6 +19,7 @@ const certification = ref<RoadsideRepairCertificationDto | null | undefined>(nul
 vi.mock("./useRoadsideInspections", () => ({
   useInspectionRepairsQuery: () => ({ data: repairs, isLoading: loading, isError: ref(false), error: ref(null), isFetching: ref(false), refetch: vi.fn() }),
   useRepairCertificationQuery: () => ({ data: certification }),
+  useInspectionCitationsQuery: () => ({ data: ref({ tickets: [], courtResultFiled: false }) }),
 }));
 // The org is in Los Angeles; the test runs at 2026-10-17 04:00 UTC, which is still 10-16 there.
 vi.mock("@/composables/useOrgTimezone", () => ({ useOrgTimezone: () => ({ zone: ref("America/Los_Angeles") }) }));

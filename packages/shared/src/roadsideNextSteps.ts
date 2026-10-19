@@ -9,6 +9,8 @@ import {
   type RoadsideRepairDto,
 } from "./roadsideRepairContract.js";
 import type { RoadsideInspectionSmsDto } from "./roadsideSmsContract.js";
+import { citationStanding, type RoadsideCitationDto } from "./roadsideCitationContract.js";
+import { formatDisplayDate } from "./displayDate.js";
 
 /**
  * What is left to do on one roadside inspection (INSPECTION-CHALLENGE-PLAN Q-IC17, IC15; owner 2026-10-19).
@@ -23,10 +25,10 @@ import type { RoadsideInspectionSmsDto } from "./roadsideSmsContract.js";
  * "Roadside repairs due" section and the bell (plan §8 IC15). A second copy of "is the repair settled?" in
  * any of them would be a list that disagrees with the page a click away.
  *
- * ── WHAT IS NOT A STEP YET ─────────────────────────────────────────────────────────────────────
- * A ticket with no court result (R-ADJ1) joins with IC4, which brings the acts that close it ("requested
- * from the court", "not contested"). Until then it would be a step nobody could close — a paid ticket would
- * stay open for ever, and a list that is always open stops being read.
+ * ── A TICKET IS A STEP (IC4, R-ADJ1) ──────────────────────────────────────────────────────────
+ * One per ticket with no court result, from 60 days after the inspection to 24 months (`citationStanding`):
+ * closed by FMCSA's result, a filed court result, or "not contested"; waiting after "requested from the court"
+ * until its follow-up day.
  */
 
 /** Who acts on a step: the section whose manage level the API checks for it (Q-IC13). */
@@ -40,7 +42,7 @@ export type RoadsideStepOwner = "safety" | "maintenance";
 export type RoadsideStepState = "open" | "waiting" | "done";
 
 /** The section of the page a step's action lives in — the strip scrolls there. */
-export type RoadsideStepSection = "driver" | "documents" | "repair";
+export type RoadsideStepSection = "driver" | "documents" | "repair" | "citations";
 
 export interface RoadsideStep {
   /** Stable within an inspection: `driver`, `report`, `repair:<unitId>`, `certify`. */
@@ -197,6 +199,35 @@ function reportStep(a: RoadsideAttributionDto): RoadsideStep {
   };
 }
 
+function citationStep(t: RoadsideCitationDto, courtResultFiled: boolean, inspectionDate: CalendarDay | null, today: CalendarDay): RoadsideStep | null {
+  const base = { key: `citation:${t.violationId}`, section: "citations", owner: "safety", dueOn: null, clock: null } as const;
+  const ticket = `Ticket ${t.citationNumber}`;
+  const st = citationStanding(t, courtResultFiled, inspectionDate, today);
+  switch (st.kind) {
+    case "too_old":
+      return null;
+    case "decided":
+      return { ...base, state: "done", title: `${ticket}: ${st.text}`, detail: "the court's result, on FMCSA's record" };
+    case "result_filed":
+      return { ...base, state: "done", title: `${ticket}: court result on file`, detail: null };
+    case "not_contested":
+      return { ...base, state: "done", title: `${ticket}: not contested`, detail: "paid or not fought; the violation keeps its weight" };
+    case "too_soon":
+      return { ...base, state: "waiting", title: `${ticket}: court result`, detail: `The court has until ${formatDisplayDate(st.askOn)} before it is chased.` };
+    case "requested":
+      return { ...base, state: "waiting", title: `${ticket}: court result requested`, detail: `Follow up on ${formatDisplayDate(st.followUpOn)} if nothing is filed.` };
+    case "follow_up":
+      return { ...base, state: "open", title: `${ticket}: follow up with the court`, detail: `Requested ${formatDisplayDate(st.requestedOn)}; nothing filed yet.` };
+    case "ask":
+      return {
+        ...base,
+        state: "open",
+        title: `${ticket}: get the court result`,
+        detail: "FMCSA has no result. A dismissal removes the violation from CSA; a paid ticket keeps it.",
+      };
+  }
+}
+
 const STATE_ORDER: Record<RoadsideStepState, number> = { open: 0, waiting: 1, done: 2 };
 
 /**
@@ -210,10 +241,16 @@ export function roadsideNextSteps(input: {
   inspectionDate: CalendarDay | null;
   repairs: readonly RoadsideRepairDto[];
   certification: RoadsideRepairCertificationDto | null;
+  /** Its tickets, and whether a court result document is filed on it (IC4). */
+  citations?: { tickets: readonly RoadsideCitationDto[]; courtResultFiled: boolean };
   today: CalendarDay;
 }): RoadsideStep[] {
-  const { attribution, inspectionDate, repairs, certification, today } = input;
+  const { attribution, inspectionDate, repairs, certification, citations, today } = input;
   const steps: RoadsideStep[] = [driverStep(attribution, inspectionDate, today)];
+  for (const t of citations?.tickets ?? []) {
+    const s = citationStep(t, citations!.courtResultFiled, inspectionDate, today);
+    if (s) steps.push(s);
+  }
   if (repairs.length) {
     steps.push(reportStep(attribution), ...repairs.map((r) => repairStep(r, today)), certifyStep(repairs, certification, today));
   }

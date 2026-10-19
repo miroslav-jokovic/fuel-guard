@@ -1355,6 +1355,17 @@
         "why": "safety's 396.9(d)(3)(i) certification of a roadside inspection's repairs (0485, IC11 B2): one row per certifying act, ~120 inspections with vehicle violations a year (measured 2026-10-16). RETENTION_FORBIDDEN: it is the carrier official's signature."
       }
     },
+    "inspection_citation_actions": {
+      "module": "inspections",
+      "layer": "derived",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 5,
+        "why": "the safety office's acts on a roadside ticket with no court result (0489, IC4): requested from the court, or not contested — ~90 open tickets measured 2026-10-19, a row or two each. RETENTION_FORBIDDEN: it is the record of what was done about a citation."
+      }
+    },
     "inspection_report_checks": {
       "module": "inspections",
       "layer": "derived",
