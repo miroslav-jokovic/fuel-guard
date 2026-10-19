@@ -451,6 +451,22 @@ describe("executeRead — the OCR witness (§7B A5)", () => {
     expect(ev.some((e) => e.sources.some((s) => s.reader === "passB"))).toBe(true);
   });
 
+  it("keeps pass B's whole document and the OCR words it judged on, so the read can be judged again (RC2, 0487)", async () => {
+    const ocr: RecognisePage = async () => [box("UN2735 Amines 8 PG II", 10), box("6", 11)];
+    const w = await world({ classes: { p1: "bol", p2: "bol" }, documents: twoReaders, ocr });
+    expect(await w.run()).toMatchObject({ outcome: "done" });
+    const replay = w.transitions()[1]!.p_replay_inputs as { passB: unknown; ocr: { page: number; items: unknown[] }[] | null; textLayer: unknown };
+    expect(replay.passB).toEqual(twoReaders["claude-sonnet-5-5"]);
+    expect(replay).toHaveProperty("textLayer", null); // image pages: no text layer to keep
+    expect(replay.ocr!.map((p) => [p.page, p.items.length])).toEqual([[1, 2], [2, 2]]);
+  });
+
+  it("stores no replay inputs for a cache hit, which judged nothing", async () => {
+    const w = await world({ cached: withCount(6), classes: { p1: "bol", p2: "bol" } });
+    expect(await w.run()).toMatchObject({ outcome: "done", cacheHit: true });
+    expect(w.transitions()[1]!.p_replay_inputs).toBeNull();
+  });
+
   it("runs no OCR for a cache hit", async () => {
     const ocr = vi.fn<RecognisePage>(async () => []);
     const w = await world({ cached: withCount(6), classes: { p1: "bol", p2: "bol" }, ocr });
