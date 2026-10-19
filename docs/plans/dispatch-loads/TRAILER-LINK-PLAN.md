@@ -30,7 +30,7 @@ truck. 15 trucks are GPS-paired to a reefer while their load's trailer is a dry 
 |---|---|---|---|---|
 | Dispatch board, Loads, truck drawer | Which trailer is on this load | McLeod | McLeod (unchanged) | — |
 | Live map route + its fuel stops (`loadPlanningTruck` from `liveMapLoadRoute`) | Does this load burn reefer fuel | GPS | **McLeod: the load's trailer** | **TL1 (this PR)** |
-| Fuel planner (`planFuelRoute`, no load) | Same, for a typed trip | GPS, or the planner's own equipment choice | McLeod: the truck's current load | TL3 |
+| Fuel planner (`planFuelRoute`, no load) | Same, for a typed trip | GPS, or the planner's own equipment choice | McLeod: the truck's current load; GPS only for a truck on no load | TL3 (built) |
 | Trailers page "Paired tractor" | Where is this trailer | GPS | Both, labelled: *On load (McLeod)* and *GPS pairing*, with its age | TL4 |
 | Reefer coverage page | Which trucks physically pull a reefer | GPS | GPS (physical), shown with its age | TL4 |
 | Fuel anomaly scoring: reefer tank size, reefer-diversion rule (`anomalies/scoring/context.ts`) | Was a reefer on this truck at the fill | GPS, **current state judged against past fills** | Open: Q-TL1 | — |
@@ -79,3 +79,11 @@ truck. 15 trucks are GPS-paired to a reefer while their load's trailer is a dry 
 ### 2026-10-19 — Audited, ruled, TL1 built
 
 Measured as in §1. Owner ruled D-TL1. TL1 is in this PR. Q-TL1 and Q-TL2 wait on the owner.
+
+### 2026-10-19 — TL3: the fuel planner reads the truck's current load
+
+`planFuelRoute` asks `loads.readTruckLoadTrailer` for the load the truck is hauling now, chosen by the
+map's rule (`isLoadOnTruck`, then `compareLoadsOnTruck`). That load's trailer decides reefer burn. A
+truck on no load still falls back to its GPS pairing, since nothing else says what it pulls. The
+planner's own equipment choice ("reefer") still adds reefer burn. This is the first `routing -> loads`
+edge: one narrow reader, and `loads` imports nothing from `routing`.

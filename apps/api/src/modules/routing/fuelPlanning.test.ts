@@ -40,9 +40,10 @@ const stations = Array.from({ length: 10 }, (_, i) => ({
   has_diesel: true,
 }));
 
-function recorder() {
+function recorder(loads: unknown[] = []) {
   return createSupabaseRecorder({
     tables: {
+      loads: { data: loads },
       route_fuel_settings: { data: [] },
       vehicles: {
         data: [{ id: "veh-1", samsara_vehicle_id: null, tank_capacity_gal: 200, observed_max_fill_gal: null, baseline_mpg: 6.5, height_in: null, length_in: null, width_in: null, axle_count: null }],
@@ -68,6 +69,30 @@ const request = {
   manualFuelPct: 45,
   manualHos: { driveHours: 11, breakHours: 8, shiftHours: 14, cycleHours: 70 },
 };
+
+describe("planFuelRoute: whose trailer says reefer (TRAILER-LINK-PLAN D-TL2, TL3)", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(NOW);
+  });
+  afterEach(() => vi.useRealTimers());
+
+  it("a truck hauling a McLeod load takes the reefer from that load's trailer, never the GPS pairing", async () => {
+    const rec = recorder([
+      { id: "load-done", ref: "100", status: "delivered", source: "tms", trailers: { is_reefer: false } },
+      { id: "load-now", ref: "101", status: "in_transit", source: "tms", trailers: { is_reefer: true } },
+    ]);
+    const result = await planFuelRoute(rec.client, env, ORG, request);
+    expect(result.status).toBe("ok");
+    expect(rec.queries.some((q) => q.table === "trailers")).toBe(false);
+  });
+
+  it("a truck on no load falls back to its GPS pairing", async () => {
+    const rec = recorder([]);
+    await planFuelRoute(rec.client, env, ORG, request);
+    expect(rec.queries.some((q) => q.table === "trailers")).toBe(true);
+  });
+});
 
 describe("planFuelRoute — the Fuel planning page's answer, pinned before TC3 splits it", () => {
   beforeEach(() => {
