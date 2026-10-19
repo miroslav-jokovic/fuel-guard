@@ -3,6 +3,18 @@
 Every **verdict-affecting** change bumps the minor version and gets an entry here; the version is
 stored on every verdict row (H4) so a decision is reproducible forever.
 
+## 0.17.0 — 2026-10-19 (identification numbers: one carrier per number)
+- **Each required identification number now rides only on its own primary-class placard (§172.332(c)).**
+  Every number used to receive the same carrier list — every required placard — so on a gasoline-tote +
+  corrosive load the CORROSIVE placard was offered UN1203.
+- **§172.334(d) is evaluated.** A number goes across a placard only when the numbers on that class's
+  placards together cover every material of the class aboard (PHMSA Interp. 16-0026: separate placards of
+  the class, one per number). Two Class 8 totes, UN1824 + UN1830, on a dry van (the owner's Mayo Products
+  BOL) → two CORROSIVE placards on each side and each end, one reading 1824, one reading 1830. When the
+  class also holds a material whose number is not required (UN3264 drums beside a UN1760 tote), the
+  required number moves to an orange panel / white square-on-point beside the placard (§172.334(f)), with
+  the info finding `id_number_not_on_placard_class_not_covered`.
+
 ## 0.11.0 — 2026-08-11 (H-MX: mixed hazmat + general-freight loads)
 - **New input `otherFreightAboard: boolean | null` (default `null`).** States whether the vehicle carries
   any freight beyond the declared hazmat lines. Read by exactly one rule — the §172.301(a)(3) non-bulk

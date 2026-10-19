@@ -85,7 +85,7 @@ describe("identification-number display formats", () => {
     const t = evaluateLoad(load()).trace.find((n) => n.ruleId === "id_display_format_172_332");
     expect(t).toBeDefined();
     expect(t!.citations.map((c) => c.cfr)).toContain("49 CFR 172.334");
-    expect(t!.inputs.recommended).toBe("on_placard");
+    expect(t!.inputs.displays).toEqual([{ idNumber: "UN1789", recommended: "on_placard", onPlacards: ["CORROSIVE"] }]);
   });
 
   it("below 8,820 lb a single-material non-bulk load needs no vehicle ID display at all", () => {
