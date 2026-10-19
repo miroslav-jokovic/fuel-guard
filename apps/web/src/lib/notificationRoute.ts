@@ -20,8 +20,21 @@ export function notificationRoute(
   entityId: string | null,
   opens: (to: string) => boolean = () => true,
 ): string | null {
+  // A category may name more than one door, most fitting first; the reader takes the first they can open.
+  return candidates(category, entityType, entityId).find(opens) ?? null;
+}
+
+/**
+ * Where a category can lead, best first. Only `roadside_repair_due` has two: its recipients are maintenance
+ * managers, whose door is the Shop's repairs page; a reader who holds safety but not maintenance (it can be
+ * re-routed by an admin's settings) still lands on the inspection (Q-IC16 (a), owner 2026-10-19).
+ */
+function candidates(category: string, entityType: string | null, entityId: string | null): string[] {
+  if (category === "roadside_repair_due" && entityType === "roadside_inspection" && entityId) {
+    return [`/shop/roadside-repairs?inspection=${encodeURIComponent(entityId)}`, `/roadside-inspections/${entityId}`];
+  }
   const to = destination(category, entityType, entityId);
-  return to && opens(to) ? to : null;
+  return to ? [to] : [];
 }
 
 function destination(category: string, entityType: string | null, entityId: string | null): string | null {
@@ -41,8 +54,8 @@ function destination(category: string, entityType: string | null, entityId: stri
   if (category === "drug_alcohol_result") return "/drug-alcohol";
   // The FMCSA record has stopped refreshing (IC1c): the list says how old it is, above its rows.
   if (category === "roadside_feed_stale") return "/roadside-inspections";
-  // A repair due, or a report to review (IC11, IC14): the inspection page holds both the Repair card and the driver card.
-  if ((category === "roadside_repair_due" || category === "roadside_report_needs_review") && entityType === "roadside_inspection" && entityId) {
+  // A report to review (IC14): the inspection page's driver card holds it. A repair due has two doors (`candidates`).
+  if (category === "roadside_report_needs_review" && entityType === "roadside_inspection" && entityId) {
     return `/roadside-inspections/${entityId}`;
   }
   // A key about to expire, or a sweep that stopped (§7A.20): the fix — a new key, the sweep's error — is on Settings › Med-Stop.

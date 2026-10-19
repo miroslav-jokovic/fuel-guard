@@ -1,4 +1,4 @@
-import { computed, type Ref } from "vue";
+import { computed, ref, type Ref } from "vue";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/vue-query";
 import type {
   CalendarDay,
@@ -12,6 +12,7 @@ import type {
   RoadsideRepairCertifyRequest,
   RoadsideRepairDecision,
   RoadsideRepairDto,
+  RoadsideRepairDueDto,
   RoadsideSummary,
 } from "@silvicom/shared";
 import { apiFetch } from "@/lib/api";
@@ -133,6 +134,19 @@ export function useInspectionRepairsQuery(id: Ref<string>) {
   });
 }
 
+/**
+ * Every violated unit of the last year with its inspection — the Shop's "Roadside repairs due" (Q-IC16 (a)),
+ * read on the maintenance section. The engine re-reads hourly, so a minute's staleness is the card's own.
+ */
+export function useRoadsideRepairsDueQuery(enabled: Ref<boolean> = ref(true)) {
+  return useQuery({
+    queryKey: ["roadside-inspections", "repairs-due"] as const,
+    staleTime: 60_000,
+    enabled,
+    queryFn: () => read<RoadsideRepairDueDto[]>("/api/roadside-inspections/repairs-due", "the roadside repairs"),
+  });
+}
+
 /** The repair decision's refusal, kept whole like the driver's: `changed` means reload before deciding again. */
 export class RepairDecisionError extends AttributionDecisionError {}
 
@@ -144,7 +158,12 @@ export function useDecideRepair(id: Ref<string>) {
       const res = await apiFetch(`/api/roadside-inspections/${encodeURIComponent(id.value)}/repairs`, { method: "POST", body: decision });
       if (!res.ok) throw new RepairDecisionError(res.error?.message ?? "The repair could not be saved.", res.error?.code ?? null);
     },
-    onSettled: () => client.invalidateQueries({ queryKey: ["roadside-inspections", "repairs", id.value] }),
+    // The Shop's list too (Q-IC16 (a)): the same decision is made from either page.
+    onSettled: () =>
+      Promise.all([
+        client.invalidateQueries({ queryKey: ["roadside-inspections", "repairs", id.value] }),
+        client.invalidateQueries({ queryKey: ["roadside-inspections", "repairs-due"] }),
+      ]),
   });
 }
 

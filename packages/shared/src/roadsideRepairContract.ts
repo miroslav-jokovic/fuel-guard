@@ -186,3 +186,49 @@ export type RoadsideRepairCertifyRequest = z.infer<typeof roadsideRepairCertifyS
 export function repairClock(dueOn: CalendarDay, today: CalendarDay): { overdue: boolean; days: number } {
   return today <= dueOn ? { overdue: false, days: daysInRange(today, dueOn) - 1 } : { overdue: true, days: daysInRange(dueOn, today) - 1 };
 }
+
+/**
+ * `GET /api/roadside-inspections/repairs-due` — the maintenance side of the repair record (Q-IC16 (a), owner
+ * 2026-10-19): every violated unit of the last `REPAIR_LOOKBACK_DAYS`, each with the inspection it came from.
+ * Read on the MAINTENANCE section, because the people who name the repair are technicians who cannot open
+ * the safety-gated inspection page — the seam IC11 B1 recorded. The Shop home's "Roadside repairs due"
+ * section and its page read it; the decision is the same `POST /:id/repairs` the inspection page sends.
+ */
+export interface RoadsideRepairDueDto extends RoadsideRepairDto {
+  inspection: { id: string; reportNumber: string | null; reportState: string | null; inspectionDate: string; locationDesc: string | null };
+}
+
+/** How close to its due day a unit must be before the bell speaks: three days, the Repair card's warning tone. */
+export const REPAIR_ALERT_DAYS_BEFORE = 3;
+/**
+ * How long after the due day a unit still rings the bell. The first run meets a year of history — measured
+ * 2026-10-19, 150 proposals on 127 inspections and none decided — and a hundred overdue alerts on day one
+ * would teach the shop to ignore the category. Older units stay on the list, which is where a backlog is
+ * worked; the bell is for what can still be done in time.
+ */
+export const REPAIR_ALERT_DAYS_AFTER = 7;
+
+/**
+ * Whether a unit rings the `roadside_repair_due` bell today, and at which stage: `due_soon` from three
+ * days before its due day, `overdue` for the week after it; never once settled. Each stage rings once per
+ * unit (the alert's dedupe key carries it), so a unit is announced at most twice.
+ */
+export function repairAlertStage(r: Pick<RoadsideRepairDto, "decision" | "proposal" | "dueOn">, today: CalendarDay): "due_soon" | "overdue" | null {
+  if (repairSettled(r)) return null;
+  const c = repairClock(r.dueOn, today);
+  if (!c.overdue) return c.days <= REPAIR_ALERT_DAYS_BEFORE ? "due_soon" : null;
+  return c.days <= REPAIR_ALERT_DAYS_AFTER ? "overdue" : null;
+}
+
+/**
+ * The Shop's order for open repairs: nearest to today first, so what is due this week and what just went
+ * overdue lead and a months-old backlog trails (measured 2026-10-19: none of the year's 150 was decided, so
+ * "most overdue first" would open the Shop home on last winter). A tie goes to the overdue one.
+ */
+export function byRepairUrgency(today: CalendarDay): (a: Pick<RoadsideRepairDto, "dueOn">, b: Pick<RoadsideRepairDto, "dueOn">) => number {
+  const key = (r: Pick<RoadsideRepairDto, "dueOn">) => {
+    const c = repairClock(r.dueOn, today);
+    return c.days * 2 + (c.overdue ? 0 : 1);
+  };
+  return (a, b) => key(a) - key(b) || a.dueOn.localeCompare(b.dueOn);
+}

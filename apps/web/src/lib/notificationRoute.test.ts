@@ -31,8 +31,14 @@ describe("notificationRoute", () => {
     expect(notificationRoute("drug_alcohol_result", null, null)).toBe("/drug-alcohol");
     expect(notificationRoute("roadside_feed_stale", null, null)).toBe("/roadside-inspections");
     expect(notificationRoute("medstop_connection", null, null)).toBe("/settings/medstop");
-    expect(notificationRoute("roadside_repair_due", "roadside_inspection", "i-1")).toBe("/roadside-inspections/i-1");
     expect(notificationRoute("roadside_report_needs_review", "roadside_inspection", "i-1")).toBe("/roadside-inspections/i-1");
+  });
+
+  it("a roadside repair due opens the Shop's repairs page for maintenance, the inspection for a safety-only reader (Q-IC16)", () => {
+    expect(notificationRoute("roadside_repair_due", "roadside_inspection", "i-1")).toBe("/shop/roadside-repairs?inspection=i-1");
+    const safetyOnly = (to: string) => !to.startsWith("/shop");
+    expect(notificationRoute("roadside_repair_due", "roadside_inspection", "i-1", safetyOnly)).toBe("/roadside-inspections/i-1");
+    expect(notificationRoute("roadside_repair_due", "roadside_inspection", "i-1", () => false)).toBeNull();
   });
 
   it("messages go to the messages page", () => {

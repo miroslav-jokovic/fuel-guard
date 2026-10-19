@@ -411,6 +411,11 @@ exports[`the route table survives being split by area > resolution 1`] = `
     "url": "/shop/defects",
   },
   {
+    "name": "roadside-repairs",
+    "params": {},
+    "url": "/shop/roadside-repairs",
+  },
+  {
     "name": "annual-dates",
     "params": {},
     "url": "/shop/annual-dates",
@@ -1536,6 +1541,16 @@ exports[`the route table survives being split by area > route table 1`] = `
     },
     "name": "repair-spend",
     "path": "/shop/repair-spend",
+    "redirect": null,
+  },
+  {
+    "meta": {
+      "parent": "/shop",
+      "requiresAuth": true,
+      "title": "Roadside repairs due",
+    },
+    "name": "roadside-repairs",
+    "path": "/shop/roadside-repairs",
     "redirect": null,
   },
   {
