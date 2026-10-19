@@ -36,7 +36,7 @@ const KEYS = ["idText", "descriptionText", "psn", "hazardClass", "pg", "technica
 export interface LineSpec {
   a: Line | null;
   b?: Line | null;
-  table?: { consistent: true; hmtRef: string } | { consistent: false; reason: string };
+  table?: ({ consistent: true; hmtRef: string } | { consistent: false; reason: string }) & { passB?: { consistent: true; hmtRef: string } | { consistent: false; reason: string } };
   /** What the OCR row showed for a row-judged key; absent = no OCR. */
   ocr?: Record<string, unknown>;
   /** What a born-digital page's text layer showed on the row, likewise (§7B A4); absent = no text layer. */

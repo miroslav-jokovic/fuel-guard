@@ -28,6 +28,17 @@ describe("bolPrefill", () => {
     expect(p.lines[0]!.fields.product.reason).toBe("The UN/NA number is not in the Hazardous Materials Table.");
   });
 
+  it("fills the reading the table fits when the readers read the number differently, and waits on a person (RC3)", () => {
+    const misread = read([{ a: { ...PAINT, idText: "UN1236" }, b: PAINT, table: { consistent: false, reason: "psn_no_match", passB: ok(PAINT_REF) } }]);
+    expect(hmtRefsOf(misread)).toEqual([PAINT_REF]);
+    const p = bolPrefill(misread, PRODUCTS, "van")!;
+    expect(p.lines[0]!.form.product).toMatchObject({ hmtRef: PAINT_REF });
+    expect(p.lines[0]!.fields.product.reason).toBe(
+      `The two readers read the number as UN1236 and UN1263; only ${PAINT_REF} fits the printed name and class in the Hazardous Materials Table, so it is filled in. Check the number on the page.`);
+    const view = bolLineView(p.lines[0]!, p.lines[0]!.form);
+    expect(view.fields.product).toMatchObject({ pending: true, confirmable: true, tone: "warning" });
+  });
+
   it("leaves the product empty when the calculator's dataset does not hold the table's row", () => {
     const p = bolPrefill(read([{ a: PAINT, table: ok(PAINT_REF) }]), [product(DIESEL_REF)], "van")!;
     expect(p.lines[0]!.form.product).toBeNull();

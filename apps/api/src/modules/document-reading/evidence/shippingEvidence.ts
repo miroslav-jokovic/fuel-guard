@@ -1,4 +1,4 @@
-import { leafFieldPaths, valueAtPath, type FieldEvidence, type PrintedHazmatLine, type ShippingDocument } from "@silvicom/shared";
+import { leafFieldPaths, valueAtPath, valuesAgree, type FieldEvidence, type PrintedHazmatLine, type ShippingDocument } from "@silvicom/shared";
 import { alignLines, alignOtherLines } from "./alignLines.js";
 import { arithmeticWitness } from "./arithmeticWitness.js";
 import { hazmatMarks } from "./hazmatMarkWitness.js";
@@ -12,7 +12,8 @@ import { anchorOf, classTokens, ROW_JUDGED_KEYS, rowBacks, rowOf, type OcrPage, 
  *   passB   the second reader (Sonnet 5.5, Q-DR23), its hazmat lines matched to A's by key (alignLines.ts).
  *           Absent when pass B produced no document (a refusal, a truncation) or has no partner line —
  *           absence is one reader, never agreement.
- *   table   the Hazardous Materials Table's verdict on the line, on its id, PSN, class and PG (A2).
+ *   table   the Hazardous Materials Table's verdict on the line, on its id, PSN, class and PG (A2) — and, under
+ *           `passB`, its verdict on pass B's reading of the same line where the two readers differ there (RC3).
  *   ocr     the OCR engine's word on a line's count, weight and quantity (A5, rowWitness.ts): which of the
  *           readers' values is printed on the row of the line's own UN id. Absent when there was no OCR
  *           (engine off, failed, or a cache replay of a read made without it) or the row is ambiguous.
@@ -57,8 +58,19 @@ export function shippingEvidence(
   const bAtA = b
     ? { ...b, hazmat: { ...b.hazmat, lines: [...aligned, ...extra] }, otherLines: [...other.aligned, ...other.extra] }
     : null;
-  const verdicts = new Map<number, HmtVerdict>();
-  const verdictOf = (i: number, line: PrintedHazmatLine) => verdicts.get(i) ?? verdicts.set(i, hmtVerdict(line)).get(i)!;
+  const verdicts = new Map<number, HmtVerdict & { passB?: HmtVerdict }>();
+  // The table judges pass B's reading of a paired line too, when the two differ on what identifies it
+  // (RC3): with one digit misread, ONE of the readings usually fits the printed name and class, and the
+  // calculator can offer that one for a person to confirm instead of only saying the line does not match.
+  const judged = (l: PrintedHazmatLine) => HMT_JUDGED_KEYS.map((k) => l[k] ?? null);
+  const verdictOf = (i: number, line: PrintedHazmatLine) => {
+    if (verdicts.has(i)) return verdicts.get(i)!;
+    const own = hmtVerdict(line);
+    const other = i < aLines.length ? aligned[i] : null;
+    const v = other && !valuesAgree(judged(line), judged(other)) ? { ...own, passB: hmtVerdict(other) } : own;
+    verdicts.set(i, v);
+    return v;
+  };
   const lineAt = (i: number) => (i < aLines.length ? aLines[i] : extra[i - aLines.length])!;
   // The row of line i: the nth printed occurrence of its id, n = how many lines before it carry the same id.
   const allLines = [...aLines, ...extra];

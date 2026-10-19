@@ -50,8 +50,11 @@ import { createHash } from "node:crypto";
  *   9    — 2026-10-19, READER-CORRECTNESS-PLAN RC1: normalizer 1.2.0 — rows that share one name (UN1950
  *          Aerosols, UN1005 Ammonia, anhydrous …) are picked by the printed class, then PG (Q-RC3), where 8
  *          refused every correct printing of them; and the table's refs split at their last "#".
+ *   10   — 2026-10-19, RC3: the readers' lines are paired in the paper's order and a line read with one misread
+ *          digit is ONE line with its id in dispute (alignLines.ts), not two; the table judges pass B's
+ *          reading of such a line too (`passB` on its verdict).
  */
-export const ACCEPTANCE_RULE_VERSION = "9";
+export const ACCEPTANCE_RULE_VERSION = "10";
 
 export interface CacheKeyInput {
   profileVersion: string;
