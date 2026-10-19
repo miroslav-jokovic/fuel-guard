@@ -35,6 +35,9 @@ const IRREGULAR: Record<string, string> = {
   // `-ves → -f` cannot be a general rule ("valves" → "valf"), so the one shipped word that needs it
   // is named instead. INVENTORY-PLAN.md I4's Parts page counts these.
   shelves: "shelf",
+  // Safety › Drug & Alcohol's Roster check counts people Med-Stop lists that no driver here matches,
+  // so "drivers" would be wrong for some of them; "1 people" is what the rules would say.
+  people: "person",
 };
 
 /** Words that end in `s` and are already singular — dropping the `s` would maim them. */
