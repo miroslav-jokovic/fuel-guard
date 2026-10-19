@@ -59,7 +59,7 @@ export async function readLoadRoute(admin: SupabaseClient, env: Env, orgId: stri
     return { ok: false, status: 409, code: "no_route", message: "This load has fewer than two stops with a location, so there is no route to draw." };
   }
   if (!load.vehicleId) return { ok: false, status: 409, code: "no_truck", message: "This load has no truck on it." };
-  const truck = await loadPlanningTruck(admin, orgId, load.vehicleId, null);
+  const truck = await loadPlanningTruck(admin, orgId, load.vehicleId, null, load.trailerIsReefer);
   if (!truck) return { ok: false, status: 404, code: "not_found", message: "This load's truck is not on the roster." };
 
   const points: LatLng[] = load.stops.map((s) => ({ lat: s.lat, lng: s.lng }));

@@ -194,6 +194,14 @@ describe("readLoadRoute", () => {
     expect(answer.route.offRouteMiles).toBeNull();
   });
 
+  it("takes the reefer from the load's own trailer, never from the GPS pairing on trailers", async () => {
+    const rec = recorder();
+    const answer = await readLoadRoute(rec.client, env, ORG, LOAD);
+    if (!answer.ok) throw new Error(answer.message);
+    // `trailers.assigned_vehicle_id` agreed with the load's reefer on 0 of 17 trucks (2026-10-19).
+    expect(rec.queries.some((q) => q.table === "trailers")).toBe(false);
+  });
+
   it("says a hazmat-marked load is routed without hazmat restrictions, never silently", async () => {
     const answer = await readLoadRoute(recorder({ hazmat: true }).client, env, ORG, LOAD);
     if (!answer.ok) throw new Error(answer.message);
