@@ -49,6 +49,17 @@ export const maintenanceRoutes: RouteRecordRaw[] = [
     component: () => import("@/pages/WorkOrdersPage.vue"),
     meta: { requiresAuth: true, title: "Open work orders", parent: "/shop" },
   },
+  /**
+   * Roadside repairs due (INSPECTION-CHALLENGE-PLAN IC11 B2b, Q-IC16 (a)): the technician's door to the
+   * 396.9(d) repair record, which the safety-gated inspection page is not. Opened by the Shop home's section
+   * and by the `roadside_repair_due` alert.
+   */
+  {
+    path: "/shop/roadside-repairs",
+    name: "roadside-repairs",
+    component: () => import("@/pages/RoadsideRepairsPage.vue"),
+    meta: { requiresAuth: true, title: "Roadside repairs due", parent: "/shop" },
+  },
   {
     path: "/shop/defects",
     name: "defects",

@@ -45,38 +45,29 @@ export function latestByUnit(rows: readonly RepairRow[]): Map<string, { engine: 
   return out;
 }
 
-export async function readInspectionRepairs(
-  admin: SupabaseClient,
-  orgId: string,
-  inspectionId: string,
-): Promise<RoadsideRepairDto[] | { error: DbError }> {
-  const [repairs, units, violations] = await Promise.all([
-    admin.from("inspection_repairs").select(REPAIR_COLS).eq("org_id", orgId).eq("inspection_id", inspectionId),
-    admin.from("roadside_inspection_units").select("id, unit_seq, unit_type_id, company_number").eq("org_id", orgId).eq("inspection_id", inspectionId),
-    admin
-      .from("roadside_violations")
-      .select("unit_id, viol_code, description")
-      .eq("org_id", orgId)
-      .eq("inspection_id", inspectionId)
-      .is("vanished_at", null)
-      .in("part_no", [...REPAIR_VIOLATION_PARTS]),
-  ]);
-  for (const r of [repairs, units, violations]) if (r.error) return { error: r.error };
-  const rows = (repairs.data ?? []) as RepairRow[];
-  if (rows.length === 0) return [];
+export interface RepairUnitRow { id: string; unit_seq: number | null; unit_type_id: string | null; company_number: string | null }
+export interface RepairViolationRow { unit_id: string | null; viol_code: string | null; description: string | null }
+export const REPAIR_UNIT_COLS = "id, unit_seq, unit_type_id, company_number";
+export const REPAIR_VIOLATION_COLS = "unit_id, viol_code, description";
 
-  const unitOf = new Map(
-    ((units.data ?? []) as { id: string; unit_seq: number | null; unit_type_id: string | null; company_number: string | null }[]).map((u) => [u.id, u]),
-  );
+/**
+ * The DTO of every unit the engine has read, from the rows of one inspection or of many (the Shop's list,
+ * `repairsDue.ts`) — one builder, so the inspection page and the Shop cannot show one unit two ways.
+ * `labels` names the people who decided. Sorted by the unit's position on its report.
+ */
+export function buildRepairs(
+  rows: readonly RepairRow[],
+  units: readonly RepairUnitRow[],
+  violations: readonly RepairViolationRow[],
+  labels: Awaited<ReturnType<typeof memberLabels>>,
+): RoadsideRepairDto[] {
+  const unitOf = new Map(units.map((u) => [u.id, u]));
   const violationsOf = new Map<string, { code: string | null; description: string | null }[]>();
-  for (const v of (violations.data ?? []) as { unit_id: string | null; viol_code: string | null; description: string | null }[]) {
+  for (const v of violations) {
     if (v.unit_id) violationsOf.set(v.unit_id, [...(violationsOf.get(v.unit_id) ?? []), { code: v.viol_code, description: v.description }]);
   }
-  const latest = latestByUnit(rows);
-  const labels = await memberLabels(admin, orgId, [...new Set(rows.flatMap((r) => (r.decided_by ? [r.decided_by] : [])))]);
-
   const out: RoadsideRepairDto[] = [];
-  for (const [unitId, { engine, person, newest }] of latest) {
+  for (const [unitId, { engine, person, newest }] of latestByUnit(rows)) {
     // A unit is shown once the engine has read it; a person's row is always over an engine reading.
     if (!engine) continue;
     const u = unitOf.get(unitId);
@@ -99,6 +90,32 @@ export async function readInspectionRepairs(
     });
   }
   return out.sort((a, b) => (a.unit.seq ?? 99) - (b.unit.seq ?? 99));
+}
+
+/** The people who decided any of `rows`, named once. */
+export const deciderLabels = (admin: SupabaseClient, orgId: string, rows: readonly RepairRow[]) =>
+  memberLabels(admin, orgId, [...new Set(rows.flatMap((r) => (r.decided_by ? [r.decided_by] : [])))]);
+
+export async function readInspectionRepairs(
+  admin: SupabaseClient,
+  orgId: string,
+  inspectionId: string,
+): Promise<RoadsideRepairDto[] | { error: DbError }> {
+  const [repairs, units, violations] = await Promise.all([
+    admin.from("inspection_repairs").select(REPAIR_COLS).eq("org_id", orgId).eq("inspection_id", inspectionId),
+    admin.from("roadside_inspection_units").select(REPAIR_UNIT_COLS).eq("org_id", orgId).eq("inspection_id", inspectionId),
+    admin
+      .from("roadside_violations")
+      .select(REPAIR_VIOLATION_COLS)
+      .eq("org_id", orgId)
+      .eq("inspection_id", inspectionId)
+      .is("vanished_at", null)
+      .in("part_no", [...REPAIR_VIOLATION_PARTS]),
+  ]);
+  for (const r of [repairs, units, violations]) if (r.error) return { error: r.error };
+  const rows = (repairs.data ?? []) as RepairRow[];
+  if (rows.length === 0) return [];
+  return buildRepairs(rows, (units.data ?? []) as RepairUnitRow[], (violations.data ?? []) as RepairViolationRow[], await deciderLabels(admin, orgId, rows));
 }
 
 /**

@@ -1070,3 +1070,21 @@ about three merges.
   - Filing a document now reloads the inspection too, so a filed report shows on the driver card at once.
   - **Next:** B2b on Q-IC16 (a) — the Shop home's "Roadside repairs due" section, its page, the alert routed by
     reader; then the inbox's "Needs action" tab reading the same function.
+- **2026-10-19 — IC11 B2b on Q-IC16 (a): the Shop's roadside repairs and the repair-due alert.** No migration (the
+  `roadside_repair_due` category is 0483's).
+  - **`GET /api/roadside-inspections/repairs-due`** on the MAINTENANCE section (`read/repairsDue.ts`): every
+    violated unit of the last year with its inspection. One builder with the inspection page's Repair card
+    (`buildRepairs`, lifted from `readInspectionRepairs`); ids to `.in()` a hundred at a time, repair rows paged
+    past 1,000 (they are append-only and grow).
+  - **The Shop**: a "Roadside repairs due" section on the Shop home, beside FleetPal's backlog — open units nearest
+    to today first (`byRepairUrgency`: what is due this week and what just went overdue lead, a months-old backlog
+    trails), five rows, a row opening the page at its inspection. The page (`/shop/roadside-repairs`, non-nav,
+    parented on the Shop home, I4 kept at six rows) has Open and Recorded tabs; each unit is decided on
+    `RepairUnitDecision`, now the inspection page's component too, so there is one way to name a repair. A refusal
+    is said under the unit it is about.
+  - **The alert** (`repair/dueAlert.ts`, on the FMCSA tick after the engine's pass): maintenance's managers, twice
+    per unit at most — three days before the due day, and once overdue — and quiet past a week overdue
+    (`repairAlertStage`), because the first run meets a year nobody decided. The bell opens the Shop's page for a
+    reader who can, else the inspection (`notificationRoute` now takes a category's doors best first).
+  - **Next:** the inbox's "Needs action" tab, next-step / driver / points columns and bulk report upload, reading
+    `roadsideNextSteps` (plan §8 IC15).

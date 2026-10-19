@@ -31,7 +31,7 @@
  * Last of all, the repair record (IC11, `repair/pass.ts`): for each inspected unit with a vehicle
  * violation, the FleetPal work orders that could be its repair, proposed until a person decides.
  */
-import { organizationTimezone } from "@silvicom/shared";
+import { organizationTimezone, todayInZone } from "@silvicom/shared";
 import type { Env } from "../../../env.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { SocrataClient } from "./socrata.js";
@@ -45,6 +45,7 @@ import { attributeBacklog } from "../attribution/pass.js";
 import { checkReportBacklog } from "../report/check.js";
 import { readReportBacklog } from "../report/pass.js";
 import { proposeRepairs } from "../repair/pass.js";
+import { alertRepairsDue } from "../repair/dueAlert.js";
 
 const TICK_MS = 60 * 60_000;
 /** After boot, behind the vendor feeds that are measured in minutes. */
@@ -139,6 +140,9 @@ export async function tickOrg(
   } catch (e) {
     console.error(`[inspection-repair] org ${org.id}: pass failed —`, e instanceof Error ? e.message : e);
   }
+  // Then the bell for a repair nobody has named as its 396.9(d) day nears or passes (IC11 B2b) — after
+  // the pass, so a work order opened this hour is already on the unit. It never throws.
+  await alertRepairsDue(admin, org.id, todayInZone(new Date(), org.timeZone));
 }
 
 /** One batch of the org's attribution backlog. An org with no Samsara token has nothing to ask. */

@@ -350,13 +350,12 @@ export const SURFACES: readonly Surface[] = [
    * the key over. D-SURF8's inheritance is what keeps that answer where it was pointed.
    */
   /**
-   * FleetPal's open work orders and open defects (FLEET-MANAGER-HOME-PLAN Q-FM6 (a), 2026-10-13).
-   * Children of the shop home for the ledger's reason: the group is fixed at six rows by I4's ruling,
-   * and these are the pages behind two tiles on that home (and behind the Operations tab's Shop
-   * card). A member denied the shop is denied what it lists.
+   * FleetPal's work orders and defects (FLEET-MANAGER-HOME-PLAN Q-FM6 (a)) and roadside repairs due (IC11 B2b,
+   * Q-IC16 (a)): children of the shop home — I4 fixes six rows; a member denied the shop is denied what it lists.
    */
   { key: "maintenance.work-orders", label: "Open work orders", path: "/shop/work-orders", group: "maintenance", gate: section("maintenance"), parent: "maintenance.repair-spend" },
   { key: "maintenance.defects", label: "Open defects", path: "/shop/defects", group: "maintenance", gate: section("maintenance"), parent: "maintenance.repair-spend" },
+  { key: "maintenance.roadside-repairs", label: "Roadside repairs due", path: "/shop/roadside-repairs", group: "maintenance", gate: section("maintenance"), parent: "maintenance.repair-spend" },
   { key: "maintenance.repair-spend.ledger", label: "Repair spend", path: "/shop/repair-spend", group: "maintenance", gate: section("maintenance"), parent: "maintenance.repair-spend" },
 
   // ── non-nav screens that already state a section, transcribed (no behaviour change) ───────────

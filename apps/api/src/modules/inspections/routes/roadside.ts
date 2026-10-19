@@ -25,6 +25,7 @@ import { readRoadsideInspection } from "../read/inspectionDetail.js";
 import { readRoadsideFeed } from "../feed/store.js";
 import { decideAttribution } from "../attribution/decide.js";
 import { readInspectionRepairs, readRepairCertification } from "../read/inspectionRepairs.js";
+import { readRepairsDue } from "../read/repairsDue.js";
 import { decideRepair } from "../repair/decide.js";
 import { certifyRepairs } from "../repair/certify.js";
 import { listInspectionDocuments, registerInspectionDocument, signInspectionDocumentDownload } from "../documents/inspectionDocuments.js";
@@ -99,6 +100,26 @@ export function roadsideInspectionsRouter(): Router {
         return;
       }
       res.json({ ok: true, data: rows });
+    }),
+  );
+
+  /**
+   * Every violated unit of the last year with its inspection — the Shop's "Roadside repairs due" (Q-IC16 (a)).
+   * On the MAINTENANCE section, not safety: it is the technician's way to the decision, and the inspection
+   * page it complements is the one they cannot open. Declared before `/:id` for the same reason as `/summary`.
+   */
+  router.get(
+    "/repairs-due",
+    requireSection("maintenance", "view"),
+    asyncHandler(async (req, res) => {
+      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      const orgId = req.auth!.orgId!;
+      const out = await readRepairsDue(admin, orgId, await orgToday(admin, orgId));
+      if ("error" in out) {
+        dbErrorResponse(res, "roadside-inspections.repairs-due", out.error, "Could not load the roadside repairs");
+        return;
+      }
+      res.json({ ok: true, data: out });
     }),
   );
 

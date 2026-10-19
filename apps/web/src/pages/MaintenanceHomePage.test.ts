@@ -108,6 +108,29 @@ const summary = ref({ openWorkOrders: 24, oldestOpenWorkOrderAt: "2026-06-24T15:
 vi.mock("@/features/maintenance/useShopBacklog", () => {
   return { useShopSummaryQuery: () => queries.summary };
 });
+/** The roadside repairs the Shop home previews (IC11 B2b); the section reads them only when its page opens. */
+const repairsDue = ref<import("@silvicom/shared").RoadsideRepairDueDto[] | undefined>([]);
+/** The `enabled` each mount handed the query, newest last. */
+const repairsAsked: import("vue").Ref<boolean>[] = [];
+vi.mock("@/features/roadside/useRoadsideInspections", async () => {
+  const { ref: r } = await import("vue");
+  return {
+    useRoadsideRepairsDueQuery: (enabled: import("vue").Ref<boolean>) => {
+      repairsAsked.push(enabled);
+      return { data: repairsDue, isLoading: r(false), isError: r(false), isFetching: r(false), refetch: vi.fn() };
+    },
+  };
+});
+vi.mock("@/composables/useOrgTimezone", async () => {
+  const { ref: r } = await import("vue");
+  return { useOrgTimezone: () => ({ zone: r("America/Chicago") }) };
+});
+const pushed: unknown[] = [];
+// The desktop table: jsdom has no `matchMedia`, and DataTable would otherwise draw its narrow cards.
+vi.mock("@vueuse/core", async (orig) => {
+  const { ref: r } = await import("vue");
+  return { ...((await orig()) as Record<string, unknown>), useMediaQuery: () => r(true) };
+});
 // The real shape (SP5): every door on the page now asks the guard's function, which reads the role
 // and the screen answers. A technician holds `maintenance: manage` as shipped.
 vi.mock("@/stores/session", async () => {
@@ -124,7 +147,7 @@ vi.mock("vue-router", async (importOriginal) => {
       await importOriginal<typeof import("vue-router")>(),
     ),
     useRoute: () => ({ query: {}, params: {}, meta: { title: "Shop" }, matched: [], path: "/shop" }),
-    useRouter: () => ({ push: vi.fn(), replace: vi.fn(), resolve: () => ({ name: "not-found", meta: {} }) }),
+    useRouter: () => ({ push: (to: unknown) => pushed.push(to), replace: vi.fn(), resolve: () => ({ name: "not-found", meta: {} }) }),
     // A link that renders its destination, so a test can read where a tile goes.
     RouterLink: {
       props: ["to"],
@@ -151,6 +174,9 @@ beforeEach(() => {
   catalogue.value = { parts: [], total: 1 };
   failing.clear();
   retried.length = 0;
+  repairsDue.value = [];
+  repairsAsked.length = 0;
+  pushed.length = 0;
   buildQueries();
 });
 
@@ -301,5 +327,44 @@ describe("a failed read", () => {
     expect(t).toContain("Could not load what moved today.");
     expect(t).toContain("Could not load the repair spend.");
     expect(t).not.toContain("$0");
+  });
+});
+
+/**
+ * Roadside repairs due (IC11 B2b, Q-IC16 (a)): the technician's door to the 396.9(d) repair record, which the
+ * safety-gated inspection page is not.
+ */
+describe("roadside repairs due", () => {
+  const due = (unitId: string, dueOn: string, o: Partial<import("@silvicom/shared").RoadsideRepairDueDto> = {}): import("@silvicom/shared").RoadsideRepairDueDto => ({
+    unitId, unit: { seq: 1, kind: "tractor", companyNumber: unitId.toUpperCase() }, violations: [], dueOn,
+    proposal: { outcome: "no_candidate", candidates: [], readAt: "x" }, decision: null, basedOn: "r",
+    inspection: { id: `i-${unitId}`, reportNumber: null, reportState: "IL", inspectionDate: "2026-10-01", locationDesc: null },
+    ...o,
+  });
+
+  it("previews the open repairs nearest to today, never a recorded one, and opens the page at the row's inspection", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-10-19T17:00:00Z"));
+    repairsDue.value = [
+      due("old", "2026-03-01"),
+      due("soon", "2026-10-21"),
+      due("done", "2026-10-20", { decision: { outcome: "accepted", workOrder: null, note: null, decidedBy: "Pat", decidedAt: "x" } }),
+    ];
+    const w = page();
+    const rows = w.findAll("[data-test='roadside-repairs-due'] tbody tr").map((r) => r.text());
+    expect(rows).toHaveLength(2);
+    expect(rows[0]).toContain("SOON");
+    expect(rows[0]).toContain("10/21/2026 · 2 days left");
+    expect(rows[1]).toContain("days overdue");
+    await w.findAll("[data-test='roadside-repairs-due'] tbody tr")[0]!.trigger("click");
+    expect(pushed).toEqual([{ path: "/shop/roadside-repairs", query: { inspection: "i-soon" } }]);
+    vi.useRealTimers();
+  });
+
+  it("is not drawn, nor read, when its page is off for this person", () => {
+    // The page answers to the shop home's key (D-SURF8, `parent`), as the work-order and defect lists do.
+    session.surfaces = { "maintenance.repair-spend": false };
+    expect(page().find("[data-test='roadside-repairs-due']").exists()).toBe(false);
+    expect(repairsAsked.at(-1)!.value).toBe(false);
   });
 });

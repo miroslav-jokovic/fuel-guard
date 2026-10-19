@@ -29,6 +29,7 @@ import { useUnitsQuery } from "@/features/inventory/useUnits";
 import { useShopSummaryQuery } from "@/features/maintenance/useShopBacklog";
 import StartCountDrawer from "@/features/inventory/StartCountDrawer.vue";
 import StockLevelCell from "@/features/inventory/StockLevelCell.vue";
+import RoadsideRepairsDueSection from "@/features/roadside/RoadsideRepairsDueSection.vue";
 import { BADGE_BASE, kitStatusBadge, toneClass } from "@/lib/badges";
 import { useSessionStore } from "@/stores/session";
 import { useOpens } from "@/composables/useOpens";
@@ -200,6 +201,10 @@ const unitPath = (u: UnitKitDto) =>
         @retry="summary.refetch()"
       />
     </div>
+
+    <!-- Beside FleetPal's backlog, above the parts: a 396.9(d) deadline is the shop's work whether or not any
+         part is on a shelf (IC11 B2b, Q-IC16 (a)). -->
+    <RoadsideRepairsDueSection />
 
     <!-- A callout, not a hand-rolled card: it is a fact about the page that survives every action
          on it, and the product has a primitive for exactly that. -->
