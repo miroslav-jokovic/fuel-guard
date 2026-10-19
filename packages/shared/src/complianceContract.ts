@@ -80,7 +80,9 @@ export const complianceStatusSchema = z.enum(COMPLIANCE_STATUSES);
 export type ComplianceStatus = (typeof COMPLIANCE_STATUSES)[number];
 
 /**
- * The subjects `/api/compliance/documents` files and lists — the `roster` section's route.
+ * The subjects `/api/compliance/documents` files and lists. Each paper is answered by the section of
+ * its own file — a driver's is `roster`'s, a truck's or trailer's `equipment`'s (`fileSectionFor`,
+ * UNIT-FILES-PLAN D-UF5).
  *
  * `organization` joined this list with the `documents` table (0146). It was always implied:
  * `certifications.subject_type` accepts an organization subject, the hazmat gate blocks on org-level
@@ -92,8 +94,8 @@ export const COMPLIANCE_DOCUMENT_SUBJECT_TYPES = ["driver", "tractor", "trailer"
  *
  * `roadside_inspection` (0476, INSPECTION-CHALLENGE-PLAN IC2) is the `safety` section's (D-IC12): its
  * paper is filed and listed only through `/api/roadside-inspections/:id/documents`. It is kept out of
- * the compliance route's list above on purpose — that route is gated on `roster`, and a roster
- * manager is not a safety reader, so widening its schema would have let one read a citation.
+ * the compliance route's list above on purpose — that route answers to `roster` and `equipment`, and
+ * neither's reader is a safety reader, so widening its schema would have let one read a citation.
  */
 export const DOCUMENT_SUBJECT_TYPES = [...COMPLIANCE_DOCUMENT_SUBJECT_TYPES, "roadside_inspection"] as const;
 export const documentSubjectTypeSchema = z.enum(DOCUMENT_SUBJECT_TYPES);

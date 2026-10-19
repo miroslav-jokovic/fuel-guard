@@ -46,3 +46,4 @@ export { getEquipmentIdentities, getEquipmentIdentity, listAnnualInspectionExpir
 // report that took it is deleted (0285, D-AVI29).
 export { readEquipmentIdentitySource, releaseEquipmentInspectionClaim } from "./equipmentInspection.js";
 export type { EquipmentIdentity, EquipmentListOptions } from "./equipmentInspection.js";
+export { listUnitFileFacts, type UnitFileFacts } from "./unitFileFacts.js";

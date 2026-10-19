@@ -224,6 +224,16 @@ export function buildFile<S extends FileItemSpecBase>(input: FileBuildInput<S>):
   };
 }
 
+/**
+ * The state a bare DATE would give an item, with no evidence behind it — for the truck file's
+ * "date only" line (D-UF3), where McLeod typed an expiry nobody has filed a paper for. The same
+ * horizon and the same edges as an item, so "expiring" cannot mean two things on one screen.
+ */
+export function fileDateState(goodUntil: string, today: string, expiringWithinDays = DEFAULT_EXPIRING_DAYS): FileItemState {
+  const t = fileDay(today);
+  return stateFor(true, fileDay(goodUntil), t, addDays(t, expiringWithinDays));
+}
+
 export function emptyCounts(): Record<FileItemState, number> {
   return { current: 0, expiring: 0, expired: 0, missing: 0 };
 }
