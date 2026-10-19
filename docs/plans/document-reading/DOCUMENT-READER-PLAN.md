@@ -1542,3 +1542,7 @@ Append dated lines at the end; never edit a row above.
   replays the old verdict. **Still open, reader side:** the paper's UN3264 line was read as UN3254 by pass A
   and UN3264 by pass B and became two products — the line alignment keys on the id, so a one-digit misread
   splits a line in two and could count its weight twice. Next step, per the owner: reader precision.
+- **2026-10-19 — owner: "make the system work every time, not this one case."** Answered as a programme in
+  `READER-CORRECTNESS-PLAN.md` (D-RC1–D-RC4, steps RC1–RC8, Q-RC1–Q-RC3), which replaces step A6. Census of the
+  whole table: 0 wrong picks in ≈21,700 legal printings, 33 refused on ≈10 same-name numbers (aerosols,
+  anhydrous ammonia …).
