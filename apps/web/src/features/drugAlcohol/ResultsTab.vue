@@ -4,6 +4,7 @@ import { MEDSTOP_OUTCOME_LABELS, type MedstopResultRow, type MedstopTestOutcome 
 import { DataTable, type DataTableColumn, DataWorkspace, FilterBar, TablePagination, useQueryState } from "@silvicom/ui";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
 import ListIntro from "@/features/drugAlcohol/ListIntro.vue";
+import PersonCell from "@/features/drugAlcohol/PersonCell.vue";
 import { KIND_OPTIONS, KINDS, kindText, useProgramList } from "@/features/drugAlcohol/useProgramList";
 import { BADGE_BASE, medstopOutcomeTone } from "@/lib/badges";
 import { formatDate } from "@/lib/format";
@@ -19,13 +20,11 @@ const props = defineProps<{ recent: MedstopResultRow[]; history: MedstopResultRo
 const LISTS = {
   recent: {
     label: "Needs review",
-    title: "Results to review",
     why: "Positive, refused, dilute or unrecognised results from Med-Stop in the last year. A positive or refusal keeps the driver off dispatch until a return-to-duty record dated on or after the test is on file.",
     empty: "No results need review.",
   },
   history: {
     label: "Found on the first read",
-    title: "Found on the first read from Med-Stop",
     why: "Positives and refusals from before Silvicom 360 was watching. Nothing was done with them automatically: check each person is either gone or has a return-to-duty record on file.",
     empty: "None.",
   },
@@ -67,50 +66,49 @@ const { search, page, sort, onSort, filtered, pageRows, activeCount, clearAll, p
 </script>
 
 <template>
-  <DataWorkspace>
-    <ListIntro :title="list.title" :why="list.why" />
-    <FilterBar
-      v-model:search="search"
-      embedded
-      search-placeholder="Search person or reason…"
-      :count="filtered.length"
-      count-label="results"
-      :active-count="activeCount"
-      @clear-all="clearAll"
-    >
-      <template #filters>
-        <FilterSelect v-model="show" label="Show" :options="showOptions" />
-        <FilterSelect v-model="kind" label="Test" :options="[...KIND_OPTIONS]" />
-        <FilterSelect v-model="outcome" label="Result" :options="outcomeOptions" />
-      </template>
-    </FilterBar>
-    <DataTable
-      embedded
-      dense
-      :sticky-header="false"
-      :columns="columns"
-      :rows="pageRows"
-      row-key="key"
-      :sort="sort"
-      :empty-text="activeCount ? 'No result matches that.' : list.empty"
-      @sort="onSort"
-    >
-      <template #cell-name="{ row }">
-        <RouterLink v-if="row.driverId" :to="{ name: 'driver-detail', params: { id: row.driverId } }" class="text-brand-700 hover:underline">{{ row.name }}</RouterLink>
-        <span v-else>{{ row.name }}</span>
-      </template>
-      <template #cell-test="{ row }">
-        {{ kindText(row.kind) }}{{ row.reason ? ` · ${row.reason.toLowerCase()}` : "" }}
-        <!-- §7A.16: no specimen, so no test — the day in "Collected" is the visit's. -->
-        <span v-if="row.source === 'order'" class="block text-xs text-ink-muted">Refused before a specimen was collected</span>
-      </template>
-      <template #cell-collectedOn="{ row }">{{ row.collectedOn ? formatDate(row.collectedOn) : "—" }}</template>
-      <template #cell-outcome="{ row }">
-        <span :class="[BADGE_BASE, medstopOutcomeTone(row.outcome)]">{{ MEDSTOP_OUTCOME_LABELS[row.outcome as MedstopTestOutcome] }}</span>
-      </template>
-      <template #footer>
-        <TablePagination :page="page" :page-size="pageSize" :total="filtered.length" @update:page="page = $event" />
-      </template>
-    </DataTable>
-  </DataWorkspace>
+  <div class="space-y-3">
+    <ListIntro :text="list.why" />
+    <DataWorkspace>
+      <FilterBar
+        v-model:search="search"
+        embedded
+        search-placeholder="Search person or reason…"
+        :count="filtered.length"
+        count-label="results"
+        :active-count="activeCount"
+        @clear-all="clearAll"
+      >
+        <template #filters>
+          <FilterSelect v-model="show" label="Show" :options="showOptions" />
+          <FilterSelect v-model="kind" label="Test" :options="[...KIND_OPTIONS]" />
+          <FilterSelect v-model="outcome" label="Result" :options="outcomeOptions" />
+        </template>
+      </FilterBar>
+      <DataTable
+        embedded
+        :columns="columns"
+        :rows="pageRows"
+        row-key="key"
+        :sort="sort"
+        :empty-text="activeCount ? 'No result matches that.' : list.empty"
+        @sort="onSort"
+      >
+        <template #cell-name="{ row }">
+          <PersonCell :person="row.person" />
+        </template>
+        <template #cell-test="{ row }">
+          {{ kindText(row.kind) }}{{ row.reason ? ` · ${row.reason.toLowerCase()}` : "" }}
+          <!-- §7A.16: no specimen, so no test — the day in "Collected" is the visit's. -->
+          <span v-if="row.source === 'order'" class="block text-xs text-ink-muted">Refused before a specimen was collected</span>
+        </template>
+        <template #cell-collectedOn="{ row }">{{ row.collectedOn ? formatDate(row.collectedOn) : "—" }}</template>
+        <template #cell-outcome="{ row }">
+          <span :class="[BADGE_BASE, medstopOutcomeTone(row.outcome)]">{{ MEDSTOP_OUTCOME_LABELS[row.outcome as MedstopTestOutcome] }}</span>
+        </template>
+        <template #footer>
+          <TablePagination :page="page" :page-size="pageSize" :total="filtered.length" @update:page="page = $event" />
+        </template>
+      </DataTable>
+    </DataWorkspace>
+  </div>
 </template>

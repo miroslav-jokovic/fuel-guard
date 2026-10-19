@@ -24,13 +24,11 @@ const props = defineProps<{ medical: MedicalCards }>();
 const LISTS = {
   due: {
     label: "Expiring in 60 days",
-    title: "Medical cards expiring in the next 60 days",
     why: "A driver may not drive on an expired card. The date is the one the qualification file keeps: a scanned card wins; otherwise the earliest date McLeod or Med-Stop gives.",
     empty: "No medical card expires in the next 60 days.",
   },
   disagree: {
     label: "Sources disagree",
-    title: "Sources disagree",
     why: "Check the driver's card. Filing its scan in the qualification file settles it — a scanned card wins over every source.",
     empty: "Every source agrees on every working driver's medical card.",
   },
@@ -88,46 +86,46 @@ const sourceDate = (row: MedicalCardRow, s: MedicalSource) => row.sources.find((
 </script>
 
 <template>
-  <DataWorkspace>
-    <ListIntro :title="list.title" :why="list.why" />
-    <FilterBar
-      v-model:search="search"
-      embedded
-      search-placeholder="Search driver…"
-      :count="filtered.length"
-      count-label="drivers"
-      :active-count="activeCount"
-      @clear-all="clearAll"
-    >
-      <template #filters>
-        <FilterSelect v-model="show" label="Show" :options="showOptions" />
-        <FilterSelect v-model="when" label="Card" :options="whenOptions" />
-        <FilterSelect v-model="basis" label="Date from" :options="basisOptions" />
-      </template>
-    </FilterBar>
-    <DataTable
-      embedded
-      dense
-      :sticky-header="false"
-      :columns="columns"
-      :rows="pageRows"
-      row-key="key"
-      :sort="sort"
-      :empty-text="activeCount ? 'No driver matches that.' : list.empty"
-      @sort="onSort"
-    >
-      <template #cell-name="{ row }"><PersonCell :person="row.person" /></template>
-      <template #cell-expiresOn="{ row }">{{ formatDate(row.expiresOn) }}</template>
-      <template #cell-daysLeft="{ row }">
-        <span :class="[BADGE_BASE, toneClass(tone(row.daysLeft))]">{{ row.daysLeft < 0 ? `Expired ${-row.daysLeft} d ago` : row.daysLeft === 0 ? "Today" : `${row.daysLeft} d` }}</span>
-      </template>
-      <template #cell-basis="{ row }">{{ BASIS[basisOf(row as MedicalCardRow)] }}</template>
-      <template v-for="s in MEDICAL_SOURCES" :key="s" #[`cell-src-${s}`]="{ row }">
-        {{ sourceDate(row as MedicalCardRow, s) ? formatDate(sourceDate(row as MedicalCardRow, s)!) : "—" }}
-      </template>
-      <template #footer>
-        <TablePagination :page="page" :page-size="pageSize" :total="filtered.length" @update:page="page = $event" />
-      </template>
-    </DataTable>
-  </DataWorkspace>
+  <div class="space-y-3">
+    <ListIntro :text="list.why" />
+    <DataWorkspace>
+      <FilterBar
+        v-model:search="search"
+        embedded
+        search-placeholder="Search driver…"
+        :count="filtered.length"
+        count-label="drivers"
+        :active-count="activeCount"
+        @clear-all="clearAll"
+      >
+        <template #filters>
+          <FilterSelect v-model="show" label="Show" :options="showOptions" />
+          <FilterSelect v-model="when" label="Card" :options="whenOptions" />
+          <FilterSelect v-model="basis" label="Date from" :options="basisOptions" />
+        </template>
+      </FilterBar>
+      <DataTable
+        embedded
+        :columns="columns"
+        :rows="pageRows"
+        row-key="key"
+        :sort="sort"
+        :empty-text="activeCount ? 'No driver matches that.' : list.empty"
+        @sort="onSort"
+      >
+        <template #cell-name="{ row }"><PersonCell :person="row.person" /></template>
+        <template #cell-expiresOn="{ row }">{{ formatDate(row.expiresOn) }}</template>
+        <template #cell-daysLeft="{ row }">
+          <span :class="[BADGE_BASE, toneClass(tone(row.daysLeft))]">{{ row.daysLeft < 0 ? `Expired ${-row.daysLeft} d ago` : row.daysLeft === 0 ? "Today" : `${row.daysLeft} d` }}</span>
+        </template>
+        <template #cell-basis="{ row }">{{ BASIS[basisOf(row as MedicalCardRow)] }}</template>
+        <template v-for="s in MEDICAL_SOURCES" :key="s" #[`cell-src-${s}`]="{ row }">
+          {{ sourceDate(row as MedicalCardRow, s) ? formatDate(sourceDate(row as MedicalCardRow, s)!) : "—" }}
+        </template>
+        <template #footer>
+          <TablePagination :page="page" :page-size="pageSize" :total="filtered.length" @update:page="page = $event" />
+        </template>
+      </DataTable>
+    </DataWorkspace>
+  </div>
 </template>

@@ -4,6 +4,7 @@ import type { ProgramPerson } from "@silvicom/shared";
 import { DataTable, type DataTableColumn, DataWorkspace, FilterBar, TablePagination, useQueryState } from "@silvicom/ui";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
 import ListIntro from "@/features/drugAlcohol/ListIntro.vue";
+import PersonCell from "@/features/drugAlcohol/PersonCell.vue";
 import { useProgramList } from "@/features/drugAlcohol/useProgramList";
 
 /**
@@ -17,13 +18,11 @@ const props = defineProps<{ notInPool: ProgramPerson[]; leftButInPool: ProgramPe
 const LISTS = {
   missing: {
     label: "Not in the pool",
-    title: "Driving here, not in Med-Stop's random pool",
     why: "Every active DOT driver must be in the random pool (49 CFR 382.305). Add each one in Med-Stop, or end their employment here if they no longer drive.",
     empty: "Every active driver is in Med-Stop's pool.",
   },
   left: {
     label: "No longer driving",
-    title: "In Med-Stop's pool, no longer driving here",
     why: "Med-Stop can still select these people. Terminate them in Med-Stop. A name with no link is someone Med-Stop lists that no driver here matches.",
     empty: "Med-Stop's pool holds no one who has left.",
   },
@@ -57,42 +56,39 @@ const { search, page, sort, onSort, filtered, pageRows, activeCount, clearAll, p
 </script>
 
 <template>
-  <DataWorkspace>
-    <ListIntro :title="list.title" :why="list.why" />
-    <FilterBar
-      v-model:search="search"
-      embedded
-      search-placeholder="Search name…"
-      :count="filtered.length"
-      count-label="people"
-      :active-count="activeCount"
-      @clear-all="clearAll"
-    >
-      <template #filters>
-        <FilterSelect v-model="show" label="Show" :options="showOptions" />
-        <FilterSelect v-model="match" label="Driver record" :options="matchOptions" />
-      </template>
-    </FilterBar>
-    <DataTable
-      embedded
-      dense
-      :sticky-header="false"
-      :columns="columns"
-      :rows="pageRows"
-      row-key="key"
-      :sort="sort"
-      :empty-text="activeCount ? 'No one matches that.' : list.empty"
-      @sort="onSort"
-    >
-      <template #cell-name="{ row }">
-        <RouterLink v-if="row.driverId" :to="{ name: 'driver-detail', params: { id: row.driverId } }" class="text-brand-700 hover:underline">
-          {{ row.name }}
-        </RouterLink>
-        <span v-else>{{ row.name }}</span>
-      </template>
-      <template #footer>
-        <TablePagination :page="page" :page-size="pageSize" :total="filtered.length" @update:page="page = $event" />
-      </template>
-    </DataTable>
-  </DataWorkspace>
+  <div class="space-y-3">
+    <ListIntro :text="list.why" />
+    <DataWorkspace>
+      <FilterBar
+        v-model:search="search"
+        embedded
+        search-placeholder="Search name…"
+        :count="filtered.length"
+        count-label="people"
+        :active-count="activeCount"
+        @clear-all="clearAll"
+      >
+        <template #filters>
+          <FilterSelect v-model="show" label="Show" :options="showOptions" />
+          <FilterSelect v-model="match" label="Driver record" :options="matchOptions" />
+        </template>
+      </FilterBar>
+      <DataTable
+        embedded
+        :columns="columns"
+        :rows="pageRows"
+        row-key="key"
+        :sort="sort"
+        :empty-text="activeCount ? 'No one matches that.' : list.empty"
+        @sort="onSort"
+      >
+        <template #cell-name="{ row }">
+          <PersonCell :person="row as ProgramPerson" />
+        </template>
+        <template #footer>
+          <TablePagination :page="page" :page-size="pageSize" :total="filtered.length" @update:page="page = $event" />
+        </template>
+      </DataTable>
+    </DataWorkspace>
+  </div>
 </template>

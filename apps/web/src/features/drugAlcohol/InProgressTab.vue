@@ -47,45 +47,42 @@ const { search, page, sort, onSort, filtered, pageRows, activeCount, clearAll, p
 </script>
 
 <template>
-  <DataWorkspace>
-    <ListIntro
-      title="Tests in progress"
-      why="Ordered and not collected yet, or collected and waiting on the lab or the medical review officer. A drug result usually closes within four days of collection."
-    />
-    <FilterBar
-      v-model:search="search"
-      embedded
-      search-placeholder="Search person, stage or reason…"
-      :count="filtered.length"
-      count-label="tests in progress"
-      :active-count="activeCount"
-      @clear-all="clearAll"
-    >
-      <template #filters>
-        <FilterSelect v-model="kind" label="Test" :options="[...KIND_OPTIONS]" />
-        <FilterSelect v-model="reason" label="Reason" :options="reasonOptions" />
-        <FilterSelect v-model="stage" label="Stage" :options="stageOptions" />
-      </template>
-    </FilterBar>
-    <DataTable
-      embedded
-      dense
-      :sticky-header="false"
-      :columns="columns"
-      :rows="pageRows"
-      row-key="key"
-      :sort="sort"
-      :empty-text="activeCount ? 'No test in progress matches that.' : 'No tests are in progress.'"
-      @sort="onSort"
-    >
-      <template #cell-name="{ row }"><PersonCell :person="row.person" /></template>
-      <template #cell-test="{ row }">{{ kindText(row.kind) }}{{ row.reason ? ` · ${row.reason.toLowerCase()}` : "" }}</template>
-      <template #cell-since="{ row }">{{ row.collectedOn ? `Collected ${formatDate(row.collectedOn)}` : row.orderedOn ? `Ordered ${formatDate(row.orderedOn)}` : "—" }}</template>
-      <template #cell-expectedOn="{ row }">{{ row.expectedOn ? formatDate(row.expectedOn) : "—" }}</template>
-      <template #cell-daysWaiting="{ row }">{{ row.daysWaiting === 0 ? "today" : `${row.daysWaiting} d` }}</template>
-      <template #footer>
-        <TablePagination :page="page" :page-size="pageSize" :total="filtered.length" @update:page="page = $event" />
-      </template>
-    </DataTable>
-  </DataWorkspace>
+  <div class="space-y-3">
+    <ListIntro text="Ordered and not collected yet, or collected and waiting on the lab or the medical review officer. A drug result usually closes within four days of collection." />
+    <DataWorkspace>
+      <FilterBar
+        v-model:search="search"
+        embedded
+        search-placeholder="Search person, stage or reason…"
+        :count="filtered.length"
+        count-label="tests in progress"
+        :active-count="activeCount"
+        @clear-all="clearAll"
+      >
+        <template #filters>
+          <FilterSelect v-model="kind" label="Test" :options="[...KIND_OPTIONS]" />
+          <FilterSelect v-model="reason" label="Reason" :options="reasonOptions" />
+          <FilterSelect v-model="stage" label="Stage" :options="stageOptions" />
+        </template>
+      </FilterBar>
+      <DataTable
+        embedded
+        :columns="columns"
+        :rows="pageRows"
+        row-key="key"
+        :sort="sort"
+        :empty-text="activeCount ? 'No test in progress matches that.' : 'No tests are in progress.'"
+        @sort="onSort"
+      >
+        <template #cell-name="{ row }"><PersonCell :person="row.person" /></template>
+        <template #cell-test="{ row }">{{ kindText(row.kind) }}{{ row.reason ? ` · ${row.reason.toLowerCase()}` : "" }}</template>
+        <template #cell-since="{ row }">{{ row.collectedOn ? `Collected ${formatDate(row.collectedOn)}` : row.orderedOn ? `Ordered ${formatDate(row.orderedOn)}` : "—" }}</template>
+        <template #cell-expectedOn="{ row }">{{ row.expectedOn ? formatDate(row.expectedOn) : "—" }}</template>
+        <template #cell-daysWaiting="{ row }">{{ row.daysWaiting === 0 ? "today" : `${row.daysWaiting} d` }}</template>
+        <template #footer>
+          <TablePagination :page="page" :page-size="pageSize" :total="filtered.length" @update:page="page = $event" />
+        </template>
+      </DataTable>
+    </DataWorkspace>
+  </div>
 </template>
