@@ -1102,3 +1102,15 @@ about three merges.
     with **All** beside it. The Roadside card's figures now link to `view=all`, since each counts the whole list.
     Every decision on the page or the Shop invalidates the work read.
   - **Next:** bulk upload of officer's reports on the inbox (each filed by its report number), then IC4.
+- **2026-10-19 — IC15, bulk upload of officer's reports from the inbox.** No migration, no new route.
+  - **Matched by the file name, confirmed by a person** (`reportFileMatch.ts`): a filed document is frozen (0146),
+    so "read the paper, then choose its inspection" would mean re-filing. A name matches only a WHOLE word that is
+    the report number, or state + number — measured: all 1,387 of ours are ten characters, many all digits, so a
+    phone's `IMG_20261014123456` would match by substring — and only when one inspection matches. The reader's
+    check (IC10 `report_number_mismatch`) still flags a paper that is another inspection's.
+  - **The drawer** (`BulkReportUploadDrawer.vue`, "Upload officer's reports" on the inbox, safety manage only):
+    each file proposed its inspection or left to a choice listing those waiting for their report first
+    (`awaitsReport`, new on the work line, from the Next steps rule). "File N reports" files only the rows with an
+    inspection, one at a time through the Documents card's own upload; a failure is said on its row and the rest
+    go on. Choices cover the whole record, read once the drawer opens.
+  - **Next:** IC4 — court results (R-ADJ1) as next steps, then cases and the DataQs hand-off.

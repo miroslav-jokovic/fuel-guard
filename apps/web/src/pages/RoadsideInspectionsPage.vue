@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, watch } from "vue";
+import { computed, ref, watch } from "vue";
 import { useRouter } from "vue-router";
 import {
   AppButton as BaseButton,
@@ -14,7 +14,9 @@ import {
   TablePagination,
   sortRows,
   AppTabs,
+  AppIcon,
 } from "@silvicom/ui";
+import { ArrowUpTrayIcon } from "@silvicom/ui/icons";
 import {
   ROADSIDE_OOS_KINDS,
   ROADSIDE_PERIODS,
@@ -31,6 +33,8 @@ import PageHeader from "@/components/ui/PageHeader.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
 import { useRoadsideInspectionsQuery, useRoadsideSummaryQuery, useRoadsideWorkQuery } from "@/features/roadside/useRoadsideInspections";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
+import BulkReportUploadDrawer from "@/features/roadside/BulkReportUploadDrawer.vue";
+import { useSessionStore } from "@/stores/session";
 import { roadsideFeedSentence } from "@/features/roadside/feedFreshness";
 import { useOrgTimezone } from "@/composables/useOrgTimezone";
 import { formatDate } from "@/lib/format";
@@ -82,6 +86,14 @@ const inspections = useRoadsideInspectionsQuery(from);
 // How current FMCSA's record is (IC1c) — the card's own read, so the two never disagree about it.
 const { data: summary } = useRoadsideSummaryQuery();
 const work = useRoadsideWorkQuery(from);
+// Filing needs the safety section's manage level, which the API checks; the button only follows it.
+const session = useSessionStore();
+const canFile = computed(() => session.can("safety"));
+const uploading = ref(false);
+// The upload's choices: the whole record, read only once the drawer is opened (until then the same key as the
+// list, so no second read). "Waiting for its report" is known for the period shown; the rest list after it.
+const allFrom = computed(() => (uploading.value ? null : from.value));
+const allInspections = useRoadsideInspectionsQuery(allFrom);
 const workOf = computed(() => new Map((work.data.value ?? []).map((w) => [w.id, w])));
 const freshness = computed(() => (summary.value ? roadsideFeedSentence(summary.value.feed, zone.value) : null));
 
@@ -168,7 +180,15 @@ const openInspection = (row: Row) => void router.push({ name: "roadside-inspecti
 
 <template>
   <div class="space-y-6">
-    <PageHeader description="Every roadside inspection on our FMCSA record, newest first. From FMCSA's public data, refreshed daily." />
+    <PageHeader description="Every roadside inspection on our FMCSA record. From FMCSA's public data, refreshed when FMCSA publishes.">
+      <template v-if="canFile" #actions>
+        <BaseButton variant="primary" data-test="bulk-open" @click="uploading = true">
+          <AppIcon :icon="ArrowUpTrayIcon" class="-ml-0.5 size-5" aria-hidden="true" /> Upload officer's reports
+        </BaseButton>
+      </template>
+    </PageHeader>
+    <!-- The whole record, not the period shown: a report may be for an inspection outside the filter. -->
+    <BulkReportUploadDrawer :open="uploading" :inspections="allInspections.data.value ?? []" :work="workOf" @close="uploading = false" />
     <AppCallout v-if="freshness?.late" tone="caution" data-test="feed">{{ freshness.text }}</AppCallout>
     <p v-else-if="freshness" class="-mt-3 text-xs text-ink-tertiary" data-test="feed">{{ freshness.text }}</p>
 
