@@ -11,7 +11,7 @@
  * The board renders each with `load: null` and says nothing about it.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { ON_TRUCK_CANDIDATE_STATUSES, boardStops, compareLoadsOnTruck, isLoadOnTruck, isStopBehindTruck, nextStopOnRoute } from "@silvicom/shared";
+import { ON_TRUCK_CANDIDATE_STATUSES, boardStops, compareLoadsOnTruck, isLoadOnTruck, isStopBehindTruck, nextStopOnRoute, type TrailerOnLoad } from "@silvicom/shared";
 import { chunks } from "../../lib/paging.js";
 
 /** A stop still to be worked, in the shape the board hands to the map. */
@@ -276,4 +276,29 @@ export async function readTruckLoadTrailer(
   }[];
   const current = rows.filter(isLoadOnTruck).sort(compareLoadsOnTruck)[0];
   return current ? { loadId: current.id, trailerIsReefer: Boolean(current.trailers?.is_reefer) } : null;
+}
+
+/**
+ * Every trailer on a load a truck is hauling now, with its truck and load (TRAILER-LINK-PLAN TL4): the
+ * McLeod half of the Trailers page's "which trailer is on which truck". One load per truck, chosen by the
+ * map's rule, so the page names the load the board names. Org-scoped.
+ */
+export async function readTrailersOnLoads(admin: SupabaseClient, orgId: string): Promise<TrailerOnLoad[]> {
+  const { data, error } = await admin
+    .from("loads")
+    .select("id, vehicle_id, trailer_id, ref, status, source")
+    .eq("org_id", orgId)
+    .in("status", [...ON_TRUCK_CANDIDATE_STATUSES])
+    .not("vehicle_id", "is", null)
+    .limit(PAGE_CAP);
+  if (error) throw new Error(error.message);
+  const rows = ((data ?? []) as unknown as (LoadRow & { trailer_id: string | null })[]).filter(isLoadOnTruck).sort(compareLoadsOnTruck);
+  const seen = new Set<string>();
+  const out: TrailerOnLoad[] = [];
+  for (const l of rows) {
+    if (seen.has(l.vehicle_id!)) continue;
+    seen.add(l.vehicle_id!);
+    if (l.trailer_id) out.push({ trailerId: l.trailer_id, vehicleId: l.vehicle_id!, loadId: l.id, ref: l.ref });
+  }
+  return out;
 }

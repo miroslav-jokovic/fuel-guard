@@ -146,7 +146,11 @@ export async function syncTrailersFromSamsara(
         const vehId = vehById.get(link.vehicleSamsaraId);
         // A manual pairing is authoritative — never overwrite it with the Samsara-assignment feed.
         if (tr && tr.source !== "manual" && vehId) {
-          await admin.from("trailers").update({ assigned_vehicle_id: vehId, pairing_source: "samsara", pairing_confidence: null }).eq("id", tr.id).eq("org_id", orgId);
+          await admin
+            .from("trailers")
+            .update({ assigned_vehicle_id: vehId, pairing_source: "samsara", pairing_confidence: null, pairing_confirmed_at: new Date().toISOString() })
+            .eq("id", tr.id)
+            .eq("org_id", orgId);
           result.paired++;
         }
       }

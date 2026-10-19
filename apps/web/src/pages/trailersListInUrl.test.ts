@@ -24,6 +24,7 @@ const rows = [
   trailer(90, { status: "retired", is_reefer: false, trailer_type: "dry_van" }),
 ];
 
+vi.mock("@/composables/useTrailerLink", () => ({ useTrailersOnLoadsQuery: () => ({ byTrailerId: { value: new Map() } }) }));
 vi.mock("@/composables/useTrailers", () => {
   const idle = () => ({ mutateAsync: vi.fn(), isPending: ref(false) });
   return {

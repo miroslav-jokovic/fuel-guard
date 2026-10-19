@@ -13,6 +13,7 @@ import GatedLink from "@/components/GatedLink.vue";
 import { useReeferCoverage } from "@/features/fuel/useReeferCoverage";
 import { useVehiclesQuery } from "@/composables/useVehicles";
 import { useTrailersQuery } from "@/composables/useTrailers";
+import { gpsPairingNote } from "@/lib/trailerPairingNote";
 import { useDriversQuery } from "@/composables/useDrivers";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
 import PageHeader from "@/components/ui/PageHeader.vue";
@@ -36,21 +37,23 @@ const activeAll = computed(() => (data.value?.perTruck ?? []).filter((t) => t.re
  * trailer, and flags the ambiguous case (2+ reefers) where fuel can't be attributed to one trailer.
  */
 const reefersByVehicle = computed(() => {
-  const map = new Map<string, { unit_number: string; reefer_tank_capacity_gal: number }[]>();
+  const map = new Map<string, { unit_number: string; reefer_tank_capacity_gal: number; note: string | null }[]>();
   for (const tr of trailers.value ?? []) {
     if (!tr.is_reefer || tr.status === "retired" || !tr.assigned_vehicle_id) continue;
     const list = map.get(tr.assigned_vehicle_id) ?? [];
-    list.push({ unit_number: tr.unit_number, reefer_tank_capacity_gal: Number(tr.reefer_tank_capacity_gal) });
+    list.push({ unit_number: tr.unit_number, reefer_tank_capacity_gal: Number(tr.reefer_tank_capacity_gal), note: gpsPairingNote(tr) });
     map.set(tr.assigned_vehicle_id, list);
   }
   return map;
 });
 
 /** Trailer identity cell: the paired reefer's unit #, "unpaired" when none, or ambiguous when 2+. */
-function trailerFor(vehicleId: string): { text: string; tone: string; title: string } {
+function trailerFor(vehicleId: string): { text: string; tone: string; title: string; note?: string | null } {
   const list = reefersByVehicle.value.get(vehicleId) ?? [];
   if (list.length === 0) return { text: "unpaired", tone: "text-warning-600", title: "No reefer trailer is assigned to this truck in the fleet list." };
-  if (list.length === 1) return { text: list[0]!.unit_number, tone: "text-ink font-medium", title: "Reefer trailer currently paired to this truck." };
+  // The pairing's age is shown, not hidden (TRAILER-LINK-PLAN TL4): it is what the GPS last saw, and on
+  // 2026-10-19 that was two months ago.
+  if (list.length === 1) return { text: list[0]!.unit_number, tone: "text-ink font-medium", title: "Reefer trailer currently paired to this truck.", note: list[0]!.note };
   return {
     text: list.map((t) => t.unit_number).join(", "),
     tone: "text-warning-600 font-medium",
@@ -189,6 +192,7 @@ const columns: DataTableColumn[] = [
       <template #cell-vehicleId="{ row }">{{ unit(row.vehicleId) }}</template>
       <template #cell-trailer="{ row }">
         <span :class="trailerFor(row.vehicleId).tone" :title="trailerFor(row.vehicleId).title">{{ trailerFor(row.vehicleId).text }}</span>
+        <span v-if="trailerFor(row.vehicleId).note" class="block text-xs text-ink-tertiary">{{ trailerFor(row.vehicleId).note }}</span>
       </template>
       <template #cell-tankCap="{ row }">{{ tankCapFor(row.vehicleId) != null ? tankCapFor(row.vehicleId) + " gal" : "—" }}</template>
       <template #cell-reeferGal="{ value }">{{ value.toLocaleString() }}</template>

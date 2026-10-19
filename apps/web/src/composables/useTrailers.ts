@@ -6,11 +6,11 @@
  * feature that needs a trailer list next.
  */
 import { useQuery, useMutation, useQueryClient } from "@tanstack/vue-query";
-import type { Trailer, TrailerInput } from "@silvicom/shared";
+import type { Trailer, TrailerWrite } from "@silvicom/shared";
 import { supabase } from "@/lib/supabase";
 
 const COLS =
-  "id, org_id, unit_number, make, model, year, plate, trailer_type, cargo_capacity_gal, cargo_compartments, is_reefer, reefer_tank_capacity_gal, status, assigned_vehicle_id, samsara_asset_id, created_at, updated_at, dot_annual_inspection_expires_at, mcleod_trailer_id, identity_source";
+  "id, org_id, unit_number, make, model, year, plate, trailer_type, cargo_capacity_gal, cargo_compartments, is_reefer, reefer_tank_capacity_gal, status, assigned_vehicle_id, samsara_asset_id, created_at, updated_at, dot_annual_inspection_expires_at, mcleod_trailer_id, identity_source, pairing_source, pairing_confirmed_at";
 
 const trailersKey = ["trailers"] as const;
 
@@ -32,7 +32,7 @@ export function useTrailersQuery() {
 export function useCreateTrailer() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (input: TrailerInput): Promise<Trailer> => {
+    mutationFn: async (input: TrailerWrite): Promise<Trailer> => {
       const { data, error } = await supabase.from("trailers").insert(input).select(COLS).single();
       if (error) throw new Error(error.message);
       return data as Trailer;
@@ -44,7 +44,7 @@ export function useCreateTrailer() {
 export function useUpdateTrailer() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (payload: { id: string; input: TrailerInput }): Promise<Trailer> => {
+    mutationFn: async (payload: { id: string; input: TrailerWrite }): Promise<Trailer> => {
       const { data, error } = await supabase
         .from("trailers")
         .update(payload.input)

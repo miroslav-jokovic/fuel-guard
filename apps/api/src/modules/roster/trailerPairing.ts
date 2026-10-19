@@ -15,7 +15,13 @@ export async function recordInferredTrailerPairing(
 ): Promise<boolean> {
   const { data } = await admin
     .from("trailers")
-    .update({ assigned_vehicle_id: match.vehicleId, pairing_source: "inferred", pairing_confidence: match.confidence })
+    .update({
+      assigned_vehicle_id: match.vehicleId,
+      pairing_source: "inferred",
+      pairing_confidence: match.confidence,
+      // Found again today, so true today (0488): the daily run keeps a pairing it still sees fresh.
+      pairing_confirmed_at: new Date().toISOString(),
+    })
     .eq("id", trailerId)
     .eq("org_id", orgId)
     // NULL-safe: an unpaired trailer has pairing_source NULL, and `neq` alone would drop it.

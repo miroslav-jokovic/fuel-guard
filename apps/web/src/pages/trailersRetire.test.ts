@@ -10,6 +10,7 @@ import { answerConfirm } from "@silvicom/ui/testing";
  * the question names the unit, the button says "Retire" in red, and a "no" retires nothing.
  */
 const retire = vi.hoisted(() => vi.fn(async (_id: string) => ({})));
+vi.mock("@/composables/useTrailerLink", () => ({ useTrailersOnLoadsQuery: () => ({ byTrailerId: { value: new Map() } }) }));
 vi.mock("@/composables/useTrailers", () => {
   const idle = () => ({ mutateAsync: vi.fn(), isPending: ref(false) });
   const row = {
