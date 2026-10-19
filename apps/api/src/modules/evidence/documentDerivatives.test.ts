@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, it, expect } from "vitest";
 import sharp from "sharp";
+import PDFDocument from "pdfkit";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { deriveBytes, deriveDocument } from "./documentDerivatives.js";
 import { DERIVATIVE_SPECS } from "@silvicom/shared";
@@ -52,6 +53,36 @@ function makeStub(originalRow: Record<string, unknown> | null, originalBytes: Bu
     },
   } as unknown as SupabaseClient;
   return { admin, inserted, uploaded };
+}
+
+/**
+ * A two-page Letter PDF: page 1 has its LEFT half inked, page 2 is blank paper. So a thumb whose left
+ * half is dark is page 1 and nothing else — and a white thumb is the silent failure (a pdf.js decoder
+ * that never started) that `lib/pdfRaster.ts` exists to rule out.
+ */
+async function twoPagePdf(opts: { userPassword?: string } = {}): Promise<Buffer> {
+  const doc = new PDFDocument({ size: "LETTER", margin: 0, ...opts });
+  const chunks: Buffer[] = [];
+  doc.on("data", (c: Buffer) => chunks.push(c));
+  const done = new Promise<Buffer>((resolve) => doc.on("end", () => resolve(Buffer.concat(chunks))));
+  doc.rect(0, 0, 306, 792).fill("#000000");
+  doc.addPage();
+  doc.end();
+  return done;
+}
+
+/** Mean luminance (0 dark … 255 white) of the left and right halves of an image. */
+async function halves(bytes: Buffer): Promise<{ left: number; right: number; width: number; height: number }> {
+  const { data, info } = await sharp(bytes).greyscale().raw().toBuffer({ resolveWithObject: true });
+  let left = 0, right = 0;
+  for (let y = 0; y < info.height; y++) {
+    for (let x = 0; x < info.width; x++) {
+      const v = data[y * info.width + x]!;
+      if (x < info.width / 2) left += v; else right += v;
+    }
+  }
+  const n = (info.width * info.height) / 2;
+  return { left: left / n, right: right / n, width: info.width, height: info.height };
 }
 
 const ROW = {
@@ -108,9 +139,16 @@ describe("deriveDocument (B2)", () => {
     expect(inserted[0]!.variant).toBe("normalized");
   });
 
-  it("skips PDFs and derivatives-of-derivatives without error", async () => {
-    const pdf = { ...ROW, content_type: "application/pdf" };
-    expect(await deriveDocument(makeStub(pdf, null).admin, ORG, DOC)).toEqual({ created: 0, skipped: "content type not derivable" });
+  it("gives a PDF exactly one derivative, a thumb of page 1, and no normalized raster (D-UF10)", async () => {
+    const pdf = { ...ROW, content_type: "application/pdf", storage_path: `p/${DOC}.pdf` };
+    const { admin, inserted, uploaded } = makeStub(pdf, await twoPagePdf());
+    expect(await deriveDocument(admin, ORG, DOC)).toEqual({ created: 1, skipped: null });
+    expect(inserted.map((i) => i.variant)).toEqual(["thumb"]);
+    expect(inserted[0]!.content_type).toBe("image/webp");
+    expect(uploaded[0]!.path).toContain(".thumb.");
+  });
+
+  it("skips derivatives-of-derivatives without error", async () => {
     const thumb = { ...ROW, variant: "thumb" };
     expect(await deriveDocument(makeStub(thumb, null).admin, ORG, DOC)).toEqual({ created: 0, skipped: "not an original" });
   });
@@ -135,6 +173,27 @@ describe("deriveBytes", () => {
     const out = await deriveBytes(withExif, DERIVATIVE_SPECS.find((s) => s.variant === "normalized")!);
     const meta = await sharp(out).metadata();
     expect(meta.height).toBeGreaterThan(meta.width!);
+  });
+});
+
+describe("deriveBytes — PDF page 1 (D-UF10)", () => {
+  const thumbSpec = () => DERIVATIVE_SPECS.find((s) => s.variant === "thumb")!;
+
+  it("paints page 1 of a PDF into a thumb the spec's size, with its ink where the page has it", async () => {
+    const out = await deriveBytes(await twoPagePdf(), thumbSpec(), "application/pdf");
+    expect((await sharp(out).metadata()).format).toBe("webp");
+    const h = await halves(out);
+    // Letter is portrait: the long edge is the height, bounded to the thumb's 320.
+    expect(h.height).toBe(thumbSpec().longEdgePx);
+    expect(h.width).toBeLessThan(h.height);
+    // Page 1's left half is inked and its right half is paper — page 2 (blank) would read white.
+    expect(h.left).toBeLessThan(40);
+    expect(h.right).toBeGreaterThan(215);
+  });
+
+  it("fails loudly on a PDF that needs a password to open rather than filing a blank thumb", async () => {
+    await expect(deriveBytes(await twoPagePdf({ userPassword: "secret" }), thumbSpec(), "application/pdf"))
+      .rejects.toThrow(/encrypted_pdf/);
   });
 });
 

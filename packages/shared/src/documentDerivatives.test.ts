@@ -58,9 +58,9 @@ describe("shouldDerive", () => {
     }
   });
 
-  it("does NOT derive from a PDF — the browser's own viewer previews those (D-DQ9)", () => {
-    expect(shouldDerive("application/pdf")).toBe(false);
-    expect(derivativesFor("application/pdf")).toEqual([]);
+  it("gives a PDF a thumb and nothing else — the browser's own viewer still shows the PDF (D-UF10)", () => {
+    expect(shouldDerive("application/pdf")).toBe(true);
+    expect(derivativesFor("application/pdf").map((s) => s.variant)).toEqual(["thumb"]);
   });
 
   it("includes HEIC, because the column admits it — decode capability is a deploy question, not a policy one", () => {
