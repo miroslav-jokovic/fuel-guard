@@ -150,5 +150,8 @@ describe("identification numbers — every load of up to three lines", () => {
     }
     expect(loads.length).toBe(20 + 400 + 8000);
     expect(checkedWithIds).toBeGreaterThan(5000);
-  });
+    // 8,420 evaluations: 0.4 s on a laptop, 5.4–5.6 s on a CI runner running every workspace at once.
+    // vitest's 5 s default failed every PR opened after #1639 merged (2026-10-19) while main's own run
+    // passed by luck. The sweep is the point, so it gets a budget rather than fewer loads.
+  }, 30_000);
 });
