@@ -43,6 +43,15 @@ describe("paper_rq — \"RQ\" when a package holds the reportable quantity (§17
     expect(r.outcome).toBe("cannot_tell");
     expect(r.reason).toBe("quantity_not_by_mass");
   });
+  it("says a volume only for a volume: every unit the reader can give, gallons and litres by volume, none as not shown", () => {
+    const reasonFor = (unit: "gal" | "L" | null) =>
+      result({ lines: [[benzene({ quantity: { value: unit ? 55 : null, unit }, grossWeightLb: 2088 }), benzeneRes({ quantityUnit: unit })]] }, "paper_rq").reason;
+    expect(reasonFor("gal")).toBe("quantity_not_by_mass");
+    expect(reasonFor("L")).toBe("quantity_not_by_mass");
+    // Production read 76979453 (2026-10-19): UN3266 printed only a gross weight, and the BOL was said to give
+    // "the amount by volume".
+    expect(reasonFor(null)).toBe("package_quantity_unknown");
+  });
   it("cannot tell a mixture whose technical name is listed when the package exceeds the component's RQ", () => {
     const fl = pline({ idText: "UN1993", psn: "Flammable liquids, n.o.s.", technicalName: "Benzene", pg: "II", quantity: { value: 400, unit: "lb" } });
     const r = result({ lines: [[fl, rline(ok("UN1993-flammable-liquids-n-o-s", "II"), { quantityUnit: "lb" })]] }, "paper_rq");

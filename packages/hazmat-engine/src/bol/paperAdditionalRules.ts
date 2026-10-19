@@ -26,7 +26,12 @@ type Substance = { name?: string; nameNormalized: string; rqPounds?: number; rqK
 /** Per-package quantity by mass, in the unit printed — or why it cannot be had. Never converts. */
 function perPackageMass(ctx: LineCtx): { value: number; unit: "lb" | "kg" } | { reason: string } {
   const unit = ctx.resolved.quantityUnit;
-  if (unit !== "lb" && unit !== "kg") return { reason: "quantity_not_by_mass" };
+  // Only a printed volume is "by volume". No unit — no net quantity printed, or a unit the reader could not
+  // name — said "the BOL gives the amount by volume" on every line that prints only a gross weight
+  // (production read 76979453, UN3266, 2026-10-19); the honest answer there is that the package's
+  // content is not shown.
+  if (unit === "gal" || unit === "L") return { reason: "quantity_not_by_mass" };
+  if (unit !== "lb" && unit !== "kg") return { reason: "package_quantity_unknown" };
   const { value } = ctx.printed.quantity;
   const count = ctx.printed.packageCount;
   if (value == null || count == null || count < 1) return { reason: "package_quantity_unknown" };

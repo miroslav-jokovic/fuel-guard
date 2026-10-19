@@ -147,7 +147,13 @@ export function leafFieldPaths(doc: unknown, prefix: Segment[] = []): string[] {
  */
 export function normalisedForAgreement(v: unknown): unknown {
   if (typeof v === "string") {
-    return v.trim().replace(/\s+/g, " ").toUpperCase().replace(/(\d),(\d{3})(?!\d)/g, "$1$2")
+    // Spacing around punctuation and line breaks (production read 76979453, 2026-10-19): both readers read
+    // every character of three hazmat descriptions alike, but one wrote "CORROSIVE LIQUID , N.O.S." with a
+    // space before the comma, and the audit could check none of the three lines; three addresses were broken
+    // across lines by one reader where the other wrote ", ". So a space before , . ; : ) or after ( is not a
+    // difference, and a line break (with or without a comma before it) reads as ", ". Every letter, digit and
+    // punctuation mark still counts (`agreement.property.test.ts`, over every table name).
+    return v.trim().replace(/[ \t]*,?[ \t]*(?:\r?\n[ \t]*)+/g, ", ").replace(/\s+/g, " ").replace(/ (?=[,.;:)])|(?<=\() /g, "").toUpperCase().replace(/(\d),(\d{3})(?!\d)/g, "$1$2")
       .replace(/(?<![\d.])(\d+)\.(\d+)(?![\d]|\.\d)/g, (_, int: string, frac: string) => {
         const f = frac.replace(/0+$/, "");
         return f ? `${int}.${f}` : int;
