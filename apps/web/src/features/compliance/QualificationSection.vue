@@ -162,7 +162,9 @@ const toRow = (i: DqFileItem): Row => {
     expiryUnknown: i.expiryUnknown,
     documentId: i.documentId,
     documentUrl: doc?.url ?? null,
-    documentThumbUrl: doc?.thumbUrl ?? doc?.url ?? null,
+    // An image falls back to its original until the derive job runs; a PDF never does — an <img> of a
+    // PDF is a broken picture — so a PDF shows its page-1 thumb once it exists (D-UF10), else "View".
+    documentThumbUrl: doc?.thumbUrl ?? (doc?.contentType.startsWith("image/") ? doc.url : null) ?? null,
     documentIsImage: doc?.contentType.startsWith("image/") ?? false,
     // "restricted from THIS reader", not "restricted in general" — after auth.ts's split a
     // recruiter may read a previous-employer response while a dispatcher may not, so the flag

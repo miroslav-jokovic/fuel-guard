@@ -715,3 +715,10 @@ around them.
   paper-only (`EQUIPMENT_PAPER_ONLY_KINDS`), so a title certification is refused. Matrix
   `unit-file-kinds.test.mjs` (13): both CHECKs equal the shared lists, every kind valid before stays
   valid (read from 0127 and 0484), both lists still closed.
+- 2026-10-19 — **UF3 built** (`claude/uf3-pdf-thumbs`). pdf.js configuration and page painting promoted
+  from `document-reading/pages/pdf.ts` to `apps/api/src/lib/pdfRaster.ts` (module isolation: evidence may
+  not reach into document-reading; promote, don't allow-list). `derivativesFor("application/pdf")` = thumb
+  only; `DERIVATIVE_VERSION` 1.1.0 (minor: a variant added for a type, old ones valid). The DQ table shows a
+  PDF's thumb once derived, "View" before. B8's never-written backfill is now
+  `pnpm --filter @silvicom/api doc:derive-backfill -- --org <uuid> [--apply]` (dry run by default).
+  Production 2026-10-19: **96 PDF originals, 0 with a thumb** — the `--apply` run waits on the owner's go.

@@ -148,7 +148,7 @@ describe("GET /api/roadside-inspections/:id/documents", () => {
 });
 
 describe("POST /api/roadside-inspections/:id/documents", () => {
-  it("files the document against the inspection, signs its upload, audits it, and queues no thumbnail for a PDF", async () => {
+  it("files the document against the inspection, signs its upload, audits it, and queues a page-one thumbnail for a PDF", async () => {
     const res = await send("POST", `/${INSP}/documents`, register());
     expect(res.status).toBe(201);
     const path = `${ORG}/roadside_inspection/${INSP}/${NEW_DOC}.pdf`;
@@ -162,7 +162,8 @@ describe("POST /api/roadside-inspections/:id/documents", () => {
     expect(rec.writtenRows("audit_logs")).toEqual([
       expect.objectContaining({ action: "roadside.document_registered", entity_id: INSP }),
     ]);
-    expect(dispatched).toEqual([]);
+    // Since UNIT-FILES-PLAN D-UF10 a PDF is owed a page-1 thumb like a photo is owed its two sizes.
+    expect(dispatched).toEqual([{ kind: "document_derive", opts: expect.objectContaining({ payload: { documentId: NEW_DOC } }) }]);
     expectOrgScoped(rec, ORG);
   });
 

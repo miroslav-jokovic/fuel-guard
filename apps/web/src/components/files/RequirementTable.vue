@@ -27,7 +27,10 @@ export interface RequirementRow {
   expiryUnknown: boolean;
   documentId: string | null;
   documentUrl: string | null;
-  /** The 40 KB derivative for the cell (B4); falls back to the original until the derive job runs. */
+  /**
+   * The 40 KB derivative for the cell (B4). An image falls back to its original until the derive job
+   * runs; a PDF has one only once its page-1 thumb is derived (D-UF10), and shows "View" until then.
+   */
   documentThumbUrl: string | null;
   documentIsImage: boolean;
   /** Phase G (D-DQ15): state visible to everyone; evidence and capture hidden when THIS reader
@@ -110,7 +113,7 @@ const columns: DataTableColumn[] = [
       <!-- The cell loads the 40 KB thumb, never the original (B4); clicking opens the viewer (B6),
            which is where the legible `normalized` variant loads. -->
       <BaseButton
-        v-else-if="row.documentUrl && row.documentIsImage"
+        v-else-if="row.documentUrl && row.documentThumbUrl"
         variant="ghost"
         class="inline-block p-0"
         :aria-label="`View scan for ${row.label}`"

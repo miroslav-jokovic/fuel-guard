@@ -73,27 +73,37 @@ export const DERIVATIVE_SPECS: readonly DerivativeSpec[] = [
 /**
  * Which uploads can be derived from.
  *
- * PDFs are absent deliberately (D-DQ9): they preview in the browser's own viewer, and rasterising
- * page 1 server-side would mean a rasteriser in the API container for a thumbnail. HEIC is present
- * because `documents.content_type` admits it — whether the deployed `sharp` build actually decodes
- * it is a DEPLOYMENT question (plan step A3), not a policy one, and the service must fail loudly
- * rather than this list quietly lying about intent.
+ * HEIC is present because `documents.content_type` admits it — whether the deployed `sharp` build
+ * actually decodes it is a DEPLOYMENT question (plan step A3), not a policy one, and the service must
+ * fail loudly rather than this list quietly lying about intent.
+ *
+ * PDFs joined on 2026-10-19 (UNIT-FILES-PLAN D-UF10). D-DQ9 had kept them out because a thumbnail
+ * would have meant a rasteriser in the API container; since 2026-10-09 the API carries one for the
+ * document reader (pdf.js on `@napi-rs/canvas`, `lib/pdfRaster.ts`), so that cost is already paid. A
+ * PDF gets the THUMB only — page 1, for a table cell. D-DQ9's other half stands: a PDF is still
+ * VIEWED in the browser's own viewer on the signed original, so a `normalized` raster of it would be
+ * a 2000 px picture of one page standing in for a document with several.
  */
 export const DERIVABLE_CONTENT_TYPES: readonly DocumentContentType[] = [
   "image/jpeg",
   "image/png",
   "image/webp",
   "image/heic",
+  "application/pdf",
 ] as const;
 
-/** True when this upload should get derivatives. PDFs → false, and that is not a gap. */
+/** True when this upload should get derivatives. */
 export function shouldDerive(contentType: DocumentContentType): boolean {
   return DERIVABLE_CONTENT_TYPES.includes(contentType);
 }
 
-/** The specs to run for one upload — empty for anything not derivable, so callers can loop blindly. */
+/**
+ * The specs to run for one upload — empty for anything not derivable, so callers can loop blindly.
+ * A PDF gets the thumb alone (D-UF10); an image gets every spec.
+ */
 export function derivativesFor(contentType: DocumentContentType): readonly DerivativeSpec[] {
-  return shouldDerive(contentType) ? DERIVATIVE_SPECS : [];
+  if (!shouldDerive(contentType)) return [];
+  return contentType === "application/pdf" ? DERIVATIVE_SPECS.filter((s) => s.variant === "thumb") : DERIVATIVE_SPECS;
 }
 
 /**
@@ -117,7 +127,7 @@ export function derivativeFingerprint(): string {
  * MINOR when a variant is added and old ones stay valid. The pinning test tells you which case you
  * are in by failing.
  */
-export const DERIVATIVE_VERSION = "1.0.0";
+export const DERIVATIVE_VERSION = "1.1.0";
 
 /**
  * The Storage key for a derivative.

@@ -1,24 +1,18 @@
-import { createRequire } from "node:module";
-import { dirname, join } from "node:path";
-import { createCanvas } from "@napi-rs/canvas";
-import sharp from "sharp";
 import { INTAKE_LIMITS, type IntakeRefusalCode } from "@silvicom/shared";
-import { getDocument, OPS, PasswordException, type PDFDocumentProxy, type PDFPageProxy } from "pdfjs-dist/legacy/build/pdf.mjs";
+import { OPS, type PDFPageProxy } from "pdfjs-dist/legacy/build/pdf.mjs";
 import type { TextItem } from "pdfjs-dist/types/src/display/api.js";
+import { openPdf, paintPdfPage } from "../../../lib/pdfRaster.js";
 import { toCanonicalPage, type CanonicalPage } from "./canonical.js";
 import { textLayerOf, type TextRun } from "./textLayer.js";
 
 /**
  * PDF → canonical pages (D-DR3, §3's rasteriser choice, recorded by Step 1.3 on 2026-10-09).
  *
- * pdf.js (`pdfjs-dist`, Apache-2.0 — already the web app's PDF viewer) parses and paints; it paints
- * onto `@napi-rs/canvas` (MIT; Skia, prebuilt per platform, no node-gyp), which pdf.js itself names
- * as its Node canvas. It is a DIRECT, statically imported dependency of the api although pdf.js lists
- * it as optional: pdf.js probes for it at run time and, without it, fails only when a page is
- * painted; imported here, a host missing its platform's binary fails when this module loads, not
- * on the first PDF a driver sends. MuPDF's WASM build was ruled out on licence (AGPL, a hosted
- * service); poppler would need a system package added to the Nixpacks image. The PDF itself is
- * never sent to a model (D-DR3): the model sees exactly the raster the ledger crops.
+ * pdf.js parses and paints onto `@napi-rs/canvas`; how it is configured — fonts, the WASM decoders a
+ * scanned PDF needs — lives in `lib/pdfRaster.ts`, promoted there when the evidence module's
+ * thumbnails needed a page painted too (UNIT-FILES-PLAN UF3). MuPDF's WASM build was ruled out on
+ * licence (AGPL, a hosted service); poppler would need a system package added to the Nixpacks image.
+ * The PDF itself is never sent to a model (D-DR3): the model sees exactly the raster the ledger crops.
  */
 
 /** §3: "rasterise each page at 300 DPI". A PDF's unit is the point, 72 to the inch. */
@@ -31,53 +25,7 @@ export const PDF_RENDER_DPI = 300;
  */
 export const MAX_RASTER_LONG_EDGE_PX = 6000;
 
-const require = createRequire(import.meta.url);
-/**
- * The fonts pdf.js substitutes for the 14 standard PDF fonts, which born-digital BOLs use unembedded
- * (Helvetica, Courier). Without them pdf.js falls back to whatever the host has — a different
- * raster on a laptop and on Railway, which would break the byte-identical promise and the cache key.
- * `useSystemFonts: false` closes the same door from the other side.
- */
-const PDFJS_ROOT = join(dirname(require.resolve("pdfjs-dist/legacy/build/pdf.mjs")), "../../");
-const STANDARD_FONTS = join(PDFJS_ROOT, "standard_fonts/");
-/**
- * pdf.js 6 decodes CCITT fax (`CCITTFaxDecode`) and JBIG2 through `jbig2.wasm`, JPEG 2000 through
- * `openjpeg.wasm`, and ICC-based colour through `qcms_bg.wasm` — all shipped in `pdfjs-dist/wasm/`
- * and found ONLY through `wasmUrl`. Without it the decoder fails to start, pdf.js logs a warning
- * (silenced by `verbosity: 0`), skips the image, and the page renders as clean white paper: no
- * refusal, no error, a "page" the reader would then read as empty. Measured 2026-10-10 on all ten
- * office BOL samples — every one a scanned CCITT G4 PDF, the format a copier's scan-to-PDF and a
- * fax gateway both write — and pinned by "renders a scanned CCITT G4 PDF — the copier and fax
- * gateway format — with its ink on the page".
- */
-const PDFJS_WASM = join(PDFJS_ROOT, "wasm/");
-const PDFJS_ICC = join(PDFJS_ROOT, "iccs/");
-
 type PdfOutcome = { ok: true; pages: CanonicalPage[] } | { ok: false; code: IntakeRefusalCode };
-
-type Opened = { ok: true; doc: PDFDocumentProxy; close: () => Promise<void> } | { ok: false; code: IntakeRefusalCode };
-
-async function open(bytes: Buffer): Promise<Opened> {
-  const task = getDocument({
-    // pdf.js transfers (detaches) the buffer it is given; copy so the caller's bytes stay intact.
-    data: new Uint8Array(bytes),
-    standardFontDataUrl: STANDARD_FONTS,
-    wasmUrl: PDFJS_WASM,
-    iccUrl: PDFJS_ICC,
-    useSystemFonts: false,
-    verbosity: 0,
-  });
-  try {
-    return { ok: true, doc: await task.promise, close: () => task.destroy() };
-  } catch (e) {
-    await task.destroy();
-    // Only a PDF that needs a password to OPEN is refused as encrypted. One encrypted with an owner
-    // password alone (print/copy permissions — e-BOL systems emit these) opens and renders with no
-    // password, so it is not "password-protected" in the sense the sender's sentence means.
-    if (e instanceof PasswordException) return { ok: false, code: "encrypted_pdf" };
-    return { ok: false, code: "decode_failed" };
-  }
-}
 
 type GlyphWidths = Map<string, Map<string, number>>;
 
@@ -130,28 +78,7 @@ async function renderPage(page: PDFPageProxy, pageNumber: number): Promise<Canon
   const longEdgeIn = Math.max(unit.width, unit.height) / 72;
   const dpi = Math.min(PDF_RENDER_DPI, Math.floor(MAX_RASTER_LONG_EDGE_PX / longEdgeIn));
   const viewport = page.getViewport({ scale: dpi / 72 });
-  const width = Math.round(viewport.width);
-  const height = Math.round(viewport.height);
-
-  const canvas = createCanvas(width, height);
-  const ctx = canvas.getContext("2d");
-  // @napi-rs/canvas implements the 2D-context surface pdf.js paints through; its TypeScript types are
-  // its own, not the DOM's, hence the casts to the parameter types pdf.js declares.
-  type RenderParams = Parameters<PDFPageProxy["render"]>[0];
-  await page.render({
-    canvas: canvas as unknown as RenderParams["canvas"],
-    canvasContext: ctx as unknown as RenderParams["canvasContext"],
-    viewport,
-    background: "rgb(255,255,255)",
-  }).promise;
-  const rgba = ctx.getImageData(0, 0, width, height).data;
-  const { data } = await sharp(Buffer.from(rgba.buffer, rgba.byteOffset, rgba.byteLength), {
-    raw: { width, height, channels: 4 },
-  })
-    .flatten({ background: { r: 255, g: 255, b: 255 } })
-    .removeAlpha()
-    .raw({ depth: "uchar" })
-    .toBuffer({ resolveWithObject: true });
+  const { data, width, height } = await paintPdfPage(page, dpi / 72);
 
   const content = await page.getTextContent();
   const textLayer = textLayerOf(runsOf(content.items, content.styles, await glyphWidthsOf(page)), {
@@ -164,7 +91,7 @@ async function renderPage(page: PDFPageProxy, pageNumber: number): Promise<Canon
 }
 
 export async function normalisePdf(bytes: Buffer): Promise<PdfOutcome> {
-  const opened = await open(bytes);
+  const opened = await openPdf(bytes);
   if (!opened.ok) return opened;
   const { doc, close } = opened;
   try {
