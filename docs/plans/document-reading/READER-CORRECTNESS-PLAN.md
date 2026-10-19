@@ -89,11 +89,11 @@ but read as 2.3 is a different placard).
 | **RC4** | Form invariant: a read's value changes only by a person's act. Property test over random sequences of equipment, trailer, add/remove line, reset, re-read | — | no sequence alters or drops a read's value |
 | **RC5** | Golden BOLs: a correctly printed description for every table entry passes every description rule; each single defect (no prefix, wrong PG, missing technical name on G, missing RQ…) fails exactly its rule | — | 0 false "wrong", 0 missed defect |
 | **RC6** | Synthetic rendered BOLs of known truth — real BOL layouts, fax 1-bit, photo skew, glare, stamps — read by the production readers and scored per field | spend (Q-RC2) | per-field false-accept and yield table, re-run on every reader change |
-| **RC7** | Labelled real BOLs from Samsara + office, scored the same way; grows with every explicit review (D-DR24) | who labels (Q-RC1) | ≈600 per critical field for a 0.5 % bound, ≈3,000 for 0.1 % (D-DR24 arithmetic) |
+| **RC7** | Labelled real BOLs from Samsara + office, scored the same way; grows with every explicit review (D-DR24) | answered (Q-RC1) | ≈600 per critical field for a 0.5 % bound, ≈3,000 for 0.1 % (D-DR24 arithmetic); labels = dispatchers', Safety's and Admin's explicit reviews (Q-RC1) |
 | **RC8** | The merge gate (D-RC3) in CI over RC1–RC6 | — | a PR that moves false-accept off 0 fails `build` |
 
 RC1's census, RC2–RC5 and RC8 need nothing from the owner and come first: they cover the layers every
-failure so far came from. RC1's narrowing waits on Q-RC3; RC6 and RC7 on Q-RC2 and Q-RC1.
+failure so far came from. RC1's narrowing waits on Q-RC3; RC6 on Q-RC2.
 
 ## 6. Open questions
 
@@ -102,6 +102,12 @@ calculator's review screen, ≈3 min each, ≈10 hours, then explicit reviews ke
 explicit reviews alone (7 reads in a week today — months to 600); *(c)* an outside labelling service
 (shipper and consignee data leave the company). **Recommendation: (a)**, and synthetic pages (RC6) carry
 the measurement until it lands.
+
+**Q-RC1 ANSWERED 2026-10-19 (owner): dispatchers and Safety check the BOLs — and, for now, Admin.** The labels
+come from their daily work: every explicit act on the calculator (D-DR24 — a tick, a picked reading, a change)
+is a labelled field. Owed with RC7: confirm those three roles can open the calculator and post reviews, and
+count explicit reviews per critical field toward the ≈600 / ≈3,000 bounds; synthetic pages (RC6) carry the
+measurement until the counts reach them.
 
 **Q-RC2 — May RC6 spend model money?** ≈$0.03–0.05 per page per dual read (§8 prices): 1,000 synthetic
 pages ≈ $30–50 a run, re-run on reader changes only. **Recommendation: yes, capped at $50 a run.**
