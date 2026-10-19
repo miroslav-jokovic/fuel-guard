@@ -455,8 +455,9 @@ describe("executeRead — the OCR witness (§7B A5)", () => {
     const ocr: RecognisePage = async () => [box("UN2735 Amines 8 PG II", 10), box("6", 11)];
     const w = await world({ classes: { p1: "bol", p2: "bol" }, documents: twoReaders, ocr });
     expect(await w.run()).toMatchObject({ outcome: "done" });
-    const replay = w.transitions()[1]!.p_replay_inputs as { passB: unknown; ocr: { page: number; items: unknown[] }[] | null };
+    const replay = w.transitions()[1]!.p_replay_inputs as { passB: unknown; ocr: { page: number; items: unknown[] }[] | null; textLayer: unknown };
     expect(replay.passB).toEqual(twoReaders["claude-sonnet-5-5"]);
+    expect(replay).toHaveProperty("textLayer", null); // image pages: no text layer to keep
     expect(replay.ocr!.map((p) => [p.page, p.items.length])).toEqual([[1, 2], [2, 2]]);
   });
 
