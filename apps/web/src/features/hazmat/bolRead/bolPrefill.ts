@@ -3,6 +3,7 @@ import {
   classifyLineLoadState,
   isVehiclePackaging,
   packageTypeFromPrinted,
+  packageTypeSpec,
   readersAgree,
   rowWitnessesBack,
   shippingDocumentSchema,
@@ -331,8 +332,10 @@ export interface FieldNote {
   tone: NoteTone;
   /** Calculate waits on a person here (bolReview.ts, D-DR24). */
   pending?: boolean;
-  /** The note offers "Matches the page" — not for a line with no product, which needs one chosen. */
+  /** The note offers a confirm — not for a line with no product, which needs one chosen. */
   confirmable?: boolean;
+  /** The confirm's words: the value it confirms, as the form holds it ("Yes, the page says UN3264"). */
+  confirmLabel?: string;
   /** The readings a person can pick in one click — a disputed count or weight only. */
   choices?: number[];
   /** The one of `choices` the page's own figures back, shown first — still a person's click (owner, 2026-10-15). */
@@ -367,6 +370,20 @@ export function fieldNote(field: PrefillField, changed: boolean, checked = false
   return { text: ["From the BOL · both readers agree", ...found].join(" · "), tone: "neutral" };
 }
 
+/**
+ * What the confirm button says: the value it confirms, so the question answers itself. "Matches the page"
+ * named no value, and the owner could not tell what it did (2026-10-19).
+ */
+function confirmLabelOf(key: PrefillKey, l: CalcLineForm): string {
+  switch (key) {
+    case "product": return `Yes, the page says ${l.product?.idLabel ?? "this"}`;
+    case "packageType": return `Yes, the page says ${packageTypeSpec(l.packageType)?.label.toLowerCase() ?? "this"}`;
+    case "packageCount": return `Yes, the page says ${l.packageCount.trim() || "no count"}`;
+    case "grossWeight": return `Yes, the page says ${l.grossWeightValue.trim() ? `${Number(l.grossWeightValue).toLocaleString("en-US")} ${l.grossWeightUnit}` : "no weight"}`;
+    case "limitedQuantity": return l.isLimitedQuantity ? "Yes, the page says Limited Quantity" : "Yes, the page has no Limited Quantity mark";
+  }
+}
+
 export interface BolLineView {
   printed: string;
   notes: string[];
@@ -386,8 +403,10 @@ export function bolLineView(prefill: PrefillLine, current: CalcLineForm, acted: 
       const w = prefill.fields[k].witnessed;
       const backed = typeof w === "number" && choices.includes(w) ? w : undefined;
       const ordered = backed === undefined ? choices : [backed, ...choices.filter((v) => v !== backed)];
-      const confirmable = pending && !(k === "product" && current.product === null);
-      return [k, { ...note, ...(pending ? { pending, confirmable, tone: "warning" as const } : {}), ...(ordered.length ? { choices: ordered } : {}), ...(backed !== undefined ? { backed } : {}) }];
+      // A disputed count or weight offers its readings, and picking one — the form's own included — is the act;
+      // a second "yes" beside them asked the same question in words nobody could place (owner, 2026-10-19).
+      const confirmable = pending && ordered.length === 0 && !(k === "product" && current.product === null);
+      return [k, { ...note, ...(pending ? { pending, confirmable, tone: "warning" as const } : {}), ...(confirmable ? { confirmLabel: confirmLabelOf(k, current) } : {}), ...(ordered.length ? { choices: ordered } : {}), ...(backed !== undefined ? { backed } : {}) }];
     }),
   ) as Record<PrefillKey, FieldNote>;
   return { printed: prefill.printed, notes: prefill.notes, fields };

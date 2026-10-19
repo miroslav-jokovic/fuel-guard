@@ -1,4 +1,4 @@
-import { ref } from "vue";
+import { shallowRef } from "vue";
 import type { ReviewBatchRequest } from "@silvicom/shared";
 import { apiFetch } from "@/lib/api";
 import { useToastStore } from "@/stores/toast";
@@ -16,7 +16,11 @@ import { reviewEntries, type FilledLine } from "./bolReview";
  * same values confirmed twice by one press pattern would count twice toward graduation.
  */
 export function useBolReviews() {
-  const acted = ref<Map<PrefillLine, Set<PrefillKey>>>(new Map());
+  // shallowRef, never ref: the map is keyed by the read's own line objects (`prefilled` in the form). A deep
+  // ref wraps the map, and copying it (`new Map(acted.value)`) re-keys every earlier entry by its reactive
+  // proxy — so each act after the first lost all the earlier ones, and their "Matches the page" came back
+  // (owner, 2026-10-19: "the button appears again and won't let me go further"; useBolReviews.test.ts).
+  const acted = shallowRef<Map<PrefillLine, Set<PrefillKey>>>(new Map());
   const lastPosted = new Map<string, string>();
   const toast = useToastStore();
 
