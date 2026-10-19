@@ -710,3 +710,8 @@ around them.
   `RequirementDrawer`, `DocumentDropCard`, `CertificationHistory` moved to `apps/web/src/components/files/`
   taking a `FileSubject` (and the drawer its catalogue as `specs`); who may record is the caller's
   `canManage`. `useCertificationHistoryQuery` takes the subject type. No screen changes.
+- 2026-10-19 — **UF1 built** (`claude/uf1-unit-file-kinds`). Migration **0490** (0489 was taken by a
+  parallel chat): `certifications.kind` + lease, permit; `documents.kind` + lease, permit, title. Title is
+  paper-only (`EQUIPMENT_PAPER_ONLY_KINDS`), so a title certification is refused. Matrix
+  `unit-file-kinds.test.mjs` (13): both CHECKs equal the shared lists, every kind valid before stays
+  valid (read from 0127 and 0484), both lists still closed.

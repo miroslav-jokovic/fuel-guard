@@ -24,6 +24,9 @@ export const CERTIFICATION_KINDS = [
   "cdl", "medical_card", "endorsement", "hazmat_training", "twic",
   // equipment
   "registration", "annual_inspection", "insurance", "ifta", "irp",
+  // equipment, 0490 (UNIT-FILES-PLAN §4): a lease runs to an end date; a permit is issued for a term,
+  // its state or kind in `qualifier`
+  "lease", "permit",
   // ORGANIZATION (§0.6) — the carrier itself is a compliance subject
   "phmsa_registration", "hazmat_safety_permit", "security_plan",
   "financial_responsibility", "operating_authority",
@@ -101,11 +104,20 @@ export const documentVariantSchema = z.enum(DOCUMENT_VARIANTS);
 export type DocumentVariant = (typeof DOCUMENT_VARIANTS)[number];
 
 /**
+ * A unit's papers that are proved by the scan alone (0490, UNIT-FILES-PLAN §4). A title never
+ * expires, so there is no dated row to record and supersede — the document IS the evidence, and the
+ * truck file's `title` item reads it directly.
+ */
+export const EQUIPMENT_PAPER_ONLY_KINDS = ["title"] as const;
+
+/**
  * What the compliance route files a document as: every certification kind, every qualification-record
- * kind, plus `other`. A document is uploaded BEFORE the record that cites it exists — you scan the
+ * kind, the equipment papers that need no record, plus `other`. A document is uploaded BEFORE the record that cites it exists — you scan the
  * medical card, then record the certification — so it cannot borrow its parent's kind.
  */
-export const COMPLIANCE_DOCUMENT_KINDS = [...CERTIFICATION_KINDS, ...QUALIFICATION_RECORD_KINDS, "other"] as const;
+export const COMPLIANCE_DOCUMENT_KINDS = [
+  ...CERTIFICATION_KINDS, ...QUALIFICATION_RECORD_KINDS, ...EQUIPMENT_PAPER_ONLY_KINDS, "other",
+] as const;
 export type ComplianceDocumentKind = (typeof COMPLIANCE_DOCUMENT_KINDS)[number];
 /**
  * An inspection's paper (0476, INSPECTION-CHALLENGE-PLAN §3): the officer's copy (D-IC1's cross-check),
@@ -118,7 +130,7 @@ export const ROADSIDE_DOCUMENT_KINDS = [
   "roadside_repair_record",
 ] as const;
 export type RoadsideDocumentKind = (typeof ROADSIDE_DOCUMENT_KINDS)[number];
-/** Every kind `documents` admits — mirrors the SQL check constraint exactly (0476, 0484). */
+/** Every kind `documents` admits — mirrors the SQL check constraint exactly (0476, 0484, 0490). */
 export const DOCUMENT_KINDS = [...COMPLIANCE_DOCUMENT_KINDS, ...ROADSIDE_DOCUMENT_KINDS] as const;
 export const documentKindSchema = z.enum(DOCUMENT_KINDS);
 export type DocumentKind = (typeof DOCUMENT_KINDS)[number];
