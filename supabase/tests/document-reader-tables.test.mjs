@@ -412,6 +412,27 @@ async function asClient(org, sql, params = []) {
     await db.exec("rollback");
   }
 }
+// 0487 (RC2): replay inputs ride the same door, only on done, and a call without them still matches.
+{
+  const RR = await newRead();
+  await move(RR, "reading");
+  const early = await sqlstate(
+    `select document_read_transition(p_org => $1, p_read => $2, p_to => 'failed', p_failure_code => 'refusal', p_replay_inputs => '{"passB":null,"ocr":null}'::jsonb)`,
+    [ORG, RR]);
+  ok("replay inputs are refused on a read that is not done (0487)", early === "DO014", String(early));
+  const done = await sqlstate(
+    `select document_read_transition(p_org => $1, p_read => $2, p_to => 'done', p_result => '{}'::jsonb, p_replay_inputs => '{"passB":{"hazmat":{"lines":[]}},"ocr":[]}'::jsonb)`,
+    [ORG, RR]);
+  const kept = await one(`select replay_inputs from document_reads where id = $1`, [RR]);
+  ok("a done read keeps pass B's document and the OCR words it was judged on (0487)",
+    done === null && JSON.stringify(kept.replay_inputs) === JSON.stringify({ ocr: [], passB: { hazmat: { lines: [] } } }), JSON.stringify(kept));
+  const RO = await newRead();
+  await move(RO, "reading");
+  ok("a call without p_replay_inputs — every caller before the writer — still finishes a read (0487)",
+    (await move(RO, "done", { result: "{}" })) === null && (await one(`select replay_inputs from document_reads where id = $1`, [RO])).replay_inputs === null);
+  ok("the transition has one signature, so a named call finds no overload (0487)",
+    (await one(`select count(*)::int n from pg_proc where proname = 'document_read_transition'`)).n === 1);
+}
 for (const t of ["document_sources", "document_pages", "document_page_classes", "document_reads", "document_read_reviews"]) {
   const r = await asClient(ORG, `select count(*)::int n from ${t}`);
   ok(`an admin's browser session reads nothing from ${t} (no client policy)`, r.error === null && r.rows[0].n === 0, JSON.stringify(r));
