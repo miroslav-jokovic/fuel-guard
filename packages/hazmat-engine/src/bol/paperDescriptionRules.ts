@@ -23,6 +23,9 @@ export function paperSequence(ctx: LineCtx): PaperRuleResult {
   const row = rowOf(ctx);
   const missing: string[] = [];
   if (blank(p.idText)) missing.push("id");
+  // Column (4) prints the id with its prefix, and UN1993 and NA1993 are different materials. The resolver may
+  // still place a bare "1760" by its name (resolveLine.ts step 1); the paper is short the prefix all the same.
+  else if (!/^\s*(UN|NA)/i.test(p.idText!)) missing.push("id_prefix");
   if (blank(p.psn)) missing.push("psn");
   if (blank(p.hazardClass) && !(row && classMayBeOmitted(row.entry))) missing.push("class");
   let pgUnknown = false;

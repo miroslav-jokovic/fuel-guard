@@ -131,11 +131,16 @@ function applyTrailer(id: string) {
   form.cargoTankCapacityGal = trailer.cargo_capacity_gal != null ? String(trailer.cargo_capacity_gal) : "";
 }
 
-/** Setting the equipment reshapes untouched lines to its defaults (bulk gallons on a tanker, …). */
+/**
+ * Setting the equipment reshapes untouched lines to its defaults (bulk gallons on a tanker, …). "Untouched"
+ * used to be "no product yet", which also meant every BOL line the table had not matched: picking the
+ * equipment after a read blanked their package, count and weight, and each then said "Changed by you."
+ * (owner's calculator test, 2026-10-19). A read's line and a typed line keep what they hold.
+ */
 function applyEquipment(value: string) {
   form.equipmentType = value;
   for (const line of form.lines) {
-    if (line.product == null) Object.assign(line, emptyLine(value));
+    if (untouched(line) && !prefilled.has(toRaw(line))) Object.assign(line, emptyLine(value));
   }
 }
 

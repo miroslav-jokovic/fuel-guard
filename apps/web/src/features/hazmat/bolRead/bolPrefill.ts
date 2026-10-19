@@ -118,7 +118,7 @@ type TableVerdict = { consistent: true; hmtRef: string } | { consistent: false; 
  */
 const TABLE_REASONS: Record<string, string> = {
   id_missing: "No UN/NA number was read on this line.",
-  id_prefix_ambiguous: "The number has no UN or NA in front, and both exist for different materials.",
+  id_prefix_ambiguous: "The number has no UN or NA in front, and the shipping name does not say which of the two it is.",
   id_not_found: "The UN/NA number is not in the Hazardous Materials Table.",
   psn_no_match: "The shipping name does not match this UN/NA number.",
   psn_ambiguous: "More than one table entry fits this number and name.",

@@ -44,8 +44,11 @@ import { createHash } from "node:crypto";
  *   7    — 2026-10-15, Q-DR26 L3: every row's count and weight, non-hazmat rows included (profile 1.3.0), carries
  *          the paper's own totals as the `arithmetic` witness (arithmeticWitness.ts), and the non-hazmat rows
  *          are matched reader to reader (alignOtherLines); statuses unchanged.
+ *   8    — 2026-10-19: the table judges with PSN normalizer 1.1.0 (resolveLine.ts) — singular/plural on every
+ *          word, and a number printed without UN/NA placed by its name — so under 7 "FLAMMABLE LIQUID, N.O.S."
+ *          on UN1993 and a bare "1760, Corrosive liquid N.O.S." were refused; a cached read would replay that.
  */
-export const ACCEPTANCE_RULE_VERSION = "7";
+export const ACCEPTANCE_RULE_VERSION = "8";
 
 export interface CacheKeyInput {
   profileVersion: string;

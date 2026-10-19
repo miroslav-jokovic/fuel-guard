@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { buildDatasetIndex, loadDataset } from "@hazmat/data";
+import { buildDatasetIndex, loadDataset, PSN_NORMALIZER_VERSION } from "@hazmat/data";
 import { evaluateLoad, ENGINE_VERSION, type Verdict } from "@hazmat/engine";
 import { withinBudget } from "@silvicom/shared";
 import type { Env } from "../../../env.js";
@@ -106,7 +106,7 @@ export async function executeExtraction(admin: SupabaseClient, orgId: string, lo
     const images: ImageInput[] = [];
     const gateBuffers: Buffer[] = [];
     const hash = createHash("sha256");
-    hash.update(`${env.HAZMAT_MODEL_A}|${env.HAZMAT_MODEL_B}|${HAZMAT_EXTRACTION_PROMPT_VERSION}|${IMAGE_NORMALIZER_VERSION}|${ENGINE_VERSION}|${dataset.version}|qual:${qual.inputsDigest}`); // §10.10: engine + dataset + qualification inputs MUST be in the hash, else a stale verdict replays from cache
+    hash.update(`${env.HAZMAT_MODEL_A}|${env.HAZMAT_MODEL_B}|${HAZMAT_EXTRACTION_PROMPT_VERSION}|${IMAGE_NORMALIZER_VERSION}|${ENGINE_VERSION}|${dataset.version}|psn:${PSN_NORMALIZER_VERSION}|qual:${qual.inputsDigest}`); // §10.10: engine + dataset + name matcher (the mapper resolves every line with it) + qualification inputs MUST be in the hash, else a stale verdict replays from cache
     for (const d of docRows) {
       const { data: blob, error } = await admin.storage.from("hazmat").download(d.storage_path);
       if (error || !blob) return finish(null, ["document_unreadable"], null);
