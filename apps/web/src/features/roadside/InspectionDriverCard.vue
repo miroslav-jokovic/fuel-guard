@@ -12,6 +12,7 @@ import {
   ATTRIBUTION_LOCATION_TEXT,
   ATTRIBUTION_OUTCOME_TEXT,
   ATTRIBUTION_ZONE_TEXT,
+  attributionQuestion,
   type AttributionDriverRefDto,
   type ReportCheckOutcome,
   type ReportCheckState,
@@ -38,6 +39,14 @@ import { AttributionDecisionError, useDecideAttribution } from "./useRoadsideIns
  * A reading of one driver can be confirmed as it is. Any reading can be corrected by choosing one of
  * our drivers, former ones included, with a note saying what shows it was them. Both need the safety
  * section's manage level, which the API checks; the buttons only follow it.
+ *
+ * ── ASK ONLY WHEN IT MATTERS (IC13, Q-IC15 (b), owner 2026-10-16) ──────────────────────────────
+ * A strong reading of a roster driver with nothing against it is the answer, labelled "From Samsara",
+ * and the card asks nothing: measured over the last 90 days, that is 76 of 109 inspections that each
+ * waited on a person for no reason. The card asks — the reason in words, the buttons primary — only
+ * when `attributionQuestion` says so (weak, several, nobody, not on our roster, another state, or an
+ * officer's report that disagrees). Changing an answer stays one quiet link away. A person still
+ * confirms the driver before any DataQs filing (18 USC 1001, D-IC7); that is the filing's step.
  */
 
 const props = defineProps<{ inspectionId: string; attribution: RoadsideAttributionDto }>();
@@ -71,7 +80,13 @@ const badge = computed((): { text: string; tone: "success" | "warning" | "brand"
     return { text, tone: decision.value.kind === "confirmed_by_report" ? "success" : "brand" };
   }
   if (!reading.value) return null;
-  return reading.value.confidence === "high" ? { text: "Strong reading", tone: "success" } : { text: "Needs a person", tone: "warning" };
+  return question.value ? { text: "Needs a person", tone: "warning" } : { text: "From Samsara", tone: "brand" };
+});
+
+/** Why the card asks, or null when it shows the answer (`attributionQuestion`, shared with the Next steps strip). */
+const question = computed(() => {
+  const q = attributionQuestion(props.attribution);
+  return q && q.reason !== "not_read" ? q : null;
 });
 
 /**
@@ -175,8 +190,14 @@ const canSave = computed(() => !!driverId.value && note.value.trim().length > 0 
             {{ c.driver?.name ?? c.name ?? "A Samsara driver" }}<template v-if="!c.driver"> (not on our roster)</template><template v-if="c.passenger"> — co-driver</template>
           </li>
         </ul>
-        <p class="text-ink-muted" data-test="driver-location">{{ ATTRIBUTION_LOCATION_TEXT[reading.locationCheck] }}</p>
-        <p v-if="when" class="text-ink-muted" data-test="driver-when">Inspected {{ when }} ({{ ATTRIBUTION_ZONE_TEXT[reading.zoneMethod] }}).</p>
+        <p v-if="question" class="font-medium text-warning-700" data-test="driver-question">{{ question.text }}</p>
+        <!-- The GPS and the clock are how the reading was made: in the open while the card asks, one click
+             away once it is the answer. -->
+        <component :is="question ? 'div' : 'details'" class="space-y-1">
+          <summary v-if="!question" class="cursor-pointer text-xs font-medium text-ink-muted">How Samsara read it</summary>
+          <p class="text-ink-muted" data-test="driver-location">{{ ATTRIBUTION_LOCATION_TEXT[reading.locationCheck] }}</p>
+          <p v-if="when" class="text-ink-muted" data-test="driver-when">Inspected {{ when }} ({{ ATTRIBUTION_ZONE_TEXT[reading.zoneMethod] }}).</p>
+        </component>
       </div>
 
       <div v-if="decision" class="mt-4 border-t border-edge pt-4 text-sm" data-test="driver-decision">
@@ -217,11 +238,14 @@ const canSave = computed(() => !!driverId.value && note.value.trim().length > 0 
         </div>
       </div>
 
-      <div v-if="canDecide && !choosing" class="mt-4 flex flex-wrap gap-2" data-test="driver-actions">
+      <div v-if="canDecide && !choosing && question" class="mt-4 flex flex-wrap gap-2" data-test="driver-actions">
         <BaseButton v-if="canConfirm" variant="primary" :disabled="decide.isPending.value" data-test="driver-confirm" @click="confirm">Confirm this driver</BaseButton>
-        <BaseButton data-test="driver-choose" @click="startChoosing">
-          {{ reading.outcome === "one_driver" || decision ? "Choose a different driver" : "Choose the driver" }}
+        <BaseButton :variant="canConfirm ? 'secondary' : 'primary'" data-test="driver-choose" @click="startChoosing">
+          {{ reading.outcome === "one_driver" ? "Choose a different driver" : "Choose the driver" }}
         </BaseButton>
+      </div>
+      <div v-else-if="canDecide && !choosing" class="mt-3" data-test="driver-actions">
+        <BaseButton variant="link" data-test="driver-choose" @click="startChoosing">Not right? Choose a different driver</BaseButton>
       </div>
 
       <form v-if="choosing" class="mt-4 space-y-3 border-t border-edge pt-4" data-test="driver-form" @submit.prevent="saveChoice">

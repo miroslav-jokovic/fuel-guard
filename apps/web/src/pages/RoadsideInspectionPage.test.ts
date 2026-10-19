@@ -70,13 +70,14 @@ vi.mock("@vueuse/core", async (orig) => {
 });
 
 const RoadsideInspectionPage = (await import("@/pages/RoadsideInspectionPage.vue")).default;
+const InspectionNextSteps = (await import("@/features/roadside/InspectionNextSteps.vue")).default;
 
 const ID = "11111111-1111-4111-8111-111111111111";
-async function page() {
+async function page(attachTo?: HTMLElement) {
   const router = createRouter({ history: createMemoryHistory(), routes: [...ROUTE_TABLE] });
   await router.push(`/roadside-inspections/${ID}`);
   await router.isReady();
-  const w = mount(RoadsideInspectionPage as never, { global: { plugins: [router] } });
+  const w = mount(RoadsideInspectionPage as never, { global: { plugins: [router] }, attachTo });
   await flushPromises();
   return w;
 }
@@ -113,6 +114,29 @@ beforeEach(() => {
 });
 
 describe("one roadside inspection", () => {
+  it("leads with what is left, then the violations with their CSA points as the header line, then the cards (Q-IC17)", async () => {
+    const w = await page();
+    const html = w.html();
+    const at = (sel: string) => html.indexOf(sel);
+    expect(at('data-test="next-steps"')).toBeGreaterThan(at('data-test="facts"'));
+    expect(at('id="violations-heading"')).toBeGreaterThan(at('data-test="next-steps"'));
+    expect(at('data-test="driver-card"')).toBeGreaterThan(at('id="violations-heading"'));
+    expect(at('data-test="documents-card"')).toBeGreaterThan(at('data-test="driver-card"'));
+    expect(w.get("[data-test='sms-total']").text()).toBe("Adds 90 CSA points today: Vehicle Maintenance 90.");
+  });
+
+  it("brings a step's card into view and focus, so a keyboard reader lands on the action", async () => {
+    // In the document, as the page is: the step finds its card by id.
+    const w = await page(document.body.appendChild(document.createElement("div")));
+    const card = w.get("#inspection-driver").element as HTMLElement;
+    const scrolled = vi.fn();
+    card.scrollIntoView = scrolled;
+    w.findComponent(InspectionNextSteps).vm.$emit("go", "driver");
+    expect(scrolled).toHaveBeenCalledWith(expect.objectContaining({ block: "start" }));
+    expect(document.activeElement).toBe(card);
+    w.unmount();
+  });
+
   it("asks for the inspection in the URL and shows the report's facts as written", async () => {
     const w = await page();
     expect(askedId.value).toBe(ID);
@@ -139,7 +163,7 @@ describe("one roadside inspection", () => {
 
   it("marks each unit ours with how it matched, or not matched — and links the truck only when it opens", async () => {
     const w = await page();
-    expect(w.findAll("[data-test='match']").map((m) => m.text())).toEqual(["Ours, by unit number", "Not matched to ours"]);
+    expect(w.findAll("[data-test='match']").map((m) => m.text())).toEqual(["Ours, by unit number", "Not on our current roster"]);
     expect(w.find("a[href='/vehicles/veh-701']").exists()).toBe(true);
 
     truckOpens = false;

@@ -77,7 +77,25 @@ describe("the reading", () => {
     // 18:04Z is 12:04 PM in Denver (MDT) — not the test machine's zone, so a card reading the
     // instant on the reader's own clock fails here as it would in a Chicago office.
     expect(w.get("[data-test='driver-when']").text()).toBe("Inspected 09/22/2026 12:04 PM – 12:42 PM MDT (time zone read from where the truck stood).");
-    expect(w.get("[data-test='driver-badge']").text()).toBe("Strong reading");
+    expect(w.get("[data-test='driver-badge']").text()).toBe("From Samsara");
+  });
+
+  it("shows a strong reading of a roster driver as the answer and asks nothing, a change one quiet link away (IC13)", async () => {
+    const w = await card(attribution());
+    expect(w.find("[data-test='driver-question']").exists()).toBe(false);
+    expect(w.find("[data-test='driver-confirm']").exists()).toBe(false);
+    expect(w.get("[data-test='driver-choose']").text()).toBe("Not right? Choose a different driver");
+    // How the reading was made is folded behind its summary, not gone.
+    expect(w.get("details").text()).toContain("How Samsara read it");
+  });
+
+  it("asks, saying why, when the officer's report disagrees with a strong reading (IC13)", async () => {
+    const w = await card(attribution({
+      reports: [{ documentId: "doc-1", state: "checked", outcome: "needs_review", reasons: [], nameOnReport: null, licenceLast4: null, driver: null, checkedAt: null }],
+    }));
+    expect(w.get("[data-test='driver-badge']").text()).toBe("Needs a person");
+    expect(w.get("[data-test='driver-question']").text()).toBe("The officer's report does not agree with Samsara. The driver card lists where.");
+    expect(w.find("[data-test='driver-confirm']").exists()).toBe(true);
   });
 
   it("shows a Samsara driver the roster lacks by Samsara's name, saying so", async () => {
@@ -129,7 +147,7 @@ describe("a person's decision", () => {
       basedOn: "p-1",
     }));
     expect(w.find("[data-test='driver-confirm']").exists()).toBe(false);
-    expect(w.get("[data-test='driver-choose']").text()).toBe("Choose a different driver");
+    expect(w.get("[data-test='driver-choose']").text()).toBe("Not right? Choose a different driver");
   });
 });
 
@@ -141,7 +159,7 @@ describe("deciding", () => {
   });
 
   it("confirms over the row the page showed", async () => {
-    const w = await card(attribution({ basedOn: "p-7" }));
+    const w = await card(attribution({ reading: reading({ confidence: "low", basis: "before_only" }), basedOn: "p-7" }));
     await w.get("[data-test='driver-confirm']").trigger("click");
     expect(sent()).toEqual({ action: "confirm", basedOn: "p-7" });
   });
