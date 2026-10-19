@@ -46,19 +46,22 @@ export function useCertificationsQuery(subjectType: Ref<string>, subjectId: Ref<
 }
 
 /**
- * The full supersede chain for one driver — current rows AND everything they replaced. Separate from
+ * The full supersede chain for one subject's file — current rows AND everything they replaced. Separate from
  * `useCertificationsQuery` on purpose: the checklist must never accidentally count a superseded
  * medical card as evidence, so the two reads stay two reads.
  */
-export function useCertificationHistoryQuery(subjectId: Ref<string | null>) {
+export function useCertificationHistoryQuery(
+  subjectType: Ref<string>,
+  subjectId: Ref<string | null>,
+) {
   return useQuery({
-    queryKey: [...CERTS_KEY, "history", subjectId] as const,
+    queryKey: [...CERTS_KEY, "history", subjectType, subjectId] as const,
     enabled: computed(() => !!subjectId.value),
     queryFn: async (): Promise<CertificationRow[]> => {
       const id = subjectId.value;
       if (!id) return [];
       const res = await apiFetch<{ certifications: CertificationRow[] }>(
-        `/api/compliance/certifications?subjectType=driver&subjectId=${id}&includeHistory=true`,
+        `/api/compliance/certifications?subjectType=${subjectType.value}&subjectId=${id}&includeHistory=true`,
       );
       if (!res.ok)
         throw new Error(res.error?.message ?? "Could not load the certification history.");

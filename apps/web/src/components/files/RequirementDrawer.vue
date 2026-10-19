@@ -5,9 +5,9 @@ import { AppIcon } from "@silvicom/ui";
 import { ClipboardDocumentCheckIcon } from "@silvicom/ui/icons";
 import {
   CEREMONY_OWNED_KINDS,
-  DQ_ITEMS,
   HAZMAT_TRAINING_TYPES,
   type CertificationCreateRequest,
+  type DqItemSpec,
   type CertificationKind,
   type ComplianceDocumentKind,
   type QualificationRecordCreateRequest,
@@ -27,6 +27,7 @@ import {
   useCreateQualificationRecord,
   useUploadDocument,
 } from "@/composables/useCompliance";
+import type { FileSubject } from "./fileSubject";
 
 /**
  * One requirement, one form (D-DQ9).
@@ -35,10 +36,17 @@ import {
  * certification* form with a Type dropdown to re-select. The system had already answered the question
  * and still asked it. Here the requirement is the input: no type picker, and only the fields that
  * kind actually needs. A medical card asks for an expiry; a road test asks when it happened.
+ *
+ * Promoted out of `features/compliance` (UNIT-FILES-PLAN UF0): the subject and its catalogue are
+ * props, so a truck's registration is recorded by the same form as a driver's medical card. Only a
+ * DRIVER has `record` items — `qualification_records` is keyed by driver — so the record branch is
+ * reached through a driver's catalogue and no other.
  */
 const props = defineProps<{
   open: boolean;
-  driverId: string;
+  subject: FileSubject;
+  /** The subject's catalogue — `DQ_ITEMS` for a driver. The drawer looks `itemKey` up in it. */
+  specs: readonly DqItemSpec[];
   itemKey: string | null;
   /** A scan already filed via drop-first (D-DQ10) — the record cites it instead of asking again. */
   presetDocument?: { id: string; name: string } | null;
@@ -50,7 +58,7 @@ const createCert = useCreateCertification();
 const createRecord = useCreateQualificationRecord();
 const upload = useUploadDocument();
 
-const spec = computed(() => DQ_ITEMS.find((i) => i.key === props.itemKey) ?? null);
+const spec = computed(() => props.specs.find((i) => i.key === props.itemKey) ?? null);
 /**
  * PSP is filed by its own two paths and refused by this one (0219's CHECK, mirrored in the contract).
  * A record here would have no `detail.source`, and provenance is what tells a later reader whether
@@ -138,8 +146,8 @@ async function save(): Promise<void> {
     let documentId: string | undefined = props.presetDocument?.id;
     if (scan.value) {
       const res = await upload.mutateAsync({
-        subjectType: "driver",
-        subjectId: props.driverId,
+        subjectType: props.subject.type,
+        subjectId: props.subject.id,
         kind: s.evidenceKinds[0] as ComplianceDocumentKind,
         file: scan.value,
       });
@@ -149,8 +157,8 @@ async function save(): Promise<void> {
     if (isCertification.value) {
       const body: CertificationCreateRequest = {
         id: crypto.randomUUID(),
-        subjectType: "driver",
-        subjectId: props.driverId,
+        subjectType: props.subject.type,
+        subjectId: props.subject.id,
         kind: s.evidenceKinds[0] as CertificationKind,
         qualifier: isEndorsement.value ? form.qualifier : null,
         trainingType: isTraining.value
@@ -172,9 +180,12 @@ async function save(): Promise<void> {
       };
       await createCert.mutateAsync(body);
     } else {
+      // A catalogue that gives a truck a `record` item is a catalogue bug; saying so beats writing a
+      // qualification record against a vehicle id the table would accept as a driver's.
+      if (props.subject.type !== "driver") throw new Error("Only a driver's file holds dated records.");
       const body: QualificationRecordCreateRequest = {
         id: crypto.randomUUID(),
-        driverId: props.driverId,
+        driverId: props.subject.id,
         kind: s.evidenceKinds[0] as QualificationRecordKind,
         occurredOn: form.occurredOn,
         coversUntil: form.coversUntil || null,

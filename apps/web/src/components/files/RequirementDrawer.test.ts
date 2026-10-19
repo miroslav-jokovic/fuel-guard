@@ -2,7 +2,8 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { mount } from "@vue/test-utils";
 import { createPinia, setActivePinia } from "pinia";
 import { VueQueryPlugin } from "@tanstack/vue-query";
-import RequirementDrawer from "@/features/compliance/RequirementDrawer.vue";
+import { DQ_ITEMS } from "@silvicom/shared";
+import RequirementDrawer from "@/components/files/RequirementDrawer.vue";
 
 /**
  * D7 — the §172.704(d) capture gap, closed and pinned. The provider ADDRESS and the training
@@ -27,7 +28,12 @@ const SlideOverStub = {
 
 function mountDrawer() {
   return mount(RequirementDrawer, {
-    props: { open: true, driverId: "00000000-0000-4000-8000-0000000000d1", itemKey: "training_safety" },
+    props: {
+      open: true,
+      subject: { type: "driver", id: "00000000-0000-4000-8000-0000000000d1" },
+      specs: DQ_ITEMS,
+      itemKey: "training_safety",
+    },
     global: {
       plugins: [VueQueryPlugin],
       stubs: { SlideOver: SlideOverStub, teleport: true },
