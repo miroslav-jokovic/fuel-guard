@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { billRevenue } from "@silvicom/shared";
 
 /**
  * The collector's read interface over its own financial staging (D-SEP1 — nothing outside
@@ -224,7 +225,7 @@ export async function readBilledMilesByDeliveryMonth(
       acc.set(key, b);
     }
     b.loads++;
-    b.revenue += Number(r.total_charges) + Number(r.other_charge ?? 0);
+    b.revenue += billRevenue(r);
     if (r.tractor_unit) b.trucks.add(r.tractor_unit);
     if (r.distance != null) b.miles += Number(r.distance);
   }

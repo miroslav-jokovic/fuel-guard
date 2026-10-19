@@ -56,7 +56,9 @@ const SETTLEMENTS = [
 ];
 
 const BILLS = [
-  { id: "b1", order_external_id: "o1", tractor_unit: "601", total_charges: "203192.01", other_charge: "0", post_key: "k1", post_module: "BILL", bill_date: "2026-07-10", delivery_date: "2026-07-08", distance: 71_920, canceled: false },
+  // A contractor load with accessorials. McLeod's total_charges already holds the 12,345.67 of
+  // other charges, so the contractor's revenue is 203,192.01 — not 215,537.68.
+  { id: "b1", order_external_id: "o1", tractor_unit: "601", total_charges: "203192.01", other_charge: "12345.67", post_key: "k1", post_module: "BILL", bill_date: "2026-07-10", delivery_date: "2026-07-08", distance: 71_920, canceled: false },
   { id: "b2", order_external_id: "o3", tractor_unit: "101", total_charges: "4300000.00", other_charge: "0", post_key: "k2", post_module: "BILL", bill_date: "2026-07-12", delivery_date: "2026-07-10", distance: 1_100_000, canceled: false },
   { id: "b3", order_external_id: "o4", tractor_unit: "601", total_charges: "200000.00", other_charge: "0", post_key: "k3", post_module: "BILL", bill_date: "2026-07-14", delivery_date: "2026-07-12", distance: 217_894, canceled: false },
   // Staged but never booked by the GL: excluded, like every other revenue figure (D-MC12).

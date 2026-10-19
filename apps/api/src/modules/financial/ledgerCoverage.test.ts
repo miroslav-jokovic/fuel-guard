@@ -24,7 +24,7 @@ describe("getLedgerCoverage", () => {
         // One GL-booked invoice and one unposted row: only the booked one may carry the BILL
         // claim — the unposted row is F3's still-unmeasured vocabulary and stays out of every sum.
         mcleod_billing: [
-          { total_charges: 3000, other_charge: 100, excise_tax: 0, post_key: "PK-1", post_module: "BILL" },
+          { total_charges: 3100, other_charge: 100, excise_tax: 0, post_key: "PK-1", post_module: "BILL" },
           { total_charges: 999, other_charge: 0, excise_tax: 0, post_key: null, post_module: null },
         ],
       },
@@ -32,7 +32,7 @@ describe("getLedgerCoverage", () => {
     const report = await getLedgerCoverage(rec.client, ORG, "2026-06-01", "2026-07-01");
 
     expect(report.sweptMonth).toBe(true);
-    // BILL claims only the GL-booked receivable: 3000 + 100 against a $3,100 one-sided module
+    // BILL claims only the GL-booked receivable: the 3100 bill (its 100 of accessorials inside it) against a $3,100 one-sided module
     // (abs 6200 / 2) → drift 0. The unposted 999 row is in staging and in NO sum.
     const bill = report.modules.find((m) => m.post_module === "BILL")!;
     expect(bill.extracted).toBe(3100);

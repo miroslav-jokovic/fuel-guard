@@ -13,7 +13,8 @@ const ORG = "11111111-1111-1111-1111-111111111111";
  */
 const BILLS = [
   // 2026-07-06 is a Monday. Two loads in its week, both GL-booked.
-  { id: "b1", delivery_date: "2026-07-08", total_charges: 3000, other_charge: 200, distance: 1000, post_key: "K1", post_module: "BILL" },
+  // `total_charges` is the whole bill; its 200 of accessorials are inside it, never added again.
+  { id: "b1", delivery_date: "2026-07-08", total_charges: 3200, other_charge: 200, distance: 1000, post_key: "K1", post_module: "BILL" },
   { id: "b2", delivery_date: "2026-07-10", total_charges: 1800, other_charge: 0, distance: 600, post_key: "K2", post_module: "BILL" },
   // The next week, and a bill with no distance in it.
   { id: "b3", delivery_date: "2026-07-14", total_charges: 900, other_charge: 0, distance: null, post_key: "K3", post_module: "BILL" },

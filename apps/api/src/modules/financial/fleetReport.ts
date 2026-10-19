@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
+  billRevenue,
   computeFleetReport,
   buildFamilySummary,
   type FleetReport,
@@ -161,7 +162,7 @@ export async function getFleetReport(
       .map((b) => ({
         order_external_id: b.order_external_id,
         tractor_unit: b.tractor_unit,
-        revenue: Number(b.total_charges) + Number(b.other_charge ?? 0),
+        revenue: billRevenue(b),
       })),
     deductions: fleetDeductions,
     billedMiles: coverage.billedMiles,
