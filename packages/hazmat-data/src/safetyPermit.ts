@@ -1,4 +1,5 @@
 import type { Dataset } from "./schema.js";
+import { parseHmtRef } from "./resolveLine.js";
 
 /**
  * §385.403 FMCSA safety-permit applicability — M9, PROVISIONAL / SME-attestation pending.
@@ -73,7 +74,7 @@ export function evaluateSafetyPermitApplicability(dataset: Dataset, lines: Safet
   const kgThreshold = SAFETY_PERMIT_APPLICABILITY.explosivesNetWeightKg;
 
   for (const l of lines) {
-    const [entryId] = l.hmtRef.split("#");
+    const { entryId } = parseHmtRef(l.hmtRef);
     const entry = byEntryId.get(entryId ?? "");
     if (!entry) continue; // unresolvable ref: not evidence of a matching class — leave to the engine/reviewer
     const cls = entry.hazardClass ?? "";

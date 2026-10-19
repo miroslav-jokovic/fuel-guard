@@ -17,7 +17,7 @@ import type { Dataset, HmtEntry, PackingGroup } from "./schema.js";
  */
 
 /** Bump on ANY change to the normalization ruleset — stored on every run so a verdict stays reproducible. */
-export const PSN_NORMALIZER_VERSION = "1.1.0";
+export const PSN_NORMALIZER_VERSION = "1.2.0";
 
 export type ResolveLineFailureReason =
   | "id_missing" // no parseable UN/NA id on the line
@@ -53,7 +53,9 @@ export interface ResolveLineOk {
 export type ResolveLineFinding =
   | "pg_present_on_no_pg_entry" // Class 2 gas carries no PG, but the paper printed one
   | "pg_missing" // single-PG entry, no PG on the paper (resolved to the entry's PG)
-  | "pg_mismatch"; // single-PG entry, the paper's PG differs (resolved to the authoritative PG)
+  | "pg_mismatch" // single-PG entry, the paper's PG differs (resolved to the authoritative PG)
+  | "row_chosen_by_class" // several rows share the name; the printed class picked one (D-RC4)
+  | "row_chosen_by_pg"; // several rows share the name and class; the printed PG picked one (D-RC4)
 
 export interface ResolveLineFail {
   ok: false;
@@ -63,6 +65,19 @@ export interface ResolveLineFail {
   candidates?: Array<{ entryId: string; psn: string; pg: PackingGroup | null }>;
 }
 export type ResolveLineResult = ResolveLineOk | ResolveLineFail;
+
+/**
+ * The parts of an `hmtRef` (`${entryId}#${pg ?? "none"}`, built below). An entry id may itself hold a "#" —
+ * the dataset numbers repeated rows of one name `UN1950-aerosols#2` — so the ref splits at its LAST "#"; a
+ * first-"#" split read UN1950 Division 2.1 as its 2.2 sibling (2026-10-19). @hazmat/engine parses the same
+ * format for itself (D3 keeps the packages apart); @hazmat/golden's ref census holds the two to every entry.
+ */
+export function parseHmtRef(hmtRef: string): { entryId: string; pg: PackingGroup | null } {
+  const at = hmtRef.lastIndexOf("#");
+  if (at < 0) return { entryId: hmtRef, pg: null };
+  const token = hmtRef.slice(at + 1);
+  return { entryId: hmtRef.slice(0, at), pg: token === "none" ? null : (token as PackingGroup) };
+}
 
 // ── dataset index (hash blocking on prefix+id; build once per dataset version, memoize) ────────────
 export interface DatasetIndex {
@@ -229,14 +244,42 @@ export function resolveHmtLine(index: DatasetIndex, input: ResolveLineInput): Re
     matched = candidates;
   }
 
-  // 5. Collapse D/I symbol-only variants; anything left over is a genuine ambiguity.
-  const entry = collapse(matched);
-  if (!entry) return fail("psn_ambiguous", asCandidateList(matched));
+  // 5. Collapse D/I symbol-only variants. Where the rows still differ, they are the table's rows that share
+  // one name and are told apart by italic qualifiers the paper never prints — UN1950 Aerosols (2.1 / 2.2),
+  // UN1005 Ammonia, anhydrous (2.2 domestic / 2.3), UN2790 Acetic acid solution (PG II / III). The census
+  // (resolveLine.census.test.ts) found every correct printing of ten such numbers refused here. The printed
+  // class, then the printed PG, picks the row (owner, Q-RC3, 2026-10-19) — never a guess: a value that fits
+  // no row, or still fits two, refuses. The table then no longer refutes the class on its own, since it
+  // took the class from the paper, so the pick is a finding a review must see (D-RC4).
+  const rowFindings: ResolveLineFinding[] = [];
+  let entry = collapse(matched);
+  if (!entry) {
+    let rows = matched;
+    if (input.hazardClass != null && input.hazardClass.trim() !== "") {
+      const byClass = rows.filter((e) => classMatches(e, input.hazardClass!, input.reclassedCombustible ?? false));
+      if (byClass.length === 0) return fail("class_mismatch", asCandidateList(rows));
+      if (byClass.length < rows.length) { rowFindings.push("row_chosen_by_class"); rows = byClass; }
+      entry = collapse(rows);
+    }
+    if (!entry && hasPsn) {
+      // A row whose own Column (2) name was printed outranks one that only lists it as an alternate:
+      // UN2037 "Gas cartridges" is its own row and also an alternate of "Receptacles, small, containing gas".
+      const own = rows.filter((e) => nameMatches(e.psnPrinted, input.psn!, e.symbols.includes("G")));
+      if (own.length > 0 && own.length < rows.length) rows = own;
+      entry = collapse(rows);
+    }
+    if (!entry && input.pg != null) {
+      const byPg = rows.filter((e) => e.pgRows.some((r) => r.pg === input.pg));
+      if (byPg.length > 0 && byPg.length < rows.length) { rowFindings.push("row_chosen_by_pg"); rows = byPg; }
+      entry = collapse(rows);
+    }
+    if (!entry) return fail("psn_ambiguous", asCandidateList(rows));
+  }
   if (!matchedName) matchedName = entry.psnPrinted;
 
   // 6. PG — conditional, not always mandatory.
   const pgs = entry.pgRows.map((r) => r.pg);
-  const findings: ResolveLineFinding[] = [];
+  const findings: ResolveLineFinding[] = [...rowFindings];
   let resolvedPg: PackingGroup | null;
   if (pgs.length === 1 && pgs[0] === null) {
     resolvedPg = null; // Class 2 gas — no PG exists

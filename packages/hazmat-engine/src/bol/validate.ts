@@ -16,6 +16,7 @@
 
 import type { Finding, LoadInput, TraceNode } from "../types.js";
 import { isEnvironmentallyHazardousEntry } from "../placards/marinePollutant.js";
+import { parseHmtRef } from "../hmtRef.js";
 
 interface DsEntry {
   entryId: string;
@@ -74,7 +75,7 @@ export function validateBol(load: LoadInput): BolValidation {
   }
 
   for (const line of load.lines) {
-    const [entryId, pgRaw] = line.hmtRef.split("#");
+    const { entryId, pg: pgRaw } = parseHmtRef(line.hmtRef);
     const entry = ds.entries.find((e) => e.entryId === entryId);
     if (!entry) {
       findings.push({

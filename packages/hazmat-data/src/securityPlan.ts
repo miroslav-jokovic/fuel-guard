@@ -1,4 +1,5 @@
 import type { Dataset } from "./schema.js";
+import { parseHmtRef } from "./resolveLine.js";
 
 /**
  * §172.800(b) security-plan applicability — M9, PROVISIONAL / SME-attestation pending.
@@ -54,7 +55,7 @@ export function evaluateSecurityPlanApplicability(dataset: Dataset, lines: Secur
   const reasons: string[] = [];
   let indeterminateLines = 0;
   for (const l of lines) {
-    const [entryId, pg = "none"] = l.hmtRef.split("#");
+    const { entryId, pg } = parseHmtRef(l.hmtRef);
     const entry = byEntryId.get(entryId ?? "");
     if (!entry) continue; // unresolvable ref: not evidence of a matching class — leave to the engine/reviewer
     const cls = entry.hazardClass ?? "";

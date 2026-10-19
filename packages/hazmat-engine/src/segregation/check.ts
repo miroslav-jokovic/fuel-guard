@@ -23,6 +23,7 @@
  */
 
 import type { Finding, LoadInput, TraceNode } from "../types.js";
+import { parseHmtRef } from "../hmtRef.js";
 
 interface DsEntry { entryId: string; hazardClass: string | null; subsidiaryClasses?: string[] }
 interface DsSegCell { rowClass: string; colClass: string; value: "X" | "O" | "*"; notes: string | null }
@@ -85,7 +86,7 @@ export function checkSegregation(load: LoadInput): SegregationResult {
     classSources.get(base)!.add(`${entryId} (${kind} ${text})`);
   };
   for (const line of load.lines) {
-    const entryId = line.hmtRef.split("#")[0];
+    const { entryId } = parseHmtRef(line.hmtRef);
     const entry = ds.entries.find((e) => e.entryId === entryId);
     if (!entry) continue;
     noteClass(entry.hazardClass, entry.entryId, "class");
