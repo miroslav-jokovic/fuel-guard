@@ -1158,3 +1158,12 @@ about three merges.
     (`ROADSIDE_PERIODS`, `roadsidePeriodStart`, `summarizeRoadside`) are gone, so nothing can count the old way.
   - **Next (IC16, second merge):** the Shop's roadside repairs as a standard list with a drawer, and the inspection page's
     violations and units tables in cards.
+- **2026-10-19 — IC16, second merge: the Shop's roadside repairs as a standard list; the inspection page's tables in cards.**
+  - **Roadside repairs due** (`/shop/roadside-repairs`) was a stack of unit cards with their work orders spread out. It is
+    now the contract's queue (§5.1, `AssignmentsPage`): Open / Recorded tabs, a `DataWorkspace` with search (unit, report,
+    state, violation code), a paged `DataTable` (Unit, Inspection, Violations, In FleetPal, Due), and the decision in a
+    `SlideOver` on `RepairUnitDecision` (§5.7). The open unit is `unit=` in the URL; the bell's `inspection=` narrows the
+    list to that inspection's units (a filter "Clear filters" removes) and opens the first still open.
+  - **Inspection page**: the Violations and Units tables are cards with a header band (the record pages' section shape),
+    and "refreshed daily" is "refreshed when FMCSA publishes" (true since IC1d).
+  - **Next:** IC4's second merge — read a filed court result against its violation (R-ADJ2) and the DataQs hand-off.

@@ -153,6 +153,8 @@ const EXPECTED: Record<string, string> = {
   readings: "reading",
   // FM5 (Q-FM7 (a)): FMCSA's roadside record, the list the Roadside card opens.
   "roadside inspections": "roadside inspection",
+  // IC16: the Shop's roadside repairs list.
+  "roadside repairs": "roadside repair",
   requirements: "requirement",
   // FilterBar's default, for a caller that passes a count and no label of its own.
   results: "result",
