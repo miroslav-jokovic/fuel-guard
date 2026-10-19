@@ -14,7 +14,7 @@ import {
 import { useOrgTimezone } from "@/composables/useOrgTimezone";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { formatDate } from "@/lib/format";
-import { useInspectionRepairsQuery, useRepairCertificationQuery } from "./useRoadsideInspections";
+import { useInspectionCitationsQuery, useInspectionRepairsQuery, useRepairCertificationQuery } from "./useRoadsideInspections";
 
 /**
  * What is left to do on this inspection, first on the page (INSPECTION-CHALLENGE-PLAN Q-IC17, IC15).
@@ -35,6 +35,7 @@ const emit = defineEmits<{ go: [section: RoadsideStepSection] }>();
 const { zone } = useOrgTimezone();
 const repairs = useInspectionRepairsQuery(id);
 const certification = useRepairCertificationQuery(id);
+const citations = useInspectionCitationsQuery(id);
 
 const steps = computed(() =>
   repairs.data.value
@@ -43,6 +44,7 @@ const steps = computed(() =>
         inspectionDate: props.inspectionDate,
         repairs: repairs.data.value,
         certification: certification.data.value ?? null,
+        citations: citations.data.value,
         today: todayInZone(new Date(), zone.value),
       })
     : [],
@@ -50,7 +52,7 @@ const steps = computed(() =>
 const open = computed(() => roadsideOpenSteps(steps.value));
 
 const OWNER: Record<RoadsideStepOwner, string> = { safety: "Safety", maintenance: "Maintenance" };
-const GO: Record<RoadsideStepSection, string> = { driver: "Go to driver", documents: "Go to documents", repair: "Go to repair" };
+const GO: Record<RoadsideStepSection, string> = { driver: "Go to driver", documents: "Go to documents", repair: "Go to repair", citations: "Go to tickets" };
 
 const summary = computed(() => {
   const o = open.value;

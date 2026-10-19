@@ -5,6 +5,8 @@ import type {
   DocumentRegisterResponse,
   DocumentRow,
   RoadsideAttributionDecision,
+  RoadsideCitationAction,
+  RoadsideCitationDto,
   RoadsideDocumentRegisterRequest,
   RoadsideInspectionDetailDto,
   RoadsideInspectionDto,
@@ -140,6 +142,7 @@ export function useUploadInspectionDocument(id: Ref<string>) {
       Promise.all([
         client.invalidateQueries({ queryKey: ["roadside-inspections", "documents", id.value] }),
         client.invalidateQueries({ queryKey: ["roadside-inspections", "one", id.value] }),
+        client.invalidateQueries({ queryKey: ["roadside-inspections", "citations", id.value] }),
         client.invalidateQueries({ queryKey: ["roadside-inspections", "work"] }),
       ]),
   });
@@ -194,6 +197,32 @@ export function useRoadsideRepairsDueQuery(enabled: Ref<boolean> = ref(true)) {
     staleTime: 60_000,
     enabled,
     queryFn: () => read<RoadsideRepairDueDto[]>("/api/roadside-inspections/repairs-due", "the roadside repairs"),
+  });
+}
+
+/** The inspection's tickets and where each stands (IC4, R-ADJ1). Its own query, refreshed by an act or a filed court result. */
+export function useInspectionCitationsQuery(id: Ref<string>) {
+  return useQuery({
+    queryKey: computed(() => ["roadside-inspections", "citations", id.value] as const),
+    staleTime: 60_000,
+    queryFn: () =>
+      read<{ tickets: RoadsideCitationDto[]; courtResultFiled: boolean }>(`/api/roadside-inspections/${encodeURIComponent(id.value)}/citations`, "the tickets"),
+  });
+}
+
+/** The office's act on one ticket. Refused with `changed` when someone acted first; the record is read again either way. */
+export function useActOnCitation(id: Ref<string>) {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: RoadsideCitationAction): Promise<void> => {
+      const res = await apiFetch(`/api/roadside-inspections/${encodeURIComponent(id.value)}/citations`, { method: "POST", body: input });
+      if (!res.ok) throw new RepairDecisionError(res.error?.message ?? "It could not be recorded.", res.error?.code ?? null);
+    },
+    onSettled: () =>
+      Promise.all([
+        client.invalidateQueries({ queryKey: ["roadside-inspections", "citations", id.value] }),
+        client.invalidateQueries({ queryKey: ["roadside-inspections", "work"] }),
+      ]),
   });
 }
 

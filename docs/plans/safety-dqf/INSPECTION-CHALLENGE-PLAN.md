@@ -1114,3 +1114,25 @@ about three merges.
     inspection, one at a time through the Documents card's own upload; a failure is said on its row and the rest
     go on. Choices cover the whole record, read once the drawer opens.
   - **Next:** IC4 — court results (R-ADJ1) as next steps, then cases and the DataQs hand-off.
+- **2026-10-19 — IC4, first merge: court results for tickets (R-ADJ1, R-ADJ3). Migration 0489.**
+  - **Measured first:** 211 filled citation fields, 45 of them a warning written in its place ("WARNING", "VERBAL",
+    "VW", "W", "N/A") — `isTicket` leaves those out. 165 tickets, 144 with no result on FMCSA's feed: 8 under 60 days,
+    45 at 60 days – 1 year, 45 at 1–2 years, 46 older. SMS reads 24 months, so the office is asked about the 90
+    between 60 days and 24 months (`citationStanding`), and never about an older one.
+  - **0489 `inspection_citation_actions`** (append-only, RETENTION_FORBIDDEN, no client policy; matrix
+    `inspection-citation-actions.test.mjs`): the office's acts — `requested_from_court` with a `follow_up_on` day
+    (default + 30), or `not_contested` (paid: a conviction of the original charge, nothing to file). Composite FKs to
+    the inspection and the violation, so another org's ticket cannot be named.
+  - **A ticket is a Next step** (`roadsideNextSteps`, `citation:<violationId>`, safety): open "get the court result"
+    from day 60; waiting after a request until its follow-up day, then open "follow up with the court"; done on
+    FMCSA's result, on "not contested", or once a court result document is filed on the inspection. ⚠ A filed
+    document closes EVERY ticket on its inspection (5 inspections hold two): a document is the inspection's (IC2),
+    and which violation it answers is the disposition read (R-ADJ2, next). Until that read lands, a person filing
+    one court result for a two-ticket inspection must know it answers both.
+  - **Tickets card** on the inspection page (`GET`/`POST /:id/citations`, safety manage, `basedOn` the newest act,
+    audited `roadside.citation_requested` / `roadside.citation_not_contested`): each ticket with FMCSA's result or
+    where it stands, "Requested from the court", "Upload the court result" (opens the Documents card), "Not
+    contested (paid)" — which says what paying means before it is saved. The inbox's work line reads the same rule.
+  - **Next (IC4, second merge):** read a filed court result (a `court_disposition` read profile on the document
+    reader, as IC10's report), match it to its violation, and R-ADJ2 — a dismissal FMCSA does not show yet becomes a
+    ready-to-file DataQs case with the 18 USC 1001 attestation and the hand-off.

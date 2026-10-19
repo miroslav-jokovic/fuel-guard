@@ -49,6 +49,8 @@ vi.mock("@/features/roadside/useRoadsideInspections", async () => {
     },
     useDecideRepair: () => ({ mutate: vi.fn(), reset: vi.fn(), error: r(null), isPending: r(false) }),
     useRepairCertificationQuery: () => ({ data: r(null) }),
+    useInspectionCitationsQuery: () => ({ data: r({ tickets: [], courtResultFiled: false }), isLoading: r(false), isError: r(false), error: r(null), isFetching: r(false), refetch: vi.fn() }),
+    useActOnCitation: () => ({ mutate: vi.fn(), reset: vi.fn(), error: r(null), isPending: r(false) }),
     useCertifyRepairs: () => ({ mutate: vi.fn(), error: r(null), isPending: r(false) }),
     RepairDecisionError: class extends Error {},
   };

@@ -6,6 +6,7 @@ import {
   roadsideAttributionDecisionSchema,
   roadsideDocumentRegisterSchema,
   roadsideRepairCertifySchema,
+  roadsideCitationActionSchema,
   roadsideRepairDecisionSchema,
   roadsidePeriodStart,
   shiftDay,
@@ -27,6 +28,8 @@ import { decideAttribution } from "../attribution/decide.js";
 import { readInspectionRepairs, readRepairCertification } from "../read/inspectionRepairs.js";
 import { readRepairsDue } from "../read/repairsDue.js";
 import { readInspectionsWork } from "../read/inspectionsWork.js";
+import { readInspectionCitations } from "../citation/read.js";
+import { actOnCitation } from "../citation/act.js";
 import { decideRepair } from "../repair/decide.js";
 import { certifyRepairs } from "../repair/certify.js";
 import { listInspectionDocuments, registerInspectionDocument, signInspectionDocumentDownload } from "../documents/inspectionDocuments.js";
@@ -339,6 +342,53 @@ export function roadsideInspectionsRouter(): Router {
         return;
       }
       res.status(201).json({ ok: true, data: out.data });
+    }),
+  );
+
+  /** The inspection's tickets and where each stands (IC4, R-ADJ1): FMCSA's court results and the office's acts. */
+  router.get(
+    "/:id/citations",
+    canView,
+    asyncHandler(async (req, res) => {
+      const id = recordId().safeParse(req.params.id);
+      if (!id.success) {
+        res.status(404).json(apiError("not_found", "Roadside inspection not found"));
+        return;
+      }
+      const out = await readInspectionCitations(getSupabaseAdmin(getAppLocals(req).env), req.auth!.orgId!, id.data);
+      if ("error" in out) {
+        dbErrorResponse(res, "roadside-inspections.citations", out.error, "Could not load the tickets");
+        return;
+      }
+      res.json({ ok: true, data: out });
+    }),
+  );
+
+  /** The office's act on one ticket — requested from the court, or not contested (Q-IC2 (a): safety's). */
+  router.post(
+    "/:id/citations",
+    requireSection("safety"),
+    asyncHandler(async (req, res) => {
+      const id = recordId().safeParse(req.params.id);
+      if (!id.success) {
+        res.status(404).json(apiError("not_found", "Roadside inspection not found"));
+        return;
+      }
+      const body = roadsideCitationActionSchema.safeParse(req.body);
+      if (!body.success) {
+        res.status(400).json(apiError("bad_request", body.error.issues[0]?.message ?? "Invalid action"));
+        return;
+      }
+      const out = await actOnCitation(getSupabaseAdmin(getAppLocals(req).env), req.auth!.orgId!, id.data, req.auth!.userId, body.data);
+      if ("error" in out) {
+        dbErrorResponse(res, "roadside-inspections.citation-act", out.error, "Could not record it");
+        return;
+      }
+      if (!out.ok) {
+        res.status(out.status).json(apiError(out.code, out.message));
+        return;
+      }
+      res.status(201).json({ ok: true, data: { id: out.id } });
     }),
   );
 
