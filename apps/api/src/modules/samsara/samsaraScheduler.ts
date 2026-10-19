@@ -21,6 +21,7 @@ import { syncIftaMonths } from "./samsaraIftaSync.js";
 import { syncVehicleOdometerReadings } from "./samsaraOdometerSync.js";
 import { startDocumentsTier } from "./samsaraDocumentsSync.js";
 import { startHosClocksTier } from "./hosClocksFeed.js";
+import { startTrailerPairingTier } from "./samsaraTrailerSync.js";
 
 /**
  * Tier 5 — PER-FILL TELEMATICS (SAM-S3, D-SAM1). The tier that stops the collection hole growing.
@@ -446,6 +447,7 @@ export function startSamsaraScheduler(env: Env): void {
   if (env.SAMSARA_RECON_SYNC_MINUTES > 0 && env.SAMSARA_RECON_BATCH > 0) startReconTier(env);
   if (env.SAMSARA_POSITIONS_SYNC_SECONDS > 0) startPositionsTier(env);
   if (env.SAMSARA_HOS_CLOCKS_SYNC_MINUTES > 0) startHosClocksTier(env);
+  if (env.SAMSARA_TRAILER_PAIRING_SYNC_HOURS > 0) startTrailerPairingTier(env);
   startRetentionTier(env);
   // Reads what the tiers above recorded and says so when one of them has stopped delivering.
   startFeedAlarmTier(env);

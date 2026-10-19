@@ -79,3 +79,12 @@ truck. 15 trucks are GPS-paired to a reefer while their load's trailer is a dry 
 ### 2026-10-19 — Audited, ruled, TL1 built
 
 Measured as in §1. Owner ruled D-TL1. TL1 is in this PR. Q-TL1 and Q-TL2 wait on the owner.
+
+### 2026-10-19 — Q-TL2: the pairing runs daily
+
+`startTrailerPairingTier` (in `samsaraTrailerSync.ts`, started by `startSamsaraScheduler`) runs the
+trailer sync and its GPS pairing once a day, under the manual button's `sync_trailers` kind. The
+(org, kind) slot keeps a press and a tick apart, and each run leaves a ledger row. Its kill switch is
+`SAMSARA_TRAILER_PAIRING_SYNC_HOURS` (default 24). The row is in `docs/WORKER-DEPLOYMENT.md`'s vendor
+table. Not yet in the Samsara feed alarm (`SamsaraFeedId` is a shared contract the web lists), so a
+stopped tier shows in the jobs ledger, not as an alert: TL4 adds it.
