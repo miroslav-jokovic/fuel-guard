@@ -12,6 +12,7 @@
     "doc:corpus": "tsx src/scripts/pullDocumentCorpus.ts",
     "doc:corpus:files": "tsx src/scripts/addFilesToDocumentCorpus.ts",
     "doc:score": "tsx src/scripts/scoreDocumentCorpus.ts",
+    "doc:replay": "tsx src/scripts/replayDocumentReads.ts",
     "seed:psp-qa": "tsx src/scripts/seedPspQaDrivers.ts",
     "serve:web-dist": "tsx src/scripts/serveWebDist.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
