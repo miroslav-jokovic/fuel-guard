@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { attributionQuestion, roadsideNextSteps, roadsideOpenSteps } from "./roadsideNextSteps.js";
+import { attributionAnswer, attributionQuestion, roadsideNextSteps, roadsideOpenSteps, roadsideWork } from "./roadsideNextSteps.js";
 import type { RoadsideAttributionDto, RoadsideAttributionReadingDto } from "./roadsideAttributionContract.js";
 import type { RoadsideRepairCertificationDto, RoadsideRepairDto } from "./roadsideRepairContract.js";
 import type { RoadsideReportCheckDto } from "./roadsideReportCheckContract.js";
@@ -74,7 +74,7 @@ const cert = (current: boolean): RoadsideRepairCertificationDto => ({
 
 const TODAY = "2026-10-19";
 const steps = (over: Partial<Parameters<typeof roadsideNextSteps>[0]> = {}) =>
-  roadsideNextSteps({ attribution: attribution(), repairs: [], certification: null, today: TODAY, ...over });
+  roadsideNextSteps({ attribution: attribution(), inspectionDate: "2026-10-06", repairs: [], certification: null, today: TODAY, ...over });
 
 describe("who was driving (IC13, Q-IC15 (b))", () => {
   it("shows a strong reading of a roster driver as the answer, labelled as Samsara's, and asks nothing", () => {
@@ -124,6 +124,29 @@ describe("who was driving (IC13, Q-IC15 (b))", () => {
   });
 });
 
+describe("an older inspection's driver (DRIVER_ASK_DAYS)", () => {
+  it("asks for 90 days, then waits for the DataQs filing rather than filling Needs action", () => {
+    const weak = attribution({ reading: reading({ confidence: "low", basis: "after_only" }) });
+    expect(steps({ attribution: weak, inspectionDate: "2026-07-21" })[0]!.state).toBe("open");
+    const old = steps({ attribution: weak, inspectionDate: "2026-07-20" })[0]!;
+    expect(old.state).toBe("waiting");
+    expect(old.detail).toMatch(/confirmed when a DataQs request is prepared/);
+    expect(steps({ attribution: weak, inspectionDate: null })[0]!.state).toBe("waiting");
+  });
+});
+
+describe("who the record names as the driver", () => {
+  it("is the decision's driver, else Samsara's one driver, saying on whose word", () => {
+    expect(attributionAnswer(attribution())).toEqual({ name: "John Smith", by: "samsara" });
+    expect(attributionAnswer(attribution({ reading: reading({ driver: null }) }))).toEqual({ name: "John Smith", by: "samsara" });
+    expect(attributionAnswer(attribution({ reading: reading({ outcome: "several_drivers" }) }))).toBeNull();
+    const corrected = attribution({ decision: { id: "p", kind: "corrected", driver: { id: "d-2", name: "Ann Roe" }, decidedBy: "J", decidedAt: "x", note: "n", engineVersion: "ic5.1" } });
+    expect(attributionAnswer(corrected)).toEqual({ name: "Ann Roe", by: "person" });
+    const byReport = attribution({ decision: { id: "p", kind: "confirmed_by_report", driver: SMITH, decidedBy: null, decidedAt: "x", note: null, engineVersion: "ic5.1" } });
+    expect(attributionAnswer(byReport)).toEqual({ name: "John Smith", by: "report" });
+  });
+});
+
 describe("the repair, the report and the certification (IC11, 396.9(d))", () => {
   it("asks nothing about repairs or the report on an inspection with no vehicle repair", () => {
     expect(steps().map((s) => s.key)).toEqual(["driver"]);
@@ -165,5 +188,24 @@ describe("the order and the count", () => {
     const out = steps({ attribution: attribution({ reading: reading({ confidence: "low" }) }), repairs: [repair()] });
     expect(roadsideOpenSteps(out)).toEqual({ total: 3, byOwner: { safety: 2, maintenance: 1 } });
     expect(roadsideOpenSteps(steps())).toEqual({ total: 0, byOwner: { safety: 0, maintenance: 0 } });
+  });
+});
+
+describe("one inspection's line of work (the inbox)", () => {
+  it("names the first open step, the driver and the verified points only", () => {
+    const s = steps({ attribution: attribution({ reading: reading({ confidence: "low" }) }), repairs: [repair({ dueOn: "2026-10-10" })] });
+    const w = roadsideWork("i-1", s, attribution(), { basics: [
+      { basic: "vehicle_maintenance", verified: true, severitySum: 20, capped: 20, points: 60 },
+      { basic: "hm_compliance", verified: false },
+      { basic: "unsafe_driving", verified: true, severitySum: 1, capped: 1, points: 3 },
+    ] });
+    expect(w).toEqual({
+      id: "i-1",
+      driver: { name: "John Smith", by: "samsara" },
+      open: { total: 3, byOwner: { safety: 2, maintenance: 1 } },
+      next: { title: "Truck 612: name the repair", owner: "maintenance", dueOn: "2026-10-10", clock: { overdue: true, days: 9 } },
+      points: 63,
+    });
+    expect(roadsideWork("i-2", steps(), attribution(), null)).toMatchObject({ next: null, points: null, open: { total: 0 } });
   });
 });

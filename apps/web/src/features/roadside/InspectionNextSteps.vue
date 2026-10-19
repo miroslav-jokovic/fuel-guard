@@ -28,7 +28,7 @@ import { useInspectionRepairsQuery, useRepairCertificationQuery } from "./useRoa
  * there is nothing to repair and then grow steps under the reader's eye.
  */
 
-const props = defineProps<{ inspectionId: string; attribution: RoadsideAttributionDto }>();
+const props = defineProps<{ inspectionId: string; inspectionDate: string | null; attribution: RoadsideAttributionDto }>();
 const id = toRef(props, "inspectionId");
 const emit = defineEmits<{ go: [section: RoadsideStepSection] }>();
 
@@ -40,6 +40,7 @@ const steps = computed(() =>
   repairs.data.value
     ? roadsideNextSteps({
         attribution: props.attribution,
+        inspectionDate: props.inspectionDate,
         repairs: repairs.data.value,
         certification: certification.data.value ?? null,
         today: todayInZone(new Date(), zone.value),

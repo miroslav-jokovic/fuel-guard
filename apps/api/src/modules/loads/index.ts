@@ -15,6 +15,7 @@ export { dispatchRouter } from "./routes/dispatch.js";
 export {
   readLiveLoadContext,
   readLoadForRoute,
+  readTruckLoadTrailer,
   type LiveLoadContext,
   type LiveLoadStop,
   type LoadForRoute,

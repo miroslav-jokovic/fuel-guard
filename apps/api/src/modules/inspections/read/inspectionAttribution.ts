@@ -50,7 +50,7 @@ export interface AttributionRow {
   note: string | null;
 }
 
-const COLS =
+export const ATTRIBUTION_COLS =
   "id, source, engine_version, created_at, outcome, confidence, basis, zone, zone_method, started_at, ended_at, location_check, " +
   "vehicle_id, samsara_vehicle_id, samsara_driver_id, samsara_driver_name, candidates, decided_by, driver_id, note";
 
@@ -70,7 +70,7 @@ export async function readLatestAttribution(
   const latest = (source: AttributionSource) =>
     admin
       .from("inspection_attributions")
-      .select(COLS)
+      .select(ATTRIBUTION_COLS)
       .eq("org_id", orgId)
       .eq("inspection_id", inspectionId)
       .eq("source", source)
@@ -100,14 +100,14 @@ export function currentRow(l: LatestAttribution): AttributionRow | null {
   return newest([l.engine, l.report, l.person]);
 }
 
-interface DriverRow {
+export interface DriverRow {
   id: string;
   full_name: string;
   samsara_driver_id: string | null;
 }
 
 /** Our drivers with these Samsara ids, and these roster ids. Two reads at most, none when nothing is asked. */
-async function rosterOf(
+export async function rosterOf(
   admin: SupabaseClient,
   orgId: string,
   samsaraIds: string[],
@@ -127,26 +127,31 @@ async function rosterOf(
   };
 }
 
-const ref = (d: DriverRow | undefined): AttributionDriverRefDto | null => (d ? { id: d.id, name: d.full_name } : null);
+export const ref = (d: DriverRow | undefined): AttributionDriverRefDto | null => (d ? { id: d.id, name: d.full_name } : null);
 
-/** The page's attribution: the reading with its drivers resolved, and the decision with its author named. */
-export async function readInspectionAttribution(
-  admin: SupabaseClient,
-  orgId: string,
-  inspectionId: string,
-): Promise<RoadsideAttributionDto | { error: DbError }> {
-  const latest = await readLatestAttribution(admin, orgId, inspectionId);
-  if ("error" in latest) return latest;
+export type Roster = { bySamsara: Map<string, DriverRow>; byId: Map<string, DriverRow> };
+
+/** The Samsara ids and roster ids one inspection's latest rows name — what `rosterOf` must be asked. */
+export function namedIds(latest: LatestAttribution): { samsara: string[]; roster: string[] } {
   const { engine } = latest;
   const person = decisionRow(latest);
-  const candidates = engine?.candidates ?? [];
-  const samsaraIds = [engine?.samsara_driver_id, ...candidates.map((c) => c.samsaraDriverId)].filter((s): s is string => !!s);
-  const [roster, labels] = await Promise.all([
-    rosterOf(admin, orgId, samsaraIds, person?.driver_id ? [person.driver_id] : []),
-    memberLabels(admin, orgId, person?.decided_by ? [person.decided_by] : []),
-  ]);
-  if ("error" in roster) return roster;
+  const samsara = [engine?.samsara_driver_id, ...(engine?.candidates ?? []).map((c) => c.samsaraDriverId)].filter((x): x is string => !!x);
+  return { samsara, roster: person?.driver_id ? [person.driver_id] : [] };
+}
 
+/**
+ * The attribution DTO from one inspection's latest rows, with the roster and the deciders already read — one
+ * builder for the inspection page (`readInspectionAttribution`) and the inbox (`inspectionsWork.ts`), so the
+ * two cannot name a driver differently. Pure.
+ */
+export function attributionDto(
+  latest: LatestAttribution,
+  roster: Roster,
+  labels: Awaited<ReturnType<typeof memberLabels>>,
+  reports: RoadsideAttributionDto["reports"],
+): RoadsideAttributionDto {
+  const { engine } = latest;
+  const person = decisionRow(latest);
   return {
     reading: engine && {
       id: engine.id,
@@ -162,7 +167,7 @@ export async function readInspectionAttribution(
       locationCheck: engine.location_check,
       samsaraDriver: engine.samsara_driver_id ? { id: engine.samsara_driver_id, name: engine.samsara_driver_name } : null,
       driver: engine.samsara_driver_id ? ref(roster.bySamsara.get(engine.samsara_driver_id)) : null,
-      candidates: candidates.map((c) => ({
+      candidates: (engine.candidates ?? []).map((c) => ({
         samsaraDriverId: c.samsaraDriverId,
         name: c.name,
         passenger: c.passenger,
@@ -179,17 +184,36 @@ export async function readInspectionAttribution(
       engineVersion: person.engine_version,
     },
     basedOn: currentRow(latest)?.id ?? null,
-    // A failure here degrades the card to "no report" rather than failing the page: the reading and the
-    // decision above are what the page is for, and on staging this read can meet the code before its
-    // table (0480) is applied (`check-migration-ordering.mjs`'s window).
-    reports: await readReportChecks(admin, orgId, inspectionId, async (id) => {
-      const known = roster.byId.get(id);
-      if (known) return ref(known);
-      const r = await rosterOf(admin, orgId, [], [id]);
-      return "error" in r ? null : ref(r.byId.get(id));
-    }).catch((e: unknown) => {
-      console.error(`[inspection-report] org ${orgId} inspection ${inspectionId}: report checks unread —`, e instanceof Error ? e.message : e);
-      return [];
-    }),
+    reports,
   };
+}
+
+/** The page's attribution: the reading with its drivers resolved, and the decision with its author named. */
+export async function readInspectionAttribution(
+  admin: SupabaseClient,
+  orgId: string,
+  inspectionId: string,
+): Promise<RoadsideAttributionDto | { error: DbError }> {
+  const latest = await readLatestAttribution(admin, orgId, inspectionId);
+  if ("error" in latest) return latest;
+  const person = decisionRow(latest);
+  const ids = namedIds(latest);
+  const [roster, labels] = await Promise.all([
+    rosterOf(admin, orgId, ids.samsara, ids.roster),
+    memberLabels(admin, orgId, person?.decided_by ? [person.decided_by] : []),
+  ]);
+  if ("error" in roster) return roster;
+  // A failure here degrades the card to "no report" rather than failing the page: the reading and the
+  // decision are what the page is for, and on staging this read can meet the code before its table (0480)
+  // is applied (`check-migration-ordering.mjs`'s window).
+  const reports = await readReportChecks(admin, orgId, inspectionId, async (id) => {
+    const known = roster.byId.get(id);
+    if (known) return ref(known);
+    const r = await rosterOf(admin, orgId, [], [id]);
+    return "error" in r ? null : ref(r.byId.get(id));
+  }).catch((e: unknown) => {
+    console.error(`[inspection-report] org ${orgId} inspection ${inspectionId}: report checks unread —`, e instanceof Error ? e.message : e);
+    return [];
+  });
+  return attributionDto(latest, roster, labels, reports);
 }

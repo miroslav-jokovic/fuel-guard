@@ -25,7 +25,7 @@ describe("loadPlanningTruck", () => {
     expect((await loadPlanningTruck(rec().client, ORG, "veh-1", null, true))?.isReefer).toBe(true);
   });
 
-  it("with no load, the GPS pairing still decides (step TL3 moves the planner to the current load)", async () => {
+  it("with no load, the GPS pairing still decides", async () => {
     expect((await loadPlanningTruck(rec().client, ORG, "veh-1", null))?.isReefer).toBe(true);
   });
 });

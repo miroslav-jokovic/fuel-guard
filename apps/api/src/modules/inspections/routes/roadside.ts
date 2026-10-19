@@ -26,6 +26,7 @@ import { readRoadsideFeed } from "../feed/store.js";
 import { decideAttribution } from "../attribution/decide.js";
 import { readInspectionRepairs, readRepairCertification } from "../read/inspectionRepairs.js";
 import { readRepairsDue } from "../read/repairsDue.js";
+import { readInspectionsWork } from "../read/inspectionsWork.js";
 import { decideRepair } from "../repair/decide.js";
 import { certifyRepairs } from "../repair/certify.js";
 import { listInspectionDocuments, registerInspectionDocument, signInspectionDocumentDownload } from "../documents/inspectionDocuments.js";
@@ -100,6 +101,30 @@ export function roadsideInspectionsRouter(): Router {
         return;
       }
       res.json({ ok: true, data: rows });
+    }),
+  );
+
+  /**
+   * One line of work per inspection from `?from=` (the inbox's period): its open steps, driver and CSA points
+   * (Q-IC17, IC15). Its own read so the list draws without waiting on it. Declared before `/:id`.
+   */
+  router.get(
+    "/work",
+    canView,
+    asyncHandler(async (req, res) => {
+      const from = typeof req.query.from === "string" ? req.query.from : null;
+      if (from !== null && (!isCalendarDay(from) || shiftDay(from, 0) !== from)) {
+        res.status(400).json(apiError("bad_request", "from must be a calendar day, YYYY-MM-DD."));
+        return;
+      }
+      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      const orgId = req.auth!.orgId!;
+      const out = await readInspectionsWork(admin, orgId, { from, today: await orgToday(admin, orgId) });
+      if ("error" in out) {
+        dbErrorResponse(res, "roadside-inspections.work", out.error, "Could not work out what is left on the roadside inspections");
+        return;
+      }
+      res.json({ ok: true, data: out });
     }),
   );
 

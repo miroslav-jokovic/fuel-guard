@@ -116,6 +116,13 @@ pages ≈ $30–50 a run, re-run on reader changes only. **Recommendation: yes, 
 table as a class witness on ≈10 numbers but stops every correct aerosol and anhydrous-ammonia BOL.
 **Recommendation: narrow, under D-RC4.** *Answered 2026-10-19 (owner): narrow — built in RC1.*
 
+**Q-RC4 — Should a read be judged again when it is opened?** (Found building RC2.) The audit already is (view
+time, today's code); the evidence — the table verdict that picks the calculator's product, the agreement that
+gates Calculate — is fixed when the read finished. *(a)* judge at view time from `replay_inputs` (an old read always
+shows today's verdict; Calculate's review rows record which rule they were judged under); *(b)* keep the stored
+judgement and offer "Read again" (a model call); *(c)* as today. **Recommendation: (a)** for reads with replay
+inputs — a fix reaches every open BOL at once, and the audit and the product match can never disagree again.
+
 ## 7. Progress log
 
 - **2026-10-19 — plan written.** #1607 merged first (plural fold, bare number, equipment reset). Census,
@@ -134,3 +141,14 @@ table as a class witness on ≈10 numbers but stops every correct aerosol and an
   the same verdict, BOL description and permit/plan answer as a control dataset with the "#" spelled out —
   4 of 6 call sites mutated back fail it; the other two are no-ops on the shipped table (no class-1 "#" entry; the
   one two-PG "#" entry has equal column 8A) and are pinned by unit tests instead.
+- **2026-10-19 — RC2 built.** 0487 (#1614, applied on staging) gives `document_reads` a `replay_inputs` column
+  through the one transition; the writer (#1615) stores `{ passB, ocr, textLayer }` exactly as the witnesses were
+  handed them (the text layer kept as judged — its page set and turn hang on page verdicts a person may change).
+  `replayRead` (`read/replay.ts`, pure) re-runs pairing → table → row/arithmetic witnesses → acceptance → audit over
+  them and returns the fields and findings that moved; `doc:replay -- --org <uuid>` prints it per read with a
+  one-line summary, including `relaxed` — fields that stopped asking a person, the direction a PR must explain
+  (D-RC3). **Found while building it:** the audit is not stored — `requests.ts` runs it at view time with the code
+  of the day — while the table verdict the calculator's product comes from IS stored. So an old read shows today's
+  audit beside yesterday's product match, which is why the owner's re-opened BOL still had no product while its
+  audit had moved. Re-judging stored evidence at view time is a design question for RC2's follow-up, recorded as
+  Q-RC4. The 7 reads before the writer cannot be replayed (no pass B kept); every read from the writer on can.
