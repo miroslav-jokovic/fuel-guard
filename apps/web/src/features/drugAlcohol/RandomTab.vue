@@ -76,10 +76,14 @@ const options = computed(() =>
     .filter((o) => o.value !== "period" || props.currentPeriod)
     .map((o) => ({ value: o.value, label: `${o.label} (${props.draws.filter(o.keep).length})` })),
 );
-const heading = computed(() =>
-  show.value === "period" && props.currentPeriod
-    ? `This ${periodName.value}'s draw, ${formatDate(props.currentPeriod.startsOn)} – ${formatDate(props.currentPeriod.endsOn)}`
-    : `Random draws: ${choice.value.label.toLowerCase()}`,
+/** Which draw "This quarter" is, said in the caption: the Show label has no room for two dates. */
+const intro = computed(() =>
+  [
+    props.currentPeriod ? `This ${periodName.value}'s draw runs ${formatDate(props.currentPeriod.startsOn)} – ${formatDate(props.currentPeriod.endsOn)}.` : null,
+    "Med-Stop draws each quarter's names when the quarter opens and dates them across it. Every open draw can be ordered now; a driver goes for the test as soon as they are told. Alternates are listed under Show. Only admins and safety managers see this list.",
+  ]
+    .filter(Boolean)
+    .join(" "),
 );
 
 const columns: DataTableColumn[] = [
@@ -89,7 +93,7 @@ const columns: DataTableColumn[] = [
   { key: "selectedOn", label: "Selected", sortable: true },
   { key: "state", label: "Status" },
   { key: "daysSince", label: "Waiting", sortable: true, numeric: true },
-  { key: "ordered", label: "Order" },
+  { key: "ordered", label: "Ordered" },
 ];
 const tableRows = computed(() => props.draws.map((s) => ({ ...s, name: s.person.name, dispatcher: dispatchLines(s.person.driverId) })));
 type Row = (typeof tableRows.value)[number];
@@ -131,8 +135,8 @@ const paceTone = (pool: PoolPace) =>
 </script>
 
 <template>
-  <div class="space-y-6">
-    <div v-if="pools.length > 0" class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+  <div class="space-y-3">
+    <div v-if="pools.length > 0" class="grid grid-cols-1 gap-4 pb-3 sm:grid-cols-2">
       <StatCard
         v-for="pool in pools"
         :key="pool.service + pool.poolYear"
@@ -143,15 +147,12 @@ const paceTone = (pool: PoolPace) =>
       />
     </div>
 
+    <ListIntro :text="intro" />
     <DataWorkspace>
-      <ListIntro
-        :title="heading"
-        why="Med-Stop draws each quarter's names when the quarter opens and dates them across it. Every open draw can be ordered now; a driver goes for the test as soon as they are told. Alternates are listed under Show. Only admins and safety managers see this list."
-      />
       <FilterBar
         v-model:search="search"
         embedded
-        search-placeholder="Search driver, dispatcher or truck…"
+        search-placeholder="Search driver, dispatcher, truck…"
         :count="filtered.length"
         count-label="random draws"
         :active-count="activeCount"
@@ -164,8 +165,6 @@ const paceTone = (pool: PoolPace) =>
       </FilterBar>
       <DataTable
         embedded
-        dense
-        :sticky-header="false"
         :columns="columns"
         :rows="pageRows"
         row-key="selectionId"
@@ -189,11 +188,12 @@ const paceTone = (pool: PoolPace) =>
         </template>
         <template #cell-daysSince="{ row }">{{ row.state !== "due" || row.daysSince < 0 ? "—" : row.daysSince === 0 ? "today" : `${row.daysSince} d` }}</template>
         <template #cell-ordered="{ row }">
-          <template v-if="row.state === 'due'">
-            <BaseButton v-if="canOrder && !row.ordered && row.person.medstopId" size="sm" @click="emit('order', row)">Order test</BaseButton>
-            <span v-else :class="[BADGE_BASE, toneClass(row.ordered ? 'info' : 'warning')]">{{ row.ordered ? "Ordered" : "Not ordered" }}</span>
-          </template>
-          <span v-else-if="row.ordered" :class="[BADGE_BASE, toneClass('info')]">Ordered</span>
+          <span v-if="row.ordered" :class="[BADGE_BASE, toneClass('info')]">Ordered</span>
+          <span v-else-if="row.state === 'due'" :class="[BADGE_BASE, toneClass('warning')]">Not ordered</span>
+        </template>
+        <!-- UX3: the row's one action (§5.6 single-action shape), on a due draw nobody has ordered. -->
+        <template v-if="canOrder" #actions="{ row }">
+          <BaseButton v-if="row.state === 'due' && !row.ordered && row.person.medstopId" variant="ghost" size="sm" @click.stop="emit('order', row)">Order test</BaseButton>
         </template>
         <template #footer>
           <TablePagination :page="page" :page-size="pageSize" :total="filtered.length" @update:page="page = $event" />

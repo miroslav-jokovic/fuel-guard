@@ -110,7 +110,7 @@ describe("DrugAlcoholPage", () => {
     state.role = "safety_manager";
     const w = await render(program());
     state.role = null;
-    expect(w.text()).toContain("This quarter's draw, 10/01/2026 – 12/31/2026");
+    expect(w.text()).toContain("This quarter's draw runs 10/01/2026 – 12/31/2026.");
     for (const name of ["Dee Due", "Fay Future"]) expect(w.text()).toContain(name);
     for (const name of ["Alma Alternate", "Uma Upcoming", "Tia Tested"]) expect(w.text()).not.toContain(name);
     expect(w.findAll("button").filter((b) => b.text() === "Order test")).toHaveLength(2);
@@ -136,7 +136,8 @@ describe("DrugAlcoholPage", () => {
   it("opens on the whole year when no pool covers today", async () => {
     const base = program();
     const w = await render(program({ selections: { draws: base.selections!.draws, currentPeriod: null, dispatch: {} } }));
-    expect(w.text()).toContain("Random draws: whole year");
+    expect(w.text()).not.toContain("draw runs");
+    expect(w.text()).toContain("Show: Whole year");
     expect(w.text()).toContain("Tia Tested");
   });
 
@@ -149,7 +150,7 @@ describe("DrugAlcoholPage", () => {
 
   it("opens the tab named in the URL and writes the tab back to it", async () => {
     const w = await render(program(), "/drug-alcohol?tab=medical");
-    expect(w.text()).toContain("Medical cards expiring in the next 60 days");
+    expect(w.text()).toContain("A driver may not drive on an expired card.");
     expect(w.text()).toContain("Med Diff");
     expect(w.text()).toContain("11/10/2026");
     // The flagged list is Show's other choice, and names each source and why the file keeps its date.
@@ -183,7 +184,7 @@ describe("DrugAlcoholPage", () => {
     expect(w.text()).not.toContain("Driver 01");
     w.findComponent(FilterSelect).vm.$emit("update:modelValue", "left");
     await flushPromises();
-    expect(w.text()).toContain("In Med-Stop's pool, no longer driving here");
+    expect(w.text()).toContain("Med-Stop can still select these people.");
     expect(w.text()).toContain("Left Early");
     expect(w.text()).not.toContain("Driver 21");
   });

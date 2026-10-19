@@ -1,14 +1,12 @@
 <script setup lang="ts">
 /**
- * The first row of a Drug & Alcohol tab's workspace: what the list MEANS and what to do about it.
- * The count is the toolbar's (FilterBar `:count`), so it is not repeated beside the title.
+ * What a Drug & Alcohol list MEANS and what to do about it, one caption above its workspace. Outside
+ * the card, because the house list (contract §5.2b) opens on its toolbar: which list is showing is
+ * the Show filter's own label, and the count is the toolbar's.
  */
-defineProps<{ title: string; why: string }>();
+defineProps<{ text: string }>();
 </script>
 
 <template>
-  <div class="px-6 pt-5 pb-3">
-    <h2 class="text-sm font-semibold text-ink">{{ title }}</h2>
-    <p class="mt-1 text-xs text-ink-muted">{{ why }}</p>
-  </div>
+  <p class="text-sm text-ink-muted">{{ text }}</p>
 </template>
