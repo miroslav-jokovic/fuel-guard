@@ -146,6 +146,33 @@ export function useUploadInspectionDocument(id: Ref<string>) {
 }
 
 /**
+ * Officer's reports dropped on the inbox, each filed on the inspection a person confirmed (IC15's bulk upload).
+ * One file at a time through the same register-then-PUT as the Documents card, so a bulk upload is N ordinary
+ * uploads and nothing else. Each inspection's own reads are refreshed as its file lands.
+ */
+export function useUploadReportTo() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { inspectionId: string; file: File }) =>
+      uploadDocumentFile(input.file, async (fields) => {
+        const body: RoadsideDocumentRegisterRequest = { ...fields, kind: "roadside_inspection_report" };
+        const res = await apiFetch<{ data: DocumentRegisterResponse }>(
+          `/api/roadside-inspections/${encodeURIComponent(input.inspectionId)}/documents`,
+          { method: "POST", body },
+        );
+        if (!res.ok || !res.data) throw new Error(res.error?.message ?? "The report could not be filed.");
+        return res.data.data;
+      }),
+    onSettled: (_d, _e, input) =>
+      Promise.all([
+        client.invalidateQueries({ queryKey: ["roadside-inspections", "documents", input.inspectionId] }),
+        client.invalidateQueries({ queryKey: ["roadside-inspections", "one", input.inspectionId] }),
+        client.invalidateQueries({ queryKey: ["roadside-inspections", "work"] }),
+      ]),
+  });
+}
+
+/**
  * The repair record of the inspection's vehicle violations (IC11). Its own query: the engine re-reads it
  * hourly as FleetPal work orders open, and a decision must reload it without reloading the inspection.
  */

@@ -246,6 +246,8 @@ export interface RoadsideInspectionWorkDto {
   next: Pick<RoadsideStep, "title" | "owner" | "dueOn" | "clock"> | null;
   /** CSA points the inspection adds today, verified categories only (D-IC6); null when no edition is in force. */
   points: number | null;
+  /** Its "Upload the officer's report" step is open — the inbox's bulk upload offers these first. */
+  awaitsReport: boolean;
 }
 
 /** The work line of one inspection from its steps, its attribution and its points. Pure. */
@@ -262,5 +264,6 @@ export function roadsideWork(
     open: roadsideOpenSteps(steps),
     next: first ? { title: first.title, owner: first.owner, dueOn: first.dueOn, clock: first.clock } : null,
     points: sms ? sms.basics.reduce((n, b) => n + (b.verified ? b.points : 0), 0) : null,
+    awaitsReport: steps.some((s) => s.key === "report" && s.state === "open"),
   };
 }

@@ -32,6 +32,7 @@ vi.mock("@/features/roadside/useRoadsideInspections", async () => {
       return { data: inspections, isLoading: r(false), isError: r(false), refetch: vi.fn() };
     },
     useRoadsideSummaryQuery: () => ({ data: summary }),
+    useUploadReportTo: () => ({ mutateAsync: vi.fn() }),
     useRoadsideWorkQuery: (from: Ref<string | null>) => {
       watchEffect(() => (workFrom.value = from.value));
       return { data: work, isLoading: r(false), isError: r(false), refetch: vi.fn() };
@@ -41,7 +42,8 @@ vi.mock("@/features/roadside/useRoadsideInspections", async () => {
 vi.mock("@/composables/useOrgTimezone", () => ({
   useOrgTimezone: () => ({ zone: computed(() => "America/Los_Angeles"), isResolved: computed(() => true) }),
 }));
-vi.mock("@/stores/session", () => ({ useSessionStore: () => ({ can: () => true, canView: () => true }) }));
+let canManageSafety = true;
+vi.mock("@/stores/session", () => ({ useSessionStore: () => ({ can: () => canManageSafety, canView: () => true }) }));
 // jsdom has no `matchMedia`, so DataTable draws its narrow cards unless a test asks for the desktop table.
 const wide = ref(false);
 vi.mock("@vueuse/core", async (orig) => ({ ...((await orig()) as Record<string, unknown>), useMediaQuery: () => wide }));
@@ -72,6 +74,7 @@ beforeEach(() => {
   askedFrom.value = undefined;
   work.value = [];
   workFrom.value = undefined;
+  canManageSafety = true;
   wide.value = false;
   summary.value = { feed: FEED };
 });
@@ -164,7 +167,7 @@ describe("how current the record is (IC1c)", () => {
  */
 describe("needs action", () => {
   const line = (id: string, o: Partial<RoadsideInspectionWorkDto> = {}): RoadsideInspectionWorkDto => ({
-    id, driver: null, open: { total: 0, byOwner: { safety: 0, maintenance: 0 } }, next: null, points: 0, ...o,
+    id, driver: null, open: { total: 0, byOwner: { safety: 0, maintenance: 0 } }, next: null, points: 0, awaitsReport: false, ...o,
   });
   const open = (title: string, clock: { overdue: boolean; days: number } | null, dueOn: string | null = null) => ({
     open: { total: 1, byOwner: { safety: 0, maintenance: 1 } },
@@ -209,5 +212,13 @@ describe("needs action", () => {
     inspections.value = [insp("a")];
     work.value = [line("a")];
     expect((await page("/roadside-inspections")).text()).toContain("Nothing needs action.");
+  });
+});
+
+describe("uploading officer's reports from the list", () => {
+  it("is offered to a safety manager, and not to a reader who only views safety", async () => {
+    expect((await page("/roadside-inspections")).find("[data-test='bulk-open']").exists()).toBe(true);
+    canManageSafety = false;
+    expect((await page("/roadside-inspections")).find("[data-test='bulk-open']").exists()).toBe(false);
   });
 });
