@@ -731,4 +731,5 @@ around them.
   units through roster's new `listUnitFileFacts` (new declared edge `evidence -> roster`). D-UF5 live on
   `/certifications` and `/documents` (GET, POST, download): a coarse `anyFileSection` door, then
   `mayFile` per paper; the organization's lists are narrowed per row. `withPapers` on the driver
-  overview moves to UF4, with its reader.
+  overview moves to UF4, with its reader. The route judges on the carrier's calendar day (`todayInZone` over the org zone), not
+  Railway's UTC date, and on equipment's own 30-day window (`INSPECTION_EXPIRY_WARNING_DAYS`).

@@ -1,6 +1,6 @@
 import { Router } from "express";
 import type { Request, Response } from "express";
-import { UNIT_SUBJECT_TYPES, type UnitSubjectType } from "@silvicom/shared";
+import { organizationTimezone, todayInZone, UNIT_SUBJECT_TYPES, type UnitSubjectType } from "@silvicom/shared";
 import { requireOrg, requireSection } from "../../../middleware/auth.js";
 import { apiError, asyncHandler } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
@@ -27,7 +27,12 @@ export function unitFilesRouter(): Router {
         return;
       }
       const admin = getSupabaseAdmin(getAppLocals(req).env);
-      const today = new Date().toISOString().slice(0, 10);
+      // The carrier's calendar day, not the server's (UTC on Railway): a registration that lapses
+      // tonight must not read "expired" to a Chicago office at 7 p.m. The Vehicles list's own cells
+      // judge on `todayInZone` over the same zone, so the two flip on the same night (D-PREC5).
+      const { data: org, error } = await admin.from("organizations").select("operating_hours").eq("id", req.auth!.orgId!).maybeSingle();
+      if (error) throw new Error(error.message);
+      const today = todayInZone(new Date(), organizationTimezone(org?.operating_hours));
       res.json(await getUnitFiles(admin, req.auth!.orgId!, subjectType as UnitSubjectType, today));
     }),
   );
