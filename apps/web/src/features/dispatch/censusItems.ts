@@ -1,5 +1,5 @@
 import type { DispatchBoardResponse, DispatchBoardRow } from "@silvicom/shared";
-import { NO_FLEET_OPTION, NO_TRUCK_OPTION, POOL_FLEET, POOL_OPTION, dispatcherName, type ScopeChoice } from "./dispatchScope";
+import { NO_FLEET_OPTION, NO_TRUCK_OPTION, POOL_FLEET, POOL_OPTION, type ScopeChoice } from "./dispatchScope";
 import { fleetCensus } from "./dispatchBoardView";
 
 /**
@@ -21,13 +21,12 @@ export interface CensusPick {
 }
 export interface CensusItem {
   key: string;
+  /** The fleet's code, in capitals as McLeod writes it: one name per dispatcher (`dispatcherLabel`). */
   label: string;
-  /** Who runs the fleet, when an office linked it and the name says more than the code. */
-  owner: string | null;
   count: number;
   /** The board's second figure ("6 empty"); null where the page has none. */
   sub: number | null;
-  /** What the second figure counts, for the button's name: "empty now". */
+  /** What the second figure counts: "empty". */
   subWords: string | null;
   pick: CensusPick;
   pressed: boolean;
@@ -40,14 +39,8 @@ function fleetCodes(board: Board): string[] {
   return [...new Set((board?.rows ?? []).map((r) => r.fleetCode))].filter((c): c is string => c != null && c !== POOL_FLEET).sort();
 }
 
-function ownerOf(code: string, board: Board): string | null {
-  const linked = board?.fleets.find((f) => f.code === code)?.dispatcherId ?? null;
-  const name = linked ? dispatcherName(linked, board?.dispatchers ?? []) : null;
-  return name && name.toLowerCase() !== code.toLowerCase() ? name : null;
-}
-
-const item = (key: string, label: string, pick: CensusPick, pressed: boolean, count: number, sub: number | null = null, subWords: string | null = null, owner: string | null = null): CensusItem =>
-  ({ key, label, owner, count, sub, subWords, pick, pressed });
+const item = (key: string, label: string, pick: CensusPick, pressed: boolean, count: number, sub: number | null = null, subWords: string | null = null): CensusItem =>
+  ({ key, label, count, sub, subWords, pick, pressed });
 
 /**
  * The board's choice: trucks per fleet, and how many of them are empty now — the figure a dispatcher
@@ -62,12 +55,12 @@ export function truckCensusItems(rows: readonly DispatchBoardRow[], mineCount: n
   const none = !fleet;
   const out: CensusItem[] = [];
   if (mineCount != null) out.push(item("mine", "Mine", { scope: "mine", fleet: "" }, none && choice === "mine", mineCount));
-  out.push(item("all", "All", { scope: "all", fleet: "" }, none && choice === "all", working.length, working.filter((r) => r.flags.emptyNow).length, "empty now"));
+  out.push(item("all", "All", { scope: "all", fleet: "" }, none && choice === "all", working.length, working.filter((r) => r.flags.emptyNow).length, "empty"));
   // Every working fleet is listed, at 0 when the other filters leave it none, so the select does not
   // change shape as State or Free narrow the board — as the Loads page's does.
   for (const code of fleetCodes(board)) {
     const c = census.get(code) ?? { trucks: 0, empty: 0 };
-    out.push(item(code, code, { scope: "all", fleet: code }, fleet === code, c.trucks, c.empty, "empty now", ownerOf(code, board)));
+    out.push(item(code, code, { scope: "all", fleet: code }, fleet === code, c.trucks, c.empty, "empty"));
   }
   const pool = census.get(POOL_FLEET);
   if (pool) out.push(item(POOL_OPTION, "Pool", { scope: "all", fleet: POOL_OPTION }, fleet === POOL_OPTION, pool.trucks));
@@ -94,11 +87,11 @@ export function loadCensusItems<T>(
 ): CensusItem[] {
   const count = (pick: CensusPick) => entries.filter((e) => admits(e, { mine: pick.scope === "mine", fleet: pick.fleet })).length;
   const none = !fleet;
-  const at = (key: string, label: string, pick: CensusPick, pressed: boolean, owner: string | null = null) => item(key, label, pick, pressed, count(pick), null, null, owner);
+  const at = (key: string, label: string, pick: CensusPick, pressed: boolean) => item(key, label, pick, pressed, count(pick));
   const out: CensusItem[] = [];
   if (linked) out.push(at("mine", "Mine", { scope: "mine", fleet: "" }, none && choice === "mine"));
   out.push(at("all", "All", { scope: "all", fleet: "" }, none && choice === "all"));
-  for (const code of fleetCodes(board)) out.push(at(code, code, { scope: "all", fleet: code }, fleet === code, ownerOf(code, board)));
+  for (const code of fleetCodes(board)) out.push(at(code, code, { scope: "all", fleet: code }, fleet === code));
   for (const [key, label] of [[POOL_OPTION, "Pool"], [NO_FLEET_OPTION, "No fleet"], [NO_TRUCK_OPTION, "No truck"]] as const) {
     const tail = at(key, label, { scope: "all", fleet: key }, fleet === key);
     if (tail.count > 0 || tail.pressed) out.push(tail);
@@ -107,17 +100,21 @@ export function loadCensusItems<T>(
 }
 
 /**
- * The choice as a select's options: "KANE · Kane Smith (15, 6 empty now)". All is the select's empty
- * value, as every FilterSelect's "no narrowing" is, so the trigger reads as a filter only when it is
- * one — Mine or a fleet — and its clear button returns to All.
+ * The choice as a select's options: the name ("KANE") and, in the select's own count column, "15 · 6
+ * empty". Until 2026-10-19 the count rode inside the label ("ANETA · Aneta Maslenkova (9, 4 empty
+ * now)"), so a long name pushed the count off the 240 px panel, and the trigger repeated it after a
+ * pick. The count now never truncates, and the trigger names only what is chosen. All is the select's
+ * empty value, as every FilterSelect's "no narrowing" is, so the trigger reads as a filter only when it
+ * is one — Mine or a fleet — and its clear button returns to All.
  */
 const ALL_KEY = "all";
 const valueOf = (key: string) => (key === ALL_KEY ? "" : key);
 
-export function censusSelectOptions(items: readonly CensusItem[]): { value: string; label: string }[] {
+export function censusSelectOptions(items: readonly CensusItem[]): { value: string; label: string; count: string }[] {
   return items.map((i) => ({
     value: valueOf(i.key),
-    label: `${i.label}${i.owner ? ` · ${i.owner}` : ""} (${i.count.toLocaleString("en-US")}${i.sub != null ? `, ${i.sub} ${i.subWords}` : ""})`,
+    label: i.label,
+    count: `${i.count.toLocaleString("en-US")}${i.sub != null ? ` · ${i.sub.toLocaleString("en-US")} ${i.subWords}` : ""}`,
   }));
 }
 

@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { dispatcherName, type DrawDispatch } from "@silvicom/shared";
+import { dispatcherLabel, type DrawDispatch } from "@silvicom/shared";
 import { readFleetDispatchers } from "../mcleod/index.js";
 import { readBoardRows } from "./dispatchBoard.js";
 
@@ -18,9 +18,11 @@ export async function readDriverDispatch(
   now: Date = new Date(),
 ): Promise<Map<string, DrawDispatch>> {
   const board = await readBoardRows(admin, orgId, now);
-  const { fleets, dispatchers } = await readFleetDispatchers(admin, orgId);
+  const { fleets } = await readFleetDispatchers(admin, orgId);
   const fleetDispatcherOf = new Map(fleets.map((f) => [f.code, f.dispatcherId]));
-  const nameOf = (id: string | null | undefined) => dispatcherName(id, dispatchers) || null;
+  // The dispatch screens' name for a dispatcher, in capitals (`dispatcherLabel`), so the DER reads
+  // the name the board prints.
+  const nameOf = (id: string | null | undefined) => dispatcherLabel(id, fleets) || null;
 
   const out = new Map<string, DrawDispatch>();
   for (const row of board.rows) {

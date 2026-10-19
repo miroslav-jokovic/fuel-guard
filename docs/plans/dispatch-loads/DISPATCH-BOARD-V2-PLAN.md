@@ -528,3 +528,27 @@ Build order: DBV1 → DBV2 → DBV5 → DBV3 → DBV4 → DBV6 → DBV7.
 - Browser pass (stubbed board, 1,440 px): the select in the filter row with counts; KANE then State
   lists only KANE's states, and AL (8) shows 8.
 
+
+### 2026-10-19 — The Dispatcher select: one capital name, counts in their own column
+
+Owner, after seeing #1605 live: *"we have double names displayed, and the number of trucks is not
+displayed properly. In future I want to use all capital names we have."*
+
+- **Why names were doubled.** Each option printed the fleet code and then McLeod's display name
+  whenever the two differed: "IVO · ivok", "ROMAN · romann", "ANETA · Aneta Maslenkova",
+  "VLADI · Vladi Popov". The display name is free text per login, so one person read two or three ways
+  across the board, its filters and "Moved by".
+- **The rule now** (`dispatcherLabel`, `packages/shared`): a dispatcher is named in capitals by the
+  fleet they run, else by their McLeod login (ASEN). It is used by the Dispatcher select, the Dispatched-by
+  filter, "Moved by", the drawer's "Dispatched by", the Loads list's dispatcher (`dispatcherNamesFor`)
+  and the drug-testing random-draw list's dispatcher (§7A.19). Display names are no longer shown on
+  any dispatch screen; `readDispatcherNames` is deleted. Not changed: the Fleet report's Dispatchers
+  tab, which takes its names from McLeod's billing records; Settings → McLeod fleets, which pairs
+  logins with people and still shows both.
+- **Why counts were lost.** They rode inside the label: "ANETA · Aneta Maslenkova (9, 4 empty now)"
+  truncated on the 240 px panel before the count, and the trigger repeated the count after a pick.
+  `FilterSelect` options now take an optional `count`, drawn in its own column that never truncates,
+  out of the trigger and the search (DESIGN-SYSTEM-CONTRACT row updated). The State filter moved its
+  counts there too. Figures read "15 · 6 empty".
+- Browser pass on production's own board (216 rows, 14 fleets), 1,440 px: every option one name with
+  its count whole; picking IVO reads "Dispatcher: IVO" and the table shows its 15 trucks.

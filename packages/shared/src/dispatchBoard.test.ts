@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  dispatcherLabel,
   boardEta,
   onTimeVerdict,
   availableAt,
@@ -210,5 +211,27 @@ describe("movedByOther", () => {
     expect(movedByOther("vladi", { dispatcherId: "vladi" })).toBe(false);
     expect(movedByOther(null, { dispatcherId: "asen" })).toBe(false);
     expect(movedByOther("vladi", { dispatcherId: null })).toBe(false);
+  });
+});
+
+describe("dispatcherLabel (owner, 2026-10-19: all capital names)", () => {
+  // Production's own pairs: the fleet code differs from the login for IVO and ROMAN.
+  const fleets = [
+    { code: "IVO", dispatcherId: "ivok" },
+    { code: "ROMAN", dispatcherId: "romann" },
+    { code: "1", dispatcherId: null },
+  ];
+  it("names a dispatcher by the fleet they run, so one person is one word", () => {
+    expect(dispatcherLabel("ivok", fleets)).toBe("IVO");
+    expect(dispatcherLabel("romann", fleets)).toBe("ROMAN");
+  });
+  it("names a dispatcher who runs no fleet by their login, in capitals", () => {
+    expect(dispatcherLabel("asen", fleets)).toBe("ASEN");
+  });
+  it("names a login with two fleets by the first code, the same on every read", () => {
+    expect(dispatcherLabel("kane", [{ code: "KANE2", dispatcherId: "kane" }, { code: "KANE", dispatcherId: "kane" }])).toBe("KANE");
+  });
+  it("is empty for no dispatcher", () => {
+    expect(dispatcherLabel(null, fleets)).toBe("");
   });
 });

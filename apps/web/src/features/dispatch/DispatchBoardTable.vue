@@ -12,7 +12,7 @@ import { formatDateTime } from "@/lib/format";
 import {
   availablePlace,
   availableTone,
-  dispatcherName,
+  dispatcherLabel,
   durationWords,
   gpsAgeWords,
   legalDriveLeft,
@@ -45,8 +45,8 @@ const props = defineProps<{
   retrying: boolean;
   emptyText: string;
   zone: string;
-  /** McLeod logins, to name a load's dispatcher; and which login runs each fleet, for "moved by". */
-  dispatchers: ReadonlyArray<{ id: string; name: string | null }>;
+  /** Which login runs each fleet: names a load's dispatcher the board's way (`dispatcherLabel`). */
+  fleets: ReadonlyArray<{ code: string; dispatcherId: string | null }>;
   fleetOwner: (code: string | null) => string | null;
   sort: SortState;
   /** The board's own clock (`generatedAt`), so Available's colour is judged when the ETAs were made. */
@@ -112,7 +112,7 @@ const loadLabel = (l: NonNullable<DispatchBoardRow["current"]>) =>
     <template #cell-dispatcher="{ row }">
       <div>{{ row.fleetCode === POOL_FLEET ? "Pool" : (row.fleetCode ?? "—") }}</div>
       <div v-if="movedByOther(fleetOwner(row.fleetCode), row.current)" class="text-xs text-ink-muted">
-        Moved by {{ dispatcherName(row.current!.dispatcherId, dispatchers) }}
+        Moved by {{ dispatcherLabel(row.current!.dispatcherId, fleets) }}
       </div>
     </template>
 

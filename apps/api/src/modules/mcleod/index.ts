@@ -20,7 +20,6 @@ export { tmsRosterMasterRouter } from "./routes/tmsRosterMaster.js";
 export { isTmsRosterMaster } from "./rosterMastery.js";
 // The Loads board's Dispatcher column (LOADS-MIRROR-PLAN.md LR7): `tms_dispatchers` is raw, so the
 // `loads` module reads names through here, never the table.
-export { readDispatcherNames } from "./tmsDispatcherIngest.js";
 // Whose fleet is whose, and the caller's scope from it — the dispatch board's "My fleet" (DB2/DB3).
 export { readDispatchLinks, readFleetDispatchers, type DispatchLinks } from "./dispatchLinks.js";
 export {

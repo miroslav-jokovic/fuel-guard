@@ -128,7 +128,7 @@ const boardColumns = useTableColumns(BOARD_COLUMNS_ID, () => BOARD_COLUMNS, { de
  */
 const viewMenu = useSavedViewMenu(BOARD_TABLE, "board");
 
-const dispatchers = computed(() => board.value?.dispatchers ?? []);
+const fleets = computed(() => board.value?.fleets ?? []);
 const fleetOwner = (code: string | null) => board.value?.fleets.find((f) => f.code === code)?.dispatcherId ?? null;
 
 const now = computed(() => (board.value ? new Date(board.value.generatedAt) : new Date()));
@@ -283,7 +283,7 @@ const emptyText = computed(() =>
           :retrying="isFetching"
           :empty-text="emptyText"
           :zone="zone"
-          :dispatchers="dispatchers"
+          :fleets="fleets"
           :fleet-owner="fleetOwner"
           :sort="sort"
           :now="now"
@@ -297,7 +297,7 @@ const emptyText = computed(() =>
         />
       </DataWorkspace>
 
-      <DispatchTruckDrawer :row="openRow" :zone="zone" :dispatchers="dispatchers" @close="closeTruck" />
+      <DispatchTruckDrawer :row="openRow" :zone="zone" :fleets="fleets" @close="closeTruck" />
     </template>
   </div>
 </template>

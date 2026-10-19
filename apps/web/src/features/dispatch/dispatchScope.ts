@@ -1,5 +1,5 @@
 import { computed, type Ref } from "vue";
-import { dispatcherName, inMyScope, type DispatchBoardResponse, type DispatchScope } from "@silvicom/shared";
+import { dispatcherLabel, inMyScope, type DispatchBoardResponse, type DispatchScope } from "@silvicom/shared";
 import type { UrlQueryState } from "@silvicom/ui";
 
 /**
@@ -51,14 +51,17 @@ export function admitsScope(item: ScopedItem, scope: DispatchScope, f: ScopeFilt
 }
 
 // The rule lives in shared since the random-draw list names dispatchers server-side (MEDSTOP-PLAN §7A.19).
-export { dispatcherName };
+export { dispatcherLabel };
 
 type Board = Pick<DispatchBoardResponse, "fleets" | "dispatchers"> | null | undefined;
 
 export function dispatcherOptions(board: Board): { value: string; label: string }[] {
   return [
     { value: "", label: "Anyone" },
-    ...(board?.dispatchers ?? []).filter((d) => !d.isSystem).map((d) => ({ value: d.id, label: d.name || d.id })),
+    ...(board?.dispatchers ?? [])
+      .filter((d) => !d.isSystem)
+      .map((d) => ({ value: d.id, label: dispatcherLabel(d.id, board?.fleets ?? []) }))
+      .sort((a, b) => a.label.localeCompare(b.label)),
   ];
 }
 

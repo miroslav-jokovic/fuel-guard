@@ -3,28 +3,25 @@ import { LOAD_COLUMNS, STOP_COLUMNS, one, type Join } from "./shared.js";
 import { labelOf, memberLabels } from "../../../lib/memberLabels.js";
 import { dispatchesByLoad } from "../dispatchToDriver.js";
 import { chunks, fetchAllPaged } from "../../../lib/paging.js";
-import { readDispatcherNames } from "../../mcleod/index.js";
+import { dispatcherLabel } from "@silvicom/shared";
+import { readFleetDispatchers } from "../../mcleod/index.js";
 
 type DispatcherRef = { provider?: string | null; dispatcher_external_id?: string | null };
 
 /**
- * The dispatcher McLeod names on each load, resolved to a name (LR7). One read for the whole board;
- * an id the roster does not hold yet comes back as the id itself, so the column is never silently
- * blank for a load that does have a dispatcher.
+ * The dispatcher McLeod names on each load, as every dispatch screen names one (LR7): in capitals, by
+ * the fleet they run, else their login (`dispatcherLabel`, owner 2026-10-19). One read for the whole
+ * board. Until then this printed McLeod's free-text display name ("Aneta Maslenkova", "ivok"), so one
+ * person read three ways between the Loads list, the board and its filter.
  */
 export async function dispatcherNamesFor(
   admin: SupabaseClient,
   orgId: string,
   rows: DispatcherRef[],
 ): Promise<(row: DispatcherRef) => string | null> {
-  const refs = rows
-    .filter((r) => r.provider && r.dispatcher_external_id)
-    .map((r) => ({ provider: r.provider!, externalId: r.dispatcher_external_id! }));
-  const names = refs.length > 0 ? await readDispatcherNames(admin, orgId, refs) : new Map<string, string>();
-  return (r) =>
-    r.dispatcher_external_id
-      ? (names.get(`${r.provider}:${r.dispatcher_external_id}`) ?? r.dispatcher_external_id)
-      : null;
+  const named = rows.some((r) => r.provider && r.dispatcher_external_id);
+  const { fleets } = named ? await readFleetDispatchers(admin, orgId) : { fleets: [] };
+  return (r) => (r.dispatcher_external_id ? dispatcherLabel(r.dispatcher_external_id, fleets) : null);
 }
 
 /**

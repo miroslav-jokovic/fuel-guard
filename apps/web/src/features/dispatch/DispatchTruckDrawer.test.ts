@@ -87,7 +87,7 @@ async function mountIt(row: DispatchBoardRow | null) {
     ],
   });
   const w = mount(DispatchTruckDrawer, {
-    props: { row, zone: "America/Chicago", dispatchers: [{ id: "vinniev", name: "Vinnie V" }] },
+    props: { row, zone: "America/Chicago", fleets: [{ code: "VINNIEV", dispatcherId: "vinniev" }] },
     global: { plugins: [VueQueryPlugin, router], stubs: { SlideOver: SlideOverStub } },
   });
   await flushPromises();

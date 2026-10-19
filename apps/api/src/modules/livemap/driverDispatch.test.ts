@@ -35,10 +35,11 @@ function recorder(o: { vehicles?: unknown[]; loads?: unknown[]; fleets?: unknown
 }
 
 describe("readDriverDispatch", () => {
-  it("names the fleet's dispatcher and, apart from it, the colleague dispatching the load — falling back to the login", async () => {
+  it("names the fleet's dispatcher and, apart from it, the colleague dispatching the load, in capitals as the board does", async () => {
     const rec = recorder();
     const out = await readDriverDispatch(rec.client, ORG, NOW);
-    expect(out.get("drv-1")).toEqual({ unitNumber: "773", fleetCode: "VINNIEV", fleetDispatcher: "Vinnie V", loadDispatcher: "asen" });
+    // By the fleet they run, else the login; never McLeod's display name ("Vinnie V"), owner 2026-10-19.
+    expect(out.get("drv-1")).toEqual({ unitNumber: "773", fleetCode: "VINNIEV", fleetDispatcher: "VINNIEV", loadDispatcher: "ASEN" });
     expectOrgScoped(rec, ORG);
   });
 
