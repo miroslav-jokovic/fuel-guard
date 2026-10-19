@@ -202,9 +202,10 @@ const assignedUnits = (driverId: string) => unitsByDriver.value.get(driverId)?.j
       <span v-else class="text-ink-tertiary">—</span>
     </template>
     <!-- The date cells NAVIGATE, they do not edit (D-ROS1). `?section=qualification` is a public
-         surface (D-ROS5) and the qualification section is where `RequirementDrawer` already lives —
-         a `roster` component may not import a `compliance` one (`lint:boundaries`), and the honest
-         answer to that is the sanctioned link rather than a promoted component. -->
+         surface (D-ROS5) and the qualification section is where a requirement is recorded, with
+         the driver's whole file around it. `RequirementDrawer` is a shared component since
+         UNIT-FILES-PLAN UF0, but editing a requirement out of its file is still the thing D-ROS1
+         refuses — a grid cell does not know what else that driver is missing. -->
     <template #cell-cdl_expiry="{ row }">
       <RouterLink
         v-if="expiry(row.id, 'cdl')"

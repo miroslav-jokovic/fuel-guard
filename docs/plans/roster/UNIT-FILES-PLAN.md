@@ -702,3 +702,11 @@ around them.
 
 - 2026-10-19: research plan merged (#1625). Owner accepted every recommendation. This execution plan
   written from three code audits on `6a64713`.
+- 2026-10-19 — **UF0 built** (`claude/uf0-lift-file-engine`). `packages/shared/src/fileEngine.ts` holds the
+  subject-free judgement (dating, states, attention order, groups); `dqFile.ts` is the driver wrapper on
+  it (466 → 326 lines) with every export and type unchanged — `dqFile.test.ts` untouched and green, and
+  `fileEngine.test.ts` proves the engine with no driver in it (four mutants — horizon edge, attention
+  rank, the cited-document check, annual arithmetic — each killed). `RequirementTable`,
+  `RequirementDrawer`, `DocumentDropCard`, `CertificationHistory` moved to `apps/web/src/components/files/`
+  taking a `FileSubject` (and the drawer its catalogue as `specs`); who may record is the caller's
+  `canManage`. `useCertificationHistoryQuery` takes the subject type. No screen changes.

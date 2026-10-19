@@ -27,6 +27,7 @@ export * from "./employerInquiryContract.js";
 export * from "./employerResponseContract.js";
 export * from "./inquiryQueue.js";
 export * from "./dqFile.js";
+export * from "./fileEngine.js";
 export * from "./dqAlerts.js";
 export * from "./digestDq.js";
 export * from "./documentDerivatives.js";

@@ -6,6 +6,7 @@ import {
   dqAttention,
   dqCapturableSpecs,
   dqGroups,
+  DQ_ITEMS,
   moduleEnabled,
   type DqFileItem,
   type DocumentRow,
@@ -23,12 +24,13 @@ import {
   useDocumentsQuery,
   useQualificationRecordsQuery,
 } from "@/composables/useCompliance";
-import DocumentDropCard from "@/features/compliance/DocumentDropCard.vue";
+import DocumentDropCard from "@/components/files/DocumentDropCard.vue";
 import ScreeningIdentityCard from "@/features/compliance/ScreeningIdentityCard.vue";
-import RequirementDrawer from "@/features/compliance/RequirementDrawer.vue";
-import CertificationHistory from "@/features/compliance/CertificationHistory.vue";
+import RequirementDrawer from "@/components/files/RequirementDrawer.vue";
+import CertificationHistory from "@/components/files/CertificationHistory.vue";
 import DocumentPreview from "@/components/DocumentPreview.vue";
-import RequirementTable, { type RequirementRow } from "@/features/compliance/RequirementTable.vue";
+import RequirementTable, { type RequirementRow } from "@/components/files/RequirementTable.vue";
+import type { FileSubject } from "@/components/files/fileSubject";
 import { useExportDocument } from "@/composables/useDqExports";
 
 /**
@@ -45,6 +47,8 @@ const props = defineProps<{ driverId: string }>();
 const session = useSessionStore();
 const toast = useToastStore();
 const driverId = computed(() => props.driverId);
+/** This driver as a file subject — what the shared file components take (UNIT-FILES-PLAN UF0). */
+const fileSubject = computed<FileSubject>(() => ({ type: "driver", id: props.driverId }));
 
 const driverQ = useDriverQuery(driverId);
 const subjectType = ref("driver");
@@ -337,6 +341,7 @@ function onFiled(payload: { documentId: string; name: string; key: string }): vo
               : 'Nothing needs attention. This file is complete.'
         "
         :releasing-key="releasing"
+        :can-manage="session.can('roster')"
         embedded
         @retry="retry"
         @open="openKey = $event"
@@ -347,16 +352,17 @@ function onFiled(payload: { documentId: string; name: string; key: string }): vo
 
     <DocumentDropCard
       v-if="session.can('roster')"
-      :driver-id="driverId"
+      :subject="fileSubject"
       :items="dropItems"
       @filed="onFiled"
     />
 
-    <CertificationHistory :driver-id="driverId" />
+    <CertificationHistory :subject="fileSubject" />
 
     <RequirementDrawer
       :open="openKey !== null"
-      :driver-id="driverId"
+      :subject="fileSubject"
+      :specs="DQ_ITEMS"
       :item-key="openKey"
       :preset-document="presetDoc"
       @close="closeDrawer"

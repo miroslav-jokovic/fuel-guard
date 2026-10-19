@@ -19,6 +19,19 @@
 import { DQ_ITEMS, DQ_GROUPS, DQ_GROUP_LABELS } from "./dqCatalogue.js";
 import type { DqGroup, DqItemSpec, DqItemState } from "./dqCatalogue.js";
 import { returnToDutyCause } from "./returnToDuty.js";
+import {
+  buildFile,
+  compareFileAttention,
+  fileAttention,
+  fileDay as day,
+  fileDaysBetween as daysBetween,
+  fileGroups,
+  type FileAttentionItem,
+  type FileEvidence,
+  type FileGroupSummary,
+  type FileItem,
+  type FileSummary,
+} from "./fileEngine.js";
 
 // The catalogue is part of this module's public surface — a consumer should not have to know the
 // vocabulary moved house.
@@ -89,84 +102,18 @@ export interface DqFileInput {
 
 // ── output ────────────────────────────────────────────────────────────────────────────────────────
 
-export interface DqFileItem {
-  spec: DqItemSpec;
-  state: DqItemState;
-  /** The date this item stops being good, when that is knowable. */
-  goodUntil: string | null;
-  /** When the evidence is dated — issued, or occurred. */
-  evidenceDate: string | null;
-  /** True when the evidence exists but records no expiry: a data defect, not an eternal licence. */
-  expiryUnknown: boolean;
-  /** The scan behind it, if one has been filed. */
-  documentId: string | null;
-}
+// The driver file's names for the engine's shapes (UNIT-FILES-PLAN D-UF1). They are the engine's types
+// pinned to the §391.51 catalogue, kept under their old names so no caller had to move with the lift.
+export type DqFileItem = FileItem<DqItemSpec>;
+export type DqFileSummary = FileSummary<DqItemSpec>;
+export type DqAttentionItem = FileAttentionItem<DqGroup>;
 
-export interface DqFileSummary {
-  items: DqFileItem[];
-  /** `not_started` means literally nothing has been filed — see qualificationGate's identical rule. */
-  state: "not_started" | "incomplete" | "complete";
-  counts: Record<DqItemState, number>;
-}
-
-/**
- * One line of work: this driver, this requirement, this soon. The queue is a list of these, and the
- * driver file ranks its own rows with the same comparator — so the two surfaces can never disagree
- * about what matters most, which is the failure mode of computing urgency twice.
- */
-export interface DqAttentionItem {
-  key: string;
-  label: string;
-  citation: string;
-  group: DqGroup;
-  state: DqItemState;
-  goodUntil: string | null;
-  evidenceDate: string | null;
-  /** Negative when overdue. Null when the item never expires and is simply absent. */
-  daysRemaining: number | null;
-}
-
-const DAY_MS = 86_400_000;
-
-function daysBetween(today: string, until: string): number {
-  return Math.round(
-    (Date.parse(`${until}T00:00:00.000Z`) - Date.parse(`${today}T00:00:00.000Z`)) / DAY_MS,
-  );
-}
-
-/**
- * Rank: expired first, then missing, then soonest-expiring. Overdue beats absent because a lapsed
- * medical card grounds a driver today, while a road-test certificate that was never filed has been
- * absent for years and will keep — an ordering that flatters the file over the driver is worse than
- * no ordering.
- */
-const STATE_RANK: Record<DqItemState, number> = { expired: 0, missing: 1, expiring: 2, current: 3 };
-
+/** The driver queue's ranking — the engine's, so a truck and a driver are ranked by one rule. */
 export function dqAttention(file: DqFileSummary, today: string): DqAttentionItem[] {
-  return file.items
-    .filter((i) => i.state !== "current")
-    .map((i) => ({
-      key: i.spec.key,
-      label: i.spec.label,
-      citation: i.spec.citation,
-      group: i.spec.group,
-      state: i.state,
-      goodUntil: i.goodUntil,
-      evidenceDate: i.evidenceDate,
-      daysRemaining: i.goodUntil ? daysBetween(day(today), i.goodUntil) : null,
-    }))
-    .sort(compareAttention);
+  return fileAttention<DqItemSpec, DqGroup>(file, today);
 }
 
-export function compareAttention(a: DqAttentionItem, b: DqAttentionItem): number {
-  const byState = STATE_RANK[a.state] - STATE_RANK[b.state];
-  if (byState !== 0) return byState;
-  // Within a state, soonest first; an item with no date sorts last rather than as "due today".
-  if (a.daysRemaining === null && b.daysRemaining === null) return a.label.localeCompare(b.label);
-  if (a.daysRemaining === null) return 1;
-  if (b.daysRemaining === null) return -1;
-  return a.daysRemaining - b.daysRemaining;
-}
+export const compareAttention: (a: DqAttentionItem, b: DqAttentionItem) => number = compareFileAttention;
 
 /**
  * The requirements the ROSTER shows as their own column (R4, D-ROS9).
@@ -257,33 +204,14 @@ export function dqRosterCells(file: DqFileSummary, today: string): DqRosterCell[
     }));
 }
 
-export interface DqGroupSummary {
-  group: DqGroup;
-  label: string;
-  counts: Record<DqItemState, number>;
-  /** The group's own worst state — what the summary card shows in one word. */
-  state: DqItemState;
-}
+export type DqGroupSummary = FileGroupSummary<DqGroup>;
 
-/** Per-group rollup for the file's summary strip (D-DQ8). A group with nothing wrong reads `current`. */
+/**
+ * Per-group rollup for the file's summary strip (D-DQ8). A group with nothing wrong reads `current`;
+ * a group with nothing that applies (hazmat, on a carrier without the module) is absent.
+ */
 export function dqGroups(file: DqFileSummary): DqGroupSummary[] {
-  const out: DqGroupSummary[] = [];
-  for (const group of DQ_GROUPS) {
-    const items = file.items.filter((i) => i.spec.group === group);
-    if (items.length === 0) continue; // hazmat, on a carrier without the module
-    const counts: Record<DqItemState, number> = { current: 0, expiring: 0, expired: 0, missing: 0 };
-    for (const i of items) counts[i.state] += 1;
-    const state: DqItemState =
-      counts.expired > 0
-        ? "expired"
-        : counts.missing > 0
-          ? "missing"
-          : counts.expiring > 0
-            ? "expiring"
-            : "current";
-    out.push({ group, label: DQ_GROUP_LABELS[group], counts, state });
-  }
-  return out;
+  return fileGroups<DqItemSpec, DqGroup>(file, DQ_GROUPS, DQ_GROUP_LABELS);
 }
 
 /** One driver's line in the fleet picture (D-DQ6). Ranked server-side; the client only renders. */
@@ -340,22 +268,6 @@ function applies(
   return true;
 }
 
-const DEFAULT_EXPIRING_DAYS = 30;
-
-const day = (iso: string): string => iso.slice(0, 10);
-
-function addYears(iso: string, years: number): string {
-  const d = new Date(day(iso) + "T00:00:00.000Z");
-  d.setUTCFullYear(d.getUTCFullYear() + years);
-  return d.toISOString().slice(0, 10);
-}
-
-function addDays(iso: string, days: number): string {
-  const d = new Date(day(iso) + "T00:00:00.000Z");
-  d.setUTCDate(d.getUTCDate() + days);
-  return d.toISOString().slice(0, 10);
-}
-
 function matchCert(spec: DqItemSpec, certs: DqCertInput[]): DqCertInput | undefined {
   return certs.find(
     (c) =>
@@ -372,37 +284,6 @@ function matchRecord(spec: DqItemSpec, records: DqRecordInput[]): DqRecordInput 
     .sort((a, b) => day(b.occurredOn).localeCompare(day(a.occurredOn)))[0];
 }
 
-/** When the evidence stops being good — null when the item never expires or records no date. */
-function goodUntilFor(spec: DqItemSpec, cert?: DqCertInput, record?: DqRecordInput): string | null {
-  switch (spec.recurrence) {
-    case "expiry":
-      return cert?.expiresAt ? day(cert.expiresAt) : null;
-    case "annual":
-      // An explicit `covers_until` wins: an MVR review can be issued to cover an unusual period, and
-      // the row saying so is better evidence than arithmetic on the date it happened.
-      if (record?.coversUntil) return day(record.coversUntil);
-      return record ? addYears(record.occurredOn, 1) : null;
-    case "triennial":
-      // §172.704(c)(2) runs from the date the training was ISSUED, not from when it was filed.
-      return cert?.issuedAt ? addYears(cert.issuedAt, 3) : null;
-    case "one_time":
-      return null;
-  }
-}
-
-function stateFor(
-  present: boolean,
-  goodUntil: string | null,
-  today: string,
-  horizon: string,
-): DqItemState {
-  if (!present) return "missing";
-  if (goodUntil == null) return "current";
-  if (goodUntil < today) return "expired";
-  if (goodUntil <= horizon) return "expiring";
-  return "current";
-}
-
 /**
  * Build one driver's qualification file.
  *
@@ -411,56 +292,35 @@ function stateFor(
  * function that looks at the wall clock.
  */
 export function buildDqFile(input: DqFileInput): DqFileSummary {
-  const today = day(input.today);
-  const horizon = addDays(today, input.expiringWithinDays ?? DEFAULT_EXPIRING_DAYS);
-  const docIds = new Set(input.documents.map((d) => d.id));
-
-  const items: DqFileItem[] = DQ_ITEMS.filter(
+  return buildFile<DqItemSpec>({
+    today: input.today,
+    expiringWithinDays: input.expiringWithinDays,
     // Conditional items exist for some files and not others: §391.51(b)(8)'s note sunset for CDL
     // holders (D8 / G33), and §40.25(j)'s return-to-duty paperwork is owed only by a driver who
     // admitted something. `applies` is the one place that decides, shared with the capture list.
-    (spec) => (spec.scope === "always" || input.includeHazmat) && applies(spec, input),
-  )
-    .map((spec) => {
-      const cert = spec.source === "certification" ? matchCert(spec, input.certs) : undefined;
-      const found = spec.source === "record" ? matchRecord(spec, input.records) : undefined;
-      // A return-to-duty record older than the Med-Stop violation documents an EARLIER process, not
-      // this one: the item stays missing exactly while dispatch stays stopped.
-      const stale = spec.appliesWhen === "return_to_duty" && returnToDutyCause({
-        returnToDutyRequired: Boolean(input.returnToDutyRequired), returnToDutyDocumented: Boolean(found),
-        violationOn: input.returnToDutyViolationOn ?? null, lastReturnToDutyOn: found ? day(found.occurredOn) : null,
-      }) !== null;
-      const record = stale ? undefined : found;
-      const present = Boolean(cert ?? record);
-      const goodUntil = goodUntilFor(spec, cert, record);
-      // A filed document id that points at nothing is not a filed document. The register and the
-      // bytes can drift (a failed upload leaves a row behind), and a checklist that trusts the id
-      // would report a scan the auditor cannot open.
-      const rawDocId = cert?.documentId ?? record?.documentId ?? null;
-      return {
-        spec,
-        state: stateFor(present, goodUntil, today, horizon),
-        goodUntil,
-        evidenceDate: cert?.issuedAt ? day(cert.issuedAt) : record ? day(record.occurredOn) : null,
-        expiryUnknown: spec.recurrence === "expiry" && present && goodUntil == null,
-        documentId: rawDocId && docIds.has(rawDocId) ? rawDocId : null,
-      };
-    })
-    // Advisory items exist only when evidence does (D8): tracked-not-required must never read
-    // "missing", never enter the attention feed, and never hold a file back from `complete`.
-    .filter((i) => !(i.spec.advisory && i.state === "missing"));
+    specs: DQ_ITEMS.filter((spec) => (spec.scope === "always" || input.includeHazmat) && applies(spec, input)),
+    evidenceFor: (spec) => evidenceFor(spec, input),
+    documentIds: new Set(input.documents.map((d) => d.id)),
+    nothingFiled: input.certs.length === 0 && input.records.length === 0,
+  });
+}
 
-  const counts: Record<DqItemState, number> = { current: 0, expiring: 0, expired: 0, missing: 0 };
-  for (const i of items) counts[i.state] += 1;
-
-  const nothingFiled = input.certs.length === 0 && input.records.length === 0;
-  return {
-    items,
-    state: nothingFiled
-      ? "not_started"
-      : counts.missing + counts.expired === 0
-        ? "complete"
-        : "incomplete",
-    counts,
-  };
+/** What the driver's rows say about one item — matched here, dated by the engine. */
+function evidenceFor(spec: DqItemSpec, input: DqFileInput): FileEvidence | undefined {
+  const cert = spec.source === "certification" ? matchCert(spec, input.certs) : undefined;
+  const found = spec.source === "record" ? matchRecord(spec, input.records) : undefined;
+  // A return-to-duty record older than the Med-Stop violation documents an EARLIER process, not
+  // this one: the item stays missing exactly while dispatch stays stopped.
+  const stale = spec.appliesWhen === "return_to_duty" && returnToDutyCause({
+    returnToDutyRequired: Boolean(input.returnToDutyRequired), returnToDutyDocumented: Boolean(found),
+    violationOn: input.returnToDutyViolationOn ?? null, lastReturnToDutyOn: found ? day(found.occurredOn) : null,
+  }) !== null;
+  const record = stale ? undefined : found;
+  if (cert) {
+    return { expiresAt: cert.expiresAt, issuedAt: cert.issuedAt, occurredOn: null, coversUntil: null, documentId: cert.documentId };
+  }
+  if (record) {
+    return { expiresAt: null, issuedAt: null, occurredOn: record.occurredOn, coversUntil: record.coversUntil, documentId: record.documentId };
+  }
+  return undefined;
 }

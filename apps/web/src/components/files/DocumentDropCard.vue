@@ -10,6 +10,7 @@ import { AppFormField as FormField } from "@silvicom/ui";
 import FileDropzone from "@/components/ui/FileDropzone.vue";
 import { useToastStore } from "@/stores/toast";
 import { useUploadDocument } from "@/composables/useCompliance";
+import type { FileSubject } from "./fileSubject";
 
 /**
  * Drop first, classify after (D-DQ10). The scan usually arrives before the data entry, so the card
@@ -18,8 +19,8 @@ import { useUploadDocument } from "@/composables/useCompliance";
  * opens the requirement drawer with the uploaded scan already attached.
  */
 const props = defineProps<{
-  driverId: string;
-  /** The driver's requirements — what a dropped scan can prove. */
+  subject: FileSubject;
+  /** The subject's requirements — what a dropped scan can prove. */
   items: Array<{ key: string; label: string; evidenceKind: string }>;
 }>();
 const emit = defineEmits<{ filed: [payload: { documentId: string; name: string; key: string }] }>();
@@ -37,8 +38,8 @@ async function fileDropped(): Promise<void> {
   if (!chosen || !item) return;
   try {
     const res = await upload.mutateAsync({
-      subjectType: "driver",
-      subjectId: props.driverId,
+      subjectType: props.subject.type,
+      subjectId: props.subject.id,
       kind: item.evidenceKind as Parameters<typeof upload.mutateAsync>[0]["kind"],
       file: chosen,
     });
