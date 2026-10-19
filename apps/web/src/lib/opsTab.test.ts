@@ -269,8 +269,8 @@ describe("every count is the row count behind its door (D-FM7)", () => {
       "/vehicles?check=inspection_overdue", "/vehicles?check=registration_missing",
       "/?tab=fleet", "/anomalies", "/idling", "/hazmat/review", "/recruitment", "/recruitment?waiting=them",
       "/shop/work-orders", "/shop/defects", "/shop/inventory?stock=low",
-      "/roadside-inspections?period=90d", "/roadside-inspections?period=90d&oos=driver",
-      "/roadside-inspections?period=90d&oos=vehicle", "/roadside-inspections?period=90d&oos=hazmat",
+      "/roadside-inspections?view=all&period=90d", "/roadside-inspections?view=all&period=90d&oos=driver",
+      "/roadside-inspections?view=all&period=90d&oos=vehicle", "/roadside-inspections?view=all&period=90d&oos=hazmat",
     ]) expect(h, door).toContain(door);
   });
 });

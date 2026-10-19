@@ -26,7 +26,8 @@ const { zone } = useOrgTimezone();
 // shown — it is the last good record — but never without saying so.
 const freshness = computed(() => (summary.value ? roadsideFeedSentence(summary.value.feed, zone.value) : null));
 
-const LIST = "/roadside-inspections?period=90d";
+// `view=all`: the inbox opens on "Needs action" (Q-IC17), and each figure here counts the WHOLE list it opens.
+const LIST = "/roadside-inspections?view=all&period=90d";
 const rows = computed<CountRow[]>(() => [
   { key: "inspections", label: "Inspections", value: summary.value?.inspections ?? null, caption: "last 90 days", to: LIST, door: "Inspections" },
   { key: "driver-oos", label: "Driver out of service", value: summary.value?.driverOos ?? null, caption: "inspections with a driver OOS order", to: `${LIST}&oos=driver`, door: "Driver OOS", alarm: true },

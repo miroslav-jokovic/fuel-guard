@@ -8,6 +8,7 @@ import type {
   RoadsideDocumentRegisterRequest,
   RoadsideInspectionDetailDto,
   RoadsideInspectionDto,
+  RoadsideInspectionWorkDto,
   RoadsideRepairCertificationDto,
   RoadsideRepairCertifyRequest,
   RoadsideRepairDecision,
@@ -52,6 +53,23 @@ export function useRoadsideInspectionsQuery(from: Ref<CalendarDay | null>) {
   });
 }
 
+/**
+ * One line of work per inspection from `from` — the inbox's Needs action tab and its Next step, Driver and CSA
+ * points columns (Q-IC17). Its own read: the list draws first, and the columns fill in when this lands.
+ * Keyed under the list, so a decision that invalidates the list's family re-asks it.
+ */
+export function useRoadsideWorkQuery(from: Ref<CalendarDay | null>) {
+  return useQuery({
+    queryKey: computed(() => ["roadside-inspections", "work", from.value] as const),
+    staleTime: 60_000,
+    queryFn: () =>
+      read<RoadsideInspectionWorkDto[]>(
+        from.value ? `/api/roadside-inspections/work?from=${from.value}` : "/api/roadside-inspections/work",
+        "what is left on the roadside inspections",
+      ),
+  });
+}
+
 /** One inspection with its units and violations — the row the list opens. */
 export function useRoadsideInspectionQuery(id: Ref<string>) {
   return useQuery({
@@ -82,7 +100,11 @@ export function useDecideAttribution(id: Ref<string>) {
       const res = await apiFetch(`/api/roadside-inspections/${encodeURIComponent(id.value)}/attribution`, { method: "POST", body: decision });
       if (!res.ok) throw new AttributionDecisionError(res.error?.message ?? "The decision could not be saved.", res.error?.code ?? null);
     },
-    onSettled: () => client.invalidateQueries({ queryKey: ["roadside-inspections", "one", id.value] }),
+    onSettled: () =>
+      Promise.all([
+        client.invalidateQueries({ queryKey: ["roadside-inspections", "one", id.value] }),
+        client.invalidateQueries({ queryKey: ["roadside-inspections", "work"] }),
+      ]),
   });
 }
 
@@ -118,6 +140,7 @@ export function useUploadInspectionDocument(id: Ref<string>) {
       Promise.all([
         client.invalidateQueries({ queryKey: ["roadside-inspections", "documents", id.value] }),
         client.invalidateQueries({ queryKey: ["roadside-inspections", "one", id.value] }),
+        client.invalidateQueries({ queryKey: ["roadside-inspections", "work"] }),
       ]),
   });
 }
@@ -163,6 +186,7 @@ export function useDecideRepair(id: Ref<string>) {
       Promise.all([
         client.invalidateQueries({ queryKey: ["roadside-inspections", "repairs", id.value] }),
         client.invalidateQueries({ queryKey: ["roadside-inspections", "repairs-due"] }),
+        client.invalidateQueries({ queryKey: ["roadside-inspections", "work"] }),
       ]),
   });
 }
@@ -191,6 +215,7 @@ export function useCertifyRepairs(id: Ref<string>) {
       Promise.all([
         client.invalidateQueries({ queryKey: ["roadside-inspections", "repairs", id.value] }),
         client.invalidateQueries({ queryKey: ["roadside-inspections", "documents", id.value] }),
+        client.invalidateQueries({ queryKey: ["roadside-inspections", "work"] }),
       ]),
   });
 }

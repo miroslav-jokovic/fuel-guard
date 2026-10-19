@@ -270,7 +270,7 @@ const OOS_COUNT: Record<RoadsideOosKind, (i: RoadsideInspectionDto) => number | 
 export const hasOosOf = (inspection: RoadsideInspectionDto, kind: RoadsideOosKind): boolean => (OOS_COUNT[kind](inspection) ?? 0) > 0;
 
 /**
- * The card's figures: each the length of the list `/roadside-inspections?period=90d[&oos=<kind>]`
+ * The card's figures: each the length of the list `/roadside-inspections?view=all&period=90d[&oos=<kind>]`
  * shows, computed on the server by filtering that list with `hasOosOf` (D-FM7, D-FM9).
  * `from` is the window's first day, so the page and the card can be checked against each other.
  */

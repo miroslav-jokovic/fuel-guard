@@ -41,7 +41,7 @@ const repair = (o: Partial<RoadsideRepairDto> = {}): RoadsideRepairDto => ({
 });
 
 async function strip(attribution: RoadsideAttributionDto = strong) {
-  const w = mount(InspectionNextSteps, { props: { inspectionId: "insp-1", attribution } });
+  const w = mount(InspectionNextSteps, { props: { inspectionId: "insp-1", inspectionDate: "2026-10-04", attribution } });
   await flushPromises();
   return w;
 }
