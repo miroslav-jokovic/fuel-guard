@@ -211,7 +211,9 @@ export async function executeRead(admin: SupabaseClient, orgId: string, readId: 
     });
     return { outcome: "failed", code, inputTokens: input, outputTokens: output };
   };
-  const done = async (result: unknown, evidence: unknown, cacheHit: boolean, input: number, output: number, pages: number): Promise<ExecuteReadOutcome> => {
+  // `replay` is what the witnesses were handed (RC2, 0487): pass B's whole document and the OCR words, so the
+  // read can be judged again when the pairing, the witnesses or the audit change. A cache hit judged nothing.
+  const done = async (result: unknown, evidence: unknown, cacheHit: boolean, input: number, output: number, pages: number, replay: unknown = null): Promise<ExecuteReadOutcome> => {
     await transition(admin, orgId, readId, "done", {
       p_result: result,
       p_evidence: evidence,
@@ -222,6 +224,7 @@ export async function executeRead(admin: SupabaseClient, orgId: string, readId: 
       p_cache_key: versions.cacheKey,
       p_input_tokens: input,
       p_output_tokens: output,
+      p_replay_inputs: replay,
     });
     return { outcome: "done", cacheHit, inputTokens: input, outputTokens: output, pages };
   };
@@ -292,8 +295,10 @@ export async function executeRead(admin: SupabaseClient, orgId: string, readId: 
   if (a.kind !== "ok") return fail(a.kind, total.input, total.output);
   // Pass B failing (refusal, truncation, off-schema) does not fail the read: its fields are one reader's.
   const text = textLayerPages(pages.map((p) => ({ textLayer: p.text_layer, rotation: rotationOf(p.id) })));
-  const evidence = EVIDENCE_FOR[read.profile](a.document, b.kind === "ok" ? b.document : null, ACCEPTANCE_RULE_VERSION, await ocrRun, text);
-  return done(a.document, evidence, false, total.input, total.output, pages.length);
+  const passB = b.kind === "ok" ? b.document : null;
+  const ocr = await ocrRun;
+  const evidence = EVIDENCE_FOR[read.profile](a.document, passB, ACCEPTANCE_RULE_VERSION, ocr, text);
+  return done(a.document, evidence, false, total.input, total.output, pages.length, { passB, ocr });
 }
 
 /**
