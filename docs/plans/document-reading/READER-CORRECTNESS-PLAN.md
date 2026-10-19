@@ -188,3 +188,31 @@ the paper's answer then follows the person's checks, and it reuses the review ro
   counts pass A shifted by a row); the false "wrong name" is gone and a real one appears that the noise hid — both
   bare "1760" lines lack the "UN" (§172.202(a)(1)). **Left, a design gap, Q-RC5:** the audit is computed from the
   readers alone, so after a person confirms UN3264 on the form it still says "confirm the number first".
+- **2026-10-19 — the owner's Mayo Products BOL 14182 (read 350d2f27; 8 totes UN1824 caustic soda 50 %, 2 totes
+  UN1830 sulfuric acid 93 %, 3 totes non-regulated flocculant, dry van).** The reading was right: both readers
+  read both lines, counts, weights, class, PG and the CHEMTREC number the same, and the table agreed. Three faults
+  sat downstream of it, plus three stops the reader caused.
+  (1) **Placards — the answer the driver hangs lost UN1830.** Both totes are bulk, so §172.331(c) puts both numbers
+  on each side and each end; the engine gave every number every required placard and the panel drew the first.
+  Fixed #1639 (engine 0.17.0): a number rides only its own class's placard (§172.332(c)), one placard per number
+  when the numbers cover the class (§172.334(d), PHMSA Interp. 16-0026), else an orange panel beside it.
+  `idCarriers.test.ts` holds three CFR invariants over all 8,420 loads of up to three lines.
+  (2) **A false PASS on RQ.** Appendix A was matched to the HMT name exactly, so "Sodium hydroxide solution" read as
+  not listed (each tote holds ≈1,800 lb NaOH against a 1,000 lb RQ); "Ammonia, anhydrous" and "Acrolein,
+  stabilized" likewise. Fixed (engine 0.18.0, `hazSubstanceMatch.ts`, census in hazmat-golden): +52 neat, +37
+  solution entries. The replayed read now answers "can't tell", not "pass".
+  (3) **Still open — the reader, needless stops (P2), in the order to build them:**
+  - **R-M1 the per-line NET WEIGHT column is not read as the line's quantity.** The paper prints 28,800 and
+    6,500 lb net; both readers left `quantity` null, so RQ cannot be judged (UN1830: 3,250 lb of sulfuric acid per
+    tote → "RQ" is owed and missing; UN1824 needs the 50 % printed in the description). Profile field
+    description + the arithmetic witness (net column ↔ freight.netWeight 42,425) as its row backing.
+  - **R-M2 cell extent read as disagreement.** Pass A carried the description cell's trailing commercial text
+    ("CAUSTIC SODA 50% 3600# TOTE") and the packaging cell's item-code line ("FG00035-3600T"); pass B stopped at
+    the basic description. Same facts, different cell boundaries — and every rule gated on `descriptionText` or
+    `packaging` stopped (sequence, technical name, LQ, marine pollutant, quantity, package count: 12 of 13 stops).
+    Agreement for these two fields should hold when one reading is the other's prefix at a field boundary
+    and the parsed facts (id, name, class, PG / count, type) agree — a property test over every table name, as
+    `agreement.property.test.ts` does for formatting.
+  - **R-M3 certification null from one reader.** Pass B returned null for a printed, signed certification; one
+    reader abstaining should be backed by the OCR row witness (the statement's words are on the page) rather
+    than stop the rule.
