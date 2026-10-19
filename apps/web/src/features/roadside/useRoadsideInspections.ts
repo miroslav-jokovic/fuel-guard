@@ -111,7 +111,13 @@ export function useUploadInspectionDocument(id: Ref<string>) {
         if (!res.ok || !res.data) throw new Error(res.error?.message ?? "The document could not be filed.");
         return res.data.data;
       }),
-    onSettled: () => client.invalidateQueries({ queryKey: ["roadside-inspections", "documents", id.value] }),
+    // The inspection too: a filed officer's report appears on the driver card (`attribution.reports`) and
+    // closes the Next steps strip's "Upload the officer's report" — without this both waited ten minutes.
+    onSettled: () =>
+      Promise.all([
+        client.invalidateQueries({ queryKey: ["roadside-inspections", "documents", id.value] }),
+        client.invalidateQueries({ queryKey: ["roadside-inspections", "one", id.value] }),
+      ]),
   });
 }
 

@@ -93,6 +93,8 @@ const { data: certification } = useRepairCertificationQuery(id);
 const certify = useCertifyRepairs(id);
 const settled = computed(() => (repairs.value?.length ?? 0) > 0 && repairs.value!.every(repairSettled));
 /** The form shows when there is something to certify: settled, and never certified or no longer current. */
+/** The certification stands over every unit: the units fold behind it. */
+const folded = computed(() => !!certification.value?.current);
 const certifiable = computed(() => canCertify.value && settled.value && !certification.value?.current);
 const signerTitle = ref("");
 const certifyFailure = computed(() => {
@@ -114,7 +116,12 @@ function submitCertification() {
       Every vehicle violation must be repaired, recorded in the maintenance file, and certified within 15 days of the inspection (49 CFR 396.9(d)). These are the FleetPal work orders opened on each unit since the inspection.
     </p>
 
-    <div class="mt-4" data-test="repair-state">
+    <!-- Once the certification stands, the units are the record behind it: folded to one line, open on a click
+         (Q-IC17 — a settled section reads as its answer). -->
+    <component :is="folded ? 'details' : 'div'" class="mt-4" data-test="repair-state">
+      <summary v-if="folded" class="cursor-pointer text-sm font-medium text-ink-muted" data-test="repair-folded">
+        Every repair is recorded and certified. Show the units
+      </summary>
       <QueryState
         compact
         :loading="isLoading && !repairs"
@@ -181,7 +188,7 @@ function submitCertification() {
           </section>
         </div>
       </QueryState>
-    </div>
+    </component>
 
     <p v-if="failure" class="mt-3 text-sm text-danger-700" role="alert" data-test="repair-error">{{ failure }}</p>
 

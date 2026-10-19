@@ -18,6 +18,7 @@ import {
   smsPointsWithheldReason,
   type RoadsideMatchMethod,
   type RoadsideSmsBasicDto,
+  type RoadsideStepSection,
   type RoadsideUnitDetailDto,
   type RoadsideViolationDto,
   type RoadsideViolationSmsDto,
@@ -27,6 +28,7 @@ import { useRoadsideInspectionQuery } from "@/features/roadside/useRoadsideInspe
 import InspectionDriverCard from "@/features/roadside/InspectionDriverCard.vue";
 import InspectionDocumentsCard from "@/features/roadside/InspectionDocumentsCard.vue";
 import InspectionRepairCard from "@/features/roadside/InspectionRepairCard.vue";
+import InspectionNextSteps from "@/features/roadside/InspectionNextSteps.vue";
 import { useOpens } from "@/composables/useOpens";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { formatDate } from "@/lib/format";
@@ -54,6 +56,11 @@ import { formatDate } from "@/lib/format";
  * FMCSA's public record does not name the driver. The driver card (`InspectionDriverCard`) shows IC5's
  * reading of Samsara with its confidence and a person's decision over it — never a guessed driver
  * (D-IC7) — so it sits in its own card, apart from what the report says.
+ *
+ * ── WHAT IS LEFT COMES FIRST (Q-IC17, owner 2026-10-19) ────────────────────────────────────────
+ * The page stacked seven equal sections and said nowhere what was open. Now: what happened (the
+ * inspection, then its violations with the CSA points as their header line), what is left (the "Next
+ * steps" strip, `roadsideNextSteps`), and the cards where each step is done, which the strip scrolls to.
  */
 
 const route = useRoute();
@@ -107,6 +114,30 @@ const pointsCell = (v: RoadsideViolationDto): { value: string; why: string | nul
   if (s.status === "withheld") return { value: "Not shown", why: smsPointsWithheldReason(s.basic), tone: "text-ink-muted" };
   return { value: "None", why: SMS_EXCLUSION_TEXT[s.reason], tone: "text-ink-tertiary" };
 };
+/** "Adds 95 CSA points today: Vehicle Maintenance 90 · Hours-of-Service Compliance 5" — the verified categories only (D-IC6). */
+const smsHeadline = computed(() => {
+  const basics = sms.value?.basics ?? [];
+  const verified = basics.filter((b) => b.verified);
+  const total = verified.reduce((n, b) => n + b.points, 0);
+  const shown = verified.length
+    ? `Adds ${total} CSA ${total === 1 ? "point" : "points"} today: ${verified.map((b) => `${SMS_BASIC_NAMES[b.basic]} ${b.points}`).join(" · ")}.`
+    : "";
+  const withheld = basics.filter((b) => !b.verified).map((b) => SMS_BASIC_NAMES[b.basic]);
+  return [shown, withheld.length ? `${withheld.join(", ")} points are not shown; the details say why.` : ""].filter(Boolean).join(" ");
+});
+
+/**
+ * A next step's button brings its card into view and focus (each card carries `tabindex="-1"` for it), so a
+ * keyboard or screen-reader user lands where the action is, not only a sighted one.
+ */
+function go(section: RoadsideStepSection) {
+  const el = document.getElementById(`inspection-${section}`);
+  if (!el) return;
+  const still = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+  el.scrollIntoView({ behavior: still ? "auto" : "smooth", block: "start" });
+  el.focus({ preventScroll: true });
+}
+
 const basicTotal = (b: RoadsideSmsBasicDto) => {
   if (!b.verified) return smsPointsWithheldReason(b.basic);
   const sum = b.capped < b.severitySum ? `${b.severitySum}, capped at ${b.capped}` : String(b.capped);
@@ -175,34 +206,34 @@ const VIOLATION_COLUMNS: DataTableColumn[] = [
           </div>
         </BaseCard>
 
-        <InspectionDriverCard :inspection-id="inspection.id" :attribution="inspection.attribution" />
-
-        <InspectionDocumentsCard :inspection-id="inspection.id" />
-
-        <InspectionRepairCard :inspection-id="inspection.id" />
-
-        <BaseCard v-if="sms" data-test="sms">
-          <h2 class="text-sm font-semibold text-ink">CSA points</h2>
-          <p class="mt-1 text-xs text-ink-tertiary">
-            Measured today, {{ formatDate(sms.measuredOn) }}, by FMCSA's SMS rules (Appendix A v{{ sms.appendixVersion }}).
-            <template v-if="sms.timeWeight">This inspection is {{ SMS_TIME_WEIGHT_TEXT[sms.timeWeight] }}.</template>
-          </p>
-          <ul v-if="sms.basics.length" class="mt-4 space-y-2 text-sm">
-            <li v-for="b in sms.basics" :key="b.basic" data-test="sms-basic">
-              <span class="font-medium text-ink">{{ SMS_BASIC_NAMES[b.basic] }}</span>
-              <span :class="b.verified ? 'text-ink tabular-nums' : 'text-ink-muted'"> — {{ basicTotal(b) }}</span>
-            </li>
-          </ul>
-          <p v-else class="mt-4 text-sm text-ink-muted" data-test="sms-none">
-            {{ inspection.violationList.length ? "No violation on this inspection adds CSA points; each row says why." : "No violations, so no CSA points." }}
-          </p>
-          <p v-if="sms.basics.length" class="mt-3 text-xs text-ink-tertiary">
-            Each category's severity on one inspection is capped at {{ sms.cap }} before the time weight. The points beside each violation are before that cap.
-          </p>
-        </BaseCard>
+        <InspectionNextSteps :inspection-id="inspection.id" :attribution="inspection.attribution" @go="go" />
 
         <section class="space-y-3" aria-labelledby="violations-heading">
-          <h2 id="violations-heading" class="text-sm font-semibold text-ink">Violations</h2>
+          <div>
+            <h2 id="violations-heading" class="text-sm font-semibold text-ink">Violations</h2>
+            <!-- The CSA points are the violations' header line, not a card of their own (Q-IC17): the total
+                 first, how it was reached one click away. -->
+            <div v-if="sms" class="mt-1 text-sm" data-test="sms">
+              <p v-if="sms.basics.length" class="text-ink" data-test="sms-total">{{ smsHeadline }}</p>
+              <p v-else class="text-ink-muted" data-test="sms-none">
+                {{ inspection.violationList.length ? "No violation on this inspection adds CSA points; each row says why." : "No violations, so no CSA points." }}
+              </p>
+              <details v-if="sms.basics.length" class="mt-1">
+                <summary class="cursor-pointer text-xs font-medium text-ink-muted">How the CSA points are reached</summary>
+                <ul class="mt-2 space-y-1">
+                  <li v-for="b in sms.basics" :key="b.basic" data-test="sms-basic">
+                    <span class="font-medium text-ink">{{ SMS_BASIC_NAMES[b.basic] }}</span>
+                    <span :class="b.verified ? 'text-ink tabular-nums' : 'text-ink-muted'"> — {{ basicTotal(b) }}</span>
+                  </li>
+                </ul>
+                <p class="mt-2 text-xs text-ink-tertiary">
+                  Measured today, {{ formatDate(sms.measuredOn) }}, by FMCSA's SMS rules (Appendix A v{{ sms.appendixVersion }}).
+                  <template v-if="sms.timeWeight">This inspection is {{ SMS_TIME_WEIGHT_TEXT[sms.timeWeight] }}.</template>
+                  Each category's severity on one inspection is capped at {{ sms.cap }} before the time weight. The points beside each violation are before that cap.
+                </p>
+              </details>
+            </div>
+          </div>
           <DataTable :columns="VIOLATION_COLUMNS" :rows="inspection.violationList" row-key="id" :nowrap="false" empty-text="No violations recorded on this inspection.">
             <template #cell-against="{ row }">{{ againstLabel(row as RoadsideViolationDto) ?? "—" }}</template>
             <template #cell-code="{ value }"><span class="font-mono text-xs">{{ value ?? "—" }}</span></template>
@@ -231,6 +262,12 @@ const VIOLATION_COLUMNS: DataTableColumn[] = [
           </DataTable>
         </section>
 
+        <InspectionDriverCard id="inspection-driver" tabindex="-1" :inspection-id="inspection.id" :attribution="inspection.attribution" />
+
+        <InspectionRepairCard id="inspection-repair" tabindex="-1" :inspection-id="inspection.id" />
+
+        <InspectionDocumentsCard id="inspection-documents" tabindex="-1" :inspection-id="inspection.id" />
+
         <section class="space-y-3" aria-labelledby="units-heading">
           <h2 id="units-heading" class="text-sm font-semibold text-ink">Units</h2>
           <DataTable :columns="UNIT_COLUMNS" :rows="inspection.units" :row-key="(u: RoadsideUnitDetailDto) => String(u.seq)" empty-text="No units on this report.">
@@ -250,7 +287,9 @@ const VIOLATION_COLUMNS: DataTableColumn[] = [
                   :to="truckLink(row as RoadsideUnitDetailDto)!"
                 >Ours</BaseButton><template v-else>Ours</template>, by {{ MATCHED_BY[(row as RoadsideUnitDetailDto).matchedBy!] }}
               </span>
-              <span v-else class="text-ink-tertiary" data-test="match">Not matched to ours</span>
+              <!-- True of a sold truck and of another carrier's trailer alike; the former-equipment register
+                   (Q-IC10 (b)) will name the first kind as ours, retired. -->
+              <span v-else class="text-ink-tertiary" data-test="match">Not on our current roster</span>
             </template>
           </DataTable>
         </section>

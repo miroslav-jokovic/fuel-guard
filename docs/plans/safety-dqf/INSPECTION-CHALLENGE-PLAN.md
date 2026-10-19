@@ -427,6 +427,7 @@ are not specified here.
 | **IC1d** | Fetch the hour FMCSA republishes: an hourly Socrata metadata check (`rowsUpdatedAt`) against the last run's, the 24-hour run kept as the backstop (2026-10-16) | IC1 |
 | **IC13** | Ask only when it matters (Q-IC15 (b)): a high-confidence Samsara reading of a roster driver is shown as the answer, labelled as Samsara's; the card asks a person only for low, none, several, not-ours and a report disagreement; a person still confirms before any DataQs filing (D-IC7) | IC5, Q-IC15 |
 | **IC14** | Safety alert for a report that needs a person, and the inbox's "needs a person" filter (the notification category one merge before its writer) | IC10 |
+| **IC15** | Next steps (Q-IC17): `roadsideNextSteps` in shared; the inspection page leads with them, settled sections fold, the CSA card becomes the violations' header line. Then the Shop's "Roadside repairs due" section and page with the B2b alert (Q-IC16 (a)), the inbox's "Needs action" tab with next-step, driver and points columns and bulk report upload, and the former-equipment register (Q-IC10 (b)). Order ruled 2026-10-19: IC15 page + IC13 → B2b → inbox → IC4 → IC12 → IC6 onward | IC11, IC13 |
 
 IC1 and IC3 can run in parallel. IC4 is the first step a user can act on, and should be reachable in
 about three merges.
@@ -594,6 +595,25 @@ about three merges.
   for low, none, several, not-ours and a disagreement; a person still confirms before a DataQs filing
   (18 USC 1001, D-IC7)**; (c) as (b) but only after a report. Built as IC13. Not a new attribution row:
   the card's question is what changes; the record still says it is the engine's reading.
+- **Q-IC16 — RESOLVED 2026-10-19 (owner): (a).** Where does maintenance see a roadside repair that is due?
+  The `roadside_repair_due` alert goes to maintenance managers, and its deep link was the inspection page —
+  safety-gated, so a technician could not open it — while the maintenance nav is fixed at six rows (I4,
+  `surfaceCatalogue.ts`). (a) **a "Roadside repairs due" section on the Shop home, beside "To order" and
+  "Short of kit", and a non-nav page parented on the Shop home that the alert opens and where the work order
+  is named**; (b) a tab or filter on Units; (c) lift I4 to seven rows. (a) keeps I4, puts the deadline where
+  the shop starts its day, and the decision is the same component the inspection page's Repair card uses, so
+  there is one way to name a repair. The bell routes each reader to the page they can open: maintenance to
+  the Shop's, safety to the inspection.
+- **Q-IC17 — RESOLVED 2026-10-19 (owner): one list of next steps per inspection.** The page stacked seven
+  equal sections and said nowhere what was left; the inbox could not answer "what needs me?". Each
+  inspection now derives its open steps — who was driving, the officer's report, each unit's repair, the
+  certification — with an owner (safety or maintenance), a state (open, waiting, done) and the 396.9(d) due
+  day, from ONE pure function in `@silvicom/shared` (`roadsideNextSteps`). The page's "Next steps" strip reads
+  it first; the inbox's "Needs action" tab, the Shop home's section and the bell read the same function, so
+  no two surfaces disagree. Court-result steps (R-ADJ1) join it with IC4, which brings the actions that close
+  them ("requested from the court", "not contested") — a step nobody can close is noise.
+- **Q-IC10 — RESOLVED 2026-10-19 (owner): (b), the former-equipment register** (recommended above). Until it
+  lands, an unmatched unit reads "Not on our current roster", which is true, rather than "Not matched to ours".
 
 ---
 
@@ -1033,3 +1053,20 @@ about three merges.
   - **Not here:** returning the signed form to the state ((d)(3)(ii), "if requested") stays a person's act to be
     recorded later. **Next (B2b):** the `roadside_repair_due` alert to maintenance managers and the
     maintenance-side "repairs due" list (the technician seam above).
+- **2026-10-19 — Owner rulings Q-IC16 (a), Q-IC17, Q-IC10 (b); IC15 first merge + IC13.** Asked what was left for
+  "100% production ready", the measured answer was that nothing led anyone to the steps that exist: 0 reports
+  uploaded, 1 driver confirmed by a person, 150 repair proposals on 127 inspections and 0 certified. Ruled:
+  every inspection derives its next steps from one function, and every surface reads it.
+  - **`roadsideNextSteps`** (`packages/shared/src/roadsideNextSteps.ts`): driver, officer's report (only where a
+    repair is certified on it), one step per violated unit (maintenance), the certification (safety); each with
+    owner, state (open / waiting / done) and the 396.9(d) clock. `attributionQuestion` is IC13's rule in the same
+    file: a strong reading of a roster driver asks nothing; weak, several, nobody, not on our roster, another
+    state, or a disagreeing report asks, saying why.
+  - **The page**: the inspection, then "Next steps", then the violations with the CSA points as their header line
+    (the CSA card is gone; how they are reached is one click away), then the driver, repair and documents cards
+    the steps scroll to and focus. A certified repair record folds to one line. The driver card shows a strong
+    roster reading as "From Samsara" with "Not right? Choose a different driver"; it asks, with primary buttons,
+    only when `attributionQuestion` does. An unmatched unit reads "Not on our current roster" until Q-IC10 (b).
+  - Filing a document now reloads the inspection too, so a filed report shows on the driver card at once.
+  - **Next:** B2b on Q-IC16 (a) — the Shop home's "Roadside repairs due" section, its page, the alert routed by
+    reader; then the inbox's "Needs action" tab reading the same function.
