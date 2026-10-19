@@ -150,5 +150,6 @@ describe("identification numbers — every load of up to three lines", () => {
     }
     expect(loads.length).toBe(20 + 400 + 8000);
     expect(checkedWithIds).toBeGreaterThan(5000);
-  });
+    // 8,420 full evaluations: ≈0.4 s on a laptop, 5.7 s on a loaded CI runner (PR #1641's first run).
+  }, 60_000);
 });

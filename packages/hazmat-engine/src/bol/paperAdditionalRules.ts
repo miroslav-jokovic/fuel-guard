@@ -5,6 +5,7 @@
  * that does not carry the table answers `requirement_not_in_dataset`, never a guess.
  */
 import type { PaperRuleResult } from "./paperTypes.js";
+import { matchHazSubstances, type Substance } from "./hazSubstanceMatch.js";
 import { layoutDescription } from "./paperDescriptionText.js";
 import {
   LQ_RX,
@@ -20,8 +21,6 @@ import {
   technicalNameText,
   type LineCtx,
 } from "./paperSupport.js";
-
-type Substance = { name?: string; nameNormalized: string; rqPounds?: number; rqKg?: number };
 
 /** Per-package quantity by mass, in the unit printed — or why it cannot be had. Never converts. */
 function perPackageMass(ctx: LineCtx): { value: number; unit: "lb" | "kg" } | { reason: string } {
@@ -59,9 +58,11 @@ export function paperRq(ctx: LineCtx): PaperRuleResult {
   const table = ctx.ds.hazSubstances;
   if (table.length === 0) return r("cannot_tell", "requirement_not_in_dataset", { lineLabel: label, needs: "Appendix A to §172.101" });
 
-  const names = entryNames(row.entry);
-  const neat = table.filter((h) => names.includes(h.nameNormalized));
-  const components = neat.length ? [] : table.filter((h) => technicalComponents(ctx.printed).includes(h.nameNormalized));
+  const { neat, mixture } = matchHazSubstances(entryNames(row.entry), table);
+  // A solution of a listed substance is judged like a component named in the technical name: it can be
+  // cleared by the package's whole mass, never failed without a concentration (hazSubstanceMatch.ts).
+  const named = table.filter((h) => technicalComponents(ctx.printed).includes(h.nameNormalized));
+  const components = neat.length ? [] : [...new Set([...mixture, ...named])];
   const listed = neat.length ? neat : components;
   if (listed.length === 0) {
     if (technicalNameText(ctx.printed) == null) {

@@ -3,6 +3,14 @@
 Every **verdict-affecting** change bumps the minor version and gets an entry here; the version is
 stored on every verdict row (H4) so a decision is reproducible forever.
 
+## 0.18.0 — 2026-10-19 (Appendix A by form)
+- **RQ, the marine-pollutant exception and the required-description line now find an Appendix A substance
+  under its HMT form.** The match was exact, so "Sodium hydroxide solution" (Mayo Products BOL 14182, 50 %
+  caustic soda totes), "Ammonia, anhydrous" (RQ 100 lb) and "Acrolein, stabilized" (RQ 1 lb) read as not
+  listed and `paper_rq` PASSED them. A neat form (anhydrous, stabilized, solid, molten …) is judged as the
+  substance; a solution or wetted/fuming form as a component — cleared under the RQ, otherwise
+  `concentration_unknown`, never a pass. Reaches 52 + 37 entries beyond the 155 exact matches (2026.07.1).
+
 ## 0.17.0 — 2026-10-19 (identification numbers: one carrier per number)
 - **Each required identification number now rides only on its own primary-class placard (§172.332(c)).**
   Every number used to receive the same carrier list — every required placard — so on a gasoline-tote +
