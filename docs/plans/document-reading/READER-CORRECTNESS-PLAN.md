@@ -152,3 +152,13 @@ inputs — a fix reaches every open BOL at once, and the audit and the product m
   audit beside yesterday's product match, which is why the owner's re-opened BOL still had no product while its
   audit had moved. Re-judging stored evidence at view time is a design question for RC2's follow-up, recorded as
   Q-RC4. The 7 reads before the writer cannot be replayed (no pass B kept); every read from the writer on can.
+- **2026-10-19 — RC3 built.** `alignLines` pairs in the paper's order first (an LCS over the id keys, ties to the
+  pairing whose name, count and weight agree most), then by id for a reader that listed two lines the other way,
+  then pairs a leftover line with the ONE leftover of the other reader in the same stretch of the paper whose id
+  is one misread apart (one digit, a swapped pair, or no id) and whose name, count or weight agrees (two of them
+  without an id). `alignLines.property.test.ts`: the owner's seven lines plus 300 seeded papers from the whole
+  table, every one-character misread of id, name, count and weight by the second reader (> 30,000 cases) → every
+  line stays one line paired with itself; a dropped line leaves only itself unpaired; 2,000 pairs of different
+  products read alone are never paired. The old pairing fails all three. The table now also judges pass B's
+  reading of a line the readers read differently (`passB` on its verdict), and the calculator fills the reading
+  that fits the printed name and class, still waiting on a person ("Check the number on the page."). Rule 10.

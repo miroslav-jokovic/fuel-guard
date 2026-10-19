@@ -223,3 +223,20 @@ describe("shippingEvidence — non-hazmat rows and the paper's totals (Q-DR26, p
     expect(all.flatMap((e) => e.sources).some((s) => s.reader === "arithmetic")).toBe(false);
   });
 });
+
+describe("the table judges both readings of a line the readers read differently (RC3)", () => {
+  const ACID = { psn: "CORROSIVE LIQUID, ACIDIC, INORGANIC, N.O.S. (PHOSPHORIC ACID, SULFURIC ACID)", hazardClass: "8", pg: "II" as const, packageCount: 38, grossWeightLb: 2052 };
+  it("pairs UN3254 / UN3264 as one line, the id in dispute, and records which reading the table matches", () => {
+    const all = ev(doc([line({ idText: "UN3254", ...ACID })]), doc([line({ idText: "UN3264", ...ACID })]));
+    expect(all.filter((e) => e.path.startsWith("hazmat.lines[1]"))).toEqual([]);
+    const id = at(all, "hazmat.lines[0].idText");
+    expect(readersAgree(id)).toBe(false);
+    const table = id.sources.find((s) => s.reader === "table")!.value as { consistent: boolean; passB?: { consistent: boolean; hmtRef?: string } };
+    expect(table.consistent).toBe(false);
+    expect(table.passB).toMatchObject({ consistent: true, hmtRef: expect.stringMatching(/^UN3264-/) });
+  });
+  it("adds no second verdict when the readers read the line alike", () => {
+    const all = ev(doc([line({ idText: "UN3264", ...ACID })]), doc([line({ idText: "UN3264", ...ACID })]));
+    expect(at(all, "hazmat.lines[0].idText").sources.find((s) => s.reader === "table")!.value).not.toHaveProperty("passB");
+  });
+});

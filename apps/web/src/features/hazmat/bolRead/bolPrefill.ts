@@ -110,7 +110,9 @@ export interface BolPrefill {
 const LINE_PATH_RX = /^hazmat\.lines\[(\d+)\]\./;
 
 /** The table's verdict, as `shippingEvidence.ts` records it on a line's judged fields. */
-type TableVerdict = { consistent: true; hmtRef: string } | { consistent: false; reason: string };
+type OneVerdict = { consistent: true; hmtRef: string } | { consistent: false; reason: string };
+/** `passB`: the table's verdict on pass B's reading of the line, where the readers read it differently (RC3). */
+type TableVerdict = OneVerdict & { passB?: OneVerdict };
 
 /**
  * The words for `resolveHmtLine`'s refusal reasons (`ResolveLineFailureReason`, @hazmat/data — which the
@@ -130,7 +132,7 @@ const TABLE_REASONS: Record<string, string> = {
 export function hmtRefsOf(read: ReadResponse): string[] {
   const refs = read.evidence.flatMap((e) => {
     const v = tableVerdictOf(e);
-    return v?.consistent ? [v.hmtRef] : [];
+    return [v, v?.passB].flatMap((x) => (x?.consistent ? [x.hmtRef] : []));
   });
   return [...new Set(refs)];
 }
@@ -218,9 +220,15 @@ function prefillLine(
 
   // Product: the table's own row for what was printed, or nothing.
   const verdict = tableVerdictOf(byPath.get(p("idText")));
-  const product = verdict?.consistent ? byRef.get(verdict.hmtRef) ?? null : null;
+  // The readers read the line differently and only pass B's reading fits the table (RC3, e.g. UN3254 / UN3264
+  // under one printed name): that product is filled, and the field still waits on a person (its reason).
+  const onlyB = verdict && !verdict.consistent && verdict.passB?.consistent ? verdict.passB : null;
+  const product = verdict?.consistent ? byRef.get(verdict.hmtRef) ?? null : onlyB ? byRef.get(onlyB.hmtRef) ?? null : null;
   form.product = product;
-  const productReason = product ? null
+  const ids = byPath.get(p("idText"))?.sources.filter((s) => s.reader === "passA" || s.reader === "passB").map((s) => s.value);
+  const productReason = onlyB && product
+    ? `The two readers read the number as ${String(ids?.[0] ?? "?")} and ${String(ids?.[1] ?? "?")}; only ${product.idLabel} fits the printed name and class in the Hazardous Materials Table, so it is filled in. Check the number on the page.`
+    : product ? null
     : verdict && !verdict.consistent ? TABLE_REASONS[verdict.reason] ?? verdict.reason
     : verdict?.consistent ? "The calculator's hazmat dataset does not hold this table entry; choose the product."
     : "No UN/NA number was checked against the table; choose the product.";
