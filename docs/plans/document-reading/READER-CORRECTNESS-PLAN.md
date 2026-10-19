@@ -123,6 +123,14 @@ shows today's verdict; Calculate's review rows record which rule they were judge
 judgement and offer "Read again" (a model call); *(c)* as today. **Recommendation: (a)** for reads with replay
 inputs — a fix reaches every open BOL at once, and the audit and the product match can never disagree again.
 
+**Q-RC5 — Should the audit take what a person confirmed on the form?** (Found 2026-10-19, read 76979453.) Today
+the audit is computed from the two readers' evidence only; a person's "Matches the page", picked reading or change
+(D-DR24) reaches `document_read_reviews` only when Calculate is pressed, and the audit never reads it. So a line
+whose number the readers split keeps "confirm the number first" after the person confirmed it. *(a)* the form
+posts each act as it happens and the audit is re-judged with confirmed values as *Read* (and a changed value
+replacing the printed one); *(b)* the audit re-runs after Calculate only; *(c)* as today. **Recommendation: (a)** —
+the paper's answer then follows the person's checks, and it reuses the review rows D-DR24 already records.
+
 ## 7. Progress log
 
 - **2026-10-19 — plan written.** #1607 merged first (plural fold, bare number, equipment reset). Census,
@@ -162,3 +170,21 @@ inputs — a fix reaches every open BOL at once, and the audit and the product m
   products read alone are never paired. The old pairing fails all three. The table now also judges pass B's
   reading of a line the readers read differently (`passB` on its verdict), and the calculator fills the reading
   that fits the printed name and class, still waiting on a person ("Check the number on the page."). Rule 10.
+- **2026-10-19 — the owner re-read the corrosives BOL in production (v2026.10.19.1, read 76979453, the first read with
+  replay inputs) and three faults were left; each fixed for every case, not this one, and the read replayed.**
+  (1) **The audit judged against a row the readers had not agreed on.** Pass A read UN3254, pass B UN3264 (the
+  paper's number); RC3 paired them as one line with the id disputed, but `paper_psn_matches_hmt`, gated on the
+  name alone, told the shipper the name was wrong for UN3254 ("Tributylphosphane"). Seven of ten line rules use the
+  row and leave its fields out of their own gates, so the gate is now central (`heldToItsRow`): any rule that reads
+  the resolution while id, name, class or PG is unconfirmed answers "confirm it first". `paperRowGate.test.ts` is
+  metamorphic — a rule whose answer changes with the row must wait — and fails with the gate removed.
+  (2) **Formatting read as disagreement.** "CORROSIVE LIQUID , N.O.S." against "CORROSIVE LIQUID, N.O.S." (and the
+  same in two descriptions, and three addresses broken across lines) stopped three lines of the audit.
+  `normalisedForAgreement` now folds spacing around punctuation and a line break for ", ";
+  `agreement.property.test.ts` holds, over every name in the table, that formatting always agrees and every
+  one-character change never does. (3) **"The BOL gives the amount by volume"** on a line that prints only a gross
+  weight: no unit is not a volume (`package_quantity_unknown` now). **Replayed:** 18 → 11 disagreements, all real
+  (the id, certification A missed, page marker "2" vs "Page 2 of 2", pallets, a customer reference, four non-hazmat
+  counts pass A shifted by a row); the false "wrong name" is gone and a real one appears that the noise hid — both
+  bare "1760" lines lack the "UN" (§172.202(a)(1)). **Left, a design gap, Q-RC5:** the audit is computed from the
+  readers alone, so after a person confirms UN3264 on the form it still says "confirm the number first".
