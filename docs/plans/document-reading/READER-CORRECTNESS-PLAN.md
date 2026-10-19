@@ -203,8 +203,10 @@ the paper's answer then follows the person's checks, and it reuses the review ro
   solution entries. The replayed read now answers "can't tell", not "pass".
   (3) **Still open — the reader, needless stops (P2), in the order to build them:**
   - **R-M1 the per-line NET WEIGHT column is not read as the line's quantity.** The paper prints 28,800 and
-    6,500 lb net; both readers left `quantity` null, so RQ cannot be judged (UN1830: 3,250 lb of sulfuric acid per
-    tote → "RQ" is owed and missing; UN1824 needs the 50 % printed in the description). Profile field
+    6,500 lb net; both readers left `quantity` null, so RQ cannot be judged. Worked by hand from the printed
+    figures, the paper owes "RQ" on BOTH lines and prints it on neither: UN1830 3,250 lb net per tote at 93 % ≈
+    3,020 lb sulfuric acid, UN1824 3,600 lb at 50 % = 1,800 lb sodium hydroxide, each against a 1,000 lb RQ.
+    Judging the solution needs the concentration the description prints ("50%", "93%") — R-M1 reads it too. Profile field
     description + the arithmetic witness (net column ↔ freight.netWeight 42,425) as its row backing.
   - **R-M2 cell extent read as disagreement.** Pass A carried the description cell's trailing commercial text
     ("CAUSTIC SODA 50% 3600# TOTE") and the packaging cell's item-code line ("FG00035-3600T"); pass B stopped at
