@@ -10,7 +10,7 @@ import {
   type RouteSplit,
 } from "@silvicom/shared";
 import type { Env } from "../../env.js";
-import { NoHereKeyError } from "../../lib/here.js";
+import { HereUnavailableError, NoHereKeyError } from "../../lib/here.js";
 import { readLoadForRoute, type LoadForRoute } from "../loads/index.js";
 import { getOrComputeRoute, loadPlanningTruck, readStationAddresses, solveOnRoute, type PlanResult } from "../routing/index.js";
 import { readVehiclePositions } from "../samsara/index.js";
@@ -73,6 +73,9 @@ export async function readLoadRoute(admin: SupabaseClient, env: Env, orgId: stri
     route = await getOrComputeRoute(admin, env, { origin: points[0]!, via: points.slice(1, -1), destination: points.at(-1)!, ...ends });
   } catch (e) {
     if (e instanceof NoHereKeyError) return { ok: false, status: 503, code: "routing_unavailable", message: "Route planning is not configured." };
+    if (e instanceof HereUnavailableError) {
+      return { ok: false, status: 503, code: "routing_unavailable", message: "The routing service is not answering right now, so this route cannot be drawn. Try again in a few minutes." };
+    }
     throw e;
   }
 
@@ -84,8 +87,9 @@ export async function readLoadRoute(admin: SupabaseClient, env: Env, orgId: stri
 
   // Off the line with stops still to make: the line ahead is routed from the truck (header).
   const toGo = load.stops.filter((s) => !s.behind).map((s) => ({ lat: s.lat, lng: s.lng }));
-  // The planned line may have come from the cache with no HERE key configured; then there is no second
-  // route to ask for, and the answer is the planned line with the truck said to be off it, as before.
+  // The planned line may have come from the cache with no HERE key configured, or while HERE is not
+  // answering; then there is no second route to be had, and the answer is the planned line with the
+  // truck said to be off it, as before.
   const live = fix && !split.onRoute && toGo.length > 0
     ? await getOrComputeRoute(admin, env, {
         origin: { lat: snap(fix.lat, ORIGIN_GRID_DEG), lng: snap(fix.lng, ORIGIN_GRID_DEG) },
@@ -94,7 +98,7 @@ export async function readLoadRoute(admin: SupabaseClient, env: Env, orgId: stri
         destination: toGo.at(-1)!,
         ...ends,
       }).catch((e: unknown) => {
-        if (e instanceof NoHereKeyError) return null;
+        if (e instanceof NoHereKeyError || e instanceof HereUnavailableError) return null;
         throw e;
       })
     : null;

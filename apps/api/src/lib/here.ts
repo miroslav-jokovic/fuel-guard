@@ -15,6 +15,20 @@ export class NoHereKeyError extends Error {
   }
 }
 
+/**
+ * HERE kept answering 429/5xx (or not at all) through every retry: the service is down for us, not the
+ * request wrong. From 2026-10-16 ~20:32Z every Routing v8 call with the production key answered `503
+ * Timeout processing request` in ~0.1 s while geocoding on the same key worked, and the plain Error this
+ * used to be reached `errorResponder` as a 500 "Unexpected server error" on the live map. A caller
+ * answers it the way it answers a missing key: routing is unavailable, say so, keep the rest.
+ */
+export class HereUnavailableError extends Error {
+  constructor(detail: string) {
+    super(`HERE routing failed after retries (${detail})`);
+    this.name = "HereUnavailableError";
+  }
+}
+
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /** Fetch a truck-legal route from HERE. Retries 429/5xx with backoff; throws on a persistent error. */
@@ -42,5 +56,5 @@ export async function fetchTruckRoute(env: Env, req: HereRouteRequest): Promise<
     if (!parsed || parsed.polyline.length === 0) throw new Error("HERE returned no usable route");
     return parsed;
   }
-  throw new Error(`HERE routing failed after retries (${lastErr})`);
+  throw new HereUnavailableError(lastErr);
 }
