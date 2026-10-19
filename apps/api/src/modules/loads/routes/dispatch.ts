@@ -17,6 +17,7 @@ import {
   type DispatchResult,
 } from "../dispatchLoads.js";
 import { dispatchLoad, previewLoadDispatch } from "../dispatchToDriver.js";
+import { readTrailersOnLoads } from "../liveLoadReads.js";
 
 /**
  * Dispatch endpoints (Phase 3D, D49; cut down to reads and Dispatch by LOADS-MIRROR-PLAN.md LR6).
@@ -120,6 +121,20 @@ export function dispatchRouter(): Router {
     asyncHandler(async (req, res) => {
       const admin = getSupabaseAdmin(getAppLocals(req).env);
       res.json({ events: await listEvents(admin, req.auth!.orgId!, param(req, "id")) });
+    }),
+  );
+
+  /**
+   * Which trailer each truck's current load carries (TRAILER-LINK-PLAN TL4): the McLeod column of the
+   * Trailers page, beside the GPS pairing. Gated as the Trailers page is (`equipment: view`), not on
+   * `dispatch`, since the page's readers are the shop and the fleet manager. A read, so no audit.
+   */
+  router.get(
+    "/trailers-on-loads",
+    requireSection("equipment", "view"),
+    asyncHandler(async (req, res) => {
+      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      res.json({ trailers: await readTrailersOnLoads(admin, req.auth!.orgId!) });
     }),
   );
 

@@ -311,6 +311,10 @@ export interface Trailer {
   updated_at: string;
   /** See `Vehicle.dot_annual_inspection_expires_at`. */
   dot_annual_inspection_expires_at?: string | null;
+  /** Who made the pairing: 'inferred' (GPS), 'samsara' (assignment feed), 'manual' (a person), or null. */
+  pairing_source?: string | null;
+  /** When the pairing was last seen to hold (0488, TRAILER-LINK-PLAN TL2); null = age unknown. */
+  pairing_confirmed_at?: string | null;
 }
 
 // ── Driver ────────────────────────────────────────────────────────────────────

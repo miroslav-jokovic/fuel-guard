@@ -31,8 +31,8 @@ truck. 15 trucks are GPS-paired to a reefer while their load's trailer is a dry 
 | Dispatch board, Loads, truck drawer | Which trailer is on this load | McLeod | McLeod (unchanged) | — |
 | Live map route + its fuel stops (`loadPlanningTruck` from `liveMapLoadRoute`) | Does this load burn reefer fuel | GPS | **McLeod: the load's trailer** | **TL1 (this PR)** |
 | Fuel planner (`planFuelRoute`, no load) | Same, for a typed trip | GPS, or the planner's own equipment choice | McLeod: the truck's current load; GPS only for a truck on no load | TL3 (built) |
-| Trailers page "Paired tractor" | Where is this trailer | GPS | Both, labelled: *On load (McLeod)* and *GPS pairing*, with its age | TL4 |
-| Reefer coverage page | Which trucks physically pull a reefer | GPS | GPS (physical), shown with its age | TL4 |
+| Trailers page "Paired tractor" | Where is this trailer | GPS | Both, labelled: *On load (McLeod)* and *GPS pairing*, with its age | TL4 (built) |
+| Reefer coverage page | Which trucks physically pull a reefer | GPS | GPS (physical), shown with its age | TL4 (built) |
 | Fuel anomaly scoring: reefer tank size, reefer-diversion rule (`anomalies/scoring/context.ts`) | Was a reefer on this truck at the fill | GPS, **current state judged against past fills** | Open: Q-TL1 | — |
 | Anomalies page trailer list (`useAnomaliesPage`) | Context for an alert | GPS | Follows Q-TL1 | — |
 
@@ -110,4 +110,52 @@ trailer sync and its GPS pairing once a day, under the manual button's `sync_tra
 (org, kind) slot keeps a press and a tick apart, and each run leaves a ledger row. Its kill switch is
 `SAMSARA_TRAILER_PAIRING_SYNC_HOURS` (default 24). The row is in `docs/WORKER-DEPLOYMENT.md`'s vendor
 table. Not yet in the Samsara feed alarm (`SamsaraFeedId` is a shared contract the web lists), so a
-stopped tier shows in the jobs ledger, not as an alert: TL4 adds it.
+stopped tier shows in the jobs ledger, not as an alert (see TL4 below).
+### 2026-10-19 — TL4: both sources on the Trailers page; Q-TL3 built; Q-TL1's dry run
+
+**TL4.** The Trailers page's "Paired tractor" is now two columns:
+- **On load (McLeod)**: the truck and order number of the load the trailer is on now, from
+  `GET /api/dispatch/trailers-on-loads` (`loads.readTrailersOnLoads`, one load per truck by the map's
+  rule, gated `equipment: view` like the page).
+- **GPS pairing**: the truck, with *GPS, as of MM/DD/YYYY*, *GPS, age unknown* or *set by hand*
+  beneath it.
+
+Reefer coverage shows the same note under its trailer. Both machine writers now stamp
+`pairing_confirmed_at` (0488). A carrier without the dispatch module gets a 403 from the McLeod half,
+and the page then shows the GPS half alone.
+
+**Q-TL3, built here** (it was this step's recommendation): a person's save on the Trailers form
+marks a changed pairing `manual`, and a cleared one null (`handPairingPatch`). The clear is written
+out explicitly, because the form's schema turns an empty select into "absent", so clearing a pairing
+in the form never cleared it.
+
+**Not done:** a feed-alarm entry for the daily trailer tier. `SamsaraFeedId` is a shared contract the
+web lists, so it is its own small step. Until then a stopped tier shows in the jobs ledger only.
+
+**Q-TL1 dry run (production, last 30 days; measured, nothing changed):**
+- **The reefer-diversion rule has never fired: 0 anomalies, ever.** Its McLeod gate
+  (`reeferLoadInWindow`, `anomalies/scoring/context.ts`) asks `tms_movements` for a
+  temperature-controlled movement. That table has **0 rows**. With the McLeod integration on, the
+  gate answers "no reefer load" for every fill and suppresses the rule. The real McLeod data lives in
+  `loads` (the dispatch mirror, since 2026-09-17) and `mcleod_movements` (settled movements, last
+  written 2026-10-09).
+- The two capacity rules (`reefer_exceeds_capacity`, `reefer_overfuel_rate`) carry weight 0, so they
+  never raise a case either way.
+- Tractor (ULSD) fills that would fire the diversion rule (≥ 150 gal ULSD and no reefer fuel in 30
+  days), by source of "hauls a reefer":
+
+  | Source | Fills | Trucks |
+  |---|---|---|
+  | Today's code (GPS pairing + the empty gate) | 0 | 0 |
+  | GPS pairing, gate fixed to read `loads` | 11 | 3 |
+  | GPS pairing, no gate | 192 | 22 |
+  | **(a) McLeod: a reefer load on the truck at the fill** | **67** | **27** |
+
+- Of the 1,824 tractor fills, 932 fall outside any McLeod load window (between loads), so (a) is
+  silent for them by construction.
+- **So Q-TL1 (a) does not just move alerts. It turns a rule that has been off since it shipped into
+  ~67 review items a month on 27 trucks.** Before building, the owner should see a sample of them:
+  a reefer that runs on fuel bought another way (a yard tank, a card not linked to the truck) would
+  make most of them false.
+- **Q-TL4 (new): is reefer fuel bought in ways the fill feed does not see?** Ask the owner before (a)
+  ships. Until then (a) is not built, and the rule stays as dead as it was.

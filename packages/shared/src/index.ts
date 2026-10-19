@@ -115,6 +115,7 @@ export * from "./loadsLifecycle.js";
 export * from "./loadBoard.js";
 export * from "./dispatchContract.js";
 export * from "./dispatchBoardContract.js";
+export * from "./trailerLinkContract.js";
 export * from "./dispatchBoard.js";
 export * from "./maintenanceDue.js";
 export * from "./boardDriverWarnings.js";

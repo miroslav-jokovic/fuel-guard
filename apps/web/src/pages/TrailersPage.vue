@@ -16,7 +16,9 @@ import {
 } from "@silvicom/ui";
 import { PlusIcon } from "@silvicom/ui/icons";
 import { ref, computed, watch } from "vue";
-import { TRAILER_TYPE_LABELS, VEHICLE_STATUSES, isStatusFromTms, type Trailer, type TrailerInput } from "@silvicom/shared";
+import { TRAILER_TYPE_LABELS, VEHICLE_STATUSES, handPairingPatch, isStatusFromTms, type Trailer, type TrailerInput, type TrailerWrite } from "@silvicom/shared";
+import { useTrailersOnLoadsQuery } from "@/composables/useTrailerLink";
+import { gpsPairingNote } from "@/lib/trailerPairingNote";
 import { useSessionStore } from "@/stores/session";
 import {
   useTrailersQuery,
@@ -89,6 +91,7 @@ const pageRows = computed(() =>
   sorted.value.slice((page.value - 1) * PAGE_SIZE, page.value * PAGE_SIZE),
 );
 
+const onLoads = useTrailersOnLoadsQuery();
 const vehUnit = (id: string | null) =>
   id ? (vehicles.value?.find((v) => v.id === id)?.unit_number ?? "—") : "—";
 
@@ -103,7 +106,11 @@ const columns: DataTableColumn[] = [
     numeric: true,
     cellClass: "text-ink-secondary",
   },
-  { key: "assigned_vehicle_id", label: "Paired tractor", cellClass: "text-ink-secondary" },
+  // Two sources, two columns (TRAILER-LINK-PLAN D-TL1): the load McLeod put the trailer on, and the
+  // truck the GPS last saw it with. They are different questions and disagree often, so neither stands in
+  // for the other.
+  { key: "on_load", label: "On load (McLeod)", cellClass: "text-ink-secondary" },
+  { key: "assigned_vehicle_id", label: "GPS pairing", cellClass: "text-ink-secondary" },
   { key: "dot_annual_inspection_expires_at", label: "Annual inspection", sortable: true },
   { key: "status", label: "Status", sortable: true },
 ];
@@ -136,8 +143,14 @@ function openEdit(t: Trailer) {
 
 async function onSubmit(input: TrailerInput) {
   try {
-    if (editing.value) await updateTrailer.mutateAsync({ id: editing.value.id, input });
-    else await createTrailer.mutateAsync(input);
+    // A pairing a person changes is marked theirs, so the daily GPS run leaves it alone (Q-TL3); the
+    // schema turns a cleared select into "absent", so the clear is written out explicitly here.
+    const hand = editing.value
+      ? handPairingPatch(editing.value.assigned_vehicle_id ?? null, input.assigned_vehicle_id ?? null)
+      : handPairingPatch(null, input.assigned_vehicle_id ?? null);
+    const saved: TrailerWrite = hand ? { ...input, ...hand } : input;
+    if (editing.value) await updateTrailer.mutateAsync({ id: editing.value.id, input: saved });
+    else await createTrailer.mutateAsync(saved);
     drawerOpen.value = false;
     toast.success(editing.value ? "Trailer updated" : "Trailer created");
   } catch (e) {
@@ -266,9 +279,17 @@ async function onRetire(t: Trailer) {
       <template #cell-reefer_tank_capacity_gal="{ row }">{{
         row.is_reefer ? row.reefer_tank_capacity_gal + " gal" : "N/A"
       }}</template>
-      <template #cell-assigned_vehicle_id="{ row }">{{
-        vehUnit(row.assigned_vehicle_id)
-      }}</template>
+      <template #cell-on_load="{ row }">
+        <template v-if="onLoads.byTrailerId.value.get(row.id)">
+          {{ vehUnit(onLoads.byTrailerId.value.get(row.id)!.vehicleId) }}
+          <span class="block text-xs text-ink-tertiary">Load {{ onLoads.byTrailerId.value.get(row.id)!.ref ?? "—" }}</span>
+        </template>
+        <span v-else>—</span>
+      </template>
+      <template #cell-assigned_vehicle_id="{ row }">
+        {{ vehUnit(row.assigned_vehicle_id) }}
+        <span v-if="gpsPairingNote(row)" class="block text-xs text-ink-tertiary">{{ gpsPairingNote(row) }}</span>
+      </template>
       <template #cell-dot_annual_inspection_expires_at="{ row }">
         <InspectionExpiryCell :expires-on="row.dot_annual_inspection_expires_at" />
       </template>

@@ -11,6 +11,7 @@ import { ref } from "vue";
  * form-owner rule, rather than only that a button with the right attribute exists.
  */
 const create = vi.hoisted(() => vi.fn(async () => {}));
+vi.mock("@/composables/useTrailerLink", () => ({ useTrailersOnLoadsQuery: () => ({ byTrailerId: { value: new Map() } }) }));
 vi.mock("@/composables/useTrailers", () => {
   const idle = () => ({ mutateAsync: vi.fn(), isPending: ref(false) });
   return {
