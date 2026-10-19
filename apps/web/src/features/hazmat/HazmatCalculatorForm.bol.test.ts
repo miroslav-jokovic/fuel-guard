@@ -187,6 +187,20 @@ describe("HazmatCalculatorForm with a BOL read", () => {
     expect(w.html()).toContain("Yes — other freight rides along (mixed load)");
   });
 
+  it("keeps an unmatched line's count and weight when the equipment is picked after the read (owner's test, 2026-10-19)", async () => {
+    const w = mountForm();
+    await w.setProps({ bolRead: read([{ a: { ...PAINT, idText: "5503615" }, table: { consistent: false, reason: "id_not_found" } }]) });
+    await flushPromises();
+    const values = () => ["1056", "44307"].map((ph) => (w.findAll(`input[placeholder='${ph}']`).at(-1)!.element as HTMLInputElement).value);
+    const before = values();
+    expect(before.every((v) => v !== "")).toBe(true);
+    const picker = w.findAllComponents({ name: "AppCombobox" }).find((c) => c.props("placeholder") === "Select…")!;
+    picker.vm.$emit("update:modelValue", "van");
+    await flushPromises();
+    expect(values()).toEqual(before);
+    expect(w.findAll("[data-testid='bol-field-note']").some((n) => n.text() === "Changed by you.")).toBe(false);
+  });
+
   // D-DR24 — the external audit of 2026-10-14: Calculate took a disputed count as pass A's value, and no
   // review was ever recorded.
   describe("a disputed field and the review a Calculate press records (D-DR24)", () => {

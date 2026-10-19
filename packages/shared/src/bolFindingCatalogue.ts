@@ -42,7 +42,7 @@ export interface BolFindingEntry {
 // ── wording helpers ───────────────────────────────────────────────────────────────────────────────
 const s = (v: BolFactValue | undefined): string => (v == null ? "" : Array.isArray(v) ? v.join(", ") : String(v));
 const line = (ctx: BolFindingContext): string => s(ctx.facts.lineLabel) || `Line ${(ctx.lineIndex ?? 0) + 1}`;
-const PART: Record<string, string> = { id: "the UN/NA number", psn: "the proper shipping name", class: "the hazard class", pg: "the packing group" };
+const PART: Record<string, string> = { id: "the UN/NA number", id_prefix: "the UN or NA in front of the number", psn: "the proper shipping name", class: "the hazard class", pg: "the packing group" };
 function joinWords(words: string[]): string {
   if (words.length <= 1) return words.join("");
   return `${words.slice(0, -1).join(", ")} and ${words[words.length - 1]}`;

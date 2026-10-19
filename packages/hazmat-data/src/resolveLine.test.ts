@@ -74,9 +74,21 @@ describe("resolveHmtLine — id failures", () => {
     expect(resolve({ idText: "Gasoline", psn: "Gasoline" })).toMatchObject({ ok: false, reason: "id_missing" });
     expect(resolve({ idText: null })).toMatchObject({ ok: false, reason: "id_missing" });
   });
-  it("prefixless id present in BOTH UN and NA → id_prefix_ambiguous", () => {
+  it("prefixless id present in BOTH UN and NA with no name → id_prefix_ambiguous", () => {
     // 1993 exists as UN1993 (flammable liquids) AND NA1993 (combustible/diesel/fuel oil).
-    expect(resolve({ idText: "1993", psn: "Diesel fuel" })).toMatchObject({ ok: false, reason: "id_prefix_ambiguous" });
+    expect(resolve({ idText: "1993" })).toMatchObject({ ok: false, reason: "id_prefix_ambiguous" });
+  });
+  it("prefixless id in BOTH UN and NA: the printed name picks the one key space that holds it", () => {
+    expect(resolve({ idText: "1993", psn: "Diesel fuel", pg: "III" })).toMatchObject({ ok: true, entryId: "NA1993-diesel-fuel" });
+    // The owner's BOL of 2026-10-19: "1760, Corrosive liquid N.O.S. (alkali metal salt), 8, II" is UN1760 —
+    // NA1760 is "Compounds, cleaning liquid".
+    const r = resolve({ idText: "1760", psn: "Corrosive liquid N.O.S. (alkali metal salt)", hazardClass: "8", pg: "II" });
+    expect(r).toMatchObject({ ok: true, hmtRef: expect.stringMatching(/^UN1760-/) });
+  });
+  it("prefixless id whose name neither key space holds → psn_no_match listing both blocks", () => {
+    const r = resolve({ idText: "1993", psn: "Methanol" });
+    expect(r).toMatchObject({ ok: false, reason: "psn_no_match" });
+    if (!r.ok) expect(new Set(r.candidates!.map((c) => c.entryId.slice(0, 2)))).toEqual(new Set(["UN", "NA"]));
   });
   it("unknown id → id_not_found", () => {
     expect(resolve({ idText: "UN9999", psn: "Nothing" })).toMatchObject({ ok: false, reason: "id_not_found" });
@@ -142,6 +154,16 @@ describe("resolveHmtLine — normalizer + parenthetical discipline", () => {
     expect(resolve({ idText: "NA1993", psn: "Fuel oil (No. 2)", pg: "III" })).toMatchObject({ ok: false, reason: "psn_no_match" });
     // The plain printed name still matches.
     expect(resolve({ idText: "NA1993", psn: "Fuel oil", pg: "III" })).toMatchObject({ ok: true, entryId: "NA1993-fuel-oil" });
+  });
+
+  it("folds singular/plural on any word, not only the last (\"FLAMMABLE LIQUID, N.O.S.\" is UN1993's name)", () => {
+    // The table prints "Flammable liquids, n.o.s." — the last token is "nos", so a last-word-only fold missed it.
+    expect(resolve({ idText: "UN1993", psn: "FLAMMABLE LIQUID, N.O.S. (ISOPROPYL ALCOHOL)", hazardClass: "3", pg: "III" }))
+      .toMatchObject({ ok: true, entryId: "UN1993-flammable-liquids-n-o-s", pg: "III" });
+    expect(resolve({ idText: "UN1760", psn: "CORROSIVE LIQUID, N.O.S. (PHOSPHORIC ACID, DODECYLBENZENE SULFONIC ACID)", hazardClass: "8", pg: "II" }))
+      .toMatchObject({ ok: true, hmtRef: expect.stringMatching(/^UN1760-.*#II$/) });
+    // Still blocked on the id: the singular of another number's name is no match.
+    expect(resolve({ idText: "UN1993", psn: "Corrosive liquid, n.o.s.", pg: "II" })).toMatchObject({ ok: false, reason: "psn_no_match" });
   });
 
   it("strips leading shipping-paper modifiers (RQ / Waste / HOT)", () => {

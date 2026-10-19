@@ -11,6 +11,7 @@ const ctx = (outcome: BolFindingContext["outcome"], reason: string, facts: BolFi
 
 const CASES: Array<[BolFindingRuleId, BolFindingContext, string]> = [
   ["paper_sequence", ctx("fail", "elements_missing", { lineLabel: "Line 1", missing: ["id", "psn", "class"] }), "Line 1 on the BOL is missing the UN/NA number, the proper shipping name and the hazard class from its hazmat description."],
+  ["paper_sequence", ctx("fail", "elements_missing", { lineLabel: "1760", missing: ["id_prefix"] }), "1760 on the BOL is missing the UN or NA in front of the number from its hazmat description."],
   ["paper_sequence", ctx("pass", "all_elements_printed", { lineLabel: "UN1203", printed: "UN1203, Gasoline, 3, II", orderVerified: false }), "UN1203 prints all four parts (UN1203, Gasoline, 3, II); check by eye that they read in that order with nothing between them — the reader does not record it."],
   ["paper_sequence", ctx("pass", "in_sequence", { lineLabel: "UN1203", printed: "UN1203, Gasoline, 3, II", descriptionText: "UN1203, Gasoline, 3, II", orderVerified: true }), "UN1203's description reads in the required order: UN1203, Gasoline, 3, II."],
   ["paper_sequence", ctx("fail", "out_of_order", { lineLabel: "UN1203", printed: "UN1203, Gasoline, 3, II", descriptionText: "UN1203, 3, Gasoline, II" }), "UN1203's description reads \"UN1203, 3, Gasoline, II\" — the number, shipping name, class and packing group must come in that order."],

@@ -17,7 +17,7 @@ import type { Dataset, HmtEntry, PackingGroup } from "./schema.js";
  */
 
 /** Bump on ANY change to the normalization ruleset — stored on every run so a verdict stays reproducible. */
-export const PSN_NORMALIZER_VERSION = "1.0.0";
+export const PSN_NORMALIZER_VERSION = "1.1.0";
 
 export type ResolveLineFailureReason =
   | "id_missing" // no parseable UN/NA id on the line
@@ -98,12 +98,15 @@ export function normalizePsnForMatch(psn: string, stripTrailingParenthetical: bo
   return toks.join(" ");
 }
 
-/** Singular/plural fold on the final token — safe because matching only ever runs WITHIN an id block. */
+/**
+ * Singular/plural fold on every token — safe because matching only ever runs WITHIN an id block, and a fold
+ * that made two names of one block equal would surface as `psn_ambiguous`, never as a pick. It used to fold
+ * the final token only, which on an n.o.s. entry is "nos": "FLAMMABLE LIQUID, N.O.S." then failed UN1993's
+ * "Flammable liquids, n.o.s." and the audit told a shipper to reprint a name §172.101(c)(1) allows
+ * (owner's calculator test, 2026-10-19). Normalizer 1.1.0.
+ */
 function depluralize(s: string): string {
-  const toks = s.split(" ");
-  const last = toks[toks.length - 1];
-  if (last && last.length > 3 && last.endsWith("s")) toks[toks.length - 1] = last.slice(0, -1);
-  return toks.join(" ");
+  return s.split(" ").map((t) => (t.length > 3 && t.endsWith("s") ? t.slice(0, -1) : t)).join(" ");
 }
 
 function nameMatches(candidateName: string, inputPsn: string, gEntry: boolean): boolean {
@@ -180,6 +183,19 @@ export function resolveHmtLine(index: DatasetIndex, input: ResolveLineInput): Re
   const parsed = input.idText ? parseIdText(input.idText) : null;
   if (!parsed) return fail("id_missing");
 
+  // 3 & 4. Match the PSN within a blocked candidate set (or resolve by id alone when unambiguous).
+  const hasPsn = input.psn != null && input.psn.trim() !== "";
+  const byName = (block: HmtEntry[]) => {
+    const hits: HmtEntry[] = [];
+    let name = "";
+    for (const e of block) {
+      const gEntry = e.symbols.includes("G");
+      const hit = [e.psnPrinted, ...e.psnAlternates].find((n) => nameMatches(n, input.psn!, gEntry));
+      if (hit) { hits.push(e); if (!name) name = hit; }
+    }
+    return { hits, name };
+  };
+
   let candidates: HmtEntry[];
   if (parsed.prefix) {
     candidates = index.byId.get(`${parsed.prefix}${parsed.idNumber}`) ?? [];
@@ -187,22 +203,27 @@ export function resolveHmtLine(index: DatasetIndex, input: ResolveLineInput): Re
   } else {
     const un = index.byId.get(`UN${parsed.idNumber}`) ?? [];
     const na = index.byId.get(`NA${parsed.idNumber}`) ?? [];
-    if (un.length && na.length) return fail("id_prefix_ambiguous", asCandidateList([...un, ...na]));
-    candidates = un.length ? un : na;
-    if (candidates.length === 0) return fail("id_not_found");
+    if (un.length && na.length) {
+      // The spec's step 1 is "both RESOLVING → ambiguous", not "both existing": each key space is still
+      // blocked on its own and the printed name decides which one holds the line — "1760, Corrosive liquid
+      // N.O.S." is UN1760, never NA1760 "Compounds, cleaning liquid". With no name, or a name both blocks
+      // hold, nothing decides. The missing prefix is still the shipper's error (`paper_sequence`).
+      if (!hasPsn) return fail("id_prefix_ambiguous", asCandidateList([...un, ...na]));
+      const onUn = byName(un).hits.length > 0;
+      const onNa = byName(na).hits.length > 0;
+      if (onUn && onNa) return fail("id_prefix_ambiguous", asCandidateList([...un, ...na]));
+      if (!onUn && !onNa) return fail("psn_no_match", asCandidateList([...un, ...na]));
+      candidates = onUn ? un : na;
+    } else {
+      candidates = un.length ? un : na;
+      if (candidates.length === 0) return fail("id_not_found");
+    }
   }
 
-  // 3 & 4. Match the PSN within the blocked candidate set (or resolve by id alone when unambiguous).
-  const hasPsn = input.psn != null && input.psn.trim() !== "";
   let matched: HmtEntry[];
   let matchedName = "";
   if (hasPsn) {
-    matched = [];
-    for (const e of candidates) {
-      const gEntry = e.symbols.includes("G");
-      const hit = [e.psnPrinted, ...e.psnAlternates].find((name) => nameMatches(name, input.psn!, gEntry));
-      if (hit) { matched.push(e); if (!matchedName) matchedName = hit; }
-    }
+    ({ hits: matched, name: matchedName } = byName(candidates));
     if (matched.length === 0) return fail("psn_no_match", asCandidateList(candidates));
   } else {
     matched = candidates;

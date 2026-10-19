@@ -28,6 +28,13 @@ describe("paper_sequence — §172.202(a)(1)–(4) id, PSN, class, PG all printe
     expect(r.facts.missing).toEqual(["pg"]);
   });
 
+  it("fails a bare number with no UN or NA in front, even when the name placed it (owner's BOL, 2026-10-19)", () => {
+    const bare = pline({ idText: "1203" });
+    const r = result({ lines: [[bare, rline(ok("UN1203-gasoline", "II"))]] }, "paper_sequence");
+    expect(r.outcome).toBe("fail");
+    expect(r.facts.missing).toEqual(["id_prefix"]);
+  });
+
   it("passes a gas with no PG — the row has none to print", () => {
     const lpg = pline({ idText: "UN1075", psn: "Petroleum gases, liquefied", hazardClass: "2.1", pg: null });
     expect(result({ lines: [[lpg, rline(ok("UN1075-petroleum-gases-liquefied", null))]] }, "paper_sequence").outcome).toBe("pass");
