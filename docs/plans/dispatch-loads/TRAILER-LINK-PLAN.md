@@ -102,3 +102,12 @@ map's rule (`isLoadOnTruck`, then `compareLoadsOnTruck`). That load's trailer de
 truck on no load still falls back to its GPS pairing, since nothing else says what it pulls. The
 planner's own equipment choice ("reefer") still adds reefer burn. This is the first `routing -> loads`
 edge: one narrow reader, and `loads` imports nothing from `routing`.
+
+### 2026-10-19 — Q-TL2: the pairing runs daily
+
+`startTrailerPairingTier` (in `samsaraTrailerSync.ts`, started by `startSamsaraScheduler`) runs the
+trailer sync and its GPS pairing once a day, under the manual button's `sync_trailers` kind. The
+(org, kind) slot keeps a press and a tick apart, and each run leaves a ledger row. Its kill switch is
+`SAMSARA_TRAILER_PAIRING_SYNC_HOURS` (default 24). The row is in `docs/WORKER-DEPLOYMENT.md`'s vendor
+table. Not yet in the Samsara feed alarm (`SamsaraFeedId` is a shared contract the web lists), so a
+stopped tier shows in the jobs ledger, not as an alert: TL4 adds it.

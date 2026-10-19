@@ -54,6 +54,7 @@ Running schedulers in-process is only safe on ONE instance — scale the API pas
 | `startEfsCardSyncScheduler` | daily | `api` | WEX guide p11: excessive polling can suspend the account |
 | `startSamsaraScheduler` | minutes | `api` | Samsara's published rate limit, `samsaraFetch` |
 | ↳ its `idle-engine` tier (kind `idle_engine`, IE2) | hourly, + a nightly 2-day recompute chosen inside the run | `api` | `samsaraFetch` + the stats/history 9 req/s cap; ~10 batches × 3 requests an hour, plus one request per long-parked truck; `IDLE_ENGINE_SYNC_MINUTES=0` disables |
+| ↳ its `trailers` tier (kind `sync_trailers`, TRAILER-LINK-PLAN Q-TL2, since 2026-10-19) | daily, first tick 20 min after boot | `api` | `samsaraFetch` on the backfill lane: five days of GPS history for the gateway trailers and the trucks, 40 ids a request; shares the manual trailer button's (org, kind) slot; `SAMSARA_TRAILER_PAIRING_SYNC_HOURS=0` disables |
 | **`startFleetpalScheduler`** | **hourly** | **`api`** | **nothing published — see below** |
 | **`startMedstopScheduler`** | **hourly** | **`api` ONLY** | **100 requests/min per key; a sweep is ~25. ⚠ The key is IP-bound to `api`'s egress (D-MS3) — anywhere else every call is refused** |
 | `startSmsOutboxScheduler` | 5 minutes | `api` | Telnyx's account rate limit; at most 50 rows per org per run (`DRAIN_BATCH`) |

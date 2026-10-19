@@ -10,6 +10,7 @@ import {
 } from "./lib/samsara.js";
 import { NoSamsaraTokenError } from "./samsaraVehicleSync.js";
 import { inferTrailerPairings } from "./trailerPairingSync.js";
+import { orgsToSync, runOrgTier, startTier } from "./lib/tierRunner.js";
 import { isTmsRosterMaster } from "../mcleod/index.js";
 
 export interface TrailerSyncResult {
@@ -169,4 +170,22 @@ export async function syncTrailersFromSamsara(
   }
 
   return result;
+}
+
+/**
+ * The daily trailer tier (TRAILER-LINK-PLAN Q-TL2, ruled 2026-10-19). The identity and GPS pairing pass the
+ * manual button runs, on a schedule, under the button's own `sync_trailers` kind: the (org, kind) slot
+ * keeps a press and a tick from running at once, and every run leaves a ledger row, so a stopped tier is
+ * visible rather than two months of silence. First tick at twenty minutes: after the deploy window, and
+ * clear of the identity tier's boot pass, which reads the same Samsara lists.
+ */
+export function startTrailerPairingTier(env: Env): void {
+  startTier(env, "trailers", 1_200_000, env.SAMSARA_TRAILER_PAIRING_SYNC_HOURS * 3_600_000, async (admin) => {
+    for (const orgId of await orgsToSync(admin, env)) {
+      await runOrgTier(admin, env, orgId, "sync_trailers", async () => {
+        const r = await syncTrailersFromSamsara(admin, env, orgId);
+        return { total: r.total, created: r.created, updated: r.updated, paired: r.paired };
+      });
+    }
+  });
 }

@@ -14,4 +14,10 @@ export const dispatchBoardEnvFields = {
   // can be scored against the arrival. Hourly, because the error by hours-out is the question and an
   // hour is that axis's resolution; ~2,900 rows a day. No vendor call. 0 disables it.
   DISPATCH_BOARD_ETA_RECORD_MINUTES: z.coerce.number().min(0).default(60),
+  // Trailer ↔ truck pairing by GPS co-location (TRAILER-LINK-PLAN Q-TL2). Until 2026-10-19 it ran only
+  // when someone pressed the trailer sync, last on 2026-08-04, so every pairing was two months old. Daily:
+  // the match looks back five days, so a skipped day still finds every trailer. One run reads five days of
+  // GPS history for the gateway trailers and the trucks, 40 to a request, on the backfill lane, so it
+  // never queues ahead of the live feeds. 0 disables it.
+  SAMSARA_TRAILER_PAIRING_SYNC_HOURS: z.coerce.number().min(0).default(24),
 };
