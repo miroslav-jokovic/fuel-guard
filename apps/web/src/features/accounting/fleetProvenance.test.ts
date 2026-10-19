@@ -141,3 +141,17 @@ describe("monthName", () => {
     expect(monthName("not-a-month")).toBe("not-a-month");
   });
 });
+
+// D-TP5: a reported month McLeod has not closed is named, and tying to it is not a green claim.
+describe("a month McLeod has not closed", () => {
+  it("is named in the provenance line", () => {
+    expect(fleetProvenanceLine(report({ monthsOpen: ["2026-07"] }))).toContain(
+      "July 2026 still open in McLeod, so its figures can change",
+    );
+  });
+
+  it("turns the trust chip to a warning even when the split ties", () => {
+    expect(fleetTrust(report({ monthsOpen: ["2026-07"] }))).toMatchObject({ tone: "warning", label: "Still open in McLeod · swept 08/28/2026" });
+    expect(fleetTrust(report({ monthsOpen: [] })).tone).toBe("success");
+  });
+});

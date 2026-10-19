@@ -83,6 +83,25 @@ export const tmsGlAccountsPayloadSchema = z.object({
 });
 export type TmsGlAccountsPayload = z.infer<typeof tmsGlAccountsPayloadSchema>;
 
+/**
+ * McLeod's open accounting period for one company (`gl_control` × `fiscal_year_dtl`, 0493) — the
+ * month its books are still being posted into (TRUCK-DRIVER-PNL-PLAN D-TP5). A month that ends on or
+ * before `period_start` is closed: McLeod refuses a posting into it unless `prior_post_allowed`.
+ */
+export const glControlSchema = z.object({
+  company_id: z.string().trim().min(1).max(4),
+  fiscal_year: z.string().trim().regex(/^\d{4}$/),
+  fiscal_period: z.number().int().min(1).max(13),
+  /** McLeod `prior_post` — false only for 'N'. When true, no month is ever final. */
+  prior_post_allowed: z.boolean(),
+  /** The open period's first day and its EXCLUSIVE end, YYYY-MM-DD. */
+  period_start: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  period_end: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+});
+export type GlControl = z.infer<typeof glControlSchema>;
+export const tmsGlControlPayloadSchema = z.object({ control: glControlSchema });
+export type TmsGlControlPayload = z.infer<typeof tmsGlControlPayloadSchema>;
+
 /** The account classes that constitute the income statement, exactly as gl_account.type_id spells
  *  them. Balance-sheet classes (assets, liabilities, equity) are deliberately absent: a loan draw
  *  is not revenue and a driver-advance repayment is not an expense. */

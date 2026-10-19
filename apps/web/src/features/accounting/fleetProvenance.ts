@@ -15,6 +15,10 @@ import { formatDisplayDate } from "@silvicom/shared";
  * indistinguishable from a tie-out nobody runs. $0.00 is the claim; printing it is what makes the
  * absence of the claim visible.
  *
+ * **It says when a month can still move** (D-TP5). A reported month McLeod has not closed carries a
+ * clause naming it — "August 2026 still open in McLeod" — and the trust chip turns to warning, because
+ * "ties to the ledger" is true of a ledger the accountant is still writing and must not read as final.
+ *
  * **What it refuses to say.** When no month of the period could be reported (G11) there is no
  * tie-out to state and no denominator behind any rate, so the line carries the period and the sweep
  * and stops — the overview says why, in full, immediately below it. And a null truck count or
@@ -66,6 +70,11 @@ export function fleetProvenanceLine(report: FleetReportResponse): string {
     parts.push(`${trucks.toLocaleString()} trucks, ${Math.round(miles).toLocaleString()} measured miles`);
   }
 
+  const open = report.monthsOpen ?? [];
+  if (open.length) {
+    parts.push(`${open.map(monthName).join(", ")} still open in McLeod, so ${open.length === 1 ? "its" : "their"} figures can change`);
+  }
+
   return parts.join(" · ");
 }
 
@@ -89,6 +98,9 @@ export function fleetTrust(report: FleetReportResponse): FleetTrust {
   if (!report.monthsCovered.length) return { tone: "neutral", label: `No finished month · ${swept}`, title };
   if (!report.sweptAt) return { tone: "warning", label: "Ledger never swept", title };
   const off = Math.abs(report.tieOut.revenue) + Math.abs(report.tieOut.expenses);
+  if (off !== 0) return { tone: "warning", label: `Off by ${usd(off)} · ${swept}`, title };
+  // Tying to a ledger that is still being written is not the same claim as tying to a closed one.
+  if ((report.monthsOpen ?? []).length) return { tone: "warning", label: `Still open in McLeod · ${swept}`, title };
   return off === 0
     ? { tone: "success", label: `Ties to ledger · ${swept}`, title }
     : { tone: "warning", label: `Off by ${usd(off)} · ${swept}`, title };

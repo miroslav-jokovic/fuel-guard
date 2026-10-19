@@ -41,6 +41,12 @@
 -- bill was coded to (repairs, tolls, office bills) is on these lines. No statement reads it yet:
 -- its columns are checked against the database first, and the statement comes for review
 -- before it runs. Two lines, marked below in Part 2 and Part 3.
+--
+-- 2026-10-19 - WAITING TO BE RUN: two small settings tables, gl_control (each company's open
+-- accounting period) and fiscal_year_dtl (the start and end date of each period), on both
+-- databases. The new statement "OPEN ACCOUNTING PERIOD" reads one row from them so the reports
+-- can tell a month the accountant has closed from one still being posted. No amounts and no
+-- personal data. Four lines, marked below in Part 2 and Part 3.
 -- ========================================================================================
 
 
@@ -94,11 +100,15 @@ GRANT SELECT ON dbo.fuel_tax_history TO silvicom_dispatch_ro;
 
 -- Added 2026-10-10, NOT YET RUN: the AP distribution lines, for the expense account of each bill.
 GRANT SELECT ON dbo.voucher_dist     TO silvicom_dispatch_ro;
+
+-- Added 2026-10-19, NOT YET RUN: the open accounting period, for "OPEN ACCOUNTING PERIOD".
+GRANT SELECT ON dbo.gl_control       TO silvicom_dispatch_ro;
+GRANT SELECT ON dbo.fiscal_year_dtl  TO silvicom_dispatch_ro;
 GO
 
 
 -- ----------------------------------------------------------------------------------------
--- PART 3 - FUEL-TAX HISTORY AND AP DISTRIBUTION LINES ON LME (added 2026-10-05 and 2026-10-10, NOT YET RUN)
+-- PART 3 - FUEL-TAX HISTORY, AP DISTRIBUTION LINES AND THE OPEN PERIOD ON LME (added 2026-10-05, 2026-10-10 and 2026-10-19, NOT YET RUN)
 -- The same one table on the live database, so the hand-keyed receipts are read from the
 -- books as they are today rather than from the analytics copy's last restore.
 -- ----------------------------------------------------------------------------------------
@@ -110,6 +120,11 @@ GRANT SELECT ON dbo.fuel_tax_history TO silvicom_dispatch_ro;
 -- Added 2026-10-10, NOT YET RUN: the same AP distribution lines on the live database, so the
 -- nightly finance read sees a bill the day it is entered.
 GRANT SELECT ON dbo.voucher_dist     TO silvicom_dispatch_ro;
+
+-- Added 2026-10-19, NOT YET RUN: the open accounting period on the live database, so a month
+-- shows as closed the night the accountant closes it.
+GRANT SELECT ON dbo.gl_control       TO silvicom_dispatch_ro;
+GRANT SELECT ON dbo.fiscal_year_dtl  TO silvicom_dispatch_ro;
 GO
 
 
@@ -126,7 +141,7 @@ SELECT t.name AS table_name,
                   'billing_history', 'drs_settle_hist', 'drs_deduct_hist', 'voucher',
                   'voucher_hist', 'fuel_detail', 'fuel_detail_hist', 'equipment_item',
                   'movement', 'movement_order', 'orders', 'stop', 'users', 'fuel_tax_history',
-                  'voucher_dist');
+                  'voucher_dist', 'gl_control', 'fiscal_year_dtl');
 -- customer is granted by column, so it is checked by column: all five should show 1.
 SELECT HAS_PERMS_BY_NAME('dbo.customer', 'OBJECT', 'SELECT', 'company_id', 'COLUMN') AS customer_company_id,
        HAS_PERMS_BY_NAME('dbo.customer', 'OBJECT', 'SELECT', 'id', 'COLUMN')       AS customer_id,

@@ -1696,6 +1696,17 @@
         "why": "budget derived from lme_analytics 2026-10-05: 447 hand-keyed receipts over 2 years (~0.6/day, keyed in quarterly batches of ~70), x8 headroom for a batch day. The nightly 2-year re-read upserts in place, so it adds no rows. Retention unruled \u2014 an IFTA return is kept 4 years (IFTA-PRECISION-PLAN)."
       }
     },
+    "mcleod_gl_control": {
+      "module": "mcleod",
+      "layer": "raw",
+      "lifecycle": {
+        "growth": "fleet",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "bounded by the carrier's McLeod companies, not by elapsed time: one row per company swept (TMS today, four McLeod companies at most), replaced in place by every financial sweep \u2014 it describes the open accounting period NOW and keeps no history (0493)."
+      }
+    },
     "mcleod_gl_accounts": {
       "module": "mcleod",
       "layer": "raw",

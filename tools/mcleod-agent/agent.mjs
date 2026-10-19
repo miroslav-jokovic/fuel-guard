@@ -42,7 +42,7 @@ import {
   takeLock,
   validateIngestUrl,
 } from "./service.mjs";
-import { fetchLedgerControl, fetchGlAccounts } from "./ledger.mjs";
+import { fetchLedgerControl, fetchGlAccounts, fetchGlControl } from "./ledger.mjs";
 import { fetchBilling, mapBilling } from "./billing.mjs";
 import { fetchFuelTaxReceipts, receiptWindow } from "./fuelTaxReceipts.mjs";
 
@@ -752,6 +752,17 @@ async function runFinancial() {
   const ga = await fetchGlAccounts(CFG.sql);
   const rg = await post("/api/tms/gl-accounts", { accounts: ga.accounts });
   log(`financial: gl-accounts ${verb}=${ga.accounts.length} upserted=${rg.upserted ?? 0}`);
+
+  // McLeod's open accounting period (D-TP5): the month the books are still being posted into. Read
+  // in the same run as the ledger totals so a month's figures and its "closed or still open" verdict
+  // describe the same moment. A company with no control row sends nothing and is judged as before.
+  const gc = await fetchGlControl(CFG.sql);
+  if (gc.control) {
+    const rc = await post("/api/tms/gl-control", { control: gc.control });
+    log(`financial: gl-control ${gc.control.company_id} open period ${gc.control.fiscal_year}-${gc.control.fiscal_period} (${gc.control.period_start}) prior posting ${gc.control.prior_post_allowed ? "ALLOWED" : "refused"} ${verb}=${rc.upserted ?? 0}`);
+  } else {
+    log("financial: gl-control — no control row for this company; months are judged by sweep date and modules only");
+  }
 
   // Office payroll at PERSON grain (0276). `fetchLedgerControl` has read these lines since C4 for
   // the coverage report and then thrown them away; OFF is the one expense module with no subledger,

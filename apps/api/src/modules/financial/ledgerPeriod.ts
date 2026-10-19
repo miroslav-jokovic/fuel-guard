@@ -2,11 +2,13 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   assessLedgerMonths,
   ledgerMonthsReason,
+  ledgerOpenMonthsNote,
+  type LedgerClose,
   type LedgerTotalRow,
   type LedgerAccount,
   type LedgerMonth,
 } from "@silvicom/shared";
-import { readLedgerTotalsRange, readGlAccounts } from "../mcleod/index.js";
+import { readLedgerTotalsRange, readGlAccounts, readLedgerClose } from "../mcleod/index.js";
 
 /**
  * Reading the ledger for a reporting period, once, for everything that needs it.
@@ -38,6 +40,11 @@ import { readLedgerTotalsRange, readGlAccounts } from "../mcleod/index.js";
  * month that lacks the module that earned or spent the most in the last complete month before it,
  * which is why the read below reaches back over the WHOLE staged history and not just the window:
  * January is judged against December, and a window that starts in January has no December in it.
+ *
+ * **A reported month is not a FINAL month** (D-TP5, 2026-10-19). McLeod's open accounting period
+ * (`mcleod_gl_control`, 0493) says which months its accountant can still post into. Those months
+ * are reported — withholding them would put the report a month further behind — and named in
+ * `openNote`, so no page presents a figure that can still move as if it could not.
  *
  * **The comparative is fiscal-year-to-date** because that is the column McLeod prints and the
  * carrier's fiscal year is the calendar year — verified: July's printed YTD revenue of
@@ -81,6 +88,14 @@ export interface LedgerPeriod {
   monthsPartial: LedgerMonth[];
   /** What a page prints in place of the excluded months' figures. Null when nothing is short. */
   ledgerReason: string | null;
+  /**
+   * Reported months McLeod has not closed (D-TP5), and the sentence naming them. Empty / null when
+   * every reported month is closed — or when McLeod's close is unknown, which `closeKnown` says.
+   */
+  monthsOpen: string[];
+  openNote: string | null;
+  /** False when no close verdict was staged: no month in this answer may then be called final. */
+  closeKnown: boolean;
   toDateFrom: string;
 }
 
@@ -104,7 +119,11 @@ type StagedRow = Awaited<ReturnType<typeof readLedgerTotalsRange>>[number];
  * (Today this carrier stages one company, "TMS", so the two agree; the rule is written for the day
  * it does not, which no assertion about today's data would catch.)
  */
-export function assessStagedRows(rows: StagedRow[], accounts: LedgerAccount[]): LedgerMonth[] {
+export function assessStagedRows(
+  rows: StagedRow[],
+  accounts: LedgerAccount[],
+  close: LedgerClose | null = null,
+): LedgerMonth[] {
   const seen = new Map<string, { periodEnd: string; sweptAt: string | null; rows: LedgerTotalRow[] }>();
   for (const r of rows) {
     const month = String(r.period_start).slice(0, 7);
@@ -119,6 +138,7 @@ export function assessStagedRows(rows: StagedRow[], accounts: LedgerAccount[]): 
   return assessLedgerMonths(
     [...seen.entries()].map(([month, v]) => ({ month, periodEnd: v.periodEnd, sweptAt: v.sweptAt, rows: v.rows })),
     accounts,
+    close,
   );
 }
 
@@ -148,15 +168,16 @@ export async function readLedgerForPeriod(
   const fiscalStart = `${periodTo.slice(0, 4)}-01-01`;
   const toDateFrom = fiscalStart <= periodFrom ? fiscalStart : periodFrom;
 
-  const [history, accounts] = await Promise.all([
+  const [history, accounts, close] = await Promise.all([
     readLedgerTotalsRange(admin, orgId, HISTORY_FROM, periodTo),
     readGlAccounts(admin, orgId),
+    readLedgerClose(admin, orgId),
   ]);
 
   // Which months the sweep actually finished, before a single figure is added up — judged over the
   // whole history (Q10), then narrowed to the rows this period reads. The rules live in
   // `@silvicom/shared`, where they are mutation-tested.
-  const assessed = assessStagedRows(history, accounts);
+  const assessed = assessStagedRows(history, accounts, close);
   const rows = history.filter((r) => String(r.period_start).slice(0, 10) >= toDateFrom);
   const usable = new Set(assessed.filter((m) => m.complete).map((m) => m.month));
 
@@ -179,6 +200,7 @@ export async function readLedgerForPeriod(
   const partial = assessed.filter(
     (m) => (m.shortfall === "partial" || m.shortfall === "unposted") && asked.includes(m.month),
   );
+  const reportedOpen = assessed.filter((m) => m.complete && m.closed === false && asked.includes(m.month));
   return {
     period,
     toDate,
@@ -187,6 +209,9 @@ export async function readLedgerForPeriod(
     monthsMissing: asked.filter((m) => !covered.has(m) && !partial.some((p) => p.month === m)),
     monthsPartial: partial,
     ledgerReason: ledgerMonthsReason(partial),
+    monthsOpen: reportedOpen.map((m) => m.month),
+    openNote: ledgerOpenMonthsNote(reportedOpen),
+    closeKnown: close !== null,
     toDateFrom,
   };
 }

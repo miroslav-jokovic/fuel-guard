@@ -42,6 +42,10 @@ export interface IncomeStatementResult extends IncomeStatement {
   /** Months a sweep reached mid-month; their rows are staged, real, and left out (G11). */
   monthsPartial: LedgerMonth[];
   ledgerReason: string | null;
+  /** Reported months McLeod has not closed, and the sentence naming them (D-TP5, `ledgerPeriod`). */
+  monthsOpen: string[];
+  openNote: string | null;
+  closeKnown: boolean;
   /** The window the comparative column covers, for the page to state. */
   toDateFrom: string;
   comparison: StatementComparison;
@@ -106,6 +110,9 @@ export async function getIncomeStatement(
     monthsMissing: ledger.monthsMissing,
     monthsPartial: ledger.monthsPartial,
     ledgerReason: ledger.ledgerReason,
+    monthsOpen: ledger.monthsOpen,
+    openNote: ledger.openNote,
+    closeKnown: ledger.closeKnown,
     toDateFrom: comparison.from ?? ledger.toDateFrom,
     comparison,
   };

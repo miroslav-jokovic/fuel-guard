@@ -8,6 +8,7 @@ import {
   tmsDeductionsPayloadSchema,
   tmsLedgerTotalsPayloadSchema,
   tmsGlAccountsPayloadSchema,
+  tmsGlControlPayloadSchema,
   tmsFuelTaxReceiptsPayloadSchema,
 } from "@silvicom/shared";
 import { apiError, asyncHandler } from "../../../lib/http.js";
@@ -18,6 +19,7 @@ import { ingestSettlements, ingestApVouchers, ingestBilling,
 import { ingestMovementFacts } from "../movementFactIngest.js";
 import { ingestLedgerTotals, ingestGlAccounts } from "../ledgerControlIngest.js";
 import { stampFinancialSynced } from "../tmsIngest.js";
+import { ingestGlControl } from "../glControl.js";
 import { ingestFuelTaxReceipts } from "../fuelTaxReceipts.js";
 
 /**
@@ -112,6 +114,23 @@ export function registerTmsFinancialRoutes(router: Router): void {
       // D-FIN3: the financial sweep stamps its own freshness row, so "figures as of" and the stale
       // finding read a fact rather than guessing from the roster stamp.
       await stampFinancialSynced(admin, req.tms!.orgId);
+      res.json({ ok: true, ...result });
+    }),
+  );
+
+  // McLeod's open accounting period (0493, D-TP5). Does not stamp the financial freshness row: the
+  // gl-accounts post in the same sweep already does, and this says whether months are FINAL, not
+  // whether the books are current.
+  router.post(
+    "/gl-control",
+    asyncHandler(async (req, res) => {
+      const parsed = tmsGlControlPayloadSchema.safeParse(req.body);
+      if (!parsed.success) {
+        res.status(400).json(apiError("bad_request", `Invalid gl-control payload: ${parsed.error.issues[0]?.message ?? "unreadable"}`));
+        return;
+      }
+      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      const result = await ingestGlControl(admin, req.tms!.orgId, parsed.data);
       res.json({ ok: true, ...result });
     }),
   );
