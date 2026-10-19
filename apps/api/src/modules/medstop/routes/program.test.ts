@@ -127,7 +127,7 @@ describe("GET /api/drug-alcohol/program", () => {
   it("names who dispatches a drawn driver, from the dispatch board's row for their truck (§7A.19)", async () => {
     const { body } = await read();
     expect(body.data.selections?.dispatch).toEqual({
-      "d-in": { unitNumber: "773", fleetCode: "VINNIEV", fleetDispatcher: "Vinnie V", loadDispatcher: null },
+      "d-in": { unitNumber: "773", fleetCode: "VINNIEV", fleetDispatcher: "VINNIEV", loadDispatcher: null },
     });
   });
 

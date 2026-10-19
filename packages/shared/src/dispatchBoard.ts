@@ -269,8 +269,22 @@ export function movedByOther(
   return fleetDispatcherId != null && load?.dispatcherId != null && load.dispatcherId !== fleetDispatcherId;
 }
 
-/** A dispatcher's display name from the McLeod roster, falling back to the login. */
-export function dispatcherName(id: string | null | undefined, dispatchers: ReadonlyArray<{ id: string; name: string | null }>): string {
+/**
+ * How a dispatcher is named on every dispatch screen: in capitals, by the fleet they run ("IVO"), or by
+ * their McLeod login when they run none ("ASEN"). Owner, 2026-10-19: "use all capital names we have".
+ *
+ * Never McLeod's display name. That is free text typed per login: "Aneta Maslenkova", "ivok",
+ * "romann", "Chris". Beside the fleet code it printed every dispatcher twice ("IVO · ivok"), and on
+ * "Moved by" it named one person three ways across the board. The fleet code is what the Dispatcher
+ * column, the dispatchers' own board and McLeod's fleet field already say, so one person reads as one
+ * word everywhere. A login that runs two fleets is named by the first code, alphabetically, so the
+ * answer is the same on every read.
+ */
+export function dispatcherLabel(
+  id: string | null | undefined,
+  fleets: ReadonlyArray<{ code: string; dispatcherId: string | null }>,
+): string {
   if (!id) return "";
-  return dispatchers.find((d) => d.id === id)?.name || id;
+  const runs = fleets.filter((f) => f.dispatcherId === id).map((f) => f.code).sort();
+  return (runs[0] ?? id).toUpperCase();
 }

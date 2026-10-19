@@ -231,7 +231,7 @@ describe("the dispatch board page", () => {
     return w.findAllComponents(FilterSelect).find((c) => c.props("label") === label)!;
   };
   const labels = async (w: Awaited<ReturnType<typeof mountPage>>, label: string) =>
-    ((await select(w, label)).props("options") as { label: string }[]).map((o) => o.label);
+    ((await select(w, label)).props("options") as { label: string; count?: string }[]).map((o) => (o.count != null ? `${o.label} (${o.count})` : o.label));
 
   it("chooses whose trucks from a Dispatcher select, each option counting the trucks it shows", async () => {
     board.value = response(true);
@@ -239,9 +239,9 @@ describe("the dispatch board page", () => {
     expect(w.find("[aria-label='Trucks per dispatcher']").exists()).toBe(false);
     expect(await labels(w, "Dispatcher")).toEqual([
       "Mine (2)",
-      "All (3, 3 empty now)",
-      "VINNIEV (2, 2 empty now)",
-      "VLADI (1, 1 empty now)",
+      "All (3 · 3 empty)",
+      "VINNIEV (2 · 2 empty)",
+      "VLADI (1 · 1 empty)",
       "Pool (1)",
     ]);
     expect((await select(w, "Dispatcher")).props("modelValue")).toBe("mine");
@@ -268,7 +268,7 @@ describe("the dispatch board page", () => {
   it("counts a dispatcher's trucks under the state chosen", async () => {
     board.value = response(true);
     const w = await mountPage("/assignments?scope=all&state=GA");
-    expect(await labels(w, "Dispatcher")).toEqual(["Mine (0)", "All (1, 1 empty now)", "VINNIEV (0, 0 empty now)", "VLADI (1, 1 empty now)"]);
+    expect(await labels(w, "Dispatcher")).toEqual(["Mine (0)", "All (1 · 1 empty)", "VINNIEV (0 · 0 empty)", "VLADI (1 · 1 empty)"]);
   });
 
   it("finds the trucks free in a state within a horizon, from a link", async () => {

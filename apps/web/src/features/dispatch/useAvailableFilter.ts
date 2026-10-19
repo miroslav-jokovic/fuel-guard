@@ -51,7 +51,8 @@ export function useAvailableFilter(qs: UrlQueryState, rows: ComputedRef<readonly
   const stateOptions = computed(() => {
     const count = new Map(stateCounts());
     for (const s of states.value) if (!count.has(s)) count.set(s, 0);
-    return [...count.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([s, n]) => ({ value: s, label: `${s} (${n})` }));
+    // The figure in the select's count column, not the label (FilterSelect `count`), as the Dispatcher's.
+    return [...count.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([s, n]) => ({ value: s, label: s, count: n.toLocaleString("en-US") }));
   });
   const cityOptions = computed(() => [
     { value: "", label: "Anywhere" },

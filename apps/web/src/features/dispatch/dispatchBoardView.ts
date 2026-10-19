@@ -12,7 +12,7 @@ import { type DataTableColumn } from "@silvicom/ui";
 import { formatDate } from "@/lib/format";
 import { POOL_FLEET, POOL_OPTION, admitsScope, type ScopeFilter } from "./dispatchScope";
 
-export { NO_FLEET_OPTION, POOL_FLEET, POOL_OPTION, dispatcherName } from "./dispatchScope";
+export { NO_FLEET_OPTION, POOL_FLEET, POOL_OPTION, dispatcherLabel } from "./dispatchScope";
 
 /**
  * How the dispatch board page narrows and words its rows (DISPATCH-BOARD-PLAN §5). Every VERDICT on a

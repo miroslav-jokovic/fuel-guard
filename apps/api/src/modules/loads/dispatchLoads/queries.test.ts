@@ -16,35 +16,32 @@ const L1 = "11111111-2222-4333-8444-000000000001";
 const L2 = "11111111-2222-4333-8444-000000000002";
 
 const filter = (q: RecordedQuery, col: string) => q.filters().find((f) => f.col === col)?.val;
-const dispatchers = [
-  { provider: "mcleod", external_id: "JSMITH", display_name: "Jo Smith" },
-  { provider: "other", external_id: "GHOST", display_name: "Other TMS" },
-];
+// McLeod's fleet table: JSMITH runs fleet SMITH; GHOST runs none. Display names are not read at all.
+const fleets = [{ provider: "mcleod", code: "SMITH", dispatcher_external_id: "JSMITH" }];
 
 function board() {
   return createSupabaseRecorder({
     tables: {
       loads: [
         { id: L1, source: "tms", provider: "mcleod", dispatcher_external_id: "JSMITH", hazmat: false, drivers: null, vehicles: null, trailers: null },
-        { id: L2, source: "tms", provider: "mcleod", dispatcher_external_id: "GHOST", hazmat: false, drivers: null, vehicles: null, trailers: null },
+        { id: L2, source: "tms", provider: "mcleod", dispatcher_external_id: "ghost", hazmat: false, drivers: null, vehicles: null, trailers: null },
       ],
       load_stops: [],
       load_dispatches: [],
-      tms_dispatchers: (q: RecordedQuery) => {
-        const ids = filter(q, "external_id") as string[];
-        return dispatchers.filter((d) => d.provider === filter(q, "provider") && ids.includes(d.external_id));
-      },
+      tms_dispatchers: [],
+      tms_fleets: (q: RecordedQuery) => fleets.filter((f) => f.provider === filter(q, "provider")),
     },
   });
 }
 
 describe("listLoads", () => {
-  it("names each load's McLeod dispatcher, scoped to the org and the load's own TMS", async () => {
+  it("names each load's McLeod dispatcher as the board does, in capitals, scoped to the org", async () => {
     const rec = board();
     const rows = (await listLoads(rec.client, ORG)) as { id: string; dispatcher_name: string | null }[];
     expectOrgScoped(rec, ORG);
-    expect(rows.find((r) => r.id === L1)?.dispatcher_name).toBe("Jo Smith");
-    // GHOST exists only under another provider: the id is shown, never another TMS's name.
+    // By the fleet they run (owner 2026-10-19: "use all capital names")...
+    expect(rows.find((r) => r.id === L1)?.dispatcher_name).toBe("SMITH");
+    // ...else by their login, still in capitals, so a load never shows its dispatcher blank.
     expect(rows.find((r) => r.id === L2)?.dispatcher_name).toBe("GHOST");
   });
 

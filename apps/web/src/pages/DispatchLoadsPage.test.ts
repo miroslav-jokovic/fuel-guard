@@ -203,7 +203,7 @@ describe("the Loads page beside the dispatch board", () => {
       return w.findAllComponents(FilterSelect).find((c) => c.props("label") === "Dispatcher")!;
     };
     const labels = async (w: Awaited<ReturnType<typeof mountPage>>) =>
-      ((await select(w)).props("options") as { label: string }[]).map((o) => o.label);
+      ((await select(w)).props("options") as { label: string; count?: string }[]).map((o) => (o.count != null ? `${o.label} (${o.count})` : o.label));
     const choose = async (w: Awaited<ReturnType<typeof mountPage>>, key: string) => {
       (await select(w)).vm.$emit("update:modelValue", key);
       await flushPromises();
@@ -214,10 +214,10 @@ describe("the Loads page beside the dispatch board", () => {
       board.value = response(true);
       const w = await mountPage();
       expect(w.find("[aria-label='Loads per dispatcher']").exists()).toBe(false);
-      expect(await labels(w)).toEqual(["Mine (2)", "All (3)", "VINNIEV · Vinnie V (1)", "VLADI (2)"]);
+      expect(await labels(w)).toEqual(["Mine (2)", "All (3)", "VINNIEV (1)", "VLADI (2)"]);
       expect(await chosen(w)).toBe("mine");
       await openTab(w, "Upcoming");
-      expect(await labels(w)).toEqual(["Mine (1)", "All (1)", "VINNIEV · Vinnie V (1)", "VLADI (0)"]);
+      expect(await labels(w)).toEqual(["Mine (1)", "All (1)", "VINNIEV (1)", "VLADI (0)"]);
     });
 
     it("shows exactly the loads an option counted when it is chosen", async () => {
@@ -235,7 +235,7 @@ describe("the Loads page beside the dispatch board", () => {
     it("names a load with no truck apart from a fleet, and counts Uncovered under Mine as the table does", async () => {
       board.value = response(true);
       const w = await mountPage("/loads?queue=uncovered");
-      expect(await labels(w)).toEqual(["Mine (1)", "All (1)", "VINNIEV · Vinnie V (0)", "VLADI (0)", "No truck (1)"]);
+      expect(await labels(w)).toEqual(["Mine (1)", "All (1)", "VINNIEV (0)", "VLADI (0)", "No truck (1)"]);
       await choose(w, "__no_truck__");
       expect(refs(w)).toEqual(["L-uncovered"]);
       expect(await chosen(w)).toBe("__no_truck__");
@@ -247,24 +247,24 @@ describe("the Loads page beside the dispatch board", () => {
     it("offers no Mine to a reader linked to no McLeod login", async () => {
       board.value = response(false);
       const w = await mountPage();
-      expect(await labels(w)).toEqual(["All (3)", "VINNIEV · Vinnie V (1)", "VLADI (2)"]);
+      expect(await labels(w)).toEqual(["All (3)", "VINNIEV (1)", "VLADI (2)"]);
     });
 
     it("counts under the search and Dispatched by, which narrow every option alike", async () => {
       board.value = response(true);
       const w = await mountPage("/loads?dispatcher=asen");
-      expect(await labels(w)).toEqual(["Mine (1)", "All (2)", "VINNIEV · Vinnie V (1)", "VLADI (1)"]);
+      expect(await labels(w)).toEqual(["Mine (1)", "All (2)", "VINNIEV (1)", "VLADI (1)"]);
       // Dispatched by sits under the toolbar's Filters, which counts it, and shows as a chip.
       expect(w.findAll("button").find((b) => b.text().startsWith("Filters"))!.text()).toBe("Filters 1");
       expect(w.text()).toContain("Dispatched by");
       const searched = await mountPage("/loads?search=801");
-      expect(await labels(searched)).toEqual(["Mine (1)", "All (1)", "VINNIEV · Vinnie V (0)", "VLADI (1)"]);
+      expect(await labels(searched)).toEqual(["Mine (1)", "All (1)", "VINNIEV (0)", "VLADI (1)"]);
     });
 
     it("counts exceptions on Exceptions, the one with no load in All and Mine only", async () => {
       board.value = response(true);
       const w = await mountPage("/loads?queue=exceptions");
-      expect(await labels(w)).toEqual(["Mine (2)", "All (3)", "VINNIEV · Vinnie V (1)", "VLADI (1)"]);
+      expect(await labels(w)).toEqual(["Mine (2)", "All (3)", "VINNIEV (1)", "VLADI (1)"]);
       // Dispatched by names a property a load-less exception lacks, so it leaves every count.
       expect((await labels(await mountPage("/loads?queue=exceptions&dispatcher=asen"))).slice(0, 2)).toEqual(["Mine (1)", "All (2)"]);
       // And the choice counts what the search left, as the table does.

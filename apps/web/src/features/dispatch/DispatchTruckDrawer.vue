@@ -8,7 +8,7 @@ import { useLoadRoute } from "@/composables/useLoadRoute";
 import { BADGE_BASE, hosStatusBadge, onTimeBadge, stopMarker, toneClass } from "@/lib/badges";
 import { formatDateTime } from "@/lib/format";
 import { offRouteWords } from "@/lib/loadRouteWords";
-import { dispatcherName, durationWords, legalDriveLeft, stopPlace } from "./dispatchBoardView";
+import { dispatcherLabel, durationWords, legalDriveLeft, stopPlace } from "./dispatchBoardView";
 import { useLoadDetailQuery, type DispatchStopDetail } from "./useDispatchLoads";
 
 /**
@@ -37,7 +37,7 @@ import { useLoadDetailQuery, type DispatchStopDetail } from "./useDispatchLoads"
 const props = defineProps<{
   row: DispatchBoardRow | null;
   zone: string;
-  dispatchers: ReadonlyArray<{ id: string; name: string | null }>;
+  fleets: ReadonlyArray<{ code: string; dispatcherId: string | null }>;
 }>();
 const emit = defineEmits<{ close: [] }>();
 
@@ -135,7 +135,7 @@ const description = computed(() => {
             <span class="text-ink-muted"> · {{ row.current.customerName ?? "No customer" }}</span>
           </p>
           <p v-if="row.current.dispatcherId" class="text-xs text-ink-muted">
-            Dispatched by {{ dispatcherName(row.current.dispatcherId, dispatchers) }}
+            Dispatched by {{ dispatcherLabel(row.current.dispatcherId, fleets) }}
           </p>
           <div class="flex flex-wrap items-center gap-2 text-sm" data-testid="truck-our-eta">
             <span :class="[BADGE_BASE, toneClass(onTimeBadge(row.onTime).tone)]">{{ onTimeBadge(row.onTime).label }}</span>

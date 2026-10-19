@@ -35,6 +35,13 @@ import { useFloating, offset, flip, shift, autoUpdate } from "@floating-ui/vue";
 interface Option {
   value: string;
   label: string;
+  /**
+   * A figure for the row, drawn in its own right-hand column: "15 · 6 empty" beside a dispatcher.
+   * Separate from `label` so a long name truncates and the figure never does, and so the trigger, the
+   * search and the active-filter chip read the name alone. Until 2026-10-19 the Dispatcher filter put
+   * its counts inside the label, and the longest names pushed them off the panel.
+   */
+  count?: string;
 }
 
 const props = withDefaults(
@@ -260,7 +267,11 @@ function clear() {
                 :class="rowChecked(opt.value) ? 'opacity-100' : 'opacity-0'"
                 aria-hidden="true"
               />
-              <span class="truncate">{{ opt.label }}</span>
+              <span class="min-w-0 truncate">{{ opt.label }}</span>
+              <span
+                v-if="opt.count"
+                class="ml-auto shrink-0 whitespace-nowrap pl-3 text-xs font-normal tabular-nums text-ink-tertiary"
+              >{{ opt.count }}</span>
             </button>
             <p v-if="filtered.length === 0" class="px-3 py-2 text-ink-muted">No matches</p>
           </div>
