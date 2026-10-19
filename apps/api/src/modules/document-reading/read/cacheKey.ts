@@ -47,8 +47,11 @@ import { createHash } from "node:crypto";
  *   8    — 2026-10-19: the table judges with PSN normalizer 1.1.0 (resolveLine.ts) — singular/plural on every
  *          word, and a number printed without UN/NA placed by its name — so under 7 "FLAMMABLE LIQUID, N.O.S."
  *          on UN1993 and a bare "1760, Corrosive liquid N.O.S." were refused; a cached read would replay that.
+ *   9    — 2026-10-19, READER-CORRECTNESS-PLAN RC1: normalizer 1.2.0 — rows that share one name (UN1950
+ *          Aerosols, UN1005 Ammonia, anhydrous …) are picked by the printed class, then PG (Q-RC3), where 8
+ *          refused every correct printing of them; and the table's refs split at their last "#".
  */
-export const ACCEPTANCE_RULE_VERSION = "8";
+export const ACCEPTANCE_RULE_VERSION = "9";
 
 export interface CacheKeyInput {
   profileVersion: string;

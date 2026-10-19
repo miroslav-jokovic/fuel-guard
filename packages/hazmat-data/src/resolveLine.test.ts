@@ -3,6 +3,7 @@ import { loadDataset } from "./index";
 import {
   buildDatasetIndex,
   normalizePsnForMatch,
+  parseHmtRef,
   resolveHmtLine,
   PSN_NORMALIZER_VERSION,
   type ResolveLineInput,
@@ -145,6 +146,31 @@ describe("resolveHmtLine — D/I symbol variants + name discipline", () => {
   });
 });
 
+describe("resolveHmtLine — rows that share one name (Q-RC3, D-RC4)", () => {
+  it("the printed class picks the row, and says it did: ammonia 2.2 is the domestic row, 2.3 the other", () => {
+    const d = resolve({ idText: "UN1005", psn: "Ammonia, anhydrous", hazardClass: "2.2" });
+    expect(d).toMatchObject({ ok: true, entryId: "UN1005-ammonia-anhydrous#2" });
+    if (d.ok) expect(d.findings).toContain("row_chosen_by_class");
+    expect(resolve({ idText: "UN1005", psn: "Ammonia, anhydrous", hazardClass: "2.3" })).toMatchObject({ ok: true, entryId: "UN1005-ammonia-anhydrous" });
+    expect(resolve({ idText: "UN1950", psn: "AEROSOLS", hazardClass: "2.1" })).toMatchObject({ ok: true, entryId: "UN1950-aerosols#2" });
+  });
+  it("refuses when nothing printed tells the rows apart, or the class fits none of them", () => {
+    expect(resolve({ idText: "UN1005", psn: "Ammonia, anhydrous" })).toMatchObject({ ok: false, reason: "psn_ambiguous" });
+    expect(resolve({ idText: "UN1005", psn: "Ammonia, anhydrous", hazardClass: "3" })).toMatchObject({ ok: false, reason: "class_mismatch" });
+    expect(resolve({ idText: "UN2790", psn: "Acetic acid solution", hazardClass: "8" })).toMatchObject({ ok: false, reason: "psn_ambiguous" });
+  });
+  it("the printed PG picks the row when the class cannot, and says it did", () => {
+    const r = resolve({ idText: "UN2790", psn: "Acetic acid solution", hazardClass: "8", pg: "III" });
+    expect(r).toMatchObject({ ok: true, entryId: "UN2790-acetic-acid-solution#2", pg: "III" });
+    if (r.ok) expect(r.findings).toContain("row_chosen_by_pg");
+  });
+  it("a row whose own name was printed outranks one listing it as an alternate (UN2037 Gas cartridges)", () => {
+    const r = resolve({ idText: "UN2037", psn: "Gas cartridges", hazardClass: "2.1" });
+    // The 2.2 row lists "gas cartridges" too, so the class did choose — and says so.
+    expect(r).toMatchObject({ ok: true, entryId: "UN2037-gas-cartridges" });
+  });
+});
+
 describe("resolveHmtLine — normalizer + parenthetical discipline", () => {
   it("strips a trailing parenthetical ONLY on a G-entry (technical name), keeps it otherwise", () => {
     // UN1993 'Flammable liquids, n.o.s.' carries G → an appended technical name is stripped for the match.
@@ -184,5 +210,15 @@ describe("resolveHmtLine — performance (blocking makes it O(1) per line)", () 
     const t0 = Date.now();
     for (let i = 0; i < 5000; i++) resolve({ idText: "UN1203", psn: "Gasoline", pg: "II" });
     expect(Date.now() - t0).toBeLessThan(750);
+  });
+});
+
+describe("parseHmtRef — the ref resolveHmtLine builds", () => {
+  it("splits at the last '#': an entry id may hold one (UN1950-aerosols#2), and safety-permit / security-plan read it", () => {
+    expect(parseHmtRef("UN1950-aerosols#2#none")).toEqual({ entryId: "UN1950-aerosols#2", pg: null });
+    expect(parseHmtRef("UN2790-acetic-acid-solution#2#III")).toEqual({ entryId: "UN2790-acetic-acid-solution#2", pg: "III" });
+    const r = resolve({ idText: "UN1950", psn: "Aerosols", hazardClass: "2.1" });
+    if (!r.ok) throw new Error(r.reason);
+    expect(parseHmtRef(r.hmtRef)).toEqual({ entryId: r.entryId, pg: r.pg });
   });
 });

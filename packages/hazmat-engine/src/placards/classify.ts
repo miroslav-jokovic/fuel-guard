@@ -1,5 +1,6 @@
 import type { LoadInput, PlacardName } from "../types.js";
 import { assertsPoisonInhalation } from "./tableSelect.js";
+import { parseHmtRef } from "../hmtRef.js";
 
 /**
  * Classification vocabulary for the §172.504 ladder — the dataset view, the placard-name map, and the
@@ -105,8 +106,7 @@ export function subsidiary505(entry: DsEntry): { pih: boolean; dww: boolean } {
 
 /** The pgRow an `hmtRef` ("entryId#PG" / "entryId#none") points at; first row when no match. */
 export function pgRowForRef(entry: DsEntry, hmtRef: string): DsPgRow | null {
-  const token = hmtRef.split("#")[1] ?? "none";
-  const pg = token === "none" ? null : token;
+  const { pg } = parseHmtRef(hmtRef);
   return entry.pgRows.find((r) => (r.pg ?? null) === pg) ?? entry.pgRows[0] ?? null;
 }
 

@@ -83,7 +83,7 @@ but read as 2.3 is a different placard).
 
 | Step | What | Owner input | Done when |
 |---|---|---|---|
-| **RC1** | Table census as a permanent test (`resolveLine.census.test.ts`): every entry × every legal printing resolves to itself, never to another entry; narrow same-name rows by printed class, then PG, before refusing (D-RC4) | Q-RC3 (narrowing only) | 0 wrong, 0 refused except the same-name UN/NA bare numbers |
+| **RC1** | Table census as a permanent test (`resolveLine.census.test.ts`): every entry × every legal printing resolves to itself, never to another entry; narrow same-name rows by printed class, then PG, before refusing (D-RC4) | answered (Q-RC3) — **built 2026-10-19** | 0 wrong, 0 refused except the same-name UN/NA bare numbers |
 | **RC2** | Store both readers' documents and the OCR rows on the read (migration, then writer in a second merge — `lint:migration-ordering`); `doc:replay` re-runs pairing → evidence → table → audit → prefill over stored reads and the corpus and prints the diff | — | replay of the 7 production reads + 10 office BOLs is reproducible and runs in CI on the fixtures |
 | **RC3** | Pair lines by position and content (order on the page, description, count, weight), with the id one signal of several; an id the readers split on is a *disputed id on one line*. Property test: every corpus line × a one-character misread in each field → never two products, always a disputed field | — | the UN3264/UN3254 case and every generated one yield one line |
 | **RC4** | Form invariant: a read's value changes only by a person's act. Property test over random sequences of equipment, trailer, add/remove line, reset, re-read | — | no sequence alters or drops a read's value |
@@ -110,13 +110,27 @@ count explicit reviews per critical field toward the ≈600 / ≈3,000 bounds; s
 measurement until the counts reach them.
 
 **Q-RC2 — May RC6 spend model money?** ≈$0.03–0.05 per page per dual read (§8 prices): 1,000 synthetic
-pages ≈ $30–50 a run, re-run on reader changes only. **Recommendation: yes, capped at $50 a run.**
+pages ≈ $30–50 a run, re-run on reader changes only. **Recommendation: yes, capped at $50 a run.** *Answered 2026-10-19 (owner): yes, as recommended.*
 
 **Q-RC3 — Same-name rows (§2): narrow by class/PG under D-RC4, or keep refusing?** Refusing keeps the
 table as a class witness on ≈10 numbers but stops every correct aerosol and anhydrous-ammonia BOL.
-**Recommendation: narrow, under D-RC4.**
+**Recommendation: narrow, under D-RC4.** *Answered 2026-10-19 (owner): narrow — built in RC1.*
 
 ## 7. Progress log
 
 - **2026-10-19 — plan written.** #1607 merged first (plural fold, bare number, equipment reset). Census,
   production read count and storage findings in §2 measured the same day.
+- **2026-10-19 — owner: "proceed as proposed" — Q-RC2 answered (yes, ≤ $50 a run) and Q-RC3 answered (narrow, under
+  D-RC4).** **RC1 built.** `resolveLine.census.test.ts` runs every entry × every legal printing (as printed, upper
+  case, `RQ,`, spaced id, NOS, singular, technical name on G entries, bare number): 0 wrong, 0 refused; it fails on
+  the last-word plural fold #1607 fixed, so it would have found that bug before a BOL did. Same-name rows are picked
+  by the printed class, then a row's own name over an alternate (UN2037 "Gas cartridges"), then the PG; a pick says
+  so (`row_chosen_by_class` / `_by_pg`, normalizer 1.2.0, acceptance rule 9). **Found by the census and fixed in the
+  same PR — a placard defect, not a reader one:** 81 entry ids hold a "#" (`UN1950-aerosols#2`) and every engine
+  and dataset reader split the ref at the FIRST "#", so the engine looked up the sibling row: UN1950 Division 2.1
+  (flammable aerosols) was placarded NON-FLAMMABLE GAS, and 12 such rows land on a different class or PG. It hit
+  any product picked by hand in the calculator, not only reads. Now `parseHmtRef` (last "#") in @hazmat/engine and
+  @hazmat/data (D3 keeps them apart), engine 0.16.1, and `@hazmat/golden`'s ref census proves every such row gives
+  the same verdict, BOL description and permit/plan answer as a control dataset with the "#" spelled out —
+  4 of 6 call sites mutated back fail it; the other two are no-ops on the shipped table (no class-1 "#" entry; the
+  one two-PG "#" entry has equal column 8A) and are pinned by unit tests instead.

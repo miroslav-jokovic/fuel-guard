@@ -15,6 +15,7 @@ import { validateBol } from "./bol/validate.js";
 import { auditProvidedInputs, checkEligibility } from "./eligibility.js";
 
 export * from "./types.js";
+export { parseHmtRef } from "./hmtRef.js";
 export { computePlacards } from "./placards/compute.js";
 export { checkSegregation } from "./segregation/check.js";
 // Exported so the products API can ask the SAME question the §172.322 rule answers (0.14.0).

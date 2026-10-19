@@ -10,6 +10,7 @@ import {
   pgRowForRef,
 } from "./classify.js";
 import { type Resolved, verifyLqClaim, withheld } from "./computeSupport.js";
+import { parseHmtRef } from "../hmtRef.js";
 
 export interface PlacardResolution {
   resolved: Resolved[];
@@ -58,7 +59,7 @@ export function resolvePlacardLines(
   const recognized: Array<{ line: LoadInput["lines"][number]; entry: DsEntry }> = [];
 
   for (const line of load.lines) {
-    const [entryId] = line.hmtRef.split("#");
+    const { entryId } = parseHmtRef(line.hmtRef);
     const entry = ds.entries.find((e) => e.entryId === entryId);
     if (!entry) {
       findings.push(withheld(`Line "${line.hmtRef}" does not resolve to a dataset entry`, { hmtRef: line.hmtRef }));
