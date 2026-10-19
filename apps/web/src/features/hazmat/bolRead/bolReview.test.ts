@@ -73,10 +73,10 @@ describe("which fields stop Calculate", () => {
 });
 
 describe("what the field says while it waits", () => {
-  it("offers the two readings and 'Matches the page'; after the act it says who checked it", () => {
+  it("offers the two readings, and no second 'yes' beside them; after the act it says who checked it", () => {
     const { lines } = fill(read([{ a: { ...PAINT, packageCount: 9 }, b: PAINT, table: ok(PAINT_REF) }]));
     const { prefill, current } = lines[0]!;
-    expect(bolLineView(prefill, current).fields.packageCount).toMatchObject({ pending: true, confirmable: true, choices: [9, 6], tone: "warning" });
+    expect(bolLineView(prefill, current).fields.packageCount).toMatchObject({ pending: true, confirmable: false, choices: [9, 6], tone: "warning" });
     const after = bolLineView(prefill, current, actedOn(prefill, "packageCount")).fields.packageCount;
     expect(after).toMatchObject({ text: "Checked against the page by you.", tone: "neutral" });
     expect(after.pending).toBeUndefined();
@@ -104,7 +104,15 @@ describe("what the field says while it waits", () => {
     expect(lines[0]!.prefill.fields.grossWeight.witnessed).toBeNull();
   });
 
-  it("offers no 'Matches the page' on a line with no product", () => {
+  it("names the value it confirms, for a field with no readings to pick", () => {
+    const { lines } = fill(read([{ a: null, b: PAINT, table: ok(PAINT_REF) }]));
+    const v = bolLineView(lines[0]!.prefill, lines[0]!.current).fields;
+    expect(v.product).toMatchObject({ confirmable: true, confirmLabel: `Yes, the page says ${PAINT_REF}` });
+    expect(v.packageCount.confirmLabel).toBe("Yes, the page says 6");
+    expect(v.grossWeight.confirmLabel).toBe("Yes, the page says 3,806 lb");
+  });
+
+  it("offers no confirm on a line with no product", () => {
     const { lines } = fill(read([{ a: { ...PAINT, idText: "5503615" }, table: { consistent: false, reason: "id_not_found" } }]));
     expect(bolLineView(lines[0]!.prefill, lines[0]!.current).fields.product).toMatchObject({ pending: true, confirmable: false });
   });

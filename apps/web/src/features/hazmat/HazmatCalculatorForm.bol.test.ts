@@ -201,6 +201,26 @@ describe("HazmatCalculatorForm with a BOL read", () => {
     expect(w.findAll("[data-testid='bol-field-note']").some((n) => n.text() === "Changed by you.")).toBe(false);
   });
 
+  it("keeps every 'Yes, the page says …' the person clicked, so Calculate unlocks after the last (owner, 2026-10-19)", async () => {
+    const w = mountForm();
+    // Two lines only the second reader saw: every field waits on a person, none has readings to pick.
+    await w.setProps({ bolRead: read([{ a: null, b: PAINT, table: ok(PAINT_REF) }, { a: null, b: { ...PAINT, grossWeightLb: 1200 }, table: ok(PAINT_REF) }]) });
+    await flushPromises();
+    const picker = w.findAllComponents({ name: "AppCombobox" }).find((c) => c.props("placeholder") === "Select…")!;
+    picker.vm.$emit("update:modelValue", "van");
+    await flushPromises();
+    const confirms = () => w.findAll("[data-testid='bol-field-confirm']");
+    const total = confirms().length;
+    expect(total).toBeGreaterThan(3);
+    expect(confirms()[0]!.text()).toMatch(/^Yes, the page says /);
+    for (let k = 0; k < total; k++) {
+      await confirms()[0]!.trigger("click");
+      expect(confirms()).toHaveLength(total - k - 1);
+    }
+    expect(w.find("[data-testid='bol-pending']").exists()).toBe(false);
+    expect(w.find("button[type='submit']").attributes("disabled")).toBeUndefined();
+  });
+
   // D-DR24 — the external audit of 2026-10-14: Calculate took a disputed count as pass A's value, and no
   // review was ever recorded.
   describe("a disputed field and the review a Calculate press records (D-DR24)", () => {

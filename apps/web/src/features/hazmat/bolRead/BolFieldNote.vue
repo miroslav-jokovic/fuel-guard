@@ -5,8 +5,8 @@ import type { FieldNote } from "./bolPrefill";
 /**
  * The one line under a field the BOL reader filled (§7A N6): where the value came from and whether the two
  * readers agree (`fieldNote`, bolPrefill.ts). Absent on a field nobody read. When Calculate waits on a
- * person here (D-DR24, bolReview.ts) it offers the act that settles it: the value matches the page, or one
- * of the readings for a disputed count or weight. Changing the value settles it too. The reading the page's
+ * person here (D-DR24, bolReview.ts) it offers the act that settles it: "Yes, the page says <value>" — the
+ * value named, so the question answers itself — or, for a disputed count or weight, one button per reading. Changing the value settles it too. The reading the page's
  * own figures back (its printed row, its totals) comes first and says so — a person still picks it (owner,
  * 2026-10-15: "keep the click").
  */
@@ -35,8 +35,9 @@ const TONE = {
         Use {{ v.toLocaleString("en-US") }}<template v-if="v === note.backed"> · the page backs it</template>
       </BaseButton>
       <BaseButton v-if="note.confirmable" variant="secondary" size="sm" data-testid="bol-field-confirm" @click="emit('confirm')">
-        Matches the page
+        {{ note.confirmLabel ?? "Yes, this is on the page" }}
       </BaseButton>
+      <span v-if="note.confirmable" class="text-xs text-ink-muted">If not, change it above.</span>
     </div>
   </div>
 </template>
