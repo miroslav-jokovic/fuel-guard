@@ -154,9 +154,16 @@ export type PlanningVehicle = VehState & { id: string; height_in: number | null;
 /**
  * The org's planning settings, the truck, and whether it pulls a reefer — everything both callers need
  * before there is a line (TRUCK-CARD-ROUTE-PLAN D-TC6). Null when the truck is not this org's.
+ *
+ * ── WHOSE TRAILER (TRAILER-LINK-PLAN D-TL2) ───────────────────────────────────────────────────────
+ * A caller planning a LOAD passes `loadTrailerIsReefer`, read off the trailer McLeod put on it: that is
+ * the trailer dispatch planned, and it is current to the last McLeod sync. Without a load (the fuel
+ * planner) the truck's GPS pairing still decides, which is two months stale as of 2026-10-19 — the
+ * planner's switch to the truck's current load is TRAILER-LINK-PLAN step TL3, which needs a
+ * `routing -> loads` edge this module does not have yet.
  */
 export async function loadPlanningTruck(
-  admin: SupabaseClient, orgId: string, vehicleId: string, equipmentType: string | null,
+  admin: SupabaseClient, orgId: string, vehicleId: string, equipmentType: string | null, loadTrailerIsReefer?: boolean,
 ): Promise<{ cfg: ReturnType<typeof resolveRouteFuelConfig>; veh: PlanningVehicle; isReefer: boolean } | null> {
   const { data: settingsRow } = await admin.from("route_fuel_settings").select("*").eq("org_id", orgId).maybeSingle();
   const cfg = resolveRouteFuelConfig(settingsRow);
@@ -167,6 +174,7 @@ export async function loadPlanningTruck(
     .eq("id", vehicleId).eq("org_id", orgId).maybeSingle();
   if (!veh) return null;
 
+  if (loadTrailerIsReefer !== undefined) return { cfg, veh: veh as PlanningVehicle, isReefer: loadTrailerIsReefer || equipmentType === "reefer" };
   const { data: reeferTrailers } = await admin.from("trailers").select("id").eq("org_id", orgId).eq("assigned_vehicle_id", vehicleId).eq("is_reefer", true).limit(1);
   const isReefer = ((reeferTrailers ?? []) as unknown[]).length > 0 || equipmentType === "reefer";
   return { cfg, veh: veh as PlanningVehicle, isReefer };

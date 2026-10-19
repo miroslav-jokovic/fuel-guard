@@ -203,6 +203,12 @@ export interface LoadForRoute {
    * starts (DBV6).
    */
   departedAt: string | null;
+  /**
+   * Whether the trailer McLeod put on this load is a reefer; false when the load carries no trailer.
+   * The planner's reefer burn reads this, not the GPS pairing on `trailers.assigned_vehicle_id`, which
+   * agreed with the load's reefer on 0 of 17 trucks on 2026-10-19 (TRAILER-LINK-PLAN D-TL2).
+   */
+  trailerIsReefer: boolean;
 }
 
 /**
@@ -213,7 +219,7 @@ export interface LoadForRoute {
 export async function readLoadForRoute(admin: SupabaseClient, orgId: string, loadId: string): Promise<LoadForRoute | null> {
   const { data: load, error } = await admin
     .from("loads")
-    .select("id, ref, vehicle_id, hazmat")
+    .select("id, ref, vehicle_id, hazmat, trailers(is_reefer)")
     .eq("org_id", orgId)
     .eq("id", loadId)
     .maybeSingle();
@@ -235,11 +241,14 @@ export async function readLoadForRoute(admin: SupabaseClient, orgId: string, loa
     .filter((s) => s.seq != null && s.lat != null && s.lon != null)
     .map((s) => ({ seq: s.seq!, kind: s.kind, name: s.location_name ?? s.name, lat: Number(s.lat), lng: Number(s.lon), behind: isStopBehindTruck(s) }))
     .sort((a, b) => a.seq - b.seq);
-  const l = load as { id: string; ref: string | null; vehicle_id: string | null; hazmat: boolean | null };
+  const l = load as unknown as {
+    id: string; ref: string | null; vehicle_id: string | null; hazmat: boolean | null; trailers: { is_reefer: boolean | null } | null;
+  };
   // The first stop by sequence, located or not: the truck left the pickup whether or not we can map it.
   const first = rows.filter((s) => s.seq != null).sort((a, b) => a.seq! - b.seq!)[0];
   return {
     id: l.id, ref: l.ref, vehicleId: l.vehicle_id, hazmat: Boolean(l.hazmat), stops: located, unlocatedStops: rows.length - located.length,
     departedAt: first?.actual_departure_at ?? first?.completed_at ?? null,
+    trailerIsReefer: Boolean(l.trailers?.is_reefer),
   };
 }
