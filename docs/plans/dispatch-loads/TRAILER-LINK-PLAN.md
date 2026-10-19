@@ -67,7 +67,8 @@ truck. 15 trucks are GPS-paired to a reefer while their load's trailer is a dry 
 ## 5. Steps (one PR each)
 
 - **TL1** — The live map's route and fuel stops take the reefer from the load's trailer (D-TL2).
-- **TL2** — Record when a pairing was made (`trailers.paired_at`, a migration), so TL4 can show its age.
+- **TL2** — Record when a pairing was last seen to hold (`trailers.pairing_confirmed_at`, migration 0488), so TL4
+  can show its age. The writers that set it ship in the next merge (`lint:migration-ordering`).
 - **TL3** — The fuel planner reads the truck's current McLeod load, through a new `routing -> loads`
   edge (it has none today, so TL1 does not reach it).
 - **TL4** — Trailers page: *On load (McLeod)* beside *GPS pairing (as of …)*. Reefer coverage shows the
@@ -79,3 +80,18 @@ truck. 15 trucks are GPS-paired to a reefer while their load's trailer is a dry 
 ### 2026-10-19 — Audited, ruled, TL1 built
 
 Measured as in §1. Owner ruled D-TL1. TL1 is in this PR. Q-TL1 and Q-TL2 wait on the owner.
+
+### 2026-10-19 — Rulings on the open questions; TL2's migration
+
+Owner: *"proceed as proposed"*. So **Q-TL1 (a)**: fraud scoring reads McLeod's movement at the fill's
+time, built with a re-score dry run whose alert counts the owner sees before it merges. **Q-TL2**: the
+GPS pairing runs once a day in the scheduler fleet.
+
+TL2's migration is 0488, `trailers.pairing_confirmed_at`. The name says "confirmed", not "paired":
+the daily run re-confirms each pairing it still finds, and its age is what a reader needs. A person's
+change is dated by trigger, since the Trailers form writes from the browser. There is no backfill:
+`updated_at` would date a two-month-old pairing to the last roster write.
+
+Found on the way (**Q-TL3**, open): the Trailers form never sets `pairing_source = 'manual'`. So a
+pairing a person chose there is overwritten by the next inference, though both writers mean to skip
+manual pairings. *Recommend* the form marks its own pairing manual, in TL4.
