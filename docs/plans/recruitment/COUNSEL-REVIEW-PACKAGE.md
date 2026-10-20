@@ -466,6 +466,16 @@ carrier verification.
 applicant need only this prior express consent, not the prior express *written* consent that 47 CFR
 §64.1200(a)(2) requires for telemarketing.
 
+**A second question, added 2026-10-20 (Q-AW55).** The office wants to send the FIRST message by text:
+an applicant on the phone asks the recruiter to text them the application link, and nothing has been
+ticked by anybody. The platform records the recruiter's attestation — "this person asked us to text
+them the link", a mandatory checkbox beside the number they typed — as a consent row on that number,
+under its own wording and version, with an audit entry naming the recruiter and the instant; the text
+carries the carrier's name, the link, HELP and STOP, and every later text to that number rides the same
+row, so STOP works from the first message. Please confirm that a recorded attestation of this kind is
+sufficient documentation of prior express (oral) consent for an informational text, or say what else
+the recruiter should record (the applicant's words, the number read back, a confirmation text first).
+
 ### Q13. §40.25 drug and alcohol history request · **Priority 3**
 
 **Status.** Placeholder, **not in use**. Paired with Q4.
