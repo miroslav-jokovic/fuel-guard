@@ -5,7 +5,7 @@
  * that does not carry the table answers `requirement_not_in_dataset`, never a guess.
  */
 import type { PaperRuleResult } from "./paperTypes.js";
-import { matchHazSubstances, type Substance } from "./hazSubstanceMatch.js";
+import { matchAppendixNames, type Substance } from "../appendixNameMatch.js";
 import { layoutDescription } from "./paperDescriptionText.js";
 import {
   LQ_RX,
@@ -58,9 +58,9 @@ export function paperRq(ctx: LineCtx): PaperRuleResult {
   const table = ctx.ds.hazSubstances;
   if (table.length === 0) return r("cannot_tell", "requirement_not_in_dataset", { lineLabel: label, needs: "Appendix A to §172.101" });
 
-  const { neat, mixture } = matchHazSubstances(entryNames(row.entry), table);
+  const { neat, mixture } = matchAppendixNames(entryNames(row.entry), table);
   // A solution of a listed substance is judged like a component named in the technical name: it can be
-  // cleared by the package's whole mass, never failed without a concentration (hazSubstanceMatch.ts).
+  // cleared by the package's whole mass, never failed without a concentration (appendixNameMatch.ts).
   const named = table.filter((h) => technicalComponents(ctx.printed).includes(h.nameNormalized));
   const components = neat.length ? [] : [...new Set([...mixture, ...named])];
   const listed = neat.length ? neat : components;

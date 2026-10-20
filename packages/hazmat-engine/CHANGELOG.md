@@ -3,6 +3,18 @@
 Every **verdict-affecting** change bumps the minor version and gets an entry here; the version is
 stored on every verdict row (H4) so a decision is reproducible forever.
 
+## 0.19.0 — 2026-10-19 (whole-table census: Appendix B by form, §172.505 weight)
+- **Appendix B (marine pollutants) is matched by form, through the same definition as Appendix A**
+  (`appendixNameMatch.ts`). The exact match missed 13 entries, among them UN2315 Polychlorinated biphenyls,
+  liquid — a SEVERE marine pollutant no rule recognised. `validateBol` no longer keeps its own copy of the
+  marine-pollutant test; it calls `classifyMarinePollutantEntry`.
+- **A §172.505 material in non-bulk packaging now counts toward the §172.504(c) aggregate.** It always
+  placarded, but its weight was dropped from the vehicle's total, so 500 lb of red fuming nitric acid beside
+  1,000 lb of other poisons read as a 1,000 lb aggregate and POISON was not required. PHMSA Interp. 07-0102:
+  all non-bulk Table 2 weight counts; bulk does not (98-0601), which is unchanged. Found by the new placard
+  census (hazmat-golden `placardCensus.test.ts`: every HMT row at four loads, 20,000 seeded mixed loads,
+  same-class bulk pairs for every class).
+
 ## 0.18.0 — 2026-10-19 (Appendix A by form)
 - **RQ, the marine-pollutant exception and the required-description line now find an Appendix A substance
   under its HMT form.** The match was exact, so "Sodium hydroxide solution" (Mayo Products BOL 14182, 50 %

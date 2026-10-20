@@ -29,7 +29,7 @@
  */
 import { classifyMarinePollutantEntry } from "../placards/marinePollutant.js";
 import type { PaperRuleResult } from "./paperTypes.js";
-import { matchHazSubstances } from "./hazSubstanceMatch.js";
+import { matchAppendixNames } from "../appendixNameMatch.js";
 import { gated, lineLabel, lineTexts, make, printsMarinePollutant, printsRq, rowOf, technicalComponents, type LineCtx } from "./paperSupport.js";
 
 const OIL_PHRASE = /\b(oil|aviation fuel|diesel fuel|fuel oil|gasoline|jet fuel|kerosene|motor fuel|petroleum)\b/i;
@@ -63,7 +63,7 @@ function smallPackage(ctx: LineCtx, psn: string, hazardClass: string | null): Sm
     return { excepted: false, reason: couldFit ? "physical_state_unknown" : null };
   }
   if (fits > 5) return { excepted: false, reason: null };
-  const hs = matchHazSubstances([psn], ctx.ds.hazSubstances);
+  const hs = matchAppendixNames([psn], ctx.ds.hazSubstances);
   const listedHs = ctx.ds.hazSubstances.length === 0 || hs.neat.length > 0 || hs.mixture.length > 0 ||
     ctx.ds.hazSubstances.some((h) => technicalComponents(ctx.printed).includes(h.nameNormalized));
   if (listedHs) return { excepted: false, reason: "hazardous_substance_may_apply" };

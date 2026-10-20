@@ -1,4 +1,5 @@
 import type { Citation, Finding, LoadInput, PlacardOutput, TraceNode } from "../types.js";
+import { matchAppendixNames } from "../appendixNameMatch.js";
 import type { DsEntry, DsView } from "./classify.js";
 
 /**
@@ -157,8 +158,11 @@ export function classifyMarinePollutantEntry(
   const names = [entry.psnPrinted, ...(entry.psnAlternates ?? [])]
     .filter((n): n is string => typeof n === "string")
     .map(norm);
-  const match = marinePollutants.find((m) => names.includes(m.nameNormalized));
-  if (match) return { listed: true, severe: match.severe === true };
+  // By form, not exact name (appendixNameMatch.ts): "Polychlorinated biphenyls, liquid" is the severe
+  // pollutant Appendix B lists bare. A mixture form is listed too — §171.8's concentration test decides.
+  const { neat, mixture } = matchAppendixNames(names, marinePollutants);
+  const match = neat[0] ?? mixture[0];
+  if (match) return { listed: true, severe: [...neat, ...mixture].some((m) => m.severe === true) };
   if (isEnvironmentallyHazardousEntry(entry)) return { listed: true, severe: null };
   return { listed: false, severe: false };
 }

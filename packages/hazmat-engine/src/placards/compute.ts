@@ -84,7 +84,13 @@ export function computePlacards(load: LoadInput): PlacardComputation {
   const counted = table2.filter((r) => !isBulk(r) && !has505(r) && !r.line.isResidueLine);
   const excludedResidue = table2.filter((r) => !isBulk(r) && !has505(r) && r.line.isResidueLine);
 
-  const weights = counted.map((r) => r.line.grossWeightLb);
+  // The weight a §172.505 line adds to the aggregate is still non-bulk Table 2 weight: the exception is
+  // barred for that line (it placards regardless), not its weight from the vehicle's total. PHMSA Interp.
+  // 07-0102: "only the weight of Table 2 hazardous materials in non-bulk packaging needs to be included" —
+  // bulk is out (98-0601), a 505 material in a drum is not. Excluding it let 500 lb of red fuming nitric
+  // acid + 1,000 lb of other poisons read as a 1,000 lb aggregate (placard census, 2026-10-19).
+  const weighed = [...counted, ...table2.filter((r) => !isBulk(r) && has505(r) && !r.line.isResidueLine)];
+  const weights = weighed.map((r) => r.line.grossWeightLb);
   const weightKnown = weights.every((w) => w != null);
   const aggregateLb = weights.reduce<number>((s, w) => s + (w ?? 0), 0);
   const thresholdMet = counted.length === 0 ? false : !weightKnown || aggregateLb >= 1001;
