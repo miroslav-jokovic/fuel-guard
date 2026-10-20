@@ -23,8 +23,17 @@ import type { SmsHoldReason } from "./smsQuietHours.js";
  * other instrument (A0), and the reason the text below carries a version rather than being inlined.
  */
 
-/** Where a consent was taken. `application` is the only source today; R1's lead form adds its own. */
-export const SMS_CONSENT_SOURCES = ["application", "lead_form", "office"] as const;
+/**
+ * Where a consent was taken. `application` is the applicant's own box on their link (D-SMS1); `lead_form`
+ * is R1's; `office` is a consent the office records on the applicant's behalf after a call.
+ *
+ * `office_invite` (Q-AW55, 0504) is the RECRUITER'S attestation that the applicant asked to be texted
+ * the application link — the one row that is not the applicant's own act, written under its own source
+ * so it reads as what it is, and so the opt-out machinery covers the number from the first message
+ * rather than from a box the applicant never saw. Mirrors `sms_consents_source_check`; the two lists
+ * move together or not at all.
+ */
+export const SMS_CONSENT_SOURCES = ["application", "lead_form", "office", "office_invite"] as const;
 export type SmsConsentSource = (typeof SMS_CONSENT_SOURCES)[number];
 
 export interface SmsConsentDocument {
