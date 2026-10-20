@@ -13,6 +13,7 @@ import {
 import { discardStagedFiles, sweepOrphans } from './fileStaging';
 import { isNotADbError, recoverCorruptDb } from './db';
 import { countNeedsAttention, countPending, outcomeAfterDeferral, outcomeAfterFailure, type OutboxRecord } from './policy';
+import { onEnqueued } from './outboxSignal';
 
 /**
  * The sync engine (plan §13.3). One serial worker drains the outbox: claim the oldest due record,
@@ -254,6 +255,10 @@ export function initSync(queryClient: QueryClient): () => void {
     if (online) void runSync();
   });
 
+  // A record just queued (outboxSignal.ts, D-RLY7). Online: delivered now. Offline: runSync refreshes
+  // the counters, so the pending badge and the 60 s tick both see it.
+  const unsubscribeEnqueued = onEnqueued(() => void runSync());
+
   const appStateSub = AppState.addEventListener('change', (status: AppStateStatus) => {
     if (status === 'active') void runSync();
   });
@@ -264,6 +269,7 @@ export function initSync(queryClient: QueryClient): () => void {
 
   return () => {
     unsubscribeOnline();
+    unsubscribeEnqueued();
     appStateSub.remove();
     clearInterval(timer);
     client = null;

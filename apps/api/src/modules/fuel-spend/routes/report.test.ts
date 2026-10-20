@@ -5,6 +5,7 @@ import type { AuthContext } from "@silvicom/shared";
 import { createApp } from "../../../app.js";
 import { loadEnv } from "../../../env.js";
 import { createSupabaseRecorder, expectOrgScoped, type SupabaseRecorder } from "../../../testing/supabaseRecorder.js";
+import { odometerFunctionModel } from "../../../testing/odometerFunctionModel.js";
 import { closeTestServer } from "../../../testing/httpServer.js";
 import { costCards, costDayCells, costDayRows, comparingLine, type FuelReport } from "@silvicom/shared";
 import { pdfText } from "../../../testing/pdfText.js";
@@ -82,6 +83,8 @@ const seed = (brands: string[] | null = ["pilot", "flying_j", "one9"], fuelThrou
       },
     },
     rpc: (fn, args) => {
+      // The distance read asks 0507's function (D-RLY6); the table fixture above is its fallback.
+      if (fn === "odometer_readings_for_periods") return odometerFunctionModel(READINGS, ORG)(args);
       const a = args as { p_from: string };
       if (fn === "fuel_report_days") {
         if (a.p_from === "2026-09-07") return [dayRow("2026-09-09", "in", 250)];
@@ -229,7 +232,7 @@ describe("GET /api/fueling/report", () => {
     );
     // 09/13's week IS the range, so the two measurements must agree.
     expect(body.trailingMpg!.at(-1)).toMatchObject({ mpg: 9.94, measuredShare: 1, reason: null });
-    expect(holder.rec!.forTable("samsara_odometer_readings")).toHaveLength(1);
+    expect(holder.rec!.rpcs().filter((c) => c.fn === "odometer_readings_for_periods")).toHaveLength(1);
     const gallonReads = holder.rec!.forTable("fuel_spend_days").filter((q) => bound(q, "gte", "day") !== undefined);
     expect(gallonReads.map((q) => [bound(q, "gte", "day"), bound(q, "lte", "day")])).toEqual([["2026-08-31", "2026-09-13"]]);
   });
@@ -257,6 +260,7 @@ describe("GET /api/fueling/report", () => {
     async (_, q) => {
       const body = await week(q);
       expect([body.current.efficiency, body.previous.efficiency, body.trailingMpg]).toEqual([null, null, null]);
+      expect(holder.rec!.rpcs().filter((c) => c.fn === "odometer_readings_for_periods")).toHaveLength(0);
       expect(holder.rec!.forTable("samsara_odometer_readings")).toHaveLength(0);
     },
   );

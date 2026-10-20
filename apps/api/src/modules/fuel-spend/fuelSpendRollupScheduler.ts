@@ -34,7 +34,7 @@ import { BOOT_DELAY_MS, CHECK_INTERVAL_MS, REBUILD_DAYS, SWEEP_DUE_AFTER_MS } fr
  * to add another. Its window is this one, translated into whole calendar months; see
  * `fuelPolicyScan.ts` for why a month rather than the fortnight.
  *
- * Run in EXACTLY ONE process (see `startAllSchedulers`) — two processes rebuilding the same window
+ * Run in EXACTLY ONE process (see `SCHEDULERS`) — two processes rebuilding the same window
  * would race each other's sweep, the loser's rows carrying the older timestamp and the winner
  * deleting them. Since 2026-09-21 that is no longer a convention held by deployment alone: each
  * org's sweep claims the (org, `fuel_spend_rollup`) slot in the job ledger, so a second process is

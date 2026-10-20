@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { changeEquipment, endShift, getEquipmentPickList, startShift } from "./dutySessions.js";
+import { createSupabaseRecorder, expectOrgScoped } from "../../testing/supabaseRecorder.js";
 
 /**
  * The conflict envelope is user-facing: when a driver picks a truck someone else is in, the sheet
@@ -135,6 +136,59 @@ describe("changeEquipment / endShift", () => {
   it("treats a replayed sign-off as success, not an error", async () => {
     const res = await endShift(stubAdmin({}), ORG, DRIVER, {});
     expect(res).toEqual({ ok: true, session: null });
+  });
+});
+
+/**
+ * An end-of-day that names its shift (D-RLY7). The offline queue can hold a sign-off past the start of
+ * the driver's NEXT shift (or the driver retries it by hand from the needs-attention list), and ending
+ * "whatever is open" would then close the new shift. Named, it ends that one shift or nothing.
+ */
+describe("endShift with the shift's id", () => {
+  const SESSION = "5e551011-0000-4000-8000-000000000001";
+  const OTHER_DRIVER = "d1d1d1d1-0000-4000-8000-000000000009";
+  // A FUNCTION fixture that applies the filters — the recorder records them and applies none, and the
+  // ownership check is exactly a filter (org AND driver AND id).
+  const sessions = (rows: { id: string; driver_id: string; ended_at: string | null }[]) =>
+    createSupabaseRecorder({
+      tables: {
+        driver_duty_sessions: (q) => {
+          const f = q.filters();
+          const val = (col: string) => f.find((x) => x.col === col)?.val;
+          return rows
+            .map((r) => ({ ...r, org_id: ORG }))
+            .filter((r) => r.org_id === val("org_id") && r.driver_id === val("driver_id") && r.id === val("id"));
+        },
+      },
+      rpc: { end_duty_session_by_id: SESSION, end_duty_session: null },
+    });
+
+  it("ends that shift by id, as the driver, and never 'whatever is open'", async () => {
+    const rec = sessions([{ id: SESSION, driver_id: DRIVER, ended_at: null }]);
+    const res = await endShift(rec.client, ORG, DRIVER, { session_id: SESSION, end_odometer: 120_400 });
+    expect(res).toEqual({ ok: true, session: null });
+    expect(rec.rpcs()).toEqual([
+      { fn: "end_duty_session_by_id", args: { p_org: ORG, p_session_id: SESSION, p_ended_at: null, p_odometer: 120_400, p_reason: "driver" } },
+    ]);
+    expectOrgScoped(rec, ORG);
+  });
+
+  it("is a no-op for a shift already ended — the replay that arrives after the next shift began", async () => {
+    const rec = sessions([{ id: SESSION, driver_id: DRIVER, ended_at: "2026-10-20T02:00:00Z" }]);
+    expect(await endShift(rec.client, ORG, DRIVER, { session_id: SESSION })).toEqual({ ok: true, session: null });
+    expect(rec.rpcs()).toEqual([]);
+  });
+
+  it("will not end another driver's shift, and answers exactly as for one already ended", async () => {
+    const rec = sessions([{ id: SESSION, driver_id: OTHER_DRIVER, ended_at: null }]);
+    expect(await endShift(rec.client, ORG, DRIVER, { session_id: SESSION })).toEqual({ ok: true, session: null });
+    expect(rec.rpcs()).toEqual([]);
+  });
+
+  it("keeps the old behaviour for an app build that does not send the id", async () => {
+    const rec = sessions([]);
+    await endShift(rec.client, ORG, DRIVER, { end_odometer: 5 });
+    expect(rec.rpcs().map((c) => c.fn)).toEqual(["end_duty_session"]);
   });
 });
 

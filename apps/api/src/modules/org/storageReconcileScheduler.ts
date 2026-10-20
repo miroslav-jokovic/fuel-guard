@@ -12,7 +12,7 @@ import {
  * Nightly evidence-storage reconcile (§13.5 / M11). Deletes objects with no indexing row past the 24 h
  * grace, and flags rows whose object is missing (the D13 restore signal). Mirrors the other schedulers'
  * shape: interval + in-flight guard, env-gated, failures logged, never crashes the process. Run in
- * EXACTLY ONE process (see startAllSchedulers).
+ * EXACTLY ONE process (see SCHEDULERS).
  *
  * Covers EVERY evidence bucket. `load-photos` — a driver's proof of work at every stop — had no
  * reconciler at all until LD3: nothing checked that a photo the office can see a row for still exists,

@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { LiveMapBoard } from "@silvicom/shared";
 import { readLiveMapBoard, type LiveMapBoardOptions } from "./liveMapBoard.js";
+import { createCoalescingCache } from "../../lib/coalescingCache.js";
 
 /**
  * One board per org per few seconds, however many dispatchers are looking at it (C3,
@@ -55,45 +56,25 @@ import { readLiveMapBoard, type LiveMapBoardOptions } from "./liveMapBoard.js";
  */
 export const BOARD_CACHE_TTL_MS = 2_500;
 
-interface Entry {
-  /** When the read STARTED — so a slow read cannot extend its own life past the TTL. */
-  startedAtMs: number;
-  board: Promise<LiveMapBoard>;
-}
-
-const entries = new Map<string, Entry>();
+const cache = createCoalescingCache<LiveMapBoard>(BOARD_CACHE_TTL_MS);
 
 export interface CachedBoardOptions extends LiveMapBoardOptions {
   /** Injected by tests. Production reads the monotonic-enough wall clock once, here. */
   nowMs?: number;
 }
 
+/**
+ * ⚠ A FAILED READ IS NOT CACHED — without that a single upstream blip would be replayed to every
+ * dispatcher in the org for the next 2.5 seconds. `createCoalescingCache` owns that rule now (and the
+ * identity check that keeps a slow failure from evicting a newer healthy board).
+ */
 export async function readLiveMapBoardCached(
   admin: SupabaseClient,
   orgId: string,
   opts: CachedBoardOptions = {},
 ): Promise<LiveMapBoard> {
-  const nowMs = opts.nowMs ?? Date.now();
-  const hit = entries.get(orgId);
-  if (hit && nowMs - hit.startedAtMs < BOARD_CACHE_TTL_MS) return hit.board;
-
-  const { nowMs: _ignored, ...readOpts } = opts;
-  const board = readLiveMapBoard(admin, orgId, readOpts);
-  const entry: Entry = { startedAtMs: nowMs, board };
-  entries.set(orgId, entry);
-
-  /**
-   * ⚠ A FAILED READ IS NOT CACHED, and this is the half that is easy to leave out. Without it a
-   * single upstream blip would be replayed to every dispatcher in the org for the next 2.5 seconds —
-   * one transient error amplified into a board-wide outage, which is worse than the un-cached
-   * behaviour it replaced. The identity check matters too: a newer entry may already have taken this
-   * org's slot by the time a slow failure lands, and deleting blindly would evict a healthy board.
-   */
-  board.catch(() => {
-    if (entries.get(orgId) === entry) entries.delete(orgId);
-  });
-
-  return board;
+  const { nowMs, ...readOpts } = opts;
+  return cache.get(orgId, () => readLiveMapBoard(admin, orgId, readOpts), nowMs);
 }
 
 /**
@@ -103,5 +84,5 @@ export async function readLiveMapBoardCached(
  * next test's assertions, which is the kind of cross-test bleed that reads as a flake.
  */
 export function __resetLiveMapBoardCache(): void {
-  entries.clear();
+  cache.invalidate();
 }

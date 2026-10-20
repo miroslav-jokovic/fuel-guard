@@ -91,6 +91,8 @@ describe("GET /api/version", () => {
       "env",
       "maintenance",
       "ok",
+      // Lane names and their states (D-RLY3) — what is running, never whose data; the holder is not published.
+      "schedulers",
       "schema",
       "service",
       "startedAt",

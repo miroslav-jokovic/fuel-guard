@@ -1,5 +1,5 @@
-import { describe, it, expect } from "vitest";
-import { readDispatchBoard } from "./dispatchBoard.js";
+import { describe, it, expect, beforeEach } from "vitest";
+import { readDispatchBoard, __resetDispatchBoardCaches, BOARD_ROWS_TTL_MS } from "./dispatchBoard.js";
 import { createSupabaseRecorder, expectOrgScoped } from "../../testing/supabaseRecorder.js";
 import { USER_ROLES, canReadTestingRecords, canViewSection } from "@silvicom/shared";
 
@@ -82,6 +82,9 @@ function recorder(o: {
 }
 
 describe("the dispatch board", () => {
+  // The board rows are cached per org (D-RLY4); each test builds its own fleet under the same org id.
+  beforeEach(() => __resetDispatchBoardCaches());
+
   it("composes a truck's driver, clocks, place, load, next stop, ETA and when it empties into one row", async () => {
     const b = await readDispatchBoard(recorder().client, ORG, READER, NOW);
     expect(b.rows).toHaveLength(1);
@@ -111,6 +114,7 @@ describe("the dispatch board", () => {
     const indy = stop({ seq: 3 });
     const trailerDrop = stop({ seq: 4, kind: "other", city: "Joliet", state: "IL", lat: 41.52, lon: -88.08 });
     const one = (await readDispatchBoard(recorder().client, ORG, READER, NOW)).rows[0]!;
+    __resetDispatchBoardCaches(); // a second fleet under the same org and instant — not a cache hit
     const via = (await readDispatchBoard(recorder({ stops: [pickup, kokomo, indy, trailerDrop] }).client, ORG, READER, NOW)).rows[0]!;
     expect(via.current!.nextStop!.name).toBe("Kokomo DC");
     expect(via.milesLeft!).toBeGreaterThan(one.milesLeft!);
@@ -315,4 +319,56 @@ describe("the dispatch board", () => {
     await readDispatchBoard(rec.client, ORG, READER, NOW);
     expectOrgScoped(rec, ORG);
   });
+
+  describe("one composition per org, however many people are looking (D-RLY4)", () => {
+    const boardReads = (rec: ReturnType<typeof recorder>) => rec.forTable("vehicle_positions").length;
+
+    it("serves a second reader inside the life from the first reader's composition, and still answers each reader's own scope", async () => {
+      const rec = recorder();
+      const other = { userId: "7e3c1a2b-0000-4000-8000-000000000002", role: "dispatcher" as const, sections: null };
+      const [a, b] = await Promise.all([
+        readDispatchBoard(rec.client, ORG, READER, NOW),
+        readDispatchBoard(rec.client, ORG, other, new Date(NOW.getTime() + 5_000)),
+      ]);
+      expect(boardReads(rec)).toBe(1);
+      expect(a.rows).toEqual(b.rows);
+      // The scope is the reader's, read per request: vinniev is USER's dispatcher code, not the other's.
+      expect(a.scope.linked).toBe(true);
+      expect(b.scope.linked).toBe(false);
+    });
+
+    it("reports the instant the rows were BUILT, not the instant they were served", async () => {
+      const rec = recorder();
+      await readDispatchBoard(rec.client, ORG, READER, NOW);
+      const later = await readDispatchBoard(rec.client, ORG, READER, new Date(NOW.getTime() + BOARD_ROWS_TTL_MS - 1));
+      expect(later.generatedAt).toBe(NOW.toISOString());
+      expect(later.rows[0]!.position!.ageSeconds).toBe(20);
+    });
+
+    it("builds the rows again once their life is over", async () => {
+      const rec = recorder();
+      await readDispatchBoard(rec.client, ORG, READER, NOW);
+      const fresh = await readDispatchBoard(rec.client, ORG, READER, new Date(NOW.getTime() + BOARD_ROWS_TTL_MS));
+      expect(boardReads(rec)).toBe(2);
+      expect(fresh.generatedAt).toBe(new Date(NOW.getTime() + BOARD_ROWS_TTL_MS).toISOString());
+    });
+
+    it("never serves one carrier's board to another — the org is the key", async () => {
+      const OTHER_ORG = "1b2c3d4e-5f6a-4b7c-8d9e-0f1a2b3c4d5e";
+      const mine = recorder();
+      const theirs = recorder({ vehicles: [vehicle({ id: "veh-9", unit_number: "901" })], positions: [], loads: [] });
+      await readDispatchBoard(mine.client, ORG, READER, NOW);
+      const b = await readDispatchBoard(theirs.client, OTHER_ORG, READER, NOW);
+      expect(b.rows.map((r) => r.unitNumber)).toEqual(["901"]);
+      expectOrgScoped(theirs, OTHER_ORG, { exempt: ["rpc:org_module_enabled"] });
+    });
+
+    it("does not keep a failed composition — the next reader reads again", async () => {
+      const broken = createSupabaseRecorder({ tables: { vehicles: { error: { message: "upstream blip" } } } });
+      await expect(readDispatchBoard(broken.client, ORG, READER, NOW)).rejects.toThrow();
+      const ok = await readDispatchBoard(recorder().client, ORG, READER, new Date(NOW.getTime() + 1_000));
+      expect(ok.rows).toHaveLength(1);
+    });
+  });
 });
+

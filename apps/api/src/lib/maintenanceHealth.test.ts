@@ -11,12 +11,22 @@ import type { AddressInfo } from "node:net";
 const mocks = vi.hoisted(() => ({
   schema: vi.fn(),
   maintenance: vi.fn(),
+  schedulers: vi.fn(),
 }));
 vi.mock("./schemaVersion.js", () => ({ getSchemaStatus: mocks.schema }));
 vi.mock("./maintenanceHealth.js", async (importOriginal) => ({
   ...(await importOriginal<typeof import("./maintenanceHealth.js")>()),
   getMaintenanceHealth: mocks.maintenance,
 }));
+// The third input to `ok` (D-RLY3): who holds each scheduler lane. Held, unless a case says otherwise.
+vi.mock("./schedulerHealth.js", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("./schedulerHealth.js")>()),
+  getSchedulerHealth: mocks.schedulers,
+}));
+const LANES_HELD = [
+  { lane: "egress", state: "held", secondsSinceRenewal: 4 },
+  { lane: "general", state: "held", secondsSinceRenewal: 9 },
+];
 
 const { toMaintenanceHealth, maintenanceHealthy } = await import("./maintenanceHealth.js");
 const { createApp } = await import("../app.js");
@@ -79,7 +89,10 @@ describe("GET /api/version folds maintenance into ok", () => {
     });
   });
   afterAll(async () => closeTestServer(server));
-  beforeEach(() => mocks.schema.mockResolvedValue(CURRENT));
+  beforeEach(() => {
+    mocks.schema.mockResolvedValue(CURRENT);
+    mocks.schedulers.mockResolvedValue(LANES_HELD);
+  });
 
   const read = async () => (await (await fetch(`${baseUrl}/api/version`)).json()) as {
     ok: boolean;
@@ -106,5 +119,56 @@ describe("GET /api/version folds maintenance into ok", () => {
   it("is NOT ok when the maintenance job is missing", async () => {
     mocks.maintenance.mockResolvedValue(health("missing"));
     expect((await read()).ok).toBe(false);
+  });
+
+  it("is NOT ok when a scheduler lane has had no holder for two minutes — the background work stopped (D-RLY3)", async () => {
+    mocks.maintenance.mockResolvedValue(health("ok"));
+    mocks.schedulers.mockResolvedValue([LANES_HELD[0], { lane: "general", state: "stale", secondsSinceRenewal: 300 }]);
+    const body = (await (await fetch(`${baseUrl}/api/version`)).json()) as { ok: boolean; schedulers: { lane: string; state: string }[] };
+    expect(body.ok).toBe(false);
+    expect(body.schedulers.find((l) => l.lane === "general")!.state).toBe("stale");
+  });
+
+  it("stays ok through a deploy's hand-over", async () => {
+    mocks.maintenance.mockResolvedValue(health("ok"));
+    mocks.schedulers.mockResolvedValue([LANES_HELD[0], { lane: "general", state: "handover", secondsSinceRenewal: 70 }]);
+    expect((await read()).ok).toBe(true);
+  });
+});
+
+describe("GET /api/version/ready — the same verdict as a status code, for an external monitor (D-RLY5)", () => {
+  let server: Server;
+  let baseUrl = "";
+  beforeAll(async () => {
+    const app = createApp(loadEnv({ NODE_ENV: "test", VITE_API_URL: "https://api.example.test" } as NodeJS.ProcessEnv));
+    await new Promise<void>((resolve) => {
+      server = app.listen(0, () => {
+        baseUrl = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+        resolve();
+      });
+    });
+  });
+  afterAll(async () => closeTestServer(server));
+  beforeEach(() => {
+    mocks.schema.mockResolvedValue(CURRENT);
+    mocks.maintenance.mockResolvedValue(health("ok"));
+    mocks.schedulers.mockResolvedValue(LANES_HELD);
+  });
+
+  it("answers 200 and names every input when everything is healthy", async () => {
+    const res = await fetch(`${baseUrl}/api/version/ready`);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("cache-control")).toBe("no-store");
+    expect(await res.json()).toMatchObject({ ok: true, maintenance: "ok", schedulers: { egress: "held", general: "held" } });
+  });
+
+  it("answers 503 when any input is unhealthy, and says which", async () => {
+    mocks.schedulers.mockResolvedValue([LANES_HELD[0], { lane: "general", state: "missing", secondsSinceRenewal: null }]);
+    const res = await fetch(`${baseUrl}/api/version/ready`);
+    expect(res.status).toBe(503);
+    expect(await res.json()).toMatchObject({ ok: false, schedulers: { general: "missing" } });
+    mocks.schedulers.mockResolvedValue(LANES_HELD);
+    mocks.maintenance.mockResolvedValue(health("failing"));
+    expect((await fetch(`${baseUrl}/api/version/ready`)).status).toBe(503);
   });
 });

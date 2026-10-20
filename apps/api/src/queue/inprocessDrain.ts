@@ -6,6 +6,7 @@ import { executeJob } from "./worker.js";
 import { isShuttingDown } from "../lib/shutdown.js";
 import type { JobContext } from "./types.js";
 import type { JobKind } from "../modules/org/index.js";
+import type { SchedulerLane } from "../schedulerLanes.js";
 
 /**
  * The in-process drain — queued job ROWS get executed even though no queue consumer exists.
@@ -37,9 +38,11 @@ import type { JobKind } from "../modules/org/index.js";
  * off" while the instance that could have run it watched. An instance that cannot execute a kind
  * must not be able to CLAIM it.
  */
-function drainKinds(env: Env): JobKind[] {
+export function drainKinds(env: Env, lane: SchedulerLane): JobKind[] {
+  // The EFS re-fetch dials WEX, so it drains with the egress lane (schedulerLanes.ts); everything else
+  // drains with the general lane, on the worker. Disjoint, so the two drains never compete for a row.
+  if (lane === "egress") return env.EFS_SOAP_ENABLED ? ["efs_window_refetch"] : [];
   const kinds: JobKind[] = ["financial_projection"];
-  if (env.EFS_SOAP_ENABLED) kinds.push("efs_window_refetch");
   // `backfill` joins the list for the SAME reason the other two are on it: an operator queues one as a
   // ROW to run a repair that no schedule and no button covers. SAM-S6's full-history rebuild is that
   // repair — the manual route only offers `full` (a live Samsara re-fetch), and `nightlyReconcile`'s
@@ -56,14 +59,16 @@ function drainKinds(env: Env): JobKind[] {
   return kinds;
 }
 const TICK_MS = 2 * 60_000;
-const WORKER_ID = "inprocess-drain";
+/** One claimant id per lane: a renewal or completion can never be mistaken across the two drains. */
+const workerId = (lane: SchedulerLane): string => `inprocess-drain:${lane}`;
 const LEASE_SECONDS = 30 * 60;
 /** Renew at a third of the lease, the same ratio the queue consumer defaults to. */
 const RENEW_EVERY_MS = Math.floor((LEASE_SECONDS / 3) * 1000);
 
-export function startInprocessJobDrain(env: Env): void {
+export function startInprocessJobDrain(env: Env, lane: SchedulerLane): void {
   if (env.JOB_EXECUTION_MODE === "queue") return; // the real consumer owns the table
   if (!env.SUPABASE_URL || !env.SUPABASE_SERVICE_ROLE_KEY) return;
+  if (drainKinds(env, lane).length === 0) return; // an egress lane with EFS off has nothing to drain
   registerAllHandlers(); // idempotent (Map.set) — the app registers too, order is irrelevant
 
   let running = false;
@@ -71,7 +76,7 @@ export function startInprocessJobDrain(env: Env): void {
     if (running || isShuttingDown()) return;
     running = true;
     try {
-      await drainOnce(env, getSupabaseAdmin(env));
+      await drainOnce(env, getSupabaseAdmin(env), lane);
     } catch (e) {
       console.error(`[job-drain] tick failed: ${e instanceof Error ? e.message : e}`);
     } finally {
@@ -82,7 +87,7 @@ export function startInprocessJobDrain(env: Env): void {
   setTimeout(() => void tick(), 45_000);
   setInterval(() => void tick(), TICK_MS);
   console.log(
-    `[job-drain] inprocess drain on — kinds: ${drainKinds(env).join(", ")} every ${TICK_MS / 60_000}m`,
+    `[job-drain] ${lane} drain on — kinds: ${drainKinds(env, lane).join(", ")} every ${TICK_MS / 60_000}m`,
   );
 }
 
@@ -113,16 +118,17 @@ export function startInprocessJobDrain(env: Env): void {
 export async function drainOnce(
   env: Env,
   admin: ReturnType<typeof getSupabaseAdmin>,
+  lane: SchedulerLane,
 ): Promise<void> {
   const driver = pgQueueDriver(admin);
   // Long lease: the re-fetch walks multi-week EFS windows, the full projection reads two years, and a
   // rebuild re-scores the whole fleet. Renewal is what makes the length safe rather than optimistic.
-  const job = await driver.claim(WORKER_ID, drainKinds(env), LEASE_SECONDS, {});
+  const job = await driver.claim(workerId(lane), drainKinds(env, lane), LEASE_SECONDS, {});
   if (!job) return;
 
   const ctx: JobContext = { admin, env };
   const outcome = await executeJob(driver, ctx, job, {
-    workerId: WORKER_ID,
+    workerId: workerId(lane),
     leaseSeconds: LEASE_SECONDS,
     renewEveryMs: RENEW_EVERY_MS,
   });

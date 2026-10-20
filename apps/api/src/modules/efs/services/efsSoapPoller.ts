@@ -70,7 +70,7 @@ async function ingestOrgFeed(
 }
 
 /**
- * Start both EFS SOAP polling tiers. Called from src/schedulers.ts::startAllSchedulers.
+ * Start both EFS SOAP polling tiers. Called from src/schedulers.ts::SCHEDULERS.
  *
  * Guards:
  *   • env.EFS_SOAP_ENABLED=false → do not start any timer (subsystem stays cold).

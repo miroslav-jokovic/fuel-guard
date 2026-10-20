@@ -6,6 +6,7 @@ import { getBuildInfo } from "../lib/buildInfo.js";
 import { getSchemaStatus } from "../lib/schemaVersion.js";
 import { getMaintenanceHealth, maintenanceHealthy } from "../lib/maintenanceHealth.js";
 import { getReleaseVersion } from "../lib/releaseVersion.js";
+import { getSchedulerHealth, laneHealthy } from "../lib/schedulerHealth.js";
 
 /**
  * `GET /api/version` — what is actually running (ship-pipeline plan D0.3).
@@ -19,19 +20,34 @@ import { getReleaseVersion } from "../lib/releaseVersion.js";
  * `ok` is false whenever the schema drifts from the code, so a monitor can watch one boolean — and,
  * since L6 (0360), whenever the database's own partition maintenance job is not healthy. That job
  * runs inside Postgres where nothing else can see it; `maintenance` says which state it is in, and
- * nothing about it is tenant-scoped (lib/maintenanceHealth.ts).
+ * nothing about it is tenant-scoped (lib/maintenanceHealth.ts). And since D-RLY3, whenever a scheduler
+ * lane has had no live holder for two minutes — the background work has stopped (lib/schedulerHealth.ts).
+ *
+ * `GET /api/version/ready` is the same verdict as an HTTP STATUS — 200 when `ok`, 503 when not — for
+ * an external uptime monitor that can only read a status code (D-RLY5). `/healthz` cannot be that:
+ * Railway's healthcheck reads it, and a 503 there would roll back the very deploy that is waiting on
+ * its migration.
  */
 export function versionRouter(): Router {
   const router = Router();
+
+  const read = async (env: Parameters<typeof getSchemaStatus>[0]) => {
+    const [schema, maintenance, schedulers, version] = await Promise.all([
+      getSchemaStatus(env),
+      getMaintenanceHealth(env),
+      getSchedulerHealth(env),
+      getReleaseVersion(),
+    ]);
+    const ok = !schema.drift && maintenanceHealthy(maintenance.state) && schedulers.every((l) => laneHealthy(l.state));
+    return { schema, maintenance, schedulers, version, ok };
+  };
 
   router.get(
     "/",
     asyncHandler(async (req, res) => {
       const { env } = getAppLocals(req);
       const build = getBuildInfo();
-      const schema = await getSchemaStatus(env);
-      const maintenance = await getMaintenanceHealth(env);
-      const version = await getReleaseVersion();
+      const { schema, maintenance, schedulers, version, ok } = await read(env);
       res.setHeader("Cache-Control", "no-store");
       res.json({
         service: `${APP_NAME} API`,
@@ -46,7 +62,25 @@ export function versionRouter(): Router {
         startedAt: build.startedAt,
         schema,
         maintenance,
-        ok: !schema.drift && maintenanceHealthy(maintenance.state),
+        schedulers,
+        ok,
+      });
+    }),
+  );
+
+  router.get(
+    "/ready",
+    asyncHandler(async (req, res) => {
+      const { env } = getAppLocals(req);
+      const { schema, maintenance, schedulers, ok } = await read(env);
+      res.setHeader("Cache-Control", "no-store");
+      // The body names what failed, for the person who opens the alert; the status is the verdict.
+      res.status(ok ? 200 : 503).json({
+        ok,
+        commit: getBuildInfo().commitShort,
+        schema: schema.state,
+        maintenance: maintenance.state,
+        schedulers: Object.fromEntries(schedulers.map((l) => [l.lane, l.state])),
       });
     }),
   );

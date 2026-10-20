@@ -206,7 +206,11 @@ export function useEndShift() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (input: { endOdometer?: number } = {}) => {
+      // The shift being ended, by id (D-RLY7): if this sits in the queue past the start of the next
+      // shift, the server ends THIS one or nothing — never the newer one.
+      const sessionId = qc.getQueryData<MeShiftResponse>(ME_SHIFT_KEY)?.session?.id;
       const payload: EndShiftRequest = {
+        ...(sessionId ? { session_id: sessionId } : {}),
         ended_at: new Date().toISOString(),
         ...(input.endOdometer !== undefined ? { end_odometer: input.endOdometer } : {}),
       };

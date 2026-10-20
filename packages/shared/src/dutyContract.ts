@@ -141,8 +141,17 @@ export const changeEquipmentRequestSchema = z
   });
 export type ChangeEquipmentRequest = z.infer<typeof changeEquipmentRequestSchema>;
 
-/** `POST /api/me/shift/end`. */
+/**
+ * `POST /api/me/shift/end`.
+ *
+ * `session_id` names the shift being ended (PLATFORM-RELIABILITY-PLAN D-RLY7). Without it the server
+ * closes whatever shift is open WHEN THE REQUEST ARRIVES — and an end-of-day that sat in the offline
+ * queue (or was retried by hand from the needs-attention list) could arrive after the driver's NEXT
+ * shift had started, and close that one instead. Optional because app builds from before 2026-10-20
+ * do not send it; for them the server keeps the old behaviour.
+ */
 export const endShiftRequestSchema = z.object({
+  session_id: recordId().optional(),
   ended_at: z.string().optional(),
   end_odometer: z.number().nonnegative().max(9_999_999).optional(),
 });

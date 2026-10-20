@@ -14,7 +14,7 @@
  *
  * ── LIGHT, AND ONE PROCESS ───────────────────────────────────────────────────────────────────────
  * Four org-scoped reads and one insert of ~120 rows an hour; no vendor call, no per-row work beyond the
- * board's own. Started from `startAllSchedulers`, so it runs wherever the schedulers run and nowhere
+ * board's own. Started from `SCHEDULERS`, so it runs wherever the schedulers run and nowhere
  * else (`docs/WORKER-DEPLOYMENT.md`). No jobs-ledger row: the freshness signal is the table's own
  * `predicted_at`, the clocks tier's reasoning. `DISPATCH_BOARD_ETA_RECORD_MINUTES=0` turns it off.
  */

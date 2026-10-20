@@ -2,8 +2,9 @@
 
 The background schedulers (Samsara sync, rebuild-on-boot, weekly digest, nightly reconcile, EFS
 auto-ingest, posted-price refresh) used to run inside the single API process. They now live in
-`startAllSchedulers` (apps/api/src/schedulers.ts) and run either in-process (default) or in a
-dedicated worker service — controlled by the `RUN_SCHEDULERS_IN_PROCESS` env var.
+`SCHEDULERS` (apps/api/src/schedulers.ts), grouped into lanes, and run in whichever process holds each
+lane's lease — see "Lanes and leases" below. `RUN_SCHEDULERS_IN_PROCESS=false` keeps a process out
+entirely.
 
 ## The default is `true`, and production is NOT a single service
 
@@ -33,18 +34,27 @@ railway logs --service "<service>" --environment production | grep -i scheduler
 Exactly one service may print `scheduler enabled`. Every other one must print
 `in-process schedulers disabled`.
 
-## Scaling the API horizontally (do this before running 2+ API instances)
-Running schedulers in-process is only safe on ONE instance — scale the API past 1 and rebuild-on-boot
-(the one scheduler without a job-ledger guard) runs on every instance. To scale out:
+## Lanes and leases (since 2026-10-20, D-RLY2) — how the API scales past one replica
 
-1. Add a second Railway service from the same repo — the **worker**:
-   - Start command: `pnpm --filter @silvicom/api worker`
-   - Same env vars as the API (Supabase, Samsara, mail, HERE, etc.)
-   - **Replicas: 1** (schedulers must run in exactly one process).
-2. On the **API** service, set `RUN_SCHEDULERS_IN_PROCESS=false`. The API now serves only HTTP and can
-   scale to N replicas; the worker owns all background work.
-3. Deploy. Confirm in logs: API prints "in-process schedulers disabled…"; worker prints
-   "[FuelGuard worker] starting background schedulers".
+The old recipe here ("add a worker, set the API to `false`, keep the worker at ONE replica") could not
+be followed in production: the EFS pollers can only run on `@fleetguard/api`, the one service whose
+static outbound IPs WEX allowlists, and Railway gives a new service new IPs. It is replaced by
+`docs/plans/architecture/PLATFORM-RELIABILITY-PLAN.md` §2–§5, in short:
+
+- Every scheduler is registered once, with a lane, in `SCHEDULERS` (`apps/api/src/schedulers.ts`):
+  `egress` (the SOAP poller, the card sync and status poll, the mTLS watcher, the EFS re-fetch drain)
+  and `general` (everything else). A test fails if a `start*` function is imported and not registered.
+- A process competes for the lanes in `SCHEDULER_LANES` (default `all`) and starts a lane only while
+  it holds the lane's lease (`platform_scheduler_leases`, 0506; `lib/schedulerLease.ts`). So any number
+  of replicas is safe: one holds each lane, the others are standbys. A lost lease exits the process.
+- Production target: `@fleetguard/api` ×2 with `SCHEDULER_LANES=egress`; `@fleetguard/worker`
+  (`railway.worker.json`, start `node --import tsx apps/api/src/worker.ts`, restart ALWAYS, no static
+  IPs) with `WORKER_ROLE=scheduler`, `SCHEDULER_LANES=general`, `EFS_SOAP_ENABLED=false`.
+- Check: `curl -s <api host>/api/version | jq .schedulers` — every lane `held`. Logs:
+  `[scheduler-lease] <lane>: acquired by …` on exactly one process per lane.
+
+`rebuild-on-boot` (the one scheduler without a job-ledger guard) is safe under this because it is in
+a lane: it runs where `general` is held, once per take-over, and it is idempotent.
 
 ## The schedulers that call a vendor, and what each one is bounded by
 
