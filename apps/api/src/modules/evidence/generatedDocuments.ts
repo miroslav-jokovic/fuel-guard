@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   DOCUMENTS_BUCKET,
   documentStoragePath,
+  type DocumentContentType,
   type DocumentKind,
   type DocumentSubjectType,
 } from "@silvicom/shared";
@@ -36,6 +37,11 @@ export interface GeneratedDocumentInput {
   /** Null when no person filed it — a scheduler, a sync, or a render. `documents.uploaded_by` is nullable for this. */
   uploadedBy: string | null;
   capturedAt?: string | null;
+  /**
+   * What the bytes are. A render is a PDF, so that is the default; the McLeod unit-papers import
+   * (UNIT-FILES-PLAN, McLeod import) files the scans it copies, some of them photographs.
+   */
+  contentType?: DocumentContentType;
 }
 
 export interface FiledDocument {
@@ -67,10 +73,11 @@ export async function fileGeneratedDocument(
     return { documentId: row.id, storagePath: row.storage_path, sha256: row.sha256, bytes: row.bytes, filed: false };
   }
 
-  const path = documentStoragePath(orgId, input.subjectType, input.subjectId, input.id, "application/pdf");
+  const contentType = input.contentType ?? "application/pdf";
+  const path = documentStoragePath(orgId, input.subjectType, input.subjectId, input.id, contentType);
   const upload = await admin.storage
     .from(DOCUMENTS_BUCKET)
-    .upload(path, pdf, { contentType: "application/pdf", upsert: false });
+    .upload(path, pdf, { contentType, upsert: false });
   if (upload.error) return { error: "Could not store the document", code: "storage_failed" };
 
   const sha256 = createHash("sha256").update(pdf).digest("hex");
@@ -81,7 +88,7 @@ export async function fileGeneratedDocument(
     subject_id: input.subjectId,
     kind: input.kind,
     storage_path: path,
-    content_type: "application/pdf",
+    content_type: contentType,
     bytes: pdf.byteLength,
     sha256,
     uploaded_by: input.uploadedBy,

@@ -966,3 +966,34 @@ around them.
   - Tests: 16, incl. the plan's two (VIN beats unit number; two equal names → no proposal). Nine
     mutants killed; the VIN-length one first SURVIVED (its fixture matched nothing either way) and the
     fixture was fixed.
+- 2026-10-20 — **UF7b1 merged** as #1681.
+- 2026-10-20 — **Owner: "do the backfill, and pull all existing papers from the Sandbox for all trucks and
+  trailers… Registrations and Annuals for now."** Built on `claude/mcleod-unit-papers-import`.
+  - **Where the papers are:** McLeod keeps unit scans as Comments-tab attachments —
+    `comments.attachment` (varbinary), `parent_row_type` T = tractor, E = trailer (sandbox, restored
+    2026-10-09: 1,691 truck + 877 trailer files). The connector's live login is REFUSED on `comments`;
+    the sandbox can read it. Live coverage needs Alex to grant a read (ideally a view of T/E rows).
+  - **Export (read-only):** `tools/mcleod-agent/oneoff/export-unit-papers.mjs` — 1,892 candidate files
+    (1.36 GB), one SELECT per attachment, manifest with sha256. Not on the connector's connection (its
+    15 s budget is for live dispatch hours).
+  - **Import:** `pnpm --filter @silvicom/api mcleod:import-unit-papers`. Subject = the unit McLeod
+    attached it to, through `vehicles.mcleod_tractor_id` / `trailers.mcleod_trailer_id` (prod: 257/272
+    and 237/245 linked, no duplicate ids). Kind from the office's labels (`classifyMcleodPaper`): IRP /
+    registration / annual; skips plate CANCELLED/REVOKED, both-or-neither, and our own
+    `annual-inspection-*.pdf` exports. A file whose NAME starts with another unit's number is HELD:
+    "688.pdf" on truck 687 is 688's cab card (VIN …9439 vs 687's …9438), mis-attached in McLeod.
+    Name-based v5 ids per McLeod comment (re-run = no-op), same bytes on the same unit filed once,
+    bytes re-hashed against the manifest, `compliance.document_imported` audit row per paper (comment
+    id, unit, file name, restore date), thumbnail queued. **No certification is written** (Q-UF2): the
+    Registration item stays "Date only" until its date is recorded against the paper now on file.
+  - `fileGeneratedDocument` takes an optional `contentType` (the scans include JPEGs).
+  - **Production dry run 2026-10-20:** 1,359 to file (tractor 726 IRP, 15 registration, 168 annual;
+    trailer 2 IRP, 234 registration, 214 annual); held 6 (name says another unit); skipped 459 on
+    units we do not hold (127 sold trucks, 57 inactive trailers, plus truck 184 and one trailer that
+    are active in McLeod but not on our roster), 40 ours, 17 already on the unit, 8 cancellations,
+    3 unclear.
+  - **Staging cannot test it:** staging's demo units carry no McLeod ids (0/228, 0/235).
+  - **Thumbnail backfill (UF3):** production dry run 101 owed (99 PDF, 2 WebP). `--limit` added and
+    the script now registers its job handlers (its first `--apply` failed on that, writing nothing).
+    Pilot of 3 applied and looked at: one 14 KB WebP per paper, the report's page 1. The remaining 98
+    were refused by the agent's permission guard as a production deploy — the owner runs them.

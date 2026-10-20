@@ -1,5 +1,5 @@
 /**
- * `pnpm --filter @silvicom/api doc:derive-backfill -- --org <uuid> [--apply]` — queue `document_derive`
+ * `pnpm --filter @silvicom/api doc:derive-backfill -- --org <uuid> [--limit <n>] [--apply]` — queue `document_derive`
  * for every original in one organization that is missing a derivative its content type is owed
  * (DQF-EXECUTION-PLAN B8; UNIT-FILES-PLAN UF3).
  *
@@ -15,6 +15,10 @@
  * whatever bucket `.env` points at. Point it at the environment you mean.
  *
  * One organization per run: the service role bypasses RLS, so every query carries the org itself.
+ *
+ * `--limit <n>` acts on the first n owed originals only (by id, so a re-run picks the same ones until
+ * they are done): a pilot whose thumbnails a person looks at before the rest are queued. Production's
+ * first run, 2026-10-20, was 3 then the remaining 98 (UNIT-FILES-PLAN progress log).
  */
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -22,6 +26,7 @@ import { derivativesFor, isRecordId, type DocumentContentType } from "@silvicom/
 import { loadEnv } from "../env.js";
 import { getSupabaseAdmin } from "../lib/supabaseAdmin.js";
 import { dispatchJob } from "../queue/dispatch.js";
+import { registerAllHandlers } from "../queue/handlers/index.js";
 
 function arg(name: string): string | undefined {
   const i = process.argv.indexOf(`--${name}`);
@@ -76,6 +81,9 @@ async function main(): Promise<void> {
   const org = arg("org");
   if (!org || !isRecordId(org)) throw new Error("--org <organization uuid> is required");
   const apply = process.argv.includes("--apply");
+  const limitArg = arg("limit");
+  const limit = limitArg === undefined ? Infinity : Number(limitArg);
+  if (!(limit > 0) || (limit !== Infinity && !Number.isInteger(limit))) throw new Error("--limit must be a positive whole number");
   const env = loadEnv();
   const admin = getSupabaseAdmin(env);
 
@@ -90,9 +98,16 @@ async function main(): Promise<void> {
   process.stderr.write(`${originals.length} originals, ${owed.length} owed a derivative\n`);
   for (const [type, n] of byType) process.stderr.write(`  ${type}: ${n}\n`);
 
+  const chosen = owed.slice(0, limit);
+  if (chosen.length < owed.length) process.stderr.write(`--limit ${limit}: acting on ${chosen.length} of ${owed.length}: ${chosen.map((o) => o.id).join(", ")}\n`);
+
   let queued = 0;
   if (apply) {
-    for (const o of owed) {
+    // In-process mode (no JOB_EXECUTION_MODE=queue) runs the handler here, so it must be registered
+    // here — the API and the worker register theirs at boot, and this script is neither. Its first
+    // production run failed on exactly this, before writing anything (2026-10-20).
+    registerAllHandlers();
+    for (const o of chosen) {
       await dispatchJob(admin, env, "document_derive", {
         orgId: org,
         payload: { documentId: o.id },

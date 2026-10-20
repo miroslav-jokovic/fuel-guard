@@ -14,6 +14,7 @@
     "doc:score": "tsx src/scripts/scoreDocumentCorpus.ts",
     "doc:replay": "tsx src/scripts/replayDocumentReads.ts",
     "doc:derive-backfill": "tsx src/scripts/backfillDocumentDerivatives.ts",
+    "mcleod:import-unit-papers": "tsx src/scripts/importMcleodUnitPapers.ts",
     "seed:psp-qa": "tsx src/scripts/seedPspQaDrivers.ts",
     "serve:web-dist": "tsx src/scripts/serveWebDist.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
