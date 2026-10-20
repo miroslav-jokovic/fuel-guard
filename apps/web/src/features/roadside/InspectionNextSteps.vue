@@ -3,6 +3,7 @@ import { computed, toRef } from "vue";
 import { AppButton as BaseButton, AppCard as BaseCard, AppIcon, QueryState } from "@silvicom/ui";
 import { CheckCircleIcon, ClockIcon, ExclamationTriangleIcon } from "@silvicom/ui/icons";
 import {
+  courtPaperFiledAt,
   roadsideNextSteps,
   roadsideOpenSteps,
   todayInZone,
@@ -44,7 +45,7 @@ const steps = computed(() =>
         inspectionDate: props.inspectionDate,
         repairs: repairs.data.value,
         certification: certification.data.value ?? null,
-        citations: citations.data.value,
+        citations: citations.data.value && { tickets: citations.data.value.tickets, courtPaperFiledAt: courtPaperFiledAt(citations.data.value.courtPapers) },
         today: todayInZone(new Date(), zone.value),
       })
     : [],

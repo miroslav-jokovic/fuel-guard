@@ -64,6 +64,10 @@ beforeEach(() => {
       roadside_citations: (q) => ({ data: filtered([{ org_id: ORG, inspection_id: INSP, violation_id: V1, citation_result: "Not Guilty/Dismissed", adjseq: 1 }], q, ["org_id", "inspection_id"]) }),
       inspection_citation_actions: (q) => (q.write ? { data: { id: "new-1" } } : { data: filtered(ACTS, q, ["org_id", "inspection_id", "violation_id"]) }),
       documents: () => ({ data: [] }),
+      roadside_inspections: () => ({ data: null }),
+      organizations: () => ({ data: null }),
+      inspection_citation_dispositions: () => ({ data: [] }),
+      dataqs_cases: () => ({ data: [] }),
       memberships: () => ({ data: [] }),
       profiles: () => ({ data: [] }),
       audit_logs: () => ({ data: [] }),
@@ -71,7 +75,7 @@ beforeEach(() => {
   });
 });
 
-type Body = { data?: { tickets: RoadsideCitationDto[]; courtResultFiled: boolean }; error?: { code: string } };
+type Body = { data?: { tickets: RoadsideCitationDto[]; courtPapers: unknown[] }; error?: { code: string } };
 async function send(method: "GET" | "POST", body?: unknown): Promise<{ status: number; body: Body }> {
   const app = express();
   app.use(express.json());
@@ -99,7 +103,7 @@ describe("an inspection's tickets", () => {
       ["E061", ["Not Guilty/Dismissed"], null],
       ["E062", [], ACT_NEW],
     ]);
-    expect(body.data!.courtResultFiled).toBe(false);
+    expect(body.data!.courtPapers).toEqual([]);
     // A name is read by user id once `memberLabels` has found the member in THIS org's memberships.
     expectOrgScoped(rec, ORG, { exempt: ["memberships", "profiles", "user_profiles"] });
   });

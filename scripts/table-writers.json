@@ -326,6 +326,12 @@
   "inspection_citation_actions": [
     "apps/api/src/modules/inspections/citation/act.ts"
   ],
+  "inspection_citation_dispositions": [
+    "apps/api/src/modules/inspections/citation/dispose.ts"
+  ],
+  "dataqs_cases": [
+    "apps/api/src/modules/inspections/citation/dataqs.ts"
+  ],
   "inspection_report_checks": [
     "apps/api/src/modules/inspections/report/check.ts"
   ],

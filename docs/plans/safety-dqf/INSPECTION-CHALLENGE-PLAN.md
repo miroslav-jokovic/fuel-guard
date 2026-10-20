@@ -1167,3 +1167,39 @@ about three merges.
   - **Inspection page**: the Violations and Units tables are cards with a header band (the record pages' section shape),
     and "refreshed daily" is "refreshed when FMCSA publishes" (true since IC1d).
   - **Next:** IC4's second merge — read a filed court result against its violation (R-ADJ2) and the DataQs hand-off.
+- **2026-10-19 — IC4, second merge: what the court decided, per ticket, and the DataQs request (R-ADJ2, R-ADJ3).
+  Migration 0495.** Owner: "proceed as proposed" — a person records the disposition; the document reader's pre-fill
+  is the third merge.
+  - **The gap closed:** a filed `court_disposition` paper no longer closes every ticket on its inspection (5 hold two).
+    It opens "record what the court decided" on each ticket the office has not acted on since it was filed; asking the
+    court again after it says the paper was another ticket's. `citationStanding` takes the newest paper's filing time
+    (`courtPaperFiledAt`) in place of a boolean.
+  - **0495 `inspection_citation_dispositions`** (append-only, RETENTION_FORBIDDEN, no client policy): per violation, the
+    court paper it was read from (`document_id`, checked by the service to be a court result on THIS inspection — no FK,
+    `documents` is evidence's), FMCSA's outcome code 3 / 2 / 1 (job aid; 0 is a warning's and refused), the new charge
+    exactly when it is 2, court, day (not before the inspection, not after today), who recorded it. Its unique key
+    `(id, org_id, inspection_id, violation_id)` is what the request's FK names, so a request can never rest on another
+    ticket's disposition (matrix `inspection-citation-dispositions.test.mjs`, 28 checks).
+  - **0495 `dataqs_cases`**: `approved` (narrative as attested, the driver DECISION it was made over — `attribution_id`,
+    D-IC7 — attester and instant) then `filed` (RDR number and day, the approval carried forward). Type
+    `inspection_citation_with_associated_violation` only. A draft is not a row: it is drafted from the disposition each
+    time it is shown. FMCSA's answer arrives on the feed as the violation's result and outranks everything (`decided`).
+  - **The rule** (`citationStanding`, read by the Tickets card, the Next steps strip, the inbox and the API's writes):
+    FMCSA's result → `decided`; a filed request → `filed`; code 1, or past 24 months → `court_decided` (nothing to
+    file, R-ADJ3, says why); code 3/2 → `file_ready` ("prepare the DataQs request"), `file_approved` ("file it in
+    DataQs"), or `file_ready` with `redraft` when the disposition was recorded again after approval. A recorded
+    disposition outranks an earlier "not contested".
+  - **Draft** (`roadsideDataqsContract.ts`): `dataqsNarrative` — five sentences, each a fact from the report, the ticket
+    or the court paper, MM/DD/YYYY; "severity weight of 1" for a different charge, "removed" for a dismissal. A fact we
+    do not hold is left out of the sentence, and `dataqsFields` (the job aid's fields, in order) says "Not on our
+    record — read it from the report" rather than dropping the field. AI drafting stays IC7's.
+  - **Hand-off** (Tickets card → `TicketDispositionForm`, `TicketDataqsRequest`): the paper, the outcome (each saying its
+    CSA effect), court, day; then the fields, who was driving (a decision, else "Go to the driver card"), the editable
+    explanation, DataQs's 18 USC 1001 text word for word, a checkbox, "Approve for filing"; then Open DataQs, the fields,
+    "Copy it", the court paper in the sanctioned viewer, and the RDR number with its day. Writes on safety manage:
+    `POST /:id/citations/dispositions`, `/dataqs`, `/dataqs/filed` (routes moved to `routes/citations.ts`; audited
+    `roadside.citation_disposition_recorded`, `roadside.dataqs_approved`, `roadside.dataqs_filed`). The API re-derives the
+    standing and refuses an approval that is not `file_ready`, over a disposition or driver decision other than the
+    page's, or with no driver decision; and an RDR number over anything but the current approval.
+  - **Next (IC4, third merge):** a `court_disposition` read profile on the document reader pre-fills the form from the
+    filed paper (outcome, court, day, which ticket by citation number); a person still saves it.
