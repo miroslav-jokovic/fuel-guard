@@ -722,3 +722,14 @@ around them.
   PDF's thumb once derived, "View" before. B8's never-written backfill is now
   `pnpm --filter @silvicom/api doc:derive-backfill -- --org <uuid> [--apply]` (dry run by default).
   Production 2026-10-19: **96 PDF originals, 0 with a thumb** — the `--apply` run waits on the owner's go.
+- 2026-10-19 — **UF2 built** (`claude/uf2-unit-file-rollup`). Shared: `equipmentFileCatalogue.ts` (§4's
+  seven items; annual inspection reads the certification's own `expires_at`, since finalize writes a
+  fail as expiring that day), `unitFile.ts` (`buildUnitFile`: own paper → fleet paper on the org →
+  scan for paper-only items; McLeod's date as `dateOnly` beside a missing item; title/lease held in
+  `ownershipUnknown`), `unitFileContract.ts`, `fileSections.ts` (`fileSectionFor`). API:
+  `GET /api/compliance/unit-files?subjectType=` (equipment view) in `evidence/unitFiles.ts`, reading
+  units through roster's new `listUnitFileFacts` (new declared edge `evidence -> roster`). D-UF5 live on
+  `/certifications` and `/documents` (GET, POST, download): a coarse `anyFileSection` door, then
+  `mayFile` per paper; the organization's lists are narrowed per row. `withPapers` on the driver
+  overview moves to UF4, with its reader. The route judges on the carrier's calendar day (`todayInZone` over the org zone), not
+  Railway's UTC date, and on equipment's own 30-day window (`INSPECTION_EXPIRY_WARNING_DAYS`).
