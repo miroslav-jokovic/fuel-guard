@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { matchHazSubstances } from "./hazSubstanceMatch.js";
+import { matchAppendixNames } from "../appendixNameMatch.js";
 import { DS, ok, pline, result, rline } from "./paperAudit.fixtures.js";
 
 /**
- * Appendix A by FORM, not by exact name (hazSubstanceMatch.ts). Rows copied from dataset 2026.10.0. The
+ * Appendix A by FORM, not by exact name (appendixNameMatch.ts). Rows copied from dataset 2026.10.0. The
  * first case is the owner's 2026-10-19 Mayo Products BOL 14182: eight 3,600 lb totes of 50 % caustic soda
  * under "UN1824, Sodium hydroxide solution", which the exact match passed as `not_listed`.
  */
@@ -64,13 +64,13 @@ describe("Appendix A by form", () => {
   });
 
   it("a different compound that starts with a listed name matches nothing", () => {
-    expect(matchHazSubstances(["Chlorine pentafluoride"], DS_A.hazSubstances)).toEqual({ neat: [], mixture: [] });
+    expect(matchAppendixNames(["Chlorine pentafluoride"], DS_A.hazSubstances)).toEqual({ neat: [], mixture: [] });
     const r = rq("UN1745-chlorine-pentafluoride", "Chlorine pentafluoride", "UN1745", "2.3", null, 500, 1);
     expect(r.reason).toBe("not_listed");
   });
 
   it("word boundaries hold: 'Sodium' does not match 'Sodium hydroxide solution' as the substance sodium", () => {
-    const m = matchHazSubstances(["Sodium hydroxide solution"], [{ nameNormalized: "sodium", rqPounds: 10 }, { nameNormalized: "sodium hydroxide", rqPounds: 1000 }]);
+    const m = matchAppendixNames(["Sodium hydroxide solution"], [{ nameNormalized: "sodium", rqPounds: 10 }, { nameNormalized: "sodium hydroxide", rqPounds: 1000 }]);
     expect(m.neat).toEqual([]);
     expect(m.mixture.map((h) => h.nameNormalized)).toEqual(["sodium hydroxide"]);
   });
