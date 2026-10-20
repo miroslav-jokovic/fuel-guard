@@ -261,7 +261,11 @@ export function complianceRouter(): Router {
       const orgId = req.auth!.orgId!;
       // A Med-Stop violation raises the return-to-duty item for the testing-record readers only.
       const medstopViolations = await overviewViolationsFor(admin, orgId, req.auth!.role);
-      res.json(await getComplianceOverview(admin, orgId, today, { medstopViolations }));
+      // The roster's File cell (UF4b): each driver's newest papers, narrowed to what THIS reader may
+      // see by the same two rules the documents list below applies — the paper's section (D-UF5)
+      // and the restricted-kind rule (Phase G). Only this route asks for papers.
+      const withPapers = (kind: string) => mayFile(req, "view", "driver", kind) && canReadRestrictedKind(kind, req.auth!.role);
+      res.json(await getComplianceOverview(admin, orgId, today, { medstopViolations, withPapers }));
     }),
   );
 

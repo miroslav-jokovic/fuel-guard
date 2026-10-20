@@ -1,4 +1,5 @@
 import { computed, type ComputedRef, type WritableComputedRef } from "vue";
+import { FILE_CHIPS } from "@silvicom/shared";
 import { type SortState, toggleSort, useQueryState } from "@silvicom/ui";
 
 /**
@@ -54,6 +55,13 @@ export interface RosterFilters {
    */
   dqRequirement: WritableComputedRef<string>;
   /**
+   * The File cell's chip, as a filter (UNIT-FILES-PLAN UF4b): `expired`, `missing`, `expiring`,
+   * `complete`, `not_started` — `FILE_CHIPS`, the same vocabulary and the same `?file=` the Vehicles
+   * and Trailers lists carry, so "2 expiring" opens the same kind of list on all three. Set by
+   * clicking a chip or by the File control; a word outside the vocabulary is no filter at all.
+   */
+  file: WritableComputedRef<string>;
+  /**
    * `none` = active drivers holding no truck (`seatedDriverIds`). Set by the Operations tab's Seats
    * card rather than by a control, exactly as `req` is set by a view — and counted by the page's
    * "Clear filters" for the same reason: the reader needs the way back from a filter they did not pick.
@@ -105,6 +113,14 @@ export function useRosterFilters(): RosterFilters {
     set: (v) => setFiltering({ req: v || undefined }),
   });
 
+  const file = computed<string>({
+    get: () => {
+      const v = one("file") ?? "";
+      return (FILE_CHIPS as readonly string[]).includes(v) ? v : "";
+    },
+    set: (v) => setFiltering({ file: v || undefined }),
+  });
+
   const seat = computed<string>({
     get: () => (one("seat") === "none" ? "none" : ""),
     set: (v) => setFiltering({ seat: v === "none" ? "none" : undefined }),
@@ -137,7 +153,7 @@ export function useRosterFilters(): RosterFilters {
   });
 
   const active = computed(
-    () => Boolean(one("q") || one("status") || one("show") || one("dq") || one("due") || one("req") || one("seat")),
+    () => Boolean(one("q") || one("status") || one("show") || one("dq") || one("due") || one("req") || one("file") || one("seat")),
   );
 
   // Clears what narrows the roster and keeps the sort: the sort orders the list rather than
@@ -145,11 +161,11 @@ export function useRosterFilters(): RosterFilters {
   const reset = (): void =>
     set({
       q: undefined, status: undefined, show: undefined,
-      dq: undefined, due: undefined, req: undefined, seat: undefined, page: undefined,
+      dq: undefined, due: undefined, req: undefined, file: undefined, seat: undefined, page: undefined,
     });
 
   return {
-    search, status, dqState, dqDue, dqRequirement, seat,
+    search, status, dqState, dqDue, dqRequirement, file, seat,
     view, showArchived, sort, onSort, page, active, reset,
   };
 }

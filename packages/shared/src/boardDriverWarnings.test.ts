@@ -5,7 +5,7 @@ import { USER_ROLES } from "./constants.js";
 import type { DqRosterCell } from "./dqFile.js";
 
 const cell = (key: DqRosterCell["key"], state: DqRosterCell["state"], goodUntil: string | null = "2026-11-01"): DqRosterCell =>
-  ({ key, state, goodUntil, daysRemaining: null, expiryUnknown: false });
+  ({ key, state, goodUntil, daysRemaining: null, expiryUnknown: false, documentId: null });
 
 describe("credentialWarnings — the medical card and the CDL off the driver's DQ file", () => {
   it("is overdue once expired and due inside the file's window", () => {

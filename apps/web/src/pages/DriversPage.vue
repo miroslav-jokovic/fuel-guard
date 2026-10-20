@@ -24,14 +24,18 @@ import DriverRosterTable from "@/features/roster/DriverRosterTable.vue";
 import { DRIVER_ROSTER_COLUMNS } from "@/features/roster/driverRosterColumns";
 import ColumnPicker from "@/components/ui/ColumnPicker.vue";
 import SavedViewMenu from "@/components/ui/SavedViewMenu.vue";
-import DocumentsModal from "@/components/DocumentsModal.vue";
-import { useDocumentsQuery } from "@/composables/useCompliance";
+import FileGallery from "@/components/files/FileGallery.vue";
+import type { FileSubject } from "@/components/files/fileSubject";
 import { useSavedViewMenu } from "@/composables/useSavedViewMenu";
 import { useTableColumns } from "@/composables/useTableColumns";
 import {
+  FILE_CHIPS,
+  FILE_CHIP_LABELS,
   SAVED_VIEW_TABLES,
   canManageDriverIdentity,
+  fileChip,
   matchesDqFilters,
+  matchesFileChip,
   seatedDriverIds,
   dqStateFilterOptions,
   dqDueFilterOptions,
@@ -128,6 +132,8 @@ async function linkDriver(sourceId: string) {
 const ROSTER_TABLE = SAVED_VIEW_TABLES[0];
 const DQ_STATE_OPTIONS = dqStateFilterOptions();
 const DQ_DUE_OPTIONS = dqDueFilterOptions();
+/** The File cell's chip as a filter — the same options the Vehicles and Trailers toolbars carry (UF4b). */
+const FILE_OPTIONS = [{ value: "", label: "Any" }, ...FILE_CHIPS.map((c) => ({ value: c, label: FILE_CHIP_LABELS[c] }))];
 
 /** Which columns this reader keeps (R3b). */
 const rosterColumns = useTableColumns(ROSTER_TABLE, () => DRIVER_ROSTER_COLUMNS);
@@ -144,7 +150,7 @@ const rosterColumns = useTableColumns(ROSTER_TABLE, () => DRIVER_ROSTER_COLUMNS)
  * not erase the person from records they appear in.
  */
 const {
-  search, status: statusFilter, dqState, dqDue, dqRequirement, seat,
+  search, status: statusFilter, dqState, dqDue, dqRequirement, file: fileFilter, seat,
   view, showArchived, sort, onSort, page, reset,
 } = useRosterFilters();
 const { data: vehicles } = useVehiclesQuery();
@@ -158,7 +164,7 @@ const seated = computed(() => seatedDriverIds(vehicles.value ?? []));
  */
 const activeFilterCount = computed(
   () =>
-    [search.value, statusFilter.value, dqState.value, dqDue.value, dqRequirement.value, seat.value].filter(Boolean).length +
+    [search.value, statusFilter.value, dqState.value, dqDue.value, dqRequirement.value, fileFilter.value, seat.value].filter(Boolean).length +
     (showArchived.value ? 1 : 0),
 );
 
@@ -169,14 +175,14 @@ const activeFilterCount = computed(
 const viewMenu = useSavedViewMenu(ROSTER_TABLE, "roster");
 
 /**
- * The §391.51 folder (R5, D-ROS8). ONE modal owned by the page, never one per row — and the
- * documents themselves are fetched only when a folder is opened, so the roster's own load is
- * unchanged whatever the fleet size.
+ * The §391.51 file's papers, one at a time (UNIT-FILES-PLAN UF4b; D-ROS8 before it). ONE gallery
+ * owned by the page, never one per row — and the papers themselves are fetched only when it opens,
+ * so the roster's own load signs nothing but the thumbnails it draws, whatever the fleet size.
  */
-const documentsDriver = ref<Driver | null>(null);
-const documentsSubject = ref("driver");
-const documentsDriverId = computed(() => documentsDriver.value?.id ?? null);
-const documentsQ = useDocumentsQuery(documentsSubject, documentsDriverId);
+const gallery = ref<{ subject: FileSubject; label: string; startId: string | null } | null>(null);
+function openGallery(d: Driver, documentId?: string) {
+  gallery.value = { subject: { type: "driver", id: d.id }, label: d.full_name, startId: documentId ?? null };
+}
 
 const archiving = ref<Driver | null>(null);
 const archiveDriver = useArchiveDriver();
@@ -219,7 +225,7 @@ const overviewRows = computed(
 const filtered = computed(() => {
   const term = search.value.toLowerCase();
   const dq = { state: dqState.value, due: dqDue.value, req: dqRequirement.value };
-  const filteringDq = Boolean(dqState.value || dqDue.value || dqRequirement.value);
+  const filteringDq = Boolean(dqState.value || dqDue.value || dqRequirement.value || fileFilter.value);
   return (drivers.value ?? []).filter((d) => {
     if (Boolean(d.archived_at) !== showArchived.value) return false;
     if (statusFilter.value && d.status !== statusFilter.value) return false;
@@ -230,6 +236,9 @@ const filtered = computed(() => {
       // to match against — so a qualification filter excludes them rather than admitting them
       // silently as "nothing wrong".
       if (!row || !matchesDqFilters(row, dq)) return false;
+      // The chip's filter asks the chip's own function (UF4b): "2 expiring" clicked lists exactly
+      // the rows whose chip reads expiring, and no row whose chip says something worse.
+      if (fileFilter.value && !matchesFileChip(fileChip({ state: row.state, counts: row.counts }), fileFilter.value)) return false;
     }
     if (!term) return true;
     return [d.full_name, d.employee_id, d.phone, d.samsara_username]
@@ -306,6 +315,7 @@ async function onSubmit(input: DriverInput) {
       :count="filtered.length"
       count-label="drivers"
       :active-count="activeFilterCount"
+      :more-count="dqDue ? 1 : 0"
       @clear-all="reset"
     >
       <template #filters>
@@ -313,7 +323,16 @@ async function onSubmit(input: DriverInput) {
         <FilterSelect v-model="view" label="Show" :options="VIEW_OPTIONS" />
         <!-- The same two filters the compliance fleet table carries, same words, same predicate. -->
         <FilterSelect v-model="dqState" label="File status" :options="DQ_STATE_OPTIONS" />
-        <FilterSelect v-model="dqDue" label="Due" :options="DQ_DUE_OPTIONS" />
+        <!-- The File cell's chip as a control (UF4b) — the same vocabulary as the Vehicles and
+             Trailers toolbars. "File status" beside it asks "has ANY item in this state"; this one
+             asks what the chip says, worst state first. Both stay: the compliance widget links here
+             with `?dq=`, and the built-in views are written in it. -->
+        <FilterSelect v-model="fileFilter" label="File" :options="FILE_OPTIONS" />
+      </template>
+      <template #more>
+        <!-- Four controls is the toolbar's limit (`lint:ui-adoption`). Due is the one set by the
+             built-in views rather than by hand, so it is the one behind the Filters button. -->
+        <FilterSelect v-model="dqDue" label="Due" :options="DQ_DUE_OPTIONS" block />
       </template>
       <template #actions>
         <SavedViewMenu
@@ -348,7 +367,8 @@ async function onSubmit(input: DriverInput) {
       @update:page="page = $event"
       @edit="openEdit"
       @manage-access="openAccess"
-      @documents="documentsDriver = $event"
+      @open-file="openGallery"
+      @file-filter="fileFilter = $event"
       @archive="archiving = $event"
       @restore="setArchived($event, false)"
     />
@@ -452,13 +472,11 @@ async function onSubmit(input: DriverInput) {
       </template>
     </SlideOver>
 
-    <DocumentsModal
-      :open="documentsDriver !== null"
-      :subject-label="documentsDriver?.full_name ?? ''"
-      :documents="documentsQ.data.value ?? []"
-      :loading="documentsQ.isLoading.value"
-      :error="documentsQ.isError.value ? 'Could not load this driver\'s folder.' : null"
-      @close="documentsDriver = null"
+    <FileGallery
+      :subject="gallery?.subject ?? null"
+      :subject-label="gallery?.label ?? ''"
+      :start-id="gallery?.startId ?? null"
+      @close="gallery = null"
     />
 
     <DriverAccessModal :open="accessOpen" :driver="accessDriver" @close="accessOpen = false" />

@@ -2,14 +2,16 @@
 import { computed } from "vue";
 import { AppIcon, AppButton as BaseButton } from "@silvicom/ui";
 import { ArrowDownTrayIcon, DocumentTextIcon } from "@silvicom/ui/icons";
-import { DQ_KIND_LABELS, type FileChip, type PaperThumb, type UnitFileCell } from "@silvicom/shared";
+import { DQ_KIND_LABELS, type FileChip, type PaperThumb } from "@silvicom/shared";
 import { apiFetch } from "@/lib/api";
 import { BADGE_BASE, fileChipTone, toneClass } from "@/lib/badges";
 import { formatDate } from "@/lib/format";
 import { useToastStore } from "@/stores/toast";
 
 /**
- * A unit's file in one table cell (UNIT-FILES-PLAN UF4): the state chip, up to three thumbnails, "+N".
+ * A unit's or a driver's file in one table cell (UNIT-FILES-PLAN UF4, D-UF7): the state chip, up to
+ * three thumbnails, "+N". One component for the three lists — it reads one row shape and knows
+ * nothing about trucks or people.
  *
  * The chip comes FIRST and is worked out by `fileChip` in shared — never here — because the same
  * function answers the page's `?file=` filter: clicking "2 expiring" lists exactly the rows whose chip
@@ -28,8 +30,11 @@ const props = defineProps<{
   papers: PaperThumb[];
   /** Every original on file — what "+N" counts past `papers`. */
   paperCount: number;
-  /** The file's items, to say which requirement a paper proves and until when. */
-  items: UnitFileCell[];
+  /**
+   * The file's items, to say which requirement a paper proves and until when — a truck's
+   * `UnitFileCell`s or a driver's `DqRosterCell`s (UF4b), of which only these two fields are read.
+   */
+  items: ReadonlyArray<{ documentId: string | null; goodUntil: string | null }>;
   /** "Unit 654" — for the accessible names. */
   subjectLabel: string;
 }>();

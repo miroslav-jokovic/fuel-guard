@@ -181,6 +181,25 @@ describe("useRosterFilters", () => {
     expect(f.seat.value).toBe("");
   });
 
+  it("reads the File cell's chip as a filter, in the chip's own vocabulary (UF4b)", async () => {
+    const { f, router } = await mountFilters("/drivers?file=expiring");
+    expect(f.file.value).toBe("expiring");
+    expect(f.active.value).toBe(true);
+    f.file.value = "";
+    await settle();
+    expect(router.currentRoute.value.query).toEqual({});
+  });
+
+  it("reads a chip word it does not know as no filter, and clears a known one with everything else", async () => {
+    // `?file=banana` reaches here from a hand-edited link; it must not empty the roster.
+    expect((await mountFilters("/drivers?file=banana")).f.file.value).toBe("");
+    const { f, router } = await mountFilters("/drivers?file=missing&page=3");
+    expect(f.file.value).toBe("missing");
+    f.reset();
+    await settle();
+    expect(router.currentRoute.value.query).toEqual({});
+  });
+
   it("does not count the column choice as a narrowed roster", async () => {
     // `hide` belongs to the reader's table, not to which drivers are on it (R3b).
     const { f } = await mountFilters("/drivers?hide=phone");

@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { RouterLink } from "vue-router";
-import type { Driver, DqRosterColumnKey } from "@silvicom/shared";
-import { canManageDriverIdentity, driverAppAccess } from "@silvicom/shared";
+import type { Driver, DqRosterCell, DqRosterColumnKey, FileChipKind } from "@silvicom/shared";
+import { canManageDriverIdentity, driverAppAccess, fileChip } from "@silvicom/shared";
 import {
   AppButton as BaseButton,
   DataTable,
@@ -14,11 +14,11 @@ import { useSessionStore } from "@/stores/session";
 import { useComplianceOverviewQuery } from "@/composables/useCompliance";
 import { useVehiclesQuery } from "@/composables/useVehicles";
 import KebabMenu from "@/components/KebabMenu.vue";
-import GatedLink from "@/components/GatedLink.vue";
+import FileCell from "@/components/files/FileCell.vue";
 import { useOpens } from "@/composables/useOpens";
 import StatusBadge from "@/components/StatusBadge.vue";
 import { formatPhone, formatDate } from "@/lib/format";
-import { BADGE_BASE, appAccessBadge, dqExpiryBadge, dqFileBadge, hosStatusBadge, toneClass } from "@/lib/badges";
+import { BADGE_BASE, appAccessBadge, dqExpiryBadge, hosStatusBadge, toneClass } from "@/lib/badges";
 
 /**
  * The roster grid (D-ROS1: it reads and navigates; the record page writes).
@@ -58,15 +58,18 @@ const emit = defineEmits<{
   "manage-access": [driver: Driver];
   archive: [driver: Driver];
   restore: [driver: Driver];
-  /** The file cell opens ONE modal, owned by the page (D-ROS8) — never a dialog per row. */
-  documents: [driver: Driver];
+  /** A thumbnail or "+N" opens ONE gallery, owned by the page (D-ROS8) — never a dialog per row. */
+  "open-file": [driver: Driver, documentId?: string];
+  /** The chip was clicked: the page narrows to files in this state (`?file=`). */
+  "file-filter": [kind: FileChipKind];
 }>();
 
 const session = useSessionStore();
 /**
  * SP5 (plan §4b): the qualification file is its own screen (`safety.driver-qualification`), which
  * the admin can switch off per role and per person apart from the roster. Where it does not open,
- * the badge stays and stops being a door, and the row menu drops "Open qualification file…".
+ * the row menu drops "Open qualification file…". The cell itself is no longer a door to it since
+ * UF4b — the chip filters and the thumbs open the gallery — so there is nothing in the row to gate.
  */
 const opens = useOpens();
 
@@ -84,39 +87,33 @@ function hosAgo(iso: string | null): string {
 const accessBadge = (d: Driver) => appAccessBadge(driverAppAccess(d.user_id, d.app_access_enabled));
 
 /**
- * The qualification column (D3): the roster finally answers "may this driver be dispatched" from
- * the SAME overview rollup the qualification page renders — never a second computation. A due date
- * inside 30 days outranks the plain state word, because "Due 12d" is the phone call to make today.
- * Rows the overview does not return (EFS stubs, terminated) read as "—".
+ * The File column (UNIT-FILES-PLAN UF4b, D-UF7): the roster answers "is this driver's file in order,
+ * and what is on it" from the SAME overview rollup the qualification page renders — never a second
+ * computation. The chip is `fileChip`'s word, worst state first, the one a truck's cell says too; a
+ * driver's file has no McLeod date beside a missing item, so there is no "date only" here. Rows the
+ * overview does not return (EFS stubs, terminated) read as "—".
  *
  * ⚠ Indexed by driver id ONCE rather than `.find()` per row. The array form was O(rows × drivers)
- * every render, and R4 adds three more columns reading this same rollup — which would have made a
+ * every render, and R4 added three more columns reading this same rollup — which would have made a
  * 200-driver roster quadratic four times over.
  */
 const overviewQ = useComplianceOverviewQuery();
 const overviewByDriver = computed(
   () => new Map((overviewQ.data.value?.drivers ?? []).map((d) => [d.driver_id, d])),
 );
-const qualBadge = (driverId: string): { label: string; tone: string } | null => {
-  const row = overviewByDriver.value.get(driverId);
-  if (!row) return null;
-  const dated = row.attention.filter((a) => a.daysRemaining !== null && a.daysRemaining >= 0);
-  const soonest = dated.length ? Math.min(...dated.map((a) => a.daysRemaining as number)) : null;
-  if (row.state === "incomplete" && soonest !== null && soonest <= 30 && row.counts.expired === 0) {
-    return { label: `Due ${soonest}d`, tone: "warning" };
-  }
-  return dqFileBadge(row.state);
-};
+const chipByDriver = computed(
+  () => new Map([...overviewByDriver.value].map(([id, row]) => [id, fileChip({ state: row.state, counts: row.counts })])),
+);
 
 /**
- * The three §391.51 expiry cells, off the same rollup the qualification badge reads (R4, D-ROS9).
+ * The three §391.51 expiry cells, off the same rollup the File cell reads (R4, D-ROS9).
  *
  * Indexed per driver per requirement ONCE. Three columns × 20 rows searching an array per render is
- * the defect R2 removed from `qualBadge`, and adding it back three times over would have been a poor
- * way to use the lesson.
+ * the defect R2 removed from the old qualification badge, and adding it back three times over would
+ * have been a poor way to use the lesson.
  */
 const requirementsByDriver = computed(() => {
-  const byDriver = new Map<string, Map<string, { state: string; goodUntil: string | null; expiryUnknown: boolean }>>();
+  const byDriver = new Map<string, Map<string, DqRosterCell>>();
   for (const row of overviewQ.data.value?.drivers ?? []) {
     byDriver.set(row.driver_id, new Map((row.requirements ?? []).map((r) => [r.key, r])));
   }
@@ -124,14 +121,6 @@ const requirementsByDriver = computed(() => {
 });
 const expiry = (driverId: string, key: DqRosterColumnKey) =>
   dqExpiryBadge(requirementsByDriver.value.get(driverId)?.get(key), formatDate);
-
-/**
- * Scans filed, out of the requirements that apply (R5). Off the same rollup — no per-row fetch, and
- * therefore no signed-URL round trip per driver on a 287-row roster.
- */
-const documentCounts = computed(
-  () => new Map((overviewQ.data.value?.drivers ?? []).map((d) => [d.driver_id, d.documents])),
-);
 
 /**
  * Vehicles assigned to a driver (assignment is set from the Vehicles page). Indexed for the same
@@ -190,15 +179,17 @@ const assignedUnits = (driverId: string) => unitsByDriver.value.get(driverId)?.j
         <span v-if="row.app_username" class="font-mono text-xs text-ink-muted">{{ row.app_username }}</span>
       </div>
     </template>
-    <template #cell-qualification="{ row }">
-      <GatedLink
-        v-if="qualBadge(row.id)"
-        :to="`/compliance/${row.id}`"
-        :class="[BADGE_BASE, toneClass(qualBadge(row.id)!.tone)]"
-        :plain-class="[BADGE_BASE, toneClass(qualBadge(row.id)!.tone)]"
-      >
-        {{ qualBadge(row.id)!.label }}
-      </GatedLink>
+    <template #cell-file="{ row }">
+      <FileCell
+        v-if="overviewByDriver.get(row.id)"
+        :chip="chipByDriver.get(row.id)!"
+        :papers="overviewByDriver.get(row.id)!.papers ?? []"
+        :paper-count="overviewByDriver.get(row.id)!.paper_count ?? 0"
+        :items="overviewByDriver.get(row.id)!.requirements"
+        :subject-label="row.full_name"
+        @open="emit('open-file', row, $event)"
+        @filter="emit('file-filter', $event)"
+      />
       <span v-else class="text-ink-tertiary">—</span>
     </template>
     <!-- The date cells NAVIGATE, they do not edit (D-ROS1). `?section=qualification` is a public
@@ -228,19 +219,6 @@ const assignedUnits = (driverId: string) => unitsByDriver.value.get(driverId)?.j
         :to="`/drivers/${row.id}?section=qualification`"
         :class="expiry(row.id, 'endorsement_hazmat')!.urgent ? [BADGE_BASE, toneClass(expiry(row.id, 'endorsement_hazmat')!.tone)] : 'text-ink-secondary tabular-nums'"
       >{{ expiry(row.id, "endorsement_hazmat")!.label }}</RouterLink>
-      <span v-else class="text-ink-tertiary">—</span>
-    </template>
-    <template #cell-documents="{ row }">
-      <BaseButton
-        v-if="documentCounts.get(row.id)"
-        variant="ghost"
-        size="sm"
-        class="tabular-nums"
-        :title="`Open ${row.full_name}'s filed scans`"
-        @click="emit('documents', row)"
-      >
-        {{ documentCounts.get(row.id)!.onFile }}/{{ documentCounts.get(row.id)!.of }}
-      </BaseButton>
       <span v-else class="text-ink-tertiary">—</span>
     </template>
     <template #cell-vehicles="{ row }">{{ assignedUnits(row.id) }}</template>

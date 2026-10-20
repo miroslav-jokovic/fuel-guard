@@ -20,8 +20,8 @@ vi.mock("@/lib/documentDownload", () => ({ openPdf, downloadPdf: vi.fn(), saveOb
 
 /**
  * ⚠ `DocumentPreview` is mounted for real here, with only its `BaseModal` stubbed — HeadlessUI's
- * `Dialog` throws under this repo's jsdom, as `DocumentPreview.test.ts` and `DocumentsModal.test.ts`
- * both note. Stubbing the VIEWER instead would leave the path this drawer hands it unasserted, which
+ * `Dialog` throws under this repo's jsdom, as `DocumentPreview.test.ts`
+ * notes. Stubbing the VIEWER instead would leave the path this drawer hands it unasserted, which
  * is the one thing about this wiring that can be wrong.
  */
 const BaseModalStub = {

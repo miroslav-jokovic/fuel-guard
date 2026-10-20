@@ -17,6 +17,7 @@
  */
 
 import { DQ_ITEMS, DQ_GROUPS, DQ_GROUP_LABELS } from "./dqCatalogue.js";
+import type { PaperThumb } from "./unitFileContract.js";
 import type { DqGroup, DqItemSpec, DqItemState } from "./dqCatalogue.js";
 import { returnToDutyCause } from "./returnToDuty.js";
 import {
@@ -133,9 +134,10 @@ export const compareAttention: (a: DqAttentionItem, b: DqAttentionItem) => numbe
  *
  * ⚠ These cells inherit §6 Q6 unchanged: a date synced from a TMS with no scan behind it reads
  * `current`, because `buildDqFile` computes presence from the certification rather than the
- * document. `documentId` is deliberately NOT projected here — surfacing it would be asserting a
- * distinction the rest of the product does not yet make, and Q6 is its own step across the queue,
- * these columns and the binder.
+ * document. `documentId` was deliberately not projected here until UNIT-FILES-PLAN UF4b, and it is
+ * projected now for ONE reader: the File cell's hover card, which joins a thumbnail to the item it
+ * proves. Nothing reads it to decide a state — a cell with a date and no scan still reads `current`,
+ * and Q6 remains its own step across the queue, these columns and the binder.
  */
 /**
  * How much of this driver's §391.51 file has an actual SCAN behind it (R5).
@@ -182,6 +184,12 @@ export interface DqRosterCell {
   daysRemaining: number | null;
   /** True when evidence exists but carries no expiry — a data defect, not an eternal licence. */
   expiryUnknown: boolean;
+  /**
+   * The scan proving this item, when one is cited (UNIT-FILES-PLAN UF4b). The roster's File cell
+   * draws a driver's newest papers and says, on the hover card, what each one proves and until when
+   * — which is a join on this id against `papers`. Only these three keys carry it, none restricted.
+   */
+  documentId: string | null;
 }
 
 /**
@@ -201,6 +209,7 @@ export function dqRosterCells(file: DqFileSummary, today: string): DqRosterCell[
       // about what today is when the caller passes a full ISO timestamp.
       daysRemaining: i.goodUntil ? daysBetween(day(today), i.goodUntil) : null,
       expiryUnknown: i.expiryUnknown,
+      documentId: i.documentId,
     }));
 }
 
@@ -230,6 +239,15 @@ export interface DriverOverviewRow {
   requirements: DqRosterCell[];
   /** How much of the file has a scan behind it (R5) — a fold over work the rollup already did. */
   documents: DqDocumentCount;
+  /**
+   * The driver's newest papers, newest first, at most `PAPERS_PER_ROW`, with signed thumbnails — the
+   * roster's File cell (UNIT-FILES-PLAN UF4b, D-UF7), the same shape a truck's row carries. Present
+   * ONLY when the reader asked for papers: `GET /overview` does; the alert scheduler, the digest and
+   * the dispatch board do not, so they never sign a URL nobody will open.
+   */
+  papers?: PaperThumb[];
+  /** Every original on file for this driver that the reader may see — what "+N" counts past `papers`. */
+  paper_count?: number;
 }
 
 export interface ComplianceOverviewResponse {

@@ -696,6 +696,20 @@ UF0 → UF1 → UF2 are strictly in order. After that:
 New questions found while building go here, with candidates and a recommendation, before anything routes
 around them.
 
+- **Q-UF9: two file filters on the Drivers toolbar** (found building UF4b, 2026-10-20; OPEN). The roster
+  now carries the chip's `?file=` (`FILE_CHIPS`, the Vehicles and Trailers vocabulary: worst state first)
+  beside the older `?dq=` *File status* (`DQ_STATE_FILTERS`: "has ANY item in this state", plus
+  *Needs attention*). They overlap on four words and disagree on one — `dq=expiring` admits a driver whose
+  chip says *expired*, `file=expiring` does not — so the chip could not be mapped onto `?dq=` without the
+  chip and the list disagreeing, which D-UF7 refuses. Both stay for now: `DriverFilesWidget` links here
+  with `?dq=`, the built-in views are written in it, and the compliance fleet table shares it. *Due*
+  moved behind the Filters button to keep the toolbar at four controls.
+  Candidates: (a) keep both, as built; (b) retire `?dq=` into `?file=` plus a *Needs attention* chip word,
+  rewriting the widget's links, the built-in views and the compliance fleet table in one PR; (c) retire
+  `?file=` on Drivers only, and let the chip set `?dq=` where the words agree and *Needs attention* where
+  they do not, accepting the one disagreement. Recommendation: (b), after UF5, when the compliance fleet
+  table is next touched — one vocabulary for "what state is this file in" across the four lists.
+
 ---
 
 ## 8. Progress log
@@ -763,3 +777,27 @@ around them.
       `RequirementDrawer` (D-ROS1: no editing out of a grid cell).
     - "Uploaded by" on the hover card goes to UF5 (the rollup does not read `uploaded_by`).
     - The Trailers unit link goes to UF5, with the page it opens.
+- 2026-10-20 — **UF4b built** (`claude/uf4b-driver-file-column`): the Drivers half of UF4 (D-UF7).
+  - Shared: `DqRosterCell.documentId` (projected for the hover card's join, nothing reads it to decide a
+    state — Q6 unchanged); `DriverOverviewRow.papers` and `paper_count`, optional, present only when the
+    reader asked.
+  - API: `evidence/paperThumbs.ts` — the newest-three-with-signed-thumbs fold, lifted out of
+    `unitFiles.ts` so the driver overview and the unit rollup build a cell from one function.
+    `getComplianceOverview` gains `opts.withPapers: (kind) => boolean`; `GET /overview` passes the
+    reader's own rule (`mayFile` ∧ `canReadRestrictedKind`, as the documents list does), so a
+    dispatcher's roster neither draws nor COUNTS a drug test's scan. The scheduler, the digest and the
+    dispatch board pass nothing and sign nothing — pinned by "signs nothing and carries no papers when
+    nobody asked — the scheduler's and the digest's path" in
+    apps/api/src/modules/evidence/complianceOverview.test.ts.
+  - Web: `qualification` + `documents` → one `file` column in `driverRosterColumns.ts`; the table loses
+    two cells, `GatedLink` and the `documents` emit, and gains `FileCell` (its `items` prop is now the
+    two fields it reads, so the truck's cells and the driver's cells both fit). The chip is `fileChip`
+    on the row's state and counts — a driver has no date-only item. `useRosterFilters.file` (`?file=`),
+    a *File* control on the toolbar, *Due* behind the Filters button (four-control limit). The chip
+    click sets `?file=`; the rows match `matchesFileChip` — pinned by "narrows the roster to the chip's
+    state when the chip is clicked, and the rows match it" in apps/web/src/pages/DriversPage.test.ts.
+    `FileGallery` with subject `{type: "driver"}` replaces `DocumentsModal`, which is deleted with its
+    test (no other reader). The row menu keeps its gated "Open qualification file…" (SP5).
+  - Q-UF9 recorded above: the toolbar's two file vocabularies.
+  - Four mutants killed (reader filter ignored; always signs; chip filter not applied; a second file
+    column), each restored from a byte copy.

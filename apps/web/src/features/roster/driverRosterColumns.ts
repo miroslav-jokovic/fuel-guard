@@ -41,25 +41,33 @@ export const DRIVER_ROSTER_COLUMNS: DataTableColumn[] = [
     cellClass: "text-ink-secondary",
   },
   { key: "app_access", label: "App access", width: "md" },
-  { key: "qualification", label: "Qualification", width: "lg" },
+  /**
+   * The §391.51 file in one cell (UNIT-FILES-PLAN UF4b, D-UF7): the state chip, the newest scans,
+   * "+N". It REPLACES two columns this catalogue carried until 2026-10-20 — `qualification` (the
+   * OK / Blocked / Due 12d badge, D3) and `documents` (the "8/17" scans-filed count, R5, D-ROS8) —
+   * because both summarised the same file from the same rollup, and a reader scanning the roster
+   * asked one question of the pair: is this driver's file in order, and what is on it. The chip
+   * answers the first, worst state first (`fileChip`, the same word a truck's cell uses); the thumbs
+   * answer the second. Nothing is summarised twice.
+   *
+   * Reads `GET /api/compliance/overview`'s rollup — `state`, `counts`, `papers` — projected from the
+   * very file the driver's own page renders, so the chip, the dates beside it and the page cannot
+   * disagree. A stored `?hide=` that still names a removed key is harmless: `useTableColumns` keeps
+   * what it finds in this list and ignores the rest.
+   */
+  { key: "file", label: "File", width: "lg" },
   /**
    * The three §391.51 expiry columns (R4, D-ROS9).
    *
-   * They read the SAME `GET /api/compliance/overview` rollup the qualification badge above them
-   * reads — `DriverOverviewRow.requirements`, projected from the very file the driver's own page
-   * renders. So a date here, the badge beside it and the driver page cannot disagree: there is one
+   * They read the SAME `GET /api/compliance/overview` rollup the File cell beside them reads —
+   * `DriverOverviewRow.requirements`, projected from the very file the driver's own page renders.
+   * So a date here, the chip beside it and the driver page cannot disagree: there is one
    * calculation, not three. Never `drivers.cdl_expires_at`, which is a display field even when
    * McLeod is the one writing it.
    *
    * Pinned by "counts days to expiry the same way the queue does, so the two cannot disagree" in
    * packages/shared/src/dqFile.test.ts.
    */
-  /**
-   * The §391.51 folder (R5, D-ROS8). Reads `documents` off the same rollup as everything else —
-   * scans filed out of the requirements that APPLY to this driver, never out of the catalogue's
-   * full length, which would report a non-hazmat carrier as permanently behind.
-   */
-  { key: "documents", label: "File", width: "sm" },
   { key: "cdl_expiry", label: "CDL expires", width: "md" },
   { key: "medical_expiry", label: "Medical expires", width: "md" },
   { key: "hazmat_expiry", label: "Hazmat expires", width: "md" },
