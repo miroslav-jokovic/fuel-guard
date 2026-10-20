@@ -175,6 +175,20 @@ describe("auditForRead", () => {
         expect(outcome(audit, "paper_sequence")).toMatchObject({ outcome: "pass" });
       }
     });
+
+    it("judges a packaging cell one reader copied without its count — production read 5f7a6c5c — unless the count rests on it", () => {
+      const countless = doc([{ ...CAUSTIC, descriptionText: "UN1824, SODIUM HYDROXIDE, SOLUTION 8, PGII", packaging: "3600LBTOTE" }]);
+      for (const [a, b] of [[long, countless], [countless, long]] as const) {
+        const audit = auditForRead(a, shippingEvidence(a, b, "10", null));
+        for (const id of RULES) expect(outcome(audit, id)?.reason, id).not.toBe("field_unconfirmed");
+        expect(outcome(audit, "paper_package_count")).toMatchObject({ outcome: "pass" });
+      }
+      // With no count column read, the count comes from the phrase alone: only one reader printed it.
+      const noCount = (p: string) => doc([{ ...CAUSTIC, packageCount: null, packaging: p }]);
+      const [x, y] = [noCount("8 3600LBTOTE"), noCount("3600LBTOTE")];
+      expect(outcome(auditForRead(x, shippingEvidence(x, y, "10", null)), "paper_package_count"))
+        .toMatchObject({ outcome: "cannot_tell", reason: "field_unconfirmed", facts: { unconfirmed: ["hazmat.lines[0].packaging"] } });
+    });
   });
 
   it("answers nothing for a result that is not a shipping document", () => {

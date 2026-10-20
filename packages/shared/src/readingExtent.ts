@@ -15,7 +15,12 @@ import { packageTypeFromPrinted } from "./hazmatPackaging.js";
  *     "; ") — formatting folded first, by the one comparison every field uses (`normalisedForAgreement`);
  *   - the tail holds no token any §172.202/§172.203 element is made of (`REGULATED`, below). Pass B could
  *     have stopped one word short of an "RQ" or a "Ltd Qty": that is a real disagreement, and stays one;
- *   - for packaging, the count it leads with and the package type it reads as are the same.
+ *   - for packaging, the count it leads with and the package type it reads as are the same — or one reading
+ *     leaves the count off and starts at the package words, which the other prints after its count.
+ *     Production read 5f7a6c5c (2026-10-20, the same paper under profile 1.5.0): pass A read "8 3600LBTOTE
+ *     FG00035-3600T", pass B "3600LBTOTE". The count is a field of its own (`packageCount`); a rule that
+ *     needs it from the phrase (paper_package_count, on a line with no `packageCount`) answers differently
+ *     under the count-less reading, and the audit's both-readings guard stops that rule.
  * A `marks` list agrees when one list is the other plus marks that carry no regulated token.
  *
  * Never "one is a prefix of the other" alone, and never fuzzy: any other difference is a disagreement for a
@@ -63,6 +68,7 @@ export const isExtentPath = (path: string | undefined): boolean => path !== unde
 
 const BOUNDARY = /^(?:, |; | )/;
 const leadingCount = (s: string) => /^\s*(\d+)\b/.exec(s)?.[1] ?? null;
+const LEADING_COUNT = /^\s*\d+\s+/;
 
 function tailOf(short: string, long: string): string | null {
   if (short === "" || !long.startsWith(short)) return null;
@@ -89,12 +95,17 @@ export function extentAgrees(path: string, a: unknown, b: unknown, norm: (v: unk
     return extra.length > 0 && extra.every((m) => regulatedTokens(JSON.parse(m) ?? "").length === 0);
   }
   if (typeof a !== "string" || typeof b !== "string") return false;
-  const [na, nb] = [norm(a), norm(b)] as [string, string];
-  const [short, long, shortRaw, longRaw] = na.length <= nb.length ? [na, nb, a, b] : [nb, na, b, a];
-  const tail = tailOf(short, long);
-  if (tail === null || regulatedTokens(tail).length > 0) return false;
+  let [na, nb] = [norm(a), norm(b)] as [string, string];
   if (key === "packaging") {
-    return leadingCount(shortRaw) === leadingCount(longRaw) && packageTypeFromPrinted(shortRaw) === packageTypeFromPrinted(longRaw);
+    const [ca, cb] = [leadingCount(a), leadingCount(b)];
+    if (ca !== cb && ca !== null && cb !== null) return false;
+    if (packageTypeFromPrinted(a) !== packageTypeFromPrinted(b)) return false;
+    // One reading without the count: compare it with the other past its count.
+    if (ca !== null && cb === null) na = na.replace(LEADING_COUNT, "");
+    if (cb !== null && ca === null) nb = nb.replace(LEADING_COUNT, "");
+    if (na === nb) return true;
   }
-  return true;
+  const [short, long] = na.length <= nb.length ? [na, nb] : [nb, na];
+  const tail = tailOf(short, long);
+  return tail !== null && regulatedTokens(tail).length === 0;
 }

@@ -4,6 +4,7 @@ import {
   classifyByCapacity,
   derivePackaging,
   packageTypeFromPrinted,
+  PRINTED_PACKAGE_WORDS,
   packagingKindFor,
   phaseForHazardClass,
   weightToLb,
@@ -154,6 +155,28 @@ describe("packageTypeFromPrinted — the one reading of a printed packaging phra
     expect(packageTypeFromPrinted("6 DRY")).toBe("");
     expect(packageTypeFromPrinted("12 PL")).toBe("");
     expect(packageTypeFromPrinted("1 IBC of 6 DR")).toBe("ibc_tote");
+  });
+
+  it("reads every full package word glued to its capacity as it reads it spaced, as Mayo prints 3600LBTOTE", () => {
+    expect(packageTypeFromPrinted("8 3600LBTOTE FG00035-3600T")).toBe("ibc_tote");
+    expect(packageTypeFromPrinted("2 3250LBTOTE FG00216-3250T")).toBe("ibc_tote");
+    // Every full word of the table (not the short codes), singular and plural, after every unit and none.
+    const wrong: string[] = [];
+    for (const { type, words } of PRINTED_PACKAGE_WORDS) for (const w of words) {
+      const stem = w.replace(/s\?$/, "");
+      for (const word of w.endsWith("s?") ? [stem, `${stem}s`] : [stem]) for (const unit of ["", "LB", "LBS", "KG", "GAL", "L", "LTR"]) {
+        for (const printed of [`8 3600${unit}${word}`.toUpperCase(), `2 55${unit}${word} ITEM-55`.toLowerCase(), `1 1000${unit}${word}`]) {
+          if (packageTypeFromPrinted(printed) !== type) wrong.push(`${printed} → ${packageTypeFromPrinted(printed) || "none"}`);
+        }
+      }
+    }
+    expect(wrong).toEqual([]);
+  });
+
+  it("never splits a short code off a capacity, nor a package word off other letters", () => {
+    for (const printed of ["4 55GALDR", "6 50LBCS", "2 20KGBG", "3 10LBBX", "1 3600T", "FG00035-3600T", "2 SUITCASE", "1 BRIEFCASES", "4 POLYDRUM", "6 SANDBAGS", "1 TOTEM", "2 3600LBTOTEM", "1 55GALDRUMSTICK"]) {
+      expect(packageTypeFromPrinted(printed), printed).toBe("");
+    }
   });
 
   it("lets a bulk word win over a package word (toward bulk, D2), and knows nothing it was not told", () => {

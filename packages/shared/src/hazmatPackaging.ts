@@ -149,19 +149,42 @@ export function packagingKindFor(value: string): PackagingKind | null {
  * as for pails, and a pallet is not a package type. A jerrican is the calculator's "Pail / jerrican" type.
  */
 export function packageTypeFromPrinted(phrase: string | null): string {
-  const t = (phrase ?? "").toLowerCase();
-  if (/\b(portable tanks?|iso tanks?)\b/.test(t)) return "portable_tank";
-  if (/\b(totes?|ibcs?)\b/.test(t)) return "ibc_tote";
-  if (/\b(cargo tanks?|bulk|hoppers?|pneumatics?)\b/.test(t)) return "bulk_cargo";
-  if (/\btanks?\b/.test(t)) return "other_bulk";
-  if (/\b(drums?|drs?|drms?)\b/.test(t)) return "drum";
-  if (/\b(pails?|jerricans?)\b/.test(t)) return "pail";
-  if (/\b(cylinders?|cyls?)\b/.test(t)) return "cylinder";
-  if (/\b(cases?|cartons?|boxes|box|cs|ctns?|bx|bxs)\b/.test(t)) return "box";
-  if (/\b(bags?|sacks?|bgs?|sks?)\b/.test(t)) return "bag";
-  if (/\bpackages?\b/.test(t)) return "other_non_bulk";
-  return "";
+  const t = (phrase ?? "").toLowerCase().replace(GLUED_CAPACITY, "$1 ");
+  return PRINTED_READINGS.find(([, rx]) => rx.test(t))?.[0] ?? "";
 }
+
+/**
+ * The words each package type is printed as, in the order they are tried — bulk words first (D2) — as full
+ * words, then the short codes. Exported so the tests walk the same table.
+ */
+export const PRINTED_PACKAGE_WORDS: readonly { type: string; words: readonly string[]; codes: readonly string[] }[] = [
+  { type: "portable_tank", words: ["portable tanks?", "iso tanks?"], codes: [] },
+  { type: "ibc_tote", words: ["totes?"], codes: ["ibcs?"] },
+  { type: "bulk_cargo", words: ["cargo tanks?", "bulk", "hoppers?", "pneumatics?"], codes: [] },
+  { type: "other_bulk", words: ["tanks?"], codes: [] },
+  { type: "drum", words: ["drums?"], codes: ["drs?", "drms?"] },
+  { type: "pail", words: ["pails?", "jerricans?"], codes: [] },
+  { type: "cylinder", words: ["cylinders?"], codes: ["cyls?"] },
+  { type: "box", words: ["cases?", "cartons?", "boxes", "box"], codes: ["cs", "ctns?", "bx", "bxs"] },
+  { type: "bag", words: ["bags?", "sacks?"], codes: ["bgs?", "sks?"] },
+  { type: "other_non_bulk", words: ["packages?"], codes: [] },
+];
+const PRINTED_READINGS = PRINTED_PACKAGE_WORDS.map(({ type, words, codes }) => [type, new RegExp(`\\b(${[...words, ...codes].join("|")})\\b`)] as const);
+
+/**
+ * A package word printed glued to its capacity — Mayo Products BOL 14182 (production read 5f7a6c5c,
+ * 2026-10-20) prints "8 3600LBTOTE FG00035-3600T", its item code, and both readers copy it as printed, as the
+ * profile asks. "TOTE" has no word boundary there, so the line read as no package type and the calculator
+ * asked. A digit, an optional weight or volume unit, then a FULL package word of the table is split before
+ * reading. The short codes ("55GALDR", "50LBCS") are not: two letters glued to a unit are as often the next
+ * code on the line as a package. Nor is a word glued to letters ("SUITCASE", "POLYDRUM"): only a capacity
+ * says where the package word starts. The split needs no boundary after the word; the reading does, so
+ * "3600LBTOTEM" splits to "3600lb totem" and still reads as nothing.
+ */
+const GLUED_CAPACITY = new RegExp(
+  `(\\d(?:lbs?|kgs?|gals?|ltrs?|l)?)(?=(?:${PRINTED_PACKAGE_WORDS.flatMap((p) => p.words).join("|")}))`,
+  "g",
+);
 
 const PRINTED_UNITS: Record<string, "gal" | "lb" | "kg" | "L"> = {
   gal: "gal", gals: "gal", gallon: "gal", gallons: "gal",
