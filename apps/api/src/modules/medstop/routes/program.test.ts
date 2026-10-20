@@ -1,7 +1,7 @@
 import type { AddressInfo } from "node:net";
 import type { Server } from "node:http";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import type { AuthContext, DrugAlcoholProgram } from "@silvicom/shared";
+import { todayInZone, type AuthContext, type DrugAlcoholProgram } from "@silvicom/shared";
 import { createApp } from "../../../app.js";
 import { loadEnv } from "../../../env.js";
 import { createSupabaseRecorder, expectOrgScoped, type SupabaseRecorder } from "../../../testing/supabaseRecorder.js";
@@ -42,8 +42,14 @@ const drivers = [
   { id: "d-out", full_name: "Bob Outside", first_name: "Bob", last_name: "Outside", date_of_birth: null, cdl_number: "B2", cdl_state: "IL", status: "active", archived_at: null },
   { id: "d-gone", full_name: "Cy Gone", first_name: "Cy", last_name: "Gone", date_of_birth: null, cdl_number: "C3", cdl_state: "IL", status: "terminated", archived_at: null },
 ];
-// Relative to the server's today, so the Medical tab's 60-day horizon holds on any day the suite runs.
-const inDays = (n: number) => new Date(Date.now() + n * 86_400_000).toISOString().slice(0, 10);
+// Relative to the CARRIER's today — the org below is in Chicago, and the route counts days from
+// `todayInZone` there — so the Medical tab's 60-day horizon holds on any day the suite runs. It counted
+// from UTC's date until 2026-10-20, and every run between 00:00 and 05:00 UTC read `daysLeft` one high.
+const inDays = (n: number) => {
+  const d = new Date(`${todayInZone(new Date(), "America/Chicago")}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
+};
 const employees = [
   { medstop_id: "m-ann", roster: "active", first_name: "ANN", last_name: "POOLED", birth_date: null, license_number: "A1", license_state: "IL", medical_expires_on: inDays(20), driver_id: "d-in", match_rule: "licence" },
   { medstop_id: "m-cy", roster: "active", first_name: "CY", last_name: "GONE", birth_date: null, license_number: "C3", license_state: "IL", medical_expires_on: null, driver_id: "d-gone", match_rule: "licence" },
