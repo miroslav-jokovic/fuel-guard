@@ -3,6 +3,21 @@
 Every **verdict-affecting** change bumps the minor version and gets an entry here; the version is
 stored on every verdict row (H4) so a decision is reproducible forever.
 
+## 0.20.0 — 2026-10-20 (RQ by net weight and printed concentration — READER-CORRECTNESS-PLAN R-M1)
+
+- **`paper_rq` judges a package's contents from the NET weight column** (`PrintedPaperLine.netWeightLb`, reader
+  profile 1.5.0) when the description prints no quantity by mass, and **a solution by the concentration its
+  description cell prints** (`printedConcentration`: "CAUSTIC SODA 50%" → 50; none, or two different ones, → null).
+  At or over the RQ → `rq_not_printed` (facts carry `concentrationPct`, `substancePerPackage`); a printed share that
+  puts it under → `concentration_basis_unknown` (cannot tell — §171.8 judges by weight, a paper's "%" does not say
+  by what), never a pass. Mayo Products BOL 14182 (8 totes at 50 % sodium hydroxide, 2 of sulfuric acid at 93 %)
+  now fails RQ on both lines, as worked by hand; before, both were "can't tell".
+- **A package whose whole gross weight is under the RQ clears it** (`below_rq`, `basis: "gross_weight"`): it cannot
+  hold that much of anything. A gross weight never fails a line.
+- **`paper_quantity_present` passes a line that prints a net weight** (`net_weight_printed`): the contents' mass
+  is §172.202(a)(5)'s total quantity by mass.
+- Proven over every HMT row Appendix A reaches, both sides of the RQ, in hazmat-golden `rqCensus.test.ts`.
+
 ## 0.19.0 — 2026-10-19 (whole-table census: Appendix B by form, §172.505 weight)
 - **Appendix B (marine pollutants) is matched by form, through the same definition as Appendix A**
   (`appendixNameMatch.ts`). The exact match missed 13 entries, among them UN2315 Polychlorinated biphenyls,

@@ -15,6 +15,7 @@ import {
   gated,
   lineLabel,
   make,
+  printedConcentration,
   printsRq,
   rowOf,
   technicalComponents,
@@ -22,19 +23,34 @@ import {
   type LineCtx,
 } from "./paperSupport.js";
 
-/** Per-package quantity by mass, in the unit printed — or why it cannot be had. Never converts. */
-function perPackageMass(ctx: LineCtx): { value: number; unit: "lb" | "kg" } | { reason: string } {
+/**
+ * Per-package CONTENTS by mass, in the unit printed — or why it cannot be had. Never converts. The description's
+ * own quantity by mass first; else the line's NET weight column (reader profile 1.5.0), which is the contents'
+ * mass by definition. A gross weight is not: it carries the packaging (see `perPackageGrossLb`).
+ */
+function perPackageMass(ctx: LineCtx): { value: number; unit: "lb" | "kg"; basis: "quantity" | "net_weight" } | { reason: string } {
   const unit = ctx.resolved.quantityUnit;
+  const { value } = ctx.printed.quantity;
+  const count = ctx.printed.packageCount;
+  if (count == null || count < 1) return { reason: "package_quantity_unknown" };
+  if ((unit === "lb" || unit === "kg") && value != null) return { value: value / count, unit, basis: "quantity" };
+  const net = ctx.printed.netWeightLb;
+  if (net != null && net > 0) return { value: net / count, unit: "lb", basis: "net_weight" };
   // Only a printed volume is "by volume". No unit — no net quantity printed, or a unit the reader could not
   // name — said "the BOL gives the amount by volume" on every line that prints only a gross weight
   // (production read 76979453, UN3266, 2026-10-19); the honest answer there is that the package's
   // content is not shown.
   if (unit === "gal" || unit === "L") return { reason: "quantity_not_by_mass" };
-  if (unit !== "lb" && unit !== "kg") return { reason: "package_quantity_unknown" };
-  const { value } = ctx.printed.quantity;
-  const count = ctx.printed.packageCount;
-  if (value == null || count == null || count < 1) return { reason: "package_quantity_unknown" };
-  return { value: value / count, unit };
+  return { reason: "package_quantity_unknown" };
+}
+
+/**
+ * The gross weight per package, in pounds: an UPPER bound on what it holds (contents + packaging), so it can
+ * only ever clear a line — a package that weighs less than the RQ in all cannot hold the RQ. Null when unknown.
+ */
+function perPackageGrossLb(ctx: LineCtx): number | null {
+  const { grossWeightLb: gross, packageCount: count } = ctx.printed;
+  return gross != null && gross > 0 && count != null && count >= 1 ? gross / count : null;
 }
 
 const rqIn = (s: Substance, unit: "lb" | "kg"): number | undefined => (unit === "lb" ? s.rqPounds : s.rqKg);
@@ -42,10 +58,20 @@ const rqIn = (s: Substance, unit: "lb" | "kg"): number | undefined => (unit === 
 /**
  * paper_rq — §172.203(c): "RQ" when a package holds at least the reportable quantity of an Appendix A
  * hazardous substance. Matched by name, as `validateBol` matches it (petroleum fuels are not listed, so
- * RQ never fires for them — docs/17 A.8). A NEAT material (the row's own name is listed) is compared
- * directly. A listed COMPONENT named in a G entry's technical name can only be cleared: a package under
- * the component's RQ cannot hold that much of it, but over it the concentration decides, and no paper
- * states one.
+ * RQ never fires for them — docs/17 A.8).
+ *
+ * How much of the substance a package holds: its contents by mass (`perPackageMass` — the description's
+ * quantity, else the net weight column) times the share of it. A NEAT material (the row's own name is listed)
+ * is all substance unless the cell prints a concentration; a SOLUTION or a single named component is the
+ * concentration the description cell prints ("CAUSTIC SODA 50%", `printedConcentration`, engine 0.20.0).
+ *
+ * Which way each answer may go. A package whose contents — or, failing those, whose gross weight — is under the
+ * RQ is cleared: it cannot hold that much of anything. A share at or over the RQ fails: RQ is owed, and the
+ * finding quotes the mass and the percentage it rests on. A share UNDER the RQ is not cleared: §171.8 judges
+ * a mixture's concentration by weight and a paper's "93%" does not say by what, so a reading that would let
+ * RQ go unprinted waits for a person. Production read 350d2f27 (Mayo Products BOL 14182) is the case: 8 totes
+ * of 3,600 lb at 50 % sodium hydroxide (1,800 lb each) and 2 of 3,250 lb at 93 % sulfuric acid (≈3,020 lb),
+ * against 1,000 lb RQs, printing RQ on neither.
  */
 export function paperRq(ctx: LineCtx): PaperRuleResult {
   const r = make("paper_rq", ctx.index);
@@ -72,15 +98,35 @@ export function paperRq(ctx: LineCtx): PaperRuleResult {
     return r("pass", "not_listed", { lineLabel: label });
   }
 
-  const mass = perPackageMass(ctx);
   const substance = listed.reduce((a, b) => ((rqIn(b, "lb") ?? Infinity) < (rqIn(a, "lb") ?? Infinity) ? b : a));
   const base = { lineLabel: label, substance: substance.name ?? substance.nameNormalized };
-  if ("reason" in mass) return r("cannot_tell", mass.reason, base);
+  const mass = perPackageMass(ctx);
+  if ("reason" in mass) {
+    const g2 = gated(ctx, r, ["grossWeightLb"]);
+    const gross = g2 ? null : perPackageGrossLb(ctx);
+    const rqLb = rqIn(substance, "lb");
+    if (gross != null && rqLb != null && gross < rqLb) return r("pass", "below_rq", { ...base, rq: rqLb, perPackage: gross, unit: "lb", basis: "gross_weight" });
+    return r("cannot_tell", mass.reason, base);
+  }
+  if (mass.basis === "net_weight") {
+    const g2 = gated(ctx, r, ["netWeightLb"]);
+    if (g2) return g2;
+  }
   const rq = rqIn(substance, mass.unit);
   if (rq == null) return r("cannot_tell", "requirement_not_in_dataset", { ...base, needs: `Appendix A RQ in ${mass.unit}` });
-  const facts = { ...base, rq, perPackage: mass.value, unit: mass.unit };
+  const facts = { ...base, rq, perPackage: mass.value, unit: mass.unit, basis: mass.basis };
   if (mass.value < rq) return r("pass", "below_rq", facts);
-  return neat.length ? r("fail", "rq_not_printed", facts) : r("cannot_tell", "concentration_unknown", facts);
+
+  // The package holds the RQ or more. How much of it is the substance: the printed concentration, read from the
+  // description cell — so the cell must be confirmed, or a percentage one reader left out reads as "none".
+  const g3 = gated(ctx, r, ["descriptionText"]);
+  if (g3) return g3;
+  const pct = neat.length || listed.length === 1 ? printedConcentration(ctx.printed) : null;
+  const share = pct ?? (neat.length ? 100 : null);
+  if (share == null) return r("cannot_tell", "concentration_unknown", facts);
+  const held = (mass.value * share) / 100;
+  const withShare = { ...facts, concentrationPct: share, substancePerPackage: Math.round(held * 100) / 100 };
+  return held >= rq ? r("fail", "rq_not_printed", withShare) : r("cannot_tell", "concentration_basis_unknown", withShare);
 }
 
 /**

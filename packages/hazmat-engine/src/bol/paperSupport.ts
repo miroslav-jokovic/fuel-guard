@@ -176,6 +176,17 @@ export function printsMarinePollutant(line: PrintedPaperLine): boolean {
   return [...line.marks, line.psn ?? "", line.technicalName ?? ""].some((s) => MP_RX.test(s));
 }
 
+/**
+ * The one concentration a line's description cell prints ("CAUSTIC SODA 50% 3600# TOTE" → 50), or null when it
+ * prints none or several different ones — a cell naming two percentages does not say which is the listed
+ * substance's. Read from `descriptionText` only: the cell is where a shipper prints it (reader profile 1.5.0).
+ */
+export function printedConcentration(line: PrintedPaperLine): number | null {
+  const found = [...(line.descriptionText ?? "").matchAll(/(?<![\d.])(\d{1,3}(?:\.\d+)?)\s?%/g)].map((m) => Number(m[1]));
+  const distinct = [...new Set(found)].filter((v) => v > 0 && v <= 100);
+  return distinct.length === 1 && found.every((v) => v === distinct[0]) ? distinct[0]! : null;
+}
+
 /** §172.203(c): "RQ" before or after the description, or (§172.201(a)(1)) in the HM column. */
 const RQ_RX = /(?:^|[\s,;(])RQ(?=$|[\s,;)])/i;
 export function printsRq(line: PrintedPaperLine): boolean {

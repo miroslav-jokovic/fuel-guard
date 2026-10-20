@@ -41,7 +41,7 @@ import { valuesAgree, type ShippingDocument } from "@silvicom/shared";
  */
 
 /** A row as either reader read it; null where the second reader has no partner row at that position. */
-type Counted = { packageCount: number | null; grossWeightLb: number | null } | null;
+type Counted = { packageCount: number | null; grossWeightLb: number | null; netWeightLb?: number | null } | null;
 type Doc = { hazmat: { lines: readonly Counted[] }; otherLines: readonly Counted[]; freight: ShippingDocument["freight"] };
 interface Row { countPath: string; weightPath: string; counts: (number | null)[]; weights: (number | null)[] }
 
@@ -61,26 +61,30 @@ const places = (v: number): number => (String(v).split(".")[1] ?? "").length;
  */
 export function arithmeticWitness(a: Doc, b: Doc | null): Map<string, number | null> {
   const out = new Map<string, number | null>();
-  const rows = rowsOf(a, b);
-  judgeWeights(rows, a, b, out);
+  const rows = rowsOf(a, b, "grossWeightLb");
+  judgeWeights(rows, a, b, out, "gross");
   judgeCounts(rows, a, b, out);
+  judgeWeights(rowsOf(a, b, "netWeightLb"), a, b, out, "net");
   return out;
 }
 
-function rowsOf(a: Doc, b: Doc | null): Row[] {
+function rowsOf(a: Doc, b: Doc | null, weightKey: "grossWeightLb" | "netWeightLb"): Row[] {
   const rows: Row[] = [];
   const add = (prefix: string, n: number, at: (d: Doc | null, i: number) => Counted | undefined) => {
     for (let i = 0; i < n; i++) {
       const ra = at(a, i);
       const rb = b ? at(b, i) : undefined;
       // A row a reader did not see is "absent" — a candidate of 0 — so the totals can say whether it exists.
-      const pick = (key: "packageCount" | "grossWeightLb") =>
+      const pick = (key: "packageCount" | "grossWeightLb" | "netWeightLb") =>
         b === null ? [ra?.[key] ?? null] : [ra ? ra[key] ?? null : 0, rb ? rb[key] ?? null : 0];
-      rows.push({ countPath: `${prefix}[${i}].packageCount`, weightPath: `${prefix}[${i}].grossWeightLb`, counts: pick("packageCount"), weights: pick("grossWeightLb") });
+      rows.push({ countPath: `${prefix}[${i}].packageCount`, weightPath: `${prefix}[${i}].${weightKey}`, counts: pick("packageCount"), weights: pick(weightKey) });
     }
   };
   const lines = Math.max(a.hazmat.lines.length, b?.hazmat.lines.length ?? 0);
   add("hazmat.lines", lines, (d, i) => d?.hazmat.lines[i]);
+  // A non-hazmat row has no net weight field (the lines section is full, shippingDocumentContract.ts), so the
+  // net column is judged over the hazmat lines alone (`judgeWeights`, "net").
+  if (weightKey === "netWeightLb") return rows;
   const other = Math.max(a.otherLines.length, b?.otherLines.length ?? 0);
   add("otherLines", other, (d, i) => d?.otherLines[i]);
   return rows;
@@ -113,12 +117,22 @@ function record(paths: string[], closing: number[][], out: Map<string, number | 
   });
 }
 
-function judgeWeights(rows: Row[], a: Doc, b: Doc | null, out: Map<string, number | null>) {
+/**
+ * The rows' weights against the paper's totals. `column` "gross" is the weight column (grossWeightLb) against
+ * every total, as measured above. `column` "net" is the NET column (netWeightLb, profile 1.5.0) against the
+ * printed NET alone: two-sided when every loaded row of the paper is a hazmat line (Mayo-like papers without
+ * a freight line), else only an upper bound — the non-hazmat rows' net is not read, so hazmat nets ADDING TO
+ * MORE than the printed net is the one thing a mixed paper can show. A paper with no net column read is not
+ * judged on it.
+ */
+function judgeWeights(rows: Row[], a: Doc, b: Doc | null, out: Map<string, number | null>, column: "gross" | "net") {
   const units = b ? [a.freight.weightUnit, b.freight.weightUnit] : [a.freight.weightUnit];
   if (units.includes("kg")) return; // the rows are pounds (grossWeightLb); a kilogram total is another quantity
   // A loaded row whose weight a reader left blank cannot be added; a dormant template row (nothing read) is 0.
   const loaded = rows.filter((r) => [...r.counts, ...r.weights].some((v) => v != null && v !== 0));
+  if (column === "net" && loaded.every((r) => r.weights.every((w) => w === null || w === 0))) return;
   if (loaded.some((r) => r.weights.some((w) => w === null))) return;
+  const mixed = column === "net" && [a, ...(b ? [b] : [])].some((d) => d.otherLines.some((o) => (o?.packageCount ?? 0) > 0 || (o?.grossWeightLb ?? 0) > 0));
   const options = loaded.map((r) => distinct(r.weights as number[]));
   const combos = combinations(options);
   if (!combos || loaded.length === 0) return;
@@ -131,20 +145,23 @@ function judgeWeights(rows: Row[], a: Doc, b: Doc | null, out: Map<string, numbe
     const terms = [...c.filter((v) => v !== 0), ...t.printed];
     return terms.length * 0.5 * 10 ** -Math.max(...terms.map(places));
   };
-  const targetsOf = ({ gross, net, tare }: Totals) => ({
-    twoSided: net != null ? [{ total: net, printed: [net] }] : ([] as Target[]),
-    oneSided: [
-      ...(gross != null ? [{ total: gross, printed: [gross] }] : []),
-      ...(gross != null && tare != null ? [{ total: gross - tare, printed: [gross, tare] }] : []),
-    ] as Target[],
-  });
+  const targetsOf = ({ gross, net, tare }: Totals) => column === "net"
+    ? { twoSided: net != null && !mixed ? [{ total: net, printed: [net] }] : ([] as Target[]), oneSided: net != null && mixed ? [{ total: net, printed: [net] }] : ([] as Target[]) }
+    : {
+      twoSided: net != null ? [{ total: net, printed: [net] }] : ([] as Target[]),
+      oneSided: [
+        ...(gross != null ? [{ total: gross, printed: [gross] }] : []),
+        ...(gross != null && tare != null ? [{ total: gross - tare, printed: [gross, tare] }] : []),
+      ] as Target[],
+    };
   // 1e-9 absorbs binary floating point (30,452.6 + 5,994.1), never a printed difference.
   const near = (c: number[], t: Target) => Math.abs(sumOf(c) - t.total) <= boundOf(c, t) + 1e-9;
   const under = (c: number[], t: Target) => sumOf(c) <= t.total + boundOf(c, t) + 1e-9;
 
-  // Picking rests on the totals both readers read alike.
+  // Picking rests on the totals both readers read alike — and never on a mixed paper's net, which the hazmat
+  // lines may meet by chance while the freight lines' share of it is unread.
   const sure = targetsOf({ gross: agreed(a, b, "weight"), net: agreed(a, b, "netWeight"), tare: agreed(a, b, "tareWeight") });
-  const closing = combos.filter((c) => [...sure.twoSided, ...sure.oneSided].some((t) => near(c, t)));
+  const closing = mixed ? [] : combos.filter((c) => [...sure.twoSided, ...sure.oneSided].some((t) => near(c, t)));
   if (closing.length > 0) return record(loaded.map((r) => r.weightPath), closing, out);
 
   // Nothing closes on them. A flag must survive EITHER reader's totals: a total in dispute widens what the

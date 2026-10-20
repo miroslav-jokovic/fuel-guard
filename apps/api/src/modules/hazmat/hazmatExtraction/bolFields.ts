@@ -15,7 +15,14 @@ import { printedHazmatLineSchema, type ShippingDocument } from "@silvicom/shared
  * reader Step 1.1) so the reading module and this extractor validate the same line; the name stays here
  * because every hazmat-path test and the forced-tool schema below know it by this name.
  */
-export const bolLineFieldsSchema = printedHazmatLineSchema;
+export const bolLineFieldsSchema = printedHazmatLineSchema.extend({
+  /**
+   * Per-package weight as printed — this extractor's own field: its tool schema (vision.ts) asks for it and
+   * `checkArithmetic` multiplies it by the count. The document reader's profile gave its slot to the net
+   * weight column in 1.5.0 (shippingDocumentContract.ts `netWeightLb`): no consumer of a read used it.
+   */
+  perPackageWeightLb: z.number().nullable().default(null),
+});
 export type BolLineFields = z.infer<typeof bolLineFieldsSchema>;
 
 export const bolFieldsSchema = z.object({
