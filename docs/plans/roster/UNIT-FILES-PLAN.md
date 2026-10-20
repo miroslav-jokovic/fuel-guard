@@ -919,3 +919,20 @@ around them.
     and its clearing, `?file=` winning, one file control on the Drivers toolbar, the tile counting the
     chip's complete. Seven mutants killed, each restored from a byte copy. An attention-strip fixture
     whose counts contradicted its attention list was made consistent (the chip reads the counts).
+- 2026-10-20 — **Q-UF9 merged** as #1674.
+- 2026-10-20 — **UF7a built** (`claude/uf7a-file-intake-table`): migration `0505` (0504 went to a parallel SMS change), the
+  `file_intake_items` review queue, RLS on, no client policies, as §5 UF7a lists it, with these
+  rules written into the table: a subject (scope or proposed) is a type AND an id or neither; pages
+  run forward from 1 and are a pair; `match_basis` is the matcher's vocabulary (vin, plate,
+  unit_number, filename, cdl, name, scope); a pending row has no decision, a person's decision has
+  who/when/`changed`, a `duplicate` is the service's (when, no person); `filed` ⇔ a document, and only
+  `filed` carries certification ids. `filed_document_id` → `documents` `on delete restrict`;
+  `source_id` and `decided_by` carry no FK (another module's tables, 0480/0485). Manifest: evidence,
+  infra, `time`, 100/day, no retention (decided rows are D-UF8's measurement).
+  - **Moved to UF7b:** the `compliance_paper` word for `document_reads.profile`.
+    `document-reader-tables.test.mjs` holds that CHECK equal to `DOCUMENT_PROFILE_IDS`, so the word
+    can only ship with its profile — as 0478 shipped `roadside_inspection_report`. The window this
+    opens is staging-only (a release migrates first) and is the one 0478 accepted.
+  - Tests: `file-intake-items.test.mjs` (17); `rls.test.mjs` seeds and isolates the table. Three
+    mutants killed — the page pair's NULL hole (`1 >= 1 and null` passes a CHECK, found by the first
+    run of the matrix), the restrict FK, the duplicate rule (it first SURVIVED; a test was added).

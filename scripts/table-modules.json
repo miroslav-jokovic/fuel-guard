@@ -640,6 +640,17 @@
         "why": "no rows in production 2026-09-21; bounded by the number of orgs."
       }
     },
+    "file_intake_items": {
+      "module": "evidence",
+      "layer": "infra",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 100,
+        "why": "UNIT-FILES-PLAN UF7a (0505): one row per paper in a bulk upload, so bounded by what an office files, documents' own 100 a day. A review queue, not evidence; decided rows are kept as D-UF8's measurement (how often a proposal was altered before filing), so no retention rule."
+      }
+    },
     "finance_month_closes": {
       "module": "financial",
       "layer": "core",

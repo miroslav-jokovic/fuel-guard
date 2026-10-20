@@ -78,6 +78,11 @@ const WAIVERS = new Map([
   // tms_fleets and driver_hos_clocks (0450, DISPATCH-BOARD-PLAN.md wave 1) left it in wave 2, the merge after
   // their schema: mcleod/fleetCodes.ts seeds the first from the roster sweep, samsara/hosClocksFeed.ts
   // writes the second from the clocks poll.
+  //
+  // file_intake_items (0505, UNIT-FILES-PLAN.md UF7a) ships schema-only: the plan splits UF7 as migration,
+  // then the reader and the routes that write it. It leaves in UF7b, whose intake read inserts one row per
+  // proposed paper and whose file/discard routes decide them.
+  ["file_intake_items", "UNIT-FILES-PLAN.md UF7b — the compliance intake read and the file/discard routes write it (schema-only, 0505)"],
 ]);
 
 const files = readdirSync(MIGRATIONS).filter((f) => f.endsWith(".sql")).sort();
