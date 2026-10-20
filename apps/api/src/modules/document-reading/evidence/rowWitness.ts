@@ -1,3 +1,4 @@
+import { pageBox } from "./pageGeometry.js";
 /**
  * The OCR engine as a ROW-BOUND witness on a hazmat line's numbers (DOCUMENT-READER-PLAN §7B, step A5,
  * Q-DR22). Pure: it judges text boxes the OCR engine already produced (ocr/pageOcr.ts) and never runs it.
@@ -24,8 +25,18 @@
 
 export interface OcrBox { x: number; y: number; width: number; height: number }
 export interface OcrItem { text: string; box: OcrBox }
-/** One read page's OCR, in pixels of the upright original the engine was given. */
-export interface OcrPage { page: number; width: number; height: number; items: OcrItem[] }
+/**
+ * One read page's OCR, in pixels of the image the engine was given: the upright original, or its prepared view
+ * (ocr/prepareOcrView.ts), whose `toPage` maps a view pixel onto the upright page of `width × height`. Every
+ * box a witness reports goes through `pageBox` (pageGeometry.ts); its judging stays in the view's pixels.
+ */
+export interface OcrPage {
+  page: number;
+  width: number;
+  height: number;
+  items: OcrItem[];
+  toPage?: { matrix: number[]; width: number; height: number };
+}
 
 /** The fields a row witness judges: a line's numbers. Identifying fields stay with the table and the readers. */
 export const ROW_JUDGED_KEYS = ["packageCount", "grossWeightLb", "quantity.value"] as const;
@@ -69,8 +80,7 @@ export function rowOf(pages: readonly OcrPage[], idText: string | null | undefin
     const mid = i.box.y + i.box.height / 2;
     return mid >= top && mid <= bottom;
   });
-  const y = Math.max(0, top) / p.height;
-  return { page: p.page, bbox: { x: 0, y, w: 1, h: Math.min(1, bottom / p.height) - y }, items };
+  return { page: p.page, bbox: pageBox(p, { x: 0, y: top, width: p.width, height: bottom - top }), items };
 }
 
 /** Whether `value` is printed as a whole token on the row and is none of the `unprovable` tokens. */
@@ -82,6 +92,19 @@ export function rowShows(row: Row, value: unknown, unprovable: readonly string[]
 
 /** The tokens of a line's hazard class(es) as printed — "3 (6.1)" → ["3", "6.1"] — which the row cannot prove. */
 export const classTokens = (...hazardClass: (string | null | undefined)[]): string[] => hazardClass.flatMap((c) => tokens(c ?? ""));
+
+/**
+ * Whether the row can say anything about these readings at all. It cannot when every value the readers read
+ * is a token of the line's own hazard class — "8" totes on a class 8 line: the class is printed on that row,
+ * so the row shows an 8 whatever the count. Then the witness ABSTAINS: no word, and the field rests on the
+ * readers as it did before the witness (A5), instead of a recorded "not shown" the audit counts against them.
+ * Found 2026-10-20: once the prepared view (ocr/prepareOcrView.ts) let the engine find Mayo Products BOL
+ * 14182's UN1824 row, its 8 totes — both readers, and the paper — turned four rules to "confirm it first".
+ * A row that shows a provable reading still backs it, and one that shows none of them still counts against.
+ */
+export function rowCanJudge(candidates: readonly unknown[], unprovable: readonly string[]): boolean {
+  return candidates.some((c) => (typeof c === "number" || typeof c === "string") && !unprovable.some((u) => sameToken(u, norm(String(c)).trim())));
+}
 
 /**
  * The row witness's word on one field: of the readers' candidate values, the ONE the row shows, or null when

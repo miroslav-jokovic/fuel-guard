@@ -1,3 +1,4 @@
+import { pageBox } from "./pageGeometry.js";
 import { tokens, type OcrItem, type OcrPage } from "./rowWitness.js";
 
 /**
@@ -51,7 +52,7 @@ export function certificationShown(pages: readonly OcrPage[]): { page: number; b
         const y = Math.min(...hit.map((b) => b.y));
         const right = Math.max(...hit.map((b) => b.x + b.width));
         const bottom = Math.max(...hit.map((b) => b.y + b.height));
-        return { page: p.page, bbox: { x: x / p.width, y: y / p.height, w: Math.min(1, (right - x) / p.width), h: Math.min(1, (bottom - y) / p.height) } };
+        return { page: p.page, bbox: pageBox(p, { x, y, width: right - x, height: bottom - y }) };
       }
     }
   }

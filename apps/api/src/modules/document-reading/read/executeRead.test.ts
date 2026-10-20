@@ -431,7 +431,7 @@ describe("executeRead — the OCR witness (§7B A5)", () => {
     const ocr: RecognisePage = async (b) => {
       const m = await sharp(b).metadata();
       sizes.push([m.width!, m.height!]);
-      return sizes.length === 1 ? [box("UN2735 Amines 8 PG II", 10), box("6", 11)] : [];
+      return { items: sizes.length === 1 ? [box("UN2735 Amines 8 PG II", 10), box("6", 11)] : [], view: null };
     };
     const w = await world({ classes: { p1: "bol", p2: "bol" }, rotations: { p2: 90 }, documents: twoReaders, ocr });
     expect(await w.run()).toMatchObject({ outcome: "done" });
@@ -452,7 +452,7 @@ describe("executeRead — the OCR witness (§7B A5)", () => {
   });
 
   it("keeps pass B's whole document and the OCR words it judged on, so the read can be judged again (RC2, 0487)", async () => {
-    const ocr: RecognisePage = async () => [box("UN2735 Amines 8 PG II", 10), box("6", 11)];
+    const ocr: RecognisePage = async () => ({ items: [box("UN2735 Amines 8 PG II", 10), box("6", 11)], view: null });
     const w = await world({ classes: { p1: "bol", p2: "bol" }, documents: twoReaders, ocr });
     expect(await w.run()).toMatchObject({ outcome: "done" });
     const replay = w.transitions()[1]!.p_replay_inputs as { passB: unknown; ocr: { page: number; items: unknown[] }[] | null; textLayer: unknown };
@@ -468,7 +468,7 @@ describe("executeRead — the OCR witness (§7B A5)", () => {
   });
 
   it("runs no OCR for a cache hit", async () => {
-    const ocr = vi.fn<RecognisePage>(async () => []);
+    const ocr = vi.fn<RecognisePage>(async () => ({ items: [], view: null }));
     const w = await world({ cached: withCount(6), classes: { p1: "bol", p2: "bol" }, ocr });
     expect(await w.run()).toMatchObject({ outcome: "done", cacheHit: true });
     expect(ocr).not.toHaveBeenCalled();

@@ -1,6 +1,7 @@
 import { parentPort, workerData } from "node:worker_threads";
 import { PaddleOcrService } from "ppu-paddle-ocr";
 import { modelFile, OCR_MODEL_FILES } from "./ocrModels.js";
+import { prepareOcrView } from "./prepareOcrView.js";
 
 /**
  * The OCR engine's thread (pageOcr.ts starts it). Reads run in the API process today
@@ -13,7 +14,7 @@ import { modelFile, OCR_MODEL_FILES } from "./ocrModels.js";
  * at a time, in arrival order.
  */
 
-const { cacheDir } = workerData as { cacheDir: string };
+const { cacheDir, prepare } = workerData as { cacheDir: string; prepare: boolean };
 const ab = (b: Buffer): ArrayBuffer => b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength) as ArrayBuffer;
 
 const ready = (async () => {
@@ -37,9 +38,12 @@ parentPort!.on("message", (msg: { id: number; png: Uint8Array }) => {
   queue = queue.then(async () => {
     try {
       const service = await ready;
-      const r = await service.recognize(ab(Buffer.from(msg.png.buffer, msg.png.byteOffset, msg.png.byteLength)));
+      const png = Buffer.from(msg.png.buffer, msg.png.byteOffset, msg.png.byteLength);
+      // The prepared view (prepareOcrView.ts) is the witness's own; failing to make one reads the page as is.
+      const view = prepare ? await prepareOcrView(png).catch(() => null) : null;
+      const r = await service.recognize(ab(view?.png ?? png));
       const items = r.lines.flat().map((i) => ({ text: i.text, box: i.box }));
-      parentPort!.postMessage({ id: msg.id, items });
+      parentPort!.postMessage({ id: msg.id, items, view: view && { width: view.width, height: view.height, toPage: view.toPage } });
     } catch (e) {
       parentPort!.postMessage({ id: msg.id, error: e instanceof Error ? e.message : String(e) });
     }

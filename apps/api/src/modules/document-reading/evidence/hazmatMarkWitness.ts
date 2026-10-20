@@ -1,3 +1,4 @@
+import { pageBox } from "./pageGeometry.js";
 import { tokens, type OcrItem, type OcrPage } from "./rowWitness.js";
 
 /**
@@ -59,12 +60,7 @@ export function hazmatMarks(pages: readonly OcrPage[]): HazmatMark[] {
       .map(({ mark, item }) => ({
         mark,
         page: p.page,
-        bbox: {
-          x: Math.max(0, item.box.x / p.width),
-          y: Math.max(0, item.box.y / p.height),
-          w: Math.min(1, item.box.width / p.width),
-          h: Math.min(1, item.box.height / p.height),
-        },
+        bbox: pageBox(p, item.box),
       })),
   );
 }

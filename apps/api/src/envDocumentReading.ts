@@ -39,6 +39,9 @@ export const documentReadingEnvFields = {
   // host — a read without it is exactly a read before A5. Its ~139 MB of model files are downloaded on first
   // use into DOC_OCR_CACHE_DIR (pinned revision and sha256, ocr/ocrModels.ts), once per container.
   DOC_OCR_WITNESS: z.enum(["on", "off"]).default("on"),
+  // The witness's prepared view of a photographed page (ocr/prepareOcrView.ts: paper flattened, lines
+  // levelled). "off" reads every page as it is, as before it.
+  DOC_OCR_PREPARE: z.enum(["on", "off"]).default("on"),
   DOC_OCR_CACHE_DIR: z.string().min(1).optional(),
 
   // Driver documents (0445, Step 0.1): BOL photos, delivery copies and call forms drivers submit in

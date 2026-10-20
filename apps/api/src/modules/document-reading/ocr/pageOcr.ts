@@ -9,7 +9,9 @@ import type { OcrItem, OcrPage } from "../evidence/rowWitness.js";
  * missing witness only means its fields keep the evidence they had before A5 (shippingEvidence.ts).
  *
  * Each page is OCR'd from the verified ORIGINAL turned upright by P2's verdict — the spike measured 300 DPI
- * originals, and the engine reads nothing on a sideways page (0132900 returned no text until turned).
+ * originals, and the engine reads nothing on a sideways page (0132900 returned no text until turned) — and
+ * then, in the engine thread, from its prepared view (prepareOcrView.ts: flattened and levelled), whose
+ * `toPage` carries the boxes back onto the upright page.
  * The turn is lossless (sharp's right-angle rotate), the copy the model reads gets the same one.
  *
  * One engine thread per process (ocrWorker.ts), started on first use and stopped after `idleMs` without a
@@ -17,7 +19,9 @@ import type { OcrItem, OcrPage } from "../evidence/rowWitness.js";
  * page slower than `timeoutMs` stops the thread (the next read starts a fresh one) and answers null.
  */
 
-export type RecognisePage = (uprightPng: Buffer) => Promise<OcrItem[] | null>;
+/** What the engine read on one page, and the prepared view it read it on (null: the upright page as is). */
+export interface Recognised { items: OcrItem[]; view: { width: number; height: number; toPage: number[] } | null }
+export type RecognisePage = (uprightPng: Buffer) => Promise<Recognised | null>;
 export interface PageForOcr { originalPng: Buffer; rotation: PageRotation }
 
 /** The read pages' OCR in page order (1-based), or null if any page has none — a partial set would let a
@@ -27,14 +31,17 @@ export async function ocrPages(pages: readonly PageForOcr[], recognise: Recognis
   for (const [k, p] of pages.entries()) {
     const upright = p.rotation === 0 ? p.originalPng : await sharp(p.originalPng).rotate(p.rotation).png().toBuffer();
     const meta = await sharp(upright).metadata();
-    const items = await recognise(upright);
-    if (!items || !meta.width || !meta.height) return null;
-    out.push({ page: k + 1, width: meta.width, height: meta.height, items });
+    const r = await recognise(upright);
+    if (!r || !meta.width || !meta.height) return null;
+    out.push(r.view
+      ? { page: k + 1, width: r.view.width, height: r.view.height, items: r.items, toPage: { matrix: r.view.toPage, width: meta.width, height: meta.height } }
+      : { page: k + 1, width: meta.width, height: meta.height, items: r.items });
   }
   return out;
 }
 
-export interface EngineOptions { cacheDir: string; idleMs?: number; timeoutMs?: number }
+/** `prepare: false` reads every page as it is, as before the prepared view (`DOC_OCR_PREPARE=off`). */
+export interface EngineOptions { cacheDir: string; idleMs?: number; timeoutMs?: number; prepare?: boolean }
 
 /**
  * The engine thread's entry: a two-line bootstrap that registers tsx in the thread, THEN imports the worker.
@@ -54,11 +61,11 @@ export function workerBootstrap(workerUrl: URL = new URL("./ocrWorker.ts", impor
 }
 
 /** The process's engine thread behind a `RecognisePage`. */
-export function ocrEngine({ cacheDir, idleMs = 120_000, timeoutMs = 180_000 }: EngineOptions): RecognisePage {
+export function ocrEngine({ cacheDir, idleMs = 120_000, timeoutMs = 180_000, prepare = true }: EngineOptions): RecognisePage {
   let worker: Worker | null = null;
   let idle: NodeJS.Timeout | null = null;
   let next = 0;
-  const pending = new Map<number, (items: OcrItem[] | null) => void>();
+  const pending = new Map<number, (r: Recognised | null) => void>();
 
   const stop = (why: string) => {
     if (!worker) return;
@@ -69,14 +76,14 @@ export function ocrEngine({ cacheDir, idleMs = 120_000, timeoutMs = 180_000 }: E
     pending.clear();
   };
   const start = (): Worker => {
-    const w = new Worker(workerBootstrap(), { eval: true, workerData: { cacheDir } });
-    w.on("message", (m: { id: number; items?: OcrItem[]; error?: string }) => {
+    const w = new Worker(workerBootstrap(), { eval: true, workerData: { cacheDir, prepare } });
+    w.on("message", (m: { id: number; items?: OcrItem[]; view?: Recognised["view"]; error?: string }) => {
       const settle = pending.get(m.id);
       pending.delete(m.id);
       if (m.error !== undefined) {
         settle?.(null);
         stop(m.error);
-      } else settle?.(m.items ?? null);
+      } else settle?.(m.items ? { items: m.items, view: m.view ?? null } : null);
     });
     w.on("error", (e: Error) => stop(e.message));
     w.unref();
@@ -88,11 +95,11 @@ export function ocrEngine({ cacheDir, idleMs = 120_000, timeoutMs = 180_000 }: E
     worker ??= start();
     const w = worker;
     const id = next++;
-    return new Promise<OcrItem[] | null>((resolve) => {
+    return new Promise<Recognised | null>((resolve) => {
       const timer = setTimeout(() => stop(`a page took longer than ${timeoutMs} ms`), timeoutMs);
-      pending.set(id, (items) => {
+      pending.set(id, (r) => {
         clearTimeout(timer);
-        resolve(items);
+        resolve(r);
         if (pending.size === 0 && worker) idle = setTimeout(() => stop("idle"), idleMs).unref();
       });
       w.postMessage({ id, png });

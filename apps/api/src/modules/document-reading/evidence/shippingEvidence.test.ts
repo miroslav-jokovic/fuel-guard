@@ -4,6 +4,7 @@ import { alignLines } from "./alignLines.js";
 import { HMT_JUDGED_KEYS } from "./hmtWitness.js";
 import { EVIDENCE_FOR } from "./index.js";
 import type { OcrPage } from "./rowWitness.js";
+import { auditFieldStates } from "./paperAudit.js";
 import { shippingEvidence } from "./shippingEvidence.js";
 
 /**
@@ -144,12 +145,17 @@ describe("shippingEvidence — the OCR witness (§7B A5)", () => {
     expect(at(all, "hazmat.lines[0].packageCount").status).toBe("check");
   });
 
-  it("records null when the row shows neither reader's value, or only the line's own class", () => {
+  it("records null when the row shows neither reader's value, and says nothing when every reading is the line's own class", () => {
     const all = shippingEvidence(doc([line({ ...UN2735, packageCount: 9 })]), doc([line({ ...UN2735, packageCount: 7 })]), "3", OCR);
     expect(ocrOf(all, "hazmat.lines[0].packageCount").map((s) => s.value)).toEqual([null]);
-    // UN2735 is class 8, and its description prints the 8 on this row.
+    // UN2735 is class 8, and its description prints the 8 on this row: the row can neither back an 8 nor
+    // deny it, so it abstains and the count rests on the readers (Mayo BOL 14182's 8 totes, class 8).
     const eight = shippingEvidence(doc([line({ ...UN2735, packageCount: 8 })]), doc([line({ ...UN2735, packageCount: 8 })]), "3", OCR);
-    expect(ocrOf(eight, "hazmat.lines[0].packageCount").map((s) => s.value)).toEqual([null]);
+    expect(ocrOf(eight, "hazmat.lines[0].packageCount")).toEqual([]);
+    expect(auditFieldStates(eight)["hazmat.lines[0].packageCount"]).toBe("read");
+    // One provable reading is enough for the row to judge: an 8 against a 6 is backed or refused as before.
+    const split = shippingEvidence(doc([line({ ...UN2735, packageCount: 8 })]), doc([line({ ...UN2735, packageCount: 6 })]), "3", OCR);
+    expect(ocrOf(split, "hazmat.lines[0].packageCount").map((s) => s.value)).toEqual([6]);
   });
 
   it("judges only count, weight and quantity — never the identifying fields — and nothing both readers left empty", () => {
