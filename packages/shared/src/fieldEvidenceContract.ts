@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { extentAgrees, isExtentPath } from "./readingExtent.js";
 
 /**
  * FieldEvidence — what the document reader knows about ONE field (DOCUMENT-READER-PLAN.md §2, D-EXR1).
@@ -168,13 +169,23 @@ export function valuesAgree(a: unknown, b: unknown): boolean {
 }
 
 /**
- * Whether a field's two model readers agree: true / false when both pass A and pass B recorded a value, null
- * when either is absent (one reader only — never agreement).
+ * Whether two readers' values of the field at `path` agree: `valuesAgree`, and — for a free-text cell one
+ * reader may transcribe further than the other (a description's commercial tail, a packaging cell's
+ * item-code line) — the same facts with a tail that carries none (`extentAgrees`, readingExtent.ts, R-M2).
  */
-export function readersAgree(e: Pick<FieldEvidence, "sources">): boolean | null {
+export function readingsAgree(path: string | undefined, a: unknown, b: unknown): boolean {
+  return valuesAgree(a, b) || (isExtentPath(path) && extentAgrees(path!, a, b, normalisedForAgreement));
+}
+
+/**
+ * Whether a field's two model readers agree: true / false when both pass A and pass B recorded a value, null
+ * when either is absent (one reader only — never agreement). Given the field's `path`, an extent cell is
+ * judged by its facts (`readingsAgree`); without one, by `valuesAgree` alone.
+ */
+export function readersAgree(e: Pick<FieldEvidence, "sources"> & { path?: string }): boolean | null {
   const a = e.sources.find((s) => s.reader === "passA");
   const b = e.sources.find((s) => s.reader === "passB");
-  return a && b ? valuesAgree(a.value, b.value) : null;
+  return a && b ? readingsAgree(e.path, a.value, b.value) : null;
 }
 
 /**

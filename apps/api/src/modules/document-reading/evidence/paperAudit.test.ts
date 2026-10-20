@@ -91,6 +91,42 @@ describe("auditForRead", () => {
       sources: [{ reader: "passA", page: null, bbox: null, value: ["Not Regulated"] }, { reader: "passB", page: null, bbox: null, value: ["Not regulated"] }] }])).not.toBeNull();
   });
 
+  describe("a cell the readers read to different extents (R-M2, production read 350d2f27)", () => {
+    const CAUSTIC = { idText: "UN1824", psn: "SODIUM HYDROXIDE, SOLUTION", hazardClass: "8", pg: "II" as const, packageCount: 8, grossWeightLb: 29800 };
+    const long = doc([{ ...CAUSTIC, descriptionText: "UN1824, SODIUM HYDROXIDE, SOLUTION 8, PGII, CAUSTIC SODA 50% 3600# TOTE", packaging: "8 3600LBTOTE FG00035-3600T" }]);
+    const short = doc([{ ...CAUSTIC, descriptionText: "UN1824, SODIUM HYDROXIDE, SOLUTION 8, PGII", packaging: "8 3600LBTOTE" }]);
+    const RULES = ["paper_sequence", "paper_technical_name", "paper_lq", "paper_marine_pollutant", "paper_package_count"];
+
+    it("judges a description and a packaging cell one reader carried further, whichever reader that was", () => {
+      for (const [a, b] of [[long, short], [short, long]] as const) {
+        const audit = auditForRead(a, shippingEvidence(a, b, "10", null));
+        for (const id of RULES) expect(outcome(audit, id)?.reason, id).not.toBe("field_unconfirmed");
+        expect(outcome(audit, "paper_sequence")).toMatchObject({ outcome: "pass" });
+      }
+    });
+
+    it("will not judge a description one reader read one regulated word further", () => {
+      const lq = doc([{ ...CAUSTIC, descriptionText: "UN1824, SODIUM HYDROXIDE, SOLUTION 8, PGII, LTD QTY", packaging: "8 3600LBTOTE" }]);
+      const r = outcome(auditForRead(lq, shippingEvidence(lq, short, "10", null)), "paper_lq");
+      expect(r).toMatchObject({ outcome: "cannot_tell", reason: "field_unconfirmed" });
+      expect(r?.facts.unconfirmed).toContain("hazmat.lines[0].descriptionText");
+    });
+
+    it("refuses the one rule whose answer moves with a tail the token list cannot foresee — an EPA waste code", () => {
+      // NA3082 is a G entry: without a technical name it does not pass, unless a waste code stands for it (§172.203(k)(2)(i)).
+      const WASTE = { idText: "NA3082", psn: "Hazardous waste, liquid, n.o.s.", hazardClass: "9", pg: "III" as const, packageCount: 4, grossWeightLb: 2000, packaging: "4 DRUMS" };
+      const coded = doc([{ ...WASTE, descriptionText: "NA3082, Hazardous waste, liquid, n.o.s., 9, PGIII, D001" }]);
+      const bare = doc([{ ...WASTE, descriptionText: "NA3082, Hazardous waste, liquid, n.o.s., 9, PGIII" }]);
+      expect(outcome(auditForRead(coded, shippingEvidence(coded, coded, "10", null)), "paper_technical_name")).toMatchObject({ outcome: "pass" });
+      expect(outcome(auditForRead(bare, shippingEvidence(bare, bare, "10", null)), "paper_technical_name")?.outcome).not.toBe("pass");
+      for (const [a, b] of [[coded, bare], [bare, coded]] as const) {
+        const audit = auditForRead(a, shippingEvidence(a, b, "10", null));
+        expect(outcome(audit, "paper_technical_name")).toMatchObject({ outcome: "cannot_tell", reason: "field_unconfirmed", facts: { unconfirmed: ["hazmat.lines[0].descriptionText"] } });
+        expect(outcome(audit, "paper_sequence")).toMatchObject({ outcome: "pass" });
+      }
+    });
+  });
+
   it("answers nothing for a result that is not a shipping document", () => {
     expect(auditForRead({ hazmat: { lines: "nope" } }, [])).toBeNull();
   });
