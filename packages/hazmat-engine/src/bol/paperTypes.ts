@@ -61,6 +61,11 @@ export interface PrintedPaperLine {
   readonly packageCount: number | null;
   /** The line's weight column, in pounds as the reader's contract states it; absent = not transcribed. */
   readonly grossWeightLb?: number | null;
+  /**
+   * The line's NET weight column, in pounds, when the paper prints one beside the gross (reader profile 1.5.0):
+   * the contents' mass — what RQ is judged by. Absent = not transcribed.
+   */
+  readonly netWeightLb?: number | null;
   readonly packaging: string | null;
   readonly hmColumnMark: "X" | "RQ" | null;
   readonly marks: readonly string[];

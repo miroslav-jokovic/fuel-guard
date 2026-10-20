@@ -236,3 +236,23 @@ the paper's answer then follows the person's checks, and it reuses the review ro
   anchor ("UN124", "XUN1830"), so no row witness judged a Mayo line; and it returned NO word of the printed,
   signed §172.204 certification block on any of the four reads — R-M3's OCR witness has nothing to find on them.
   Also "8 3600LBTOTE" reads as no package type (`packageTypeFromPrinted` needs a word boundary before TOTE).
+- **2026-10-20 — R-M1 built (profile 1.5.0, engine 0.20.0): RQ is judged from the net weight column and the printed
+  concentration.** The handoff's first idea — tell `quantity` that a net column counts — is the wording the
+  2026-10-11 measurement rejected (the readers split on copying a weight column into `quantity` on 6 of 10 papers),
+  so the net column became a field of its own, `netWeightLb`. The lines section is at 15 of the 16 unions the API
+  accepts, so it took the slot of `perPackageWeightLb`: no consumer of a read used it (the vision extractor, which
+  does, keeps it in its own line schema, `bolFields.ts`), and on Mayo the readers split on it. `descriptionText` now
+  runs to the end of the description cell, where a shipper prints "CAUSTIC SODA 50%" — R-M2 makes a reader that
+  stops earlier agree by its facts, and its both-readings guard is what keeps a percentage only ONE reader copied
+  from deciding RQ (the rule's answer moves with it, so it waits: `paperAudit.test.ts`). `paper_rq`: contents
+  (description quantity, else net ÷ count) × the printed share (a neat name is all substance unless a share is
+  printed) at or over the RQ fails; under it by a printed percentage waits (§171.8 is by weight, a paper's "%"
+  does not say); a package whose whole gross is under the RQ clears. The arithmetic witness checks the net column
+  against the printed NET: two-sided when every loaded row is hazmat, an upper bound only on a mixed paper (the
+  freight rows have no net field), never a pick there. `rqCensus.test.ts` (hazmat-golden) over every HMT row
+  Appendix A reaches × seven amounts × RQ printed or not: 0 false passes, 0 false fails, 0 missed; five engine
+  mutants and three witness mutants each fail a test. **Replayed** (the four stored reads were read under 1.4.0, so
+  they carry no net column): 50 → 46 "confirm it first" — the corrosives BOL's UN1760 and UN3266 lines, boxes of
+  50 and 58 lb gross against 5,000 and 1,000 lb RQs, now clear; false-accept 0. Mayo's RQ answers need a re-read
+  under 1.5.0, which costs a model call and writes a production row: **waits on the owner's OK** — by the tests,
+  both lines then fail RQ (1,800 lb sodium hydroxide, 3,022.5 lb sulfuric acid per tote).

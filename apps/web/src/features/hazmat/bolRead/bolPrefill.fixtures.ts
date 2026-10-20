@@ -8,7 +8,7 @@ import type { FieldEvidence, HazmatProduct, ReadResponse } from "@silvicom/share
 export type Line = Record<string, unknown>;
 const LINE_DEFAULTS: Line = {
   idText: null, descriptionText: null, psn: null, hazardClass: null, pg: null, technicalName: null,
-  quantity: { value: null, unit: null }, grossWeightLb: null, packageCount: null, perPackageWeightLb: null,
+  quantity: { value: null, unit: null }, grossWeightLb: null, packageCount: null, netWeightLb: null,
   packaging: null, hmColumnMark: null, marks: [],
 };
 export const DIESEL: Line = {
@@ -31,7 +31,7 @@ const JUDGED = ["idText", "psn", "hazardClass", "pg"];
 const ROW = ["packageCount", "grossWeightLb", "quantity.value"];
 const get = (o: Line, key: string): unknown => key.split(".").reduce<unknown>((v, k) => (v as Line | null)?.[k] ?? null, o);
 const KEYS = ["idText", "descriptionText", "psn", "hazardClass", "pg", "technicalName", "quantity.value", "quantity.unit", "grossWeightLb",
-  "packageCount", "perPackageWeightLb", "packaging", "hmColumnMark", "marks"];
+  "packageCount", "netWeightLb", "packaging", "hmColumnMark", "marks"];
 
 export interface LineSpec {
   a: Line | null;

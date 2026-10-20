@@ -150,3 +150,36 @@ describe("arithmeticWitness — counts", () => {
     expect([...nothing.keys()].filter((k) => k.endsWith("packageCount"))).toEqual([]);
   });
 });
+
+describe("arithmeticWitness — the net weight column (profile 1.5.0, R-M1)", () => {
+  // Mayo Products BOL 14182: NET 28,800 and 6,500 on its hazmat lines, 7,125 on its flocculant line, NET total 42,425.
+  const N = (i: number) => `hazmat.lines[${i}].netWeightLb`;
+  const net = (packageCount: number, grossWeightLb: number, netWeightLb: number) => ({ packageCount, grossWeightLb, netWeightLb });
+  const MAYO = [net(8, 29800, 28800), net(2, 6750, 6500)];
+
+  it("backs each line's net where every loaded row is a hazmat line and they add to the printed net", () => {
+    const lines = [...MAYO, net(3, 7500, 7125)];
+    const sums = arithmeticWitness(doc(lines, { netWeight: 42425, weight: 44050 }), doc(lines, { netWeight: 42425, weight: 44050 }));
+    expect([sums.get(N(0)), sums.get(N(1)), sums.get(N(2))]).toEqual([28800, 6500, 7125]);
+  });
+
+  it("picks between two readings of a net only by the printed net", () => {
+    const a = doc([...MAYO, net(3, 7500, 7125)], { netWeight: 42425 });
+    const b = doc([net(8, 29800, 2880), MAYO[1]!, net(3, 7500, 7125)], { netWeight: 42425 });
+    expect(arithmeticWitness(a, b).get(N(0))).toBe(28800);
+  });
+
+  it("on a mixed paper backs no net — the freight rows' share of the total is unread — and flags nets over it", () => {
+    const other = [row(3, 7500)];
+    // 35,300 is what the hazmat nets add to; a printed net of exactly that would be chance, not a witness.
+    expect(arithmeticWitness(doc(MAYO, { netWeight: 35300 }, other), doc(MAYO, { netWeight: 35300 }, other)).has(N(0))).toBe(false);
+    expect(arithmeticWitness(doc(MAYO, { netWeight: 42425 }, other), doc(MAYO, { netWeight: 42425 }, other)).has(N(0))).toBe(false);
+    const over = arithmeticWitness(doc(MAYO, { netWeight: 30000 }, other), doc(MAYO, { netWeight: 30000 }, other));
+    expect([over.get(N(0)), over.get(N(1))]).toEqual([null, null]);
+  });
+
+  it("leaves a paper with no net column read as it was", () => {
+    const sums = arithmeticWitness(doc(L0134831, P0134831), doc(L0134831, P0134831));
+    expect([...sums.keys()].some((k) => k.endsWith("netWeightLb"))).toBe(false);
+  });
+});

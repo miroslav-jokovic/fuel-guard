@@ -91,6 +91,56 @@ describe("auditForRead", () => {
       sources: [{ reader: "passA", page: null, bbox: null, value: ["Not Regulated"] }, { reader: "passB", page: null, bbox: null, value: ["Not regulated"] }] }])).not.toBeNull();
   });
 
+  describe("RQ from the net weight column and the printed concentration (R-M1, profile 1.5.0, Mayo BOL 14182)", () => {
+    const mayo = (caustic: string, sulfuric: string) => {
+      const d = doc([
+        { idText: "UN1824", psn: "SODIUM HYDROXIDE, SOLUTION", hazardClass: "8", pg: "II", packageCount: 8, packaging: "8 3600LBTOTE", grossWeightLb: 29800, netWeightLb: 28800, hmColumnMark: "X", descriptionText: caustic },
+        { idText: "UN1830", psn: "SULFURIC ACID", hazardClass: "8", pg: "II", packageCount: 2, packaging: "2 3250LBTOTE", grossWeightLb: 6750, netWeightLb: 6500, hmColumnMark: "X", descriptionText: sulfuric },
+      ]);
+      return {
+        ...d,
+        otherLines: [{ description: "FLOCCULANT 322 HV 2375# TOTE", packageCount: 3, grossWeightLb: 7500 }],
+        freight: { ...d.freight, netWeight: 42425, weight: 44050, weightUnit: "lb" as const },
+      };
+    };
+    const full = mayo("UN1824, SODIUM HYDROXIDE, SOLUTION 8, PGII, CAUSTIC SODA 50% 3600# TOTE", "UN1830, SULFURIC ACID 8, PGII, SULFURIC ACID 93% 3250# TOTE");
+    const rq = (a: ReturnType<typeof auditForRead>, i: number) => a?.results.find((r) => r.ruleId === "paper_rq" && r.lineIndex === i);
+
+    it("finds RQ owed and unprinted on both lines when both readers read the whole cell and the net column", () => {
+      const audit = auditForRead(full, shippingEvidence(full, full, "10", null));
+      expect(rq(audit, 0)).toMatchObject({ outcome: "fail", reason: "rq_not_printed", facts: { concentrationPct: 50, substancePerPackage: 1800 } });
+      expect(rq(audit, 1)).toMatchObject({ outcome: "fail", reason: "rq_not_printed", facts: { concentrationPct: 93 } });
+      expect(audit?.results.filter((r) => r.ruleId === "paper_quantity_present").map((r) => r.reason)).toEqual(["net_weight_printed", "net_weight_printed"]);
+    });
+
+    it("lets no percentage only one reader copied decide RQ — the cell agrees, the RQ answer waits", () => {
+      const cut = mayo("UN1824, SODIUM HYDROXIDE, SOLUTION 8, PGII", "UN1830, SULFURIC ACID 8, PGII");
+      for (const [a, b] of [[full, cut], [cut, full]] as const) {
+        const audit = auditForRead(a, shippingEvidence(a, b, "10", null));
+        expect(rq(audit, 0)).toMatchObject({ outcome: "cannot_tell", reason: "field_unconfirmed", facts: { unconfirmed: ["hazmat.lines[0].descriptionText"] } });
+        // Sulfuric acid is neat: 3,250 lb of it per tote owes RQ at any printed strength over 31 %, and with none.
+        expect(rq(audit, 1)).toMatchObject({ outcome: "fail", reason: "rq_not_printed" });
+        expect(outcome(audit, "paper_sequence")).toMatchObject({ outcome: "pass" });
+      }
+    });
+
+    it("will not judge RQ on net weights the paper's own net total contradicts", () => {
+      // Without the freight line every loaded row is hazmat, so the nets must add to the printed 42,425 and
+      // 35,300 does not; with it, the nets are only bounded by it and stand.
+      const allHazmat = { ...full, otherLines: [] };
+      expect(rq(auditForRead(allHazmat, shippingEvidence(allHazmat, allHazmat, "10", null)), 0))
+        .toMatchObject({ outcome: "cannot_tell", reason: "field_unconfirmed", facts: { unconfirmed: ["hazmat.lines[0].netWeightLb"] } });
+      const over = { ...full, freight: { ...full.freight, netWeight: 30000 } };
+      expect(rq(auditForRead(over, shippingEvidence(over, over, "10", null)), 0)).toMatchObject({ outcome: "cannot_tell", reason: "field_unconfirmed" });
+    });
+
+    it("will not judge RQ on a net weight the readers split on", () => {
+      const other = mayo("UN1824, SODIUM HYDROXIDE, SOLUTION 8, PGII, CAUSTIC SODA 50% 3600# TOTE", "UN1830, SULFURIC ACID 8, PGII, SULFURIC ACID 93% 3250# TOTE");
+      other.hazmat.lines[0]!.netWeightLb = 2880;
+      expect(rq(auditForRead(full, shippingEvidence(full, other, "10", null)), 0)).toMatchObject({ outcome: "cannot_tell", reason: "field_unconfirmed" });
+    });
+  });
+
   describe("a cell the readers read to different extents (R-M2, production read 350d2f27)", () => {
     const CAUSTIC = { idText: "UN1824", psn: "SODIUM HYDROXIDE, SOLUTION", hazardClass: "8", pg: "II" as const, packageCount: 8, grossWeightLb: 29800 };
     const long = doc([{ ...CAUSTIC, descriptionText: "UN1824, SODIUM HYDROXIDE, SOLUTION 8, PGII, CAUSTIC SODA 50% 3600# TOTE", packaging: "8 3600LBTOTE FG00035-3600T" }]);

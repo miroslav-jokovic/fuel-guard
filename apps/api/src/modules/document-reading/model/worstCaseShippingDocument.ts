@@ -53,7 +53,7 @@ export function worstCaseShippingDocument(): ShippingDocument {
         idText, psn, hazardClass, pg, technicalName,
         descriptionText: [idText, `${psn}${technicalName ? ` ${technicalName}` : ""}`, hazardClass, pg && `PG ${pg}`].filter(Boolean).join(", "),
         quantity: { value: 1234.5 + i, unit: "gal" },
-        grossWeightLb: 3456.75 + i, packageCount: 12 + i, perPackageWeightLb: 288.06,
+        grossWeightLb: 3456.75 + i, packageCount: 12 + i, netWeightLb: 3400.5 + i,
         packaging: `${12 + i} steel drums 55 gal 1A1/Y1.4/150`,
         hmColumnMark: i % 3 === 0 ? "RQ" : "X",
         marks: ["MARINE POLLUTANT", "LIMITED QUANTITY", "HOT"],

@@ -36,17 +36,21 @@ export const printedHazmatLineSchema = z.object({
    * information interspersed". The four fields beside it say what the parts are; only the string says
    * whether the paper printed them in sequence, so it is the paper audit's input (§5) — an AUDIT input,
    * not an engine input, hence absent from ENGINE_INPUT_LINE_KEYS. Null when no description is legible as
-   * one run of text. Not the quantity or packaging printed after it: live 2026-10-09, both Sonnets
-   * appended a trailing "5000 GAL" under the looser wording "the whole description"; the wording below
-   * has not been re-measured.
+   * one run of text. Since 1.5.0 (R-M1) it runs on to the end of the description CELL: what a shipper prints
+   * after the packing group in the same cell — a concentration ("CAUSTIC SODA 50%"), an RQ, "Ltd Qty" — is
+   * what §172.203 judges, and under 1.4.0 ("not the quantity or packaging after them") the two readers split on
+   * it anyway (Mayo, 350d2f27: one copied "CAUSTIC SODA 50% 3600# TOTE", one stopped at "PGII"). A reading
+   * that stops earlier now agrees by its facts (readingExtent.ts, R-M2), so the wider cell costs no stop; live
+   * 2026-10-09 both Sonnets appended "5000 GAL" under a looser wording, which the cell now includes by design.
    */
   descriptionText: z
     .string()
     .nullable()
     .default(null)
     .describe(
-      "This line's id, shipping name, hazard class and packing group as ONE string exactly as printed, in printed order " +
-        "and punctuation, from the first of them to the last — not the quantity or packaging after them.",
+      "This line's description cell as ONE string exactly as printed, in printed order and punctuation: its id, shipping " +
+        "name, hazard class and packing group, and everything printed after them in the same cell (a concentration, RQ, " +
+        "Ltd Qty) — not the separate packaging or weight columns.",
     ),
   /**
    * The descriptions below give each printed thing on a line exactly ONE field (§7B, 2026-10-11). Measured
@@ -87,8 +91,25 @@ export const printedHazmatLineSchema = z.object({
     .nullable()
     .default(null)
     .describe("How many packages the line has: the number printed with the package type (6 in '6 DR', 36 in '36 SACKS', 1 in '1 TOTE')."),
-  /** Per-package weight as printed (enables the count × per-package = extended-weight arithmetic check). */
-  perPackageWeightLb: num(),
+  /**
+   * The line's NET weight column (profile 1.5.0, READER-CORRECTNESS-PLAN R-M1) — the contents' mass, which is
+   * what §172.203(c)'s RQ is judged by and what §172.202(a)(5)'s "total quantity … by mass" is. One printed
+   * number, one field: `grossWeightLb` keeps the gross column, `quantity` what the description prints.
+   * Production read 350d2f27 (Mayo Products BOL 14182, 2026-10-19) prints NET 28,800 / GROSS 29,800 per line;
+   * under 1.4.0 the net column belonged to no field, so both readers left it out and RQ could not be judged on
+   * a paper that owes it twice. It takes the slot of 1.4.0's `perPackageWeightLb`, which no consumer of a read
+   * used (only the vision path's own schema feeds the extended-weight check) and which the readers split on
+   * there (one took the "3600LB" in "3600LBTOTE", the other nothing) — the lines section is held strictly
+   * under the 16-union limit (SHIPPING_DOCUMENT_SECTIONS), so a field is added only where one goes.
+   */
+  netWeightLb: z
+    .number()
+    .nullable()
+    .default(null)
+    .describe(
+      "The line's weight in a NET weight column, when the paper prints net and gross weight columns separately and in " +
+        "pounds; null when it prints one weight column only (that is grossWeightLb).",
+    ),
   /** Packaging phrase as printed ("1 cargo tank", "10 drums", "cases"). */
   packaging: z.string().nullable().default(null).describe("The package type with its count as printed ('6 DR', '1 cargo tank', '36 SACKS')."),
   /** HM-column mark as printed: "X" (hazmat) or "RQ" (reportable quantity). §172.201(a)(1)(i). */
@@ -338,7 +359,7 @@ export function emptyShippingDocument(): ShippingDocument {
 }
 
 /** Bumped on any change to the schema above; stored on every read and in the cache key (§4.6). */
-export const SHIPPING_DOCUMENT_PROFILE_VERSION = "1.4.0";
+export const SHIPPING_DOCUMENT_PROFILE_VERSION = "1.5.0";
 
 // ── read sections (Q-DR11, ruled 2026-10-09) ───────────────────────────────────────────────────────
 /**
@@ -378,7 +399,7 @@ export const SHIPPING_DOCUMENT_SECTIONS = [
 /**
  * The hazmat line keys that feed the placard engine — D-DR5's "engine inputs": id, PSN, class, PG,
  * quantity, weight, packaging, LQ, RQ, marine pollutant. LQ and marine pollutant are read from `marks`
- * (`lineDeclaresLq`), RQ from `hmColumnMark`. `technicalName` and `perPackageWeightLb` are audit and
+ * (`lineDeclaresLq`), RQ from `hmColumnMark`. `technicalName` and `netWeightLb` are audit and
  * arithmetic inputs, not engine inputs, so they graduate at the ordinary bar.
  */
 export const ENGINE_INPUT_LINE_KEYS = [

@@ -213,10 +213,18 @@ export const BOL_FINDING_CATALOGUE = {
       const amount = `${s(ctx.facts.perPackage)} ${s(ctx.facts.unit)} per package`;
       switch (ctx.reason) {
         case "rq_not_printed":
+          if (typeof ctx.facts.concentrationPct === "number" && ctx.facts.concentrationPct < 100) {
+            return `${line(ctx)} has ${amount} at ${s(ctx.facts.concentrationPct)}% ${s(ctx.facts.substance)} — ${s(ctx.facts.substancePerPackage)} ${s(ctx.facts.unit)} of it per package, at or over its reportable quantity of ${s(ctx.facts.rq)} ${s(ctx.facts.unit)}, but the BOL doesn't say "RQ".`;
+          }
           return `${line(ctx)} has ${amount} of ${s(ctx.facts.substance)}, at or over its reportable quantity of ${s(ctx.facts.rq)} ${s(ctx.facts.unit)}, but the BOL doesn't say "RQ".`;
+        case "concentration_basis_unknown":
+          return `${line(ctx)} has ${amount} at ${s(ctx.facts.concentrationPct)}% ${s(ctx.facts.substance)} — about ${s(ctx.facts.substancePerPackage)} ${s(ctx.facts.unit)} of it, under its reportable quantity of ${s(ctx.facts.rq)} ${s(ctx.facts.unit)} if that percentage is by weight; the BOL doesn't say, so check before leaving RQ off.`;
         case "printed":
           return `${line(ctx)} is marked RQ.`;
         case "below_rq":
+          if (ctx.facts.basis === "gross_weight") {
+            return `${line(ctx)} weighs ${amount} in all, packaging included — under the reportable quantity of ${s(ctx.facts.rq)} ${s(ctx.facts.unit)} for ${s(ctx.facts.substance)}, so no RQ needed.`;
+          }
           return `${line(ctx)} has ${amount} of ${s(ctx.facts.substance)}, under its reportable quantity of ${s(ctx.facts.rq)} ${s(ctx.facts.unit)} — no RQ needed.`;
         case "not_listed":
           return `${line(ctx)} is not a listed hazardous substance — no RQ needed.`;
@@ -310,6 +318,8 @@ export const BOL_FINDING_CATALOGUE = {
           return `${line(ctx)} gives its quantity as "${s(ctx.facts.packaging)}", which cylinders may.`;
         case "residue":
           return `${line(ctx)} is a residue line and needs no quantity.`;
+        case "net_weight_printed":
+          return `${line(ctx)} prints its net weight, ${typeof ctx.facts.value === "number" ? ctx.facts.value.toLocaleString("en-US") : s(ctx.facts.value)} lb.`;
         default:
           return `${line(ctx)} shows ${s(ctx.facts.value)} ${s(ctx.facts.unit)}.`;
       }

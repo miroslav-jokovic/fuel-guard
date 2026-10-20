@@ -137,16 +137,20 @@ function leadingCount(packaging: string | null): number | null {
  * or gross with it — is not something the paper says, and (a)(5) itself never uses the word "gross" (it
  * appears only in (a)(6), for aircraft). So the rule answers `cannot_tell` with the weight in its facts and
  * leaves the judgement to a person (found 2026-10-12 auditing the office BOLs: every weight-only line read
- * as "shows no total quantity", which the paper plainly contradicts).
+ * as "shows no total quantity", which the paper plainly contradicts). A NET weight column is different
+ * (engine 0.20.0): the contents' mass is (a)(5)'s total quantity by mass, under a printed unit (the reader
+ * reads it in pounds), so a line that prints one has its total quantity — Mayo Products BOL 14182's "NET
+ * WEIGHT 28800" beside "GROSS WEIGHT 29800".
  */
 export function paperQuantityPresent(ctx: LineCtx): PaperRuleResult {
   const r = make("paper_quantity_present", ctx.index);
-  const g = gated(ctx, r, ["quantity", "packaging", "packageCount", "marks", "grossWeightLb"]);
+  const g = gated(ctx, r, ["quantity", "packaging", "packageCount", "marks", "grossWeightLb", "netWeightLb"]);
   if (g) return g;
   const p = ctx.printed;
   const label = lineLabel(ctx);
   const { value, unit } = p.quantity;
   if (value != null && value > 0 && !blank(unit)) return r("pass", "printed", { lineLabel: label, value, unit: unit!.trim() });
+  if (p.netWeightLb != null && p.netWeightLb > 0) return r("pass", "net_weight_printed", { lineLabel: label, value: p.netWeightLb, unit: "lb" });
   const counted = (p.packageCount ?? leadingCount(p.packaging) ?? 0) >= 1 && !blank(p.packaging);
   if (counted && (ctx.resolved.packagingKind === "bulk" || BULK_NAME.test(p.packaging!))) {
     return r("pass", "bulk_package_count", { lineLabel: label, packaging: p.packaging!.trim() });
