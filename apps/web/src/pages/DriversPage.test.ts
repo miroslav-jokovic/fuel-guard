@@ -8,7 +8,7 @@ import DriversPage from "@/pages/DriversPage.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
 import ColumnPicker from "@/components/ui/ColumnPicker.vue";
 import SavedViewMenu from "@/components/ui/SavedViewMenu.vue";
-import DocumentsModal from "@/components/DocumentsModal.vue";
+import FileGallery from "@/components/files/FileGallery.vue";
 
 /**
  * R2's safety net (DRIVER-ROSTER-PLAN.md §5): the roster table moves out of `DriversPage.vue` into
@@ -65,9 +65,9 @@ vi.mock("@/composables/useDrivers", () => ({
 vi.mock("@/composables/useVehicles", () => ({ useVehiclesQuery: () => ({ data: vehicles }) }));
 vi.mock("@/composables/useCompliance", () => ({
   useComplianceOverviewQuery: () => ({ data: overview }),
-  // R5: the folder's contents are fetched only when a folder is opened, so the roster's own load is
-  // unchanged. Stubbed empty — what this file pins is the count on the cell and which driver's
-  // folder opens, not the folder's contents (that is `DocumentsModal.test.ts`).
+  // UF4b: the gallery fetches a driver's papers only when it opens, so the roster's own load is
+  // unchanged. Stubbed empty — what this file pins is the cell and which driver's gallery opens, not
+  // the papers inside it.
   useDocumentsQuery: () => ({ data: ref([]), isLoading: ref(false), isError: ref(false) }),
 }));
 vi.mock("@/features/roster/useDriverReconcile", () => ({
@@ -203,10 +203,16 @@ beforeEach(() => {
         attention: [{ daysRemaining: 12 }],
         documents: { onFile: 8, of: 17 },
         requirements: [
-          { key: "cdl", state: "current", goodUntil: "2030-01-01", daysRemaining: 1220, expiryUnknown: false },
-          { key: "medical_card", state: "expiring", goodUntil: "2026-09-11", daysRemaining: 12, expiryUnknown: false },
-          { key: "endorsement_hazmat", state: "missing", goodUntil: null, daysRemaining: null, expiryUnknown: false },
+          { key: "cdl", state: "current", goodUntil: "2030-01-01", daysRemaining: 1220, expiryUnknown: false, documentId: "cdl-1" },
+          { key: "medical_card", state: "expiring", goodUntil: "2026-09-11", daysRemaining: 12, expiryUnknown: false, documentId: null },
+          { key: "endorsement_hazmat", state: "missing", goodUntil: null, daysRemaining: null, expiryUnknown: false, documentId: null },
         ],
+        // UF4b: two of five papers drawn (one thumbnail derived, one not yet), "+3" for the rest.
+        papers: [
+          { documentId: "cdl-1", kind: "cdl", contentType: "application/pdf", thumbUrl: "https://signed.test/cdl-1.webp", filedAt: "2026-03-01T00:00:00Z" },
+          { documentId: "mvr-1", kind: "mvr", contentType: "image/jpeg", thumbUrl: null, filedAt: "2026-02-01T00:00:00Z" },
+        ],
+        paper_count: 5,
       },
       {
         driver_id: "d-2",
@@ -216,9 +222,11 @@ beforeEach(() => {
         documents: { onFile: 0, of: 14 },
         // No hazmat entry at all: this carrier does not ask it of this driver, so the cell reads "—".
         requirements: [
-          { key: "cdl", state: "expired", goodUntil: "2026-01-01", daysRemaining: -241, expiryUnknown: false },
-          { key: "medical_card", state: "current", goodUntil: "2027-06-30", daysRemaining: 304, expiryUnknown: false },
+          { key: "cdl", state: "expired", goodUntil: "2026-01-01", daysRemaining: -241, expiryUnknown: false, documentId: null },
+          { key: "medical_card", state: "current", goodUntil: "2027-06-30", daysRemaining: 304, expiryUnknown: false, documentId: null },
         ],
+        papers: [],
+        paper_count: 0,
       },
       // d-3 is absent on purpose: rows the rollup does not return read as "—".
     ],
@@ -250,9 +258,9 @@ const mountPage = async (at = "/drivers") => {
       plugins: [VueQueryPlugin, router],
       stubs: {
         RouterLink: RouterLinkStub,
-        // HeadlessUI's `Dialog` throws under this repo's jsdom, as `DocumentPreview.test.ts` and
-        // `DocumentsModal.test.ts` both record. Stubbed with `v-if` on `open`, which is the only
-        // part of it this file asserts on; the modals' own behaviour is tested where they live.
+        // HeadlessUI's `Dialog` throws under this repo's jsdom, as `DocumentPreview.test.ts`
+        // records. Stubbed with `v-if` on `open`, which is the only part of it this file asserts
+        // on; the modals' own behaviour is tested where they live.
         BaseModal: {
           props: ["open", "title", "description", "size", "printable"],
           template: `<div v-if="open" role="dialog"><slot /><slot name="footer" /></div>`,
@@ -282,18 +290,26 @@ describe("DriversPage roster table", () => {
 
   /**
    * SP5 (plan §4b): the qualification file (`/compliance/:id`) is a screen the admin can switch off
-   * for one person apart from the roster. The badge stays; it stops being a link.
+   * for one person apart from the roster. Since UF4b the row's only door to it is the menu's "Open
+   * qualification file…", and that is what the guard gates; the cell has no link to lose.
    */
-  it("keeps the qualification badge as a badge, not a link, where the file does not open (SP5)", async () => {
+  it("drops the row menu's door to the qualification file where it does not open (SP5)", async () => {
     const { __session: session } = (await import("@/stores/session")) as unknown as {
       __session: import("@/testing/fakeSession").FakeSession;
     };
-    expect((await mountPage()).find('table a[href="/compliance/d-1"]').exists()).toBe(true);
+    const open = async () => {
+      const w = await mountPage();
+      await w.find("td[class*=pl-2] button").trigger("click");
+      const text = document.body.textContent ?? "";
+      // The menu is teleported to `document.body`; unmounting takes it with it, so the second
+      // mount's menu is read on its own.
+      w.unmount();
+      return text;
+    };
+    expect(await open()).toContain("Open qualification file…");
     session.surfaces = { "safety.driver-qualification": false };
     try {
-      const table = (await mountPage()).find("table");
-      expect(table.find('a[href="/compliance/d-1"]').exists()).toBe(false);
-      expect(table.text()).toContain("Due 12d");
+      expect(await open()).not.toContain("Open qualification file…");
     } finally {
       session.surfaces = null;
     }
@@ -319,8 +335,10 @@ describe("DriversPage roster table", () => {
   it("renders a fine expiry as plain text and an urgent one as a tinted badge", async () => {
     const w = await mountPage();
     const cells = w.findAll("tbody tr")[0]!.findAll("td");
-    const cdl = cells.find((c) => c.text().includes("01/01/2030"))!;
-    const medical = cells.find((c) => c.text().includes("09/11/2026"))!;
+    // Exact text, not `includes`: the File cell's hover cards carry the same dates ("Good until
+    // 01/01/2030"), and that cell comes first in the row.
+    const cdl = cells.find((c) => c.text().trim() === "01/01/2030")!;
+    const medical = cells.find((c) => c.text().trim() === "09/11/2026")!;
 
     // `rounded-detail` is BADGE_BASE — its presence is what "this is a pill" means. Asserting on the
     // TONE instead would pass for a neutral pill too, which is the version of this test that did not
@@ -382,29 +400,51 @@ describe("DriversPage roster table", () => {
   });
 
   /**
-   * R5, D-ROS8. The file cell is a count off the same rollup — no per-row fetch — and it opens ONE
-   * modal owned by the page, never a dialog per row.
+   * UNIT-FILES-PLAN UF4b, D-UF7: ONE File cell summarises the file — the chip, the newest scans, "+N"
+   * — where the roster carried a qualification badge AND a scans-filed count until 2026-10-20. Off
+   * the same rollup, no per-row fetch; the thumbs open ONE gallery owned by the page, never a dialog
+   * per row.
    */
-  it("shows scans filed out of the requirements that apply to that driver", async () => {
+  it("has exactly one file column, and it says the worst state first (D-UF7)", async () => {
     const w = await mountPage();
+    const headers = w.findAll("thead th").map((th) => th.text().trim());
+    expect(headers.filter((h) => h === "File")).toHaveLength(1);
+    expect(headers).not.toContain("Qualification");
     const rows = w.findAll("tbody tr");
-    expect(rows[0]!.text()).toContain("8/17");
-    // Not "0/20": measuring against the whole catalogue would report a carrier without the hazmat
-    // module as permanently behind on requirements nobody asks of them.
-    expect(rows[1]!.text()).toContain("0/14");
+    // d-1: one missing, one expiring — "missing" outranks "expiring"; d-2: one expired outranks all.
+    expect(rows[0]!.find("[data-test=file-chip]").text()).toBe("1 missing");
+    expect(rows[1]!.find("[data-test=file-chip]").text()).toBe("1 expired");
+    // Two thumbs drawn, three more counted — and nothing of the old "8/17" count.
+    expect(rows[0]!.findAll("[data-test=file-thumb]")).toHaveLength(2);
+    expect(rows[0]!.find("[data-test=file-more]").text()).toBe("+3");
+    expect(rows[0]!.text()).not.toContain("8/17");
+    expect(rows[1]!.findAll("[data-test=file-thumb]")).toHaveLength(0);
   });
 
-  it("opens the folder for the driver whose cell was clicked, and only one", async () => {
+  it("narrows the roster to the chip's state when the chip is clicked, and the rows match it", async () => {
     const w = await mountPage();
-    const cell = w.findAll("tbody tr")[0]!.findAll("button").find((b) => b.text() === "8/17")!;
-    await cell.trigger("click");
+    await w.findAll("tbody tr")[1]!.find("[data-test=file-chip]").trigger("click");
+    await flushPromises();
+    expect(w.vm.$route.query.file).toBe("expired");
+    const rows = w.findAll("tbody tr");
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.text()).toContain("Ana Whitfield");
+    // The File control shows the same choice, so the reader can see what narrowed the list and undo it.
+    expect(w.findAllComponents(FilterSelect).find((f) => f.props("label") === "File")!.props("modelValue")).toBe("expired");
+  });
+
+  it("opens the gallery on the paper that was clicked, for that driver, and only one", async () => {
+    const w = await mountPage();
+    // The thumb itself, not the hover card's Download button beside it.
+    const thumbs = w.findAll("tbody tr")[0]!.findAll("[data-test=file-thumb] > button");
+    await thumbs[1]!.trigger("click");
     await flushPromises();
 
-    const modal = w.findComponent(DocumentsModal);
-    expect(modal.props("open")).toBe(true);
-    expect(modal.props("subjectLabel")).toBe("Marcus Reyes");
-    // One modal on the page, not one per row.
-    expect(w.findAllComponents(DocumentsModal)).toHaveLength(1);
+    const gallery = w.findComponent(FileGallery);
+    expect(gallery.props("subject")).toEqual({ type: "driver", id: "d-1" });
+    expect(gallery.props("subjectLabel")).toBe("Marcus Reyes");
+    expect(gallery.props("startId")).toBe("mvr-1");
+    expect(w.findAllComponents(FileGallery)).toHaveLength(1);
   });
 
   it("hides a column from the table when the picker turns it off", async () => {

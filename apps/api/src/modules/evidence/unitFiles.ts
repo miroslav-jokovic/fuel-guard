@@ -2,14 +2,11 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   buildUnitFile,
   chunks,
-  DOCUMENTS_BUCKET,
   fetchAllPaged,
   FLEET_WIDE_UNIT_KINDS,
   IN_LIST_CHUNK,
   INSPECTION_EXPIRY_WARNING_DAYS,
-  PAPERS_PER_ROW,
   unitAttention,
-  type PaperThumb,
   type UnitCertInput,
   type UnitDocumentInput,
   type UnitFileRow,
@@ -17,7 +14,7 @@ import {
   type UnitSubjectType,
 } from "@silvicom/shared";
 import { listUnitFileFacts } from "../roster/index.js";
-import { DOCUMENT_URL_TTL_SEC } from "./compliance.js";
+import { NO_PAPERS, PAPER_DOC_COLUMNS, paperThumbsBySubject, type PaperDocRow } from "./paperThumbs.js";
 
 /**
  * Every truck's or trailer's file in one read (UNIT-FILES-PLAN UF2) — the Files column on the
@@ -26,20 +23,16 @@ import { DOCUMENT_URL_TTL_SEC } from "./compliance.js";
  *
  * Five reads, each org-filtered (the service role bypasses RLS) and paged past PostgREST's 1,000-row
  * cap, plus one chunked read of the fleet papers the certifications cite and one batch of signed
- * thumbnail URLs. A 400-unit fleet costs a handful of queries, never one per unit.
+ * thumbnail URLs (`paperThumbsBySubject`, shared with the driver overview since UF4b). A 400-unit
+ * fleet costs a handful of queries, never one per unit.
  */
 
 type CertRow = { subject_id: string; kind: string; issued_at: string | null; expires_at: string | null; document_id: string | null };
-type DocRow = {
-  id: string; subject_id: string; kind: string; content_type: string; variant: string;
-  derived_from: string | null; storage_path: string; captured_at: string | null; created_at: string;
-};
 
 const CERT_COLUMNS = "subject_id, kind, issued_at, expires_at, document_id";
-const DOC_COLUMNS = "id, subject_id, kind, content_type, variant, derived_from, storage_path, captured_at, created_at";
 
 const toCert = (c: CertRow): UnitCertInput => ({ kind: c.kind, issuedAt: c.issued_at, expiresAt: c.expires_at, documentId: c.document_id });
-const toDoc = (d: DocRow): UnitDocumentInput => ({ id: d.id, kind: d.kind, datedAt: d.captured_at ?? d.created_at });
+const toDoc = (d: PaperDocRow): UnitDocumentInput => ({ id: d.id, kind: d.kind, datedAt: d.captured_at ?? d.created_at });
 
 function groupBy<T>(rows: readonly T[], key: (r: T) => string): Map<string, T[]> {
   const out = new Map<string, T[]>();
@@ -63,8 +56,8 @@ async function readFileRows(admin: SupabaseClient, orgId: string, subjectType: U
       admin.from("certifications").select(CERT_COLUMNS)
         .eq("org_id", orgId).eq("subject_type", "organization").in("kind", [...FLEET_WIDE_UNIT_KINDS])
         .is("superseded_by", null).order("id").range(from, to)),
-    fetchAllPaged<DocRow>((from, to) =>
-      admin.from("documents").select(DOC_COLUMNS)
+    fetchAllPaged<PaperDocRow>((from, to) =>
+      admin.from("documents").select(PAPER_DOC_COLUMNS)
         .eq("org_id", orgId).eq("subject_type", subjectType)
         .order("id").range(from, to)),
   ]);
@@ -88,21 +81,6 @@ async function readCitedDocuments(admin: SupabaseClient, orgId: string, ids: str
   return out;
 }
 
-/**
- * Signed URLs in batches; a failed signature degrades a thumb to null. Batches of 500, not
- * `IN_LIST_CHUNK`: the paths travel in a POST body, so the header limit that sizes an `.in()` list
- * does not apply, and a 400-unit fleet's 1,200 thumbs are three calls rather than twenty-four.
- */
-const SIGN_BATCH = 500;
-async function signPaths(admin: SupabaseClient, paths: string[]): Promise<Map<string, string>> {
-  const out = new Map<string, string>();
-  for (const part of chunks(paths, SIGN_BATCH)) {
-    const { data } = await admin.storage.from(DOCUMENTS_BUCKET).createSignedUrls(part, DOCUMENT_URL_TTL_SEC);
-    for (const s of data ?? []) if (s.signedUrl && s.path) out.set(s.path, s.signedUrl);
-  }
-  return out;
-}
-
 export async function getUnitFiles(
   admin: SupabaseClient,
   orgId: string,
@@ -119,19 +97,7 @@ export async function getUnitFiles(
 
   const certsBy = groupBy(certs, (c) => c.subject_id);
   const originalsBy = groupBy(originals, (d) => d.subject_id);
-  const thumbOf = new Map<string, DocRow>();
-  for (const d of docs) if (d.variant === "thumb" && d.derived_from) thumbOf.set(d.derived_from, d);
-
-  // Newest first — the cell shows the papers most recently filed, the "+N" counts the rest.
-  const papersBy = new Map<string, DocRow[]>();
-  for (const [unitId, list] of originalsBy) {
-    papersBy.set(unitId, [...list].sort((a, b) => b.created_at.localeCompare(a.created_at)));
-  }
-  const thumbPaths = [...papersBy.values()]
-    .flatMap((list) => list.slice(0, PAPERS_PER_ROW))
-    .map((d) => thumbOf.get(d.id)?.storage_path)
-    .filter((p): p is string => p !== undefined);
-  const signed = await signPaths(admin, thumbPaths);
+  const papersBy = await paperThumbsBySubject(admin, docs);
 
   const rows: UnitFileRow[] = units.map((u) => {
     const own = originalsBy.get(u.id) ?? [];
@@ -151,10 +117,7 @@ export async function getUnitFiles(
       // days <= window) and this file must call the same truck "expiring" on the same day.
       expiringWithinDays: INSPECTION_EXPIRY_WARNING_DAYS,
     });
-    const papers: PaperThumb[] = (papersBy.get(u.id) ?? []).slice(0, PAPERS_PER_ROW).map((d) => {
-      const thumb = thumbOf.get(d.id);
-      return { documentId: d.id, kind: d.kind, contentType: d.content_type, thumbUrl: thumb ? (signed.get(thumb.storage_path) ?? null) : null, filedAt: d.created_at };
-    });
+    const { papers, paperCount } = papersBy.get(u.id) ?? NO_PAPERS;
     return {
       subject_type: subjectType,
       subject_id: u.id,
@@ -175,7 +138,7 @@ export async function getUnitFiles(
         documentId: i.documentId,
       })),
       papers,
-      paper_count: own.length,
+      paper_count: paperCount,
     };
   });
   return { units: rows };

@@ -31,8 +31,7 @@ exports[`DriversPage roster table > renders the archived view unchanged by the R
             <path d="M20 17C20 17 17.7905 20 17 20C16.2094 20 14 17 14 17" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"></path>
           </svg></button></th>
       <th scope="col" class="font-medium px-4 py-3 text-left min-w-32">App access</th>
-      <th scope="col" class="font-medium px-4 py-3 text-left min-w-44">Qualification</th>
-      <th scope="col" class="font-medium px-4 py-3 text-left min-w-24">File</th>
+      <th scope="col" class="font-medium px-4 py-3 text-left min-w-44">File</th>
       <th scope="col" class="font-medium px-4 py-3 text-left min-w-32">CDL expires</th>
       <th scope="col" class="font-medium px-4 py-3 text-left min-w-32">Medical expires</th>
       <th scope="col" class="font-medium px-4 py-3 text-left min-w-32">Hazmat expires</th>
@@ -60,7 +59,6 @@ exports[`DriversPage roster table > renders the archived view unchanged by the R
           <!--v-if-->
         </div>
       </td>
-      <td class="px-4 py-3 text-left"><span class="text-ink-tertiary">—</span></td>
       <td class="px-4 py-3 text-left"><span class="text-ink-tertiary">—</span></td>
       <td class="px-4 py-3 text-left"><span class="text-ink-tertiary">—</span></td>
       <td class="px-4 py-3 text-left"><span class="text-ink-tertiary">—</span></td>
@@ -115,8 +113,7 @@ exports[`DriversPage roster table > renders the roster table unchanged by the R2
             <path d="M20 17C20 17 17.7905 20 17 20C16.2094 20 14 17 14 17" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"></path>
           </svg></button></th>
       <th scope="col" class="font-medium px-4 py-3 text-left min-w-32">App access</th>
-      <th scope="col" class="font-medium px-4 py-3 text-left min-w-44">Qualification</th>
-      <th scope="col" class="font-medium px-4 py-3 text-left min-w-24">File</th>
+      <th scope="col" class="font-medium px-4 py-3 text-left min-w-44">File</th>
       <th scope="col" class="font-medium px-4 py-3 text-left min-w-32">CDL expires</th>
       <th scope="col" class="font-medium px-4 py-3 text-left min-w-32">Medical expires</th>
       <th scope="col" class="font-medium px-4 py-3 text-left min-w-32">Hazmat expires</th>
@@ -142,8 +139,38 @@ exports[`DriversPage roster table > renders the roster table unchanged by the R2
       <td class="px-4 py-3 text-left">
         <div class="inline-flex items-center gap-1.5" title="Username: mreyes"><span class="inline-flex items-center gap-1 rounded-detail px-2 py-0.5 text-xs font-medium bg-success-50 text-success-700 ring-1 ring-inset ring-success-600/20">Active</span><span class="font-mono text-xs text-ink-muted">mreyes</span></div>
       </td>
-      <td class="px-4 py-3 text-left"><a href="/compliance/d-1" class="inline-flex items-center gap-1 rounded-detail px-2 py-0.5 text-xs font-medium bg-warning-50 text-warning-700 ring-1 ring-inset ring-warning-600/20">Due 12d</a></td>
-      <td class="px-4 py-3 text-left"><button type="button" class="inline-flex items-center transition-colors justify-center whitespace-nowrap rounded-control font-semibold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring disabled:pointer-events-none disabled:text-ink-disabled disabled:opacity-60 text-ink-secondary hover:bg-surface-muted hover:text-ink h-8 gap-x-1 px-2.5 text-sm tabular-nums" title="Open Marcus Reyes's filed scans">8/17</button></td>
+      <td class="px-4 py-3 text-left">
+        <div class="flex items-center gap-2"><button type="button" class="inline-flex items-center transition-colors justify-center whitespace-nowrap rounded-control font-semibold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring disabled:pointer-events-none disabled:text-ink-disabled disabled:opacity-60 text-ink-secondary hover:bg-surface-muted hover:text-ink h-8 gap-x-1 px-2.5 text-sm inline-flex items-center gap-1 rounded-detail px-2 py-0.5 text-xs font-medium bg-caution-50 text-caution-700 ring-1 ring-inset ring-caution-600/20 whitespace-nowrap" title="Show every file that reads “1 missing”" data-test="file-chip">1 missing</button>
+          <div class="group relative" data-test="file-thumb"><button type="button" class="inline-flex items-center transition-colors justify-center whitespace-nowrap rounded-control font-semibold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring disabled:pointer-events-none disabled:text-ink-disabled disabled:opacity-60 text-ink-secondary hover:bg-surface-muted hover:text-ink h-8 gap-x-1 px-2.5 text-sm size-8 overflow-hidden rounded-detail p-0 ring-1 ring-edge" aria-label="Open Commercial driver's licence for Marcus Reyes"><img src="https://signed.test/cdl-1.webp" alt="" class="size-full object-cover" loading="lazy"></button>
+            <!-- The hover card: what the paper is and until when. Shown on focus too, so a keyboard reader
+           gets it without a pointer. -->
+            <div role="tooltip" class="invisible absolute left-0 top-full z-popover mt-1 w-56 rounded-surface bg-surface p-3 text-xs shadow-overlay ring-1 ring-edge group-focus-within:visible group-hover:visible">
+              <p class="font-medium text-ink">Commercial driver's licence</p>
+              <p class="text-ink-muted"> Good until 01/01/2030</p>
+              <p class="text-ink-muted">Filed 03/01/2026</p><button type="button" class="inline-flex items-center transition-colors justify-center whitespace-nowrap rounded-control font-semibold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring disabled:pointer-events-none disabled:text-ink-disabled disabled:opacity-60 text-ink-secondary hover:bg-surface-muted hover:text-ink h-8 gap-x-1 px-2.5 text-sm mt-2 -ml-2"><svg width="24" height="24" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" fill="none" color="currentColor" class="size-4" aria-hidden="true">
+                  <path d="M16.9504 12.1817C17.1981 12.814 16.5076 13.5726 15.1267 15.0899C13.6702 16.6902 12.9201 17.4904 12 17.5C11.0799 17.4904 10.3298 16.6902 8.87331 15.0899C7.49239 13.5726 6.80193 12.814 7.04964 12.1817C7.05868 12.1586 7.06851 12.1359 7.0791 12.1135C7.34928 11.542 8.24477 11.5029 10 11.5002V4.99998C10 4.53501 10 4.30253 10.0511 4.11179C10.1898 3.59414 10.5941 3.1898 11.1118 3.05111C11.3025 3 11.535 3 12 3C12.4649 3 12.6974 3 12.8882 3.05111C13.4058 3.1898 13.8102 3.59414 13.9489 4.11179C14 4.30253 14 4.53501 14 4.99998V11.5002C15.7552 11.5029 16.6507 11.542 16.9209 12.1135C16.9315 12.1359 16.9413 12.1586 16.9504 12.1817Z" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"></path>
+                  <path d="M5.00006 21H19.0001" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"></path>
+                </svg> Download </button>
+            </div>
+          </div>
+          <div class="group relative" data-test="file-thumb"><button type="button" class="inline-flex items-center transition-colors justify-center whitespace-nowrap rounded-control font-semibold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring disabled:pointer-events-none disabled:text-ink-disabled disabled:opacity-60 text-ink-secondary hover:bg-surface-muted hover:text-ink h-8 gap-x-1 px-2.5 text-sm size-8 overflow-hidden rounded-detail p-0 ring-1 ring-edge" aria-label="Open Driving record inquiry for Marcus Reyes"><svg width="24" height="24" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" fill="none" color="currentColor" class="size-4 text-ink-tertiary" aria-hidden="true">
+                <path d="M8 7L16 7" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"></path>
+                <path d="M8 11L12 11" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"></path>
+                <path d="M13 21.5V21C13 18.1716 13 16.7574 13.8787 15.8787C14.7574 15 16.1716 15 19 15H19.5M20 13.3431V10C20 6.22876 20 4.34315 18.8284 3.17157C17.6569 2 15.7712 2 12 2C8.22877 2 6.34315 2 5.17157 3.17157C4 4.34314 4 6.22876 4 10L4 14.5442C4 17.7892 4 19.4117 4.88607 20.5107C5.06508 20.7327 5.26731 20.9349 5.48933 21.1139C6.58831 22 8.21082 22 11.4558 22C12.1614 22 12.5141 22 12.8372 21.886C12.9044 21.8623 12.9702 21.835 13.0345 21.8043C13.3436 21.6564 13.593 21.407 14.0919 20.9081L18.8284 16.1716C19.4065 15.5935 19.6955 15.3045 19.8478 14.9369C20 14.5694 20 14.1606 20 13.3431Z" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"></path>
+              </svg></button>
+            <!-- The hover card: what the paper is and until when. Shown on focus too, so a keyboard reader
+           gets it without a pointer. -->
+            <div role="tooltip" class="invisible absolute left-0 top-full z-popover mt-1 w-56 rounded-surface bg-surface p-3 text-xs shadow-overlay ring-1 ring-edge group-focus-within:visible group-hover:visible">
+              <p class="font-medium text-ink">Driving record inquiry</p>
+              <!--v-if-->
+              <p class="text-ink-muted">Filed 02/01/2026</p><button type="button" class="inline-flex items-center transition-colors justify-center whitespace-nowrap rounded-control font-semibold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring disabled:pointer-events-none disabled:text-ink-disabled disabled:opacity-60 text-ink-secondary hover:bg-surface-muted hover:text-ink h-8 gap-x-1 px-2.5 text-sm mt-2 -ml-2"><svg width="24" height="24" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" fill="none" color="currentColor" class="size-4" aria-hidden="true">
+                  <path d="M16.9504 12.1817C17.1981 12.814 16.5076 13.5726 15.1267 15.0899C13.6702 16.6902 12.9201 17.4904 12 17.5C11.0799 17.4904 10.3298 16.6902 8.87331 15.0899C7.49239 13.5726 6.80193 12.814 7.04964 12.1817C7.05868 12.1586 7.06851 12.1359 7.0791 12.1135C7.34928 11.542 8.24477 11.5029 10 11.5002V4.99998C10 4.53501 10 4.30253 10.0511 4.11179C10.1898 3.59414 10.5941 3.1898 11.1118 3.05111C11.3025 3 11.535 3 12 3C12.4649 3 12.6974 3 12.8882 3.05111C13.4058 3.1898 13.8102 3.59414 13.9489 4.11179C14 4.30253 14 4.53501 14 4.99998V11.5002C15.7552 11.5029 16.6507 11.542 16.9209 12.1135C16.9315 12.1359 16.9413 12.1586 16.9504 12.1817Z" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"></path>
+                  <path d="M5.00006 21H19.0001" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"></path>
+                </svg> Download </button>
+            </div>
+          </div><button type="button" class="inline-flex items-center transition-colors justify-center whitespace-nowrap rounded-control font-semibold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring disabled:pointer-events-none disabled:text-ink-disabled disabled:opacity-60 text-ink-secondary hover:bg-surface-muted hover:text-ink h-8 gap-x-1 px-2.5 text-sm tabular-nums text-ink-muted" aria-label="Open all 5 papers for Marcus Reyes" data-test="file-more">+3</button>
+        </div>
+      </td>
       <td class="px-4 py-3 text-left"><a href="/drivers/d-1?section=qualification" class="text-ink-secondary tabular-nums">01/01/2030</a></td>
       <td class="px-4 py-3 text-left"><a href="/drivers/d-1?section=qualification" class="inline-flex items-center gap-1 rounded-detail px-2 py-0.5 text-xs font-medium bg-warning-50 text-warning-700 ring-1 ring-inset ring-warning-600/20">09/11/2026</a></td>
       <td class="px-4 py-3 text-left"><a href="/drivers/d-1?section=qualification" class="inline-flex items-center gap-1 rounded-detail px-2 py-0.5 text-xs font-medium bg-danger-50 text-danger-700 ring-1 ring-inset ring-danger-600/20">Missing</a></td>
@@ -175,8 +202,11 @@ exports[`DriversPage roster table > renders the roster table unchanged by the R2
           <!--v-if-->
         </div>
       </td>
-      <td class="px-4 py-3 text-left"><a href="/compliance/d-2" class="inline-flex items-center gap-1 rounded-detail px-2 py-0.5 text-xs font-medium bg-success-50 text-success-700 ring-1 ring-inset ring-success-600/20">OK</a></td>
-      <td class="px-4 py-3 text-left"><button type="button" class="inline-flex items-center transition-colors justify-center whitespace-nowrap rounded-control font-semibold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring disabled:pointer-events-none disabled:text-ink-disabled disabled:opacity-60 text-ink-secondary hover:bg-surface-muted hover:text-ink h-8 gap-x-1 px-2.5 text-sm tabular-nums" title="Open Ana Whitfield's filed scans">0/14</button></td>
+      <td class="px-4 py-3 text-left">
+        <div class="flex items-center gap-2"><button type="button" class="inline-flex items-center transition-colors justify-center whitespace-nowrap rounded-control font-semibold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring disabled:pointer-events-none disabled:text-ink-disabled disabled:opacity-60 text-ink-secondary hover:bg-surface-muted hover:text-ink h-8 gap-x-1 px-2.5 text-sm inline-flex items-center gap-1 rounded-detail px-2 py-0.5 text-xs font-medium bg-danger-50 text-danger-700 ring-1 ring-inset ring-danger-600/20 whitespace-nowrap" title="Show every file that reads “1 expired”" data-test="file-chip">1 expired</button>
+          <!--v-if-->
+        </div>
+      </td>
       <td class="px-4 py-3 text-left"><a href="/drivers/d-2?section=qualification" class="inline-flex items-center gap-1 rounded-detail px-2 py-0.5 text-xs font-medium bg-danger-50 text-danger-700 ring-1 ring-inset ring-danger-600/20">01/01/2026</a></td>
       <td class="px-4 py-3 text-left"><a href="/drivers/d-2?section=qualification" class="text-ink-secondary tabular-nums">06/30/2027</a></td>
       <td class="px-4 py-3 text-left"><span class="text-ink-tertiary">—</span></td>

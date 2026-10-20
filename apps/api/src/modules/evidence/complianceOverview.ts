@@ -14,10 +14,12 @@ import {
   type DqRecordInput,
   type DqDocumentCount,
   type DqRosterCell,
+  type PaperThumb,
   type UserRole,
 } from "@silvicom/shared";
 import { medstopViolationsByDriver } from "../medstop/index.js";
 import { fetchAllPaged } from "../../lib/paging.js";
+import { NO_PAPERS, PAPER_DOC_COLUMNS, paperThumbsBySubject, type PaperDocRow } from "./paperThumbs.js";
 
 /**
  * The fleet-wide qualification picture (DQ redesign, D-DQ6).
@@ -62,6 +64,9 @@ export interface DriverOverview {
   requirements: DqRosterCell[];
   /** Scans filed, out of the items that apply to this driver (R5). No extra query — see the helper. */
   documents: DqDocumentCount;
+  /** The newest papers with signed thumbnails — only when `opts.withPapers` asked (UF4b). */
+  papers?: PaperThumb[];
+  paper_count?: number;
 }
 
 export interface ComplianceOverview {
@@ -99,6 +104,13 @@ interface DocRow {
   subject_id: string;
   kind: string;
 }
+/**
+ * The columns the documents read asks for. The engine needs three; the File cell's papers need the
+ * thumbnail's path and the original's date and type as well — nine, the same nine the unit rollup
+ * reads. The wider list is selected ONLY when a caller asked for papers, so the scheduler and the
+ * digest keep the read they had.
+ */
+const ENGINE_DOC_COLUMNS = "id, subject_id, kind";
 
 function groupBy<T>(rows: readonly T[], key: (row: T) => string): Map<string, T[]> {
   const m = new Map<string, T[]>();
@@ -129,6 +141,16 @@ export async function getComplianceOverview(
      * reader `canReadTestingRecords` admits; the scheduler and the digest do not know their reader.
      */
     medstopViolations?: ReadonlyMap<string, string>;
+    /**
+     * UF4b (UNIT-FILES-PLAN D-UF7): the roster's File cell draws each driver's newest papers. Present
+     * = read the papers, sign their thumbnails and carry them on every row; the function says which
+     * KINDS this reader may see — the route builds it from the paper's section (`mayFile`, D-UF5)
+     * and the restricted-kind rule (Phase G, `canReadRestrictedKind`), exactly as the documents list
+     * does, so a dispatcher's roster never draws a drug test's scan. ONLY `GET /overview` passes
+     * it. The alert scheduler, the digest and the dispatch board must not: they would sign a few
+     * hundred URLs for a reader who will never open one.
+     */
+    withPapers?: (kind: string) => boolean;
   } = {},
 ): Promise<ComplianceOverview> {
   const [drivers, certs, records, docs, hazmatRes] = await Promise.all([
@@ -172,10 +194,12 @@ export async function getComplianceOverview(
             .order("id")
             .range(from, to),
     ),
-    fetchAllPaged<DocRow>((from, to) =>
+    fetchAllPaged<DocRow | PaperDocRow>((from, to) =>
       admin
         .from("documents")
-        .select("id, subject_id, kind")
+        // The row type is named, not parsed: supabase-js cannot parse a column list it only knows as
+        // one of two strings, and the table is untyped here anyway.
+        .select<string, DocRow | PaperDocRow>(opts.withPapers ? PAPER_DOC_COLUMNS : ENGINE_DOC_COLUMNS)
         .eq("org_id", orgId)
         .eq("subject_type", "driver")
         .order("id")
@@ -190,6 +214,8 @@ export async function getComplianceOverview(
   const certsBy = groupBy(certs, (c) => c.subject_id);
   const recordsBy = groupBy(records, (r) => r.driver_id);
   const docsBy = groupBy(docs, (d) => d.subject_id);
+  // Nothing is signed unless papers were asked for: `paperThumbsBySubject` is the only Storage call here.
+  const papersBy = opts.withPapers ? await paperThumbsBySubject(admin, docs as PaperDocRow[], opts.withPapers) : null;
 
   const out: DriverOverview[] = drivers.map((d) => {
     const file = buildDqFile({
@@ -206,7 +232,7 @@ export async function getComplianceOverview(
       records: (recordsBy.get(d.id) ?? []).map(toRecord),
       documents: (docsBy.get(d.id) ?? []).map((x): DqDocumentInput => ({ id: x.id, kind: x.kind })),
     });
-    return {
+    const row: DriverOverview = {
       driver_id: d.id,
       driver_name: d.full_name,
       driver_status: d.status,
@@ -217,6 +243,12 @@ export async function getComplianceOverview(
       requirements: dqRosterCells(file, today),
       documents: dqDocumentCount(file),
     };
+    if (papersBy) {
+      const { papers, paperCount } = papersBy.get(d.id) ?? NO_PAPERS;
+      row.papers = papers;
+      row.paper_count = paperCount;
+    }
+    return row;
   });
 
   return { drivers: out, includesHazmat, truncated: records.length >= RECORD_CAP };
