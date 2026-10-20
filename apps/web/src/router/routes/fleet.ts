@@ -41,6 +41,13 @@ export const fleetRoutes: RouteRecordRaw[] = [
     meta: { requiresAuth: true, title: "Trailers" },
   },
   {
+    path: "/trailers/:id",
+    name: "trailer-detail",
+    component: () => import("@/pages/TrailerDetailPage.vue"),
+    // UNIT-FILES-PLAN UF5: the trailer's own page — summary, file, maintenance — on the truck page's model.
+    meta: { requiresAuth: true, title: "Trailer", parent: "/trailers" },
+  },
+  {
     path: "/reefer-coverage",
     name: "reefer-coverage",
     component: () => import("@/pages/ReeferCoveragePage.vue"),

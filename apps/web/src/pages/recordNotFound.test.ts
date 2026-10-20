@@ -130,6 +130,17 @@ describe("a record that does not exist is its own state, with the way back to it
     w.unmount();
   });
 
+  it("TrailerDetailPage — no row is not-found, not a trailer with no file", async () => {
+    const w = await mountAt("TrailerDetailPage", `/trailers/${ID}`);
+    const state = w.find("[data-state=not-found]");
+    expect(state.exists()).toBe(true);
+    expect(state.text()).toContain("That trailer is not on the fleet.");
+    expect(state.text()).toContain("Back to Trailers");
+    expect(w.findComponent({ name: "UnitKitCard" }).exists()).toBe(false);
+    expect(w.findComponent({ name: "UnitFileSection" }).exists()).toBe(false);
+    w.unmount();
+  });
+
   it("VehicleDetailPage — no row is not-found, not a truck with no data", async () => {
     const w = await mountAt("VehicleDetailPage", `/vehicles/${ID}`);
     const state = w.find("[data-state=not-found]");

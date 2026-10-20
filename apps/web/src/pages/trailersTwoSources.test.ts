@@ -50,3 +50,20 @@ describe("the Trailers page names a trailer's truck from both sources", () => {
     expect(row).toContain("GPS, as of 08/04/2026");
   });
 });
+
+/** UNIT-FILES-PLAN UF5b: a trailer has a page now, and its unit number on the list is the door to it. */
+describe("the Trailers page opens a trailer's own page", () => {
+  it("links the unit number to /trailers/:id", async () => {
+    const router = createRouter({
+      history: createMemoryHistory(),
+      routes: [{ path: "/trailers", component: { template: "<div/>" }, meta: { title: "Trailers" } }, { path: "/trailers/:id", component: { template: "<div/>" } }],
+    });
+    await router.push("/trailers");
+    await router.isReady();
+    const w = mount(TrailersPage, { global: { plugins: [router, createPinia()], stubs: { SlideOver: true, RosterFreshnessLine: true, KebabMenu: true } } });
+    await flushPromises();
+    const link = w.find('tbody tr a[href="/trailers/t1"]');
+    expect(link.exists()).toBe(true);
+    expect(link.text()).toBe("R-501");
+  });
+});

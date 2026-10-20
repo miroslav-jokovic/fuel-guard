@@ -167,6 +167,13 @@ exports[`the route table survives being split by area > resolution 1`] = `
     "url": "/trailers",
   },
   {
+    "name": "trailer-detail",
+    "params": {
+      "id": "tr_1",
+    },
+    "url": "/trailers/tr_1",
+  },
+  {
     "name": "reefer-coverage",
     "params": {},
     "url": "/reefer-coverage",
@@ -1631,6 +1638,16 @@ exports[`the route table survives being split by area > route table 1`] = `
     },
     "name": "trailers",
     "path": "/trailers",
+    "redirect": null,
+  },
+  {
+    "meta": {
+      "parent": "/trailers",
+      "requiresAuth": true,
+      "title": "Trailer",
+    },
+    "name": "trailer-detail",
+    "path": "/trailers/:id",
     "redirect": null,
   },
   {

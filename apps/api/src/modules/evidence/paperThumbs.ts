@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { chunks, DOCUMENTS_BUCKET, PAPERS_PER_ROW, type PaperThumb } from "@silvicom/shared";
+import { chunks, DOCUMENTS_BUCKET, IN_LIST_CHUNK, PAPERS_PER_ROW, type PaperThumb } from "@silvicom/shared";
 import { DOCUMENT_URL_TTL_SEC } from "./compliance.js";
 
 /**
@@ -14,7 +14,7 @@ import { DOCUMENT_URL_TTL_SEC } from "./compliance.js";
  */
 
 /** The `documents` columns a papers reader selects — the rollup and the overview ask for the same list. */
-export const PAPER_DOC_COLUMNS = "id, subject_id, kind, content_type, variant, derived_from, storage_path, captured_at, created_at";
+export const PAPER_DOC_COLUMNS = "id, subject_id, kind, content_type, variant, derived_from, storage_path, captured_at, created_at, uploaded_by";
 
 export interface PaperDocRow {
   id: string;
@@ -26,6 +26,7 @@ export interface PaperDocRow {
   storage_path: string;
   captured_at: string | null;
   created_at: string;
+  uploaded_by: string | null;
 }
 
 export interface SubjectPapers {
@@ -80,15 +81,39 @@ export async function paperThumbsBySubject(
     .flatMap((list) => list.slice(0, PAPERS_PER_ROW))
     .map((d) => thumbOf.get(d.id)?.storage_path)
     .filter((p): p is string => p !== undefined);
-  const signed = await signPaths(admin, thumbPaths);
+  const drawn = [...originalsBy.values()].flatMap((list) => list.slice(0, PAPERS_PER_ROW));
+  const [signed, names] = await Promise.all([
+    signPaths(admin, thumbPaths),
+    uploaderNames(admin, [...new Set(drawn.map((d) => d.uploaded_by).filter((u): u is string => typeof u === "string" && u !== ""))]),
+  ]);
 
   const out = new Map<string, SubjectPapers>();
   for (const [subjectId, list] of originalsBy) {
     const papers: PaperThumb[] = list.slice(0, PAPERS_PER_ROW).map((d) => {
       const thumb = thumbOf.get(d.id);
-      return { documentId: d.id, kind: d.kind, contentType: d.content_type, thumbUrl: thumb ? (signed.get(thumb.storage_path) ?? null) : null, filedAt: d.created_at };
+      return {
+        documentId: d.id, kind: d.kind, contentType: d.content_type,
+        thumbUrl: thumb ? (signed.get(thumb.storage_path) ?? null) : null,
+        filedAt: d.created_at,
+        uploadedBy: d.uploaded_by ? (names.get(d.uploaded_by) ?? null) : null,
+      };
     });
     out.set(subjectId, { papers, paperCount: list.length });
+  }
+  return out;
+}
+
+/**
+ * The names behind `uploaded_by`, one chunked read for every paper a cell will draw. `user_profiles`
+ * is keyed by user, not org — the ids come from this org's own `documents` rows, read org-filtered
+ * above, so the lookup cannot reach another tenant's member. A member with no profile name is null,
+ * and the card says only when the paper was filed.
+ */
+async function uploaderNames(admin: SupabaseClient, userIds: string[]): Promise<Map<string, string>> {
+  const out = new Map<string, string>();
+  for (const part of chunks(userIds, IN_LIST_CHUNK)) {
+    const { data } = await admin.from("user_profiles").select("user_id, full_name").in("user_id", part);
+    for (const r of (data ?? []) as Array<{ user_id: string; full_name: string | null }>) if (r.full_name) out.set(r.user_id, r.full_name);
   }
   return out;
 }

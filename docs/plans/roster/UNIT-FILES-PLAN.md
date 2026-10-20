@@ -840,3 +840,26 @@ around them.
     projection's own unit match (the list DTO does not carry it); the gallery's side list and
     "Replace with newer" are answered by the section's own table and drawer on the unit's page, so
     nothing more is owed to UF4's moved items on that line. "Uploaded by" still waits for UF5b.
+- 2026-10-20 — **UF5b built** (`claude/uf5b-trailer-page`): the second half of UF5, and the last of
+  UF4's moved items.
+  - Web: `pages/TrailerDetailPage.vue` — summary (type, plate, reefer, cargo capacity, the GPS-paired
+    truck with its pairing's age from `gpsPairingNote`), then File and Maintenance on the truck
+    page's model; `pages/trailerSections.ts` DERIVES the strip from `VEHICLE_SECTIONS` minus Fuel.
+    Route `/trailers/:id` named `trailer-detail` with `parent: "/trailers"`; surface
+    `fleet.trailers.detail` under `fleet.trailers`; the route snapshot gained `/trailers/tr_1`. The
+    Trailers list's unit number is now a link, as the truck's always was.
+  - Web, the cell: `FileCell` is a drop target (counter, as `FileDropzone`); a drop EMITS and the
+    list page goes to the unit's `?section=file`, where the drop card files it. The bytes do not
+    travel — a navigation cannot carry a `File` — so the reader drops again there; UF7's bulk intake
+    scoped to the subject is what takes the bytes from the cell.
+  - "Uploaded by" on the hover card: `PaperThumb.uploadedBy` (a name), read by `paperThumbsBySubject`
+    off `documents.uploaded_by` through one chunked `user_profiles` read for the papers a cell draws.
+    `user_profiles` is keyed by user, not org; the ids come from the org's own documents rows, and the
+    test says so in `expectOrgScoped`'s `exempt`. A member with no profile name is null, and the card
+    says only when the paper was filed.
+  - Tests: `TrailerDetailPage.test.ts` (facts and pairing, three sections and no Fuel),
+    `FileCell.test.ts` (drop emits, uploader named only when known), the not-found case for the
+    trailer page, the unit link on the Trailers list, the uploader on the rollup. Four mutants killed
+    (drop never emitted, uploader never named, trailer keeps Fuel, unit link removed), each restored
+    from a byte copy.
+  - **UF5 is complete.** Next is UF6 (equipment alerts).
