@@ -143,12 +143,12 @@ export const BUILT_IN_VIEWS: Record<SavedViewTable, readonly BuiltInView[]> = {
     },
     {
       name: "Not qualified to dispatch",
-      query: "dq=expired&sort=full_name",
+      query: "file=expired&sort=full_name",
       description: "Drivers with a lapsed requirement — the file does not support dispatching them today.",
     },
     {
       name: "File not started",
-      query: "dq=not_started&sort=full_name",
+      query: "file=not_started&sort=full_name",
       description: "Drivers on the roster with no qualification evidence filed at all.",
     },
   ],

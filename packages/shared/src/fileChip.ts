@@ -70,3 +70,35 @@ export function matchesFileChip(chip: FileChip, filter: string): boolean {
 export function unitFileChip(row: Pick<UnitFileRow, "state" | "counts" | "items">): FileChip {
   return fileChip({ state: row.state, counts: row.counts, dateOnly: row.items.filter((i) => i.state === "missing" && i.dateOnly).length });
 }
+
+/**
+ * The File FILTER's words, on every list that shows a file — Drivers, the compliance fleet table,
+ * Vehicles, Trailers (UNIT-FILES-PLAN Q-UF9, ruled (b) by the owner 2026-10-20). Every chip word,
+ * plus one that is not a chip: "Needs attention", any file whose chip is not `complete`.
+ *
+ * It replaced the Drivers page's `?dq=` (`DQ_STATE_FILTERS`, "has ANY item in this state"), which
+ * sat beside the chip's `?file=` and disagreed with it on two words: `dq=expiring` admitted a driver
+ * whose cell says "1 expired", and `dq=complete` admitted one whose cell says "2 expiring". A list
+ * whose File control and File cell answer differently is the disagreement D-UF7 refuses, so the
+ * filter is the chip, and "Needs attention" is derived from the chip too rather than from a second
+ * predicate.
+ */
+export const FILE_FILTERS = ["attention", ...FILE_CHIPS] as const;
+export type FileFilterKind = (typeof FILE_FILTERS)[number];
+
+export const FILE_FILTER_LABELS: Record<FileFilterKind, string> = {
+  attention: "Needs attention",
+  ...FILE_CHIP_LABELS,
+};
+
+/** Ready-made `FilterSelect` options, "Any" first, so no list hand-builds the list. */
+export const fileFilterOptions = (): { value: string; label: string }[] => [
+  { value: "", label: "Any" },
+  ...FILE_FILTERS.map((value) => ({ value, label: FILE_FILTER_LABELS[value] })),
+];
+
+/** The `?file=` filter over a chip. An unknown word is NO filter, as `matchesFileChip`'s. */
+export function matchesFileFilter(chip: FileChip, filter: string): boolean {
+  if (filter === "attention") return chip.kind !== "complete";
+  return matchesFileChip(chip, filter);
+}

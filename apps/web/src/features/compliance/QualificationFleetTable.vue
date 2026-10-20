@@ -20,10 +20,10 @@ import { ArrowDownTrayIcon, ChevronDownIcon, ChevronRightIcon } from "@silvicom/
 import {
   DQ_DUE_FILTERS,
   DQ_EXPORT_MAX_DRIVERS,
-  DQ_STATE_FILTERS,
+  FILE_FILTERS,
   dqDueFilterOptions,
   dqSoonest,
-  dqStateFilterOptions,
+  fileFilterOptions,
   matchesDqFilters,
   type DriverOverviewRow,
   type DqAttentionItem,
@@ -90,10 +90,12 @@ function buildBinder(): void {
 // Search, both filters, the sort and the page live in the URL (D-US2), so Back from a driver's file
 // returns to the same narrowed list. Unscoped: this is the only list on the qualification route (the
 // Exports tab beside it keeps no list state). The filters are checked against the shared vocabulary
-// (R4b) rather than a copy of it, so a hand-edited `?state=` outside it reads as no filter.
+// (R4b) rather than a copy of it, so a hand-edited `?file=` outside it reads as no filter. The file
+// word is the File chip's, the vocabulary every list that shows a file filters by (Q-UF9); before it
+// this table's `?state=` meant "has ANY item in this state", the Drivers page's retired `?dq=`.
 const qs = useQueryState();
 const search = qs.param("search");
-const stateFilter = qs.param("state", DQ_STATE_FILTERS);
+const fileFilter = qs.param("file", FILE_FILTERS);
 const dueFilter = qs.param("due", DQ_DUE_FILTERS);
 const page = qs.page();
 
@@ -143,14 +145,14 @@ const all = computed<FleetRow[]>(() =>
 
 // The words and the values both live in `@silvicom/shared` (R4b): the roster shows the same two
 // filters, and a filter that means the same thing on two pages must say the same thing on both.
-const stateOptions = dqStateFilterOptions();
+const fileOptions = fileFilterOptions();
 const dueOptions = dqDueFilterOptions();
 
 const filtered = computed(() =>
   all.value.filter((r) => {
     // The vocabulary lives in `@silvicom/shared` (R4b): the roster applies the SAME predicate, and
     // two copies of "is this driver behind on their §391.51 file" is exactly the drift D-DQ6 forbids.
-    if (!matchesDqFilters(r, { state: stateFilter.value, due: dueFilter.value })) return false;
+    if (!matchesDqFilters(r, { file: fileFilter.value, due: dueFilter.value })) return false;
     const t = search.value.trim().toLowerCase();
     if (t && !r.driver_name.toLowerCase().includes(t)) return false;
     return true;
@@ -176,13 +178,13 @@ const sorted = computed(() =>
 const pageRows = computed(() =>
   sorted.value.slice((page.value - 1) * PAGE_SIZE, page.value * PAGE_SIZE),
 );
-watch([search, stateFilter, dueFilter], () => (page.value = 1));
+watch([search, fileFilter, dueFilter], () => (page.value = 1));
 
 const activeFilterCount = computed(
-  () => [search.value.trim(), stateFilter.value, dueFilter.value].filter(Boolean).length,
+  () => [search.value.trim(), fileFilter.value, dueFilter.value].filter(Boolean).length,
 );
 function clearFilters(): void {
-  qs.set({ search: undefined, state: undefined, due: undefined });
+  qs.set({ search: undefined, file: undefined, due: undefined });
 }
 
 function toggleExpand(id: string): void {
@@ -255,7 +257,7 @@ const { sort, onSort } = useUrlSort(
       @clear-all="clearFilters"
     >
       <template #filters>
-        <FilterSelect v-model="stateFilter" label="File status" :options="stateOptions" />
+        <FilterSelect v-model="fileFilter" label="File" :options="fileOptions" />
         <FilterSelect v-model="dueFilter" label="Due" :options="dueOptions" />
       </template>
     </FilterBar>

@@ -29,16 +29,12 @@ import type { FileSubject } from "@/components/files/fileSubject";
 import { useSavedViewMenu } from "@/composables/useSavedViewMenu";
 import { useTableColumns } from "@/composables/useTableColumns";
 import {
-  FILE_CHIPS,
-  FILE_CHIP_LABELS,
   SAVED_VIEW_TABLES,
   canManageDriverIdentity,
-  fileChip,
   matchesDqFilters,
-  matchesFileChip,
   seatedDriverIds,
-  dqStateFilterOptions,
   dqDueFilterOptions,
+  fileFilterOptions,
 } from "@silvicom/shared";
 import { useComplianceOverviewQuery } from "@/composables/useCompliance";
 import { useVehiclesQuery } from "@/composables/useVehicles";
@@ -130,10 +126,9 @@ async function linkDriver(sourceId: string) {
  * preference keyed on a URL would reset the day the page moves.
  */
 const ROSTER_TABLE = SAVED_VIEW_TABLES[0];
-const DQ_STATE_OPTIONS = dqStateFilterOptions();
 const DQ_DUE_OPTIONS = dqDueFilterOptions();
-/** The File cell's chip as a filter — the same options the Vehicles and Trailers toolbars carry (UF4b). */
-const FILE_OPTIONS = [{ value: "", label: "Any" }, ...FILE_CHIPS.map((c) => ({ value: c, label: FILE_CHIP_LABELS[c] }))];
+/** The File cell's chip as a filter — the same options the Vehicles and Trailers toolbars carry (UF4b, Q-UF9). */
+const FILE_OPTIONS = fileFilterOptions();
 
 /** Which columns this reader keeps (R3b). */
 const rosterColumns = useTableColumns(ROSTER_TABLE, () => DRIVER_ROSTER_COLUMNS);
@@ -150,7 +145,7 @@ const rosterColumns = useTableColumns(ROSTER_TABLE, () => DRIVER_ROSTER_COLUMNS)
  * not erase the person from records they appear in.
  */
 const {
-  search, status: statusFilter, dqState, dqDue, dqRequirement, file: fileFilter, seat,
+  search, status: statusFilter, dqDue, dqRequirement, file: fileFilter, seat,
   view, showArchived, sort, onSort, page, reset,
 } = useRosterFilters();
 const { data: vehicles } = useVehiclesQuery();
@@ -164,7 +159,7 @@ const seated = computed(() => seatedDriverIds(vehicles.value ?? []));
  */
 const activeFilterCount = computed(
   () =>
-    [search.value, statusFilter.value, dqState.value, dqDue.value, dqRequirement.value, fileFilter.value, seat.value].filter(Boolean).length +
+    [search.value, statusFilter.value, dqDue.value, dqRequirement.value, fileFilter.value, seat.value].filter(Boolean).length +
     (showArchived.value ? 1 : 0),
 );
 
@@ -224,8 +219,8 @@ const overviewRows = computed(
 
 const filtered = computed(() => {
   const term = search.value.toLowerCase();
-  const dq = { state: dqState.value, due: dqDue.value, req: dqRequirement.value };
-  const filteringDq = Boolean(dqState.value || dqDue.value || dqRequirement.value || fileFilter.value);
+  const dq = { file: fileFilter.value, due: dqDue.value, req: dqRequirement.value };
+  const filteringDq = Boolean(dqDue.value || dqRequirement.value || fileFilter.value);
   return (drivers.value ?? []).filter((d) => {
     if (Boolean(d.archived_at) !== showArchived.value) return false;
     if (statusFilter.value && d.status !== statusFilter.value) return false;
@@ -235,10 +230,9 @@ const filtered = computed(() => {
       // A driver the rollup does not return (an EFS stub, a terminated file) has no §391.51 picture
       // to match against — so a qualification filter excludes them rather than admitting them
       // silently as "nothing wrong".
-      if (!row || !matchesDqFilters(row, dq)) return false;
-      // The chip's filter asks the chip's own function (UF4b): "2 expiring" clicked lists exactly
+      // The file word asks the chip's own function (UF4b, Q-UF9): "2 expiring" clicked lists exactly
       // the rows whose chip reads expiring, and no row whose chip says something worse.
-      if (fileFilter.value && !matchesFileChip(fileChip({ state: row.state, counts: row.counts }), fileFilter.value)) return false;
+      if (!row || !matchesDqFilters(row, dq)) return false;
     }
     if (!term) return true;
     return [d.full_name, d.employee_id, d.phone, d.samsara_username]
@@ -315,24 +309,18 @@ async function onSubmit(input: DriverInput) {
       :count="filtered.length"
       count-label="drivers"
       :active-count="activeFilterCount"
-      :more-count="dqDue ? 1 : 0"
       @clear-all="reset"
     >
       <template #filters>
         <FilterSelect v-model="statusFilter" label="Status" :options="statusOptions" />
         <FilterSelect v-model="view" label="Show" :options="VIEW_OPTIONS" />
-        <!-- The same two filters the compliance fleet table carries, same words, same predicate. -->
-        <FilterSelect v-model="dqState" label="File status" :options="DQ_STATE_OPTIONS" />
-        <!-- The File cell's chip as a control (UF4b) — the same vocabulary as the Vehicles and
-             Trailers toolbars. "File status" beside it asks "has ANY item in this state"; this one
-             asks what the chip says, worst state first. Both stay: the compliance widget links here
-             with `?dq=`, and the built-in views are written in it. -->
+        <!-- The same two filters the compliance fleet table carries, same words, same predicate. File
+             is the File cell's chip as a control (UF4b) — the vocabulary the Vehicles and Trailers
+             toolbars carry too. It used to sit beside a "File status" (`?dq=`, "has ANY item in this
+             state") that disagreed with the chip; Q-UF9 retired that one, which returned Due to the
+             toolbar within its four controls (`lint:ui-adoption`). -->
         <FilterSelect v-model="fileFilter" label="File" :options="FILE_OPTIONS" />
-      </template>
-      <template #more>
-        <!-- Four controls is the toolbar's limit (`lint:ui-adoption`). Due is the one set by the
-             built-in views rather than by hand, so it is the one behind the Filters button. -->
-        <FilterSelect v-model="dqDue" label="Due" :options="DQ_DUE_OPTIONS" block />
+        <FilterSelect v-model="dqDue" label="Due" :options="DQ_DUE_OPTIONS" />
       </template>
       <template #actions>
         <SavedViewMenu

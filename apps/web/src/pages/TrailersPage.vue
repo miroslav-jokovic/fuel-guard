@@ -17,7 +17,7 @@ import {
 import { PlusIcon } from "@silvicom/ui/icons";
 import { ref, computed, watch } from "vue";
 import { RouterLink, useRouter } from "vue-router";
-import { FILE_CHIPS, FILE_CHIP_LABELS, PAPER_CHECK_ITEMS, TRAILER_TYPE_LABELS, VEHICLE_STATUSES, handPairingPatch, isStatusFromTms, matchesFileChip, paperStanding, todayInZone, unitFileChip, type Trailer, type TrailerInput, type TrailerWrite } from "@silvicom/shared";
+import { FILE_FILTERS, fileFilterOptions, PAPER_CHECK_ITEMS, TRAILER_TYPE_LABELS, VEHICLE_STATUSES, handPairingPatch, isStatusFromTms, matchesFileFilter, paperStanding, todayInZone, unitFileChip, type Trailer, type TrailerInput, type TrailerWrite } from "@silvicom/shared";
 import { useTrailersOnLoadsQuery } from "@/composables/useTrailerLink";
 import { gpsPairingNote } from "@/lib/trailerPairingNote";
 import { useSessionStore } from "@/stores/session";
@@ -61,8 +61,8 @@ const search = qs.param("search");
 const statusFilter = qs.param("status", VEHICLE_STATUSES, "active");
 const reeferFilter = qs.param("reefer", ["reefer", "non"]);
 /** The file chip's filter — the chip and the filter both ask `unitFileChip` (UNIT-FILES-PLAN UF4). */
-const fileFilter = qs.param("file", FILE_CHIPS);
-const fileOptions = [{ value: "", label: "Any" }, ...FILE_CHIPS.map((c) => ({ value: c, label: FILE_CHIP_LABELS[c] }))];
+const fileFilter = qs.param("file", FILE_FILTERS);
+const fileOptions = fileFilterOptions();
 const unitFilesQ = useUnitFilesQuery("trailer");
 // The carrier's calendar day, as the Vehicles page judges its cells (D-PREC5).
 const { zone } = useOrgTimezone();
@@ -97,7 +97,7 @@ const filtered = computed(() => {
     if (reeferFilter.value === "non" && t.is_reefer) return false;
     if (fileFilter.value) {
       const chip = chipById.value.get(t.id);
-      if (!chip || !matchesFileChip(chip, fileFilter.value)) return false;
+      if (!chip || !matchesFileFilter(chip, fileFilter.value)) return false;
     }
     if (!term) return true;
     return [t.unit_number, t.make, t.model, t.plate]

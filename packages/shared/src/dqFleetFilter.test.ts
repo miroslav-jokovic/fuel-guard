@@ -4,7 +4,7 @@ import {
   SAVED_VIEW_TABLES,
   builtInViewsFor,
   DQ_DUE_FILTERS,
-  DQ_STATE_FILTERS,
+  FILE_FILTERS,
   dqSoonest,
   matchesDqFilters,
   matchesDqRequirement,
@@ -66,13 +66,33 @@ describe("matchesDqFilters — an unrecognised value is NO filter", () => {
   it("admits everyone for a word that is not in the vocabulary", () => {
     // These reach the predicate from a query string a person can type into. A typo must not empty a
     // fleet, which reads exactly like a carrier with no drivers.
-    expect(matchesDqFilters(row(), { state: "banana" })).toBe(true);
+    expect(matchesDqFilters(row(), { file: "banana" })).toBe(true);
     expect(matchesDqFilters(row(), { due: "banana" })).toBe(true);
     expect(matchesDqFilters(row(), { req: "unicorn", due: "30" })).toBe(true);
   });
 
   it("admits everyone when nothing is set", () => {
     expect(matchesDqFilters(row(), {})).toBe(true);
+  });
+});
+
+describe("matchesDqFilters — the file word is the File cell's chip (Q-UF9)", () => {
+  it("expiring means the chip says expiring: a driver with something lapsed as well is not in it", () => {
+    const lapsedToo = row({ counts: { current: 3, expiring: 1, expired: 1, missing: 0 } });
+    expect(matchesDqFilters(lapsedToo, { file: "expiring" })).toBe(false);
+    expect(matchesDqFilters(lapsedToo, { file: "expired" })).toBe(true);
+  });
+
+  it("complete means nothing due either: a complete file with an item expiring reads expiring", () => {
+    const dueSoon = row({ state: "complete", counts: { current: 4, expiring: 1, expired: 0, missing: 0 } });
+    expect(matchesDqFilters(dueSoon, { file: "complete" })).toBe(false);
+    expect(matchesDqFilters(dueSoon, { file: "expiring" })).toBe(true);
+  });
+
+  it("needs attention is every chip but complete, a file not started included", () => {
+    expect(matchesDqFilters(row({ state: "complete" }), { file: "attention" })).toBe(false);
+    expect(matchesDqFilters(row({ counts: { current: 4, expiring: 0, expired: 0, missing: 1 } }), { file: "attention" })).toBe(true);
+    expect(matchesDqFilters(row({ state: "not_started", counts: { current: 0, expiring: 0, expired: 0, missing: 6 } }), { file: "attention" })).toBe(true);
   });
 });
 
@@ -126,11 +146,11 @@ describe("BUILT_IN_VIEWS", () => {
   });
 
   it("every built-in is a query string this product's filters can read", () => {
-    const known = new Set(["dq", "due", "req", "sort", "dir", "q", "status", "show", "hide", "page"]);
+    const known = new Set(["file", "due", "req", "sort", "dir", "q", "status", "show", "hide", "page"]);
     for (const view of views) {
       for (const [key, value] of parseQuery(view.query)) {
         expect(known, `${view.name} uses an unknown parameter ${key}`).toContain(key);
-        if (key === "dq") expect(DQ_STATE_FILTERS).toContain(value);
+        if (key === "file") expect(FILE_FILTERS).toContain(value);
         if (key === "due") expect(DQ_DUE_FILTERS).toContain(value);
       }
     }
@@ -140,7 +160,7 @@ describe("BUILT_IN_VIEWS", () => {
     const everyone = row({ state: "complete", requirements: [req({ key: "medical_card" }), req()] });
     for (const view of views) {
       const p = new Map(parseQuery(view.query));
-      const filters = { state: p.get("dq") ?? "", due: p.get("due") ?? "", req: p.get("req") ?? "" };
+      const filters = { file: p.get("file") ?? "", due: p.get("due") ?? "", req: p.get("req") ?? "" };
       expect(matchesDqFilters(everyone, filters), `${view.name} matches a driver with nothing wrong`).toBe(false);
     }
   });

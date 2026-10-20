@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { FILE_CHIPS, FILE_CHIP_LABELS, fileChip, matchesFileChip, unitFileChip } from "./fileChip.js";
+import { FILE_CHIPS, FILE_CHIP_LABELS, FILE_FILTERS, fileChip, fileFilterOptions, matchesFileChip, matchesFileFilter, unitFileChip } from "./fileChip.js";
 import type { UnitFileCell } from "./unitFileContract.js";
 
 const counts = (over: Partial<Record<"current" | "expiring" | "expired" | "missing", number>> = {}) => ({
@@ -44,5 +44,23 @@ describe("matchesFileChip", () => {
 
   it("labels every chip", () => {
     for (const c of FILE_CHIPS) expect(FILE_CHIP_LABELS[c]).toBeTruthy();
+  });
+});
+
+describe("matchesFileFilter (Q-UF9)", () => {
+  const chip = (kind: (typeof FILE_CHIPS)[number]) => ({ kind, n: 0, label: "" });
+
+  it("needs attention admits every chip but complete", () => {
+    for (const kind of FILE_CHIPS) expect(matchesFileFilter(chip(kind), "attention")).toBe(kind !== "complete");
+  });
+
+  it("a chip word is the chip, and an unknown word is no filter", () => {
+    expect(matchesFileFilter(chip("expiring"), "expiring")).toBe(true);
+    expect(matchesFileFilter(chip("expired"), "expiring")).toBe(false);
+    expect(matchesFileFilter(chip("expired"), "banana")).toBe(true);
+  });
+
+  it("offers Any, then every filter word once", () => {
+    expect(fileFilterOptions().map((o) => o.value)).toEqual(["", ...FILE_FILTERS]);
   });
 });

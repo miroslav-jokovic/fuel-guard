@@ -1,5 +1,5 @@
 import { computed, type ComputedRef, type WritableComputedRef } from "vue";
-import { FILE_CHIPS } from "@silvicom/shared";
+import { FILE_FILTERS } from "@silvicom/shared";
 import { type SortState, toggleSort, useQueryState } from "@silvicom/ui";
 
 /**
@@ -42,9 +42,7 @@ export const VIEW_OPTIONS = [
 export interface RosterFilters {
   search: WritableComputedRef<string>;
   status: WritableComputedRef<string>;
-  /** §391.51 file status — the SAME vocabulary the compliance fleet table uses (R4b). */
-  dqState: WritableComputedRef<string>;
-  /** Expiry horizon, same vocabulary again. */
+  /** Expiry horizon — the SAME vocabulary the compliance fleet table uses (R4b). */
   dqDue: WritableComputedRef<string>;
   /**
    * Narrow the horizon to ONE requirement (`cdl`, `medical_card`, `endorsement_hazmat`).
@@ -55,10 +53,11 @@ export interface RosterFilters {
    */
   dqRequirement: WritableComputedRef<string>;
   /**
-   * The File cell's chip, as a filter (UNIT-FILES-PLAN UF4b): `expired`, `missing`, `expiring`,
-   * `complete`, `not_started` — `FILE_CHIPS`, the same vocabulary and the same `?file=` the Vehicles
-   * and Trailers lists carry, so "2 expiring" opens the same kind of list on all three. Set by
-   * clicking a chip or by the File control; a word outside the vocabulary is no filter at all.
+   * The File cell's chip, as a filter (UNIT-FILES-PLAN UF4b): `FILE_FILTERS` — every chip word plus
+   * `attention` — the same vocabulary and the same `?file=` the Vehicles and Trailers lists and the
+   * compliance fleet table carry, so "2 expiring" opens the same kind of list on all four. Set by
+   * clicking a chip or by the File control; a word outside the vocabulary is no filter at all. Since
+   * Q-UF9 it is the roster's ONLY file-status filter; `?dq=` is read for old links (below).
    */
   file: WritableComputedRef<string>;
   /**
@@ -99,10 +98,6 @@ export function useRosterFilters(): RosterFilters {
    * roster and the compliance fleet table must not answer "is this driver behind on their file"
    * differently, and a second copy of the predicate is how they would.
    */
-  const dqState = computed<string>({
-    get: () => one("dq") ?? "",
-    set: (v) => setFiltering({ dq: v || undefined }),
-  });
   const dqDue = computed<string>({
     get: () => one("due") ?? "",
     set: (v) => setFiltering({ due: v || undefined }),
@@ -113,12 +108,20 @@ export function useRosterFilters(): RosterFilters {
     set: (v) => setFiltering({ req: v || undefined }),
   });
 
+  /**
+   * `?dq=` is the File status filter Q-UF9 retired (2026-10-20). A saved view is a stored query string
+   * (D-ROS14) and a link can sit in an email for months, so an old `?dq=` still narrows the roster:
+   * its words are all `FILE_FILTERS` words, read here with the chip's meaning. This is a migration
+   * read, not a second filter — `?file=` wins when both are present, and any write clears `dq`, so a
+   * view re-saved after one change no longer carries it. It can go when no saved view row's query
+   * holds `dq=` (one SELECT on `saved_views`).
+   */
   const file = computed<string>({
     get: () => {
-      const v = one("file") ?? "";
-      return (FILE_CHIPS as readonly string[]).includes(v) ? v : "";
+      const v = one("file") ?? one("dq") ?? "";
+      return (FILE_FILTERS as readonly string[]).includes(v) ? v : "";
     },
-    set: (v) => setFiltering({ file: v || undefined }),
+    set: (v) => setFiltering({ file: v || undefined, dq: undefined }),
   });
 
   const seat = computed<string>({
@@ -165,7 +168,7 @@ export function useRosterFilters(): RosterFilters {
     });
 
   return {
-    search, status, dqState, dqDue, dqRequirement, file, seat,
+    search, status, dqDue, dqRequirement, file, seat,
     view, showArchived, sort, onSort, page, active, reset,
   };
 }

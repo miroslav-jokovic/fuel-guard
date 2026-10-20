@@ -4,12 +4,14 @@
  *
  * ── IT COUNTS DRIVERS, NOT ITEMS, BECAUSE ITS DOOR LISTS DRIVERS ─────────────────────────────────
  * The weekly digest's rollup (`buildDqDigestSection`) counts expired ITEMS — a driver with a lapsed
- * medical card and a lapsed MVR review is two. The Drivers page's `?dq=expired` lists DRIVERS. A card
- * that showed the digest's 7 over a list of 4 would read as a bug, so the rows here ask
- * `matchesDqState` — the Drivers page's own predicate — and only the "next up" line borrows the
- * digest's ranking, which is a pair (driver + item) by nature (D-FM7).
+ * medical card and a lapsed MVR review is two. The Drivers page's `?file=expired` lists DRIVERS. A
+ * card that showed the digest's 7 over a list of 4 would read as a bug, so the rows here ask the File
+ * chip (`matchesFileFilter` over `fileChip`) — the Drivers page's own predicate — and only the "next
+ * up" line borrows the digest's ranking, which is a pair (driver + item) by nature (D-FM7). Since Q-UF9
+ * the three rows are the chip's words, so they no longer overlap: a driver with something lapsed AND
+ * something due soon is counted once, as expired, which is what their File cell says.
  *
- * No header door: every row already opens `/drivers?dq=…`, and at four columns of twelve a door
+ * No header door: every row already opens `/drivers?file=…`, and at four columns of twelve a door
  * beside the title sat on top of it (browser pass, 2026-10-12).
  *
  * The overview is active and on-leave drivers only (`complianceOverview`), which is the population a
@@ -17,7 +19,7 @@
  */
 import { computed } from "vue";
 import { ClipboardDocumentListIcon } from "@silvicom/ui/icons";
-import { buildDqDigestSection, DQ_STATE_FILTER_LABELS, matchesDqState, type DqStateFilter } from "@silvicom/shared";
+import { buildDqDigestSection, FILE_FILTER_LABELS, fileChip, matchesFileFilter, type FileFilterKind } from "@silvicom/shared";
 import ChartCard from "@/components/ui/ChartCard.vue";
 import CountList, { type CountRow } from "@/components/ui/CountList.vue";
 import { useComplianceOverviewQuery } from "@/composables/useCompliance";
@@ -25,20 +27,20 @@ import { useComplianceOverviewQuery } from "@/composables/useCompliance";
 const { data: overview } = useComplianceOverviewQuery();
 const drivers = computed(() => overview.value?.drivers ?? null);
 
-const count = (f: DqStateFilter) => (drivers.value ? drivers.value.filter((d) => matchesDqState(d, f)).length : null);
-const row = (f: DqStateFilter, caption: string, alarm = false): CountRow => ({
+const count = (f: FileFilterKind) => (drivers.value ? drivers.value.filter((d) => matchesFileFilter(fileChip(d), f)).length : null);
+const row = (f: FileFilterKind, caption: string, alarm = false): CountRow => ({
   key: f,
-  label: DQ_STATE_FILTER_LABELS[f],
+  label: FILE_FILTER_LABELS[f],
   value: count(f),
   caption,
-  to: `/drivers?dq=${f}`,
+  to: `/drivers?file=${f}`,
   door: "Drivers",
   alarm,
 });
 
 const rows = computed<CountRow[]>(() => [
   row("expired", "drivers with something lapsed", true),
-  row("expiring", "drivers with something due soon"),
+  row("expiring", "drivers with something due soon, nothing lapsed"),
   row("not_started", "drivers whose file is empty"),
 ]);
 

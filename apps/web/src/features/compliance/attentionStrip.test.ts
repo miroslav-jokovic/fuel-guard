@@ -19,8 +19,9 @@ describe("buildAttentionStrip", () => {
   it("counts each tile from the overview rows, and due-14 nests inside due-30", () => {
     const tiles = buildAttentionStrip([
       row({ driver_id: "d1", counts: { current: 9, expiring: 0, expired: 1, missing: 0 }, attention: [att(-2)] }),
-      row({ driver_id: "d2", attention: [att(10)] }),
-      row({ driver_id: "d3", attention: [att(25)] }),
+      // Counts agree with the attention list, as the rollup's always do: the File chip reads the counts.
+      row({ driver_id: "d2", counts: { current: 9, expiring: 1, expired: 0, missing: 0 }, attention: [att(10)] }),
+      row({ driver_id: "d3", counts: { current: 9, expiring: 1, expired: 0, missing: 0 }, attention: [att(25)] }),
       row({ driver_id: "d4", state: "not_started" }),
       row({ driver_id: "d5", state: "complete" }),
     ]);
@@ -33,9 +34,17 @@ describe("buildAttentionStrip", () => {
     expect(tiles.find((t) => t.key === "due14")!.n).toBe(0);
   });
 
+  it("files complete counts the chip's complete: a complete file with an item due soon is not one (Q-UF9)", () => {
+    const tiles = buildAttentionStrip([
+      row({ driver_id: "d1", state: "complete" }),
+      row({ driver_id: "d2", state: "complete", counts: { current: 9, expiring: 1, expired: 0, missing: 0 }, attention: [att(20)] }),
+    ]);
+    expect(tiles.find((t) => t.key === "complete")!.n).toBe(1);
+  });
+
   it("each tile carries the fleet table's filter values verbatim", () => {
     const tiles = buildAttentionStrip([]);
-    expect(tiles.map((t) => [t.key, t.state, t.due])).toEqual([
+    expect(tiles.map((t) => [t.key, t.file, t.due])).toEqual([
       ["expired", "expired", ""],
       ["due14", "", "14"],
       ["due30", "", "30"],
