@@ -11,6 +11,8 @@ import type {
   QualificationRecordCreateRequest,
   QualificationRecordRow,
   ComplianceOverviewResponse,
+  UnitFilesResponse,
+  UnitSubjectType,
 } from "@silvicom/shared";
 import {
   DOCUMENTS_BUCKET,
@@ -215,6 +217,26 @@ export function useComplianceOverviewQuery() {
     // Expiry dates move once a day at most; polling a compliance rollup would be a fleet-wide
     // recomputation for an answer that has not changed.
     staleTime: 5 * 60_000,
+  });
+}
+
+/**
+ * Every truck's or trailer's file in one read (UNIT-FILES-PLAN UF2/UF4) — the Files column, its
+ * `?file=` filter and the Truck paperwork card all read this, so a count and the list behind it are
+ * one answer. Keyed under ["compliance"], so filing a paper anywhere refreshes the column.
+ *
+ * ⚠ The thumbnails' signed URLs live five minutes, and this stays fresh for two: a thumbnail drawn
+ * from a cached answer must still load when the list is revisited.
+ */
+export function useUnitFilesQuery(subjectType: UnitSubjectType) {
+  return useQuery({
+    queryKey: ["compliance", "unit-files", subjectType] as const,
+    queryFn: async (): Promise<UnitFilesResponse> => {
+      const res = await apiFetch<UnitFilesResponse>(`/api/compliance/unit-files?subjectType=${subjectType}`);
+      if (!res.ok || !res.data) throw new Error(res.error?.message ?? "Could not load the unit files.");
+      return res.data;
+    },
+    staleTime: 2 * 60_000,
   });
 }
 

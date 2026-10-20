@@ -24,6 +24,8 @@ const rows = [
   truck(90, { status: "retired" }),
 ];
 
+// The pages read every unit's file for the File column (UNIT-FILES-PLAN UF4); none is filed here.
+vi.mock("@/composables/useCompliance", () => ({ useUnitFilesQuery: () => ({ data: ref({ units: [] }) }), useDocumentsQuery: () => ({ data: ref([]) }) }));
 vi.mock("@/composables/useVehicles", () => {
   const idle = () => ({ mutateAsync: vi.fn(), isPending: ref(false) });
   return {

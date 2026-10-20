@@ -5,6 +5,7 @@ import {
   ASSET_STATUS_LABELS, type AssetStatus,
   ASSET_MOVEMENT_REASON_LABELS, movesHolder, type AssetMovementReason,
   KIT_STATE_LABELS, type KitState,
+  type FileChipKind,
 } from "@silvicom/shared";
 // Modern "soft" badge styling — light fill + subtle inset ring — used consistently across the app.
 // Tones are semantic (design tokens), not raw palette colors: danger > caution > warning > success…
@@ -387,6 +388,27 @@ export function dqFileBadge(state: string): DqBadge {
       return { label: "Not started", tone: "neutral" };
     default:
       return { label: state, tone: "neutral" };
+  }
+}
+
+/**
+ * A file's chip (UNIT-FILES-PLAN UF4): the word comes from `fileChip`, only the tone is decided here.
+ * Expired is red because the unit is off the road; missing and date-only are both work owed, the
+ * second the smaller job; expiring is the call to make this month.
+ */
+export function fileChipTone(kind: FileChipKind): BadgeTone {
+  switch (kind) {
+    case "expired":
+      return "danger";
+    case "missing":
+      return "caution";
+    case "date_only":
+    case "expiring":
+      return "warning";
+    case "complete":
+      return "success";
+    default:
+      return "neutral";
   }
 }
 

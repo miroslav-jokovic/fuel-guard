@@ -153,7 +153,7 @@ export async function getUnitFiles(
     });
     const papers: PaperThumb[] = (papersBy.get(u.id) ?? []).slice(0, PAPERS_PER_ROW).map((d) => {
       const thumb = thumbOf.get(d.id);
-      return { documentId: d.id, kind: d.kind, contentType: d.content_type, thumbUrl: thumb ? (signed.get(thumb.storage_path) ?? null) : null };
+      return { documentId: d.id, kind: d.kind, contentType: d.content_type, thumbUrl: thumb ? (signed.get(thumb.storage_path) ?? null) : null, filedAt: d.created_at };
     });
     return {
       subject_type: subjectType,

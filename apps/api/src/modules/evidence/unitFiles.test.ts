@@ -90,10 +90,10 @@ describe("getUnitFiles", () => {
     const rec = recorder();
     const { units } = await getUnitFiles(rec.client, ORG, "tractor", TODAY);
     expect(units[0]!.papers).toEqual([
-      { documentId: "reg1", kind: "registration", contentType: "application/pdf", thumbUrl: "https://signed.test/o/t/reg1t.thumb.webp" },
+      { documentId: "reg1", kind: "registration", contentType: "application/pdf", thumbUrl: "https://signed.test/o/t/reg1t.thumb.webp", filedAt: "2026-03-01T00:00:00Z" },
       // Not derived yet: drawn as a type icon, never as the 25 MB original.
-      { documentId: "mid1", kind: "other", contentType: "image/png", thumbUrl: null },
-      { documentId: "mid2", kind: "other", contentType: "image/png", thumbUrl: null },
+      { documentId: "mid1", kind: "other", contentType: "image/png", thumbUrl: null, filedAt: "2026-02-01T00:00:00Z" },
+      { documentId: "mid2", kind: "other", contentType: "image/png", thumbUrl: null, filedAt: "2025-06-01T00:00:00Z" },
     ]);
     expect(units[0]!.paper_count).toBe(4);
     expect(units[1]!.papers).toEqual([]);

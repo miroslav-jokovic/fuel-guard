@@ -24,34 +24,31 @@
  */
 import { computed } from "vue";
 import { UserGroupIcon } from "@silvicom/ui/icons";
-import { isRunningTruck, matchesVehicleCheck, seatedDriverIds, todayInZone } from "@silvicom/shared";
+import { isRunningTruck, matchesVehicleCheck, seatedDriverIds } from "@silvicom/shared";
 import ChartCard from "@/components/ui/ChartCard.vue";
 import CountList, { type CountRow } from "@/components/ui/CountList.vue";
 import { useVehiclesQuery } from "@/composables/useVehicles";
 import { useDriversQuery } from "@/composables/useDrivers";
-import { useOrgTimezone } from "@/composables/useOrgTimezone";
 import { useSessionStore } from "@/stores/session";
 
 const session = useSessionStore();
-const { zone } = useOrgTimezone();
 const { data: vehicles } = useVehiclesQuery();
 const { data: drivers } = useDriversQuery();
 
 const running = computed(() => (vehicles.value ? vehicles.value.filter(isRunningTruck) : null));
-const noDriver = computed(() => {
-  const today = todayInZone(new Date(), zone.value);
-  return running.value ? running.value.filter((v) => matchesVehicleCheck(v, "no_driver", today)).length : null;
-});
+// The seat checks ask nothing of a truck's file, so none is passed (`matchesVehicleCheck`).
+const noDriver = computed(() =>
+  running.value ? running.value.filter((v) => matchesVehicleCheck(v, "no_driver", undefined)).length : null,
+);
 const unseated = computed(() => {
   if (!vehicles.value || !drivers.value) return null;
   const seated = seatedDriverIds(vehicles.value);
   return drivers.value.filter((d) => d.status === "active" && !d.archived_at && !seated.has(d.id)).length;
 });
 const ordered = computed(() => (vehicles.value ? vehicles.value.filter((v) => v.status === "ordered").length : null));
-const windingDown = computed(() => {
-  const today = todayInZone(new Date(), zone.value);
-  return vehicles.value ? vehicles.value.filter((v) => v.status === "active" && matchesVehicleCheck(v, "winding_down", today)).length : null;
-});
+const windingDown = computed(() =>
+  vehicles.value ? vehicles.value.filter((v) => v.status === "active" && matchesVehicleCheck(v, "winding_down", undefined)).length : null,
+);
 
 const rows = computed<CountRow[]>(() => [
   { key: "no-driver", label: "Trucks without a driver", value: noDriver.value, caption: "running trucks nobody is assigned to", to: "/vehicles?check=no_driver", door: "Vehicles", alarm: true },
