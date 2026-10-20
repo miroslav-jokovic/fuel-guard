@@ -2219,3 +2219,8 @@ Append dated lines at the END.
     before each.
 - 2026-10-20 — Application audit (memory note `application-system-audit-2026-10-20`; fixes #1659). Two new open questions: Q-AW55 (invite by text — a consent design, waits on the owner) and Q-AW56 (nothing tells the office Part 1 is finished — answered (a); the link's expiry after Part 1 waits on the owner, recommendation (e)). Q-AW56 (a) ships in two merges: 0499 widens the notification CHECK with `application_ready_to_screen`; the emitter, the contract entry, the board's `ready_to_screen` projection and the page's filter option follow once 0499 is applied.
 - 2026-10-20 — Owner ruled Q-AW55 (a): invite by text behind the recruiter's attestation. Merge 1: 0504 widens `sms_consents.source` with `office_invite` and `sms_outbox.reason` with `invite`, the contract's `SMS_CONSENT_SOURCES` moves with it, counsel memo Q12 gains the attestation question (SMS-OPT-IN-PLAN D-SMS11). The writer — the drawer's number field and checkbox, `applicationInviteText.ts`, the `invite` outbox template — follows once 0504 is applied.
+- 2026-10-20 — **Q-AW55 built**, merge 2 of 2: the invite drawer's mobile number and attestation checkbox,
+  `text_invite` on `applicationInviteCreateSchema` (`applicant_asked: true` required beside the number),
+  `applicationInviteText.ts` (consent row under `office_invite` + `SMS_OFFICE_INVITE_ATTESTATION`, audit
+  `compliance.applicant_invited_by_text`, the outbox's `invite` template), `createApplicationInvite` returning
+  `text` beside `delivery`, and `ApplicationLinkOnce` saying what became of the text. SMS-OPT-IN-PLAN D-SMS11.

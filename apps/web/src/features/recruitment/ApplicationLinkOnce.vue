@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { computed } from "vue";
+import type { ApplicationInviteTextOutcome } from "@silvicom/shared";
 import { AppButton as BaseButton } from "@silvicom/ui";
+import { formatDateTime } from "@/lib/format";
 import { useToastStore } from "@/stores/toast";
 import type { ApplicationInviteDelivery } from "@/features/recruitment/useApplicationInvites";
 
@@ -16,6 +18,8 @@ import type { ApplicationInviteDelivery } from "@/features/recruitment/useApplic
 const props = defineProps<{
   link: string;
   delivery?: ApplicationInviteDelivery | null;
+  /** Q-AW55: what became of the invitation by text, when one was asked for. */
+  text?: ApplicationInviteTextOutcome | null;
   /**
    * What to do if it is lost. An invitation's link is replaced by a new invitation; a SENT
    * application's is replaced by sending it again (AF4), which rotates the link on the same row.
@@ -55,6 +59,34 @@ const headline = computed((): string => {
   }
 });
 
+/**
+ * The text's line (Q-AW55), one sentence, and the same division of blame as the email's: `queued` is
+ * nobody's problem and says when; `number_stopped` is the applicant's own earlier word, which the office
+ * may not overrule; `invalid_phone` is the recruiter's typing; `sms_disabled` is an admin's; the rest is
+ * the provider. "Send this link yourself" is said only where the text is NOT coming.
+ */
+const textLine = computed((): string | null => {
+  const t = props.text;
+  if (!t) return null;
+  const to = t.phoneLast4 ? `the number ending ${t.phoneLast4}` : "that number";
+  if (t.outcome === "sent") return `Texted to ${to}.`;
+  if (t.outcome === "queued") {
+    return `It is outside texting hours somewhere in the US, so it will be texted to ${to} at ${t.notBefore ? formatDateTime(t.notBefore) : "the next opening"}.`;
+  }
+  switch (t.reason) {
+    case "number_stopped":
+      return `Not texted: ${to} texted STOP to us, and the office cannot undo that. Send the link yourself.`;
+    case "invalid_phone":
+      return "Not texted: that is not a US mobile number. Send the link yourself.";
+    case "sms_consent_not_final":
+      return "Not texted: texts are not available yet — the wording is waiting on legal review. Send the link yourself.";
+    case "sms_disabled":
+      return "Not texted: texts are switched off for this account. Send the link yourself.";
+    default:
+      return `The text to ${to} did not go. Send the link yourself.`;
+  }
+});
+
 async function copyLink(link: string): Promise<void> {
   try {
     await navigator.clipboard.writeText(link);
@@ -69,6 +101,7 @@ async function copyLink(link: string): Promise<void> {
 <template>
   <div class="rounded-surface bg-surface-muted p-3">
     <p class="text-xs font-medium text-ink-secondary">{{ headline }}</p>
+    <p v-if="textLine" class="mt-1 text-xs text-ink-secondary">{{ textLine }}</p>
     <p class="mt-1 break-all font-mono text-xs text-ink">{{ link }}</p>
     <div class="mt-3 flex items-center gap-3">
       <BaseButton size="sm" @click="copyLink(link)">Copy the link</BaseButton>

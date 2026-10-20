@@ -199,6 +199,7 @@ Sources: [Telnyx verification guide](https://support.telnyx.com/en/articles/1072
 | Application ready | Silvicom Inc: Your driver application is ready. Fill it in here: https://360.silvicominc.com/apply/… Your earlier link no longer works. Reply STOP to opt out. |
 | 48-hour reminder | Silvicom Inc: Your driver application is saved. Pick up where you left off: https://360.silvicominc.com/apply/… This link replaces any earlier one. Reply STOP to opt out. |
 | Approved | Silvicom Inc: Your driver application has been approved. We will contact you to arrange a visit to our office to sign it. Reply STOP to opt out. |
+| Invitation (D-SMS11, the first message a number gets — so it carries rates and HELP, since no opt-in confirmation goes ahead of it) | Silvicom Inc: You asked us to text you your driver application. Fill it in here: https://360.silvicominc.com/apply/… This link works for 14 days. Msg & data rates may apply. Reply HELP for help, STOP to opt out. |
 | HELP reply | Silvicom 360 driver application texts. Help: 360.silvicominc.com/sms-terms. Msg & data rates may apply. Reply STOP to opt out. |
 
 ⚠ No STOP confirmation is sent by us, and whether the toll-free network sends its own is unmeasured.
@@ -253,3 +254,13 @@ Append dated lines here; never edit a table row above to record progress.
   is the company's (Silvicom Inc), never a related company's: the registration number must match the
   legal name, and the verified business is the sender on record. Opt-in screenshots added to
   `apps/web/public/compliance/sms-opt-in/`.
+- 2026-10-20 — **D-SMS11 built** (APPLICATION-FLOW-V2-PLAN Q-AW55, owner ruled (a)), two merges: 0504 widened
+  `sms_consents.source` with `office_invite` and `sms_outbox.reason` with `invite`; then the writer. The invite
+  drawer takes a mobile number and the attestation checkbox, together or not at all (the api's schema requires
+  `applicant_asked: true` beside the number). `applicationInviteText.ts` normalises the number, refuses a STOP'd
+  or non-US one with nothing written, records the attestation under `SMS_OFFICE_INVITE_ATTESTATION`
+  (`office-invite-2026-10-20`) with the recruiter's IP and agent, audits `compliance.applicant_invited_by_text`
+  (last four digits, never the number), and sends through the outbox's new `invite` template — minted on the text
+  token at send time, queued for the strict all-US window when the recruiter is early. The drawer says what became
+  of it under the link. The number also goes on the applicant's row. Verification sample set (§6.3) gains the
+  message; counsel memo Q12 carries the attestation question.

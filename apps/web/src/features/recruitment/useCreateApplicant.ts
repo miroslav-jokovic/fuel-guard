@@ -26,6 +26,8 @@ export interface NewApplicant {
   first_name: string;
   last_name: string;
   email: string | null;
+  /** Q-AW55: the mobile the recruiter typed to invite by text — the office's number on file for them. */
+  phone?: string | null;
 }
 
 export function useCreateApplicant() {
@@ -38,6 +40,7 @@ export function useCreateApplicant() {
           first_name: input.first_name,
           last_name: input.last_name,
           email: input.email,
+          ...(input.phone ? { phone: input.phone } : {}),
           status: "applicant",
         },
       });

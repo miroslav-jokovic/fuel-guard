@@ -37,6 +37,17 @@ export const applicationInviteCreateSchema = z.object({
    * "the carrier's setting", which only the api can read — a `.default(14)` would silently override it.
    */
   expires_in_days: z.coerce.number().int().min(1).max(INVITE_TTL_DAYS_MAX).optional(),
+  /**
+   * Invite by text as well (Q-AW55, D-SMS11). The number the recruiter typed, and the attestation
+   * that the applicant ASKED for it — `z.literal(true)`, so a number without the box is refused at the
+   * door rather than texted on nothing: the attestation is what the consent row records, and a text
+   * with nothing behind it is the one the toll-free verification was granted on the promise of never
+   * sending. The api normalises and refuses the number itself (`normaliseUsPhone`); this only bounds it.
+   */
+  text_invite: z.object({
+    phone: z.string().min(7).max(40),
+    applicant_asked: z.literal(true),
+  }).optional(),
 });
 export type ApplicationInviteCreate = z.infer<typeof applicationInviteCreateSchema>;
 

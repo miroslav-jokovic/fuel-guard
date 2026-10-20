@@ -1,6 +1,5 @@
 import { describe, it, expect } from "vitest";
 import {
-  SMS_CONSENT,
   composeSmsConsent,
   isDraftSmsConsent,
   isHelpMessage,
@@ -9,15 +8,18 @@ import {
   normalisePhone,
   normaliseUsPhone,
   siteHostOf,
+  SMS_CONSENT,
+  SMS_OFFICE_INVITE_ATTESTATION,
   smsApplicationApproved,
-  smsApplicationReady,
-  smsDrugTestSite,
-  smsApplicationReminder,
-  smsSigningLink,
+  smsApplicationInvite,
   smsApplicationPhoneLink,
+  smsApplicationReady,
+  smsApplicationReminder,
   smsConsentGrantSchema,
+  smsDrugTestSite,
   smsHelpReply,
   smsOptInConfirmation,
+  smsSigningLink,
 } from "./smsConsentContract.js";
 
 /**
@@ -177,6 +179,7 @@ describe("every message the programme sends (the verification's sample set)", ()
     reminder: smsApplicationReminder("Silvicom Inc", LINK),
     phoneLink: smsApplicationPhoneLink("Silvicom Inc", LINK),
     signing: smsSigningLink("Silvicom Inc", LINK, 72),
+    invite: smsApplicationInvite("Silvicom Inc", LINK, 14),
     approved: smsApplicationApproved("Silvicom Inc"),
     help: smsHelpReply("360.silvicominc.com"),
   };
@@ -201,11 +204,27 @@ describe("every message the programme sends (the verification's sample set)", ()
     expect(messages.signing).toContain("72 hours");
     // It rotates nothing (§6.6.6): telling the driver an earlier link died would be false.
     expect(messages.phoneLink).not.toMatch(/earlier|replaces/);
+    // Q-AW55: the first message a number gets from us carries what a first contact must — the asking
+    // said back, the lifetime, rates, HELP — since no opt-in confirmation goes ahead of it.
+    expect(messages.invite).toContain(LINK);
+    for (const needle of ["You asked us to text you", "works for 14 days", "rates may apply", "HELP"]) expect(messages.invite).toContain(needle);
   });
 
   it("points HELP at the terms page on the host it is given, whatever form the URL came in", () => {
     expect(smsHelpReply(siteHostOf("https://360.silvicominc.com/"))).toContain("360.silvicominc.com/sms-terms");
     expect(siteHostOf("http://localhost:5173")).toBe("localhost:5173");
+  });
+});
+
+describe("the office's attestation behind an invitation by text (Q-AW55, D-SMS11)", () => {
+  it("is published, in the office's voice, naming the carrier and every disclosure the applicant's own instrument carries", () => {
+    expect(isDraftSmsConsent(SMS_OFFICE_INVITE_ATTESTATION)).toBe(false);
+    expect(SMS_OFFICE_INVITE_ATTESTATION.version).not.toBe(SMS_CONSENT.version);
+    const doc = composeSmsConsent(SMS_OFFICE_INVITE_ATTESTATION, "Silvicom Inc");
+    expect(doc.body.startsWith("Recorded by the office of Silvicom Inc")).toBe(true);
+    for (const needle of ["STOP", "HELP", "rates may apply", "not a condition"]) expect(doc.body).toContain(needle);
+    expect(doc.intent).toBe("This person asked Silvicom Inc to text them the link to their driver application.");
+    expect(doc.body).not.toContain("{{carrier}}");
   });
 });
 

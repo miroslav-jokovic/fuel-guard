@@ -24,6 +24,8 @@ const fail = vi.hoisted(() => ({ invite: false }));
 /** What the board's duplicate check answers (Q-AX6). Empty by default: nobody is on the board yet. */
 const board = vi.hoisted(() => ({ matches: [] as Array<{ id: string; full_name: string; email: string | null; archived: boolean }> }));
 const role = vi.hoisted(() => ({ value: "recruiter" as string | null }));
+/** What the api says became of the invitation by text (Q-AW55). */
+const textAnswer = vi.hoisted(() => ({ value: { outcome: "sent", phoneLast4: "5732", notBefore: null, reason: null } as Record<string, unknown> }));
 
 /**
  * ⚠ `session.role` is a COMPUTED over the decoded access token, so assigning it does nothing and a
@@ -58,7 +60,9 @@ vi.mock("@/lib/api", () => ({
     }
     if (path === "/api/recruitment/application-invites") {
       if (fail.invite) return { ok: false, error: { message: "Invitation service is down" } };
-      return { ok: true, data: { link: "https://fuelguard.test/apply/tok-123" } };
+      // Q-AW55: the text's outcome, when a number travelled — scripted per test.
+      const body = init?.body as { text_invite?: unknown } | undefined;
+      return { ok: true, data: { link: "https://fuelguard.test/apply/tok-123", ...(body?.text_invite ? { text: textAnswer.value } : {}) } };
     }
     return { ok: true, data: {} };
   }),
@@ -103,6 +107,7 @@ describe("inviting an applicant from the board", () => {
     fail.invite = false;
     board.matches = [];
     role.value = "recruiter";
+    textAnswer.value = { outcome: "sent", phoneLast4: "5732", notBefore: null, reason: null };
   });
 
   /** `status: "applicant"` is what the pipeline selects on — without it this creates a driver on
@@ -202,12 +207,95 @@ describe("inviting an applicant from the board", () => {
     });
   });
 
+  /**
+   * Q-AW55 (D-SMS11): the number travels only under the attestation. The box is what the consent row
+   * records, so a number without it goes nowhere — not to the api, which refuses it too, and not into
+   * a driver row either, since nobody is added until the drawer is satisfied.
+   */
+  describe("inviting by text, behind the attestation (Q-AW55)", () => {
+    const fillNames = async (w: ReturnType<typeof mountWith>) => {
+      const inputs = w.findAll("input");
+      await inputs[0]!.setValue("Dana");
+      await inputs[1]!.setValue("Reyes");
+    };
+    const mobile = (w: ReturnType<typeof mountWith>) => w.findAll("input")[3]!;
+    const box = (w: ReturnType<typeof mountWith>) => w.find("input[type='checkbox']");
+    const submit = (w: ReturnType<typeof mountWith>) => w.findAll("button").find((b) => b.text() === "Add and create the link")!;
+    const inviteBody = () =>
+      calls.find((c) => c.path === "/api/recruitment/application-invites")!.init!.body as Record<string, unknown>;
+    const driverBody = () => calls.find((c) => c.path === "/api/roster/drivers")!.init!.body as Record<string, unknown>;
+
+    it("refuses a number without the box, and a box without a number, before anybody is added", async () => {
+      const w = mountWith("recruiter");
+      await fillNames(w);
+      await mobile(w).setValue("(708) 236-5732");
+      expect(submit(w).attributes("disabled")).toBeDefined();
+      expect(w.text()).toContain("tick the box, or clear the number");
+      await mobile(w).setValue("");
+      await box(w).setValue(true);
+      expect(submit(w).attributes("disabled")).toBeDefined();
+      expect(w.text()).toContain("Type the number they asked us to text");
+      expect(calls.filter((c) => c.init?.method === "POST")).toHaveLength(0);
+    });
+
+    it("refuses a number that is not a US mobile", async () => {
+      const w = mountWith("recruiter");
+      await fillNames(w);
+      await mobile(w).setValue("(123) 456-7890");
+      await box(w).setValue(true);
+      expect(submit(w).attributes("disabled")).toBeDefined();
+      expect(w.text()).toContain("not a US mobile number");
+    });
+
+    it("sends the number under the attestation, puts it on the applicant's row, and says it was texted", async () => {
+      const w = mountWith("recruiter");
+      await fillNames(w);
+      await mobile(w).setValue("(708) 236-5732");
+      await box(w).setValue(true);
+      await submit(w).trigger("click");
+      await settle(w);
+      expect(driverBody()).toMatchObject({ phone: "+17082365732", status: "applicant" });
+      expect(inviteBody()).toEqual({ driver_id: "d-new", email: null, text_invite: { phone: "+17082365732", applicant_asked: true } });
+      expect(w.text()).toContain("Texted to the number ending 5732.");
+    });
+
+    it("says when a queued text goes, and says to send the link yourself when it is not coming", async () => {
+      const cases: Array<[Record<string, unknown>, string]> = [
+        [{ outcome: "queued", phoneLast4: "5732", notBefore: "2027-01-13T15:00:00.000Z", reason: null }, "will be texted to the number ending 5732 at"],
+        [{ outcome: "refused", phoneLast4: "5732", notBefore: null, reason: "number_stopped" }, "texted STOP to us"],
+        [{ outcome: "failed", phoneLast4: "5732", notBefore: null, reason: "sms_disabled" }, "switched off for this account"],
+        [{ outcome: "failed", phoneLast4: "5732", notBefore: null, reason: "send_failed" }, "did not go. Send the link yourself"],
+      ];
+      for (const [answer, words] of cases) {
+        calls.length = 0;
+        textAnswer.value = answer;
+        const w = mountWith("recruiter");
+        await fillNames(w);
+        await mobile(w).setValue("7082365732");
+        await box(w).setValue(true);
+        await submit(w).trigger("click");
+        await settle(w);
+        expect(w.text(), words).toContain(words);
+        w.unmount();
+      }
+    });
+
+    it("sends no number and no attestation when the field is left blank", async () => {
+      const w = mountWith("recruiter");
+      await fillAndSubmit(w);
+      expect(inviteBody()).toEqual({ driver_id: "d-new", email: null });
+      expect(driverBody()).not.toHaveProperty("phone");
+      expect(w.text()).not.toContain("Texted");
+    });
+  });
+
   describe("this link's lifetime (Q-AW41)", () => {
     const fill = async (w: ReturnType<typeof mountWith>, days: string) => {
       const inputs = w.findAll("input");
       await inputs[0]!.setValue("Dana");
       await inputs[1]!.setValue("Reyes");
-      await inputs[3]!.setValue(days);
+      // The lifetime field: after the names, the email, the mobile and its checkbox (Q-AW55).
+      await inputs[5]!.setValue(days);
     };
     const inviteBody = () =>
       calls.find((c) => c.path === "/api/recruitment/application-invites")!.init!.body as Record<string, unknown>;
@@ -216,7 +304,7 @@ describe("inviting an applicant from the board", () => {
       const w = mountWith("recruiter");
       await settle(w);
       expect(settingsReads.n).toBeGreaterThan(0);
-      expect(w.findAll("input")[3]!.attributes("placeholder")).toBe("10");
+      expect(w.findAll("input")[5]!.attributes("placeholder")).toBe("10");
       expect(w.text()).toContain("the carrier's setting, 10 days");
       await fillAndSubmit(w);
       expect(inviteBody()).toEqual({ driver_id: "d-new", email: null });

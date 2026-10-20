@@ -126,6 +126,16 @@ describe("the invitation", () => {
    * reads — a schema default would overrule it. The fortnight is still the product's default, now in
    * RECRUITING_SETTINGS_DEFAULTS (recruitingSettingsContract.test.ts, "are the shared constants").
    */
+  /** Q-AW55: a number travels only under the attestation — the box is what the consent row records. */
+  it("takes a mobile number only with the attestation that the applicant asked for the text", () => {
+    const with_ = (text_invite: unknown) => applicationInviteCreateSchema.safeParse({ driver_id: DRIVER_ID, text_invite }).success;
+    expect(with_({ phone: "7082365732", applicant_asked: true })).toBe(true);
+    expect(with_({ phone: "7082365732" })).toBe(false);
+    expect(with_({ phone: "7082365732", applicant_asked: false })).toBe(false);
+    expect(with_({ applicant_asked: true })).toBe(false);
+    expect(applicationInviteCreateSchema.parse({ driver_id: DRIVER_ID }).text_invite).toBeUndefined();
+  });
+
   it("leaves an absent lifetime absent, for the carrier's setting to fill", () => {
     const parsed = applicationInviteCreateSchema.parse({ driver_id: DRIVER_ID });
     expect(parsed.expires_in_days).toBeUndefined();
