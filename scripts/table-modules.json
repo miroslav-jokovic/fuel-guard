@@ -2114,6 +2114,17 @@
         "why": "new 2026-10-05 (0427): a hand-kept list of a few people, written only from the console's Settings; bounded by the number of orgs."
       }
     },
+    "platform_scheduler_leases": {
+      "module": "org",
+      "layer": "infra",
+      "lifecycle": {
+        "growth": "static",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "new 2026-10-20 (0506): one row per scheduler lane (two today), updated in place every 15 s by the lane's holder; never grows past the number of lanes."
+      }
+    },
     "platform_release_approvals": {
       "module": "org",
       "layer": "infra",
