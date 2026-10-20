@@ -26,6 +26,31 @@ vi.mock("@/composables/useVehicles", () => ({
   useCreateVehicle: idle, useUpdateVehicle: idle, useRetireVehicle: () => ({ isPending: ref(false), mutateAsync: retire }), useBulkUpdateVehicles: idle,
 }));
 vi.mock("@/composables/useDrivers", () => ({ useDriversQuery: () => ({ data: ref([]) }) }));
+/**
+ * Each truck's file (UNIT-FILES-PLAN UF4). Mostly McLeod's dates as `dateOnly`, as a fleet with no
+ * papers filed has; T-404's inspection is a filed paper, and T-101 has papers on file for the cell.
+ */
+const dated = (key: string, day: string | null, state: string) => ({
+  key, group: "registration", state: "missing", goodUntil: null, fleetWide: false, documentId: null, dateOnly: day ? { goodUntil: day, state } : null,
+});
+const paper = (key: string, day: string, state: string, documentId: string) => ({ key, group: "inspections", state, goodUntil: day, fleetWide: false, documentId, dateOnly: null });
+const unitFile = (id: string, state: string, counts: Record<string, number>, items: unknown[], papers: unknown[] = [], paperCount = 0) => ({
+  subject_type: "tractor", subject_id: id, unit_number: id, status: "active", ownership: "owned", state, counts, ownership_unknown: [], attention: [], items, papers, paper_count: paperCount,
+});
+const thumb = (documentId: string) => ({ documentId, kind: "registration", contentType: "application/pdf", thumbUrl: `https://signed.test/${documentId}.webp`, filedAt: "2026-10-01T00:00:00Z" });
+const unitFiles = ref({
+  units: [
+    unitFile("t1", "incomplete", { current: 0, expiring: 0, expired: 0, missing: 2 },
+      [dated("annual_inspection", "2026-10-01", "expired"), dated("registration", "2027-01-01", "current")],
+      [thumb("p1"), thumb("p2"), thumb("p3")], 5),
+    unitFile("t2", "incomplete", { current: 0, expiring: 0, expired: 0, missing: 2 },
+      [dated("annual_inspection", "2027-03-01", "current"), dated("registration", "2026-09-30", "expired")]),
+    unitFile("t3", "not_started", { current: 0, expiring: 0, expired: 0, missing: 2 }, [dated("annual_inspection", null, ""), dated("registration", null, "")]),
+    unitFile("t4", "complete", { current: 1, expiring: 1, expired: 0, missing: 0 },
+      [paper("annual_inspection", "2027-03-01", "current", "p9"), paper("registration", "2026-10-20", "expiring", "p8")]),
+  ],
+});
+vi.mock("@/composables/useCompliance", () => ({ useUnitFilesQuery: () => ({ data: unitFiles }), useDocumentsQuery: () => ({ data: ref([]) }) }));
 vi.mock("@/composables/useOrgTimezone", () => ({ useOrgTimezone: () => ({ zone: ref("America/Chicago"), isResolved: ref(true) }) }));
 vi.mock("@/stores/session", async () => {
   const { fakeSession } = await import("@/testing/fakeSession");
@@ -38,6 +63,7 @@ vi.mock("@/components/RosterFreshnessLine.vue", () => ({ default: { template: "<
 vi.mock("@/features/roster/VehicleSetupImport.vue", () => ({ default: { template: "<span />" } }));
 
 const VehiclesPage = (await import("./VehiclesPage.vue")).default;
+const TruckPapersWidget = (await import("@/features/roster/TruckPapersWidget.vue")).default;
 
 async function mountAt(at: string) {
   const router = createRouter({ history: createMemoryHistory(), routes: [{ path: "/vehicles", component: { template: "<div/>" } }] });
@@ -117,5 +143,45 @@ describe("retiring a vehicle", () => {
     answerConfirm(true);
     await pressRetire();
     expect(retire).toHaveBeenCalledWith("t1");
+  });
+});
+
+describe("the File column (UNIT-FILES-PLAN UF4)", () => {
+  it("draws each truck's chip, worst state first, its thumbnails and the +N past them", async () => {
+    const { w } = await mountAt("/vehicles");
+    const chips = w.findAll("[data-test='file-chip']").map((c) => c.text());
+    // T-101: two items with McLeod's dates only; T-202 the same; T-404 one paper inside the window.
+    expect(chips).toEqual(["2 date only", "2 date only", "1 expiring"]);
+    expect(w.findAll("[data-test='file-thumb']")).toHaveLength(3);
+    expect(w.get("[data-test='file-more']").text()).toBe("+2");
+  });
+
+  it("sets ?file= when a chip is clicked, and lists exactly the trucks whose chip says so", async () => {
+    const { w, router } = await mountAt("/vehicles");
+    await w.findAll("[data-test='file-chip']")[2]!.trigger("click");
+    await vi.waitFor(() => expect(router.currentRoute.value.query).toEqual({ file: "expiring" }));
+    await flushPromises();
+    expect(units(w)).toEqual(["T-404"]);
+    expect(units((await mountAt("/vehicles?file=date_only")).w)).toEqual(["T-101", "T-202"]);
+  });
+
+  it("shows each paper's standing in the paper columns — the paper's date, else McLeod's marked date only", async () => {
+    const { w } = await mountAt("/vehicles");
+    const text = w.text();
+    expect(text).toContain("Overdue by 11 days"); // T-101's inspection, McLeod's 10/01
+    expect(text).toContain("Due in 8 days"); // T-404's filed registration, 10/20
+    expect(w.findAll("span").filter((s) => s.text() === "date only")).toHaveLength(4);
+  });
+
+  // One function, two readers (D-FM7): the card counts with `matchesVehicleCheck` over each truck's
+  // file, and the page lists with it behind the card's door.
+  it("counts on the Truck paperwork card exactly the trucks its door lists", async () => {
+    const card = mount(TruckPapersWidget, { global: { plugins: [VueQueryPlugin], stubs: { RouterLink: RouterLinkStub } } });
+    await flushPromises();
+    const checks = ["inspection_overdue", "inspection_due", "inspection_date_only", "inspection_missing", "registration_overdue", "registration_due", "registration_date_only", "registration_missing"];
+    for (const check of checks) {
+      const listed = units((await mountAt(`/vehicles?check=${check}`)).w);
+      expect(card.get(`[data-test='count-${check}']`).text(), check).toBe(String(listed.length));
+    }
   });
 });

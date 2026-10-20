@@ -16,7 +16,7 @@ import {
 } from "@silvicom/ui";
 import { PlusIcon } from "@silvicom/ui/icons";
 import { ref, computed, watch } from "vue";
-import { TRAILER_TYPE_LABELS, VEHICLE_STATUSES, handPairingPatch, isStatusFromTms, type Trailer, type TrailerInput, type TrailerWrite } from "@silvicom/shared";
+import { FILE_CHIPS, FILE_CHIP_LABELS, PAPER_CHECK_ITEMS, TRAILER_TYPE_LABELS, VEHICLE_STATUSES, handPairingPatch, isStatusFromTms, matchesFileChip, paperStanding, todayInZone, unitFileChip, type Trailer, type TrailerInput, type TrailerWrite } from "@silvicom/shared";
 import { useTrailersOnLoadsQuery } from "@/composables/useTrailerLink";
 import { gpsPairingNote } from "@/lib/trailerPairingNote";
 import { useSessionStore } from "@/stores/session";
@@ -28,6 +28,11 @@ import {
   useBulkUpdateTrailers,
 } from "@/composables/useTrailers";
 import { useVehiclesQuery } from "@/composables/useVehicles";
+import { useUnitFilesQuery } from "@/composables/useCompliance";
+import { useOrgTimezone } from "@/composables/useOrgTimezone";
+import FileCell from "@/components/files/FileCell.vue";
+import FileGallery from "@/components/files/FileGallery.vue";
+import type { FileSubject } from "@/components/files/fileSubject";
 import SlideOver from "@/components/SlideOver.vue";
 import StatusBadge from "@/components/StatusBadge.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
@@ -52,16 +57,28 @@ const qs = useQueryState();
 const search = qs.param("search");
 const statusFilter = qs.param("status", VEHICLE_STATUSES, "active");
 const reeferFilter = qs.param("reefer", ["reefer", "non"]);
+/** The file chip's filter — the chip and the filter both ask `unitFileChip` (UNIT-FILES-PLAN UF4). */
+const fileFilter = qs.param("file", FILE_CHIPS);
+const fileOptions = [{ value: "", label: "Any" }, ...FILE_CHIPS.map((c) => ({ value: c, label: FILE_CHIP_LABELS[c] }))];
+const unitFilesQ = useUnitFilesQuery("trailer");
+// The carrier's calendar day, as the Vehicles page judges its cells (D-PREC5).
+const { zone } = useOrgTimezone();
+const today = computed(() => todayInZone(new Date(), zone.value));
+const fileById = computed(() => new Map((unitFilesQ.data.value?.units ?? []).map((u) => [u.subject_id, u])));
+const chipById = computed(() => new Map([...fileById.value].map(([id, u]) => [id, unitFileChip(u)])));
+/** The inspection column shows the trailer's standing on the paper, as the Vehicles page does (D-UF3). */
+const inspection = (t: Trailer) =>
+  paperStanding(fileById.value.get(t.id)?.items.find((i) => i.key === PAPER_CHECK_ITEMS.inspection));
 const statusOptions = [
   { value: "", label: "All statuses" },
   ...VEHICLE_STATUSES.map((s) => ({ value: s, label: s })),
 ];
 // "active" is where the list opens, not a narrowing anybody chose: it does not count, and clearing returns to it.
 const activeFilterCount = computed(
-  () => (search.value.trim() ? 1 : 0) + (statusFilter.value !== "active" ? 1 : 0) + (reeferFilter.value ? 1 : 0),
+  () => (search.value.trim() ? 1 : 0) + (statusFilter.value !== "active" ? 1 : 0) + (reeferFilter.value ? 1 : 0) + (fileFilter.value ? 1 : 0),
 );
 function resetFilters() {
-  qs.set({ search: undefined, status: undefined, reefer: undefined });
+  qs.set({ search: undefined, status: undefined, reefer: undefined, file: undefined });
 }
 const reeferOptions = [
   { value: "", label: "All trailers" },
@@ -75,6 +92,10 @@ const filtered = computed(() => {
     if (statusFilter.value && t.status !== statusFilter.value) return false;
     if (reeferFilter.value === "reefer" && !t.is_reefer) return false;
     if (reeferFilter.value === "non" && t.is_reefer) return false;
+    if (fileFilter.value) {
+      const chip = chipById.value.get(t.id);
+      if (!chip || !matchesFileChip(chip, fileFilter.value)) return false;
+    }
     if (!term) return true;
     return [t.unit_number, t.make, t.model, t.plate]
       .filter(Boolean)
@@ -82,11 +103,18 @@ const filtered = computed(() => {
   });
 });
 
-const getVal = (t: Trailer, key: string): unknown => (t as unknown as Record<string, unknown>)[key];
+const getVal = (t: Trailer, key: string): unknown =>
+  key === "dot_annual_inspection_expires_at" ? inspection(t).goodUntil : (t as unknown as Record<string, unknown>)[key];
 const sorted = computed(() => sortRows(filtered.value, sort.value, getVal));
 
 const page = qs.page();
-watch([search, statusFilter, reeferFilter], () => (page.value = 1));
+watch([search, statusFilter, reeferFilter, fileFilter], () => (page.value = 1));
+
+/** One gallery for the whole list, never one per row. */
+const gallery = ref<{ subject: FileSubject; label: string; startId: string | null } | null>(null);
+function openGallery(t: Trailer, documentId?: string) {
+  gallery.value = { subject: { type: "trailer", id: t.id }, label: `Trailer ${t.unit_number}`, startId: documentId ?? null };
+}
 const pageRows = computed(() =>
   sorted.value.slice((page.value - 1) * PAGE_SIZE, page.value * PAGE_SIZE),
 );
@@ -97,6 +125,7 @@ const vehUnit = (id: string | null) =>
 
 const columns: DataTableColumn[] = [
   { key: "unit_number", label: "Unit", sortable: true, cellClass: "font-medium text-ink" },
+  { key: "file", label: "File" },
   { key: "trailer", label: "Make / Model", cellClass: "text-ink-secondary" },
   { key: "trailer_type", label: "Type", sortable: true },
   {
@@ -236,6 +265,7 @@ async function onRetire(t: Trailer) {
       <template #filters>
         <FilterSelect v-model="reeferFilter" label="Type" :options="reeferOptions" />
         <FilterSelect v-model="statusFilter" label="Status" :options="statusOptions" />
+        <FilterSelect v-model="fileFilter" label="File" :options="fileOptions" />
       </template>
     </FilterBar>
 
@@ -266,6 +296,19 @@ async function onRetire(t: Trailer) {
       @sort="onSort"
       @retry="refetch"
     >
+      <template #cell-file="{ row }">
+        <FileCell
+          v-if="fileById.get(row.id)"
+          :chip="chipById.get(row.id)!"
+          :papers="fileById.get(row.id)!.papers"
+          :paper-count="fileById.get(row.id)!.paper_count"
+          :items="fileById.get(row.id)!.items"
+          :subject-label="`Trailer ${row.unit_number}`"
+          @open="openGallery(row, $event)"
+          @filter="fileFilter = $event"
+        />
+        <span v-else class="text-ink-tertiary">—</span>
+      </template>
       <template #cell-trailer="{ row }">{{
         [row.year, row.make, row.model].filter(Boolean).join(" ") || "—"
       }}</template>
@@ -291,7 +334,13 @@ async function onRetire(t: Trailer) {
         <span v-if="gpsPairingNote(row)" class="block text-xs text-ink-tertiary">{{ gpsPairingNote(row) }}</span>
       </template>
       <template #cell-dot_annual_inspection_expires_at="{ row }">
-        <InspectionExpiryCell :expires-on="row.dot_annual_inspection_expires_at" />
+        <span v-if="!fileById.get(row.id)" class="text-ink-tertiary">—</span>
+        <InspectionExpiryCell v-else :expires-on="inspection(row).goodUntil" :today="today" />
+        <span
+          v-if="fileById.get(row.id) && inspection(row).source === 'date_only'"
+          class="ml-1 text-xs text-ink-tertiary"
+          title="McLeod's date — no paper is filed for it yet"
+        >date only</span>
       </template>
       <template #cell-status="{ row }"><StatusBadge :status="row.status" /></template>
       <template #actions="{ row }">
@@ -319,6 +368,13 @@ async function onRetire(t: Trailer) {
       </template>
     </DataTable>
     </DataWorkspace>
+
+    <FileGallery
+      :subject="gallery?.subject ?? null"
+      :subject-label="gallery?.label ?? ''"
+      :start-id="gallery?.startId ?? null"
+      @close="gallery = null"
+    />
 
     <SlideOver
       :open="drawerOpen"

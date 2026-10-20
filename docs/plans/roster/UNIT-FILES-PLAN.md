@@ -733,3 +733,33 @@ around them.
   `mayFile` per paper; the organization's lists are narrowed per row. `withPapers` on the driver
   overview moves to UF4, with its reader. The route judges on the carrier's calendar day (`todayInZone` over the org zone), not
   Railway's UTC date, and on equipment's own 30-day window (`INSPECTION_EXPIRY_WARNING_DAYS`).
+- 2026-10-19 — **UF4 split in two.** UF4a (`claude/uf4-files-column`) is the equipment half. UF4b is the
+  Drivers half: `qualification` + `documents` → `file`, and `withPapers` on the driver overview. Each
+  half is one reviewable PR.
+- 2026-10-19 — **UF4a built.**
+  - Shared:
+    - `fileChip.ts` (`fileChip`, `unitFileChip`, `matchesFileChip`). Worst state wins: expired →
+      missing → date only → expiring → complete. "Date only" is a missing item with McLeod's date
+      beside it. The chip and `?file=` ask the same function.
+    - `fleetChecks.ts`: the paper checks now read the truck's file through `paperStanding` (the paper's
+      own state, else `dateOnly`, else none). New `inspection_date_only` and `registration_date_only`
+      checks. `*_missing` now means no paper and no date.
+    - A fleet with no papers filed counts exactly what it did before, so the Truck paperwork card does
+      not jump.
+  - Web:
+    - `components/files/FileCell.vue` and `FileGallery.vue`. The gallery wraps `DocumentPreview`
+      through a new optional `nav` slot (‹ 2 of 5 ›, ← / →).
+    - `useUnitFilesQuery`.
+    - A File column and `?file=` filter on Vehicles and Trailers.
+    - The Annual inspection and Registration columns show the same standing as the checks, marked
+      "date only" where it is McLeod's. Sort follows it.
+    - The Truck paperwork card counts from the files: eight lines.
+    - The Trailers inspection cell now judges on the carrier's day; it used the browser's UTC date
+      before.
+  - API: `PaperThumb.filedAt`.
+  - **Moved out of UF4, with reasons:**
+    - The drop target goes to UF5. It opens the unit's File section until UF7, and neither exists yet.
+    - The gallery's side list and "Replace with newer" go to UF5's unit page, beside
+      `RequirementDrawer` (D-ROS1: no editing out of a grid cell).
+    - "Uploaded by" on the hover card goes to UF5 (the rollup does not read `uploaded_by`).
+    - The Trailers unit link goes to UF5, with the page it opens.

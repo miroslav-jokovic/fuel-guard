@@ -70,7 +70,25 @@ const OVERVIEW = [
   dq("c", { state: "not_started", counts: { current: 0, expiring: 0, expired: 0, missing: 6 } }),
   dq("d", {}),
 ];
-vi.mock("@/composables/useCompliance", () => ({ useComplianceOverviewQuery: () => ({ data: ref({ drivers: OVERVIEW, includesHazmat: false, truncated: false }) }) }));
+/**
+ * Each truck's file as `/api/compliance/unit-files` serves it (UNIT-FILES-PLAN UF4), built from the
+ * trucks below. No paper is filed except t2's registration, so every other answer is McLeod's date as
+ * the file's `dateOnly` — which is how the card's counts stay what they were before UF4 — and t2's
+ * filed registration outranks McLeod's lapsed one (D-UF3).
+ */
+type Item = { key: string; state: string; goodUntil: string | null; dateOnly: { goodUntil: string; state: string } | null };
+const dated = (key: string, day: string | null, state: string): Item => ({ key, state: "missing", goodUntil: null, dateOnly: day ? { goodUntil: day, state } : null });
+const UNIT_FILES = [
+  { subject_id: "t1", items: [dated("annual_inspection", "2026-10-01", "expired"), dated("registration", "2027-01-01", "current")] },
+  { subject_id: "t2", items: [dated("annual_inspection", "2026-10-30", "expiring"), { key: "registration", state: "current", goodUntil: "2027-09-30", dateOnly: null }] },
+  { subject_id: "t3", items: [dated("annual_inspection", null, ""), dated("registration", null, "")] },
+  { subject_id: "t5", items: [dated("annual_inspection", "2020-01-01", "expired"), dated("registration", null, "")] },
+  { subject_id: "t6", items: [dated("annual_inspection", "2027-06-01", "current"), dated("registration", "2027-06-01", "current")] },
+];
+vi.mock("@/composables/useCompliance", () => ({
+  useComplianceOverviewQuery: () => ({ data: ref({ drivers: OVERVIEW, includesHazmat: false, truncated: false }) }),
+  useUnitFilesQuery: () => ({ data: ref({ units: UNIT_FILES }) }),
+}));
 
 // ── trucks and drivers ──────────────────────────────────────────────────────────────────────────
 const VEHICLES = [
@@ -225,10 +243,12 @@ describe("every count is the row count behind its door (D-FM7)", () => {
     expect(w.get("[data-test='widget-ops.seats']").text()).toContain("1 of 3");
   });
 
-  it("paperwork: active trucks only, on the carrier's calendar day, with unknowns on their own line", () => {
+  it("paperwork: active trucks only, read from each truck's file, with date-only and nothing-on-file on lines of their own", () => {
     const w = render();
-    expect([n(w, "inspection_overdue"), n(w, "inspection_due"), n(w, "inspection_missing")]).toEqual(["1", "1", "1"]);
-    expect([n(w, "registration_overdue"), n(w, "registration_due"), n(w, "registration_missing")]).toEqual(["1", "0", "1"]);
+    // t1 lapsed, t2 inside the window, t1/t2/t6 McLeod's dates only, t3 nothing; retired t5 is out.
+    expect([n(w, "inspection_overdue"), n(w, "inspection_due"), n(w, "inspection_date_only"), n(w, "inspection_missing")]).toEqual(["1", "1", "3", "1"]);
+    // t2's filed registration (good to 2027-09-30) outranks McLeod's lapsed 2026-09-30: no longer overdue.
+    expect([n(w, "registration_overdue"), n(w, "registration_due"), n(w, "registration_date_only"), n(w, "registration_missing")]).toEqual(["0", "0", "2", "1"]);
   });
 
   it("shop: the summary's counts, each the length of its list on the server, and the oldest order's age", () => {

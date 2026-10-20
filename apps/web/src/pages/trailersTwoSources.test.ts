@@ -13,6 +13,9 @@ const trailer = { id: "t1", unit_number: "R-501", make: "Utility", model: "3000R
   reefer_tank_capacity_gal: 50, assigned_vehicle_id: "v-gps", pairing_source: "inferred", pairing_confirmed_at: "2026-08-04T16:06:27Z",
   dot_annual_inspection_expires_at: null, status: "active", mcleod_trailer_id: "R-501", identity_source: "mcleod" };
 
+// The pages read every unit's file for the File column (UNIT-FILES-PLAN UF4); none is filed here.
+vi.mock("@/composables/useOrgTimezone", () => ({ useOrgTimezone: () => ({ zone: ref("America/Chicago"), isResolved: ref(true) }) }));
+vi.mock("@/composables/useCompliance", () => ({ useUnitFilesQuery: () => ({ data: ref({ units: [] }) }), useDocumentsQuery: () => ({ data: ref([]) }) }));
 vi.mock("@/composables/useTrailerLink", () => ({
   useTrailersOnLoadsQuery: () => ({ byTrailerId: { value: new Map([["t1", { trailerId: "t1", vehicleId: "v-load", loadId: "l1", ref: "291013" }]]) } }),
 }));

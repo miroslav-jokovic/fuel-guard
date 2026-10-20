@@ -32,6 +32,8 @@ export interface PaperThumb {
   contentType: string;
   /** Null until the derive job has run (or for a type with no thumb). */
   thumbUrl: string | null;
+  /** When it was filed — the hover card's "Filed 10/19/2026" (UF4). */
+  filedAt: string;
 }
 
 export interface UnitFileRow {

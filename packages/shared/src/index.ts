@@ -31,6 +31,7 @@ export * from "./fileEngine.js";
 export * from "./equipmentFileCatalogue.js";
 export * from "./unitFile.js";
 export * from "./unitFileContract.js";
+export * from "./fileChip.js";
 export * from "./fileSections.js";
 export * from "./dqAlerts.js";
 export * from "./digestDq.js";
