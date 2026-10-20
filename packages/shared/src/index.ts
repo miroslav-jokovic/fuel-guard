@@ -119,6 +119,7 @@ export * from "./driverContract.js";
 export * from "./loadsContract.js";
 export * from "./loadsLifecycle.js";
 export * from "./loadBoard.js";
+export * from "./loadActivity.js";
 export * from "./dispatchContract.js";
 export * from "./dispatchBoardContract.js";
 export * from "./trailerLinkContract.js";

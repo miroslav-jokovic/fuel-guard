@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  deliveredWindowQuerySchema,
   loadBucket,
   loadSchema,
   missingPhotoSlots,
@@ -164,5 +165,20 @@ describe("loadSchema (parse, never cast)", () => {
 
   it("rejects an unknown status rather than trusting a drifted server", () => {
     expect(loadSchema.safeParse({ ...base, status: "en_route" }).success).toBe(false);
+  });
+});
+
+describe("deliveredWindowQuerySchema (LOADS-ACTIVITY-PLAN D-LA6)", () => {
+  const from = "2026-10-12T05:00:00.000Z";
+  const before = "2026-10-19T05:00:00.000Z";
+  it("takes both ends or neither", () => {
+    expect(deliveredWindowQuerySchema.safeParse({}).success).toBe(true);
+    expect(deliveredWindowQuerySchema.safeParse({ delivered_from: from, delivered_before: before }).success).toBe(true);
+    expect(deliveredWindowQuerySchema.safeParse({ delivered_from: from }).success).toBe(false);
+    expect(deliveredWindowQuerySchema.safeParse({ delivered_before: before }).success).toBe(false);
+  });
+  it("refuses a window that ends before it starts, and a date with no time", () => {
+    expect(deliveredWindowQuerySchema.safeParse({ delivered_from: before, delivered_before: from }).success).toBe(false);
+    expect(deliveredWindowQuerySchema.safeParse({ delivered_from: "2026-10-12", delivered_before: before }).success).toBe(false);
   });
 });

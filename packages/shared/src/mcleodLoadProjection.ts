@@ -87,6 +87,11 @@ export interface ProjectedLoad {
   total_miles: number | null;
   /** McLeod's driver code, resolved to a Silvicom driver by the API (first of a team). */
   driver_code: string | null;
+  /**
+   * The team's second driver code (LOADS-ACTIVITY-PLAN D-LA2), null on a solo run. McLeod's measured
+   * maximum is two (28 team movements of 942, 2026-10-19); a third is reported in `notes`, never kept.
+   */
+  co_driver_code: string | null;
   vehicle_unit: string | null;
   trailer_unit: string | null;
   dispatcher_external_id: string | null;
@@ -223,7 +228,9 @@ export function projectMcleodMovement(m: RawDispatchMovement, stops: RawDispatch
       po_number: s.ponum,
     });
   });
-  if (m.driver_codes.length > 1) notes.push(`movement ${m.movement_id}: team ${m.driver_codes.join(", ")} — ${m.driver_codes[0]} shown`);
+  // Both seats of a team are kept (D-LA2). Before 0493 only the first was, and every second driver read
+  // as having hauled nothing since the mirror began. A third has nowhere to go, so it is said, not dropped.
+  if (m.driver_codes.length > 2) notes.push(`movement ${m.movement_id}: ${m.driver_codes.length} drivers ${m.driver_codes.join(", ")} — first two kept`);
 
   const trailerType = (m.trailer_type ?? "").trim();
   return {
@@ -238,6 +245,7 @@ export function projectMcleodMovement(m: RawDispatchMovement, stops: RawDispatch
       commodity: m.commodity,
       total_miles: num(m.move_distance),
       driver_code: m.driver_codes[0] ?? null,
+      co_driver_code: m.driver_codes[1] ?? null,
       vehicle_unit: m.tractor_id,
       trailer_unit: m.trailer_id,
       dispatcher_external_id: m.dispatcher_user_id,

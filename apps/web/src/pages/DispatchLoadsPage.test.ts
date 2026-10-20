@@ -39,10 +39,12 @@ const EXCEPTIONS = [
 // One ref for every mount, so a test can land a refetch of the exceptions, as the poll does.
 const exceptionsData = ref(EXCEPTIONS);
 /** F13: the loads read refused. */
-const loadsRead = vi.hoisted(() => ({ fails: false }));
+const loadsRead = vi.hoisted(() => ({ fails: false, window: null as null | { value: { from: string; before: string } } }));
+/** D-LA7: what the activity read answers, per test. */
+const activity = vi.hoisted(() => ({ value: null as unknown }));
 vi.mock("@/features/dispatch/useDispatchLoads", async (orig) => ({
   ...(await orig<typeof import("@/features/dispatch/useDispatchLoads")>()),
-  useLoadsQuery: () => ({
+  useLoadsQuery: (window: { value: { from: string; before: string } }) => (loadsRead.window = window, {
     data: ref(loadsRead.fails ? undefined : LOADS),
     isLoading: ref(false),
     isError: ref(loadsRead.fails),
@@ -50,6 +52,7 @@ vi.mock("@/features/dispatch/useDispatchLoads", async (orig) => ({
     refetch: () => {},
     isFetching: ref(false),
   }),
+  useLoadActivityQuery: () => ({ data: computed(() => activity.value), isLoading: ref(false), isError: ref(false), refetch: () => {}, isFetching: ref(false) }),
   useExceptionsQuery: () => ({ data: exceptionsData, isLoading: ref(false), isError: ref(false), refetch: () => {}, isFetching: ref(false) }),
   useResolveException: () => ({ isPending: ref(false), mutateAsync: async () => {} }),
 }));
@@ -431,3 +434,141 @@ describe("the queue tabs wait for the loads", () => {
     expect(exceptionsTab.text()).toMatch(/\d/);
   });
 });
+
+/**
+ * LOADS-ACTIVITY-PLAN (2026-10-19): Delivered filtered by driver and truck inside a window of delivery
+ * time, and the Activity view of who has gone days without a load.
+ */
+describe("Delivered by driver and truck, and Activity (LOADS-ACTIVITY-PLAN)", () => {
+  const left = (seq: number, kind: "pickup" | "dropoff", at: string | null) =>
+    ({ seq, kind, name: kind, appointment_start: null, appointment_end: null, required_photos: [], actual_departure_at: at });
+  const delivered = (id: string, unit: string, at: string, extra = {}) =>
+    load(id, "delivered", `v-${unit}`, unit, "asen", { external_status: "D", stops: [left(1, "pickup", "2026-10-10T10:00:00Z"), left(2, "dropoff", at)], ...extra });
+  const DELIVERED = [
+    delivered("D-old", "801", "2026-10-14T15:00:00Z", { driver_id: "d1", driver_name: "Kim Dixon" }),
+    delivered("D-team", "806", "2026-10-16T15:00:00Z", { driver_id: "d1", driver_name: "Kim Dixon", co_driver_id: "d2", co_driver_name: "Marcus Houston" }),
+    delivered("D-empty", "809", "2026-10-15T15:00:00Z", { driver_id: "d3", driver_name: "Ana Ruiz", loaded: false }),
+    delivered("D-ahead", "801", "2099-10-21T13:00:00Z", { driver_id: "d3", driver_name: "Ana Ruiz" }),
+  ];
+  const withLoads = async <T,>(loads: unknown[], body: () => Promise<T>) => {
+    const saved = LOADS.splice(0, LOADS.length, ...(loads as typeof LOADS));
+    try { return await body(); } finally { LOADS.splice(0, LOADS.length, ...saved); }
+  };
+  const pick = async (w: Awaited<ReturnType<typeof mountPage>>, label: string, value: string) => {
+    w.findAllComponents({ name: "FilterSelect" }).find((c) => c.props("label") === label)!.vm.$emit("update:modelValue", value);
+    await flushPromises();
+  };
+  const options = (w: Awaited<ReturnType<typeof mountPage>>, label: string) =>
+    (w.findAllComponents({ name: "FilterSelect" }).find((c) => c.props("label") === label)!.props("options") as { label: string; count?: string }[]).map((o) => [o.label, o.count]);
+
+  it("asks the server for the last seven carrier days of deliveries, as two instants", async () => {
+    board.value = response(false);
+    await mountPage("/loads?queue=delivered");
+    const { from, before } = loadsRead.window!.value;
+    const hours = (Date.parse(before) - Date.parse(from)) / 3_600_000;
+    expect(hours).toBeGreaterThanOrEqual(167);
+    expect(hours).toBeLessThanOrEqual(169);
+    // Midnight in Chicago is 05:00 or 06:00 UTC, never the viewer's.
+    expect(new Date(from).getUTCHours()).toBeGreaterThanOrEqual(5);
+  });
+
+  it("reads a picked window from the URL into the request", async () => {
+    board.value = response(false);
+    await mountPage("/loads?queue=delivered&delivered_from=2026-10-01&delivered_to=2026-10-05");
+    expect(loadsRead.window!.value).toEqual({ from: "2026-10-01T05:00:00.000Z", before: "2026-10-06T05:00:00.000Z" });
+  });
+
+  it("filters Delivered by a driver in EITHER seat, and counts each driver's loads", async () => {
+    board.value = response(false);
+    await withLoads(DELIVERED, async () => {
+      const w = await mountPage("/loads?queue=delivered");
+      expect(options(w, "Driver")).toEqual([["Any driver", undefined], ["Ana Ruiz", "2"], ["Kim Dixon", "2"], ["Marcus Houston", "1"]]);
+      await pick(w, "Driver", "d2");
+      expect(refs(w)).toEqual(["D-team"]);
+      expect(w.text()).toContain("+ Marcus Houston");
+      // Truck counts follow the driver chosen, as Driver's follow the truck.
+      expect(options(w, "Truck")).toEqual([["Any truck", undefined], ["806", "1"]]);
+    });
+  });
+
+  it("filters Delivered by one truck exactly, where the search would have matched three", async () => {
+    board.value = response(false);
+    await withLoads(DELIVERED, async () => {
+      const w = await mountPage("/loads?queue=delivered");
+      await pick(w, "Truck", "v-801");
+      expect(refs(w).sort()).toEqual(["D-ahead", "D-old"]);
+      // Driver counts follow the truck chosen: what each entry would show now.
+      expect(options(w, "Driver")).toEqual([["Any driver", undefined], ["Ana Ruiz", "1"], ["Kim Dixon", "1"]]);
+    });
+  });
+
+  it("lists Delivered newest delivery first, with the delivery time, an empty move and a time keyed ahead marked", async () => {
+    board.value = response(false);
+    await withLoads(DELIVERED, async () => {
+      const w = await mountPage("/loads?queue=delivered");
+      expect(refs(w)).toEqual(["D-ahead", "D-team", "D-empty", "D-old"]);
+      const rowOf = (ref: string) => w.findAll("tbody tr").find((tr) => tr.text().includes(ref))!;
+      expect(rowOf("D-team").text()).toContain("10/16/2026");
+      expect(rowOf("D-empty").text()).toContain("Empty move");
+      expect(rowOf("D-ahead").text()).toContain("Entered ahead in McLeod");
+      expect(rowOf("D-old").text()).not.toContain("Entered ahead");
+    });
+  });
+
+  it("shows no Delivered column on the open queues", async () => {
+    board.value = response(false);
+    const w = await mountPage("/loads");
+    expect(w.findAll("thead th").map((th) => th.text())).not.toContain("Delivered");
+  });
+
+  const summary = (subjectId: string, over: Record<string, unknown> = {}) => ({
+    subjectId, currentLoad: null, plannedLoad: null, lastPickupAt: null, lastDeliveryAt: null, enteredAhead: false,
+    daysWithoutLoad: null, vehicleId: null, dispatcherId: null, ...over,
+  });
+  const ACTIVITY = {
+    asOf: "2026-10-19T18:00:00Z", windowFrom: "2026-08-20T18:00:00Z", historyFrom: "2026-09-17T12:00:00Z",
+    drivers: [
+      { ...summary("d1", { daysWithoutLoad: 3, lastDeliveryAt: "2026-10-16T15:00:00Z", vehicleId: "v-773" }), name: "Kim Dixon", hosStatus: "off_duty" },
+      { ...summary("d2", { currentLoad: { id: "L-mine-fleet", ref: "L-mine-fleet", empty: false }, daysWithoutLoad: 0, vehicleId: "v-773" }), name: "Marcus Houston", hosStatus: "driving" },
+      { ...summary("d3"), name: "Ana Ruiz", hosStatus: null },
+      { ...summary("d4", { daysWithoutLoad: 1, vehicleId: "v-900" }), name: "Bo Lee", hosStatus: "on_duty" },
+    ],
+    trucks: [
+      { ...summary("v-773", { daysWithoutLoad: 0, currentLoad: { id: "L-mine-fleet", ref: "L-mine-fleet", empty: false } }), unit: "773" },
+      { ...summary("v-retired-not-on-board", { daysWithoutLoad: 40 }), unit: "506" },
+    ],
+  };
+  const names = (w: Awaited<ReturnType<typeof mountPage>>) => w.findAll("tbody tr").map((tr) => tr.find("td").text());
+
+  it("lists drivers longest without a load first, none-in-range leading, with the history's start", async () => {
+    board.value = response(false);
+    activity.value = ACTIVITY;
+    const w = await mountPage("/loads?view=activity");
+    expect(names(w)).toEqual(["Ana Ruiz", "Kim Dixon", "Bo Lee", "Marcus Houston"]);
+    expect(w.text()).toContain("None since 09/17/2026");
+    expect(w.text()).toContain("3 days");
+    expect(w.text()).toContain("On a load");
+  });
+
+  it("narrows to 3+ days without a load", async () => {
+    board.value = response(false);
+    activity.value = ACTIVITY;
+    const w = await mountPage("/loads?view=activity&idle=3");
+    expect(names(w)).toEqual(["Ana Ruiz", "Kim Dixon"]);
+  });
+
+  it("narrows by the page's fleet choice, placing each driver by their latest truck", async () => {
+    board.value = response(false);
+    activity.value = ACTIVITY;
+    const w = await mountPage("/loads?view=activity&scope=all&fleet=VINNIEV");
+    expect(names(w)).toEqual(["Kim Dixon", "Marcus Houston"]);
+  });
+
+  it("lists only the trucks the Dispatch board lists", async () => {
+    board.value = response(false);
+    activity.value = ACTIVITY;
+    const w = await mountPage("/loads?view=activity&who=trucks");
+    expect(names(w)).toEqual(["773"]);
+  });
+});
+

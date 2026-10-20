@@ -3,8 +3,9 @@ import { LOAD_COLUMNS, STOP_COLUMNS, one, type Join } from "./shared.js";
 import { labelOf, memberLabels } from "../../../lib/memberLabels.js";
 import { dispatchesByLoad } from "../dispatchToDriver.js";
 import { chunks, fetchAllPaged } from "../../../lib/paging.js";
-import { dispatcherLabel } from "@silvicom/shared";
+import { dispatcherLabel, loadDeliveredAt, type ActivityStop } from "@silvicom/shared";
 import { readFleetDispatchers } from "../../mcleod/index.js";
+import { deliveredCandidateIds, inWindow } from "./deliveredWindow.js";
 
 type DispatcherRef = { provider?: string | null; dispatcher_external_id?: string | null };
 
@@ -29,22 +30,53 @@ export async function dispatcherNamesFor(
  * live in `./mutations.ts`; the shared column lists + join helper in `./shared.ts`.
  */
 
-/** Every load in the org with stops nested — dispatch's queue, all statuses. */
-export async function listLoads(admin: SupabaseClient, orgId: string): Promise<unknown[]> {
+/** A window of DELIVERY time, ISO instants, `before` exclusive (LOADS-ACTIVITY-PLAN D-LA6). */
+export interface DeliveredWindow {
+  from: string;
+  before: string;
+}
+
+type Row = Record<string, unknown> & { id: string; status?: string; created_at?: string };
+
+const pageOf = (q: PromiseLike<{ data: unknown; error: { message: string } | null }>) =>
+  q.then(({ data, error }) => ({ data: data as unknown as Row[] | null, error }));
+
+/**
+ * Every load in the org with stops nested — dispatch's queue, all statuses.
+ *
+ * With a `window` (D-LA6), the open loads come back whole and the CLOSED ones only inside it: delivered
+ * by delivery time (`deliveredCandidateIds`, kept exactly below once the stops are read), canceled by
+ * McLeod's close. The connector closes about 25 loads a day into `delivered`, so the unbounded read
+ * grew without end. Without a window the read is the one it always was.
+ */
+export async function listLoads(admin: SupabaseClient, orgId: string, window?: DeliveredWindow): Promise<unknown[]> {
   // Paged: the McLeod connector closes ~150 loads a day into `delivered`, and the board lists every
   // status, so the org's loads pass PostgREST's 1,000-row cap within days of the Board VM going live
   // (2026-10-09). `id` breaks created_at ties so no row falls between two pages.
-  type Row = Record<string, unknown> & { id: string };
-  const rows = await fetchAllPaged<Row>((from, to) =>
-    admin
-      .from("loads")
-      .select(LOAD_COLUMNS)
-      .eq("org_id", orgId)
-      .order("created_at", { ascending: false })
-      .order("id", { ascending: true })
-      .range(from, to)
-      .then(({ data, error }) => ({ data: data as unknown as Row[] | null, error })),
-  );
+  const base = () => admin.from("loads").select(LOAD_COLUMNS).eq("org_id", orgId);
+  let rows: Row[];
+  if (!window) {
+    rows = await fetchAllPaged<Row>((from, to) =>
+      pageOf(base().order("created_at", { ascending: false }).order("id", { ascending: true }).range(from, to)),
+    );
+  } else {
+    const [open, canceled, candidates] = await Promise.all([
+      fetchAllPaged<Row>((from, to) => pageOf(base().not("status", "in", "(delivered,canceled)").order("id").range(from, to))),
+      fetchAllPaged<Row>((from, to) =>
+        pageOf(base().eq("status", "canceled").gte("external_closed_at", window.from).lt("external_closed_at", window.before).order("id").range(from, to)),
+      ),
+      deliveredCandidateIds(admin, orgId, window.from, window.before),
+    ]);
+    const delivered: Row[] = [];
+    for (const ids of chunks(candidates)) {
+      const { data, error } = await base().eq("status", "delivered").in("id", ids);
+      if (error) throw new Error(error.message);
+      delivered.push(...((data ?? []) as unknown as Row[]));
+    }
+    rows = [...open, ...canceled, ...delivered].sort(
+      (a, b) => String(b.created_at ?? "").localeCompare(String(a.created_at ?? "")) || a.id.localeCompare(b.id),
+    );
+  }
   if (rows.length === 0) return [];
 
   // In id chunks (IN_LIST_CHUNK): one `.in()` over the whole board overflowed Node 22's header limit
@@ -71,6 +103,13 @@ export async function listLoads(admin: SupabaseClient, orgId: string): Promise<u
     byLoad.set(s.load_id, list);
   }
 
+  // D-LA6: a candidate stays only when its LAST delivery left inside the window (`loadDeliveredAt`).
+  if (window) {
+    rows = rows.filter(
+      (r) => r.status !== "delivered" || inWindow(loadDeliveredAt((byLoad.get(r.id) ?? []) as ActivityStop[]), window.from, window.before),
+    );
+  }
+
   // H-C1 (UI half): the board's hazmat chip shows the RECORD's state, not just the boolean — one
   // batched read over the linked records (partial unique index on load_id ⇒ at most one each).
   // Only hazmat-marked rows can be linked (link_hazmat_load sets loads.hazmat = true, one-way).
@@ -88,13 +127,14 @@ export async function listLoads(admin: SupabaseClient, orgId: string): Promise<u
   }
 
   // D-LMR7: whether a McLeod load has been sent, and to whom, is the dispatch record — never status.
-  const [dispatches, dispatcherOf] = await Promise.all([
+  const [dispatches, dispatcherOf, coDriverNames] = await Promise.all([
     dispatchesByLoad(
       admin,
       orgId,
       rows.filter((r) => (r as { source?: string }).source === "tms").map((r) => r.id),
     ),
     dispatcherNamesFor(admin, orgId, rows as DispatcherRef[]),
+    coDriverNamesFor(admin, orgId, rows),
   ]);
 
   return rows.map((r) => {
@@ -106,6 +146,9 @@ export async function listLoads(admin: SupabaseClient, orgId: string): Promise<u
     return {
       ...rest,
       driver_name: one(drivers)?.full_name ?? null,
+      // D-LA2: a team's second seat. Named by a lookup, not an embed: `co_driver_id` has no foreign key
+      // (0493), so an id the roster no longer holds reads as no name rather than failing the read.
+      co_driver_name: coDriverNames.get(String(r.co_driver_id ?? "")) ?? null,
       vehicle_unit: one(vehicles)?.unit_number ?? null,
       trailer_unit: one(trailers)?.unit_number ?? null,
       stops: byLoad.get(r.id) ?? [],
@@ -115,6 +158,18 @@ export async function listLoads(admin: SupabaseClient, orgId: string): Promise<u
       dispatcher_name: dispatcherOf(r as DispatcherRef),
     };
   });
+}
+
+/** The team second drivers' names, one org-scoped read in chunks (D-LA2). */
+async function coDriverNamesFor(admin: SupabaseClient, orgId: string, rows: Row[]): Promise<Map<string, string>> {
+  const ids = [...new Set(rows.map((r) => r.co_driver_id).filter((v): v is string => typeof v === "string"))];
+  const names = new Map<string, string>();
+  for (const part of chunks(ids)) {
+    const { data, error } = await admin.from("drivers").select("id, full_name").eq("org_id", orgId).in("id", part);
+    if (error) throw new Error(error.message);
+    for (const d of (data ?? []) as { id: string; full_name: string | null }[]) if (d.full_name) names.set(d.id, d.full_name);
+  }
+  return names;
 }
 
 /**

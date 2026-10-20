@@ -197,3 +197,22 @@ export function stopPhotoPath(
 ): string {
   return `${orgId}/${driverId}/${loadId}/${photoId}.${ext}`;
 }
+
+/**
+ * `GET /api/dispatch/loads?delivered_from=&delivered_before=` (LOADS-ACTIVITY-PLAN D-LA6): a window of
+ * DELIVERY time, as instants, `before` exclusive. The page turns its picked carrier days into these
+ * (`dayRangeInstants`), so the server never guesses a zone. Both or neither: half a window is refused
+ * rather than read as "everything since", which is the unbounded read the window exists to stop.
+ */
+export const deliveredWindowQuerySchema = z
+  .object({
+    delivered_from: z.string().datetime({ offset: true }).optional(),
+    delivered_before: z.string().datetime({ offset: true }).optional(),
+  })
+  .refine((q) => (q.delivered_from === undefined) === (q.delivered_before === undefined), {
+    message: "delivered_from and delivered_before go together",
+  })
+  .refine((q) => !q.delivered_from || !q.delivered_before || Date.parse(q.delivered_from) < Date.parse(q.delivered_before), {
+    message: "delivered_from must be before delivered_before",
+  });
+export type DeliveredWindowQuery = z.infer<typeof deliveredWindowQuerySchema>;

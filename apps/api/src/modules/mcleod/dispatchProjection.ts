@@ -1,7 +1,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { projectMcleodMovement, type RawDispatchMovement, type RawDispatchStop } from "@silvicom/shared";
-import { applyMirroredLoads, type MirroredLoad, type MirrorWriteResult } from "../loads/index.js";
+import { applyMirroredLoads, readMirroredLinks, type MirroredLoad, type MirrorWriteResult } from "../loads/index.js";
 import { loadEntityResolvers } from "./tmsLoadIngest.js";
+import { fetchAllPaged } from "../../lib/paging.js";
 
 /**
  * Raw → core for the movements a sync just stored (LOADS-MIRROR-PLAN.md LR4, D-LMR4).
@@ -36,12 +37,15 @@ export interface DispatchProjectionResult extends MirrorWriteResult {
   notes: string[];
 }
 
+type Resolvers = Awaited<ReturnType<typeof loadEntityResolvers>>;
+
 export async function projectDispatchMovements(
   admin: SupabaseClient,
   orgId: string,
   provider: string,
   companyId: string,
   movementIds: string[],
+  known?: Resolvers,
 ): Promise<DispatchProjectionResult> {
   const movements: RawDispatchMovement[] = [];
   const stopsBy = new Map<string, RawDispatchStop[]>();
@@ -62,7 +66,7 @@ export async function projectDispatchMovements(
     }
   }
 
-  const resolvers = await loadEntityResolvers(admin, orgId);
+  const resolvers = known ?? (await loadEntityResolvers(admin, orgId));
   const unmatched = new Set<string>();
   const resolve = (code: string | null, by: { get(k: string): string | undefined }): string | null => {
     if (!code) return null;
@@ -81,10 +85,11 @@ export async function projectDispatchMovements(
       continue;
     }
     notes.push(...out.notes);
-    const { driver_code, vehicle_unit, trailer_unit, ...rest } = out.load;
+    const { driver_code, co_driver_code, vehicle_unit, trailer_unit, ...rest } = out.load;
     loads.push({
       ...rest,
       driver_id: resolve(driver_code, resolvers.drivers),
+      co_driver_id: resolve(co_driver_code, resolvers.drivers),
       vehicle_id: resolve(vehicle_unit, resolvers.vehicles),
       trailer_id: resolve(trailer_unit, resolvers.trailers),
     });
@@ -92,4 +97,63 @@ export async function projectDispatchMovements(
 
   const written = await applyMirroredLoads(admin, orgId, provider, loads);
   return { ...written, projected: loads.length, refused, unmatched: [...unmatched], notes };
+}
+
+/**
+ * ── A LINK THAT RESOLVES LATER IS RE-MADE (LOADS-ACTIVITY-PLAN D-LA3) ────────────────────────────
+ * A movement is projected when McLeod sends it, so a code the roster did not hold YET resolved to null
+ * and stayed null: McLeod stops resending a movement once it closes. On 2026-10-19 that was 17 delivered
+ * loads with no driver whose McLeod code then matched an active driver, so their deliveries were
+ * missing from those drivers' histories. A driver merge leaves the same gap on `co_driver_id`, which
+ * has no foreign key (0493) to clear it.
+ *
+ * After each batch this re-projects every recent movement whose stored driver, co-driver, truck or
+ * trailer differs from what its codes resolve to NOW, but only where the code now resolves. A code the
+ * roster never carries (JFERGUSO on 10/19) would otherwise be re-projected every cycle to the same
+ * null. It goes through the one projection, so there is no second write path to drift. "Recent" means
+ * open, or closed inside `sinceIso`: the activity view looks back weeks, and the raw table only grows.
+ * `justProjected` are the movements this batch already resolved against the same roster a moment ago,
+ * so they cannot be stale, and projecting them twice would write every row twice.
+ */
+export async function relinkDispatchMovements(
+  admin: SupabaseClient,
+  orgId: string,
+  provider: string,
+  companyId: string,
+  sinceIso: string,
+  justProjected: ReadonlySet<string> = new Set(),
+): Promise<{ relinked: number }> {
+  type Codes = Pick<RawDispatchMovement, "movement_id" | "driver_codes" | "tractor_id" | "trailer_id">;
+  const raw = await fetchAllPaged<Codes>((from, to) =>
+    admin.from("mcleod_dispatch_movements").select("movement_id, driver_codes, tractor_id, trailer_id")
+      .eq("org_id", orgId).eq("company_id", companyId)
+      .or(`closed_at.is.null,closed_at.gte.${sinceIso}`)
+      .order("movement_id").range(from, to)
+      .then(({ data, error }) => ({ data: data as unknown as Codes[] | null, error })),
+  );
+  const rest = raw.filter((m) => !justProjected.has(m.movement_id));
+  if (rest.length === 0) return { relinked: 0 };
+
+  const resolvers = await loadEntityResolvers(admin, orgId);
+  const links = await readMirroredLinks(admin, orgId, provider, rest.map((m) => `${companyId}:${m.movement_id}`));
+  // Stale = a code that resolves now to an id the load does not hold. A code that resolves to nothing
+  // is never stale: projecting it again would write the same null.
+  const stale = (code: string | null | undefined, by: { get(k: string): string | undefined }, held: string | null) => {
+    const now = code ? by.get(code) : undefined;
+    return now !== undefined && now !== held;
+  };
+  const ids = rest
+    .filter((m) => {
+      const l = links.get(`${companyId}:${m.movement_id}`);
+      return l !== undefined && (
+        stale(m.driver_codes?.[0], resolvers.drivers, l.driver_id) ||
+        stale(m.driver_codes?.[1], resolvers.drivers, l.co_driver_id) ||
+        stale(m.tractor_id, resolvers.vehicles, l.vehicle_id) ||
+        stale(m.trailer_id, resolvers.trailers, l.trailer_id)
+      );
+    })
+    .map((m) => m.movement_id);
+  if (ids.length === 0) return { relinked: 0 };
+  const done = await projectDispatchMovements(admin, orgId, provider, companyId, ids, resolvers);
+  return { relinked: done.projected };
 }

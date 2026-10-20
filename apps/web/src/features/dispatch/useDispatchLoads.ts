@@ -11,6 +11,7 @@ import {
   type DispatchException,
   type ResolveExceptionRequest,
   type LoadDispatchSummary,
+  type LoadActivityResponse,
 } from "@silvicom/shared";
 import { apiFetch } from "@/lib/api";
 import { recordOrThrow } from "@silvicom/ui";
@@ -62,6 +63,11 @@ export interface DispatchLoad {
   vehicle_id: string | null;
   trailer_id: string | null;
   driver_name: string | null;
+  /** A team's second seat (0493, LOADS-ACTIVITY-PLAN D-LA2); null on a solo run. */
+  co_driver_id?: string | null;
+  co_driver_name?: string | null;
+  /** McLeod's loaded flag: `false` is an empty move (D-LA5), null when McLeod did not say. */
+  loaded?: boolean | null;
   vehicle_unit: string | null;
   trailer_unit: string | null;
   source: string;
@@ -146,16 +152,37 @@ export const loadsKey = ["dispatch", "loads"] as const;
 /** Prefix for the per-load detail reads, so one invalidate covers every open load. */
 export const loadKeyPrefix = ["dispatch", "load"] as const;
 
-/** Every load in the org, all statuses, stops nested — the dispatch queue. */
-export function useLoadsQuery() {
+/**
+ * The dispatch queue: every open load, and the delivered and canceled ones inside `window`, a range of
+ * delivery time (LOADS-ACTIVITY-PLAN D-LA6). The window is in the key, so moving it re-reads, and every
+ * key starts with `loadsKey`, so one invalidate still covers them all.
+ */
+export function useLoadsQuery(window: Ref<{ from: string; before: string }>) {
   return useQuery({
-    queryKey: loadsKey,
+    queryKey: computed(() => [...loadsKey, window.value.from, window.value.before] as const),
     queryFn: async (): Promise<DispatchLoad[]> => {
-      const res = await apiFetch<{ loads: DispatchLoad[] }>("/api/dispatch/loads");
+      const q = new URLSearchParams({ delivered_from: window.value.from, delivered_before: window.value.before });
+      const res = await apiFetch<{ loads: DispatchLoad[] }>(`/api/dispatch/loads?${q}`);
       if (!res.ok || !res.data) {
         throw new Error(res.error?.message ?? "Could not load the loads.");
       }
       return res.data.loads;
+    },
+    placeholderData: (previous) => previous,
+  });
+}
+
+const activityKey = ["dispatch", "activity"] as const;
+
+/** Days without a load, per active driver and per truck (D-LA7). Every verdict is the server's. */
+export function useLoadActivityQuery(enabled: Ref<boolean>) {
+  return useQuery({
+    queryKey: activityKey,
+    enabled,
+    queryFn: async (): Promise<LoadActivityResponse> => {
+      const res = await apiFetch<LoadActivityResponse>("/api/dispatch/activity");
+      if (!res.ok || !res.data) throw new Error(res.error?.message ?? "Could not load the activity.");
+      return res.data;
     },
   });
 }

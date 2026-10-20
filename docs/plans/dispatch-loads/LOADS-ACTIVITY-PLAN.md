@@ -93,7 +93,8 @@ team second drivers (MHOUSTON, WILLKENO, MGARZA, LFEAGIN), two of them on HOS *d
 | Step | What | Status |
 |---|---|---|
 | LA1 | Migration 0493 `loads.co_driver_id` + index, schema only. **No foreign key**: a second `loads → drivers` reference would make every `drivers(full_name)` embed ambiguous (PGRST201) and take the Loads page down for the deploy minutes. The writer only writes resolved roster ids, and the relink pass (D-LA3) repairs an id a merge leaves behind | in review |
-| LA2 | Projection writes the co-driver; the relink pass (D-LA2, D-LA3); `loadDeliveredAt` (D-LA1); the Delivered window on the API and its filters, column and markers (D-LA4–D-LA6); the activity read and view (D-LA7, D-LA8) | building, after LA1 is on staging |
+| LA1 merged | #1648, `4231848`, 2026-10-19; `migrate-staging` applied 0493 the same evening | done |
+| LA2 | Projection writes the co-driver, and the relink pass runs after each `/dispatch-movements` batch over the last 60 days (D-LA2, D-LA3). `loadDeliveredAt` / `summarizeActivity` in `@silvicom/shared` (D-LA1, D-LA4, D-LA5, D-LA7). `GET /api/dispatch/loads?delivered_from=&delivered_before=` and `GET /api/dispatch/activity`. The Loads page gets a Loads / Activity switch; Delivered and All get the window, Driver, Truck, a Delivered column, and Empty move / Entered ahead markers (D-LA6, D-LA8) | in review |
 
 ## 5. Open questions
 

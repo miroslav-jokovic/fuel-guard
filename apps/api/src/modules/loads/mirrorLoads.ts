@@ -25,8 +25,10 @@ import type { LoadStatus, ProjectedLoad } from "@silvicom/shared";
  * status — the history nothing else keeps, since `loads` holds only the latest.
  */
 
-export interface MirroredLoad extends Omit<ProjectedLoad, "driver_code" | "vehicle_unit" | "trailer_unit"> {
+export interface MirroredLoad extends Omit<ProjectedLoad, "driver_code" | "co_driver_code" | "vehicle_unit" | "trailer_unit"> {
   driver_id: string | null;
+  /** A team's second seat (0493, LOADS-ACTIVITY-PLAN D-LA2); null on a solo run. */
+  co_driver_id: string | null;
   vehicle_id: string | null;
   trailer_id: string | null;
 }
@@ -58,6 +60,7 @@ function loadColumns(l: MirroredLoad, syncedAt: string): Record<string, unknown>
     commodity: l.commodity,
     total_miles: l.total_miles,
     driver_id: l.driver_id,
+    co_driver_id: l.co_driver_id,
     vehicle_id: l.vehicle_id,
     trailer_id: l.trailer_id,
     dispatcher_external_id: l.dispatcher_external_id,
@@ -122,6 +125,41 @@ async function writeStops(admin: SupabaseClient, orgId: string, byLoad: Map<stri
     if (error) throw new Error(`[mcleod-mirror] stops not recorded: ${error.message}`);
   }
   return rows.length;
+}
+
+/** The four roster links a mirrored load holds, as the relink pass compares them (D-LA3). */
+export interface MirroredLinks {
+  external_id: string;
+  driver_id: string | null;
+  co_driver_id: string | null;
+  vehicle_id: string | null;
+  trailer_id: string | null;
+}
+
+/**
+ * What each mirrored load is linked to now, for the relink pass (LOADS-ACTIVITY-PLAN D-LA3). The
+ * `mcleod` collector asks this module rather than reading `loads` itself (D-ARC3). In chunks, as
+ * `readExisting` does, because the ids come from every recent movement.
+ */
+export async function readMirroredLinks(
+  admin: SupabaseClient,
+  orgId: string,
+  provider: string,
+  externalIds: string[],
+): Promise<Map<string, MirroredLinks>> {
+  const out = new Map<string, MirroredLinks>();
+  for (let i = 0; i < externalIds.length; i += READ_CHUNK) {
+    const { data, error } = await admin
+      .from("loads")
+      .select("external_id, driver_id, co_driver_id, vehicle_id, trailer_id")
+      .eq("org_id", orgId)
+      .eq("provider", provider)
+      .eq("source", "tms")
+      .in("external_id", externalIds.slice(i, i + READ_CHUNK));
+    if (error) throw new Error(`[mcleod-mirror] could not read load links: ${error.message}`);
+    for (const r of (data ?? []) as MirroredLinks[]) out.set(r.external_id, r);
+  }
+  return out;
 }
 
 export async function applyMirroredLoads(
