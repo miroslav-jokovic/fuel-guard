@@ -49,6 +49,16 @@ export const NOTIFICATION_CATEGORIES = [
    */
   "application_stalled",
   /**
+   * The opposite news (APPLICATION-FLOW-V2-PLAN Q-AW56): an applicant has finished everything they can
+   * do alone — Part 1 and all six permissions — and the office's screening is now the next move.
+   * Measured on production 2026-10-20: two applicants reached this point on 10-01, nothing said so,
+   * zero were screened, both links expired. Sent once per invitation, when the last permission lands,
+   * to the members who manage the recruitment section. Office-facing and mutable like the stall — a
+   * recruiter may mute one and keep the other, which is why it is not the same category. Mirrored in
+   * the notification_events CHECK (0499).
+   */
+  "application_ready_to_screen",
+  /**
    * A fuel card's status changed at EFS without us — the WEX portal, or EFS's own hold (EFS audit,
    * 2026-09-30; the status poll in efsCardStatusPoll.ts). Office-facing and mutable: somebody who
    * works in the WEX portal all day may silence it. Mirrored in the notification_events CHECK (0397).
@@ -113,6 +123,7 @@ export const NOTIFICATION_CATEGORY_LABELS: Record<NotificationCategory, string> 
   dq_license_status: "Licence status changes",
   dq_mvr_received: "New driving records",
   application_stalled: "Stalled applications",
+  application_ready_to_screen: "Applicants ready to screen",
   card_status_changed: "Fuel card status changes",
   drug_alcohol_result: "Drug & alcohol results",
   roadside_feed_stale: "FMCSA record freshness",
