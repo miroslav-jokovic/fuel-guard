@@ -936,3 +936,33 @@ around them.
   - Tests: `file-intake-items.test.mjs` (17); `rls.test.mjs` seeds and isolates the table. Three
     mutants killed — the page pair's NULL hole (`1 >= 1 and null` passes a CHECK, found by the first
     run of the matrix), the restrict FK, the duplicate rule (it first SURVIVED; a test was added).
+- 2026-10-20 — **UF7a merged** as #1677 (renumbered 0504 → 0505).
+- 2026-10-20 — **UF7b split in three**, after surveying the document reader it plugs into:
+  **UF7b1** the matcher (pure, this entry); **UF7b2** the `compliance_paper` profile (contract,
+  profile CHECK migration, prompt, evidence, gate, `readers: 1`, `DOC_FILE_READ_MODEL`); **UF7b3**
+  the routes, the filing and the pass that turns a finished read into `file_intake_items` rows. Two
+  facts the plan did not have, recorded for UF7b2/3:
+  - Intake refuses any file over **10 pages** (`INTAKE_LIMITS.maxPages`, every profile; the copy says
+    "more than 10 pages"). §5's "over 20 pages refused" is therefore already "over 10"; raising it for
+    one profile is a UF7b2 decision about the classifier and vision budgets, not assumed here.
+  - Nothing fires when a read finishes: the roadside report pass polls hourly
+    (`inspections/report/pass.ts` + `check.ts`, `readOfBytes`). UF7b3 either polls the same way or adds
+    the hook — an office waiting at the review page makes the hook the likely answer.
+- 2026-10-20 — **UF7b1 built** (`claude/uf7b-intake-matcher`): `packages/shared/src/fileSubjectMatch.ts`,
+  `proposeFileSubject(identifiers, roster, scope?)` in §5's order — VIN (17 chars), plate (+ state
+  when both sides have one), unit number with leading zeros folded, filename token as a tie-breaker,
+  then CDL number and exact full name. Ambiguity at the strongest identifier that names anyone
+  proposes nobody, and a weaker identifier does not overrule it. A multi-unit paper proposes all its
+  units (`units`) and lists what it could not place (`unresolved`). A scoped drop keeps its subject
+  and reports `contradicts`. `FILE_MATCH_BASES` is 0504's `match_basis` list.
+  - `normaliseVin` / `normaliseUnitNumber` moved from `fleetpal/unitMatch.ts` to shared (FleetPal
+    re-exports them): one reading of a VIN.
+  - **Corrected from §5:** `mcleod_fleet_code` is NOT folded into unit numbers. It is the dispatch
+    fleet ('VINNIEV', 'KANE', '1'; 0450), not a unit's name — folding it would match a paper for unit
+    1 to every truck in fleet '1'. Leading zeros only.
+  - **Corrected from §5:** the filename tie-break applies to any identifier's tie, not only a unit
+    number's. Two units tied on one number share that number, so a filename can never separate
+    them; the tie it can break is a plate with no state on two trucks.
+  - Tests: 16, incl. the plan's two (VIN beats unit number; two equal names → no proposal). Nine
+    mutants killed; the VIN-length one first SURVIVED (its fixture matched nothing either way) and the
+    fixture was fixed.

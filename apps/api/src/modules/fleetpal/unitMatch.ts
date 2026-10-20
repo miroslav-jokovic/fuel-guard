@@ -36,6 +36,8 @@
  * number. A unit that matches trailer 4102 by VIN is a trailer whatever its category says.
  */
 
+import { normaliseUnitNumber, normaliseVin } from "@silvicom/shared";
+
 /** The half of a roster row this decision needs. `listEquipmentIdentities` supplies it. */
 export interface RosterCandidate {
   id: string;
@@ -75,28 +77,9 @@ export interface UnitMatch {
   reason: MatchReason;
 }
 
-/**
- * Uppercase, trimmed, inner whitespace removed.
- *
- * Case is the one that bites: FleetPal stores VINs uppercase and validates the check digit, we
- * store whatever was typed, and `3akjhhdr...` === `3AKJHHDR...` is a truck either way. Whitespace
- * is stripped because a VIN pasted out of a spreadsheet arrives with a trailing space often enough
- * to matter.
- */
-export function normaliseVin(vin: string | null | undefined): string {
-  return String(vin ?? "").replace(/\s+/g, "").toUpperCase();
-}
-
-/**
- * Trimmed and uppercased, and **nothing else** — no zero-stripping, no punctuation removal.
- *
- * Unit `"805"` and `"0805"` are not asserted to be the same truck here. They may well be, and a
- * person can say so with the manual link; a normaliser that decided it would also merge `"R532309"`
- * with `"532309"`, which are a trailer and a tractor on this fleet.
- */
-export function normaliseUnitNumber(value: string | null | undefined): string {
-  return String(value ?? "").trim().toUpperCase();
-}
+// `normaliseVin` and `normaliseUnitNumber` live in `@silvicom/shared` (fileSubjectMatch.ts) since
+// UNIT-FILES-PLAN UF7b: the bulk-upload matcher reads a VIN and a unit number the same way.
+export { normaliseUnitNumber, normaliseVin } from "@silvicom/shared";
 
 const unmatched = (reason: MatchReason): UnitMatch => ({
   method: "unmatched",
