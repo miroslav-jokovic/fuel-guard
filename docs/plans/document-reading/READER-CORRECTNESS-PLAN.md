@@ -218,3 +218,21 @@ the paper's answer then follows the person's checks, and it reuses the review ro
   - **R-M3 certification null from one reader.** Pass B returned null for a printed, signed certification; one
     reader abstaining should be backed by the OCR row witness (the statement's words are on the page) rather
     than stop the rule.
+- **2026-10-20 — R-M2 built: a cell one reader read further no longer reads as a disagreement.** Measured first, over
+  the four production reads with replay inputs (76979453 and f1b91bba, the corrosives BOL; e6dfc064 and 350d2f27,
+  Mayo): 384 fields, 329 agreed, 55 disagreed; the audit 98 pass, 4 fail, 70 "confirm it first". Of the 55: 14 cell extent (Mayo's descriptions, packaging and — on e6dfc064 — `marks`, 10; consignee name and address, 4), 24 one reader returning null where the other read (certification ×4, pallets, delivery date and signature, pieces, weight unit, per-package weight, customer reference, non-hazmat counts), 1 formatting (page markers, already folded by the audit), 16 real misreads (UN3254/UN3264 and its description, page number, the PO, the CCN number, customer references, non-hazmat counts and a description). Two readings of a description, packaging or marks cell now agree when one is the
+  other plus a tail at a field boundary holding no token any §172.202/§172.203 element is spelled with
+  (`readingExtent.ts` in shared, so the screen and the audit agree; packaging also keeps its count and type), and
+  the audit judges such a cell under BOTH readings and refuses only the rule whose answer moves — the guard for a
+  tail no word list foresees (an EPA waste code standing for a technical name, §172.203(k)(2)(i)).
+  `readingExtent.property.test.ts`: every table entry × five commercial tails agrees; × 31 regulated tails, and
+  every word-boundary prefix of the basic description, never does (it found "LTDQTY", which the engine reads as
+  Limited Quantity, and the 1.3J / 1.4S compatibility groups — both now held). Five mutants (no token check, no
+  boundary, no both-readings guard, text comparison, no packaging facts) each fail it or `paperAudit.test.ts`.
+  **Replayed:** 55 → 45 disagreements; the audit 118 pass, 4 fail, 50 "confirm it first"; Mayo 350d2f27 15 → 5
+  stops — every one of its ten new passes checked against the photo (sequence, technical name not required, no
+  LQ, no marine pollutant, package count, both lines); the corrosives reads unchanged; false-accept 0. Left on
+  Mayo: RQ ×2 and quantity ×2 (R-M1), certification (R-M3). **Found while measuring:** the OCR read neither line's
+  anchor ("UN124", "XUN1830"), so no row witness judged a Mayo line; and it returned NO word of the printed,
+  signed §172.204 certification block on any of the four reads — R-M3's OCR witness has nothing to find on them.
+  Also "8 3600LBTOTE" reads as no package type (`packageTypeFromPrinted` needs a word boundary before TOTE).

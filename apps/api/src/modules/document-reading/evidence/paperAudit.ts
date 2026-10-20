@@ -2,6 +2,8 @@ import { auditPrintedPaper, parsePageMarker, type PaperFieldStates } from "@hazm
 import {
   arithmeticBacks,
   classifyLineLoadState,
+  isExtentPath,
+  parseFieldPath,
   normalizeUnit,
   packageTypeFromPrinted,
   packagingKindFor,
@@ -12,6 +14,7 @@ import {
   shippingDocumentSchema,
   type FieldEvidence,
   type PaperAuditView,
+  type ShippingDocument,
 } from "@silvicom/shared";
 import { hmtResolution, witnessDataset } from "./hmtWitness.js";
 
@@ -49,7 +52,45 @@ import { hmtResolution, witnessDataset } from "./hmtWitness.js";
 export function auditForRead(result: unknown, evidence: readonly FieldEvidence[]): PaperAuditView | null {
   const parsed = shippingDocumentSchema.safeParse(result);
   if (!parsed.success) return null;
-  const all = parsed.data;
+  const asRead = auditOf(parsed.data, evidence);
+  const other = extentReadings(evidence);
+  if (other.length === 0) return asRead;
+  // R-M2: a cell the readers read to different extents is judged under BOTH readings (readingExtent.ts). A
+  // rule whose answer does not move with the tail may stand; one whose answer moves rests on text only one
+  // reader saw, and answers "confirm it first" on that cell — whatever the extent rule failed to foresee.
+  const alt = structuredClone(parsed.data);
+  for (const { path, value } of other) setAt(alt, path, value);
+  const altAudit = auditOf(alt, evidence);
+  const altBy = new Map((altAudit.results).map((r) => [`${r.ruleId}@${r.lineIndex}`, r]));
+  return {
+    ...asRead,
+    results: asRead.results.map((r) => {
+      const o = altBy.get(`${r.ruleId}@${r.lineIndex}`);
+      if (o && o.outcome === r.outcome && o.reason === r.reason) return r;
+      const cells = other.map((x) => x.path).filter((p) => r.lineIndex === null || p.startsWith(`hazmat.lines[${r.lineIndex}].`));
+      return { ...r, outcome: "cannot_tell" as const, reason: "field_unconfirmed", facts: { ...r.facts, unconfirmed: cells.length ? cells : other.map((x) => x.path) } };
+    }),
+  };
+}
+
+/** Pass B's readings of the extent cells it agrees with pass A on by their facts only, not their text. */
+function extentReadings(evidence: readonly FieldEvidence[]): { path: string; value: unknown }[] {
+  return evidence.flatMap((e) => {
+    if (!isExtentPath(e.path) || readersAgree(e) !== true) return [];
+    const a = e.sources.find((s) => s.reader === "passA")!.value;
+    const b = e.sources.find((s) => s.reader === "passB")!.value;
+    return valuesAgree(a, b) ? [] : [{ path: e.path, value: b }];
+  });
+}
+
+function setAt(doc: unknown, path: string, value: unknown): void {
+  const segs = parseFieldPath(path);
+  let cur = doc as Record<string | number, unknown>;
+  for (const s of segs.slice(0, -1)) cur = cur[s] as Record<string | number, unknown>;
+  cur[segs[segs.length - 1]!] = value;
+}
+
+function auditOf(all: ShippingDocument, evidence: readonly FieldEvidence[]): PaperAuditView {
   const aboard = all.hazmat.lines.flatMap((l, i) => (classifyLineLoadState(l) === "preprinted_not_loaded" ? [] : [i]));
   const doc = { ...all, hazmat: { ...all.hazmat, lines: aboard.map((i) => all.hazmat.lines[i]!) } };
   const { dataset } = witnessDataset();
