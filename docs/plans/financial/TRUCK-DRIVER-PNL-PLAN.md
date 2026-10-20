@@ -293,6 +293,13 @@ per-driver P&L on the recommended answer to every question below, Q-TP1 through 
   units, never amounts.
 - **Q-TP10 (blocks P1)** — Chase Alex for the finance grant (10-10 request) and add `gl_control` to
   it. Owner action.
+- **Q-TP11 (blocks nothing; sharpens loads and billed miles)** — When a credit memo is followed by a
+  re-bill of the same order (I, C, I), the order has two invoices. D2b takes the credit off revenue,
+  so revenue nets correctly. But the credit counts as no load and no miles while both invoices
+  count, so that load's miles and load count appear twice. Not measured: the 10-19 sandbox session
+  measured credits against the receivable, not their orders, and the sandbox was unreachable on
+  10-19 evening. *Recommended: measure July's `C` rows by order shape (`nI+mC`) and by distance
+  carried. If re-bills are common, count one load per order rather than one per invoice.*
 
 ---
 
