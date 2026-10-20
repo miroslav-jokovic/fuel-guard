@@ -4,7 +4,7 @@ import { arithmeticWitness } from "./arithmeticWitness.js";
 import { certificationShown } from "./certificationWitness.js";
 import { hazmatMarks } from "./hazmatMarkWitness.js";
 import { HMT_JUDGED_KEYS, hmtVerdict, type HmtVerdict } from "./hmtWitness.js";
-import { anchorOf, classTokens, ROW_JUDGED_KEYS, rowBacks, rowOf, type OcrPage, type Row } from "./rowWitness.js";
+import { anchorOf, classTokens, ROW_JUDGED_KEYS, rowBacks, rowCanJudge, rowOf, type OcrPage, type Row } from "./rowWitness.js";
 
 /**
  * A shipping document's evidence (§7B, D-DR19): for every field, what each witness said.
@@ -114,7 +114,7 @@ export function shippingEvidence(
     if (m && (ROW_JUDGED_KEYS as readonly string[]).includes(m[2]!) && (av != null || bv != null)) {
       const i = Number(m[1]);
       const unprovable = classTokens(lineAt(i).hazardClass, i < aLines.length ? aligned[i]?.hazardClass : null);
-      for (const [reader, rowAt] of rowWitnesses) {
+      for (const [reader, rowAt] of rowCanJudge([av, bv], unprovable) ? rowWitnesses : []) {
         const row = rowAt(i);
         if (row) sources.push({ reader, page: row.page, bbox: row.bbox, value: rowBacks(row, [av, bv], unprovable) as never });
       }

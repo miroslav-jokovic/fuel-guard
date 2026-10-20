@@ -97,4 +97,14 @@ describe("rowOf + rowBacks — the same-row rule", () => {
     expect(row.bbox.y).toBeCloseTo(940 / 3300);
     expect(row.bbox.h).toBeCloseTo(200 / 3300);
   });
+
+  it("judges a prepared view's rows in its own pixels and shows the row where it is on the upright page", () => {
+    // The view is the page halved and moved 100 px right, 300 px down: view → page doubles and shifts back.
+    const view: OcrPage = { ...page([item("UN2735", 200, 500), item("6", 900, 505)]), width: 1275, height: 1650, toPage: { matrix: [2, 0, -200, 0, 2, -600, 0, 0, 1], width: 2550, height: 3300 } };
+    const row = rowOf([view], "UN2735", 0, 1)!;
+    expect(row.items.map((i) => i.text)).toEqual(["UN2735", "6"]);
+    // The band is anchor y 500 − 1.5 × 40 to 500 + 3.5 × 40, in view pixels: 440..640 → page 280..680.
+    expect(row.bbox.y).toBeCloseTo(280 / 3300);
+    expect(row.bbox.h).toBeCloseTo(400 / 3300);
+  });
 });

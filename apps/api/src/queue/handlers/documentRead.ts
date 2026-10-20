@@ -49,7 +49,7 @@ const gateForEnv = (env: Env): ReadGateFor => (admin, orgId, profile) => gatesFo
 // The OCR witness's engine (§7B A5): one per process, started by the first read that needs it.
 let engine: RecognisePage | undefined;
 const ocrFor = (env: Env): RecognisePage | undefined =>
-  env.DOC_OCR_WITNESS === "off" ? undefined : (engine ??= ocrEngine({ cacheDir: env.DOC_OCR_CACHE_DIR ?? join(tmpdir(), "silvicom-ocr-models") }));
+  env.DOC_OCR_WITNESS === "off" ? undefined : (engine ??= ocrEngine({ cacheDir: env.DOC_OCR_CACHE_DIR ?? join(tmpdir(), "silvicom-ocr-models"), prepare: env.DOC_OCR_PREPARE !== "off" }));
 
 export const documentReadHandler: JobHandler = async (ctx, job) => {
   const readId = typeof job.payload.readId === "string" ? job.payload.readId : "";
