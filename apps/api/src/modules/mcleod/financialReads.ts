@@ -75,7 +75,7 @@ export interface StagedBilling {
   total_charges: number | string;
   other_charge: number | string;
   excise_tax: number | string;
-  /** `I` invoice, `C` credit memo, null = swept before 0491 — read through `billSign`, never directly. */
+  /** `I` invoice, `C` credit memo, null = swept before 0496 — read through `billSign`, never directly. */
   bill_type: string | null;
   /** McLeod's billed distance for the order (0275) — the miles the load was PRICED on. Null on ~2% of bills. */
   distance: number | string | null;
@@ -191,7 +191,7 @@ export async function readBillingDispatchers(
  * Voided and cancelled bills are excluded: a cancelled load's miles were driven, but its BILLED
  * miles were never billed, and this reader answers the billed question.
  *
- * A credit memo (`bill_type = 'C'`, 0491) takes its revenue back but is not a load: it adds no load,
+ * A credit memo (`bill_type = 'C'`, 0496) takes its revenue back but is not a load: it adds no load,
  * no miles and no delivering truck. That holds whether or not McLeod copies the credited load's
  * distance onto the credit — counting it would bill the same miles twice. Unmeasured: how often a
  * credit is followed by a re-bill of the same order, which would still count that load's miles twice

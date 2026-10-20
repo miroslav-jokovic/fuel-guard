@@ -319,3 +319,7 @@ per-driver P&L on the recommended answer to every question below, Q-TP1 through 
   (1,467 I = +5,028,444.73, 55 C = −213,124.32). Voided settlements with a transfer date tie to SETV
   to the cent in May–Aug. The SET residual of $1.1k–$8.2k/month is GL "Payable from Settlement" lines
   with no settlement row.
+- 2026-10-20 · D1 (#1642) merged. Main reached 0495 first, and `supabase db push` refuses a version
+  older than the last one applied, so #1643's migrations are now `0496` `mcleod_billing.bill_type`
+  and `0497` `mcleod_settlements.void_date`, and D4's is `0498` `mcleod_gl_control` (#1647). D2b
+  (credits signed negative, never counted as a load) waits on 0496 applying to staging.

@@ -73,7 +73,7 @@ export async function getLedgerCoverage(
       (sum, b) => sum + billRevenue(b) + billExcise(b),
       0,
     );
-    // A row swept before 0491 has no bill_type and is read as an invoice. If a credit is among them
+    // A row swept before 0496 has no bill_type and is read as an invoice. If a credit is among them
     // the drift says so as a number; this says why, until the next sweep fills the column.
     const untyped = booked.filter(isUntypedBill).length;
     claims.push({

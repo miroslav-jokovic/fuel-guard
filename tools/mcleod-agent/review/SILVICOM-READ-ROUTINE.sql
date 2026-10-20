@@ -724,7 +724,7 @@ SELECT
       b.distance                                     AS distance,
       NULLIF(LTRIM(RTRIM(b.canceled)), '')           AS canceled,
       NULLIF(LTRIM(RTRIM(b.rebilled)), '')           AS rebilled,
-      -- I = invoice, C = credit memo (0491). A credit's total_charges is POSITIVE; this column is
+      -- I = invoice, C = credit memo (0496). A credit's total_charges is POSITIVE; this column is
       -- the only thing that says it takes revenue back (billSign, TRUCK-DRIVER-PNL-PLAN §1.3 D2).
       NULLIF(LTRIM(RTRIM(b.bill_type)), '')          AS bill_type,
       LTRIM(RTRIM(b.post_key))                       AS post_key,

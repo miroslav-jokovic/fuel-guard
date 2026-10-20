@@ -67,8 +67,8 @@ export const tmsBillingFactSchema = z.object({
   rebilled: z.string().max(4).nullish(),
 
   /**
-   * `I` invoice or `C` credit memo, verbatim (0491). A credit carries a POSITIVE `total_charges`;
-   * only this column says it takes money back — `billSign`. Null = swept before 0491.
+   * `I` invoice or `C` credit memo, verbatim (0496). A credit carries a POSITIVE `total_charges`;
+   * only this column says it takes money back — `billSign`. Null = swept before 0496.
    */
   bill_type: z.string().trim().min(1).max(4).nullish(),
 
@@ -96,11 +96,11 @@ const money = (v: Money): number => (v == null ? 0 : Number(v));
 
 type BillType = { bill_type?: string | null };
 
-/** A credit memo — McLeod's `bill_type = 'C'` (0491). */
+/** A credit memo — McLeod's `bill_type = 'C'` (0496). */
 export const isCreditBill = (b: BillType): boolean => b.bill_type?.trim().toUpperCase() === "C";
 
 /**
- * Null `bill_type`: the row was swept before 0491. It is read as an invoice — 1,467 of July's 1,522
+ * Null `bill_type`: the row was swept before 0496. It is read as an invoice — 1,467 of July's 1,522
  * posted bills are — and the reader that ties to the ledger counts these rows and says so, because a
  * credit among them is on the wrong side until the next sweep refills the column.
  */

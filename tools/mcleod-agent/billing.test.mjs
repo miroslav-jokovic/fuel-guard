@@ -4,7 +4,7 @@ import { BILLING_HISTORY } from "./queries.mjs";
 import { mapBilling } from "./billing.mjs";
 
 /**
- * The billing sweep carries `bill_type` (0491, TRUCK-DRIVER-PNL-PLAN §1.3 D2).
+ * The billing sweep carries `bill_type` (0496, TRUCK-DRIVER-PNL-PLAN §1.3 D2).
  *
  * McLeod stages a credit memo as its own bill with a POSITIVE `total_charges`; `bill_type = 'C'` is the
  * only thing that says it takes money back. Before this column was swept, 55 July credits (−$213,124.32
