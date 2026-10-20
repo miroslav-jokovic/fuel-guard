@@ -40,6 +40,19 @@ export async function deliveredCandidateIds(
   return [...ids];
 }
 
+/**
+ * The first moment the mirror holds a load from — the floor the Loads page names beside its Delivered
+ * window (DISPATCH-LOADS-COUNTS-PLAN D-DLC6): "Delivery history begins 09/17/2026". A load delivered
+ * before the mirror began is not in core (it lives in McLeod's live `movement` table, read only by the
+ * backfill step DLC4), so a 30-day window must not read as the whole history. The earliest
+ * `created_at` is that moment; null for an org with no loads.
+ */
+export async function loadsHistoryFrom(admin: SupabaseClient, orgId: string): Promise<string | null> {
+  const { data, error } = await admin.from("loads").select("created_at").eq("org_id", orgId).order("created_at", { ascending: true }).limit(1);
+  if (error) throw new Error(error.message);
+  return ((data ?? []) as { created_at: string | null }[])[0]?.created_at ?? null;
+}
+
 /** Is this instant inside the half-open window [from, before)? */
 export const inWindow = (at: string | null, fromIso: string, beforeIso: string): boolean =>
   at != null && Date.parse(at) >= Date.parse(fromIso) && Date.parse(at) < Date.parse(beforeIso);

@@ -262,9 +262,13 @@ describe("the dispatch board", () => {
     expect(b.rows).toHaveLength(1);
   });
 
-  it("drops a retired truck, keeps a truck in the shop without calling it empty, and hides stale clocks", async () => {
+  it("drops a retired truck and an ordered one, keeps a truck in the shop without calling it empty, and hides stale clocks", async () => {
     const rec = recorder({
-      vehicles: [vehicle(), vehicle({ id: "veh-660", unit_number: "660", status: "maintenance", assigned_driver_id: null }), vehicle({ id: "veh-550", unit_number: "550", status: "retired" })],
+      // The ordered truck is as production had 42 of them on 2026-10-20: no driver, no fleet, no fix.
+      vehicles: [
+        vehicle(), vehicle({ id: "veh-660", unit_number: "660", status: "maintenance", assigned_driver_id: null }), vehicle({ id: "veh-550", unit_number: "550", status: "retired" }),
+        vehicle({ id: "veh-990", unit_number: "990", status: "ordered", assigned_driver_id: null, mcleod_fleet_code: null }),
+      ],
       loads: [],
       clocks: [{ samsara_driver_id: "5551", duty_status: "off_duty", drive_remaining_ms: 11 * H, shift_remaining_ms: 14 * H, cycle_remaining_ms: 60 * H, break_remaining_ms: 8 * H, fetched_at: ago(3600) }],
     });

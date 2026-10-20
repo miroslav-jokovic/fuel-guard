@@ -4,6 +4,7 @@ import { requireAuth, requireOrg, requireSection } from "../../../middleware/aut
 import { requireModule } from "../../../middleware/requireModule.js";
 import { assignmentHistoryQuerySchema } from "@silvicom/shared";
 import { listAssignmentHistory } from "../dispatchLoads/history.js";
+import { loadsHistoryFrom } from "../dispatchLoads/deliveredWindow.js";
 import { listLoadActivity } from "../dispatchLoads/activity.js";
 import { apiError, asyncHandler, validateBody } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
@@ -97,7 +98,11 @@ export function dispatchRouter(): Router {
       }
       const { delivered_from: from, delivered_before: before } = q.data;
       const admin = getSupabaseAdmin(getAppLocals(req).env);
-      res.json({ loads: await listLoads(admin, req.auth!.orgId!, from && before ? { from, before } : undefined) });
+      const [loads, history_from] = await Promise.all([
+        listLoads(admin, req.auth!.orgId!, from && before ? { from, before } : undefined),
+        loadsHistoryFrom(admin, req.auth!.orgId!),
+      ]);
+      res.json({ loads, history_from });
     }),
   );
 
