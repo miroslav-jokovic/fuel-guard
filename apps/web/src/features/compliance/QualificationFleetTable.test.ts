@@ -97,11 +97,11 @@ async function mountAt(url: string) {
   await flushPromises();
   return { w, router, query: () => router.currentRoute.value.query };
 }
-const at = (state: string, due: string) =>
-  `/compliance?${new URLSearchParams(Object.entries({ state, due }).filter(([, v]) => v)).toString()}`;
+const at = (file: string, due: string) =>
+  `/compliance?${new URLSearchParams(Object.entries({ file, due }).filter(([, v]) => v)).toString()}`;
 
-const namesFor = async (stateFilter: string, dueFilter: string): Promise<string[]> => {
-  const { w } = await mountAt(at(stateFilter, dueFilter));
+const namesFor = async (fileFilter: string, dueFilter: string): Promise<string[]> => {
+  const { w } = await mountAt(at(fileFilter, dueFilter));
   // The name is the row's link, not a fixed column index: this table carries a selection checkbox
   // and an expand toggle ahead of it, and counting columns made every assertion here fail at once.
   return w.findAll("tbody tr").map((r) => r.findAll("a")[0]?.text().trim() ?? "").filter(Boolean);
@@ -119,14 +119,14 @@ describe("QualificationFleetTable — the filter vocabulary R4b promotes", () =>
     const { w, router, query } = await mountAt("/compliance");
     const clear = () => w.findAll("button").find((b) => b.text() === "Clear filters");
     expect(clear()).toBeUndefined();
-    await router.replace("/compliance?state=expired");
+    await router.replace("/compliance?file=expired");
     await flushPromises();
     expect(w.findAll("tbody tr")).toHaveLength(1);
 
     await clear()!.trigger("click");
     await flushPromises();
 
-    expect(query().state).toBeUndefined();
+    expect(query().file).toBeUndefined();
     expect(w.findAll("tbody tr")).toHaveLength(DRIVERS.length);
     expect(clear()).toBeUndefined();
   });
@@ -183,7 +183,7 @@ describe("QualificationFleetTable — the filter vocabulary R4b promotes", () =>
   it("disagrees with the attention tile that sets it, for the overdue driver (recorded, not endorsed)", async () => {
     const { buildAttentionStrip } = await import("@/features/compliance/attentionStrip");
     const tile = buildAttentionStrip(DRIVERS).find((t) => t.key === "due30")!;
-    const rows = await namesFor(tile.state, tile.due);
+    const rows = await namesFor(tile.file, tile.due);
 
     expect(tile.n).toBe(2); // Sam and Lena — the tile does not count Ellen, who is already overdue
     expect(rows).toHaveLength(3); // …but the filter it applies does
@@ -206,28 +206,28 @@ describe("QualificationFleetTable keeps its list in the URL", () => {
     w.findAll("tbody tr").map((r) => r.findAll("a")[0]?.text().trim() ?? "").filter(Boolean);
 
   it("reads the filter and the sort back from a pasted link", async () => {
-    const { w } = await mountAt("/compliance?state=expiring&sort=driver_name&dir=desc");
+    const { w } = await mountAt("/compliance?file=expiring&sort=driver_name&dir=desc");
     expect(names(w)).toEqual(["Sam Soon", "Lena Later"]);
     expect(w.findComponent({ name: "DataTable" }).props("sort")).toEqual({ key: "driver_name", dir: "desc" });
   });
 
   it("writes a control's filter to the URL beside one already there", async () => {
-    const { w, query } = await mountAt("/compliance?state=expired");
+    const { w, query } = await mountAt("/compliance?file=expired");
 
     w.findAllComponents({ name: "FilterSelect" }).find((c) => c.props("label") === "Due")!.vm.$emit("update:modelValue", "30");
     await flushPromises();
-    expect(query()).toMatchObject({ state: "expired", due: "30" });
+    expect(query()).toMatchObject({ file: "expired", due: "30" });
   });
 
   it("Clear filters keeps the sort", async () => {
-    const { w, query } = await mountAt("/compliance?state=expired&due=30&search=el&sort=driver_name&dir=asc&page=2");
+    const { w, query } = await mountAt("/compliance?file=expired&due=30&search=el&sort=driver_name&dir=asc&page=2");
     w.findComponent(FilterBar).vm.$emit("clear-all");
     await flushPromises();
     expect(query()).toEqual({ sort: "driver_name", dir: "asc" });
   });
 
   it("reads a filter outside the shared vocabulary as no filter", async () => {
-    const { w } = await mountAt("/compliance?state=bogus&sort=declined_at");
+    const { w } = await mountAt("/compliance?file=bogus&sort=declined_at");
     expect(names(w)).toHaveLength(DRIVERS.length);
     expect(w.findComponent({ name: "DataTable" }).props("sort")).toEqual({ key: null, dir: "asc" });
   });

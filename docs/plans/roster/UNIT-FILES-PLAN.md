@@ -696,7 +696,7 @@ UF0 → UF1 → UF2 are strictly in order. After that:
 New questions found while building go here, with candidates and a recommendation, before anything routes
 around them.
 
-- **Q-UF9: two file filters on the Drivers toolbar** (found building UF4b, 2026-10-20; OPEN). The roster
+- **Q-UF9: two file filters on the Drivers toolbar** (found building UF4b, 2026-10-20). **Answered (b), owner 2026-10-20** — built; see the progress log. The roster
   now carries the chip's `?file=` (`FILE_CHIPS`, the Vehicles and Trailers vocabulary: worst state first)
   beside the older `?dq=` *File status* (`DQ_STATE_FILTERS`: "has ANY item in this state", plus
   *Needs attention*). They overlap on four words and disagree on one — `dq=expiring` admits a driver whose
@@ -894,3 +894,28 @@ around them.
     the service wiring (equipment recipients, unit key, entity, one email per type, nothing signed,
     `expectOrgScoped`); the bell route. Nine mutants killed, each restored from a byte copy — the
     `withPapers` one first SURVIVED because the fixture had no paper to sign, and the fixture was fixed.
+- 2026-10-20 — **UF6b merged** as #1672.
+- 2026-10-20 — **Q-UF9 answered (b) by the owner and built** (`claude/drivers-one-file-filter`): one
+  file vocabulary on all four lists that show a file.
+  - Shared: `FILE_FILTERS` = `attention` + every `FILE_CHIPS` word, with `FILE_FILTER_LABELS`,
+    `fileFilterOptions()` and `matchesFileFilter(chip, word)` in fileChip.ts. "Needs attention" is
+    derived from the chip (any chip but `complete`), not a second predicate. `DQ_STATE_FILTERS`,
+    `DQ_STATE_FILTER_LABELS`, `dqStateFilterOptions` and `matchesDqState` are deleted;
+    `matchesDqFilters(row, { file, due, req })` asks the chip. Built-in views say `file=`.
+  - Drivers: the File status control is gone; File (now with Needs attention) and Due sit on the
+    toolbar within its four controls, so Due left the Filters button. `?dq=` is still READ, as the
+    File filter, for saved views and old links — a labelled migration read in `useRosterFilters`;
+    `?file=` wins, and any File choice clears `dq`. It can go once no `saved_views` row holds `dq=`.
+  - Compliance fleet table + its tiles: `?state=` → `?file=`, same words; the tiles count with the
+    filter their click applies. Driver files widget (fleet manager home): rows ask the chip and link
+    `/drivers?file=…`. Vehicles and Trailers gain "Needs attention".
+  - Two meanings moved, on purpose (D-UF7: the filter is the cell): `expiring` no longer admits a
+    driver who also has something lapsed (the cell says "expired"), and `complete` no longer admits a
+    complete file with an item due soon (the cell says "1 expiring") — so the "Files complete" tile
+    and the widget's "N of M files complete" can read lower than before. The widget's three rows no
+    longer overlap. The compliance table's own row chips ("2 blocked · 1 expiring") are unchanged;
+    only its filter speaks the chip.
+  - Tests: the two moved meanings, Needs attention incl. a file not started, the legacy `?dq=` read
+    and its clearing, `?file=` winning, one file control on the Drivers toolbar, the tile counting the
+    chip's complete. Seven mutants killed, each restored from a byte copy. An attention-strip fixture
+    whose counts contradicted its attention list was made consistent (the chip reads the counts).

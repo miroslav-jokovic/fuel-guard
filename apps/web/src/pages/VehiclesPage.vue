@@ -19,7 +19,7 @@ import {
 } from "@silvicom/ui/icons";
 import { ref, computed, watch } from "vue";
 import { RouterLink, useRouter } from "vue-router";
-import { FILE_CHIPS, FILE_CHIP_LABELS, VEHICLE_CHECKS, VEHICLE_CHECK_LABELS, VEHICLE_STATUSES, isStatusFromTms, matchesFileChip, matchesVehicleCheck, paperStanding, PAPER_CHECK_ITEMS, todayInZone, unitFileChip, type Vehicle, type VehicleInput } from "@silvicom/shared";
+import { FILE_FILTERS, fileFilterOptions, VEHICLE_CHECKS, VEHICLE_CHECK_LABELS, VEHICLE_STATUSES, isStatusFromTms, matchesFileFilter, matchesVehicleCheck, paperStanding, PAPER_CHECK_ITEMS, todayInZone, unitFileChip, type Vehicle, type VehicleInput } from "@silvicom/shared";
 import { useSessionStore } from "@/stores/session";
 import { useVehiclesQuery, useCreateVehicle, useUpdateVehicle, useRetireVehicle, useBulkUpdateVehicles } from "@/composables/useVehicles";
 import { useDriversQuery } from "@/composables/useDrivers";
@@ -63,8 +63,8 @@ const checkFilter = qs.param("check", VEHICLE_CHECKS);
  * The file chip's filter (UNIT-FILES-PLAN UF4). The chip and the filter both ask `unitFileChip`, so
  * clicking "2 expiring" on a row lists exactly the trucks whose chip reads expiring.
  */
-const fileFilter = qs.param("file", FILE_CHIPS);
-const fileOptions = [{ value: "", label: "Any" }, ...FILE_CHIPS.map((c) => ({ value: c, label: FILE_CHIP_LABELS[c] }))];
+const fileFilter = qs.param("file", FILE_FILTERS);
+const fileOptions = fileFilterOptions();
 const unitFilesQ = useUnitFilesQuery("tractor");
 /** Each truck's file, by id — the column, both filters and the paperwork checks read it. */
 const fileById = computed(() => new Map((unitFilesQ.data.value?.units ?? []).map((u) => [u.subject_id, u])));
@@ -91,7 +91,7 @@ const filtered = computed(() => {
     if (checkFilter.value && !matchesVehicleCheck(v, checkFilter.value, fileById.value.get(v.id))) return false;
     if (fileFilter.value) {
       const chip = chipById.value.get(v.id);
-      if (!chip || !matchesFileChip(chip, fileFilter.value)) return false;
+      if (!chip || !matchesFileFilter(chip, fileFilter.value)) return false;
     }
     if (!term) return true;
     return [v.unit_number, v.make, v.model, v.plate, v.vin, String(v.year ?? "")]

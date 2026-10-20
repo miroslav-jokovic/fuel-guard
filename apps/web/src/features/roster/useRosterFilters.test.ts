@@ -143,12 +143,27 @@ describe("useRosterFilters", () => {
 
   it("carries the qualification filters, using the shared vocabulary", async () => {
     const { f, router } = await mountFilters();
-    f.dqState.value = "expired";
+    f.file.value = "expired";
     await settle();
     f.dqDue.value = "30";
     await settle();
-    expect(router.currentRoute.value.query).toMatchObject({ dq: "expired", due: "30" });
+    expect(router.currentRoute.value.query).toMatchObject({ file: "expired", due: "30" });
     expect(f.active.value).toBe(true);
+  });
+
+  it("reads an old ?dq= link as the File filter, and the next choice drops it (Q-UF9)", async () => {
+    // A saved view stored before Q-UF9 still says `dq=expired`; it must still narrow the roster.
+    const { f, router } = await mountFilters("/drivers?dq=not_started");
+    expect(f.file.value).toBe("not_started");
+    expect(f.active.value).toBe(true);
+    f.file.value = "attention";
+    await settle();
+    expect(router.currentRoute.value.query).toEqual({ file: "attention" });
+  });
+
+  it("lets ?file= win over an old ?dq= in the same link", async () => {
+    const { f } = await mountFilters("/drivers?dq=expired&file=expiring");
+    expect(f.file.value).toBe("expiring");
   });
 
   it("reads the per-requirement narrowing a built-in view sets", async () => {

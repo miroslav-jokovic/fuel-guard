@@ -372,10 +372,18 @@ describe("DriversPage roster table", () => {
    */
   it("filters the roster by qualification state from the URL", async () => {
     // d-2's CDL is expired; d-1's worst item is a medical expiring in 12 days.
-    const w = await mountPage("/drivers?dq=expired");
+    const w = await mountPage("/drivers?file=expired");
     const table = w.find("table").text();
     expect(table).toContain("Ana Whitfield");
     expect(table).not.toContain("Marcus Reyes");
+  });
+
+  it("still narrows by an old ?dq= link, and shows ONE file control beside Due (Q-UF9)", async () => {
+    const w = await mountPage("/drivers?dq=expired");
+    expect(w.find("table").text()).not.toContain("Marcus Reyes");
+    const labels = w.findAllComponents({ name: "FilterSelect" }).map((c) => c.props("label"));
+    expect(labels).not.toContain("File status");
+    expect(labels).toEqual(expect.arrayContaining(["File", "Due"]));
   });
 
   it("narrows to ONE requirement when a built-in view asks for it", async () => {

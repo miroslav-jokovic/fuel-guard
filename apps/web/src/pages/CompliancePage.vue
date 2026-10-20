@@ -21,7 +21,7 @@ import ExportHistory from "@/features/compliance/ExportHistory.vue";
 import { buildAttentionStrip } from "@/features/compliance/attentionStrip";
 import { useRequestBinder } from "@/composables/useDqExports";
 import { useToastStore } from "@/stores/toast";
-import { DQ_DUE_FILTERS, DQ_STATE_FILTERS } from "@silvicom/shared";
+import { DQ_DUE_FILTERS, FILE_FILTERS } from "@silvicom/shared";
 
 /**
  * Driver Qualification. The page COMPOSES; every surface is a component.
@@ -55,22 +55,22 @@ const setupOpen = ref(false);
  * The attention strip (C5): five tiles, each a CLICK-TO-FILTER on the fleet table's existing filter
  * models — it never introduces a second filter mechanism. Counts come from the same overview query
  * the table renders, so a tile and the rows it reveals cannot disagree. Since D-US2 that one model is
- * the URL's `state` and `due`: the tiles write them and the table reads them, through the same buffer
+ * the URL's `file` and `due`: the tiles write them and the table reads them, through the same buffer
  * and the same shared vocabulary, so a pasted link lights its tile with nothing to keep in sync.
  */
-const tableStateFilter = qs.param("state", DQ_STATE_FILTERS);
+const tableFileFilter = qs.param("file", FILE_FILTERS);
 const tableDueFilter = qs.param("due", DQ_DUE_FILTERS);
 const strip = computed(() => buildAttentionStrip(overview.data.value?.drivers ?? []));
 const activeTile = computed(() => {
-  const t = strip.value.find((x) => x.state === tableStateFilter.value && x.due === tableDueFilter.value);
-  return tableStateFilter.value === "" && tableDueFilter.value === "" ? null : (t?.key ?? null);
+  const t = strip.value.find((x) => x.file === tableFileFilter.value && x.due === tableDueFilter.value);
+  return tableFileFilter.value === "" && tableDueFilter.value === "" ? null : (t?.key ?? null);
 });
-function toggleTile(tile: { state: string; due: string; key: string }): void {
+function toggleTile(tile: { file: string; due: string; key: string }): void {
   if (activeTile.value === tile.key) {
-    tableStateFilter.value = "";
+    tableFileFilter.value = "";
     tableDueFilter.value = "";
   } else {
-    tableStateFilter.value = tile.state;
+    tableFileFilter.value = tile.file;
     tableDueFilter.value = tile.due;
   }
 }

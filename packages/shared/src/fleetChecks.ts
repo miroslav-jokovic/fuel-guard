@@ -98,7 +98,7 @@ const PAPER_ASKS = ["overdue", "due", "missing", "date_only"] as const;
 /**
  * Does this truck answer yes to `check`? An unknown check is NO filter, not an empty list — it arrives
  * from a query string a person can type into, and a typo must not empty a fleet (the same rule
- * `matchesDqState` keeps).
+ * `matchesFileFilter` keeps).
  *
  * A paper check needs the truck's file. Without one (the files have not loaded, or the truck is not in
  * them) it answers no, so a reader that has no file yet must say "loading", never count a zero.

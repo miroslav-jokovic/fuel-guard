@@ -307,7 +307,7 @@ describe("every count is the row count behind its door (D-FM7)", () => {
     for (const door of [
       "/assignments?scope=all", "/assignments?scope=all&queue=empty", "/assignments?scope=all&queue=late",
       "/assignments?scope=all&queue=hos-low", "/loads?queue=uncovered&scope=all",
-      "/drivers?dq=expired", "/drivers?dq=not_started",
+      "/drivers?file=expired", "/drivers?file=not_started",
       "/vehicles?check=no_driver", "/drivers?status=active&seat=none", "/vehicles?status=ordered", "/vehicles?check=winding_down",
       "/vehicles?check=inspection_overdue", "/vehicles?check=registration_missing",
       "/?tab=fleet", "/anomalies", "/idling", "/hazmat/review", "/recruitment", "/recruitment?waiting=them",

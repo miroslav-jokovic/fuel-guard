@@ -7,7 +7,7 @@ import { ref } from "vue";
  * D-US2 (2026-10-12) — the attention tiles and the fleet table share ONE filter model, the URL.
  *
  * Until that day the page held the tiles' filter in two refs and the table mirrored them into the
- * URL through four watches. Now the page reads `state` and `due` through `useQueryState` and the
+ * URL through four watches. Now the page reads `file` and `due` through `useQueryState` and the
  * table reads the same two keys, so a tile click is a URL write and a pasted link lights its tile
  * with nothing in between to fall out of step.
  */
@@ -50,7 +50,7 @@ const tile = (w: Awaited<ReturnType<typeof mountAt>>["w"], label: string) =>
 
 describe("the qualification page's tiles write and read the URL", () => {
   it("lights the tile a pasted link names", async () => {
-    const { w } = await mountAt("/compliance?state=expired");
+    const { w } = await mountAt("/compliance?file=expired");
     expect(tile(w, "Expired").props("pressed")).toBe(true);
     expect(tile(w, "Due in 30 days").props("pressed")).toBe(false);
   });
@@ -60,7 +60,7 @@ describe("the qualification page's tiles write and read the URL", () => {
     tile(w, "Due in 30 days").vm.$emit("toggle");
     await flushPromises();
     expect(query()).toMatchObject({ due: "30" });
-    expect(query().state).toBeUndefined();
+    expect(query().file).toBeUndefined();
 
     tile(w, "Due in 30 days").vm.$emit("toggle");
     await flushPromises();
