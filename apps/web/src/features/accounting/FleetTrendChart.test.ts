@@ -213,7 +213,7 @@ describe("FleetTrendChart", () => {
     respond({
       missing: ["2026-01", "2026-08"],
       monthsPartial: [
-        { month: "2026-08", periodEnd: "2026-09-01", sweptAt: "2026-08-28 21:02:56.551+00", complete: false, shortfall: "partial", missingModules: [] },
+        { month: "2026-08", periodEnd: "2026-09-01", sweptAt: "2026-08-28 21:02:56.551+00", complete: false, shortfall: "partial", missingModules: [], closed: null },
       ],
     });
     const w = render();
@@ -229,7 +229,7 @@ describe("FleetTrendChart", () => {
     respond({
       missing: ["2026-09"],
       monthsPartial: [
-        { month: "2026-09", periodEnd: "2026-10-01", sweptAt: "2026-10-09 18:59:00+00", complete: false, shortfall: "unposted", missingModules: ["BILL", "SET"] },
+        { month: "2026-09", periodEnd: "2026-10-01", sweptAt: "2026-10-09 18:59:00+00", complete: false, shortfall: "unposted", missingModules: ["BILL", "SET"], closed: null },
       ],
     });
     const w = render();

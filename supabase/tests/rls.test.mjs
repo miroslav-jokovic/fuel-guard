@@ -2283,6 +2283,11 @@ async function main() {
     handSeed: {
       org_usage_month: (org) =>
         `insert into org_usage_month (org_id, yyyymm) values ('${org}', '2026-08')`,
+      // 0493: `period_end > period_start` is a cross-column rule the column-by-column seeder cannot
+      // satisfy — it writes the same placeholder date into both. The sandbox's own row, TMS 2026/8.
+      mcleod_gl_control: (org) =>
+        `insert into mcleod_gl_control (org_id, company_id, fiscal_year, fiscal_period, prior_post_allowed, period_start, period_end, swept_at) ` +
+        `values ('${org}', 'TMS', '2026', 8, false, '2026-08-01', '2026-09-01', now())`,
       // 0435: `surface_key` and `role` are shape-checked by regex, and the generic seeder reads a
       // CHECK's first quoted literal as a value — here that is the pattern itself.
       surface_page_views: (org) =>
