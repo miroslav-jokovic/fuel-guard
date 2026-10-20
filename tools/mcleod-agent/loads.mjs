@@ -17,6 +17,8 @@ import { createHash } from "node:crypto";
 import {
   DISPATCH_LOADS,
   DISPATCH_LOAD_STOPS,
+  DISPATCH_LOADS_DELIVERED,
+  DISPATCH_LOAD_STOPS_DELIVERED,
   DISPATCH_DISPATCHERS,
   CLOSE_READ_MAX_IDS,
   closeReadQueries,
@@ -281,6 +283,32 @@ export async function fetchDispatchLoads(cfg, { staleDays = 30, systemDispatcher
       skipped,
       notes,
     };
+  });
+}
+
+/**
+ * The backfill (DISPATCH-LOADS-COUNTS-PLAN DLC4): delivered movements with a stop departure inside
+ * [windowStart, windowEnd), as the board reads them, for the one-off run that gives the Loads page
+ * its history before 09/17/2026. The window is REQUIRED and half-open, exactly as the finance sweep's
+ * (`fetchMovementFacts`): there is no "everything" and no "since last time". Dates are McLeod's own
+ * zoneless Central days, as `YYYY-MM-DD`.
+ */
+export async function fetchDeliveredLoads(cfg, { windowStart, windowEnd } = {}) {
+  const DAY = /^\d{4}-\d{2}-\d{2}$/;
+  if (!DAY.test(windowStart ?? "") || !DAY.test(windowEnd ?? "") || !(windowStart < windowEnd)) {
+    throw new Error("fetchDeliveredLoads requires windowStart < windowEnd, both YYYY-MM-DD.");
+  }
+  return withPool(cfg, async (pool, mssql) => {
+    const run = (sql) =>
+      pool
+        .request()
+        .input("companyId", mssql.VarChar(32), cfg.companyId)
+        .input("windowStart", mssql.VarChar(32), windowStart)
+        .input("windowEnd", mssql.VarChar(32), windowEnd)
+        .query(sql);
+    const [loadRes, stopRes] = [await run(DISPATCH_LOADS_DELIVERED), await run(DISPATCH_LOAD_STOPS_DELIVERED)];
+    const { loads, movements, skipped, notes } = assemble(loadRes.recordset ?? [], stopRes.recordset ?? []);
+    return { loads, movements, companyId: cfg.companyId, skipped, notes, window: { windowStart, windowEnd } };
   });
 }
 

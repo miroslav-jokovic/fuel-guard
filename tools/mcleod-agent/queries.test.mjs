@@ -189,3 +189,21 @@ test("the close read returns the board's columns, so a closed load posts through
   const cols = (sql) => sql.slice(0, sql.indexOf("FROM dbo."));
   assert.equal(cols(Q.closeReadQueries(1).loads), cols(Q.DISPATCH_LOADS));
 });
+
+/**
+ * DISPATCH-LOADS-COUNTS-PLAN DLC4: the backfill reads DELIVERED movements by a window on a stop's
+ * actual departure — the board's columns, so a load delivered before the mirror began posts through
+ * the same contract — and never by status alone, which would read the 2215 sentinel and every D since 2015.
+ */
+test("the backfill returns the board's columns, bounded by a departure window on delivered movements", () => {
+  const cols = (sql) => sql.slice(0, sql.indexOf("FROM dbo."));
+  assert.equal(cols(Q.DISPATCH_LOADS_DELIVERED), cols(Q.DISPATCH_LOADS));
+  assert.equal(cols(Q.DISPATCH_LOAD_STOPS_DELIVERED), cols(Q.DISPATCH_LOAD_STOPS));
+  for (const sql of [Q.DISPATCH_LOADS_DELIVERED, Q.DISPATCH_LOAD_STOPS_DELIVERED]) {
+    assert.match(sql, /AND m\.status = 'D'/);
+    assert.match(sql, /sb\.actual_departure >= @windowStart/);
+    assert.match(sql, /sb\.actual_departure <\s+@windowEnd/);
+    assert.ok(!/@staleBefore/.test(sql), "the staleness bound is the open board's, not the backfill's");
+  }
+  assert.match(Q.DISPATCH_LOAD_STOPS_DELIVERED, /WHERE s\.company_id = @companyId/);
+});

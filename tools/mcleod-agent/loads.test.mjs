@@ -168,3 +168,11 @@ test("the load hash depends on content, not on the order properties were written
   assert.notEqual(loadHash(a), loadHash({ ...a, stops: [{ seq: 1, name: "B" }] }));
 });
 
+
+/** DLC4: the backfill window is required and half-open, like the finance sweep's — no "everything". */
+test("the backfill refuses to run without a well-formed window", async () => {
+  const { fetchDeliveredLoads } = await import("./loads.mjs");
+  for (const w of [{}, { windowStart: "2026-04-01" }, { windowStart: "04/01/2026", windowEnd: "2026-10-01" }, { windowStart: "2026-10-01", windowEnd: "2026-04-01" }]) {
+    await assert.rejects(() => fetchDeliveredLoads({ companyId: "TMS" }, w), /windowStart < windowEnd/);
+  }
+});

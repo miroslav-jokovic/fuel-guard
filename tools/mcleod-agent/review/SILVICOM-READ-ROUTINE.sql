@@ -13,7 +13,7 @@
      login        silvicom_dispatch_ro - read only, no insert/update/delete anywhere
      runs on      the Board VM, one program, one connection, sending data out over HTTPS
      shows up as  program_name "Silvicom 360 connector" in sys.dm_exec_sessions
-     statements   25, in five parts, never two at the same time
+     statements   27, in five parts, never two at the same time
    ====================================================================================== */
 
 -- ========================================================================================
@@ -45,7 +45,7 @@ DECLARE @id2         varchar(32) = '291386';
 -- ========================================================================================
 
 -- ----------------------------------------------------------------------------------------
--- STATEMENT 1 of 25: OPEN LOADS
+-- STATEMENT 1 of 27: OPEN LOADS
 --
 -- Movements with status P or A that have a stop scheduled in the last 30 days, with the
 -- customer's name (added 2026-09-29).
@@ -110,7 +110,7 @@ SELECT
 OPTION (MAXDOP 1);
 
 -- ----------------------------------------------------------------------------------------
--- STATEMENT 2 of 25: THE STOPS OF THOSE LOADS
+-- STATEMENT 2 of 27: THE STOPS OF THOSE LOADS
 --
 -- LME stores longitudes as positive numbers; the connector flips the sign.
 -- ----------------------------------------------------------------------------------------
@@ -152,7 +152,7 @@ SELECT
 OPTION (MAXDOP 1);
 
 -- ----------------------------------------------------------------------------------------
--- STATEMENT 3 of 25: THE DISPATCHERS ON THOSE LOADS
+-- STATEMENT 3 of 27: THE DISPATCHERS ON THOSE LOADS
 --
 -- Only users with an open load right now, not the whole users table.
 -- ----------------------------------------------------------------------------------------
@@ -180,7 +180,7 @@ OPTION (MAXDOP 1);
 -- ========================================================================================
 
 -- ----------------------------------------------------------------------------------------
--- STATEMENT 4 of 25: CURRENT STATE OF LOADS THAT LEFT THE BOARD
+-- STATEMENT 4 of 27: CURRENT STATE OF LOADS THAT LEFT THE BOARD
 --
 -- Same columns as statement 1, looked up by id.
 -- ----------------------------------------------------------------------------------------
@@ -239,7 +239,7 @@ SELECT
 OPTION (MAXDOP 1);
 
 -- ----------------------------------------------------------------------------------------
--- STATEMENT 5 of 25: STOPS OF THOSE LOADS
+-- STATEMENT 5 of 27: STOPS OF THOSE LOADS
 --
 -- Same columns as statement 2.
 -- ----------------------------------------------------------------------------------------
@@ -284,7 +284,7 @@ OPTION (MAXDOP 1);
 -- ========================================================================================
 
 -- ----------------------------------------------------------------------------------------
--- STATEMENT 6 of 25: ACTIVE DRIVERS
+-- STATEMENT 6 of 27: ACTIVE DRIVERS
 --
 -- Names, licence and medical card expiry, hire date and address. The driver's email is
 -- read from name_of_spouse, because that is where our team keeps it.
@@ -321,7 +321,7 @@ SELECT
 OPTION (MAXDOP 1);
 
 -- ----------------------------------------------------------------------------------------
--- STATEMENT 7 of 25: ACTIVE TRUCKS
+-- STATEMENT 7 of 27: ACTIVE TRUCKS
 --
 -- Tractors that are in service, including the ones in the shop.
 -- ----------------------------------------------------------------------------------------
@@ -363,7 +363,7 @@ SELECT
 OPTION (MAXDOP 1);
 
 -- ----------------------------------------------------------------------------------------
--- STATEMENT 8 of 25: ACTIVE TRAILERS
+-- STATEMENT 8 of 27: ACTIVE TRAILERS
 --
 -- Trailers that are in service.
 -- ----------------------------------------------------------------------------------------
@@ -405,7 +405,7 @@ OPTION (MAXDOP 1);
 -- ========================================================================================
 
 -- ----------------------------------------------------------------------------------------
--- STATEMENT 9 of 25: DRIVER SETTLEMENTS
+-- STATEMENT 9 of 27: DRIVER SETTLEMENTS
 -- ----------------------------------------------------------------------------------------
 SELECT
       LTRIM(RTRIM(s.id))                            AS external_id,
@@ -436,7 +436,7 @@ SELECT
 OPTION (MAXDOP 1);
 
 -- ----------------------------------------------------------------------------------------
--- STATEMENT 10 of 25: SETTLEMENT LEDGER LINES
+-- STATEMENT 10 of 27: SETTLEMENT LEDGER LINES
 -- ----------------------------------------------------------------------------------------
 SELECT
       LTRIM(RTRIM(g.post_key))  AS post_key,
@@ -456,7 +456,7 @@ SELECT
 OPTION (MAXDOP 1);
 
 -- ----------------------------------------------------------------------------------------
--- STATEMENT 11 of 25: SETTLEMENT DEDUCTIONS
+-- STATEMENT 11 of 27: SETTLEMENT DEDUCTIONS
 -- ----------------------------------------------------------------------------------------
 SELECT
       LTRIM(RTRIM(d.id))                            AS external_id,
@@ -480,7 +480,7 @@ SELECT
 OPTION (MAXDOP 1);
 
 -- ----------------------------------------------------------------------------------------
--- STATEMENT 12 of 25: FUEL PURCHASES
+-- STATEMENT 12 of 27: FUEL PURCHASES
 -- ----------------------------------------------------------------------------------------
 SELECT
       LTRIM(RTRIM(f.id))                            AS external_id,
@@ -537,7 +537,7 @@ SELECT
 OPTION (MAXDOP 1);
 
 -- ----------------------------------------------------------------------------------------
--- STATEMENT 13 of 25: FUEL LEDGER LINES
+-- STATEMENT 13 of 27: FUEL LEDGER LINES
 -- ----------------------------------------------------------------------------------------
 SELECT
       LTRIM(RTRIM(g.post_key))  AS post_key,
@@ -554,7 +554,7 @@ SELECT
 OPTION (MAXDOP 1);
 
 -- ----------------------------------------------------------------------------------------
--- STATEMENT 14 of 25: AP VOUCHERS
+-- STATEMENT 14 of 27: AP VOUCHERS
 -- ----------------------------------------------------------------------------------------
 SELECT
       LTRIM(RTRIM(v.id))                            AS external_id,
@@ -610,7 +610,7 @@ SELECT
 OPTION (MAXDOP 1);
 
 -- ----------------------------------------------------------------------------------------
--- STATEMENT 15 of 25: SETTLED MOVEMENTS
+-- STATEMENT 15 of 27: SETTLED MOVEMENTS
 --
 -- Every lookup is matched on company_id as well as the id (fixed 2026-09-24).
 -- ----------------------------------------------------------------------------------------
@@ -655,7 +655,7 @@ SELECT
 OPTION (MAXDOP 1);
 
 -- ----------------------------------------------------------------------------------------
--- STATEMENT 16 of 25: STOPS OF THOSE MOVEMENTS
+-- STATEMENT 16 of 27: STOPS OF THOSE MOVEMENTS
 -- ----------------------------------------------------------------------------------------
 SELECT
       LTRIM(RTRIM(s.movement_id))                   AS movement_id,
@@ -678,7 +678,7 @@ SELECT
 OPTION (MAXDOP 1);
 
 -- ----------------------------------------------------------------------------------------
--- STATEMENT 17 of 25: MOVEMENT TOTALS, TO CHECK THE ROWS ABOVE
+-- STATEMENT 17 of 27: MOVEMENT TOTALS, TO CHECK THE ROWS ABOVE
 -- ----------------------------------------------------------------------------------------
 SELECT
       COUNT(*)                                        AS movements,
@@ -696,7 +696,7 @@ SELECT
 OPTION (MAXDOP 1);
 
 -- ----------------------------------------------------------------------------------------
--- STATEMENT 18 of 25: BILLING HISTORY
+-- STATEMENT 18 of 27: BILLING HISTORY
 -- ----------------------------------------------------------------------------------------
 SELECT
       LTRIM(RTRIM(b.id))                             AS external_id,
@@ -750,7 +750,7 @@ SELECT
 OPTION (MAXDOP 1);
 
 -- ----------------------------------------------------------------------------------------
--- STATEMENT 19 of 25: CHART OF ACCOUNTS
+-- STATEMENT 19 of 27: CHART OF ACCOUNTS
 -- ----------------------------------------------------------------------------------------
 SELECT
       LTRIM(RTRIM(a.id))                       AS glid,
@@ -761,7 +761,7 @@ SELECT
 OPTION (MAXDOP 1);
 
 -- ----------------------------------------------------------------------------------------
--- STATEMENT 20 of 25: GENERAL LEDGER TOTALS BY DAY AND ACCOUNT
+-- STATEMENT 20 of 27: GENERAL LEDGER TOTALS BY DAY AND ACCOUNT
 -- ----------------------------------------------------------------------------------------
 SELECT
       CONVERT(char(10), combined.transaction_date, 23)   AS txn_date,
@@ -787,7 +787,7 @@ SELECT
 OPTION (MAXDOP 1);
 
 -- ----------------------------------------------------------------------------------------
--- STATEMENT 21 of 25: OFFICE PAYROLL LINES
+-- STATEMENT 21 of 27: OFFICE PAYROLL LINES
 -- ----------------------------------------------------------------------------------------
 SELECT
       LTRIM(RTRIM(g.id))                            AS external_id,
@@ -822,7 +822,7 @@ SELECT
 OPTION (MAXDOP 1);
 
 -- ----------------------------------------------------------------------------------------
--- STATEMENT 22 of 25: FUEL RECEIPTS KEYED BY HAND
+-- STATEMENT 22 of 27: FUEL RECEIPTS KEYED BY HAND
 --
 -- Source F of the fuel-tax history only: cash and own-card receipts. Read over two years
 -- each night (about 70 rows a quarter).
@@ -850,7 +850,7 @@ OPTION (MAXDOP 1);
 -- ========================================================================================
 
 -- ----------------------------------------------------------------------------------------
--- STATEMENT 23 of 25: INACTIVE DRIVERS
+-- STATEMENT 23 of 27: INACTIVE DRIVERS
 -- ----------------------------------------------------------------------------------------
 SELECT
       LTRIM(RTRIM(d.id))                           AS external_id,
@@ -863,7 +863,7 @@ SELECT
 OPTION (MAXDOP 1);
 
 -- ----------------------------------------------------------------------------------------
--- STATEMENT 24 of 25: RETIRED TRUCKS
+-- STATEMENT 24 of 27: RETIRED TRUCKS
 -- ----------------------------------------------------------------------------------------
 SELECT
       LTRIM(RTRIM(t.id))                           AS external_id,
@@ -875,7 +875,7 @@ SELECT
 OPTION (MAXDOP 1);
 
 -- ----------------------------------------------------------------------------------------
--- STATEMENT 25 of 25: RETIRED TRAILERS
+-- STATEMENT 25 of 27: RETIRED TRAILERS
 -- ----------------------------------------------------------------------------------------
 SELECT
       LTRIM(RTRIM(r.id))                           AS external_id,
@@ -887,5 +887,124 @@ SELECT
 OPTION (MAXDOP 1);
 
 -- ========================================================================================
--- END - 25 statements. That is everything the connector reads.
+-- PART 6 - DELIVERED LOADS BEFORE THE MIRROR BEGAN (by hand only, once)
+--
+-- The mirror began on 2026-09-17 and reads open loads only, so loads delivered before that day
+-- were never read. This reads delivered (D) movements whose truck left a stop inside a date
+-- window, with the same columns as Part 1, so Silvicom 360 can show six months of delivery
+-- history. Run once, with --from and --to, in slices of a month; about 4,500 movements and
+-- 10,000 stops for six months. The dates below are examples so the file runs.
+-- ========================================================================================
+
+-- ----------------------------------------------------------------------------------------
+-- STATEMENT 26 of 27: DELIVERED MOVEMENTS IN THE WINDOW
+--
+-- Same columns as statement 1. The window is on the stop's actual departure, so the 2215
+-- sentinel date is never read.
+-- ----------------------------------------------------------------------------------------
+SELECT
+      LTRIM(RTRIM(m.company_id)) + ':' + LTRIM(RTRIM(m.id))  AS external_id,
+      NULLIF(LTRIM(RTRIM(o.id)), '')                         AS ref,
+      NULLIF(LTRIM(RTRIM(o.blnum)), '')                      AS bol_number,
+      NULLIF(LTRIM(RTRIM(m.dispatcher_user_id)), '')         AS dispatcher_external_id,
+      NULLIF(LTRIM(RTRIM(u.name)), '')                       AS dispatcher_name,
+      -- Teams: aggregated, never joined. A LEFT JOIN here duplicates 176 movements.
+      STUFF((
+        SELECT ',' + LTRIM(RTRIM(cd.equipment_id))
+          FROM dbo.continuity AS cd
+         WHERE cd.movement_id = m.id
+           AND cd.company_id = m.company_id
+           AND cd.equipment_type_id = 'D'
+         ORDER BY cd.equipment_id
+         FOR XML PATH('')), 1, 1, '')                        AS driver_codes,
+      NULLIF(LTRIM(RTRIM(ct.equipment_id)), '')              AS vehicle_unit,
+      NULLIF(LTRIM(RTRIM(cl.equipment_id)), '')              AS trailer_unit,
+      NULLIF(LTRIM(RTRIM(tr.trailer_type)), '')              AS trailer_type,
+      NULLIF(LTRIM(RTRIM(o.commodity)), '')                  AS commodity,
+      m.move_distance                                        AS total_miles,
+      NULLIF(LTRIM(RTRIM(m.status)), '')                     AS external_status,
+      -- LR3 (LOADS-MIRROR-PLAN.md §2): the rest of what the grant already reads, for the raw mirror.
+      LTRIM(RTRIM(m.company_id))                             AS company_id,
+      LTRIM(RTRIM(m.id))                                     AS movement_id,
+      NULLIF(LTRIM(RTRIM(m.loaded)), '')                     AS loaded,
+      NULLIF(LTRIM(RTRIM(o.customer_id)), '')                AS customer_id,
+      o.weight                                               AS weight,
+      NULLIF(LTRIM(RTRIM(o.weight_um)), '')                  AS weight_um,
+      o.pieces                                               AS pieces,
+      o.pallets_how_many                                     AS pallets_how_many,
+      NULLIF(LTRIM(RTRIM(o.consignee_refno)), '')            AS consignee_refno,
+      -- The customer's name (Q-LMR5), joined on company AND id: customer ids repeat across companies,
+      -- and on id alone the 130 open movements of 2026-09-29 returned 238 rows. On both, one each.
+      NULLIF(LTRIM(RTRIM(cu.name)), '')                      AS customer_name
+      FROM dbo.movement AS m
+      LEFT JOIN dbo.users AS u
+        ON u.id = m.dispatcher_user_id AND u.company_id = m.company_id
+      LEFT JOIN dbo.movement_order AS mo
+        ON mo.movement_id = m.id AND mo.company_id = m.company_id
+      LEFT JOIN dbo.orders AS o
+        ON o.id = mo.order_id AND o.company_id = mo.company_id
+      LEFT JOIN dbo.customer AS cu
+        ON cu.id = o.customer_id AND cu.company_id = o.company_id
+      LEFT JOIN dbo.continuity AS ct
+        ON ct.movement_id = m.id AND ct.company_id = m.company_id AND ct.equipment_type_id = 'T'
+      LEFT JOIN dbo.continuity AS cl
+        ON cl.movement_id = m.id AND cl.company_id = m.company_id AND cl.equipment_type_id = 'L'
+      LEFT JOIN dbo.trailer AS tr
+        ON tr.id = cl.equipment_id AND tr.company_id = m.company_id
+     WHERE m.company_id = @companyId
+       AND m.status = 'D'
+       AND EXISTS (
+         SELECT 1 FROM dbo.stop AS sb
+          WHERE sb.movement_id = m.id
+            AND sb.company_id = m.company_id
+            AND sb.actual_departure >= @windowStart
+            AND sb.actual_departure <  @windowEnd)
+     ORDER BY m.id
+OPTION (MAXDOP 1);
+
+-- ----------------------------------------------------------------------------------------
+-- STATEMENT 27 of 27: STOPS OF THOSE MOVEMENTS
+--
+-- Same columns as statement 2.
+-- ----------------------------------------------------------------------------------------
+SELECT
+      LTRIM(RTRIM(s.movement_id))                     AS movement_id,
+      s.movement_sequence                             AS seq,
+      LTRIM(RTRIM(s.stop_type))                       AS stop_type,
+      NULLIF(LTRIM(RTRIM(s.location_id)), '')         AS location_id,
+      NULLIF(LTRIM(RTRIM(s.city_name)), '')           AS city,
+      NULLIF(LTRIM(RTRIM(s.state)), '')               AS state,
+      NULLIF(LTRIM(RTRIM(s.address)), '')             AS address_line,
+      NULLIF(LTRIM(RTRIM(s.zip_code)), '')            AS postal_code,
+      s.latitude                                      AS lat,
+      s.longitude                                     AS lon_west_positive,
+      CONVERT(varchar(19), s.sched_arrive_early, 126) AS appointment_start,
+      CONVERT(varchar(19), s.sched_arrive_late, 126)  AS appointment_end,
+      NULLIF(LTRIM(RTRIM(s.status)), '')              AS stop_status,
+      -- LR3: the stop's own id and what a dispatcher sees on it. Times as zoneless varchar, like the
+      -- appointment above, so only centralToIso ever decides their zone.
+      LTRIM(RTRIM(s.id))                              AS stop_id,
+      NULLIF(LTRIM(RTRIM(s.location_name)), '')       AS location_name,
+      CONVERT(varchar(19), s.actual_arrival, 126)     AS actual_arrival,
+      CONVERT(varchar(19), s.actual_departure, 126)   AS actual_departure,
+      CONVERT(varchar(19), s.eta, 126)                AS eta,
+      NULLIF(LTRIM(RTRIM(s.contact_name)), '')        AS contact_name,
+      NULLIF(LTRIM(RTRIM(s.phone)), '')               AS phone,
+      NULLIF(LTRIM(RTRIM(s.ponum)), '')               AS ponum
+      FROM dbo.stop AS s
+      JOIN dbo.movement AS m
+        ON m.id = s.movement_id AND m.company_id = s.company_id
+     WHERE s.company_id = @companyId
+       AND m.status = 'D'
+       AND EXISTS (
+         SELECT 1 FROM dbo.stop AS sb
+          WHERE sb.movement_id = m.id
+            AND sb.company_id = m.company_id
+            AND sb.actual_departure >= @windowStart
+            AND sb.actual_departure <  @windowEnd)
+     ORDER BY s.movement_id, s.movement_sequence
+OPTION (MAXDOP 1);
+
+-- ========================================================================================
+-- END - 27 statements. That is everything the connector reads.
 -- ========================================================================================
