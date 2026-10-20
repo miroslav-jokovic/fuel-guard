@@ -141,6 +141,80 @@ export function planIdDisplay(carriers: readonly PlacardName[]): IdDisplayPlan {
   return { format: "on_placard", alternateFormats: [onPlacard, orangePanel, whiteSquare], onPlacards };
 }
 
+/** A number the load must display, before the engine decides HOW. */
+export interface PendingIdDisplay {
+  idNumber: string;
+  /** The placard of the material's PRIMARY hazard class — the only design §172.332(c) lets it ride on. */
+  placard: PlacardName;
+  because: Citation[];
+}
+
+/**
+ * 0.17.0 — which placard each required number may ride on, decided per number, never per load.
+ *
+ * The engine used to hand every number the SAME carrier list (every required placard), and the
+ * verdict panel put the first matching number on each diamond. Two failures fell out of that, both
+ * found on the owner's 2026-10-19 Mayo Products BOL (8 totes UN1824 + 2 totes UN1830, both Class 8,
+ * on a dry van): UN1830 vanished from the answer, because the one CORROSIVE diamond took UN1824 and
+ * UN1830 was neither on a diamond nor in the panel list; and on a gasoline-tote + corrosive load the
+ * CORROSIVE diamond would have been drawn reading 1203. The CFR rules out both:
+ *
+ *   · §172.332(c) — a number goes only on the placard of its material's primary hazard class.
+ *   · §172.334(d) — a placard bearing a number does not satisfy subpart F "unless it is the correct
+ *     identification number for all hazardous materials of the same class" aboard. PHMSA Interp.
+ *     16-0026 reads that as: separate placards of the class, one per number, comply when the numbers
+ *     displayed together cover every material of the class. So 1824 + 1830 is two CORROSIVE placards
+ *     on each side and each end — one reading 1824, one reading 1830.
+ *   · When the class also holds a material whose number is NOT required (UN3264 drums beside a
+ *     UN1760 tote), the required number cannot go across the placard at all; it goes on an orange
+ *     panel or white square-on-point "in proximity to the placard" (§172.334(f)).
+ *
+ * `classIds` is every identification number of every placardable material aboard, keyed by its
+ * placard — LQ-accepted lines included, because §172.334(d) asks what is IN the vehicle, not what
+ * subpart F counted.
+ */
+export function assignIdCarriers(input: {
+  pending: readonly PendingIdDisplay[];
+  carriers: ReadonlySet<PlacardName>;
+  classIds: ReadonlyMap<PlacardName, ReadonlySet<string>>;
+}): { displays: PlacardOutput["idDisplays"]; findings: Finding[] } {
+  const displays: PlacardOutput["idDisplays"] = [];
+  const findings: Finding[] = [];
+  const shownOn = new Map<PlacardName, Set<string>>();
+  for (const p of input.pending) {
+    const s = shownOn.get(p.placard) ?? new Set<string>();
+    s.add(p.idNumber);
+    shownOn.set(p.placard, s);
+  }
+  for (const p of input.pending) {
+    const aboard = input.classIds.get(p.placard) ?? new Set<string>();
+    const shown = shownOn.get(p.placard) ?? new Set<string>();
+    const uncovered = [...aboard].filter((id) => !shown.has(id));
+    const eligible = input.carriers.has(p.placard) && uncovered.length === 0;
+    const plan = planIdDisplay(eligible ? [p.placard] : []);
+    displays.push({
+      idNumber: p.idNumber,
+      format: plan.format,
+      alternateFormats: plan.alternateFormats,
+      onPlacards: plan.onPlacards,
+      positions: "each_side_and_each_end",
+      because: p.because,
+    });
+    if (input.carriers.has(p.placard) && uncovered.length > 0) {
+      findings.push({
+        ruleId: "id_number_not_on_placard_class_not_covered",
+        tier: "info",
+        message:
+          `${p.idNumber} may not be displayed across the ${p.placard} placard: that placard would also stand for ${uncovered.join(", ")}, ` +
+          `whose number is not displayed (§172.334(d)). Display ${p.idNumber} on an orange panel or a white square-on-point beside the placard (§172.334(f)).`,
+        citations: [{ cfr: "49 CFR 172.334(d)" }, { cfr: "49 CFR 172.334(f)" }, { cfr: "PHMSA Interp. 16-0026" }],
+        evidence: { idNumber: p.idNumber, placard: p.placard, uncovered },
+      });
+    }
+  }
+  return { displays, findings };
+}
+
 export function withheld(reason: string, evidence: Record<string, unknown>): Finding {
   return {
     ruleId: "placard_determination_withheld",
