@@ -25,7 +25,7 @@ alter table mcleod_billing
   add column if not exists bill_type text;
 
 comment on column mcleod_billing.bill_type is
-  'McLeod billing_history.bill_type verbatim: I = invoice, C = credit memo (total_charges stays positive; the credit is the type). Null = swept before 0496.';
+  'McLeod billing_history.bill_type verbatim: I = invoice, C = credit memo (total_charges stays positive; the credit is the type). Null = swept before 0500.';
 
 -- raw-access-waiver: this migration widens the mcleod raw staging table it names — the owning
 -- collector's own DDL, no cross-module read.
