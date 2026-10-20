@@ -8,7 +8,7 @@ import {
   type QueueAttempt,
   type QueueEmployment,
 } from "@silvicom/shared";
-import { fetchAllPaged } from "../../lib/paging.js";
+import { fetchAllPagedIn } from "../../lib/paging.js";
 import { DRAFT_APPLYING_AS_SELECT } from "./applicantApplyingAs.js";
 import { DRAFT_LICENCES_SELECT, RECORD_JURISDICTION_SELECT } from "./applicantLicences.js";
 
@@ -30,7 +30,8 @@ import { DRAFT_LICENCES_SELECT, RECORD_JURISDICTION_SELECT } from "./applicantLi
  * answers at most 1,000 rows, and a `.in()` over a whole board's drivers crosses that on
  * `qualification_records` alone at a few hundred applicants — silently, with the rows past 1,000
  * reading as evidence that does not exist. The board's draft read was worse: it had no `.in()` at
- * all, so it read every draft in the org.
+ * all, so it read every draft in the org. And since 2026-10-20 every id list is CHUNKED as well
+ * (`pagedIn` below): the rows were bounded, the URL was not.
  */
 
 export interface QualificationRow {
@@ -71,12 +72,12 @@ export async function readQualificationRecords(
   driverIds: readonly string[],
 ): Promise<Map<string, QualificationRow[]>> {
   if (driverIds.length === 0) return new Map();
-  const rows = await paged<QualificationRow>((from, to) =>
+  const rows = await pagedIn<QualificationRow>(driverIds, (chunk) => (from, to) =>
     admin
       .from("qualification_records")
       .select(`driver_id, kind, created_at, occurred_on, ${RECORD_JURISDICTION_SELECT}, source:detail->>source, passed:detail->>passed`)
       .eq("org_id", orgId)
-      .in("driver_id", driverIds)
+      .in("driver_id", chunk)
       .order("id")
       .range(from, to),
   );
@@ -96,12 +97,12 @@ export async function readHandbookMarks(
   invitationIds: readonly string[],
 ): Promise<Map<string, Array<{ invitation_id: string; placement_id: string }>>> {
   if (invitationIds.length === 0) return new Map();
-  const rows = await paged<{ invitation_id: string; placement_id: string }>((from, to) =>
+  const rows = await pagedIn<{ invitation_id: string; placement_id: string }>(invitationIds, (chunk) => (from, to) =>
     admin
       .from("handbook_marks")
       .select("invitation_id, placement_id")
       .eq("org_id", orgId)
-      .in("invitation_id", invitationIds)
+      .in("invitation_id", chunk)
       .order("id")
       .range(from, to),
   );
@@ -114,12 +115,12 @@ export async function readPacketMarks(
   invitationIds: readonly string[],
 ): Promise<Map<string, MarkRow[]>> {
   if (invitationIds.length === 0) return new Map();
-  const rows = await paged<MarkRow>((from, to) =>
+  const rows = await pagedIn<MarkRow>(invitationIds, (chunk) => (from, to) =>
     admin
       .from("application_packet_marks")
       .select("invitation_id, placement_id, created_at")
       .eq("org_id", orgId)
-      .in("invitation_id", invitationIds)
+      .in("invitation_id", chunk)
       .order("id")
       .range(from, to),
   );
@@ -140,12 +141,12 @@ export async function readEmploymentHistory(
   driverIds: readonly string[],
 ): Promise<Map<string, QueueEmployment[]>> {
   if (driverIds.length === 0) return new Map();
-  const rows = await paged<Record<string, unknown>>((from, to) =>
+  const rows = await pagedIn<Record<string, unknown>>(driverIds, (chunk) => (from, to) =>
     admin
       .from("driver_employment_history")
       .select("id, driver_id, employer_name, started_on, ended_on, dot_regulated")
       .eq("org_id", orgId)
-      .in("driver_id", driverIds)
+      .in("driver_id", chunk)
       .order("id")
       .range(from, to),
   );
@@ -178,13 +179,13 @@ export async function readInquiries(
   driverIds: readonly string[],
 ): Promise<Map<string, QueueAttempt[]>> {
   if (driverIds.length === 0) return new Map();
-  const rows = await paged<Record<string, unknown>>((from, to) =>
+  const rows = await pagedIn<Record<string, unknown>>(driverIds, (chunk) => (from, to) =>
     admin
       .from("employer_inquiries")
       .select("driver_id, employment_id, contacted_on, outcome")
       .eq("org_id", orgId)
       .eq("kind", "safety_performance")
-      .in("driver_id", driverIds)
+      .in("driver_id", chunk)
       .order("id")
       .range(from, to),
   );
@@ -213,13 +214,12 @@ export async function readDraftFacts(
   invitationIds: readonly string[],
 ): Promise<Map<string, DraftFacts>> {
   if (invitationIds.length === 0) return new Map();
-  const rows = await paged<{ invitation_id: string; applying_as?: unknown; cdl_state?: unknown; additional_licences?: unknown }>(
-    (from, to) =>
+  const rows = await pagedIn<{ invitation_id: string; applying_as?: unknown; cdl_state?: unknown; additional_licences?: unknown }>(invitationIds, (chunk) => (from, to) =>
       admin
         .from("application_drafts")
         .select(`invitation_id, ${DRAFT_APPLYING_AS_SELECT}, ${DRAFT_LICENCES_SELECT}`)
         .eq("org_id", orgId)
-        .in("invitation_id", invitationIds)
+        .in("invitation_id", chunk)
         .order("id")
         .range(from, to),
   );
@@ -239,12 +239,12 @@ export async function readIntakeInvitations(
   invitationIds: readonly string[],
 ): Promise<Set<string>> {
   if (invitationIds.length === 0) return new Set();
-  const rows = await paged<{ invitation_id: string }>((from, to) =>
+  const rows = await pagedIn<{ invitation_id: string }>(invitationIds, (chunk) => (from, to) =>
     admin
       .from("application_intakes")
       .select("invitation_id")
       .eq("org_id", orgId)
-      .in("invitation_id", invitationIds)
+      .in("invitation_id", chunk)
       .order("id")
       .range(from, to),
   );
@@ -261,12 +261,12 @@ export async function readLiveTravel(
   invitationIds: readonly string[],
 ): Promise<Set<string>> {
   if (invitationIds.length === 0) return new Set();
-  const rows = await paged<{ invitation_id: string }>((from, to) =>
+  const rows = await pagedIn<{ invitation_id: string }>(invitationIds, (chunk) => (from, to) =>
     admin
       .from("applicant_travel")
       .select("invitation_id")
       .eq("org_id", orgId)
-      .in("invitation_id", invitationIds)
+      .in("invitation_id", chunk)
       .is("cancelled_at", null)
       .order("id")
       .range(from, to),
@@ -285,12 +285,12 @@ export async function readIntakeLicences(
   invitationIds: readonly string[],
 ): Promise<Map<string, string[]>> {
   if (invitationIds.length === 0) return new Map();
-  const rows = await paged<{ invitation_id: string; position: number; state_code: string }>((from, to) =>
+  const rows = await pagedIn<{ invitation_id: string; position: number; state_code: string }>(invitationIds, (chunk) => (from, to) =>
     admin
       .from("application_intake_licences")
       .select("invitation_id, position, state_code")
       .eq("org_id", orgId)
-      .in("invitation_id", invitationIds)
+      .in("invitation_id", chunk)
       .order("id")
       .range(from, to),
   );
@@ -327,12 +327,12 @@ export async function readDriverRowFacts(
   driverIds: readonly string[],
 ): Promise<Map<string, DriverRowFacts>> {
   if (driverIds.length === 0) return new Map();
-  const rows = await paged<Record<string, unknown>>((from, to) =>
+  const rows = await pagedIn<Record<string, unknown>>(driverIds, (chunk) => (from, to) =>
     admin
       .from("drivers")
       .select(`id, ${APPLICANT_IDENTITY_KEYS.join(", ")}`)
       .eq("org_id", orgId)
-      .in("id", driverIds)
+      .in("id", chunk)
       .order("id")
       .range(from, to),
   );
@@ -348,9 +348,23 @@ export async function readDriverRowFacts(
  * parsed from a template literal types its rows as `GenericStringError`, and every row type here is
  * the select's own column list, written once above it.
  */
-function paged<T>(makeQuery: (from: number, to: number) => unknown): Promise<T[]> {
-  return fetchAllPaged<T>(
-    makeQuery as (from: number, to: number) => PromiseLike<{ data: T[] | null; error: { message: string } | null }>,
+/**
+ * Every row for every id: fifty ids per `.in()` (`IN_LIST_CHUNK`), every chunk paged.
+ *
+ * ⚠ Paging alone was not enough, and the header's own argument says why it looked like it was: the
+ * rows were counted and the URL was not. A `.in()` over a whole board's ids is the request path, and
+ * PostgREST echoes it back in a header that Node 22's fetch refuses past ~16 KB — the Loads board
+ * went down on it at 400 ids (2026-10-09, `paging.ts`). Every reader here passed every applicant's
+ * id in one list, so a board of a few hundred would have answered "fetch failed" with every page
+ * read correct (2026-10-20 audit). One wrapper, so a reader cannot take one ceiling without the other.
+ */
+function pagedIn<T>(
+  ids: readonly string[],
+  makeQuery: (chunk: readonly string[]) => (from: number, to: number) => unknown,
+): Promise<T[]> {
+  return fetchAllPagedIn<T>(
+    ids,
+    (chunk) => makeQuery(chunk) as (from: number, to: number) => PromiseLike<{ data: T[] | null; error: { message: string } | null }>,
   );
 }
 

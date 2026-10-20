@@ -32,6 +32,7 @@ import { recordApplicantIdentity } from "../applicantIdentity.js";
 import { publicApplicationHandbookRouter } from "./publicApplicationHandbook.js";
 import { publicApplicationIntakeRouter } from "./publicApplicationIntake.js";
 import { applicationBundleHandler } from "./publicApplicationBundle.js";
+import { unlockLimiter } from "../../../middleware/applicationLimits.js";
 
 /**
  * The public application surface — H5, and the only unauthenticated write path in the product that
@@ -224,6 +225,9 @@ export function publicApplicationRouter(): Router {
    */
   router.post(
     "/:token/unlock",
+    // Per link, ten in ten minutes (`applicationLimits.ts`): the intake's per-address count is not a
+    // bound on guessing a date of birth from several addresses.
+    unlockLimiter(),
     validateBody(applicationDraftUnlockSchema),
     asyncHandler(async (req, res) => {
       const admin = getSupabaseAdmin(getAppLocals(req).env);

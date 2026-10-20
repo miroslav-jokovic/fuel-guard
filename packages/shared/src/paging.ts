@@ -58,3 +58,23 @@ export function chunks<T>(items: readonly T[], size = IN_LIST_CHUNK): T[][] {
   for (let i = 0; i < items.length; i += size) out.push(items.slice(i, i + size));
   return out;
 }
+
+/**
+ * Every row for every id — `fetchAllPaged` run once per `IN_LIST_CHUNK` of `ids`, in order.
+ *
+ * The two ceilings above are independent, and a reader that pages but passes the whole id list in
+ * one `.in()` meets the first one anyway: the recruiting board's ten evidence reads did exactly that
+ * (measured 2026-10-20), each `.range()`-paged and each carrying every applicant's id in its URL,
+ * so the board would have answered "fetch failed" at a few hundred applicants with every page read
+ * correct. One helper, so the next set-based reader gets both ceilings by using it rather than by
+ * remembering them. No ids, no query.
+ */
+export async function fetchAllPagedIn<T, Id = string>(
+  ids: readonly Id[],
+  makeQuery: (idChunk: readonly Id[]) => (from: number, to: number) => PromiseLike<PageResult<T>>,
+  pageSize = DEFAULT_PAGE_SIZE,
+): Promise<T[]> {
+  const out: T[] = [];
+  for (const idChunk of chunks(ids)) out.push(...(await fetchAllPaged<T>(makeQuery(idChunk), pageSize)));
+  return out;
+}

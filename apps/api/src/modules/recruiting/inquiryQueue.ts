@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { fetchAllPaged } from "../../lib/paging.js";
 import {
   compareInquiryUrgency,
   driverInquiryQueue,
@@ -52,25 +53,38 @@ export async function loadInquiryQueue(
   orgId: string,
   today: string,
 ): Promise<{ rows: InquiryQueueRow[]; summary: InquiryQueueSummary }> {
-  const [{ data: drivers }, { data: employment }, { data: attempts }] = await Promise.all([
-    admin
-      .from("drivers")
-      .select("id, full_name, status, hire_date")
-      .eq("org_id", orgId)
-      .in("status", ["active", "applicant"]),
-    admin
-      .from("driver_employment_history")
-      .select("id, driver_id, employer_name, started_on, ended_on, dot_regulated")
-      .eq("org_id", orgId),
-    admin
-      .from("employer_inquiries")
-      .select("driver_id, employment_id, contacted_on, outcome")
-      .eq("org_id", orgId)
-      .eq("kind", "safety_performance"),
+  // ⚠ Paged, every one (2026-10-20 audit). These are the org's WHOLE tables, and PostgREST answers
+  // at most 1,000 rows without saying so: at five employers a driver the history crosses that near
+  // two hundred drivers, and every row past the cap read as an inquiry nobody had made — a queue
+  // that shrinks as the carrier grows. `applicantBoardReads.ts`'s header carries the measurement.
+  const [drivers, employment, attempts] = await Promise.all([
+    fetchAllPaged<DriverRow>((from, to) =>
+      admin
+        .from("drivers")
+        .select("id, full_name, status, hire_date")
+        .eq("org_id", orgId)
+        .in("status", ["active", "applicant"])
+        .order("id")
+        .range(from, to)),
+    fetchAllPaged<Record<string, unknown>>((from, to) =>
+      admin
+        .from("driver_employment_history")
+        .select("id, driver_id, employer_name, started_on, ended_on, dot_regulated")
+        .eq("org_id", orgId)
+        .order("id")
+        .range(from, to)),
+    fetchAllPaged<Record<string, unknown>>((from, to) =>
+      admin
+        .from("employer_inquiries")
+        .select("driver_id, employment_id, contacted_on, outcome")
+        .eq("org_id", orgId)
+        .eq("kind", "safety_performance")
+        .order("id")
+        .range(from, to)),
   ]);
 
   const employmentByDriver = new Map<string, QueueEmployment[]>();
-  for (const row of (employment ?? []) as Array<Record<string, unknown>>) {
+  for (const row of employment) {
     const list = employmentByDriver.get(String(row.driver_id)) ?? [];
     list.push({
       id: String(row.id),
@@ -83,7 +97,7 @@ export async function loadInquiryQueue(
   }
 
   const attemptsByDriver = new Map<string, QueueAttempt[]>();
-  for (const row of (attempts ?? []) as Array<Record<string, unknown>>) {
+  for (const row of attempts) {
     const list = attemptsByDriver.get(String(row.driver_id)) ?? [];
     list.push({
       employmentId: String(row.employment_id),
@@ -93,7 +107,7 @@ export async function loadInquiryQueue(
     attemptsByDriver.set(String(row.driver_id), list);
   }
 
-  const rows = ((drivers ?? []) as DriverRow[])
+  const rows = drivers
     .map((driver): InquiryQueueRow => ({
       driverId: driver.id,
       name: driver.full_name,

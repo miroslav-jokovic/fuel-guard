@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { DriverApplication } from "@silvicom/shared";
 import { renderPacketDocument, type PacketMarkRow } from "./packetDocument.js";
+import { carrierToday } from "../carrierClock.js";
 
 /**
  * ⚠ The words `render.ts` stamps on a preview, repeated here rather than imported, and the choice is
@@ -201,12 +202,14 @@ export async function applicationPreviewPdf(
      * (D-AW14 — the driver reads this copy on their phone at the desk and certifies minutes later), so
      * today is the date the filing will carry, and the office's copy is under a DRAFT band that says
      * nothing is certified. The FILED date is still stamped by the server at certification and never
-     * read from here. A UTC calendar day, as `packetDraw.ts`'s `date` prints every instant.
+     * read from here. The CARRIER's calendar day (`carrierClock.ts`), since 2026-10-20: the UTC day
+     * is tomorrow from 19:00 Central, and a preview dated tomorrow is a preview the office cannot
+     * reconcile with the filing it is about to witness.
      *
      * ⚠ Page 1 ONLY. The date beside each signature stays blank until its mark exists
      * (`markSides`): that one is the day THAT place was signed, and D-AW17 did not ask for it.
      */
-    certifiedAt: now.toISOString().slice(0, 10),
+    certifiedAt: await carrierToday(admin, orgId, now),
     /**
      * ⚠ The one line of this module that could forge something, kept empty for `preview.test.ts`'s
      * *"signs nothing"*: it is the MARK. D-AW17's "p22 printed name" needs nothing from it — every

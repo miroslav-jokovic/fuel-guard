@@ -392,3 +392,33 @@ describe("the reminder's text", () => {
     expectOrgScoped(rec, ORG, { exempt: ["organizations"] });
   });
 });
+
+describe("how it asks about many open links (2026-10-20 audit)", () => {
+  it("never puts more than fifty invitation ids in one `.in()`", async () => {
+    const rec = seed();
+    const invitations = Array.from({ length: 120 }, (_, i) => ({
+      id: `inv-${i}`, driver_id: DRIVER, email: null, expires_at: "2026-09-01T00:00:00Z", revoked_at: null,
+      submitted_at: null, nudged_at: null, review_requested_at: null, approved_at: null,
+      application_sent_at: "2026-08-10T09:00:00Z", consented_at: "2026-08-01T09:00:00Z", releases_completed_at: "2026-08-01T10:00:00Z",
+    }));
+    const many = createSupabaseRecorder({
+      tables: {
+        recruiting_settings: [],
+        application_invitations: invitations,
+        application_intakes: [], application_captures: [], driver_authorizations: [],
+        application_drafts: [],
+        organizations: [{ name: "Silvicom Inc", notifications_enabled: true }],
+        sms_consents: [],
+        sms_outbox: [],
+        drivers: [{ full_name: "Susan Godfrey" }],
+      },
+      rpc: { nudge_application_invitation: true, rotate_invitation_sms_token: true, emit_notification: "notif-1" },
+    });
+    await runApplicationNudgesOnce(many.client, env(), ORG, [], NOW);
+    const inLists = many.queries.flatMap((q) => q.ops.filter((o) => o.method === "in").map((o) => o.args[1] as string[]));
+    expect(inLists.length).toBeGreaterThan(0);
+    for (const ids of inLists) expect(ids.length).toBeLessThanOrEqual(50);
+    expect(new Set(inLists.flat()).size).toBe(120);
+    void rec;
+  });
+});

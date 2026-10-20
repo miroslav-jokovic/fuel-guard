@@ -23,6 +23,7 @@ import {
   recordInquiryOutcome,
   registerInquiryDocument,
 } from "../employerInquiry.js";
+import { carrierToday } from "../carrierClock.js";
 
 /**
  * The §391.23 previous-employer inquiry (EMPLOYER-INQUIRY-PLAN E3).
@@ -68,7 +69,8 @@ export function recruitmentInquiriesRouter(): Router {
     canInvestigate,
     asyncHandler(async (req, res) => {
       const admin = getSupabaseAdmin(getAppLocals(req).env);
-      res.json(await loadInquiryQueue(admin, req.auth!.orgId!, new Date().toISOString().slice(0, 10)));
+      const orgId = req.auth!.orgId!;
+      res.json(await loadInquiryQueue(admin, orgId, await carrierToday(admin, orgId)));
     }),
   );
 

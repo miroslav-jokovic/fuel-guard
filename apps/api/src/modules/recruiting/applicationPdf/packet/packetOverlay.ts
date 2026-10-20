@@ -193,11 +193,18 @@ function drawBand(page: PDFPage, font: PDFFont, band: string): void {
  * consequence is identical whichever failed: that kind of line prints its typed text instead. Two
  * copies of this try/catch would be two chances to get the fallback wrong.
  */
-async function embedMark(doc: PDFDocument, bytes: Buffer | null | undefined): Promise<PDFImage | null> {
+async function embedMark(doc: PDFDocument, bytes: Buffer | null | undefined, kind: "signature" | "initials"): Promise<PDFImage | null> {
   if (!bytes) return null;
   try {
     return await doc.embedPng(bytes);
-  } catch {
+  } catch (e) {
+    // The swallow stands (above); the SILENCE does not. A filed document with its typed text where
+    // the driver's hand should be is a fact the office finds at an audit, so it is said here, by
+    // kind — `sources.ts` logs the slot it could not read for the same reason (2026-10-20 audit).
+    console.warn("[application] a drawn mark would not decode; the typed name stands in for it", {
+      kind,
+      error: e instanceof Error ? e.message : String(e),
+    });
     return null;
   }
 }
@@ -228,8 +235,8 @@ export async function renderPacketOverlay(input: PacketOverlayInput): Promise<Bu
    * embedding per placement would put nineteen copies of the same bytes in a filed PDF.
    */
   const pictures: Record<PacketMarkKind, PDFImage | null> = {
-    signature: await embedMark(doc, input.drawnMark),
-    initials: await embedMark(doc, input.initialsMark),
+    signature: await embedMark(doc, input.drawnMark, "signature"),
+    initials: await embedMark(doc, input.initialsMark, "initials"),
   };
 
   /**

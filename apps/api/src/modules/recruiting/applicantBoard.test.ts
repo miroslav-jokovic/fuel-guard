@@ -395,8 +395,10 @@ describe("what it reads, and how much", () => {
     expect(many.queries.length).toBe(one.queries.length);
     // Seven since G-7 moved the draft read into the one builder (one `.in()` for all of them); ten
     // since §7 added Part 1, the trip and the identity (C2b2) — each one `.in()` for the whole board;
-    // twelve since AW7 added Part 1's licences and the carrier's zone (C2b3), one each for the board.
-    expect(many.queries.length).toBe(12);
+    // twelve since AW7 added Part 1's licences and the carrier's zone (C2b3), one each for the board;
+    // thirteen since 2026-10-20, when the board's own day moved onto the carrier's calendar — one
+    // zone read for the whole fold, as the licences' one is.
+    expect(many.queries.length).toBe(13);
   });
 
   /**
@@ -487,5 +489,25 @@ describe("what it reads, and how much", () => {
     const board = await boardChecklists(rec.client, ORG, [], NOW);
     expect(board.checklists.size).toBe(0);
     expect(rec.queries.length).toBe(0);
+  });
+});
+
+describe("how it asks for a large board (2026-10-20 audit)", () => {
+  it("never puts more than fifty ids in one `.in()`, and still asks after every applicant", async () => {
+    const rec = seed();
+    const many = Array.from({ length: 120 }, (_, i): BoardApplicantInput => {
+      const base = applicant(i);
+      const id = `d${String(i).padStart(7, "0")}-0000-4000-8000-000000000000`;
+      return { ...base, driverId: id, authorizations: authRows(id), invitation: { ...base.invitation!, id: `1${String(i).padStart(7, "0")}-0000-4000-8000-000000000000` } };
+    });
+    await boardChecklists(rec.client, ORG, many, NOW);
+
+    const inLists = rec.queries.flatMap((q) => q.ops.filter((o) => o.method === "in").map((o) => ({ table: q.table, ids: o.args[1] as string[] })));
+    expect(inLists.length).toBeGreaterThan(0);
+    for (const { ids } of inLists) expect(ids.length).toBeLessThanOrEqual(50);
+    // Every driver is asked after on the evidence table, across the chunks — nobody falls off the end.
+    const asked = new Set(inLists.filter((l) => l.table === "qualification_records").flatMap((l) => l.ids));
+    expect(asked.size).toBe(120);
+    expect(many.every((a) => asked.has(a.driverId))).toBe(true);
   });
 });

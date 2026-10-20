@@ -31,7 +31,7 @@ const invitation = (over: Record<string, unknown> = {}) => ({
 
 const filterOf = (q: RecordedQuery, col: string) => q.filters().find((f) => f.col === col)?.val;
 
-const seed = (over: { invitation?: Record<string, unknown> | null; places?: string[]; carrierMarkError?: unknown; rep?: boolean; markVersion?: string; settings?: Record<string, unknown> } = {}) =>
+const seed = (over: { invitation?: Record<string, unknown> | null; places?: string[]; carrierMarkError?: unknown; rep?: boolean; markVersion?: string; settings?: Record<string, unknown>; zone?: string } = {}) =>
   createSupabaseRecorder({
     tables: {
       application_invitations: over.invitation === null ? [] : [invitation(over.invitation)],
@@ -53,7 +53,7 @@ const seed = (over: { invitation?: Record<string, unknown> | null; places?: stri
       },
       drivers: [{ full_name: "Jovana Petrović-Szczepańska" }],
       driver_applications: [{ ssn_last4: "1234" }],
-      organizations: [{ name: "Silvicom Inc", legal_address: null }],
+      organizations: [{ name: "Silvicom Inc", legal_address: null, operating_hours: over.zone ? { tz: over.zone } : null }],
       application_captures: [],
       memberships: [],
       user_profiles: [],
@@ -238,5 +238,16 @@ describe("the office's view of it", () => {
     const result = await driverHandbookStatus(seed({ invitation: { submitted_at: null }, places: [] }).client, ORG, DRIVER);
     expect(!isHandbookError(result) && result.canOpen).toBe(false);
     expect(!isHandbookError(result) && result.openedAt).toBeNull();
+  });
+});
+
+describe("the day the record carries (2026-10-20 audit)", () => {
+  it("dates the handbook's record on the carrier's calendar, not the UTC one", async () => {
+    // 23:30 in Denver on the 19th; already the 20th in UTC. Denver and not Chicago, because CI's own
+    // zone is Chicago and a mutant reading the process's zone must not pass (`calendarDay.ts`).
+    const rec = seed({ zone: "America/Denver" });
+    const result = await countersignHandbook(rec.client, ORG, "u-1", "admin", DRIVER, REP, new Date("2026-10-20T05:30:00Z"));
+    expect(isHandbookError(result)).toBe(false);
+    expect(rec.writtenRows("qualification_records")[0]).toMatchObject({ kind: "handbook", occurred_on: "2026-10-19" });
   });
 });

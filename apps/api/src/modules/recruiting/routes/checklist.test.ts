@@ -4,7 +4,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import type { AuthContext } from "@silvicom/shared";
 import { createApp } from "../../../app.js";
 import { loadEnv } from "../../../env.js";
-import { createSupabaseRecorder, type SupabaseRecorder } from "../../../testing/supabaseRecorder.js";
+import { createSupabaseRecorder, expectOrgScoped, type SupabaseRecorder } from "../../../testing/supabaseRecorder.js";
 import { closeTestServer } from "../../../testing/httpServer.js";
 import { DRAFT_APPLYING_AS_SELECT } from "../applicantApplyingAs.js";
 import { DRAFT_LICENCES_SELECT } from "../applicantLicences.js";
@@ -176,5 +176,14 @@ describe("what comes back", () => {
     expect(DRAFT_LICENCES_SELECT).toBe(
       "cdl_state:payload->>cdl_state, additional_licences:payload->additional_licences",
     );
+  });
+});
+
+describe("the service role, through the route", () => {
+  it("scopes every read of a checklist to the caller's org", async () => {
+    const rec = seed();
+    holder.client = rec.client;
+    expect((await call(`/applicants/${DRIVER}/checklist`, "recruiter")).status).toBe(200);
+    expectOrgScoped(rec, ORG);
   });
 });

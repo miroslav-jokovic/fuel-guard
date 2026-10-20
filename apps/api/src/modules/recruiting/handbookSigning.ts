@@ -15,6 +15,7 @@ import { HANDBOOK_VERSION } from "./applicationPdf/handbook/handbookText.js";
 import { representativeForPrint } from "./representatives.js";
 import { countersignPacket, isPacketCountersignError } from "./packetCountersign.js";
 import { recruitingSettings } from "./recruitingSettings.js";
+import { carrierToday } from "./carrierClock.js";
 
 /**
  * The driver handbook, signed on screen — the office's half (HANDBOOK-SIGNING-PLAN.md HB3; D-HB1..5).
@@ -277,6 +278,8 @@ export async function countersignHandbook(
   role: string | null,
   driverId: string,
   representativeId: string,
+  /** The press's instant — a parameter so the date it files can be pinned at an evening hour. */
+  now: Date = new Date(),
 ): Promise<{ documentId: string; recordId: string; packetDocumentId: string } | HandbookError> {
   const inv = await currentInvitation(admin, orgId, driverId);
   if (!inv) return { code: "not_found", message: "This applicant has no application on file." };
@@ -296,9 +299,9 @@ export async function countersignHandbook(
   if (!chosen) return { code: "representative_not_found", message: "That representative is not on file." };
 
   // A-10: the claim comes before anything is filed, and a filing that fails hands it back.
-  const claimedAt = await claimHandbookFiling(admin, orgId, inv.id, new Date());
+  const claimedAt = await claimHandbookFiling(admin, orgId, inv.id, now);
   if (!claimedAt) return HANDBOOK_FILING_IN_PROGRESS;
-  const result = await fileCountersignedHandbook(admin, orgId, userId, role, driverId, inv.id, chosen);
+  const result = await fileCountersignedHandbook(admin, orgId, userId, role, driverId, inv.id, chosen, now);
   if (isHandbookError(result)) await releaseHandbookClaim(admin, orgId, inv.id, claimedAt);
   return result;
 }
@@ -356,6 +359,7 @@ async function fileCountersignedHandbook(
   driverId: string,
   invitationId: string,
   chosen: { id: string; fullName: string; title: string; signature: Buffer | null },
+  now: Date,
 ): Promise<{ documentId: string; recordId: string; packetDocumentId: string } | HandbookError> {
   // Q-HB1 (D-HB7): the packet's four carrier lines first, in the same press and by the same
   // Representative. On a retry the packet's row keeps the Representative it recorded, and `h4c` is
@@ -394,7 +398,9 @@ async function fileCountersignedHandbook(
     id: recordId,
     driverId,
     kind: "handbook",
-    occurredOn: new Date().toISOString().slice(0, 10),
+    // ⚠ The carrier's day, not the UTC one: this row is append-only, and the UTC date filed a
+    // handbook signed at eight in the evening as signed tomorrow (2026-10-20 audit).
+    occurredOn: await carrierToday(admin, orgId, now),
     coversUntil: null,
     result: "Signed",
     performedBy: `${rep.fullName}, ${rep.title}`,

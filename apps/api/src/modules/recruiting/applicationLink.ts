@@ -239,6 +239,48 @@ export async function sendApplicationLinkAgain(
 }
 
 /** One applicant who may be the person the office is about to add again (Q-AX6). */
+/**
+ * The applicant's links end with the hire (2026-10-20 audit, M3).
+ *
+ * ── WHAT A LIVE LINK READS AFTER FILING ───────────────────────────────────────────────────────
+ * D-APP1 keeps a spent phase open rather than killing the link, so the driver can reopen it and see
+ * what the carrier received: the certified application (date of birth, licence, address, employment
+ * history), the road-test certificate, the permissions, the handbook. Nothing after the handbook is
+ * filed needs the link, and the hire is the first moment the product KNOWS the file is complete —
+ * `hireRefusal` has just said so. Yet nothing ended the link: `resolveInvitation` dies on
+ * `revoked_at`, on `expires_at` and on the sign door's 72 hours, and the only writer of `revoked_at`
+ * was the office's own Revoke. So a link texted and emailed to wherever the phone was kept serving
+ * the employee's §391.51 file for the rest of its lifetime, up to sixty days (0379), to anybody
+ * holding it.
+ *
+ * ⚠ Here and not in `hireApplicant.ts`, because this file owns the invitation's lifetime —
+ * creation, resend, revoke (`scripts/table-writers.json`) — and the hire is one more moment in it.
+ *
+ * ── EXPIRED, NOT REVOKED ──────────────────────────────────────────────────────────────────────
+ * ⚠ Every office reader of the invitation — the checklist's live row (`applicantChecklist.ts`),
+ * the handbook's (`handbookSigning.ts`), the SMS consent's, Med-Stop's — takes `revoked_at is null`
+ * to mean "this is the application", and a revoked invitation cannot be sent for signing again
+ * (0369's AI002). Revoking at hire would make the hired driver's packet marks and handbook invisible
+ * to their own file. `expires_at` is read by nothing but the public door and the extensions, so
+ * ending the link's TIME closes the door and leaves the record whole. Only links still open are
+ * moved — the stamp is the hire's instant, never earlier.
+ *
+ * ⚠ After the hire, and best effort: the transaction has committed, and a driver who is hired but
+ * whose link lives another day is the state before this existed, not a reason to answer the office
+ * with an error about a hire that happened. It is logged, loudly, by driver id — never a token.
+ */
+export async function endApplicantLinks(admin: SupabaseClient, orgId: string, driverId: string, now: Date): Promise<void> {
+  const at = now.toISOString();
+  const { error } = await admin
+    .from("application_invitations")
+    .update({ expires_at: at })
+    .eq("org_id", orgId)
+    .eq("driver_id", driverId)
+    .is("revoked_at", null)
+    .gt("expires_at", at);
+  if (error) console.warn("[recruiting] hired, but the applicant's link could not be ended", { driverId, error: error.message });
+}
+
 export interface ApplicantMatch {
   id: string;
   full_name: string;

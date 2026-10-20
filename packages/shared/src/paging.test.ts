@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { IN_LIST_CHUNK, chunks, eachPage, fetchAllPaged } from "./paging.js";
+import { IN_LIST_CHUNK, chunks, eachPage, fetchAllPaged, fetchAllPagedIn } from "./paging.js";
 
 /** A fake paged source: `total` rows of {id}, served in pages sized by the caller (via .range bounds),
  *  matching PostgREST. Records each [from,to] it was asked for. */
@@ -66,5 +66,30 @@ describe("chunks", () => {
 
   it("returns no slices for an empty list, so a caller runs no query", () => {
     expect(chunks([])).toEqual([]);
+  });
+});
+
+describe("fetchAllPagedIn", () => {
+  it("runs one paged read per chunk of fifty ids, in order, and joins the rows", async () => {
+    const ids = Array.from({ length: 120 }, (_, i) => `id-${i}`);
+    const seen: Array<readonly string[]> = [];
+    const rows = await fetchAllPagedIn<string>(ids, (chunk) => (from) => {
+      seen.push(chunk);
+      // One short page per chunk: the rows are the ids, so the join can be checked by value.
+      return Promise.resolve({ data: from === 0 ? chunk.map((id) => `row:${id}`) : [], error: null });
+    });
+    expect(seen.map((c) => c.length)).toEqual([50, 50, 20]);
+    expect(seen.flat()).toEqual(ids);
+    expect(rows).toEqual(ids.map((id) => `row:${id}`));
+  });
+
+  it("runs no query at all for no ids", async () => {
+    let calls = 0;
+    const rows = await fetchAllPagedIn<string>([], () => () => {
+      calls += 1;
+      return Promise.resolve({ data: [], error: null });
+    });
+    expect(rows).toEqual([]);
+    expect(calls).toBe(0);
   });
 });

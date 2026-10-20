@@ -3,6 +3,7 @@ import type { Server } from "node:http";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { SMS_CONSENT } from "@silvicom/shared";
 import { createApp } from "../../../app.js";
+import { SMS_CONSENT_LIMIT } from "../../../middleware/applicationLimits.js";
 import { loadEnv } from "../../../env.js";
 import { createSupabaseRecorder, expectOrgScoped, type RecordedQuery } from "../../../testing/supabaseRecorder.js";
 import { closeTestServer } from "../../../testing/httpServer.js";
@@ -28,7 +29,11 @@ vi.mock("../../../lib/sms.js", async (orig) => ({
 
 const ORG = "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d";
 const DRIVER = "77777777-8888-4999-8aaa-bbbbbbbbbbbb";
-const TOKEN = "c".repeat(43);
+// A fresh link per test (as `publicApplicationTextLink.test.ts` does): since 2026-10-20 agreeing is
+// counted PER LINK, five in ten minutes, and this file agrees many more times than that on one.
+let TOKEN = "c".repeat(43);
+let links = 0;
+const freshToken = (): string => String(++links).padStart(3, "0").repeat(15).slice(0, 43);
 
 let server: Server;
 let baseUrl: string;
@@ -112,6 +117,7 @@ afterAll(async () => closeTestServer(server));
  * when CI had happened to run. A test that needs a failed or checked send still sets its own.
  */
 beforeEach(() => {
+  TOKEN = freshToken();
   sms.fn.mockResolvedValue({ ok: true, provider: "telnyx", messageId: "m-default" });
 });
 afterEach(() => {
@@ -316,5 +322,18 @@ describe("withdrawing", () => {
     expect(rpcs.map((r) => (r.args as { p_phone: string }).p_phone).sort()).toEqual(["+13125550100", "+17082365732"]);
     for (const r of rpcs) expect((r.args as { p_org: string }).p_org).toBe(ORG);
     expectOrgScoped(rec, ORG, TOKEN_LOOKUP);
+  });
+});
+
+describe("agreeing has a budget per link (2026-10-20 audit)", () => {
+  it(`refuses the ${SMS_CONSENT_LIMIT + 1}th agreement on one link from any address, in the API's envelope`, async () => {
+    publish();
+    holder.client = seed().client;
+    // The same number each time: a repeat is the same agreement to the service (200, nothing sent),
+    // and still a request on the link to the budget — which is what bounds the confirmation texts.
+    for (let i = 0; i < SMS_CONSENT_LIMIT; i += 1) expect((await agree()).status).toBeLessThan(400);
+    const refused = await agree();
+    expect(refused.status).toBe(429);
+    expect((await read(refused)).error?.code).toBe("too_many_requests");
   });
 });

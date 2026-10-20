@@ -8,7 +8,7 @@ import {
 } from "@silvicom/shared";
 import type { Env } from "../../env.js";
 import { sendEmail } from "../../lib/mailer.js";
-import { fetchAllPaged } from "../../lib/paging.js";
+import { fetchAllPagedIn } from "../../lib/paging.js";
 import { notify } from "../messaging/index.js";
 import { mintInvitationToken } from "./applicationIntake.js";
 import { sendOrQueueSms } from "./smsOutbox.js";
@@ -105,15 +105,15 @@ async function partOneActivity(
   ids: readonly string[],
 ): Promise<Map<string, string>> {
   const [intakes, captures, permissions] = await Promise.all([
-    fetchAllPaged<{ invitation_id: string; updated_at: string }>((from, to) =>
+    fetchAllPagedIn<{ invitation_id: string; updated_at: string }>(ids, (chunk) => (from, to) =>
       admin.from("application_intakes").select("invitation_id, updated_at")
-        .eq("org_id", orgId).in("invitation_id", ids).order("id").range(from, to)),
-    fetchAllPaged<{ invitation_id: string; captured_at: string }>((from, to) =>
+        .eq("org_id", orgId).in("invitation_id", chunk).order("id").range(from, to)),
+    fetchAllPagedIn<{ invitation_id: string; captured_at: string }>(ids, (chunk) => (from, to) =>
       admin.from("application_captures").select("invitation_id, captured_at")
-        .eq("org_id", orgId).in("invitation_id", ids).order("id").range(from, to)),
-    fetchAllPaged<{ invitation_id: string | null; created_at: string }>((from, to) =>
+        .eq("org_id", orgId).in("invitation_id", chunk).order("id").range(from, to)),
+    fetchAllPagedIn<{ invitation_id: string | null; created_at: string }>(ids, (chunk) => (from, to) =>
       admin.from("driver_authorizations").select("invitation_id, created_at")
-        .eq("org_id", orgId).in("invitation_id", ids).order("id").range(from, to)),
+        .eq("org_id", orgId).in("invitation_id", chunk).order("id").range(from, to)),
   ]);
   const out = new Map<string, string>();
   const stamps = [
@@ -160,16 +160,20 @@ async function candidates(admin: SupabaseClient, orgId: string): Promise<NudgeCa
   const invitations = (data ?? []) as Omit<NudgeCandidate, "draft_updated_at" | "furthest_section" | "part_one_activity_at">[];
   if (invitations.length === 0) return [];
 
-  const { data: drafts, error: draftError } = await admin
-    .from("application_drafts")
-    .select("invitation_id, updated_at, furthest_section")
-    .eq("org_id", orgId)
-    .in("invitation_id", invitations.map((i) => i.id));
-  if (draftError) throw new Error(draftError.message);
-  const byInvitation = new Map(
-    ((drafts ?? []) as { invitation_id: string; updated_at: string; furthest_section: string | null }[])
-      .map((d) => [d.invitation_id, d]),
+  // Chunked and paged (`paging.ts`): every open invitation's id in one URL is the Loads board's
+  // "fetch failed" waiting for the org that recruits in volume.
+  const drafts = await fetchAllPagedIn<{ invitation_id: string; updated_at: string; furthest_section: string | null }>(
+    invitations.map((i) => i.id),
+    (chunk) => (from, to) =>
+      admin
+        .from("application_drafts")
+        .select("invitation_id, updated_at, furthest_section")
+        .eq("org_id", orgId)
+        .in("invitation_id", chunk)
+        .order("id")
+        .range(from, to),
   );
+  const byInvitation = new Map(drafts.map((d) => [d.invitation_id, d]));
 
   const activity = await partOneActivity(admin, orgId, invitations.map((i) => i.id));
 

@@ -1,5 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { returnToDutyHold } from "./returnToDuty.js";
+import { carrierToday } from "./carrierClock.js";
+import { endApplicantLinks } from "./applicationLink.js";
 import { applicantChecklist, isChecklistError } from "./applicantChecklist.js";
 import {
   hireBlockers,
@@ -153,7 +155,7 @@ export async function previewHire(
     // who has to go and ask the applicant for the paperwork is standing right here.
     ...(await returnToDutyFields(admin, orgId, driverId)),
     // Q-HM5/D-HB5: the confirmation screen names what the press will be refused for, before it.
-    hireBlockedBy: (await hireRefusal(admin, orgId, driverId, new Date().toISOString().slice(0, 10)))?.missing ?? [],
+    hireBlockedBy: (await hireRefusal(admin, orgId, driverId, await carrierToday(admin, orgId)))?.missing ?? [],
   };
 }
 
@@ -229,6 +231,8 @@ export async function hireApplicant(
     }
     return { code: "hire_failed", message: error.message };
   }
+
+  await endApplicantLinks(admin, orgId, body.driver_id, new Date());
 
   return {
     driverId: body.driver_id,

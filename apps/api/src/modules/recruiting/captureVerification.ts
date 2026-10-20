@@ -34,6 +34,21 @@ import { APPLICATION_CAPTURE_MARK_SLOT, type ApplicationCaptureSlot } from "@sil
 
 export const CAPTURE_METRICS_ANALYSIS_LONG_EDGE_PX = BUNDLED_DEFAULT_CONFIG.analysis.longEdgePx;
 
+/**
+ * The most pixels one capture may decode to (2026-10-20 audit, M2).
+ *
+ * ⚠ The 8 MB bucket ceiling bounds the FILE, not the picture: a 16,000 × 16,000 single-colour PNG
+ * is a few hundred kilobytes on the wire and a gigabyte once `.raw()` has it — and sharp's own
+ * default ceiling (`limitInputPixels`, ~268 million) is above that. Decoded inline in the request
+ * on the API's one vCPU, at the intake's twenty a minute, that is the whole process gone for a
+ * live-link holder with a PNG encoder. Thirty-six million is a 6,000 × 6,000 frame: three times
+ * the provider's own output and above any CDL or medical-card photograph a phone hands this path
+ * (the provider downscales to the config long edge; an unprocessed 12 MP JPEG was the largest
+ * measured, plan §12), so an honest capture never meets it. Read from the header BEFORE decoding,
+ * and handed to sharp as well in case a header lies.
+ */
+export const CAPTURE_MAX_PIXELS = 36_000_000;
+
 /** What is stored in `application_captures.metrics` — the measurement and the config that gave it meaning. */
 export interface CaptureMetricsRecord extends MeasuredMetrics {
   configVersion: string;
@@ -41,7 +56,7 @@ export interface CaptureMetricsRecord extends MeasuredMetrics {
 
 export type CaptureVerification =
   | { ok: true; serverSha256: string; bytes: number; metrics: CaptureMetricsRecord | null; cpuMs: number }
-  | { ok: false; reason: "hash_mismatch" | "not_an_image"; serverSha256: string };
+  | { ok: false; reason: "hash_mismatch" | "not_an_image" | "too_many_pixels"; serverSha256: string };
 
 const MARK_SLOTS: readonly ApplicationCaptureSlot[] = Object.values(APPLICATION_CAPTURE_MARK_SLOT);
 
@@ -49,12 +64,20 @@ export async function verifyCaptureBytes(
   bytes: Buffer,
   claimedSha256: string,
   slot: ApplicationCaptureSlot,
+  /** A parameter for the test that proves the ceiling without encoding a 36-megapixel picture. */
+  maxPixels: number = CAPTURE_MAX_PIXELS,
 ): Promise<CaptureVerification> {
   const started = process.cpuUsage();
   const serverSha256 = createHash("sha256").update(bytes).digest("hex");
   if (serverSha256 !== claimedSha256.toLowerCase()) return { ok: false, reason: "hash_mismatch", serverSha256 };
 
-  const decoded = await sharp(bytes, { failOn: "none" })
+  // The header first: width and height without decoding a pixel. A picture that will not even give
+  // those is not a picture; one that is bigger than the ceiling is refused before it costs memory.
+  const header = await sharp(bytes, { failOn: "none" }).metadata().catch(() => null);
+  if (!header || !header.width || !header.height) return { ok: false, reason: "not_an_image", serverSha256 };
+  if (header.width * header.height > maxPixels) return { ok: false, reason: "too_many_pixels", serverSha256 };
+
+  const decoded = await sharp(bytes, { failOn: "none", limitInputPixels: maxPixels })
     .raw()
     .toBuffer({ resolveWithObject: true })
     .catch(() => null);

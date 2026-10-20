@@ -9,6 +9,7 @@ import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
 import { writeAudit } from "../../../lib/audit.js";
 import { hireApplicant, isHireError, previewHire } from "../hireApplicant.js";
+import { carrierToday } from "../carrierClock.js";
 
 /**
  * Hiring an applicant — the moment Recruitment hands the file to DQF (H8, D-HIRE2).
@@ -68,7 +69,7 @@ export function recruitmentHireRouter(): Router {
       const body = res.locals.body as HireApplicant;
 
       const result = await hireApplicant(
-        admin, orgId, req.auth!.userId, body, new Date().toISOString().slice(0, 10),
+        admin, orgId, req.auth!.userId, body, await carrierToday(admin, orgId),
       );
       if (isHireError(result)) {
         const status =

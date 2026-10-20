@@ -21,6 +21,7 @@ import {
   recordPortalConsent,
   registerHiringEvidenceDocument,
 } from "../hiringEvidence.js";
+import { carrierToday } from "../carrierClock.js";
 
 /**
  * The MVR, the Clearinghouse query and the drug test, recorded where the hire is worked — D1.
@@ -117,7 +118,7 @@ export function recruitmentHiringEvidenceRouter(): Router {
       const body = res.locals.body as HiringEvidenceFiling;
 
       const result = await fileHiringEvidence(
-        admin, orgId, req.auth!.userId, driverId, step, body, new Date().toISOString().slice(0, 10),
+        admin, orgId, req.auth!.userId, driverId, step, body, await carrierToday(admin, orgId),
       );
       if (isHiringEvidenceError(result)) {
         const status = result.code === "not_found" ? 404 : result.code === "insert_failed" ? 500 : 400;
@@ -176,7 +177,7 @@ export function recruitmentHiringEvidenceRouter(): Router {
       const driverId = String(req.params.driverId ?? "");
       const body = res.locals.body as ClearinghousePortalConsent;
       const result = await recordPortalConsent(
-        admin, orgId, req.auth!.userId, driverId, body.occurred_on, new Date().toISOString().slice(0, 10),
+        admin, orgId, req.auth!.userId, driverId, body.occurred_on, await carrierToday(admin, orgId),
       );
       if (isHiringEvidenceError(result)) {
         const status = result.code === "not_found" ? 404 : result.code === "insert_failed" ? 500 : 400;

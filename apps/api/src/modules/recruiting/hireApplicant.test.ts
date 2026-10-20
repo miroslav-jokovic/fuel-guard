@@ -203,3 +203,34 @@ describe("the preview", () => {
     expect(!isHireError(result) && result.returnToDutyBlocked).toBe(false);
   });
 });
+
+describe("the applicant's links, once hired (2026-10-20 audit)", () => {
+  const linkWrites = (rec: ReturnType<typeof seed>) =>
+    rec.queries.filter((q) => q.table === "application_invitations" && q.write?.method === "update");
+
+  it("ends every open link for the driver — expired at the hire's instant, never revoked", async () => {
+    const rec = seed();
+    const result = await hireApplicant(rec.client, ORG, "u-fleet", body, TODAY);
+    expect(isHireError(result)).toBe(false);
+    const [ended] = linkWrites(rec);
+    expect(ended).toBeDefined();
+    const payload = ended!.write!.payload as Record<string, unknown>;
+    // `expires_at`, and nothing else: `revoked_at` would hide the hired driver's own file from its
+    // readers (`endApplicantLinks`'s header).
+    expect(Object.keys(payload)).toEqual(["expires_at"]);
+    expect(Number.isNaN(Date.parse(String(payload.expires_at)))).toBe(false);
+    const cols = ended!.filters().map((f) => f.col);
+    expect(cols).toEqual(expect.arrayContaining(["org_id", "driver_id"]));
+    // Only links still open move; a link that has already lapsed keeps its own date.
+    expect(ended!.ops.some((o) => o.method === "is" && o.args[0] === "revoked_at")).toBe(true);
+    expect(ended!.ops.some((o) => o.method === "gt" && o.args[0] === "expires_at")).toBe(true);
+    expectOrgScoped(rec, ORG);
+  });
+
+  it("leaves the links alone when the transaction refuses the hire", async () => {
+    const rec = seed({ rpc: { error: { code: "HA010", message: "hire_applicant_not_applicant" } } });
+    const result = await hireApplicant(rec.client, ORG, "u-fleet", body, TODAY);
+    expect(isHireError(result)).toBe(true);
+    expect(linkWrites(rec)).toEqual([]);
+  });
+});
