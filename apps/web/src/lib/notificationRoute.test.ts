@@ -46,6 +46,12 @@ describe("notificationRoute", () => {
     expect(notificationRoute("application_stalled", "driver", "d1")).toBe("/recruitment");
   });
 
+  it("a truck or trailer paper opens the unit's File section, by the unit's subject type (UF6)", () => {
+    expect(notificationRoute("unit_file_expiring", "tractor", "v1")).toBe("/vehicles/v1?section=file");
+    expect(notificationRoute("unit_file_expired", "trailer", "t1")).toBe("/trailers/t1?section=file");
+    expect(notificationRoute("unit_file_expired", "driver", "d1")).toBeNull();
+  });
+
   it("messages go to the messages page", () => {
     expect(notificationRoute("message_received", null, null)).toBe("/messages");
   });

@@ -41,6 +41,12 @@ function destination(category: string, entityType: string | null, entityId: stri
   if (category.startsWith("dq_") && entityType === "driver" && entityId) {
     return `/compliance/${entityId}`;
   }
+  // UF6: a truck's or trailer's paper, on the unit's own page opened at its File section, where the
+  // drop card files the renewal (UF5). The entity is the unit itself, so the subject type picks the page.
+  if (category.startsWith("unit_file_") && entityId) {
+    if (entityType === "tractor") return `/vehicles/${entityId}?section=file`;
+    if (entityType === "trailer") return `/trailers/${entityId}?section=file`;
+  }
   if (category === "message_received") return "/messages";
   // A10. The applicant board IS the queue for a stalled application — there is no per-applicant page
   // to land on, and "an alert that cannot deep-link to its queue is half an alert".

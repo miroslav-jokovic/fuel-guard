@@ -1,6 +1,8 @@
 import { describe, it, expect } from "vitest";
-import { planDqAlerts, type DqAlert } from "./dqAlerts.js";
+import { driverAlertRows, planFileAlerts, unitAlertRows, type FileAlert } from "./dqAlerts.js";
 import type { DriverOverviewRow, DqAttentionItem } from "./dqFile.js";
+import type { UnitFileRow } from "./unitFileContract.js";
+import type { UnitAttentionItem } from "./unitFile.js";
 
 /**
  * C3 — the alert schedule's dedupe design, exhaustively. Every case here is a way a notification
@@ -34,10 +36,10 @@ const driver = (over: Partial<DriverOverviewRow> = {}, items: DqAttentionItem[] 
   ...over,
 });
 
-const plan = (rows: DriverOverviewRow[], sent: string[] = []): DqAlert[] =>
-  planDqAlerts(rows, TODAY, new Set(sent));
+const plan = (rows: DriverOverviewRow[], sent: string[] = []): FileAlert[] =>
+  planFileAlerts(driverAlertRows(rows), TODAY, new Set(sent));
 
-describe("planDqAlerts — threshold crossings", () => {
+describe("planFileAlerts, a driver — threshold crossings", () => {
   it("an item at exactly 60 days emits the 60 key", () => {
     const out = plan([driver({}, [attention({ daysRemaining: 60 })])]);
     expect(out).toHaveLength(1);
@@ -81,7 +83,7 @@ describe("planDqAlerts — threshold crossings", () => {
   });
 });
 
-describe("planDqAlerts — renewal and the key-format transition (Q11, 2026-10-05)", () => {
+describe("planFileAlerts, a driver — renewal and the key-format transition (Q11, 2026-10-05)", () => {
   it("a renewed item alerts again: last cycle's key does not silence the new expiry date", () => {
     const out = plan(
       [driver({}, [attention({ goodUntil: "2027-09-01", daysRemaining: 60 })])],
@@ -102,7 +104,7 @@ describe("planDqAlerts — renewal and the key-format transition (Q11, 2026-10-0
   });
 });
 
-describe("planDqAlerts — overdue weekly cadence", () => {
+describe("planFileAlerts, a driver — overdue weekly cadence", () => {
   it("an overdue item emits with a week-bucketed key and dq_expired", () => {
     const out = plan([driver({}, [attention({ daysRemaining: -3, state: "expired" })])]);
     expect(out).toHaveLength(1);
@@ -119,8 +121,8 @@ describe("planDqAlerts — overdue weekly cadence", () => {
 
   it("a NEW week emits again — weekly, not once-ever", () => {
     const thisWeek = plan([driver({}, [attention({ daysRemaining: -3, state: "expired" })])])[0]!.dedupeKey;
-    const nextWeek = planDqAlerts(
-      [driver({}, [attention({ daysRemaining: -10, state: "expired" })])],
+    const nextWeek = planFileAlerts(
+      driverAlertRows([driver({}, [attention({ daysRemaining: -10, state: "expired" })])]),
       "2026-08-26",
       new Set([thisWeek]),
     );
@@ -129,7 +131,7 @@ describe("planDqAlerts — overdue weekly cadence", () => {
   });
 });
 
-describe("planDqAlerts — who and what never alerts", () => {
+describe("planFileAlerts, a driver — who and what never alerts", () => {
   it("a terminated driver emits nothing", () => {
     const out = plan([
       driver({ driver_status: "terminated" }, [attention({ daysRemaining: -3, state: "expired" })]),
@@ -158,5 +160,84 @@ describe("planDqAlerts — who and what never alerts", () => {
       driver({ driver_id: "d2", driver_name: "Dana Ellis" }, [attention({ daysRemaining: 14 })]),
     ]);
     expect(new Set(out.map((a) => a.dedupeKey)).size).toBe(2);
+  });
+});
+
+describe("planFileAlerts, a driver — the ledger's keys do not move (UNIT-FILES-PLAN UF6)", () => {
+  // Golden strings: every key below is one the ledger already holds for a driver alert sent before
+  // UF6. A changed character re-sends every expiry the office has already been told about.
+  it("a driver's threshold, legacy and overdue keys, titles and categories are byte for byte C3's", () => {
+    const due = plan([driver({}, [attention({ daysRemaining: 14 })])])[0]!;
+    expect(due.dedupeKey).toBe("dq:d1:medical_card:2026-09-01:14");
+    expect(due.legacyDedupeKey).toBe("dq:d1:medical_card:14");
+    expect(due.category).toBe("dq_expiring");
+    expect(due.title).toBe("Marcus Reyes — Medical examiner's certificate expires in 14 days");
+    const late = plan([driver({}, [attention({ daysRemaining: -3, state: "expired" })])])[0]!;
+    expect(late.dedupeKey).toBe("dq:d1:medical_card:overdue:2954");
+    expect(late.category).toBe("dq_expired");
+  });
+});
+
+describe("planFileAlerts, a truck or trailer (UNIT-FILES-PLAN UF6)", () => {
+  const unit = (over: Partial<UnitFileRow> = {}, items: UnitAttentionItem[] = []): UnitFileRow => ({
+    subject_type: "tractor",
+    subject_id: "v1",
+    unit_number: "1042",
+    status: "active",
+    ownership: "owned",
+    state: "incomplete",
+    counts: { current: 0, expiring: 0, expired: 0, missing: 0 },
+    ownership_unknown: [],
+    attention: items,
+    items: [],
+    papers: [],
+    paper_count: 0,
+    ...over,
+  });
+  const reg = (over: Partial<UnitAttentionItem> = {}): UnitAttentionItem => ({
+    key: "registration",
+    label: "Registration",
+    citation: "State law",
+    group: "registration",
+    state: "expiring",
+    goodUntil: "2026-09-18",
+    evidenceDate: null,
+    daysRemaining: 30,
+    ...over,
+  });
+  const planUnits = (rows: UnitFileRow[], sent: string[] = []): FileAlert[] =>
+    planFileAlerts(unitAlertRows(rows), TODAY, new Set(sent));
+
+  it("a unit at 30 days alerts once, under its own key and category, and not again on the next run", () => {
+    const first = planUnits([unit({}, [reg()])]);
+    expect(first).toHaveLength(1);
+    expect(first[0]!.dedupeKey).toBe("unit:tractor:v1:registration:2026-09-18:30");
+    expect(first[0]!.legacyDedupeKey).toBeUndefined();
+    expect(first[0]!.category).toBe("unit_file_expiring");
+    expect(first[0]!.title).toBe("Truck 1042 — Registration expires in 30 days");
+    expect(planUnits([unit({}, [reg({ daysRemaining: 29 })])], [first[0]!.dedupeKey])).toHaveLength(0);
+  });
+
+  it("a trailer is named a trailer, and its overdue paper is unit_file_expired with a trailer key", () => {
+    const out = planUnits([unit({ subject_type: "trailer", subject_id: "t1", unit_number: "5310" }, [reg({ daysRemaining: -2, state: "expired" })])]);
+    expect(out[0]!.category).toBe("unit_file_expired");
+    expect(out[0]!.dedupeKey).toMatch(/^unit:trailer:t1:registration:overdue:\d+$/);
+    expect(out[0]!.title).toBe("Trailer 5310 — Registration expired 2 days ago");
+  });
+
+  it("an inactive unit does not alert — retired or not yet delivered", () => {
+    for (const status of ["retired", "ordered"]) {
+      expect(planUnits([unit({ status }, [reg({ daysRemaining: -2, state: "expired" })])])).toHaveLength(0);
+    }
+    // In the shop is in service: it is still inspected and registered.
+    expect(planUnits([unit({ status: "maintenance" }, [reg()])])).toHaveLength(1);
+  });
+
+  it("a truck and a driver with the same id never share a key", () => {
+    const keys = [
+      ...planUnits([unit({ subject_id: "x" }, [reg({ key: "medical_card", daysRemaining: 14 })])]),
+      ...plan([driver({ driver_id: "x" }, [attention({ daysRemaining: 14 })])]),
+    ].map((a) => a.dedupeKey);
+    expect(new Set(keys).size).toBe(2);
   });
 });
