@@ -220,6 +220,16 @@ export const RETENTION_FORBIDDEN = [
    */
   "inspection_citation_actions",
   /**
+   * What the court decided on each ticket, read from the filed paper (0495, IC4): the court's word a DataQs request
+   * rests on. A misread is a new row.
+   */
+  "inspection_citation_dispositions",
+  /**
+   * A DataQs request a person attested to under 18 USC 1001 and filed themselves (0495, IC4): the carrier's signed
+   * statement to FMCSA, and the RDR number DataQs gave it.
+   */
+  "dataqs_cases",
+  /**
    * The driver's account-closure request (0330, D-PR8).
    *
    * ── THE ONE ENTRY ON THIS LIST THAT INVERTS ITS OWN SUBJECT ───────────────────────────────────

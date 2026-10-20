@@ -10,6 +10,9 @@ import { answerConfirm } from "@silvicom/ui/testing";
  * the question names the unit, the button says "Retire" in red, and a "no" retires nothing.
  */
 const retire = vi.hoisted(() => vi.fn(async (_id: string) => ({})));
+// The pages read every unit's file for the File column (UNIT-FILES-PLAN UF4); none is filed here.
+vi.mock("@/composables/useOrgTimezone", () => ({ useOrgTimezone: () => ({ zone: ref("America/Chicago"), isResolved: ref(true) }) }));
+vi.mock("@/composables/useCompliance", () => ({ useUnitFilesQuery: () => ({ data: ref({ units: [] }) }), useDocumentsQuery: () => ({ data: ref([]) }) }));
 vi.mock("@/composables/useTrailerLink", () => ({ useTrailersOnLoadsQuery: () => ({ byTrailerId: { value: new Map() } }) }));
 vi.mock("@/composables/useTrailers", () => {
   const idle = () => ({ mutateAsync: vi.fn(), isPending: ref(false) });

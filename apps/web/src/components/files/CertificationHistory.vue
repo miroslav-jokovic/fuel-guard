@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { computed, ref, toRef } from "vue";
+import { computed, ref } from "vue";
 import { DQ_KIND_LABELS, type CertificationRow } from "@silvicom/shared";
 import { AppCard as BaseCard, AppButton as BaseButton, DataTable, type DataTableColumn } from "@silvicom/ui";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { formatDate } from "@/lib/format";
 import { useCertificationHistoryQuery } from "@/composables/useCompliance";
+import type { FileSubject } from "./fileSubject";
 
 /**
  * What this file used to say (DQ-BINDER-PLAN §4).
@@ -17,9 +18,12 @@ import { useCertificationHistoryQuery } from "@/composables/useCompliance";
  * Collapsed by default, because a clean file should stay a short page: the card states how many
  * superseded records exist and opens on request.
  */
-const props = defineProps<{ driverId: string }>();
+const props = defineProps<{ subject: FileSubject }>();
 
-const query = useCertificationHistoryQuery(toRef(props, "driverId"));
+const query = useCertificationHistoryQuery(
+  computed(() => props.subject.type),
+  computed(() => props.subject.id),
+);
 const open = ref(false);
 
 interface Row {

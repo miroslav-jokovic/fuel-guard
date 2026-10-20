@@ -9,7 +9,7 @@ import {
   type RoadsideRepairDto,
 } from "./roadsideRepairContract.js";
 import type { RoadsideInspectionSmsDto } from "./roadsideSmsContract.js";
-import { citationStanding, type RoadsideCitationDto } from "./roadsideCitationContract.js";
+import { COURT_OUTCOME_EFFECT, COURT_OUTCOME_TEXT, citationStanding, type RoadsideCitationDto } from "./roadsideCitationContract.js";
 import { formatDisplayDate } from "./displayDate.js";
 
 /**
@@ -27,8 +27,10 @@ import { formatDisplayDate } from "./displayDate.js";
  *
  * ── A TICKET IS A STEP (IC4, R-ADJ1) ──────────────────────────────────────────────────────────
  * One per ticket with no court result, from 60 days after the inspection to 24 months (`citationStanding`):
- * closed by FMCSA's result, a filed court result, or "not contested"; waiting after "requested from the court"
- * until its follow-up day.
+ * closed by FMCSA's result, a recorded conviction, or "not contested"; waiting after "requested from the court"
+ * until its follow-up day. A filed court paper opens "record what the court decided" for each ticket it may
+ * answer; a dismissal or different charge FMCSA does not show then opens the DataQs request (R-ADJ2), which
+ * closes when a person records the RDR number DataQs gave it.
  */
 
 /** Who acts on a step: the section whose manage level the API checks for it (Q-IC13). */
@@ -199,17 +201,37 @@ function reportStep(a: RoadsideAttributionDto): RoadsideStep {
   };
 }
 
-function citationStep(t: RoadsideCitationDto, courtResultFiled: boolean, inspectionDate: CalendarDay | null, today: CalendarDay): RoadsideStep | null {
+function citationStep(t: RoadsideCitationDto, courtPaperFiledAt: string | null, inspectionDate: CalendarDay | null, today: CalendarDay): RoadsideStep | null {
   const base = { key: `citation:${t.violationId}`, section: "citations", owner: "safety", dueOn: null, clock: null } as const;
   const ticket = `Ticket ${t.citationNumber}`;
-  const st = citationStanding(t, courtResultFiled, inspectionDate, today);
+  const st = citationStanding(t, courtPaperFiledAt, inspectionDate, today);
   switch (st.kind) {
     case "too_old":
       return null;
     case "decided":
       return { ...base, state: "done", title: `${ticket}: ${st.text}`, detail: "the court's result, on FMCSA's record" };
-    case "result_filed":
-      return { ...base, state: "done", title: `${ticket}: court result on file`, detail: null };
+    case "court_decided":
+      return {
+        ...base,
+        state: "done",
+        title: `${ticket}: ${COURT_OUTCOME_TEXT[st.disposition.outcomeCode].toLowerCase()}`,
+        detail: st.why === "too_old" ? "past the 24 months CSA counts; nothing to file" : `${COURT_OUTCOME_EFFECT[st.disposition.outcomeCode]}; nothing to file`,
+      };
+    case "file_ready":
+      return {
+        ...base,
+        state: "open",
+        title: `${ticket}: prepare the DataQs request`,
+        detail: st.redraft
+          ? "The court's result was recorded again after the request was approved; approve it again."
+          : `${COURT_OUTCOME_TEXT[st.disposition.outcomeCode]}, and FMCSA does not show it yet: ${COURT_OUTCOME_EFFECT[st.disposition.outcomeCode]} once it does.`,
+      };
+    case "file_approved":
+      return { ...base, state: "open", title: `${ticket}: file it in DataQs`, detail: "Approved. File it in DataQs, then enter the RDR number it gives." };
+    case "filed":
+      return { ...base, state: "done", title: `${ticket}: filed in DataQs, RDR ${st.dataqs.rdrNumber}`, detail: "FMCSA's answer arrives on its record" };
+    case "record_result":
+      return { ...base, state: "open", title: `${ticket}: record what the court decided`, detail: "A court result is filed on this inspection. Record what it says about this ticket." };
     case "not_contested":
       return { ...base, state: "done", title: `${ticket}: not contested`, detail: "paid or not fought; the violation keeps its weight" };
     case "too_soon":
@@ -241,14 +263,14 @@ export function roadsideNextSteps(input: {
   inspectionDate: CalendarDay | null;
   repairs: readonly RoadsideRepairDto[];
   certification: RoadsideRepairCertificationDto | null;
-  /** Its tickets, and whether a court result document is filed on it (IC4). */
-  citations?: { tickets: readonly RoadsideCitationDto[]; courtResultFiled: boolean };
+  /** Its tickets, and when its newest court result paper was filed (IC4; `courtPaperFiledAt`). */
+  citations?: { tickets: readonly RoadsideCitationDto[]; courtPaperFiledAt: string | null };
   today: CalendarDay;
 }): RoadsideStep[] {
   const { attribution, inspectionDate, repairs, certification, citations, today } = input;
   const steps: RoadsideStep[] = [driverStep(attribution, inspectionDate, today)];
   for (const t of citations?.tickets ?? []) {
-    const s = citationStep(t, citations!.courtResultFiled, inspectionDate, today);
+    const s = citationStep(t, citations!.courtPaperFiledAt, inspectionDate, today);
     if (s) steps.push(s);
   }
   if (repairs.length) {
@@ -285,6 +307,8 @@ export interface RoadsideInspectionWorkDto {
   points: number | null;
   /** Its "Upload the officer's report" step is open — the inbox's bulk upload offers these first. */
   awaitsReport: boolean;
+  /** FMCSA's violation categories on it (`VIOLATION_CATEGORY_NAMES` keys), each once — the list's category filter and the card's top three. */
+  categories: number[];
 }
 
 /** The work line of one inspection from its steps, its attribution and its points. Pure. */
@@ -293,6 +317,7 @@ export function roadsideWork(
   steps: readonly RoadsideStep[],
   attribution: RoadsideAttributionDto,
   sms: Pick<RoadsideInspectionSmsDto, "basics"> | null,
+  categories: readonly (number | null)[] = [],
 ): RoadsideInspectionWorkDto {
   const first = steps.find((s) => s.state === "open");
   return {
@@ -302,5 +327,6 @@ export function roadsideWork(
     next: first ? { title: first.title, owner: first.owner, dueOn: first.dueOn, clock: first.clock } : null,
     points: sms ? sms.basics.reduce((n, b) => n + (b.verified ? b.points : 0), 0) : null,
     awaitsReport: steps.some((s) => s.key === "report" && s.state === "open"),
+    categories: [...new Set(categories.filter((c): c is number => c != null))].sort((a, b) => a - b),
   };
 }

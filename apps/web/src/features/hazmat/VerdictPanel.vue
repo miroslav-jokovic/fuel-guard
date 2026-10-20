@@ -87,22 +87,29 @@ const ELIGIBILITY_LABEL: Record<string, string> = {
 };
 
 /**
- * The display, resolved: each required placard paired with the identification number it carries, when
- * the engine recommends `on_placard` and §172.334 leaves that placard eligible. Everything else stays
- * a plain diamond, and any number with no carrier is listed separately as a panel.
+ * The display, resolved: one diamond per identification number a required placard carries, else one
+ * plain diamond. A placard design carries ONE number, so a class with two required numbers is two
+ * placards of that class on each side and each end (§172.334(d), PHMSA Interp. 16-0026) — this used
+ * to `find` the first number per placard, and UN1830 on the owner's 2026-10-19 Mayo BOL (beside
+ * UN1824, both Class 8 totes) appeared nowhere: not on a diamond and not in the panel list.
  */
-const display = computed(() => {
-  const onPlacard = v.value.placards.idDisplays.filter((d) => d.format === "on_placard");
-  return v.value.placards.required.map((p) => ({
-    ...p,
-    idNumber: onPlacard.find((d) => d.onPlacards.includes(p.placard))?.idNumber ?? null,
-  }));
-});
-
-/** Numbers that need their own panel — either the engine recommends a panel, or no placard may carry it. */
-const panelOnlyIds = computed(() =>
-  v.value.placards.idDisplays.filter((d) => d.format !== "on_placard" || d.onPlacards.length === 0),
+const display = computed(() =>
+  v.value.placards.required.flatMap((p) => {
+    const carried = v.value.placards.idDisplays.filter((d) => d.format === "on_placard" && d.onPlacards.includes(p.placard));
+    if (carried.length === 0) return [{ ...p, idNumber: null as string | null, ofSameClass: 1 }];
+    return carried.map((d) => ({ ...p, idNumber: d.idNumber as string | null, ofSameClass: carried.length }));
+  }),
 );
+
+/**
+ * Numbers that need their own panel: every required number no diamond above carries. Derived from
+ * `display` rather than restating the engine's format test, so a number can never fall between the
+ * two lists the way UN1830 did.
+ */
+const panelOnlyIds = computed(() => {
+  const onDiamonds = new Set(display.value.map((p) => p.idNumber));
+  return v.value.placards.idDisplays.filter((d) => !onDiamonds.has(d.idNumber));
+});
 
 const agg = computed(() => v.value.placards.aggregate ?? null);
 const fmt = (n: number): string => n.toLocaleString("en-US");
@@ -191,7 +198,12 @@ const loadProfile = computed(() => {
               {{ humanize(p.placard) }}<span v-if="p.idNumber" class="text-ink-secondary"> · {{ p.idNumber }}</span>
             </p>
             <p class="text-sm text-ink-secondary">{{ humanize(p.positions) }}</p>
-            <p v-if="p.idNumber" class="text-xs text-ink-muted">
+            <p v-if="p.idNumber && p.ofSameClass > 1" class="text-xs text-ink-muted">
+              One of {{ p.ofSameClass }} {{ humanize(p.placard) }} placards on each side and each end, one per
+              identification number — together they cover every material of this class on the truck
+              (§172.334(d)).
+            </p>
+            <p v-else-if="p.idNumber" class="text-xs text-ink-muted">
               The identification number is displayed across the center of this placard — one display, not a
               placard plus a separate panel.
             </p>

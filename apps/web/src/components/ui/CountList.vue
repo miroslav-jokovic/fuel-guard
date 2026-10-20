@@ -25,6 +25,11 @@ export interface CountRow {
   door?: string;
   /** Draw the figure in the danger ink when it is above zero. For things that are wrong, not just counts. */
   alarm?: boolean;
+  /**
+   * The figure as it should read when it is not a plain count — a rate ("17%"). `value` stays the number the
+   * alarm and the tests read; a row whose figure has no answer (a rate of nothing) gives "—".
+   */
+  display?: string;
 }
 
 /**
@@ -49,7 +54,7 @@ const fmt = (n: number | null) => (n == null ? "—" : Math.round(n).toLocaleStr
         class="text-lg font-bold tabular-nums"
         :class="r.alarm && (r.value ?? 0) > 0 ? 'text-danger-text' : 'text-ink'"
         :data-test="`count-${r.key}`"
-      >{{ fmt(r.value) }}</span>
+      >{{ r.display ?? fmt(r.value) }}</span>
       <span
         v-if="r.caption || r.to"
         class="col-span-2 flex flex-wrap items-center justify-between gap-x-2 text-xs text-ink-tertiary"

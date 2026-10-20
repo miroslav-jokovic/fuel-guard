@@ -8,26 +8,38 @@ import {
   AppTextarea as BaseTextarea,
   QueryState,
 } from "@silvicom/ui";
-import { COURT_FOLLOW_UP_DAYS, citationStanding, shiftDay, todayInZone, type RoadsideCitationDto } from "@silvicom/shared";
+import {
+  COURT_FOLLOW_UP_DAYS,
+  COURT_OUTCOME_TEXT,
+  citationStanding,
+  courtPaperFiledAt,
+  shiftDay,
+  todayInZone,
+  type RoadsideAttributionDto,
+  type RoadsideCitationDto,
+} from "@silvicom/shared";
 import { useOrgTimezone } from "@/composables/useOrgTimezone";
 import { useSessionStore } from "@/stores/session";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { formatDate, formatDateTime } from "@/lib/format";
 import { RepairDecisionError, useActOnCitation, useInspectionCitationsQuery } from "./useRoadsideInspections";
+import TicketDataqsRequest from "./TicketDataqsRequest.vue";
+import TicketDispositionForm from "./TicketDispositionForm.vue";
 
 /**
  * The inspection's tickets and their court results (INSPECTION-CHALLENGE-PLAN IC4, R-ADJ1; Q-IC2 (a): the safety
  * office obtains them). Each ticket says where it stands — `citationStanding`, the rule the Next steps strip and
  * the inbox read — and offers the office's two acts: "Requested from the court" (with the day to follow up,
- * 30 days on by default) and "Not contested". The third way to close it is filing the court's paper on the
- * Documents card, which this card points at rather than duplicates.
+ * 30 days on by default) and "Not contested". The court's paper is filed on the Documents card, which this card
+ * points at rather than duplicates; once one is, each ticket asks what it decided (`TicketDispositionForm`), and a
+ * dismissal or different charge FMCSA does not show becomes a DataQs request (`TicketDataqsRequest`, R-ADJ2).
  *
  * Acting needs the safety section's manage level, which the API checks; the buttons only follow it. Hidden on an
  * inspection with no ticket (a warning is not one).
  */
 
-const props = defineProps<{ inspectionId: string; inspectionDate: string | null }>();
-const emit = defineEmits<{ fileResult: [] }>();
+const props = defineProps<{ inspectionId: string; inspectionDate: string | null; attribution: RoadsideAttributionDto }>();
+const emit = defineEmits<{ fileResult: []; confirmDriver: [] }>();
 const id = toRef(props, "inspectionId");
 
 const session = useSessionStore();
@@ -39,14 +51,23 @@ const { data, isLoading, isError, error, isFetching, refetch } = useInspectionCi
 const act = useActOnCitation(id);
 const show = computed(() => isLoading.value || isError.value || (data.value?.tickets.length ?? 0) > 0);
 
-const standing = (t: RoadsideCitationDto) => citationStanding(t, data.value?.courtResultFiled ?? false, props.inspectionDate, today.value);
+const paperFiledAt = computed(() => courtPaperFiledAt(data.value?.courtPapers ?? []));
+const standing = (t: RoadsideCitationDto) => citationStanding(t, paperFiledAt.value, props.inspectionDate, today.value);
 function badge(t: RoadsideCitationDto): { text: string; tone: string } {
   const s = standing(t);
   switch (s.kind) {
     case "decided":
       return { text: s.text, tone: /dismiss|not guilty/i.test(s.text) ? "success" : "neutral" };
-    case "result_filed":
-      return { text: "Court result on file", tone: "success" };
+    case "court_decided":
+      return { text: COURT_OUTCOME_TEXT[s.disposition.outcomeCode], tone: s.disposition.outcomeCode === 1 ? "neutral" : "success" };
+    case "file_ready":
+      return { text: "Ready for DataQs", tone: "warning" };
+    case "file_approved":
+      return { text: "Approved · file in DataQs", tone: "brand" };
+    case "filed":
+      return { text: `Filed in DataQs · RDR ${s.dataqs.rdrNumber}`, tone: "success" };
+    case "record_result":
+      return { text: "Record the court's result", tone: "warning" };
     case "not_contested":
       return { text: "Not contested", tone: "neutral" };
     case "too_old":
@@ -61,14 +82,23 @@ function badge(t: RoadsideCitationDto): { text: string; tone: string } {
       return { text: "Get the court result", tone: "warning" };
   }
 }
-/** Acts are offered while the court's word can still change something. */
-const actable = (t: RoadsideCitationDto) => canAct.value && ["ask", "follow_up", "requested", "too_soon"].includes(standing(t).kind);
+/** Acts are offered while the court's word can still change something and nothing is recorded of it. */
+const actable = (t: RoadsideCitationDto) => canAct.value && ["ask", "follow_up", "requested", "too_soon", "record_result"].includes(standing(t).kind);
+/** What the court decided is recorded once a paper is filed, and recorded again to correct a misread. */
+const disposable = (t: RoadsideCitationDto) =>
+  canAct.value && (data.value?.courtPapers.length ?? 0) > 0 && ["record_result", "court_decided", "file_ready", "file_approved"].includes(standing(t).kind);
+const dataqsStanding = (t: RoadsideCitationDto) => {
+  const s = standing(t);
+  return canAct.value && (s.kind === "file_ready" || s.kind === "file_approved") ? s : null;
+};
+const disposing = ref<string | null>(null);
 
 const writing = ref<{ violationId: string; kind: "requested_from_court" | "not_contested" } | null>(null);
 const followUpOn = ref("");
 const note = ref("");
 function start(t: RoadsideCitationDto, kind: "requested_from_court" | "not_contested") {
   act.reset();
+  disposing.value = null;
   note.value = "";
   followUpOn.value = shiftDay(today.value, COURT_FOLLOW_UP_DAYS);
   writing.value = { violationId: t.violationId, kind };
@@ -116,13 +146,44 @@ const ACT_TEXT = { requested_from_court: "Requested from the court", not_contest
               {{ ACT_TEXT[t.action.kind] }} by {{ t.action.actedBy ?? "a former user" }} on {{ formatDateTime(t.action.actedAt) }}<template v-if="t.action.note">: “{{ t.action.note }}”</template>
             </p>
 
-            <div v-if="actable(t) && writing?.violationId !== t.violationId" class="flex flex-wrap gap-2" data-test="ticket-actions">
-              <BaseButton size="sm" variant="primary" data-test="ticket-requested" @click="start(t, 'requested_from_court')">
-                {{ t.action?.kind === "requested_from_court" ? "Asked the court again" : "Requested from the court" }}
+            <p v-if="t.disposition" class="text-ink-muted" data-test="ticket-disposition">
+              Court: {{ COURT_OUTCOME_TEXT[t.disposition.outcomeCode] }}<template v-if="t.disposition.amendedCharge"> ({{ t.disposition.amendedCharge }})</template>,
+              {{ t.disposition.courtName }}, {{ formatDate(t.disposition.decidedOn) }} — recorded by {{ t.disposition.recordedBy ?? "a former user" }} on {{ formatDateTime(t.disposition.recordedAt) }}
+            </p>
+
+            <div v-if="(actable(t) || disposable(t)) && writing?.violationId !== t.violationId && disposing !== t.violationId" class="flex flex-wrap gap-2" data-test="ticket-actions">
+              <BaseButton v-if="disposable(t)" size="sm" :variant="t.disposition ? 'link' : 'primary'" data-test="ticket-dispose" @click="disposing = t.violationId; writing = null">
+                {{ t.disposition ? "Record it again" : "Record what the court decided" }}
               </BaseButton>
-              <BaseButton size="sm" data-test="ticket-result" @click="emit('fileResult')">Upload the court result</BaseButton>
-              <BaseButton size="sm" variant="link" data-test="ticket-not-contested" @click="start(t, 'not_contested')">Not contested (paid)</BaseButton>
+              <template v-if="actable(t)">
+                <BaseButton size="sm" :variant="disposable(t) ? 'secondary' : 'primary'" data-test="ticket-requested" @click="start(t, 'requested_from_court')">
+                  {{ disposable(t) ? "Not on that paper: requested from the court" : t.action?.kind === "requested_from_court" ? "Asked the court again" : "Requested from the court" }}
+                </BaseButton>
+                <BaseButton v-if="!disposable(t)" size="sm" data-test="ticket-result" @click="emit('fileResult')">Upload the court result</BaseButton>
+                <BaseButton size="sm" variant="link" data-test="ticket-not-contested" @click="start(t, 'not_contested')">Not contested (paid)</BaseButton>
+              </template>
             </div>
+
+            <TicketDispositionForm
+              v-if="disposing === t.violationId"
+              :inspection-id="inspectionId"
+              :ticket="t"
+              :papers="data?.courtPapers ?? []"
+              :inspection-date="inspectionDate"
+              :today="today"
+              @done="disposing = null"
+            />
+
+            <TicketDataqsRequest
+              v-if="dataqsStanding(t) && disposing !== t.violationId"
+              :inspection-id="inspectionId"
+              :ticket="t"
+              :standing="dataqsStanding(t)!"
+              :filing="data!.filing"
+              :attribution="attribution"
+              :today="today"
+              @confirm-driver="emit('confirmDriver')"
+            />
 
             <form v-if="writing?.violationId === t.violationId" class="space-y-3 rounded-detail border border-edge p-3" data-test="ticket-form" @submit.prevent="save(t)">
               <p v-if="writing.kind === 'not_contested'" class="text-ink">

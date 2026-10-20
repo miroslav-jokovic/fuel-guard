@@ -1,22 +1,17 @@
 import { Router } from "express";
 import {
-  ROADSIDE_CARD_PERIOD,
   isCalendarDay,
-  organizationTimezone,
   roadsideAttributionDecisionSchema,
   roadsideDocumentRegisterSchema,
   roadsideRepairCertifySchema,
-  roadsideCitationActionSchema,
   roadsideRepairDecisionSchema,
-  roadsidePeriodStart,
   shiftDay,
-  summarizeRoadside,
-  todayInZone,
   type CalendarDay,
   type RoadsideSummary,
+  VIOLATION_CATEGORY_NAMES,
+  roadsideStats,
   recordId,
 } from "@silvicom/shared";
-import type { SupabaseClient } from "@supabase/supabase-js";
 import { requireAuth, requireOrg, requireSection } from "../../../middleware/auth.js";
 import { apiError, asyncHandler, dbErrorResponse } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
@@ -28,8 +23,8 @@ import { decideAttribution } from "../attribution/decide.js";
 import { readInspectionRepairs, readRepairCertification } from "../read/inspectionRepairs.js";
 import { readRepairsDue } from "../read/repairsDue.js";
 import { readInspectionsWork } from "../read/inspectionsWork.js";
-import { readInspectionCitations } from "../citation/read.js";
-import { actOnCitation } from "../citation/act.js";
+import { orgToday } from "../read/orgToday.js";
+import { citationRoutes } from "./citations.js";
 import { decideRepair } from "../repair/decide.js";
 import { certifyRepairs } from "../repair/certify.js";
 import { listInspectionDocuments, registerInspectionDocument, signInspectionDocumentDownload } from "../documents/inspectionDocuments.js";
@@ -55,10 +50,20 @@ import { listInspectionDocuments, registerInspectionDocument, signInspectionDocu
  * the same window with `roadsidePeriodStart` on its own clock, so the page's row count is the card's
  * figure (D-FM7) — the summary is that list's rows counted by `summarizeRoadside`, not a second query.
  */
-/** Today on the carrier's calendar: the card's window ends on it and an inspection's CSA points are measured on it. */
-async function orgToday(admin: SupabaseClient, orgId: string): Promise<CalendarDay> {
-  const { data: org } = await admin.from("organizations").select("operating_hours").eq("id", orgId).maybeSingle();
-  return todayInZone(new Date(), organizationTimezone(org?.operating_hours));
+
+/**
+ * `?from=&to=` as calendar days, either optional. `isCalendarDay` is shape only; a day that does not exist
+ * (02-31) would reach Postgres and come back a 500, so each must also survive a round trip through the calendar.
+ */
+function dayRange(q: Record<string, unknown>): { from: CalendarDay | null; to: CalendarDay | null } | { error: string } {
+  const out: { from: CalendarDay | null; to: CalendarDay | null } = { from: null, to: null };
+  for (const key of ["from", "to"] as const) {
+    const v = typeof q[key] === "string" ? (q[key] as string) : null;
+    if (v !== null && (!isCalendarDay(v) || shiftDay(v, 0) !== v)) return { error: `${key} must be a calendar day, YYYY-MM-DD.` };
+    out[key] = v;
+  }
+  if (out.from && out.to && out.from > out.to) return { error: "from must not be after to." };
+  return out;
 }
 
 export function roadsideInspectionsRouter(): Router {
@@ -66,20 +71,46 @@ export function roadsideInspectionsRouter(): Router {
   router.use(requireAuth, requireOrg);
   const canView = requireSection("safety", "view");
 
+  /**
+   * The Roadside card's answer over `?from=&to=` (IC16): the statistics of that range's inspections, from the
+   * list and the work lines the Roadside inspections page reads, through `roadsideStats` — so the card's every
+   * figure is a list the page shows. No range: the last 30 days, the Operations tab's own default.
+   */
   router.get(
     "/summary",
     canView,
     asyncHandler(async (req, res) => {
-      const admin = getSupabaseAdmin(getAppLocals(req).env);
-      const orgId = req.auth!.orgId!;
-      const from = roadsidePeriodStart(ROADSIDE_CARD_PERIOD, await orgToday(admin, orgId))!;
-      const rows = await readRoadsideInspections(admin, orgId, { from });
-      if ("error" in rows) {
-        dbErrorResponse(res, "roadside-inspections.summary", rows.error, "Could not load the roadside inspections");
+      const range = dayRange(req.query);
+      if ("error" in range) {
+        res.status(400).json(apiError("bad_request", range.error));
         return;
       }
-      const data: RoadsideSummary = summarizeRoadside(from, rows, await readRoadsideFeed(admin, orgId, Date.now()));
+      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      const orgId = req.auth!.orgId!;
+      const today = await orgToday(admin, orgId);
+      const from = range.from ?? shiftDay(today, -30);
+      const to = range.to ?? today;
+      const [rows, work] = await Promise.all([
+        readRoadsideInspections(admin, orgId, { from, to }),
+        readInspectionsWork(admin, orgId, { from, to, today }),
+      ]);
+      if ("error" in rows || "error" in work) {
+        dbErrorResponse(res, "roadside-inspections.summary", ("error" in rows ? rows : (work as { error: { message: string } })).error, "Could not load the roadside inspections");
+        return;
+      }
+      const stats = roadsideStats(rows, new Map(work.map((w) => [w.id, w])), (id) => VIOLATION_CATEGORY_NAMES[id] ?? String(id));
+      const data: RoadsideSummary = { from, to, stats, feed: await readRoadsideFeed(admin, orgId, Date.now()) };
       res.json({ ok: true, data });
+    }),
+  );
+
+  /** How current our copy of FMCSA's record is (IC1c) — the list's line above its rows, without the card's statistics. */
+  router.get(
+    "/feed",
+    canView,
+    asyncHandler(async (req, res) => {
+      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      res.json({ ok: true, data: await readRoadsideFeed(admin, req.auth!.orgId!, Date.now()) });
     }),
   );
 
@@ -88,15 +119,13 @@ export function roadsideInspectionsRouter(): Router {
     "/",
     canView,
     asyncHandler(async (req, res) => {
-      const from = typeof req.query.from === "string" ? req.query.from : null;
-      // `isCalendarDay` is shape only; a day that does not exist (02-31) would reach Postgres and come
-      // back a 500, so it must also survive a round trip through the calendar unchanged.
-      if (from !== null && (!isCalendarDay(from) || shiftDay(from, 0) !== from)) {
-        res.status(400).json(apiError("bad_request", "from must be a calendar day, YYYY-MM-DD."));
+      const range = dayRange(req.query);
+      if ("error" in range) {
+        res.status(400).json(apiError("bad_request", range.error));
         return;
       }
       const rows = await readRoadsideInspections(getSupabaseAdmin(getAppLocals(req).env), req.auth!.orgId!, {
-        from,
+        ...range,
         withUnits: true,
       });
       if ("error" in rows) {
@@ -115,14 +144,14 @@ export function roadsideInspectionsRouter(): Router {
     "/work",
     canView,
     asyncHandler(async (req, res) => {
-      const from = typeof req.query.from === "string" ? req.query.from : null;
-      if (from !== null && (!isCalendarDay(from) || shiftDay(from, 0) !== from)) {
-        res.status(400).json(apiError("bad_request", "from must be a calendar day, YYYY-MM-DD."));
+      const range = dayRange(req.query);
+      if ("error" in range) {
+        res.status(400).json(apiError("bad_request", range.error));
         return;
       }
       const admin = getSupabaseAdmin(getAppLocals(req).env);
       const orgId = req.auth!.orgId!;
-      const out = await readInspectionsWork(admin, orgId, { from, today: await orgToday(admin, orgId) });
+      const out = await readInspectionsWork(admin, orgId, { ...range, today: await orgToday(admin, orgId) });
       if ("error" in out) {
         dbErrorResponse(res, "roadside-inspections.work", out.error, "Could not work out what is left on the roadside inspections");
         return;
@@ -345,52 +374,7 @@ export function roadsideInspectionsRouter(): Router {
     }),
   );
 
-  /** The inspection's tickets and where each stands (IC4, R-ADJ1): FMCSA's court results and the office's acts. */
-  router.get(
-    "/:id/citations",
-    canView,
-    asyncHandler(async (req, res) => {
-      const id = recordId().safeParse(req.params.id);
-      if (!id.success) {
-        res.status(404).json(apiError("not_found", "Roadside inspection not found"));
-        return;
-      }
-      const out = await readInspectionCitations(getSupabaseAdmin(getAppLocals(req).env), req.auth!.orgId!, id.data);
-      if ("error" in out) {
-        dbErrorResponse(res, "roadside-inspections.citations", out.error, "Could not load the tickets");
-        return;
-      }
-      res.json({ ok: true, data: out });
-    }),
-  );
-
-  /** The office's act on one ticket — requested from the court, or not contested (Q-IC2 (a): safety's). */
-  router.post(
-    "/:id/citations",
-    requireSection("safety"),
-    asyncHandler(async (req, res) => {
-      const id = recordId().safeParse(req.params.id);
-      if (!id.success) {
-        res.status(404).json(apiError("not_found", "Roadside inspection not found"));
-        return;
-      }
-      const body = roadsideCitationActionSchema.safeParse(req.body);
-      if (!body.success) {
-        res.status(400).json(apiError("bad_request", body.error.issues[0]?.message ?? "Invalid action"));
-        return;
-      }
-      const out = await actOnCitation(getSupabaseAdmin(getAppLocals(req).env), req.auth!.orgId!, id.data, req.auth!.userId, body.data);
-      if ("error" in out) {
-        dbErrorResponse(res, "roadside-inspections.citation-act", out.error, "Could not record it");
-        return;
-      }
-      if (!out.ok) {
-        res.status(out.status).json(apiError(out.code, out.message));
-        return;
-      }
-      res.status(201).json({ ok: true, data: { id: out.id } });
-    }),
-  );
+  citationRoutes(router, canView);
 
   router.post(
     "/:id/attribution",

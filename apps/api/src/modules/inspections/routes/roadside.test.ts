@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import express, { type NextFunction, type Request, type Response } from "express";
 import type { AddressInfo } from "node:net";
 import type { Server } from "node:http";
-import { roadsideSummarySchema, type RoadsideInspectionDetailDto, type RoadsideInspectionDto } from "@silvicom/shared";
+import type { RoadsideInspectionDetailDto, RoadsideInspectionDto, RoadsideSummary } from "@silvicom/shared";
 import { closeTestServer } from "../../../testing/httpServer.js";
 import {
   createSupabaseRecorder,
@@ -108,12 +108,14 @@ function inspectionsFixture(all: Insp[]) {
     const org = val(q, "eq", "org_id");
     const id = val(q, "eq", "id");
     const from = val(q, "gte", "inspection_date") as string | undefined;
+    const to = val(q, "lte", "inspection_date") as string | undefined;
     const current = q.ops.some((o) => o.method === "is" && o.args[0] === "vanished_at" && o.args[1] === null);
     const rows = all
       .filter((r) => org === undefined || r.org_id === org)
       .filter((r) => id === undefined || r.id === id)
       .filter((r) => !current || r.vanished_at === null)
       .filter((r) => from === undefined || (r.inspection_date !== null && r.inspection_date >= from))
+      .filter((r) => to === undefined || (r.inspection_date !== null && r.inspection_date <= to))
       .sort((a, b) => (a.inspection_date === b.inspection_date ? a.id.localeCompare(b.id) : !a.inspection_date ? 1 : !b.inspection_date ? -1 : b.inspection_date.localeCompare(a.inspection_date)));
     const r = rangeOf(q);
     return r ? rows.slice(r[0], r[1] + 1) : rows;
@@ -200,29 +202,56 @@ beforeEach(() => {
 });
 afterEach(() => vi.useRealTimers());
 
-describe("the Roadside card's summary", () => {
-  it("counts the last 90 days on the org's calendar, each OOS kind as inspections carrying one", async () => {
-    const { status, body } = await call("/summary");
+describe("the Roadside card's summary (IC16)", () => {
+  const summary = async (path: string) => {
+    const res = await call(path);
+    return { status: res.status, data: res.body.data as RoadsideSummary };
+  };
+
+  it("counts the range it is asked for, on the org's calendar, each figure FMCSA's way", async () => {
+    const { status, data } = await summary(`/summary?from=${FROM}&to=2026-10-09`);
     expect(status).toBe(200);
-    // i1 i2 i3 i4 — not i5 (a day early), i6 (removed), i7 (undated) or x1 (another carrier).
-    // i1 is in both vehicle and hazmat: the kinds overlap and are never a sum.
-    expect(roadsideSummarySchema.parse(body.data)).toEqual({
-      from: FROM, inspections: 4, driverOos: 1, vehicleOos: 2, hazmatOos: 1,
-      feed: { fetchedAt: "2026-10-13T00:30:00Z", sourceUpdatedAt: "2026-10-12T19:30:00Z", state: "fresh" },
+    // i1 i2 i3 i4 — not i5 (a day early), i6 (removed), i7 (undated) or x1 (another carrier). All are Level 2,
+    // a vehicle AND a driver inspection, so each rate is over all four.
+    expect(data.from).toBe(FROM);
+    expect(data.to).toBe("2026-10-09");
+    expect(data.stats).toMatchObject({
+      inspections: 4,
+      vehicleOos: { count: 2, of: 4, share: 0.5 },
+      driverOos: { count: 1, of: 4, share: 0.25 },
+      hazmatOos: 1,
+      clean: { count: 0, of: 4 },
     });
+    expect(data.feed).toEqual({ fetchedAt: "2026-10-13T00:30:00Z", sourceUpdatedAt: "2026-10-12T19:30:00Z", state: "fresh" });
+  });
+
+  it("stops at the range's last day", async () => {
+    // i1 (10-09) is after 10-01.
+    expect((await summary(`/summary?from=${FROM}&to=2026-10-01`)).data.stats.inspections).toBe(3);
+  });
+
+  it("is the last 30 days of the org's calendar when no range is given, as the Operations tab's default", async () => {
+    // Today is 10-12 in Los Angeles: 09-12 to 10-12 holds i1 and i2.
+    const { data } = await summary("/summary");
+    expect([data.from, data.to, data.stats.inspections]).toEqual(["2026-09-12", "2026-10-12", 2]);
   });
 
   it("gives each figure as the length of the list the card's door opens (D-FM7)", async () => {
-    const summary = (await call("/summary")).body.data as { from: string; inspections: number };
+    const { data } = await summary(`/summary?from=${FROM}&to=2026-10-12`);
     rec = recorder();
-    const list = (await call(`/?from=${summary.from}`)).body.data as RoadsideInspectionDto[];
-    expect(summary.inspections).toBe(list.length);
+    const list = (await call(`/?from=${data.from}&to=${data.to}`)).body.data as RoadsideInspectionDto[];
+    expect(data.stats.inspections).toBe(list.length);
   });
 
-  it("reads every page of a window longer than one", async () => {
+  it("reads every page of a range longer than one", async () => {
     const many = Array.from({ length: 501 }, (_, i) => insp(`m${String(i).padStart(3, "0")}`, "2026-10-01", [0, i % 2, 0]));
     rec = recorder({ inspections: many });
-    expect((await call("/summary")).body.data).toMatchObject({ inspections: 501, vehicleOos: 250 });
+    expect((await summary("/summary?from=2026-10-01&to=2026-10-01")).data.stats).toMatchObject({ inspections: 501, vehicleOos: { count: 250 } });
+  });
+
+  it("refuses a day that does not exist, and a range that ends before it starts", async () => {
+    expect((await call("/summary?from=2026-02-31")).status).toBe(400);
+    expect((await call("/summary?from=2026-10-09&to=2026-10-01")).status).toBe(400);
   });
 
   it("refuses with no figures when the read fails, and never echoes the database", async () => {

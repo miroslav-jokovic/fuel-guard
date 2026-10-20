@@ -2385,6 +2385,20 @@ async function main() {
         `select '${org}', i.id, (random() * 1e12)::bigint, raw.id from i, raw returning id), ` +
         `ca as (insert into inspection_citation_actions (org_id, inspection_id, violation_id, action, acted_by) ` +
         `select '${org}', i.id, v.id, 'not_contested', gen_random_uuid() from i, v returning id) select 1`,
+      // 0495: composite FKs to its inspection AND its violation; a different charge names the charge.
+      inspection_citation_dispositions: (org) =>
+        `${rsRaw(org)} ${rsInsp(org)}, v as (insert into roadside_violations (org_id, inspection_id, fmcsa_violation_id, raw_row_id) ` +
+        `select '${org}', i.id, (random() * 1e12)::bigint, raw.id from i, raw returning id), ` +
+        `cd as (insert into inspection_citation_dispositions (org_id, inspection_id, violation_id, document_id, outcome_code, court_name, decided_on, recorded_by) ` +
+        `select '${org}', i.id, v.id, gen_random_uuid(), 3, 'rls', current_date, gen_random_uuid() from i, v returning id) select 1`,
+      // 0495: its FK names the disposition AND the ticket, so the hand-seed writes all three.
+      dataqs_cases: (org) =>
+        `${rsRaw(org)} ${rsInsp(org)}, v as (insert into roadside_violations (org_id, inspection_id, fmcsa_violation_id, raw_row_id) ` +
+        `select '${org}', i.id, (random() * 1e12)::bigint, raw.id from i, raw returning id), ` +
+        `cd as (insert into inspection_citation_dispositions (org_id, inspection_id, violation_id, document_id, outcome_code, court_name, decided_on, recorded_by) ` +
+        `select '${org}', i.id, v.id, gen_random_uuid(), 3, 'rls', current_date, gen_random_uuid() from i, v returning id, inspection_id, violation_id), ` +
+        `dq as (insert into dataqs_cases (org_id, inspection_id, violation_id, disposition_id, rdr_type, state, narrative, attribution_id, attested_by, attested_at, acted_by) ` +
+        `select '${org}', cd.inspection_id, cd.violation_id, cd.id, 'inspection_citation_with_associated_violation', 'approved', 'rls', gen_random_uuid(), gen_random_uuid(), now(), gen_random_uuid() from cd returning id) select 1`,
       // 0480: the same composite FK to its inspection.
       inspection_report_checks: (org) =>
         `${rsRaw(org)} ${rsInsp(org)}, rc as (insert into inspection_report_checks (org_id, inspection_id, document_id, read_id, check_version, outcome) ` +

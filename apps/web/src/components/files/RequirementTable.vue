@@ -1,30 +1,36 @@
 <script setup lang="ts">
-import type { DqGroup, DqItemState } from "@silvicom/shared";
+import type { DqItemState } from "@silvicom/shared";
 import { AppIcon, AppButton as BaseButton, DataTable, type DataTableColumn } from "@silvicom/ui";
 import { ArrowDownTrayIcon, ArrowPathIcon, ClipboardDocumentCheckIcon, EyeIcon } from "@silvicom/ui/icons";
 import KebabMenu from "@/components/KebabMenu.vue";
 import { BADGE_BASE, dqItemBadge, toneClass } from "@/lib/badges";
 import { formatDate } from "@/lib/format";
-import { useSessionStore } from "@/stores/session";
 
 /**
- * The §391.51 requirements table — extracted from the qualification surface (now QualificationSection, D1) when B6's viewer wiring
+ * A file's requirements table — extracted from the qualification surface (now QualificationSection, D1) when B6's viewer wiring
  * pushed the page over the 500-line budget. The page owns the DATA (buildDqFile, filters, the
  * drawer, the viewer, the release mutation); this owns the RENDERING: state badges, the thumb cell
  * that loads 40 KB instead of 25 MB (B4), the restricted-evidence gating (Phase G), and the
  * advisory label (D8).
+ *
+ * Promoted out of `features/compliance` (UNIT-FILES-PLAN UF0) so the truck and trailer files render
+ * the same table. Who may record or renew is therefore the CALLER's question, passed in as
+ * `canManage`: a driver's file asks the `roster` section, a truck's asks `equipment` (D-UF5).
  */
 export interface RequirementRow {
   key: string;
   label: string;
-  group: DqGroup;
+  group: string;
   state: DqItemState;
   evidenceDate: string | null;
   goodUntil: string | null;
   expiryUnknown: boolean;
   documentId: string | null;
   documentUrl: string | null;
-  /** The 40 KB derivative for the cell (B4); falls back to the original until the derive job runs. */
+  /**
+   * The 40 KB derivative for the cell (B4). An image falls back to its original until the derive job
+   * runs; a PDF has one only once its page-1 thumb is derived (D-UF10), and shows "View" until then.
+   */
   documentThumbUrl: string | null;
   documentIsImage: boolean;
   /** Phase G (D-DQ15): state visible to everyone; evidence and capture hidden when THIS reader
@@ -44,6 +50,8 @@ defineProps<{
   releasingKey: string | null;
   /** Removes the table's outer card when it is composed inside a DataWorkspace. */
   embedded?: boolean;
+  /** May this reader record or renew a requirement — the subject's own section, asked by the caller. */
+  canManage: boolean;
 }>();
 const emit = defineEmits<{
   retry: [];
@@ -51,8 +59,6 @@ const emit = defineEmits<{
   preview: [row: RequirementRow];
   release: [row: RequirementRow];
 }>();
-
-const session = useSessionStore();
 
 const columns: DataTableColumn[] = [
   { key: "label", label: "Requirement", width: "2xl", cellClass: "font-medium text-ink" },
@@ -107,7 +113,7 @@ const columns: DataTableColumn[] = [
       <!-- The cell loads the 40 KB thumb, never the original (B4); clicking opens the viewer (B6),
            which is where the legible `normalized` variant loads. -->
       <BaseButton
-        v-else-if="row.documentUrl && row.documentIsImage"
+        v-else-if="row.documentUrl && row.documentThumbUrl"
         variant="ghost"
         class="inline-block p-0"
         :aria-label="`View scan for ${row.label}`"
@@ -135,7 +141,7 @@ const columns: DataTableColumn[] = [
     </template>
     <template #actions="{ row }">
       <KebabMenu
-        v-if="session.can('roster') && !row.restricted"
+        v-if="canManage && !row.restricted"
         :trigger-label="`${row.state === 'missing' ? 'Record' : 'Renew'} ${row.label}`"
       >
         <BaseButton type="button" class="kebab-item" @click="emit('open', row.key)">

@@ -15,23 +15,29 @@ import {
   sortRows,
   AppTabs,
   AppIcon,
+  StatCard,
 } from "@silvicom/ui";
-import { ArrowUpTrayIcon } from "@silvicom/ui/icons";
+import { ArrowUpTrayIcon, CheckCircleIcon, ExclamationTriangleIcon, RoadIcon, UserIcon } from "@silvicom/ui/icons";
 import {
+  ROADSIDE_INSPECTION_KINDS,
   ROADSIDE_OOS_KINDS,
-  ROADSIDE_PERIODS,
+  VIOLATION_CATEGORY_NAMES,
   hasOosOf,
   inspectionLevelLabel,
-  roadsidePeriodStart,
-  todayInZone,
+  isCalendarDay,
+  isCleanInspection,
+  isInspectionOfKind,
+  roadsideStats,
   type RoadsideInspectionDto,
+  type RoadsideInspectionKind,
   type RoadsideInspectionWorkDto,
   type RoadsideOosKind,
-  type RoadsidePeriod,
+  type RoadsideRate,
 } from "@silvicom/shared";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
-import { useRoadsideInspectionsQuery, useRoadsideSummaryQuery, useRoadsideWorkQuery } from "@/features/roadside/useRoadsideInspections";
+import DateRangeFilter from "@/components/DateRangeFilter.vue";
+import { useRoadsideFeedQuery, useRoadsideInspectionsQuery, useRoadsideWorkQuery, type OpenDayRange } from "@/features/roadside/useRoadsideInspections";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import BulkReportUploadDrawer from "@/features/roadside/BulkReportUploadDrawer.vue";
 import { useSessionStore } from "@/stores/session";
@@ -44,10 +50,11 @@ import { formatDate } from "@/lib/format";
  * (INSPECTION-CHALLENGE-PLAN §6, the Inspections inbox's first slice; FLEET-MANAGER-HOME-PLAN Q-FM7 (a)).
  *
  * ── IT IS THE LIST BEHIND THE ROADSIDE CARD, SO ITS FILTERS ARE THE CARD'S ─────────────────────
- * The Operations tab's card says "Vehicle out of service 18" and links to `?period=90d&oos=vehicle`;
- * D-FM9 holds that the page then shows exactly those 18. The window is `roadsidePeriodStart` on the
- * org's calendar — the function the server cut the card's window with — and the OOS filter is
- * `hasOosOf`, the predicate the server counted with. Neither is restated here.
+ * The Operations tab's card (IC16) says "Vehicle out-of-service rate 17% — 4 of 23 vehicle inspections" and
+ * links to `?view=all&from=…&to=…&oos=vehicle&insp=vehicle`; D-FM9 holds that the page then shows exactly
+ * those 4. The range is the card's own days; the filters are `hasOosOf`, `isInspectionOfKind` and
+ * `isCleanInspection`, the predicates `roadsideStats` counted with, and the strip above the table is that
+ * same function over the range shown. Nothing is restated here.
  *
  * ── WHAT IS NOT HERE YET ───────────────────────────────────────────────────────────────────────
  * The inbox's "has candidate" and "needs task" filters, the driver column and the SMS weight columns
@@ -62,10 +69,11 @@ import { formatDate } from "@/lib/format";
 
 const PAGE_SIZE = 25;
 
-const PERIOD_LABEL: Record<RoadsidePeriod, string> = { "90d": "Last 90 days", "365d": "Last 365 days", all: "All (3 years)" };
 const OOS_LABEL: Record<RoadsideOosKind, string> = { driver: "Driver", vehicle: "Vehicle", hazmat: "Hazmat" };
-const periodOptions = ROADSIDE_PERIODS.map((p) => ({ value: p, label: PERIOD_LABEL[p] }));
 const oosOptions = ROADSIDE_OOS_KINDS.map((k) => ({ value: k, label: OOS_LABEL[k] }));
+const KIND_LABEL: Record<RoadsideInspectionKind, string> = { vehicle: "Vehicle inspections (Level 1, 2, 5, 6)", driver: "Driver inspections (Level 1, 2, 3, 6)" };
+const kindOptions = ROADSIDE_INSPECTION_KINDS.map((k) => ({ value: k, label: KIND_LABEL[k] }));
+const resultOptions = [{ value: "1", label: "Clean — no violation" }];
 
 const qs = useQueryState();
 /**
@@ -76,26 +84,44 @@ const qs = useQueryState();
 const VIEWS = ["needs", "all"] as const;
 const view = qs.param("view", VIEWS, "needs");
 const search = qs.param("search");
-const period = qs.param("period", ROADSIDE_PERIODS, "all");
+// The range: the whole record until the reader picks days, or arrives from the card with its own.
+const fromParam = qs.param("from");
+const toParam = qs.param("to");
 const oos = qs.param("oos", ROADSIDE_OOS_KINDS);
-const activeFilterCount = computed(() => [search.value.trim(), period.value !== "all", oos.value].filter(Boolean).length);
+const insp = qs.param("insp", ROADSIDE_INSPECTION_KINDS);
+const clean = qs.param("clean", ["1"]);
+const category = qs.param("category");
+const activeFilterCount = computed(() => [search.value.trim(), fromParam.value || toParam.value, oos.value, insp.value, clean.value, category.value].filter(Boolean).length);
 
 const { zone } = useOrgTimezone();
-const from = computed(() => roadsidePeriodStart(period.value as RoadsidePeriod, todayInZone(new Date(), zone.value)));
-const inspections = useRoadsideInspectionsQuery(from);
-// How current FMCSA's record is (IC1c) — the card's own read, so the two never disagree about it.
-const { data: summary } = useRoadsideSummaryQuery();
-const work = useRoadsideWorkQuery(from);
+const day = (v: string) => (isCalendarDay(v) ? v : null);
+const range = computed<OpenDayRange>(() => ({ from: day(fromParam.value), to: day(toParam.value) }));
+const inspections = useRoadsideInspectionsQuery(range);
+// How current FMCSA's record is (IC1c) — its own small read, apart from any statistics.
+const { data: feed } = useRoadsideFeedQuery();
+const work = useRoadsideWorkQuery(range);
 // Filing needs the safety section's manage level, which the API checks; the button only follows it.
 const session = useSessionStore();
 const canFile = computed(() => session.can("safety"));
 const uploading = ref(false);
 // The upload's choices: the whole record, read only once the drawer is opened (until then the same key as the
 // list, so no second read). "Waiting for its report" is known for the period shown; the rest list after it.
-const allFrom = computed(() => (uploading.value ? null : from.value));
-const allInspections = useRoadsideInspectionsQuery(allFrom);
+const allRange = computed<OpenDayRange>(() => (uploading.value ? { from: null, to: null } : range.value));
+const allInspections = useRoadsideInspectionsQuery(allRange);
 const workOf = computed(() => new Map((work.data.value ?? []).map((w) => [w.id, w])));
-const freshness = computed(() => (summary.value ? roadsideFeedSentence(summary.value.feed, zone.value) : null));
+const freshness = computed(() => (feed.value ? roadsideFeedSentence(feed.value, zone.value) : null));
+
+/** The strip above the table: `roadsideStats` over the range shown — the Operations card's own figures for those days. */
+const stats = computed(() => (inspections.data.value ? roadsideStats(inspections.data.value, work.data.value ? workOf.value : null) : null));
+const pct = (r: RoadsideRate | undefined) => (r?.share == null ? "—" : `${Math.round(r.share * 100)}%`);
+const statSub = (r: RoadsideRate | undefined, what: string) => (r ? `${r.count} of ${r.of} ${what}` : what);
+const categoryOptions = computed(() => {
+  const seen = new Set((work.data.value ?? []).flatMap((w) => w.categories));
+  if (category.value) seen.add(Number(category.value));
+  return [...seen]
+    .map((id) => ({ value: String(id), label: VIOLATION_CATEGORY_NAMES[id] ?? `Category ${id}` }))
+    .sort((a, b) => a.label.localeCompare(b.label));
+});
 
 const unitLabel = (u: NonNullable<RoadsideInspectionDto["units"]>[number]) =>
   u.companyNumber ?? (u.plate ? `${u.plate}${u.plateState ? ` (${u.plateState})` : ""}` : "—");
@@ -115,8 +141,13 @@ const urgencyOf = (w: RoadsideInspectionWorkDto | null) =>
 const rows = computed<Row[]>(() => {
   const term = search.value.trim().toLowerCase();
   const kind = oos.value as RoadsideOosKind | "";
+  const counted = insp.value as RoadsideInspectionKind | "";
+  const cat = category.value ? Number(category.value) : null;
   const found = (inspections.data.value ?? [])
     .filter((i) => !kind || hasOosOf(i, kind))
+    .filter((i) => !counted || isInspectionOfKind(i, counted))
+    .filter((i) => !clean.value || isCleanInspection(i))
+    .filter((i) => cat == null || (workOf.value.get(i.id)?.categories ?? []).includes(cat))
     .filter(
       (i) =>
         !term ||
@@ -169,9 +200,9 @@ const { sort, onSort } = useUrlSort(
   qs.param("sort", COLUMNS.filter((c) => c.sortable).map((c) => c.key)),
   qs.param("dir", SORT_DIRECTIONS),
 );
-watch([view, search, period, oos, () => sort.value.key, () => sort.value.dir], () => (page.value = 1));
+watch([view, search, fromParam, toParam, oos, insp, clean, category, () => sort.value.key, () => sort.value.dir], () => (page.value = 1));
 
-const clearAll = () => qs.set({ search: undefined, period: undefined, oos: undefined });
+const clearAll = () => qs.set({ search: undefined, from: undefined, to: undefined, oos: undefined, insp: undefined, clean: undefined, category: undefined });
 
 // A real page rather than a drawer, so it can be linked and Back keeps this list's filters (§5.7).
 const router = useRouter();
@@ -192,6 +223,50 @@ const openInspection = (row: Row) => void router.push({ name: "roadside-inspecti
     <AppCallout v-if="freshness?.late" tone="caution" data-test="feed">{{ freshness.text }}</AppCallout>
     <p v-else-if="freshness" class="-mt-3 text-xs text-ink-tertiary" data-test="feed">{{ freshness.text }}</p>
 
+    <!-- The range's statistics, `roadsideStats` — the Operations card's figures for the days shown. -->
+    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4" data-test="roadside-stats">
+      <StatCard
+        label="Inspections"
+        :value="stats?.inspections ?? '—'"
+        :sub="range.from || range.to ? 'in the range shown' : 'on our FMCSA record'"
+        :icon="RoadIcon"
+        tone="info"
+        :loading="inspections.isLoading.value"
+        :error="inspections.isError.value ? 'Could not load the roadside inspections.' : null"
+        @retry="inspections.refetch()"
+      />
+      <StatCard
+        label="Clean"
+        :value="pct(stats?.clean)"
+        :sub="statSub(stats?.clean, 'with no violation')"
+        :icon="CheckCircleIcon"
+        tone="success"
+        :loading="inspections.isLoading.value"
+        :error="inspections.isError.value ? 'Could not load the roadside inspections.' : null"
+        @retry="inspections.refetch()"
+      />
+      <StatCard
+        label="Vehicle out-of-service rate"
+        :value="pct(stats?.vehicleOos)"
+        :sub="statSub(stats?.vehicleOos, 'vehicle inspections')"
+        :icon="ExclamationTriangleIcon"
+        tone="danger"
+        :loading="inspections.isLoading.value"
+        :error="inspections.isError.value ? 'Could not load the roadside inspections.' : null"
+        @retry="inspections.refetch()"
+      />
+      <StatCard
+        label="Driver out-of-service rate"
+        :value="pct(stats?.driverOos)"
+        :sub="statSub(stats?.driverOos, 'driver inspections')"
+        :icon="UserIcon"
+        tone="warning"
+        :loading="inspections.isLoading.value"
+        :error="inspections.isError.value ? 'Could not load the roadside inspections.' : null"
+        @retry="inspections.refetch()"
+      />
+    </div>
+
     <AppTabs v-model="view" :tabs="tabs" label="Roadside inspections" />
 
     <DataWorkspace>
@@ -202,11 +277,20 @@ const openInspection = (row: Row) => void router.push({ name: "roadside-inspecti
         :count="rows.length"
         count-label="roadside inspections"
         :active-count="activeFilterCount"
+        :more-count="[clean, category].filter(Boolean).length"
         @clear-all="clearAll"
       >
         <template #filters>
-          <FilterSelect v-model="period" label="Period" :options="periodOptions" />
+          <DateRangeFilter :from="fromParam || undefined" :to="toParam || undefined" @update:from="(v) => (fromParam = v ?? '')" @update:to="(v) => (toParam = v ?? '')" />
           <FilterSelect v-model="oos" label="Out of service" :options="oosOptions" />
+          <FilterSelect v-model="insp" label="Inspection type" :options="kindOptions" />
+        </template>
+        <!-- The card's two other doors (IC16): set by its links, rarely by hand, so behind "Filters". -->
+        <template #more>
+          <div class="space-y-3">
+            <FilterSelect v-model="clean" label="Result" :options="resultOptions" />
+            <FilterSelect v-model="category" label="Violation category" :options="categoryOptions" />
+          </div>
         </template>
       </FilterBar>
 

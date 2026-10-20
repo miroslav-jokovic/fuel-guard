@@ -702,3 +702,64 @@ around them.
 
 - 2026-10-19: research plan merged (#1625). Owner accepted every recommendation. This execution plan
   written from three code audits on `6a64713`.
+- 2026-10-19 — **UF0 built** (`claude/uf0-lift-file-engine`). `packages/shared/src/fileEngine.ts` holds the
+  subject-free judgement (dating, states, attention order, groups); `dqFile.ts` is the driver wrapper on
+  it (466 → 326 lines) with every export and type unchanged — `dqFile.test.ts` untouched and green, and
+  `fileEngine.test.ts` proves the engine with no driver in it (four mutants — horizon edge, attention
+  rank, the cited-document check, annual arithmetic — each killed). `RequirementTable`,
+  `RequirementDrawer`, `DocumentDropCard`, `CertificationHistory` moved to `apps/web/src/components/files/`
+  taking a `FileSubject` (and the drawer its catalogue as `specs`); who may record is the caller's
+  `canManage`. `useCertificationHistoryQuery` takes the subject type. No screen changes.
+- 2026-10-19 — **UF1 built** (`claude/uf1-unit-file-kinds`). Migration **0490** (0489 was taken by a
+  parallel chat): `certifications.kind` + lease, permit; `documents.kind` + lease, permit, title. Title is
+  paper-only (`EQUIPMENT_PAPER_ONLY_KINDS`), so a title certification is refused. Matrix
+  `unit-file-kinds.test.mjs` (13): both CHECKs equal the shared lists, every kind valid before stays
+  valid (read from 0127 and 0484), both lists still closed.
+- 2026-10-19 — **UF3 built** (`claude/uf3-pdf-thumbs`). pdf.js configuration and page painting promoted
+  from `document-reading/pages/pdf.ts` to `apps/api/src/lib/pdfRaster.ts` (module isolation: evidence may
+  not reach into document-reading; promote, don't allow-list). `derivativesFor("application/pdf")` = thumb
+  only; `DERIVATIVE_VERSION` 1.1.0 (minor: a variant added for a type, old ones valid). The DQ table shows a
+  PDF's thumb once derived, "View" before. B8's never-written backfill is now
+  `pnpm --filter @silvicom/api doc:derive-backfill -- --org <uuid> [--apply]` (dry run by default).
+  Production 2026-10-19: **96 PDF originals, 0 with a thumb** — the `--apply` run waits on the owner's go.
+- 2026-10-19 — **UF2 built** (`claude/uf2-unit-file-rollup`). Shared: `equipmentFileCatalogue.ts` (§4's
+  seven items; annual inspection reads the certification's own `expires_at`, since finalize writes a
+  fail as expiring that day), `unitFile.ts` (`buildUnitFile`: own paper → fleet paper on the org →
+  scan for paper-only items; McLeod's date as `dateOnly` beside a missing item; title/lease held in
+  `ownershipUnknown`), `unitFileContract.ts`, `fileSections.ts` (`fileSectionFor`). API:
+  `GET /api/compliance/unit-files?subjectType=` (equipment view) in `evidence/unitFiles.ts`, reading
+  units through roster's new `listUnitFileFacts` (new declared edge `evidence -> roster`). D-UF5 live on
+  `/certifications` and `/documents` (GET, POST, download): a coarse `anyFileSection` door, then
+  `mayFile` per paper; the organization's lists are narrowed per row. `withPapers` on the driver
+  overview moves to UF4, with its reader. The route judges on the carrier's calendar day (`todayInZone` over the org zone), not
+  Railway's UTC date, and on equipment's own 30-day window (`INSPECTION_EXPIRY_WARNING_DAYS`).
+- 2026-10-19 — **UF4 split in two.** UF4a (`claude/uf4-files-column`) is the equipment half. UF4b is the
+  Drivers half: `qualification` + `documents` → `file`, and `withPapers` on the driver overview. Each
+  half is one reviewable PR.
+- 2026-10-19 — **UF4a built.**
+  - Shared:
+    - `fileChip.ts` (`fileChip`, `unitFileChip`, `matchesFileChip`). Worst state wins: expired →
+      missing → date only → expiring → complete. "Date only" is a missing item with McLeod's date
+      beside it. The chip and `?file=` ask the same function.
+    - `fleetChecks.ts`: the paper checks now read the truck's file through `paperStanding` (the paper's
+      own state, else `dateOnly`, else none). New `inspection_date_only` and `registration_date_only`
+      checks. `*_missing` now means no paper and no date.
+    - A fleet with no papers filed counts exactly what it did before, so the Truck paperwork card does
+      not jump.
+  - Web:
+    - `components/files/FileCell.vue` and `FileGallery.vue`. The gallery wraps `DocumentPreview`
+      through a new optional `nav` slot (‹ 2 of 5 ›, ← / →).
+    - `useUnitFilesQuery`.
+    - A File column and `?file=` filter on Vehicles and Trailers.
+    - The Annual inspection and Registration columns show the same standing as the checks, marked
+      "date only" where it is McLeod's. Sort follows it.
+    - The Truck paperwork card counts from the files: eight lines.
+    - The Trailers inspection cell now judges on the carrier's day; it used the browser's UTC date
+      before.
+  - API: `PaperThumb.filedAt`.
+  - **Moved out of UF4, with reasons:**
+    - The drop target goes to UF5. It opens the unit's File section until UF7, and neither exists yet.
+    - The gallery's side list and "Replace with newer" go to UF5's unit page, beside
+      `RequirementDrawer` (D-ROS1: no editing out of a grid cell).
+    - "Uploaded by" on the hover card goes to UF5 (the rollup does not read `uploaded_by`).
+    - The Trailers unit link goes to UF5, with the page it opens.

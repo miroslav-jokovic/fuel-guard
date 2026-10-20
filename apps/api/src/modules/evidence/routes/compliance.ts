@@ -39,6 +39,8 @@ import {
 } from "../compliance.js";
 import { getComplianceOverview, overviewViolationsFor } from "../complianceOverview.js";
 import { complianceExportsRouter } from "./complianceExports.js";
+import { anyFileSection, mayFile } from "./fileAccess.js";
+import { unitFilesRouter } from "./unitFiles.js";
 
 /**
  * Compliance master data API — /api/compliance/* (PLAN §3 / M1.5, Silvicom 360 slice).
@@ -57,20 +59,29 @@ export function complianceRouter(): Router {
   const router = Router();
   router.use(requireAuth);
 
+  // The driver-only surfaces — qualification records, the fleet overview, the seed — are the roster's.
   const canView = requireSection("roster", "view");
   const canManage = requireSection("roster");
+  // Certifications and documents serve the driver, truck and trailer files alike: each request is
+  // answered by the section of the paper's own subject (D-UF5, `mayFile`), behind a door that refuses
+  // anyone with no file section at all.
+  const canViewFiles = anyFileSection("view");
+  const canManageFiles = anyFileSection("manage");
+  const refuse = (res: Response) =>
+    res.status(403).json(apiError("forbidden", "You do not have access to this file."));
 
   // Create a certification (auto-supersedes the prior current one, §10.1). Client-generated id ⇒
   // idempotent replay. Every write is audited — these rows are the DQF a DOT auditor asks for.
   router.post(
     "/certifications",
     requireOrg,
-    canManage,
+    canManageFiles,
     validateBody(certificationCreateSchema),
     asyncHandler(async (req: Request, res: Response) => {
       const admin = getSupabaseAdmin(getAppLocals(req).env);
       const orgId = req.auth!.orgId!;
       const body = res.locals.body as CertificationCreateRequest;
+      if (!mayFile(req, "manage", body.subjectType, body.kind)) return void refuse(res);
       const result = await insertCertification(admin, orgId, req.auth!.userId, body);
       if ("code" in result) {
         res
@@ -148,20 +159,26 @@ export function complianceRouter(): Router {
   router.get(
     "/certifications",
     requireOrg,
-    canView,
+    canViewFiles,
     asyncHandler(async (req: Request, res: Response) => {
       const parsed = certificationListQuerySchema.safeParse(req.query);
       if (!parsed.success) {
         res.status(400).json(apiError("bad_query", parsed.error.message));
         return;
       }
+      const q = parsed.data;
+      // A unit's or a driver's file is one section; the organization's holds both (D-UF5), so its
+      // rows are narrowed to the ones this reader's sections cover rather than refused whole.
+      if (q.subjectType !== "organization" && !mayFile(req, "view", q.subjectType, q.kind)) return void refuse(res);
       const admin = getSupabaseAdmin(getAppLocals(req).env);
-      const result = await listCertifications(admin, req.auth!.orgId!, parsed.data);
+      const result = await listCertifications(admin, req.auth!.orgId!, q);
       if ("code" in result) {
         res.status(500).json(apiError(result.code, result.error));
         return;
       }
-      res.json({ certifications: result.rows });
+      res.json({
+        certifications: (result.rows as Array<{ kind: string }>).filter((c) => mayFile(req, "view", q.subjectType, c.kind)),
+      });
     }),
   );
 
@@ -271,12 +288,13 @@ export function complianceRouter(): Router {
   router.post(
     "/documents",
     requireOrg,
-    canManage,
+    canManageFiles,
     validateBody(documentRegisterSchema),
     asyncHandler(async (req: Request, res: Response) => {
       const admin = getSupabaseAdmin(getAppLocals(req).env);
       const orgId = req.auth!.orgId!;
       const body = res.locals.body as DocumentRegisterRequest;
+      if (!mayFile(req, "manage", body.subjectType, body.kind)) return void refuse(res);
       const result = await registerDocument(admin, orgId, req.auth!.userId, body);
       if ("code" in result) {
         res
@@ -320,22 +338,25 @@ export function complianceRouter(): Router {
   router.get(
     "/documents",
     requireOrg,
-    canView,
+    canViewFiles,
     asyncHandler(async (req: Request, res: Response) => {
       const parsed = documentListQuerySchema.safeParse(req.query);
       if (!parsed.success) {
         res.status(400).json(apiError("bad_query", parsed.error.message));
         return;
       }
+      const q = parsed.data;
+      if (q.subjectType !== "organization" && !mayFile(req, "view", q.subjectType, q.kind)) return void refuse(res);
       const admin = getSupabaseAdmin(getAppLocals(req).env);
-      const result = await listDocuments(admin, req.auth!.orgId!, parsed.data);
+      const result = await listDocuments(admin, req.auth!.orgId!, q);
       if ("code" in result) {
         res.status(500).json(apiError(result.code, result.error));
         return;
       }
       // Phase G (D-DQ15): scans of restricted records are as restricted as the records. Service-role
       // read, so the filter lives here, mirroring the qualification-records list above.
-      res.json({ documents: filterRestrictedRows(result.rows, req.auth!.role) });
+      const readable = result.rows.filter((d) => mayFile(req, "view", q.subjectType, d.kind));
+      res.json({ documents: filterRestrictedRows(readable, req.auth!.role) });
     }),
   );
 
@@ -346,7 +367,7 @@ export function complianceRouter(): Router {
   router.get(
     "/documents/:id/download",
     requireOrg,
-    canView,
+    canViewFiles,
     asyncHandler(async (req: Request, res: Response) => {
       const admin = getSupabaseAdmin(getAppLocals(req).env);
       const orgId = req.auth!.orgId!;
@@ -355,12 +376,13 @@ export function complianceRouter(): Router {
         res.status(result.code === "not_found" ? 404 : 500).json(apiError(result.code, result.error));
         return;
       }
-      // A roadside inspection's paper is the `safety` section's (0476, D-IC12) and this route is gated on
-      // `roster`: answered as not on file here, as the list and the register already refuse that subject.
+      // A roadside inspection's paper is the `safety` section's (0476, D-IC12), not a file this route
+      // serves: answered as not on file here, as the list and the register already refuse that subject.
       if (!(COMPLIANCE_DOCUMENT_SUBJECT_TYPES as readonly string[]).includes(result.subjectType)) {
         res.status(404).json(apiError("not_found", "That document is not on file."));
         return;
       }
+      if (!mayFile(req, "view", result.subjectType, result.kind)) return void refuse(res);
       if (!canReadRestrictedKind(result.kind, req.auth!.role)) {
         res.status(403).json(apiError("forbidden", "Downloading restricted records requires a safety manager or admin."));
         return;
@@ -379,6 +401,8 @@ export function complianceRouter(): Router {
 
   // /exports/* — the binder and stamped-release surface, in its own module (500-line budget).
   router.use(complianceExportsRouter());
+  // /unit-files — every truck's or trailer's file in one read (UNIT-FILES-PLAN UF2).
+  router.use(unitFilesRouter());
 
   return router;
 }

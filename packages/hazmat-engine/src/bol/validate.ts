@@ -15,8 +15,9 @@
  */
 
 import type { Finding, LoadInput, TraceNode } from "../types.js";
-import { isEnvironmentallyHazardousEntry } from "../placards/marinePollutant.js";
+import { classifyMarinePollutantEntry } from "../placards/marinePollutant.js";
 import { parseHmtRef } from "../hmtRef.js";
+import { matchAppendixNames } from "../appendixNameMatch.js";
 
 interface DsEntry {
   entryId: string;
@@ -29,7 +30,7 @@ interface DsEntry {
   idNumber: string;
   pgRows: Array<{ pg: "I" | "II" | "III" | null }>;
 }
-interface DsHaz { nameNormalized: string }
+interface DsHaz { name?: string; nameNormalized: string; rqPounds?: number; rqKg?: number }
 interface DsMp { nameNormalized: string; severe: boolean }
 interface DsView { entries: DsEntry[]; hazSubstances: DsHaz[]; marinePollutants: DsMp[] }
 
@@ -117,15 +118,22 @@ export function validateBol(load: LoadInput): BolValidation {
     // list cannot contain. Without it the engine would demand the MARINE POLLUTANT mark on the
     // vehicle while saying nothing about the words the shipping paper has to carry.
     if (
-      ds.marinePollutants.some((m) => names.includes(m.nameNormalized)) ||
-      isEnvironmentallyHazardousEntry(entry)
+      classifyMarinePollutantEntry(entry, ds.marinePollutants).listed
     ) {
       additionalRequired.push("the words “Marine Pollutant” (§172.203(l))");
     }
     // §172.203(c)(2): "The letters “RQ” must be entered on the shipping paper either before or after the
     // basic description" for a listed hazardous substance (Appendix A). Petroleum fuels are CERCLA-excluded.
-    if (ds.hazSubstances.some((h) => names.includes(h.nameNormalized))) {
+    const hs = matchAppendixNames(names, ds.hazSubstances);
+    if (hs.neat.length > 0) {
       additionalRequired.push("“RQ” before or after the basic description (§172.203(c)(2))");
+    } else if (hs.mixture.length > 0) {
+      // A solution: RQ is owed only when one package holds the RQ of the substance itself, which
+      // needs the concentration the HMT name does not carry (appendixNameMatch.ts).
+      const h = hs.mixture[0]!;
+      additionalRequired.push(
+        `“RQ” before or after the basic description when one package holds at least ${h.rqPounds ?? "the RQ"}${h.rqPounds != null ? " lb" : ""} of ${h.name ?? h.nameNormalized} (§172.203(c)(2), Appendix A)`,
+      );
     }
 
     lines.push({ hmtRef: line.hmtRef, basicDescription, additionalRequired });

@@ -26,6 +26,7 @@ export { validateBol, type BolValidation, type BolLineCompliance } from "./bol/v
 export { auditPrintedPaper } from "./bol/auditPrintedPaper.js";
 export { parseMarker as parsePageMarker } from "./bol/paperDocumentRules.js";
 export { declaresLimitedQuantity } from "./bol/paperSupport.js";
+export { matchAppendixNames, type AppendixMatch } from "./appendixNameMatch.js";
 export * from "./bol/paperTypes.js";
 // The one derivation of `ResolvedPaper.certificationExempt` (§172.204(b)(1), owner ruling Q-DR16), and the
 // §172.604(d)(2) shipping names quoted verbatim.

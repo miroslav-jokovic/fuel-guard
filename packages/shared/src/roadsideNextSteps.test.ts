@@ -206,6 +206,7 @@ describe("one inspection's line of work (the inbox)", () => {
       next: { title: "Truck 612: name the repair", owner: "maintenance", dueOn: "2026-10-10", clock: { overdue: true, days: 9 } },
       points: 63,
       awaitsReport: true,
+      categories: [],
     });
     expect(roadsideWork("i-2", steps(), attribution(), null)).toMatchObject({ next: null, points: null, open: { total: 0 }, awaitsReport: false });
   });

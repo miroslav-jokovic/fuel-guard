@@ -341,8 +341,8 @@ describe("DriversPage roster table", () => {
   });
 
   it("links an expiry to the driver's qualification section rather than editing in place", async () => {
-    // D-ROS1: the grid reads and navigates. D-ROS5: `?section=` is the public surface. A `roster`
-    // component may not import `compliance`'s RequirementDrawer, and the link is the sanctioned path.
+    // D-ROS1: the grid reads and navigates. D-ROS5: `?section=` is the public surface. A requirement
+    // is recorded inside its file, never from a grid cell, so the link is the sanctioned path.
     const w = await mountPage();
     const link = w.findAll("tbody tr")[0]!.findAll("a").find((a) => a.text().includes("09/11/2026"))!;
     expect(link.attributes("href")).toBe("/drivers/d-1?section=qualification");

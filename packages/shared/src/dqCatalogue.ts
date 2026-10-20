@@ -8,6 +8,8 @@
  * — the budget's own comment says that list may only shrink.
  */
 
+import type { FileItemState, FileRecurrence } from "./fileEngine.js";
+
 /** Where an item's evidence lives: a `certifications` row, or a `qualification_records` row. */
 export type DqEvidenceSource = "certification" | "record";
 
@@ -18,12 +20,13 @@ export type DqEvidenceSource = "certification" | "record";
  *   triennial  — good for three years from the date it was issued (§172.704(c)(2) training)
  *   one_time   — a hiring-time event that never expires (application, road test, pre-employment MVR)
  */
-export type DqRecurrence = "expiry" | "annual" | "triennial" | "one_time";
+export type DqRecurrence = FileRecurrence;
 
 /** `hazmat` items only apply to a carrier running the HazmatGuard module. */
 export type DqScope = "always" | "hazmat";
 
-export type DqItemState = "current" | "expiring" | "expired" | "missing";
+/** The engine's four states (UNIT-FILES-PLAN D-UF1) — one vocabulary for driver, truck and trailer. */
+export type DqItemState = FileItemState;
 
 /**
  * The five things a §391.51 file is actually made of (D-DQ8). Eighteen flat rows render an
@@ -65,6 +68,9 @@ export const DQ_KIND_LABELS: Record<string, string> = {
   insurance: "Insurance",
   ifta: "IFTA licence",
   irp: "IRP registration",
+  lease: "Lease agreement",
+  permit: "Permit",
+  title: "Title",
   phmsa_registration: "PHMSA registration",
   hazmat_safety_permit: "Hazmat safety permit",
   security_plan: "Security plan",

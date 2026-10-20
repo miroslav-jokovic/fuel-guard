@@ -186,7 +186,7 @@ const VIOLATION_COLUMNS: DataTableColumn[] = [
   <div class="space-y-6">
     <PageHeader
       :title="inspection?.reportNumber ? `Report ${inspection.reportNumber}` : 'Roadside inspection'"
-      description="As recorded on our FMCSA record, refreshed daily."
+      description="As recorded on our FMCSA record, refreshed when FMCSA publishes."
     />
 
     <QueryState
@@ -209,8 +209,10 @@ const VIOLATION_COLUMNS: DataTableColumn[] = [
 
         <InspectionNextSteps :inspection-id="inspection.id" :inspection-date="inspection.inspectionDate" :attribution="inspection.attribution" @go="go" />
 
-        <section class="space-y-3" aria-labelledby="violations-heading">
-          <div>
+        <!-- The two tables are cards with a header band, as every record page's sections are (IC16; the
+             load page's Stops, the driver app's settings). `embedded` lets the card own the surface. -->
+        <BaseCard as="section" padding="none" aria-labelledby="violations-heading">
+          <div class="border-b border-edge-subtle px-5 py-4">
             <h2 id="violations-heading" class="text-sm font-semibold text-ink">Violations</h2>
             <!-- The CSA points are the violations' header line, not a card of their own (Q-IC17): the total
                  first, how it was reached one click away. -->
@@ -235,7 +237,7 @@ const VIOLATION_COLUMNS: DataTableColumn[] = [
               </details>
             </div>
           </div>
-          <DataTable :columns="VIOLATION_COLUMNS" :rows="inspection.violationList" row-key="id" :nowrap="false" empty-text="No violations recorded on this inspection.">
+          <DataTable embedded :columns="VIOLATION_COLUMNS" :rows="inspection.violationList" row-key="id" :nowrap="false" empty-text="No violations recorded on this inspection.">
             <template #cell-against="{ row }">{{ againstLabel(row as RoadsideViolationDto) ?? "—" }}</template>
             <template #cell-code="{ value }"><span class="font-mono text-xs">{{ value ?? "—" }}</span></template>
             <template #cell-description="{ row }">
@@ -261,7 +263,7 @@ const VIOLATION_COLUMNS: DataTableColumn[] = [
               <p v-if="pointsCell(row as RoadsideViolationDto).why" class="mt-0.5 text-xs text-ink-muted" data-test="points-why">{{ pointsCell(row as RoadsideViolationDto).why }}</p>
             </template>
           </DataTable>
-        </section>
+        </BaseCard>
 
         <InspectionDriverCard id="inspection-driver" tabindex="-1" :inspection-id="inspection.id" :attribution="inspection.attribution" />
 
@@ -272,14 +274,19 @@ const VIOLATION_COLUMNS: DataTableColumn[] = [
           tabindex="-1"
           :inspection-id="inspection.id"
           :inspection-date="inspection.inspectionDate"
+          :attribution="inspection.attribution"
           @file-result="go('documents')"
+          @confirm-driver="go('driver')"
         />
 
         <InspectionDocumentsCard id="inspection-documents" tabindex="-1" :inspection-id="inspection.id" />
 
-        <section class="space-y-3" aria-labelledby="units-heading">
-          <h2 id="units-heading" class="text-sm font-semibold text-ink">Units</h2>
-          <DataTable :columns="UNIT_COLUMNS" :rows="inspection.units" :row-key="(u: RoadsideUnitDetailDto) => String(u.seq)" empty-text="No units on this report.">
+        <BaseCard as="section" padding="none" aria-labelledby="units-heading">
+          <div class="border-b border-edge-subtle px-5 py-4">
+            <h2 id="units-heading" class="text-sm font-semibold text-ink">Units</h2>
+            <p class="mt-1 text-sm text-ink-muted">As the officer wrote them, and how each was tied to one of ours.</p>
+          </div>
+          <DataTable embedded :columns="UNIT_COLUMNS" :rows="inspection.units" :row-key="(u: RoadsideUnitDetailDto) => String(u.seq)" empty-text="No units on this report.">
             <template #cell-seq="{ value }">{{ value ?? "—" }}</template>
             <template #cell-kind="{ row }">{{ unitName(row as RoadsideUnitDetailDto) }}</template>
             <template #cell-make="{ value }">{{ value ?? "—" }}</template>
@@ -301,7 +308,7 @@ const VIOLATION_COLUMNS: DataTableColumn[] = [
               <span v-else class="text-ink-tertiary" data-test="match">Not on our current roster</span>
             </template>
           </DataTable>
-        </section>
+        </BaseCard>
       </template>
     </QueryState>
   </div>

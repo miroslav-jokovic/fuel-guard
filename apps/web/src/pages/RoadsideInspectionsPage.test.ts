@@ -21,20 +21,21 @@ import { ROUTE_TABLE } from "@/router/table";
 const inspections = ref<RoadsideInspectionDto[]>([]);
 const FEED = { fetchedAt: "2026-10-13T14:17:00Z", sourceUpdatedAt: "2026-10-13T03:02:00Z", state: "fresh" as RoadsideFeed["state"] };
 const summary = ref<{ feed: typeof FEED } | undefined>({ feed: FEED });
-const askedFrom = ref<string | null | undefined>(undefined);
+/** The range each read was asked for: `{ from, to }`, each end null when open. */
+const askedFrom = ref<{ from: string | null; to: string | null } | undefined>(undefined);
 const work = ref<RoadsideInspectionWorkDto[] | undefined>([]);
-const workFrom = ref<string | null | undefined>(undefined);
+const workFrom = ref<{ from: string | null; to: string | null } | undefined>(undefined);
 vi.mock("@/features/roadside/useRoadsideInspections", async () => {
   const { ref: r, watchEffect } = await import("vue");
   return {
-    useRoadsideInspectionsQuery: (from: Ref<string | null>) => {
-      watchEffect(() => (askedFrom.value = from.value));
+    useRoadsideInspectionsQuery: (range: Ref<{ from: string | null; to: string | null }>) => {
+      watchEffect(() => (askedFrom.value = { ...range.value }));
       return { data: inspections, isLoading: r(false), isError: r(false), refetch: vi.fn() };
     },
-    useRoadsideSummaryQuery: () => ({ data: summary }),
+    useRoadsideFeedQuery: () => ({ data: computed(() => summary.value?.feed) }),
     useUploadReportTo: () => ({ mutateAsync: vi.fn() }),
-    useRoadsideWorkQuery: (from: Ref<string | null>) => {
-      watchEffect(() => (workFrom.value = from.value));
+    useRoadsideWorkQuery: (range: Ref<{ from: string | null; to: string | null }>) => {
+      watchEffect(() => (workFrom.value = { ...range.value }));
       return { data: work, isLoading: r(false), isError: r(false), refetch: vi.fn() };
     },
   };
@@ -81,20 +82,23 @@ beforeEach(() => {
 afterEach(() => vi.useRealTimers());
 
 describe("roadside inspections", () => {
-  it("asks for the card's 90 days on the org's calendar, and for the whole record by default", async () => {
-    await page("/roadside-inspections?view=all&period=90d");
-    expect(askedFrom.value).toBe("2026-07-15");
+  it("asks for the card's own days when it arrives with them, and for the whole record by default (IC16)", async () => {
+    await page("/roadside-inspections?view=all&from=2026-09-12&to=2026-10-12");
+    expect(askedFrom.value).toEqual({ from: "2026-09-12", to: "2026-10-12" });
     await page("/roadside-inspections?view=all");
-    expect(askedFrom.value).toBeNull();
+    expect(askedFrom.value).toEqual({ from: null, to: null });
+    // A day that is not one is no day: the whole record, not a 400.
+    await page("/roadside-inspections?view=all&from=garbage");
+    expect(askedFrom.value).toEqual({ from: null, to: null });
   });
 
   it("filters OOS by the server's predicate — an inspection with two kinds is in both", async () => {
     inspections.value = [insp("1", [0, 1, 1]), insp("2", [1, 0, 0]), insp("3"), insp("4", [0, 2, 0])];
-    const vehicle = await page("/roadside-inspections?view=all&period=90d&oos=vehicle");
+    const vehicle = await page("/roadside-inspections?view=all&from=2026-07-15&to=2026-10-12&oos=vehicle");
     expect(vehicle.text()).toContain("2 roadside inspections");
     expect(vehicle.text()).toContain("IL1");
     expect(vehicle.text()).toContain("IL4");
-    const hazmat = await page("/roadside-inspections?view=all&period=90d&oos=hazmat");
+    const hazmat = await page("/roadside-inspections?view=all&from=2026-07-15&to=2026-10-12&oos=hazmat");
     expect(hazmat.text()).toContain("1 roadside inspection");
     expect(hazmat.findAll("[data-test='oos']").map((c) => c.text())).toEqual(["Vehicle · Hazmat"]);
   });
@@ -114,7 +118,7 @@ describe("roadside inspections", () => {
 
   it("counts the whole list in the toolbar, past the first page", async () => {
     inspections.value = Array.from({ length: 111 }, (_, i) => insp(String(i)));
-    const w = await page("/roadside-inspections?view=all&period=90d");
+    const w = await page("/roadside-inspections?view=all&from=2026-07-15&to=2026-10-12");
     expect(w.text()).toContain("111 roadside inspections");
     expect(w.text()).toContain("Showing 1–25 of 111");
   });
@@ -124,7 +128,7 @@ describe("opening a row", () => {
   async function list() {
     inspections.value = [insp("abc")];
     const router = createRouter({ history: createMemoryHistory(), routes: [...ROUTE_TABLE] });
-    await router.push("/roadside-inspections?view=all&period=90d");
+    await router.push("/roadside-inspections?view=all&from=2026-07-15&to=2026-10-12");
     await router.isReady();
     const w = mount(RoadsideInspectionsPage as never, { global: { plugins: [router] } });
     await flushPromises();
@@ -167,7 +171,7 @@ describe("how current the record is (IC1c)", () => {
  */
 describe("needs action", () => {
   const line = (id: string, o: Partial<RoadsideInspectionWorkDto> = {}): RoadsideInspectionWorkDto => ({
-    id, driver: null, open: { total: 0, byOwner: { safety: 0, maintenance: 0 } }, next: null, points: 0, awaitsReport: false, ...o,
+    id, driver: null, open: { total: 0, byOwner: { safety: 0, maintenance: 0 } }, next: null, points: 0, awaitsReport: false, categories: [], ...o,
   });
   const open = (title: string, clock: { overdue: boolean; days: number } | null, dueOn: string | null = null) => ({
     open: { total: 1, byOwner: { safety: 0, maintenance: 1 } },
@@ -184,8 +188,8 @@ describe("needs action", () => {
       line("c", open("Truck 2: name the repair", { overdue: true, days: 9 }, "2026-10-03")),
       line("d", { open: { total: 1, byOwner: { safety: 1, maintenance: 0 } }, next: { title: "Say who was driving", owner: "safety", dueOn: null, clock: null } }),
     ];
-    const w = await page("/roadside-inspections?period=90d");
-    expect(workFrom.value).toBe(askedFrom.value);
+    const w = await page("/roadside-inspections?from=2026-07-15&to=2026-10-12");
+    expect(workFrom.value).toEqual(askedFrom.value);
     expect(w.findAll("[data-test='next-step']").map((n) => n.text())).toEqual([
       "Truck 2: name the repair Maintenance",
       "Truck 1: name the repair Maintenance",
@@ -220,5 +224,42 @@ describe("uploading officer's reports from the list", () => {
     expect((await page("/roadside-inspections")).find("[data-test='bulk-open']").exists()).toBe(true);
     canManageSafety = false;
     expect((await page("/roadside-inspections")).find("[data-test='bulk-open']").exists()).toBe(false);
+  });
+});
+
+/**
+ * The strip and the card's doors (IC16): each figure is `roadsideStats` over the range shown, and each door's
+ * filter keeps exactly the inspections the figure counted (D-FM9).
+ */
+describe("the range's statistics and the card's filters", () => {
+  const lvl = (id: string, level: number, o: Partial<RoadsideInspectionDto> = {}) => insp(id, [0, 0, 0], { level, violations: 0, ...o });
+
+  it("rates vehicle OOS over vehicle inspections and driver OOS over driver ones, and says what each is of", async () => {
+    inspections.value = [lvl("1", 1, { vehicleOos: 1, violations: 1 }), lvl("2", 2), lvl("3", 3, { driverOos: 1, vehicleOos: 1, violations: 2 }), lvl("4", 2)];
+    const w = await page("/roadside-inspections?view=all");
+    const strip = w.get("[data-test='roadside-stats']").text();
+    expect(strip).toContain("1 of 3 vehicle inspections");
+    expect(strip).toContain("33%");
+    expect(strip).toContain("1 of 4 driver inspections");
+    expect(strip).toContain("2 of 4 with no violation");
+  });
+
+  it("keeps exactly what the card's vehicle OOS figure counted: OOS AND a vehicle inspection", async () => {
+    inspections.value = [lvl("1", 1, { vehicleOos: 1 }), lvl("3", 3, { vehicleOos: 1 }), lvl("2", 2)];
+    const w = await page("/roadside-inspections?view=all&oos=vehicle&insp=vehicle");
+    expect(w.text()).toContain("1 roadside inspection");
+    expect(w.text()).toContain("IL1");
+    expect(w.text()).not.toContain("IL3");
+  });
+
+  it("keeps the clean ones, and the ones with a violation of the category asked for", async () => {
+    inspections.value = [lvl("1", 2), lvl("2", 2, { violations: 3 }), lvl("3", 2, { violations: null })];
+    work.value = [
+      { id: "2", driver: null, open: { total: 0, byOwner: { safety: 0, maintenance: 0 } }, next: null, points: 0, awaitsReport: false, categories: [23] },
+    ];
+    expect((await page("/roadside-inspections?view=all&clean=1")).text()).toContain("1 roadside inspection");
+    const tires = await page("/roadside-inspections?view=all&category=23");
+    expect(tires.text()).toContain("1 roadside inspection");
+    expect(tires.text()).toContain("IL2");
   });
 });

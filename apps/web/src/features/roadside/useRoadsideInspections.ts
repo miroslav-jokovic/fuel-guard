@@ -6,7 +6,10 @@ import type {
   DocumentRow,
   RoadsideAttributionDecision,
   RoadsideCitationAction,
-  RoadsideCitationDto,
+  RoadsideCitationDisposition,
+  RoadsideDataqsApprove,
+  RoadsideDataqsFiled,
+  RoadsideInspectionCitationsDto,
   RoadsideDocumentRegisterRequest,
   RoadsideInspectionDetailDto,
   RoadsideInspectionDto,
@@ -17,6 +20,8 @@ import type {
   RoadsideRepairDto,
   RoadsideRepairDueDto,
   RoadsideSummary,
+  RoadsideFeed,
+  DayWindow,
 } from "@silvicom/shared";
 import { apiFetch } from "@/lib/api";
 import { recordOrThrow } from "@silvicom/ui";
@@ -34,41 +39,50 @@ async function read<T>(path: string, what: string): Promise<T> {
   return recordOrThrow(await apiFetch<{ data: T }>(path), `Could not load ${what}`).data;
 }
 
-export function useRoadsideSummaryQuery() {
+/** The Roadside card's statistics over the Operations tab's range (IC16). Keyed by the range. */
+export function useRoadsideSummaryQuery(range: Ref<DayWindow>) {
   return useQuery({
-    queryKey: ["roadside-inspections", "summary"] as const,
+    queryKey: computed(() => ["roadside-inspections", "summary", range.value.from, range.value.to] as const),
     staleTime: 10 * 60_000,
-    queryFn: () => read<RoadsideSummary>("/api/roadside-inspections/summary", "the roadside inspections"),
+    queryFn: () =>
+      read<RoadsideSummary>(`/api/roadside-inspections/summary?from=${range.value.from}&to=${range.value.to}`, "the roadside inspections"),
   });
 }
 
-/** The list from `from` (the whole record when null). Whole, never a page: the page counts it. */
-export function useRoadsideInspectionsQuery(from: Ref<CalendarDay | null>) {
+/** How current our copy of FMCSA's record is (IC1c) — the list's own line, apart from the card's figures. */
+export function useRoadsideFeedQuery() {
   return useQuery({
-    queryKey: computed(() => ["roadside-inspections", "list", from.value] as const),
+    queryKey: ["roadside-inspections", "feed"] as const,
     staleTime: 10 * 60_000,
-    queryFn: () =>
-      read<RoadsideInspectionDto[]>(
-        from.value ? `/api/roadside-inspections?from=${from.value}` : "/api/roadside-inspections",
-        "the roadside inspections",
-      ),
+    queryFn: () => read<RoadsideFeed>("/api/roadside-inspections/feed", "how current the record is"),
+  });
+}
+
+/** A range whose ends may each be open (the whole record when both are). */
+export type OpenDayRange = { from: CalendarDay | null; to: CalendarDay | null };
+const withRange = (path: string, r: OpenDayRange) => {
+  const q = [r.from ? `from=${r.from}` : "", r.to ? `to=${r.to}` : ""].filter(Boolean).join("&");
+  return q ? `${path}?${q}` : path;
+};
+
+/** The list over a range. Whole, never a page: the page counts it. */
+export function useRoadsideInspectionsQuery(range: Ref<OpenDayRange>) {
+  return useQuery({
+    queryKey: computed(() => ["roadside-inspections", "list", range.value.from, range.value.to] as const),
+    staleTime: 10 * 60_000,
+    queryFn: () => read<RoadsideInspectionDto[]>(withRange("/api/roadside-inspections", range.value), "the roadside inspections"),
   });
 }
 
 /**
- * One line of work per inspection from `from` — the inbox's Needs action tab and its Next step, Driver and CSA
- * points columns (Q-IC17). Its own read: the list draws first, and the columns fill in when this lands.
- * Keyed under the list, so a decision that invalidates the list's family re-asks it.
+ * One line of work per inspection over the range — the inbox's Needs action tab and its Next step, Driver and
+ * CSA points columns (Q-IC17). Its own read: the list draws first, and the columns fill in when this lands.
  */
-export function useRoadsideWorkQuery(from: Ref<CalendarDay | null>) {
+export function useRoadsideWorkQuery(range: Ref<OpenDayRange>) {
   return useQuery({
-    queryKey: computed(() => ["roadside-inspections", "work", from.value] as const),
+    queryKey: computed(() => ["roadside-inspections", "work", range.value.from, range.value.to] as const),
     staleTime: 60_000,
-    queryFn: () =>
-      read<RoadsideInspectionWorkDto[]>(
-        from.value ? `/api/roadside-inspections/work?from=${from.value}` : "/api/roadside-inspections/work",
-        "what is left on the roadside inspections",
-      ),
+    queryFn: () => read<RoadsideInspectionWorkDto[]>(withRange("/api/roadside-inspections/work", range.value), "what is left on the roadside inspections"),
   });
 }
 
@@ -200,22 +214,24 @@ export function useRoadsideRepairsDueQuery(enabled: Ref<boolean> = ref(true)) {
   });
 }
 
-/** The inspection's tickets and where each stands (IC4, R-ADJ1). Its own query, refreshed by an act or a filed court result. */
+/** The inspection's tickets and where each stands (IC4). Its own query, refreshed by an act, a disposition, a request or a filed court result. */
 export function useInspectionCitationsQuery(id: Ref<string>) {
   return useQuery({
     queryKey: computed(() => ["roadside-inspections", "citations", id.value] as const),
     staleTime: 60_000,
-    queryFn: () =>
-      read<{ tickets: RoadsideCitationDto[]; courtResultFiled: boolean }>(`/api/roadside-inspections/${encodeURIComponent(id.value)}/citations`, "the tickets"),
+    queryFn: () => read<RoadsideInspectionCitationsDto>(`/api/roadside-inspections/${encodeURIComponent(id.value)}/citations`, "the tickets"),
   });
 }
 
-/** The office's act on one ticket. Refused with `changed` when someone acted first; the record is read again either way. */
-export function useActOnCitation(id: Ref<string>) {
+/**
+ * A write on one ticket (IC4): the office's act, what the court decided, the DataQs request approved, its RDR
+ * number. Refused with `changed` (or `driver_changed`) when someone wrote first; the record is read again either way.
+ */
+function useCitationWrite<T extends object>(id: Ref<string>, path: string) {
   const client = useQueryClient();
   return useMutation({
-    mutationFn: async (input: RoadsideCitationAction): Promise<void> => {
-      const res = await apiFetch(`/api/roadside-inspections/${encodeURIComponent(id.value)}/citations`, { method: "POST", body: input });
+    mutationFn: async (input: T): Promise<void> => {
+      const res = await apiFetch(`/api/roadside-inspections/${encodeURIComponent(id.value)}/citations${path}`, { method: "POST", body: input });
       if (!res.ok) throw new RepairDecisionError(res.error?.message ?? "It could not be recorded.", res.error?.code ?? null);
     },
     onSettled: () =>
@@ -225,6 +241,11 @@ export function useActOnCitation(id: Ref<string>) {
       ]),
   });
 }
+
+export const useActOnCitation = (id: Ref<string>) => useCitationWrite<RoadsideCitationAction>(id, "");
+export const useRecordDisposition = (id: Ref<string>) => useCitationWrite<RoadsideCitationDisposition>(id, "/dispositions");
+export const useApproveDataqs = (id: Ref<string>) => useCitationWrite<RoadsideDataqsApprove>(id, "/dataqs");
+export const useRecordDataqsFiled = (id: Ref<string>) => useCitationWrite<RoadsideDataqsFiled>(id, "/dataqs/filed");
 
 /** The repair decision's refusal, kept whole like the driver's: `changed` means reload before deciding again. */
 export class RepairDecisionError extends AttributionDecisionError {}

@@ -21,7 +21,7 @@
 import type { Finding, LoadInput, PlacardName, TraceNode } from "../types.js";
 import { emptyPlacards } from "../types.js";
 import { baseClass, DANGEROUS_CATEGORY_BAR_LB, readDataset, subsidiary505 } from "./classify.js";
-import { ID_NUMBER_PROHIBITED_PLACARDS, planIdDisplay, type PlacardComputation, type Resolved, withheld } from "./computeSupport.js";
+import { assignIdCarriers, ID_NUMBER_PROHIBITED_PLACARDS, type PendingIdDisplay, type PlacardComputation, type Resolved, withheld } from "./computeSupport.js";
 import { addSubsidiaryPlacards, finalizePlacards } from "./computeFinalize.js";
 import { applyMarinePollutantMark } from "./marinePollutant.js";
 import { applyScopeGates } from "./computeScopeGates.js";
@@ -84,7 +84,13 @@ export function computePlacards(load: LoadInput): PlacardComputation {
   const counted = table2.filter((r) => !isBulk(r) && !has505(r) && !r.line.isResidueLine);
   const excludedResidue = table2.filter((r) => !isBulk(r) && !has505(r) && r.line.isResidueLine);
 
-  const weights = counted.map((r) => r.line.grossWeightLb);
+  // The weight a §172.505 line adds to the aggregate is still non-bulk Table 2 weight: the exception is
+  // barred for that line (it placards regardless), not its weight from the vehicle's total. PHMSA Interp.
+  // 07-0102: "only the weight of Table 2 hazardous materials in non-bulk packaging needs to be included" —
+  // bulk is out (98-0601), a 505 material in a drum is not. Excluding it let 500 lb of red fuming nitric
+  // acid + 1,000 lb of other poisons read as a 1,000 lb aggregate (placard census, 2026-10-19).
+  const weighed = [...counted, ...table2.filter((r) => !isBulk(r) && has505(r) && !r.line.isResidueLine)];
+  const weights = weighed.map((r) => r.line.grossWeightLb);
   const weightKnown = weights.every((w) => w != null);
   const aggregateLb = weights.reduce<number>((s, w) => s + (w ?? 0), 0);
   const thresholdMet = counted.length === 0 ? false : !weightKnown || aggregateLb >= 1001;
@@ -284,12 +290,13 @@ export function computePlacards(load: LoadInput): PlacardComputation {
     }
   }
 
-  // The placards an identification number may be displayed ACROSS on this load (§172.332(c)), after
-  // §172.334 removes the barred designs and anything §172.505 raised for a subsidiary hazard.
-  const idCarrierPlacards = placards.required
-    .map((p) => p.placard)
-    .filter((p) => !subsidiaryPlacards.has(p) && !ID_NUMBER_PROHIBITED_PLACARDS.has(p));
-  const idPlan = planIdDisplay(idCarrierPlacards);
+  // The placards an identification number may be displayed ACROSS (§172.332(c)), after §172.334 removes
+  // the barred designs and anything §172.505 raised for a subsidiary hazard. Which number goes on
+  // which of them is decided per number by `assignIdCarriers` once every required number is known.
+  const idCarrierPlacards = new Set(
+    placards.required.map((p) => p.placard).filter((p) => !subsidiaryPlacards.has(p) && !ID_NUMBER_PROHIBITED_PLACARDS.has(p)),
+  );
+  const pendingIds: PendingIdDisplay[] = [];
 
   // 6) §172.302(c)/172.331 ID-number display for bulk (R3: exact bulk trigger pending the SME footnote)
   const bulkLines = resolved.filter((r) => r.line.packagingKind === "bulk" || isTank);
@@ -298,14 +305,7 @@ export function computePlacards(load: LoadInput): PlacardComputation {
     const idNumber = `${r.entry.idPrefix}${r.entry.idNumber}`;
     if (seenId.has(idNumber)) continue;
     seenId.add(idNumber);
-    placards.idDisplays.push({
-      idNumber,
-      format: idPlan.format,
-      alternateFormats: idPlan.alternateFormats,
-      onPlacards: idPlan.onPlacards,
-      positions: "each_side_and_each_end",
-      because: [{ cfr: "49 CFR 172.302(c)" }, { cfr: "49 CFR 172.331" }],
-    });
+    pendingIds.push({ idNumber, placard: r.placard, because: [{ cfr: "49 CFR 172.302(c)" }, { cfr: "49 CFR 172.331" }] });
   }
   if (bulkLines.length > 0) {
     trace.push({
@@ -364,12 +364,9 @@ export function computePlacards(load: LoadInput): PlacardComputation {
       const confirmedNoOtherFreight = load.otherFreightAboard === false;
       if (!seenId.has(idNumber)) {
         seenId.add(idNumber);
-        placards.idDisplays.push({
+        pendingIds.push({
           idNumber,
-          format: idPlan.format,
-          alternateFormats: idPlan.alternateFormats,
-          onPlacards: idPlan.onPlacards,
-          positions: "each_side_and_each_end",
+          placard: nonBulk[0]!.placard,
           because: [{ cfr: "49 CFR 172.301(a)(3)" }, { cfr: "49 CFR 172.332" }, { cfr: "49 CFR 172.336" }],
         });
       }
@@ -414,23 +411,27 @@ export function computePlacards(load: LoadInput): PlacardComputation {
   // panel is the answer". It is one of three lawful presentations, and on a single-hazard load the
   // one carriers actually run is the number across the placard (§172.332(c)) — one diamond instead of
   // a worded diamond plus a separate panel. The other two stay on the record with their citations.
+  const classIds = new Map<PlacardName, Set<string>>();
+  for (const r of resolved) {
+    const ids = classIds.get(r.placard) ?? new Set<string>();
+    ids.add(`${r.entry.idPrefix}${r.entry.idNumber}`);
+    classIds.set(r.placard, ids);
+  }
+  const assigned = assignIdCarriers({ pending: pendingIds, carriers: idCarrierPlacards, classIds });
+  placards.idDisplays.push(...assigned.displays);
+  findings.push(...assigned.findings);
   if (placards.idDisplays.length > 0) {
     trace.push({
       ruleId: "id_display_format_172_332",
       fired: true,
       inputs: {
-        recommended: idPlan.format,
-        alternates: idPlan.alternateFormats.map((f) => f.format),
-        carrierPlacards: idPlan.onPlacards,
+        displays: placards.idDisplays.map((d) => ({ idNumber: d.idNumber, recommended: d.format, onPlacards: d.onPlacards })),
         barredByS334: placards.required
           .map((p) => p.placard)
           .filter((p) => ID_NUMBER_PROHIBITED_PLACARDS.has(p) || subsidiaryPlacards.has(p)),
       },
       citations: [{ cfr: "49 CFR 172.332(b)" }, { cfr: "49 CFR 172.332(c)" }, { cfr: "49 CFR 172.334" }, { cfr: "49 CFR 172.336(b)" }],
-      note:
-        idPlan.onPlacards.length > 0
-          ? "The number may be displayed across the placard itself; orange panel and white square-on-point remain available."
-          : "Every required placard on this load is barred from carrying an identification number (§172.334) — the number needs its own orange panel or white square-on-point.",
+      note: "Each number rides only on its own primary-class placard (§172.332(c)), and only when the numbers on that class's placards cover every material of the class aboard (§172.334(d)); otherwise an orange panel or white square-on-point beside it.",
     });
 
     // The §172.504(b) DANGEROUS substitution and a required ID display do not compose: DANGEROUS may

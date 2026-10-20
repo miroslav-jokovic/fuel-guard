@@ -150,6 +150,11 @@ const API_ALLOW = new Set([
   //     and §396.17(c)(2) requires the decal to name (0282).
   "maintenance -> evidence",
   "maintenance -> roster",
+  // The truck and trailer files (UNIT-FILES-PLAN UF2): evidence owns the papers and the judgement,
+  // roster owns the units. The rollup reads unit number, status, ownership and McLeod's typed dates
+  // through `listUnitFileFacts` in roster's index — the same door shape as the inspection's edge
+  // above — rather than a direct `.from("vehicles")` that no gate happens to stop.
+  "evidence -> roster",
   "maintenance -> org",
   // ── the live map's three reads-through-owners (LM6, D-LM11) ──────────────────────────────────
   // `livemap` owns NO table. Its whole job is to answer one question the four tables behind it

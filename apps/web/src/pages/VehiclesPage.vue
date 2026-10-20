@@ -18,10 +18,14 @@ import {
   PlusIcon,
 } from "@silvicom/ui/icons";
 import { ref, computed, watch } from "vue";
-import { VEHICLE_CHECKS, VEHICLE_CHECK_LABELS, VEHICLE_STATUSES, isStatusFromTms, matchesVehicleCheck, todayInZone, type Vehicle, type VehicleInput } from "@silvicom/shared";
+import { FILE_CHIPS, FILE_CHIP_LABELS, VEHICLE_CHECKS, VEHICLE_CHECK_LABELS, VEHICLE_STATUSES, isStatusFromTms, matchesFileChip, matchesVehicleCheck, paperStanding, PAPER_CHECK_ITEMS, todayInZone, unitFileChip, type Vehicle, type VehicleInput } from "@silvicom/shared";
 import { useSessionStore } from "@/stores/session";
 import { useVehiclesQuery, useCreateVehicle, useUpdateVehicle, useRetireVehicle, useBulkUpdateVehicles } from "@/composables/useVehicles";
 import { useDriversQuery } from "@/composables/useDrivers";
+import { useUnitFilesQuery } from "@/composables/useCompliance";
+import FileCell from "@/components/files/FileCell.vue";
+import FileGallery from "@/components/files/FileGallery.vue";
+import type { FileSubject } from "@/components/files/fileSubject";
 import SlideOver from "@/components/SlideOver.vue";
 import StatusBadge from "@/components/StatusBadge.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
@@ -52,6 +56,16 @@ const statusFilter = qs.param("status", VEHICLE_STATUSES, "active");
  * `matchesVehicleCheck`, the predicate the cards count with, on the carrier's calendar day.
  */
 const checkFilter = qs.param("check", VEHICLE_CHECKS);
+/**
+ * The file chip's filter (UNIT-FILES-PLAN UF4). The chip and the filter both ask `unitFileChip`, so
+ * clicking "2 expiring" on a row lists exactly the trucks whose chip reads expiring.
+ */
+const fileFilter = qs.param("file", FILE_CHIPS);
+const fileOptions = [{ value: "", label: "Any" }, ...FILE_CHIPS.map((c) => ({ value: c, label: FILE_CHIP_LABELS[c] }))];
+const unitFilesQ = useUnitFilesQuery("tractor");
+/** Each truck's file, by id — the column, both filters and the paperwork checks read it. */
+const fileById = computed(() => new Map((unitFilesQ.data.value?.units ?? []).map((u) => [u.subject_id, u])));
+const chipById = computed(() => new Map([...fileById.value].map(([id, u]) => [id, unitFileChip(u)])));
 const { zone } = useOrgTimezone();
 const today = computed(() => todayInZone(new Date(), zone.value));
 const checkOptions = [{ value: "", label: "Any" }, ...VEHICLE_CHECKS.map((c) => ({ value: c, label: VEHICLE_CHECK_LABELS[c] }))];
@@ -61,17 +75,21 @@ const statusOptions = [
 ];
 // "active" is where the list opens, not a narrowing anybody chose: it does not count, and clearing returns to it.
 const activeFilterCount = computed(
-  () => (search.value.trim() ? 1 : 0) + (statusFilter.value !== "active" ? 1 : 0) + (checkFilter.value ? 1 : 0),
+  () => (search.value.trim() ? 1 : 0) + (statusFilter.value !== "active" ? 1 : 0) + (checkFilter.value ? 1 : 0) + (fileFilter.value ? 1 : 0),
 );
 function resetFilters() {
-  qs.set({ search: undefined, status: undefined, check: undefined });
+  qs.set({ search: undefined, status: undefined, check: undefined, file: undefined });
 }
 
 const filtered = computed(() => {
   const term = search.value.toLowerCase();
   return (vehicles.value ?? []).filter((v) => {
     if (statusFilter.value && v.status !== statusFilter.value) return false;
-    if (checkFilter.value && !matchesVehicleCheck(v, checkFilter.value, today.value)) return false;
+    if (checkFilter.value && !matchesVehicleCheck(v, checkFilter.value, fileById.value.get(v.id))) return false;
+    if (fileFilter.value) {
+      const chip = chipById.value.get(v.id);
+      if (!chip || !matchesFileChip(chip, fileFilter.value)) return false;
+    }
     if (!term) return true;
     return [v.unit_number, v.make, v.model, v.plate, v.vin, String(v.year ?? "")]
       .filter(Boolean)
@@ -79,7 +97,20 @@ const filtered = computed(() => {
   });
 });
 
+/**
+ * The two paper columns show the truck's standing on the paper — its filed date, else McLeod's marked
+ * "date only" (D-UF3) — the answer `?check=` and the Truck paperwork card count with. Showing McLeod's
+ * raw column here would put "valid" beside a row the overdue filter just listed.
+ */
+const PAPER_COLUMNS: Record<string, string> = {
+  dot_annual_inspection_expires_at: PAPER_CHECK_ITEMS.inspection,
+  registration_expires_at: PAPER_CHECK_ITEMS.registration,
+};
+const standing = (v: Vehicle, column: string) =>
+  paperStanding(fileById.value.get(v.id)?.items.find((i) => i.key === PAPER_COLUMNS[column]));
+
 const getVal = (v: Vehicle, key: string): unknown => {
+  if (key in PAPER_COLUMNS) return standing(v, key).goodUntil;
   const raw = (v as unknown as Record<string, unknown>)[key];
   return typeof raw === "string" && raw !== "" && !isNaN(Number(raw)) ? Number(raw) : raw;
 };
@@ -87,6 +118,7 @@ const sorted = computed(() => sortRows(filtered.value, sort.value, getVal));
 
 const columns: DataTableColumn[] = [
   { key: "unit_number", label: "Unit", sortable: true, width: "sm" },
+  { key: "file", label: "File", width: "lg" },
   { key: "vehicle", label: "Vehicle", width: "lg", cellClass: "text-ink-secondary" },
   { key: "fuel_type", label: "Fuel", width: "sm", cellClass: "capitalize text-ink-secondary" },
   { key: "tank_capacity_gal", label: "Tank", sortable: true, numeric: true, width: "sm", cellClass: "text-ink-secondary" },
@@ -106,7 +138,13 @@ const { sort, onSort } = useUrlSort(
 );
 
 const page = qs.page();
-watch([search, statusFilter, checkFilter], () => (page.value = 1));
+watch([search, statusFilter, checkFilter, fileFilter], () => (page.value = 1));
+
+/** The gallery's subject, or null when closed — one dialog for the whole list, never one per row. */
+const gallery = ref<{ subject: FileSubject; label: string; startId: string | null } | null>(null);
+function openGallery(v: Vehicle, documentId?: string) {
+  gallery.value = { subject: { type: "tractor", id: v.id }, label: `Unit ${v.unit_number}`, startId: documentId ?? null };
+}
 const pageRows = computed(() => sorted.value.slice((page.value - 1) * PAGE_SIZE, page.value * PAGE_SIZE));
 const createVehicle = useCreateVehicle();
 const updateVehicle = useUpdateVehicle();
@@ -218,6 +256,7 @@ async function onRetire(v: Vehicle) {
       <template #filters>
         <FilterSelect v-model="statusFilter" label="Status" :options="statusOptions" />
         <FilterSelect v-model="checkFilter" label="Needs" :options="checkOptions" />
+        <FilterSelect v-model="fileFilter" label="File" :options="fileOptions" />
       </template>
     </FilterBar>
 
@@ -256,6 +295,19 @@ async function onRetire(v: Vehicle) {
           :title="`This truck's Samsara vehicle no longer exists (since ${formatDate(row.samsara_missing_since)}). It cannot sync telematics — likely replaced. Retire it if the physical truck is gone.`"
         >Samsara link lost</span>
       </template>
+      <template #cell-file="{ row }">
+        <FileCell
+          v-if="fileById.get(row.id)"
+          :chip="chipById.get(row.id)!"
+          :papers="fileById.get(row.id)!.papers"
+          :paper-count="fileById.get(row.id)!.paper_count"
+          :items="fileById.get(row.id)!.items"
+          :subject-label="`Unit ${row.unit_number}`"
+          @open="openGallery(row, $event)"
+          @filter="fileFilter = $event"
+        />
+        <span v-else class="text-ink-tertiary">—</span>
+      </template>
       <template #cell-vehicle="{ row }">{{ [row.year, row.make, row.model].filter(Boolean).join(" ") || "—" }}</template>
       <template #cell-tank_capacity_gal="{ row }">
         <span v-if="Number(row.tank_capacity_gal) > 0">{{ row.tank_capacity_gal }} gal</span>
@@ -276,11 +328,15 @@ async function onRetire(v: Vehicle) {
         <span v-else class="text-ink-tertiary">—</span>
       </template>
       <template #cell-assigned_driver_id="{ row }">{{ driverName(row.assigned_driver_id) }}</template>
-      <template #cell-dot_annual_inspection_expires_at="{ row }">
-        <InspectionExpiryCell :expires-on="row.dot_annual_inspection_expires_at" :today="today" />
-      </template>
-      <template #cell-registration_expires_at="{ row }">
-        <InspectionExpiryCell :expires-on="row.registration_expires_at" :today="today" />
+      <template v-for="column in Object.keys(PAPER_COLUMNS)" :key="column" #[`cell-${column}`]="{ row }">
+        <!-- "—" until the truck's file arrives: "Not recorded" before it loads would be a claim. -->
+        <span v-if="!fileById.get(row.id)" class="text-ink-tertiary">—</span>
+        <InspectionExpiryCell v-else :expires-on="standing(row, column).goodUntil" :today="today" />
+        <span
+          v-if="fileById.get(row.id) && standing(row, column).source === 'date_only'"
+          class="ml-1 text-xs text-ink-tertiary"
+          title="McLeod's date — no paper is filed for it yet"
+        >date only</span>
       </template>
       <template #cell-has_apu="{ value }">
         <span v-if="value === true" :class="[BADGE_BASE, toneClass('success')]">Yes</span>
@@ -314,6 +370,13 @@ async function onRetire(v: Vehicle) {
       </template>
     </DataTable>
     </DataWorkspace>
+
+    <FileGallery
+      :subject="gallery?.subject ?? null"
+      :subject-label="gallery?.label ?? ''"
+      :start-id="gallery?.startId ?? null"
+      @close="gallery = null"
+    />
 
     <SlideOver :open="setupOpen" title="Import vehicles" @close="setupOpen = false">
       <VehicleSetupImport :vehicles="vehicles ?? []" @done="setupOpen = false" />

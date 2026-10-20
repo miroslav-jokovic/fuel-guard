@@ -244,7 +244,8 @@ const canSave = computed(() => !!driverId.value && note.value.trim().length > 0 
           {{ reading.outcome === "one_driver" ? "Choose a different driver" : "Choose the driver" }}
         </BaseButton>
       </div>
-      <div v-else-if="canDecide && !choosing" class="mt-3" data-test="driver-actions">
+      <!-- text-sm: a link button takes its size from what holds it (AppButton drops the size box for links). -->
+      <div v-else-if="canDecide && !choosing" class="mt-3 text-sm" data-test="driver-actions">
         <BaseButton variant="link" data-test="driver-choose" @click="startChoosing">Not right? Choose a different driver</BaseButton>
       </div>
 

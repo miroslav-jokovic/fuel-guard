@@ -29,7 +29,8 @@
  */
 import { classifyMarinePollutantEntry } from "../placards/marinePollutant.js";
 import type { PaperRuleResult } from "./paperTypes.js";
-import { gated, lineLabel, lineTexts, make, norm, printsMarinePollutant, printsRq, rowOf, technicalComponents, type LineCtx } from "./paperSupport.js";
+import { matchAppendixNames } from "../appendixNameMatch.js";
+import { gated, lineLabel, lineTexts, make, printsMarinePollutant, printsRq, rowOf, technicalComponents, type LineCtx } from "./paperSupport.js";
 
 const OIL_PHRASE = /\b(oil|aviation fuel|diesel fuel|fuel oil|gasoline|jet fuel|kerosene|motor fuel|petroleum)\b/i;
 const TO_LITRES: Record<string, number> = { L: 1, gal: 3.785411784 };
@@ -62,7 +63,9 @@ function smallPackage(ctx: LineCtx, psn: string, hazardClass: string | null): Sm
     return { excepted: false, reason: couldFit ? "physical_state_unknown" : null };
   }
   if (fits > 5) return { excepted: false, reason: null };
-  const listedHs = ctx.ds.hazSubstances.length === 0 || ctx.ds.hazSubstances.some((h) => norm(psn) === h.nameNormalized || technicalComponents(ctx.printed).includes(h.nameNormalized));
+  const hs = matchAppendixNames([psn], ctx.ds.hazSubstances);
+  const listedHs = ctx.ds.hazSubstances.length === 0 || hs.neat.length > 0 || hs.mixture.length > 0 ||
+    ctx.ds.hazSubstances.some((h) => technicalComponents(ctx.printed).includes(h.nameNormalized));
   if (listedHs) return { excepted: false, reason: "hazardous_substance_may_apply" };
   return { excepted: true, perPackage: Math.round(fits * 1000) / 1000, unit: state === "liquid" ? "L" : "kg" };
 }

@@ -7,11 +7,11 @@ import type { RoadsideRepairDueDto } from "@silvicom/shared";
 import { ROUTE_TABLE } from "@/router/table";
 
 /**
- * Roadside repairs due, the Shop's page (IC11 B2b, Q-IC16 (a)). What it can get wrong:
+ * Roadside repairs due, the Shop's list (IC11 B2b, Q-IC16 (a); the standard list since IC16). What it can get wrong:
  *
  *   1. **Opens on the oldest backlog** instead of what is due now, or lists a recorded repair as open.
- *   2. **Arrives from the bell and shows something else** — the alert's inspection on the other tab, or not
- *      brought into view.
+ *   2. **Arrives from the bell and shows something else** — the alert's inspection not narrowed to, or its open unit
+ *      not in the drawer.
  *   3. **Links a technician to the inspection page** they cannot open.
  *   4. **Decides on a component of its own** rather than the inspection page's (one way to name a repair).
  */
@@ -34,6 +34,11 @@ vi.mock("@/composables/useOpens", () => ({
   useOpens: () => (to: { name?: string }) => (to.name === "roadside-inspection" ? inspectionOpens : true),
 }));
 vi.mock("@/stores/session", () => ({ useSessionStore: () => ({ can: (s: string) => s === "maintenance" }) }));
+// The desktop table: jsdom has no `matchMedia`, and DataTable would otherwise draw its narrow cards.
+vi.mock("@vueuse/core", async (orig) => {
+  const { ref: r } = await import("vue");
+  return { ...((await orig()) as Record<string, unknown>), useMediaQuery: () => r(true) };
+});
 
 const RoadsideRepairsPage = (await import("@/pages/RoadsideRepairsPage.vue")).default;
 const RepairUnitDecision = (await import("@/features/roadside/RepairUnitDecision.vue")).default;
@@ -50,11 +55,11 @@ async function page(query = "") {
   const router = createRouter({ history: createMemoryHistory(), routes: [...ROUTE_TABLE] });
   await router.push(`/shop/roadside-repairs${query}`);
   await router.isReady();
-  const w = mount(RoadsideRepairsPage as never, { global: { plugins: [router] }, attachTo: document.body.appendChild(document.createElement("div")) });
+  const w = mount(RoadsideRepairsPage as never, { global: { plugins: [router], stubs: { SlideOver: { props: ["open", "title"], template: "<div v-if='open' data-test='drawer' :data-title='title'><slot /></div>" } } } });
   await flushPromises();
   return { w, router };
 }
-const names = (w: Awaited<ReturnType<typeof page>>["w"]) => w.findAll("[data-test='repair-unit'] h3").map((h) => h.text());
+const unitsListed = (w: Awaited<ReturnType<typeof page>>["w"]) => w.findAll("[data-test='repair-row-open']").map((b) => b.text());
 
 beforeEach(() => {
   setActivePinia(createPinia());
@@ -65,36 +70,46 @@ beforeEach(() => {
 });
 
 describe("roadside repairs due", () => {
-  it("opens on the open repairs nearest to today, each decided on the inspection page's own component", async () => {
+  it("lists the open repairs nearest to today first, with what FleetPal shows and the clock", async () => {
     const { w } = await page();
-    expect(names(w)).toEqual(["Truck 612", "Truck 500"]);
-    expect(w.findAllComponents(RepairUnitDecision)).toHaveLength(2);
-    expect(w.get("[data-test='repair-where']").text()).toContain("Report IL612 · inspected 10/06/2026 · I-55, IL");
+    expect(unitsListed(w)).toEqual(["Truck 612", "Truck 500"]);
+    expect(w.findAll("[data-test='repair-due-badge']").map((b) => b.text())).toEqual(["2 days left", "232 days overdue"]);
+    expect(w.findAll("[data-test='repair-proposal-short']").map((b) => b.text())).toEqual(["No work order yet", "No work order yet"]);
+    expect(w.find("[data-test='drawer']").exists()).toBe(false);
   });
 
-  it("keeps a recorded repair on its own tab", async () => {
-    const { w } = await page("?tab=recorded");
-    expect(names(w)).toEqual(["Truck 700"]);
-  });
-
-  it("arriving from the bell, opens the tab its inspection is on and brings it into view", async () => {
-    const scrolled = vi.fn();
-    Element.prototype.scrollIntoView = scrolled;
-    const { w, router } = await page("?inspection=insp-700");
-    expect(router.currentRoute.value.query.tab).toBe("recorded");
+  it("opens a row in the drawer on the inspection page's own component, and keeps it in the URL", async () => {
+    const { w, router } = await page();
+    await w.findAll("[data-test='repair-row-open']")[0]!.trigger("click");
     await flushPromises();
-    expect(names(w)).toEqual(["Truck 700"]);
-    expect(scrolled).toHaveBeenCalled();
+    expect(router.currentRoute.value.query.unit).toBe("612");
+    expect(w.get("[data-test='drawer']").attributes("data-title")).toBe("Truck 612");
+    expect(w.findAllComponents(RepairUnitDecision)).toHaveLength(1);
+  });
+
+  it("keeps a recorded repair on its own tab, and finds a unit by its report", async () => {
+    expect(unitsListed((await page("?tab=recorded")).w)).toEqual(["Truck 700"]);
+    expect(unitsListed((await page("?search=IL500")).w)).toEqual(["Truck 500"]);
+  });
+
+  it("arriving from the bell, narrows to its inspection, on the tab it is on, with its unit open", async () => {
+    // Another recorded unit, on another inspection: narrowing leaves it out.
+    due.value = [...due.value!, unit("801", "2026-10-09", { decision: recorded })];
+    const { w, router } = await page("?inspection=insp-700");
+    await flushPromises();
+    expect(router.currentRoute.value.query.tab).toBe("recorded");
+    expect(unitsListed(w)).toEqual(["Truck 700"]);
+    expect(router.currentRoute.value.query.unit).toBe("700");
   });
 
   it("offers the inspection only to a reader who can open it", async () => {
-    expect((await page()).w.text()).toContain("Open the inspection");
+    expect((await page("?unit=612")).w.text()).toContain("Open the inspection");
     inspectionOpens = false;
-    expect((await page()).w.text()).not.toContain("Open the inspection");
+    expect((await page("?unit=612")).w.text()).not.toContain("Open the inspection");
   });
 
   it("says so when nothing is open", async () => {
     due.value = [unit("700", "2026-10-10", { decision: recorded })];
-    expect((await page()).w.get("[data-test='repairs-empty']").text()).toBe("Every roadside repair of the last year is recorded.");
+    expect((await page()).w.text()).toContain("Every roadside repair of the last year is recorded.");
   });
 });

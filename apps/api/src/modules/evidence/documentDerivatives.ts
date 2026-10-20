@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import sharp, { type Sharp } from "sharp";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { paintPdfFirstPage } from "../../lib/pdfRaster.js";
 import {
   DERIVATIVE_CONTENT_TYPE,
   DERIVATIVE_VERSION,
@@ -57,7 +58,16 @@ interface OriginalRow {
  * container's irot/imir transforms itself, so the upright orientation survives. The committed
  * HEVC fixture test is the proof, and CI running it on linux is the deployment-platform answer.
  */
-async function decodeToSharp(original: Buffer, contentType: string): Promise<Sharp> {
+async function decodeToSharp(original: Buffer, contentType: string, longEdgePx: number): Promise<Sharp> {
+  if (contentType === "application/pdf") {
+    // Page 1, painted at the size the spec asks for (D-UF10) — never at 300 DPI and shrunk. A PDF
+    // pdf.js cannot open (encrypted, damaged) throws, and the caller reports `derive_failed` rather
+    // than filing a blank square as the document's picture.
+    const painted = await paintPdfFirstPage(original, longEdgePx);
+    if (!painted.ok) throw new Error(`PDF page 1 could not be painted (${painted.code})`);
+    const { data, width, height } = painted.page;
+    return sharp(data, { raw: { width, height, channels: 3 } });
+  }
   if (contentType === "image/heic") {
     const { default: heicDecode } = await import("heic-decode"); // lazy — WASM init only when needed
     const { width, height, data } = await heicDecode({ buffer: original });
@@ -75,7 +85,7 @@ export async function deriveBytes(
   spec: DerivativeSpec,
   contentType = "image/jpeg",
 ): Promise<Buffer> {
-  const input = await decodeToSharp(original, contentType);
+  const input = await decodeToSharp(original, contentType, spec.longEdgePx);
   // `withoutEnlargement` because enlarging invents no information.
   return input
     .resize(spec.longEdgePx, spec.longEdgePx, { fit: "inside", withoutEnlargement: true })
