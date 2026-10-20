@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { afterReset, useDetectionEpoch } from "@/features/anomalies/useDetectionEpoch";
-import { computed } from "vue";
-import { useRoute } from "vue-router";
+import { computed, nextTick, watch } from "vue";
+import { useRoute, useRouter } from "vue-router";
 import { useQuery } from "@tanstack/vue-query";
 import type { ChartConfiguration } from "chart.js";
 import { formatRuleId, type FuelTransaction, type Vehicle, type Anomaly } from "@silvicom/shared";
@@ -12,6 +12,8 @@ import BaseChart from "@/components/BaseChart.vue";
 import StatusBadge from "@/components/StatusBadge.vue";
 import {
   AppCard as BaseCard,
+  AppTabs,
+  type TabItem,
   DataTable,
   type DataTableColumn,
   FactList,
@@ -21,12 +23,36 @@ import {
   isNotFound,
 } from "@silvicom/ui";
 import UnitKitCard from "@/features/inventory/UnitKitCard.vue";
+import UnitWorkOrdersCard from "@/features/maintenance/UnitWorkOrdersCard.vue";
+import UnitInspectionsCard from "@/features/roadside/UnitInspectionsCard.vue";
+import UnitFileSection from "@/components/files/UnitFileSection.vue";
+import type { UnitFileSubject } from "@/components/files/fileSubject";
 import { viz, areaFill } from "@/lib/chartTheme";
 import PageHeader from "@/components/ui/PageHeader.vue";
+import { VEHICLE_SECTIONS, resolveVehicleSection, type VehicleSection } from "./vehicleSections";
 
 const route = useRoute();
+const router = useRouter();
 const id = computed(() => String(route.params.id));
 const session = useSessionStore();
+
+/**
+ * Overview · File · Maintenance · Fuel (UNIT-FILES-PLAN UF5), on the driver page's model (D-ROS5):
+ * `?section=` is an anchor the strip scrolls to, never a tab that hides the rest. The truck's file is
+ * a SECTION here rather than a page of its own, beside the kit and the fills it was always one click
+ * away from needing — the same move the driver's qualification file made at DQF D1.
+ */
+const SECTIONS: TabItem[] = VEHICLE_SECTIONS.map((s) => ({ value: s.value, label: s.label }));
+const section = computed<VehicleSection>(() => resolveVehicleSection(route.query.section));
+function scrollToSection(s: VehicleSection): void {
+  const el = typeof document !== "undefined" ? document.getElementById(`section-${s}`) : null;
+  el?.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+watch(section, (s) => void nextTick(() => scrollToSection(s)), { immediate: true });
+function setSection(s: VehicleSection): void {
+  void router.replace({ query: { ...route.query, section: s === "overview" ? undefined : s } });
+}
+const fileSubject = computed<UnitFileSubject>(() => ({ type: "tractor", id: id.value }));
 // The truck's file belongs to the equipment section and its fuel history to the fuel section, and a
 // technician holds the first without the second. Until the database refuses that read (migration 0416,
 // database audit 2026-10-03 finding 1) this page was the only thing between a `fuel: none` user and the
@@ -168,7 +194,7 @@ const fillColumns: DataTableColumn[] = [
       not-found-text="That vehicle is not on the fleet. The link may be incomplete, or the truck belongs to another company."
       @retry="vehicleQuery.refetch()"
     >
-      <BaseCard v-if="vehicle">
+      <BaseCard v-if="vehicle" id="section-overview" class="scroll-mt-6">
         <div class="flex items-center justify-between">
           <div>
             <h2 class="text-sm font-semibold text-ink">Vehicle summary · {{ vehicle.fuel_type }}</h2>
@@ -184,14 +210,34 @@ const fillColumns: DataTableColumn[] = [
     </QueryState>
 
     <template v-if="!missing">
-      <!-- What this truck is carrying (INVENTORY-PLAN.md I9, D-AVI17). Read only and gated
-           `maintenance: view`: the equipment section owns the truck's file and the shop owns what is
-           inside it, so this is a window and never a control. A reader without the shop section gets
-           no card at all — a card full of blanks would say "this truck carries nothing", which is a
-           different and alarming claim. -->
-      <UnitKitCard v-if="id" kind="tractor" :unit-id="id" />
+      <!-- A jump nav, not a tab strip: every section is on the page and this scrolls to one. No
+           `id-prefix`, as on the driver page — the sections are named by the URL, not owned by the strip. -->
+      <AppTabs
+        :model-value="section"
+        :tabs="SECTIONS"
+        label="Vehicle sections"
+        @update:model-value="setSection($event as VehicleSection)"
+      />
 
-      <BaseCard v-if="canSeeFuel">
+      <!-- The truck's file (UF5, D-UF1): the same rollup row the Vehicles list draws its cell from. -->
+      <section id="section-file" class="scroll-mt-6">
+        <UnitFileSection v-if="vehicle" :subject="fileSubject" :unit-number="vehicle.unit_number" :plate="vehicle.plate" />
+      </section>
+
+      <section id="section-maintenance" class="scroll-mt-6 space-y-4">
+        <!-- What this truck is carrying (INVENTORY-PLAN.md I9, D-AVI17). Read only and gated
+             `maintenance: view`: the equipment section owns the truck's file and the shop owns what is
+             inside it, so this is a window and never a control. A reader without the shop section gets
+             no card at all — a card full of blanks would say "this truck carries nothing", which is a
+             different and alarming claim. -->
+        <UnitKitCard v-if="id" kind="tractor" :unit-id="id" />
+        <!-- Read-only windows onto the shop's open orders and the roadside record for this unit (UF5),
+             each from a read its own page already makes, each linking out to where the work is done. -->
+        <UnitWorkOrdersCard v-if="vehicle" :unit-number="vehicle.unit_number" />
+        <UnitInspectionsCard v-if="vehicle" kind="tractor" :unit-number="vehicle.unit_number" :plate="vehicle.plate" />
+      </section>
+
+      <BaseCard v-if="canSeeFuel" id="section-fuel" class="scroll-mt-6">
         <h3 class="mb-3 text-sm font-semibold text-ink">MPG history</h3>
         <QueryState
           compact

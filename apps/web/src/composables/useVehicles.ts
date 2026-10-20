@@ -1,9 +1,9 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/vue-query";
-import type { Vehicle, VehicleInput } from "@silvicom/shared";
+import type { OwnershipType, Vehicle, VehicleInput } from "@silvicom/shared";
 import { supabase } from "@/lib/supabase";
 
 const VEHICLE_COLS =
-  "id, org_id, unit_number, make, model, year, plate, vin, fuel_type, tank_capacity_gal, tank_capacity_source, baseline_mpg, current_odometer, status, assigned_driver_id, samsara_vehicle_id, samsara_fuel_percent, samsara_fuel_at, samsara_missing_since, has_apu, apu_type, has_optimized_idle, idle_capability, created_at, updated_at, dot_annual_inspection_expires_at, registration_expires_at, mcleod_tractor_id, identity_source, winding_down, co_driver_id";
+  "id, org_id, unit_number, make, model, year, plate, vin, fuel_type, tank_capacity_gal, tank_capacity_source, baseline_mpg, current_odometer, status, assigned_driver_id, samsara_vehicle_id, samsara_fuel_percent, samsara_fuel_at, samsara_missing_since, has_apu, apu_type, has_optimized_idle, idle_capability, created_at, updated_at, dot_annual_inspection_expires_at, registration_expires_at, mcleod_tractor_id, identity_source, winding_down, co_driver_id, ownership_type";
 
 /** WP-CAP provenance: a capacity typed through the app is a HUMAN entry — stamp it 'manual' so it's
  *  distinguishable from a learner self-heal ('auto'). The stamp is transparency, not a veto: a manual
@@ -95,5 +95,26 @@ export function useRetireVehicle() {
       if (error) throw new Error(error.message);
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: vehiclesKey }),
+  });
+}
+
+/**
+ * Set a truck's ownership on its own (UNIT-FILES-PLAN D-UF11), from the file section that found it
+ * unknown: the office answers "owned or leased" where the question is asked, instead of opening the
+ * whole form. An UPDATE of one column, never an upsert (`lint:upserts`); RLS scopes it to the org.
+ */
+export function useSetVehicleOwnership() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: { id: string; ownership: OwnershipType }): Promise<void> => {
+      const { error } = await supabase.from("vehicles").update({ ownership_type: payload.ownership }).eq("id", payload.id);
+      if (error) throw new Error(error.message);
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: vehiclesKey });
+      void qc.invalidateQueries({ queryKey: ["vehicle"] });
+      // The file's title and lease items change state with the answer (`buildUnitFile`).
+      void qc.invalidateQueries({ queryKey: ["compliance", "unit-files"] });
+    },
   });
 }

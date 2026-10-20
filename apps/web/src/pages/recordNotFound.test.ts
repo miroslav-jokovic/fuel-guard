@@ -62,6 +62,9 @@ const SECTIONS = [
   "SevenDayStatementSection",
   "DriverContactSection",
   "UnitKitCard",
+  "UnitFileSection",
+  "UnitWorkOrdersCard",
+  "UnitInspectionsCard",
   "HiringChecklistCard",
   "DispositionSection",
 ];

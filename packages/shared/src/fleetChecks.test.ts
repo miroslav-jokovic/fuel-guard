@@ -9,7 +9,7 @@ const truck = (over: Partial<{ assigned_driver_id: string | null; winding_down: 
 });
 /** One item of a truck's file, as `/api/compliance/unit-files` serves it. */
 const cell = (key: string, state: FileItemState, goodUntil: string | null, dateOnly: UnitFileCell["dateOnly"] = null): UnitFileCell => ({
-  key, group: key === "registration" ? "registration" : "inspections", state, goodUntil, dateOnly, fleetWide: false, documentId: state === "missing" ? null : "doc-1",
+  key, group: key === "registration" ? "registration" : "inspections", state, goodUntil, evidenceDate: null, expiryUnknown: false, dateOnly, fleetWide: false, documentId: state === "missing" ? null : "doc-1",
 });
 const file = (...items: UnitFileCell[]) => ({ items });
 const NOTHING = file(cell("registration", "missing", null), cell("annual_inspection", "missing", null));

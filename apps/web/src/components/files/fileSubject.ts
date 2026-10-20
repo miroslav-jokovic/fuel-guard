@@ -1,4 +1,4 @@
-import type { ComplianceSubjectType } from "@silvicom/shared";
+import type { ComplianceSubjectType, UnitSubjectType } from "@silvicom/shared";
 
 /**
  * Whose file a component is showing (UNIT-FILES-PLAN D-UF1) — a driver's §391.51 file, a truck's or a
@@ -12,3 +12,6 @@ export interface FileSubject {
   type: Exclude<ComplianceSubjectType, "organization">;
   id: string;
 }
+
+/** A truck's or a trailer's file — what the unit pages' file section takes (UNIT-FILES-PLAN UF5). */
+export type UnitFileSubject = FileSubject & { type: UnitSubjectType };

@@ -6,11 +6,11 @@
  * feature that needs a trailer list next.
  */
 import { useQuery, useMutation, useQueryClient } from "@tanstack/vue-query";
-import type { Trailer, TrailerWrite } from "@silvicom/shared";
+import type { OwnershipType, Trailer, TrailerWrite } from "@silvicom/shared";
 import { supabase } from "@/lib/supabase";
 
 const COLS =
-  "id, org_id, unit_number, make, model, year, plate, trailer_type, cargo_capacity_gal, cargo_compartments, is_reefer, reefer_tank_capacity_gal, status, assigned_vehicle_id, samsara_asset_id, created_at, updated_at, dot_annual_inspection_expires_at, mcleod_trailer_id, identity_source, pairing_source, pairing_confirmed_at";
+  "id, org_id, unit_number, make, model, year, plate, trailer_type, cargo_capacity_gal, cargo_compartments, is_reefer, reefer_tank_capacity_gal, status, assigned_vehicle_id, samsara_asset_id, created_at, updated_at, dot_annual_inspection_expires_at, mcleod_trailer_id, identity_source, pairing_source, pairing_confirmed_at, ownership_type";
 
 const trailersKey = ["trailers"] as const;
 
@@ -88,3 +88,18 @@ export function useRetireTrailer() {
 
 // Samsara trailer sync now runs as a background job (kind `sync_trailers`) — the Trailers page drives it
 // via useBackgroundSync + the jobs ledger, so there's no inline-mutation hook here anymore (plan WQ1c).
+
+/** A trailer's ownership on its own (D-UF11) — see `useSetVehicleOwnership`. */
+export function useSetTrailerOwnership() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: { id: string; ownership: OwnershipType }): Promise<void> => {
+      const { error } = await supabase.from("trailers").update({ ownership_type: payload.ownership }).eq("id", payload.id);
+      if (error) throw new Error(error.message);
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: trailersKey });
+      void qc.invalidateQueries({ queryKey: ["compliance", "unit-files"] });
+    },
+  });
+}

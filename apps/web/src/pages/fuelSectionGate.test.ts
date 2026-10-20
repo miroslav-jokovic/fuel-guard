@@ -63,7 +63,8 @@ vi.mock("@/stores/toast", () => ({ useToastStore: () => ({ success: vi.fn(), err
 
 const STUBS = {
   QualificationSection: { template: "<div />" }, SevenDayStatementSection: { template: "<div />" },
-  UnitKitCard: { template: "<div />" }, BaseChart: { template: "<div />" }, DataTable: { template: "<table />" },
+  UnitKitCard: { template: "<div />" }, UnitFileSection: { template: "<div />" }, UnitWorkOrdersCard: { template: "<div />" },
+  UnitInspectionsCard: { template: "<div />" }, BaseChart: { template: "<div />" }, DataTable: { template: "<table />" },
 };
 const mountPage = async (component: unknown, path: string, route: string) => {
   const router = createRouter({ history: createMemoryHistory(), routes: [{ path: route, component: component as never }, { path: "/recruitment/:id", component: { template: "<div />" } }] });

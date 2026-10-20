@@ -22,7 +22,7 @@ describe("fileChip", () => {
 
   it("counts a unit's date-only items out of its missing ones", () => {
     const item = (key: string, dated: boolean): UnitFileCell => ({
-      key, group: "registration", state: "missing", goodUntil: null, fleetWide: false, documentId: null,
+      key, group: "registration", state: "missing", goodUntil: null, evidenceDate: null, expiryUnknown: false, fleetWide: false, documentId: null,
       dateOnly: dated ? { goodUntil: "2027-01-01", state: "current" } : null,
     });
     const row = { state: "incomplete" as const, counts: counts({ missing: 2 }), items: [item("registration", true), item("annual_inspection", true)] };

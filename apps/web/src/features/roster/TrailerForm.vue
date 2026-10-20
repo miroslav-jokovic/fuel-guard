@@ -5,6 +5,8 @@ import {
   TRAILER_TYPES,
   trailerInputSchema,
   VEHICLE_STATUSES,
+  OWNERSHIP_TYPES,
+  OWNERSHIP_LABELS,
   type Trailer,
   type TrailerInput,
   type Vehicle,
@@ -40,6 +42,8 @@ const form = reactive({
   is_reefer: props.trailer?.is_reefer ?? false,
   reefer_tank_capacity_gal: props.trailer?.reefer_tank_capacity_gal?.toString() ?? "50",
   status: props.trailer?.status ?? "active",
+  // "" = unknown (D-UF11): the file then asks the office to set it rather than calling a title missing.
+  ownership_type: props.trailer?.ownership_type ?? "",
   assigned_vehicle_id: props.trailer?.assigned_vehicle_id ?? "",
   samsara_asset_id: props.trailer?.samsara_asset_id ?? "",
 });
@@ -153,6 +157,13 @@ function onSubmit() {
           v-model="form.status"
           :disabled="statusFromTms"
           :options="VEHICLE_STATUSES.map((s) => ({ value: s, label: s }))"
+        />
+      </FormField>
+      <!-- D-UF11, as on the truck form: unknown ownership is "set ownership to check", not a missing title. -->
+      <FormField label="Ownership" hint="Decides whether the file asks for a title or a lease.">
+        <AppSelect
+          v-model="form.ownership_type"
+          :options="[{ value: '', label: 'Unknown' }, ...OWNERSHIP_TYPES.map((o) => ({ value: o, label: OWNERSHIP_LABELS[o] }))]"
         />
       </FormField>
     </div>

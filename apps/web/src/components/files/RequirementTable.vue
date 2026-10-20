@@ -38,6 +38,12 @@ export interface RequirementRow {
   restricted: boolean;
   /** Tracked-not-required (D8): renders only because evidence exists; labelled as such. */
   advisory: boolean;
+  /**
+   * A line under the state, when the state alone misleads (UNIT-FILES-PLAN D-UF3): a truck's item
+   * with no paper but McLeod's typed date reads "Date only, no paper — 11/01/2026". A driver's rows
+   * never set it.
+   */
+  note?: string | null;
 }
 
 defineProps<{
@@ -52,6 +58,11 @@ defineProps<{
   embedded?: boolean;
   /** May this reader record or renew a requirement — the subject's own section, asked by the caller. */
   canManage: boolean;
+  /**
+   * Whether a scan can be released as a stamped copy (D-BD10). The stamp names a DRIVER and a
+   * requirement, so a unit's file (UF5) turns it off rather than offering an export that cannot run.
+   */
+  releasable?: boolean;
 }>();
 const emit = defineEmits<{
   retry: [];
@@ -97,6 +108,7 @@ const columns: DataTableColumn[] = [
       <span v-if="row.expiryUnknown" class="mt-0.5 block text-xs text-warning-700"
         >No expiry recorded.</span
       >
+      <span v-if="row.note" class="mt-0.5 block text-xs text-warning-700">{{ row.note }}</span>
     </template>
     <template #cell-evidenceDate="{ row }">
       <span v-if="row.evidenceDate">{{ formatDate(row.evidenceDate) }}</span>
@@ -153,7 +165,7 @@ const columns: DataTableColumn[] = [
           {{ row.state === "missing" ? "Record requirement" : "Renew requirement" }}
         </BaseButton>
         <BaseButton
-          v-if="row.documentUrl"
+          v-if="row.documentUrl && releasable !== false"
           type="button"
           class="kebab-item"
           :disabled="releasingKey === row.key"

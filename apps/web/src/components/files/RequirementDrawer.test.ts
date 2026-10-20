@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { mount } from "@vue/test-utils";
 import { createPinia, setActivePinia } from "pinia";
 import { VueQueryPlugin } from "@tanstack/vue-query";
-import { DQ_ITEMS } from "@silvicom/shared";
+import { DQ_ITEMS, EQUIPMENT_ITEMS } from "@silvicom/shared";
 import RequirementDrawer from "@/components/files/RequirementDrawer.vue";
 
 /**
@@ -81,5 +81,39 @@ describe("RequirementDrawer — §172.704(d) fields (D7)", () => {
       notes: "Renewal due with the 2029 cycle",
       issuedAt: "2026-01-15",
     });
+  });
+});
+
+/**
+ * A truck's title (UNIT-FILES-PLAN UF5, 0490): the paper IS the record. The drawer asks for the scan
+ * and nothing else, and writes no certification and no qualification record — a record against a
+ * vehicle id is exactly what the driver-only guard below the certification path refuses.
+ */
+describe("RequirementDrawer — a document-only item (a title)", () => {
+  beforeEach(() => {
+    setActivePinia(createPinia());
+    calls.length = 0;
+  });
+  const mountTitle = (presetDocument: { id: string; name: string } | null) =>
+    mount(RequirementDrawer, {
+      props: { open: true, subject: { type: "tractor", id: "00000000-0000-4000-8000-0000000000a1" }, specs: EQUIPMENT_ITEMS, itemKey: "title", presetDocument },
+      global: { plugins: [VueQueryPlugin], stubs: { SlideOver: SlideOverStub, teleport: true } },
+    });
+
+  it("asks for the scan alone, and cannot be recorded without one", () => {
+    const w = mountTitle(null);
+    expect(w.text()).toContain("The paper is the record");
+    expect(w.findComponent({ name: "AppDateField" }).exists()).toBe(false);
+    expect(w.findAll("button").find((b) => b.text().includes("Record it"))!.attributes("disabled")).toBeDefined();
+  });
+
+  it("files a dropped scan without writing a dated row, then closes", async () => {
+    const w = mountTitle({ id: "doc-title", name: "title.pdf" });
+    const save = w.findAll("button").find((b) => b.text().includes("Record it"))!;
+    expect(save.attributes("disabled")).toBeUndefined();
+    await save.trigger("click");
+    await new Promise((r) => setTimeout(r));
+    expect(calls.map((c) => c.path)).toEqual([]);
+    expect(w.emitted("close")).toBeTruthy();
   });
 });

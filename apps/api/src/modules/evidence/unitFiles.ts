@@ -133,6 +133,8 @@ export async function getUnitFiles(
         group: i.spec.group,
         state: i.state,
         goodUntil: i.goodUntil,
+        evidenceDate: i.evidenceDate,
+        expiryUnknown: i.expiryUnknown,
         dateOnly: i.dateOnly,
         fleetWide: i.fleetWide,
         documentId: i.documentId,

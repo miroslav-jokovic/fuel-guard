@@ -4,6 +4,8 @@ import {
   vehicleInputSchema,
   FUEL_TYPES,
   VEHICLE_STATUSES,
+  OWNERSHIP_TYPES,
+  OWNERSHIP_LABELS,
   APU_TYPES,
   APU_TYPE_LABELS,
   deriveHasApu,
@@ -36,6 +38,8 @@ const form = reactive({
   baseline_mpg: props.vehicle?.baseline_mpg?.toString() ?? "",
   current_odometer: props.vehicle?.current_odometer?.toString() ?? "0",
   status: props.vehicle?.status ?? "active",
+  // "" = unknown (D-UF11): the file then asks the office to set it rather than calling a title missing.
+  ownership_type: props.vehicle?.ownership_type ?? "",
   assigned_driver_id: props.vehicle?.assigned_driver_id ?? "",
   samsara_vehicle_id: props.vehicle?.samsara_vehicle_id ?? "",
   // Idle-reduction equipment (drives has_apu, derived on submit) + OEM optimized idle. Strings for the selects:
@@ -120,6 +124,14 @@ function onSubmit() {
           v-model="form.status"
           :disabled="statusFromTms"
           :options="VEHICLE_STATUSES.map((s) => ({ value: s, label: s }))"
+        />
+      </FormField>
+      <!-- UNIT-FILES-PLAN D-UF11: ownership decides whether the truck's file asks for a title or a
+           lease. Unknown is an honest answer the file shows as "set ownership to check". -->
+      <FormField label="Ownership" hint="Decides whether the file asks for a title or a lease.">
+        <AppSelect
+          v-model="form.ownership_type"
+          :options="[{ value: '', label: 'Unknown' }, ...OWNERSHIP_TYPES.map((o) => ({ value: o, label: OWNERSHIP_LABELS[o] }))]"
         />
       </FormField>
       <FormField v-slot="{ id }" label="Tank capacity (gal)" :error="errors.tank_capacity_gal">
