@@ -254,6 +254,12 @@ states `Σ trucks = ledger, residual $0.00` per family; and the Per driver tab a
 
 ## 6. Open questions — each blocks the step named, with a recommendation
 
+**Owner ruling, 2026-10-19:** fix the four defects D1–D4 first, then build the per-truck and
+per-driver P&L on the recommended answer to every question below, Q-TP1 through Q-TP10. Q-TP1's
+"yes" reverses the 09-03 fleet-only rulings D-FLEET1 and D-FLEET8, and `FINANCE-FLEET-REPORT-PLAN.md`
+§0 says so beside them. Q-TP10 stays an owner action: the grant request to Alex now names
+`gl_control` and `fiscal_year_dtl`.
+
 - **Q-TP1 (blocks everything after P0)** — Reverse D-FLEET1/D-FLEET8: Finance reports per truck and
   per driver, with unattributed cost spread. *Recommended: yes, under §0's definition — the tiers
   printed, the ledger tie-out enforced.* P0a–P0d are needed either way and do not wait on this.
@@ -298,3 +304,11 @@ states `Σ trucks = ledger, residual $0.00` per family; and the Per driver tab a
   not the ledger's figure, D4 open month passing the posted check); McLeod's `gl_control` named as
   the close signal; bills post on delivery date and settlements on accrual date, both by posting-key
   join.
+- 2026-10-19 · owner ruled: defects first, then P1–P7 on every recommended answer (§6). D1 is
+  PR #1642. The schema halves of D2 and D3 are PR #1643 (`0491` `mcleod_billing.bill_type`, `0492`
+  `mcleod_settlements.void_date`). D4 has a PR (`0493` `mcleod_gl_control`, the open period on the
+  fleet report and income statement). The D2b/D3b collector and readers ship once 0491/0492 have
+  applied. Sandbox acceptance figures for D2b/D3b: July posted bills tie to the GL BILL receivable
+  (1,467 I = +5,028,444.73, 55 C = −213,124.32). Voided settlements with a transfer date tie to SETV
+  to the cent in May–Aug. The SET residual of $1.1k–$8.2k/month is GL "Payable from Settlement" lines
+  with no settlement row.

@@ -58,6 +58,9 @@ time — which is the test a simplification has to pass.
   and the class of every deduction is read from the GL account it posts to (§1.3).
 - **D-FLEET8 — nothing is allocated.** There is no overhead pool, no basis, no apportionment and
   no ruling to sign. A fleet number divided by fleet miles needs none of it.
+- **Reversed 2026-10-19 (owner, Q-TP1):** D-FLEET1 and D-FLEET8 no longer hold. Finance reports
+  per truck and per driver, and spreads cost no source attributes on the bases ruled in
+  `TRUCK-DRIVER-PNL-PLAN.md` §6. The fleet figures stay, and the per-truck figures must add up to them.
 - **D-FLEET11 — a month McLeod has not posted yet is reported as PRELIMINARY (owner, 2026-10-10;
   amends D-FLEET2 and D-FLEET4 for unposted months only).** The owner rejected waiting for the
   ledger as "two months behind" ("We need to be more accurate and closer to the current date").
