@@ -26,7 +26,7 @@ const BILLS = [
   { id: "b3", delivery_date: "2026-02-25", tractor_unit: "103", distance: 334_486, total_charges: 900_000, other_charge: 0, canceled: false },
   // March: three trucks delivered, three measured.
   { id: "b4", delivery_date: "2026-03-05", tractor_unit: "101", distance: 600_000, total_charges: 1_800_000, other_charge: 0, canceled: false },
-  { id: "b5", delivery_date: "2026-03-15", tractor_unit: "102", distance: 400_000, total_charges: 1_100_000, other_charge: 50_000, canceled: false },
+  { id: "b5", delivery_date: "2026-03-15", tractor_unit: "102", distance: 400_000, total_charges: 1_150_000, other_charge: 50_000, canceled: false }, // accessorials inside the total
   { id: "b6", delivery_date: "2026-03-25", tractor_unit: "103", distance: 100_000, total_charges: 300_000, other_charge: 0, canceled: false },
   // A cancelled load: its miles were driven but never billed, so it must not enter the billed side.
   { id: "b7", delivery_date: "2026-03-28", tractor_unit: "104", distance: 999_999, total_charges: 1, other_charge: 0, canceled: true },

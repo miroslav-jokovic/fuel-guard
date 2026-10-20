@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { localWallClock } from "@silvicom/shared";
+import { billLinehaul, localWallClock } from "@silvicom/shared";
 import {
   readSettlementsWindow,
   readApVouchersWindow,
@@ -22,8 +22,12 @@ import {
  *    FUEL-VENDOR vouchers (D-FS2) land as category `fuel` and NON-canonical: EFS is
  *    authoritative for fuel, and a monthly vendor invoice cannot share a per-fill dedup_key —
  *    the flag, not the key, is what keeps the $1,017,601.81 from counting twice.
- *  · Billing → `linehaul_revenue` (total_charges) plus a second `accessorial_revenue` entry
- *    when other_charge > 0 — the lane's worth and the day's extras answer different questions.
+ *  · Billing → `linehaul_revenue` (`billLinehaul`: total_charges LESS other_charge) plus a second
+ *    `accessorial_revenue` entry when other_charge > 0 — the lane's worth and the day's extras
+ *    answer different questions, and the two legs add up to the bill. McLeod's `total_charges`
+ *    already contains the accessorials; until 2026-10-19 the linehaul leg carried the whole bill
+ *    and every invoice with extras was counted twice (TRUCK-DRIVER-PNL-PLAN §1.3 D1). Re-projecting
+ *    a window rewrites the linehaul amount in place, since the entry's key does not change.
  *    excise_tax is deliberately NOT projected: collected for the government is not revenue.
  *  · EFS fills → category `fuel`, canonical, lifecycle `payment` (a card purchase is a
  *    cash-equivalent event at the pump). Fills with no total_cost are skipped and counted —
@@ -140,7 +144,7 @@ function billingEntries(orgId: string, b: StagedBilling, vehicleId: string | nul
     {
       ...base,
       category: "linehaul_revenue",
-      amount: num(b.total_charges),
+      amount: billLinehaul(b),
       external_id: b.external_id,
       dedup_key: `bill:${b.external_id}`,
       is_canonical: true,

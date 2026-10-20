@@ -84,8 +84,9 @@ describe("projectFinancialWindow", () => {
     // an ordinary voucher is canonical ap_expense with its GL account riding along (D-FS5)
     expect(by("V-INS")).toMatchObject({ category: "ap_expense", is_canonical: true, ledger_account: "70300000" });
 
-    // billing splits linehaul from accessorial — two entries, distinct dedup keys, both canonical
-    expect(by("B-1")).toMatchObject({ direction: "earning", category: "linehaul_revenue", amount: 3100, dedup_key: "bill:B-1" });
+    // billing splits linehaul from accessorial — two entries, distinct dedup keys, both canonical,
+    // and the two legs ADD UP TO THE BILL: McLeod's total_charges (3100) already holds the 150
+    expect(by("B-1")).toMatchObject({ direction: "earning", category: "linehaul_revenue", amount: 2950, dedup_key: "bill:B-1" });
     expect(by("B-1:acc")).toMatchObject({ category: "accessorial_revenue", amount: 150, dedup_key: "bill:B-1:acc" });
 
     // EFS fills: canonical fuel; the costless fill is SKIPPED and counted; the non-canonical twin never projects

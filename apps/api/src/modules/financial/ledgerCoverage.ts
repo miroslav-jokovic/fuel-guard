@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
+  billRevenue,
   buildLedgerCoverageReport,
   type LedgerCoverageReport,
   type GlModuleTotal,
@@ -64,7 +65,9 @@ export async function getLedgerCoverage(
   const booked = billing.filter((b) => b.post_key && b.post_module === "BILL");
   if (booked.length) {
     const extracted = booked.reduce(
-      (sum, b) => sum + Number(b.total_charges) + Number(b.other_charge) + Number(b.excise_tax),
+      // The receivable is the bill plus its excise (`totalcharge_and_excisetax`); the accessorials
+      // are already inside `total_charges` (`billRevenue`).
+      (sum, b) => sum + billRevenue(b) + Number(b.excise_tax),
       0,
     );
     claims.push({

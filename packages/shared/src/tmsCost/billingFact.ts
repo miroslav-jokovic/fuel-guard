@@ -8,9 +8,9 @@ import { z } from "zod";
  * its tractor, trailer and driver, so revenue per truck needs no allocation rule and margin per
  * truck is answerable on the same terms as cost per mile.
  *
- * The three charge figures are held apart because they answer different questions: linehaul is
- * the lane's worth, accessorials are what went wrong or extra on the day, excise is the
- * government's. `invoiced_flag` is deliberately absent from this contract — it read 'N' on all
+ * The charge figures are held apart because they answer different questions: linehaul is the
+ * lane's worth, accessorials are what went wrong or extra on the day, excise is the government's.
+ * They are NOT three addends — `total_charges` already contains the accessorials (`billRevenue`). `invoiced_flag` is deliberately absent from this contract — it read 'N' on all
  * 1,640 June rows, so a filter built on it returns nothing (0257's measurement).
  *
  * ⚠ The agent-side sweep for this contract does not exist yet: 0257 recorded the FINDINGS of
@@ -52,7 +52,9 @@ export const tmsBillingFactSchema = z.object({
   delivery_date: z.string().nullish(),
   transfer_date: z.string().nullish(),
 
+  /** The whole bill, accessorials INCLUDED — see `billRevenue`. */
   total_charges: z.number().default(0),
+  /** The accessorial part OF `total_charges`, never an addition to it. */
   other_charge: z.number().default(0),
   excise_tax: z.number().default(0),
 
@@ -81,6 +83,30 @@ export const tmsBillingFactSchema = z.object({
   post_module: z.string().max(4).nullish(),
 });
 export type TmsBillingFact = z.infer<typeof tmsBillingFactSchema>;
+
+type Money = number | string | null | undefined;
+
+const money = (v: Money): number => (v == null ? 0 : Number(v));
+
+/**
+ * What a bill earned — `total_charges`, and nothing added to it.
+ *
+ * McLeod's `total_charges` is the whole receivable: rate plus every accessorial. Order 0131243 bills
+ * a 4,250.00 flat rate with 614.64 of other charges and carries `total_charges` 4,864.64; July 2026's
+ * 1,415 posted bills sum to 4,877,410.27 on `total_charges` and on `totalcharge_and_excisetax` alike,
+ * and each invoice's `total_charges` equals the receivable the GL posted for its `post_key` to the
+ * cent (1,467 of 1,467, measured on the sandbox 2026-10-19, TRUCK-DRIVER-PNL-PLAN §1.3 D1). Six
+ * readers used to add `other_charge` on top and overstated revenue by ~2.4%; they all call this now,
+ * so the rule has one home.
+ */
+export function billRevenue(b: { total_charges: Money }): number {
+  return money(b.total_charges);
+}
+
+/** The lane's part of a bill — the whole bill less its accessorials. */
+export function billLinehaul(b: { total_charges: Money; other_charge: Money }): number {
+  return Math.round((money(b.total_charges) - money(b.other_charge)) * 100) / 100;
+}
 
 export const tmsBillingPayloadSchema = z.object({
   billing: z.array(tmsBillingFactSchema).max(2000),

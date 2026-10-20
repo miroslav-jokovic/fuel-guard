@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { bucketBillingActivity, type ActivityPeriod, type SpendGrain } from "@silvicom/shared";
+import { billRevenue, bucketBillingActivity, type ActivityPeriod, type SpendGrain } from "@silvicom/shared";
 import { readBillingWindow } from "../mcleod/index.js";
 
 /**
@@ -11,7 +11,7 @@ import { readBillingWindow } from "../mcleod/index.js";
  * **Two predicates, both borrowed rather than restated.** A bill counts when the GL booked it
  * (`post_key` and `post_module = "BILL"` — D-MC12, the same predicate every other revenue figure on
  * this section uses, so the weekly view can never quietly disagree with the monthly one). And
- * revenue is `total_charges + other_charge` with excise tax excluded, for the reason it is excluded
+ * revenue is `billRevenue` — `total_charges`, which already holds the accessorials — with excise tax excluded, for the reason it is excluded
  * everywhere: money collected for the government was never the carrier's earning.
  *
  * **The window is the caller's and the bucketing is by DELIVERY date.** `readBillingWindow` already
@@ -48,7 +48,7 @@ export async function getBillingActivity(
     if (!b.delivery_date) continue;
     booked.push({
       delivery_date: String(b.delivery_date),
-      revenue: Number(b.total_charges) + Number(b.other_charge ?? 0),
+      revenue: billRevenue(b),
       distance: b.distance == null ? null : Number(b.distance),
     });
   }
