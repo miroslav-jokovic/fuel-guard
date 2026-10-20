@@ -92,7 +92,7 @@ function violations(picks: Pick[]): string[] {
     if (d.format === "on_placard" && d.onPlacards.length === 0) out.push(`5 ${d.idNumber} on_placard with no placard`);
   }
   for (const p of req) {
-    const carried = new Set(v.placards.idDisplays.filter((d) => d.format === "on_placard" && d.onPlacards.includes(p)).map((d) => d.idNumber));
+    const carried = new Set(v.placards.idDisplays.filter((d) => d.format === "on_placard" && (d.onPlacards as string[]).includes(p)).map((d) => d.idNumber));
     if (carried.size === 0) continue;
     const aboard = new Set(owns.filter((o) => o.placard === p && o.id).map((o) => o.id!));
     for (const id of aboard) if (!carried.has(id)) out.push(`4 ${p} carries ${[...carried]} but not ${id}`);
