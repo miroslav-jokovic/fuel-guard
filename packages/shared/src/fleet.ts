@@ -8,6 +8,7 @@ import {
   APU_TYPES,
 } from "./constants.js";
 import type { FuelType, VehicleStatus, DriverStatus, ApuType } from "./constants.js";
+import { OWNERSHIP_TYPES, type OwnershipType } from "./equipmentFileCatalogue.js";
 
 // ── Vehicle ───────────────────────────────────────────────────────────────────
 
@@ -35,6 +36,14 @@ export const vehicleInputSchema = z
       z.coerce.number().positive().optional(),
     ),
     current_odometer: z.coerce.number().nonnegative().default(0),
+    /**
+     * Who holds the unit (0099/0100, UNIT-FILES-PLAN D-UF11): decides whether the file asks for a title
+     * (owned) or a lease (leased, owner-operator). Written here for the first time at UF5 — the column
+     * had never been written (null on every row, 2026-10-19). "" from the select means unknown, stored
+     * as null; while it is null the file holds both items as "set ownership to check" rather than
+     * counting either as missing.
+     */
+    ownership_type: z.preprocess((v) => (v === "" || v == null ? null : v), z.enum(OWNERSHIP_TYPES).nullable().default(null)),
     status: z.enum(VEHICLE_STATUSES).default("active"),
     assigned_driver_id: z.preprocess(
       (v) => (v === "" || v == null ? undefined : v),
@@ -95,6 +104,8 @@ export interface Vehicle {
   baseline_mpg: number | null;
   current_odometer: number;
   status: VehicleStatus;
+  /** D-UF11; null = unknown, and the file says so rather than calling a title missing. */
+  ownership_type?: OwnershipType | null;
   assigned_driver_id: string | null;
   samsara_vehicle_id: string | null;
   samsara_fuel_percent: number | null;
@@ -274,6 +285,14 @@ export const trailerInputSchema = z.object({
   is_reefer: z.coerce.boolean().default(false),
   /** Reefer (refrigeration) tank capacity in gallons. Standard reefer tank ≈ 50 gal. */
   reefer_tank_capacity_gal: z.coerce.number().nonnegative().default(50),
+  /**
+   * Who holds the unit (0099/0100, UNIT-FILES-PLAN D-UF11): decides whether the file asks for a title
+   * (owned) or a lease (leased, owner-operator). Written here for the first time at UF5 — the column
+   * had never been written (null on every row, 2026-10-19). "" from the select means unknown, stored
+   * as null; while it is null the file holds both items as "set ownership to check" rather than
+   * counting either as missing.
+   */
+  ownership_type: z.preprocess((v) => (v === "" || v == null ? null : v), z.enum(OWNERSHIP_TYPES).nullable().default(null)),
   status: z.enum(VEHICLE_STATUSES).default("active"),
   /** Manual tractor pairing fallback when Samsara assignments aren't available. */
   assigned_vehicle_id: z.preprocess(
@@ -301,6 +320,7 @@ export interface Trailer {
   is_reefer: boolean;
   reefer_tank_capacity_gal: number;
   status: VehicleStatus;
+  ownership_type?: OwnershipType | null;
   assigned_vehicle_id: string | null;
   samsara_asset_id: string | null;
   /** `dbo.trailer.id` once the McLeod roster sweep has matched this trailer; null until then. */

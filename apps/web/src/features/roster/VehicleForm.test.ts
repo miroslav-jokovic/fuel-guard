@@ -118,3 +118,31 @@ describe("VehicleForm", () => {
     expect(w.text()).not.toMatch(/Suggested:/);
   });
 });
+
+/**
+ * Ownership (UNIT-FILES-PLAN D-UF11) rides the same submit as everything else. Unknown is `null`, never
+ * "" — the column's CHECK refuses an empty string — and a choice goes through as its own word.
+ */
+describe("VehicleForm — ownership", () => {
+  const vehicle = {
+    id: "v1", org_id: "o1", unit_number: "654", make: null, model: null, year: null, plate: null, vin: null,
+    fuel_type: "diesel" as const, tank_capacity_gal: 200, baseline_mpg: null, current_odometer: 0,
+    status: "active" as const, assigned_driver_id: null, samsara_vehicle_id: null, samsara_fuel_percent: null,
+    samsara_fuel_at: null, created_at: "", updated_at: "",
+  };
+  const submit = async (w: ReturnType<typeof mount>) => {
+    await w.find("form").trigger("submit.prevent");
+    return (w.emitted("submit")![0]![0] as { ownership_type: string | null }).ownership_type;
+  };
+
+  it("submits unknown ownership as null, and a stored one as itself", async () => {
+    expect(await submit(mount(VehicleForm, { props: { drivers, vehicle } }))).toBeNull();
+    expect(await submit(mount(VehicleForm, { props: { drivers, vehicle: { ...vehicle, ownership_type: "leased" as const } } }))).toBe("leased");
+  });
+
+  it("offers the three ownership types and Unknown", () => {
+    const w = mount(VehicleForm, { props: { drivers, vehicle } });
+    const select = w.findAllComponents({ name: "AppSelect" }).find((c) => (c.props("options") as { label: string }[]).some((o) => o.label === "Owner-operator"))!;
+    expect((select.props("options") as { label: string }[]).map((o) => o.label)).toEqual(["Unknown", "Owned", "Leased", "Owner-operator"]);
+  });
+});

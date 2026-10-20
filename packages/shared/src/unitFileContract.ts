@@ -14,6 +14,10 @@ export interface UnitFileCell {
   group: EquipmentGroup;
   state: FileItemState;
   goodUntil: string | null;
+  /** When the evidence is dated — the unit page's "Evidence date" column (UF5). */
+  evidenceDate: string | null;
+  /** Evidence on file that records no expiry: a data defect, not an eternal paper. */
+  expiryUnknown: boolean;
   /** McLeod's date when no paper is on file (D-UF3); the item itself is `missing`. */
   dateOnly: { goodUntil: string; state: FileItemState } | null;
   /** True when the fleet's paper on the organization covers it (D-UF6). */

@@ -31,9 +31,9 @@ vi.mock("@/composables/useDrivers", () => ({ useDriversQuery: () => ({ data: ref
  * papers filed has; T-404's inspection is a filed paper, and T-101 has papers on file for the cell.
  */
 const dated = (key: string, day: string | null, state: string) => ({
-  key, group: "registration", state: "missing", goodUntil: null, fleetWide: false, documentId: null, dateOnly: day ? { goodUntil: day, state } : null,
+  key, group: "registration", state: "missing", goodUntil: null, evidenceDate: null, expiryUnknown: false, fleetWide: false, documentId: null, dateOnly: day ? { goodUntil: day, state } : null,
 });
-const paper = (key: string, day: string, state: string, documentId: string) => ({ key, group: "inspections", state, goodUntil: day, fleetWide: false, documentId, dateOnly: null });
+const paper = (key: string, day: string, state: string, documentId: string) => ({ key, group: "inspections", state, goodUntil: day, evidenceDate: null, expiryUnknown: false, fleetWide: false, documentId, dateOnly: null });
 const unitFile = (id: string, state: string, counts: Record<string, number>, items: unknown[], papers: unknown[] = [], paperCount = 0) => ({
   subject_type: "tractor", subject_id: id, unit_number: id, status: "active", ownership: "owned", state, counts, ownership_unknown: [], attention: [], items, papers, paper_count: paperCount,
 });

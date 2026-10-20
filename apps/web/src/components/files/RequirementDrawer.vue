@@ -7,7 +7,6 @@ import {
   CEREMONY_OWNED_KINDS,
   HAZMAT_TRAINING_TYPES,
   type CertificationCreateRequest,
-  type DqItemSpec,
   type CertificationKind,
   type ComplianceDocumentKind,
   type QualificationRecordCreateRequest,
@@ -42,11 +41,25 @@ import type { FileSubject } from "./fileSubject";
  * DRIVER has `record` items — `qualification_records` is keyed by driver — so the record branch is
  * reached through a driver's catalogue and no other.
  */
+/**
+ * What the drawer reads off a catalogue item — the fields `DqItemSpec` and `EquipmentItemSpec` share
+ * (UNIT-FILES-PLAN UF5). A truck's catalogue adds a third source, `document`: a title is proved by the
+ * scan alone and never expires, so for one of those the drawer asks for the scan and nothing else.
+ */
+export interface RequirementSpec {
+  key: string;
+  label: string;
+  source: "certification" | "record" | "document";
+  evidenceKinds: readonly string[];
+  recurrence: string;
+  trainingType?: string;
+}
+
 const props = defineProps<{
   open: boolean;
   subject: FileSubject;
-  /** The subject's catalogue — `DQ_ITEMS` for a driver. The drawer looks `itemKey` up in it. */
-  specs: readonly DqItemSpec[];
+  /** The subject's catalogue — `DQ_ITEMS` for a driver, `EQUIPMENT_ITEMS` for a unit. The drawer looks `itemKey` up in it. */
+  specs: readonly RequirementSpec[];
   itemKey: string | null;
   /** A scan already filed via drop-first (D-DQ10) — the record cites it instead of asking again. */
   presetDocument?: { id: string; name: string } | null;
@@ -66,6 +79,8 @@ const spec = computed(() => props.specs.find((i) => i.key === props.itemKey) ?? 
  * offering a form that cannot succeed.
  */
 const isCertification = computed(() => spec.value?.source === "certification");
+/** A paper that IS the evidence (a title, 0490): filing the scan is the whole record. */
+const isDocumentOnly = computed(() => spec.value?.source === "document");
 /**
  * Where a ceremony-owned record is made instead, when this requirement's evidence is one
  * (`CEREMONY_OWNED_KINDS`, APPLICATION-FLOW-V2-PLAN.md A-9). The server refuses those kinds on this
@@ -74,7 +89,7 @@ const isCertification = computed(() => spec.value?.source === "certification");
  * application joined it, and all four sentences now come from the one list the server refuses by.
  */
 const ceremonyOwner = computed<string | null>(() => {
-  const kind = isCertification.value ? null : spec.value?.evidenceKinds[0];
+  const kind = isCertification.value || isDocumentOnly.value ? null : spec.value?.evidenceKinds[0];
   return kind ? ((CEREMONY_OWNED_KINDS as Partial<Record<string, string>>)[kind] ?? null) : null;
 });
 const isEndorsement = computed(() => spec.value?.evidenceKinds[0] === "endorsement");
@@ -132,6 +147,7 @@ const saving = computed(
 /** A record has to have happened on a date; a certification is dated by its expiry or its issue. */
 const ready = computed(() => {
   if (!spec.value) return false;
+  if (isDocumentOnly.value) return Boolean(scan.value || props.presetDocument);
   return isCertification.value
     ? Boolean(form.expiresAt || form.issuedAt)
     : Boolean(form.occurredOn);
@@ -154,7 +170,9 @@ async function save(): Promise<void> {
       documentId = res.documentId;
     }
 
-    if (isCertification.value) {
+    if (isDocumentOnly.value) {
+      // The scan is on file (just now, or already via drop-first); there is no dated row to write.
+    } else if (isCertification.value) {
       const body: CertificationCreateRequest = {
         id: crypto.randomUUID(),
         subjectType: props.subject.type,
@@ -295,6 +313,10 @@ const uploadAccept = acceptFor(DOCUMENT_CONTENT_TYPES);
             <BaseInput :id="id" v-model="form.notes" placeholder="Optional" />
           </FormField>
         </template>
+
+        <p v-else-if="isDocumentOnly" class="text-sm text-ink-muted">
+          The paper is the record: file the scan and the item is on file. It has no expiry.
+        </p>
 
         <template v-else>
           <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">

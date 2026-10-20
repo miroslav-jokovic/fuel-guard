@@ -1,4 +1,4 @@
-import { computed, type Ref } from "vue";
+import { computed, ref, type Ref } from "vue";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/vue-query";
 import type {
   DriverDispatchHold,
@@ -205,9 +205,15 @@ export function useUploadDocument() {
  * The fleet picture behind the queue (D-DQ6). Ranked server-side by the same function the driver file
  * uses, so the queue and the file cannot disagree about what is due.
  */
-export function useComplianceOverviewQuery() {
+/**
+ * `enabled` (UF5): a unit's page asks for the seated driver's file state, and an equipment-only reader
+ * would be refused the roster rollup. Off, the strip shows the driver's name without a chip, and no
+ * request is sent to be refused.
+ */
+export function useComplianceOverviewQuery(enabled: Ref<boolean> = ref(true)) {
   return useQuery({
     queryKey: ["compliance", "overview"] as const,
+    enabled,
     queryFn: async (): Promise<ComplianceOverviewResponse> => {
       const res = await apiFetch<ComplianceOverviewResponse>("/api/compliance/overview");
       if (!res.ok || !res.data)

@@ -801,3 +801,42 @@ around them.
   - Q-UF9 recorded above: the toolbar's two file vocabularies.
   - Four mutants killed (reader filter ignored; always signs; chip filter not applied; a second file
     column), each restored from a byte copy.
+- 2026-10-20 — **UF5 split in two.** UF5a (`claude/uf5-unit-pages`) is the truck page and everything
+  both pages share; UF5b is the trailer page, its route and surface, the Trailers unit link, and the
+  cell drop target now that the File section exists. Each half is one reviewable PR.
+- 2026-10-20 — **UF5a built.**
+  - Shared: `ownership_type` on `Vehicle`/`Trailer` and both input schemas ("" → null; D-UF11);
+    `UnitFileCell.evidenceDate` and `expiryUnknown`, which the page's columns needed and a list cell
+    did not. The rollup maps both.
+  - Web, the forms: an Ownership select (Unknown · Owned · Leased · Owner-operator) on `VehicleForm`
+    and `TrailerForm`; `VEHICLE_COLS`/`COLS` read the column. `useSetVehicleOwnership` /
+    `useSetTrailerOwnership`: one-column UPDATEs, for answering the question where it is asked.
+  - Web, the section: `components/files/UnitFileSection.vue` — the ROLLUP's row for this unit (the
+    read the lists draw their cell from, D-UF1), never a second build in the browser; the catalogue's
+    labels; `unitGroups` for the tiles; the grouped `RequirementTable` with a `note` line ("Date only,
+    no paper — McLeod says 11/01/2026", "Covered by the fleet's paper") and `releasable=false` (D-BD10
+    stamps a driver); `DocumentDropCard`, `CertificationHistory`, `RequirementDrawer`, `DocumentPreview`.
+    Unknown ownership is a callout naming the items it holds, with the select inline for an
+    equipment manager. "Print QR label" and "Build binder" are hidden until UF8/UF9.
+    `UnitRelationStrip.vue` (D-UF2): a truck's seated driver (roster `assigned_driver_id`) with the
+    driver rollup's chip, and the trailer on its McLeod load; a trailer's truck on load and its GPS
+    pairing, both labelled (D-TL1). Each links to the other file through `GatedLink`. The driver
+    rollup is read only for a reader with `roster: view` (`useComplianceOverviewQuery(enabled)`).
+  - Web, the drawer: `RequirementDrawer.specs` is now the structural `RequirementSpec`, so
+    `EQUIPMENT_ITEMS` fits beside `DQ_ITEMS`; a `document` source (the title, 0490) asks for the scan
+    alone and writes no dated row.
+  - Web, the page: `pages/vehicleSections.ts` (Overview · File · Maintenance · Fuel) on
+    `driverSections.ts`'s model; `?section=` is an anchor the `AppTabs` strip scrolls to. Maintenance
+    holds the kit card and two read-only windows: `UnitWorkOrdersCard` (the Shop card's open orders,
+    narrowed to the unit number; `maintenance: view`) and `UnitInspectionsCard` (the roadside list's
+    whole-record read, matched by the company number or plate the officer wrote on a unit of this
+    kind; `safety: view`). Neither adds a request its own page does not make.
+  - Tests: `vehicleSections.test.ts`; `UnitFileSection.test.ts` (rows and notes, ownership asked and
+    set, relations with chips and links, no controls for a non-manager); the drawer's document-only
+    item; the two cards; ownership on the form; `evidenceDate` on the rollup. Four mutants killed
+    (note dropped, link without section, document path removed, kind ignored — which survived once;
+    the fixture gained a trailer numbered like the truck), each restored from a byte copy.
+  - **Noted, not built:** the inspections card matches by what the officer wrote, not by the
+    projection's own unit match (the list DTO does not carry it); the gallery's side list and
+    "Replace with newer" are answered by the section's own table and drawer on the unit's page, so
+    nothing more is owed to UF4's moved items on that line. "Uploaded by" still waits for UF5b.

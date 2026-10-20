@@ -66,7 +66,10 @@ describe("getUnitFiles", () => {
     expect(units.map((u) => [u.unit_number, u.status])).toEqual([["654", "active"], ["700", "retired"]]);
     const t1 = units[0]!;
     const cell = (key: string) => t1.items.find((i) => i.key === key);
-    expect(cell("registration")).toMatchObject({ state: "current", goodUntil: "2027-03-31", documentId: "reg1", dateOnly: null });
+    // `evidenceDate` and `expiryUnknown` ride along for the unit page's columns (UF5): the registration's
+    // row has no issue date, so the evidence is undated and the expiry is known.
+    expect(cell("registration")).toMatchObject({ state: "current", goodUntil: "2027-03-31", documentId: "reg1", dateOnly: null, evidenceDate: null, expiryUnknown: false });
+    expect(cell("annual_inspection")).toMatchObject({ state: "current", evidenceDate: "2026-02-01", goodUntil: "2027-02-01" });
     // The organization's policy covers the truck, and its cited paper counts as on file.
     expect(cell("insurance")).toMatchObject({ state: "current", fleetWide: true, documentId: "pol" });
     // Owned: asked for its title; no ownership question left open.
