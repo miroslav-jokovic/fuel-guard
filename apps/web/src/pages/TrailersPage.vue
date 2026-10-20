@@ -16,6 +16,7 @@ import {
 } from "@silvicom/ui";
 import { PlusIcon } from "@silvicom/ui/icons";
 import { ref, computed, watch } from "vue";
+import { RouterLink, useRouter } from "vue-router";
 import { FILE_CHIPS, FILE_CHIP_LABELS, PAPER_CHECK_ITEMS, TRAILER_TYPE_LABELS, VEHICLE_STATUSES, handPairingPatch, isStatusFromTms, matchesFileChip, paperStanding, todayInZone, unitFileChip, type Trailer, type TrailerInput, type TrailerWrite } from "@silvicom/shared";
 import { useTrailersOnLoadsQuery } from "@/composables/useTrailerLink";
 import { gpsPairingNote } from "@/lib/trailerPairingNote";
@@ -46,6 +47,8 @@ import { BADGE_BASE, toneClass } from "@/lib/badges";
 
 const PAGE_SIZE = 20;
 const session = useSessionStore();
+// A drop on a File cell opens the unit's File section (UNIT-FILES-PLAN UF5) — see `FileCell`'s note.
+const router = useRouter();
 const { data: trailers, isLoading, isError, refetch, isFetching } = useTrailersQuery();
 const { data: vehicles } = useVehiclesQuery();
 const toast = useToastStore();
@@ -296,6 +299,10 @@ async function onRetire(t: Trailer) {
       @sort="onSort"
       @retry="refetch"
     >
+      <!-- The trailer's own page (UF5), as the truck's unit number has always opened the truck's. -->
+      <template #cell-unit_number="{ row }">
+        <RouterLink :to="`/trailers/${row.id}`" class="font-medium text-link hover:text-link-hover">{{ row.unit_number }}</RouterLink>
+      </template>
       <template #cell-file="{ row }">
         <FileCell
           v-if="fileById.get(row.id)"
@@ -306,6 +313,7 @@ async function onRetire(t: Trailer) {
           :subject-label="`Trailer ${row.unit_number}`"
           @open="openGallery(row, $event)"
           @filter="fileFilter = $event"
+          @drop="router.push(`/trailers/${row.id}?section=file`)"
         />
         <span v-else class="text-ink-tertiary">—</span>
       </template>

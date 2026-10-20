@@ -280,6 +280,7 @@ export const SURFACES: readonly Surface[] = [
   { key: "fleet.drivers.detail", label: "Driver", path: "/drivers/:id", group: "fleet", gate: section("roster"), parent: "fleet.drivers" },
   { key: "safety.driver-qualification.detail", label: "Driver Qualification", path: "/compliance/:id", group: "safety", gate: section("roster"), parent: "safety.driver-qualification" },
   { key: "fleet.vehicles.detail", label: "Vehicle", path: "/vehicles/:id", group: "fleet", gate: section("equipment"), parent: "fleet.vehicles" },
+  { key: "fleet.trailers.detail", label: "Trailer", path: "/trailers/:id", group: "fleet", gate: section("equipment"), parent: "fleet.trailers" },
   { key: "fuel.cards.detail", label: "Fuel Card", path: "/fuel-cards/:id", group: "fuel", gate: section("fuel"), parent: "fuel.cards" },
   { key: "fuel.invoices.detail", label: "Invoice check", path: "/fuel-invoices/:id", group: "fuel", gate: section("fuel"), parent: "fuel.invoices" },
   { key: "fuel.ifta.jurisdiction", label: "IFTA jurisdiction", path: "/ifta/:jurisdiction", group: "fuel", gate: section("fuel"), parent: "fuel.ifta" },

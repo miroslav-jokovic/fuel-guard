@@ -24,11 +24,11 @@ const CERTS = [
   { subject_type: "trailer", subject_id: T2, kind: "registration", issued_at: null, expires_at: "2027-01-01", document_id: null },
 ];
 const DOCS = [
-  { id: "reg1", subject_type: "tractor", subject_id: T1, kind: "registration", content_type: "application/pdf", variant: "original", derived_from: null, storage_path: "o/t/reg1.pdf", captured_at: null, created_at: "2026-03-01T00:00:00Z" },
+  { id: "reg1", subject_type: "tractor", subject_id: T1, kind: "registration", content_type: "application/pdf", variant: "original", derived_from: null, storage_path: "o/t/reg1.pdf", captured_at: null, created_at: "2026-03-01T00:00:00Z", uploaded_by: "u-jane" },
   { id: "reg1t", subject_type: "tractor", subject_id: T1, kind: "registration", content_type: "image/webp", variant: "thumb", derived_from: "reg1", storage_path: "o/t/reg1t.thumb.webp", captured_at: null, created_at: "2026-03-01T00:00:05Z" },
   { id: "old", subject_type: "tractor", subject_id: T1, kind: "other", content_type: "image/jpeg", variant: "original", derived_from: null, storage_path: "o/t/old.jpg", captured_at: null, created_at: "2025-01-01T00:00:00Z" },
   // Two more of T1's originals, so T1 has four — one past what a cell draws.
-  { id: "mid1", subject_type: "tractor", subject_id: T1, kind: "other", content_type: "image/png", variant: "original", derived_from: null, storage_path: "o/t/mid1.png", captured_at: null, created_at: "2026-02-01T00:00:00Z" },
+  { id: "mid1", subject_type: "tractor", subject_id: T1, kind: "other", content_type: "image/png", variant: "original", derived_from: null, storage_path: "o/t/mid1.png", captured_at: null, created_at: "2026-02-01T00:00:00Z", uploaded_by: "u-nameless" },
   { id: "mid2", subject_type: "tractor", subject_id: T1, kind: "other", content_type: "image/png", variant: "original", derived_from: null, storage_path: "o/t/mid2.png", captured_at: null, created_at: "2025-06-01T00:00:00Z" },
   { id: "pol", subject_type: "organization", subject_id: ORG, kind: "insurance", content_type: "application/pdf", variant: "original", derived_from: null, storage_path: "o/org/pol.pdf", captured_at: "2026-01-02", created_at: "2026-01-05T00:00:00Z" },
 ];
@@ -46,6 +46,8 @@ function recorder() {
         if (ids) return DOCS.filter((d) => ids.includes(d.id) && d.variant === "original");
         return DOCS.filter((d) => d.subject_type === eq(q, "subject_type"));
       },
+      // Who filed it (UF5b): keyed by user, not org — the ids come from this org's own rows.
+      user_profiles: [{ user_id: "u-jane", full_name: "Jane Office" }, { user_id: "u-nameless", full_name: null }],
     },
     storage: {
       createSignedUrls: (paths: string[]) => ({ data: paths.map((p) => ({ path: p, signedUrl: `https://signed.test/${p}` })), error: null }),
@@ -57,7 +59,8 @@ describe("getUnitFiles", () => {
   it("scopes every query to the org", async () => {
     const rec = recorder();
     await getUnitFiles(rec.client, ORG, "tractor", TODAY);
-    expectOrgScoped(rec, ORG);
+    // `user_profiles` has no org column; its ids are read off this org's own documents rows above.
+    expectOrgScoped(rec, ORG, { exempt: ["user_profiles"] });
   });
 
   it("builds every unit's file, whatever its status, from its own papers and the fleet's", async () => {
@@ -93,10 +96,10 @@ describe("getUnitFiles", () => {
     const rec = recorder();
     const { units } = await getUnitFiles(rec.client, ORG, "tractor", TODAY);
     expect(units[0]!.papers).toEqual([
-      { documentId: "reg1", kind: "registration", contentType: "application/pdf", thumbUrl: "https://signed.test/o/t/reg1t.thumb.webp", filedAt: "2026-03-01T00:00:00Z" },
+      { documentId: "reg1", kind: "registration", contentType: "application/pdf", thumbUrl: "https://signed.test/o/t/reg1t.thumb.webp", filedAt: "2026-03-01T00:00:00Z", uploadedBy: "Jane Office" },
       // Not derived yet: drawn as a type icon, never as the 25 MB original.
-      { documentId: "mid1", kind: "other", contentType: "image/png", thumbUrl: null, filedAt: "2026-02-01T00:00:00Z" },
-      { documentId: "mid2", kind: "other", contentType: "image/png", thumbUrl: null, filedAt: "2025-06-01T00:00:00Z" },
+      { documentId: "mid1", kind: "other", contentType: "image/png", thumbUrl: null, filedAt: "2026-02-01T00:00:00Z", uploadedBy: null },
+      { documentId: "mid2", kind: "other", contentType: "image/png", thumbUrl: null, filedAt: "2025-06-01T00:00:00Z", uploadedBy: null },
     ]);
     expect(units[0]!.paper_count).toBe(4);
     expect(units[1]!.papers).toEqual([]);

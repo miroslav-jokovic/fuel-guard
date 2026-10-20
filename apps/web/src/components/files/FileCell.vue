@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, ref } from "vue";
 import { AppIcon, AppButton as BaseButton } from "@silvicom/ui";
 import { ArrowDownTrayIcon, DocumentTextIcon } from "@silvicom/ui/icons";
 import { DQ_KIND_LABELS, type FileChip, type PaperThumb } from "@silvicom/shared";
@@ -21,9 +21,10 @@ import { useToastStore } from "@/stores/toast";
  * derive job has not run, or HEIC — is a type icon, never the 25 MB original. Each thumb is one tab
  * stop; hover or focus shows what it is, and Enter or a click opens the gallery on it.
  *
- * ⚠ No drop target yet. The plan's drop opens bulk intake scoped to the unit (UF7), or until then the
- * unit's File section (UF5). Neither exists today, so a drop here would have nowhere honest to go; it
- * arrives with UF5.
+ * A drop on the cell OPENS THE UNIT'S FILE SECTION (UF5b): the cell emits `drop` and the page goes to
+ * `/vehicles/:id?section=file`, where the drop card files the paper against the right requirement.
+ * The dropped bytes do not travel — a navigation cannot carry a `File` — so the reader drops again
+ * there; the plan's bulk intake scoped to the subject (UF7) is what takes the bytes from here.
  */
 const props = defineProps<{
   chip: FileChip;
@@ -43,9 +44,18 @@ const emit = defineEmits<{
   open: [documentId?: string];
   /** The chip was clicked: narrow the list to files in this state. */
   filter: [kind: FileChip["kind"]];
+  /** Files were dropped on the cell: open the unit's File section (UF5b). */
+  drop: [files: File[]];
 }>();
 
 const toast = useToastStore();
+// A counter, as `FileDropzone` keeps one: dragenter/leave fire for every child the cursor crosses.
+const dragging = ref(0);
+function onDrop(e: DragEvent): void {
+  dragging.value = 0;
+  const files = Array.from(e.dataTransfer?.files ?? []);
+  if (files.length) emit("drop", files);
+}
 const more = computed(() => Math.max(0, props.paperCount - props.papers.length));
 const label = (kind: string) => DQ_KIND_LABELS[kind] ?? (kind === "other" ? "Other paper" : kind);
 /** The requirement this paper is the evidence for, if any — its good-until is the date that matters. */
@@ -62,7 +72,16 @@ async function download(documentId: string): Promise<void> {
 </script>
 
 <template>
-  <div class="flex items-center gap-2">
+  <!-- Drag events augment the chip and thumb buttons, as on `FileDropzone`; the container is not a control. -->
+  <!-- eslint-disable-next-line vuejs-accessibility/no-static-element-interactions -->
+  <div
+    :class="['flex items-center gap-2 rounded-control transition-colors', dragging > 0 ? 'bg-brand-50/50 ring-2 ring-brand-400' : '']"
+    data-test="file-cell"
+    @dragenter.prevent="dragging++"
+    @dragover.prevent
+    @dragleave.prevent="dragging = Math.max(0, dragging - 1)"
+    @drop.prevent="onDrop"
+  >
     <BaseButton
       variant="ghost"
       size="sm"
@@ -93,7 +112,7 @@ async function download(documentId: string): Promise<void> {
         <p v-if="provesOf(p.documentId)?.goodUntil" class="text-ink-muted">
           Good until {{ formatDate(provesOf(p.documentId)!.goodUntil!) }}
         </p>
-        <p class="text-ink-muted">Filed {{ formatDate(p.filedAt) }}</p>
+        <p class="text-ink-muted">Filed {{ formatDate(p.filedAt) }}<template v-if="p.uploadedBy"> by {{ p.uploadedBy }}</template></p>
         <BaseButton size="sm" variant="ghost" class="mt-2 -ml-2" @click="download(p.documentId)">
           <AppIcon :icon="ArrowDownTrayIcon" class="size-4" aria-hidden="true" /> Download
         </BaseButton>

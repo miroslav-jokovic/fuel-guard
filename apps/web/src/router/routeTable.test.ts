@@ -49,7 +49,7 @@ const PROBES = [
   "/hazmat/loads", "/hazmat/loads/new", "/hazmat/loads/hz_1",
   "/hazmat/review", "/hazmat/settings/equipment",
   "/vehicles", "/vehicles/v_1",
-  "/odometer", "/coverage", "/recall-audit", "/trailers", "/reefer-coverage",
+  "/odometer", "/coverage", "/recall-audit", "/trailers", "/trailers/tr_1", "/reefer-coverage",
   "/fuel-planning", "/truck-stops", "/idling", "/drug-alcohol", "/roadside-inspections", "/roadside-inspections/ri_1",
   "/drivers", "/drivers/dr_1",
   "/compliance", "/compliance/dr_1",

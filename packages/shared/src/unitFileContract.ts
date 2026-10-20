@@ -38,6 +38,8 @@ export interface PaperThumb {
   thumbUrl: string | null;
   /** When it was filed — the hover card's "Filed 10/19/2026" (UF4). */
   filedAt: string;
+  /** Who filed it, by name — "by Jane Doe" (UF5b). Null for a sync, a render, or a member with no profile name. */
+  uploadedBy: string | null;
 }
 
 export interface UnitFileRow {

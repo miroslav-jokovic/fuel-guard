@@ -18,6 +18,7 @@ import {
   PlusIcon,
 } from "@silvicom/ui/icons";
 import { ref, computed, watch } from "vue";
+import { RouterLink, useRouter } from "vue-router";
 import { FILE_CHIPS, FILE_CHIP_LABELS, VEHICLE_CHECKS, VEHICLE_CHECK_LABELS, VEHICLE_STATUSES, isStatusFromTms, matchesFileChip, matchesVehicleCheck, paperStanding, PAPER_CHECK_ITEMS, todayInZone, unitFileChip, type Vehicle, type VehicleInput } from "@silvicom/shared";
 import { useSessionStore } from "@/stores/session";
 import { useVehiclesQuery, useCreateVehicle, useUpdateVehicle, useRetireVehicle, useBulkUpdateVehicles } from "@/composables/useVehicles";
@@ -42,6 +43,8 @@ import { useOrgTimezone } from "@/composables/useOrgTimezone";
 
 const PAGE_SIZE = 20;
 const session = useSessionStore();
+// A drop on a File cell opens the unit's File section (UNIT-FILES-PLAN UF5) — see `FileCell`'s note.
+const router = useRouter();
 const { data: vehicles, isLoading, isError, refetch, isFetching } = useVehiclesQuery();
 const { data: drivers } = useDriversQuery();
 
@@ -305,6 +308,7 @@ async function onRetire(v: Vehicle) {
           :subject-label="`Unit ${row.unit_number}`"
           @open="openGallery(row, $event)"
           @filter="fileFilter = $event"
+          @drop="router.push(`/vehicles/${row.id}?section=file`)"
         />
         <span v-else class="text-ink-tertiary">—</span>
       </template>
