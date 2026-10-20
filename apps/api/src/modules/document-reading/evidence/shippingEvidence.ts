@@ -1,6 +1,7 @@
 import { leafFieldPaths, valueAtPath, valuesAgree, type FieldEvidence, type PrintedHazmatLine, type ShippingDocument } from "@silvicom/shared";
 import { alignLines, alignOtherLines } from "./alignLines.js";
 import { arithmeticWitness } from "./arithmeticWitness.js";
+import { certificationShown } from "./certificationWitness.js";
 import { hazmatMarks } from "./hazmatMarkWitness.js";
 import { HMT_JUDGED_KEYS, hmtVerdict, type HmtVerdict } from "./hmtWitness.js";
 import { anchorOf, classTokens, ROW_JUDGED_KEYS, rowBacks, rowOf, type OcrPage, type Row } from "./rowWitness.js";
@@ -31,6 +32,10 @@ import { anchorOf, classTokens, ROW_JUDGED_KEYS, rowBacks, rowOf, type OcrPage, 
  * engines are its witnesses too: each records the hazmat marks — UN/NA ids, RQ, an X in the HM column — it
  * finds anywhere on the read pages (hazmatMarkWitness.ts), so [] backs the empty list and anything else is a
  * page that prints what the readers did not read. Absent, as on a line, when there was no OCR or text layer.
+ *
+ * On `hazmat.shipperCertification` the same two engines record `true` where the page prints every word of a
+ * §172.204 statement (certificationWitness.ts, R-M3) — and NOTHING otherwise: they can back "present", never
+ * say "absent", so a page they could not read leaves the field to the readers alone.
  *
  * Status under rule 2: `not_read` when both readers read nothing there; otherwise `check`. Agreement is
  * RECORDED, not yet acted on: a field moves to *Read* only by graduation (D-DR5 — N confirmations with no
@@ -120,6 +125,12 @@ export function shippingEvidence(
         if (!pages) continue;
         const marks = hazmatMarks(pages);
         sources.push({ reader, page: marks[0]?.page ?? null, bbox: marks[0]?.bbox ?? null, value: marks.map((k) => k.mark) });
+      }
+    }
+    if (path === "hazmat.shipperCertification") {
+      for (const [reader, pages] of [["ocr", ocr], ["textLayer", textLayer]] as const) {
+        const shown = pages ? certificationShown(pages) : null;
+        if (shown) sources.push({ reader, page: shown.page, bbox: shown.bbox, value: true });
       }
     }
     const nothing = av == null && bv == null && av !== undefined && bv !== undefined;

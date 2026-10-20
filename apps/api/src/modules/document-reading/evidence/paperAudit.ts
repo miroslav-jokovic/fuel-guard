@@ -11,6 +11,7 @@ import {
   readersAgree,
   valuesAgree,
   rowWitnessesBack,
+  ROW_WITNESS_READERS,
   shippingDocumentSchema,
   type FieldEvidence,
   type PaperAuditView,
@@ -52,6 +53,9 @@ import { hmtResolution, witnessDataset } from "./hmtWitness.js";
 export function auditForRead(result: unknown, evidence: readonly FieldEvidence[]): PaperAuditView | null {
   const parsed = shippingDocumentSchema.safeParse(result);
   if (!parsed.success) return null;
+  // R-M3: a certification one reader read as present, the other left blank and the page's own words back is
+  // present for the audit — on the document it judges too, since pass A may be the reader that abstained.
+  if (evidence.some(certificationWitnessed)) parsed.data.hazmat.shipperCertification = true;
   const asRead = auditOf(parsed.data, evidence);
   const other = extentReadings(evidence);
   if (other.length === 0) return asRead;
@@ -159,7 +163,22 @@ function readersAgreeForAudit(e: FieldEvidence): boolean | null {
   return a && b ? valuesAgree(markerMeaning(a.value), markerMeaning(b.value)) : null;
 }
 
+/**
+ * The shipper's certification read as present by one model reader, left null by the other, and shown on the
+ * page by a row witness (certificationWitness.ts, R-M3). Never when either reader read it as absent: a reader
+ * saying "no statement" against one saying "statement" is a disagreement for a person, whatever the OCR found.
+ */
+function certificationWitnessed(e: FieldEvidence): boolean {
+  if (e.path !== "hazmat.shipperCertification") return false;
+  const a = e.sources.find((s) => s.reader === "passA")?.value;
+  const b = e.sources.find((s) => s.reader === "passB")?.value;
+  if (a === undefined || b === undefined) return false;
+  const oneAbstains = (a === true && b === null) || (a === null && b === true);
+  return oneAbstains && e.sources.some((s) => (ROW_WITNESS_READERS as readonly string[]).includes(s.reader) && s.value === true);
+}
+
 function confirmedForAudit(e: FieldEvidence): boolean {
+  if (certificationWitnessed(e)) return true;
   if (readersAgreeForAudit(e) !== true) return false;
   return rowWitnessesBack(e) !== false && arithmeticBacks(e) !== false;
 }
