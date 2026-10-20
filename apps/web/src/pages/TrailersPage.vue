@@ -307,8 +307,8 @@ async function onRetire(t: Trailer) {
         <FileCell
           v-if="fileById.get(row.id)"
           :chip="chipById.get(row.id)!"
-          :papers="fileById.get(row.id)!.papers"
-          :paper-count="fileById.get(row.id)!.paper_count"
+          :papers="fileById.get(row.id)!.papers ?? []"
+          :paper-count="fileById.get(row.id)!.paper_count ?? 0"
           :items="fileById.get(row.id)!.items"
           :subject-label="`Trailer ${row.unit_number}`"
           @open="openGallery(row, $event)"

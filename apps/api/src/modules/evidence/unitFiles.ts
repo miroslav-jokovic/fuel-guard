@@ -81,11 +81,17 @@ async function readCitedDocuments(admin: SupabaseClient, orgId: string, ids: str
   return out;
 }
 
+/**
+ * `opts.withPapers` signs the list cell's thumbnails: the route asks for them, the equipment alerts
+ * (UF6, `dqAlertScheduler.ts`) do not — they read only `attention`, and a URL signed every six hours
+ * for a cell nobody draws is a Storage call for nothing. The driver overview has the same switch (UF4b).
+ */
 export async function getUnitFiles(
   admin: SupabaseClient,
   orgId: string,
   subjectType: UnitSubjectType,
   today: string,
+  opts: { withPapers: boolean } = { withPapers: true },
 ): Promise<UnitFilesResponse> {
   const [units, certs, fleetCertRows, docs] = await readFileRows(admin, orgId, subjectType);
   const fleetCerts = fleetCertRows.map(toCert);
@@ -97,7 +103,8 @@ export async function getUnitFiles(
 
   const certsBy = groupBy(certs, (c) => c.subject_id);
   const originalsBy = groupBy(originals, (d) => d.subject_id);
-  const papersBy = await paperThumbsBySubject(admin, docs);
+  // The only Storage call here, and only when the reader draws the cells.
+  const papersBy = opts.withPapers ? await paperThumbsBySubject(admin, docs) : null;
 
   const rows: UnitFileRow[] = units.map((u) => {
     const own = originalsBy.get(u.id) ?? [];
@@ -117,7 +124,7 @@ export async function getUnitFiles(
       // days <= window) and this file must call the same truck "expiring" on the same day.
       expiringWithinDays: INSPECTION_EXPIRY_WARNING_DAYS,
     });
-    const { papers, paperCount } = papersBy.get(u.id) ?? NO_PAPERS;
+    const thumbs = papersBy ? (papersBy.get(u.id) ?? NO_PAPERS) : null;
     return {
       subject_type: subjectType,
       subject_id: u.id,
@@ -139,8 +146,7 @@ export async function getUnitFiles(
         fleetWide: i.fleetWide,
         documentId: i.documentId,
       })),
-      papers,
-      paper_count: paperCount,
+      ...(thumbs ? { papers: thumbs.papers, paper_count: thumbs.paperCount } : {}),
     };
   });
   return { units: rows };

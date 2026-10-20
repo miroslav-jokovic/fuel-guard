@@ -869,3 +869,28 @@ around them.
   two in the same PR (`notificationCategoryCheck.test.ts` compares them). Nothing writes them yet —
   the planner is UF6b, one merge later, so a release can never hand the new code a database whose
   CHECK refuses its insert. No `unit_file_missing`: UF6 names only the two date verdicts.
+- 2026-10-20 — **UF6a merged** as #1671 (0503; the CI gate that regenerates `schema.generated.sql`
+  wanted the snapshot committed in the same PR, the one miss).
+- 2026-10-20 — **UF6b built** (`claude/uf6b-unit-file-alerts`): truck and trailer papers alert.
+  - Shared: `planDqAlerts` → `planFileAlerts(rows: FileAlertRow[])` in `dqAlerts.ts`, with
+    `driverAlertRows` / `unitAlertRows` as the two adapters. A driver's keys, titles and categories are
+    byte for byte (a golden-string test holds them); a unit's keys are
+    `unit:{tractor|trailer}:{id}:{item}:{goodUntil}:{threshold}`, overdue weekly as a driver's, with no
+    legacy twin. In service = `isInServiceVehicleStatus` for both (trailers share the enum).
+  - API: `runUnitFileAlertsOnce` in `dqAlertScheduler.ts`, a third pass in `runAllOrgs` with its own
+    try, under `DQ_ALERTS_ENABLED` — no new scheduler. It reads `getUnitFiles(…, { withPapers: false })`
+    (new switch; `UnitFileRow.papers` / `paper_count` became optional as the driver row's are, the two
+    list pages default them), judged on the carrier's day (`todayInZone`, as the route judges). The
+    driver pass keeps its UTC day: moving it would change driver verdicts this step promised to leave
+    alone. Recipients `usersWhoManage("equipment")`; one email per subject type ("Truck file: …",
+    "Trailer file: …"); entity `tractor`/`trailer`. Driver and unit delivery share `deliverFileAlerts`.
+  - Web: `notificationRoute` opens `unit_file_*` on `/vehicles/:id?section=file` or
+    `/trailers/:id?section=file` by the entity's subject type.
+  - What does not alert, by the same rules as a driver's: an item with no `goodUntil` — missing, and
+    a missing item carrying McLeod's date only (`dateOnly`, D-UF3). A unit's 90/60 thresholds never
+    fire because the rollup judges on equipment's 30-day window.
+  - Tests: golden driver keys; a unit at 30 days alerts once and not on the next run; retired and
+    ordered units silent, a unit in the shop alerts; truck and driver with one id never share a key;
+    the service wiring (equipment recipients, unit key, entity, one email per type, nothing signed,
+    `expectOrgScoped`); the bell route. Nine mutants killed, each restored from a byte copy — the
+    `withPapers` one first SURVIVED because the fixture had no paper to sign, and the fixture was fixed.

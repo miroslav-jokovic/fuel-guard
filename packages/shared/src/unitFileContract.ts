@@ -54,10 +54,14 @@ export interface UnitFileRow {
   ownership_unknown: string[];
   attention: UnitAttentionItem[];
   items: UnitFileCell[];
-  /** The newest papers on file for this unit, newest first, at most `PAPERS_PER_ROW`. */
-  papers: PaperThumb[];
+  /**
+   * The newest papers on file for this unit, newest first, at most `PAPERS_PER_ROW`, with signed
+   * thumbnails. Present ONLY when the reader asked for papers: `GET /unit-files` does; the equipment
+   * alerts (UF6) do not, so they never sign a URL nobody will open — the driver row's rule (UF4b).
+   */
+  papers?: PaperThumb[];
   /** Every original on file for this unit — what "+N" counts past `papers`. */
-  paper_count: number;
+  paper_count?: number;
 }
 
 export interface UnitFilesResponse {
