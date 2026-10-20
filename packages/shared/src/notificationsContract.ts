@@ -95,6 +95,14 @@ export const NOTIFICATION_CATEGORIES = [
    * card says why. Safety managers. Mirrored in the CHECK (0483).
    */
   "roadside_report_needs_review",
+  /**
+   * A truck's or trailer's paper nears or passes its end date (UNIT-FILES-PLAN UF6): the unit-files
+   * rollup's verdicts, planned inside the DQ alert timer. Equipment managers. Separate from `dq_*`
+   * because those are the driver qualification file and go to a different section's managers, and the
+   * mute is per category. Mirrored in the CHECK (0503); nothing writes them until UF6b.
+   */
+  "unit_file_expiring",
+  "unit_file_expired",
 ] as const;
 export type NotificationCategory = (typeof NOTIFICATION_CATEGORIES)[number];
 
@@ -130,6 +138,8 @@ export const NOTIFICATION_CATEGORY_LABELS: Record<NotificationCategory, string> 
   medstop_connection: "Med-Stop connection",
   roadside_repair_due: "Roadside repairs due",
   roadside_report_needs_review: "Inspection reports to review",
+  unit_file_expiring: "Truck & trailer paper expirations",
+  unit_file_expired: "Truck & trailer paper lapses",
 };
 
 /**

@@ -863,3 +863,9 @@ around them.
     (drop never emitted, uploader never named, trailer keeps Fuel, unit link removed), each restored
     from a byte copy.
   - **UF5 is complete.** Next is UF6 (equipment alerts).
+- 2026-10-20 — **UF6a built** (`claude/uf6a-unit-file-alert-categories`): migration `0503` (0502 went
+  to finance's GL control) widens the `notification_events` category CHECK with `unit_file_expiring`
+  and `unit_file_expired`, on 0499's rewrite; `NOTIFICATION_CATEGORIES` and its labels gain the same
+  two in the same PR (`notificationCategoryCheck.test.ts` compares them). Nothing writes them yet —
+  the planner is UF6b, one merge later, so a release can never hand the new code a database whose
+  CHECK refuses its insert. No `unit_file_missing`: UF6 names only the two date verdicts.
