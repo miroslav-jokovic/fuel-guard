@@ -257,3 +257,4 @@ export * from "./drivenPath.js";
 export * from "./paging.js";
 export * from "./iftaReceiptUploadContract.js";
 export * from "./fmcsaDatasets.js";
+export * from "./fileSubjectMatch.js";
