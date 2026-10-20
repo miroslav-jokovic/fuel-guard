@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { hiringChecklist, hiringStep, todayInZone, type HiringPhase, type HiringStepKey } from "@silvicom/shared";
+import { hiringChecklist, hiringStep, readyToScreen, todayInZone, type HiringPhase, type HiringStepKey } from "@silvicom/shared";
 import { checklistInputs, type ChecklistInvitation, type ChecklistSubject } from "./applicantChecklistInputs.js";
 import { readCarrierZone, type MarkRow, type QualificationRow } from "./applicantBoardReads.js";
 
@@ -79,6 +79,14 @@ export interface BoardChecklist {
   days_waiting: number;
   /** The timestamp `days_waiting` counts from: the newest evidence of any kind, or the invitation. */
   last_progress_at: string | null;
+  /**
+   * They have done everything they can alone and the office has filed nothing (Q-AW56) — the board's
+   * "Ready to screen (N)" option and the count the Operations tab will read. `readyToScreen` is the
+   * rule, in `packages/shared` beside the fold, so this is a projection of it and not a second rule;
+   * what the board adds is `decided`'s half, for the same reason `waiting_on` carries it: a declined
+   * applicant is in nobody's queue.
+   */
+  ready_to_screen: boolean;
 }
 
 /**
@@ -136,6 +144,7 @@ export async function boardChecklists(
       total: checklist.total,
       days_waiting: wholeDaysBetween(lastProgressAt, now),
       last_progress_at: lastProgressAt,
+      ready_to_screen: !a.decided && readyToScreen(checklist),
     });
   }
 

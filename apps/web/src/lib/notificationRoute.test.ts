@@ -41,6 +41,11 @@ describe("notificationRoute", () => {
     expect(notificationRoute("roadside_repair_due", "roadside_inspection", "i-1", () => false)).toBeNull();
   });
 
+  it("an applicant ready to screen opens the board on that view; a stalled one opens the board (Q-AW56)", () => {
+    expect(notificationRoute("application_ready_to_screen", "driver", "d1")).toBe("/recruitment?waiting=screen");
+    expect(notificationRoute("application_stalled", "driver", "d1")).toBe("/recruitment");
+  });
+
   it("messages go to the messages page", () => {
     expect(notificationRoute("message_received", null, null)).toBe("/messages");
   });

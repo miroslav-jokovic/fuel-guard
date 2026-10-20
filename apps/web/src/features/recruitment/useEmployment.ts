@@ -66,6 +66,12 @@ export interface BoardChecklist {
   total: number;
   days_waiting: number;
   last_progress_at: string | null;
+  /**
+   * Part 1 and every permission are in and the office has filed nothing (Q-AW56) — the board's
+   * "Ready to screen (N)" option. Optional for the same reason `checklist` is nullable: an API
+   * from before this field answers without it, and absent reads as "not flagged", never as an error.
+   */
+  ready_to_screen?: boolean;
 }
 const historyKey = (driverId: string) => ["recruitment", "employment", driverId] as const;
 
@@ -76,6 +82,14 @@ const historyKey = (driverId: string) => ["recruitment", "employment", driverId]
  */
 export const countWaitingOn = (applicants: readonly PipelineApplicant[], who: "us" | "them"): number =>
   applicants.filter((a) => a.checklist?.waiting_on === who).length;
+
+/**
+ * How many applicants are ready to screen (Q-AW56) — the board's option label and the rows it shows,
+ * one predicate so the count on the closed trigger is the row count of the view it opens.
+ */
+export const isReadyToScreen = (a: PipelineApplicant): boolean => a.checklist?.ready_to_screen === true;
+export const countReadyToScreen = (applicants: readonly PipelineApplicant[]): number =>
+  applicants.filter(isReadyToScreen).length;
 
 /**
  * The applicant board. `archived` asks for the OTHER half of the same list (migration 0235) rather

@@ -88,7 +88,10 @@ export async function recordRelease(
   body: ApplicationRelease,
   ctx: SubmitContext,
   now: Date,
-): Promise<{ id: string; signedCount: number; completed: boolean } | IntakeError> {
+): Promise<
+  | { id: string; signedCount: number; completed: boolean; scope: { orgId: string; invitationId: string; driverId: string } }
+  | IntakeError
+> {
   const invitation = await resolveInvitation(admin, token, now);
   if (isIntakeError(invitation)) return invitation;
   const wording = await loadCarrierWording(admin, invitation.org_id);
@@ -176,6 +179,10 @@ export async function recordRelease(
     id: String(row?.authorization_id ?? ""),
     signedCount: Number(row?.signed_count ?? 0),
     completed: Boolean(row?.completed),
+    // Who this was for, resolved from the token here and nowhere else — so the route can tell the
+    // office on the last signature (Q-AW56, `readyToScreen.ts`) without a second resolve. Never sent
+    // to the applicant: the public answer is `signedCount` and `completed` only.
+    scope: { orgId: invitation.org_id, invitationId: invitation.id, driverId: invitation.driver_id },
   };
 }
 

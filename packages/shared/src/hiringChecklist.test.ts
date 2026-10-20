@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { hireBlockers, hiringChecklist, roadTestCounts, type HiringChecklistInputs } from "./hiringChecklist.js";
+import { hireBlockers, hiringChecklist, readyToScreen, roadTestCounts, type HiringChecklistInputs } from "./hiringChecklist.js";
 import {
   HIRE_REFUSES_WITHOUT,
   TRAVEL_REFUSES_WITHOUT,
@@ -920,3 +920,73 @@ describe("travel booked (D-AW7)", () => {
   });
 });
 
+
+/**
+ * "Ready to screen" (Q-AW56): everything the applicant can do alone is done and the office has filed
+ * nothing. Read off the fold, so the cases are the fold's own transitions — the one it must be true
+ * for, and each of the three ways out of it.
+ */
+describe("ready to screen", () => {
+  const signed = { invitedAt: "2026-09-01T00:00:00Z", ...PART1, authorizations: [...ALL_PERMISSIONS] };
+
+  it("is true the moment the last permission lands and nothing else has happened", () => {
+    const c = hiringChecklist(input(signed));
+    expect(stateOf(c, "permissions_signed")).toBe("done");
+    expect(c.next).toBe("mvr");
+    expect(readyToScreen(c)).toBe(true);
+  });
+
+  it("is false while a permission is still unsigned — the office may not pull anything yet", () => {
+    const c = hiringChecklist(input({ ...signed, authorizations: ALL_PERMISSIONS.slice(0, -1) }));
+    expect(readyToScreen(c)).toBe(false);
+  });
+
+  it("goes out once the office has filed a screening record", () => {
+    const c = hiringChecklist(input({ ...signed, qualificationKinds: ["mvr"], mvrs: [{ jurisdiction: null, occurredOn: "2026-09-02" }] }));
+    expect(stateOf(c, "mvr")).toBe("done");
+    // The next office move is still a screening step and still theirs — the flag is about having STARTED.
+    expect(c.next).toBe("psp");
+    expect(readyToScreen(c)).toBe(false);
+  });
+
+  it("goes out once the office has ordered PSP and is waiting on the vendor", () => {
+    const c = hiringChecklist(input({
+      ...signed,
+      qualificationKinds: ["mvr"], mvrs: [{ jurisdiction: null, occurredOn: "2026-09-02" }],
+      psp: { requested: true, reportReceived: false },
+    }));
+    expect(c.next).toBe("psp");
+    expect(stateOf(c, "psp")).toBe("waiting_on_them");
+    expect(readyToScreen(c)).toBe(false);
+  });
+
+  /** Found on 2026-10-20 by the board's test: `travel_booked` shares the phase and the owner (§7) and is not screening. */
+  it("does not mistake a booked trip for a filed screening record", () => {
+    const c = hiringChecklist(input({ ...signed, travelBooked: true }));
+    expect(stateOf(c, "travel_booked")).toBe("done");
+    expect(c.next).toBe("mvr");
+    expect(readyToScreen(c)).toBe(true);
+  });
+
+  /** Sending the form screens nobody: the record is still owed, so the row stays in the count. */
+  it("stays up when the application was sent without a record pulled first", () => {
+    const c = hiringChecklist(input({
+      ...signed,
+      phases: { applicationSentAt: "2026-09-02T00:00:00Z", reviewRequestedAt: null, approvedAt: null, signingOpenedAt: null, submittedAt: null },
+    }));
+    expect(stateOf(c, "application_sent")).toBe("done");
+    expect(c.next).toBe("mvr");
+    expect(readyToScreen(c)).toBe(true);
+  });
+
+  it("goes out once the office has filed its last screening record, whatever else is open", () => {
+    const c = hiringChecklist(input({
+      ...signed,
+      qualificationKinds: ["mvr", "clearinghouse_full", "drug_test", "medical_registry_verification"],
+      mvrs: [{ jurisdiction: null, occurredOn: "2026-09-02" }],
+      psp: { requested: true, reportReceived: true },
+    }));
+    expect(hiringStep(c.next!).phase).not.toBe("screening");
+    expect(readyToScreen(c)).toBe(false);
+  });
+});

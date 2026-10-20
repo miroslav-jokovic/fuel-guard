@@ -33,7 +33,7 @@ import { formatDate } from "@/lib/format";
 import { useSessionStore } from "@/stores/session";
 import { useToastStore } from "@/stores/toast";
 import { useArchiveDriver } from "@/composables/useDrivers";
-import { countWaitingOn, usePipelineQuery, type PipelineApplicant } from "@/features/recruitment/useEmployment";
+import { countReadyToScreen, countWaitingOn, isReadyToScreen, usePipelineQuery, type PipelineApplicant } from "@/features/recruitment/useEmployment";
 import RecruitmentTabs from "@/features/recruitment/RecruitmentTabs.vue";
 import HireDrawer from "@/features/recruitment/HireDrawer.vue";
 import InviteApplicantDrawer from "@/features/recruitment/InviteApplicantDrawer.vue";
@@ -105,7 +105,9 @@ const phase = qs.param("phase", Object.keys(HIRING_PHASE_LABELS));
  * "Waiting on you (3)" with "Everyone (6)" one click away. Its resting value is `""`, which makes
  * the ✕ mean exactly the right thing here: *clear the "mine" filter and show me everybody.*
  */
-const WAITING_KEYS = ["us", "them"] as const;
+// `screen` (Q-AW56) is a narrower "us": Part 1 and the permissions are in, nothing filed. The bell's
+// "ready to screen" notice links straight to it (`notificationRoute`), so the URL is the queue.
+const WAITING_KEYS = ["us", "them", "screen"] as const;
 /**
  * D-US2: the default stays OUT of the URL, and it is two defaults — *waiting on you* on the live board,
  * *Everyone* on the archived view (see `view`). So `waiting` is read through one parameter per view,
@@ -140,6 +142,7 @@ const countWaiting = (who: "us" | "them") => countWaitingOn(all.value, who);
  */
 const WAITING_FILTERS = computed(() => [
   { value: "us", label: `Waiting on you (${countWaiting("us")})` },
+  { value: "screen", label: `Ready to screen (${countReadyToScreen(all.value)})` },
   { value: "them", label: `Waiting on them (${countWaiting("them")})` },
   { value: "", label: `Everyone (${all.value.length})` },
 ]);
@@ -171,7 +174,9 @@ const SORT_DEFAULT = { key: "days_waiting", dir: "desc" } as const;
 
 const rows = computed(() => {
   const filtered = all.value
-    .filter((a) => waitingOn.value === "" || a.checklist?.waiting_on === waitingOn.value)
+    .filter((a) =>
+      waitingOn.value === "" || (waitingOn.value === "screen" ? isReadyToScreen(a) : a.checklist?.waiting_on === waitingOn.value),
+    )
     .filter((a) => phase.value === "" || a.checklist?.phase === phase.value);
   // The sortable column lives inside `checklist`, so the accessor reaches into it rather than the
   // row — and an applicant the API answered without one sorts LAST, which is `sortRows`' own rule
