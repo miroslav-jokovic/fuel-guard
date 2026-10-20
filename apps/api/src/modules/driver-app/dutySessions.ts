@@ -368,9 +368,50 @@ export async function endShift(
   driverId: string,
   input: EndShiftRequest,
 ): Promise<DutyResult> {
+  if (input.session_id) return endNamedShift(admin, orgId, driverId, input.session_id, input);
   const { error } = await admin.rpc("end_duty_session", {
     p_org: orgId,
     p_driver: driverId,
+    p_ended_at: input.ended_at ?? null,
+    p_odometer: input.end_odometer ?? null,
+    p_reason: "driver",
+  });
+  if (error) {
+    const mapped = await toDutyError(admin, orgId, error, {});
+    if (mapped) return mapped;
+    throw new Error(error.message);
+  }
+  return { ok: true, session: null };
+}
+
+/**
+ * End ONE named shift (D-RLY7) — the driver's own, and only if it is still open. A replay of an
+ * end-of-day that arrives after a newer shift began is then a no-op, not a sign-off of the new shift.
+ *
+ * `end_duty_session_by_id` (0151) checks the org but not the driver, because dispatch calls it for any
+ * driver; so the ownership check is here, against org AND driver. A session that is not this driver's
+ * (or does not exist) answers exactly like one already closed — `ok`, nothing changed — so the endpoint
+ * says nothing about other people's shifts.
+ */
+async function endNamedShift(
+  admin: SupabaseClient,
+  orgId: string,
+  driverId: string,
+  sessionId: string,
+  input: EndShiftRequest,
+): Promise<DutyResult> {
+  const { data: own, error: readError } = await admin
+    .from("driver_duty_sessions")
+    .select("id, ended_at")
+    .eq("org_id", orgId)
+    .eq("driver_id", driverId)
+    .eq("id", sessionId)
+    .maybeSingle();
+  if (readError) throw new Error(readError.message);
+  if (!own || (own as { ended_at: string | null }).ended_at) return { ok: true, session: null };
+  const { error } = await admin.rpc("end_duty_session_by_id", {
+    p_org: orgId,
+    p_session_id: sessionId,
     p_ended_at: input.ended_at ?? null,
     p_odometer: input.end_odometer ?? null,
     p_reason: "driver",

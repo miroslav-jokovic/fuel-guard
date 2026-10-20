@@ -1,6 +1,7 @@
 import * as Crypto from 'expo-crypto';
 import { getDb } from './db';
 import type { OutboxRecord, OutboxStatus } from './policy';
+import { notifyEnqueued } from './outboxSignal';
 
 /**
  * Durable write queue (plan §13.3). Every domain mutation is written HERE FIRST — before any UI
@@ -73,6 +74,8 @@ export async function enqueue(input: EnqueueInput): Promise<OutboxRecord> {
   );
   const row = await db.getFirstAsync<Row>('select * from outbox where id = ?;', id);
   if (!row) throw new Error('[outbox] enqueue failed to persist the record');
+  // Durable now — wake the engine so it is delivered at once when online (outboxSignal.ts, D-RLY7).
+  notifyEnqueued();
   return toRecord(row);
 }
 

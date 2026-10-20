@@ -1,7 +1,10 @@
 import "dotenv/config";
+import "./instrument.js"; // Sentry init, as in index.ts — a worker whose errors go nowhere is a worker nobody watches
 import { loadEnv } from "./env.js";
 import { runSchemaCheck } from "./modules/org/index.js";
-import { startAllSchedulers } from "./schedulers.js";
+import { startSchedulerLanes } from "./schedulers.js";
+import { exitOnLostLease } from "./lib/schedulerLeaseExit.js";
+import type { LaneLease } from "./lib/schedulerLease.js";
 import { getSupabaseAdmin } from "./lib/supabaseAdmin.js";
 import { registerAllHandlers } from "./queue/handlers/index.js";
 import { startQueueWorker } from "./queue/worker.js";
@@ -10,8 +13,9 @@ import { installShutdownHandlers } from "./lib/shutdown.js";
 
 /**
  * Dedicated worker process. Its role is set by WORKER_ROLE (plan WQ3):
- *   • `scheduler` — owns the setInterval schedulers (Samsara sync, digest, reconcile, EFS…). Deploy as a
- *     SINGLE replica: schedulers must tick exactly once (the boot sweep + rebuild-on-boot assume one owner).
+ *   • `scheduler` — competes for the scheduler lanes in SCHEDULER_LANES and runs a lane only while it
+ *     holds that lane's database lease (D-RLY2, 0506). A second replica is a hot standby, not a second
+ *     copy: it takes a lane over within ~75 s of the holder dying. Production: `general`.
  *   • `consumer`  — claims + executes enqueued jobs from Postgres. Horizontally scalable to N replicas;
  *     the claim RPC's FOR UPDATE SKIP LOCKED + per-job leases make concurrent claiming safe.
  *   • `both`      — the default single-worker deploy (schedulers + consumer in one process).
@@ -25,9 +29,9 @@ void runSchemaCheck(env);
 const runsSchedulers = role === "scheduler" || role === "both";
 const runsConsumer = role === "consumer" || role === "both";
 
+let leases: LaneLease[] = [];
 if (runsSchedulers) {
-  startAllSchedulers(env);
-  console.log("[Silvicom 360 worker] schedulers started");
+  leases = startSchedulerLanes(env, exitOnLostLease("worker"));
   // Passive queue-health log (plan A1) — single-owner on the scheduler process, queue mode only.
   if (env.JOB_EXECUTION_MODE === "queue" && env.SUPABASE_URL && env.SUPABASE_SERVICE_ROLE_KEY) {
     startQueueMetricsLogger(env);
@@ -99,4 +103,9 @@ if (
 
 // The queue loop stops claiming on shutdown and executeJob hands back what is still running
 // (lib/shutdown.ts); the scheduler intervals simply stop at exit.
-installShutdownHandlers({ name: `worker:${role}` });
+installShutdownHandlers({
+  name: `worker:${role}`,
+  onExit: async () => {
+    await Promise.all(leases.map((l) => l.stop()));
+  },
+});

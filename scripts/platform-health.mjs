@@ -26,6 +26,8 @@ import { pathToFileURL } from "node:url";
 import { chooseRecipients, readTable, sendEmail, sendSms, fitSms } from "./release-notify.mjs";
 
 const OK_MAINTENANCE = new Set(["ok", "pending"]);
+/** apps/api/src/lib/schedulerHealth.ts — `handover` is a deploy or a take-over in progress (D-RLY3). */
+const OK_LANE = new Set(["held", "handover"]);
 
 /** What one `/api/version` read says, as a stable problem key ("" = healthy). Pure. */
 export function classify(read) {
@@ -33,6 +35,11 @@ export function classify(read) {
   const v = read.body ?? {};
   const m = v.maintenance?.state;
   if (m && !OK_MAINTENANCE.has(m)) return `maintenance:${m}`;
+  // A lane nobody runs is the background work stopped — Samsara, EFS, every digest and sweep. Ranked
+  // above drift because drift heals at the next deploy and a stopped lane does not heal at all.
+  // Absent on a deploy older than D-RLY3: no field, no verdict.
+  const lane = (Array.isArray(v.schedulers) ? v.schedulers : []).find((l) => !OK_LANE.has(l?.state));
+  if (lane) return `schedulers:${lane.lane}:${lane.state}`;
   if (v.schema?.drift === true) return `schema:${v.schema.state ?? "drift"}`;
   return "";
 }
@@ -67,13 +74,29 @@ const WHAT = {
   "maintenance:unknown": "The API reports an unrecognised maintenance state.",
 };
 
+/** A scheduler lane's alarm, in words an owner can act on at night (D-RLY3). Pure. */
+function laneWhat(problem) {
+  const [, lane, state] = problem.split(":");
+  const work =
+    lane === "egress"
+      ? "the EFS feeds and the fuel-card sync (normally on @fleetguard/api)"
+      : lane === "general"
+        ? "Samsara, scoring, digests, reconciles and sweeps (normally on the worker service)"
+        : `the "${lane}" scheduler lane`;
+  if (state === "missing") return `No process has ever run ${work}. A deploy is missing it or SCHEDULER_LANES leaves it out.`;
+  if (state === "unknown") return `The API could not read who is running ${work} — the database may be unreachable.`;
+  return `Nothing has run ${work} for over two minutes — the process that holds it has stopped or cannot renew its lease.`;
+}
+
 /** The message for an alert or a recovery. Pure. */
 export function compose(send, problem, e) {
   const what =
     WHAT[problem] ??
-    (problem.startsWith("schema:")
-      ? `Production's schema does not match its code (schema.state = ${problem.slice(7)}).`
-      : `Platform check: ${problem}.`);
+    (problem.startsWith("schedulers:")
+      ? laneWhat(problem)
+      : problem.startsWith("schema:")
+        ? `Production's schema does not match its code (schema.state = ${problem.slice(7)}).`
+        : `Platform check: ${problem}.`);
   if (send === "recovered") {
     return {
       subject: `Recovered: production platform check is healthy again`,
@@ -123,7 +146,7 @@ async function check() {
   if (!send) return;
   const subjectOf = send === "recovered" ? prev.problem : problem;
   const detail = read.body
-    ? `maintenance=${read.body.maintenance?.state ?? "—"}, schema=${JSON.stringify(read.body.schema ?? null)}, commit=${read.body.commitShort ?? "—"}`
+    ? `maintenance=${read.body.maintenance?.state ?? "—"}, schema=${JSON.stringify(read.body.schema ?? null)}, schedulers=${JSON.stringify(read.body.schedulers ?? null)}, commit=${read.body.commitShort ?? "—"}`
     : (read.error ?? `HTTP ${read.status}`);
   const msg = compose(send, subjectOf, { url: env.API_URL, runUrl: env.RUN_URL, detail });
   const who = chooseRecipients(await readTable(env), env);
@@ -177,6 +200,12 @@ function selfTest() {
     classify(v({ maintenance: { state: "failing" }, schema: { state: "ahead", drift: true } })),
     "maintenance:failing",
   );
+  const lanes = (o) => v({ schedulers: [{ lane: "egress", state: "held" }, { lane: "general", state: "held" }, ...o] });
+  eq("held and handover lanes are healthy", classify(lanes([{ lane: "x", state: "handover" }])), "");
+  eq("a stale lane is a problem, named by lane and state", classify(lanes([{ lane: "general", state: "stale" }])), "schedulers:general:stale");
+  eq("a lane outranks drift", classify(v({ schedulers: [{ lane: "egress", state: "missing" }], schema: { state: "ahead", drift: true } })), "schedulers:egress:missing");
+  eq("a deploy without the field has no lane verdict", classify(v({ schedulers: undefined })), "");
+  eq("a stale lane's alert says what stopped", compose("alert", "schedulers:general:stale", { url: "u" }).text.includes("Samsara"), true);
 
   const one = decide(null, "schema:ahead");
   eq("one sighting does not page (a release's migrate→deploy gap)", one.send, null);

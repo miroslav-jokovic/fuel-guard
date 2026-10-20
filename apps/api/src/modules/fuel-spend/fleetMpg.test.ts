@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createSupabaseRecorder, expectOrgScoped } from "../../testing/supabaseRecorder.js";
+import { odometerFunctionModel } from "../../testing/odometerFunctionModel.js";
 import { getFleetMpg, getFleetMpgPeriods, getFleetMpgSeries } from "./fleetMpg.js";
 
 /**
@@ -41,6 +42,10 @@ const reading = (vehicleId: string, at: string, meters: number, source = "obd"):
   source,
 });
 
+/** How many times the distance read went to the database: one function call (or a paged read). */
+const odometerAsks = (rec: ReturnType<typeof createSupabaseRecorder>) =>
+  rec.rpcs().filter((c) => c.fn === "odometer_readings_for_periods").length + rec.forTable("samsara_odometer_readings").length;
+
 /**
  * ⚠ Function fixtures, because `supabaseRecorder` records filters and does NOT apply them — a flat
  * array answers a July question with June's rows, and the odometer read's whole correctness is which
@@ -62,6 +67,8 @@ const seed = (
   { tz = "America/Chicago", fuelThrough = "2099-12-31" }: { tz?: string; fuelThrough?: string | null } = {},
 ) =>
   createSupabaseRecorder({
+    // The distance read asks 0507's function (D-RLY6); the table fixture below is its fallback path.
+    rpc: (fn, args) => (fn === "odometer_readings_for_periods" ? odometerFunctionModel(readings, ORG)(args) : null),
     tables: {
       organizations: [{ id: ORG, operating_hours: { tz } }],
       samsara_odometer_readings: (q) => {
@@ -216,9 +223,8 @@ describe("getFleetMpg", () => {
     const rec = seed(READINGS, [{ vehicle_id: "v1", gallons_tractor: 100 }]);
     const r = await getFleetMpg(rec.client, ORG, "2026-09-01", "2026-09-03");
     expect(r.timezone).toBe("America/Chicago");
-    const q = rec.forTable("samsara_odometer_readings")[0]!;
-    const upper = q.ops.find((o) => o.method === "lte" && o.args[0] === "reading_at")!.args[1];
-    expect(upper).toBe("2026-09-04T05:00:00.000Z");
+    const asked = rec.rpcs().find((c) => c.fn === "odometer_readings_for_periods")!.args as { p_periods: { to: string }[] };
+    expect(asked.p_periods[0]!.to).toBe("2026-09-04T05:00:00.000Z");
   });
 
   it("says the collector has not run rather than reporting a fleet that stood still", async () => {
@@ -336,7 +342,7 @@ describe("getFleetMpgSeries", () => {
     // A loop over `getFleetMpg` would re-fetch a thirty-day odometer lookback per bucket.
     const rec = seed(WEEK_READINGS, WEEK_DAYS);
     await getFleetMpgSeries(rec.client, ORG, "2026-08-31", "2026-09-13", "week");
-    expect(rec.forTable("samsara_odometer_readings").length).toBe(1);
+    expect(odometerAsks(rec)).toBe(1);
     expect(gallonReads(rec).length).toBe(1);
     // Plus exactly ONE watermark read for the whole series, not one per bucket: how far the roll-up
     // got is a property of the roll-up, so asking it six times would be six answers to one question.
@@ -378,7 +384,7 @@ describe("getFleetMpgPeriods", () => {
     async (_, periods) => {
       const rec = seed(WEEK_READINGS, WEEK_DAYS);
       await getFleetMpgPeriods(rec.client, ORG, periods);
-      expect(rec.forTable("samsara_odometer_readings").length).toBe(1);
+      expect(odometerAsks(rec)).toBe(1);
       const reads = gallonReads(rec);
       expect(reads.length).toBe(1);
       const bound = (m: string) => reads[0]!.ops.find((o) => o.method === m && o.args[0] === "day")?.args[1];
@@ -396,7 +402,7 @@ describe("getFleetMpgPeriods", () => {
   it("reads nothing when asked for no period", async () => {
     const rec = seed(WEEK_READINGS, WEEK_DAYS);
     expect(await getFleetMpgPeriods(rec.client, ORG, [])).toEqual([]);
-    expect(rec.forTable("samsara_odometer_readings").length + rec.forTable("fuel_spend_days").length).toBe(0);
+    expect(odometerAsks(rec) + rec.forTable("fuel_spend_days").length).toBe(0);
   });
 
   it("scopes every tenant query to one organization", async () => {
@@ -426,9 +432,8 @@ describe("getFleetMpg — bounded by how far the fuel roll-up has derived", () =
     // ⚠ The ODOMETER read is the half that matters and the half a label-only fix would miss. Chicago
     // is UTC−5 in September, so an inclusive 2 Sept ends at 05:00Z on the 3rd — the clamped day, not
     // the requested one. Mutate the service to clamp only the gallons and this is what fails.
-    const odo = rec.forTable("samsara_odometer_readings")[0]!;
-    const hi = odo.ops.find((o) => o.method === "lte" && o.args[0] === "reading_at")!.args[1];
-    expect(hi).toBe("2026-09-03T05:00:00.000Z");
+    const odo = rec.rpcs().find((c) => c.fn === "odometer_readings_for_periods")!.args as { p_periods: { to: string }[] };
+    expect(odo.p_periods[0]!.to).toBe("2026-09-03T05:00:00.000Z");
 
     const gal = gallonReads(rec)[0]!;
     expect(gal.ops.find((o) => o.method === "lte" && o.args[0] === "day")!.args[1]).toBe("2026-09-02");

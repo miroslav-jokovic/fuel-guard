@@ -2,7 +2,7 @@
  * The FMCSA feed's clock (INSPECTION-CHALLENGE-PLAN IC1; register: `docs/WORKER-DEPLOYMENT.md`).
  *
  * ── ⚠ ONE PROCESS FLEET-WIDE ──────────────────────────────────────────────────────────────────
- * Started from `startAllSchedulers`, so it runs wherever the schedulers run and nowhere else. Two
+ * Started from `SCHEDULERS`, so it runs wherever the schedulers run and nowhere else. Two
  * copies would not corrupt anything — a replayed snapshot is a no-op, every record version is keyed
  * — but each would add a run row a day per dataset and double our share of Socrata's anonymous pool.
  *

@@ -1,0 +1,20 @@
+{
+  "build": {
+    "builder": "NIXPACKS",
+    "buildCommand": "corepack enable && pnpm install --frozen-lockfile --prod=false",
+    "watchPatterns": [
+      "apps/api/**",
+      "packages/**",
+      "package.json",
+      "pnpm-lock.yaml",
+      "railway.worker.json",
+      "!**/*.md",
+      "!**/*.test.ts",
+      "!**/__tests__/**"
+    ]
+  },
+  "deploy": {
+    "startCommand": "node --import tsx apps/api/src/worker.ts",
+    "restartPolicyType": "ALWAYS"
+  }
+}

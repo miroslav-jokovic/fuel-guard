@@ -235,7 +235,7 @@ export async function runFinancialFreshnessOnce(
 }
 
 /**
- * Six-hourly, every org, each in its own try. Runs in EXACTLY ONE process (see `startAllSchedulers`
+ * Six-hourly, every org, each in its own try. Runs in EXACTLY ONE process (see `SCHEDULERS`
  * and docs/WORKER-DEPLOYMENT.md); the dedupe keys make a re-run idempotent, so a second process
  * would waste queries rather than duplicate findings — but the invariant still holds.
  */

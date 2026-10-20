@@ -116,7 +116,17 @@ export async function drainJobs(budgetMs: number): Promise<{ finished: string[];
  * Wire SIGTERM/SIGINT for a long-running process. `beforeDrain` closes whatever takes new work in
  * (the HTTP listener, a queue loop). A second signal exits at once — an operator's Ctrl-C twice.
  */
-export function installShutdownHandlers(opts: { name: string; beforeDrain?: () => void }): void {
+export function installShutdownHandlers(opts: {
+  name: string;
+  beforeDrain?: () => void;
+  /**
+   * Awaited after the drain, before exit, capped at ON_EXIT_BUDGET_MS — the scheduler leases are
+   * released here (D-RLY2), so the next process takes the lanes at once instead of after a full TTL.
+   * AFTER the drain on purpose: a lane handed over while its jobs still run would let the next holder's
+   * schedulers start beside them (the jobs ledger would refuse the overlap, but there is no need to ask it).
+   */
+  onExit?: () => Promise<void>;
+}): void {
   let started = false;
   const onSignal = (signal: NodeJS.Signals): void => {
     if (started) {
@@ -139,12 +149,33 @@ export function installShutdownHandlers(opts: { name: string; beforeDrain?: () =
         );
       })
       .catch((e) => console.error(`[shutdown] ${opts.name}: drain failed: ${e instanceof Error ? e.message : e}`))
+      .then(() => runOnExit(opts))
       .finally(() => {
         void Sentry.flush(2_000).finally(() => process.exit(0));
       });
   };
   process.on("SIGTERM", onSignal);
   process.on("SIGINT", onSignal);
+}
+
+/** Long enough for two lease-release round trips; short enough to stay inside Railway's window. */
+const ON_EXIT_BUDGET_MS = 3_000;
+
+async function runOnExit(opts: { name: string; onExit?: () => Promise<void> }): Promise<void> {
+  if (!opts.onExit) return;
+  let timer: NodeJS.Timeout | undefined;
+  try {
+    await Promise.race([
+      opts.onExit(),
+      new Promise<void>((resolve) => {
+        timer = setTimeout(resolve, ON_EXIT_BUDGET_MS);
+      }),
+    ]);
+  } catch (e) {
+    console.error(`[shutdown] ${opts.name}: onExit failed: ${e instanceof Error ? e.message : e}`);
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 /** Test seam: the registry is process-global. */

@@ -155,7 +155,19 @@ shape until 2026-10-16. That day every workspace's `build` became artefacts-only
 v2, step 4), so the admin deploy now skips the typecheck too, on the reasoning above: CI's
 `typecheck` job runs admin's `vue-tsc` before anything reaches `main`.
 
-## Exactly one service runs the schedulers, and it is enforced by an env var only
+## Exactly one process runs each scheduler lane — enforced by a database lease since 2026-10-20
+
+**Since D-RLY2** (`docs/plans/architecture/PLATFORM-RELIABILITY-PLAN.md`, migration 0506) the rule
+below is no longer held by an env var alone. Every scheduler belongs to a LANE (`egress`: everything
+that dials EFS; `general`: everything else — `apps/api/src/schedulers.ts`), and a process starts a
+lane's schedulers only while it holds that lane's row in `platform_scheduler_leases`. Two replicas of
+one service, or a second service nobody gave the variable to, therefore cannot both run a lane — the
+second waits as a standby and takes over within ~75 s if the holder dies. `SCHEDULER_LANES` (default
+`all`) chooses which lanes a process competes for; `/api/version` → `schedulers` shows each lane's
+state, and `platform-health.yml` pages when one has had no holder for two minutes. The target
+topology (api ×2 on `egress`, a `@fleetguard/worker` service on `general`) and its runbook are in
+the plan's §3 and §5. `RUN_SCHEDULERS_IN_PROCESS=false` still keeps a service out of the competition
+entirely, which is what `@fleetguard/web` wants. What follows is the history that made this necessary.
 
 `RUN_SCHEDULERS_IN_PROCESS` decides whether a process also runs the ~20 background schedulers.
 `apps/api/src/env.ts` gives it `.default("true")`, so **a service that does not set it runs them.**

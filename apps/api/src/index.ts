@@ -3,7 +3,9 @@ import "./instrument.js"; // Sentry init — must load before the app + its inst
 import { createApp } from "./app.js";
 import { loadEnv } from "./env.js";
 import { runSchemaCheck } from "./modules/org/index.js";
-import { startAllSchedulers } from "./schedulers.js";
+import { startSchedulerLanes } from "./schedulers.js";
+import { exitOnLostLease } from "./lib/schedulerLeaseExit.js";
+import type { LaneLease } from "./lib/schedulerLease.js";
 import { startRequestMetricsReporter } from "./middleware/requestMetrics.js";
 import { getSupabaseAdmin } from "./lib/supabaseAdmin.js";
 import { sealPlaintextSamsaraTokens } from "./modules/samsara/lib/samsaraToken.js";
@@ -11,6 +13,7 @@ import { installShutdownHandlers } from "./lib/shutdown.js";
 
 const env = loadEnv();
 const app = createApp(env);
+let leases: LaneLease[] = [];
 
 const server = app.listen(env.PORT, () => {
   console.log(`[Silvicom 360 API] listening on http://localhost:${env.PORT} (${env.NODE_ENV})`);
@@ -30,8 +33,9 @@ const server = app.listen(env.PORT, () => {
     );
   }
   if (env.RUN_SCHEDULERS_IN_PROCESS) {
-    // Single-service deploy (default): this process also runs the background schedulers.
-    startAllSchedulers(env);
+    // This process competes for its SCHEDULER_LANES (default: every lane — the single-service deploy)
+    // and runs a lane only while it holds that lane's lease (D-RLY2). Production: `egress` here.
+    leases = startSchedulerLanes(env, exitOnLostLease("api"));
   } else {
     console.log("[api] in-process schedulers disabled (RUN_SCHEDULERS_IN_PROCESS=false) — a dedicated worker service runs them");
   }
@@ -39,4 +43,10 @@ const server = app.listen(env.PORT, () => {
 
 // A deploy's SIGTERM: stop taking requests, let running jobs finish inside Railway's draining window,
 // hand back the rest. Without it every deploy killed the job mid-run — see lib/shutdown.ts.
-installShutdownHandlers({ name: "api", beforeDrain: () => server.close() });
+installShutdownHandlers({
+  name: "api",
+  beforeDrain: () => server.close(),
+  onExit: async () => {
+    await Promise.all(leases.map((l) => l.stop()));
+  },
+});

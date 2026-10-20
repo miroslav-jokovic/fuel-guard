@@ -9,7 +9,7 @@ import { runSmsOutboxOnce } from "./smsOutbox.js";
  * must go at 09:00, not at whichever six-hour tick follows, and the window it waits for is only eleven
  * hours wide. Five minutes is the lateness the recipient can see.
  *
- * ⚠ It runs wherever `startAllSchedulers` runs, which must be exactly one process fleet-wide — the api
+ * ⚠ It runs wherever `SCHEDULERS` runs, which must be exactly one process fleet-wide — the api
  * service in production (`docs/WORKER-DEPLOYMENT.md`, which lists it). The drain's conditional claim
  * refuses to send a row twice even if that invariant breaks, but a second drainer would still double
  * the reads for nothing.

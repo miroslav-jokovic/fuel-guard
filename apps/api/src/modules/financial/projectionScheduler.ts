@@ -11,7 +11,7 @@ import { projectFinancialWindow } from "./projection.js";
  * window costs seconds and cannot double-count. The FULL 2024-01-01 backfill (D-FS3) is the
  * `financial_projection` job with `payload.full`, dispatched once, on purpose, by a person.
  *
- * Run in EXACTLY ONE process (see `startAllSchedulers`).
+ * Run in EXACTLY ONE process (see `SCHEDULERS`).
  */
 const DAILY_MS = 24 * 60 * 60 * 1000;
 // 75 since D-FIN7: never shorter than the agent's sweep window (75, D-FIN4), or a row the sweep can

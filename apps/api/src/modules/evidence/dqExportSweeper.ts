@@ -14,7 +14,7 @@ import { sweepExpiredExports } from "./dqExports.js";
  * record of who exported which driver's file survives long after the file itself is gone (D-BD9).
  *
  * Same shape as every other scheduler here: interval, in-flight guard, env-gated, failures logged,
- * never crashes the process. Run in EXACTLY ONE process (see startAllSchedulers).
+ * never crashes the process. Run in EXACTLY ONE process (see SCHEDULERS).
  */
 const HOURLY_MS = 60 * 60 * 1000;
 

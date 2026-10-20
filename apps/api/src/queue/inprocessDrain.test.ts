@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { createSupabaseRecorder } from "../testing/supabaseRecorder.js";
 import { testEnv } from "../../src/testing/testEnv.js";
 import { clearHandlers, registerHandler } from "./registry.js";
-import { drainOnce } from "./inprocessDrain.js";
+import { drainOnce, drainKinds } from "./inprocessDrain.js";
 
 /**
  * The drain's contract, proven against the recorder: it claims through the SAME 0095 RPCs the
@@ -36,11 +36,12 @@ describe("drainOnce", () => {
     const rec = createSupabaseRecorder({
       rpc: { claim_next_job: [claimedRow], complete_job: null, fail_job: "requeued" },
     });
-    await drainOnce(env, rec.client);
+    await drainOnce(env, rec.client, "egress");
     expect(ran).toBe(1);
     const rpcs = rec.rpcs();
     expect(rpcs[0]!.fn).toBe("claim_next_job");
-    expect((rpcs[0]!.args as Record<string, unknown>).p_kinds).toEqual(["financial_projection", "efs_window_refetch", "backfill"]);
+    // The EFS re-fetch drains with the egress lane, on the whitelisted service, and only there (D-RLY2).
+    expect((rpcs[0]!.args as Record<string, unknown>).p_kinds).toEqual(["efs_window_refetch"]);
     expect(rpcs[1]).toMatchObject({ fn: "complete_job", args: { p_id: claimedRow.id, p_stats: { windows: [{ status: "ingested" }] } } });
   });
 
@@ -51,7 +52,7 @@ describe("drainOnce", () => {
     const rec = createSupabaseRecorder({
       rpc: { claim_next_job: [claimedRow], complete_job: null, fail_job: "requeued" },
     });
-    await drainOnce(env, rec.client);
+    await drainOnce(env, rec.client, "egress");
     const fail = rec.rpcs().find((r) => r.fn === "fail_job");
     expect(fail?.args).toMatchObject({ p_id: claimedRow.id, p_error: "EFS fault", p_retry: true });
   });
@@ -62,8 +63,15 @@ describe("drainOnce", () => {
     // instance watched. The claim list, not the handler, is where capability must be enforced.
     const noEfs = testEnv({ EFS_SOAP_ENABLED: false });
     const rec = createSupabaseRecorder({ rpc: { claim_next_job: [] } });
-    await drainOnce(noEfs, rec.client);
+    await drainOnce(noEfs, rec.client, "general");
     expect((rec.rpcs()[0]!.args as Record<string, unknown>).p_kinds).toEqual(["financial_projection", "backfill"]);
+  });
+
+  it("splits the drain by lane: the general lane never claims the EFS kind, even where EFS is on", async () => {
+    const rec = createSupabaseRecorder({ rpc: { claim_next_job: [] } });
+    await drainOnce(env, rec.client, "general");
+    expect((rec.rpcs()[0]!.args as Record<string, unknown>).p_kinds).toEqual(["financial_projection", "backfill"]);
+    expect(drainKinds(testEnv({ EFS_SOAP_ENABLED: false }), "egress")).toEqual([]);
   });
 
   /**
@@ -85,7 +93,7 @@ describe("drainOnce", () => {
         fail_job: "requeued",
       },
     });
-    await drainOnce(env, rec.client);
+    await drainOnce(env, rec.client, "general");
     expect(opts).toEqual({ rebuild: true });
     expect(rec.rpcs()[1]).toMatchObject({ fn: "complete_job", args: { p_stats: { count: 15953, rebuild: true } } });
   });
@@ -95,7 +103,7 @@ describe("drainOnce", () => {
   it("claims backfill even where EFS is off, because a rebuild fetches nothing", async () => {
     const noEfs = testEnv({ EFS_SOAP_ENABLED: false });
     const rec = createSupabaseRecorder({ rpc: { claim_next_job: [] } });
-    await drainOnce(noEfs, rec.client);
+    await drainOnce(noEfs, rec.client, "general");
     expect((rec.rpcs()[0]!.args as Record<string, unknown>).p_kinds).toContain("backfill");
   });
 
@@ -113,11 +121,11 @@ describe("drainOnce", () => {
       const rec = createSupabaseRecorder({
         rpc: { claim_next_job: [claimedRow], renew_lease: true, complete_job: null, fail_job: "requeued" },
       });
-      const inFlight = drainOnce(env, rec.client);
+      const inFlight = drainOnce(env, rec.client, "egress");
       await vi.advanceTimersByTimeAsync(21 * 60_000); // past two 10-minute renewals
       const renews = rec.rpcs().filter((r) => r.fn === "renew_lease");
       expect(renews.length).toBeGreaterThanOrEqual(2);
-      expect(renews[0]!.args).toMatchObject({ p_id: claimedRow.id, p_worker: "inprocess-drain" });
+      expect(renews[0]!.args).toMatchObject({ p_id: claimedRow.id, p_worker: "inprocess-drain:egress" });
       finish({ ok: true });
       await inFlight;
     } finally {
@@ -133,14 +141,14 @@ describe("drainOnce", () => {
     const rec = createSupabaseRecorder({
       rpc: { claim_next_job: [claimedRow], complete_job: null, fail_job: "requeued" },
     });
-    await drainOnce(env, rec.client);
+    await drainOnce(env, rec.client, "egress");
     // The old drain passed `async () => undefined` here, so this write never happened at all.
     expect(rec.writtenRows("jobs")[0]).toMatchObject({ progress: 120, total: 15954 });
   });
 
   it("does nothing when the claim returns no row", async () => {
     const rec = createSupabaseRecorder({ rpc: { claim_next_job: [] } });
-    await drainOnce(env, rec.client);
+    await drainOnce(env, rec.client, "egress");
     expect(rec.rpcs()).toHaveLength(1);
     expect(rec.writes()).toEqual([]);
   });

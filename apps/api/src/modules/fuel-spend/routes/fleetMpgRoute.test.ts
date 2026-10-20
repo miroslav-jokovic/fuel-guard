@@ -5,6 +5,7 @@ import type { AuthContext } from "@silvicom/shared";
 import { createApp } from "../../../app.js";
 import { loadEnv } from "../../../env.js";
 import { createSupabaseRecorder, type SupabaseRecorder } from "../../../testing/supabaseRecorder.js";
+import { odometerFunctionModel } from "../../../testing/odometerFunctionModel.js";
 import { closeTestServer } from "../../../testing/httpServer.js";
 
 /**
@@ -38,6 +39,8 @@ let baseUrl = "";
 
 const seed = () =>
   createSupabaseRecorder({
+    // The distance read asks 0507's function (D-RLY6): an empty staging table answers no picks, zero counts.
+    rpc: (fn, args) => (fn === "odometer_readings_for_periods" ? odometerFunctionModel([], ORG)(args) : null),
     tables: {
       organizations: [{ id: ORG, operating_hours: { tz: "America/Chicago" } }],
       samsara_odometer_readings: [],
