@@ -39,10 +39,14 @@ export function useOdometerMismatches() {
       const tolerance = await loadTolerance();
       const rows: OdoMismatchInput[] = [];
       for (let offset = 0; ; offset += PAGE) {
+        // The embeds name their foreign key because migration 0459 gave fuel_transactions a second
+        // one to each of vehicles and drivers (the same-org composite keys). A bare `vehicles(...)`
+        // is then ambiguous and PostgREST refuses the whole read (PGRST201, HTTP 300) — this page
+        // showed "Could not load" from release v2026.10.12 until 2026-10-20.
         const { data, error } = await supabase
           .from("fuel_transactions")
           .select(
-            "id, fueled_at, odometer, samsara_odometer, samsara_odometer_at, samsara_odometer_source, fueling_time_basis, samsara_location_confidence, vehicle_id, driver_id, vehicles(unit_number, odometer_offset), drivers(full_name)",
+            "id, fueled_at, odometer, samsara_odometer, samsara_odometer_at, samsara_odometer_source, fueling_time_basis, samsara_location_confidence, vehicle_id, driver_id, vehicles!fuel_transactions_vehicle_id_fkey(unit_number, odometer_offset), drivers!fuel_transactions_driver_id_fkey(full_name)",
           )
           .gte("fueled_at", from)
           .not("odometer", "is", null)

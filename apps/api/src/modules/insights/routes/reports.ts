@@ -14,10 +14,17 @@ import { getFleetMpg } from "../../fuel-spend/index.js";
 const qstr = (v: unknown): string | undefined => (typeof v === "string" && v ? v : undefined);
 const REPORT_PAGE = 1000;
 
-type PagedResult<T> = { data: T[] | null; error: { message: string } | null };
+type PagedResult = { data: unknown[] | null; error: { message: string } | null };
 
+/**
+ * ⚠ The builder's rows are taken as `unknown` and `T` is the caller's word for them, on purpose.
+ * supabase-js infers a row type from a select literal and types every embed as an ARRAY, so checking
+ * `T` against that inference forced `vehicles: {…}[]` onto rows whose many-to-one embed is one object
+ * — and the readers written to that type took `vehicles[0]` and got undefined (the empty CSV columns,
+ * fixed 2026-10-20). `inventory/labels.ts` turns the same inference off by widening its select.
+ */
 async function fetchPaged<T>(
-  build: (from: number, to: number) => PromiseLike<PagedResult<T>>,
+  build: (from: number, to: number) => PromiseLike<PagedResult>,
 ): Promise<T[]> {
   const out: T[] = [];
   for (let offset = 0; ; offset += REPORT_PAGE) {
@@ -46,14 +53,22 @@ interface TxnExport {
   source: string;
   location_text: string | null;
   max_severity: string | null;
-  vehicles: { unit_number: string }[];
-  drivers: { full_name: string }[];
+  vehicles: { unit_number: string } | null;
+  drivers: { full_name: string } | null;
 }
 
+// Both loaders below name the foreign key in their embeds: migration 0459 added a same-org composite
+// key beside each single-column one, so a bare `vehicles(...)` / `drivers(...)` from fuel_transactions
+// is ambiguous and PostgREST refuses the read (PGRST201). Both exports failed from v2026.10.12 to
+// 2026-10-20.
+// A many-to-one embed arrives as ONE object (or null), never an array — measured against production
+// 2026-10-20. Every reader in this file used to take `vehicles[0]`, which is undefined on an object, so
+// the transaction and anomaly CSVs had empty unit/driver columns and the odometer report lost its
+// per-truck calibration offset (see `fetchPaged` for how the wrong type got in).
 async function loadTxnExport(admin: SupabaseClient, orgId: string, from: string, to: string): Promise<TxnExport[]> {
   return fetchPaged<TxnExport>((lo, hi) => admin
     .from("fuel_transactions")
-    .select("fueled_at, gallons, odometer, price_per_gal, total_cost, computed_mpg, source, location_text, max_severity, vehicles(unit_number), drivers(full_name)")
+    .select("fueled_at, gallons, odometer, price_per_gal, total_cost, computed_mpg, source, location_text, max_severity, vehicles!fuel_transactions_vehicle_id_fkey(unit_number), drivers!fuel_transactions_driver_id_fkey(full_name)")
     .eq("is_canonical", true)
     .eq("org_id", orgId)
     .gte("fueled_at", from)
@@ -71,12 +86,12 @@ async function loadOdoRows(admin: SupabaseClient, orgId: string, from: string, t
     samsara_odometer: number | string | null;
     driver_id: string | null;
     vehicle_id: string | null;
-    vehicles: { unit_number: string; odometer_offset: number | string | null }[];
-    drivers: { full_name: string }[];
+    vehicles: { unit_number: string; odometer_offset: number | string | null } | null;
+    drivers: { full_name: string } | null;
   };
   const data = await fetchPaged<OdoSourceRow>((lo, hi) => admin
     .from("fuel_transactions")
-    .select("odometer, samsara_odometer, driver_id, vehicle_id, vehicles(unit_number, odometer_offset), drivers(full_name)")
+    .select("odometer, samsara_odometer, driver_id, vehicle_id, vehicles!fuel_transactions_vehicle_id_fkey(unit_number, odometer_offset), drivers!fuel_transactions_driver_id_fkey(full_name)")
     .eq("is_canonical", true)
     .eq("org_id", orgId)
     .gte("fueled_at", from)
@@ -86,12 +101,12 @@ async function loadOdoRows(admin: SupabaseClient, orgId: string, from: string, t
     .range(lo, hi));
   return data.map((r) => ({
     driverId: r.driver_id,
-    driverName: r.drivers[0]?.full_name ?? null,
+    driverName: r.drivers?.full_name ?? null,
     vehicleId: r.vehicle_id,
-    unit: r.vehicles[0]?.unit_number ?? null,
+    unit: r.vehicles?.unit_number ?? null,
     entered: r.odometer == null ? null : Number(r.odometer),
     samsara: r.samsara_odometer == null ? null : Number(r.samsara_odometer),
-    odometerOffset: r.vehicles[0]?.odometer_offset == null ? 0 : Number(r.vehicles[0].odometer_offset),
+    odometerOffset: r.vehicles?.odometer_offset == null ? 0 : Number(r.vehicles.odometer_offset),
   }));
 }
 
@@ -222,8 +237,8 @@ export function reportsRouter(): Router {
       const { from, to } = defaultRange(qstr(req.query.from), qstr(req.query.to));
       const rows = (await loadTxnExport(admin, orgId, from, to)).map((t) => ({
         fueled_at: t.fueled_at,
-        unit: t.vehicles[0]?.unit_number ?? "",
-        driver: t.drivers[0]?.full_name ?? "",
+        unit: t.vehicles?.unit_number ?? "",
+        driver: t.drivers?.full_name ?? "",
         odometer: t.odometer ?? "",
         gallons: t.gallons,
         price_per_gal: t.price_per_gal ?? "",
@@ -270,10 +285,10 @@ export function reportsRouter(): Router {
         .order("created_at", { ascending: false })
         .order("id", { ascending: false })
         .range(lo, hi));
-      type AnomalyExportRow = { created_at: string; rule_id: string; severity: string; status: string; message: string; vehicles: { unit_number: string }[] };
+      type AnomalyExportRow = { created_at: string; rule_id: string; severity: string; status: string; message: string; vehicles: { unit_number: string } | null };
       const rows = (data as AnomalyExportRow[]).map((a) => ({
         created_at: a.created_at,
-        unit: a.vehicles[0]?.unit_number ?? "",
+        unit: a.vehicles?.unit_number ?? "",
         rule: a.rule_id,
         severity: a.severity,
         status: a.status,

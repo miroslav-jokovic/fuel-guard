@@ -328,7 +328,8 @@ async function runTool(admin: SupabaseClient, orgId: string, name: string, input
       odometer: number | string | null; samsara_odometer: number | string | null; driver_id: string | null; vehicle_id: string | null;
       vehicles: { unit_number: string } | null; drivers: { full_name: string } | null;
     }>((lo, hi) =>
-      admin.from("fuel_transactions").select("odometer, samsara_odometer, driver_id, vehicle_id, vehicles(unit_number), drivers(full_name)").eq("org_id", orgId).gte("fueled_at", since).order("fueled_at", { ascending: true }).range(lo, hi));
+      // Embeds name the foreign key: 0459's same-org composite keys make a bare embed ambiguous (PGRST201).
+      admin.from("fuel_transactions").select("odometer, samsara_odometer, driver_id, vehicle_id, vehicles!fuel_transactions_vehicle_id_fkey(unit_number), drivers!fuel_transactions_driver_id_fkey(full_name)").eq("org_id", orgId).gte("fueled_at", since).order("fueled_at", { ascending: true }).range(lo, hi));
     const rows: OdoRow[] = data.map((r) => ({
       driverId: r.driver_id, driverName: r.drivers?.full_name ?? null, vehicleId: r.vehicle_id, unit: r.vehicles?.unit_number ?? null,
       entered: n(r.odometer), samsara: n(r.samsara_odometer),
