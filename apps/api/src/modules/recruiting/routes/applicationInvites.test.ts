@@ -26,6 +26,9 @@ const mailer = vi.hoisted(() => ({
   fn: vi.fn(async () => ({ ok: mailer.ok, provider: "resend", status: mailer.ok ? 200 : 422, detail: "boom" })),
 }));
 vi.mock("../../../lib/mailer.js", () => ({ sendEmail: mailer.fn }));
+/** Q-AW55: the text half, mocked at the hand-off; what it records is its own test's. */
+const text = vi.hoisted(() => ({ fn: vi.fn(async () => ({ outcome: "queued", phoneLast4: "5732", notBefore: "2027-01-13T15:00:00.000Z", reason: null })) }));
+vi.mock("../applicationInviteText.js", () => ({ inviteByText: text.fn }));
 
 const ORG = "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d";
 const DRIVER = "77777777-8888-4999-8aaa-bbbbbbbbbbbb";
@@ -101,6 +104,27 @@ describe("creating an invitation", () => {
     expect(row.token_hash).toMatch(/^[0-9a-f]{64}$/);
     // The plaintext must appear nowhere in what was written.
     expect(JSON.stringify(row)).not.toContain(token);
+  });
+
+  /** Q-AW55: a number travels only under the attestation, and the door refuses it otherwise. */
+  it("refuses a mobile number without the attestation, and invites by text with it", async () => {
+    holder.client = seed().client;
+    text.fn.mockClear();
+    for (const bad of [{ phone: "7082365732" }, { phone: "7082365732", applicant_asked: false }]) {
+      const res = await call("/application-invites", { method: "POST", token: "recruiter", body: JSON.stringify({ driver_id: DRIVER, text_invite: bad }) });
+      expect(res.status).toBe(400);
+    }
+    expect(text.fn).not.toHaveBeenCalled();
+
+    const res = await call("/application-invites", {
+      method: "POST", token: "recruiter", headers: { "user-agent": "office-browser" },
+      body: JSON.stringify({ driver_id: DRIVER, text_invite: { phone: "7082365732", applicant_asked: true } }),
+    });
+    expect(res.status).toBe(201);
+    const body = (await res.json()) as { text: unknown };
+    expect(body.text).toEqual({ outcome: "queued", phoneLast4: "5732", notBefore: "2027-01-13T15:00:00.000Z", reason: null });
+    const handed = (text.fn.mock.calls[0] as unknown as [unknown, unknown, Record<string, unknown>])[2];
+    expect(handed).toMatchObject({ userId: "u-recruiter", rawPhone: "7082365732", ctx: { userAgent: "office-browser" } });
   });
 
   it("keeps the token and its hash out of the audit log", async () => {

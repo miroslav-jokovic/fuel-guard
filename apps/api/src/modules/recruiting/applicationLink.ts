@@ -4,11 +4,13 @@ import {
   renderApplicationInviteEmail,
   renderApplicationLinkResentEmail,
   stoppedBeforeLinkExpires,
+  type ApplicationInviteTextOutcome,
 } from "@silvicom/shared";
 import type { Env } from "../../env.js";
 import { writeAudit } from "../../lib/audit.js";
 import { mintInvitationToken } from "./applicationIntake.js";
 import { mintIntakeRow } from "./applicantIntake.js";
+import { inviteByText } from "./applicationInviteText.js";
 import { carrierName, deliverApplicationMail, type ApplicationInviteDelivery } from "./applicationMail.js";
 import { recruitingSettings } from "./recruitingSettings.js";
 
@@ -38,8 +40,18 @@ export interface ApplicationLinkResult {
   /** The only copy of the link that will ever exist outside the applicant's inbox. */
   link: string;
   delivery: ApplicationInviteDelivery;
+  /** Q-AW55: what became of the invitation by text. `null` when none was asked for. */
+  text: ApplicationInviteTextOutcome | null;
   /** `resent` — the same invitation, a new link; `created` — a new invitation, an empty application. */
   mode: "resent" | "created";
+}
+
+/** The drawer's text half (Q-AW55): the number the recruiter typed, under the attestation the schema required. */
+export interface InviteTextRequest {
+  phone: string;
+  /** The recruiter's request, for the consent row's attribution columns. */
+  ip: string | null;
+  userAgent: string | null;
 }
 
 export interface ApplicationLinkError {
@@ -96,12 +108,14 @@ export const linkShorterThanDelay = (hours: number): ApplicationLinkError => ({
  * contract holds (`stoppedBeforeLinkExpires`), checked before anything is written.
  *
  * ⚠ Sending never decides whether the invitation exists: the row and the audit are committed before
- * the mailer is touched, and a refused send is reported rather than raised (the route's header).
+ * the mailer is touched, and a refused send is reported rather than raised (the route's header). The
+ * text (Q-AW55, `text`) comes last for the same reason, and its own refusals are reported beside the
+ * link in the same way — `applicationInviteText.ts` has what it records and what it refuses.
  */
 export async function createApplicationInvite(
   admin: SupabaseClient,
   env: Env,
-  input: { orgId: string; userId: string; driverId: string; email: string | null; days?: number },
+  input: { orgId: string; userId: string; driverId: string; email: string | null; days?: number; text?: InviteTextRequest | null },
 ): Promise<ApplicationLinkResult | ApplicationLinkError> {
   const applicant = await applicantOf(admin, input.orgId, input.driverId);
   if (isApplicationLinkError(applicant)) return applicant;
@@ -152,7 +166,13 @@ export async function createApplicationInvite(
   const link = applyLink(env, token);
   const carrier = await carrierName(admin, input.orgId);
   const delivery = await deliverApplicationMail(env, input.email, renderApplicationInviteEmail(carrier, link, days));
-  return { invitation, link, delivery, mode: "created" };
+  const text = input.text
+    ? await inviteByText(admin, env, {
+      orgId: input.orgId, userId: input.userId, driverId: input.driverId, invitationId: invitation.id, days,
+      rawPhone: input.text.phone, ctx: { ip: input.text.ip, userAgent: input.text.userAgent },
+    })
+    : null;
+  return { invitation, link, delivery, text, mode: "created" };
 }
 
 /**
@@ -201,7 +221,7 @@ async function resendOnInvitation(
   const carrier = await carrierName(admin, input.orgId);
   const days = Math.max(1, Math.round((Date.parse(expiresAt) - now.getTime()) / 86_400_000));
   const delivery = await deliverApplicationMail(env, invitation.email, renderApplicationLinkResentEmail(carrier, link, days));
-  return { invitation: rows[0]!, link, delivery, mode: "resent" };
+  return { invitation: rows[0]!, link, delivery, text: null, mode: "resent" };
 }
 
 /**

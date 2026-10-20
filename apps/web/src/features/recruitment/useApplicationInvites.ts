@@ -1,6 +1,6 @@
 import { computed, type Ref } from "vue";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/vue-query";
-import { applicationProgress } from "@silvicom/shared";
+import { applicationProgress, type ApplicationInviteTextOutcome } from "@silvicom/shared";
 import { apiFetch } from "@/lib/api";
 
 /** `/api/recruitment/application-invites` — the link that carries an applicant to the form (H5). */
@@ -117,6 +117,13 @@ export interface ApplicationInviteDelivery {
   reason: string | null;
 }
 
+/** What the api answers a new invitation with. `text` is absent from an api older than Q-AW55. */
+export interface ApplicationInviteCreated {
+  link: string;
+  delivery: ApplicationInviteDelivery;
+  text?: ApplicationInviteTextOutcome | null;
+}
+
 export function useCreateApplicationInvite() {
   const qc = useQueryClient();
   return useMutation({
@@ -125,13 +132,20 @@ export function useCreateApplicationInvite() {
       email: string | null;
       /** This one link's lifetime (Q-AW41). Absent: the carrier's own, which only the api reads. */
       expiresInDays?: number;
-    }): Promise<{ link: string; delivery: ApplicationInviteDelivery }> => {
-      const res = await apiFetch<{ link: string; delivery: ApplicationInviteDelivery }>("/api/recruitment/application-invites", {
+      /**
+       * Invite by text as well (Q-AW55): the number the recruiter typed. Sending it IS the attestation —
+       * the drawer offers the number only with the box ticked, and the api's schema refuses it without
+       * `applicant_asked: true`, so this hook never carries a number the recruiter did not vouch for.
+       */
+      textPhone?: string;
+    }): Promise<ApplicationInviteCreated> => {
+      const res = await apiFetch<ApplicationInviteCreated>("/api/recruitment/application-invites", {
         method: "POST",
         body: {
           driver_id: input.driverId,
           email: input.email,
           ...(input.expiresInDays === undefined ? {} : { expires_in_days: input.expiresInDays }),
+          ...(input.textPhone === undefined ? {} : { text_invite: { phone: input.textPhone, applicant_asked: true } }),
         },
       });
       if (!res.ok || !res.data) throw new Error(res.error?.message ?? "Could not create the invitation.");

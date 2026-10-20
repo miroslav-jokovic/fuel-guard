@@ -251,6 +251,19 @@ describe("a text that carries the link", () => {
     expect(sms.fn).not.toHaveBeenCalled();
   });
 
+  /** Q-AW55: the invitation by text rides the same token rotation, filed under its own reason. */
+  it("sends the invitation with a link minted now, saying how long it works, under the invite reason", async () => {
+    const rec = seed();
+    const out = await sendOrQueueSms(rec.client, env, message({ template: "invite", params: { days: 14 } }), OPEN);
+    expect(out).toEqual({ sent: true, outboxId: "o-new" });
+    const body = String(sms.fn.mock.calls[0]![1].body);
+    expect(body).toContain("You asked us to text you your driver application");
+    expect(body).toContain("works for 14 days");
+    expect(tokenIn(body)).not.toBe("");
+    expect(hashInvitationToken(tokenIn(body))).toBe(rotation(rec)?.p_token_hash);
+    expect(rec.writtenRows("sms_outbox")[0]).toMatchObject({ template: "invite", reason: "invite" });
+  });
+
   /** The rotation refuses a revoked or lapsed invitation, and a text that is only a link is then nothing. */
   it("cancels, and sends nothing, when the invitation is no longer live", async () => {
     const rec = seed({ rotated: false });

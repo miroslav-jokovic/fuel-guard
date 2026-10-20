@@ -537,6 +537,7 @@
     "apps/api/src/modules/roster/routes/sevenDay.ts"
   ],
   "sms_consents": [
+    "apps/api/src/modules/recruiting/applicationInviteText.ts",
     "apps/api/src/modules/recruiting/applicationSms.ts"
   ],
   "station_geocode_learned": [

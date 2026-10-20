@@ -12,6 +12,9 @@ import { hashInvitationToken } from "./applicationIntake.js";
  */
 const mailer = vi.hoisted(() => ({ fn: vi.fn(async () => ({ ok: true, provider: "resend", status: 200 })) }));
 vi.mock("../../lib/mailer.js", () => ({ sendEmail: mailer.fn }));
+/** Q-AW55: the invitation by text, mocked where `createApplicationInvite` hands it off — its own test has the rest. */
+const text = vi.hoisted(() => ({ fn: vi.fn(async () => ({ outcome: "sent", phoneLast4: "5732", notBefore: null, reason: null })) }));
+vi.mock("./applicationInviteText.js", () => ({ inviteByText: text.fn }));
 
 const { createApplicationInvite, findExistingApplicants, isApplicationLinkError, sendApplicationLinkAgain } = await import("./applicationLink.js");
 
@@ -47,7 +50,7 @@ const USER = "user-1";
 const again = (rec: ReturnType<typeof seed>) =>
   sendApplicationLinkAgain(rec.client, env, { orgId: ORG, userId: USER, driverId: DRIVER }, NOW);
 
-beforeEach(() => mailer.fn.mockClear());
+beforeEach(() => { mailer.fn.mockClear(); text.fn.mockClear(); });
 
 describe("sending the link again", () => {
   it("replaces the token on the same invitation, revives an expired link, and inserts nothing", async () => {
@@ -86,6 +89,27 @@ describe("sending the link again", () => {
     const lifetime = (iso: string) => Math.round((Date.parse(iso) - Date.now()) / 86_400_000);
     expect(lifetime(await created())).toBe(5);
     expect(lifetime(await created(30))).toBe(30);
+  });
+
+  /** Q-AW55: the text comes LAST — after the row, the Part 1 row, the audit and the email — and only when asked for. */
+  it("invites by text after everything else is committed, with the link's own lifetime, and not otherwise", async () => {
+    const rec = seed([], {}, { invite_ttl_days: 5, reminders_enabled: true, reminder_after_hours: 48, updated_at: "2026-09-28T00:00:00Z" });
+    const out = await createApplicationInvite(rec.client, env, {
+      orgId: ORG, userId: USER, driverId: DRIVER, email: "driver@example.test", days: 20,
+      text: { phone: "(708) 236-5732", ip: "10.0.0.9", userAgent: "office-browser" },
+    });
+    if (!("link" in out)) throw new Error(JSON.stringify(out));
+    expect(out.text).toEqual({ outcome: "sent", phoneLast4: "5732", notBefore: null, reason: null });
+    expect(text.fn).toHaveBeenCalledTimes(1);
+    const handed = (text.fn.mock.calls[0] as unknown as [unknown, unknown, Record<string, unknown>])[2];
+    expect(handed).toMatchObject({ orgId: ORG, userId: USER, driverId: DRIVER, invitationId: "inv-new", days: 20, rawPhone: "(708) 236-5732", ctx: { ip: "10.0.0.9", userAgent: "office-browser" } });
+    // The email went before the text was attempted.
+    expect(mailer.fn.mock.invocationCallOrder[0]!).toBeLessThan(text.fn.mock.invocationCallOrder[0]!);
+
+    const quiet = seed([]);
+    const plain = await createApplicationInvite(quiet.client, env, { orgId: ORG, userId: USER, driverId: DRIVER, email: null });
+    expect("link" in plain && plain.text).toBeNull();
+    expect(text.fn).toHaveBeenCalledTimes(1);
   });
 
   it("refuses an override that dies before its driver counts as stopped, and writes nothing (Q-AW51)", async () => {

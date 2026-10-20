@@ -87,6 +87,37 @@ export const SMS_CONSENT: SmsConsentDocument = {
   intent: "I agree to receive text messages from {{carrier}} about my application.",
 };
 
+/**
+ * The office's attestation behind an invitation sent by text (Q-AW55, D-SMS11, 0504).
+ *
+ * ── WHY ITS OWN INSTRUMENT AND NOT `SMS_CONSENT` ──────────────────────────────────────────────
+ * `SMS_CONSENT` is written in the applicant's voice — "By checking this box, you agree…" — and is
+ * stored on the row as the words THEY affirmed. An invitation by text has no box the applicant ticked:
+ * the first message is the first contact, and what makes it lawful to send is that the person asked a
+ * recruiter for it (47 CFR §64.1200(a)(2): prior express consent, which an informational text may take
+ * orally; the written form is telemarketing's). Storing `SMS_CONSENT`'s sentence on that row would put
+ * words in the recruiter's mouth that the applicant never read. So the recruiter affirms THIS sentence,
+ * in the office's voice, and it is stored under its own version — which is also what lets a later
+ * reading of the table tell the two kinds of row apart without decoding `source`.
+ *
+ * The body still carries every disclosure the applicant's own instrument does (STOP, HELP, rates,
+ * optional), because the invite text itself repeats them and the row should say what was promised.
+ * Whether a recorded attestation is enough documentation of oral consent is counsel's question (memo
+ * Q12, second paragraph); the version dates the wording so the redline lands as the next one.
+ */
+export const SMS_OFFICE_INVITE_ATTESTATION: SmsConsentDocument = {
+  version: "office-invite-2026-10-20",
+  title: "Invitation by text — the office's attestation",
+  citation: "47 U.S.C. §227; 47 CFR §64.1200(a)(2)",
+  body:
+    "Recorded by the office of {{carrier}}: the applicant asked us to send their driver application "
+    + "link by text to the mobile number entered here, and to receive text messages from {{carrier}} "
+    + "about their application at that number. They may reply STOP at any time to opt out and HELP for "
+    + "help. Message and data rates may apply. Asking to be texted is optional: it is not a condition of "
+    + "applying or of being considered for a job.",
+  intent: "This person asked {{carrier}} to text them the link to their driver application.",
+};
+
 /** True while the wording is still draft — nothing may be recorded against it. */
 export const isDraftSmsConsent = (doc: SmsConsentDocument = SMS_CONSENT): boolean =>
   doc.version.endsWith("-draft") || doc.version.startsWith("v0");
@@ -301,6 +332,41 @@ export const smsOptInConfirmation = (carrier: string): string =>
 export const smsApplicationReady = (carrier: string, link: string): string =>
   `${carrier}: Your driver application is ready. Fill it in here: ${link} `
   + "Your earlier link no longer works. Reply STOP to opt out.";
+
+/**
+ * The invitation itself, by text (Q-AW55, D-SMS11) — the first message this number ever gets from us.
+ *
+ * "You asked us to text you" is the attestation said back to the person, so a wrong number reads it
+ * as the mistake it is rather than as spam. Because there is no opt-in confirmation ahead of it
+ * (`smsOptInConfirmation` follows a box the applicant ticked; nobody ticked one here), this one
+ * message carries what CTIA §5.1.2.1 asks of a first contact: the sender, the subject, rates, HELP and
+ * STOP. The days are said because the link really does stop — the carrier's lifetime or the drawer's
+ * override — and asking the office for another is the remedy. Two GSM-7 parts with a link of this
+ * product's length; the disclosures are not what gets cut to fit.
+ */
+export const smsApplicationInvite = (carrier: string, link: string, days: number): string =>
+  `${carrier}: You asked us to text you your driver application. Fill it in here: ${link} `
+  + `This link works for ${days} days. Msg & data rates may apply. Reply HELP for help, STOP to opt out.`;
+
+/**
+ * What became of an invitation by text, as the drawer reads it (Q-AW55).
+ *
+ * `refused` is the attestation NOT recorded — nothing was written, because the number cannot be texted
+ * (`number_stopped`: it texted STOP and has not texted START; `invalid_phone`; the wording is draft).
+ * `sent`, `queued` and `failed` all have the row behind them: `queued` (Q-AW29) is outside the strict
+ * all-US window, and the text goes at `notBefore` on its own link; `failed` is the provider, or texts
+ * switched off for this account (`sms_disabled`) — the row stands either way, because the attestation
+ * is a fact about what the applicant asked, not about whether the transport was configured.
+ * ⚠ The last four digits and never the number (D-SMS3): the office typed it, and typed it wrong is
+ * the case this answer exists to show.
+ */
+export interface ApplicationInviteTextOutcome {
+  outcome: "sent" | "queued" | "refused" | "failed";
+  phoneLast4: string | null;
+  /** `queued` only: when it goes. */
+  notBefore: string | null;
+  reason: "invalid_phone" | "number_stopped" | "sms_consent_not_final" | "consent_failed" | "sms_disabled" | "send_failed" | null;
+}
 
 /**
  * The applicant's own link, to their phone, from their own desktop page (§6.6.6, C3b2b2).

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
-import { INVITE_TTL_DAYS_MAX, stoppedBeforeLinkExpires } from "@silvicom/shared";
-import { AppButton as BaseButton, AppInput as BaseInput, AppFormField as FormField } from "@silvicom/ui";
+import { INVITE_TTL_DAYS_MAX, normaliseUsPhone, stoppedBeforeLinkExpires, type ApplicationInviteTextOutcome } from "@silvicom/shared";
+import { AppButton as BaseButton, AppCheckbox as BaseCheckbox, AppInput as BaseInput, AppFormField as FormField } from "@silvicom/ui";
 import SlideOver from "@/components/SlideOver.vue";
 import { useSessionStore } from "@/stores/session";
 import { useToastStore } from "@/stores/toast";
@@ -63,6 +63,16 @@ import {
  * frozen into a value this drawer happened to hold. Typed, it is this one link's override. It applies to a
  * NEW invitation only: "Send them the link again" keeps the applicant's invitation and extends it by the
  * carrier's lifetime, as every other re-send does.
+ *
+ * ── INVITE BY TEXT, BEHIND AN ATTESTATION (Q-AW55, D-SMS11) ───────────────────────────────────
+ * A mobile number and one checkbox — "this person asked us to text them the link". The text goes ONLY
+ * with the box ticked: a number without it disables the button here and is refused by the api's schema
+ * (`applicant_asked: true` is required beside the number), because the box is what the consent row
+ * records and a text with nothing behind it is the message the toll-free verification was granted on
+ * the promise of never sending. The number is checked as a US mobile before anybody is added, for
+ * Q-AW51's reason: the api refuses it too, but only after the applicant exists. What became of the
+ * text is said under the link (`ApplicationLinkOnce`), and a text that is not coming says so. The
+ * number also goes on the applicant's row, so the office has it on file from the first minute.
  */
 const props = defineProps<{ open: boolean }>();
 const emit = defineEmits<{ close: []; created: [] }>();
@@ -85,10 +95,15 @@ const canInvite = computed(() => session.can("recruitment"));
 const firstName = ref("");
 const lastName = ref("");
 const email = ref("");
+/** Q-AW55: blank = no text. */
+const mobile = ref("");
+/** The attestation. Never pre-ticked; it is the one thing the consent row records. */
+const askedForText = ref(false);
 /** Blank = the carrier's lifetime. */
 const linkDays = ref("");
 const link = ref<string | null>(null);
 const delivery = ref<ApplicationInviteDelivery | null>(null);
+const text = ref<ApplicationInviteTextOutcome | null>(null);
 /** Set only in the halfway state: the applicant exists and the invitation did not happen. */
 const orphaned = ref<{ name: string; driverId: string } | null>(null);
 /** Applicants already on the board who may be this person; null until asked (Q-AX6). */
@@ -102,9 +117,12 @@ watch(
     firstName.value = "";
     lastName.value = "";
     email.value = "";
+    mobile.value = "";
+    askedForText.value = false;
     linkDays.value = "";
     link.value = null;
     delivery.value = null;
+    text.value = null;
     orphaned.value = null;
     matches.value = null;
   },
@@ -133,8 +151,18 @@ const daysError = computed(() => {
   }
   return undefined;
 });
+/** The E.164 number to text, or null when the field is blank. `undefined` is a typed number that is not a US mobile. */
+const textPhone = computed<string | null | undefined>(() =>
+  mobile.value.trim() === "" ? null : (normaliseUsPhone(mobile.value) ?? undefined));
+const mobileError = computed(() => {
+  if (textPhone.value === undefined) return "That is not a US mobile number.";
+  if (textPhone.value && !askedForText.value) return "The link is texted only when they asked for it — tick the box, or clear the number.";
+  if (!textPhone.value && askedForText.value) return "Type the number they asked us to text.";
+  return undefined;
+});
 const ready = computed(
-  () => firstName.value.trim() !== "" && lastName.value.trim() !== "" && daysValid.value && daysOutlastDelay.value,
+  () => firstName.value.trim() !== "" && lastName.value.trim() !== "" && daysValid.value && daysOutlastDelay.value
+    && mobileError.value === undefined,
 );
 const working = computed(
   () => checking.value || createApplicant.isPending.value || createInvite.isPending.value || sendAgain.isPending.value,
@@ -177,6 +205,7 @@ async function addNew(): Promise<void> {
       first_name: firstName.value.trim(),
       last_name: lastName.value.trim(),
       email: email.value.trim() || null,
+      phone: textPhone.value ?? null,
     });
     driverId = applicant.id;
   } catch (e) {
@@ -192,9 +221,12 @@ async function addNew(): Promise<void> {
       driverId,
       email: email.value.trim() || null,
       expiresInDays: overrideDays.value,
+      // The number travels only under the attestation; `ready` has already required both or neither.
+      ...(textPhone.value && askedForText.value ? { textPhone: textPhone.value } : {}),
     });
     link.value = result.link;
     delivery.value = result.delivery;
+    text.value = result.text ?? null;
   } catch (e) {
     orphaned.value = { name: fullName, driverId };
     toast.error("The applicant was added, but the link was not created", e instanceof Error ? e.message : undefined);
@@ -226,6 +258,20 @@ async function addNew(): Promise<void> {
           hint="Optional — the link is emailed to this address. Leave it blank and you send the link yourself."
         >
           <BaseInput :id="id" v-model="email" type="email" placeholder="Optional" autocomplete="off" />
+        </FormField>
+        <!-- Q-AW55: the number and the attestation, together or not at all. -->
+        <FormField
+          v-slot="{ id }"
+          label="Their mobile"
+          hint="Optional — if they asked you to text them the link, type the number and tick the box. The text names the carrier and says how to stop."
+          :error="mobileError"
+        >
+          <BaseInput :id="id" v-model="mobile" type="tel" inputmode="tel" placeholder="Optional" autocomplete="off" class="max-w-56" />
+          <BaseCheckbox
+            v-model="askedForText"
+            class="mt-2"
+            label="This person asked us to text them the link"
+          />
         </FormField>
         <FormField
           v-slot="{ id }"
@@ -273,7 +319,7 @@ async function addNew(): Promise<void> {
         </BaseButton>
       </div>
 
-      <ApplicationLinkOnce v-if="link" :link="link" :delivery="delivery" />
+      <ApplicationLinkOnce v-if="link" :link="link" :delivery="delivery" :text="text" />
 
       <!-- The halfway state, named rather than hidden. The applicant is on the board and their own
            Application card is where the link is minted, so the recovery is one click and is said. -->

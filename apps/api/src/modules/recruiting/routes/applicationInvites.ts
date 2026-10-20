@@ -148,12 +148,17 @@ export function recruitmentApplicationInvitesRouter(): Router {
         email: body.email ?? null,
         // The drawer's override for this link, else the carrier's lifetime (Q-AW41) — decided inside.
         days: body.expires_in_days,
+        // Q-AW55: the schema has already required the attestation beside the number (`applicant_asked`);
+        // the recruiter's request is the consent row's attribution, as the applicant's own is on theirs.
+        text: body.text_invite
+          ? { phone: body.text_invite.phone, ip: req.ip ?? null, userAgent: req.get("user-agent") ?? null }
+          : null,
       });
       if (isApplicationLinkError(result)) {
         res.status(result.status).json(apiError(result.code, result.message));
         return;
       }
-      res.status(201).json({ invitation: result.invitation, link: result.link, delivery: result.delivery });
+      res.status(201).json({ invitation: result.invitation, link: result.link, delivery: result.delivery, text: result.text });
     }),
   );
 

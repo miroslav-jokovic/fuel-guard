@@ -5,6 +5,7 @@ import {
   nextSmsWindow,
   normalisePhone,
   smsApplicationApproved,
+  smsApplicationInvite,
   smsApplicationReady,
   smsApplicationReminder,
   smsDrugTestSite,
@@ -59,14 +60,18 @@ import { isSuppressed } from "./smsSuppressions.js";
  */
 
 export const SMS_TEMPLATES = [
-  "consent_confirm", "application_approved", "drug_test_site", "application_sent", "nudge", "signing_link",
+  "consent_confirm", "application_approved", "drug_test_site", "application_sent", "nudge", "signing_link", "invite",
 ] as const;
 export type SmsTemplate = (typeof SMS_TEMPLATES)[number];
 
 /** The templates whose words carry the applicant's link — minted at send time, never stored. */
-export const LINK_TEMPLATES: ReadonlySet<SmsTemplate> = new Set<SmsTemplate>(["application_sent", "nudge", "signing_link"]);
+export const LINK_TEMPLATES: ReadonlySet<SmsTemplate> = new Set<SmsTemplate>(["application_sent", "nudge", "signing_link", "invite"]);
 
-/** 0376's reasons; `other` is the approval notice, which the CHECK has no word of its own for. */
+/**
+ * 0376's reasons; `other` is the approval notice, which the CHECK has no word of its own for. `invite`
+ * (0504, Q-AW55) is the invitation sent by text — the one row kind whose consent is the office's
+ * attestation rather than the applicant's box, kept apart so the table can be read for it.
+ */
 const REASON: Record<SmsTemplate, string> = {
   consent_confirm: "consent_confirm",
   application_approved: "other",
@@ -74,6 +79,7 @@ const REASON: Record<SmsTemplate, string> = {
   application_sent: "application_sent",
   nudge: "nudge",
   signing_link: "signing_link",
+  invite: "invite",
 };
 
 /**
@@ -137,6 +143,9 @@ async function render(
   if (template === "application_sent") return smsApplicationReady(carrier, String(link));
   if (template === "nudge") return smsApplicationReminder(carrier, String(link));
   if (template === "signing_link") return smsSigningLink(carrier, String(link), SIGN_LINK_LIFETIME_HOURS);
+  // Q-AW55: the lifetime the invitation was given, as the drawer's override or the carrier's setting,
+  // carried as a number of days — a date in the params would be a second statement of `expires_at`.
+  if (template === "invite") return smsApplicationInvite(carrier, String(link), Number(params.days));
   const zone = await readCarrierZone(admin, orgId);
   const label = new Intl.DateTimeFormat("en-US", { timeZone: zone, timeZoneName: "short" })
     .formatToParts(new Date(String(params.window_start)))
