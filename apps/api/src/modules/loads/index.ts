@@ -38,4 +38,4 @@ export {
 } from "./driverLoads.js";
 // McLeod's projected loads, written by the one module that owns `loads` (LOADS-MIRROR-PLAN.md LR4).
 // `mcleod` reads its raw tables and calls this; it never writes `loads` for the mirror itself.
-export { applyMirroredLoads, type MirroredLoad, type MirrorWriteResult } from "./mirrorLoads.js";
+export { applyMirroredLoads, readMirroredLinks, type MirroredLinks, type MirroredLoad, type MirrorWriteResult } from "./mirrorLoads.js";

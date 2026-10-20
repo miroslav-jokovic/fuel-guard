@@ -41,8 +41,17 @@
  * ── ONE LIST PATTERN WITH THE BOARD (owner, 2026-10-10) ─────────────────────────────────────────
  * One surface (`DataWorkspace`): the toolbar and the table are one card, and the toolbar stays when the
  * tab is Exceptions — same scope, same search, its own count — so switching tabs never moves the page.
- * Every filter, the queue and the sort live in the URL (`useQueryState`). Type is a primary filter: its
- * trigger shows its value, so it adds no chip; Dispatched by, a secondary, does (contract §5.5).
+ * Every filter, the queue and the sort live in the URL (`useQueryState`). Type and Dispatched by are
+ * secondary filters under More, and each shows a chip (contract §5.5).
+ *
+ * ── DELIVERED, BY DRIVER AND TRUCK, AND WHO HAS NOT HAULED (LOADS-ACTIVITY-PLAN, 2026-10-19) ──────
+ * The owner: "keep track if some driver has not picked up or delivered any loads multiple days … on
+ * Delivered we need better filtering, per driver and truck." Delivered and All read a window of
+ * DELIVERY time (`loadListFilters.ts`, D-LA6), so the browser no longer holds every load since the
+ * mirror began. Driver and Truck are exact, and a driver matches either seat of a team (D-LA2).
+ * "Delivered" is the last drop's McLeod departure (`loadDeliveredAt`, D-LA1), never the appointment.
+ * Who has gone days without a load is the Activity view (`LoadActivityView.vue`, D-LA7, D-LA8): its rows
+ * are drivers and trucks, not loads, so it is a view beside the queues, not one of them.
  */
 import { computed, ref, watch } from "vue";
 import { useRouter } from "vue-router";
@@ -54,10 +63,9 @@ import {
   loadBoardState,
   loadTypeOf,
 } from "@silvicom/shared";
-import { AppCallout, AppTabs, AppButton as BaseButton, DataTable, DataWorkspace, FilterBar } from "@silvicom/ui";
+import { AppCallout, AppSegmentedControl, AppTabs, AppButton as BaseButton, DataTable, DataWorkspace, FilterBar } from "@silvicom/ui";
 import { SORT_DIRECTIONS, TablePagination, sortRows, useQueryState, useUrlSort, type DataTableColumn } from "@silvicom/ui";
 import { useSessionStore } from "@/stores/session";
-import { useToastStore } from "@/stores/toast";
 import { useOrgTimezone } from "@/composables/useOrgTimezone";
 import { useTableColumns } from "@/composables/useTableColumns";
 import ColumnPicker from "@/components/ui/ColumnPicker.vue";
@@ -68,12 +76,15 @@ import {
   QUEUE_TABS,
   inQueue,
   useExceptionsQuery,
-  useResolveException,
   useLoadsQuery,
   type DispatchLoad,
   type QueueTab,
 } from "@/features/dispatch/useDispatchLoads";
 import DispatchLoadDrawer from "@/features/dispatch/DispatchLoadDrawer.vue";
+import LoadExceptionsTable from "@/features/dispatch/LoadExceptionsTable.vue";
+import LoadActivityView from "@/features/dispatch/LoadActivityView.vue";
+import { deliveredCell, driverOptions, matchesUnits, truckOptions, useDeliveredWindow } from "@/features/dispatch/loadListFilters";
+import DateRangeFilter from "@/components/DateRangeFilter.vue";
 import { dispatchHeadline } from "@/features/dispatch/useLoadDispatch";
 import { useDispatchBoardQuery } from "@/features/dispatch/useDispatchBoard";
 import { censusSelectOptions, censusValue, loadCensusItems, pickOf } from "@/features/dispatch/censusItems";
@@ -88,42 +99,17 @@ import { formatDateTime } from "@/lib/format";
 const PAGE_SIZE = 20;
 
 const session = useSessionStore();
-const toast = useToastStore();
 const router = useRouter();
 const qs = useQueryState();
 const { zone } = useOrgTimezone();
 
-const { data: loads, isLoading, isError, refetch, isFetching } = useLoadsQuery();
+// Loads or Activity (D-LA8): one page, so the Dispatcher / fleet choice carries across.
+const view = qs.param("view", ["loads", "activity"], "loads");
+const VIEWS = [{ value: "loads", label: "Loads" }, { value: "activity", label: "Activity" }];
+const deliveredWindow = useDeliveredWindow(qs, zone);
+const { data: loads, isLoading, isError, refetch, isFetching } = useLoadsQuery(deliveredWindow.instants);
 const { data: exceptions, isLoading: exceptionsLoading, isError: exceptionsFailed, refetch: refetchExceptions, isFetching: exceptionsFetching } = useExceptionsQuery();
-const resolveException = useResolveException();
 const { data: board } = useDispatchBoardQuery();
-
-const EXCEPTION_COLUMNS: DataTableColumn[] = [
-  { key: "kind", label: "What happened", width: "lg" },
-  { key: "summary", label: "Detail", width: "3xl" },
-  { key: "driver_name", label: "Driver", width: "lg" },
-  { key: "occurred_at", label: "When", width: "lg" },
-];
-
-const ACTION_LABELS: Record<string, string> = {
-  review_diff: "Review & clear",
-  adopt_equipment: "Adopt equipment",
-  acknowledge: "Acknowledge",
-  reassign: "Reassign",
-};
-
-async function clearException(row: DispatchException) {
-  if (!session.can("dispatch") || !row.load_id) return;
-  try {
-    await resolveException.mutateAsync({
-      loadId: row.load_id,
-      body: { event_id: row.id.includes(":") ? null : row.id, kind: row.kind, action: row.action },
-    });
-    toast.success("Exception cleared");
-  } catch (e) {
-    toast.error("Could not clear that exception", e instanceof Error ? e.message : undefined);
-  }
-}
 
 const dispatching = ref<DispatchLoad | null>(null); // LR-D3: the load whose Dispatch drawer is open
 
@@ -183,6 +169,11 @@ const headerText = computed(() =>
 
 const typeFilter = qs.param("type", TYPE_VALUES);
 const typed = (load: DispatchLoad) => matchesType(load, typeFilter.value);
+const driverFilter = qs.param("driver");
+const truckFilter = qs.param("truck");
+const units = (load: DispatchLoad) => matchesUnits(load, driverFilter.value, truckFilter.value);
+/** Delivered and All are the tabs a delivery window bounds (D-LA6). */
+const windowed = computed(() => tab.value === "delivered" || tab.value === "all");
 
 const counts = computed(() => {
   const result = Object.fromEntries(QUEUE_TABS.map((q) => [q.value, 0])) as Record<QueueTab, number>;
@@ -204,6 +195,9 @@ const tabItems = computed(() => QUEUE_TABS.map((q) => ({ value: q.value, label: 
  * it and All must not drop it: it stays until a Fleet, Dispatched by or Type is chosen, each of which
  * names a property it does not have.
  */
+// The loads read is windowed (D-LA6): an exception on a load delivered outside the window finds no
+// load here and is scoped as one with none, which is the rule just above. Exceptions are raised on
+// open work, so that is the rare case, and a wider window brings the load back.
 const loadById = computed(() => new Map((loads.value ?? []).map((l) => [l.id, l])));
 const loadOf = (e: DispatchException) => (e.load_id ? loadById.value.get(e.load_id) : undefined);
 const exceptionTyped = (e: DispatchException) => (loadOf(e) ? typed(loadOf(e)!) : !typeFilter.value);
@@ -214,8 +208,8 @@ const exceptionFound = (e: DispatchException) => {
 const scopedExceptions = computed(() => (exceptions.value ?? []).filter((e) => exceptionTyped(e) && admits(loadOf(e), scopeFilter.value)));
 const filteredExceptions = computed(() => scopedExceptions.value.filter(exceptionFound));
 
-/** The open tab's loads under its type and search, before whose-work — what the census counts. */
-const unscoped = computed(() => {
+/** The open tab's loads under its type and search, before driver, truck and whose-work. */
+const searched = computed(() => {
   const term = search.value.trim().toLowerCase();
   const queue = tab.value;
   if (queue === "exceptions") return [];
@@ -225,12 +219,18 @@ const unscoped = computed(() => {
     .filter((load) => {
       if (!term) return true;
       const { pickup, delivery } = boardStops(load.stops);
-      return [load.ref, load.customer_name, load.driver_name, load.vehicle_unit, load.trailer_unit, load.dispatcher_name, load.commodity, loadStopName(pickup), loadStopName(delivery)]
+      return [load.ref, load.customer_name, load.driver_name, load.co_driver_name, load.vehicle_unit, load.trailer_unit, load.dispatcher_name, load.commodity, loadStopName(pickup), loadStopName(delivery)]
         .filter((value): value is string => Boolean(value))
         .some((value) => value.toLowerCase().includes(term));
     });
 });
+/** ...and under driver and truck: what the census counts. */
+const unscoped = computed(() => searched.value.filter(units));
 const filtered = computed(() => unscoped.value.filter(inScope));
+// Driver and Truck count over what every OTHER filter admits, so an entry's number is the rows it shows.
+const unitBase = computed(() => searched.value.filter(inScope));
+const driverChoices = computed(() => driverOptions(unitBase.value.filter((l) => matchesUnits(l, "", truckFilter.value))));
+const truckChoices = computed(() => truckOptions(unitBase.value.filter((l) => matchesUnits(l, driverFilter.value, ""))));
 /**
  * Loads per dispatcher (Q-DBV8): the board's Dispatcher choice, counting this list — on Exceptions, the exceptions,
  * each by its load. Picking one is the census choice; Dispatched by moved under More, as on the board.
@@ -248,9 +248,12 @@ const whose = computed({
     if (pick) qs.set({ scope: pick.scope, fleet: pick.fleet || undefined });
   },
 });
-const moreChips = computed(() =>
-  dispatcher.value ? [{ key: "dispatcher", label: "Dispatched by", value: dispatcherOptions(board.value).find((o) => o.value === dispatcher.value)?.label ?? dispatcher.value }] : [],
-);
+// Type joined Dispatched by under More when Driver, Truck and Delivered took the row (LOADS-ACTIVITY-PLAN
+// D-LA6; the toolbar holds four, contract §5.5), so it now shows a chip as a secondary filter does.
+const moreChips = computed(() => [
+  ...(dispatcher.value ? [{ key: "dispatcher", label: "Dispatched by", value: dispatcherOptions(board.value).find((o) => o.value === dispatcher.value)?.label ?? dispatcher.value }] : []),
+  ...(typeFilter.value ? [{ key: "type", label: "Type", value: TYPE_OPTIONS.find((o) => o.value === typeFilter.value)?.label ?? typeFilter.value }] : []),
+]);
 
 const columns: DataTableColumn[] = [
   { key: "ref", label: "Load #", sortable: true, width: "sm", cellClass: "font-medium text-ink" },
@@ -262,25 +265,35 @@ const columns: DataTableColumn[] = [
   // D-LMR7: whether the office sent it is its own fact, beside McLeod's status — never folded into it.
   { key: "dispatch", label: "Dispatch", width: "md" },
 ];
+/** When the truck left the last drop (D-LA1), beside Delivery's appointment, on the two tabs that hold delivered loads. */
+const DELIVERED_COLUMN: DataTableColumn = { key: "delivered", label: "Delivered", sortable: true, width: "md" };
 /**
  * Dispatch starts hidden (Q-DBV6, ruled 2026-10-16): it reports an action used 0 times ever
  * (`load_dispatches` = 0 rows), so it is a column nobody reads. The action stays in the row menu, and
  * the column stays one ColumnPicker click away until the driver app is used for it.
  */
-const tableColumns = useTableColumns("dispatch.loads", () => columns, { defaultHidden: ["dispatch"] });
+const tableColumns = useTableColumns(
+  "dispatch.loads",
+  () => (windowed.value ? [...columns.slice(0, 5), DELIVERED_COLUMN, ...columns.slice(5)] : columns),
+  { defaultHidden: ["dispatch"] },
+);
+const nowMs = Date.now();
 
 function sortValue(load: DispatchLoad, key: string): unknown {
   const { pickup, delivery } = boardStops(load.stops);
   if (key === "pickup") return pickup?.appointment_start ?? null;
   if (key === "delivery") return delivery?.appointment_start ?? null;
   if (key === "status") return loadBoardState(load).label;
+  if (key === "delivered") return deliveredCell(load, nowMs).at;
   return (load as unknown as Record<string, unknown>)[key];
 }
 
-const { sort, onSort } = useUrlSort(
-  qs.param("sort", columns.filter((c) => c.sortable).map((c) => c.key)),
+const { sort: urlSort, onSort } = useUrlSort(
+  qs.param("sort", [...columns, DELIVERED_COLUMN].filter((c) => c.sortable).map((c) => c.key)),
   qs.param("dir", SORT_DIRECTIONS),
 );
+// Delivered opens newest delivery first until a header is clicked (D-LA6).
+const sort = computed(() => (urlSort.value.key || tab.value !== "delivered" ? urlSort.value : { key: "delivered", dir: "desc" as const }));
 const sorted = computed(() => sortRows(filtered.value, sort.value, sortValue));
 const pageRows = computed(() => sorted.value.slice((page.value - 1) * PAGE_SIZE, page.value * PAGE_SIZE));
 const emptyText = computed(() => {
@@ -294,12 +307,15 @@ const emptyText = computed(() => {
  * queue tab and the census choice (Mine, All or a fleet) do not — they choose WHICH list it is, as on
  * the board, so clearing keeps them.
  */
-const activeFilterCount = computed(() => [search.value.trim(), dispatcher.value, typeFilter.value].filter(Boolean).length);
-const clearFilters = (): void => qs.set({ search: undefined, dispatcher: undefined, type: undefined });
+const activeFilterCount = computed(
+  () => [search.value.trim(), dispatcher.value, typeFilter.value, driverFilter.value, truckFilter.value, windowed.value && deliveredWindow.moved.value].filter(Boolean).length,
+);
+const clearFilters = (): void =>
+  qs.set({ search: undefined, dispatcher: undefined, type: undefined, driver: undefined, truck: undefined, ...deliveredWindow.reset() });
 
 // The scope's PARAMETER, not `scopeChoice`, whose default flips when the board arrives and would
 // reset a pasted `?page=2`. The clamp follows the table on screen and waits for its feed to arrive.
-watch([search, tab, () => qs.one("scope"), fleet, dispatcher, typeFilter], () => (page.value = 1));
+watch([search, tab, () => qs.one("scope"), fleet, dispatcher, typeFilter, driverFilter, truckFilter, deliveredWindow.instants, view], () => (page.value = 1));
 const shownCount = computed(() => (tab.value === "exceptions" ? filteredExceptions.value.length : filtered.value.length));
 const shownLoaded = computed(() => Boolean(loads.value && (tab.value !== "exceptions" || exceptions.value)));
 watch([shownCount, shownLoaded], ([n, loaded]) => {
@@ -320,6 +336,15 @@ function openDetail(load: DispatchLoad) {
   <div class="space-y-6">
     <PageHeader :description="headerText" />
 
+    <AppSegmentedControl v-model="view" :options="VIEWS" label="Loads or activity" />
+
+    <template v-if="view === 'activity'">
+      <!-- D-LA8: drivers and trucks under the same Dispatcher / fleet choice as the loads. -->
+      <DataWorkspace>
+        <LoadActivityView :board="board" :admits="(item) => admits(item as DispatchLoad, scopeFilter)" :zone="zone" />
+      </DataWorkspace>
+    </template>
+    <template v-else>
     <!-- The shared strip, scrollable: five queues do not fit a 390 px phone, and the strip scrolling
          inside itself is what keeps the PAGE from scrolling sideways (the LR-D3 walk measured 683 px). -->
     <AppTabs v-model="tab" :tabs="tabItems" label="Load queue" />
@@ -337,16 +362,26 @@ function openDetail(load: DispatchLoad) {
         :count="tab === 'exceptions' ? filteredExceptions.length : filtered.length"
         :count-label="tab === 'exceptions' ? 'exceptions' : 'loads'"
         :active-count="activeFilterCount"
-        :more-count="dispatcher ? 1 : 0"
+        :more-count="moreChips.length"
         :chips="moreChips"
-        @remove="qs.set({ dispatcher: undefined })"
+        @remove="(key: string) => qs.set({ [key]: undefined })"
         @clear-all="clearFilters"
       >
         <template #filters>
           <FilterSelect v-model="whose" label="Dispatcher" :options="censusSelectOptions(census)" />
-          <FilterSelect v-model="typeFilter" label="Type" :options="TYPE_OPTIONS" />
+          <!-- D-LA6: carrier days of DELIVERY, on the two tabs that hold delivered loads. -->
+          <DateRangeFilter
+            v-if="windowed"
+            :from="deliveredWindow.from.value"
+            :to="deliveredWindow.to.value"
+            @update:from="(v) => v && (deliveredWindow.from.value = v)"
+            @update:to="(v) => v && (deliveredWindow.to.value = v)"
+          />
+          <FilterSelect v-if="tab !== 'exceptions'" v-model="driverFilter" label="Driver" :options="driverChoices" />
+          <FilterSelect v-if="tab !== 'exceptions'" v-model="truckFilter" label="Truck" :options="truckChoices" />
         </template>
         <template #more>
+          <FilterSelect v-model="typeFilter" label="Type" :options="TYPE_OPTIONS" block />
           <FilterSelect v-model="dispatcher" label="Dispatched by" :options="dispatcherOptions(board)" block />
         </template>
         <!-- The loads table's columns; Exceptions is another table, with none to choose. -->
@@ -357,45 +392,20 @@ function openDetail(load: DispatchLoad) {
 
       <!-- Exceptions is its own feed, not a filter over the loads list: most of its sources exist only
            as events and have no row on the board at all (D-L2). -->
-      <DataTable
+      <LoadExceptionsTable
         v-if="tab === 'exceptions'"
-        :columns="EXCEPTION_COLUMNS"
         :rows="exceptionPageRows"
-        row-key="id"
+        :total="filteredExceptions.length"
+        :page="page"
+        :page-size="PAGE_SIZE"
         :loading="exceptionsLoading"
-        :error="exceptionsFailed ? 'Could not load the exceptions.' : null"
-        :retrying="exceptionsFetching"
+        :failed="exceptionsFailed"
+        :fetching="exceptionsFetching"
         :empty-text="(exceptions ?? []).length ? 'No exceptions match these filters.' : 'Nothing needs attention right now.'"
-        embedded
+        :at="at"
         @retry="refetchExceptions"
-      >
-        <template #cell-kind="{ row }">
-          <span :class="[BADGE_BASE, toneClass(row.kind === 'declined' ? 'danger' : 'warning')]">
-            {{ EXCEPTION_LABELS[row.kind as keyof typeof EXCEPTION_LABELS] }}
-          </span>
-        </template>
-        <template #cell-summary="{ row }">
-          <BaseButton v-if="row.load_id" variant="link" :to="{ name: 'load-detail', params: { id: row.load_id } }" class="font-medium">
-            {{ row.summary }}
-          </BaseButton>
-          <span v-else class="text-ink-secondary">{{ row.summary }}</span>
-        </template>
-        <template #cell-occurred_at="{ row }">{{ at(row.occurred_at) }}</template>
-        <template #actions="{ row }">
-          <BaseButton
-            v-if="session.can('dispatch') && row.load_id"
-            variant="ghost"
-            size="sm"
-            :disabled="resolveException.isPending.value"
-            @click.stop="clearException(row)"
-          >
-            {{ ACTION_LABELS[row.action] ?? "Acknowledge" }}
-          </BaseButton>
-        </template>
-        <template #footer>
-          <TablePagination :page="page" :page-size="PAGE_SIZE" :total="filteredExceptions.length" :loading="exceptionsFetching" @update:page="page = $event" />
-        </template>
-      </DataTable>
+        @update:page="page = $event"
+      />
 
       <DataTable
         v-else
@@ -424,6 +434,8 @@ function openDetail(load: DispatchLoad) {
         </template>
         <template #cell-driver_name="{ row }">
           <p :class="row.driver_name ? 'text-ink' : 'text-ink-tertiary'">{{ row.driver_name ?? "No driver" }}</p>
+          <!-- D-LA2: a team's second seat, as McLeod names it. -->
+          <p v-if="row.co_driver_name" class="text-xs text-ink-secondary" title="Team driver">+ {{ row.co_driver_name }}</p>
           <p class="text-xs tabular-nums text-ink-muted" title="Truck / trailer">
             <!-- D-DB6 point 4: the truck opens on the Dispatch board, its drawer open; HOS and GPS live there. -->
             <BaseButton
@@ -454,11 +466,17 @@ function openDetail(load: DispatchLoad) {
         <template #cell-status="{ row }">
           <div class="flex flex-wrap gap-1">
             <span :class="[BADGE_BASE, toneClass(loadBoardState(row).tone)]" :title="loadBoardState(row).mcleodWords ?? undefined">{{ loadBoardState(row).label }}</span>
+            <!-- D-LA5: moved empty, so not a delivery anybody was paid for. -->
+            <span v-if="row.loaded === false" :class="[BADGE_BASE, toneClass('neutral')]" title="McLeod has this movement as empty">Empty move</span>
             <!-- D-DB4: the board's verdict for the load a truck is hauling now, the same badge the board shows. -->
             <span v-if="onBoard.onTimeOf(row.id)" :class="[BADGE_BASE, toneClass(onTimeBadge(onBoard.onTimeOf(row.id)!).tone)]">
               {{ onTimeBadge(onBoard.onTimeOf(row.id)!).label }}
             </span>
           </div>
+        </template>
+        <template #cell-delivered="{ row }">
+          <span :class="deliveredCell(row, nowMs).at ? 'tabular-nums' : 'text-ink-tertiary'">{{ at(deliveredCell(row, nowMs).at) }}</span>
+          <p v-if="deliveredCell(row, nowMs).ahead" class="text-xs text-warning-700" title="McLeod has this time later than now: it was entered ahead.">Entered ahead in McLeod</p>
         </template>
         <template #cell-dispatch="{ row }">
           <span :class="row.last_dispatch ? 'text-ink-secondary' : 'text-ink-tertiary'">{{ dispatchHeadline(row.last_dispatch) }}</span>
@@ -474,6 +492,7 @@ function openDetail(load: DispatchLoad) {
         </template>
       </DataTable>
     </DataWorkspace>
+    </template>
 
     <DispatchLoadDrawer :load="dispatching" @close="dispatching = null" />
   </div>

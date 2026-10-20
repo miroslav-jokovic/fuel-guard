@@ -1,9 +1,10 @@
 import { Router, type Request, type Response } from "express";
-import { dispatchLoadRequestSchema, resolveExceptionRequestSchema } from "@silvicom/shared";
+import { deliveredWindowQuerySchema, dispatchLoadRequestSchema, resolveExceptionRequestSchema } from "@silvicom/shared";
 import { requireAuth, requireOrg, requireSection } from "../../../middleware/auth.js";
 import { requireModule } from "../../../middleware/requireModule.js";
 import { assignmentHistoryQuerySchema } from "@silvicom/shared";
 import { listAssignmentHistory } from "../dispatchLoads/history.js";
+import { listLoadActivity } from "../dispatchLoads/activity.js";
 import { apiError, asyncHandler, validateBody } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
@@ -88,8 +89,28 @@ export function dispatchRouter(): Router {
     "/loads",
     canView,
     asyncHandler(async (req, res) => {
+      // D-LA6: the Loads page bounds delivered loads by delivery time; without the pair, every load.
+      const q = deliveredWindowQuerySchema.safeParse(req.query);
+      if (!q.success) {
+        res.status(400).json(apiError("invalid_request", q.error.issues[0]?.message ?? "invalid window"));
+        return;
+      }
+      const { delivered_from: from, delivered_before: before } = q.data;
       const admin = getSupabaseAdmin(getAppLocals(req).env);
-      res.json({ loads: await listLoads(admin, req.auth!.orgId!) });
+      res.json({ loads: await listLoads(admin, req.auth!.orgId!, from && before ? { from, before } : undefined) });
+    }),
+  );
+
+  /**
+   * Who has gone how long without a load, per active driver and per truck (LOADS-ACTIVITY-PLAN D-LA7).
+   * A read, so no audit; the same gate as the Loads list it sits beside.
+   */
+  router.get(
+    "/activity",
+    canView,
+    asyncHandler(async (req, res) => {
+      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      res.json(await listLoadActivity(admin, req.auth!.orgId!, new Date()));
     }),
   );
 

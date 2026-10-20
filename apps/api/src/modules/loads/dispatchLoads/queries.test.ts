@@ -106,3 +106,73 @@ describe("listLoads", () => {
   });
 });
 
+
+/**
+ * LOADS-ACTIVITY-PLAN D-LA6: with a delivery window, open loads come back whole and closed ones only
+ * inside it. Delivered is judged by the LAST drop's departure (`loadDeliveredAt`), so a load whose first
+ * drop is in the window and last is not is a candidate and is then dropped. D-LA2: a team's second seat
+ * comes back by name.
+ */
+describe("listLoads with a delivered window", () => {
+  const FROM = "2026-10-12T05:00:00.000Z";
+  const BEFORE = "2026-10-19T05:00:00.000Z";
+  const OPEN = "11111111-2222-4333-8444-0000000000a1";
+  const INSIDE = "11111111-2222-4333-8444-0000000000a2";
+  const SPILLS = "11111111-2222-4333-8444-0000000000a3";
+  const VOID = "11111111-2222-4333-8444-0000000000a4";
+  const HOUSTON = "d0000000-0000-4000-8000-000000000002";
+  const row = (id: string, status: string, over: Record<string, unknown> = {}) =>
+    ({ id, status, source: "tms", provider: "mcleod", dispatcher_external_id: null, hazmat: false, created_at: "2026-10-10T00:00:00Z", ...over });
+  const stops: Record<string, { load_id: string; seq: number; kind: string; actual_departure_at: string | null }[]> = {
+    [INSIDE]: [{ load_id: INSIDE, seq: 1, kind: "pickup", actual_departure_at: "2026-10-13T10:00:00Z" }, { load_id: INSIDE, seq: 2, kind: "dropoff", actual_departure_at: "2026-10-14T10:00:00Z" }],
+    // First drop inside the window, last drop after it: delivered AFTER the window.
+    [SPILLS]: [{ load_id: SPILLS, seq: 1, kind: "dropoff", actual_departure_at: "2026-10-18T10:00:00Z" }, { load_id: SPILLS, seq: 2, kind: "dropoff", actual_departure_at: "2026-10-19T10:00:00Z" }],
+  };
+  const has = (q: RecordedQuery, method: string) => q.ops.some((o) => o.method === method);
+
+  function rig() {
+    return createSupabaseRecorder({
+      tables: {
+        loads: (q: RecordedQuery) => {
+          // Plain arrays: the recorder keeps ONE page queue per table, so `pages` from a function would
+          // serve the first read's queue to the next.
+          if (has(q, "not")) return [row(OPEN, "in_transit", { co_driver_id: HOUSTON })];
+          if (filter(q, "status") === "canceled") return [row(VOID, "canceled", { external_closed_at: "2026-10-15T00:00:00Z" })];
+          return [row(INSIDE, "delivered"), row(SPILLS, "delivered")].filter((r) => (filter(q, "id") as string[]).includes(r.id));
+        },
+        // The candidate read selects only load_id; the stops read selects the board's columns.
+        load_stops: (q: RecordedQuery) => {
+          const ids = filter(q, "load_id") as string[] | undefined;
+          if (!ids) return q.ops.some((o) => o.method === "gte" && o.args[0] === "actual_departure_at") ? [{ load_id: INSIDE }, { load_id: SPILLS }] : [];
+          return ids.flatMap((id) => stops[id] ?? []);
+        },
+        drivers: (q: RecordedQuery) => ((filter(q, "id") as string[]).includes(HOUSTON) ? [{ id: HOUSTON, full_name: "Marcus Houston" }] : []),
+        load_dispatches: [],
+      },
+    });
+  }
+
+  it("returns the open loads, the deliveries whose LAST drop left inside the window, and voids closed inside it", async () => {
+    const rec = rig();
+    const rows = (await listLoads(rec.client, ORG, { from: FROM, before: BEFORE })) as { id: string }[];
+    expect(rows.map((r) => r.id).sort()).toEqual([OPEN, INSIDE, VOID].sort());
+    expectOrgScoped(rec, ORG);
+  });
+
+  it("asks the stops for delivery departures inside the window, half-open", async () => {
+    const rec = rig();
+    await listLoads(rec.client, ORG, { from: FROM, before: BEFORE });
+    const candidate = rec.forTable("load_stops").find((q) => q.ops.some((o) => o.method === "gte" && o.args[0] === "actual_departure_at"))!;
+    expect(candidate.ops.find((o) => o.method === "gte")?.args).toEqual(["actual_departure_at", FROM]);
+    expect(candidate.ops.find((o) => o.method === "lt")?.args).toEqual(["actual_departure_at", BEFORE]);
+    expect(filter(candidate, "kind")).toBe("dropoff");
+  });
+
+  it("names a team load's second driver, read from the org's own roster", async () => {
+    const rec = rig();
+    const rows = (await listLoads(rec.client, ORG, { from: FROM, before: BEFORE })) as { id: string; co_driver_name: string | null }[];
+    expect(rows.find((r) => r.id === OPEN)?.co_driver_name).toBe("Marcus Houston");
+    expect(rows.find((r) => r.id === INSIDE)?.co_driver_name).toBeNull();
+    expect(filter(rec.forTable("drivers")[0]!, "org_id")).toBe(ORG);
+  });
+});

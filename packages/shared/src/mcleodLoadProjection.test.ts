@@ -89,10 +89,21 @@ describe("the load", () => {
   ])("a movement whose stop sequence is %s is refused by name, never numbered by position", (_label, stops) => {
     expect(projectMcleodMovement(movement(), stops)).toEqual({ ok: false, movement_id: "900", reason: "stop sequence missing or repeated" });
   });
-  it("names the first of a team and says so", () => {
+  it("keeps both seats of a team, the first as the driver and the second as the co-driver (D-LA2)", () => {
     const r = projectMcleodMovement(movement({ driver_codes: ["DKELLY", "JSMITH"] }), []);
-    expect(r.ok && r.load.driver_code).toBe("DKELLY");
-    expect(r.ok && r.notes.join()).toMatch(/team DKELLY, JSMITH/);
+    expect(r.ok && [r.load.driver_code, r.load.co_driver_code]).toEqual(["DKELLY", "JSMITH"]);
+    expect(r.ok && r.notes).toEqual([]);
+  });
+
+  it("leaves the co-driver empty on a solo run and on a movement with no driver yet", () => {
+    expect(ok(movement(), []).co_driver_code).toBeNull();
+    expect(ok(movement({ driver_codes: [] }), [])).toMatchObject({ driver_code: null, co_driver_code: null });
+  });
+
+  it("says so when McLeod names a third driver, which has no column to land in", () => {
+    const r = projectMcleodMovement(movement({ driver_codes: ["DKELLY", "JSMITH", "ALEE"] }), []);
+    expect(r.ok && r.load.co_driver_code).toBe("JSMITH");
+    expect(r.ok && r.notes.join()).toMatch(/3 drivers DKELLY, JSMITH, ALEE — first two kept/);
   });
 });
 

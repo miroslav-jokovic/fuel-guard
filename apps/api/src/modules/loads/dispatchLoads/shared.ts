@@ -14,12 +14,14 @@ export type DispatchResult<T> =
   | { ok: false; status: 404 | 409 | 422; code: string; message: string; detail?: string };
 
 export const LOAD_COLUMNS =
-  "id, ref, status, equipment, commodity, hazmat, total_miles, driver_id, vehicle_id, trailer_id, " +
+  "id, ref, status, equipment, commodity, hazmat, total_miles, driver_id, co_driver_id, vehicle_id, trailer_id, " +
   "source, provider, external_id, created_by, submitted_at, approved_by, approved_at, released_at, " +
   "assigned_by, assigned_at, declined_at, decline_reason, cancel_reason, accepted_at, completed_at, " +
   "notes, external_status, external_synced_at, dispatcher_external_id, created_at, updated_at, " +
   // Q-LMR5 (0383): the McLeod customer, by name — written by the projection, null on a manual load.
   "customer_name, " +
+  // D-LA5: McLeod's loaded flag, so an empty move is marked rather than counted as a delivery.
+  "loaded, " +
   "drivers(full_name), vehicles(unit_number), trailers(unit_number)";
 
 export const STOP_COLUMNS =
