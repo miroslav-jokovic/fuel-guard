@@ -71,7 +71,7 @@ import {
  * ── V2: THE DISPATCHERS' OWN QUESTION FIRST (DISPATCH-BOARD-V2-PLAN, ruled 2026-10-16) ───────────
  * Tested with the dispatchers on 2026-10-15: "a lot of information, a little bit confusing". Their own
  * board answers one question — when and where each truck is free — so this one now opens on it: sorted
- * by Available, seven columns, three queues. Trucks per dispatcher are counted in the Dispatcher
+ * by Available, seven columns, two queues (Needs a load retired 2026-10-20, DISPATCH-LOADS-COUNTS-PLAN). Trucks per dispatcher are counted in the Dispatcher
  * select, which is also the scope control (D-DBV2; a strip of buttons until Q-DBV9), and the toolbar
  * filters by where and when a truck is free (D-DBV3). Dispatched by, the rarer question, is under More.
  *

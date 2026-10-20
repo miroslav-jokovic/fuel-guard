@@ -157,17 +157,34 @@ export const loadKeyPrefix = ["dispatch", "load"] as const;
  * delivery time (LOADS-ACTIVITY-PLAN D-LA6). The window is in the key, so moving it re-reads, and every
  * key starts with `loadsKey`, so one invalidate still covers them all.
  */
+interface LoadsRead {
+  loads: DispatchLoad[];
+  /** The first moment the mirror holds a load from (D-DLC6); null for an org with no loads. */
+  history_from: string | null;
+}
+const loadsRead = (window: Ref<{ from: string; before: string }>) => ({
+  queryKey: computed(() => [...loadsKey, window.value.from, window.value.before] as const),
+  queryFn: async (): Promise<LoadsRead> => {
+    const q = new URLSearchParams({ delivered_from: window.value.from, delivered_before: window.value.before });
+    const res = await apiFetch<LoadsRead>(`/api/dispatch/loads?${q}`);
+    if (!res.ok || !res.data) {
+      throw new Error(res.error?.message ?? "Could not load the loads.");
+    }
+    return res.data;
+  },
+});
 export function useLoadsQuery(window: Ref<{ from: string; before: string }>) {
   return useQuery({
-    queryKey: computed(() => [...loadsKey, window.value.from, window.value.before] as const),
-    queryFn: async (): Promise<DispatchLoad[]> => {
-      const q = new URLSearchParams({ delivered_from: window.value.from, delivered_before: window.value.before });
-      const res = await apiFetch<{ loads: DispatchLoad[] }>(`/api/dispatch/loads?${q}`);
-      if (!res.ok || !res.data) {
-        throw new Error(res.error?.message ?? "Could not load the loads.");
-      }
-      return res.data.loads;
-    },
+    ...loadsRead(window),
+    select: (d: LoadsRead) => d.loads,
+    placeholderData: (previous) => previous,
+  });
+}
+/** The same read's floor — one request, one cache entry: `select` is the only difference. */
+export function useLoadsHistoryFrom(window: Ref<{ from: string; before: string }>) {
+  return useQuery({
+    ...loadsRead(window),
+    select: (d: LoadsRead) => d.history_from,
     placeholderData: (previous) => previous,
   });
 }

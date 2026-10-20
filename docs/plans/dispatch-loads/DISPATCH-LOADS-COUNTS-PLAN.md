@@ -1,6 +1,6 @@
 # Dispatch board and Loads: what each tab counts, an empty History, how far Delivered reaches, and the order rows open in — audit and plan
 
-**Status: PROPOSED 2026-10-20 — waiting on §8.** Written after the owner's report of 2026-10-20 (§0),
+**Status: RULED 2026-10-20 — building.** Owner: *"proceed as recommended"*, with two corrections (§11). Written after the owner's report of 2026-10-20 (§0),
 on the owner's instruction to *audit, analyse and research first, then fix properly*. Decision IDs
 `D-DLC*`, open questions `Q-DLC*`. Extends `DISPATCH-BOARD-V2-PLAN.md` (`D-DBV*`, the three tabs and
 the Dispatcher select), `LOADS-ACTIVITY-PLAN.md` (`D-LA*`, the Delivered window) and
@@ -234,3 +234,28 @@ Measured the board with its own reader and the Loads page with SQL (§1–§3), 
 was the union of two hidden queues and that 42 of the empties have no driver, that History's source
 has never held a row, that six months of movements sit in McLeod's live tables the connector does not
 read, and that three of five Loads tabs open in the mirror's insertion order. Waiting on §8.
+
+### 2026-10-20 — Rulings: as recommended, with two corrections
+
+Owner: *"proceed as recommended."* Every §8 recommendation is a ruling, and two facts correct the plan:
+
+- **The 42 trucks with no driver and no fix are ORDERED trucks, not yet delivered** (`vehicles.status =
+  'ordered'`, 42 rows). They were on the board because it hid only `retired`. They are now left out
+  with every status outside `IN_SERVICE_VEHICLE_STATUSES` (derived, as `lint:vehicle-status` asks).
+  That empties Q-DLC2: D-DLC2's "No driver" row is not built, since no in-service empty lacks a fix
+  for that reason; the Status column is unchanged.
+- **"Needs a load" is retired, not redefined.** *"On the dispatch board we have a column for next
+  loads and this is enough and correct; Needs a load is not correct and an unnecessary tab."* D-DLC1 is
+  superseded: the board shows **All trucks** and **Needs attention**; `empty` and `no-next` stay hidden
+  queues for the Operations cards (D-FM7). Q-DLC1 is closed by this.
+
+Built the same day (DLC1 + DLC2 in one PR, web and API, no migration):
+- Board: not-in-service trucks out; two tabs.
+- Loads: each tab opens by its row's own event time (`loadListOrder.ts`, D-DLC4; Upcoming and
+  Uncovered soonest first per Q-DLC7), pinned by `loadListOrder.test.ts`; the contract §5.3 states the
+  rule. Exceptions is shown only once its feed has a row (D-DLC3). The Delivered window opens on 30
+  days (D-DLC6); the page says the window and the mirror's first day, the server's `history_from`
+  (D-DLC7). The columns and the sort accessor moved to `loadListColumns.ts` to keep the page under
+  its 500-line budget.
+- Not built here: DLC3 History on Samsara (next PR), DLC4 the backfill package for Alex, DLC5 server
+  paging (after DLC4).

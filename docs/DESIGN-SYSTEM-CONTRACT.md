@@ -557,6 +557,8 @@ const sorted = computed(() => sortRows(filtered.value, sort.value, getVal));
 ```
 `toggleSort` cycles **none → asc → desc → none**. `sortRows` sorts numbers numerically, strings via `localeCompare(…, {numeric:true})`, **nulls last**. Pass a `get` accessor when a column is derived (`DispatchLoadsPage.vue:162-168`).
 
+**A list of records opens newest first by the row's own event time** — the time the row is about (delivered at, occurred at, when it left the pickup), never `created_at` or the server's insertion order, and never "no sort" (DISPATCH-LOADS-COUNTS-PLAN D-DLC4, owner 2026-10-20: "latest → oldest in every table"). A list whose event is still ahead (Upcoming loads, appointments) opens soonest first. The opening order is a `SortState` the page applies when the URL carries no `sort`, so a header click still overrides it (`features/dispatch/loadListOrder.ts` is the reference). A planning board of subjects, not records (the Dispatch board), keeps its own order and says why.
+
 Server-side (`FuelLogPage.vue:39-42`): same `toggleSort`, then push `sortKey`/`sortDir` into the query filters. Never sort in the template.
 
 ### 5.4 Pagination

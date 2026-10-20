@@ -14,11 +14,16 @@
  * be processed. The browser filters and sorts; it decides nothing.
  *
  * ── EVERY TRUCK THAT CAN BE DISPATCHED ───────────────────────────────────────────────────────────
- * Two kinds of truck are left out. A retired one (the live map's Q-LM8a). And one the TMS is winding
- * down — sold and awaiting pickup, or retiring — unless it holds a load (D-DB11, 2026-10-12): 506 and
- * 26 others sat on the board as if running while McLeod already had them as `tractor_status = 'I'`.
- * A load is work, and hiding work is worse than showing a sold truck, so a winding-down truck that
- * still has a current or next load stays. Both stay on the Vehicles page; this is the board's rule.
+ * Two kinds of truck are left out. One not in service — retired (the live map's Q-LM8a) or ORDERED
+ * and not yet delivered: on 2026-10-20 the board carried 42 ordered trucks with no driver, no fleet
+ * and no GPS fix, which made 42 of its 100 "empty" rows and 42 of its 63 "No GPS" rows, so two
+ * fifths of "Needs attention" was trucks still at the factory (DISPATCH-LOADS-COUNTS-PLAN §1, the
+ * owner's ruling). The set is `IN_SERVICE_VEHICLE_STATUSES`, derived, never a status spelled here.
+ * And one the TMS is winding down — sold and awaiting pickup, or retiring — unless it holds a load
+ * (D-DB11, 2026-10-12): 506 and 26 others sat on the board as if running while McLeod already had
+ * them as `tractor_status = 'I'`. A load is work, and hiding work is worse than showing a sold truck,
+ * so a winding-down truck that still has a current or next load stays. All stay on the Vehicles page;
+ * this is the board's rule.
  *
  * ── ALL TRUCKS, AND THE SCOPE BESIDE THEM ────────────────────────────────────────────────────────
  * The rows are the whole fleet and `scope` says which are the caller's: My fleet / All is a filter, not
@@ -52,6 +57,7 @@ import {
   type DispatchBoardResponse,
   type DispatchBoardRow,
   type DispatchScope,
+  IN_SERVICE_VEHICLE_STATUSES,
 } from "@silvicom/shared";
 import { readHosClocks, readVehiclePositions } from "../samsara/index.js";
 import { readFleetIdentities, readTrailerAnnualInspections } from "../roster/index.js";
@@ -61,8 +67,8 @@ import { readDispatchLinks } from "../mcleod/index.js";
 import { getComplianceOverview } from "../evidence/index.js";
 import { readDriversDueForRandomTest } from "../medstop/index.js";
 
-/** The live map's Q-LM8a ruling, for the same reason: a retired truck is no work anybody can dispatch. */
-const HIDDEN_VEHICLE_STATUS = "retired";
+/** A truck not in service — retired, or ordered and not yet delivered — is no work anybody can dispatch. */
+const inService = (status: string | null): boolean => status != null && (IN_SERVICE_VEHICLE_STATUSES as readonly string[]).includes(status);
 const IN_SHOP_VEHICLE_STATUS = "maintenance";
 
 /** Who is reading the board: what they may see of the driver depends on it (DBV4). */
@@ -114,7 +120,7 @@ export async function readBoardRows(
   const positionOf = new Map(positions.rows.map((p) => [p.vehicle_id, p]));
   const rows: DispatchBoardRow[] = [];
   for (const id of identities.byVehicleId.values()) {
-    if (id.status === HIDDEN_VEHICLE_STATUS) continue;
+    if (!inService(id.status)) continue;
     const p = positionOf.get(id.vehicleId);
     const plan = plans.byVehicleId.get(id.vehicleId) ?? { current: null, next: null, currentAhead: [], currentTrailerId: null };
     if (id.windingDown && !plan.current && !plan.next) continue;

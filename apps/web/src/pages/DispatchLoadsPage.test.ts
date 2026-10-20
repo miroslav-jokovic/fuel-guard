@@ -52,6 +52,7 @@ vi.mock("@/features/dispatch/useDispatchLoads", async (orig) => ({
     refetch: () => {},
     isFetching: ref(false),
   }),
+  useLoadsHistoryFrom: () => ({ data: ref(loadsRead.fails ? undefined : "2026-09-17T17:49:26Z"), isLoading: ref(false), isError: ref(false), refetch: () => {}, isFetching: ref(false) }),
   useLoadActivityQuery: () => ({ data: computed(() => activity.value), isLoading: ref(false), isError: ref(false), refetch: () => {}, isFetching: ref(false) }),
   useExceptionsQuery: () => ({ data: exceptionsData, isLoading: ref(false), isError: ref(false), refetch: () => {}, isFetching: ref(false) }),
   useResolveException: () => ({ isPending: ref(false), mutateAsync: async () => {} }),
@@ -461,13 +462,14 @@ describe("Delivered by driver and truck, and Activity (LOADS-ACTIVITY-PLAN)", ()
   const options = (w: Awaited<ReturnType<typeof mountPage>>, label: string) =>
     (w.findAllComponents({ name: "FilterSelect" }).find((c) => c.props("label") === label)!.props("options") as { label: string; count?: string }[]).map((o) => [o.label, o.count]);
 
-  it("asks the server for the last seven carrier days of deliveries, as two instants", async () => {
+  it("asks the server for the last thirty carrier days of deliveries (D-DLC6), as two instants", async () => {
     board.value = response(false);
     await mountPage("/loads?queue=delivered");
     const { from, before } = loadsRead.window!.value;
     const hours = (Date.parse(before) - Date.parse(from)) / 3_600_000;
-    expect(hours).toBeGreaterThanOrEqual(167);
-    expect(hours).toBeLessThanOrEqual(169);
+    // 30 days, give or take the DST hour.
+    expect(hours).toBeGreaterThanOrEqual(719);
+    expect(hours).toBeLessThanOrEqual(721);
     // Midnight in Chicago is 05:00 or 06:00 UTC, never the viewer's.
     expect(new Date(from).getUTCHours()).toBeGreaterThanOrEqual(5);
   });

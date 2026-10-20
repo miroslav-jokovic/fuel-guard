@@ -26,12 +26,12 @@ function fakeQs(initial: Record<string, string> = {}) {
 const NOW = () => new Date("2026-10-19T03:30:00Z"); // 10/18 22:30 in Chicago: still the 18th there
 
 describe("useDeliveredWindow", () => {
-  it("defaults to the last seven CARRIER days, ending on the carrier's today, not the UTC one", () => {
+  it("defaults to the last thirty CARRIER days (D-DLC6), ending on the carrier's today, not the UTC one", () => {
     const { qs } = fakeQs();
     const w = useDeliveredWindow(qs, ref("America/Chicago"), NOW);
-    expect([w.from.value, w.to.value]).toEqual(["2026-10-12", "2026-10-18"]);
-    // Chicago midnights, CDT (UTC−5): the 12th's start and the 19th's start.
-    expect(w.instants.value).toEqual({ from: "2026-10-12T05:00:00.000Z", before: "2026-10-19T05:00:00.000Z" });
+    expect([w.from.value, w.to.value]).toEqual(["2026-09-19", "2026-10-18"]);
+    // Chicago midnights, CDT (UTC−5): 09/19's start and 10/19's start.
+    expect(w.instants.value).toEqual({ from: "2026-09-19T05:00:00.000Z", before: "2026-10-19T05:00:00.000Z" });
     expect(w.moved.value).toBe(false);
   });
 
@@ -48,7 +48,7 @@ describe("useDeliveredWindow", () => {
 
   it("falls back to the default for a hand-edited day that is not a day", () => {
     const { qs } = fakeQs({ delivered_from: "10/01/2026" });
-    expect(useDeliveredWindow(qs, ref("America/Chicago"), NOW).from.value).toBe("2026-10-12");
+    expect(useDeliveredWindow(qs, ref("America/Chicago"), NOW).from.value).toBe("2026-09-19");
   });
 });
 

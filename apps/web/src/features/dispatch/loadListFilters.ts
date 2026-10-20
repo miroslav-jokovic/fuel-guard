@@ -1,5 +1,5 @@
 import { computed, type Ref } from "vue";
-import { dayRangeInstants, isEnteredAhead, loadDeliveredAt, parseYmd, shiftDay, todayInZone } from "@silvicom/shared";
+import { dayRangeInstants, formatDisplayDate, isEnteredAhead, loadDeliveredAt, parseYmd, shiftDay, todayInZone } from "@silvicom/shared";
 import type { UrlQueryState } from "@silvicom/ui";
 import type { DispatchLoad } from "./useDispatchLoads";
 
@@ -10,8 +10,10 @@ import type { DispatchLoad } from "./useDispatchLoads";
  * The picker holds inclusive `YYYY-MM-DD` days. `dayRangeInstants` turns them into the carrier's
  * midnights, never the viewer's (`a-calendar-day-is-not-an-instant`), and those two instants go to
  * `GET /api/dispatch/loads`, which returns open loads whole and delivered ones only inside them. The
- * trailing seven days is each end's FALLBACK, never written to the URL, so a bookmark keeps meaning "the
- * last week", as on Billing.
+ * trailing thirty days is each end's FALLBACK, never written to the URL, so a bookmark keeps meaning
+ * "the last month", as on Billing. Seven days until 2026-10-20 (D-LA6); the owner found a week or two
+ * of deliveries no help and asked for an explicit, longer range (DISPATCH-LOADS-COUNTS-PLAN D-DLC6) —
+ * the picker's presets reach 90 days, and the page names the window and the mirror's first day.
  *
  * ── DRIVER AND TRUCK ARE EXACT ───────────────────────────────────────────────────────────────────
  * The search box matched "80" to trucks 801, 806, 809 and every load number with an 80 in it. These
@@ -19,7 +21,7 @@ import type { DispatchLoad } from "./useDispatchLoads";
  * it would show, counted over the list every OTHER filter admits, like the Dispatcher select (Q-DBV8).
  */
 
-export const DEFAULT_WINDOW_DAYS = 7;
+export const DEFAULT_WINDOW_DAYS = 30;
 export const NO_DRIVER = "__none__";
 const DAY_PARAM = (v: string | undefined) => parseYmd(v ?? "") ?? null;
 
@@ -99,4 +101,14 @@ export function truckOptions(loads: readonly DispatchLoad[]): Option[] {
 export function deliveredCell(load: DispatchLoad, nowMs: number): { at: string | null; ahead: boolean } {
   const at = load.status === "delivered" ? loadDeliveredAt(load.stops) : null;
   return { at, ahead: isEnteredAhead(at, nowMs) };
+}
+
+/**
+ * The window, said where the count is read (D-DLC7): "All 430" is 430 inside THESE days. And the
+ * floor (D-DLC6): the mirror's first day, the server's `history_from`, so a 30-day list is never read
+ * as the whole history. "Delivered loads from 09/19/2026 to 10/18/2026. Delivery history begins 09/17/2026."
+ */
+export function windowWords(from: string, to: string, historyFrom: string | null): string {
+  const span = `Delivered loads from ${formatDisplayDate(from)} to ${formatDisplayDate(to)}.`;
+  return historyFrom ? `${span} Delivery history begins ${formatDisplayDate(historyFrom.slice(0, 10))}.` : span;
 }

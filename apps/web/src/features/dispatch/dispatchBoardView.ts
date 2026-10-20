@@ -23,15 +23,16 @@ export { NO_FLEET_OPTION, POOL_FLEET, POOL_OPTION, dispatcherLabel } from "./dis
 /**
  * The queues — each a predicate over the server's flags, defined once (plan §4 #5).
  *
- * The board SHOWS three of them as tabs (`BOARD_TABS`, DISPATCH-BOARD-V2-PLAN D-DBV2): the dispatchers
- * found seven tabs confusing (2026-10-15), and the two questions they work from are "which trucks need
- * a load" and "which have a problem". The narrow ones stay queues because the Operations cards count
- * by them and open the board on them (FLEET-MANAGER-HOME-PLAN D-FM7: the number on the card is the
- * rows behind its door) — a narrow queue a link opens is shown as a tab of its own while it is in force.
+ * The board SHOWS two of them as tabs (`BOARD_TABS`): the dispatchers found seven tabs confusing
+ * (2026-10-15, DISPATCH-BOARD-V2-PLAN D-DBV2), and the owner retired the third, "Needs a load", on
+ * 2026-10-20 (DISPATCH-LOADS-COUNTS-PLAN §1, §11): it was Empty now ∪ No next load, and "no next load"
+ * is true of nearly every truck mid-haul, so it said 196 of 205 trucks. The Next load column already
+ * answers the question, row by row. The narrow queues stay because the Operations cards count by them
+ * and open the board on them (FLEET-MANAGER-HOME-PLAN D-FM7: the number on the card is the rows
+ * behind its door) — a narrow queue a link opens is shown as a tab of its own while it is in force.
  */
 export const BOARD_QUEUES = [
   { value: "all", label: "All trucks", test: () => true },
-  { value: "needs-load", label: "Needs a load", test: (r: DispatchBoardRow) => !r.inShop && (r.flags.emptyNow || r.flags.noNextLoad) },
   { value: "attention", label: "Needs attention", test: (r: DispatchBoardRow) => needsAttention(r.flags) },
   { value: "late", label: "Late risk", test: (r: DispatchBoardRow) => r.flags.lateRisk },
   { value: "no-next", label: "No next load", test: (r: DispatchBoardRow) => r.flags.noNextLoad },
@@ -40,7 +41,7 @@ export const BOARD_QUEUES = [
   { value: "no-gps", label: "No GPS", test: (r: DispatchBoardRow) => r.flags.noGps },
 ] as const;
 export type BoardQueue = (typeof BOARD_QUEUES)[number]["value"];
-export const BOARD_TABS: readonly BoardQueue[] = ["all", "needs-load", "attention"];
+export const BOARD_TABS: readonly BoardQueue[] = ["all", "attention"];
 
 /**
  * "Which trucks will be free in Florida, near Orlando, within a day?" (D-DBV3) — the dispatchers' own

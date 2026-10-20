@@ -64,7 +64,7 @@ import {
   loadTypeOf,
 } from "@silvicom/shared";
 import { AppCallout, AppSegmentedControl, AppTabs, AppButton as BaseButton, DataTable, DataWorkspace, FilterBar } from "@silvicom/ui";
-import { SORT_DIRECTIONS, TablePagination, sortRows, useQueryState, useUrlSort, type DataTableColumn } from "@silvicom/ui";
+import { SORT_DIRECTIONS, TablePagination, sortRows, useQueryState, useUrlSort } from "@silvicom/ui";
 import { useSessionStore } from "@/stores/session";
 import { useOrgTimezone } from "@/composables/useOrgTimezone";
 import { useTableColumns } from "@/composables/useTableColumns";
@@ -76,6 +76,7 @@ import {
   QUEUE_TABS,
   inQueue,
   useExceptionsQuery,
+  useLoadsHistoryFrom,
   useLoadsQuery,
   type DispatchLoad,
   type QueueTab,
@@ -83,7 +84,9 @@ import {
 import DispatchLoadDrawer from "@/features/dispatch/DispatchLoadDrawer.vue";
 import LoadExceptionsTable from "@/features/dispatch/LoadExceptionsTable.vue";
 import LoadActivityView from "@/features/dispatch/LoadActivityView.vue";
-import { deliveredCell, driverOptions, matchesUnits, truckOptions, useDeliveredWindow } from "@/features/dispatch/loadListFilters";
+import { deliveredCell, driverOptions, matchesUnits, truckOptions, useDeliveredWindow, windowWords } from "@/features/dispatch/loadListFilters";
+import { DELIVERED_COLUMN, LOAD_COLUMNS, loadSortValue } from "@/features/dispatch/loadListColumns";
+import { listSort } from "@/features/dispatch/loadListOrder";
 import DateRangeFilter from "@/components/DateRangeFilter.vue";
 import { dispatchHeadline } from "@/features/dispatch/useLoadDispatch";
 import { useDispatchBoardQuery } from "@/features/dispatch/useDispatchBoard";
@@ -108,6 +111,7 @@ const view = qs.param("view", ["loads", "activity"], "loads");
 const VIEWS = [{ value: "loads", label: "Loads" }, { value: "activity", label: "Activity" }];
 const deliveredWindow = useDeliveredWindow(qs, zone);
 const { data: loads, isLoading, isError, refetch, isFetching } = useLoadsQuery(deliveredWindow.instants);
+const { data: historyFrom } = useLoadsHistoryFrom(deliveredWindow.instants);
 const { data: exceptions, isLoading: exceptionsLoading, isError: exceptionsFailed, refetch: refetchExceptions, isFetching: exceptionsFetching } = useExceptionsQuery();
 const { data: board } = useDispatchBoardQuery();
 
@@ -161,10 +165,12 @@ const syncedAt = computed(() => {
   for (const l of loads.value ?? []) if (l.external_synced_at && (!newest || l.external_synced_at > newest)) newest = l.external_synced_at;
   return newest;
 });
+// The window is said where the count is read (D-DLC7, D-DLC6): `windowWords`, on the two tabs that hold one.
 const headerText = computed(() =>
-  syncedAt.value
+  (syncedAt.value
     ? `Loads from McLeod as of ${at(syncedAt.value)}. A load reaches a driver only when you dispatch it.`
-    : "Loads come from McLeod. A load reaches a driver only when you dispatch it.",
+    : "Loads come from McLeod. A load reaches a driver only when you dispatch it.") +
+  (windowed.value ? ` ${windowWords(deliveredWindow.from.value, deliveredWindow.to.value, historyFrom.value ?? null)}` : ""),
 );
 
 const typeFilter = qs.param("type", TYPE_VALUES);
@@ -187,7 +193,16 @@ const counts = computed(() => {
 });
 // A tab counts only once the read it counts has answered (F13, US6b): on a failed read every tab said 0.
 const answered = (q: QueueTab) => (q === "exceptions" ? exceptions.value : loads.value) !== undefined;
-const tabItems = computed(() => QUEUE_TABS.map((q) => ({ value: q.value, label: q.label, badge: answered(q.value) ? counts.value[q.value] : undefined })));
+/**
+ * Exceptions shows only once its feed has a row (D-DLC3): the driver app's declines and amendments
+ * had been written 0 times by 2026-10-20, so the tab had read "0" since LR7 — a tab that has never
+ * had a row is not shown, as the Dispatch column is not (Q-DBV6). The feed and its route stay; the
+ * tab appears with its first exception, and stays while a link has it open.
+ */
+const tabItems = computed(() =>
+  QUEUE_TABS.filter((q) => q.value !== "exceptions" || tab.value === "exceptions" || (exceptions.value?.length ?? 0) > 0)
+    .map((q) => ({ value: q.value, label: q.label, badge: answered(q.value) ? counts.value[q.value] : undefined })),
+);
 
 /**
  * Exceptions under the page's scope and type, judged on the exception's LOAD. One with no load we hold
@@ -255,18 +270,6 @@ const moreChips = computed(() => [
   ...(typeFilter.value ? [{ key: "type", label: "Type", value: TYPE_OPTIONS.find((o) => o.value === typeFilter.value)?.label ?? typeFilter.value }] : []),
 ]);
 
-const columns: DataTableColumn[] = [
-  { key: "ref", label: "Load #", sortable: true, width: "sm", cellClass: "font-medium text-ink" },
-  { key: "status", label: "Status", sortable: true, width: "md" },
-  { key: "driver_name", label: "Driver", sortable: true, width: "md" },
-  { key: "pickup", label: "Pickup", sortable: true, width: "lg" },
-  { key: "delivery", label: "Delivery", sortable: true, width: "lg" },
-  { key: "type", label: "Type", width: "sm" },
-  // D-LMR7: whether the office sent it is its own fact, beside McLeod's status — never folded into it.
-  { key: "dispatch", label: "Dispatch", width: "md" },
-];
-/** When the truck left the last drop (D-LA1), beside Delivery's appointment, on the two tabs that hold delivered loads. */
-const DELIVERED_COLUMN: DataTableColumn = { key: "delivered", label: "Delivered", sortable: true, width: "md" };
 /**
  * Dispatch starts hidden (Q-DBV6, ruled 2026-10-16): it reports an action used 0 times ever
  * (`load_dispatches` = 0 rows), so it is a column nobody reads. The action stays in the row menu, and
@@ -274,26 +277,18 @@ const DELIVERED_COLUMN: DataTableColumn = { key: "delivered", label: "Delivered"
  */
 const tableColumns = useTableColumns(
   "dispatch.loads",
-  () => (windowed.value ? [...columns.slice(0, 5), DELIVERED_COLUMN, ...columns.slice(5)] : columns),
+  () => (windowed.value ? [...LOAD_COLUMNS.slice(0, 5), DELIVERED_COLUMN, ...LOAD_COLUMNS.slice(5)] : LOAD_COLUMNS),
   { defaultHidden: ["dispatch"] },
 );
 const nowMs = Date.now();
-
-function sortValue(load: DispatchLoad, key: string): unknown {
-  const { pickup, delivery } = boardStops(load.stops);
-  if (key === "pickup") return pickup?.appointment_start ?? null;
-  if (key === "delivery") return delivery?.appointment_start ?? null;
-  if (key === "status") return loadBoardState(load).label;
-  if (key === "delivered") return deliveredCell(load, nowMs).at;
-  return (load as unknown as Record<string, unknown>)[key];
-}
+const sortValue = (load: DispatchLoad, key: string): unknown => loadSortValue(load, key, nowMs);
 
 const { sort: urlSort, onSort } = useUrlSort(
-  qs.param("sort", [...columns, DELIVERED_COLUMN].filter((c) => c.sortable).map((c) => c.key)),
+  qs.param("sort", [...LOAD_COLUMNS, DELIVERED_COLUMN].filter((c) => c.sortable).map((c) => c.key)),
   qs.param("dir", SORT_DIRECTIONS),
 );
-// Delivered opens newest delivery first until a header is clicked (D-LA6).
-const sort = computed(() => (urlSort.value.key || tab.value !== "delivered" ? urlSort.value : { key: "delivered", dir: "desc" as const }));
+// Each tab opens by its row's own event time until a header is clicked (D-DLC4, `loadListOrder.ts`).
+const sort = computed(() => listSort(urlSort.value, tab.value));
 const sorted = computed(() => sortRows(filtered.value, sort.value, sortValue));
 const pageRows = computed(() => sorted.value.slice((page.value - 1) * PAGE_SIZE, page.value * PAGE_SIZE));
 const emptyText = computed(() => {

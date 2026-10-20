@@ -140,11 +140,11 @@ describe("the dispatch board page", () => {
     expect(w.get("[data-test=drawer]").text()).toBe("closed");
   });
 
-  it("shows three queues as tabs with their counts, and History as the last tab", async () => {
+  it("shows two queues as tabs with their counts, and History as the last tab", async () => {
     board.value = response(true);
     const w = await mountPage();
     const tabs = w.findAll("[role=tab]").map((t) => t.text().replace(/\s+/g, " "));
-    expect(tabs).toEqual(["All trucks 2", "Needs a load 2", "Needs attention 0", "History"]);
+    expect(tabs).toEqual(["All trucks 2", "Needs attention 0", "History"]);
     await w.findAll("[role=tab]").at(-1)!.trigger("click");
     await flushPromises();
     expect(w.router.currentRoute.value.query).toEqual({ queue: "history" });
