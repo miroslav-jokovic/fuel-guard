@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { loadDataset } from "@hazmat/data";
 import { declaresLimitedQuantity } from "@hazmat/engine";
-import { packageTypeFromPrinted, readingsAgree, regulatedTokens } from "@silvicom/shared";
+import { PRINTED_PACKAGE_WORDS, packageTypeFromPrinted, readingsAgree, regulatedTokens } from "@silvicom/shared";
 
 /**
  * `readingsAgree` on a free-text cell two readers transcribed to different extents (READER-CORRECTNESS-PLAN
@@ -83,6 +83,26 @@ describe("readingsAgree on cell extent, over every table entry", () => {
       expect(readingsAgree(PACK, p, `${p} LTD QTY`)).toBe(false);
       expect(readingsAgree(PACK, p, `1${p}`)).toBe(false);
     }
+  });
+
+  it("packaging: a reading without the count agrees past the other's count, for every package word of the table", () => {
+    const wrong: string[] = [];
+    const words = PRINTED_PACKAGE_WORDS.flatMap(({ words: w, codes }) => [...w, ...codes].map((x) => x.replace(/s\?$/, "").toUpperCase()));
+    for (const w of words) for (const cell of [w, `3600LB${w}`, `STEEL ${w}`]) for (const n of [1, 8, 12]) {
+      const counted = `${n} ${cell}`;
+      if (!packageTypeFromPrinted(cell)) continue;
+      for (const [x, y] of [[cell, counted], [cell, `${counted} FG00035-3600T`], [`${cell} FG00035-3600T`, counted]]) {
+        if (!readingsAgree(PACK, x, y) || !readingsAgree(PACK, y, x)) wrong.push(`split: ${x} | ${y}`);
+      }
+      for (const t of REGULATED_TAILS) if (readingsAgree(PACK, `${cell}${t}`, counted) || readingsAgree(PACK, cell, `${counted}${t}`)) wrong.push(`joined: ${cell} | ${counted}${t}`);
+      if (readingsAgree(PACK, `${n + 1} ${cell}`, counted)) wrong.push(`joined other count: ${counted}`);
+    }
+    // Another type past the count, or a count-less reading that leads with a number of its own, never agrees.
+    for (const [x, y] of [["DRUMS", "8 TOTES"], ["TOTES", "8 DRUMS"], ["3600 LB TOTE", "8 3600 LB TOTE"], ["TOTE", "8 3600LBTOTE"], ["", "8 TOTES"]]) {
+      if (readingsAgree(PACK, x, y)) wrong.push(`joined: ${x} | ${y}`);
+    }
+    expect(wrong.slice(0, 10)).toEqual([]);
+    expect(readingsAgree(PACK, "3600LBTOTE", "8 3600LBTOTE FG00035-3600T")).toBe(true);
   });
 
   it("marks: an extra mark with no regulated token agrees; an extra regulated mark never does", () => {
