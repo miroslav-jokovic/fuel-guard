@@ -4,7 +4,7 @@ import { createSupabaseRecorder, expectOrgScoped } from "../../testing/supabaseR
 import { ingestGlControl, readLedgerClose } from "./glControl.js";
 
 /**
- * McLeod's open accounting period (0493, D-TP5): the landing and the close verdict read from it.
+ * McLeod's open accounting period (0498, D-TP5): the landing and the close verdict read from it.
  * The fixture is the sandbox as read 2026-10-19 — TMS, fiscal 2026 period 8, `prior_post = 'N'`.
  */
 const ORG = "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d";

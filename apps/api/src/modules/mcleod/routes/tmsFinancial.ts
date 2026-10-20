@@ -118,7 +118,7 @@ export function registerTmsFinancialRoutes(router: Router): void {
     }),
   );
 
-  // McLeod's open accounting period (0493, D-TP5). Does not stamp the financial freshness row: the
+  // McLeod's open accounting period (0498, D-TP5). Does not stamp the financial freshness row: the
   // gl-accounts post in the same sweep already does, and this says whether months are FINAL, not
   // whether the books are current.
   router.post(

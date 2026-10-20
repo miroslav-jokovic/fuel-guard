@@ -1704,7 +1704,7 @@
         "retention_days": null,
         "partition": null,
         "budget_rows_per_day": null,
-        "why": "bounded by the carrier's McLeod companies, not by elapsed time: one row per company swept (TMS today, four McLeod companies at most), replaced in place by every financial sweep \u2014 it describes the open accounting period NOW and keeps no history (0493)."
+        "why": "bounded by the carrier's McLeod companies, not by elapsed time: one row per company swept (TMS today, four McLeod companies at most), replaced in place by every financial sweep \u2014 it describes the open accounting period NOW and keeps no history (0498)."
       }
     },
     "mcleod_gl_accounts": {

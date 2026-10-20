@@ -58,7 +58,7 @@ export {
   type StagedGlTotal,
   type StagedGlAccount,
 } from "./financialReads.js";
-/** McLeod's open accounting period (0493, D-TP5) — whether a staged month can still move. */
+/** McLeod's open accounting period (0498, D-TP5) — whether a staged month can still move. */
 export { readLedgerClose } from "./glControl.js";
 /** McLeod's hand-keyed IFTA fuel receipts (0434) — the ifta module's door onto them. */
 export { readFuelTaxReceipts, type FuelTaxReceipt } from "./fuelTaxReceipts.js";

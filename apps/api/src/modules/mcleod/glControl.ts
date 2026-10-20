@@ -2,7 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { LedgerClose, TmsGlControlPayload } from "@silvicom/shared";
 
 /**
- * McLeod's open accounting period per company (0493, TRUCK-DRIVER-PNL-PLAN D-TP5) — the landing and
+ * McLeod's open accounting period per company (0498, TRUCK-DRIVER-PNL-PLAN D-TP5) — the landing and
  * the one read.
  *
  * Its own file rather than another function in `financialReads.ts` or `ledgerControlIngest.ts`: it is

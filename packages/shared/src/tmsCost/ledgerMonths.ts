@@ -61,7 +61,7 @@
  * decides whether a month can be reported; none of it says the month can no longer move — July 2026
  * was printed on 08-20 and kept receiving postings until 09-29. McLeod's `gl_control` names each
  * company's open period and, with `prior_post = 'N'`, refuses postings into any period before it
- * (0493). So a reportable month before the open period is `closed: true`; one at or after it is
+ * (0498). So a reportable month before the open period is `closed: true`; one at or after it is
  * `closed: false` and stays reportable, labelled as still open, because withholding it would put the
  * report a month further behind than the owner ruled acceptable (D-FLEET11, 2026-10-10); and with no
  * close verdict at all every month is `closed: null`, which no reader may treat as final.
