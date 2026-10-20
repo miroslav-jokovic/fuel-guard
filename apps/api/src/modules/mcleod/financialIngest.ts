@@ -60,6 +60,7 @@ export async function ingestSettlements(
       posted_pay: s.posted_pay,
       pay_distance: s.pay_distance ?? null,
       is_void: s.is_void ?? false,
+      void_date: s.void_date ?? null,
       accrual_key: s.accrual_key ?? null,
       post_key: s.post_key ?? null,
     }));

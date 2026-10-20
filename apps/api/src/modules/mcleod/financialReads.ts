@@ -31,6 +31,11 @@ export interface StagedSettlement {
   posted_pay: number | string;
   is_void: boolean;
   accrual_key: string | null;
+  /** The payment-side GL key — SETV reverses a voided row on it (`isReversedBySetv`). */
+  post_key: string | null;
+  transferred_at: string | null;
+  /** When the row was voided — SETV's date (0497). Null on a live row, and on rows swept before 0497. */
+  void_date: string | null;
 }
 
 export interface StagedGlTotal {
@@ -97,11 +102,14 @@ async function paged<T>(build: (from: number, to: number) => PromiseLike<{ data:
   return out;
 }
 
+const SETTLEMENT_COLUMNS =
+  "id, external_id, tractor_unit, driver_external_id, payee_id, order_external_id, payee_type, accrued_at, paid_at, total_pay, posted_pay, is_void, accrual_key, post_key, transferred_at, void_date";
+
 export async function readSettlementsWindow(admin: SupabaseClient, orgId: string, fromIso: string, toIso: string): Promise<StagedSettlement[]> {
   return paged<StagedSettlement>((from, to) =>
     admin
       .from("mcleod_settlements")
-      .select("id, external_id, tractor_unit, driver_external_id, payee_id, order_external_id, payee_type, accrued_at, paid_at, total_pay, posted_pay, is_void, accrual_key")
+      .select(SETTLEMENT_COLUMNS)
       .eq("org_id", orgId)
       .gte("accrued_at", fromIso)
       .lt("accrued_at", toIso)
@@ -111,6 +119,26 @@ export async function readSettlementsWindow(admin: SupabaseClient, orgId: string
       // over one repeats and drops boundary rows — the first full projection hit exactly that
       // ("ON CONFLICT DO UPDATE command cannot affect row a second time", 2026-08-28).
       .order("id", { ascending: true })
+      .range(from, to),
+  );
+}
+
+/**
+ * Voided settlements by the date they were VOIDED — GL module SETV's clock, not the accrual's. A row
+ * accrued in May and voided in August reverses August's driver pay (TRUCK-DRIVER-PNL-PLAN §1.3 D3),
+ * so it can only be found by this window. The caller keeps the reversed ones (`isReversedBySetv`).
+ */
+export async function readSettlementVoidsWindow(admin: SupabaseClient, orgId: string, fromIso: string, toIso: string): Promise<StagedSettlement[]> {
+  return paged<StagedSettlement>((from, to) =>
+    admin
+      .from("mcleod_settlements")
+      .select(SETTLEMENT_COLUMNS)
+      .eq("org_id", orgId)
+      .eq("is_void", true)
+      .gte("void_date", fromIso)
+      .lt("void_date", toIso)
+      .order("void_date", { ascending: true })
+      .order("id", { ascending: true }) // a void run shares its stamp; see the settlements tiebreaker
       .range(from, to),
   );
 }

@@ -428,7 +428,10 @@ SELECT
       LTRIM(RTRIM(s.post_key))                      AS post_key,
       -- Voids are SWEPT with their flag, not filtered (D-FIN5): a row voided after its first sweep
       -- used to keep its live copy in the store forever. The store marks it; readers exclude it.
-      CASE WHEN s.is_void = 'Y' THEN 1 ELSE 0 END      AS is_void
+      CASE WHEN s.is_void = 'Y' THEN 1 ELSE 0 END      AS is_void,
+      -- The date GL module SETV reverses a voided, transferred row on (0497, TRUCK-DRIVER-PNL-PLAN
+      -- §1.3 D3): is_void says the row was reversed, this says in which month.
+      CONVERT(varchar(19), s.void_date, 126)        AS void_date
       FROM dbo.drs_settle_hist AS s
      WHERE s.company_id = @companyId
        AND s.accrual_date >= @windowStart

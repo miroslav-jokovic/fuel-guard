@@ -26,7 +26,7 @@ const num = (v) => (v == null ? 0 : Number(v));
  */
 const PAYEE_TYPE = { C: "company_driver", O: "owner_operator" };
 
-function mapSettlement(row) {
+export function mapSettlement(row) {
   return {
     external_id: row.external_id,
     company_id: row.company_id,
@@ -47,6 +47,7 @@ function mapSettlement(row) {
     accrual_key: row.accrual_key || null,
     post_key: row.post_key || null,
     is_void: Number(row.is_void) === 1,
+    void_date: row.void_date ? `${row.void_date}Z` : null,
   };
 }
 

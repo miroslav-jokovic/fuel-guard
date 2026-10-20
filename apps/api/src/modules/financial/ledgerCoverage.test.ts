@@ -2,8 +2,32 @@ import { describe, it, expect } from "vitest";
 import { createSupabaseRecorder, expectOrgScoped } from "../../testing/supabaseRecorder.js";
 import { postgrestFixture } from "../../testing/postgrestFixture.js";
 import { getLedgerCoverage } from "./ledgerCoverage.js";
+import type { RecordedQuery } from "../../testing/supabaseRecorder.js";
 
 const ORG = "11111111-1111-1111-1111-111111111111";
+
+const between = (q: RecordedQuery, col: string, v: string | undefined) => {
+  const gte = q.ops.find((o) => o.method === "gte" && o.args[0] === col)?.args[1] as string | undefined;
+  const lt = q.ops.find((o) => o.method === "lt" && o.args[0] === col)?.args[1] as string | undefined;
+  if ((gte || lt) && !v) return false;
+  return (!gte || v! >= gte) && (!lt || v! < lt);
+};
+
+type Settlement = {
+  posted_pay: number;
+  is_void: boolean;
+  accrual_key: string;
+  accrued_at: string;
+  post_key?: string;
+  transferred_at?: string;
+  void_date?: string;
+};
+
+/** Answers the accrual-window read and the void-date read on the columns each actually filters. */
+const settlementsTable = (rows: Settlement[]) => (q: RecordedQuery) =>
+  q.filters().some((f) => f.col === "is_void" && f.val === true)
+    ? rows.filter((s) => s.is_void && between(q, "void_date", s.void_date))
+    : rows.filter((s) => between(q, "accrued_at", s.accrued_at));
 
 describe("getLedgerCoverage", () => {
   it("claims only the proven module (SET) and reports the rest as uncovered, never as zero", async () => {
@@ -16,12 +40,12 @@ describe("getLedgerCoverage", () => {
           { post_module: "BILL", glid: "12000000", line_count: 2, net_amount: 0, abs_amount: 6200 },
         ],
         // posted_pay sums to SET's one-sided value exactly → drift 0. The voided row must not
-        // count: its dollars were never paid and never posted to the accrual either (D-MC18).
-        mcleod_settlements: [
-          { posted_pay: 1262893.0, is_void: false },
-          { posted_pay: 0.74, is_void: false },
-          { posted_pay: 999.99, is_void: true },
-        ],
+        // count: it was re-issued on the same accrual key, and SET books a key once, for the live row.
+        mcleod_settlements: settlementsTable([
+          { posted_pay: 1262893.0, is_void: false, accrual_key: "K1", accrued_at: "2026-06-10T00:00:00Z" },
+          { posted_pay: 0.74, is_void: false, accrual_key: "K2", accrued_at: "2026-06-11T00:00:00Z" },
+          { posted_pay: 999.99, is_void: true, accrual_key: "K1", accrued_at: "2026-06-10T00:00:00Z", void_date: "2026-06-12T00:00:00Z" },
+        ]),
         // One GL-booked invoice and one unposted row: only the booked one may carry the BILL
         // claim — the unposted row is F3's still-unmeasured vocabulary and stays out of every sum.
         mcleod_billing: [
@@ -95,6 +119,59 @@ describe("getLedgerCoverage", () => {
     const bill = report.modules.find((m) => m.post_module === "BILL")!;
     expect(bill.extracted).toBe(6000);
     expect(bill.source).toContain("2 bills swept before bill_type existed, read as invoices");
+  });
+
+  /**
+   * The settlement rule, measured on the sandbox 2026-10-19 (TRUCK-DRIVER-PNL-PLAN §1.3 D3): SET books a
+   * lone voided row on its accrual date, and SETV reverses a voided, TRANSFERRED row on its void date —
+   * here a June accrual voided in July, which only the void-date read can find.
+   */
+  it("claims SETV from voided, transferred settlements on their void date, and SET from every row the ledger books", async () => {
+    const rec = createSupabaseRecorder({
+      tables: {
+        mcleod_gl_totals: [
+          { post_module: "SET", glid: "20500010", line_count: 3, net_amount: 0, abs_amount: 3400 },
+          { post_module: "SETV", glid: "20500010", line_count: 4, net_amount: 0, abs_amount: 1600 },
+        ],
+        mcleod_settlements: settlementsTable([
+          { posted_pay: 1000, is_void: false, accrual_key: "K1", accrued_at: "2026-07-03T00:00:00Z" },
+          // Alone on its key: SET still books it in July; voided before transfer, so no SETV.
+          { posted_pay: 500, is_void: true, accrual_key: "K2", accrued_at: "2026-07-04T00:00:00Z", void_date: "2026-07-05T00:00:00Z" },
+          // Accrued in June, voided in July after its transfer: July's SETV, not July's SET.
+          { posted_pay: 600, is_void: true, accrual_key: "K3", accrued_at: "2026-06-20T00:00:00Z", post_key: "P3", transferred_at: "2026-06-25T00:00:00Z", void_date: "2026-07-15T00:00:00Z" },
+          // Accrued, transferred and voided inside July, and dated: on both sides, and not "undated".
+          { posted_pay: 200, is_void: true, accrual_key: "K4", accrued_at: "2026-07-06T00:00:00Z", post_key: "P4", transferred_at: "2026-07-08T00:00:00Z", void_date: "2026-07-09T00:00:00Z" },
+        ]),
+        mcleod_billing: [],
+      },
+    });
+    const report = await getLedgerCoverage(rec.client, ORG, "2026-07-01", "2026-08-01");
+    const set = report.modules.find((m) => m.post_module === "SET")!;
+    // 1,000 + 500 + 200 against a 1,700 one-sided module; the residual the source names would show here.
+    expect(set.extracted).toBe(1700);
+    expect(set.drift).toBe(0);
+    expect(set.source).toContain("Payable from Settlement");
+    const setv = report.modules.find((m) => m.post_module === "SETV")!;
+    expect(setv.extracted).toBe(800);
+    expect(setv.drift).toBe(0);
+    expect(setv.source).not.toContain("not yet dated");
+    expectOrgScoped(rec, ORG);
+  });
+
+  it("counts the voided, transferred settlements swept before void_date existed, because no window can date them", async () => {
+    const rec = createSupabaseRecorder({
+      tables: {
+        mcleod_gl_totals: [{ post_module: "SETV", glid: "20500010", line_count: 2, net_amount: 0, abs_amount: 800 }],
+        mcleod_settlements: settlementsTable([
+          { posted_pay: 400, is_void: true, accrual_key: "K1", accrued_at: "2026-07-03T00:00:00Z", post_key: "P1", transferred_at: "2026-07-04T00:00:00Z" },
+        ]),
+        mcleod_billing: [],
+      },
+    });
+    const report = await getLedgerCoverage(rec.client, ORG, "2026-07-01", "2026-08-01");
+    const setv = report.modules.find((m) => m.post_module === "SETV")!;
+    expect(setv.extracted).toBe(0);
+    expect(setv.source).toContain("1 voided settlement swept before void_date existed, not yet dated");
   });
 
   it("an unswept month says so instead of returning an empty report that reads as clean books", async () => {

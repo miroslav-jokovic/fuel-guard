@@ -80,6 +80,11 @@ export const tmsSettlementFactSchema = z.object({
   post_key: z.string().max(32).nullish(),
   /** McLeod's own void flag, swept with the row (D-FIN5). Readers exclude; the store remembers. */
   is_void: z.boolean().default(false),
+  /**
+   * When the row was voided — the date GL module SETV reverses it on (0497, `isReversedBySetv`).
+   * `is_void` says a row was reversed, not in which month. Null on a live row.
+   */
+  void_date: z.string().nullish(),
 });
 export type TmsSettlementFact = z.infer<typeof tmsSettlementFactSchema>;
 

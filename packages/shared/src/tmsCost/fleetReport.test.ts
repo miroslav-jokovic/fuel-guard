@@ -40,10 +40,10 @@ const ledger = {
  * check: with o4 present it fails, without o4 it does not.
  */
 const settlements = [
-  { payee_type: "owner_operator", payee_id: "SCORELIL", tractor_unit: "601", order_external_id: "o1", total_pay: 112_492.09 },
-  { payee_type: "owner_operator", payee_id: "IVETJOIL", tractor_unit: "602", order_external_id: "o2", total_pay: 100_000.0 },
-  { payee_type: "company_driver", payee_id: "DRV101", tractor_unit: "101", order_external_id: "o3", total_pay: 1_000_000.0 },
-  { payee_type: "company_driver", payee_id: "DRV601", tractor_unit: "601", order_external_id: "o4", total_pay: 44_445.08 },
+  { payee_type: "owner_operator", payee_id: "SCORELIL", tractor_unit: "601", order_external_id: "o1", pay: 112_492.09 },
+  { payee_type: "owner_operator", payee_id: "IVETJOIL", tractor_unit: "602", order_external_id: "o2", pay: 100_000.0 },
+  { payee_type: "company_driver", payee_id: "DRV101", tractor_unit: "101", order_external_id: "o3", pay: 1_000_000.0 },
+  { payee_type: "company_driver", payee_id: "DRV601", tractor_unit: "601", order_external_id: "o4", pay: 44_445.08 },
 ];
 
 const bills = [
@@ -90,6 +90,23 @@ describe("computeFleetReport", () => {
     expect(r.total.revenuePerMile).toBe(3.11);
     expect(r.total.costPerMile).toBe(2.61);
     expect(r.total.netPerMile).toBe(0.5);
+  });
+
+  /**
+   * GL module SETV takes a voided settlement back on its void date (TRUCK-DRIVER-PNL-PLAN §1.3 D3).
+   * The reversal is money against the payee, but the load it paid ran in another month: it adds no
+   * settlement, no truck and no order, so it cannot route a load's revenue into the contractor column.
+   */
+  it("takes a reversal off the payee's pay without counting it as a settlement, a truck or an order", () => {
+    const reversal = { payee_type: "owner_operator", payee_id: "SCORELIL", tractor_unit: "603", order_external_id: "o4", pay: -2_492.09, reversal: true };
+    const r = computeFleetReport(july({ settlements: [...settlements, reversal] }));
+    expect(r.ownerOperatorBasis.pay).toBe(210_000);
+    expect(r.ownerOperatorBasis.settlements).toBe(2);
+    expect(r.ownerOperator.trucks).toBe(2);
+    expect(r.ownerOperatorBasis.loadRevenue).toBe(203_192.01);
+    const scorelil = r.ownerOperators.find((o) => o.payeeId === "SCORELIL")!;
+    expect(scorelil.pay).toBe(110_000);
+    expect(scorelil.settlements).toBe(1);
   });
 
   it("derives the contractor column from the subledgers, by order and not by truck", () => {

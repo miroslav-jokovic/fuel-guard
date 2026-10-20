@@ -2,6 +2,10 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   billRevenue,
   isCreditBill,
+  isReversedBySetv,
+  settlementBookedPay,
+  settlementReversalPay,
+  settlementsBookedBySet,
   computeFleetReport,
   buildFamilySummary,
   type FleetReport,
@@ -11,6 +15,7 @@ import {
 } from "@silvicom/shared";
 import {
   readSettlementsWindow,
+  readSettlementVoidsWindow,
   readBillingWindow,
   readOwnerOperatorDeductions,
   readFinancialSyncedAt,
@@ -118,10 +123,11 @@ export async function getFleetReport(
   // Subledger windows use the requested dates; the ledger widens to whole months on its own. That
   // asymmetry is deliberate and it is what the report states: the money is the month's, the
   // contractor split is the window's, and a caller asking for a whole month gets both aligned.
-  const [ledger, coverage, settlements, bills, deductions, samsaraMiles, sweptAt] = await Promise.all([
+  const [ledger, coverage, settlements, voids, bills, deductions, samsaraMiles, sweptAt] = await Promise.all([
     readLedgerForPeriod(admin, orgId, fromIso, toIso),
     getMileageCoverage(admin, orgId, fromIso, toIso),
     readSettlementsWindow(admin, orgId, fromIso, toIso),
+    readSettlementVoidsWindow(admin, orgId, fromIso, toIso),
     readBillingWindow(admin, orgId, fromIso, toIso),
     readOwnerOperatorDeductions(admin, orgId, fromIso, toIso),
     readVehicleMonthlyMiles(admin, orgId, coveredMonths(fromIso, toIso)),
@@ -149,17 +155,26 @@ export async function getFleetReport(
       trucks: coverage.trucks,
       reason: coverage.reason,
     },
-    settlements: settlements
-      // A voided settlement's pay was never paid; counting it would inflate the contractor column
-      // and, through the remainder construction, deflate the company one.
-      .filter((s) => !s.is_void)
-      .map((s) => ({
+    // Contractor pay as the ledger books it (Q-TP6): SET's rows on their accrual date, SETV's
+    // reversals on their void date. Any other figure leaves the gap between it and the ledger in the
+    // company column, which is the remainder of the two (TRUCK-DRIVER-PNL-PLAN §1.3 D3).
+    settlements: [
+      ...settlementsBookedBySet(settlements).map((s) => ({
         payee_type: s.payee_type,
         payee_id: s.payee_id,
         tractor_unit: s.tractor_unit,
         order_external_id: s.order_external_id,
-        total_pay: Number(s.total_pay),
+        pay: settlementBookedPay(s),
       })),
+      ...voids.filter(isReversedBySetv).map((s) => ({
+        payee_type: s.payee_type,
+        payee_id: s.payee_id,
+        tractor_unit: s.tractor_unit,
+        order_external_id: s.order_external_id,
+        pay: settlementReversalPay(s),
+        reversal: true,
+      })),
+    ],
     bills: bills
       // The same predicate every other revenue figure uses (D-MC12): a bill counts when the GL
       // booked it. Reading the staged rows instead would quietly disagree with the statement above.
