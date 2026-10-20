@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   REPORT_CHECK_VERSION,
+  courtPaperFiledAt,
   roadsideNextSteps,
   roadsideWork,
   type AttributionSource,
@@ -15,7 +16,7 @@ import { REPORT_CHECK_COLS, reportCheckDtos, type ReportCheckRow } from "../repo
 import { ATTRIBUTION_COLS, attributionDto, decisionRow, namedIds, ref, rosterOf, type AttributionRow, type LatestAttribution, type Roster } from "./inspectionAttribution.js";
 import { inspectionSms } from "./inspectionSms.js";
 import { readRepairsDue } from "./repairsDue.js";
-import { CITATION_ACTION_COLS, courtResultsFiled, newestActs, ticketsByInspection, type CitationActionRow } from "../citation/read.js";
+import { CITATION_ACTION_COLS, courtPapersFiled, courtPeople, newestActs, readCourtRecords, ticketsByInspection, type CitationActionRow } from "../citation/read.js";
 import type { DbError } from "./inspectionsList.js";
 
 /**
@@ -158,7 +159,7 @@ export async function readInspectionsWork(
   const ids = heads.data.map((h) => h.id);
   if (ids.length === 0) return [];
 
-  const [violations, citations, attributions, acts, due] = await Promise.all([
+  const [violations, citations, attributions, acts, due, court] = await Promise.all([
     overIds<ViolationRow>(ids, (c, f, t) => admin.from("roadside_violations").select("id, inspection_id, viol_code, out_of_service, description, citation_number, category_id")
       .eq("org_id", orgId).in("inspection_id", c).is("vanished_at", null).order("id").range(f, t)),
     overIds<CitationRow>(ids, (c, f, t) => admin.from("roadside_citations").select("violation_id, citation_code, citation_result, adjseq")
@@ -168,6 +169,7 @@ export async function readInspectionsWork(
     overIds<CitationActionRow>(ids, (c, f, t) => admin.from("inspection_citation_actions").select(CITATION_ACTION_COLS)
       .eq("org_id", orgId).in("inspection_id", c).order("id").range(f, t)),
     readRepairsDue(admin, orgId, opts.today),
+    readCourtRecords(admin, orgId, ids),
   ]);
   const failed = violations.error ?? citations.error ?? attributions.error ?? acts.error;
   if (failed) return { error: failed };
@@ -188,7 +190,7 @@ export async function readInspectionsWork(
   const latest = latestOf(attributions.data);
   const samsara: string[] = [];
   const rosterIds = [...reports.checks.values()].flatMap((c) => (c.driver_id ? [c.driver_id] : []));
-  const deciders: string[] = acts.data.map((a) => a.acted_by);
+  const deciders: string[] = courtPeople(acts.data, court);
   for (const l of latest.values()) {
     const n = namedIds(l);
     samsara.push(...n.samsara);
@@ -206,8 +208,8 @@ export async function readInspectionsWork(
   for (const c of [...citations.data].sort((a, b) => (a.adjseq ?? 0) - (b.adjseq ?? 0))) {
     if (c.violation_id && c.citation_code != null) citationCode.set(c.violation_id, c.citation_code);
   }
-  const ticketsOf = ticketsByInspection(violations.data, citations.data, newestActs(acts.data), labels);
-  const filed = ticketsOf.size ? await courtResultsFiled(admin, orgId) : new Set<string>();
+  const ticketsOf = ticketsByInspection(violations.data, citations.data, newestActs(acts.data), labels, court);
+  const papers = ticketsOf.size ? await courtPapersFiled(admin, orgId) : new Map<string, { filedAt: string }[]>();
   const docsOf = new Map<string, { id: string }[]>();
   for (const d of reports.docs) docsOf.set(d.subjectId, [...(docsOf.get(d.subjectId) ?? []), d]);
   const empty: LatestAttribution = { engine: null, person: null, report: null };
@@ -224,7 +226,7 @@ export async function readInspectionsWork(
       inspectionDate: h.inspection_date,
       repairs: repairsOf.get(h.id) ?? [],
       certification: certs.get(h.id) ?? null,
-      citations: { tickets: ticketsOf.get(h.id) ?? [], courtResultFiled: filed.has(h.id) },
+      citations: { tickets: ticketsOf.get(h.id) ?? [], courtPaperFiledAt: courtPaperFiledAt(papers.get(h.id) ?? []) },
       today: opts.today,
     });
     const sms = inspectionSms(

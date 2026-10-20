@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { flushPromises, mount } from "@vue/test-utils";
 import { ref } from "vue";
-import type { RoadsideAttributionDto, RoadsideRepairCertificationDto, RoadsideRepairDto } from "@silvicom/shared";
+import type { RoadsideAttributionDto, RoadsideInspectionCitationsDto, RoadsideRepairCertificationDto, RoadsideRepairDto } from "@silvicom/shared";
 
 /**
  * The Next steps strip on the Inspection page (Q-IC17, IC15). The rule is `roadsideNextSteps`'s and is
@@ -16,10 +16,11 @@ import type { RoadsideAttributionDto, RoadsideRepairCertificationDto, RoadsideRe
 const repairs = ref<RoadsideRepairDto[] | undefined>(undefined);
 const loading = ref(true);
 const certification = ref<RoadsideRepairCertificationDto | null | undefined>(null);
+const citations = ref<RoadsideInspectionCitationsDto>({ tickets: [], courtPapers: [], filing: null as never });
 vi.mock("./useRoadsideInspections", () => ({
   useInspectionRepairsQuery: () => ({ data: repairs, isLoading: loading, isError: ref(false), error: ref(null), isFetching: ref(false), refetch: vi.fn() }),
   useRepairCertificationQuery: () => ({ data: certification }),
-  useInspectionCitationsQuery: () => ({ data: ref({ tickets: [], courtResultFiled: false }) }),
+  useInspectionCitationsQuery: () => ({ data: citations }),
 }));
 // The org is in Los Angeles; the test runs at 2026-10-17 04:00 UTC, which is still 10-16 there.
 vi.mock("@/composables/useOrgTimezone", () => ({ useOrgTimezone: () => ({ zone: ref("America/Los_Angeles") }) }));
@@ -53,6 +54,7 @@ beforeEach(() => {
   repairs.value = [];
   loading.value = false;
   certification.value = null;
+  citations.value = { tickets: [], courtPapers: [], filing: null as never };
 });
 
 describe("the Next steps strip", () => {
@@ -87,5 +89,15 @@ describe("the Next steps strip", () => {
     await w.get("[data-test='step-go-repair:u-1']").trigger("click");
     await w.get("[data-test='step-go-report']").trigger("click");
     expect(w.emitted("go")).toEqual([["repair"], ["documents"]]);
+  });
+
+  it("asks what a court paper filed on the inspection decided about each ticket", async () => {
+    citations.value = {
+      tickets: [{ violationId: "v-1", code: "392.2", description: "Speeding", citationNumber: "E061", courtResults: [], action: null, disposition: null, dataqsCase: null }],
+      courtPapers: [{ id: "doc-1", filedAt: "2026-10-15T00:00:00Z" }],
+      filing: null as never,
+    };
+    const w = await strip();
+    expect(w.get("[data-test='step-citation:v-1']").text()).toContain("Ticket E061: record what the court decided");
   });
 });

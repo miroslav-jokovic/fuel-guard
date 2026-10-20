@@ -1366,6 +1366,28 @@
         "why": "the safety office's acts on a roadside ticket with no court result (0489, IC4): requested from the court, or not contested — ~90 open tickets measured 2026-10-19, a row or two each. RETENTION_FORBIDDEN: it is the record of what was done about a citation."
       }
     },
+    "inspection_citation_dispositions": {
+      "module": "inspections",
+      "layer": "derived",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 5,
+        "why": "what the court decided on a roadside ticket, recorded by a person from the filed court paper (0495, IC4): ~165 tickets on three years of record (2026-10-19), a row or two each. RETENTION_FORBIDDEN: it is the record of the court's word a DataQs request rests on."
+      }
+    },
+    "dataqs_cases": {
+      "module": "inspections",
+      "layer": "derived",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 5,
+        "why": "a DataQs request a person attested to under 18 USC 1001 and filed in DataQs themselves (0495, IC4): two rows per request (approved, filed), a few dozen requests a year. RETENTION_FORBIDDEN: it is the carrier's signed statement to FMCSA."
+      }
+    },
     "inspection_report_checks": {
       "module": "inspections",
       "layer": "derived",

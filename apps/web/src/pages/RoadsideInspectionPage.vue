@@ -274,7 +274,9 @@ const VIOLATION_COLUMNS: DataTableColumn[] = [
           tabindex="-1"
           :inspection-id="inspection.id"
           :inspection-date="inspection.inspectionDate"
+          :attribution="inspection.attribution"
           @file-result="go('documents')"
+          @confirm-driver="go('driver')"
         />
 
         <InspectionDocumentsCard id="inspection-documents" tabindex="-1" :inspection-id="inspection.id" />

@@ -6,7 +6,10 @@ import type {
   DocumentRow,
   RoadsideAttributionDecision,
   RoadsideCitationAction,
-  RoadsideCitationDto,
+  RoadsideCitationDisposition,
+  RoadsideDataqsApprove,
+  RoadsideDataqsFiled,
+  RoadsideInspectionCitationsDto,
   RoadsideDocumentRegisterRequest,
   RoadsideInspectionDetailDto,
   RoadsideInspectionDto,
@@ -211,22 +214,24 @@ export function useRoadsideRepairsDueQuery(enabled: Ref<boolean> = ref(true)) {
   });
 }
 
-/** The inspection's tickets and where each stands (IC4, R-ADJ1). Its own query, refreshed by an act or a filed court result. */
+/** The inspection's tickets and where each stands (IC4). Its own query, refreshed by an act, a disposition, a request or a filed court result. */
 export function useInspectionCitationsQuery(id: Ref<string>) {
   return useQuery({
     queryKey: computed(() => ["roadside-inspections", "citations", id.value] as const),
     staleTime: 60_000,
-    queryFn: () =>
-      read<{ tickets: RoadsideCitationDto[]; courtResultFiled: boolean }>(`/api/roadside-inspections/${encodeURIComponent(id.value)}/citations`, "the tickets"),
+    queryFn: () => read<RoadsideInspectionCitationsDto>(`/api/roadside-inspections/${encodeURIComponent(id.value)}/citations`, "the tickets"),
   });
 }
 
-/** The office's act on one ticket. Refused with `changed` when someone acted first; the record is read again either way. */
-export function useActOnCitation(id: Ref<string>) {
+/**
+ * A write on one ticket (IC4): the office's act, what the court decided, the DataQs request approved, its RDR
+ * number. Refused with `changed` (or `driver_changed`) when someone wrote first; the record is read again either way.
+ */
+function useCitationWrite<T extends object>(id: Ref<string>, path: string) {
   const client = useQueryClient();
   return useMutation({
-    mutationFn: async (input: RoadsideCitationAction): Promise<void> => {
-      const res = await apiFetch(`/api/roadside-inspections/${encodeURIComponent(id.value)}/citations`, { method: "POST", body: input });
+    mutationFn: async (input: T): Promise<void> => {
+      const res = await apiFetch(`/api/roadside-inspections/${encodeURIComponent(id.value)}/citations${path}`, { method: "POST", body: input });
       if (!res.ok) throw new RepairDecisionError(res.error?.message ?? "It could not be recorded.", res.error?.code ?? null);
     },
     onSettled: () =>
@@ -236,6 +241,11 @@ export function useActOnCitation(id: Ref<string>) {
       ]),
   });
 }
+
+export const useActOnCitation = (id: Ref<string>) => useCitationWrite<RoadsideCitationAction>(id, "");
+export const useRecordDisposition = (id: Ref<string>) => useCitationWrite<RoadsideCitationDisposition>(id, "/dispositions");
+export const useApproveDataqs = (id: Ref<string>) => useCitationWrite<RoadsideDataqsApprove>(id, "/dataqs");
+export const useRecordDataqsFiled = (id: Ref<string>) => useCitationWrite<RoadsideDataqsFiled>(id, "/dataqs/filed");
 
 /** The repair decision's refusal, kept whole like the driver's: `changed` means reload before deciding again. */
 export class RepairDecisionError extends AttributionDecisionError {}

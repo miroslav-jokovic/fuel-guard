@@ -1,21 +1,17 @@
 import { Router } from "express";
 import {
   isCalendarDay,
-  organizationTimezone,
   roadsideAttributionDecisionSchema,
   roadsideDocumentRegisterSchema,
   roadsideRepairCertifySchema,
-  roadsideCitationActionSchema,
   roadsideRepairDecisionSchema,
   shiftDay,
-  todayInZone,
   type CalendarDay,
   type RoadsideSummary,
   VIOLATION_CATEGORY_NAMES,
   roadsideStats,
   recordId,
 } from "@silvicom/shared";
-import type { SupabaseClient } from "@supabase/supabase-js";
 import { requireAuth, requireOrg, requireSection } from "../../../middleware/auth.js";
 import { apiError, asyncHandler, dbErrorResponse } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
@@ -27,8 +23,8 @@ import { decideAttribution } from "../attribution/decide.js";
 import { readInspectionRepairs, readRepairCertification } from "../read/inspectionRepairs.js";
 import { readRepairsDue } from "../read/repairsDue.js";
 import { readInspectionsWork } from "../read/inspectionsWork.js";
-import { readInspectionCitations } from "../citation/read.js";
-import { actOnCitation } from "../citation/act.js";
+import { orgToday } from "../read/orgToday.js";
+import { citationRoutes } from "./citations.js";
 import { decideRepair } from "../repair/decide.js";
 import { certifyRepairs } from "../repair/certify.js";
 import { listInspectionDocuments, registerInspectionDocument, signInspectionDocumentDownload } from "../documents/inspectionDocuments.js";
@@ -54,11 +50,6 @@ import { listInspectionDocuments, registerInspectionDocument, signInspectionDocu
  * the same window with `roadsidePeriodStart` on its own clock, so the page's row count is the card's
  * figure (D-FM7) — the summary is that list's rows counted by `summarizeRoadside`, not a second query.
  */
-/** Today on the carrier's calendar: the card's window ends on it and an inspection's CSA points are measured on it. */
-async function orgToday(admin: SupabaseClient, orgId: string): Promise<CalendarDay> {
-  const { data: org } = await admin.from("organizations").select("operating_hours").eq("id", orgId).maybeSingle();
-  return todayInZone(new Date(), organizationTimezone(org?.operating_hours));
-}
 
 /**
  * `?from=&to=` as calendar days, either optional. `isCalendarDay` is shape only; a day that does not exist
@@ -383,52 +374,7 @@ export function roadsideInspectionsRouter(): Router {
     }),
   );
 
-  /** The inspection's tickets and where each stands (IC4, R-ADJ1): FMCSA's court results and the office's acts. */
-  router.get(
-    "/:id/citations",
-    canView,
-    asyncHandler(async (req, res) => {
-      const id = recordId().safeParse(req.params.id);
-      if (!id.success) {
-        res.status(404).json(apiError("not_found", "Roadside inspection not found"));
-        return;
-      }
-      const out = await readInspectionCitations(getSupabaseAdmin(getAppLocals(req).env), req.auth!.orgId!, id.data);
-      if ("error" in out) {
-        dbErrorResponse(res, "roadside-inspections.citations", out.error, "Could not load the tickets");
-        return;
-      }
-      res.json({ ok: true, data: out });
-    }),
-  );
-
-  /** The office's act on one ticket — requested from the court, or not contested (Q-IC2 (a): safety's). */
-  router.post(
-    "/:id/citations",
-    requireSection("safety"),
-    asyncHandler(async (req, res) => {
-      const id = recordId().safeParse(req.params.id);
-      if (!id.success) {
-        res.status(404).json(apiError("not_found", "Roadside inspection not found"));
-        return;
-      }
-      const body = roadsideCitationActionSchema.safeParse(req.body);
-      if (!body.success) {
-        res.status(400).json(apiError("bad_request", body.error.issues[0]?.message ?? "Invalid action"));
-        return;
-      }
-      const out = await actOnCitation(getSupabaseAdmin(getAppLocals(req).env), req.auth!.orgId!, id.data, req.auth!.userId, body.data);
-      if ("error" in out) {
-        dbErrorResponse(res, "roadside-inspections.citation-act", out.error, "Could not record it");
-        return;
-      }
-      if (!out.ok) {
-        res.status(out.status).json(apiError(out.code, out.message));
-        return;
-      }
-      res.status(201).json({ ok: true, data: { id: out.id } });
-    }),
-  );
+  citationRoutes(router, canView);
 
   router.post(
     "/:id/attribution",
