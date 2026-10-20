@@ -25,7 +25,7 @@ alter table mcleod_settlements
   add column if not exists void_date timestamptz;
 
 comment on column mcleod_settlements.void_date is
-  'McLeod drs_settle_hist.void_date verbatim (org local wall time labelled UTC, like every McLeod stamp — 0305). The month GL module SETV reverses a voided settlement in. Null = live, or swept before 0492.';
+  'McLeod drs_settle_hist.void_date verbatim (org local wall time labelled UTC, like every McLeod stamp — 0305). The month GL module SETV reverses a voided settlement in. Null = live, or swept before 0497.';
 
 -- raw-access-waiver: this migration widens the mcleod raw staging table it names — the owning
 -- collector's own DDL, no cross-module read.
