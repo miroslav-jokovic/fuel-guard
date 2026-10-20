@@ -195,7 +195,7 @@ export async function readBillingDispatchers(
  * no miles and no delivering truck. That holds whether or not McLeod copies the credited load's
  * distance onto the credit — counting it would bill the same miles twice. Unmeasured: how often a
  * credit is followed by a re-bill of the same order, which would still count that load's miles twice
- * (TRUCK-DRIVER-PNL-PLAN §6).
+ * (TRUCK-DRIVER-PNL-PLAN Q-TP11).
  */
 export async function readBilledMilesByDeliveryMonth(
   admin: SupabaseClient,
