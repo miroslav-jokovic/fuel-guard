@@ -1131,10 +1131,19 @@ export const DISPATCH_LOAD_STOPS = `${DISPATCH_LOAD_STOPS_SELECT}${BOARD_WHERE.r
  * Bounded by a window on `stop.actual_departure`, never by status alone: `actual_departure` reaches
  * the year 2215 (a sentinel), and a window excludes it. Run once, by hand, with `--loads-backfill`;
  * never on the schedule.
+ *
+ * Loaded movements only (D-DLC8, measured 2026-10-20 on live `lme`): of the 806 movements delivered
+ * in the week of 10/12, 385 were empty legs (`loaded = 'E'`, the deadhead to the next pickup), and
+ * every one of the 417 loaded legs was already in the mirror. An empty leg carries the SAME order as
+ * its loaded leg and the projection makes a load of either, so a backfill without this line would
+ * show six months of orders twice — about 8,700 phantom deliveries. The board read has no such
+ * filter and needs none: an empty leg is open for minutes, and the eleven it has caught in six weeks
+ * are McLeod's statement at the time, kept.
  */
 const DELIVERED_WHERE = `
      WHERE m.company_id = @companyId
        AND m.status = 'D'
+       AND m.loaded = 'L'
        AND EXISTS (
          SELECT 1 FROM dbo.stop AS sb
           WHERE sb.movement_id = m.id

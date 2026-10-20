@@ -24,6 +24,15 @@ import type { TmsDispatchMovement } from "@silvicom/shared";
  * again (null). Never set because a movement left the board: absence is not a statement (the
  * reconcile that retired 33 vehicles and 120 drivers inferred exactly that).
  *
+ * A movement NEVER seen before that arrives already closed is the backfill's (DISPATCH-LOADS-COUNTS-PLAN
+ * D-DLC9, 2026-10-20): the board never sends a D, and the close read asks only about ids this table
+ * holds. McLeod said so long ago, so "now" would be false twice over — it would date six months of
+ * April deliveries on the day of the run, and the relink pass (D-LA3) reads every movement closed in
+ * the last 60 days on every mirror post, in chunks of 50: measured 2026-10-20, 8,700 such rows would
+ * have cost about 180 extra reads a minute for two months. The stamp is the movement's last stop
+ * departure McLeod recorded, the same instant the Delivered window keys on (D-LA6); only a departure
+ * not after the sync counts, because `actual_departure` carries a year-2215 placeholder on some stops.
+ *
  * ── A MOVEMENT'S STOPS ARE REPLACED, NOT MERGED ──────────────────────────────────────────────────
  * The payload carries a movement's WHOLE stop list, so a stop McLeod removed is one we still hold and
  * the payload does not name — deleted here, by id, scoped to the org and company. That is McLeod's
@@ -51,6 +60,25 @@ const chunk = <T>(xs: T[], n: number): T[][] => {
   for (let i = 0; i < xs.length; i += n) out.push(xs.slice(i, i + n));
   return out;
 };
+
+/**
+ * When McLeod closed a movement it is stating for the first time already closed (D-DLC9): the latest
+ * stop departure it recorded that is not after `notAfterIso`, else `notAfterIso` itself — a closed
+ * movement with no usable departure (every stop placeholder-dated) is still closed, and dated as
+ * honestly as a close read would date it.
+ */
+export function firstSightingCloseAt(stops: readonly { actual_departure: string | null }[], notAfterIso: string): string {
+  const ceiling = Date.parse(notAfterIso);
+  let best: string | null = null;
+  for (const s of stops) {
+    const at = s.actual_departure;
+    if (at == null) continue;
+    const t = Date.parse(at);
+    if (t > ceiling) continue;
+    if (best === null || t > Date.parse(best)) best = at;
+  }
+  return best ?? notAfterIso;
+}
 
 export async function ingestDispatchMovements(
   admin: SupabaseClient,
@@ -105,7 +133,13 @@ export async function ingestDispatchMovements(
       consignee_refno: m.consignee_refno,
       move_distance: m.move_distance,
       last_seen_at: syncedAt,
-      closed_at: isClosed ? (closedBefore.get(m.movement_id) ?? syncedAt) : null,
+      // Held before: McLeod's earlier stamp, or this sync when it has only now said D or V. Never
+      // held: the backfill's first sighting, dated by McLeod's own last departure (D-DLC9).
+      closed_at: !isClosed
+        ? null
+        : closedBefore.has(m.movement_id)
+          ? (closedBefore.get(m.movement_id) ?? syncedAt)
+          : firstSightingCloseAt(m.stops, syncedAt),
     };
   });
   for (const part of chunk(movementRows, WRITE_CHUNK)) {

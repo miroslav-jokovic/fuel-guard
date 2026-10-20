@@ -297,3 +297,43 @@ Built the same day (DLC1 + DLC2 in one PR, web and API, no migration):
   asks for the review and gives the four install steps and the one-off command, a month per slice,
   dry run first. Until the run, the Loads page says "Delivery history begins 09/17/2026" (D-DLC6).
 - **DLC5 (server-paged Delivered)** waits on the run, per Q-DLC6.
+
+### 2026-10-20 — DLC4 revised: run from the analytics copy, nothing on the VM
+
+The owner had the package reviewed (Codex) and then ruled: read the six months from `lme_analytics`,
+the isolated copy, and install nothing on the Board VM. Measured the same day before building:
+
+| what | measured |
+|---|---|
+| `lme_analytics` restore date | 2026-10-09 13:13 — the day the VM's mirror went live, so the copy holds the whole gap |
+| one month of `D` movements on the copy | ~3,100 movements, ~6,500 stops, 4.2–6.1 s through the connector's guards (one core) |
+| one week on live `lme` (10/12–10/19) | 806 movements in 1.7 s: 417 loaded, **every one already in the mirror**; 385 empty legs, none |
+| production's ingest limiter | 300 posts / 15 min on `/api/tms`; a month is four posts of 500 |
+
+- **D-DLC8 — empty legs are not deliveries.** Part 6 gains `m.loaded = 'L'`. An empty leg (`E`, the
+  deadhead to the next pickup) carries the SAME order as its loaded leg, and the projection makes a
+  load of either, so the first draft would have added ~8,700 phantom deliveries and shown every order
+  twice. The open board keeps reading every leg McLeod has open (it has caught eleven in six weeks).
+- **D-DLC9 — a first sighting already closed is dated by McLeod's last departure.** The mirror stamped
+  `closed_at` with the sync time; for the backfill that would have dated April on the day of the run
+  and kept 8,700 rows inside the relink pass's 60-day window (D-LA3: read on every mirror post, in
+  chunks of 50 — ~180 extra reads a minute for two months). `firstSightingCloseAt` in
+  `dispatchMovementIngest.ts`: the latest stop departure not after the sync, else the sync; the close
+  read's stamp for a movement the mirror already held is unchanged.
+- **D-DLC10 — "Delivery history begins" is the earliest delivery held, not the earliest row.**
+  `loadsHistoryFrom` reads the earliest delivery-stop departure and falls back to the earliest
+  `created_at`; a floor on `created_at` alone would have gone on saying 09/17/2026 over six months of
+  older loads.
+- **The package to Alex is withdrawn.** The letter is now a courtesy note (what is read, from where);
+  the routine header says six parts (the word was typed by hand) and Part 6 names the copy, the
+  slices and the measured volume. The two-week slice is the run's shape, not a limit: a month took six
+  seconds at most against a 15-second ceiling.
+- **Codex's four points, disposed.** (1) The backfill takes no service lock — true, and moot off the
+  VM. (2) The zip was behind `main` — by the open-period read, which needs a grant, a route and 0502
+  that are not released; shipping `main` would have broken the finance sweep, so behind was right.
+  (3) No backup/SHA/tests in the steps — true; no install now. (4) The roster change would resend the
+  roster — the VM already carries it since 10/14. The Node path note stands for any future VM step.
+- **Run order.** This PR releases to production first (the two API rules must hold before the first
+  real post), then from the owner's machine against the copy: `--dry-run` per slice, then the real
+  slices, April 1 → September 18, two weeks each. The real run writes to production and waits for the
+  owner's go. DLC5 (server-paged Delivered, Q-DLC6) follows the run.
