@@ -256,3 +256,15 @@ the paper's answer then follows the person's checks, and it reuses the review ro
   50 and 58 lb gross against 5,000 and 1,000 lb RQs, now clear; false-accept 0. Mayo's RQ answers need a re-read
   under 1.5.0, which costs a model call and writes a production row: **waits on the owner's OK** — by the tests,
   both lines then fail RQ (1,800 lb sodium hydroxide, 3,022.5 lb sulfuric acid per tote).
+- **2026-10-20 — R-M3 built: one reader abstaining on the certification is settled by the page's own words.**
+  `certificationWitness.ts`: the OCR (or text layer) backs "present" where a page prints every word of one of
+  §172.204(a)'s two statements (certify/declare, classified, described, packaged, marked, labeled) within 60 words
+  in reading order; it records nothing otherwise, so it can never say "absent". The audit takes it only when one
+  reader read the statement as present and the other returned null — never against a reader that read it absent.
+  `certificationWitness.test.ts`: both statements × every wrap of 3–12 words a line × three cases, beside the
+  consignor boilerplate, are found; every statement missing one of its key words, spread across the page, or the
+  boilerplate alone is not; five mutants (accept against "absent", no witness needed, five of six words, no window,
+  audit document not set) each fail it. **Replayed: no change — measured before building:** the OCR returned no
+  word of the small-print certification block on any of the four stored reads (Mayo prints it under a
+  handwritten date and signature), so `paper_certification` still waits on Mayo and the corrosives BOL. What would
+  move it there is better OCR of that region (a crop re-read, plan Phase 5), not a looser witness.
