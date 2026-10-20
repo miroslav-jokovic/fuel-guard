@@ -365,3 +365,35 @@ describe("what the page is told", () => {
     expectOrgScoped(rec, ORG);
   });
 });
+
+describe("what the confirm refuses before the bucket (2026-10-20 audit)", () => {
+  let photo: Buffer;
+  let photoSha: string;
+  beforeAll(async () => {
+    const px = Buffer.alloc(3 * 3 * 3);
+    for (let i = 0; i < px.length; i++) px[i] = (i * 29) % 251;
+    photo = await sharp(px, { raw: { width: 3, height: 3, channels: 3 } }).png().toBuffer();
+    photoSha = createHash("sha256").update(photo).digest("hex");
+  });
+  const BODY = { slot: "cdl_front" as const, content_type: "image/png" as const };
+
+  it("refuses a capture id that is not an id, and touches neither storage nor the database", async () => {
+    const rec = seed({}, { download: () => ({ data: new Blob([new Uint8Array(photo)]), error: null }) });
+    const result = await confirmCapture(rec.client, TOKEN, "../../other-org/x", { ...BODY, sha256: photoSha }, NOW);
+    expect(result).toMatchObject({ code: "capture_upload_failed" });
+    // Nothing downloaded, nothing removed: the id never became part of a key.
+    expect(rec.storageCalls()).toEqual([]);
+    expect(rec.rpcs()).toEqual([]);
+  });
+
+  it("answers a picture over the ceiling by name, removes it, and stages nothing", async () => {
+    const captureId = "99999999-8888-4777-8666-555555555555";
+    const rec = seed({}, { download: () => ({ data: new Blob([new Uint8Array(photo)]), error: null }) });
+    // A 3 × 3 picture against a ceiling of 4 — `captureVerification.test.ts` says why the real
+    // number is not encoded here.
+    const result = await confirmCapture(rec.client, TOKEN, captureId, { ...BODY, sha256: photoSha }, NOW, 4);
+    expect(result).toMatchObject({ code: "capture_too_large" });
+    expect(rec.rpcs()).toEqual([]);
+    expect(rec.storageCalls().filter((c) => c.fn === "remove")[0]?.args[0]).toEqual([`${ORG}/${INVITATION}/${captureId}.png`]);
+  });
+});

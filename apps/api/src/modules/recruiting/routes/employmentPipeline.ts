@@ -10,6 +10,7 @@ import { apiError, asyncHandler } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
 import { boardChecklists } from "../applicantBoard.js";
+import { carrierToday } from "../carrierClock.js";
 
 /**
  * `GET /pipeline` — the applicant board's read, and the history columns it shares with the
@@ -202,9 +203,11 @@ export const applicantPipelineHandler = asyncHandler(async (req, res) => {
     }),
   );
 
+  // One carrier day for the whole page (`carrierClock.ts`), read once rather than per row.
+  const today = await carrierToday(admin, orgId);
   const rows = (applicants ?? []).map((a) => {
     const own = historyBy.get(a.id) ?? [];
-    const asOf = String(a.created_at ?? "").slice(0, 10) || new Date().toISOString().slice(0, 10);
+    const asOf = String(a.created_at ?? "").slice(0, 10) || today;
     const coverage = employmentCoverage(own.map(toPeriod), asOf);
     // Segment A only. §391.21(b)(11) asks for CMV jobs alone, so a stretch without one is
     // somebody who was not driving, and a pipeline that chased it would chase every applicant.

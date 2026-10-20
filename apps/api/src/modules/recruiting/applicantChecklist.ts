@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { hiringChecklist, type AuthorizationRow, type HiringChecklist } from "@silvicom/shared";
 import { checklistInputs, type ChecklistInvitation } from "./applicantChecklistInputs.js";
+import { carrierToday } from "./carrierClock.js";
 
 /**
  * Gather the evidence one applicant's checklist folds over (B3, `HIRING-MODULE-PLAN.md` §9).
@@ -45,8 +46,9 @@ export async function applicantChecklist(
   driverId: string,
   // ⚠ A parameter rather than a `new Date()` inside, for `boardChecklists`' stated reason: the
   // §391.23(a)(2) three-year window is measured from the hire date or, for an applicant, from today
-  // — so a function that read the clock itself could only be tested at a particular hour.
-  today: string = new Date().toISOString().slice(0, 10),
+  // — so a function that read the clock itself could only be tested at a particular hour. Omitted,
+  // it is the CARRIER's today (`carrierClock.ts`), never the UTC day.
+  today?: string,
 ): Promise<HiringChecklist | ChecklistError> {
   // ⚠ First, and it is a membership check rather than a lookup: the service role would happily read
   // another org's rows for this id, so the 404 below is what makes every read after it safe to
@@ -62,6 +64,8 @@ export async function applicantChecklist(
     return { code: "not_found", message: "That applicant is not in this organization." };
   }
 
+  // After the membership check, so a 404 costs the one read that decided it.
+  const asOf = today ?? (await carrierToday(admin, orgId));
   const invitation = await readLiveInvitation(admin, orgId, driverId);
 
   const authorizations = await readAuthorizations(admin, orgId, driverId);
@@ -69,7 +73,7 @@ export async function applicantChecklist(
     admin,
     orgId,
     [{ driverId, hiredAt: (driver as { hire_date: string | null }).hire_date, invitation, authorizations }],
-    today,
+    asOf,
   );
   return hiringChecklist(evidence.get(driverId)!.inputs);
 }

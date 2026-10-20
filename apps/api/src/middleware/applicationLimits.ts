@@ -238,6 +238,56 @@ export function textLinkLimiter(): RequestHandler {
 }
 
 /**
+ * The date-of-birth unlock, `POST /<token>/unlock`: ten answers per link per ten minutes.
+ *
+ * ⚠ D-APP16 refuses a LOCKOUT on the invite door — a driver mistyping their own birthday in a truck
+ * stop must not need a support call — and `unlockDraft`'s header leaves the guessing to "the rate
+ * limiter, which is already there". The limiter that was there is the intake's, keyed by ADDRESS:
+ * twenty a minute from one address, and nothing per link. A date of birth for a CDL holder is one of
+ * about eighteen thousand values, and a leaked link — the thing the gate exists for, since the link
+ * travels by email and text — could be walked from a handful of addresses in minutes, each under the
+ * intake's twenty (2026-10-20 audit, M1). So the link gets its own count. Ten in ten minutes is a
+ * driver trying twice and a family member trying their own date; it is not a walk, and it is a
+ * window rather than a lockout, so D-APP16's promise — the link never dies on a wrong answer — holds.
+ */
+export const UNLOCK_LIMIT = 10;
+
+export function unlockLimiter(): RequestHandler {
+  return rateLimit({
+    windowMs: 10 * 60_000,
+    limit: UNLOCK_LIMIT,
+    keyGenerator: applicationLinkKey,
+    // The intake limiter owns the `RateLimit` headers on this prefix (see `packetCeremonyLimiter`).
+    standardHeaders: false,
+    legacyHeaders: false,
+    handler: refuse("unlock", "Too many tries just now. Wait ten minutes, then enter your date of birth again."),
+  });
+}
+
+/**
+ * Agreeing to texts, `POST /<token>/sms-consent`: five per link per ten minutes.
+ *
+ * Each NEW agreement sends one confirmation text to the number given (D-SMS5), and the number is the
+ * request's to choose within `SMS_MAX_NUMBERS_PER_LINK`. Withdraw-then-agree is a new agreement
+ * again, so without a count here a live link could text one of its three numbers as fast as the
+ * intake's twenty a minute lets it — a message nobody asked for, in somebody else's inbox (2026-10-20
+ * audit). Five covers agreeing, a wrong digit, and the right one; `textLinkLimiter`'s reasoning.
+ */
+export const SMS_CONSENT_LIMIT = 5;
+
+export function smsConsentLimiter(): RequestHandler {
+  return rateLimit({
+    windowMs: 10 * 60_000,
+    limit: SMS_CONSENT_LIMIT,
+    keyGenerator: applicationLinkKey,
+    // The intake limiter owns the `RateLimit` headers on this prefix (see `packetCeremonyLimiter`).
+    standardHeaders: false,
+    legacyHeaders: false,
+    handler: refuse("sms-consent", "Texts were turned on a few times just now. Try again in ten minutes."),
+  });
+}
+
+/**
  * The screen reports' own budget. The page sends one a minute at most while something changed, plus
  * one when the phone is put away and one when the page closes; six is that with room for a driver
  * flicking the phone on and off. A seventh inside a minute is refused, and the page keeps the visits

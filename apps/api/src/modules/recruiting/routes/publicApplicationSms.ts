@@ -12,7 +12,7 @@ import {
 import { apiError, asyncHandler, validateBody } from "../../../lib/http.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
-import { textLinkLimiter } from "../../../middleware/applicationLimits.js";
+import { smsConsentLimiter, textLinkLimiter } from "../../../middleware/applicationLimits.js";
 import { isIntakeError, requireEsignConsent, resolveInvitation } from "../applicationIntake.js";
 import { carrierName } from "../applicationMail.js";
 import { loadCarrierWording } from "../carrierWording.js";
@@ -71,6 +71,8 @@ export function publicApplicationSmsRouter(): Router {
    */
   router.post(
     "/:token/sms-consent",
+    // Per link, five in ten minutes: each new agreement texts the number given (`applicationLimits.ts`).
+    smsConsentLimiter(),
     validateBody(smsConsentGrantSchema),
     asyncHandler(async (req, res) => {
       const { env } = getAppLocals(req);

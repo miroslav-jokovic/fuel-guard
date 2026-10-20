@@ -4,7 +4,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import type { AuthContext } from "@silvicom/shared";
 import { createApp } from "../../../app.js";
 import { loadEnv } from "../../../env.js";
-import { createSupabaseRecorder, type SupabaseRecorder } from "../../../testing/supabaseRecorder.js";
+import { createSupabaseRecorder, expectOrgScoped, type SupabaseRecorder } from "../../../testing/supabaseRecorder.js";
 import { closeTestServer } from "../../../testing/httpServer.js";
 import { HANDBOOK_VERSION } from "../applicationPdf/handbook/handbookText.js";
 
@@ -190,5 +190,27 @@ describe("the handbook's two office acts", () => {
     holder.client = seed({ application_invitations: [{ id: "inv-1", submitted_at: "2026-09-25T10:00:00Z", signing_opened_at: null, handbook_filed_at: null }] }).client;
     const res = await send("POST", `/applicants/${DRIVER}/handbook/countersign`, "admin", { representative_id: REP });
     expect(res.status).toBe(409);
+  });
+});
+
+describe("the service role, through the route", () => {
+  it("scopes the extension's reads and writes to the caller's org", async () => {
+    const rec = seed({
+      application_invitations: [{
+        id: INV, submitted_at: "2026-09-14T10:00:00Z", signing_opened_at: "2026-09-14T09:00:00Z",
+        handbook_filed_at: null, expires_at: "2026-09-28T18:00:00.000Z",
+      }],
+    });
+    holder.client = rec.client;
+    expect((await send("POST", `/applicants/${DRIVER}/handbook/extend`, "recruiter")).status).toBe(200);
+    expectOrgScoped(rec, ORG);
+  });
+
+  it("scopes the representatives' reads and writes to the caller's org", async () => {
+    const rec = seed();
+    holder.client = rec.client;
+    const res = await send("POST", "/representatives", "admin", { full_name: "Ana Novak", title: "Owner", signature_png: PNG });
+    expect(res.status).toBe(201);
+    expectOrgScoped(rec, ORG);
   });
 });

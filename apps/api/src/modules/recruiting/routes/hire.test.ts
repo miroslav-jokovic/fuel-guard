@@ -4,7 +4,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import type { AuthContext } from "@silvicom/shared";
 import { createApp } from "../../../app.js";
 import { loadEnv } from "../../../env.js";
-import { createSupabaseRecorder, type RecordedQuery, type SupabaseRecorder } from "../../../testing/supabaseRecorder.js";
+import { createSupabaseRecorder, expectOrgScoped, type RecordedQuery, type SupabaseRecorder } from "../../../testing/supabaseRecorder.js";
 import { closeTestServer } from "../../../testing/httpServer.js";
 
 /**
@@ -214,5 +214,21 @@ describe("what the hire records", () => {
     expect(body.missing).toEqual(["handbook"]);
     expect(rec.rpcs()).toHaveLength(0);
     expect(rec.writtenRows("audit_logs")).toHaveLength(0);
+  });
+});
+
+describe("the service role, through the route", () => {
+  it("scopes every read and write of a hire to the caller's org", async () => {
+    rec = seed();
+    holder.client = rec.client;
+    expect((await call("/hire", { method: "POST", token: "fleet", body: HIRE })).status).toBe(200);
+    expectOrgScoped(rec, ORG);
+  });
+
+  it("scopes the preview too", async () => {
+    rec = seed();
+    holder.client = rec.client;
+    expect((await call(`/drivers/${DRIVER}/hire-preview`, { token: "recruiter" })).status).toBe(200);
+    expectOrgScoped(rec, ORG);
   });
 });

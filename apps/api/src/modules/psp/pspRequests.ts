@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { fetchAllPagedIn } from "../../lib/paging.js";
 
 /**
  * Questions about `psp_requests` that are not about ORDERING one.
@@ -58,10 +59,16 @@ export async function driversWithPspRequest(
   driverIds: readonly string[],
 ): Promise<Set<string>> {
   if (driverIds.length === 0) return new Set();
-  const { data } = await admin
-    .from("psp_requests")
-    .select("driver_id")
-    .eq("org_id", orgId)
-    .in("driver_id", driverIds);
-  return new Set(((data ?? []) as Array<{ driver_id: string }>).map((r) => r.driver_id));
+  // Fifty ids per `.in()` and every chunk paged (`paging.ts`): this read takes the recruiting board's
+  // whole driver list, and one URL carrying all of it is the Loads board's "fetch failed" at a few
+  // hundred applicants (2026-10-20 audit; `applicantBoardReads.ts`).
+  const rows = await fetchAllPagedIn<{ driver_id: string }>(driverIds, (chunk) => (from, to) =>
+    admin
+      .from("psp_requests")
+      .select("driver_id")
+      .eq("org_id", orgId)
+      .in("driver_id", chunk)
+      .order("id")
+      .range(from, to));
+  return new Set(rows.map((r) => r.driver_id));
 }

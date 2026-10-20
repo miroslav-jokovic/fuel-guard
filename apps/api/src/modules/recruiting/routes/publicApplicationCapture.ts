@@ -34,6 +34,7 @@ function captureStatus(code: string): number {
   if (code === "invalid_link") return 404;
   if (code === "already_submitted" || code === "esign_consent_required" || code === "application_not_sent") return 409;
   if (code === "capture_upload_failed" || code === "capture_not_intact") return 422;
+  if (code === "capture_too_large") return 413;
   return 500;
 }
 

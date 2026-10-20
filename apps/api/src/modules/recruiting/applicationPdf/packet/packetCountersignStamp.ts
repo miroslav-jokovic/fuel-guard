@@ -52,7 +52,12 @@ async function embedSignature(doc: PDFDocument, bytes: Buffer | null): Promise<P
   if (!bytes) return null;
   try {
     return await doc.embedPng(bytes);
-  } catch {
+  } catch (e) {
+    // Swallowed for `packetOverlay.ts`'s reason, and logged for its reason too (2026-10-20 audit):
+    // the countersignature prints as a typed name, and somebody should be able to find out why.
+    console.warn("[application] the representative's signature would not decode; the typed name stands in for it", {
+      error: e instanceof Error ? e.message : String(e),
+    });
     return null;
   }
 }

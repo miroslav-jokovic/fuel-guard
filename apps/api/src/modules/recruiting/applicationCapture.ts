@@ -15,6 +15,7 @@ import {
   type ApplicationCaptureStart,
   type ApplicationCaptureView,
   type PromotedCaptureSlot,
+  isRecordId,
 } from "@silvicom/shared";
 import {
   ALREADY_SUBMITTED,
@@ -105,6 +106,12 @@ export const CAPTURE_NOT_INTACT: IntakeError = {
   message: "That photo did not arrive intact. Take it again.",
 };
 
+/** Over `CAPTURE_MAX_PIXELS` (`captureVerification.ts`). The provider never produces one; a direct client might. */
+export const CAPTURE_TOO_LARGE: IntakeError = {
+  code: "capture_too_large",
+  message: "That photo is larger than this form can take. Take it again with the camera here.",
+};
+
 /**
  * Somewhere to put one photograph — and nothing else.
  *
@@ -151,9 +158,17 @@ export async function confirmCapture(
   captureId: string,
   body: ApplicationCaptureConfirm,
   now: Date,
+  /** `verifyCaptureBytes`'s ceiling, a parameter for the same test's reason. */
+  maxPixels?: number,
 ): Promise<{ slot: ApplicationCaptureSlot; capturedAt: string } | IntakeError> {
   const session = await openSession(admin, token, now, body.slot);
   if (isIntakeError(session)) return session;
+
+  // ⚠ The id is the one segment of the storage key the request supplies, and `startCapture` only ever
+  // mints a UUID. Anything else is not an upload this link started, and it is refused BEFORE it can
+  // become part of a key that is downloaded and, on a mismatch, removed (2026-10-20 audit). The
+  // answer is the retry's: there is no photograph at that id either way.
+  if (!isRecordId(captureId)) return CAPTURE_UPLOAD_FAILED;
 
   /**
    * The key is RECOMPUTED, never accepted. It is derived from the org and the invitation this token
@@ -169,12 +184,12 @@ export async function confirmCapture(
   // the object's own, which is what makes the row a description of the object rather than of a claim.
   const { data: object, error: readError } = await admin.storage.from(APPLICATION_CAPTURES_BUCKET).download(path);
   if (readError || !object) return CAPTURE_UPLOAD_FAILED;
-  const verified = await verifyCaptureBytes(Buffer.from(await object.arrayBuffer()), body.sha256, body.slot);
+  const verified = await verifyCaptureBytes(Buffer.from(await object.arrayBuffer()), body.sha256, body.slot, maxPixels);
   if (!verified.ok) {
     console.warn("[capture-verify] refused", { slot: body.slot, reason: verified.reason });
     // Best effort, as with a superseded photo: the nightly sweep collects what this misses.
     await admin.storage.from(APPLICATION_CAPTURES_BUCKET).remove([path]);
-    return CAPTURE_NOT_INTACT;
+    return verified.reason === "too_many_pixels" ? CAPTURE_TOO_LARGE : CAPTURE_NOT_INTACT;
   }
   console.info("[capture-verify]", { slot: body.slot, bytes: verified.bytes, cpuMs: Math.round(verified.cpuMs) });
 

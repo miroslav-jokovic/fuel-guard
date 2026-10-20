@@ -95,3 +95,28 @@ describe("the queue", () => {
     expectOrgScoped(rec, ORG);
   });
 });
+
+describe("past PostgREST's thousand rows (2026-10-20 audit)", () => {
+  it("still sees the 1,200th employer — the reads page", async () => {
+    const drivers = Array.from({ length: 240 }, (_, i) => ({ id: `d${i}`, full_name: `Driver ${i}`, status: "active", hire_date: "2026-08-10" }));
+    const employment = drivers.flatMap((d) => Array.from({ length: 5 }, (_, j) => ({
+      id: `e${d.id}-${j}`, driver_id: d.id, employer_name: `Carrier ${j}`, started_on: "2024-01-01", ended_on: "2025-06-30", dot_regulated: true,
+    })));
+    // What PostgREST does: at most 1,000 rows, and only the slice a `.range()` names.
+    const capped = (rows: unknown[]) => (q: { ops: Array<{ method: string; args: unknown[] }> }) => {
+      const range = q.ops.find((o) => o.method === "range");
+      return range ? rows.slice(Number(range.args[0]), Number(range.args[1]) + 1) : rows.slice(0, 1000);
+    };
+    const rec = createSupabaseRecorder({
+      tables: {
+        drivers: capped(drivers),
+        driver_employment_history: capped(employment),
+        employer_inquiries: capped([]),
+      },
+    });
+    const { rows, summary } = await loadInquiryQueue(rec.client, ORG, TODAY);
+    expect(summary.drivers).toBe(240);
+    expect(rows.reduce((n, r) => n + r.outstanding.length, 0)).toBe(1200);
+    expectOrgScoped(rec, ORG);
+  });
+});

@@ -10,6 +10,7 @@ import {
   resolveInvitation,
   type IntakeError,
 } from "./applicationIntake.js";
+import { carrierToday } from "./carrierClock.js";
 
 /**
  * One permission, unsigned, as the applicant is about to sign it (AF6, D-AF2).
@@ -65,7 +66,7 @@ export async function applicantPermissionInstrument(
     intent: doc.intent,
     carrier: await carrierOf(admin, invitation.org_id),
     signer: null,
-    prefill: { name: await prefilledName(admin, invitation.org_id, invitation.id), date: now.toISOString().slice(0, 10) },
+    prefill: { name: await prefilledName(admin, invitation.org_id, invitation.id), date: await carrierToday(admin, invitation.org_id, now) },
   });
   return { pdf, filename: `${purpose}.pdf` };
 }

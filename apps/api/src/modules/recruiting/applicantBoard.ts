@@ -1,7 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { hiringChecklist, hiringStep, type HiringPhase, type HiringStepKey } from "@silvicom/shared";
+import { hiringChecklist, hiringStep, todayInZone, type HiringPhase, type HiringStepKey } from "@silvicom/shared";
 import { checklistInputs, type ChecklistInvitation, type ChecklistSubject } from "./applicantChecklistInputs.js";
-import type { MarkRow, QualificationRow } from "./applicantBoardReads.js";
+import { readCarrierZone, type MarkRow, type QualificationRow } from "./applicantBoardReads.js";
 
 /**
  * The board's half of the fold — every applicant's checklist in one pass (B4, `HIRING-MODULE-PLAN.md` §9).
@@ -104,8 +104,9 @@ export async function boardChecklists(
 
   // ⚠ Derived from `now` rather than read separately, so the whole board is folded against ONE
   // instant. Two clock reads in one pass is how a row at a midnight boundary comes out measured
-  // against a different day from the row above it.
-  const today = now.toISOString().slice(0, 10);
+  // against a different day from the row above it. On the CARRIER's calendar (`calendarDay.ts`):
+  // the UTC day this read until 2026-10-20 is tomorrow from 19:00 Central.
+  const today = todayInZone(now, await readCarrierZone(admin, orgId));
   const evidence = await checklistInputs(admin, orgId, applicants, today);
 
   for (const a of applicants) {

@@ -4,6 +4,7 @@ import type { Server } from "node:http";
 import sharp from "sharp";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { createApp } from "../../../app.js";
+import { UNLOCK_LIMIT } from "../../../middleware/applicationLimits.js";
 import { loadEnv } from "../../../env.js";
 import { createSupabaseRecorder, type SupabaseRecorder } from "../../../testing/supabaseRecorder.js";
 import { closeTestServer } from "../../../testing/httpServer.js";
@@ -1485,5 +1486,24 @@ describe("the packet a driver reads before signing it, as a route", () => {
     // 409, not 404: the link is perfectly good and that document is finished.
     expect(res.status).toBe(409);
     expect(await refusalCode(res)).toBe("already_filed");
+  });
+});
+
+describe("the unlock's own budget (2026-10-20 audit)", () => {
+  it("refuses the eleventh answer on one link from any address, in the API's envelope", async () => {
+    holder.client = seedWithDraft({ first_name: "Susan", date_of_birth: "1980-04-01" }).client;
+    // Earlier tests in this file have already spent some of this link's ten; the budget is per link
+    // and the server is shared, so what is pinned is that a refusal arrives within the eleventh try
+    // and that the answer before it was not one.
+    let previous = 0;
+    let refused: Response | null = null;
+    for (let i = 0; i <= UNLOCK_LIMIT && !refused; i += 1) {
+      const res = await call(`/${TOKEN}/unlock`, { method: "POST", body: JSON.stringify({ date_of_birth: "1975-01-01" }) });
+      if (res.status === 429) refused = res;
+      else previous = res.status;
+    }
+    expect(refused).not.toBeNull();
+    expect(previous).toBe(200);
+    expect(((await refused!.json()) as { error: { code: string } }).error.code).toBe("too_many_requests");
   });
 });

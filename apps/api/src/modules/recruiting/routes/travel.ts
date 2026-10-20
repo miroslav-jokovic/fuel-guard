@@ -7,6 +7,7 @@ import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
 import { writeAudit } from "../../../lib/audit.js";
 import { bookTravel, cancelTravel, isTravelError, listTravel, type TravelError } from "../applicantTravel.js";
+import { carrierToday } from "../carrierClock.js";
 
 /**
  * The applicant's trip to the office (D-AW7, APPLICATION-FLOW-V2-PLAN §8.4). `applicantTravel.ts`
@@ -56,7 +57,7 @@ export function recruitmentTravelRouter(): Router {
       const driverId = String(req.params.driverId ?? "");
       const result = await bookTravel(
         admin, orgId, req.auth!.userId, driverId, res.locals.body as ApplicantTravelBooking,
-        new Date().toISOString().slice(0, 10),
+        await carrierToday(admin, orgId),
       );
       if (isTravelError(result)) return send(res, result);
       await writeAudit(admin, {
