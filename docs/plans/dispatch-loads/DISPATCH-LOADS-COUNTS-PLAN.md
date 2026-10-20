@@ -280,3 +280,20 @@ Built the same day (DLC1 + DLC2 in one PR, web and API, no migration):
 - **Boundaries.** `loads -> roster` is a new edge; the history reader's grandfathered direct reads of
   `drivers` and `vehicles` are gone with it. `driver_equipment_timeline` keeps its one reader, the
   load detail's duty attribution (`duty.ts`), untouched.
+
+### 2026-10-20 — DLC4: the backfill, packaged for Alex
+
+- **What the connector gains.** `DISPATCH_LOADS_DELIVERED` / `DISPATCH_LOAD_STOPS_DELIVERED`
+  (`queries.mjs`): the board's columns, `status = 'D'`, bounded by a window on a stop's
+  `actual_departure` — never by status alone, which would read the 2215 sentinel and every D since
+  2015. `fetchDeliveredLoads` requires the window, half-open, `YYYY-MM-DD`, like the finance sweep.
+  `agent.mjs --loads-backfill --from= --to=` reads it and posts to the mirror in the board's batches;
+  `--dry-run` prints coverage and posts nothing. Part 6 of `SILVICOM-READ-ROUTINE.sql`, regenerated.
+- **What the API already does.** The mirror stores a movement it has never seen and projects it
+  (LR4): a `D` with its stops' actual times becomes a delivered load, and the Delivered window
+  (D-LA6) and Activity (D-LA7) read it as if the mirror had been running. `unique (org_id, ref)`
+  makes an overlap with live history a no-op rewrite, so a slice may be re-run.
+- **What waits on Alex.** The two statements are new SQL on the VM: `review/REQUEST-TO-ALEX-2026-10-20-BACKFILL.md`
+  asks for the review and gives the four install steps and the one-off command, a month per slice,
+  dry run first. Until the run, the Loads page says "Delivery history begins 09/17/2026" (D-DLC6).
+- **DLC5 (server-paged Delivered)** waits on the run, per Q-DLC6.

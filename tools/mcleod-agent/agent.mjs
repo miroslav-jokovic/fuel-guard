@@ -29,7 +29,7 @@ import { INSPECTION } from "./inspect.mjs";
 import { fetchSettlements } from "./settlements.mjs";
 import { fetchExpenses } from "./expenses.mjs";
 import { fetchMovementFacts } from "./movements.mjs";
-import { fetchDispatchLoads, fetchClosedLoads, loadHash } from "./loads.mjs";
+import { fetchDispatchLoads, fetchClosedLoads, fetchDeliveredLoads, loadHash } from "./loads.mjs";
 import { describeDryRun, describeMirrorDryRun } from "./dryRun.mjs";
 import { holdConnection, releaseConnection, breakerState } from "./connection.mjs";
 import { dueJobs, JOBS } from "./schedule.mjs";
@@ -96,6 +96,13 @@ const CFG = {
   // bare movement id per line, e.g. exported from production at cut-over.
   close: process.argv.includes("--close"),
   idsFile: (process.argv.find((a) => a.startsWith("--ids-file=")) ?? "").slice("--ids-file=".length),
+  // --loads-backfill reads DELIVERED movements with a stop departure inside --from=YYYY-MM-DD
+  // --to=YYYY-MM-DD (half-open) and posts them to the mirror, which projects them as delivered loads
+  // (DISPATCH-LOADS-COUNTS-PLAN DLC4). The one-off that gives the Loads page its history before the
+  // mirror began on 2026-09-17. Never scheduled; with --dry-run it prints coverage and posts nothing.
+  loadsBackfill: process.argv.includes("--loads-backfill"),
+  backfillFrom: (process.argv.find((a) => a.startsWith("--from=")) ?? "").slice("--from=".length),
+  backfillTo: (process.argv.find((a) => a.startsWith("--to=")) ?? "").slice("--to=".length),
   // 'P' includes movement 11787, scheduled March 2015 and still open - 4,182 days stale. Bounding by
   // scheduled date rather than status alone excludes exactly that row today, while the worst REAL
   // load is 7 days past its last scheduled arrival (D-LM14).
@@ -202,7 +209,7 @@ if (CFG.service) {
   if (problems.length) fail(problems.join("\n  "));
 }
 if (!["mock", "mcleod"].includes(CFG.source)) fail("SOURCE must be 'mock' or 'mcleod'.");
-if (CFG.roster || CFG.retire || CFG.inspect || CFG.dryRun || CFG.financial || CFG.loads || CFG.service || CFG.close) {
+if (CFG.roster || CFG.retire || CFG.inspect || CFG.dryRun || CFG.financial || CFG.loads || CFG.service || CFG.close || CFG.loadsBackfill) {
   for (const k of ["server", "database", "user", "password", "companyId"]) {
     if (!CFG.sql[k]) fail(`Reading McLeod needs ${k === "companyId" ? "MCLEOD_COMPANY_ID" : `MCLEOD_SQL_${k.toUpperCase()}`}.`);
   }
@@ -627,6 +634,26 @@ async function runLoads() {
 }
 
 /**
+ * The backfill (DLC4): delivered movements inside a window, posted to the mirror in the same batches
+ * as the board. The mirror stores a movement it has never seen and projects it (LR4): a `D` arrives as
+ * a delivered load with its stops' actual times, so the Loads page's Delivered window and the
+ * Activity view read it as if the mirror had been running. A movement the mirror already holds is a
+ * no-op rewrite (`unique (org_id, ref)`), so a window overlapping live history is safe to re-run.
+ */
+async function runLoadsBackfill(windowStart, windowEnd) {
+  log(`${CFG.dryRun ? "DRY RUN — " : ""}backfill: delivered movements with a stop departure in [${windowStart}, ${windowEnd}) from ${CFG.sql.database} as company ${CFG.sql.companyId}`);
+  const res = await fetchDeliveredLoads(CFG.sql, { windowStart, windowEnd });
+  for (const s of res.skipped) log(`backfill: SKIPPED movement ${s.movement_id} - ${s.reason}`);
+  for (const n of res.notes) log(`backfill: ${n}`);
+  log(`backfill: ${describeMirror(res.movements)}`);
+  if (CFG.dryRun) {
+    for (const line of describeMirrorDryRun(res.movements)) console.log(line);
+    return;
+  }
+  log(`backfill: stored ${JSON.stringify(await postMirror(res.companyId, res.movements))}`);
+}
+
+/**
  * The raw dispatch mirror (LOADS-MIRROR-PLAN.md LR3): every movement read, with every stop, to
  * `/api/tms/dispatch-movements`, which stores it raw and projects it onto `loads` (LR4) — the only
  * load feed since LR4. Counts only in the log — Alex's condition.
@@ -948,6 +975,11 @@ async function main() {
     if (!CFG.idsFile) fail("--close needs --ids-file=<path>: one bare McLeod movement id per line.");
     const ids = readFileSync(CFG.idsFile, "utf8").split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
     await closeMovements(ids);
+    return;
+  }
+  if (CFG.loadsBackfill) {
+    if (!CFG.backfillFrom || !CFG.backfillTo) fail("--loads-backfill needs --from=YYYY-MM-DD --to=YYYY-MM-DD (half-open, McLeod's Central days).");
+    await runLoadsBackfill(CFG.backfillFrom, CFG.backfillTo);
     return;
   }
   if (CFG.loads) {

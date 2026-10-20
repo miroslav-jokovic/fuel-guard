@@ -20,6 +20,7 @@
     "billing": "node --env-file=.env billing.mjs",
     "service": "node --env-file=connector.env agent.mjs --service",
     "check": "node --env-file=connector.env agent.mjs --loads --dry-run",
+    "loads:backfill": "node --env-file=connector.env agent.mjs --loads-backfill",
     "routine": "node review/build-routine.mjs"
   },
   "dependencies": {

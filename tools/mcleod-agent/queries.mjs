@@ -1088,6 +1088,34 @@ const DISPATCH_LOAD_STOPS_SELECT = `
 export const DISPATCH_LOAD_STOPS = `${DISPATCH_LOAD_STOPS_SELECT}${BOARD_WHERE.replace("m.company_id = @companyId", "s.company_id = @companyId")}
      ORDER BY s.movement_id, s.movement_sequence`;
 
+/**
+ * The backfill (DISPATCH-LOADS-COUNTS-PLAN DLC4, 2026-10-20): delivered movements whose truck left a
+ * stop inside [@windowStart, @windowEnd) — the SAME columns as the board, so a load delivered before
+ * the mirror began (09/17/2026) posts through the same contract and projects the same way.
+ *
+ * Why it exists: the board read is `status IN ('P','A')` and the close read looks up ids the
+ * connector once held open, so a movement that was already `D` when the mirror began has never been
+ * read. Six months of them sit in live `dbo.movement` (the finance sweep reads June trips there).
+ * Bounded by a window on `stop.actual_departure`, never by status alone: `actual_departure` reaches
+ * the year 2215 (a sentinel), and a window excludes it. Run once, by hand, with `--loads-backfill`;
+ * never on the schedule.
+ */
+const DELIVERED_WHERE = `
+     WHERE m.company_id = @companyId
+       AND m.status = 'D'
+       AND EXISTS (
+         SELECT 1 FROM dbo.stop AS sb
+          WHERE sb.movement_id = m.id
+            AND sb.company_id = m.company_id
+            AND sb.actual_departure >= @windowStart
+            AND sb.actual_departure <  @windowEnd)`;
+
+export const DISPATCH_LOADS_DELIVERED = `${DISPATCH_LOADS_SELECT}${DELIVERED_WHERE}
+     ORDER BY m.id`;
+
+export const DISPATCH_LOAD_STOPS_DELIVERED = `${DISPATCH_LOAD_STOPS_SELECT}${DELIVERED_WHERE.replace("m.company_id = @companyId", "s.company_id = @companyId")}
+     ORDER BY s.movement_id, s.movement_sequence`;
+
 /** At most this many movement ids per close read — one typed parameter each (§3 F7: no STRING_SPLIT). */
 export const CLOSE_READ_MAX_IDS = 300;
 

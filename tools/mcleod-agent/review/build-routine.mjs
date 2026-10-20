@@ -117,6 +117,20 @@ const PARTS = [
       ["RETIRED TRAILERS", "", retire.trailers],
     ],
   },
+  {
+    title: "PART 6 - DELIVERED LOADS BEFORE THE MIRROR BEGAN (by hand only, once)",
+    intro: [
+      "The mirror began on 2026-09-17 and reads open loads only, so loads delivered before that day",
+      "were never read. This reads delivered (D) movements whose truck left a stop inside a date",
+      "window, with the same columns as Part 1, so Silvicom 360 can show six months of delivery",
+      "history. Run once, with --from and --to, in slices of a month; about 4,500 movements and",
+      "10,000 stops for six months. The dates below are examples so the file runs.",
+    ],
+    statements: [
+      ["DELIVERED MOVEMENTS IN THE WINDOW", "Same columns as statement 1. The window is on the stop's actual departure, so the 2215 sentinel date is never read.", Q.DISPATCH_LOADS_DELIVERED],
+      ["STOPS OF THOSE MOVEMENTS", "Same columns as statement 2.", Q.DISPATCH_LOAD_STOPS_DELIVERED],
+    ],
+  },
 ];
 
 export function statementCount() {
