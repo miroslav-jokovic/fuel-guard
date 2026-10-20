@@ -57,6 +57,15 @@
  * test applies to it. Callers therefore read the whole staged history rather than the report's
  * window, so January is judged against December rather than against nothing.
  *
+ * **Whether a month is FINAL is McLeod's answer, not ours (D-TP5, 2026-10-19).** Everything above
+ * decides whether a month can be reported; none of it says the month can no longer move — July 2026
+ * was printed on 08-20 and kept receiving postings until 09-29. McLeod's `gl_control` names each
+ * company's open period and, with `prior_post = 'N'`, refuses postings into any period before it
+ * (0502). So a reportable month before the open period is `closed: true`; one at or after it is
+ * `closed: false` and stays reportable, labelled as still open, because withholding it would put the
+ * report a month further behind than the owner ruled acceptable (D-FLEET11, 2026-10-10); and with no
+ * close verdict at all every month is `closed: null`, which no reader may treat as final.
+ *
  * Pure. No clock, no I/O, and no constant that is a month or a threshold.
  */
 
@@ -90,6 +99,21 @@ export interface LedgerMonth {
   shortfall: "absent" | "partial" | "unposted" | null;
   /** The leading modules the month does not carry yet, sorted. Empty unless `unposted`. */
   missingModules: string[];
+  /**
+   * Whether McLeod has closed the month (D-TP5). True: it lies before the open period, and McLeod
+   * refuses postings into it. False: it is the open period or later, so its figures can still change.
+   * Null: McLeod has not told us (no control row, or a company that allows posting into earlier
+   * periods) — never to be read as final.
+   */
+  closed: boolean | null;
+}
+
+/** McLeod's close verdict for the fleet: the earliest open period across the companies swept. */
+export interface LedgerClose {
+  /** `YYYY-MM` of the open period. Every month before it is closed. */
+  openMonth: string;
+  /** When the sweep that read it ran. */
+  sweptAt: string;
 }
 
 /** The day part of a timestamp, which is all the comparison against a period bound may use. */
@@ -116,7 +140,11 @@ function leadingModules(rows: LedgerTotalRow[], typeOf: (glid: string) => string
   return [top(totals.revenue), top(totals.expense)].filter((m): m is string => m !== null);
 }
 
-export function assessLedgerMonths(months: LedgerMonthInput[], accounts: LedgerAccount[]): LedgerMonth[] {
+export function assessLedgerMonths(
+  months: LedgerMonthInput[],
+  accounts: LedgerAccount[],
+  close: LedgerClose | null = null,
+): LedgerMonth[] {
   const typeByGlid = new Map(accounts.map((a) => [a.glid.trim(), a.type_id?.trim() ?? null]));
   const typeOf = (glid: string) => typeByGlid.get(glid);
   // Oldest first, because a month is judged against the complete month BEFORE it. The answer is
@@ -126,7 +154,8 @@ export function assessLedgerMonths(months: LedgerMonthInput[], accounts: LedgerA
   let expected: string[] = [];
   const verdicts = new Map<string, LedgerMonth>();
   for (const m of ordered) {
-    const base = { month: m.month, periodEnd: m.periodEnd, sweptAt: m.sweptAt };
+    const closed = close ? m.month < close.openMonth : null;
+    const base = { month: m.month, periodEnd: m.periodEnd, sweptAt: m.sweptAt, closed };
     if (!m.sweptAt) {
       verdicts.set(m.month, { ...base, complete: false, shortfall: "absent", missingModules: [] });
       continue;
@@ -169,6 +198,18 @@ export function ledgerMonthWhy(m: LedgerMonth): string {
     return `was swept on ${m.sweptAt ? day(m.sweptAt) : "an unknown day"}, before the month ended`;
   }
   return "has not been swept from McLeod yet";
+}
+
+/**
+ * The sentence a page prints beside figures that include a month McLeod has not closed, or null when
+ * every reported month is closed or the close is unknown. Names the months, for the same reason the
+ * withheld-month sentence does. Only REPORTED months are named: a withheld month already has its own.
+ */
+export function ledgerOpenMonthsNote(months: LedgerMonth[]): string | null {
+  const open = months.filter((m) => m.complete && m.closed === false).map((m) => m.month);
+  if (!open.length) return null;
+  const which = open.join(", ");
+  return `${which} ${open.length === 1 ? "is" : "are"} still open in McLeod — the accountant can still post to ${open.length === 1 ? "it" : "them"}, so ${open.length === 1 ? "its" : "their"} figures can change until McLeod closes the period.`;
 }
 
 /**

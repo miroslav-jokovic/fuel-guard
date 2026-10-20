@@ -79,10 +79,11 @@ const between = (q: RecordedQuery, col: string, v: string) => {
   return (!gte || v >= gte) && (!lt || v < lt);
 };
 
-const recorder = (glTotals: unknown[] = GL_TOTALS) =>
+const recorder = (glTotals: unknown[] = GL_TOTALS, glControl: unknown[] = []) =>
   createSupabaseRecorder({
     tables: {
       mcleod_gl_totals: glTotals,
+      mcleod_gl_control: glControl,
       mcleod_gl_accounts: ACCOUNTS,
       mcleod_settlements: SETTLEMENTS,
       mcleod_deductions: DEDUCTIONS,
@@ -105,6 +106,23 @@ const recorder = (glTotals: unknown[] = GL_TOTALS) =>
   });
 
 describe("getFleetReport", () => {
+  // D-TP5: July is reported either way. With McLeod's open period at July it is named as still
+  // open; once the pointer moves to August it is final and the note goes away.
+  it("names a reported month McLeod has not closed, and drops the note once it has", async () => {
+    const open = (start: string) => [{ company_id: "TMS", period_start: start, prior_post_allowed: false, swept_at: "2026-08-28T21:02:56Z" }];
+    const stillOpen = await getFleetReport(recorder(GL_TOTALS, open("2026-07-01")).client, ORG, "2026-07-01", "2026-07-31");
+    expect(stillOpen.total.revenue).toBe(4_828_189.24);
+    expect(stillOpen.monthsOpen).toEqual(["2026-07"]);
+    expect(stillOpen.openNote).toContain("2026-07 is still open in McLeod");
+    expect(stillOpen.closeKnown).toBe(true);
+    const closed = await getFleetReport(recorder(GL_TOTALS, open("2026-08-01")).client, ORG, "2026-07-01", "2026-07-31");
+    expect(closed.monthsOpen).toEqual([]);
+    expect(closed.openNote).toBeNull();
+    const unknown = await getFleetReport(recorder().client, ORG, "2026-07-01", "2026-07-31");
+    expect(unknown.closeKnown).toBe(false);
+    expect(unknown.monthsOpen).toEqual([]);
+  });
+
   it("reports the ledger's totals and divides them by measured miles, org-scoped", async () => {
     const rec = recorder();
     const r = await getFleetReport(rec.client, ORG, "2026-07-01", "2026-07-31");

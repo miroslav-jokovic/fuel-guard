@@ -53,6 +53,10 @@ export interface FleetReportResult extends FleetReport {
   /** Months a sweep reached while they were still running, excluded from every figure (G11). */
   monthsPartial: LedgerMonth[];
   ledgerReason: string | null;
+  /** Reported months McLeod has not closed, and the sentence naming them (D-TP5, `ledgerPeriod`). */
+  monthsOpen: string[];
+  openNote: string | null;
+  closeKnown: boolean;
   toDateFrom: string;
   /**
    * When the McLeod financial sweep last landed, or null if it never has (G8).
@@ -176,6 +180,9 @@ export async function getFleetReport(
     monthsMissing: ledger.monthsMissing,
     monthsPartial: ledger.monthsPartial,
     ledgerReason: ledger.ledgerReason,
+    monthsOpen: ledger.monthsOpen,
+    openNote: ledger.openNote,
+    closeKnown: ledger.closeKnown,
     toDateFrom: ledger.toDateFrom,
     sweptAt,
   };

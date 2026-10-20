@@ -99,6 +99,11 @@ const PARTS = [
       ["MOVEMENT TOTALS, TO CHECK THE ROWS ABOVE", "", Q.MOVEMENT_FACT_COUNTS],
       ["BILLING HISTORY", "", Q.BILLING_HISTORY],
       ["CHART OF ACCOUNTS", "", Q.GL_ACCOUNTS],
+      [
+        "OPEN ACCOUNTING PERIOD",
+        "One row: the period McLeod is posting into, and whether earlier periods are locked. Tells us which months are final.",
+        Q.GL_CONTROL,
+      ],
       ["GENERAL LEDGER TOTALS BY DAY AND ACCOUNT", "", Q.GL_CONTROL_TOTALS],
       ["OFFICE PAYROLL LINES", "", Q.OFFICE_SETTLEMENT_LINES],
       [

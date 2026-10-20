@@ -103,6 +103,10 @@ export interface FleetReportResponse {
   /** Months swept mid-month, excluded from every figure above with the reason beside them (G11). */
   monthsPartial: LedgerMonthState[];
   ledgerReason: string | null;
+  /** Reported months McLeod has not closed (D-TP5), and the sentence naming them. */
+  monthsOpen?: string[];
+  openNote?: string | null;
+  closeKnown?: boolean;
   /** The statement as ten rows of family (G6) — a signed grouping, not a derived one. */
   families: FamilySummaryResponse;
   /** When the McLeod financial sweep last landed. Null means it never has (G8). */

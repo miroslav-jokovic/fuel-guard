@@ -13,7 +13,7 @@
  */
 
 import process from "node:process";
-import { GL_CONTROL_TOTALS, OFFICE_SETTLEMENT_LINES, GL_ACCOUNTS } from "./queries.mjs";
+import { GL_CONTROL_TOTALS, OFFICE_SETTLEMENT_LINES, GL_ACCOUNTS, GL_CONTROL } from "./queries.mjs";
 import { withPool } from "./connection.mjs";
 import { fetchExpenses } from "./expenses.mjs";
 import { fetchSettlements } from "./settlements.mjs";
@@ -266,5 +266,35 @@ export async function fetchGlAccounts({
         type_id: r.type_id ?? null,
       })),
     };
+  });
+}
+
+/**
+ * The company's open accounting period as the wire carries it (GL_CONTROL). One row or none: a
+ * company with no `gl_control` row, or none matching `fiscal_year_dtl`, sends nothing, and the
+ * readers then fall back to judging months by their sweep and their modules alone.
+ */
+export function mapGlControl(row) {
+  if (!row || !row.period_start || !row.period_end || row.fiscal_period == null) return null;
+  return {
+    company_id: String(row.company_id).trim(),
+    fiscal_year: String(row.fiscal_year).trim(),
+    fiscal_period: Number(row.fiscal_period),
+    // 'N' is the only value that makes an earlier period final; anything else (or nothing) does not.
+    prior_post_allowed: String(row.prior_post ?? "").trim().toUpperCase() !== "N",
+    period_start: row.period_start,
+    period_end: row.period_end,
+  };
+}
+
+export async function fetchGlControl({
+  server, port, database, user, password, companyId, encrypt, trustCert, serverName,
+}) {
+  return withPool({ server, port, database, user, password, encrypt, trustCert, serverName }, async (pool, mssql) => {
+    const rows = await pool
+      .request()
+      .input("companyId", mssql.VarChar(32), companyId)
+      .query(GL_CONTROL);
+    return { control: mapGlControl(rows.recordset[0]) };
   });
 }

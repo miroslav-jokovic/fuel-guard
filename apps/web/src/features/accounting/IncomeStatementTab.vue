@@ -119,6 +119,7 @@ const shownCount = computed(() => sections.value.reduce((a, s) => a + s.lines.le
              are staged and real, and they are left out because part of a month reported as the
              month is a precise wrong answer (G11). -->
         <p v-if="statement.ledgerReason" class="text-sm text-warning-700">{{ statement.ledgerReason }}</p>
+        <p v-if="statement.openNote" class="text-sm text-warning-700">{{ statement.openNote }}</p>
         <p v-if="statement.monthsMissing.length" class="text-sm text-warning-700">
           The McLeod sweep has not reached
           {{ statement.monthsMissing.join(", ") }}, so

@@ -32,6 +32,12 @@ file. It's the same kind of data as `voucher` and `voucher_hist`, and nothing pe
 write the statement that reads it, I'd like to check its columns against the database rather than
 guess them. Once the grant is in I'll send you the statement to review, same as the others.
 
+**Two small settings tables: `gl_control` and `fiscal_year_dtl`** (added 10-19). They hold each
+company's open accounting period and the dates of each period, so our reports can tell a month the
+accountant has closed from one that is still being posted to. The statement reads one row, with no
+amounts and nothing personal ("OPEN ACCOUNTING PERIOD" in the attached routine). Same file, both
+databases.
+
 **Still waiting from 10-05:** `fuel_tax_history`, on both databases. It's in the same file, so
 there's no rush on that if it's easier to do all of it together.
 

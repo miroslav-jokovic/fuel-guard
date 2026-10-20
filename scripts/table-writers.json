@@ -399,6 +399,9 @@
   "mcleod_fuel_tax_receipts": [
     "apps/api/src/modules/mcleod/fuelTaxReceipts.ts"
   ],
+  "mcleod_gl_control": [
+    "apps/api/src/modules/mcleod/glControl.ts"
+  ],
   "mcleod_gl_accounts": [
     "apps/api/src/modules/mcleod/ledgerControlIngest.ts"
   ],

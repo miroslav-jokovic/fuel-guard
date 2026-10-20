@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { assessLedgerMonths, ledgerMonthsReason, ledgerMonthWhy, type LedgerMonthInput } from "./ledgerMonths.js";
+import { assessLedgerMonths, ledgerMonthsReason, ledgerMonthWhy, ledgerOpenMonthsNote, type LedgerMonthInput } from "./ledgerMonths.js";
 import type { LedgerAccount, LedgerTotalRow } from "./incomeStatement.js";
 
 /**
@@ -187,5 +187,65 @@ describe("ledgerMonthWhy", () => {
     const [partial, absent] = assessLedgerMonths([august, september], ACCOUNTS);
     expect(ledgerMonthWhy(partial!)).toBe("was swept on 2026-08-28, before the month ended");
     expect(ledgerMonthWhy(absent!)).toBe("has not been swept from McLeod yet");
+  });
+});
+
+/**
+ * D-TP5, measured on the sandbox 2026-10-19: McLeod's `gl_control` read TMS 2026 / period 8 /
+ * `prior_post = 'N'` while August already carried BILL and SET. So August is reportable and NOT
+ * final, and July — which kept receiving postings until 09-29 — is final only because the pointer
+ * has moved past it.
+ */
+describe("assessLedgerMonths — McLeod's close (D-TP5)", () => {
+  const OCT = "2026-10-09 18:59:20+00";
+  const jul = month("2026-07", "2026-08-01", OCT);
+  const aug = month("2026-08", "2026-09-01", OCT);
+  const close = { openMonth: "2026-08", sweptAt: OCT };
+
+  it("closes a month before the open period and leaves the open one reportable but not final", () => {
+    const [j, a] = assessLedgerMonths([jul, aug], ACCOUNTS, close);
+    expect(j!.closed).toBe(true);
+    expect(a!.complete).toBe(true);
+    expect(a!.closed).toBe(false);
+  });
+
+  it("never calls a month final when McLeod has said nothing", () => {
+    const [j, a] = assessLedgerMonths([jul, aug], ACCOUNTS);
+    expect(j!.closed).toBeNull();
+    expect(a!.closed).toBeNull();
+  });
+
+  it("does not let the close make an unposted month reportable", () => {
+    const sep = month("2026-09", "2026-10-01", OCT, [exp("RJ", 383_138)]);
+    const [, , s] = assessLedgerMonths([jul, aug, sep], ACCOUNTS, { openMonth: "2026-10", sweptAt: OCT });
+    expect(s!.complete).toBe(false);
+    expect(s!.shortfall).toBe("unposted");
+  });
+});
+
+describe("ledgerOpenMonthsNote", () => {
+  const OCT = "2026-10-09 18:59:20+00";
+  const close = { openMonth: "2026-08", sweptAt: OCT };
+
+  it("names the reported months McLeod has not closed", () => {
+    const months = assessLedgerMonths(
+      [month("2026-07", "2026-08-01", OCT), month("2026-08", "2026-09-01", OCT)],
+      ACCOUNTS,
+      close,
+    );
+    expect(ledgerOpenMonthsNote(months)).toBe(
+      "2026-08 is still open in McLeod — the accountant can still post to it, so its figures can change until McLeod closes the period.",
+    );
+  });
+
+  it("says nothing of a withheld month, which already has its own sentence", () => {
+    const months = assessLedgerMonths([month("2026-08", "2026-09-01", "2026-08-28 21:02:56+00")], ACCOUNTS, close);
+    expect(months[0]!.shortfall).toBe("partial");
+    expect(ledgerOpenMonthsNote(months)).toBeNull();
+  });
+
+  it("says nothing when the close is unknown — that is not the same as closed", () => {
+    const months = assessLedgerMonths([month("2026-08", "2026-09-01", OCT)], ACCOUNTS);
+    expect(ledgerOpenMonthsNote(months)).toBeNull();
   });
 });

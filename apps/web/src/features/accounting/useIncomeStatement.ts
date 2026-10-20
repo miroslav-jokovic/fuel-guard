@@ -61,6 +61,10 @@ export interface IncomeStatementResponse {
   monthsPartial: LedgerMonthState[];
   /** What to print in place of the excluded months' figures. Null when nothing is short. */
   ledgerReason: string | null;
+  /** Reported months McLeod has not closed (D-TP5), and the sentence naming them. */
+  monthsOpen?: string[];
+  openNote?: string | null;
+  closeKnown?: boolean;
   toDateFrom: string;
   /**
    * What the comparative (`toDate*`) column holds (R6): the fiscal year to date, the period of the

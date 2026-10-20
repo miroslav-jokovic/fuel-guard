@@ -945,6 +945,38 @@ export const GL_ACCOUNTS = `
       FROM dbo.gl_account AS a
      WHERE a.company_id = @companyId`;
 
+/**
+ * McLeod's own answer to "is this month final" — the company's OPEN accounting period, and whether
+ * it lets anyone post into an earlier one (TRUCK-DRIVER-PNL-PLAN D-TP5).
+ *
+ * `gl_control.fiscal_period` is the period McLeod is currently posting into, not the last one closed.
+ * Measured on lme_analytics 2026-10-19 (restore of 10-09): TMS read fiscal year 2026, period 8, and
+ * `prior_post = 'N'`. July's entries kept arriving until 2026-09-29 (`post_date`), August's were
+ * posted in one batch on 10-01, and nothing dated July was posted after that — the pointer moved to
+ * 8 between the two, and with `prior_post = 'N'` McLeod refuses a posting into a period before it.
+ * So a month BEFORE the open period cannot change any more, and the open month still can: August's
+ * AP read $179k that day against ~$400k in a normal month.
+ *
+ * The period's dates come from `fiscal_year_dtl` rather than being assumed to be calendar months
+ * (they are, at this carrier: twelve periods, period 8 = 2026-08-01..2026-08-31 — but that is a
+ * measurement of one company's set-up, not a property of McLeod). `end_date` is inclusive there; the
+ * wire carries the exclusive bound, like every other period on it.
+ */
+export const GL_CONTROL = `
+    SELECT
+      LTRIM(RTRIM(c.company_id))                               AS company_id,
+      LTRIM(RTRIM(c.fiscal_year))                              AS fiscal_year,
+      c.fiscal_period                                          AS fiscal_period,
+      LTRIM(RTRIM(c.prior_post))                               AS prior_post,
+      CONVERT(varchar(10), d.start_date, 23)                   AS period_start,
+      CONVERT(varchar(10), DATEADD(day, 1, d.end_date), 23)    AS period_end
+      FROM dbo.gl_control AS c
+      JOIN dbo.fiscal_year_dtl AS d
+        ON d.company_id = c.company_id
+       AND LTRIM(RTRIM(d.gl_year)) = LTRIM(RTRIM(c.fiscal_year))
+       AND d.period = c.fiscal_period
+     WHERE c.company_id = @companyId`;
+
 // ═══════════════════════════════════════════════════════════════════════════════════════════════
 // Dispatchable loads — the live board (LIVE-MAP-PLAN.md LM1)
 // ═══════════════════════════════════════════════════════════════════════════════════════════════

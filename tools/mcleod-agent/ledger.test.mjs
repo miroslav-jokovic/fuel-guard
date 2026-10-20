@@ -8,7 +8,7 @@
 // Run:  node --test tools/mcleod-agent/ledger.test.mjs   (also via `pnpm lint:agent-syntax`)
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { toLedgerTotalRows } from "./ledger.mjs";
+import { toLedgerTotalRows, mapGlControl } from "./ledger.mjs";
 import { GL_CONTROL_TOTALS } from "./queries.mjs";
 
 test("carries the date, the module, the account and the three measures", () => {
@@ -56,4 +56,25 @@ test("the query groups by the day, not by the raw timestamp", () => {
   assert.match(GL_CONTROL_TOTALS, /CAST\(g\.transaction_date AS date\)/);
   assert.match(GL_CONTROL_TOTALS, /GROUP BY\s+combined\.transaction_date/);
   assert.match(GL_CONTROL_TOTALS, /CONVERT\(char\(10\), combined\.transaction_date, 23\)\s+AS txn_date/);
+});
+
+// McLeod's open accounting period (D-TP5, 0502) — the sandbox row as read 2026-10-19.
+const CONTROL_ROW = {
+  company_id: "TMS ", fiscal_year: "2026 ", fiscal_period: 8, prior_post: "N",
+  period_start: "2026-08-01", period_end: "2026-09-01",
+};
+
+test("gl control: carries the open period, trimmed, with prior posting refused only for 'N'", () => {
+  assert.deepEqual(mapGlControl(CONTROL_ROW), {
+    company_id: "TMS", fiscal_year: "2026", fiscal_period: 8, prior_post_allowed: false,
+    period_start: "2026-08-01", period_end: "2026-09-01",
+  });
+  assert.equal(mapGlControl({ ...CONTROL_ROW, prior_post: "Y" }).prior_post_allowed, true);
+  // An unset flag is not a refusal: nothing makes an earlier period final unless McLeod says 'N'.
+  assert.equal(mapGlControl({ ...CONTROL_ROW, prior_post: null }).prior_post_allowed, true);
+});
+
+test("gl control: sends nothing for a company with no matching fiscal period", () => {
+  assert.equal(mapGlControl(undefined), null);
+  assert.equal(mapGlControl({ ...CONTROL_ROW, period_start: null }), null);
 });
