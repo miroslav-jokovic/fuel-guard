@@ -19,12 +19,16 @@ import { recordId } from "./recordId.js";
  * `from`/`to` are required rather than defaulted. An unbounded attribution query over a hundred-truck
  * fleet is a table scan, and a silent default would be a different question from the one asked.
  */
+/**
+ * The attribution trail's query (DISPATCH-LOADS-COUNTS-PLAN D-DLC5, 2026-10-20): a range and a
+ * driver or a truck. No trailer: the trail is Samsara's driver↔vehicle assignments, which name no
+ * trailer. The duty-session fields (seat, confirmed by, source) went with that source.
+ */
 export const assignmentHistoryQuerySchema = z.object({
   from: z.string().min(1),
   to: z.string().min(1),
   driverId: recordId().optional(),
   vehicleId: recordId().optional(),
-  trailerId: recordId().optional(),
   limit: z.coerce.number().int().min(1).max(200).default(50),
   /** Keyset cursor — the `from_at` of the last row seen. Offset paging skips rows on a live table. */
   cursor: z.string().optional(),
@@ -32,17 +36,21 @@ export const assignmentHistoryQuerySchema = z.object({
 export type AssignmentHistoryQuery = z.infer<typeof assignmentHistoryQuerySchema>;
 
 export const assignmentHistoryRowSchema = z.object({
-  session_id: recordId(),
-  segment_id: recordId(),
-  driver_id: recordId(),
+  /** Samsara's own segment, stable across pages: truck, driver and start. */
+  segment_id: z.string(),
+  /** Null when the Samsara driver is not on the roster; `driver_samsara_id` still names them. */
+  driver_id: recordId().nullable(),
   driver_name: z.string().nullable(),
+  driver_samsara_id: z.string(),
   vehicle_id: recordId().nullable(),
   vehicle_unit: z.string().nullable(),
-  trailer_id: recordId().nullable(),
-  trailer_unit: z.string().nullable(),
-  seat: z.string(),
-  confirmed_by: z.string(),
-  session_source: z.string(),
+  vehicle_samsara_id: z.string(),
+  /** McLeod loads this truck was on while the segment ran, by load number; empty when none. */
+  load_refs: z.array(z.string()),
+  /** An open segment the sync still sees: held right now. Open and NOT still held = ended, time not recorded. */
+  still_held: z.boolean(),
+  /** When the sync last saw the segment — an ended-but-unrecorded segment's best-known end. */
+  last_seen_at: z.string(),
   from_at: z.string(),
   /** Null means still held — the driver has not signed off and the shift has not timed out. */
   to_at: z.string().nullable(),

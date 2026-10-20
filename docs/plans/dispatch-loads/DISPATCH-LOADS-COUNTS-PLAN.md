@@ -259,3 +259,24 @@ Built the same day (DLC1 + DLC2 in one PR, web and API, no migration):
   its 500-line budget.
 - Not built here: DLC3 History on Samsara (next PR), DLC4 the backfill package for Alex, DLC5 server
   paging (after DLC4).
+
+### 2026-10-20 — DLC3: History reads the seat sync's own table
+
+- **The source is a table we already had.** §5 weighed a Samsara call per page. Building it found
+  `driver_vehicle_assignments` (0051, roster's): the seat sync has upserted Samsara's
+  driver↔vehicle assignments every five minutes since 2026-04-14 — 199,600 segments, 407 trucks,
+  235 drivers, 1,347 a day. Six months deep, org-scoped, no Samsara call. D-DLC5 holds with that
+  source: same facts, read from where they already are.
+- **An open row is not always still held.** 44,799 rows have no `end_at`; 184 of them had been
+  refreshed in the last two hours and 43,978 not for two days or more — a segment open when it last
+  fell inside the sync's lookback keeps `end_at = null` for good. The reader tells them apart by
+  `updated_at` (`STILL_HELD_WITHIN_MS`, 2 h): still held, or ended at a time Samsara no longer
+  reports, last seen then. The window filter uses the last sighting as an open row's end, or every
+  stale-open row since April would match every range.
+- **The row.** Driver (name, or the Samsara id when the roster lacks them), Truck, the McLeod loads
+  the truck was on while the segment ran, From, To (*Still held*, or *Not recorded* with the last
+  sighting), Held for. No trailer and no seat: the source names neither. The Trailer filter went
+  with them. Same URL keys, same keyset paging, same 7-day opening range.
+- **Boundaries.** `loads -> roster` is a new edge; the history reader's grandfathered direct reads of
+  `drivers` and `vehicles` are gone with it. `driver_equipment_timeline` keeps its one reader, the
+  load detail's duty attribution (`duty.ts`), untouched.

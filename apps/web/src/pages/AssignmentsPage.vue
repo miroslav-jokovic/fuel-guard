@@ -66,7 +66,8 @@ import {
  * pasted link reopen the same board. Fleet and Dispatched by are primary filters, so they show their
  * value in their own trigger and add no chip (contract §5.5 rules 3 and 5).
  *
- * The History tab is the L5 attribution trail, unchanged.
+ * The History tab is the L5 attribution trail, read since 2026-10-20 from Samsara's driver↔vehicle
+ * assignments (DISPATCH-LOADS-COUNTS-PLAN D-DLC5): its old source, the in-app shift, never had a row.
  *
  * ── V2: THE DISPATCHERS' OWN QUESTION FIRST (DISPATCH-BOARD-V2-PLAN, ruled 2026-10-16) ───────────
  * Tested with the dispatchers on 2026-10-15: "a lot of information, a little bit confusing". Their own
@@ -192,7 +193,7 @@ const closeTruck = () => qs.set({ truck: undefined });
 
 const at = (iso: string | null | undefined) => formatDateTime(iso, "—", zone.value);
 const description = computed(() => {
-  if (tab.value === HISTORY) return "Who held which truck and trailer, and when. The attribution trail behind every evidence panel.";
+  if (tab.value === HISTORY) return "Who was signed in to which truck, and when, from Samsara, with the loads the truck was on. The attribution trail behind every evidence panel.";
   const hos = board.value?.hosAsOf ? ` HOS as of ${at(board.value.hosAsOf)}.` : "";
   return `When and where every truck is next free, soonest first.${hos}`;
 });

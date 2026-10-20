@@ -325,6 +325,9 @@ const API_ALLOW = new Set([
   // A dispatch text reads its appointments on the carrier's clock (LOADS-MIRROR-PLAN.md LR-D2), and
   // the one reader of `organizations.operating_hours->>'tz'` is idle's — the same borrow as fuel's.
   "loads -> idle",
+  // The attribution trail reads Samsara's driver↔vehicle segments, the roster's
+  // `driver_vehicle_assignments`, through the roster's reader (DISPATCH-LOADS-COUNTS-PLAN D-DLC5).
+  "loads -> roster",
   // A red hazmat verdict tells the office through the same fabric as everyone else.
   "hazmat -> messaging",
   // The Samsara scheduler paces the score sync and week snapshots — the cadence clock again.
