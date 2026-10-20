@@ -617,6 +617,18 @@ about three merges.
   lands, an unmatched unit reads "Not on our current roster", which is true, rather than "Not matched to ours".
 
 ---
+- **Q-IC18 — OPEN 2026-10-20 (owner's call): build the court-paper reader before there is a court paper?** IC4's
+  third merge was to read a filed `court_disposition` and pre-fill the court-result form (outcome, court, day, which
+  ticket by citation number). Measured on production 2026-10-20 (at 0495): **0 `court_disposition` documents, and 0
+  documents of any roadside kind** — every filed document is on a tractor, trailer or driver. Court papers differ by
+  state and by county, so a reader built now would be tuned against invented samples, and its first real test would
+  come on a live ticket. The form a person fills already does the whole job; the reader only saves typing on ~21
+  court results a year (Q-IC4's measurement). Candidates: (a) **wait until five real court papers are filed, then
+  build the profile against them** — the plan's job-aid fields stay the target, the papers decide the extraction;
+  (b) build it now against synthetic papers, like IC10's report profile (which has still never fired: 0 reports
+  uploaded); (c) drop the reader; the form stays the only path. *Recommendation: (a), and go on to IC12 in the ruled
+  order (IC15's line: IC4 → IC12 → IC6): the driver-app intake is what puts roadside papers into the system at all,
+  so it is also what (a) waits on.*
 
 ## 10. Progress log
 
@@ -1203,3 +1215,8 @@ about three merges.
     page's, or with no driver decision; and an RDR number over anything but the current approval.
   - **Next (IC4, third merge):** a `court_disposition` read profile on the document reader pre-fills the form from the
     filed paper (outcome, court, day, which ticket by citation number); a person still saves it.
+
+- **2026-10-20 — IC4 third merge HELD on Q-IC18.** #1649 (IC4 second merge, migration 0495 — renumbered twice
+  while parallel PRs took 0491–0493) is merged (f2ecbcc); production's database has 0495. The pre-fill reader's measurement came back empty: no court
+  paper, and no roadside document of any kind, has been filed on production. Recorded as Q-IC18 with a
+  recommendation: build the reader against the first five real papers; IC12 next.
