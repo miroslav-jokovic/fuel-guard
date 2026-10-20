@@ -18,7 +18,6 @@ export interface AssignmentHistoryFilters {
   to: string;
   driverId?: string;
   vehicleId?: string;
-  trailerId?: string;
 }
 
 export const HISTORY_PAGE_SIZE = 50;
@@ -42,7 +41,6 @@ export function useAssignmentHistoryQuery(filters: Ref<AssignmentHistoryFilters>
       });
       if (f.driverId) params.set("driverId", f.driverId);
       if (f.vehicleId) params.set("vehicleId", f.vehicleId);
-      if (f.trailerId) params.set("trailerId", f.trailerId);
       if (pageParam) params.set("cursor", pageParam);
 
       const res = await apiFetch<AssignmentHistoryResponse>(

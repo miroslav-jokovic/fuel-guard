@@ -79,7 +79,6 @@ const GRANDFATHERED_ACCESS = new Set([
 const DYNAMIC_FROM_ALLOWED = new Map([
   ["apps/api/src/modules/driver-app/dutySessions.ts", "unit-number lookup dispatching over vehicles|trailers by asset kind"],
   ["apps/api/src/modules/efs/services/efsIngestShared.ts", "duplicate-ref probe over fuel_transactions|declined_transactions during ingest"],
-  ["apps/api/src/modules/loads/dispatchLoads/history.ts", "label hydration dispatching over drivers|vehicles by event kind"],
   ["apps/api/src/modules/mcleod/rosterIngest.ts", "roster entity dispatch over drivers|vehicles|trailers from the ingest payload kind"],
   ["apps/api/src/modules/mcleod/rosterRetire.ts", "same roster entity dispatch as rosterIngest, retirement path"],
   ["apps/api/src/modules/mcleod/tmsIngest.ts", "same roster entity dispatch, route layer"],

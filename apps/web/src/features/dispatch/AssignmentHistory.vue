@@ -15,7 +15,6 @@ import DateRangeFilter from "@/components/DateRangeFilter.vue";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { useDriversQuery } from "@/composables/useDrivers";
 import { useVehiclesQuery } from "@/composables/useVehicles";
-import { useTrailersQuery } from "@/composables/useTrailers";
 import {
   HISTORY_PAGE_SIZE as PAGE_SIZE,
   useAssignmentHistoryQuery,
@@ -24,14 +23,21 @@ import {
 import { formatDateTime } from "@/lib/format";
 
 /**
- * The attribution trail (loads plan L5 / D-L6).
+ * The attribution trail (loads plan L5 / D-L6; source changed by DISPATCH-LOADS-COUNTS-PLAN D-DLC5).
  *
  * §14.9 designates this the audit record behind every evidence panel the detection engine renders.
- * "Who was in this truck at 14:20 on the 3rd" is the first question an anomaly investigation asks,
- * and until now it could only be answered by someone with SQL access — the engine has been citing a
- * trail nobody could open.
+ * "Who was in this truck at 14:20 on the 3rd" is the first question an anomaly investigation asks.
+ * Until 2026-10-20 the rows were the driver app's in-app shifts, which nobody has ever started, so
+ * the tab was empty whatever the dates. They are now Samsara's driver↔vehicle assignments — the
+ * sign-ins the roadside-inspection attribution cites — stored since April 2026, with the McLeod
+ * loads the truck was on while each ran. No trailer and no seat: the source names neither.
  *
- * NO SEARCH BOX, on purpose. The endpoint filters by driver, vehicle, trailer and date; it has no
+ * ── AN OPEN SEGMENT IS NOT ALWAYS STILL HELD ─────────────────────────────────────────────────────
+ * The server says which (`still_held`): a segment Samsara still reports is *Still held*; one that
+ * ended at a time Samsara no longer reports is *Not recorded*, with when it was last seen. Neither
+ * is a blank, because a blank reads as "still in the truck".
+ *
+ * NO SEARCH BOX, on purpose. The endpoint filters by driver, vehicle and date; it has no
  * text search. A search field over server-paginated rows would only match what happens to be loaded,
  * which is worse than no search at all — the design contract's rule is to never ship a filter no
  * query consumes.
@@ -57,7 +63,7 @@ const DEFAULT_TO = iso(new Date());
  * date that is not a real calendar day reads as the default rather than reaching the endpoint, whose
  * contract only says `min(1)`. Clearing the picker puts the week back: the query cannot run without a
  * range, and an emptied picker over a table still answering for last week told the reader nothing.
- * The driver, truck and trailer ids are not checked against a list — the lists are loaded after the
+ * The driver and truck ids are not checked against a list — the lists are loaded after the
  * page opens, and an id nobody matches is a filter that matches nothing, which the endpoint rejects as
  * a non-uuid rather than widening.
  */
@@ -74,11 +80,9 @@ const to = computed<string | undefined>({
 });
 const driverId = qs.param("driver");
 const vehicleId = qs.param("vehicle");
-const trailerId = qs.param("trailer");
 
 const drivers = useDriversQuery();
 const vehicles = useVehiclesQuery();
-const trailers = useTrailersQuery();
 
 const driverOptions = computed(() => [
   { value: "", label: "All drivers" },
@@ -88,10 +92,6 @@ const vehicleOptions = computed(() => [
   { value: "", label: "All trucks" },
   ...(vehicles.data.value ?? []).map((v) => ({ value: v.id, label: v.unit_number })),
 ]);
-const trailerOptions = computed(() => [
-  { value: "", label: "All trailers" },
-  ...(trailers.data.value ?? []).map((t) => ({ value: t.id, label: t.unit_number })),
-]);
 
 const filters = computed<AssignmentHistoryFilters>(() => ({
   // The picker can be cleared; the query cannot run without a range, so fall back to the same
@@ -100,7 +100,6 @@ const filters = computed<AssignmentHistoryFilters>(() => ({
   to: to.value ?? iso(new Date()),
   ...(driverId.value ? { driverId: driverId.value } : {}),
   ...(vehicleId.value ? { vehicleId: vehicleId.value } : {}),
-  ...(trailerId.value ? { trailerId: trailerId.value } : {}),
 }));
 
 const query = useAssignmentHistoryQuery(filters);
@@ -144,18 +143,11 @@ const chips = computed<FilterChip[]>(() => {
       label: "Truck",
       value: label(vehicleOptions.value, vehicleId.value),
     });
-  if (trailerId.value)
-    out.push({
-      key: "trailer",
-      label: "Trailer",
-      value: label(trailerOptions.value, trailerId.value),
-    });
   return out;
 });
-const moreCount = computed(() => (vehicleId.value ? 1 : 0) + (trailerId.value ? 1 : 0));
+const moreCount = computed(() => (vehicleId.value ? 1 : 0));
 function removeChip(key: string): void {
   if (key === "vehicle") vehicleId.value = "";
-  if (key === "trailer") trailerId.value = "";
 }
 /**
  * The opening week is the default, not a filter somebody set, so the range counts only once it has
@@ -165,11 +157,11 @@ function removeChip(key: string): void {
 const activeCount = computed(
   () =>
     (from.value !== DEFAULT_FROM || to.value !== DEFAULT_TO ? 1 : 0) +
-    [driverId.value, vehicleId.value, trailerId.value].filter(Boolean).length,
+    [driverId.value, vehicleId.value].filter(Boolean).length,
 );
 function clearAll(): void {
   // One patch, not five: the buffer would coalesce them anyway, but one write says what this is.
-  qs.set({ from: undefined, to: undefined, driver: undefined, vehicle: undefined, trailer: undefined });
+  qs.set({ from: undefined, to: undefined, driver: undefined, vehicle: undefined });
 }
 
 // Changing a filter starts a new keyset walk; without this the accumulated pages would be a mix of
@@ -182,8 +174,11 @@ watch(() => JSON.stringify(filters.value), () => {
 });
 
 const nowMs = ref(Date.now());
+/** Held until its end, else until now while still held, else until Samsara last saw it. */
 const held = (row: AssignmentHistoryRow): string =>
-  shiftDuration(row.from_at, row.to_at ? Date.parse(row.to_at) : nowMs.value);
+  shiftDuration(row.from_at, row.to_at ? Date.parse(row.to_at) : row.still_held ? nowMs.value : Date.parse(row.last_seen_at));
+/** The roster's name, or the Samsara id when the roster does not carry this driver. */
+const driverWords = (row: AssignmentHistoryRow): string => row.driver_name ?? `Samsara driver ${row.driver_samsara_id}`;
 
 const columns: DataTableColumn[] = [
   {
@@ -198,12 +193,7 @@ const columns: DataTableColumn[] = [
     width: "sm",
     cellClass: "text-ink-secondary",
   },
-  {
-    key: "trailer_unit",
-    label: "Trailer",
-    width: "sm",
-    cellClass: "text-ink-secondary",
-  },
+  { key: "load_refs", label: "Load", width: "md", cellClass: "text-ink-secondary" },
   { key: "from_at", label: "From", width: "lg", cellClass: "text-ink-secondary" },
   { key: "to_at", label: "To", width: "lg", cellClass: "text-ink-secondary" },
   {
@@ -213,7 +203,6 @@ const columns: DataTableColumn[] = [
     width: "sm",
     cellClass: "text-ink-secondary",
   },
-  { key: "seat", label: "Seat", width: "md" },
 ];
 
 const stamp = (v: string): string => formatDateTime(v);
@@ -237,7 +226,6 @@ const stamp = (v: string): string => formatDateTime(v);
       </template>
       <template #more>
         <FilterSelect v-model="vehicleId" label="Truck" :options="vehicleOptions" block />
-        <FilterSelect v-model="trailerId" label="Trailer" :options="trailerOptions" block />
       </template>
     </FilterBar>
 
@@ -253,20 +241,24 @@ const stamp = (v: string): string => formatDateTime(v);
           : null
       "
       :retrying="query.isFetching.value"
-      empty-text="No equipment was held in this range. Widen the dates, or clear a filter."
+      empty-text="No driver was signed in to a truck in this range. Widen the dates, or clear a filter."
       @retry="query.refetch()"
     >
+      <template #cell-driver_name="{ row }">{{ driverWords(row) }}</template>
+      <template #cell-vehicle_unit="{ row }">{{ row.vehicle_unit ?? `Samsara vehicle ${row.vehicle_samsara_id}` }}</template>
+      <template #cell-load_refs="{ row }">
+        <span v-if="row.load_refs.length">{{ row.load_refs.join(", ") }}</span>
+        <span v-else class="text-ink-tertiary">—</span>
+      </template>
       <template #cell-from_at="{ row }">{{ stamp(row.from_at) }}</template>
       <template #cell-to_at="{ row }">
         <span v-if="row.to_at">{{ stamp(row.to_at) }}</span>
-        <span v-else :class="[BADGE_BASE, toneClass('brand')]">Still held</span>
-      </template>
-      <template #cell-held="{ row }">{{ held(row) }}</template>
-      <template #cell-seat="{ row }">
-        <span :class="[BADGE_BASE, toneClass(row.seat === 'driver' ? 'neutral' : 'info')]">
-          {{ row.seat === "co_driver" ? "Co-driver" : "Driver" }}
+        <span v-else-if="row.still_held" :class="[BADGE_BASE, toneClass('brand')]">Still held</span>
+        <span v-else :class="[BADGE_BASE, toneClass('neutral')]" :title="`Samsara last reported this sign-in at ${stamp(row.last_seen_at)}; its end was not recorded.`">
+          Not recorded
         </span>
       </template>
+      <template #cell-held="{ row }">{{ held(row) }}</template>
 
       <template #footer>
         <!-- Keyset, so there is no page count to render: a total would need a full scan of the very

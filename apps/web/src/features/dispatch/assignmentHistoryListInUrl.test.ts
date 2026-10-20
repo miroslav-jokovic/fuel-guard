@@ -25,7 +25,6 @@ const walk = await vi.hoisted(async () => {
 
 vi.mock("@/composables/useDrivers", () => ({ useDriversQuery: () => ({ data: ref([{ id: DRIVER, full_name: "Pete Ross" }]) }) }));
 vi.mock("@/composables/useVehicles", () => ({ useVehiclesQuery: () => ({ data: ref([{ id: TRUCK, unit_number: "773" }]) }) }));
-vi.mock("@/composables/useTrailers", () => ({ useTrailersQuery: () => ({ data: ref([]) }) }));
 vi.mock("@/features/dispatch/useAssignments", async (orig) => ({
   ...(await orig<typeof import("./useAssignments")>()),
   useAssignmentHistoryQuery: (filters: Ref<AssignmentHistoryFilters>) => {
@@ -107,8 +106,8 @@ describe("Assignment history keeps its filters in the URL", () => {
  */
 describe("Assignment history pages over its cursor", () => {
   const segment = (n: number) => ({
-    session_id: `s${n}`, segment_id: `seg-${n}`, driver_id: DRIVER, driver_name: `Driver ${n}`, vehicle_id: null, vehicle_unit: null,
-    trailer_id: null, trailer_unit: null, seat: "driver", confirmed_by: "driver", session_source: "app", from_at: "2026-10-01T12:00:00Z", to_at: null,
+    segment_id: `seg-${n}`, driver_id: DRIVER, driver_name: `Driver ${n}`, driver_samsara_id: `sd-${n}`, vehicle_id: null, vehicle_unit: null,
+    vehicle_samsara_id: "sv-773", load_refs: [], still_held: false, last_seen_at: "2026-10-01T18:00:00Z", from_at: "2026-10-01T12:00:00Z", to_at: null,
   });
   const serverPage = (start: number, size: number, nextCursor: string | null) =>
     ({ segments: Array.from({ length: size }, (_, i) => segment(start + i)), nextCursor });

@@ -47,3 +47,15 @@ export { getEquipmentIdentities, getEquipmentIdentity, listAnnualInspectionExpir
 export { readEquipmentIdentitySource, releaseEquipmentInspectionClaim } from "./equipmentInspection.js";
 export type { EquipmentIdentity, EquipmentListOptions } from "./equipmentInspection.js";
 export { listUnitFileFacts, type UnitFileFacts } from "./unitFileFacts.js";
+// The attribution trail (DISPATCH-LOADS-COUNTS-PLAN D-DLC5): Samsara's driver↔vehicle segments, the
+// roster's table, read by the Loads module's history endpoint through here.
+export {
+  readDriverVehicleAssignments,
+  resolveAssignmentParties,
+  samsaraIdsOf,
+  segmentStillHeld,
+  STILL_HELD_WITHIN_MS,
+  type AssignmentParty,
+  type AssignmentSegment,
+  type AssignmentSegmentQuery,
+} from "./driverVehicleAssignmentReads.js";
