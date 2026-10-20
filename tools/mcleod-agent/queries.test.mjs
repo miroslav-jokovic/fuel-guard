@@ -201,9 +201,12 @@ test("the backfill returns the board's columns, bounded by a departure window on
   assert.equal(cols(Q.DISPATCH_LOAD_STOPS_DELIVERED), cols(Q.DISPATCH_LOAD_STOPS));
   for (const sql of [Q.DISPATCH_LOADS_DELIVERED, Q.DISPATCH_LOAD_STOPS_DELIVERED]) {
     assert.match(sql, /AND m\.status = 'D'/);
+    // D-DLC8: an empty leg shares its loaded leg's order, so reading it would show every order twice.
+    assert.match(sql, /AND m\.loaded = 'L'/);
     assert.match(sql, /sb\.actual_departure >= @windowStart/);
     assert.match(sql, /sb\.actual_departure <\s+@windowEnd/);
     assert.ok(!/@staleBefore/.test(sql), "the staleness bound is the open board's, not the backfill's");
   }
   assert.match(Q.DISPATCH_LOAD_STOPS_DELIVERED, /WHERE s\.company_id = @companyId/);
+  assert.ok(!/AND m\.loaded = /.test(Q.DISPATCH_LOADS), "the open board keeps every leg McLeod has open, empty ones included");
 });

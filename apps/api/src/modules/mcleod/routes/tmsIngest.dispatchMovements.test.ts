@@ -90,6 +90,16 @@ const board = () =>
     [boardStop(), boardStop({ stop_id: "zz2", seq: 2, stop_type: "VA" }), boardStop({ movement_id: "901", stop_id: "d1" })],
   ).movements;
 
+// The backfill's payload (DLC4): movement 903, never held, already D, delivered in April; its last stop
+// carries the year-2215 placeholder McLeod leaves on some departures.
+const backfill = () =>
+  assemble(
+    [boardRow({ external_id: "TMS:903", movement_id: "903", external_status: "D" })],
+    [boardStop({ movement_id: "903", stop_id: "b1", stop_type: "PU", actual_departure: "2026-04-02T09:10:00" }),
+      boardStop({ movement_id: "903", stop_id: "b2", seq: 2, stop_type: "SO", actual_departure: "2026-04-03T14:30:00" }),
+      boardStop({ movement_id: "903", stop_id: "b3", seq: 3, stop_type: "SO", actual_departure: "2215-01-01T00:00:00" })],
+  ).movements;
+
 describe("POST /api/tms/dispatch-movements", () => {
   it("stores the agent's board for the token's org and company, every stop kept, every query scoped", async () => {
     const rec = seed();
@@ -141,6 +151,20 @@ describe("POST /api/tms/dispatch-movements", () => {
     expect(byId["900"]).toBeNull();
     expect(byId["901"]).toBe(EARLIER_CLOSE);
     expect(Date.parse(String(byId["902"]))).toBeGreaterThanOrEqual(before - 1000);
+  });
+
+  // D-DLC9: the backfill's movement was closed months ago; dating it "now" would put six months of
+  // history on one day and keep it in the relink window for 60 days.
+  it("closed_at: a movement never held that arrives already closed is dated by its last recorded departure, never a placeholder", async () => {
+    const rec = seed();
+    holder.client = rec.client;
+    const movements = backfill();
+    await post({ company_id: "TMS", movements });
+    const sent = movements[0] as { stops: { stop_id: string; actual_departure: string }[] };
+    const lastReal = sent.stops.find((s) => s.stop_id === "b2")!.actual_departure;
+    expect(lastReal).toMatch(/^2026-04-03T/);
+    const row = rec.writtenRows("mcleod_dispatch_movements").find((m) => m.movement_id === "903");
+    expect(row?.closed_at).toBe(lastReal);
   });
 
   it("deletes a stop McLeod removed from a movement it sent — by id, scoped — and nothing else", async () => {

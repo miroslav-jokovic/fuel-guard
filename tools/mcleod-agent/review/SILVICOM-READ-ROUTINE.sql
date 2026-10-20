@@ -13,7 +13,7 @@
      login        silvicom_dispatch_ro - read only, no insert/update/delete anywhere
      runs on      the Board VM, one program, one connection, sending data out over HTTPS
      shows up as  program_name "Silvicom 360 connector" in sys.dm_exec_sessions
-     statements   28, in five parts, never two at the same time
+     statements   28, in six parts, never two at the same time
    ====================================================================================== */
 
 -- ========================================================================================
@@ -911,17 +911,21 @@ OPTION (MAXDOP 1);
 -- PART 6 - DELIVERED LOADS BEFORE THE MIRROR BEGAN (by hand only, once)
 --
 -- The mirror began on 2026-09-17 and reads open loads only, so loads delivered before that day
--- were never read. This reads delivered (D) movements whose truck left a stop inside a date
--- window, with the same columns as Part 1, so Silvicom 360 can show six months of delivery
--- history. Run once, with --from and --to, in slices of a month; about 4,500 movements and
--- 10,000 stops for six months. The dates below are examples so the file runs.
+-- were never read. This reads delivered (D) loaded movements whose truck left a stop inside a
+-- date window, with the same columns as Part 1, so Silvicom 360 can show six months of delivery
+-- history. Empty legs are left out: they share the loaded leg's order and would show it twice.
+-- Run once, with --from and --to, in slices of two weeks; measured on the analytics copy, a
+-- month is about 1,550 loaded movements and 3,300 stops and takes four to six seconds on one
+-- core, so six months is about 8,700 movements and 18,000 stops. It is run from the analytics
+-- copy (restored 2026-10-09, which covers the whole gap), never from the Board VM. The dates
+-- below are examples so the file runs.
 -- ========================================================================================
 
 -- ----------------------------------------------------------------------------------------
 -- STATEMENT 27 of 28: DELIVERED MOVEMENTS IN THE WINDOW
 --
--- Same columns as statement 1. The window is on the stop's actual departure, so the 2215
--- sentinel date is never read.
+-- Same columns as statement 1, loaded legs only. The window is on the stop's actual
+-- departure, so the 2215 sentinel date is never read.
 -- ----------------------------------------------------------------------------------------
 SELECT
       LTRIM(RTRIM(m.company_id)) + ':' + LTRIM(RTRIM(m.id))  AS external_id,
@@ -974,6 +978,7 @@ SELECT
         ON tr.id = cl.equipment_id AND tr.company_id = m.company_id
      WHERE m.company_id = @companyId
        AND m.status = 'D'
+       AND m.loaded = 'L'
        AND EXISTS (
          SELECT 1 FROM dbo.stop AS sb
           WHERE sb.movement_id = m.id
@@ -1017,6 +1022,7 @@ SELECT
         ON m.id = s.movement_id AND m.company_id = s.company_id
      WHERE s.company_id = @companyId
        AND m.status = 'D'
+       AND m.loaded = 'L'
        AND EXISTS (
          SELECT 1 FROM dbo.stop AS sb
           WHERE sb.movement_id = m.id

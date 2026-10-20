@@ -43,14 +43,34 @@ export async function deliveredCandidateIds(
 /**
  * The first moment the mirror holds a load from — the floor the Loads page names beside its Delivered
  * window (DISPATCH-LOADS-COUNTS-PLAN D-DLC6): "Delivery history begins 09/17/2026". A load delivered
- * before the mirror began is not in core (it lives in McLeod's live `movement` table, read only by the
- * backfill step DLC4), so a 30-day window must not read as the whole history. The earliest
- * `created_at` is that moment; null for an org with no loads.
+ * before the mirror began is not in core until the backfill (DLC4) brings it, so a 30-day window must
+ * not read as the whole history.
+ *
+ * The moment is the earliest DELIVERY held, not the earliest row (D-DLC10, 2026-10-20): the backfill
+ * stores an April delivery with today's `created_at`, so a floor on `created_at` would go on saying
+ * 09/17/2026 over six months of older history. Delivery time is the delivery stop's McLeod departure,
+ * the same column the window keys on above. An org whose stops carry no departure yet (nothing
+ * delivered) falls back to its earliest row, so the floor is never later than the first load; null
+ * for an org with no loads at all.
  */
 export async function loadsHistoryFrom(admin: SupabaseClient, orgId: string): Promise<string | null> {
-  const { data, error } = await admin.from("loads").select("created_at").eq("org_id", orgId).order("created_at", { ascending: true }).limit(1);
-  if (error) throw new Error(error.message);
-  return ((data ?? []) as { created_at: string | null }[])[0]?.created_at ?? null;
+  const [stop, load] = await Promise.all([
+    admin
+      .from("load_stops")
+      .select("actual_departure_at")
+      .eq("org_id", orgId)
+      .eq("kind", "dropoff")
+      .not("actual_departure_at", "is", null)
+      .order("actual_departure_at", { ascending: true })
+      .limit(1),
+    admin.from("loads").select("created_at").eq("org_id", orgId).order("created_at", { ascending: true }).limit(1),
+  ]);
+  if (stop.error) throw new Error(stop.error.message);
+  if (load.error) throw new Error(load.error.message);
+  const delivered = ((stop.data ?? []) as { actual_departure_at: string | null }[])[0]?.actual_departure_at ?? null;
+  const created = ((load.data ?? []) as { created_at: string | null }[])[0]?.created_at ?? null;
+  if (delivered == null || created == null) return delivered ?? created;
+  return Date.parse(delivered) < Date.parse(created) ? delivered : created;
 }
 
 /** Is this instant inside the half-open window [from, before)? */

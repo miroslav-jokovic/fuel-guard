@@ -37,6 +37,9 @@ const roster = Q.rosterQueries("identity");
 const retire = Q.retirementQueries();
 const close = Q.closeReadQueries(SAMPLE_CLOSE_IDS.length);
 
+/** The header counts the parts in words; "five" was typed by hand and stayed when Part 6 arrived. */
+const PART_WORDS = ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine"];
+
 const PARTS = [
   {
     title: `PART 1 - OPEN LOADS (${every("loads")})`,
@@ -126,13 +129,17 @@ const PARTS = [
     title: "PART 6 - DELIVERED LOADS BEFORE THE MIRROR BEGAN (by hand only, once)",
     intro: [
       "The mirror began on 2026-09-17 and reads open loads only, so loads delivered before that day",
-      "were never read. This reads delivered (D) movements whose truck left a stop inside a date",
-      "window, with the same columns as Part 1, so Silvicom 360 can show six months of delivery",
-      "history. Run once, with --from and --to, in slices of a month; about 4,500 movements and",
-      "10,000 stops for six months. The dates below are examples so the file runs.",
+      "were never read. This reads delivered (D) loaded movements whose truck left a stop inside a",
+      "date window, with the same columns as Part 1, so Silvicom 360 can show six months of delivery",
+      "history. Empty legs are left out: they share the loaded leg's order and would show it twice.",
+      "Run once, with --from and --to, in slices of two weeks; measured on the analytics copy, a",
+      "month is about 1,550 loaded movements and 3,300 stops and takes four to six seconds on one",
+      "core, so six months is about 8,700 movements and 18,000 stops. It is run from the analytics",
+      "copy (restored 2026-10-09, which covers the whole gap), never from the Board VM. The dates",
+      "below are examples so the file runs.",
     ],
     statements: [
-      ["DELIVERED MOVEMENTS IN THE WINDOW", "Same columns as statement 1. The window is on the stop's actual departure, so the 2215 sentinel date is never read.", Q.DISPATCH_LOADS_DELIVERED],
+      ["DELIVERED MOVEMENTS IN THE WINDOW", "Same columns as statement 1, loaded legs only. The window is on the stop's actual departure, so the 2215 sentinel date is never read.", Q.DISPATCH_LOADS_DELIVERED],
       ["STOPS OF THOSE MOVEMENTS", "Same columns as statement 2.", Q.DISPATCH_LOAD_STOPS_DELIVERED],
     ],
   },
@@ -179,7 +186,7 @@ export function buildRoutine() {
     `     login        silvicom_dispatch_ro - read only, no insert/update/delete anywhere`,
     `     runs on      the Board VM, one program, one connection, sending data out over HTTPS`,
     `     shows up as  program_name "${APP_NAME}" in sys.dm_exec_sessions`,
-    `     statements   ${total}, in five parts, never two at the same time`,
+    `     statements   ${total}, in ${PART_WORDS[PARTS.length] ?? PARTS.length} parts, never two at the same time`,
     "   " + "=".repeat(86) + " */",
     "",
     RULE,
