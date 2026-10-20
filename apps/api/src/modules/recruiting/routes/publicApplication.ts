@@ -27,6 +27,7 @@ import { recordEsignConsent } from "../esignConsent.js";
 import { isIntakeError } from "../applicationIntake.js";
 import { submitApplication } from "../applicationSubmit.js";
 import { recordRelease } from "../applicationReleases.js";
+import { announceReadyToScreen } from "../readyToScreen.js";
 import { recordPacketMark } from "../applicationPacketMarks.js";
 import { recordApplicantIdentity } from "../applicantIdentity.js";
 import { publicApplicationHandbookRouter } from "./publicApplicationHandbook.js";
@@ -303,6 +304,13 @@ export function publicApplicationRouter(): Router {
               : 500;
         res.status(status).json(apiError(result.code, result.message));
         return;
+      }
+      // Q-AW56: the last permission is the moment the baton passes to the office, so it is the moment
+      // the office is told — before the answer, so a lost process cannot file the signature and lose
+      // the notice; it never throws (`readyToScreen.ts`), so the applicant's 201 does not depend on it.
+      if (result.completed) {
+        const { orgId, invitationId, driverId } = result.scope;
+        await announceReadyToScreen(admin, getAppLocals(req).env, orgId, invitationId, driverId);
       }
       // How far the ceremony got, so the page can move to the next instrument without refetching.
       res.status(201).json({ ok: true, signedCount: result.signedCount, completed: result.completed });

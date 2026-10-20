@@ -56,7 +56,17 @@ const row = (over: Partial<PipelineApplicant> & { driver_id: string; full_name: 
   }) as PipelineApplicant;
 
 const APPLICANTS: PipelineApplicant[] = [
-  row({ driver_id: "d1", full_name: "Mine One" }),
+  // Q-AW56: the one who just signed the last permission — waiting on us AND ready to screen.
+  row({
+    driver_id: "d1",
+    full_name: "Mine One",
+    checklist: {
+      next: "mvr", next_label: "Order the driving record", phase: "screening",
+      waiting_on: "us", done: 5, total: 12, days_waiting: 4, last_progress_at: "2026-09-14T00:00:00Z",
+      ready_to_screen: true,
+    },
+  }),
+  // Waiting on us too, but the office has started — the MVR is in and PSP is next.
   row({ driver_id: "d2", full_name: "Mine Two" }),
   row({
     driver_id: "d3",
@@ -243,6 +253,24 @@ describe("the default view, and what it must say about what it hides", () => {
     // ⚠ Four, including the declined one: "Everyone" means everyone on the board, and a total that
     // quietly excluded somebody would be the same lie as the hiding default, one level down.
     expect(options.some((o) => /Everyone \(4\)/.test(o))).toBe(true);
+  });
+});
+
+describe("the ready-to-screen view (Q-AW56)", () => {
+  /**
+   * A narrower "waiting on you": the rows whose permissions are in and whose screening nobody has
+   * started. The count on the option is the row count of the view, and the view is a URL — the
+   * bell's notice lands on `?waiting=screen` and must open on exactly these rows.
+   */
+  it("offers the view with its count, shows exactly those rows, and opens on them from the URL", async () => {
+    const wrapper = await mountBoard();
+    await choose(wrapper, "Waiting on", /Ready to screen \(1\)/);
+    expect(names(wrapper)).toEqual(["Mine One"]);
+    expect(router.currentRoute.value.query.waiting).toBe("screen");
+
+    const fromLink = await mountBoard(true, "/recruitment?waiting=screen");
+    expect(names(fromLink)).toEqual(["Mine One"]);
+    expect(filterTrigger(fromLink, "Waiting on").text()).toContain("Ready to screen (1)");
   });
 });
 

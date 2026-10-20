@@ -402,6 +402,13 @@ const API_ALLOW = new Set([
   //   the matrix's own answer for who acts on the safety section. Neither module imports inspections.
   "inspections -> messaging",
   "inspections -> org",
+  // · recruiting -> org — the "ready to screen" notice (APPLICATION-FLOW-V2-PLAN Q-AW56,
+  //   `readyToScreen.ts`): `notify()` to `usersWhoManage("recruitment")`, the matrix's own answer for
+  //   who acts on the recruitment section. The nudge sweep asks the same question but is HANDED its
+  //   recipients by evidence's scheduler, which already drew this arrow; the notice fires inside the
+  //   applicant's own request, where there is no scheduler to hand them over. Org imports nothing
+  //   from recruiting.
+  "recruiting -> org",
   // · inspections -> samsara — IC5 (INSPECTION-CHALLENGE-PLAN D-IC12): who was driving at an inspection,
   //   asked of Samsara and frozen as received through the collector's own `makeSamsaraRawFetcher` and
   //   `loadSamsaraToken`. samsara imports nothing of inspections'.

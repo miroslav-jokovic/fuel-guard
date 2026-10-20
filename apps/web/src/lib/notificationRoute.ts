@@ -45,6 +45,9 @@ function destination(category: string, entityType: string | null, entityId: stri
   // A10. The applicant board IS the queue for a stalled application — there is no per-applicant page
   // to land on, and "an alert that cannot deep-link to its queue is half an alert".
   if (category === "application_stalled") return "/recruitment";
+  // Q-AW56. The board, opened on its "Ready to screen" view: the filter lives in the URL (D-US2), so
+  // the notice lands on exactly the rows it is about, with the count on the trigger.
+  if (category === "application_ready_to_screen") return "/recruitment?waiting=screen";
   // The card itself — the entity is the `efs_cards` row the status poll saw change.
   if (category === "card_status_changed" && entityType === "efs_card" && entityId) return `/fuel-cards/${entityId}`;
   // The daily summary names many cards and no single one, so it opens the card list (chunk 3b).

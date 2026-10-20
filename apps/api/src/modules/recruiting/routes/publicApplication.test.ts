@@ -149,7 +149,12 @@ const IDENTITY_TABLES = {
   application_drafts: [{ payload: { date_of_birth: "1980-04-01", cdl_number: "PA334554", cdl_state: "PA" } }],
 };
 
-const seed = (over: Record<string, unknown> | null = {}, extra: Record<string, unknown> = {}): SupabaseRecorder =>
+const seed = (
+  over: Record<string, unknown> | null = {},
+  extra: Record<string, unknown> = {},
+  /** A function's answer for one test — `record_driver_release`'s sixth signature, say. */
+  rpc: Record<string, unknown> = {},
+): SupabaseRecorder =>
   createSupabaseRecorder({
     tables: {
       application_invitations: over
@@ -190,6 +195,7 @@ const seed = (over: Record<string, unknown> | null = {}, extra: Record<string, u
       submit_driver_application: { application_id: "app-1" },
       save_application_draft: { draft_id: "d-1", updated_at: "2026-08-21T09:05:00Z" },
       record_esign_consent: { consent_id: "c-1" },
+      ...rpc,
     },
   });
 
@@ -872,6 +878,45 @@ describe("the link survives its own submission", () => {
     // but the call could not actually produce anything, so what the test pinned was a refusal
     // standing in for the behaviour. Since D-WORD1 the same call after a submission is a signature.
     expect(res.status).toBe(201);
+  });
+
+  /**
+   * Q-AW56: the sixth signature is the moment the office is told (`readyToScreen.ts`), the fifth is
+   * not — and the public answer carries no org, invitation or driver id either way (the scope the
+   * service hands the route is for the notice, never for the applicant).
+   */
+  it("tells the office when the last permission lands, and not before", async () => {
+    const office = { ...IDENTITY_TABLES, memberships: [{ user_id: "u-recruiter", role: "recruiter" }] };
+    const sixth = seed({}, office, {
+      record_driver_release: { authorization_id: "auth-6", signed_count: 6, completed: true },
+      emit_notification: "n-1",
+    });
+    holder.client = sixth.client;
+    const last = await call(`/${TOKEN}/release`, {
+      method: "POST",
+      body: JSON.stringify({ purpose: "psp", signed_name: "Susan Godfrey", esign_consent: true }),
+    });
+    expect(last.status).toBe(201);
+    expect(await last.json()).toEqual({ ok: true, signedCount: 6, completed: true });
+    const told = sixth.rpcs().filter((r) => r.fn === "emit_notification");
+    expect(told).toHaveLength(1);
+    const args = told[0]!.args as Record<string, unknown>;
+    expect(args.p_org).toBe(ORG);
+    expect(args.p_user).toBe("u-recruiter");
+    expect(args.p_category).toBe("application_ready_to_screen");
+    expect(args.p_dedupe_key).toBe("application_ready_to_screen:inv-1");
+
+    const fifth = seed({}, office, {
+      record_driver_release: { authorization_id: "auth-5", signed_count: 5, completed: false },
+      emit_notification: "n-1",
+    });
+    holder.client = fifth.client;
+    const notYet = await call(`/${TOKEN}/release`, {
+      method: "POST",
+      body: JSON.stringify({ purpose: "psp", signed_name: "Susan Godfrey", esign_consent: true }),
+    });
+    expect(notYet.status).toBe(201);
+    expect(fifth.rpcs().filter((r) => r.fn === "emit_notification")).toHaveLength(0);
   });
 
   it("refuses a fifth signature once the ceremony is closed", async () => {

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { driverPlacementIds, hiringChecklist, hiringStep, APPLICATION_RELEASE_ORDER } from "@silvicom/shared";
+import { driverPlacementIds, hiringChecklist, hiringStep, readyToScreen, APPLICATION_RELEASE_ORDER } from "@silvicom/shared";
 import { createSupabaseRecorder, expectOrgScoped } from "../../testing/supabaseRecorder.js";
 import { postgrestFixture } from "../../testing/postgrestFixture.js";
 import { boardChecklists, type BoardApplicantInput } from "./applicantBoard.js";
@@ -214,6 +214,33 @@ describe("the board row is the fold's answer, projected", () => {
     // outstanding, and their record page still shows it. Only the board's queue changes.
     expect(row.next).not.toBeNull();
     expect(row.done).toBeGreaterThan(0);
+  });
+
+  /**
+   * Q-AW56: the flag the office's "Ready to screen" count reads. Three rows, each one the fold's own
+   * transition: the applicant who just signed the last permission (true), the same one the carrier
+   * has answered (false — nobody's queue, `decided`'s rule), and driver 1, whose MVR and PSP are filed
+   * (false — the office has started).
+   */
+  it("flags an applicant whose permissions are in and whose screening has not started", async () => {
+    const fresh = {
+      invitation: {
+        id: inviteId(2), created_at: "2026-09-01T00:00:00Z", intake_completed_at: "2026-09-01T06:00:00Z",
+        application_sent_at: null, review_requested_at: null, approved_at: null, signing_opened_at: null, submitted_at: null,
+      },
+      authorizations: authRows(driverId(2)),
+    };
+    const rec = seed();
+    const board = await boardChecklists(rec.client, ORG, [
+      applicant(1), applicant(2, fresh), applicant(3, { ...fresh, decided: true }),
+    ], NOW);
+    const row = board.checklists.get(driverId(2))!;
+    expect(row.next).toBe("mvr");
+    expect(row.ready_to_screen).toBe(true);
+    // The projection is the rule's answer, never its own reading of the stamps.
+    expect(readyToScreen(hiringChecklist(asInputs({ phases: null, qualificationKinds: [], psp: null })))).toBe(true);
+    expect(board.checklists.get(driverId(3))!.ready_to_screen).toBe(false);
+    expect(board.checklists.get(driverId(1))!.ready_to_screen).toBe(false);
   });
 
   it("says nobody when there is nothing outstanding", async () => {
