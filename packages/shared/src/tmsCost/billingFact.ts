@@ -67,6 +67,12 @@ export const tmsBillingFactSchema = z.object({
   rebilled: z.string().max(4).nullish(),
 
   /**
+   * `I` invoice or `C` credit memo, verbatim (0491). A credit carries a POSITIVE `total_charges`;
+   * only this column says it takes money back — `billSign`. Null = swept before 0491.
+   */
+  bill_type: z.string().trim().min(1).max(4).nullish(),
+
+  /**
    * billing_history's own mileage assertion — a third measurement beside movement and Samsara.
    *
    * The two `billing_*` columns are EMPTY at this carrier: 0 of 1,640 posted June bills fill
@@ -88,8 +94,34 @@ type Money = number | string | null | undefined;
 
 const money = (v: Money): number => (v == null ? 0 : Number(v));
 
+type BillType = { bill_type?: string | null };
+
+/** A credit memo — McLeod's `bill_type = 'C'` (0491). */
+export const isCreditBill = (b: BillType): boolean => b.bill_type?.trim().toUpperCase() === "C";
+
 /**
- * What a bill earned — `total_charges`, and nothing added to it.
+ * Null `bill_type`: the row was swept before 0491. It is read as an invoice — 1,467 of July's 1,522
+ * posted bills are — and the reader that ties to the ledger counts these rows and says so, because a
+ * credit among them is on the wrong side until the next sweep refills the column.
+ */
+export const isUntypedBill = (b: BillType): boolean => b.bill_type == null;
+
+/**
+ * +1 for an invoice, −1 for a credit memo (TRUCK-DRIVER-PNL-PLAN §1.3 D2).
+ *
+ * McLeod stages a credit as its own bill with a POSITIVE `total_charges`; the general ledger posts it
+ * as a credit to the receivable. Joining July 2026's GL `BILL` receivable lines to `billing_history`
+ * on `post_key` (sandbox, 2026-10-19): 1,467 `I` bills post +5,028,444.73 and 55 `C` bills post
+ * −213,124.32, each to the cent of its own `total_charges`. Read unsigned, those 55 put $426k of July
+ * on the wrong side of the truck, the dispatcher and the week the credited load belonged to.
+ */
+export const billSign = (b: BillType): 1 | -1 => (isCreditBill(b) ? -1 : 1);
+
+const signed = (b: BillType, v: number): number => Math.round(billSign(b) * v * 100) / 100;
+
+/**
+ * What a bill earned — `total_charges`, and nothing added to it, negative for a credit memo
+ * (`billSign`).
  *
  * McLeod's `total_charges` is the whole receivable: rate plus every accessorial. Order 0131243 bills
  * a 4,250.00 flat rate with 614.64 of other charges and carries `total_charges` 4,864.64; July 2026's
@@ -99,13 +131,23 @@ const money = (v: Money): number => (v == null ? 0 : Number(v));
  * readers used to add `other_charge` on top and overstated revenue by ~2.4%; they all call this now,
  * so the rule has one home.
  */
-export function billRevenue(b: { total_charges: Money }): number {
-  return money(b.total_charges);
+export function billRevenue(b: { total_charges: Money } & BillType): number {
+  return signed(b, money(b.total_charges));
 }
 
-/** The lane's part of a bill — the whole bill less its accessorials. */
-export function billLinehaul(b: { total_charges: Money; other_charge: Money }): number {
-  return Math.round((money(b.total_charges) - money(b.other_charge)) * 100) / 100;
+/** The lane's part of a bill — the whole bill less its accessorials, signed like `billRevenue`. */
+export function billLinehaul(b: { total_charges: Money; other_charge: Money } & BillType): number {
+  return signed(b, money(b.total_charges) - money(b.other_charge));
+}
+
+/** The accessorial part of a bill, signed like `billRevenue`. `billLinehaul` + this = `billRevenue`. */
+export function billAccessorials(b: { other_charge: Money } & BillType): number {
+  return signed(b, money(b.other_charge));
+}
+
+/** The bill's excise tax, signed like `billRevenue` — the receivable is the bill plus its excise. */
+export function billExcise(b: { excise_tax: Money } & BillType): number {
+  return signed(b, money(b.excise_tax));
 }
 
 export const tmsBillingPayloadSchema = z.object({

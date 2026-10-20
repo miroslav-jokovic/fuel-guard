@@ -106,7 +106,7 @@ describe("ingestBilling", () => {
         external_id: "B-1", company_id: "TMS", invoice_no: "INV-100", customer_id: "ACME",
         order_external_id: "O-9", tractor_unit: "754", driver_external_id: "D42",
         bill_date: "2026-06-10T00:00:00Z", total_charges: 3100.0, other_charge: 150.0, excise_tax: 0,
-        post_key: "PK-1", post_module: "BILL",
+        bill_type: "C", post_key: "PK-1", post_module: "BILL",
       }],
       window_start: "2026-06-01",
       window_end: "2026-07-01",
@@ -118,6 +118,8 @@ describe("ingestBilling", () => {
     expect(rows[0]).toMatchObject({
       org_id: ORG, external_id: "B-1", tractor_unit: "754",
       total_charges: 3100.0, other_charge: 150.0, excise_tax: 0, post_module: "BILL",
+      // verbatim and positive: the store keeps what McLeod said, the readers sign it (`billSign`)
+      bill_type: "C",
     });
     expectOrgScoped(rec, ORG);
   });

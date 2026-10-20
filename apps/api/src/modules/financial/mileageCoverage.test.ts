@@ -38,7 +38,7 @@ const BILLS = [
  * wrong reason. Filtering HERE also makes the fixture prove the service asked correctly — a service
  * that forgot `.eq("period_month", …)` gets every month's rows and fails.
  */
-const recorder = () =>
+const recorder = (bills: Array<(typeof BILLS)[number] & { bill_type?: string }> = BILLS) =>
   createSupabaseRecorder({
     tables: {
       samsara_ifta_jurisdiction_miles: (q) => {
@@ -51,9 +51,12 @@ const recorder = () =>
         const ops = q.ops;
         const gte = ops.find((o) => o.method === "gte" && o.args[0] === "delivery_date")?.args[1] as string | undefined;
         const lt = ops.find((o) => o.method === "lt" && o.args[0] === "delivery_date")?.args[1] as string | undefined;
-        return BILLS.filter(
-          (b) => (!gte || b.delivery_date >= gte) && (!lt || b.delivery_date < lt),
-        );
+        // Projected onto the select list, as PostgREST answers: a reader that stops selecting a
+        // column (bill_type) must get rows without it, not whole rows that hide the omission.
+        const cols = (ops.find((o) => o.method === "select")?.args[0] as string | undefined)?.split(",").map((c) => c.trim());
+        return bills
+          .filter((b) => (!gte || b.delivery_date >= gte) && (!lt || b.delivery_date < lt))
+          .map((b) => (cols ? Object.fromEntries(cols.map((c) => [c, (b as Record<string, unknown>)[c]])) : b));
       },
     },
   });
@@ -100,6 +103,20 @@ describe("getMileageCoverage", () => {
     const r = await getMileageCoverage(rec.client, ORG, "2026-03-01", "2026-03-31");
     expect(r.billedMiles).not.toBe(2_099_999);
     expect(r.billedRevenue).toBe(3_250_000);
+  });
+
+  /**
+   * A credit memo (bill_type C, TRUCK-DRIVER-PNL-PLAN §1.3 D2) is staged POSITIVE, on a truck, with
+   * whatever distance McLeod copied onto it. It takes its revenue back; it is not a delivery, so it
+   * adds no load, no billed mile and no delivering truck — truck 105 would otherwise fail coverage.
+   */
+  it("subtracts a credit memo's revenue and keeps it out of loads, billed miles and delivering trucks", async () => {
+    const credit = { id: "c1", delivery_date: "2026-03-20", tractor_unit: "105", distance: 400_000, total_charges: 250_000, other_charge: 0, canceled: false, bill_type: "C" };
+    const r = await getMileageCoverage(recorder([...BILLS, credit]).client, ORG, "2026-03-01", "2026-03-31");
+    expect(r.billedRevenue).toBe(3_000_000);
+    expect(r.loads).toBe(3);
+    expect(r.billedMiles).toBe(1_100_000);
+    expect(r.months.find((m) => m.month === "2026-03")!.complete).toBe(true);
   });
 
   it("counts a month with no Samsara rows as short rather than as complete with zero", async () => {

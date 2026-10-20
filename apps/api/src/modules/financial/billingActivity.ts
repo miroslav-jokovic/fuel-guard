@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { billRevenue, bucketBillingActivity, type ActivityPeriod, type SpendGrain } from "@silvicom/shared";
+import { billRevenue, bucketBillingActivity, isCreditBill, type ActivityPeriod, type SpendGrain } from "@silvicom/shared";
 import { readBillingWindow } from "../mcleod/index.js";
 
 /**
@@ -50,6 +50,7 @@ export async function getBillingActivity(
       delivery_date: String(b.delivery_date),
       revenue: billRevenue(b),
       distance: b.distance == null ? null : Number(b.distance),
+      credit: isCreditBill(b),
     });
   }
 

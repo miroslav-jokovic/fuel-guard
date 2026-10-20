@@ -52,8 +52,10 @@ export interface FleetSettlement {
 export interface FleetBill {
   order_external_id: string | null;
   tractor_unit: string | null;
-  /** Linehaul plus accessorial, excise tax already excluded by the caller. */
+  /** Linehaul plus accessorial, excise tax already excluded by the caller; negative for a credit. */
   revenue: number;
+  /** A credit memo (`isCreditBill`): its revenue counts against the truck, but it is not a load. */
+  credit?: boolean;
 }
 
 /**
@@ -249,10 +251,11 @@ export function computeFleetReport(inputs: FleetReportInputs): FleetReport {
     const unit = b.tractor_unit?.trim();
     if (!unit) continue;
     const u = byUnitRevenue.get(unit);
+    const load = b.credit ? 0 : 1;
     if (u) {
       u.revenue = round(u.revenue + b.revenue);
-      u.loads++;
-    } else byUnitRevenue.set(unit, { revenue: round(b.revenue), loads: 1 });
+      u.loads += load;
+    } else byUnitRevenue.set(unit, { revenue: round(b.revenue), loads: load });
   }
 
   // Deduction income: only the ones that posted to a REVENUE account are the carrier earning

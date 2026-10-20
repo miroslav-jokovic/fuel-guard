@@ -26,6 +26,18 @@ describe("bucketBillingActivity", () => {
     expect(week!.loads).toBe(2);
   });
 
+  /** A credit memo (TRUCK-DRIVER-PNL-PLAN §1.3 D2) takes revenue back; it did not haul anything. */
+  it("subtracts a credit memo's revenue without counting it as a load or its miles", () => {
+    const [week] = bucketBillingActivity([
+      bill("2026-07-08", 3000, 1000),
+      { ...bill("2026-07-09", -500, 1000), credit: true },
+    ]);
+    expect(week!.revenue).toBe(2500);
+    expect(week!.loads).toBe(1);
+    expect(week!.billedMiles).toBe(1000);
+    expect(week!.loadsWithoutDistance).toBe(0);
+  });
+
   it("puts a Monday delivery in its own week, not the previous one", () => {
     const weeks = bucketBillingActivity([bill("2026-07-12", 1), bill("2026-07-13", 1)]);
     expect(weeks.map((w) => w.from)).toEqual(["2026-07-06", "2026-07-13"]);

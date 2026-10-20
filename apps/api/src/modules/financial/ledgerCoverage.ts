@@ -1,7 +1,9 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
+  billExcise,
   billRevenue,
   buildLedgerCoverageReport,
+  isUntypedBill,
   type LedgerCoverageReport,
   type GlModuleTotal,
   type SubledgerClaim,
@@ -66,13 +68,19 @@ export async function getLedgerCoverage(
   if (booked.length) {
     const extracted = booked.reduce(
       // The receivable is the bill plus its excise (`totalcharge_and_excisetax`); the accessorials
-      // are already inside `total_charges` (`billRevenue`).
-      (sum, b) => sum + billRevenue(b) + Number(b.excise_tax),
+      // are already inside `total_charges` (`billRevenue`). A credit memo is negative (`billSign`):
+      // July 2026's 1,467 invoices and 55 credits tie to the receivable this way to the cent.
+      (sum, b) => sum + billRevenue(b) + billExcise(b),
       0,
     );
+    // A row swept before 0491 has no bill_type and is read as an invoice. If a credit is among them
+    // the drift says so as a number; this says why, until the next sweep fills the column.
+    const untyped = booked.filter(isUntypedBill).length;
     claims.push({
       post_module: "BILL",
-      source: "billing sweep (mcleod_billing, GL-booked rows on the receivable basis)",
+      source:
+        "billing sweep (mcleod_billing, GL-booked rows on the receivable basis, credit memos negative)" +
+        (untyped ? ` — ${untyped} bill${untyped === 1 ? "" : "s"} swept before bill_type existed, read as invoices` : ""),
       extracted: Math.round(extracted * 100) / 100,
     });
   }

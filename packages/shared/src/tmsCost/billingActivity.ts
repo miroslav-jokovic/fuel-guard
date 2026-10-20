@@ -40,6 +40,11 @@ export interface ActivityBill {
   revenue: number;
   /** McLeod's billed distance for the load. Null when the bill carries none. */
   distance: number | null;
+  /**
+   * A credit memo (`isCreditBill`). Its revenue — already negative, `billRevenue` — counts; it is not
+   * a load and adds no miles, or a credited load would be hauled twice. Absent = an invoice.
+   */
+  credit?: boolean;
 }
 
 export interface ActivityPeriod {
@@ -84,8 +89,9 @@ export function bucketBillingActivity(
       p = { from, to, loads: 0, revenue: 0, billedMiles: 0, revenuePerBilledMile: null, loadsWithoutDistance: 0 };
       byPeriod.set(from, p);
     }
-    p.loads++;
     p.revenue = round(p.revenue + b.revenue);
+    if (b.credit) continue;
+    p.loads++;
     if (b.distance == null) p.loadsWithoutDistance++;
     else p.billedMiles = Math.round((p.billedMiles + b.distance) * 10) / 10;
   }
