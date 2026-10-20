@@ -84,7 +84,7 @@ export const tmsGlAccountsPayloadSchema = z.object({
 export type TmsGlAccountsPayload = z.infer<typeof tmsGlAccountsPayloadSchema>;
 
 /**
- * McLeod's open accounting period for one company (`gl_control` × `fiscal_year_dtl`, 0498) — the
+ * McLeod's open accounting period for one company (`gl_control` × `fiscal_year_dtl`, 0502) — the
  * month its books are still being posted into (TRUCK-DRIVER-PNL-PLAN D-TP5). A month that ends on or
  * before `period_start` is closed: McLeod refuses a posting into it unless `prior_post_allowed`.
  */

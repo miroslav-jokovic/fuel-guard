@@ -42,7 +42,7 @@ import { readLedgerTotalsRange, readGlAccounts, readLedgerClose } from "../mcleo
  * January is judged against December, and a window that starts in January has no December in it.
  *
  * **A reported month is not a FINAL month** (D-TP5, 2026-10-19). McLeod's open accounting period
- * (`mcleod_gl_control`, 0498) says which months its accountant can still post into. Those months
+ * (`mcleod_gl_control`, 0502) says which months its accountant can still post into. Those months
  * are reported — withholding them would put the report a month further behind — and named in
  * `openNote`, so no page presents a figure that can still move as if it could not.
  *

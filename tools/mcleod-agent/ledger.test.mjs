@@ -58,7 +58,7 @@ test("the query groups by the day, not by the raw timestamp", () => {
   assert.match(GL_CONTROL_TOTALS, /CONVERT\(char\(10\), combined\.transaction_date, 23\)\s+AS txn_date/);
 });
 
-// McLeod's open accounting period (D-TP5, 0498) — the sandbox row as read 2026-10-19.
+// McLeod's open accounting period (D-TP5, 0502) — the sandbox row as read 2026-10-19.
 const CONTROL_ROW = {
   company_id: "TMS ", fiscal_year: "2026 ", fiscal_period: 8, prior_post: "N",
   period_start: "2026-08-01", period_end: "2026-09-01",

@@ -2283,7 +2283,7 @@ async function main() {
     handSeed: {
       org_usage_month: (org) =>
         `insert into org_usage_month (org_id, yyyymm) values ('${org}', '2026-08')`,
-      // 0498: `period_end > period_start` is a cross-column rule the column-by-column seeder cannot
+      // 0502: `period_end > period_start` is a cross-column rule the column-by-column seeder cannot
       // satisfy — it writes the same placeholder date into both. The sandbox's own row, TMS 2026/8.
       mcleod_gl_control: (org) =>
         `insert into mcleod_gl_control (org_id, company_id, fiscal_year, fiscal_period, prior_post_allowed, period_start, period_end, swept_at) ` +
