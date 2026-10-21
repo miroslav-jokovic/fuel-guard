@@ -37,7 +37,7 @@ const paper = (key: string, day: string, state: string, documentId: string) => (
 const unitFile = (id: string, state: string, counts: Record<string, number>, items: unknown[], papers: unknown[] = [], paperCount = 0) => ({
   subject_type: "tractor", subject_id: id, unit_number: id, status: "active", ownership: "owned", state, counts, ownership_unknown: [], attention: [], items, papers, paper_count: paperCount,
 });
-const thumb = (documentId: string) => ({ documentId, kind: "registration", contentType: "application/pdf", thumbUrl: `https://signed.test/${documentId}.webp`, filedAt: "2026-10-01T00:00:00Z" });
+const thumb = (documentId: string) => ({ documentId, kind: "registration", contentType: "application/pdf", thumbUrl: `https://signed.test/${documentId}.webp`, filedAt: "2026-10-01T00:00:00Z", datedAt: "2026-10-01T00:00:00Z" });
 const unitFiles = ref({
   units: [
     unitFile("t1", "incomplete", { current: 0, expiring: 0, expired: 0, missing: 2 },
@@ -147,21 +147,16 @@ describe("retiring a vehicle", () => {
 });
 
 describe("the File column (UNIT-FILES-PLAN UF4)", () => {
-  it("draws each truck's chip, worst state first, its thumbnails and the +N past them", async () => {
+  it("draws each truck's thumbnails and the +N past them, and no state chip (Q-UF11)", async () => {
     const { w } = await mountAt("/vehicles");
-    const chips = w.findAll("[data-test='file-chip']").map((c) => c.text());
-    // T-101: two items with McLeod's dates only; T-202 the same; T-404 one paper inside the window.
-    expect(chips).toEqual(["2 date only", "2 date only", "1 expiring"]);
+    expect(w.find("[data-test='file-chip']").exists()).toBe(false);
     expect(w.findAll("[data-test='file-thumb']")).toHaveLength(3);
     expect(w.get("[data-test='file-more']").text()).toBe("+2");
   });
 
-  it("sets ?file= when a chip is clicked, and lists exactly the trucks whose chip says so", async () => {
-    const { w, router } = await mountAt("/vehicles");
-    await w.findAll("[data-test='file-chip']")[2]!.trigger("click");
-    await vi.waitFor(() => expect(router.currentRoute.value.query).toEqual({ file: "expiring" }));
-    await flushPromises();
-    expect(units(w)).toEqual(["T-404"]);
+  // T-101: two items with McLeod's dates only; T-202 the same; T-404 one paper inside the window.
+  it("lists exactly the trucks whose file reads ?file=, worst state first", async () => {
+    expect(units((await mountAt("/vehicles?file=expiring")).w)).toEqual(["T-404"]);
     expect(units((await mountAt("/vehicles?file=date_only")).w)).toEqual(["T-101", "T-202"]);
   });
 

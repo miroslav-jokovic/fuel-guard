@@ -2,20 +2,22 @@
 import { computed, ref } from "vue";
 import { AppIcon, AppButton as BaseButton } from "@silvicom/ui";
 import { ArrowDownTrayIcon, DocumentTextIcon } from "@silvicom/ui/icons";
-import { DQ_KIND_LABELS, type FileChip, type PaperThumb } from "@silvicom/shared";
+import { DQ_KIND_LABELS, type PaperThumb } from "@silvicom/shared";
 import { apiFetch } from "@/lib/api";
-import { BADGE_BASE, fileChipTone, toneClass } from "@/lib/badges";
 import { formatDate } from "@/lib/format";
 import { useToastStore } from "@/stores/toast";
 
 /**
- * A unit's or a driver's file in one table cell (UNIT-FILES-PLAN UF4, D-UF7): the state chip, up to
- * three thumbnails, "+N". One component for the three lists — it reads one row shape and knows
- * nothing about trucks or people.
+ * A unit's or a driver's papers in one table cell (UNIT-FILES-PLAN UF4, D-UF7): up to three
+ * thumbnails, newest first by the paper's own date, and "+N". One component for the three lists — it
+ * reads one row shape and knows nothing about trucks or people.
  *
- * The chip comes FIRST and is worked out by `fileChip` in shared — never here — because the same
- * function answers the page's `?file=` filter: clicking "2 expiring" lists exactly the rows whose chip
- * says expiring. The cell only draws it and says which filter it is.
+ * ── NO STATE CHIP SINCE 2026-10-21 (Q-UF11) ─────────────────────────────────────────────────────
+ * The cell opened with `fileChip`'s words as a button that set the list's `?file=` filter. After the
+ * McLeod import it said "2 missing" on all 212 trucks with papers (IFTA and insurance, filed on the
+ * organization or not at all) — the same words on every row, beside thumbnails that contradicted them
+ * (Q-UF13). The owner asked for it gone. The FILTER stays: the toolbar's File control reads `fileChip`
+ * in shared, not this cell, and the unit's own page still shows each item's state.
  *
  * Thumbnails are the 320 px derivatives (UF3) signed for five minutes; a paper with none yet — the
  * derive job has not run, or HEIC — is a type icon, never the 25 MB original. Each thumb is one tab
@@ -27,7 +29,6 @@ import { useToastStore } from "@/stores/toast";
  * there; the plan's bulk intake scoped to the subject (UF7) is what takes the bytes from here.
  */
 const props = defineProps<{
-  chip: FileChip;
   papers: PaperThumb[];
   /** Every original on file — what "+N" counts past `papers`. */
   paperCount: number;
@@ -40,10 +41,8 @@ const props = defineProps<{
   subjectLabel: string;
 }>();
 const emit = defineEmits<{
-  /** Open the gallery, on this paper when one was chosen. */
+  /** Open the gallery: on this paper, or with no id for "+N" — the first paper this cell did not draw. */
   open: [documentId?: string];
-  /** The chip was clicked: narrow the list to files in this state. */
-  filter: [kind: FileChip["kind"]];
   /** Files were dropped on the cell: open the unit's File section (UF5b). */
   drop: [files: File[]];
 }>();
@@ -72,7 +71,7 @@ async function download(documentId: string): Promise<void> {
 </script>
 
 <template>
-  <!-- Drag events augment the chip and thumb buttons, as on `FileDropzone`; the container is not a control. -->
+  <!-- Drag events augment the thumb buttons, as on `FileDropzone`; the container is not a control. -->
   <!-- eslint-disable-next-line vuejs-accessibility/no-static-element-interactions -->
   <div
     :class="['flex items-center gap-2 rounded-control transition-colors', dragging > 0 ? 'bg-brand-50/50 ring-2 ring-brand-400' : '']"
@@ -82,15 +81,6 @@ async function download(documentId: string): Promise<void> {
     @dragleave.prevent="dragging = Math.max(0, dragging - 1)"
     @drop.prevent="onDrop"
   >
-    <BaseButton
-      variant="ghost"
-      size="sm"
-      :class="[BADGE_BASE, toneClass(fileChipTone(props.chip.kind)), 'whitespace-nowrap']"
-      :title="`Show every file that reads “${props.chip.label}”`"
-      data-test="file-chip"
-      @click="emit('filter', props.chip.kind)"
-    >{{ props.chip.label }}</BaseButton>
-
     <div v-for="p in props.papers" :key="p.documentId" class="group relative" data-test="file-thumb">
       <BaseButton
         variant="ghost"
@@ -112,7 +102,10 @@ async function download(documentId: string): Promise<void> {
         <p v-if="provesOf(p.documentId)?.goodUntil" class="text-ink-muted">
           Good until {{ formatDate(provesOf(p.documentId)!.goodUntil!) }}
         </p>
-        <p class="text-ink-muted">Filed {{ formatDate(p.filedAt) }}<template v-if="p.uploadedBy"> by {{ p.uploadedBy }}</template></p>
+        <!-- The paper's own date (Q-UF10). "Filed … by" only when a person filed it here: an imported
+             McLeod paper's filing date is the import run, which says nothing about the paper. -->
+        <p class="text-ink-muted">Dated {{ formatDate(p.datedAt) }}</p>
+        <p v-if="p.uploadedBy" class="text-ink-muted">Filed {{ formatDate(p.filedAt) }} by {{ p.uploadedBy }}</p>
         <BaseButton size="sm" variant="ghost" class="mt-2 -ml-2" @click="download(p.documentId)">
           <AppIcon :icon="ArrowDownTrayIcon" class="size-4" aria-hidden="true" /> Download
         </BaseButton>

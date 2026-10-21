@@ -356,7 +356,6 @@ async function onSubmit(input: DriverInput) {
       @edit="openEdit"
       @manage-access="openAccess"
       @open-file="openGallery"
-      @file-filter="fileFilter = $event"
       @archive="archiving = $event"
       @restore="setArchived($event, false)"
     />

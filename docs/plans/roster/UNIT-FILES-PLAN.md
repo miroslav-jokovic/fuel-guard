@@ -715,7 +715,7 @@ newest papers first and visible, no "Missing" button in the cell, and "+N" openi
 the unit's papers. Measured on production the same day (org `86d6b3ea…`, 1,459 unit originals: 1,359
 imported, 100 filed in the app).
 
-- **Q-UF10: what "newest" means in the cell.** OPEN.
+- **Q-UF10: what "newest" means in the cell.** **Answered: the recommendation, owner 2026-10-21 ("proceed with updates as proposed").** Built; see the progress log.
   *Found:* the cell (`paperThumbs.ts`) and the gallery (`FileGallery.vue`) both sort by `created_at`,
   the moment the row was written — so all 1,359 imported papers are "filed 10/20/2026" and the hover card
   says so. The paper's own date is `captured_at` (McLeod's `comments.entered_date` for an import, the
@@ -733,7 +733,7 @@ imported, 100 filed in the app).
   is better once certifications exist (it needs the item → paper link, which imports do not have yet —
   see Q-UF13); revisit then.
 
-- **Q-UF11: the "Missing" chip in the cell.** OPEN.
+- **Q-UF11: the "Missing" chip in the cell.** **Answered: the recommendation, owner 2026-10-21 ("proceed with updates as proposed").** Built; see the progress log.
   *Found:* the chip is the coloured button left of the thumbnails (`FileCell.vue`, `file-chip`); a click
   sets `?file=` on the list. Today it says **"2 missing" on all 212 trucks with papers** (IFTA and
   insurance — fleet papers not yet filed on the organization) and "N missing" on all 187 trailers with
@@ -743,9 +743,9 @@ imported, 100 filed in the app).
   stays the way to list "expired" or "missing"; (b) keep it only for *Expired* and *Expiring*, the two
   that differ row to row; (c) keep it. *Recommendation:* (a), as asked. The filter is untouched — it reads
   `fileChip` in shared, not the cell — and the unit page's File section still shows each item's state.
-  To confirm with the owner: this chip is the "Missing" meant (not the unit page's item states).
+  The owner confirmed this chip is the "Missing" meant.
 
-- **Q-UF12: "+N" must show all the papers.** OPEN.
+- **Q-UF12: "+N" must show all the papers.** **Answered: the recommendation, owner 2026-10-21 ("proceed with updates as proposed").** Built; see the progress log.
   *Found:* the gallery does list every original the reader may see (one read, no paging; the largest unit
   has 8). What it does not do is look like a gallery: it is the document viewer showing ONE paper with
   ‹ 1 of 6 ›, and "+N" opens it on paper 1 — the first thumbnail the cell already drew — so the papers
@@ -757,7 +757,7 @@ imported, 100 filed in the app).
   unit page's File section. *Recommendation:* (a) — it reuses the sanctioned viewer and its print path,
   and the strip is the gallery the owner described.
 
-- **Q-UF13: a paper on file does not count for its item** (found measuring Q-UF11). OPEN.
+- **Q-UF13: a paper on file does not count for its item** (found measuring Q-UF11). **Answered: the recommendation, owner 2026-10-21 ("proceed with updates as proposed").** (a) is the next PR; (b) rides UF7b2 and UF7c.
   *Found:* an item reads `missing` unless a certification cites a paper. The import wrote none (Q-UF2), so
   **449 items read "missing" although a paper of that kind is on the unit** (125 truck, 324 trailer —
   every trailer's Registration among them), and 350 more say "Date only, no paper" while the paper is
@@ -1065,3 +1065,10 @@ imported, 100 filed in the app).
   units we do not hold. Titles not imported (owner: "Registrations and Annuals for now").
 - 2026-10-21 — **Owner's look at the Files column after the import: Q-UF10–Q-UF12 opened**, measured on
   production; Q-UF13 found while measuring. Proposals in §7; nothing built until the owner answers.
+- 2026-10-21 — **Q-UF10–Q-UF12 built** (`claude/files-cell-order-gallery-build`).
+  `packages/shared/src/paperOrder.ts` (`newestPaperFirst`, `paperDate`) is the one order: the cell's
+  reader (`paperThumbs.ts`), the gallery and its strip all sort with it. `PaperThumb` gained `datedAt`;
+  the hover card says "Dated …", and "Filed … by …" only for a paper a person filed in the app. The
+  chip left `FileCell` and with it the `filter` event on the three lists; the toolbar's File filter is
+  unchanged. `FileGallery` puts every paper in a strip (a new `strip` slot in `DocumentPreview`, not
+  printed) and "+N" opens on paper `PAPERS_PER_ROW + 1`. Each new test was proven by mutation.

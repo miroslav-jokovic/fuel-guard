@@ -209,8 +209,8 @@ beforeEach(() => {
         ],
         // UF4b: two of five papers drawn (one thumbnail derived, one not yet), "+3" for the rest.
         papers: [
-          { documentId: "cdl-1", kind: "cdl", contentType: "application/pdf", thumbUrl: "https://signed.test/cdl-1.webp", filedAt: "2026-03-01T00:00:00Z" },
-          { documentId: "mvr-1", kind: "mvr", contentType: "image/jpeg", thumbUrl: null, filedAt: "2026-02-01T00:00:00Z" },
+          { documentId: "cdl-1", kind: "cdl", contentType: "application/pdf", thumbUrl: "https://signed.test/cdl-1.webp", filedAt: "2026-03-01T00:00:00Z", datedAt: "2026-03-01T00:00:00Z" },
+          { documentId: "mvr-1", kind: "mvr", contentType: "image/jpeg", thumbUrl: null, filedAt: "2026-02-01T00:00:00Z", datedAt: "2026-02-01T00:00:00Z" },
         ],
         paper_count: 5,
       },
@@ -419,9 +419,8 @@ describe("DriversPage roster table", () => {
     expect(headers.filter((h) => h === "File")).toHaveLength(1);
     expect(headers).not.toContain("Qualification");
     const rows = w.findAll("tbody tr");
-    // d-1: one missing, one expiring — "missing" outranks "expiring"; d-2: one expired outranks all.
-    expect(rows[0]!.find("[data-test=file-chip]").text()).toBe("1 missing");
-    expect(rows[1]!.find("[data-test=file-chip]").text()).toBe("1 expired");
+    // No state chip in the cell since Q-UF11 (2026-10-21): the File filter carries the state.
+    expect(w.find("[data-test=file-chip]").exists()).toBe(false);
     // Two thumbs drawn, three more counted — and nothing of the old "8/17" count.
     expect(rows[0]!.findAll("[data-test=file-thumb]")).toHaveLength(2);
     expect(rows[0]!.find("[data-test=file-more]").text()).toBe("+3");
@@ -429,11 +428,9 @@ describe("DriversPage roster table", () => {
     expect(rows[1]!.findAll("[data-test=file-thumb]")).toHaveLength(0);
   });
 
-  it("narrows the roster to the chip's state when the chip is clicked, and the rows match it", async () => {
-    const w = await mountPage();
-    await w.findAll("tbody tr")[1]!.find("[data-test=file-chip]").trigger("click");
-    await flushPromises();
-    expect(w.vm.$route.query.file).toBe("expired");
+  // d-1: one missing, one expiring — "missing" outranks "expiring"; d-2: one expired outranks all.
+  it("narrows the roster to ?file=, worst state first, with the chip gone from the cell (Q-UF11)", async () => {
+    const w = await mountPage("/drivers?file=expired");
     const rows = w.findAll("tbody tr");
     expect(rows).toHaveLength(1);
     expect(rows[0]!.text()).toContain("Ana Whitfield");
