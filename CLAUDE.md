@@ -162,11 +162,19 @@ So, when the honest fix is out of scope:
 ## graphify
 
 A knowledge graph of this repo lives at `graphify-out/` (gitignored; a fresh clone runs
-`pnpm graph:update` once, ~30s). A `PreToolUse` hook points at it on reads and grep-like searches.
+`pnpm graph:update` once, ~30s). A `PreToolUse` hook reminds of it on `Grep` only.
 
-- For codebase questions, `graphify query "<question>"` first; `graphify path "<A>" "<B>"` for a
-  relationship, `graphify explain "<concept>"` for one concept, `graphify affected "<X>"` for the
-  blast radius of a change. Read `GRAPH_REPORT.md` only for broad architecture review.
+- **Use it by exact symbol name.** `graphify explain "<symbol>"` for what defines, imports and calls
+  one symbol; `graphify affected "<symbol>"` for the blast radius of a change (it follows
+  re-exports grep misses); `graphify path "<A>" "<B>"` for how two symbols connect. These are
+  accurate and cost ~150–300 tokens.
+- **Do not use `graphify query "<question>"` to find code.** It matches question WORDS, not
+  meaning: measured 2026-10-21, "where is the IFTA sync scheduler" returned eight unrelated test
+  helpers (it matched "call" and "sync") and "which code computes fleet MPG" returned the hazmat
+  placard engine, each at up to ~2,000 tokens, while one grep found `samsaraScheduler.ts`. To
+  DISCOVER code, grep; once you have a name, switch to `explain`/`affected`. That measurement is
+  also why the hook no longer fires on Bash, Read or Glob — it added ~50 tokens to every call and
+  steered toward `query`. Read `GRAPH_REPORT.md` only for broad architecture review.
 - ⚠ **It is a map, not the territory.** Verify anything load-bearing at the call site, and be most
   careful with a NEGATIVE — "there is no such function" is the answer a stale or partial graph
   gives confidently and wrongly.
