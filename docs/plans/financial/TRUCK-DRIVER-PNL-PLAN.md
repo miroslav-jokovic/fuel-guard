@@ -323,3 +323,7 @@ per-driver P&L on the recommended answer to every question below, Q-TP1 through 
   older than the last one applied, so #1643's migrations are now `0496` `mcleod_billing.bill_type`
   and `0497` `mcleod_settlements.void_date`, and D4's is `0498` `mcleod_gl_control` (#1647). D2b
   (credits signed negative, never counted as a load) waits on 0496 applying to staging.
+- 2026-10-21 · #1643 and D4 #1647 merged 10-20 after one more renumbering past main's 0499: the
+  columns are `0500` `mcleod_billing.bill_type` and `0501` `mcleod_settlements.void_date`, and
+  `mcleod_gl_control` is `0502`, all applied to staging the same day. D2b is rebased onto main and
+  cites 0500.
