@@ -14,6 +14,7 @@ import SignOffScreen from "@/features/apply/SignOffScreen.vue";
 import ApplyExpectations from "@/features/apply/ApplyExpectations.vue";
 import ApplyScreenMark from "@/features/apply/ApplyScreenMark.vue";
 import { provideScreenEvents } from "@/features/apply/useScreenEvents";
+import { useLinkMemo } from "@/features/apply/linkMemo";
 import type { ApplicationDraft } from "@/features/apply/draft";
 import type {
   ApplyEsignConsent,
@@ -97,6 +98,9 @@ const props = defineProps<{
 }>();
 const draft = defineModel<ApplicationDraft>("draft", { required: true });
 provideScreenEvents(toRef(props, "token"));
+// The dead card's words (Q-AW56 (e)). Here and not in the page: it reads the device, decides nothing
+// the page holds, and the card it feeds is this file's.
+const deadCopy = useLinkMemo(toRef(props, "token"), props.invitation);
 const emit = defineEmits<{
   begin: [];
   agree: [];
@@ -112,10 +116,12 @@ const emit = defineEmits<{
   <div v-if="invitation.isLoading.value" class="text-sm text-ink-muted">{{ APPLY_COPY.page.opening }}</div>
 
   <!-- Every dead link answers identically by design; the page repeats what it was told and offers
-       the only action that can help, which is to ask the carrier for a new link. -->
+       the only action that can help, which is to ask the carrier for a new link. The one exception is
+       the device's own: where THIS phone finished Part 1 on the link and its time has since run out,
+       the card says so (Q-AW56 (e), `linkMemo.ts`) — the server was still asked nothing it refuses. -->
   <BaseCard v-else-if="invitation.isError.value">
-    <h1 class="text-lg font-semibold text-ink">{{ APPLY_COPY.dead.heading }}</h1>
-    <p class="mt-2 text-sm text-ink-muted">{{ APPLY_COPY.dead.body }}</p>
+    <h1 class="text-lg font-semibold text-ink">{{ deadCopy.heading }}</h1>
+    <p class="mt-2 text-sm text-ink-muted">{{ deadCopy.body }}</p>
   </BaseCard>
 
   <!-- What happened, not what will (A1). The old copy promised signing that this page could not

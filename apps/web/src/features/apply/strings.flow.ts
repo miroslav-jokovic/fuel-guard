@@ -147,6 +147,19 @@ export const APPLY_FLOW_COPY = {
   dead: {
     heading: "This link is not valid",
     body: "It may have expired, or the carrier may have replaced it. Ask the carrier who invited you for a new one.",
+    /**
+     * Q-AW56 (e): the same dead link, on the device that finished Part 1 on it (`linkMemo.ts`). The
+     * server never says "expired" — every dead link is one refusal (A1) — so this is shown only where
+     * the device's own record says the link's time ran out after everything it asked for was done.
+     * It names what the carrier holds, so the reader knows nothing of theirs was lost with the link.
+     */
+    finished: {
+      heading: "This link has expired",
+      body:
+        "You finished everything this link asked of you, and the carrier has it: your details, your documents and your permissions. "
+        + "There was nothing more for you to do here. The carrier will contact you about the next step; "
+        + "if you have not heard from them, ask the person who invited you.",
+    },
   },
 
   /**
