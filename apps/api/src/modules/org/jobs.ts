@@ -80,7 +80,10 @@ export type JobKind =
    * needs a row an operator can read, and the (org, kind) slot keeps a click and a tick from
    * overlapping against a 100-a-minute limit.
    */
-  | "medstop_sync";
+  | "medstop_sync"
+  // One org's nightly copy of its Storage objects to the off-provider bucket (storageBackup.ts). A kind so a
+  // failed night has a row, and so `/api/version` can read the last success from the ledger.
+  | "storage_backup";
 
 /**
  * P0-3 (2026-08 audit) — ONE per-org mutex across every path that writes fuel_transactions scoring

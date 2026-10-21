@@ -37,4 +37,6 @@ export { generateAndSendDigest } from "./digest.js";
 export { startDigestScheduler, markFuelSweepComplete } from "./digestScheduler.js";
 export { runSchemaCheck } from "./schemaCheck.js";
 export { startStorageReconcileScheduler } from "./storageReconcileScheduler.js";
+export { startStorageBackupScheduler } from "./storageBackupScheduler.js";
+export { getStorageBackupHealth, storageBackupHealthy, type StorageBackupHealth } from "./storageBackupHealth.js";
 export { stampIntegrationSynced } from "./integrationSync.js";

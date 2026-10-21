@@ -13,7 +13,7 @@ import { startEfsProcessingScheduler } from "./modules/efs/services/efsProcessin
 import { startEfsSoapCertExpiryWatcher } from "./modules/efs/services/efsSoapCertExpiry.js";
 import { startPostedPriceScheduler } from "./modules/posted-prices/index.js";
 import { startDutySessionSweeper } from "./modules/driver-app/index.js";
-import { startStorageReconcileScheduler } from "./modules/org/index.js";
+import { startStorageReconcileScheduler, startStorageBackupScheduler } from "./modules/org/index.js";
 import { startNotificationPushScheduler } from "./modules/messaging/index.js";
 import { startDqExportSweeper } from "./modules/evidence/index.js";
 import { startPatternSweepScheduler } from "./modules/anomalies/index.js";
@@ -70,6 +70,7 @@ export const SCHEDULERS: readonly ScheduledTask[] = [
   { name: "posted-prices", lane: "general", start: startPostedPriceScheduler }, // global posted-price refresh from Pilot's public table
   { name: "duty-session-sweeper", lane: "general", start: startDutySessionSweeper }, // close abandoned driver shifts so their truck is released (D44.5)
   { name: "storage-reconcile", lane: "general", start: startStorageReconcileScheduler }, // §13.5/M11 + DQF B7: nightly orphan sweep of every evidence bucket
+  { name: "storage-backup", lane: "general", start: startStorageBackupScheduler }, // D13: nightly copy of every evidence bucket to the off-provider S3 bucket; OFF unless STORAGE_BACKUP_* set
   { name: "notification-push", lane: "general", start: startNotificationPushScheduler }, // Expo Push delivery of pending notification_events (5N/Phase 6)
   { name: "dq-export-sweeper", lane: "general", start: startDqExportSweeper }, // D-BD4: a finished audit binder is a PII aggregate with a 7-day life
   { name: "pattern-sweep", lane: "general", start: startPatternSweepScheduler }, // durable enrichment requests survive queue dispatch outages
