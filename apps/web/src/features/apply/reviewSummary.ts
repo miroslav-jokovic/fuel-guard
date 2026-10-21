@@ -1,8 +1,6 @@
 import {
   formatDisplayMonth,
   APPLICATION_CAPTURE_REQUESTED,
-  APPLICATION_SECTION_LABELS,
-  APPLICATION_CAPTURE_SLOT_LABELS,
   EQUIPMENT_CLASS_LABELS,
   choiceLabel,
   jurisdictionName,
@@ -13,7 +11,7 @@ import {
   type QuestionnaireDefinition,
   type QuestionnaireQuestion,
 } from "@silvicom/shared";
-import { APPLY_COPY } from "./strings";
+import { APPLY_CAPTURE_TITLES, APPLY_COPY, APPLY_SECTION_TITLES } from "./strings";
 import type { ApplicationDraft } from "./draft";
 
 /**
@@ -290,7 +288,7 @@ export function buildReviewSummary({ draft, questionnaire, captures }: ReviewInp
   const documents: ReviewGroup[] = [
     {
       entries: APPLICATION_CAPTURE_REQUESTED.map((slot) => ({
-        label: APPLICATION_CAPTURE_SLOT_LABELS[slot],
+        label: APPLY_CAPTURE_TITLES[slot],
         value: taken.has(slot) ? APPLY_COPY.documents.done : copy.none,
         muted: !taken.has(slot),
       })),
@@ -298,15 +296,15 @@ export function buildReviewSummary({ draft, questionnaire, captures }: ReviewInp
   ];
 
   return [
-    // ⚠ Headings come from `APPLICATION_SECTION_LABELS`, not from strings written here. The summary
+    // ⚠ Headings come from `APPLY_SECTION_TITLES` (the shared labels, in the page's language), not from strings written here. The summary
     // and the step header the driver just walked past have to call each screen the same thing, or
     // "go back and fix it" sends them looking for a section that appears to no longer exist.
-    { section: "identity", heading: APPLICATION_SECTION_LABELS.identity, groups: identity },
-    { section: "addresses", heading: APPLICATION_SECTION_LABELS.addresses, groups: addresses },
-    { section: "licence", heading: APPLICATION_SECTION_LABELS.licence, groups: licence },
-    { section: "employment", heading: APPLICATION_SECTION_LABELS.employment, groups: employment },
-    { section: "safety", heading: APPLICATION_SECTION_LABELS.safety, groups: safety },
-    { section: "questions", heading: APPLICATION_SECTION_LABELS.questions, groups: questions },
-    { section: "documents", heading: APPLICATION_SECTION_LABELS.documents, groups: documents },
+    { section: "identity", heading: APPLY_SECTION_TITLES.identity, groups: identity },
+    { section: "addresses", heading: APPLY_SECTION_TITLES.addresses, groups: addresses },
+    { section: "licence", heading: APPLY_SECTION_TITLES.licence, groups: licence },
+    { section: "employment", heading: APPLY_SECTION_TITLES.employment, groups: employment },
+    { section: "safety", heading: APPLY_SECTION_TITLES.safety, groups: safety },
+    { section: "questions", heading: APPLY_SECTION_TITLES.questions, groups: questions },
+    { section: "documents", heading: APPLY_SECTION_TITLES.documents, groups: documents },
   ];
 }

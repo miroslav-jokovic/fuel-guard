@@ -2,13 +2,12 @@ import {
   APPLICATION_CAPTURE_REQUESTED,
   APPLICATION_FILLING_SECTIONS,
   APPLICATION_SECTION_KEYS,
-  APPLICATION_SECTION_LABELS,
   type ApplicationCaptureView,
   type ApplicationSection,
 } from "@silvicom/shared";
 import { emptyDraft, toApplication, type ApplicationDraft } from "./draft";
 import { validateSection } from "./useApplicationWizard";
-import { APPLY_COPY } from "./strings";
+import { APPLY_COPY, APPLY_SECTION_TITLES } from "./strings";
 
 /**
  * Part 2 as a task list (APPLICATION-FLOW-V2-PLAN.md §6.4, D-AW11, C3c2a) — which tasks there are, and
@@ -82,7 +81,7 @@ export function hubTasks(
 ): HubTask[] {
   const work = APPLICATION_FILLING_SECTIONS.filter((s) => s !== SEND_TASK).map((section) => ({
     section,
-    label: APPLICATION_SECTION_LABELS[section],
+    label: APPLY_SECTION_TITLES[section],
     status: taskStatus(section, draft, v2AsOf, captures),
     optional: OPTIONAL_TASKS.includes(section),
   }));

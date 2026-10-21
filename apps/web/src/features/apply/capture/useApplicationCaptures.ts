@@ -5,12 +5,12 @@ import {
 } from "@silvicom/capture-engine";
 import {
   APPLICATION_CAPTURE_REQUESTED,
-  APPLICATION_CAPTURE_SLOT_LABELS,
   type ApplicationCaptureContentType,
   type ApplicationCaptureSlot,
   type ApplicationCaptureView,
 } from "@silvicom/shared";
 import { injectLocalCopy, type LocalCopySpec } from "../deviceCopies";
+import { APPLY_CAPTURE_TITLES } from "../strings";
 import { dropKeptPhoto, keepPhoto, readKeptPhoto, serverIsNewer } from "./photoLocal";
 import { captureContentType, stageCapture, DEFAULT_CAPTURE_IO, type CaptureIo } from "./stageCapture";
 import { createWebFileProvider, type PickedPhoto, type WebCaptureProvider } from "./webFileProvider";
@@ -199,7 +199,7 @@ export function useApplicationCaptures(
       const state: CaptureSlotState = here?.state ?? (stored ? "done" : "empty");
       return {
         slot,
-        label: APPLICATION_CAPTURE_SLOT_LABELS[slot],
+        label: APPLY_CAPTURE_TITLES[slot],
         state,
         reason: here?.reason ?? null,
         failure: here?.failure ?? null,

@@ -2,11 +2,11 @@
 import { computed } from "vue";
 import { AppButton as BaseButton } from "@silvicom/ui";
 import {
-  questionnaireForApplicant,
   type ApplicationCaptureView,
   type ApplicationSection,
 } from "@silvicom/shared";
 import type { ApplicationDraft } from "@/features/apply/draft";
+import { applicantQuestionnaire } from "@/features/apply/questionnaireCopy";
 import { buildReviewSummary } from "@/features/apply/reviewSummary";
 import { APPLY_COPY } from "@/features/apply/strings";
 
@@ -38,7 +38,7 @@ const copy = APPLY_COPY.review;
 const sections = computed(() =>
   buildReviewSummary({
     draft: props.draft,
-    questionnaire: questionnaireForApplicant(),
+    questionnaire: applicantQuestionnaire(),
     captures: props.captures ?? [],
   }),
 );

@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { AppCallout, AppInput as BaseInput } from "@silvicom/ui";
-import { questionnaireForApplicant, type ApplicationCaptureView } from "@silvicom/shared";
+import type { ApplicationCaptureView } from "@silvicom/shared";
 import ApplyField from "./ApplyField.vue";
+import { applicantQuestionnaire } from "./questionnaireCopy";
 import { buildReviewSummary } from "./reviewSummary";
 import { describeField } from "./fieldLabels";
 import { APPLY_COPY } from "./strings";
@@ -38,7 +39,7 @@ const copy = APPLY_COPY.signOff;
 const summary = computed(() =>
   buildReviewSummary({
     draft: draft.value,
-    questionnaire: questionnaireForApplicant(),
+    questionnaire: applicantQuestionnaire(),
     captures: props.captures,
   }),
 );

@@ -9,6 +9,8 @@ import {
   driverApplicationObject,
   driverApplicationSchema,
 } from "@silvicom/shared";
+import { applyLanguage } from "./language";
+import { APPLY_COPY_ES } from "./es/strings.es";
 import {
   FIELD_LABEL_KEYS,
   describeField,
@@ -190,6 +192,27 @@ describe("nothing a validator would say reaches a driver", () => {
     for (const issue of shown(brokenDraft())) {
       expect(issue.fieldId.startsWith("apply-")).toBe(true);
       expect(issue.say.trim()).not.toBe("");
+    }
+  });
+});
+
+
+/**
+ * C4: the labels and the issue sentences are read from the copy at call time, so they answer in the
+ * page's language — a map filled at import would have stayed English after the switch.
+ */
+describe("the labels, in the page's language", () => {
+  it("name a field, a row and an issue in Spanish once the page is", () => {
+    applyLanguage.value = "es";
+    try {
+      expect(describeField(["cdl_number"])).toBe(APPLY_COPY_ES.licence.number);
+      expect(describeField(["addresses", 1, "city"])).toBe(`${APPLY_COPY_ES.fields.nouns.addresses} 2 · ${APPLY_COPY_ES.addresses.city}`);
+      expect(describeField(["employment_gaps"])).toBe(APPLY_COPY_ES.fields.gaps);
+      expect(FIELD_LABEL_KEYS.ROWS.employers?.noun).toBe(APPLY_COPY_ES.fields.nouns.employers);
+      expect(messageFor({ code: "too_small", message: "x", path: ["phone"] }, "")).toBe(APPLY_COPY_ES.fields.needed);
+      expect(messageFor({ code: "invalid_value", message: "x", path: ["certified"] }, false)).toBe(APPLY_COPY_ES.fields.certifyOverride);
+    } finally {
+      applyLanguage.value = "en";
     }
   });
 });

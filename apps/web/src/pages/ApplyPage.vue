@@ -17,6 +17,7 @@ import DisclosurePanel from "@/features/apply/DisclosurePanel.vue";
 import ApplyProgress from "@/features/apply/ApplyProgress.vue";
 import ApplyIssueList from "@/features/apply/ApplyIssueList.vue";
 import ApplyPhaseRouter from "@/features/apply/ApplyPhaseRouter.vue";
+import { applyLanguage } from "@/features/apply/language";
 import { emptyDraft, fromDraftPayload, type ApplicationDraft } from "@/features/apply/draft";
 import { linkHasBeenUsed, useApplyInvitationQuery, type Released } from "@/features/apply/useApplication";
 import { applyPartOne } from "@/features/apply/partOneFacts";
@@ -304,7 +305,10 @@ watch(
 </script>
 
 <template>
+  <!-- Keyed by language (C4): a switch remounts the screen chain so a word captured at setup follows it;
+       every state the chain reads is held here, above the key. -->
   <ApplyPhaseRouter
+    :key="applyLanguage"
     v-model:draft="draft"
     :token="token"
     :invitation="invitation"
@@ -351,6 +355,10 @@ watch(
              separate path and has never been gated. -->
         <AppCallout v-if="wordingNotFinal" tone="caution" class="mt-3">
           {{ APPLY_COPY.notOpen.banner(invitation.data.value.carrier) }}
+        </AppCallout>
+        <!-- Q-AW11: the instruments stay in counsel's English; a page in Spanish says so once, up here. -->
+        <AppCallout v-if="applyLanguage !== 'en'" tone="info" class="mt-3">
+          {{ APPLY_COPY.englishDocuments }}
         </AppCallout>
       </div>
       <DraftNotice :state="autosave.state.value" :notice="autosave.notice.value" />
