@@ -43,6 +43,7 @@ import {
   validateIngestUrl,
 } from "./service.mjs";
 import { fetchLedgerControl, fetchGlAccounts, fetchGlControl } from "./ledger.mjs";
+import { fetchTractorPeriods } from "./tractorPeriods.mjs";
 import { fetchBilling, mapBilling } from "./billing.mjs";
 import { fetchFuelTaxReceipts, receiptWindow } from "./fuelTaxReceipts.mjs";
 
@@ -763,6 +764,13 @@ async function runFinancial() {
   } else {
     log("financial: gl-control — no control row for this company; months are judged by sweep date and modules only");
   }
+
+  // Every tractor's service dates and owner (0510, TRUCK-DRIVER-PNL-PLAN P2) — the census a month's
+  // lease and insurance are shared over. Whole every sweep (~700 rows), not windowed: a truck sold
+  // before the window still owns its days inside the months the sweep re-reads.
+  const tp = await fetchTractorPeriods(CFG.sql);
+  const rt = await send("/api/tms/tractor-periods", "tractors", tp.tractors, {}, 2000);
+  log(`financial: tractor-periods ${verb}=${tp.tractors.length} received=${rt.received} upserted=${rt.upserted}`);
 
   // Office payroll at PERSON grain (0276). `fetchLedgerControl` has read these lines since C4 for
   // the coverage report and then thrown them away; OFF is the one expense module with no subledger,

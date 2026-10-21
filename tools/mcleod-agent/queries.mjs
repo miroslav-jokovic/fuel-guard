@@ -983,6 +983,36 @@ export const GL_CONTROL = `
        AND d.period = c.fiscal_period
      WHERE c.company_id = @companyId`;
 
+/**
+ * Every tractor's service dates and owner — the per-truck P&L's truck-day census
+ * (TRUCK-DRIVER-PNL-PLAN P2, D-TP3). A month's lease belongs to the trucks the carrier had that
+ * month, day by day, and `inservice_date` / `outservice_date` are McLeod's own statement of it.
+ *
+ * EVERY tractor of the company, not the roster's in-service predicate: a truck sold in March still
+ * carries March's lease, and which rows are trucks at all (D-FC1's purchase date or model year) and
+ * whose truck it is (`pay_owner`) are decided by the reader, so a ruling that moves either is a code
+ * change rather than a different read. ~700 rows, measured on lme_analytics 2026-10-21; those dates
+ * place every truck that worked in May–August 2026 inside its service period but one unit a month
+ * with no tractor row.
+ *
+ * `owner` is a payee id (the truck's owner: Silvicom itself, a contractor, Scorpio Logistics), not a
+ * person's name.
+ */
+export const TRACTOR_PERIODS = `
+    SELECT
+      LTRIM(RTRIM(t.id))                             AS tractor_id,
+      LTRIM(RTRIM(t.company_id))                     AS company_id,
+      CONVERT(varchar(10), t.inservice_date, 23)     AS in_service_on,
+      CONVERT(varchar(10), t.outservice_date, 23)    AS out_of_service_on,
+      CONVERT(varchar(10), t.purchase_date, 23)      AS purchased_on,
+      NULLIF(LTRIM(RTRIM(t.model_year)), '')         AS model_year,
+      NULLIF(LTRIM(RTRIM(t.service_status)), '')     AS service_status,
+      NULLIF(LTRIM(RTRIM(t.tractor_status)), '')     AS tractor_status,
+      NULLIF(LTRIM(RTRIM(t.owner)), '')              AS owner_id,
+      NULLIF(LTRIM(RTRIM(t.pay_owner)), '')          AS pay_owner
+      FROM dbo.tractor AS t
+     WHERE t.company_id = @companyId`;
+
 // ═══════════════════════════════════════════════════════════════════════════════════════════════
 // Dispatchable loads — the live board (LIVE-MAP-PLAN.md LM1)
 // ═══════════════════════════════════════════════════════════════════════════════════════════════

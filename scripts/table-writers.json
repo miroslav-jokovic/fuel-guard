@@ -402,6 +402,9 @@
   "mcleod_gl_control": [
     "apps/api/src/modules/mcleod/glControl.ts"
   ],
+  "mcleod_tractor_periods": [
+    "apps/api/src/modules/mcleod/tractorPeriods.ts"
+  ],
   "mcleod_gl_accounts": [
     "apps/api/src/modules/mcleod/ledgerControlIngest.ts"
   ],
