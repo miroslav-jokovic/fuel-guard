@@ -1740,6 +1740,17 @@
         "why": "budget derived from production 2026-09-21: 79 rows/day, x3 headroom. RETENTION_FORBIDDEN (books, 2026-10-05) \u2014 retention_days null."
       }
     },
+    "mcleod_tractor_periods": {
+      "module": "mcleod",
+      "layer": "raw",
+      "lifecycle": {
+        "growth": "fleet",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "bounded by the carrier's tractors, not by elapsed time: one row per McLeod tractor (707 on lme_analytics 2026-10-21, sold trucks and reserved unit numbers included), replaced in place by every financial sweep (0510). A sold truck's row stays: it is the census of the months it was in service."
+      }
+    },
     "mcleod_gl_totals": {
       "module": "mcleod",
       "layer": "raw",

@@ -10,6 +10,7 @@ import {
   tmsGlAccountsPayloadSchema,
   tmsGlControlPayloadSchema,
   tmsFuelTaxReceiptsPayloadSchema,
+  tmsTractorPeriodsPayloadSchema,
 } from "@silvicom/shared";
 import { apiError, asyncHandler } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
@@ -20,6 +21,7 @@ import { ingestMovementFacts } from "../movementFactIngest.js";
 import { ingestLedgerTotals, ingestGlAccounts } from "../ledgerControlIngest.js";
 import { stampFinancialSynced } from "../tmsIngest.js";
 import { ingestGlControl } from "../glControl.js";
+import { ingestTractorPeriods } from "../tractorPeriods.js";
 import { ingestFuelTaxReceipts } from "../fuelTaxReceipts.js";
 
 /**
@@ -131,6 +133,23 @@ export function registerTmsFinancialRoutes(router: Router): void {
       }
       const admin = getSupabaseAdmin(getAppLocals(req).env);
       const result = await ingestGlControl(admin, req.tms!.orgId, parsed.data);
+      res.json({ ok: true, ...result });
+    }),
+  );
+
+  // Every tractor's service dates and owner (0510, TRUCK-DRIVER-PNL-PLAN P2) — the per-truck spread's
+  // census. Does not stamp the financial freshness row, for gl-control's reason: the gl-accounts post
+  // in the same sweep already does.
+  router.post(
+    "/tractor-periods",
+    asyncHandler(async (req, res) => {
+      const parsed = tmsTractorPeriodsPayloadSchema.safeParse(req.body);
+      if (!parsed.success) {
+        res.status(400).json(apiError("bad_request", `Invalid tractor-periods payload: ${parsed.error.issues[0]?.message ?? "unreadable"}`));
+        return;
+      }
+      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      const result = await ingestTractorPeriods(admin, req.tms!.orgId, parsed.data);
       res.json({ ok: true, ...result });
     }),
   );
