@@ -40,6 +40,7 @@ import { useComplianceOverviewQuery } from "@/composables/useCompliance";
 import { useVehiclesQuery } from "@/composables/useVehicles";
 import {
   useRosterFilters,
+  DEFAULT_ROSTER_STATUS,
   ROSTER_PAGE_SIZE,
   VIEW_OPTIONS,
 } from "@/features/roster/useRosterFilters";
@@ -145,7 +146,7 @@ const rosterColumns = useTableColumns(ROSTER_TABLE, () => DRIVER_ROSTER_COLUMNS)
  * not erase the person from records they appear in.
  */
 const {
-  search, status: statusFilter, dqDue, dqRequirement, file: fileFilter, seat,
+  search, status: statusFilter, defaultStatus, dqDue, dqRequirement, file: fileFilter, seat,
   view, showArchived, sort, onSort, page, reset,
 } = useRosterFilters();
 const { data: vehicles } = useVehiclesQuery();
@@ -155,11 +156,13 @@ const seated = computed(() => seatedDriverIds(vehicles.value ?? []));
  * How many controls narrow the roster, for FilterBar's one "Clear filters" — a count where
  * `active` is only a yes/no; a re-sort counts in neither. The requirement (`req`)
  * counts although no control shows it — a built-in view sets it, and the reader still needs the
- * way back from it.
+ * way back from it. Status counts only when it is off its default — `active` is where the roster
+ * opens, not something the reader narrowed to, and "All statuses" is the one that counts.
  */
 const activeFilterCount = computed(
   () =>
-    [search.value, statusFilter.value, dqDue.value, dqRequirement.value, fileFilter.value, seat.value].filter(Boolean).length +
+    [search.value, dqDue.value, dqRequirement.value, fileFilter.value, seat.value].filter(Boolean).length +
+    (statusFilter.value !== defaultStatus.value ? 1 : 0) +
     (showArchived.value ? 1 : 0),
 );
 
@@ -202,7 +205,9 @@ async function setArchived(driver: Driver, archived: boolean) {
 }
 const statusOptions = computed(() => [
   { value: "", label: "All statuses" },
-  ...[...new Set((drivers.value ?? []).map((d) => d.status))].map((s) => ({ value: s, label: s })),
+  // The default is listed even before the drivers load, so the control never shows a value it has
+  // no option for.
+  ...[...new Set([DEFAULT_ROSTER_STATUS, ...(drivers.value ?? []).map((d) => d.status)])].map((s) => ({ value: s, label: s })),
 ]);
 
 /**

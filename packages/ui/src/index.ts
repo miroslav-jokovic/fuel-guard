@@ -57,7 +57,7 @@ export type { Fact } from "./components/FactList.vue";
 export { default as ErrorState } from "./components/ErrorState.vue";
 export { default as ErrorPanel } from "./components/ErrorPanel.vue";
 export { default as TableSkeleton } from "./components/TableSkeleton.vue";
-export { useQueryState } from "./lists/useQueryState";
+export { ANY_PARAM, useQueryState } from "./lists/useQueryState";
 export type { UrlQueryState } from "./lists/useQueryState";
 export { sortRows, toggleSort } from "./lists/sort";
 export { useUrlSort, SORT_DIRECTIONS } from "./lists/useUrlSort";
