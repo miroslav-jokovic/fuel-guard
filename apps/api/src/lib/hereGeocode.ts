@@ -69,19 +69,3 @@ export async function hereReverseGeocodeState(env: Env, lat: number, lng: number
   const code = body?.items?.[0]?.address?.stateCode;
   return code ? code.toUpperCase() : null;
 }
-
-/** Run `worker` over `items` with bounded concurrency; preserves order. Stops starting new work after
- *  `deadlineMs` (epoch) if given, resolving the rest to whatever the worker returns for a skipped item. */
-export async function mapPool<T, R>(items: T[], concurrency: number, worker: (item: T, index: number) => Promise<R>): Promise<R[]> {
-  const results = new Array<R>(items.length);
-  let next = 0;
-  const runners = Array.from({ length: Math.min(concurrency, items.length) }, async () => {
-    for (;;) {
-      const i = next++;
-      if (i >= items.length) return;
-      results[i] = await worker(items[i]!, i);
-    }
-  });
-  await Promise.all(runners);
-  return results;
-}

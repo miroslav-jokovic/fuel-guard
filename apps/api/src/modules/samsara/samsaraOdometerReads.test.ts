@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { createSupabaseRecorder, expectOrgScoped, type RecordedQuery } from "../../testing/supabaseRecorder.js";
+import { distanceByVehicle, fleetDistance, type OdometerCounter } from "@silvicom/shared";
+import { createSupabaseRecorder } from "../../testing/supabaseRecorder.js";
 import { odometerFunctionModel, pgInstant } from "../../testing/odometerFunctionModel.js";
 import {
   ODOMETER_LOOKBACK_DAYS,
@@ -39,45 +40,12 @@ const row = (vehicleId: string, readingAt: string, meters: number, source = "obd
 });
 
 /**
- * ⚠ A FUNCTION fixture, not an array, and that is load-bearing.
- *
- * `supabaseRecorder` RECORDS filters; it does not APPLY them. With a flat array the fake hands back
- * every row whatever the query asked for, so the lookback assertion below passes even when the
- * reader never asks for the lookback at all — which is precisely what the mutation check caught on
- * 2026-09-04: replacing `gte(reading_at, lookbackFrom)` with `gte(reading_at, fromIso)` left all ten
- * tests green. The whole correctness claim of this file is the lookback, so the fake has to honour
- * the window the reader asked for.
+ * The fake database: `odometer_readings_for_periods` (0507) answered by the model its matrix checks
+ * against Postgres. The table itself answers nothing — the reader must never page it again (D-RLY6).
  */
-const pagedTable = (rows: ReadingFixture[]) => (q: RecordedQuery) => {
-  const f = q.filters();
-  const bound = (col: string, method: "gte" | "lte") =>
-    q.ops.find((o) => o.method === method && o.args[0] === col)?.args[1] as string | undefined;
-  const lo = bound("reading_at", "gte");
-  const hi = bound("reading_at", "lte");
-  const org = f.find((x) => x.col === "org_id")?.val;
-  return rows.filter(
-    (r) =>
-      (org === undefined || org === ORG) &&
-      (lo === undefined || r.reading_at >= lo) &&
-      (hi === undefined || r.reading_at <= hi),
-  );
-};
-
-type Read = "function" | "paged";
-/**
- * The fake database. `function` (production since 0507) answers `odometer_readings_for_periods`;
- * `paged` answers PGRST202 for it, as staging does in the minutes before 0507 is applied, so the
- * reader falls back to the paged table read.
- */
-const rec = (rows: ReadingFixture[], read: Read = "function") =>
+const rec = (rows: ReadingFixture[]) =>
   createSupabaseRecorder({
-    tables: { samsara_odometer_readings: pagedTable(rows) },
-    rpc: (fn, args) =>
-      fn !== "odometer_readings_for_periods"
-        ? null
-        : read === "paged"
-          ? { error: { code: "PGRST202", message: "Could not find the function public.odometer_readings_for_periods" } }
-          : odometerFunctionModel(rows, ORG)(args),
+    rpc: (fn, args) => (fn !== "odometer_readings_for_periods" ? null : odometerFunctionModel(rows, ORG)(args)),
   });
 
 /** One truck: an opening reading BEFORE the week, then one late on each of two days inside it. */
@@ -87,18 +55,21 @@ const ONE_WEEK = [
   row("v1", "2026-07-12T23:50:00Z", 663_804_672), // +804,672 m from the opening = 500.0 miles
 ];
 
-describe.each<Read>(["function", "paged"])("readFleetDistance (%s read)", (read) => {
+describe("readFleetDistance", () => {
   it("scopes the read to one organization", async () => {
-    const r = rec(ONE_WEEK, read);
+    const r = rec(ONE_WEEK);
     await readFleetDistance(r.client, ORG, FROM, TO);
-    expectOrgScoped(r, ORG);
+    // `expectOrgScoped` passes over function calls, and the read is now only one: the org is the
+    // function's first argument, so that argument is what is checked (and the table is never paged).
+    expect(r.rpcs().map((c) => (c.args as { p_org?: string }).p_org)).toEqual([ORG]);
+    expect(r.forTable("samsara_odometer_readings")).toHaveLength(0);
   });
 
   it("measures from the reading BEFORE the period, not the first one inside it", async () => {
     // The undercount this prevents: with one reading late each day, the readings strictly inside a
     // Monday-to-Monday week run Monday evening to Sunday evening — six days reported as seven.
     // Opening here is 05 July at 23:50, which is before the window starts.
-    const r = rec(ONE_WEEK, read);
+    const r = rec(ONE_WEEK);
     const out = await readFleetDistance(r.client, ORG, FROM, TO);
     expect(out.perVehicle[0]).toMatchObject({
       vehicleId: "v1",
@@ -110,19 +81,12 @@ describe.each<Read>(["function", "paged"])("readFleetDistance (%s read)", (read)
   });
 
   it("asks the database for the lookback window, and says where it began", async () => {
-    const r = rec(ONE_WEEK, read);
+    const r = rec(ONE_WEEK);
     const out = await readFleetDistance(r.client, ORG, FROM, TO);
     const expected = new Date(Date.parse(FROM) - ODOMETER_LOOKBACK_DAYS * 86_400_000).toISOString();
     expect(out.lookbackFrom).toBe(expected);
-    if (read === "function") {
-      // One call, carrying the period's own floor — the lookback — for the database to search from.
-      expect(r.rpcs()).toEqual([{ fn: "odometer_readings_for_periods", args: { p_org: ORG, p_periods: [{ from: FROM, to: TO, floor: expected }] } }]);
-      expect(r.forTable("samsara_odometer_readings")).toHaveLength(0);
-    } else {
-      const filters = r.forTable("samsara_odometer_readings")[0]!.ops.map((o) => `${o.method}:${o.args[0]}`);
-      expect(filters).toContain(`gte:reading_at`);
-      expect(filters).toContain(`lte:reading_at`);
-    }
+    // One call, carrying the period's own floor — the lookback — for the database to search from.
+    expect(r.rpcs()).toEqual([{ fn: "odometer_readings_for_periods", args: { p_org: ORG, p_periods: [{ from: FROM, to: TO, floor: expected }] } }]);
   });
 
   it("widens the SEARCH without widening the PERIOD", async () => {
@@ -131,21 +95,21 @@ describe.each<Read>(["function", "paged"])("readFleetDistance (%s read)", (read)
     const r = rec([
       row("v1", "2026-06-20T23:50:00Z", 600_000_000), // deep in the lookback
       ...ONE_WEEK,
-    ], read);
+    ]);
     const out = await readFleetDistance(r.client, ORG, FROM, TO);
     expect(out.perVehicle[0]!.fromAt).toBe("2026-07-05T23:50:00Z");
     expect(out.miles).toBe(500);
   });
 
   it("ignores a reading after the period ends", async () => {
-    const r = rec([...ONE_WEEK, row("v1", "2026-07-20T23:50:00Z", 999_000_000)], read);
+    const r = rec([...ONE_WEEK, row("v1", "2026-07-20T23:50:00Z", 999_000_000)]);
     const out = await readFleetDistance(r.client, ORG, FROM, TO);
     expect(out.miles).toBe(500);
   });
 
   it("counts a truck it cannot measure instead of scoring it zero", async () => {
     // One reading is not a period. A truck that reported once is not a truck that did not move.
-    const r = rec([...ONE_WEEK, row("v2", "2026-07-09T23:50:00Z", 412_000_000)], read);
+    const r = rec([...ONE_WEEK, row("v2", "2026-07-09T23:50:00Z", 412_000_000)]);
     const out = await readFleetDistance(r.client, ORG, FROM, TO);
     expect(out.measuredVehicles).toBe(1);
     expect(out.unmeasuredVehicles).toBe(1);
@@ -160,7 +124,7 @@ describe.each<Read>(["function", "paged"])("readFleetDistance (%s read)", (read)
       row("v1", "2026-07-12T23:50:00Z", 663_804_672, "obd"),
       row("v1", "2026-07-05T23:51:00Z", 120_000_000, "gps_distance"),
       row("v1", "2026-07-12T23:51:00Z", 130_000_000, "gps_distance"),
-    ], read);
+    ]);
     const out = await readFleetDistance(r.client, ORG, FROM, TO);
     expect(out.perVehicle[0]!.source).toBe("obd"); // Samsara's own ranking, best first
     expect(out.miles).toBe(500);
@@ -168,21 +132,21 @@ describe.each<Read>(["function", "paged"])("readFleetDistance (%s read)", (read)
 
   it("reports an empty table as empty, never as a fleet that stood still", async () => {
     // This is the state on the day the collector deploys, and a zero here would be a measured zero.
-    const r = rec([], read);
+    const r = rec([]);
     const out = await readFleetDistance(r.client, ORG, FROM, TO);
     expect(out).toMatchObject({ miles: 0, measuredVehicles: 0, unmeasuredVehicles: 0, readings: 0 });
     expect(out.perVehicle).toEqual([]);
   });
 
   it("skips a row the collector could not have written rather than failing the whole fleet", async () => {
-    const r = rec([...ONE_WEEK, row("v3", "2026-07-09T23:50:00Z", 1, "odometer")], read);
+    const r = rec([...ONE_WEEK, row("v3", "2026-07-09T23:50:00Z", 1, "odometer")]);
     const out = await readFleetDistance(r.client, ORG, FROM, TO);
     expect(out.readings).toBe(3);
     expect(out.perVehicle.some((v) => v.vehicleId === "v3")).toBe(false);
   });
 
   it("refuses a period that ends before it starts, rather than returning a negative fleet", async () => {
-    const r = rec(ONE_WEEK, read);
+    const r = rec(ONE_WEEK);
     await expect(readFleetDistance(r.client, ORG, TO, FROM)).rejects.toThrow(/ends before it starts/);
     await expect(readFleetDistance(r.client, ORG, "not-a-date", TO)).rejects.toThrow(/valid ISO/);
   });
@@ -203,7 +167,7 @@ describe.each<Read>(["function", "paged"])("readFleetDistance (%s read)", (read)
  *   • a period could see readings AFTER its own end — which would count a later week's miles into an
  *     earlier one.
  */
-describe.each<Read>(["function", "paged"])("readFleetDistancePeriods (%s read)", (read) => {
+describe("readFleetDistancePeriods", () => {
   const WEEK2_FROM = "2026-07-13T00:00:00.000Z";
   const WEEK2_TO = "2026-07-20T00:00:00.000Z";
 
@@ -212,9 +176,9 @@ describe.each<Read>(["function", "paged"])("readFleetDistancePeriods (%s read)",
       ...ONE_WEEK,
       row("v1", "2026-07-19T23:50:00Z", 664_609_344), // +804,672 m on week two = another 500 miles
     ];
-    const one = await readFleetDistance(rec(rows, read).client, ORG, FROM, TO);
-    const two = await readFleetDistance(rec(rows, read).client, ORG, WEEK2_FROM, WEEK2_TO);
-    const batched = await readFleetDistancePeriods(rec(rows, read).client, ORG, [
+    const one = await readFleetDistance(rec(rows).client, ORG, FROM, TO);
+    const two = await readFleetDistance(rec(rows).client, ORG, WEEK2_FROM, WEEK2_TO);
+    const batched = await readFleetDistancePeriods(rec(rows).client, ORG, [
       { fromIso: FROM, toIso: TO },
       { fromIso: WEEK2_FROM, toIso: WEEK2_TO },
     ]);
@@ -224,13 +188,12 @@ describe.each<Read>(["function", "paged"])("readFleetDistancePeriods (%s read)",
   });
 
   it("asks the database once for all of them", async () => {
-    const r = rec(ONE_WEEK, read);
+    const r = rec(ONE_WEEK);
     await readFleetDistancePeriods(r.client, ORG, [
       { fromIso: FROM, toIso: TO },
       { fromIso: WEEK2_FROM, toIso: WEEK2_TO },
     ]);
-    if (read === "function") expect(r.rpcs().filter((c) => c.fn === "odometer_readings_for_periods")).toHaveLength(1);
-    else expect(r.forTable("samsara_odometer_readings").length).toBe(1);
+    expect(r.rpcs().filter((c) => c.fn === "odometer_readings_for_periods")).toHaveLength(1);
   });
 
   it("does not let a later period use an opening odometer older than its OWN lookback", async () => {
@@ -242,8 +205,8 @@ describe.each<Read>(["function", "paged"])("readFleetDistancePeriods (%s read)",
       row("v9", "2026-06-08T23:50:00Z", 500_000_000),
       row("v9", "2026-07-19T23:50:00Z", 500_804_672),
     ];
-    const alone = await readFleetDistance(rec(rows, read).client, ORG, WEEK2_FROM, WEEK2_TO);
-    const [, batched] = await readFleetDistancePeriods(rec(rows, read).client, ORG, [
+    const alone = await readFleetDistance(rec(rows).client, ORG, WEEK2_FROM, WEEK2_TO);
+    const [, batched] = await readFleetDistancePeriods(rec(rows).client, ORG, [
       { fromIso: FROM, toIso: TO },
       { fromIso: WEEK2_FROM, toIso: WEEK2_TO },
     ]);
@@ -255,7 +218,7 @@ describe.each<Read>(["function", "paged"])("readFleetDistancePeriods (%s read)",
     // `readings` is what a caller uses to tell "the collector has not run" from "the fleet stood
     // still". Answering it with another window's row count would answer a different question.
     const rows = [...ONE_WEEK, row("v1", "2026-07-19T23:50:00Z", 664_609_344)];
-    const [w1, w2] = await readFleetDistancePeriods(rec(rows, read).client, ORG, [
+    const [w1, w2] = await readFleetDistancePeriods(rec(rows).client, ORG, [
       { fromIso: FROM, toIso: TO },
       { fromIso: WEEK2_FROM, toIso: WEEK2_TO },
     ]);
@@ -264,7 +227,7 @@ describe.each<Read>(["function", "paged"])("readFleetDistancePeriods (%s read)",
   });
 
   it("refuses a bad period even when the others are fine, and answers nothing for no periods", async () => {
-    const r = rec(ONE_WEEK, read);
+    const r = rec(ONE_WEEK);
     await expect(
       readFleetDistancePeriods(r.client, ORG, [
         { fromIso: FROM, toIso: TO },
@@ -276,12 +239,14 @@ describe.each<Read>(["function", "paged"])("readFleetDistancePeriods (%s read)",
 });
 
 /**
- * The two reads must answer every period identically (D-RLY6) — the function is a speed-up, never a
- * second definition. A deterministic irregular fleet: missed days, a parked fortnight, two counters,
+ * The function read must answer every period as the rule applied to EVERY reading would (D-RLY6) — the
+ * function is a speed-up, never a second definition. Until v2026.10.21 the reference was the paged table
+ * read; it is now that read's definition written out below: every valid reading, narrowed to the period's
+ * own lookback exactly as the reader narrows (the same string comparison), through the same rule. A deterministic irregular fleet: missed days, a parked fortnight, two counters,
  * readings exactly on a period's floor and on its start, and a weekly series plus a month, the
  * dashboard's own shape. Each pick the model makes is checked against Postgres in 0507's matrix.
  */
-describe("the function read and the paged read agree", () => {
+describe("the function read agrees with the rule over every reading", () => {
   it("gives the same miles, the same trucks, the same pairs and the same counts for every period", async () => {
     let seed = 11;
     const rnd = () => ((seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648);
@@ -307,9 +272,16 @@ describe("the function read and the paged read agree", () => {
       toIso: new Date(T0 + (77 + 7 * w) * DAY).toISOString(),
     }));
     periods.push({ fromIso: new Date(T0 + 70 * DAY).toISOString(), toIso: new Date(T0 + 105 * DAY).toISOString() });
-    const viaFunction = await readFleetDistancePeriods(rec(rows, "function").client, ORG, periods);
-    const viaPages = await readFleetDistancePeriods(rec(rows, "paged").client, ORG, periods);
-    expect(viaFunction).toEqual(viaPages);
-    expect(viaPages.every((p) => p.measuredVehicles > 0)).toBe(true);
+    const viaFunction = await readFleetDistancePeriods(rec(rows).client, ORG, periods);
+    const every = rows.map((r) => ({ vehicleId: r.vehicle_id, readingAt: r.reading_at, meters: r.meters, source: r.source as OdometerCounter }));
+    const reference = periods.map(({ fromIso, toIso }) => {
+      const lookbackFrom = new Date(Date.parse(fromIso) - ODOMETER_LOOKBACK_DAYS * DAY).toISOString();
+      const own = every.filter((r) => r.readingAt >= lookbackFrom && r.readingAt <= toIso);
+      const perVehicle = distanceByVehicle(own, fromIso, toIso);
+      const fleet = fleetDistance(perVehicle);
+      return { ...fleet, perVehicle, readings: own.length, lookbackFrom };
+    });
+    expect(viaFunction).toEqual(reference);
+    expect(reference.every((p) => p.measuredVehicles > 0)).toBe(true);
   });
 });

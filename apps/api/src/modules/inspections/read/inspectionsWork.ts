@@ -10,6 +10,7 @@ import {
   type RoadsideRepairCertificationDto,
   type RoadsideRepairDueDto,
 } from "@silvicom/shared";
+import { mapPool } from "../../../lib/mapPool.js";
 import { memberLabels } from "../../../lib/memberLabels.js";
 import { listFiledDocuments } from "../../evidence/index.js";
 import { REPORT_CHECK_COLS, reportCheckDtos, type ReportCheckRow } from "../report/readChecks.js";
@@ -31,9 +32,21 @@ import type { DbError } from "./inspectionsList.js";
  *
  * Measured 2026-10-19: 1,400 inspections, 2,763 violations, ~1,400 attribution rows, 150 repair units. The
  * whole record is a few dozen reads, so the inbox asks it for the period it shows and no more.
+ *
+ * ── THE TIME IS ROUND TRIPS, SO THE CHUNKS RUN SIDE BY SIDE ────────────────────────────────────
+ * Measured 2026-10-20 (PLATFORM-RELIABILITY-PLAN §1): `/summary` median 2.0 s, max 37.6 s, with every
+ * single query tens of milliseconds. The chunks of one table went one after another, and the reads that
+ * need nothing from each other waited for each other. D-RLY10: chunks run `CHUNK_CONCURRENCY` at a time,
+ * the report read starts with the first wave, and the certifications and the roster read together. Every
+ * figure is still built by the same builders from the same rows; only the waiting changed.
  */
 
 const IN_CHUNK = 100;
+/**
+ * Chunks of ONE read in flight at once. Several reads run side by side too, so this multiplies: six tables
+ * × 3 is the most this reader asks of PostgREST at a moment, inside what Supabase Small's pool serves.
+ */
+const CHUNK_CONCURRENCY = 3;
 const PAGE = 1000;
 type Rows<T> = { data: T[]; error: DbError | null };
 
@@ -49,16 +62,16 @@ async function paged<T>(page: (from: number, to: number) => PromiseLike<{ data: 
   }
 }
 
-/** The same query over ids a hundred at a time, each chunk paged. */
+/** The ids a hundred at a time — a long id list overflows Node 22's request headers. */
+const chunksOf = (ids: readonly string[]): string[][] =>
+  Array.from({ length: Math.ceil(ids.length / IN_CHUNK) }, (_, i) => ids.slice(i * IN_CHUNK, (i + 1) * IN_CHUNK));
+
+/** The same query over ids a hundred at a time, each chunk paged; rows in chunk order, the first error wins. */
 async function overIds<T>(ids: readonly string[], page: (chunk: string[], from: number, to: number) => PromiseLike<{ data: unknown; error: DbError | null }>): Promise<Rows<T>> {
-  const data: T[] = [];
-  for (let i = 0; i < ids.length; i += IN_CHUNK) {
-    const chunk = ids.slice(i, i + IN_CHUNK);
-    const r = await paged<T>((from, to) => page(chunk, from, to));
-    if (r.error) return { data, error: r.error };
-    data.push(...r.data);
-  }
-  return { data, error: null };
+  const results = await mapPool(chunksOf(ids), CHUNK_CONCURRENCY, (chunk) => paged<T>((from, to) => page(chunk, from, to)));
+  const failed = results.find((r) => r.error);
+  if (failed) return { data: [], error: failed.error };
+  return { data: results.flatMap((r) => r.data), error: null };
 }
 
 interface HeadRow {
@@ -91,8 +104,9 @@ async function rosterFor(admin: SupabaseClient, orgId: string, samsara: string[]
   const out: Roster = { bySamsara: new Map(), byId: new Map() };
   const s = [...new Set(samsara)];
   const d = [...new Set(ids)];
-  for (let i = 0; i < Math.max(s.length, d.length); i += IN_CHUNK) {
-    const r = await rosterOf(admin, orgId, s.slice(i, i + IN_CHUNK), d.slice(i, i + IN_CHUNK));
+  const starts = Array.from({ length: Math.ceil(Math.max(s.length, d.length) / IN_CHUNK) }, (_, i) => i * IN_CHUNK);
+  const parts = await mapPool(starts, CHUNK_CONCURRENCY, (i) => rosterOf(admin, orgId, s.slice(i, i + IN_CHUNK), d.slice(i, i + IN_CHUNK)));
+  for (const r of parts) {
     if ("error" in r) return r;
     for (const [k, v] of r.bySamsara) out.bySamsara.set(k, v);
     for (const [k, v] of r.byId) out.byId.set(k, v);
@@ -159,7 +173,13 @@ export async function readInspectionsWork(
   const ids = heads.data.map((h) => h.id);
   if (ids.length === 0) return [];
 
-  const [violations, citations, attributions, acts, due, court] = await Promise.all([
+  // A report read that fails leaves every driver card's reports empty rather than the inbox unread — the
+  // page makes the same choice (`readInspectionAttribution`). Started here: it needs only the ids.
+  const reportsRead = reportsFor(admin, orgId, ids).catch((e: unknown) => {
+    console.error(`[inspection-report] org ${orgId}: report checks unread for the inbox —`, e instanceof Error ? e.message : e);
+    return { docs: [], linked: new Set<string>(), checks: new Map<string, ReportCheckRow>() };
+  });
+  const [violations, citations, attributions, acts, due, court, reports] = await Promise.all([
     overIds<ViolationRow>(ids, (c, f, t) => admin.from("roadside_violations").select("id, inspection_id, viol_code, out_of_service, description, citation_number, category_id")
       .eq("org_id", orgId).in("inspection_id", c).is("vanished_at", null).order("id").range(f, t)),
     overIds<CitationRow>(ids, (c, f, t) => admin.from("roadside_citations").select("violation_id, citation_code, citation_result, adjseq")
@@ -168,8 +188,10 @@ export async function readInspectionsWork(
       .eq("org_id", orgId).in("inspection_id", c).order("id").range(f, t)),
     overIds<CitationActionRow>(ids, (c, f, t) => admin.from("inspection_citation_actions").select(CITATION_ACTION_COLS)
       .eq("org_id", orgId).in("inspection_id", c).order("id").range(f, t)),
-    readRepairsDue(admin, orgId, opts.today),
+    // Only these inspections' repairs: the Shop's list reads the whole year, this window needs its own.
+    readRepairsDue(admin, orgId, opts.today, { only: ids }),
     readCourtRecords(admin, orgId, ids),
+    reportsRead,
   ]);
   const failed = violations.error ?? citations.error ?? attributions.error ?? acts.error;
   if (failed) return { error: failed };
@@ -177,15 +199,6 @@ export async function readInspectionsWork(
 
   const repairsOf = new Map<string, RoadsideRepairDueDto[]>();
   for (const r of due) repairsOf.set(r.inspection.id, [...(repairsOf.get(r.inspection.id) ?? []), r]);
-  const certs = await certificationsFor(admin, orgId, repairsOf);
-  if ("error" in certs) return certs;
-
-  // A report read that fails leaves every driver card's reports empty rather than the inbox unread — the
-  // page makes the same choice (`readInspectionAttribution`).
-  const reports = await reportsFor(admin, orgId, ids).catch((e: unknown) => {
-    console.error(`[inspection-report] org ${orgId}: report checks unread for the inbox —`, e instanceof Error ? e.message : e);
-    return { docs: [], linked: new Set<string>(), checks: new Map<string, ReportCheckRow>() };
-  });
 
   const latest = latestOf(attributions.data);
   const samsara: string[] = [];
@@ -198,7 +211,12 @@ export async function readInspectionsWork(
     const d = decisionRow(l)?.decided_by;
     if (d) deciders.push(d);
   }
-  const [roster, labels] = await Promise.all([rosterFor(admin, orgId, samsara, rosterIds), memberLabels(admin, orgId, [...new Set(deciders)])]);
+  const [certs, roster, labels] = await Promise.all([
+    certificationsFor(admin, orgId, repairsOf),
+    rosterFor(admin, orgId, samsara, rosterIds),
+    memberLabels(admin, orgId, [...new Set(deciders)]),
+  ]);
+  if ("error" in certs) return certs;
   if ("error" in roster) return roster;
 
   const violationsOf = new Map<string, ViolationRow[]>();

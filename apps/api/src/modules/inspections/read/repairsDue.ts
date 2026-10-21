@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { REPAIR_LOOKBACK_DAYS, REPAIR_VIOLATION_PARTS, shiftDay, type CalendarDay, type RoadsideRepairDueDto } from "@silvicom/shared";
+import { mapPool } from "../../../lib/mapPool.js";
 import { readRoadsideInspections, type DbError } from "./inspectionsList.js";
 import {
   REPAIR_COLS,
@@ -20,9 +21,16 @@ import {
  *
  * Bounded by the engine's own horizon (`REPAIR_LOOKBACK_DAYS`, 396.9(d)(3)(ii)'s 12 months): measured
  * 2026-10-19, 150 units on 127 inspections. The ids go to `.in()` a hundred at a time — a long id list
- * overflows Node 22's request headers and comes back as a bare "fetch failed".
+ * overflows Node 22's request headers and comes back as a bare "fetch failed". The chunks run
+ * `CHUNK_CONCURRENCY` at a time (PLATFORM-RELIABILITY-PLAN D-RLY10): each is three reads already, and one
+ * after another they were most of the Roadside card's wait.
+ *
+ * `opts.only` narrows to some inspections — the inbox's window (`readInspectionsWork`), which before
+ * D-RLY10 read the whole year's repairs and kept the few it showed. The horizon still applies: an
+ * inspection outside it has no repair due, whether or not it was asked about.
  */
 const IN_CHUNK = 100;
+const CHUNK_CONCURRENCY = 3;
 const PAGE = 1000;
 
 /**
@@ -50,17 +58,20 @@ export async function readRepairsDue(
   admin: SupabaseClient,
   orgId: string,
   today: CalendarDay,
+  opts: { only?: readonly string[] } = {},
 ): Promise<RoadsideRepairDueDto[] | { error: DbError }> {
-  const inspections = await readRoadsideInspections(admin, orgId, { from: shiftDay(today, -REPAIR_LOOKBACK_DAYS) });
-  if ("error" in inspections) return inspections;
+  const inHorizon = await readRoadsideInspections(admin, orgId, { from: shiftDay(today, -REPAIR_LOOKBACK_DAYS) });
+  if ("error" in inHorizon) return inHorizon;
+  const asked = opts.only ? new Set(opts.only) : null;
+  const inspections = asked ? inHorizon.filter((i) => asked.has(i.id)) : inHorizon;
   const ids = inspections.map((i) => i.id);
   const rows: RepairRow[] = [];
   const units: RepairUnitRow[] = [];
   const violations: RepairViolationRow[] = [];
   const inspectionOf = new Map<string, string>();
-  for (let i = 0; i < ids.length; i += IN_CHUNK) {
-    const chunk = ids.slice(i, i + IN_CHUNK);
-    const [r, u, v] = await Promise.all([
+  const chunks = Array.from({ length: Math.ceil(ids.length / IN_CHUNK) }, (_, i) => ids.slice(i * IN_CHUNK, (i + 1) * IN_CHUNK));
+  const read = await mapPool(chunks, CHUNK_CONCURRENCY, (chunk) =>
+    Promise.all([
       repairRows(admin, orgId, chunk),
       admin.from("roadside_inspection_units").select(`${REPAIR_UNIT_COLS}, inspection_id`).eq("org_id", orgId).in("inspection_id", chunk),
       admin
@@ -70,7 +81,9 @@ export async function readRepairsDue(
         .in("inspection_id", chunk)
         .is("vanished_at", null)
         .in("part_no", [...REPAIR_VIOLATION_PARTS]),
-    ]);
+    ]),
+  );
+  for (const [r, u, v] of read) {
     for (const res of [r, u, v]) if (res.error) return { error: res.error };
     rows.push(...(r.data as RepairRow[]));
     for (const unit of (u.data ?? []) as (RepairUnitRow & { inspection_id: string })[]) {

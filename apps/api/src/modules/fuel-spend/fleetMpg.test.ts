@@ -42,7 +42,7 @@ const reading = (vehicleId: string, at: string, meters: number, source = "obd"):
   source,
 });
 
-/** How many times the distance read went to the database: one function call (or a paged read). */
+/** How many times the distance read went to the database: function calls, plus any table read (there must be none). */
 const odometerAsks = (rec: ReturnType<typeof createSupabaseRecorder>) =>
   rec.rpcs().filter((c) => c.fn === "odometer_readings_for_periods").length + rec.forTable("samsara_odometer_readings").length;
 

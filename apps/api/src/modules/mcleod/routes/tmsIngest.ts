@@ -19,19 +19,13 @@ import { orgForIngestToken, ingestMovements, ingestDriverTimeOff, touchLastSynce
 import { ingestLoads } from "../tmsLoadIngest.js";
 import { ingestDispatchers } from "../tmsDispatcherIngest.js";
 import { ingestDispatchMovements } from "../dispatchMovementIngest.js";
-import { projectDispatchMovements, relinkDispatchMovements } from "../dispatchProjection.js";
+import { projectDispatchMovements } from "../dispatchProjection.js";
 import { ingestDrivers, ingestVehicles, ingestTrailers } from "../rosterIngest.js";
 import { reconcileAbsentFromTms, retireFromTms } from "../rosterRetire.js";
 import { runFleetParity, type ParitySummary } from "../fleetParity.js";
 import { isTmsRosterMaster } from "../rosterMastery.js";
 import { stampRosterRead } from "../tmsIngest.js";
 import type { RosterMode } from "../rosterIngest.js";
-
-/**
- * How far back the relink pass looks (LOADS-ACTIVITY-PLAN D-LA3): the Activity view's longest
- * question is weeks, and 60 days keeps the pass to the ~1,500 movements a 25-a-day carrier closes.
- */
-const RELINK_WINDOW_DAYS = 60;
 
 /** The modes this build understands, safest first. Anything else is refused — see the route below. */
 const ROSTER_MODES = ["report", "link", "identity", "create", "reconcile"] as const;
@@ -340,15 +334,11 @@ export function tmsIngestRouter(): Router {
       // answers 500, so the agent keeps the batch unhashed and sends it again next cycle.
       const batch = parsed.data.movements.map((m) => m.movement_id);
       const projection = await projectDispatchMovements(admin, orgId, provider, parsed.data.company_id, batch);
-      // D-LA3: a movement McLeod no longer resends keeps the links it had when it closed. Re-made here
-      // for the last RELINK_WINDOW_DAYS, so a driver who joined the roster after their load closed
-      // gets their deliveries back. A failure is the sync's failure, like the projection's: the agent resends.
-      const relink = await relinkDispatchMovements(
-        admin, orgId, provider, parsed.data.company_id, new Date(Date.now() - RELINK_WINDOW_DAYS * 86_400_000).toISOString(),
-        new Set(batch),
-      );
+      // The links of movements McLeod no longer resends (D-LA3) are re-made by `relinkScheduler.ts`, not
+      // here: inside the request it was most of this route's time and relinked nothing on almost every
+      // call (PLATFORM-RELIABILITY-PLAN D-RLY12).
       await touchLastSynced(admin, orgId, provider);
-      res.json({ ok: true, ...result, projection, relink });
+      res.json({ ok: true, ...result, projection });
     }),
   );
 

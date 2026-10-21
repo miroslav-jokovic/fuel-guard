@@ -18,6 +18,8 @@
 export { tmsIngestRouter } from "./routes/tmsIngest.js";
 export { tmsRosterMasterRouter } from "./routes/tmsRosterMaster.js";
 export { isTmsRosterMaster } from "./rosterMastery.js";
+// The relink pass on a clock (D-LA3, PLATFORM-RELIABILITY-PLAN D-RLY12); registered in `schedulers.ts`.
+export { startMcleodRelinkScheduler } from "./relinkScheduler.js";
 // The Loads board's Dispatcher column (LOADS-MIRROR-PLAN.md LR7): `tms_dispatchers` is raw, so the
 // `loads` module reads names through here, never the table.
 // Whose fleet is whose, and the caller's scope from it — the dispatch board's "My fleet" (DB2/DB3).
