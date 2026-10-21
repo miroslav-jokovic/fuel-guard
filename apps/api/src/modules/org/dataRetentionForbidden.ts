@@ -267,5 +267,6 @@ export const RETENTION_FORBIDDEN = [
   "mcleod_movements",
   "mcleod_gl_accounts",
   "mcleod_gl_days",
+  "mcleod_gl_key_lines",
   "mcleod_gl_totals",
 ] as const;

@@ -1740,6 +1740,17 @@
         "why": "budget derived from production 2026-09-21: 79 rows/day, x3 headroom. RETENTION_FORBIDDEN (books, 2026-10-05) \u2014 retention_days null."
       }
     },
+    "mcleod_gl_key_lines": {
+      "module": "mcleod",
+      "layer": "raw",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 1500,
+        "why": "budget derived from lme_analytics 2026-10-21: July 2026 is 15,183 (module, key, account) rows across BILL, SET, SETV and FUEL (~490/day), x3 headroom. Re-sweeping a month replaces it in place, so the rolling window adds no rows. RETENTION_FORBIDDEN (books, 2026-10-05) \u2014 retention_days null."
+      }
+    },
     "mcleod_gl_totals": {
       "module": "mcleod",
       "layer": "raw",

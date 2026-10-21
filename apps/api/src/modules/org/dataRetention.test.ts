@@ -47,6 +47,7 @@ describe("retention policy (the config itself)", () => {
       "mcleod_movements",
       "mcleod_gl_accounts",
       "mcleod_gl_days",
+      "mcleod_gl_key_lines",
       "mcleod_gl_totals",
     ]) {
       expect(RETENTION_FORBIDDEN).toContain(t);
