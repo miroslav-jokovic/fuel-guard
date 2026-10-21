@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { recordId } from "./recordId.js";
 import { FORMAT_MIMES, READABLE_FORMATS_TEXT, SOURCE_FORMATS, type SourceFormat } from "./documentFormats.js";
-import { fieldEvidenceSchema, fieldPathSchema, leafFieldPaths, parseFieldPath } from "./fieldEvidenceContract.js";
+import { fieldEvidenceSchema, fieldPathSchema } from "./fieldEvidenceContract.js";
 import {
   SHIPPING_DOCUMENT_PROFILE_VERSION,
   SHIPPING_DOCUMENT_SECTIONS,
@@ -16,12 +16,19 @@ import {
   roadsideInspectionReportSchema,
   roadsideReportFieldCriticality,
 } from "./roadsideInspectionReportContract.js";
+import {
+  COMPLIANCE_PAPER_PROFILE_VERSION,
+  compliancePaperBatchSchema,
+  compliancePaperFieldCriticality,
+  emptyCompliancePaperBatch,
+} from "./compliancePaperContract.js";
 
 /**
  * The document reader's routes, closed vocabularies and profile registry (DOCUMENT-READER-PLAN.md §2).
  *
  * The module knows no trucking vocabulary (D-DR1): what it reads is a PROFILE registered below —
- * `shipping_document`, and since 2026-10-15 `roadside_inspection_report` (INSPECTION-CHALLENGE-PLAN IC10). Each vocabulary here mirrors a CHECK constraint in the module's
+ * `shipping_document`, since 2026-10-15 `roadside_inspection_report` (INSPECTION-CHALLENGE-PLAN IC10), and
+ * since 2026-10-21 `compliance_paper` (UNIT-FILES-PLAN UF7b2). Each vocabulary here mirrors a CHECK constraint in the module's
  * migration, so the database and the API refuse the same values.
  */
 
@@ -173,11 +180,18 @@ export interface DocumentProfile {
   schema: z.ZodObject;
   /**
    * Present when the profile cannot be read as one strict structured output: each section is one
-   * request (`readSections`), its schema derived by `sectionSchema`. Absent, the profile is read whole.
+   * request (`readSections`), its schema derived by `sectionSchema` (`documentSections.ts`). Absent, the profile is read whole.
    */
   sections?: readonly DocumentSection[];
   /** The page classes whose fields this profile reads (D-DR11); every other page is kept, not read. */
   readsPageClasses: readonly PageClass[];
+  /**
+   * How many models read it: 2 (pass A and pass B, §7B A3) when absent. A profile with ONE reader is
+   * read only by its own pin, and its second witness is the person in the review that every one of its
+   * reads goes through — `compliance_paper` (UNIT-FILES-PLAN D-UF8), where nothing is filed unseen and a
+   * second model's agreement would buy nothing the reviewer does not already give.
+   */
+  readers?: 1;
   empty: () => unknown;
   criticality: (path: string) => FieldCriticality;
 }
@@ -203,102 +217,21 @@ export const DOCUMENT_PROFILES = {
     empty: emptyRoadsideInspectionReport,
     criticality: roadsideReportFieldCriticality,
   },
+  // Bulk upload's papers (UNIT-FILES-PLAN UF7b2). Read WHOLE and with ONE reader (D-UF8: a person files
+  // every one). Every page class is read for the roadside report's reason — the classifier's vocabulary
+  // is the BOL's, so a registration can only be `other` — and the classifier still turns the page upright.
+  compliance_paper: {
+    version: COMPLIANCE_PAPER_PROFILE_VERSION,
+    schema: compliancePaperBatchSchema,
+    readsPageClasses: PAGE_CLASSES,
+    readers: 1,
+    empty: emptyCompliancePaperBatch,
+    criticality: compliancePaperFieldCriticality,
+  },
 } as const satisfies Record<string, DocumentProfile>;
 export type DocumentProfileId = keyof typeof DOCUMENT_PROFILES;
 export const DOCUMENT_PROFILE_IDS = Object.keys(DOCUMENT_PROFILES) as [DocumentProfileId, ...DocumentProfileId[]];
 
-// ── sections (Q-DR11) ──────────────────────────────────────────────────────────────────────────────
-type GroupTree = { [key: string]: GroupTree | true };
-
-/** Group paths → a key tree. Refuses an index, a duplicate, or one group nested inside another. */
-function groupTree(groups: readonly string[]): GroupTree {
-  const root: GroupTree = {};
-  for (const g of groups) {
-    const keys = parseFieldPath(g);
-    if (keys.some((k) => typeof k === "number")) throw new Error(`section group ${g} has an index`);
-    let node = root;
-    keys.forEach((k, i) => {
-      const at = node[k as string];
-      const last = i === keys.length - 1;
-      if (at === true || (at !== undefined && last)) throw new Error(`section group ${g} overlaps another`);
-      if (last) node[k as string] = true;
-      else node = (node[k as string] ??= {}) as GroupTree;
-    });
-  }
-  return root;
-}
-
-function pickGroups(schema: z.ZodType, tree: GroupTree, at: string): z.ZodObject {
-  const obj = schema instanceof z.ZodDefault ? (schema.unwrap() as z.ZodType) : schema;
-  if (!(obj instanceof z.ZodObject)) throw new Error(`section group ${at || "(root)"} is not an object`);
-  const shape: Record<string, z.ZodType> = {};
-  for (const [key, sub] of Object.entries(tree)) {
-    const field = obj.shape[key] as z.ZodType | undefined;
-    if (!field) throw new Error(`section group ${at}${key} is not a field of the profile`);
-    if (sub === true) {
-      shape[key] = field;
-      continue;
-    }
-    const picked = pickGroups(field, sub, `${at}${key}.`);
-    // A partly-taken object keeps the profile's "defaults to empty", so `{}` still parses.
-    shape[key] = field instanceof z.ZodDefault ? picked.default(() => picked.parse({})) : picked;
-  }
-  return z.object(shape);
-}
-
-function sectionOf(profile: DocumentProfile, name: string): DocumentSection {
-  const section = profile.sections?.find((s) => s.name === name);
-  if (!section) throw new Error(`profile ${profile.version} has no section ${name}`);
-  return section;
-}
-
-/**
- * Pure: one section's Zod schema, DERIVED from the profile's — the profile's own field schemas, picked
- * by the section's groups, never restated. The wire schema generated from it is what one request sends.
- */
-export function sectionSchema(profile: DocumentProfile, name: string): z.ZodObject {
-  return pickGroups(profile.schema, groupTree(sectionOf(profile, name).groups), "");
-}
-
-/** The sections whose groups own a field path (indexes ignored). A sound profile answers exactly one. */
-export function sectionsOwning(profile: DocumentProfile, path: string): string[] {
-  const keys = parseFieldPath(path).filter((k) => typeof k === "string");
-  return (profile.sections ?? [])
-    .filter((s) => s.groups.some((g) => parseFieldPath(g).every((k, i) => keys[i] === k)))
-    .map((s) => s.name);
-}
-
-const isRecord = (v: unknown): v is Record<string, unknown> => v != null && typeof v === "object" && !Array.isArray(v);
-
-function mergeInto(target: Record<string, unknown>, part: Record<string, unknown>, at: string): void {
-  for (const [key, value] of Object.entries(part)) {
-    const prior = target[key];
-    if (prior === undefined) target[key] = JSON.parse(JSON.stringify(value)) as unknown; // parts are JSON answers
-    else if (isRecord(prior) && isRecord(value)) mergeInto(prior, value, `${at}${key}.`);
-    else throw new Error(`sections overlap at ${at}${key}`);
-  }
-}
-
-/**
- * Pure: the section answers, keyed by section name, deep-merged into one document and parsed with the
- * profile schema. Refuses a missing or unknown section, a part that writes a field another section owns,
- * and two parts writing the same key — a merge that guessed would be a document nobody read.
- */
-export function mergeSections(profile: DocumentProfile, parts: Readonly<Record<string, unknown>>): unknown {
-  const names = (profile.sections ?? []).map((s) => s.name);
-  if (names.length === 0) throw new Error(`profile ${profile.version} is not read in sections`);
-  const unknown = Object.keys(parts).filter((n) => !names.includes(n));
-  if (unknown.length) throw new Error(`unknown section ${unknown.join(", ")}`);
-  const merged: Record<string, unknown> = {};
-  for (const name of names) {
-    const part = parts[name];
-    if (!isRecord(part)) throw new Error(`section ${name} is missing`);
-    const foreign = leafFieldPaths(part).filter((p) => !sectionsOwning(profile, p).includes(name));
-    if (foreign.length) throw new Error(`section ${name} writes ${foreign.slice(0, 3).join(", ")}, which it does not own`);
-    mergeInto(merged, part, "");
-  }
-  return profile.schema.parse(merged);
-}
 
 // ── routes ─────────────────────────────────────────────────────────────────────────────────────────
 const SHA256_RX = /^[0-9a-f]{64}$/;

@@ -20,8 +20,10 @@ const ORG = "org-1";
 const READ = "read-1";
 const SOURCE = "source-1";
 const PROFILE = DOCUMENT_PROFILES.shipping_document;
-const ENV: { HAZMAT_MODEL_A: string; HAZMAT_MODEL_B: string; DOC_READ_MODEL_A: string; DOC_READ_MODEL_B: string; DOC_CLASSIFY_MODEL: string } = {
+const ENV: { HAZMAT_MODEL_A: string; HAZMAT_MODEL_B: string; DOC_READ_MODEL_A: string; DOC_READ_MODEL_B: string; DOC_FILE_READ_MODEL: string; DOC_CLASSIFY_MODEL: string } = {
   HAZMAT_MODEL_A: "claude-sonnet-4-6", HAZMAT_MODEL_B: "claude-haiku-4-5", DOC_READ_MODEL_A: "claude-sonnet-4-6", DOC_READ_MODEL_B: "claude-sonnet-5-5",
+  // A pin distinct from both BOL readers, so a test can tell which one a one-reader profile asked.
+  DOC_FILE_READ_MODEL: "claude-opus-5-5",
   DOC_CLASSIFY_MODEL: "claude-haiku-5-5",
 };
 
@@ -32,6 +34,8 @@ const sha = (b: Buffer) => createHash("sha256").update(b).digest("hex");
 
 interface World {
   status?: string;
+  /** The read's profile; `shipping_document` when absent. */
+  profile?: keyof typeof DOCUMENT_PROFILES;
   profileVersion?: string;
   pages?: { id: string; page_number: number; path: string; bytes: Buffer; recordedSha?: string; textLayer?: TextLayer | null }[];
   classes?: Record<string, string>;
@@ -88,7 +92,7 @@ async function world(w: World = {}) {
       document_reads: (q) => {
         // The cache lookup excludes this read with `.neq("id", READ)`, so it is told apart first.
         if (isCache(q)) return w.cached === undefined ? [] : [{ id: "older", result: w.cached, evidence: w.cachedEvidence ?? [] }];
-        if (isRow(q)) return [{ id: READ, source_id: w.assembly ? null : SOURCE, assembly_id: w.assembly ? "assembly-1" : null, profile: "shipping_document", profile_version: w.profileVersion ?? PROFILE.version, status: w.status ?? "queued" }];
+        if (isRow(q)) return [{ id: READ, source_id: w.assembly ? null : SOURCE, assembly_id: w.assembly ? "assembly-1" : null, profile: w.profile ?? "shipping_document", profile_version: w.profileVersion ?? DOCUMENT_PROFILES[w.profile ?? "shipping_document"].version, status: w.status ?? "queued" }];
         return [{ id: READ }, { id: "older" }];
       },
       document_pages: pages.map((p) => ({
@@ -148,6 +152,24 @@ async function world(w: World = {}) {
   const transitions = () => rec.rpcs().filter((r) => r.fn === "document_read_transition").map((r) => r.args as Record<string, unknown>);
   return { rec, run, requests, classifyRequests, transitions, pages, gates };
 }
+
+describe("executeRead — a one-reader profile (UNIT-FILES-PLAN UF7b2)", () => {
+  it("asks only its own pin, records only that model, and judges the evidence with no pass B", async () => {
+    const batch = { papers: [{ pageFrom: 1, pageTo: 2, kind: "irp", vins: ["1FUJHHDR0RLVW9438"], expiresOn: null }] };
+    const w = await world({ profile: "compliance_paper", documents: { "claude-opus-5-5": batch } });
+    expect(await w.run()).toMatchObject({ outcome: "done", pages: 2 });
+    expect(w.requests.map((r) => r.model)).toEqual(["claude-opus-5-5"]);
+    const done = w.transitions().at(-1)!;
+    expect(done.p_models).toEqual(["claude-opus-5-5"]);
+    const evidence = done.p_evidence as Array<{ path: string; status: string; sources: Array<{ reader: string }> }>;
+    expect(evidence.flatMap((e) => e.sources.map((s) => s.reader))).not.toContain("passB");
+    // One reader asked, one reader read nothing: not read, not "check".
+    expect(evidence.find((e) => e.path === "papers[0].expiresOn")?.status).toBe("not_read");
+    expect(evidence.find((e) => e.path === "papers[0].vins")?.status).toBe("check");
+    expect((done.p_replay_inputs as { passB: unknown }).passB).toBeNull();
+    expectOrgScoped(w.rec, ORG);
+  });
+});
 
 describe("executeRead — a read that reaches the model", () => {
   it("reads an assembly's pages in the assembly's order, not their page numbers, and keys the cache on that order", async () => {

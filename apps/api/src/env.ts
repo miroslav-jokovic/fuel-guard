@@ -4,6 +4,7 @@ import { documentReadingEnvFields } from "./envDocumentReading.js";
 import { dispatchBoardEnvFields } from "./envDispatchBoard.js";
 import { inspectionsEnvFields } from "./envInspections.js";
 import { schedulingEnvFields } from "./envScheduling.js";
+import { unitFilesEnvFields } from "./envUnitFiles.js";
 import { outboundEnvFields } from "./lib/outboundAllowlist.js";
 import { checkPspEnv } from "./lib/pspEnv.js";
 
@@ -21,6 +22,7 @@ const EnvSchema = z.object({
   ...dispatchBoardEnvFields, // the dispatch board's HOS clocks poll (DISPATCH-BOARD-PLAN DB3)
   ...inspectionsEnvFields, // the FMCSA open-data feed (INSPECTION-CHALLENGE-PLAN IC1)
   ...schedulingEnvFields, // which process runs which schedulers (PLATFORM-RELIABILITY-PLAN D-RLY2)
+  ...unitFilesEnvFields, // reading uploaded papers (UNIT-FILES-PLAN UF7b2)
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   PORT: z.coerce.number().int().positive().default(8080),
   ALLOWED_ORIGINS: z
