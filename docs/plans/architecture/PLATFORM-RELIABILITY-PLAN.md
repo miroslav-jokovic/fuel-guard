@@ -67,14 +67,14 @@ nothing on staging because EFS is off there.
 | RLY1 | Migrations 0506 (leases) + 0507 (odometer function) + matrices | **LIVE** v2026.10.21 (#1678) |
 | RLY2 | Lanes, leases, worker entry (Sentry, lease release on exit), lane-aware drain, lane health in `/api/version` + `/ready`, platform-health lanes | **LIVE** v2026.10.21 (#1682) |
 | RLY3 | Dispatch board: parallel + coalesced (D-RLY4) | **LIVE** v2026.10.21 (#1682) |
-| RLY4 | Fleet MPG via 0507 (D-RLY6); the labelled paged fallback removed | **LIVE** v2026.10.21 (#1682); fallback removal in wave 2 |
+| RLY4 | Fleet MPG via 0507 (D-RLY6); the labelled paged fallback removed | **LIVE** v2026.10.21 (#1682); fallback removal merged (#1686), waits release |
 | RLY5 | Driver: enqueue wakes sync; shift end by id (D-RLY7) | merged (#1682); reaches phones via OTA |
 | RLY6 | Staging: create `@fleetguard/worker` in `uat`, set lanes, verify both lanes `held` and the hand-over on a redeploy | **waits**: staging still serves 14fb7c8 — the merges during Railway's build pause were dropped; uat api + web need a deploy from source first |
 | RLY7 | Production: create the worker service, set lanes, then scale api to 2 (runbook §5) | release done (v2026.10.21, both lanes `held` by api); **waits on RLY6** |
 | RLY8 | External uptime monitor on `/api/version/ready` with SMS + phone call | **Q-RLY1** (owner creates the account) |
-| RLY9 | Roadside summary: parallel waves, window's repairs only, no cache (D-RLY10) | wave 2 PR |
+| RLY9 | Roadside summary: parallel waves, window's repairs only, no cache (D-RLY10) | merged (#1686), waits release |
 | RLY10 | Compliance overview cache | **dropped** (D-RLY11) |
-| RLY11 | McLeod sync: relink out of the request (D-RLY12); the planned set-based UPDATE dropped on measurement | wave 2 PR |
+| RLY11 | McLeod sync: relink out of the request (D-RLY12); the planned set-based UPDATE dropped on measurement | merged (#1686), waits release |
 | RLY12 | Shared rate-limit store, only if per-replica limits prove too loose | not planned |
 | RLY13 | App tier to AWS (D-RLY9) | **Deferred** (D-RLY13); WEX is asked only when a move is decided |
 
@@ -147,3 +147,8 @@ nothing on staging because EFS is off there.
   the token filter → the visit test fails; a failing org stopping the pass → the carry-on test fails.
 - **2026-10-21** — Owner ruled on Q-RLY2: no AWS move for now and no change with WEX (D-RLY13); RLY13
   deferred. Railway builds still paused, so staging and RLY6 still wait.
+- **2026-10-21** — Wave 2 merged as #1686 (main `465a0df`, 14:08Z): RLY4's paged fallback removed,
+  RLY9, RLY11. It landed after v2026.10.21 (06:36Z), so none of it is in production yet — it ships
+  with the next release, and Railway being down holds that release and staging alike. Nothing in
+  the queue is left to write: RLY6 → RLY7 wait on Railway (uat redeploy from source first), RLY8 on
+  Q-RLY1, and Q-RLY3 / Q-RLY4 on the owner.
