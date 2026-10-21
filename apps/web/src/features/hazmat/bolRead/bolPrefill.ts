@@ -6,9 +6,11 @@ import {
   packageTypeSpec,
   readersAgree,
   rowWitnessesBack,
+  settledReading,
   shippingDocumentSchema,
   valueAtPath,
   witnessedReading,
+  valuesAgree,
   type FieldEvidence,
   type FieldStatus,
   type HazmatProduct,
@@ -227,7 +229,14 @@ function prefillLine(
   const product = verdict?.consistent ? byRef.get(verdict.hmtRef) ?? null : onlyB ? byRef.get(onlyB.hmtRef) ?? null : null;
   form.product = product;
   const ids = byPath.get(p("idText"))?.sources.filter((s) => s.reader === "passA" || s.reader === "passB").map((s) => s.value);
-  const productReason = onlyB && product
+  // Q-RC7: the page itself settled the split (idWitness.ts) — the printed row shows the number the table fits. The
+  // paper audit then judges the line as that number; the form still asks for one click, as for a count the page's
+  // figures back (owner, 2026-10-15: "keep the click").
+  const settled = settledReading(byPath.get(p("idText")) ?? { path: "", sources: [] });
+  const pageShows = typeof settled === "string" && product && valuesAgree(settled, product.idLabel);
+  const productReason = pageShows
+    ? `The two readers read the number as ${String(ids?.[0] ?? "?")} and ${String(ids?.[1] ?? "?")}; the page scan shows ${product.idLabel} on this line, and only it fits the printed name and class in the Hazardous Materials Table. Check the number on the page.`
+    : onlyB && product
     ? `The two readers read the number as ${String(ids?.[0] ?? "?")} and ${String(ids?.[1] ?? "?")}; only ${product.idLabel} fits the printed name and class in the Hazardous Materials Table, so it is filled in. Check the number on the page.`
     : product ? null
     : verdict && !verdict.consistent ? TABLE_REASONS[verdict.reason] ?? verdict.reason

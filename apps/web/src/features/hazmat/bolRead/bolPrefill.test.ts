@@ -39,6 +39,20 @@ describe("bolPrefill", () => {
     expect(view.fields.product).toMatchObject({ pending: true, confirmable: true, tone: "warning" });
   });
 
+  it("says the page scan shows the number when the page settled the split, and still keeps the click (Q-RC7)", () => {
+    const misread = read([{ a: { ...PAINT, idText: "UN1236" }, b: PAINT, table: { consistent: false, reason: "psn_no_match", passB: ok(PAINT_REF) } }]);
+    const id = misread.evidence.find((e) => e.path === "hazmat.lines[0].idText")!;
+    id.sources.push({ reader: "ocr", page: 1, bbox: null, value: "UN1263" });
+    const paint = { ...product(PAINT_REF), idLabel: "UN1263" };
+    const p = bolPrefill(misread, [paint], "van")!;
+    expect(p.lines[0]!.fields.product.reason).toBe(
+      "The two readers read the number as UN1236 and UN1263; the page scan shows UN1263 on this line, and only it fits the printed name and class in the Hazardous Materials Table. Check the number on the page.");
+    expect(bolLineView(p.lines[0]!, p.lines[0]!.form).fields.product).toMatchObject({ pending: true, confirmable: true });
+    // A scan showing the other reading settles nothing: the RC3 sentence stands.
+    id.sources[id.sources.length - 1] = { reader: "ocr", page: 1, bbox: null, value: "UN1236" };
+    expect(bolPrefill(misread, [paint], "van")!.lines[0]!.fields.product.reason).toMatch(/so it is filled in/);
+  });
+
   it("leaves the product empty when the calculator's dataset does not hold the table's row", () => {
     const p = bolPrefill(read([{ a: PAINT, table: ok(PAINT_REF) }]), [product(DIESEL_REF)], "van")!;
     expect(p.lines[0]!.form.product).toBeNull();

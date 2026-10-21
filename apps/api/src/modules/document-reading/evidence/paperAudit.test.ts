@@ -230,4 +230,28 @@ describe("auditFieldStates", () => {
     expect(state(e([A(6), B(6), O(6), S(null)]))).toBe("check");
     expect(state(e([A(6), B(6), S(6)]))).toBe("read");
   });
+
+  // Q-RC7, production read 76979453: pass A read UN3254 where the paper and pass B say UN3264.
+  describe("a UN number the readers split on, settled by the page (Q-RC7)", () => {
+    const LINE = { psn: "CORROSIVE LIQUID, ACIDIC, INORGANIC, N.O.S.", technicalName: "PHOSPHORIC ACID, SULFURIC ACID", hazardClass: "8", pg: "II" as const, grossWeightLb: 3888, packageCount: 72, packaging: "72 Boxes", hmColumnMark: "X" as const };
+    const desc = (id: string) => `${id}, CORROSIVE LIQUID, ACIDIC, INORGANIC, N.O.S. (PHOSPHORIC ACID, SULFURIC ACID), 8, II`;
+    const a = doc([{ ...LINE, idText: "UN3254", descriptionText: desc("UN3254") }]);
+    const b = doc([{ ...LINE, idText: "UN3264", descriptionText: desc("UN3264") }]);
+    const ocr = (id: string) => [{ page: 1, width: 1000, height: 1400, items: [{ text: desc(id), box: { x: 40, y: 400, width: 900, height: 20 } }] }];
+    const ROW_RULES = ["paper_sequence", "paper_psn_matches_hmt", "paper_class_pg_match", "paper_technical_name", "paper_rq", "paper_lq", "paper_marine_pollutant"];
+
+    it("judges the line as the number the table and the printed row agree on, and waits on nothing", () => {
+      const audit = auditForRead(a, shippingEvidence(a, b, "11", ocr("UN3264")));
+      for (const rule of ROW_RULES) expect(outcome(audit, rule), rule).toMatchObject({ outcome: "pass", facts: { lineLabel: "UN3264" } });
+    });
+
+    it("still waits when the row prints the other reading, or when there is no OCR", () => {
+      for (const pages of [ocr("UN3254"), null]) {
+        const audit = auditForRead(a, shippingEvidence(a, b, "11", pages));
+        for (const rule of ["paper_psn_matches_hmt", "paper_class_pg_match", "paper_rq"]) {
+          expect(outcome(audit, rule), rule).toMatchObject({ outcome: "cannot_tell", reason: "field_unconfirmed" });
+        }
+      }
+    });
+  });
 });

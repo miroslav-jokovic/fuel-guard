@@ -86,6 +86,14 @@ export const REQUIRED = [
     ],
   },
   {
+    step: "Q-RC7 the page settling a split UN/NA number",
+    file: "apps/api/src/modules/document-reading/evidence/idWitness.test.ts",
+    titles: [
+      "never settles a number the paper does not print — not when the OCR misread it too, nor on a misprint",
+      "says nothing when both numbers are printed, when the row is another line's, or with no OCR",
+    ],
+  },
+  {
     step: "R-M1 RQ over every Appendix A row",
     file: "packages/hazmat-golden/src/rqCensus.test.ts",
     titles: ["never passes a package holding the RQ unless RQ is printed, and fails only at or over it"],

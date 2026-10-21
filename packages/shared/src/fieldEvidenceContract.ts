@@ -218,3 +218,21 @@ export function rowWitnessesBack(e: Pick<FieldEvidence, "value" | "sources">): b
   const judged = e.sources.filter((s) => (ROW_WITNESS_READERS as readonly string[]).includes(s.reader));
   return judged.length === 0 ? null : judged.every((s) => s.value !== null && valuesAgree(s.value, e.value));
 }
+
+/** The paths whose split the page may settle (Q-RC7): a hazmat line's UN/NA number, and its description with it. */
+const SETTLEABLE_RX = /^hazmat\.lines\[\d+\]\.(idText|descriptionText)$/;
+
+/**
+ * The reading the page settles where the two readers split on a line's UN/NA number (READER-CORRECTNESS-PLAN
+ * Q-RC7, idWitness.ts in the API): the value every row witness on the field records, when it is one a reader read.
+ * The witness records on these paths only when the readers agree on the line's name, class and PG, the table fits
+ * exactly one of the two numbers, and the line's own printed row shows that one — so a row witness's word here IS
+ * the settlement. `undefined` when nothing settles the field.
+ */
+export function settledReading(e: Pick<FieldEvidence, "path" | "sources">): unknown {
+  if (!SETTLEABLE_RX.test(e.path) || readersAgree(e) !== false) return undefined;
+  const witnesses = e.sources.filter((s) => (ROW_WITNESS_READERS as readonly string[]).includes(s.reader));
+  if (witnesses.length === 0 || witnesses.some((s) => s.value === null || !valuesAgree(s.value, witnesses[0]!.value))) return undefined;
+  const read = e.sources.some((s) => (s.reader === "passA" || s.reader === "passB") && valuesAgree(s.value, witnesses[0]!.value));
+  return read ? witnesses[0]!.value : undefined;
+}

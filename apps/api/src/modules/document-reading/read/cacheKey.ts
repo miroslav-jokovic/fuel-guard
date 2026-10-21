@@ -55,8 +55,11 @@ import { createHash } from "node:crypto";
  *          reading of such a line too (`passB` on its verdict).
  *   11   — 2026-10-21, RC5: normalizer 1.3.0 — the table matches "Samples, explosive" (UN0190), which carries no
  *          class, to the Class 1 division its paper prints; 10 refused every correct printing of it.
+ *   12   — 2026-10-21, Q-RC7: where the readers split on a line's UN/NA number, the OCR and the text layer record the
+ *          reading the page settles — the table fits it and not the other, and the line's own printed row shows it
+ *          (idWitness.ts) — and the paper audit judges the line as that number.
  */
-export const ACCEPTANCE_RULE_VERSION = "11";
+export const ACCEPTANCE_RULE_VERSION = "12";
 
 export interface CacheKeyInput {
   profileVersion: string;
