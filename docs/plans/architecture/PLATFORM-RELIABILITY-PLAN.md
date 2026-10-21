@@ -38,6 +38,9 @@ interruption risk is Railway's and real; the database (Supabase) is not where ei
 | **D-RLY7** | Driver app: (a) `enqueue` wakes the sync engine (`outboxSignal.ts`); (b) end-of-shift names its shift (`session_id`, optional), and the server ends that one shift — the driver's own, still open — or nothing. | (a) A load accepted, a shift started or a message sent WHILE ONLINE waited for the next app switch or lost signal; the pending badge said nothing was waiting. (b) An end-of-day held in the queue (or retried by hand) past the start of the next shift closed the NEW shift. Old builds keep the old behaviour. |
 | **D-RLY8** | `@fleetguard/api` runs **2 replicas** once D-RLY2 is live in production and the worker service holds `general`. | One replica = every deploy and every crash drops every user and the driver app. Known consequence, accepted: express-rate-limit's memory store is per replica, so each limit becomes ~2× per client across the fleet (password reset 30 → ≤60 per 15 min; still bounded). A shared store is RLY12 if that ever matters. |
 | **D-RLY9** | The app tier leaves Railway only after D-RLY1–8 are live and measured, to AWS (ECS Fargate in us-west-2, one NAT gateway with ONE Elastic IP for WEX), keeping Supabase. Estimated $100–150/mo. **Lead item: WEX must allowlist the new IP** — ask before any build. | Railway's May outage took every workload down for ~8 h and its control plane is coupled (one failure cascades). Supabase is unaffected by Railway outages and is not part of this move. |
+| **D-RLY10** | Roadside summary: the reads that need nothing from each other start together (the report read with the first wave; certifications with the roster; the FMCSA feed with the statistics), each table's hundred-id chunks run three at a time (`lib/mapPool.ts`, moved out of `hereGeocode.ts`), and the inbox reads repairs for **its window's inspections only** (`readRepairsDue(…, { only })`). **No cache.** | The time was round trips (§1). A cache keyed on the latest FMCSA fetch would be wrong after every person's decision on the page — an attribution, a repair, a filed paper, a certification all move the card's Next step — so it would need invalidation from every writer in `inspections`, a second source of truth with a delay fuse. Parallel reads give the same answer as before by construction. |
+| **D-RLY12** | McLeod sync: the relink pass (LOADS-ACTIVITY-PLAN D-LA3) leaves `POST /api/tms/dispatch-movements` and runs as `mcleod-relink` in the `general` lane every 10 min, over every company the org's raw rows hold (`mcleod/relinkScheduler.ts`). **No set-based UPDATE RPC, no migration.** | Measured 2026-10-21: the agent posts ~1.1 movements per call (2,143 load UPDATEs over ~1,930 calls, `pg_stat_statements`), so a set-based UPDATE would save nothing. Each call instead re-read 60 days of codes (1,025 movements), the roster and those loads' links in 200-id chunks one after another — and relinked nothing almost every time. A stale link appears when the roster changes, not when a movement arrives. Cost: a newly matched driver's closed loads are relinked within 10 min instead of on the next sync. |
+| **D-RLY11** | **RLY10 dropped.** The compliance overview is not cached beyond the board's existing 60 s credentials cache (D-RLY4). | It was never in §1's slow list. The page shows evidence a person has just filed; a shared cache would show the page without it. Re-open only with a measurement. |
 
 ## 3. Topology
 
@@ -60,17 +63,17 @@ nothing on staging because EFS is off there.
 
 | # | Item | Status |
 |---|---|---|
-| RLY1 | Migrations 0506 (leases) + 0507 (odometer function) + matrices | PR #1678 |
-| RLY2 | Lanes, leases, worker entry (Sentry, lease release on exit), lane-aware drain, lane health in `/api/version` + `/ready`, platform-health lanes | code PR (after RLY1 merges) |
-| RLY3 | Dispatch board: parallel + coalesced (D-RLY4) | code PR |
-| RLY4 | Fleet MPG via 0507 (D-RLY6) | code PR |
-| RLY5 | Driver: enqueue wakes sync; shift end by id (D-RLY7) | code PR; reaches phones via OTA |
-| RLY6 | Staging: create `@fleetguard/worker` in `uat`, set lanes, verify both lanes `held` and the hand-over on a redeploy | after RLY2 is on staging |
-| RLY7 | Production: after the release that carries RLY2 — create the worker service, set lanes, then scale api to 2 (runbook §5) | owner-approved release first |
+| RLY1 | Migrations 0506 (leases) + 0507 (odometer function) + matrices | **LIVE** v2026.10.21 (#1678) |
+| RLY2 | Lanes, leases, worker entry (Sentry, lease release on exit), lane-aware drain, lane health in `/api/version` + `/ready`, platform-health lanes | **LIVE** v2026.10.21 (#1682) |
+| RLY3 | Dispatch board: parallel + coalesced (D-RLY4) | **LIVE** v2026.10.21 (#1682) |
+| RLY4 | Fleet MPG via 0507 (D-RLY6); the labelled paged fallback removed | **LIVE** v2026.10.21 (#1682); fallback removal in wave 2 |
+| RLY5 | Driver: enqueue wakes sync; shift end by id (D-RLY7) | merged (#1682); reaches phones via OTA |
+| RLY6 | Staging: create `@fleetguard/worker` in `uat`, set lanes, verify both lanes `held` and the hand-over on a redeploy | **waits**: staging still serves 14fb7c8 — the merges during Railway's build pause were dropped; uat api + web need a deploy from source first |
+| RLY7 | Production: create the worker service, set lanes, then scale api to 2 (runbook §5) | release done (v2026.10.21, both lanes `held` by api); **waits on RLY6** |
 | RLY8 | External uptime monitor on `/api/version/ready` with SMS + phone call | **Q-RLY1** (owner creates the account) |
-| RLY9 | Roadside summary: cache per org keyed on the latest FMCSA fetch, read repairs for the window's ids only, parallel waves | next wave |
-| RLY10 | Compliance overview: one per-org overview cache shared with the board's warnings | next wave |
-| RLY11 | TMS ingest: set-based UPDATE RPC for mirrored loads; relink out of the request | next wave (migration) |
+| RLY9 | Roadside summary: parallel waves, window's repairs only, no cache (D-RLY10) | wave 2 PR |
+| RLY10 | Compliance overview cache | **dropped** (D-RLY11) |
+| RLY11 | McLeod sync: relink out of the request (D-RLY12); the planned set-based UPDATE dropped on measurement | wave 2 PR |
 | RLY12 | Shared rate-limit store, only if per-replica limits prove too loose | not planned |
 | RLY13 | App tier to AWS (D-RLY9) | **Q-RLY2** (WEX) first |
 
@@ -125,3 +128,18 @@ nothing on staging because EFS is off there.
   matrices, mutations killed: always-take-over → 4 failures; first-not-last pick → pick check fails;
   count without floor / closed floor → count check fails). RLY2–RLY5 built on
   `claude/reliability-program`.
+- **2026-10-20** — #1678 renumbered 0504/0505 → 0506/0507 (a parallel chat took both numbers mid-CI;
+  the PR showed `dirty` and no checks ran) and merged; #1682 merged (main 3ae7c8d). Railway paused all
+  builds from 17:03Z, so staging stayed on 14fb7c8.
+- **2026-10-21** — Release v2026.10.21 put #1678 + #1682 in production at 06:36Z: `/api/version/ready`
+  200, lanes `egress` and `general` both `held` by api, schema 0507 current. 0507 measured in
+  production: mean 191 ms, max 586 ms (`pg_stat_statements`). Staging still on 14fb7c8 (Railway status
+  still "Builds are temporarily paused"; the dropped merges need a deploy from source — `railway
+  redeploy --from-source` on uat api + web — before RLY6). Wave 2 on `claude/reliability-wave-2`: RLY9
+  (D-RLY10), RLY4's fallback removed (the equivalence test now compares the function read with the rule
+  over every reading), RLY10 dropped (D-RLY11). Mutations killed: whole-year repair read → the window
+  test fails; per-period count from the picks → 4 failures; narrowing removed → the own-lookback test
+  fails. First 44 production minutes after the release: `POST /api/tms/dispatch-movements` is now the
+  slowest route (slow in 21 of 44 minutes, median 1.6 s, max 6.0 s) — RLY11 next. Then RLY11 (D-RLY12): measured ~1.1 movements per sync call, so the set-based UPDATE was dropped
+  and the relink pass moved to the `mcleod-relink` scheduler. Mutations killed: integrations read without
+  the token filter → the visit test fails; a failing org stopping the pass → the carry-on test fails.

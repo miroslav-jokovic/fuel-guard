@@ -62,7 +62,7 @@ describe("relinkDispatchMovements (D-LA3)", () => {
 
   it("re-projects a closed load whose driver code now resolves to a driver it does not hold", async () => {
     const rec = rig({ movements: [movement("293773", ["KDIXON", "MHOUSTON"])], links: [links({ driver_id: null })] });
-    expect(await relinkDispatchMovements(rec.client, ORG, "mcleod", "TMS", SINCE)).toEqual({ relinked: 1 });
+    expect(await relinkDispatchMovements(rec.client, ORG, "mcleod", SINCE)).toEqual({ relinked: 1 });
     expect(rec.writtenRows("loads")[0]).toMatchObject({ driver_id: DIXON, co_driver_id: HOUSTON });
     expectOrgScoped(rec, ORG);
   });
@@ -72,30 +72,37 @@ describe("relinkDispatchMovements (D-LA3)", () => {
     ["the truck", { vehicle_id: null }],
   ])("re-projects when %s is the stale link", async (_what, over) => {
     const rec = rig({ movements: [movement("293773", ["KDIXON", "MHOUSTON"])], links: [links(over)] });
-    expect(await relinkDispatchMovements(rec.client, ORG, "mcleod", "TMS", SINCE)).toEqual({ relinked: 1 });
+    expect(await relinkDispatchMovements(rec.client, ORG, "mcleod", SINCE)).toEqual({ relinked: 1 });
   });
 
   it("leaves a load alone when every link already matches", async () => {
     const rec = rig({ movements: [movement("293773", ["KDIXON", "MHOUSTON"])], links: [links({})] });
-    expect(await relinkDispatchMovements(rec.client, ORG, "mcleod", "TMS", SINCE)).toEqual({ relinked: 0 });
+    expect(await relinkDispatchMovements(rec.client, ORG, "mcleod", SINCE)).toEqual({ relinked: 0 });
     expect(rec.writtenRows("loads")).toEqual([]);
   });
 
   it("does not re-project a code the roster does not carry, which would only write the same null again", async () => {
     const rec = rig({ movements: [movement("293775", ["JFERGUSO"])], links: [links({ external_id: "TMS:293775", driver_id: null, co_driver_id: null })] });
-    expect(await relinkDispatchMovements(rec.client, ORG, "mcleod", "TMS", SINCE)).toEqual({ relinked: 0 });
+    expect(await relinkDispatchMovements(rec.client, ORG, "mcleod", SINCE)).toEqual({ relinked: 0 });
   });
 
-  it("skips the movements this batch just projected", async () => {
-    const rec = rig({ movements: [movement("293773", ["KDIXON", "MHOUSTON"])], links: [links({ driver_id: null })] });
-    expect(await relinkDispatchMovements(rec.client, ORG, "mcleod", "TMS", SINCE, new Set(["293773"]))).toEqual({ relinked: 0 });
+  // D-RLY12: the pass runs on a clock, not after one company's batch, so it reads every company the org's
+  // raw rows hold and projects each stale movement under its own company.
+  it("covers every company, projecting each stale movement under its own", async () => {
+    const rec = rig({
+      movements: [movement("293773", ["KDIXON", "MHOUSTON"]), movement("500001", ["KDIXON"], { company_id: "TMS2" })],
+      links: [links({ driver_id: null }), links({ external_id: "TMS2:500001", driver_id: null, co_driver_id: null })],
+    });
+    expect(await relinkDispatchMovements(rec.client, ORG, "mcleod", SINCE)).toEqual({ relinked: 2 });
+    const projected = rec.forTable("mcleod_dispatch_movements").filter((q) => filter(q, "movement_id") !== undefined);
+    expect(projected.map((q) => [filter(q, "company_id"), filter(q, "movement_id")])).toEqual([["TMS", ["293773"]], ["TMS2", ["500001"]]]);
   });
 
   it("reads only open movements and those closed inside the window", async () => {
     const rec = rig({ movements: [], links: [] });
-    await relinkDispatchMovements(rec.client, ORG, "mcleod", "TMS", SINCE);
+    await relinkDispatchMovements(rec.client, ORG, "mcleod", SINCE);
     const read = rec.forTable("mcleod_dispatch_movements")[0]!;
     expect(read.ops.find((o) => o.method === "or")?.args[0]).toBe(`closed_at.is.null,closed_at.gte.${SINCE}`);
-    expect(filter(read, "company_id")).toBe("TMS");
+    expect(filter(read, "company_id")).toBeUndefined();
   });
 });

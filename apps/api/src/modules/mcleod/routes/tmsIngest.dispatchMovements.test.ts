@@ -127,6 +127,17 @@ describe("POST /api/tms/dispatch-movements", () => {
     }
   });
 
+  // D-RLY12: the relink pass is `relinkScheduler.ts`'s now. Inside the request it re-read 60 days of
+  // movements and their loads' links after every one-movement batch — most of the route's 1.6 s median.
+  it("does not re-read the relink window inside the sync", async () => {
+    const rec = seed();
+    holder.client = rec.client;
+    const res = await post({ company_id: "TMS", movements: board() });
+    expect(res.status).toBe(200);
+    expect(rec.forTable("mcleod_dispatch_movements").filter((q) => q.ops.some((o) => o.method === "or"))).toEqual([]);
+    expect(rec.forTable("loads").filter((q) => q.ops.some((o) => o.method === "select" && String(o.args[0]).includes("co_driver_id")))).toEqual([]);
+  });
+
   it("writes COMPLETE rows — every contract column, and never first_seen_at, so the first sighting survives", async () => {
     const rec = seed();
     holder.client = rec.client;

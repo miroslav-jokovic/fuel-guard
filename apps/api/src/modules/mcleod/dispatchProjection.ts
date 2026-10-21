@@ -107,53 +107,60 @@ export async function projectDispatchMovements(
  * missing from those drivers' histories. A driver merge leaves the same gap on `co_driver_id`, which
  * has no foreign key (0493) to clear it.
  *
- * After each batch this re-projects every recent movement whose stored driver, co-driver, truck or
- * trailer differs from what its codes resolve to NOW, but only where the code now resolves. A code the
- * roster never carries (JFERGUSO on 10/19) would otherwise be re-projected every cycle to the same
- * null. It goes through the one projection, so there is no second write path to drift. "Recent" means
- * open, or closed inside `sinceIso`: the activity view looks back weeks, and the raw table only grows.
- * `justProjected` are the movements this batch already resolved against the same roster a moment ago,
- * so they cannot be stale, and projecting them twice would write every row twice.
+ * This re-projects every recent movement whose stored driver, co-driver, truck or trailer differs from
+ * what its codes resolve to NOW, but only where the code now resolves. A code the roster never carries
+ * (JFERGUSO on 10/19) would otherwise be re-projected every pass to the same null. It goes through the
+ * one projection, so there is no second write path to drift. "Recent" means open, or closed inside
+ * `sinceIso`: the activity view looks back weeks, and the raw table only grows.
+ *
+ * ── A SCHEDULED PASS, NOT PART OF EVERY SYNC (PLATFORM-RELIABILITY-PLAN D-RLY12) ─────────────────
+ * Until 2026-10-21 this ran inside `POST /api/tms/dispatch-movements`, after every batch. Measured in
+ * production that day: the agent posts ~1.1 movements per call (2,143 load UPDATEs over ~1,930 calls),
+ * so each call re-read 60 days of codes (~1,000 movements, two pages), the roster, and the links of all
+ * of them in 200-id chunks one after another, to relink nothing almost every time — the bulk of the
+ * route's median 1.6 s. A stale link only appears when the ROSTER changes (or a merge), not when a
+ * movement arrives, and the arriving movement is already projected against the roster of that moment.
+ * So the pass is `relinkScheduler.ts`'s, every few minutes, over every company the org's raw rows hold.
  */
 export async function relinkDispatchMovements(
   admin: SupabaseClient,
   orgId: string,
   provider: string,
-  companyId: string,
   sinceIso: string,
-  justProjected: ReadonlySet<string> = new Set(),
 ): Promise<{ relinked: number }> {
-  type Codes = Pick<RawDispatchMovement, "movement_id" | "driver_codes" | "tractor_id" | "trailer_id">;
+  type Codes = Pick<RawDispatchMovement, "company_id" | "movement_id" | "driver_codes" | "tractor_id" | "trailer_id">;
   const raw = await fetchAllPaged<Codes>((from, to) =>
-    admin.from("mcleod_dispatch_movements").select("movement_id, driver_codes, tractor_id, trailer_id")
-      .eq("org_id", orgId).eq("company_id", companyId)
+    admin.from("mcleod_dispatch_movements").select("company_id, movement_id, driver_codes, tractor_id, trailer_id")
+      .eq("org_id", orgId)
       .or(`closed_at.is.null,closed_at.gte.${sinceIso}`)
-      .order("movement_id").range(from, to)
+      .order("company_id").order("movement_id").range(from, to)
       .then(({ data, error }) => ({ data: data as unknown as Codes[] | null, error })),
   );
-  const rest = raw.filter((m) => !justProjected.has(m.movement_id));
-  if (rest.length === 0) return { relinked: 0 };
+  if (raw.length === 0) return { relinked: 0 };
 
+  const key = (m: Codes) => `${m.company_id}:${m.movement_id}`;
   const resolvers = await loadEntityResolvers(admin, orgId);
-  const links = await readMirroredLinks(admin, orgId, provider, rest.map((m) => `${companyId}:${m.movement_id}`));
+  const links = await readMirroredLinks(admin, orgId, provider, raw.map(key));
   // Stale = a code that resolves now to an id the load does not hold. A code that resolves to nothing
   // is never stale: projecting it again would write the same null.
   const stale = (code: string | null | undefined, by: { get(k: string): string | undefined }, held: string | null) => {
     const now = code ? by.get(code) : undefined;
     return now !== undefined && now !== held;
   };
-  const ids = rest
-    .filter((m) => {
-      const l = links.get(`${companyId}:${m.movement_id}`);
-      return l !== undefined && (
-        stale(m.driver_codes?.[0], resolvers.drivers, l.driver_id) ||
-        stale(m.driver_codes?.[1], resolvers.drivers, l.co_driver_id) ||
-        stale(m.tractor_id, resolvers.vehicles, l.vehicle_id) ||
-        stale(m.trailer_id, resolvers.trailers, l.trailer_id)
-      );
-    })
-    .map((m) => m.movement_id);
-  if (ids.length === 0) return { relinked: 0 };
-  const done = await projectDispatchMovements(admin, orgId, provider, companyId, ids, resolvers);
-  return { relinked: done.projected };
+  const byCompany = new Map<string, string[]>();
+  for (const m of raw) {
+    const l = links.get(key(m));
+    if (l === undefined) continue;
+    if (
+      stale(m.driver_codes?.[0], resolvers.drivers, l.driver_id) ||
+      stale(m.driver_codes?.[1], resolvers.drivers, l.co_driver_id) ||
+      stale(m.tractor_id, resolvers.vehicles, l.vehicle_id) ||
+      stale(m.trailer_id, resolvers.trailers, l.trailer_id)
+    ) byCompany.set(m.company_id, [...(byCompany.get(m.company_id) ?? []), m.movement_id]);
+  }
+  let relinked = 0;
+  for (const [companyId, ids] of byCompany) {
+    relinked += (await projectDispatchMovements(admin, orgId, provider, companyId, ids, resolvers)).projected;
+  }
+  return { relinked };
 }

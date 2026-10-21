@@ -82,7 +82,12 @@ beforeEach(() => {
   rec = createSupabaseRecorder({
     tables: {
       organizations: () => ({ data: [{ operating_hours: { tz: "America/Chicago" } }] }),
-      roadside_inspections: (q) => ({ data: scoped(INSPECTIONS, q, ["org_id"]) }),
+      // The day window applied, not just recorded (the recorder does not filter): the window test needs it.
+      roadside_inspections: (q) => {
+        const day = (m: string) => q.ops.find((o) => o.method === m && o.args[0] === "inspection_date")?.args[1] as string | undefined;
+        const [lo, hi] = [day("gte"), day("lte")];
+        return { data: scoped(INSPECTIONS.filter((i) => (!lo || i.inspection_date >= lo) && (!hi || i.inspection_date <= hi)), q, ["org_id"]) };
+      },
       roadside_violations: (q) => ({ data: scoped(VIOLATIONS, q, ["org_id", "inspection_id"]) }),
       roadside_citations: () => ({ data: [] }),
       roadside_inspection_units: (q) => ({ data: scoped([{ id: UNIT, org_id: ORG, inspection_id: id(120), unit_seq: 1, unit_type_id: "11", company_number: "612" }], q, ["org_id", "inspection_id"]) }),
@@ -138,5 +143,16 @@ describe("the inbox's line of work", () => {
 
   it("refuses a day that does not exist", async () => {
     expect((await get("/work?from=2026-02-31")).status).toBe(400);
+  });
+
+  // D-RLY10: the window's repairs only. Inspection 2 is inside the year's repair horizon but outside this
+  // window, so before the fix its repair rows were read on every card refresh and thrown away.
+  it("reads the repairs of the window's inspections and no others", async () => {
+    const { data } = await get("/work?from=2026-10-01");
+    expect(data).toHaveLength(119);
+    expect(of(data, 120).next).toMatchObject({ title: "Truck 612: name the repair" });
+    const asked = ["inspection_repairs", "roadside_inspection_units"].flatMap((t) => rec.forTable(t).flatMap((q) => inList(q, "inspection_id") ?? []));
+    expect(asked).toContain(id(120));
+    expect(asked).not.toContain(id(2));
   });
 });

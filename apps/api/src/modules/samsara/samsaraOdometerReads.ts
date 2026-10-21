@@ -41,9 +41,6 @@ import {
 /** How far before the period's start to look for each truck's opening odometer. See the header. */
 export const ODOMETER_LOOKBACK_DAYS = 30;
 
-/** Rows per page. The identity index is (org, vehicle, source, day); paging is ordered by pk. */
-const PAGE = 1000;
-
 export interface FleetDistanceReading {
   vehicleId: string;
   readingAt: string;
@@ -136,20 +133,15 @@ export async function readFleetDistancePeriods(
 
   const lookbackDays = opts.lookbackDays ?? ODOMETER_LOOKBACK_DAYS;
   const lookbackMs = lookbackDays * 86_400_000;
-  const earliest = new Date(Math.min(...bounds.map((b) => b.fromMs)) - lookbackMs).toISOString();
-  const latest = new Date(Math.max(...bounds.map((b) => b.toMs))).toISOString();
 
   const asked = bounds.map((b) => ({ from: b.fromIso, to: b.toIso, floor: new Date(b.fromMs - lookbackMs).toISOString() }));
   const picked = await fetchPeriodReadings(admin, orgId, asked);
-  // Labelled fallback, not a second design: the minutes on staging before 0507 is applied
-  // (docs/MIGRATION-DISCIPLINE.md, the deploy window). Removed with the next change to this file once
-  // 0507 is on production — the function is then guaranteed to exist wherever this code runs.
-  const readings = picked?.rows ?? (await fetchReadings(admin, orgId, earliest, latest));
+  const readings = picked.rows;
 
   return bounds.map((b, i) => {
     const lookbackFrom = new Date(b.fromMs - lookbackMs).toISOString();
     // NARROWED to this period's own lookback before the rule sees it, and that line is what makes
-    // the identity above true rather than nearly true. The shared fetch reaches back thirty days
+    // the identity above true rather than nearly true. The shared picks reach back thirty days
     // before the EARLIEST period, so a later period handed the whole set could find an opening
     // odometer ninety days old and measure a truck its own read would have reported as unmeasured —
     // a series whose weeks were each computed under a different lookback, which is precisely the
@@ -163,9 +155,9 @@ export async function readFleetDistancePeriods(
       unmeasuredVehicles: fleet.unmeasuredVehicles,
       perVehicle,
       // What THIS period's own window held. See the header: a shared total would answer "has the
-      // collector run?" for somebody else's window. From 0507 it is counted in Postgres, because the
-      // rows handed back are only the picks; the count keeps the same window (0507's header says how).
-      readings: picked ? picked.counts[i]! : own.length,
+      // collector run?" for somebody else's window. Counted in Postgres (0507), because the rows
+      // handed back are only the picks; the count keeps the same window (0507's header says how).
+      readings: picked.counts[i]!,
       lookbackFrom,
     };
   });
@@ -174,31 +166,29 @@ export async function readFleetDistancePeriods(
 /**
  * Only the readings the rule will use, from ONE call (0507, PLATFORM-RELIABILITY-PLAN D-RLY6): per
  * period bound and per truck and counter, the last reading in `[floor, bound]`, plus each period's own
- * count. Measured 2026-10-20: the paged read below was ~23 sequential pages for a thirty-day window and
- * up to ~160 for the 400-day maximum — fleet MPG's median 2.6 s, max 31.7 s. The rule reads two rows
- * per truck per counter per period; every other row was fetched and discarded.
+ * count. Measured 2026-10-20: the paged table read this replaced was ~23 sequential pages for a
+ * thirty-day window and up to ~160 for the 400-day maximum — fleet MPG's median 2.6 s, max 31.7 s. The
+ * rule reads two rows per truck per counter per period; every other row was fetched and discarded.
+ * Measured 2026-10-21 in production: the function's mean 191 ms, max 586 ms.
  *
- * `null` when the function is not there yet (PGRST202, staging's deploy window) — the caller falls back
- * to the paged read. Any other error throws, exactly as the paged read does.
+ * The paged read stayed behind as a labelled fallback for staging's deploy window until 0507 reached
+ * production (v2026.10.21); it was removed with it, so a missing function is now an error like any other.
  */
 async function fetchPeriodReadings(
   admin: SupabaseClient,
   orgId: string,
   periods: { from: string; to: string; floor: string }[],
-): Promise<{ rows: VehicleOdometerReading[]; counts: number[] } | null> {
+): Promise<{ rows: VehicleOdometerReading[]; counts: number[] }> {
   // The org is the function's first argument and it bypasses RLS: this IS the tenant boundary.
   const { data, error } = await admin.rpc("odometer_readings_for_periods", { p_org: orgId, p_periods: periods });
-  if (error) {
-    if (error.code === "PGRST202") return null;
-    throw new Error(`odometer_readings_for_periods failed: ${error.message}`);
-  }
+  if (error) throw new Error(`odometer_readings_for_periods failed: ${error.message}`);
   const out = (data ?? {}) as { rows?: ReadingRow[]; counts?: (number | string)[] };
   const counts = (out.counts ?? []).map(Number);
   if (counts.length !== periods.length) throw new Error("odometer_readings_for_periods returned the wrong number of counts");
   return { rows: toReadings(out.rows ?? []), counts };
 }
 
-/** The paged read's row filter, shared by both reads so they cannot disagree about a valid row. */
+/** Which picked rows the rule may use. */
 function toReadings(rows: readonly ReadingRow[]): VehicleOdometerReading[] {
   const readings: VehicleOdometerReading[] = [];
   for (const r of rows) {
@@ -208,37 +198,6 @@ function toReadings(rows: readonly ReadingRow[]): VehicleOdometerReading[] {
     // the count above still reports what the window held.
     if (!Number.isFinite(meters) || !isCounter(r.source)) continue;
     readings.push({ vehicleId: r.vehicle_id, readingAt: r.reading_at, meters, source: r.source });
-  }
-  return readings;
-}
-
-/** Every staged reading in `[fromIso, toIso]`, paged. The org filter is the only tenant boundary. */
-async function fetchReadings(
-  admin: SupabaseClient,
-  orgId: string,
-  fromIso: string,
-  toIso: string,
-): Promise<VehicleOdometerReading[]> {
-  const readings: VehicleOdometerReading[] = [];
-  for (let from = 0; ; from += PAGE) {
-    // The service role bypasses RLS, so this `.eq("org_id", …)` is the only tenant boundary between
-    // one carrier's odometers and another's.
-    const { data, error } = await admin
-      .from("samsara_odometer_readings")
-      .select("vehicle_id, reading_at, meters, source")
-      .eq("org_id", orgId)
-      .gte("reading_at", fromIso)
-      .lte("reading_at", toIso)
-      // Unordered `.range()` paging repeats and drops rows across pages — the lesson financialReads
-      // learned the expensive way. Served by 0428's (org_id, vehicle_id, reading_at) index; the
-      // identity index cannot, because `source` and `day` sit between its two sort columns.
-      .order("vehicle_id", { ascending: true })
-      .order("reading_at", { ascending: true })
-      .range(from, from + PAGE - 1);
-    if (error) throw new Error(`samsara_odometer_readings read failed: ${error.message}`);
-    const rows = (data ?? []) as ReadingRow[];
-    readings.push(...toReadings(rows));
-    if (rows.length < PAGE) break;
   }
   return readings;
 }

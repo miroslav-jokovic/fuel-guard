@@ -90,16 +90,19 @@ export function roadsideInspectionsRouter(): Router {
       const today = await orgToday(admin, orgId);
       const from = range.from ?? shiftDay(today, -30);
       const to = range.to ?? today;
-      const [rows, work] = await Promise.all([
+      // The feed's freshness line needs nothing from the statistics, so it is read alongside them
+      // (PLATFORM-RELIABILITY-PLAN D-RLY10); it used to wait for both.
+      const [rows, work, feed] = await Promise.all([
         readRoadsideInspections(admin, orgId, { from, to }),
         readInspectionsWork(admin, orgId, { from, to, today }),
+        readRoadsideFeed(admin, orgId, Date.now()),
       ]);
       if ("error" in rows || "error" in work) {
         dbErrorResponse(res, "roadside-inspections.summary", ("error" in rows ? rows : (work as { error: { message: string } })).error, "Could not load the roadside inspections");
         return;
       }
       const stats = roadsideStats(rows, new Map(work.map((w) => [w.id, w])), (id) => VIOLATION_CATEGORY_NAMES[id] ?? String(id));
-      const data: RoadsideSummary = { from, to, stats, feed: await readRoadsideFeed(admin, orgId, Date.now()) };
+      const data: RoadsideSummary = { from, to, stats, feed };
       res.json({ ok: true, data });
     }),
   );

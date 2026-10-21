@@ -13,7 +13,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { hourBucketIso } from "../../lib/timeBucket.js";
 import { parseRoadRangerPrices, median } from "@silvicom/shared";
 import type { Env } from "../../env.js";
-import { hereGeocode, mapPool } from "../../lib/hereGeocode.js";
+import { hereGeocode } from "../../lib/hereGeocode.js";
+import { mapPool } from "../../lib/mapPool.js";
 
 const BRAND = "road_ranger";
 export const ROAD_RANGER_SOURCE = "roadranger_page";
