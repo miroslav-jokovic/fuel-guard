@@ -1072,3 +1072,16 @@ imported, 100 filed in the app).
   chip left `FileCell` and with it the `filter` event on the three lists; the toolbar's File filter is
   unchanged. `FileGallery` puts every paper in a strip (a new `strip` slot in `DocumentPreview`, not
   printed) and "+N" opens on paper `PAPERS_PER_ROW + 1`. Each new test was proven by mutation.
+- 2026-10-21 — **Q-UF13 (a) built** (`claude/files-paper-not-dated`). `buildUnitFile` gives a missing
+  item `paperOnFile` — the unit's newest scan of the item's kinds — and the item stays `missing` (nobody
+  has said until when it is good). `fileChip` gained `not_dated`, below *date only*; the toolbar reads it
+  as "Paper on file, not dated". On the unit page the row shows the scan and says "Paper on file, not
+  dated — McLeod says …", and recording the item opens the drawer CITING that scan (the D-DQ10 preset),
+  so the office types the date and uploads nothing. Measured on production the same day: **775 items**
+  (trucks 206 registration + 155 annual, trailers 222 + 192; the 449 in §7 missed that a truck's
+  registration item takes IRP cab cards).
+  ⚠ **The filter lists no unit yet.** Worst state wins, and every unit also lacks insurance (and every
+  truck IFTA) — fleet papers that one organization filing each covers (D-UF6). Until those two are filed
+  every unit reads *missing*. Filing them is the owner's/office's job, not a code change; the unit page
+  shows the not-dated rows either way.
+

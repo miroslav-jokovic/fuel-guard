@@ -19,9 +19,9 @@ const unitRow = {
   state: "incomplete", counts: { current: 2, expiring: 0, expired: 0, missing: 1 },
   ownership_unknown: ["title", "lease"], attention: [],
   items: [
-    { key: "registration", group: "registration", state: "current", goodUntil: "2027-03-31", evidenceDate: "2026-03-01", expiryUnknown: false, dateOnly: null, fleetWide: false, documentId: "reg1" },
-    { key: "annual_inspection", group: "inspections", state: "missing", goodUntil: null, evidenceDate: null, expiryUnknown: false, dateOnly: { goodUntil: "2026-11-01", state: "expiring" }, fleetWide: false, documentId: null },
-    { key: "insurance", group: "insurance", state: "current", goodUntil: "2027-01-01", evidenceDate: null, expiryUnknown: false, dateOnly: null, fleetWide: true, documentId: "pol" },
+    { key: "registration", group: "registration", state: "current", goodUntil: "2027-03-31", evidenceDate: "2026-03-01", expiryUnknown: false, dateOnly: null, paperOnFile: null, fleetWide: false, documentId: "reg1" },
+    { key: "annual_inspection", group: "inspections", state: "missing", goodUntil: null, evidenceDate: null, expiryUnknown: false, dateOnly: { goodUntil: "2026-11-01", state: "expiring" }, paperOnFile: null as { documentId: string; datedAt: string } | null, fleetWide: false, documentId: null },
+    { key: "insurance", group: "insurance", state: "current", goodUntil: "2027-01-01", evidenceDate: null, expiryUnknown: false, dateOnly: null, paperOnFile: null, fleetWide: true, documentId: "pol" },
   ],
   papers: [], paper_count: 1,
 };
@@ -92,6 +92,25 @@ describe("UnitFileSection", () => {
     expect(w.text()).toContain("Covered by the fleet's paper");
     // A unit's file has no stamped release — D-BD10 stamps a driver.
     expect(w.findComponent(RequirementTable).props("releasable")).toBe(false);
+  });
+
+  // Q-UF13: the McLeod import filed the scan and no certification. The row says so, and recording the
+  // item opens the drawer CITING that scan — the office types the date and uploads nothing.
+  it("says a scanned paper is on file but not dated, and records the date against that paper", async () => {
+    const annual = unitRow.items[1]!;
+    annual.paperOnFile = { documentId: "ann1", datedAt: "2026-07-27" };
+    try {
+      const w = await mountSection();
+      expect(w.text()).toContain("Paper on file, not dated — McLeod says 11/01/2026");
+      expect(w.text()).not.toContain("Date only, no paper");
+      w.findComponent(RequirementTable).vm.$emit("open", "annual_inspection");
+      await flushPromises();
+      const drawer = w.findComponent({ name: "RequirementDrawer" });
+      expect(drawer.props("itemKey")).toBe("annual_inspection");
+      expect(drawer.props("presetDocument")).toEqual({ id: "ann1", name: "The paper dated 07/27/2026" });
+    } finally {
+      annual.paperOnFile = null;
+    }
   });
 
   it("asks for ownership where it is unknown, and sets it from the section (D-UF11)", async () => {

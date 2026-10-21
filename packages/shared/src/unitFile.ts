@@ -11,6 +11,10 @@
  *     filed on the organization (D-UF6), else, for a paper-only item, the scan itself.
  *   - what McLeod's typed date says when no paper exists — shown beside the item, never counted as
  *     evidence (D-UF3). A date with nothing behind it is what an auditor writes up.
+ *   - whether the unit HOLDS a paper for an item nobody has dated yet (Q-UF13, owner 2026-10-21) — the
+ *     McLeod import filed 1,359 scans and, by Q-UF2, no certification, so 449 items read "missing"
+ *     beside thumbnails of the very paper. The item stays `missing` — nobody has said until when it is
+ *     good, and the engine does not guess — but it now says which paper waits for a date.
  */
 import {
   buildFile,
@@ -72,6 +76,12 @@ export interface UnitFileItem extends FileItem<EquipmentItemSpec> {
    * says what the typed date would mean. Null when a paper exists or McLeod has no date.
    */
   dateOnly: { goodUntil: string; state: FileItemState } | null;
+  /**
+   * The unit's newest scan of this item's kinds, when the item is `missing` only because no
+   * certification dates it (Q-UF13): the paper is on file, its date is not recorded. Null when no such
+   * scan exists — which is always the case for a missing item whose paper IS the evidence (a title).
+   */
+  paperOnFile: { documentId: string; datedAt: string } | null;
   /** True when the evidence is the fleet's paper on the organization, not the unit's own. */
   fleetWide: boolean;
 }
@@ -113,13 +123,14 @@ export function buildUnitFile(input: UnitFileInput): UnitFileSummary {
   const { specs, ownershipUnknown } = unitFileSpecs(input.subjectType, input.ownership);
   const fromFleet = new Set<string>();
 
+  // The newest scan of an item's kinds — a re-filed title replaces the old one in the file's eyes, and
+  // both stay on file (documents are append-only).
+  const newestScan = (spec: EquipmentItemSpec): UnitDocumentInput | undefined =>
+    input.documents.filter((d) => spec.evidenceKinds.includes(d.kind)).sort((a, b) => b.datedAt.localeCompare(a.datedAt))[0];
+
   const evidenceFor = (spec: EquipmentItemSpec): FileEvidence | undefined => {
     if (spec.source === "document") {
-      // The newest scan of the kind: a re-filed title replaces the old one in the file's eyes, and
-      // both stay on file (documents are append-only).
-      const doc = input.documents
-        .filter((d) => spec.evidenceKinds.includes(d.kind))
-        .sort((a, b) => b.datedAt.localeCompare(a.datedAt))[0];
+      const doc = newestScan(spec);
       return doc ? { expiresAt: null, issuedAt: null, occurredOn: doc.datedAt, coversUntil: null, documentId: doc.id } : undefined;
     }
     const own = bestCert(spec, input.certs);
@@ -145,6 +156,9 @@ export function buildUnitFile(input: UnitFileInput): UnitFileSummary {
   const items: UnitFileItem[] = file.items.map((item) => {
     const column = item.spec.unitDateColumn;
     const typed = column ? input.unitDates[column] ?? null : null;
+    // Only a certification item can be missing with a scan of its kinds on file: a paper-only item (a
+    // title) is current the moment one is filed, so it never reaches here with a scan.
+    const scan = item.state === "missing" ? newestScan(item.spec) : undefined;
     return {
       ...item,
       fleetWide: fromFleet.has(item.spec.key),
@@ -152,6 +166,7 @@ export function buildUnitFile(input: UnitFileInput): UnitFileSummary {
         item.state === "missing" && typed
           ? { goodUntil: typed.slice(0, 10), state: fileDateState(typed, input.today, input.expiringWithinDays) }
           : null,
+      paperOnFile: scan ? { documentId: scan.id, datedAt: scan.datedAt } : null,
     };
   });
   return { ...file, items, ownershipUnknown };

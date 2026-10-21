@@ -6,6 +6,7 @@ import {
   FLEET_WIDE_UNIT_KINDS,
   IN_LIST_CHUNK,
   INSPECTION_EXPIRY_WARNING_DAYS,
+  paperDate,
   unitAttention,
   type UnitCertInput,
   type UnitDocumentInput,
@@ -32,7 +33,7 @@ type CertRow = { subject_id: string; kind: string; issued_at: string | null; exp
 const CERT_COLUMNS = "subject_id, kind, issued_at, expires_at, document_id";
 
 const toCert = (c: CertRow): UnitCertInput => ({ kind: c.kind, issuedAt: c.issued_at, expiresAt: c.expires_at, documentId: c.document_id });
-const toDoc = (d: PaperDocRow): UnitDocumentInput => ({ id: d.id, kind: d.kind, datedAt: d.captured_at ?? d.created_at });
+const toDoc = (d: PaperDocRow): UnitDocumentInput => ({ id: d.id, kind: d.kind, datedAt: paperDate({ capturedAt: d.captured_at, createdAt: d.created_at }) });
 
 function groupBy<T>(rows: readonly T[], key: (r: T) => string): Map<string, T[]> {
   const out = new Map<string, T[]>();
@@ -75,7 +76,7 @@ async function readCitedDocuments(admin: SupabaseClient, orgId: string, ids: str
       .eq("org_id", orgId).eq("variant", "original").in("id", part);
     if (error) throw new Error(error.message);
     for (const d of (data ?? []) as Array<{ id: string; kind: string; captured_at: string | null; created_at: string }>) {
-      out.push({ id: d.id, kind: d.kind, datedAt: d.captured_at ?? d.created_at });
+      out.push({ id: d.id, kind: d.kind, datedAt: paperDate({ capturedAt: d.captured_at, createdAt: d.created_at }) });
     }
   }
   return out;
@@ -143,6 +144,7 @@ export async function getUnitFiles(
         evidenceDate: i.evidenceDate,
         expiryUnknown: i.expiryUnknown,
         dateOnly: i.dateOnly,
+        paperOnFile: i.paperOnFile,
         fleetWide: i.fleetWide,
         documentId: i.documentId,
       })),

@@ -126,6 +126,36 @@ describe("buildUnitFile — McLeod's typed dates (D-UF3)", () => {
   });
 });
 
+describe("buildUnitFile — a paper on file that nobody has dated (Q-UF13)", () => {
+  // The McLeod import's shape: the unit's cab card filed, no certification, McLeod's date on the row.
+  const cab = { id: "cab26", kind: "irp", datedAt: "2026-02-23" };
+  const older = { id: "cab25", kind: "irp", datedAt: "2025-03-24" };
+
+  it("keeps the item missing and names the newest scan of its kinds as the paper waiting for a date", () => {
+    const reg = item(base({ documents: [older, cab], unitDates: { registration_expires_at: "2027-02-28" } }), "registration");
+    expect(reg?.state).toBe("missing");
+    expect(reg?.paperOnFile).toEqual({ documentId: "cab26", datedAt: "2026-02-23" });
+    // McLeod's date still stands beside it — the office reads it against the paper.
+    expect(reg?.dateOnly).toEqual({ goodUntil: "2027-02-28", state: "current" });
+  });
+
+  it("says nothing once a certification dates the item, or when no scan of its kinds is on file", () => {
+    const dated = item(base({
+      documents: [cab],
+      certs: [{ kind: "irp", issuedAt: null, expiresAt: "2027-02-28", documentId: "cab26" }],
+    }), "registration");
+    expect(dated?.state).toBe("current");
+    expect(dated?.paperOnFile).toBeNull();
+    expect(item(base({ documents: [{ id: "a1", kind: "annual_inspection", datedAt: "2026-07-27" }] }), "registration")?.paperOnFile).toBeNull();
+  });
+
+  it("never applies to an item whose scan IS the evidence — a filed title is simply current", () => {
+    const title = item(base({ documents: [{ id: "t1", kind: "title", datedAt: "2024-01-01" }] }), "title");
+    expect(title?.state).toBe("current");
+    expect(title?.paperOnFile).toBeNull();
+  });
+});
+
 describe("buildUnitFile — the file's own state", () => {
   it("is not_started with nothing of the unit's own, even when a fleet policy covers it", () => {
     const file = buildUnitFile(base({ fleetCerts: [{ kind: "insurance", issuedAt: null, expiresAt: "2027-01-01", documentId: null }] }));
