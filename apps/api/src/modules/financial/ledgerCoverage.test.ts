@@ -174,6 +174,60 @@ describe("getLedgerCoverage", () => {
     expect(setv.source).toContain("1 voided settlement swept before void_date existed, not yet dated");
   });
 
+  /**
+   * The same modules tied one posting at a time (TRUCK-DRIVER-PNL-PLAN P0c). Bill B3 is staged at 1,000
+   * but posted 900, and the ledger holds a posting (B4) nobody staged: the BILL total would hide
+   * neither if they happened to cancel, and the key tie names both. SET and SETV tie to the cent on
+   * the settlement rule's own rows.
+   */
+  it("ties BILL, SET and SETV per posting key and names the keys that do not tie", async () => {
+    const key = (post_module: string, post_key: string, glid: string, net_amount: number, txn_date = "2026-07-10") =>
+      ({ org_id: ORG, txn_date, post_module, post_key, glid, line_count: 1, net_amount });
+    const bill = (id: string, post_key: string, total_charges: number, bill_type = "I", excise_tax = 0) =>
+      ({ org_id: ORG, id, external_id: id, post_key, post_module: "BILL", delivery_date: "2026-07-10", total_charges, other_charge: 0, excise_tax, bill_type });
+    const rec = createSupabaseRecorder({
+      tables: {
+        mcleod_gl_totals: [],
+        mcleod_settlements: settlementsTable([
+          { posted_pay: 1000, is_void: false, accrual_key: "K1", accrued_at: "2026-07-03T00:00:00Z" },
+          { posted_pay: 500, is_void: true, accrual_key: "K2", accrued_at: "2026-07-04T00:00:00Z", void_date: "2026-07-05T00:00:00Z" },
+          { posted_pay: 600, is_void: true, accrual_key: "K3", accrued_at: "2026-06-20T00:00:00Z", post_key: "P3", transferred_at: "2026-06-25T00:00:00Z", void_date: "2026-07-15T00:00:00Z" },
+          // A voided original and its re-issue on one key: SET books the re-issue only.
+          { posted_pay: 700, is_void: true, accrual_key: "K5", accrued_at: "2026-07-07T00:00:00Z", void_date: "2026-07-07T00:00:00Z" },
+          { posted_pay: 650, is_void: false, accrual_key: "K5", accrued_at: "2026-07-07T00:00:00Z" },
+        ]),
+        // B1 carries excise: the receivable is the bill plus its excise.
+        mcleod_billing: postgrestFixture([bill("b1", "B1", 4864.64, "I", 35), bill("b2", "B2", 213.5, "C"), bill("b3", "B3", 1000)]),
+        mcleod_gl_key_lines: postgrestFixture([
+          key("BILL", "B1", "12000000", 4899.64),
+          key("BILL", "B1", "30000001", -4864.64),
+          key("BILL", "B2", "12000000", -213.5),
+          key("BILL", "B3", "12000000", 900),
+          key("BILL", "B4", "12000000", 50),
+          key("SET", "K1", "20500010", -1000),
+          key("SET", "K1", "40000001", 1000),
+          key("SET", "K2", "20500020", -500),
+          key("SET", "K5", "20500010", -650),
+          key("SETV", "P3", "20500010", 600),
+          // August: outside the window, so a reader that dropped its bounds would mis-tie B1.
+          key("BILL", "B1", "12000000", 1, "2026-08-02"),
+        ]),
+      },
+    });
+    const report = await getLedgerCoverage(rec.client, ORG, "2026-07-01", "2026-08-01");
+    const tie = (m: string) => report.keyTies.find((t) => t.post_module === m)!;
+    expect(tie("BILL")).toMatchObject({ keys: 4, matched: 2, tied: false, mismatched: { count: 1, difference: 100 }, ledgerOnly: { count: 1, amount: 50 } });
+    expect(tie("BILL").exceptions.map((e) => e.post_key)).toEqual(["B3", "B4"]);
+    expect(tie("SET")).toMatchObject({ keys: 3, matched: 3, tied: true });
+    expect(tie("SETV")).toMatchObject({ keys: 1, matched: 1, tied: true });
+    expectOrgScoped(rec, ORG);
+  });
+
+  it("has no key ties for a month not yet swept at that grain, rather than ties that all fail", async () => {
+    const rec = createSupabaseRecorder({ tables: { mcleod_gl_totals: [], mcleod_settlements: [], mcleod_billing: [], mcleod_gl_key_lines: [] } });
+    expect((await getLedgerCoverage(rec.client, ORG, "2026-07-01", "2026-08-01")).keyTies).toEqual([]);
+  });
+
   it("an unswept month says so instead of returning an empty report that reads as clean books", async () => {
     const rec = createSupabaseRecorder({ tables: { mcleod_gl_totals: [], mcleod_settlements: [], mcleod_billing: [] } });
     const report = await getLedgerCoverage(rec.client, ORG, "2026-07-01", "2026-08-01");

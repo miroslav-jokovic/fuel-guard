@@ -63,5 +63,7 @@ export {
 } from "./financialReads.js";
 /** McLeod's open accounting period (0502, D-TP5) — whether a staged month can still move. */
 export { readLedgerClose } from "./glControl.js";
+/** The ledger per posting key (0509, P0c) — what each sub-ledger ties to, one posting at a time. */
+export { readLedgerKeyLines } from "./ledgerKeyLines.js";
 /** McLeod's hand-keyed IFTA fuel receipts (0434) — the ifta module's door onto them. */
 export { readFuelTaxReceipts, type FuelTaxReceipt } from "./fuelTaxReceipts.js";

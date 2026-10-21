@@ -42,7 +42,7 @@ import {
   takeLock,
   validateIngestUrl,
 } from "./service.mjs";
-import { fetchLedgerControl, fetchGlAccounts, fetchGlControl } from "./ledger.mjs";
+import { fetchLedgerControl, fetchGlAccounts, fetchGlControl, fetchLedgerKeyLines } from "./ledger.mjs";
 import { fetchBilling, mapBilling } from "./billing.mjs";
 import { fetchFuelTaxReceipts, receiptWindow } from "./fuelTaxReceipts.mjs";
 
@@ -786,6 +786,17 @@ async function runFinancial() {
       totals: lc.totals,
     });
     log(`financial: ledger-totals ${periodStart} rows=${lc.totals.length} upserted=${rl.upserted ?? 0} staleRemoved=${rl.staleRemoved ?? 0}`);
+
+    // The same month per posting key (0509, P0c): one post, never batched, because the ingest
+    // replaces the month whole and half a month would delete the other half.
+    const kl = await fetchLedgerKeyLines({ ...CFG.sql, windowStart: periodStart, windowEnd: periodEnd });
+    const rk = await post("/api/tms/ledger-key-lines", {
+      company_id: CFG.sql.companyId,
+      period_start: periodStart,
+      period_end: periodEnd,
+      lines: kl.lines,
+    });
+    log(`financial: ledger-key-lines ${periodStart} rows=${kl.lines.length} upserted=${rk.upserted ?? 0} staleRemoved=${rk.staleRemoved ?? 0}`);
   }
 
   // Hand-keyed IFTA fuel receipts (IFTA-PRECISION-PLAN IP6): two whole years every night, not the

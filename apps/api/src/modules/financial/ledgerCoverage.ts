@@ -1,17 +1,32 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
+  BILL_RECEIVABLE_GLID,
+  SETTLEMENT_PAYABLE_GLID_PREFIX,
   billExcise,
   billRevenue,
   buildLedgerCoverageReport,
   isReversedBySetv,
   isUntypedBill,
+  ledgerByKey,
   settlementBookedPay,
   settlementsBookedBySet,
+  subledgerByKey,
+  tieByPostingKey,
+  type GlKeyLine,
+  type KeyTie,
   type LedgerCoverageReport,
   type GlModuleTotal,
   type SubledgerClaim,
 } from "@silvicom/shared";
-import { readLedgerTotals, readSettlementsWindow, readSettlementVoidsWindow, readBillingWindow } from "../mcleod/index.js";
+import {
+  readLedgerTotals,
+  readLedgerKeyLines,
+  readSettlementsWindow,
+  readSettlementVoidsWindow,
+  readBillingWindow,
+  type StagedBilling,
+  type StagedSettlement,
+} from "../mcleod/index.js";
 import { getFuelTieOut } from "./fuelTieOut.js";
 import type { FuelTieOut } from "@silvicom/shared";
 
@@ -40,7 +55,9 @@ export async function getLedgerCoverage(
   orgId: string,
   periodStart: string,
   periodEnd: string,
-): Promise<LedgerCoverageReport & { period_start: string; period_end: string; sweptMonth: boolean; fuel: FuelTieOut }> {
+): Promise<
+  LedgerCoverageReport & { period_start: string; period_end: string; sweptMonth: boolean; fuel: FuelTieOut; keyTies: KeyTie[] }
+> {
   const totalRows = await readLedgerTotals(admin, orgId, periodStart);
   const totals: GlModuleTotal[] = totalRows.map((r) => ({
     post_module: r.post_module,
@@ -123,11 +140,46 @@ export async function getLedgerCoverage(
       extracted: Math.round((fuel.totals.efsMapped + fuel.totals.efsOwnerOperator) * 100) / 100,
     });
   }
+  // The same three modules tied one posting at a time (P0c). Empty until a sweep has staged the
+  // month's key lines (0509): no lines is "not swept at this grain yet", never "nothing ties".
+  const keyLines = await readLedgerKeyLines(admin, orgId, periodStart, periodEnd);
   return {
     ...buildLedgerCoverageReport(totals, claims),
     period_start: periodStart,
     period_end: periodEnd,
     sweptMonth: totals.length > 0,
     fuel,
+    keyTies: keyLines.length ? postingKeyTies(keyLines, bookedBills, booked, reversed) : [],
   };
+}
+
+/**
+ * BILL, SET and SETV against the ledger, per posting key (TRUCK-DRIVER-PNL-PLAN P0c), each through
+ * the same rule its claim above uses — so a key that ties here is one the month's total counted
+ * right, and one that does not is named.
+ *
+ *  · BILL: the receivable (`BILL_RECEIVABLE_GLID`) per `post_key`, against the bill plus its excise,
+ *    a credit memo negative — one receivable line per bill (1,522 of 1,522, July 2026).
+ *  · SET: the settlement payable per key, its credit flipped to the pay accrued, against the rows SET
+ *    books summed per `accrual_key` (`settlementsBookedBySet`, D-MC23).
+ *  · SETV: the payable debited back per key, against each reversed row's pay on its `post_key`.
+ *
+ * FUEL waits for McLeod's `fuel_detail` to be staged (collector step C1): EFS lines carry no McLeod
+ * posting key, so its tie stays the account-level F12 until then.
+ */
+function postingKeyTies(
+  lines: GlKeyLine[],
+  bookedBills: StagedBilling[],
+  bookedSettlements: StagedSettlement[],
+  reversed: StagedSettlement[],
+): KeyTie[] {
+  const isPayable = (glid: string) => glid.startsWith(SETTLEMENT_PAYABLE_GLID_PREFIX);
+  const bills = subledgerByKey(bookedBills, (b) => b.post_key, (b) => billRevenue(b) + billExcise(b));
+  const accruals = subledgerByKey(bookedSettlements, (s) => s.accrual_key, settlementBookedPay);
+  const reversals = subledgerByKey(reversed, (s) => s.post_key, settlementBookedPay);
+  return [
+    tieByPostingKey("BILL", ledgerByKey(lines, "BILL", (g) => g === BILL_RECEIVABLE_GLID, 1), bills.byKey, bills.unkeyed),
+    tieByPostingKey("SET", ledgerByKey(lines, "SET", isPayable, -1), accruals.byKey, accruals.unkeyed),
+    tieByPostingKey("SETV", ledgerByKey(lines, "SETV", isPayable, 1), reversals.byKey, reversals.unkeyed),
+  ];
 }
