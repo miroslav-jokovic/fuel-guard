@@ -390,6 +390,7 @@ ok("explicit cannot be null", (await sqlstate(
    values ($1, $2, 'identity.date', 'confirmed', '"1"', '"1"', $3, 'hazmat_calculator', null)`, [ORG, R1, USER])) === "23502");
 ok("an action outside REVIEW_ACTIONS is refused", (await review(ORG, R1, "approved")) === "23514");
 ok("a consumer outside REVIEW_CONSUMERS is refused", (await review(ORG, R1, "confirmed", "billing")) === "23514");
+ok("a person's word on the page is recorded under its own consumer (0509, Q-RC5)", (await review(ORG, R1, "confirmed", "paper_check")) === null);
 const RX = await newRead(OTHER, SX);
 ok("a review filed under one org against another org's read is refused", (await review(ORG, RX)) === "23503");
 ok("a review cannot be rewritten (UPDATE)",
