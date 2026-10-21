@@ -61,7 +61,10 @@ export interface FleetBill {
   tractor_unit: string | null;
   /** Linehaul plus accessorial, excise tax already excluded by the caller; negative for a credit. */
   revenue: number;
-  /** A credit memo (`isCreditBill`): its revenue counts against the truck, but it is not a load. */
+  /**
+   * A credit memo (`isCreditBill`): its revenue counts against the truck, and it takes back the load it
+   * reverses (`billLoads`, Q-TP11).
+   */
   credit?: boolean;
 }
 
@@ -263,7 +266,7 @@ export function computeFleetReport(inputs: FleetReportInputs): FleetReport {
     const unit = b.tractor_unit?.trim();
     if (!unit) continue;
     const u = byUnitRevenue.get(unit);
-    const load = b.credit ? 0 : 1;
+    const load = b.credit ? -1 : 1;
     if (u) {
       u.revenue = round(u.revenue + b.revenue);
       u.loads += load;

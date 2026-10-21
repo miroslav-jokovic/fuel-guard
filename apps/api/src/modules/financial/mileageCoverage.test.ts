@@ -106,14 +106,16 @@ describe("getMileageCoverage", () => {
   });
 
   /**
-   * A credit memo (bill_type C, TRUCK-DRIVER-PNL-PLAN §1.3 D2) is staged POSITIVE, on a truck, with
-   * whatever distance McLeod copied onto it. It takes its revenue back; it is not a delivery, so it
-   * adds no load, no billed mile and no delivering truck — truck 105 would otherwise fail coverage.
+   * Load b6 re-billed the way this carrier re-bills (TRUCK-DRIVER-PNL-PLAN §1.3 D2, Q-TP11): a credit
+   * memo reversing it in full, staged POSITIVE with the distance McLeod copied onto it, then a new
+   * invoice at 310,000. March still holds three loads and 1,100,000 billed miles, and truck 103 is still
+   * the one that delivered it.
    */
-  it("subtracts a credit memo's revenue and keeps it out of loads, billed miles and delivering trucks", async () => {
-    const credit = { id: "c1", delivery_date: "2026-03-20", tractor_unit: "105", distance: 400_000, total_charges: 250_000, other_charge: 0, canceled: false, bill_type: "C" };
-    const r = await getMileageCoverage(recorder([...BILLS, credit]).client, ORG, "2026-03-01", "2026-03-31");
-    expect(r.billedRevenue).toBe(3_000_000);
+  it("counts a re-billed load once: the credit takes back its revenue, load and billed miles", async () => {
+    const credit = { id: "c1", delivery_date: "2026-03-25", tractor_unit: "103", distance: 100_000, total_charges: 300_000, other_charge: 0, canceled: false, bill_type: "C" };
+    const rebill = { id: "r1", delivery_date: "2026-03-25", tractor_unit: "103", distance: 100_000, total_charges: 310_000, other_charge: 0, canceled: false, bill_type: "I" };
+    const r = await getMileageCoverage(recorder([...BILLS, credit, rebill]).client, ORG, "2026-03-01", "2026-03-31");
+    expect(r.billedRevenue).toBe(3_260_000);
     expect(r.loads).toBe(3);
     expect(r.billedMiles).toBe(1_100_000);
     expect(r.months.find((m) => m.month === "2026-03")!.complete).toBe(true);

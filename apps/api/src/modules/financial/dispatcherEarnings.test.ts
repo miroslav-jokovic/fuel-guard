@@ -42,24 +42,34 @@ describe("earningsByDispatcher", () => {
     expect(vladi.linehaul + vladi.accessorial).toBe(vladi.revenue);
   });
 
-  /** McLeod stages a credit memo POSITIVE; only bill_type says it takes money back (PNL-PLAN §1.3 D2). */
-  it("takes a credit memo off its dispatcher's revenue without counting it as a load or its miles", async () => {
-    const credit = {
-      id: "c1", external_id: "c1", order_external_id: "o1", tractor_unit: "754", driver_external_id: null,
-      dispatcher_user_id: "vladi", dispatcher_name: "Vladi Popov", bill_date: "2026-06-09", transfer_date: null,
-      total_charges: "1000.00", other_charge: "100.00", excise_tax: "0", bill_type: "C", distance: 600,
-      post_key: "kc", post_module: "BILL",
-    };
-    const rec = createSupabaseRecorder({ tables: { mcleod_billing: [...BILLS, credit] } });
+  /**
+   * McLeod stages a credit memo POSITIVE; only bill_type says it takes money back (PNL-PLAN §1.3 D2).
+   * This carrier re-bills by crediting an invoice in full and issuing a new one (Q-TP11): o2 is
+   * credited and re-billed at 2,100, and is still one load.
+   */
+  it("takes a credit memo's money and its load off its dispatcher, so a re-billed load counts once", async () => {
+    const vladiBill = { driver_external_id: null, dispatcher_user_id: "vladi", dispatcher_name: "Vladi Popov", transfer_date: null, excise_tax: "0", other_charge: "0", post_module: "BILL" };
+    const credit = { ...vladiBill, id: "c1", external_id: "c1", order_external_id: "o2", tractor_unit: "755", bill_date: "2026-06-09", total_charges: "2000.00", bill_type: "C", post_key: "kc" };
+    const rebill = { ...vladiBill, id: "r1", external_id: "r1", order_external_id: "o2", tractor_unit: "755", bill_date: "2026-06-09", total_charges: "2100.00", bill_type: "I", post_key: "kr" };
+    const rec = createSupabaseRecorder({ tables: { mcleod_billing: [...BILLS, credit, rebill] } });
     const rows = await earningsByDispatcher(rec.client, ORG, "2026-06-01", "2026-07-01");
     const vladi = rows.find((r) => r.dispatcherUserId === "vladi")!;
-    expect(vladi.revenue).toBe(4150); // 3150 + 2000 − 1000
-    expect(vladi.accessorial).toBe(50); // 150 − 100
+    expect(vladi.revenue).toBe(5250); // 3150 + 2000 − 2000 + 2100
     expect(vladi.linehaul + vladi.accessorial).toBe(vladi.revenue);
     expect(vladi.loads).toBe(2);
-    expect(vladi.loadsWithoutMiles).toBe(2); // the two invoices; the credit is not a load at all
-    expect(vladi.miles).toBe(0); // neither invoice carries a distance; the credit's 600 must not appear
+    expect(vladi.loadsWithoutMiles).toBe(2); // none of vladi's bills carries a distance
     expectOrgScoped(rec, ORG);
+  });
+
+  it("takes back the credited load's miles, so a re-billed load's miles count once", async () => {
+    const dana = { driver_external_id: null, dispatcher_user_id: "dana", dispatcher_name: "Dana", transfer_date: null, excise_tax: "0", other_charge: "0", post_module: "BILL", order_external_id: "o9", tractor_unit: "760", distance: 600 };
+    const bills = [
+      { ...dana, id: "d1", external_id: "d1", bill_date: "2026-06-10", total_charges: "1500.00", bill_type: "I", post_key: "kd1" },
+      { ...dana, id: "d2", external_id: "d2", bill_date: "2026-06-12", total_charges: "1500.00", bill_type: "C", post_key: "kd2" },
+      { ...dana, id: "d3", external_id: "d3", bill_date: "2026-06-12", total_charges: "1550.00", bill_type: "I", post_key: "kd3" },
+    ];
+    const rows = await earningsByDispatcher(createSupabaseRecorder({ tables: { mcleod_billing: bills } }).client, ORG, "2026-06-01", "2026-07-01");
+    expect(rows[0]).toMatchObject({ loads: 1, miles: 600, loadsWithoutMiles: 0, revenue: 1550, ratePerMile: 2.58 });
   });
 
   // The revenue predicate is the GL's own posting, the same one CPM uses. A staged-but-unposted
