@@ -1,14 +1,12 @@
 <script setup lang="ts">
 import {
   APPLICATION_CAPTURE_REQUESTED,
-  APPLICATION_CAPTURE_SLOT_LABELS,
   APPLICATION_FILLING_MINUTES,
   APPLICATION_FILLING_SECTIONS,
-  APPLICATION_SECTION_LABELS,
   APPLICATION_SECTION_MINUTES,
 } from "@silvicom/shared";
 import { AppButton as BaseButton } from "@silvicom/ui";
-import { APPLY_COPY } from "@/features/apply/strings";
+import { APPLY_CAPTURE_TITLES, APPLY_COPY, APPLY_SECTION_TITLES } from "@/features/apply/strings";
 
 /**
  * What the whole thing involves, before any of it is asked (B7).
@@ -62,10 +60,10 @@ const minutesOf = APPLY_COPY.progress.minutes;
 
 const steps = APPLICATION_FILLING_SECTIONS.map((section) => ({
   section,
-  label: APPLICATION_SECTION_LABELS[section],
+  label: APPLY_SECTION_TITLES[section],
   minutes: APPLICATION_SECTION_MINUTES[section],
 }));
-const photographs = APPLICATION_CAPTURE_REQUESTED.map((slot) => APPLICATION_CAPTURE_SLOT_LABELS[slot]);
+const photographs = APPLICATION_CAPTURE_REQUESTED.map((slot) => APPLY_CAPTURE_TITLES[slot]);
 </script>
 
 <template>

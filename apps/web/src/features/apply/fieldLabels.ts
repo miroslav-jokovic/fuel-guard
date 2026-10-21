@@ -28,15 +28,15 @@ import { APPLY_COPY } from "./strings";
 /** A contract path as Zod reports it: `["addresses", 0, "city"]`, or `["cdl_number"]`. */
 export type FieldPath = readonly (string | number)[];
 
-const identity = APPLY_COPY.identity;
-const addresses = APPLY_COPY.addresses;
-const licence = APPLY_COPY.licence;
-const employment = APPLY_COPY.employment;
-const safety = APPLY_COPY.safety;
-const certify = APPLY_COPY.certify;
-
-/** Every top-level contract key, in the words the screen that owns it uses. */
-const TOP: Record<string, string> = {
+/**
+ * ⚠ Built on every call, never at module load (C4): the words come from `APPLY_COPY`, which answers in
+ * the page's language, and a map filled once at import would be English for ever. The cost is a few
+ * dozen property reads per issue listed, which is nothing.
+ */
+const topLabels = (): Record<string, string> => {
+  const { identity, licence, employment, safety, certify, fields } = APPLY_COPY;
+  /** Every top-level contract key, in the words the screen that owns it uses. */
+  return {
   first_name: identity.first_name,
   middle_name: identity.middle_name,
   last_name: identity.last_name,
@@ -44,7 +44,7 @@ const TOP: Record<string, string> = {
   other_names: identity.otherNames,
   email: identity.email,
   phone: identity.phone,
-  addresses: "Where you have lived",
+  addresses: fields.addresses,
   cdl_number: licence.number,
   cdl_state: licence.state,
   cdl_class: licence.class,
@@ -60,16 +60,17 @@ const TOP: Record<string, string> = {
   licence_ever_denied: safety.deniedQuestion,
   licence_denial_detail: safety.denialDetail,
   prior_failed_pre_employment_test: safety.priorTestHeading,
-  employers: "Where you have worked",
+  employers: fields.employers,
   declares_no_employment: employment.none,
   // AW1 (APPLICATION-FLOW-V2): the applicant's word for each stretch of the three years with no job.
-  employment_gaps: "Time between jobs",
+  employment_gaps: fields.gaps,
   // Neither of these is a control. They are the questionnaire's two contract fields, written by the
   // questions screen as a pair, and a driver can no more "fix" one than they can fix a timestamp.
-  questionnaire_version: "The carrier's own questions",
-  questionnaire_answers: "The carrier's own questions",
+  questionnaire_version: fields.questionnaire,
+  questionnaire_answers: fields.questionnaire,
   certified: certify.heading,
   signed_name: certify.signedName,
+  };
 };
 
 /**
@@ -79,10 +80,13 @@ const TOP: Record<string, string> = {
  * counting down a screen counts from one, and an error naming "Address 0" would send them to the
  * wrong card.
  */
-const ROWS: Record<string, { noun: string; columns: Record<string, string> }> = {
-  other_names: { noun: "Name", columns: {} },
+const rowLabels = (): Record<string, { noun: string; columns: Record<string, string> }> => {
+  const { addresses, licence, employment, safety, fields } = APPLY_COPY;
+  const noun = fields.nouns;
+  return {
+  other_names: { noun: noun.other_names, columns: {} },
   addresses: {
-    noun: "Address",
+    noun: noun.addresses,
     columns: {
       line1: addresses.line1,
       line2: addresses.line2,
@@ -94,7 +98,7 @@ const ROWS: Record<string, { noun: string; columns: Record<string, string> }> = 
     },
   },
   additional_licences: {
-    noun: "Licence",
+    noun: noun.additional_licences,
     columns: {
       issuing_authority: licence.issuingAuthority,
       number: licence.otherNumber,
@@ -103,11 +107,11 @@ const ROWS: Record<string, { noun: string; columns: Record<string, string> }> = 
     },
   },
   employers: {
-    noun: "Employer",
+    noun: noun.employers,
     columns: {
       // Not a control: the stable id the form mints for an employer (AW1), which the office's phone
       // verification is filed under. A driver sees it only if it is missing, as "this employer".
-      key: "This employer's record",
+      key: fields.employerRecord,
       employer_name: employment.employer,
       usdot_number: employment.usdot,
       address_line1: employment.address,
@@ -126,11 +130,11 @@ const ROWS: Record<string, { noun: string; columns: Record<string, string> }> = 
     },
   },
   employment_gaps: {
-    noun: "Gap",
-    columns: { from: "From", to: "To", explanation: "What you were doing" },
+    noun: noun.employment_gaps,
+    columns: { from: fields.gapFrom, to: fields.gapTo, explanation: fields.gapWhat },
   },
   equipment_experience: {
-    noun: "Equipment",
+    noun: noun.equipment_experience,
     columns: {
       equipment_class: employment.equipmentClass,
       equipment_type: employment.equipmentType,
@@ -140,7 +144,7 @@ const ROWS: Record<string, { noun: string; columns: Record<string, string> }> = 
     },
   },
   accidents: {
-    noun: "Accident",
+    noun: noun.accidents,
     columns: {
       occurred_on: safety.accidentDate,
       nature: safety.accidentNature,
@@ -150,7 +154,7 @@ const ROWS: Record<string, { noun: string; columns: Record<string, string> }> = 
     },
   },
   violations: {
-    noun: "Conviction",
+    noun: noun.violations,
     columns: {
       occurred_on: safety.violationDate,
       offence: safety.offence,
@@ -158,10 +162,18 @@ const ROWS: Record<string, { noun: string; columns: Record<string, string> }> = 
       penalty: safety.penalty,
     },
   },
+  };
 };
 
 /** Exported for the totality test, which is the only reason either map is not module-private. */
-export const FIELD_LABEL_KEYS = { TOP, ROWS };
+export const FIELD_LABEL_KEYS = {
+  get TOP(): Record<string, string> {
+    return topLabels();
+  },
+  get ROWS(): Record<string, { noun: string; columns: Record<string, string> }> {
+    return rowLabels();
+  },
+};
 
 /**
  * The field, named the way the screen names it.
@@ -177,14 +189,14 @@ export const FIELD_LABEL_KEYS = { TOP, ROWS };
 export function describeField(path: FieldPath): string {
   const [head, index, column] = path;
   const key = String(head ?? "");
-  const row = ROWS[key];
+  const row = rowLabels()[key];
 
   if (row && typeof index === "number") {
     const where = `${row.noun} ${index + 1}`;
     if (column === undefined) return where;
     return `${where} · ${row.columns[String(column)] ?? String(column)}`;
   }
-  return TOP[key] ?? key;
+  return topLabels()[key] ?? key;
 }
 
 /**
@@ -231,9 +243,9 @@ export interface FieldIssueLike {
  * the control is a tick box, the value is `false` rather than empty, and "This is needed" beside
  * "Your certification" tells a driver nothing about what to do with their thumb.
  */
-const OVERRIDES: Record<string, string> = {
-  certified: "Tick the box to certify that your answers are true.",
-};
+const overrides = (): Record<string, string> => ({
+  certified: APPLY_COPY.fields.certifyOverride,
+});
 
 const isEmpty = (v: unknown): boolean =>
   v === undefined || v === null || (typeof v === "string" && v.trim() === "");
@@ -242,15 +254,16 @@ export function messageFor(issue: FieldIssueLike, value: unknown): string {
   // Written for this reader already — the cross-field rules and the date-of-birth refinement.
   if (issue.code === "custom") return issue.message;
 
-  const override = OVERRIDES[String(issue.path[0] ?? "")];
+  const override = overrides()[String(issue.path[0] ?? "")];
   if (override) return override;
 
-  if (Array.isArray(value) && issue.code === "too_small") return "Add at least one.";
-  if (isEmpty(value)) return "This is needed.";
+  const words = APPLY_COPY.fields;
+  if (Array.isArray(value) && issue.code === "too_small") return words.addOne;
+  if (isEmpty(value)) return words.needed;
 
   switch (issue.code) {
     case "invalid_format":
-      if (issue.format === "email") return "This does not look like an email address.";
+      if (issue.format === "email") return words.notEmail;
       /**
        * ⚠ Every non-email format rule in this contract is a date or a month regex, and the schema's
        * own message for those is "Expected a date as YYYY-MM-DD" — which was written for an API
@@ -262,19 +275,19 @@ export function messageFor(issue: FieldIssueLike, value: unknown): string {
        * So the branch is defensive rather than routine — from the UI these fields can only be
        * well-formed or empty, and empty is caught above.
        */
-      return "Choose it from the calendar.";
+      return words.fromCalendar;
     case "too_big":
-      return "This is too long.";
+      return words.tooLong;
     case "too_small":
-      return "This is too short.";
+      return words.tooShort;
     case "invalid_type":
     case "invalid_value":
-      return "This is needed.";
+      return words.needed;
     default:
       // ⚠ Deliberately swallows the schema's words rather than risking Zod's reaching a driver. A
       // vague sentence is a poor outcome; "expected string to have >=1 characters" is a worse one,
       // and `fieldLabels.test.ts` fails the build if anything in the first list ever gets through.
-      return "Check this answer.";
+      return words.check;
   }
 }
 
