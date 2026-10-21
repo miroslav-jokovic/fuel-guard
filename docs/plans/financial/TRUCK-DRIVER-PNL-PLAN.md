@@ -383,3 +383,15 @@ per-driver P&L on the recommended answer to every question below, Q-TP1 through 
   496 owner-operator. Owner-operator includes Scorpio's `B` trucks pending Q-TP12. Readable at
   `GET /api/accounting/truck-days`. The analytics copy needs `tractor` granted (one line in
   SILVICOM-GRANTS.sql, waiting on Alex with the rest of Q-TP10).
+- 2026-10-21 · P0c-b built (stacked on P0c-a; rebuilt on main 2026-11-15 once `0568` was in production): the sweep sends
+  each month's key lines, and the ledger coverage report ties BILL, SET and SETV one posting key at a
+  time, naming each key that does not tie. Run offline against the sandbox for July 2026 (15,183
+  key lines): **BILL 1,507 of 1,522 keys tie to the cent**, and the 15 that do not are ledger-only,
+  net −$504.99 (the §1.5 bills posted on another date). **SET 2,815 of 2,821**, and the 6 are the
+  named "Payable from Settlement" residual, $2,420.68. **SETV: two findings, both open.** (1) Four
+  voids of old accruals (April 2024, January 2026) were reversed on 2026-07-08 ($139.30). The sweep
+  reads settlements by ACCRUAL window, so a late void of an old accrual is never staged; voided rows
+  also need sweeping by void date. (2) One payment key carrying two voided, transferred rows
+  ($902.25, voided two days after transfer) has no SETV line at all. `isReversedBySetv` has an
+  exception the 10-19 month totals did not show. Both are what the per-key tie exists to catch.
+  FUEL's per-key tie waits for `fuel_detail` (C1).
