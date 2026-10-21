@@ -79,7 +79,7 @@ describe("ingestSettlements", () => {
   });
 });
 
-describe("ingestSettlements — the void date (0497)", () => {
+describe("ingestSettlements — the void date (0501)", () => {
   it("stages a voided row's void date, the date the ledger's SETV reverses it on, and null on a live row", async () => {
     const rec = createSupabaseRecorder({ tables: { mcleod_settlements: [{ id: "x" }] } });
     const payload = tmsSettlementsPayloadSchema.parse({

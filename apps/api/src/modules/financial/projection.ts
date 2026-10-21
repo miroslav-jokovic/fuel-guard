@@ -115,7 +115,7 @@ function settlementEntries(
     },
   ];
   // The reversal lands on the VOID date, whatever window projected it: the entry's key is the row's,
-  // so re-projecting converges. A row swept before 0497 has no void date and cannot be dated yet —
+  // so re-projecting converges. A row swept before 0501 has no void date and cannot be dated yet —
   // it waits for the next sweep rather than being guessed into its accrual month.
   if (isReversedBySetv(s) && s.void_date) {
     out.push({

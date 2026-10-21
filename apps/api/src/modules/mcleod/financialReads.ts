@@ -34,7 +34,7 @@ export interface StagedSettlement {
   /** The payment-side GL key — SETV reverses a voided row on it (`isReversedBySetv`). */
   post_key: string | null;
   transferred_at: string | null;
-  /** When the row was voided — SETV's date (0497). Null on a live row, and on rows swept before 0497. */
+  /** When the row was voided — SETV's date (0501). Null on a live row, and on rows swept before 0501. */
   void_date: string | null;
 }
 

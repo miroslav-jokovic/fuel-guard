@@ -4,7 +4,7 @@ import { SETTLEMENTS } from "./queries.mjs";
 import { mapSettlement } from "./settlements.mjs";
 
 /**
- * The settlement sweep carries `void_date` (0497, TRUCK-DRIVER-PNL-PLAN §1.3 D3).
+ * The settlement sweep carries `void_date` (0501, TRUCK-DRIVER-PNL-PLAN §1.3 D3).
  *
  * GL module SETV reverses a voided, transferred settlement on the date it was VOIDED, which can be
  * months after its accrual: `is_void` alone says a row was reversed, not in which month. Pinned as text

@@ -326,10 +326,10 @@ per-driver P&L on the recommended answer to every question below, Q-TP1 through 
 - 2026-10-20 · D3b built on Q-TP6's recommended answer: driver and contractor pay are what the GL
   books. One shared rule (`settlementLedger.ts`): SET books `posted_pay` on the accrual date for
   every live row and every row alone on its accrual key; SETV takes a voided, transferred row back on
-  its `void_date`. The sweep, ingest and readers carry `void_date` (0497). The projection writes a
+  its `void_date`. The sweep, ingest and readers carry `void_date` (0501). The projection writes a
   second, negative `setv:` entry per reversal. The ledger coverage claims SET and SETV, names the
-  "Payable from Settlement" residual, and counts voids swept before 0497 that cannot be dated yet.
-  The fleet report's contractor column reads the same figure. Ships after 0497 applies; acceptance
+  "Payable from Settlement" residual, and counts voids swept before 0501 that cannot be dated yet.
+  The fleet report's contractor column reads the same figure. 0501 applied to staging 10-20. Acceptance
   is May–Aug SETV to the cent once the re-sweep has refilled `void_date`.
 - 2026-10-21 · #1643 and D4 #1647 merged 10-20 after one more renumbering past main's 0499: the
   columns are `0500` `mcleod_billing.bill_type` and `0501` `mcleod_settlements.void_date`, and

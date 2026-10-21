@@ -69,7 +69,7 @@ export async function getLedgerCoverage(
     });
   }
 
-  // A voided, transferred row swept before 0497 has no void date, so no window can find it: SETV's
+  // A voided, transferred row swept before 0501 has no void date, so no window can find it: SETV's
   // claim is short by those rows until the next sweep refills the column, and the source says how many.
   const reversed = voids.filter(isReversedBySetv);
   const undated = settlements.filter((s) => isReversedBySetv(s) && !s.void_date).length;
