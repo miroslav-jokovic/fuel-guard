@@ -53,8 +53,10 @@ import { createHash } from "node:crypto";
  *   10   — 2026-10-19, RC3: the readers' lines are paired in the paper's order and a line read with one misread
  *          digit is ONE line with its id in dispute (alignLines.ts), not two; the table judges pass B's
  *          reading of such a line too (`passB` on its verdict).
+ *   11   — 2026-10-21, RC5: normalizer 1.3.0 — the table matches "Samples, explosive" (UN0190), which carries no
+ *          class, to the Class 1 division its paper prints; 10 refused every correct printing of it.
  */
-export const ACCEPTANCE_RULE_VERSION = "10";
+export const ACCEPTANCE_RULE_VERSION = "11";
 
 export interface CacheKeyInput {
   profileVersion: string;

@@ -314,6 +314,11 @@ jobs:
       # violation, which is the only moment turning a gate on is cheap.
       - name: Comment proof-claims cite real tests
         run: pnpm lint:comment-claims
+      # Added 2026-10-21 (READER-CORRECTNESS-PLAN RC8). The BOL reader's Promise-1 tests already fail `build` when a
+      # layer lets a wrong value reach the placards; this keeps them from leaving quietly — a renamed file, an
+      # it.skip, a census narrowed to one BOL. Turned on at zero violations.
+      - name: The BOL reader's Promise-1 tests are in force
+        run: pnpm lint:reader-gate
 
       # Added 2026-09-20. D-DS17 pinned MM/dd/yyyy on 2026-08-31 but stated it for a COMPONENT, so
       # only the two date pickers obeyed it and nothing could see the drift: 13 duplicate fmtDate

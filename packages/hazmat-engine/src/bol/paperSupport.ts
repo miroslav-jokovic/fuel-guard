@@ -103,6 +103,23 @@ export function rowOf(ctx: LineCtx): Row | null {
   return null;
 }
 
+/**
+ * The rows a line may be when the table could not pick one: several rows print one id and one name and are told
+ * apart only by class and PG (UN2790 "Acetic acid solution" PG II and PG III, the four UN1950 "Aerosols"), and
+ * the printed class or PG fitted none of them, or more than one. The resolver hands back every such row as a
+ * candidate. A rule may call the paper wrong when EVERY candidate says so — a PG none of them has — and must
+ * never pass on them: which row the paper means is still unknown (READER-CORRECTNESS-PLAN RC5, where the census
+ * found these lines answered "can't tell" for a PG no row allows).
+ */
+const SAME_NAME_FAILURES = new Set(["psn_ambiguous", "class_mismatch", "pg_required_ambiguous"]);
+export function sameNameRows(ctx: LineCtx): Row[] {
+  const res = ctx.resolved.resolution;
+  if (!res || res.ok || !SAME_NAME_FAILURES.has(res.reason) || (res.candidates?.length ?? 0) < 2) return [];
+  const ids = [...new Set(res.candidates!.map((c) => c.entryId))];
+  const rows = ids.map((id) => ctx.ds.entries.find((e) => e.entryId === id)).filter((e): e is PaperDsEntry => e !== undefined);
+  return rows.length === ids.length ? rows.map((entry) => ({ entry, pg: undefined })) : [];
+}
+
 /** The PGs the row allows: the selected one, or every PG row of the entry when none was selected. */
 export function requiredPgs(row: Row): Array<"I" | "II" | "III" | null> {
   return row.pg !== undefined ? [row.pg] : row.entry.pgRows.map((r) => r.pg);
