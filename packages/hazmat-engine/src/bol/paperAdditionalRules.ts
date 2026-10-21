@@ -15,6 +15,7 @@ import {
   gated,
   lineLabel,
   make,
+  norm,
   printedConcentration,
   printsRq,
   rowOf,
@@ -129,16 +130,26 @@ export function paperRq(ctx: LineCtx): PaperRuleResult {
   return held >= rq ? r("fail", "rq_not_printed", withShare) : r("cannot_tell", "concentration_basis_unknown", withShare);
 }
 
+/** The text with every occurrence of the row's names blanked out, keeping its length so positions still line up. */
+function withoutNames(text: string, names: readonly string[]): string {
+  let out = text;
+  for (const n of names) {
+    const rx = new RegExp(n.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/\s+/g, "\\s+"), "gi");
+    out = out.replace(rx, (m) => " ".repeat(m.length));
+  }
+  return out;
+}
+
 /**
  * Where the Limited Quantity words stand in the printed description: §172.203(b) wants them "following the
  * basic description". null when there is no description text, or its basic description cannot be laid out
  * — the position is then simply not verified.
  */
-function lqPosition(line: LineCtx["printed"]): "following" | "before" | "outside" | null {
+function lqPosition(line: LineCtx["printed"], names: readonly string[]): "following" | "before" | "outside" | null {
   if (blank(line.descriptionText)) return null;
   const layout = layoutDescription(line);
   if (layout.kind !== "in_sequence") return null;
-  const at = [...line.descriptionText!.matchAll(new RegExp(LQ_RX.source, "gi"))].map((m) => m.index);
+  const at = [...withoutNames(line.descriptionText!, names).matchAll(new RegExp(LQ_RX.source, "gi"))].map((m) => m.index);
   if (at.length === 0) return "outside";
   return at.some((i) => i >= layout.end) ? "following" : "before";
 }
@@ -157,19 +168,37 @@ export function paperLq(ctx: LineCtx): PaperRuleResult {
   const g = gated(ctx, r, ["marks", "psn", "packaging", "descriptionText"]);
   if (g) return g;
   const label = lineLabel(ctx);
-  if (!declaresLimitedQuantity(ctx.printed) && !LQ_RX.test(ctx.printed.descriptionText ?? "")) {
-    return ctx.resolved.claimedLimitedQuantity === true
+  const notPrinted = () =>
+    ctx.resolved.claimedLimitedQuantity === true
       ? r("fail", "claimed_not_printed", { lineLabel: label })
       : r("pass", "not_claimed", { lineLabel: label });
-  }
+  const p = ctx.printed;
+  if (!declaresLimitedQuantity(p) && !LQ_RX.test(p.descriptionText ?? "")) return notPrinted();
   const row = rowOf(ctx);
+  // The words may be the row's own name: UN2910 is "Radioactive material, excepted package-limited quantity of
+  // material", and every correct UN2910 paper read as a Limited Quantity claim (the RC5 golden census). Only the
+  // words printed beside the name are a claim.
+  const names = row ? entryNames(row.entry) : [];
+  const besideName = (t: string | null | undefined) => LQ_RX.test(withoutNames(t ?? "", names));
+  if (row && !p.marks.some((m) => LQ_RX.test(m)) && !besideName(p.psn) && !besideName(p.packaging) && !besideName(p.descriptionText)) return notPrinted();
   if (!row || row.pg === undefined) return r("cannot_tell", "line_unresolved", { lineLabel: label });
   const pgRow = row.entry.pgRows.find((x) => x.pg === row.pg);
   if (!pgRow || !("exceptionsRef" in pgRow)) {
     return r("cannot_tell", "requirement_not_in_dataset", { lineLabel: label, needs: "HMT column 8A (exceptions)" });
   }
+  // Rows the paper cannot tell apart — one id, name, class and PG, told apart by an italic qualifier it never prints —
+  // may still differ in column 8A: UN1738 "Benzyl chloride" is two rows of the 2026.12.0 cut, one excepting under
+  // §173.153 and one excepting nothing, and the table matcher names the first. The answer holds only if every one
+  // of them gives it (the RC5 golden census, READER-CORRECTNESS-PLAN).
+  const twins = ctx.ds.entries
+    .filter((e) => e.idPrefix === row.entry.idPrefix && e.idNumber === row.entry.idNumber && e.hazardClass === row.entry.hazardClass &&
+      norm(e.psnPrinted) === norm(row.entry.psnPrinted) && (e.subsidiaryClasses ?? []).join() === (row.entry.subsidiaryClasses ?? []).join())
+    .flatMap((e) => e.pgRows.filter((x) => x.pg === row.pg));
+  if (twins.some((x) => (x.exceptionsRef == null) !== (pgRow.exceptionsRef == null))) {
+    return r("cannot_tell", "rows_differ", { lineLabel: label, requiredPsn: row.entry.psnPrinted });
+  }
   if (pgRow.exceptionsRef == null) return r("fail", "not_authorised", { lineLabel: label, requiredPsn: row.entry.psnPrinted });
-  const position = lqPosition(ctx.printed);
+  const position = lqPosition(ctx.printed, names);
   const facts = { lineLabel: label, exceptionsRef: pgRow.exceptionsRef };
   if (position === "before") return r("fail", "lq_not_following", facts);
   if (position === "outside") return r("cannot_tell", "lq_outside_description", facts);

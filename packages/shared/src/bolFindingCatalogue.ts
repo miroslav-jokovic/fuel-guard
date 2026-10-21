@@ -163,6 +163,9 @@ export const BOL_FINDING_CATALOGUE = {
       const c = common(ctx, SUBJECT.paper_class_pg_match);
       if (c) return c;
       if (ctx.outcome === "pass") return `${line(ctx)}'s class ${s(ctx.facts.requiredClass)} and ${pgText(ctx.facts.requiredPg)} match the table.`;
+      if (ctx.reason === "class_not_in_table") {
+        return `Can't check the hazard class on ${line(ctx)}: the Hazardous Materials Table gives this entry none — its approval assigns it. Check class ${s(ctx.facts.printedClass)} against the approval.`;
+      }
       const parts: string[] = [];
       if (ctx.facts.classProblem === "missing") parts.push(`prints no hazard class (the table says ${s(ctx.facts.requiredClass)})`);
       if (ctx.facts.classProblem === "differs") parts.push(`prints class ${s(ctx.facts.printedClass)} where the table says ${s(ctx.facts.requiredClass)}`);
@@ -256,6 +259,8 @@ export const BOL_FINDING_CATALOGUE = {
           return `${line(ctx)}'s "Limited Quantity" words are printed ahead of its description; they must follow it.`;
         case "lq_outside_description":
           return `${line(ctx)} is marked Limited Quantity somewhere on the line, but not in its description — check the words follow the description.`;
+        case "rows_differ":
+          return `Can't check ${line(ctx)}'s Limited Quantity marking: the table lists ${s(ctx.facts.requiredPsn)} twice, the same on paper, and only one of the two may ship as a Limited Quantity. Check which one the shipper means.`;
         case "authorised":
           return `${line(ctx)} is marked Limited Quantity, which the table allows (49 CFR 173.${s(ctx.facts.exceptionsRef)}).`;
         default:

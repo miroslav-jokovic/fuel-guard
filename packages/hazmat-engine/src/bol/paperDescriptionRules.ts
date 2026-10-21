@@ -6,7 +6,7 @@
  * (3) hazard class, (4) packing group, (5) total quantity, (7) number and type of packages.
  */
 import type { PaperRuleResult } from "./paperTypes.js";
-import { blank, classMayBeOmitted, formatClass, gated, lineLabel, make, requiredPgs, rowOf, type LineCtx } from "./paperSupport.js";
+import { blank, classMayBeOmitted, formatClass, gated, lineLabel, make, requiredPgs, rowOf, sameNameRows, type LineCtx } from "./paperSupport.js";
 import { layoutDescription } from "./paperDescriptionText.js";
 
 /**
@@ -32,7 +32,12 @@ export function paperSequence(ctx: LineCtx): PaperRuleResult {
   if (p.pg == null) {
     if (row) {
       if (requiredPgs(row).some((pg) => pg != null)) missing.push("pg");
-    } else pgUnknown = true;
+    } else {
+      // No single row, but every row the name fits requires a PG (`sameNameRows`): the paper owes one either way.
+      const rows = sameNameRows(ctx);
+      if (rows.length && rows.every((x) => requiredPgs(x).every((pg) => pg != null))) missing.push("pg");
+      else pgUnknown = true;
+    }
   }
   const label = lineLabel(ctx);
   if (missing.length) return r("fail", "elements_missing", { lineLabel: label, missing });
@@ -83,6 +88,13 @@ export function paperPsnMatchesHmt(ctx: LineCtx): PaperRuleResult {
  * class (with subsidiaries) and PG equal the row's. The class comparison is the resolver's
  * (`class_mismatch`, which also honours the offeror's §173.150(f) combustible election); the PG
  * comparison is set membership against the row's own PG column.
+ *
+ * When the table could not pick one row from several that print one id and name (`sameNameRows`: UN2790 "Acetic
+ * acid solution" is PG II at one concentration and PG III at another), the paper is judged against all of them:
+ * wrong when it is wrong for every one — a PG none has, a class the resolver matched to none — and otherwise
+ * unresolved, never a pass. A row whose table entry carries no class ("Samples, explosive": §173.56 assigns the
+ * division with the approval) cannot check which Class 1 division is printed: it waits, rather than calling the
+ * approval's division wrong — while a class outside Class 1, which the table matcher refuses, is wrong. Both found by the RC5 golden census (READER-CORRECTNESS-PLAN).
  */
 export function paperClassPgMatch(ctx: LineCtx): PaperRuleResult {
   const r = make("paper_class_pg_match", ctx.index);
@@ -90,29 +102,34 @@ export function paperClassPgMatch(ctx: LineCtx): PaperRuleResult {
   if (g) return g;
   const row = rowOf(ctx);
   const label = lineLabel(ctx);
-  if (!row) return r("cannot_tell", "line_unresolved", { lineLabel: label });
+  const rows = row ? [row] : sameNameRows(ctx);
+  if (rows.length === 0) return r("cannot_tell", "line_unresolved", { lineLabel: label });
   const p = ctx.printed;
   const res = ctx.resolved.resolution;
+  const noClassInTable = rows.every((x) => x.entry.hazardClass == null);
   let classProblem: "missing" | "differs" | null = null;
-  if (blank(p.hazardClass)) classProblem = classMayBeOmitted(row.entry) ? null : "missing";
+  if (blank(p.hazardClass)) classProblem = rows.every((x) => classMayBeOmitted(x.entry)) ? null : "missing";
   else if (res && !res.ok && res.reason === "class_mismatch") classProblem = "differs";
 
-  const allowed = requiredPgs(row);
+  const allowed = [...new Set(rows.flatMap(requiredPgs))];
   let pgProblem: "missing" | "differs" | "not_allowed" | null = null;
   if (allowed.every((pg) => pg == null)) pgProblem = p.pg != null ? "not_allowed" : null;
-  else if (p.pg == null) pgProblem = "missing";
+  else if (p.pg == null) pgProblem = allowed.includes(null) ? null : "missing";
   else if (!allowed.includes(p.pg)) pgProblem = "differs";
 
   const facts = {
     lineLabel: label,
     printedClass: p.hazardClass?.trim() || null,
     printedPg: p.pg,
-    requiredClass: formatClass(row.entry),
+    requiredClass: [...new Set(rows.map((x) => formatClass(x.entry)))].join(" or "),
     requiredPg: allowed.length === 1 ? (allowed[0] ?? null) : allowed.filter((pg): pg is "I" | "II" | "III" => pg != null),
     classProblem,
     pgProblem,
   };
-  return classProblem || pgProblem ? r("fail", "class_or_pg_wrong", facts) : r("pass", "matches", facts);
+  if (classProblem || pgProblem) return r("fail", "class_or_pg_wrong", facts);
+  if (!row) return r("cannot_tell", "line_unresolved", { lineLabel: label });
+  if (noClassInTable && !blank(p.hazardClass)) return r("cannot_tell", "class_not_in_table", facts);
+  return r("pass", "matches", facts);
 }
 
 /** §172.202(a)(5)(iii)(A)'s examples are "1 cargo tank" and "2 IBCs"; these are the bulk packagings by name. */

@@ -17,7 +17,7 @@ import type { Dataset, HmtEntry, PackingGroup } from "./schema.js";
  */
 
 /** Bump on ANY change to the normalization ruleset — stored on every run so a verdict stays reproducible. */
-export const PSN_NORMALIZER_VERSION = "1.2.0";
+export const PSN_NORMALIZER_VERSION = "1.3.0";
 
 export type ResolveLineFailureReason =
   | "id_missing" // no parseable UN/NA id on the line
@@ -144,6 +144,11 @@ function parseIdText(idText: string): { prefix: "UN" | "NA" | null; idNumber: st
 // ── class check ───────────────────────────────────────────────────────────────────────────────────
 function classMatches(entry: HmtEntry, printedClass: string, reclassedCombustible: boolean): boolean {
   const norm = printedClass.trim().toLowerCase();
+  // "Samples, explosive" (UN0190) carries no class in Column (3): §173.56 assigns the division with the approval,
+  // and the paper prints it. Any Class 1 division is the entry's; anything else is not an explosive sample. Every
+  // correct printing was refused here (the paper audit's golden census, READER-CORRECTNESS-PLAN RC5) — the RC1
+  // census printed the table's empty class and so never asked.
+  if (entry.hazardClass == null) return /^(?:class\s+|division\s+)?1(?:\.[1-6][a-l]?)?$/i.test(norm);
   const entryClass = (entry.hazardClass ?? "").trim().toLowerCase();
 
   if (/combustible/.test(norm)) {
