@@ -50,10 +50,17 @@ import { hmtResolution, witnessDataset } from "./hmtWitness.js";
  * Inputs a BOL does not carry — the carrier relationship behind the certification exemption, a vessel leg,
  * the offeror's own Limited Quantity claim — are not known here and stay null, so the rules that need them
  * answer `cannot_tell` rather than assume.
+ *
+ * WHAT A PERSON SAID THE PAGE PRINTS (READER-CORRECTNESS-PLAN Q-RC5, owner 2026-10-21, answer (a)). A field the
+ * audit could not judge stays "confirm it first" until somebody does — and before this, a person's "Yes, the page
+ * says UN3264" on the form never reached it (read 76979453). `checked` is each field's latest explicit review
+ * (`personChecks`): its value is judged as the paper's, and the field counts as confirmed (D-DR19: a person acted
+ * on it). Only `paper_check` reviews (0509): a Calculate press may carry the load's values, not the page's.
  */
-export function auditForRead(result: unknown, evidence: readonly FieldEvidence[]): PaperAuditView | null {
+export function auditForRead(result: unknown, read: readonly FieldEvidence[], checked: readonly PersonCheck[] = []): PaperAuditView | null {
   const parsed = shippingDocumentSchema.safeParse(result);
   if (!parsed.success) return null;
+  const evidence = withChecks(read, checked);
   // R-M3: a certification one reader read as present, the other left blank and the page's own words back is
   // present for the audit — on the document it judges too, since pass A may be the reader that abstained.
   if (evidence.some(certificationWitnessed)) parsed.data.hazmat.shipperCertification = true;
@@ -65,6 +72,8 @@ export function auditForRead(result: unknown, evidence: readonly FieldEvidence[]
     const line = Number(/^hazmat\.lines\[(\d+)\]/.exec(e.path)?.[1] ?? -1);
     if (v !== undefined && line >= 0 && line < parsed.data.hazmat.lines.length) setAt(parsed.data, e.path, v);
   }
+  // Q-RC5: what a person said the page prints, last, so it stands over every witness.
+  for (const c of checked) if (inDocument(parsed.data, c.path)) setAt(parsed.data, c.path, c.value);
   const asRead = auditOf(parsed.data, evidence);
   const other = extentReadings(evidence);
   if (other.length === 0) return asRead;
@@ -89,11 +98,51 @@ export function auditForRead(result: unknown, evidence: readonly FieldEvidence[]
 /** Pass B's readings of the extent cells it agrees with pass A on by their facts only, not their text. */
 function extentReadings(evidence: readonly FieldEvidence[]): { path: string; value: unknown }[] {
   return evidence.flatMap((e) => {
-    if (!isExtentPath(e.path) || readersAgree(e) !== true) return [];
+    if (!isExtentPath(e.path) || readersAgree(e) !== true || e.sources.some((s) => s.reader === "reviewer")) return [];
     const a = e.sources.find((s) => s.reader === "passA")!.value;
     const b = e.sources.find((s) => s.reader === "passB")!.value;
     return valuesAgree(a, b) ? [] : [{ path: e.path, value: b }];
   });
+}
+
+/** One field a person checked against the page: the value they said it prints. */
+export interface PersonCheck { path: string; value: unknown }
+
+/**
+ * Each field's latest explicit review as a check: `confirmed` keeps the read's value, `corrected` gives the
+ * person's, and `unreadable` withdraws an earlier check (the person could not say what the page prints).
+ */
+export function personChecks(rows: readonly { field_path: string; action: string; old_value: unknown; new_value: unknown; explicit: boolean; consumer: string }[]): PersonCheck[] {
+  const last = new Map<string, PersonCheck | null>();
+  // Only a person's word on the PAGE (`paper_check`, 0509): a Calculate press may record the LOAD's values — a typed
+  // weight, a product picked from the list — and judging the paper by them could pass the misprint it exists to find.
+  // The query asks for these rows only; held here too.
+  for (const r of rows) {
+    if (r.consumer !== "paper_check" || !r.explicit) continue;
+    last.set(r.field_path, r.action === "confirmed" ? { path: r.field_path, value: r.old_value } : r.action === "corrected" ? { path: r.field_path, value: r.new_value } : null);
+  }
+  return [...last.values()].filter((c): c is PersonCheck => c !== null);
+}
+
+/** The evidence with each checked field carrying the person's word (the `reviewer` witness), which confirms it. */
+function withChecks(evidence: readonly FieldEvidence[], checked: readonly PersonCheck[]): readonly FieldEvidence[] {
+  if (checked.length === 0) return evidence;
+  const by = new Map(checked.map((c) => [c.path, c]));
+  return evidence.map((e) => {
+    const c = by.get(e.path);
+    return c ? { ...e, sources: [...e.sources, { reader: "reviewer" as const, page: null, bbox: null, value: c.value as never }] } : e;
+  });
+}
+
+/** Whether `path` names a field of this document (its parent exists), so a check can be set there. */
+function inDocument(doc: unknown, path: string): boolean {
+  const segs = parseFieldPath(path);
+  let cur = doc as Record<string | number, unknown> | null | undefined;
+  for (const s of segs.slice(0, -1)) {
+    cur = cur?.[s] as Record<string | number, unknown> | null | undefined;
+    if (cur == null || typeof cur !== "object") return false;
+  }
+  return true;
 }
 
 function setAt(doc: unknown, path: string, value: unknown): void {
@@ -187,6 +236,7 @@ function certificationWitnessed(e: FieldEvidence): boolean {
 }
 
 function confirmedForAudit(e: FieldEvidence): boolean {
+  if (e.sources.some((s) => s.reader === "reviewer")) return true;
   if (certificationWitnessed(e)) return true;
   if (settledReading(e) !== undefined) return true;
   if (readersAgreeForAudit(e) !== true) return false;

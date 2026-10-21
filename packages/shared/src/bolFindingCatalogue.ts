@@ -71,7 +71,7 @@ const FIELD_WORDS: Record<string, string> = {
   emergencyPhone: "the emergency phone number", emergencyContactText: "the words beside the emergency number",
   shipperCertification: "the shipper's certification", pageOf: "the page numbers", printedPageNumbers: "the page numbers",
 };
-function fieldWords(v: BolFactValue | undefined): string {
+export function bolFieldWords(v: BolFactValue | undefined): string {
   const paths = Array.isArray(v) ? v.map(String) : v == null ? [] : [String(v)];
   // The path's named segment: `quantity.value` is the quantity, `identity.pageOf.of` the page numbers.
   const words = paths.map((p) => {
@@ -88,7 +88,7 @@ function fieldWords(v: BolFactValue | undefined): string {
 function common(ctx: BolFindingContext, subject: string): string | null {
   switch (ctx.reason) {
     case "field_unconfirmed":
-      return `Can't check ${subject} on ${line(ctx)} yet: the reader isn't sure of ${fieldWords(ctx.facts.unconfirmed)} — confirm it against the paper first.`;
+      return `Can't check ${subject} on ${line(ctx)} yet: the reader isn't sure of ${bolFieldWords(ctx.facts.unconfirmed)} — confirm it against the paper first.`;
     case "line_unresolved":
       return `Can't check ${subject} on ${line(ctx)}: the line doesn't match one Hazardous Materials Table entry, so there is nothing to compare it with. Pick the right entry first.`;
     case "requirement_not_in_dataset":
@@ -463,5 +463,5 @@ export function bolBlockedSentence(reason: string, lineLabel: string, ruleIds: r
   const subjects = joinWords(ruleIds.map((id) => (BOL_FINDING_CATALOGUE as Record<string, BolFindingEntry>)[id]?.subject ?? id));
   return reason === "line_unresolved"
     ? `Can't check ${subjects} on ${lineLabel}: the line doesn't match one Hazardous Materials Table entry, so there is nothing to compare it with. Pick the right entry first.`
-    : `Can't check ${subjects} on ${lineLabel} yet: the reader isn't sure of ${fieldWords(unconfirmed)} — confirm it against the paper first.`;
+    : `Can't check ${subjects} on ${lineLabel} yet: the reader isn't sure of ${bolFieldWords(unconfirmed)} — confirm it against the paper first.`;
 }

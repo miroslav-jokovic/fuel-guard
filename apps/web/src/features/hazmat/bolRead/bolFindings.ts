@@ -1,4 +1,4 @@
-import { BOL_FINDING_CATALOGUE, bolBlockedSentence, type BolFindingActor, type BolFindingRuleId, type PaperAuditView } from "@silvicom/shared";
+import { BOL_FINDING_CATALOGUE, bolBlockedSentence, bolFieldWords, valuesAgree, type BolFindingActor, type BolFindingRuleId, type FieldEvidence, type PaperAuditView } from "@silvicom/shared";
 
 /**
  * The paper audit of a read BOL as the dispatcher reads it (§5, §7A N6 part 3): every rule's result worded by
@@ -16,6 +16,16 @@ export interface BolFinding {
   cite: string;
   actor: BolFindingActor;
   howToFix: string;
+  /** For "confirm it first": each field the check waits on, with what the page may say there (Q-RC5). */
+  choices?: FieldChoice[];
+}
+
+/** One field a person can settle by saying what the page prints there. */
+export interface FieldChoice {
+  path: string;
+  /** The field in the dispatcher's words ("the shipper's certification"). */
+  label: string;
+  options: { value: unknown; text: string }[];
 }
 
 export interface BolFindings {
@@ -32,7 +42,30 @@ const ACTOR_ORDER: Record<BolFindingActor, number> = { driver_must_not_accept: 0
 
 const GROUPED = new Set(["line_unresolved", "field_unconfirmed"]);
 
-export function bolFindings(audit: PaperAuditView | null): BolFindings | null {
+const shown = (v: unknown): string =>
+  v == null || v === "" ? "nothing" : Array.isArray(v) ? (v.length ? v.join(", ") : "nothing") : typeof v === "number" ? v.toLocaleString("en-US") : String(v);
+
+/**
+ * What a person can say the page prints in each field a check waits on (READER-CORRECTNESS-PLAN Q-RC5): the
+ * readings the two readers gave — never a value neither read — or, for a yes/no field such as the certification,
+ * yes and no (a reader that saw nothing read neither). A field neither reader read offers nothing to pick.
+ */
+export function fieldChoices(paths: readonly string[], evidence: readonly FieldEvidence[]): FieldChoice[] {
+  return paths.flatMap((path) => {
+    const e = evidence.find((x) => x.path === path);
+    if (!e) return [];
+    const read = e.sources.filter((s) => s.reader === "passA" || s.reader === "passB").map((s) => s.value as unknown);
+    const label = bolFieldWords(path);
+    if (read.some((v) => typeof v === "boolean")) {
+      return [{ path, label, options: [{ value: true, text: "Yes, it is printed" }, { value: false, text: "No, it is not printed" }] }];
+    }
+    const options: { value: unknown; text: string }[] = [];
+    for (const v of read) if (v != null && !options.some((o) => valuesAgree(o.value, v))) options.push({ value: v, text: `“${shown(v)}”` });
+    return options.length ? [{ path, label, options }] : [];
+  });
+}
+
+export function bolFindings(audit: PaperAuditView | null, evidence: readonly FieldEvidence[] = []): BolFindings | null {
   if (!audit) return null;
   const out: BolFindings = { wrong: [], check: [], passed: [], datasetVersion: audit.datasetVersion };
   const blocked = new Map<string, { reason: string; label: string; ruleIds: string[]; unconfirmed: string[]; cites: string[] }>();
@@ -50,22 +83,27 @@ export function bolFindings(audit: PaperAuditView | null): BolFindings | null {
     // A rule the API knows and this build does not (a newer deploy) is left out rather than shown as code.
     const entry = BOL_FINDING_CATALOGUE[r.ruleId as BolFindingRuleId];
     if (!entry) continue;
+    const unconfirmed = r.reason === "field_unconfirmed" && Array.isArray(r.facts.unconfirmed) ? r.facts.unconfirmed.map(String) : [];
+    const choices = fieldChoices(unconfirmed, evidence);
     const finding: BolFinding = {
       key: `${r.ruleId}:${r.lineIndex ?? "doc"}`,
       sentence: entry.sentence(r),
       cite: entry.cite,
       actor: entry.actor,
       howToFix: entry.howToFix,
+      ...(choices.length ? { choices } : {}),
     };
     (r.outcome === "fail" ? out.wrong : r.outcome === "cannot_tell" ? out.check : out.passed).push(finding);
   }
   for (const [key, g] of blocked) {
+    const choices = g.reason === "field_unconfirmed" ? fieldChoices(g.unconfirmed, evidence) : [];
     out.check.push({
       key,
       sentence: bolBlockedSentence(g.reason, g.label, g.ruleIds, g.unconfirmed),
       cite: g.cites.join("; "),
       actor: "information_only",
       howToFix: "",
+      ...(choices.length ? { choices } : {}),
     });
   }
   out.wrong.sort((a, b) => ACTOR_ORDER[a.actor] - ACTOR_ORDER[b.actor]);

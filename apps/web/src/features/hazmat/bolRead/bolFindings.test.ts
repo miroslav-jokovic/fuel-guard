@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { mount } from "@vue/test-utils";
-import type { PaperAuditView } from "@silvicom/shared";
-import { bolFindings } from "./bolFindings";
+import type { FieldEvidence, PaperAuditView } from "@silvicom/shared";
+import { bolFindings, fieldChoices } from "./bolFindings";
 import BolFindingsPanel from "./BolFindingsPanel.vue";
 
 /**
@@ -82,5 +82,38 @@ describe("BolFindingsPanel", () => {
   it("says every check passed on a clean paper", () => {
     const w = mount(BolFindingsPanel, { props: { findings: bolFindings(audit([r("paper_psn_matches_hmt", "pass", "matched", { requiredPsn: "Paint" })]))! } });
     expect(w.find("[data-testid='bol-findings-clean']").text()).toBe("Every check passed.");
+  });
+});
+
+// Q-RC5: what a person may say the page prints in a field a check waits on.
+describe("fieldChoices", () => {
+  const ev = (path: string, a: unknown, b: unknown): FieldEvidence => ({ path, value: a as never, status: "check", ruleVersion: "12", sources: [
+    { reader: "passA", page: null, bbox: null, value: a as never }, { reader: "passB", page: null, bbox: null, value: b as never }] });
+
+  it("offers the two readings, each once, never a blank one, in the dispatcher's words", () => {
+    const evidence = [ev("hazmat.lines[0].packageCount", 9, 6), ev("hazmat.lines[1].packageCount", 4, 4.0), ev("hazmat.lines[2].packageCount", null, 6)];
+    expect(fieldChoices(["hazmat.lines[0].packageCount"], evidence)).toEqual([
+      { path: "hazmat.lines[0].packageCount", label: "the package count", options: [{ value: 9, text: "“9”" }, { value: 6, text: "“6”" }] },
+    ]);
+    expect(fieldChoices(["hazmat.lines[1].packageCount"], evidence)[0]!.options).toHaveLength(1);
+    expect(fieldChoices(["hazmat.lines[2].packageCount"], evidence)[0]!.options).toEqual([{ value: 6, text: "“6”" }]);
+  });
+
+  it("asks yes or no on a yes/no field, whatever a reader that saw nothing read", () => {
+    expect(fieldChoices(["hazmat.shipperCertification"], [ev("hazmat.shipperCertification", null, true)])[0]!.options.map((o) => o.value)).toEqual([true, false]);
+  });
+
+  it("offers nothing where no reader read anything, or the read holds no such field", () => {
+    expect(fieldChoices(["hazmat.lines[0].pg"], [ev("hazmat.lines[0].pg", null, null)])).toEqual([]);
+    expect(fieldChoices(["hazmat.lines[9].pg"], [])).toEqual([]);
+  });
+
+  it("puts the choices under the grouped 'confirm it first' line, and the panel emits the one picked", async () => {
+    const r: Result = { ruleId: "paper_rq", outcome: "cannot_tell", reason: "field_unconfirmed", lineIndex: 0, facts: { lineLabel: "UN1263", unconfirmed: ["hazmat.lines[0].packageCount"] } };
+    const findings = bolFindings({ datasetVersion: "t", results: [r] }, [ev("hazmat.lines[0].packageCount", 9, 6)])!;
+    expect(findings.check[0]!.choices).toHaveLength(1);
+    const w = mount(BolFindingsPanel, { props: { findings } });
+    await w.findAll("[data-testid='bol-finding-choice'] button")[1]!.trigger("click");
+    expect(w.emitted("check")).toEqual([["hazmat.lines[0].packageCount", 6]]);
   });
 });

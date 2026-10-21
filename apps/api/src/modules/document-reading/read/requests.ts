@@ -5,13 +5,15 @@ import {
   fieldEvidenceSchema,
   valueAtPath,
   type DocumentProfileId,
+  type FieldEvidence,
+  type PaperAuditView,
   type ReadResponse,
   type ReviewBatchRequest,
 } from "@silvicom/shared";
 import { workingSizeOf } from "../pages/canonical.js";
 import { DOCUMENT_BUCKET, PAGE_URL_TTL_SEC } from "../storage.js";
 import { targetColumn, targetIds, targetOfRow, targetPages, type ReadTarget } from "./readTarget.js";
-import { auditForRead } from "../evidence/paperAudit.js";
+import { auditForRead, personChecks } from "../evidence/paperAudit.js";
 import { failUnavailableRead } from "./executeRead.js";
 
 /**
@@ -178,6 +180,12 @@ export async function getRead(admin: SupabaseClient, orgId: string, readId: stri
   if (missing) return fail("sign_failed", `Page ${missing.position} could not be shown.`);
 
   const evidence = fieldEvidenceSchema.array().parse(read.evidence ?? []);
+  let paperAudit: PaperAuditView | null = null;
+  if (read.status === "done" && read.profile === "shipping_document") {
+    const audit = await auditWithChecks(admin, orgId, readId, read.result, evidence);
+    if (isReaderError(audit)) return audit;
+    paperAudit = audit;
+  }
   return {
     id: read.id,
     ...targetIds(target),
@@ -187,7 +195,7 @@ export async function getRead(admin: SupabaseClient, orgId: string, readId: stri
     failureCode: read.failure_code,
     result: read.result,
     evidence,
-    paperAudit: read.status === "done" && read.profile === "shipping_document" ? auditForRead(read.result, evidence) : null,
+    paperAudit,
     pages: pages.map((p) => ({
       page: p.position,
       pageClass: classOf.get(p.id) ?? null,
@@ -216,19 +224,42 @@ export function reviewEntryProblem(result: unknown, entry: ReviewBatchRequest["r
   return null;
 }
 
-/** Record one review batch (one Calculate press, plan §6) against a finished read. All or nothing. */
+type ReviewRow = { field_path: string; action: string; old_value: unknown; new_value: unknown; explicit: boolean; consumer: string };
+
+/**
+ * The paper audit of a finished read with every field a person checked against the page taken as the paper's
+ * value (Q-RC5, `personChecks`): their `paper_check` reviews of this read (0509), oldest first so the latest stands.
+ */
+async function auditWithChecks(
+  admin: SupabaseClient, orgId: string, readId: string, result: unknown, evidence: FieldEvidence[], recorded: readonly ReviewRow[] = [],
+): Promise<PaperAuditView | null | ReaderError> {
+  const { data, error } = await admin
+    .from("document_read_reviews")
+    .select("field_path, action, old_value, new_value, explicit, consumer")
+    .eq("org_id", orgId).eq("read_id", readId).eq("consumer", "paper_check")
+    .order("created_at", { ascending: true });
+  if (error) return fail("query_failed", error.message);
+  // The batch just recorded comes last whether or not the read already sees it: the latest check stands either way.
+  return auditForRead(result, evidence, personChecks([...((data ?? []) as ReviewRow[]), ...recorded]));
+}
+
+/**
+ * Record one review batch against a finished read — a Calculate press (plan §6), or one field a person checked
+ * against the page as they did it (Q-RC5). All or nothing. Answers with the paper audit as it now stands, so the
+ * screen shows the check's effect without reading the BOL again.
+ */
 export async function recordReviews(
   admin: SupabaseClient,
   orgId: string,
   userId: string,
   readId: string,
   batch: ReviewBatchRequest,
-): Promise<{ recorded: number } | ReaderError> {
+): Promise<{ recorded: number; paperAudit: PaperAuditView | null } | ReaderError> {
   const { data, error } = await admin
-    .from("document_reads").select("id, status, result").eq("org_id", orgId).eq("id", readId).maybeSingle();
+    .from("document_reads").select("id, status, profile, result, evidence").eq("org_id", orgId).eq("id", readId).maybeSingle();
   if (error) return fail("query_failed", error.message);
   if (!data) return fail("not_found", "That read is not in this organization.");
-  const read = data as { status: string; result: unknown };
+  const read = data as { status: string; profile: string; result: unknown; evidence: unknown };
   if (read.status !== "done") return fail("not_reviewable", "Only a finished read can be reviewed.");
 
   const problems = batch.reviews.map((r) => reviewEntryProblem(read.result, r)).filter((p): p is string => p !== null);
@@ -247,5 +278,8 @@ export async function recordReviews(
   }));
   const { error: iErr } = await admin.from("document_read_reviews").insert(rows);
   if (iErr) return fail("insert_failed", iErr.message);
-  return { recorded: rows.length };
+  if (read.profile !== "shipping_document") return { recorded: rows.length, paperAudit: null };
+  const audit = await auditWithChecks(admin, orgId, readId, read.result, fieldEvidenceSchema.array().parse(read.evidence ?? []), rows);
+  // The reviews are recorded; an audit that could not be re-read is said as none, never as a failed review.
+  return { recorded: rows.length, paperAudit: isReaderError(audit) ? null : audit };
 }

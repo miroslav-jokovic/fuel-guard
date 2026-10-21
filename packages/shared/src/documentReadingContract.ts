@@ -402,7 +402,8 @@ export const reviewBatchRequestSchema = z.object({
   reviews: z.array(reviewEntrySchema).min(1).max(500),
 });
 export type ReviewBatchRequest = z.infer<typeof reviewBatchRequestSchema>;
-export const reviewBatchResponseSchema = z.object({ recorded: z.number().int().min(1) });
+/** What was recorded, and the paper audit as it now stands, a person's checks taken as the paper's values (Q-RC5). */
+export const reviewBatchResponseSchema = z.object({ recorded: z.number().int().min(1), paperAudit: paperAuditSchema.nullable() });
 
 // ── corpus labels (Step 0.3) ───────────────────────────────────────────────────────────────────────
 export const labelledPageSchema = z.object({

@@ -91,6 +91,26 @@ const numOrNull = (s: string): number | null => {
   return Number.isFinite(n) ? n : null;
 };
 
+/**
+ * What a person's act on a filled field says the PAGE prints, as a review path and value (Q-RC5) — recorded as the
+ * act is made, so the paper audit takes it: the product's UN/NA number, the package count, the gross weight in
+ * pounds. Null for the package type and Limited Quantity, which the form holds as the calculator's reading of the
+ * print, not the print (see the header), and for a field the form holds nothing in.
+ */
+export function pageValueOf(prefill: PrefillLine, current: CalcLineForm, key: PrefillKey): { path: string; value: string | number } | null {
+  const p = (k: string) => `hazmat.lines[${prefill.index}].${k}`;
+  if (key === "product") return current.product ? { path: p("idText"), value: current.product.idLabel } : null;
+  if (key === "packageCount") {
+    const n = numOrNull(current.packageCount);
+    return n === null ? null : { path: p("packageCount"), value: n };
+  }
+  if (key === "grossWeight") {
+    const lb = weightToLb(numOrNull(current.grossWeightValue), current.grossWeightUnit);
+    return lb === null ? null : { path: p("grossWeightLb"), value: lb };
+  }
+  return null;
+}
+
 /** One review batch for one Calculate press: every recordable path of every filled line still on the form. */
 export function reviewEntries(result: unknown, lines: readonly FilledLine[], acted: Acted): Array<ReviewEntry> {
   const out: ReviewEntry[] = [];
@@ -111,7 +131,10 @@ export function reviewEntries(result: unknown, lines: readonly FilledLine[], act
         // The read's own product: pass A's text stands for itself — unless pass A wrote nothing there (a line
         // only pass B saw), which the calculation then corrected. A product the person chose: the printed
         // text is confirmed where the choice prints the same, corrected where it does not.
-        record(p(k), v, (old) => (sameProduct && prefill.form.product !== null && old !== null) || norm(old) === norm(v), "product");
+        // …but never the number: a product filled from pass B's reading (RC3, UN3264 where pass A read UN3254) is not
+        // a confirmation of pass A's number — the review would label the misread as right (Q-RC5, found building it).
+        const keepsA = k !== "idText" && sameProduct && prefill.form.product !== null;
+        record(p(k), v, (old) => (keepsA && old !== null) || norm(old) === norm(v), "product");
       }
     }
     if (current.packageType !== "bulk_cargo" && !isVehiclePackaging(current.packageType)) {
