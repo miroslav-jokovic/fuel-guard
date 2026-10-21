@@ -9,6 +9,7 @@ import {
   packagingKindFor,
   paperAuditSchema,
   readersAgree,
+  settledReading,
   valuesAgree,
   rowWitnessesBack,
   ROW_WITNESS_READERS,
@@ -56,6 +57,14 @@ export function auditForRead(result: unknown, evidence: readonly FieldEvidence[]
   // R-M3: a certification one reader read as present, the other left blank and the page's own words back is
   // present for the audit — on the document it judges too, since pass A may be the reader that abstained.
   if (evidence.some(certificationWitnessed)) parsed.data.hazmat.shipperCertification = true;
+  // Q-RC7: a UN/NA number the readers split on that the page settles (idWitness.ts) — and its description with it —
+  // is judged as the settled reading, which may be pass B's: the row the rules read must be the one the paper prints.
+  // A line only pass B saw is not in pass A's document, so it has nothing to settle there.
+  for (const e of evidence) {
+    const v = settledReading(e);
+    const line = Number(/^hazmat\.lines\[(\d+)\]/.exec(e.path)?.[1] ?? -1);
+    if (v !== undefined && line >= 0 && line < parsed.data.hazmat.lines.length) setAt(parsed.data, e.path, v);
+  }
   const asRead = auditOf(parsed.data, evidence);
   const other = extentReadings(evidence);
   if (other.length === 0) return asRead;
@@ -179,6 +188,7 @@ function certificationWitnessed(e: FieldEvidence): boolean {
 
 function confirmedForAudit(e: FieldEvidence): boolean {
   if (certificationWitnessed(e)) return true;
+  if (settledReading(e) !== undefined) return true;
   if (readersAgreeForAudit(e) !== true) return false;
   return rowWitnessesBack(e) !== false && arithmeticBacks(e) !== false;
 }

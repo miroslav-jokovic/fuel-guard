@@ -4,6 +4,7 @@ import { arithmeticWitness } from "./arithmeticWitness.js";
 import { certificationShown } from "./certificationWitness.js";
 import { hazmatMarks } from "./hazmatMarkWitness.js";
 import { HMT_JUDGED_KEYS, hmtVerdict, type HmtVerdict } from "./hmtWitness.js";
+import { settledDescription, settledId, type SettledId } from "./idWitness.js";
 import { anchorOf, classTokens, ROW_JUDGED_KEYS, rowBacks, rowCanJudge, rowOf, type OcrPage, type Row } from "./rowWitness.js";
 
 /**
@@ -20,6 +21,9 @@ import { anchorOf, classTokens, ROW_JUDGED_KEYS, rowBacks, rowCanJudge, rowOf, t
  *           (engine off, failed, or a cache replay of a read made without it) or the row is ambiguous.
  *   textLayer a born-digital PDF's own characters on the same row, by the same rules (A4,
  *           textLayerWitness.ts). Absent unless every read page carries a text layer.
+ *   ocr / textLayer on a line's idText and descriptionText, only where the readers split on its UN/NA number: the
+ *           reading the page settles — the table fits it and not the other, and the line's own printed row shows
+ *           it (idWitness.ts, Q-RC7). Nothing otherwise: these witnesses never say an identifying reading is wrong.
  *   arithmetic the paper's own totals, on every row's count and weight (Q-DR26 L3, arithmeticWitness.ts):
  *           the reading the totals back, or null where no reading of the rows fits them. Absent where the
  *           totals cannot tell (two readings both fit; a total in dispute; no total printed).
@@ -93,6 +97,17 @@ export function shippingEvidence(
   };
   // Each row witness in the order its source is recorded: the OCR engine (A5), then the text layer (A4).
   const rowWitnesses = [["ocr", rowsOver(ocr)], ["textLayer", rowsOver(textLayer)]] as const;
+  // The UN/NA number the page settles on a paired line the readers split on (Q-RC7), per witness.
+  const settled = new Map<string, SettledId | null>();
+  const settledAt = (reader: "ocr" | "textLayer", pages: readonly OcrPage[] | null, i: number): SettledId | null => {
+    const key = `${reader}@${i}`;
+    if (!settled.has(key)) {
+      const b = i < aLines.length ? aligned[i] : null;
+      const others = allLines.filter((_, k) => k !== i).map((l) => l.idText);
+      settled.set(key, b ? settledId(pages, lineAt(i), b, verdictOf(i, lineAt(i)), others, Math.min(i, others.length)) : null);
+    }
+    return settled.get(key)!;
+  };
 
   // The totals witness needs whole documents; a caller passing only the hazmat section gets none.
   const sums = a.freight && a.otherLines && (bAtA === null || (bAtA.freight && bAtA.otherLines))
@@ -117,6 +132,15 @@ export function shippingEvidence(
       for (const [reader, rowAt] of rowCanJudge([av, bv], unprovable) ? rowWitnesses : []) {
         const row = rowAt(i);
         if (row) sources.push({ reader, page: row.page, bbox: row.bbox, value: rowBacks(row, [av, bv], unprovable) as never });
+      }
+    }
+    if (m && (m[2] === "idText" || m[2] === "descriptionText") && av != null && bv != null && !valuesAgree(av, bv)) {
+      const i = Number(m[1]);
+      for (const [reader, pages] of [["ocr", ocr], ["textLayer", textLayer]] as const) {
+        const s = settledAt(reader, pages, i);
+        if (!s) continue;
+        const value = m[2] === "idText" ? s.value : settledDescription(s, av as string, bv as string, String(lineAt(i).idText), String(aligned[i]!.idText));
+        if (value != null) sources.push({ reader, page: s.row.page, bbox: s.row.bbox, value });
       }
     }
     if (sums.has(path)) sources.push({ reader: "arithmetic", page: null, bbox: null, value: sums.get(path)! });
