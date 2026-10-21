@@ -40,6 +40,7 @@ interruption risk is Railway's and real; the database (Supabase) is not where ei
 | **D-RLY9** | The app tier leaves Railway only after D-RLY1–8 are live and measured, to AWS (ECS Fargate in us-west-2, one NAT gateway with ONE Elastic IP for WEX), keeping Supabase. Estimated $100–150/mo. **Lead item: WEX must allowlist the new IP** — ask before any build. | Railway's May outage took every workload down for ~8 h and its control plane is coupled (one failure cascades). Supabase is unaffected by Railway outages and is not part of this move. |
 | **D-RLY10** | Roadside summary: the reads that need nothing from each other start together (the report read with the first wave; certifications with the roster; the FMCSA feed with the statistics), each table's hundred-id chunks run three at a time (`lib/mapPool.ts`, moved out of `hereGeocode.ts`), and the inbox reads repairs for **its window's inspections only** (`readRepairsDue(…, { only })`). **No cache.** | The time was round trips (§1). A cache keyed on the latest FMCSA fetch would be wrong after every person's decision on the page — an attribution, a repair, a filed paper, a certification all move the card's Next step — so it would need invalidation from every writer in `inspections`, a second source of truth with a delay fuse. Parallel reads give the same answer as before by construction. |
 | **D-RLY12** | McLeod sync: the relink pass (LOADS-ACTIVITY-PLAN D-LA3) leaves `POST /api/tms/dispatch-movements` and runs as `mcleod-relink` in the `general` lane every 10 min, over every company the org's raw rows hold (`mcleod/relinkScheduler.ts`). **No set-based UPDATE RPC, no migration.** | Measured 2026-10-21: the agent posts ~1.1 movements per call (2,143 load UPDATEs over ~1,930 calls, `pg_stat_statements`), so a set-based UPDATE would save nothing. Each call instead re-read 60 days of codes (1,025 movements), the roster and those loads' links in 200-id chunks one after another — and relinked nothing almost every time. A stale link appears when the roster changes, not when a movement arrives. Cost: a newly matched driver's closed loads are relinked within 10 min instead of on the next sync. |
+| **D-RLY13** | The app tier stays on Railway for now; RLY13 (AWS) is deferred and WEX is not asked for a new address until a move is decided (owner, 2026-10-21, answering Q-RLY2). | Railway's outages this week stopped builds and deploys, never the running app; D-RLY1–8 make the Railway setup reliable and carry over unchanged if a move comes. WEX can add an address later, beside the approved Railway ones. |
 | **D-RLY11** | **RLY10 dropped.** The compliance overview is not cached beyond the board's existing 60 s credentials cache (D-RLY4). | It was never in §1's slow list. The page shows evidence a person has just filed; a shared cache would show the page without it. Re-open only with a measurement. |
 
 ## 3. Topology
@@ -75,7 +76,7 @@ nothing on staging because EFS is off there.
 | RLY10 | Compliance overview cache | **dropped** (D-RLY11) |
 | RLY11 | McLeod sync: relink out of the request (D-RLY12); the planned set-based UPDATE dropped on measurement | wave 2 PR |
 | RLY12 | Shared rate-limit store, only if per-replica limits prove too loose | not planned |
-| RLY13 | App tier to AWS (D-RLY9) | **Q-RLY2** (WEX) first |
+| RLY13 | App tier to AWS (D-RLY9) | **Deferred** (D-RLY13); WEX is asked only when a move is decided |
 
 ## 5. Runbooks
 
@@ -113,9 +114,10 @@ nothing on staging because EFS is off there.
   one HTTP monitor on `https://fleetguardapi-production.up.railway.app/api/version/ready` (expect 200),
   one on the web host's `/`, alerting the owner by call + SMS. The owner creates the account (I cannot);
   the endpoint is ready.
-- **Q-RLY2 — ask WEX now about a new outbound IP for the AWS move?** Recommendation: yes, now; the ask
-  is "one more address to allowlist, then we remove the three Railway ones", and nothing else in D-RLY9
-  should start until WEX answers.
+- **Q-RLY2 — ask WEX now about a new outbound IP for the AWS move?** **ANSWERED 2026-10-21: no, not
+  now.** The owner ruled the app tier stays on Railway for now (D-RLY13), so nothing changes with WEX;
+  an address is added when a move is actually decided. The ask, when it comes, stays "one more address
+  beside the Railway ones", so both work through a cut-over.
 - **Q-RLY3 — point-in-time recovery.** Still off (RELEASE-TRAIN-PLAN Q-REL7): a bad release can only be
   restored to that morning's backup (~21 h of writes). ~$100/mo on Supabase. Recommendation: turn it on
   before the driver app is relied on.
@@ -143,3 +145,5 @@ nothing on staging because EFS is off there.
   slowest route (slow in 21 of 44 minutes, median 1.6 s, max 6.0 s) — RLY11 next. Then RLY11 (D-RLY12): measured ~1.1 movements per sync call, so the set-based UPDATE was dropped
   and the relink pass moved to the `mcleod-relink` scheduler. Mutations killed: integrations read without
   the token filter → the visit test fails; a failing org stopping the pass → the carry-on test fails.
+- **2026-10-21** — Owner ruled on Q-RLY2: no AWS move for now and no change with WEX (D-RLY13); RLY13
+  deferred. Railway builds still paused, so staging and RLY6 still wait.
