@@ -710,6 +710,65 @@ around them.
   they do not, accepting the one disagreement. Recommendation: (b), after UF5, when the compliance fleet
   table is next touched — one vocabulary for "what state is this file in" across the four lists.
 
+The owner looked at the Files column after the McLeod import (2026-10-21) and asked for three things:
+newest papers first and visible, no "Missing" button in the cell, and "+N" opening a gallery of ALL
+the unit's papers. Measured on production the same day (org `86d6b3ea…`, 1,459 unit originals: 1,359
+imported, 100 filed in the app).
+
+- **Q-UF10: what "newest" means in the cell.** OPEN.
+  *Found:* the cell (`paperThumbs.ts`) and the gallery (`FileGallery.vue`) both sort by `created_at`,
+  the moment the row was written — so all 1,359 imported papers are "filed 10/20/2026" and the hover card
+  says so. The paper's own date is `captured_at` (McLeod's `comments.entered_date` for an import, the
+  scan date for an app upload); it is set on every unit original (0 nulls). Within one import run the two
+  orders agree (the import walked McLeod's dates in order), so the damage is where app uploads and
+  imports mix: **27 trucks and 3 trailers draw a different three papers**, and 64 units a different
+  order. Truck 697: its 07/27/2026 annual, uploaded 10/06, sits behind "+2" while 2021–2024 cab cards
+  imported later take the three slots.
+  *Candidates:* (a) newest by the paper's own date, `captured_at ?? created_at`, in the cell, the gallery
+  and the hover card ("Dated 02/23/2026", with "filed by …" only for an app upload); (b) the paper each
+  catalogue item currently reads first (newest cab card, newest annual, …), then the rest by date —
+  truck 556 would show its 2026 cab card and its annual instead of three years of cab cards;
+  (c) leave `created_at`. *Recommendation:* (a) — it is what was asked, and one ordering function in
+  `packages/shared` read by the cell, the gallery and the unit page, so they cannot disagree again. (b)
+  is better once certifications exist (it needs the item → paper link, which imports do not have yet —
+  see Q-UF13); revisit then.
+
+- **Q-UF11: the "Missing" chip in the cell.** OPEN.
+  *Found:* the chip is the coloured button left of the thumbnails (`FileCell.vue`, `file-chip`); a click
+  sets `?file=` on the list. Today it says **"2 missing" on all 212 trucks with papers** (IFTA and
+  insurance — fleet papers not yet filed on the organization) and "N missing" on all 187 trailers with
+  papers; the other 75 units say "Not started". A word that is the same on every row tells the reader
+  nothing, and it is wrong for a second reason (Q-UF13).
+  *Candidates:* (a) drop the chip from the cell; the toolbar's File filter (Q-UF9) keeps every word and
+  stays the way to list "expired" or "missing"; (b) keep it only for *Expired* and *Expiring*, the two
+  that differ row to row; (c) keep it. *Recommendation:* (a), as asked. The filter is untouched — it reads
+  `fileChip` in shared, not the cell — and the unit page's File section still shows each item's state.
+  To confirm with the owner: this chip is the "Missing" meant (not the unit page's item states).
+
+- **Q-UF12: "+N" must show all the papers.** OPEN.
+  *Found:* the gallery does list every original the reader may see (one read, no paging; the largest unit
+  has 8). What it does not do is look like a gallery: it is the document viewer showing ONE paper with
+  ‹ 1 of 6 ›, and "+N" opens it on paper 1 — the first thumbnail the cell already drew — so the papers
+  "+N" counted are three arrow presses away and nothing on screen says they exist.
+  *Candidates:* (a) a strip of every paper's thumbnail across the viewer (in `DocumentPreview`'s slot,
+  the viewer itself unchanged), newest first by Q-UF10's order, the current one ringed, a click opens it;
+  "+N" opens on the first paper the cell did NOT draw; (b) a separate grid dialog that opens the viewer
+  on a click — a second dialog over the first, which design contract §6.2 refuses; (c) "+N" goes to the
+  unit page's File section. *Recommendation:* (a) — it reuses the sanctioned viewer and its print path,
+  and the strip is the gallery the owner described.
+
+- **Q-UF13: a paper on file does not count for its item** (found measuring Q-UF11). OPEN.
+  *Found:* an item reads `missing` unless a certification cites a paper. The import wrote none (Q-UF2), so
+  **449 items read "missing" although a paper of that kind is on the unit** (125 truck, 324 trailer —
+  every trailer's Registration among them), and 350 more say "Date only, no paper" while the paper is
+  right there in the cell. The words now contradict the thumbnails.
+  *Candidates:* (a) a new item state, *Paper on file, date not recorded*, when an original of an accepted
+  kind is on the unit and no certification cites it — counted apart from missing, its own filter word,
+  and the job list for the office (record the date against the paper); (b) let UF7b2's reader propose
+  the dates for the 1,359 imported papers and a person accept them through the UF7c review page, which
+  writes the certifications; (c) both — (a) now so the file tells the truth, (b) to clear it.
+  *Recommendation:* (c). Q-UF2's rule stands: no date is written without a person accepting it.
+
 ---
 
 ## 8. Progress log
@@ -997,3 +1056,12 @@ around them.
     the script now registers its job handlers (its first `--apply` failed on that, writing nothing).
     Pilot of 3 applied and looked at: one 14 KB WebP per paper, the report's page 1. The remaining 98
     were refused by the agent's permission guard as a production deploy — the owner runs them.
+- 2026-10-20 — **Thumbnail backfill RUN on production by the owner** (`doc:derive-backfill --apply`):
+  every unit original has its 320 px thumb (1,461), 0 owed.
+- 2026-10-20 — **McLeod import RUN on production by the owner** (#1684): 1,359 papers filed on 435 units
+  (trucks 726 IRP / 15 registration / 168 annual; trailers 234 registration / 2 IRP / 214 annual),
+  0 failures, each re-hashed against the manifest and checked against the unit's McLeod id, one
+  `compliance.document_imported` audit row per paper. 6 held (name says another unit), 459 skipped on
+  units we do not hold. Titles not imported (owner: "Registrations and Annuals for now").
+- 2026-10-21 — **Owner's look at the Files column after the import: Q-UF10–Q-UF12 opened**, measured on
+  production; Q-UF13 found while measuring. Proposals in §7; nothing built until the owner answers.
