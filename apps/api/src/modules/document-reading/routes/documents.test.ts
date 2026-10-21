@@ -263,7 +263,7 @@ describe("POST /reads/:id/reviews", () => {
     await withServer(async (base) => {
       const res = await post(`${base}/reads/${READ}/reviews`, batch);
       expect(res.status).toBe(201);
-      expect(await res.json()).toEqual({ recorded: 2 });
+      expect(await res.json()).toEqual({ recorded: 2, paperAudit: null });
     });
     expect(auditActions()).toEqual([expect.objectContaining({ action: "document.read_reviewed", meta: { consumer: "hazmat_calculator", corrected: 1, confirmed: 1 } })]);
     expectOrgScoped(rec, ORG);

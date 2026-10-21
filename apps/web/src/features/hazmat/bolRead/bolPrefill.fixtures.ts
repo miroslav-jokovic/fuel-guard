@@ -22,7 +22,7 @@ export const PAINT: Line = {
 export const DIESEL_REF = "NA1993-diesel-fuel#III";
 export const PAINT_REF = "UN1263-paint#II";
 export const product = (hmtRef: string): HazmatProduct => ({
-  hmtRef, entryId: hmtRef.split("#")[0]!, idPrefix: "UN", idNumber: "0000", idLabel: hmtRef, psn: hmtRef, hazardClass: "3",
+  hmtRef, entryId: hmtRef.split("#")[0]!, idPrefix: "UN", idNumber: "0000", idLabel: hmtRef.split("-")[0]!, psn: hmtRef, hazardClass: "3",
   subsidiaryClasses: [], pg: "II", symbols: [], label: hmtRef, isFuelCommon: false, isMarinePollutant: false, marinePollutantSevere: null,
 });
 export const PRODUCTS = [product(DIESEL_REF), product(PAINT_REF)];

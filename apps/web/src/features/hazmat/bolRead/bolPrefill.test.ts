@@ -34,7 +34,7 @@ describe("bolPrefill", () => {
     const p = bolPrefill(misread, PRODUCTS, "van")!;
     expect(p.lines[0]!.form.product).toMatchObject({ hmtRef: PAINT_REF });
     expect(p.lines[0]!.fields.product.reason).toBe(
-      `The two readers read the number as UN1236 and UN1263; only ${PAINT_REF} fits the printed name and class in the Hazardous Materials Table, so it is filled in. Check the number on the page.`);
+      `The two readers read the number as UN1236 and UN1263; only UN1263 fits the printed name and class in the Hazardous Materials Table, so it is filled in. Check the number on the page.`);
     const view = bolLineView(p.lines[0]!, p.lines[0]!.form);
     expect(view.fields.product).toMatchObject({ pending: true, confirmable: true, tone: "warning" });
   });
@@ -43,7 +43,7 @@ describe("bolPrefill", () => {
     const misread = read([{ a: { ...PAINT, idText: "UN1236" }, b: PAINT, table: { consistent: false, reason: "psn_no_match", passB: ok(PAINT_REF) } }]);
     const id = misread.evidence.find((e) => e.path === "hazmat.lines[0].idText")!;
     id.sources.push({ reader: "ocr", page: 1, bbox: null, value: "UN1263" });
-    const paint = { ...product(PAINT_REF), idLabel: "UN1263" };
+    const paint = product(PAINT_REF);
     const p = bolPrefill(misread, [paint], "van")!;
     expect(p.lines[0]!.fields.product.reason).toBe(
       "The two readers read the number as UN1236 and UN1263; the page scan shows UN1263 on this line, and only it fits the printed name and class in the Hazardous Materials Table. Check the number on the page.");
