@@ -63,5 +63,7 @@ export {
 } from "./financialReads.js";
 /** McLeod's open accounting period (0502, D-TP5) — whether a staged month can still move. */
 export { readLedgerClose } from "./glControl.js";
+/** Every McLeod tractor's service dates and owner (0510) — the per-truck spread's truck-day census. */
+export { readTractorPeriods } from "./tractorPeriods.js";
 /** McLeod's hand-keyed IFTA fuel receipts (0434) — the ifta module's door onto them. */
 export { readFuelTaxReceipts, type FuelTaxReceipt } from "./fuelTaxReceipts.js";

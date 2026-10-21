@@ -47,6 +47,12 @@
 -- databases. The new statement "OPEN ACCOUNTING PERIOD" reads one row from them so the reports
 -- can tell a month the accountant has closed from one still being posted. No amounts and no
 -- personal data. Four lines, marked below in Part 2 and Part 3.
+--
+-- 2026-10-21 - WAITING TO BE RUN: one table, tractor, on lme_analytics only (LME already has it
+-- for the truck list). The new finance statement "TRUCK SERVICE DATES AND OWNERS" reads each
+-- truck's in-service and out-of-service date and owner, so a month's lease and insurance can be
+-- shared over the days each truck was in service. No personal data. One line, marked below in
+-- Part 2.
 -- ========================================================================================
 
 
@@ -78,6 +84,9 @@ GO
 GRANT SELECT ON dbo.gl_ledger        TO silvicom_dispatch_ro;
 GRANT SELECT ON dbo.gl_ledger_hist   TO silvicom_dispatch_ro;
 GRANT SELECT ON dbo.gl_account       TO silvicom_dispatch_ro;
+
+-- Added 2026-10-21, waiting to be run: the truck service dates for the per-truck P&L.
+GRANT SELECT ON dbo.tractor          TO silvicom_dispatch_ro;
 GRANT SELECT ON dbo.billing_history  TO silvicom_dispatch_ro;
 GRANT SELECT ON dbo.drs_settle_hist  TO silvicom_dispatch_ro;
 GRANT SELECT ON dbo.drs_deduct_hist  TO silvicom_dispatch_ro;

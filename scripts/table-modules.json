@@ -2026,6 +2026,17 @@
         "why": "budget derived from lme_analytics 2026-10-21: July 2026 is 15,183 (module, key, account) rows across BILL, SET, SETV and FUEL (~490/day), x3 headroom. Re-sweeping a month replaces it in place, so the rolling window adds no rows. RETENTION_FORBIDDEN (books, 2026-10-05) \u2014 retention_days null."
       }
     },
+    "mcleod_tractor_periods": {
+      "module": "mcleod",
+      "layer": "raw",
+      "lifecycle": {
+        "growth": "fleet",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "bounded by the carrier's tractors, not by elapsed time: one row per McLeod tractor (707 on lme_analytics 2026-10-21, sold trucks and reserved unit numbers included), replaced in place by every financial sweep (0569). A sold truck's row stays: it is the census of the months it was in service."
+      }
+    },
     "mcleod_gl_totals": {
       "module": "mcleod",
       "layer": "raw",

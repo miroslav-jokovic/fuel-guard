@@ -107,6 +107,11 @@ const PARTS = [
         "One row: the period McLeod is posting into, and whether earlier periods are locked. Tells us which months are final.",
         Q.GL_CONTROL,
       ],
+      [
+        "TRUCK SERVICE DATES AND OWNERS",
+        "Every truck's in-service and out-of-service date and who owns it, so a month's lease is shared over the days each truck was in service.",
+        Q.TRACTOR_PERIODS,
+      ],
       ["GENERAL LEDGER TOTALS BY DAY AND ACCOUNT", "", Q.GL_CONTROL_TOTALS],
       ["OFFICE PAYROLL LINES", "", Q.OFFICE_SETTLEMENT_LINES],
       [

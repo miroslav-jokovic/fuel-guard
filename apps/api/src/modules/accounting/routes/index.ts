@@ -12,6 +12,7 @@ import {
   getMonthCloses,
   getIncomeStatement,
   getMileageCoverage,
+  getTruckDays,
   getFleetReport,
   getFleetTrend,
   getBillingActivity,
@@ -267,6 +268,28 @@ export function accountingRouter(): Router {
       const admin = getSupabaseAdmin(getAppLocals(req).env);
       const coverage = await getMileageCoverage(admin, req.auth!.orgId!, parsed.data.from, parsed.data.to);
       res.json({ ok: true, ...coverage });
+    }),
+  );
+
+  /**
+   * The truck-day census (TRUCK-DRIVER-PNL-PLAN P2): every truck's days in service in the window, from
+   * McLeod's own service dates, split by whose truck it is. The basis the per-truck P&L spreads lease,
+   * insurance and GPS over — printed beside it (D-TP3: no spread basis the page does not print), and
+   * readable on its own so the census can be checked against the fleet the office knows.
+   */
+  router.get(
+    "/truck-days",
+    requireOrg,
+    canView,
+    asyncHandler(async (req, res) => {
+      const parsed = windowSchema.safeParse(req.query);
+      if (!parsed.success) {
+        res.status(400).json(apiError("bad_request", "Provide ?from=YYYY-MM-DD&to=YYYY-MM-DD."));
+        return;
+      }
+      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      const census = await getTruckDays(admin, req.auth!.orgId!, parsed.data.from, parsed.data.to);
+      res.json({ ok: true, ...census });
     }),
   );
 

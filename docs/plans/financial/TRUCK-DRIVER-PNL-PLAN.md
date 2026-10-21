@@ -316,6 +316,16 @@ per-driver P&L on the recommended answer to every question below, Q-TP1 through 
   counted twice. Built as D2c: a credit takes back a load and its miles (`billLoads`, `billMiles`),
   signed per bill like its revenue rather than counted once per order, because a credit and the
   invoice it reverses can fall in different months.
+- **Q-TP12 (blocks P3's lease and insurance spread)** — Are Scorpio Logistics' trucks owner-operator
+  trucks? Nine in-service trucks carry `tractor.pay_owner = 'B'`, all owned by Scorpio Logistics Inc
+  (`SCORELIL`); 186 carry `D` (Silvicom's own) and 7 `O` (each contractor's own). The books treat
+  Scorpio as a contractor fleet: no AP voucher to Scorpio in 2026; July's Scorpio fuel went through
+  the owner-operator fuel asset (`17000000`) and back through DRS; its pay through the
+  owner-operator payable (`20500020`, $111,234.86 in July). Five of the nine were also driven on
+  company-driver settlements in July ($26,741.39). (a) Owner-operator: they carry office overhead per
+  mile, never lease or insurance. (b) Carrier: they share the lease and insurance like Silvicom's own.
+  *Recommended: (a), as `truckDays.ts` reads it today. If the carrier pays Scorpio for the trucks
+  through a channel the sweep does not see, (b), and `B` moves out of the owner-operator set.*
 
 ---
 
@@ -364,3 +374,12 @@ per-driver P&L on the recommended answer to every question below, Q-TP1 through 
   account of each posting kept), then **P0c-b** the sweep, the ingest and the per-key ties for BILL,
   SET and SETV. FUEL's per-key tie needs McLeod's `fuel_detail` staged (collector step C1); until
   then the fuel tie stays the account-level F12.
+- 2026-10-21 · P2 built: `0569` `mcleod_tractor_periods` (written as 0510; renumbered 2026-11-04 because main had used 0510) stages every McLeod tractor's service
+  dates and owner on each financial sweep (707 rows, 159 KB), and `truckDays` counts each truck's
+  days in service per window, carrier and owner-operator apart, with reserved unit numbers (49) and
+  undated tractors (1) counted out. On the sandbox the census holds 160 / 180 / 193 / 193 trucks for
+  May–August 2026, matching a direct SQL count, and every truck that worked in those months is
+  inside it except one unit a month with no tractor row. July: 5,605 truck-days, 5,109 carrier and
+  496 owner-operator. Owner-operator includes Scorpio's `B` trucks pending Q-TP12. Readable at
+  `GET /api/accounting/truck-days`. The analytics copy needs `tractor` granted (one line in
+  SILVICOM-GRANTS.sql, waiting on Alex with the rest of Q-TP10).
