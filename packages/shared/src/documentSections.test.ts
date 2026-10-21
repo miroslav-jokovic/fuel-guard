@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
-import { DOCUMENT_PROFILES, mergeSections, sectionSchema, sectionsOwning, type DocumentProfile } from "./documentReadingContract.js";
+import { DOCUMENT_PROFILES, type DocumentProfile } from "./documentReadingContract.js";
+import { mergeSections, sectionSchema, sectionsOwning } from "./documentSections.js";
 import { leafFieldPaths } from "./fieldEvidenceContract.js";
 import { shippingDocumentSchema, type ShippingDocument } from "./shippingDocumentContract.js";
 

@@ -1084,4 +1084,24 @@ imported, 100 filed in the app).
   truck IFTA) — fleet papers that one organization filing each covers (D-UF6). Until those two are filed
   every unit reads *missing*. Filing them is the owner's/office's job, not a code change; the unit page
   shows the not-dated rows either way.
+- 2026-10-21 — **UF7b2 built** (`claude/uf7b2-compliance-paper-profile`, migration **0508**). The reader's third
+  profile, `compliance_paper`: `packages/shared/src/compliancePaperContract.ts` (`{ papers: [{ pageFrom, pageTo,
+  kind, title, issuer, unitNumbers, vins, plates[{number, state}], driverName, licenseNumber, issuedOn,
+  expiresOn }] }`), `READ_PROMPTS`, `EVIDENCE_FOR`, a `gatesFor` entry (`compliancePaperReadGate`, switch
+  `FILE_PAPER_READING`, on), and 0508's CHECK word. `DocumentProfile.readers: 1` is honoured by `executeRead`:
+  one request to `DOC_FILE_READ_MODEL` (default `claude-sonnet-5-5`), no pass B, and the read records that one
+  model, so its cache key can never collide with a two-reader read.
+  - **Changed from the plan:** `kind` is our catalogue's word (`COMPLIANCE_DOCUMENT_KINDS`), the one value
+    that is not printed — `title` carries the paper's own heading as the evidence for it. `insuredUnits` was
+    folded into `unitNumbers` / `vins` (the matcher already answers several units, D-UF6). `cdlNumber` is
+    `licenseNumber`, as the roadside report spells it. No date of birth, address, SSN or medical finding is
+    read.
+  - **Evidence:** the roadside report's positional rule was lifted into `evidence/positionalEvidence.ts`
+    rather than copied; with one reader an empty field is `not_read`. The OCR witness is asked about VINs,
+    plates, unit numbers, the licence number and the expiry; a list of VINs is backed only when the page
+    prints every one.
+  - **Page limit — kept at 10** (`INTAKE_LIMITS.maxPages`; the plan said 20). It is the reader's limit for
+    every profile, and `visionTier.ts` sizes images on it; a 20-page stack is two files, which the UF7c page
+    will say. Revisit with the first month's uploads.
+  - Nothing queues a `compliance_paper` read yet: its first writer is UF7b3's intake route.
 

@@ -27,6 +27,8 @@ export type { FiledDocument, GeneratedDocumentInput } from "./generatedDocuments
 // The certification write, exported so an owner outside this module can file the compliance FACT a
 // document backs — `maintenance` files the §396.17 expiry this way (D-AVI9/D-AVI10).
 export { insertCertification } from "./compliance.js";
+// The `compliance_paper` read's gate (UF7b2), wired by the document_read queue handler.
+export { compliancePaperReadGate } from "./paperReadGate.js";
 // And the §391.51 EVENT beside it, exported at its second owner for the same reason (D1, D-HM6):
 // `recruiting` files the MVR, the Clearinghouse query and the drug test an office performed
 // elsewhere, through this interface rather than by reaching into `qualification_records` — which is

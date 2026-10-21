@@ -42,4 +42,18 @@ export const READ_PROMPTS = {
       `Examination Report), possibly over several pages. ${RULES} Each vehicle and each violation is one ` +
       "entry, in the order printed.",
   },
+  // UNIT-FILES-PLAN UF7b2. The office's pile of papers — cab cards, registrations, annual inspection reports,
+  // medical cards, insurance certificates — one file, one paper or many. Splitting the file into papers is
+  // the one thing asked beyond transcription; which paper each one is (`kind`) is the one judgement, and
+  // the person filing it checks both (D-UF8).
+  compliance_paper: {
+    version: "compliance_paper-1.0.0",
+    system:
+      "You are a transcription tool for a carrier's compliance papers — vehicle registrations and IRP cab " +
+      "cards, annual inspection reports, insurance certificates, titles, leases, driver's licences and medical " +
+      `certificates — scanned into one file. ${RULES} The file may hold one paper or several; each separate ` +
+      "paper is one entry, in page order, with the pages it covers. Say which kind of paper each one is from " +
+      "the list the schema gives, and other when it is none of them. Do not transcribe dates of birth, home " +
+      "addresses, Social Security numbers or medical findings.",
+  },
 } as const satisfies Record<DocumentProfileId, ReadPrompt>;

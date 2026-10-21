@@ -34,6 +34,11 @@ export const documentReadingEnvFields = {
   // scanned sideways; Haiku 5.5, Sonnet 4.6 and Sonnet 5.5 answered all 24. Haiku 5.5 is the cheapest of
   // the three. A deployment may pin another; the verdict row records the model that answered.
   DOC_CLASSIFY_MODEL: z.string().min(1).default("claude-haiku-5-5"),
+  // The ONE reader of a one-reader profile (`readers: 1`, today `compliance_paper` — UNIT-FILES-PLAN UF7b2).
+  // Sonnet 5.5, the stronger of the two pins measured on the office BOLs (§7B.2): with no second model to
+  // disagree, the one model should be the one that matched the paper on every value checked. Its own pin,
+  // so neither the BOL reader's pass A nor pass B moves it.
+  DOC_FILE_READ_MODEL: z.string().min(1).default("claude-sonnet-5-5"),
   // §7B A5 (Q-DR22): the open-source OCR engine as a row-bound witness on each hazmat line's count, weight
   // and quantity (evidence/rowWitness.ts). On by default; "off" is the switch if the engine misbehaves on a
   // host — a read without it is exactly a read before A5. Its ~139 MB of model files are downloaded on first

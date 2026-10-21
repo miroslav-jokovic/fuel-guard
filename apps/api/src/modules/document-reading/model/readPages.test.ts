@@ -199,12 +199,12 @@ describe("READ_MAX_TOKENS — sized from the worst case, not 2,048", () => {
 describe("readModels — pass A locked to Sonnet 4.6 (D-DR20), pass B to Sonnet 5.5 (Q-DR23)", () => {
   const parse = (env: Record<string, string>) => z.object(documentReadingEnvFields).parse(env);
   it("reads with Sonnet 4.6 when nothing is set", () => {
-    expect(readModels(parse({}))).toEqual({ A: "claude-sonnet-4-6", B: "claude-sonnet-5-5" });
+    expect(readModels(parse({}), "shipping_document")).toEqual({ A: "claude-sonnet-4-6", B: "claude-sonnet-5-5" });
   });
   it("a change to the hazmat extractor's pins moves neither reader", () => {
-    expect(readModels(parse({ HAZMAT_MODEL_A: "claude-opus-5-5", HAZMAT_MODEL_B: "claude-haiku-5-5" }))).toEqual({ A: "claude-sonnet-4-6", B: "claude-sonnet-5-5" });
+    expect(readModels(parse({ HAZMAT_MODEL_A: "claude-opus-5-5", HAZMAT_MODEL_B: "claude-haiku-5-5" }), "shipping_document")).toEqual({ A: "claude-sonnet-4-6", B: "claude-sonnet-5-5" });
   });
   it("DOC_READ_MODEL_* still wins, each independently", () => {
-    expect(readModels(parse({ DOC_READ_MODEL_A: "claude-sonnet-5-5", DOC_READ_MODEL_B: "claude-opus-5-5" }))).toEqual({ A: "claude-sonnet-5-5", B: "claude-opus-5-5" });
+    expect(readModels(parse({ DOC_READ_MODEL_A: "claude-sonnet-5-5", DOC_READ_MODEL_B: "claude-opus-5-5" }), "shipping_document")).toEqual({ A: "claude-sonnet-5-5", B: "claude-opus-5-5" });
   });
 });

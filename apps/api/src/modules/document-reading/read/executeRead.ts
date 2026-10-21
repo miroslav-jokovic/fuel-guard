@@ -32,7 +32,8 @@ import { DOCUMENT_BUCKET } from "../storage.js";
  * Since §7B A2 a finished read records evidence: the profile's witnesses over its document
  * (evidence/index.ts — for the shipping document, the Hazardous Materials Table's verdict on each line).
  * Since A3 a second model (pass B, Sonnet 5.5) reads the same pages and its values are recorded beside pass
- * A's, lines matched by key; the read's document is pass A's. Since A5 the OCR engine reads the same pages and
+ * A's, lines matched by key; the read's document is pass A's — unless the profile has ONE reader (`readers: 1`,
+ * UNIT-FILES-PLAN UF7b2), which is read by its own pin alone and reviewed by a person. Since A5 the OCR engine reads the same pages and
  * says which reader's count, weight and quantity is printed on the line's own row; since A4 a born-digital
  * PDF's own text, stored at intake, says the same by the same row rules. What it does NOT do yet, each its own step: the usability gate (`unusable_image`, which needs the shared capture metrics
  * on the page row). Since P2 every page given is classified before the read (classifyPages.ts), and
@@ -56,7 +57,7 @@ export type ReadGateFor = (admin: SupabaseClient, orgId: string, profile: Docume
 export interface ReadDeps {
   client: ModelClient;
   gateFor: ReadGateFor;
-  env: Pick<Env, "DOC_READ_MODEL_A" | "DOC_READ_MODEL_B" | "HAZMAT_MODEL_A" | "HAZMAT_MODEL_B" | "DOC_CLASSIFY_MODEL">;
+  env: Pick<Env, "DOC_READ_MODEL_A" | "DOC_READ_MODEL_B" | "DOC_FILE_READ_MODEL" | "HAZMAT_MODEL_A" | "HAZMAT_MODEL_B" | "DOC_CLASSIFY_MODEL">;
   /** The OCR witness's engine (§7B A5), or absent for none — the composition root's choice (DOC_OCR_WITNESS). */
   ocr?: RecognisePage;
   /** The month the budget is counted in — injectable so a test does not depend on the clock. */
@@ -195,8 +196,8 @@ export async function executeRead(admin: SupabaseClient, orgId: string, readId: 
   await transition(admin, orgId, readId, "reading");
 
   const prompt = READ_PROMPTS[read.profile];
-  const pins = readModels(deps.env);
-  const models = [pins.A, pins.B];
+  const pins = readModels(deps.env, read.profile);
+  const models = pins.B === null ? [pins.A] : [pins.A, pins.B];
   const versions: Versions = { models, promptVersion: prompt.version, schemaHash: profileSchemaHash(read.profile), cacheKey: null };
   const fail = async (code: ReadFailureCode, input = 0, output = 0): Promise<ExecuteReadOutcome> => {
     await transition(admin, orgId, readId, "failed", {
@@ -294,12 +295,13 @@ export async function executeRead(admin: SupabaseClient, orgId: string, readId: 
   // saving is a rare refusal's tokens, and its price was every read's wait doubled — a 13-page BOL spent
   // ~195 s of its 4 min 44 s on the two readers back to back (read 795bf4bc), past the screen's patience.
   // The owner asked for fast (2026-10-15), so a failed A now costs B's tokens too, and they are counted.
-  const [a, b] = await Promise.all([read1(pins.A), read1(pins.B)]);
-  const total = { input: spend(a.usage).input + b.usage.input, output: spend(a.usage).output + b.usage.output };
+  // A one-reader profile (`readers: 1`) asks pass A alone; its second witness is the person who files it.
+  const [a, b] = await Promise.all([read1(pins.A), pins.B === null ? null : read1(pins.B)]);
+  const total = { input: spend(a.usage).input + (b?.usage.input ?? 0), output: spend(a.usage).output + (b?.usage.output ?? 0) };
   if (a.kind !== "ok") return fail(a.kind, total.input, total.output);
   // Pass B failing (refusal, truncation, off-schema) does not fail the read: its fields are one reader's.
   const text = textLayerPages(pages.map((p) => ({ textLayer: p.text_layer, rotation: rotationOf(p.id) })));
-  const passB = b.kind === "ok" ? b.document : null;
+  const passB = b?.kind === "ok" ? b.document : null;
   const ocr = await ocrRun;
   const evidence = EVIDENCE_FOR[read.profile](a.document, passB, ACCEPTANCE_RULE_VERSION, ocr, text);
   return done(a.document, evidence, false, total.input, total.output, pages.length, { passB, ocr, textLayer: text });
