@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { billLinehaul, localWallClock } from "@silvicom/shared";
+import { billAccessorials, billLinehaul, localWallClock } from "@silvicom/shared";
 import {
   readSettlementsWindow,
   readApVouchersWindow,
@@ -154,7 +154,7 @@ function billingEntries(orgId: string, b: StagedBilling, vehicleId: string | nul
     out.push({
       ...base,
       category: "accessorial_revenue",
-      amount: num(b.other_charge),
+      amount: billAccessorials(b),
       external_id: `${b.external_id}:acc`,
       dedup_key: `bill:${b.external_id}:acc`,
       is_canonical: true,

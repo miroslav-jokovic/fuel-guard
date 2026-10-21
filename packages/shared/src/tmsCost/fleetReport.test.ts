@@ -250,6 +250,15 @@ describe("computeFleetReport — the per-truck rows (§2 Tab 4)", () => {
     expect(mixed.revenue).toBe(303_192.01);
   });
 
+  /** A credit memo arrives already negative (`billRevenue`) and flagged; TRUCK-DRIVER-PNL-PLAN §1.3 D2. */
+  it("takes a credit memo's money off the truck without counting it as a load", () => {
+    const credit = { order_external_id: "o2", tractor_unit: "602", revenue: -25_000, credit: true };
+    const r = computeFleetReport(july({ milesByUnit: miles, bills: [...bills, credit] }));
+    const t = r.trucks.find((x) => x.tractor_unit === "602")!;
+    expect(t.revenue).toBe(75_000);
+    expect(t.loads).toBe(1);
+  });
+
   it("gives no rate to a truck the period did not measure, and keeps its dollars", () => {
     const r = computeFleetReport(july({ milesByUnit: { "601": 40_000 } }));
     const unmeasured = r.trucks.find((x) => x.tractor_unit === "602")!;

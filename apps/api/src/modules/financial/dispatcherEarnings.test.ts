@@ -42,6 +42,26 @@ describe("earningsByDispatcher", () => {
     expect(vladi.linehaul + vladi.accessorial).toBe(vladi.revenue);
   });
 
+  /** McLeod stages a credit memo POSITIVE; only bill_type says it takes money back (PNL-PLAN §1.3 D2). */
+  it("takes a credit memo off its dispatcher's revenue without counting it as a load or its miles", async () => {
+    const credit = {
+      id: "c1", external_id: "c1", order_external_id: "o1", tractor_unit: "754", driver_external_id: null,
+      dispatcher_user_id: "vladi", dispatcher_name: "Vladi Popov", bill_date: "2026-06-09", transfer_date: null,
+      total_charges: "1000.00", other_charge: "100.00", excise_tax: "0", bill_type: "C", distance: 600,
+      post_key: "kc", post_module: "BILL",
+    };
+    const rec = createSupabaseRecorder({ tables: { mcleod_billing: [...BILLS, credit] } });
+    const rows = await earningsByDispatcher(rec.client, ORG, "2026-06-01", "2026-07-01");
+    const vladi = rows.find((r) => r.dispatcherUserId === "vladi")!;
+    expect(vladi.revenue).toBe(4150); // 3150 + 2000 − 1000
+    expect(vladi.accessorial).toBe(50); // 150 − 100
+    expect(vladi.linehaul + vladi.accessorial).toBe(vladi.revenue);
+    expect(vladi.loads).toBe(2);
+    expect(vladi.loadsWithoutMiles).toBe(2); // the two invoices; the credit is not a load at all
+    expect(vladi.miles).toBe(0); // neither invoice carries a distance; the credit's 600 must not appear
+    expectOrgScoped(rec, ORG);
+  });
+
   // The revenue predicate is the GL's own posting, the same one CPM uses. A staged-but-unposted
   // bill counted here would put this table permanently at odds with the income statement.
   it("excludes a bill the GL never booked, and reports it as unposted instead", async () => {

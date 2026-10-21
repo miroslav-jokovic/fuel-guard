@@ -174,6 +174,7 @@ export async function ingestBilling(
       excise_tax: b.excise_tax,
       canceled: b.canceled ?? null,
       rebilled: b.rebilled ?? null,
+      bill_type: b.bill_type ?? null,
       billing_loaded_distance: b.billing_loaded_distance ?? null,
       billing_empty_distance: b.billing_empty_distance ?? null,
       distance: b.distance ?? null,

@@ -24,19 +24,29 @@ const BILLS = [
   { id: "b5", delivery_date: "2026-08-03", total_charges: 5000, other_charge: 0, distance: 1000, post_key: "K5", post_module: "BILL" },
 ];
 
-const recorder = () =>
+const recorder = (bills: Array<(typeof BILLS)[number] & { bill_type?: string }> = BILLS) =>
   createSupabaseRecorder({
     tables: {
       mcleod_billing: (q) => {
         const ops = q.ops;
         const gte = ops.find((o) => o.method === "gte" && o.args[0] === "delivery_date")?.args[1] as string | undefined;
         const lt = ops.find((o) => o.method === "lt" && o.args[0] === "delivery_date")?.args[1] as string | undefined;
-        return BILLS.filter((b) => (!gte || b.delivery_date >= gte) && (!lt || b.delivery_date < lt));
+        return bills.filter((b) => (!gte || b.delivery_date >= gte) && (!lt || b.delivery_date < lt));
       },
     },
   });
 
 describe("getBillingActivity", () => {
+  /** A credit memo (TRUCK-DRIVER-PNL-PLAN §1.3 D2) is staged POSITIVE; only bill_type says it takes money back. */
+  it("takes a credit memo off its week's revenue without counting it as a load or its miles", async () => {
+    const credit = { id: "c1", delivery_date: "2026-07-09", total_charges: 500, other_charge: 0, distance: 1000, post_key: "KC", post_module: "BILL", bill_type: "C" };
+    const r = await getBillingActivity(recorder([...BILLS, credit]).client, ORG, "2026-07-06", "2026-07-20", "week");
+    const [week] = r.periods;
+    expect(week!.revenue).toBe(4500); // 3200 + 1800 − 500
+    expect(week!.loads).toBe(2);
+    expect(week!.billedMiles).toBe(1600);
+  });
+
   it("buckets the window's booked bills into Monday weeks, org-scoped", async () => {
     const rec = recorder();
     const r = await getBillingActivity(rec.client, ORG, "2026-07-01", "2026-08-01", "week");

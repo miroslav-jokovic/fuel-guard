@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { billRevenue } from "@silvicom/shared";
+import { billRevenue, isCreditBill } from "@silvicom/shared";
 
 /**
  * The collector's read interface over its own financial staging (D-SEP1 — nothing outside
@@ -75,6 +75,8 @@ export interface StagedBilling {
   total_charges: number | string;
   other_charge: number | string;
   excise_tax: number | string;
+  /** `I` invoice, `C` credit memo, null = swept before 0500 — read through `billSign`, never directly. */
+  bill_type: string | null;
   /** McLeod's billed distance for the order (0275) — the miles the load was PRICED on. Null on ~2% of bills. */
   distance: number | string | null;
   post_key: string | null;
@@ -136,7 +138,7 @@ export async function readBillingWindow(admin: SupabaseClient, orgId: string, fr
   return paged<StagedBilling>((from, to) =>
     admin
       .from("mcleod_billing")
-      .select("id, external_id, order_external_id, tractor_unit, driver_external_id, dispatcher_user_id, dispatcher_name, bill_date, delivery_date, transfer_date, total_charges, other_charge, excise_tax, distance, post_key, post_module")
+      .select("id, external_id, order_external_id, tractor_unit, driver_external_id, dispatcher_user_id, dispatcher_name, bill_date, delivery_date, transfer_date, total_charges, other_charge, excise_tax, bill_type, distance, post_key, post_module")
       .eq("org_id", orgId)
       .gte("delivery_date", fromIso)
       .lt("delivery_date", toIso)
@@ -188,6 +190,12 @@ export async function readBillingDispatchers(
  *
  * Voided and cancelled bills are excluded: a cancelled load's miles were driven, but its BILLED
  * miles were never billed, and this reader answers the billed question.
+ *
+ * A credit memo (`bill_type = 'C'`, 0500) takes its revenue back but is not a load: it adds no load,
+ * no miles and no delivering truck. That holds whether or not McLeod copies the credited load's
+ * distance onto the credit — counting it would bill the same miles twice. Unmeasured: how often a
+ * credit is followed by a re-bill of the same order, which would still count that load's miles twice
+ * (TRUCK-DRIVER-PNL-PLAN Q-TP11).
  */
 export async function readBilledMilesByDeliveryMonth(
   admin: SupabaseClient,
@@ -202,10 +210,11 @@ export async function readBilledMilesByDeliveryMonth(
     total_charges: number | string;
     other_charge: number | string;
     canceled: boolean | null;
+    bill_type: string | null;
   }>((from, to) =>
     admin
       .from("mcleod_billing")
-      .select("delivery_date, tractor_unit, distance, total_charges, other_charge, canceled")
+      .select("delivery_date, tractor_unit, distance, total_charges, other_charge, canceled, bill_type")
       .eq("org_id", orgId)
       .gte("delivery_date", fromIso)
       .lt("delivery_date", toIso)
@@ -224,8 +233,9 @@ export async function readBilledMilesByDeliveryMonth(
       b = { trucks: new Set<string>(), miles: 0, loads: 0, revenue: 0 };
       acc.set(key, b);
     }
-    b.loads++;
     b.revenue += billRevenue(r);
+    if (isCreditBill(r)) continue;
+    b.loads++;
     if (r.tractor_unit) b.trucks.add(r.tractor_unit);
     if (r.distance != null) b.miles += Number(r.distance);
   }

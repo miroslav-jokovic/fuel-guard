@@ -41,6 +41,13 @@ const seed = () =>
           driver_external_id: "D42", bill_date: "2026-06-10T00:00:00Z", transfer_date: null,
           total_charges: 3100, other_charge: 150, post_key: "PK-B", post_module: "BILL",
         },
+        // A credit memo against the same load: McLeod stages it POSITIVE and only bill_type says it
+        // takes revenue back (TRUCK-DRIVER-PNL-PLAN §1.3 D2). It projects as negative earnings.
+        {
+          id: "row-bc", external_id: "B-CR", order_external_id: "O-9", tractor_unit: "754",
+          driver_external_id: "D42", bill_date: "2026-06-20T00:00:00Z", transfer_date: null,
+          total_charges: 500, other_charge: 50, bill_type: "C", post_key: "PK-BC", post_module: "BILL",
+        },
         // Never GL-booked — the projection must hold it out of financial_entries entirely and
         // count it, because until recon F3 measures the canceled/rebilled vocabulary, an unposted
         // row's meaning is unknown and its dollars stay out of every report (D-MC12: the GL is
@@ -64,7 +71,7 @@ describe("projectFinancialWindow", () => {
   it("projects every domain with the dedup rules the reports depend on", async () => {
     const rec = seed();
     const r = await projectFinancialWindow(rec.client, ORG, FROM, TO);
-    expect(r).toMatchObject({ settlements: 2, vouchers: 2, billing: 2, unpostedBilling: 1, fuelFills: 1, skippedFuelNoCost: 1 });
+    expect(r).toMatchObject({ settlements: 2, vouchers: 2, billing: 3, unpostedBilling: 1, fuelFills: 1, skippedFuelNoCost: 1 });
 
     const rows = rec.writtenRows("financial_entries") as Record<string, unknown>[];
     const by = (ext: string) => rows.find((e) => e.external_id === ext)!;
@@ -88,14 +95,22 @@ describe("projectFinancialWindow", () => {
     // and the two legs ADD UP TO THE BILL: McLeod's total_charges (3100) already holds the 150
     expect(by("B-1")).toMatchObject({ direction: "earning", category: "linehaul_revenue", amount: 2950, dedup_key: "bill:B-1" });
     expect(by("B-1:acc")).toMatchObject({ category: "accessorial_revenue", amount: 150, dedup_key: "bill:B-1:acc" });
+    // the credit memo: an EARNING with a negative amount, both legs — 0257's convention for money
+    // that reverses its own direction, so summing earnings nets the credit off the load's truck
+    expect(by("B-CR")).toMatchObject({ direction: "earning", category: "linehaul_revenue", amount: -450, vehicle_id: "veh-754" });
+    expect(by("B-CR:acc")).toMatchObject({ direction: "earning", category: "accessorial_revenue", amount: -50 });
 
     // EFS fills: canonical fuel; the costless fill is SKIPPED and counted; the non-canonical twin never projects
     expect(by("EFS-1")).toMatchObject({ source: "efs", category: "fuel", amount: 512.4, dedup_key: "fuel:efs:EFS-1", is_canonical: true });
     expect(rows.find((e) => e.external_id === "EFS-2")).toBeUndefined();
     expect(rows.find((e) => e.external_id === "EFS-3")).toBeUndefined();
 
-    // D-FS4: every amount positive, direction carries the meaning
-    for (const e of rows) expect(Number(e.amount)).toBeGreaterThanOrEqual(0);
+    // D-FS4: direction carries the meaning, and the only negative amount is money reversing its own
+    // direction — here the credit memo, as D-FS4's refund is an expense with a negative amount
+    for (const e of rows) {
+      if (e.source_row_id === "row-bc") expect(Number(e.amount)).toBeLessThan(0);
+      else expect(Number(e.amount)).toBeGreaterThanOrEqual(0);
+    }
 
     expectOrgScoped(rec, ORG, { exempt: ["organizations"] }); // the org row is read by its own id for the clock (D-FIN9)
   });
