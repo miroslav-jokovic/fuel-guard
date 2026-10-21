@@ -337,3 +337,41 @@ the isolated copy, and install nothing on the Board VM. Measured the same day be
   real post), then from the owner's machine against the copy: `--dry-run` per slice, then the real
   slices, April 1 → September 18, two weeks each. The real run writes to production and waits for the
   owner's go. DLC5 (server-paged Delivered, Q-DLC6) follows the run.
+
+### 2026-10-21 — the backfill ran: six months of deliveries are in production
+
+Production took #1676 in release v2026.10.21 (3ae7c8d, 0507) on the 01:07 CT train; a later dispatch
+(#1685) failed its verify and rolled back to the same commit, so the run waited for that and then
+went. From the owner's machine, against `lme_analytics`, eleven two-week slices, dry run first
+(8,962 movements, 19,650 stops, no errors), then real; the whole real run took 2 min 17 s and every
+slice stored with `stopsRemoved: 0`.
+
+| slice | movements | stops | | slice | movements | stops |
+|---|---|---|---|---|---|---|
+| 04/01–04/15 | 716 | 1,551 | | 07/01–07/15 | 631 | 1,336 |
+| 04/15–05/01 | 897 | 1,917 | | 07/15–08/01 | 977 | 2,157 |
+| 05/01–05/15 | 792 | 1,692 | | 08/01–08/15 | 739 | 1,716 |
+| 05/15–06/01 | 795 | 1,720 | | 08/15–09/01 | 833 | 1,848 |
+| 06/01–06/15 | 778 | 1,708 | | 09/01–09/18 | 879 | 1,975 |
+| 06/15–07/01 | 925 | 2,030 | | | | |
+
+Production before → after (`mcleod_dispatch_movements` / `loads` / dropoff stops with a departure):
+1,026 → 8,946 movements, 1,026 → 8,946 loads, 935 → 9,687 stops; delivered loads 8,683; the earliest
+delivery-stop departure is now 03/27/2026 (a movement with one stop in April and an earlier drop), so
+"Delivery history begins" reads March 27. The slices overlap on movements whose stops straddle a
+boundary (a pickup on the 14th, a drop on the 16th), which is why 8,962 sent became 7,920 new rows:
+the ingest is an upsert on `movement_id`, and the overlap is the same row twice.
+
+- **D-DLC9 held.** `closed_at` by month: Apr 1,426 · May 1,393 · Jun 1,513 · Jul 1,420 · Aug 1,410 ·
+  Sep 757 · Oct 876. Exactly one row took the run's own time (no stop departure on or before the
+  sync). The relink window (closed in the last 60 days, or open) holds 2,199 rows — bounded, and it
+  shrinks a day at a time.
+- **The 876 October closes are the live board's.** Rows the mirror already held from the 09/17 sweep
+  keep the stamp the VM gave them when it first saw them closed (10/09 onward), by design: the close
+  read's stamp for a movement already held is unchanged. September therefore counts 757 by `closed_at`
+  and more by delivery-stop departure; the Delivered window reads the stop, so the list is right.
+- **Roster codes.** Each slice logged McLeod driver codes not on our roster (31 in April, down to 1–2
+  by September — drivers who have since left); the loads are stored without the link, as the live
+  board does.
+- **Status mix after:** D 8,769 · P 116 · A 35 · V 26.
+- Next: DLC5, the server-paged Delivered list (Q-DLC6), now that the list is 8,700 rows.
