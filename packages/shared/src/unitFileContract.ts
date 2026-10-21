@@ -20,6 +20,8 @@ export interface UnitFileCell {
   expiryUnknown: boolean;
   /** McLeod's date when no paper is on file (D-UF3); the item itself is `missing`. */
   dateOnly: { goodUntil: string; state: FileItemState } | null;
+  /** The unit's scan for an item no certification dates yet (Q-UF13): "paper on file, not dated". */
+  paperOnFile: { documentId: string; datedAt: string } | null;
   /** True when the fleet's paper on the organization covers it (D-UF6). */
   fleetWide: boolean;
   documentId: string | null;

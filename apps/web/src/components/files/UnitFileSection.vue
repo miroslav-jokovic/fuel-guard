@@ -80,7 +80,7 @@ const specByKey = new Map(EQUIPMENT_ITEMS.map((s) => [s.key, s]));
 const items = computed<UnitFileItem[]>(() =>
   (row.value?.items ?? []).flatMap((c) => {
     const spec = specByKey.get(c.key);
-    return spec ? [{ spec, state: c.state, goodUntil: c.goodUntil, evidenceDate: c.evidenceDate, expiryUnknown: c.expiryUnknown, documentId: c.documentId, dateOnly: c.dateOnly, fleetWide: c.fleetWide }] : [];
+    return spec ? [{ spec, state: c.state, goodUntil: c.goodUntil, evidenceDate: c.evidenceDate, expiryUnknown: c.expiryUnknown, documentId: c.documentId, dateOnly: c.dateOnly, paperOnFile: c.paperOnFile, fleetWide: c.fleetWide }] : [];
   }),
 );
 const groups = computed(() =>
@@ -133,7 +133,10 @@ const docById = computed(() => {
 const needsAttention = (c: UnitFileCell) => c.state !== "current";
 const toRow = (c: UnitFileCell): RequirementRow => {
   const spec = specByKey.get(c.key);
-  const doc = c.documentId ? docById.value.get(c.documentId) : undefined;
+  // A paper on file that nobody has dated (Q-UF13) is drawn and opened like evidence — it is the
+  // thing the office reads the date off — while the row's state stays what the engine says: missing.
+  const docId = c.documentId ?? c.paperOnFile?.documentId ?? null;
+  const doc = docId ? docById.value.get(docId) : undefined;
   return {
     key: c.key,
     label: spec?.label ?? c.key,
@@ -142,7 +145,7 @@ const toRow = (c: UnitFileCell): RequirementRow => {
     evidenceDate: c.evidenceDate,
     goodUntil: c.goodUntil,
     expiryUnknown: c.expiryUnknown,
-    documentId: c.documentId,
+    documentId: docId,
     // A fleet paper is filed on the organization (D-UF6): its URL is not in this unit's documents,
     // so the cell says it is covered and the paper is opened from the fleet's own file.
     documentUrl: doc?.url ?? null,
@@ -150,7 +153,9 @@ const toRow = (c: UnitFileCell): RequirementRow => {
     documentIsImage: doc?.contentType.startsWith("image/") ?? false,
     restricted: false,
     advisory: false,
-    note: c.dateOnly
+    note: c.paperOnFile
+      ? `Paper on file, not dated${c.dateOnly ? ` — McLeod says ${formatDate(c.dateOnly.goodUntil)}` : ""}`
+      : c.dateOnly
       ? `Date only, no paper — McLeod says ${formatDate(c.dateOnly.goodUntil)}`
       : c.fleetWide
         ? "Covered by the fleet's paper"
@@ -191,6 +196,16 @@ function closeDrawer(): void {
 const dropItems = computed(() =>
   unitFileSpecs(props.subject.type, ownership.value).specs.map((s) => ({ key: s.key, label: s.label, evidenceKind: s.evidenceKinds[0] ?? "other" })),
 );
+/**
+ * Recording an item opens the drawer; for an item whose paper is on file but not dated (Q-UF13) the
+ * drawer CITES that paper, as it does a drop-first scan (D-DQ10), so the office types the date it reads
+ * off the scan and uploads nothing. This is how the McLeod import's papers get their certifications.
+ */
+function openRequirement(key: string): void {
+  const paper = row.value?.items.find((c) => c.key === key)?.paperOnFile ?? null;
+  presetDoc.value = paper ? { id: paper.documentId, name: `The paper dated ${formatDate(paper.datedAt)}` } : null;
+  openKey.value = key;
+}
 function onFiled(payload: { documentId: string; name: string; key: string }): void {
   presetDoc.value = { id: payload.documentId, name: payload.name };
   openKey.value = payload.key;
@@ -259,7 +274,7 @@ function onFiled(payload: { documentId: string; name: string; key: string }): vo
         :releasable="false"
         embedded
         @retry="retry"
-        @open="openKey = $event"
+        @open="openRequirement"
         @preview="openPreview"
       />
     </DataWorkspace>

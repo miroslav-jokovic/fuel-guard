@@ -10,19 +10,26 @@
  * owes the scan, which is a smaller job than finding out. Expired outranks both: a truck past its
  * date is off the road today, whatever is or is not on file.
  *
+ * ── "NOT DATED" SITS BELOW "DATE ONLY" (Q-UF13, owner 2026-10-21) ──────────────────────────────
+ * A third kind of missing: the paper IS on file and nobody has recorded until when it is good — the
+ * McLeod import's 1,359 scans, filed with no certification (Q-UF2). It is the smallest job of the
+ * three: the evidence is in hand, an office person reads one date off it. An item with both a paper and
+ * a McLeod date is "not dated" — the paper is what the auditor asks for, and the date is the office's.
+ *
  * The chip IS the filter: `matchesFileChip` compares `fileChip`'s answer and nothing else, so the number on the
  * chip a reader clicks and the rows the filter shows cannot disagree.
  */
 import type { FileItemState } from "./fileEngine.js";
 import type { UnitFileRow } from "./unitFileContract.js";
 
-export const FILE_CHIPS = ["expired", "missing", "date_only", "expiring", "complete", "not_started"] as const;
+export const FILE_CHIPS = ["expired", "missing", "date_only", "not_dated", "expiring", "complete", "not_started"] as const;
 export type FileChipKind = (typeof FILE_CHIPS)[number];
 
 export const FILE_CHIP_LABELS: Record<FileChipKind, string> = {
   expired: "Expired",
   missing: "Missing",
   date_only: "Date only",
+  not_dated: "Not dated",
   expiring: "Expiring",
   complete: "Complete",
   not_started: "Not started",
@@ -41,6 +48,8 @@ export interface FileChipInput {
   counts: Record<FileItemState, number>;
   /** Of `counts.missing`, how many have a typed date beside them (D-UF3). A driver's file has none. */
   dateOnly?: number;
+  /** Of `counts.missing`, how many have the paper on file but no recorded date (Q-UF13); none of these is in `dateOnly`. */
+  notDated?: number;
 }
 
 const counted = (kind: FileChipKind, n: number): FileChip => ({
@@ -52,10 +61,12 @@ const counted = (kind: FileChipKind, n: number): FileChip => ({
 export function fileChip(file: FileChipInput): FileChip {
   if (file.state === "not_started") return { kind: "not_started", n: 0, label: FILE_CHIP_LABELS.not_started };
   const dateOnly = file.dateOnly ?? 0;
-  const bare = file.counts.missing - dateOnly;
+  const notDated = file.notDated ?? 0;
+  const bare = file.counts.missing - dateOnly - notDated;
   if (file.counts.expired > 0) return counted("expired", file.counts.expired);
   if (bare > 0) return counted("missing", bare);
   if (dateOnly > 0) return counted("date_only", dateOnly);
+  if (notDated > 0) return counted("not_dated", notDated);
   if (file.counts.expiring > 0) return counted("expiring", file.counts.expiring);
   return { kind: "complete", n: 0, label: FILE_CHIP_LABELS.complete };
 }
@@ -66,9 +77,18 @@ export function matchesFileChip(chip: FileChip, filter: string): boolean {
   return chip.kind === filter;
 }
 
-/** A unit's chip: its date-only items are counted out of its missing ones (D-UF3). */
+/**
+ * A unit's chip: its not-dated and date-only items are counted out of its missing ones (Q-UF13, D-UF3).
+ * Disjoint by construction — a missing item with a paper on file is "not dated" whatever McLeod typed.
+ */
 export function unitFileChip(row: Pick<UnitFileRow, "state" | "counts" | "items">): FileChip {
-  return fileChip({ state: row.state, counts: row.counts, dateOnly: row.items.filter((i) => i.state === "missing" && i.dateOnly).length });
+  const missing = row.items.filter((i) => i.state === "missing");
+  return fileChip({
+    state: row.state,
+    counts: row.counts,
+    notDated: missing.filter((i) => i.paperOnFile).length,
+    dateOnly: missing.filter((i) => !i.paperOnFile && i.dateOnly).length,
+  });
 }
 
 /**
@@ -89,6 +109,8 @@ export type FileFilterKind = (typeof FILE_FILTERS)[number];
 export const FILE_FILTER_LABELS: Record<FileFilterKind, string> = {
   attention: "Needs attention",
   ...FILE_CHIP_LABELS,
+  // The chip's two words had the cell's thumbnails beside them; a toolbar option is read alone.
+  not_dated: "Paper on file, not dated",
 };
 
 /** Ready-made `FilterSelect` options, "Any" first, so no list hand-builds the list. */

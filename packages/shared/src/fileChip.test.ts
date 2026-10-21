@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { FILE_CHIPS, FILE_CHIP_LABELS, FILE_FILTERS, fileChip, fileFilterOptions, matchesFileChip, matchesFileFilter, unitFileChip } from "./fileChip.js";
+import { FILE_CHIPS, FILE_CHIP_LABELS, FILE_FILTER_LABELS, FILE_FILTERS, fileChip, fileFilterOptions, matchesFileChip, matchesFileFilter, unitFileChip } from "./fileChip.js";
 import type { UnitFileCell } from "./unitFileContract.js";
 
 const counts = (over: Partial<Record<"current" | "expiring" | "expired" | "missing", number>> = {}) => ({
@@ -23,11 +23,29 @@ describe("fileChip", () => {
   it("counts a unit's date-only items out of its missing ones", () => {
     const item = (key: string, dated: boolean): UnitFileCell => ({
       key, group: "registration", state: "missing", goodUntil: null, evidenceDate: null, expiryUnknown: false, fleetWide: false, documentId: null,
-      dateOnly: dated ? { goodUntil: "2027-01-01", state: "current" } : null,
+      dateOnly: dated ? { goodUntil: "2027-01-01", state: "current" } : null, paperOnFile: null,
     });
     const row = { state: "incomplete" as const, counts: counts({ missing: 2 }), items: [item("registration", true), item("annual_inspection", true)] };
     expect(unitFileChip(row)).toMatchObject({ kind: "date_only", n: 2 });
     expect(unitFileChip({ ...row, items: [item("registration", true), item("annual_inspection", false)] })).toMatchObject({ kind: "missing", n: 1 });
+  });
+
+  // Q-UF13: the paper is on file, nobody has dated it. Counted out of missing, below date only, and an
+  // item with both a paper and a McLeod date counts once — as not dated.
+  it("counts a unit's not-dated items out of its missing ones, once each, below date only", () => {
+    const item = (key: string, dated: boolean, paper: boolean): UnitFileCell => ({
+      key, group: "registration", state: "missing", goodUntil: null, evidenceDate: null, expiryUnknown: false, fleetWide: false, documentId: null,
+      dateOnly: dated ? { goodUntil: "2027-01-01", state: "current" } : null,
+      paperOnFile: paper ? { documentId: `d-${key}`, datedAt: "2026-02-23" } : null,
+    });
+    const row = (...items: UnitFileCell[]) => ({ state: "incomplete" as const, counts: counts({ missing: items.length }), items });
+    expect(unitFileChip(row(item("registration", true, true), item("annual_inspection", false, true)))).toEqual({ kind: "not_dated", n: 2, label: "2 not dated" });
+    expect(unitFileChip(row(item("registration", true, true), item("annual_inspection", true, false)))).toMatchObject({ kind: "date_only", n: 1 });
+    expect(unitFileChip(row(item("registration", false, true), item("insurance", false, false)))).toMatchObject({ kind: "missing", n: 1 });
+  });
+
+  it("reads the not-dated word whole on a toolbar, where no thumbnail stands beside it", () => {
+    expect(FILE_FILTER_LABELS.not_dated).toBe("Paper on file, not dated");
   });
 });
 

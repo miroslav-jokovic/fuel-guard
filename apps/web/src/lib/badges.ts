@@ -393,8 +393,8 @@ export function dqFileBadge(state: string): DqBadge {
 
 /**
  * A file's chip (UNIT-FILES-PLAN UF4): the word comes from `fileChip`, only the tone is decided here.
- * Expired is red because the unit is off the road; missing and date-only are both work owed, the
- * second the smaller job; expiring is the call to make this month.
+ * Expired is red because the unit is off the road; missing, date-only and not-dated are all work owed,
+ * each a smaller job than the one before; expiring is the call to make this month.
  */
 export function fileChipTone(kind: FileChipKind): BadgeTone {
   switch (kind) {
@@ -403,6 +403,7 @@ export function fileChipTone(kind: FileChipKind): BadgeTone {
     case "missing":
       return "caution";
     case "date_only":
+    case "not_dated":
     case "expiring":
       return "warning";
     case "complete":
