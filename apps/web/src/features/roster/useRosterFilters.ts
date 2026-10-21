@@ -1,6 +1,6 @@
 import { computed, type ComputedRef, type WritableComputedRef } from "vue";
-import { FILE_FILTERS } from "@silvicom/shared";
-import { type SortState, toggleSort, useQueryState } from "@silvicom/ui";
+import { type DriverStatus, FILE_FILTERS } from "@silvicom/shared";
+import { ANY_PARAM, type SortState, toggleSort, useQueryState } from "@silvicom/ui";
 
 /**
  * Everything that decides which drivers the roster is showing, held in the URL (R3c, D-ROS14).
@@ -39,9 +39,14 @@ export const VIEW_OPTIONS = [
   { value: "archived", label: "Archived" },
 ];
 
+/** What `/drivers` shows with no status in the URL: the employed fleet, not every row (2026-10-21). */
+export const DEFAULT_ROSTER_STATUS: DriverStatus = "active";
+
 export interface RosterFilters {
   search: WritableComputedRef<string>;
   status: WritableComputedRef<string>;
+  /** What `status` reads as with nothing in the URL: active on the live roster, every status when archived. */
+  defaultStatus: ComputedRef<string>;
   /** Expiry horizon — the SAME vocabulary the compliance fleet table uses (R4b). */
   dqDue: WritableComputedRef<string>;
   /**
@@ -88,9 +93,38 @@ export function useRosterFilters(): RosterFilters {
     set: (v) => setFiltering({ q: v.trim() ? v : undefined }),
   });
 
+  /**
+   * Employment status — and the one filter whose default is NOT "everything".
+   *
+   * Owner, 2026-10-21: the roster read "184 drivers" while McLeod and Med-Stop both said 178. The
+   * 184 was 173 active plus 11 terminated drivers nobody had archived; the count answered "how many
+   * rows are not archived" when the reader asks "how many drivers do we have". Archiving those 11 is
+   * not the fix (0235: archiving is a person choosing to hide a row, kept apart from employment
+   * status on purpose), so the default narrows on the status itself. The terminated stay one click
+   * away under Status, for the §391.51(c) years their files are kept.
+   *
+   * The default is absent from the URL like every other default here, so `/drivers` means active,
+   * and "All statuses" is written as `ANY_PARAM` — the spelling Vehicles and Recruitment already use
+   * for the same situation. It is `useQueryState().param`'s rule written out rather than called,
+   * because `param` writes only its own key and a roster filter must clear the page in the same
+   * patch (above). A link saying `status=active` (the Seats card's door) reads as before; a link or
+   * built-in view with no status now opens on active drivers, which is what "Medical expiring in 30
+   * days" always meant — a terminated driver's lapsing card is nobody's morning problem.
+   *
+   * ⚠ The default is active on the LIVE roster only. The archived view opens on every status:
+   * archived drivers are overwhelmingly terminated or inactive (production 2026-10-21: 102
+   * terminated, 16 inactive, 1 applicant, 0 active), so an "active" default there would turn the
+   * Archived toggle into an empty table that reads as "nobody has ever been archived".
+   */
+  const showArchived = computed(() => one("show") === "archived");
+  const defaultStatus = computed(() => (showArchived.value ? "" : DEFAULT_ROSTER_STATUS));
   const status = computed<string>({
-    get: () => one("status") ?? "",
-    set: (v) => setFiltering({ status: v || undefined }),
+    get: () => {
+      const raw = one("status");
+      if (raw === undefined) return defaultStatus.value;
+      return raw === ANY_PARAM ? "" : raw;
+    },
+    set: (v) => setFiltering({ status: v === defaultStatus.value ? undefined : v || ANY_PARAM }),
   });
 
   /**
@@ -129,7 +163,6 @@ export function useRosterFilters(): RosterFilters {
     set: (v) => setFiltering({ seat: v === "none" ? "none" : undefined }),
   });
 
-  const showArchived = computed(() => one("show") === "archived");
   const view = computed<string>({
     get: () => (showArchived.value ? "archived" : "live"),
     // Anything that is not the word `archived` means the live roster — including `?show=banana`.
@@ -168,7 +201,7 @@ export function useRosterFilters(): RosterFilters {
     });
 
   return {
-    search, status, dqDue, dqRequirement, file, seat,
+    search, status, defaultStatus, dqDue, dqRequirement, file, seat,
     view, showArchived, sort, onSort, page, active, reset,
   };
 }

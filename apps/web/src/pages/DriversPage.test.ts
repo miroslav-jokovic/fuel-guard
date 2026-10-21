@@ -6,6 +6,7 @@ import { ref } from "vue";
 import type { Driver, Vehicle } from "@silvicom/shared";
 import DriversPage from "@/pages/DriversPage.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
+import { FilterBar } from "@silvicom/ui";
 import ColumnPicker from "@/components/ui/ColumnPicker.vue";
 import SavedViewMenu from "@/components/ui/SavedViewMenu.vue";
 import FileGallery from "@/components/files/FileGallery.vue";
@@ -173,13 +174,16 @@ beforeEach(() => {
       app_access_enabled: true,
       user_id: "u-1",
     }),
-    base({ id: "d-2", full_name: "Ana Whitfield", status: "inactive" }),
+    // Active, like d-1: she stands for the employed driver whose file has lapsed, and the roster opens
+    // on active drivers (2026-10-21). d-4 is the one not working — the status filter's subject.
+    base({ id: "d-2", full_name: "Ana Whitfield" }),
     base({
       id: "d-3",
       full_name: "Gone Away",
       status: "terminated",
       archived_at: "2026-07-01T00:00:00Z",
     }),
+    base({ id: "d-4", full_name: "Lena Ortiz", status: "inactive" }),
   ];
   vehicles.value = [
     { id: "v-1", unit_number: "T-118", assigned_driver_id: "d-1" } as unknown as Vehicle,
@@ -481,8 +485,42 @@ describe("DriversPage roster table", () => {
   it("opens already filtered when the link says so", async () => {
     const w = await mountPage("/drivers?status=inactive");
     const table = w.find("table").text();
-    expect(table).toContain("Ana Whitfield");
+    expect(table).toContain("Lena Ortiz");
     expect(table).not.toContain("Marcus Reyes");
+  });
+
+  /**
+   * Owner, 2026-10-21: the roster said 184 drivers where McLeod and Med-Stop said 178 — 11 of the 184
+   * were terminated and never archived. The count is the number a reader takes away, so the roster
+   * opens on active drivers and counts those.
+   */
+  it("opens on active drivers only, and counts only them", async () => {
+    const w = await mountPage();
+    const table = w.find("table").text();
+    expect(table).toContain("Marcus Reyes");
+    expect(table).toContain("Ana Whitfield");
+    expect(table).not.toContain("Lena Ortiz");
+    expect(w.findComponent(FilterBar).props("count")).toBe(2);
+    expect(w.findAllComponents(FilterSelect).find((f) => f.props("label") === "Status")!.props("modelValue")).toBe("active");
+    // Where the roster opens is not a filter the reader set.
+    expect(w.text()).not.toContain("Clear filters");
+  });
+
+  it("shows every status when the reader picks All statuses, and the link says so", async () => {
+    const w = await mountPage();
+    const statusSelect = w.findAllComponents(FilterSelect).find((f) => f.props("label") === "Status")!;
+    await statusSelect.vm.$emit("update:modelValue", "");
+    await flushPromises();
+    expect(w.vm.$route.query).toEqual({ status: "any" });
+    expect(w.find("table").text()).toContain("Lena Ortiz");
+    expect(w.findComponent(FilterBar).props("count")).toBe(3);
+    expect(w.text()).toContain("Clear filters");
+  });
+
+  it("opens the archived view on every status, because almost nobody archived is active", async () => {
+    const w = await mountPage("/drivers?show=archived");
+    expect(w.findAllComponents(FilterSelect).find((f) => f.props("label") === "Status")!.props("modelValue")).toBe("");
+    expect(w.find("table").text()).toContain("Gone Away");
   });
 
   it("opens on the drivers holding no truck when the Seats card's door says so", async () => {
