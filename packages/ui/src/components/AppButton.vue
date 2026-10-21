@@ -7,7 +7,7 @@ import { useTouchTargets } from "../touchTargets";
 const props = withDefaults(
   defineProps<{
     variant?: "primary" | "secondary" | "danger" | "soft" | "ghost" | "inverse" | "link";
-    size?: "sm" | "md" | "icon" | "row" | "touch" | "shutter";
+    size?: "sm" | "md" | "icon" | "row" | "touch" | "shutter" | "thumb";
     type?: "button" | "submit" | "reset";
     block?: boolean;
     disabled?: boolean;
@@ -101,6 +101,15 @@ const SIZES: Record<NonNullable<typeof props.size>, string> = {
    * it holds no label, so the caller owns the `aria-label`.
    */
   shutter: "size-17 p-0",
+  /**
+   * A paper's thumbnail you press to open it: a 56 px square, the image filling it edge to edge.
+   *
+   * Added 2026-10-21 for the file gallery's strip (UNIT-FILES-PLAN Q-UF12), for the fifth time: the
+   * strip was first written `size="sm" class="size-14 p-0"`, and `sm`'s `h-8` won the cascade, so
+   * every thumbnail drew 32 px tall — seen only in a browser. Like `icon` it holds no label; the caller
+   * owns the `aria-label`.
+   */
+  thumb: "size-14 p-0",
 };
 
 /** The link variant sits in running text, so it takes the surrounding size and no box at all. */

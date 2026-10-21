@@ -91,8 +91,8 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onKey));
         <li v-for="(d, i) in papers" :key="d.id" class="shrink-0">
           <BaseButton
             variant="ghost"
-            size="sm"
-            :class="['size-14 overflow-hidden rounded-detail p-0', i === index ? 'ring-2 ring-brand-500' : 'ring-1 ring-edge']"
+            size="thumb"
+            :class="['overflow-hidden', i === index ? 'ring-2 ring-brand-500' : 'ring-1 ring-edge']"
             :aria-label="`${label(d)}, dated ${formatDate(paperDate(d))}`"
             :aria-current="i === index ? 'true' : undefined"
             :title="`${label(d)} · ${formatDate(paperDate(d))}`"
