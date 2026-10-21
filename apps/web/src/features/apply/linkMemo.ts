@@ -26,7 +26,8 @@ import { APPLY_COPY } from "./strings";
  * server has said the link is dead — and says the finished sentence only where the memo says Part 1
  * was done, nothing was left for the applicant to fill, and the link's own expiry has passed. A
  * different phone, or cleared storage, sees the neutral card, which is still true and still offers
- * the only action that helps.
+ * the only action that helps. A link that died EARLY on the device that finished Part 1 gets the
+ * "replaced" words (`deadLinkWording`), added 2026-10-21.
  *
  * ── WHAT IS KEPT ──────────────────────────────────────────────────────────────────────────────
  * A hash of the token (domain-separated, so it is never the database's `token_hash`), three booleans
@@ -103,19 +104,32 @@ export async function readLinkMemo(token: string, now: Date = new Date()): Promi
   return readCopy<LinkMemo>("links", key, (row) => isLive(row, LINK_MEMO_VERSION, now));
 }
 
-export type DeadLinkWording = "neutral" | "finished";
+export type DeadLinkWording = "neutral" | "finished" | "replaced";
 
 /**
- * Which card a dead link gets. "Finished" needs all three: the memo says Part 1 was done; nothing was
- * left for the applicant to fill (either the form was never sent, or it was sent and came back
- * certified); and the link's own expiry has passed — a link dead BEFORE its time was revoked or
- * replaced, which the memo cannot speak to, so it gets the neutral card.
+ * Which card a dead link gets.
+ *
+ * "Finished" needs all three: the memo says Part 1 was done; nothing was left for the applicant to fill
+ * (either the form was never sent, or it was sent and came back certified); and the link's own expiry
+ * has passed.
+ *
+ * "Replaced" is a link dead BEFORE its time on a device that finished Part 1 and has not sent the form
+ * back. Measured on production 2026-10-21: an applicant finished Part 1 at 17:50, the office pressed
+ * "Send application" at 18:41 — which rotates the email's token (D-AF7, `send_application_invitation`)
+ * — and the applicant filled Part 2 from the text's link, then went back to the Part 1 tab still open on
+ * the same phone and was told "This link is not valid", five times in six minutes. It read as being
+ * thrown out. The memo cannot tell a replaced link from a revoked one, and the server will not (A1), so
+ * the words name the likely cause and the action that helps in both: open the newest message, and ask
+ * if there is none. Nothing about the application is claimed beyond what this device saw.
+ *
+ * Everything else is neutral — including a link dead early after the form came back certified, which
+ * is a hire ending the link (M3), not a newer one waiting in the applicant's messages.
  */
 export function deadLinkWording(memo: LinkMemo | null, now: Date): DeadLinkWording {
   if (!memo) return "neutral";
   if (!memo.partOneDone) return "neutral";
+  if (Date.parse(memo.linkExpiresAt) > now.getTime()) return memo.submitted ? "neutral" : "replaced";
   if (memo.applicationSent && !memo.submitted) return "neutral";
-  if (Date.parse(memo.linkExpiresAt) > now.getTime()) return "neutral";
   return "finished";
 }
 
@@ -157,8 +171,8 @@ export function useLinkMemo(
     { immediate: true },
   );
   return computed<DeadLinkCopy>(() =>
-    wording.value === "finished"
-      ? APPLY_COPY.dead.finished
-      : { heading: APPLY_COPY.dead.heading, body: APPLY_COPY.dead.body },
+    wording.value === "neutral"
+      ? { heading: APPLY_COPY.dead.heading, body: APPLY_COPY.dead.body }
+      : APPLY_COPY.dead[wording.value],
   );
 }

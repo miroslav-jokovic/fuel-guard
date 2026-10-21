@@ -2247,3 +2247,12 @@ Append dated lines at the END.
   instruments) — a page in Spanish shows `APPLY_COPY.englishDocuments` above everything; the schema's own refinement
   messages. **The Spanish is the assistant's draft (usted, US trucking terms: CDL, DOT, Clearinghouse kept) for the owner's
   review; not a legal translation.** Mutations: see the PR.
+- **2026-10-21 — Q-AW56 (e) widened: the "replaced" card (owner: "change the dead-link screen so a device that finished
+  Part 1 is told to open the newest text or email from the carrier").** Measured on production the same day: an applicant
+  finished Part 1 at 17:50 UTC, the office pressed "Send application" at 18:41 (which rotates the email's token, D-AF7), the
+  applicant filled Part 2 from the text's link (its own token, Q-AW29), then reopened the Part 1 tab on the same phone five
+  times in six minutes and read "This link is not valid" each time — reported as "it kicks him out". `deadLinkWording` now
+  answers `replaced` for a link dead BEFORE its expiry on a device whose memo says Part 1 was done and the form not sent
+  back; `APPLY_COPY.dead.replaced` (English + Spanish draft) says to open the newest text or email and to ask when there is
+  none, which is true of a revoked link as well — the device cannot tell them apart and the server still will not (A1).
+  A link dead early after the form came back certified stays neutral (a hire ending the link, M3). Web only; no migration.

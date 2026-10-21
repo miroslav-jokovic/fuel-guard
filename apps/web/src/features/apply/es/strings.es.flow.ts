@@ -81,6 +81,13 @@ export const APPLY_FLOW_COPY_ES = {
         + "Aquí no le quedaba nada más por hacer. La empresa se comunicará con usted sobre el siguiente paso; "
         + "si no ha sabido nada de ellos, pregunte a la persona que lo invitó.",
     },
+    replaced: {
+      heading: "Abra el enlace más reciente de la empresa",
+      body:
+        "Este enlace dejó de funcionar porque la empresa le envió uno más nuevo, como hace cuando su solicitud pasa a la siguiente parte. "
+        + "Abra el mensaje de texto o correo más reciente de la empresa y continúe allí; no se pierde nada de lo que ya envió. "
+        + "Si no encuentra un mensaje más nuevo, pregunte a la persona que lo invitó.",
+    },
   },
 
   notOpen: {

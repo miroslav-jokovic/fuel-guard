@@ -20,7 +20,7 @@ import {
 /**
  * The link memo (Q-AW56 (e)) against a real IndexedDB implementation, for the reason `partOneLocal.test.ts`
  * gives. Pinned: what is kept (a hash, three booleans, two dates — never the token), that the memo outlives the
- * link by the grace and no longer, which dead links get the finished card and which stay neutral, that the
+ * link by the grace and no longer, which dead links get the finished card, which the replaced card, and which stay neutral, that the
  * composable writes on a live load and reads on a refusal, and that a browser without WebCrypto still works.
  *
  * jsdom has no `crypto.subtle`; the browser does. Node's is put in its place so the hash is the real one.
@@ -115,8 +115,14 @@ describe("which card a dead link gets", () => {
     expect(deadLinkWording(memo({ applicationSent: true }), NOW)).toBe("neutral");
   });
 
-  it("stays neutral for a link dead before its time — revoked or replaced, which the memo cannot speak to", () => {
-    expect(deadLinkWording(memo({ linkExpiresAt: LINK_LIVE }), NOW)).toBe("neutral");
+  it("says replaced for a link dead before its time on a device that finished Part 1 and has not sent the form back", () => {
+    expect(deadLinkWording(memo({ linkExpiresAt: LINK_LIVE }), NOW)).toBe("replaced");
+    expect(deadLinkWording(memo({ linkExpiresAt: LINK_LIVE, applicationSent: true }), NOW)).toBe("replaced");
+  });
+
+  it("stays neutral for a link dead before its time with Part 1 unfinished, or after the form came back", () => {
+    expect(deadLinkWording(memo({ linkExpiresAt: LINK_LIVE, partOneDone: false }), NOW)).toBe("neutral");
+    expect(deadLinkWording(memo({ linkExpiresAt: LINK_LIVE, applicationSent: true, submitted: true }), NOW)).toBe("neutral");
   });
 });
 
@@ -144,6 +150,21 @@ describe("useLinkMemo", () => {
     await settled(() => reopened.copy.value.heading !== APPLY_COPY.dead.heading);
     expect(reopened.copy.value).toEqual(APPLY_COPY.dead.finished);
     expect(reopened.copy.value.body).toContain("the carrier has it");
+    reopened.stop();
+  });
+
+  it("tells the device that finished Part 1 to open the newest message when the link dies before its time", async () => {
+    const live = run();
+    live.data.value = facts({ releasesCompletedAt: "2026-10-01T15:00:00Z" }, LINK_LIVE);
+    await flushPromises();
+    await new Promise((r) => setTimeout(r, 50));
+    live.stop();
+
+    const reopened = run();
+    reopened.isError.value = true;
+    await settled(() => reopened.copy.value.heading !== APPLY_COPY.dead.heading);
+    expect(reopened.copy.value).toEqual(APPLY_COPY.dead.replaced);
+    expect(reopened.copy.value.body).toContain("most recent text or email");
     reopened.stop();
   });
 
