@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, reactive, ref, toRaw, watch } from "vue";
+import { computed, reactive, ref, shallowRef, toRaw, watch } from "vue";
 import type { ReadResponse } from "@silvicom/shared";
 import { AppIcon } from "@silvicom/ui";
 import { ClipboardDocumentCheckIcon } from "@silvicom/ui/icons";
@@ -175,6 +175,12 @@ const isTank = computed(() => equipmentSpec(form.equipmentType)?.vehicleKind ===
 // Each filled line is the read's own snapshot, kept beside the form's copy so a note can tell the reader's
 // value from a person's change; keyed by the raw line so the reactive proxy and the array find the same one.
 const prefilled = new WeakMap<object, PrefillLine>();
+/**
+ * The read whose lines the form holds — not always `props.bolRead`: a later read whose products could not be
+ * looked up leaves the earlier read's lines in place, and Calculate posted their review under the later read's
+ * id, against paths of a document they did not come from (RC4, HazmatCalculatorForm.sequence.test.ts).
+ */
+const filledFrom = shallowRef<ReadResponse | null>(null);
 const bolSummary = ref<{ added: number; unmatched: number; notLoaded: string[] } | null>(null);
 /** The read found no hazmat line: what the paper carries instead, to say so (bolPrefill.ts `noHazmat`). */
 const bolNoHazmat = ref<{ otherLines: string[]; bothReaders: boolean; evidence: NoHazmatEvidence } | null>(null);
@@ -192,7 +198,6 @@ const untouched = (l: (typeof form.lines)[number]) => l.product === null && l.pa
 
 watch(() => props.bolRead, async (read) => {
   if (!read) return;
-  reviews.reset();
   bolError.value = null;
   findings.value = null;
   bolNoHazmat.value = null;
@@ -205,6 +210,11 @@ watch(() => props.bolRead, async (read) => {
   }
   const p = bolPrefill(read, products, form.equipmentType);
   if (!p) { bolError.value = "The read could not be used. Read the BOL again."; return; }
+  // Only now are the earlier read's lines replaced, so only now do the person's acts on them go: a lookup that
+  // failed above leaves those lines on the form, and wiping their checks made the person confirm them all again
+  // (RC4, HazmatCalculatorForm.sequence.test.ts).
+  reviews.reset();
+  filledFrom.value = read;
   if (p.noHazmat && p.noHazmatEvidence) {
     // Nothing to fill and nothing to audit: the shipping-paper rules are hazmat rules, and over zero lines
     // they "pass" without having checked anything. The lines a person typed stay; an earlier read's go,
@@ -231,7 +241,8 @@ watch(() => props.bolRead, async (read) => {
 async function calculate() {
   if (!canCalculate.value) return; // the disabled button is not the only way to submit a form
   // The review is the record of what this press sent (plan §6); it never holds up the placards.
-  if (props.bolRead && filledLines.value.length) void reviews.post(props.bolRead.id, props.bolRead.result, filledLines.value);
+  const from = filledFrom.value;
+  if (from && filledLines.value.length) void reviews.post(from.id, from.result, filledLines.value);
   result.value = await calc.mutateAsync(buildCalcRequest(form));
 }
 function resetAll() {
@@ -240,6 +251,7 @@ function resetAll() {
   sourceMode.value = props.fleet ? "fleet" : "manual";
   Object.assign(form, emptyForm());
   reviews.reset();
+  filledFrom.value = null;
   result.value = null;
   bolSummary.value = null;
   bolError.value = null;
