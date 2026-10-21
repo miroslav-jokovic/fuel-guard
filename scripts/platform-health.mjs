@@ -28,6 +28,8 @@ import { chooseRecipients, readTable, sendEmail, sendSms, fitSms } from "./relea
 const OK_MAINTENANCE = new Set(["ok", "pending"]);
 /** apps/api/src/lib/schedulerHealth.ts — `handover` is a deploy or a take-over in progress (D-RLY3). */
 const OK_LANE = new Set(["held", "handover"]);
+/** apps/api/src/modules/org/storageBackupHealth.ts — `off` is a deployment decision, shown as itself. */
+const OK_BACKUP = new Set(["off", "pending", "ok"]);
 
 /** What one `/api/version` read says, as a stable problem key ("" = healthy). Pure. */
 export function classify(read) {
@@ -40,6 +42,10 @@ export function classify(read) {
   // Absent on a deploy older than D-RLY3: no field, no verdict.
   const lane = (Array.isArray(v.schedulers) ? v.schedulers : []).find((l) => !OK_LANE.has(l?.state));
   if (lane) return `schedulers:${lane.lane}:${lane.state}`;
+  // The only copy of a file Supabase's backups leave out. Above drift for the same reason as a lane:
+  // drift heals at the next deploy, and a backup that stopped copying stays stopped.
+  const backup = v.storageBackup?.state;
+  if (backup && !OK_BACKUP.has(backup)) return `storageBackup:${backup}`;
   if (v.schema?.drift === true) return `schema:${v.schema.state ?? "drift"}`;
   return "";
 }
@@ -72,6 +78,11 @@ const WHAT = {
     "The database's scheduled maintenance job is inactive (pg_cron / partman).",
   "maintenance:missing": "The database's scheduled maintenance job is missing (pg_cron / partman).",
   "maintenance:unknown": "The API reports an unrecognised maintenance state.",
+  "storageBackup:failing":
+    "The nightly backup of uploaded files to AWS S3 is failing; the failed storage_backup job row has the error.",
+  "storageBackup:stale":
+    "The nightly backup of uploaded files to AWS S3 has not succeeded for over 36 hours, and no run is failing — the runs stopped.",
+  "storageBackup:unknown": "The API could not read the backup's job ledger — the database may be unreachable.",
 };
 
 /** A scheduler lane's alarm, in words an owner can act on at night (D-RLY3). Pure. */
@@ -205,6 +216,10 @@ function selfTest() {
   eq("a stale lane is a problem, named by lane and state", classify(lanes([{ lane: "general", state: "stale" }])), "schedulers:general:stale");
   eq("a lane outranks drift", classify(v({ schedulers: [{ lane: "egress", state: "missing" }], schema: { state: "ahead", drift: true } })), "schedulers:egress:missing");
   eq("a deploy without the field has no lane verdict", classify(v({ schedulers: undefined })), "");
+  eq("a backup that is off or pending is healthy", classify(v({ storageBackup: { state: "off" } })) + classify(v({ storageBackup: { state: "pending" } })), "");
+  eq("a failing backup is a problem", classify(v({ storageBackup: { state: "failing" } })), "storageBackup:failing");
+  eq("a stale backup outranks drift", classify(v({ storageBackup: { state: "stale" }, schema: { state: "ahead", drift: true } })), "storageBackup:stale");
+  eq("a failing backup's alert names S3", compose("alert", "storageBackup:failing", { url: "u" }).text.includes("S3"), true);
   eq("a stale lane's alert says what stopped", compose("alert", "schedulers:general:stale", { url: "u" }).text.includes("Samsara"), true);
 
   const one = decide(null, "schema:ahead");
