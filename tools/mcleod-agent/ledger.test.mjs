@@ -8,8 +8,8 @@
 // Run:  node --test tools/mcleod-agent/ledger.test.mjs   (also via `pnpm lint:agent-syntax`)
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { toLedgerTotalRows, mapGlControl } from "./ledger.mjs";
-import { GL_CONTROL_TOTALS } from "./queries.mjs";
+import { toLedgerTotalRows, mapGlControl, toLedgerKeyLineRows } from "./ledger.mjs";
+import { GL_CONTROL_TOTALS, GL_KEY_LINES } from "./queries.mjs";
 
 test("carries the date, the module, the account and the three measures", () => {
   const rows = toLedgerTotalRows([
@@ -77,4 +77,27 @@ test("gl control: carries the open period, trimmed, with prior posting refused o
 test("gl control: sends nothing for a company with no matching fiscal period", () => {
   assert.equal(mapGlControl(undefined), null);
   assert.equal(mapGlControl({ ...CONTROL_ROW, period_start: null }), null);
+});
+
+// The ledger per posting key (P0c, 0509) — the mapping that puts it on the wire.
+test("key lines: carry the day, module, key, account and amount, trimmed", () => {
+  assert.deepEqual(
+    toLedgerKeyLineRows([{ txn_date: "2026-07-14", post_module: "BILL ", post_key: " 1001 ", glid: " 12000000", lines: 1, net_amount: "4864.64" }]),
+    [{ txn_date: "2026-07-14", post_module: "BILL", post_key: "1001", glid: "12000000", lines: 1, net_amount: 4864.64 }],
+  );
+});
+
+test("key lines: drop a row with no day or no key instead of inventing one", () => {
+  const rows = toLedgerKeyLineRows([
+    { txn_date: null, post_module: "SET", post_key: "1", glid: "20500010", lines: 1, net_amount: 1 },
+    { txn_date: "2026-07-14", post_module: "SET", post_key: "  ", glid: "20500010", lines: 1, net_amount: 1 },
+    { txn_date: "2026-07-14T00:00:00.000Z", post_module: "SET", post_key: "3", glid: "20500010", lines: 1, net_amount: 1 },
+  ]);
+  assert.deepEqual(rows.map((r) => [r.post_key, r.txn_date]), [["3", "2026-07-14"]]);
+});
+
+test("key lines: the query groups by the day and the key, over the four tied modules only", () => {
+  assert.match(GL_KEY_LINES, /GROUP BY CAST\(g\.transaction_date AS date\), LTRIM\(RTRIM\(g\.post_module\)\), LTRIM\(RTRIM\(g\.post_key\)\), LTRIM\(RTRIM\(g\.glid\)\)/);
+  assert.match(GL_KEY_LINES, /g\.post_module IN \('BILL', 'SET', 'SETV', 'FUEL'\)/);
+  assert.match(GL_KEY_LINES, /g\.transaction_date < @windowEnd/);
 });

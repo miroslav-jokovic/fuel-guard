@@ -108,6 +108,11 @@ const PARTS = [
         Q.GL_CONTROL,
       ],
       ["GENERAL LEDGER TOTALS BY DAY AND ACCOUNT", "", Q.GL_CONTROL_TOTALS],
+      [
+        "GENERAL LEDGER BY POSTING, FOR FOUR MODULES",
+        "Billing, settlements, settlement voids and fuel, one row per posting and account, so each bill and settlement can be checked against the books one by one. Once per month the window touches.",
+        Q.GL_KEY_LINES,
+      ],
       ["OFFICE PAYROLL LINES", "", Q.OFFICE_SETTLEMENT_LINES],
       [
         "FUEL RECEIPTS KEYED BY HAND",

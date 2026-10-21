@@ -790,6 +790,34 @@ export const GL_CONTROL_TOTALS = `
      GROUP BY combined.transaction_date, LTRIM(RTRIM(post_module)), LTRIM(RTRIM(glid))`;
 
 /**
+ * The general ledger per POSTING KEY for the four modules a staged sub-ledger posts through
+ * (TRUCK-DRIVER-PNL-PLAN P0c, 0509) — so each sub-ledger ties to the ledger by join, one posting at
+ * a time, instead of by a pair of month totals that can agree while the rows under them do not.
+ *
+ * One row per (day, module, key, account), every account of the posting: which account is the
+ * receivable or the payable is the reader's decision, not the collector's (D-FLEET9). Measured on
+ * lme_analytics 2026-10-21, July 2026: no key in these modules spans two days, each key posts one
+ * line to its control account, and the month is 15,183 rows (~1.7 MB on the wire).
+ *
+ * `gl_ledger` only, not `_hist`: that archive ends 2023-12-31 and the per-truck P&L starts in 2026.
+ * Swept once per calendar month the window touches, like the totals above, and replaced whole.
+ */
+export const GL_KEY_LINES = `
+    SELECT
+      CONVERT(char(10), CAST(g.transaction_date AS date), 23) AS txn_date,
+      LTRIM(RTRIM(g.post_module))                           AS post_module,
+      LTRIM(RTRIM(g.post_key))                              AS post_key,
+      LTRIM(RTRIM(g.glid))                                  AS glid,
+      COUNT(*)                                              AS lines,
+      SUM(g.amount)                                         AS net_amount
+      FROM dbo.gl_ledger AS g
+     WHERE g.company_id = @companyId
+       AND g.post_module IN ('BILL', 'SET', 'SETV', 'FUEL')
+       AND g.transaction_date >= @windowStart
+       AND g.transaction_date < @windowEnd
+     GROUP BY CAST(g.transaction_date AS date), LTRIM(RTRIM(g.post_module)), LTRIM(RTRIM(g.post_key)), LTRIM(RTRIM(g.glid))`;
+
+/**
  * The office-settlement module, which has no subledger at all.
  *
  * `OFF` is $3.2M a year and was named in the original scope as "office settlements". It turns out to
