@@ -1,5 +1,13 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { billAccessorials, billLinehaul, localWallClock } from "@silvicom/shared";
+import {
+  billAccessorials,
+  billLinehaul,
+  isReversedBySetv,
+  localWallClock,
+  settlementBookedPay,
+  settlementReversalPay,
+  settlementsBookedBySet,
+} from "@silvicom/shared";
 import {
   readSettlementsWindow,
   readApVouchersWindow,
@@ -15,9 +23,12 @@ import {
  * one payment from being counted twice lives HERE, once, instead of in every report:
  *
  *  · Settlements → `driver_pay`/`contractor_pay` by payee (D-MC13's C-vs-O split: $378 vs $2,932
- *    a row — pooling them describes no truck), lifecycle `accrual`, occurred_at = accrual date
- *    (D-FS6 — the $135k lesson), amount = total_pay (the real cost; posted_pay is the
- *    reconciliation figure and stays in staging).
+ *    a row — pooling them describes no truck), lifecycle `accrual`, as the general ledger books
+ *    them (Q-TP6, `settlementLedger.ts`): a SET entry for `posted_pay` on the accrual date (D-FS6 —
+ *    the $135k lesson) for every row SET books, and a second, negative SETV entry on the void date
+ *    for a voided row that had been transferred. Until 2026-10-20 the amount was `total_pay`, which
+ *    misses the ledger by 3–7% a month (TRUCK-DRIVER-PNL-PLAN §1.3 D3). A voided row SET does not
+ *    book (its key carries the re-issue) stays `is_void`, as every voided row did before.
  *  · AP vouchers → `ap_expense`, lifecycle `invoice`, occurred_at = distribution date. The
  *    FUEL-VENDOR vouchers (D-FS2) land as category `fuel` and NON-canonical: EFS is
  *    authoritative for fuel, and a monthly vendor invoice cannot share a per-fill dedup_key —
@@ -69,29 +80,57 @@ function num(v: number | string | null | undefined): number {
   return v == null ? 0 : typeof v === "number" ? v : Number(v);
 }
 
-function settlementEntry(orgId: string, s: StagedSettlement, vehicleId: string | null, driverId: string | null): Entry {
-  return {
+function settlementEntries(
+  orgId: string,
+  s: StagedSettlement,
+  bookedBySet: boolean,
+  vehicleId: string | null,
+  driverId: string | null,
+): Entry[] {
+  const base = {
     org_id: orgId,
     direction: "expense",
     category: s.payee_type === "owner_operator" ? "contractor_pay" : s.payee_type === "company_driver" ? "driver_pay" : "other",
-    amount: num(s.total_pay),
-    occurred_at: s.accrued_at,
-    settled_at: s.paid_at,
     vehicle_id: vehicleId,
     driver_id: driverId,
     load_id: null,
     source: "mcleod",
     source_table: "mcleod_settlements",
     source_row_id: s.id,
-    external_id: s.external_id,
     lifecycle_stage: "accrual",
-    dedup_key: `set:${s.external_id}`,
     is_canonical: true,
-    is_void: s.is_void,
-    ledger_post_key: s.accrual_key,
-    ledger_module: "SET",
     ledger_account: null,
   };
+  const out: Entry[] = [
+    {
+      ...base,
+      amount: settlementBookedPay(s),
+      occurred_at: s.accrued_at,
+      settled_at: s.paid_at,
+      external_id: s.external_id,
+      dedup_key: `set:${s.external_id}`,
+      is_void: !bookedBySet,
+      ledger_post_key: s.accrual_key,
+      ledger_module: "SET",
+    },
+  ];
+  // The reversal lands on the VOID date, whatever window projected it: the entry's key is the row's,
+  // so re-projecting converges. A row swept before 0501 has no void date and cannot be dated yet —
+  // it waits for the next sweep rather than being guessed into its accrual month.
+  if (isReversedBySetv(s) && s.void_date) {
+    out.push({
+      ...base,
+      amount: settlementReversalPay(s),
+      occurred_at: s.void_date,
+      settled_at: null,
+      external_id: `${s.external_id}:void`,
+      dedup_key: `setv:${s.external_id}`,
+      is_void: false,
+      ledger_post_key: s.post_key,
+      ledger_module: "SETV",
+    });
+  }
+  return out;
 }
 
 function voucherEntry(orgId: string, v: StagedVoucher): Entry {
@@ -222,9 +261,10 @@ export async function projectFinancialWindow(
   const entries: Entry[] = [];
 
   const settlements = await readSettlementsWindow(admin, orgId, fromIso, toIso);
+  const bookedBySet = new Set(settlementsBookedBySet(settlements));
   for (const s of settlements) {
     const { vehicleId, driverId } = resolve(s.tractor_unit, s.driver_external_id);
-    entries.push(settlementEntry(orgId, s, vehicleId, driverId));
+    entries.push(...settlementEntries(orgId, s, bookedBySet.has(s), vehicleId, driverId));
   }
 
   const vouchers = await readApVouchersWindow(admin, orgId, fromIso, toIso);

@@ -79,6 +79,24 @@ describe("ingestSettlements", () => {
   });
 });
 
+describe("ingestSettlements — the void date (0501)", () => {
+  it("stages a voided row's void date, the date the ledger's SETV reverses it on, and null on a live row", async () => {
+    const rec = createSupabaseRecorder({ tables: { mcleod_settlements: [{ id: "x" }] } });
+    const payload = tmsSettlementsPayloadSchema.parse({
+      settlements: [
+        settlement({ external_id: "S-V", is_void: true, post_key: "PK-9", void_date: "2026-07-15T09:30:00Z" }),
+        settlement({ external_id: "S-L" }),
+      ],
+      window_start: "2026-06-01",
+      window_end: "2026-07-01",
+    });
+    await ingestSettlements(rec.client, ORG, payload);
+    const rows = rec.writtenRows("mcleod_settlements");
+    expect(rows[0]).toMatchObject({ is_void: true, void_date: "2026-07-15T09:30:00Z", post_key: "PK-9" });
+    expect(rows[1]!.void_date).toBeNull();
+  });
+});
+
 describe("ingestApVouchers", () => {
   it("upserts full voucher rows with the GL account intact — ap_glid is the only classification the source carries", async () => {
     const rec = createSupabaseRecorder({ tables: { mcleod_settlements: [{ id: "x" }], mcleod_ap_vouchers: [{ id: "x" }], mcleod_billing: [{ id: "x" }] } });

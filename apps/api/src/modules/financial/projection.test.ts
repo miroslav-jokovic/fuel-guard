@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { createSupabaseRecorder, expectOrgScoped } from "../../testing/supabaseRecorder.js";
+import { postgrestFixture } from "../../testing/postgrestFixture.js";
 import { projectFinancialWindow } from "./projection.js";
 
 const ORG = "11111111-1111-1111-1111-111111111111";
@@ -11,18 +12,35 @@ const seed = () =>
     tables: {
       vehicles: [{ id: "veh-754", unit_number: "754" }],
       drivers: [{ id: "drv-42", mcleod_driver_id: "D42" }],
-      mcleod_settlements: [
+      // PostgREST-shaped: it projects the select list, so a reader that stops selecting post_key,
+      // transferred_at or void_date hands the projection rows without them ([[supabase-recorder-does-not-filter]]).
+      mcleod_settlements: postgrestFixture([
         {
-          id: "row-s1", external_id: "S-1", tractor_unit: "754", driver_external_id: "D42",
+          org_id: ORG, id: "row-s1", external_id: "S-1", tractor_unit: "754", driver_external_id: "D42",
           payee_type: "company_driver", accrued_at: "2026-06-15T00:00:00Z", paid_at: "2026-06-20T00:00:00Z",
-          total_pay: 378.5, is_void: false, accrual_key: "AK-1",
+          // total_pay differs: the entry is what the ledger booked, posted_pay (Q-TP6, §1.3 D3)
+          total_pay: 370, posted_pay: 378.5, is_void: false, accrual_key: "AK-1",
         },
         {
-          id: "row-s2", external_id: "S-2", tractor_unit: "UNKNOWN-UNIT", driver_external_id: null,
+          org_id: ORG, id: "row-s2", external_id: "S-2", tractor_unit: "UNKNOWN-UNIT", driver_external_id: null,
           payee_type: "owner_operator", accrued_at: "2026-06-16T00:00:00Z", paid_at: null,
-          total_pay: 2932, is_void: false, accrual_key: "AK-2",
+          total_pay: 2932, posted_pay: 2932, is_void: false, accrual_key: "AK-1B",
         },
-      ],
+        // Voided and re-issued as S-1 on the same accrual key: SET books the key once, for S-1.
+        {
+          org_id: ORG, id: "row-s3", external_id: "S-3", tractor_unit: "754", driver_external_id: "D42",
+          payee_type: "company_driver", accrued_at: "2026-06-15T00:00:00Z", paid_at: null,
+          total_pay: 300, posted_pay: 300, is_void: true, accrual_key: "AK-1",
+        },
+        // Alone on its key and voided after its transfer: SET books it on the accrual date, SETV takes
+        // it back on the void date — in July, whichever window projected it.
+        {
+          org_id: ORG, id: "row-s4", external_id: "S-4", tractor_unit: "754", driver_external_id: "D42",
+          payee_type: "company_driver", accrued_at: "2026-06-18T00:00:00Z", paid_at: "2026-06-25T00:00:00Z",
+          total_pay: 640, posted_pay: 640, is_void: true, accrual_key: "AK-4",
+          post_key: "PK-S4", transferred_at: "2026-06-25T00:00:00Z", void_date: "2026-07-03T00:00:00Z",
+        },
+      ]),
       mcleod_ap_vouchers: [
         {
           id: "row-v1", external_id: "V-FUEL", vendor_id: "PILOKNTN", invoice_date: "2026-06-10T00:00:00Z",
@@ -71,7 +89,7 @@ describe("projectFinancialWindow", () => {
   it("projects every domain with the dedup rules the reports depend on", async () => {
     const rec = seed();
     const r = await projectFinancialWindow(rec.client, ORG, FROM, TO);
-    expect(r).toMatchObject({ settlements: 2, vouchers: 2, billing: 3, unpostedBilling: 1, fuelFills: 1, skippedFuelNoCost: 1 });
+    expect(r).toMatchObject({ settlements: 4, vouchers: 2, billing: 3, unpostedBilling: 1, fuelFills: 1, skippedFuelNoCost: 1 });
 
     const rows = rec.writtenRows("financial_entries") as Record<string, unknown>[];
     const by = (ext: string) => rows.find((e) => e.external_id === ext)!;
@@ -84,6 +102,16 @@ describe("projectFinancialWindow", () => {
     });
     // an unknown unit stays null — attribution is the source's, never a guess (D-FS5)
     expect(by("S-2")).toMatchObject({ category: "contractor_pay", vehicle_id: null, driver_id: null });
+    // the ledger's settlement rule (§1.3 D3): the re-issued void is the one row SET does not book
+    expect(by("S-3")).toMatchObject({ amount: 300, is_void: true });
+    expect(rows.find((e) => e.external_id === "S-3:void")).toBeUndefined();
+    // a lone void is booked on accrual and reversed by SETV on its void date, on the payment key
+    expect(by("S-4")).toMatchObject({ amount: 640, is_void: false, occurred_at: "2026-06-18T00:00:00Z", ledger_module: "SET" });
+    expect(by("S-4:void")).toMatchObject({
+      direction: "expense", category: "driver_pay", amount: -640, occurred_at: "2026-07-03T00:00:00Z",
+      dedup_key: "setv:S-4", is_canonical: true, is_void: false, ledger_post_key: "PK-S4", ledger_module: "SETV",
+      vehicle_id: "veh-754", driver_id: "drv-42",
+    });
 
     // D-FS2: the fuel-vendor AP invoice is category fuel and NON-canonical — the $1,017,601.81
     // that EFS already carries per fill can never be counted twice by a canonical-predicate report
@@ -105,10 +133,11 @@ describe("projectFinancialWindow", () => {
     expect(rows.find((e) => e.external_id === "EFS-2")).toBeUndefined();
     expect(rows.find((e) => e.external_id === "EFS-3")).toBeUndefined();
 
-    // D-FS4: direction carries the meaning, and the only negative amount is money reversing its own
-    // direction — here the credit memo, as D-FS4's refund is an expense with a negative amount
+    // D-FS4: direction carries the meaning, and the only negative amounts are money reversing its own
+    // direction — the credit memo and the settlement void, as D-FS4's refund is an expense with a
+    // negative amount
     for (const e of rows) {
-      if (e.source_row_id === "row-bc") expect(Number(e.amount)).toBeLessThan(0);
+      if (e.source_row_id === "row-bc" || e.external_id === "S-4:void") expect(Number(e.amount)).toBeLessThan(0);
       else expect(Number(e.amount)).toBeGreaterThanOrEqual(0);
     }
 

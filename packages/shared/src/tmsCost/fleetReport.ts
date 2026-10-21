@@ -45,7 +45,14 @@ export interface FleetSettlement {
   payee_id: string | null;
   tractor_unit: string | null;
   order_external_id: string | null;
-  total_pay: number;
+  /**
+   * What the general ledger books for it (Q-TP6, `settlementLedger.ts`): `posted_pay` for a row SET
+   * books, negative for a SETV reversal. Not `total_pay`, which misses the ledger by 3–7% a month and,
+   * through the remainder construction, used to move that gap into the company column.
+   */
+  pay: number;
+  /** A SETV reversal (`isReversedBySetv`): its pay counts against the payee, but it is not a settlement. */
+  reversal?: boolean;
 }
 
 /** A bill, reduced to what the split needs. */
@@ -217,10 +224,14 @@ export function computeFleetReport(inputs: FleetReportInputs): FleetReport {
   let ownerOpSettlements = 0;
   for (const s of inputs.settlements) {
     if (s.payee_type !== OWNER_OPERATOR) continue;
-    ownerOpSettlements++;
-    ownerOpPay = round(ownerOpPay + s.total_pay);
-    if (s.tractor_unit) ownerOpUnits.add(s.tractor_unit);
-    if (s.order_external_id) ownerOpOrders.add(s.order_external_id);
+    ownerOpPay = round(ownerOpPay + s.pay);
+    // A reversal takes its pay back in the month it was voided, which need not be the month its
+    // load ran: it names no settlement, truck or order of this window.
+    if (!s.reversal) {
+      ownerOpSettlements++;
+      if (s.tractor_unit) ownerOpUnits.add(s.tractor_unit);
+      if (s.order_external_id) ownerOpOrders.add(s.order_external_id);
+    }
 
     const payee = s.payee_id?.trim();
     if (!payee) continue;
@@ -229,8 +240,9 @@ export function computeFleetReport(inputs: FleetReportInputs): FleetReport {
       acc = { payeeId: payee, pay: 0, revenue: 0, settlements: 0, units: new Set<string>() };
       byPayee.set(payee, acc);
     }
+    acc.pay = round(acc.pay + s.pay);
+    if (s.reversal) continue;
     acc.settlements++;
-    acc.pay = round(acc.pay + s.total_pay);
     if (s.tractor_unit) acc.units.add(s.tractor_unit);
     if (s.order_external_id) orderPayee.set(s.order_external_id, payee);
   }
