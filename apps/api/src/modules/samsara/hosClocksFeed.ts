@@ -8,9 +8,11 @@ import {
   type SamsaraHosClocksFetcher,
   type SamsaraGpsSnapshotFetcher,
   type SamsaraAssignmentFetcher,
+  type SamsaraDriverLister,
 } from "./lib/samsara.js";
 import { NoSamsaraTokenError, syncDriverSeatsFromSamsara } from "./samsaraVehicleSync.js";
 import { syncHosCurrentStatus } from "./hosSync.js";
+import { linkNewDriversInTrucks } from "./newDriverLink.js";
 import { orgsToSync, startTier } from "./lib/tierRunner.js";
 
 /**
@@ -103,7 +105,12 @@ export async function syncHosClocksAndSeats(
   admin: SupabaseClient,
   env: Env,
   orgId: string,
-  opts: { clocksFetcher?: SamsaraHosClocksFetcher; gpsFetcher?: SamsaraGpsSnapshotFetcher; assignmentFetcher?: SamsaraAssignmentFetcher } = {},
+  opts: {
+    clocksFetcher?: SamsaraHosClocksFetcher;
+    gpsFetcher?: SamsaraGpsSnapshotFetcher;
+    assignmentFetcher?: SamsaraAssignmentFetcher;
+    driverLister?: SamsaraDriverLister;
+  } = {},
 ): Promise<HosClocksResult & { statusDrivers: number; seated: number }> {
   const token = opts.clocksFetcher ? "test" : await loadSamsaraToken(admin, env, orgId);
   if (!token) throw new NoSamsaraTokenError();
@@ -117,6 +124,13 @@ export async function syncHosClocksAndSeats(
     statusDrivers = (await syncHosCurrentStatus(admin, env, orgId, { clocksFetcher: once, gpsFetcher })).drivers;
   } catch (e) {
     console.error(`[samsara-sched] driver status failed for org ${orgId}:`, e instanceof Error ? e.message : e);
+  }
+  // Before the seats, so a driver linked this tick is seated this tick (`newDriverLink.ts`).
+  try {
+    const inTrucks = parseHosClockReadings(raw.data ?? []).filter((r) => r.vehicleId).map((r) => r.driverId);
+    await linkNewDriversInTrucks(admin, env, orgId, inTrucks, { driverLister: opts.driverLister });
+  } catch (e) {
+    console.error(`[samsara-sched] new-driver link failed for org ${orgId}:`, e instanceof Error ? e.message : e);
   }
   const seated = await syncDriverSeatsFromSamsara(admin, env, orgId, opts.assignmentFetcher); // best-effort inside
   return { ...clocks, statusDrivers, seated };
