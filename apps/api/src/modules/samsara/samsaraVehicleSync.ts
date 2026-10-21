@@ -16,6 +16,7 @@ import {
   type SamsaraAssignmentFetcher,
 } from "./lib/samsara.js";
 import { recordMove } from "./vehicleRecordMoved.js";
+import { writeAssignmentHistory } from "../roster/index.js";
 import { fetchSamsaraVehicles, buildVehicleMaps, type ExistingRow } from "./lib/samsaraVehicleFetch.js";
 
 export interface VehicleSyncResult {
@@ -264,22 +265,7 @@ async function syncDriverAssignments(
     const fetcher = assignmentOverride ?? makeSamsaraAssignmentFetcher(env, token, depth === "seats" ? 24 : undefined);
     const rawAssign = (await fetcher()) as Parameters<typeof parseDriverCurrentTrucks>[0];
     const intervals = parseAssignmentIntervals(rawAssign);
-    if (intervals.length && depth === "full") {
-      const now = new Date().toISOString();
-      const arows = intervals.map((iv) => ({
-        org_id: orgId,
-        vehicle_samsara_id: iv.vehicleSamsaraId,
-        driver_samsara_id: iv.driverSamsaraId,
-        start_at: new Date(iv.startMs).toISOString(),
-        end_at: iv.endMs != null ? new Date(iv.endMs).toISOString() : null,
-        updated_at: now,
-      }));
-      for (let i = 0; i < arows.length; i += 500) {
-        await admin.from("driver_vehicle_assignments").upsert(arows.slice(i, i + 500), {
-          onConflict: "org_id,vehicle_samsara_id,driver_samsara_id,start_at",
-        });
-      }
-    }
+    if (intervals.length && depth === "full") await writeAssignmentHistory(admin, orgId, intervals);
     if (!intervals.length) return 0;
     const [{ data: vRows }, { data: dRows }] = await Promise.all([
       admin
@@ -321,8 +307,10 @@ async function syncDriverAssignments(
       await (m.expected === null ? q.is("co_driver_id", null) : q.eq("co_driver_id", m.expected));
     }
     return plan.seated;
-  } catch {
-    /* assignments are best-effort */
+  } catch (e) {
+    // Best-effort, but never silent: until 2026-10-21 this swallowed the error whole, and a history
+    // that stopped refreshing on 10/20 left nothing to read (`roster/driverVehicleAssignmentWrites.ts`).
+    console.error(`[vehicle-sync] ${depth} assignment pass failed for org ${orgId}:`, e instanceof Error ? e.message : e);
     return 0;
   }
 }

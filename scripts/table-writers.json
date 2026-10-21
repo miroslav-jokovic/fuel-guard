@@ -117,7 +117,7 @@
   ],
   "driver_vehicle_assignments": [
     "apps/api/src/modules/idle/idleSync.ts",
-    "apps/api/src/modules/samsara/samsaraVehicleSync.ts"
+    "apps/api/src/modules/roster/driverVehicleAssignmentWrites.ts"
   ],
   "drivers": [
     "apps/api/src/modules/efs/services/efsIngest.ts",
