@@ -82,7 +82,10 @@ describe("GET /api/version", () => {
 
   it("never leaks anything tenant-scoped", async () => {
     const res = await fetch(`${baseUrl}/api/version`);
-    const keys = Object.keys((await res.json()) as Record<string, unknown>).sort();
+    const body = (await res.json()) as Record<string, unknown>;
+    // A state and one timestamp — never which org, how many files or which bucket (storageBackupHealth.ts).
+    expect(Object.keys(body.storageBackup as object).sort()).toEqual(["lastSucceededAt", "state"]);
+    const keys = Object.keys(body).sort();
     expect(keys).toEqual([
       "branch",
       "commit",
@@ -96,6 +99,7 @@ describe("GET /api/version", () => {
       "schema",
       "service",
       "startedAt",
+      "storageBackup",
       "version",
     ]);
   });
