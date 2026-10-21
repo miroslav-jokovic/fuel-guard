@@ -33,6 +33,7 @@ export * from "./equipmentFileCatalogue.js";
 export * from "./unitFile.js";
 export * from "./unitFileContract.js";
 export * from "./fileChip.js";
+export * from "./paperOrder.js";
 export * from "./fileSections.js";
 export * from "./dqAlerts.js";
 export * from "./digestDq.js";

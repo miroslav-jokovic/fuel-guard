@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { RouterLink } from "vue-router";
-import type { Driver, DqRosterCell, DqRosterColumnKey, FileChipKind } from "@silvicom/shared";
-import { canManageDriverIdentity, driverAppAccess, fileChip } from "@silvicom/shared";
+import type { Driver, DqRosterCell, DqRosterColumnKey } from "@silvicom/shared";
+import { canManageDriverIdentity, driverAppAccess } from "@silvicom/shared";
 import {
   AppButton as BaseButton,
   DataTable,
@@ -60,8 +60,6 @@ const emit = defineEmits<{
   restore: [driver: Driver];
   /** A thumbnail or "+N" opens ONE gallery, owned by the page (D-ROS8) — never a dialog per row. */
   "open-file": [driver: Driver, documentId?: string];
-  /** The chip was clicked: the page narrows to files in this state (`?file=`). */
-  "file-filter": [kind: FileChipKind];
 }>();
 
 const session = useSessionStore();
@@ -69,7 +67,7 @@ const session = useSessionStore();
  * SP5 (plan §4b): the qualification file is its own screen (`safety.driver-qualification`), which
  * the admin can switch off per role and per person apart from the roster. Where it does not open,
  * the row menu drops "Open qualification file…". The cell itself is no longer a door to it since
- * UF4b — the chip filters and the thumbs open the gallery — so there is nothing in the row to gate.
+ * UF4b — the thumbs open the gallery — so there is nothing in the row to gate.
  */
 const opens = useOpens();
 
@@ -89,9 +87,8 @@ const accessBadge = (d: Driver) => appAccessBadge(driverAppAccess(d.user_id, d.a
 /**
  * The File column (UNIT-FILES-PLAN UF4b, D-UF7): the roster answers "is this driver's file in order,
  * and what is on it" from the SAME overview rollup the qualification page renders — never a second
- * computation. The chip is `fileChip`'s word, worst state first, the one a truck's cell says too; a
- * driver's file has no McLeod date beside a missing item, so there is no "date only" here. Rows the
- * overview does not return (EFS stubs, terminated) read as "—".
+ * computation. The cell draws the papers; the state is the toolbar's File filter since the chip left the
+ * cell (Q-UF11, 2026-10-21). Rows the overview does not return (EFS stubs, terminated) read as "—".
  *
  * ⚠ Indexed by driver id ONCE rather than `.find()` per row. The array form was O(rows × drivers)
  * every render, and R4 added three more columns reading this same rollup — which would have made a
@@ -100,9 +97,6 @@ const accessBadge = (d: Driver) => appAccessBadge(driverAppAccess(d.user_id, d.a
 const overviewQ = useComplianceOverviewQuery();
 const overviewByDriver = computed(
   () => new Map((overviewQ.data.value?.drivers ?? []).map((d) => [d.driver_id, d])),
-);
-const chipByDriver = computed(
-  () => new Map([...overviewByDriver.value].map(([id, row]) => [id, fileChip({ state: row.state, counts: row.counts })])),
 );
 
 /**
@@ -182,13 +176,11 @@ const assignedUnits = (driverId: string) => unitsByDriver.value.get(driverId)?.j
     <template #cell-file="{ row }">
       <FileCell
         v-if="overviewByDriver.get(row.id)"
-        :chip="chipByDriver.get(row.id)!"
         :papers="overviewByDriver.get(row.id)!.papers ?? []"
         :paper-count="overviewByDriver.get(row.id)!.paper_count ?? 0"
         :items="overviewByDriver.get(row.id)!.requirements"
         :subject-label="row.full_name"
         @open="emit('open-file', row, $event)"
-        @filter="emit('file-filter', $event)"
       />
       <span v-else class="text-ink-tertiary">—</span>
     </template>

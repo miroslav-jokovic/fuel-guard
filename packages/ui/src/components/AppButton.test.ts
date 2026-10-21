@@ -102,3 +102,14 @@ describe("AppButton variant='inverse'", () => {
     expect(cls).not.toContain("text-ink-secondary");
   });
 });
+
+describe("AppButton size='thumb'", () => {
+  // The file gallery's strip (Q-UF12): a 56 px square — `sm`'s `h-8` is what it replaces, and must not ride along.
+  it("is a 56 px square with no padding and no compact height", () => {
+    const cls = mount(AppButton, { props: { size: "thumb", variant: "ghost" } }).classes();
+    expect(cls).toContain("size-14");
+    expect(cls).toContain("p-0");
+    expect(cls).not.toContain("h-8");
+    expect(cls).not.toContain("h-9");
+  });
+});

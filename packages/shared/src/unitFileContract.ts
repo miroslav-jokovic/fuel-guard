@@ -36,8 +36,13 @@ export interface PaperThumb {
   contentType: string;
   /** Null until the derive job has run (or for a type with no thumb). */
   thumbUrl: string | null;
-  /** When it was filed — the hover card's "Filed 10/19/2026" (UF4). */
+  /** When our row was written — the hover card's "filed 10/06/2026 by …" for a paper filed in the app (UF5b). */
   filedAt: string;
+  /**
+   * The date the paper is OF — `captured_at`, else `filedAt` (`paperDate`, Q-UF10). What the cell orders
+   * by and the hover card's "Dated 02/23/2026": an imported McLeod paper's `filedAt` is the import run.
+   */
+  datedAt: string;
   /** Who filed it, by name — "by Jane Doe" (UF5b). Null for a sync, a render, or a member with no profile name. */
   uploadedBy: string | null;
 }

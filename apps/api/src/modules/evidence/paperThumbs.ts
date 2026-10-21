@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { chunks, DOCUMENTS_BUCKET, IN_LIST_CHUNK, PAPERS_PER_ROW, type PaperThumb } from "@silvicom/shared";
+import { chunks, DOCUMENTS_BUCKET, IN_LIST_CHUNK, newestPaperFirst, paperDate, PAPERS_PER_ROW, type DatedPaper, type PaperThumb } from "@silvicom/shared";
 import { DOCUMENT_URL_TTL_SEC } from "./compliance.js";
 
 /**
@@ -67,7 +67,9 @@ export async function paperThumbsBySubject(
   const thumbOf = new Map<string, PaperDocRow>();
   for (const d of docs) if (d.variant === "thumb" && d.derived_from) thumbOf.set(d.derived_from, d);
 
-  // Newest first — the cell shows the papers most recently filed, the "+N" counts the rest.
+  // Newest first by the paper's OWN date (Q-UF10), the order the gallery uses too — the cell shows the
+  // newest papers, the "+N" counts the rest. Not `created_at`: an imported McLeod paper's row is the
+  // import run, and 2021 cab cards imported on 10/20 used to push a 2026 annual behind "+2".
   const originalsBy = new Map<string, PaperDocRow[]>();
   for (const d of docs) {
     if (d.variant !== "original" || !readable(d.kind)) continue;
@@ -75,7 +77,7 @@ export async function paperThumbsBySubject(
     if (list) list.push(d);
     else originalsBy.set(d.subject_id, [d]);
   }
-  for (const list of originalsBy.values()) list.sort((a, b) => b.created_at.localeCompare(a.created_at));
+  for (const list of originalsBy.values()) list.sort((a, b) => newestPaperFirst(dated(a), dated(b)));
 
   const thumbPaths = [...originalsBy.values()]
     .flatMap((list) => list.slice(0, PAPERS_PER_ROW))
@@ -95,6 +97,7 @@ export async function paperThumbsBySubject(
         documentId: d.id, kind: d.kind, contentType: d.content_type,
         thumbUrl: thumb ? (signed.get(thumb.storage_path) ?? null) : null,
         filedAt: d.created_at,
+        datedAt: paperDate(dated(d)),
         uploadedBy: d.uploaded_by ? (names.get(d.uploaded_by) ?? null) : null,
       };
     });
@@ -117,5 +120,7 @@ async function uploaderNames(admin: SupabaseClient, userIds: string[]): Promise<
   }
   return out;
 }
+
+const dated = (d: PaperDocRow): DatedPaper => ({ id: d.id, capturedAt: d.captured_at, createdAt: d.created_at });
 
 export const NO_PAPERS: SubjectPapers = { papers: [], paperCount: 0 };

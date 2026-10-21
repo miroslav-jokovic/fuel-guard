@@ -191,9 +191,9 @@ describe("papers on the overview (UF4b)", () => {
     const r = rec();
     const o = await getComplianceOverview(r.client, ORG, "2026-08-19", { withPapers: () => true });
     expect(o.drivers[0]!.papers).toEqual([
-      { documentId: "dt1", kind: "drug_test", contentType: "image/jpeg", thumbUrl: null, filedAt: "2026-04-01T00:00:00Z", uploadedBy: null },
-      { documentId: "cdl1", kind: "cdl", contentType: "application/pdf", thumbUrl: "https://signed.test/o/d/cdl1t.thumb.webp", filedAt: "2026-03-01T00:00:00Z", uploadedBy: null },
-      { documentId: "mvr1", kind: "mvr", contentType: "image/png", thumbUrl: null, filedAt: "2026-02-01T00:00:00Z", uploadedBy: null },
+      { documentId: "dt1", kind: "drug_test", contentType: "image/jpeg", thumbUrl: null, filedAt: "2026-04-01T00:00:00Z", datedAt: "2026-04-01T00:00:00Z", uploadedBy: null },
+      { documentId: "cdl1", kind: "cdl", contentType: "application/pdf", thumbUrl: "https://signed.test/o/d/cdl1t.thumb.webp", filedAt: "2026-03-01T00:00:00Z", datedAt: "2026-03-01T00:00:00Z", uploadedBy: null },
+      { documentId: "mvr1", kind: "mvr", contentType: "image/png", thumbUrl: null, filedAt: "2026-02-01T00:00:00Z", datedAt: "2026-02-01T00:00:00Z", uploadedBy: null },
     ]);
     expect(o.drivers[0]!.paper_count).toBe(4);
     // A driver with nothing filed has an empty cell, not an absent one.

@@ -192,17 +192,21 @@ const sizeLabel = computed(() => {
     </div>
 
     <div v-else-if="doc" class="space-y-4">
+      <!-- A caller with several papers (FileGallery, UNIT-FILES-PLAN Q-UF12) lays them out here, above
+           the one being shown. Not printed: the print is of the paper, not of the row of its siblings.
+           The frame gives back the strip's height so the panel's 90vh still holds the footer. -->
+      <div v-if="$slots.strip" class="print:hidden"><slot name="strip" /></div>
       <iframe
         v-if="isPdf && doc.url"
         :src="doc.url"
-        class="h-[70vh] w-full rounded-surface ring-1 ring-edge"
+        :class="[$slots.strip ? 'h-[calc(70vh-5rem)]' : 'h-[70vh]', 'w-full rounded-surface ring-1 ring-edge']"
         :title="`${label} document`"
       />
       <img
         v-else-if="viewUrl"
         :src="viewUrl"
         alt=""
-        class="mx-auto max-h-[70vh] max-w-full rounded-surface object-contain ring-1 ring-edge"
+        :class="[$slots.strip ? 'max-h-[calc(70vh-5rem)]' : 'max-h-[70vh]', 'mx-auto max-w-full rounded-surface object-contain ring-1 ring-edge']"
       />
       <p v-else class="py-10 text-center text-sm text-ink-muted">
         The scan could not be loaded. Its signed link may have expired — close and reopen the file.

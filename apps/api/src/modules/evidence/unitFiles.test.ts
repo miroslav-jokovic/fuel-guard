@@ -26,7 +26,7 @@ const CERTS = [
 const DOCS = [
   { id: "reg1", subject_type: "tractor", subject_id: T1, kind: "registration", content_type: "application/pdf", variant: "original", derived_from: null, storage_path: "o/t/reg1.pdf", captured_at: null, created_at: "2026-03-01T00:00:00Z", uploaded_by: "u-jane" },
   { id: "reg1t", subject_type: "tractor", subject_id: T1, kind: "registration", content_type: "image/webp", variant: "thumb", derived_from: "reg1", storage_path: "o/t/reg1t.thumb.webp", captured_at: null, created_at: "2026-03-01T00:00:05Z" },
-  { id: "old", subject_type: "tractor", subject_id: T1, kind: "other", content_type: "image/jpeg", variant: "original", derived_from: null, storage_path: "o/t/old.jpg", captured_at: null, created_at: "2025-01-01T00:00:00Z" },
+  { id: "old", subject_type: "tractor", subject_id: T1, kind: "other", content_type: "image/jpeg", variant: "original", derived_from: null, storage_path: "o/t/old.jpg", captured_at: "2021-03-26T00:00:00Z", created_at: "2026-10-20T20:00:00Z" },
   // Two more of T1's originals, so T1 has four — one past what a cell draws.
   { id: "mid1", subject_type: "tractor", subject_id: T1, kind: "other", content_type: "image/png", variant: "original", derived_from: null, storage_path: "o/t/mid1.png", captured_at: null, created_at: "2026-02-01T00:00:00Z", uploaded_by: "u-nameless" },
   { id: "mid2", subject_type: "tractor", subject_id: T1, kind: "other", content_type: "image/png", variant: "original", derived_from: null, storage_path: "o/t/mid2.png", captured_at: null, created_at: "2025-06-01T00:00:00Z" },
@@ -92,14 +92,16 @@ describe("getUnitFiles", () => {
     expect(t2.ownership_unknown.sort()).toEqual(["lease", "title"]);
   });
 
-  it("returns the three newest papers with their signed thumbnails, and counts every original for the +N", async () => {
+  // "old" is the McLeod import's shape (Q-UF10): a 2021 paper whose row was written on 10/20 — the
+  // newest row, the oldest paper. By the paper's own date it is the one "+1" counts, not one drawn.
+  it("returns the three newest papers by their own date with their signed thumbnails, and counts every original for the +N", async () => {
     const rec = recorder();
     const { units } = await getUnitFiles(rec.client, ORG, "tractor", TODAY);
     expect(units[0]!.papers).toEqual([
-      { documentId: "reg1", kind: "registration", contentType: "application/pdf", thumbUrl: "https://signed.test/o/t/reg1t.thumb.webp", filedAt: "2026-03-01T00:00:00Z", uploadedBy: "Jane Office" },
+      { documentId: "reg1", kind: "registration", contentType: "application/pdf", thumbUrl: "https://signed.test/o/t/reg1t.thumb.webp", filedAt: "2026-03-01T00:00:00Z", datedAt: "2026-03-01T00:00:00Z", uploadedBy: "Jane Office" },
       // Not derived yet: drawn as a type icon, never as the 25 MB original.
-      { documentId: "mid1", kind: "other", contentType: "image/png", thumbUrl: null, filedAt: "2026-02-01T00:00:00Z", uploadedBy: null },
-      { documentId: "mid2", kind: "other", contentType: "image/png", thumbUrl: null, filedAt: "2025-06-01T00:00:00Z", uploadedBy: null },
+      { documentId: "mid1", kind: "other", contentType: "image/png", thumbUrl: null, filedAt: "2026-02-01T00:00:00Z", datedAt: "2026-02-01T00:00:00Z", uploadedBy: null },
+      { documentId: "mid2", kind: "other", contentType: "image/png", thumbUrl: null, filedAt: "2025-06-01T00:00:00Z", datedAt: "2025-06-01T00:00:00Z", uploadedBy: null },
     ]);
     expect(units[0]!.paper_count).toBe(4);
     expect(units[1]!.papers).toEqual([]);
