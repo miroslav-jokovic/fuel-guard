@@ -177,7 +177,9 @@ async function send(env, subject, text) {
   if (env.KEYWATCH_DESKTOP === "1" && process.platform === "darwin") {
     try {
       execFileSync("osascript", ["-e", `display notification ${JSON.stringify(text.slice(0, 220))} with title "Silvicom 360 security" sound name "Sosumi"`]);
-    } catch {}
+    } catch {
+      // The desktop banner is a convenience on the interim Mac; email and SMS above are the alarm.
+    }
   }
   for (const p of problems) console.log(`warning: ${p}`);
 }
@@ -189,7 +191,11 @@ async function check() {
   const env = process.env;
   const now = Date.now();
   let state = {};
-  try { state = JSON.parse(readFileSync(env.STATE_FILE, "utf8")); } catch {}
+  try {
+    state = JSON.parse(readFileSync(env.STATE_FILE, "utf8"));
+  } catch {
+    // First pass, or an unreadable file: start clean. The worst case is one repeated alert.
+  }
   let rows = [];
   let failed = false;
   try {
