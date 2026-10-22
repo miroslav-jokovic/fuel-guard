@@ -289,3 +289,11 @@ nightly dump if the snapshot is older.
   test image of its branch: all four containers healthy, `/api/version` schema `0509` current from
   the staging database, outbound IP = the EIP, 1.9 of 3.8 GB used. Schedulers stay on Railway
   (`RUN_SCHEDULERS=false`) until AWS10. Q-AWS14 opened.
+- **2026-10-22** — AWS6 merged (#1718; secret scan now treats our own host names as public). AWS7
+  staging half merged (#1720): `image.yml`'s `deploy-staging` deploys every merge to the AWS staging
+  server through SSM; role `silvicom-github-deploy` gained `DeployStagingThroughSsm` (SendCommand
+  only on `Environment=staging` instances — simulated: staging allowed, production denied). First
+  automatic deploy: merge `9a6a1ee` → SSM `4a02e8b8…` → all containers healthy in 2m42s. Key watcher
+  (#1715) merged with the timestamp fix after it crashed on the first AWS staging deploy (Supabase's
+  log timestamps changed format); AWS Elastic IPs added to its own-address list. Railway still serves
+  every user; next: AWS7 production half in `release.yml`, Q-AWS14, staging DNS + cutover (AWS10).
