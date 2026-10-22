@@ -20,7 +20,9 @@
  *     network, not a list of addresses, is what can be trusted without paging on every redeploy;
  *   - a GitHub Actions runner (api.github.com/meta `actions`) — migrate and schema-drift call
  *     Supabase from there;
- *   - in KEYWATCH_OFFICE_IPS.
+ *   - in KEYWATCH_OFFICE_IPS: our own fixed addresses — the office, and since 2026-10-22 the AWS
+ *     servers' Elastic IPs (production 44.236.127.194, staging 44.239.69.109; AWS-MIGRATION-PLAN §7).
+ *     The first AWS staging deploy is what paged here before they were listed.
  * Anything else pages, once per address per hour while it keeps going. The window overlaps the
  * 5-minute schedule on purpose: the gateway log lands a minute or two late.
  *
@@ -105,7 +107,13 @@ export function blind(state, failed, now) {
 
 /** The message for one stranger. Pure. */
 export function message(r, org) {
-  const t = (us) => new Date(Math.floor(Number(us) / 1000)).toISOString().slice(11, 16);
+  // Supabase's log API returned `timestamp` as epoch microseconds on 2026-10-21 and as zone-less ISO
+  // text on 2026-10-22; the first stranger after that change crashed the pass while building this
+  // message, so nothing was sent. A format change must never stop an alert going out.
+  const t = (v) => {
+    const d = /^\d+$/.test(String(v)) ? new Date(Math.floor(Number(v) / 1000)) : new Date(`${String(v).replace(/Z?$/, "")}Z`);
+    return Number.isNaN(d.getTime()) ? String(v) : d.toISOString().slice(11, 16);
+  };
   return (
     `SECURITY — Supabase ${r.project}: the SECRET key was used from ${r.ip} (${org || "unknown network"}), ` +
     `${r.c} requests ${t(r.first)}–${t(r.last)} UTC, e.g. ${(r.paths ?? []).slice(0, 3).join(", ")}. ` +
@@ -249,6 +257,10 @@ function selfTest() {
   assert(blind(third.state, true, T + 900_000 + BLIND_REPEAT_MS + 1).page, "still blind after 6 h pages again");
   assert(blind(third.state, false, T + 1_500_000).state.failures === 0, "a good pass resets the count");
   assert(message(rows[1], "AS7018 AT&T").includes("209.37.91.162"), "message names the address");
+  const at = (first) => message({ ...rows[1], first, last: first }, "x");
+  assert(at("1792695232177000").includes("18:53–18:53"), "epoch-microsecond timestamps read");
+  assert(at("2026-10-22T18:53:52.177000").includes("18:53–18:53"), "zone-less ISO timestamps read as UTC");
+  assert(at("not a time").includes("not a time"), "an unknown timestamp is shown as given, never thrown");
   assert(projects("production=abc, staging=def")[1].ref === "def", "project list parses");
   console.log("supabase-key-watch self-test: OK");
 }
