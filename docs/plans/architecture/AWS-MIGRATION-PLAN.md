@@ -248,6 +248,16 @@ nightly dump if the snapshot is older.
   a test that no `import.meta.env.VITE_*` read remains. Recommendation: **(a) now, (b) as its own PR
   after cutover** — (a) moves nothing that works today; (b) is the honest end state.
 
+- **Q-AWS14 — container settings at rest on the server (found 2026-10-22, AWS6).** D-AWS7 says secrets
+  are "never onto the disk". `deploy.sh` keeps them out of the image and GitHub and writes them only to
+  the `/run/silvicom` tmpfs, but Docker stores each container's environment in its own config under
+  `/var/lib/docker` on the (encrypted) root volume, so a disk snapshot holds them. Candidates: (a)
+  accept it — the volume and its snapshots are encrypted and readable only through this account;
+  (b) mount `/run/silvicom/<service>.env` into the container read-only and have `env.ts` load it at
+  boot (a small code change; Docker then stores only the path); (c) the app reads Parameter Store
+  itself at boot with the server role (more code, and the API cannot start when SSM is down).
+  Recommendation: **(b)**, before production cutover (AWS11); (a) is acceptable for staging now.
+
 (Q-AWS5, where the OTA database goes, is settled by D-AWS8: on the server, dumped nightly.)
 
 ## 7. Progress log
@@ -269,3 +279,13 @@ nightly dump if the snapshot is older.
   and role `silvicom-github-deploy` (trusts only `main` of `miroslav-jokovic/fuel-guard`, ECR push
   only), ECR pull added to `silvicom-production-server`; Dockerfile + `image.yml` in their own PR.
   Q-AWS13 opened.
+- **2026-10-22** — AWS5 merged (#1716): images build on every merge to main and land in ECR
+  (`af12f59` first). AWS4 staging: EC2 `i-0f86e0b17f4794168` (`t4g.medium`, 30 GB encrypted, no key,
+  termination protection), EIP `44.239.69.109`, SG `sg-04785553f8d719217` (80/443 only), role
+  `silvicom-staging-server` (reads only `/silvicom/staging/*`, pulls ECR). Railway `uat` settings
+  mirrored into Parameter Store `/silvicom/staging/{api,web,console}/` (58/32/4, re-runnable sync,
+  Railway stays the source until cutover). CloudWatch log groups `/silvicom/{staging,production}`,
+  30 days. AWS6 stack (`infra/server/`: compose, Caddyfile, deploy.sh) deployed to staging from a
+  test image of its branch: all four containers healthy, `/api/version` schema `0509` current from
+  the staging database, outbound IP = the EIP, 1.9 of 3.8 GB used. Schedulers stay on Railway
+  (`RUN_SCHEDULERS=false`) until AWS10. Q-AWS14 opened.
