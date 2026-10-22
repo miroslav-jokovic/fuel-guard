@@ -12,7 +12,8 @@
 #
 # This workflow is not one of ci.yml's jobs on purpose: every PR would otherwise wait on two ARM
 # image builds that only a build change can break, and `build`'s required-check contract stays as
-# it is. Nothing deploys from here yet; AWS6 adds the SSM deploy step.
+# it is. After the images, `deploy-staging` puts them on the AWS staging server (AWS7) — while
+# Railway still serves staging's users, so a failure here breaks nobody (AWS10 is the cutover).
 #
 # Runners are GitHub's ARM machines because the servers are Graviton (t4g): a native build, no QEMU.
 
@@ -122,3 +123,68 @@ jobs:
             GIT_BRANCH=main
           cache-from: type=gha,scope=${{ matrix.target }}
           cache-to: type=gha,scope=${{ matrix.target }},mode=max
+
+  # AWS7, staging half: once both staging images of this commit are in ECR, deploy them to the AWS
+  # staging server through SSM Run Command (D-AWS10) — no SSH, no key. The role may run commands only
+  # on instances tagged Environment=staging + Project=silvicom360 (policy DeployStagingThroughSsm,
+  # proven by simulate-principal-policy: staging allowed, production denied). Production deploys stay
+  # with release.yml's approved train (AWS7, production half).
+  #
+  # The command is deploy.sh's documented bootstrap: the script and stack files come out of the image
+  # being deployed, so the commit decides everything and a rollback is deploying an older tag.
+  # deploy.sh runs `docker compose up --wait`, so a commit whose containers do not become healthy
+  # fails this job — and the server keeps whatever was healthy before for every container compose did
+  # not have to replace.
+  #
+  # Merges are serialized: a newer pending deploy replaces an older pending one (the newer commit
+  # contains it), and a running deploy is never cancelled halfway.
+  deploy-staging:
+    needs: staging
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    concurrency:
+      group: deploy-staging
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::891568748437:role/silvicom-github-deploy
+          aws-region: ${{ env.AWS_REGION }}
+      - name: Deploy this commit to the AWS staging server
+        env:
+          TAG: ${{ github.sha }}-staging
+        run: |
+          set -euo pipefail
+          instance=$(aws ec2 describe-instances \
+            --filters Name=tag:Environment,Values=staging Name=tag:Project,Values=silvicom360 \
+                      Name=instance-state-name,Values=running \
+            --query 'Reservations[].Instances[].InstanceId' --output text)
+          read -ra found <<<"$instance"
+          [ "${#found[@]}" -eq 1 ] || { echo "::error::expected one running staging server, found: '$instance'"; exit 1; }
+          image="$REGISTRY/silvicom/app:$TAG"
+          params=$(jq -n --arg r "$REGISTRY" --arg i "$image" --arg t "$TAG" '{commands: [
+            "set -euo pipefail",
+            "aws ecr get-login-password --region us-west-2 | docker login --username AWS --password-stdin \($r) >/dev/null",
+            "docker pull -q \($i) >/dev/null",
+            "cid=$(docker create \($i))",
+            "install -d -m 0755 /opt/silvicom",
+            "docker cp $cid:/app/infra/server/deploy.sh /opt/silvicom/deploy.sh",
+            "docker rm $cid >/dev/null",
+            "bash /opt/silvicom/deploy.sh staging \($t) \($t) 2>&1"
+          ], executionTimeout: ["900"]}')
+          cmd=$(aws ssm send-command --instance-ids "$instance" --document-name AWS-RunShellScript \
+            --comment "deploy ${GITHUB_SHA::7} (run ${GITHUB_RUN_ID})" --timeout-seconds 900 \
+            --parameters "$params" --query Command.CommandId --output text)
+          echo "SSM command $cmd on $instance"
+          while :; do
+            status=$(aws ssm get-command-invocation --command-id "$cmd" --instance-id "$instance" --query Status --output text 2>/dev/null || echo Pending)
+            case "$status" in Pending|InProgress|Delayed) sleep 10 ;; *) break ;; esac
+          done
+          aws ssm get-command-invocation --command-id "$cmd" --instance-id "$instance" \
+            --query StandardOutputContent --output text | grep -v -i 'password\|credential' | tail -25
+          echo "Staging deploy of ${GITHUB_SHA::7}: $status" >> "$GITHUB_STEP_SUMMARY"
+          [ "$status" = Success ] || { echo "::error::staging deploy $status"; exit 1; }
