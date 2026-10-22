@@ -152,3 +152,6 @@ nothing on staging because EFS is off there.
   with the next release, and Railway being down holds that release and staging alike. Nothing in
   the queue is left to write: RLY6 → RLY7 wait on Railway (uat redeploy from source first), RLY8 on
   Q-RLY1, and Q-RLY3 / Q-RLY4 on the owner.
+- **2026-10-21 (evening)** — D-RLY13 superseded: after Railway's security disclosure the owner decided the move
+  (Supabase + one EC2 server per environment, not D-RLY9's ECS shape). RLY13 continues as
+  `AWS-MIGRATION-PLAN.md`; WEX is asked once the production Elastic IP exists (AWS3).

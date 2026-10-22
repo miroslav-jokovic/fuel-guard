@@ -7,16 +7,20 @@ can't risk this … tell me what we have to do to migrate app and web to AWS."*
 This is a decision log. Decisions are `D-AWS*`, questions for the owner `Q-AWS*`, work items `AWS*`.
 The progress log is at the END (append there, never into the tables).
 
-It continues `PLATFORM-RELIABILITY-PLAN.md`: D-RLY9 already chose the target (ECS Fargate in
-us-west-2, one NAT gateway, keep Supabase); D-RLY13 deferred it "until a move is decided". This plan
-is that move, and it **re-opens D-RLY13** pending the owner's answer to Q-AWS1. Nothing here is built
-yet; no code, no infrastructure, no variable has changed.
+It continues `PLATFORM-RELIABILITY-PLAN.md`: D-RLY9 named a target (ECS Fargate in us-west-2, one
+NAT gateway, keep Supabase); D-RLY13 deferred it "until a move is decided". **The move is decided**
+(owner, 2026-10-21, answering Q-AWS1: *"lets just go Supabase + EC2"*), which supersedes D-RLY13, and
+the owner chose the cheaper EC2 shape over D-RLY9's ECS one (D-AWS3). Nothing here is built yet; no
+code, no infrastructure, no variable has changed.
 
 **Two separate jobs, and the first does not wait for the second.** Moving hosts does not un-leak a
 key: a value copied off Railway works from anywhere until the vendor revokes it. So rotation (§4
-AWS0) starts now, on Railway, and the migration (AWS1 onward) follows on its own schedule. Railway's
-announcement was not verified by us; Q-AWS2 asks Railway whether our project was in scope, but
-rotation does not wait for the answer.
+AWS0) starts now, and the migration (AWS1 onward) follows on its own schedule. Railway's own post
+("Security Disclosure: Wednesday October 21st", blog.railway.com) confirms an unauthorized party
+reached the systems that store customer environment variables and obtained some **decrypted**; it
+tells every customer to roll every variable, and says **all deployments are paused**. A Railway
+variable only takes effect on a redeploy, so while deploys are paused a new key cannot go live on
+Railway — revoking the old one first would break the feature. §5 says how rotation runs around that.
 
 ## 1. What is on Railway today (measured 2026-10-21, production)
 
@@ -65,34 +69,49 @@ Project `serene-elegance`, two environments (`production`, `uat`), same shape in
 
 | ID | Decision | Why |
 |---|---|---|
-| **D-AWS1** | **Rotation first, on Railway, independent of the move (AWS0).** Every secret in §1 is reissued at its vendor and the old one revoked, in the §5 order. New values go into AWS Secrets Manager (AWS1 builds it first, an hour's work) and are copied onto Railway only for as long as Railway still runs the app. | A leaked key stays valid on every host until revoked; the move protects only values created after it. Keeping the master copy off Railway means a second Railway incident leaks only what is still running there. |
-| **D-AWS2** | **App tier only; Supabase stays.** Database, Auth, Storage and PostgREST do not move. The OTA server's Postgres moves (Q-AWS5). | All three Supabase projects are already in AWS us-west-2, so the app tier lands next to its database. Moving off Supabase is 29 `supabase.auth` sites, 35 `storage.from` sites, RLS keyed on Supabase JWTs and the Management API in two workflows — weeks of work that answers a different question (hosting-cost estimate 2026-10-20). |
-| **D-AWS3** | **us-west-2, ECS Fargate on ARM, behind one ALB per environment, with ACM certificates.** Single-EC2 and App Runner rejected. | Same region as Supabase (our slowness is serial round trips, PLATFORM-RELIABILITY §1). Fargate keeps "no servers to patch", which is what Railway gave us; App Runner has no fixed outbound IP without the same NAT anyway. Estimate from D-RLY9 / 2026-10-21: ~$170–250/mo total with Supabase, vs ~$105 today. |
-| **D-AWS4** | **Outbound through one NAT gateway with one Elastic IP per environment; WEX allowlists the production IP beside the Railway ones before cutover.** | WEX IP-gates card management (D-RLY2). Adding beside, not replacing, lets both hosts work during cutover and keeps rollback possible. This is the slowest external step, so it is asked the day Q-AWS1 is answered. |
+| **D-AWS1** | **Rotation first, independent of the move (AWS0).** Every secret in §1 is reissued at its vendor and the old one revoked, in the §5 order. New values go into AWS Systems Manager Parameter Store (AWS1 sets it up first, an hour's work) and are copied onto Railway only for as long as Railway still runs the app. | A leaked key stays valid on every host until revoked; the move protects only values created after it. Keeping the master copy off Railway means a second Railway incident leaks only what is still running there. |
+| **D-AWS2** | **App tier only; Supabase stays.** Database, Auth, Storage and PostgREST do not move. The OTA server's small Postgres moves with the app (D-AWS8). | All three Supabase projects are already in AWS us-west-2, so the app lands next to its database. Moving off Supabase is 29 `supabase.auth` sites, 35 `storage.from` sites, RLS keyed on Supabase JWTs and the Management API in two workflows — weeks of work that answers a different question (hosting-cost estimate 2026-10-20). |
+| **D-AWS3** | **One EC2 server per environment in us-west-2 (Oregon), ARM (Graviton):** production `t4g.large` (2 vCPU, 8 GB), staging `t4g.medium` (2 vCPU, 4 GB), Amazon Linux 2023, Docker Compose. **No ECS, no load balancer, no NAT gateway.** Rejected: ECS Fargate (D-RLY9's shape, ~$120–200/mo hosting, mostly the NAT gateway and load balancer we need only at a scale we do not have); Lightsail (~$15/mo cheaper, but its servers cannot take an IAM role, so secrets would sit in a file on the server — the failure this plan exists to fix); DigitalOcean (nearest region San Francisco, not next to Supabase); Hetzner (US prices roughly tripled in 2026); the owner's office server (measured 150–390 ms per Supabase request from Springfield vs tens of ms in-region; one internet line, one power feed). Owner chose this 2026-10-21. | Production today uses ~2 GB (api ~1.2 GB, web ~0.8 GB) and ~0.03 vCPU; 8 GB holds api ×2, worker, web, console, OTA and its database with room. Same region as Supabase matters because our slowness is serial round trips (PLATFORM-RELIABILITY §1). One server is the same single point of failure as today's one Railway replica; D-AWS14 is how it is recovered. Cost in §3. |
+| **D-AWS4** | **Each server has one Elastic IP — its inbound address AND its outbound address.** WEX allowlists the production IP beside the Railway ones before cutover (AWS3). | A server in a public subnet sends from its own Elastic IP, so the fixed address WEX needs costs ~$3.65/mo instead of a ~$35/mo NAT gateway. Adding beside, not replacing, lets both hosts work during cutover and keeps rollback possible. |
 | **D-AWS5** | **Our own domain names for every client-facing host, attached to Railway FIRST (AWS2), before anything moves.** Proposed: `360.silvicominc.com` (web, already ours), `api.360…`, `ota.360…`, `drivers.360…`, `console.360…`, and `staging-*` twins (Q-AWS4). Every client in the §1 host table is repointed to these while Railway still serves them. | Then the cutover is a DNS change, rollback is a DNS change, and the two steps we cannot control — a native driver build on every phone, Alex's VM — happen on their own timeline with nothing broken in between. A provider hostname in a client is how we got locked in; never again. |
-| **D-AWS6** | **One container image for api, web and the worker**, built by a `Dockerfile` that reproduces `railway.json`'s build and start commands exactly (`node --import tsx apps/api/src/index.ts`, Node 22). Role comes from environment variables, as today. The console gets its own image. | Same artefact in staging and production, by digest. Node 22, not 24.10: the 24.10 worker drops the tsx loader (known production-only failure). |
-| **D-AWS7** | **Each ECS service gets only the secrets it reads**, through its own task role. The list per service is derived from what the code under that role reads, not copied from Railway (Q-AWS8 decides how it is derived). | Today web holds the EFS Graph secret, the service role and the sealing key though it runs no schedulers — every copy is one more place to leak. |
-| **D-AWS8** | **Topology carries D-RLY2/D-RLY8 unchanged**: api ×2 (lane `egress`, behind the NAT IP), worker ×1 (lane `general`), web ×1. If RLY6/RLY7 are not yet done on Railway, they are done on AWS directly instead. | The lease already enforces "one scheduler per lane per database", so two hosts running at once during cutover cannot double-poll WEX or double-send. |
-| **D-AWS9** | **Health and draining carry over**: the ALB checks `/healthz` (must stay 200, DEPLOYMENT.md); the external monitor (Q-RLY1) watches `/api/version/ready`; ECS `stopTimeout` matches today's Railway draining seconds. | These are load-bearing on Railway; a new host must not quietly drop them. |
-| **D-AWS10** | **Deploys from GitHub through OIDC — no long-lived AWS keys in GitHub.** Merge to `main` → build image → deploy to staging. `release.yml` keeps its order (migrations, then code) but its "code" step becomes "deploy the image built from the approved commit to production" instead of fast-forwarding `production` for Railway. `RELEASE_TRAIN`, `require-ci-green`, `ci/tested-tree` and the path filter that replaces `watchPatterns` keep their meaning. | The release train is the contract the owner approves against; only its last hop changes. |
-| **D-AWS11** | **Logs to CloudWatch, 30-day retention**; the `[metrics]` line and `railway logs` recipes in DEPLOYMENT.md are rewritten as CloudWatch Logs Insights queries. | Our only request telemetry is that log line (memory: api has no request logging). |
+| **D-AWS6** | **One container image for api, web and the worker**, built by a `Dockerfile` that reproduces `railway.json`'s build and start commands exactly (`node --import tsx apps/api/src/index.ts`, Node 22), pushed to ECR, tagged by commit, deployed by digest. Role comes from environment variables, as today. The console gets its own image. | Same artefact in staging and production. Node 22, not 24.10: the 24.10 worker drops the tsx loader (known production-only failure). |
+| **D-AWS7** | **Secrets live in Parameter Store (SecureString, standard tier) under `/silvicom/<env>/<service>/`; the server's IAM role may read only its own environment's path.** The deploy script reads them into a `tmpfs` file under `/run` when a container starts — never onto the disk, never in the image, never in GitHub. Each container gets only its own service's path; the list per service is derived, not copied from Railway (Q-AWS8). | No key on disk to steal. Standard-tier parameters are free. Today web holds the EFS Graph secret, the service role and the sealing key though it runs no schedulers — every copy is one more place to leak. |
+| **D-AWS8** | **What runs on each server** (Compose services): `api` ×2 (lane `egress`, D-RLY2), `worker` ×1 (lane `general`), `web` ×1, `console` ×1, `ota` ×1 + `ota-db` (Postgres, its data on the server's disk, nightly dump to S3), and **Caddy** in front (HTTPS certificates from Let's Encrypt, routes by host name, spreads `api.360…` across the two api containers). | The lease already enforces "one scheduler per lane per database", so two api containers — or Railway and AWS both running during cutover — cannot double-poll WEX or double-send. The OTA database is 893 MB; an RDS instance for it (~$15/mo) buys nothing a nightly dump and the disk snapshot do not. |
+| **D-AWS9** | **Health and draining carry over.** Caddy health-checks `/healthz` (must stay 200, DEPLOYMENT.md) and stops routing to a container that fails it; the external monitor (Q-RLY1) watches `/api/version/ready`; each container's stop grace period equals today's Railway draining seconds. A deploy replaces the api containers one at a time, so a deploy drops nobody. | These are load-bearing on Railway; a new host must not quietly drop them. One-at-a-time is what gives a single server the "deploy without downtime" Railway gave us. |
+| **D-AWS10** | **Deploys from GitHub through OIDC — no long-lived AWS keys in GitHub, no SSH.** CI builds and pushes the image, then asks the server through **SSM Run Command** to run its deploy script with that digest. Merge to `main` → staging. `release.yml` keeps its order (migrations, then code) but its "code" step becomes "deploy the approved commit's image to production" instead of fast-forwarding `production` for Railway. `RELEASE_TRAIN`, `require-ci-green`, `ci/tested-tree` and the path filter that replaces `watchPatterns` keep their meaning. | The release train is the contract the owner approves against; only its last hop changes. Port 22 stays closed; people reach the server through SSM Session Manager, which is logged. |
+| **D-AWS11** | **Logs to CloudWatch, 30-day retention** (Docker's `awslogs` driver); the `[metrics]` line and `railway logs` recipes in DEPLOYMENT.md are rewritten as CloudWatch Logs Insights queries. | Our only request telemetry is that log line (memory: api has no request logging). |
 | **D-AWS12** | **driver-dist becomes static files on S3 behind CloudFront**, with uploads by the CI role instead of `UPLOAD_TOKEN`. | It is a file shelf; a volume-backed container is the wrong shape for it. Removes one secret. |
 | **D-AWS13** | **Cutover per environment, staging first, in the release window; Railway kept warm for 14 days with schedulers off** (`RUN_SCHEDULERS_IN_PROCESS=false`, lanes empty), then deleted (AWS12). | Rollback is DNS back to a host that still has the code. 14 days covers a full release cycle plus slow phones. |
+| **D-AWS14** | **Recovery for a one-server environment:** daily EBS snapshots kept 7 days (Data Lifecycle Manager); EC2 automatic recovery on (moves the server to new hardware on a host failure, same IP and disk); the whole server is built from code (Q-AWS7) so a lost server is rebuilt from the last snapshot in ~30 minutes; IMDSv2 required; security group opens 80/443 only; security updates applied automatically. | This is what replaces "Railway restarts it for us". The data that matters is in Supabase and S3, not on the server; the server holds only the OTA database (dumped nightly) and logs (in CloudWatch). |
+| **D-AWS15** | **Buy a 1-year Compute Savings Plan after the first full month**, sized to what the two servers actually used. | ~30% off the servers once the sizes are proven; committing before measuring could lock in the wrong size. |
 
-## 3. Target topology
+## 3. Target setup and cost
 
 | Piece | Production | Staging |
 |---|---|---|
-| Network | VPC, 2 AZs, public subnets (ALB, NAT) + private subnets (tasks); 1 NAT gateway + 1 Elastic IP | Same, its own NAT IP (staging never reaches WEX, but uses the same shape) |
-| `api` | ECS service, 2 tasks, lane `egress`, `api.360…` | 1 task |
-| `worker` | ECS service, 1 task, lane `general`, no public route | 1 task |
-| `web` | ECS service, 1 task, `360.silvicominc.com` | 1 task |
-| `console` | ECS service, 1 task, `console.360…`, restricted (Q-AWS9) | 1 task |
-| `ota` | ECS service, 1 task + its database (Q-AWS5), `ota.360…` | 1 task |
+| Server | `t4g.large`, 8 GB, 40 GB disk, Elastic IP | `t4g.medium`, 4 GB, 30 GB disk, Elastic IP |
+| Runs (D-AWS8) | Caddy, api ×2, worker, web, console, ota + ota-db | Same, one api |
+| Host names (D-AWS5) | `360.silvicominc.com`, `api.360…`, `ota.360…`, `console.360…` | `staging-*` twins |
 | Driver install page | S3 + CloudFront, `drivers.360…` | Same |
-| Secrets | Secrets Manager, one secret per service, task-role scoped | Separate secrets |
-| Images | ECR, tagged by commit, deployed by digest | Same repo |
+| Secrets (D-AWS7) | Parameter Store `/silvicom/production/…` | `/silvicom/staging/…` |
 | Database | Supabase (unchanged) | Supabase staging (unchanged) |
+
+Monthly cost, us-west-2 on-demand list prices as known on 2026-10-21 (to be confirmed on AWS's
+calculator at AWS1; Supabase estimated from list prices, not the invoice):
+
+| Item | $/mo |
+|---|---|
+| Production server `t4g.large` | ~49 |
+| Production Elastic IP + disk + snapshots | ~9 |
+| Staging server `t4g.medium` + Elastic IP + disk | ~31 |
+| CloudWatch logs, S3 (driver installs, OTA dumps), Parameter Store (free) | ~5 |
+| **AWS hosting** | **~94** |
+| Supabase (unchanged) | ~50 |
+| **Total** | **~145**; **~125** after the Savings Plan (D-AWS15) |
+| Today (Railway ~$53 + Supabase ~$50) | ~105 |
+
+Not included, decided separately: external uptime monitor (Q-RLY1, ~$29), Supabase point-in-time
+recovery (Q-RLY3, ~$100).
 
 ## 4. Work queue
 
@@ -100,20 +119,21 @@ Project `serene-elegance`, two environments (`production`, `uat`), same shape in
 |---|---|---|---|
 | **AWS0** | Rotate every secret in §1, in the §5 order; check each vendor for use we did not make | Nothing — **now** | Owner in vendor consoles; Claude for Railway/GitHub/Supabase and the reseal script |
 | AWS0a | `SECRETS_ENCRYPTION_KEY` rotation needs code first: secretBox holds ONE key, and `efsCardRef.ts` derives card lookup handles from it, so a new key changes every handle. Build an old+new key read path, reseal every sealed row, recompute every card ref, then drop the old key | Q-AWS3 | Claude (PR + migration if refs are stored) |
-| **AWS1** | AWS account(s), root MFA, Identity Center logins, budget alarms, Secrets Manager | Q-AWS1, Q-AWS6 | Owner creates the account; Claude the rest |
+| **AWS1** | AWS account(s), root MFA, Identity Center logins, budget alarm at $150, Parameter Store paths | Q-AWS6 | Owner creates the account and adds the card; Claude the rest |
 | **AWS2** | Custom domains on Railway (D-AWS5); repoint web SPA, console, CI, Supabase Auth, Samsara webhook | Q-AWS4 (names, DNS access) | Claude + owner (DNS) |
 | AWS2a | Driver OTA with `EXPO_PUBLIC_API_URL` = `api.360…`; then a native build with `UPDATES_URL` = `ota.360…` through the normal release lanes | AWS2 | Claude; owner approves lanes |
 | AWS2b | Alex changes `FUELGUARD_INGEST_URL` on the VM to `api.360…` | AWS2 | Owner asks Alex |
-| **AWS3** | Ask WEX to allowlist the production Elastic IP beside the Railway IPs | AWS4 (the IP exists), Q-AWS1 | Owner |
-| AWS4 | Network: VPC, subnets, NAT + Elastic IP, ALB, ACM certificates, security groups — as infrastructure-as-code (Q-AWS7) | AWS1 | Claude |
+| **AWS3** | Ask WEX to allowlist the production Elastic IP beside the Railway IPs | AWS4 (the IP exists) | Owner |
+| AWS4 | Server foundations, as code (Q-AWS7): Elastic IPs, security groups, instance roles, snapshot policy, automatic recovery, the two servers | AWS1 | Claude |
 | AWS5 | `Dockerfile` + ECR + GitHub OIDC role; image builds in CI next to `typecheck-build` | AWS1 | Claude |
-| AWS6 | ECS services for staging (api, worker, web, console, ota) with per-service secrets (D-AWS7) | AWS4, AWS5 | Claude |
+| AWS6 | Compose stack + Caddy + deploy script (D-AWS8/9) on the staging server, secrets from Parameter Store | AWS4, AWS5 | Claude |
 | AWS7 | Workflows: staging deploy on merge; `release.yml` code step; `deploy-verify.yml`, `smoke.yml`, `STAGING_*`/production URL variables, `pnpm verify:live` | AWS6 | Claude |
-| AWS8 | OTA server + its database to AWS; move the signing keys | Q-AWS5, AWS6 | Claude |
+| AWS8 | OTA server + its database onto the server; move the signing keys; nightly dump to S3 | AWS6 | Claude |
 | AWS9 | driver-dist to S3 + CloudFront | AWS4 | Claude |
-| **AWS10** | Staging cutover: DNS `staging-*` → AWS; browser pass with the three fixtures; scheduler lanes `held` by AWS tasks | AWS6–AWS9 | Claude |
+| **AWS10** | Staging cutover: DNS `staging-*` → AWS; browser pass with the three fixtures; scheduler lanes `held` by the AWS containers | AWS6–AWS9 | Claude |
 | **AWS11** | Production cutover in the release window: DNS → AWS; confirm EFS card management works from the new IP; lanes held; Railway schedulers off | AWS3 confirmed, AWS10 green for 1 week, AWS2a/2b adopted (Q-AWS10) | Claude runs; owner approves the night |
 | AWS12 | After 14 days: delete Railway variables and services, remove its GitHub app, cancel; ask WEX to drop the Railway IPs; rewrite `docs/DEPLOYMENT.md`, `docs/WORKER-DEPLOYMENT.md`, root `CLAUDE.md` | AWS11 + 14 days | Claude; owner cancels billing |
+| AWS13 | Savings Plan (D-AWS15) | AWS11 + one full month | Owner buys; Claude sizes it |
 
 Rough calendar if nothing waits on a third party: AWS0 1–2 days (AWS0a ~2 days of it), AWS1–AWS10
 about one week, AWS11 the week after. WEX (AWS3), Alex (AWS2b) and driver phones taking the native
@@ -123,9 +143,16 @@ build (AWS2a) are what the calendar actually depends on.
 
 ### Rotation order (AWS0)
 
-Each line: reissue at the vendor → put the new value in Secrets Manager → set it on every Railway
+Each line: reissue at the vendor → put the new value in Parameter Store → set it on every Railway
 service and environment that holds it → redeploy → confirm the feature works → revoke the old value.
 Check the vendor's own log for use since 2026-10-01 before revoking, so evidence is not lost.
+
+**While Railway's deploys are paused**, the redeploy step cannot happen, so the old value cannot be
+revoked without breaking the feature. For each key, then: create the new one now (where the vendor
+allows two at once), restrict or monitor the old one where the vendor allows it, and revoke it the
+hour Railway builds resume. If they stay paused for days, AWS6 on the production server becomes the
+fastest way to get new keys serving — that is a reason to start AWS1/AWS4 today, not a reason to
+wait on rotation.
 
 1. Supabase service role (and the anon key, if the project uses legacy JWT keys — rotating the JWT
    secret signs everyone out; Q-AWS3). Also: GitHub secrets that hold it, the console.
@@ -144,25 +171,31 @@ Check the vendor's own log for use since 2026-10-01 before revoking, so evidence
 
 ### Cutover (AWS10 / AWS11)
 
-Lower DNS TTLs to 60 s a day ahead → AWS tasks running and `/api/version/ready` 200 → set Railway
-`RUN_SCHEDULERS_IN_PROCESS=false` and redeploy → AWS tasks take the lanes (`/api/version`
-`schedulers` all `held`) → switch DNS → watch `[metrics]` in CloudWatch, the EFS feed age, the
-McLeod ingest, Samsara webhook arrivals, a driver check-in → raise TTLs after 24 h.
+Lower DNS TTLs to 60 s a day ahead → AWS containers running and `/api/version/ready` 200 → set
+Railway `RUN_SCHEDULERS_IN_PROCESS=false` and redeploy → AWS containers take the lanes
+(`/api/version` `schedulers` all `held`) → switch DNS → watch `[metrics]` in CloudWatch, the EFS feed
+age, the McLeod ingest, Samsara webhook arrivals, a driver check-in → raise TTLs after 24 h.
 
 ### Rollback
 
 DNS back to Railway's custom-domain targets; set `RUN_SCHEDULERS_IN_PROCESS=true` on Railway api;
-scale AWS services to 0 so the lease moves back. Valid until AWS12.
+stop the AWS containers so the lease moves back. Valid until AWS12.
+
+### Server lost (D-AWS14)
+
+Automatic recovery handles a hardware fault on its own. A server that is gone or broken: launch a
+new one from the code (Q-AWS7) on the latest snapshot, re-attach the Elastic IP (so WEX and DNS need
+no change), run the deploy script with the current digest, restore the OTA database from the
+nightly dump if the snapshot is older.
 
 ## 6. Open questions
 
-- **Q-AWS1 — is the move decided?** D-RLY13 (2026-10-21, morning) said stay on Railway and do not ask
-  WEX. The breach report the same day is the owner's reason to reconsider. Recommendation: **yes,
-  decide now**, because AWS2 (own domains) and AWS3 (WEX) are slow and harmless to start, and AWS0
-  happens either way. Answering yes supersedes D-RLY13.
-- **Q-AWS2 — was our project in Railway's incident?** Ask Railway support for the scope (which
-  projects, which time window, whether variable reads are in their audit log). Recommendation: ask,
-  but treat every variable as leaked until they answer in writing.
+- **Q-AWS1 — is the move decided?** **ANSWERED 2026-10-21: yes** — *"lets just go Supabase + EC2"*.
+  Supersedes D-RLY13; WEX is asked as soon as the production Elastic IP exists (AWS3).
+- **Q-AWS2 — was our project in Railway's incident?** Railway's post says the impact "may be limited to
+  a subset of users", that affected customers are emailed directly, and that everyone should treat
+  themselves as affected. Recommendation: check the owner's inbox for Railway's email and ask
+  support for the time window, but rotate as if affected regardless.
 - **Q-AWS3 — rotation that signs people out or breaks lookups.** (a) If Supabase still uses the legacy
   JWT secret, rotating it signs out every office user and driver; the new API keys rotate without
   that. (b) A new `SECRETS_ENCRYPTION_KEY` changes every EFS card ref (AWS0a). Recommendation: do
@@ -170,29 +203,32 @@ scale AWS services to 0 so the lease moves back. Valid until AWS12.
 - **Q-AWS4 — domain names and DNS.** Who controls DNS for `silvicominc.com`, and are the D-AWS5 names
   right? Recommendation: the names as proposed; Route 53 only if the current DNS host cannot do
   60 s TTLs.
-- **Q-AWS5 — where the OTA server's database goes.** (a) A small RDS Postgres (~$15/mo); (b) a schema
-  in Supabase; (c) replace the self-hosted server with EAS Update. Recommendation: **(a)** — it keeps
-  the signing keys out of the product database and changes nothing in the driver app's update code.
 - **Q-AWS6 — AWS account shape and owner.** One account for both environments, or separate production
   and staging accounts under one organization; whose card pays. Recommendation: two accounts, so a
   staging credential can never touch production.
-- **Q-AWS7 — infrastructure as code.** Terraform, AWS CDK (TypeScript, matches the repo), or console by
-  hand. Recommendation: **CDK in `infra/`**, so the setup is reviewed in PRs like everything else.
+- **Q-AWS7 — how the servers are built from code.** Terraform, AWS CDK (TypeScript, matches the repo),
+  or by hand in the console. Recommendation: **CDK in `infra/`**, so the setup is reviewed in PRs
+  and a lost server is rebuilt by one command (D-AWS14).
 - **Q-AWS8 — how the per-service secret list is derived (D-AWS7).** Candidates: from `env.ts` schema
   groups tagged by role, or from the Railway lists minus what each role never reads. Recommendation:
   tag `env.ts` groups by role and generate the list — a hand list beside the schema is a copy.
-- **Q-AWS9 — who can reach the console.** Today it is a public Railway host. Recommendation: put it
-  behind the ALB with an IP allowlist (office + owner) on top of its login.
+- **Q-AWS9 — who can reach the console.** Today it is a public Railway host. Recommendation: Caddy
+  allows `console.360…` only from the office IPs and the owner's, on top of its login.
 - **Q-AWS10 — how many drivers must be on the new native build before production cutover?**
   Installed builds still check the old OTA host for updates. Recommendation: keep Railway's OTA
   service alive past AWS12 until the build-card telemetry shows ≥95% of active drivers on the new
   build; everything else can cut over before that.
-- **Q-AWS11 — production size.** Multi-AZ NAT and two api tasks (~$300/mo) or one NAT (~$220–250).
-  Recommendation: one NAT now (D-AWS4); a NAT outage stops only EFS card management and outbound
-  calls, not the app.
+- **Q-AWS11 — Cloudflare in front?** Its free plan adds DDoS protection and hides the server's IP for
+  inbound traffic (WEX only sees outbound, so the allowlist is unaffected). Recommendation: yes for
+  the office and applicant hosts once cutover is stable; not a blocker.
+
+(Q-AWS5, where the OTA database goes, is settled by D-AWS8: on the server, dumped nightly.)
 
 ## 7. Progress log
 
 - **2026-10-21** — Plan opened from the owner's request after Railway's breach report. Inventory in §1
   measured from `railway service list` and `railway variables` (names only, no values read) and the
-  hosts in code on `main`. Nothing built. AWS0 is the first item regardless of Q-AWS1.
+  hosts in code on `main`. Nothing built. AWS0 is the first item regardless of the move.
+- **2026-10-21** — Railway's disclosure read: decrypted variables, roll everything, deploys paused
+  (§5 rotation note). Hosts compared (D-AWS3); owner answered Q-AWS1 and chose Supabase + one EC2
+  server per environment over ECS. §2–§6 rewritten for that shape; cost in §3.
