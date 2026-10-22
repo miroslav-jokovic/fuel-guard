@@ -1,0 +1,99 @@
+# The stack one EC2 server runs (docs/plans/architecture/AWS-MIGRATION-PLAN.md, D-AWS8/D-AWS9, AWS6).
+# deploy.sh copies this file out of the app image of the commit being deployed, so the stack and the
+# code always come from the same commit. Per-server values (hosts, replica count, drain) come from
+# <env>.env beside it; secrets come from Parameter Store into /run/silvicom/<service>.env (deploy.sh).
+#
+# Not here yet, each its own work item: the worker (lane `general`, RLY6/RLY7 — on Railway it is not
+# running either), the OTA server and its database (AWS8), the driver install page (AWS9).
+
+name: silvicom
+
+x-app: &app
+  image: ${APP_IMAGE:?APP_IMAGE is set by deploy.sh}
+  restart: unless-stopped
+  # Railway gives each deploy RAILWAY_DEPLOYMENT_DRAINING_SECONDS between SIGTERM and SIGKILL and
+  # lib/shutdown.ts reads the same variable for its drain budget, so the two cannot disagree. Here
+  # Docker's grace period plays Railway's part, set from the same number. The variable keeps
+  # Railway's name because that is what the code reads; renaming it is AWS12's clean-up.
+  stop_grace_period: ${DRAIN_SECONDS:?}s
+  healthcheck:
+    # The image is slim (no curl); node is always there. /healthz must stay 200 (DEPLOYMENT.md).
+    test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8080/healthz').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"]
+    interval: 15s
+    timeout: 5s
+    start_period: 60s
+    retries: 3
+  logging: &logs
+    driver: awslogs
+    options:
+      awslogs-region: us-west-2
+      awslogs-group: /silvicom/${ENV_NAME:?}
+      tag: "{{.Name}}"
+
+services:
+  api:
+    <<: *app
+    env_file: /run/silvicom/api.env
+    environment:
+      PORT: "8080"
+      RAILWAY_DEPLOYMENT_DRAINING_SECONDS: ${DRAIN_SECONDS}
+      # Until this server's cutover (AWS10 staging, AWS11 production) Railway keeps the scheduler
+      # lanes: an AWS container that won the `egress` lease would poll WEX from an IP WEX has not
+      # allowlisted yet. The lease would keep it to one poller either way (D-AWS8); this keeps it
+      # on the host that works. <env>.env sets RUN_SCHEDULERS=true at cutover.
+      RUN_SCHEDULERS_IN_PROCESS: ${RUN_SCHEDULERS:?}
+    deploy:
+      replicas: ${API_REPLICAS:?}
+
+  web:
+    <<: *app
+    env_file: /run/silvicom/web.env
+    environment:
+      PORT: "8080"
+      RAILWAY_DEPLOYMENT_DRAINING_SECONDS: ${DRAIN_SECONDS}
+      RUN_SCHEDULERS_IN_PROCESS: "false" # the front door never runs schedulers (DEPLOYMENT.md)
+
+  console:
+    image: ${CONSOLE_IMAGE:?CONSOLE_IMAGE is set by deploy.sh}
+    restart: unless-stopped
+    env_file: /run/silvicom/console.env
+    environment:
+      PORT: "8090"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8090/healthz').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      start_period: 60s
+      retries: 3
+    logging: *logs
+
+  caddy:
+    image: caddy:2.10-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      WEB_HOST: ${WEB_HOST:?}
+      API_HOST: ${API_HOST:?}
+      CONSOLE_HOST: ${CONSOLE_HOST:?}
+      ACME_EMAIL: ${ACME_EMAIL:?}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      # Certificates survive a redeploy; losing them would mean re-issuing on every deploy and
+      # running into Let's Encrypt's rate limits.
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      api:
+        condition: service_healthy
+      web:
+        condition: service_healthy
+      console:
+        condition: service_healthy
+    logging: *logs
+
+volumes:
+  caddy_data:
+  caddy_config:
