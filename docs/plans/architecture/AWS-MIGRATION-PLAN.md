@@ -332,3 +332,22 @@ nightly dump if the snapshot is older.
   tokens are random keys stored as SHA-256 hashes, not JWTs, so rotating `JWT_SECRET` does not break
   `EOO_TOKEN` and the last update. Rotation is the owner's step (the permission check refuses Claude
   writing secrets). The switch-off PR is prepared and held until the last update has shipped.
+- **2026-10-22** — Owner kept the D-AWS16 order (rotate → last update → switch off), after being told
+  production has ONE driver login (last sign-in 09/08) and two registered phones (last seen 09/15).
+  Found: no over-the-air update has EVER been published (every `driver-ota` run since 09/16 needed
+  approval, failed, or found "Native fingerprint changed"; none before), and the last APK on the
+  install page is `be313b7` (08/09; every later `driver-android` run failed). So installed phones run
+  `be313b7` exactly, and an update from `production` can never reach them. **AWS2a runbook:**
+  1. `api.360.silvicominc.com` resolves at GoDaddy and Railway shows it verified with a certificate;
+     `curl https://api.360.silvicominc.com/api/version` returns production's commit.
+  2. GitHub secret `EXPO_PUBLIC_API_URL` = `https://api.360.silvicominc.com`.
+  3. Dispatch `driver-ota.yml` from branch `claude/driver-last-update` (= `be313b7`, pushed
+     2026-10-22): same JavaScript the phones run, only the API host changed. If the runner image has
+     drifted and the fingerprint no longer matches, that workflow dispatches an APK build instead of
+     publishing — then stop and ask; do not approve it.
+  4. Check the run summary says "JavaScript update published".
+  5. Merge #1724 (draft, held: deletes `driver-ota.yml`, `driver-android.yml`, `apps/driver-dist`,
+     release.yml's driver step), then remove the `Expo-Open-OTA` + its Postgres and `driver-dist`
+     services on Railway (both environments), and delete the branch.
+  Rotation is the owner's: `rotate-ota-jwt.sh` (JWT_SECRET, both environments) plus a new admin
+  password set in each OTA dashboard.
