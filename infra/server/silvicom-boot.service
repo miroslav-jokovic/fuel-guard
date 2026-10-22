@@ -1,0 +1,19 @@
+# After a reboot the settings tmpfs is empty and Docker's own restart would start the containers
+# without their settings (compose.yml's bind mounts refuse a missing file, so they fail instead of
+# running wrong). This unit refetches the settings and brings the last deployed release back up.
+# Installed and enabled by deploy.sh. Retries while Parameter Store or the network is not ready yet.
+[Unit]
+Description=Silvicom 360: fetch settings and start the stack after boot
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+RequiresMountsFor=/run/silvicom
+
+[Service]
+Type=oneshot
+ExecStart=/opt/silvicom/boot.sh
+Restart=on-failure
+RestartSec=15
+
+[Install]
+WantedBy=multi-user.target
