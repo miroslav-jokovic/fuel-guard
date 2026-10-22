@@ -1,5 +1,11 @@
 # syntax=docker/dockerfile:1.7
 #
+# It lives here, not at the repository root, because Railway builds any root `Dockerfile` it finds
+# in place of railway.json's NIXPACKS builder: #1716 put it at the root and every Railway deploy of
+# af12f59 failed (staging 2026-10-22 18:38Z, on a `--mount` flag Railway refuses), which would have
+# failed the production release too. Its ignore file sits beside it as `Dockerfile.dockerignore`, the
+# name BuildKit reads for a Dockerfile outside the context root, so Railway sees neither.
+#
 # The app-tier image for the AWS move (docs/plans/architecture/AWS-MIGRATION-PLAN.md, D-AWS6, AWS5).
 # It reproduces railway.json / railway.worker.json / railway.admin.json — same install, same Vite
 # build, same `node --import tsx` start — so the code the EC2 servers run is the code Railway runs
