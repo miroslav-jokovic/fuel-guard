@@ -27,6 +27,8 @@ name: Release
 #   verified at that commit and schema → smoke → driver OTA if the driver changed → tag + GitHub
 #   release with the notes. Migrations go FIRST, so for the deploy minutes new schema serves old
 #   code, never the reverse — the direction every migration is already written to survive.
+#   Beside verify, the same commit goes to the AWS production server (job aws-production, AWS7); it
+#   gates nothing until AWS11's cutover.
 #
 # RELEASE_FREEZE=true (repository variable, D-REL12) makes the nightly run exit green with "frozen".
 # Hotfix and rollback ignore it: a freeze is for routine change, not for repairs.
@@ -357,6 +359,21 @@ jobs:
     with:
       from_release: true
 
+  # AWS7, production half (AWS-MIGRATION-PLAN.md D-AWS10): the commit `ship` just put on `production`
+  # also goes to the AWS production server. Until AWS11's cutover that server serves nobody and runs
+  # no schedulers, so this runs BESIDE verify and smoke, not in front of them: its failure is a red
+  # job to look at, never a reason for auto-rollback or a different summary. At cutover it moves in
+  # front of verify (which then checks the AWS host) and the Railway push above is what retires.
+  aws-production:
+    needs: [plan, ship]
+    if: needs.plan.outputs.dry != 'true' && needs.plan.outputs.mode != 'init'
+    permissions:
+      contents: read
+      id-token: write
+    uses: ./.github/workflows/aws-production.yml
+    with:
+      sha: ${{ needs.plan.outputs.sha }}
+
   publish:
     needs: [plan, smoke]
     runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
@@ -438,6 +455,17 @@ jobs:
       before: ${{ needs.plan.outputs.sha }}
       target: production
       rollback: true
+
+  # The AWS server follows the automatic rollback too, so it never keeps a commit `production` gave up.
+  aws-production-rollback:
+    needs: [plan, auto-rollback, aws-production]
+    if: always() && needs.auto-rollback.result == 'success'
+    permissions:
+      contents: read
+      id-token: write
+    uses: ./.github/workflows/aws-production.yml
+    with:
+      sha: ${{ needs.plan.outputs.before }}
 
   # Header: HARDENING — Summary. Runs whatever happened above, and decides which message that was.
   notify:
