@@ -1,0 +1,22 @@
+# Everything the image never needs. Keeping secrets out is the point of the first block: a .env copied
+# into an image layer is a key on disk in every registry that holds the image (D-AWS7).
+**/.env
+**/.env.*
+!**/.env.example
+**/*.pem
+**/*.p12
+docs/psp-docs/
+
+**/node_modules
+**/dist
+.git
+.github
+.claude
+graphify-out
+docs
+apps/driver/android
+apps/driver/ios
+DESIGN-IS-*
+tools/mcleod-agent/node_modules
+**/*.log
+**/.DS_Store
