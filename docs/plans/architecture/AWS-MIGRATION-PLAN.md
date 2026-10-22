@@ -222,6 +222,20 @@ nightly dump if the snapshot is older.
   inbound traffic (WEX only sees outbound, so the allowlist is unaffected). Recommendation: yes for
   the office and applicant hosts once cutover is stable; not a blocker.
 
+- **Q-AWS12 — the AWS account cannot reach us-west-2 (found 2026-10-21, blocks AWS1/AWS3/AWS4).** The
+  account created today is a "project" account in AWS's new simplified sign-up: it sits in an
+  organization whose management account is the owner's, under AWS-managed service control policies
+  that deny every region but **us-east-2 (Ohio)** — `ec2`/`ecr` calls in us-west-2 are refused with
+  "explicit deny in a service control policy" — and deny parts of IAM (listing OIDC providers was
+  refused, so GitHub OIDC, D-AWS10, is likely blocked too). Candidates: (a) the owner **activates
+  advanced features** in AWS Settings (settings.aws.com → Projects → Actions → Explore advanced
+  features; **irreversible**; removes the spend limit; makes the policies editable), then adds
+  us-west-2 to the region policy's `RegionFloor` statement; (b) build in us-east-2 — rejected: Ohio to
+  Oregon adds ~50 ms to every Supabase call, the exact problem D-AWS3 exists to avoid; (c) move
+  Supabase to us-east-2 — a new project and a data migration, weeks. Recommendation: **(a)**, before
+  any Elastic IP is allocated — an Elastic IP is regional, so an Ohio address given to WEX, PSP and
+  Alex would have to be replaced.
+
 (Q-AWS5, where the OTA database goes, is settled by D-AWS8: on the server, dumped nightly.)
 
 ## 7. Progress log
