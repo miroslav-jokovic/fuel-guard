@@ -58,7 +58,7 @@ jobs:
   verify:
     # Same machine switch as ci.yml (CI_RUNNER; its header says why).
     runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
-    timeout-minutes: 20
+    timeout-minutes: 30
     env:
       URL_PREFIX: ${{ (inputs.target == 'staging' || (github.event_name == 'push' && vars.RELEASE_TRAIN == 'on')) && 'STAGING_' || '' }}
     strategy:
@@ -147,6 +147,13 @@ jobs:
       # broken code still live; and a rollback past a migration leaves the database AHEAD of the code
       # by design (D-REL9), so waiting for "current" would time out on every such rollback. Before
       # this input, release.yml's rollback mode had both defects and had never been run.
+      #
+      # The wait is 25 minutes, not 15 (2026-10-22). A normal Railway build is ~6 minutes (production
+      # api, 10-21: 06:36:52 → image 06:43:01), but in the week after Railway's 10-21 breach the same
+      # build took 13 minutes and the deploy 14–18 minutes to go live: release run 39791776298's api
+      # image was finished at 14:13:45Z, the 15-minute deadline fell at 14:15:36Z, and auto-rollback
+      # removed a healthy deploy two minutes before it would have served. A slow host is not a broken
+      # one; a broken one still fails here, just ten minutes later.
       - name: Wait for the ${{ matrix.host }} host to serve this commit
         if: steps.deploys.outputs.deploys == 'true'
         env:
@@ -156,7 +163,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           ROLLBACK: ${{ inputs.rollback && 'true' || 'false' }}
         run: |
-          deadline=$(( $(date +%s) + 900 ))
+          deadline=$(( $(date +%s) + 1500 ))
           checked="" contains=""
           while [ "$(date +%s)" -lt "$deadline" ]; do
             body=$(curl -sS --max-time 15 "${TARGET_URL%/}/api/version" || echo '{}')
