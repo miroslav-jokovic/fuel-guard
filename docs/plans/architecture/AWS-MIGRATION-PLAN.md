@@ -237,6 +237,17 @@ nightly dump if the snapshot is older.
   any Elastic IP is allocated — an Elastic IP is regional, so an Ohio address given to WEX, PSP and
   Alex would have to be replaced.
 
+- **Q-AWS13 — one SPA bundle for both environments? (found 2026-10-22, AWS5).** The office SPA reads
+  `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `VITE_API_URL` and `VITE_APP_ENVIRONMENT` through
+  `import.meta.env`, which Vite inlines at build time, and staging and production point at different
+  Supabase projects. So the `app` image is built once per environment (as Railway builds once per
+  environment today) and D-AWS6's "same artefact in staging and production" holds for the server code
+  only. Candidates: (a) keep per-environment images — no code change, the production image is built
+  by `release.yml` from the approved commit; (b) the API serves `/config.js` with these public values
+  from its own environment and the SPA reads it at boot — one image for both, a small web change plus
+  a test that no `import.meta.env.VITE_*` read remains. Recommendation: **(a) now, (b) as its own PR
+  after cutover** — (a) moves nothing that works today; (b) is the honest end state.
+
 (Q-AWS5, where the OTA database goes, is settled by D-AWS8: on the server, dumped nightly.)
 
 ## 7. Progress log
@@ -248,3 +259,13 @@ nightly dump if the snapshot is older.
   (§5 rotation note). Hosts compared (D-AWS3); owner answered Q-AWS1 and chose Supabase + one EC2
   server per environment over ECS. §2–§6 rewritten for that shape; cost in §3.
 - **2026-10-22** — Production foundations built in us-west-2: EC2 `i-09fb5a309304be00b` (`t4g.large`), EIP `44.236.127.194`, SG `sg-08d7a8dc5cbb427cf`, role `arn:aws:iam::891568748437:role/silvicom-production-server`, volume `vol-0bfeadbbaa8cfce81`, DLM `policy-087142b4938365c82`, and budget `silvicom-monthly-250`; Q-AWS12 resolved by removing only `UsWest2Partitional` from `p-5g9gv5mm` (`AdvancedModeRegionRestrictionSecurityControlPolicy`, attached to root `r-8opx`).
+- **2026-10-22** — Supabase secret-key rotation prepared (both projects use `sb_secret_` keys, held only
+  by api/web/console on Railway; legacy anon key stays on — installed driver apps use it). Railway
+  deploys work again (production redeployed 09:00 and 09:16 CT), so rotation runs on Railway now.
+  AWS2 started: `api.360.silvicominc.com` (→ `@fleetguard/api`), `console.360.silvicominc.com`
+  (→ `platform-console`) and `ota.360.silvicominc.com` (→ `Expo-Open-OTA`) attached on Railway
+  production, waiting on the GoDaddy CNAME + TXT records. AWS5 started: ECR repositories
+  `silvicom/app` and `silvicom/console` (immutable tags, scan on push, keep 60), GitHub OIDC provider
+  and role `silvicom-github-deploy` (trusts only `main` of `miroslav-jokovic/fuel-guard`, ECR push
+  only), ECR pull added to `silvicom-production-server`; Dockerfile + `image.yml` in their own PR.
+  Q-AWS13 opened.
