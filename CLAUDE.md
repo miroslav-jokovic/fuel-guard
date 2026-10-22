@@ -15,9 +15,9 @@ stripped before Claude reads the file. -->
 - `apps/api` — Express 5 API + background worker + schedulers. Serves the built web SPA. Deploys to
   Railway (two services from `railway.json`: `fleetguardapi` is WEX-whitelisted and runs the pollers).
 - `apps/web` — Vue 3 + Vite + Tailwind 4 SPA (Pinia, vue-router, TanStack vue-query). See its CLAUDE.md.
-- `apps/driver` — Expo/React Native driver app. Ships via GitHub Actions (APK + fingerprint-gated OTA).
+- `apps/driver` — Expo/React Native driver app. Ships through the stores only (`driver-store.yml`, EAS → Play/TestFlight); the APK install
+  page and the self-hosted OTA server were switched off in the AWS move (D-AWS16).
 - `apps/admin` + `apps/admin-api` — internal platform console (own Railway service).
-- `apps/driver-dist` — zero-dependency APK install page.
 - `packages/shared` — Zod contracts (`*Contract.ts`) + pure domain logic. The ONLY home for
   api/web/driver-shared types and rules; never redefine a contract per app.
 - `packages/ui` — shared Vue components + `tokens.css`. `packages/hazmat-*` — hazmat rules engine
@@ -57,7 +57,7 @@ stripped before Claude reads the file. -->
   (macOS runners bill ~10× Linux): Swift is compiled and checked by hand, per
   `docs/plans/drivers-app/SCANNER-UPGRADE-PLAN.md` §3.4.
 - **A merge does not wait for main's CI when main's tree is the one the PR tested.** `build` posts a
-  `ci/tested-tree` status on the PR head, and `require-ci-green` (migrate, driver-ota/android/store)
+  `ci/tested-tree` status on the PR head, and `require-ci-green` (migrate, driver-store)
   accepts it when main's merge commit has that exact tree — else it polls main's run. Rules in
   `.github/actions/require-ci-green/tested-tree.sh`. Main's own CI asks the same question in its
   `plan` job and, on a yes, skips every heavy job but `native-android`; `build` accepts those skips
@@ -65,7 +65,7 @@ stripped before Claude reads the file. -->
   and `workflow_dispatch` always run everything. `deploy-verify` passes pushes that touch only
   paths `railway.json`'s `watchPatterns` exclude, and a host serving a later main commit. A push to
   main verifies the STAGING hosts (`STAGING_*` variables); `release.yml` calls it for production.
-  Every push-triggered production job (`migrate`, `driver-ota`, `driver-android`, smoke) skips while
+  Every push-triggered production job (`migrate`, smoke) skips while
   the repository variable `RELEASE_TRAIN` is `on`; deleting that variable is half of the undo.
 - **Browser tests run in `bundle`**: `pnpm --filter @silvicom/web e2e:apply` runs
   `apps/web/e2e-apply/` — the applicant's page, built, in Chromium, against a stubbed API
