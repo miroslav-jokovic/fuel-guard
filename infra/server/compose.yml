@@ -1,7 +1,8 @@
 # The stack one EC2 server runs (docs/plans/architecture/AWS-MIGRATION-PLAN.md, D-AWS8/D-AWS9, AWS6).
 # deploy.sh copies this file out of the app image of the commit being deployed, so the stack and the
 # code always come from the same commit. Per-server values (hosts, replica count, drain) come from
-# <env>.env beside it; secrets come from Parameter Store into /run/silvicom/<service>.env (deploy.sh).
+# <env>.env beside it, the release's images from release.env; secrets come from Parameter Store into
+# /run/silvicom/<service>.env (fetch-settings.sh), mounted read-only into each container.
 #
 # Not here yet, each its own work item: the worker (lane `general`, RLY6/RLY7 — on Railway it is not
 # running either), the OTA server and its database (AWS8), the driver install page (AWS9).
@@ -33,8 +34,19 @@ x-app: &app
 services:
   api:
     <<: *app
-    env_file: /run/silvicom/api.env
+    # Q-AWS14 (b): the settings file is mounted, not passed as environment, so Docker stores only
+    # this path. `create_host_path: false` makes a missing file (an empty tmpfs after a reboot,
+    # before silvicom-boot.service has run) stop the container instead of starting it unconfigured.
+    volumes:
+      - type: bind
+        source: /run/silvicom/api.env
+        target: /run/settings.env
+        read_only: true
+        bind:
+          create_host_path: false
     environment:
+      DOTENV_CONFIG_PATH: /run/settings.env
+      DOTENV_CONFIG_QUIET: "true"
       PORT: "8080"
       RAILWAY_DEPLOYMENT_DRAINING_SECONDS: ${DRAIN_SECONDS}
       # Until this server's cutover (AWS10 staging, AWS11 production) Railway keeps the scheduler
@@ -47,8 +59,19 @@ services:
 
   web:
     <<: *app
-    env_file: /run/silvicom/web.env
+    # Q-AWS14 (b): the settings file is mounted, not passed as environment, so Docker stores only
+    # this path. `create_host_path: false` makes a missing file (an empty tmpfs after a reboot,
+    # before silvicom-boot.service has run) stop the container instead of starting it unconfigured.
+    volumes:
+      - type: bind
+        source: /run/silvicom/web.env
+        target: /run/settings.env
+        read_only: true
+        bind:
+          create_host_path: false
     environment:
+      DOTENV_CONFIG_PATH: /run/settings.env
+      DOTENV_CONFIG_QUIET: "true"
       PORT: "8080"
       RAILWAY_DEPLOYMENT_DRAINING_SECONDS: ${DRAIN_SECONDS}
       RUN_SCHEDULERS_IN_PROCESS: "false" # the front door never runs schedulers (DEPLOYMENT.md)
@@ -56,8 +79,19 @@ services:
   console:
     image: ${CONSOLE_IMAGE:?CONSOLE_IMAGE is set by deploy.sh}
     restart: unless-stopped
-    env_file: /run/silvicom/console.env
+    # Q-AWS14 (b): the settings file is mounted, not passed as environment, so Docker stores only
+    # this path. `create_host_path: false` makes a missing file (an empty tmpfs after a reboot,
+    # before silvicom-boot.service has run) stop the container instead of starting it unconfigured.
+    volumes:
+      - type: bind
+        source: /run/silvicom/console.env
+        target: /run/settings.env
+        read_only: true
+        bind:
+          create_host_path: false
     environment:
+      DOTENV_CONFIG_PATH: /run/settings.env
+      DOTENV_CONFIG_QUIET: "true"
       PORT: "8090"
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8090/healthz').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"]
