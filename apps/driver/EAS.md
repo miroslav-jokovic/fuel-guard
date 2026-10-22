@@ -18,7 +18,7 @@ at roughly ten times Linux and `ci.yml` explains at length why that trade has no
 macOS images carry Xcode 26, so `eas build --platform ios` is how an IPA gets made without the whole
 release depending on one laptop being up to date (**D-PR3**).
 
-Android could be built in GitHub Actions — `driver-android.yml` already does. It goes through EAS
+Android could be built in GitHub Actions — `driver-android.yml` did, until the install page it fed was switched off (D-AWS16). It goes through EAS
 too so that both platforms are cut from the same command, at the same commit, with the same
 credentials story.
 
@@ -35,7 +35,7 @@ anywhere else. `version` itself comes from `package.json`, bumped by hand, semve
 | Profile | What it is for |
 |---|---|
 | `development` | A dev client for a laptop. `APP_VARIANT=development`, so `expo-dev-client` stays in the plugin list. |
-| `preview` | An APK a tester installs by hand — the same shape `driver-android.yml` produces today. |
+| `preview` | An APK a tester installs by hand — the shape the retired `driver-android.yml` produced. |
 | `production` | The store build. `APP_VARIANT=store`, an **App Bundle** because Play requires one, and `ios.image: latest` because that is what carries Xcode 26. |
 
 `APP_VARIANT=store` is load-bearing rather than cosmetic: it is what drops `expo-dev-client` from the

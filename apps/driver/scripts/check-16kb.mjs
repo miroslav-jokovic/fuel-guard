@@ -16,7 +16,7 @@
  *
  * DEVIATION FROM THE PLAN, stated rather than hidden: P1.5 specified `llvm-objdump -p` from the
  * NDK. This reads the ELF program headers directly instead, in Node. Three reasons — it needs no
- * toolchain, so it runs identically on a laptop, in `driver-android.yml` and in a future EAS lane;
+ * toolchain, so it runs identically on a laptop and in an EAS lane;
  * it can be unit-tested against synthesised headers, so the parser itself is held by tests
  * (tests/elf-alignment.test.ts) rather than by having once agreed with a tool; and it reports per
  * library rather than per invocation. `llvm-objdump` has NOT been dropped: when one is discoverable
