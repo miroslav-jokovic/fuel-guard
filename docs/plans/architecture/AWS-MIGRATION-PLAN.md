@@ -247,3 +247,4 @@ nightly dump if the snapshot is older.
 - **2026-10-21** — Railway's disclosure read: decrypted variables, roll everything, deploys paused
   (§5 rotation note). Hosts compared (D-AWS3); owner answered Q-AWS1 and chose Supabase + one EC2
   server per environment over ECS. §2–§6 rewritten for that shape; cost in §3.
+- **2026-10-22** — Production foundations built in us-west-2: EC2 `i-09fb5a309304be00b` (`t4g.large`), EIP `44.236.127.194`, SG `sg-08d7a8dc5cbb427cf`, role `arn:aws:iam::891568748437:role/silvicom-production-server`, volume `vol-0bfeadbbaa8cfce81`, DLM `policy-087142b4938365c82`, and budget `silvicom-monthly-250`; Q-AWS12 resolved by removing only `UsWest2Partitional` from `p-5g9gv5mm` (`AdvancedModeRegionRestrictionSecurityControlPolicy`, attached to root `r-8opx`).
