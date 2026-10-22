@@ -297,3 +297,9 @@ nightly dump if the snapshot is older.
   (#1715) merged with the timestamp fix after it crashed on the first AWS staging deploy (Supabase's
   log timestamps changed format); AWS Elastic IPs added to its own-address list. Railway still serves
   every user; next: AWS7 production half in `release.yml`, Q-AWS14, staging DNS + cutover (AWS10).
+- **2026-10-22** — **Q-AWS14 answered (b)** and built (`infra/server/fetch-settings.sh`, bind-mounted
+  read-only settings files read by the existing `dotenv/config` via `DOTENV_CONFIG_PATH`, boot service
+  for reboots). Proven on AWS staging: Docker's stored env has no secret, 0 keys anywhere under
+  `/var/lib/docker`, and a real reboot came back healthy unattended. Also learned: Railway builds a
+  repo-root `Dockerfile` despite railway.json's NIXPACKS builder — #1716 broke Railway `uat` deploys
+  until #1719 moved the image to `infra/image/` (production unaffected: it deploys only by release).
