@@ -84,6 +84,7 @@ Project `serene-elegance`, two environments (`production`, `uat`), same shape in
 | **D-AWS13** | **Cutover per environment, staging first, in the release window; Railway kept warm for 14 days with schedulers off** (`RUN_SCHEDULERS_IN_PROCESS=false`, lanes empty), then deleted (AWS12). | Rollback is DNS back to a host that still has the code. 14 days covers a full release cycle plus slow phones. |
 | **D-AWS14** | **Recovery for a one-server environment:** daily EBS snapshots kept 7 days (Data Lifecycle Manager); EC2 automatic recovery on (moves the server to new hardware on a host failure, same IP and disk); the whole server is built from code (Q-AWS7) so a lost server is rebuilt from the last snapshot in ~30 minutes; IMDSv2 required; security group opens 80/443 only; security updates applied automatically. | This is what replaces "Railway restarts it for us". The data that matters is in Supabase and S3, not on the server; the server holds only the OTA database (dumped nightly) and logs (in CloudWatch). |
 | **D-AWS15** | **Buy a 1-year Compute Savings Plan after the first full month**, sized to what the two servers actually used. | ~30% off the servers once the sizes are proven; committing before measuring could lock in the wrong size. |
+| **D-AWS16** | **The driver app does not come to AWS; it will ship through the Google Play and Apple stores** once its purpose is settled (owner, 2026-10-22). So the OTA server and the APK install page are **not moved** (AWS8, AWS9 dropped, no `ota.360…`/`drivers.360…` names). Installed apps still call `fleetguardweb-production.up.railway.app`, so before Railway goes (AWS12) the OTA server ships **one last update** that points them at `api.360.silvicominc.com` (AWS2a); then the OTA server and the install page are switched off on Railway and `driver-ota.yml`, `driver-android.yml` and release.yml's driver-update step are removed. The leaked OTA secrets are contained meanwhile: `JWT_SECRET` rotated, the admin password changed in the xprem dashboard (it seeds only on first boot). `driver-store.yml` is the surviving lane. | Owner's distribution decision. A store build uses the store's signing, so the leaked code-signing keys stop mattering once the OTA server is off; until then rotating the dashboard credentials stops anyone publishing with the old ones. Saves AWS8/AWS9 work and the ~95%-adoption wait (Q-AWS10). After the last update, phones keep working on the bundle they have; a fix before the store builds means an APK or nothing. |
 
 ## 3. Target setup and cost
 
@@ -121,7 +122,7 @@ recovery (Q-RLY3, ~$100).
 | AWS0a | `SECRETS_ENCRYPTION_KEY` rotation needs code first: secretBox holds ONE key, and `efsCardRef.ts` derives card lookup handles from it, so a new key changes every handle. Build an old+new key read path, reseal every sealed row, recompute every card ref, then drop the old key | Q-AWS3 | Claude (PR + migration if refs are stored) |
 | **AWS1** | AWS account(s), root MFA, Identity Center logins, budget alarm at $150, Parameter Store paths | Q-AWS6 | Owner creates the account and adds the card; Claude the rest |
 | **AWS2** | Custom domains on Railway (D-AWS5); repoint web SPA, console, CI, Supabase Auth, Samsara webhook | Q-AWS4 (names, DNS access) | Claude + owner (DNS) |
-| AWS2a | Driver OTA with `EXPO_PUBLIC_API_URL` = `api.360…`; then a native build with `UPDATES_URL` = `ota.360…` through the normal release lanes | AWS2 | Claude; owner approves lanes |
+| AWS2a | ~~Driver OTA, then a native build with `UPDATES_URL` = `ota.360…`~~ **Replaced by D-AWS16:** one last OTA update with `EXPO_PUBLIC_API_URL` = `api.360…`, published from the Railway OTA server; no native build | AWS2 (`api.360…` live) | Claude; owner sets the GitHub secret |
 | AWS2b | Alex changes `FUELGUARD_INGEST_URL` on the VM to `api.360…` | AWS2 | Owner asks Alex |
 | **AWS3** | Ask WEX to allowlist the production Elastic IP beside the Railway IPs | AWS4 (the IP exists) | Owner |
 | AWS4 | Server foundations, as code (Q-AWS7): Elastic IPs, security groups, instance roles, snapshot policy, automatic recovery, the two servers | AWS1 | Claude |
@@ -129,8 +130,8 @@ recovery (Q-RLY3, ~$100).
 | AWS6 | Compose stack + Caddy + deploy script (D-AWS8/9) on the staging server, secrets from Parameter Store | AWS4, AWS5 | Claude |
 | AWS6a | Move the Supabase key watcher (`scripts/supabase-key-watch.mjs`, running from launchd on the owner's Mac since 2026-10-21) to the production server as a systemd timer, with a fine-grained Supabase token that can only read logs (`analytics_logs_read`) in Parameter Store; then remove the Mac's launchd job and Keychain items | AWS6 on production | Claude |
 | AWS7 | Workflows: staging deploy on merge; `release.yml` code step; `deploy-verify.yml`, `smoke.yml`, `STAGING_*`/production URL variables, `pnpm verify:live` | AWS6 | Claude |
-| AWS8 | OTA server + its database onto the server; move the signing keys; nightly dump to S3 | AWS6 | Claude |
-| AWS9 | driver-dist to S3 + CloudFront | AWS4 | Claude |
+| AWS8 | ~~OTA server + its database onto the server~~ **Dropped (D-AWS16).** Instead: the Railway OTA server and install page are switched off after AWS2a, and their release-train steps removed | AWS2a | Claude |
+| AWS9 | ~~driver-dist to S3 + CloudFront~~ **Dropped (D-AWS16)** — switched off with the OTA server | — | — |
 | **AWS10** | Staging cutover: DNS `staging-*` → AWS; browser pass with the three fixtures; scheduler lanes `held` by the AWS containers | AWS6–AWS9 | Claude |
 | **AWS11** | Production cutover in the release window: DNS → AWS; confirm EFS card management works from the new IP; lanes held; Railway schedulers off | AWS3 confirmed, AWS10 green for 1 week, AWS2a/2b adopted (Q-AWS10) | Claude runs; owner approves the night |
 | AWS12 | After 14 days: delete Railway variables and services, remove its GitHub app, cancel; ask WEX to drop the Railway IPs; rewrite `docs/DEPLOYMENT.md`, `docs/WORKER-DEPLOYMENT.md`, root `CLAUDE.md` | AWS11 + 14 days | Claude; owner cancels billing |
@@ -215,7 +216,7 @@ nightly dump if the snapshot is older.
   tag `env.ts` groups by role and generate the list — a hand list beside the schema is a copy.
 - **Q-AWS9 — who can reach the console.** Today it is a public Railway host. Recommendation: Caddy
   allows `console.360…` only from the office IPs and the owner's, on top of its login.
-- **Q-AWS10 — how many drivers must be on the new native build before production cutover?**
+- **Q-AWS10 — how many drivers must be on the new native build before production cutover?** **WITHDRAWN 2026-10-22 by D-AWS16** — there is no new native build; the one last OTA update (AWS2a) is what installed apps need.
   Installed builds still check the old OTA host for updates. Recommendation: keep Railway's OTA
   service alive past AWS12 until the build-card telemetry shows ≥95% of active drivers on the new
   build; everything else can cut over before that.
@@ -323,3 +324,11 @@ nightly dump if the snapshot is older.
   Railway. That commit predates Q-AWS14 (b), so Docker's stored env still holds secrets on production
   until the next release deploys a commit with #1722 — expected, not a regression. Railway serves every
   user; next: DNS records (AWS2), WEX allowlist for `44.236.127.194` (AWS3).
+- **2026-10-22** — **D-AWS16 (owner):** the driver app will go to the stores, so the OTA server and the
+  install page stay on Railway until one last OTA update repoints installed apps at
+  `api.360.silvicominc.com`, then both are switched off; AWS8/AWS9 dropped, Q-AWS10 withdrawn. Read
+  xprem's source (`mercuretechnologies/xprem`): `ADMIN_PASSWORD` seeds the admin only on first boot
+  (migration `20260717100100_seed_first_admin_user.go`), so it is changed in the dashboard; CLI API
+  tokens are random keys stored as SHA-256 hashes, not JWTs, so rotating `JWT_SECRET` does not break
+  `EOO_TOKEN` and the last update. Rotation is the owner's step (the permission check refuses Claude
+  writing secrets). The switch-off PR is prepared and held until the last update has shipped.
