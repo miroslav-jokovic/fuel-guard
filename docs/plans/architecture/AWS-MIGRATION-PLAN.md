@@ -127,6 +127,7 @@ recovery (Q-RLY3, ~$100).
 | AWS4 | Server foundations, as code (Q-AWS7): Elastic IPs, security groups, instance roles, snapshot policy, automatic recovery, the two servers | AWS1 | Claude |
 | AWS5 | `Dockerfile` + ECR + GitHub OIDC role; image builds in CI next to `typecheck-build` | AWS1 | Claude |
 | AWS6 | Compose stack + Caddy + deploy script (D-AWS8/9) on the staging server, secrets from Parameter Store | AWS4, AWS5 | Claude |
+| AWS6a | Move the Supabase key watcher (`scripts/supabase-key-watch.mjs`, running from launchd on the owner's Mac since 2026-10-21) to the production server as a systemd timer, with a fine-grained Supabase token that can only read logs (`analytics_logs_read`) in Parameter Store; then remove the Mac's launchd job and Keychain items | AWS6 on production | Claude |
 | AWS7 | Workflows: staging deploy on merge; `release.yml` code step; `deploy-verify.yml`, `smoke.yml`, `STAGING_*`/production URL variables, `pnpm verify:live` | AWS6 | Claude |
 | AWS8 | OTA server + its database onto the server; move the signing keys; nightly dump to S3 | AWS6 | Claude |
 | AWS9 | driver-dist to S3 + CloudFront | AWS4 | Claude |
