@@ -303,3 +303,15 @@ nightly dump if the snapshot is older.
   `/var/lib/docker`, and a real reboot came back healthy unattended. Also learned: Railway builds a
   repo-root `Dockerfile` despite railway.json's NIXPACKS builder — #1716 broke Railway `uat` deploys
   until #1719 moved the image to `infra/image/` (production unaffected: it deploys only by release).
+- **2026-10-22** — AWS7 production half built (#1723): `aws-production.yml` builds `<sha>-production`
+  images from `PRODUCTION_VITE_*` repository variables and deploys them to the production server
+  through SSM; `release.yml` calls it after `ship`, beside verify (gates nothing until AWS11), and
+  again after an automatic rollback. It refuses any commit not on the `production` branch. New role
+  `silvicom-github-release` trusts only GitHub environment `aws-production` (branch policy: `main`)
+  and may send commands only to `Environment=production` (simulated: release role → production
+  allowed, staging denied; deploy role → the reverse). The SSM call is now one script for both
+  environments (`infra/ssm-deploy.sh`). Production server checked: Docker 25, Compose 2.40, tmpfs
+  `/run/silvicom` mounted, SSM online. **Blocking the first production deploy:** Parameter Store
+  `/silvicom/production/{api,web,console}` is empty — copying Railway production's values in is the
+  owner's step (it writes production secrets; the automated copy was refused by the permission
+  check).
