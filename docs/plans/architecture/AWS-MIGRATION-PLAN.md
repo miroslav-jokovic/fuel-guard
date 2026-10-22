@@ -315,3 +315,11 @@ nightly dump if the snapshot is older.
   `/silvicom/production/{api,web,console}` is empty — copying Railway production's values in is the
   owner's step (it writes production secrets; the automated copy was refused by the permission
   check).
+- **2026-10-22** — #1723 merged. Production settings copied from Railway into Parameter Store by the
+  owner (`/silvicom/production/{api,web,console}`: 71/37/4, same counts as Railway). First production
+  deploy, dispatched with `v2026.10.22` (`10dad1c`): run 39866910947 green, api ×2 + web + console
+  healthy, `/api/version` commit `10dad1c` schema `0509` current, outbound IP = `44.236.127.194`,
+  2.9 of 7.8 GB used. Every container `RUN_SCHEDULERS_IN_PROCESS=false`; the lanes stay held by
+  Railway. That commit predates Q-AWS14 (b), so Docker's stored env still holds secrets on production
+  until the next release deploys a commit with #1722 — expected, not a regression. Railway serves every
+  user; next: DNS records (AWS2), WEX allowlist for `44.236.127.194` (AWS3).
