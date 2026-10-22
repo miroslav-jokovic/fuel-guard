@@ -1,0 +1,40 @@
+# The front door on each server (D-AWS8): HTTPS certificates from Let's Encrypt, routing by host name.
+# Host names come from <env>.env (D-AWS5). Caddy fetches a certificate the first time a name's DNS
+# points at this server, so before cutover these blocks simply wait.
+#
+# One proxy hop, as on Railway: the API's `trust proxy` is 1 (apps/api/src/app.ts), and Caddy sets
+# X-Forwarded-For with the client's address, so rate limits and audit IPs keep meaning the same thing.
+# No `encode` here: the API compresses its own responses (appCompression.test.ts); doing it twice
+# would only cost CPU.
+
+{
+	email {$ACME_EMAIL}
+}
+
+{$WEB_HOST} {
+	reverse_proxy web:8080 {
+		health_uri /healthz
+	}
+}
+
+# `dynamic a` re-resolves the service name, so every api replica gets traffic and a replica that is
+# being replaced (or fails /healthz) gets none.
+{$API_HOST} {
+	reverse_proxy {
+		dynamic a {
+			name api
+			port 8080
+			refresh 5s
+		}
+		lb_policy round_robin
+		health_uri /healthz
+		lb_try_duration 10s
+	}
+}
+
+# Q-AWS9 (open): the console may later be limited to the office IPs here, on top of its own login.
+{$CONSOLE_HOST} {
+	reverse_proxy console:8090 {
+		health_uri /healthz
+	}
+}
