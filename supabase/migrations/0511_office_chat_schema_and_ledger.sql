@@ -475,6 +475,8 @@ select m.org_id, 'message_sent', m.thread_id, m.id, m.sender_user_id, chat_sha25
   from messages m order by m.created_at, m.id;
 
 -- ── 8. The office write budget (D-CHAT8) ───────────────────────────────────────────────────────
+-- cross-module-waiver: driver-app's per-person write counter gains one bucket value for messaging's
+-- office chat; the table, its function and its writer (driverWriteLimit.ts) stay driver-app's.
 -- Office chat writes get their own daily counter, `chat_message` (60 a minute, 3,000 a day), in the
 -- per-user counter 0149 built for D57: it is keyed on the person, not on being a driver, and a second
 -- counter table would be the same table twice. The driver budget (`message`, 300 a day) stays the
