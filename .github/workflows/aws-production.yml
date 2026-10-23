@@ -117,6 +117,7 @@ jobs:
             VITE_SUPABASE_URL=${{ vars.PRODUCTION_VITE_SUPABASE_URL }}
             VITE_SUPABASE_ANON_KEY=${{ vars.PRODUCTION_VITE_SUPABASE_ANON_KEY }}
             VITE_API_URL=${{ vars.PRODUCTION_VITE_API_URL }}
+            VITE_CUSTOMER_APP_URL=${{ vars.WEB_URL }}
             VITE_APP_ENVIRONMENT=${{ vars.PRODUCTION_VITE_APP_ENVIRONMENT }}
             GIT_COMMIT_SHA=${{ env.SHA }}
             GIT_BRANCH=production

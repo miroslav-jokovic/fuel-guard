@@ -119,6 +119,7 @@ jobs:
             VITE_SUPABASE_URL=${{ vars.STAGING_VITE_SUPABASE_URL }}
             VITE_SUPABASE_ANON_KEY=${{ vars.STAGING_VITE_SUPABASE_ANON_KEY }}
             VITE_API_URL=${{ vars.STAGING_VITE_API_URL }}
+            VITE_CUSTOMER_APP_URL=${{ vars.STAGING_WEB_URL }}
             VITE_APP_ENVIRONMENT=${{ vars.STAGING_VITE_APP_ENVIRONMENT }}
             GIT_COMMIT_SHA=${{ github.sha }}
             GIT_BRANCH=main
