@@ -473,3 +473,14 @@ insert into chat_ledger (org_id, action, thread_id, message_id, actor_user_id, b
 select m.org_id, 'message_sent', m.thread_id, m.id, m.sender_user_id, chat_sha256(m.body),
        jsonb_build_object('seq', m.seq, 'backfilled', true)
   from messages m order by m.created_at, m.id;
+
+-- ── 8. The office write budget (D-CHAT8) ───────────────────────────────────────────────────────
+-- Office chat writes get their own daily counter, `chat_message` (60 a minute, 3,000 a day), in the
+-- per-user counter 0149 built for D57: it is keyed on the person, not on being a driver, and a second
+-- counter table would be the same table twice. The driver budget (`message`, 300 a day) stays the
+-- driver's. Widened here, in the migration before the API that bumps it (CH1b), because a bump the
+-- constraint refuses fails OPEN by design (driverWriteLimit.ts) — it would let every send through
+-- silently instead of failing.
+alter table driver_write_counters drop constraint if exists driver_write_counters_bucket_check;
+alter table driver_write_counters add constraint driver_write_counters_bucket_check
+  check (bucket in ('shift', 'load_action', 'stop_capture', 'message', 'chat_message'));

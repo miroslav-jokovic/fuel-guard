@@ -2039,7 +2039,7 @@ END)
   day  date  not null
   count  integer  not null  default 0
   updated_at  timestamp with time zone  not null  default now()
-  constraint driver_write_counters_bucket_check: CHECK ((bucket = ANY (ARRAY['shift'::text, 'load_action'::text, 'stop_capture'::text, 'message'::text])))
+  constraint driver_write_counters_bucket_check: CHECK ((bucket = ANY (ARRAY['shift'::text, 'load_action'::text, 'stop_capture'::text, 'message'::text, 'chat_message'::text])))
   constraint driver_write_counters_bucket_not_null: NOT NULL bucket
   constraint driver_write_counters_count_not_null: NOT NULL count
   constraint driver_write_counters_day_not_null: NOT NULL day

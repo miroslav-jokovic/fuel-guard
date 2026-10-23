@@ -303,6 +303,12 @@ const slipped = await tampered(`insert into messages (id, thread_id, org_id, sen
 ok("a message planted with no ledger entry is named", slipped.problem === "message has no ledger entry");
 ok("after the rollbacks the chain verifies again", (await verify()).problem === null);
 
+// ── The office write budget (D-CHAT8) ───────────────────────────────────────────────────────────
+ok("the per-person write counter takes the office chat bucket",
+  (await one(`select allowed from bump_driver_write_counter($1,$2,'chat_message',3000)`, [ORG, ANA])).allowed === true);
+ok("...and still refuses a bucket nobody defined",
+  (await sqlstate(`select bump_driver_write_counter($1,$2,'gossip',10)`, [ORG, ANA])) === "23514");
+
 // ── Archived ────────────────────────────────────────────────────────────────────────────────────
 await db.query(`update message_threads set archived_at = now() where id=$1`, [DM]);
 ok("an archived conversation takes no new messages",
