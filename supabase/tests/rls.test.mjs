@@ -2224,6 +2224,8 @@ async function main() {
     // 0513: may the caller join this Realtime topic — the policy on realtime.messages calls it as the
     // joining user. Like auth_in_thread it takes an identifier and answers for the caller's own claims.
     "auth_chat_topic",
+    // 0514: the same join check for the driver app's private message topics (driver:inbox / driver:thread).
+    "auth_driver_message_topic",
     "auth_module_enabled",
     // 0371: the loads whose current dispatch names the calling driver — reads only the caller's claims.
     "auth_dispatched_load_ids",
