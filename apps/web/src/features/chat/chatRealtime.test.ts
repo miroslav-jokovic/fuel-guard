@@ -53,14 +53,14 @@ const sync = (changes: ChatMessage[], rev: number, more = false): ChatSyncRespon
 
 describe("applySync", () => {
   it("appends new lines in order and counts them unread by the database's rule", () => {
-    const next = applySync(page([msg(1), msg(2)]), sync([msg(3), msg(4)], 4))!;
+    const next = applySync(page([msg(1), msg(2)]), sync([msg(3), msg(4)], 4), ME)!;
     expect(next.messages.map((m) => m.seq)).toEqual([1, 2, 3, 4]);
     expect(next.conversation).toMatchObject({ last_seq: 4, rev: 4, unread: 2 });
     expect(next.conversation.last_message).toMatchObject({ seq: 4, body: "line 4", deleted: false });
   });
 
   it("replaces an edited or retracted line in place", () => {
-    const next = applySync(page([msg(1), msg(2)]), sync([msg(2, 3, { body: null, deleted_at: "2026-10-23T12:01:00Z" })], 3))!;
+    const next = applySync(page([msg(1), msg(2)]), sync([msg(2, 3, { body: null, deleted_at: "2026-10-23T12:01:00Z" })], 3), ME)!;
     expect(next.messages.map((m) => m.seq)).toEqual([1, 2]);
     expect(next.messages[1]).toMatchObject({ body: null, rev: 3 });
     expect(next.conversation).toMatchObject({ rev: 3, last_seq: 2, unread: 0 });
@@ -68,21 +68,21 @@ describe("applySync", () => {
   });
 
   it("refuses a merge that would leave a hole, so the caller refetches", () => {
-    expect(applySync(page([msg(1), msg(2)]), sync([msg(4)], 4))).toBeNull();
+    expect(applySync(page([msg(1), msg(2)]), sync([msg(4)], 4), ME)).toBeNull();
     // An empty conversation holds from seq 1.
-    expect(applySync(page([]), sync([msg(2)], 2))).toBeNull();
-    expect(applySync(page([]), sync([msg(1)], 1))!.messages).toHaveLength(1);
+    expect(applySync(page([]), sync([msg(2)], 2), ME)).toBeNull();
+    expect(applySync(page([]), sync([msg(1)], 1), ME)!.messages).toHaveLength(1);
   });
 
   it("leaves an edit above the page to the history, without calling it a hole", () => {
-    const next = applySync(page([msg(10), msg(11)]), sync([msg(3, 12, { body: "edited" })], 12))!;
+    const next = applySync(page([msg(10), msg(11)]), sync([msg(3, 12, { body: "edited" })], 12), ME)!;
     expect(next.messages.map((m) => m.seq)).toEqual([10, 11]);
     expect(next.conversation.rev).toBe(12);
   });
 
   it("never moves the page backwards when an older answer lands after a newer fetch", () => {
     const fresh = page([msg(1), msg(2, 5, { body: "second edit" })]);
-    const next = applySync(fresh, sync([msg(2, 4, { body: "first edit" })], 4))!;
+    const next = applySync(fresh, sync([msg(2, 4, { body: "first edit" })], 4), ME)!;
     expect(next.messages[1]!.body).toBe("second edit");
     expect(next.conversation.rev).toBe(5);
   });
@@ -99,7 +99,7 @@ describe("syncConversation", () => {
   it("asks for what changed since the rev it holds, and merges it", async () => {
     qc.setQueryData(conversationKey(T), page([msg(1), msg(2)]));
     api.answers = [sync([msg(3)], 3)];
-    await syncConversation(qc, T, 3);
+    await syncConversation(qc, T, ME, 3);
     expect(api.asked).toEqual([`/api/chat/${T}/sync?since_rev=2`]);
     expect(qc.getQueryData<ChatConversationResponse>(conversationKey(T))!.messages).toHaveLength(3);
   });
@@ -107,14 +107,14 @@ describe("syncConversation", () => {
   it("follows `more` from the rev each page returns", async () => {
     qc.setQueryData(conversationKey(T), page([msg(1)]));
     api.answers = [sync([msg(2)], 2, true), sync([msg(3)], 3)];
-    await syncConversation(qc, T);
+    await syncConversation(qc, T, ME);
     expect(api.asked).toEqual([`/api/chat/${T}/sync?since_rev=1`, `/api/chat/${T}/sync?since_rev=2`]);
   });
 
   it("asks nothing for a signal it already holds, or a conversation it does not hold", async () => {
     qc.setQueryData(conversationKey(T), page([msg(1), msg(2)]));
-    await syncConversation(qc, T, 2);
-    await syncConversation(qc, YOU, 9);
+    await syncConversation(qc, T, ME, 2);
+    await syncConversation(qc, YOU, ME, 9);
     expect(api.asked).toEqual([]);
   });
 
@@ -122,9 +122,9 @@ describe("syncConversation", () => {
     qc.setQueryData(conversationKey(T), page([msg(1)]));
     const refetch = vi.spyOn(qc, "invalidateQueries");
     api.answers = [sync([msg(3)], 3)];
-    await syncConversation(qc, T);
+    await syncConversation(qc, T, ME);
     api.answers = ["fail"];
-    await syncConversation(qc, T);
+    await syncConversation(qc, T, ME);
     expect(refetch).toHaveBeenCalledTimes(2);
     expect(refetch).toHaveBeenCalledWith({ queryKey: conversationKey(T) });
   });
@@ -132,17 +132,17 @@ describe("syncConversation", () => {
   it("runs one sync per conversation, and one more round for a signal heard during it", async () => {
     qc.setQueryData(conversationKey(T), page([msg(1)]));
     api.answers = [sync([msg(2)], 2), sync([msg(3)], 3)];
-    const first = syncConversation(qc, T, 2);
-    const second = syncConversation(qc, T, 3);
+    const first = syncConversation(qc, T, ME, 2);
+    const second = syncConversation(qc, T, ME, 3);
     await Promise.all([first, second]);
     expect(api.asked).toEqual([`/api/chat/${T}/sync?since_rev=1`, `/api/chat/${T}/sync?since_rev=2`]);
     expect(qc.getQueryData<ChatConversationResponse>(conversationKey(T))!.conversation.last_seq).toBe(3);
   });
 
-  it("counts my own new line as the database does, so the page reads it as any other", async () => {
+  it("never counts my own new line as unread — sending is reading (0511)", async () => {
     qc.setQueryData(conversationKey(T), page([msg(1)]));
-    api.answers = [sync([msg(2, 2, { sender_user_id: ME })], 2)];
-    await syncConversation(qc, T, 2);
-    expect(qc.getQueryData<ChatConversationResponse>(conversationKey(T))!.conversation.unread).toBe(1);
+    api.answers = [sync([msg(2, 2, { sender_user_id: ME }), msg(3)], 3)];
+    await syncConversation(qc, T, ME, 3);
+    expect(qc.getQueryData<ChatConversationResponse>(conversationKey(T))!.conversation).toMatchObject({ read_seq: 2, unread: 1 });
   });
 });

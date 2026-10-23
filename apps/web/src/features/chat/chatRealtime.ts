@@ -29,7 +29,11 @@ const SYNC_PAGES = 10;
  * the caller answers with a refetch. Monotonic: a change never replaces a newer copy of its message, so
  * an answer that lands after a refetch already brought more cannot move the page backwards.
  */
-export function applySync(cached: ChatConversationResponse, sync: ChatSyncResponse): ChatConversationResponse | null {
+export function applySync(
+  cached: ChatConversationResponse,
+  sync: ChatSyncResponse,
+  viewerId: string | null,
+): ChatConversationResponse | null {
   // The first position this page holds. An empty page at the start of the conversation holds from 1.
   const first = cached.messages[0]?.seq ?? (cached.before_seq === null ? 1 : null);
   if (first === null) return null;
@@ -53,6 +57,11 @@ export function applySync(cached: ChatConversationResponse, sync: ChatSyncRespon
   const last: ChatMessage | undefined = messages[messages.length - 1];
   const c = cached.conversation;
   const lastSeq = Math.max(c.last_seq, last?.seq ?? 0);
+  // Sending is reading (0511 `chat_ledger_messages`): the database moves the author's boundary to their
+  // own message, so this tab's own new line is never unread — and asking to mark it read would be a
+  // wasted request per send.
+  const mine = messages.filter((m) => viewerId !== null && m.sender_user_id === viewerId).at(-1)?.seq ?? 0;
+  const readSeq = Math.max(c.read_seq, mine);
   const newer = last !== undefined && last.seq >= (c.last_message?.seq ?? 0);
   return {
     ...cached,
@@ -62,7 +71,8 @@ export function applySync(cached: ChatConversationResponse, sync: ChatSyncRespon
       rev: Math.max(c.rev, sync.rev),
       last_seq: lastSeq,
       // The database's own rule (0512 `chat_inbox`): unread is last_seq − read_seq.
-      unread: Math.max(lastSeq - c.read_seq, 0),
+      read_seq: readSeq,
+      unread: Math.max(lastSeq - readSeq, 0),
       last_message_at: newer ? last.created_at : c.last_message_at,
       last_message: newer
         ? {
@@ -84,7 +94,12 @@ export function applySync(cached: ChatConversationResponse, sync: ChatSyncRespon
 const inflight = new Map<string, { again: boolean }>();
 
 /** Bring the cached conversation up to date; no-op when this tab does not hold it. */
-export async function syncConversation(qc: QueryClient, threadId: string, signalRev?: number): Promise<void> {
+export async function syncConversation(
+  qc: QueryClient,
+  threadId: string,
+  viewerId: string | null,
+  signalRev?: number,
+): Promise<void> {
   const key = conversationKey(threadId);
   const held = qc.getQueryData<ChatConversationResponse>(key);
   if (!held || (signalRev !== undefined && held.conversation.rev >= signalRev)) return;
@@ -98,7 +113,7 @@ export async function syncConversation(qc: QueryClient, threadId: string, signal
   try {
     do {
       run.again = false;
-      if (!(await syncPages(qc, threadId))) await qc.invalidateQueries({ queryKey: key });
+      if (!(await syncPages(qc, threadId, viewerId))) await qc.invalidateQueries({ queryKey: key });
     } while (run.again);
   } finally {
     inflight.delete(threadId);
@@ -106,7 +121,7 @@ export async function syncConversation(qc: QueryClient, threadId: string, signal
 }
 
 /** True when the cache is now current; false when only a refetch can make it so. */
-async function syncPages(qc: QueryClient, threadId: string): Promise<boolean> {
+async function syncPages(qc: QueryClient, threadId: string, viewerId: string | null): Promise<boolean> {
   const key = conversationKey(threadId);
   for (let page = 0; page < SYNC_PAGES; page++) {
     const cached = qc.getQueryData<ChatConversationResponse>(key);
@@ -116,7 +131,7 @@ async function syncPages(qc: QueryClient, threadId: string): Promise<boolean> {
     // Merge into what the cache holds NOW — a poll may have landed during the request.
     const current = qc.getQueryData<ChatConversationResponse>(key);
     if (!current) return true;
-    const next = applySync(current, res.data);
+    const next = applySync(current, res.data, viewerId);
     if (!next) return false;
     qc.setQueryData(key, next);
     if (!res.data.more) return true;
@@ -125,12 +140,14 @@ async function syncPages(qc: QueryClient, threadId: string): Promise<boolean> {
 }
 
 function transportFor(qc: QueryClient): ChatTransport {
+  const session = useSessionStore();
+  const me = () => session.userId ?? null;
   return sharedChatTransport(() => ({
     onUserSignal: () => void qc.invalidateQueries({ queryKey: inboxKey }),
-    onConversationSignal: (s) => void syncConversation(qc, s.thread_id, s.rev),
+    onConversationSignal: (s) => void syncConversation(qc, s.thread_id, me(), s.rev),
     onResume: (openThreadId) => {
       void qc.invalidateQueries({ queryKey: inboxKey });
-      if (openThreadId) void syncConversation(qc, openThreadId);
+      if (openThreadId) void syncConversation(qc, openThreadId, me());
     },
   }));
 }
