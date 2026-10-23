@@ -234,9 +234,11 @@ for (const r of ["dispatcher", "driver", "admin"]) {
   ok(`reports_own_read: the reporter (as ${r}) still reads their own report`, own.rows?.length === 1, own.error ?? "");
 }
 {
-  // Why the own half stays: an INSERT … RETURNING must pass a SELECT policy for the row it returns.
+  // 0511 (OFFICE-CHAT-PLAN D-CHAT3) dropped `reports_own`: a report is filed through
+  // POST /api/messages/messages/:id/report, which writes the audit row a browser insert would skip.
+  // The own-read stays — it is a read of the caller's own rows.
   const res = await asReporter("dispatcher", `insert into message_reports (org_id, message_id, reported_by, reason) values ($1,$2,$3,'other') returning id`, [ORG, MESSAGE, REPORTER]);
-  ok("reports_own_read: a reporter's INSERT … RETURNING gets its row back", res.rows?.length === 1, res.error ?? "");
+  ok("a reporter's browser cannot file a report directly since 0511 (the API files it)", !!res.error, JSON.stringify(res.rows ?? null));
 }
 
 // ── hazmat_policies · admin only, by ruling ─────────────────────────────────────────────────────
@@ -266,8 +268,8 @@ const wrappedNow = (await db.query(
 )).rows.length;
 ok("all five section policies read auth_section_or_default", wrappedNow === 5, String(wrappedNow));
 ok(
-  "message_reports holds the reporter's insert and the reporter's read, and nothing named admin",
-  JSON.stringify(await policies("message_reports")) === JSON.stringify(["reports_own", "reports_own_read"]),
+  "message_reports holds the reporter's read only (0511 dropped the insert), and nothing named admin",
+  JSON.stringify(await policies("message_reports")) === JSON.stringify(["reports_own_read"]),
   JSON.stringify(await policies("message_reports")),
 );
 

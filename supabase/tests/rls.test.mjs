@@ -1563,15 +1563,18 @@ async function main() {
       )
     ).error,
   );
+  // 0511 (D-CHAT3) dropped every client write policy on the messaging tables: a message, an edit and
+  // a read boundary all go through the API, so a write that skipped it cannot skip the rate limit, the
+  // notification or the chat ledger. These were "may" assertions until then.
   ok(
-    "a participant may send AS THEMSELVES",
-    ((
+    "a participant may NOT send from the browser, even as themselves (0511, D-CHAT3 — the API sends)",
+    !!(
       await asUser(
         drv,
         "insert into messages (id, thread_id, org_id, sender_user_id, body) values (gen_random_uuid(),$1,$2,$3,'On my way.') returning id",
         [THREAD, ORG_A, DUID],
       )
-    ).rows?.length ?? 0) === 1,
+    ).error,
   );
   ok(
     "a participant cannot FORGE a message as somebody else",
@@ -1604,14 +1607,14 @@ async function main() {
     ).rows?.length ?? 0) === 0,
   );
   ok(
-    "a participant moves only their OWN read boundary",
+    "a participant moves no read boundary from the browser, not even their own (0511 — the API does)",
     ((
       await asUser(
         drv,
         "update thread_participants set last_read_at = now() where user_id = $1 returning user_id",
         [DUID],
       )
-    ).rows?.length ?? 0) === 1 &&
+    ).rows?.length ?? 0) === 0 &&
       ((
         await asUser(
           drv,
