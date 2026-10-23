@@ -146,6 +146,7 @@ export * from "./sentryScrub.js";
 export * from "./notificationsContract.js";
 export * from "./dutyContract.js";
 export * from "./messagesContract.js";
+export * from "./chatContract.js";
 export * from "./rosterContract.js";
 export * from "./recruitmentContract.js";
 export * from "./authorizationContract.js";
