@@ -404,3 +404,22 @@ nightly dump if the snapshot is older.
   `deploy.sh` prunes with `-a`. Staging healed by #1730's own deploy (`03a9ec3` healthy, no worker
   container: 0 copies while `RUN_SCHEDULERS=false`). The images being ~2 GB each (dev dependencies
   installed, `--prod=false`) is its own question, not a blocker.
+- **2026-10-23 (03:50–04:22Z)** — **AWS0 step 1 done for PRODUCTION: the Supabase secret key is
+  rotated.** Found first that it had never been: production's only secret key (`default`,
+  `sb_secret_AWD7C…`) dated 06/30 — the value Railway held during the breach, and the one copied into
+  Parameter Store. Holders measured: Railway production api/web/console, Parameter Store
+  `/silvicom/production/{api,web,console}`, the laptop's `apps/api/.env`; not GitHub, the McLeod
+  connector or OTA. Owner created `silvicom360_aws1` (`sb_secret_rgSBn…`) and ran a one-time script
+  that fetched it by id from the Supabase CLI and set every holder without printing it (Claude may
+  not move a secret value itself). Railway redeployed (api `7b6833ea`, web `d923ef4e`, console
+  `8496f090`), the AWS server was redeployed (run 39898115556) and its api read schema `0509` with
+  the new key. Supabase edge logs from 04:05Z: only the new prefix, from Railway (152.55.177.181)
+  and the AWS server (44.236.127.194); the old prefix made no calls. Owner deleted `default` ~04:08Z.
+  **Mishap:** the delete also removed the `default` PUBLISHABLE key (`sb_publishable_1YAJv1…`),
+  which the office SPA and api/web builds inline as `VITE_SUPABASE_ANON_KEY` — Supabase answered it
+  401, so browsers could not reach Supabase from ~04:08Z until web `738137ea` went live with the new
+  publishable `silvicom360_aws` (`sb_publishable_C4UdQ3…`) ~04:17Z (api `646b9b0a` 04:21Z;
+  `PRODUCTION_VITE_SUPABASE_ANON_KEY` updated for the AWS images; console already had it). Login
+  page checked in a browser: loads, no errors. Installed driver apps use the LEGACY anon key,
+  untouched. **Still open:** staging's secret key; disabling the legacy `service_role` JWT once
+  nothing uses it; `SECRETS_ENCRYPTION_KEY` (AWS0a) and the other providers in §5.
