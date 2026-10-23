@@ -27,8 +27,10 @@ name: Release
 #   verified at that commit and schema → smoke → driver OTA if the driver changed → tag + GitHub
 #   release with the notes. Migrations go FIRST, so for the deploy minutes new schema serves old
 #   code, never the reverse — the direction every migration is already written to survive.
-#   Beside verify, the same commit goes to the AWS production server (job aws-production, AWS7); it
-#   gates nothing until AWS11's cutover.
+#   The same commit goes to the AWS production server (job aws-production, AWS7). While Railway
+#   serves production that runs BESIDE verify and gates nothing; once AWS serves it (AWS11 — read
+#   from the hosts themselves, job plan, step "Who serves production"), it gates verify and its
+#   failure rolls the release back like any other.
 #
 # RELEASE_FREEZE=true (repository variable, D-REL12) makes the nightly run exit green with "frozen".
 # Hotfix and rollback ignore it: a freeze is for routine change, not for repairs.
@@ -112,6 +114,7 @@ jobs:
       driver: ${{ steps.plan.outputs.driver }}
       reason: ${{ steps.plan.outputs.reason }}
       notify_skip: ${{ steps.plan.outputs.notify_skip }}
+      host: ${{ steps.host.outputs.host }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -239,6 +242,26 @@ jobs:
           say "**${MODE}** → \`${sha::7}\`${tag:+ as \`$tag\`}${REASON:+ — $REASON}"
           out ship true
 
+      # AWS11's cutover is a DNS change, so which platform serves production is read from production
+      # itself rather than kept in a variable that could disagree with DNS. /api/version's
+      # `deploymentId` is RAILWAY_DEPLOYMENT_ID, which only Railway sets (no RAILWAY_* setting was copied
+      # into Parameter Store, checked 2026-10-22). `railway` only when BOTH hosts answer with one;
+      # anything else — an AWS host, a host that does not answer, the two disagreeing mid-cutover — is
+      # `aws`, the stricter answer: the AWS deploy then gates the release, never the reverse.
+      - name: Who serves production
+        id: host
+        if: steps.plan.outputs.ship == 'true' && steps.plan.outputs.mode != 'init'
+        env:
+          API_URL: ${{ vars.API_URL }}
+          WEB_URL: ${{ vars.WEB_URL }}
+        run: |
+          set -euo pipefail
+          on() { curl -sS --max-time 15 "${1%/}/api/version" | jq -r 'if .commit and .deploymentId then "railway" else "aws" end' 2>/dev/null || echo aws; }
+          a=$(on "$API_URL"); w=$(on "$WEB_URL")
+          host=$([ "$a" = railway ] && [ "$w" = railway ] && echo railway || echo aws)
+          echo "host=$host" >> "$GITHUB_OUTPUT"
+          echo "Production is served by **${host}** (api: ${a}, web: ${w})." >> "$GITHUB_STEP_SUMMARY"
+
       - name: Release notes
         if: steps.plan.outputs.ship == 'true' && steps.plan.outputs.mode != 'init'
         env:
@@ -343,9 +366,14 @@ jobs:
           "${cmd[@]}"
           echo "✓ production → \`${SHA::7}\` (${MODE})" >> "$GITHUB_STEP_SUMMARY"
 
+  # Waits for aws-production either way; it is held back by that job's failure only once AWS serves
+  # production (plan's `host`). Before that, the result is ignored, as it always was.
   verify:
-    needs: [plan, ship]
-    if: needs.plan.outputs.dry != 'true' && needs.plan.outputs.mode != 'init'
+    needs: [plan, ship, aws-production]
+    if: >-
+      always() && needs.plan.outputs.dry != 'true' && needs.plan.outputs.mode != 'init' &&
+      needs.ship.result == 'success' &&
+      (needs.plan.outputs.host == 'railway' || needs.aws-production.result == 'success')
     uses: ./.github/workflows/deploy-verify.yml
     with:
       sha: ${{ needs.plan.outputs.sha }}
@@ -360,10 +388,11 @@ jobs:
       from_release: true
 
   # AWS7, production half (AWS-MIGRATION-PLAN.md D-AWS10): the commit `ship` just put on `production`
-  # also goes to the AWS production server. Until AWS11's cutover that server serves nobody and runs
-  # no schedulers, so this runs BESIDE verify and smoke, not in front of them: its failure is a red
-  # job to look at, never a reason for auto-rollback or a different summary. At cutover it moves in
-  # front of verify (which then checks the AWS host) and the Railway push above is what retires.
+  # also goes to the AWS production server. While Railway serves production (plan's `host`), that
+  # server serves nobody, so a failure here is a red job to look at, never a rollback or a different
+  # summary. Once AWS serves it, this is THE deploy: verify waits for it and its failure rolls the
+  # release back (auto-rollback). The push to `production` above stays either way — this workflow
+  # deploys only commits that branch holds, and Railway, kept warm for 14 days (D-AWS13), follows it.
   aws-production:
     needs: [plan, ship]
     if: needs.plan.outputs.dry != 'true' && needs.plan.outputs.mode != 'init'
@@ -422,12 +451,13 @@ jobs:
   # Header: HARDENING — Rollback. Only for a release that DEPLOYED (ship succeeded) and then failed its
   # checks; a failure before the push left production where it was, and needs no rollback.
   auto-rollback:
-    needs: [plan, ship, verify, smoke]
+    needs: [plan, ship, verify, smoke, aws-production]
     if: >-
       always() && needs.plan.outputs.dry != 'true' && needs.ship.result == 'success' &&
       (needs.plan.outputs.mode == 'nightly' || needs.plan.outputs.mode == 'hotfix') &&
       needs.plan.outputs.before != '' &&
-      (needs.verify.result == 'failure' || needs.smoke.result == 'failure')
+      (needs.verify.result == 'failure' || needs.smoke.result == 'failure' ||
+       (needs.plan.outputs.host == 'aws' && needs.aws-production.result == 'failure'))
     runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
     permissions:
       contents: read
@@ -446,9 +476,13 @@ jobs:
           git push --force-with-lease="production:${SHA}" origin "${BEFORE}:refs/heads/production"
           echo "↩ production → \`${BEFORE::7}\` (automatic, after \`${SHA::7}\` failed its checks)" >> "$GITHUB_STEP_SUMMARY"
 
+  # Once AWS serves production, the hosts reach the previous commit only through
+  # aws-production-rollback, so this waits for it there.
   verify-rollback:
-    needs: [plan, auto-rollback]
-    if: always() && needs.auto-rollback.result == 'success'
+    needs: [plan, auto-rollback, aws-production-rollback]
+    if: >-
+      always() && needs.auto-rollback.result == 'success' &&
+      (needs.plan.outputs.host == 'railway' || needs.aws-production-rollback.result == 'success')
     uses: ./.github/workflows/deploy-verify.yml
     with:
       sha: ${{ needs.plan.outputs.before }}
@@ -469,7 +503,7 @@ jobs:
 
   # Header: HARDENING — Summary. Runs whatever happened above, and decides which message that was.
   notify:
-    needs: [plan, ship, verify, smoke, publish, auto-rollback, verify-rollback]
+    needs: [plan, ship, verify, smoke, publish, auto-rollback, verify-rollback, aws-production]
     if: always() && needs.plan.outputs.dry != 'true' && needs.plan.outputs.mode != 'init'
     runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
     permissions:
@@ -497,6 +531,8 @@ jobs:
           PUBLISH: ${{ needs.publish.result }}
           ROLLBACK: ${{ needs.auto-rollback.result }}
           VERIFY_ROLLBACK: ${{ needs.verify-rollback.result }}
+          # Counted only once AWS serves production; before that its result is not the release's.
+          AWS: ${{ needs.plan.outputs.host == 'aws' && needs.aws-production.result || '' }}
         run: |
           node scripts/release-notify.mjs outcome | tee -a "$GITHUB_OUTPUT"
       - name: Send the summary

@@ -1,8 +1,9 @@
 name: Verify deployment
 
 # Closes the loop that was missing entirely (ship-pipeline plan D4): after a push to main, confirm
-# that Railway is actually serving THIS commit and that Supabase is at the migration version this
-# commit expects. Without this, a failed deploy is silent — the repository looks shipped, the app
+# that the hosts are actually serving THIS commit — Railway's, or after AWS-MIGRATION-PLAN's cutover
+# the AWS servers' (the step "Which platform serves" asks the host itself) — and that Supabase is at
+# the migration version this commit expects. Without this, a failed deploy is silent — the repository looks shipped, the app
 # behaves as if nothing changed, and the only way to find out is to probe by hand.
 #
 # ── Step 5.10: BOTH hosts, because there are two ────────────────────────────────────────────────
@@ -87,6 +88,19 @@ jobs:
             exit 1
           fi
 
+      # ── Which platform serves this host (AWS-MIGRATION-PLAN AWS10/AWS11) ─────────────────────────
+      # Cutover is a DNS change, so the host is asked, not a variable: /api/version's `deploymentId` is
+      # RAILWAY_DEPLOYMENT_ID, set only on Railway. A host that does not answer counts as Railway, so
+      # the step below behaves exactly as it did before AWS existed.
+      - name: Which platform serves the ${{ matrix.host }} host?
+        id: platform
+        env:
+          TARGET_URL: ${{ vars[format('{0}{1}', env.URL_PREFIX, matrix.url_var)] }}
+        run: |
+          p=$(curl -sS --max-time 15 "${TARGET_URL%/}/api/version" | jq -r 'if .commit and (.deploymentId | not) then "aws" else "railway" end' 2>/dev/null || echo railway)
+          echo "platform=$p" >> "$GITHUB_OUTPUT"
+          echo "${TARGET_URL} is served by ${p}."
+
       # ── Only when Railway will deploy this commit at all (2026-09-30) ─────────────────────────────
       # railway.json's watchPatterns tell Railway which paths are worth a deploy; a push touching only
       # the rest (docs, *.md, .github, the driver app, tests) builds nothing, and the hosts correctly
@@ -103,13 +117,22 @@ jobs:
       #
       # Anything unexpected — a workflow_dispatch (no `before`), a branch's first push, a fetch that
       # fails — falls through to verifying, as before.
+      #
+      # An AWS server has no such filter: image.yml builds and deploys staging on every push to main,
+      # and aws-production.yml deploys every release, so on AWS every commit is a deploy to wait for.
       - name: Does this push change anything Railway deploys?
         id: deploys
         env:
           BEFORE: ${{ inputs.sha && inputs.before || github.event.before }}
           HEAD_SHA: ${{ inputs.sha || github.sha }}
+          PLATFORM: ${{ steps.platform.outputs.platform }}
         run: |
           set -o pipefail
+          if [ "$PLATFORM" = "aws" ]; then
+            echo "AWS deploys every commit — verifying."
+            echo "deploys=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
           if [ -z "$BEFORE" ] || [ "$BEFORE" = "0000000000000000000000000000000000000000" ] \
             || ! git fetch --no-tags --depth=1 origin "$BEFORE"; then
             echo "No usable previous commit — verifying."
@@ -162,6 +185,7 @@ jobs:
           HOST: ${{ matrix.host }}
           GH_TOKEN: ${{ github.token }}
           ROLLBACK: ${{ inputs.rollback && 'true' || 'false' }}
+          PLATFORM: ${{ steps.platform.outputs.platform }}
         run: |
           deadline=$(( $(date +%s) + 1500 ))
           checked="" contains=""
@@ -191,5 +215,9 @@ jobs:
             sleep 20
           done
           echo "::error::Timed out. The ${HOST} host never caught up with ${EXPECTED::7}."
-          echo "Check the Railway deploy log for ${HOST} and the 'Apply Supabase migrations' workflow run for this commit."
+          if [ "$PLATFORM" = "aws" ]; then
+            echo "Check the AWS deploy (image.yml's deploy-staging, or release.yml's aws-production) and CloudWatch /silvicom/<env> for ${HOST}, and the migration run for this commit."
+          else
+            echo "Check the Railway deploy log for ${HOST} and the 'Apply Supabase migrations' workflow run for this commit."
+          fi
           exit 1
