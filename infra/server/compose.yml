@@ -17,6 +17,10 @@ x-app: &app
   # Docker's grace period plays Railway's part, set from the same number. The variable keeps
   # Railway's name because that is what the code reads; renaming it is AWS12's clean-up.
   stop_grace_period: ${DRAIN_SECONDS:?}s
+  # Changed settings recreate the container; without this a rotated secret waited for the next
+  # commit (fetch-settings.sh says why).
+  labels:
+    silvicom.settings: ${SETTINGS_HASH:?SETTINGS_HASH is set by deploy.sh and boot.sh}
   healthcheck:
     # The image is slim (no curl); node is always there. /healthz must stay 200 (DEPLOYMENT.md).
     test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8080/healthz').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"]
@@ -116,6 +120,8 @@ services:
 
   console:
     image: ${CONSOLE_IMAGE:?CONSOLE_IMAGE is set by deploy.sh}
+    labels:
+      silvicom.settings: ${SETTINGS_HASH:?SETTINGS_HASH is set by deploy.sh and boot.sh}
     restart: unless-stopped
     # Q-AWS14 (b): the settings file is mounted, not passed as environment, so Docker stores only
     # this path. `create_host_path: false` makes a missing file (an empty tmpfs after a reboot,
