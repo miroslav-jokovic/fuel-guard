@@ -178,6 +178,26 @@ Railway `RUN_SCHEDULERS_IN_PROCESS=false` and redeploy → AWS containers take t
 (`/api/version` `schedulers` all `held`) → switch DNS → watch `[metrics]` in CloudWatch, the EFS feed
 age, the McLeod ingest, Samsara webhook arrivals, a driver check-in → raise TTLs after 24 h.
 
+**What the workflows need at cutover (built 2026-10-22, #1728).** release.yml and deploy-verify.yml
+ask each host whether Railway serves it (`/api/version` `deploymentId` = `RAILWAY_DEPLOYMENT_ID`), so
+no workflow is edited on the night. The steps that are not DNS:
+
+1. **As soon as `api.360…`/`console.360…` resolve to Railway (AWS2):** repository variables `API_URL`
+   → `https://api.360.silvicominc.com`, `WEB_URL` → `https://360.silvicominc.com`, `CONSOLE_URL` →
+   `https://console.360.silvicominc.com`, and `PRODUCTION_VITE_API_URL` → `https://api.360…`. The
+   last matters most: the AWS production SPA image inlines it, and ECR tags are immutable, so a
+   value changed after a commit's `-production` image was built reaches AWS only with the NEXT
+   released commit. Today the AWS image would send the office's browsers to Railway's api host. The
+   `STAGING_*` twins likewise once the staging names exist.
+2. **WEX and Med-Stop both bind production's address.** The Med-Stop key is IP-bound to `api`'s
+   egress (D-MS3, WORKER-DEPLOYMENT.md) exactly as WEX card management is, so Med-Stop is asked
+   for `44.236.127.194` beside WEX (AWS3). Until both confirm, `RUN_SCHEDULERS` stays `false`.
+3. **Schedulers move by lease, not by a stop-start.** A released commit with `RUN_SCHEDULERS=true` in
+   `production.env` starts AWS's api ×2 (`egress`) and its worker (`general`, #1726 — 0 copies until
+   then); they wait as standbys while Railway holds the leases. Setting Railway api's
+   `RUN_SCHEDULERS_IN_PROCESS=false` and redeploying hands both lanes to AWS within a lease TTL;
+   `/api/version` `schedulers` shows who holds them.
+
 ### Rollback
 
 DNS back to Railway's custom-domain targets; set `RUN_SCHEDULERS_IN_PROCESS=true` on Railway api;
@@ -359,3 +379,20 @@ nightly dump if the snapshot is older.
   (`xprem-updates-nlalvjwqevp`). Both deployments SUCCESS and ready 01:13Z 10/23 — the new
   `JWT_SECRET` is live and the leaked one is dead. Production's signing keys stay in production's
   bucket, so the last update (AWS2a) can still sign. Open: admin password change in each dashboard.
+- **2026-10-22 (night)** — Three PRs for what Claude could do while the owner does DNS and WEX:
+  **#1726** the worker container for the `general` lane. `worker.ts` never reads
+  `RUN_SCHEDULERS_IN_PROCESS`, so the copy count is derived from the server's `RUN_SCHEDULERS`
+  (0 until cutover; started earlier it could take `general` from Railway and call Med-Stop from an
+  unbound address). api containers compete only for `egress`. **AWS6a, branch
+  `claude/aws-keywatch-on-server`** (stacked on #1726): the key watcher as a 5-minute systemd timer
+  on the server whose `<env>.env` says `KEYWATCH=true` (production), running the release's own
+  script from the app image. Secrets fetched at every pass: `/silvicom/production/keywatch/` holds
+  only `SUPABASE_ACCESS_TOKEN` + `RELEASE_NOTIFY_EMAILS`/`_PHONES`, and Brevo/Telnyx are read from
+  api's path, so a rotation is one value. Proven from the `10dad1c` production image locally (uid
+  1000, Node 22 `--env-file` reads the single-quoted values literally, state written). **Owner
+  step:** create the token and the three parameters; then Claude checks a pass in CloudWatch and
+  removes the Mac's launchd job. **#1728** the release train treats AWS as production once the hosts
+  say AWS serves it (gate, rollback, summary), and deploy-verify skips Railway's path filter on an
+  AWS host. Rehearsal 39884757442 reads "served by railway" on both hosts, so nothing changes before
+  DNS moves. Also #1727: two permission-PDF tests read the UTC day and failed every PR's CI from
+  19:00 Central. §5 Cutover gained the variable list, the Med-Stop allowlist and the lease hand-over.
