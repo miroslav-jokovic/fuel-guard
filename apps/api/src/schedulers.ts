@@ -14,7 +14,7 @@ import { startEfsSoapCertExpiryWatcher } from "./modules/efs/services/efsSoapCer
 import { startPostedPriceScheduler } from "./modules/posted-prices/index.js";
 import { startDutySessionSweeper } from "./modules/driver-app/index.js";
 import { startStorageReconcileScheduler, startStorageBackupScheduler } from "./modules/org/index.js";
-import { startNotificationPushScheduler } from "./modules/messaging/index.js";
+import { startNotificationPushScheduler, startChatLedgerVerifyScheduler } from "./modules/messaging/index.js";
 import { startDqExportSweeper } from "./modules/evidence/index.js";
 import { startPatternSweepScheduler } from "./modules/anomalies/index.js";
 import { startFuelSpendRollupScheduler } from "./modules/fuel-spend/index.js";
@@ -83,6 +83,7 @@ export const SCHEDULERS: readonly ScheduledTask[] = [
   { name: "fmcsa-feed", lane: "general", start: startFmcsaFeedScheduler }, // IC1 (0457): daily snapshot of FMCSA's public record of our roadside inspections
   { name: "mcleod-relink", lane: "general", start: startMcleodRelinkScheduler }, // D-LA3 via D-RLY12: every 10 min, re-make the links of loads whose codes resolve now
   { name: "financial-freshness", lane: "general", start: startFinancialFreshnessScheduler }, // D-FIN3: six-hourly — a stale McLeod financial sweep or a failed finance job becomes a finding
+  { name: "chat-ledger-verify", lane: "general", start: startChatLedgerVerifyScheduler }, // CHA1 (D-CHAT12): 05:00 Central, recompute each org's chat hash chain; a break alerts the admins
 ];
 
 /** A lane's schedulers, in registration order. Pure; exported for the partition test. */
