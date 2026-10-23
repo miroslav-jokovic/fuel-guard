@@ -75,10 +75,24 @@ $$;
 
 -- ── Reads ───────────────────────────────────────────────────────────────────────────────────────
 
+-- Who can be named into an office conversation: the people picker's list, from the same rule
+-- `chat_assert_office_member` enforces, so the picker cannot offer somebody the write would refuse.
+create or replace function chat_people(p_org uuid)
+returns table (user_id uuid, name text, role text)
+language sql stable security definer set search_path = ''
+as $$
+  select m.user_id, public.chat_display_name(p_org, m.user_id), m.role::text
+    from public.memberships m
+   where m.org_id = p_org and m.suspended_at is null and m.role <> 'driver'
+   order by 2, 1;
+$$;
+
 -- The inbox, newest first, keyset-paged on (last_message_at, id). `title_members` is up to four other
--- people for the row's title; the full list is chat_members().
+-- people for the row's title; the full list is chat_members(). `p_thread` narrows it to one
+-- conversation, so the conversation header and the inbox row are one shape from one query.
 create or replace function chat_inbox(
-  p_org uuid, p_user uuid, p_kinds text[], p_before_at timestamptz, p_before_id uuid, p_limit integer
+  p_org uuid, p_user uuid, p_kinds text[], p_before_at timestamptz, p_before_id uuid, p_limit integer,
+  p_thread uuid default null
 ) returns table (
   thread_id uuid, kind text, subject text, load_id uuid, created_at timestamptz,
   last_message_at timestamptz, last_seq bigint, rev bigint, read_seq bigint, unread bigint,
@@ -106,6 +120,7 @@ as $$
     join public.message_threads t on t.id = p.thread_id and t.org_id = p_org
    where p.user_id = p_user and p.org_id = p_org and p.left_at is null
      and t.kind = any (p_kinds)
+     and (p_thread is null or t.id = p_thread)
      and (p_before_at is null or (t.last_message_at, t.id) < (p_before_at, p_before_id))
    order by t.last_message_at desc, t.id desc
    limit least(greatest(coalesce(p_limit, 50), 1), 100);
@@ -497,9 +512,10 @@ $$;
 
 -- ── Grants: service role only ───────────────────────────────────────────────────────────────────
 revoke all on function chat_display_name(uuid, uuid) from public, anon, authenticated;
+revoke all on function chat_people(uuid) from public, anon, authenticated;
 revoke all on function chat_assert_office_member(uuid, uuid) from public, anon, authenticated;
 revoke all on function chat_member_thread(uuid, uuid, uuid) from public, anon, authenticated;
-revoke all on function chat_inbox(uuid, uuid, text[], timestamptz, uuid, integer) from public, anon, authenticated;
+revoke all on function chat_inbox(uuid, uuid, text[], timestamptz, uuid, integer, uuid) from public, anon, authenticated;
 revoke all on function chat_history(uuid, uuid, uuid, bigint, integer) from public, anon, authenticated;
 revoke all on function chat_sync(uuid, uuid, uuid, bigint, integer) from public, anon, authenticated;
 revoke all on function chat_members(uuid, uuid, uuid) from public, anon, authenticated;
@@ -513,7 +529,8 @@ revoke all on function chat_rename(uuid, uuid, uuid, text) from public, anon, au
 revoke all on function chat_add_members(uuid, uuid, uuid, uuid[]) from public, anon, authenticated;
 revoke all on function chat_leave(uuid, uuid, uuid, uuid) from public, anon, authenticated;
 revoke all on function chat_ledger_verify(uuid, bigint) from public, anon, authenticated;
-grant execute on function chat_inbox(uuid, uuid, text[], timestamptz, uuid, integer) to service_role;
+grant execute on function chat_people(uuid) to service_role;
+grant execute on function chat_inbox(uuid, uuid, text[], timestamptz, uuid, integer, uuid) to service_role;
 grant execute on function chat_history(uuid, uuid, uuid, bigint, integer) to service_role;
 grant execute on function chat_sync(uuid, uuid, uuid, bigint, integer) to service_role;
 grant execute on function chat_members(uuid, uuid, uuid) to service_role;

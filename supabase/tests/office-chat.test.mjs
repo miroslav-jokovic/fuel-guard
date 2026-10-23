@@ -171,6 +171,12 @@ await db.query(`insert into thread_participants (thread_id, org_id, user_id, rol
 ok("0096's driver threads stay out of the office inbox", !row(await inbox(ANA), DRIVER_THREAD));
 ok("...and are still `driver` by default", (await one(`select kind from message_threads where id=$1`, [DRIVER_THREAD])).kind === "driver");
 
+const people = await all(`select * from chat_people($1)`, [ORG]);
+ok("the people list is the office members who are not suspended, by name",
+  people.map((p) => p.name).join() === "Ana Petrović,Ben Admin,Cleo Safety", people.map((p) => p.name).join());
+ok("the inbox narrows to one conversation for its header",
+  (await all(`select * from chat_inbox($1,$2,$3,null,null,50,$4)`, [ORG, ANA, ["direct", "group"], DM])).map((r) => r.thread_id).join() === DM);
+
 // ── History, edit, retract (D-CHAT13) ───────────────────────────────────────────────────────────
 console.log("\n-- history, versions, retraction --");
 const hist = await all(`select * from chat_history($1,$2,$3,null,2)`, [ORG, ANA, DM]);
