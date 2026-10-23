@@ -169,6 +169,8 @@ const DRIVER_THREAD = (await one(`insert into message_threads (org_id, created_b
 await db.query(`insert into thread_participants (thread_id, org_id, user_id, role) values ($1,$2,$3,'office'),($1,$2,$4,'driver')`,
   [DRIVER_THREAD, ORG, ANA, DAN]);
 ok("0096's driver threads stay out of the office inbox", !row(await inbox(ANA), DRIVER_THREAD));
+ok("office chat cannot send into a driver conversation (its notifications live in /api/messages)",
+  (await sqlstate(`select chat_send($1,$2,$3,gen_random_uuid(),'hi')`, [ORG, ANA, DRIVER_THREAD])) === "CH006");
 ok("...and are still `driver` by default", (await one(`select kind from message_threads where id=$1`, [DRIVER_THREAD])).kind === "driver");
 
 const people = await all(`select * from chat_people($1)`, [ORG]);

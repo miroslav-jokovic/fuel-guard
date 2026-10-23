@@ -287,6 +287,11 @@ begin
   end if;
 
   v_thread := public.chat_member_thread(p_org, p_actor, p_thread);
+  -- A driver conversation (0096) is written through /api/messages, which notifies the driver's phone
+  -- and counts the driver budget; sending into one here would skip both.
+  if v_thread.kind = 'driver' then
+    raise exception 'driver conversations are written through dispatch messages' using errcode = 'CH006';
+  end if;
   if v_thread.archived_at is not null then
     raise exception 'the conversation is archived' using errcode = 'CH005';
   end if;
