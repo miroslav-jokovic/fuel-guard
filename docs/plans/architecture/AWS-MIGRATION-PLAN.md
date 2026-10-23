@@ -476,3 +476,9 @@ nightly dump if the snapshot is older.
   posted 18:30:58Z (305 rows), both errors empty. #1740 merged (`917d157`). Remaining: owner confirms
   `ws1…` is WEX's new login, then asks WEX to delete `wsS…`; the env fallback
   `EFS_SOAP_USERNAME`/`EFS_SOAP_PASSWORD` (Railway + SSM) still holds the old pair — remove it.
+- **2026-10-23 18:45Z** — **EFS login change closed.** Owner: WEX done (old `wsS…` login removed).
+  Feeds still green on `ws1…` (posted 18:43:57Z, rejected 18:42:56Z, no errors). Deleted the old
+  fallback `/silvicom/production/api/EFS_SOAP_{USERNAME,PASSWORD}` from Parameter Store (nothing in
+  `infra/` names them). Left on Railway `@fleetguard/api` on purpose: a Railway variable delete
+  cannot skip the redeploy, the values are dead at WEX, and the service is retired at cutover.
+  Staging's `/silvicom/staging/api/EFS_SOAP_*` untouched (staging login, not production's).
