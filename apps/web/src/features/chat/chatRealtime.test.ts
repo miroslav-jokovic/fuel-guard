@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { QueryClient } from "@tanstack/vue-query";
 import type { ChatConversationResponse, ChatMessage, ChatSyncResponse } from "@silvicom/shared";
 
@@ -12,7 +12,7 @@ vi.mock("@/lib/api", () => ({
 }));
 vi.mock("@/lib/supabase", () => ({ supabase: {}, DEV_BYPASS: false }));
 
-import { applySync, syncConversation } from "./chatRealtime";
+import { applySync, SIGNAL_SPREAD_MS, spread, syncConversation } from "./chatRealtime";
 import { conversationKey } from "./useChat";
 
 /**
@@ -144,5 +144,38 @@ describe("syncConversation", () => {
     api.answers = [sync([msg(2, 2, { sender_user_id: ME }), msg(3)], 3)];
     await syncConversation(qc, T, ME, 3);
     expect(qc.getQueryData<ChatConversationResponse>(conversationKey(T))!.conversation).toMatchObject({ read_seq: 2, unread: 1 });
+  });
+});
+
+describe("spread (Q-CHAT14)", () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+
+  it("waits a random part of a second, never longer, before it fetches", () => {
+    const early = vi.fn();
+    const late = vi.fn();
+    spread("a", early, () => 0.2);
+    spread("b", late, () => 0.999);
+    vi.advanceTimersByTime(199);
+    expect(early).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(1);
+    expect(early).toHaveBeenCalledTimes(1);
+    vi.advanceTimersByTime(SIGNAL_SPREAD_MS - 200);
+    expect(late).toHaveBeenCalledTimes(1);
+  });
+
+  it("joins a second signal to the fetch already waiting for the same target, not to another's", () => {
+    const fetch = vi.fn();
+    const other = vi.fn();
+    spread("conv:1", fetch, () => 0.5);
+    spread("conv:1", fetch, () => 0);
+    spread("conv:2", other, () => 0);
+    vi.advanceTimersByTime(SIGNAL_SPREAD_MS);
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(other).toHaveBeenCalledTimes(1);
+    // ...and once it has run, the next signal schedules a new one.
+    spread("conv:1", fetch, () => 0);
+    vi.advanceTimersByTime(1);
+    expect(fetch).toHaveBeenCalledTimes(2);
   });
 });
