@@ -50,11 +50,18 @@ chmod 0755 "$STACK"/*.sh
 
 "$STACK/fetch-settings.sh" "$ENV_NAME"
 
+# The worker runs only where this server holds the schedulers (compose.yml says why it cannot be
+# told by RUN_SCHEDULERS_IN_PROCESS). Derived from the one switch, so the two cannot disagree.
+run_schedulers=$(sed -n 's/^RUN_SCHEDULERS=//p' "$STACK/$ENV_NAME.env")
+case "$run_schedulers" in true) worker_replicas=1 ;; false) worker_replicas=0 ;;
+  *) echo "RUN_SCHEDULERS in $ENV_NAME.env must be true or false, is '$run_schedulers'" >&2; exit 2 ;; esac
+
 # What silvicom-boot.service brings back after a reboot: this release, nothing newer or older.
 cat > "$STACK/release.env" <<EOF
 ENV_NAME=$ENV_NAME
 APP_IMAGE=$APP_IMAGE
 CONSOLE_IMAGE=$CONSOLE_IMAGE
+WORKER_REPLICAS=$worker_replicas
 EOF
 install -m 0644 "$STACK/silvicom-boot.service" /etc/systemd/system/silvicom-boot.service
 systemctl daemon-reload
@@ -65,5 +72,7 @@ cd "$STACK"
 # (and the CI job that ran it) instead of being discovered by a person.
 docker compose --env-file "$ENV_NAME.env" --env-file release.env up -d --remove-orphans --wait --wait-timeout 300
 docker compose --env-file "$ENV_NAME.env" --env-file release.env ps --format '{{.Service}} {{.State}} {{.Health}}'
-docker image prune -f >/dev/null
+# Every image the new containers do not use (ssm-deploy.sh says why `-a`): the release before this one
+# is in ECR, not on this disk.
+docker image prune -af >/dev/null
 echo "deployed $APP_TAG to $ENV_NAME"

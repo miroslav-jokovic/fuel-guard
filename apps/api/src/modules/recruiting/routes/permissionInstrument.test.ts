@@ -1,7 +1,13 @@
 import type { AddressInfo } from "node:net";
 import type { Server } from "node:http";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { PERMISSION_SIGNATURE_BOX, PERMISSION_SIGNATURE_DESTINATION, formatDisplayDate } from "@silvicom/shared";
+import {
+  PERMISSION_SIGNATURE_BOX,
+  PERMISSION_SIGNATURE_DESTINATION,
+  formatDisplayDate,
+  organizationTimezone,
+  todayInZone,
+} from "@silvicom/shared";
 import { createApp } from "../../../app.js";
 import { loadEnv } from "../../../env.js";
 import {
@@ -180,11 +186,16 @@ describe("the permission the applicant is about to sign", () => {
    * D-AW17 (C3s5): the unsigned copy reads as it will print once signed — the adopted name on the
    * printed-name rule and today's date — with the box itself still empty.
    */
+  // "Today" is the carrier's calendar day (carrierClock.ts, since 2026-10-20), never UTC's: the seeded
+  // org sets no zone, so it is the default zone, asked the way readCarrierZone asks it. These two
+  // read the UTC day until 2026-10-22 and failed every evening from 19:00 Central, when UTC is tomorrow.
+  const carrierToday = () => formatDisplayDate(todayInZone(new Date(), organizationTimezone(null)), "");
+
   it("prefills the printed name and today's date, and leaves the signature box empty", async () => {
     holder.client = seed({ adopted: ADOPTED }).client;
     const pdf = await bytes(await get("fcra_disclosure"));
     const lines = await pdfDrawnLines(pdf);
-    const today = formatDisplayDate(new Date().toISOString().slice(0, 10), "");
+    const today = carrierToday();
     const named = lines.filter((l) => l.text.includes(ADOPTED));
     // Once, on the printed-name rule: a second copy would be a name in the signature box.
     expect(named).toHaveLength(1);
@@ -197,7 +208,7 @@ describe("the permission the applicant is about to sign", () => {
   it("prefills the date and no name on a link with no adoption, rather than guessing one", async () => {
     holder.client = seed().client;
     const text = flat(await pdfText(await bytes(await get("fcra_disclosure"))));
-    expect(text).toContain(formatDisplayDate(new Date().toISOString().slice(0, 10), ""));
+    expect(text).toContain(carrierToday());
     expect(text).not.toContain(ADOPTED);
   });
 
