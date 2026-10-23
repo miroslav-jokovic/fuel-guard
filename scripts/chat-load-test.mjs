@@ -136,14 +136,29 @@ async function signIn(i, password) {
   throw new Error(`sign in ${i}: still rate limited`);
 }
 
-function subscribe(client, topic, onSignal) {
+/** Join refusals seen before a channel came up, by reason — the cost of a cold Realtime tenant. */
+const joinRefusals = new Map();
+
+/**
+ * Join as a real tab does: a refused join is retried by realtime-js itself, so wait through refusals
+ * and count them instead of failing. The first run on 2026-10-23 hit `MissingPartition` on every join
+ * of an idle staging project — Realtime makes the daily `realtime.messages` partitions only while the
+ * project's Realtime service runs, so the first connection after an idle spell races their creation.
+ */
+function subscribe(client, topic, onSignal, deadlineMs = 120_000) {
   return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(`${topic}: not subscribed after ${deadlineMs / 1000} s`)), deadlineMs);
     const ch = client
       .channel(topic, { config: { private: true } })
       .on("broadcast", { event: "chat" }, (m) => onSignal(m.payload, performance.now()))
       .subscribe((status, err) => {
-        if (status === "SUBSCRIBED") resolve(ch);
-        else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") reject(new Error(`${topic}: ${status} ${err?.message ?? ""}`));
+        if (status === "SUBSCRIBED") {
+          clearTimeout(timer);
+          resolve(ch);
+        } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
+          const why = `${status} ${(err?.message ?? "").split(":")[0]}`.trim();
+          joinRefusals.set(why, (joinRefusals.get(why) ?? 0) + 1);
+        }
       });
   });
 }
@@ -166,6 +181,18 @@ async function cpuSample() {
     return null;
   }
 }
+/** The script's own event-loop delay, sampled every 100 ms — the error bar on every latency it reports. */
+function startLagSampler() {
+  const lags = [];
+  let last = performance.now();
+  const t = setInterval(() => {
+    const now = performance.now();
+    lags.push(Math.max(0, now - last - 100));
+    last = now;
+  }, 100);
+  return { stop: () => (clearInterval(t), { p95: pct(lags, 95), max: pct(lags, 100) }) };
+}
+
 const cpuBetween = (a, b) => (a && b && b.total > a.total ? 1 - (b.idle - a.idle) / (b.total - a.total) : null);
 
 const pct = (xs, p) => {
@@ -174,20 +201,22 @@ const pct = (xs, p) => {
   return Math.round(s[Math.min(s.length - 1, Math.ceil((p / 100) * s.length) - 1)]);
 };
 
-async function phase(label, { state, sender, threadId, members, topicOf, sample }) {
+async function phase(label, { state, sender, threadId, members, topicOf, sample, signalsPerMember }) {
   const sentAt = new Map(); // seq → ms
   const latencies = [];
   const syncLatencies = [];
   let received = 0, syncFailed = 0;
   const unmatched = [];
   for (const m of members) {
-    m.handlers[label] = (payload, at) => {
+    m.handlers[label] = (payload, at, via) => {
       if (payload?.thread_id !== threadId) return;
       received++;
       const t0 = sentAt.get(payload.seq);
       if (t0 === undefined) unmatched.push(payload.seq);
       else latencies.push(at - t0);
-      if (sample.has(m.i)) {
+      // As `chatRealtime.ts` does: only the conversation's own signal syncs it; the person's own topic
+      // refreshes their inbox. The first run synced on both and doubled the group's /sync load.
+      if (sample.has(m.i) && via === "conv") {
         const since = Math.max(0, payload.rev - 1);
         fetch(`${API}/api/chat/${threadId}/sync?since_rev=${since}`, { headers: { Authorization: `Bearer ${m.token}` } })
           .then((r) => (r.ok ? syncLatencies.push(performance.now() - at) : syncFailed++))
@@ -195,20 +224,28 @@ async function phase(label, { state, sender, threadId, members, topicOf, sample 
       }
     };
   }
+  // The send time is registered under the seq the message WILL get, before the call: only this
+  // script writes here, so it is last_seq + 1. Registering it after the reply (the first run) lost 446
+  // group signals that arrived before the reply was processed.
+  const thread = must(await admin.from("message_threads").select("last_seq").eq("org_id", state.org_id).eq("id", threadId).single(), "last_seq");
+  let nextSeq = Number(thread.last_seq) + 1;
+  const lag = startLagSampler();
   const before = await cpuSample();
   const started = performance.now();
   for (let k = 0; k < MESSAGES; k++) {
-    const t0 = performance.now();
+    sentAt.set(nextSeq, performance.now());
     const rows = must(await admin.rpc("chat_send", {
       p_org: state.org_id, p_actor: sender, p_thread: threadId, p_message_id: randomUUID(), p_body: `${label} ${k}`,
     }), `send ${label} ${k}`);
-    sentAt.set(Number(rows[0].seq), t0);
+    if (Number(rows[0].seq) !== nextSeq) throw new Error(`${label}: expected seq ${nextSeq}, got ${rows[0].seq}`);
+    nextSeq++;
     await sleep(1_500);
   }
   await sleep(5_000); // the stragglers
   const after = await cpuSample();
+  const harnessLag = lag.stop();
   for (const m of members) delete m.handlers[label];
-  const expected = MESSAGES * members.length;
+  const expected = MESSAGES * members.length * signalsPerMember;
   return {
     phase: label,
     topic: topicOf,
@@ -226,7 +263,11 @@ async function phase(label, { state, sender, threadId, members, topicOf, sample 
     sync_p50_ms: pct(syncLatencies, 50),
     sync_p95_ms: pct(syncLatencies, 95),
     sync_failed: syncFailed,
+    // Whole-machine CPU, including staging's own schedulers — not chat's share (pg_stat_statements is).
     db_cpu: cpuBetween(before, after),
+    // This script's own event-loop delay: when it is high, its latencies include its own queueing.
+    harness_lag_p95_ms: harnessLag.p95,
+    harness_lag_max_ms: harnessLag.max,
     seconds: Math.round((performance.now() - started) / 1000),
   };
 }
@@ -246,11 +287,11 @@ async function run(state, passwords) {
 
   console.log("subscribing…");
   const joinStart = performance.now();
-  const dispatch = (m) => (payload, at) => { for (const h of Object.values(m.handlers)) h(payload, at); };
+  const dispatch = (m, via) => (payload, at) => { for (const h of Object.values(m.handlers)) h(payload, at, via); };
   await Promise.all(members.map(async (m) => {
-    await subscribe(m.client, `chat:user:${state.users[m.i]}`, dispatch(m));
-    await subscribe(m.client, `chat:conv:${state.channel_id}`, dispatch(m));
-    if (m.i < GROUP_SIZE) await subscribe(m.client, `chat:conv:${state.group_id}`, dispatch(m));
+    await subscribe(m.client, `chat:user:${state.users[m.i]}`, dispatch(m, "user"));
+    await subscribe(m.client, `chat:conv:${state.channel_id}`, dispatch(m, "conv"));
+    if (m.i < GROUP_SIZE) await subscribe(m.client, `chat:conv:${state.group_id}`, dispatch(m, "conv"));
   }));
   const joinSeconds = Math.round((performance.now() - joinStart) / 1000);
   console.log(`  ${members.length} clients subscribed in ${joinSeconds} s`);
@@ -259,12 +300,14 @@ async function run(state, passwords) {
   const results = [];
   results.push(await phase("channel", {
     state, sender: state.users[0], threadId: state.channel_id, members, topicOf: "chat:conv (no per-user: > 50)", sample,
+    signalsPerMember: 1,
   }));
   // The group's members hear each message twice — their conversation topic and their own — which is
   // exactly what a real tab with the group open would receive.
   results.push(await phase("group", {
     state, sender: state.users[0], threadId: state.group_id, members: members.slice(0, GROUP_SIZE),
     topicOf: "chat:conv + chat:user", sample: new Set([...sample].filter((i) => i < GROUP_SIZE)),
+    signalsPerMember: 2,
   }));
 
   for (const m of members) await m.client.removeAllChannels();
@@ -272,6 +315,7 @@ async function run(state, passwords) {
     when: new Date().toISOString(),
     clients: CLIENTS,
     subscribe_seconds: joinSeconds,
+    join_refusals_before_subscribed: Object.fromEntries(joinRefusals),
     db_cpu_idle: cpuBetween(idle, idleAfter),
     results,
   };
