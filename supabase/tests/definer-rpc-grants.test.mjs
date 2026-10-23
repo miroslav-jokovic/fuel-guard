@@ -135,7 +135,9 @@ ok("service_role still runs sync_fuel_exceptions end to end",
 // The RLS helpers. Policies evaluate them as the requesting role, so revoking EXECUTE would deny every
 // row on every table that uses them. Each one reads the caller's own JWT claims and takes no org
 // argument, which is the property that makes it safe to leave callable.
-const RLS_HELPERS = ["auth_dispatched_load_ids", "auth_driver_id", "auth_in_thread", "auth_module_enabled"];
+// `auth_chat_topic` (0513): the Realtime join check on realtime.messages runs it as the joining user; it
+// takes a topic NAME, not a tenant, and answers only for the caller's own claims (auth_in_thread's shape).
+const RLS_HELPERS = ["auth_chat_topic", "auth_dispatched_load_ids", "auth_driver_id", "auth_in_thread", "auth_module_enabled"];
 const exposed = (await all(
   `select p.proname || '(' || pg_get_function_identity_arguments(p.oid) || ')' sig, p.proname
      from pg_proc p
