@@ -200,6 +200,17 @@
         "why": "evidence, RETENTION_FORBIDDEN. retention_days null because the table is in RETENTION_FORBIDDEN."
       }
     },
+    "chat_ledger": {
+      "module": "messaging",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 30000,
+        "why": "OFFICE-CHAT-PLAN D-CHAT12 (0511): one hash-chained row per chat fact (each message sent/edited/retracted, membership change, compliance act), written by triggers. Sized at the plan's target, 300 active users x 100 messages a day; RETENTION_FORBIDDEN and append-only by trigger (CL001) until an org sets a retention period through CHA3's audited purge."
+      }
+    },
     "declined_transactions": {
       "module": "fuel",
       "layer": "raw",
@@ -1881,6 +1892,17 @@
         "partition": null,
         "budget_rows_per_day": null,
         "why": "no rows in production 2026-09-21; bounded by the number of orgs."
+      }
+    },
+    "message_versions": {
+      "module": "messaging",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 3000,
+        "why": "OFFICE-CHAT-PLAN D-CHAT13 (0511): the words an edit replaced, one row per edit, written by trigger; a tenth of the ledger's message budget. RETENTION_FORBIDDEN and append-only (CL001)."
       }
     },
     "message_threads": {

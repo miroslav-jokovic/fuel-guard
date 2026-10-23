@@ -230,6 +230,14 @@ export const RETENTION_FORBIDDEN = [
    */
   "dataqs_cases",
   /**
+   * Office chat (0511, OFFICE-CHAT-PLAN D-CHAT12/D-CHAT13). The messages, the words an edit replaced and
+   * the hash-chained ledger of every chat fact. Chat is read after a crash or in an HR case, and the
+   * owner ruled on 2026-10-23 (Q-CHAT5) that it is kept until counsel names a period — so the only
+   * deletion is CHA3's per-org purge, an explicit act recorded in the ledger itself, never a rule here.
+   * The two record tables are append-only by trigger (CL001) already; messages are soft-deleted (MG001).
+   */
+  "messages", "message_versions", "chat_ledger",
+  /**
    * The driver's account-closure request (0330, D-PR8).
    *
    * ── THE ONE ENTRY ON THIS LIST THAT INVERTS ITS OWN SUBJECT ───────────────────────────────────
