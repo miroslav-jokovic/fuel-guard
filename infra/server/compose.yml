@@ -4,8 +4,8 @@
 # <env>.env beside it, the release's images from release.env; secrets come from Parameter Store into
 # /run/silvicom/<service>.env (fetch-settings.sh), mounted read-only into each container.
 #
-# Not here yet, each its own work item: the worker (lane `general`, RLY6/RLY7 — on Railway it is not
-# running either), the OTA server and its database (AWS8), the driver install page (AWS9).
+# Not here, by D-AWS16: the OTA server and its database (AWS8) and the driver install page (AWS9) —
+# the driver app goes to the stores and both are switched off on Railway instead.
 
 name: silvicom
 
@@ -54,8 +54,46 @@ services:
       # allowlisted yet. The lease would keep it to one poller either way (D-AWS8); this keeps it
       # on the host that works. <env>.env sets RUN_SCHEDULERS=true at cutover.
       RUN_SCHEDULERS_IN_PROCESS: ${RUN_SCHEDULERS:?}
+      # D-RLY2's production shape: the api containers take only `egress` (the EFS work) and the
+      # worker below takes `general`, so the HTTP processes carry no general scheduler work. On one
+      # server every container leaves from the same Elastic IP, so WEX and Med-Stop (D-MS3) see one
+      # address whichever container runs a lane — the split here is about load, not about IPs.
+      SCHEDULER_LANES: egress
     deploy:
       replicas: ${API_REPLICAS:?}
+
+  # The `general` lane (RLY6/RLY7's @fleetguard/worker, railway.worker.json). Same image and settings
+  # file as api (the runbook's "copy api's variables"), its own start command.
+  #
+  # ⚠ worker.ts does not read RUN_SCHEDULERS_IN_PROCESS: a `scheduler` worker competes for its lanes
+  # from the moment it starts. So the switch is how many copies run — deploy.sh derives
+  # WORKER_REPLICAS from RUN_SCHEDULERS (0 until cutover). A worker started earlier could win
+  # `general` from Railway and call Med-Stop from an address Med-Stop has not bound the key to.
+  worker:
+    <<: *app
+    command: ["node", "--import", "tsx", "apps/api/src/worker.ts"]
+    # No HTTP server, so no /healthz to ask. compose's --wait then waits for "running"; a crash
+    # restarts it (restart: unless-stopped), as Railway's restartPolicyType ALWAYS did.
+    healthcheck:
+      disable: true
+    volumes:
+      - type: bind
+        source: /run/silvicom/api.env
+        target: /run/settings.env
+        read_only: true
+        bind:
+          create_host_path: false
+    environment:
+      DOTENV_CONFIG_PATH: /run/settings.env
+      DOTENV_CONFIG_QUIET: "true"
+      RAILWAY_DEPLOYMENT_DRAINING_SECONDS: ${DRAIN_SECONDS}
+      WORKER_ROLE: scheduler
+      SCHEDULER_LANES: general
+      # Belt and braces from the runbook: the SOAP poller is `egress`, which this process never
+      # competes for, and this keeps it off even if the lane list is ever edited wrongly.
+      EFS_SOAP_ENABLED: "false"
+    deploy:
+      replicas: ${WORKER_REPLICAS:?WORKER_REPLICAS is set by deploy.sh from RUN_SCHEDULERS}
 
   web:
     <<: *app
