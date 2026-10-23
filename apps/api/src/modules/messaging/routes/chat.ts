@@ -13,6 +13,7 @@ import {
 import { requireAuth, requireOrg, requireRole } from "../../../middleware/auth.js";
 import { driverWriteLimit } from "../../../middleware/driverWriteLimit.js";
 import { requireModule } from "../../../middleware/requireModule.js";
+import { requireSurface } from "../../../middleware/requireSurface.js";
 import { apiError, asyncHandler, validateBody } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
@@ -42,8 +43,8 @@ import {
  * same `messages` module as the driver threads, because it is the same engine (D-CHAT1). No section
  * gate: chat is not a section's data, and gating it on one is how recruiting ended up on the driver
  * page (CLAUDE.md, No workarounds). Which conversation a person may read is not a role question at
- * all — it is participation, answered by 0512 on every call. The screen gate (`requireSurface("chat")`)
- * lands with the page in CH2, because a surface's path must be a real route (`lint:surfaces`).
+ * all — it is participation, answered by 0512 on every call. `requireSurface("chat")` is the screen's
+ * own answer (D-SURF5): every route here serves the /chat page and nothing else, so it may carry it.
  *
  * WRITES: a new message counts against the person's `chat_message` budget (D-CHAT8, 3,000 a day).
  * Every write is recorded in the chat ledger by 0511's triggers — nothing here writes an audit row,
@@ -51,7 +52,7 @@ import {
  */
 export function chatRouter(): Router {
   const router = Router();
-  router.use(requireAuth, requireOrg, requireModule("messages"), requireRole(...OFFICE_ROLES));
+  router.use(requireAuth, requireOrg, requireModule("messages"), requireRole(...OFFICE_ROLES), requireSurface("chat"));
   router.use(driverWriteLimit());
 
   const ctx = (req: { auth?: { orgId?: string | null; userId: string } }) => ({

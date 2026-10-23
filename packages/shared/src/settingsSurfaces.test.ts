@@ -2,7 +2,8 @@ import { describe, expect, it } from "vitest";
 import { USER_ROLES } from "./constants.js";
 import { callerCanView, type SectionClaim } from "./auth.js";
 import { surfaceAllowed, surfaceGateAllows, surfaceStartsOn } from "./surfaces.js";
-import { ADMIN_ONLY_SURFACES, GRANTABLE_SURFACES, NAV_SURFACES, SURFACES, directoryScreens } from "./surfaceCatalogue.js";
+import { ADMIN_ONLY_SURFACES, GRANTABLE_SURFACES, NAV_SURFACES, SURFACES } from "./surfaceCatalogue.js";
+import { directoryScreens } from "./surfaceLookups.js";
 
 /**
  * The Settings screens as permissions (SETTINGS-PERMISSIONS-PLAN.md SP1, Q-SET1..3 ruled (a) on

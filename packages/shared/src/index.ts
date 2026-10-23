@@ -132,6 +132,7 @@ export * from "./boardDriverWarnings.js";
 export * from "./entitlements.js";
 export * from "./surfaces.js";
 export * from "./surfaceCatalogue.js";
+export * from "./surfaceLookups.js";
 export * from "./accessLayers.js";
 export * from "./accessReviewContract.js";
 export * from "./accessReview.js";

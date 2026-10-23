@@ -112,7 +112,7 @@ export interface Surface {
    */
   startsOnFor?: readonly UserRole[];
   /** Live count rendered beside the entry. The value is injected per request, not stored here. */
-  badge?: "hazmatReview" | "messagesUnread";
+  badge?: "hazmatReview" | "messagesUnread" | "chatUnread";
 }
 
 /**

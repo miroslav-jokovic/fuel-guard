@@ -82,7 +82,7 @@ export const AREAS = [
     packages: ["hazmat-data", "hazmat-engine", "hazmat-golden", "hazmat-placards", "sms-engine"],
     plans: ["recruitment", "roster", "safety-dqf", "hazmat-consolidation", "document-reading"] },
   { id: "dispatch", title: "Dispatch and live map",
-    api: ["loads", "livemap", "samsara", "messaging"], web: ["dispatch", "livemap", "messages"],
+    api: ["loads", "livemap", "samsara", "messaging"], web: ["dispatch", "livemap", "messages", "chat"],
     // "messaging" is the office chat plan (OFFICE-CHAT-PLAN.md): it extends the `messaging` api module
     // this area already holds, so its plan folder goes with it.
     plans: ["dispatch-loads", "livemap", "loads-detail", "messaging", "samsara", "sms"] },

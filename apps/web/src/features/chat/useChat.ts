@@ -1,0 +1,183 @@
+import { computed, type Ref } from "vue";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/vue-query";
+import type {
+  ChatConversationResponse,
+  ChatDirectoryEntry,
+  ChatInboxResponse,
+  ChatMessage,
+  ChatSendResponse,
+} from "@silvicom/shared";
+import { apiFetch } from "@/lib/api";
+import { genUuid } from "@/lib/uuid";
+
+/**
+ * Office chat's data layer (OFFICE-CHAT-PLAN CH2). Everything through `/api/chat`, which answers only
+ * for conversations the caller is in — so nothing here filters by person or role.
+ *
+ * FRESHNESS: polling only in this step. The inbox every 30 s and an open conversation every 10 s are
+ * the guarantee; CH3 adds realtime signals on top and stretches these to 60 s while connected (D-CHAT2:
+ * realtime is the speed, the poll is the guarantee). The conversation poll asks the full newest page,
+ * not a sync — CH3's transport is what will hold a rev and ask `/sync`.
+ *
+ * SENDING is optimistic: the line appears at once as `pending`, keyed by the client id that is also
+ * the row's primary key, so a retry of the same send is recognised by the database and never doubled.
+ * A failure leaves the line on screen as `failed` with its text, for Retry — the text is never lost.
+ */
+export const CHAT_KEY = ["chat"] as const;
+const inboxKey = [...CHAT_KEY, "inbox"] as const;
+const conversationKey = (id: string | null) => [...CHAT_KEY, "conversation", id] as const;
+
+async function unwrap<T>(p: ReturnType<typeof apiFetch<T>>, fallback: string): Promise<T> {
+  const res = await p;
+  if (!res.ok || res.data === undefined || res.data === null) throw new Error(res.error?.message ?? fallback);
+  return res.data;
+}
+
+export function useChatInboxQuery(enabled: Ref<boolean>) {
+  return useQuery({
+    queryKey: inboxKey,
+    enabled,
+    queryFn: () => unwrap(apiFetch<ChatInboxResponse>("/api/chat"), "Could not load your conversations."),
+    refetchInterval: 30_000,
+  });
+}
+
+export function useChatPeopleQuery(enabled: Ref<boolean>) {
+  return useQuery({
+    queryKey: [...CHAT_KEY, "people"],
+    enabled,
+    queryFn: async () =>
+      (await unwrap(apiFetch<{ people: ChatDirectoryEntry[] }>("/api/chat/people"), "Could not load the people list.")).people,
+    staleTime: 5 * 60_000,
+  });
+}
+
+export function useChatConversationQuery(threadId: Ref<string | null>) {
+  return useQuery({
+    queryKey: computed(() => conversationKey(threadId.value)),
+    enabled: computed(() => !!threadId.value),
+    queryFn: () =>
+      unwrap(apiFetch<ChatConversationResponse>(`/api/chat/${threadId.value}`), "Could not open the conversation."),
+    refetchInterval: 10_000,
+  });
+}
+
+/** A line the person wrote that the server has not confirmed yet, or refused. */
+export interface PendingLine {
+  message_id: string;
+  thread_id: string;
+  body: string;
+  state: "pending" | "failed";
+  error: string | null;
+}
+
+/**
+ * The lines on screen: what the server returned, plus this tab's own pending and failed sends that the
+ * server has not yet shown. A pending line whose id the server now lists is simply dropped — the
+ * server's copy, with its position and time, wins.
+ */
+export function mergeLines(
+  server: readonly ChatMessage[],
+  pending: readonly PendingLine[],
+  threadId: string,
+): Array<{ kind: "server"; message: ChatMessage } | { kind: "local"; line: PendingLine }> {
+  const known = new Set(server.map((m) => m.id));
+  return [
+    ...server.map((message) => ({ kind: "server" as const, message })),
+    ...pending
+      .filter((p) => p.thread_id === threadId && !known.has(p.message_id))
+      .map((line) => ({ kind: "local" as const, line })),
+  ];
+}
+
+export function useChatSend(pending: Ref<PendingLine[]>) {
+  const qc = useQueryClient();
+  const set = (id: string, patch: Partial<PendingLine> | null) => {
+    pending.value = patch === null
+      ? pending.value.filter((p) => p.message_id !== id)
+      : pending.value.map((p) => (p.message_id === id ? { ...p, ...patch } : p));
+  };
+  return useMutation({
+    mutationFn: async (input: { threadId: string; body: string; messageId?: string }): Promise<ChatSendResponse> => {
+      const id = input.messageId ?? genUuid();
+      if (!pending.value.some((p) => p.message_id === id)) {
+        pending.value = [...pending.value, { message_id: id, thread_id: input.threadId, body: input.body, state: "pending", error: null }];
+      } else {
+        set(id, { state: "pending", error: null });
+      }
+      try {
+        const sent = await unwrap(
+          apiFetch<ChatSendResponse>(`/api/chat/${input.threadId}/messages`, { method: "POST", body: { message_id: id, body: input.body } }),
+          "Could not send the message.",
+        );
+        await qc.invalidateQueries({ queryKey: conversationKey(input.threadId) });
+        set(id, null);
+        return sent;
+      } catch (e) {
+        set(id, { state: "failed", error: e instanceof Error ? e.message : "Could not send the message." });
+        throw e;
+      }
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: inboxKey }),
+  });
+}
+
+export function useChatMarkRead() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { threadId: string; seq: number }) => {
+      await apiFetch(`/api/chat/${input.threadId}/read`, { method: "POST", body: { seq: input.seq } });
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: inboxKey }),
+  });
+}
+
+/** Open (or find) the one conversation with a person; resolves to its id. */
+export function useChatOpenDirect() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (userId: string) =>
+      (await unwrap(
+        apiFetch<{ thread_id: string }>("/api/chat/direct", { method: "POST", body: { thread_id: genUuid(), user_id: userId } }),
+        "Could not open the conversation.",
+      )).thread_id,
+    onSettled: () => qc.invalidateQueries({ queryKey: inboxKey }),
+  });
+}
+
+export function useChatCreateGroup() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { subject: string | null; memberIds: string[] }) =>
+      (await unwrap(
+        apiFetch<{ thread_id: string }>("/api/chat/groups", {
+          method: "POST",
+          body: { thread_id: genUuid(), subject: input.subject, member_ids: input.memberIds },
+        }),
+        "Could not create the group.",
+      )).thread_id,
+    onSettled: () => qc.invalidateQueries({ queryKey: inboxKey }),
+  });
+}
+
+/** Edit or retract your own message; both refresh the open conversation and the inbox. */
+export function useChatMessageActions(threadId: Ref<string | null>) {
+  const qc = useQueryClient();
+  const refresh = async () => {
+    await Promise.all([
+      qc.invalidateQueries({ queryKey: conversationKey(threadId.value) }),
+      qc.invalidateQueries({ queryKey: inboxKey }),
+    ]);
+  };
+  const edit = useMutation({
+    mutationFn: async (input: { messageId: string; body: string }) =>
+      unwrap(apiFetch(`/api/chat/messages/${input.messageId}`, { method: "PATCH", body: { body: input.body } }), "Could not save the edit."),
+    onSettled: refresh,
+  });
+  const retract = useMutation({
+    mutationFn: async (messageId: string) =>
+      unwrap(apiFetch(`/api/chat/messages/${messageId}`, { method: "DELETE" }), "Could not remove the message."),
+    onSettled: refresh,
+  });
+  return { edit, retract };
+}
