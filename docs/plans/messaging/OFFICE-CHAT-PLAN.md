@@ -260,16 +260,16 @@ on its own.
 
 | ID | Question | Candidates | Recommendation |
 |---|---|---|---|
-| Q-CHAT1 | Who uses it? | (a) office only; (b) + drivers; (c) + partners | **(a).** Drivers keep their dispatch thread (D54) |
+| Q-CHAT1 | Who uses it? | | **RULED 2026-10-23, as recommended:** (a). Drivers keep their dispatch thread (D54) |
 | Q-CHAT2 | Who may audit messages? | | **RULED 2026-10-23:** a permission on Settings → Permissions (`chat.compliance`): admins by default, the owner grants it to other roles or people there |
-| Q-CHAT3 | Release 1 scope | DMs + groups live; + channels | **DMs + groups, live, ledgered**; console + channels in release 2 |
-| Q-CHAT4 | Alert when the tab is closed | (a) none; (b) Web Push; (c) email | **(a) first, (b) CH10** |
-| Q-CHAT5 | Retention | (a) keep forever until counsel names a period; (b) N years now | **(a)** |
-| Q-CHAT6 | Does seeing a load grant its chat? | (a) members only; (b) everyone who sees the load | **(a)** |
-| Q-CHAT7 | Are the two production orgs separate companies? | yes / no | Assumed **yes** |
-| Q-CHAT8 | Calls and meetings | (a) out, share a link; (b) LiveKit / Chime later | **(a)** |
-| Q-CHAT9 | Realtime connections | (a) Pro spend cap on, alert at 350; (b) cap off now | **(a)** |
-| Q-CHAT10 | Who creates teams and channels? | (a) admins only; (b) admins create teams, members create channels inside them | **(b)** |
+| Q-CHAT3 | Release 1 scope | | **RULED 2026-10-23, as recommended:** DMs + groups, live, ledgered; console + channels in release 2 |
+| Q-CHAT4 | Alert when the tab is closed | | **RULED 2026-10-23, as recommended:** (a) first, (b) CH10 |
+| Q-CHAT5 | Retention | | **RULED 2026-10-23, as recommended:** (a) |
+| Q-CHAT6 | Does seeing a load grant its chat? | | **RULED 2026-10-23, as recommended:** (a) |
+| Q-CHAT7 | Are the two production orgs separate companies? | | **RULED 2026-10-23, as recommended:** Assumed yes |
+| Q-CHAT8 | Calls and meetings | | **RULED 2026-10-23, as recommended:** (a) |
+| Q-CHAT9 | Realtime connections | | **RULED 2026-10-23, as recommended:** (a) |
+| Q-CHAT10 | Who creates teams and channels? | | **RULED 2026-10-23, as recommended:** (b) |
 | Q-CHAT11 | Four-eyes approval for compliance access? | | **RULED (a):** no; logged, and visible to other holders |
 | Q-CHAT12 | Monitoring notice | | **RULED:** none in the product; it is in the employment contract (all users are employees) |
 | Q-CHAT13 | AI catch-up | | **RULED (b):** build CH12 off by default, after release 2 |
@@ -280,6 +280,7 @@ on its own.
 - 2026-10-23: owner: "like Microsoft Teams … more and more users". Delivery moved from Postgres Changes to Broadcast-from-database; added scale (§3) and the Teams map (§4).
 - 2026-10-23: owner: "enterprise grade, lightweight, good audit logs, Admin able to audit messages, not expensive, research the last six months". Added §5 (ledger, console, holds, notice), §6 (cost from Supabase's billing page: Pro includes 5 M Realtime messages and 500 peak connections, then $2.50/M and $10/1,000, counted per recipient), §7 (practices), D-CHAT12–16, CHA1–3, CH12, Q-CHAT11–13. D-CHAT2 now carries signals only, so the subscribe-time authorisation gap cannot leak content. `audit_logs` measured at 5.07 M rows / 1.23 GB, which is why the ledger is its own table.
 - 2026-10-23: owner ruled Q-CHAT2 (a Permissions-page permission decides who audits; admins by default, like Ask AI), Q-CHAT11 (a), Q-CHAT12 (no in-product notice; the employment contract covers it), Q-CHAT13 (b). §5.2, §7, D-CHAT14, CH2, CHA2 and CH12 updated. Still open: Q-CHAT1, Q-CHAT3–Q-CHAT10.
+- 2026-10-23: owner: "rest as recommended, start release 1". Every Q-CHAT is ruled. Release 1 (CH1a → CH3b + CHA1) started.
 
 Sources consulted 2026-10-23: Supabase docs (Realtime limits, Postgres Changes, Broadcast,
 Authorization, billing); CometChat "Chat UI Architecture in 2026"; Stream "How to Sync Chat State After
