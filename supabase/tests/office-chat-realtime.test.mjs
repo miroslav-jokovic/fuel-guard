@@ -198,6 +198,33 @@ ok("presence on a chat topic is not granted by this policy (CH9 decides it)",
     return r === false;
   })());
 
+// ── 0514: the driver app's private topics ─────────────────────────────────────────────────────
+// Each topic is somebody's own: the inbox only its person, a conversation only its participants in
+// their own org. The policy names no extension (0514 says why), so presence and broadcast probes
+// are checked as well as the broadcast default.
+console.log("\n-- driver topics (0514) --");
+const asDriver = jwt(DAN, ORG, "driver");
+ok("a driver joins their own inbox topic", (await mayJoin(asDriver, `driver:inbox:${DAN}`)) === true);
+ok("...and nobody else's", (await mayJoin(asDriver, `driver:inbox:${ANA}`)) === false);
+ok("a driver joins their own conversation's topic", (await mayJoin(asDriver, `driver:thread:${DRV}`)) === true);
+ok("...the office participant too", (await mayJoin(jwt(ANA, ORG), `driver:thread:${DRV}`)) === true);
+ok("someone not in the conversation cannot", (await mayJoin(jwt(CLEO, ORG, "safety_manager"), `driver:thread:${DRV}`)) === false);
+ok("another org's person cannot, even claiming the right org", (await mayJoin(jwt(OUT, ORG, "admin"), `driver:thread:${DRV}`)) === false);
+ok("a participant whose token names another org cannot", (await mayJoin(jwt(DAN, ORG_B, "driver"), `driver:thread:${DRV}`)) === false);
+ok("an office chat is not a driver topic", (await mayJoin(jwt(ANA, ORG), `driver:thread:${DM}`)) === false);
+ok("a malformed id is refused, not an error", (await mayJoin(asDriver, "driver:thread:nope")) === false);
+ok("the old shared public name grants nothing", (await mayJoin(asDriver, "messages-inbox")) === false);
+ok("an anonymous caller joins no driver topic", (await mayJoin(null, `driver:inbox:${DAN}`)) === false);
+ok("whatever extension Realtime probes, the owner is admitted", await (async () => {
+  const results = [];
+  for (const ext of ["presence", "postgres_changes"]) {
+    await db.query(`update realtime.messages set extension=$1 where topic='probe'`, [ext]);
+    results.push(await mayJoin(asDriver, `driver:inbox:${DAN}`));
+  }
+  await db.query(`update realtime.messages set extension='broadcast' where topic='probe'`);
+  return results.every((r) => r === true);
+})());
+
 await db.close();
 console.log(`\nRESULT: ${pass} passed, ${fail} failed`);
 process.exit(fail === 0 ? 0 : 1);
