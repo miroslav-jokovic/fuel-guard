@@ -16,6 +16,7 @@
  * transaction alerts, efs's processing results, recruiting's nudges.
  */
 export { messagesRouter } from "./routes/messages.js";
+export { chatRouter } from "./routes/chat.js";
 export { notificationsRouter } from "./routes/notifications.js";
 export { keysAlreadySent, notify, revokePushTokens } from "./notify.js";
 export { notifyForTransaction } from "./notifications.js";
