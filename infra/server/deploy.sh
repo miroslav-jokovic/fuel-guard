@@ -67,6 +67,18 @@ install -m 0644 "$STACK/silvicom-boot.service" /etc/systemd/system/silvicom-boot
 systemctl daemon-reload
 systemctl enable silvicom-boot.service >/dev/null 2>&1
 
+# The Supabase key watcher (AWS6a) runs on one server only — two would page twice for every stranger.
+# <env>.env says which; a server that no longer should runs it no more.
+if grep -qx 'KEYWATCH=true' "$STACK/$ENV_NAME.env"; then
+  install -m 0644 "$STACK/silvicom-keywatch.service" "$STACK/silvicom-keywatch.timer" /etc/systemd/system/
+  systemctl daemon-reload
+  systemctl enable --now silvicom-keywatch.timer >/dev/null 2>&1
+else
+  systemctl disable --now silvicom-keywatch.timer >/dev/null 2>&1 || true
+  rm -f /etc/systemd/system/silvicom-keywatch.service /etc/systemd/system/silvicom-keywatch.timer
+  systemctl daemon-reload
+fi
+
 cd "$STACK"
 # --wait returns only when every container reports healthy, so a bad commit fails this command
 # (and the CI job that ran it) instead of being discovered by a person.
