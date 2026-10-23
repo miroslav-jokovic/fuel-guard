@@ -7,6 +7,7 @@ import type { NavCounts } from "@/lib/nav";
 import { useHazmatReviewCountQuery } from "@/features/hazmat/useHazmatReview";
 import { useThreadsQuery } from "@/features/messages/useMessages";
 import { useChatInboxQuery } from "@/features/chat/useChat";
+import { useChatRealtime } from "@/features/chat/chatRealtime";
 
 /**
  * The live counts beside sidebar entries (`NavCounts`), each asked only when its entry can show, and
@@ -27,7 +28,11 @@ export function useNavCounts(modules: ReturnType<typeof useModulesQuery>): Compu
   const threads = useThreadsQuery(computed(() => session.canView("dispatch") && has("messages")));
   // Office chat unread (CH2) — asked when /chat opens for this caller (the guard's own answer, SP5)
   // and the plan has Messages; the inbox query /chat itself runs.
-  const chat = useChatInboxQuery(computed(() => opens("/chat") && has("messages")));
+  const chatOpen = computed(() => opens("/chat") && has("messages"));
+  const chat = useChatInboxQuery(chatOpen);
+  // ...and kept live by the tab's realtime link (CH3b): a message to me moves the badge at once, on any
+  // page, and the poll behind it relaxes to 60 s.
+  useChatRealtime(chatOpen);
 
   return computed(() => ({
     hazmatReview: reviewCount.data.value ?? 0,

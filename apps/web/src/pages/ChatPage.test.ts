@@ -17,6 +17,8 @@ const state = vi.hoisted(() => ({
   createGroup: vi.fn(async () => "44444444-4444-4444-8444-444444444444"),
   markRead: vi.fn(),
   detail: null as unknown,
+  followed: [] as Array<string | null>,
+  setLink: (_: string) => {},
 }));
 
 vi.mock("@/composables/useModules", async () => {
@@ -51,6 +53,19 @@ vi.mock("@/features/chat/useChat", async () => {
     useChatMessageActions: () => ({ edit: { mutateAsync: vi.fn() }, retract: { mutateAsync: vi.fn() } }),
   };
 });
+vi.mock("@/features/chat/chatRealtime", async () => {
+  const { watch } = await import("vue");
+  return {
+    useChatFollow: (id: { value: string | null }) =>
+      watch(() => id.value, (v) => state.followed.push(v), { immediate: true }),
+  };
+});
+vi.mock("@/features/chat/transport", async () => {
+  const { ref } = await import("vue");
+  const link = ref("off");
+  state.setLink = (v) => (link.value = v);
+  return { chatLinkState: link };
+});
 vi.mock("@/stores/session", () => ({ useSessionStore: () => ({ userId: "11111111-1111-4111-8111-111111111111" }) }));
 vi.mock("@/stores/toast", () => ({ useToastStore: () => ({ success: vi.fn(), error: vi.fn() }) }));
 
@@ -74,6 +89,8 @@ beforeEach(() => {
   state.conversations = [];
   state.conversationAsked = [];
   state.detail = null;
+  state.followed = [];
+  state.setLink("off");
   state.openDirect.mockClear();
   state.createGroup.mockClear();
   state.markRead.mockClear();
@@ -124,6 +141,23 @@ describe("ChatPage", () => {
       subject: "Night dispatch",
       memberIds: ["22222222-2222-4222-8222-222222222222", "55555555-5555-4555-8555-555555555555"],
     });
+  });
+
+  it("follows the open conversation's signals, and nothing for a value that is not an id", async () => {
+    await render(`/chat?c=${T}`);
+    expect(state.followed).toEqual([T]);
+    state.followed = [];
+    await render("/chat?c=../../etc");
+    expect(state.followed).toEqual([null]);
+  });
+
+  it("says Reconnecting only when the live link is down, not while it first connects", async () => {
+    for (const [link, shown] of [["reconnecting", true], ["connecting", false], ["live", false], ["off", false]] as const) {
+      state.setLink(link);
+      const { w } = await render();
+      expect(w.text().includes("Reconnecting"), link).toBe(shown);
+      w.unmount();
+    }
   });
 
   it("tells an empty inbox how to begin", async () => {
