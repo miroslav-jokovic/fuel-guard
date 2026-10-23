@@ -3,11 +3,16 @@
 Opened 2026-10-23 at the owner's request: *"Internal chat between users in office … we are almost
 switched to AWS so count on that."* The owner brought a proposal written by ChatGPT (Socket.IO or
 SignalR, Redis, six new `chat_*` tables, S3 attachments, four phases) and asked for it to be compared
-with this codebase and turned into a precise, reliable plan. Same day, the owner made the target
-explicit: *"some Chat system like Microsoft Teams, just internally in our app, also we will have more
-and more users added."* So this plan has two goals. Its features are Teams': chats, teams with channels,
-replies, mentions, reactions, files, search, an activity feed and presence. Its design has to hold
-long after today's 14 office users (§3).
+with this codebase and turned into a precise, reliable plan. The same day the owner sharpened the
+brief twice:
+
+- *"some Chat system like Microsoft Teams, just internally in our app, also we will have more and more
+  users added"*. That means Teams' features (§4) and a design that holds long after today's 14 office
+  users (§3).
+- *"modern advanced, enterprise grade, and architecture have to be lightweight … good audit logs and
+  Admin to be able to audit messages … we dont want this to turn in some expensive feature … research
+  best practices that are used in last 6 months"*. That covers the audit and compliance design (§5),
+  cost (§6) and the practices this plan adopts (§7).
 
 This is a decision log. Decisions are `D-CHAT*`, questions for the owner `Q-CHAT*`, work items `CH*`.
 The progress log is at the END (append there, never into the tables).
@@ -20,145 +25,260 @@ The proposal assumes a blank page. It is not one: **office↔driver messaging wa
 | Fact | Measured | Where |
 |---|---|---|
 | Schema | `message_threads` (org, subject, `load_id`, status, `last_message_at`), `thread_participants` (role `driver`\|`office`, `last_read_at`), `messages` (client-UUID PK, `attachment_path`, `edited_at`, soft delete only — `MG001` refuses a hard DELETE), `message_reports` | `0096_messages.sql` |
-| Access model | By PARTICIPATION, not role: `auth_in_thread()` in RLS, the same check in the service. A manager not in a thread does not read it | 0096; `routes/messages.ts` header |
+| Access model | By PARTICIPATION, not role: `auth_in_thread()` in RLS, the same check in the service | 0096; `routes/messages.ts` header |
 | Realtime | `messages` is in the `supabase_realtime` publication; the driver app subscribes to Postgres Changes with a poll as fallback ("poll is the guarantee, realtime is the speed") | `apps/driver/src/features/messages/useMessages.ts` |
 | Web side | `/messages` dispatch inbox (`MessagesPage.vue`, 295 lines), 30 s / 15 s poll | `apps/web/src/features/messages/useMessages.ts` |
 | API | One router for both sides, `requireModule("messages")`, writes share the driver budget `driverWriteLimit` (20/min, **300/day**) | `modules/messaging/routes/messages.ts` |
-| Notifications | `notify()` → bell + Expo push to the driver's phone; web has the bell, **no browser/desktop notification and no Web Push** | `notify.ts`, `notificationPush.ts` |
+| Notifications | `notify()` → bell + Expo push to the driver's phone; web has the bell, **no browser notification and no Web Push** | `notify.ts`, `notificationPush.ts` |
+| Audit | `audit_logs` is append-only (AU010, SP8), **5.07 M rows, 1.23 GB**; `writeAudit()`; step-up re-authentication exists (`requireFreshAuth.ts`, SP9: HMAC-bound token after a fresh password grant) | `lib/audit.ts`, SQL |
+| AI | `lib/anthropic.ts` is already in the API (document reading, Ask AI) | |
 | Permissions | Surface `dispatch.messages`, gate `section("dispatch")`, `startsOnFor: []` | `surfaceCatalogue.ts:151` |
 | Production use | **0 threads, 0 messages.** 2 orgs, 16 auth users; active members: 7 admin, 3 dispatcher, 1 safety manager, 1 fleet manager, 1 technician, 1 driver | `supabase db query --linked` |
-| Database | 4.6 GB today | `pg_database_size` |
-| Browser↔Supabase | The SPA already holds a Supabase session (`lib/supabase.ts`); CSP already allows `wss://*.supabase.co` | `appHttp.ts:57` |
-| AWS shape | One EC2 per environment, Docker Compose + Caddy, **`API_REPLICAS` api containers** + a worker; Supabase stays the database and does not move (PR #1714) | `infra/server/compose.yml` |
+| Database | 4.6 GB | `pg_database_size` |
+| AWS shape | One EC2 per environment, Docker Compose + Caddy, `API_REPLICAS` api containers + a worker; Supabase stays the database and does not move (PR #1714) | `infra/server/compose.yml` |
 
 ### What the existing code would get wrong for office chat
 
-Invisible today because nothing has ever been sent; each one is fatal at Teams scale.
+Invisible today because nothing has been sent; each one is fatal at Teams scale.
 
-1. **`listThreads` reads every message of every thread the user is in**, on every inbox poll, to
-   compute last message and unread in JavaScript. PostgREST stops at 1,000 rows without an error, so
-   unread counts and previews go wrong *quietly* within weeks of real use. `getThread` returns the whole
-   history with no paging.
-2. **The client never chooses participants.** Right for a driver thread; wrong for "message Ana" or
-   "add Marko to the Shop channel".
-3. **300 messages a day** is the driver budget; an active office user passes it before lunch.
-4. **The browser can write `messages` directly** (`messages_send`, `messages_own_update` are client
-   INSERT/UPDATE policies), skipping the rate limit, notifications and audit. Nothing uses them. SP6
-   removed the same shape from memberships/invites.
-5. **An edit overwrites the body.** `edited_at` records that it changed, not what it said.
-6. **Unread is computed by counting rows.** Fine for 10 threads, not for a user in 80 conversations
-   and 30 channels with thousands of messages each.
+1. **`listThreads` reads every message of every thread the user is in** on every poll. PostgREST stops
+   at 1,000 rows without an error, so unread counts and previews go wrong *quietly*. `getThread`
+   returns the whole history unpaged.
+2. **The client never chooses participants.** Right for a driver thread; wrong for "message Ana".
+3. **300 messages a day** is the driver budget.
+4. **The browser can write `messages` directly** (`messages_send`, `messages_own_update`), skipping
+   rate limit, notification and audit. Nothing uses them. SP6 removed the same shape elsewhere.
+5. **An edit overwrites the body.** `edited_at` says it changed, not what it said.
+6. **Unread is computed by counting rows.**
+7. **No record of who read what as an administrator**: today an admin with database access is the only
+   "auditor", and that path leaves no trace.
 
 ## 2. The proposal against this codebase
 
 | ChatGPT proposed | Here | Ruling |
 |---|---|---|
-| Six new `chat_*` tables | Four tables exist, empty, with the right access model | **Extend 0096** — one messaging engine (D-CHAT1) |
-| Socket.IO / `ws` in the API, Redis when scaling | api runs `API_REPLICAS` containers behind Caddy, so an in-process socket server needs Redis fan-out + sticky sessions on day one, and becomes a component we must keep up at 01:07 deploys | **Supabase Realtime Broadcast, no socket server, no Redis** (D-CHAT2), behind a transport seam so a later move is one file (D-CHAT10) |
-| "Persist first, then publish; transactional outbox" | Broadcast-from-database sends from a trigger *inside the insert's transaction*; a rolled-back message is never announced | Nothing extra to build (D-CHAT2) |
-| SignalR if moving to .NET | Not moving to .NET | Dropped |
-| Attachments in S3 with signed links | Files live in Supabase Storage (private buckets, signed URLs, nightly S3 copy #1704) | **Supabase Storage** (D-CHAT6) |
-| Malware scanning | Internal users only | Type allow-list + size cap; scanning only if Q-CHAT1 opens chat to outsiders |
-| Postgres FTS before Elasticsearch | Agreed | CH8 |
-| Web Push + mobile push | Expo push exists for the driver; web has none | Browser notifications while a tab is open first, Web Push CH10 |
-| Presence, typing, read receipts | Realtime Presence + Broadcast; receipts from the read sequence | CH9 |
-| Load / incident conversations | `load_id` exists on threads | CH11 |
+| Six new `chat_*` tables | Four exist, empty, with the right access model | **Extend 0096** (D-CHAT1) |
+| Socket.IO / `ws`, Redis when scaling | api runs `API_REPLICAS` containers: an in-process socket server needs Redis + sticky sessions on day one, plus another component to keep alive at every deploy | **Supabase Realtime Broadcast, no socket server, no Redis** (D-CHAT2), behind a seam (D-CHAT10) |
+| Transactional outbox | Broadcast-from-database sends from a trigger inside the insert's transaction; a rolled-back message is never announced | Nothing extra to build |
+| S3 attachments | Supabase Storage (private buckets, signed URLs, nightly S3 copy #1704) | Supabase Storage (D-CHAT6) |
+| Audit history | Mentioned in one line | **A tamper-evident chat ledger + an audited compliance console** (§5) |
+| Elasticsearch later | Agreed: Postgres FTS | CH8 |
 
-The proposal's architecture is sound and matches what the repo already does: the backend authorises
-everything, Postgres is the source of truth, and realtime only delivers. What it gets wrong is cost: it
-plans to build infrastructure this stack already has.
+The proposal's architecture is sound: the backend authorises everything, Postgres is the source of
+truth, and realtime only delivers. What it gets wrong is cost: it plans to build infrastructure this
+stack already has.
 
 ## 3. Designing for "more and more users"
 
-**Design target:** 1,000 office users in one org, 300 online at once, 100 messages per user per day
-at peak, channels up to the whole org. Today is 14 users. The target is set at roughly 70× so that
-nothing in the design needs a rewrite before then. Each line below says what breaks first and when.
+**Design target:** 1,000 office users in one org, 300 online at once, 100 messages per user per day at
+peak, channels up to the whole org. Today is 14. The target is ~70× today, so nothing needs a rewrite
+before it.
 
 | Concern | At the target | What holds it |
 |---|---|---|
-| **Delivery fan-out** | A message to a 1,000-member channel | Postgres Changes authorises **per subscriber per change**, single-threaded, ~3,000 msg/s total with RLS, and latency rises with subscriber count (Supabase docs). Broadcast sends once per topic. **D-CHAT2** |
-| **Connections** | One websocket per open tab (supabase-js multiplexes every channel on it) | Supabase Pro allows **500 concurrent connections with the spend cap on, 10,000 without**, and 100 channels per connection. ~300 online users with two tabs each is the first wall → **Q-CHAT9** |
-| **Channels per tab** | A user in 200 conversations | Never one channel per conversation: one per-user topic plus the open conversation's topic (D-CHAT2) |
-| **Unread counts** | 100+ conversations per user | Sequence numbers, not row counts (D-CHAT5) |
-| **Missed events** | Laptop sleeps, Wi-Fi drops, deploy | Sequences reveal a gap; the client refetches from its last seq (D-CHAT5). The poll stays as the guarantee |
-| **Storage** | ~1 KB per message with indexes + search vector; 200 users × 60/day × 250 days ≈ 3 M rows ≈ **3 GB/year** | Indexes on `(thread_id, seq)` keep the working set to recent pages; monthly partitioning is not needed below ~10 M rows. Watch against the compute tier (DATA-LIFECYCLE-PLAN §8) |
-| **Writes** | 100k messages/day ≈ 3/s average | Trivial for Postgres; the per-thread seq row lock serialises only one conversation's writers |
-| **The API** | Every send is an HTTP call | The send path stays at a few round trips; the board's 28 serial calls (PLATFORM-RELIABILITY §1) are the shape to avoid |
+| **Delivery fan-out** | A message to a 1,000-member channel | Postgres Changes authorises **per subscriber per change**, single-threaded, ~3,000 msg/s total with RLS; Broadcast sends once per topic (Supabase docs). D-CHAT2 |
+| **Connections** | One websocket per open tab, all channels multiplexed on it | Supabase Pro: **500 peak connections included, $10 per extra 1,000**; 100 channels per connection. Q-CHAT9 |
+| **Channels per tab** | A user in 200 conversations | Two subscriptions per tab, whatever the conversation count (D-CHAT2) |
+| **Unread** | 100+ conversations per user | Sequence numbers, not row counts (D-CHAT5) |
+| **Missed events** | Sleep, Wi-Fi drop, deploy | Sequence gap → refetch from last seq; the poll stays as the guarantee (D-CHAT5) |
+| **Storage** | ~1 KB/message with indexes + search vector; 200 users × 60/day × 250 days ≈ 3 M rows ≈ **3 GB/year** | Indexes on `(thread_id, seq)`; no partitioning below ~10 M rows. Watch against the compute tier (DATA-LIFECYCLE-PLAN §8) |
+| **Ledger** | One row per message and per admin act | Its own table, not `audit_logs` (already 1.23 GB) (D-CHAT12) |
+| **Writes** | 100 k/day ≈ 3/s | Trivial; the per-thread seq lock serialises only one conversation's writers |
 
 ## 4. What "like Teams" means here
 
 | Teams | Silvicom chat | Item |
 |---|---|---|
-| Chat: 1:1 and group chats | `direct` (unique per pair) and `group` threads, rename, add/remove people | CH1–CH3 |
-| Teams → channels | `chat_spaces` (a team, e.g. Dispatch, Safety, Shop, Accounting) holding `channel` threads; public channels anyone in the team can join, private channels by invitation | CH5 |
-| Channel posts with replies | `messages.parent_id` — a reply thread under a post, its own unread | CH5 |
-| @mentions, @team, @channel | `message_mentions`; they feed the Activity list and the bell (D-CHAT7) | CH6 |
-| Reactions | `message_reactions` (one row per user/emoji) | CH6 |
-| Edit, delete | Edit keeps prior text (`message_edits`); delete hides, keeps the row (Q-CHAT5) | CH1 |
-| Files tab | Attachments per message and a Files list per conversation | CH7 |
+| 1:1 and group chats | `direct` (unique per pair) and `group` threads | CH1–CH3 |
+| Teams → channels | `chat_spaces` (Dispatch, Safety, Shop, Accounting …) holding public/private `channel` threads | CH5 |
+| Channel posts with replies | `messages.parent_id`, a reply thread with its own unread | CH5 |
+| @mentions, @channel | `message_mentions` → Activity + bell (D-CHAT7) | CH6 |
+| Reactions, pins, saved | `message_reactions`, `pinned_at`, per-user saved list | CH6 |
+| Edit, delete | Edit keeps prior text; delete hides and keeps (D-CHAT13) | CH1 |
+| Files tab | Attachments + per-conversation Files list | CH7 |
 | Search | Full-text over conversations the user can read | CH8 |
-| Presence and status | Available / Busy / Away / Do not disturb, auto-away on idle | CH9 |
-| Activity feed | Mentions, replies to you and reactions, in one list | CH6 |
-| Desktop notifications | Browser notifications, then Web Push | CH6, CH10 |
-| Pinned and saved messages | `pinned_at` on messages, per-user saved list | CH6 |
-| **Meetings, calls, screen share** | **Not in this plan.** Video needs a media server (LiveKit, Amazon Chime SDK) — a separate product | **Q-CHAT8** |
-| Context the generic tools lack | "Chat about this" on a load, driver, truck, case | CH11 |
+| Presence and status | Available / Busy / Away / Do not disturb, auto-away | CH9 |
+| Activity feed, desktop notifications | Mentions, replies, reactions; browser notifications, then Web Push | CH6, CH10 |
+| Muted section in the chat list (Teams, 2026) | Muted conversations grouped, never notify | CH6 |
+| Copilot catch-up summary (Teams, 2026) | Optional "Catch me up" on demand (D-CHAT16) | CH12 |
+| Compliance admins + eDiscovery (Purview) | Compliance console, legal hold, export (§5) | CHA1–CHA3 |
+| **Meetings, calls** | **Not in this plan.** Video needs a media server | Q-CHAT8 |
+| What Teams can't do | "Chat about this" on a load, driver, truck, case | CH11 |
 
-## 5. Decisions (proposed — owner confirms or overrules)
+## 5. Audit and compliance: admins can audit messages
+
+The owner's requirement: *"good audit logs and Admin to be able to audit messages."* This supersedes the
+first draft's recommendation that nobody reads a conversation they are not in. It keeps the reason
+behind that recommendation: an audit that leaves no trace of itself destroys the trust that makes
+people write in the chat. So **auditing is a capability that is itself audited.** That is how Microsoft
+Purview and Slack Enterprise Grid's Discovery API work: chat content is reachable only through compliance
+tooling, by named compliance roles, not by ordinary managers or by default.
+
+### 5.1 Two records, two purposes
+
+| Record | Holds | Who reads it |
+|---|---|---|
+| **`chat_ledger`**, new and append-only (D-CHAT12) | Every chat fact: message sent (with SHA-256 of the body), edited (hash of old and new), retracted, member added/removed, conversation created/renamed/archived, hold set/released, retention changed, **every compliance search, view and export with its reason**. One hash chain per org | The compliance console; the nightly verifier |
+| **`audit_logs`**, existing | Administrative acts only: compliance access opened, export made, hold changed, retention changed, who was granted compliance access | The existing Settings → Audit log, so the org's ordinary audit trail shows that someone looked |
+
+**Tamper evidence** follows the plain-Postgres pattern several 2026 write-ups converge on:
+- Writes go through one `chat_ledger_append()` function, and no role has INSERT/UPDATE/DELETE on the table.
+- BEFORE UPDATE/DELETE/TRUNCATE triggers always raise.
+- Each row stores `prev_hash` and `hash = sha256(prev_hash ‖ canonical row)`.
+- Appends take `pg_advisory_xact_lock(org)`, so two writers can never fork the chain. Each org has its
+  own chain, so orgs never wait on each other.
+- A nightly `chat-ledger-verify` job (worker, `general` lane) recomputes the chain and checks each live
+  message's body hash against the ledger. A mismatch pages through platform-health.
+
+This catches the case RLS cannot: a service-role bug or a person with database access rewriting
+history.
+
+### 5.2 The compliance console (Settings → Chat compliance)
+
+- **Who:** a new grantable surface `chat.compliance`, `startsOnFor: []`. Even admins don't have it
+  until it is granted to a named person, as with Teams' compliance admins (Q-CHAT2).
+- **Entry:** step-up re-authentication (`requireFreshAuth`, the SP9 pattern) plus a **required reason**
+  (free text + category: HR, legal, safety incident, customer dispute, security). The reason is written
+  to both records before any content is returned.
+- **Search:** across all of the org's conversations, by person, conversation, date range, keyword or
+  has-file. Results show content including edits (all versions) and retracted messages, marked as such.
+- **Export:** a conversation or search result as PDF (readable) + JSONL (machine), with a manifest
+  holding each message's hash and the ledger head hash at export time. That is a chain of custody a
+  court can check. Exports are stored like `dq_exports`: an append-only record of the export, the file
+  itself purged after N days.
+- **Legal hold** per person *and* per conversation. Slack's holds are per person only, so a conversation
+  can fall outside a hold when no held person is in it. A held message is never purged, whatever the
+  retention setting.
+- **Retention** per org (D-CHAT13): default keep forever; an org may set N years, never shorter than a
+  hold. Purging is an explicit, ledgered act of the retention job, never a side effect.
+- **Transparency:** chat shows a permanent line, "Messages are company records. Authorised administrators
+  may review them; every review is logged." Users can't see *who* was reviewed (that would tip off an
+  investigation). Other compliance holders can see every access in the console's own Access log, which
+  is how one admin watches another.
+- **Optional four-eyes (Q-CHAT11):** an access needs a second compliance holder's approval before
+  content opens.
+
+### 5.3 What admins do NOT get
+
+- No reading of chat through ordinary pages, the API's normal routes, or Ask AI. The compliance console
+  is the only way in.
+- No editing or deleting another person's message. A moderator "remove" is a retraction recorded as
+  done by the moderator, with a reason, and the original survives.
+- Drivers' threads (D54) are reachable in the console too: they are company records under the same rule.
+
+## 6. Cost: lightweight by construction
+
+No new server, no Redis, no new vendor. Everything below runs on what is already paid for.
+
+| Item | Today (14 users) | At 300 users | Basis |
+|---|---|---|---|
+| Realtime messages | ~0.2 M/month — inside the **5 M included** on Pro | ~10–15 M/month → **~$15–25/month** over the included 5 M ($2.50 per million) | Billed **per recipient**: 50 msgs/user/day × ~5 recipients × 22 days, plus the per-user signals. D-CHAT2 keeps signals tiny and skips per-user pushes in big channels |
+| Realtime connections | ~20 peak — inside 500 included | ~500–600 peak → **~$10/month** | $10 per 1,000 over 500 |
+| Database | +~0.1 GB/year | +~3 GB/year | May bring the next compute step closer; measured in CH3b |
+| Files | Supabase Storage at ~$0.021/GB | Same | 25 MB cap per file |
+| AI catch-up (optional) | $0 unless switched on | Capped per user per day; Haiku-class model | D-CHAT16 |
+| API/EC2 | No change | Possibly API_REPLICAS +1 | Send path = a few round trips |
+
+**Realistic total: $0/month extra now, ~$25–50/month at 300 users.** A Teams or Slack seat with
+compliance features costs that much *per user*.
+
+## 7. Practices adopted (research 2026-10-23)
+
+Practices from the last six months of published chat-architecture and Supabase guidance, and what this
+plan does with each:
+
+| Practice | Adopted as |
+|---|---|
+| A conversation is a durable log: persist first, deliver second, order by a per-conversation sequence, and keep the durable path separate from ephemeral presence (Stream, SystemDesignSchool) | D-CHAT2, D-CHAT5 |
+| Optimistic send with a client idempotency key; the server's id and time are authoritative; a failed send shows Retry and never loses the text (CometChat "Chat UI Architecture in 2026") | Already the 0096 contract (client UUID PK); CH2 adds pending → sent → seen states |
+| Delta sync on reconnect: "everything since seq N" for every conversation in one call, not a full reload (Stream) | `GET /api/chat/sync?cursor=` (CH3b) |
+| Pushes are wake-ups, not content | D-CHAT2: **realtime carries signals, never message bodies** |
+| Supabase: Broadcast-from-database with `realtime.send`/`broadcast_changes` on **private** channels, authorised by RLS on `realtime.messages`; turn off public channel access | CH3a |
+| Supabase pitfall: channel policies are checked **at subscribe time**, so a removed member keeps an open subscription until token refresh | Harmless under D-CHAT2: signals carry no content, and every fetch is re-authorised by the API. Removal also sends that user a `left` signal so the tab drops the channel |
+| Supabase: private Broadcast can replay up to 25 recent messages on rejoin | Used as the fast path after a short drop; the sync call is the guarantee |
+| Binary broadcasts need supabase-js ≥ 2.91 | JSON payloads only; pin the version in CH3b |
+| Compliance access only through dedicated tooling by named roles, holds per custodian, chain of custody on export (Purview, Slack Discovery) | §5, plus per-conversation holds to close Slack's gap |
+| Tamper-evident log in plain Postgres: WORM triggers, SHA-256 chain, serialised appends, scheduled verify (2026 write-ups) | D-CHAT12 |
+| Monitoring notice: some US states (CT, DE, NY …) require notice of electronic monitoring; best practice is a written, acknowledged policy | §5.2 banner + a one-time acknowledgement on first use (Q-CHAT12) |
+| Teams 2026: muted section, AI catch-up on demand | CH6, CH12 |
+
+## 8. Decisions (proposed — owner confirms or overrules)
 
 | ID | Decision | Why |
 |---|---|---|
-| D-CHAT1 | **One messaging engine.** Office chat extends `message_threads` / `thread_participants` / `messages`; a thread gets a `kind`: `driver` (today's), `direct`, `group`, `channel`. The driver path keeps its server-resolved audience | Two engines drift. The tables are empty, so reshaping costs migrations, not a data move |
-| D-CHAT2 | **Delivery = Supabase Realtime Broadcast from the database, on PRIVATE topics.** An insert trigger calls `realtime.send` for (a) the conversation topic `conv:<id>`, which carries the full message to whoever has it open, and (b) each member's `user:<id>` topic, which carries a small "conversation X is now at seq N" so their list and badges update. Members of a channel larger than 50 people get no per-user push. Their unread dot refreshes on the 60 s poll or when they open the app, as in Teams and Slack, where big channels are not urgent. Who may join which topic is enforced by RLS policies on `realtime.messages`, with the same participation predicate. The poll stays at 60 s while connected and 15 s when not | Postgres Changes' per-subscriber authorisation is the documented scaling wall (§3). A tab holds only 2 subscriptions, whatever its user's conversation count |
-| D-CHAT3 | **All writes go through the API.** Drop `messages_send`, `messages_own_update` and `reports_own`; the browser keeps SELECT only | One write path = one rate limit, one notification, one audit. SP6 precedent |
-| D-CHAT4 | **The server validates every named participant**: an active membership in the same org, office role unless Q-CHAT1 widens it. A direct thread is unique per pair (`direct_key` = sorted ids, unique per org) | Rule 2 of §1, re-stated, not removed |
-| D-CHAT5 | **Per-conversation sequence numbers.** A trigger gives each message `seq = thread.last_seq + 1`, and each member stores `read_seq`. Unread is `last_seq − read_seq`, so there is no counting. A client that receives seq N+2 after N knows it missed one and refetches from N. The inbox and history come from SQL functions with keyset paging (50 per page) | Defects 1 and 6. A gap you can see is how you know delivery is reliable |
-| D-CHAT6 | Attachments: private bucket `chat-files`, path `org/<org>/thread/<thread>/<message>/<file>`, API mints 5-minute signed URLs after the participation check; PDF / images / Office docs, 25 MB cap | Same store, backup and access rule as every other document |
-| D-CHAT7 | **Chat is not the bell.** Ordinary messages raise the chat badge and a browser notification. Only mentions and replies to you reach the bell, and they are grouped per conversation | Sixty chat lines a day would bury the fraud alerts the bell exists for |
-| D-CHAT8 | Office budget separate from the driver's: 60/min, 3,000/day per user | Defect 3 |
-| D-CHAT9 | Its own surface, `chat` (General group), on for every office role by default; creating teams is admin-grantable | Chat is for everyone. Gating it on `section("dispatch")` would be the `canManage` mistake (CLAUDE.md, No workarounds) |
-| D-CHAT10 | **Transport seam.** The web reaches realtime only through `features/chat/transport.ts` (subscribe(user), subscribe(conversation), onGap) | If connections outgrow Supabase (Q-CHAT9) or pricing changes, a self-hosted socket service replaces one file, not the feature |
-| D-CHAT11 | Multi-org isolation: every row carries `org_id`, every function and policy checks it; the people picker lists one org | Two orgs in production today, more if the platform is sold (D-S360) |
+| D-CHAT1 | **One messaging engine.** Extend 0096; a thread gets a `kind`: `driver`, `direct`, `group`, `channel`. The driver path keeps its server-resolved audience | Two engines drift; tables are empty |
+| D-CHAT2 | **Delivery = Broadcast from the database, on private topics, carrying signals only.** The insert trigger sends `{conversation, seq, kind}` to `conv:<id>` (viewers of the open conversation) and to each member's `user:<id>` for conversations of ≤ 50 members. Bigger channels update their unread dot by the 60 s poll or on focus. The client fetches content through the API (`/sync`), which authorises every request. The poll runs every 60 s while connected and every 15 s when not | Scales (§3), costs little (§6), and stays correct after a removal (§7). Content never sits in a realtime payload or log. Price: one extra round trip (~100 ms) per received message |
+| D-CHAT3 | **All writes through the API.** Drop `messages_send`, `messages_own_update`, `reports_own`; the browser keeps SELECT only | One write path = one rate limit, one ledger row |
+| D-CHAT4 | **Server validates every named participant**: active membership, same org, office role. Direct threads unique per pair | §1 defect 2 |
+| D-CHAT5 | **Per-conversation sequence numbers**; unread = `last_seq − read_seq`; gaps trigger sync. Keyset-paged SQL functions for inbox and history | §1 defects 1 and 6 |
+| D-CHAT6 | Attachments: private bucket `chat-files`, API-minted 5-minute signed URLs after the participation check; type allow-list, 25 MB | Same store and backup as every document |
+| D-CHAT7 | **Chat is not the bell.** Only mentions and replies to you reach the bell, grouped per conversation | Keeps the fraud alerts visible |
+| D-CHAT8 | Office write budget 60/min, 3,000/day per user | §1 defect 3 |
+| D-CHAT9 | Surface `chat` (General), on for every office role; teams/channel creation per Q-CHAT10 | Not the `canManage` mistake |
+| D-CHAT10 | **Transport seam**: the web reaches realtime only through `features/chat/transport.ts` | Outgrowing Supabase replaces one file |
+| D-CHAT11 | Multi-org isolation on every row, function, policy and ledger chain | 2 orgs today |
+| D-CHAT12 | **`chat_ledger`: append-only, hash-chained per org, verified nightly**; administrative acts also in `audit_logs` | §5.1 |
+| D-CHAT13 | Edits keep every prior version (`message_versions`); retraction hides and keeps; chat tables + ledger pinned in `RETENTION_FORBIDDEN` until an org sets a retention period through the audited setting | Chat is evidence after a crash; deletion is irreversible, keeping is not |
+| D-CHAT14 | **Compliance console** behind `chat.compliance` (granted per person) + step-up + required reason; the only way to read others' conversations | §5.2 |
+| D-CHAT15 | Legal hold per person and per conversation; holds beat retention | §5.2 |
+| D-CHAT16 | AI catch-up is **off by default**, on demand only (never background), runs over messages the caller can already read, per-user daily cap, and is ledgered | Modern without becoming a cost line or a side door |
 
-## 6. Work queue
+## 9. Work queue
 
-Each item is one PR unless noted. A column and its first reader ship in separate merges
-(`lint:migration-ordering`), so every migration below is followed by a separate code merge.
+One PR each unless noted. A column and its first reader ship in separate merges
+(`lint:migration-ordering`).
 
 | ID | What | Depends on |
 |---|---|---|
-| CH0 | This plan; owner answers Q-CHAT1–Q-CHAT10 | — |
-| CH1a | Migration: thread `kind`, `direct_key`, `last_seq`; participant `member_role` (`owner`\|`member`), `read_seq`, `left_at`, `muted`; `messages.seq` + seq trigger; `message_edits` (append-only); drop the client write policies (D-CHAT3); `chat_inbox()` / `chat_history()` functions. PGlite matrix: non-member reads nothing, left member reads nothing new, browser cannot INSERT, seq has no gaps under concurrent sends | CH0 |
-| CH1b | API `/api/chat`: list, open (paged), create direct/group (validated, idempotent on client id), send, edit, retract, read, leave, add/remove member (audited). `expectOrgScoped` everywhere. `listThreads`/`getThread` move onto the functions, which fixes the driver path too | CH1a on staging |
-| CH2 | Web `/chat`, Teams layout: left rail (Activity · Chat · Teams), conversation list, conversation with infinite scroll up, composer, people picker, sidebar badge. Poll only | CH1b |
-| CH3a | Migration: broadcast trigger + `realtime.messages` policies (guarded: the `realtime` schema does not exist on PGlite, so the matrix tests the policy predicate function separately) | CH1a |
-| CH3b | `transport.ts` (D-CHAT10): per-user + open-conversation topics, gap refetch, "Reconnecting…" state, re-auth on token refresh. **Load test on staging: 300 simulated clients, one 300-member channel, p95 delivery measured and written into §8** | CH2, CH3a |
-| — | **First release = CH1a → CH3b: direct and group chat, live.** About 3 release nights | |
-| CH4 | Admin: retention setting, audited export (Q-CHAT2), reports queue | CH1b |
-| CH5 | Teams and channels: `chat_spaces`, public/private channels, join/leave, `parent_id` replies | CH3b |
-| CH6 | Mentions, reactions, pins, Activity feed, browser notifications, mention → bell | CH5 |
-| CH7 | Files: upload, preview, per-conversation Files list | CH2 |
-| CH8 | Search: generated `tsvector` + GIN, results limited to readable conversations | CH2 |
-| CH9 | Presence, status, typing; "Seen" from `read_seq` in direct/group chats | CH3b |
-| CH10 | Web Push (service worker + VAPID) for a closed tab | Q-CHAT4 |
+| CH0 | This plan; owner answers §10 | — |
+| CH1a | Migration: thread `kind`, `direct_key`, `last_seq`; participant `member_role`, `read_seq`, `left_at`, `muted`; `messages.seq` + trigger; `message_versions`; **`chat_ledger` + `chat_ledger_append()` + WORM triggers**; drop client write policies; `chat_inbox()`/`chat_history()`/`chat_sync()`. PGlite matrix: non-member reads nothing, left member reads nothing new, browser cannot INSERT, seq gapless under concurrency, **ledger refuses UPDATE/DELETE and two concurrent appends never fork** | CH0 |
+| CH1b | API `/api/chat`: list, open, sync, create direct/group, send, edit, retract, read, leave, members — each writes its ledger row in the same transaction (an RPC, not two calls). `expectOrgScoped` everywhere. Driver `listThreads`/`getThread` move onto the functions | CH1a on staging |
+| CH2 | Web `/chat`, Teams layout (Activity · Chat · Teams rail, list, conversation, composer with pending/sent/seen, people picker, badge, monitoring notice). Poll only | CH1b |
+| CH3a | Migration: broadcast trigger (signals) + `realtime.messages` policies; staging setting "public channels off" | CH1a |
+| CH3b | `transport.ts`, replay-then-sync, "Reconnecting…", re-auth on token refresh. **Load test on staging: 300 simulated clients, one 300-member channel; p95 delivery, Realtime message count and DB CPU written into §11** | CH2, CH3a |
+| CHA1 | `chat-ledger-verify` nightly job + platform-health page on mismatch | CH1a |
+| — | **Release 1 = CH1a → CH3b + CHA1: direct and group chat, live, ledgered.** About 3 release nights | |
+| CHA2 | Compliance console: grant surface, step-up + reason, search, conversation view with versions, Access log | CH1b |
+| CHA3 | Export (PDF + JSONL + hash manifest), legal holds, retention setting + ledgered purge job | CHA2 |
+| CH5 | Teams and channels, `parent_id` replies | CH3b |
+| CH6 | Mentions, reactions, pins, saved, muted section, Activity, browser notifications | CH5 |
+| CH7 | Files | CH2 |
+| CH8 | Search (`tsvector` + GIN, readable conversations only; the console reuses it org-wide) | CH2 |
+| CH9 | Presence, status, typing (Presence/Broadcast, ephemeral, never stored) | CH3b |
+| CH10 | Web Push | Q-CHAT4 |
 | CH11 | "Chat about this" on loads, drivers, trucks, cases | Q-CHAT6 |
+| CH12 | AI catch-up (D-CHAT16) | Q-CHAT13 |
 
-## 7. Open questions
+**Release 2 = CHA2 + CHA3 + CH5** (compliance console, teams and channels). After that each item ships
+on its own.
+
+## 10. Open questions
 
 | ID | Question | Candidates | Recommendation |
 |---|---|---|---|
-| Q-CHAT1 | Who can use it? | (a) office members only; (b) + drivers; (c) + outside partners | **(a).** Drivers keep their dispatch thread (D54) with its driving-safety rules. Outsiders need a different identity model |
-| Q-CHAT2 | Can an admin read conversations they are not in? | (a) never; (b) audited compliance view; (c) audited export with step-up | **(c).** People write honestly only in a chat they trust; an export covers a lawsuit or HR case |
-| Q-CHAT3 | First release scope | DMs + groups; + live delivery; + teams/channels | **DMs + groups, live (CH1–CH3)**, teams/channels as the next release |
-| Q-CHAT4 | Alert when the Silvicom tab is closed? | (a) none, badge next visit; (b) Web Push; (c) email after N min | **(a) first, (b) as CH10** |
-| Q-CHAT5 | Retention and edits | (a) keep forever, edits keep prior text, delete hides; (b) delete after N years; (c) real deletion | **(a)** and pin in `RETENTION_FORBIDDEN` until counsel names a period. Decide before CH2 ships |
+| Q-CHAT1 | Who uses it? | (a) office only; (b) + drivers; (c) + partners | **(a).** Drivers keep their dispatch thread (D54) |
+| Q-CHAT2 | Who may audit messages? *(owner: admins must be able to)* | (a) every admin automatically; (b) admins the owner names, granted `chat.compliance`; (c) (b) + four-eyes | **(b).** Seven people hold admin today; few should read everyone's DMs, and every access is logged regardless |
+| Q-CHAT3 | Release 1 scope | DMs + groups live; + channels | **DMs + groups, live, ledgered**; console + channels in release 2 |
+| Q-CHAT4 | Alert when the tab is closed | (a) none; (b) Web Push; (c) email | **(a) first, (b) CH10** |
+| Q-CHAT5 | Retention | (a) keep forever until counsel names a period; (b) N years now | **(a)** |
 | Q-CHAT6 | Does seeing a load grant its chat? | (a) members only; (b) everyone who sees the load | **(a)** |
-| Q-CHAT7 | Are the two production orgs separate companies? | yes / no | Assumed **yes** (D-CHAT11) |
-| Q-CHAT8 | Calls and meetings | (a) out — share a Teams/Zoom/Meet link; (b) build on LiveKit or Amazon Chime SDK later | **(a).** Video is a separate product with its own servers and costs; chat is worth shipping without it |
-| Q-CHAT9 | Supabase realtime connection ceiling | (a) Pro with spend cap: 500 connections; (b) remove the spend cap: 10,000, billed per use | **(a) now**, with a platform-health alert at 350; move to (b) when it fires |
-| Q-CHAT10 | Who creates teams and channels? | (a) admins only; (b) anyone, admins can archive | **(a) for teams, (b) for channels inside a team you belong to** — Teams' default |
+| Q-CHAT7 | Are the two production orgs separate companies? | yes / no | Assumed **yes** |
+| Q-CHAT8 | Calls and meetings | (a) out, share a link; (b) LiveKit / Chime later | **(a)** |
+| Q-CHAT9 | Realtime connections | (a) Pro spend cap on, alert at 350; (b) cap off now | **(a)** |
+| Q-CHAT10 | Who creates teams and channels? | (a) admins only; (b) admins create teams, members create channels inside them | **(b)** |
+| Q-CHAT11 | Four-eyes approval for compliance access? | (a) no, logged + visible to other holders; (b) yes | **(a)** at 14 users; revisit when there are more holders |
+| Q-CHAT12 | Monitoring notice | (a) banner only; (b) banner + one-time acknowledgement stored per user | **(b).** Cheap, and several states require notice. Counsel words it (counsel package) |
+| Q-CHAT13 | AI catch-up | (a) not now; (b) build CH12 off by default | **(b)** after release 2 |
 
-## 8. Progress log
+## 11. Progress log
 
 - 2026-10-23: plan opened; existing messaging, production usage and the AWS shape measured (§1).
-- 2026-10-23: owner: "like Microsoft Teams … more and more users". Delivery moved from Postgres Changes to Broadcast-from-database (Supabase limits read that day: Pro 500/10,000 connections, 100 channels per connection, Postgres Changes ~3,000 msg/s with RLS). Added §3 (scale), §4 (Teams feature map), sequence numbers (D-CHAT5), the transport seam (D-CHAT10) and Q-CHAT8–10.
+- 2026-10-23: owner: "like Microsoft Teams … more and more users". Delivery moved from Postgres Changes to Broadcast-from-database; added scale (§3) and the Teams map (§4).
+- 2026-10-23: owner: "enterprise grade, lightweight, good audit logs, Admin able to audit messages, not expensive, research the last six months". Added §5 (ledger, console, holds, notice), §6 (cost from Supabase's billing page: Pro includes 5 M Realtime messages and 500 peak connections, then $2.50/M and $10/1,000, counted per recipient), §7 (practices), D-CHAT12–16, CHA1–3, CH12, Q-CHAT11–13. D-CHAT2 now carries signals only, so the subscribe-time authorisation gap cannot leak content. `audit_logs` measured at 5.07 M rows / 1.23 GB, which is why the ledger is its own table.
+
+Sources consulted 2026-10-23: Supabase docs (Realtime limits, Postgres Changes, Broadcast,
+Authorization, billing); CometChat "Chat UI Architecture in 2026"; Stream "How to Sync Chat State After
+a User Goes Offline" and "Chat Application Architecture"; SystemDesignSchool chat-app design; Hanzo /
+ViewExport 2026 Slack eDiscovery guides; Microsoft Purview eDiscovery guides; pg-tamper-evident-audit
+and 2026 hash-chain write-ups; 2026 employee-monitoring legal guides (Time Doctor, CurrentWare);
+TechRepublic / Windows Report on Teams 2026 updates.
