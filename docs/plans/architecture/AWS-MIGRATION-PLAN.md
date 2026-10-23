@@ -396,3 +396,11 @@ nightly dump if the snapshot is older.
   AWS host. Rehearsal 39884757442 reads "served by railway" on both hosts, so nothing changes before
   DNS moves. Also #1727: two permission-PDF tests read the UTC day and failed every PR's CI from
   19:00 Central. §5 Cutover gained the variable list, the Med-Stop allowlist and the lease hand-over.
+- **2026-10-23** — #1726–#1730 merged. Found on the way: the staging disk was FULL (30 of 30 GB,
+  17 images, 18.6 GB reclaimable) and #1726's merge failed to deploy (`no space left on device`).
+  `deploy.sh` pruned only dangling images, and each commit brings ~4 GB (app + console), so staging
+  fills in about six deploys, production's 40 GB in about eight releases. #1730: the SSM bootstrap removes every unused image
+  BEFORE pulling (it runs from the CI checkout, so a full disk cannot block its own fix) and
+  `deploy.sh` prunes with `-a`. Staging healed by #1730's own deploy (`03a9ec3` healthy, no worker
+  container: 0 copies while `RUN_SCHEDULERS=false`). The images being ~2 GB each (dev dependencies
+  installed, `--prod=false`) is its own question, not a blocker.
