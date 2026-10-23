@@ -16,6 +16,9 @@ import { sharedChatTransport, type ChatTransport } from "./transport";
  *                                 the cached page, so a new line costs one small request, not a reload
  *   a channel came back        → both of the above once, for whatever was said while it was away
  *
+ * Each of those waits a random 0–1 s first (`spread`, Q-CHAT14), so a message to a big channel does
+ * not reach the API as one burst from every tab at once.
+ *
  * The merge refuses to guess. Every message holds its place (`seq`, retracted ones included, 0511), so
  * the cached page must stay gapless: if the merged lines are not consecutive — a signal arrived for a
  * page this tab never held, or a sync came back short — the page is refetched instead (D-CHAT5).
@@ -139,15 +142,48 @@ async function syncPages(qc: QueryClient, threadId: string, viewerId: string | n
   return false;
 }
 
+/**
+ * The longest a tab waits, at random, before it fetches what a signal announced (Q-CHAT14, ruled
+ * 2026-10-23). One message to a 300-member channel wakes 300 tabs in the same instant, and the uat
+ * load test measured what that does to the API: 40 syncs at once took 6 s at the median. Spread over
+ * a second, the same 300 arrive at about 300/s instead of all together. The second costs little: the
+ * message is already a few hundred milliseconds old by the time its signal lands.
+ */
+export const SIGNAL_SPREAD_MS = 1_000;
+
+// One waiting fetch per target. A second signal for a target that is already waiting joins it: the
+// fetch it schedules reads everything up to that moment anyway.
+const waiting = new Set<string>();
+
+/** Run `fetch` after a random 0–SIGNAL_SPREAD_MS, unless a fetch for `target` is already waiting. */
+export function spread(target: string, fetch: () => void, random: () => number = Math.random): void {
+  if (waiting.has(target)) return;
+  waiting.add(target);
+  setTimeout(() => {
+    waiting.delete(target);
+    fetch();
+  }, Math.floor(random() * SIGNAL_SPREAD_MS));
+}
+
 function transportFor(qc: QueryClient): ChatTransport {
   const session = useSessionStore();
   const me = () => session.userId ?? null;
+  const inbox = () => spread("inbox", () => void qc.invalidateQueries({ queryKey: inboxKey }));
+  const conversation = (threadId: string, rev?: number) =>
+    spread(`conv:${threadId}`, () => void syncConversation(qc, threadId, me(), rev));
   return sharedChatTransport(() => ({
-    onUserSignal: () => void qc.invalidateQueries({ queryKey: inboxKey }),
-    onConversationSignal: (s) => void syncConversation(qc, s.thread_id, me(), s.rev),
+    onUserSignal: inbox,
+    onConversationSignal: (s) => {
+      // Already holding this rev — this tab's own send, or a poll that got there first — is nothing to
+      // fetch; skip the wait as well as the request.
+      const held = qc.getQueryData<ChatConversationResponse>(conversationKey(s.thread_id));
+      if (held && held.conversation.rev >= s.rev) return;
+      conversation(s.thread_id, s.rev);
+    },
+    // After a reconnect every tab of the office comes back at once: the same burst, the same spread.
     onResume: (openThreadId) => {
-      void qc.invalidateQueries({ queryKey: inboxKey });
-      if (openThreadId) void syncConversation(qc, openThreadId, me());
+      inbox();
+      if (openThreadId) conversation(openThreadId);
     },
   }));
 }
