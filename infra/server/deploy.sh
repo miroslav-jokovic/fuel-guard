@@ -84,5 +84,7 @@ cd "$STACK"
 # (and the CI job that ran it) instead of being discovered by a person.
 docker compose --env-file "$ENV_NAME.env" --env-file release.env up -d --remove-orphans --wait --wait-timeout 300
 docker compose --env-file "$ENV_NAME.env" --env-file release.env ps --format '{{.Service}} {{.State}} {{.Health}}'
-docker image prune -f >/dev/null
+# Every image the new containers do not use (ssm-deploy.sh says why `-a`): the release before this one
+# is in ECR, not on this disk.
+docker image prune -af >/dev/null
 echo "deployed $APP_TAG to $ENV_NAME"
