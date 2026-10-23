@@ -351,3 +351,11 @@ nightly dump if the snapshot is older.
      services on Railway (both environments), and delete the branch.
   Rotation is the owner's: `rotate-ota-jwt.sh` (JWT_SECRET, both environments) plus a new admin
   password set in each OTA dashboard.
+- **2026-10-22** — OTA `JWT_SECRET` rotated (owner, both environments). Both redeploys FAILED their
+  health check at first: Railway had re-keyed bucket `xprem-updates` after the breach, and the OTA
+  services held the old secret (`SignatureDoesNotMatch`; the old containers kept serving because they
+  started before the re-key). Owner copied each environment's current bucket credentials onto its
+  service; uat had been pointed at PRODUCTION's bucket and keys and now uses its own
+  (`xprem-updates-nlalvjwqevp`). Both deployments SUCCESS and ready 01:13Z 10/23 — the new
+  `JWT_SECRET` is live and the leaked one is dead. Production's signing keys stay in production's
+  bucket, so the last update (AWS2a) can still sign. Open: admin password change in each dashboard.
