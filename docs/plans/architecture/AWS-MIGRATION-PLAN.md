@@ -431,3 +431,43 @@ nightly dump if the snapshot is older.
   200 (signature verified). `360.silvicominc.com` follows DNS, so cutover needs no second Samsara
   change. Still to rotate later: `SAMSARA_WEBHOOK_SECRET` (regenerate in Samsara and update Railway +
   Parameter Store together).
+- **2026-10-23** — Released `v2026.10.23` = `3f517ed` (Railway production + the AWS production
+  server). Merged since and waiting for the next release: #1731 (AWS containers are recreated when
+  their settings change — label `silvicom.settings` = hash of the settings files; without it a rotated
+  secret never reached a running container) and #1732 (key watcher counts Railway's new egress IPs
+  `50.18.48.204` + `52.9.85.82` as ours). The key watcher runs on the AWS production server (timer,
+  every 5 min; token in `/silvicom/production/keywatch/SUPABASE_ACCESS_TOKEN`, from the owner's
+  Supabase CLI login, so `supabase logout` on the Mac would revoke it). The Mac launchd job stays on
+  until the next release shows clean `pass:` lines in CloudWatch `/silvicom/production`.
+- **2026-10-23** — **Staging Supabase rotated**: new secret `silvicom_360_staging_1` and publishable
+  `silvicom_360_staging` set on Railway `uat` (api/web/console), `/silvicom/staging/*` and
+  `STAGING_VITE_SUPABASE_ANON_KEY`; AWS staging containers verified on the new settings. Owner still
+  deletes staging's `default` secret and `default` publishable. AWS staging's office image predates
+  the new publishable and is fixed by the next merge to main.
+- **2026-10-23** — **WEX allowlisted `44.236.127.194`** (owner). Supabase Auth Site URL: no app code
+  reads it; owner sets `https://360.silvicominc.com` + redirect `https://360.silvicominc.com/**` for
+  dashboard-sent emails only.
+- **2026-10-23** — ⚠ **EFS SOAP login change — open.** WEX issued a new web-service login (user ID
+  in "email 1 of 2", password in "email 2 of 2"). Owner saved it in Settings → EFS Integration at
+  16:54:12Z and again at 17:54:00Z; both times WEX answered `Invalid login [login]`. The old login
+  (prefix `wsS`, saved 08/03) ingested 310 rows at 16:53Z; the new one (prefix `SUF`, 10 chars, no
+  spaces) has never logged in. Endpoint (`ws.efsllc.com/axis2/services/CardManagementWS/`),
+  environment (production) and account id (none) are identical across the saves, so the pair itself
+  is refused. Saving clears the in-memory breaker and failure count (`invalidateOrgSoapCaches`), so
+  a re-save is retried at once; three refusals reopen the 30-min pause (4th window opened 17:58Z).
+  Fuel feeds and card control are DOWN until a working login is saved. Owner emailed WEX: is the
+  `SUF…` ID enabled for the Card Management web service, and do NOT delete the old login yet.
+  Re-saving the old login restores the feeds meanwhile. **Done =** both `*_last_success_at` after the
+  save with errors empty; only then the stale `EFS_SOAP_PASSWORD` fallback on Railway + SSM is
+  replaced (owner-run script) and WEX deletes the old login.
+- **2026-10-23** — **Settings step, inventory** (18:10Z). `api.360` and `console.360` still have NO
+  DNS record (owner: GoDaddy); `staging.360` / `staging-api.360` none either. `360.silvicominc.com`
+  serves `3f517ed`. Still on Railway hosts: GitHub `API_URL`, `WEB_URL`, `CONSOLE_URL`,
+  `PRODUCTION_VITE_API_URL`, `STAGING_*_URL`; Railway web `VITE_API_URL`; `ALLOWED_ORIGINS` (api,
+  web, Railway + SSM) still lists the Railway web host beside `360` — drop it only after cutover.
+  SSM `api`/`web` `WEB_APP_URL` = `360` ✓, `console/ALLOWED_ORIGINS` = `console.360` ✓. **Storage
+  backup (#1704) needs nothing**: all four `STORAGE_BACKUP_*` names exist in
+  `/silvicom/production/api` (bucket `silvicom360-storage-backup-891568748437`, `us-east-2`), same as
+  Railway; `STORAGE_BACKUP_HOUR`/`_TZ` default. **#1740**: console's customer-app link defaults to
+  `https://360.silvicominc.com` and the AWS console images get `WEB_URL` / `STAGING_WEB_URL` as
+  `VITE_CUSTOMER_APP_URL`. `scripts/efs.mjs` default and every `API_URL`-type switch wait for `api.360`.
