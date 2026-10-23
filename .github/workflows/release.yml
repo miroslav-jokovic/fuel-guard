@@ -260,7 +260,8 @@ jobs:
           a=$(on "$API_URL"); w=$(on "$WEB_URL")
           host=$([ "$a" = railway ] && [ "$w" = railway ] && echo railway || echo aws)
           echo "host=$host" >> "$GITHUB_OUTPUT"
-          echo "Production is served by **${host}** (api: ${a}, web: ${w})." >> "$GITHUB_STEP_SUMMARY"
+          msg="Production is served by **${host}** (api: ${a}, web: ${w})."
+          echo "$msg"; echo "$msg" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Release notes
         if: steps.plan.outputs.ship == 'true' && steps.plan.outputs.mode != 'init'
