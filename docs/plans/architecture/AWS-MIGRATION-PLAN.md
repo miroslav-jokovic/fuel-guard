@@ -423,3 +423,11 @@ nightly dump if the snapshot is older.
   page checked in a browser: loads, no errors. Installed driver apps use the LEGACY anon key,
   untouched. **Still open:** staging's secret key; disabling the legacy `service_role` JWT once
   nothing uses it; `SECRETS_ENCRYPTION_KEY` (AWS0a) and the other providers in §5.
+- **2026-10-23** — Two outside parties done. **Med-Stop** has `44.236.127.194` on its allowlist
+  (owner). **Samsara webhook** `Fleetguardweb` repointed by the owner from
+  `fleetguardweb-production.up.railway.app/api/webhooks/samsara` to
+  `https://360.silvicominc.com/api/webhooks/samsara` (secret unchanged): Railway's HTTP log shows the
+  last delivery on the old host at 13:38:38Z and every delivery from 13:40:51Z on the new host, all
+  200 (signature verified). `360.silvicominc.com` follows DNS, so cutover needs no second Samsara
+  change. Still to rotate later: `SAMSARA_WEBHOOK_SECRET` (regenerate in Samsara and update Railway +
+  Parameter Store together).
