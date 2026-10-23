@@ -21,4 +21,5 @@ export { notificationsRouter } from "./routes/notifications.js";
 export { keysAlreadySent, notify, revokePushTokens } from "./notify.js";
 export { notifyForTransaction } from "./notifications.js";
 export { startNotificationPushScheduler } from "./notificationPush.js";
+export { startChatLedgerVerifyScheduler } from "./chatLedgerVerify.js";
 export { loginForDriver } from "./notify.js";
