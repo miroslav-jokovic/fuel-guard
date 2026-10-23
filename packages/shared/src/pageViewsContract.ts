@@ -16,7 +16,8 @@
  * uncatalogued route (login, the applicant's page) has no key and is not counted.
  */
 import { z } from "zod";
-import { SURFACES, surfaceForPath } from "./surfaceCatalogue.js";
+import { SURFACES } from "./surfaceCatalogue.js";
+import { surfaceForPath } from "./surfaceLookups.js";
 
 /** Enough for a long session between flushes; a bigger batch is a client defect, not a busy user. */
 export const PAGE_VIEW_BATCH_MAX = 200;

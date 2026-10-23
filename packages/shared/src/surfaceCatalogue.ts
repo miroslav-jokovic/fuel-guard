@@ -1,6 +1,7 @@
 import {
   ADMIN,
   ALWAYS,
+  STAFF,
   directory,
   isEditableSurface,
   manage,
@@ -75,6 +76,8 @@ export const SURFACES: readonly Surface[] = [
    * reaches the endpoint and not just the link.
    */
   { key: "ask-ai", label: "Ask AI", path: "/ask", group: "top", gate: section("fuel"), startsOnFor: [] },
+  // Office chat is everyone's, not a section's data, so STAFF (OFFICE-CHAT-PLAN D-CHAT9; D-CHAT1 for the module).
+  { key: "chat", label: "Chat", path: "/chat", group: "top", gate: STAFF, module: "messages", badge: "chatUnread" },
 
   // ── fuel ──────────────────────────────────────────────────────────────────────────────────────
   /**
@@ -488,12 +491,3 @@ export const GRANTABLE_SURFACES: readonly Surface[] = SURFACES.filter((s) => isE
  * four keys, so a fifth `ADMIN` gate is a decision somebody has to make on purpose.
  */
 export const ADMIN_ONLY_SURFACES: readonly Surface[] = SURFACES.filter((s) => s.gate.kind === "admin");
-
-/** The screens a directory surface links to, in catalogue order — `/settings`'s cards (SP1). */
-export const directoryScreens = (directoryKey: string): readonly Surface[] =>
-  SURFACES.filter((s) => s.reachedFrom === directoryKey);
-
-/** The surface a declared route path belongs to, or undefined if the route is not catalogued. */
-export function surfaceForPath(path: string): Surface | undefined {
-  return SURFACES.find((s) => s.path === path);
-}

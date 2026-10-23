@@ -24,6 +24,8 @@ export interface NavItem {
 export interface NavCounts {
   hazmatReview?: number;
   messagesUnread?: number;
+  /** Office chat's unread total (CH2): the inbox query /chat already runs, shared by the badge. */
+  chatUnread?: number;
 }
 
 export interface NavGroup {

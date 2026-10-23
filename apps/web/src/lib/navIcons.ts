@@ -37,6 +37,7 @@ import {
   UserGroupIcon,
   UserListIcon,
   CertificateIcon,
+  ChatIcon,
   ChecklistIcon,
   WrenchIcon,
   UsersIcon,
@@ -60,6 +61,7 @@ import {
 export const SURFACE_ICONS: Record<string, Icon> = {
   dashboard: HomeIcon,
   "ask-ai": SparklesIcon,
+  chat: ChatIcon,
 
   "fuel.log": PetrolPumpIcon,
   "fuel.cards": FuelCardIcon,

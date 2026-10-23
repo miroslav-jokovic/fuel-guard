@@ -12,15 +12,13 @@ import { useWindowScroll } from "@vueuse/core";
 import { RouterLink, useRoute, useRouter } from "vue-router";
 import { useQueryClient } from "@tanstack/vue-query";
 import { Dialog, DialogPanel, TransitionRoot, TransitionChild } from "@headlessui/vue";
-import { moduleEnabled } from "@silvicom/shared";
 import { useSessionStore } from "@/stores/session";
 import { buildNavGroups, type NavGroup } from "@/lib/nav";
 import { PAGE_GUTTER_CLASS, heroPlate, heroVars, isFullBleed, sidebarIsCollapsed } from "@/lib/layout";
 import { useColorScheme } from "@/composables/useColorScheme";
 import { useModulesQuery } from "@/composables/useModules";
+import { useNavCounts } from "@/composables/useNavCounts";
 import NotificationBell from "@/components/NotificationBell.vue";
-import { useHazmatReviewCountQuery } from "@/features/hazmat/useHazmatReview";
-import { useThreadsQuery } from "@/features/messages/useMessages";
 import AppLogo from "@/components/AppLogo.vue";
 import AppWordmark from "@/components/AppWordmark.vue";
 import SidebarFlyoutSection from "@/layouts/SidebarFlyoutSection.vue";
@@ -67,24 +65,13 @@ const barAtRest = computed(() => Boolean(plate.value) && scrollY.value < 8);
 
 // Role-aware navigation, defined declaratively in @/lib/nav. UI gating only — RLS + API are the real enforcement.
 const modules = useModulesQuery();
-// Pending-hazmat-review count for the nav badge (only queried when the module + view access are present).
-const hazmatVisible = computed(() =>
-  session.canView("hazmat") && moduleEnabled(modules.data.value ?? null, "hazmatguard"),
-);
-const reviewCount = useHazmatReviewCountQuery(hazmatVisible);
-// Messages unread for the nav badge (Phase 7) — same one-fetch-two-surfaces query the inbox uses.
-const messagesVisible = computed(() =>
-  session.canView("dispatch") && moduleEnabled(modules.data.value ?? null, "messages"),
-);
-const threadsQ = useThreadsQuery(messagesVisible);
+// The live counts beside sidebar entries, each asked only when its entry can show (useNavCounts).
+const navCounts = useNavCounts(modules);
 const navGroups = computed<NavGroup[]>(() =>
   buildNavGroups(
     session.role,
     modules.data.value ?? null,
-    {
-      hazmatReview: reviewCount.data.value ?? 0,
-      messagesUnread: threadsQ.data.value?.unread_total ?? 0,
-    },
+    navCounts.value,
     // The org's overrides (D-PERM2). Without this the sidebar would keep answering from the shipped
     // matrix while every route guard and every API gate answered from the org's — a member granted a
     // section would have the page but no way to reach it.

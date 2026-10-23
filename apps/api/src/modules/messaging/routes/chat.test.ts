@@ -122,9 +122,11 @@ describe("every call is the caller's, from the token", () => {
       expect(args.p_org, c.fn).toBe(ORG);
       expect(args.p_user ?? args.p_actor, c.fn).toBe(USER);
     }
-    // Nothing reached a table through PostgREST, so nothing could skip its org filter.
+    // The only table reads are the screen gate's own (`requireSurface("chat")` reads the org's surface
+    // answers), and every one is org-scoped; the chat code itself reads no table at all.
     expectOrgScoped(holder.rec!, ORG);
-    expect(holder.rec!.queries.filter((q) => !q.table.startsWith("rpc:"))).toEqual([]);
+    const tables = new Set(holder.rec!.queries.filter((q) => !q.table.startsWith("rpc:")).map((q) => q.table));
+    expect([...tables].sort()).toEqual(["org_role_surface_access", "user_surface_access"]);
   });
 
   it("ignores an org or a user named in the body", async () => {
