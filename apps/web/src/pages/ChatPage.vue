@@ -21,6 +21,8 @@ import {
   useChatSend,
   type PendingLine,
 } from "@/features/chat/useChat";
+import { useChatFollow } from "@/features/chat/chatRealtime";
+import { chatLinkState } from "@/features/chat/transport";
 
 /**
  * /chat — office chat (OFFICE-CHAT-PLAN CH2): the conversations between the people in the office, the
@@ -48,6 +50,8 @@ const selectedId = computed<string | null>(() => {
   return typeof c === "string" && isRecordId(c) ? c : null;
 });
 const conversation = useChatConversationQuery(selectedId);
+// The open conversation's own signals (CH3b); the shell already holds the inbox's.
+useChatFollow(selectedId);
 function open(id: string) {
   if (id !== selectedId.value) void router.push({ query: { ...route.query, c: id } });
 }
@@ -115,6 +119,11 @@ async function start(memberIds: string[], subject: string | null) {
   <div class="space-y-6">
     <PageHeader description="Conversations with the people in your office.">
       <template #actions>
+        <!-- Only once a live link has dropped (or never came up): the polls carry on meanwhile at their
+             fast pace, so nothing is lost — it is only slower. -->
+        <span v-if="chatLinkState === 'reconnecting'" role="status" class="text-sm text-ink-muted">
+          Reconnecting… messages may take a few seconds.
+        </span>
         <BaseButton v-if="entitled" variant="primary" @click="starting = true">New conversation</BaseButton>
       </template>
     </PageHeader>

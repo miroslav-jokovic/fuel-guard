@@ -9,23 +9,28 @@ import type {
 } from "@silvicom/shared";
 import { apiFetch } from "@/lib/api";
 import { genUuid } from "@/lib/uuid";
+import { chatLinkState } from "./transport";
 
 /**
  * Office chat's data layer (OFFICE-CHAT-PLAN CH2). Everything through `/api/chat`, which answers only
  * for conversations the caller is in — so nothing here filters by person or role.
  *
- * FRESHNESS: polling only in this step. The inbox every 30 s and an open conversation every 10 s are
- * the guarantee; CH3 adds realtime signals on top and stretches these to 60 s while connected (D-CHAT2:
- * realtime is the speed, the poll is the guarantee). The conversation poll asks the full newest page,
- * not a sync — CH3's transport is what will hold a rev and ask `/sync`.
+ * FRESHNESS: the inbox polls every 30 s and an open conversation every 10 s; while the realtime link
+ * is live (`transport.ts`, CH3b) both stretch to 60 s, because a signal already brought anything new
+ * (D-CHAT2: realtime is the speed, the poll is the guarantee). The interval is read after each fetch,
+ * so a link that drops brings the fast pace back within one cycle.
  *
  * SENDING is optimistic: the line appears at once as `pending`, keyed by the client id that is also
  * the row's primary key, so a retry of the same send is recognised by the database and never doubled.
  * A failure leaves the line on screen as `failed` with its text, for Retry — the text is never lost.
  */
 export const CHAT_KEY = ["chat"] as const;
-const inboxKey = [...CHAT_KEY, "inbox"] as const;
-const conversationKey = (id: string | null) => [...CHAT_KEY, "conversation", id] as const;
+export const inboxKey = [...CHAT_KEY, "inbox"] as const;
+export const conversationKey = (id: string | null) => [...CHAT_KEY, "conversation", id] as const;
+
+/** The poll used while the realtime link is live (D-CHAT2), else the one a poll-only page needs. */
+const RELAXED_POLL = 60_000;
+const poll = (fallback: number) => () => (chatLinkState.value === "live" ? RELAXED_POLL : fallback);
 
 async function unwrap<T>(p: ReturnType<typeof apiFetch<T>>, fallback: string): Promise<T> {
   const res = await p;
@@ -38,7 +43,7 @@ export function useChatInboxQuery(enabled: Ref<boolean>) {
     queryKey: inboxKey,
     enabled,
     queryFn: () => unwrap(apiFetch<ChatInboxResponse>("/api/chat"), "Could not load your conversations."),
-    refetchInterval: 30_000,
+    refetchInterval: poll(30_000),
   });
 }
 
@@ -58,7 +63,7 @@ export function useChatConversationQuery(threadId: Ref<string | null>) {
     enabled: computed(() => !!threadId.value),
     queryFn: () =>
       unwrap(apiFetch<ChatConversationResponse>(`/api/chat/${threadId.value}`), "Could not open the conversation."),
-    refetchInterval: 10_000,
+    refetchInterval: poll(10_000),
   });
 }
 
