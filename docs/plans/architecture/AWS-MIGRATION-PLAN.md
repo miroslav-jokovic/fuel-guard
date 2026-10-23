@@ -482,3 +482,17 @@ nightly dump if the snapshot is older.
   `infra/` names them). Left on Railway `@fleetguard/api` on purpose: a Railway variable delete
   cannot skip the redeploy, the values are dead at WEX, and the service is retired at cutover.
   Staging's `/silvicom/staging/api/EFS_SOAP_*` untouched (staging login, not production's).
+- **2026-10-23 evening — production cutover started (owner: "switch to AWS completely", an
+  interruption accepted and backfilled).** `360.silvicominc.com` was switched at GoDaddy to an A
+  record → `44.236.127.194`. ⚠ **Outage 1:** Caddy had backed off its certificate attempts while the
+  names pointed at Railway, so 360 failed TLS on AWS until `docker restart silvicom-caddy-1`
+  (~20:47Z) got the certificate. ⚠ **Outage 2 (dashboard down):** `/silvicom/production/web` lacked
+  `VITE_API_URL`, which the web container reads for CSP `connect-src` (env.ts), so every browser call
+  to the api host was blocked ("violates … connect-src"). Owner ran `fix-aws-web-csp.sh` (sets it to
+  the Railway api host, recreates web); 21:2xZ connect-src includes it and a browser fetch from the
+  360 origin reaches the api (401 signed-out, not blocked). **Lesson: the Railway→SSM copy missed a
+  variable that only the web service had — diff every service's variable NAMES before cutover.**
+  Set: `PRODUCTION_VITE_API_URL` and `WEB_URL` → new hosts. Hotfix #1743 (`RUN_SCHEDULERS=true`, off
+  `v2026.10.23`) CI green, waits for `api.360` → AWS. When the hotfix's image (VITE_API_URL =
+  api.360) ships, `/silvicom/production/web/VITE_API_URL` must become `https://api.360.silvicominc.com`
+  in the same step, or the dashboard breaks again.
