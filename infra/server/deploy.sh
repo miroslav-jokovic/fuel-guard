@@ -49,6 +49,9 @@ trap - EXIT
 chmod 0755 "$STACK"/*.sh
 
 "$STACK/fetch-settings.sh" "$ENV_NAME"
+# compose.yml labels each app container with this, so changed settings recreate it (fetch-settings.sh).
+SETTINGS_HASH=$(cat /run/silvicom/settings.hash)
+export SETTINGS_HASH
 
 # The worker runs only where this server holds the schedulers (compose.yml says why it cannot be
 # told by RUN_SCHEDULERS_IN_PROCESS). Derived from the one switch, so the two cannot disagree.

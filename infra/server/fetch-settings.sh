@@ -64,3 +64,13 @@ print("\n".join(sorted(out)))
   mv -f "$tmp" "$SECRETS/$svc.env"
   echo "$svc: $(wc -l < "$SECRETS/$svc.env" | tr -d ' ') settings"
 done
+
+# A fingerprint of the app's settings, for compose.yml's `silvicom.settings` label. The containers read
+# their settings file only when they start, so a secret rotated in Parameter Store (AWS0) reached
+# nothing until the next commit's new image happened to restart them: a redeploy of the same commit
+# left Docker nothing to change. With the label, changed settings are a changed container, and
+# `compose up` recreates exactly the containers whose settings moved. 16 hex of a SHA-256 over all
+# three files — it says that something changed, never what.
+if [ -f "$SECRETS/api.env" ] && [ -f "$SECRETS/web.env" ] && [ -f "$SECRETS/console.env" ]; then
+  cat "$SECRETS/api.env" "$SECRETS/web.env" "$SECRETS/console.env" | sha256sum | cut -c1-16 > "$SECRETS/settings.hash"
+fi

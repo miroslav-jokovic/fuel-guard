@@ -7,5 +7,8 @@ STACK=/opt/silvicom
 # shellcheck disable=SC1091
 . "$STACK/release.env"
 "$STACK/fetch-settings.sh" "$ENV_NAME"
+# compose.yml labels each app container with this, so changed settings recreate it (fetch-settings.sh).
+SETTINGS_HASH=$(cat /run/silvicom/settings.hash)
+export SETTINGS_HASH
 cd "$STACK"
 docker compose --env-file "$ENV_NAME.env" --env-file release.env up -d --wait --wait-timeout 300
