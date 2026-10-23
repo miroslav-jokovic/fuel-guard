@@ -471,3 +471,8 @@ nightly dump if the snapshot is older.
   Railway; `STORAGE_BACKUP_HOUR`/`_TZ` default. **#1740**: console's customer-app link defaults to
   `https://360.silvicominc.com` and the AWS console images get `WEB_URL` / `STAGING_WEB_URL` as
   `VITE_CUSTOMER_APP_URL`. `scripts/efs.mjs` default and every `API_URL`-type switch wait for `api.360`.
+- **2026-10-23 18:31Z** — **EFS SOAP login working.** Owner saved a third user ID (prefix `ws1`,
+  neither the refused `SUF…` nor the old `wsS…`) at 18:27:50Z; rejected feed succeeded 18:27:56Z,
+  posted 18:30:58Z (305 rows), both errors empty. #1740 merged (`917d157`). Remaining: owner confirms
+  `ws1…` is WEX's new login, then asks WEX to delete `wsS…`; the env fallback
+  `EFS_SOAP_USERNAME`/`EFS_SOAP_PASSWORD` (Railway + SSM) still holds the old pair — remove it.
