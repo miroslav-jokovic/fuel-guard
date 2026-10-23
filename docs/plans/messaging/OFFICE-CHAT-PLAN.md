@@ -135,8 +135,11 @@ history.
 
 ### 5.2 The compliance console (Settings → Chat compliance)
 
-- **Who:** a new grantable surface `chat.compliance`, `startsOnFor: []`. Even admins don't have it
-  until it is granted to a named person, as with Teams' compliance admins (Q-CHAT2).
+- **Who (Q-CHAT2, ruled):** a permission on Settings → Permissions, the surface `chat.compliance`,
+  set up like Ask AI (`ask-ai`): it starts on for admins only (`startsOnFor: []`), and an admin can grant
+  or remove it per role or per person on the Permissions page. Each grant is an access change, so it
+  already takes step-up and writes `audit_logs` (SP8/SP9). The API asks `requireSurface("chat.compliance")`,
+  so a refused grant also blocks the endpoint, not only the link.
 - **Entry:** step-up re-authentication (`requireFreshAuth`, the SP9 pattern) plus a **required reason**
   (free text + category: HR, legal, safety incident, customer dispute, security). The reason is written
   to both records before any content is returned.
@@ -151,12 +154,13 @@ history.
   retention setting.
 - **Retention** per org (D-CHAT13): default keep forever; an org may set N years, never shorter than a
   hold. Purging is an explicit, ledgered act of the retention job, never a side effect.
-- **Transparency:** chat shows a permanent line, "Messages are company records. Authorised administrators
-  may review them; every review is logged." Users can't see *who* was reviewed (that would tip off an
-  investigation). Other compliance holders can see every access in the console's own Access log, which
-  is how one admin watches another.
-- **Optional four-eyes (Q-CHAT11):** an access needs a second compliance holder's approval before
-  content opens.
+- **Notice (Q-CHAT12, ruled):** no banner and no acknowledgement in the product. Every user is an
+  employee, and the review right is in their employment contract. Users can't see who has been reviewed,
+  because that would tip off an investigation. Compliance holders see every access in the console's own
+  Access log, which is how one admin watches another.
+- **No second approval (Q-CHAT11, ruled (a)):** the step-up, the reason and the Access log are the
+  control. A four-eyes step can be added later without changing the ledger.
+
 
 ### 5.3 What admins do NOT get
 
@@ -199,7 +203,7 @@ plan does with each:
 | Binary broadcasts need supabase-js ≥ 2.91 | JSON payloads only; pin the version in CH3b |
 | Compliance access only through dedicated tooling by named roles, holds per custodian, chain of custody on export (Purview, Slack Discovery) | §5, plus per-conversation holds to close Slack's gap |
 | Tamper-evident log in plain Postgres: WORM triggers, SHA-256 chain, serialised appends, scheduled verify (2026 write-ups) | D-CHAT12 |
-| Monitoring notice: some US states (CT, DE, NY …) require notice of electronic monitoring; best practice is a written, acknowledged policy | §5.2 banner + a one-time acknowledgement on first use (Q-CHAT12) |
+| Monitoring notice: some US states (CT, DE, NY …) require notice of electronic monitoring; best practice is a written, acknowledged policy | Covered by the employment contract (Q-CHAT12 ruled); nothing in the product |
 | Teams 2026: muted section, AI catch-up on demand | CH6, CH12 |
 
 ## 8. Decisions (proposed — owner confirms or overrules)
@@ -219,7 +223,7 @@ plan does with each:
 | D-CHAT11 | Multi-org isolation on every row, function, policy and ledger chain | 2 orgs today |
 | D-CHAT12 | **`chat_ledger`: append-only, hash-chained per org, verified nightly**; administrative acts also in `audit_logs` | §5.1 |
 | D-CHAT13 | Edits keep every prior version (`message_versions`); retraction hides and keeps; chat tables + ledger pinned in `RETENTION_FORBIDDEN` until an org sets a retention period through the audited setting | Chat is evidence after a crash; deletion is irreversible, keeping is not |
-| D-CHAT14 | **Compliance console** behind `chat.compliance` (granted per person) + step-up + required reason; the only way to read others' conversations | §5.2 |
+| D-CHAT14 | **Compliance console** behind `chat.compliance` (a Permissions-page surface: admins by default, grantable per role or person, Q-CHAT2) + step-up + required reason; the only way to read others' conversations | §5.2 |
 | D-CHAT15 | Legal hold per person and per conversation; holds beat retention | §5.2 |
 | D-CHAT16 | AI catch-up is **off by default**, on demand only (never background), runs over messages the caller can already read, per-user daily cap, and is ledgered | Modern without becoming a cost line or a side door |
 
@@ -233,12 +237,12 @@ One PR each unless noted. A column and its first reader ship in separate merges
 | CH0 | This plan; owner answers §10 | — |
 | CH1a | Migration: thread `kind`, `direct_key`, `last_seq`; participant `member_role`, `read_seq`, `left_at`, `muted`; `messages.seq` + trigger; `message_versions`; **`chat_ledger` + `chat_ledger_append()` + WORM triggers**; drop client write policies; `chat_inbox()`/`chat_history()`/`chat_sync()`. PGlite matrix: non-member reads nothing, left member reads nothing new, browser cannot INSERT, seq gapless under concurrency, **ledger refuses UPDATE/DELETE and two concurrent appends never fork** | CH0 |
 | CH1b | API `/api/chat`: list, open, sync, create direct/group, send, edit, retract, read, leave, members — each writes its ledger row in the same transaction (an RPC, not two calls). `expectOrgScoped` everywhere. Driver `listThreads`/`getThread` move onto the functions | CH1a on staging |
-| CH2 | Web `/chat`, Teams layout (Activity · Chat · Teams rail, list, conversation, composer with pending/sent/seen, people picker, badge, monitoring notice). Poll only | CH1b |
+| CH2 | Web `/chat`, Teams layout (Activity · Chat · Teams rail, list, conversation, composer with pending/sent/seen, people picker, badge). Poll only | CH1b |
 | CH3a | Migration: broadcast trigger (signals) + `realtime.messages` policies; staging setting "public channels off" | CH1a |
 | CH3b | `transport.ts`, replay-then-sync, "Reconnecting…", re-auth on token refresh. **Load test on staging: 300 simulated clients, one 300-member channel; p95 delivery, Realtime message count and DB CPU written into §11** | CH2, CH3a |
 | CHA1 | `chat-ledger-verify` nightly job + platform-health page on mismatch | CH1a |
 | — | **Release 1 = CH1a → CH3b + CHA1: direct and group chat, live, ledgered.** About 3 release nights | |
-| CHA2 | Compliance console: grant surface, step-up + reason, search, conversation view with versions, Access log | CH1b |
+| CHA2 | Compliance console: `chat.compliance` surface on the Permissions page, step-up + reason, search, conversation view with versions, Access log | CH1b |
 | CHA3 | Export (PDF + JSONL + hash manifest), legal holds, retention setting + ledgered purge job | CHA2 |
 | CH5 | Teams and channels, `parent_id` replies | CH3b |
 | CH6 | Mentions, reactions, pins, saved, muted section, Activity, browser notifications | CH5 |
@@ -247,7 +251,7 @@ One PR each unless noted. A column and its first reader ship in separate merges
 | CH9 | Presence, status, typing (Presence/Broadcast, ephemeral, never stored) | CH3b |
 | CH10 | Web Push | Q-CHAT4 |
 | CH11 | "Chat about this" on loads, drivers, trucks, cases | Q-CHAT6 |
-| CH12 | AI catch-up (D-CHAT16) | Q-CHAT13 |
+| CH12 | AI catch-up (D-CHAT16), off by default, after release 2 | CHA3, CH5 |
 
 **Release 2 = CHA2 + CHA3 + CH5** (compliance console, teams and channels). After that each item ships
 on its own.
@@ -257,7 +261,7 @@ on its own.
 | ID | Question | Candidates | Recommendation |
 |---|---|---|---|
 | Q-CHAT1 | Who uses it? | (a) office only; (b) + drivers; (c) + partners | **(a).** Drivers keep their dispatch thread (D54) |
-| Q-CHAT2 | Who may audit messages? *(owner: admins must be able to)* | (a) every admin automatically; (b) admins the owner names, granted `chat.compliance`; (c) (b) + four-eyes | **(b).** Seven people hold admin today; few should read everyone's DMs, and every access is logged regardless |
+| Q-CHAT2 | Who may audit messages? | | **RULED 2026-10-23:** a permission on Settings → Permissions (`chat.compliance`): admins by default, the owner grants it to other roles or people there |
 | Q-CHAT3 | Release 1 scope | DMs + groups live; + channels | **DMs + groups, live, ledgered**; console + channels in release 2 |
 | Q-CHAT4 | Alert when the tab is closed | (a) none; (b) Web Push; (c) email | **(a) first, (b) CH10** |
 | Q-CHAT5 | Retention | (a) keep forever until counsel names a period; (b) N years now | **(a)** |
@@ -266,15 +270,16 @@ on its own.
 | Q-CHAT8 | Calls and meetings | (a) out, share a link; (b) LiveKit / Chime later | **(a)** |
 | Q-CHAT9 | Realtime connections | (a) Pro spend cap on, alert at 350; (b) cap off now | **(a)** |
 | Q-CHAT10 | Who creates teams and channels? | (a) admins only; (b) admins create teams, members create channels inside them | **(b)** |
-| Q-CHAT11 | Four-eyes approval for compliance access? | (a) no, logged + visible to other holders; (b) yes | **(a)** at 14 users; revisit when there are more holders |
-| Q-CHAT12 | Monitoring notice | (a) banner only; (b) banner + one-time acknowledgement stored per user | **(b).** Cheap, and several states require notice. Counsel words it (counsel package) |
-| Q-CHAT13 | AI catch-up | (a) not now; (b) build CH12 off by default | **(b)** after release 2 |
+| Q-CHAT11 | Four-eyes approval for compliance access? | | **RULED (a):** no; logged, and visible to other holders |
+| Q-CHAT12 | Monitoring notice | | **RULED:** none in the product; it is in the employment contract (all users are employees) |
+| Q-CHAT13 | AI catch-up | | **RULED (b):** build CH12 off by default, after release 2 |
 
 ## 11. Progress log
 
 - 2026-10-23: plan opened; existing messaging, production usage and the AWS shape measured (§1).
 - 2026-10-23: owner: "like Microsoft Teams … more and more users". Delivery moved from Postgres Changes to Broadcast-from-database; added scale (§3) and the Teams map (§4).
 - 2026-10-23: owner: "enterprise grade, lightweight, good audit logs, Admin able to audit messages, not expensive, research the last six months". Added §5 (ledger, console, holds, notice), §6 (cost from Supabase's billing page: Pro includes 5 M Realtime messages and 500 peak connections, then $2.50/M and $10/1,000, counted per recipient), §7 (practices), D-CHAT12–16, CHA1–3, CH12, Q-CHAT11–13. D-CHAT2 now carries signals only, so the subscribe-time authorisation gap cannot leak content. `audit_logs` measured at 5.07 M rows / 1.23 GB, which is why the ledger is its own table.
+- 2026-10-23: owner ruled Q-CHAT2 (a Permissions-page permission decides who audits; admins by default, like Ask AI), Q-CHAT11 (a), Q-CHAT12 (no in-product notice; the employment contract covers it), Q-CHAT13 (b). §5.2, §7, D-CHAT14, CH2, CHA2 and CH12 updated. Still open: Q-CHAT1, Q-CHAT3–Q-CHAT10.
 
 Sources consulted 2026-10-23: Supabase docs (Realtime limits, Postgres Changes, Broadcast,
 Authorization, billing); CometChat "Chat UI Architecture in 2026"; Stream "How to Sync Chat State After
