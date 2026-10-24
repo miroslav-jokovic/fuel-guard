@@ -238,6 +238,14 @@ export const RETENTION_FORBIDDEN = [
    */
   "messages", "message_versions", "chat_ledger",
   /**
+   * Office chat's legal holds and exports (0517, OFFICE-CHAT-PLAN D-CHAT15/D-CHAT20). A hold is the
+   * record that the company was told to keep a person's or a conversation's words, and an export is
+   * the record of who took them out of the system and which ledger position the copy is tied to.
+   * Both are what a court asks for, years later; both change only by trigger-guarded transitions
+   * (CL001). An export's FILES are swept after seven days by its own job; the row is never.
+   */
+  "chat_holds", "chat_exports",
+  /**
    * The driver's account-closure request (0330, D-PR8).
    *
    * ── THE ONE ENTRY ON THIS LIST THAT INVERTS ITS OWN SUBJECT ───────────────────────────────────

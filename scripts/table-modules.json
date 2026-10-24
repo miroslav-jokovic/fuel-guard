@@ -200,6 +200,28 @@
         "why": "evidence, RETENTION_FORBIDDEN. retention_days null because the table is in RETENTION_FORBIDDEN."
       }
     },
+    "chat_exports": {
+      "module": "messaging",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 50,
+        "why": "OFFICE-CHAT-PLAN D-CHAT20 (0517): one row per compliance export, the dq_exports shape: the row outlives its bytes, which the sweep removes from compliance-exports after seven days. A few a month; RETENTION_FORBIDDEN, and it changes only building -> ready|failed -> purged (CL001)."
+      }
+    },
+    "chat_holds": {
+      "module": "messaging",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 50,
+        "why": "OFFICE-CHAT-PLAN D-CHAT15 (0517): one row per legal hold on a person or a conversation, set by a compliance holder with a matter and a reason, released by stamping the row and never deleted. A handful a year; RETENTION_FORBIDDEN, append-only by trigger (CL001)."
+      }
+    },
     "chat_ledger": {
       "module": "messaging",
       "layer": "core",

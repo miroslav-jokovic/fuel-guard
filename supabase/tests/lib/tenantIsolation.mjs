@@ -221,6 +221,10 @@ const FORMAT_PINNED = {
   // second source as the parent of a read.
   "document_sources.sha256": "(md5(gen_random_uuid()::text) || md5(gen_random_uuid()::text))", // check (sha256 ~ '^[0-9a-f]{64}$') (0448)
   "document_pages.original_sha256": "repeat('a', 64)", // same format check (0448)
+  "chat_exports.ledger_hash": "repeat('a', 64)", // check (ledger_hash ~ '^[0-9a-f]{64}$') (0517)
+  "chat_exports.content_sha256": "repeat('a', 64)", // same format check (0517)
+  // 'conversation' (the CHECK's first literal) needs a thread_id the seeder leaves null; a search names none.
+  "chat_exports.scope": "'search'",
 };
 
 function valueFor(meta, table, c, orgId, tsIndex = 0) {
