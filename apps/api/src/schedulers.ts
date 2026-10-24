@@ -13,7 +13,7 @@ import { startEfsProcessingScheduler } from "./modules/efs/services/efsProcessin
 import { startEfsSoapCertExpiryWatcher } from "./modules/efs/services/efsSoapCertExpiry.js";
 import { startPostedPriceScheduler } from "./modules/posted-prices/index.js";
 import { startDutySessionSweeper } from "./modules/driver-app/index.js";
-import { startStorageReconcileScheduler, startStorageBackupScheduler, storageBackupTarget } from "./modules/org/index.js";
+import { startStorageReconcileScheduler, startStorageBackupScheduler, storageBackupTarget, surfaceHolders } from "./modules/org/index.js";
 import { startNotificationPushScheduler, startChatLedgerVerifyScheduler, startRealtimeProbeScheduler } from "./modules/messaging/index.js";
 import { startDqExportSweeper } from "./modules/evidence/index.js";
 import { startPatternSweepScheduler } from "./modules/anomalies/index.js";
@@ -83,9 +83,14 @@ export const SCHEDULERS: readonly ScheduledTask[] = [
   { name: "fmcsa-feed", lane: "general", start: startFmcsaFeedScheduler }, // IC1 (0457): daily snapshot of FMCSA's public record of our roadside inspections
   { name: "mcleod-relink", lane: "general", start: startMcleodRelinkScheduler }, // D-LA3 via D-RLY12: every 10 min, re-make the links of loads whose codes resolve now
   { name: "financial-freshness", lane: "general", start: startFinancialFreshnessScheduler }, // D-FIN3: six-hourly — a stale McLeod financial sweep or a failed finance job becomes a finding
-  // CHA1 (D-CHAT12): 05:00 Central, recompute each org's chat hash chain; a break alerts the admins. CHA4: the
-  // head is anchored nightly in the storage backup's S3 bucket and checked against it first (null = no bucket, staging).
-  { name: "chat-ledger-verify", lane: "general", start: (env) => startChatLedgerVerifyScheduler(env, storageBackupTarget(env)) },
+  // CHA1 (D-CHAT12): 05:00 Central, recompute each org's chat hash chain; a break alerts the holders of
+  // `chat.compliance` (CHA2; admins by default). CHA4: the head is anchored nightly in the storage backup's
+  // S3 bucket and checked against it first (null = no bucket, staging).
+  {
+    name: "chat-ledger-verify",
+    lane: "general",
+    start: (env) => startChatLedgerVerifyScheduler(env, storageBackupTarget(env), (admin, orgId) => surfaceHolders(admin, orgId, "chat.compliance")),
+  },
   { name: "realtime-probe", lane: "general", start: startRealtimeProbeScheduler }, // CHA4 (0515): every 15 min, a broadcast from the database must reach a subscriber; /api/version → realtime
 ];
 
