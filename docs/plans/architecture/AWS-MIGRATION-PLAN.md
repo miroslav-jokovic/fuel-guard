@@ -496,3 +496,22 @@ nightly dump if the snapshot is older.
   `v2026.10.23`) CI green, waits for `api.360` → AWS. When the hotfix's image (VITE_API_URL =
   api.360) ships, `/silvicom/production/web/VITE_API_URL` must become `https://api.360.silvicominc.com`
   in the same step, or the dashboard breaks again.
+- **2026-10-24** — **Server and account hardening (#1745), the D-AWS14 gaps measured on the staging
+  host (production was built the same way by hand): `dnf-automatic` not installed, `sshd` on 22,
+  every container `ReadonlyRootfs=false` with the default capabilities and no `no-new-privileges`,
+  Caddy root inside its container; account: no CloudTrail, no account-level S3 Block Public Access,
+  EBS encryption-by-default off, no alarms, `AccountMFAEnabled=0`.** `compose.yml` gains an
+  `x-hardened` anchor (read-only root, `cap_drop ALL`, `no-new-privileges`) on all five services,
+  `/tmp` tmpfs for tsx's cache (the only runtime write, measured with `docker diff`: api/web 25 MB,
+  console 3 MB), the OCR model cache moved to a host directory (`/var/lib/silvicom/ocr-models`,
+  `DOC_OCR_CACHE_DIR`) so 139 MB of models are disk, not RAM; Caddy runs as uid 10001 with
+  `NET_BIND_SERVICE` only — `cap_drop ALL` alone crash-looped on `exec /usr/bin/caddy: operation not
+  permitted` because the image's binary carries that file capability. New `infra/server/host.sh`,
+  run by every `deploy.sh`: dnf-automatic (security only, no auto-reboot, 06:00 UTC), sshd disabled,
+  Caddy volumes chowned to 10001. Rehearsed three times on staging through SSM; the final run is the
+  PR's exact file, all four containers healthy. Port 80 stays (redirect + HTTP-01; reasoning in
+  host.sh). Production gets all of it with the next release's deploy — nothing was run there.
+  Account side is `infra/aws-account-hardening.sh`, OWNER-RUN: one multi-region management trail to a
+  new private 90-day bucket, account-level Block Public Access, EBS encryption by default, four
+  status-check alarms (system → recover, instance → reboot) to an SNS email topic, root MFA reminder.
+  Declined for cost: GuardDuty, VPC Flow Logs, Config, Security Hub, Inspector.
