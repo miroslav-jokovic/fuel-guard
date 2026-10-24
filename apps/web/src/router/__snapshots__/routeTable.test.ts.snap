@@ -597,6 +597,11 @@ exports[`the route table survives being split by area > resolution 1`] = `
     "url": "/settings/audit",
   },
   {
+    "name": "chat-compliance",
+    "params": {},
+    "url": "/settings/chat-compliance",
+  },
+  {
     "name": "privacy-policy",
     "params": {},
     "url": "/privacy",
@@ -1288,6 +1293,16 @@ exports[`the route table survives being split by area > route table 1`] = `
     },
     "name": "card-control-settings",
     "path": "/settings/card-control",
+    "redirect": null,
+  },
+  {
+    "meta": {
+      "parent": "/settings",
+      "requiresAuth": true,
+      "title": "Chat compliance",
+    },
+    "name": "chat-compliance",
+    "path": "/settings/chat-compliance",
     "redirect": null,
   },
   {

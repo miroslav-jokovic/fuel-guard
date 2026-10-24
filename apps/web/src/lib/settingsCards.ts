@@ -3,6 +3,7 @@ import {
   BellIcon,
   BooksCheckIcon,
   BuildingOffice2Icon,
+  ChatIcon,
   ClipboardDocumentCheckIcon,
   ClipboardDocumentListIcon,
   ConnectIcon,
@@ -63,6 +64,7 @@ export const SETTINGS_CARDS: readonly SettingsCard[] = [
   { key: "admin.settings.driver-performance", icon: TrophyIcon, desc: "How safety, efficiency and idling are weighted into a driver's score.", block: "config" },
   { key: "admin.settings.fuel-planning", icon: MapIcon, desc: "The tank rules, the stations the planner may use, emergencies, prices, and the default load and truck.", block: "config" },
   { key: "admin.settings.audit", icon: ClipboardDocumentListIcon, desc: "Who did what, and when.", block: "config" },
+  { key: "chat.compliance", icon: ChatIcon, desc: "Review office chat for an HR, legal or safety matter. Every look is recorded.", block: "config" },
   // Reporting & detection-health surfaces — moved off the daily sidebar into Settings.
   { key: "admin.reports", icon: ReportChartIcon, desc: "Fuel spend, MPG, and anomaly summaries to review or export.", block: "reports" },
   { key: "admin.coverage", icon: RadarIcon, desc: "How many fills could be checked against Samsara, truck by truck.", block: "reports" },

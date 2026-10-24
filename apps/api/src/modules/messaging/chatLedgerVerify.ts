@@ -131,18 +131,18 @@ export async function verifyChatLedger(admin: SupabaseClient, orgId: string): Pr
 }
 
 /**
- * ⚠ WORKAROUND (labelled, per CLAUDE.md "No workarounds"): the people told are the org's ADMINS.
- * The plan's answer (Q-CHAT2, D-CHAT14) is the holders of the `chat.compliance` permission. That
- * permission does not exist until CHA2 builds the compliance console. Admins hold it by default
- * there (`startsOnFor: []`), so today the two sets are the same. They differ only once an admin
- * grants it to somebody else, which CHA2 makes possible. CHA2 replaces this list with that
- * permission's resolved holders, and this note goes with it.
- *
- * Read from chat's own directory (`chat_people`, 0512: the org's unsuspended office members with their
- * role), filtered by `isAdmin`, never a typed role list. Messaging may not import `org` — `org`
- * depends on messaging, and `lint:boundaries` keeps that one way.
+ * Who is told: the holders of the `chat.compliance` permission (Q-CHAT2, D-CHAT14) — resolved by the
+ * composition root from the org module's access tables (`surfaceHolders`), because messaging may not
+ * import org. Until CHA2 this was a labelled interim of "the org's admins"; admins hold the permission
+ * by default, so for an org that has not changed the grant the two sets are the same.
  */
-async function interimRecipients(admin: SupabaseClient, orgId: string): Promise<string[]> {
+export type RecipientsResolver = (admin: SupabaseClient, orgId: string) => Promise<string[]>;
+
+/**
+ * The fallback when no resolver is given (tests, a caller without the org module): the org's admins
+ * from chat's own directory, filtered by `isAdmin`, never a typed role list.
+ */
+export async function adminRecipients(admin: SupabaseClient, orgId: string): Promise<string[]> {
   return (await chatDirectory(admin, orgId)).filter((p) => isAdmin(p.role as UserRole)).map((p) => p.user_id);
 }
 
@@ -159,6 +159,7 @@ export async function runChatLedgerVerifyOnce(
   orgId: string,
   day: string,
   anchors: AnchorStore | null = null,
+  recipients: RecipientsResolver = adminRecipients,
 ): Promise<LedgerVerdict & { notified: number; anchor: AnchorOutcome }> {
   const head = anchors ? await readLedgerHead(admin, orgId) : null;
   let verdict = await verifyChatLedger(admin, orgId);
@@ -190,7 +191,7 @@ export async function runChatLedgerVerifyOnce(
       `message ${verdict.messageId ?? "—"}, ${verdict.checked} checked)`,
   );
   let notified = 0;
-  for (const userId of await interimRecipients(admin, orgId)) {
+  for (const userId of await recipients(admin, orgId)) {
     const id = await notify(admin, { orgId, userId, category: "system", severity: "critical", ...alert });
     if (id) notified++;
   }
@@ -208,7 +209,11 @@ export function describeAnchor(a: AnchorOutcome): string {
 }
 
 /** Nightly, every org, each in its own try. Runs in EXACTLY ONE process: the `general` lane's lease. */
-export function startChatLedgerVerifyScheduler(env: Env, anchors: AnchorStore | null = null): void {
+export function startChatLedgerVerifyScheduler(
+  env: Env,
+  anchors: AnchorStore | null = null,
+  recipients: RecipientsResolver = adminRecipients,
+): void {
   if (!env.SUPABASE_URL || !env.SUPABASE_SERVICE_ROLE_KEY) return;
 
   let inFlight = false;
@@ -221,7 +226,7 @@ export function startChatLedgerVerifyScheduler(env: Env, anchors: AnchorStore | 
       if (error) throw new Error(error.message);
       for (const org of (data ?? []) as { id: string }[]) {
         try {
-          const r = await runChatLedgerVerifyOnce(admin, org.id, day, anchors);
+          const r = await runChatLedgerVerifyOnce(admin, org.id, day, anchors, recipients);
           if (!r.problem && r.checked > 0) console.log(`[chat-ledger] org ${org.id}: ${r.checked} entries intact; ${describeAnchor(r.anchor)}`);
         } catch (e) {
           console.error(`[chat-ledger] org ${org.id}: verify failed — ${e instanceof Error ? e.message : e}`);

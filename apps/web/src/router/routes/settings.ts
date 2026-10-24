@@ -173,4 +173,12 @@ export const settingsRoutes: RouteRecordRaw[] = [
       parent: "/settings",
     },
   },
+  {
+    // Office chat's compliance console (OFFICE-CHAT-PLAN CHA2): the one place another person's
+    // messages can be read, behind the `chat.compliance` grant, step-up and a recorded reason.
+    path: "/settings/chat-compliance",
+    name: "chat-compliance",
+    component: () => import("@/pages/ChatCompliancePage.vue"),
+    meta: { requiresAuth: true, title: "Chat compliance", parent: "/settings" },
+  },
 ];

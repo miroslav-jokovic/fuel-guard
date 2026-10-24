@@ -428,6 +428,7 @@ export const SURFACES: readonly Surface[] = [
   { key: "admin.settings.driver-performance", label: "Driver performance", path: "/settings/driver-performance", group: "admin", gate: manage("settings"), reachedFrom: "admin.settings", startsOnFor: [] },
   { key: "admin.settings.fuel-planning", label: "Planned fueling", path: "/settings/fuel-planning", group: "admin", gate: manage("dispatch"), reachedFrom: "admin.settings", startsOnFor: [] },
   { key: "admin.settings.audit", label: "Audit log", path: "/settings/audit", group: "admin", gate: section("settings"), reachedFrom: "admin.settings", startsOnFor: [] },
+  { key: "chat.compliance", label: "Chat compliance", path: "/settings/chat-compliance", group: "admin", gate: section("settings"), module: "messages", reachedFrom: "admin.settings", startsOnFor: [] },
 
   /**
    * ── the reporting and detection-health screens, which had NO route gate at all ────────────────
