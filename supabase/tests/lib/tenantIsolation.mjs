@@ -42,6 +42,7 @@ const NO_ORG_COLUMN = {
   platform_audit_log: "platform-wide control-plane audit trail, service-role only (0071)",
   platform_release_approvals: "the owner's console approval of a release, service-role only (0440)",
   platform_scheduler_leases: "which process runs each scheduler lane — platform infrastructure with no tenant, service-role only (0506)",
+  platform_realtime_health: "whether Supabase Realtime delivers (probe rows) and which chat signals the database failed to send — platform telemetry with no tenant and no message text, service-role only (0515)",
   route_geometries: "global geographic route cache shared across organizations (0059)",
   vehicle_make_model_catalog:
     "global reference data — what a VIN body code, a VIN manufacturer code or a spelling names — " +

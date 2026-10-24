@@ -22,4 +22,6 @@ export { keysAlreadySent, notify, revokePushTokens } from "./notify.js";
 export { notifyForTransaction } from "./notifications.js";
 export { startNotificationPushScheduler } from "./notificationPush.js";
 export { startChatLedgerVerifyScheduler } from "./chatLedgerVerify.js";
+export { startRealtimeProbeScheduler } from "./realtimeProbe.js";
+export { getRealtimeHealth, realtimeHealthy, type RealtimeHealth } from "./realtimeHealth.js";
 export { loginForDriver } from "./notify.js";

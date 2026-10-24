@@ -2136,6 +2136,17 @@
         "why": "new 2026-10-05 (0427): a hand-kept list of a few people, written only from the console's Settings; bounded by the number of orgs."
       }
     },
+    "platform_realtime_health": {
+      "module": "messaging",
+      "layer": "infra",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 200,
+        "why": "new 2026-10-23 (0515, OFFICE-CHAT-PLAN CHA4): one row per Realtime probe (96 a day, every 15 min) plus one per chat signal the database failed to send (0 on a healthy day). Platform telemetry with no tenant and no text; about 3 MB a year, so no retention rule yet — the first pruning is a decision for the L8 growth judge, not a default."
+      }
+    },
     "platform_scheduler_leases": {
       "module": "org",
       "layer": "infra",
