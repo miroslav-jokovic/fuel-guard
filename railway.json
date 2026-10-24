@@ -21,8 +21,7 @@
       "!**/*.spec.ts",
       "!**/*.spec.tsx",
       "!**/__tests__/**",
-      "!apps/driver/**",
-      "!apps/driver-dist/**"
+      "!apps/driver/**"
     ]
   },
   "deploy": {
