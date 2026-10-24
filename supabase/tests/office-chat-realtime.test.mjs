@@ -13,6 +13,8 @@
 // What must hold: a signal per change carrying NO message text; a member's own topic signalled only in
 // conversations of ≤ 50; driver threads never signalled; a failed send never losing the message; and a
 // topic joinable only by its member — never by somebody who left, another organisation, or anonymously.
+// Since 0515: a failed send is recorded in `platform_realtime_health`, the probe announces on its own
+// topic that no signed-in person may join, and neither the probe nor the record is reachable from a browser.
 //
 // Run: node supabase/tests/office-chat-realtime.test.mjs
 import { PGlite } from "@electric-sql/pglite";
@@ -142,6 +144,32 @@ await db.exec(`reset silvicom.test_send_fails`);
 ok("a failed signal does not fail the send", !kept.error && kept.message_id, JSON.stringify(kept));
 ok("...the message is stored, for the poll to deliver", (await one(`select count(*)::int n from messages where id=$1`, [kept.message_id])).n === 1);
 ok("...and it is in the ledger", (await one(`select count(*)::int n from chat_ledger where message_id=$1 and action='message_sent'`, [kept.message_id])).n === 1);
+// 0515 (CHA4): a swallowed failure is still a FACT, and the health record holds it.
+const failed = await all(`select kind, ok, latency_ms, detail from platform_realtime_health where kind='chat_send_failed' order by id`);
+ok("...and the failure is recorded in the health record, once, as not ok", failed.length === 1 && failed[0].ok === false && failed[0].latency_ms === null, JSON.stringify(failed));
+ok("...with Postgres's own sentence and never the message", failed[0]?.detail?.includes("does not exist") && !failed[0]?.detail?.includes("Still delivered"));
+await db.query(`delete from platform_realtime_health`);
+await reset();
+await db.query(`select chat_send($1,$2,$3,gen_random_uuid(),'Signals are back')`, [ORG, BEN, DM]);
+ok("a send that announces fine records no failure", (await one(`select count(*)::int n from platform_realtime_health`)).n === 0);
+
+console.log("\n-- the probe (0515) --");
+await reset();
+await db.query(`select realtime_probe_send('7f3c2a10-aaaa-4bbb-8ccc-1234567890ab')`);
+s = await sent();
+ok("the probe announces its nonce on its own private platform topic", s.length === 1 && s[0].topic === "platform:realtime-probe" && s[0].private === true && s[0].event === "probe", JSON.stringify(s));
+ok("...carrying the nonce and nothing of anybody's", JSON.stringify(s[0]?.payload).includes("7f3c2a10") && !JSON.stringify(s[0]?.payload).includes(ORG));
+ok("a nonce that is not a short hex id is refused", await (async () => { try { await db.query(`select realtime_probe_send('x; drop table y')`); return false; } catch (e) { return e.code === "22023"; } })());
+ok("the browser cannot call the probe", (await (async () => {
+  await db.exec("begin");
+  try { await db.exec("set local role authenticated"); await db.query(`select realtime_probe_send('7f3c2a10-aaaa-4bbb-8ccc-1234567890ab')`); return "allowed"; }
+  catch (e) { return e.code; } finally { await db.exec("rollback"); }
+})()) === "42501");
+ok("...nor read the health record", (await (async () => {
+  await db.exec("begin");
+  try { await db.exec("set local role authenticated"); return (await db.query(`select count(*)::int n from platform_realtime_health`)).rows[0].n; }
+  catch (e) { return e.code; } finally { await db.exec("rollback"); }
+})()) === 0);
 
 console.log("\n-- who may join a topic --");
 // Realtime's join check: the joining user's claims and the requested topic, then a SELECT on
@@ -215,6 +243,8 @@ ok("an office chat is not a driver topic", (await mayJoin(jwt(ANA, ORG), `driver
 ok("a malformed id is refused, not an error", (await mayJoin(asDriver, "driver:thread:nope")) === false);
 ok("the old shared public name grants nothing", (await mayJoin(asDriver, "messages-inbox")) === false);
 ok("an anonymous caller joins no driver topic", (await mayJoin(null, `driver:inbox:${DAN}`)) === false);
+ok("no signed-in person may join the platform probe topic — it is the service role's alone (0515)",
+  (await mayJoin(jwt(BEN, ORG, "admin"), "platform:realtime-probe")) === false && (await mayJoin(asDriver, "platform:realtime-probe")) === false);
 ok("whatever extension Realtime probes, the owner is admitted", await (async () => {
   const results = [];
   for (const ext of ["presence", "postgres_changes"]) {

@@ -3,6 +3,14 @@ import { isAdmin, localHourMinute, type UserRole } from "@silvicom/shared";
 import type { Env } from "../../env.js";
 import { getSupabaseAdmin } from "../../lib/supabaseAdmin.js";
 import { chatDirectory } from "./chat.js";
+import {
+  judgeAnchor,
+  readLatestAnchor,
+  writeAnchor,
+  type AnchorStore,
+  type LedgerAnchor,
+  type LedgerHead,
+} from "./chatLedgerAnchor.js";
 import { notify } from "./notify.js";
 
 /**
@@ -15,6 +23,14 @@ import { notify } from "./notify.js";
  * `chat_ledger_verify` (0512) is the answer to that case: it recomputes the org's chain link by link,
  * and checks every live message's text against the hash of its latest ledger entry. A chain nobody
  * re-reads proves nothing, so this job re-reads it every night.
+ *
+ * ── AND THE ANCHOR (CHA4, 2026-10-23) ───────────────────────────────────────────────────────────
+ * A chain that only checks against itself cannot see a `postgres`-role rewrite that recomputed every
+ * hash, nor a tail cut off. So each night, BEFORE trusting the chain, this reads the anchor it wrote
+ * the night before from the storage backup's S3 bucket (`chatLedgerAnchor.ts`) and checks that the
+ * anchored row is still there with the anchored hash and that the head has not moved back. AFTER the
+ * chain verifies intact it writes tonight's head as the new anchor. With no bucket configured
+ * (staging) it says so and self-checks only; it never pretends to have anchored.
  *
  * ── WHAT A PROBLEM MEANS ────────────────────────────────────────────────────────────────────────
  * The function returns one row: how many links it checked, and the FIRST problem (null = intact).
@@ -44,6 +60,13 @@ export interface LedgerVerdict {
   messageId: string | null;
 }
 
+/** How the anchor went tonight, for the log line and the tests. */
+export type AnchorOutcome =
+  | { state: "off" }
+  | { state: "first"; wrote: LedgerAnchor | null }
+  | { state: "checked"; against: LedgerAnchor; wrote: LedgerAnchor | null }
+  | { state: "skipped"; why: string };
+
 /** The Central calendar day to stamp when a verify is due now, or null when it is not. Pure. */
 export function chatLedgerVerifyDueDay(nowMs: number, lastRanDay: string | null): string | null {
   const now = new Date(nowMs);
@@ -72,6 +95,23 @@ export function chatLedgerAlert(
       `contact Silvicom 360 support, so the record can be compared with the database's history.`,
     dedupeKey: `chat_ledger:${orgId}:${day}`,
   };
+}
+
+/** The org's newest ledger row, or null for an empty ledger. THROWS on a read error. */
+export async function readLedgerHead(admin: SupabaseClient, orgId: string): Promise<LedgerHead | null> {
+  const { data, error } = await admin.from("chat_ledger").select("seq, hash").eq("org_id", orgId)
+    .order("seq", { ascending: false }).limit(1);
+  if (error) throw new Error(`chat_ledger head: ${error.message}`);
+  const row = (data ?? [])[0] as { seq: number | string; hash: string } | undefined;
+  return row ? { seq: Number(row.seq), hash: row.hash } : null;
+}
+
+/** The ledger's row at one seq as it stands now, or null when there is none. THROWS on a read error. */
+export async function readLedgerLink(admin: SupabaseClient, orgId: string, seq: number): Promise<{ hash: string } | null> {
+  const { data, error } = await admin.from("chat_ledger").select("hash").eq("org_id", orgId).eq("seq", seq).limit(1);
+  if (error) throw new Error(`chat_ledger link ${seq}: ${error.message}`);
+  const row = (data ?? [])[0] as { hash: string } | undefined;
+  return row ? { hash: row.hash } : null;
 }
 
 /** One org's verdict. THROWS on a read error: an unread chain is not an intact one. */
@@ -106,15 +146,45 @@ async function interimRecipients(admin: SupabaseClient, orgId: string): Promise<
   return (await chatDirectory(admin, orgId)).filter((p) => isAdmin(p.role as UserRole)).map((p) => p.user_id);
 }
 
-/** Verify one org and tell its admins about a problem. Returns the verdict and how many were told. */
+/**
+ * Verify one org, against its anchor when there is one, and tell its admins about a problem. Returns
+ * the verdict, how many were told, and what happened to the anchor.
+ *
+ * The HEAD is read before the chain is verified, so the verification covers at least everything the
+ * anchor will name; tonight's anchor is written only when the chain and yesterday's anchor both
+ * checked out, so an anchor always points at a head that was known good when it was written.
+ */
 export async function runChatLedgerVerifyOnce(
   admin: SupabaseClient,
   orgId: string,
   day: string,
-): Promise<LedgerVerdict & { notified: number }> {
-  const verdict = await verifyChatLedger(admin, orgId);
+  anchors: AnchorStore | null = null,
+): Promise<LedgerVerdict & { notified: number; anchor: AnchorOutcome }> {
+  const head = anchors ? await readLedgerHead(admin, orgId) : null;
+  let verdict = await verifyChatLedger(admin, orgId);
+  let anchor: AnchorOutcome = { state: "off" };
+
+  if (anchors) {
+    const previous = await readLatestAnchor(anchors, orgId);
+    if (previous) {
+      const link = await readLedgerLink(admin, orgId, previous.seq);
+      const problem = judgeAnchor(previous, head, link);
+      // The chain's own first problem is the more specific one and comes first; the anchor's is
+      // reported when the chain looked fine, which is exactly the case the anchor exists for.
+      if (problem && !verdict.problem) verdict = { ...verdict, problem, firstBadSeq: previous.seq, messageId: null };
+    }
+    if (verdict.problem) {
+      anchor = { state: "skipped", why: "the chain did not verify, so last night's anchor stands" };
+    } else {
+      // An empty ledger has no head to anchor; the first message's night writes the first anchor.
+      const wrote = head ? { day, seq: head.seq, hash: head.hash } : null;
+      if (wrote) await writeAnchor(anchors, orgId, wrote, { checked: verdict.checked, previous, writtenAt: new Date().toISOString() });
+      anchor = previous ? { state: "checked", against: previous, wrote } : { state: "first", wrote };
+    }
+  }
+
   const alert = chatLedgerAlert(orgId, verdict, day);
-  if (!alert) return { ...verdict, notified: 0 };
+  if (!alert) return { ...verdict, notified: 0, anchor };
   console.error(
     `[chat-ledger] org ${orgId}: ${verdict.problem} (first bad seq ${verdict.firstBadSeq ?? "—"}, ` +
       `message ${verdict.messageId ?? "—"}, ${verdict.checked} checked)`,
@@ -124,11 +194,21 @@ export async function runChatLedgerVerifyOnce(
     const id = await notify(admin, { orgId, userId, category: "system", severity: "critical", ...alert });
     if (id) notified++;
   }
-  return { ...verdict, notified };
+  return { ...verdict, notified, anchor };
+}
+
+/** One line per org per night, so the anchor's state is in the log whether or not anything is wrong. */
+export function describeAnchor(a: AnchorOutcome): string {
+  switch (a.state) {
+    case "off": return "no anchor store (STORAGE_BACKUP_* not set): chain self-checked only";
+    case "first": return a.wrote ? `first anchor written at seq ${a.wrote.seq}` : "ledger empty, nothing to anchor yet";
+    case "checked": return `anchor from ${a.against.day} (seq ${a.against.seq}) holds` + (a.wrote ? `; anchored tonight at seq ${a.wrote.seq}` : "");
+    case "skipped": return `anchor not written: ${a.why}`;
+  }
 }
 
 /** Nightly, every org, each in its own try. Runs in EXACTLY ONE process: the `general` lane's lease. */
-export function startChatLedgerVerifyScheduler(env: Env): void {
+export function startChatLedgerVerifyScheduler(env: Env, anchors: AnchorStore | null = null): void {
   if (!env.SUPABASE_URL || !env.SUPABASE_SERVICE_ROLE_KEY) return;
 
   let inFlight = false;
@@ -141,8 +221,8 @@ export function startChatLedgerVerifyScheduler(env: Env): void {
       if (error) throw new Error(error.message);
       for (const org of (data ?? []) as { id: string }[]) {
         try {
-          const r = await runChatLedgerVerifyOnce(admin, org.id, day);
-          if (!r.problem && r.checked > 0) console.log(`[chat-ledger] org ${org.id}: ${r.checked} entries intact`);
+          const r = await runChatLedgerVerifyOnce(admin, org.id, day, anchors);
+          if (!r.problem && r.checked > 0) console.log(`[chat-ledger] org ${org.id}: ${r.checked} entries intact; ${describeAnchor(r.anchor)}`);
         } catch (e) {
           console.error(`[chat-ledger] org ${org.id}: verify failed — ${e instanceof Error ? e.message : e}`);
         }
@@ -162,5 +242,5 @@ export function startChatLedgerVerifyScheduler(env: Env): void {
     void run(due);
   }, TICK_MS);
   timer.unref?.();
-  console.log("[chat-ledger] nightly ledger verify enabled (05:00 Central)");
+  console.log(`[chat-ledger] nightly ledger verify enabled (05:00 Central); anchors ${anchors ? "to the storage backup bucket" : "off"}`);
 }

@@ -4,7 +4,8 @@ import { createSupabaseRecorder, expectOrgScoped } from "../../testing/supabaseR
 /**
  * The nightly chat ledger check (OFFICE-CHAT-PLAN CHA1). What it can get wrong: stay silent on a
  * broken chain, call an unreadable chain intact, tell somebody other than the admins, alert more than
- * once a day per org, or run at a time other than 05:00 Central.
+ * once a day per org, run at a time other than 05:00 Central — or, since CHA4, trust a chain whose
+ * anchored link has moved, or anchor a head that did not verify.
  */
 
 const sent: Array<{ orgId: string; userId: string; category: string; severity?: string; title: string; body?: string; dedupeKey?: string }> = [];
@@ -15,7 +16,7 @@ vi.mock("./notify.js", () => ({
   }),
 }));
 
-const { chatLedgerAlert, chatLedgerVerifyDueDay, runChatLedgerVerifyOnce } = await import("./chatLedgerVerify.js");
+const { chatLedgerAlert, chatLedgerVerifyDueDay, describeAnchor, runChatLedgerVerifyOnce } = await import("./chatLedgerVerify.js");
 
 const ORG = "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d";
 const MSG = "11111111-1111-4111-8111-111111111111";
@@ -31,7 +32,34 @@ const people = [
   { user_id: A2, name: "Bo Admin", role: "admin" },
   { user_id: "55555555-5555-4555-8555-555555555555", name: "Sam Safety", role: "safety_manager" },
 ];
-const recorder = (rpc: unknown) => createSupabaseRecorder({ rpc: { chat_ledger_verify: rpc, chat_people: people } });
+const recorder = (rpc: unknown, ledger: unknown[] = []) =>
+  createSupabaseRecorder({
+    rpc: { chat_ledger_verify: rpc, chat_people: people },
+    // `chat_ledger` answers the head read (highest seq first) and the anchored-link read (one seq).
+    tables: {
+      chat_ledger: (q) => {
+        const seq = q.filters().find((f) => f.col === "seq")?.val;
+        const rows = ledger as Array<{ seq: number; hash: string }>;
+        return seq === undefined ? [...rows].sort((a, b) => b.seq - a.seq) : rows.filter((r) => r.seq === Number(seq));
+      },
+    },
+  });
+
+const H = (c: string) => c.repeat(64);
+function memoryAnchors(initial: string[] = []) {
+  const objects = new Map<string, string>(initial.map((k) => [k, "{}"]));
+  return {
+    objects,
+    async inventory(prefix: string) {
+      const m = new Map<string, unknown>();
+      for (const k of objects.keys()) if (k.startsWith(prefix)) m.set(k, {});
+      return m;
+    },
+    async put(key: string, body: Uint8Array) {
+      objects.set(key, new TextDecoder().decode(body));
+    },
+  };
+}
 
 beforeEach(() => {
   sent.length = 0;
@@ -83,6 +111,89 @@ describe("the nightly chat ledger check", () => {
 
   it("has nothing to say about an intact verdict", () => {
     expect(chatLedgerAlert(ORG, { checked: 3, firstBadSeq: null, problem: null, messageId: null }, DAY)).toBeNull();
+  });
+});
+
+describe("the anchor (CHA4)", () => {
+  const ledger = [{ seq: 1, hash: H("1") }, { seq: 2, hash: H("2") }, { seq: 3, hash: H("3") }];
+
+  it("without a store it self-checks only, and says so", async () => {
+    const rec = recorder([verdictRow({ checked: 3 })]);
+    const r = await runChatLedgerVerifyOnce(rec.client, ORG, DAY, null);
+    expect(r.anchor).toEqual({ state: "off" });
+    expect(describeAnchor(r.anchor)).toContain("chain self-checked only");
+    expect(rec.forTable("chat_ledger")).toHaveLength(0);
+  });
+
+  it("writes the first anchor at the head once the chain verifies, naming the day", async () => {
+    const rec = recorder([verdictRow({ checked: 3 })], ledger);
+    const store = memoryAnchors();
+    const r = await runChatLedgerVerifyOnce(rec.client, ORG, DAY, store);
+    expect(r.anchor).toEqual({ state: "first", wrote: { day: DAY, seq: 3, hash: H("3") } });
+    expect([...store.objects.keys()]).toEqual([`chat-ledger-anchors/${ORG}/${DAY}-000000000003-${H("3")}.json`]);
+    expect(sent).toEqual([]);
+    expectOrgScoped(rec, ORG);
+  });
+
+  it("holds yesterday's anchor against tonight's ledger and anchors the new head", async () => {
+    const rec = recorder([verdictRow({ checked: 3 })], ledger);
+    const store = memoryAnchors([`chat-ledger-anchors/${ORG}/2026-10-23-000000000002-${H("2")}.json`]);
+    const r = await runChatLedgerVerifyOnce(rec.client, ORG, DAY, store);
+    expect(r.problem).toBeNull();
+    expect(r.anchor).toEqual({
+      state: "checked",
+      against: { day: "2026-10-23", seq: 2, hash: H("2") },
+      wrote: { day: DAY, seq: 3, hash: H("3") },
+    });
+    expect(describeAnchor(r.anchor)).toBe("anchor from 2026-10-23 (seq 2) holds; anchored tonight at seq 3");
+    expect(store.objects.size).toBe(2);
+    // The link read asks for the anchored seq within the org.
+    const link = rec.forTable("chat_ledger").find((q) => q.filters().some((f) => f.col === "seq"))!;
+    expect(link.filters()).toEqual(expect.arrayContaining([{ col: "org_id", val: ORG }, { col: "seq", val: 2 }]));
+  });
+
+  it("names a tail cut off below the anchor, alerts, and leaves last night's anchor standing", async () => {
+    const rec = recorder([verdictRow({ checked: 1 })], [{ seq: 1, hash: H("1") }]);
+    const key = `chat-ledger-anchors/${ORG}/2026-10-23-000000000003-${H("3")}.json`;
+    const store = memoryAnchors([key]);
+    const r = await runChatLedgerVerifyOnce(rec.client, ORG, DAY, store);
+    expect(r).toMatchObject({ problem: "ledger truncated below its anchor", firstBadSeq: 3, notified: 2 });
+    expect(r.anchor).toEqual({ state: "skipped", why: "the chain did not verify, so last night's anchor stands" });
+    expect([...store.objects.keys()]).toEqual([key]);
+    expect(sent[0]!.body).toContain("ledger truncated below its anchor (ledger entry 3)");
+  });
+
+  it("names an anchored entry that was rewritten, even though the chain recomputed cleanly", async () => {
+    const rewritten = [{ seq: 1, hash: H("1") }, { seq: 2, hash: H("x") }, { seq: 3, hash: H("y") }];
+    const rec = recorder([verdictRow({ checked: 3 })], rewritten);
+    const store = memoryAnchors([`chat-ledger-anchors/${ORG}/2026-10-23-000000000002-${H("2")}.json`]);
+    const r = await runChatLedgerVerifyOnce(rec.client, ORG, DAY, store);
+    expect(r.problem).toBe("anchored ledger entry altered");
+    expect(r.notified).toBe(2);
+    expect(store.objects.size).toBe(1);
+  });
+
+  it("reports the chain's own problem first, and still writes no anchor", async () => {
+    const rec = recorder([verdictRow({ checked: 1, first_bad_seq: "2", problem: "ledger row altered" })], ledger);
+    const store = memoryAnchors([`chat-ledger-anchors/${ORG}/2026-10-23-000000000002-${H("2")}.json`]);
+    const r = await runChatLedgerVerifyOnce(rec.client, ORG, DAY, store);
+    expect(r.problem).toBe("ledger row altered");
+    expect(r.anchor.state).toBe("skipped");
+    expect(store.objects.size).toBe(1);
+  });
+
+  it("anchors nothing for an empty ledger, and does not call that a problem", async () => {
+    const rec = recorder([verdictRow({ checked: 0 })], []);
+    const store = memoryAnchors();
+    const r = await runChatLedgerVerifyOnce(rec.client, ORG, DAY, store);
+    expect(r.anchor).toEqual({ state: "first", wrote: null });
+    expect(describeAnchor(r.anchor)).toBe("ledger empty, nothing to anchor yet");
+    expect(store.objects.size).toBe(0);
+  });
+
+  it("treats an unreadable head as an unread chain", async () => {
+    const rec = createSupabaseRecorder({ rpc: { chat_ledger_verify: [verdictRow()] }, tables: { chat_ledger: { error: { message: "timeout" } } } });
+    await expect(runChatLedgerVerifyOnce(rec.client, ORG, DAY, memoryAnchors())).rejects.toThrow("chat_ledger head: timeout");
   });
 });
 

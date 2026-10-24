@@ -85,6 +85,8 @@ describe("GET /api/version", () => {
     const body = (await res.json()) as Record<string, unknown>;
     // A state and one timestamp — never which org, how many files or which bucket (storageBackupHealth.ts).
     expect(Object.keys(body.storageBackup as object).sort()).toEqual(["lastSucceededAt", "state"]);
+    // A state, one timestamp, one latency and one platform-wide count (realtimeHealth.ts) — no org, no topic.
+    expect(Object.keys(body.realtime as object).sort()).toEqual(["lastProbeAt", "latencyMs", "sendFailures24h", "state"]);
     const keys = Object.keys(body).sort();
     expect(keys).toEqual([
       "branch",
@@ -94,6 +96,8 @@ describe("GET /api/version", () => {
       "env",
       "maintenance",
       "ok",
+      // The Realtime probe's state (CHA4): is the database's broadcast reaching a subscriber.
+      "realtime",
       // Lane names and their states (D-RLY3) — what is running, never whose data; the holder is not published.
       "schedulers",
       "schema",

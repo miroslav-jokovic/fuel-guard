@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
   maintenance: vi.fn(),
   schedulers: vi.fn(),
   storageBackup: vi.fn(),
+  realtime: vi.fn(),
 }));
 vi.mock("./schemaVersion.js", () => ({ getSchemaStatus: mocks.schema }));
 vi.mock("./maintenanceHealth.js", async (importOriginal) => ({
@@ -29,7 +30,13 @@ vi.mock("../modules/org/storageBackupHealth.js", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../modules/org/storageBackupHealth.js")>()),
   getStorageBackupHealth: mocks.storageBackup,
 }));
+// The fifth (modules/messaging/realtimeHealth.ts): the Realtime probe. `pending` unless a case says otherwise.
+vi.mock("../modules/messaging/realtimeHealth.js", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../modules/messaging/realtimeHealth.js")>()),
+  getRealtimeHealth: mocks.realtime,
+}));
 const BACKUP_OFF = { state: "off", lastSucceededAt: null };
+const REALTIME_PENDING = { state: "pending", lastProbeAt: null, latencyMs: null, sendFailures24h: null };
 const LANES_HELD = [
   { lane: "egress", state: "held", secondsSinceRenewal: 4 },
   { lane: "general", state: "held", secondsSinceRenewal: 9 },
@@ -100,6 +107,7 @@ describe("GET /api/version folds maintenance into ok", () => {
     mocks.schema.mockResolvedValue(CURRENT);
     mocks.schedulers.mockResolvedValue(LANES_HELD);
     mocks.storageBackup.mockResolvedValue(BACKUP_OFF);
+    mocks.realtime.mockResolvedValue(REALTIME_PENDING);
   });
 
   const read = async () => (await (await fetch(`${baseUrl}/api/version`)).json()) as {
@@ -146,6 +154,19 @@ describe("GET /api/version folds maintenance into ok", () => {
     expect(body.storageBackup.state).toBe("failing");
   });
 
+  it("is NOT ok when the Realtime probe's broadcast did not arrive or the probe stopped, and stays ok while degraded (CHA4)", async () => {
+    mocks.maintenance.mockResolvedValue(health("ok"));
+    const probe = (state: string) => ({ state, lastProbeAt: "2026-10-24T10:00:00Z", latencyMs: state === "failing" ? null : 120, sendFailures24h: 3 });
+    mocks.realtime.mockResolvedValue(probe("degraded"));
+    expect((await read()).ok).toBe(true);
+    for (const state of ["failing", "stale", "unknown"]) {
+      mocks.realtime.mockResolvedValue(probe(state));
+      const body = (await (await fetch(`${baseUrl}/api/version`)).json()) as { ok: boolean; realtime: { state: string } };
+      expect(body.ok).toBe(false);
+      expect(body.realtime.state).toBe(state);
+    }
+  });
+
   it("stays ok through a deploy's hand-over", async () => {
     mocks.maintenance.mockResolvedValue(health("ok"));
     mocks.schedulers.mockResolvedValue([LANES_HELD[0], { lane: "general", state: "handover", secondsSinceRenewal: 70 }]);
@@ -171,6 +192,7 @@ describe("GET /api/version/ready — the same verdict as a status code, for an e
     mocks.maintenance.mockResolvedValue(health("ok"));
     mocks.schedulers.mockResolvedValue(LANES_HELD);
     mocks.storageBackup.mockResolvedValue(BACKUP_OFF);
+    mocks.realtime.mockResolvedValue(REALTIME_PENDING);
   });
 
   it("answers 200 and names every input when everything is healthy", async () => {
