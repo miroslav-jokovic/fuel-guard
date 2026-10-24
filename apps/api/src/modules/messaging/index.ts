@@ -24,5 +24,6 @@ export { notifyForTransaction } from "./notifications.js";
 export { startNotificationPushScheduler } from "./notificationPush.js";
 export { startChatLedgerVerifyScheduler } from "./chatLedgerVerify.js";
 export { startRealtimeProbeScheduler } from "./realtimeProbe.js";
+export { startChatExportSweeper } from "./chatExportSweeper.js";
 export { getRealtimeHealth, realtimeHealthy, type RealtimeHealth } from "./realtimeHealth.js";
 export { loginForDriver } from "./notify.js";

@@ -116,6 +116,11 @@ the table the chat trigger also writes a row to for every signal it could not se
 `realtime.state` turns `ok` false on `failing` (the broadcast did not arrive), `stale` (no probe in 45 min)
 or `unknown`; `platform-health.yml` pages on it. One websocket from one process; nothing per replica.
 
+**Chat export sweep (`chat-export-sweeper`, general lane, CHA3b, 0517)** removes an office chat export's
+three files from `compliance-exports` (`<org>/chat/<export>/`) seven days after it was made and stamps the
+`chat_exports` row purged; the row, its hashes and its ledger entry stay. Hourly, first tick four minutes
+after boot, the `dq-export-sweeper` shape. A bounded indexed read that returns nothing on almost every run.
+
 ## Safety model
 - The `jobs` ledger (partial unique index on `(org_id, kind)`) already prevents two concurrent runs of the
   same per-org work across processes.

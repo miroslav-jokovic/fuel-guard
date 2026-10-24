@@ -14,7 +14,7 @@ import { startEfsSoapCertExpiryWatcher } from "./modules/efs/services/efsSoapCer
 import { startPostedPriceScheduler } from "./modules/posted-prices/index.js";
 import { startDutySessionSweeper } from "./modules/driver-app/index.js";
 import { startStorageReconcileScheduler, startStorageBackupScheduler, storageBackupTarget, surfaceHolders } from "./modules/org/index.js";
-import { startNotificationPushScheduler, startChatLedgerVerifyScheduler, startRealtimeProbeScheduler } from "./modules/messaging/index.js";
+import { startNotificationPushScheduler, startChatLedgerVerifyScheduler, startRealtimeProbeScheduler, startChatExportSweeper } from "./modules/messaging/index.js";
 import { startDqExportSweeper } from "./modules/evidence/index.js";
 import { startPatternSweepScheduler } from "./modules/anomalies/index.js";
 import { startFuelSpendRollupScheduler } from "./modules/fuel-spend/index.js";
@@ -92,6 +92,7 @@ export const SCHEDULERS: readonly ScheduledTask[] = [
     start: (env) => startChatLedgerVerifyScheduler(env, storageBackupTarget(env), (admin, orgId) => surfaceHolders(admin, orgId, "chat.compliance")),
   },
   { name: "realtime-probe", lane: "general", start: startRealtimeProbeScheduler }, // CHA4 (0515): every 15 min, a broadcast from the database must reach a subscriber; /api/version → realtime
+  { name: "chat-export-sweeper", lane: "general", start: startChatExportSweeper }, // CHA3b (0517): an office chat export's files have a 7-day life; the record stays
 ];
 
 /** A lane's schedulers, in registration order. Pure; exported for the partition test. */

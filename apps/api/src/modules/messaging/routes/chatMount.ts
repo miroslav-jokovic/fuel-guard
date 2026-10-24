@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { chatRouter } from "./chat.js";
 import { chatComplianceRouter } from "./chatCompliance.js";
+import { chatComplianceRecordsRouter } from "./chatComplianceRecords.js";
 
 /**
  * Everything under `/api/chat`: the compliance console FIRST, at `/api/chat/compliance`, then the chat
@@ -15,6 +16,8 @@ import { chatComplianceRouter } from "./chatCompliance.js";
 export function chatRouters(): Router {
   const router = Router();
   router.use("/compliance", chatComplianceRouter());
+  // CHA3b: holds and exports, under the same gates as the reads (its own router: one file per concern).
+  router.use("/compliance", chatComplianceRecordsRouter());
   router.use("/", chatRouter());
   return router;
 }

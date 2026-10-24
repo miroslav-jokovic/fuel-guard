@@ -4,12 +4,14 @@ import type { ChatComplianceMessage, ChatCompliancePerson, ChatComplianceReason 
 import { AppButton as BaseButton, AppFormField as FormField, AppInput as BaseInput, AppSelect as BaseSelect } from "@silvicom/ui";
 import { formatDateTime } from "@/lib/format";
 import ComplianceMessage from "./ComplianceMessage.vue";
-import { dayStartIso, searchMessages, type RunAct } from "./useChatCompliance";
+import { useToastStore } from "@/stores/toast";
+import { createExport, dayStartIso, searchMessages, useComplianceRefresh, type RunAct } from "./useChatCompliance";
 
 /**
  * Messages across the org by words, person and date — the current words AND any earlier version an
  * edit replaced, so a sentence somebody rewrote is still found. Each line shows which conversation it
  * is from and opens it. A search runs when pressed: each is a ledgered act with the reason attached.
+ * "Export these results" exports every match of the search last run, unpaged (CHA3, up to 10,000).
  */
 const props = defineProps<{ reason: ChatComplianceReason | null; people: ChatCompliancePerson[]; run: RunAct }>();
 const emit = defineEmits<{ open: [threadId: string] }>();
@@ -22,6 +24,10 @@ const rows = ref<ChatComplianceMessage[]>([]);
 const next = ref<{ before_at: string; before_id: string } | null>(null);
 const searched = ref(false);
 const busy = ref(false);
+const toast = useToastStore();
+const refresh = useComplianceRefresh();
+/** The filters of the search last run, so the export is of what is on screen, not of what was retyped since. */
+const lastFilters = ref<{ q?: string; person?: string; from?: string; to?: string } | null>(null);
 
 const peopleOptions = computed(() => [
   { value: "", label: "Anyone" },
@@ -34,14 +40,14 @@ async function search(older = false) {
   await props.run(async () => {
     busy.value = true;
     try {
-      const r = await searchMessages({
-        reason,
+      const filters = older && lastFilters.value ? lastFilters.value : {
         q: q.value.trim() || undefined,
         person: person.value || undefined,
         from: dayStartIso(from.value),
         to: dayStartIso(to.value, 1),
-        ...(older && next.value ? next.value : {}),
-      });
+      };
+      const r = await searchMessages({ reason, ...filters, ...(older && next.value ? next.value : {}) });
+      lastFilters.value = filters;
       rows.value = older ? [...rows.value, ...r.messages] : r.messages;
       next.value = r.next;
       searched.value = true;
@@ -50,6 +56,22 @@ async function search(older = false) {
     }
   });
 }
+async function exportResults() {
+  if (!props.reason || !lastFilters.value) return;
+  const reason = props.reason;
+  const filters = lastFilters.value;
+  await props.run(async () => {
+    busy.value = true;
+    try {
+      const r = await createExport({ reason, scope: "search", ...filters });
+      toast.success(`Exported ${r.message_count} message${r.message_count === 1 ? "" : "s"}. The files are on the Exports tab.`);
+      refresh();
+    } finally {
+      busy.value = false;
+    }
+  });
+}
+
 const where = (m: ChatComplianceMessage) => m.thread_subject?.trim() || (m.thread_kind === "direct" ? "Direct conversation" : m.thread_kind === "driver" ? "Driver conversation" : "Group");
 </script>
 
@@ -72,6 +94,9 @@ const where = (m: ChatComplianceMessage) => m.thread_subject?.trim() || (m.threa
     </form>
 
     <template v-if="searched">
+      <div v-if="rows.length > 0" class="flex justify-end">
+        <BaseButton size="sm" :disabled="!reason || busy" @click="exportResults">Export these results</BaseButton>
+      </div>
       <p v-if="rows.length === 0" class="text-sm text-ink-muted">No messages match.</p>
       <ol v-else class="divide-y divide-edge-subtle rounded-surface bg-surface ring-1 ring-edge">
         <li v-for="m in rows" :key="m.id" class="p-3">

@@ -4,15 +4,38 @@ import type { ChatComplianceMessage, ChatComplianceReason, ChatComplianceThreadR
 import { AppButton as BaseButton, BaseModal } from "@silvicom/ui";
 import { formatDateTime } from "@/lib/format";
 import ComplianceMessage from "./ComplianceMessage.vue";
-import { openThread, type RunAct } from "./useChatCompliance";
+import { useToastStore } from "@/stores/toast";
+import { createExport, openThread, useComplianceRefresh, type RunAct } from "./useChatCompliance";
 
 /**
  * One conversation, read whole: everyone who was ever in it (with when they left), and its lines oldest
  * first with every retraction and every earlier version visible. Opening it, and every older page, is a
  * ledgered act with the reason attached; the modal fetches only when told to.
+ *
+ * From here a holder can also EXPORT the whole conversation (CHA3: PDF + JSONL + manifest, a ledgered
+ * act with the same reason) or start a HOLD on it, which the Holds tab completes with the matter.
  */
 const props = defineProps<{ threadId: string | null; reason: ChatComplianceReason | null; run: RunAct }>();
-const emit = defineEmits<{ close: [] }>();
+const emit = defineEmits<{ close: []; hold: [conversation: { id: string; title: string }] }>();
+const toast = useToastStore();
+const refresh = useComplianceRefresh();
+const exporting = ref(false);
+
+async function exportAll() {
+  if (!props.threadId || !props.reason) return;
+  const thread = props.threadId;
+  const reason = props.reason;
+  await props.run(async () => {
+    exporting.value = true;
+    try {
+      const r = await createExport({ reason, scope: "conversation", thread });
+      toast.success(`Exported ${r.message_count} message${r.message_count === 1 ? "" : "s"}. The files are on the Exports tab.`);
+      refresh();
+    } finally {
+      exporting.value = false;
+    }
+  });
+}
 
 const data = ref<ChatComplianceThreadResponse | null>(null);
 const busy = ref(false);
@@ -77,6 +100,8 @@ const lines = computed<ChatComplianceMessage[]>(() => data.value?.messages ?? []
     </div>
     <p v-else class="text-sm text-ink-muted">{{ busy ? "Opening the conversation…" : "Confirm your password to open it." }}</p>
     <template #footer>
+      <BaseButton v-if="data && threadId" @click="emit('hold', { id: threadId, title })">Place a hold</BaseButton>
+      <BaseButton v-if="data" :disabled="exporting" @click="exportAll">{{ exporting ? "Exporting…" : "Export" }}</BaseButton>
       <BaseButton @click="emit('close')">Close</BaseButton>
     </template>
   </BaseModal>

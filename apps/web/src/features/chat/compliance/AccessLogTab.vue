@@ -29,9 +29,11 @@ const columns: DataTableColumn[] = [
   { key: "detail", label: "Why, and what for", width: "3xl" },
 ];
 const what = (r: ChatComplianceAccessRow): string => {
-  const d = r.detail as { scope?: string; filters?: Record<string, unknown>; before_seq?: number | null };
+  const d = r.detail as { scope?: string; filters?: Record<string, unknown>; before_seq?: number | null; matter?: string; message_count?: number };
   const parts: string[] = [];
+  if (d.matter) parts.push(`matter ${d.matter}`);
   if (d.scope) parts.push(d.scope);
+  if (typeof d.message_count === "number") parts.push(`${d.message_count} message${d.message_count === 1 ? "" : "s"}`);
   if (r.subject_name) parts.push(`about ${r.subject_name}`);
   const f = d.filters ?? {};
   if (typeof f.q === "string") parts.push(`words “${f.q}”`);

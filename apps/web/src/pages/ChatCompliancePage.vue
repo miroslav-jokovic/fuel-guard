@@ -11,6 +11,8 @@ import ReasonCard from "@/features/chat/compliance/ReasonCard.vue";
 import ConversationsTab from "@/features/chat/compliance/ConversationsTab.vue";
 import MessagesTab from "@/features/chat/compliance/MessagesTab.vue";
 import AccessLogTab from "@/features/chat/compliance/AccessLogTab.vue";
+import HoldsTab from "@/features/chat/compliance/HoldsTab.vue";
+import ExportsTab from "@/features/chat/compliance/ExportsTab.vue";
 import ThreadModal from "@/features/chat/compliance/ThreadModal.vue";
 import { reasonComplete, useCompliancePeopleQuery, type RunAct } from "@/features/chat/compliance/useChatCompliance";
 
@@ -21,6 +23,8 @@ import { reasonComplete, useCompliancePeopleQuery, type RunAct } from "@/feature
  * is shown to the people whose messages are read (Q-CHAT12: the employment contract covers it); every
  * holder of the permission sees every act in the Access log (Q-CHAT11).
  *
+ * Holds and exports (CHA3, D-CHAT15, D-CHAT20) take the same reason and the same password prompt.
+ *
  * The reason is typed once and travels with every search and every opened conversation. A
  * `step_up_required` refusal becomes the password prompt, and the same act runs again on confirmation.
  */
@@ -30,6 +34,8 @@ const qs = useQueryState();
 const TABS: TabItem[] = [
   { value: "conversations", label: "Conversations" },
   { value: "messages", label: "Messages" },
+  { value: "holds", label: "Holds" },
+  { value: "exports", label: "Exports" },
   { value: "access", label: "Access log" },
 ];
 const tab = qs.param("tab", TABS.map((t) => t.value), "conversations");
@@ -55,11 +61,19 @@ const run: RunAct = async (task) => {
 };
 
 const openId = ref<string | null>(null);
+
+/** "Place a hold" in a conversation's window hands the conversation to the Holds tab, which takes the matter. */
+const holdConversation = ref<{ id: string; title: string } | null>(null);
+function holdFromThread(c: { id: string; title: string }) {
+  holdConversation.value = c;
+  openId.value = null;
+  tab.value = "holds";
+}
 </script>
 
 <template>
   <div class="space-y-6">
-    <PageHeader description="Read office chat for an HR, legal or safety matter. Every search and every conversation you open is recorded with your reason." />
+    <PageHeader description="Read, hold and export office chat for an HR, legal or safety matter. Everything you do here is recorded with your reason." />
 
     <ReasonCard v-model:category="category" v-model:text="text" />
 
@@ -71,11 +85,17 @@ const openId = ref<string | null>(null);
     <div v-else-if="tab === 'messages'" id="chat-compliance-panel-messages" role="tabpanel" aria-labelledby="chat-compliance-tab-messages">
       <MessagesTab :reason="reason" :people="peopleList" :run="run" @open="openId = $event" />
     </div>
+    <div v-else-if="tab === 'holds'" id="chat-compliance-panel-holds" role="tabpanel" aria-labelledby="chat-compliance-tab-holds">
+      <HoldsTab :reason="reason" :people="peopleList" :run="run" :conversation="holdConversation" @clear-conversation="holdConversation = null" />
+    </div>
+    <div v-else-if="tab === 'exports'" id="chat-compliance-panel-exports" role="tabpanel" aria-labelledby="chat-compliance-tab-exports">
+      <ExportsTab :run="run" />
+    </div>
     <div v-else id="chat-compliance-panel-access" role="tabpanel" aria-labelledby="chat-compliance-tab-access">
       <AccessLogTab />
     </div>
 
-    <ThreadModal :thread-id="openId" :reason="reason" :run="run" @close="openId = null" />
+    <ThreadModal :thread-id="openId" :reason="reason" :run="run" @close="openId = null" @hold="holdFromThread" />
     <StepUpPrompt v-if="stepUpFor" :reason="stepUpFor" @confirmed="confirmed" @cancel="cancel" />
   </div>
 </template>
