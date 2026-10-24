@@ -17,9 +17,15 @@
 // random, held in memory, and reset by a re-run of `setup`). The org, its conversations and its
 // ledger stay: `chat_ledger` is WORM (0511) and refuses deletion by design.
 //
-// Run (inside a directory linked to Railway's uat api, so the variables are staging's):
-//   railway run --service "@fleetguard/api" --environment uat -- \
-//     node scripts/chat-load-test.mjs all --state <scratch>/chat-load.json
+// Run with STAGING's api settings in the environment and the staging API's address — the values are
+// in Parameter Store under /silvicom/staging/api (AWS-MIGRATION-PLAN D-AWS7), never on this machine:
+//   eval "$(aws ssm get-parameters-by-path --region us-west-2 --path /silvicom/staging/api --with-decryption \
+//     --query "Parameters[?ends_with(Name,'/SUPABASE_URL')||ends_with(Name,'/SUPABASE_SERVICE_ROLE_KEY')||ends_with(Name,'/VITE_SUPABASE_ANON_KEY')].[Name,Value]" \
+//     --output text | awk -F'\t' '{sub(".*/","",$1); printf "export %s=%s\n", $1, $2}')"
+//   node scripts/chat-load-test.mjs all --api https://staging-api.360.silvicominc.com --state <scratch>/chat-load.json
+// (While Railway still serves staging, `railway run -s "@fleetguard/api" -e uat -- node …` with
+// `--api https://fleetguardapi-uat.up.railway.app` is the same thing.) The API's address is never
+// assumed: `--api`, else API_URL / VITE_API_URL from the environment, else a refusal.
 // Commands: setup | run | teardown | all. Options: --clients 300 --messages 40 --sync-sample 20.
 
 import { createClient } from "@supabase/supabase-js";
@@ -41,7 +47,11 @@ const MESSAGES = Number(opt("messages", 40));
 const SYNC_SAMPLE = Number(opt("sync-sample", 20));
 const GROUP_SIZE = 50;
 const STATE = opt("state", null);
-const API = opt("api", "https://fleetguardapi-uat.up.railway.app");
+const API = opt("api", process.env.API_URL ?? process.env.VITE_API_URL ?? null);
+if (!API) {
+  console.error("needs --api <staging API address> (or API_URL / VITE_API_URL in the environment) — the host is not assumed");
+  process.exit(2);
+}
 
 const URL_ = process.env.SUPABASE_URL;
 const SERVICE = process.env.SUPABASE_SERVICE_ROLE_KEY;
