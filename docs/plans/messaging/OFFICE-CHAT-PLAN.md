@@ -244,8 +244,12 @@ One PR each unless noted. A column and its first reader ship in separate merges
 | CHA4 | **Audit of release 1 (2026-10-23), the two holes it found.** (a) The ledger's head is ANCHORED nightly in the storage backup's S3 bucket and checked against the previous anchor before the chain is trusted — a `postgres`-role rewrite that recomputes every hash, or a cut tail, is otherwise invisible to a chain that only checks itself. (b) The Realtime signal path gets a health record (0515, `platform_realtime_health`): the trigger records each send it could not make, a quarter-hourly probe proves a broadcast from the database reaches a subscriber, and `GET /api/version` → `realtime` folds both into `ok` | CHA1, CH3a |
 | — | **Release 1 = CH1a → CH3b + CHA1 + CHA4: direct and group chat, live, ledgered, anchored, watched.** About 3 release nights | |
 | CHA2 | Compliance console (**built 2026-10-23**, migration 0516): `chat.compliance` surface on the Permissions page (Settings directory, `section("settings")`, admins by default), step-up + reason on every act, conversations and messages search across the org (driver threads, retracted words and every earlier version included), the conversation view, the Access log; CHA1's notices now go to the permission's holders | CH1b |
-| CHA3 | Export (PDF + JSONL + hash manifest), legal holds, retention setting + ledgered purge job | CHA2 |
-| CH5 | Teams and channels, `parent_id` replies | CH3b |
+| CHA3a | Migration: `chat_holds` (per person or per conversation, set and released with a reason, never deleted) and `chat_exports` (the record of an export, the `dq_exports` shape: the row outlives its bytes); `chat_hold_set` / `chat_hold_release` / `chat_holds_list`; `chat_compliance_export_rows` — one conversation or one messages search, every version and retraction, each line's SHA-256 and the ledger head at that instant, appending `compliance_export` with the reason in the same transaction. PGlite matrix | CHA2 |
+| CHA3b | API + console: a Holds tab (set/release, step-up + reason, `audit_logs` beside the ledger); Export on the conversation view and on a messages search → JSONL + PDF + `manifest.json` in the private `compliance-exports` bucket, 5-minute signed links, bytes swept after 7 days while the row stays | CHA3a on staging |
+| ~~CHA3c~~ | ~~Retention setting + ledgered purge job~~ — **not built**, Q-CHAT15 | Q-CHAT15 |
+| CH5a | Migration: `chat_spaces` (teams) + `chat_space_members`; `message_threads.space_id` + `visibility` (`public`/`private`) for `channel` threads; `messages.parent_id` (one level of replies) + the reply counters; functions: create/rename/archive a team, add/remove team members, create/join/leave a channel, browse a team's public channels, post a reply, a reply page, and `chat_inbox` widened to channels. PGlite matrix (§9.1) | CH3b |
+| CH5b | API `/api/chat/teams…` + the reply routes; `requireSurface("chat.teams")` on creating a team (D-CHAT17) | CH5a on staging |
+| CH5c | Web: the Teams rail (team → channel list → channel posts with their replies), browse and join, the reply pane, the Chat badge counting channels the D-CHAT2 way | CH5b |
 | CH6 | Mentions, reactions, pins, saved, muted section, Activity, browser notifications | CH5 |
 | CH7 | Files | CH2 |
 | CH8 | Search (`tsvector` + GIN, readable conversations only; the console reuses it org-wide) | CH2 |
@@ -255,7 +259,42 @@ One PR each unless noted. A column and its first reader ship in separate merges
 | CH12 | AI catch-up (D-CHAT16), off by default, after release 2 | CHA3, CH5 |
 
 **Release 2 = CHA2 + CHA3 + CH5** (compliance console, teams and channels). After that each item ships
-on its own.
+on its own. CHA2 shipped in release 1's train (v2026.10.24), so release 2 is CHA3a–b and CH5a–c: two
+migrations (0517 CHA3a, 0518 CH5a — numbers re-checked against main at merge) and five PRs. CHA3 and
+CH5 do not depend on each other and can merge in either order.
+
+### 9.1 Release 2's shape (2026-10-24)
+
+- **D-CHAT17 — who creates a team (Q-CHAT10, ruled as recommended: admins create teams, anyone in a
+  team creates channels in it, admins archive).** "Admins" is a Permissions-page surface, `chat.teams`
+  (`startsOnFor: []`, admins by default, grantable per role or person — the Ask AI and
+  `chat.compliance` pattern), not `isAdmin` in code: the next owner who wants dispatch leads to make
+  teams changes one cell, not a deploy. The API asks it; the "New team" button reads it.
+- **D-CHAT18 — a channel is a conversation.** A `channel` thread with a `space_id`. Public channels
+  are listed to every team member and joined by becoming a participant, so `auth_in_thread()`,
+  `chat_sync`, the ledger triggers, the realtime signals and the compliance console all work on a
+  channel unchanged. A private channel is joined only by being added. Every team starts with a
+  public **General** channel that its members are in.
+- **D-CHAT19 — replies are messages.** `parent_id` names a top-level message in the same conversation,
+  one level deep (Teams' shape). A reply takes the conversation's next `seq` and `rev`, so the
+  sequence, the ledger, sync and the console see one ordered log. The channel view shows the top-level
+  posts with each one's reply count and last reply; the reply pane is a page of one post's replies.
+  Unread stays `last_seq − read_seq`, so a reply makes the channel unread as a post does — Teams'
+  "new reply in a conversation you follow" without a second read boundary. A per-post read boundary
+  is CH6's, with mentions.
+- **D-CHAT20 — an export proves itself.** `manifest.json` holds each line's SHA-256 (the body the
+  ledger hashed, and each earlier version's), the export's own SHA-256 of the JSONL, and the
+  org's ledger head (`seq`, `hash`) at the instant of the export; the export's ledger row carries the
+  manifest's hash. A court-side check is: recompute the line hashes, find them in the ledger, and find
+  the export's row in the ledger with the same manifest hash. The PDF is the readable copy, the JSONL
+  the evidence.
+- **Matrix rows CH5a must pin:** a non-member of a team cannot see its channels; a team member sees a
+  public channel's posts only after joining; a private channel is invisible to a team member who is
+  not in it; a person removed from a team is removed from its channels; a reply's parent must be a
+  top-level message of the same conversation; replies never nest.
+- **Matrix rows CHA3a must pin:** a hold cannot be deleted or edited (only released, by a new row);
+  an export without a valid reason leaves no row and returns nothing; the export row's manifest hash
+  matches what the function returned; another org's conversation is CH001.
 
 ## 10. Open questions
 
@@ -275,6 +314,7 @@ on its own.
 | Q-CHAT12 | Monitoring notice | | **RULED:** none in the product; it is in the employment contract (all users are employees) |
 | Q-CHAT13 | AI catch-up | | **RULED (b):** build CH12 off by default, after release 2 |
 | Q-CHAT14 | The API answers a burst of `/sync` requests slowly: on the one uat instance, 20 at once took 1.6 s (median) and 40 at once took 6.2 s, against 1.2 ms of database time each (load test 2026-10-23, §11). At the design target, a message to a 300-member channel that 300 people have open is 300 at once. What fixes it? | (a) **Measure first:** time each stage of a `/sync` request (`requireAuth`'s membership check, `requireModule`, `requireSurface`, the function) on uat, and see whether the time is in those database round trips, in the connection pool, or in the event loop the in-process schedulers share. (b) Cache the per-request answers that change rarely (module entitlement, surface claim) for a few seconds per user. (c) The client waits a random 0–1 s before it syncs, so a burst arrives spread out. (d) More API replicas (`API_REPLICAS`). (e) Carry the content in the signal for small conversations. That gives up D-CHAT2's reason: a removed member could read on until their token refreshes | **RULED 2026-10-23, as recommended ("proceed as recommended, best solutions possible"):** measured (a), then (c) and (b). Not (d) yet, not (e). See §11 |
+| Q-CHAT15 | CHA3 listed "retention setting + ledgered purge job", but Q-CHAT5 was ruled (a): **keep forever**, pinned in `RETENTION_FORBIDDEN` until counsel names a period. Built now, the purge job is code that may never run and the one path that deletes evidence. Build it now? | (a) **Not now.** Holds and export are built; the setting and purge job wait for counsel's period, and are then one PR (0511's `silvicom.chat_retention` exception and the `retention_changed`/`retention_purged` ledger actions already exist for it). (b) Build the setting and the job now, switched off. (c) Build the setting only, with no job | **(a).** A purge job nobody may switch on is still a deletion path to review, test and keep working, for no use; when counsel names a period it is one PR on ground already laid |
 
 ## 11. Progress log
 
@@ -306,6 +346,8 @@ on its own.
   - **Signal health** (0515): `chat_signal()` records each send it could not make in `platform_realtime_health` (the error sentence, never the message); `realtime-probe` (general lane, every 15 min) joins `platform:realtime-probe` with the service role, has `realtime_probe_send(nonce)` broadcast from Postgres, and records whether and how fast the nonce came back through the real Realtime service and websocket. `GET /api/version` → `realtime`: `pending` (no probe yet, or the table not applied yet — 42P01 is held behind its migration), `ok`, `degraded` (probe fine, some send failed today; healthy, visible), `failing` (the broadcast did not arrive), `stale` (the probe stopped), `unknown` (unreadable). `failing`, `stale` and `unknown` turn `ok` false, so `platform-health.yml` pages on a Realtime that has stopped delivering. **Staging check done 2026-10-24 (02:42–02:51 UTC):** the service role joins the private probe topic (no policy needed). The FIRST probe, 90 s after the deploy, joined and announced but heard nothing in 10 s (`failing`); the same probe run by hand two minutes later arrived at once, and the next scheduled probe passed at 121 ms (`ok`). So the first database broadcast after an idle spell is dropped by a cold Realtime tenant — the cold-start case the load test met as `MissingPartition`, seen from the other side — and a deploy onto an idle staging reads `failing` for one tick. `platform-health.yml` watches production only and needs two non-ok reads 15 min apart, so one cold tick does not page; a second in a row would, and should.
   - Still owed from the audit: the Q-CHAT14 load-test rerun (owner runs `scripts/chat-load-test.mjs` on uat).
 - 2026-10-23: **CHA2 built** — Settings → Chat compliance (`/settings/chat-compliance`, surface `chat.compliance`: `section("settings")`, `startsOnFor: []`, `module: "messages"`, reached from the Settings directory, so it has its own row on the Permissions page and the admin holds it by default, Q-CHAT2). Migration **0516**: `chat_compliance_conversations`, `chat_compliance_messages`, `chat_compliance_thread`, `chat_compliance_access_log`, service-role only. Each read that returns words appends its `compliance_search` / `compliance_view` row — actor, reason `{category, text}`, filters, page — in the same transaction, BEFORE returning; a reason outside the five categories or under ten characters is CH009 and leaves no row. The API (`/api/chat/compliance`, mounted ahead of the chat's own router) asks the settings section, the surface, and `requireFreshAuth()` on every content route; the reason travels in the body; each answered act also writes `audit_logs` (`chat_compliance.search|view`, category and reason in `meta`), and when that row cannot be written the content is withheld (503). The console sees every conversation of the org — driver threads too (§5.3) — retracted messages with their words, and every version an edit replaced; a keyword search finds a phrase that survives only in an earlier version; `%` and `_` are letters. The Access log is read by every holder and leaves no row of its own. The page: one reason card (matter + sentence) that gates every search; Conversations, Messages and Access log tabs; a conversation opens whole in a modal, oldest first, with who left when. A `step_up_required` refusal becomes the password prompt and the same act runs again. CHA1's labelled interim (admins) is gone: `surfaceHolders(admin, org, "chat.compliance")` in the org module resolves the recipients through the Permissions page's own resolver, and `schedulers.ts` hands it across. Not in CHA2: export, holds, retention (CHA3).
+- 2026-10-24: **Release 1 and CHA2 shipped to production** as v2026.10.24 (b347ef5, release PR #1750; migrations 0511–0516 applied first). The Realtime probe's first two production ticks failed — 13:57Z `MissingPartition` (production's Realtime had made no `realtime.messages` partition since 09-18; the first join made 10-24…10-27), 14:11Z no signal within 10 s — and the 14:26Z tick was `ok`: the cold start staging showed, once more. The same release built the AWS production image with `PRODUCTION_VITE_API_URL` = `api.360.silvicominc.com`, which has no certificate until the GoDaddy delegation, and `360.silvicominc.com`'s CSP refused it: the page was blank on AWS until the 3f517ed image was redeployed and the variable set back to the Railway API (AWS migration plan). Chat was reachable on the Railway web host throughout; it reaches `360.silvicominc.com` with the next release's image.
+- 2026-10-24: **Release 2 broken down** (§9, §9.1): CHA3a–b, CH5a–c, D-CHAT17–20. Q-CHAT15 asked: the retention purge job is not built while Q-CHAT5 keeps everything forever.
 
 Sources consulted 2026-10-23: Supabase docs (Realtime limits, Postgres Changes, Broadcast,
 Authorization, billing); CometChat "Chat UI Architecture in 2026"; Stream "How to Sync Chat State After
