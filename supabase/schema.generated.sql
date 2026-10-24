@@ -973,8 +973,7 @@
   id  uuid  not null  default gen_random_uuid()
   org_id  uuid  not null
   scope  text  not null
-  user_id  uuid
-  thread_id  uuid
+  target_id  uuid  not null
   matter  text  not null
   reason  jsonb  not null
   set_by  uuid  not null
@@ -994,11 +993,7 @@
   constraint chat_holds_scope_not_null: NOT NULL scope
   constraint chat_holds_set_at_not_null: NOT NULL set_at
   constraint chat_holds_set_by_not_null: NOT NULL set_by
-  constraint chat_holds_target: CHECK (
-CASE scope
-    WHEN 'person'::text THEN ((user_id IS NOT NULL) AND (thread_id IS NULL))
-    ELSE ((thread_id IS NOT NULL) AND (user_id IS NULL))
-END)
+  constraint chat_holds_target_id_not_null: NOT NULL target_id
   index: unique index chat_holds_pkey on public.chat_holds using btree (id)
   index: index idx_chat_holds_active on public.chat_holds using btree (org_id, scope) where (released_at is null)
   index: index idx_chat_holds_org on public.chat_holds using btree (org_id, set_at desc)

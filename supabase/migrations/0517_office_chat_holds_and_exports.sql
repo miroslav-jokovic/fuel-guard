@@ -55,8 +55,9 @@ create table if not exists chat_holds (
   id             uuid primary key default gen_random_uuid(),
   org_id         uuid not null references organizations(id) on delete cascade,
   scope          text not null check (scope in ('person', 'conversation')),
-  user_id        uuid,
-  thread_id      uuid,
+  -- The person (a user id) or the conversation (a thread id) the hold is on, as `scope` says. One
+  -- column, so a hold always has exactly one target and no constraint has to say so.
+  target_id      uuid not null,
   -- The matter the hold belongs to, as the lawyer or HR names it ("Grievance HR-14").
   matter         text not null check (length(btrim(matter)) between 3 and 120),
   reason         jsonb not null,
@@ -65,9 +66,6 @@ create table if not exists chat_holds (
   released_at    timestamptz,
   released_by    uuid,
   release_reason jsonb,
-  constraint chat_holds_target check (
-    case scope when 'person' then user_id is not null and thread_id is null
-               else thread_id is not null and user_id is null end),
   constraint chat_holds_release_shape check (
     (released_at is null) = (released_by is null) and (released_at is null) = (release_reason is null))
 );
@@ -82,9 +80,9 @@ language plpgsql set search_path = ''
 as $$
 begin
   if old.released_at is null and new.released_at is not null
-     and (new.id, new.org_id, new.scope, new.user_id, new.thread_id, new.matter, new.reason, new.set_by, new.set_at)
+     and (new.id, new.org_id, new.scope, new.target_id, new.matter, new.reason, new.set_by, new.set_at)
          is not distinct from
-         (old.id, old.org_id, old.scope, old.user_id, old.thread_id, old.matter, old.reason, old.set_by, old.set_at) then
+         (old.id, old.org_id, old.scope, old.target_id, old.matter, old.reason, old.set_by, old.set_at) then
     return new;
   end if;
   raise exception 'a hold is only ever released, once; nothing else about it changes (D-CHAT15)' using errcode = 'CL001';
@@ -110,7 +108,8 @@ begin
   values (new.org_id,
           case when tg_op = 'INSERT' then new.set_by else new.released_by end,
           case when tg_op = 'INSERT' then 'hold_set' else 'hold_released' end,
-          new.thread_id, new.user_id,
+          case when new.scope = 'conversation' then new.target_id end,
+          case when new.scope = 'person' then new.target_id end,
           jsonb_build_object('hold_id', new.id, 'scope', new.scope, 'matter', new.matter,
                              'reason', case when tg_op = 'INSERT' then new.reason else new.release_reason end));
   return null;
@@ -217,11 +216,8 @@ begin
     raise exception 'a hold is on a person or a conversation' using errcode = 'CH010';
   end if;
   perform set_config('silvicom.chat_actor', p_actor::text, true);
-  insert into public.chat_holds (org_id, scope, user_id, thread_id, matter, reason, set_by)
-  values (p_org, p_scope,
-          case when p_scope = 'person' then p_target end,
-          case when p_scope = 'conversation' then p_target end,
-          btrim(p_matter), v_reason, p_actor)
+  insert into public.chat_holds (org_id, scope, target_id, matter, reason, set_by)
+  values (p_org, p_scope, p_target, btrim(p_matter), v_reason, p_actor)
   returning id into v_id;
   return v_id;
 end;
@@ -259,11 +255,14 @@ returns table (
 )
 language sql stable security definer set search_path = ''
 as $$
-  select h.id, h.scope, h.user_id, public.chat_display_name(p_org, h.user_id), h.thread_id, t.kind, t.subject,
+  select h.id, h.scope,
+         case when h.scope = 'person' then h.target_id end,
+         case when h.scope = 'person' then public.chat_display_name(p_org, h.target_id) end,
+         case when h.scope = 'conversation' then h.target_id end, t.kind, t.subject,
          h.matter, h.reason, h.set_by, public.chat_display_name(p_org, h.set_by), h.set_at,
          h.released_at, h.released_by, public.chat_display_name(p_org, h.released_by), h.release_reason
     from public.chat_holds h
-    left join public.message_threads t on t.id = h.thread_id and t.org_id = p_org
+    left join public.message_threads t on h.scope = 'conversation' and t.id = h.target_id and t.org_id = p_org
    where h.org_id = p_org and (p_include_released or h.released_at is null)
    order by (h.released_at is null) desc, h.set_at desc, h.id
    limit 500;
