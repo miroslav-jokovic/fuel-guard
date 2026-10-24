@@ -48,6 +48,10 @@ docker rm -f "$cid" >/dev/null
 trap - EXIT
 chmod 0755 "$STACK"/*.sh
 
+# The host's own hardening (automatic security updates, no sshd, volume ownership for the
+# unprivileged containers) — idempotent, so every deploy asserts it (host.sh says why each step).
+"$STACK/host.sh"
+
 "$STACK/fetch-settings.sh" "$ENV_NAME"
 # compose.yml labels each app container with this, so changed settings recreate it (fetch-settings.sh).
 SETTINGS_HASH=$(cat /run/silvicom/settings.hash)
