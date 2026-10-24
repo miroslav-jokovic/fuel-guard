@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { billRevenue, isCreditBill } from "@silvicom/shared";
+import { billLoads, billMiles, billRevenue, isCreditBill } from "@silvicom/shared";
 
 /**
  * The collector's read interface over its own financial staging (D-SEP1 — nothing outside
@@ -219,11 +219,11 @@ export async function readBillingDispatchers(
  * Voided and cancelled bills are excluded: a cancelled load's miles were driven, but its BILLED
  * miles were never billed, and this reader answers the billed question.
  *
- * A credit memo (`bill_type = 'C'`, 0500) takes its revenue back but is not a load: it adds no load,
- * no miles and no delivering truck. That holds whether or not McLeod copies the credited load's
- * distance onto the credit — counting it would bill the same miles twice. Unmeasured: how often a
- * credit is followed by a re-bill of the same order, which would still count that load's miles twice
- * (TRUCK-DRIVER-PNL-PLAN Q-TP11).
+ * A credit memo (`bill_type = 'C'`, 0500) takes back its revenue, the load and the miles of the
+ * invoice it reverses (`billLoads`, `billMiles`), and adds no delivering truck. This carrier re-bills
+ * by crediting an invoice in full and issuing a new one — 365 of 2026's 365 credits, measured
+ * 2026-10-21 (TRUCK-DRIVER-PNL-PLAN Q-TP11) — so a credit read as "no load" counted the re-billed load
+ * and its miles twice.
  */
 export async function readBilledMilesByDeliveryMonth(
   admin: SupabaseClient,
@@ -262,10 +262,10 @@ export async function readBilledMilesByDeliveryMonth(
       acc.set(key, b);
     }
     b.revenue += billRevenue(r);
-    if (isCreditBill(r)) continue;
-    b.loads++;
-    if (r.tractor_unit) b.trucks.add(r.tractor_unit);
-    if (r.distance != null) b.miles += Number(r.distance);
+    b.loads += billLoads(r);
+    if (r.tractor_unit && !isCreditBill(r)) b.trucks.add(r.tractor_unit);
+    const miles = billMiles(r);
+    if (miles != null) b.miles += miles;
   }
   return new Map(
     [...acc].map(([k, v]) => [

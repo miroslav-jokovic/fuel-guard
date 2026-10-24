@@ -26,16 +26,32 @@ describe("bucketBillingActivity", () => {
     expect(week!.loads).toBe(2);
   });
 
-  /** A credit memo (TRUCK-DRIVER-PNL-PLAN §1.3 D2) takes revenue back; it did not haul anything. */
-  it("subtracts a credit memo's revenue without counting it as a load or its miles", () => {
+  /**
+   * A re-billed load, as this carrier re-bills (TRUCK-DRIVER-PNL-PLAN §1.3 D2, Q-TP11): the invoice,
+   * a credit memo reversing it in full, and the new invoice. It is one load with one set of miles.
+   */
+  it("counts a re-billed load once: the credit takes back the load and the miles it reverses", () => {
     const [week] = bucketBillingActivity([
       bill("2026-07-08", 3000, 1000),
-      { ...bill("2026-07-09", -500, 1000), credit: true },
+      { ...bill("2026-07-08", -3000, 1000), credit: true },
+      bill("2026-07-08", 3100, 1000),
     ]);
-    expect(week!.revenue).toBe(2500);
+    expect(week!.revenue).toBe(3100);
     expect(week!.loads).toBe(1);
     expect(week!.billedMiles).toBe(1000);
     expect(week!.loadsWithoutDistance).toBe(0);
+  });
+
+  it("takes back a load without distance from the count of such loads, not from the miles", () => {
+    const [week] = bucketBillingActivity([
+      bill("2026-07-08", 900, null),
+      { ...bill("2026-07-08", -900, null), credit: true },
+      bill("2026-07-08", 900, null),
+      bill("2026-07-09", 3000, 1000),
+    ]);
+    expect(week!.loads).toBe(2);
+    expect(week!.loadsWithoutDistance).toBe(1);
+    expect(week!.billedMiles).toBe(1000);
   });
 
   it("puts a Monday delivery in its own week, not the previous one", () => {

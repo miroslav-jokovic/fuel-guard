@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { billAccessorials, billExcise, billLinehaul, billRevenue, billSign, isCreditBill, isUntypedBill } from "./billingFact.js";
+import { billAccessorials, billExcise, billLinehaul, billLoads, billMiles, billRevenue, billSign, isCreditBill, isUntypedBill } from "./billingFact.js";
 
 describe("billRevenue", () => {
   // Order 0131243, July 2026: a 4,250.00 flat rate with 614.64 of other charges.
@@ -62,5 +62,32 @@ describe("credit memos (bill_type C)", () => {
     const invoices = billRevenue({ total_charges: 5_028_444.73, bill_type: "I" });
     const credits = billRevenue({ total_charges: 213_124.32, bill_type: "C" });
     expect(Math.round((invoices + credits) * 100) / 100).toBe(4_815_320.41);
+  });
+});
+
+/**
+ * A credit memo is how this carrier re-bills: it reverses an invoice in full — 365 of 2026's 365,
+ * matched on the order to the cent and to the mile — and a new invoice follows (Q-TP11). So it takes
+ * back the load and the miles as well as the money.
+ */
+describe("loads and billed miles of a re-billed load", () => {
+  const invoice = { bill_type: "I", distance: 1_383 };
+  const credit = { bill_type: "C", distance: 1_383 };
+  const rebill = { bill_type: "I", distance: 1_383 };
+
+  it("counts invoice, credit and re-bill as one load and one set of miles", () => {
+    const bills = [invoice, credit, rebill];
+    expect(bills.reduce((n, b) => n + billLoads(b), 0)).toBe(1);
+    expect(bills.reduce((n, b) => n + (billMiles(b) ?? 0), 0)).toBe(1_383);
+  });
+
+  it("reads a bill swept before bill_type existed as an invoice", () => {
+    expect(billLoads({ bill_type: null })).toBe(1);
+    expect(billMiles({ bill_type: null, distance: "807.5" })).toBe(807.5);
+  });
+
+  it("has no miles for a bill with no distance, whichever way it is signed", () => {
+    expect(billMiles({ bill_type: "C", distance: null })).toBeNull();
+    expect(billMiles({ bill_type: "I" })).toBeNull();
   });
 });

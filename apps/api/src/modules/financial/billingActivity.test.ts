@@ -37,12 +37,17 @@ const recorder = (bills: Array<(typeof BILLS)[number] & { bill_type?: string }> 
   });
 
 describe("getBillingActivity", () => {
-  /** A credit memo (TRUCK-DRIVER-PNL-PLAN §1.3 D2) is staged POSITIVE; only bill_type says it takes money back. */
-  it("takes a credit memo off its week's revenue without counting it as a load or its miles", async () => {
-    const credit = { id: "c1", delivery_date: "2026-07-09", total_charges: 500, other_charge: 0, distance: 1000, post_key: "KC", post_module: "BILL", bill_type: "C" };
-    const r = await getBillingActivity(recorder([...BILLS, credit]).client, ORG, "2026-07-06", "2026-07-20", "week");
+  /**
+   * A credit memo (TRUCK-DRIVER-PNL-PLAN §1.3 D2) is staged POSITIVE; only bill_type says it takes money
+   * back — and the load and miles of the invoice it reverses (Q-TP11): b2 is credited in full and
+   * re-billed at 1,850, so the week still holds two loads and 1,600 miles.
+   */
+  it("takes a credit memo off its week's revenue, loads and miles, so a re-billed load counts once", async () => {
+    const credit = { id: "c1", delivery_date: "2026-07-10", total_charges: 1800, other_charge: 0, distance: 600, post_key: "KC", post_module: "BILL", bill_type: "C" };
+    const rebill = { id: "b2r", delivery_date: "2026-07-10", total_charges: 1850, other_charge: 0, distance: 600, post_key: "KR", post_module: "BILL", bill_type: "I" };
+    const r = await getBillingActivity(recorder([...BILLS, credit, rebill]).client, ORG, "2026-07-06", "2026-07-20", "week");
     const [week] = r.periods;
-    expect(week!.revenue).toBe(4500); // 3200 + 1800 − 500
+    expect(week!.revenue).toBe(5050); // 3200 + 1800 − 1800 + 1850
     expect(week!.loads).toBe(2);
     expect(week!.billedMiles).toBe(1600);
   });
