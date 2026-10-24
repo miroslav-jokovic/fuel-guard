@@ -51,9 +51,11 @@ export interface BackupTarget {
  * `compliance-exports` holds finished audit binders: a DERIVED PII aggregate with a 7-day life
  * (D-BD4, `dqExportSweeper`). Its every page is a source document already copied from
  * `compliance-docs`, and a 90-day-locked copy would outlive by months the deletion that rule exists for.
+ * Office chat exports (CHA3b) sit beside them under `<org>/chat/` on the same 7-day life: their every
+ * line is a database row, and the database has its own backups.
  */
 export const BACKUP_EXCLUDED_BUCKETS: ReadonlyMap<string, string> = new Map([
-  ["compliance-exports", "derived audit binders with a 7-day life (D-BD4); their sources are copied"],
+  ["compliance-exports", "derived audit binders and chat exports with a 7-day life (D-BD4, D-CHAT20); their sources are copied or are database rows"],
 ]);
 
 /** Pure: the buckets to copy, from every bucket Storage has. Sorted so a run's log reads the same nightly. */

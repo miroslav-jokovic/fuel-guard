@@ -1,5 +1,5 @@
 import { type Ref, toValue } from "vue";
-import { useQuery } from "@tanstack/vue-query";
+import { useQuery, useQueryClient } from "@tanstack/vue-query";
 import type {
   ChatComplianceAccessLogResponse,
   ChatComplianceConversationsRequest,
@@ -10,6 +10,11 @@ import type {
   ChatComplianceReason,
   ChatComplianceThreadRequest,
   ChatComplianceThreadResponse,
+  ChatExportLinksResponse,
+  ChatExportRequest,
+  ChatExportsResponse,
+  ChatHoldSetRequest,
+  ChatHoldsResponse,
 } from "@silvicom/shared";
 import { apiFetch } from "@/lib/api";
 import { apiRefusal } from "@/composables/useStepUpRetry";
@@ -42,6 +47,59 @@ export function searchMessages(req: ChatComplianceMessagesRequest): Promise<Chat
 
 export function openThread(threadId: string, req: ChatComplianceThreadRequest): Promise<ChatComplianceThreadResponse> {
   return act(`${BASE}/conversations/${threadId}`, req, "Could not open the conversation.");
+}
+
+// ── holds and exports (CHA3b) ──────────────────────────────────────────────────────────────────────
+// Each is an act the database ledgers with its reason, so each is a press, never a query. The lists
+// beside them are queries: they show what was done, not anybody's words.
+
+export function setHold(req: ChatHoldSetRequest): Promise<{ id: string }> {
+  return act(`${BASE}/holds`, req, "Could not place the hold.");
+}
+
+export function releaseHold(holdId: string, reason: ChatComplianceReason): Promise<{ id: string }> {
+  return act(`${BASE}/holds/${holdId}/release`, { reason }, "Could not release the hold.");
+}
+
+export function createExport(req: ChatExportRequest): Promise<{ id: string; message_count: number }> {
+  return act(`${BASE}/exports`, req, "Could not make the export.");
+}
+
+/** Five-minute links to the export's three files. Step-up: the files are the words. */
+export function exportLinks(exportId: string): Promise<ChatExportLinksResponse> {
+  return act(`${BASE}/exports/${exportId}/links`, {}, "Could not open the export's files.");
+}
+
+export function useComplianceHoldsQuery(includeReleased: Ref<boolean>) {
+  return useQuery({
+    queryKey: ["chat", "compliance", "holds", includeReleased],
+    queryFn: async () => {
+      const r = await apiFetch<ChatHoldsResponse>(`${BASE}/holds${toValue(includeReleased) ? "?released=1" : ""}`);
+      if (!r.ok || !r.data) throw new Error(r.error?.message ?? "Could not load the holds.");
+      return r.data.holds;
+    },
+  });
+}
+
+export function useComplianceExportsQuery() {
+  return useQuery({
+    queryKey: ["chat", "compliance", "exports"],
+    queryFn: async () => {
+      const r = await apiFetch<ChatExportsResponse>(`${BASE}/exports`);
+      if (!r.ok || !r.data) throw new Error(r.error?.message ?? "Could not load the exports.");
+      return r.data;
+    },
+  });
+}
+
+/** After a hold or an export, the lists and the Access log are stale. */
+export function useComplianceRefresh() {
+  const qc = useQueryClient();
+  return () => {
+    void qc.invalidateQueries({ queryKey: ["chat", "compliance", "holds"] });
+    void qc.invalidateQueries({ queryKey: ["chat", "compliance", "exports"] });
+    void qc.invalidateQueries({ queryKey: ["chat", "compliance", "access-log"] });
+  };
 }
 
 /** Who the console can filter by. Names only, so it may load with the page. */
