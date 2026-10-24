@@ -233,6 +233,28 @@
         "why": "OFFICE-CHAT-PLAN D-CHAT12 (0511): one hash-chained row per chat fact (each message sent/edited/retracted, membership change, compliance act), written by triggers. Sized at the plan's target, 300 active users x 100 messages a day; RETENTION_FORBIDDEN and append-only by trigger (CL001) until an org sets a retention period through CHA3's audited purge."
       }
     },
+    "chat_space_members": {
+      "module": "messaging",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "fleet",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "OFFICE-CHAT-PLAN CH5a (0518): one row per person per team, left by stamping left_at and never deleted, so the ledger and the compliance console always know who was in a team. Bounded by office people x teams (14 x a handful today)."
+      }
+    },
+    "chat_spaces": {
+      "module": "messaging",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "fleet",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "OFFICE-CHAT-PLAN CH5a (0518): one row per team (Dispatch, Safety, Shop ...), archived and never deleted. A handful per org."
+      }
+    },
     "declined_transactions": {
       "module": "fuel",
       "layer": "raw",
