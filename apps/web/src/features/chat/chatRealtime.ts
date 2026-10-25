@@ -4,7 +4,7 @@ import type { ChatConversationResponse, ChatMessage, ChatSyncResponse } from "@s
 import { apiFetch } from "@/lib/api";
 import { DEV_BYPASS } from "@/lib/supabase";
 import { useSessionStore } from "@/stores/session";
-import { conversationKey, inboxKey } from "./useChat";
+import { conversationKey, inboxKey, teamsKey } from "./useChat";
 import { sharedChatTransport, type ChatTransport } from "./transport";
 
 /**
@@ -123,6 +123,19 @@ export async function syncConversation(
   }
 }
 
+/**
+ * What a conversation's signal fetches. A conversation page is synced and merged. An open CHANNEL
+ * holds no conversation page — its posts and replies sit under the conversation's key
+ * (`useChatTeams.ts`) — so there is nothing for `/sync` to merge into, and what it holds is refetched:
+ * one page of posts, or of one post's replies. Neither held: nothing to do.
+ */
+export async function refreshConversation(
+  qc: QueryClient, threadId: string, viewerId: string | null, signalRev?: number,
+): Promise<void> {
+  if (qc.getQueryData(conversationKey(threadId)) !== undefined) return syncConversation(qc, threadId, viewerId, signalRev);
+  await qc.invalidateQueries({ queryKey: conversationKey(threadId) });
+}
+
 /** True when the cache is now current; false when only a refetch can make it so. */
 async function syncPages(qc: QueryClient, threadId: string, viewerId: string | null): Promise<boolean> {
   const key = conversationKey(threadId);
@@ -168,9 +181,14 @@ export function spread(target: string, fetch: () => void, random: () => number =
 function transportFor(qc: QueryClient): ChatTransport {
   const session = useSessionStore();
   const me = () => session.userId ?? null;
-  const inbox = () => spread("inbox", () => void qc.invalidateQueries({ queryKey: inboxKey }));
+  // The rail with the inbox: a channel's unread is the same `last_seq − read_seq` (CH5c).
+  const inbox = () =>
+    spread("inbox", () => {
+      void qc.invalidateQueries({ queryKey: inboxKey });
+      void qc.invalidateQueries({ queryKey: teamsKey });
+    });
   const conversation = (threadId: string, rev?: number) =>
-    spread(`conv:${threadId}`, () => void syncConversation(qc, threadId, me(), rev));
+    spread(`conv:${threadId}`, () => void refreshConversation(qc, threadId, me(), rev));
   return sharedChatTransport(() => ({
     onUserSignal: inbox,
     onConversationSignal: (s) => {

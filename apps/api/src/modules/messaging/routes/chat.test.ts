@@ -163,6 +163,13 @@ describe("the inbox", () => {
     expect(body.next).toEqual({ before_at: "2026-10-23T15:00:00Z", before_id: THREAD });
   });
 
+  it("narrows to the kinds asked for — the Chats list leaves channels to the Teams rail — and refuses an unknown kind", async () => {
+    await call("?kinds=direct,group");
+    expect((holder.rec!.rpcs().find((c) => c.fn === "chat_inbox")!.args as { p_kinds: string[] }).p_kinds).toEqual(["direct", "group"]);
+    expect((await call("?kinds=direct,driver")).status).toBe(400);
+    expect(chatCalls()).toHaveLength(1);
+  });
+
   it("refuses half a cursor", async () => {
     expect((await call("?before_at=2026-10-23T15:00:00Z")).status).toBe(400);
     expect(chatCalls()).toEqual([]);

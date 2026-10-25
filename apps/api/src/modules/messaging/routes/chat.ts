@@ -1,5 +1,6 @@
 import { Router, type Response } from "express";
 import {
+  CHAT_KINDS,
   OFFICE_ROLES,
   chatAddMembersRequestSchema,
   chatCreateGroupRequestSchema,
@@ -9,6 +10,7 @@ import {
   chatRenameRequestSchema,
   chatSendRequestSchema,
   isRecordId,
+  type ChatKind,
 } from "@silvicom/shared";
 import { requireAuth, requireOrg, requireRole } from "../../../middleware/auth.js";
 import { driverWriteLimit } from "../../../middleware/driverWriteLimit.js";
@@ -90,9 +92,16 @@ export function chatRouter(): Router {
         res.status(400).json(apiError("bad_cursor", "before_at and before_id go together"));
         return;
       }
+      // `kinds=direct,group`: which kinds of conversation; absent = all of them. An unknown kind is a 400,
+      // not silently dropped, so a typo cannot read as "you have no conversations".
+      const kinds = typeof req.query.kinds === "string" ? req.query.kinds.split(",").filter(Boolean) : [];
+      if (!kinds.every((k): k is ChatKind => (CHAT_KINDS as readonly string[]).includes(k))) {
+        res.status(400).json(apiError("bad_kinds", `kinds is a comma-separated list of ${CHAT_KINDS.join(", ")}`));
+        return;
+      }
       const { orgId, userId } = ctx(req);
       res.json(await chatInbox(admin(req), orgId, userId, {
-        before_at: beforeAt, before_id: beforeId, limit: intQuery(req.query.limit) ?? undefined,
+        before_at: beforeAt, before_id: beforeId, limit: intQuery(req.query.limit) ?? undefined, kinds,
       }));
     }),
   );

@@ -18,6 +18,7 @@ const state = vi.hoisted(() => ({
   markRead: vi.fn(),
   detail: null as unknown,
   followed: [] as Array<string | null>,
+  inboxKinds: null as string[] | null,
   setLink: (_: string) => {},
 }));
 
@@ -39,7 +40,10 @@ vi.mock("@/features/chat/useChat", async () => {
   const q = (data: unknown) => ({ data: ref(data), isPending: ref(false), isError: ref(false), error: ref(null), isFetching: ref(false), refetch: vi.fn() });
   return {
     mergeLines: () => [],
-    useChatInboxQuery: () => q({ conversations: state.conversations, next: null, unread_total: 0 }),
+    useChatInboxQuery: (_enabled: unknown, kinds?: string[]) => {
+      state.inboxKinds = kinds ?? null;
+      return q({ conversations: state.conversations, next: null, unread_total: 0 });
+    },
     useChatPeopleQuery: () => q([]),
     useChatConversationQuery: (id: { value: string | null }) => {
       const r = q(state.detail);
@@ -69,6 +73,10 @@ vi.mock("@/features/chat/transport", async () => {
 vi.mock("@/stores/session", () => ({ useSessionStore: () => ({ userId: "11111111-1111-4111-8111-111111111111" }) }));
 vi.mock("@/stores/toast", () => ({ useToastStore: () => ({ success: vi.fn(), error: vi.fn() }) }));
 
+// The Teams side has its own tests (ChatTeamsView.test.ts); here it is the thing the tab shows.
+vi.mock("@/features/chat/teams/ChatTeamsView.vue", () => ({
+  default: { props: ["entitled"], template: `<div data-test="teams-view" />` },
+}));
 import ChatPage from "./ChatPage.vue";
 import NewChatDialog from "@/features/chat/NewChatDialog.vue";
 
@@ -163,5 +171,28 @@ describe("ChatPage", () => {
   it("tells an empty inbox how to begin", async () => {
     const { w } = await render();
     expect(w.text()).toContain("No conversations yet");
+  });
+
+  it("lists direct and group conversations under Chats — channels are on the Teams rail", async () => {
+    await render();
+    expect(state.inboxKinds).toEqual(["direct", "group"]);
+  });
+
+  it("switches to Teams in the URL, so a link to a channel opens there, and back to Chats with nothing left over", async () => {
+    const { w, router } = await render(`/chat?c=${T}`);
+    expect(w.find('[data-test="teams-view"]').exists()).toBe(false);
+    await w.findAll('[role="tab"]').find((t) => t.text() === "Teams")!.trigger("click");
+    await flushPromises();
+    expect(router.currentRoute.value.query).toEqual({ view: "teams" });
+    expect(w.find('[data-test="teams-view"]').exists()).toBe(true);
+    expect(w.text()).not.toContain("New conversation");
+    await w.findAll('[role="tab"]').find((t) => t.text() === "Chats")!.trigger("click");
+    await flushPromises();
+    expect(router.currentRoute.value.query).toEqual({});
+  });
+
+  it("opens no conversation while Teams is showing, whatever `?c=` says", async () => {
+    await render(`/chat?view=teams&c=${T}`);
+    expect(state.conversationAsked.every((v) => v === null)).toBe(true);
   });
 });

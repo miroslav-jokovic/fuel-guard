@@ -387,6 +387,19 @@ CH5 do not depend on each other and can merge in either order.
   `chatMessageSchema` carries `parent_id`/`reply_count`/`last_reply_at` so history and sync place a
   channel's lines. Web: Settings → Chat teams (`ChatTeamsPage.vue`: list, New team, Archive);
   `PeoplePicker.vue` now shared by New conversation and New team.
+- 2026-10-25: **CH5b-2 merged** (#1757, on staging at 0520). **CH5c built**: /chat gains Chats | Teams
+  tabs (`?view=teams`); the Teams side (`features/chat/teams/ChatTeamsView.vue`) is the rail (teams →
+  the channels you are in, General first, unread per channel; public channels you are not in folded
+  under "N more channels to join"), the open channel (`?ch=`: top-level posts with reply count and last
+  reply, a post box) and, beside it from `xl` and instead of it below, one post's replies (`?post=`).
+  New channel (public, or private with people from the team), Add people (team owners), Leave channel
+  (never General), Leave team, and New team for a `chat.teams` holder (the API's `can_manage`).
+  A channel you are not in is offered with Join and never read. The Chats list asks the inbox for
+  `kinds=direct,group` (new API filter); the sidebar badge keeps every kind, so channels count in it
+  the D-CHAT2 way — `last_seq − read_seq`, a reply included. Realtime: a signal for an open channel
+  refetches its posts/replies (they sit under `conversationKey(id)`, so there is no page for `/sync`
+  to merge into), and a signal to me refreshes the rail with the inbox. The bubble, the composer and
+  the pending line were lifted out of `ChatConversationPane` so all three views share them.
 
 Sources consulted 2026-10-23: Supabase docs (Realtime limits, Postgres Changes, Broadcast,
 Authorization, billing); CometChat "Chat UI Architecture in 2026"; Stream "How to Sync Chat State After

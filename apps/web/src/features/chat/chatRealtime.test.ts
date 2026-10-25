@@ -12,7 +12,7 @@ vi.mock("@/lib/api", () => ({
 }));
 vi.mock("@/lib/supabase", () => ({ supabase: {}, DEV_BYPASS: false }));
 
-import { applySync, SIGNAL_SPREAD_MS, spread, syncConversation } from "./chatRealtime";
+import { applySync, refreshConversation, SIGNAL_SPREAD_MS, spread, syncConversation } from "./chatRealtime";
 import { conversationKey } from "./useChat";
 
 /**
@@ -145,6 +145,29 @@ describe("syncConversation", () => {
     api.answers = [sync([msg(2, 2, { sender_user_id: ME }), msg(3)], 3)];
     await syncConversation(qc, T, ME, 3);
     expect(qc.getQueryData<ChatConversationResponse>(conversationKey(T))!.conversation).toMatchObject({ read_seq: 2, unread: 1 });
+  });
+});
+
+describe("refreshConversation (CH5c)", () => {
+  it("syncs a conversation page it holds, and refetches an open channel's posts and replies instead", async () => {
+    const qc = new QueryClient();
+    const channel = "44444444-4444-4444-8444-444444444444";
+    qc.setQueryData([...conversationKey(channel), "posts"], { posts: [], before_seq: null });
+    qc.setQueryData([...conversationKey(channel), "replies", "p1"], { posts: [], before_seq: null });
+    api.asked = [];
+    await refreshConversation(qc, channel, ME);
+    expect(api.asked).toEqual([]); // no `/sync`: there is no page to merge into
+    expect(qc.getQueryState([...conversationKey(channel), "posts"])!.isInvalidated).toBe(true);
+    expect(qc.getQueryState([...conversationKey(channel), "replies", "p1"])!.isInvalidated).toBe(true);
+  });
+
+  it("still syncs a conversation page it holds, rather than refetching it whole", async () => {
+    const qc = new QueryClient();
+    qc.setQueryData(conversationKey(T), page([msg(1)]));
+    api.asked = [];
+    api.answers = [{ changes: [msg(2)], rev: 2, more: false }];
+    await refreshConversation(qc, T, ME);
+    expect(api.asked).toEqual([`/api/chat/${T}/sync?since_rev=1`]);
   });
 });
 
