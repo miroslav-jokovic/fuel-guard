@@ -24,6 +24,7 @@ describe("driverWriteBucket", () => {
     ["/api/messages", "message"],
     [`/api/messages/${ID}/messages`, "message"],
     [`/api/chat/${ID}/messages`, "chat_message"],
+    [`/api/chat/channels/${ID}/posts/${ID}/replies`, "chat_message"],
   ])("buckets POST %s as %s", (path, bucket) => {
     expect(driverWriteBucket("POST", path)).toBe(bucket);
   });
@@ -45,6 +46,8 @@ describe("driverWriteBucket", () => {
     "/api/chat/groups",
     `/api/chat/${ID}/read`,
     `/api/chat/${ID}/members`,
+    "/api/chat/teams",
+    `/api/chat/channels/${ID}/join`,
   ])("leaves %s unbucketed", (path) => {
     expect(driverWriteBucket("POST", path)).toBeNull();
   });

@@ -84,6 +84,15 @@ export const chatMessageSchema = z.object({
   created_at: z.string(),
   edited_at: z.string().nullable(),
   deleted_at: z.string().nullable(),
+  /**
+   * Where the line sits in a channel's one-level reply shape (0519, D-CHAT19): the post it answers, or
+   * null for a top-level line; and, on a post, its reply counters. History and sync carry them so a
+   * client places every change in a channel's one ordered log. The defaults are a direct or group
+   * conversation's true values (no parent, no replies) — what a row from before 0519 means.
+   */
+  parent_id: recordId().nullable().default(null),
+  reply_count: z.number().int().nonnegative().default(0),
+  last_reply_at: z.string().nullable().default(null),
 });
 export type ChatMessage = z.infer<typeof chatMessageSchema>;
 

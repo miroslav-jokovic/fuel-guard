@@ -374,6 +374,19 @@ CH5 do not depend on each other and can merge in either order.
   holder manages teams they are not in; `chat_team_directory`), matrix `office-chat-teams` 79, two
   mutations caught (archive back on the member-only lookup; the org filter dropped from
   `chat_manage_space`).
+- 2026-10-25: **CH5b-1 merged** (#1756, 0520 on staging). **CH5b-2 built**: `isEditableSurface` also
+  answers for a `STAFF` gate that declares `startsOnFor` (`lint:surfaces` refuses it on every other
+  non-section gate); surface `chat.teams` (`STAFF`, `startsOnFor: []`, `module: "messages"`, reached
+  from Settings, `/settings/chat-teams`). One measured side effect: the Settings entry's ROLE half now
+  reaches every office role (a technician can be given Chat teams); the entry still opens only when a
+  screen behind it does. API: `routes/chatTeams.ts` — `/api/chat/teams` (rail + `can_manage`),
+  `/teams/directory` and `POST /teams` behind `requireSurface("chat.teams")`, every other team act
+  passes `holdsSurface("chat.teams")` as `p_manager`; `/api/chat/channels/:id/{join,members,leave,
+  archive,posts,posts/:postId/replies}`. Mounted ahead of the conversation router. CH011 → 422
+  `reply_not_allowed`, CH012 → 409 `name_in_use`. A reply counts in the `chat_message` budget.
+  `chatMessageSchema` carries `parent_id`/`reply_count`/`last_reply_at` so history and sync place a
+  channel's lines. Web: Settings → Chat teams (`ChatTeamsPage.vue`: list, New team, Archive);
+  `PeoplePicker.vue` now shared by New conversation and New team.
 
 Sources consulted 2026-10-23: Supabase docs (Realtime limits, Postgres Changes, Broadcast,
 Authorization, billing); CometChat "Chat UI Architecture in 2026"; Stream "How to Sync Chat State After

@@ -429,6 +429,10 @@ export const SURFACES: readonly Surface[] = [
   { key: "admin.settings.fuel-planning", label: "Planned fueling", path: "/settings/fuel-planning", group: "admin", gate: manage("dispatch"), reachedFrom: "admin.settings", startsOnFor: [] },
   { key: "admin.settings.audit", label: "Audit log", path: "/settings/audit", group: "admin", gate: section("settings"), reachedFrom: "admin.settings", startsOnFor: [] },
   { key: "chat.compliance", label: "Chat compliance", path: "/settings/chat-compliance", group: "admin", gate: section("settings"), module: "messages", reachedFrom: "admin.settings", startsOnFor: [] },
+  // Who makes office chat teams and manages any of them (D-CHAT17, D-CHAT21): `STAFF`, since any office
+  // role may be given it; `startsOnFor: []` makes it a Permissions-page row, the admins' until given.
+  // The API asks it on making a team and passes the answer to every team act as `p_manager`.
+  { key: "chat.teams", label: "Chat teams", path: "/settings/chat-teams", group: "admin", gate: STAFF, module: "messages", reachedFrom: "admin.settings", startsOnFor: [] },
 
   /**
    * ── the reporting and detection-health screens, which had NO route gate at all ────────────────

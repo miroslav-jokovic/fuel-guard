@@ -2,6 +2,7 @@ import { Router } from "express";
 import { chatRouter } from "./chat.js";
 import { chatComplianceRouter } from "./chatCompliance.js";
 import { chatComplianceRecordsRouter } from "./chatComplianceRecords.js";
+import { chatChannelsRouter, chatTeamsRouter } from "./chatTeams.js";
 
 /**
  * Everything under `/api/chat`: the compliance console FIRST, at `/api/chat/compliance`, then the chat
@@ -18,6 +19,10 @@ export function chatRouters(): Router {
   router.use("/compliance", chatComplianceRouter());
   // CHA3b: holds and exports, under the same gates as the reads (its own router: one file per concern).
   router.use("/compliance", chatComplianceRecordsRouter());
+  // CH5b: teams and channels, also ahead of `chatRouter` — its `/:id` would answer `/teams` as a
+  // conversation that does not exist. Each carries the office-chat gates itself (chatTeams.ts).
+  router.use("/teams", chatTeamsRouter());
+  router.use("/channels", chatChannelsRouter());
   router.use("/", chatRouter());
   return router;
 }

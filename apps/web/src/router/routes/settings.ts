@@ -181,4 +181,12 @@ export const settingsRoutes: RouteRecordRaw[] = [
     component: () => import("@/pages/ChatCompliancePage.vue"),
     meta: { requiresAuth: true, title: "Chat compliance", parent: "/settings" },
   },
+  {
+    // Office chat teams (OFFICE-CHAT-PLAN CH5b, D-CHAT21): every team of the organisation, behind the
+    // `chat.teams` grant — which, unlike the other Settings screens, any office role can be given.
+    path: "/settings/chat-teams",
+    name: "chat-teams",
+    component: () => import("@/pages/ChatTeamsPage.vue"),
+    meta: { requiresAuth: true, title: "Chat teams", parent: "/settings" },
+  },
 ];
