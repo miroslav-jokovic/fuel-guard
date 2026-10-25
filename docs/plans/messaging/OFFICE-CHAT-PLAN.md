@@ -248,7 +248,8 @@ One PR each unless noted. A column and its first reader ship in separate merges
 | CHA3b | API + console: a Holds tab (set/release, step-up + reason, `audit_logs` beside the ledger); Export on the conversation view and on a messages search → JSONL + PDF + `manifest.json` in the private `compliance-exports` bucket, 5-minute signed links, bytes swept after 7 days while the row stays | CHA3a on staging |
 | ~~CHA3c~~ | ~~Retention setting + ledgered purge job~~ — **not built**, Q-CHAT15 | Q-CHAT15 |
 | CH5a | Migration: `chat_spaces` (teams) + `chat_space_members`; `message_threads.space_id` + `visibility` (`public`/`private`) for `channel` threads; `messages.parent_id` (one level of replies) + the reply counters; functions: create/rename/archive a team, add/remove team members, create/join/leave a channel, browse a team's public channels, post a reply, a reply page, and `chat_inbox` widened to channels. PGlite matrix (§9.1) | CH3b |
-| CH5b | API `/api/chat/teams…` + the reply routes; `requireSurface("chat.teams")` on creating a team (D-CHAT17) | CH5a on staging |
+| CH5b-1 | Migration 0520: a `chat.teams` holder manages (renames, archives, adds, removes, sets roles in) a team they are not in, reads its people, and lists every team (`chat_team_directory`) — never its channels (D-CHAT21) | CH5a on staging |
+| CH5b-2 | `chat.teams` made a Permissions-page row (`STAFF` + `startsOnFor: []` becomes editable, D-CHAT21) with its own Settings → Chat teams page (list, new team, archive); API `/api/chat/teams…`, channel and reply routes, `p_manager` = the caller's answer to `chat.teams`; CH011/CH012 mapped | CH5b-1 on staging |
 | CH5c | Web: the Teams rail (team → channel list → channel posts with their replies), browse and join, the reply pane, the Chat badge counting channels the D-CHAT2 way | CH5b |
 | CH6 | Mentions, reactions, pins, saved, muted section, Activity, browser notifications | CH5 |
 | CH7 | Files | CH2 |
@@ -288,6 +289,23 @@ CH5 do not depend on each other and can merge in either order.
   manifest's hash. A court-side check is: recompute the line hashes, find them in the ledger, and find
   the export's row in the ledger with the same manifest hash. The PDF is the readable copy, the JSONL
   the evidence.
+- **D-CHAT21 — `chat.teams` is a permission every office role can be given, with a page of its own
+  (2026-10-25; owner chose (A) of three).** Measured while starting CH5b, D-CHAT17 could not be built
+  as written: (1) only a `section(...)` gate was editable on the Permissions page (Q-SURF3,
+  `isEditableSurface`) and a grant never lifts past a section (D-SURF2), so no section held by every
+  office role existed to gate on — `section("settings")`, `chat.compliance`'s, would have left a
+  dispatcher ungrantable, D-CHAT17's own example; (2) a surface needs a real route, and `chat.teams` had
+  none; (3) 0519 asked team membership before `p_manager`, so a holder outside a team got CH001 and
+  "admins archive" held only for teams the admin was in. The ruling: a `STAFF` surface that declares
+  `startsOnFor` is editable too — the narrowest widening of Q-SURF3 that makes a cross-section
+  permission expressible; `chat` itself declares none and stays as it is, and `lint:surfaces` keeps
+  refusing `startsOnFor` on every other non-section gate. `chat.teams` is `STAFF`, `startsOnFor: []`
+  (admins only until somebody is given it), `module: "messages"`, reached from Settings, path
+  `/settings/chat-teams`: every team of the org, New team, archive. 0520 lets a holder manage a team's
+  membership and name without being in it, and never read it (D-CHAT4; reading another person's
+  messages stays the compliance console's, D-CHAT14). Rejected: (B) `section("settings")` — no model
+  change, but D-CHAT17's example would need re-ruling; (C) ship channels and replies first and leave
+  team creation unbuilt.
 - **Matrix rows CH5a must pin:** a non-member of a team cannot see its channels; a team member sees a
   public channel's posts only after joining; a private channel is invisible to a team member who is
   not in it; a person removed from a team is removed from its channels; a reply's parent must be a
@@ -348,6 +366,14 @@ CH5 do not depend on each other and can merge in either order.
 - 2026-10-23: **CHA2 built** — Settings → Chat compliance (`/settings/chat-compliance`, surface `chat.compliance`: `section("settings")`, `startsOnFor: []`, `module: "messages"`, reached from the Settings directory, so it has its own row on the Permissions page and the admin holds it by default, Q-CHAT2). Migration **0516**: `chat_compliance_conversations`, `chat_compliance_messages`, `chat_compliance_thread`, `chat_compliance_access_log`, service-role only. Each read that returns words appends its `compliance_search` / `compliance_view` row — actor, reason `{category, text}`, filters, page — in the same transaction, BEFORE returning; a reason outside the five categories or under ten characters is CH009 and leaves no row. The API (`/api/chat/compliance`, mounted ahead of the chat's own router) asks the settings section, the surface, and `requireFreshAuth()` on every content route; the reason travels in the body; each answered act also writes `audit_logs` (`chat_compliance.search|view`, category and reason in `meta`), and when that row cannot be written the content is withheld (503). The console sees every conversation of the org — driver threads too (§5.3) — retracted messages with their words, and every version an edit replaced; a keyword search finds a phrase that survives only in an earlier version; `%` and `_` are letters. The Access log is read by every holder and leaves no row of its own. The page: one reason card (matter + sentence) that gates every search; Conversations, Messages and Access log tabs; a conversation opens whole in a modal, oldest first, with who left when. A `step_up_required` refusal becomes the password prompt and the same act runs again. CHA1's labelled interim (admins) is gone: `surfaceHolders(admin, org, "chat.compliance")` in the org module resolves the recipients through the Permissions page's own resolver, and `schedulers.ts` hands it across. Not in CHA2: export, holds, retention (CHA3).
 - 2026-10-24: **Release 1 and CHA2 shipped to production** as v2026.10.24 (b347ef5, release PR #1750; migrations 0511–0516 applied first). The Realtime probe's first two production ticks failed — 13:57Z `MissingPartition` (production's Realtime had made no `realtime.messages` partition since 09-18; the first join made 10-24…10-27), 14:11Z no signal within 10 s — and the 14:26Z tick was `ok`: the cold start staging showed, once more. The same release built the AWS production image with `PRODUCTION_VITE_API_URL` = `api.360.silvicominc.com`, which has no certificate until the GoDaddy delegation, and `360.silvicominc.com`'s CSP refused it: the page was blank on AWS until the 3f517ed image was redeployed and the variable set back to the Railway API (AWS migration plan). Chat was reachable on the Railway web host throughout; it reaches `360.silvicominc.com` with the next release's image.
 - 2026-10-24: **Release 2 broken down** (§9, §9.1): CHA3a–b, CH5a–c, D-CHAT17–20. Q-CHAT15 asked: the retention purge job is not built while Q-CHAT5 keeps everything forever.
+- 2026-10-24: **CH5a merged** (#1754, 0518 + 0519); staging's migration run then failed on 0518's
+  channel-shape rule over the load test's table-inserted channel. Fixed 2026-10-25 by #1755: the rule
+  is added `not valid` (a history edit otherwise) and the load test makes its channel with
+  `chat_team_create`. Staging at 0519.
+- 2026-10-25: **D-CHAT21 ruled** (§9.1) and CH5b split in two: CH5b-1 is migration 0520 (a `chat.teams`
+  holder manages teams they are not in; `chat_team_directory`), matrix `office-chat-teams` 79, two
+  mutations caught (archive back on the member-only lookup; the org filter dropped from
+  `chat_manage_space`).
 
 Sources consulted 2026-10-23: Supabase docs (Realtime limits, Postgres Changes, Broadcast,
 Authorization, billing); CometChat "Chat UI Architecture in 2026"; Stream "How to Sync Chat State After

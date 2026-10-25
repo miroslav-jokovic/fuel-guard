@@ -231,6 +231,42 @@ ok("a browser cannot make a team, a channel or a reply",
   && /permission denied/.test((await asUser(anaJwt, `select * from chat_send_reply($1,$2,$3,gen_random_uuid(),$4,'x')`, [ORG, ANA, LOADS, P1])).error ?? ""));
 ok("...nor read the team tables", (await asUser(anaJwt, `select * from chat_spaces`)).rows?.length === 0 && (await asUser(anaJwt, `select * from chat_space_members`)).rows?.length === 0);
 
+// ── A `chat.teams` holder outside the team (0520, D-CHAT21) ──────────────────────────────────────
+console.log("\n-- a chat.teams holder outside the team --");
+const YARD = await uuid();
+const YARD_GENERAL = await uuid();
+await db.query(`select chat_team_create($1,$2,$3,$4,'Yard',null,$5)`, [ORG, ANA, YARD, YARD_GENERAL, [DEV]]);
+ok("without the permission, a team you are not in does not exist to you",
+  (await sqlstate(`select chat_team_archive($1,$2,$3,false)`, [ORG, BEN, YARD])) === "CH001"
+  && (await sqlstate(`select * from chat_team_members($1,$2,$3)`, [ORG, BEN, YARD])) === "CH001");
+ok("only a holder lists every team", (await sqlstate(`select * from chat_team_directory($1,$2,false)`, [ORG, BEN])) === "CH008");
+const dir = await all(`select * from chat_team_directory($1,$2,true)`, [ORG, BEN]);
+const yardRow = dir.find((r) => r.space_id === YARD);
+ok("...and the list names each team's owners and whether the holder is in it",
+  yardRow && yardRow.is_member === false && Number(yardRow.member_count) === 2 && Number(yardRow.channel_count) === 1
+  && JSON.stringify(yardRow.owners.map((o) => o.user_id)) === JSON.stringify([ANA]));
+ok("...with archived teams after the live ones", dir.findIndex((r) => r.archived_at !== null) > dir.findIndex((r) => r.space_id === YARD));
+ok("...and nothing of another organisation's", dir.every((r) => r.space_id !== undefined) && (await all(`select * from chat_team_directory($1,$2,true)`, [ORG_B, OUT])).length === 0);
+ok("a holder reads a team's people without being one of them", (await all(`select * from chat_team_members($1,$2,$3,true)`, [ORG, BEN, YARD])).length === 2);
+ok("a holder adds people, and they land in General", Number((await one(`select chat_team_add_members($1,$2,$3,$4,true) n`, [ORG, BEN, YARD, [CLEO]])).n) === 1 && (await inThread(YARD_GENERAL, CLEO)));
+await db.query(`select chat_team_set_role($1,$2,$3,$4,'owner',true)`, [ORG, BEN, YARD, DEV]);
+ok("a holder changes a role", (await one(`select space_role from chat_space_members where space_id=$1 and user_id=$2`, [YARD, DEV])).space_role === "owner");
+await db.query(`select chat_team_remove($1,$2,$3,$4,true)`, [ORG, BEN, YARD, CLEO]);
+ok("a holder takes somebody out, and out of every channel", !(await inThread(YARD_GENERAL, CLEO)));
+ok("...but cannot 'leave' a team they were never in", (await sqlstate(`select chat_team_remove($1,$2,$3,null,true)`, [ORG, BEN, YARD])) === "CH001");
+await db.query(`select chat_team_update($1,$2,$3,'Yard crew',null,true)`, [ORG, BEN, YARD]);
+ok("a holder renames a team", (await one(`select name from chat_spaces where id=$1`, [YARD])).name === "Yard crew");
+ok("managing a team is never reading it: General stays closed to the holder", (await sqlstate(`select * from chat_channel_posts($1,$2,$3,null,50)`, [ORG, BEN, YARD_GENERAL])) === "CH001");
+ok("the permission does not cross organisations", (await sqlstate(`select chat_team_archive($1,$2,$3,true)`, [ORG_B, OUT, YARD])) === "CH001");
+await db.query(`select chat_team_archive($1,$2,$3,true)`, [ORG, BEN, YARD]);
+ok("a holder archives a team they are not in, and its channels with it",
+  (await one(`select archived_at from chat_spaces where id=$1`, [YARD])).archived_at !== null
+  && (await one(`select archived_at from message_threads where id=$1`, [YARD_GENERAL])).archived_at !== null);
+const yardFacts = await all(`select action, actor_user_id from chat_ledger where org_id=$1 and detail->>'space_id'=$2 order by seq`, [ORG, YARD]);
+ok("each act by the holder is a ledger row naming them", ["team_member_added", "team_role_changed", "team_member_removed", "team_renamed", "team_archived"]
+  .every((a) => yardFacts.some((f) => f.action === a && f.actor_user_id === BEN)), JSON.stringify(yardFacts));
+ok("the ledger still verifies", (await one(`select * from chat_ledger_verify($1, 0)`, [ORG])).problem === null);
+
 await db.close();
 console.log(`\nRESULT: ${pass} passed, ${fail} failed`);
 process.exit(fail === 0 ? 0 : 1);
