@@ -251,7 +251,13 @@ One PR each unless noted. A column and its first reader ship in separate merges
 | CH5b-1 | Migration 0520: a `chat.teams` holder manages (renames, archives, adds, removes, sets roles in) a team they are not in, reads its people, and lists every team (`chat_team_directory`) — never its channels (D-CHAT21) | CH5a on staging |
 | CH5b-2 | `chat.teams` made a Permissions-page row (`STAFF` + `startsOnFor: []` becomes editable, D-CHAT21) with its own Settings → Chat teams page (list, new team, archive); API `/api/chat/teams…`, channel and reply routes, `p_manager` = the caller's answer to `chat.teams`; CH011/CH012 mapped | CH5b-1 on staging |
 | CH5c | Web: the Teams rail (team → channel list → channel posts with their replies), browse and join, the reply pane, the Chat badge counting channels the D-CHAT2 way | CH5b |
-| CH6 | Mentions, reactions, pins, saved, muted section, Activity, browser notifications | CH5 |
+| CH6 | Mentions, reactions, pins, saved, muted section, Activity, browser notifications — split below (§9.2) | CH5 |
+| CH6a | Web only: "Show earlier" in a conversation, a channel's posts and a post's replies, reading the `before_seq` the API already returns (Q-CHAT16) | CH5c |
+| CH6b-1 | Migration 0521: `chat_set_mute`; `message_mentions` derived from the body's `<@id>` tokens by trigger on send, reply and edit (D-CHAT22), CH013 for a token naming someone who cannot be mentioned; `chat_person_state.activity_read_at`; `chat_activity` + `chat_activity_mark_read` (D-CHAT25); notification categories `chat_mention`, `chat_reply` (CHECK + contract together). PGlite matrix | CH5c |
+| CH6b-2 | API + web: @ typeahead in the composer, mention chips in the bubble, mention/reply bell items grouped per conversation (D-CHAT23), the mute menu and a Muted section in the Chats list, the Activity tab | CH6b-1 on staging |
+| CH6c-1 | Migration 0522: `message_reactions` (the six of D-CHAT26), `chat_pins`, `chat_saved`; ledger actions `reaction_added`/`reaction_removed`/`message_pinned`/`message_unpinned`; a reaction or pin bumps the message's `rev` so `/sync` re-delivers it (D-CHAT24); history, sync, posts and replies return `reactions` and `pinned_at` (drop + create by full signature). PGlite matrix | CH6b-1 |
+| CH6c-2 | API + web: reaction bar, Pin + a Pinned panel per conversation, Save + a Saved list; reactions to your messages join Activity | CH6c-1 on staging |
+| CH6d | Web only: browser notifications while the tab is open and hidden (Q-CHAT4 (a)), asked for from a button, honouring mute (Q-CHAT18) | CH6b-2 |
 | CH7 | Files | CH2 |
 | CH8 | Search (`tsvector` + GIN, readable conversations only; the console reuses it org-wide) | CH2 |
 | CH9 | Presence, status, typing (Presence/Broadcast, ephemeral, never stored) | CH3b |
@@ -314,6 +320,68 @@ CH5 do not depend on each other and can merge in either order.
   an export without a valid reason leaves no row and returns nothing; the export row's manifest hash
   matches what the function returned; another org's conversation is CH001.
 
+### 9.2 CH6's shape (2026-10-25)
+
+Measured on main at d85df01 (schema 0520) before splitting:
+
+- **Mute is a column with no door.** 0511 gave `thread_participants.muted` (`none`/`mentions`/`all`) and
+  `chat_inbox` returns it; the API's `unread_total` already leaves `all` out of the badge. Nothing
+  sets it: no function, route or menu. So CH6b-1's `chat_set_mute` is the first writer.
+- **Paging back is built on two of three floors.** `chat_history`, `chat_channel_posts` and
+  `chat_replies` take `p_before_seq`, the three API routes pass `before_seq` through, and the answer
+  carries it. Only the web stops: `ChatConversationPane` prints "Earlier messages are not shown yet",
+  and the channel and reply panes show the first page only. CH6a is web-only for that reason.
+- **The bell is ready for chat.** `notify()` → `emit_notification` already applies the org's
+  categories, the person's muted categories and quiet hours, and the dedupe ledger (0432);
+  `notificationRoute.ts` maps a category to an office page; `notificationCategoryCheck.test.ts` holds
+  the contract and the latest CHECK together, so the categories and their CHECK land in one PR.
+- **Every change to a line already travels one log.** A send, edit or retract bumps the thread's `rev`
+  and the line's (0511 `messages_guard_update`), and `/sync` returns lines with `rev > since`. A
+  reaction or a pin that bumps the same `rev` reaches every open tab with no new transport.
+- **Nothing exists** for mentions, reactions, pins, saved or Activity — no table, column or code.
+  A body token format can be chosen now with no rewrite: a line written before it carries no token,
+  so it simply has no mentions.
+
+Decisions (proposed — the owner confirms or overrules):
+
+- **D-CHAT22 — a mention lives in the body, as `<@user-id>`.** The body stays the one record of what was
+  written: the ledger's `body_sha256` already covers the mention, an edit that adds or drops one needs
+  no second write, and the export, the PDF and the console show it in place. `message_mentions` is an
+  index a trigger derives from the body on insert and on edit — never written by hand — so "who was
+  mentioned" cannot disagree with "what was said". A token must name a current participant, or in a
+  public channel a member of its team (they can open it and join); anything else refuses the send
+  (CH013) rather than leaving a dangling name. The web renders the token as the person's name; the
+  console and the PDF resolve it from the conversation's members. Rejected: a `mentions: uuid[]` field
+  beside a plain-text body — two records of one fact, and the ledger would hash only one of them.
+- **D-CHAT23 — the bell gets one item per conversation per unread stretch.** D-CHAT7 already says only
+  mentions and replies to you reach the bell. The dedupe key is `chat_mention:<thread>:<your read_seq>`
+  (and `chat_reply:…`): five mentions before you look are one bell item, and the first after you read
+  is a new one. Derived from the read boundary that exists, not from a counter. Two categories so
+  either can be muted on the notification preferences page. Never for your own line; never in a
+  conversation muted `all` (Activity still lists it); `mentions` still rings for a mention.
+- **D-CHAT24 — conversation acts are ledgered; a person's own state is not.** Reactions and pins are
+  seen by everyone in the conversation, so they are ledgered (four new actions) and re-delivered by
+  `/sync` through the line's `rev`. Saved, mute, read and Activity-read are one person's bookmarks —
+  as `read_seq` is today, they are not ledgered and never shown to anyone else, the console included.
+- **D-CHAT25 — Activity is derived, not stored.** Mentions of you, replies to a post you wrote or
+  replied to, and (from CH6c) reactions to your lines, in conversations you are still in, newest
+  first, keyset-paged. One function over `message_mentions`, `messages.parent_id` and
+  `message_reactions`; no feed table to keep in step. Read state is one instant per person
+  (`chat_person_state.activity_read_at`): unread Activity = items after it. This is also D-CHAT19's
+  deferred "per-post read boundary" answered by Q-CHAT17 (a).
+- **D-CHAT26 — six reactions, fixed.** 👍 ❤️ 😂 😮 😢 ✅ (the last for "done", which an office uses
+  more than 😡). A key in the shared contract and the CHECK, held together by a parity test like
+  the notification categories'. A free emoji picker is a later widening of one list, not a rewrite.
+
+- **Matrix rows CH6b-1 must pin:** a token for a non-participant (and, in a private channel, for a
+  team member not in it) is CH013 and leaves no line; an edit that removes a mention removes its index
+  row and one that adds one adds it; a retracted line's mentions leave Activity; Activity never
+  lists a conversation the reader has left; another person's mute or Activity-read is untouched by
+  mine; another org is CH001.
+- **Matrix rows CH6c-1 must pin:** one reaction of a kind per person per line; reacting bumps the
+  line's `rev` and writes one ledger row; a retracted line refuses reactions and pins; saving is
+  invisible to every other reader; the ledger refuses UPDATE/DELETE of the new actions as of all others.
+
 ## 10. Open questions
 
 | ID | Question | Candidates | Recommendation |
@@ -333,6 +401,10 @@ CH5 do not depend on each other and can merge in either order.
 | Q-CHAT13 | AI catch-up | | **RULED (b):** build CH12 off by default, after release 2 |
 | Q-CHAT14 | The API answers a burst of `/sync` requests slowly: on the one uat instance, 20 at once took 1.6 s (median) and 40 at once took 6.2 s, against 1.2 ms of database time each (load test 2026-10-23, §11). At the design target, a message to a 300-member channel that 300 people have open is 300 at once. What fixes it? | (a) **Measure first:** time each stage of a `/sync` request (`requireAuth`'s membership check, `requireModule`, `requireSurface`, the function) on uat, and see whether the time is in those database round trips, in the connection pool, or in the event loop the in-process schedulers share. (b) Cache the per-request answers that change rarely (module entitlement, surface claim) for a few seconds per user. (c) The client waits a random 0–1 s before it syncs, so a burst arrives spread out. (d) More API replicas (`API_REPLICAS`). (e) Carry the content in the signal for small conversations. That gives up D-CHAT2's reason: a removed member could read on until their token refreshes | **RULED 2026-10-23, as recommended ("proceed as recommended, best solutions possible"):** measured (a), then (c) and (b). Not (d) yet, not (e). See §11 |
 | Q-CHAT15 | CHA3 listed "retention setting + ledgered purge job", but Q-CHAT5 was ruled (a): **keep forever**, pinned in `RETENTION_FORBIDDEN` until counsel names a period. Built now, the purge job is code that may never run and the one path that deletes evidence. Build it now? | (a) **Not now.** Holds and export are built; the setting and purge job wait for counsel's period, and are then one PR (0511's `silvicom.chat_retention` exception and the `retention_changed`/`retention_purged` ledger actions already exist for it). (b) Build the setting and the job now, switched off. (c) Build the setting only, with no job | **(a).** A purge job nobody may switch on is still a deletion path to review, test and keep working, for no use; when counsel names a period it is one PR on ground already laid |
+| Q-CHAT16 | Release 2 left "Earlier messages are not shown yet" in a conversation, and a channel or a reply thread shows its first page only (50 lines). Does paging back belong in CH6? | (a) **Yes, first, as CH6a.** Web only — the SQL and the API already page (§9.2) — and it is the one gap a user hits today in all three panes. (b) A separate item after CH6. (c) Leave it until somebody asks | **(a).** Smallest step, no migration, and it lands before mentions make people scroll back to find what they were tagged in (Activity opens a line that may be older than the first page, so CH6b-2 needs it anyway) |
+| Q-CHAT17 | D-CHAT19 deferred a per-post read boundary ("new replies to a post you follow") to CH6. Build it? | (a) **No: Activity carries it.** Replies to a post you wrote or replied to are Activity items with Activity's one read instant (D-CHAT25); the channel stays unread by `last_seq − read_seq`. (b) A `chat_post_reads(user, post, read_seq)` row per post, so each post shows its own "3 new replies". (c) Both | **(a).** (b) is a write per post opened and a second unread count to reconcile with the first, for a badge Activity already gives the person who cares about the post. Revisit if people ask for per-post counts after using Activity |
+| Q-CHAT18 | Browser notifications (CH6d): what does one say, and when? | (a) **Sender and conversation, plus the first 80 characters**; direct and group lines ring unless muted, channel lines only for a mention or a reply to you; never while the conversation is open and the tab visible. (b) As (a) but no text — "New message from Ana in Dispatch". (c) A per-person choice between (a) and (b) | **(a).** It is the person's own screen, behind their login, and the text is what makes the notification worth reading; the same rules as the bell (D-CHAT23) so one person's mute means the same thing in both. (c) is one setting more if a shared-screen office asks |
+| Q-CHAT19 | `@channel` / `@team` (one mention reaching every member)? | (a) **Not in CH6.** Names only. (b) In channels, team owners only. (c) Anyone, as Teams' default | **(a).** In a 300-member channel it is a bell item for each of 300 people from one line, and nobody has asked. (b) is one token kind more when somebody does |
 
 ## 11. Progress log
 
@@ -400,6 +472,13 @@ CH5 do not depend on each other and can merge in either order.
   refetches its posts/replies (they sit under `conversationKey(id)`, so there is no page for `/sync`
   to merge into), and a signal to me refreshes the rail with the inbox. The bubble, the composer and
   the pending line were lifted out of `ChatConversationPane` so all three views share them.
+- 2026-10-25: **CH5c merged** (#1758, d85df01, on staging at 0520) — release 2 complete on staging.
+  **CH6 planned** (§9.2): measured first (mute has a column and no writer; paging back exists in SQL
+  and API, not the web; the bell and `/sync`'s `rev` carry chat with no new transport), then split
+  into CH6a (paging, web), CH6b-1/-2 (0521: mentions, mute, Activity; then its reader), CH6c-1/-2
+  (0522: reactions, pins, saved; then its reader) and CH6d (browser notifications, web). Proposed
+  D-CHAT22–26 and Q-CHAT16–19, each with a recommendation. Migration numbers re-checked against main
+  at each merge.
 
 Sources consulted 2026-10-23: Supabase docs (Realtime limits, Postgres Changes, Broadcast,
 Authorization, billing); CometChat "Chat UI Architecture in 2026"; Stream "How to Sync Chat State After
