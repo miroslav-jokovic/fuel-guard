@@ -7413,7 +7413,7 @@ END)
   space_id  uuid
   visibility  text
   general  boolean  not null  default false
-  constraint message_threads_channel_shape: CHECK ((((kind = 'channel'::text) = (space_id IS NOT NULL)) AND ((kind = 'channel'::text) = (visibility IS NOT NULL))))
+  constraint message_threads_channel_shape: CHECK ((((kind = 'channel'::text) = (space_id IS NOT NULL)) AND ((kind = 'channel'::text) = (visibility IS NOT NULL)))) NOT VALID
   constraint message_threads_created_at_not_null: NOT NULL created_at
   constraint message_threads_created_by_fkey: FOREIGN KEY (created_by) REFERENCES auth.users(id) ON DELETE SET NULL
   constraint message_threads_direct_key_check: CHECK (((kind = 'direct'::text) = (direct_key IS NOT NULL)))

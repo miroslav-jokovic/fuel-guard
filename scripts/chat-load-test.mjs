@@ -106,18 +106,20 @@ async function setup() {
   }
   writeState(state);
 
-  if (!state.channel_id) {
-    // A channel through the table: CH5's create function does not exist yet, and a group stops at 250
-    // (0512). The participants' insert still writes their ledger rows (trg_chat_ledger_participants).
-    const id = randomUUID();
-    must(await admin.from("message_threads").insert({
-      id, org_id: state.org_id, kind: "channel", subject: "Load test channel", created_by: state.users[0],
-    }), "channel");
-    const rows = state.users.slice(0, CLIENTS).map((user_id, i) => ({
-      thread_id: id, user_id, org_id: state.org_id, role: "office", member_role: i === 0 ? "owner" : "member",
-    }));
-    must(await admin.from("thread_participants").insert(rows), "channel members");
-    state.channel_id = id;
+  // Keyed on team_id, not channel_id: a state file from before CH5a holds the channel this script once
+  // inserted straight into message_threads — a channel with no team, which 0518's channel-shape rule
+  // now refuses and which made the first staging run of 0518 fail (2026-10-24). The run uses the team's
+  // General channel instead: a group stops at 250 (0512), a team does not, and chat_team_create writes
+  // every member's participant row and ledger row the way the product does.
+  if (!state.team_id) {
+    const teamId = randomUUID();
+    const generalId = randomUUID();
+    must(await admin.rpc("chat_team_create", {
+      p_org: state.org_id, p_actor: state.users[0], p_space_id: teamId, p_general_id: generalId,
+      p_name: "Load test team", p_description: null, p_members: state.users.slice(1, CLIENTS),
+    }), "team");
+    state.team_id = teamId;
+    state.channel_id = generalId;
     writeState(state);
   }
   if (!state.group_id) {
