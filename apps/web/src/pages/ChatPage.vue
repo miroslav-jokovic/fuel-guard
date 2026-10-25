@@ -5,11 +5,12 @@ import { isRecordId } from "@silvicom/shared";
 import { useSessionStore } from "@/stores/session";
 import { useToastStore } from "@/stores/toast";
 import { useModulesQuery } from "@/composables/useModules";
-import { AppButton as BaseButton, AppCard as BaseCard, QueryState } from "@silvicom/ui";
+import { AppButton as BaseButton, AppCard as BaseCard, AppTabs, QueryState, type TabItem } from "@silvicom/ui";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import ChatConversationList from "@/features/chat/ChatConversationList.vue";
 import ChatConversationPane from "@/features/chat/ChatConversationPane.vue";
 import NewChatDialog from "@/features/chat/NewChatDialog.vue";
+import ChatTeamsView from "@/features/chat/teams/ChatTeamsView.vue";
 import {
   useChatConversationQuery,
   useChatCreateGroup,
@@ -42,12 +43,27 @@ const modules = useModulesQuery();
 const entitlementKnown = computed(() => modules.data.value !== undefined);
 const entitled = computed(() => modules.data.value?.has("messages") ?? false);
 
-const inbox = useChatInboxQuery(entitled);
+/**
+ * Chats or Teams (CH5c), in the URL as `?view=teams` so a link to a channel opens on Teams. Channels
+ * are listed by their team there, so the Chats list asks for direct and group conversations only; the
+ * sidebar badge still counts both (D-CHAT2).
+ */
+const VIEWS: TabItem[] = [
+  { value: "chats", label: "Chats" },
+  { value: "teams", label: "Teams" },
+];
+const view = computed({
+  get: () => (route.query.view === "teams" ? "teams" : "chats"),
+  // `query: {}` and not a copy without `c`/`ch`: vue-router would keep the old keys.
+  set: (v: string) => void router.push({ query: v === "teams" ? { view: "teams" } : {} }),
+});
+
+const inbox = useChatInboxQuery(computed(() => entitled.value && view.value === "chats"), ["direct", "group"]);
 const conversations = computed(() => inbox.data.value?.conversations ?? []);
 
 const selectedId = computed<string | null>(() => {
   const c = route.query.c;
-  return typeof c === "string" && isRecordId(c) ? c : null;
+  return view.value === "chats" && typeof c === "string" && isRecordId(c) ? c : null;
 });
 const conversation = useChatConversationQuery(selectedId);
 // The open conversation's own signals (CH3b); the shell already holds the inbox's.
@@ -124,7 +140,7 @@ async function start(memberIds: string[], subject: string | null) {
         <span v-if="chatLinkState === 'reconnecting'" role="status" class="text-sm text-ink-muted">
           Reconnecting… messages may take a few seconds.
         </span>
-        <BaseButton v-if="entitled" variant="primary" @click="starting = true">New conversation</BaseButton>
+        <BaseButton v-if="entitled && view === 'chats'" variant="primary" @click="starting = true">New conversation</BaseButton>
       </template>
     </PageHeader>
 
@@ -149,9 +165,13 @@ async function start(memberIds: string[], subject: string | null) {
          conversation (Teams' pattern), with Back in the conversation's header — side by side, both
          were too short to use (browser pass, 390×844).
          `_`, not `,`, inside brackets: Tailwind 4 reads a comma there as one value (MessagesPage). -->
+    <AppTabs v-if="entitled" v-model="view" :tabs="VIEWS" label="Chats or teams" id-prefix="chat-view" />
+
+    <ChatTeamsView v-if="entitled && view === 'teams'" :entitled="entitled" />
+    <!-- 3rem more than before CH5c in both heights: the Chats | Teams tabs above the panel. -->
     <div
-      v-else
-      class="grid h-[calc(100dvh_-_19rem_-_var(--assistant-clearance,0px))] min-h-96 gap-4 lg:h-[calc(100dvh_-_15rem_-_var(--assistant-clearance,0px))] lg:grid-cols-[20rem_minmax(0,1fr)]"
+      v-else-if="entitled"
+      class="grid h-[calc(100dvh_-_22rem_-_var(--assistant-clearance,0px))] min-h-96 gap-4 lg:h-[calc(100dvh_-_18rem_-_var(--assistant-clearance,0px))] lg:grid-cols-[20rem_minmax(0,1fr)]"
     >
       <BaseCard padding="none" class="min-h-0 overflow-y-auto" :class="selectedId ? 'hidden lg:block' : ''">
         <ChatConversationList v-if="conversations.length > 0" :conversations="conversations" :selected-id="selectedId" @open="open" />

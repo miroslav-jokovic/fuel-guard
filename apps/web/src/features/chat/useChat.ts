@@ -4,6 +4,7 @@ import type {
   ChatConversationResponse,
   ChatDirectoryEntry,
   ChatInboxResponse,
+  ChatKind,
   ChatMessage,
   ChatSendResponse,
 } from "@silvicom/shared";
@@ -27,6 +28,8 @@ import { chatLinkState } from "./transport";
 export const CHAT_KEY = ["chat"] as const;
 export const inboxKey = [...CHAT_KEY, "inbox"] as const;
 export const conversationKey = (id: string | null) => [...CHAT_KEY, "conversation", id] as const;
+/** The Teams rail. A channel's posts and replies sit under `conversationKey(id)`, so a send refreshes them. */
+export const teamsKey = [...CHAT_KEY, "teams"] as const;
 
 /** The poll used while the realtime link is live (D-CHAT2), else the one a poll-only page needs. */
 const RELAXED_POLL = 60_000;
@@ -38,11 +41,18 @@ async function unwrap<T>(p: ReturnType<typeof apiFetch<T>>, fallback: string): P
   return res.data;
 }
 
-export function useChatInboxQuery(enabled: Ref<boolean>) {
+/**
+ * The inbox. With no `kinds` it is every conversation — the sidebar badge's query, so an unread
+ * channel counts there (D-CHAT2). The /chat page's Chats list asks for `["direct", "group"]`, since
+ * channels are listed by their team on the Teams rail (CH5c). Its key sits under `inboxKey`, so
+ * everything that refreshes the inbox refreshes both.
+ */
+export function useChatInboxQuery(enabled: Ref<boolean>, kinds?: readonly ChatKind[]) {
+  const qs = kinds?.length ? `?kinds=${kinds.join(",")}` : "";
   return useQuery({
-    queryKey: inboxKey,
+    queryKey: kinds?.length ? ([...inboxKey, kinds.join(",")] as readonly string[]) : (inboxKey as readonly string[]),
     enabled,
-    queryFn: () => unwrap(apiFetch<ChatInboxResponse>("/api/chat"), "Could not load your conversations."),
+    queryFn: () => unwrap(apiFetch<ChatInboxResponse>(`/api/chat${qs}`), "Could not load your conversations."),
     refetchInterval: poll(30_000),
   });
 }
@@ -71,6 +81,8 @@ export function useChatConversationQuery(threadId: Ref<string | null>) {
 export interface PendingLine {
   message_id: string;
   thread_id: string;
+  /** The channel post it replies to (D-CHAT19); null for a line of the conversation itself. */
+  parent_id: string | null;
   body: string;
   state: "pending" | "failed";
   error: string | null;
@@ -85,12 +97,13 @@ export function mergeLines(
   server: readonly ChatMessage[],
   pending: readonly PendingLine[],
   threadId: string,
+  parentId: string | null = null,
 ): Array<{ kind: "server"; message: ChatMessage } | { kind: "local"; line: PendingLine }> {
   const known = new Set(server.map((m) => m.id));
   return [
     ...server.map((message) => ({ kind: "server" as const, message })),
     ...pending
-      .filter((p) => p.thread_id === threadId && !known.has(p.message_id))
+      .filter((p) => p.thread_id === threadId && p.parent_id === parentId && !known.has(p.message_id))
       .map((line) => ({ kind: "local" as const, line })),
   ];
 }
@@ -103,16 +116,21 @@ export function useChatSend(pending: Ref<PendingLine[]>) {
       : pending.value.map((p) => (p.message_id === id ? { ...p, ...patch } : p));
   };
   return useMutation({
-    mutationFn: async (input: { threadId: string; body: string; messageId?: string }): Promise<ChatSendResponse> => {
+    mutationFn: async (input: { threadId: string; body: string; messageId?: string; parentId?: string | null }): Promise<ChatSendResponse> => {
       const id = input.messageId ?? genUuid();
+      const parentId = input.parentId ?? null;
       if (!pending.value.some((p) => p.message_id === id)) {
-        pending.value = [...pending.value, { message_id: id, thread_id: input.threadId, body: input.body, state: "pending", error: null }];
+        pending.value = [...pending.value, { message_id: id, thread_id: input.threadId, parent_id: parentId, body: input.body, state: "pending", error: null }];
       } else {
         set(id, { state: "pending", error: null });
       }
+      // A reply goes to its post's own route (CH5b); everything else is a line of the conversation.
+      const path = parentId
+        ? `/api/chat/channels/${input.threadId}/posts/${parentId}/replies`
+        : `/api/chat/${input.threadId}/messages`;
       try {
         const sent = await unwrap(
-          apiFetch<ChatSendResponse>(`/api/chat/${input.threadId}/messages`, { method: "POST", body: { message_id: id, body: input.body } }),
+          apiFetch<ChatSendResponse>(path, { method: "POST", body: { message_id: id, body: input.body } }),
           "Could not send the message.",
         );
         await qc.invalidateQueries({ queryKey: conversationKey(input.threadId) });
@@ -123,7 +141,8 @@ export function useChatSend(pending: Ref<PendingLine[]>) {
         throw e;
       }
     },
-    onSettled: () => qc.invalidateQueries({ queryKey: inboxKey }),
+    // The rail too: a channel post moves its channel's place and counts.
+    onSettled: () => Promise.all([qc.invalidateQueries({ queryKey: inboxKey }), qc.invalidateQueries({ queryKey: teamsKey })]),
   });
 }
 
@@ -133,7 +152,7 @@ export function useChatMarkRead() {
     mutationFn: async (input: { threadId: string; seq: number }) => {
       await apiFetch(`/api/chat/${input.threadId}/read`, { method: "POST", body: { seq: input.seq } });
     },
-    onSettled: () => qc.invalidateQueries({ queryKey: inboxKey }),
+    onSettled: () => Promise.all([qc.invalidateQueries({ queryKey: inboxKey }), qc.invalidateQueries({ queryKey: teamsKey })]),
   });
 }
 

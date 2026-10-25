@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
+  CHAT_KINDS,
   CHAT_PAGE_SIZE,
   chatConversationSchema,
   chatDirectoryEntrySchema,
@@ -10,6 +11,7 @@ import {
   type ChatDirectoryEntry,
   type ChatHistoryResponse,
   type ChatInboxResponse,
+  type ChatKind,
   type ChatMessage,
   type ChatSendResponse,
   type ChatSyncResponse,
@@ -72,18 +74,22 @@ export async function rpc<T>(admin: SupabaseClient, fn: string, args: Record<str
   return { ok: true, value: data as T };
 }
 
-const OFFICE_KINDS = ["direct", "group", "channel"];
+const OFFICE_KINDS: readonly ChatKind[] = CHAT_KINDS;
 
-/** The inbox, newest first, one page. */
+/**
+ * The inbox, newest first, one page. `kinds` narrows it: the /chat page's Chats list asks for direct
+ * and group conversations, because channels are listed by their team on the Teams rail (CH5c); the
+ * sidebar badge asks for every kind, so an unread channel counts in it like any conversation (D-CHAT2).
+ */
 export async function chatInbox(
   admin: SupabaseClient,
   orgId: string,
   userId: string,
-  page: { before_at?: string | null; before_id?: string | null; limit?: number },
+  page: { before_at?: string | null; before_id?: string | null; limit?: number; kinds?: readonly ChatKind[] },
 ): Promise<ChatInboxResponse> {
   const limit = Math.min(Math.max(page.limit ?? CHAT_PAGE_SIZE, 1), 100);
   const res = await rpc<unknown[]>(admin, "chat_inbox", {
-    p_org: orgId, p_user: userId, p_kinds: OFFICE_KINDS,
+    p_org: orgId, p_user: userId, p_kinds: page.kinds?.length ? page.kinds : OFFICE_KINDS,
     p_before_at: page.before_at ?? null, p_before_id: page.before_id ?? null, p_limit: limit,
   });
   if (!res.ok) throw new Error(res.message); // the inbox raises nothing: a refusal here is a fault

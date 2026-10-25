@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from "vue";
-import { CHAT_BODY_MAX, chatTitle, type ChatConversationResponse } from "@silvicom/shared";
-import { AppButton as BaseButton, AppTextarea as BaseTextarea } from "@silvicom/ui";
+import { chatTitle, type ChatConversationResponse } from "@silvicom/shared";
+import { AppButton as BaseButton } from "@silvicom/ui";
 import { mergeLines, type PendingLine } from "./useChat";
-import { chatStamp } from "./chatTime";
+import ChatComposer from "./ChatComposer.vue";
+import ChatMessageBubble from "./ChatMessageBubble.vue";
+import ChatPendingBubble from "./ChatPendingBubble.vue";
 
 /**
  * One open conversation: the newest page of lines, oldest at the top, and the composer.
@@ -13,8 +15,8 @@ import { chatStamp } from "./chatTime";
  * "Seen" appears under your newest line in a direct conversation once the other person's read
  * boundary has passed it — the receipt dispatch asked for in 0096, now from `read_seq`.
  *
- * Edit and Remove act on your own lines only; the database refuses anything else (0512), so the
- * buttons only spare a round trip. A removed line keeps its place as "Message removed".
+ * Each server line is a `ChatMessageBubble` — Edit and Remove on your own, "Message removed" in a
+ * retracted line's place — the bubble a channel post and a reply use too (CH5c).
  */
 const props = defineProps<{
   data: ChatConversationResponse;
@@ -45,33 +47,7 @@ const myLastSeq = computed(() => {
   return mine.length ? mine[mine.length - 1]!.seq : null;
 });
 
-const draft = ref("");
-const over = computed(() => draft.value.length > CHAT_BODY_MAX);
-function submit() {
-  const body = draft.value.trim();
-  if (!body || over.value) return;
-  emit("send", body);
-  draft.value = "";
-}
-function onKey(e: KeyboardEvent) {
-  // Enter sends, Shift+Enter breaks the line — Teams' and Slack's default.
-  if (e.key === "Enter" && !e.shiftKey && !e.isComposing) {
-    e.preventDefault();
-    submit();
-  }
-}
 
-const editingId = ref<string | null>(null);
-const editDraft = ref("");
-function startEdit(id: string, body: string | null) {
-  editingId.value = id;
-  editDraft.value = body ?? "";
-}
-function saveEdit() {
-  const body = editDraft.value.trim();
-  if (editingId.value && body) emit("edit", editingId.value, body);
-  editingId.value = null;
-}
 
 const scroller = ref<HTMLElement | null>(null);
 watch(
@@ -101,65 +77,23 @@ watch(
       <p v-if="lines.length === 0" class="py-8 text-center text-sm text-ink-muted">No messages yet. Say hello.</p>
 
       <template v-for="l in lines" :key="l.kind === 'server' ? l.message.id : l.line.message_id">
-        <div
+        <ChatMessageBubble
           v-if="l.kind === 'server'"
-          class="group max-w-[75%] rounded-surface px-3 py-2 text-sm"
-          :class="l.message.sender_user_id === viewerId ? 'ml-auto bg-action-primary text-action-primary-foreground' : 'bg-surface-subtle text-ink'"
+          :message="l.message"
+          :viewer-id="viewerId"
+          :show-sender="data.conversation.kind !== 'direct'"
+          @edit="(id: string, body: string) => $emit('edit', id, body)"
+          @remove="(id: string) => $emit('remove', id)"
         >
-          <div v-if="l.message.sender_user_id !== viewerId && data.conversation.kind !== 'direct'" class="text-xs font-semibold opacity-80">
-            {{ l.message.sender_name ?? "Someone" }}
-          </div>
-          <template v-if="editingId === l.message.id">
-            <BaseTextarea v-model="editDraft" :rows="2" aria-label="Edit message" @keydown.enter.exact.prevent="saveEdit" @keydown.esc.stop="editingId = null" />
-            <div class="mt-1 flex justify-end gap-2">
-              <BaseButton size="sm" variant="ghost" @click="editingId = null">Cancel</BaseButton>
-              <BaseButton size="sm" @click="saveEdit">Save</BaseButton>
-            </div>
-          </template>
-          <div v-else class="whitespace-pre-wrap break-words" :class="l.message.deleted_at ? 'italic opacity-70' : ''">
-            {{ l.message.deleted_at ? "Message removed" : l.message.body }}
-          </div>
-          <div class="mt-0.5 flex items-center justify-end gap-2 text-2xs opacity-70">
-            <span>{{ chatStamp(l.message.created_at) }}</span>
-            <span v-if="l.message.edited_at && !l.message.deleted_at">· edited</span>
+          <template #stamp>
             <span v-if="data.conversation.kind === 'direct' && l.message.seq === myLastSeq && othersReadSeq >= l.message.seq">· Seen</span>
-          </div>
-          <div
-            v-if="l.message.sender_user_id === viewerId && !l.message.deleted_at && editingId !== l.message.id"
-            class="mt-1 hidden justify-end gap-2 text-2xs group-focus-within:flex group-hover:flex"
-          >
-            <BaseButton size="sm" variant="ghost" @click="startEdit(l.message.id, l.message.body)">Edit</BaseButton>
-            <BaseButton size="sm" variant="ghost" @click="$emit('remove', l.message.id)">Remove</BaseButton>
-          </div>
-        </div>
+          </template>
+        </ChatMessageBubble>
 
-        <div v-else class="ml-auto max-w-[75%] rounded-surface bg-action-primary px-3 py-2 text-sm text-action-primary-foreground opacity-80">
-          <div class="whitespace-pre-wrap break-words">{{ l.line.body }}</div>
-          <div class="mt-0.5 text-right text-2xs">
-            <template v-if="l.line.state === 'pending'">Sending…</template>
-            <template v-else>
-              Not sent — {{ l.line.error }}
-              <BaseButton size="sm" variant="ghost" @click="$emit('retry', l.line)">Retry</BaseButton>
-            </template>
-          </div>
-        </div>
+        <ChatPendingBubble v-else :line="l.line" @retry="(line: PendingLine) => $emit('retry', line)" />
       </template>
     </div>
 
-    <form class="border-t border-edge-subtle p-3" @submit.prevent="submit">
-      <BaseTextarea
-        v-model="draft"
-        :rows="2"
-        placeholder="Type a message — Enter to send, Shift+Enter for a new line"
-        aria-label="Message"
-        @keydown="onKey"
-      />
-      <div class="mt-2 flex items-center justify-between gap-2">
-        <span class="text-xs" :class="over ? 'text-danger-text' : 'text-ink-muted'">
-          <template v-if="over">{{ draft.length - CHAT_BODY_MAX }} characters too long</template>
-        </span>
-        <BaseButton type="submit" variant="primary" :disabled="!draft.trim() || over">Send</BaseButton>
-      </div>
-    </form>
+    <ChatComposer @send="(body: string) => $emit('send', body)" />
   </section>
 </template>

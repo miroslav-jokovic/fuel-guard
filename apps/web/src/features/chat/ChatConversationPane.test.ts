@@ -65,8 +65,8 @@ describe("ChatConversationPane", () => {
 
   it("shows a pending send as Sending…, and a failed one with its words and Retry", async () => {
     const pending: PendingLine[] = [
-      { message_id: "p1", thread_id: T, body: "on my way", state: "pending", error: null },
-      { message_id: "p2", thread_id: T, body: "gate code 4411", state: "failed", error: "Network down" },
+      { message_id: "p1", thread_id: T, parent_id: null, body: "on my way", state: "pending", error: null },
+      { message_id: "p2", thread_id: T, parent_id: null, body: "gate code 4411", state: "failed", error: "Network down" },
     ];
     const w = render(data([]), pending);
     expect(w.text()).toContain("Sending…");
@@ -120,12 +120,12 @@ describe("ChatConversationPane", () => {
 describe("mergeLines", () => {
   it("drops a pending line once the server lists its id — the server's copy wins", () => {
     const server = [msg(1, ME, { id: "p1" as unknown as string })];
-    const pending: PendingLine[] = [{ message_id: "p1", thread_id: T, body: "x", state: "pending", error: null }];
+    const pending: PendingLine[] = [{ message_id: "p1", thread_id: T, parent_id: null, body: "x", state: "pending", error: null }];
     expect(mergeLines(server, pending, T).map((l) => l.kind)).toEqual(["server"]);
   });
 
   it("keeps another conversation's pending lines out of this one", () => {
-    const pending: PendingLine[] = [{ message_id: "p9", thread_id: "elsewhere", body: "x", state: "pending", error: null }];
+    const pending: PendingLine[] = [{ message_id: "p9", thread_id: "elsewhere", parent_id: null, body: "x", state: "pending", error: null }];
     expect(mergeLines([], pending, T)).toEqual([]);
   });
 });
