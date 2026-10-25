@@ -82,11 +82,20 @@ alter table message_threads
 
 alter table message_threads
   add constraint message_threads_visibility_check check (visibility is null or visibility in ('public', 'private')),
-  -- A channel is exactly a thread in a team, with a visibility; nothing else carries either.
-  add constraint message_threads_channel_shape check (
-    (kind = 'channel') = (space_id is not null) and (kind = 'channel') = (visibility is not null)),
   -- General is a public channel.
   add constraint message_threads_general_shape check (not general or (kind = 'channel' and visibility = 'public'));
+
+-- A channel is exactly a thread in a team, with a visibility; nothing else carries either.
+-- NOT VALID, so it binds every row written from here on but does not judge the rows already there.
+-- Staging holds kind = 'channel' rows with no team: scripts/chat-load-test.mjs once inserted its
+-- 300-member "Load test channel" straight into message_threads, before any function could make a
+-- channel, and the first staging run of this file (2026-10-24, run 40118890753) failed on them with
+-- SQLSTATE 23514. Production has no channel rows. Validating would mean rewriting the kind of a
+-- conversation chat_ledger has already recorded, which is a history edit (D-CHAT12), so the old rows
+-- stay as they were written and the load test now makes its channel through chat_team_create.
+alter table message_threads
+  add constraint message_threads_channel_shape check (
+    (kind = 'channel') = (space_id is not null) and (kind = 'channel') = (visibility is not null)) not valid;
 
 create unique index if not exists uq_threads_space_general on message_threads (space_id) where general;
 -- One live channel of a name per team.

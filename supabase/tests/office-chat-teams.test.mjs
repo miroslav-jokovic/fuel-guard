@@ -67,7 +67,16 @@ await db.exec(`
   grant usage on schema public to anon, authenticated, service_role;
   alter default privileges in schema public grant all on tables to anon, authenticated, service_role;
 `);
-for (const f of MIGRATIONS) await db.exec(read(join("migrations", f)).replace(/create extension if not exists pgcrypto;?/gi, ""));
+const apply = async (f) => db.exec(read(join("migrations", f)).replace(/create extension if not exists pgcrypto;?/gi, ""));
+for (const f of MIGRATIONS.filter((m) => m < "0518")) await apply(f);
+// Staging, as 0518 first met it (2026-10-24, run 40118890753): scripts/chat-load-test.mjs had written
+// a kind = 'channel' row straight into message_threads, with no team and no visibility.
+const LT_ORG = (await one(`insert into organizations (id,name) values (gen_random_uuid(),'Load test org') returning id`)).id;
+const LT_USER = (await one(`insert into auth.users (email) values ('load-0@silvicom.test') returning id`)).id;
+await db.query(`insert into memberships (org_id, user_id, role) values ($1,$2,'dispatcher')`, [LT_ORG, LT_USER]);
+const LT_CHANNEL = (await one(`insert into message_threads (id, org_id, kind, subject, created_by)
+  values (gen_random_uuid(), $1, 'channel', 'Load test channel', $2) returning id`, [LT_ORG, LT_USER])).id;
+for (const f of MIGRATIONS.filter((m) => m >= "0518")) await apply(f);
 
 const ORG = (await one(`insert into organizations (id,name) values (gen_random_uuid(),'Silvicom') returning id`)).id;
 const ORG_B = (await one(`insert into organizations (id,name) values (gen_random_uuid(),'Other carrier') returning id`)).id;
@@ -87,6 +96,14 @@ const OUT = await person("outsider@other.test", ORG_B, "admin", "Other Admin");
 const uuid = async () => (await one(`select gen_random_uuid() id`)).id;
 const teams = (user, org = ORG) => all(`select * from chat_teams($1,$2)`, [org, user]);
 const inThread = async (thread, user) => !!(await one(`select 1 x from thread_participants where thread_id=$1 and user_id=$2 and left_at is null`, [thread, user]));
+
+// ── Rows written before 0518 ─────────────────────────────────────────────────────────────────────
+console.log("\n-- rows written before 0518 --");
+ok("0518 applies over a teamless channel written before it, and leaves that row as it was",
+  (await one(`select kind, space_id from message_threads where id=$1`, [LT_CHANNEL]))?.kind === "channel"
+  && (await one(`select convalidated from pg_constraint where conname='message_threads_channel_shape'`)).convalidated === false);
+ok("...while a teamless channel written after it is refused",
+  (await sqlstate(`insert into message_threads (id, org_id, kind, subject, created_by) values (gen_random_uuid(), $1, 'channel', 'x', $2)`, [LT_ORG, LT_USER])) === "23514");
 
 // ── Teams ───────────────────────────────────────────────────────────────────────────────────────
 console.log("\n-- teams --");
