@@ -160,8 +160,19 @@ export const directory = (): SurfaceGate => ({ kind: "directory", screens: [] })
  * configure exactly when its gate is a SECTION gate, because a section is the only thing the
  * permission matrix can move. Writing an `editable: false` beside a `staff` gate that already says
  * so would be a second home for one fact — the failure D-SURF3 names.
+ *
+ * ── AND A `staff` GATE THAT STARTS OFF (D-CHAT21, owner's ruling 2026-10-25) ──────────────────────
+ * A permission that belongs to no section — `chat.teams`, "may make office chat teams", which a
+ * dispatch lead may be given as readily as a fleet manager — had no gate both open to every office
+ * role and answerable by an org. A section gate fixes the ceiling at whoever holds the section
+ * (D-SURF2: a grant never lifts past it), and `staff` was never editable. So a `staff` surface that
+ * DECLARES `startsOnFor` is editable too: the declaration is the catalogue saying "an org answers for
+ * this", still derived from the entry rather than stored beside it. `chat`, the other `staff` screen,
+ * declares none and is unchanged; `lint:surfaces` refuses `startsOnFor` on every other non-section
+ * gate, so this cannot spread by accident.
  */
-export const isEditableSurface = (s: Surface): boolean => s.gate.kind === "section";
+export const isEditableSurface = (s: Surface): boolean =>
+  s.gate.kind === "section" || (s.gate.kind === "staff" && s.startsOnFor !== undefined);
 
 /**
  * Where a screen's answer lives before anybody has given one — `true` unless the catalogue says the

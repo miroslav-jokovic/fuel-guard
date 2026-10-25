@@ -150,6 +150,7 @@ export * from "./messagesContract.js";
 export * from "./chatContract.js";
 export * from "./chatComplianceContract.js";
 export * from "./chatComplianceRecordsContract.js";
+export * from "./chatTeamsContract.js";
 export * from "./rosterContract.js";
 export * from "./recruitmentContract.js";
 export * from "./authorizationContract.js";

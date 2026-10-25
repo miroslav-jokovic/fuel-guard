@@ -32,31 +32,51 @@ import { surfaceClaimFor } from "../modules/org/index.js";
  * request — and this middleware is on a handful of write endpoints, not on the read path, so the
  * cost lands where a round trip is already the smallest part of the work.
  */
-export function requireSurface(key: string) {
-  if (!SURFACES.some((s) => s.key === key)) {
+function catalogued(key: string, fn: string) {
+  const surface = SURFACES.find((s) => s.key === key);
+  if (!surface) {
     // Fail at construction rather than per request: a typo'd key would otherwise gate on a surface
     // that does not exist, which `surfaceAllowed` answers `true` for — an open door that reads as a
     // closed one. `lint:surfaces` catches it before this can run, and this is the belt.
-    throw new Error(`requireSurface("${key}") names no surface in the catalogue`);
+    throw new Error(`${fn}("${key}") names no surface in the catalogue`);
   }
+  return surface;
+}
+
+/**
+ * The same question as `requireSurface`, answered as a boolean for an endpoint that serves the holder
+ * and the non-holder differently rather than refusing one of them. Office chat's team acts are the
+ * case (D-CHAT21): a team owner renames their own team either way, and the `chat.teams` holder may
+ * rename anybody's — the database is told which as `p_manager`. Same resolver, same personal answers.
+ */
+export function holdsSurface(key: string) {
+  const surface = catalogued(key, "holdsSurface");
+  return async (req: Request): Promise<boolean> => {
+    const orgId = req.auth?.orgId;
+    if (!orgId) return false;
+    const role = (req.auth?.role ?? null) as UserRole | null;
+    const admin = getSupabaseAdmin(getAppLocals(req).env);
+    // The caller's own id, so their PERSONAL answers apply here as they do in `/api/me` (D-SURF6).
+    // Without it this read the role layer alone: a member the admin had turned a screen off for
+    // still passed the API gate, and one the admin had turned a screen ON for — the only way a
+    // single person gets a screen that starts off (Q-SET2) — would be refused by it.
+    const claim = await surfaceClaimFor(admin, orgId, role, req.auth?.userId ?? null);
+    return surfaceAllowed(surface, role, req.auth?.sections ?? null, claim);
+  };
+}
+
+export function requireSurface(key: string) {
+  const surface = catalogued(key, "requireSurface");
+  const holds = holdsSurface(key);
 
   return (req: Request, res: Response, next: NextFunction): void => {
-    const orgId = req.auth?.orgId;
-    if (!orgId) {
+    if (!req.auth?.orgId) {
       res.status(403).json(apiError("no_membership", "Account is not linked to an organization yet"));
       return;
     }
-    const surface = SURFACES.find((s) => s.key === key)!;
-    const admin = getSupabaseAdmin(getAppLocals(req).env);
     void (async () => {
       try {
-        const role = (req.auth?.role ?? null) as UserRole | null;
-        // The caller's own id, so their PERSONAL answers apply here as they do in `/api/me` (D-SURF6).
-        // Without it this read the role layer alone: a member the admin had turned a screen off for
-        // still passed the API gate, and one the admin had turned a screen ON for — the only way a
-        // single person gets a screen that starts off (Q-SET2) — would be refused by it.
-        const claim = await surfaceClaimFor(admin, orgId, role, req.auth?.userId ?? null);
-        if (!surfaceAllowed(surface, role, req.auth?.sections ?? null, claim)) {
+        if (!(await holds(req))) {
           res.status(403).json(apiError("surface_denied", `Your organisation has not given your role access to ${surface.label}.`));
           return;
         }

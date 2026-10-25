@@ -64,6 +64,8 @@ const PATTERNS: ReadonlyArray<{ bucket: DriverWriteBucket; re: RegExp }> = [
   { bucket: "message", re: /^\/api\/messages\/[^/]+\/messages\/?$/ },
   // Office chat: a new message. Opening a conversation and editing are not counted — they write no line.
   { bucket: "chat_message", re: /^\/api\/chat\/[^/]+\/messages\/?$/ },
+  // A channel reply is a new line too (D-CHAT19), on the same daily budget as a post.
+  { bucket: "chat_message", re: /^\/api\/chat\/channels\/[^/]+\/posts\/[^/]+\/replies\/?$/ },
 ];
 
 export function driverWriteBucket(method: string, pathname: string): DriverWriteBucket | null {

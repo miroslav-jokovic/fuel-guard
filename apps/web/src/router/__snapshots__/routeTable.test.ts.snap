@@ -602,6 +602,11 @@ exports[`the route table survives being split by area > resolution 1`] = `
     "url": "/settings/chat-compliance",
   },
   {
+    "name": "chat-teams",
+    "params": {},
+    "url": "/settings/chat-teams",
+  },
+  {
     "name": "privacy-policy",
     "params": {},
     "url": "/privacy",
@@ -1303,6 +1308,16 @@ exports[`the route table survives being split by area > route table 1`] = `
     },
     "name": "chat-compliance",
     "path": "/settings/chat-compliance",
+    "redirect": null,
+  },
+  {
+    "meta": {
+      "parent": "/settings",
+      "requiresAuth": true,
+      "title": "Chat teams",
+    },
+    "name": "chat-teams",
+    "path": "/settings/chat-teams",
     "redirect": null,
   },
   {

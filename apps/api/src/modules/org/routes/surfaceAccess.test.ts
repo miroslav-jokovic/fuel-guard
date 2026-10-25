@@ -144,8 +144,10 @@ describe("GET /api/surface-access", () => {
     expect(keys.every((k) => !k.endsWith(".detail"))).toBe(true);
     expect(body.editableRoles).not.toContain("admin");
     expect(body.editableRoles).not.toContain("driver");
-    // Every offered screen names the section it can never reach past (D-SURF2).
-    expect(body.surfaces.every((s) => s.section !== null)).toBe(true);
+    // Every offered screen names the section it can never reach past (D-SURF2) — but one: Chat teams,
+    // a permission of no section that any office role can be given (D-CHAT21), whose ceiling is
+    // "office role" rather than a section.
+    expect(body.surfaces.filter((s) => s.section === null).map((s) => s.key)).toEqual(["chat.teams"]);
   });
 
   /**
