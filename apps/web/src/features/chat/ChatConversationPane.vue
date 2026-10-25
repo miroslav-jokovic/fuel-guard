@@ -24,7 +24,7 @@ const props = defineProps<{
   pending: PendingLine[];
   sending: boolean;
 }>();
-const emit = defineEmits<{
+defineEmits<{
   send: [body: string];
   retry: [line: PendingLine];
   edit: [messageId: string, body: string];
