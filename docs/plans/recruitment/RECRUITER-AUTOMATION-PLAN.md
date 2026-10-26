@@ -1,313 +1,551 @@
-# Recruiter automation — Claude Duet, Tenstreet, in-house agents, and ads we control · 2026-10-26
+# Recruiter automation — the whole hire, automated as far as the law and the owner allow · 2026-10-26
 
-**Status: PROPOSED. Nothing built. Two earlier owner rulings would change (§0.2), so §7 comes before
-any code.**
+**Status: PROPOSED. Nothing built. RA0 (the owner's rulings in §9) comes before any code.**
 
-The owner's ask (2026-10-26): automate and assist the recruiters. Three candidate routes were named:
+The owner's ask (2026-10-26, in two parts): first, *automate and help the recruiters* — Claude Duet,
+Tenstreet over its API with agents inside Silvicom 360, or ads run from our own system; then, *list
+everything we should build to automate recruitment as much as possible*, planned to an enterprise
+standard, "100% reliable and precise without assumptions."
 
-1. **Claude Duet** (Anthropic's proactive personal agent).
-2. **Tenstreet over its API**, with **agents inside Silvicom 360**.
-3. **An automated system for running social-media ads**, controlled by Silvicom 360.
+This document is that plan. It extends `LEAD-SOURCING-PLAN.md` (2026-09-25, D-LS1–10, S0–S8),
+`RECRUITING-SYSTEM-PLAN.md` (R0–R10) and `HIRING-MODULE-PLAN.md`; it does not replace them. Where it
+re-states a step from one of those plans it says so and keeps that plan's ID.
 
-He asked for everything we could build, and only solutions that are reliable and enterprise grade.
-
-This document extends `LEAD-SOURCING-PLAN.md` (2026-09-25, D-LS1–10, phases S0–S8). It does not
-replace it. That plan's ledger, Hiring Profile and attribution are the foundation every route below
-stands on. That plan and its research note were written in commit `94627f7` and never reached main.
-They arrive in the same PR as this document, so the references resolve.
+**How "without assumptions" is honoured here.** Every claim that something *exists* cites the file
+and line it was read at on main `c0e2801` (2026-10-26). Every fact the plan needs and does not have
+is a numbered question in §9 with an owner, candidate answers, a recommendation and the fallback the
+code takes if it is never answered. Every step in §7 has a *done when* that is a measurement, not an
+opinion. §5 lists the reliability rules and names the gate, trigger or test that enforces each one.
+Where a measurement could not be made, the row says **UNVERIFIED** rather than guessing.
 
 ---
 
-## 0. Ground truth, and the two rulings this ask collides with
+## 0. The three routes the owner named, in one page
 
-### 0.1 What exists (measured on main `c0e2801`)
-
-- **Silvicom 360 already holds an ATS.** It covers the invite (by email or by text, #1675/#1679),
-  the wizard, Spanish (C4, #1701), capture, the §391.21 packet PDF, the checklist and board
-  (`modules/recruiting/applicantChecklist.ts`, `applicantBoard.ts`), MVR, Clearinghouse and
-  drug-test recording (D1), Med-Stop, nudges (one per part, Q-AW37), dispositions and adverse
-  action. `docs/SILVICOM-360.md` calls it **"code-complete and legally inert until counsel clears
-  the instruments."**
-- **Leads, attribution and a Hiring Profile do not exist.** There are no lead tables in
-  `supabase/migrations/`. The only source hint is the free-text `heard_from`, and it is projected
-  nowhere. **Today nobody can say which channel produces hires**, so no ad budget can be steered by
-  results yet.
-- **The carrier's live recruiting runs in Tenstreet.** McLeod's `dbo.driver_application` holds 2
-  rows and `driver.tenstreet_id` exists (`MCLEOD-SQL-SOURCE-OF-TRUTH.md` §0). Whether the Tenstreet
-  contract is still active, what it costs and when it renews are **not known to this repo** (Q-RA1).
-- **The AI rails exist.** `lib/anthropic.ts` (`callClaude`, forced-tool structured output) and
-  `packages/shared/src/ai.ts` (`AI_MODELS`, `withinBudget`, `aiInputHash`). BOL reading and hazmat
-  extraction are the precedents for budgeted, hashed and reviewed extraction.
-- **The contact rails exist.** Telnyx SMS is gated on `sms_consents`, which today requires
-  `driver_id`, so a lead cannot hold consent. Email goes through Brevo and has **no suppression
-  list**.
-
-### 0.2 Earlier rulings this ask would replace. Say so before building
-
-| Ruling | What it says | What the new ask needs |
+| Route | Verdict | Why (details in §2) |
 |---|---|---|
-| **D-LS6** (owner, 2026-09-25) | *"all the contacts will be done by real persons and not automated."* No triggered or bulk SMS or email to a lead, no autodialer, no AI voice agent. | "Automatization" that **contacts** people breaks it. Drafting, queueing, reading and checking do not. |
-| **Q-LS7** (open, recommendation recorded) | "The system ingests; it does not buy media." | An ad system that creates campaigns and moves budget replaces this. |
-
-Neither is mine to overturn. §7 puts both back to the owner with candidates. Note one thing that
-is already true: the nudge sweep (`applicationNudgeSweep.ts`) **already sends an automated message to
-an applicant**. D-LS6 was written about *leads*, people who have not applied. The line the owner
-drew is therefore really **"no automated first contact"**, not "no automation." Q-RA2 asks him to
-confirm that reading.
+| **Claude Duet** | **No**, for applicant data | A personal agent for individual US Pro/Max subscribers (research preview since 2026-10-21; no Team/Enterprise). Applicant PII would leave our RLS, audit and retention. It sees only the inbox, never the checklist, the MVR or the board. Its *shape* (morning brief, approve-before-send, ping when done) is built inside Silvicom as A1. |
+| **Tenstreet API** | **One-way feed only (T2)**, and only if the owner keeps Tenstreet until our flow goes live | Tenstreet pushes application data to a URL we give it, after an approval by email; fees and schema are not public. The carrier's live intake runs there today (McLeod `driver.tenstreet_id`). A two-way sync is a second source of truth and is rejected. Tenstreet Assistant (VoiceBot calls, auto welcome messages) is not exposed over the API. |
+| **Agents inside Silvicom 360 + an ads control plane** | **Recommended** | Our ATS already exists and is more complete than the earlier summary said (§1.1). Agents draft, read and check against the system of record; a person sends and decides. Ads are created paused, capped and reconciled daily, and spend moves only on a person's approval. |
 
 ---
 
-## 1. Route 1 · Claude Duet: **not for applicant data**
+## 1. Ground truth, measured 2026-10-26 (main `c0e2801`)
 
-**Facts (2026-10-26):**
+### 1.1 The applicant pipeline that exists
 
-- Duet launched 2026-10-21 as a research preview, for **US Pro and Max subscribers only, from a
-  waitlist. Team and Enterprise plans are not included.**
-- It is a *personal* agent. It reads one person's Gmail, Slack and other connectors (6,000+), sends
-  a morning brief, takes tasks by message and asks before it sends, pays, signs or deletes.
-- You cannot choose its model or watch its browser. Anthropic itself warns it may misread a thread
-  or misjudge urgency.
+Paths: `api/` = `apps/api/src/modules/`, `shared/` = `packages/shared/src/`, `mig/` =
+`supabase/migrations/`, `web/` = `apps/web/src/features/`.
 
-**Why it fails "enterprise grade" for recruiting:**
-
-- **The data goes to the wrong place.** Applicant PII (SSN-adjacent identity, MVR, drug-test
-  status) would flow through each recruiter's *consumer* subscription. That subscription sits
-  outside the organisation's agreements and outside Silvicom's RLS, audit log and retention rules.
-- **It cannot be held to our rules.** D-LS6, the HB 3773 AI notice and the FEHA four-year
-  record-keeping all need every AI action logged against the applicant's record. Duet's log lives
-  in Duet.
-- **It sees only what reaches the inbox.** It cannot read the checklist, the board, the MVR or the
-  packet, so its brief would be built from email fragments, not from the system of record.
-
-**What it is fine for:** the owner's or a recruiter's own calendar and non-applicant email. **The
-idea worth taking is its shape:** a morning brief, approval before any send, and a ping when work
-finishes. That shape is built *inside* Silvicom as agent A1 (§3), where it can read the real queue.
-
----
-
-## 2. Route 2 · Tenstreet over its API
-
-### 2.1 What the API is (public facts; no public developer docs are indexed)
-
-- **Access is by request, approved per use.** The client emails Tenstreet a description of the use.
-  After approval, the client gives Tenstreet a URL, and **Tenstreet POSTs to it**: all application
-  data, documents, subject updates and Xchange (VOE) data. Delivery can be manual, nightly, or on
-  every subject update. The listener acknowledges each delivery, and Tenstreet retries until every
-  delivery is accepted. Data can also go *in*: lead and application records can be posted to
-  Tenstreet.
-- **Fees, rate limits and the schema are not published.** Third parties (LeadsBridge) describe the
-  approval as strict. Q-RA1 must get the real terms from the carrier's Tenstreet account manager.
-- **Tenstreet now sells its own agent.** *Tenstreet Assistant* was announced at UConnect26 in May
-  2026, with rollout planned for August 2026.
-  - It runs **VoiceBot calls** to candidates and **automatic welcome messages** to new leads.
-  - It reviews PSP-against-application and MVR-against-application discrepancies, reads
-    Clearinghouse reports, rekeys faxed VOEs and finds additional licences.
-  - It is built into Tenstreet. **None of it is exposed over the API.**
-  - Vendor claims: 25% of routine time saved, and heavy users hire at 4.5% against 2%. Read these
-    as marketing.
-- Tenstreet's own June 2026 analysis of about 5,000 carriers found that **driver interest, built
-  through personal recruiter contact, is the strongest predictor of a hire**, and drivers say they
-  prefer a human. That supports D-LS6's instinct rather than undermining it.
-
-### 2.2 The real decision is the system of record, not the integration
-
-Two ATSs cannot both be the answer. A two-way sync between them is exactly the "second source of
-truth" `CLAUDE.md` forbids. The three possible postures:
-
-| Posture | What it means | Verdict |
+| Capability | State | Evidence |
 |---|---|---|
-| **T1 · Tenstreet stays the ATS** | Silvicom takes a one-way push of *hired* drivers' applications and documents into the DQF. We stop investing in our own application flow. | Cheapest and lowest risk, but it writes off the application system, the packet, the instruments and the counsel work, and it pays Tenstreet indefinitely. Agents would then belong inside Tenstreet (Assistant), not inside Silvicom. |
-| **T2 · Silvicom becomes the ATS; Tenstreet is a one-way feed until cutover** | Tenstreet's push lands in our lead ledger (S1). The Tenstreet subject id becomes `external_ref`, and the ledger is idempotent on it. Recruiters work from Silvicom. Historical applications are imported once for DQF evidence. Tenstreet is cancelled at renewal. | **Recommended**, *if* the owner confirms Silvicom is meant to be the ATS (D-S360 already lists Applications as a Silvicom 360 safety feature). It is reliable because the data flows one way, has one owner and has a cut-off date. |
-| **T3 · Two-way sync** | Both systems are edited and kept in step. | **Rejected.** Every conflict becomes a recruiter's problem, and every agent has to ask which system is right. |
+| Applicant = `drivers` row, `status='applicant'` (D-HIRE5); no separate table | EXISTS | `web/recruitment/useCreateApplicant.ts:19-44`; vocabulary `mig/0240:24` |
+| Invite by email, by text (recruiter attests the applicant asked), rotate, revoke; token stored as SHA-256; 14-day default TTL in `recruiting_settings` | EXISTS | `api/recruiting/applicationLink.ts:115,168`; `applicationInviteText.ts`; `shared/applicationIntake.ts:28`; `mig/0379:40-58` |
+| Part 1 intake (v2), consents and releases, Part 2 §391.21 form, office review, signing ceremony, filing through `submit_driver_application`, 31-page packet PDF, countersign | EXISTS | `api/recruiting/routes/publicApplicationIntake.ts:49-88`; `applicationReview.ts:62-292`; `applicationSubmit.ts:232,347`; `mig/0376:1189`; `mig/0387` |
+| Spanish (C4) | EXISTS | merged 2026-10-21 (#1701) |
+| Checklist: 19 steps folded from evidence rows; federal gates + handbook block the hire; orientation rows have `evidence: null` and never block | EXISTS | `shared/hiringSteps.ts:40-326`; `shared/hiringChecklist.ts:353,420`; `api/recruiting/applicantChecklistInputs.ts:100-115` |
+| Nudges: one `part_one` and one `part_two` reminder after `reminder_after_hours` (default 48), every 6 h, text via outbox (needs consent) then email; token rotated first | EXISTS | `api/recruiting/applicationNudgeSweep.ts:240,269`; `api/evidence/dqAlertScheduler.ts:229`; `shared/applicationNudge.ts:36,115-119,179` |
+| Drug test **ordered** through Med-Stop (admin, safety_manager, recruiter) and **results read back** by a sweep; a verified negative auto-files `qualification_records.drug_test`; positive/refusal/dilute notifies the DER | EXISTS | `api/medstop/routes/order.ts:15,94`; `api/medstop/syncTests.ts`; `sync.ts:211`; `outcomes.ts:114` |
+| Med-Stop person created automatically when Part 1 completes (10 per sweep, one attempt, never retried) | EXISTS | `api/medstop/applicantCreate.ts:41,99,122,140`; `queue/handlers/medstop.ts:24` |
+| Appointment text to the applicant (`drug_test_site` template) | EXISTS | `api/recruiting/applicantDrugTestSend.ts:19`; `routes/drugTest.ts:136` |
+| PSP **ordered** through the FMCSA PSP API, auto-files `psp_report`; portal purchases importable | EXISTS | `api/psp/pspOrder.ts:286,325`; `routes/pspOrders.ts:163`; `routes/psp.ts:84` |
+| MVR, Clearinghouse query, medical-registry verification: **recorded by hand**, no vendor call. MVR integration was deferred on purpose (Q-HM2: the office pulls and uploads) | EXISTS (manual) | `api/recruiting/routes/hiringEvidence.ts:80,108,168`; `shared/hiringEvidence.ts:63` |
+| §391.23 employer inquiries: letter composed, attempts ledgered, 30-day clocks, replies **filed by hand**; **no send path** (Q-PEI2 open); phone verification calls ledgered | EXISTS (E1–E5) | `api/recruiting/routes/inquiries.ts:66-169`; `shared/inquiryQueue.ts:28,30,141`; `mig/0223:27`; `mig/0376:1112` |
+| Dispositions `declined / withdrawn / no_response`, free-text reason, `rested_on_consumer_report`, append-only | EXISTS | `shared/applicantDisposition.ts:23`; `mig/0238:46-80` |
+| **Adverse action notices: NOT BUILT** (R10). Only disclosure text and the flag exist; no pre-adverse/adverse steps or timers | NOT BUILT | `api/recruiting/fcraSummary.ts:64`; `pspDisclosure.ts:66-68`; `mig/0238` comment |
+| Road test (§391.31): examiners, ceremony, certificate, driver's copy | EXISTS (RT0–RT4) | `api/recruiting/routes/roadTest.ts:43-159`; `mig/0372` |
+| Handbook signing + countersign; blocks the hire | EXISTS (HB0–HB5, QH0) | `api/recruiting/routes/handbook.ts:50-177`; `mig/0374:42,91`; `mig/0387:53` |
+| Orientation (OR1–OR3), training videos (D4), live sessions (D5) | NOT BUILT | `mig/0373` kinds only; `web/recruitment/hiringStepDrawers.ts:145-146` shows "unbuilt" |
+| Hire: `hire_applicant` sets `status='active'` + `hire_date`, hands employment-history records over, ends links; **needs `roster` manage, so a recruiter cannot hire**. **Does not** create a driver-app login, Samsara link, EFS card or McLeod record | EXISTS (partial) | `api/recruiting/hireApplicant.ts:102,183,213`; `routes/hire.ts:43-61`; `mig/0386:68,126-136` |
+| Purge (admin, archived first, typed name; refuses anyone hired or linked) | EXISTS | `api/recruiting/applicantPurge.ts:55`; `mig/0380`, `0387` |
+| Draft/capture prune (the "A11 90-day prune" the comments mention) | **UNVERIFIED — no job found** | `applicantChecklistInputs.ts:205` comment only |
+| Leads, source attribution, Hiring Profile, prefill from a lead (A3b) | NOT BUILT | no `recruiting_leads` migration; `RECRUITING-SYSTEM-PLAN.md:540-588` |
+| Web: `/recruitment` board (7 stages), `/recruitment/:id` record + step drawers, `/recruitment/screening`, `/recruitment/inquiries`, `/recruitment/templates`, `/settings/recruiting`, `/apply/:token` | EXISTS | `apps/web/src/router/routes/recruitment.ts`; `shared/surfaceCatalogue.ts:53,202-306,413` |
+| Recruiter role: `recruitment: manage`, `roster: view`, nothing else; may order Med-Stop; may read investigation history; drug-test records stay with admin/safety_manager | EXISTS | `shared/auth.ts:158,347-349` |
 
-**Caveat that changes T2's timing:** our application flow is *legally inert* until counsel clears
-it. T2 therefore cannot cut over before the counsel package closes. Before that, T2 means **Tenstreet
-remains the live intake, and Silvicom mirrors it read-only** so that the agents in §3 have data to
-work on.
+### 1.2 The platform rails an automation module stands on
+
+| Rail | State | Evidence |
+|---|---|---|
+| Durable job queue: `dedup_key`, `attempts`/`max_attempts` (5), `run_after`, leases, `claim_next_job` with `SKIP LOCKED`, backoff `min(300, 5·2^(n-1))` s, terminal `status='failed'` with `error` | EXISTS | `mig/0027`, `mig/0095:7-22,46-107`; `apps/api/src/queue/worker.ts:19-21,88`; `queue/types.ts:21-39` |
+| Handlers are at-least-once and must be idempotent | EXISTS (contract) | `queue/types.ts:21-22` |
+| Failed-jobs API exists; **no page renders it** | PARTIAL | `api/org/routes/jobs.ts:56,63` |
+| Schedulers: single registry, one runner per lane via DB lease (D-RLY2, 0506); boot reclaim lease-aware | EXISTS | `apps/api/src/schedulers.ts:38-46,53-96,110-154`; `docs/WORKER-DEPLOYMENT.md` "Lanes and leases" |
+| Some schedulers are bare `setInterval` with no ledger row (SMS outbox drain) | GAP | `api/recruiting/smsOutboxScheduler.ts:36`; `jobs.ts:58-76` |
+| AI: `callClaude` is **hard-wired to the fuel-risk tool**; raw SDK used by document reading, hazmat, Ask-AI | PARTIAL | `apps/api/src/lib/anthropic.ts:5-42,60-82` |
+| AI models pinned: `fast: claude-haiku-4-5`, `deep: claude-sonnet-4-6` | EXISTS | `shared/ai.ts:10-12` |
+| AI budget: `anomaly_thresholds.ai_monthly_token_budget`, spend in `org_usage_month`, `withinBudget` | EXISTS | `mig/0003:177`; `mig/0130:16`; `shared/ai.ts:149` |
+| AI provenance pattern: `document_reads` stores `models[]`, `prompt_version`, `schema_hash`, `cache_key`, tokens, closed `failure_code` incl. `budget_exhausted`; review rows in `document_read_reviews` (confirmed/corrected, explicit) | EXISTS (pattern) | `mig/0448:143-186`; `web/hazmat/bolRead/bolReview.ts` |
+| AI USD cost column | NONE | — |
+| SMS: `sendOrQueueSms` checks wording, live consent, usable number, suppression, local hours; closed template list; outbox stores template+params only; STOP/receipts via Ed25519-verified webhook | EXISTS | `api/recruiting/smsOutbox.ts:62,225-262`; `mig/0376:1368-1429`; `apps/api/src/routes/webhooks.ts:49-100` |
+| `sms_consents.driver_id` **NOT NULL** — a lead cannot hold consent; `lead_form` already reserved as a source | GAP (known) | `mig/0233:25-54`; `shared/smsConsentContract.ts:36`; `mig/0504:43-44` |
+| SMS send retry/backoff | NONE | `smsOutbox.ts:202-203` |
+| Toll-free verification (+1 833 352 1766, "HR / Staffing") — **approval UNVERIFIED**; last seen "Waiting For Vendor" 2026-09-29 | UNVERIFIED | `docs/plans/sms/SMS-PROVISIONING.md` |
+| Email: `sendEmail` (Brevo/Resend) with outbound allowlist; **no suppression, unsubscribe, List-Unsubscribe or bounce webhook anywhere** | GAP | `apps/api/src/lib/mailer.ts:2-97` |
+| Inbound email: only the M365 mailbox for EFS reports | GAP | `apps/api/src/lib/graphMail.ts` |
+| Secrets: per-integration credentials tables sealed with AES-256-GCM (`secretBox`), AAD = org+purpose | EXISTS (pattern) | `apps/api/src/lib/secretBox.ts:4-30,114,129`; `mig/0463:18-32` (Med-Stop) |
+| Raw payload stored whole + thin projection + idempotency key (D-PSP2) | EXISTS (pattern) | `mig/0216:30-69` |
+| Webhook signature verification: HMAC-SHA256 (Samsara), Ed25519 (Telnyx) | EXISTS (pattern) | `api/samsara/fuelEventsWebhook.ts:14-20`; `lib/telnyxSignature.ts:33` |
+| `audit_logs` append-only (trigger), `writeAudit` | EXISTS | `mig/0003:185-197`; `mig/0395:63-80`; `apps/api/src/lib/audit.ts:4-43` |
+| Retention: `RETENTION_RULES` + `RETENTION_FORBIDDEN`, daily `data_retention` job | EXISTS | `api/org/dataRetentionPolicy.ts:24-45`; `dataRetentionForbidden.ts:12` |
+| Per-domain settings table pattern (`recruiting_settings`, service-role only, defaults in code) | EXISTS | `mig/0379:40-58`; `api/recruiting/recruitingSettings.ts:30-59` |
+| Notifications: `notify()` with `dedupeKey`, categories in `NOTIFICATION_CATEGORIES` **and** a DB CHECK (both must change for a new category) | EXISTS | `api/messaging/notify.ts:15-110`; `shared/notificationsContract.ts:17-115`; `mig/0521:308-317` |
+| Reports: service does I/O, pure shared fold does the math (fleet report) | EXISTS (pattern) | `api/financial/fleetReport.ts:117`; `shared/tmsCost/fleetReport.ts:216` |
+| Public routes: token-only; **no tokenless page**; limiters are in-memory per replica; **no CAPTCHA/Turnstile** | GAP | `api/recruiting/routes/publicApplication.ts:76-228`; `apps/api/src/middleware/applicationLimits.ts:55-58` |
+| Driver-app login: username + password on a synthetic Supabase user, issued by the roster module; `drivers.user_id` | EXISTS | `api/roster/driverCredentials.ts:11-22`; `roster/routes/credentials.ts:61-148`; `mig/0329` |
+| Samsara driver sync: matches id → phone → name, **skips applicants**, inserts unmatched; our token is read-only | EXISTS | `api/samsara/samsaraDriverSync.ts:34-45,174,215,228`; [[samsara-api-token-is-read-only]] |
+| EFS: `fuel_cards.driver_id`; EFS import auto-creates drivers by name (`identity_source='efs'`); new hires' cards reach us 1–7 days before McLeod does | EXISTS | `mig/0007:13-25`; `api/efs/services/efsCardLinking.ts`; `api/mcleod/rosterDriverSettle.ts` |
+| McLeod roster: not a creation source; link → CDL → name; unmatched reported, never inserted; rehire detected (D-MR7a) | EXISTS | `api/mcleod/rosterIngest.ts`; `rosterMatch.ts`; `rosterDriverSettle.ts` |
+
+### 1.3 Where the other recruiting plans stand (their own logs, read 2026-10-26)
+
+| Plan | Built | Not built / open |
+|---|---|---|
+| RECRUITING-SYSTEM (R0–R10) | R0a, R0b, R0b2, R2b, R9 | **R0 interview (Q-REC1 never answered)**, R1 leads, R2 pre-qualification, R3/R4 MVR (deferred by Q-HM2), R7 training, R8 orientation half, **R10 notices** (unblocked by Q-REC8, sending waits counsel Q9) |
+| APPLICATION-SYSTEM | A1–A11c | A3b prefill (waits R1) |
+| APPLICATION-FLOW-V2 | C0–C4, M1/M2, AW6, Q-AW55/56 | C3d4 perf parked; Q-AW54 `capture_mode`; real-phone QA walk owed |
+| EMPLOYER-INQUIRY | E1–E5 | E6 driver's §391.23(i)–(k) rights, E7 hire-time records; Q-PEI1–4 open |
+| ORIENTATION | OR0 (0373) | OR1–OR3; Q-OR7 (§382.601 policy text missing), Q-OR8 |
+| ROAD-TEST | RT0–RT4 complete | — |
+| HANDBOOK-SIGNING | HB0–HB5, QH0–QH2 | Q-HB2 re-sign on amendment (deferred) |
+| MVR-RELEASE-AND-TEMPLATES | MV0–MV3 live | Q-MVR1–11 (mostly counsel/wording) |
+| DRIVER-TRAINING | nothing | all phases; D4/D5 of HIRING-MODULE |
+| SMS-OPT-IN | SMS1–SMS4, D-SMS11 | toll-free approval UNVERIFIED; 0 production consents at last measure (09-29); Q-SMS3–5 |
+| COUNSEL-REVIEW-PACKAGE | memo written 2026-09-24 | **no answers recorded; whether it was SENT is UNVERIFIED** |
+
+### 1.4 Corrections to the list given in chat on 2026-10-26
+
+The chat list said "Exists" for adverse action: **it does not** (R10 not built). It said drug-test
+results read-back, PSP pull and the medical registry check were new: **drug test read-back and PSP
+pull exist**; only the registry check is new. It said travel booking "exists in part": `applicant_travel`
+and `TravelPanel.vue` exist; no booking integration does. Everything else in that list stands.
 
 ---
 
-## 3. Route 2b · Agents inside Silvicom 360: the catalogue
+## 2. The three routes, with the facts behind the verdicts
 
-Every agent follows four rules, inherited from D-LS2/D-LS3/D-LS4 and the BOL reader:
+### 2.1 Claude Duet
+Launched 2026-10-21 as a research preview for **US Pro and Max subscribers from a waitlist; Team and
+Enterprise are not included**. It reads one person's Gmail/Slack/etc. (6,000+ connectors), sends a
+morning brief, takes tasks by message and asks before it sends, pays, signs or deletes. The model is
+not selectable and its browser cannot be watched; Anthropic warns it may misjudge urgency.
 
-- **The model reads and drafts, and pure rules decide.** No agent rejects, ranks by an opaque
-  score, or dispositions anyone (D-LS3).
-- **Every output is shown beside its source** and confirmed by a named person before it becomes a
-  fact. Every output is stored with the model, the prompt version and `aiInputHash`, and labelled
-  "AI" in the UI (the HB 3773 notice and FEHA records).
-- **Every agent is budgeted** (`withinBudget`), idempotent on its input hash, and runs as a worker
-  job with retries, never inside a request.
-- **No agent sees protected characteristics or their proxies.** That means no photo, no inferred
-  ethnicity, no age beyond the policy gate and **no ZIP code** (HB 3773 names ZIP).
+Why it is not enterprise grade *for applicant data*: PII would sit under each recruiter's consumer
+subscription, outside the org's agreements, RLS, `audit_logs` and `RETENTION_RULES`; HB 3773 notice
+and FEHA record-keeping need every AI action logged against the applicant, and Duet's log lives in
+Duet; it cannot read the checklist, the MVR, the board or the packet. It stays fine for a person's
+own calendar and non-applicant mail. Its shape is A1 (§4.3).
 
-| # | Agent | What it does for the recruiter | Contacts anyone? | Depends on | Value |
-|---|---|---|---|---|---|
-| **A1** | **Recruiter morning brief + queue** | The Duet shape, inside Silvicom: who to call today and why, ordered by "hard requirements met → fewest unknowns → freshness." It shows new leads not yet contacted, stalled applications, expiring links and orientation dates at risk. It is delivered in-app and, optionally, by email to the *recruiter*. | No | S1, S2 | **High.** Speed to first contact is the variable carriers win on. |
-| **A2** | **Lead intake extractor** | Turns a job-board email, a Meta lead, a Tenstreet push, a pasted Facebook post or a resume into a structured lead, shown beside the source text for confirmation. Deduplicates on phone and email against leads, applicants and drivers. | No | S1, S5 | High |
-| **A3** | **Requirement matcher + "why"** | The pure `leadMatch` returns meets, does-not-meet or unknown per requirement, with the evidence level. The model only writes the plain-English reason. | No | S2 | High |
-| **A4** | **Message drafter** | Writes a first message, a follow-up or a reply in the carrier's voice and in English or Spanish. **The recruiter edits and sends.** | No, the person sends | S1 | Medium-high |
-| **A5** | **Call notes → facts** | The recruiter pastes notes or a call transcript. The agent proposes structured facts (experience, endorsements, home-time wish) and the recruiter ticks each one. | No | S1 | Medium |
-| **A6** | **Application discrepancy reviewer** | Compares the §391.21 application with the MVR, PSP and Clearinghouse results and the 10-year employment history. It flags undisclosed violations, licence mismatches, unexplained gaps and the 3-year commercial-driving window. This is Tenstreet Assistant's "processing" tier, built on our own records. | No | Existing D1 records | **High.** It replaces hand reading, and every flag cites the line it came from. |
-| **A7** | **§391.23 VOE assistant** | Drafts the previous-employer inquiries, tracks the 30-day clock, reads returned PDFs and faxes into structured responses (the `EMPLOYER-INQUIRY-PLAN` records) and flags non-responses for the good-faith-effort note. | **Employers, not drivers.** The send is the recruiter's click until Q-RA2 says otherwise. | Employer-inquiry module | **High.** VOE chasing is the slowest step in most hires. |
-| **A8** | **Document reader** | Reads the CDL, medical card and SSN-card photos into fields (class, endorsements, expiry, restrictions) and checks them against the application. This reuses the BOL reader's pipeline and its review screen. | No | Existing capture | Medium-high |
-| **A9** | **Orientation readiness check** | Before the date, it checks that every checklist item, document, drug test result and road test is in place, and tells the recruiter what is missing and who owns it. | No | Checklist | Medium |
-| **A10** | **Job ad and posting writer** | From one requisition (the Hiring Profile plus pay, home time and lane), writes the job page, the Indeed posting and the Meta ad text in English and Spanish. It checks every claim against the profile, so no ad promises pay the profile does not hold. | No | S2, §4 | Medium |
-| **A11** | **Source quality and fairness analyst** | Weekly, per channel and campaign: leads, reached, qualified, applied, hired, still seated at 90 days and cost. It runs a disparate-impact check on dispositions per requirement (HB 3773 judges *effect*) and writes a plain summary. | No | S1, S7 | **High.** This is what makes "reliable" measurable. |
-| **A12** | **Applicant-initiated Q&A** | On the job page, answers questions about pay, home time and equipment **from the Hiring Profile only**. It hands off to a recruiter and never asks about protected traits. | Replies only when the driver starts the conversation | S2, Q-RA2 | Medium. Needs the owner's ruling. |
-| *A13* | *Outbound AI voice or SMS agent (the Tenstreet VoiceBot / Double Nickel kind)* | Calls or texts leads on its own. | **Yes, automated first contact** | — | **Not proposed.** It breaks D-LS6 and carries TCPA exposure of $500–$1,500 per message, mostly in class actions. Listed so the owner sees it was considered. |
+### 2.2 Tenstreet
+- **API (public facts only; no developer docs are indexed).** A client emails Tenstreet how it will
+  use the data; after approval it gives Tenstreet a URL and **Tenstreet POSTs**: all application
+  data, documents, subject updates and Xchange (VOE) data — manually, nightly, or on each subject
+  update; the listener answers accepted/rejected and Tenstreet retries until accepted. Records can
+  also be posted *in*. Fees, rate limits and the schema are **not published** (Q-RA1).
+- **Tenstreet Assistant** (UConnect26, May 2026; rollout planned August 2026): VoiceBot calls,
+  automatic welcome messages, PSP/MVR-vs-application discrepancy review, Clearinghouse reading,
+  VOE rekeying. Built into Tenstreet; **not over the API**. Vendor claims (25% time saved, 4.5% vs
+  2% hire rate) are marketing.
+- Tenstreet's own June 2026 analysis of ~5,000 carriers: driver interest built through personal
+  recruiter contact is the strongest predictor of a hire. That supports D-LS6.
+
+**Postures.** T1 (Tenstreet stays the ATS; Silvicom imports hired drivers' documents for the DQF)
+writes off the application system, the packet and the counsel work and pays Tenstreet indefinitely.
+**T2 (recommended)**: Tenstreet pushes into our lead ledger with the subject id as `external_ref`
+until our flow is cleared by counsel, then is cancelled at renewal. T3 (two-way) is rejected: a
+second source of truth (`CLAUDE.md`, "No workarounds").
+
+### 2.3 Ads and job boards — platform rules (read 2026-10-26)
+- **Meta.** Marketing API on our *own* ad account needs Standard access + Business Verification
+  (Advanced access/App Review only for other businesses' accounts). Job ads **must** declare
+  `special_ad_categories: ["EMPLOYMENT"]` + `special_ad_category_country`: all ages 18–65+, all
+  genders, no ZIP or lookalike targeting, US location widened to ≥15 miles. Lead Ads webhooks carry
+  only `leadgen_id`; fields are fetched with a Page token holding `leads_retrieval`,
+  `pages_manage_metadata`, `pages_show_list`, `pages_read_engagement`, `ads_management`. One
+  secondary source says employment lead forms may not ask age/gender/location — **verify against
+  Meta's policy before RA5** (Q-RA10). Vendor cost claim ≈ $27 per CDL applicant (Boostpoint 2026).
+- **Google.** Google for Jobs is free: it crawls `JobPosting` JSON-LD on our pages; the Indexing
+  API lists a new page within hours. Google Ads employment policy (US): no age, gender, parental
+  status, marital status or ZIP targeting; radius ≥ 1 km, city and country allowed.
+- **Indeed.** Release notes 2026-07-31: "The Job Sync API is now available to direct employers."
+  The Job Sync guide still says the opposite. **Confirm with Indeed before RA5** (Q-RA5). Sponsored
+  Jobs API is gated on recent sponsored spend. Indeed Apply into a non-partner ATS is not available;
+  leads can arrive by email.
+- **TikTok, LinkedIn, CDL boards:** not researched; later S5 adapters after reading each platform's
+  employment policy.
+
+### 2.4 Law that binds the design (to counsel; none of this is legal advice)
+- **Illinois HB 3773** (in force 2026-01-01): AI in recruitment with a discriminatory *effect* is
+  actionable; **ZIP code is a named proxy**; notice of AI use is required. IDHR withdrew its draft
+  rules 2026-06-02; the duty stands, the form is unsettled.
+- **California FEHA ADS regulations** (2025-10-01): employers ≥5, vendor-as-agent liability, four
+  years of records, anti-bias testing relevant to defence. *Mobley v. Workday* (2026-06-22): FEHA may
+  reach screening tools even for jobs outside California. Applies if we hire California residents
+  (Q-RA6b).
+- **Colorado SB 26-189** (2027-01-01): transparency model, AG enforcement.
+- **TCPA:** automated or prerecorded contact needs prior express consent; revocation by any
+  reasonable means since 2025-04-11; $500–$1,500 per message, mostly class actions. A recruiter
+  dialling or typing one message by hand is not automated.
+- **FCRA:** scoring people on data they did not give us is where the risk sits (*Kistler v.
+  Eightfold*, 2026). Our match runs only on facts the person supplied or we hold from a prior
+  relationship (D-LS10).
+- **DPPA:** no DMV-derived lists, ever.
 
 ---
 
-## 4. Route 3 · Ads we control: an ads control plane
+## 3. Decisions proposed (D-RA*)
 
-### 4.1 What the platforms allow (2026-10-26)
+Each is a rule the code enforces, not a preference. None is ruled until the owner says so.
 
-- **Meta (Facebook and Instagram).**
-  - The Marketing API manages *our own* ad account with **Standard access**, plus **Business
-    Verification**. Advanced access and App Review are needed only to manage other businesses'
-    accounts.
-  - Job ads **must** be declared `special_ad_categories: ["EMPLOYMENT"]`. That forces all ages and
-    genders, removes ZIP and lookalike targeting, and widens US location targeting to at least a
-    15-mile radius.
-  - Lead Ads deliver a webhook that carries only the `leadgen_id`. We fetch the fields with a Page
-    token that has `leads_retrieval`, `pages_manage_metadata`, `pages_show_list`,
-    `pages_read_engagement` and `ads_management`.
-  - The cost claim is about $27 per CDL applicant (Boostpoint, 2026; vendor figure).
-- **Google.**
-  - **Google for Jobs** is free. Google crawls `JobPosting` JSON-LD from our own job pages, and the
-    Indexing API lists a new page within hours.
-  - **Google Ads employment policy** (US) bars targeting by age, gender, parental status, marital
-    status and ZIP. Radius, city and country targeting are allowed.
-- **Indeed.**
-  - The **Job Sync API "is now available to direct employers"** (Indeed release notes,
-    2026-07-31), so we can post and update jobs ourselves. Indeed's own Job Sync guide still says
-    the opposite. Confirm with Indeed before building (Q-RA5).
-  - The Sponsored Jobs API is gated on recent sponsored spend. Indeed Apply into our own ATS needs
-    the ATS-partner agreement, which is still unrealistic for one carrier. Leads can arrive by
-    email to the intake (A2).
-- **TikTok, LinkedIn and CDL boards** (CDLjobs, JobsInTrucks). Not researched to the same depth.
-  Treat them as later S5 adapters, and check each platform's employment policy first.
+- **D-RA1 · One system of record for applicants: Silvicom 360.** Tenstreet is a one-way feed (T2)
+  with a cut-off date. No two-way sync. Enforced: the Tenstreet listener writes only to
+  `recruiting_leads` / raw payload tables; no job kind posts to Tenstreet.
+- **D-RA2 · No automated first contact.** Default reading of D-LS6 pending Q-RA2: nothing automated
+  reaches a person who has not applied. Automated *transactional* messages to an applicant with a
+  live consent (confirmations, document requests, reminders) are allowed — the nudge sweep already
+  does this. Enforced: every outbound route takes exactly one recipient; `JobKind` has no kind that
+  sends to a lead; a test pins both (D-LS6's test, extended).
+- **D-RA3 · Rules decide, the model reads and drafts.** Verdicts come from pure functions in
+  `packages/shared` (`leadMatch`, discrepancy rules, readiness rules). The model extracts, explains
+  and drafts. No AI output rejects, ranks by an opaque score or dispositions anyone. Enforced:
+  `lint:boundaries` keeps the model call out of `packages/shared`; a fold test proves each verdict
+  from fixtures without any model.
+- **D-RA4 · Every AI output carries its provenance and a human confirmation.** Stored with `model`,
+  `prompt_version`, `schema_hash`, `input_hash`, tokens, and a `status` of
+  `proposed | confirmed | corrected | rejected` with `actor`. Nothing proposed becomes a fact without
+  a confirmation row. Labelled "AI" in the UI. This is `document_reads`' pattern (`mig/0448`), reused.
+- **D-RA5 · No agent sees a protected characteristic or a proxy.** No photo, no inferred ethnicity,
+  no age beyond the ≥21/policy gate, no gender, **no ZIP code** (HB 3773). Enforced: the contract
+  each agent is given is an allowlist of fields; a test asserts the forbidden keys are absent from
+  the prompt payload for every agent.
+- **D-RA6 · Money moves only on a person's approval, under a cap, and is reconciled daily.**
+  Campaigns are created paused; launch, budget change and new campaign are approval actions with
+  `created_by`; a monthly cap per channel lives in `recruiting_ads_settings` and is checked before any
+  platform call; platform-reported spend is reconciled against our ledger every day and a mismatch
+  alerts, never self-corrects. One action pauses everything.
+- **D-RA7 · Every inbound lead is idempotent and keeps its raw payload.** Key `(org, channel,
+  external_ref)`; raw payload whole + re-derivable projection (D-PSP2); unsigned webhooks are
+  refused; every connector has a daily backfill so a missed push is caught.
+- **D-RA8 · Every automation is a ledgered job or a leased scheduler, with a terminal failure a
+  person can see.** No bare `setInterval`. Failed jobs get a page (the `jobs.ts:63` gap closes in
+  RA1). Vendor-calling kinds have `KIND_CAPS` of 1.
+- **D-RA9 · Every agent has its own on/off switch per org, off by default, and a monthly budget.**
+  In `recruiting_ai_settings`; the switch is read at run time; budget exhaustion is a recorded
+  `failure_code`, not a crash.
+- **D-RA10 · Measure before optimising.** Ads budget reallocation runs as a *recommendation* until
+  A11 has eight weeks of 90-day-seated data; automatic reallocation is a later switch (D-RA9).
+- **D-RA11 · Deriving beats restating.** Hiring requirements live once, in the versioned Hiring
+  Profile; ads copy, the lead form's questions, `leadMatch` and the job page all read it. No ad may
+  state a figure the profile does not hold (A10's check).
+- **D-RA12 · A lead is operational, not evidence.** Prunable under `RETENTION_RULES` after Q-LS6's
+  window; `recruiting_contacts` and consent rows are append-only and in `RETENTION_FORBIDDEN`.
 
-### 4.2 The design: one requisition, many channels, one ledger
+---
+
+## 4. The catalogue — everything to build, by stage of the hire
+
+Columns: **State** = EXISTS (with evidence in §1) / PLANNED (plan and step) / NEW. **Auto** = the
+system does it alone, no message to a driver · **Approve** = prepared, one click by a person ·
+**Person** = drafted or reminded, a recruiter does it. **Phase** refers to §7.
+
+### 4.1 Job openings and ads
+| # | Item | State | Auto level | Phase |
+|---|---|---|---|---|
+| 1.1 | Versioned **Hiring Profile** (age, experience, endorsements, equipment, disqualifiers, look-back windows, hiring area as *distance from a named yard with a written reason* — never ZIP) | PLANNED (LEAD-SOURCING S2 / R2) | Person sets, versioned | RA1 |
+| 1.2 | **Requisition** (opening): profile version + pay, home time, lane, equipment, start date, headcount; the single source every ad derives from (D-RA11) | NEW | Approve | RA1 |
+| 1.3 | **A10 ad/posting writer**: job page, Indeed posting, Meta ad text, EN + ES, each claim checked against the profile | NEW | Auto draft → Approve | RA5 |
+| 1.4 | **Public job pages** with `JobPosting` JSON-LD + sitemap + Indexing API ping (Google for Jobs) | PLANNED (S4) | Auto | RA5 |
+| 1.5 | **Indeed Job Sync**: post, update, close | NEW (Q-RA5) | Auto | RA5 |
+| 1.6 | **Meta campaign create** (paused, EMPLOYMENT category set in code, no editable audience fields for age/gender/ZIP) | NEW | Approve | RA6 |
+| 1.7 | Google Ads campaign create | NEW | Approve | later |
+| 1.8 | **Auto-close**: filled or closed requisition pauses/ends every linked ad and posting | NEW | Auto | RA6 |
+| 1.9 | **Daily spend pull** per platform + **reconcile** against our ads ledger; mismatch → alert | NEW | Auto | RA6 |
+| 1.10 | **Monthly cap per channel** + **kill switch** | NEW (`recruiting_ads_settings`) | Auto, enforced | RA6 |
+
+### 4.2 Getting leads in
+| # | Item | State | Auto level | Phase |
+|---|---|---|---|---|
+| 2.1 | **Lead ledger** `recruiting_leads` (`channel/source/campaign/external_ref`, raw payload), `recruiting_contacts` append-only, `convert_lead` → applicant + invite carrying attribution | PLANNED (R1 / S1) | Auto | RA1 |
+| 2.2 | Lead-stage SMS consent: `sms_consents.lead_id`, `driver_id` relaxed to "one of" (0233's reserved change) | PLANNED (S4) | Auto | RA1 |
+| 2.3 | **Lead form** on the job page: profile's hard questions, HB 3773 AI notice, optional separate SMS consent, rate limit + bot defence (Q-RA11: Turnstile or equivalent — none exists today) | PLANNED (S4) | Auto | RA5 |
+| 2.4 | **Meta Lead Ads webhook** + daily `/leads` backfill | PLANNED (S5) | Auto | RA3 |
+| 2.5 | **Intake mailbox** per org: parses Indeed/board applicant emails (needs inbound email — only M365 EFS mailbox exists; Q-RA12 which mailbox) | PLANNED (S5) | Auto | RA3 |
+| 2.6 | **Tenstreet push listener** (T2): accept/reject protocol, raw stored, `external_ref` = subject id | NEW (Q-RA1) | Auto | RA3 |
+| 2.7 | **Signed generic webhook** for any vendor (HMAC, replay bound — Samsara/Telnyx pattern) | PLANNED (S5) | Auto | RA3 |
+| 2.8 | **Paste box** + later browser extension for public "looking for work" posts (D-LS9 signals) | PLANNED (S5a/S5b) | Person captures, Auto reads | RA3 / later |
+| 2.9 | **A2 extractor**: any source → `leadContract`, shown beside the source text | PLANNED (S5) | Auto → Person confirms | RA3 |
+| 2.10 | **Dedupe** on E.164 phone / lower(email) vs leads, applicants, drivers; merge suggestion (A-merge) | PLANNED (S1) | Auto | RA1 |
+| 2.11 | **Phone line-type check** (mobile vs landline/VoIP) via Telnyx Number Lookup (Q-RA13 cost) | NEW | Auto | RA3 |
+| 2.12 | **Referral link** in the driver app → `referral` lead credited to the driver | PLANNED (S8) | Auto | RA8 |
+
+### 4.3 Qualifying and responding fast
+| # | Item | State | Auto level | Phase |
+|---|---|---|---|---|
+| 3.1 | **A3 `leadMatch`**: per-requirement `meets / does_not_meet / unknown` + evidence level + profile version; model writes the plain-English *why* | PLANNED (S2) | Auto (rules) | RA1 |
+| 3.2 | **Call-today queue** ordered `hard met → fewest unknowns → freshness`; every row shows why | PLANNED (S2) | Auto | RA2 |
+| 3.3 | **A1 morning brief** per recruiter: in-app (`notify`, new category `recruiting_brief` in contract + DB CHECK) and email to the *recruiter*; deduped per day | NEW | Auto | RA2 |
+| 3.4 | Uncontacted-lead badge in nav; response-time alert over a threshold in settings | NEW | Auto | RA2 |
+| 3.5 | **Lead assignment** (round-robin or by yard/lane), reassign on inactivity | NEW (Q-RA14 rule) | Auto | RA2 |
+| 3.6 | Callback reminders the recruiter set | NEW | Auto | RA2 |
+| 3.7 | **Owned pools**: former drivers imported hidden until a person marks rehire-eligible (Q-LS4); stalled/`no_response` applicants resurfaced after N days | PLANNED (S3) | Auto list → Person | RA2 |
+
+### 4.4 Talking with drivers
+| # | Item | State | Auto level | Phase |
+|---|---|---|---|---|
+| 4.1 | **A4 drafter**: first message, follow-up, reply; EN/ES; carrier voice | PLANNED (S6) | Person sends | RA2 |
+| 4.2 | **Conversation on the record**: inbound SMS threaded to the lead/applicant (outbox + webhook exist; threading view is new) | PARTIAL (`applicationSms.ts:288`) | Person | RA2 |
+| 4.3 | **A5 call notes → facts**, each ticked by the recruiter | PLANNED (S6) | Person confirms | RA2 |
+| 4.4 | Click-to-call with the call logged as a `recruiting_contacts` row (Q-RA15: Telnyx Voice or dialer link only) | NEW | Person | RA4 |
+| 4.5 | **Booking link** (interview / orientation) synced to the recruiter's calendar (Q-RA16: M365 Graph calendar — `graphMail.ts` precedent — or none) | NEW | Driver self-books → Auto | RA4 |
+| 4.6 | **Transactional automated messages** to consented applicants: confirmation, document request, appointment reminder (closed template list, one per event, deduped) | PARTIAL (nudges) | Auto **if Q-RA2 (b)** | RA2 |
+| 4.7 | **Email suppression + unsubscribe + bounce webhook** (List-Unsubscribe; Brevo/Resend bounce events) — prerequisite for any automated email | NEW | Auto | RA1 |
+| 4.8 | SMS outbox retry/backoff (today: fail once) | NEW | Auto | RA1 |
+| 4.9 | **A12 applicant Q&A** on the job page, answers only from the profile, hands off to a recruiter, never asks protected traits | NEW | Replies only when the driver starts | RA7, if Q-RA2 allows |
+
+### 4.5 The application
+| # | Item | State | Auto level | Phase |
+|---|---|---|---|---|
+| 5.1 | Invite by email/text, Part 1, Part 2, Spanish, packet, signing, countersign | EXISTS (§1.1) | — | — |
+| 5.2 | Stalled-application reminders, one per part | EXISTS | Auto | — |
+| 5.3 | **A3b prefill** from the lead's answers (nothing typed twice) | PLANNED (APPLICATION-SYSTEM A3b) | Auto | RA3 |
+| 5.4 | **A8 document reader**: CDL, medical card, SSN card photos → fields, checked against the application; reuses `document_reads` pipeline + BOL review screen | NEW (pipeline EXISTS) | Auto → Person confirms | RA4 |
+| 5.5 | **Gap and window checks**: 10-year history gaps, 3-year commercial-driving window, employer count vs inquiry rows | NEW (pure fold) | Auto flags | RA4 |
+| 5.6 | Draft/capture prune per A11 (comment only today) — **verify whether it exists; build if not** | UNVERIFIED | Auto | RA1 |
+
+### 4.6 Background checks
+| # | Item | State | Auto level | Phase |
+|---|---|---|---|---|
+| 6.1 | MVR, Clearinghouse, drug test recorded on the applicant | EXISTS | Person records | — |
+| 6.2 | Drug test ordered via Med-Stop; results read back; negative auto-files | EXISTS | Auto | — |
+| 6.3 | PSP pulled via FMCSA API; auto-files | EXISTS | Auto | — |
+| 6.4 | MVR ordered from a vendor | **DEFERRED by Q-HM2** (office pulls by hand) | — | not planned; re-ask only if the owner reopens Q-HM2 |
+| 6.5 | **Medical-examiner National Registry check** (NRCME has no public API; Q-RA17: manual with a deep link + reminder, or a vendor) | NEW | Approve / Person | RA4 |
+| 6.6 | **A6 discrepancy reviewer**: application vs MVR, PSP, Clearinghouse, employment history — undisclosed violations, licence mismatches, date conflicts; every flag cites the line | NEW | Auto flags → Person decides | RA4 |
+| 6.7 | **A7 VOE assistant**: drafts §391.23 requests, **sends by email from our domain** (Q-PEI2), tracks the 30-day clock (exists), reads replies (PDF/fax image) into `employer_inquiries.outcome` for confirmation, chases non-responses, writes the good-faith-effort note | PARTIAL (compose + clock EXIST; send, read, chase NEW) | Approve to send, Auto to read | RA4 |
+| 6.8 | Employer **online reply link** (Q-PEI3) | PLANNED (EMPLOYER-INQUIRY) | Auto | RA4 |
+| 6.9 | **Checklist auto-ticks** — already true for every step with an evidence row; what is new is 6.5–6.7 writing their rows | EXISTS (mechanism) | Auto | — |
+| 6.10 | E6: the driver's §391.23(i)–(k) review/rebuttal rights | PLANNED (EMPLOYER-INQUIRY E6) | Person | RA4 |
+
+### 4.7 Decision and offer
+| # | Item | State | Auto level | Phase |
+|---|---|---|---|---|
+| 7.1 | No automatic rejection (D-LS3) | — | Person | — |
+| 7.2 | **R10 adverse action**: pre-adverse notice + copy of report + FCRA summary, waiting period timer, adverse notice; sent from Silvicom (Q-REC8 ruled) — **sending waits on counsel memo Q9** | PLANNED (R10) | Approve; Auto timer | RA4 (build), send on counsel |
+| 7.3 | **Structured decision reason** (closed list + note) on every disposition; feeds 11.6 | NEW (today free text) | Person, enforced | RA1 |
+| 7.4 | **Offer letter** from a template, e-signed with the existing mark ceremony | NEW (Q-RA18 whether the carrier uses one) | Approve | RA7 |
+| 7.5 | Recruiter may **hire**? Today needs `roster` manage | EXISTS (restriction) | Q-RA19 | RA1 if ruled |
+
+### 4.8 Orientation and start
+| # | Item | State | Auto level | Phase |
+|---|---|---|---|---|
+| 8.1 | **Orientation date as an event** → welcome message (consented), pre-orientation forms, training enrolment, travel task, equipment task | NEW (OR1–3 NOT BUILT; Q-OR7/8 open) | Auto | RA7 |
+| 8.2 | Travel: `applicant_travel` + panel exist; booking integration | PARTIAL | Approve | later |
+| 8.3 | **A9 readiness check** N days before: every gate, document, test and road test present or named with its owner | NEW | Auto | RA4 |
+| 8.4 | Road test scheduling + scored form | EXISTS (RT0–RT4) | — | — |
+| 8.5 | Handbook signing | EXISTS | — | — |
+| 8.6 | Training videos + quizzes, live sessions | PLANNED (DRIVER-TRAINING, D4/D5) | — | separate plan |
+
+### 4.9 From applicant to driver (the hidden manual work)
+| # | Item | State | Auto level | Phase |
+|---|---|---|---|---|
+| 9.1 | Hire sets `active` + `hire_date`, hands evidence over | EXISTS | Approve | — |
+| 9.2 | **DQF assembled** from the applicant's evidence — already the same rows (applicant = driver row) | EXISTS by construction | Auto | — |
+| 9.3 | **Driver-app credentials** issued at hire (reuse `driverCredentials.ts`), delivered by the recruiter in person or by consented text | NEW (mechanism EXISTS) | Approve | RA6 |
+| 9.4 | **Samsara driver** created/linked — our token is read-only; needs a write-scoped token (Q-RA20) or stays a checklist item | NEW | Auto *or* Person | RA6 / Q-RA20 |
+| 9.5 | **EFS card assigned**: link the card EFS issued (arrives 1–7 days before McLeod) to this driver row instead of letting import create a by-name duplicate (`identity_source='efs'`) | NEW (linking EXISTS) | Approve | RA6 |
+| 9.6 | **McLeod record**: Alex enters it; we **check** within N days that a McLeod driver matched by CDL exists and alert if not (rosterMatch by CDL EXISTS) | NEW (check) | Person, Auto check | RA6 |
+| 9.7 | Payroll/settlement setup checklist (owner's items; Q-RA21) | NEW | Person, tracked | RA6 |
+| 9.8 | **Truck ready on day one**: assignment present in McLeod/Samsara by orientation date, else alert | NEW | Auto check | RA6 |
+| 9.9 | **Hire-time records citing the inquiry rows** (E7) | PLANNED | Auto | RA6 |
+
+### 4.10 The first 90 days and rehires
+| # | Item | State | Auto level | Phase |
+|---|---|---|---|---|
+| 10.1 | Day 7/30/60 check-ins drafted for recruiter / fleet manager | NEW | Person | RA8 |
+| 10.2 | **Early-warning flags**: no load in X days, idle, roadside event, complaint — read from loads/Samsara/inspections through their modules' interfaces (D-SEP1) | NEW | Auto | RA8 |
+| 10.3 | **Exit reason + rehire-eligible flag**, required when status leaves `active` (McLeod holds no reason — this is the only place it will exist) | NEW | Person, enforced | RA8 |
+| 10.4 | Former-driver pool, hidden until marked eligible | PLANNED (S3) | Auto → Person | RA2 |
+| 10.5 | Withdrawn/no-response applicants offered back after N days | PLANNED (S3) | Auto list → Person | RA2 |
+| 10.6 | Referral link + credit (bonus policy is the owner's) | PLANNED (S8) | Auto | RA8 |
+
+### 4.11 Managers and reports
+| # | Item | State | Auto level | Phase |
+|---|---|---|---|---|
+| 11.1 | **Funnel per channel/source/campaign**: lead → contacted → qualified → applied → hired → seated at 90 days | PLANNED (S7) | Auto (pure fold) | RA6 |
+| 11.2 | **Cost per driver seated at 90 days**, per channel (spend from 1.9) | NEW | Auto | RA6 |
+| 11.3 | Budget recommendations → owner approves → API applies | NEW | Approve | RA7 |
+| 11.4 | Recruiter workload + response-time report | NEW | Auto | RA6 |
+| 11.5 | **A11 weekly summary**: what moved, what is stuck, which source is working | NEW | Auto | RA6 |
+| 11.6 | **Disparate-impact check** on dispositions per requirement (HB 3773 is about effect); protected characteristics are never collected, so the check uses only the dimensions the law lets us test (Q-RA6a) | PLANNED (S7) | Auto | RA6 |
+
+### 4.12 Compliance running in the background
+| # | Item | State | Auto level | Phase |
+|---|---|---|---|---|
+| 12.1 | SMS consent, suppression, STOP, quiet hours | EXISTS | Auto | — |
+| 12.2 | Email suppression / unsubscribe / bounce | NEW (4.7) | Auto | RA1 |
+| 12.3 | **AI notice** (HB 3773) on the lead form, the application and the applicant's record; every AI output provenance-stamped (D-RA4) | NEW | Auto | RA1 |
+| 12.4 | Lead PII pruned after Q-LS6's window; contacts/consents append-only | NEW rule | Auto | RA1 |
+| 12.5 | Evidence tables append-only | EXISTS | — | — |
+| 12.6 | **Agent regression set**: each agent re-run on a fixed fixture set before a prompt/model version ships; a drop in agreement fails the gate | NEW (`lint:agent-fixtures`, in `gates`) | Auto | RA2 onward |
+| 12.7 | Failed-jobs page (closes `jobs.ts:63`) | NEW | Auto | RA1 |
+
+---
+
+## 5. The reliability bar — each rule and what enforces it
+
+| Rule | Enforced by |
+|---|---|
+| Schema only as the next-numbered migration; column and first reader in separate merges | `lint:migrations`, `lint:migration-ordering` |
+| Every new table: RLS on; org-filtered service reads; `expectOrgScoped` in tests | `check-rls.mjs`; `supabaseRecorder` |
+| No partial `.upsert()`; lead intake writes are UPDATE-or-INSERT RPCs with the idempotency key | `lint:upserts`; RPC `ingest_lead(org, channel, external_ref, raw)` modelled on 0174/0175 |
+| At-least-once jobs, idempotent handlers, `dedup_key` per (org, kind, subject) | `queue/types.ts` contract; a test enqueues twice and asserts one row |
+| Vendor kinds capped at 1 (Meta, Indeed, Tenstreet, Telnyx lookup); AI kinds at 2 | `KIND_CAPS` in `worker.ts` |
+| Schedulers: registry + lane lease, never bare `setInterval` | `SCHEDULERS` in `schedulers.ts`; code review; `docs/WORKER-DEPLOYMENT.md` updated in the same PR |
+| Webhooks: signature verified over the raw body with a replay bound; unverified → 401 and a counter | `telnyxSignature.ts` / `fuelEventsWebhook.ts` pattern; test with a forged body |
+| Raw payload stored whole; projection re-derivable; a replay from raw rebuilds the projection | D-PSP2; `supabase/tests/*.test.mjs` matrix: insert raw → project → mutate projection → re-project → equal |
+| Secrets sealed per org with AAD = org + purpose; never in the SPA; expiry alert | `secretBox.ts`; `lint:secrets` (gitleaks); a `key_expires_on` column + the Med-Stop alert pattern |
+| Ads: cap checked in code before every spend-affecting call; create = paused; approval row with `created_by`; daily reconcile; kill switch | Pure `adsPolicy.ts` in shared with boundary tests (cap − 1, cap, cap + 1); matrix on the approval trigger; reconcile job with an alert category |
+| AI: budget gate, provenance, confirmation row, allowlisted prompt payload | `withinBudget`; the `document_reads` columns reused; a test asserts forbidden keys absent for every agent |
+| AI regression: fixture set per agent, agreement threshold | `lint:agent-fixtures` (new, in `gates` in the same PR — `CLAUDE.md`'s rule) |
+| Append-only: contacts, consents, approvals, ad ledger, AI outputs | BEFORE triggers firing for the service role (EI010/SO010 family); listed in `RETENTION_FORBIDDEN`; `lint:table-lifecycle` |
+| Every automated send: one recipient, consent checked at send time, closed template list, deduped per event | `sendOrQueueSms` (exists) + the email equivalent (new); route schema `recipient: one`; test pins "no job kind sends to a lead" |
+| Dates shown MM/DD/YYYY from one definition | `lint:date-format` |
+| 500-line files, 200-line functions | `lint:filesize`, `lint:funcsize` |
+| Every "proves" comment names a real test | `lint:comment-claims` |
+| Tests prove themselves: each step's PR lists the mutation that went red | [[prove-tests-fail-by-mutating]]; PR template "Tests" heading |
+| Staging walk before release for every surface; the release approver's steps in the PR body | PR template; `pnpm verify:live staging` |
+| Rollback: every agent and every channel has an org-level switch (D-RA9); the kill switch pauses ads; a feed can be disabled without a deploy | `recruiting_ai_settings`, `recruiting_ads_settings`, `org_integrations.enabled` |
+
+---
+
+## 6. The ads control plane
 
 ```
-Requisition (Hiring Profile + pay + lane, versioned)  ── A10 drafts copy ──► recruiter approves
-   │
-   ├─► Job page (ours) + JobPosting JSON-LD ─────────► Google for Jobs (free)
-   ├─► Indeed Job Sync (post / update / close)
-   ├─► Meta campaign  ── created PAUSED, EMPLOYMENT category, budget ≤ cap ──► owner clicks "launch"
+Requisition (profile version + pay + lane + headcount)
+   │  A10 drafts copy (EN/ES), checks every claim against the profile  ──► recruiter approves copy
+   ├─► Job page + JobPosting JSON-LD + sitemap ──► Indexing API ping ──► Google for Jobs (free)
+   ├─► Indeed Job Sync: post / update / close                          (Q-RA5)
+   ├─► Meta campaign: created PAUSED, EMPLOYMENT, country, ≤ cap ──► owner clicks Launch
    └─► Google Ads (later)
-                         leads come back ▼
-   Meta leadgen webhook · Indeed/board email · job-page form · Tenstreet push (T2)
-                         ▼
-   recruiting_leads (S1) — channel / source / campaign / external_ref, idempotent
-                         ▼
-   A1 queue → recruiter → application → hire → still seated at 90 days
-                         ▼
-   Spend pulled daily from each platform's insights API → A11: cost per seated driver, per campaign
-                         ▼
-   Budget RECOMMENDATION (shift $X from campaign A to B) → owner approves → API applies it
+                      ▼ leads come back
+   Meta leadgen webhook + daily /leads backfill · intake mailbox · job-page form · Tenstreet push · signed webhook
+                      ▼ ingest_lead(org, channel, external_ref, raw)   — idempotent, raw kept
+   recruiting_leads ─► A2 extraction (proposed) ─► recruiter confirms ─► leadMatch verdicts
+                      ▼
+   A1 brief / call-today queue ─► recruiter ─► convert_lead ─► applicant ─► hire ─► seated 90 d
+                      ▼
+   ads_spend_daily (pulled) ⇄ ads_ledger (ours): reconcile job, alert on mismatch
+                      ▼
+   A11: cost per seated driver per campaign ─► recommendation ─► owner approves ─► API applies (≤ cap)
 ```
 
-**What makes it enterprise grade rather than a script:**
-
-- **Money moves only with a person's approval.** Campaigns are created `PAUSED`, and launch, budget
-  increases and new campaigns are approval actions recorded with `created_by`. A **hard monthly cap
-  per channel** is stored in the org's settings and enforced in code, so an API call above it is
-  refused before it leaves. A kill switch pauses every campaign in one action.
-- **Every outbound ad API call is logged**, append-only, with its request, response and actor, and
-  **reconciled daily**: platform-reported spend against our ledger. Any mismatch raises an alert,
-  not a silent fix.
-- **Intake is idempotent.** Each lead is keyed on `(channel, external_ref)`, and the raw payload is
-  stored whole with a re-derivable projection (the D-PSP2 pattern). A webhook whose fetch fails
-  goes to a retry queue. A daily backfill pulls each form's `/leads` so that a missed webhook is
-  caught.
-- **Secrets** (the Meta system-user token and the Indeed client credentials) live in the server's
-  secret store, never in the SPA. Token expiry gets its own alert.
-- **Compliance is enforced in code.** The `EMPLOYMENT` category is set by code and cannot be edited.
-  No audience field accepts age, gender or ZIP. The lead form carries the HB 3773 AI notice and an
-  **optional, separate** SMS-consent box that writes `sms_consents(source='lead_form', lead_id)`.
-- **The optimisation is a recommendation first.** Automatic reallocation within caps is a later
-  switch, turned on only after A11 has eight weeks of 90-day-seated data to optimise on. Before
-  then, any "optimisation" optimises cost per *lead*, which is the junk-lead metric the owner
-  rejected.
+Tables (all new, RLS on, service-role only): `requisitions`, `requisition_versions`, `ads_accounts`
+(sealed tokens, `expires_on`), `ads_campaigns` (platform ids, status, cap, requisition), `ads_actions`
+(append-only: create/launch/pause/budget-change with actor, request, response), `ads_spend_daily`,
+`recruiting_ads_settings` (caps per channel, kill switch state). Secrets follow `medstop_credentials`.
 
 ---
 
-## 5. Side by side
+## 7. Phases — one PR per step, schema before reader, each with its *done when*
 
-| | Claude Duet | Tenstreet API + Tenstreet Assistant (T1) | Silvicom ATS + agents + ads plane (T2) |
-|---|---|---|---|
-| Where applicant data lives | Each recruiter's consumer account | Tenstreet | Silvicom (our RLS, audit and retention) |
-| Sees the real pipeline | No, only the inbox | Yes, inside Tenstreet | Yes |
-| Audit trail per applicant | No | Tenstreet's | Ours, append-only |
-| Who controls automated contact | Duet's approval prompt | Tenstreet's VoiceBot and welcome messages | The owner's ruling, enforced in code |
-| Ads | — | Through Tenstreet's job-board partners | Our control plane with caps and approval |
-| Time to first value | Days (waitlist) | Weeks (API approval) | S1 + A1 in about 2–3 weeks; ads plane about 6–8 weeks |
-| Running cost | Pro or Max seat per person | Tenstreet contract (unknown, Q-RA1) | Claude API usage (budgeted) + ad spend |
-| Lock-in | Low | High | None (it is ours) |
-| **Verdict** | **No** for applicant data | **Only** if the owner abandons our ATS | **Recommended** |
+| Phase | Steps | Done when (measured) |
+|---|---|---|
+| **RA0 · Decide** | Owner answers Q-RA1–4, Q-RA19; counsel gets Q-RA6 added to the package; the UNVERIFIED items in §1 are measured (toll-free approval, counsel memo sent, draft prune) | Every question in §9 has a ruling or a dated fallback |
+| **RA1 · Foundation** | 2.1 lead ledger + contacts + `convert_lead` (R1/S1) · 1.1 Hiring Profile + 3.1 `leadMatch` (S2) · 1.2 requisition · 2.2 lead consent column · 2.10 dedupe · 4.7 email suppression/bounce · 4.8 SMS retry · 7.3 structured reasons · 12.3 AI notice + provenance table · 12.7 failed-jobs page · generic `callClaude` + input hash · `recruiting_ai_settings` | A lead created three ways (form, paste, API) shows once with its channel; `leadMatch` fixture tests cover every rule's boundary; a bounced email suppresses the address; the failed-jobs page lists a forced failure |
+| **RA2 · Recruiter feel** | 3.2 queue · 3.3 A1 brief · 3.4 badge/alert · 3.5 assignment · 3.6 callbacks · 3.7 owned pools · 4.1 A4 drafter · 4.2 conversation view · 4.3 A5 notes · 4.6 transactional messages (if Q-RA2 b) · 12.6 fixture gate | Median time-to-first-contact is measured for the first time (baseline); brief deduped once per recruiter per day; drafter output never sent without a click (test) |
+| **RA3 · Intake** | 2.4 Meta webhook+backfill · 2.5 mailbox · 2.6 Tenstreet listener (T2) · 2.7 signed webhook · 2.8 paste box · 2.9 A2 extractor · 2.11 line-type check · 5.3 prefill | A dropped webhook is recovered by the backfill within 24 h (test by suppressing the webhook); every lead row has raw payload; replay rebuilds projections equal |
+| **RA4 · Processing agents** | 6.6 A6 discrepancies · 6.7 A7 VOE send/read/chase · 6.8 reply link · 6.5 registry check · 5.4 A8 document reader · 5.5 gap checks · 8.3 A9 readiness · 7.2 R10 build (send on counsel) · 4.4 click-to-call · 4.5 booking · 6.10 E6 | Each agent's fixture agreement ≥ the threshold set in RA2; every flag cites a source line; VOE median days-to-response measured before/after |
+| **RA5 · Owned channels** | 1.3 A10 · 1.4 job pages + JSON-LD · 1.5 Indeed Job Sync · 2.3 lead form + bot defence | Google indexes a page within 24 h (Search Console); Indeed shows the posting; form leads attribute correctly |
+| **RA6 · Money and the hire** | 1.6 Meta create · 1.8 auto-close · 1.9 spend reconcile · 1.10 caps + kill switch · 9.3–9.9 applicant→driver provisioning and checks · 11.1–11.6 reports | Reconcile shows zero unexplained mismatch over 14 days; a cap+1 request is refused (test); hire creates credentials and links the EFS card without a by-name duplicate (count `identity_source='efs'` duplicates before/after) |
+| **RA7 · Optimisation and orientation** | 11.3 budget recommendations → (switch) auto-reallocation · 8.1 orientation event · 7.4 offer letter · 4.9 A12 Q&A (if allowed) | Eight weeks of 90-day-seated data exist before the auto switch is offered |
+| **RA8 · After the hire** | 10.1–10.3, 10.6, 2.12 referrals | Exit reason present on 100% of status changes after the rule ships |
 
----
-
-## 6. Phases (one PR per step; schema merges before its reader)
-
-- **RA0 · Decide.** The owner answers Q-RA1–Q-RA4, and counsel gets Q-RA6. *No code.*
-- **RA1 · Foundation** (= LEAD-SOURCING S1 + S2). The lead ledger with `channel/source/campaign/
-  external_ref`, the append-only `recruiting_contacts`, and the versioned Hiring Profile with the
-  pure `leadMatch`. **Every later step depends on this.**
-- **RA2 · Recruiter brief** (A1) and the message drafter (A4). This is the first thing recruiters
-  feel.
-- **RA3 · Intake adapters** (S5 + A2): the per-org intake email, the Meta Lead Ads webhook with a
-  daily backfill, the signed generic webhook, and the **Tenstreet push listener (if T2)**.
-- **RA4 · Processing agents:** A6 (discrepancies), A8 (documents), A7 (VOE), A9 (orientation). These
-  work on applicants who already exist, so they can run in parallel with RA3.
-- **RA5 · Owned channels:** job pages with JSON-LD and a sitemap, the lead form with the AI notice
-  and consent, Indeed Job Sync, and A10.
-- **RA6 · The ads control plane on Meta:** campaign create (paused), caps, approval, kill switch,
-  daily spend reconciliation and A11's source report. Google Ads follows.
-- **RA7 · Optimisation:** budget recommendations, then (by switch) automatic reallocation within
-  caps. A12, only if Q-RA2 allows it.
+Everything in RA4 that touches only existing applicants can run **in parallel** with RA3.
 
 ---
 
-## 7. Open questions
+## 8. How we will know it works
 
-- **Q-RA1 · Tenstreet** (owner). Is the contract active, what does it cost, and when does it renew?
-  Is Tenstreet Assistant in it? Who is the account manager? The API terms, fees and schema come
-  from that person. *Decides T1 against T2.*
-- **Q-RA2 · D-LS6, restated** (owner). Candidates:
-  - (a) Keep it as written: no automated message to anyone who has not applied.
-  - (b) **Recommended.** Keep (a) for leads, and allow automated *transactional* messages to people
-    who applied *and* consented: confirmations, document requests, appointment reminders. This is
-    what the nudges already do. The line becomes "no automated first contact."
-  - (c) Allow an AI voice or SMS agent to contact leads (A13). This needs written TCPA consent per
-    lead and counsel's sign-off, and it is not recommended.
+Baselines are taken in RA1–RA2; targets are set after four weeks of data, never invented.
 
-  The same ruling decides whether A7 may send VOE requests to employers automatically, and whether
-  A12 exists.
-- **Q-RA3 · Q-LS7, restated** (owner). May the system create and launch campaigns? Candidates:
-  - (a) Ingest only, as before.
-  - (b) **Recommended.** It creates campaigns paused; a person launches them and approves every
-    budget change; hard monthly caps apply.
-  - (c) It reallocates automatically within caps, from day one.
-- **Q-RA4 · Ad accounts and budget** (owner). Which Meta Business and ad account, who has admin
-  rights, whether Business Verification is done, the monthly budget per channel, and which yards or
-  lanes we hire for (with the operational reason, never a ZIP list; this is Q-LS2).
-- **Q-RA5 · Indeed** (us, by asking Indeed). Confirm that Job Sync access for a direct employer is
-  real, and on what terms. The release note and the guide disagree.
-- **Q-RA6 · Counsel** (adds to Q-LS5):
-  - (a) HB 3773 notice wording for A1–A12
-  - (b) whether A6's flags or A11's analysis make any part of this an "automated decision system"
-    under California FEHA (from 2025-10-01) or CCPA ADMT (from 2027-01-01), if we hire California
-    residents
-  - (c) TCPA wording for the lead-form consent box
-  - (d) whether Colorado SB 26-189 (in force 2027-01-01) applies to applicants from Colorado
+- **Speed to first contact** (median, business hours) for inbound leads.
+- **Precision**: share of leads a recruiter marks "reachable + meets hard requirements" after the
+  first call — the "not 1,000 junk leads" number.
+- **Conversion by source**: lead → applied → hired → seated at 90 days; **cost per seated driver**.
+- **Unknown rate**: hard requirements still `unknown` at first contact (measures forms and intake).
+- **Override rate**: dispositions against the verdict (a high rate means the profile is wrong).
+- **Agent agreement**: confirmed vs corrected per agent per prompt version (D-RA4 rows).
+- **Hours per hire** on the processing steps (VOE, discrepancy review, documents) before vs after.
+- **Reconcile mismatches** per month (target: zero unexplained).
 
-**Recommendation:** answer Q-RA1–Q-RA3 in one sitting. If the answers are T2, (b) and (b), start RA1
-immediately. It needs no counsel ruling and no ad spend, and without it neither the agents nor the
-ads can be measured.
+---
+
+## 9. Open questions
+
+Owner questions, with candidates, a recommendation and the fallback the code takes if unanswered.
+
+- **Q-RA1 · Tenstreet** (owner): contract active? cost? renewal date? Assistant included? account
+  manager? *Decides T1 vs T2 and whether 2.6 is built.* **Fallback:** 2.6 is not built; leads arrive
+  by the other four routes.
+- **Q-RA2 · D-LS6 restated** (owner): (a) as written; **(b) recommended** — no automated *first*
+  contact, transactional messages to consented applicants allowed; (c) AI voice/SMS to leads (not
+  recommended; TCPA). *Decides 4.6, 4.9, and whether A7 may send automatically.* **Fallback:** (a).
+- **Q-RA3 · Q-LS7 restated** (owner): (a) ingest only; **(b) recommended** — create paused,
+  person launches, caps; (c) auto-reallocate from day one. **Fallback:** (a); RA6's create step is
+  not built.
+- **Q-RA4 · Ad accounts** (owner): Meta Business + ad account + Page, admin, Business Verification
+  done?, monthly budget per channel, yards/lanes we hire for with the operational reason (= Q-LS2).
+  **Fallback:** RA5/RA6 wait.
+- **Q-RA5 · Indeed** (us, by asking Indeed): is direct-employer Job Sync real and on what terms?
+  **Fallback:** XML feed, or Indeed leads by email only.
+- **Q-RA6 · Counsel** (adds to the memo): (a) HB 3773 notice wording and which dimensions 11.6 may
+  test; (b) FEHA/CCPA ADMT exposure if California residents apply; (c) TCPA wording for the lead
+  form's SMS box; (d) Colorado SB 26-189; (e) whether A6's flags are an "automated decision". **Must
+  first be confirmed: was the 2026-09-24 memo ever sent?** (§1.3, UNVERIFIED.)
+- **Q-RA7 · Hiring requirements** = Q-REC1 / Q-LS1 / Q-LS3 (owner, never answered since
+  2026-08-20): age floor (21 or 23), experience, equipment, disqualifiers and look-backs, violation
+  and accident limits, current sources and spend. **Fallback:** regulation floors only, which cannot
+  be wrong, only loose.
+- **Q-RA8 · Lead retention** = Q-REC7 / Q-LS6 (owner). **Fallback:** nothing prunes; schema stays
+  prunable.
+- **Q-RA9 · Former drivers** = Q-LS4 (owner): may we re-contact; who marks rehire-eligible.
+  **Fallback:** imported, invisible until marked one by one.
+- **Q-RA10 · Meta lead-form fields** (us): confirm against Meta policy whether employment lead forms
+  may ask location/age. **Fallback:** the form asks neither; the profile's hard questions only.
+- **Q-RA11 · Bot defence** (owner/us): Cloudflare Turnstile (free tier) vs hCaptcha vs none. Today
+  there is no CAPTCHA and limiters are per replica. **Recommendation:** Turnstile + a shared-store
+  limiter. **Fallback:** per-replica limiter + honeypot field.
+- **Q-RA12 · Intake mailbox** (owner): a new M365 mailbox (reusing `graphMail.ts`) vs Brevo inbound
+  parsing. **Recommendation:** M365, the credentials and code exist. **Fallback:** recruiters
+  forward to the paste box.
+- **Q-RA13 · Phone lookup cost** (owner): Telnyx Number Lookup is per query; budget it or skip.
+  **Fallback:** skip; line type `unknown`.
+- **Q-RA14 · Assignment rule** (owner): round-robin, by yard/lane, or manual. **Fallback:** manual
+  with an "unassigned" queue.
+- **Q-RA15 · Click-to-call** (owner): Telnyx Voice (recorded? consent to record varies by state) vs
+  a `tel:` link that logs the attempt. **Recommendation:** `tel:` link + logged attempt.
+- **Q-RA16 · Calendar** (owner): M365 Graph calendar for booking, or none. **Fallback:** a booking
+  slot table with no external calendar.
+- **Q-RA17 · National Registry check** (owner/us): NRCME has no public API. Deep link + reminder +
+  recorded act (exists), or a vendor. **Fallback:** deep link + recorded act.
+- **Q-RA18 · Offer letter** (owner): does the carrier issue one? Template? **Fallback:** not built.
+- **Q-RA19 · May a recruiter hire?** (owner). Today `POST /hire` needs `roster` manage. (a) keep;
+  (b) recruiter may hire when every gate is green. **Fallback:** keep.
+- **Q-RA20 · Samsara write token** (owner): a second, write-scoped token for driver creation, or
+  the Samsara driver stays a checklist item for the office. **Fallback:** checklist item + the
+  existing sync links it once Samsara has it.
+- **Q-RA21 · Payroll/settlement checklist** (owner): the items and who owns each. **Fallback:** a
+  free-form checklist the admin edits.
+- **Q-RA22 · AI models** (us): `AI_MODELS` pins `haiku-4-5` / `sonnet-4-6`; each agent picks fast or
+  deep and the fixture gate decides whether a newer model ships. No assumption about model names is
+  made here; `AI_MODELS` is the one place they live.
+- **Q-RA23 · Chat/notification channel for the brief** (owner): in-app + email, or also the office
+  chat (`OFFICE-CHAT-PLAN`). **Fallback:** in-app + email.
+
+**Recommendation:** rule Q-RA1, Q-RA2, Q-RA3 and Q-RA19 in one sitting; answer Q-RA7 in the same
+sitting (it has been open since 2026-08-20 and blocks every "qualified" number); confirm whether the
+counsel memo was sent. Then RA1 starts: it needs no counsel ruling and no ad spend, and nothing
+later can be measured without it.
 
 ---
 
@@ -319,11 +557,11 @@ ads can be measured.
 **Tenstreet** — [What you need to know about Tenstreet's API](https://www.tenstreet.com/blog/about-tenstreet/tenstreets-api-guide-everyone-else) ·
 [Tenstreet Assistant](https://www.tenstreet.com/tenstreet-assistant) ·
 [UConnect26 announcement](https://finance.yahoo.com/sectors/technology/articles/uconnect26-tenstreet-helps-carriers-reduce-160000833.html) ·
-[Drivers prioritise human connection (Tenstreet, 2026-06-04)](https://www.globenewswire.com/news-release/2026/06/04/3306896/0/en/tenstreet-analysis-reveals-drivers-prioritize-stability-and-connection-amid-ai-recruiting-shift.html) ·
-[LeadsBridge: Tenstreet integration](https://leadsbridge.com/documentation/tenstreet/) ·
+[Drivers prioritise human connection (2026-06-04)](https://www.globenewswire.com/news-release/2026/06/04/3306896/0/en/tenstreet-analysis-reveals-drivers-prioritize-stability-and-connection-amid-ai-recruiting-shift.html) ·
+[LeadsBridge: Tenstreet](https://leadsbridge.com/documentation/tenstreet/) ·
 [Samsara: integrate with Tenstreet](https://kb.samsara.com/hc/en-us/articles/4419950603277-Integrate-with-Tenstreet)
 
-**Meta** — [Special Ad Categories (Marketing API)](https://developers.facebook.com/documentation/ads-commerce/marketing-api/audiences/special-ad-category) ·
+**Meta** — [Special Ad Categories](https://developers.facebook.com/documentation/ads-commerce/marketing-api/audiences/special-ad-category) ·
 [Lead Ads webhooks](https://developers.facebook.com/documentation/ads-commerce/marketing-api/guides/lead-ads/quickstart/webhooks-integration) ·
 [Marketing API authorization](https://developers.facebook.com/docs/marketing-api/get-started/authorization) ·
 [Boostpoint: employment special ad category 2026](https://boostpoint.com/meta-special-ad-category/)
@@ -339,7 +577,10 @@ ads can be measured.
 
 ## Progress log
 
-- **2026-10-26** — Document created. The three routes were researched and the in-house agent
-  catalogue (A1–A13) and the ads control plane were designed. Collisions with D-LS6 and Q-LS7 were
-  recorded as Q-RA2/Q-RA3. `LEAD-SOURCING-PLAN.md` and `LEAD-ENGINE-RESEARCH.md` were brought to
-  main from `94627f7`. **Nothing built.**
+- **2026-10-26** — Document created as the three-route analysis (Duet / Tenstreet / in-house +
+  ads). `LEAD-SOURCING-PLAN.md` and `LEAD-ENGINE-RESEARCH.md` brought to main from `94627f7`.
+- **2026-10-26, later** — Rewritten as the whole-hire plan after a measured inventory of main
+  `c0e2801`: §1 (what exists, with file:line), §4 (the catalogue, 12 stages, ~90 items), §5 (the
+  reliability bar with its enforcement), §7 (RA0–RA8 with *done when*), §9 (Q-RA1–23). Corrections
+  to the chat list recorded in §1.4: adverse action is NOT built; Med-Stop read-back and PSP pull
+  ARE built; hire provisions nothing downstream; a recruiter cannot hire. **Nothing built.**
