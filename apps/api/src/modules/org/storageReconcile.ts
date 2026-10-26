@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { fetchAllPaged } from "../../lib/paging.js";
 
 /**
  * Storage hygiene — orphan reconcile (§13.5). The `hazmat` bucket holds the BOL images a verdict was
@@ -126,6 +127,32 @@ export async function listAllObjects(admin: SupabaseClient, bucket: string, pref
 
 const ORPHAN_GRACE_MS = 24 * 60 * 60 * 1000;
 
+/**
+ * Every row of an index table, paged — never one bare `select`.
+ *
+ * ── THE INCIDENT THIS EXISTS FOR (2026-10-26) ──────────────────────────────────────────────────
+ * PostgREST caps a response at 1,000 rows and says nothing about the rest. This sweep read
+ * `documents` with one unpaged `select`, so the day the 10/20 unit-paper import took the table past
+ * 1,000 rows, the sweep saw 1,000 paths, called every other object an orphan and — with
+ * `apply: true` every morning at 06:00 Central — DELETED it once its 24 h grace ran out. Measured
+ * on production 10/26: 2,958 `documents` rows, 1,011 objects in `compliance-docs`; every document
+ * filed 10/21–10/23 (annual inspections, CDLs, MVRs, PSP reports) had lost its file, and a printer
+ * asking for a filed inspection got "The filed report could not be read".
+ *
+ * A short index is the one failure this sweep cannot survive, because the asymmetry the rest of the
+ * file leans on ("a missing ROW only costs bytes") inverts: a row the sweep did not READ makes its
+ * evidence look like an orphan. Ordered by `id` so the pages neither overlap nor skip.
+ */
+async function readWholeIndex<T>(admin: SupabaseClient, table: string, columns: string): Promise<T[]> {
+  return fetchAllPaged<T>(
+    (from, to) =>
+      admin.from(table).select(columns).order("id").range(from, to) as unknown as PromiseLike<{
+        data: T[] | null;
+        error: { message: string } | null;
+      }>,
+  );
+}
+
 export interface StorageReconcileResult extends StorageReconcilePlan {
   deleted: number;
 }
@@ -159,15 +186,12 @@ export async function reconcileBucketOrphans(
   // `deferredColumn` names a SECOND path column on the same row whose object may not exist yet. It
   // is selected alongside `created_at` because a deferral has to be able to expire — see DeferredPath.
   const columns = source.deferredColumn ? `storage_path, created_at, ${source.deferredColumn}` : "storage_path";
-  const { data, error } = await admin.from(source.table).select(columns);
-  if (error) throw new Error(error.message);
-  const rows = (data ?? []) as unknown as Array<Record<string, string | null>>;
+  const rows = await readWholeIndex<Record<string, string | null>>(admin, source.table, columns);
   const rowPaths = rows.map((r) => r.storage_path as string);
   for (const table of source.alsoIndexedBy ?? []) {
-    const { data: more, error: moreError } = await admin.from(table).select("storage_path");
     // Thrown, never skipped: an index that could not be read would make its objects look orphaned.
-    if (moreError) throw new Error(moreError.message);
-    rowPaths.push(...((more ?? []) as Array<{ storage_path: string }>).map((r) => r.storage_path));
+    const more = await readWholeIndex<{ storage_path: string }>(admin, table, "storage_path");
+    rowPaths.push(...more.map((r) => r.storage_path));
   }
   const deferred: DeferredPath[] = source.deferredColumn
     ? rows.flatMap((r) => {
@@ -270,9 +294,10 @@ export function reconcileLoadPhotoOrphans(
  * SAFE BECAUSE THE ASYMMETRY IS ALREADY BUILT. `reconcileBucketOrphans` deletes only objects that no
  * row references and that are past the 24-hour grace, and it NEVER deletes a row — a `documents` row
  * whose object has vanished is flagged loudly instead, which is exactly the §391.51 signal worth
- * waking someone for. That asymmetry is what makes this safe to point at a compliance bucket:
- * the failure mode it can cause is "we kept bytes we could have deleted", never "we deleted
- * evidence".
+ * waking someone for. That asymmetry holds ONLY while the sweep reads the whole index: on 10/21–10/25
+ * an unpaged read saw 1,000 of 2,958 rows and this function deleted the files behind the rest
+ * (see `readWholeIndex`). The failure mode it can cause is "we kept bytes we could have deleted" —
+ * provided every row was read.
  *
  * ⚠ **TWO TABLES INDEX THIS BUCKET SINCE C3s1** (APPLICATION-FLOW-V2-PLAN.md D-AW15). A driver's
  * adopted signature and initials are PNGs here with a `signature_adoptions` row and, deliberately, no
