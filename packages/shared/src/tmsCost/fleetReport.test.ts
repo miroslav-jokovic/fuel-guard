@@ -267,12 +267,17 @@ describe("computeFleetReport — the per-truck rows (§2 Tab 4)", () => {
     expect(mixed.revenue).toBe(303_192.01);
   });
 
-  /** A credit memo arrives already negative (`billRevenue`) and flagged; TRUCK-DRIVER-PNL-PLAN §1.3 D2. */
-  it("takes a credit memo's money off the truck without counting it as a load", () => {
-    const credit = { order_external_id: "o2", tractor_unit: "602", revenue: -25_000, credit: true };
-    const r = computeFleetReport(july({ milesByUnit: miles, bills: [...bills, credit] }));
+  /**
+   * A credit memo arrives already negative (`billRevenue`) and flagged (TRUCK-DRIVER-PNL-PLAN §1.3 D2).
+   * This carrier re-bills by crediting the invoice in full and issuing a new one (Q-TP11), so the
+   * truck's load is counted once across the three bills.
+   */
+  it("takes a credit memo's money and its load off the truck, so a re-billed load counts once", () => {
+    const credit = { order_external_id: "o2", tractor_unit: "602", revenue: -100_000, credit: true };
+    const rebill = { order_external_id: "o2", tractor_unit: "602", revenue: 96_000 };
+    const r = computeFleetReport(july({ milesByUnit: miles, bills: [...bills, credit, rebill] }));
     const t = r.trucks.find((x) => x.tractor_unit === "602")!;
-    expect(t.revenue).toBe(75_000);
+    expect(t.revenue).toBe(96_000);
     expect(t.loads).toBe(1);
   });
 

@@ -41,8 +41,10 @@ export interface ActivityBill {
   /** McLeod's billed distance for the load. Null when the bill carries none. */
   distance: number | null;
   /**
-   * A credit memo (`isCreditBill`). Its revenue — already negative, `billRevenue` — counts; it is not
-   * a load and adds no miles, or a credited load would be hauled twice. Absent = an invoice.
+   * A credit memo (`isCreditBill`). Its revenue is already negative (`billRevenue`), and it takes back
+   * the load and the miles of the invoice it reverses (`billLoads`, Q-TP11): this carrier re-bills by
+   * crediting an invoice in full and issuing a new one, so a credit read as "no load" leaves the load
+   * counted twice. Absent = an invoice.
    */
   credit?: boolean;
 }
@@ -90,10 +92,10 @@ export function bucketBillingActivity(
       byPeriod.set(from, p);
     }
     p.revenue = round(p.revenue + b.revenue);
-    if (b.credit) continue;
-    p.loads++;
-    if (b.distance == null) p.loadsWithoutDistance++;
-    else p.billedMiles = Math.round((p.billedMiles + b.distance) * 10) / 10;
+    const sign = b.credit ? -1 : 1;
+    p.loads += sign;
+    if (b.distance == null) p.loadsWithoutDistance += sign;
+    else p.billedMiles = Math.round((p.billedMiles + sign * b.distance) * 10) / 10;
   }
 
   return [...byPeriod.values()]

@@ -280,6 +280,15 @@ per-driver P&L on the recommended answer to every question below, Q-TP1 through 
   `total_pay` (what the driver received). *Recommended: what the GL books*, with the `DRS` module's
   $124k/month measured onto drivers before anyone calls driver pay precise. Needs one more sandbox
   measurement: which `DRS` lines carry a payee.
+  **Measured 2026-10-21 (sandbox, July 2026): every `DRS` dollar has a payee.** DRS posts 684 keys,
+  and each is one `drs_check` to one payee (387 of 387 keys with an income-statement line). Its
+  income-statement lines net $103,569.85 over 952 lines, but only `40000001` Subcontracted Labor:
+  Driver ($42,305.64) is pay. The rest is what settlements pass through: OTR repairs over and under
+  $1,000 ($51,710.93), trailer repair ($17,412.06), unloading fees, equipment rental and installment
+  charge-backs. So DRS is not a driver-pay residual. Each line belongs to its own family (pay,
+  maintenance, tolls and unloading, lease), on the payee of its check, and on a truck where its
+  `drs_deduct_hist` row names one (67% of the dollars). P3 takes DRS that way; driver pay is
+  SET + SETV + DRS `40000001`.
 - **Q-TP7 (blocks P4)** — Is FleetPal labour the in-house shop (payroll) or vendor work orders, and
   which payroll accounts pay the shop? *Recommended: until measured, put FleetPal's external cost
   (parts, services, fees) on the truck and leave labour in the spread payroll* — under-placing is
@@ -300,6 +309,13 @@ per-driver P&L on the recommended answer to every question below, Q-TP1 through 
   measured credits against the receivable, not their orders, and the sandbox was unreachable on
   10-19 evening. *Recommended: measure July's `C` rows by order shape (`nI+mC`) and by distance
   carried. If re-bills are common, count one load per order rather than one per invoice.*
+  **Measured 2026-10-21 (sandbox): re-bills are not common, they are every credit.** 365 of 2026's
+  365 credits (January–September) match an invoice on the same order to the cent and to the mile,
+  and every one of those orders is billed again afterwards. July: 32 orders of 2 invoices + 1 credit,
+  one of 3+2, one of 4+3; read as "not a load", the credits left 37 loads and 38,155 billed miles
+  counted twice. Built as D2c: a credit takes back a load and its miles (`billLoads`, `billMiles`),
+  signed per bill like its revenue rather than counted once per order, because a credit and the
+  invoice it reverses can fall in different months.
 
 ---
 
@@ -335,3 +351,8 @@ per-driver P&L on the recommended answer to every question below, Q-TP1 through 
   columns are `0500` `mcleod_billing.bill_type` and `0501` `mcleod_settlements.void_date`, and
   `mcleod_gl_control` is `0502`, all applied to staging the same day. D2b is rebased onto main and
   cites 0500.
+- 2026-10-21 · Q-TP11 answered and built as D2c: every credit of 2026 is a full reversal followed
+  by a re-bill, so a credit now takes back a load and its billed miles as well as its revenue, in the
+  four readers that count loads (per-truck, per-dispatcher, weekly, billed miles by month). Q-TP6's
+  DRS measurement done: every DRS line has a payee through its check; $42k of July's $104k is driver
+  pay, the rest is repairs and charge-backs passed through settlements.

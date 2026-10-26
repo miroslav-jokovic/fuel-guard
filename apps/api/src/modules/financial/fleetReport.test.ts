@@ -214,16 +214,18 @@ describe("getFleetReport", () => {
   });
 
   /**
-   * A credit memo against the contractor's load o1, staged POSITIVE with the load's distance copied
-   * onto it (TRUCK-DRIVER-PNL-PLAN §1.3 D2). It takes 3,192.01 back from the contractor and from truck
-   * 601, and it is not a third load on that truck.
+   * The contractor's load o1 re-billed the way this carrier re-bills (TRUCK-DRIVER-PNL-PLAN §1.3 D2,
+   * Q-TP11): a credit memo reversing b1 in full, staged POSITIVE with the load's distance copied onto
+   * it, then a new invoice at 203,000.00. The contractor and truck 601 keep the new figure, and 601
+   * still ran two loads, not three.
    */
-  it("takes a credit memo off the contractor and the truck without counting it as a load", async () => {
-    const credit = { id: "c1", order_external_id: "o1", tractor_unit: "601", total_charges: "3192.01", other_charge: "0", post_key: "kc", post_module: "BILL", bill_date: "2026-07-22", delivery_date: "2026-07-08", distance: 71_920, canceled: false, bill_type: "C" };
-    const r = await getFleetReport(recorder(GL_TOTALS, [], [...BILLS, credit]).client, ORG, "2026-07-01", "2026-07-31");
-    expect(r.ownerOperatorBasis.loadRevenue).toBe(200_000);
+  it("takes a credit memo off the contractor and the truck, load included, so a re-billed load counts once", async () => {
+    const credit = { id: "c1", order_external_id: "o1", tractor_unit: "601", total_charges: "203192.01", other_charge: "12345.67", post_key: "kc", post_module: "BILL", bill_date: "2026-07-22", delivery_date: "2026-07-08", distance: 71_920, canceled: false, bill_type: "C" };
+    const rebill = { id: "r1", order_external_id: "o1", tractor_unit: "601", total_charges: "203000.00", other_charge: "12345.67", post_key: "kr", post_module: "BILL", bill_date: "2026-07-22", delivery_date: "2026-07-08", distance: 71_920, canceled: false, bill_type: "I" };
+    const r = await getFleetReport(recorder(GL_TOTALS, [], [...BILLS, credit, rebill]).client, ORG, "2026-07-01", "2026-07-31");
+    expect(r.ownerOperatorBasis.loadRevenue).toBe(203_000);
     const t601 = r.trucks.find((t) => t.tractor_unit === "601")!;
-    expect(t601.revenue).toBe(400_000);
+    expect(t601.revenue).toBe(403_000);
     expect(t601.loads).toBe(2);
   });
 

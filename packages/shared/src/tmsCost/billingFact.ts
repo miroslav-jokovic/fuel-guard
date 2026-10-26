@@ -120,6 +120,33 @@ export const billSign = (b: BillType): 1 | -1 => (isCreditBill(b) ? -1 : 1);
 const signed = (b: BillType, v: number): number => Math.round(billSign(b) * v * 100) / 100;
 
 /**
+ * What a bill adds to a load count: +1 for an invoice, −1 for a credit memo (TRUCK-DRIVER-PNL-PLAN
+ * Q-TP11).
+ *
+ * A credit memo is how this carrier RE-BILLS a load: it reverses the invoice in full and a new invoice
+ * follows. Measured on the sandbox 2026-10-21, every credit of 2026 — 365 of 365, January to
+ * September — matches an invoice on the same order to the cent and to the mile, and every one of those
+ * orders is still billed after it (July: 32 orders of two invoices and one credit, one of 3+2, one of
+ * 4+3). So read as "not a load", a credit leaves the original invoice AND the re-bill counted: July
+ * hauled 37 loads and 38,155 miles twice. Taking the load back is what makes an order count once.
+ *
+ * Signed per bill rather than counted once per order, because a credit and the invoice it reverses
+ * can fall in different months: each month then moves with its own revenue, which `billRevenue`
+ * already signs the same way.
+ */
+export const billLoads = (b: BillType): 1 | -1 => billSign(b);
+
+/**
+ * The billed miles a bill adds — its distance, negative for a credit memo, which carries the distance
+ * of the invoice it reverses (`billLoads`). Null when the bill carries no distance; a reader counts
+ * such a bill's load and leaves its miles out.
+ */
+export function billMiles(b: { distance?: Money } & BillType): number | null {
+  if (b.distance == null) return null;
+  return Math.round(billSign(b) * Number(b.distance) * 10) / 10;
+}
+
+/**
  * What a bill earned — `total_charges`, and nothing added to it, negative for a credit memo
  * (`billSign`).
  *
