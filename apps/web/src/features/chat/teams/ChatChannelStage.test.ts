@@ -78,10 +78,10 @@ const channel = (over: Record<string, unknown>) => ({
   thread_id: GENERAL, name: "General", visibility: "public", general: true, joined: true,
   last_message_at: "2026-10-25T15:00:00Z", last_seq: 4, read_seq: 4, unread: 0, muted: "none", ...over,
 });
-const teams = () => ({
+const teams = (description: string | null = null) => ({
   can_manage: false,
   teams: [{
-    space_id: SPACE, name: "Dispatch", description: null, space_role: "member", member_count: 3, created_at: "2026-10-25T14:00:00Z",
+    space_id: SPACE, name: "Dispatch", description, space_role: "member", member_count: 3, created_at: "2026-10-25T14:00:00Z",
     channels: [
       channel({}),
       channel({ thread_id: LOADS, name: "Loads", general: false, last_seq: 9, read_seq: 6, unread: 3 }),
@@ -162,6 +162,25 @@ describe("an open channel", () => {
     await w.find('button[aria-label="Close thread"]').trigger("click");
     await flushPromises();
     expect(router.currentRoute.value.query).toEqual({ ch: LOADS });
+  });
+
+  it("opens a post's thread on Enter with the post focused (D-CHATUI16)", async () => {
+    const w = await render(`/chat?ch=${LOADS}`);
+    await w.find(`#chat-line-${POST}`).trigger("keydown", { key: "Enter" });
+    await flushPromises();
+    expect(router.currentRoute.value.query).toEqual({ ch: LOADS, post: POST });
+  });
+
+  it("greets an empty General with the team's name and what its maker wrote about it; any other empty channel only says so (CR4)", async () => {
+    state.teams = teams("Day and night dispatch, the board, roadside.");
+    state.posts = { posts: [], before_seq: null };
+    const w = await render(`/chat?ch=${GENERAL}`);
+    expect(w.text()).toContain("Welcome to Dispatch");
+    expect(w.text()).toContain("Day and night dispatch, the board, roadside.");
+    expect(w.text()).not.toContain("No posts yet");
+    const w2 = await render(`/chat?ch=${LOADS}`);
+    expect(w2.text()).toContain("No posts yet. Start the channel off.");
+    expect(w2.text()).not.toContain("Welcome to");
   });
 
   it("does not offer to leave General — that is leaving the team", async () => {

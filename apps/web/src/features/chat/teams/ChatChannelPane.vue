@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, ref } from "vue";
 import type { ChatPostPage, ChatTeamChannel } from "@silvicom/shared";
 import { AppButton as BaseButton } from "@silvicom/ui";
 import KebabMenu from "@/components/KebabMenu.vue";
@@ -17,10 +17,16 @@ import { mergeLines, type PendingLine } from "../useChat";
  * Posting, editing and removing are the conversation's own acts: a channel IS a conversation
  * (D-CHAT18), so the same optimistic send and the same row serve it. Leaving is the header's kebab;
  * General is the team, and leaving it is leaving the team, from the rail (0519).
+ *
+ * An empty General greets the team by name with what its maker wrote about it — the team's
+ * description — instead of "No posts yet" (CHAT-REDESIGN-PLAN CR4): General is where a new team first
+ * meets, and the line that explains the team belongs there until somebody writes the first post.
  */
 const props = defineProps<{
   channel: ChatTeamChannel;
   teamName: string;
+  /** What the team's maker wrote about it: the welcome line of an empty General. */
+  teamDescription?: string | null;
   page: ChatPostPage;
   viewerId: string;
   viewerName: string;
@@ -43,6 +49,8 @@ const emit = defineEmits<{
 
 const lines = computed(() => mergeLines(props.page.posts, props.pending, props.channel.thread_id));
 const subtitle = computed(() => `${props.teamName}${props.channel.visibility === "private" ? " · private channel" : ""}`);
+const log = ref<InstanceType<typeof ChatMessageList> | null>(null);
+const composer = ref<InstanceType<typeof ChatComposer> | null>(null);
 </script>
 
 <template>
@@ -53,6 +61,7 @@ const subtitle = computed(() => `${props.teamName}${props.channel.visibility ===
       </KebabMenu>
     </ChatStageHeader>
     <ChatMessageList
+      ref="log"
       :lines="lines"
       :viewer-id="viewerId"
       :viewer-name="viewerName"
@@ -71,7 +80,16 @@ const subtitle = computed(() => `${props.teamName}${props.channel.visibility ===
       @reply="(id: string) => emit('replies', id)"
       @retry="(line: PendingLine) => emit('retry', line)"
       @earlier="emit('earlier')"
-    />
-    <ChatComposer :placeholder="`Message # ${channel.name}`" label="Post" action="Post" :thread-key="channel.thread_id" @send="(body: string) => emit('send', body)" />
+      @exit-bottom="composer?.focus()"
+    >
+      <template v-if="channel.general" #empty>
+        <div class="py-10 text-center">
+          <h3 class="text-lg font-semibold text-ink">Welcome to {{ teamName }}</h3>
+          <p v-if="teamDescription" class="mx-auto mt-1 max-w-md text-sm text-ink-secondary">{{ teamDescription }}</p>
+          <p class="mt-1 text-sm text-ink-muted">Everybody in the team is in # General. Say hello.</p>
+        </div>
+      </template>
+    </ChatMessageList>
+    <ChatComposer ref="composer" :placeholder="`Message # ${channel.name}`" label="Post" action="Post" :thread-key="channel.thread_id" @send="(body: string) => emit('send', body)" @up="log?.focusLast()" />
   </section>
 </template>

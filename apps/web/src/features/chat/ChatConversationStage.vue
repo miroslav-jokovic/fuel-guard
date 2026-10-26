@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, ref } from "vue";
 import { chatTitle, type ChatConversationResponse } from "@silvicom/shared";
 import { mergeLines, type PendingLine } from "./useChat";
 import ChatComposer from "./ChatComposer.vue";
@@ -37,6 +37,9 @@ defineEmits<{
 }>();
 
 const lines = computed(() => mergeLines(props.data.messages, props.pending, props.data.conversation.thread_id));
+// Up from the empty composer goes into the log; Down past its newest line comes back (D-CHATUI16).
+const log = ref<InstanceType<typeof ChatMessageList> | null>(null);
+const composer = ref<InstanceType<typeof ChatComposer> | null>(null);
 const title = computed(() => chatTitle(props.data.conversation));
 const direct = computed(() => props.data.conversation.kind === "direct");
 const others = computed(() => props.data.members.filter((m) => m.user_id !== props.viewerId));
@@ -56,6 +59,7 @@ const seenSeq = computed(() => (direct.value && myLastSeq.value !== null && othe
   <section class="flex h-full min-h-0 flex-1 flex-col bg-surface" :aria-label="title">
     <ChatStageHeader :title="title" :subtitle="subtitle" :glyph="direct ? 'person' : 'group'" back-label="Back to conversations" @back="$emit('back')" />
     <ChatMessageList
+      ref="log"
       :lines="lines"
       :viewer-id="viewerId"
       :viewer-name="viewerName"
@@ -72,7 +76,8 @@ const seenSeq = computed(() => (direct.value && myLastSeq.value !== null && othe
       @remove="(id: string) => $emit('remove', id)"
       @retry="(line: PendingLine) => $emit('retry', line)"
       @earlier="$emit('earlier')"
+      @exit-bottom="composer?.focus()"
     />
-    <ChatComposer :placeholder="`Message ${title}`" :thread-key="data.conversation.thread_id" @send="(body: string) => $emit('send', body)" />
+    <ChatComposer ref="composer" :placeholder="`Message ${title}`" :thread-key="data.conversation.thread_id" @send="(body: string) => $emit('send', body)" @up="log?.focusLast()" />
   </section>
 </template>

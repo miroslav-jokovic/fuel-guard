@@ -18,6 +18,10 @@ import { chatRowTime } from "./chatTime";
  * acts — New channel, Add people for its owner, Leave team — are its header's kebab, not three
  * buttons under every team. What a person may do is the database's to decide; these only show what it
  * would allow. The search filters by name across every section; it is this tab's, not a server call.
+ *
+ * Two things the page's keys ask of it (D-CHATUI16): `focusSearch` for `/`, and `step` for J and K —
+ * open the item after or before the open one in the rail's own order, Chats, then each team's
+ * channels, then Muted when it is unfolded, and stop at the ends rather than wrap.
  */
 const props = defineProps<{
   conversations: ChatConversation[];
@@ -68,6 +72,28 @@ function toggleBrowse(spaceId: string) {
 }
 const showMuted = ref(false);
 
+const root = ref<HTMLElement | null>(null);
+function focusSearch() {
+  root.value?.querySelector<HTMLInputElement>("input")?.focus();
+}
+/** Everything the rail shows, top to bottom. */
+const shown = computed(() => [
+  ...chats.value.map((c) => ({ id: c.thread_id, channel: false })),
+  ...props.teams.flatMap((t) => joinedOf(t).map((c) => ({ id: c.thread_id, channel: true }))),
+  ...(showMuted.value || q.value
+    ? [...mutedChats.value.map((c) => ({ id: c.thread_id, channel: false })), ...mutedChannels.value.map(({ channel: c }) => ({ id: c.thread_id, channel: true }))]
+    : []),
+]);
+function step(delta: 1 | -1) {
+  const list = shown.value;
+  const i = list.findIndex((x) => x.id === props.selectedId);
+  const next = list[i < 0 ? (delta > 0 ? 0 : list.length - 1) : i + delta];
+  if (!next) return;
+  if (next.channel) emit("open-channel", next.id);
+  else emit("open-conversation", next.id);
+}
+defineExpose({ focusSearch, step });
+
 const bold = (x: { unread: number; muted: string | null }) => x.unread > 0 && x.muted !== "all";
 const current = (id: string) => (props.selectedId === id ? "true" : undefined);
 const variant = (id: string) => (props.selectedId === id ? "soft" : "ghost");
@@ -75,7 +101,7 @@ const channelLabel = (c: ChatTeamChannel) => `# ${c.name}${c.visibility === "pri
 </script>
 
 <template>
-  <aside class="flex h-full min-h-0 flex-col border-r border-edge-subtle bg-canvas">
+  <aside ref="root" class="flex h-full min-h-0 flex-col border-r border-edge-subtle bg-canvas">
     <div class="flex shrink-0 items-center gap-2 border-b border-edge-subtle px-3 py-2.5">
       <AppSearchField v-model="query" placeholder="Search chat" label="Search chat" :debounce="0" class="min-w-0 flex-1" />
       <KebabMenu trigger-label="New" placement="bottom-end">

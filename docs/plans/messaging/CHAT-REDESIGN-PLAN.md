@@ -162,6 +162,30 @@ tokens, `@silvicom/ui`); nothing new is invented at the token level.
   the row component is written so that it is a class, not a second component.
 - **D-CHATUI14 — the composer is bottom chrome.** It registers with `useBottomChrome`, so the Ask AI
   launcher keeps itself above it (`bottomChrome.ts`'s rule) rather than sitting on Send.
+- **D-CHATUI16 — the keyboard is Slack's in the log and Linear's in the rail** (CR2, built 2026-10-26 on
+  Q-CHATUI3's recommendation; the owner can still rule otherwise). On the page, where nothing is being
+  typed and no modifier is held: `/` puts the caret in the rail's search, J and K open the next and the
+  previous item in the rail's own order (Chats, each team's channels, Muted when unfolded), stopping at
+  the ends. In the log: Up from an EMPTY composer lands on the newest line; Up and Down walk the rows
+  (`data-chat-row`, roving `tabindex="-1"`) and stop at the top; Down past the newest line returns to the
+  composer; Enter on a channel post opens its thread; E opens your own line for editing with the caret
+  in the field, and Esc or Save hands focus back to the row. Esc in the thread panel closes it (kept);
+  Esc marking a conversation read is NOT wanted — reading already moves on open. Rejected: a global
+  "Up edits your last message" (Slack's) — it fires from an empty composer, which is exactly the key
+  that now enters the log, and an edit by accident is worse than an edit two keys away.
+- **D-CHATUI17 — a new line does not move a reader who has scrolled up.** `useChatScroll` stays the one
+  owner of the scroll position: within 100 px of the bottom a line is followed as before; further up,
+  somebody else's line is counted on a "N new messages ↓" pill at the bottom of the log (the noun is
+  the log's: messages, posts, replies), and the pill, or reaching the bottom by hand, jumps and clears
+  it. The reader's OWN line is followed wherever they are: they sent it, they want to see it land.
+  Rejected: a second scroll owner for the pill — two watchers of one `scrollTop` is how lists jitter.
+- **D-CHATUI18 — an empty workspace opens on the two ways to begin** (CR4). With both lists answered
+  and both empty, the stage says "Nobody has started a conversation yet" with New conversation and, for
+  a holder of Chat teams, New team — instead of asking somebody to pick from an empty rail. A team's
+  empty General greets the team by name with what its maker wrote about it (the team's description,
+  when there is one) in place of "No posts yet"; any other empty channel only says it is empty. The
+  maker's NAME is not shown: `ChatTeam` in the rail's list carries no `created_by_name` (the team
+  detail does), and a query for one line is not worth it.
 - **D-CHATUI15 — tests move with the structure.** `ChatPage.test` loses the tab cases and gains the rail
   ones; `ChatConversationPane.test` loses "own lines on the right" and gains runs and dividers;
   `ChatTeamsView.test` becomes `ChatChannelStage.test`; `chatGrouping.test` pins the run and day rules
@@ -172,9 +196,9 @@ tokens, `@silvicom/ui`); nothing new is invented at the token level.
 | Item | What | Depends on |
 |---|---|---|
 | CR1 | The workspace: full-bleed route, `ChatRail` (sections, search, New, team kebab, Muted), `ChatStageHeader`, `ChatMessageList` + `ChatMessageRow` + `ChatPendingRow` + `chatGrouping.ts`, the composer, `ChatConversationStage`, `ChatChannelStage` + `ChatRepliesPane` as a panel, phone layout, tests, browser pass | — |
-| CR2 | Keyboard: `/` focuses search, Esc closes the thread, Up from an empty composer into the log, J/K in the rail; "Jump to latest" when scrolled away and new lines arrive | CR1 |
+| CR2 | **DONE 2026-10-26.** Keyboard: `/` focuses search, Esc closes the thread, Up from an empty composer into the log, J/K in the rail (D-CHATUI16); "Jump to latest" when scrolled away and new lines arrive (D-CHATUI17) | CR1 |
 | CR3 | Compact density as a setting (`chat_person_state`, D-CHAT24's "a person's own state") | CR1, Q-CHATUI2 |
-| CR4 | Empty workspace: a first-run stage ("Nobody has started a conversation yet" with the two acts) and a team's empty General with a welcome line from its maker | CR1 |
+| CR4 | **DONE 2026-10-26.** Empty workspace: a first-run stage ("Nobody has started a conversation yet" with the two acts) and a team's empty General with a welcome line from its maker (D-CHATUI18) | CR1 |
 
 CH6b–d (mentions, Activity, reactions, pins, saved, mute, browser notifications) land on CR1's rows:
 a reaction strip is a row footer, Activity is a rail section above Chats, mute is a kebab item.
@@ -196,9 +220,18 @@ not on this page (page back, CH6a).
 |---|---|---|
 | Q-CHATUI1 | Should own lines be told apart at all, now they sit on the left? | (a) **No**: the name says "you" by being yours, as in every work chat reviewed. (b) A faint `surface-subtle` ground behind own rows. Recommend (a); (b) is one class if anyone misses it |
 | Q-CHATUI2 | Compact density — when? | (a) After CR1, as a person's setting (CR3). (b) Never. Recommend (a) once somebody with a 13" screen asks |
-| Q-CHATUI3 | Keyboard model — Slack's (Esc marks read, Up into the log) or Linear's (J/K, U)? | Recommend Slack's for the log and Linear's J/K for the rail (CR2) |
+| Q-CHATUI3 | Keyboard model — Slack's (Esc marks read, Up into the log) or Linear's (J/K, U)? | Recommend Slack's for the log and Linear's J/K for the rail — **built as recommended in CR2 (D-CHATUI16)**; still the owner's to overrule |
 | Q-CHATUI4 | Should the thread panel also show on direct and group conversations (Google Chat's 2025 inline threading in DMs)? | Not now: D-CHAT19 gives replies to channels only; revisit with CH6c |
 
 ## 9. Progress log
 
 - 2026-10-26: audit (17/30, REDESIGN), research, this plan. **CR1 built** on `claude/office-chat-redesign`: measured after, 1440×900 with a conversation open, the log is **703 px of 900** (was 302), the rail 288 px, the composer 76 px (was 165); the thread opens beside the channel at `xl`; 1440 and 390 passed on data, empty and failed fixtures in both schemes; 87 chat tests, four grouping mutants (window, day, failed send, New) each fail one test.
+- 2026-10-26: **CR2 and CR4 built** on `claude/office-chat-cr2` (D-CHATUI16–18). Seen in the built page on
+  the fixtures (`tools/chat-fixtures/`, now committed, with `__line` to deliver somebody else's line and
+  `clear` to empty a thread): `/`, J, K, Up from the empty composer, the arrows along the log, E then
+  Esc, Enter on a post, the "2 new messages ↓" pill holding the reader at the top and jumping on a
+  click, "Welcome to Dispatch" with its description in an empty General, the first-run stage opening the
+  New conversation dialog; 1440 and 390, light and dark. 103 chat tests (was 87); eight mutants — own
+  line not followed, no near-bottom rule, no clear on reaching the bottom, Down past the newest doing
+  nothing, E on anybody's line, J wrapping, shortcuts firing while typing, General greeting nobody —
+  each fail a test. Full web suite 4,133 green. Remaining: CR3 behind Q-CHATUI2; Q-CHATUI1, Q-CHATUI4.

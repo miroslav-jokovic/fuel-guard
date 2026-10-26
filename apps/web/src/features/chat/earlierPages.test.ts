@@ -193,16 +193,18 @@ describe("useChatScroll", () => {
 
   async function list(initial: string[]) {
     const lines = ref(initial);
+    const lastOwn = ref(false);
+    let scroll!: ReturnType<typeof useChatScroll>;
     const w = mount(defineComponent({
       setup() {
         const scroller = ref<HTMLElement | null>(null);
-        useChatScroll(scroller, () => ["a", lines.value[0], lines.value.at(-1)]);
+        scroll = useChatScroll(scroller, () => ({ view: "a", first: lines.value[0], last: lines.value.at(-1), count: lines.value.length, lastOwn: lastOwn.value }));
         return { scroller, lines };
       },
       template: `<div ref="scroller"><p v-for="l in lines" :key="l">{{ l }}</p></div>`,
     }));
     await flushPromises();
-    return { lines, el: w.element as HTMLElement };
+    return { lines, lastOwn, el: w.element as HTMLElement, unseen: scroll.unseen, jump: scroll.jump };
   }
 
   it("opens at the newest line, and follows a new one", async () => {
@@ -228,5 +230,46 @@ describe("useChatScroll", () => {
     lines.value = ["m5", "m6", "m6 (its second line)", "m7"];
     await flushPromises();
     expect(el.scrollTop).toBe(50);
+  });
+
+  it("leaves a reader who is up the log where they are when somebody's line arrives, and counts the lines for them (D-CHATUI17)", async () => {
+    const { el, lines, unseen } = await list(["m5", "m6", "m7", "m8"]);
+    el.scrollTop = 0; // reading the top, 400 px of lines below
+    lines.value = [...lines.value, "m9", "m10"];
+    await flushPromises();
+    expect(el.scrollTop).toBe(0);
+    expect(unseen.value).toBe(2);
+    lines.value = [...lines.value, "m11"];
+    await flushPromises();
+    expect(unseen.value).toBe(3);
+  });
+
+  it("follows the reader's own line wherever they are — they sent it, they want to see it land", async () => {
+    const { el, lines, lastOwn, unseen } = await list(["m5", "m6", "m7", "m8"]);
+    el.scrollTop = 0;
+    lastOwn.value = true;
+    lines.value = [...lines.value, "mine"];
+    await flushPromises();
+    expect(el.scrollTop).toBe(500);
+    expect(unseen.value).toBe(0);
+  });
+
+  it("jump() lands on the newest line and clears the count; reaching the bottom by hand clears it too", async () => {
+    const { el, lines, unseen, jump } = await list(["m5", "m6", "m7", "m8"]);
+    el.scrollTop = 0;
+    lines.value = [...lines.value, "m9"];
+    await flushPromises();
+    expect(unseen.value).toBe(1);
+    jump();
+    expect(el.scrollTop).toBe(500);
+    expect(unseen.value).toBe(0);
+
+    el.scrollTop = 0;
+    lines.value = [...lines.value, "m10"];
+    await flushPromises();
+    expect(unseen.value).toBe(1);
+    el.scrollTop = 600;
+    el.dispatchEvent(new Event("scroll"));
+    expect(unseen.value).toBe(0);
   });
 });

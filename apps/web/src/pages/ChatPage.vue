@@ -5,7 +5,8 @@ import { isRecordId, type ChatTeam } from "@silvicom/shared";
 import { useSessionStore } from "@/stores/session";
 import { useToastStore } from "@/stores/toast";
 import { useModulesQuery } from "@/composables/useModules";
-import { AppCard as BaseCard, QueryState } from "@silvicom/ui";
+import { AppButton as BaseButton, AppCard as BaseCard, AppIcon, QueryState } from "@silvicom/ui";
+import { ChatIcon } from "@silvicom/ui/icons";
 import ChatRail from "@/features/chat/ChatRail.vue";
 import ChatConversationStage from "@/features/chat/ChatConversationStage.vue";
 import NewChatDialog from "@/features/chat/NewChatDialog.vue";
@@ -29,6 +30,7 @@ import {
 import { useChatFollow } from "@/features/chat/chatRealtime";
 import { useChatTeamsQuery } from "@/features/chat/teams/useChatTeams";
 import { useChatRailActions } from "@/features/chat/teams/useChatRailActions";
+import { useChatShortcuts } from "@/features/chat/useChatShortcuts";
 
 /**
  * /chat — office chat (OFFICE-CHAT-PLAN CH2; CHAT-REDESIGN-PLAN, 2026-10-26): a workspace, not a
@@ -42,6 +44,10 @@ import { useChatRailActions } from "@/features/chat/teams/useChatRailActions";
  * not a uuid is ignored rather than sent. Opening a conversation reads it to its last line; reading is
  * never moved backwards (0512). `?view=teams` is no longer written (D-CHATUI2); an old link that
  * carries it still opens whatever `ch` names.
+ *
+ * A workspace with nothing in it yet — no conversation, no team — opens on a first-run stage with the
+ * two ways to begin (CR4), instead of telling somebody to pick from an empty rail. The page's keys
+ * (`useChatShortcuts`, D-CHATUI16) go to the rail: `/` to its search, J and K along its items.
  */
 const session = useSessionStore();
 const toast = useToastStore();
@@ -59,6 +65,8 @@ const conversations = computed(() => inbox.data.value?.conversations ?? []);
 const teamsQuery = useChatTeamsQuery(entitled);
 const teams = computed(() => teamsQuery.data.value?.teams ?? []);
 const canManage = computed(() => teamsQuery.data.value?.can_manage ?? false);
+/** Both lists answered, and both are empty: nobody here has started anything (CR4). */
+const firstRun = computed(() => inbox.data.value !== undefined && teamsQuery.data.value !== undefined && conversations.value.length === 0 && teams.value.length === 0);
 
 const param = (name: string) => computed<string | null>(() => {
   const v = route.query[name];
@@ -136,6 +144,11 @@ async function start(memberIds: string[], subject: string | null) {
 }
 
 const rail = useChatRailActions(entitled, openChannel, closeAll);
+const railRef = ref<InstanceType<typeof ChatRail> | null>(null);
+useChatShortcuts((s) => {
+  if (s === "search") railRef.value?.focusSearch();
+  else railRef.value?.step(s === "next" ? 1 : -1);
+});
 </script>
 
 <template>
@@ -157,6 +170,7 @@ const rail = useChatRailActions(entitled, openChannel, closeAll);
     <template v-else>
       <!-- A phone shows the rail OR the stage (D-DR25's pattern); the stage header's chevron is the way back. -->
       <ChatRail
+        ref="railRef"
         class="w-full lg:w-72 lg:shrink-0"
         :class="open ? 'hidden lg:flex' : 'flex'"
         :conversations="conversations"
@@ -210,6 +224,19 @@ const rail = useChatRailActions(entitled, openChannel, closeAll);
             error-text="Could not open that conversation."
             @retry="conversation.refetch()"
           />
+          <div v-else-if="firstRun" class="flex flex-col items-center gap-4">
+            <span class="flex size-12 items-center justify-center rounded-full bg-surface-muted text-ink-secondary ring-1 ring-inset ring-edge" aria-hidden="true">
+              <AppIcon :icon="ChatIcon" class="size-6" />
+            </span>
+            <div>
+              <h2 class="text-lg font-semibold text-ink">Nobody has started a conversation yet</h2>
+              <p class="mt-1 max-w-sm">Message somebody in the office<template v-if="canManage">, or make a team with a channel for each thing it talks about</template>.</p>
+            </div>
+            <div class="flex flex-wrap justify-center gap-2">
+              <BaseButton variant="primary" @click="starting = true">New conversation</BaseButton>
+              <BaseButton v-if="canManage" @click="rail.creatingTeam.value = true">New team</BaseButton>
+            </div>
+          </div>
           <p v-else class="max-w-xs">Pick a conversation or a channel, or start one with New.</p>
         </div>
       </div>

@@ -100,7 +100,16 @@ import ChatRail from "@/features/chat/ChatRail.vue";
 import NewChatDialog from "@/features/chat/NewChatDialog.vue";
 
 const T = "33333333-3333-4333-8333-333333333333";
+const T2 = "44444444-4444-4444-8444-444444444444";
 const CH = "77777777-7777-4777-8777-777777777777";
+const SPACE = "55555555-5555-4555-8555-555555555555";
+
+const conversation = (thread_id: string, name: string) => ({
+  thread_id, kind: "direct", subject: null, load_id: null, created_at: "2026-10-25T14:00:00Z", last_message_at: "2026-10-25T15:00:00Z",
+  last_seq: 1, rev: 1, read_seq: 1, unread: 0, muted: "none", member_role: "member", member_count: 2,
+  title_members: [{ user_id: "22222222-2222-4222-8222-222222222222", name }], last_message: null,
+});
+const team = { space_id: SPACE, name: "Dispatch", description: null, space_role: "member", member_count: 1, created_at: "2026-10-25T14:00:00Z", channels: [] };
 
 async function render(path = "/chat") {
   const router = createRouter({ history: createMemoryHistory(), routes: [{ path: "/chat", component: { template: "<div/>" }, meta: { title: "Chat" } }] });
@@ -182,10 +191,48 @@ describe("ChatPage", () => {
     expect(state.followed).toEqual([null]);
   });
 
-  it("tells an empty inbox how to begin, and the empty stage what to do", async () => {
+  it("opens a workspace with nothing in it on the first-run stage, with New team for a holder of Chat teams (CR4)", async () => {
     const { w } = await render();
     expect(w.text()).toContain("No conversations yet");
+    expect(w.text()).toContain("Nobody has started a conversation yet");
+    expect(w.text()).not.toContain("Pick a conversation or a channel");
+    expect(w.findAll("button").filter((b) => b.text() === "New team")).toHaveLength(0);
+    await w.findAll("button").find((b) => b.text() === "New conversation")!.trigger("click");
+    expect(w.findComponent(NewChatDialog).props("open")).toBe(true);
+
+    state.teams = { teams: [], can_manage: true };
+    const { w: w2 } = await render();
+    expect(w2.findAll("button").filter((b) => b.text() === "New team")).toHaveLength(1);
+  });
+
+  it("tells the empty stage what to do once anything exists", async () => {
+    state.teams = { teams: [team], can_manage: false };
+    const { w } = await render();
     expect(w.text()).toContain("Pick a conversation or a channel, or start one with New.");
+    expect(w.text()).not.toContain("Nobody has started");
+  });
+
+  it("sends / to the rail's search and J and K along the rail, and nothing while typing (CR2)", async () => {
+    state.conversations = [conversation(T, "Ben Admin"), conversation(T2, "Cal Dispatcher")];
+    const { w, router } = await render();
+    const key = (k: string, target: EventTarget = window) => {
+      target.dispatchEvent(new KeyboardEvent("keydown", { key: k, bubbles: true }));
+      return flushPromises();
+    };
+    await key("/");
+    const search = w.find("input").element as HTMLInputElement;
+    expect(document.activeElement).toBe(search);
+    search.blur();
+    await key("j");
+    expect(router.currentRoute.value.query).toEqual({ c: T });
+    await key("j");
+    expect(router.currentRoute.value.query).toEqual({ c: T2 });
+    await key("k");
+    expect(router.currentRoute.value.query).toEqual({ c: T });
+    search.focus();
+    await key("j", search);
+    expect(router.currentRoute.value.query).toEqual({ c: T });
+    w.unmount();
   });
 
   it("lists direct and group conversations under Chats — channels are listed by their team", async () => {

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, ref } from "vue";
 import type { ChatPost, ChatPostPage } from "@silvicom/shared";
 import { AppIconButton, QueryState } from "@silvicom/ui";
 import { XMarkIcon } from "@silvicom/ui/icons";
@@ -40,6 +40,8 @@ const emit = defineEmits<{
 }>();
 
 const lines = computed(() => mergeLines(props.page?.posts ?? [], props.pending, props.threadId, props.post.id));
+const log = ref<InstanceType<typeof ChatMessageList> | null>(null);
+const composer = ref<InstanceType<typeof ChatComposer> | null>(null);
 </script>
 
 <template>
@@ -58,6 +60,7 @@ const lines = computed(() => mergeLines(props.page?.posts ?? [], props.pending, 
     </div>
     <ChatMessageList
       v-else
+      ref="log"
       :lines="lines"
       :viewer-id="viewerId"
       :viewer-name="viewerName"
@@ -73,9 +76,10 @@ const lines = computed(() => mergeLines(props.page?.posts ?? [], props.pending, 
       @remove="(id: string) => emit('remove', id)"
       @retry="(line: PendingLine) => emit('retry', line)"
       @earlier="emit('earlier')"
+      @exit-bottom="composer?.focus()"
     />
 
-    <ChatComposer v-if="!post.deleted_at" placeholder="Reply" label="Reply" action="Reply" :thread-key="post.id" @send="(body: string) => emit('send', body)" />
+    <ChatComposer v-if="!post.deleted_at" ref="composer" placeholder="Reply" label="Reply" action="Reply" :thread-key="post.id" @send="(body: string) => emit('send', body)" @up="log?.focusLast()" />
     <p v-else class="shrink-0 border-t border-edge-subtle px-4 py-3 text-sm text-ink-muted">This post was removed, so it takes no new replies.</p>
   </section>
 </template>

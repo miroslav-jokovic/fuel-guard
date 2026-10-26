@@ -111,6 +111,7 @@ async function onLeaveChannel() {
         v-if="found?.channel.joined && posts.data.value"
         :channel="found.channel"
         :team-name="found.team.name"
+        :team-description="found.team.description"
         :page="posts.data.value"
         :viewer-id="viewer"
         :viewer-name="viewerName"
