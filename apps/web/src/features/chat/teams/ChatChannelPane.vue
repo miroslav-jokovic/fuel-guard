@@ -1,12 +1,14 @@
 <script setup lang="ts">
-import { computed, nextTick, ref, watch } from "vue";
+import { computed, ref } from "vue";
 import type { ChatPostPage, ChatTeamChannel } from "@silvicom/shared";
 import { AppButton as BaseButton } from "@silvicom/ui";
 import ChatComposer from "../ChatComposer.vue";
+import ChatEarlierButton from "../ChatEarlierButton.vue";
 import ChatMessageBubble from "../ChatMessageBubble.vue";
 import ChatPendingBubble from "../ChatPendingBubble.vue";
 import { chatRowTime } from "../chatTime";
 import { mergeLines, type PendingLine } from "../useChat";
+import { lineKey, useChatScroll } from "../earlierPages";
 
 /**
  * One open channel (OFFICE-CHAT-PLAN CH5c, D-CHAT19): its top-level posts, oldest at the top, each
@@ -23,6 +25,9 @@ const props = defineProps<{
   page: ChatPostPage;
   viewerId: string;
   pending: PendingLine[];
+  /** The page above is being fetched, or could not be (CH6a). */
+  earlierLoading?: boolean;
+  earlierFailed?: boolean;
   openPostId: string | null;
 }>();
 const emit = defineEmits<{
@@ -33,19 +38,13 @@ const emit = defineEmits<{
   replies: [postId: string];
   leave: [];
   back: [];
+  earlier: [];
 }>();
 
 const lines = computed(() => mergeLines(props.page.posts, props.pending, props.channel.thread_id));
 
 const scroller = ref<HTMLElement | null>(null);
-watch(
-  () => [props.channel.thread_id, lines.value.length],
-  async () => {
-    await nextTick();
-    if (scroller.value) scroller.value.scrollTop = scroller.value.scrollHeight;
-  },
-  { immediate: true },
-);
+useChatScroll(scroller, () => [props.channel.thread_id, lines.value[0] && lineKey(lines.value[0]), lines.value.at(-1) && lineKey(lines.value.at(-1)!)]);
 </script>
 
 <template>
@@ -61,10 +60,10 @@ watch(
     </header>
 
     <div ref="scroller" class="flex-1 space-y-3 overflow-y-auto px-4 py-3" aria-live="polite">
-      <p v-if="page.before_seq" class="text-center text-xs text-ink-muted">Earlier posts are not shown yet.</p>
+      <ChatEarlierButton v-if="page.before_seq" noun="posts" :loading="earlierLoading ?? false" :failed="earlierFailed ?? false" @load="emit('earlier')" />
       <p v-if="lines.length === 0" class="py-8 text-center text-sm text-ink-muted">No posts yet. Start the conversation.</p>
 
-      <template v-for="l in lines" :key="l.kind === 'server' ? l.message.id : l.line.message_id">
+      <template v-for="l in lines" :key="lineKey(l)">
         <ChatMessageBubble
           v-if="l.kind === 'server'"
           :message="l.message"

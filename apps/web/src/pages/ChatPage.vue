@@ -15,6 +15,7 @@ import {
   useChatConversationQuery,
   useChatCreateGroup,
   useChatInboxQuery,
+  useChatLoadEarlier,
   useChatMarkRead,
   useChatMessageActions,
   useChatOpenDirect,
@@ -68,6 +69,7 @@ const selectedId = computed<string | null>(() => {
 const conversation = useChatConversationQuery(selectedId);
 // The open conversation's own signals (CH3b); the shell already holds the inbox's.
 useChatFollow(selectedId);
+const earlier = useChatLoadEarlier(selectedId);
 function open(id: string) {
   if (id !== selectedId.value) void router.push({ query: { ...route.query, c: id } });
 }
@@ -198,6 +200,9 @@ async function start(memberIds: string[], subject: string | null) {
           :viewer-id="session.userId ?? ''"
           :pending="pending"
           :sending="sender.isPending.value"
+          :earlier-loading="earlier.isPending.value"
+          :earlier-failed="earlier.isError.value"
+          @earlier="earlier.mutate()"
           @send="send"
           @retry="retry"
           @edit="onEdit"

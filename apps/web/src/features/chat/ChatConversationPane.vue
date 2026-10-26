@@ -1,14 +1,17 @@
 <script setup lang="ts">
-import { computed, nextTick, ref, watch } from "vue";
+import { computed, ref } from "vue";
 import { chatTitle, type ChatConversationResponse } from "@silvicom/shared";
 import { AppButton as BaseButton } from "@silvicom/ui";
 import { mergeLines, type PendingLine } from "./useChat";
+import { lineKey, useChatScroll } from "./earlierPages";
 import ChatComposer from "./ChatComposer.vue";
+import ChatEarlierButton from "./ChatEarlierButton.vue";
 import ChatMessageBubble from "./ChatMessageBubble.vue";
 import ChatPendingBubble from "./ChatPendingBubble.vue";
 
 /**
- * One open conversation: the newest page of lines, oldest at the top, and the composer.
+ * One open conversation: its lines, oldest at the top, and the composer. The newest page comes first;
+ * "Show earlier messages" asks the page's container for the one above (CH6a).
  *
  * Your own lines sit on the right. A line you sent that the server has not confirmed reads "Sending…";
  * one it refused keeps its text with Retry, so nothing typed is ever lost (D-CHAT2's optimistic send).
@@ -23,6 +26,9 @@ const props = defineProps<{
   viewerId: string;
   pending: PendingLine[];
   sending: boolean;
+  /** The page above is being fetched, or could not be. */
+  earlierLoading?: boolean;
+  earlierFailed?: boolean;
 }>();
 defineEmits<{
   send: [body: string];
@@ -30,6 +36,7 @@ defineEmits<{
   edit: [messageId: string, body: string];
   remove: [messageId: string];
   back: [];
+  earlier: [];
 }>();
 
 const lines = computed(() => mergeLines(props.data.messages, props.pending, props.data.conversation.thread_id));
@@ -47,18 +54,12 @@ const myLastSeq = computed(() => {
   return mine.length ? mine[mine.length - 1]!.seq : null;
 });
 
-
-
 const scroller = ref<HTMLElement | null>(null);
-watch(
-  () => [props.data.conversation.thread_id, lines.value.length],
-  async () => {
-    await nextTick();
-    // `scrollTop`, not `scrollTo()`: same effect, and it exists on every element jsdom builds too.
-    if (scroller.value) scroller.value.scrollTop = scroller.value.scrollHeight;
-  },
-  { immediate: true },
-);
+useChatScroll(scroller, () => [
+  props.data.conversation.thread_id,
+  lines.value[0] && lineKey(lines.value[0]),
+  lines.value.at(-1) && lineKey(lines.value.at(-1)!),
+]);
 </script>
 
 <template>
@@ -73,10 +74,16 @@ watch(
     </header>
 
     <div ref="scroller" class="flex-1 space-y-2 overflow-y-auto px-4 py-3" aria-live="polite">
-      <p v-if="data.before_seq" class="text-center text-xs text-ink-muted">Earlier messages are not shown yet.</p>
+      <ChatEarlierButton
+        v-if="data.before_seq"
+        noun="messages"
+        :loading="earlierLoading ?? false"
+        :failed="earlierFailed ?? false"
+        @load="$emit('earlier')"
+      />
       <p v-if="lines.length === 0" class="py-8 text-center text-sm text-ink-muted">No messages yet. Say hello.</p>
 
-      <template v-for="l in lines" :key="l.kind === 'server' ? l.message.id : l.line.message_id">
+      <template v-for="l in lines" :key="lineKey(l)">
         <ChatMessageBubble
           v-if="l.kind === 'server'"
           :message="l.message"
