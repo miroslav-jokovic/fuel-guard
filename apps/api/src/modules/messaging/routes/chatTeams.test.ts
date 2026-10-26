@@ -231,6 +231,8 @@ describe("refusals from the database become answers", () => {
     ["CH008", 403, "owner_only"],
     ["CH011", 422, "reply_not_allowed"],
     ["CH012", 409, "name_in_use"],
+    // 0521 (Q-CHAT20): a reply naming somebody who is not in the channel.
+    ["CH013", 422, "mention_not_in_conversation"],
   ])("%s → %i %s", async (sqlstate, status, code) => {
     rpc.chat_send_reply = { error: { code: sqlstate, message: "refused" } };
     const res = await post(`/channels/${CHANNEL}/posts/${POST}/replies`, { message_id: MSG, body: "x" });
