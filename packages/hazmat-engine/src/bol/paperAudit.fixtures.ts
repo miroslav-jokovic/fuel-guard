@@ -31,6 +31,7 @@ export const DS = {
     { entryId: "NA3082-hazardous-waste-liquid-n-o-s", symbols: ["G"], psnPrinted: "Hazardous waste, liquid, n.o.s.", psnAlternates: [], hazardClass: "9", subsidiaryClasses: [], idPrefix: "NA", idNumber: "3082", pgRows: [{ pg: "III", exceptionsRef: "155" }], namesChemicalGroup: false },
     { entryId: "UN2734-amine-liquid-corrosive-flammable-n-o-s", symbols: ["G"], psnPrinted: "Amine, liquid, corrosive, flammable, n.o.s.", psnAlternates: ["Polyamines, liquid, corrosive, flammable, n.o.s."], hazardClass: "8", subsidiaryClasses: [], idPrefix: "UN", idNumber: "2734", pgRows: [{ pg: "I", exceptionsRef: null }, { pg: "II", exceptionsRef: "154" }], namesChemicalGroup: true },
     { entryId: "NA1993-diesel-fuel", symbols: ["D"], psnPrinted: "Diesel fuel", psnAlternates: [], hazardClass: "3", subsidiaryClasses: [], idPrefix: "NA", idNumber: "1993", pgRows: [{ pg: "III", exceptionsRef: "150" }] },
+    { entryId: "UN2924-flammable-liquids-corrosive-n-o-s", symbols: ["G"], psnPrinted: "Flammable liquids, corrosive, n.o.s.", psnAlternates: [], hazardClass: "3", subsidiaryClasses: ["8"], idPrefix: "UN", idNumber: "2924", pgRows: [{ pg: "I", exceptionsRef: null }, { pg: "II", exceptionsRef: "150" }, { pg: "III", exceptionsRef: "150" }], namesChemicalGroup: false },
     { entryId: "UN2794-batteries-wet-filled-with-acid", symbols: [], psnPrinted: "Batteries, wet, filled with acid", psnAlternates: [], hazardClass: "8", subsidiaryClasses: [], idPrefix: "UN", idNumber: "2794", pgRows: [{ pg: null, exceptionsRef: "159" }] },
   ],
   hazSubstances: [

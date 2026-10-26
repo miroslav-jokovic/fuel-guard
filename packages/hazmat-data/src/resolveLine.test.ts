@@ -4,6 +4,7 @@ import {
   buildDatasetIndex,
   normalizePsnForMatch,
   parseHmtRef,
+  parsePrintedClass,
   resolveHmtLine,
   PSN_NORMALIZER_VERSION,
   type ResolveLineInput,
@@ -154,6 +155,39 @@ describe("resolveHmtLine — D/I symbol variants + name discipline", () => {
   });
   it("UN1202 with NO psn is ambiguous — three different products share the id (not D/I variants)", () => {
     expect(resolve({ idText: "UN1202" })).toMatchObject({ ok: false, reason: "psn_ambiguous" });
+  });
+});
+
+describe("resolveHmtLine — class punctuation (D-PC2): the classes are the table's, the parentheses the audit's", () => {
+  const line = (hazardClass: string) => resolve({ idText: "UN2924", psn: "Flammable liquids, corrosive, n.o.s.", hazardClass, pg: "II" });
+
+  it("resolves UN2924 printed '3, 8', '3/8', '3 8', 'CLASS 3, 8' and an unclosed '3 (8' as 3 (8), saying the parentheses are missing", () => {
+    for (const cls of ["3, 8", "3,8", "3/8", "3 8", "CLASS 3, 8", "Class 3, Class 8", "3 (8"]) {
+      expect(line(cls), cls).toMatchObject({ ok: true, entryId: "UN2924-flammable-liquids-corrosive-n-o-s", findings: ["subsidiary_not_in_parentheses"] });
+    }
+  });
+
+  it("keeps the parenthesised printings exact: '3 (8)', '3(8)', '3, (8)' and 'Class 3 (Division 8)' carry no finding", () => {
+    for (const cls of ["3 (8)", "3(8)", "3, (8)", "Class 3 (Division 8)", "3"]) {
+      const r = line(cls);
+      expect(r, cls).toMatchObject({ ok: true, entryId: "UN2924-flammable-liquids-corrosive-n-o-s" });
+      expect(r.ok ? r.findings : r.reason, cls).toEqual([]);
+    }
+  });
+
+  it("refuses a subsidiary the table does not list in every punctuation, never as a form defect", () => {
+    for (const cls of ["3, 6.1", "3/6.1", "3 6.1", "3 (6.1)", "3 (8, 6.1)", "3, 8, 6.1", "6.1, 8"]) {
+      expect(line(cls), cls).toMatchObject({ ok: false, reason: "class_mismatch" });
+    }
+  });
+
+  it("parsePrintedClass reads the primary, the subsidiaries and whether §172.202(a)(3)'s form was kept, and refuses what is not a class", () => {
+    expect(parsePrintedClass("Class 6.1, (8, 3)")).toEqual({ primary: "6.1", subsidiaries: ["8", "3"], parenthesised: true });
+    expect(parsePrintedClass("1.3C (6.1)")).toEqual({ primary: "1.3c", subsidiaries: ["6.1"], parenthesised: true });
+    expect(parsePrintedClass("3 8")).toEqual({ primary: "3", subsidiaries: ["8"], parenthesised: false });
+    expect(parsePrintedClass("3 (8")).toEqual({ primary: "3", subsidiaries: ["8"], parenthesised: false });
+    expect(parsePrintedClass(" Division 1.4S ")).toEqual({ primary: "1.4s", subsidiaries: [], parenthesised: true });
+    for (const bad of ["Combustible liquid", "3 ()", "3 8)", "flammable", "PG II", ""]) expect(parsePrintedClass(bad), bad).toBeNull();
   });
 });
 

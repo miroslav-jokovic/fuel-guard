@@ -123,6 +123,30 @@ describe("paper_class_pg_match — class, subsidiary and PG equal the row's (§1
   it("cannot tell on an unresolved line", () => {
     expect(result({ lines: [[pline(), rline(null)]] }, "paper_class_pg_match").outcome).toBe("cannot_tell");
   });
+
+  // D-PC2: the resolver reads "3, 8" as the row's 3 (8) and says the parentheses are missing; the right classes in
+  // the wrong form are the shipper's to correct (class_format), and a wrong PG beside them makes the line wrong.
+  it("fails the right classes printed outside parentheses as a format defect, naming the table's form", () => {
+    const line = pline({ idText: "UN2924", psn: "Flammable liquids, corrosive, n.o.s.", hazardClass: "3, 8", pg: "II" });
+    const r = result({ lines: [[line, rline(ok("UN2924-flammable-liquids-corrosive-n-o-s", "II", { findings: ["subsidiary_not_in_parentheses"] }))]] }, "paper_class_pg_match");
+    expect(r.outcome).toBe("fail");
+    expect(r.reason).toBe("class_format");
+    expect(r.facts).toMatchObject({ classProblem: "format", pgProblem: null, printedClass: "3, 8", requiredClass: "3 (8)" });
+  });
+
+  it("fails the line as wrong, not as a format defect, when the PG is wrong beside the unparenthesised class", () => {
+    const wrongPg = pline({ idText: "UN2924", psn: "Flammable liquids, corrosive, n.o.s.", hazardClass: "3, 8", pg: "I" });
+    const r2 = result({ lines: [[wrongPg, rline(ok("UN2924-flammable-liquids-corrosive-n-o-s", "II", { findings: ["subsidiary_not_in_parentheses"] }))]] }, "paper_class_pg_match");
+    expect(r2.reason).toBe("class_or_pg_wrong");
+    expect(r2.facts).toMatchObject({ classProblem: "format", pgProblem: "differs" });
+  });
+
+  it("passes the parenthesised form, the resolver having raised no finding", () => {
+    const line = pline({ idText: "UN2924", psn: "Flammable liquids, corrosive, n.o.s.", hazardClass: "3 (8)", pg: "II" });
+    const r = result({ lines: [[line, rline(ok("UN2924-flammable-liquids-corrosive-n-o-s", "II"))]] }, "paper_class_pg_match");
+    expect(r.outcome).toBe("pass");
+    expect(r.facts.requiredClass).toBe("3 (8)");
+  });
 });
 
 describe("paper_technical_name — G entries show a technical name (§172.203(k))", () => {

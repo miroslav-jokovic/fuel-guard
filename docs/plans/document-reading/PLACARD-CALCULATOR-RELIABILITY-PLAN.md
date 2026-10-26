@@ -337,6 +337,32 @@ pass A's tier is the owner's (D-DR20 locked Sonnet 4.6 on 2026-10-11, when Sonne
 the ten office BOLs and Sonnet 4.6 read 9 drums for 6 once) — nothing here reopens it, but it is the only
 change that would let pass A see more than 1.2 MP.
 
+**Q-PC6 — A subsidiary left off the paper: when is it a defect?** (opened 2026-10-26, building PC2)
+
+*What the rule says.* §172.202(a)(3): the subsidiary "is not required to be entered when a corresponding subsidiary
+hazard label is not required" — PHMSA 22-0041 and 25-0057 read it so (Q-PC1). Whether the label is required is
+§172.402's question: its (a)(2) table excuses some subsidiary labels by packing group, §172.400a(a)(5) drops labels
+on a placarded portable tank or freight container, and a bulk packaging (IBC, cargo tank) is placarded, not
+labelled. So "3" for a 3 (8) material is right on Henkel's IBCs and may be wrong on a drum of the same material.
+
+*What the engine has.* Nothing derives §172.402. `placards/classify.ts` accepts an optional `labelCodes` on a
+line and no module reads it for a requirement; `paper_class_pg_match` passes a line that prints the primary alone
+— the resolver accepts "3" for 3 (8), as it must, since the omission is lawful on bulk — on bulk and non-bulk
+alike. PC2 did not guess at the rule: today an omitted subsidiary is never a finding, and the rule's comment says
+so.
+
+*Candidate answers.* (a) Derive §172.402 in the engine — packaging kind from the caller's `packagingKind`, PG from
+the row, the (a)(2) table from the regulation's own text, §172.400a's exceptions — and fail `class_or_pg_wrong`
+with a reason `subsidiary_omitted` only where the label is required; one new module, property-tested over every
+entry with a subsidiary × packaging × PG. (b) Answer `cannot_tell` ("the paper prints 3; the table says 3 (8) —
+required on a package, not on a placarded bulk packaging") on every non-bulk line that prints the primary alone —
+cheap, but one more "can't tell" per such line in the fold Q-PC3 is shrinking. (c) Leave it: an omitted subsidiary
+never changes a placard (the engine reads the row's subsidiaries, not the paper's), so the cost is one paper
+defect unreported.
+
+*Recommendation: (a), after PC3–PC7.* It changes no placard, and the two real papers are either lawful (Henkel,
+bulk) or print the subsidiary (PureTech). Until it is built, (c) holds.
+
 ## 7. Progress log
 
 - **2026-10-26 — audit written.** Nine production reads replayed with today's code (`replayRead` →
@@ -368,3 +394,25 @@ change that would let pass A see more than 1.2 MP.
   4 of 4 lines with products (was 2), 0 waiting (was 2), 0 "wrong" (was 2), CORROSIVE + OXIDIZER; the other
   eight unchanged in every status (relaxed 0, tightened 0); PureTech's five "3, 8" lines still refused — that
   is PC2 — and its sentence now reads "where the table says 3 (8)". Needs a release.
+- **2026-10-26 — PC2 built (class punctuation, D-PC2).** `parsePrintedClass` in `@hazmat/data` (normalizer 1.5.0)
+  reads a printed class however it is punctuated: "3 (8)", "3(8)", "3, (8)" and "Class 3 (Division 8)" are the
+  §172.202(a)(3) form; "3, 8", "3/8", "3 8", "CLASS 3, 8" and an unclosed "3 (8" are the same classes without it.
+  `resolveHmtLine` resolves all of them — the one reader of the printed class — and records
+  `subsidiary_not_in_parentheses` on the unparenthesised ones; a subsidiary the table does not list stays
+  `class_mismatch` in every form. `paper_class_pg_match` (engine 0.22.0) answers `class_format` for the right
+  classes outside parentheses — the catalogue's sentence quotes §172.202(a)(3) ("must be entered in parentheses")
+  and PHMSA 04-0188, and the actor is the shipper's (`actorFor`, the catalogue's first per-reason actor, read
+  through `bolFindingActor`) — and `class_or_pg_wrong` with the format in its facts when the PG is wrong beside it.
+  Acceptance rule 14. Censuses: RC1 now runs every entry × ten class printings (four parenthesised, five
+  unpunctuated, the primary alone) and asserts the finding on exactly the unpunctuated ones; a second census swaps
+  and adds a subsidiary no row of the number lists, in five punctuations, on every entry with a subsidiary (>550)
+  and expects `class_mismatch` on all; the RC5 golden census gains the defects "a subsidiary class printed after a
+  comma, not in parentheses" (class_format) and "… swapped for one no row of the number lists" (class_or_pg_wrong);
+  `lint:reader-gate` pins both RC1 titles. Three mutants (the finding never recorded; the comma form read as
+  parenthesised; the rule never answering class_format) each failed the tests that own them. **Replay of the nine
+  stored reads, PC1 code → PC2 code, same stored inputs:** PureTech f2dc74ed 0 of 5 lines with a product → 5 of 5,
+  15 waiting → 10 (the KG-only weight column — PC3), 5 "wrong" (class_or_pg_wrong, driver) → 5 format findings
+  (class_format, shipper), 32 "check by eye" → 32 (Q-PC3), placards not computable → FLAMMABLE; the other eight
+  reads identical in every count and status (Henkel's "8(6.1)" and "5.1(8)" are the parenthesised form and carry
+  no finding); relaxed 0. Not built: the omitted-subsidiary rule — the engine derives no §172.402 label requirement,
+  so it is Q-PC6 rather than a guess. Needs a release with PC1.

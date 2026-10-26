@@ -17,7 +17,7 @@ import type { Dataset, HmtEntry, PackingGroup } from "./schema.js";
  */
 
 /** Bump on ANY change to the normalization ruleset — stored on every run so a verdict stays reproducible. */
-export const PSN_NORMALIZER_VERSION = "1.4.0";
+export const PSN_NORMALIZER_VERSION = "1.5.0";
 
 export type ResolveLineFailureReason =
   | "id_missing" // no parseable UN/NA id on the line
@@ -55,7 +55,8 @@ export type ResolveLineFinding =
   | "pg_missing" // single-PG entry, no PG on the paper (resolved to the entry's PG)
   | "pg_mismatch" // single-PG entry, the paper's PG differs (resolved to the authoritative PG)
   | "row_chosen_by_class" // several rows share the name; the printed class picked one (D-RC4)
-  | "row_chosen_by_pg"; // several rows share the name and class; the printed PG picked one (D-RC4)
+  | "row_chosen_by_pg" // several rows share the name and class; the printed PG picked one (D-RC4)
+  | "subsidiary_not_in_parentheses"; // the right subsidiaries, printed outside parentheses — §172.202(a)(3)'s form not kept (D-PC2)
 
 export interface ResolveLineFail {
   ok: false;
@@ -142,15 +143,57 @@ function parseIdText(idText: string): { prefix: "UN" | "NA" | null; idNumber: st
 }
 
 // ── class check ───────────────────────────────────────────────────────────────────────────────────
+/** A printed hazard class, read: the primary, the subsidiaries it names, and whether §172.202(a)(3)'s form was kept. */
+export interface PrintedClass {
+  /** Lower-cased: "3", "6.1", "1.4s" (a Class 1 division keeps its compatibility group). */
+  primary: string;
+  /** Lower-cased, in printed order; empty where the paper prints the primary alone. */
+  subsidiaries: string[];
+  /**
+   * Every subsidiary sits inside closed parentheses after the primary — "3 (8)", "3(8)", "6.1, (8, 3)" — which is
+   * the form §172.202(a)(3) requires ("must be entered in parentheses … immediately following the primary hazard
+   * class"). false for "3, 8", "3/8", "3 8" and an unclosed "3 (8"; true where no subsidiary is printed.
+   */
+  parenthesised: boolean;
+}
+
+/** The printed class with §172.202(a)(3)(i)'s optional words removed: "Class 3 (Division 6.1)" reads as "3 (6.1)". */
+const normClass = (printed: string): string =>
+  printed.trim().toLowerCase().replace(/\b(?:class|division)\b\.?\s*/g, "").replace(/\s+/g, " ").trim();
+
+/**
+ * Reads a printed class however the shipper punctuated it (D-PC2, 2026-10-26). The classes a line names are the
+ * table's business — the hazard is the same and the placard follows from it — and the punctuation is the audit's:
+ * the resolver reports `subsidiary_not_in_parentheses` and the paper audit says who corrects it. Before this, the
+ * matcher read only the parenthesised form, so PureTech's five "3, 8" lines (production read f2dc74ed) were
+ * refused with no product, and the calculator called a right class wrong (PLACARD-CALCULATOR-RELIABILITY-PLAN §2.2).
+ *
+ * Accepted: a primary (a division may carry its compatibility group, "1.3c"), then nothing, or its subsidiaries
+ * inside parentheses — with or without a space, with or without a comma before them (§172.202(b)'s own example
+ * prints "6.1, (8, 3)") — or after a comma, slash, semicolon or space. Each subsidiary is a class or division
+ * number alone. Anything else ("Combustible liquid", "3 8)", words) is null: the caller compares the text as it is.
+ */
+export function parsePrintedClass(printed: string): PrintedClass | null {
+  const norm = normClass(printed);
+  const m = /^(\d(?:\.\d)?[a-z]?)(?:\s*,?\s*\(\s*([\d.,/;\s]*?)\s*(\))?|\s*[,/;]\s*([\d.,/;\s]+)|\s+([\d.,/;\s]+))?$/.exec(norm);
+  if (!m) return null;
+  const opened = m[2] !== undefined;
+  const tail = m[2] ?? m[4] ?? m[5] ?? "";
+  const subsidiaries = tail.split(/[,/;\s]+/).filter(Boolean);
+  if (opened && subsidiaries.length === 0) return null; // "3 ()" says nothing
+  if (!subsidiaries.every((w) => /^\d(?:\.\d)?$/.test(w))) return null;
+  return { primary: m[1]!, subsidiaries, parenthesised: subsidiaries.length === 0 || (opened && m[3] !== undefined) };
+}
+
 function classMatches(entry: HmtEntry, printedClass: string, reclassedCombustible: boolean): boolean {
   // §172.202(a)(3)(i): "The words 'Class' or 'Division' may precede the primary and subsidiary numbers" — a
   // Henkel master BOL prints "CLASS 8(6.1)" (production read a4119634, 2026-10-21).
-  const norm = printedClass.trim().toLowerCase().replace(/^(?:class|division)\s+/, "");
+  const norm = normClass(printedClass);
   // "Samples, explosive" (UN0190) carries no class in Column (3): §173.56 assigns the division with the approval,
   // and the paper prints it. Any Class 1 division is the entry's; anything else is not an explosive sample. Every
   // correct printing was refused here (the paper audit's golden census, READER-CORRECTNESS-PLAN RC5) — the RC1
   // census printed the table's empty class and so never asked.
-  if (entry.hazardClass == null) return /^(?:class\s+|division\s+)?1(?:\.[1-6][a-l]?)?$/i.test(norm);
+  if (entry.hazardClass == null) return /^1(?:\.[1-6][a-l]?)?$/i.test(norm);
   const entryClass = (entry.hazardClass ?? "").trim().toLowerCase();
 
   if (/combustible/.test(norm)) {
@@ -159,34 +202,26 @@ function classMatches(entry: HmtEntry, printedClass: string, reclassedCombustibl
     return entryClass === "3" && entry.pgRows.some((r) => r.pg === "III") && reclassedCombustible;
   }
 
-  const sub = printedSubsidiaries(norm); // "3 (6.1)", "1.3c (6.1)"
-  if (sub) {
-    if (sub.primary !== entryClass) return false;
+  const printed = parsePrintedClass(norm); // "3 (6.1)", "1.3c (6.1)", "3, 6.1"
+  if (printed) {
+    if (printed.primary !== entryClass) return false;
     const entrySubs = entry.subsidiaryClasses.map((s) => s.toLowerCase());
-    return sub.subs.every((w) => entrySubs.includes(w));
+    return printed.subsidiaries.every((w) => entrySubs.includes(w));
   }
   return norm === entryClass;
 }
 
-/** The primary and the parenthesised subsidiaries of a printed class, lower-cased; null when none are printed. */
-function printedSubsidiaries(norm: string): { primary: string; subs: string[] } | null {
-  const m = /^([0-9.]+[a-z]?)\s*\(([0-9.,\s]+)\)$/.exec(norm);
-  if (!m) return null;
-  return { primary: m[1]!, subs: m[2]!.split(/[,\s]+/).filter(Boolean) };
-}
-
 /**
  * Whether the printed class names the entry's subsidiaries exactly — the primary alone where the entry has
- * none, or every subsidiary where it has them. Where rows of one name differ only in their subsidiaries (UN1230
- * Methanol's D row "3" and I row "3 (6.1)"; UN1831 fuming sulfuric acid under and over 30 % free SO3), the
- * printed class is what tells them apart (D-PC1, 2026-10-26): "3" is the D row's own printing and the I row's
- * omission, and §172.202(a)(3) lets a subsidiary be omitted only where its label is not required — so the row
- * printed exactly wins, recorded as `row_chosen_by_class` (D-RC4), and rows that fit only loosely are kept
- * only when none fits exactly.
+ * none, or every subsidiary where it has them — in whatever punctuation. Where rows of one name differ only in
+ * their subsidiaries (UN1230 Methanol's D row "3" and I row "3 (6.1)"; UN1831 fuming sulfuric acid under and over
+ * 30 % free SO3), the printed class is what tells them apart (D-PC1, 2026-10-26): "3" is the D row's own printing
+ * and the I row's omission, and §172.202(a)(3) lets a subsidiary be omitted only where its label is not required
+ * — so the row printed exactly wins, recorded as `row_chosen_by_class` (D-RC4), and rows that fit only loosely
+ * are kept only when none fits exactly.
  */
 function classExact(entry: HmtEntry, printedClass: string): boolean {
-  const norm = printedClass.trim().toLowerCase().replace(/^(?:class|division)\s+/, "");
-  const printed = printedSubsidiaries(norm)?.subs ?? [];
+  const printed = parsePrintedClass(printedClass)?.subsidiaries ?? [];
   const entrySubs = entry.subsidiaryClasses.map((s) => s.toLowerCase());
   return printed.length === entrySubs.length && printed.every((w) => entrySubs.includes(w));
 }
@@ -334,6 +369,10 @@ export function resolveHmtLine(index: DatasetIndex, input: ResolveLineInput): Re
     if (!classMatches(entry, input.hazardClass, input.reclassedCombustible ?? false)) {
       return fail("class_mismatch", asCandidateList([entry]));
     }
+    // The classes are the row's; whether they were printed in §172.202(a)(3)'s form is the audit's question, and
+    // this is where it learns the answer (D-PC2) — the resolver is the only reader of the printed class.
+    const printed = parsePrintedClass(input.hazardClass);
+    if (printed && printed.subsidiaries.length > 0 && !printed.parenthesised) findings.push("subsidiary_not_in_parentheses");
   }
 
   return {

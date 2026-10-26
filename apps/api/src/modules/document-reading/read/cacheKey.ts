@@ -60,8 +60,11 @@ import { createHash } from "node:crypto";
  *          (idWitness.ts) — and the paper audit judges the line as that number.
  *   13   — 2026-10-26, D-PC1: the table carries its subsidiary classes (column 6), so a line printed "8 (6.1)" resolves
  *          where 12 refused it (normalizer 1.4.0: the printed class picks the exactly printed row, "Class" may precede).
+ *   14   — 2026-10-26, D-PC2: normalizer 1.5.0 — the table reads the classes however they are punctuated ("3, 8", "3/8",
+ *          "3 8", "CLASS 3, 8" and an unclosed "3 (8" name 3 (8)) and records `subsidiary_not_in_parentheses` where
+ *          §172.202(a)(3)'s form was not kept; 13 refused every such printing (PureTech f2dc74ed, five lines, no product).
  */
-export const ACCEPTANCE_RULE_VERSION = "13";
+export const ACCEPTANCE_RULE_VERSION = "14";
 
 export interface CacheKeyInput {
   profileVersion: string;

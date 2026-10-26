@@ -1,4 +1,4 @@
-import { BOL_FINDING_CATALOGUE, bolBlockedSentence, bolFieldWords, valuesAgree, type BolFindingActor, type BolFindingRuleId, type FieldEvidence, type PaperAuditView } from "@silvicom/shared";
+import { BOL_FINDING_CATALOGUE, bolBlockedSentence, bolFieldWords, bolFindingActor, valuesAgree, type BolFindingActor, type BolFindingRuleId, type FieldEvidence, type PaperAuditView } from "@silvicom/shared";
 
 /**
  * The paper audit of a read BOL as the dispatcher reads it (§5, §7A N6 part 3): every rule's result worded by
@@ -89,7 +89,7 @@ export function bolFindings(audit: PaperAuditView | null, evidence: readonly Fie
       key: `${r.ruleId}:${r.lineIndex ?? "doc"}`,
       sentence: entry.sentence(r),
       cite: entry.cite,
-      actor: entry.actor,
+      actor: bolFindingActor(entry, r),
       howToFix: entry.howToFix,
       ...(choices.length ? { choices } : {}),
     };

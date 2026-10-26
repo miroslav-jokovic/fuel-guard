@@ -31,6 +31,8 @@ export const REQUIRED = [
       "the table census — every entry, every legal printing (RC1)",
       "never resolves a printing to another row of the table",
       "never refuses a correct printing the paper can be resolved from",
+      "flags the subsidiaries outside parentheses on every unpunctuated printing and on no other (D-PC2)",
+      "refuses it as a class mismatch in every form, on every entry with a subsidiary",
     ],
   },
   {
