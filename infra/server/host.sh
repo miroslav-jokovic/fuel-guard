@@ -76,10 +76,15 @@ fi
 #    first deploy of a new server), so each is chowned when it exists and is not yet uid 10001's;
 #    on a server where it does not exist yet, compose creates it from the image's /data and /config,
 #    which Caddy as 10001 can write because the image leaves them world-writable (mode 1777).
+#    EVERY file is checked, not only the mount point: production was rolled back to 3f517ed (Caddy
+#    as root) from 2026-10-24 to 10-26, and root wrote certificates and locks INSIDE volumes whose
+#    top directory was already 10001's. The next hardened start (release run 40382803078) exited
+#    with "loading initial config ... caching" for every host, ports 80/443 refused, and the web was
+#    down until 3f517ed went back. Reproduced locally with exactly that layout.
 for vol in silvicom_caddy_data silvicom_caddy_config; do
   if docker volume inspect "$vol" >/dev/null 2>&1; then
     mp=$(docker volume inspect "$vol" --format '{{.Mountpoint}}')
-    if [ "$(stat -c %u "$mp")" != 10001 ]; then
+    if [ -n "$(find "$mp" \( ! -uid 10001 -o ! -gid 10001 \) -print -quit)" ]; then
       chown -R 10001:10001 "$mp"
       note "chowned $vol to uid 10001"; changed=1
     fi

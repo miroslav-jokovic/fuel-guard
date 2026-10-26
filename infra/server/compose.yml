@@ -226,6 +226,17 @@ services:
       # running into Let's Encrypt's rate limits.
       - caddy_data:/data
       - caddy_config:/config
+    # Without a healthcheck `up --wait` only waits for "running", and a Caddy that exits at config
+    # load and restarts in a loop is "running" at some instants: release run 40382803078 printed
+    # "caddy running" and "deployed" while ports 80/443 refused every connection, and only the web
+    # verify timing out 25 minutes later noticed. The admin API (127.0.0.1:2019, Caddy's default)
+    # answers only once the config is loaded, so this fails the deploy itself, in a minute.
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:2019/config/"]
+      interval: 15s
+      timeout: 5s
+      start_period: 30s
+      retries: 3
     depends_on:
       api:
         condition: service_healthy

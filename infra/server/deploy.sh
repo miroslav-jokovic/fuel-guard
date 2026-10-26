@@ -92,7 +92,15 @@ fi
 cd "$STACK"
 # --wait returns only when every container reports healthy, so a bad commit fails this command
 # (and the CI job that ran it) instead of being discovered by a person.
-docker compose --env-file "$ENV_NAME.env" --env-file release.env up -d --remove-orphans --wait --wait-timeout 300
+#   When it fails, Caddy's own last lines go into the SSM output, which is where the CI job shows
+# them: on 2026-10-26 the reason Caddy would not start sat on the production host, which no one in
+# the release could read. Caddy's only, never the app's — this output lands in a public Actions log,
+# and Caddy logs host names and errors, nothing a request carried.
+if ! docker compose --env-file "$ENV_NAME.env" --env-file release.env up -d --remove-orphans --wait --wait-timeout 300; then
+  docker compose --env-file "$ENV_NAME.env" --env-file release.env ps -a --format '{{.Service}} {{.State}} {{.Health}}' >&2
+  docker compose --env-file "$ENV_NAME.env" --env-file release.env logs --no-color --tail 30 caddy >&2 || true
+  exit 1
+fi
 docker compose --env-file "$ENV_NAME.env" --env-file release.env ps --format '{{.Service}} {{.State}} {{.Health}}'
 # Every image the new containers do not use (ssm-deploy.sh says why `-a`): the release before this one
 # is in ECR, not on this disk.
