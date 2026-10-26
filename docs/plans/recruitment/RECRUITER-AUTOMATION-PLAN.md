@@ -1,6 +1,7 @@
 # Recruiter automation — the whole hire, automated as far as the law and the owner allow · 2026-10-26
 
-**Status: PROPOSED. Nothing built. RA0 (the owner's rulings in §9) comes before any code.**
+**Status: RA0 PARTLY RULED 2026-10-26 (Q-RA1, Q-RA2, Q-RA3, Q-RA19 — see §9). Nothing built. RA1
+may start; Q-RA7 (hiring requirements) is still owed and sets what "qualified" means.**
 
 The owner's ask (2026-10-26, in two parts): first, *automate and help the recruiters* — Claude Duet,
 Tenstreet over its API with agents inside Silvicom 360, or ads run from our own system; then, *list
@@ -198,10 +199,10 @@ second source of truth (`CLAUDE.md`, "No workarounds").
 Each is a rule the code enforces, not a preference. None is ruled until the owner says so.
 
 - **D-RA1 · One system of record for applicants: Silvicom 360.** Tenstreet is a one-way feed (T2)
-  with a cut-off date. No two-way sync. Enforced: the Tenstreet listener writes only to
+  with a cut-off date. **T2 confirmed as the posture 2026-10-26: the contract is active (Q-RA1).** No two-way sync. Enforced: the Tenstreet listener writes only to
   `recruiting_leads` / raw payload tables; no job kind posts to Tenstreet.
-- **D-RA2 · No automated first contact.** Default reading of D-LS6 pending Q-RA2: nothing automated
-  reaches a person who has not applied. Automated *transactional* messages to an applicant with a
+- **D-RA2 · No automated first contact. RULED by the owner 2026-10-26 (Q-RA2 (b)):** nothing
+  automated reaches a person who has not applied. Automated *transactional* messages to an applicant with a
   live consent (confirmations, document requests, reminders) are allowed — the nudge sweep already
   does this. Enforced: every outbound route takes exactly one recipient; `JobKind` has no kind that
   sends to a lead; a test pins both (D-LS6's test, extended).
@@ -218,8 +219,8 @@ Each is a rule the code enforces, not a preference. None is ruled until the owne
   no age beyond the ≥21/policy gate, no gender, **no ZIP code** (HB 3773). Enforced: the contract
   each agent is given is an allowlist of fields; a test asserts the forbidden keys are absent from
   the prompt payload for every agent.
-- **D-RA6 · Money moves only on a person's approval, under a cap, and is reconciled daily.**
-  Campaigns are created paused; launch, budget change and new campaign are approval actions with
+- **D-RA6 · Money moves only on a person's approval, under a cap, and is reconciled daily. RULED
+  by the owner 2026-10-26 (Q-RA3 (b)).** Campaigns are created paused; launch, budget change and new campaign are approval actions with
   `created_by`; a monthly cap per channel lives in `recruiting_ads_settings` and is checked before any
   platform call; platform-reported spend is reconciled against our ledger every day and a mismatch
   alerts, never self-corrects. One action pauses everything.
@@ -333,7 +334,7 @@ system does it alone, no message to a driver · **Approve** = prepared, one clic
 | 7.2 | **R10 adverse action**: pre-adverse notice + copy of report + FCRA summary, waiting period timer, adverse notice; sent from Silvicom (Q-REC8 ruled) — **sending waits on counsel memo Q9** | PLANNED (R10) | Approve; Auto timer | RA4 (build), send on counsel |
 | 7.3 | **Structured decision reason** (closed list + note) on every disposition; feeds 11.6 | NEW (today free text) | Person, enforced | RA1 |
 | 7.4 | **Offer letter** from a template, e-signed with the existing mark ceremony | NEW (Q-RA18 whether the carrier uses one) | Approve | RA7 |
-| 7.5 | Recruiter may **hire**? Today needs `roster` manage | EXISTS (restriction) | Q-RA19 | RA1 if ruled |
+| 7.5 | **Recruiter may hire when every gate is green** (Q-RA19 ruled (b) 2026-10-26): `POST /hire` accepts `recruitment: manage` too; `hireBlockers` unchanged; audit unchanged | NEW (today needs `roster` manage) | Approve | RA1 |
 
 ### 4.8 Orientation and start
 | # | Item | State | Auto level | Phase |
@@ -484,15 +485,21 @@ Baselines are taken in RA1–RA2; targets are set after four weeks of data, neve
 
 Owner questions, with candidates, a recommendation and the fallback the code takes if unanswered.
 
-- **Q-RA1 · Tenstreet** (owner): contract active? cost? renewal date? Assistant included? account
-  manager? *Decides T1 vs T2 and whether 2.6 is built.* **Fallback:** 2.6 is not built; leads arrive
-  by the other four routes.
-- **Q-RA2 · D-LS6 restated** (owner): (a) as written; **(b) recommended** — no automated *first*
-  contact, transactional messages to consented applicants allowed; (c) AI voice/SMS to leads (not
-  recommended; TCPA). *Decides 4.6, 4.9, and whether A7 may send automatically.* **Fallback:** (a).
-- **Q-RA3 · Q-LS7 restated** (owner): (a) ingest only; **(b) recommended** — create paused,
-  person launches, caps; (c) auto-reallocate from day one. **Fallback:** (a); RA6's create step is
-  not built.
+- **Q-RA1 · Tenstreet — RULED 2026-10-26: the contract is ACTIVE.** T2 stands; 2.6 (the push
+  listener) is built in RA3. **Q-RA1b still owed** (owner): monthly cost, renewal date, whether
+  Tenstreet Assistant is included, and the account manager's name — the API terms, fees and schema
+  come from that person, and the renewal date is the cut-off T2 plans around. *Fallback:* 2.6 is
+  designed from the public description (accept/reject POST protocol) and finished when the schema
+  arrives.
+- **Q-RA2 · D-LS6 restated — RULED 2026-10-26: (b).** No automated *first* contact; automated
+  *transactional* messages (confirmations, document requests, appointment reminders) may go to an
+  applicant with a live consent. So 4.6 is built; 4.9 (A12 Q&A, driver-initiated) is allowed; A7
+  may send VOE requests to *employers* automatically once Q-PEI2 settles the sender. (c) stays
+  out. D-RA2 is now a ruling, not a default.
+- **Q-RA3 · Q-LS7 restated — RULED 2026-10-26: (b).** The system creates campaigns paused; a person
+  launches and approves every budget change; monthly caps per channel are enforced in code; spend is
+  reconciled daily; one action pauses everything. D-RA6 is now a ruling. Auto-reallocation (c)
+  remains behind D-RA10's eight-week gate and its own switch.
 - **Q-RA4 · Ad accounts** (owner): Meta Business + ad account + Page, admin, Business Verification
   done?, monthly budget per channel, yards/lanes we hire for with the operational reason (= Q-LS2).
   **Fallback:** RA5/RA6 wait.
@@ -529,8 +536,12 @@ Owner questions, with candidates, a recommendation and the fallback the code tak
 - **Q-RA17 · National Registry check** (owner/us): NRCME has no public API. Deep link + reminder +
   recorded act (exists), or a vendor. **Fallback:** deep link + recorded act.
 - **Q-RA18 · Offer letter** (owner): does the carrier issue one? Template? **Fallback:** not built.
-- **Q-RA19 · May a recruiter hire?** (owner). Today `POST /hire` needs `roster` manage. (a) keep;
-  (b) recruiter may hire when every gate is green. **Fallback:** keep.
+- **Q-RA19 · May a recruiter hire? — RULED 2026-10-26: (b).** A recruiter may complete the hire
+  when every gate is green. Build (RA1, item 7.5): `routes/hire.ts` accepts `recruitment: manage`
+  as well as `roster: manage`; `hireBlockers` and the `compliance.applicant_hired` audit are
+  unchanged; the web `HireDrawer` shows for the recruiter. ⚠ `rosterMastery` / `canWriteDriverLifecycle`
+  (`hire.ts:34-36`) is the predicate to widen — read its SP5 comment before touching it, and keep
+  the status→active trigger (`mig/0386:68`) as the only path.
 - **Q-RA20 · Samsara write token** (owner): a second, write-scoped token for driver creation, or
   the Samsara driver stays a checklist item for the office. **Fallback:** checklist item + the
   existing sync links it once Samsara has it.
@@ -542,10 +553,11 @@ Owner questions, with candidates, a recommendation and the fallback the code tak
 - **Q-RA23 · Chat/notification channel for the brief** (owner): in-app + email, or also the office
   chat (`OFFICE-CHAT-PLAN`). **Fallback:** in-app + email.
 
-**Recommendation:** rule Q-RA1, Q-RA2, Q-RA3 and Q-RA19 in one sitting; answer Q-RA7 in the same
-sitting (it has been open since 2026-08-20 and blocks every "qualified" number); confirm whether the
-counsel memo was sent. Then RA1 starts: it needs no counsel ruling and no ad spend, and nothing
-later can be measured without it.
+**Position after 2026-10-26's sitting:** Q-RA1, Q-RA2, Q-RA3 and Q-RA19 are ruled. **Still owed
+before RA1 can call anything "qualified": Q-RA7** (hiring requirements, open since 2026-08-20) —
+until then `leadMatch` ships regulation floors only. Also owed: Q-RA1b (Tenstreet terms), and the
+two UNVERIFIED facts in §1.3 (was the counsel memo sent; was the toll-free number approved). RA1
+itself needs none of these to start.
 
 ---
 
@@ -584,3 +596,9 @@ later can be measured without it.
   reliability bar with its enforcement), §7 (RA0–RA8 with *done when*), §9 (Q-RA1–23). Corrections
   to the chat list recorded in §1.4: adverse action is NOT built; Med-Stop read-back and PSP pull
   ARE built; hire provisions nothing downstream; a recruiter cannot hire. **Nothing built.**
+- **2026-10-26, evening** — Owner sitting. **Q-RA1 ruled: Tenstreet active** (terms owed as
+  Q-RA1b). **Q-RA2 ruled (b)**: no automated first contact; transactional messages to consented
+  applicants allowed — D-RA2 is a ruling. **Q-RA3 ruled (b)**: create paused, person launches,
+  caps — D-RA6 is a ruling. **Q-RA19 ruled (b)**: a recruiter may hire when every gate is green
+  (item 7.5 moves to RA1). Q-RA7 remains the one owner answer RA1's match engine waits on.
+  **Nothing built.**
