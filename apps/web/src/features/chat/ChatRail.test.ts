@@ -159,4 +159,25 @@ describe("ChatRail", () => {
     expect(w.text()).toContain("Somebody in a team can add you.");
     expect(render({ conversations: [], teams: [], canManage: true }).text()).toContain("No teams yet. Make one with New.");
   });
+
+  it("puts the caret in the search on focusSearch() — what / on the page does (D-CHATUI16)", () => {
+    const w = render();
+    (w.vm as unknown as { focusSearch(): void }).focusSearch();
+    expect(document.activeElement).toBe(w.find("input").element);
+  });
+
+  it("steps J and K along what it shows — Chats, then each team's channels — from the first when nothing is open, stopping at the ends", async () => {
+    const w = render({ selectedId: T2 });
+    const vm = w.vm as unknown as { step(delta: 1 | -1): void };
+    vm.step(1);
+    expect(w.emitted("open-channel")).toEqual([[GENERAL]]);
+    vm.step(-1);
+    expect(w.emitted("open-conversation")).toEqual([[T1]]);
+    await w.setProps({ selectedId: LOADS }); // the last item shown: Yard is not joined
+    vm.step(1);
+    expect(w.emitted("open-channel")).toEqual([[GENERAL]]);
+    await w.setProps({ selectedId: null });
+    vm.step(1);
+    expect(w.emitted("open-conversation")).toEqual([[T1], [T1]]);
+  });
 });

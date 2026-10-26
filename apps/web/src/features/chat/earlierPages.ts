@@ -1,4 +1,5 @@
-import { nextTick, watch, type Ref } from "vue";
+import { nextTick, ref, watch, type Ref } from "vue";
+import { useEventListener } from "@vueuse/core";
 import { replaceEqualDeep, useMutation, useQueryClient } from "@tanstack/vue-query";
 import { apiFetch } from "@/lib/api";
 
@@ -82,28 +83,78 @@ export function useLoadEarlier<K extends string>(field: K, key: () => readonly u
   return load;
 }
 
+/** What `useChatScroll` watches: the list's ends, and enough about the newest line to decide. */
+export interface ChatScrollSource {
+  /** The thread, or the post for a thread: another one opens at its newest line. */
+  view: string;
+  first: string | undefined;
+  last: string | undefined;
+  /** How many lines the list holds, so a new newest line says how many came with it. */
+  count: number;
+  /** The newest line is the reader's own — a send, pending or confirmed — which is always followed. */
+  lastOwn: boolean;
+}
+
+/** Within this of the bottom the reader is "at the bottom": a new line is followed, not counted. */
+export const NEAR_BOTTOM_PX = 100;
+
 /**
  * Keep a list of lines at its newest line when one arrives, or when another list opens. When lines
  * arrive ABOVE (an earlier page) the line the person was reading stays where it was; when neither end
  * moved (an edit, a poll that brought nothing) the list does not move either — somebody reading two
- * pages up is not pulled down by a refresh. Runs before the DOM updates (the watcher's default flush),
- * so the old height is still there to measure; `scrollTop`, not `scrollTo()`, because jsdom builds it
- * on every element.
+ * pages up is not pulled down by a refresh.
+ *
+ * Nor by a new line (CHAT-REDESIGN-PLAN D-CHATUI17): when the reader is more than `NEAR_BOTTOM_PX` up
+ * the log and somebody else's line arrives, the log stays where they are reading and `unseen` counts
+ * the lines that came — the caller draws it as "N new messages" with the way down, `jump`. Their own
+ * line is followed wherever they are: they sent it, they want to see it land. Reaching the bottom by
+ * hand reads the count away. One owner of the scroll position, as before: the pill is this watcher's
+ * other answer, not a second scroller.
+ *
+ * Runs before the DOM updates (the watcher's default flush), so the old height is still there to
+ * measure; `scrollTop`, not `scrollTo()`, because jsdom builds it on every element.
  */
-export function useChatScroll(scroller: Ref<HTMLElement | null>, source: () => [view: string, first: string | undefined, last: string | undefined]) {
+export function useChatScroll(scroller: Ref<HTMLElement | null>, source: () => ChatScrollSource) {
+  const unseen = ref(0);
+  const nearBottom = () => {
+    const el = scroller.value;
+    return !el || el.scrollHeight - el.scrollTop - el.clientHeight <= NEAR_BOTTOM_PX;
+  };
+  /** To the newest line, and nothing is unseen. */
+  function jump() {
+    const el = scroller.value;
+    if (el) el.scrollTop = el.scrollHeight;
+    unseen.value = 0;
+  }
   watch(
     source,
-    async ([view, first, last], old) => {
-      const same = old !== undefined && view === old[0] && last === old[2];
-      if (same && first === old[1]) return;
-      const above = same;
-      const fromBottom = scroller.value ? scroller.value.scrollHeight - scroller.value.scrollTop : 0;
+    async (now, old) => {
+      const sameView = old !== undefined && now.view === old.view;
+      const sameEnd = sameView && now.last === old.last;
+      if (sameEnd && now.first === old.first) return;
+      if (sameEnd) {
+        // An earlier page landed above: the line being read stays where it was.
+        const fromBottom = scroller.value ? scroller.value.scrollHeight - scroller.value.scrollTop : 0;
+        await nextTick();
+        const el = scroller.value;
+        if (el) el.scrollTop = el.scrollHeight - fromBottom;
+        return;
+      }
+      if (sameView && !now.lastOwn && !nearBottom()) {
+        // Somebody's line, with the reader up the log: count it, leave them where they are. When the
+        // page above landed in the same tick the count cannot say how many were new; one is certain.
+        unseen.value += now.first === old.first ? Math.max(1, now.count - old.count) : 1;
+        return;
+      }
       await nextTick();
-      const el = scroller.value;
-      if (el) el.scrollTop = above ? el.scrollHeight - fromBottom : el.scrollHeight;
+      jump();
     },
     { immediate: true },
   );
+  useEventListener(scroller, "scroll", () => {
+    if (unseen.value > 0 && nearBottom()) unseen.value = 0;
+  });
+  return { unseen, jump };
 }
 
 /** The key a merged line renders under, server or pending — what `useChatScroll` compares. */

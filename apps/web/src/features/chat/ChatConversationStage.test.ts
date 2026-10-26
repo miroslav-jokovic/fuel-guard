@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { mount } from "@vue/test-utils";
+import { flushPromises, mount } from "@vue/test-utils";
 import type { ChatConversationResponse, ChatMessage } from "@silvicom/shared";
 import { AppAvatar } from "@silvicom/ui";
 
@@ -156,6 +156,75 @@ describe("ChatConversationStage", () => {
     const log = render(data([])).find('[role="log"]');
     expect(log.attributes("aria-live")).toBe("polite");
     expect(log.attributes("aria-label")).toBe("Ben Admin");
+  });
+});
+
+describe("the keyboard in the log (CR2, D-CHATUI16, D-CHATUI17)", () => {
+  const attached = (d: ChatConversationResponse) => mount(ChatConversationStage, { props: { data: d, viewerId: ME, pending: [], sending: false }, attachTo: document.body });
+
+  it("Up from an empty box lands on the newest line; Up and Down walk the lines and stop at the top; Down past the newest returns to the box", async () => {
+    const w = attached(data([msg(1, BEN), msg(2, ME)]));
+    const box = w.find("textarea");
+    (box.element as HTMLTextAreaElement).focus();
+    await box.trigger("keydown", { key: "ArrowUp" });
+    const rows = w.findAll("[data-chat-row]");
+    expect(document.activeElement).toBe(rows[1]!.element);
+    await rows[1]!.trigger("keydown", { key: "ArrowUp" });
+    expect(document.activeElement).toBe(rows[0]!.element);
+    await rows[0]!.trigger("keydown", { key: "ArrowUp" });
+    expect(document.activeElement).toBe(rows[0]!.element);
+    await rows[0]!.trigger("keydown", { key: "ArrowDown" });
+    expect(document.activeElement).toBe(rows[1]!.element);
+    await rows[1]!.trigger("keydown", { key: "ArrowDown" });
+    expect(document.activeElement).toBe(box.element);
+    // With words in the box, Up is the caret's.
+    await box.setValue("hi");
+    await box.trigger("keydown", { key: "ArrowUp" });
+    expect(document.activeElement).toBe(box.element);
+    w.unmount();
+  });
+
+  it("E on your own line opens it for editing with the caret in the field, not on somebody else's, and Esc hands focus back to the line", async () => {
+    const w = attached(data([msg(1, BEN), msg(2, ME)]));
+    const rows = w.findAll("[data-chat-row]");
+    await rows[0]!.trigger("keydown", { key: "e" });
+    expect(w.find('textarea[aria-label="Edit message"]').exists()).toBe(false);
+    await rows[1]!.trigger("keydown", { key: "e" });
+    await flushPromises();
+    const field = w.find('textarea[aria-label="Edit message"]');
+    expect(document.activeElement).toBe(field.element);
+    await field.trigger("keydown", { key: "Escape" });
+    expect(w.find('textarea[aria-label="Edit message"]').exists()).toBe(false);
+    expect(document.activeElement).toBe(rows[1]!.element);
+    w.unmount();
+  });
+
+  it("offers the way down when lines arrive while the reader is up the log, follows their own line, and otherwise follows", async () => {
+    const w = render(data([msg(1, BEN), msg(2, BEN, {}, 3)]));
+    await flushPromises(); // the opening scroll to the newest line, before the mocks below see it
+    const log = w.find('[role="log"]').element as HTMLElement;
+    // jsdom lays nothing out: 100 px a line, and scrollTop kept as set (as `earlierPages.test.ts`).
+    let top = 0;
+    Object.defineProperty(log, "scrollTop", { configurable: true, get: () => top, set: (v: number) => { top = v; } });
+    Object.defineProperty(log, "scrollHeight", { configurable: true, get: () => log.querySelectorAll("[data-chat-row]").length * 100 });
+    const four = [msg(1, BEN), msg(2, BEN, {}, 3), msg(3, BEN, {}, 2), msg(4, BEN, {}, 1)];
+    await w.setProps({ data: data(four) });
+    expect(top).toBe(0);
+    const pill = w.findAll("button").find((b) => b.text().startsWith("2 new messages"));
+    expect(pill).toBeDefined();
+    await pill!.trigger("click");
+    expect(top).toBe(400);
+    expect(w.text()).not.toContain("new messages");
+
+    top = 0;
+    await w.setProps({ data: data([...four, msg(5, ME, {}, 0)]) });
+    await flushPromises();
+    expect(top).toBe(500);
+    expect(w.text()).not.toContain("new message");
+
+    await w.setProps({ data: data([...four, msg(5, ME, {}, 0), msg(6, BEN, {}, 0)]) });
+    await flushPromises();
+    expect(top).toBe(600);
   });
 });
 

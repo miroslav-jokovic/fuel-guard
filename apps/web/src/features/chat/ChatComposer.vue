@@ -16,6 +16,9 @@ import { useBottomChrome } from "@/composables/bottomChrome";
  * The form registers as bottom chrome (D-CHATUI14): the Ask AI launcher parks bottom-right, over
  * exactly where Send sits on a page that fills the window, and `bottomChrome.ts`'s rule is that a bar
  * says how tall it is and the launcher keeps itself above the tallest.
+ *
+ * Up in an EMPTY field hands focus to the log (`up`, D-CHATUI16): Slack's way into the lines without a
+ * mouse. With words in the field Up is the caret's, as ever.
  */
 const props = withDefaults(defineProps<{ placeholder?: string; label?: string; action?: string; threadKey?: string | null }>(), {
   placeholder: "Message",
@@ -23,7 +26,7 @@ const props = withDefaults(defineProps<{ placeholder?: string; label?: string; a
   action: "Send",
   threadKey: null,
 });
-const emit = defineEmits<{ send: [body: string] }>();
+const emit = defineEmits<{ send: [body: string]; up: [] }>();
 
 const draft = ref("");
 const field = ref<{ $el: HTMLTextAreaElement } | null>(null);
@@ -57,8 +60,12 @@ function onKey(e: KeyboardEvent) {
   if (e.key === "Enter" && !e.shiftKey && !e.isComposing) {
     e.preventDefault();
     submit();
+  } else if (e.key === "ArrowUp" && draft.value === "") {
+    e.preventDefault();
+    emit("up");
   }
 }
+defineExpose({ focus: () => field.value?.$el.focus() });
 </script>
 
 <template>

@@ -6,6 +6,18 @@
       "runtimeExecutable": "pnpm",
       "runtimeArgs": ["--dir", "apps/web", "preview:local", "--port", "4173"],
       "port": 4173
+    },
+    {
+      "name": "chat-mock-api",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["tools/chat-fixtures/mock-api.mjs"],
+      "port": 8080
+    },
+    {
+      "name": "chat-preview",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "@silvicom/web", "exec", "vite", "preview", "--port", "4392", "--strictPort"],
+      "port": 4392
     }
   ]
 }
