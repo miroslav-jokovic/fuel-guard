@@ -11,15 +11,9 @@
 	email {$ACME_EMAIL}
 }
 
-{$WEB_HOST} {
-	reverse_proxy web:8080 {
-		health_uri /healthz
-	}
-}
-
-# `dynamic a` re-resolves the service name, so every api replica gets traffic and a replica that is
-# being replaced (or fails /healthz) gets none.
-{$API_HOST} {
+# The api replicas, wherever a host name sends API traffic. `dynamic a` re-resolves the service name,
+# so every replica gets traffic and a replica that is being replaced (or fails /healthz) gets none.
+(api_replicas) {
 	reverse_proxy {
 		dynamic a {
 			name api
@@ -30,6 +24,27 @@
 		health_uri /healthz
 		lb_try_duration 10s
 	}
+}
+
+# D-AWS17: the office app's `/api` goes to the api replicas on its OWN origin, so the API moves to AWS
+# without waiting for `api.360…` to resolve here (GoDaddy had published nothing since 2026-10-23,
+# SOA 2026102306, measured 2026-10-26). The web container would answer `/api` too — it is the same
+# Express app — but with the EFS routes fenced off (app.ts, "the web host serving the rest is only a
+# second copy"), so every `/api` request goes where the whole API is. Everything else is the SPA.
+# One proxy hop either way, so `trust proxy` 1 still holds.
+{$WEB_HOST} {
+	handle /api/* {
+		import api_replicas
+	}
+	handle {
+		reverse_proxy web:8080 {
+			health_uri /healthz
+		}
+	}
+}
+
+{$API_HOST} {
+	import api_replicas
 }
 
 # Q-AWS9 (open): the console may later be limited to the office IPs here, on top of its own login.

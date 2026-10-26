@@ -64,11 +64,14 @@ case "$run_schedulers" in true) worker_replicas=1 ;; false) worker_replicas=0 ;;
   *) echo "RUN_SCHEDULERS in $ENV_NAME.env must be true or false, is '$run_schedulers'" >&2; exit 2 ;; esac
 
 # What silvicom-boot.service brings back after a reboot: this release, nothing newer or older.
+# CADDYFILE_HASH labels the caddy container (compose.yml): the Caddyfile is a bind-mounted file, which
+# Caddy reads once at start, so a release that changes it must recreate the container to be heard.
 cat > "$STACK/release.env" <<EOF
 ENV_NAME=$ENV_NAME
 APP_IMAGE=$APP_IMAGE
 CONSOLE_IMAGE=$CONSOLE_IMAGE
 WORKER_REPLICAS=$worker_replicas
+CADDYFILE_HASH=$(sha256sum "$STACK/Caddyfile" | cut -c1-16)
 EOF
 install -m 0644 "$STACK/silvicom-boot.service" /etc/systemd/system/silvicom-boot.service
 systemctl daemon-reload
