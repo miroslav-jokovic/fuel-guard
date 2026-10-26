@@ -95,6 +95,16 @@ export function paperPsnMatchesHmt(ctx: LineCtx): PaperRuleResult {
  * unresolved, never a pass. A row whose table entry carries no class ("Samples, explosive": §173.56 assigns the
  * division with the approval) cannot check which Class 1 division is printed: it waits, rather than calling the
  * approval's division wrong — while a class outside Class 1, which the table matcher refuses, is wrong. Both found by the RC5 golden census (READER-CORRECTNESS-PLAN).
+ *
+ * Punctuation is this rule's business, not the matcher's (D-PC2, 2026-10-26). §172.202(a)(3): the subsidiary
+ * "must be entered in parentheses … immediately following the primary hazard class or division number", and PHMSA
+ * letter 04-0188 holds the parentheses mandatory. The resolver reads the classes however they are printed and says
+ * when the form was not kept (`subsidiary_not_in_parentheses`); here the right classes in the wrong form are a
+ * `class_format` failure — the shipper's to correct, not the driver's to refuse — and only when nothing else on the
+ * line is wrong: with a wrong PG beside it the line is `class_or_pg_wrong`, the format noted in its facts. A
+ * subsidiary the table does not list is `class_mismatch` from the resolver and stays wrong. A subsidiary printed
+ * nowhere passes here as before: §172.202(a)(3) excuses it where no subsidiary label is required under §172.402,
+ * and nothing in this engine derives §172.402's label requirements yet — PLACARD-CALCULATOR-RELIABILITY-PLAN Q-PC6.
  */
 export function paperClassPgMatch(ctx: LineCtx): PaperRuleResult {
   const r = make("paper_class_pg_match", ctx.index);
@@ -107,9 +117,10 @@ export function paperClassPgMatch(ctx: LineCtx): PaperRuleResult {
   const p = ctx.printed;
   const res = ctx.resolved.resolution;
   const noClassInTable = rows.every((x) => x.entry.hazardClass == null);
-  let classProblem: "missing" | "differs" | null = null;
+  let classProblem: "missing" | "differs" | "format" | null = null;
   if (blank(p.hazardClass)) classProblem = rows.every((x) => classMayBeOmitted(x.entry)) ? null : "missing";
   else if (res && !res.ok && res.reason === "class_mismatch") classProblem = "differs";
+  else if (res?.ok && res.findings.includes("subsidiary_not_in_parentheses")) classProblem = "format";
 
   const allowed = [...new Set(rows.flatMap(requiredPgs))];
   let pgProblem: "missing" | "differs" | "not_allowed" | null = null;
@@ -126,6 +137,7 @@ export function paperClassPgMatch(ctx: LineCtx): PaperRuleResult {
     classProblem,
     pgProblem,
   };
+  if (classProblem === "format" && !pgProblem) return r("fail", "class_format", facts);
   if (classProblem || pgProblem) return r("fail", "class_or_pg_wrong", facts);
   if (!row) return r("cannot_tell", "line_unresolved", { lineLabel: label });
   if (noClassInTable && !blank(p.hazardClass)) return r("cannot_tell", "class_not_in_table", facts);

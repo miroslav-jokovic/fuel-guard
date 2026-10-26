@@ -107,7 +107,10 @@ export type PaperResolution =
       readonly entryId: string;
       readonly pg: "I" | "II" | "III" | null;
       readonly matchedName: string;
-      /** The resolver's non-fatal flags: "pg_missing", "pg_mismatch", "pg_present_on_no_pg_entry". */
+      /**
+       * The resolver's non-fatal flags: "pg_missing", "pg_mismatch", "pg_present_on_no_pg_entry", "row_chosen_by_class",
+       * "row_chosen_by_pg", and "subsidiary_not_in_parentheses" — the right classes outside §172.202(a)(3)'s form (D-PC2).
+       */
       readonly findings: readonly string[];
     }
   | {

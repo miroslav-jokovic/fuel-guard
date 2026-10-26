@@ -36,6 +36,20 @@ describe("bolFindings", () => {
     expect(f.datasetVersion).toBe("2026.07.1");
   });
 
+  it("hands the right classes in the wrong punctuation to the shipper, after the driver's refusals (D-PC2)", () => {
+    const f = bolFindings(audit([
+      r("paper_class_pg_match", "fail", "class_format", { lineLabel: "UN2924", printedClass: "3, 8", requiredClass: "3 (8)", classProblem: "format", pgProblem: null }),
+      r("paper_quantity_present", "fail", "missing"),
+      r("paper_class_pg_match", "fail", "class_or_pg_wrong", { lineLabel: "UN1993", printedClass: "8", requiredClass: "3", classProblem: "differs", pgProblem: null }, 1),
+    ]))!;
+    expect(f.wrong.map((x) => [x.key, x.actor])).toEqual([
+      ["paper_class_pg_match:1", "driver_must_not_accept"],
+      ["paper_class_pg_match:0", "shipper_must_correct"],
+      ["paper_quantity_present:0", "shipper_must_correct"],
+    ]);
+    expect(f.wrong[1]!.sentence).toContain('prints class "3, 8": the right classes, but §172.202(a)(3)');
+  });
+
   it("says once per line and cause what stopped several checks, naming each check it stopped", () => {
     const f = bolFindings(audit([
       r("paper_psn_matches_hmt", "cannot_tell", "line_unresolved", { lineLabel: "5503615" }, 2),

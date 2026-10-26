@@ -36,7 +36,17 @@ export interface BolFindingEntry {
   sentence(ctx: BolFindingContext): string;
   cite: string;
   actor: BolFindingActor;
+  /**
+   * Who acts on ONE reason where it is not who acts on the rule: a right class in the wrong punctuation is the
+   * shipper's to correct where a wrong class is the driver's to refuse (D-PC2). Read through `bolFindingActor`.
+   */
+  actorFor?(ctx: BolFindingContext): BolFindingActor;
   howToFix: string;
+}
+
+/** The actor for this finding: the reason's where the entry names one, else the rule's. */
+export function bolFindingActor(entry: BolFindingEntry, ctx: BolFindingContext): BolFindingActor {
+  return entry.actorFor?.(ctx) ?? entry.actor;
 }
 
 // ── wording helpers ───────────────────────────────────────────────────────────────────────────────
@@ -158,6 +168,8 @@ export const BOL_FINDING_CATALOGUE = {
     subject: SUBJECT.paper_class_pg_match,
     cite: "49 CFR 172.202(a)(3)-(4)",
     actor: "driver_must_not_accept",
+    // The right classes in the wrong punctuation name the right hazard (D-PC2): the shipper reprints, the load moves.
+    actorFor: (ctx) => (ctx.reason === "class_format" ? "shipper_must_correct" : "driver_must_not_accept"),
     howToFix: "Ask the shipper for a corrected BOL with the hazard class and packing group the Hazardous Materials Table gives for this entry.",
     sentence(ctx) {
       const c = common(ctx, SUBJECT.paper_class_pg_match);
@@ -166,9 +178,13 @@ export const BOL_FINDING_CATALOGUE = {
       if (ctx.reason === "class_not_in_table") {
         return `Can't check the hazard class on ${line(ctx)}: the Hazardous Materials Table gives this entry none — its approval assigns it. Check class ${s(ctx.facts.printedClass)} against the approval.`;
       }
+      if (ctx.reason === "class_format") {
+        return `The BOL for ${line(ctx)} prints class "${s(ctx.facts.printedClass)}": the right classes, but §172.202(a)(3) says the subsidiary "must be entered in parentheses" after the primary — ${s(ctx.facts.requiredClass)} — and PHMSA's letter 04-0188 holds the parentheses mandatory.`;
+      }
       const parts: string[] = [];
       if (ctx.facts.classProblem === "missing") parts.push(`prints no hazard class (the table says ${s(ctx.facts.requiredClass)})`);
       if (ctx.facts.classProblem === "differs") parts.push(`prints class ${s(ctx.facts.printedClass)} where the table says ${s(ctx.facts.requiredClass)}`);
+      if (ctx.facts.classProblem === "format") parts.push(`prints class "${s(ctx.facts.printedClass)}" with the subsidiary outside the parentheses §172.202(a)(3) requires (the table's form is ${s(ctx.facts.requiredClass)})`);
       if (ctx.facts.pgProblem === "missing") parts.push(`prints no packing group (the table requires ${pgText(ctx.facts.requiredPg)})`);
       if (ctx.facts.pgProblem === "differs") parts.push(`prints PG ${s(ctx.facts.printedPg)} where the table requires ${pgText(ctx.facts.requiredPg)}`);
       if (ctx.facts.pgProblem === "not_allowed") parts.push(`prints PG ${s(ctx.facts.printedPg)}, but this material has no packing group`);

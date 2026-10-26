@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { BOL_FINDING_ACTORS, BOL_FINDING_CATALOGUE, BOL_FINDING_RULE_IDS, type BolFindingContext, type BolFindingRuleId } from "./bolFindingCatalogue.js";
+import { BOL_FINDING_ACTORS, BOL_FINDING_CATALOGUE, BOL_FINDING_RULE_IDS, bolFindingActor, type BolFindingContext, type BolFindingRuleId } from "./bolFindingCatalogue.js";
 
 /**
  * Every catalogue entry rendered with a real context — the facts `auditPrintedPaper` returns for that
@@ -23,6 +23,8 @@ const CASES: Array<[BolFindingRuleId, BolFindingContext, string]> = [
   ["paper_class_pg_match", ctx("fail", "class_or_pg_wrong", { lineLabel: "UN1203", printedClass: "3", printedPg: null, requiredClass: "3", requiredPg: "II", classProblem: null, pgProblem: "missing" }), "The BOL for UN1203 prints no packing group (the table requires PG II)."],
   ["paper_class_pg_match", ctx("fail", "class_or_pg_wrong", { lineLabel: "UN1075", printedClass: "2.1", printedPg: "II", requiredClass: "2.1", requiredPg: null, classProblem: null, pgProblem: "not_allowed" }), "The BOL for UN1075 prints PG II, but this material has no packing group."],
   ["paper_class_pg_match", ctx("fail", "class_or_pg_wrong", { lineLabel: "UN1993", printedClass: "8", printedPg: null, requiredClass: "3", requiredPg: ["I", "II", "III"], classProblem: "differs", pgProblem: "missing" }), "The BOL for UN1993 prints class 8 where the table says 3 and prints no packing group (the table requires one of PG I, II and III)."],
+  ["paper_class_pg_match", ctx("fail", "class_format", { lineLabel: "UN2924", printedClass: "3, 8", printedPg: "II", requiredClass: "3 (8)", requiredPg: "II", classProblem: "format", pgProblem: null }), "The BOL for UN2924 prints class \"3, 8\": the right classes, but §172.202(a)(3) says the subsidiary \"must be entered in parentheses\" after the primary — 3 (8) — and PHMSA's letter 04-0188 holds the parentheses mandatory."],
+  ["paper_class_pg_match", ctx("fail", "class_or_pg_wrong", { lineLabel: "UN2924", printedClass: "3, 8", printedPg: "I", requiredClass: "3 (8)", requiredPg: "II", classProblem: "format", pgProblem: "differs" }), "The BOL for UN2924 prints class \"3, 8\" with the subsidiary outside the parentheses §172.202(a)(3) requires (the table's form is 3 (8)) and prints PG I where the table requires PG II."],
   ["paper_class_pg_match", ctx("pass", "matches", { lineLabel: "UN1203", requiredClass: "3", requiredPg: "II" }), "UN1203's class 3 and PG II match the table."],
   ["paper_technical_name", ctx("fail", "missing", { lineLabel: "UN1993", requiredPsn: "Flammable liquids, n.o.s." }), "UN1993 is an n.o.s. entry (\"Flammable liquids, n.o.s.\") and the BOL doesn't name what is actually in it."],
   ["paper_technical_name", ctx("pass", "printed", { lineLabel: "UN1993", technicalName: "toluene" }), "UN1993 names its contents (toluene), as an n.o.s. entry must."],
@@ -130,6 +132,16 @@ describe("BOL finding catalogue (§5.3, D-DR7)", () => {
     expect(BOL_FINDING_CATALOGUE.paper_er_phone.actor).toBe("driver_must_not_accept");
     expect(BOL_FINDING_CATALOGUE.paper_class_pg_match.actor).toBe("driver_must_not_accept");
     expect(BOL_FINDING_CATALOGUE.paper_hm_column.actor).toBe("information_only");
+  });
+
+  it("hands the right classes in the wrong punctuation to the shipper, and a wrong class to the driver (D-PC2)", () => {
+    const e = BOL_FINDING_CATALOGUE.paper_class_pg_match;
+    expect(bolFindingActor(e, ctx("fail", "class_format", { classProblem: "format" }))).toBe("shipper_must_correct");
+    expect(bolFindingActor(e, ctx("fail", "class_or_pg_wrong", { classProblem: "format", pgProblem: "differs" }))).toBe("driver_must_not_accept");
+    expect(bolFindingActor(e, ctx("fail", "class_or_pg_wrong", { classProblem: "differs" }))).toBe("driver_must_not_accept");
+    // A rule without a per-reason actor answers its own.
+    expect(bolFindingActor(BOL_FINDING_CATALOGUE.paper_quantity_present, ctx("fail", "missing"))).toBe("shipper_must_correct");
+    for (const [ruleId, c] of CASES) expect(BOL_FINDING_ACTORS).toContain(bolFindingActor(BOL_FINDING_CATALOGUE[ruleId], c));
   });
 
   it("never leaks an empty placeholder into a sentence", () => {

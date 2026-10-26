@@ -111,6 +111,8 @@ function census(ds: Dataset) {
   });
   /** Every PG any row of this id carries — a "wrong" PG is one none of them has, never a sibling row's. */
   const pgsOfId = (e: HmtEntry) => ds.entries.filter((x) => x.idPrefix === e.idPrefix && x.idNumber === e.idNumber).flatMap((x) => x.pgRows.map((r) => r.pg));
+  /** Every class any row of this id names, primary or subsidiary — a "wrong" subsidiary is one none of them lists. */
+  const classesOfId = (e: HmtEntry) => new Set(ds.entries.filter((x) => x.idPrefix === e.idPrefix && x.idNumber === e.idNumber).flatMap((x) => [x.hazardClass ?? "", ...x.subsidiaryClasses]));
 
   /** A correct paper for this row: two drums of 5 lb, or one cargo tank of 40,000 lb (over every RQ in Appendix A). */
   function golden(row: Row, bulk: boolean): Paper {
@@ -144,7 +146,7 @@ function census(ds: Dataset) {
       { dataset: ds as never, lines: [{ resolution: resolution as never, ...p.resolved }], ...p.paper },
     ).results;
   }
-  return { rows, golden, audit, pgsOfId, index };
+  return { rows, golden, audit, pgsOfId, classesOfId, index };
 }
 type Census = ReturnType<typeof census>;
 
@@ -180,6 +182,9 @@ interface Defect {
 /** No column 8A in the dataset, or look-alike rows that disagree on it (UN1738 "Benzyl chloride" in 2026.12.0). */
 const lqMayWait = ({ lq, twins }: Row) => lq === "not_in_dataset" || new Set(twins.map((t) => t.exceptionsRef == null)).size > 1;
 
+/** Classes to swap a subsidiary for; the first one no row of the number names is the wrong one. */
+const WRONG_SUBS = ["9", "8", "3", "6.1", "5.1", "4.3"];
+
 const DEFECTS: Defect[] = [
   {
     name: "id printed without UN/NA", owner: "paper_sequence", reasons: ["elements_missing"],
@@ -200,6 +205,18 @@ const DEFECTS: Defect[] = [
     name: "a subsidiary class the table does not list", owner: "paper_class_pg_match", reasons: ["class_or_pg_wrong"],
     applies: ({ e }) => e.hazardClass != null && !e.subsidiaryClasses.includes("9") && !/^1\./.test(e.hazardClass),
     make: (p, { e }) => reprint(p, { cls: `${e.hazardClass} (${[...e.subsidiaryClasses, "9"].join(", ")})` }),
+  },
+  {
+    // §172.202(a)(3) with PHMSA 04-0188: the right subsidiary after a comma names the right hazard in the wrong form —
+    // the shipper's to correct, never the driver's to refuse, and never a product the calculator lacks (D-PC2).
+    name: "a subsidiary class printed after a comma, not in parentheses", owner: "paper_class_pg_match", reasons: ["class_format"],
+    applies: ({ e }) => e.subsidiaryClasses.length > 0,
+    make: (p, { e }) => reprint(p, { cls: `${e.hazardClass}, ${e.subsidiaryClasses.join(", ")}` }),
+  },
+  {
+    name: "a subsidiary class swapped for one no row of the number lists", owner: "paper_class_pg_match", reasons: ["class_or_pg_wrong"],
+    applies: ({ e }, c) => e.subsidiaryClasses.length > 0 && WRONG_SUBS.some((w) => !c.classesOfId(e).has(w)),
+    make: (p, { e }, c) => reprint(p, { cls: `${e.hazardClass} (${[WRONG_SUBS.find((w) => !c.classesOfId(e).has(w))!, ...e.subsidiaryClasses.slice(1)].join(", ")})` }),
   },
   {
     name: "another hazard class", owner: "paper_class_pg_match", reasons: ["class_or_pg_wrong"],
