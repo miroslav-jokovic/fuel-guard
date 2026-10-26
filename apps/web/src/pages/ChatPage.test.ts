@@ -4,14 +4,16 @@ import { createPinia, setActivePinia } from "pinia";
 import { createMemoryHistory, createRouter } from "vue-router";
 
 /**
- * /chat (CH2) — the page's own decisions: it waits for the plan before saying anything about it, the
- * open conversation is the `?c=` in the URL and a value that is not an id is never sent, picking one
- * person opens the direct conversation while several make a group, and an unread conversation that is
- * opened is read to its last line.
+ * /chat (CH2; CHAT-REDESIGN-PLAN §4) — the page's own decisions: it waits for the plan before saying
+ * anything about it; the open conversation is `?c=` and the open channel `?ch=`, each written alone, and
+ * a value that is not an id is never sent; picking one person opens the direct conversation while
+ * several make a group; an unread conversation that is opened is read to its last line, and the New
+ * line remembers where that read started.
  */
 const state = vi.hoisted(() => ({
   modules: "has" as "has" | "lacks" | "pending",
   conversations: [] as unknown[],
+  teams: { teams: [], can_manage: false } as unknown,
   conversationAsked: [] as Array<string | null>,
   openDirect: vi.fn(async () => "33333333-3333-4333-8333-333333333333"),
   createGroup: vi.fn(async () => "44444444-4444-4444-8444-444444444444"),
@@ -19,7 +21,6 @@ const state = vi.hoisted(() => ({
   detail: null as unknown,
   followed: [] as Array<string | null>,
   inboxKinds: null as string[] | null,
-  setLink: (_: string) => {},
   earlier: vi.fn(),
 }));
 
@@ -38,16 +39,16 @@ vi.mock("@/composables/useModules", async () => {
 });
 vi.mock("@/features/chat/useChat", async () => {
   const { ref, watch } = await import("vue");
-  const q = (data: unknown) => ({ data: ref(data), isPending: ref(false), isError: ref(false), error: ref(null), isFetching: ref(false), refetch: vi.fn() });
+  const qs = (data: unknown) => ({ data: ref(data), isPending: ref(false), isError: ref(false), error: ref(null), isFetching: ref(false), refetch: vi.fn() });
   return {
     mergeLines: () => [],
     useChatInboxQuery: (_enabled: unknown, kinds?: string[]) => {
       state.inboxKinds = kinds ?? null;
-      return q({ conversations: state.conversations, next: null, unread_total: 0 });
+      return qs({ conversations: state.conversations, next: null, unread_total: 0 });
     },
-    useChatPeopleQuery: () => q([]),
+    useChatPeopleQuery: () => qs([]),
     useChatConversationQuery: (id: { value: string | null }) => {
-      const r = q(state.detail);
+      const r = qs(state.detail);
       watch(() => id.value, (v) => state.conversationAsked.push(v), { immediate: true });
       return r;
     },
@@ -59,6 +60,23 @@ vi.mock("@/features/chat/useChat", async () => {
     useChatMessageActions: () => ({ edit: { mutateAsync: vi.fn() }, retract: { mutateAsync: vi.fn() } }),
   };
 });
+vi.mock("@/features/chat/teams/useChatTeams", async () => {
+  const { ref } = await import("vue");
+  return {
+    useChatTeamsQuery: () => ({ data: ref(state.teams), isPending: ref(false), isError: ref(false), error: ref(null), isFetching: ref(false), refetch: vi.fn() }),
+  };
+});
+vi.mock("@/features/chat/teams/useChatRailActions", async () => {
+  const { computed, ref } = await import("vue");
+  return {
+    useChatRailActions: () => ({
+      channelFor: ref(null), peopleFor: ref(null), creatingTeam: ref(false),
+      members: { data: ref([]) }, people: { data: ref([]) },
+      onJoin: vi.fn(), onLeaveTeam: vi.fn(), onCreateChannel: vi.fn(), onAddPeople: vi.fn(), onCreateTeam: vi.fn(),
+      createChannelBusy: computed(() => false), addPeopleBusy: computed(() => false), createTeamBusy: computed(() => false),
+    }),
+  };
+});
 vi.mock("@/features/chat/chatRealtime", async () => {
   const { watch } = await import("vue");
   return {
@@ -68,21 +86,21 @@ vi.mock("@/features/chat/chatRealtime", async () => {
 });
 vi.mock("@/features/chat/transport", async () => {
   const { ref } = await import("vue");
-  const link = ref("off");
-  state.setLink = (v) => (link.value = v);
-  return { chatLinkState: link };
+  return { chatLinkState: ref("off") };
 });
-vi.mock("@/stores/session", () => ({ useSessionStore: () => ({ userId: "11111111-1111-4111-8111-111111111111" }) }));
+vi.mock("@/stores/session", () => ({ useSessionStore: () => ({ userId: "11111111-1111-4111-8111-111111111111", fullName: "Ana" }) }));
 vi.mock("@/stores/toast", () => ({ useToastStore: () => ({ success: vi.fn(), error: vi.fn() }) }));
 
-// The Teams side has its own tests (ChatTeamsView.test.ts); here it is the thing the tab shows.
-vi.mock("@/features/chat/teams/ChatTeamsView.vue", () => ({
-  default: { props: ["entitled"], template: `<div data-test="teams-view" />` },
+// The channel side has its own tests (ChatChannelStage.test.ts); here it is the thing `?ch=` shows.
+vi.mock("@/features/chat/teams/ChatChannelStage.vue", () => ({
+  default: { props: ["entitled", "viewerName"], template: `<div data-test="channel-stage" />` },
 }));
 import ChatPage from "./ChatPage.vue";
+import ChatRail from "@/features/chat/ChatRail.vue";
 import NewChatDialog from "@/features/chat/NewChatDialog.vue";
 
 const T = "33333333-3333-4333-8333-333333333333";
+const CH = "77777777-7777-4777-8777-777777777777";
 
 async function render(path = "/chat") {
   const router = createRouter({ history: createMemoryHistory(), routes: [{ path: "/chat", component: { template: "<div/>" }, meta: { title: "Chat" } }] });
@@ -95,12 +113,13 @@ async function render(path = "/chat") {
 
 beforeEach(() => {
   setActivePinia(createPinia());
+  document.body.innerHTML = "";
   state.modules = "has";
   state.conversations = [];
+  state.teams = { teams: [], can_manage: false };
   state.conversationAsked = [];
   state.detail = null;
   state.followed = [];
-  state.setLink("off");
   state.openDirect.mockClear();
   state.createGroup.mockClear();
   state.markRead.mockClear();
@@ -112,7 +131,7 @@ describe("ChatPage", () => {
     state.modules = "pending";
     const { w } = await render();
     expect(w.text()).not.toContain("isn't part of your plan");
-    expect(w.text()).not.toContain("New conversation");
+    expect(w.find('button[aria-label="New"]').exists()).toBe(false);
   });
 
   it("says chat is not in the plan when it is not", async () => {
@@ -129,13 +148,14 @@ describe("ChatPage", () => {
     expect(state.conversationAsked.every((v) => v === null)).toBe(true);
   });
 
-  it("reads an opened conversation to its last line when it has unread", async () => {
+  it("reads an opened conversation to its last line when it has unread, and hands the stage where unread started", async () => {
     state.detail = {
-      conversation: { thread_id: T, kind: "direct", subject: null, title_members: [], member_count: 2, unread: 2, last_seq: 7 },
+      conversation: { thread_id: T, kind: "direct", subject: null, title_members: [], member_count: 2, unread: 2, last_seq: 7, read_seq: 5 },
       members: [], messages: [], before_seq: null,
     };
-    await render(`/chat?c=${T}`);
+    const { w } = await render(`/chat?c=${T}`);
     expect(state.markRead).toHaveBeenCalledWith({ threadId: T, seq: 7 });
+    expect(w.findComponent({ name: "ChatConversationStage" }).props("firstUnreadSeq")).toBe(6);
   });
 
   it("opens the direct conversation for one person, and a named group for several", async () => {
@@ -144,7 +164,7 @@ describe("ChatPage", () => {
     dialog.vm.$emit("start", ["22222222-2222-4222-8222-222222222222"], null);
     await flushPromises();
     expect(state.openDirect).toHaveBeenCalledWith("22222222-2222-4222-8222-222222222222");
-    expect(router.currentRoute.value.query.c).toBe(T);
+    expect(router.currentRoute.value.query).toEqual({ c: T });
 
     dialog.vm.$emit("start", ["22222222-2222-4222-8222-222222222222", "55555555-5555-4555-8555-555555555555"], "Night dispatch");
     await flushPromises();
@@ -162,50 +182,38 @@ describe("ChatPage", () => {
     expect(state.followed).toEqual([null]);
   });
 
-  it("says Reconnecting only when the live link is down, not while it first connects", async () => {
-    for (const [link, shown] of [["reconnecting", true], ["connecting", false], ["live", false], ["off", false]] as const) {
-      state.setLink(link);
-      const { w } = await render();
-      expect(w.text().includes("Reconnecting"), link).toBe(shown);
-      w.unmount();
-    }
-  });
-
-  it("tells an empty inbox how to begin", async () => {
+  it("tells an empty inbox how to begin, and the empty stage what to do", async () => {
     const { w } = await render();
     expect(w.text()).toContain("No conversations yet");
+    expect(w.text()).toContain("Pick a conversation or a channel, or start one with New.");
   });
 
-  it("lists direct and group conversations under Chats — channels are on the Teams rail", async () => {
+  it("lists direct and group conversations under Chats — channels are listed by their team", async () => {
     await render();
     expect(state.inboxKinds).toEqual(["direct", "group"]);
   });
 
-  it("switches to Teams in the URL, so a link to a channel opens there, and back to Chats with nothing left over", async () => {
-    const { w, router } = await render(`/chat?c=${T}`);
-    expect(w.find('[data-test="teams-view"]').exists()).toBe(false);
-    await w.findAll('[role="tab"]').find((t) => t.text() === "Teams")!.trigger("click");
-    await flushPromises();
-    expect(router.currentRoute.value.query).toEqual({ view: "teams" });
-    expect(w.find('[data-test="teams-view"]').exists()).toBe(true);
-    expect(w.text()).not.toContain("New conversation");
-    await w.findAll('[role="tab"]').find((t) => t.text() === "Chats")!.trigger("click");
-    await flushPromises();
-    expect(router.currentRoute.value.query).toEqual({});
-  });
-
-  it("loads the page above when the open conversation has one (CH6a)", async () => {
-    state.detail = {
-      conversation: { thread_id: T, kind: "direct", subject: null, title_members: [], member_count: 2, unread: 0, last_seq: 60 },
-      members: [], messages: [], before_seq: 11,
-    };
-    const { w } = await render(`/chat?c=${T}`);
-    await w.findAll("button").find((b) => b.text() === "Show earlier messages")!.trigger("click");
-    expect(state.earlier).toHaveBeenCalledTimes(1);
-  });
-
-  it("opens no conversation while Teams is showing, whatever `?c=` says", async () => {
-    await render(`/chat?view=teams&c=${T}`);
+  it("shows the channel stage for ?ch=, and opens no conversation then, whatever ?c= says", async () => {
+    const { w } = await render(`/chat?ch=${CH}&c=${T}`);
+    expect(w.find('[data-test="channel-stage"]').exists()).toBe(true);
     expect(state.conversationAsked.every((v) => v === null)).toBe(true);
+  });
+
+  it("writes the open item alone into the URL: a conversation drops the channel and its thread, a channel drops the conversation", async () => {
+    const { w, router } = await render(`/chat?ch=${CH}&post=${T}&view=teams`);
+    w.findComponent(ChatRail).vm.$emit("open-conversation", T);
+    await flushPromises();
+    expect(router.currentRoute.value.query).toEqual({ c: T });
+    w.findComponent(ChatRail).vm.$emit("open-channel", CH);
+    await flushPromises();
+    expect(router.currentRoute.value.query).toEqual({ ch: CH });
+  });
+
+  it("opens the New conversation dialog from the rail's New menu", async () => {
+    const { w } = await render();
+    expect(w.findComponent(NewChatDialog).props("open")).toBe(false);
+    w.findComponent(ChatRail).vm.$emit("new-conversation");
+    await flushPromises();
+    expect(w.findComponent(NewChatDialog).props("open")).toBe(true);
   });
 });
