@@ -29,6 +29,11 @@ pnpm-debug.log*
 coverage/
 playwright-report/
 test-results/
+# Tutorial recordings (apps/web/tutorials/README.md): the build they film, the voice and map-tile caches,
+# and everything they produce — MP4s, captions, stills. All of it regenerates from the scenarios.
+apps/web/tutorials/build/
+apps/web/tutorials/out/
+apps/web/tutorials/.cache/
 
 # Supabase local
 supabase/.branches/

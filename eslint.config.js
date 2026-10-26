@@ -54,6 +54,10 @@ export default tseslint.config(
       "_to_delete/**",
       "**/*.generated.ts", // codegen output — authored by scripts/gen-*.mjs, verified by the drift check
       "apps/web/vendor/**", // vendored third-party builds — not ours to lint; pinned by digest instead
+      // The tutorials' own production build and what they produce (apps/web/tutorials/README.md) —
+      // minified bundles, gitignored, and 17k errors the one time `pnpm lint` met them.
+      "apps/web/tutorials/build/**",
+      "apps/web/tutorials/out/**",
     ],
   },
   js.configs.recommended,

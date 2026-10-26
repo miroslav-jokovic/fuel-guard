@@ -41,6 +41,8 @@
     "env.d.ts",
     "e2e-apply/**/*.ts",
     "playwright.apply.config.ts",
+    "tutorials/**/*.ts",
+    "playwright.tutorials.config.ts",
     "vite.config.ts",
     "vitest.config.ts"
   ],
