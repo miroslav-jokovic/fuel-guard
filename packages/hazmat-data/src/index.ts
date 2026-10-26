@@ -60,15 +60,23 @@ export function listDatasetVersions(): string[] {
 }
 
 export function loadDataset(version: string = LATEST_DATASET_VERSION): Dataset {
+  // D-PC1: the cuts shipped before 2026-10-26 carry label codes per row and an empty subsidiaryClasses on
+  // every entry; the field is derived here so no cut has to be re-minted to carry it (subsidiaryClasses.ts).
+  return withSubsidiaryClasses(loadDatasetAsCut(version));
+}
+
+/**
+ * The cut's file exactly as it was minted — validated, nothing derived. The content checksum attests THIS
+ * (`import/buildDataset.ts` `verifyChecksum`); `loadDataset()` is what every consumer reads.
+ */
+export function loadDatasetAsCut(version: string = LATEST_DATASET_VERSION): Dataset {
   const raw = RAW[version];
   if (!raw) {
     throw new Error(
       `Unknown hazmat dataset version "${version}". Available: ${listDatasetVersions().join(", ")}`,
     );
   }
-  // D-PC1: the cuts shipped before 2026-10-26 carry label codes per row and an empty subsidiaryClasses on
-  // every entry; the field is derived here so no cut has to be re-minted to carry it (subsidiaryClasses.ts).
-  return withSubsidiaryClasses(parseDataset(raw));
+  return parseDataset(raw);
 }
 
 /**
