@@ -186,6 +186,19 @@ tokens, `@silvicom/ui`); nothing new is invented at the token level.
   when there is one) in place of "No posts yet"; any other empty channel only says it is empty. The
   maker's NAME is not shown: `ChatTeam` in the rail's list carries no `created_by_name` (the team
   detail does), and a query for one line is not worth it.
+- **D-CHATUI19 — own lines are not told apart** (Q-CHATUI1 ruled 2026-10-26). The name on the first line of a run
+  already says "you"; the row keeps one shape across a conversation, a channel and a thread, and the two grounds
+  it already uses (hover, the open post) would fight a third. If somebody misses it after a week on staging, it
+  is one class on `ChatMessageRow`.
+- **D-CHATUI20 — one density until a named person asks** (Q-CHATUI2 ruled 2026-10-26). The log already holds
+  703 px of a 900 px window, about 16 lines; the office is 14 people on desks. A person setting is a migration,
+  two merges, a Settings control and a second row class to keep in step with every CH6 addition. CR3 is built
+  only when a specific person on a 13" screen asks, and then as the one class the row was written for.
+- **D-CHATUI21 — no thread panel on direct or group conversations yet** (Q-CHATUI4 ruled 2026-10-26). D-CHAT19
+  gives replies to channels only. A direct conversation with one other person has nothing to fork; the real
+  case is a group such as Night dispatch, and that waits for CH6c, when reactions and pins arrive and the three
+  together make a group behave like a small channel. Revisit with one measurement: how many group messages
+  quote an earlier one.
 - **D-CHATUI15 — tests move with the structure.** `ChatPage.test` loses the tab cases and gains the rail
   ones; `ChatConversationPane.test` loses "own lines on the right" and gains runs and dividers;
   `ChatTeamsView.test` becomes `ChatChannelStage.test`; `chatGrouping.test` pins the run and day rules
@@ -218,10 +231,10 @@ not on this page (page back, CH6a).
 
 | Q | Question | Candidates and recommendation |
 |---|---|---|
-| Q-CHATUI1 | Should own lines be told apart at all, now they sit on the left? | (a) **No**: the name says "you" by being yours, as in every work chat reviewed. (b) A faint `surface-subtle` ground behind own rows. Recommend (a); (b) is one class if anyone misses it |
-| Q-CHATUI2 | Compact density — when? | (a) After CR1, as a person's setting (CR3). (b) Never. Recommend (a) once somebody with a 13" screen asks |
-| Q-CHATUI3 | Keyboard model — Slack's (Esc marks read, Up into the log) or Linear's (J/K, U)? | Recommend Slack's for the log and Linear's J/K for the rail — **built as recommended in CR2 (D-CHATUI16)**; still the owner's to overrule |
-| Q-CHATUI4 | Should the thread panel also show on direct and group conversations (Google Chat's 2025 inline threading in DMs)? | Not now: D-CHAT19 gives replies to channels only; revisit with CH6c |
+| Q-CHATUI1 | Should own lines be told apart at all, now they sit on the left? | **RULED (a) 2026-10-26 → D-CHATUI19.** (a) **No**: the name says "you" by being yours, as in every work chat reviewed. (b) A faint `surface-subtle` ground behind own rows. (b) stays one class if anyone misses it after a week on staging |
+| Q-CHATUI2 | Compact density — when? | **RULED 2026-10-26 → D-CHATUI20: not now, and not as a setting until a named person on a 13" screen asks.** (a) After CR1, as a person's setting (CR3). (b) Never. CR3 stays in the queue behind that ask |
+| Q-CHATUI3 | Keyboard model — Slack's (Esc marks read, Up into the log) or Linear's (J/K, U)? | **RULED 2026-10-26: D-CHATUI16 ratified as built in CR2** — Slack's for the log, Linear's J/K for the rail, no Esc-marks-read |
+| Q-CHATUI4 | Should the thread panel also show on direct and group conversations (Google Chat's 2025 inline threading in DMs)? | **RULED 2026-10-26 → D-CHATUI21: not now.** D-CHAT19 gives replies to channels only; a direct conversation has nothing to fork, and the group case waits for CH6c, measured first |
 
 ## 9. Progress log
 
@@ -235,3 +248,7 @@ not on this page (page back, CH6a).
   line not followed, no near-bottom rule, no clear on reaching the bottom, Down past the newest doing
   nothing, E on anybody's line, J wrapping, shortcuts firing while typing, General greeting nobody —
   each fail a test. Full web suite 4,133 green. Remaining: CR3 behind Q-CHATUI2; Q-CHATUI1, Q-CHATUI4.
+- 2026-10-26: **CR2 + CR4 MERGED** (#1765, main 5be26f5). **Q-CHATUI1–4 ruled** by the owner as recommended:
+  D-CHATUI16 ratified, D-CHATUI19 (own lines not told apart), D-CHATUI20 (one density until a named person
+  asks; CR3 waits on that), D-CHATUI21 (no threads in direct or group conversations before CH6c). No open
+  questions remain in this plan; the queue is CR3, held.
