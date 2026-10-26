@@ -253,7 +253,7 @@ One PR each unless noted. A column and its first reader ship in separate merges
 | CH5c | Web: the Teams rail (team → channel list → channel posts with their replies), browse and join, the reply pane, the Chat badge counting channels the D-CHAT2 way | CH5b |
 | CH6 | Mentions, reactions, pins, saved, muted section, Activity, browser notifications — split below (§9.2) | CH5 |
 | CH6a | Web only: "Show earlier" in a conversation, a channel's posts and a post's replies, reading the `before_seq` the API already returns (Q-CHAT16) | CH5c |
-| CH6b-1 | Migration 0521: `chat_set_mute`; `message_mentions` derived from the body's `<@id>` tokens by trigger on send, reply and edit (D-CHAT22), CH013 for a token naming someone who cannot be mentioned; `chat_person_state.activity_read_at`; `chat_activity` + `chat_activity_mark_read` (D-CHAT25); notification categories `chat_mention`, `chat_reply` (CHECK + contract together). PGlite matrix | CH5c |
+| CH6b-1 | Migration 0521: `chat_set_mute`; `message_mentions` derived from the body's `<@id>` tokens by trigger on send, reply and edit (D-CHAT22), CH013 for a token naming somebody not in the conversation (Q-CHAT20); `chat_person_state.activity_read_at`; `chat_activity`, `chat_activity_unread` + `chat_activity_mark_read` (D-CHAT25); `chat_notify_targets`, who the bell tells of a line (D-CHAT23); notification categories `chat_mention`, `chat_reply` (CHECK + contract together). PGlite matrix `office-chat-mentions.test.mjs` | CH5c |
 | CH6b-2 | API + web: @ typeahead in the composer, mention chips in the bubble, mention/reply bell items grouped per conversation (D-CHAT23), the mute menu and a Muted section in the Chats list, the Activity tab | CH6b-1 on staging |
 | CH6c-1 | Migration 0522: `message_reactions` (the six of D-CHAT26), `chat_pins`, `chat_saved`; ledger actions `reaction_added`/`reaction_removed`/`message_pinned`/`message_unpinned`; a reaction or pin bumps the message's `rev` so `/sync` re-delivers it (D-CHAT24); history, sync, posts and replies return `reactions` and `pinned_at` (drop + create by full signature). PGlite matrix | CH6b-1 |
 | CH6c-2 | API + web: reaction bar, Pin + a Pinned panel per conversation, Save + a Saved list; reactions to your messages join Activity | CH6c-1 on staging |
@@ -348,9 +348,10 @@ Decisions (**ruled 2026-10-26, as recommended** — owner: "Proceed as recommend
   written: the ledger's `body_sha256` already covers the mention, an edit that adds or drops one needs
   no second write, and the export, the PDF and the console show it in place. `message_mentions` is an
   index a trigger derives from the body on insert and on edit — never written by hand — so "who was
-  mentioned" cannot disagree with "what was said". A token must name a current participant, or in a
-  public channel a member of its team (they can open it and join); anything else refuses the send
-  (CH013) rather than leaving a dangling name. The web renders the token as the person's name; the
+  mentioned" cannot disagree with "what was said". A token must name a current participant
+  (narrowed by Q-CHAT20 from "or, in a public channel, a member of its team"); anything else refuses
+  the send (CH013) rather than leaving a dangling name, and an edit is judged only on the tokens it
+  adds. The web renders the token as the person's name; the
   console and the PDF resolve it from the conversation's members. Rejected: a `mentions: uuid[]` field
   beside a plain-text body — two records of one fact, and the ledger would hash only one of them.
 - **D-CHAT23 — the bell gets one item per conversation per unread stretch.** D-CHAT7 already says only
@@ -373,8 +374,8 @@ Decisions (**ruled 2026-10-26, as recommended** — owner: "Proceed as recommend
   more than 😡). A key in the shared contract and the CHECK, held together by a parity test like
   the notification categories'. A free emoji picker is a later widening of one list, not a rewrite.
 
-- **Matrix rows CH6b-1 must pin:** a token for a non-participant (and, in a private channel, for a
-  team member not in it) is CH013 and leaves no line; an edit that removes a mention removes its index
+- **Matrix rows CH6b-1 must pin:** a token for a non-participant (a team member who has not joined a
+  public channel, one not in a private channel, another org) is CH013 and leaves no line; an edit that removes a mention removes its index
   row and one that adds one adds it; a retracted line's mentions leave Activity; Activity never
   lists a conversation the reader has left; another person's mute or Activity-read is untouched by
   mine; another org is CH001.
@@ -405,6 +406,7 @@ Decisions (**ruled 2026-10-26, as recommended** — owner: "Proceed as recommend
 | Q-CHAT17 | D-CHAT19 deferred a per-post read boundary ("new replies to a post you follow") to CH6. Build it? | (a) **No: Activity carries it.** Replies to a post you wrote or replied to are Activity items with Activity's one read instant (D-CHAT25); the channel stays unread by `last_seq − read_seq`. (b) A `chat_post_reads(user, post, read_seq)` row per post, so each post shows its own "3 new replies". (c) Both | **RULED 2026-10-26, as recommended: (a).** (b) is a write per post opened and a second unread count to reconcile with the first, for a badge Activity already gives the person who cares about the post. Revisit if people ask for per-post counts after using Activity |
 | Q-CHAT18 | Browser notifications (CH6d): what does one say, and when? | (a) **Sender and conversation, plus the first 80 characters**; direct and group lines ring unless muted, channel lines only for a mention or a reply to you; never while the conversation is open and the tab visible. (b) As (a) but no text — "New message from Ana in Dispatch". (c) A per-person choice between (a) and (b) | **RULED 2026-10-26, as recommended: (a).** It is the person's own screen, behind their login, and the text is what makes the notification worth reading; the same rules as the bell (D-CHAT23) so one person's mute means the same thing in both. (c) is one setting more if a shared-screen office asks |
 | Q-CHAT19 | `@channel` / `@team` (one mention reaching every member)? | (a) **Not in CH6.** Names only. (b) In channels, team owners only. (c) Anyone, as Teams' default | **RULED 2026-10-26, as recommended: (a).** In a 300-member channel it is a bell item for each of 300 people from one line, and nobody has asked. (b) is one token kind more when somebody does |
+| Q-CHAT20 | Found building CH6b-1: D-CHAT22 let a token in a public channel name a team member who has not joined it, but CH5a lets a team member read a public channel only after joining — so the bell and Activity would point somebody at words they may not read. Which way? | (a) **A mention names somebody in the conversation only.** In a channel the composer offers to add a team member who is not in it ("Add Ben to # Loads"), which any channel member may already do; then the mention works. (b) Allow it; the bell and Activity say "Ana mentioned you in # Loads" without the words, with a Join button. (c) A mention joins the person to the channel | **RULED 2026-10-26, as recommended: (a).** One rule for every kind of conversation, Activity lists only what you can open, nothing is readable before joining. (b) is a second kind of item that says something was said without saying it; (c) puts a person in a channel by somebody else's sentence |
 
 ## 11. Progress log
 
@@ -489,6 +491,14 @@ Decisions (**ruled 2026-10-26, as recommended** — owner: "Proceed as recommend
   a page arrived since. A page that lands above keeps the reader's line in place; a refresh where
   neither end moved does not move the list (before, any re-render jumped to the bottom). A `?post=`
   link to a post older than the channel's first page offers "Show earlier posts" too.
+- 2026-10-26: building CH6b-1 found D-CHAT22 at odds with CH5a's join rule; raised as Q-CHAT20 and
+  ruled (a) the same day (owner: "analyze and proceed as recommended"). **CH6b-1 built**: migration 0521
+  — `message_mentions` kept equal to the body by two triggers (BEFORE refuses with CH013, AFTER adds and
+  removes rows; driver conversations and system lines never read), `chat_set_mute`, Activity as one
+  item function behind both the list and its unread count, `chat_activity_mark_read` forward-only and
+  never past now, and `chat_notify_targets` so CH6b-2's API asks who the bell tells instead of
+  restating D-CHAT23. Categories `chat_mention` / `chat_reply` widened with the contract. Matrix
+  `office-chat-mentions.test.mjs`, every rule mutation-checked.
 
 Sources consulted 2026-10-23: Supabase docs (Realtime limits, Postgres Changes, Broadcast,
 Authorization, billing); CometChat "Chat UI Architecture in 2026"; Stream "How to Sync Chat State After

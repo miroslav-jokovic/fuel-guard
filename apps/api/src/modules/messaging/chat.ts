@@ -33,7 +33,7 @@ import {
  * The ledger is written by 0511's triggers; nothing here writes it, so nothing here can forget to.
  */
 
-/** The SQLSTATEs 0512 and 0518–0520 raise, and the answer each becomes. */
+/** The SQLSTATEs 0512, 0518–0521 raise, and the answer each becomes. */
 const CHAT_ERRORS: Record<string, { status: 403 | 404 | 409 | 422; code: string; message: string }> = {
   // 404, not 403: a conversation you are not in is one we do not confirm exists.
   CH001: { status: 404, code: "not_found", message: "That conversation does not exist" },
@@ -48,6 +48,8 @@ const CHAT_ERRORS: Record<string, { status: 403 | 404 | 409 | 422; code: string;
   // among a team's live channels and an org's live teams.
   CH011: { status: 422, code: "reply_not_allowed", message: "That reply cannot go there" },
   CH012: { status: 409, code: "name_in_use", message: "That name is already in use" },
+  // 0521 (CH6b-1, Q-CHAT20): a `<@id>` token must name somebody in the conversation now.
+  CH013: { status: 422, code: "mention_not_in_conversation", message: "That person is not in this conversation. Add them first" },
 };
 
 export type ChatResult<T> =

@@ -233,6 +233,17 @@
         "why": "OFFICE-CHAT-PLAN D-CHAT12 (0511): one hash-chained row per chat fact (each message sent/edited/retracted, membership change, compliance act), written by triggers. Sized at the plan's target, 300 active users x 100 messages a day; RETENTION_FORBIDDEN and append-only by trigger (CL001) until an org sets a retention period through CHA3's audited purge."
       }
     },
+    "chat_person_state": {
+      "module": "messaging",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "fleet",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "OFFICE-CHAT-PLAN D-CHAT25 (0521): one row per office person, their Activity read instant. Bounded by office people (14 today)."
+      }
+    },
     "chat_space_members": {
       "module": "messaging",
       "layer": "core",
@@ -1936,6 +1947,17 @@
         "partition": null,
         "budget_rows_per_day": null,
         "why": "no rows in production 2026-09-21; bounded by the number of orgs."
+      }
+    },
+    "message_mentions": {
+      "module": "messaging",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 3000,
+        "why": "OFFICE-CHAT-PLAN D-CHAT22 (0521): who a line names, derived from its body's <@id> tokens by trigger on send, reply and edit; a few rows per line at most, bounded by the chat_message budget (3,000 lines a person a day). Lives and dies with its message (on delete cascade)."
       }
     },
     "message_versions": {

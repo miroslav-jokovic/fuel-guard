@@ -103,6 +103,14 @@ export const NOTIFICATION_CATEGORIES = [
    */
   "unit_file_expiring",
   "unit_file_expired",
+  /**
+   * Office chat (OFFICE-CHAT-PLAN D-CHAT23): somebody named you with `<@you>`, or replied to a channel
+   * post you wrote or replied to. One bell item per conversation per unread stretch — the dedupe key
+   * carries your read boundary — and never in a conversation you muted `all`. Two categories so either
+   * can be muted here. Mirrored in the CHECK (0521); nothing writes them until CH6b-2.
+   */
+  "chat_mention",
+  "chat_reply",
 ] as const;
 export type NotificationCategory = (typeof NOTIFICATION_CATEGORIES)[number];
 
@@ -140,6 +148,8 @@ export const NOTIFICATION_CATEGORY_LABELS: Record<NotificationCategory, string> 
   roadside_report_needs_review: "Inspection reports to review",
   unit_file_expiring: "Truck & trailer paper expirations",
   unit_file_expired: "Truck & trailer paper lapses",
+  chat_mention: "Chat mentions",
+  chat_reply: "Replies to your chat posts",
 };
 
 /**
