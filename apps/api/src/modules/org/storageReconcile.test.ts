@@ -90,6 +90,34 @@ describe("planStorageReconcile — a deferred upload (D-SCAN11)", () => {
  * whole safety property here — point `documents` at the wrong bucket and every object in it looks
  * like an orphan.
  */
+/**
+ * A table read the way PostgREST answers it: `select().order().range()`, and never more than 1,000
+ * rows a response whatever range is asked for. The cap is the point — an unpaged read of a larger
+ * index is how this sweep deleted 1,947 filed documents' files in October 2026.
+ */
+const POSTGREST_CAP = 1000;
+function indexTable(
+  rows: Array<Record<string, string>> | { error: string },
+  onSelect?: (columns: string) => void,
+) {
+  return {
+    select(columns: string) {
+      onSelect?.(columns);
+      const answer = (from: number, to: number) =>
+        "error" in rows
+          ? { data: null, error: { message: rows.error } }
+          : { data: rows.slice(from, Math.min(to + 1, from + POSTGREST_CAP)), error: null };
+      const query = {
+        order: () => query,
+        range: async (from: number, to: number) => answer(from, to),
+        // An unpaged `await select()` gets the first 1,000 — what production really does.
+        then: (resolve: (v: unknown) => void) => resolve(answer(0, Number.MAX_SAFE_INTEGER)),
+      };
+      return query;
+    },
+  };
+}
+
 interface StubCall {
   /** The FIRST table read — the bucket's primary index. */
   table?: string;
@@ -104,12 +132,9 @@ function stubAdmin(calls: StubCall) {
     from(table: string) {
       calls.table ??= table;
       calls.tables = [...(calls.tables ?? []), table];
-      return {
-        select: async (columns?: string) => {
-          calls.columns = columns;
-          return { data: [], error: null };
-        },
-      };
+      return indexTable([], (columns) => {
+        calls.columns = columns;
+      });
     },
     storage: {
       from(bucket: string) {
@@ -145,12 +170,8 @@ describe("bucket ↔ table bindings", () => {
   it("keeps an adopted signature's object past the grace, and deletes a true orphan beside it", async () => {
     const removed: string[] = [];
     const admin = {
-      from: (table: string) => ({
-        select: async () => ({
-          data: table === "signature_adoptions" ? [{ storage_path: "org/driver/d/adopted.png" }] : [],
-          error: null,
-        }),
-      }),
+      from: (table: string) =>
+        indexTable(table === "signature_adoptions" ? [{ storage_path: "org/driver/d/adopted.png" }] : []),
       storage: {
         from: () => ({
           list: async (prefix: string) =>
@@ -181,12 +202,7 @@ describe("bucket ↔ table bindings", () => {
 
   it("refuses to sweep when the second index cannot be read, rather than treating its objects as orphans", async () => {
     const admin = {
-      from: (table: string) => ({
-        select: async () =>
-          table === "signature_adoptions"
-            ? { data: null, error: { message: "permission denied" } }
-            : { data: [], error: null },
-      }),
+      from: (table: string) => indexTable(table === "signature_adoptions" ? { error: "permission denied" } : []),
       storage: {
         from: () => ({
           list: async () => ({ data: [], error: null }),
@@ -257,7 +273,7 @@ describe("bucket ↔ table bindings", () => {
   it("collects the object of a capture row retention has deleted, once the grace has passed", async () => {
     const admin = {
       // The row is gone — retention pruned it — so the bucket's object references nothing.
-      from: () => ({ select: async () => ({ data: [], error: null }) }),
+      from: () => indexTable([]),
       storage: {
         from: () => ({
           list: async (prefix: string) =>
@@ -276,7 +292,7 @@ describe("bucket ↔ table bindings", () => {
   /** And the same object inside the 24-hour grace is an upload in flight, not an orphan. */
   it("leaves an object alone while it could still be an upload in progress", async () => {
     const admin = {
-      from: () => ({ select: async () => ({ data: [], error: null }) }),
+      from: () => indexTable([]),
       storage: {
         from: () => ({
           list: async (prefix: string) =>
@@ -296,12 +312,7 @@ describe("bucket ↔ table bindings", () => {
 
   it("never deletes a `documents` row — a missing object is flagged, the claim survives", async () => {
     const admin = {
-      from: (table: string) => ({
-        select: async () => ({
-          data: table === "documents" ? [{ storage_path: "org/driver/d/gone.webp" }] : [],
-          error: null,
-        }),
-      }),
+      from: (table: string) => indexTable(table === "documents" ? [{ storage_path: "org/driver/d/gone.webp" }] : []),
       storage: {
         from: () => ({
           list: async () => ({ data: [], error: null }),
@@ -314,5 +325,40 @@ describe("bucket ↔ table bindings", () => {
     const r = await reconcileComplianceDocOrphans(admin, { apply: true });
     expect(r.missingObjects).toEqual(["org/driver/d/gone.webp"]);
     expect(r.deleted).toBe(0);
+  });
+
+  /**
+   * The 2026-10-26 incident, as a test. 2,500 `documents` rows each with its object, every object
+   * past the grace: nothing is an orphan. Read with one unpaged `select`, the sweep saw the first
+   * 1,000 rows and deleted the other 1,500 files.
+   */
+  it("reads every documents row past PostgREST's 1,000-row cap, so no filed document is taken for an orphan", async () => {
+    const paths = Array.from({ length: 2500 }, (_, i) => `org/tractor/t/${String(i).padStart(4, "0")}.pdf`);
+    const removed: string[] = [];
+    const admin = {
+      from: (table: string) => indexTable(table === "documents" ? paths.map((p) => ({ storage_path: p })) : []),
+      storage: {
+        from: () => ({
+          list: async (prefix: string, opts: { limit: number; offset: number }) => {
+            if (prefix === "") return { data: [{ name: "org", id: null }], error: null };
+            if (prefix === "org") return { data: [{ name: "tractor", id: null }], error: null };
+            if (prefix === "org/tractor") return { data: [{ name: "t", id: null }], error: null };
+            const page = paths.slice(opts.offset, opts.offset + opts.limit);
+            return {
+              data: page.map((p) => ({ name: p.split("/").pop(), id: p, created_at: "2026-10-01T00:00:00Z" })),
+              error: null,
+            };
+          },
+          remove: async (batch: string[]) => {
+            removed.push(...batch);
+            return { data: batch.map((p) => ({ name: p })), error: null };
+          },
+        }),
+      },
+    } as never;
+    const r = await reconcileComplianceDocOrphans(admin, { apply: true, nowIso: "2026-10-26T12:00:00Z" });
+    expect(r.scanned).toBe(2500);
+    expect(r.orphanObjects).toEqual([]);
+    expect(removed).toEqual([]);
   });
 });
