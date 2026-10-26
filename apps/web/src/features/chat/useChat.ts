@@ -11,6 +11,7 @@ import type {
 import { apiFetch } from "@/lib/api";
 import { genUuid } from "@/lib/uuid";
 import { chatLinkState } from "./transport";
+import { keepEarlierSharing, useLoadEarlier } from "./earlierPages";
 
 /**
  * Office chat's data layer (OFFICE-CHAT-PLAN CH2). Everything through `/api/chat`, which answers only
@@ -67,6 +68,7 @@ export function useChatPeopleQuery(enabled: Ref<boolean>) {
   });
 }
 
+/** One conversation, newest page first fetched; earlier pages it was shown survive a refetch (CH6a). */
 export function useChatConversationQuery(threadId: Ref<string | null>) {
   return useQuery({
     queryKey: computed(() => conversationKey(threadId.value)),
@@ -74,7 +76,17 @@ export function useChatConversationQuery(threadId: Ref<string | null>) {
     queryFn: () =>
       unwrap(apiFetch<ChatConversationResponse>(`/api/chat/${threadId.value}`), "Could not open the conversation."),
     refetchInterval: poll(10_000),
+    structuralSharing: keepEarlierSharing("messages"),
   });
+}
+
+/** "Show earlier" in a conversation: the page above, from `/messages?before_seq=` (CH1b's history route). */
+export function useChatLoadEarlier(threadId: Ref<string | null>) {
+  return useLoadEarlier(
+    "messages",
+    () => (threadId.value ? conversationKey(threadId.value) : null),
+    (before) => (threadId.value ? `/api/chat/${threadId.value}/messages?before_seq=${before}` : null),
+  );
 }
 
 /** A line the person wrote that the server has not confirmed yet, or refused. */

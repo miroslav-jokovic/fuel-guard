@@ -29,6 +29,9 @@ const state = vi.hoisted(() => ({
   leaveTeam: vi.fn(async () => undefined),
   confirm: vi.fn(async () => true),
   followed: [] as Array<string | null>,
+  earlierPosts: vi.fn(),
+  earlierReplies: vi.fn(),
+  earlierFailed: false,
 }));
 
 vi.mock("./useChatTeams", async () => {
@@ -48,6 +51,8 @@ vi.mock("./useChatTeams", async () => {
     useLeaveTeam: () => m(state.leaveTeam),
     useAddTeamMembers: () => m(vi.fn()),
     useCreateChannel: () => m(vi.fn()),
+    useEarlierPosts: () => ({ mutate: state.earlierPosts, isPending: ref(false), isError: ref(state.earlierFailed) }),
+    useEarlierReplies: () => ({ mutate: state.earlierReplies, isPending: ref(false), isError: ref(state.earlierFailed) }),
   };
 });
 vi.mock("./useChatTeamsAdmin", async () => {
@@ -115,7 +120,8 @@ beforeEach(() => {
   state.postsAsked = [];
   state.replies = { posts: [line(3, { parent_id: POST })], before_seq: null };
   state.followed = [];
-  for (const f of [state.markRead, state.send, state.join, state.leaveChannel, state.leaveTeam, state.confirm]) f.mockClear();
+  state.earlierFailed = false;
+  for (const f of [state.markRead, state.send, state.join, state.leaveChannel, state.leaveTeam, state.confirm, state.earlierPosts, state.earlierReplies]) f.mockClear();
   state.confirm.mockResolvedValue(true);
 });
 
@@ -196,5 +202,41 @@ describe("an open channel", () => {
     await flushPromises();
     expect(state.leaveTeam).toHaveBeenCalledWith(SPACE);
     expect(router.currentRoute.value.query).toEqual({ view: "teams" });
+  });
+});
+
+describe("earlier posts and replies (CH6a)", () => {
+  const press = async (w: VueWrapper, label: string) => {
+    await buttons(w, label)[0]!.trigger("click");
+    await flushPromises();
+  };
+
+  it("offers the page above a channel's posts and a post's replies, only when there is one", async () => {
+    expect(buttons(await render(`/chat?view=teams&ch=${LOADS}&post=${POST}`), "Show earlier posts")).toHaveLength(0);
+    state.posts = { posts: [line(40, { id: POST, reply_count: 60 })], before_seq: 40 };
+    state.replies = { posts: [line(90, { parent_id: POST })], before_seq: 90 };
+    const w = await render(`/chat?view=teams&ch=${LOADS}&post=${POST}`);
+    await press(w, "Show earlier posts");
+    await press(w, "Show earlier replies");
+    expect(state.earlierPosts).toHaveBeenCalledTimes(1);
+    expect(state.earlierReplies).toHaveBeenCalledTimes(1);
+  });
+
+  it("says beside each button why its page failed", async () => {
+    state.posts = { posts: [line(40, { id: POST, reply_count: 60 })], before_seq: 40 };
+    state.replies = { posts: [line(90, { parent_id: POST })], before_seq: 90 };
+    state.earlierFailed = true;
+    const w = await render(`/chat?view=teams&ch=${LOADS}&post=${POST}`);
+    expect(w.findAll('[role="alert"]').map((a) => a.text())).toEqual(["Could not load the earlier posts. Try again.", "Could not load the earlier replies. Try again."]);
+  });
+
+  it("pages back toward a linked post that is older than the channel's first page", async () => {
+    state.posts = { posts: [line(40), line(41)], before_seq: 40 };
+    const w = await render(`/chat?view=teams&ch=${LOADS}&post=${POST}`);
+    expect(w.text()).toContain("That post is not on this page of the channel.");
+    // Both the channel's own button and the missing post's: either pages the same channel.
+    expect(buttons(w, "Show earlier posts")).toHaveLength(2);
+    await press(w, "Show earlier posts");
+    expect(state.earlierPosts).toHaveBeenCalledTimes(1);
   });
 });

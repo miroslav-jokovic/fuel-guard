@@ -20,6 +20,7 @@ const state = vi.hoisted(() => ({
   followed: [] as Array<string | null>,
   inboxKinds: null as string[] | null,
   setLink: (_: string) => {},
+  earlier: vi.fn(),
 }));
 
 vi.mock("@/composables/useModules", async () => {
@@ -51,6 +52,7 @@ vi.mock("@/features/chat/useChat", async () => {
       return r;
     },
     useChatSend: () => ({ mutate: vi.fn(), isPending: ref(false) }),
+    useChatLoadEarlier: () => ({ mutate: state.earlier, isPending: ref(false), isError: ref(false) }),
     useChatMarkRead: () => ({ mutate: state.markRead }),
     useChatOpenDirect: () => ({ mutateAsync: state.openDirect, isPending: ref(false) }),
     useChatCreateGroup: () => ({ mutateAsync: state.createGroup, isPending: ref(false) }),
@@ -102,6 +104,7 @@ beforeEach(() => {
   state.openDirect.mockClear();
   state.createGroup.mockClear();
   state.markRead.mockClear();
+  state.earlier.mockClear();
 });
 
 describe("ChatPage", () => {
@@ -189,6 +192,16 @@ describe("ChatPage", () => {
     await w.findAll('[role="tab"]').find((t) => t.text() === "Chats")!.trigger("click");
     await flushPromises();
     expect(router.currentRoute.value.query).toEqual({});
+  });
+
+  it("loads the page above when the open conversation has one (CH6a)", async () => {
+    state.detail = {
+      conversation: { thread_id: T, kind: "direct", subject: null, title_members: [], member_count: 2, unread: 0, last_seq: 60 },
+      members: [], messages: [], before_seq: 11,
+    };
+    const { w } = await render(`/chat?c=${T}`);
+    await w.findAll("button").find((b) => b.text() === "Show earlier messages")!.trigger("click");
+    expect(state.earlier).toHaveBeenCalledTimes(1);
   });
 
   it("opens no conversation while Teams is showing, whatever `?c=` says", async () => {

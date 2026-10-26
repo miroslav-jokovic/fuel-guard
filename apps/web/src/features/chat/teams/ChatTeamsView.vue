@@ -11,6 +11,7 @@ import { useChatMarkRead, useChatMessageActions, useChatPeopleQuery, useChatSend
 import ChatTeamsRail from "./ChatTeamsRail.vue";
 import ChatChannelPane from "./ChatChannelPane.vue";
 import ChatRepliesPane from "./ChatRepliesPane.vue";
+import ChatEarlierButton from "../ChatEarlierButton.vue";
 import NewChannelDialog from "./NewChannelDialog.vue";
 import NewTeamDialog from "./NewTeamDialog.vue";
 import AddTeamPeopleDialog from "./AddTeamPeopleDialog.vue";
@@ -19,6 +20,8 @@ import {
   useChannelPostsQuery,
   useChatTeamsQuery,
   useCreateChannel,
+  useEarlierPosts,
+  useEarlierReplies,
   useJoinChannel,
   useLeaveChannel,
   useLeaveTeam,
@@ -68,10 +71,13 @@ const found = computed(() => {
   }
   return null;
 });
-const posts = useChannelPostsQuery(computed(() => (found.value?.channel.joined ? channelId.value : null)));
+const joinedId = computed(() => (found.value?.channel.joined ? channelId.value : null));
+const posts = useChannelPostsQuery(joinedId);
 const replies = useRepliesQuery(channelId, postId);
+const earlierPosts = useEarlierPosts(joinedId);
+const earlierReplies = useEarlierReplies(channelId, postId);
 const openPost = computed(() => posts.data.value?.posts.find((p) => p.id === postId.value) ?? null);
-useChatFollow(computed(() => (found.value?.channel.joined ? channelId.value : null)));
+useChatFollow(joinedId);
 
 const markRead = useChatMarkRead();
 watch(
@@ -218,6 +224,9 @@ async function onCreateTeam(name: string, description: string | null, memberIds:
         :viewer-id="viewer"
         :pending="pending"
         :open-post-id="postId"
+        :earlier-loading="earlierPosts.isPending.value"
+        :earlier-failed="earlierPosts.isError.value"
+        @earlier="earlierPosts.mutate()"
         @send="post"
         @retry="retry"
         @edit="onEdit"
@@ -256,6 +265,9 @@ async function onCreateTeam(name: string, description: string | null, memberIds:
         :error="replies.isError.value ? replies.error.value : null"
         :viewer-id="viewer"
         :pending="pending"
+        :earlier-loading="earlierReplies.isPending.value"
+        :earlier-failed="earlierReplies.isError.value"
+        @earlier="earlierReplies.mutate()"
         @send="reply"
         @retry="retry"
         @edit="onEdit"
@@ -265,6 +277,14 @@ async function onCreateTeam(name: string, description: string | null, memberIds:
       />
       <div v-else class="flex h-full flex-col items-center justify-center gap-2 px-4 text-center text-sm text-ink-muted">
         <p>That post is not on this page of the channel.</p>
+        <!-- A link to an older post (CH6a): the channel pages back until the post is on it. -->
+        <ChatEarlierButton
+          v-if="posts.data.value?.before_seq"
+          noun="posts"
+          :loading="earlierPosts.isPending.value"
+          :failed="earlierPosts.isError.value"
+          @load="earlierPosts.mutate()"
+        />
         <BaseButton size="sm" variant="ghost" @click="closeReplies">Back to the channel</BaseButton>
       </div>
     </BaseCard>

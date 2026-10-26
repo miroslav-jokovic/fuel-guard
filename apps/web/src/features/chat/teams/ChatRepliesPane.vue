@@ -1,11 +1,13 @@
 <script setup lang="ts">
-import { computed, nextTick, ref, watch } from "vue";
+import { computed, ref } from "vue";
 import type { ChatPost, ChatPostPage } from "@silvicom/shared";
 import { AppButton as BaseButton, QueryState } from "@silvicom/ui";
 import ChatComposer from "../ChatComposer.vue";
+import ChatEarlierButton from "../ChatEarlierButton.vue";
 import ChatMessageBubble from "../ChatMessageBubble.vue";
 import ChatPendingBubble from "../ChatPendingBubble.vue";
 import { mergeLines, type PendingLine } from "../useChat";
+import { lineKey, useChatScroll } from "../earlierPages";
 
 /**
  * One post's replies (OFFICE-CHAT-PLAN CH5c, D-CHAT19): the post at the top, its replies under it,
@@ -20,6 +22,9 @@ const props = defineProps<{
   error: Error | null;
   viewerId: string;
   pending: PendingLine[];
+  /** The page above is being fetched, or could not be (CH6a). */
+  earlierLoading?: boolean;
+  earlierFailed?: boolean;
 }>();
 const emit = defineEmits<{
   send: [body: string];
@@ -28,19 +33,13 @@ const emit = defineEmits<{
   remove: [messageId: string];
   close: [];
   refetch: [];
+  earlier: [];
 }>();
 
 const lines = computed(() => mergeLines(props.page?.posts ?? [], props.pending, props.threadId, props.post.id));
 
 const scroller = ref<HTMLElement | null>(null);
-watch(
-  () => [props.post.id, lines.value.length],
-  async () => {
-    await nextTick();
-    if (scroller.value) scroller.value.scrollTop = scroller.value.scrollHeight;
-  },
-  { immediate: true },
-);
+useChatScroll(scroller, () => [props.post.id, lines.value[0] && lineKey(lines.value[0]), lines.value.at(-1) && lineKey(lines.value.at(-1)!)]);
 </script>
 
 <template>
@@ -70,9 +69,9 @@ watch(
         @retry="emit('refetch')"
       />
       <template v-else>
-        <p v-if="page.before_seq" class="text-center text-xs text-ink-muted">Earlier replies are not shown yet.</p>
+        <ChatEarlierButton v-if="page.before_seq" noun="replies" :loading="earlierLoading ?? false" :failed="earlierFailed ?? false" @load="emit('earlier')" />
         <p v-if="lines.length === 0" class="py-4 text-center text-sm text-ink-muted">No replies yet.</p>
-        <template v-for="l in lines" :key="l.kind === 'server' ? l.message.id : l.line.message_id">
+        <template v-for="l in lines" :key="lineKey(l)">
           <ChatMessageBubble
             v-if="l.kind === 'server'"
             :message="l.message"

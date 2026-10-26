@@ -5,6 +5,7 @@ import { apiFetch } from "@/lib/api";
 import { genUuid } from "@/lib/uuid";
 import { chatLinkState } from "../transport";
 import { CHAT_KEY, conversationKey, inboxKey, teamsKey } from "../useChat";
+import { keepEarlierSharing, useLoadEarlier } from "../earlierPages";
 
 /**
  * The Teams side of /chat (OFFICE-CHAT-PLAN CH5c): the rail, a channel's posts, a post's replies, and
@@ -46,6 +47,7 @@ export function useChannelPostsQuery(threadId: Ref<string | null>) {
     enabled: computed(() => !!threadId.value),
     queryFn: () => unwrap(apiFetch<ChatPostPage>(`/api/chat/channels/${threadId.value}/posts`), "Could not open the channel."),
     refetchInterval: poll(10_000),
+     structuralSharing: keepEarlierSharing("posts"),
   });
 }
 
@@ -56,7 +58,25 @@ export function useRepliesQuery(threadId: Ref<string | null>, postId: Ref<string
     queryFn: () =>
       unwrap(apiFetch<ChatPostPage>(`/api/chat/channels/${threadId.value}/posts/${postId.value}/replies`), "Could not load the replies."),
     refetchInterval: poll(10_000),
+     structuralSharing: keepEarlierSharing("posts"),
   });
+}
+
+/** "Show earlier" for a channel's posts and for a post's replies (CH6a); both routes take `before_seq`. */
+export function useEarlierPosts(threadId: Ref<string | null>) {
+  return useLoadEarlier(
+    "posts",
+    () => (threadId.value ? postsKey(threadId.value) : null),
+    (before) => (threadId.value ? `/api/chat/channels/${threadId.value}/posts?before_seq=${before}` : null),
+  );
+}
+export function useEarlierReplies(threadId: Ref<string | null>, postId: Ref<string | null>) {
+  return useLoadEarlier(
+    "posts",
+    () => (threadId.value && postId.value ? repliesKey(threadId.value, postId.value) : null),
+    (before) =>
+      threadId.value && postId.value ? `/api/chat/channels/${threadId.value}/posts/${postId.value}/replies?before_seq=${before}` : null,
+  );
 }
 
 export function useTeamMembersQuery(spaceId: Ref<string | null>) {

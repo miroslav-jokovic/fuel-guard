@@ -34,8 +34,8 @@ const data = (messages: ChatMessage[], benReadSeq = 0, kind: "direct" | "group" 
   messages,
   before_seq: null,
 });
-const render = (d: ChatConversationResponse, pending: PendingLine[] = []) =>
-  mount(ChatConversationPane, { props: { data: d, viewerId: ME, pending, sending: false } });
+const render = (d: ChatConversationResponse, pending: PendingLine[] = [], extra: { earlierFailed?: boolean } = {}) =>
+  mount(ChatConversationPane, { props: { data: d, viewerId: ME, pending, sending: false, ...extra } });
 
 describe("ChatConversationPane", () => {
   it("titles a direct conversation by the other person", () => {
@@ -52,6 +52,15 @@ describe("ChatConversationPane", () => {
   it("says Seen under your newest line only once the other person has read that far", () => {
     expect(render(data([msg(1, BEN), msg(2, ME)], 1)).text()).not.toContain("Seen");
     expect(render(data([msg(1, BEN), msg(2, ME)], 2)).text()).toContain("Seen");
+  });
+
+  it("offers the page above only while there is one, and says why it failed (CH6a)", async () => {
+    expect(render(data([msg(1, BEN)])).text()).not.toContain("Show earlier messages");
+    const w = render({ ...data([msg(51, BEN)]), before_seq: 51 }, [], { earlierFailed: true });
+    const button = w.findAll("button").find((b) => b.text() === "Show earlier messages")!;
+    await button.trigger("click");
+    expect(w.emitted("earlier")).toHaveLength(1);
+    expect(w.find('[role="alert"]').text()).toBe("Could not load the earlier messages. Try again.");
   });
 
   it("keeps a removed line in its place, as removed", () => {
