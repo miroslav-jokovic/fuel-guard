@@ -147,6 +147,49 @@ describe("getRead", () => {
     expect("paperAudit" in failed && failed.paperAudit).toBeNull();
   });
 
+  // Q-RC5: pass A missed the signed certification, pass B read it; a person said the page has it.
+  describe("a field a person checked against the page (Q-RC5)", () => {
+    const line = { idText: "UN1203", psn: "Gasoline", hazardClass: "3", pg: "II", quantity: { value: 8000, unit: "gal" }, packageCount: 1, packaging: "1 cargo tank" };
+    const result = { hazmat: { lines: [line], emergencyPhone: "800-424-9300", shipperCertification: null } };
+    const cert = { path: "hazmat.shipperCertification", value: null, status: "check", ruleVersion: "12", sources: [
+      { reader: "passA", page: null, bbox: null, value: null }, { reader: "passB", page: null, bbox: null, value: true }] };
+    const review = (action: string, newValue: unknown, explicit = true, consumer = "paper_check") =>
+      ({ org_id: ORG, read_id: READ, field_path: "hazmat.shipperCertification", action, old_value: null, new_value: newValue, explicit, consumer });
+    const certOf = async (reviews: unknown[]) => {
+      const rec = createSupabaseRecorder({
+        tables: { document_reads: [{ ...readRow, result, evidence: [cert] }], document_pages: pageRows, document_read_reviews: reviews },
+        rpc: { document_page_current_class: [] },
+        storage: { createSignedUrls: signAll },
+      });
+      const out = await getRead(rec.client, ORG, READ);
+      expectOrgScoped(rec, ORG);
+      return "paperAudit" in out ? out.paperAudit?.results.find((r) => r.ruleId === "paper_certification") : undefined;
+    };
+
+    it("judges the certification as the person said the page prints it", async () => {
+      expect(await certOf([])).toMatchObject({ outcome: "cannot_tell", reason: "field_unconfirmed" });
+      expect(await certOf([review("corrected", true)])).toMatchObject({ outcome: "pass", reason: "present" });
+    });
+
+    it("takes only a person's explicit word on the page, the latest of it, and lets an 'unreadable' withdraw an earlier check", async () => {
+      expect(await certOf([review("corrected", true, false)])).toMatchObject({ outcome: "cannot_tell" });
+      // A Calculate press may carry the load's values, not the page's (0509): it never reaches the audit.
+      expect(await certOf([review("corrected", true, true, "hazmat_calculator")])).toMatchObject({ outcome: "cannot_tell" });
+      expect(await certOf([review("corrected", false), review("corrected", true)])).toMatchObject({ outcome: "pass" });
+      expect(await certOf([review("corrected", true), review("unreadable", null)])).toMatchObject({ outcome: "cannot_tell" });
+    });
+
+    it("answers a recorded check with the audit as it now stands", async () => {
+      const reviews: unknown[] = [];
+      const rec = createSupabaseRecorder({ tables: { document_reads: [{ ...readRow, result, evidence: [cert] }], document_read_reviews: reviews } });
+      const batch = { consumer: "paper_check" as const, reviews: [{ path: "hazmat.shipperCertification", action: "corrected" as const, oldValue: null, newValue: true, explicit: true }] };
+      const out = await recordReviews(rec.client, ORG, USER, READ, batch);
+      expect(rec.writtenRows("document_read_reviews")).toHaveLength(1);
+      expect("paperAudit" in out && out.paperAudit?.results.find((r) => r.ruleId === "paper_certification")).toMatchObject({ outcome: "pass" });
+      expectOrgScoped(rec, ORG);
+    });
+  });
+
   it("refuses to show a read with a page it could not sign, rather than a document missing a page", async () => {
     const rec = world((paths) => ({ data: [{ path: paths[0], signedUrl: "https://signed.example.test/1" }, { path: paths[1], signedUrl: null, error: "x" }], error: null }));
     expect(await getRead(rec.client, ORG, READ)).toEqual({ code: "sign_failed", error: "Page 2 could not be shown." });
@@ -232,7 +275,7 @@ describe("recordReviews", () => {
   it("records each verdict with its actor, consumer and whether the dispatcher acted on it", async () => {
     const rec = world("done");
     const both = { ...batch, reviews: [...batch.reviews, { path: "shipper.name", action: "corrected" as const, oldValue: "ACME", newValue: "ACME Inc", explicit: false }] };
-    expect(await recordReviews(rec.client, ORG, USER, READ, both)).toEqual({ recorded: 2 });
+    expect(await recordReviews(rec.client, ORG, USER, READ, both)).toEqual({ recorded: 2, paperAudit: null });
     const row = { org_id: ORG, read_id: READ, field_path: "shipper.name", action: "corrected", old_value: "ACME", actor: USER, consumer: "hazmat_calculator" };
     expect(rec.writtenRows("document_read_reviews")).toEqual([
       { ...row, new_value: "ACME Corp", explicit: true },

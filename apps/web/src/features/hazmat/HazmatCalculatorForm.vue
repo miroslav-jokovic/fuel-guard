@@ -11,7 +11,7 @@ import { AppCombobox as ComboSelect } from "@silvicom/ui";
 import VerdictPanel from "@/features/hazmat/VerdictPanel.vue";
 import HazmatProductLines from "@/features/hazmat/HazmatProductLines.vue";
 import { bolLineView, bolPrefill, hmtRefsOf, type PrefillKey, type PrefillLine } from "@/features/hazmat/bolRead/bolPrefill";
-import { pendingCount, type FilledLine } from "@/features/hazmat/bolRead/bolReview";
+import { pageValueOf, pendingCount, type FilledLine } from "@/features/hazmat/bolRead/bolReview";
 import { useBolReviews } from "@/features/hazmat/bolRead/useBolReviews";
 import BolFindingsPanel from "@/features/hazmat/bolRead/BolFindingsPanel.vue";
 import BolNoHazmatNote from "@/features/hazmat/bolRead/BolNoHazmatNote.vue";
@@ -191,8 +191,18 @@ const bolView = (line: (typeof form.lines)[number]) => {
   return p ? bolLineView(p, line, reviews.acted.value) : null;
 };
 const prefillAt = (i: number) => { const line = form.lines[i]; const p = line ? prefilled.get(toRaw(line)) : undefined; return p && line ? { p, line } : null; };
-function confirmField(i: number, key: PrefillKey) { const at = prefillAt(i); if (at) reviews.act(at.p, key); }
-function chooseReading(i: number, key: PrefillKey, value: number) { const at = prefillAt(i); if (at) reviews.choose(at.p, at.line, key, value); }
+function confirmField(i: number, key: PrefillKey) { const at = prefillAt(i); if (at) { reviews.act(at.p, key); checkFromForm(at.p, at.line, key); } }
+function chooseReading(i: number, key: PrefillKey, value: number) { const at = prefillAt(i); if (at) { reviews.choose(at.p, at.line, key, value); checkFromForm(at.p, at.line, key); } }
+// Q-RC5: what a person says the page prints is recorded as they say it, and the paper audit re-checked with it.
+const checking = ref(false);
+async function checkField(path: string, value: unknown) {
+  const from = filledFrom.value;
+  if (!from) return;
+  checking.value = true;
+  const audit = await reviews.check(from.id, from.result, path, value).finally(() => (checking.value = false));
+  if (audit && filledFrom.value === from) findings.value = bolFindings(audit, from.evidence);
+}
+function checkFromForm(p: PrefillLine, line: (typeof form.lines)[number], key: PrefillKey) { const v = pageValueOf(p, line, key); if (v) void checkField(v.path, v.value); }
 /** A line nobody has touched — replaced by the read rather than left above it. */
 const untouched = (l: (typeof form.lines)[number]) => l.product === null && l.packageCount === "" && l.grossWeightValue === "";
 
@@ -226,7 +236,7 @@ watch(() => props.bolRead, async (read) => {
     result.value = null;
     return;
   }
-  findings.value = bolFindings(read.paperAudit);
+  findings.value = bolFindings(read.paperAudit, read.evidence);
   // A new read replaces the lines an earlier read filled — reading the same BOL twice must never count its
   // weight twice — and keeps every line a person typed. Several BOLs of one load are read together: their
   // photos in one read are one set of lines.
@@ -349,7 +359,7 @@ function resetAll() {
         </AppCallout>
       </BaseCard>
 
-      <BolFindingsPanel v-if="findings" :findings="findings" />
+      <BolFindingsPanel v-if="findings" :findings="findings" :busy="checking" @check="checkField" />
       <AppCallout v-if="bolError" tone="danger" data-testid="bol-prefill">{{ bolError }}</AppCallout>
       <BolNoHazmatNote v-else-if="bolNoHazmat" v-bind="bolNoHazmat" />
       <AppCallout v-else-if="bolSummary" tone="info" data-testid="bol-prefill">

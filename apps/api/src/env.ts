@@ -5,6 +5,7 @@ import { dispatchBoardEnvFields } from "./envDispatchBoard.js";
 import { inspectionsEnvFields } from "./envInspections.js";
 import { schedulingEnvFields } from "./envScheduling.js";
 import { unitFilesEnvFields } from "./envUnitFiles.js";
+import { storageBackupEnvFields } from "./envStorageBackup.js";
 import { outboundEnvFields } from "./lib/outboundAllowlist.js";
 import { checkPspEnv } from "./lib/pspEnv.js";
 
@@ -23,6 +24,7 @@ const EnvSchema = z.object({
   ...inspectionsEnvFields, // the FMCSA open-data feed (INSPECTION-CHALLENGE-PLAN IC1)
   ...schedulingEnvFields, // which process runs which schedulers (PLATFORM-RELIABILITY-PLAN D-RLY2)
   ...unitFilesEnvFields, // reading uploaded papers (UNIT-FILES-PLAN UF7b2)
+  ...storageBackupEnvFields, // the nightly off-provider copy of every evidence bucket (storageBackup.ts)
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   PORT: z.coerce.number().int().positive().default(8080),
   ALLOWED_ORIGINS: z

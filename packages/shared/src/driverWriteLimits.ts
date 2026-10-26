@@ -16,7 +16,7 @@
  * tight enough that a runaway retry loop or a stolen token stops mattering quickly.
  */
 
-export const DRIVER_WRITE_BUCKETS = ["shift", "load_action", "stop_capture", "message"] as const;
+export const DRIVER_WRITE_BUCKETS = ["shift", "load_action", "stop_capture", "message", "chat_message"] as const;
 export type DriverWriteBucket = (typeof DRIVER_WRITE_BUCKETS)[number];
 
 export interface DriverWriteLimit {
@@ -34,6 +34,10 @@ export const DRIVER_WRITE_LIMITS: Record<DriverWriteBucket, DriverWriteLimit> = 
   // A multi-stop run with photo retakes is legitimately chatty.
   stop_capture: { perMinute: 30, perDay: 500, label: "stop updates" },
   message: { perMinute: 20, perDay: 300, label: "messages" },
+  // Office chat (OFFICE-CHAT-PLAN D-CHAT8). Not a driver budget: the counter is keyed on the person, and
+  // an office user in a busy group passes the driver's 300 before lunch. 3,000 is ~10× a heavy day, the
+  // same margin the driver numbers above keep. The bucket is allowed by 0511's constraint.
+  chat_message: { perMinute: 60, perDay: 3000, label: "chat messages" },
 };
 
 /** Too fast. Transient by definition — the window reopens within a minute. */
@@ -58,6 +62,10 @@ const PATTERNS: ReadonlyArray<{ bucket: DriverWriteBucket; re: RegExp }> = [
   // Both message writes: opening a thread and sending into one.
   { bucket: "message", re: /^\/api\/messages\/?$/ },
   { bucket: "message", re: /^\/api\/messages\/[^/]+\/messages\/?$/ },
+  // Office chat: a new message. Opening a conversation and editing are not counted — they write no line.
+  { bucket: "chat_message", re: /^\/api\/chat\/[^/]+\/messages\/?$/ },
+  // A channel reply is a new line too (D-CHAT19), on the same daily budget as a post.
+  { bucket: "chat_message", re: /^\/api\/chat\/channels\/[^/]+\/posts\/[^/]+\/replies\/?$/ },
 ];
 
 export function driverWriteBucket(method: string, pathname: string): DriverWriteBucket | null {

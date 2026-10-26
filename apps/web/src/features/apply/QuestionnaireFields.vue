@@ -7,12 +7,13 @@ import {
   AppTextarea as BaseTextarea,
 } from "@silvicom/ui";
 import {
-  questionnaireForApplicant,
   questionsForScreen,
   type ApplicationSection,
   type QuestionnaireQuestion,
 } from "@silvicom/shared";
 import QuestionnaireTable from "@/features/apply/QuestionnaireTable.vue";
+import { applicantQuestionnaire } from "@/features/apply/questionnaireCopy";
+import { APPLY_COPY } from "@/features/apply/strings";
 import type { ApplicationDraft } from "@/features/apply/draft";
 
 /**
@@ -45,7 +46,7 @@ const draft = defineModel<ApplicationDraft>({ required: true });
  */
 const props = withDefaults(defineProps<{ section?: ApplicationSection }>(), { section: "questions" });
 
-const definition = questionnaireForApplicant();
+const definition = applicantQuestionnaire();
 
 const answer = (id: string): unknown => draft.value.questionnaire[id];
 const set = (id: string, value: unknown): void => {
@@ -60,8 +61,8 @@ const set = (id: string, value: unknown): void => {
  * reading the rendered application needs to be able to tell them apart.
  */
 const YES_NO = [
-  { value: "yes", label: "Yes" },
-  { value: "no", label: "No" },
+  { value: "yes", label: APPLY_COPY.partOne.yes },
+  { value: "no", label: APPLY_COPY.partOne.no },
 ];
 const boolValue = (id: string): string => {
   const v = answer(id);

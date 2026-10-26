@@ -230,6 +230,22 @@ export const RETENTION_FORBIDDEN = [
    */
   "dataqs_cases",
   /**
+   * Office chat (0511, OFFICE-CHAT-PLAN D-CHAT12/D-CHAT13). The messages, the words an edit replaced and
+   * the hash-chained ledger of every chat fact. Chat is read after a crash or in an HR case, and the
+   * owner ruled on 2026-10-23 (Q-CHAT5) that it is kept until counsel names a period — so the only
+   * deletion is CHA3's per-org purge, an explicit act recorded in the ledger itself, never a rule here.
+   * The two record tables are append-only by trigger (CL001) already; messages are soft-deleted (MG001).
+   */
+  "messages", "message_versions", "chat_ledger",
+  /**
+   * Office chat's legal holds and exports (0517, OFFICE-CHAT-PLAN D-CHAT15/D-CHAT20). A hold is the
+   * record that the company was told to keep a person's or a conversation's words, and an export is
+   * the record of who took them out of the system and which ledger position the copy is tied to.
+   * Both are what a court asks for, years later; both change only by trigger-guarded transitions
+   * (CL001). An export's FILES are swept after seven days by its own job; the row is never.
+   */
+  "chat_holds", "chat_exports",
+  /**
    * The driver's account-closure request (0330, D-PR8).
    *
    * ── THE ONE ENTRY ON THIS LIST THAT INVERTS ITS OWN SUBJECT ───────────────────────────────────

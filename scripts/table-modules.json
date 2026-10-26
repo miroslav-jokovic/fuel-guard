@@ -200,6 +200,72 @@
         "why": "evidence, RETENTION_FORBIDDEN. retention_days null because the table is in RETENTION_FORBIDDEN."
       }
     },
+    "chat_exports": {
+      "module": "messaging",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 50,
+        "why": "OFFICE-CHAT-PLAN D-CHAT20 (0517): one row per compliance export, the dq_exports shape: the row outlives its bytes, which the sweep removes from compliance-exports after seven days. A few a month; RETENTION_FORBIDDEN, and it changes only building -> ready|failed -> purged (CL001)."
+      }
+    },
+    "chat_holds": {
+      "module": "messaging",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 50,
+        "why": "OFFICE-CHAT-PLAN D-CHAT15 (0517): one row per legal hold on a person or a conversation, set by a compliance holder with a matter and a reason, released by stamping the row and never deleted. A handful a year; RETENTION_FORBIDDEN, append-only by trigger (CL001)."
+      }
+    },
+    "chat_ledger": {
+      "module": "messaging",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 30000,
+        "why": "OFFICE-CHAT-PLAN D-CHAT12 (0511): one hash-chained row per chat fact (each message sent/edited/retracted, membership change, compliance act), written by triggers. Sized at the plan's target, 300 active users x 100 messages a day; RETENTION_FORBIDDEN and append-only by trigger (CL001) until an org sets a retention period through CHA3's audited purge."
+      }
+    },
+    "chat_person_state": {
+      "module": "messaging",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "fleet",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "OFFICE-CHAT-PLAN D-CHAT25 (0521): one row per office person, their Activity read instant. Bounded by office people (14 today)."
+      }
+    },
+    "chat_space_members": {
+      "module": "messaging",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "fleet",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "OFFICE-CHAT-PLAN CH5a (0518): one row per person per team, left by stamping left_at and never deleted, so the ledger and the compliance console always know who was in a team. Bounded by office people x teams (14 x a handful today)."
+      }
+    },
+    "chat_spaces": {
+      "module": "messaging",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "fleet",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "OFFICE-CHAT-PLAN CH5a (0518): one row per team (Dispatch, Safety, Shop ...), archived and never deleted. A handful per org."
+      }
+    },
     "declined_transactions": {
       "module": "fuel",
       "layer": "raw",
@@ -1883,6 +1949,28 @@
         "why": "no rows in production 2026-09-21; bounded by the number of orgs."
       }
     },
+    "message_mentions": {
+      "module": "messaging",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 3000,
+        "why": "OFFICE-CHAT-PLAN D-CHAT22 (0521): who a line names, derived from its body's <@id> tokens by trigger on send, reply and edit; a few rows per line at most, bounded by the chat_message budget (3,000 lines a person a day). Lives and dies with its message (on delete cascade)."
+      }
+    },
+    "message_versions": {
+      "module": "messaging",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 3000,
+        "why": "OFFICE-CHAT-PLAN D-CHAT13 (0511): the words an edit replaced, one row per edit, written by trigger; a tenth of the ledger's message budget. RETENTION_FORBIDDEN and append-only (CL001)."
+      }
+    },
     "message_threads": {
       "module": "messaging",
       "layer": "core",
@@ -2112,6 +2200,17 @@
         "partition": null,
         "budget_rows_per_day": null,
         "why": "new 2026-10-05 (0427): a hand-kept list of a few people, written only from the console's Settings; bounded by the number of orgs."
+      }
+    },
+    "platform_realtime_health": {
+      "module": "messaging",
+      "layer": "infra",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 200,
+        "why": "new 2026-10-23 (0515, OFFICE-CHAT-PLAN CHA4): one row per Realtime probe (96 a day, every 15 min) plus one per chat signal the database failed to send (0 on a healthy day). Platform telemetry with no tenant and no text; about 3 MB a year, so no retention rule yet — the first pruning is a decision for the L8 growth judge, not a default."
       }
     },
     "platform_scheduler_leases": {

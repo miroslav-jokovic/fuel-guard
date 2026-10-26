@@ -144,8 +144,10 @@ describe("GET /api/surface-access", () => {
     expect(keys.every((k) => !k.endsWith(".detail"))).toBe(true);
     expect(body.editableRoles).not.toContain("admin");
     expect(body.editableRoles).not.toContain("driver");
-    // Every offered screen names the section it can never reach past (D-SURF2).
-    expect(body.surfaces.every((s) => s.section !== null)).toBe(true);
+    // Every offered screen names the section it can never reach past (D-SURF2) — but one: Chat teams,
+    // a permission of no section that any office role can be given (D-CHAT21), whose ceiling is
+    // "office role" rather than a section.
+    expect(body.surfaces.filter((s) => s.section === null).map((s) => s.key)).toEqual(["chat.teams"]);
   });
 
   /**
@@ -750,5 +752,57 @@ describe("SP9 · a screen-access write needs the password again (Q-SET8 (a))", (
     expect(rec.rpcs()).toEqual([]);
     expect(rec.writes()).toEqual([]);
     expect(writeAudit).not.toHaveBeenCalled();
+  });
+});
+
+// ── The 15 s cache (surfaceClaimCache.ts, Q-CHAT14) ───────────────────────────────────────────
+//
+// What it can get wrong: still read both tables on every request; carry one person's answers to
+// another; keep a fail-open claim for 15 s; or keep serving an answer the Permissions page has just
+// changed in this process.
+
+const { writeAccessCell } = await import("../accessWrites.js");
+
+describe("surfaceClaimFor's cache", () => {
+  const tables = (allowed: boolean) => ({
+    org_role_surface_access: [{ role: "technician", surface_key: "maintenance.inspectors", allowed }],
+    user_surface_access: [],
+  });
+
+  it("reads each table once per person within its life, and separately for another person", async () => {
+    const r = createSupabaseRecorder({ tables: tables(false) });
+    await surfaceClaimFor(r.client as never, ORG, "technician", SHOP_LEAD);
+    await surfaceClaimFor(r.client as never, ORG, "technician", SHOP_LEAD);
+    expect(r.forTable("org_role_surface_access")).toHaveLength(1);
+    expect(r.forTable("user_surface_access")).toHaveLength(1);
+    await surfaceClaimFor(r.client as never, ORG, "technician", "00000000-0000-4000-8000-000000000099");
+    expect(r.forTable("user_surface_access")).toHaveLength(2);
+  });
+
+  it("never caches a claim read while a table failed", async () => {
+    const broken = createSupabaseRecorder({
+      tables: { ...tables(false), user_surface_access: { data: null, error: { message: "blip" } } },
+    });
+    expect(await surfaceClaimFor(broken.client as never, ORG, "technician", SHOP_LEAD)).toEqual({ "maintenance.inspectors": false });
+    await surfaceClaimFor(broken.client as never, ORG, "technician", SHOP_LEAD);
+    expect(broken.forTable("org_role_surface_access")).toHaveLength(2);
+  });
+
+  it("forgets the org's answers the moment a surface cell is written here", async () => {
+    let allowed = false;
+    const r = createSupabaseRecorder({
+      tables: {
+        org_role_surface_access: () => [{ role: "technician", surface_key: "maintenance.inspectors", allowed }],
+        user_surface_access: [],
+      },
+      rpc: { write_access_cell: null },
+    });
+    expect(await surfaceClaimFor(r.client as never, ORG, "technician", SHOP_LEAD)).toEqual({ "maintenance.inspectors": false });
+    allowed = true;
+    await writeAccessCell(r.client as never, {
+      table: "org_role_surface_access", orgId: ORG, role: "technician", userId: null,
+      key: "maintenance.inspectors", value: "true", actorId: SHOP_LEAD, action: "surface.set", meta: {},
+    });
+    expect(await surfaceClaimFor(r.client as never, ORG, "technician", SHOP_LEAD)).toEqual({ "maintenance.inspectors": true });
   });
 });

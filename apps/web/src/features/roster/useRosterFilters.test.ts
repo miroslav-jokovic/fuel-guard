@@ -69,11 +69,42 @@ describe("useRosterFilters", () => {
     // On page 4 of a 287-driver roster, filtering to eleven shows an empty table — which reads as
     // "no drivers match" rather than "you are past the end".
     const { f, router } = await mountFilters("/drivers?page=4");
-    f.status.value = "active";
+    f.status.value = "inactive";
     await settle();
     expect(router.currentRoute.value.query.page).toBeUndefined();
     expect(f.page.value).toBe(1);
-    expect(router.currentRoute.value.query.status).toBe("active");
+    expect(router.currentRoute.value.query.status).toBe("inactive");
+  });
+
+  /**
+   * 2026-10-21: the roster opens on ACTIVE drivers — its count said 184 where McLeod said 178, the
+   * difference being terminated drivers nobody had archived. Like every default, it stays out of the
+   * URL; "All statuses" therefore has to be written, as `any`, or choosing it would snap back.
+   */
+  it("opens on active drivers without writing the default, and writes `any` for All statuses", async () => {
+    const { f, router } = await mountFilters();
+    expect(f.status.value).toBe("active");
+    f.status.value = "";
+    await settle();
+    expect(router.currentRoute.value.query.status).toBe("any");
+    expect(f.status.value).toBe("");
+    expect(f.active.value).toBe(true);
+    f.status.value = "active";
+    await settle();
+    expect(router.currentRoute.value.query.status).toBeUndefined();
+    expect(f.active.value).toBe(false);
+  });
+
+  it("opens the archived view on every status, where active would leave it empty", async () => {
+    const { f, router } = await mountFilters("/drivers?show=archived");
+    expect(f.defaultStatus.value).toBe("");
+    expect(f.status.value).toBe("");
+    f.status.value = "terminated";
+    await settle();
+    expect(router.currentRoute.value.query.status).toBe("terminated");
+    f.status.value = "";
+    await settle();
+    expect(router.currentRoute.value.query.status).toBeUndefined();
   });
 
   it("keeps the page when only the sort changes", async () => {

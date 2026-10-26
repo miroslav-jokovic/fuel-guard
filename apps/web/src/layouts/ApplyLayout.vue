@@ -1,6 +1,9 @@
 <script setup lang="ts">
-import { provideTouchTargets } from "@silvicom/ui";
+import { onBeforeUnmount } from "vue";
+import { AppButton as BaseButton, provideTouchTargets } from "@silvicom/ui";
 import AppLogo from "@/components/AppLogo.vue";
+import { applyLanguage, enterApplyLanguage, leaveApplyLanguage, setApplyLanguage } from "@/features/apply/language";
+import { APPLY_COPY } from "@/features/apply/strings";
 
 /**
  * The layout an applicant sees (H5b). Session-free, and deliberately not `PublicLayout`.
@@ -41,6 +44,17 @@ defineProps<{ carrier: string | null; wide?: boolean }>();
  * other route's, so the office keeps its density. `e2e-apply/tapTargets.spec.ts` measures the result.
  */
 provideTouchTargets();
+
+/**
+ * ── THE PAGE'S LANGUAGE (Q-AW11, C4) ─────────────────────────────────────────────────────────
+ * Taken up here, on the applicant's layout and no other: the device's last choice, else the browser's.
+ * Put down when the layout goes, so an office screen sharing this copy stays English. The switch is in
+ * the header because it must be reachable on every screen, the dead-link card included, and the header
+ * is the one thing every screen has. Its label is the OTHER language's name, in that language.
+ */
+enterApplyLanguage();
+onBeforeUnmount(leaveApplyLanguage);
+const switchLanguage = (): void => setApplyLanguage(applyLanguage.value === "es" ? "en" : "es");
 </script>
 
 <template>
@@ -48,7 +62,10 @@ provideTouchTargets();
     <header class="border-b border-edge bg-surface">
       <div class="mx-auto flex items-center gap-x-3 px-6 py-4" :class="wide ? 'max-w-6xl' : 'max-w-3xl'">
         <AppLogo class="size-8" />
-        <span class="text-sm font-semibold text-ink">{{ carrier ?? "Driver application" }}</span>
+        <span class="text-sm font-semibold text-ink">{{ carrier ?? APPLY_COPY.layout.untitled }}</span>
+        <BaseButton variant="ghost" size="sm" class="ml-auto" :aria-label="APPLY_COPY.layout.switchLabel" :lang="applyLanguage === 'es' ? 'en' : 'es'" @click="switchLanguage">
+          {{ APPLY_COPY.layout.switchTo }}
+        </BaseButton>
       </div>
     </header>
 
@@ -59,9 +76,9 @@ provideTouchTargets();
     <footer class="border-t border-edge bg-surface">
       <div class="mx-auto px-6 py-6 text-xs text-ink-muted" :class="wide ? 'max-w-6xl' : 'max-w-3xl'">
         <p>
-          This application is collected for
-          <span class="font-medium text-ink-secondary">{{ carrier ?? "the carrier" }}</span>
-          and processed on their behalf by Silvicom 360. Your answers are shared with the carrier only.
+          {{ APPLY_COPY.layout.collectedFor }}
+          <span class="font-medium text-ink-secondary">{{ carrier ?? APPLY_COPY.layout.theCarrier }}</span>
+          {{ APPLY_COPY.layout.processedBy }}
         </p>
       </div>
     </footer>

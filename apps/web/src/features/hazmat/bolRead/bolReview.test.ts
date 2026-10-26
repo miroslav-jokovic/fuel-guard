@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { reviewEntrySchema } from "@silvicom/shared";
 import { bolLineView, bolPrefill, type PrefillKey, type PrefillLine } from "./bolPrefill";
 import { DIESEL, DIESEL_REF, ok, PAINT, PAINT_REF, product, PRODUCTS, read } from "./bolPrefill.fixtures";
-import { fieldNeedsAct, pendingCount, readingChoices, reviewEntries, type Acted } from "./bolReview";
+import { fieldNeedsAct, pageValueOf, pendingCount, readingChoices, reviewEntries, type Acted } from "./bolReview";
 
 /**
  * D-DR24: a field the evidence disputes stops Calculate until a person acts on it, and every Calculate
@@ -107,7 +107,7 @@ describe("what the field says while it waits", () => {
   it("names the value it confirms, for a field with no readings to pick", () => {
     const { lines } = fill(read([{ a: null, b: PAINT, table: ok(PAINT_REF) }]));
     const v = bolLineView(lines[0]!.prefill, lines[0]!.current).fields;
-    expect(v.product).toMatchObject({ confirmable: true, confirmLabel: `Yes, the page says ${PAINT_REF}` });
+    expect(v.product).toMatchObject({ confirmable: true, confirmLabel: "Yes, the page says UN1263" });
     expect(v.packageCount.confirmLabel).toBe("Yes, the page says 6");
     expect(v.grossWeight.confirmLabel).toBe("Yes, the page says 3,806 lb");
   });
@@ -177,5 +177,26 @@ describe("the review a Calculate press records", () => {
   it("no count for a tank, whose count the form neither shows nor sends", () => {
     const { r, lines } = fill(read([{ a: DIESEL, table: ok(DIESEL_REF) }]), "tanker");
     expect(reviewEntries(r.result, lines, NONE).some((e) => e.path.endsWith("packageCount"))).toBe(false);
+  });
+});
+
+describe("a product filled from pass B's reading, and what an act says the page prints (Q-RC5)", () => {
+  // RC3: pass A read UN1236 (no such product with this name), pass B UN1263; the product is pass B's.
+  const misread = () => fill(read([{ a: { ...PAINT, idText: "UN1236" }, b: PAINT, table: { consistent: false, reason: "psn_no_match", passB: ok(PAINT_REF) } }]));
+
+  it("records the number as corrected to the product's, never pass A's misread as confirmed", () => {
+    const { r, lines } = misread();
+    const id = reviewEntries(r.result, lines, NONE).find((e) => e.path === "hazmat.lines[0].idText");
+    expect(id).toMatchObject({ action: "corrected", oldValue: "UN1236", newValue: "UN1263" });
+  });
+
+  it("says the page prints the product's number, the count, and the gross weight in pounds", () => {
+    const { lines } = misread();
+    const { prefill, current } = lines[0]!;
+    expect(pageValueOf(prefill, current, "product")).toEqual({ path: "hazmat.lines[0].idText", value: "UN1263" });
+    expect(pageValueOf(prefill, current, "packageCount")).toEqual({ path: "hazmat.lines[0].packageCount", value: 6 });
+    expect(pageValueOf(prefill, { ...current, grossWeightValue: "100", grossWeightUnit: "kg" }, "grossWeight")?.value).toBeCloseTo(220.462, 2);
+    expect(pageValueOf(prefill, current, "packageType")).toBeNull();
+    expect(pageValueOf(prefill, current, "limitedQuantity")).toBeNull();
   });
 });

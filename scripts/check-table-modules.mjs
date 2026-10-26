@@ -53,7 +53,6 @@ const GRANDFATHERED_WRITERS = new Set([
   "driver_authorizations <- apps/api/src/scripts/seedPspQaDrivers.ts",
   "driver_time_off <- apps/api/src/modules/mcleod/tmsIngest.ts",
   "driver_vehicle_assignments <- apps/api/src/modules/idle/idleSync.ts",
-  "driver_vehicle_assignments <- apps/api/src/modules/samsara/samsaraVehicleSync.ts",
   "drivers <- apps/api/src/modules/efs/services/efsIngest.ts",
   "drivers <- apps/api/src/modules/fuel/driverAttribution.ts",
   "drivers <- apps/api/src/modules/org/routes/members.ts",

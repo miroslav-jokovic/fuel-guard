@@ -2,7 +2,8 @@ import { describe, expect, it } from "vitest";
 import { USER_ROLES } from "./constants.js";
 import { callerCanView, type SectionClaim } from "./auth.js";
 import { surfaceAllowed, surfaceGateAllows, surfaceStartsOn } from "./surfaces.js";
-import { ADMIN_ONLY_SURFACES, GRANTABLE_SURFACES, NAV_SURFACES, SURFACES, directoryScreens } from "./surfaceCatalogue.js";
+import { ADMIN_ONLY_SURFACES, GRANTABLE_SURFACES, NAV_SURFACES, SURFACES } from "./surfaceCatalogue.js";
+import { directoryScreens } from "./surfaceLookups.js";
 
 /**
  * The Settings screens as permissions (SETTINGS-PERMISSIONS-PLAN.md SP1, Q-SET1..3 ruled (a) on
@@ -20,8 +21,8 @@ const SETTINGS = surface("admin.settings");
 const OFFICE_ROLES = USER_ROLES.filter((r) => r !== "driver");
 
 describe("by default only the admin sees Settings (Q-SET2 as revised)", () => {
-  it("links the directory to all nineteen screens, so this block is not vacuous", () => {
-    expect(directoryScreens("admin.settings")).toHaveLength(19);
+  it("links the directory to all twenty-one screens, so this block is not vacuous", () => {
+    expect(directoryScreens("admin.settings")).toHaveLength(21);
   });
 
   for (const r of OFFICE_ROLES) {
@@ -56,12 +57,15 @@ describe("the Settings entry follows the screens behind it", () => {
     expect(surfaceAllowed(SETTINGS, "dispatcher", null, { "admin.settings.org": true })).toBe(false);
   });
 
-  it("answers the role half too: a role no Settings screen's section reaches cannot reach the entry", () => {
-    // `canReachSurface` is AND-ed with `surfaceAllowed` in the sidebar, so it must not say yes to the
-    // entry for a role whose sections could never open anything behind it.
-    expect(surfaceGateAllows(SETTINGS, "technician", null)).toBe(false);
-    expect(surfaceGateAllows(SETTINGS, "safety_manager", null)).toBe(true);
-    expect(surfaceGateAllows(SETTINGS, "technician", { recruitment: "view" })).toBe(true);
+  it("answers the role half too: every office role reaches the entry, since Chat teams can be given to any of them", () => {
+    // `canReachSurface` is AND-ed with `surfaceAllowed` in the sidebar. Until D-CHAT21 (2026-10-25) a
+    // technician's sections reached no Settings screen, so the role half said no; `chat.teams` is a
+    // `STAFF` screen any office role may be given, so the role half now says yes for every office role
+    // and the entry's answer is the screens' own: closed until one is turned on.
+    for (const r of OFFICE_ROLES) expect(surfaceGateAllows(SETTINGS, r, null), r).toBe(true);
+    expect(surfaceGateAllows(SETTINGS, "driver", null)).toBe(false);
+    expect(surfaceAllowed(SETTINGS, "technician", null, {})).toBe(false);
+    expect(surfaceAllowed(SETTINGS, "technician", null, { "chat.teams": true })).toBe(true);
   });
 
   it("is filled from `reachedFrom` alone, so the entry and the cards are one list", () => {
@@ -121,5 +125,27 @@ describe("the catalogue says what the rulings said", () => {
       expect(grantable.has(s.key), s.key).toBe(s.gate.kind !== "admin");
       expect(nav.has(s.key), s.key).toBe(false);
     }
+  });
+});
+
+describe("Chat teams is a permission any office role can be given (D-CHAT21)", () => {
+  const TEAMS = surface("chat.teams");
+
+  it("is a Permissions-page row, while the Chat screen itself is not", () => {
+    const grantable = new Set(GRANTABLE_SURFACES.map((s) => s.key));
+    expect(grantable.has("chat.teams")).toBe(true);
+    expect(grantable.has("chat")).toBe(false);
+  });
+
+  it("is the admins' until somebody is given it", () => {
+    expect(surfaceAllowed(TEAMS, "admin", null, {})).toBe(true);
+    for (const r of OFFICE_ROLES.filter((x) => x !== "admin")) expect(surfaceAllowed(TEAMS, r, null, {}), r).toBe(false);
+  });
+
+  it("can be given to a role no section would have let near it, and never to a driver", () => {
+    // The point of the ruling: a section gate would have capped it at that section's holders (D-SURF2).
+    expect(surfaceAllowed(TEAMS, "dispatcher", null, { "chat.teams": true })).toBe(true);
+    expect(surfaceAllowed(TEAMS, "technician", { settings: "none" }, { "chat.teams": true })).toBe(true);
+    expect(surfaceAllowed(TEAMS, "driver", null, { "chat.teams": true })).toBe(false);
   });
 });

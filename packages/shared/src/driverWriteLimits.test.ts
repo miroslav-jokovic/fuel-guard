@@ -23,6 +23,8 @@ describe("driverWriteBucket", () => {
     [`/api/me/loads/${ID}/stops/${ID}`, "stop_capture"],
     ["/api/messages", "message"],
     [`/api/messages/${ID}/messages`, "message"],
+    [`/api/chat/${ID}/messages`, "chat_message"],
+    [`/api/chat/channels/${ID}/posts/${ID}/replies`, "chat_message"],
   ])("buckets POST %s as %s", (path, bucket) => {
     expect(driverWriteBucket("POST", path)).toBe(bucket);
   });
@@ -40,6 +42,12 @@ describe("driverWriteBucket", () => {
     "/api/me/hazmat/capture",
     "/api/dispatch/loads",
     `/api/messages/${ID}/read`,
+    "/api/chat/direct",
+    "/api/chat/groups",
+    `/api/chat/${ID}/read`,
+    `/api/chat/${ID}/members`,
+    "/api/chat/teams",
+    `/api/chat/channels/${ID}/join`,
   ])("leaves %s unbucketed", (path) => {
     expect(driverWriteBucket("POST", path)).toBeNull();
   });
@@ -61,6 +69,10 @@ describe("DRIVER_WRITE_LIMITS", () => {
     expect(DRIVER_WRITE_LIMITS.load_action).toMatchObject({ perMinute: 20, perDay: 200 });
     expect(DRIVER_WRITE_LIMITS.stop_capture).toMatchObject({ perMinute: 30, perDay: 500 });
     expect(DRIVER_WRITE_LIMITS.message).toMatchObject({ perMinute: 20, perDay: 300 });
+  });
+
+  it("gives office chat its own budget, ten times the driver's (D-CHAT8)", () => {
+    expect(DRIVER_WRITE_LIMITS.chat_message).toMatchObject({ perMinute: 60, perDay: 3000 });
   });
 
   it("keeps every per-day cap above its per-minute limit", () => {

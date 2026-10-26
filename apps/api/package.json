@@ -22,6 +22,7 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "0.107.0",
+    "@aws-sdk/client-s3": "^3.1154.0",
     "@hazmat/data": "workspace:*",
     "@hazmat/engine": "workspace:*",
     "@hazmat/placards": "workspace:*",

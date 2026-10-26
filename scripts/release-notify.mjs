@@ -115,11 +115,14 @@ export function outcomeOf(r) {
   if (r.plan !== "success") return fail("planning the release");
   if (r.shipDecided !== "true") return { kind: r.notifySkip === "true" ? "skipped" : "", detail: "" };
   if (r.rollback === "success") {
-    const what = r.verify === "failure" ? "deploy verification" : "the production smoke test";
+    const what =
+      r.aws === "failure" ? "the AWS production deploy" : r.verify === "failure" ? "deploy verification" : "the production smoke test";
     return { kind: r.verifyRollback === "success" ? "rolled-back" : "rollback-failed", detail: what };
   }
   if (r.rollback === "failure") return { kind: "rollback-failed", detail: "moving production back" };
   if (r.ship !== "success") return fail("before the deploy (CI, backup, migrations or the push) — production unchanged");
+  // `aws` is set only once AWS serves production (release.yml's notify); empty before, and ignored.
+  if (r.aws === "failure") return fail("the AWS production deploy");
   if (r.verify !== "success") return fail("deploy verification");
   if (r.smoke !== "success") return fail("the production smoke test");
   if (r.publish !== "success") return fail("tagging and publishing (production IS on the release)");
@@ -255,6 +258,12 @@ function selfTest() {
     outcomeOf({ ...ok, smoke: "failure", publish: "skipped", rollback: "success", verifyRollback: "success" }).detail, "the production smoke test");
   eq("a rollback that did not verify pages as rollback-failed", k({ verify: "failure", rollback: "success", verifyRollback: "failure" }), "rollback-failed");
   eq("a rollback push that failed pages as rollback-failed", k({ verify: "failure", rollback: "failure" }), "rollback-failed");
+  eq("once AWS serves production, a failed AWS deploy that rolled back names it",
+    outcomeOf({ ...ok, aws: "failure", verify: "skipped", smoke: "skipped", publish: "skipped", rollback: "success", verifyRollback: "success" }),
+    { kind: "rolled-back", detail: "the AWS production deploy" });
+  eq("…and one that could not roll back is a failure that names it",
+    outcomeOf({ ...ok, aws: "failure", verify: "skipped", smoke: "skipped", publish: "skipped", before: "" }).detail, "the AWS production deploy");
+  eq("while Railway serves production the AWS result is not passed, so a clean run still shipped", k({ aws: "" }), "shipped");
   eq("a tagging failure is a failure that says production IS on the release",
     outcomeOf({ ...ok, publish: "failure" }).detail.includes("IS on the release"), true);
   const secrets = { RELEASE_NOTIFY_EMAILS: "s@x.com", RELEASE_NOTIFY_PHONES: "+15550000000" };
@@ -281,7 +290,7 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
     // release.yml's notify job: the jobs' results in, `kind=` and `detail=` lines out (GITHUB_OUTPUT).
     const e = process.env;
     const o = outcomeOf({ plan: e.PLAN, shipDecided: e.SHIP_DECIDED, notifySkip: e.NOTIFY_SKIP, mode: e.MODE, ship: e.SHIP,
-      verify: e.VERIFY, smoke: e.SMOKE, publish: e.PUBLISH, rollback: e.ROLLBACK, verifyRollback: e.VERIFY_ROLLBACK });
+      verify: e.VERIFY, smoke: e.SMOKE, publish: e.PUBLISH, rollback: e.ROLLBACK, verifyRollback: e.VERIFY_ROLLBACK, aws: e.AWS });
     console.log(`kind=${o.kind}\ndetail=${o.detail}`);
   } else if (cmd) await main(cmd);
   else {

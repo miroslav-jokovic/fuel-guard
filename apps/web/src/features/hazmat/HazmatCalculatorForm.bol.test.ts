@@ -10,12 +10,12 @@ import { DIESEL, DIESEL_REF, ok, pagesAudit, PAINT, PAINT_REF, PRODUCTS, read } 
  * first read's lines instead of adding its weight again while a typed line stays, a failed lookup changes
  * nothing, and the paper's non-hazmat freight answers the "rest of the load" question.
  */
-const api = vi.hoisted(() => ({ calls: [] as string[], fail: false, posts: [] as { url: string; body: unknown }[] }));
+const api = vi.hoisted(() => ({ calls: [] as string[], fail: false, posts: [] as { url: string; body: unknown }[], reviewAudit: null as unknown }));
 vi.mock("@/lib/api", () => ({
   apiFetch: vi.fn(async (url: string, opts?: { method?: string; body?: unknown }) => {
     api.calls.push(url);
     if (opts?.method === "POST") api.posts.push({ url, body: opts.body });
-    if (url.endsWith("/reviews")) return { ok: true, status: 201, data: { recorded: 1 } };
+    if (url.endsWith("/reviews")) return { ok: true, status: 201, data: { recorded: 1, paperAudit: api.reviewAudit } };
     if (url.endsWith("/calc")) return new Promise(() => {}); // the placards are not what these tests check
     if (url.includes("refs=")) {
       if (api.fail) return { ok: false, status: 503, error: { code: "x", message: "Busy" } };
@@ -39,6 +39,7 @@ describe("HazmatCalculatorForm with a BOL read", () => {
     api.calls = [];
     api.posts = [];
     api.fail = false;
+    api.reviewAudit = null;
   });
 
   it("fills one line per product, each from the exact-ref lookup and saying where it came from", async () => {
@@ -265,21 +266,51 @@ describe("HazmatCalculatorForm with a BOL read", () => {
       expect(api.posts).toEqual([]);
     });
 
-    it("posts one review batch per Calculate, the picked count corrected and explicit, and none for a repeat press", async () => {
+    it("records a picked count as it is picked, then one Calculate batch without it, and none for a repeat press (Q-RC5)", async () => {
       const w = await withEquipment();
       await w.findAll("[data-testid='bol-field-choose']")[1]!.trigger("click");
+      await flushPromises();
+      type Body = { consumer: string; reviews: { path: string; action: string; explicit: boolean; newValue: unknown }[] };
+      const reviews = () => api.posts.filter((p) => p.url.endsWith("/reviews"));
+      // The pick is the person saying what the page prints: recorded now, so the paper audit takes it.
+      expect(reviews().map((p) => p.url)).toEqual([`/api/documents/reads/${disputed().id}/reviews`]);
+      expect((reviews()[0]!.body as Body).consumer).toBe("paper_check");
+      expect((reviews()[0]!.body as Body).reviews).toEqual([
+        { path: "hazmat.lines[0].packageCount", action: "corrected", oldValue: 9, newValue: 6, explicit: true },
+      ]);
       await w.find("form").trigger("submit");
       await flushPromises();
-      const reviews = api.posts.filter((p) => p.url.endsWith("/reviews"));
-      expect(reviews.map((p) => p.url)).toEqual([`/api/documents/reads/${disputed().id}/reviews`]);
-      const body = reviews[0]!.body as { consumer: string; reviews: { path: string; action: string; explicit: boolean; newValue: unknown }[] };
-      expect(body.consumer).toBe("hazmat_calculator");
-      expect(body.reviews.find((r) => r.path.endsWith("packageCount"))).toMatchObject({ action: "corrected", newValue: 6, explicit: true });
-      expect(body.reviews.find((r) => r.path.endsWith("idText"))).toMatchObject({ action: "confirmed", explicit: false });
+      expect(reviews()).toHaveLength(2);
+      const batch = reviews()[1]!.body as Body;
+      expect(batch.consumer).toBe("hazmat_calculator");
+      // One act is one row: the count recorded at the pick is not recorded again.
+      expect(batch.reviews.find((r) => r.path.endsWith("packageCount"))).toBeUndefined();
+      expect(batch.reviews.find((r) => r.path.endsWith("idText"))).toMatchObject({ action: "confirmed", explicit: false });
       expect(api.posts.some((p) => p.url.endsWith("/calc"))).toBe(true);
       await w.find("form").trigger("submit");
       await flushPromises();
-      expect(api.posts.filter((p) => p.url.endsWith("/reviews"))).toHaveLength(1);
+      expect(reviews()).toHaveLength(2);
+    });
+
+    it("shows the paper audit a recorded check answers with, and offers the readings under a check it waits on (Q-RC5)", async () => {
+      const unconfirmed = { ruleId: "paper_certification", outcome: "cannot_tell" as const, reason: "field_unconfirmed", lineIndex: null, facts: { unconfirmed: ["hazmat.shipperCertification"] } };
+      const r = read([{ a: PAINT, table: ok(PAINT_REF) }], { paperAudit: { datasetVersion: "t", results: [unconfirmed] } });
+      r.evidence.push({ path: "hazmat.shipperCertification", value: null, status: "check", ruleVersion: "12", sources: [
+        { reader: "passA", page: null, bbox: null, value: null }, { reader: "passB", page: null, bbox: null, value: true }] });
+      api.reviewAudit = { datasetVersion: "t", results: [{ ...unconfirmed, outcome: "pass", reason: "present", facts: {} }] };
+      const w = mountForm();
+      await w.setProps({ bolRead: r });
+      await flushPromises();
+      const choice = w.find("[data-testid='bol-finding-choice']");
+      expect(choice.text()).toContain("What does the page show for the shipper's certification?");
+      await choice.findAll("button").find((b) => b.text() === "Yes, it is printed")!.trigger("click");
+      await flushPromises();
+      expect((api.posts.at(-1)!.body as { consumer: string }).consumer).toBe("paper_check");
+      expect((api.posts.at(-1)!.body as { reviews: unknown[] }).reviews).toEqual([
+        { path: "hazmat.shipperCertification", action: "corrected", oldValue: null, newValue: true, explicit: true },
+      ]);
+      expect(w.find("[data-testid='bol-finding-choice']").exists()).toBe(false);
+      expect(w.find("[data-testid='bol-findings-clean']").exists()).toBe(true);
     });
   });
 });

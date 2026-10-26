@@ -161,8 +161,13 @@ export const INTAKE_LIMITS = { maxBytes: 25 * 1024 * 1024, maxPages: 10, minLong
 
 export const REVIEW_ACTIONS = ["confirmed", "corrected", "unreadable"] as const;
 export type ReviewAction = (typeof REVIEW_ACTIONS)[number];
-/** The feature whose screen produced a review — graduation counts are reported per consumer. */
-export const REVIEW_CONSUMERS = ["hazmat_calculator"] as const;
+/**
+ * The feature whose screen produced a review — graduation counts are reported per consumer. `hazmat_calculator` is
+ * a Calculate press: each field sent, which may be the load's (a typed weight, a product picked from the list).
+ * `paper_check` is a person's word on what the PAGE prints, recorded as they give it (0509, Q-RC5) — the only
+ * reviews the paper audit takes.
+ */
+export const REVIEW_CONSUMERS = ["hazmat_calculator", "paper_check"] as const;
 export type ReviewConsumer = (typeof REVIEW_CONSUMERS)[number];
 
 // ── profile registry (D-DR1) ───────────────────────────────────────────────────────────────────────
@@ -397,7 +402,8 @@ export const reviewBatchRequestSchema = z.object({
   reviews: z.array(reviewEntrySchema).min(1).max(500),
 });
 export type ReviewBatchRequest = z.infer<typeof reviewBatchRequestSchema>;
-export const reviewBatchResponseSchema = z.object({ recorded: z.number().int().min(1) });
+/** What was recorded, and the paper audit as it now stands, a person's checks taken as the paper's values (Q-RC5). */
+export const reviewBatchResponseSchema = z.object({ recorded: z.number().int().min(1), paperAudit: paperAuditSchema.nullable() });
 
 // ── corpus labels (Step 0.3) ───────────────────────────────────────────────────────────────────────
 export const labelledPageSchema = z.object({

@@ -13,6 +13,9 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 export interface StoredObject {
   path: string;
   createdAt: string;
+  /** Bytes and last write, as the listing reports them — what the off-provider backup compares on. */
+  size?: number;
+  updatedAt?: string;
 }
 
 export interface StorageReconcilePlan {
@@ -90,6 +93,8 @@ interface RawListItem {
   name: string;
   id?: string | null;
   created_at?: string | null;
+  updated_at?: string | null;
+  metadata?: { size?: number } | null;
 }
 
 /** Recursively list every FILE in a bucket (folders have a null id in the Supabase list response). */
@@ -105,7 +110,12 @@ export async function listAllObjects(admin: SupabaseClient, bucket: string, pref
       if (it.id === null || it.id === undefined) {
         await listAllObjects(admin, bucket, full, acc); // folder → descend
       } else {
-        acc.push({ path: full, createdAt: it.created_at ?? new Date(0).toISOString() });
+        acc.push({
+          path: full,
+          createdAt: it.created_at ?? new Date(0).toISOString(),
+          size: it.metadata?.size,
+          updatedAt: it.updated_at ?? undefined,
+        });
       }
     }
     if (items.length < pageSize) break;

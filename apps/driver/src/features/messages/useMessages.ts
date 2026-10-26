@@ -14,6 +14,7 @@ import { enqueue, newClientId } from '@/data/outbox';
 import { MESSAGE_SEND_KIND, MESSAGE_THREAD_KIND } from '@/data/handlers';
 import { supabase } from '@/lib/supabase';
 import { useSession } from '@/session/SessionProvider';
+import { driverMessagesTopic } from './topics';
 
 /**
  * Driver messages (Phase 7, D54/D-PM4) — the stack's first INBOUND realtime path.
@@ -145,28 +146,38 @@ export function useReportMessage() {
  * Realtime inbound: new rows on `messages` (RLS-scoped by participation) refresh the caches the
  * instant dispatch replies. Scoped per mounted screen; teardown on unmount. Failures are silent —
  * the poll is the guarantee, realtime is the speed.
+ *
+ * `setAuth()` before the join: a private channel is authorised with the socket's token. With no
+ * argument it reads the signed-in session, and supabase-js repeats it on every token refresh.
  */
 export function useMessagesRealtime(threadId?: string, enabled = true): void {
   const qc = useQueryClient();
+  const { userId } = useSession();
   useEffect(() => {
-    if (!enabled) return undefined;
-    const channel = supabase
-      .channel(threadId ? `messages-${threadId}` : 'messages-inbox')
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'messages',
-          ...(threadId ? { filter: `thread_id=eq.${threadId}` } : {}),
-        },
-        () => {
-          void qc.invalidateQueries({ queryKey: ME_THREADS_KEY });
-        },
-      )
-      .subscribe();
+    if (!enabled || !userId) return undefined;
+    let cancelled = false;
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+    void supabase.realtime.setAuth().catch(() => undefined).then(() => {
+      if (cancelled) return;
+      channel = supabase
+        .channel(driverMessagesTopic(userId, threadId), { config: { private: true } })
+        .on(
+          'postgres_changes',
+          {
+            event: 'INSERT',
+            schema: 'public',
+            table: 'messages',
+            ...(threadId ? { filter: `thread_id=eq.${threadId}` } : {}),
+          },
+          () => {
+            void qc.invalidateQueries({ queryKey: ME_THREADS_KEY });
+          },
+        )
+        .subscribe();
+    });
     return () => {
-      void supabase.removeChannel(channel);
+      cancelled = true;
+      if (channel) void supabase.removeChannel(channel);
     };
-  }, [qc, threadId, enabled]);
+  }, [qc, threadId, enabled, userId]);
 }

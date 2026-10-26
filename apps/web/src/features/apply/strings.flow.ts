@@ -160,6 +160,19 @@ export const APPLY_FLOW_COPY = {
         + "There was nothing more for you to do here. The carrier will contact you about the next step; "
         + "if you have not heard from them, ask the person who invited you.",
     },
+    /**
+     * The same dead link, on the device that finished Part 1 on it, dead BEFORE its expiry
+     * (`deadLinkWording`, 2026-10-21): the office's "Send application" or a re-send rotated it, and a
+     * newer link is in the applicant's texts or email. A revoked link reads the same here — the device
+     * cannot tell — so the body ends with the step that helps when there is no newer message.
+     */
+    replaced: {
+      heading: "Open the newest link from the carrier",
+      body:
+        "This link stopped working because the carrier sent you a newer one, as they do when your application moves to its next part. "
+        + "Open the most recent text or email from them and carry on there; nothing you already sent is lost. "
+        + "If you cannot find a newer message, ask the person who invited you.",
+    },
   },
 
   /**

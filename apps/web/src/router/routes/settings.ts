@@ -173,4 +173,20 @@ export const settingsRoutes: RouteRecordRaw[] = [
       parent: "/settings",
     },
   },
+  {
+    // Office chat's compliance console (OFFICE-CHAT-PLAN CHA2): the one place another person's
+    // messages can be read, behind the `chat.compliance` grant, step-up and a recorded reason.
+    path: "/settings/chat-compliance",
+    name: "chat-compliance",
+    component: () => import("@/pages/ChatCompliancePage.vue"),
+    meta: { requiresAuth: true, title: "Chat compliance", parent: "/settings" },
+  },
+  {
+    // Office chat teams (OFFICE-CHAT-PLAN CH5b, D-CHAT21): every team of the organisation, behind the
+    // `chat.teams` grant — which, unlike the other Settings screens, any office role can be given.
+    path: "/settings/chat-teams",
+    name: "chat-teams",
+    component: () => import("@/pages/ChatTeamsPage.vue"),
+    meta: { requiresAuth: true, title: "Chat teams", parent: "/settings" },
+  },
 ];

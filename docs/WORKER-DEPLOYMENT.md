@@ -93,6 +93,34 @@ measured budget to spend against. Three consequences, all deliberate:
 checks the caller's address against the key's IP filter. Set `MEDSTOP_SYNC_ENABLED=true` on `api`
 and nowhere else.
 
+⚠ **Storage backup (`storage-backup`, general lane, added 2026-10-21)** copies every Storage bucket
+except `compliance-exports` to the S3 bucket `silvicom360-storage-backup-891568748437` (AWS `us-east-2`,
+versioned, Object Lock governance 90 days). Supabase's database backups do not include Storage
+objects, so this is the only second copy of every uploaded file. It is **off** unless all four
+`STORAGE_BACKUP_*` variables are set, and they are set on **production only** — a staging copy would
+mix testers' uploads into the same locked bucket. It needs no fixed IP, so it runs in whichever
+process holds the general lane. One ledger job per org (`storage_backup`); `GET /api/version` →
+`storageBackup.state` turns `ok` false when a copy is over 36 hours old, and `platform-health.yml`
+pages on it. The key is IAM user `silvicom-storage-backup`: list/get/put on that bucket, no delete.
+
+**Chat ledger anchor (`chat-ledger-verify`, general lane, CHA4, 2026-10-23)** rides on the same bucket: after
+the nightly chain verify passes, one small object per org (`chat-ledger-anchors/<org>/<day>-<seq>-<hash>.json`)
+records the ledger's head, and the next night's verify checks the ledger against it before trusting the
+chain. Where the `STORAGE_BACKUP_*` variables are not set (staging) the verify logs "chain self-checked
+only" — it never pretends to have anchored.
+
+**Realtime probe (`realtime-probe`, general lane, CHA4, 0515)** joins the private topic
+`platform:realtime-probe` with the service role every 15 minutes, has the database broadcast a nonce
+(`realtime_probe_send`) and records whether it came back and how fast, in `platform_realtime_health` —
+the table the chat trigger also writes a row to for every signal it could not send. `GET /api/version` →
+`realtime.state` turns `ok` false on `failing` (the broadcast did not arrive), `stale` (no probe in 45 min)
+or `unknown`; `platform-health.yml` pages on it. One websocket from one process; nothing per replica.
+
+**Chat export sweep (`chat-export-sweeper`, general lane, CHA3b, 0517)** removes an office chat export's
+three files from `compliance-exports` (`<org>/chat/<export>/`) seven days after it was made and stamps the
+`chat_exports` row purged; the row, its hashes and its ledger entry stay. Hourly, first tick four minutes
+after boot, the `dq-export-sweeper` shape. A bounded indexed read that returns nothing on almost every run.
+
 ## Safety model
 - The `jobs` ledger (partial unique index on `(org_id, kind)`) already prevents two concurrent runs of the
   same per-org work across processes.

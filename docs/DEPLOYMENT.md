@@ -62,7 +62,7 @@ management API. Per channel, if that read fails or the list has nobody on it, it
 repository secrets `RELEASE_NOTIFY_EMAILS` / `RELEASE_NOTIFY_PHONES` (comma-separated), so keep one
 number there as the safety net. It never merges the two: someone removed in the console stops hearing
 alarms. The providers come from four more secrets, `BREVO_API_KEY`, `MAIL_FROM`, `TELNYX_API_KEY`,
-`TELNYX_FROM` — copies of production `@fleetguard/api`'s own; rotate them in both places. A missing one
+`TELNYX_FROM` — copies of production `@fleetguard/api`'s own (and `@fleetguard/web`'s, below); rotate them in all three places. A missing one
 is a workflow warning, never a failed release.
 
 **Backups.** Production takes one physical backup a day (~03:40 CT, 7 kept); point-in-time recovery
@@ -85,6 +85,24 @@ scheduler process is per DATABASE, and uat has exactly one.
 **cross-origin**, and the API's `ALLOWED_ORIGINS` exists precisely to permit it. Both hosts do
 serve a full API and a copy of the SPA — `apps/api/src/app.ts` serves `apps/web/dist` in both —
 but only `fleetguardweb` is the one users are sent to.
+
+**⚠ Except the applicant's page, which IS same-origin — so `@fleetguard/web` sends texts too.** The
+apply page (`apps/web/src/features/apply/useApplication.ts` `publicFetch`, and the PDF viewers beside
+it) calls `/api/public/application/...` with a relative URL, deliberately ignoring `VITE_API_URL`, so
+every applicant request is served by `@fleetguard/web`. Several of those routes send a text at once —
+the confirmation when an applicant agrees to texts, "Text me the link" on a desktop. Until 2026-10-21
+`@fleetguard/web` had no texting variables, so every one of them failed with *"No SMS provider
+configured"* (4 of the 5 `consent_confirm` rows in production's `sms_outbox`; nothing retries a
+`failed` row). The office's texts never hit it, because the office SPA calls the api host. **So
+`SMS_PROVIDER`, `TELNYX_API_KEY`, `TELNYX_FROM`, `TELNYX_MESSAGING_PROFILE_ID` and `TELNYX_PUBLIC_KEY`
+are set on BOTH `@fleetguard/api` and `@fleetguard/web`** (copied 2026-10-21), and a key rotation
+changes them in both services and in the release-notify secrets above — three places. A Railway
+variable change stages until the service is redeployed; check `last_error` on the next
+`consent_confirm` row after a rotation. Check that both carry them:
+
+```bash
+for s in "@fleetguard/api" "@fleetguard/web"; do railway variables --service "$s" --environment production --json | python3 -c "import json,sys; print('$s', sorted(k for k in json.load(sys.stdin) if k.startswith(('SMS_','TELNYX_'))))"; done
+```
 
 ### Do NOT delete `@fleetguard/web`
 

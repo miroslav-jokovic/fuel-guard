@@ -3,6 +3,8 @@ name: Platform health
 # Pushes a PLATFORM alarm (DATA-LIFECYCLE-PLAN Q9) to Settings → Alert recipients (0427): the
 # production API not answering, the database's scheduled maintenance not ok (L6, D-LIFE10), or the
 # schema not matching the code. `/api/version` publishes all three; until now nobody was told.
+# Since 2026-10-21 also a scheduler lane nobody holds (D-RLY3) and the nightly S3 copy of Storage
+# going stale or failing (`storageBackup.state`, modules/org/storageBackupHealth.ts).
 # scripts/platform-health.mjs says why it runs here and not in our API, and how it debounces.
 #
 # When: every 15 minutes. A problem pages on its second sighting in a row, once; its recovery is sent.

@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { apiError } from "../../lib/http.js";
 import { forgetMembership } from "../../middleware/membershipCurrent.js";
+import { forgetSurfaceClaims } from "./surfaceClaimCache.js";
 
 /**
  * The API's half of SP8 (SETTINGS-PERMISSIONS-PLAN §4b, Q-SET7 (a)): every change to who may do what
@@ -67,6 +68,9 @@ export async function writeAccessCell(admin: SupabaseClient, w: AccessCellWrite)
     p_action: w.action,
     p_meta: w.meta,
   });
+  // Forget even on a failure: the write may have committed before the error reached us, and a
+  // re-read costs one query.
+  if (w.table === "org_role_surface_access" || w.table === "user_surface_access") forgetSurfaceClaims(w.orgId);
   if (error) {
     console.error(`[access] write_access_cell ${w.table} failed: ${(error as { message?: string }).message ?? "unknown"}`);
     return false;

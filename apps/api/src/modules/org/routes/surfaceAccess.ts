@@ -18,6 +18,7 @@ import { validateBody, apiError, asyncHandler } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
 import { writeAccessCell } from "../accessWrites.js";
+import { surfaceClaimKey, surfaceClaims } from "../surfaceClaimCache.js";
 import { lookupMemberRole } from "../memberLookup.js";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -111,6 +112,9 @@ export function toUserSurfaceClaim(rows: UserSurfaceRow[]): SurfaceClaim {
  * migration being applied, the missing table is a query error, the user layer does not apply, and
  * the role layer answers exactly as it did before. Pinned by surfaceAccess.test.ts —
  * "returns the role's answers unchanged when the user table cannot be read".
+ *
+ * CACHED for 15 s per (org, role, person) — `surfaceClaimCache.ts`. A claim built while either read
+ * failed is returned but never cached, so the fail-open answer lasts one request, not 15 s.
  */
 export async function surfaceClaimFor(
   admin: SupabaseClient,
@@ -119,6 +123,31 @@ export async function surfaceClaimFor(
   userId?: string | null,
 ): Promise<SurfaceClaim> {
   if (!role || !(EDITABLE_ROLES as string[]).includes(role)) return {};
+  try {
+    return await surfaceClaims.get(surfaceClaimKey(orgId, role, userId), async () => {
+      const r = await readSurfaceClaim(admin, orgId, role, userId);
+      if (!r.complete) throw new IncompleteClaim(r.claim);
+      return r.claim;
+    });
+  } catch (e) {
+    // The claim rides on the error, so every request that shared this read gets it too.
+    if (e instanceof IncompleteClaim) return e.claim;
+    throw e;
+  }
+}
+
+class IncompleteClaim extends Error {
+  constructor(readonly claim: SurfaceClaim) {
+    super("surface claim read incompletely");
+  }
+}
+
+async function readSurfaceClaim(
+  admin: SupabaseClient,
+  orgId: string,
+  role: UserRole,
+  userId?: string | null,
+): Promise<{ claim: SurfaceClaim; complete: boolean }> {
   const [roleRes, userRes] = await Promise.all([
     admin.from("org_role_surface_access").select(ROW_COLS).eq("org_id", orgId).eq("role", role),
     userId
@@ -129,7 +158,7 @@ export async function surfaceClaimFor(
   const fromUser = userRes.error ? {} : toUserSurfaceClaim((userRes.data ?? []) as UserSurfaceRow[]);
   // The user's answers win, which is the whole of D-SURF6's third layer. `surfaceAllowed` in shared
   // still checks the surface's own gate FIRST, so a `true` here can never reach past the section.
-  return { ...fromRole, ...fromUser };
+  return { claim: { ...fromRole, ...fromUser }, complete: !roleRes.error && !userRes.error };
 }
 
 /**

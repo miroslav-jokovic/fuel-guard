@@ -1,3 +1,5 @@
+import { APPLICATION_CAPTURE_SLOT_LABELS_ES, APPLICATION_SECTION_LABELS_ES, APPLY_COPY_ES } from "./es/strings.es";
+import { localized, type Localized } from "./language";
 import { APPLY_FLOW_COPY } from "./strings.flow";
 import { APPLY_HISTORY_COPY } from "./strings.history";
 import { APPLY_IDENTITY_COPY } from "./strings.identity";
@@ -11,6 +13,9 @@ import {
   CMV_WINDOW_YEARS,
   EMPLOYMENT_WINDOW_YEARS,
   MVR_LOOKBACK_YEARS,
+  APPLICATION_CAPTURE_SLOT_LABELS,
+  type ApplicationCaptureSlot,
+  type ApplicationSection,
 } from "@silvicom/shared";
 import { sentenceCase } from "./sentenceCase";
 
@@ -54,9 +59,27 @@ import { sentenceCase } from "./sentenceCase";
  * read by drivers.
  */
 
-export const APPLY_SECTION_TITLES = APPLICATION_SECTION_LABELS;
+/**
+ * The section titles in the page's language (C4). The office reads `APPLICATION_SECTION_LABELS` itself;
+ * the applicant's screens read this, which is the same map in English and `es/strings.es.ts`'s in Spanish.
+ */
+export const APPLY_SECTION_TITLES: Record<ApplicationSection, string> = localized({
+  en: APPLICATION_SECTION_LABELS,
+  es: APPLICATION_SECTION_LABELS_ES,
+});
 
-export const APPLY_COPY = {
+/** The photographs' names in the page's language (C4), for the same reason as the section titles. */
+export const APPLY_CAPTURE_TITLES: Record<ApplicationCaptureSlot, string> = localized({
+  en: APPLICATION_CAPTURE_SLOT_LABELS,
+  es: APPLICATION_CAPTURE_SLOT_LABELS_ES,
+});
+
+/**
+ * The English words. `APPLY_COPY` below is the view every component reads — it answers in the page's
+ * language (`language.ts`, Q-AW11) — and this object is the SHAPE every language must satisfy, so the
+ * Spanish object (`es/strings.es.ts`) is typed against it and a key missing there fails `vue-tsc`.
+ */
+export const APPLY_COPY_EN = {
   page: {
     title: "Driver application",
     /** Named as a function because the carrier is a fact, and a template literal here would be a
@@ -382,6 +405,59 @@ export const APPLY_COPY = {
   },
 
   /**
+   * `fieldLabels.ts`'s own words (C4): the contract keys that are not a control's label, the noun a repeated
+   * row is counted by, and the sentences derived from an issue's code. They lived in that file as literals
+   * until the page had a second language; they are read from here at call time now, never at module load.
+   */
+  fields: {
+    addresses: "Where you have lived",
+    employers: "Where you have worked",
+    gaps: "Time between jobs",
+    questionnaire: "The carrier's own questions",
+    employerRecord: "This employer's record",
+    gapFrom: "From",
+    gapTo: "To",
+    gapWhat: "What you were doing",
+    nouns: {
+      other_names: "Name",
+      addresses: "Address",
+      additional_licences: "Licence",
+      employers: "Employer",
+      employment_gaps: "Gap",
+      equipment_experience: "Equipment",
+      accidents: "Accident",
+      violations: "Conviction",
+    },
+    certifyOverride: "Tick the box to certify that your answers are true.",
+    addOne: "Add at least one.",
+    needed: "This is needed.",
+    notEmail: "This does not look like an email address.",
+    fromCalendar: "Choose it from the calendar.",
+    tooLong: "This is too long.",
+    tooShort: "This is too short.",
+    check: "Check this answer.",
+  },
+
+  /** `ApplyLayout.vue`'s chrome (C4): the header's fallback, the footer, and the language switch. */
+  layout: {
+    untitled: "Driver application",
+    theCarrier: "the carrier",
+    collectedFor: "This application is collected for",
+    processedBy: "and processed on their behalf by Silvicom 360. Your answers are shared with the carrier only.",
+    /** The OTHER language's name, in that language: what pressing the switch gives. */
+    switchTo: "Español",
+    switchLabel: "Change this page's language",
+  },
+
+  /**
+   * Q-AW11's reading aid: the instruments stay in the words counsel approved, and a page in Spanish says so
+   * once, above everything, rather than beside each one. English readers are shown nothing — the page is
+   * already in the documents' language — so the English sentence exists only to keep the shape.
+   */
+  englishDocuments:
+    "The legal documents on this page (the consents, the permissions, the form and the handbook) are shown in English, and the English text is what you sign. If you need help understanding one, ask the person who invited you before you sign it.",
+
+  /**
    * The ceremony and the lifecycle screens — consent, signing, the hand-off, the certification.
    * One object so `strings.test.ts` can walk all of it; see `strings.flow.ts` for the seam.
    */
@@ -393,3 +469,8 @@ export const APPLY_COPY = {
   ...APPLY_SMS_COPY,
   ...APPLY_HANDBOOK_COPY,
 } as const;
+
+export type ApplyCopy = Localized<typeof APPLY_COPY_EN>;
+
+/** Every word the applicant reads, in the page's language. See `language.ts` for how a read picks it. */
+export const APPLY_COPY: ApplyCopy = localized<ApplyCopy>({ en: APPLY_COPY_EN, es: APPLY_COPY_ES });

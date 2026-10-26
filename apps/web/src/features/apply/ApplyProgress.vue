@@ -4,11 +4,10 @@ import { AppButton as BaseButton, AppIcon } from "@silvicom/ui";
 import { CheckIcon, ChevronDownIcon } from "@silvicom/ui/icons";
 import {
   APPLICATION_FILLING_SECTIONS,
-  APPLICATION_SECTION_LABELS,
   APPLICATION_SECTION_MINUTES,
   type ApplicationSection,
 } from "@silvicom/shared";
-import { APPLY_COPY } from "@/features/apply/strings";
+import { APPLY_COPY, APPLY_SECTION_TITLES } from "@/features/apply/strings";
 
 /**
  * Where the driver is, what is behind them, and what is left (APPLY-EXPERIENCE-PLAN, X4).
@@ -66,7 +65,7 @@ const steps = computed(() =>
   APPLICATION_FILLING_SECTIONS.map((section, at) => ({
     section,
     at,
-    label: APPLICATION_SECTION_LABELS[section],
+    label: APPLY_SECTION_TITLES[section],
     // B7. From the catalogue, not from a map beside this component: the estimate is a property of the
     // screen, and the expectations screen prints the same numbers from the same place.
     minutes: APPLICATION_SECTION_MINUTES[section],
@@ -75,7 +74,7 @@ const steps = computed(() =>
   })),
 );
 
-const current = computed(() => APPLICATION_SECTION_LABELS[APPLICATION_FILLING_SECTIONS[props.index]!]);
+const current = computed(() => APPLY_SECTION_TITLES[APPLICATION_FILLING_SECTIONS[props.index]!]);
 const total = APPLICATION_FILLING_SECTIONS.length;
 
 function jump(section: ApplicationSection, reachable: boolean): void {

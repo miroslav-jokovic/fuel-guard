@@ -8,7 +8,9 @@ import type { BolFindings } from "./bolFindings";
  * calculator form as plan §6 places it. What is wrong first, with who acts and how to fix it; then what the
  * audit could not answer; the passed checks folded away behind their count.
  */
-defineProps<{ findings: BolFindings }>();
+defineProps<{ findings: BolFindings; /** A check is being recorded: the choices wait for its answer. */ busy?: boolean }>();
+/** A person says what the page prints in a field a check waits on (Q-RC5); the form records it and re-checks. */
+const emit = defineEmits<{ check: [path: string, value: unknown] }>();
 const showPassed = ref(false);
 
 const ACTOR_WORDS = {
@@ -54,6 +56,19 @@ const ACTOR_WORDS = {
       <ul class="space-y-1.5">
         <li v-for="f in findings.check" :key="f.key" class="text-sm text-ink-secondary" data-testid="bol-finding-check">
           {{ f.sentence }} <span class="text-xs text-ink-muted">({{ f.cite }})</span>
+          <div v-for="c in f.choices ?? []" :key="c.path" class="mt-1.5 flex flex-wrap items-center gap-2" data-testid="bol-finding-choice">
+            <span class="text-xs text-ink-muted">What does the page show for {{ c.label }}?</span>
+            <BaseButton
+              v-for="o in c.options"
+              :key="o.text"
+              variant="secondary"
+              size="sm"
+              :disabled="busy"
+              @click="emit('check', c.path, o.value)"
+            >
+              {{ o.text }}
+            </BaseButton>
+          </div>
         </li>
       </ul>
     </div>

@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { SILVICOM_DRIVER_V2 } from "@silvicom/shared";
-import { APPLY_COPY } from "./strings";
+import { APPLY_COPY, APPLY_COPY_EN } from "./strings";
+import { APPLY_COPY_ES } from "./es/strings.es";
 
 /**
  * The apply wizard says nothing to a driver in CFR (2026-08-22, owner).
@@ -79,7 +80,12 @@ function leaves(node: unknown, path: string, carrier = "Silvicom"): Array<{ path
 describe("apply copy", () => {
   // ⚠ The definition SERVED, which is v2 since Q-HM14 — walking v1 alone would leave `applying_as`'s
   // label, hint and choices outside the gate, the blind spot this block was written to close.
-  const all = [...leaves(APPLY_COPY, "APPLY_COPY"), ...leaves(SILVICOM_DRIVER_V2, "SILVICOM_DRIVER_V2")];
+  // Both languages (C4): the Spanish object is walked by the same rule, not trusted to mirror the English.
+  const all = [
+    ...leaves(APPLY_COPY, "APPLY_COPY"),
+    ...leaves(APPLY_COPY_ES, "APPLY_COPY_ES"),
+    ...leaves(SILVICOM_DRIVER_V2, "SILVICOM_DRIVER_V2"),
+  ];
 
   it("reaches the carrier's own questions, which are copy too", () => {
     // The guard that the walk actually descends into the definition rather than stopping at its id.
@@ -132,5 +138,34 @@ describe("apply copy, for a carrier with no name on file", () => {
     expect(lowerStarts).toEqual([]);
     expect(texts.find((t) => t.path === "APPLY_COPY.expectations.lead()")?.text).toBe("This is the carrier's driver application.");
     expect(texts.some((t) => /The carrier has read your application\./.test(t.text))).toBe(true);
+  });
+});
+
+/**
+ * AW13's key-parity test (C4): the Spanish object has exactly the English object's keys, with a phrase
+ * function where English has one (and of the same arity) and a list where English has one. `satisfies`
+ * already fails `vue-tsc` on a missing key; this is the same promise kept where a reviewer can read it,
+ * and the one that catches a function swapped for a string, which the widened type would allow.
+ */
+describe("the Spanish copy, key for key", () => {
+  type Shape = Record<string, string>;
+  const shape = (node: unknown, path: string, into: Shape): Shape => {
+    if (typeof node === "function") into[path] = `fn/${(node as (...a: unknown[]) => unknown).length}`;
+    else if (Array.isArray(node)) into[path] = `list/${node.length}`;
+    else if (node && typeof node === "object") for (const [k, v] of Object.entries(node)) shape(v, `${path}.${k}`, into);
+    else into[path] = typeof node;
+    return into;
+  };
+
+  it("has every key the English has, of the same kind, and no other", () => {
+    expect(shape(APPLY_COPY_ES, "copy", {})).toEqual(shape(APPLY_COPY_EN, "copy", {}));
+  });
+
+  it("is actually Spanish, not the English copied over", () => {
+    const en = leaves(APPLY_COPY_EN, "en").map((l) => l.text);
+    const es = leaves(APPLY_COPY_ES, "es").map((l) => l.text);
+    // A URL is the same in every language; everything else of any length must differ.
+    const same = es.filter((t, i) => t === en[i] && t.length > 12 && !t.startsWith("http"));
+    expect(same).toEqual([]);
   });
 });

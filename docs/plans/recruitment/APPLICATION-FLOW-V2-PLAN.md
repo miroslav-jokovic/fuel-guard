@@ -635,7 +635,7 @@ execute); `submit-application-v2.test.mjs` (promoted captures skipped, verificat
 | AW10 | Local draft replay (IndexedDB) with revision; uploads retried from the photo kept on the device (Q-AW38 (a) replaced Supabase TUS) | C3 |
 | AW11 | §7 state machine + travel | C2 |
 | AW12 | Phone verification per employer | C2 |
-| AW13 | Spanish on `/apply` + `APPLY_COPY` key-parity test | C4 |
+| AW13 | Spanish on `/apply` + `APPLY_COPY` key-parity test | C4 — **DONE 2026-10-21** |
 | AW14 | Screen events, Lighthouse CI in `typecheck-build` (listed in CLAUDE.md), 44 px sweep, offline test | C3 |
 
 **Routes (C2/C3), all under `requireSection("recruitment")` (GET = view, writes = manage), contracts in
@@ -747,7 +747,7 @@ The module is done when **every** line below is true and recorded in §11 with i
 | **Q-AW8** | Clearinghouse strictly after the drug result? | gate / warning | Warning (D-AW5). |
 | **Q-AW9** | Ticket after the application is sent, filled, or reviewed? | — | Filled. |
 | **Q-AW10** | Address autocomplete provider? | static ZIP table / Google / Smarty / Radar | Static ZIP table first. |
-| **Q-AW11** | Languages on `/apply`? | EN / EN+ES / more | EN+ES; legal instruments stay English with a Spanish reading aid until counsel approves translations. |
+| **Q-AW11** | Languages on `/apply`? | EN / EN+ES / more | EN+ES; legal instruments stay English with a Spanish reading aid until counsel approves translations. **BUILT 2026-10-21 (C4, owner's "proceed")**: `language.ts` + `es/strings.es*.ts`, every word of `APPLY_COPY` and the carrier's questionnaire (`questionnaireTranslation.ts`, an overlay — same ids, versions and stored values) in Spanish, drafted by the assistant for the owner's review; the instruments stay served English with a Spanish notice above the page; the schema's own messages ("at least 18") stay English. Progress log. |
 | **Q-AW12** | Memorable dates as 3 boxes? | calendar / 3 boxes | 3 boxes (DOB, expiry); month+year for history. |
 | **Q-AW13** | FCRA §604(b)(2)(B) summary: CFPB Appendix K or a §615(a)(3) summary? | — | Counsel; Appendix K meanwhile as the conservative choice. |
 | **Q-AW14** | §40.321(b) per-employer D&A consent | build per-employer releases / one release | Counsel (Q4). |
@@ -2231,3 +2231,28 @@ Append dated lines at the END.
   card reads it once the server has refused the link and shows `APPLY_COPY.dead.finished` when Part 1 was done, the
   form was not sent (or was sent and certified back), and the link's expiry has passed; otherwise the neutral card.
   A1's single refusal is untouched. Seven mutations killed (`linkMemo.test.ts`, real IndexedDB).
+
+- 2026-10-21 — **C4 built: Spanish on the applicant's page (AW13, Q-AW11 EN+ES).** No migration. `apps/web/src/features/apply/language.ts`:
+  one ref `applyLanguage` (device's last choice in `localStorage`, else the browser's language, else English), taken up by
+  `ApplyLayout` on mount and put down on unmount so the office's screens stay English; `APPLY_COPY` is now a view over
+  `APPLY_COPY_EN` and `APPLY_COPY_ES` (`es/strings.es*.ts`, one file per English file, each `satisfies Localized<typeof EN>`
+  so a missing or invented key fails `vue-tsc`; `strings.test.ts` walks Spanish by the no-citation rule and pins key parity
+  and that it is not the English copied); every read re-picks the language, so the sixty-nine readers are unchanged, and
+  `ApplyPage` keys the screen chain by language so a switch remounts it. The section titles (`APPLY_SECTION_TITLES`), the
+  photographs' names (`APPLY_CAPTURE_TITLES`; found English on the welcome screen in the preview browser) and
+  the carrier's questionnaire (`packages/shared` `questionnaireTranslation.ts`: an overlay by question id — same `id`,
+  `version`, kinds, stored values; free `options` untouched because they ARE the stored answer) follow. `fieldLabels.ts`
+  reads its words at call time (new `APPLY_COPY.fields`). The header's switch is labelled with the other language's name.
+  **Stays English by ruling:** the e-sign consent, six permissions, text consent, packet, handbook and FCRA summary (served
+  instruments) — a page in Spanish shows `APPLY_COPY.englishDocuments` above everything; the schema's own refinement
+  messages. **The Spanish is the assistant's draft (usted, US trucking terms: CDL, DOT, Clearinghouse kept) for the owner's
+  review; not a legal translation.** Mutations: see the PR.
+- **2026-10-21 — Q-AW56 (e) widened: the "replaced" card (owner: "change the dead-link screen so a device that finished
+  Part 1 is told to open the newest text or email from the carrier").** Measured on production the same day: an applicant
+  finished Part 1 at 17:50 UTC, the office pressed "Send application" at 18:41 (which rotates the email's token, D-AF7), the
+  applicant filled Part 2 from the text's link (its own token, Q-AW29), then reopened the Part 1 tab on the same phone five
+  times in six minutes and read "This link is not valid" each time — reported as "it kicks him out". `deadLinkWording` now
+  answers `replaced` for a link dead BEFORE its expiry on a device whose memo says Part 1 was done and the form not sent
+  back; `APPLY_COPY.dead.replaced` (English + Spanish draft) says to open the newest text or email and to ask when there is
+  none, which is true of a revoked link as well — the device cannot tell them apart and the server still will not (A1).
+  A link dead early after the form came back certified stays neutral (a hire ending the link, M3). Web only; no migration.

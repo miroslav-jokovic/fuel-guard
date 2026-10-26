@@ -223,7 +223,7 @@ exports[`DriversPage roster table > renders the roster table unchanged by the R2
       <td class="px-4 py-3 text-left text-ink-secondary tabular-nums">—</td>
       <td class="px-4 py-3 text-left text-ink-secondary">—</td>
       <td class="px-4 py-3 text-left">
-        <!-- Raw machine token; \`capitalize\` locally since BADGE_BASE no longer transforms case (R0b). --><span class="inline-flex items-center gap-1 rounded-detail px-2 py-0.5 text-xs font-medium bg-surface-subtle text-ink-muted ring-1 ring-inset ring-edge capitalize">inactive</span>
+        <!-- Raw machine token; \`capitalize\` locally since BADGE_BASE no longer transforms case (R0b). --><span class="inline-flex items-center gap-1 rounded-detail px-2 py-0.5 text-xs font-medium bg-success-50 text-success-700 ring-1 ring-inset ring-success-600/20 capitalize">active</span>
         <!--v-if-->
       </td>
       <td class="w-12 pl-2 pr-6 text-right py-2">
