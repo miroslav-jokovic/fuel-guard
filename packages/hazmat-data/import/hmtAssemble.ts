@@ -17,6 +17,7 @@
  */
 
 import { hmtEntrySchema, type HmtEntry, type PgRow } from "../src/schema.js";
+import { subsidiaryClassesOf } from "../src/subsidiaryClasses.js";
 
 // ------------------------------------------------------------------ XML helpers
 const ENTITIES: Record<string, string> = {
@@ -232,7 +233,8 @@ export function assembleHmtEntries(rows: Cell[][]): HmtEntry[] {
     const n = (seen.get(base) ?? 0) + 1;
     seen.set(base, n);
     const entryId = n === 1 ? base : `${base}#${n}`;
-    result.push(hmtEntrySchema.parse({ entryId, ...e }));
+    // D-PC1: the subsidiary classes are column (6)'s label codes beyond the primary (subsidiaryClasses.ts).
+    result.push(hmtEntrySchema.parse({ entryId, ...e, subsidiaryClasses: subsidiaryClassesOf(e.hazardClass, e.pgRows) }));
   }
   return result;
 }

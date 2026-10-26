@@ -54,6 +54,9 @@ function own(ref: string) {
   return a;
 }
 
+/** The class or division a §177.848(d) grid label names: "2.3 gas zone A" → "2.3", "8 liquids only" → "8". */
+const baseOf = (label: string): string => /^(\d(?:\.\d)?)/.exec(label.trim())?.[1] ?? label.trim();
+
 /** Seeded (mulberry32), so a failure names a load that reproduces. */
 function rng(seed: number) {
   return () => {
@@ -123,6 +126,55 @@ describe("the placard census — the whole Hazardous Materials Table", () => {
     expect(seen.size).toBeGreaterThan(19_900);
     expect(bad.slice(0, 20)).toEqual([]);
   }, 600_000);
+
+  // §172.505(b): "Each transport vehicle … that contains a material that has a subsidiary hazard of being dangerous
+  // when wet … must be placarded with the DANGEROUS WHEN WET placard". The engine read the entries' subsidiary list
+  // for this since 2026-08 and the list was empty on every entry of every cut until 2026-10-26 (D-PC1), so this
+  // placard had never once been asked for on the real table — and invariant 6 above, which allows a §172.505
+  // placard, was vacuous. The count is the guard: a dataset that lists no 4.3 subsidiary fails here, not silently.
+  it("every entry whose column (6) lists a 4.3 subsidiary raises DANGEROUS WHEN WET, non-bulk at 500 lb and bulk alike (§172.505(b))", () => {
+    const dww = ds.entries.filter((e) => e.hazardClass !== "4.3" && e.subsidiaryClasses.includes("4.3"));
+    expect(dww.length).toBeGreaterThan(10);
+    const bad: string[] = [];
+    for (const e of dww) {
+      for (const row of e.pgRows) {
+        const ref = `${e.entryId}#${row.pg ?? "none"}`;
+        for (const l of [{ kind: "non_bulk" as const, lb: 500 }, { kind: "bulk" as const, lb: 500 }]) {
+          const v = evaluateLoad(load([{ ref, ...l }]));
+          if (v.placards.required.length === 0) continue; // the line itself refused (Table 1 subsidiary, zone)
+          if (!v.placards.required.some((p) => p.placard === "DANGEROUS_WHEN_WET")) bad.push(`${ref} ${l.kind}: ${v.placards.required.map((p) => p.placard).join("+")}`);
+        }
+      }
+    }
+    expect(bad).toEqual([]);
+  });
+
+  // §177.848 segregates on the hazards a material carries, its subsidiary ones included (segregation/check.ts,
+  // audit 2026-08-09 finding 4.2) — which the same empty field had made unreachable on the real table.
+  it("a material's subsidiary class segregates it from a class the §177.848(d) grid restricts, on every such entry", () => {
+    const grid = new Map(ds.segregation.map((c) => [`${baseOf(c.rowClass)}|${baseOf(c.colClass)}`, c.value]));
+    const plainOf = new Map<string, string>();
+    for (const e of ds.entries) if (e.hazardClass && e.subsidiaryClasses.length === 0 && !plainOf.has(e.hazardClass)) plainOf.set(e.hazardClass, `${e.entryId}#${e.pgRows[0]?.pg ?? "none"}`);
+    const bad: string[] = [];
+    let checked = 0;
+    for (const e of ds.entries) {
+      if (!e.hazardClass || /^1\./.test(e.hazardClass)) continue;
+      for (const sub of e.subsidiaryClasses) {
+        for (const [cls, plainRef] of plainOf) {
+          if (/^1\./.test(cls) || cls === e.hazardClass || cls === sub) continue;
+          const cell = grid.get(`${sub}|${cls}`) ?? grid.get(`${cls}|${sub}`);
+          if (cell !== "X" && cell !== "O") continue;
+          if (grid.get(`${e.hazardClass}|${cls}`) === "X" || grid.get(`${cls}|${e.hazardClass}`) === "X" || grid.get(`${e.hazardClass}|${cls}`) === "O" || grid.get(`${cls}|${e.hazardClass}`) === "O") continue; // the primary restricts it already
+          checked++;
+          const v = evaluateLoad(load([{ ref: `${e.entryId}#${e.pgRows[0]?.pg ?? "none"}`, kind: "non_bulk", lb: 500 }, { ref: plainRef, kind: "non_bulk", lb: 500 }]));
+          if (v.segregation.some((f) => f.ruleId === "segregation_none")) bad.push(`${e.entryId} (${e.hazardClass} with ${sub}) beside ${cls}: segregation_none`);
+          break; // one restricted partner per subsidiary is the proof
+        }
+      }
+    }
+    expect(checked).toBeGreaterThan(100);
+    expect(bad.slice(0, 20)).toEqual([]);
+  });
 
   it("same-class pairs — the Mayo shape, two bulk materials of one class — across every class", () => {
     const r = rng(1824_1830);

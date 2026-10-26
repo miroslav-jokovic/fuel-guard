@@ -55,7 +55,8 @@ function entryToProducts(entry: HmtEntry, isFuelCommon: boolean, marinePollutant
   const idLabel = `${entry.idPrefix}${entry.idNumber}`;
   return entry.pgRows.map((row) => {
     const pg = row.pg;
-    const classPart = entry.hazardClass ? ` · Class ${entry.hazardClass}` : "";
+    // The class as the paper must print it, subsidiaries in parentheses (§172.202(a)(3), D-PC1).
+    const classPart = entry.hazardClass ? ` · Class ${entry.hazardClass}${entry.subsidiaryClasses.length ? ` (${entry.subsidiaryClasses.join(", ")})` : ""}` : "";
     const pgPart = pg ? ` · PG ${pg}` : "";
     return {
       hmtRef: `${entry.entryId}#${pg ?? "none"}`,

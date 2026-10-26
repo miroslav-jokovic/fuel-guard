@@ -34,6 +34,11 @@ export const REQUIRED = [
     ],
   },
   {
+    step: "D-PC1 the table's subsidiary classes are present",
+    file: "packages/hazmat-data/src/subsidiaryClasses.test.ts",
+    titles: ["loads the subsidiary classes column (6) lists, dataset …"],
+  },
+  {
     step: "RC2 replay of a stored read",
     file: "apps/api/src/modules/document-reading/read/replay.test.ts",
     titles: [
