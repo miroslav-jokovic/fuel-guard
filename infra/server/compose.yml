@@ -192,6 +192,11 @@ services:
   caddy:
     image: caddy:2.10-alpine
     restart: unless-stopped
+    # A changed Caddyfile recreates this container (deploy.sh writes the hash into release.env): Caddy
+    # reads its config once at start, and `docker cp` onto the bind-mounted file is not a reload. Until
+    # D-AWS17 nothing had changed the file since the first deploy, so nobody had needed this.
+    labels:
+      silvicom.caddyfile: ${CADDYFILE_HASH:?CADDYFILE_HASH is set by deploy.sh in release.env}
     <<: *hardened
     # The image starts Caddy as root; nothing it does needs that. It runs as an unprivileged uid of
     # its own (no name in the image, none needed) with exactly one capability, the one it uses:
