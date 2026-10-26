@@ -408,12 +408,14 @@ attribution, so any number would be invented.
 - **Q-LS1 · Hiring requirements** (owner): minimum age (21 or 23), minimum verifiable experience,
   equipment, disqualifiers and look-back windows, violation/accident limits. Merges with Q-REC1.
   *Fallback:* S2 ships regulation floors only (R2's rule), which cannot be wrong, only loose.
+  **ANSWERED 2026-10-26 as Q-RA7** — see `RECRUITER-AUTOMATION-PLAN.md` §3a (Hiring Profile v1).
 - **Q-LS2 · Hiring area and home-time model** (owner): which yard(s) or lanes, what radius,
   local/regional/OTR, and the operational reason for each. *Fallback:* no area requirement; area
   is shown as information only. **Never a ZIP list** (HB 3773).
 - **Q-LS3 · Current sources, volume and spend** (owner): which boards or ads run today, what each
   costs, how leads arrive (email? calls?), and how many a week. Decides whether S5 or S4 comes
   first. Part of Q-REC1.
+  **ANSWERED 2026-10-26 as Q-RA7** — see `RECRUITER-AUTOMATION-PLAN.md` §3a (Hiring Profile v1).
 - **Q-LS4 · Former drivers** (owner): may we re-contact them, who decides rehire eligibility, and
   is there a list of do-not-rehire? McLeod holds no reason. *Fallback:* the pool is imported but
   invisible until marked eligible one by one.

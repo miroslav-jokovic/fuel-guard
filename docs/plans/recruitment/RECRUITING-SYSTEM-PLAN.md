@@ -1115,6 +1115,10 @@ date.
 - **Q-REC1 · The process today** (owner): sources and volume of calls, who screens, what an
   orientation day looks like, policy minimums for R2, training content inventory for R7.
   *Fallback:* R1 ships the starter source set; R2 runs regulation floors only.
+  **Policy minimums and sources ANSWERED 2026-10-26** as Q-RA7 — the Hiring Profile v1 in
+  `RECRUITER-AUTOMATION-PLAN.md` §3a (age 23, 2 y verifiable, Class A, hazmat preferred, four
+  disqualifiers, no numeric violation limit; sources = Tenstreet boards, Indeed, Facebook/Instagram,
+  referrals). Still open from this question: call volume, who screens, training inventory.
 - **Q-REC2 · The testing program** (owner): who is the C/TPA/consortium, the collection
   network, the MRO; do they expose electronic ordering or results?
   *Fallback:* R6 ships the recorded process with manual result entry; no vendor integration.

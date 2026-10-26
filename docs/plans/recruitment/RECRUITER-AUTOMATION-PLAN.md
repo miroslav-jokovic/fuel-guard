@@ -1,7 +1,7 @@
 # Recruiter automation — the whole hire, automated as far as the law and the owner allow · 2026-10-26
 
-**Status: RA0 PARTLY RULED 2026-10-26 (Q-RA1, Q-RA2, Q-RA3, Q-RA19 — see §9). Nothing built. RA1
-may start; Q-RA7 (hiring requirements) is still owed and sets what "qualified" means.**
+**Status: RA0 RULED 2026-10-26 (Q-RA1, Q-RA2, Q-RA3, Q-RA7, Q-RA19 — see §9; the Hiring Profile v1
+is §3a). Nothing built. RA1 may start.**
 
 The owner's ask (2026-10-26, in two parts): first, *automate and help the recruiters* — Claude Duet,
 Tenstreet over its API with agents inside Silvicom 360, or ads run from our own system; then, *list
@@ -240,6 +240,35 @@ Each is a rule the code enforces, not a preference. None is ruled until the owne
   state a figure the profile does not hold (A10's check).
 - **D-RA12 · A lead is operational, not evidence.** Prunable under `RETENTION_RULES` after Q-LS6's
   window; `recruiting_contacts` and consent rows are append-only and in `RETENTION_FORBIDDEN`.
+
+---
+
+## 3a. Hiring Profile v1 — RULED by the owner 2026-10-26 (Q-RA7 = Q-REC1 / Q-LS1 / Q-LS3)
+
+This is the first version of the profile that item 1.1 stores and `leadMatch` (3.1) evaluates. It
+answers Q-REC1, open since 2026-08-20. Every rule below is a **sort and a label, never an automatic
+rejection** (D-LS3, D-RA3). A fact the system does not yet hold is `unknown`, not `does_not_meet`.
+
+| Requirement | Rule (v1) | Evidence that satisfies it | Source of the ruling |
+|---|---|---|---|
+| **Age** | ≥ 23 (carrier policy; federal floor is 21) | date of birth from Part 1 (`self_reported`), confirmed by the CDL (`document`) | Q-RA7a; matches `questionnaireContract.ts:209`'s hint |
+| **Experience** | ≥ 2 years **verifiable** Class A | `self_reported` from the application → `verified` only when an employer reply (`employer_inquiries.outcome='responded'`) or MVR issue date confirms it; until then the verdict is `unknown` | Q-RA7b |
+| **Licence** | Class A CDL (required by law for the equipment hauled) | CDL from Part 1 licences (`document`) | Q-RA7c; Q-REC3 (dry van and reefer only) |
+| **Hazmat endorsement** | **preferred** — sorts higher, not required | CDL endorsements | Q-RA7c |
+| Reefer experience | not required | — | Q-RA7c (not chosen) |
+| Automatic-only (E) restriction | **not ruled** (Q-RA7c-ii) | — | *Fallback:* no rule; the restriction is shown, not judged |
+| **Hard disqualifiers** | (1) DUI/DWI in a CMV, ever; in any vehicle, within 5 years · (2) preventable DOT-recordable accident within 3 years · (3) Clearinghouse *prohibited* status · (4) positive or refused D&A test without a completed return-to-duty | MVR, PSP crash record, Clearinghouse query, employer D&A inquiry — each `document` or `verified`; the applicant's own answer is `self_reported` | Q-RA7d (all four chosen) |
+| **Moving violations / accidents** short of a disqualifier | **no numeric limit** — the engine shows the 3-year counts (moving, serious per §383.51 Table 2, preventable accidents) and the verdict stays `unknown`; the recruiter judges each MVR | MVR, PSP | Q-RA7e |
+| **Hiring area / home time** | not part of Q-RA7 — remains Q-LS2 / Q-RA4 (distance from a named yard with a written reason; never ZIP) | — | open |
+
+**Sources today (Q-RA7f):** Tenstreet job-board postings, Indeed (direct), Facebook/Instagram (ads
+and groups), referrals from current drivers. **Monthly spend per channel and weekly lead volume were
+not given — owed as Q-RA7f-ii**; until then A11 reports cost only where a figure is entered.
+
+What this changes in the plan: `leadMatch` v1 has exactly five evaluable rules (age, experience,
+Class A, hazmat-preferred, the four disqualifiers) and one display-only block (violation counts).
+The profile table stores these as versioned rows, so changing "23" or "2 years" later is a new
+version, and every past verdict keeps the version it was made under.
 
 ---
 
@@ -509,10 +538,14 @@ Owner questions, with candidates, a recommendation and the fallback the code tak
   test; (b) FEHA/CCPA ADMT exposure if California residents apply; (c) TCPA wording for the lead
   form's SMS box; (d) Colorado SB 26-189; (e) whether A6's flags are an "automated decision". **Must
   first be confirmed: was the 2026-09-24 memo ever sent?** (§1.3, UNVERIFIED.)
-- **Q-RA7 · Hiring requirements** = Q-REC1 / Q-LS1 / Q-LS3 (owner, never answered since
-  2026-08-20): age floor (21 or 23), experience, equipment, disqualifiers and look-backs, violation
-  and accident limits, current sources and spend. **Fallback:** regulation floors only, which cannot
-  be wrong, only loose.
+- **Q-RA7 · Hiring requirements — RULED 2026-10-26** (= Q-REC1 / Q-LS1 / Q-LS3, open since
+  2026-08-20). The answers are the Hiring Profile v1 in **§3a**: age ≥ 23; ≥ 2 years verifiable
+  Class A; Class A CDL; hazmat preferred; four hard disqualifiers (CMV DUI ever / any DUI 5 y,
+  preventable recordable accident 3 y, Clearinghouse prohibited, positive/refusal without RTD); no
+  numeric violation limit (recruiter judges, counts shown); sources = Tenstreet boards, Indeed,
+  Facebook/Instagram, referrals. **Two pieces still owed:** Q-RA7c-ii (is an automatic-only CDL
+  restriction acceptable? *fallback:* shown, not judged) and Q-RA7f-ii (monthly spend per channel
+  and weekly lead volume; *fallback:* cost reported only where entered).
 - **Q-RA8 · Lead retention** = Q-REC7 / Q-LS6 (owner). **Fallback:** nothing prunes; schema stays
   prunable.
 - **Q-RA9 · Former drivers** = Q-LS4 (owner): may we re-contact; who marks rehire-eligible.
@@ -553,11 +586,10 @@ Owner questions, with candidates, a recommendation and the fallback the code tak
 - **Q-RA23 · Chat/notification channel for the brief** (owner): in-app + email, or also the office
   chat (`OFFICE-CHAT-PLAN`). **Fallback:** in-app + email.
 
-**Position after 2026-10-26's sitting:** Q-RA1, Q-RA2, Q-RA3 and Q-RA19 are ruled. **Still owed
-before RA1 can call anything "qualified": Q-RA7** (hiring requirements, open since 2026-08-20) —
-until then `leadMatch` ships regulation floors only. Also owed: Q-RA1b (Tenstreet terms), and the
-two UNVERIFIED facts in §1.3 (was the counsel memo sent; was the toll-free number approved). RA1
-itself needs none of these to start.
+**Position after 2026-10-26's sitting:** Q-RA1, Q-RA2, Q-RA3, Q-RA7 and Q-RA19 are ruled; RA0 is
+complete for RA1's purposes. Still owed, none blocking RA1: Q-RA1b (Tenstreet terms), Q-RA7c-ii
+(automatic-only restriction), Q-RA7f-ii (spend and volume per channel), Q-LS2/Q-RA4 (hiring area),
+and the two UNVERIFIED facts in §1.3 (was the counsel memo sent; was the toll-free number approved).
 
 ---
 
@@ -602,3 +634,10 @@ itself needs none of these to start.
   caps — D-RA6 is a ruling. **Q-RA19 ruled (b)**: a recruiter may hire when every gate is green
   (item 7.5 moves to RA1). Q-RA7 remains the one owner answer RA1's match engine waits on.
   **Nothing built.**
+- **2026-10-26, later the same evening** — **Q-RA7 ruled**, six parts in one sitting; recorded as
+  the Hiring Profile v1 in §3a. This closes Q-REC1 (RECRUITING-SYSTEM-PLAN §6) and Q-LS1/Q-LS3
+  (LEAD-SOURCING-PLAN §7) by reference. Not given: spend and volume per channel (Q-RA7f-ii) and
+  the automatic-only restriction (Q-RA7c-ii). ⚠ Q-RA7e is a deliberate *non*-rule: violation
+  counts are shown and the recruiter judges — so A11's precision metric (§8) cannot use "meets" for
+  violations and must use the recruiter's recorded decision reason (item 7.3) instead. **Nothing
+  built.**
