@@ -221,29 +221,121 @@ wait on Q-PC2 and Q-PC3 but can be built behind them.
   seen (Henkel without OXIDIZER; PureTech with nothing) came from lines the table refused; PC1 fixes the cause,
   and PC1's census makes the §172.505(b) and segregation rules live on the real dataset for the first time.
 
-## 6. Open questions
+## 6. Open questions — researched 2026-10-26
 
-**Q-PC1 — Right classes, wrong punctuation ("3, 8" for 3 (8)): a failure or a format note?** §172.202(a)(3)
-says parentheses. *(a)* a format note the shipper must correct, the calculator proceeds (the classes are
-known); *(b)* a failure like a wrong class; *(c)* pass silently. **Recommendation: (a)** — the hazard is
-established, the driver can placard, and the shipper hears about the comma.
+The owner asked for answers "not based on assumptions". Each question below carries what was measured or
+read, then the recommendation that follows from it. Where a fact could not be fetched first-hand it says so.
 
-**Q-PC2 — How are papers told apart in one upload?** *(a)* by the classifier's BOL number, an unnumbered page
-joining the paper before it (recommended; the classifier reads BOL numbers on 18 of 18 corpus pages but drops
-digits on some — a dropped digit splits a paper, which the person sees and re-groups); *(b)* ask the person to
-group pages before reading; *(c)* one paper per upload, refuse the rest. **Recommendation: (a)** with (b)'s
-re-grouping as the fallback on the review screen.
+**Q-PC1 — Right classes, wrong punctuation ("3, 8" for 3 (8)): a failure or a format note?**
 
-**Q-PC3 — Where does the BOL check live on the calculator page?** *(a)* below the product lines, failures open,
-the rest folded (recommended); *(b)* its own tab beside the calculator; *(c)* as today, above the lines.
-**Recommendation: (a)** — the page is the placard calculator; the paper audit is the second thing it answers.
+*What the rule says.* §172.202(a)(3) (eCFR via LII, read 2026-10-26): "Except for combustible liquids, the
+subsidiary hazard class(es) or subsidiary division number(s) must be entered in parentheses … immediately
+following the primary hazard class or division number"; (a)(3)(i) "The words 'Class' or 'Division' may precede
+the primary and subsidiary numbers"; and the subsidiary "is not required to be entered when a corresponding
+subsidiary hazard label is not required." §172.202(b)'s own example is "UN2744, Cyclobutyl chloroformate,
+6.1, (8, 3), PG II". PHMSA interpretation 04-0188 (2004, found through PHMSA's site; the letter itself answered
+403 to a fetch, so the wording is the site's summary) ruled that the parentheses are mandatory and that the
+regulation's own un-parenthesised example was to be corrected. PHMSA 22-0041 (2022) and 25-0057 (2025, to
+CVSA) read the "not required" clause as: when no subsidiary label is required under §172.402, the subsidiary
+need not be on the paper; §172.400a(a)(5) drops labels on a placarded portable tank or freight container, and
+§172.402(a)(2)'s table drops some subsidiary labels by packing group. So a paper that prints the subsidiary
+in parentheses is right; one that prints it with a comma names the right hazard in the wrong form; one that
+omits it is right only when §172.402 asks for no label.
 
-**Q-PC4 — May PC8 re-read the Henkel and PureTech papers on production?** Two reads, ≈ $0.10, two production
-rows. **Recommendation: yes** — they are the only two real papers that exercise PC1–PC4 end to end.
+*What the papers do.* Of the four subsidiary-class printings read on production in the last week, two are in
+the required form ("8(6.1)", "5.1(8)" — Henkel), two are not ("3, 8" ×5 — PureTech, where the paper also
+prints "PG 3" and leaves a parenthesis open). Both forms exist on real shippers' papers.
 
-**Q-PC5 — Photo originals (Q-RC6 (a)), restated.** Every page of the last week is a texted copy under 2 MP. The
-reading errors this plan found did not need more pixels; the next ones will. The driver-app change is a
-release-lane build the owner starts.
+*Recommendation: (a), with the omission rule from the letters.* The matcher resolves the classes however they
+are punctuated (the hazard is known, the placard follows); the audit records three distinct outcomes:
+*parenthesised* (pass), *right classes, not in parentheses* (shipper must correct — a format reason, the
+sentence quoting 04-0188's wording), *wrong or extra subsidiary* (wrong). A subsidiary missing from the
+paper is a defect only where §172.402 requires its label — the engine already derives label requirements
+from the row, so the audit reads them from there rather than guessing. This is also what keeps D-PC1 from
+over-failing bulk IBC lines such as Henkel's, where 25-0057 says the printed subsidiary was optional.
+
+**Q-PC2 — How are papers told apart in one upload?**
+
+*Measured.* (1) Multi-page uploads are the norm: of the 61 Samsara submissions in the corpus, 41 hold more
+than one photo (12 hold three, 11 hold five or more). (2) Production uploads are all office uploads of
+texted photos (29 sources, every one `origin = upload`, largest 803 KB); 10 of the 17 finished reads carry
+more than one page. (3) **The OCR witness already reads each page's paper number and marker, and it is
+stored on the read:** on the five replayable multi-page reads it found "1205726-00 / Page 1 of 2" and
+"1205389-00 / Page 1 of 4" on the two Maintex pages, the same "02875600040217722" on both Henkel pages with
+"Page 1/2" on the first, "13114" on both keg pages, and "Page 2 of 2" then "Page 1 of 2" on Sonny's — whose
+two photos were uploaded in the wrong order and read correctly anyway. (4) The classifier (Haiku 5.5)
+records only the page class and rotation; the 2026-10-13 measurement found it reads "page n of m" 18/18 but
+drops digits in BOL numbers, so grouping on its word alone would split papers.
+
+*Recommendation: (a) by the paper's own number, from two witnesses, with the person able to regroup.* Pages
+whose OCR text (and, where present, the text layer) carries the same document number are one paper; a page
+with a marker "n of m" and no number joins the paper whose number precedes it in upload order; a page with
+neither is its own paper until the person says otherwise. The readers then read each paper on its own and
+their `identity.bolNumber` must agree with the grouping, or the read stops and shows the pages for regrouping
+— the same two-witness rule the fields already live by (D-DR19). No new model call: the OCR runs per page
+today. The classifier gains nothing it cannot do reliably. (b) alone (ask the person first) adds a step to
+every upload, including the 7 single-page ones in the last week; (c) (one paper per upload) refuses the
+ordinary multi-stop load (the 13-photo upload of 10/15 held seven papers).
+
+**Q-PC3 — Where does the BOL check live on the calculator page, and what does it show?**
+
+*Measured on the eight hazmat reads.* The check produced 92 findings a person saw (47 distinct sentences; 49
+with choice buttons). By outcome: 12 failures — of which 7 were the false class failures of §2.2, 4 were a
+missing basic-description element, 1 a missing page — and 2 RQ failures; 61 "confirm it first" stops where
+the readers disagreed on a field; 28 "can't tell" items the paper cannot answer (14 weight-only lines, 8
+"mixture — check the SDS", 5 RQ per package, 1 ER-phone exception). After PC1–PC4 the 7 false failures and
+the disagreement stops on description, class and weight go; what remains for a correct paper is roughly
+one real failure per three papers and three to four "the paper does not say" items per paper, every one
+addressed to the shipper, not the dock. The dispatcher cannot act on a single one of the 28 at the dock.
+
+*What the literature says about showing them anyway.* Operator compliance with automated alerts falls with
+their false-alarm share: an airport-screening study found operators ignoring about half of the TRUE alarms
+once positive predictive value fell to ≈0.3 ([Sonar.ch](https://sonar.ch/global/documents/189939)); Dixon &
+Wickens found false-alarm-prone automation hurt both compliance and reliance where miss-prone automation hurt
+only reliance ([DTIC](https://apps.dtic.mil/sti/tr/pdf/ADA496817.pdf)); a 2025 fault-detection paper argues
+the false-discovery rate, not the raw rate, predicts the cry-wolf effect
+([ScienceDirect](https://www.sciencedirect.com/science/article/abs/pii/S0951832025010907)); and transparency
+about why an alert fired mitigates it ([Yang et al., HRI 2017](https://people.csail.mit.edu/unhelkar/files/preprints/2017_Yang_HRI.pdf)).
+On the PureTech paper 5 of 5 failures and 32 of 32 checks were not actionable — a false-discovery rate of 1.
+
+*The plan's own reason for "above the form"* (DOCUMENT-READER-PLAN §6, 2026-10-08) was that the audit
+answers "what the shipper left out" before the person fills the form. That stood when the audit's output
+was a few sentences; measured, it is 11 lines per paper and the calculator's own gate (D-DR24) is below
+them.
+
+*Recommendation: (a).* The product lines and the Calculate gate first — they are what the page is for and
+what a person can act on; the check below them as one card: real failures open, addressed to who acts
+(driver / shipper); "the paper does not say" folded under a count with the shipper named; identical findings
+across lines said once ("on 5 lines"). Nothing in the folded part gates Calculate, and the card says so. No
+user study exists for this page; the counts above and the cry-wolf findings are the evidence, and the
+browser pass (PC6) measures the fold on the three fixtures before it ships.
+
+**Q-PC4 — May PC8 re-read the Henkel and PureTech papers on production?**
+
+*Cost, from the reads' own token counts* (both readers and the classifier together, priced at the dearer
+reader's list rate, Sonnet 4.6 $3 / $15 per MTok): Henkel 29,364 in + 3,153 out ≈ $0.14; PureTech 26,034 in +
+3,077 out ≈ $0.12. Two production rows, no schema change. *Recommendation: yes* — they are the only two real
+papers that exercise PC1–PC4 end to end, and the replay cannot stand in for them because PC3 and PC4 change
+what the readers are asked to write.
+
+**Q-PC5 — Photo originals (Q-RC6 (a)), restated with what the pipeline can use.**
+
+*Measured.* (1) Every production read to date came from an office upload; none from the driver app or
+Samsara. So the driver-app change (camera original) would not have touched a single read made so far. (2)
+The Samsara corpus photos are 3 MP (median 2000×1500; 1.7–8.4 MP); the office uploads of the last week are
+0.8–1.9 MP, the largest file 803 KB — texted or mailed copies. (3) The readers cannot use all of it anyway:
+pass A is locked to Sonnet 4.6 (D-DR20), whose standard vision tier is 1,568 px and 1,568 tokens — a ceiling
+of ≈1.2 MP, so a 1200×1600 upload is already shrunk for it and only the 768×1024 and 810×1080 pages fall
+below it; pass B (Sonnet 5.5) is on the high tier (2,576 px / 4,784 tokens ≈ 3.75 MP) and the OCR witness
+reads the original — those two gain from every pixel up to 3.75 MP.
+
+*Recommendation, in order of measured effect.* (i) On the office path: show the page size at upload and warn
+below 1.5 MP ("this is a texted copy — upload the original photo or PDF"), free and today; (ii) when the
+Samsara intake (N7) lands, its photos are already 3 MP and need nothing; (iii) the driver app's camera
+original (Q-RC6 (a)) stays right but matters only once drivers read through the app; (iv) the question of
+pass A's tier is the owner's (D-DR20 locked Sonnet 4.6 on 2026-10-11, when Sonnet 5.5 showed no UN error on
+the ten office BOLs and Sonnet 4.6 read 9 drums for 6 once) — nothing here reopens it, but it is the only
+change that would let pass A see more than 1.2 MP.
 
 ## 7. Progress log
 
@@ -254,3 +346,11 @@ release-lane build the owner starts.
   subsidiary class, in every cut), the assembler line found (`hmtAssemble.ts:193`). Engine answers computed for
   the Henkel and PureTech papers with their lines as printed: CORROSIVE + OXIDIZER with the 8 × 5.1 "Away From"
   notice; FLAMMABLE. Nothing built yet; PC1 is next and needs a release.
+- **2026-10-26 (later) — owner: "research and recommend solutions not based on assumptions."** §6 rewritten
+  with the measurements behind each answer: §172.202(a)(3) and PHMSA 04-0188 / 22-0041 / 25-0057 for Q-PC1;
+  the corpus (41 of 61 submissions multi-page), the stored OCR rows (paper numbers and markers found on every
+  multi-page read) and the classifier's limits for Q-PC2; the 92-finding tally and the cry-wolf literature for
+  Q-PC3; token counts for Q-PC4; the readers' vision tiers, the all-upload origin of production reads and the
+  corpus resolutions for Q-PC5. Recommendations unchanged in direction, sharpened in rule: the missing-subsidiary
+  case follows §172.402, the paper grouping uses the OCR's numbers under the two-witness rule, the upload path
+  warns on small pages.
