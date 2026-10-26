@@ -506,3 +506,4 @@ a User Goes Offline" and "Chat Application Architecture"; SystemDesignSchool cha
 ViewExport 2026 Slack eDiscovery guides; Microsoft Purview eDiscovery guides; pg-tamper-evident-audit
 and 2026 hash-chain write-ups; 2026 employee-monitoring legal guides (Time Doctor, CurrentWare);
 TechRepublic / Windows Report on Teams 2026 updates.
+- 2026-10-26: **the page redesigned** — `CHAT-REDESIGN-PLAN.md` (audit 17/30 → REDESIGN; D-CHATUI1–15; CR1 built). `/chat` is a full-bleed workspace: one rail of conversations, every team's channels and the muted ones (the Chats | Teams tabs and `?view=` are gone; `?c=`, `?ch=`, `?post=` are unchanged), message rows in runs under day lines with a "New" line where unread started, a composer that grows, the thread as a side panel. Web only; no API or schema change; CH6b–d land on the new rows.

@@ -59,6 +59,10 @@ export const coreRoutes: RouteRecordRaw[] = [
     path: "/chat",
     name: "chat",
     component: () => import("@/pages/ChatPage.vue"),
-    meta: { requiresAuth: true, title: "Chat" },
+    // Full bleed since CHAT-REDESIGN-PLAN D-CHATUI1: the rail, the stage and the thread panel fill the
+    // outlet under the top bar, as the live map does. Until then the page was a document page whose
+    // height was a hand-kept `22rem/18rem` formula, re-measured after every addition, and the log was
+    // 302 px of a 900 px window (audit 2026-10-26).
+    meta: { requiresAuth: true, title: "Chat", fullBleed: true },
   },
 ];

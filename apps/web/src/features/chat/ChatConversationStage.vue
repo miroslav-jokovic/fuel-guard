@@ -1,0 +1,78 @@
+<script setup lang="ts">
+import { computed } from "vue";
+import { chatTitle, type ChatConversationResponse } from "@silvicom/shared";
+import { mergeLines, type PendingLine } from "./useChat";
+import ChatComposer from "./ChatComposer.vue";
+import ChatMessageList from "./ChatMessageList.vue";
+import ChatStageHeader from "./ChatStageHeader.vue";
+
+/**
+ * One open conversation (CH2; CHAT-REDESIGN-PLAN §4): its header, its log and its composer, filling
+ * the stage. The newest page comes first; "Show earlier" asks the page's container for the one above
+ * (CH6a). The log's rows, runs and day lines are `ChatMessageList`'s (D-CHATUI4).
+ *
+ * A line you sent that the server has not confirmed reads "Sending…"; one it refused keeps its text
+ * with Retry, so nothing typed is ever lost (D-CHAT2's optimistic send). "Seen" appears after your
+ * newest line in a direct conversation once the other person's read boundary has passed it — the
+ * receipt dispatch asked for in 0096, now from `read_seq`.
+ */
+const props = defineProps<{
+  data: ChatConversationResponse;
+  viewerId: string;
+  pending: PendingLine[];
+  sending: boolean;
+  /** The page above is being fetched, or could not be. */
+  earlierLoading?: boolean;
+  earlierFailed?: boolean;
+  /** Where the "New" line goes (D-CHATUI6); null for nothing unread when it opened. */
+  firstUnreadSeq?: number | null;
+}>();
+defineEmits<{
+  send: [body: string];
+  retry: [line: PendingLine];
+  edit: [messageId: string, body: string];
+  remove: [messageId: string];
+  back: [];
+  earlier: [];
+}>();
+
+const lines = computed(() => mergeLines(props.data.messages, props.pending, props.data.conversation.thread_id));
+const title = computed(() => chatTitle(props.data.conversation));
+const direct = computed(() => props.data.conversation.kind === "direct");
+const others = computed(() => props.data.members.filter((m) => m.user_id !== props.viewerId));
+const subtitle = computed(() => (direct.value ? null : others.value.map((m) => m.name ?? "Someone").join(", ")));
+const viewerName = computed(() => props.data.members.find((m) => m.user_id === props.viewerId)?.name ?? "You");
+
+/** The other side's furthest read position, for "Seen" after your newest line in a direct conversation. */
+const othersReadSeq = computed(() => Math.max(0, ...others.value.map((m) => m.read_seq)));
+const myLastSeq = computed(() => {
+  const mine = props.data.messages.filter((m) => m.sender_user_id === props.viewerId);
+  return mine.length ? mine[mine.length - 1]!.seq : null;
+});
+const seenSeq = computed(() => (direct.value && myLastSeq.value !== null && othersReadSeq.value >= myLastSeq.value ? myLastSeq.value : null));
+</script>
+
+<template>
+  <section class="flex h-full min-h-0 flex-1 flex-col bg-surface" :aria-label="title">
+    <ChatStageHeader :title="title" :subtitle="subtitle" :glyph="direct ? 'person' : 'group'" back-label="Back to conversations" @back="$emit('back')" />
+    <ChatMessageList
+      :lines="lines"
+      :viewer-id="viewerId"
+      :viewer-name="viewerName"
+      :label="title"
+      :view-key="data.conversation.thread_id"
+      :first-unread-seq="firstUnreadSeq ?? null"
+      :before-seq="data.before_seq"
+      :earlier-loading="earlierLoading ?? false"
+      :earlier-failed="earlierFailed ?? false"
+      noun="messages"
+      empty-text="No messages yet. Say hello."
+      :seen-seq="seenSeq"
+      @edit="(id: string, body: string) => $emit('edit', id, body)"
+      @remove="(id: string) => $emit('remove', id)"
+      @retry="(line: PendingLine) => $emit('retry', line)"
+      @earlier="$emit('earlier')"
+    />
+    <ChatComposer :placeholder="`Message ${title}`" :thread-key="data.conversation.thread_id" @send="(body: string) => $emit('send', body)" />
+  </section>
+</template>

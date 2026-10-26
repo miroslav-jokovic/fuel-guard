@@ -1,16 +1,19 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import { isRecordId } from "@silvicom/shared";
+import { isRecordId, type ChatTeam } from "@silvicom/shared";
 import { useSessionStore } from "@/stores/session";
 import { useToastStore } from "@/stores/toast";
 import { useModulesQuery } from "@/composables/useModules";
-import { AppButton as BaseButton, AppCard as BaseCard, AppTabs, QueryState, type TabItem } from "@silvicom/ui";
-import PageHeader from "@/components/ui/PageHeader.vue";
-import ChatConversationList from "@/features/chat/ChatConversationList.vue";
-import ChatConversationPane from "@/features/chat/ChatConversationPane.vue";
+import { AppCard as BaseCard, QueryState } from "@silvicom/ui";
+import ChatRail from "@/features/chat/ChatRail.vue";
+import ChatConversationStage from "@/features/chat/ChatConversationStage.vue";
 import NewChatDialog from "@/features/chat/NewChatDialog.vue";
-import ChatTeamsView from "@/features/chat/teams/ChatTeamsView.vue";
+import ChatChannelStage from "@/features/chat/teams/ChatChannelStage.vue";
+import NewChannelDialog from "@/features/chat/teams/NewChannelDialog.vue";
+import NewTeamDialog from "@/features/chat/teams/NewTeamDialog.vue";
+import AddTeamPeopleDialog from "@/features/chat/teams/AddTeamPeopleDialog.vue";
+import { firstUnreadSeqOf } from "@/features/chat/chatGrouping";
 import {
   useChatConversationQuery,
   useChatCreateGroup,
@@ -24,16 +27,21 @@ import {
   type PendingLine,
 } from "@/features/chat/useChat";
 import { useChatFollow } from "@/features/chat/chatRealtime";
-import { chatLinkState } from "@/features/chat/transport";
+import { useChatTeamsQuery } from "@/features/chat/teams/useChatTeams";
+import { useChatRailActions } from "@/features/chat/teams/useChatRailActions";
 
 /**
- * /chat — office chat (OFFICE-CHAT-PLAN CH2): the conversations between the people in the office, the
- * Teams layout of a list beside the open conversation. Drivers are not here; they talk to dispatch on
- * /messages (D54), and the API refuses a driver login.
+ * /chat — office chat (OFFICE-CHAT-PLAN CH2; CHAT-REDESIGN-PLAN, 2026-10-26): a workspace, not a
+ * document. The shell gives it the whole outlet (`meta.fullBleed`, D-CHATUI1) and it fills it with one
+ * rail of everything you are in — conversations, each team's channels, the muted ones — beside the
+ * stage: the open conversation, or the open channel with its thread. Drivers are not here; they talk
+ * to dispatch on /messages (D54), and the API refuses a driver login.
  *
- * The open conversation lives in the URL (`?c=<id>`), so a link to a conversation is a link, a reload
- * keeps it, and Back returns to the previous one. An id that is not a uuid is ignored rather than sent.
- * Opening a conversation reads it to its last line; reading is never moved backwards (0512).
+ * The open item lives in the URL — `?c=<id>` a conversation, `?ch=<id>` a channel, `&post=` its
+ * thread — so a link is a link, a reload keeps it, and Back returns to the previous one. An id that is
+ * not a uuid is ignored rather than sent. Opening a conversation reads it to its last line; reading is
+ * never moved backwards (0512). `?view=teams` is no longer written (D-CHATUI2); an old link that
+ * carries it still opens whatever `ch` names.
  */
 const session = useSessionStore();
 const toast = useToastStore();
@@ -44,51 +52,57 @@ const modules = useModulesQuery();
 const entitlementKnown = computed(() => modules.data.value !== undefined);
 const entitled = computed(() => modules.data.value?.has("messages") ?? false);
 
-/**
- * Chats or Teams (CH5c), in the URL as `?view=teams` so a link to a channel opens on Teams. Channels
- * are listed by their team there, so the Chats list asks for direct and group conversations only; the
- * sidebar badge still counts both (D-CHAT2).
- */
-const VIEWS: TabItem[] = [
-  { value: "chats", label: "Chats" },
-  { value: "teams", label: "Teams" },
-];
-const view = computed({
-  get: () => (route.query.view === "teams" ? "teams" : "chats"),
-  // `query: {}` and not a copy without `c`/`ch`: vue-router would keep the old keys.
-  set: (v: string) => void router.push({ query: v === "teams" ? { view: "teams" } : {} }),
-});
-
-const inbox = useChatInboxQuery(computed(() => entitled.value && view.value === "chats"), ["direct", "group"]);
+// The rail's two lists. Chats asks for direct and group only: channels are listed by their team.
+// The sidebar badge's own query (every kind) lives in `useNavCounts`.
+const inbox = useChatInboxQuery(entitled, ["direct", "group"]);
 const conversations = computed(() => inbox.data.value?.conversations ?? []);
+const teamsQuery = useChatTeamsQuery(entitled);
+const teams = computed(() => teamsQuery.data.value?.teams ?? []);
+const canManage = computed(() => teamsQuery.data.value?.can_manage ?? false);
 
-const selectedId = computed<string | null>(() => {
-  const c = route.query.c;
-  return view.value === "chats" && typeof c === "string" && isRecordId(c) ? c : null;
+const param = (name: string) => computed<string | null>(() => {
+  const v = route.query[name];
+  return typeof v === "string" && isRecordId(v) ? v : null;
 });
+const channelId = param("ch");
+const selectedId = computed(() => (channelId.value ? null : param("c").value));
+const open = computed(() => !!(selectedId.value || channelId.value));
+
+// `query: { c }` and never a copy of the old query: vue-router would keep `ch`, `post` and `view`.
+function openConversation(id: string) {
+  if (id !== selectedId.value) void router.push({ query: { c: id } });
+}
+function openChannel(id: string) {
+  if (id !== channelId.value) void router.push({ query: { ch: id } });
+}
+/** Back to the rail on a phone; nothing open on a desk. */
+function closeAll() {
+  void router.push({ query: {} });
+}
+
 const conversation = useChatConversationQuery(selectedId);
 // The open conversation's own signals (CH3b); the shell already holds the inbox's.
 useChatFollow(selectedId);
 const earlier = useChatLoadEarlier(selectedId);
-function open(id: string) {
-  if (id !== selectedId.value) void router.push({ query: { ...route.query, c: id } });
-}
-/** Back to the list on a phone. `query: {}` rather than deleting `c` from a copy (vue-router keeps it). */
-function close() {
-  void router.push({ query: {} });
-}
 
+/** Where unread started when the conversation opened (D-CHATUI6), kept while it stays open. */
+const unreadMarks = ref(new Map<string, number | null>());
+const firstUnreadSeq = computed(() => (selectedId.value ? (unreadMarks.value.get(selectedId.value) ?? null) : null));
 const markRead = useChatMarkRead();
 // `immediate`: a conversation opened from the cache already has its data, so a watcher that waits for
 // a change would never read it.
 watch(
   () => conversation.data.value?.conversation,
   (c) => {
-    if (c && c.unread > 0) markRead.mutate({ threadId: c.thread_id, seq: c.last_seq });
+    if (!c) return;
+    if (!unreadMarks.value.has(c.thread_id)) unreadMarks.value.set(c.thread_id, firstUnreadSeqOf(c));
+    if (c.unread > 0) markRead.mutate({ threadId: c.thread_id, seq: c.last_seq });
   },
   { immediate: true },
 );
+watch(selectedId, (id, old) => { if (old && old !== id) unreadMarks.value.delete(old); });
 
+const viewerName = computed(() => session.fullName ?? "You");
 const pending = ref<PendingLine[]>([]);
 const sender = useChatSend(pending);
 function send(body: string) {
@@ -100,20 +114,9 @@ function retry(line: PendingLine) {
 }
 
 const { edit, retract } = useChatMessageActions(selectedId);
-async function onEdit(messageId: string, body: string) {
-  try {
-    await edit.mutateAsync({ messageId, body });
-  } catch (e) {
-    toast.error(e instanceof Error ? e.message : "Could not save the edit.");
-  }
-}
-async function onRemove(messageId: string) {
-  try {
-    await retract.mutateAsync(messageId);
-  } catch (e) {
-    toast.error(e instanceof Error ? e.message : "Could not remove the message.");
-  }
-}
+const fail = (fallback: string) => (e: unknown) => toast.error(e instanceof Error ? e.message : fallback);
+const onEdit = (messageId: string, body: string) => edit.mutateAsync({ messageId, body }).catch(fail("Could not save the edit."));
+const onRemove = (messageId: string) => retract.mutateAsync(messageId).catch(fail("Could not remove the message."));
 
 const starting = ref(false);
 const people = useChatPeopleQuery(computed(() => entitled.value && starting.value));
@@ -126,80 +129,67 @@ async function start(memberIds: string[], subject: string | null) {
       ? await openDirect.mutateAsync(memberIds[0]!)
       : await createGroup.mutateAsync({ subject, memberIds });
     starting.value = false;
-    open(id);
+    openConversation(id);
   } catch (e) {
-    toast.error(e instanceof Error ? e.message : "Could not start the conversation.");
+    fail("Could not start the conversation.")(e);
   }
 }
+
+const rail = useChatRailActions(entitled, openChannel, closeAll);
 </script>
 
 <template>
-  <div class="space-y-6">
-    <PageHeader description="Conversations with the people in your office.">
-      <template #actions>
-        <!-- Only once a live link has dropped (or never came up): the polls carry on meanwhile at their
-             fast pace, so nothing is lost — it is only slower. -->
-        <span v-if="chatLinkState === 'reconnecting'" role="status" class="text-sm text-ink-muted">
-          Reconnecting… messages may take a few seconds.
-        </span>
-        <BaseButton v-if="entitled && view === 'chats'" variant="primary" @click="starting = true">New conversation</BaseButton>
-      </template>
-    </PageHeader>
+  <div class="flex h-full min-h-0 bg-surface">
+    <div v-if="!entitlementKnown" class="flex flex-1 items-center justify-center p-6">
+      <QueryState
+        :loading="modules.isPending.value && !modules.isError.value"
+        :error="modules.isError.value ? modules.error.value : null"
+        :retrying="modules.isFetching.value"
+        loading-text="Loading chat…"
+        error-text="Could not check whether chat is part of your plan."
+        @retry="modules.refetch()"
+      />
+    </div>
+    <div v-else-if="!entitled" class="p-6">
+      <BaseCard><p class="text-sm text-ink-muted">Chat isn't part of your plan. Contact Silvicom 360 to enable it.</p></BaseCard>
+    </div>
 
-    <QueryState
-      v-if="!entitlementKnown"
-      :loading="modules.isPending.value && !modules.isError.value"
-      :error="modules.isError.value ? modules.error.value : null"
-      :retrying="modules.isFetching.value"
-      loading-text="Loading chat…"
-      error-text="Could not check whether chat is part of your plan."
-      @retry="modules.refetch()"
-    />
-    <BaseCard v-else-if="!entitled">
-      <p class="text-sm text-ink-muted">Chat isn't part of your plan. Contact Silvicom 360 to enable it.</p>
-    </BaseCard>
+    <template v-else>
+      <!-- A phone shows the rail OR the stage (D-DR25's pattern); the stage header's chevron is the way back. -->
+      <ChatRail
+        class="w-full lg:w-72 lg:shrink-0"
+        :class="open ? 'hidden lg:flex' : 'flex'"
+        :conversations="conversations"
+        :teams="teams"
+        :can-manage="canManage"
+        :selected-id="channelId ?? selectedId"
+        :inbox-loading="inbox.isPending.value && !inbox.isError.value"
+        :inbox-error="inbox.isError.value ? inbox.error.value : null"
+        :inbox-retrying="inbox.isFetching.value"
+        :teams-loading="teamsQuery.isPending.value && !teamsQuery.isError.value"
+        :teams-error="teamsQuery.isError.value ? teamsQuery.error.value : null"
+        :teams-retrying="teamsQuery.isFetching.value"
+        @open-conversation="openConversation"
+        @open-channel="openChannel"
+        @join="rail.onJoin"
+        @new-conversation="starting = true"
+        @new-team="rail.creatingTeam.value = true"
+        @new-channel="(t: ChatTeam) => (rail.channelFor.value = t)"
+        @add-people="(t: ChatTeam) => (rail.peopleFor.value = t)"
+        @leave-team="rail.onLeaveTeam"
+        @retry-inbox="inbox.refetch()"
+        @retry-teams="teamsQuery.refetch()"
+      />
 
-    <!-- The panel fills the window below the page header and stops above the Ask AI launcher
-         (`--assistant-clearance`, AssistantLauncher.vue), so the composer and Send are never under it
-         without scrolling — the browser pass found a fixed 70vh put Send under the launcher. 15rem is
-         the shell's top bar plus this page's header and gaps, measured at 1440×900 and 1920×1080.
-         Below `lg` the header wraps taller, hence 19rem there; and a phone shows the list OR the open
-         conversation (Teams' pattern), with Back in the conversation's header — side by side, both
-         were too short to use (browser pass, 390×844).
-         `_`, not `,`, inside brackets: Tailwind 4 reads a comma there as one value (MessagesPage). -->
-    <AppTabs v-if="entitled" v-model="view" :tabs="VIEWS" label="Chats or teams" id-prefix="chat-view" />
-
-    <ChatTeamsView v-if="entitled && view === 'teams'" :entitled="entitled" />
-    <!-- 3rem more than before CH5c in both heights: the Chats | Teams tabs above the panel. -->
-    <div
-      v-else-if="entitled"
-      class="grid h-[calc(100dvh_-_22rem_-_var(--assistant-clearance,0px))] min-h-96 gap-4 lg:h-[calc(100dvh_-_18rem_-_var(--assistant-clearance,0px))] lg:grid-cols-[20rem_minmax(0,1fr)]"
-    >
-      <BaseCard padding="none" class="min-h-0 overflow-y-auto" :class="selectedId ? 'hidden lg:block' : ''">
-        <ChatConversationList v-if="conversations.length > 0" :conversations="conversations" :selected-id="selectedId" @open="open" />
-        <!-- Loading, failed and empty are three answers (D-US5). -->
-        <div v-else class="px-4 py-8 text-center text-sm text-ink-muted">
-          <QueryState
-            compact
-            :loading="inbox.isPending.value && !inbox.isError.value"
-            :error="inbox.isError.value ? inbox.error.value : null"
-            :retrying="inbox.isFetching.value"
-            loading-text="Loading your conversations…"
-            error-text="Could not load your conversations."
-            @retry="inbox.refetch()"
-          >
-            No conversations yet. Start one with “New conversation”.
-          </QueryState>
-        </div>
-      </BaseCard>
-
-      <BaseCard padding="none" class="min-h-0" :class="selectedId ? '' : 'hidden lg:block'">
-        <ChatConversationPane
-          v-if="selectedId && conversation.data.value"
+      <div class="min-h-0 min-w-0 flex-1" :class="open ? 'flex' : 'hidden lg:flex'">
+        <ChatChannelStage v-if="channelId" :entitled="entitled" :viewer-name="viewerName" @back="closeAll" />
+        <ChatConversationStage
+          v-else-if="selectedId && conversation.data.value"
           :data="conversation.data.value"
           :viewer-id="session.userId ?? ''"
           :pending="pending"
           :sending="sender.isPending.value"
+          :first-unread-seq="firstUnreadSeq"
           :earlier-loading="earlier.isPending.value"
           :earlier-failed="earlier.isError.value"
           @earlier="earlier.mutate()"
@@ -207,9 +197,9 @@ async function start(memberIds: string[], subject: string | null) {
           @retry="retry"
           @edit="onEdit"
           @remove="onRemove"
-          @back="close"
+          @back="closeAll"
         />
-        <div v-else class="flex h-full items-center justify-center px-4 text-center text-sm text-ink-muted">
+        <div v-else class="flex flex-1 items-center justify-center px-6 text-center text-sm text-ink-muted">
           <QueryState
             v-if="selectedId"
             compact
@@ -220,18 +210,36 @@ async function start(memberIds: string[], subject: string | null) {
             error-text="Could not open that conversation."
             @retry="conversation.refetch()"
           />
-          <template v-else>Pick a conversation, or start a new one.</template>
+          <p v-else class="max-w-xs">Pick a conversation or a channel, or start one with New.</p>
         </div>
-      </BaseCard>
-    </div>
+      </div>
+    </template>
 
-    <NewChatDialog
-      :open="starting"
-      :people="people.data.value ?? []"
+    <NewChatDialog :open="starting" :people="people.data.value ?? []" :viewer-id="session.userId ?? ''" :busy="startBusy" @close="starting = false" @start="start" />
+    <NewChannelDialog
+      :team="rail.channelFor.value"
+      :members="rail.members.data.value ?? []"
       :viewer-id="session.userId ?? ''"
-      :busy="startBusy"
-      @close="starting = false"
-      @start="start"
+      :busy="rail.createChannelBusy.value"
+      @close="rail.channelFor.value = null"
+      @create="rail.onCreateChannel"
+    />
+    <AddTeamPeopleDialog
+      :team="rail.peopleFor.value"
+      :people="rail.people.data.value ?? []"
+      :member-ids="(rail.members.data.value ?? []).map((m) => m.user_id)"
+      :viewer-id="session.userId ?? ''"
+      :busy="rail.addPeopleBusy.value"
+      @close="rail.peopleFor.value = null"
+      @add="rail.onAddPeople"
+    />
+    <NewTeamDialog
+      :open="rail.creatingTeam.value"
+      :people="rail.people.data.value ?? []"
+      :viewer-id="session.userId ?? ''"
+      :busy="rail.createTeamBusy.value"
+      @close="rail.creatingTeam.value = false"
+      @create="rail.onCreateTeam"
     />
   </div>
 </template>
