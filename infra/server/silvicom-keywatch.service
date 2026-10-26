@@ -1,0 +1,14 @@
+# One Supabase key watcher pass (keywatch.sh). Started by silvicom-keywatch.timer; installed by
+# deploy.sh only on the server whose <env>.env says KEYWATCH=true (production).
+[Unit]
+Description=Silvicom 360: Supabase secret-key use watcher, one pass
+Requires=docker.service
+After=docker.service network-online.target silvicom-boot.service
+Wants=network-online.target
+RequiresMountsFor=/run/silvicom
+
+[Service]
+Type=oneshot
+ExecStart=/opt/silvicom/keywatch.sh
+# A pass is a few HTTP calls; one that hangs must not hold back the next.
+TimeoutStartSec=240

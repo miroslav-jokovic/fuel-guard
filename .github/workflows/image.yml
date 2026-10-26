@@ -1,0 +1,158 @@
+# Container images for the AWS move (docs/plans/architecture/AWS-MIGRATION-PLAN.md, AWS5, D-AWS6/D-AWS10).
+#
+# A push to main builds the STAGING `app` and `console` images and pushes them to ECR in us-west-2,
+# tagged `<commit>-staging`. Production images are built by aws-production.yml, which release.yml
+# calls for the commit it shipped (AWS7) — the office SPA inlines its VITE_* values at build time, so an image belongs to one
+# environment (Dockerfile header, Q-AWS13). A pull request that touches the build itself builds
+# both images without pushing, so a broken Dockerfile is caught before it reaches main.
+#
+# AWS access is GitHub OIDC into role silvicom-github-deploy — no AWS key is stored in GitHub. That
+# role trusts ONLY `repo:miroslav-jokovic/fuel-guard:ref:refs/heads/main`, so a pull request (and
+# any fork, since the repository is public) can never assume it; the PR job asks for no token.
+#
+# This workflow is not one of ci.yml's jobs on purpose: every PR would otherwise wait on two ARM
+# image builds that only a build change can break, and `build`'s required-check contract stays as
+# it is. After the images, `deploy-staging` puts them on the AWS staging server (AWS7) — while
+# Railway still serves staging's users, so a failure here breaks nobody (AWS10 is the cutover).
+#
+# Runners are GitHub's ARM machines because the servers are Graviton (t4g): a native build, no QEMU.
+
+name: image
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    paths:
+      - infra/image/**
+      - .github/workflows/image.yml
+      - pnpm-lock.yaml
+      - package.json
+      - railway.json
+      - railway.admin.json
+      - railway.worker.json
+  workflow_dispatch:
+
+# One run per commit; a newer main push never cancels an older one (each tag is its own commit).
+concurrency:
+  group: image-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  AWS_REGION: us-west-2
+  REGISTRY: 891568748437.dkr.ecr.us-west-2.amazonaws.com
+
+jobs:
+  pr-build:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    strategy:
+      matrix:
+        target: [app, console]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      # Placeholder Supabase values, the same ones ci.yml's bundle job builds with: this proves the
+      # image builds; it is never pushed or run.
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: infra/image/Dockerfile
+          target: ${{ matrix.target }}
+          platforms: linux/arm64
+          push: false
+          build-args: |
+            VITE_SUPABASE_URL=https://example.supabase.co
+            VITE_SUPABASE_ANON_KEY=ci-test-anon-key
+            GIT_COMMIT_SHA=${{ github.sha }}
+            GIT_BRANCH=${{ github.head_ref }}
+          cache-from: type=gha,scope=${{ matrix.target }}
+          cache-to: type=gha,scope=${{ matrix.target }},mode=max
+
+  staging:
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      id-token: write
+    strategy:
+      matrix:
+        target: [app, console]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::891568748437:role/silvicom-github-deploy
+          aws-region: ${{ env.AWS_REGION }}
+      - id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+      # Tags are immutable in ECR, so a re-run for a commit that already has its image is a no-op
+      # rather than a failed push.
+      - id: exists
+        run: |
+          tag="${GITHUB_SHA}-staging"
+          if aws ecr describe-images --repository-name "silvicom/${{ matrix.target }}" \
+               --image-ids imageTag="$tag" >/dev/null 2>&1; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "silvicom/${{ matrix.target }}:$tag already in ECR — nothing to build." >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - if: steps.exists.outputs.skip != 'true'
+        uses: docker/setup-buildx-action@v3
+      # STAGING_VITE_* are repository variables, not secrets: every value is public by design (it
+      # ships to every browser). They mirror the Railway `uat` build variables until AWS10's cutover
+      # repoints VITE_API_URL at the staging host on AWS.
+      - if: steps.exists.outputs.skip != 'true'
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: infra/image/Dockerfile
+          target: ${{ matrix.target }}
+          platforms: linux/arm64
+          push: true
+          provenance: false
+          tags: ${{ env.REGISTRY }}/silvicom/${{ matrix.target }}:${{ github.sha }}-staging
+          build-args: |
+            VITE_SUPABASE_URL=${{ vars.STAGING_VITE_SUPABASE_URL }}
+            VITE_SUPABASE_ANON_KEY=${{ vars.STAGING_VITE_SUPABASE_ANON_KEY }}
+            VITE_API_URL=${{ vars.STAGING_VITE_API_URL }}
+            VITE_CUSTOMER_APP_URL=${{ vars.STAGING_WEB_URL }}
+            VITE_APP_ENVIRONMENT=${{ vars.STAGING_VITE_APP_ENVIRONMENT }}
+            GIT_COMMIT_SHA=${{ github.sha }}
+            GIT_BRANCH=main
+          cache-from: type=gha,scope=${{ matrix.target }}
+          cache-to: type=gha,scope=${{ matrix.target }},mode=max
+
+  # AWS7, staging half: once both staging images of this commit are in ECR, deploy them to the AWS
+  # staging server through SSM Run Command (D-AWS10) — no SSH, no key. The role may run commands only
+  # on instances tagged Environment=staging + Project=silvicom360 (policy DeployStagingThroughSsm,
+  # proven by simulate-principal-policy: staging allowed, production denied). Production deploys stay
+  # with release.yml's approved train (AWS7, production half).
+  #
+  # The steps are infra/ssm-deploy.sh, shared with aws-production.yml so both environments are
+  # deployed the same way.
+  #
+  # Merges are serialized: a newer pending deploy replaces an older pending one (the newer commit
+  # contains it), and a running deploy is never cancelled halfway.
+  deploy-staging:
+    needs: staging
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    concurrency:
+      group: deploy-staging
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::891568748437:role/silvicom-github-deploy
+          aws-region: ${{ env.AWS_REGION }}
+      - name: Deploy this commit to the AWS staging server
+        run: bash infra/ssm-deploy.sh staging "${GITHUB_SHA}-staging"

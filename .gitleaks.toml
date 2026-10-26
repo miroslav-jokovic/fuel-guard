@@ -34,6 +34,11 @@ regexes = [
   # apps/api/src/lib/secretBox.test.ts:14 and the EFS_SOAP_CLIENT_KEY_PEM example in
   # docs/plans/WP3C-FALSE-ALERT-FIX-AND-ALERT-RESET.md:330.
   '''-----BEGIN[ A-Z]*PRIVATE KEY-----(\\n|\n)[A-Za-z0-9+/=]*\.\.\.''',
+  # A host name under our own domain is public by definition (it is in DNS). The generic-api-key rule
+  # flagged `API_HOST=api.360.silvicominc.com` in infra/server/production.env (2026-10-22, AWS6)
+  # because the variable name contains "API". Anchored to the whole match being one of our host
+  # names, so a key that merely sits next to one is still caught.
+  '''^[a-z0-9-]+(\.[a-z0-9-]+)*\.silvicominc\.com$''',
 ]
 
 # EFS fuel-card numbers (audit 2026-10-15). A card number is cardholder data: it belongs sealed in

@@ -59,12 +59,11 @@ import { idleRouter } from "./modules/idle/index.js";
 import { drugAlcoholRouter } from "./modules/medstop/index.js";
 import { roadsideInspectionsRouter } from "./modules/inspections/index.js";
 import { hazmatRouter, meHazmatRouter, publicHazmatRouter } from "./modules/hazmat/index.js";
-import { publicApplicationRouter } from "./modules/recruiting/index.js";
+import { publicApplicationRouter, recruitmentRouter } from "./modules/recruiting/index.js";
 import { complianceRouter } from "./modules/evidence/index.js";
 import { driverAppSettingsRouter, meRouter } from "./modules/driver-app/index.js";
-import { notificationsRouter, messagesRouter } from "./modules/messaging/index.js";
+import { chatRouters, notificationsRouter, messagesRouter } from "./modules/messaging/index.js";
 import { rosterArchiveRouter, rosterCredentialsRouter, rosterDriversRouter, rosterSevenDayRouter } from "./modules/roster/index.js";
-import { recruitmentRouter } from "./modules/recruiting/index.js";
 import { authRouter } from "./routes/auth.js";
 import { authStepUpRouter } from "./routes/authStepUp.js";
 import { versionRouter } from "./routes/version.js";
@@ -216,6 +215,7 @@ function mountApiRouters(app: Express, env: Env): void {
   app.use("/api/me/hazmat", meHazmatRouter()); // driver capture surface (M6) — before /api/me so this prefix wins
   app.use("/api/me", meRouter()); // driver self-view: profile, loads, score, shift/duty (sub-paths of /api/me)
   app.use("/api/messages", messagesRouter()); // driver ↔ dispatch messaging
+  app.use("/api/chat", chatRouters()); // office chat (OFFICE-CHAT-PLAN CH1b) and, at /compliance, its console (CHA2)
   app.use("/api/members", membersRouter());
   // An admin emails a member a reset link (D-PWR8) — step-up gated, never returns the link.
   app.use("/api/members", memberPasswordResetRouter());

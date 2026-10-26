@@ -151,7 +151,7 @@ export function requireSurfaceKeys(files) {
     // `requireSurface("maintenance.inspectors")` as its worked example, and counting a comment as a
     // call site would make the gate's own tally a number nobody could reconcile.
     const src = stripComments(raw);
-    for (const m of src.matchAll(/requireSurface\(\s*"([^"]+)"\s*\)/g)) {
+    for (const m of src.matchAll(/(?:requireSurface|holdsSurface)\(\s*"([^"]+)"\s*\)/g)) {
       // `requireSurface("${key}")` inside the middleware's own error message is not a call site.
       // Skipping INTERPOLATED strings rather than skipping the file keeps a real call in
       // requireSurface.ts visible, which excluding the file by name would not.
@@ -184,8 +184,10 @@ export function findViolations({ cat, icons, routes, sections, roles = null, aut
       errors.push(`surface "${s.key}" is a directory that no screen is reachedFrom — it can never be shown.`);
     if (s.reachedFrom && s.parent)
       errors.push(`surface "${s.key}" has both a parent and reachedFrom — it either shares a grant (D-SURF8) or has its own, not both.`);
-    if (s.startsOnFor && (s.parent || s.kind !== "section"))
-      errors.push(`surface "${s.key}" has startsOnFor but nobody can answer for it (a child, or a non-section gate) — a default no admin could change is a lock.`);
+    // A `staff` gate is answerable too once it declares a default (D-CHAT21: a permission that belongs
+    // to no section, e.g. `chat.teams`); `isEditableSurface` reads the same two facts.
+    if (s.startsOnFor && (s.parent || (s.kind !== "section" && s.kind !== "staff")))
+      errors.push(`surface "${s.key}" has startsOnFor but nobody can answer for it (a child, or a non-section, non-staff gate) — a default no admin could change is a lock.`);
     for (const r of s.startsOnFor ?? [])
       if (roles && !roles.has(r)) errors.push(`surface "${s.key}" starts on for "${r}", which is not a UserRole — it would start off for everybody.`);
     if (s.kind === "section") {
@@ -339,6 +341,7 @@ function selfTest() {
     [[{ key: "a", path: "/real", kind: "staff", reachedFrom: "missing" }], new Set(), /a screen with no door/],
     [[{ key: "p", path: "/parent", kind: "staff" }, { key: "a", path: "/real", kind: "staff", parent: "p", reachedFrom: "p" }], new Set(["p"]), /not both/],
     [[{ key: "a", path: "/real", kind: "admin", startsOnFor: [] }], new Set(["a"]), /is a lock/],
+    [[{ key: "a", path: "/real", kind: "always", startsOnFor: [] }], new Set(["a"]), /is a lock/],
     [[{ key: "a", path: "/real", kind: "section", section: "fuel", level: "view", startsOnFor: ["wizard"] }], new Set(["a"]), /not a UserRole/],
     // The directory's two: a screen behind a plain entry, and a directory with nothing behind it.
     [[{ key: "d", path: "/real", kind: "staff" }, { key: "a", path: "/real", kind: "staff", reachedFrom: "d" }], new Set(["d"]), /not a directory\(\) gate/],
@@ -421,7 +424,7 @@ function selfTest() {
 if (process.argv.includes("--self-test")) {
   const fails = selfTest();
   if (fails.length) { for (const f of fails) console.error(`✗ self-test: ${f}`); process.exit(1); }
-  console.log("✓ surfaces self-test — all twenty-six detectors fire, and none fires on a clean catalogue.");
+  console.log("✓ surfaces self-test — all twenty-seven detectors fire, and none fires on a clean catalogue.");
   process.exit(0);
 }
 

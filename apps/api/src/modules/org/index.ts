@@ -39,4 +39,8 @@ export { runSchemaCheck } from "./schemaCheck.js";
 export { startStorageReconcileScheduler } from "./storageReconcileScheduler.js";
 export { startStorageBackupScheduler } from "./storageBackupScheduler.js";
 export { getStorageBackupHealth, storageBackupHealthy, type StorageBackupHealth } from "./storageBackupHealth.js";
+// The chat ledger's nightly anchor (CHA4) rides on the same bucket; messaging may not import org, so
+// `schedulers.ts` hands the target across at the composition root.
+export { storageBackupTarget } from "./storageBackupS3.js";
+export { surfaceHolders } from "./surfaceHolders.js";
 export { stampIntegrationSynced } from "./integrationSync.js";

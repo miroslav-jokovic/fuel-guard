@@ -1,0 +1,144 @@
+# The AWS production server's deploy (docs/plans/architecture/AWS-MIGRATION-PLAN.md, AWS7 production
+# half, D-AWS10). release.yml calls it with the commit it just shipped; a dispatch re-deploys a
+# released commit by hand (bringing the server up, or after a reboot went wrong).
+#
+# The rule it enforces: **the production server runs only a commit the `production` branch holds.**
+# release.yml moves that branch only for an approved release, a hotfix or a rollback, so this
+# workflow cannot put unreleased code on production whoever dispatches it — a dispatch of a commit
+# that is not on `production` is refused before anything is built.
+#
+# Images: the office SPA inlines its VITE_* values at build time, so production has its own images,
+# tagged `<commit>-production` and built here from PRODUCTION_VITE_* repository variables (public by
+# design — they ship to every browser; mirrored from Railway's production build variables until
+# AWS11 repoints VITE_API_URL). Tags are immutable in ECR, so a commit already built is not rebuilt.
+#
+# AWS access: OIDC into role silvicom-github-release, which trusts ONLY the GitHub environment
+# `aws-production`, whose deployment-branch policy admits only `main` — so a pull request, a fork or
+# another branch cannot assume it. That role may send commands only to the server tagged
+# Environment=production; silvicom-github-deploy (every merge, image.yml) only to staging. Simulated
+# 2026-10-22: each role is allowed on its own server and denied on the other.
+#
+# Until AWS11's cutover Railway serves every production user and keeps the scheduler lanes
+# (production.env: RUN_SCHEDULERS=false), so a failure here breaks nobody — release.yml runs this
+# beside its Railway verify, not in front of it, and it never triggers the automatic rollback.
+
+name: aws-production
+
+on:
+  workflow_call:
+    inputs:
+      sha:
+        description: The released commit to run on the production server
+        required: true
+        type: string
+  workflow_dispatch:
+    inputs:
+      sha:
+        description: A commit on the production branch (e.g. the latest release tag's)
+        required: true
+        type: string
+
+# One production deploy at a time; a queued one is never cancelled (it may be a rollback).
+concurrency:
+  group: aws-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  AWS_REGION: us-west-2
+  REGISTRY: 891568748437.dkr.ecr.us-west-2.amazonaws.com
+
+jobs:
+  released:
+    runs-on: ubuntu-latest
+    outputs:
+      sha: ${{ steps.check.outputs.sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: check
+        env:
+          INPUT_SHA: ${{ inputs.sha }}
+        run: |
+          set -euo pipefail
+          sha=$(git rev-parse --verify "${INPUT_SHA}^{commit}") || { echo "::error::'$INPUT_SHA' is not a commit here."; exit 1; }
+          git merge-base --is-ancestor "$sha" origin/production || {
+            echo "::error::${sha::7} is not on the production branch — only a released commit runs on the production server."; exit 1; }
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+
+  images:
+    needs: released
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 30
+    environment: aws-production
+    permissions:
+      contents: read
+      id-token: write
+    strategy:
+      matrix:
+        target: [app, console]
+    env:
+      SHA: ${{ needs.released.outputs.sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.released.outputs.sha }}
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::891568748437:role/silvicom-github-release
+          aws-region: ${{ env.AWS_REGION }}
+      - uses: aws-actions/amazon-ecr-login@v2
+      - id: exists
+        run: |
+          tag="${SHA}-production"
+          if aws ecr describe-images --repository-name "silvicom/${{ matrix.target }}" \
+               --image-ids imageTag="$tag" >/dev/null 2>&1; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "silvicom/${{ matrix.target }}:$tag already in ECR — nothing to build." >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - if: steps.exists.outputs.skip != 'true'
+        uses: docker/setup-buildx-action@v3
+      # Cache scope is per environment: the app stage's build args differ, so sharing staging's
+      # scope would evict it on every release.
+      - if: steps.exists.outputs.skip != 'true'
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: infra/image/Dockerfile
+          target: ${{ matrix.target }}
+          platforms: linux/arm64
+          push: true
+          provenance: false
+          tags: ${{ env.REGISTRY }}/silvicom/${{ matrix.target }}:${{ env.SHA }}-production
+          build-args: |
+            VITE_SUPABASE_URL=${{ vars.PRODUCTION_VITE_SUPABASE_URL }}
+            VITE_SUPABASE_ANON_KEY=${{ vars.PRODUCTION_VITE_SUPABASE_ANON_KEY }}
+            VITE_API_URL=${{ vars.PRODUCTION_VITE_API_URL }}
+            VITE_CUSTOMER_APP_URL=${{ vars.WEB_URL }}
+            VITE_APP_ENVIRONMENT=${{ vars.PRODUCTION_VITE_APP_ENVIRONMENT }}
+            GIT_COMMIT_SHA=${{ env.SHA }}
+            GIT_BRANCH=production
+          cache-from: type=gha,scope=${{ matrix.target }}-production
+          cache-to: type=gha,scope=${{ matrix.target }}-production,mode=max
+
+  deploy:
+    needs: [released, images]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: aws-production
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      # This workflow's own commit, not the release's: a rollback to a release older than
+      # infra/ssm-deploy.sh must still find it. What runs ON the server comes from the image.
+      - uses: actions/checkout@v4
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::891568748437:role/silvicom-github-release
+          aws-region: ${{ env.AWS_REGION }}
+      - name: Deploy the release to the AWS production server
+        run: bash infra/ssm-deploy.sh production "${{ needs.released.outputs.sha }}-production"

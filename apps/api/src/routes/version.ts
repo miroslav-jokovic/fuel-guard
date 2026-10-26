@@ -8,6 +8,7 @@ import { getMaintenanceHealth, maintenanceHealthy } from "../lib/maintenanceHeal
 import { getReleaseVersion } from "../lib/releaseVersion.js";
 import { getSchedulerHealth, laneHealthy } from "../lib/schedulerHealth.js";
 import { getStorageBackupHealth, storageBackupHealthy } from "../modules/org/index.js";
+import { getRealtimeHealth, realtimeHealthy } from "../modules/messaging/index.js";
 
 /**
  * `GET /api/version` — what is actually running (ship-pipeline plan D0.3).
@@ -25,6 +26,9 @@ import { getStorageBackupHealth, storageBackupHealthy } from "../modules/org/ind
  * lane has had no live holder for two minutes — the background work has stopped (lib/schedulerHealth.ts).
  * And whenever the nightly off-provider copy of the org's files is more than a night and a half old
  * (`storageBackup`, modules/org/storageBackupHealth.ts) — Supabase's own backups do not include them.
+ * And since CHA4 (0515), whenever Supabase Realtime has stopped delivering: the quarter-hourly probe's
+ * broadcast did not reach its subscriber, or the probe itself stopped (`realtime`,
+ * modules/messaging/realtimeHealth.ts) — office chat's "instant" falls back to its poll without a word.
  *
  * `GET /api/version/ready` is the same verdict as an HTTP STATUS — 200 when `ok`, 503 when not — for
  * an external uptime monitor that can only read a status code (D-RLY5). `/healthz` cannot be that:
@@ -35,19 +39,21 @@ export function versionRouter(): Router {
   const router = Router();
 
   const read = async (env: Parameters<typeof getSchemaStatus>[0]) => {
-    const [schema, maintenance, schedulers, storageBackup, version] = await Promise.all([
+    const [schema, maintenance, schedulers, storageBackup, realtime, version] = await Promise.all([
       getSchemaStatus(env),
       getMaintenanceHealth(env),
       getSchedulerHealth(env),
       getStorageBackupHealth(env),
+      getRealtimeHealth(env),
       getReleaseVersion(),
     ]);
     const ok =
       !schema.drift &&
       maintenanceHealthy(maintenance.state) &&
       schedulers.every((l) => laneHealthy(l.state)) &&
-      storageBackupHealthy(storageBackup.state);
-    return { schema, maintenance, schedulers, storageBackup, version, ok };
+      storageBackupHealthy(storageBackup.state) &&
+      realtimeHealthy(realtime.state);
+    return { schema, maintenance, schedulers, storageBackup, realtime, version, ok };
   };
 
   router.get(
@@ -55,7 +61,7 @@ export function versionRouter(): Router {
     asyncHandler(async (req, res) => {
       const { env } = getAppLocals(req);
       const build = getBuildInfo();
-      const { schema, maintenance, schedulers, storageBackup, version, ok } = await read(env);
+      const { schema, maintenance, schedulers, storageBackup, realtime, version, ok } = await read(env);
       res.setHeader("Cache-Control", "no-store");
       res.json({
         service: `${APP_NAME} API`,
@@ -72,6 +78,7 @@ export function versionRouter(): Router {
         maintenance,
         schedulers,
         storageBackup,
+        realtime,
         ok,
       });
     }),
@@ -81,7 +88,7 @@ export function versionRouter(): Router {
     "/ready",
     asyncHandler(async (req, res) => {
       const { env } = getAppLocals(req);
-      const { schema, maintenance, schedulers, storageBackup, ok } = await read(env);
+      const { schema, maintenance, schedulers, storageBackup, realtime, ok } = await read(env);
       res.setHeader("Cache-Control", "no-store");
       // The body names what failed, for the person who opens the alert; the status is the verdict.
       res.status(ok ? 200 : 503).json({
@@ -91,6 +98,7 @@ export function versionRouter(): Router {
         maintenance: maintenance.state,
         schedulers: Object.fromEntries(schedulers.map((l) => [l.lane, l.state])),
         storageBackup: storageBackup.state,
+        realtime: realtime.state,
       });
     }),
   );

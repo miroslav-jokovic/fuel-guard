@@ -384,6 +384,10 @@ jobs:
       # Added in the same PR as the gate (RELEASE-TRAIN-PLAN R5): the rules release.yml ships by.
       - name: Release-train rules self-test
         run: pnpm lint:release-train
+      # The Supabase secret-key watcher (AWS-MIGRATION-PLAN §5) runs outside CI — launchd on a Mac
+      # tonight, the AWS server later — so this is the only place its address rules are checked.
+      - name: Supabase key watcher self-test
+        run: node scripts/supabase-key-watch.mjs --self-test
 
       # Added here in the SAME PR as the gate itself (FLEETPAL-INTEGRATION-PLAN.md F1), because root
       # CLAUDE.md's rule is that a gate in package.json and in neither CI list is not a gate — the

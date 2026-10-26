@@ -1,0 +1,12 @@
+# Every 5 minutes, as the Mac's launchd job ran it. The script reads a 15-minute window, so a missed
+# or late pass loses nothing.
+[Unit]
+Description=Silvicom 360: run the Supabase key watcher every 5 minutes
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=5min
+AccuracySec=30s
+
+[Install]
+WantedBy=timers.target

@@ -53,4 +53,16 @@ export const coreRoutes: RouteRecordRaw[] = [
     component: () => import("@/pages/MessagesPage.vue"),
     meta: { requiresAuth: true, title: "Messages" },
   },
+  {
+    // Office chat (OFFICE-CHAT-PLAN CH2): every office role, the `messages` module; who reads which
+    // conversation is participation, answered by /api/chat. `?c=<id>` is the open conversation.
+    path: "/chat",
+    name: "chat",
+    component: () => import("@/pages/ChatPage.vue"),
+    // Full bleed since CHAT-REDESIGN-PLAN D-CHATUI1: the rail, the stage and the thread panel fill the
+    // outlet under the top bar, as the live map does. Until then the page was a document page whose
+    // height was a hand-kept `22rem/18rem` formula, re-measured after every addition, and the log was
+    // 302 px of a 900 px window (audit 2026-10-26).
+    meta: { requiresAuth: true, title: "Chat", fullBleed: true },
+  },
 ];

@@ -98,6 +98,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > accountant 
     "group": null,
     "items": [
       "Dashboard → /",
+      "Chat → /chat",
     ],
   },
   {
@@ -234,6 +235,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > admin · al
     "items": [
       "Dashboard → /",
       "Ask AI → /ask",
+      "Chat → /chat",
     ],
   },
   {
@@ -483,6 +485,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > auditor · 
     "group": null,
     "items": [
       "Dashboard → /",
+      "Chat → /chat",
     ],
   },
   {
@@ -701,6 +704,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > badges are 
     "items": [
       "Dashboard → /",
       "Ask AI → /ask",
+      "Chat → /chat",
     ],
   },
   {
@@ -786,6 +790,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > dispatcher 
     "group": null,
     "items": [
       "Dashboard → /",
+      "Chat → /chat",
     ],
   },
   {
@@ -952,6 +957,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > fleet_manag
     "group": null,
     "items": [
       "Dashboard → /",
+      "Chat → /chat",
     ],
   },
   {
@@ -1154,6 +1160,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > recruiter �
     "group": null,
     "items": [
       "Dashboard → /",
+      "Chat → /chat",
     ],
   },
   {
@@ -1241,6 +1248,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > safety_mana
     "group": null,
     "items": [
       "Dashboard → /",
+      "Chat → /chat",
     ],
   },
   {
@@ -1382,6 +1390,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > technician 
     "group": null,
     "items": [
       "Dashboard → /",
+      "Chat → /chat",
     ],
   },
   {
@@ -1469,6 +1478,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > the org's S
     "group": null,
     "items": [
       "Dashboard → /",
+      "Chat → /chat",
     ],
   },
   {
@@ -1496,6 +1506,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > the org's S
     "group": null,
     "items": [
       "Dashboard → /",
+      "Chat → /chat",
     ],
   },
   {
@@ -1564,6 +1575,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > the section
       "group": null,
       "items": [
         "Dashboard → /",
+        "Chat → /chat",
       ],
     },
     {
@@ -1597,6 +1609,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > the section
       "group": null,
       "items": [
         "Dashboard → /",
+        "Chat → /chat",
       ],
     },
     {

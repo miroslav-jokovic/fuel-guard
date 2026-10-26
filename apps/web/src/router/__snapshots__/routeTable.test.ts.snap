@@ -537,6 +537,11 @@ exports[`the route table survives being split by area > resolution 1`] = `
     "url": "/messages",
   },
   {
+    "name": "chat",
+    "params": {},
+    "url": "/chat",
+  },
+  {
     "name": "driver-app-settings",
     "params": {},
     "url": "/settings/driver-app",
@@ -590,6 +595,16 @@ exports[`the route table survives being split by area > resolution 1`] = `
     "name": "audit",
     "params": {},
     "url": "/settings/audit",
+  },
+  {
+    "name": "chat-compliance",
+    "params": {},
+    "url": "/settings/chat-compliance",
+  },
+  {
+    "name": "chat-teams",
+    "params": {},
+    "url": "/settings/chat-teams",
   },
   {
     "name": "privacy-policy",
@@ -713,6 +728,16 @@ exports[`the route table survives being split by area > route table 1`] = `
     },
     "name": "billing",
     "path": "/billing",
+    "redirect": null,
+  },
+  {
+    "meta": {
+      "fullBleed": true,
+      "requiresAuth": true,
+      "title": "Chat",
+    },
+    "name": "chat",
+    "path": "/chat",
     "redirect": null,
   },
   {
@@ -1274,6 +1299,26 @@ exports[`the route table survives being split by area > route table 1`] = `
     },
     "name": "card-control-settings",
     "path": "/settings/card-control",
+    "redirect": null,
+  },
+  {
+    "meta": {
+      "parent": "/settings",
+      "requiresAuth": true,
+      "title": "Chat compliance",
+    },
+    "name": "chat-compliance",
+    "path": "/settings/chat-compliance",
+    "redirect": null,
+  },
+  {
+    "meta": {
+      "parent": "/settings",
+      "requiresAuth": true,
+      "title": "Chat teams",
+    },
+    "name": "chat-teams",
+    "path": "/settings/chat-teams",
     "redirect": null,
   },
   {

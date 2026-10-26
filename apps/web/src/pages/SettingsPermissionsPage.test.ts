@@ -387,13 +387,18 @@ describe("the Settings screens (SP1, Q-SET2)", () => {
     expect(row(w, "Planned fueling")!.text()).not.toContain("Needs");
   });
 
-  it("names the Settings group as unlisted for a role that holds no Settings screen's section", async () => {
+  it("lists the Settings group for a role that holds no Settings section, with only Chat teams switchable", async () => {
+    // Until D-CHAT21 (2026-10-25) the whole group was "Not listed" for a technician: no screen behind
+    // Settings was in reach of their sections. Chat teams can be given to any office role, so the group
+    // is listed for them, with that one switch; every section-gated screen still says what it needs.
     const w = mountPage();
     await flushPromises();
     await openRole(w);
     expect(sectionAccess(ROLE, "settings")).toBe("none");
+    expect(toggle(w, "Chat teams")).toBeDefined();
     expect(toggle(w, "Organization")).toBeUndefined();
-    expect(w.text()).toMatch(/Not listed: .*Settings/);
+    expect(row(w, "Organization")?.text()).toContain("Needs");
+    expect(w.text()).not.toMatch(/Not listed: .*Settings/);
   });
 });
 

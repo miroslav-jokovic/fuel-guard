@@ -56,6 +56,7 @@ export {
   MoreVerticalIcon            as EllipsisVerticalIcon,
   Copy01Icon                  as CopyIcon,
   Sent02Icon                  as PaperAirplaneIcon,
+  MessageMultiple01Icon       as ChatIcon,                        // office chat (OFFICE-CHAT-PLAN CH2): several people talking
   FilterIcon                  as FunnelIcon,
   Search01Icon                as MagnifyingGlassIcon,
   Settings02Icon              as AdjustmentsHorizontalIcon,     // ⚠ verify

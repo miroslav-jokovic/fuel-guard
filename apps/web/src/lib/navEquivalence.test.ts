@@ -67,6 +67,13 @@ import { buildNavGroups } from "./nav";
  * all modules, and the fleet manager of the screen-answer case — and the whole change is 16 lines
  * removed: `Placard calculator`, `Hazmat review` and `Messages`. No line added, no group emptied, no
  * admin snapshot moved. `tierCSurfaces.test.ts` in packages/shared asserts it for every role.
+ *
+ * ── AND A FIFTH TIME, ON 2026-10-23: OFFICE CHAT ADDED (OFFICE-CHAT-PLAN CH2) ────────────────────
+ * A new screen for everyone in the office: `chat`, gate `STAFF`, module `messages`. Twelve snapshots
+ * moved, thirteen lines, every one `Chat → /chat` in the ungrouped top block: the eight office roles
+ * with all modules, the badge case, both screen-answer cases, and the sections-claim snapshot twice
+ * (two members). No line removed, no group moved, no driver snapshot moved (STAFF), and nothing moved
+ * in a module set without Messages.
  */
 
 /** Every module enabled, none, and the shipped default — the three that change what the nav shows. */

@@ -11,23 +11,26 @@ const router = useRouter();
 /**
  * Where "Silvicom 360" in the console's nav sends an operator — the customer-facing app.
  *
- * ⚠ **The default is the Railway host and NOT `silvicom360.silvicominc.com`, deliberately.** That
- * custom domain IS configured on the `@fleetguard/web` service, so it is the right destination
- * eventually — but measured 2026-09-15 it has no DNS record at all (no A, no CNAME, against Google's
- * resolver), while the Railway host answers 200. Shipping the branded domain today would put a dead
- * link in every operator's sidebar.
+ * The default is the branded domain, `360.silvicominc.com`. Until 2026-10-23 it was the Railway host
+ * (`fleetguardweb-production.up.railway.app`), deliberately: measured 2026-09-15 the branded name had
+ * no DNS record at all, and shipping it would have put a dead link in every operator's sidebar. The
+ * name now resolves and serves the same app (`/api/version` answered 200 with the released commit,
+ * 2026-10-23), and the Railway host goes away with the AWS move (AWS-MIGRATION-PLAN.md), so the
+ * branded name is the only one that survives it.
  *
- * ⚠ And it would not self-heal quietly: `import.meta.env.VITE_*` is inlined at BUILD time, so this
- * value is baked into the bundle and changing it needs a redeploy either way.
+ * ⚠ `import.meta.env.VITE_*` is inlined at BUILD time, so this value is baked into the bundle and
+ * changing it needs a redeploy either way. The AWS images pass it as a build argument from the same
+ * repository variable deploy-verify checks as "the web host" (`WEB_URL` / `STAGING_WEB_URL`), so a
+ * staging console links to staging; this default is what Railway's console build, which passes
+ * nothing, gets. `||`, not `??`: a repository variable that is unset reaches the build as an EMPTY
+ * build argument, and `??` would ship an empty link.
  *
  * The default also matches `WEB_APP_URL` on the api service, which is what every application
  * invitation link already points at — so an operator following this lands on the same host an
  * applicant does, rather than on a second name for the same app.
- *
- * **Flip the default to the branded domain in the same change that points its DNS at Railway.**
  */
 const customerAppUrl =
-  import.meta.env.VITE_CUSTOMER_APP_URL ?? "https://fleetguardweb-production.up.railway.app";
+  import.meta.env.VITE_CUSTOMER_APP_URL || "https://360.silvicominc.com";
 
 onMounted(() => {
   void imp.load().catch(() => {});
