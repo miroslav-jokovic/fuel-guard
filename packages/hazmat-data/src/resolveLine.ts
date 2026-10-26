@@ -17,7 +17,7 @@ import type { Dataset, HmtEntry, PackingGroup } from "./schema.js";
  */
 
 /** Bump on ANY change to the normalization ruleset — stored on every run so a verdict stays reproducible. */
-export const PSN_NORMALIZER_VERSION = "1.3.0";
+export const PSN_NORMALIZER_VERSION = "1.4.0";
 
 export type ResolveLineFailureReason =
   | "id_missing" // no parseable UN/NA id on the line
@@ -143,7 +143,9 @@ function parseIdText(idText: string): { prefix: "UN" | "NA" | null; idNumber: st
 
 // ── class check ───────────────────────────────────────────────────────────────────────────────────
 function classMatches(entry: HmtEntry, printedClass: string, reclassedCombustible: boolean): boolean {
-  const norm = printedClass.trim().toLowerCase();
+  // §172.202(a)(3)(i): "The words 'Class' or 'Division' may precede the primary and subsidiary numbers" — a
+  // Henkel master BOL prints "CLASS 8(6.1)" (production read a4119634, 2026-10-21).
+  const norm = printedClass.trim().toLowerCase().replace(/^(?:class|division)\s+/, "");
   // "Samples, explosive" (UN0190) carries no class in Column (3): §173.56 assigns the division with the approval,
   // and the paper prints it. Any Class 1 division is the entry's; anything else is not an explosive sample. Every
   // correct printing was refused here (the paper audit's golden census, READER-CORRECTNESS-PLAN RC5) — the RC1
@@ -157,14 +159,36 @@ function classMatches(entry: HmtEntry, printedClass: string, reclassedCombustibl
     return entryClass === "3" && entry.pgRows.some((r) => r.pg === "III") && reclassedCombustible;
   }
 
-  const sub = /^([0-9.]+)\s*\(([0-9.,\s]+)\)$/.exec(norm); // "3 (6.1)"
+  const sub = printedSubsidiaries(norm); // "3 (6.1)", "1.3c (6.1)"
   if (sub) {
-    if (sub[1] !== entryClass) return false;
-    const wanted = sub[2]!.split(/[,\s]+/).filter(Boolean);
+    if (sub.primary !== entryClass) return false;
     const entrySubs = entry.subsidiaryClasses.map((s) => s.toLowerCase());
-    return wanted.every((w) => entrySubs.includes(w));
+    return sub.subs.every((w) => entrySubs.includes(w));
   }
   return norm === entryClass;
+}
+
+/** The primary and the parenthesised subsidiaries of a printed class, lower-cased; null when none are printed. */
+function printedSubsidiaries(norm: string): { primary: string; subs: string[] } | null {
+  const m = /^([0-9.]+[a-z]?)\s*\(([0-9.,\s]+)\)$/.exec(norm);
+  if (!m) return null;
+  return { primary: m[1]!, subs: m[2]!.split(/[,\s]+/).filter(Boolean) };
+}
+
+/**
+ * Whether the printed class names the entry's subsidiaries exactly — the primary alone where the entry has
+ * none, or every subsidiary where it has them. Where rows of one name differ only in their subsidiaries (UN1230
+ * Methanol's D row "3" and I row "3 (6.1)"; UN1831 fuming sulfuric acid under and over 30 % free SO3), the
+ * printed class is what tells them apart (D-PC1, 2026-10-26): "3" is the D row's own printing and the I row's
+ * omission, and §172.202(a)(3) lets a subsidiary be omitted only where its label is not required — so the row
+ * printed exactly wins, recorded as `row_chosen_by_class` (D-RC4), and rows that fit only loosely are kept
+ * only when none fits exactly.
+ */
+function classExact(entry: HmtEntry, printedClass: string): boolean {
+  const norm = printedClass.trim().toLowerCase().replace(/^(?:class|division)\s+/, "");
+  const printed = printedSubsidiaries(norm)?.subs ?? [];
+  const entrySubs = entry.subsidiaryClasses.map((s) => s.toLowerCase());
+  return printed.length === entrySubs.length && printed.every((w) => entrySubs.includes(w));
 }
 
 // ── D/I collapse: entries that differ ONLY by symbol are the same material (both valid domestically) ──
@@ -261,8 +285,15 @@ export function resolveHmtLine(index: DatasetIndex, input: ResolveLineInput): Re
   if (!entry) {
     let rows = matched;
     if (input.hazardClass != null && input.hazardClass.trim() !== "") {
-      const byClass = rows.filter((e) => classMatches(e, input.hazardClass!, input.reclassedCombustible ?? false));
+      let byClass = rows.filter((e) => classMatches(e, input.hazardClass!, input.reclassedCombustible ?? false));
       if (byClass.length === 0) return fail("class_mismatch", asCandidateList(rows));
+      // The exactly printed row wins only among rows the printed PG also fits: nitric acid "8, PG I" names the
+      // ≥70 % row (8 (5.1), PG I) with its subsidiary left off, not the <65 % row ("8", PG II) printed exactly.
+      // …and only where the rows differ in their subsidiaries at all: two rows of one class and no subsidiary
+      // (UN2790 acetic acid, PG II and III) are the PG's to tell apart, and the finding says so.
+      const subsDiffer = new Set(byClass.map((e) => e.subsidiaryClasses.slice().sort().join(","))).size > 1;
+      const exact = byClass.filter((e) => classExact(e, input.hazardClass!) && (input.pg == null || e.pgRows.some((r) => r.pg === input.pg)));
+      if (subsDiffer && exact.length > 0 && exact.length < byClass.length) byClass = exact;
       if (byClass.length < rows.length) { rowFindings.push("row_chosen_by_class"); rows = byClass; }
       entry = collapse(rows);
     }

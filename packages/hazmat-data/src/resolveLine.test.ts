@@ -136,10 +136,21 @@ describe("resolveHmtLine — class handling", () => {
 });
 
 describe("resolveHmtLine — D/I symbol variants + name discipline", () => {
-  it("UN1230 Methanol (I-variant + D-variant) collapses to a unique canonical entry", () => {
-    const r = resolve({ idText: "UN1230", psn: "Methanol", hazardClass: "3", pg: "II" });
-    expect(r.ok).toBe(true);
-    if (r.ok) expect(r.entryId).toBe("UN1230-methanol"); // canonical = lowest entryId among symbol variants
+  // The two Methanol rows are not symbol-only variants once column (6) is read (D-PC1, 2026-10-26): the I row
+  // carries a 6.1 subsidiary label, the D row does not (the domestic exception). The printed class picks the
+  // row, exactly, and says so — "3" is the D row's own printing, "3 (6.1)" the I row's (§172.202(a)(3)).
+  it("UN1230 Methanol: '3' is the D row, '3 (6.1)' the I row, each chosen by the printed class", () => {
+    const domestic = resolve({ idText: "UN1230", psn: "Methanol", hazardClass: "3", pg: "II" });
+    expect(domestic).toMatchObject({ ok: true, entryId: "UN1230-methanol#2", findings: ["row_chosen_by_class"] });
+    const international = resolve({ idText: "UN1230", psn: "Methanol", hazardClass: "3 (6.1)", pg: "II" });
+    expect(international).toMatchObject({ ok: true, entryId: "UN1230-methanol", findings: ["row_chosen_by_class"] });
+  });
+  it("UN2922 'Corrosive liquids, toxic, n.o.s.' resolves printed as 8 (6.1), 8(6.1), CLASS 8 (6.1) and 8 alone; never with a subsidiary the table does not list", () => {
+    for (const cls of ["8 (6.1)", "8(6.1)", "CLASS 8 (6.1)", "Class 8(6.1)", "8"]) {
+      expect(resolve({ idText: "UN2922", psn: "Corrosive liquids, toxic, n.o.s.", hazardClass: cls, pg: "III" }), cls).toMatchObject({ ok: true, entryId: "UN2922-corrosive-liquids-toxic-n-o-s" });
+    }
+    expect(resolve({ idText: "UN2922", psn: "Corrosive liquids, toxic, n.o.s.", hazardClass: "8 (3)", pg: "III" })).toMatchObject({ ok: false, reason: "class_mismatch" });
+    expect(resolve({ idText: "UN2922", psn: "Corrosive liquids, toxic, n.o.s.", hazardClass: "6.1 (8)", pg: "III" })).toMatchObject({ ok: false, reason: "class_mismatch" });
   });
   it("UN1202 with NO psn is ambiguous — three different products share the id (not D/I variants)", () => {
     expect(resolve({ idText: "UN1202" })).toMatchObject({ ok: false, reason: "psn_ambiguous" });

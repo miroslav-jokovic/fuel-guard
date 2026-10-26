@@ -138,3 +138,9 @@ Same eight steps, same day. There is no shortcut path: a rushed dataset that ski
 source is exactly the failure mode this pipeline exists to prevent. If a PHMSA amendment is
 effective-imminent, capture (step 1), transcribe only the affected in-scope rows (step 3), and run
 the gate — the bounded scope keeps the human step to hours, not days.
+
+**Subsidiary classes are derived, not transcribed (D-PC1, 2026-10-26).** `subsidiaryClasses` on every entry is
+column (6)'s label codes beyond the primary class (`src/subsidiaryClasses.ts`): the assembler writes it on every
+cut from here on, and `loadDataset()` fills it on the cuts already shipped (2026.02 … 2026.12.0), whose files carry
+the label codes per row and an empty list on every entry. A cut whose file carries a non-empty list keeps it. The
+attestation covers the label codes; the derivation is pure and tested over every entry (`subsidiaryClasses.test.ts`).

@@ -7,6 +7,7 @@ import raw2026120 from "../datasets/2026.12.0.json" with { type: "json" };
 import rawReferenceText from "../datasets/referenceText.json" with { type: "json" };
 import rawInterpretations from "../datasets/interpretations.json" with { type: "json" };
 import { parseDataset, type Dataset } from "./schema.js";
+import { withSubsidiaryClasses } from "./subsidiaryClasses.js";
 import { parseReferenceStore, type ReferenceStore } from "./referenceText.js";
 import { parseInterpretations, type InterpretationsFile } from "./interpretations.js";
 
@@ -21,6 +22,7 @@ export * from "./schema.js";
 export * from "./matchRecords.js";
 export * from "./resolve.js";
 export * from "./resolveLine.js";
+export * from "./subsidiaryClasses.js";
 export * from "./securityPlan.js";
 export * from "./safetyPermit.js";
 // Reference text (D12) is a SEPARATE export from the Dataset — display + audit only, never the engine.
@@ -58,6 +60,16 @@ export function listDatasetVersions(): string[] {
 }
 
 export function loadDataset(version: string = LATEST_DATASET_VERSION): Dataset {
+  // D-PC1: the cuts shipped before 2026-10-26 carry label codes per row and an empty subsidiaryClasses on
+  // every entry; the field is derived here so no cut has to be re-minted to carry it (subsidiaryClasses.ts).
+  return withSubsidiaryClasses(loadDatasetAsCut(version));
+}
+
+/**
+ * The cut's file exactly as it was minted — validated, nothing derived. The content checksum attests THIS
+ * (`import/buildDataset.ts` `verifyChecksum`); `loadDataset()` is what every consumer reads.
+ */
+export function loadDatasetAsCut(version: string = LATEST_DATASET_VERSION): Dataset {
   const raw = RAW[version];
   if (!raw) {
     throw new Error(

@@ -354,3 +354,17 @@ change that would let pass A see more than 1.2 MP.
   corpus resolutions for Q-PC5. Recommendations unchanged in direction, sharpened in rule: the missing-subsidiary
   case follows §172.402, the paper grouping uses the OCR's numbers under the two-witness rule, the upload path
   warns on small pages.
+- **2026-10-26 — PC1 built (owner: "build PC1").** `@hazmat/data` `subsidiaryClasses.ts`: one derivation from column
+  (6)'s label codes, used by the assembler and by `loadDataset()` for the shipped cuts (561 entries on 2026.07.1;
+  the eCFR's "8.6.1", "6.1. 4.1" and "Empty" cells read for what they say). `resolveHmtLine` (normalizer 1.4.0):
+  "Class"/"Division" may precede the numbers ((a)(3)(i)), a Class 1 division keeps its compatibility group inside
+  the parentheses, and where same-name rows differ only in their subsidiaries the exactly printed row is chosen
+  (`row_chosen_by_class`, D-RC4) — UN1230 Methanol "3" is the D row, "3 (6.1)" the I row; UN2031 nitric acid
+  "8, PG I" still goes by PG. RC1 census now runs every entry × four class printings with a guard of >550
+  entries carrying a subsidiary; RC5 golden census prints the real class, gains the same guard and a defect
+  "a subsidiary class the table does not list"; placard census gains §172.505(b) over every 4.3-subsidiary
+  entry (13) and a segregation invariant over every subsidiary × restricted class (>100 pairs); engine 0.21.0,
+  acceptance rule 13; `lint:reader-gate` pins the guard. **Replay of the nine stored reads:** Henkel a4119634
+  4 of 4 lines with products (was 2), 0 waiting (was 2), 0 "wrong" (was 2), CORROSIVE + OXIDIZER; the other
+  eight unchanged in every status (relaxed 0, tightened 0); PureTech's five "3, 8" lines still refused — that
+  is PC2 — and its sentence now reads "where the table says 3 (8)". Needs a release.

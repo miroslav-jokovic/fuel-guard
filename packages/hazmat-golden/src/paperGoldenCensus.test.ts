@@ -196,6 +196,12 @@ const DEFECTS: Defect[] = [
     make: (p) => reprint(p, { pg: null }),
   },
   {
+    // §172.202(a)(3) with PHMSA 05-0282: a subsidiary the table's column (6) does not list is a wrong class.
+    name: "a subsidiary class the table does not list", owner: "paper_class_pg_match", reasons: ["class_or_pg_wrong"],
+    applies: ({ e }) => e.hazardClass != null && !e.subsidiaryClasses.includes("9") && !/^1\./.test(e.hazardClass),
+    make: (p, { e }) => reprint(p, { cls: `${e.hazardClass} (${[...e.subsidiaryClasses, "9"].join(", ")})` }),
+  },
+  {
     name: "another hazard class", owner: "paper_class_pg_match", reasons: ["class_or_pg_wrong"],
     // Every row, UN0190 included: its table entry gives no class, but a class outside Class 1 is still wrong.
     make: (p, { e }) => reprint(p, { cls: e.hazardClass === "8" ? "3" : "8" }),
@@ -286,6 +292,10 @@ for (const version of VERSIONS) {
 
     it("covers the whole table", () => {
       expect(c.rows.length).toBeGreaterThan(2_900);
+      // The vacuity guard (D-PC1): until 2026-10-26 no entry carried a subsidiary, so every golden paper printed the
+      // primary class alone and the parenthesised form §172.202(a)(3) requires was never on any paper here.
+      expect(c.rows.filter((r) => r.e.subsidiaryClasses.length > 0).length).toBeGreaterThan(550);
+      expect(c.rows.filter((r) => /\(/.test(classText(r.e) ?? "")).length).toBeGreaterThan(550);
       expect(c.rows.filter((r) => r.e.symbols.includes("G")).length).toBeGreaterThan(200);
       expect(c.rows.filter((r) => r.rqListed === "neat").length).toBeGreaterThan(150);
       expect(c.rows.filter((r) => r.mp).length).toBeGreaterThan(100);

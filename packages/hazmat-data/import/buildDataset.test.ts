@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { FIRST_VERSION_WITH_GROUP_FLAG, assembleDataset, compareDatasetVersions, cutDataset, datasetChecksum, entriesForVersion, verifyChecksum } from "./buildDataset.js";
 import { capturedEcfrDate } from "./govinfoCrossCheck.js";
-import { LATEST_DATASET_VERSION, listDatasetVersions, loadDataset } from "../src/index.js";
+import { LATEST_DATASET_VERSION, listDatasetVersions, loadDataset, loadDatasetAsCut } from "../src/index.js";
 import { parseDataset, type HmtEntry } from "../src/schema.js";
 
 function fuelEntry(over: Partial<HmtEntry> = {}): HmtEntry {
@@ -118,8 +118,18 @@ describe("a cut names the eCFR text it was cut from", () => {
 describe("the registered datasets are the files their cuts wrote", () => {
   it("every registered dataset's stored checksum matches its content (no hand edit since its cut)", () => {
     for (const v of listDatasetVersions()) {
-      const ds = loadDataset(v);
+      // The checksum attests the file as minted; what consumers load adds the derived subsidiary classes (D-PC1).
+      const ds = loadDatasetAsCut(v);
       if (ds.checksum) expect(verifyChecksum(ds), v).toBe(true);
+    }
+  });
+
+  it("what consumers load is the minted file plus the derived subsidiary classes, and nothing else", () => {
+    for (const v of listDatasetVersions()) {
+      const cut = loadDatasetAsCut(v);
+      const loaded = loadDataset(v);
+      expect(loaded.entries.map((e) => ({ ...e, subsidiaryClasses: [] }))).toEqual(cut.entries.map((e) => ({ ...e, subsidiaryClasses: [] })));
+      expect({ ...loaded, entries: [] }).toEqual({ ...cut, entries: [] });
     }
   });
 

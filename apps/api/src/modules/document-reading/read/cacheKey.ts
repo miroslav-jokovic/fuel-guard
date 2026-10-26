@@ -58,8 +58,10 @@ import { createHash } from "node:crypto";
  *   12   — 2026-10-21, Q-RC7: where the readers split on a line's UN/NA number, the OCR and the text layer record the
  *          reading the page settles — the table fits it and not the other, and the line's own printed row shows it
  *          (idWitness.ts) — and the paper audit judges the line as that number.
+ *   13   — 2026-10-26, D-PC1: the table carries its subsidiary classes (column 6), so a line printed "8 (6.1)" resolves
+ *          where 12 refused it (normalizer 1.4.0: the printed class picks the exactly printed row, "Class" may precede).
  */
-export const ACCEPTANCE_RULE_VERSION = "12";
+export const ACCEPTANCE_RULE_VERSION = "13";
 
 export interface CacheKeyInput {
   profileVersion: string;

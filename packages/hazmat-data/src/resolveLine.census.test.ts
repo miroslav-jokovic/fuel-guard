@@ -16,7 +16,6 @@ import type { HmtEntry, PackingGroup } from "./schema";
 const dataset = loadDataset();
 const index = buildDatasetIndex(dataset);
 
-const classText = (e: HmtEntry) => (e.subsidiaryClasses.length ? `${e.hazardClass} (${e.subsidiaryClasses.join(", ")})` : e.hazardClass);
 
 /** A word printed in the singular: "liquids" → "liquid", leaving words whose -s is not a plural ("gas", "acids'" stem aside). */
 const singular = (name: string) => name.split(" ").map((w) => w.replace(/^([A-Za-z]{3,}[^sui])s(,?)$/, "$1$2")).join(" ");
@@ -38,6 +37,22 @@ function printings(e: HmtEntry, name: string): Array<{ kind: string; idText: str
   return out;
 }
 
+/**
+ * Every way §172.202(a)(3) lets the class be printed (D-PC1, 2026-10-26): the primary with its subsidiaries in
+ * parentheses, with or without the space, with "Class" in front ((a)(3)(i)), and the primary alone — which the
+ * rule allows where no subsidiary label is required, and which the matcher must accept in every case because
+ * whether the label is required is the audit's question, not the table's. Before 2026-10-26 every entry's
+ * subsidiary list was empty, so this census printed the primary alone for all 2,479 entries and never met
+ * "8 (6.1)": the Henkel and PureTech BOLs were refused on every line (PLACARD-CALCULATOR-RELIABILITY-PLAN §2.2).
+ */
+function classPrintings(e: HmtEntry): Array<string | null> {
+  const primary = e.hazardClass;
+  if (primary == null) return [null];
+  if (e.subsidiaryClasses.length === 0) return [primary];
+  const subs = e.subsidiaryClasses.join(", ");
+  return [`${primary} (${subs})`, `${primary}(${e.subsidiaryClasses.join(",")})`, `CLASS ${primary} (${subs})`, primary];
+}
+
 /** The bare number cannot say which key space it is in when the other one holds the same name. */
 function otherSpaceHoldsName(e: HmtEntry, psn: string): boolean {
   const other = index.byId.get(`${e.idPrefix === "UN" ? "NA" : "UN"}${e.idNumber}`) ?? [];
@@ -50,15 +65,18 @@ function otherSpaceHoldsName(e: HmtEntry, psn: string): boolean {
  * alternate — rows printing one name with one class and PG are what the paper cannot tell apart), the same
  * class and subsidiaries, and the printed PG.
  */
-function isThisRow(e: HmtEntry, name: string, pg: PackingGroup | null, entryId: string, resolvedPg: PackingGroup | null): boolean {
+function isThisRow(e: HmtEntry, name: string, cls: string | null, pg: PackingGroup | null, entryId: string, resolvedPg: PackingGroup | null): boolean {
   const got = dataset.entries.find((x) => x.entryId === entryId);
   if (!got) return false;
   const n = normalizePsnForMatch(name, false);
+  // A paper that prints the primary alone cannot tell a row from its same-name row that differs only in a
+  // subsidiary (UN1230 Methanol D "3" / I "3 (6.1)"): the row printed exactly is the right pick (classExact).
+  const printedSubs = cls != null && cls.includes("(");
   return (
     got.idPrefix === e.idPrefix && got.idNumber === e.idNumber &&
     [got.psnPrinted, ...got.psnAlternates].some((a) => normalizePsnForMatch(a, false) === n) &&
     got.hazardClass === e.hazardClass &&
-    got.subsidiaryClasses.slice().sort().join() === e.subsidiaryClasses.slice().sort().join() &&
+    (got.subsidiaryClasses.slice().sort().join() === e.subsidiaryClasses.slice().sort().join() || (!printedSubs && got.subsidiaryClasses.length === 0)) &&
     resolvedPg === pg
   );
 }
@@ -70,12 +88,12 @@ describe("the table census — every entry, every legal printing (RC1)", () => {
   for (const e of dataset.entries) {
     for (const row of e.pgRows) {
       for (const name of [e.psnPrinted, ...e.psnAlternates]) {
-        for (const p of printings(e, name)) {
+        for (const p of printings(e, name)) for (const cls of classPrintings(e)) {
           tried++;
-          const r = resolveHmtLine(index, { idText: p.idText, psn: p.psn, hazardClass: classText(e), pg: row.pg });
-          const what = `${p.kind}: ${p.idText} | ${p.psn} | ${classText(e)} ${row.pg ?? ""}`;
+          const r = resolveHmtLine(index, { idText: p.idText, psn: p.psn, hazardClass: cls, pg: row.pg });
+          const what = `${p.kind}: ${p.idText} | ${p.psn} | ${cls} ${row.pg ?? ""}`;
           if (r.ok) {
-            if (!isThisRow(e, name, row.pg, r.entryId, r.pg)) wrong.push(`${what} → ${r.hmtRef}`);
+            if (!isThisRow(e, name, cls, row.pg, r.entryId, r.pg)) wrong.push(`${what} → ${r.hmtRef}`);
           } else if (!(p.kind === "bare number" && r.reason === "id_prefix_ambiguous" && otherSpaceHoldsName(e, name))) {
             refused.push(`${what} → ${r.reason}`);
           }
@@ -87,6 +105,8 @@ describe("the table census — every entry, every legal printing (RC1)", () => {
   it("covers the whole table", () => {
     expect(dataset.entries.length).toBeGreaterThan(2000);
     expect(tried).toBeGreaterThan(20000);
+    // The vacuity guard: a dataset whose entries carry no subsidiary makes the class printings a single string.
+    expect(dataset.entries.filter((e) => e.subsidiaryClasses.length > 0).length).toBeGreaterThan(550);
   });
 
   it("never resolves a printing to another row of the table", () => {
