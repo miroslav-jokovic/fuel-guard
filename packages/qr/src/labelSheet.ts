@@ -142,19 +142,27 @@ export const LABEL_PRESETS: Record<LabelPresetId, LabelPreset> = {
    * the page and there are no margins.
    *
    * Unlike the four above, this is OUR definition rather than a vendor template, so there is no
-   * published geometry to check it against. The 2" media size is the assumption; it is the one
-   * preset A5 can invalidate, and the label screen says so.
+   * published geometry to check it against. The 2" media size was the assumption, and A5 answered
+   * it on 2026-10-27: the shop bought a MUNBYN direct-thermal printer and 2" × 2" rolls on a 1" core,
+   * so the geometry stands exactly as first written (DRIVER-EQUIPMENT-AND-UNIT-TAGS-PLAN.md §1.1).
+   *
+   * What did NOT stand is the material sentence. It used to describe photo-anodized aluminium —
+   * the right answer for a truck, and not the stock this preset prints on. Direct-thermal paper
+   * darkens wherever it gets hot and fades in daylight, so a cab dash or a trailer's skin ruins it
+   * within a season; the sentence is shown beside the picker (LabelStockControls.vue) at the moment
+   * it can still change where a label goes (D-DE7). The id is unchanged because a saved choice and
+   * every sheet request name it.
    */
   "roll-single": {
     id: "roll-single",
-    name: "Roll — 2\" square, one per feed",
+    name: "Roll — 2\" × 2\" direct thermal (label printer)",
     sheet: { width: inches(2), height: inches(2) },
     label: { width: inches(2), height: inches(2) },
     margin: { left: 0, top: 0 },
     pitch: { x: inches(2), y: inches(2) },
     columns: 1,
     rows: 1,
-    material: "Photo-anodized aluminium for truck items — near exhaust and under a pressure washer, paper and film both fail.",
+    material: "Direct-thermal paper. Indoors only — shelves, bins, the tool crib, a tablet's back. Heat and sunlight blacken or fade it, so never on a truck or trailer's outside.",
   },
 };
 

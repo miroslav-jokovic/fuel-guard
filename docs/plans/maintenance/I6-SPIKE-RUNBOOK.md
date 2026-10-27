@@ -96,6 +96,67 @@ The seven answers, and one sentence with your name — the same shape §3 asks f
 
 ---
 
+## 0a. The hardware that actually arrived (2026-10-27) — the office PC and the Android tablets
+
+**Added 2026-10-27 (`DRIVER-EQUIPMENT-AND-UNIT-TAGS-PLAN.md` DE0).** §0 was written for an iPhone
+and a scanner nobody had chosen yet. What arrived is a **Tera Pro** handheld (1D + 2D, with a screen
+and a charging cradle), a **MUNBYN direct-thermal** label printer and **2" × 2" rolls**, and the
+devices it will be used on are the **office PC** and a batch of **Android tablets**. §0's questions
+still stand; this section is the order to do them in on that hardware, and the two things the
+hardware adds.
+
+### Print one label (office PC)
+
+1. Install the MUNBYN driver from the maker's site. In the printer's preferences, add a paper size
+   of **2 × 2 in (50.8 × 50.8 mm)** if the driver does not already list one.
+2. Load a 2" roll. Print the driver's own test page first, so a printer fault is not mistaken for ours.
+3. Add one real thing: **Shop → Assets → New**, type **Tablet**, its serial number, held at the shop.
+   (If the Asset types list is empty, the Assets page offers the standard kit in one tap.)
+4. **Shop → Labels**, Assets, tick the tablet, stock **"Roll — 2" × 2" direct thermal"**, Print.
+5. In the print dialog: printer **MUNBYN**, paper **2 × 2 in**, margins **None**, scale
+   **Actual size / 100 %** — never "Fit". One label should come out with the QR centred.
+   If it is shifted the same amount every time, use the screen's X/Y nudge; if it drifts or shrinks,
+   the scale is not 100 %.
+
+### Scan it on the PC — the dongle
+
+Plug the scanner's **2.4 GHz USB dongle** into the PC. No pairing. Open **Shop → Scan** in the
+browser, touch nothing, scan the label. The tablet's card should open.
+
+### Scan it on an Android tablet — Bluetooth
+
+1. Put the scanner in **Bluetooth HID** (keyboard) mode — the setting barcode in its manual, or the
+   keypad menu on its screen. Not "SPP" and not the dongle mode.
+2. Android **Settings → Bluetooth → pair new device**; it should appear as a keyboard.
+3. Open **Shop → Scan** in Chrome, touch nothing, scan. Then **Add to Home screen** and repeat from
+   the installed icon. Android delivers a hardware keyboard to an unfocused page reliably; this is
+   still the line that proves it on these tablets.
+4. The on-screen keyboard: with a hardware keyboard connected Android hides it. Turn it back on in
+   **Settings → System → Keyboard → Physical keyboard → "Use on-screen keyboard"**, so "Type a code"
+   still works with the scanner paired.
+
+### ⚠ The check the hardware adds: the keyboard LAYOUT
+
+A HID scanner sends **key positions**, and the device turns them into characters using ITS keyboard
+layout. Our labels contain colons — `SIL1:AST:7K3M9P` — and on a non-US layout the colon key is a
+different character, so the scan arrives as `SIL1ÑAST…` and resolves to nothing. The reader reads
+`event.key` (`useScanInput.ts`), which is the character after the layout is applied, so it cannot
+correct this. **Both the scanner and every host must be US English**: the scanner's own "keyboard
+language" setting, and on Android **Physical keyboard → layout → English (US)**. The symptom of a
+wrong layout is *"Not a code we know"* for a label you just printed.
+
+### One host at a time
+
+The scanner connects to one device at a time: the dongle OR Bluetooth. Moving it from the PC to a
+tablet means unplugging the dongle (or switching mode) — note which mode each scanner is left in.
+
+### What to send back
+
+§0's seven answers, once for the PC and once for an Android tablet, plus: *did the printed 2" label
+scan first time* — which is I10's done-when, on the stock the shop actually owns.
+
+---
+
 ## 1. A1 — does the free decoder read our labels? (20 minutes, at a desk)
 
 **Why it gates anything.** D-INV23 already RULED the decoder: `vue-qrcode-reader` on
