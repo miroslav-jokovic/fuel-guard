@@ -1,0 +1,128 @@
+# Driver equipment, truck and trailer tags, and the hardware that arrived (2026-10-27)
+
+A companion to `INVENTORY-PLAN.md`, in the same way `FLEETPAL-INTEGRATION-PLAN.md` is: the inventory
+plan stays the record of I0–I13, and this document owns the three things the owner asked for on
+2026-10-27, the day the label printer and the handheld scanner arrived and a batch of Android tablets
+came in to be tagged.
+
+1. **Tablets follow the driver.** Every other piece of equipment stays with the truck or trailer.
+2. **Trucks and trailers carry a QR label too**, scanned through the same `/shop/scan` as everything else.
+3. **The hardware is answered** — A5 (printer and stock) and the scanner model — so I10 and §0 of the
+   I6 runbook can finally close on real devices.
+
+The owner's bar, recorded verbatim because every step below is measured against it: *"this system is
+user friendly and simple to use, but precise and reliable."*
+
+---
+
+## 1. Measured reality (2026-10-27, `origin/main`, migrations through 0521)
+
+| Fact | Where | Consequence |
+|---|---|---|
+| An asset's holder is a stock location, a vehicle or a trailer — three nullable FKs and a `<= 1` CHECK; **no `drivers` column anywhere** | `0333_inventory_assets.sql:15-22`, `:219` | Tablets need a fourth holder. D-INV3 is amended, not reinterpreted (D-DE1). |
+| `inventory_holder_is_ours(org, location, vehicle, trailer, active)` is the ONE org guard for every holder column, called from three triggers | `0333:79-107`, `:123`, `:300`, `:413` | A driver holder extends that function's question; it must not grow a second, parallel guard (D-DE2). |
+| `merge_driver_v2` reads its move list from `DRIVER_REASSIGNMENTS` in TypeScript, validated against `information_schema` before it writes | `apps/api/src/modules/roster/mergeDriver.ts:23`, `0264` | A `drivers` FK on `inventory_assets`/`asset_movements` is one list entry each, in the same PR as the column — `0234` is why: nine tables once lost their rows to a merge because nobody added them. |
+| `drivers.status` ∈ `applicant, active, inactive, on_leave, terminated` | `0240_driver_status_vocabulary.sql:23` | "Not returned" is derivable at read time from the holder's status; nothing is stored (D-DE3). |
+| **The standard tractor kit expects one Tablet** | `packages/shared/src/inventoryKitCatalogue.ts:81` | Moving tablets to drivers would make every tractor's kit check report its tablet missing. D-DE4 resolves it. |
+| `TAG_KINDS = ["AST", "BIN"]`; `tagContract.ts:46-48` already names `vehicle`/`trailer` as the next kinds; adding a kind is one resolver import (D-INV7) | `packages/shared/src/tagContract.ts:54`, `apps/api/src/tags/resolvers.ts` | Truck and trailer tags are a planned extension, not a new fabric (D-DE5). |
+| The QR encoder, label geometry, tag issuance, PDF sheet and `/shop/labels` screen are BUILT (I10 PR 1 + 2, #713/#715) | `packages/qr/`, `apps/api/src/modules/maintenance/inventory/labelPdf.ts`, `apps/web/src/pages/LabelsPage.vue` | "We may not have a QR generator" — we do. What is missing is units on it. |
+| The `roll-single` preset is a 2" × 2" label, one per feed — **exactly the stock bought** — but its `material` sentence says "photo-anodized aluminium" | `packages/qr/src/labelSheet.ts:148-158` | The geometry was a guess that turned out right; the sentence describes stock the shop does not own (D-DE7). |
+
+### 1.1 The hardware (A5 answered, 2026-10-27)
+
+| Item | What it is | What it means here |
+|---|---|---|
+| **MUNBYN Bluetooth thermal label printer** (4×6 class, grey) | **Direct thermal** — no ribbon; prints by darkening heat-sensitive paper. Bluetooth + USB; drivers for Windows, Mac, Android, iOS. | Prints the `roll-single` PDF from the office PC at **Scale 100 % / Actual size, paper 2 × 2 in**. |
+| **2" × 2" direct thermal labels, 1" core, 750/roll ×4** | Paper face, permanent adhesive | Right for shelves, bins, tool crib, the tablets' backs. **Wrong for a truck's or trailer's exterior** (D-DE7). |
+| **Tera Pro handheld, with screen** — 1D + 2D (QR), charging cradle | Connects by **Bluetooth**, a **2.4 GHz USB dongle**, or a **USB cable** — all three present as a keyboard (HID) | `/shop/scan` works unchanged on all three (#711's wedge reader). **It never uses Wi-Fi**; "same network" is not a mode it has. One host at a time. |
+| **Android tablets (new batch)** | — | The first Android run of the I6 runbook §0. Drivers' tablets (D-DE1). |
+
+**Which connection where.** Office PC → the **2.4 GHz dongle**: plug in, no pairing, survives a PC
+restart. Android tablet or phone in the shop → **Bluetooth**, paired in Android Settings as a keyboard.
+The cable is the fallback when a battery is flat.
+
+---
+
+## 2. Decisions
+
+| # | Decision | Source |
+|---|---|---|
+| **D-DE1** | **A tablet is held by a driver; every other asset is held by a unit or a location.** Amends D-INV3 for one class of thing and leaves it standing for everything else. Which assets may be held by a driver is a property of the **asset type** (`asset_types.held_by` ∈ `unit`, `driver`; default `unit`), not a list of names in code — the shop's own "Tablet" type is set to `driver`, and a second driver-issued thing later (a phone, a fuel-card holder) is a setting rather than a release. A driver-held asset can never also sit in a truck: the holder CHECK stays "at most one". | Owner 2026-10-27 |
+| **D-DE2** | **`inventory_holder_is_ours` learns a driver.** Re-issued with a `p_driver_id` argument (old signature dropped in the same migration, every caller re-issued), so "is the named holder this org's" keeps exactly one spelling. A DESTINATION driver must be `active` or `on_leave`; a `from_` driver need only be ours — the same asymmetry `p_active` already draws for bays. `move_asset` refuses a driver holder for a `held_by = 'unit'` type and a unit holder for a `held_by = 'driver'` type (`IV025`). | Follows from D-DE1 |
+| **D-DE3** | **"Not returned" is derived, never stored.** A driver-held asset whose holder's status is `terminated` or `inactive` reads as *not returned* — on the asset, on the driver's page, and as a count on the shop home. Returning it is an ordinary movement back to a stock location, which clears the flag by construction. No scheduler, no status column, nothing to fall out of date. `on_leave` keeps the tablet and is not flagged. | Owner 2026-10-27 ("flag not returned") |
+| **D-DE4** | **A tractor's kit counts its driver's tablet.** The kit check (I9) counts assets held by the unit, **plus** driver-held assets held by the unit's `vehicles.assigned_driver_id` — the same inference D-INV3 already uses to show the driver. So truck 654's "Tablet 1 of 1" stays true when the tablet is the driver's, and goes short when the truck has no driver or its driver has none. The kit catalogue line stays; nothing about kit expectations is migrated. | Resolves §1's conflict |
+| **D-DE5** | **Trucks and trailers get tag kinds `VEH` and `TRL`.** Codes live in a new maintenance-owned table, `unit_tags` (org, `vehicle_id` xor `trailer_id`, `tag_code`, issued_at) — **not** a column on `vehicles`/`trailers`, whose writers are the Samsara and McLeod syncs and whose `status` is already restated 17 times. A new table is exempt from the migration-ordering split, needs no `merge_driver` entry, and keeps the immutability rule `inventory_assets.tag_code` has (re-stamp refused, `IV022`). Scanning one opens the unit's page with its kit card — the "digital truck file" §2.10 named. | Owner 2026-10-27 ("trucks and trailers will have QR codes") |
+| **D-DE6** | **A unit's label reads as its unit number.** Big `654`, the QR, the six-character code below it. The unit number is what a person says out loud in the yard; the code is for the radio when the symbol is fogged (D-INV18's reasoning, applied to units). | D-INV18 |
+| **D-DE7** | **The label screen states what each stock survives.** `roll-single` is renamed for what the shop bought (*Roll — 2" square, direct thermal*) and its material sentence becomes the truth: indoor only — fades in sunlight, darkens in a closed cab's heat, so not on a cab dash or a trailer's skin. Units' labels default to a preset that warns until Q-DE2 is answered. | §1.1; A5 |
+| **D-DE8** | **Every action is one scan and at most one choice.** Give a tablet: scan → *Give to driver* → pick the driver → saved. Take one back: scan → *Return to shop* → saved. Truck: scan → its page. The owner's bar ("simple to use, but precise and reliable") is held by the same machinery the shop's verbs already use — client-generated movement ids (D-INV27) so a retried tap never moves a tablet twice, and the ledger as the only truth (D-INV4) so "who has tablet A-0412" always has a dated answer. | Owner 2026-10-27 |
+
+---
+
+## 3. Steps
+
+Numbered on from the inventory plan's I13; I14 moved to its own plan.
+
+### DE0 — Hardware check and the label fix — *no migration*
+- `roll-single` → name and material per D-DE7 (`labelSheet.ts`); the 2 × 2 geometry is unchanged.
+- I6 runbook §0 gains an **Android** column: the on-screen keyboard is hidden while a HID keyboard is
+  paired (Android: Settings → keyboard → *Show on-screen keyboard while physical keyboard is active*);
+  Chrome on Android does deliver keydown to an unfocused page, which is the question iOS left open.
+- **Done when (a person):** a 2 × 2 roll printed from `/shop/labels` on the MUNBYN scans back through
+  `/shop/scan` on the office PC (dongle) and on an Android tablet (Bluetooth), the tablet installed to
+  the home screen; §0's seven answers signed. **This also closes I10.**
+
+### DE1 — Driver-held assets: schema — *next-numbered migration*
+- `asset_types.held_by` (`unit`|`driver`, `not null default 'unit'`).
+- `inventory_assets.driver_id`, `asset_movements.from_driver_id` / `to_driver_id` → `drivers(id)`;
+  holder CHECKs widened to four columns, still `<= 1`.
+- `inventory_holder_is_ours` re-issued with the driver (D-DE2); `move_asset`, `rebuild_asset_holders`
+  and the three guards re-issued to pass it; `IV025` raised for the wrong kind of holder.
+- `DRIVER_REASSIGNMENTS` gains the three columns **in the same PR** (it is TS, validated against the
+  schema at call time — so it ships in DE2 behind its migration, and DE1's matrix proves a merge with
+  a driver-held tablet against the function directly).
+- Matrix: a tablet given, returned, refused to a truck, refused to another org's driver, refused to a
+  terminated driver; a chain refused to a driver; append-only still holds.
+
+### DE2 — Driver-held assets: API and screens — *no migration*
+- Verbs `give` (to an active driver) and `return` (to a stock location) through `move_asset`; the
+  Assets drawer offers *Give to driver* only for a `held_by = 'driver'` type (read from the type,
+  never from the name).
+- Driver page: an **Equipment** card — the tablet, its tag, since when, and the *Not returned* badge.
+- Shop home: a *Tablets not returned* tile, counted server-side (never a page total — the I0–I3
+  audit's third defect).
+- `/shop/scan`: a driver-held tablet's card names the driver and offers *Return to shop*.
+- Kit check counts the assigned driver's tablet (D-DE4).
+- Asset Types drawer: the *Held by* setting; the Tablet type set to `driver` once, by the owner.
+
+### DE3 — Unit tags: schema — *next-numbered migration (new table)*
+- `unit_tags` per D-DE5, RLS enabled, no client policy; immutable `tag_code`; one tag per unit.
+
+### DE4 — Unit tags: issuance, resolver, labels — *no migration*
+- `VEH`/`TRL` in `TAG_KINDS`; two resolvers; issuance on `tagIssuance.ts`'s model.
+- `/shop/labels`: a third segment, **Trucks & trailers**, picking by unit number; the face per D-DE6.
+- Scanning a unit tag opens the vehicle page (trailers: Q-DE3).
+
+---
+
+## 4. Open questions
+
+| # | Question | Candidates | Recommendation |
+|---|---|---|---|
+| **Q-DE1** | Does a driver sign when given a tablet? | (a) No signature — Q7 stands; a dispute gets an `esign_consents`-shaped acknowledgement on the movement row. (b) A tap-to-acknowledge in the driver app at handover. (c) A paper form scanned into the driver file. | **RULED 2026-10-27: none in the product.** Drivers already sign a paper hand-receipt for a tablet; the paper is the signature and the dated movement row is ours. No signature step is built. |
+| **Q-DE2** | What goes on the OUTSIDE of a truck or trailer? | (a) Inside the cab (door jamb) on the direct-thermal roll — cheapest, fades within months. (b) **Pre-printed vinyl or aluminium QR plates from a vendor**, printed from our PDF, priced per plate for ~450 units (not yet quoted). (c) A thermal-TRANSFER printer with polyester labels (~$300 printer + ribbon). | **DEFERRED 2026-10-27: (b), ordered later by the owner.** Nothing is built for it: a vendor prints from the same PDF DE4 produces. Until then no unit label goes outside. |
+| **Q-DE3** | Where does a scanned trailer land? There is **no trailer detail page** (`/trailers` is a list — inventory plan, I9 findings). | (a) A trailer detail page with its kit card. (b) The trailer list filtered to it. | **DEFERRED 2026-10-27: (a), planned separately later.** The owner will plan the truck and trailer pages on their own; DE3–DE4 wait for that plan. |
+
+---
+
+## 5. Progress log
+
+- **2026-10-27 — plan written.** Owner rulings: tablets follow the driver, everything else the truck;
+  a departed driver's tablet is flagged *not returned*; the tablets are Android; trucks and trailers
+  get QR labels; everything is tagged. Hardware per §1.1.
+- **2026-10-27 — owner answered Q-DE1–3 and set the order.** Q-DE1: drivers already sign a paper
+  receipt, so nothing is built. Q-DE2 and Q-DE3: deferred — exterior plates are ordered later, and
+  the truck and trailer pages get their own plan. **DE3–DE4 are parked behind that plan.** The order
+  now: **DE0** (the printer and scanner working on the PC and the Android tablets), then a
+  production-readiness pass over the inventory section as built (I0–I10), then **DE1–DE2** (tablets
+  held by drivers). The owner's words: *"focus on implementing these devices and making sure our
+  inventory is 100 % production ready."*
