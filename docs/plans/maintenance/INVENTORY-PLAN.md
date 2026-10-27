@@ -10,6 +10,12 @@ They are one plan because they share a single tag namespace and a single scan th
 technician holding a phone does not know, and must not need to know, whether the code on the object in
 their hand belongs to "shop inventory" or "truck inventory". One scan, one answer.
 
+> **2026-10-27 — the owner separated them.** Shop inventory is **pulled from FleetPal**; truck inventory
+> is **Silvicom's alone** and is now carried by `DRIVER-EQUIPMENT-AND-UNIT-TAGS-PLAN.md` (its §0 has the
+> table of which tables, tags and screens belong to which). The single scan above still holds — it is
+> the shared doorway — but the two are planned, prioritised and answered separately from here on.
+> D-INV6 is superseded; what is left of D-INV10 is the FleetPal plan's to decide.
+
 Both land inside the existing `maintenance` module (`apps/api/src/modules/maintenance/`), under the
 existing `maintenance` section, in the existing sidebar group, used by the existing `technician` role.
 Nothing about the permission surface is new (§1.1).
@@ -224,7 +230,7 @@ prefix is alphabetic, a UPC is digits.
 | **D-INV3** | **Truck inventory belongs to the unit.** An asset's holder is a vehicle, a trailer, or a stock location — never a person. The driver is shown by inference from `vehicles.assigned_driver_id` at read time. No handover, no signature. | Owner 2026-09-08; **amended 2026-10-27 for tablets only — a tablet is held by a driver (`DRIVER-EQUIPMENT-AND-UNIT-TAGS-PLAN.md` D-DE1)** |
 | **D-INV4** | **A quantity is derived from the ledger.** `part_movements` is the truth; `part_stock.quantity_on_hand` is a projection maintained by the RPC; a count is a movement with a variance taken at count time. | §2.2 |
 | **D-INV5** | **A part is issued to a vehicle or trailer with a reason.** No work-order table. Issue rows carry unit, reason, date, cost and a nullable `work_order_ref`. | Owner 2026-09-08 |
-| **D-INV6** | **Silvicom builds its own shop inventory; the bar is that it is easier to use than FleetPal's.** | Owner 2026-09-08 |
+| **D-INV6** | ~~**Silvicom builds its own shop inventory; the bar is that it is easier to use than FleetPal's.**~~ **SUPERSEDED 2026-10-27:** shop inventory is pulled from FleetPal (`DRIVER-EQUIPMENT-AND-UNIT-TAGS-PLAN.md` §0). Truck inventory remains Silvicom's own. | Owner 2026-09-08; superseded by the owner 2026-10-27 |
 | **D-INV7** | **One opaque id per tag; one product-wide resolve endpoint.** `GET /api/tags/resolve?code=` parses with `parseTag`, dispatches to the resolver the owning module registered, returns a discriminated union; a non-tag string is tried as a UPC. The registry is `apps/api/src/tags/` (`registry.ts`, `resolvers.ts` importing each module's resolver, `routes.ts` mounted in `app.ts`) on the queue fabric's model. Adding a kind is one import line. | §2.10 |
 | **D-INV8** | **Inventory photos are a private bucket, `inventory-photos`, with no `storage.objects` policy.** Created in I2's migration on 0146's `insert into storage.buckets` pattern. Uploads go through the API (service role); reads are signed URLs (`modules/evidence/compliance.ts:186`, TTL 300 s, `createSignedUrls` batched). | §1.2, §1.3 |
 | **D-INV10** | **Silvicom owns the shelf; FleetPal owns the repair job.** On-hand, location, reorder, counts, asset identity and kits are ours; the work order and what it consumed are FleetPal's; `work_order_ref` ties them by reference. | §2.7; Q1 |

@@ -757,6 +757,13 @@ schedule shows nothing rather than zero.
 
 ### F12 — The parts catalogue sync — *next-numbered migration*
 
+> **2026-10-27 — owner ruling: shop inventory comes from FleetPal.** This step is how the shop's parts
+> get in — there is no CSV import and no one-at-a-time entry at scale planned elsewhere. It was asked
+> as Q-DE4 in `DRIVER-EQUIPMENT-AND-UNIT-TAGS-PLAN.md` by mistake and moved here (that plan's §0 draws
+> the line: truck inventory is Silvicom's alone and never synced). Whether FleetPal also supplies
+> quantities and locations — and so what remains of `INVENTORY-PLAN.md` D-INV10 — is this plan's to
+> settle before F12 is built.
+
 `parts` gains `fleetpal_id` (nullable, unique per org where not null) — an **additive column on a
 maintenance-owned table**, so it ships in a `maintenance` PR, and the sync calls `createPart` /
 `updatePart` (D-FP2). Also needs a unit-of-measure mapping: ours is 8 values (`each`…`pound`),
