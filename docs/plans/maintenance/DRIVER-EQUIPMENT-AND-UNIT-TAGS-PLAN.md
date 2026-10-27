@@ -114,7 +114,41 @@ Numbered on from the inventory plan's I13; I14 moved to its own plan.
 
 ---
 
-## 5. Progress log
+---
+
+## 6. Production readiness of the inventory as built (audit 2026-10-27)
+
+Production on 2026-10-27: 1 stock location, **0 parts, 0 asset types, 0 assets, 0 tags printed**, and
+**4 unit checks left open on one truck** (opened 09-10 ×2, 10-15, 10-19, none closed). Permissions
+are right (`admin`/`fleet_manager`/`technician` manage; `auditor`/`accountant` view) and every
+movement is idempotent (one client id per drawer, D-INV27). The tablet path works end to end. What
+does not hold up for daily use, each verified at the call site:
+
+| # | Finding | Evidence | Fix | Step |
+|---|---|---|---|---|
+| **R1** | **No way to load a parts catalogue except one part at a time** — three screens each. No CSV import; the FleetPal parts pull (F12) is not built. | `PartsPage.vue:72`; `FLEETPAL-INTEGRATION-PLAN.md` F12 | Q-DE4 | PR-R4 |
+| **R2** | **Scanning the same label twice does nothing** — the query key is the code, so an unchanged code never asks again; the second scan shows the old quantity, and after a wifi failure a re-scan leaves the error up. Contradicts `useScan.ts:16-21`'s own promise. | `ScanPage.vue:66-68`, `useScan.ts:25` | A scan counter in the key | PR-R1 |
+| **R3** | **A misread tag offers "Create a part with this barcode"** — a colon lost to a keyboard layout (`SIL1;BIN;…`) or a tablet's IMEI barcode becomes a part's UPC. | `ScanResultCard.vue`, `PartForm.vue` `initialUpc` | Never offer create for a `SIL1`-shaped string; say "label misread — check the scanner's keyboard layout" | PR-R1 |
+| **R4** | **Typing the code printed under a QR finds nothing** — the resolver takes only a full `SIL1:` tag or a UPC, so a fogged label read aloud is "Not recognised". | `tags/routes.ts:58-87` | Resolve a bare 6-character code and an `A-0412` display number | PR-R1 |
+| **R5** | **A database error during a scan reads as "not our label".** | `tagResolvers.ts:13,25` → `routes.ts:70` | An error with Retry, never `unknown_tag` | PR-R1 |
+| **R6** | **The Labels screen forgets the stock and defaults to Avery 22805** — a forgotten switch sends a Letter page to the thermal printer; for the roll it still shows "Start at position 1 to 1" and sheet advice. | `LabelsPage.vue:65`, `LabelStockControls.vue:89-131` | Remember the choice; hide sheet-only controls for a one-label stock | PR-R2 |
+| **R7** | **No "Print label" on an asset's page**, though the Labels screen already takes `?asset=`. | `LabelsPage.vue:149-159` | The button | PR-R2 |
+| **R8** | **The same serial number can be entered twice** — two records, two labels, one tablet. | `0333:234` (plain index) | Partial unique index per org on a non-empty serial | PR-R3 (migration) |
+| **R9** | **Open checks can't be found or closed**; "Check this unit" always opens a new one. | `UnitDetailPage.vue:75-83`; `useCountSessionsQuery` unused | Resume the open check for that unit; an "Open counts" list with Close | PR-R2 |
+| **R10** | **Adopting the standard kit marks every unit "short"** for weeks while tagging is under way. | `inventoryRules.ts:122`, `inventoryKitCatalogue.ts:78-95` | Count only units checked at least once, and say so on the tile | PR-R2 |
+| **R11** | Tab-terminated scans into the "Type a code" field are lost; the keyboard hint is iOS-only. | `ScanPage.vue:149` | Submit on Tab; Android wording | PR-R1 |
+| **R12** | Issue/Receive/Create show to view-only roles, who then get a 403. | `ScanResultCard.vue` | Gate on the section's manage | PR-R1 |
+| **R13** | `part_stock.tag_code` has no immutability trigger (owed since I10). | `0331:188`; `tagIssuance.ts:116` | The trigger `inventory_assets` has | PR-R3 (migration) |
+
+**Order:** PR-R1 (scan) and PR-R2 (labels, checks, kit tile) need no migration and make the devices
+reliable; PR-R3 is one migration; PR-R4 waits on Q-DE4. **DE0's physical check** (§3) is the proof
+none of this replaces — the scanner on an Android tablet, and a printed roll label scanned back.
+
+| # | Question | Candidates | Recommendation |
+|---|---|---|---|
+| **Q-DE4** | How does the parts catalogue get in? | (a) The FleetPal parts pull (F12) — the shop already keeps its catalogue in FleetPal; recurring, no re-typing. (b) A CSV import. (c) Both. | **(a)** — FleetPal is where the catalogue lives (A3); a CSV is a second copy that goes stale. |
+
+## 7. Progress log
 
 - **2026-10-27 — plan written.** Owner rulings: tablets follow the driver, everything else the truck;
   a departed driver's tablet is flagged *not returned*; the tablets are Android; trucks and trailers
@@ -126,3 +160,6 @@ Numbered on from the inventory plan's I13; I14 moved to its own plan.
   production-readiness pass over the inventory section as built (I0–I10), then **DE1–DE2** (tablets
   held by drivers). The owner's words: *"focus on implementing these devices and making sure our
   inventory is 100 % production ready."*
+- **2026-10-27 — production-readiness audit (§6).** R1–R13: tablets work end to end, a parts
+  catalogue cannot be loaded at scale, and the scan screen has four reliability defects. Next: PR-R1,
+  then PR-R2.
