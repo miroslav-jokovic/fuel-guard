@@ -90,14 +90,18 @@ jobs:
 
       # ── Which platform serves this host (AWS-MIGRATION-PLAN AWS10/AWS11) ─────────────────────────
       # Cutover is a DNS change, so the host is asked, not a variable: /api/version's `deploymentId` is
-      # RAILWAY_DEPLOYMENT_ID, set only on Railway. A host that does not answer counts as Railway, so
-      # the step below behaves exactly as it did before AWS existed.
+      # RAILWAY_DEPLOYMENT_ID, set only on Railway. Only a host that ANSWERS with one is Railway; one
+      # that does not answer is `aws`, the stricter answer, as in release.yml's "Who serves production"
+      # (2026-10-27). Before, an unanswering host counted as Railway — and since jq prints nothing for
+      # an empty body, `|| echo` never fired either — so a production host that was down during a
+      # docs-only release took Railway's path filter below and "passed" without being asked.
       - name: Which platform serves the ${{ matrix.host }} host?
         id: platform
         env:
           TARGET_URL: ${{ vars[format('{0}{1}', env.URL_PREFIX, matrix.url_var)] }}
         run: |
-          p=$(curl -sS --max-time 15 "${TARGET_URL%/}/api/version" | jq -r 'if .commit and (.deploymentId | not) then "aws" else "railway" end' 2>/dev/null || echo railway)
+          p=$(curl -sS --max-time 15 "${TARGET_URL%/}/api/version" | jq -r 'if .commit and .deploymentId then "railway" else "aws" end' 2>/dev/null || true)
+          [ "$p" = railway ] || p=aws
           echo "platform=$p" >> "$GITHUB_OUTPUT"
           echo "${TARGET_URL} is served by ${p}."
 

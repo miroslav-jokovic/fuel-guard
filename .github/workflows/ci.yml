@@ -480,9 +480,10 @@ jobs:
           key: playwright-${{ runner.os }}-${{ hashFiles('apps/web/package.json') }}
 
       # `--with-deps` installs Chromium's system libraries with apt, which only exists on Linux; macOS
-      # already has what Chromium needs.
+      # already has what Chromium needs. Time-boxed and retried (scripts/install-chromium.sh): it hung
+      # ~40 min twice on 2026-10-27, holding a cutover release that was waiting on main's CI.
       - name: Install Chromium
-        run: pnpm --filter @silvicom/web exec playwright install ${{ runner.os == 'Linux' && '--with-deps' || '' }} chromium
+        run: bash scripts/install-chromium.sh "${{ runner.os == 'Linux' && '--with-deps' || '' }}"
 
       - name: The applicant's page in a browser
         run: pnpm --filter @silvicom/web e2e:apply
