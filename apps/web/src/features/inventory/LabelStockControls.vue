@@ -33,6 +33,14 @@ import type { LabelPresetDto } from "@/features/inventory/useLabels";
  * laminate is what survives a bin, and that anything on a truck wants photo-anodized aluminium. The
  * only moment that advice is worth anything is while somebody is choosing what to print onto, which
  * is this control and no other.
+ *
+ * ── A ROLL IS NOT A SHEET, AND THE CONTROLS SAY SO (R6, 2026-10-27) ───────────────────────────
+ * The shop's printer is a direct-thermal roll: every label is its own page. "Start at position 1 to
+ * 1" was a field with one legal value, and "choose Labels as the paper type … drift further down the
+ * page" was advice for a page that does not exist. For a one-label stock the start position is gone
+ * and the print-dialog advice names what a label printer's driver actually asks for — the paper size,
+ * no margins, actual size. The nudge stays: a roll printer's registration can be off by a constant
+ * exactly as a laser's can.
  */
 
 const props = defineProps<{
@@ -53,6 +61,14 @@ const emit = defineEmits<{
 const preset = computed(() => props.presets.find((p) => p.id === props.presetId) ?? null);
 /** A 24-up sheet has no position 30, so the ceiling moves with the stock. */
 const perSheet = computed(() => preset.value?.perSheet ?? 1);
+
+/** One label per page — a roll printer's stock (`roll-single`), which has no sheet to start part-way down. */
+const isRoll = computed(() => perSheet.value === 1);
+/** The label's size as the print dialog spells it: the contract carries points, the dialog inches. */
+const inches = (pt: number) => `${Math.round((pt / 72) * 100) / 100}"`;
+const labelSize = computed(() =>
+  preset.value ? `${inches(preset.value.label.width)} × ${inches(preset.value.label.height)}` : "",
+);
 
 /** ±½ inch — `MAX_NUDGE_POINTS` in the contract, which the API also validates against. */
 const MAX_NUDGE = MAX_NUDGE_POINTS;
@@ -87,6 +103,7 @@ function clamp(raw: string, min: number, max: number): number {
     <p v-if="preset" class="text-xs text-ink-tertiary">{{ preset.material }}</p>
 
     <FormField
+      v-if="!isRoll"
       v-slot="{ id }"
       label="Start at position"
       :hint="`Skip labels already peeled off the sheet. 1 to ${perSheet}.`"
@@ -118,7 +135,16 @@ function clamp(raw: string, min: number, max: number): number {
       </FormField>
     </div>
 
-    <AppCallout tone="info">
+    <AppCallout v-if="isRoll" tone="info">
+      <p class="font-semibold text-ink">Before you print</p>
+      <p class="mt-1">
+        In the print dialog choose the <strong>label printer</strong>, set the paper size to
+        <strong>{{ labelSize }}</strong>, margins to <strong>None</strong> and scale to
+        <strong>Actual size (100 %)</strong>. Each label prints as its own page.
+      </p>
+      <p class="mt-2">If every label is off by the same amount, nudge.</p>
+    </AppCallout>
+    <AppCallout v-else tone="info">
       <p class="font-semibold text-ink">Before you print</p>
       <p class="mt-1">
         In the print dialog set <strong>Scale to 100 % (Actual size)</strong> and choose

@@ -21,6 +21,7 @@ import LabelStockControls from "@/features/inventory/LabelStockControls.vue";
 import { ASSETS_PAGE_SIZE, useAssetsQuery } from "@/features/inventory/useAssets";
 import { STOCK_PAGE_SIZE, useStockPageQuery } from "@/features/inventory/useInventory";
 import { fetchLabelSheet, useLabelFaces, useLabelPresetsQuery } from "@/features/inventory/useLabels";
+import { DEFAULT_LABEL_PRESET, pickLabelPreset, rememberLabelPreset } from "@/features/inventory/labelStockChoice";
 import { useToastStore } from "@/stores/toast";
 
 /**
@@ -62,7 +63,7 @@ const qs = useQueryState();
 const search = qs.param("search");
 const selected = ref<Set<string>>(new Set());
 
-const presetId = ref<LabelPresetId>("avery-22805");
+const presetId = ref<LabelPresetId>(DEFAULT_LABEL_PRESET);
 const startPosition = ref(1);
 const nudgeX = ref(0);
 const nudgeY = ref(0);
@@ -76,6 +77,36 @@ const {
   isFetching: presetsFetching,
   refetch: refetchPresets,
 } = useLabelPresetsQuery();
+
+/**
+ * The stock this browser last printed onto, once the server has said it still offers it (R6;
+ * `labelStockChoice.ts` argues the rest). Until the list arrives the screen draws the roll, which is
+ * what the shop's printer holds.
+ */
+watch(
+  presets,
+  (offered) => {
+    if (!offered?.length) return;
+    const picked = pickLabelPreset(offered);
+    if (picked) presetId.value = picked;
+  },
+  { immediate: true },
+);
+
+/**
+ * A start position belongs to the sheet it was typed for. Leaving 20 standing after a switch from a
+ * 24-up sheet to the one-label roll sent a run the API refuses with a 422 — a start the roll does not
+ * have — from a control the roll no longer even shows.
+ */
+watch(presetId, (id) => {
+  const perSheet = presets.value?.find((p) => p.id === id)?.perSheet ?? 1;
+  if (startPosition.value > perSheet) startPosition.value = 1;
+});
+
+function chooseStock(id: LabelPresetId) {
+  presetId.value = id;
+  rememberLabelPreset(id);
+}
 
 /**
  * D-US8: both lists page, one page in the URL (D-US2) for whichever list is showing — they are never
@@ -346,7 +377,7 @@ async function print() {
               :start-position="startPosition"
               :nudge-x="nudgeX"
               :nudge-y="nudgeY"
-              @update:preset-id="presetId = $event as LabelPresetId"
+              @update:preset-id="chooseStock($event as LabelPresetId)"
               @update:start-position="startPosition = $event"
               @update:nudge-x="nudgeX = $event"
               @update:nudge-y="nudgeY = $event"

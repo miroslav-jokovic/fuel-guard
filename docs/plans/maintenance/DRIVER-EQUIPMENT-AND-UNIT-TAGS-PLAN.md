@@ -163,3 +163,10 @@ none of this replaces — the scanner on an Android tablet, and a printed roll l
 - **2026-10-27 — production-readiness audit (§5).** R1–R13: tablets work end to end, a parts
   catalogue cannot be loaded at scale, and the scan screen has four reliability defects. Next: PR-R1,
   then PR-R2.
+- **2026-10-27 — PR-R1 merged (#1782):** R2, R3, R4, R5, R11, R12.
+- **2026-10-27 — PR-R2 split in two.** **PR-R2a** (web only): R6 — the Labels screen opens on the
+  stock this browser last chose, else the 2" roll, and checks a remembered id against what the API
+  offers; for a one-label stock the start position and the sheet advice are gone, the dialog advice
+  names the paper size, and a start position the new stock lacks goes back to 1 (it was a 422).
+  R7 — "Print label" on an asset's page, gated on the Labels screen opening (SP5). **PR-R2b** carries
+  R9 and R10, which touch the API.
