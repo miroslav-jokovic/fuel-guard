@@ -109,10 +109,18 @@ services:
   worker:
     <<: *app
     command: ["node", "--import", "tsx", "apps/api/src/worker.ts"]
-    # No HTTP server, so no /healthz to ask. compose's --wait then waits for "running"; a crash
-    # restarts it (restart: unless-stopped), as Railway's restartPolicyType ALWAYS did.
+    # No HTTP server, so no /healthz to ask: the check is that PID 1 is alive. That is the whole
+    # signal — a worker that loses its lease exits (exitOnLostLease), and a crash restarts it
+    # (restart: unless-stopped), as Railway's restartPolicyType ALWAYS did. It must be a real check,
+    # not `disable: true`: Compose 2.40 (the servers') refuses `up --wait` on a disabled healthcheck
+    # with "has no healthcheck configured" instead of waiting for "running", which failed the first
+    # release that started a worker (v2026.10.27, 2026-10-27) and rolled it back.
     healthcheck:
-      disable: true
+      test: ["CMD", "node", "-e", "process.kill(1, 0)"]
+      interval: 15s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
     volumes:
       - type: bind
         source: /run/silvicom/api.env
