@@ -28,6 +28,7 @@ import { useLowStockQuery, useMovementsQuery, usePartsQuery } from "@/features/i
 import { useUnitsQuery } from "@/features/inventory/useUnits";
 import { useShopSummaryQuery } from "@/features/maintenance/useShopBacklog";
 import StartCountDrawer from "@/features/inventory/StartCountDrawer.vue";
+import OpenCountsList from "@/features/inventory/OpenCountsList.vue";
 import StockLevelCell from "@/features/inventory/StockLevelCell.vue";
 import RoadsideRepairsDueSection from "@/features/roadside/RoadsideRepairsDueSection.vue";
 import { BADGE_BASE, kitStatusBadge, toneClass } from "@/lib/badges";
@@ -81,7 +82,10 @@ const lowStock = useLowStockQuery();
 const lowTotal = computed(() => lowStock.data.value?.total ?? 0);
 const lowPreview = computed<StockLineDto[]>(() => (lowStock.data.value?.lines ?? []).slice(0, PREVIEW_ROWS));
 
-const shortFilter = ref({ shortOnly: true });
+// R10: only units somebody has checked. Adopting the standard kit makes every unit short on paper
+// until its things are tagged, and a tile reading 440 for weeks is a tile nobody reads by the time
+// it means something. The tile says so, and links to the same filtered list.
+const shortFilter = ref({ shortOnly: true, checkedOnly: true });
 const shortUnits = useUnitsQuery(shortFilter);
 const shortTotal = computed(() => shortUnits.data.value?.total ?? 0);
 const shortPreview = computed<UnitKitDto[]>(() => (shortUnits.data.value?.units ?? []).slice(0, PREVIEW_ROWS));
@@ -245,13 +249,13 @@ const unitPath = (u: UnitKitDto) =>
           label="Short of kit"
           :value="shortTotal"
           :muted="shortTotal === 0"
-          :sub="shortTotal === 0 ? 'Every unit has its kit' : 'Trucks and trailers missing something'"
+          :sub="shortTotal === 0 ? 'No checked unit is missing anything' : 'Checked units missing something'"
           :icon="TruckIcon"
           :tone="shortTotal > 0 ? 'danger' : 'neutral'"
           :loading="shortUnits.isLoading.value"
           :error="shortUnits.isError.value ? 'Could not load the fleet.' : null"
           :retrying="shortUnits.isFetching.value"
-          :to="unitsOpen ? '/shop/units?kit=short' : undefined"
+          :to="unitsOpen ? '/shop/units?kit=short-checked' : undefined"
           @retry="shortUnits.refetch()"
         />
         <StatCard
@@ -318,7 +322,7 @@ const unitPath = (u: UnitKitDto) =>
             <h2 class="text-sm font-semibold text-ink">Short of kit</h2>
             <RouterLink
               v-if="shortTotal > PREVIEW_ROWS && unitsOpen"
-              to="/shop/units?kit=short"
+              to="/shop/units?kit=short-checked"
               class="text-sm font-medium text-link hover:text-link-hover"
             >
               All {{ shortTotal }} units
@@ -344,12 +348,16 @@ const unitPath = (u: UnitKitDto) =>
               <span v-else class="text-ink-tertiary">—</span>
             </template>
             <template #empty>
-              <p>Nothing is short. Every truck and trailer is carrying what its kit asks for.</p>
+              <p>No checked unit is short. Units nobody has checked yet are not counted here.</p>
             </template>
           </DataTable>
         </section>
       </div>
     </template>
+
+    <!-- R9: walks somebody started and nobody closed. Outside the parts gate above, because a kit
+         check needs no part on any shelf; draws nothing while nothing is open. -->
+    <OpenCountsList title="Open counts" />
 
     <StartCountDrawer :open="counting" @close="counting = false" />
   </div>

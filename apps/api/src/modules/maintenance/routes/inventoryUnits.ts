@@ -39,6 +39,7 @@ import { isServiceError } from "../inventory/types.js";
 const listSchema = z.object({
   kind: z.enum(["tractor", "trailer"]).optional(),
   shortOnly: z.coerce.boolean().optional(),
+  checkedOnly: z.coerce.boolean().optional(),
 });
 
 const expectationListSchema = z.object({

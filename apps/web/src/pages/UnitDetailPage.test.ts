@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { mount } from "@vue/test-utils";
 import { createPinia, setActivePinia } from "pinia";
+import { flushPromises } from "@vue/test-utils";
 import { nextTick } from "vue";
 import type { AssetDto, UnitKitDto } from "@silvicom/shared";
 
@@ -28,11 +29,20 @@ const unit: UnitKitDto = {
   state: "short",
   shortBy: 2,
   extraBy: 0,
+  lastCheckedAt: null,
   lines: [
     { assetTypeId: BAR, assetTypeName: "Load bar", expected: 2, held: 0, delta: -2, source: "fleet" },
     { assetTypeId: "t2", assetTypeName: "Tablet", expected: 1, held: 1, delta: 0, source: "type" },
   ],
 };
+
+/** What "Check this unit" gets back from the server — a new walk, or the open one handed back (R9). */
+const openWalk = vi.fn(async () => ({
+  id: "99999999-9999-4999-8999-999999999999",
+  resumed: false,
+  openedAt: "2026-10-19T14:00:00.000Z",
+  startedByName: "Shop Lead",
+}));
 
 const asset: AssetDto = {
   id: "as-1",
@@ -68,7 +78,10 @@ vi.mock("@/features/inventory/useInventory", async () => {
   return {
     useLocationsQuery: () => ({ data: r([]) }),
     // The page can start a walk of this unit (D-INV19); `UnitCheck.test.ts` drives the walk itself.
-    useOpenCountSession: () => ({ mutateAsync: vi.fn(), isPending: r(false) }),
+    useOpenCountSession: () => ({ mutateAsync: openWalk, isPending: r(false) }),
+    // R9: the unit's open check; `OpenCountsList.test.ts` drives the list itself.
+    useCountSessionsQuery: () => ({ data: r({ sessions: [], total: 0 }), isError: r(false), isFetching: r(false), refetch: vi.fn() }),
+    useCloseCountSession: () => ({ mutateAsync: vi.fn(), isPending: r(false) }),
   };
 });
 vi.mock("@/features/inventory/useAssets", async () => {
@@ -97,6 +110,7 @@ vi.mock("vue-router", async (importOriginal) => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
 }));
 
+const { useToastStore } = await import("@/stores/toast");
 const UnitDetailPage = (await import("@/pages/UnitDetailPage.vue")).default;
 const AssetMoveDrawer = (await import("@/features/inventory/AssetMoveDrawer.vue")).default;
 const page = () => mount(UnitDetailPage, { attachTo: document.body, global: { stubs: { SlideOver: true } } });
@@ -118,6 +132,8 @@ async function rowActions(w: ReturnType<typeof page>): Promise<string[]> {
 beforeEach(() => {
   document.body.innerHTML = "";
   setActivePinia(createPinia());
+  unit.lastCheckedAt = null;
+  openWalk.mockClear();
 });
 
 describe("one unit", () => {
@@ -149,5 +165,42 @@ describe("one unit", () => {
   it("names the driver once — inferred, and never stored (D-INV3)", () => {
     const matches = page().text().match(/Dana Reyes/g) ?? [];
     expect(matches).toHaveLength(1);
+  });
+});
+
+/** R9 and R10 (DRIVER-EQUIPMENT-AND-UNIT-TAGS-PLAN.md §5). */
+describe("checking this unit", () => {
+  const OpenCountsList = async () => (await import("@/features/inventory/OpenCountsList.vue")).default;
+
+  it("says a never-checked kit is what the records say, and a checked one when", () => {
+    expect(page().text()).toContain("Never checked");
+    unit.lastCheckedAt = "2026-10-20T12:00:00.000Z";
+    expect(page().text()).toContain("Last checked 10/20/2026");
+  });
+
+  it("lists this truck's open check, and no other unit's", async () => {
+    const list = page().findComponent(await OpenCountsList());
+    expect(list.props()).toMatchObject({ vehicleId: TRUCK, trailerId: undefined });
+  });
+
+  it("says it is continuing when the server handed back the open check", async () => {
+    openWalk.mockResolvedValueOnce({
+      id: "99999999-9999-4999-8999-999999999999",
+      resumed: true,
+      openedAt: "2026-10-19T14:00:00.000Z",
+      startedByName: "Shop Lead",
+    });
+    const w = page();
+    await w.findAll("button").find((b) => b.text() === "Check this unit")!.trigger("click");
+    await flushPromises();
+    const toasts = useToastStore().toasts.map((t) => t.title);
+    expect(toasts).toContain("Continuing the open check");
+  });
+
+  it("says nothing extra when the walk is new", async () => {
+    const w = page();
+    await w.findAll("button").find((b) => b.text() === "Check this unit")!.trigger("click");
+    await flushPromises();
+    expect(useToastStore().toasts.map((t) => t.title)).not.toContain("Continuing the open check");
   });
 });

@@ -241,13 +241,22 @@ export function useAttachPartPhoto() {
 
 // ── count sessions (I5 PR 2a; the count screen itself is 2b) ─────────────────────────────────────
 
-export function useCountSessionsQuery(status?: Ref<"open" | "closed" | undefined>) {
+export interface CountSessionsFilter {
+  status?: "open" | "closed";
+  /** One truck's or one trailer's checks — the unit page's open ones (R9). */
+  vehicleId?: string;
+  trailerId?: string;
+}
+
+export function useCountSessionsQuery(filter: Ref<CountSessionsFilter>) {
   return useQuery({
-    queryKey: ["inventory", "count-sessions", status ?? null] as const,
+    queryKey: ["inventory", "count-sessions", filter] as const,
     queryFn: async (): Promise<{ sessions: CountSessionDto[]; total: number }> => {
-      const params = status?.value ? `?status=${status.value}` : "";
+      const params = new URLSearchParams();
+      for (const [k, v] of Object.entries(filter.value)) if (v) params.set(k, v);
+      const qs = params.size ? `?${params}` : "";
       const r = await apiFetch<{ sessions: CountSessionDto[]; total: number }>(
-        `/api/maintenance/inventory/count-sessions${params}`,
+        `/api/maintenance/inventory/count-sessions${qs}`,
       );
       if (!r.ok || !r.data) throw new Error(r.error?.message ?? "Could not load counts");
       return r.data;
@@ -354,13 +363,14 @@ export function useStockPageQuery(filter: Ref<{ page: number; search?: string }>
 export function useOpenCountSession() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (input: CountSessionInput): Promise<CountSessionDto> => {
-      const r = await apiFetch<{ session: CountSessionDto }>("/api/maintenance/inventory/count-sessions", {
-        method: "POST",
-        body: input,
-      });
+    // `resumed`: the server found this unit's check already open and handed that one back (R9).
+    mutationFn: async (input: CountSessionInput): Promise<CountSessionDto & { resumed: boolean }> => {
+      const r = await apiFetch<{ session: CountSessionDto; resumed?: boolean }>(
+        "/api/maintenance/inventory/count-sessions",
+        { method: "POST", body: input },
+      );
       if (!r.ok || !r.data) throw new Error(r.error?.message ?? "Could not start the count");
-      return r.data.session;
+      return { ...r.data.session, resumed: r.data.resumed === true };
     },
     onSuccess: () => void qc.invalidateQueries({ queryKey: ["inventory"] }),
   });

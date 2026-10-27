@@ -11,6 +11,7 @@ import { listEquipmentIdentities, type EquipmentIdentity } from "../../roster/in
 import { fetchAllPaged } from "../../../lib/paging.js";
 import { traced } from "../inspections/serviceError.js";
 import { listAssets } from "./assets.js";
+import { lastUnitChecks } from "./countSessions.js";
 import type { ServiceError } from "./types.js";
 
 /**
@@ -128,7 +129,13 @@ export function resolveExpected(
 
 /** Assemble one unit's DTO from what it expects and what it holds. */
 function toUnitKitDto(
-  unit: { kind: UnitKind; unitId: string; unitNumber: string; inferredDriverName: string | null },
+  unit: {
+    kind: UnitKind;
+    unitId: string;
+    unitNumber: string;
+    inferredDriverName: string | null;
+    lastCheckedAt: string | null;
+  },
   expected: ReturnType<typeof resolveExpected>,
   // Only the type and its name are read, so the parameter says only that: an `AssetDto[]` satisfies
   // it structurally, and the list — which never builds a whole DTO per asset — is not made to cast.
@@ -160,6 +167,7 @@ function toUnitKitDto(
     state: status.state,
     shortBy: status.shortBy,
     extraBy: status.extraBy,
+    lastCheckedAt: unit.lastCheckedAt,
     lines,
   };
 }
@@ -216,6 +224,12 @@ export interface ListUnitsOptions {
   kind?: "tractor" | "trailer";
   /** Only units whose kit is short. What the shop home's shortfall card links to. */
   shortOnly?: boolean;
+  /**
+   * Only units whose kit has been checked at least once (R10). With `shortOnly`, the shop home's
+   * "Short of kit": adopting the standard kit makes every unit short on paper until its things are
+   * tagged, and a tile reading 440 for weeks is a tile nobody reads by the time it means something.
+   */
+  checkedOnly?: boolean;
 }
 
 /**
@@ -243,8 +257,11 @@ export async function listUnitKits(
     if ("error" in identities) {
       return traced("listUnitKits", "db_error", "Could not list the fleet", identities);
     }
-    const held = await loadHeldAssets(admin, orgId, kind === "tractor" ? "vehicle_id" : "trailer_id");
+    const column = kind === "tractor" ? "vehicle_id" : "trailer_id";
+    const held = await loadHeldAssets(admin, orgId, column);
     if (isError(held)) return held;
+    const checked = await lastUnitChecks(admin, orgId, column);
+    if (isError(checked)) return checked;
 
     const byUnit = new Map<string, Array<{ assetTypeId: string; assetTypeName: string }>>();
     for (const a of held) {
@@ -269,6 +286,7 @@ export async function listUnitKits(
             // Resolved for the DETAIL only — see `getUnitKit`. A list of 440 trucks would be 440
             // driver lookups for a name the list does not show.
             inferredDriverName: null,
+            lastCheckedAt: checked.get(identity.id) ?? null,
           },
           expected,
           holds,
@@ -277,7 +295,9 @@ export async function listUnitKits(
     }
   }
 
-  const filtered = opts.shortOnly ? units.filter((u) => u.state === "short") : units;
+  const filtered = units.filter(
+    (u) => (!opts.shortOnly || u.state === "short") && (!opts.checkedOnly || u.lastCheckedAt !== null),
+  );
   return { units: filtered, total: filtered.length };
 }
 
@@ -317,6 +337,9 @@ export async function getUnitKit(
   });
   if (isError(holding)) return holding;
 
+  const checked = await lastUnitChecks(admin, orgId, kind === "tractor" ? "vehicle_id" : "trailer_id");
+  if (isError(checked)) return checked;
+
   const unitKind = kindOf(identity, kind);
   const expected = resolveExpected({ kind: unitKind, unitId }, rows, typeDefaults);
   // `listAssets` already resolved the driver off the holding vehicle — the same inference D-INV3
@@ -328,7 +351,7 @@ export async function getUnitKit(
 
   return {
     unit: toUnitKitDto(
-      { kind: unitKind, unitId, unitNumber: identity.unitNumber, inferredDriverName },
+      { kind: unitKind, unitId, unitNumber: identity.unitNumber, inferredDriverName, lastCheckedAt: checked.get(unitId) ?? null },
       expected,
       holding.assets,
     ),

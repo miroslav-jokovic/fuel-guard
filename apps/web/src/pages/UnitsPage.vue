@@ -22,6 +22,7 @@ import KebabMenu from "@/components/KebabMenu.vue";
 import KitRulesDrawer from "@/features/inventory/KitRulesDrawer.vue";
 import { useUnitsQuery } from "@/features/inventory/useUnits";
 import { BADGE_BASE, kitStatusBadge, toneClass } from "@/lib/badges";
+import { formatDate } from "@/lib/format";
 import { useSessionStore } from "@/stores/session";
 
 /**
@@ -70,6 +71,9 @@ const KIND_OPTIONS = [
 const KIT_OPTIONS = [
   { value: "", label: "Every unit" },
   { value: "short", label: "Short of something" },
+  // R10: the shop home's "Short of kit" tile links here. While a fleet is being tagged every unit is
+  // short on paper; a unit somebody has walked and found short is the one worth the trip.
+  { value: "short-checked", label: "Short, and checked" },
 ];
 
 const PAGE_SIZE = 20;
@@ -90,7 +94,8 @@ function resetFilters() {
 
 const filter = computed(() => ({
   kind: (kind.value || undefined) as "tractor" | "trailer" | undefined,
-  shortOnly: kit.value === "short",
+  shortOnly: kit.value === "short" || kit.value === "short-checked",
+  checkedOnly: kit.value === "short-checked",
 }));
 const units = useUnitsQuery(filter);
 
@@ -110,6 +115,7 @@ const COLUMNS: DataTableColumn[] = [
   { key: "lines", label: "Kit" },
   { key: "shortBy", label: "Missing", sortable: true, numeric: true },
   { key: "state", label: "Status", sortable: true, width: "sm" },
+  { key: "lastCheckedAt", label: "Last checked", cellClass: "text-ink-secondary" },
 ];
 const { sort, onSort } = useUrlSort(
   qs.param("sort", COLUMNS.filter((c) => c.sortable).map((c) => c.key)),
@@ -195,6 +201,10 @@ const rulesOpen = ref(false);
           </span>
           <span v-else class="text-ink-tertiary">—</span>
         </template>
+        <template #cell-lastCheckedAt="{ value }">
+          <span v-if="value">{{ formatDate(value) }}</span>
+          <span v-else class="text-ink-tertiary">Never</span>
+        </template>
         <template #actions="{ row }">
           <KebabMenu>
             <BaseButton class="kebab-item" @click="openUnit(row)">Open unit</BaseButton>
@@ -204,6 +214,9 @@ const rulesOpen = ref(false);
           <p v-if="search">No unit number matches that.</p>
           <p v-else-if="kit === 'short'">
             Nothing is short. Every truck and trailer is carrying what its kit asks for.
+          </p>
+          <p v-else-if="kit === 'short-checked'">
+            Nothing checked is short. Units nobody has checked yet are not counted here.
           </p>
           <p v-else>
             No units yet. Trucks and trailers arrive from the roster — add one there, and its kit

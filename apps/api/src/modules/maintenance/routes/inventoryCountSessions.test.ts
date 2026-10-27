@@ -67,6 +67,7 @@ interface Body {
   session?: { id: string; status: string; blind: boolean; holderLabel: string | null };
   sessions?: Array<{ id: string }>;
   total?: number;
+  resumed?: boolean;
 }
 const bodyOf = async (res: Awaited<ReturnType<typeof fetch>>): Promise<Body> => (await res.json()) as Body;
 
@@ -162,6 +163,35 @@ describe("opening a walk", () => {
     );
     expect(res.status).toBe(422);
     expect((await bodyOf(res)).error?.code).toBe("IV012");
+  });
+
+  /** R9: nothing was created, so the answer is not 201 — and the screen is told it is continuing. */
+  it("answers 200 and `resumed` when the unit's check is already open", async () => {
+    const TRUCK = "77777777-7777-4777-8777-777777777777";
+    rec = createSupabaseRecorder({
+      tables: {
+        stock_count_sessions: [
+          sessionRow({ kind: "unit", location_id: null, vehicle_id: TRUCK, stock_locations: null, vehicles: { unit_number: "654" } }),
+        ],
+      },
+    });
+    const res = await withServer((base) => call(base, "", "POST", { kind: "unit", vehicleId: TRUCK, blind: false }));
+    expect(res.status).toBe(200);
+    const body = await bodyOf(res);
+    expect(body).toMatchObject({ resumed: true, session: { id: SESSION } });
+    expect(rec.writtenRows("stock_count_sessions")).toHaveLength(0);
+  });
+
+  it("says a new walk is not a resumed one", async () => {
+    const res = await withServer((base) => call(base, "", "POST", { kind: "location", locationId: BAY, blind: true }));
+    expect((await bodyOf(res)).resumed).toBe(false);
+  });
+
+  it("filters the list to one unit", async () => {
+    const TRUCK = "77777777-7777-4777-8777-777777777777";
+    await withServer((base) => call(base, `?status=open&vehicleId=${TRUCK}`, "GET"));
+    const read = rec.forTable("stock_count_sessions")[0]!;
+    expect(read.filters()).toContainEqual(expect.objectContaining({ col: "vehicle_id", val: TRUCK }));
   });
 });
 

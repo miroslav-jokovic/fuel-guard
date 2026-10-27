@@ -1,4 +1,4 @@
-import { describe, expect, it, beforeEach, vi } from "vitest";
+import { afterEach, describe, expect, it, beforeEach, vi } from "vitest";
 import { createSupabaseRecorder, expectOrgScoped, type SupabaseRecorder } from "../../../testing/supabaseRecorder.js";
 
 /**
@@ -75,14 +75,18 @@ const kitRow = () =>
   });
 
 /** Answers on the filters the service actually sent, which a flat array cannot do. */
-const rows = () => [sessionRow(), closedRow(), kitRow()];
+/** Rows a describe adds for its own question — reset to none before each test. */
+let extraRows: ReturnType<typeof sessionRow>[] = [];
+const rows = () => [sessionRow(), closedRow(), kitRow(), ...extraRows];
 const byFilters = (q: { filters: () => Array<{ col: string; val: unknown }> }) => {
   const eq = new Map(q.filters().map((f) => [f.col, f.val]));
   return rows().filter(
     (r) =>
       (!eq.has("status") || r.status === eq.get("status")) &&
       (!eq.has("kind") || r.kind === eq.get("kind")) &&
-      (!eq.has("id") || r.id === eq.get("id")),
+      (!eq.has("id") || r.id === eq.get("id")) &&
+      (!eq.has("vehicle_id") || r.vehicle_id === eq.get("vehicle_id")) &&
+      (!eq.has("trailer_id") || r.trailer_id === eq.get("trailer_id")),
   );
 };
 
@@ -170,6 +174,71 @@ describe("opening a walk", () => {
     });
     const result = await openCountSession(rec.client, ORG, USER, { kind: "location", locationId: BAY, blind: true });
     expect(result).toMatchObject({ code: "malformed_session" });
+  });
+});
+
+/**
+ * R9 (DRIVER-EQUIPMENT-AND-UNIT-TAGS-PLAN.md §5): production held four open checks of one truck,
+ * because every press of "Check this unit" opened another and nothing listed them.
+ */
+describe("checking a unit that already has a check open", () => {
+  const OTHER_TRAILER = "66666666-6666-4666-8666-666666666666";
+  beforeEach(() => {
+    // The other trailer was checked and the check CLOSED — a finished walk must never be reopened.
+    extraRows = [
+      sessionRow({
+        id: "77777777-7777-4777-8777-777777777777",
+        kind: "unit",
+        location_id: null,
+        trailer_id: OTHER_TRAILER,
+        status: "closed",
+        closed_at: "2026-10-01T12:00:00.000Z",
+        stock_locations: null,
+        trailers: { unit_number: "T-5000" },
+      }),
+    ];
+    rec = createSupabaseRecorder({ tables: { stock_count_sessions: byFilters } });
+  });
+  afterEach(() => {
+    extraRows = [];
+  });
+
+  it("continues the open check and writes nothing", async () => {
+    const result = await openCountSession(rec.client, ORG, USER, { kind: "unit", trailerId: TRAILER, blind: false });
+    expect(result).toMatchObject({ resumed: true, session: { id: KIT, status: "open" } });
+    expect(rec.writes().filter((w) => w.table === "stock_count_sessions")).toHaveLength(0);
+    expectOrgScoped(rec, ORG, SCOPED);
+  });
+
+  it("opens a new one for a unit whose only check is closed", async () => {
+    const result = await openCountSession(rec.client, ORG, USER, { kind: "unit", trailerId: OTHER_TRAILER, blind: false });
+    expect(result).toMatchObject({ resumed: false });
+    expect(rec.writes().find((w) => w.table === "stock_count_sessions")?.write?.payload).toMatchObject({
+      kind: "unit",
+      trailer_id: OTHER_TRAILER,
+    });
+  });
+
+  /** A D-INV21 recount is a second person's walk of the same bay — it must not land in the first. */
+  it("never folds a shelf walk into an open one", async () => {
+    const result = await openCountSession(rec.client, ORG, USER, { kind: "location", locationId: BAY, blind: true });
+    expect(result).toMatchObject({ resumed: false });
+    expect(rec.writes().filter((w) => w.table === "stock_count_sessions")).toHaveLength(1);
+  });
+
+  it("refuses to open a second walk when it could not read whether one is open", async () => {
+    rec = createSupabaseRecorder({
+      tables: { stock_count_sessions: () => ({ error: { code: "57014", message: "timeout" } }) },
+    });
+    const result = await openCountSession(rec.client, ORG, USER, { kind: "unit", trailerId: TRAILER, blind: false });
+    expect(result).toMatchObject({ code: "db_error" });
+    expect(rec.writes().filter((w) => w.table === "stock_count_sessions")).toHaveLength(0);
+  });
+
+  it("lists one unit's checks when the unit's page asks", async () => {
+    const result = await listCountSessions(rec.client, ORG, { status: "open", trailerId: TRAILER });
+    if ("error" in result) throw new Error("unexpected error");
+    expect(result.sessions.map((s) => s.id)).toEqual([KIT]);
   });
 });
 

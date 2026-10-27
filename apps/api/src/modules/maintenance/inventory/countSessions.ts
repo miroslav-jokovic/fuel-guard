@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { CountSessionDto, CountSessionInput } from "@silvicom/shared";
 import { traced } from "../inspections/serviceError.js";
 import { labelOf, memberLabels } from "../../../lib/memberLabels.js";
+import { fetchAllPaged } from "../../../lib/paging.js";
 import { PAGE_MAX } from "./parts.js";
 import type { ServiceError } from "./types.js";
 
@@ -73,6 +74,9 @@ export interface ListSessionsOptions {
   status?: CountSessionDto["status"];
   kind?: CountSessionDto["kind"];
   locationId?: string;
+  /** One truck's or one trailer's checks — what the unit's page asks for its open ones (R9). */
+  vehicleId?: string;
+  trailerId?: string;
   limit?: number;
   offset?: number;
 }
@@ -95,6 +99,8 @@ export async function listCountSessions(
   if (opts.status) q = q.eq("status", opts.status);
   if (opts.kind) q = q.eq("kind", opts.kind);
   if (opts.locationId) q = q.eq("location_id", opts.locationId);
+  if (opts.vehicleId) q = q.eq("vehicle_id", opts.vehicleId);
+  if (opts.trailerId) q = q.eq("trailer_id", opts.trailerId);
 
   const { data, error, count } = await q
     .order("opened_at", { ascending: false })
@@ -149,7 +155,13 @@ export async function openCountSession(
   orgId: string,
   actorId: string | null,
   input: CountSessionInput,
-): Promise<CountSessionDto | ServiceError> {
+): Promise<{ session: CountSessionDto; resumed: boolean } | ServiceError> {
+  if (input.kind === "unit") {
+    const open = await openUnitCheck(admin, orgId, input);
+    if (open && "error" in open) return open;
+    if (open) return { session: open, resumed: true };
+  }
+
   const { data, error } = await admin
     .from("stock_count_sessions")
     .insert({
@@ -187,7 +199,84 @@ export async function openCountSession(
 
   const row = data as unknown as SessionRow;
   const labels = await memberLabels(admin, orgId, actorId ? [actorId] : []);
-  return toCountSessionDto(row, actorId ? labelOf(labels.get(actorId)) : null);
+  return { session: toCountSessionDto(row, actorId ? labelOf(labels.get(actorId)) : null), resumed: false };
+}
+
+/**
+ * The open check of one unit, if there is one — the newest, when an older release left several.
+ *
+ * ── "CHECK THIS UNIT" RESUMES; IT DOES NOT START A SECOND WALK (R9, 2026-10-27) ─────────────────
+ * Until 2026-10-27 every press opened a new session, and nothing on screen listed the open ones, so
+ * a check left half-done stayed open for ever: production held four open checks of one truck,
+ * opened 09-10 twice, 10-15 and 10-19. Two open walks of one truck also let two phones answer the
+ * same strap differently. A unit check is about the THING the truck carries, so there is one at a
+ * time and pressing the button again is the same walk.
+ *
+ * Shelf walks are deliberately NOT folded the same way: a D-INV21 recount is a second person
+ * counting the same bay in a session of their own, and resuming the first counter's walk would put
+ * the recount inside the count it is checking.
+ *
+ * ⚠ A read then an insert, so two presses in the same instant can still open two. The button is
+ * disabled while its request is in flight, which leaves two different people pressing at once; the
+ * partial unique index that closes it needs a migration, and is PR-R3's.
+ *
+ * `undefined` = none open; a ServiceError = the read failed, and opening a second walk over a read
+ * that failed would be the defect this exists to stop.
+ */
+async function openUnitCheck(
+  admin: SupabaseClient,
+  orgId: string,
+  input: CountSessionInput,
+): Promise<CountSessionDto | ServiceError | undefined> {
+  let q = admin
+    .from("stock_count_sessions")
+    .select(COLUMNS)
+    .eq("org_id", orgId)
+    .eq("kind", "unit")
+    .eq("status", "open");
+  q = input.vehicleId ? q.eq("vehicle_id", input.vehicleId) : q.eq("trailer_id", input.trailerId ?? "");
+  const { data, error } = await q.order("opened_at", { ascending: false }).limit(1).maybeSingle();
+  if (error) return traced("openUnitCheck", "db_error", "Could not read the unit's open check", error);
+  if (!data) return undefined;
+  const row = data as unknown as SessionRow;
+  const labels = await memberLabels(admin, orgId, row.started_by ? [row.started_by] : []);
+  return toCountSessionDto(row, row.started_by ? labelOf(labels.get(row.started_by)) : null);
+}
+
+/**
+ * When each unit's kit was last checked: unit id → the newest `closed_at` among its closed unit
+ * checks (R10). An OPEN check is not a check yet. Read paged — a fleet of 440 units checked monthly
+ * passes PostgREST's 1,000-row cap within three months.
+ */
+export async function lastUnitChecks(
+  admin: SupabaseClient,
+  orgId: string,
+  column: "vehicle_id" | "trailer_id",
+): Promise<Map<string, string> | ServiceError> {
+  try {
+    const rows = await fetchAllPaged<{ vehicle_id: string | null; trailer_id: string | null; closed_at: string | null }>(
+      (from, to) =>
+        admin
+          .from("stock_count_sessions")
+          .select("vehicle_id, trailer_id, closed_at")
+          .eq("org_id", orgId)
+          .eq("kind", "unit")
+          .eq("status", "closed")
+          .not(column, "is", null)
+          .order("id", { ascending: true })
+          .range(from, to),
+    );
+    const last = new Map<string, string>();
+    for (const r of rows) {
+      const unit = r[column];
+      if (!unit || !r.closed_at) continue;
+      const seen = last.get(unit);
+      if (!seen || r.closed_at > seen) last.set(unit, r.closed_at);
+    }
+    return last;
+  } catch (e) {
+    return traced("lastUnitChecks", "db_error", "Could not read when the units were last checked", e);
+  }
 }
 
 /**

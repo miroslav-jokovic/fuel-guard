@@ -46,6 +46,7 @@ const unit = (over: Partial<UnitKitDto> = {}): UnitKitDto => ({
   state: "short",
   shortBy: 2,
   extraBy: 0,
+  lastCheckedAt: null,
   lines: [],
   ...over,
 });
@@ -53,6 +54,7 @@ const unit = (over: Partial<UnitKitDto> = {}): UnitKitDto => ({
 const low = ref<{ lines: StockLineDto[]; total: number }>({ lines: [], total: 0 });
 const short = ref<{ units: UnitKitDto[]; total: number }>({ units: [], total: 0 });
 const catalogue = ref<{ parts: unknown[]; total: number }>({ parts: [], total: 1 });
+const openWalks = ref<{ sessions: unknown[]; total: number }>({ sessions: [], total: 0 });
 
 /**
  * F1 (US6b): the reads that answer 500, and each read's Retry. The page's tiles and its first-run
@@ -92,11 +94,19 @@ vi.mock("@/features/inventory/useInventory", async () => {
     usePartsQuery: () => queries.parts,
     useLocationsQuery: () => ({ data: r([]) }),
     useOpenCountSession: () => ({ mutateAsync: vi.fn(), isPending: r(false) }),
+    // R9: the open walks, which `OpenCountsList` reads; `OpenCountsList.test.ts` drives it.
+    useCountSessionsQuery: () => ({ data: openWalks, isError: r(false), isFetching: r(false), refetch: vi.fn() }),
+    useCloseCountSession: () => ({ mutateAsync: vi.fn(), isPending: r(false) }),
   };
 });
+/** The filter the page last handed `useUnitsQuery` — the tile's question (R10). */
+let unitsFilter: { value: Record<string, unknown> } | null = null;
 vi.mock("@/features/inventory/useUnits", () => {
   return {
-    useUnitsQuery: () => queries.short,
+    useUnitsQuery: (f: { value: Record<string, unknown> }) => {
+      unitsFilter = f;
+      return queries.short;
+    },
   };
 });
 vi.mock("@/features/maintenance/useMaintenanceSpend", () => {
@@ -172,6 +182,7 @@ beforeEach(() => {
   low.value = { lines: [], total: 0 };
   short.value = { units: [], total: 0 };
   catalogue.value = { parts: [], total: 1 };
+  openWalks.value = { sessions: [], total: 0 };
   failing.clear();
   retried.length = 0;
   repairsDue.value = [];
@@ -185,11 +196,22 @@ describe("the tiles", () => {
     short.value = { units: [unit(), unit({ unitId: "u2", unitNumber: "720", shortBy: 1 })], total: 2 };
     const w = page();
     expect(w.text()).toContain("Short of kit");
-    expect(w.html()).toContain("/shop/units?kit=short");
+    expect(w.html()).toContain("/shop/units?kit=short-checked");
   });
 
-  it("says every unit has its kit when none is short, rather than a bare zero", () => {
-    expect(page().text()).toContain("Every unit has its kit");
+  /**
+   * R10: adopting the standard kit makes every unit short on paper until its things are tagged. The
+   * tile asks only about units somebody has checked, says so, and links to that same list.
+   */
+  it("counts only units somebody has checked, and says so", () => {
+    short.value = { units: [unit()], total: 1 };
+    const w = page();
+    expect(unitsFilter!.value).toEqual({ shortOnly: true, checkedOnly: true });
+    expect(w.text()).toContain("Checked units missing something");
+  });
+
+  it("says no checked unit is missing anything when none is short, rather than a bare zero", () => {
+    expect(page().text()).toContain("No checked unit is missing anything");
   });
 });
 
@@ -366,5 +388,28 @@ describe("roadside repairs due", () => {
     session.surfaces = { "maintenance.repair-spend": false };
     expect(page().find("[data-test='roadside-repairs-due']").exists()).toBe(false);
     expect(repairsAsked.at(-1)!.value).toBe(false);
+  });
+});
+
+/** R9: walks somebody started and nobody closed — drawn only when there are some. */
+describe("open counts", () => {
+  it("lists the open walks under their own heading", () => {
+    openWalks.value = {
+      sessions: [
+        {
+          id: "s1", kind: "unit", locationId: null, vehicleId: "v1", trailerId: null, holderLabel: "654",
+          startedBy: null, startedByName: "Shop Lead", blind: false, status: "open",
+          openedAt: "2026-10-19T14:00:00.000Z", closedAt: null, note: null,
+        },
+      ],
+      total: 1,
+    };
+    const text = page().text();
+    expect(text).toContain("Open counts");
+    expect(text).toContain("Kit check — 654");
+  });
+
+  it("draws nothing when nothing is open", () => {
+    expect(page().text()).not.toContain("Open counts");
   });
 });
