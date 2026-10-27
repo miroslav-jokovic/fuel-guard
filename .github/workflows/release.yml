@@ -438,10 +438,19 @@ jobs:
           echo "✓ released \`$TAG\`" >> "$GITHUB_STEP_SUMMARY"
 
       # D-REL8: a hotfix is on production and not yet on main; the next nightly release would refuse
-      # to fast-forward until it is. Opened here so it cannot be forgotten.
+      # to fast-forward until it is. Opened here so it cannot be forgotten. A hotfix cut from main itself
+      # (v2026.10.27, the AWS cutover) is already on main: GitHub then refuses the PR ("No commits
+      # between main and production") and this step failed a release that had shipped and verified.
       - name: Merge the hotfix back into main
         if: needs.plan.outputs.mode == 'hotfix'
         run: |
+          # Asked of GitHub's compare API, not git: this job's checkout is shallow. `behind`/`identical` =
+          # main already contains the shipped commit.
+          rel=$(gh api "repos/${GITHUB_REPOSITORY}/compare/main...${SHA}" --jq .status)
+          if [ "$rel" = "behind" ] || [ "$rel" = "identical" ]; then
+            echo "✓ \`${SHA::7}\` is already on main — nothing to merge back." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
           gh pr create --base main --head production --title "Back-merge hotfix ${TAG} into main" \
             --body "Hotfix \`${TAG}\` shipped to production: ${REASON}. Merge so the next nightly release fast-forwards."
 

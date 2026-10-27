@@ -25,14 +25,17 @@ jobs:
     runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 15
     env:
-      # Reuse the deployment verification URL; the Railway service serves both API and SPA.
-      API_URL: ${{ vars.API_URL }}
+      # The address the office opens (WEB_URL = https://360.silvicominc.com since AWS11), not the api
+      # host. On Railway one service served both, so API_URL stood in for it; on AWS Caddy routes the
+      # two names to different containers (web vs api), and the smoke test was opening the api's copy
+      # of the pages — passing while the page people use went untested (2026-10-27).
+      WEB_URL: ${{ vars.WEB_URL }}
     steps:
       - uses: actions/checkout@v4
       - name: Require production URL
         run: |
-          if [ -z "$API_URL" ]; then
-            echo "::error::Repository variable API_URL is not set — cannot run production smoke tests."
+          if [ -z "$WEB_URL" ]; then
+            echo "::error::Repository variable WEB_URL is not set — cannot run production smoke tests."
             exit 1
           fi
       - uses: pnpm/action-setup@v4
@@ -43,8 +46,11 @@ jobs:
           node-version: 22
           cache: ${{ runner.environment == 'github-hosted' && 'pnpm' || '' }}
       - run: pnpm install --frozen-lockfile --prod=false
-      - run: pnpm --filter ./apps/web exec playwright install ${{ runner.os == 'Linux' && '--with-deps' || '' }} chromium
+      # Time-boxed and retried: on 2026-10-27 this same install hung for ~40 min in CI, twice. Here a hang
+      # would run out the job's 15 minutes, fail smoke, and auto-rollback a healthy release.
+      - name: Install Chromium
+        run: bash scripts/install-chromium.sh "${{ runner.os == 'Linux' && '--with-deps' || '' }}"
       - name: Run unauthenticated smoke tests
         env:
-          BASE_URL: ${{ env.API_URL }}
+          BASE_URL: ${{ env.WEB_URL }}
         run: pnpm --filter ./apps/web e2e --project=chromium
