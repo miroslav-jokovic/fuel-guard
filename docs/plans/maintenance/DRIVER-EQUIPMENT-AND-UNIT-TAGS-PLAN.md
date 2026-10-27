@@ -116,7 +116,7 @@ Numbered on from the inventory plan's I13; I14 moved to its own plan.
 
 ---
 
-## 6. Production readiness of the inventory as built (audit 2026-10-27)
+## 5. Production readiness of the inventory as built (audit 2026-10-27)
 
 Production on 2026-10-27: 1 stock location, **0 parts, 0 asset types, 0 assets, 0 tags printed**, and
 **4 unit checks left open on one truck** (opened 09-10 ×2, 10-15, 10-19, none closed). Permissions
@@ -148,7 +148,7 @@ none of this replaces — the scanner on an Android tablet, and a printed roll l
 |---|---|---|---|
 | **Q-DE4** | How does the parts catalogue get in? | (a) The FleetPal parts pull (F12) — the shop already keeps its catalogue in FleetPal; recurring, no re-typing. (b) A CSV import. (c) Both. | **(a)** — FleetPal is where the catalogue lives (A3); a CSV is a second copy that goes stale. |
 
-## 7. Progress log
+## 6. Progress log
 
 - **2026-10-27 — plan written.** Owner rulings: tablets follow the driver, everything else the truck;
   a departed driver's tablet is flagged *not returned*; the tablets are Android; trucks and trailers
@@ -160,6 +160,6 @@ none of this replaces — the scanner on an Android tablet, and a printed roll l
   production-readiness pass over the inventory section as built (I0–I10), then **DE1–DE2** (tablets
   held by drivers). The owner's words: *"focus on implementing these devices and making sure our
   inventory is 100 % production ready."*
-- **2026-10-27 — production-readiness audit (§6).** R1–R13: tablets work end to end, a parts
+- **2026-10-27 — production-readiness audit (§5).** R1–R13: tablets work end to end, a parts
   catalogue cannot be loaded at scale, and the scan screen has four reliability defects. Next: PR-R1,
   then PR-R2.
