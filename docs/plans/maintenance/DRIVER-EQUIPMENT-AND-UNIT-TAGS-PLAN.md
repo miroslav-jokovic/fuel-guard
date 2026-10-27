@@ -13,6 +13,41 @@ came in to be tagged.
 The owner's bar, recorded verbatim because every step below is measured against it: *"this system is
 user friendly and simple to use, but precise and reliable."*
 
+**This plan is TRUCK inventory only.** §0 says what that excludes; read it before anything below.
+
+---
+
+## 0. Two inventories, kept apart (owner ruling 2026-10-27)
+
+`INVENTORY-PLAN.md` built two features in one module and named the reason (one tag namespace, one
+scan). That stays true of the *scanner*. It is not true of the *work*: on 2026-10-27 the owner ruled
+that they are two separate inventories with two separate sources, and this plan had mixed them —
+§5's first draft listed "no way to load the parts catalogue" as a truck-inventory readiness blocker
+and asked the owner how parts should get in. Owner, verbatim: *"We have Shop inventory that will be
+pulled from FleetPal, but we are now working on Truck inventory that will be separate from Shop
+inventory, and also this is part of our system only."*
+
+| | **Truck inventory** — this plan | **Shop inventory** — not this plan |
+|---|---|---|
+| What | The equipment a truck or trailer carries — straps, chains, load bars, fridge, tablet holder — and the **tablets, which follow the driver** (D-DE1) | The parts on the shop's shelves |
+| Source of truth | **Silvicom only.** Entered, tagged, moved and checked here; no FleetPal sync, no import | **FleetPal.** Pulled in by the FleetPal integration (`FLEETPAL-INTEGRATION-PLAN.md`, F12 onward) |
+| Tables | `asset_types`, `inventory_assets`, `asset_movements`, `kit_expectations`, `stock_count_sessions` where `kind = 'unit'`, and later `unit_tags` (D-DE5) | `parts`, `part_stock`, `stock_locations`, `part_movements`, `stock_count_sessions` where `kind = 'location'` |
+| Tags | `AST` (equipment); `VEH`/`TRL` (trucks and trailers, DE3–DE4) | `BIN` (shelves); supplier UPCs |
+| Screens | Assets, Units, a unit's page, the kit check, Labels → Assets | Parts, a part's page, the shelf count, Labels → Shelves |
+
+**What the two still share, deliberately:** `/shop/scan` (one trigger pull, whichever label it is —
+D-INV7's resolver registry decides), the label printer and the `/shop/labels` screen, and the
+Maintenance section's permissions. Those are the hardware and the doorway, not the data.
+
+**How to apply it.** A step in this plan touches only the truck column. A finding about the shop
+column is filed in the FleetPal integration plan, never answered here. Where a shared screen is
+fixed (the scanner, the label screen), the fix is recorded here only for its truck-inventory half.
+
+**Superseded by this ruling:** `INVENTORY-PLAN.md` D-INV6 (*"Silvicom builds its own shop
+inventory"*). How much of the shop's inventory FleetPal supplies — the catalogue only, or quantities
+and locations too, and therefore what remains of D-INV10 — is a question for the FleetPal plan, not
+this one.
+
 ---
 
 ## 1. Measured reality (2026-10-27, `origin/main`, migrations through 0521)
@@ -111,42 +146,44 @@ Numbered on from the inventory plan's I13; I14 moved to its own plan.
 | **Q-DE1** | Does a driver sign when given a tablet? | (a) No signature — Q7 stands; a dispute gets an `esign_consents`-shaped acknowledgement on the movement row. (b) A tap-to-acknowledge in the driver app at handover. (c) A paper form scanned into the driver file. | **RULED 2026-10-27: none in the product.** Drivers already sign a paper hand-receipt for a tablet; the paper is the signature and the dated movement row is ours. No signature step is built. |
 | **Q-DE2** | What goes on the OUTSIDE of a truck or trailer? | (a) Inside the cab (door jamb) on the direct-thermal roll — cheapest, fades within months. (b) **Pre-printed vinyl or aluminium QR plates from a vendor**, printed from our PDF, priced per plate for ~450 units (not yet quoted). (c) A thermal-TRANSFER printer with polyester labels (~$300 printer + ribbon). | **DEFERRED 2026-10-27: (b), ordered later by the owner.** Nothing is built for it: a vendor prints from the same PDF DE4 produces. Until then no unit label goes outside. |
 | **Q-DE3** | Where does a scanned trailer land? There is **no trailer detail page** (`/trailers` is a list — inventory plan, I9 findings). | (a) A trailer detail page with its kit card. (b) The trailer list filtered to it. | **DEFERRED 2026-10-27: (a), planned separately later.** The owner will plan the truck and trailer pages on their own; DE3–DE4 wait for that plan. |
+| **Q-DE4** | ~~How does the parts catalogue get in?~~ | — | **MOVED OUT 2026-10-27 — a shop-inventory question, asked here by mistake (§0).** The owner's answer: shop inventory is pulled from FleetPal (`FLEETPAL-INTEGRATION-PLAN.md` F12). Truck inventory is entered here and nowhere else. |
 
 ---
 
 ---
 
-## 5. Production readiness of the inventory as built (audit 2026-10-27)
+## 5. Production readiness of truck inventory and the shared devices (audit 2026-10-27)
 
-Production on 2026-10-27: 1 stock location, **0 parts, 0 asset types, 0 assets, 0 tags printed**, and
-**4 unit checks left open on one truck** (opened 09-10 ×2, 10-15, 10-19, none closed). Permissions
-are right (`admin`/`fleet_manager`/`technician` manage; `auditor`/`accountant` view) and every
-movement is idempotent (one client id per drawer, D-INV27). The tablet path works end to end. What
-does not hold up for daily use, each verified at the call site:
+Production on 2026-10-27: **0 asset types, 0 assets, 0 tags printed**, and **4 unit checks left open
+on one truck** (opened 09-10 ×2, 10-15, 10-19, none closed). Permissions are right
+(`admin`/`fleet_manager`/`technician` manage; `auditor`/`accountant` view) and every movement is
+idempotent (one client id per drawer, D-INV27). The tablet path works end to end.
 
-| # | Finding | Evidence | Fix | Step |
-|---|---|---|---|---|
-| **R1** | **No way to load a parts catalogue except one part at a time** — three screens each. No CSV import; the FleetPal parts pull (F12) is not built. | `PartsPage.vue:72`; `FLEETPAL-INTEGRATION-PLAN.md` F12 | Q-DE4 | PR-R4 |
-| **R2** | **Scanning the same label twice does nothing** — the query key is the code, so an unchanged code never asks again; the second scan shows the old quantity, and after a wifi failure a re-scan leaves the error up. Contradicts `useScan.ts:16-21`'s own promise. | `ScanPage.vue:66-68`, `useScan.ts:25` | A scan counter in the key | PR-R1 |
-| **R3** | **A misread tag offers "Create a part with this barcode"** — a colon lost to a keyboard layout (`SIL1;BIN;…`) or a tablet's IMEI barcode becomes a part's UPC. | `ScanResultCard.vue`, `PartForm.vue` `initialUpc` | Never offer create for a `SIL1`-shaped string; say "label misread — check the scanner's keyboard layout" | PR-R1 |
-| **R4** | **Typing the code printed under a QR finds nothing** — the resolver takes only a full `SIL1:` tag or a UPC, so a fogged label read aloud is "Not recognised". | `tags/routes.ts:58-87` | Resolve a bare 6-character code and an `A-0412` display number | PR-R1 |
-| **R5** | **A database error during a scan reads as "not our label".** | `tagResolvers.ts:13,25` → `routes.ts:70` | An error with Retry, never `unknown_tag` | PR-R1 |
-| **R6** | **The Labels screen forgets the stock and defaults to Avery 22805** — a forgotten switch sends a Letter page to the thermal printer; for the roll it still shows "Start at position 1 to 1" and sheet advice. | `LabelsPage.vue:65`, `LabelStockControls.vue:89-131` | Remember the choice; hide sheet-only controls for a one-label stock | PR-R2 |
-| **R7** | **No "Print label" on an asset's page**, though the Labels screen already takes `?asset=`. | `LabelsPage.vue:149-159` | The button | PR-R2 |
-| **R8** | **The same serial number can be entered twice** — two records, two labels, one tablet. | `0333:234` (plain index) | Partial unique index per org on a non-empty serial | PR-R3 (migration) |
-| **R9** | **Open checks can't be found or closed**; "Check this unit" always opens a new one. | `UnitDetailPage.vue:75-83`; `useCountSessionsQuery` unused | Resume the open check for that unit; an "Open counts" list with Close | PR-R2 |
-| **R10** | **Adopting the standard kit marks every unit "short"** for weeks while tagging is under way. | `inventoryRules.ts:122`, `inventoryKitCatalogue.ts:78-95` | Count only units checked at least once, and say so on the tile | PR-R2 |
-| **R11** | Tab-terminated scans into the "Type a code" field are lost; the keyboard hint is iOS-only. | `ScanPage.vue:149` | Submit on Tab; Android wording | PR-R1 |
-| **R12** | Issue/Receive/Create show to view-only roles, who then get a 403. | `ScanResultCard.vue` | Gate on the section's manage | PR-R1 |
-| **R13** | `part_stock.tag_code` has no immutability trigger (owed since I10). | `0331:188`; `tagIssuance.ts:116` | The trigger `inventory_assets` has | PR-R3 (migration) |
+⚠ The audit was first written over both inventories (§0). The **Inventory** column now says which one
+each finding is about: **Truck**, **Shared** (the scanner or the label screen — the devices both
+inventories use), or **Shop**. Shop findings were fixed where a shared PR already touched them, and
+are filed with the FleetPal plan from here on; R1 moved there outright.
+
+| # | Inventory | Finding | Evidence | Fix | Step |
+|---|---|---|---|---|---|
+| **R1** | Shop | ~~No way to load a parts catalogue except one part at a time.~~ **Moved out (§0):** shop parts come from FleetPal. | `PartsPage.vue:72` | `FLEETPAL-INTEGRATION-PLAN.md` F12 | — not this plan |
+| **R2** | Shared | **Scanning the same label twice does nothing** — the query key is the code, so an unchanged code never asks again; the second scan shows the old quantity, and after a wifi failure a re-scan leaves the error up. Contradicts `useScan.ts:16-21`'s own promise. | `ScanPage.vue:66-68`, `useScan.ts:25` | A scan counter in the key | PR-R1 |
+| **R3** | Shared | **A misread tag offers "Create a part with this barcode"** — a colon lost to a keyboard layout (`SIL1;BIN;…`) or a tablet's IMEI barcode becomes a part's UPC. | `ScanResultCard.vue`, `PartForm.vue` `initialUpc` | Never offer create for a `SIL1`-shaped string; say "label misread — check the scanner's keyboard layout" | PR-R1 |
+| **R4** | Shared | **Typing the code printed under a QR finds nothing** — the resolver takes only a full `SIL1:` tag or a UPC, so a fogged label read aloud is "Not recognised". | `tags/routes.ts:58-87` | Resolve a bare 6-character code and an `A-0412` display number | PR-R1 |
+| **R5** | Shared | **A database error during a scan reads as "not our label".** | `tagResolvers.ts:13,25` → `routes.ts:70` | An error with Retry, never `unknown_tag` | PR-R1 |
+| **R6** | Shared | **The Labels screen forgets the stock and defaults to Avery 22805** — a forgotten switch sends a Letter page to the thermal printer; for the roll it still shows "Start at position 1 to 1" and sheet advice. | `LabelsPage.vue:65`, `LabelStockControls.vue:89-131` | Remember the choice; hide sheet-only controls for a one-label stock | PR-R2 |
+| **R7** | Truck | **No "Print label" on an asset's page**, though the Labels screen already takes `?asset=`. | `LabelsPage.vue:149-159` | The button | PR-R2 |
+| **R8** | Truck | **The same serial number can be entered twice** — two records, two labels, one tablet. | `0333:234` (plain index) | Partial unique index per org on a non-empty serial | PR-R3 (migration) |
+| **R9** | Truck | **Open checks can't be found or closed**; "Check this unit" always opens a new one. | `UnitDetailPage.vue:75-83`; `useCountSessionsQuery` unused | Resume the open check for that unit; an "Open counts" list with Close | PR-R2 |
+| **R10** | Truck | **Adopting the standard kit marks every unit "short"** for weeks while tagging is under way. | `inventoryRules.ts:122`, `inventoryKitCatalogue.ts:78-95` | Count only units checked at least once, and say so on the tile | PR-R2 |
+| **R11** | Shared | Tab-terminated scans into the "Type a code" field are lost; the keyboard hint is iOS-only. | `ScanPage.vue:149` | Submit on Tab; Android wording | PR-R1 |
+| **R12** | Shared | Issue/Receive/Create show to view-only roles, who then get a 403. | `ScanResultCard.vue` | Gate on the section's manage | PR-R1 |
+| **R13** | Shop | `part_stock.tag_code` has no immutability trigger (owed since I10). | `0331:188`; `tagIssuance.ts:116` | The trigger `inventory_assets` has | PR-R3 (migration) |
 
 **Order:** PR-R1 (scan) and PR-R2 (labels, checks, kit tile) need no migration and make the devices
-reliable; PR-R3 is one migration; PR-R4 waits on Q-DE4. **DE0's physical check** (§3) is the proof
-none of this replaces — the scanner on an Android tablet, and a printed roll label scanned back.
-
-| # | Question | Candidates | Recommendation |
-|---|---|---|---|
-| **Q-DE4** | How does the parts catalogue get in? | (a) The FleetPal parts pull (F12) — the shop already keeps its catalogue in FleetPal; recurring, no re-typing. (b) A CSV import. (c) Both. | **(a)** — FleetPal is where the catalogue lives (A3); a CSV is a second copy that goes stale. |
+reliable; PR-R3 is one migration. **All three are merged (§6); every truck and shared finding is
+closed.** There is no PR-R4 — it was R1, which is the shop's. **DE0's physical check** (§3) is the
+proof none of this replaces — the scanner on an Android tablet, and a printed roll label scanned back.
 
 ## 6. Progress log
 
@@ -194,3 +231,11 @@ none of this replaces — the scanner on an Android tablet, and a printed roll l
     every older duplicate open unit check — never deletes — keeping the newest, with a note saying
     why. Production: one truck, four open checks → the three older close.
   - Matrix `inventory-integrity.test.mjs` applies 0522 AFTER seeding duplicates on 0521's schema.
+- **2026-10-27 — PR-R3 merged (#1790).**
+- **2026-10-27 — owner ruling: two separate inventories (§0).** Shop inventory (parts) is pulled from
+  FleetPal; truck inventory (equipment, and tablets held by drivers) is ours alone. This plan had
+  mixed them: it listed R1 (bulk parts loading) as a truck-inventory blocker and asked Q-DE4. R1 and
+  Q-DE4 are moved to the FleetPal plan; §5 gains an Inventory column; `INVENTORY-PLAN.md` D-INV6 is
+  marked superseded. Of what shipped today, R13 and the Labels screen's shelf half were shop-side
+  fixes riding shared PRs — harmless, and not a precedent. **Next: DE1** (tablets held by drivers,
+  schema), then DE2.
