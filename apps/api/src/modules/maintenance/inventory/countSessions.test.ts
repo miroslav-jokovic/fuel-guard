@@ -1,4 +1,4 @@
-import { describe, expect, it, beforeEach, vi } from "vitest";
+import { afterEach, describe, expect, it, beforeEach, vi } from "vitest";
 import { createSupabaseRecorder, expectOrgScoped, type SupabaseRecorder } from "../../../testing/supabaseRecorder.js";
 
 /**
@@ -75,7 +75,9 @@ const kitRow = () =>
   });
 
 /** Answers on the filters the service actually sent, which a flat array cannot do. */
-const rows = () => [sessionRow(), closedRow(), kitRow()];
+/** Rows a describe adds for its own question — reset to none before each test. */
+let extraRows: ReturnType<typeof sessionRow>[] = [];
+const rows = () => [sessionRow(), closedRow(), kitRow(), ...extraRows];
 const byFilters = (q: { filters: () => Array<{ col: string; val: unknown }> }) => {
   const eq = new Map(q.filters().map((f) => [f.col, f.val]));
   return rows().filter(
@@ -182,7 +184,23 @@ describe("opening a walk", () => {
 describe("checking a unit that already has a check open", () => {
   const OTHER_TRAILER = "66666666-6666-4666-8666-666666666666";
   beforeEach(() => {
+    // The other trailer was checked and the check CLOSED — a finished walk must never be reopened.
+    extraRows = [
+      sessionRow({
+        id: "77777777-7777-4777-8777-777777777777",
+        kind: "unit",
+        location_id: null,
+        trailer_id: OTHER_TRAILER,
+        status: "closed",
+        closed_at: "2026-10-01T12:00:00.000Z",
+        stock_locations: null,
+        trailers: { unit_number: "T-5000" },
+      }),
+    ];
     rec = createSupabaseRecorder({ tables: { stock_count_sessions: byFilters } });
+  });
+  afterEach(() => {
+    extraRows = [];
   });
 
   it("continues the open check and writes nothing", async () => {
@@ -192,7 +210,7 @@ describe("checking a unit that already has a check open", () => {
     expectOrgScoped(rec, ORG, SCOPED);
   });
 
-  it("opens a new one for a unit with none open", async () => {
+  it("opens a new one for a unit whose only check is closed", async () => {
     const result = await openCountSession(rec.client, ORG, USER, { kind: "unit", trailerId: OTHER_TRAILER, blind: false });
     expect(result).toMatchObject({ resumed: false });
     expect(rec.writes().find((w) => w.table === "stock_count_sessions")?.write?.payload).toMatchObject({

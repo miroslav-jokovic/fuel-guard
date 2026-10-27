@@ -170,3 +170,16 @@ none of this replaces — the scanner on an Android tablet, and a printed roll l
   names the paper size, and a start position the new stock lacks goes back to 1 (it was a 422).
   R7 — "Print label" on an asset's page, gated on the Labels screen opening (SP5). **PR-R2b** carries
   R9 and R10, which touch the API.
+- **2026-10-27 — PR-R2b (R9, R10).**
+  - **R9:** "Check this unit" asks the server, which hands back the unit's open check (newest, 200 +
+    `resumed`) instead of inserting another; the screen says "Continuing the open check". Shelf walks
+    are not folded (a D-INV21 recount is a second person's walk of the same bay). The shop home and
+    each unit's page list the open walks (`OpenCountsList`) with Continue and Close; Close asks first.
+    The four orphaned production checks are reachable from the home now.
+  - **R10:** `UnitKitDto.lastCheckedAt` = newest closed unit check. The home's "Short of kit" counts
+    only short units with one, says so, and links to the Units page's new "Short, and checked" filter;
+    the Units list gets a "Last checked" column and the unit page "Never checked — …".
+  - **Owed to PR-R3:** resume is a read then an insert, so two people pressing at the same instant can
+    still open two. R3's migration adds a partial unique index on the open unit check per vehicle and
+    per trailer — and must first close all but the newest of any duplicates already open (production
+    holds four on one truck unless they are closed from the list before the release).
