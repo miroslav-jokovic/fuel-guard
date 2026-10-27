@@ -114,6 +114,17 @@ await reset();
 await db.query(`select chat_edit($1,$2,$3,'Truck 654 is at the YARD gate.')`, [ORG, ANA, M1.message_id]);
 s = await sent();
 ok("an edit announces a change at its new revision", s.length === 3 && s.every((r) => r.payload.op === "change" && r.payload.rev > Number(M1.rev)));
+// 0523: a reaction or a pin moves only the line's `rev`, and is announced like an edit.
+await reset();
+const reacted = Number((await one(`select chat_react($1,$2,$3,'thumbs_up',true) rev`, [ORG, BEN, M1.message_id])).rev);
+s = await sent();
+ok("a reaction announces a change at the line's new revision", s.length === 3 && s.every((r) => r.payload.op === "change" && r.payload.rev === reacted));
+await reset();
+await db.query(`select chat_pin($1,$2,$3,true)`, [ORG, BEN, M1.message_id]);
+ok("...as does a pin", (await sent()).length === 3);
+await reset();
+await db.query(`select chat_save($1,$2,$3,true)`, [ORG, BEN, M1.message_id]);
+ok("saving announces nothing (nobody else sees it)", (await sent()).length === 0);
 await reset();
 await db.query(`select chat_retract($1,$2,$3)`, [ORG, ANA, M1.message_id]);
 ok("a retraction announces a change", (await sent()).length === 3);

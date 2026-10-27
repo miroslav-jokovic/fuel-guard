@@ -195,6 +195,27 @@ export type ChatAddMembersRequest = z.infer<typeof chatAddMembersRequestSchema>;
 export const chatMuteRequestSchema = z.object({ muted: z.enum(CHAT_MUTE_LEVELS) });
 export type ChatMuteRequest = z.infer<typeof chatMuteRequestSchema>;
 
+// ── Reactions (D-CHAT26) ──────────────────────────────────────────────────────────────────────────
+
+/**
+ * The six reactions, fixed (D-CHAT26): 👍 ❤️ 😂 😮 😢 ✅ — the last for "done", which an office says
+ * more often than 😡. Stored as these keys, never as the emoji, and in this order everywhere a line's
+ * reactions are listed (0523 `chat_line_reactions`). The database's CHECK lists the same six;
+ * chatReactionCheck.test.ts holds the two together, so a seventh is one list here and one migration.
+ */
+export const CHAT_REACTIONS = ["thumbs_up", "heart", "laugh", "surprised", "sad", "done"] as const;
+export type ChatReaction = (typeof CHAT_REACTIONS)[number];
+
+/** What each key is drawn as. */
+export const CHAT_REACTION_EMOJI: Record<ChatReaction, string> = {
+  thumbs_up: "👍",
+  heart: "❤️",
+  laugh: "😂",
+  surprised: "😮",
+  sad: "😢",
+  done: "✅",
+};
+
 // ── Activity (D-CHAT25) ───────────────────────────────────────────────────────────────────────────
 
 export const CHAT_ACTIVITY_REASONS = ["mention", "reply"] as const;

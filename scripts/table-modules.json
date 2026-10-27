@@ -178,6 +178,28 @@
         "why": "no rows in production 2026-09-21; bounded by the number of orgs."
       }
     },
+    "chat_pins": {
+      "module": "messaging",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 50,
+        "why": "OFFICE-CHAT-PLAN D-CHAT24 (0523): one row per pinned line, set and removed by anybody in the conversation (ledgered message_pinned/message_unpinned). A handful per conversation. Lives and dies with its message (on delete cascade)."
+      }
+    },
+    "chat_saved": {
+      "module": "messaging",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 500,
+        "why": "OFFICE-CHAT-PLAN D-CHAT24 (0523): one person's saved lines, a bookmark like read_seq; not ledgered, removed when unsaved. A few a person a day at most. Lives and dies with its message (on delete cascade)."
+      }
+    },
     "credential_source_dates": {
       "module": "evidence",
       "layer": "core",
@@ -1551,6 +1573,17 @@
         "partition": null,
         "budget_rows_per_day": null,
         "why": "no rows in production 2026-09-21; bounded by the number of orgs."
+      }
+    },
+    "message_reactions": {
+      "module": "messaging",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 3000,
+        "why": "OFFICE-CHAT-PLAN D-CHAT26 (0523): one row per person per reaction kind per line, six kinds; removed when taken back (the ledger keeps reaction_added/reaction_removed). Sized at the chat_message budget. Lives and dies with its message (on delete cascade)."
       }
     },
     "road_test_examiners": {
