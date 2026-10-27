@@ -25,7 +25,8 @@ import { useToastStore } from "@/stores/toast";
  * ── CLOSE IS HERE, AND SAYS WHAT IT LEAVES ────────────────────────────────────────────────────
  * Closing from the list is closing a walk somebody walked away from: whatever was answered stays
  * recorded, whatever was not is left as the system has it — the same words the walk's own Close
- * uses. Continue and Close both write, so both are for managers; a viewer still sees the list.
+ * uses. Continuing (the row) and Close both write, so both are for managers; a viewer still sees
+ * the list.
  */
 
 const props = defineProps<{
@@ -59,6 +60,9 @@ const COLUMNS: DataTableColumn[] = [
 const whatOf = (s: CountSessionDto) =>
   s.kind === "unit" ? `Kit check — ${s.holderLabel ?? "a unit"}` : `Shelf count — ${s.holderLabel ?? "a bay"}`;
 
+const continueWalk = (s: CountSessionDto) =>
+  void router.push({ name: "count-session", params: { sessionId: s.id } });
+
 async function close(s: CountSessionDto) {
   const ok = await ask({
     title: "Close this walk?",
@@ -89,19 +93,30 @@ async function close(s: CountSessionDto) {
       error-text="Could not load the open counts."
       @retry="refetch()"
     />
-    <DataTable v-else :columns="COLUMNS" :rows="open" row-key="id">
+    <!-- The row is Continue — it opens the walk, as a row opens its record everywhere else — and Close
+         is the row's one button (contract §5.6). Both write, so neither is offered to a viewer. -->
+    <!-- ui-adoption: never-empty — the section is drawn only while something is open. -->
+    <DataTable
+      v-else
+      :columns="COLUMNS"
+      :rows="open"
+      row-key="id"
+      :row-class="() => (canManage ? 'cursor-pointer' : '')"
+      @row-click="(row) => canManage && continueWalk(row as CountSessionDto)"
+    >
       <template #cell-holderLabel="{ row }">{{ whatOf(row as CountSessionDto) }}</template>
       <template #cell-openedAt="{ value }">{{ formatDateTime(value) }}</template>
       <template #cell-startedByName="{ value }">{{ value ?? "—" }}</template>
       <template #actions="{ row }">
-        <div v-if="canManage" class="flex justify-end gap-2">
-          <BaseButton size="sm" @click="router.push({ name: 'count-session', params: { sessionId: row.id } })">
-            Continue
-          </BaseButton>
-          <BaseButton size="sm" :disabled="closeWalk.isPending.value" @click="close(row as CountSessionDto)">
-            Close
-          </BaseButton>
-        </div>
+        <BaseButton
+          v-if="canManage"
+          variant="ghost"
+          size="sm"
+          :disabled="closeWalk.isPending.value"
+          @click.stop="close(row as CountSessionDto)"
+        >
+          Close
+        </BaseButton>
       </template>
     </DataTable>
   </section>

@@ -92,12 +92,18 @@ describe("the open walks", () => {
     expect(render().text()).toBe("");
   });
 
-  it("names each walk and offers Continue, which opens that walk", async () => {
+  /** The row is Continue. Emitted through `DataTable`'s own event: jsdom draws no `<tr>` to click. */
+  const clickRow = async (w: ReturnType<typeof render>, row: CountSessionDto) => {
+    w.findComponent({ name: "DataTable" }).vm.$emit("row-click", row);
+    await w.vm.$nextTick();
+  };
+
+  it("names each walk, and opening a row continues that walk", async () => {
     state.sessions = [walk(), walk({ id: "33333333-3333-4333-8333-333333333333", kind: "location", holderLabel: "Main bay" })];
     const w = render();
     expect(w.text()).toContain("Kit check — 654");
     expect(w.text()).toContain("Shelf count — Main bay");
-    await button(w, "Continue")!.trigger("click");
+    await clickRow(w, walk());
     expect(state.pushed).toEqual([{ name: "count-session", params: { sessionId: walk().id } }]);
   });
 
@@ -119,13 +125,14 @@ describe("the open walks", () => {
     expect(state.close).not.toHaveBeenCalled();
   });
 
-  it("shows a viewer the list without Continue or Close", () => {
+  it("shows a viewer the list without Close, and its rows open nothing", async () => {
     state.sessions = [walk()];
     state.manage = false;
     const w = render();
     expect(w.text()).toContain("Kit check — 654");
-    expect(button(w, "Continue")).toBeUndefined();
     expect(button(w, "Close")).toBeUndefined();
+    await clickRow(w, walk());
+    expect(state.pushed).toEqual([]);
   });
 
   it("draws a failed read with a Retry, not as nothing open", async () => {
