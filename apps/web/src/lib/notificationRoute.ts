@@ -48,6 +48,12 @@ function destination(category: string, entityType: string | null, entityId: stri
     if (entityType === "trailer") return `/trailers/${entityId}?section=file`;
   }
   if (category === "message_received") return "/messages";
+  // D-CHAT23: a mention or a reply is one item per conversation, so it opens the conversation — a channel
+  // at `?ch=`, a direct or group conversation at `?c=` (the /chat page's own addresses).
+  if ((category === "chat_mention" || category === "chat_reply") && entityId) {
+    if (entityType === "chat_channel") return `/chat?ch=${encodeURIComponent(entityId)}`;
+    if (entityType === "chat_conversation") return `/chat?c=${encodeURIComponent(entityId)}`;
+  }
   // A10. The applicant board IS the queue for a stalled application — there is no per-applicant page
   // to land on, and "an alert that cannot deep-link to its queue is half an alert".
   if (category === "application_stalled") return "/recruitment";

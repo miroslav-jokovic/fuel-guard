@@ -120,7 +120,9 @@ describe("every call is the caller's, from the token", () => {
     for (const c of calls) {
       const args = c.args as Record<string, unknown>;
       expect(args.p_org, c.fn).toBe(ORG);
-      expect(args.p_user ?? args.p_actor, c.fn).toBe(USER);
+      // Who a line's bell tells (0521) is asked of the line itself, which the send just wrote as the caller.
+      if (c.fn === "chat_notify_targets") expect(args.p_message).toBe(MSG);
+      else expect(args.p_user ?? args.p_actor, c.fn).toBe(USER);
     }
     // The only table reads are the screen gate's own (`requireSurface("chat")` reads the org's surface
     // answers), and every one is org-scoped; the chat code itself reads no table at all.

@@ -2,9 +2,11 @@ import { Router, type Response } from "express";
 import {
   CHAT_KINDS,
   OFFICE_ROLES,
+  chatActivityReadRequestSchema,
   chatAddMembersRequestSchema,
   chatCreateGroupRequestSchema,
   chatEditRequestSchema,
+  chatMuteRequestSchema,
   chatOpenDirectRequestSchema,
   chatReadRequestSchema,
   chatRenameRequestSchema,
@@ -36,6 +38,8 @@ import {
   chatSync,
   type ChatResult,
 } from "../chat.js";
+import { chatActivity, chatActivityMarkRead, chatActivityUnread, chatSetMute } from "../chatActivity.js";
+import { chatLineBeforeEdit, chatNotifyEdited, chatNotifySent } from "../chatNotify.js";
 
 /**
  * Office chat (OFFICE-CHAT-PLAN.md CH1b) — `/api/chat`. The conversations between the people in the
@@ -50,7 +54,8 @@ import {
  *
  * WRITES: a new message counts against the person's `chat_message` budget (D-CHAT8, 3,000 a day).
  * Every write is recorded in the chat ledger by 0511's triggers — nothing here writes an audit row,
- * so nothing here can forget one.
+ * so nothing here can forget one. A new line, and an edit that names somebody new, then rings the bell
+ * of whoever 0521's `chat_notify_targets` says (D-CHAT23, chatNotify.ts) before the answer goes back.
  */
 export function chatRouter(): Router {
   const router = Router();
@@ -114,6 +119,44 @@ export function chatRouter(): Router {
     }),
   );
 
+  /**
+   * Activity (D-CHAT25): what named you and what answered your posts, newest first, with its badge.
+   * Ahead of `/:id`, which would answer `/activity` as a conversation that does not exist.
+   */
+  router.get(
+    "/activity",
+    asyncHandler(async (req, res) => {
+      const beforeAt = typeof req.query.before_at === "string" ? req.query.before_at : null;
+      const beforeId = typeof req.query.before_id === "string" && isRecordId(req.query.before_id) ? req.query.before_id : null;
+      if ((beforeAt === null) !== (beforeId === null) || (beforeAt !== null && Number.isNaN(Date.parse(beforeAt)))) {
+        res.status(400).json(apiError("bad_cursor", "before_at and before_id go together"));
+        return;
+      }
+      const { orgId, userId } = ctx(req);
+      res.json(await chatActivity(admin(req), orgId, userId, {
+        before_at: beforeAt, before_id: beforeId, limit: intQuery(req.query.limit) ?? undefined,
+      }));
+    }),
+  );
+
+  router.get(
+    "/activity/unread",
+    asyncHandler(async (req, res) => {
+      const { orgId, userId } = ctx(req);
+      res.json({ unread: await chatActivityUnread(admin(req), orgId, userId) });
+    }),
+  );
+
+  router.post(
+    "/activity/read",
+    validateBody(chatActivityReadRequestSchema),
+    asyncHandler(async (req, res) => {
+      const body = res.locals.body as ReturnType<typeof chatActivityReadRequestSchema.parse>;
+      const { orgId, userId } = ctx(req);
+      res.json({ activity_read_at: await chatActivityMarkRead(admin(req), orgId, userId, body.at) });
+    }),
+  );
+
   /** Open (or find) the one conversation with a person. 200 either way: the caller just wants it. */
   router.post(
     "/direct",
@@ -144,7 +187,10 @@ export function chatRouter(): Router {
       if (!messageId) { notFound(res); return; }
       const body = res.locals.body as ReturnType<typeof chatEditRequestSchema.parse>;
       const { orgId, userId } = ctx(req);
-      send(res, await chatEdit(admin(req), orgId, userId, messageId, body.body), (rev) => ({ rev }));
+      const before = await chatLineBeforeEdit(admin(req), orgId, messageId, body.body);
+      const result = await chatEdit(admin(req), orgId, userId, messageId, body.body);
+      if (result.ok) await chatNotifyEdited(admin(req), orgId, userId, messageId, body.body, before);
+      send(res, result, (rev) => ({ rev }));
     }),
   );
 
@@ -201,6 +247,7 @@ export function chatRouter(): Router {
       const body = res.locals.body as ReturnType<typeof chatSendRequestSchema.parse>;
       const { orgId, userId } = ctx(req);
       const result = await chatSend(admin(req), orgId, userId, id, body.message_id, body.body);
+      if (result.ok && !result.value.duplicate) await chatNotifySent(admin(req), orgId, userId, id, body.message_id, body.body);
       // 201 for a new message, 200 for a retry the database recognised — the client treats both as sent.
       send(res, result, (v) => v, result.ok && !result.value.duplicate ? 201 : 200);
     }),
@@ -215,6 +262,19 @@ export function chatRouter(): Router {
       const body = res.locals.body as ReturnType<typeof chatReadRequestSchema.parse>;
       const { orgId, userId } = ctx(req);
       send(res, await chatMarkRead(admin(req), orgId, userId, id, body.seq), (seq) => ({ read_seq: seq }));
+    }),
+  );
+
+  /** Quieten it for yourself: `none`, `mentions` or `all` (D-CHAT23). Nobody else sees it (D-CHAT24). */
+  router.put(
+    "/:id/mute",
+    validateBody(chatMuteRequestSchema),
+    asyncHandler(async (req, res) => {
+      const id = idParam(req, "id");
+      if (!id) { notFound(res); return; }
+      const body = res.locals.body as ReturnType<typeof chatMuteRequestSchema.parse>;
+      const { orgId, userId } = ctx(req);
+      send(res, await chatSetMute(admin(req), orgId, userId, id, body.muted), (muted) => ({ muted }));
     }),
   );
 

@@ -510,3 +510,15 @@ TechRepublic / Windows Report on Teams 2026 updates.
 - 2026-10-26: **Q-CHAT15 ruled (a)**: no retention setting or purge job until counsel names a period; revisit at
   10,000 production messages or a legal request. The redesign plan's Q-CHATUI1–4 were ruled the same day
   (`CHAT-REDESIGN-PLAN.md` §8).
+- 2026-10-27: **CH6b-2 split in two; the API half built** (`claude/office-chat-ch6b-2-api`). Routes:
+  `PUT /api/chat/:id/mute`, and `GET /api/chat/activity` (keyset page + badge), `/activity/unread`,
+  `POST /activity/read`, mounted ahead of `/:id`. The bell: after a new line, a post or a reply,
+  `chatNotify.ts` asks 0521's `chat_notify_targets` and hands each row to `notify()` with the key the
+  database chose — titled from the sender's view ("Ana mentioned you in # Loads", "Ana replied in
+  # Loads"), the first 80 characters with every token as `@Name` (the bell follows Q-CHAT18 (a)), and the
+  conversation as the entity (`chat_channel` / `chat_conversation`) because one item stands for a
+  stretch of lines, so the web bell opens `?ch=` or `?c=`. A retried send rings nothing; a bell that
+  fails never fails the line; an edit rings only for the people it newly names (D-CHAT22) — the one
+  table read in chat's code, org-filtered, and only when the new words carry a token. The shared token
+  reader (`chatMentionIds`, `chatBodyText`) takes the id from `isRecordId` rather than a second id
+  regex (D-US13). The web half — typeahead, chips, mute menu and Muted section, Activity tab — is next.

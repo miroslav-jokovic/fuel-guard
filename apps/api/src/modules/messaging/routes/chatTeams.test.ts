@@ -144,11 +144,13 @@ describe("every call is the caller's, from the token", () => {
     await call(`/channels/${CHANNEL}/posts`);
     await post(`/channels/${CHANNEL}/posts/${POST}/replies`, { message_id: MSG, body: "On it." });
     const calls = chatCalls();
-    expect(calls.length).toBe(7);
+    // Seven, and the reply's bell question (`chat_notify_targets`, CH6b-2), asked of the line just written.
+    expect(calls.length).toBe(8);
     for (const c of calls) {
       const args = c.args as Record<string, unknown>;
       expect(args.p_org, c.fn).toBe(ORG);
-      expect(args.p_user ?? args.p_actor, c.fn).toBe(USER);
+      if (c.fn === "chat_notify_targets") expect(args.p_message).toBe(MSG);
+      else expect(args.p_user ?? args.p_actor, c.fn).toBe(USER);
     }
     expectOrgScoped(holder.rec!, ORG);
     const tables = new Set(holder.rec!.queries.filter((q) => !q.table.startsWith("rpc:")).map((q) => q.table));
