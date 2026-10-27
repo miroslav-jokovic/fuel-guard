@@ -2,6 +2,7 @@ import { execFileSync } from "node:child_process";
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
+import { trimBracketedTake } from "./bracketTrim";
 
 /**
  * Narration: one audio file per spoken line, made BEFORE the recording so the director can hold each
@@ -65,14 +66,37 @@ const PROVIDERS: Record<string, { voice: string; synth: Synth | null }> = {
   higgsfield: {
     voice: "e2a2d2e6-9ed2-59cd-82af-feaa27f8a678",
     synth: (text, voice, wav) => {
-      // gen-vo.sh's recipe: the brackets give the model a run-in and a run-out it then trims cleanly.
-      const out = execFileSync("higgsfield", [
-        "generate", "create", "seed_audio", "--prompt", `Ready. ${text} Okay.`, "--voice_id", voice, "--voice_type", "preset",
-        "--format", "wav", "--sample_rate", "48000", "--speech_rate", "-1", "--wait", "--wait-timeout", "10m",
-      ], { encoding: "utf8" });
-      const url = out.match(/https:\/\/\S+/g)?.pop();
-      if (!url) throw new Error(`higgsfield returned no audio for: ${text}`);
-      execFileSync("curl", ["-sL", url, "-o", wav]);
+      // gen-vo.sh's recipe: the brackets give the model a run-in and a run-out, and `bracketTrim.ts`
+      // cuts them off again. The paid, untrimmed take is kept beside the line (`.raw.wav`), so a
+      // change to the trim re-cuts from it instead of buying the line twice.
+      const raw = wav.replace(/\.wav$/, ".raw.wav");
+      // A take the trim refuses (no "Ready." heard, words that are not the script) is set aside as
+      // `.rejected-<n>.wav` with its transcript — kept, so the refusal can be listened to — and a
+      // fresh one bought, up to three, after which the run stops so a person can hear the line.
+      const refusals: string[] = [];
+      for (let take = 1; !fs.existsSync(wav); take++) {
+        if (!fs.existsSync(raw)) {
+          const out = execFileSync("higgsfield", [
+            "generate", "create", "seed_audio", "--prompt", `Ready. ${text} Okay.`, "--voice_id", voice, "--voice_type", "preset",
+            "--format", "wav", "--sample_rate", "48000", "--speech_rate", "-1", "--wait", "--wait-timeout", "10m",
+          ], { encoding: "utf8" });
+          const url = out.match(/https:\/\/\S+/g)?.pop();
+          if (!url) throw new Error(`higgsfield returned no audio for: ${text}`);
+          execFileSync("curl", ["-sL", url, "-o", raw]);
+        }
+        try {
+          trimBracketedTake(raw, wav, text);
+        } catch (e) {
+          refusals.push((e as Error).message);
+          // The transcript is cached by the take's file name, so it moves WITH the take: left
+          // behind, the next take bought would be cut by this one's words.
+          const transcript = raw.replace(/\.wav$/, ".words.json");
+          const set = wav.replace(/\.wav$/, `.rejected-${take}`);
+          fs.renameSync(raw, `${set}.wav`);
+          if (fs.existsSync(transcript)) fs.renameSync(transcript, `${set}.words.json`);
+          if (take >= 3) throw new Error(`three takes refused — ${refusals.join("; ")} — "${text}"`, { cause: e });
+        }
+      }
     },
   },
   silent: { voice: "none", synth: null },

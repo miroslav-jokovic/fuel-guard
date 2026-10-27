@@ -14,7 +14,9 @@ export default defineConfig({
   test: {
     environment: "jsdom",
     globals: true,
-    include: ["src/**/*.test.ts"],
+    // tutorials/: the narration trim's cases (`tutorials/produce/bracketTrim.test.ts`); the rest of
+    // that folder is Playwright, run by `tutorials --check`, and named *.spec.ts so this never collects it.
+    include: ["src/**/*.test.ts", "tutorials/**/*.test.ts"],
     // What jsdom is missing and any suite opening a dialog needs — see the file's own header for
     // why it is here rather than copied into a fourth test file.
     // The one jsdom setup, in the package whose dialogs need it (US7: BaseModal moved there).
