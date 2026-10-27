@@ -52,3 +52,16 @@ export function registeredTagKinds(): TagKind[] {
 export function clearTagResolvers(): void {
   resolvers.clear();
 }
+
+/**
+ * A resolver's read FAILED — distinct from null, which is "not ours". The route answers it with a
+ * 500 and a retry rather than `unknown_tag`, because telling a technician a good label is not on
+ * file sends them looking for a fault that is not there (DRIVER-EQUIPMENT-AND-UNIT-TAGS-PLAN.md §5,
+ * R5).
+ */
+export class TagLookupError extends Error {
+  constructor(where: string, cause: { message?: string } | null) {
+    super(`${where}: ${cause?.message ?? "lookup failed"}`);
+    this.name = "TagLookupError";
+  }
+}

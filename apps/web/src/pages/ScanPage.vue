@@ -4,6 +4,7 @@ import { useRouter } from "vue-router";
 import { AppButton as BaseButton, AppFormField as FormField, AppInput as BaseInput, ErrorState } from "@silvicom/ui";
 import { useScanInput } from "@/composables/useScanInput";
 import { useLocationsQuery } from "@/features/inventory/useInventory";
+import { useSessionStore } from "@/stores/session";
 import { useScanQuery } from "@/features/inventory/useScan";
 import ScanResultCard, { type ScanAction } from "@/features/inventory/ScanResultCard.vue";
 import MovementDrawer, { type DeskVerb } from "@/features/inventory/MovementDrawer.vue";
@@ -48,11 +49,13 @@ const router = useRouter();
 
 /** The code being resolved. Empty is the idle screen, not an error. */
 const code = ref("");
+/** Bumped by every scan, so the same label scanned twice asks again — see `useScanQuery`. */
+const scanSeq = ref(0);
 /** What the fallback field holds — separate from `code`, which is only ever a submitted value. */
 const typed = ref("");
 
 const { data: locations } = useLocationsQuery();
-const { data: result, isFetching, isError, error, refetch } = useScanQuery(code);
+const { data: result, isFetching, isError, error, refetch } = useScanQuery(code, scanSeq);
 
 const moving = ref<{ verb: DeskVerb; line: StockLineDto } | null>(null);
 const assetAction = ref<{ mode: "move" | "report"; asset: AssetDto } | null>(null);
@@ -66,6 +69,7 @@ const scanner = useScanInput({
   enabled: computed(() => !drawerOpen.value),
   onScan: (scanned) => {
     code.value = scanned;
+    scanSeq.value += 1;
   },
 });
 
@@ -73,6 +77,26 @@ function submitTyped() {
   scanner.submit(typed.value);
   typed.value = "";
 }
+
+/**
+ * A scanner set to end each read with Tab rather than Enter, firing while this field has focus,
+ * types the code in and then moves focus away — the document listener ignores an editable target,
+ * so nothing was ever submitted (DRIVER-EQUIPMENT-AND-UNIT-TAGS-PLAN.md §5, R11). Tab with text in
+ * the field submits it; Tab in an empty field still moves focus, so keyboard navigation survives.
+ */
+function onFieldTab(event: KeyboardEvent) {
+  if (!typed.value.trim()) return;
+  event.preventDefault();
+  submitTyped();
+}
+
+/**
+ * Issue, Receive, Move and Create are writes, and the route is `maintenance: view` — an auditor
+ * reaches this screen and used to be offered all four, each ending in a 403 (§5, R12). The matrix
+ * answers, through the session store's door onto it.
+ */
+const session = useSessionStore();
+const canManage = computed(() => session.can("maintenance"));
 
 function act(action: ScanAction) {
   switch (action.kind) {
@@ -125,7 +149,7 @@ function refresh() {
       @retry="() => refetch()"
     />
 
-    <ScanResultCard v-else-if="result" :result="result" @action="act" />
+    <ScanResultCard v-else-if="result" :result="result" :can-manage="canManage" @action="act" />
 
     <!-- The idle screen. It names the hardware rather than describing a camera, because on this path
          there is no camera: the shop's scanner is a Bluetooth keyboard, and the only thing that can
@@ -133,8 +157,9 @@ function refresh() {
     <div v-else class="rounded-control bg-surface-subtle px-4 py-6 text-center ring-1 ring-edge">
       <p class="text-sm font-semibold text-ink">Ready</p>
       <p class="mx-auto mt-1 max-w-sm text-sm text-ink-tertiary">
-        If nothing happens when you scan, check the scanner is paired in Settings → Bluetooth. You
-        can also type a code below.
+        If nothing happens when you scan, check the scanner is connected — paired in Bluetooth
+        settings, or its USB receiver plugged in. You can also type the code printed on the label
+        below.
       </p>
     </div>
   </div>
@@ -142,12 +167,17 @@ function refresh() {
   <!-- The fallback, always rendered and never hidden behind a disclosure: a label that has fogged or
        peeled is the case it exists for, and that is not the moment to go looking for it. It sits in
        the bottom bar because that is where a thumb is (research §5.1).
-       ⚠ On iOS a paired scanner suppresses the on-screen keyboard — double-press the trigger to get
-       it back. The hint says so, because the alternative is a technician deciding the field is
-       broken. -->
+       ⚠ A paired scanner suppresses the on-screen keyboard — on iOS double-press the trigger to get
+       it back, on Android turn on "Use on-screen keyboard" under the physical keyboard settings. The
+       hint says so, because the alternative is a technician deciding the field is broken. -->
   <Teleport to="#shop-action-bar">
-    <form class="flex items-end gap-2" @submit.prevent="submitTyped">
-      <FormField v-slot="{ id }" label="Type a code" class="flex-1">
+    <form class="flex items-end gap-2" @submit.prevent="submitTyped" @keydown.tab="onFieldTab">
+      <FormField
+        v-slot="{ id }"
+        label="Type a code"
+        hint="Keyboard hidden? iPhone: double-press the trigger. Android: Settings → Keyboard → on-screen keyboard."
+        class="flex-1"
+      >
         <BaseInput :id="id" v-model="typed" autocapitalize="characters" autocomplete="off" />
       </FormField>
       <BaseButton type="submit" variant="primary" :disabled="!typed.trim()">Find</BaseButton>

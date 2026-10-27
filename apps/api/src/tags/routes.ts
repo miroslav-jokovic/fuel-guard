@@ -1,11 +1,12 @@
 import { Router } from "express";
 import { z } from "zod";
-import { parseTag, type ScanResult } from "@silvicom/shared";
+import { TAG_KINDS, isMisreadTag, parseTag, parseTagId, type ScanResult } from "@silvicom/shared";
 import { requireAuth, requireOrg, requireSection } from "../middleware/auth.js";
 import { apiError, asyncHandler } from "../lib/http.js";
 import { getSupabaseAdmin } from "../lib/supabaseAdmin.js";
 import { getAppLocals } from "../lib/appLocals.js";
-import { getTagResolver } from "./registry.js";
+import { TagLookupError, getTagResolver, type TagResolverContext } from "./registry.js";
+import { resolveAssetByDisplayNo } from "../modules/maintenance/inventory/tagResolvers.js";
 import { findPartsByUpc, listStock } from "../modules/maintenance/inventory/index.js";
 import { isServiceError } from "../modules/maintenance/inventory/types.js";
 
@@ -57,18 +58,42 @@ export function tagsRouter(): Router {
 
       const tag = parseTag(code);
 
-      // ── one of ours ──────────────────────────────────────────────────────────────────────────
-      if (tag) {
-        const resolver = getTagResolver(tag.kind);
-        // No resolver, or a resolver that found nothing in THIS org. Deliberately the same answer:
-        // reporting them differently would confirm another tenant's label to whoever scanned it.
-        const result = resolver
-          ? await resolver({ admin, orgId, id: tag.id, code })
-          : null;
-        res.json({
-          ok: true,
-          result: result ?? ({ kind: "unknown_tag", code, tagKind: tag.kind } satisfies ScanResult),
-        });
+      try {
+        // ── one of ours ────────────────────────────────────────────────────────────────────────
+        if (tag) {
+          const resolver = getTagResolver(tag.kind);
+          // No resolver, or a resolver that found nothing in THIS org. Deliberately the same answer:
+          // reporting them differently would confirm another tenant's label to whoever scanned it.
+          const result = resolver
+            ? await resolver({ admin, orgId, id: tag.id, code })
+            : null;
+          res.json({
+            ok: true,
+            result: result ?? ({ kind: "unknown_tag", code, tagKind: tag.kind } satisfies ScanResult),
+          });
+          return;
+        }
+
+        // ── one of ours, damaged by the scanner's keyboard layout (R3) ─────────────────────────
+        // `tagKind: null` is what the screen reads as "misread": every real `unknown_tag` above
+        // carries the kind it parsed. Never fall through to the UPC lookup from here — its empty
+        // answer is the one that offers to create a part with this garbage as the barcode.
+        if (isMisreadTag(code)) {
+          res.json({ ok: true, result: { kind: "unknown_tag", code, tagKind: null } satisfies ScanResult });
+          return;
+        }
+
+        // ── the code printed under the symbol, or an asset's number, typed by hand (R4) ─────────
+        const typed = await resolveTyped({ admin, orgId, code });
+        if (typed) {
+          res.json({ ok: true, result: typed });
+          return;
+        }
+      } catch (e) {
+        if (!(e instanceof TagLookupError)) throw e;
+        // A lookup that failed is not a label that is not ours (R5) — see `TagLookupError`.
+        console.error("[tags] resolve failed:", e.message);
+        res.status(500).json(apiError("db_error", "Could not look that code up. Try again."));
         return;
       }
 
@@ -102,4 +127,31 @@ export function tagsRouter(): Router {
   );
 
   return router;
+}
+
+/**
+ * A code typed off a label rather than scanned: the six characters printed under the symbol, or an
+ * asset's `A-0412` (DRIVER-EQUIPMENT-AND-UNIT-TAGS-PLAN.md §5, R4).
+ *
+ * The bare id does not carry its kind, so every registered resolver is asked and the answer stands
+ * only when EXACTLY ONE claims it. Two kinds holding the same six characters is a ~1-in-a-billion
+ * draw per pair (`tagContract.ts`'s arithmetic), and when it happens neither guess is honest — the
+ * code falls through and the screen says it is not recognised, which a scan of the symbol (which
+ * carries the kind) then settles.
+ *
+ * Null means "not a typed tag"; the caller goes on to the UPC lookup, because a six-digit string is
+ * also a valid Crockford id and may equally be a short supplier barcode.
+ */
+async function resolveTyped(ctx: Omit<TagResolverContext, "id">): Promise<ScanResult | null> {
+  const id = parseTagId(ctx.code);
+  if (id) {
+    const hits: ScanResult[] = [];
+    for (const kind of TAG_KINDS) {
+      const resolver = getTagResolver(kind);
+      const hit = resolver ? await resolver({ ...ctx, id }) : null;
+      if (hit) hits.push(hit);
+    }
+    if (hits.length === 1) return hits[0]!;
+  }
+  return resolveAssetByDisplayNo(ctx);
 }

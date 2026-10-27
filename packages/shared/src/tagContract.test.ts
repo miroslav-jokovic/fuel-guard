@@ -5,8 +5,10 @@ import {
   TAG_KINDS,
   TAG_VERSION,
   formatTag,
+  isMisreadTag,
   normalizeTagId,
   parseTag,
+  parseTagId,
 } from "./tagContract.js";
 
 describe("parseTag — a supplier barcode is never one of ours", () => {
@@ -112,5 +114,33 @@ describe("the alphabet and the payload budget", () => {
     // 1-inch label drops below the ~0.4 mm module floor a phone camera can resolve.
     const longest = formatTag("AST", CROCKFORD_ALPHABET.slice(0, TAG_ID_LENGTH));
     expect(longest.length).toBeLessThanOrEqual(24);
+  });
+});
+
+/** DRIVER-EQUIPMENT-AND-UNIT-TAGS-PLAN.md §5, R3 and R4 — the scan screen's typed and garbled cases. */
+describe("parseTagId — the code printed under the symbol, typed by hand", () => {
+  it("folds what a person types to the id on the label", () => {
+    expect(parseTagId("7k3-m9p")).toBe("7K3M9P");
+    expect(parseTagId(" 7K3MO9 ")).toBe("7K3M09");
+  });
+
+  it("refuses anything that is not six alphabet characters", () => {
+    expect(parseTagId("7K3M9")).toBeNull();
+    expect(parseTagId("7K3M9PX")).toBeNull();
+    expect(parseTagId("7K3M9U")).toBeNull(); // U is outside the alphabet, not a confusable
+  });
+});
+
+describe("isMisreadTag — our label through the wrong keyboard layout", () => {
+  it("recognises a SIL1 label whose colons arrived as something else", () => {
+    expect(isMisreadTag("SIL1ÑBINÑ7K3M9P")).toBe(true);
+    expect(isMisreadTag("SIL1;AST;7K3M9P")).toBe(true);
+    expect(isMisreadTag("SIL&:AST:7K3M9P")).toBe(true); // AZERTY moves the 1 as well
+  });
+
+  it("is not fooled by a real tag, a newer kind, or a supplier barcode", () => {
+    expect(isMisreadTag("SIL1:BIN:7K3M9P")).toBe(false);
+    expect(isMisreadTag("SIL1:VEH:7K3M9P")).toBe(false); // a kind this build lacks — unknown, not misread
+    expect(isMisreadTag("036000291452")).toBe(false);
   });
 });

@@ -35,7 +35,7 @@ import type { DeskVerb } from "@/features/inventory/MovementDrawer.vue";
  * is the authority over the plan's prose here, and `block` is what actually delivers the tap target:
  * a full-width button is far past the 48 dp floor in the axis a thumb misses in.
  */
-defineProps<{ line: StockLineDto }>();
+defineProps<{ line: StockLineDto; canManage: boolean }>();
 const emit = defineEmits<{ verb: [verb: DeskVerb] }>();
 
 /** Fixed order, and it does not reorder itself between scans — see the header. */
@@ -57,7 +57,7 @@ const VERBS: { verb: DeskVerb; label: string; lead?: boolean }[] = [
       {{ line.unitOfMeasure }}<template v-if="line.tagCode"> · {{ line.tagCode }}</template>
     </p>
 
-    <div class="mt-3 grid grid-cols-2 gap-2">
+    <div v-if="canManage" class="mt-3 grid grid-cols-2 gap-2">
       <BaseButton
         v-for="v in VERBS"
         :key="v.verb"

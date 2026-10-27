@@ -173,3 +173,38 @@ export function parseTag(text: string): ParsedTag | null {
 
   return { version: TAG_VERSION, kind, id };
 }
+
+/**
+ * The six characters printed UNDER the symbol, typed by hand, folded to an id — or null.
+ *
+ * Every label prints its id beside the QR so that a fogged or torn symbol can still be read aloud
+ * (D-INV18), and until 2026-10-27 the resolve endpoint refused exactly that string: it took a full
+ * `SIL1:` tag or a supplier UPC, so a technician who typed the code off the label was told it was
+ * not recognised (DRIVER-EQUIPMENT-AND-UNIT-TAGS-PLAN.md §5, R4). The id alone does not say which
+ * KIND it is; the endpoint asks every resolver and answers only when exactly one claims it.
+ */
+export function parseTagId(text: string): string | null {
+  const id = normalizeTagId(text);
+  return isWellFormedId(id) ? id : null;
+}
+
+/**
+ * Whether a string that `parseTag` refused is one of OUR labels arriving damaged by the keyboard.
+ *
+ * A HID scanner sends key POSITIONS and the host turns them into characters with its own layout, so
+ * on a non-US layout the colon key types something else and `SIL1:AST:7K3M9P` arrives as
+ * `SIL1ÑASTÑ7K3M9P` (DRIVER-EQUIPMENT-AND-UNIT-TAGS-PLAN.md §5, R3). Before this check such a string
+ * fell through to the UPC lookup, found nothing, and the screen offered to CREATE A PART carrying
+ * the garbage as its barcode — the one outcome worse than a dead end, because it saves wrong data.
+ *
+ * `SIL` survives every common layout (the letters do not move on AZERTY or QWERTZ; the `1` may), and
+ * no retail symbology starts with letters, so the prefix alone is the test. A string that DOES split
+ * into `SIL1` + kind + id is not misread — it is a kind this deployment does not know, which the
+ * endpoint reports differently.
+ */
+export function isMisreadTag(text: string): boolean {
+  const t = text.trim();
+  if (!/^sil/i.test(t)) return false;
+  const parts = t.split(":");
+  return !(parts.length === 3 && parts[0]!.toUpperCase() === TAG_VERSION);
+}
