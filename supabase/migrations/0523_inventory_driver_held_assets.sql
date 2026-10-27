@@ -35,10 +35,12 @@
 -- ── IV025: THE WRONG KIND OF HOLDER FOR THE TYPE ────────────────────────────────────────────────
 -- New. A `driver` type may sit with a driver, in a bay, or nowhere; a `unit` type in a bay, a truck,
 -- a trailer or nowhere. Both may be in a bay, because the shelf between drivers is where a returned
--- tablet waits. Asked in three places, written once (`asset_holder_fits_type`): `move_asset`, so the
--- refusal comes before IV020's unit-capacity check and names the real fault; the asset guard, for a
--- creation; and a new guard on `asset_types`, so switching a type to `driver` while its assets sit
--- in trucks is refused instead of leaving rows the next move would trip over.
+-- tablet waits. Asked in two places, written once (`asset_holder_fits_type`): the asset guard,
+-- whenever a holder is set or changed — a creation, and every `move_asset`, whose holder update it
+-- refuses and so rolls the ledger row back with it; and a new guard on `asset_types`, so switching a
+-- type to `driver` while its assets sit in trucks is refused instead of leaving rows the next move
+-- would trip over. Not a third copy inside `move_asset`: it could only change which error wins when
+-- IV020 also applies, and IV020 needs a truck already holding a driver type, which IV025 forbids.
 --
 -- ── A ROSTER MERGE MOVES THE DRIVER ON A LEDGER ROW ─────────────────────────────────────────────
 -- `asset_movements` is append-only (IV021). Three `drivers(id)` foreign keys arrive here, and
@@ -392,14 +394,8 @@ begin
 
   v_moves := v_reason not in ('reported_missing', 'reported_damaged');
 
-  -- 4b. DE1 — the right kind of holder for the type (IV025), ahead of IV020 so a tablet scanned
-  --     into a truck is told it belongs to a driver, not that the truck already has one.
-  if v_moves and v_reason <> 'retired'
-     and not public.asset_holder_fits_type(v_a.asset_type_id, v_to_veh, v_to_tr, v_to_drv) then
-    raise exception 'an asset of this type cannot be held by a %',
-      case when v_to_drv is not null then 'driver' else 'truck or trailer' end
-      using errcode = 'IV025';
-  end if;
+  -- (IV025 — the wrong kind of holder for the type — is the asset guard's, raised by step 7's
+  -- update and rolling this whole call back with it; see the header.)
 
   -- 5. IV020 — one unit, one of a thing that only comes one to a unit (0333, unchanged).
   if v_moves and (v_to_veh is not null or v_to_tr is not null) then
