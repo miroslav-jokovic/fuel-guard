@@ -3,6 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import type { TimelineEntry } from "../director";
 import type { Tutorial } from "../scenario";
+import { renderCards, type CardFiles } from "./cards";
 import type { NarrationManifest } from "./narration";
 
 /**
@@ -18,11 +19,18 @@ import type { NarrationManifest } from "./narration";
  * Every line is placed at its step's start with `adelay` and mixed once; the screencast is re-encoded
  * to H.264 at a constant 30 fps (the screencast's frames arrive when the page paints, not on a clock),
  * with a short fade at each end. Chapter cards are Playwright's own (`screencast.showChapter`), filmed
- * in the page, so there is no second compositor to keep in step.
+ * in the page, so there is no second compositor to keep in step. The title and end cards
+ * (`cards.ts`) are stills held for INTRO_MS and OUTRO_MS and joined by `concat`; every voice line and
+ * caption moves later by INTRO_MS, so both still land on the step they describe.
  */
+
+/** Long enough to read the title, the summary and the chapter names once. */
+export const INTRO_MS = 5000;
+const OUTRO_MS = 4000;
 
 interface Timeline {
   id: string;
+  mode: "record" | "check";
   steps: TimelineEntry[];
 }
 
@@ -45,16 +53,17 @@ function wrap(text: string): string {
   return best < 0 ? text : `${text.slice(0, best)}\n${text.slice(best + 1)}`;
 }
 
-function cues(steps: TimelineEntry[]): Array<{ start: number; end: number; text: string }> {
+function cues(steps: TimelineEntry[], offsetMs: number): Array<{ start: number; end: number; text: string }> {
   return steps.map((s, i) => {
     const next = steps[i + 1]?.startMs ?? Infinity;
     const end = Math.min(s.startMs + Math.max(s.narrationMs, MIN_CAPTION_MS), next - 50);
-    return { start: s.startMs, end, text: wrap(s.say) };
+    return { start: s.startMs + offsetMs, end: end + offsetMs, text: wrap(s.say) };
   });
 }
 
-export function writeCaptions(outDir: string, steps: TimelineEntry[]): { srt: string; vtt: string } {
-  const list = cues(steps);
+/** `offsetMs`: how long the title card runs before the recording starts (INTRO_MS). */
+export function writeCaptions(outDir: string, steps: TimelineEntry[], offsetMs = 0): { srt: string; vtt: string } {
+  const list = cues(steps, offsetMs);
   const srt = list.map((c, i) => `${i + 1}\n${stamp(c.start, ",")} --> ${stamp(c.end, ",")}\n${c.text}\n`).join("\n");
   const vtt = `WEBVTT\n\n${list.map((c) => `${stamp(c.start, ".")} --> ${stamp(c.end, ".")}\n${c.text}\n`).join("\n")}`;
   const files = { srt: path.join(outDir, "captions.srt"), vtt: path.join(outDir, "captions.vtt") };
@@ -87,25 +96,48 @@ function seconds(file: string): number {
   return Number(execFileSync("ffprobe", ["-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", file], { encoding: "utf8" }).trim());
 }
 
-export function composeVideo(outDir: string, id: string, steps: TimelineEntry[], narration: NarrationManifest | null, srt: string): string {
+export function composeVideo(
+  outDir: string,
+  id: string,
+  steps: TimelineEntry[],
+  narration: NarrationManifest | null,
+  srt: string,
+  cards: CardFiles,
+): string {
   const raw = path.join(outDir, "raw.webm");
   if (!fs.existsSync(raw)) throw new Error(`${raw} is missing: record the tutorial first.`);
   const out = path.join(outDir, `${id}.mp4`);
-  const duration = seconds(raw);
+  const body = seconds(raw);
+  const intro = INTRO_MS / 1000;
+  const outro = OUTRO_MS / 1000;
+  const duration = intro + body + outro;
   const voiced = narration?.provider !== "silent" ? steps.filter((s) => s.narrationFile) : [];
 
+  // Inputs: 0 recording, 1 title card, 2 end card, then one per voice line, then the captions.
   const args = ["-y", "-loglevel", "error", "-i", raw];
+  args.push("-loop", "1", "-framerate", "30", "-t", intro.toFixed(2), "-i", cards.intro);
+  args.push("-loop", "1", "-framerate", "30", "-t", outro.toFixed(2), "-i", cards.outro);
   for (const s of voiced) args.push("-i", s.narrationFile!);
   args.push("-i", srt);
-  const fade = `fade=t=in:st=0:d=0.6,fade=t=out:st=${Math.max(0, duration - 0.9).toFixed(2)}:d=0.9`;
-  const filters = [`[0:v]fps=30,format=yuv420p,${fade}[v]`];
+  const fades = (d: number) => `fade=t=in:st=0:d=0.6,fade=t=out:st=${Math.max(0, d - 0.6).toFixed(2)}:d=0.6`;
+  // Each segment fades through black on its own, so the joins read as cuts between scenes. The cards
+  // are scaled to the recording's frame so `concat` sees one size and one pixel format throughout.
+  const filters = [
+    `[1:v]fps=30,scale=1920:1080,setsar=1,format=yuv420p,${fades(intro)}[iv]`,
+    `[0:v]fps=30,scale=1920:1080,setsar=1,format=yuv420p,${fades(body)}[bv]`,
+    `[2:v]fps=30,scale=1920:1080,setsar=1,format=yuv420p,${fades(outro)}[ov]`,
+    "[iv][bv][ov]concat=n=3:v=1:a=0[v]",
+  ];
   if (voiced.length) {
-    voiced.forEach((s, i) => filters.push(`[${i + 1}:a]adelay=${s.startMs}|${s.startMs},aresample=48000[a${i}]`));
+    voiced.forEach((s, i) => {
+      const at = s.startMs + INTRO_MS;
+      filters.push(`[${i + 3}:a]adelay=${at}|${at},aresample=48000[a${i}]`);
+    });
     filters.push(`${voiced.map((_, i) => `[a${i}]`).join("")}amix=inputs=${voiced.length}:normalize=0:duration=longest,apad[a]`);
   }
   args.push("-filter_complex", filters.join(";"), "-map", "[v]");
   if (voiced.length) args.push("-map", "[a]", "-c:a", "aac", "-b:a", "192k", "-ac", "2");
-  const subIndex = voiced.length + 1;
+  const subIndex = voiced.length + 3;
   args.push(
     "-map", `${subIndex}:s`, "-c:s", "mov_text", "-metadata:s:s:0", "language=eng",
     "-c:v", "libx264", "-preset", "slow", "-crf", "18", "-movflags", "+faststart", "-t", duration.toFixed(2), out,
@@ -114,10 +146,18 @@ export function composeVideo(outDir: string, id: string, steps: TimelineEntry[],
   return out;
 }
 
-export function produce(outDir: string, tutorial: Tutorial, narration: NarrationManifest | null): { video: string; instructions: string } {
+export async function produce(
+  outDir: string,
+  tutorial: Tutorial,
+  narration: NarrationManifest | null,
+  series: readonly Tutorial[],
+): Promise<{ video: string; instructions: string }> {
   const timeline = JSON.parse(fs.readFileSync(path.join(outDir, "timeline.json"), "utf8")) as Timeline;
-  const { srt } = writeCaptions(outDir, timeline.steps);
+  // Only the timeline the camera ran on can place the voice on the picture (`record.spec.ts`).
+  if (timeline.mode !== "record") throw new Error(`${outDir}/timeline.json is from a ${timeline.mode} run: record the tutorial again.`);
+  const { srt } = writeCaptions(outDir, timeline.steps, INTRO_MS);
   const instructions = writeInstructions(outDir, tutorial, timeline.steps);
-  const video = composeVideo(outDir, tutorial.id, timeline.steps, narration, srt);
+  const cards = await renderCards(outDir, tutorial, series);
+  const video = composeVideo(outDir, tutorial.id, timeline.steps, narration, srt, cards);
   return { video, instructions };
 }

@@ -52,6 +52,10 @@ scenarios/<id>.ts ──► make.ts ─1─► vite build (VITE_* pinned) ─►
   is ever produced of a click that did nothing.
 - **The pace comes from the voice.** Narration is made first. Each step then holds for its line's
   length, and that timeline places both the audio and the captions.
+- **A title card and an end card frame each video** (`produce/cards.ts`). The title card shows the
+  tutorial's title, summary and chapters, and the end card points to the next tutorial in
+  `scenarios/index.ts`. Both are drawn in Chromium with the app's own tokens, font and logo, then held
+  as stills by FFmpeg: 5 s at the start and 4 s at the end. Every voice line and caption moves 5 s later.
 
 ## 2. Adding a tutorial (any agent: Claude Code, Codex, or a person)
 
@@ -118,3 +122,6 @@ as `<key>.raw.words.json`, so changing the trim never pays for the voice again.
   checks never do. It is answered and discarded by name, in `BACKGROUND_BEACONS`.
 - **The Placard calculator starts switched off for every role** (Q-PR2). The demo org grants it to
   dispatchers in its `/api/me` surfaces, the way an admin would under Settings → Permissions.
+- **A check must not replace a recording's timeline.** `--check` once overwrote `timeline.json`, and
+  composing from it put every line in the video's first second. A check now writes
+  `timeline.check.json`, and compose refuses any timeline that a recording did not write.

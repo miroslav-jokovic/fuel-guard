@@ -42,7 +42,11 @@ for (const tutorial of TUTORIALS) {
     } finally {
       if (mode === "record") await page.screencast.stop();
     }
-    fs.writeFileSync(path.join(outDir, "timeline.json"), JSON.stringify({ id: tutorial.id, mode, steps: director.timeline }, null, 2));
+    // A check run keeps its own timeline. It once wrote over the recording's: a `--check` after
+    // filming left `timeline.json` with steps tens of milliseconds apart, and composing from it laid
+    // every voice line and caption in the first second of the video (found 2026-10-27).
+    const timeline = mode === "record" ? "timeline.json" : "timeline.check.json";
+    fs.writeFileSync(path.join(outDir, timeline), JSON.stringify({ id: tutorial.id, mode, steps: director.timeline }, null, 2));
     stub.assertClean();
   });
 }

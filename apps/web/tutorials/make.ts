@@ -66,7 +66,9 @@ console.log("[tutorials] 3/4 record");
 run("pnpm", ["exec", "playwright", "test", "-c", "playwright.tutorials.config.ts", "record"], { TUTORIAL_MODE: "record", TUTORIAL_ONLY: only });
 
 console.log("[tutorials] 4/4 compose");
+// The series the cards count and point "Next" through: every approved tutorial, not only this run's.
+const series = TUTORIALS.filter((t) => t.status === "approved");
 for (const t of chosen) {
-  const { video, instructions } = produce(path.join(OUT_ROOT, t.id), t, manifests.get(t.id) ?? null);
+  const { video, instructions } = await produce(path.join(OUT_ROOT, t.id), t, manifests.get(t.id) ?? null, series);
   console.log(`  ${t.id}: ${path.relative(WEB, video)} · ${path.relative(WEB, instructions)}`);
 }
