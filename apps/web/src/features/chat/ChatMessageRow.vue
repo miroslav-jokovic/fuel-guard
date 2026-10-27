@@ -4,6 +4,9 @@ import type { ChatMessage } from "@silvicom/shared";
 import { AppAvatar, AppButton as BaseButton, AppIconButton, AppTextarea as BaseTextarea } from "@silvicom/ui";
 import { ChatIcon, PencilSquareIcon, TrashIcon } from "@silvicom/ui/icons";
 import { chatClock, chatStamp } from "./chatTime";
+import ChatBody from "./ChatBody.vue";
+import { useChatNames } from "./chatNames";
+import { fromDraft, toDraft } from "./mentionDraft";
 
 /**
  * One line of a conversation, a channel or a thread — the same row in all three (CHAT-REDESIGN-PLAN
@@ -21,6 +24,9 @@ import { chatClock, chatStamp } from "./chatTime";
  *
  * With the row focused (the arrows bring it, D-CHATUI16), Enter opens a post's thread and E edits your
  * own line; when the edit ends, focus returns to the row so the arrows carry on from where they were.
+ *
+ * A mention is drawn as a chip (`ChatBody`, D-CHAT22) and edited as the words `@Name`, which become its
+ * token again on save (`mentionDraft.ts`), so an edit that does not touch a mention keeps it.
  */
 const props = defineProps<{
   message: ChatMessage;
@@ -37,8 +43,12 @@ const root = ref<HTMLElement | null>(null);
 const editor = ref<{ $el: HTMLTextAreaElement } | null>(null);
 const editing = ref(false);
 const draft = ref("");
+const nameOf = useChatNames();
+let editPicks = new Map<string, string>();
 async function startEdit() {
-  draft.value = props.message.body ?? "";
+  const d = toDraft(props.message.body ?? "", nameOf);
+  draft.value = d.text;
+  editPicks = d.picks;
   editing.value = true;
   await nextTick();
   editor.value?.$el.focus();
@@ -48,7 +58,7 @@ function endEdit() {
   root.value?.focus();
 }
 function save() {
-  const body = draft.value.trim();
+  const body = fromDraft(draft.value, editPicks).trim();
   if (body) emit("edit", props.message.id, body);
   endEdit();
 }
@@ -109,7 +119,7 @@ function onKeydown(e: KeyboardEvent) {
       </template>
       <p v-else class="whitespace-pre-wrap break-words" :class="message.deleted_at ? 'italic text-ink-muted' : 'text-ink'">
         <template v-if="message.deleted_at">Message removed</template>
-        <template v-else>{{ message.body }}<span v-if="message.edited_at" class="ml-1 text-xs text-ink-muted">(edited)</span></template>
+        <template v-else><ChatBody :body="message.body ?? ''" :viewer-id="viewerId" /><span v-if="message.edited_at" class="ml-1 text-xs text-ink-muted">(edited)</span></template>
         <slot name="stamp" />
       </p>
 

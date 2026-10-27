@@ -111,6 +111,19 @@ export function useLeaveTeam() {
   return useRailMutation((spaceId: string) => post(`/api/chat/teams/${spaceId}/leave`, {}, "Could not leave the team."));
 }
 
+/** Add team members to a channel — the `@` list's "Add to # Loads" (Q-CHAT20 (a)). Refreshes the channel's people. */
+export function useAddChannelMembers() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { threadId: string; userIds: string[] }) =>
+      post<{ added: number }>(`/api/chat/channels/${input.threadId}/members`, { user_ids: input.userIds }, "Could not add them to the channel."),
+    onSettled: (_r, _e, input) => Promise.all([
+      qc.invalidateQueries({ queryKey: conversationKey(input.threadId) }),
+      qc.invalidateQueries({ queryKey: teamsKey }),
+    ]),
+  });
+}
+
 export function useAddTeamMembers() {
   return useRailMutation((input: { spaceId: string; userIds: string[] }) =>
     post<{ added: number }>(`/api/chat/teams/${input.spaceId}/members`, { user_ids: input.userIds }, "Could not add those people."),

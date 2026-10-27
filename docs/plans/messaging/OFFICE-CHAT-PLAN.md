@@ -522,3 +522,18 @@ TechRepublic / Windows Report on Teams 2026 updates.
   table read in chat's code, org-filtered, and only when the new words carry a token. The shared token
   reader (`chatMentionIds`, `chatBodyText`) takes the id from `isRecordId` rather than a second id
   regex (D-US13). The web half — typeahead, chips, mute menu and Muted section, Activity tab — is next.
+- 2026-10-27: **CH6b-2 API half MERGED** (#1777, main 15d1627). **Mentions on the web built**
+  (`claude/office-chat-ch6b-2-mentions`): a token is drawn as a chip of the person's name (the
+  reader's own stronger), in the rail's preview as `@Name`, and as `@someone` for a person the
+  office's people list no longer holds — never the id. `@` in the composer lists who this
+  conversation may name: its members, and in a channel the team's others as "Add to # Loads", added
+  through the channel's own route before they are named (Q-CHAT20 (a)); members first; Enter/Tab
+  picks, Esc closes only the list. The field shows `@Name` and the line carries `<@id>`
+  (`mentionDraft.ts`); an edit round-trips the same way, so editing around a mention keeps it. Names
+  come from `/api/chat/people`, now asked when the page opens; a channel's people from the new
+  `GET /api/chat/:id/members`. The browser pass (fixtures `tools/chat-fixtures`, now `MOCK_PORT`)
+  found what jsdom could not: the list read the model before v-model wrote the key just typed, so a
+  pick came out "@@Dana Whitfield"; it reads the field itself now, and the composer test types one
+  input event per key as a browser does (six cases failed before the fix). Still owed by D-CHAT22:
+  the compliance console and the PDF show a token raw — they resolve names from the conversation's
+  members in a later step. Next: the mute menu and Activity (CH6b-2's third PR).

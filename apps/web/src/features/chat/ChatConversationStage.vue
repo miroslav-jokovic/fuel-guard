@@ -5,6 +5,7 @@ import { mergeLines, type PendingLine } from "./useChat";
 import ChatComposer from "./ChatComposer.vue";
 import ChatMessageList from "./ChatMessageList.vue";
 import ChatStageHeader from "./ChatStageHeader.vue";
+import { provideChatMentions } from "./chatNames";
 
 /**
  * One open conversation (CH2; CHAT-REDESIGN-PLAN §4): its header, its log and its composer, filling
@@ -45,6 +46,14 @@ const direct = computed(() => props.data.conversation.kind === "direct");
 const others = computed(() => props.data.members.filter((m) => m.user_id !== props.viewerId));
 const subtitle = computed(() => (direct.value ? null : others.value.map((m) => m.name ?? "Someone").join(", ")));
 const viewerName = computed(() => props.data.members.find((m) => m.user_id === props.viewerId)?.name ?? "You");
+
+// The `@` list: the people in it (Q-CHAT20 (a)). Adding somebody to a group is the header's act, not
+// the composer's, so nobody outside it is offered.
+provideChatMentions({
+  candidates: computed(() => others.value.map((m) => ({ user_id: m.user_id, name: m.name ?? "Someone", member: true }))),
+  addLabel: computed(() => null),
+  add: async () => false,
+});
 
 /** The other side's furthest read position, for "Seen" after your newest line in a direct conversation. */
 const othersReadSeq = computed(() => Math.max(0, ...others.value.map((m) => m.read_seq)));

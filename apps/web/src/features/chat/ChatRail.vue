@@ -5,6 +5,7 @@ import { AppAvatar, AppButton as BaseButton, AppIcon, AppSearchField, QueryState
 import { PlusIcon, UserGroupIcon } from "@silvicom/ui/icons";
 import KebabMenu from "@/components/KebabMenu.vue";
 import { chatRowTime } from "./chatTime";
+import { useChatNames } from "./chatNames";
 
 /**
  * The one rail of /chat (CHAT-REDESIGN-PLAN D-CHATUI2, D-CHATUI3): everything you are in, in sections —
@@ -48,6 +49,7 @@ const emit = defineEmits<{
   "retry-teams": [];
 }>();
 
+const nameOf = useChatNames();
 const query = ref("");
 const q = computed(() => query.value.trim().toLowerCase());
 const matches = (name: string) => !q.value || name.toLowerCase().includes(q.value);
@@ -137,7 +139,7 @@ const channelLabel = (c: ChatTeamChannel) => `# ${c.name}${c.visibility === "pri
                   </span>
                   <span class="mt-0.5 flex items-center justify-between gap-2">
                     <span class="truncate text-xs" :class="bold(c) ? 'text-ink-secondary' : 'text-ink-muted'">
-                      <template v-if="c.kind !== 'direct' && c.last_message?.sender_name">{{ c.last_message.sender_name }}: </template>{{ chatPreview(c.last_message) }}
+                      <template v-if="c.kind !== 'direct' && c.last_message?.sender_name">{{ c.last_message.sender_name }}: </template>{{ chatPreview(c.last_message, 90, nameOf) }}
                     </span>
                     <span v-if="c.unread > 0" class="shrink-0 rounded-full bg-brand-accent-strong px-1.5 py-0.5 text-2xs font-semibold text-ink" :aria-label="`${c.unread} unread`">{{ c.unread }}</span>
                   </span>

@@ -12,6 +12,7 @@ import {
   type ChatHistoryResponse,
   type ChatInboxResponse,
   type ChatKind,
+  type ChatMember,
   type ChatMessage,
   type ChatSendResponse,
   type ChatSyncResponse,
@@ -166,6 +167,17 @@ export async function chatHistory(
     p_org: orgId, p_user: userId, p_thread: threadId, p_before_seq: beforeSeq, p_limit: n,
   });
   return res.ok ? { ok: true, value: page(res.value ?? [], n) } : res;
+}
+
+/**
+ * Who is in a conversation, as the caller sees it (CH6b-2): a channel's people, for the composer's `@`
+ * list, which a channel's page of posts does not carry. CH001 when the caller is not in it.
+ */
+export async function chatMembers(
+  admin: SupabaseClient, orgId: string, userId: string, threadId: string,
+): Promise<ChatResult<ChatMember[]>> {
+  const res = await rpc<unknown[]>(admin, "chat_members", { p_org: orgId, p_user: userId, p_thread: threadId });
+  return res.ok ? { ok: true, value: (res.value ?? []).map((r) => chatMemberSchema.parse(r)) } : res;
 }
 
 const SYNC_BATCH = 200;

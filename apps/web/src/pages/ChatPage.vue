@@ -31,6 +31,7 @@ import { useChatFollow } from "@/features/chat/chatRealtime";
 import { useChatTeamsQuery } from "@/features/chat/teams/useChatTeams";
 import { useChatRailActions } from "@/features/chat/teams/useChatRailActions";
 import { useChatShortcuts } from "@/features/chat/useChatShortcuts";
+import { provideChatNames } from "@/features/chat/chatNames";
 
 /**
  * /chat — office chat (OFFICE-CHAT-PLAN CH2; CHAT-REDESIGN-PLAN, 2026-10-26): a workspace, not a
@@ -127,7 +128,10 @@ const onEdit = (messageId: string, body: string) => edit.mutateAsync({ messageId
 const onRemove = (messageId: string) => retract.mutateAsync(messageId).catch(fail("Could not remove the message."));
 
 const starting = ref(false);
-const people = useChatPeopleQuery(computed(() => entitled.value && starting.value));
+// The office's people: the New conversation dialog's list, and who every `<@id>` on the page is
+// (D-CHAT22) — so it is asked as soon as the page is, not when the dialog opens.
+const people = useChatPeopleQuery(entitled);
+provideChatNames(people.data);
 const openDirect = useChatOpenDirect();
 const createGroup = useChatCreateGroup();
 const startBusy = computed(() => openDirect.isPending.value || createGroup.isPending.value);
