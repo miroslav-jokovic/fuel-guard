@@ -56,22 +56,36 @@ const stripSql = (sql) => sql.replace(/--[^\n]*/g, "").replace(/\/\*[\s\S]*?\*\/
 const dropped = new Set();
 const found = new Map(); // "table.column" -> migration file
 
-for (const f of readdirSync(MIGRATIONS).filter((x) => x.endsWith(".sql")).sort()) {
-  const sql = stripSql(readFileSync(join(MIGRATIONS, f), "utf8"));
-  for (const m of sql.matchAll(/drop\s+table\s+(?:if\s+exists\s+)?(?:public\.)?([a-z_][a-z0-9_]*)/gi))
-    dropped.add(m[1].toLowerCase());
+/**
+ * The `table.column` pairs one migration declares as `references drivers(id)`.
+ *
+ * Each `alter table` pattern stops at its own `;`. Until 0523 they ran `[\s\S]*?` — across
+ * statements — so `alter table asset_types add column held_by …; alter table inventory_assets add
+ * column driver_id uuid references drivers(id);` reported `asset_types.driver_id`, a column that does
+ * not exist, and missed the one that does. `--self-test` pins it.
+ */
+function driverFks(sql) {
+  const out = [];
   // create table bodies: capture table, then each "col ... references drivers(id)" line
   for (const t of sql.matchAll(/create\s+table\s+(?:if\s+not\s+exists\s+)?(?:public\.)?([a-z_][a-z0-9_]*)\s*\(([\s\S]*?)\n\);/gi)) {
     const table = t[1].toLowerCase();
     for (const c of t[2].matchAll(/^\s*([a-z_][a-z0-9_]*)\s+[^,\n]*references\s+(?:public\.)?drivers\s*\(\s*id\s*\)/gim))
-      found.set(`${table}.${c[1].toLowerCase()}`, f);
+      out.push(`${table}.${c[1].toLowerCase()}`);
   }
   // alter table add column ... references drivers(id)
-  for (const a of sql.matchAll(/alter\s+table\s+(?:only\s+)?(?:public\.)?([a-z_][a-z0-9_]*)[\s\S]*?add\s+column\s+(?:if\s+not\s+exists\s+)?([a-z_][a-z0-9_]*)\s+[^,;]*references\s+(?:public\.)?drivers\s*\(\s*id\s*\)/gi))
-    found.set(`${a[1].toLowerCase()}.${a[2].toLowerCase()}`, f);
+  for (const a of sql.matchAll(/alter\s+table\s+(?:only\s+)?(?:public\.)?([a-z_][a-z0-9_]*)[^;]*?add\s+column\s+(?:if\s+not\s+exists\s+)?([a-z_][a-z0-9_]*)\s+[^,;]*references\s+(?:public\.)?drivers\s*\(\s*id\s*\)/gi))
+    out.push(`${a[1].toLowerCase()}.${a[2].toLowerCase()}`);
   // add constraint ... foreign key (col) references drivers(id)
-  for (const k of sql.matchAll(/alter\s+table\s+(?:only\s+)?(?:public\.)?([a-z_][a-z0-9_]*)[\s\S]*?foreign\s+key\s*\(\s*([a-z_][a-z0-9_]*)\s*\)\s*references\s+(?:public\.)?drivers\s*\(\s*id\s*\)/gi))
-    found.set(`${k[1].toLowerCase()}.${k[2].toLowerCase()}`, f);
+  for (const k of sql.matchAll(/alter\s+table\s+(?:only\s+)?(?:public\.)?([a-z_][a-z0-9_]*)[^;]*?foreign\s+key\s*\(\s*([a-z_][a-z0-9_]*)\s*\)\s*references\s+(?:public\.)?drivers\s*\(\s*id\s*\)/gi))
+    out.push(`${k[1].toLowerCase()}.${k[2].toLowerCase()}`);
+  return out;
+}
+
+for (const f of readdirSync(MIGRATIONS).filter((x) => x.endsWith(".sql")).sort()) {
+  const sql = stripSql(readFileSync(join(MIGRATIONS, f), "utf8"));
+  for (const m of sql.matchAll(/drop\s+table\s+(?:if\s+exists\s+)?(?:public\.)?([a-z_][a-z0-9_]*)/gi))
+    dropped.add(m[1].toLowerCase());
+  for (const key of driverFks(sql)) found.set(key, f);
 }
 for (const key of [...found.keys()]) if (dropped.has(key.split(".")[0])) found.delete(key);
 found.delete("drivers.id");
@@ -103,8 +117,15 @@ if (process.argv.includes("--self-test")) {
   const fails = [];
   if (!verdict(fake).some((e) => e.startsWith("ghost_table.driver_id"))) fails.push("unaccounted-FK detector did not fire");
   if (verdict(found).length !== 0) fails.push("real tree should be clean for the self-test baseline");
+  // 0523's shape: a plain column on one table, then a driver FK on the next.
+  const twoAlters = driverFks(
+    "alter table asset_types add column held_by text not null default 'unit';\n" +
+      "alter table inventory_assets add column driver_id uuid references drivers(id) on delete restrict;",
+  );
+  if (twoAlters.join() !== "inventory_assets.driver_id")
+    fails.push(`an alter table's match crossed its own semicolon: got ${twoAlters.join() || "nothing"}`);
   if (fails.length) { for (const f of fails) console.error(`✗ self-test: ${f}`); process.exit(1); }
-  console.log("✓ driver-references self-test — the unaccounted-FK detector fires.");
+  console.log("✓ driver-references self-test — the unaccounted-FK detector fires, and each alter table ends at its semicolon.");
   process.exit(0);
 }
 
