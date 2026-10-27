@@ -183,3 +183,14 @@ none of this replaces — the scanner on an Android tablet, and a printed roll l
     still open two. R3's migration adds a partial unique index on the open unit check per vehicle and
     per trailer — and must first close all but the newest of any duplicates already open (production
     holds four on one truck unless they are closed from the list before the release).
+- **2026-10-27 — R2a #1787 and R2b #1789 merged.**
+- **2026-10-27 — PR-R3 (migration 0522: R8, R13, the R9 race).**
+  - **R8:** unique `(org_id, lower(btrim(serial_number)))` where the serial is non-blank. The API
+    maps its 23505 to `duplicate_serial` (409) by the index name. Production had 0 duplicates.
+  - **R13:** `trg_part_stock_tag_once` refuses changing or clearing a shelf line's `tag_code` once
+    set (`IV022`, the asset rule).
+  - **The R9 race:** one open unit check per vehicle and per trailer (two partial unique indexes); a
+    losing insert's 23505 is answered with the winner's walk. Before the index, the migration closes
+    every older duplicate open unit check — never deletes — keeping the newest, with a note saying
+    why. Production: one truck, four open checks → the three older close.
+  - Matrix `inventory-integrity.test.mjs` applies 0522 AFTER seeding duplicates on 0521's schema.

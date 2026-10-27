@@ -31,6 +31,7 @@ const STATUS: Record<string, number> = {
   duplicate_part_number: 409,
   duplicate_location_code: 409,
   duplicate_asset_type: 409,
+  duplicate_serial: 409, // 0522 (R8): one serial number, one asset, per org
   // The payload names something unusable.
   IV012: 422, // unknown_location
   IV013: 422, // part_inactive
