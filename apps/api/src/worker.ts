@@ -10,6 +10,7 @@ import { registerAllHandlers } from "./queue/handlers/index.js";
 import { startQueueWorker } from "./queue/worker.js";
 import { startQueueMetricsLogger } from "./queue/metrics.js";
 import { installShutdownHandlers } from "./lib/shutdown.js";
+import { keepProcessAlive } from "./lib/keepAlive.js";
 
 /**
  * Dedicated worker process. Its role is set by WORKER_ROLE (plan WQ3):
@@ -30,8 +31,11 @@ const runsSchedulers = role === "scheduler" || role === "both";
 const runsConsumer = role === "consumer" || role === "both";
 
 let leases: LaneLease[] = [];
+let stopKeepAlive = (): void => {};
 if (runsSchedulers) {
   leases = startSchedulerLanes(env, exitOnLostLease("worker"));
+  // A standby holds no scheduler interval and the lease timers are unref'd — see keepAlive.ts.
+  stopKeepAlive = keepProcessAlive();
   // Passive queue-health log (plan A1) — single-owner on the scheduler process, queue mode only.
   if (env.JOB_EXECUTION_MODE === "queue" && env.SUPABASE_URL && env.SUPABASE_SERVICE_ROLE_KEY) {
     startQueueMetricsLogger(env);
@@ -99,7 +103,8 @@ if (
   );
 }
 
-// A consumer-only process is kept alive by the queue loop's timers; a scheduler process by its intervals.
+// A consumer-only process is kept alive by the queue loop's timers; a scheduler process by
+// keepProcessAlive, whether it holds its lane or is only a standby.
 
 // The queue loop stops claiming on shutdown and executeJob hands back what is still running
 // (lib/shutdown.ts); the scheduler intervals simply stop at exit.
@@ -107,5 +112,6 @@ installShutdownHandlers({
   name: `worker:${role}`,
   onExit: async () => {
     await Promise.all(leases.map((l) => l.stop()));
+    stopKeepAlive();
   },
 });
