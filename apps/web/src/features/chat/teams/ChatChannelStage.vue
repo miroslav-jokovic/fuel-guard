@@ -7,11 +7,22 @@ import { useSessionStore } from "@/stores/session";
 import { useToastStore } from "@/stores/toast";
 import { useChatFollow } from "../chatRealtime";
 import { firstUnreadSeqOf } from "../chatGrouping";
-import { useChatMarkRead, useChatMessageActions, useChatSend, type PendingLine } from "../useChat";
+import { useChatMarkRead, useChatMembersQuery, useChatMessageActions, useChatSend, type PendingLine } from "../useChat";
+import { provideChatMentions, type MentionCandidate } from "../chatNames";
 import ChatChannelPane from "./ChatChannelPane.vue";
 import ChatRepliesPane from "./ChatRepliesPane.vue";
 import ChatEarlierButton from "../ChatEarlierButton.vue";
-import { useChannelPostsQuery, useChatTeamsQuery, useEarlierPosts, useEarlierReplies, useJoinChannel, useLeaveChannel, useRepliesQuery } from "./useChatTeams";
+import {
+  useAddChannelMembers,
+  useChannelPostsQuery,
+  useChatTeamsQuery,
+  useEarlierPosts,
+  useEarlierReplies,
+  useJoinChannel,
+  useLeaveChannel,
+  useRepliesQuery,
+  useTeamMembersQuery,
+} from "./useChatTeams";
 
 /**
  * The stage when a channel is open (OFFICE-CHAT-PLAN CH5c; CHAT-REDESIGN-PLAN §4): the channel, and —
@@ -86,6 +97,30 @@ const { edit, retract } = useChatMessageActions(channelId);
 const fail = (fallback: string) => (e: unknown) => toast.error(e instanceof Error ? e.message : fallback);
 const onEdit = (id: string, body: string) => edit.mutateAsync({ messageId: id, body }).catch(fail("Could not save the edit."));
 const onRemove = (id: string) => retract.mutateAsync(id).catch(fail("Could not remove the message."));
+
+// The `@` list (Q-CHAT20 (a)): the channel's people, then the team's others as "Add to # Loads" — a
+// token must name a participant (CH013), and any channel member may add a team member, so picking one
+// adds them first. Whether this channel takes them is still the database's answer; a refusal is a toast.
+const members = useChatMembersQuery(joinedId);
+const teamMembers = useTeamMembersQuery(computed(() => (joinedId.value ? (found.value?.team.space_id ?? null) : null)));
+const addMembers = useAddChannelMembers();
+provideChatMentions({
+  candidates: computed<MentionCandidate[]>(() => {
+    const inIt = new Set((members.data.value ?? []).map((m) => m.user_id));
+    return [
+      ...(members.data.value ?? []).map((m) => ({ user_id: m.user_id, name: m.name ?? "Someone", member: true })),
+      ...(teamMembers.data.value ?? []).filter((m) => !inIt.has(m.user_id)).map((m) => ({ user_id: m.user_id, name: m.name ?? "Someone", member: false })),
+    ].filter((c) => c.user_id !== viewer.value);
+  }),
+  addLabel: computed(() => (found.value ? `Add to # ${found.value.channel.name}` : null)),
+  add: async (userId) => {
+    if (!channelId.value) return false;
+    return addMembers.mutateAsync({ threadId: channelId.value, userIds: [userId] }).then(
+      () => true,
+      (e: unknown) => { fail("Could not add them to the channel.")(e); return false; },
+    );
+  },
+});
 
 const join = useJoinChannel();
 const onJoin = (id: string) => join.mutateAsync(id).catch(fail("Could not join the channel."));

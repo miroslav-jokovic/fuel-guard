@@ -30,6 +30,7 @@ import {
   chatInbox,
   chatLeave,
   chatMarkRead,
+  chatMembers,
   chatOpen,
   chatOpenDirect,
   chatRename,
@@ -224,6 +225,17 @@ export function chatRouter(): Router {
       if (!id) { notFound(res); return; }
       const { orgId, userId } = ctx(req);
       send(res, await chatHistory(admin(req), orgId, userId, id, intQuery(req.query.before_seq), intQuery(req.query.limit) ?? undefined), (v) => v);
+    }),
+  );
+
+  /** Who is in it — a channel's people for the composer's `@` list (CH6b-2). */
+  router.get(
+    "/:id/members",
+    asyncHandler(async (req, res) => {
+      const id = idParam(req, "id");
+      if (!id) { notFound(res); return; }
+      const { orgId, userId } = ctx(req);
+      send(res, await chatMembers(admin(req), orgId, userId, id), (members) => ({ members }));
     }),
   );
 

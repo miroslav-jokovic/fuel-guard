@@ -5,6 +5,7 @@ import type {
   ChatDirectoryEntry,
   ChatInboxResponse,
   ChatKind,
+  ChatMember,
   ChatMessage,
   ChatSendResponse,
 } from "@silvicom/shared";
@@ -77,6 +78,20 @@ export function useChatConversationQuery(threadId: Ref<string | null>) {
       unwrap(apiFetch<ChatConversationResponse>(`/api/chat/${threadId.value}`), "Could not open the conversation."),
     refetchInterval: poll(10_000),
     structuralSharing: keepEarlierSharing("messages"),
+  });
+}
+
+/**
+ * Who is in a conversation — a channel's people for the composer's `@` list (CH6b-2). Under
+ * `conversationKey`, so an add from the list refreshes it with the rest of the channel.
+ */
+export function useChatMembersQuery(threadId: Ref<string | null>) {
+  return useQuery({
+    queryKey: computed(() => [...conversationKey(threadId.value), "members"] as const),
+    enabled: computed(() => !!threadId.value),
+    queryFn: async () =>
+      (await unwrap(apiFetch<{ members: ChatMember[] }>(`/api/chat/${threadId.value}/members`), "Could not load who is in it.")).members,
+    staleTime: 60_000,
   });
 }
 

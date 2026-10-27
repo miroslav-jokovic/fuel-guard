@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { chatActivityReadRequestSchema, chatBodyText, chatMentionIds, chatMentionToken } from "./chatContract.js";
+import { chatActivityReadRequestSchema, chatBodyParts, chatBodyText, chatMentionIds, chatMentionToken, chatPreview } from "./chatContract.js";
 
 /**
  * D-CHAT22's token, as the web writes it and the API reads it. The database's own reading of the same
@@ -32,6 +32,27 @@ describe("chat mention tokens", () => {
   it("renders each token as the person's name, and one it cannot name as @someone, never the id", () => {
     const names: Record<string, string> = { [ANA]: "Ana" };
     expect(chatBodyText(`${chatMentionToken(ANA)} ask <@${BEN.toUpperCase()}>`, (id) => names[id])).toBe("@Ana ask @someone");
+  });
+});
+
+describe("a body cut at its mentions", () => {
+  it("alternates words and people, in order, keeping every character that is not a token", () => {
+    expect(chatBodyParts(`${chatMentionToken(ANA)}, ask <@${BEN.toUpperCase()}> now`)).toEqual([
+      { mention: ANA }, { text: ", ask " }, { mention: BEN }, { text: " now" },
+    ]);
+  });
+
+  it("is one part of words for a body with no token, and leaves a skewed one as words", () => {
+    expect(chatBodyParts("no names")).toEqual([{ text: "no names" }]);
+    expect(chatBodyParts("a <@aaaaaaaaa-aaa-4aaa-8aaa-aaaaaaaaaaaa> b")).toEqual([{ text: "a <@aaaaaaaaa-aaa-4aaa-8aaa-aaaaaaaaaaaa> b" }]);
+  });
+});
+
+describe("the inbox preview", () => {
+  const last = (body: string) => ({ id: ANA, seq: 1, sender_user_id: BEN, sender_name: "Ben", body, created_at: "2026-10-27T15:00:00Z", deleted: false });
+  it("reads a mention as the person's name, and as @someone with no names to hand", () => {
+    expect(chatPreview(last(`${chatMentionToken(ANA)} ready?`), 90, (id) => (id === ANA ? "Ana" : null))).toBe("@Ana ready?");
+    expect(chatPreview(last(`${chatMentionToken(ANA)} ready?`))).toBe("@someone ready?");
   });
 });
 

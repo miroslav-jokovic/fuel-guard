@@ -197,6 +197,14 @@ describe("a conversation", () => {
     expect(chatCalls()).toEqual([]);
   });
 
+  it("lists its people, as the caller sees them, and is a 404 when the caller is not in it", async () => {
+    const body = (await (await call(`/${THREAD}/members`)).json()) as { members: Array<{ user_id: string }> };
+    expect(body.members.map((m) => m.user_id)).toEqual([USER, PEER]);
+    expect(holder.rec!.rpcs().find((c) => c.fn === "chat_members")!.args).toEqual({ p_org: ORG, p_user: USER, p_thread: THREAD });
+    rpc.chat_members = { error: { code: "CH001", message: "" } };
+    expect((await call(`/${THREAD}/members`)).status).toBe(404);
+  });
+
   it("syncs from the rev asked for and returns the new rev", async () => {
     const body = (await (await call(`/${THREAD}/sync?since_rev=4`)).json()) as { rev: number; changes: unknown[]; more: boolean };
     expect((holder.rec!.rpcs().find((c) => c.fn === "chat_sync")!.args as { p_since_rev: number }).p_since_rev).toBe(4);

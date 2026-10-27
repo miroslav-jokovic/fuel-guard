@@ -31,6 +31,10 @@ const state = vi.hoisted(() => ({
   earlierPosts: vi.fn(),
   earlierReplies: vi.fn(),
   earlierFailed: false,
+  members: [] as unknown[],
+  teamMembers: [] as unknown[],
+  teamMembersOf: [] as Array<string | null>,
+  addMembers: vi.fn(async (_: unknown) => ({ added: 1 })),
 }));
 
 vi.mock("./useChatTeams", async () => {
@@ -48,6 +52,11 @@ vi.mock("./useChatTeams", async () => {
     useLeaveChannel: () => m(state.leaveChannel),
     useEarlierPosts: () => ({ mutate: state.earlierPosts, isPending: ref(false), isError: ref(state.earlierFailed) }),
     useEarlierReplies: () => ({ mutate: state.earlierReplies, isPending: ref(false), isError: ref(state.earlierFailed) }),
+    useTeamMembersQuery: (id: { value: string | null }) => {
+      watch(() => id.value, (v) => state.teamMembersOf.push(v), { immediate: true });
+      return q(state.teamMembers);
+    },
+    useAddChannelMembers: () => m(state.addMembers),
   };
 });
 vi.mock("../useChat", async (importOriginal) => {
@@ -58,6 +67,7 @@ vi.mock("../useChat", async (importOriginal) => {
     useChatMarkRead: () => ({ mutate: state.markRead }),
     useChatSend: () => ({ mutate: state.send, isPending: ref(false) }),
     useChatMessageActions: () => ({ edit: { mutateAsync: vi.fn() }, retract: { mutateAsync: vi.fn() } }),
+    useChatMembersQuery: () => ({ data: ref(state.members) }),
   };
 });
 vi.mock("../chatRealtime", async () => {
@@ -116,7 +126,10 @@ beforeEach(() => {
   state.replies = { posts: [line(3, { parent_id: POST })], before_seq: null };
   state.followed = [];
   state.earlierFailed = false;
-  for (const f of [state.markRead, state.send, state.join, state.leaveChannel, state.confirm, state.earlierPosts, state.earlierReplies]) f.mockClear();
+  state.members = [];
+  state.teamMembers = [];
+  state.teamMembersOf = [];
+  for (const f of [state.addMembers, state.markRead, state.send, state.join, state.leaveChannel, state.confirm, state.earlierPosts, state.earlierReplies]) f.mockClear();
   state.confirm.mockResolvedValue(true);
 });
 
@@ -233,5 +246,35 @@ describe("earlier posts and replies (CH6a)", () => {
     expect(buttons(w, "Show earlier posts")).toHaveLength(2);
     await press(w, "Show earlier posts");
     expect(state.earlierPosts).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("the channel's @ list (Q-CHAT20 (a))", () => {
+  const BEN = "22222222-2222-4222-8222-222222222222";
+  const CARA = "cccccccc-3333-4333-8333-33333333cafe";
+  const member = (user_id: string, name: string) => ({ user_id, name, member_role: "member", read_seq: 0, last_read_at: null, joined_at: "2026-10-25T14:00:00Z" });
+  const teamMember = (user_id: string, name: string) => ({ user_id, name, role: "dispatcher", space_role: "member", joined_at: "2026-10-25T14:00:00Z" });
+
+  it("offers the channel's people, then the team's others as Add to # Loads, and adds one before naming them", async () => {
+    state.members = [member(ME, "Ana"), member(BEN, "Ben")];
+    state.teamMembers = [teamMember(ME, "Ana"), teamMember(BEN, "Ben"), teamMember(CARA, "Cara Ruiz")];
+    const w = await render(`/chat?ch=${LOADS}`);
+    expect(state.teamMembersOf).toContain(SPACE);
+    const ta = w.find('textarea[aria-label="Post"]');
+    await ta.setValue("@");
+    (ta.element as HTMLTextAreaElement).setSelectionRange(1, 1);
+    await ta.trigger("input");
+    // Never yourself; members first; the one not in it says what picking does.
+    expect(w.findAll('[role="option"]').map((o) => o.text())).toEqual(["Ben", "Cara RuizAdd to # Loads"]);
+    await ta.trigger("keydown", { key: "ArrowDown" });
+    await ta.trigger("keydown", { key: "Enter" });
+    await flushPromises();
+    expect(state.addMembers).toHaveBeenCalledWith({ threadId: LOADS, userIds: [CARA] });
+    expect((ta.element as HTMLTextAreaElement).value).toBe("@Cara Ruiz ");
+  });
+
+  it("asks for no team's people for a channel you are not in", async () => {
+    await render(`/chat?ch=${YARD}`);
+    expect(state.teamMembersOf.filter(Boolean)).toEqual([]);
   });
 });

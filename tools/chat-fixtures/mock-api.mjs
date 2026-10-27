@@ -7,6 +7,8 @@ import http from "node:http";
 import { randomUUID } from "node:crypto";
 
 let mode = process.env.FIXTURE_MODE ?? "data";
+// MOCK_PORT: a second session's pass can run beside one already holding 8080.
+const port = Number(process.env.MOCK_PORT ?? 8080);
 const ME = "dev-admin-001";
 const now = Date.now();
 const ago = (min) => new Date(now - min * 60_000).toISOString();
@@ -93,6 +95,8 @@ function seed() {
   line(CH.general, P.dana.user_id, "Then the photo is the record until the report lands in the FMCSA feed. Both go on the file.", ago(16), { parent_id: post.id });
 
   line(CH.west, P.marcus.user_id, "I-80 closed at Des Moines westbound, hazmat spill. 611 rerouted via I-35 / US-30.", ago(35));
+  // A mention (CH6b-2, D-CHAT22): the body carries the token; the page draws the name.
+  line(CH.west, P.tom.user_id, `<@${P.marcus.user_id}> can you tell 611 the Ames fuel stop is closed too?`, ago(12));
   line(CH.roadside, P.dana.user_id, "Indiana weigh stations are running brake blitz this week.", day(2, 14));
   line(CH.shopGeneral, P.luis.user_id, "Parts order went in. Steer tires for 702 and 318 arrive Tuesday.", day(1, 15));
 }
@@ -208,6 +212,12 @@ http.createServer(async (req, res) => {
     }
     if (seg[2] === "channels") {
       const id = seg[3];
+      // "Add to # west-region" from the composer's @ list (Q-CHAT20 (a)).
+      if (seg[4] === "members" && req.method === "POST") {
+        const b = await readBody(req);
+        convMembers[id] = [...new Set([...(convMembers[id] ?? []), ...b.user_ids])];
+        return json(res, 200, { added: b.user_ids.length });
+      }
       if (seg[4] === "posts") {
         if (seg[6] === "replies") {
           if (req.method === "POST") { const b = await readBody(req); const m = line(id, ME, b.body, new Date().toISOString(), { parent_id: seg[5], id: b.message_id }); return json(res, 200, { message_id: m.id, seq: m.seq, rev: m.rev, created_at: m.created_at, duplicate: false }); }
@@ -238,6 +248,7 @@ http.createServer(async (req, res) => {
       return json(res, 200, { conversation: conv(id, meta.kind, meta.subject, convMembers[id], { unread: meta.unread, muted: meta.muted }), members: members(id), messages: page, before_seq: all.length > 50 ? page[0].seq : (url.searchParams.get("paged") ? null : null) });
     }
     if (seg[3] === "messages" && req.method === "GET") return json(res, 200, { messages: [], before_seq: null });
+    if (seg[3] === "members" && req.method === "GET") return json(res, 200, { members: members(id) });
     if (seg[3] === "messages" && req.method === "POST") {
       const b = await readBody(req);
       const m = line(id, ME, b.body, new Date().toISOString(), { id: b.message_id });
@@ -247,4 +258,4 @@ http.createServer(async (req, res) => {
     return json(res, 200, {});
   }
   json(res, 404, { error: { message: "no fixture for " + path } });
-}).listen(8080, () => console.log("[mock] listening on :8080, mode", mode));
+}).listen(port, () => console.log(`[mock] listening on :${port}, mode`, mode));

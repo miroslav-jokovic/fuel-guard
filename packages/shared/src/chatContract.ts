@@ -252,7 +252,6 @@ export type ChatActivityReadRequest = z.infer<typeof chatActivityReadRequestSche
  */
 const MENTION_SHAPE = /<@([0-9a-fA-F-]{36})>/g;
 
-
 export function chatMentionToken(userId: string): string {
   return `<@${userId.toLowerCase()}>`;
 }
@@ -272,6 +271,22 @@ export function chatBodyText(body: string, nameOf: (userId: string) => string | 
     isRecordId(raw) ? `@${nameOf(raw.toLowerCase())?.trim() || "someone"}` : token);
 }
 
+export type ChatBodyPart = { text: string } | { mention: string };
+
+/** A body cut at its tokens, for a reader that draws a mention as something other than words (a chip). */
+export function chatBodyParts(body: string): ChatBodyPart[] {
+  const parts: ChatBodyPart[] = [];
+  let at = 0;
+  for (const m of body.matchAll(MENTION_SHAPE)) {
+    if (!isRecordId(m[1])) continue;
+    if (m.index > at) parts.push({ text: body.slice(at, m.index) });
+    parts.push({ mention: m[1]!.toLowerCase() });
+    at = m.index + m[0].length;
+  }
+  if (at < body.length) parts.push({ text: body.slice(at) });
+  return parts;
+}
+
 // ── derivations the inbox and the conversation share ────────────────────────────────────────────
 
 /**
@@ -288,10 +303,12 @@ export function chatTitle(c: Pick<ChatConversation, "kind" | "subject" | "title_
   return `${names.join(", ")} +${others - names.length}`;
 }
 
-/** A one-line preview for the inbox row. */
-export function chatPreview(m: ChatConversation["last_message"], max = 90): string {
+/** A one-line preview for the inbox row; a mention reads as `@Name` (`nameOf`), never as its token. */
+export function chatPreview(
+  m: ChatConversation["last_message"], max = 90, nameOf: (userId: string) => string | null | undefined = () => null,
+): string {
   if (!m) return "No messages yet";
   if (m.deleted || m.body === null) return "Message removed";
-  const text = m.body.replace(/\s+/g, " ").trim();
+  const text = chatBodyText(m.body, nameOf).replace(/\s+/g, " ").trim();
   return text.length <= max ? text : `${text.slice(0, max - 1)}…`;
 }
