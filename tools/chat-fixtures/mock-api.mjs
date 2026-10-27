@@ -139,9 +139,29 @@ const inbox = (kinds) => {
     .sort((a, b) => b.last_message_at.localeCompare(a.last_message_at));
   return { conversations: list, next: null, unread_total: list.reduce((n, c) => n + (c.muted === "all" ? 0 : c.unread), 0) };
 };
+// Activity (CH6b-2, D-CHAT25): what named "me" or answered "my" posts. The dev session's id is not a
+// uuid, so no line can carry a token for it; the items are built from the seeded lines instead.
+let activityReadAt = null;
+const activity = () => {
+  const pick = (thread, reason, test) => {
+    const m = (msgs[thread] ?? []).find(test);
+    const meta = convMeta[thread];
+    return m && { message_id: m.id, reason, at: m.created_at, thread_id: thread, kind: meta.kind, subject: meta.subject,
+      space_id: meta.kind === "channel" ? SP.dispatch : null, parent_id: m.parent_id, seq: m.seq,
+      sender_user_id: m.sender_user_id, sender_name: m.sender_name, body: m.body, created_at: m.created_at };
+  };
+  return [
+    pick(CH.general, "reply", (m) => m.parent_id && m.body?.startsWith("Then the photo")),
+    pick(CH.west, "mention", (m) => m.body?.includes("Ames")),
+    pick(T.night, "mention", (m) => m.body?.startsWith("Handing over")),
+    pick(T.elena, "mention", () => true),
+  ].filter(Boolean)
+    .map((i) => ({ ...i, unread: !activityReadAt || i.at > activityReadAt }))
+    .sort((a, b) => b.at.localeCompare(a.at));
+};
 const channel = (id, name, general, visibility, joined = true) => ({
   thread_id: id, name, visibility, general, joined, last_message_at: msgs[id]?.at(-1)?.created_at ?? day(5, 9),
-  last_seq: seqs[id] ?? 0, read_seq: joined ? (seqs[id] ?? 0) - (convMeta[id]?.unread ?? 0) : null, unread: joined ? convMeta[id]?.unread ?? 0 : 0, muted: joined ? "none" : null,
+  last_seq: seqs[id] ?? 0, read_seq: joined ? (seqs[id] ?? 0) - (convMeta[id]?.unread ?? 0) : null, unread: joined ? convMeta[id]?.unread ?? 0 : 0, muted: joined ? convMeta[id]?.muted ?? "none" : null,
 });
 const teams = () => ({
   can_manage: true,
@@ -175,12 +195,12 @@ http.createServer(async (req, res) => {
     res.writeHead(204, {
       "access-control-allow-origin": "*",
       "access-control-allow-headers": "authorization, content-type, apikey, prefer, accept, accept-profile, content-profile, x-client-info, x-supabase-api-version",
-      "access-control-allow-methods": "GET, POST, PATCH, DELETE, OPTIONS",
+      "access-control-allow-methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS",
       "access-control-max-age": "600",
     });
     return res.end();
   }
-  if (path === "/__mode") { const b = await readBody(req); mode = b.mode; if (b.reseed) seed(); if (b.clear) { delete msgs[b.clear]; seqs[b.clear] = 0; } console.log("[mock] mode", mode); return json(res, 200, { mode }); }
+  if (path === "/__mode") { const b = await readBody(req); mode = b.mode; if (b.reseed) { seed(); activityReadAt = null; } if (b.clear) { delete msgs[b.clear]; seqs[b.clear] = 0; } console.log("[mock] mode", mode); return json(res, 200, { mode }); }
   // A line from somebody else, now — for "N new messages" (D-CHATUI17): POST /__line {"thread":"<id>","body":"…"}.
   if (path === "/__line") { const b = await readBody(req); const m = line(b.thread, b.sender ?? P.marcus.user_id, b.body, new Date().toISOString()); convMeta[b.thread] ??= { kind: "direct", subject: null, unread: 0 }; return json(res, 200, { id: m.id, seq: m.seq }); }
   console.log(`[mock] ${req.method} ${path}${url.search} (${mode})`);
@@ -205,6 +225,12 @@ http.createServer(async (req, res) => {
       return json(res, 200, empty ? { conversations: [], next: null, unread_total: 0 } : inbox(kinds));
     }
     if (seg[2] === "people") return json(res, 200, { people: empty ? [] : people });
+    if (seg[2] === "activity") {
+      if (seg[3] === "read") { const b = await readBody(req); activityReadAt = b.at ?? new Date().toISOString(); return json(res, 200, { activity_read_at: activityReadAt }); }
+      const items = empty ? [] : activity();
+      const unread = items.filter((i) => i.unread).length;
+      return json(res, 200, seg[3] === "unread" ? { unread } : { items, next: null, unread });
+    }
     if (seg[2] === "teams") {
       if (seg.length === 3) return json(res, 200, empty ? { teams: [], can_manage: true } : teams());
       if (seg[4] === "members") return json(res, 200, { members: members(seg[3] === SP.dispatch ? CH.general : CH.shopGeneral) });
@@ -255,6 +281,7 @@ http.createServer(async (req, res) => {
       return json(res, 200, { message_id: m.id, seq: m.seq, rev: m.rev, created_at: m.created_at, duplicate: false });
     }
     if (seg[3] === "read") return json(res, 200, {});
+    if (seg[3] === "mute") { const b = await readBody(req); (convMeta[id] ??= { kind: "channel", subject: null, unread: 0 }).muted = b.muted; return json(res, 200, { muted: b.muted }); }
     return json(res, 200, {});
   }
   json(res, 404, { error: { message: "no fixture for " + path } });

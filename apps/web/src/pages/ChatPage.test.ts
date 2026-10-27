@@ -22,6 +22,13 @@ const state = vi.hoisted(() => ({
   followed: [] as Array<string | null>,
   inboxKinds: null as string[] | null,
   earlier: vi.fn(),
+  setMute: vi.fn(async () => ({ muted: "all" })),
+  activityUnread: 0,
+  activityItems: [] as unknown[],
+  /** Replaces the list a mounted page holds, as a refetch would. */
+  setActivityItems: (_: unknown[]) => {},
+  activityRead: vi.fn(),
+  activityAsked: [] as boolean[],
 }));
 
 vi.mock("@/composables/useModules", async () => {
@@ -55,9 +62,27 @@ vi.mock("@/features/chat/useChat", async () => {
     useChatSend: () => ({ mutate: vi.fn(), isPending: ref(false) }),
     useChatLoadEarlier: () => ({ mutate: state.earlier, isPending: ref(false), isError: ref(false) }),
     useChatMarkRead: () => ({ mutate: state.markRead }),
+    useChatSetMute: () => ({ mutateAsync: state.setMute }),
     useChatOpenDirect: () => ({ mutateAsync: state.openDirect, isPending: ref(false) }),
     useChatCreateGroup: () => ({ mutateAsync: state.createGroup, isPending: ref(false) }),
     useChatMessageActions: () => ({ edit: { mutateAsync: vi.fn() }, retract: { mutateAsync: vi.fn() } }),
+  };
+});
+vi.mock("@/features/chat/useChatActivity", async () => {
+  const { computed, ref, watch } = await import("vue");
+  return {
+    useChatActivityUnreadQuery: () => ({ data: computed(() => state.activityUnread) }),
+    useChatActivityQuery: (enabled: { value: boolean }) => {
+      watch(() => enabled.value, (v) => state.activityAsked.push(v), { immediate: true });
+      const held = ref(state.activityItems);
+      state.setActivityItems = (v) => (held.value = v);
+      return {
+        items: computed(() => (enabled.value ? held.value : [])),
+        isPending: ref(false), isError: ref(false), error: ref(null), isFetching: ref(false),
+        hasNextPage: ref(false), isFetchingNextPage: ref(false), fetchNextPage: vi.fn(), refetch: vi.fn(),
+      };
+    },
+    useChatActivityMarkRead: () => ({ mutate: state.activityRead }),
   };
 });
 vi.mock("@/features/chat/teams/useChatTeams", async () => {
@@ -121,6 +146,11 @@ async function render(path = "/chat") {
 }
 
 beforeEach(() => {
+  state.activityUnread = 0;
+  state.activityItems = [];
+  state.activityAsked = [];
+  state.activityRead.mockClear();
+  state.setMute.mockClear();
   setActivePinia(createPinia());
   document.body.innerHTML = "";
   state.modules = "has";
@@ -262,5 +292,72 @@ describe("ChatPage", () => {
     w.findComponent(ChatRail).vm.$emit("new-conversation");
     await flushPromises();
     expect(w.findComponent(NewChatDialog).props("open")).toBe(true);
+  });
+
+  describe("Activity and mute (CH6b-2)", () => {
+    const POST = "88888888-8888-4888-8888-888888888888";
+    const item = (over: Record<string, unknown> = {}) => ({
+      message_id: "99999999-9999-4999-8999-999999999999", reason: "reply", at: "2026-10-27T15:02:00.123456+00:00", unread: true,
+      thread_id: CH, kind: "channel", subject: "Loads", space_id: SPACE, parent_id: POST, seq: 7,
+      sender_user_id: "22222222-2222-4222-8222-222222222222", sender_name: "Ben", body: "Done.", created_at: "2026-10-27T15:02:00Z", ...over,
+    });
+
+    it("counts Activity in the rail and opens it at its own address, alone", async () => {
+      state.activityUnread = 3;
+      const { w, router } = await render(`/chat?c=${T}`);
+      const row = w.findAll("button").find((b) => b.text().includes("Activity"))!;
+      expect(row.find('[aria-label="3 unread"]').exists()).toBe(true);
+      await row.trigger("click");
+      await flushPromises();
+      expect(router.currentRoute.value.query).toEqual({ activity: "1" });
+      expect(w.find('section[aria-label="Activity"]').exists()).toBe(true);
+    });
+
+    it("asks for the list only while it is on the stage, and reads it up to the newest item shown", async () => {
+      state.activityItems = [item(), item({ message_id: T2, at: "2026-10-27T15:01:00Z" })];
+      await render("/chat");
+      expect(state.activityAsked).toEqual([false]);
+      await render("/chat?activity=1");
+      expect(state.activityRead).toHaveBeenCalledWith("2026-10-27T15:02:00.123456+00:00");
+    });
+
+    it("keeps an item that was unread when shown looking unread after the read lands, while Activity stays open", async () => {
+      state.activityItems = [item()];
+      const { w } = await render("/chat?activity=1");
+      expect(w.find('section[aria-label="Activity"]').text()).toContain(", unread");
+      state.setActivityItems([item({ unread: false })]);
+      await flushPromises();
+      expect(w.find('section[aria-label="Activity"]').text()).toContain(", unread");
+    });
+
+    it("reads nothing when the newest item is already read", async () => {
+      state.activityItems = [item({ unread: false })];
+      await render("/chat?activity=1");
+      expect(state.activityRead).not.toHaveBeenCalled();
+    });
+
+    it("opens a reply in its post's thread beside the channel", async () => {
+      state.activityItems = [item()];
+      const { w, router } = await render("/chat?activity=1");
+      expect(w.text()).toContain("Ben replied in # Loads");
+      await w.find('section[aria-label="Activity"] li button').trigger("click");
+      await flushPromises();
+      expect(router.currentRoute.value.query).toEqual({ ch: CH, post: POST });
+    });
+
+    it("mutes the open conversation from its header", async () => {
+      state.detail = {
+        conversation: { ...conversation(T, "Ben"), muted: "none" },
+        members: [], messages: [], before_seq: null,
+      };
+      const { w } = await render(`/chat?c=${T}`);
+      await w.find('button[aria-label="Conversation actions"]').trigger("click");
+      await flushPromises();
+      const mute = [...document.body.querySelectorAll('[role="menuitemradio"]')].find((b) => b.textContent?.trim() === "Mute") as HTMLElement;
+      expect(mute).toBeTruthy();
+      mute.click();
+      await flushPromises();
+      expect(state.setMute).toHaveBeenCalledWith({ threadId: T, muted: "all" });
+    });
   });
 });

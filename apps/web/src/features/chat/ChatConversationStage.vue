@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import { chatTitle, type ChatConversationResponse } from "@silvicom/shared";
+import { chatTitle, type ChatConversationResponse, type ChatMuteLevel } from "@silvicom/shared";
+import KebabMenu from "@/components/KebabMenu.vue";
 import { mergeLines, type PendingLine } from "./useChat";
 import ChatComposer from "./ChatComposer.vue";
 import ChatMessageList from "./ChatMessageList.vue";
 import ChatStageHeader from "./ChatStageHeader.vue";
+import ChatMuteItems from "./ChatMuteItems.vue";
 import { provideChatMentions } from "./chatNames";
 
 /**
@@ -35,6 +37,7 @@ defineEmits<{
   remove: [messageId: string];
   back: [];
   earlier: [];
+  mute: [level: ChatMuteLevel];
 }>();
 
 const lines = computed(() => mergeLines(props.data.messages, props.pending, props.data.conversation.thread_id));
@@ -66,7 +69,12 @@ const seenSeq = computed(() => (direct.value && myLastSeq.value !== null && othe
 
 <template>
   <section class="flex h-full min-h-0 flex-1 flex-col bg-surface" :aria-label="title">
-    <ChatStageHeader :title="title" :subtitle="subtitle" :glyph="direct ? 'person' : 'group'" back-label="Back to conversations" @back="$emit('back')" />
+    <ChatStageHeader :title="title" :subtitle="subtitle" :glyph="direct ? 'person' : 'group'" back-label="Back to conversations" @back="$emit('back')">
+      <!-- Its mute (D-CHAT23): what reaches you from it, and whether it sits in Muted. -->
+      <KebabMenu trigger-label="Conversation actions" placement="bottom-end">
+        <ChatMuteItems :muted="data.conversation.muted" @set="(level: ChatMuteLevel) => $emit('mute', level)" />
+      </KebabMenu>
+    </ChatStageHeader>
     <ChatMessageList
       ref="log"
       :lines="lines"

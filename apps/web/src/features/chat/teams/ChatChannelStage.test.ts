@@ -35,6 +35,7 @@ const state = vi.hoisted(() => ({
   teamMembers: [] as unknown[],
   teamMembersOf: [] as Array<string | null>,
   addMembers: vi.fn(async (_: unknown) => ({ added: 1 })),
+  setMute: vi.fn(async (_: unknown) => ({ muted: "mentions" })),
 }));
 
 vi.mock("./useChatTeams", async () => {
@@ -68,6 +69,7 @@ vi.mock("../useChat", async (importOriginal) => {
     useChatSend: () => ({ mutate: state.send, isPending: ref(false) }),
     useChatMessageActions: () => ({ edit: { mutateAsync: vi.fn() }, retract: { mutateAsync: vi.fn() } }),
     useChatMembersQuery: () => ({ data: ref(state.members) }),
+    useChatSetMute: () => ({ mutateAsync: state.setMute }),
   };
 });
 vi.mock("../chatRealtime", async () => {
@@ -129,7 +131,7 @@ beforeEach(() => {
   state.members = [];
   state.teamMembers = [];
   state.teamMembersOf = [];
-  for (const f of [state.addMembers, state.markRead, state.send, state.join, state.leaveChannel, state.confirm, state.earlierPosts, state.earlierReplies]) f.mockClear();
+  for (const f of [state.setMute, state.addMembers, state.markRead, state.send, state.join, state.leaveChannel, state.confirm, state.earlierPosts, state.earlierReplies]) f.mockClear();
   state.confirm.mockResolvedValue(true);
 });
 
@@ -197,8 +199,15 @@ describe("an open channel", () => {
   });
 
   it("does not offer to leave General — that is leaving the team", async () => {
-    expect((await render(`/chat?ch=${GENERAL}`)).find('button[aria-label="Channel actions"]').exists()).toBe(false);
-    expect((await render(`/chat?ch=${LOADS}`)).find('button[aria-label="Channel actions"]').exists()).toBe(true);
+    // General's menu holds its mute only (CH6b-2); Leave is every other channel's.
+    for (const [id, offered] of [[GENERAL, false], [LOADS, true]] as const) {
+      const w = await render(`/chat?ch=${id}`);
+      await w.find('button[aria-label="Channel actions"]').trigger("click");
+      await flushPromises();
+      expect(bodyButtons("Leave channel").length > 0, id).toBe(offered);
+      w.unmount();
+      document.body.innerHTML = "";
+    }
   });
 
   it("asks before leaving a channel, and leaves nothing when declined", async () => {
@@ -276,5 +285,20 @@ describe("the channel's @ list (Q-CHAT20 (a))", () => {
   it("asks for no team's people for a channel you are not in", async () => {
     await render(`/chat?ch=${YARD}`);
     expect(state.teamMembersOf.filter(Boolean)).toEqual([]);
+  });
+});
+
+describe("the channel's mute (D-CHAT23)", () => {
+  it("is in the header's menu, on General too, with the current level checked", async () => {
+    await render(`/chat?ch=${GENERAL}`);
+    document.querySelector<HTMLElement>('button[aria-label="Channel actions"]')!.click();
+    await flushPromises();
+    const items = [...document.body.querySelectorAll<HTMLElement>('[role="menuitemradio"]')];
+    expect(items.map((i) => [i.textContent?.trim(), i.getAttribute("aria-checked")])).toEqual([
+      ["Notify me of everything", "true"], ["Only when I'm mentioned", "false"], ["Mute", "false"],
+    ]);
+    items[1]!.click();
+    await flushPromises();
+    expect(state.setMute).toHaveBeenCalledWith({ threadId: GENERAL, muted: "mentions" });
   });
 });

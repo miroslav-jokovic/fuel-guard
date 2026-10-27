@@ -4,7 +4,7 @@ import type { ChatConversationResponse, ChatMessage, ChatSyncResponse } from "@s
 import { apiFetch } from "@/lib/api";
 import { DEV_BYPASS } from "@/lib/supabase";
 import { useSessionStore } from "@/stores/session";
-import { conversationKey, inboxKey, teamsKey } from "./useChat";
+import { activityKey, conversationKey, inboxKey, teamsKey } from "./useChat";
 import { sharedChatTransport, type ChatTransport } from "./transport";
 
 /**
@@ -186,6 +186,8 @@ function transportFor(qc: QueryClient): ChatTransport {
     spread("inbox", () => {
       void qc.invalidateQueries({ queryKey: inboxKey });
       void qc.invalidateQueries({ queryKey: teamsKey });
+      // A line that names you or answers your post arrives on the same signal (D-CHAT25).
+      void qc.invalidateQueries({ queryKey: activityKey });
     });
   const conversation = (threadId: string, rev?: number) =>
     spread(`conv:${threadId}`, () => void refreshConversation(qc, threadId, me(), rev));
