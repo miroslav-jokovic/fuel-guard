@@ -1,11 +1,11 @@
-// Silvicom 360 — driver-held assets matrix (migration 0523; DRIVER-EQUIPMENT-AND-UNIT-TAGS-PLAN.md
+// Silvicom 360 — driver-held assets matrix (migration 0524; DRIVER-EQUIPMENT-AND-UNIT-TAGS-PLAN.md
 // step DE1, D-DE1/D-DE2/D-DE3). Truck inventory only.
 //
 // A tablet follows its driver; everything else stays with the truck. Each rule below is a fact here
 // rather than a sentence in the migration:
 //
 //   1.  The type decides (`asset_types.held_by`), and the default is the unit — every type that
-//       existed before 0523 keeps the meaning it had.
+//       existed before 0524 keeps the meaning it had.
 //   2.  A tablet is given to a driver, handed between drivers and returned to a bay, and the ledger
 //       names the driver on both sides of every move.
 //   3.  IV025 — a tablet refuses a truck, and a chain refuses a driver, whether moved or created.
@@ -160,7 +160,7 @@ const RIVAL = await driver("Rival Driver", "active", OTHER);
 // ── 1. The type decides, and the default is the unit ────────────────────────────────────────────
 const CHAIN = await assetType("Chain");
 const TABLET = await assetType("Tablet", "driver");
-ok("a type written before 0523's column is held by a unit", (await one(`select held_by from asset_types where id=$1`, [CHAIN])).held_by === "unit");
+ok("a type written before 0524's column is held by a unit", (await one(`select held_by from asset_types where id=$1`, [CHAIN])).held_by === "unit");
 ok(
   "...and held_by takes only 'unit' or 'driver'",
   (await refuses(`update asset_types set held_by='person' where id=$1`, [CHAIN])) === "23514",

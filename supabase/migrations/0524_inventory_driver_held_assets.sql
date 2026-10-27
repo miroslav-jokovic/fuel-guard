@@ -1,4 +1,4 @@
--- 0523 — a tablet is held by a driver (DRIVER-EQUIPMENT-AND-UNIT-TAGS-PLAN.md step DE1; D-DE1,
+-- 0524 — a tablet is held by a driver (DRIVER-EQUIPMENT-AND-UNIT-TAGS-PLAN.md step DE1; D-DE1,
 -- D-DE2, D-DE3). Truck inventory only: nothing here touches a shelf, a part or a count of one.
 --
 -- ── WHAT CHANGES, AND WHAT 0333 SAID ABOUT IT ───────────────────────────────────────────────────

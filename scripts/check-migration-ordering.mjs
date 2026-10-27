@@ -75,7 +75,7 @@ const IS_TEST = (p) => /\.(test|spec)\.[a-z]+$/.test(p) || p.includes("/testing/
 /**
  * The driver-merge list is not a read, and `lint:driver-references` REQUIRES it in the same change.
  *
- * Found on 0523 (2026-10-27), the first `drivers(id)` foreign key added to a table that already
+ * Found on 0524 (2026-10-27), the first `drivers(id)` foreign key added to a table that already
  * existed since this gate was written: that gate fails a migration whose new driver FK is not in
  * `DRIVER_REASSIGNMENTS`, and this one failed the same merge because the list named the column. Two
  * gates, no order that satisfies both. The list is safe on the old schema in a way a SELECT is not:

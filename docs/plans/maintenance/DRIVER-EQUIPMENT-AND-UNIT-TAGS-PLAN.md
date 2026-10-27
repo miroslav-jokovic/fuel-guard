@@ -114,7 +114,7 @@ Numbered on from the inventory plan's I13; I14 moved to its own plan.
   and the three guards re-issued to pass it; `IV025` raised for the wrong kind of holder.
 - `DRIVER_REASSIGNMENTS` gains the three columns **in the same PR** — `lint:driver-references`
   requires it. (This line first said "so it ships in DE2"; the two halves contradicted each other,
-  and so did the two gates — see the 0523 entry in §6.)
+  and so did the two gates — see the 0524 entry in §6.)
 - Matrix: a tablet given, returned, refused to a truck, refused to another org's driver, refused to a
   terminated driver; a chain refused to a driver; append-only still holds.
 
@@ -239,7 +239,7 @@ proof none of this replaces — the scanner on an Android tablet, and a printed 
   marked superseded. Of what shipped today, R13 and the Labels screen's shelf half were shop-side
   fixes riding shared PRs — harmless, and not a precedent. **Next: DE1** (tablets held by drivers,
   schema), then DE2.
-- **2026-10-27 — DE1 (migration 0523, schema only; no reader ships).** `asset_types.held_by`
+- **2026-10-27 — DE1 (migration 0524, schema only; no reader ships).** `asset_types.held_by`
   (`unit` default | `driver`); `inventory_assets.driver_id`, `asset_movements.from_driver_id` /
   `to_driver_id`, all `on delete restrict`; the three holder CHECKs widened to four columns.
   `inventory_holder_is_ours` re-issued with `p_driver` (five-argument signature dropped) and all five

@@ -59,7 +59,7 @@ const found = new Map(); // "table.column" -> migration file
 /**
  * The `table.column` pairs one migration declares as `references drivers(id)`.
  *
- * Each `alter table` pattern stops at its own `;`. Until 0523 they ran `[\s\S]*?` — across
+ * Each `alter table` pattern stops at its own `;`. Until 0524 they ran `[\s\S]*?` — across
  * statements — so `alter table asset_types add column held_by …; alter table inventory_assets add
  * column driver_id uuid references drivers(id);` reported `asset_types.driver_id`, a column that does
  * not exist, and missed the one that does. `--self-test` pins it.
@@ -117,7 +117,7 @@ if (process.argv.includes("--self-test")) {
   const fails = [];
   if (!verdict(fake).some((e) => e.startsWith("ghost_table.driver_id"))) fails.push("unaccounted-FK detector did not fire");
   if (verdict(found).length !== 0) fails.push("real tree should be clean for the self-test baseline");
-  // 0523's shape: a plain column on one table, then a driver FK on the next.
+  // 0524's shape: a plain column on one table, then a driver FK on the next.
   const twoAlters = driverFks(
     "alter table asset_types add column held_by text not null default 'unit';\n" +
       "alter table inventory_assets add column driver_id uuid references drivers(id) on delete restrict;",
