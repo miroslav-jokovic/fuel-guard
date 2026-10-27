@@ -549,3 +549,24 @@ TechRepublic / Windows Report on Teams 2026 updates.
   on your own topic now refreshes Activity with the rail (pinned by a test of the handlers, which had
   none). Fixtures: Activity and mute in `tools/chat-fixtures`. **CH6b-2 is complete**; next CH6c-1
   (0522 is taken by finance's #1698 — check the next free number first) or CH6d.
+- 2026-10-27: **CH6b-2 MERGED** (#1783, main 98db8dd; staging verified at schema 0521). **CH6c-1 built**
+  (`claude/office-chat-ch6c-1`, migration **0523** — 0522 went to inventory's #1790 first). Three
+  tables: `message_reactions` (the six of D-CHAT26 as keys `thumbs_up` `heart` `laugh` `surprised`
+  `sad` `done`; one of a kind per person per line by primary key), `chat_pins` (one per line, anybody
+  in the conversation sets or takes it off) and `chat_saved` (one person's bookmark). Reactions and pins
+  are written by `chat_react` / `chat_pin` and ledgered by TRIGGER as `reaction_added` /
+  `reaction_removed` / `message_pinned` / `message_unpinned`, each moving the line's `rev` to the
+  conversation's next, so `/sync` re-delivers the line; the realtime signal now also fires on `rev`
+  alone (`trg_chat_signal`), or a 👍 would reach other tabs only at the next poll. A save moves no `rev`
+  and writes no ledger row (D-CHAT24). A retracted line refuses all three (CH004, as an edit) and stops
+  showing what it had; an archived conversation refuses reactions and pins (CH005), not saves.
+  `chat_history`, `chat_sync`, `chat_channel_posts` and `chat_replies` gain `reactions`
+  (`[{reaction, users}]` in D-CHAT26's order), `pinned_at` and the caller's own `saved`; `chat_pins`
+  and `chat_saved` (keyset-paged) list them. `CHAT_REACTIONS` in the shared contract is held to the
+  CHECK, `chat_react`'s list and the readers' order by `chatReactionCheck.test.ts`. Matrix
+  `office-chat-reactions.test.mjs` (57 rows, §9.2's five among them) plus three realtime rows; ten
+  mutants of 0523 each failed a row. **Not in 0523: reactions in Activity** (D-CHAT25's third reason) —
+  the API parses `reason` against `CHAT_ACTIVITY_REASONS`, so a function emitting `reaction` before the
+  API knows it would fail every Activity request for the deploy minutes. CH6c-2 therefore widens the
+  contract (and gives the item who reacted, which today's shape has no column for) first; the function
+  follows in a migration of its own after it. Next: CH6c-2 once 0523 is on staging.
