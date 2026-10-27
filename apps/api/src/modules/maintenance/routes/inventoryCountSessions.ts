@@ -36,6 +36,8 @@ const listSchema = z.object({
   status: z.enum(["open", "closed"]).optional(),
   kind: z.enum(["location", "unit"]).optional(),
   locationId: recordId().optional(),
+  vehicleId: recordId().optional(),
+  trailerId: recordId().optional(),
   limit: z.coerce.number().int().min(1).max(200).optional(),
   offset: z.coerce.number().int().min(0).optional(),
 });
@@ -112,7 +114,9 @@ export function inventoryCountSessionsRouter(): Router {
         res.status(statusForServiceError(result.code)).json(apiError(result.code, result.error));
         return;
       }
-      res.status(201).json({ ok: true, session: result });
+      // 200 and `resumed` when "Check this unit" found the unit's check already open (R9): nothing
+      // was created, and the screen says "Continuing the check started …" rather than pretending.
+      res.status(result.resumed ? 200 : 201).json({ ok: true, session: result.session, resumed: result.resumed });
     }),
   );
 

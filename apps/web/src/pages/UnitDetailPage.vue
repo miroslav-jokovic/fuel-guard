@@ -18,9 +18,11 @@ import PageHeader from "@/components/ui/PageHeader.vue";
 import KebabMenu from "@/components/KebabMenu.vue";
 import AssetMoveDrawer from "@/features/inventory/AssetMoveDrawer.vue";
 import UnitOverrideDrawer from "@/features/inventory/UnitOverrideDrawer.vue";
+import OpenCountsList from "@/features/inventory/OpenCountsList.vue";
 import { useUnitKitQuery } from "@/features/inventory/useUnits";
 import { useLocationsQuery, useOpenCountSession } from "@/features/inventory/useInventory";
 import { BADGE_BASE, kitStatusBadge, toneClass } from "@/lib/badges";
+import { formatDate, formatDateTime } from "@/lib/format";
 import { useSessionStore } from "@/stores/session";
 import { useToastStore } from "@/stores/toast";
 
@@ -80,6 +82,14 @@ async function startCheck() {
       ...(kind.value === "tractor" ? { vehicleId: unitId.value } : { trailerId: unitId.value }),
       blind: false,
     });
+    // R9: the server hands back this unit's open check rather than starting a second walk, and the
+    // screen says so — a technician who expected a fresh list should know answers are already in it.
+    if (walk.resumed) {
+      toast.info(
+        "Continuing the open check",
+        `Started ${formatDateTime(walk.openedAt)}${walk.startedByName ? ` by ${walk.startedByName}` : ""}.`,
+      );
+    }
     void router.push({ name: "count-session", params: { sessionId: walk.id } });
   } catch (e) {
     toast.error("Could not start the check", e instanceof Error ? e.message : undefined);
@@ -150,7 +160,17 @@ const kitLines = computed<UnitKitLineDto[]>(() =>
             <span v-else-if="unit.extraBy">Carrying {{ unit.extraBy }} more than the kit asks for</span>
             <span v-else>Carrying everything the kit asks for</span>
           </p>
+          <!-- R10: a shortfall on a unit nobody has walked is the records, not the truck. -->
+          <p class="mt-1 text-sm text-ink-secondary">
+            {{ unit.lastCheckedAt ? `Last checked ${formatDate(unit.lastCheckedAt)}` : "Never checked — the kit above is what the records say" }}
+          </p>
         </BaseCard>
+
+        <OpenCountsList
+          title="Open check"
+          :vehicle-id="kind === 'tractor' ? unitId : undefined"
+          :trailer-id="kind === 'trailer' ? unitId : undefined"
+        />
 
         <section class="space-y-3">
           <h2 class="text-sm font-semibold text-ink">Kit</h2>

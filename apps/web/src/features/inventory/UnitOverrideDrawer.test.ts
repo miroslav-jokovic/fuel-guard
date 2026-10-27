@@ -72,6 +72,7 @@ const UNIT: UnitKitDto = {
     { assetTypeId: TABLET, assetTypeName: "Tablet", expected: 1, held: 0, delta: -1, source: "type" },
   ],
   extraBy: 0,
+  lastCheckedAt: null,
 };
 
 const drawer = () =>

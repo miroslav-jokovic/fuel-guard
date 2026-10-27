@@ -36,16 +36,22 @@ const unit = (over: Partial<UnitKitDto> = {}): UnitKitDto => ({
   state: "complete",
   shortBy: 0,
   extraBy: 0,
+  lastCheckedAt: null,
   lines: [],
   ...over,
 });
 
 const units = ref<{ units: UnitKitDto[]; total: number }>({ units: [], total: 0 });
+/** The filter the page last handed `useUnitsQuery` — what it asked the server. */
+let unitsFilter: { value: Record<string, unknown> } | null = null;
 
 vi.mock("@/features/inventory/useUnits", async () => {
   const { ref: r } = await import("vue");
   return {
-    useUnitsQuery: () => ({ data: units, isLoading: r(false), isError: r(false), refetch: vi.fn() }),
+    useUnitsQuery: (f: { value: Record<string, unknown> }) => {
+      unitsFilter = f;
+      return { data: units, isLoading: r(false), isError: r(false), refetch: vi.fn() };
+    },
     useKitExpectationsQuery: () => ({ data: r([]) }),
     useSetKitExpectation: () => ({ mutateAsync: vi.fn(), isPending: r(false) }),
     useDeleteKitExpectation: () => ({ mutateAsync: vi.fn(), isPending: r(false) }),
@@ -255,6 +261,21 @@ describe("the list in the URL (D-US2)", () => {
     const kit = w.findAllComponents(FilterSelect).find((c) => c.props("label") === "Kit")!;
     expect(kit.props("modelValue")).toBe("short");
     expect(urlQuery()).toEqual({ kit: "short" });
+  });
+
+  /** R10: the shop home's tile counts only checked units, and lands on that same list. */
+  it("lands the home tile's ?kit=short-checked link on short units somebody has checked", async () => {
+    units.value = { units: [unit({ state: "short", shortBy: 1, lastCheckedAt: "2026-10-20T12:00:00.000Z" })], total: 1 };
+    const w = await page("/shop/units?kit=short-checked");
+    expect(unitsFilter!.value).toMatchObject({ shortOnly: true, checkedOnly: true });
+    expect(w.text()).toContain("10/20/2026");
+  });
+
+  it("says Never for a unit nobody has checked", async () => {
+    units.value = { units: [unit()], total: 1 };
+    const w = await page();
+    expect(unitsFilter!.value).toMatchObject({ shortOnly: false, checkedOnly: false });
+    expect(w.text()).toContain("Never");
   });
 
   it("reads the sort and the page back from a pasted link", async () => {

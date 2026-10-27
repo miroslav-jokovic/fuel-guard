@@ -29,6 +29,8 @@ export interface UnitsFilter {
   /** The ROSTER's two words. A reefer is a trailer here — `unitKindOf` draws the kit distinction. */
   kind?: "tractor" | "trailer";
   shortOnly?: boolean;
+  /** Only units whose kit has been checked at least once (R10) — with `shortOnly`, the home's tile. */
+  checkedOnly?: boolean;
 }
 
 export function useUnitsQuery(filter: Ref<UnitsFilter>) {
@@ -38,6 +40,7 @@ export function useUnitsQuery(filter: Ref<UnitsFilter>) {
       const params = new URLSearchParams();
       if (filter.value.kind) params.set("kind", filter.value.kind);
       if (filter.value.shortOnly) params.set("shortOnly", "true");
+      if (filter.value.checkedOnly) params.set("checkedOnly", "true");
       const q = params.toString();
       const r = await apiFetch<{ units: UnitKitDto[]; total: number }>(
         `/api/maintenance/inventory/units${q ? `?${q}` : ""}`,

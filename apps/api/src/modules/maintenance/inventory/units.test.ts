@@ -95,7 +95,7 @@ const held = (assetTypeId: string, unit: { vehicle?: string; trailer?: string },
 const SCOPED = { exempt: ["user_profiles"] };
 
 /** Answers each table on the filters the service actually sent. */
-const recorder = (opts: { expectations?: unknown[]; held?: unknown[] } = {}) =>
+const recorder = (opts: { expectations?: unknown[]; held?: unknown[]; checks?: unknown[] } = {}) =>
   createSupabaseRecorder({
     tables: {
       vehicles: () => vehicles,
@@ -110,6 +110,18 @@ const recorder = (opts: { expectations?: unknown[]; held?: unknown[] } = {}) =>
         return rows.filter((r) => notNull.every((col) => r[col] !== null));
       },
       drivers: () => [],
+      // Unit checks: answered on the status and the holder column the service sent, so a check that
+      // is still OPEN, or one of the other kind of unit, cannot pass for a closed one of this kind.
+      stock_count_sessions: (q) => {
+        const rows = (opts.checks ?? []) as Array<Record<string, unknown>>;
+        const eq = new Map(q.filters().map((f) => [f.col, f.val]));
+        const notNull = q.ops.filter((o) => o.method === "not").map((o) => String(o.args[0]));
+        return rows.filter(
+          (r) =>
+            [...eq].every(([col, val]) => col === "org_id" || r[col] === val) &&
+            notNull.every((col) => r[col] !== null),
+        );
+      },
     },
   });
 
@@ -246,6 +258,51 @@ describe("the fleet list", () => {
   it("does not look a driver up for a list it does not show one on", async () => {
     await listUnitKits(rec.client, ORG);
     expect(rec.forTable("drivers")).toHaveLength(0);
+  });
+});
+
+/**
+ * R10 (DRIVER-EQUIPMENT-AND-UNIT-TAGS-PLAN.md §5): adopting the standard kit makes every unit short on
+ * paper until its things are tagged. The shop home counts only units somebody has checked.
+ */
+describe("when a unit was last checked", () => {
+  const check = (over: Record<string, unknown>) => ({
+    kind: "unit",
+    status: "closed",
+    vehicle_id: null,
+    trailer_id: null,
+    closed_at: "2026-10-01T12:00:00.000Z",
+    ...over,
+  });
+  const checks = [
+    check({ trailer_id: DRYVAN, closed_at: "2026-10-01T12:00:00.000Z" }),
+    check({ trailer_id: DRYVAN, closed_at: "2026-10-20T12:00:00.000Z" }),
+    // Opened and never finished: not a check yet.
+    check({ trailer_id: REEFER, status: "open", closed_at: null }),
+  ];
+
+  it("carries the newest closed check, and null for a unit never checked", async () => {
+    rec = recorder({ checks });
+    const all = await listUnitKits(rec.client, ORG);
+    if ("error" in all) throw new Error("unexpected error");
+    const at = Object.fromEntries(all.units.map((u) => [u.unitNumber, u.lastCheckedAt]));
+    expect(at).toEqual({ "654": null, "T-4102": "2026-10-20T12:00:00.000Z", "R-8800": null });
+    expectOrgScoped(rec, ORG, SCOPED);
+  });
+
+  it("counts as short of kit only the short units somebody has checked", async () => {
+    rec = recorder({ checks });
+    const short = await listUnitKits(rec.client, ORG, { shortOnly: true, checkedOnly: true });
+    if ("error" in short) throw new Error("unexpected error");
+    // Both trailers are short; only the dry van has been walked.
+    expect(short.units.map((u) => u.unitNumber)).toEqual(["T-4102"]);
+  });
+
+  it("tells the unit's own page when it was last checked", async () => {
+    rec = recorder({ checks });
+    const one = await getUnitKit(rec.client, ORG, "trailer", DRYVAN);
+    if (!one || "error" in one) throw new Error("unexpected answer");
+    expect(one.unit.lastCheckedAt).toBe("2026-10-20T12:00:00.000Z");
   });
 });
 

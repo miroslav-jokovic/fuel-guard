@@ -449,6 +449,13 @@ export const unitKitDtoSchema = z.object({
   /** Total units missing across every line — the figure the shop home counts. */
   shortBy: z.number().int().nonnegative(),
   extraBy: z.number().int().nonnegative(),
+  /**
+   * When the last kit check of this unit was closed; null if it never has been (R10,
+   * DRIVER-EQUIPMENT-AND-UNIT-TAGS-PLAN.md §5). While a fleet is being tagged, a unit nobody has
+   * walked reads "short" only because its things have no records yet — this is what tells that apart
+   * from a unit somebody stood at and found short.
+   */
+  lastCheckedAt: z.string().nullable(),
   lines: z.array(unitKitLineDtoSchema),
 });
 export type UnitKitDto = z.infer<typeof unitKitDtoSchema>;
