@@ -108,9 +108,9 @@ Numbered on from the inventory plan's I13; I14 moved to its own plan.
 
 | # | Question | Candidates | Recommendation |
 |---|---|---|---|
-| **Q-DE1** | Does a driver sign when given a tablet? | (a) No signature — Q7 stands; a dispute gets an `esign_consents`-shaped acknowledgement on the movement row. (b) A tap-to-acknowledge in the driver app at handover. (c) A paper form scanned into the driver file. | **(a) for now.** The dated movement row is the record; (b) waits on the driver release lanes (I13) and can be added without schema change. |
-| **Q-DE2** | What goes on the OUTSIDE of a truck or trailer? | (a) Inside the cab (door jamb) on the direct-thermal roll — cheapest, fades within months. (b) **Pre-printed vinyl or aluminium QR plates from a vendor**, printed from our PDF, priced per plate for ~450 units (not yet quoted). (c) A thermal-TRANSFER printer with polyester labels (~$300 printer + ribbon). | **(b)** for exteriors, once — a unit's code never changes, so this is a one-off order, and (a) as a stopgap only inside the cab. |
-| **Q-DE3** | Where does a scanned trailer land? There is **no trailer detail page** (`/trailers` is a list — inventory plan, I9 findings). | (a) A trailer detail page with its kit card. (b) The trailer list filtered to it. | **(a)** — the honest fix; (b) is a workaround and would be labelled one. Its size decides whether it rides in DE4 or its own PR. |
+| **Q-DE1** | Does a driver sign when given a tablet? | (a) No signature — Q7 stands; a dispute gets an `esign_consents`-shaped acknowledgement on the movement row. (b) A tap-to-acknowledge in the driver app at handover. (c) A paper form scanned into the driver file. | **RULED 2026-10-27: none in the product.** Drivers already sign a paper hand-receipt for a tablet; the paper is the signature and the dated movement row is ours. No signature step is built. |
+| **Q-DE2** | What goes on the OUTSIDE of a truck or trailer? | (a) Inside the cab (door jamb) on the direct-thermal roll — cheapest, fades within months. (b) **Pre-printed vinyl or aluminium QR plates from a vendor**, printed from our PDF, priced per plate for ~450 units (not yet quoted). (c) A thermal-TRANSFER printer with polyester labels (~$300 printer + ribbon). | **DEFERRED 2026-10-27: (b), ordered later by the owner.** Nothing is built for it: a vendor prints from the same PDF DE4 produces. Until then no unit label goes outside. |
+| **Q-DE3** | Where does a scanned trailer land? There is **no trailer detail page** (`/trailers` is a list — inventory plan, I9 findings). | (a) A trailer detail page with its kit card. (b) The trailer list filtered to it. | **DEFERRED 2026-10-27: (a), planned separately later.** The owner will plan the truck and trailer pages on their own; DE3–DE4 wait for that plan. |
 
 ---
 
@@ -119,3 +119,10 @@ Numbered on from the inventory plan's I13; I14 moved to its own plan.
 - **2026-10-27 — plan written.** Owner rulings: tablets follow the driver, everything else the truck;
   a departed driver's tablet is flagged *not returned*; the tablets are Android; trucks and trailers
   get QR labels; everything is tagged. Hardware per §1.1.
+- **2026-10-27 — owner answered Q-DE1–3 and set the order.** Q-DE1: drivers already sign a paper
+  receipt, so nothing is built. Q-DE2 and Q-DE3: deferred — exterior plates are ordered later, and
+  the truck and trailer pages get their own plan. **DE3–DE4 are parked behind that plan.** The order
+  now: **DE0** (the printer and scanner working on the PC and the Android tablets), then a
+  production-readiness pass over the inventory section as built (I0–I10), then **DE1–DE2** (tablets
+  held by drivers). The owner's words: *"focus on implementing these devices and making sure our
+  inventory is 100 % production ready."*
