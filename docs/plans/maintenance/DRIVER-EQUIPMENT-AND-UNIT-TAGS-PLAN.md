@@ -112,9 +112,9 @@ Numbered on from the inventory plan's I13; I14 moved to its own plan.
   holder CHECKs widened to four columns, still `<= 1`.
 - `inventory_holder_is_ours` re-issued with the driver (D-DE2); `move_asset`, `rebuild_asset_holders`
   and the three guards re-issued to pass it; `IV025` raised for the wrong kind of holder.
-- `DRIVER_REASSIGNMENTS` gains the three columns **in the same PR** (it is TS, validated against the
-  schema at call time — so it ships in DE2 behind its migration, and DE1's matrix proves a merge with
-  a driver-held tablet against the function directly).
+- `DRIVER_REASSIGNMENTS` gains the three columns **in the same PR** — `lint:driver-references`
+  requires it. (This line first said "so it ships in DE2"; the two halves contradicted each other,
+  and so did the two gates — see the 0524 entry in §6.)
 - Matrix: a tablet given, returned, refused to a truck, refused to another org's driver, refused to a
   terminated driver; a chain refused to a driver; append-only still holds.
 
@@ -239,3 +239,32 @@ proof none of this replaces — the scanner on an Android tablet, and a printed 
   marked superseded. Of what shipped today, R13 and the Labels screen's shelf half were shop-side
   fixes riding shared PRs — harmless, and not a precedent. **Next: DE1** (tablets held by drivers,
   schema), then DE2.
+- **2026-10-27 — DE1 (migration 0524, schema only; no reader ships).** `asset_types.held_by`
+  (`unit` default | `driver`); `inventory_assets.driver_id`, `asset_movements.from_driver_id` /
+  `to_driver_id`, all `on delete restrict`; the three holder CHECKs widened to four columns.
+  `inventory_holder_is_ours` re-issued with `p_driver` (five-argument signature dropped) and all five
+  callers re-issued onto it — 0333's three guards, 0332's count-session guard, 0334's FleetPal unit
+  match. `move_asset` and `rebuild_asset_holders` carry the driver. Matrix
+  `inventory-driver-held.test.mjs` (49 checks; 16 mutants of the migration, every one killed by an
+  assertion). Three things the step text did not say:
+  - **The asset row asks "ours"; only a creation and the movement ask "open".** 0333's asset guard
+    asked "ours and open" on every write, which would have refused a note on a not-returned tablet
+    (its driver has left — D-DE3's own row) and a roster merge onto a terminated surviving record.
+    Every holder change still meets "open" through the ledger row's guard in `move_asset`.
+  - **IV025 is raised once, by the asset guard**, plus a guard on `asset_types` refusing a `held_by`
+    switch while the type's assets sit with the other kind of holder. Not a third copy in
+    `move_asset`: it could never change an outcome.
+  - **The ledger's append-only guard lets a merge move the two driver columns** (0236's model,
+    compared as jsonb minus those two so later columns are frozen by default), and only to a driver
+    of the same org. The matrix drives the REAL `DRIVER_REASSIGNMENTS`: with the entries the tablet
+    and its history follow the surviving record; without them the merge aborts (`23001`).
+  - **Two gates had no order that satisfied both.** `lint:driver-references` requires a new driver
+    FK in `DRIVER_REASSIGNMENTS` in the same merge; `lint:migration-ordering` refused the same merge
+    because the list names the new columns. The list is not a read — `merge_driver_v2` validates each
+    name and refuses the whole merge (`MD020`) before writing — so the ordering gate now skips
+    `mergeDriver.ts` (cost: a roster merge refused for the minutes of a staging deploy; none in
+    production, where migrations go first). Also fixed: the driver-references parser ran each
+    `alter table` match past its own `;`, which reported `asset_types.driver_id`; its self-test now
+    pins that.
+  - **Owed to DE2:** the round trip of every new column — `driverId` on the asset DTO, the movement's
+    `fromDriverId`/`toDriverId`, `heldBy` on the type — per the I0–I3 audit's first defect.

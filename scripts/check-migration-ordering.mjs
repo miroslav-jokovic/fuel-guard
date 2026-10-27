@@ -72,6 +72,19 @@ const ROOT = new URL("..", import.meta.url).pathname;
 const SOURCE_RE = /^(apps|packages)\/.*\.(ts|tsx|vue|mjs)$/;
 /** Tests do not serve traffic, so a test naming a new column cannot take a page down. */
 const IS_TEST = (p) => /\.(test|spec)\.[a-z]+$/.test(p) || p.includes("/testing/");
+/**
+ * The driver-merge list is not a read, and `lint:driver-references` REQUIRES it in the same change.
+ *
+ * Found on 0524 (2026-10-27), the first `drivers(id)` foreign key added to a table that already
+ * existed since this gate was written: that gate fails a migration whose new driver FK is not in
+ * `DRIVER_REASSIGNMENTS`, and this one failed the same merge because the list named the column. Two
+ * gates, no order that satisfies both. The list is safe on the old schema in a way a SELECT is not:
+ * its names are parameters to `merge_driver_v2`, which checks each against `information_schema` and
+ * refuses the whole merge (`MD020`) before its first write. So the window costs a roster merge
+ * refused, loudly, for its minutes on staging — and nothing in production, where `release.yml`
+ * applies migrations before the code.
+ */
+const NOT_A_READ = new Set(["apps/api/src/modules/roster/mergeDriver.ts"]);
 
 function git(args) {
   return execFileSync("git", args, { cwd: ROOT, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
@@ -282,7 +295,7 @@ function check(from, head) {
 
   // A column name is matched as a WORD (readsIntroduced): a substring match would fire on
   // `renderer_version_label`, and would not fire on a column whose name is a common word in prose.
-  for (const file of changed.filter((p) => SOURCE_RE.test(p) && !IS_TEST(p))) {
+  for (const file of changed.filter((p) => SOURCE_RE.test(p) && !IS_TEST(p) && !NOT_A_READ.has(p))) {
     let body;
     try {
       body = read(file);
