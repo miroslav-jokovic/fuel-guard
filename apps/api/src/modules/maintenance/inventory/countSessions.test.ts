@@ -235,6 +235,38 @@ describe("checking a unit that already has a check open", () => {
     expect(rec.writes().filter((w) => w.table === "stock_count_sessions")).toHaveLength(0);
   });
 
+  /**
+   * The race 0522 closes: two presses both read "none open", both insert, and the index refuses the
+   * second. The loser reads back the winner's walk, so both phones land in one check.
+   */
+  it("hands back the winner's check when the index refuses a second open one", async () => {
+    let inserted = false;
+    rec = createSupabaseRecorder({
+      tables: {
+        stock_count_sessions: (q) => {
+          if (q.write?.method === "insert") {
+            inserted = true;
+            return { error: { code: "23505", message: "idx_stock_count_sessions_open_trailer" } };
+          }
+          // The first read finds nothing (the other phone has not committed); the second finds it.
+          return inserted ? byFilters(q) : [];
+        },
+      },
+    });
+    const result = await openCountSession(rec.client, ORG, USER, { kind: "unit", trailerId: TRAILER, blind: false });
+    expect(result).toMatchObject({ resumed: true, session: { id: KIT } });
+  });
+
+  it("does not treat a shelf walk's 23505 as a resume", async () => {
+    rec = createSupabaseRecorder({
+      tables: { stock_count_sessions: () => ({ error: { code: "23505", message: "dupe" } }) },
+    });
+    const result = await openCountSession(rec.client, ORG, USER, { kind: "location", locationId: BAY, blind: true });
+    expect(result).toMatchObject({ code: "db_error" });
+    // The insert and nothing else — no hunt for an "open check" a bay does not have.
+    expect(rec.forTable("stock_count_sessions")).toHaveLength(1);
+  });
+
   it("lists one unit's checks when the unit's page asks", async () => {
     const result = await listCountSessions(rec.client, ORG, { status: "open", trailerId: TRAILER });
     if ("error" in result) throw new Error("unexpected error");

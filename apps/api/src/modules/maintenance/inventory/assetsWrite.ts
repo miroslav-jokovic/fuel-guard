@@ -66,6 +66,15 @@ const failure = (error: { code?: string; message?: string }): ServiceError | nul
   if (error.code === "IV022") {
     return { error: "That tag is already on another asset, and a tag is never reprinted.", code: "IV022" };
   }
+  // 23505 on 0522's `idx_inventory_assets_serial_unique`: the serial is already on another asset
+  // in this org (R8). Told apart from the tag collision below by the index's NAME, which PostgREST
+  // carries in the message — the two are different facts and need different sentences.
+  if (error.code === "23505" && /idx_inventory_assets_serial_unique/.test(error.message ?? "")) {
+    return {
+      error: "That serial number is already on another asset. Find that one and edit it instead.",
+      code: "duplicate_serial",
+    };
+  }
   // 23505 on `idx_inventory_assets_tag`: the same collision under concurrency, where both writers
   // passed the trigger's check and the unique index caught the loser. Same sentence, because it is
   // the same fact — see 0333's header on which of the two is the guarantee.

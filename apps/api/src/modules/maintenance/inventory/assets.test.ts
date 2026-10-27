@@ -277,6 +277,24 @@ describe("writing an asset", () => {
       expect(await updateAsset(rec.client, ORG, A_CRIB, { name: "x" })).toMatchObject({ code: "IV022" });
     }
   });
+
+  /** R8: 0522's serial index raises the same 23505 as the tag index; the index name tells them apart. */
+  it("says the serial is taken, not the tag, when 0522's serial index refused it", async () => {
+    rec = createSupabaseRecorder({
+      tables: {
+        inventory_assets: () => ({
+          error: {
+            code: "23505",
+            message: 'duplicate key value violates unique constraint "idx_inventory_assets_serial_unique"',
+          },
+        }),
+      },
+    });
+    const created = await createAsset(rec.client, ORG, input, { locationId: CRIB });
+    expect(created).toMatchObject({ code: "duplicate_serial" });
+    expect((created as { error: string }).error).toMatch(/serial number is already on another asset/);
+    expect(await updateAsset(rec.client, ORG, A_CRIB, { serialNumber: "R9TW40" })).toMatchObject({ code: "duplicate_serial" });
+  });
 });
 
 describe("moving an asset", () => {

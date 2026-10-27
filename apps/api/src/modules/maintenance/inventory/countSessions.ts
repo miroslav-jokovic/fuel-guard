@@ -177,6 +177,13 @@ export async function openCountSession(
     .select(COLUMNS)
     .single();
   if (error) {
+    // 23505 on a unit check: 0522's one-open-check-per-unit index caught the loser of two presses
+    // that both read "none open". The winner's walk is the walk — hand it back, as a resume.
+    if (error.code === "23505" && input.kind === "unit") {
+      const winner = await openUnitCheck(admin, orgId, input);
+      if (winner && "error" in winner) return winner;
+      if (winner) return { session: winner, resumed: true };
+    }
     // 23503: the bay, truck or trailer is not this org's, or does not exist. The FK is the check —
     // the same one `updateStockLine` reads, and the reason neither has to query first.
     if (error.code === "23503") {
@@ -216,9 +223,9 @@ export async function openCountSession(
  * counting the same bay in a session of their own, and resuming the first counter's walk would put
  * the recount inside the count it is checking.
  *
- * ⚠ A read then an insert, so two presses in the same instant can still open two. The button is
- * disabled while its request is in flight, which leaves two different people pressing at once; the
- * partial unique index that closes it needs a migration, and is PR-R3's.
+ * ⚠ A read then an insert, so two presses in the same instant can both read "none open". 0522's
+ * partial unique indexes refuse the second insert, and `openCountSession` answers that 23505 by
+ * reading back the winner's walk — so both phones land in one check.
  *
  * `undefined` = none open; a ServiceError = the read failed, and opening a second walk over a read
  * that failed would be the defect this exists to stop.
