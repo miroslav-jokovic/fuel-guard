@@ -487,6 +487,16 @@ jobs:
       - name: The applicant's page in a browser
         run: pnpm --filter @silvicom/web e2e:apply
 
+      # The tutorial scripts (`apps/web/tutorials/`), run without a camera: every step and assertion
+      # of every approved tutorial against the stubbed world, ~15 s. A dashboard change that moves a
+      # button a tutorial points at fails HERE, in the PR that moved it, instead of when somebody next
+      # regenerates the videos. Here because it needs this job's Chromium; it makes its own build
+      # (`tutorials/build`, every VITE_* pinned), so it does not read `dist`. CI has no HERE_API_KEY
+      # and needs none: the stub's map-config then answers `tilesEnabled: false`, the map asks for no
+      # tile, and no step's assertion looks at the basemap (measured 2026-10-27: 4 passed without it).
+      - name: The tutorial scripts still match the app
+        run: pnpm --filter @silvicom/web tutorials --check
+
   # ── Unit suites, three ways ───────────────────────────────────────────────────────────────────
   # apps/api (259 files) and apps/web (146) are the two big ones, and they are import-bound rather
   # than assertion-bound: on run 33942529999 api spent 601s importing modules and 105s running

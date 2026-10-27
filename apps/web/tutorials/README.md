@@ -81,7 +81,8 @@ say what it does. The stub refuses the write anyway, and the run fails.
 
 ## 3. After the app changes
 
-Run `tutorials --check`. A tutorial that fails names the step and the locator. Fix the scenario, or the
+Run `tutorials --check`. CI runs it too, in the `bundle` job, so a PR that moves something a tutorial
+points at goes red until the scenario follows. A tutorial that fails names the step and the locator. Fix the scenario, or the
 world when the product reads something new, then regenerate only that tutorial. Unchanged lines reuse
 their cached audio.
 
