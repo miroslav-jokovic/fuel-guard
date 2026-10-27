@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { mount, flushPromises } from "@vue/test-utils";
 import { createRouter, createMemoryHistory, type Router } from "vue-router";
 import { ref } from "vue";
@@ -32,6 +32,25 @@ const FACE: LabelFaceDto = {
   lines: ["Cab tablet"],
 };
 
+const AVERY = {
+  id: "avery-22805",
+  name: "Avery 22805",
+  perSheet: 24,
+  material: "Polyester.",
+  label: { width: 108, height: 108 },
+  sheet: { width: 612, height: 792 },
+};
+const ROLL = {
+  id: "roll-single",
+  name: "Roll — 2\" × 2\" direct thermal (label printer)",
+  perSheet: 1,
+  material: "Direct-thermal paper.",
+  label: { width: 144, height: 144 },
+  sheet: { width: 144, height: 144 },
+};
+/** The stocks the API offers. Avery alone unless a test says otherwise — the run tests predate R6. */
+let offered: Array<typeof AVERY> = [AVERY];
+
 /** F3: which reads answer 500, and the Retry each failure must reach. */
 const fail = { stock: false, assets: false, presets: false, faces: false };
 const refetch = { stock: vi.fn(), assets: vi.fn(), presets: vi.fn() };
@@ -45,16 +64,7 @@ vi.mock("@/features/inventory/useLabels", () => ({
     isError: ref(fail.presets),
     isFetching: ref(false),
     refetch: refetch.presets,
-    data: ref(fail.presets ? undefined : [
-      {
-        id: "avery-22805",
-        name: "Avery 22805",
-        perSheet: 24,
-        material: "Polyester.",
-        label: { width: 108, height: 108 },
-        sheet: { width: 612, height: 792 },
-      },
-    ]),
+    data: ref(fail.presets ? undefined : offered),
   }),
   useLabelFaces: () => ({
     mutateAsync: facesMutate,
@@ -201,11 +211,25 @@ beforeEach(() => {
   facesMutate.mockClear();
   fetchSheet.mockClear();
   extraLines = [];
+  offered = [AVERY];
+  // The repo's jsdom has no `localStorage` (useColorScheme.test.ts), so each test gets a fresh one.
+  const kept = new Map<string, string>();
+  Object.defineProperty(globalThis, "localStorage", {
+    value: {
+      getItem: (k: string) => kept.get(k) ?? null,
+      setItem: (k: string, v: string) => void kept.set(k, v),
+      removeItem: (k: string) => void kept.delete(k),
+    },
+    configurable: true,
+    writable: true,
+  });
   assetsTotal = 1;
   stockTotal = null;
   Object.assign(fail, { stock: false, assets: false, presets: false, faces: false });
   Object.values(refetch).forEach((f) => f.mockClear());
 });
+
+afterAll(() => Reflect.deleteProperty(globalThis, "localStorage"));
 
 describe("picking what to label", () => {
   it("keeps the source control and picker table in one embedded data workspace", async () => {
@@ -489,5 +513,58 @@ describe("a failed read", () => {
     const w = await render();
     expect(w.text()).toContain("Tick what needs a label");
     expect(w.findComponent({ name: "LabelSheetPreview" }).exists()).toBe(false);
+  });
+});
+
+/**
+ * R6 (DRIVER-EQUIPMENT-AND-UNIT-TAGS-PLAN.md §5): the shop's printer is a 2" roll, and a screen that
+ * opened on Avery every visit sent a Letter page to it whenever somebody forgot to switch.
+ */
+describe("which stock the screen opens on", () => {
+  const controls = (w: Awaited<ReturnType<typeof render>>) => w.findComponent({ name: "LabelStockControls" });
+
+  it("opens on the roll when this browser has never chosen", async () => {
+    offered = [AVERY, ROLL];
+    const w = await render();
+    expect(controls(w).props("presetId")).toBe("roll-single");
+  });
+
+  it("opens on the stock this browser last chose, and remembers a new choice", async () => {
+    offered = [AVERY, ROLL];
+    localStorage.setItem("silvicom:labels:preset", "avery-22805");
+    const w = await render();
+    expect(controls(w).props("presetId")).toBe("avery-22805");
+
+    controls(w).vm.$emit("update:presetId", "roll-single");
+    await flushPromises();
+    expect(controls(w).props("presetId")).toBe("roll-single");
+    expect(localStorage.getItem("silvicom:labels:preset")).toBe("roll-single");
+  });
+
+  /** An id kept from an older release prints as a 422 at the end of the flow if it is trusted. */
+  it("ignores a remembered stock the server no longer offers", async () => {
+    offered = [AVERY, ROLL];
+    localStorage.setItem("silvicom:labels:preset", "avery-gone");
+    const w = await render();
+    expect(controls(w).props("presetId")).toBe("roll-single");
+  });
+
+  it("puts the start position back to 1 when the new stock has no such position", async () => {
+    offered = [AVERY, ROLL];
+    localStorage.setItem("silvicom:labels:preset", "avery-22805");
+    const open = vi.spyOn(window, "open").mockImplementation(() => null);
+    const w = await render(`/labels?asset=${ASSET}`);
+    controls(w).vm.$emit("update:startPosition", 20);
+    await flushPromises();
+    controls(w).vm.$emit("update:presetId", "roll-single");
+    await flushPromises();
+
+    await w.findAll("button").find((b) => b.text().startsWith("Print"))!.trigger("click");
+    await flushPromises();
+    expect(fetchSheet).toHaveBeenCalledWith(
+      [{ kind: "asset", assetId: ASSET }],
+      { presetId: "roll-single", startPosition: 1, nudgeX: 0, nudgeY: 0 },
+    );
+    open.mockRestore();
   });
 });

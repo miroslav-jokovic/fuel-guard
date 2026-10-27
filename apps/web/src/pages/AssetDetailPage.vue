@@ -42,6 +42,7 @@ import {
 } from "@/features/inventory/useAssets";
 import { useLocationsQuery } from "@/features/inventory/useInventory";
 import { BADGE_BASE, assetMovementMarker, assetStatusBadge, toneClass } from "@/lib/badges";
+import { useOpens } from "@/composables/useOpens";
 import { useSessionStore } from "@/stores/session";
 import { useToastStore } from "@/stores/toast";
 import { formatDate as fmtDate, formatDateTime as fmtWhen } from "@/lib/format";
@@ -80,6 +81,8 @@ const id = computed(() => String(route.params.id ?? ""));
 const { data, isLoading, isError, error, refetch, isFetching } = useAssetQuery(id);
 const asset = computed(() => data.value?.asset ?? null);
 const canManage = computed(() => session.can("maintenance"));
+const opens = useOpens();
+const labelLink = computed(() => ({ path: "/shop/labels", query: { asset: id.value } }));
 
 const page = ref(1);
 const movements = useAssetMovementsQuery(id, page);
@@ -182,10 +185,16 @@ const uploadAccept = acceptFor(INVENTORY_PHOTO_CONTENT_TYPES);
 <template>
   <div class="space-y-6">
     <PageHeader :title="asset?.displayNo ?? 'Asset'" :description="asset?.name">
-      <template v-if="asset && canManage" #actions>
-        <BaseButton @click="acting = 'report'">Report a problem</BaseButton>
-        <BaseButton @click="editing = true">Edit</BaseButton>
-        <BaseButton variant="primary" @click="acting = 'move'">Move</BaseButton>
+      <template v-if="asset" #actions>
+        <!-- R7: one asset's label, one tap from the asset — the Labels screen already takes `?asset=`
+             and preselects it. Gated on the screen opening (SP5), not on manage: the list pages'
+             Labels link draws the same line. -->
+        <BaseButton v-if="opens(labelLink)" :to="labelLink">Print label</BaseButton>
+        <template v-if="canManage">
+          <BaseButton @click="acting = 'report'">Report a problem</BaseButton>
+          <BaseButton @click="editing = true">Edit</BaseButton>
+          <BaseButton variant="primary" @click="acting = 'move'">Move</BaseButton>
+        </template>
       </template>
     </PageHeader>
 

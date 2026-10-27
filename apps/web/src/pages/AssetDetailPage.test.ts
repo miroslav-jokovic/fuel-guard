@@ -94,11 +94,13 @@ vi.mock("@/features/inventory/useInventory", async () => {
     useLocationsQuery: () => ({ data: r([{ id: CRIB, name: "Tool crib", code: "CRIB", address: null, active: true }]) }),
   };
 });
-vi.mock("@/stores/session", () => ({ useSessionStore: () => ({ can: () => true }) }));
+/** The caller. `useOpens` (SP5) asks the route catalogue with the role, so the role is real here. */
+const caller = { can: () => true, admin: true, role: "admin" as string, sections: null, surfaces: null };
+vi.mock("@/stores/session", () => ({ useSessionStore: () => caller }));
 vi.mock("vue-router", async (importOriginal) => ({
   // SP5: `useOpens()` resolves links against the route table with the REAL router factory, so the
   // three names it takes from vue-router stay real under this mock.
-  ...(({ routerKey, createRouter, createMemoryHistory }) => ({ routerKey, createRouter, createMemoryHistory }))(
+  ...(({ routerKey, createRouter, createMemoryHistory, RouterLink }) => ({ routerKey, createRouter, createMemoryHistory, RouterLink }))(
     await importOriginal<typeof import("vue-router")>(),
   ),
   // ⚠ `meta: {}` is not padding. vue-router guarantees every route has a meta object, and
@@ -118,10 +120,18 @@ const AssetDetailPage = (await import("@/pages/AssetDetailPage.vue")).default;
  */
 const TimelineRail = (await import("@/components/ui/TimelineRail.vue")).default;
 const DataTable = (await import("@silvicom/ui")).DataTable;
-const page = () => mount(AssetDetailPage, { global: { stubs: { SlideOver: true, FileDropzone: true } } });
+/** `RouterLink` stubbed to an anchor that carries where it points, so a link is asserted by its target. */
+const RouterLinkStub = {
+  name: "RouterLink",
+  props: ["to"],
+  template: "<a :data-to='JSON.stringify(to)'><slot /></a>",
+};
+const page = () =>
+  mount(AssetDetailPage, { global: { stubs: { SlideOver: true, FileDropzone: true, RouterLink: RouterLinkStub } } });
 
 beforeEach(() => {
   setActivePinia(createPinia());
+  Object.assign(caller, { can: () => true, admin: true, role: "admin" });
   detail.value = { asset: asset(), photoUrl: null };
   history.value = { movements: [], total: 0 };
 });
@@ -219,5 +229,31 @@ describe("what the header says about the thing", () => {
   it("says out loud what retiring did, because nothing can be recorded against it afterwards", () => {
     detail.value = { asset: asset({ status: "retired" }), photoUrl: null };
     expect(page().text()).toContain("Off the fleet");
+  });
+});
+
+/**
+ * R7 (DRIVER-EQUIPMENT-AND-UNIT-TAGS-PLAN.md §5): a tablet's label is printed from the tablet's page,
+ * through the Labels screen's existing `?asset=` preselect — not by hunting for it in a list of 240.
+ */
+describe("printing this asset's label", () => {
+  const printLink = (w: ReturnType<typeof page>) => w.findAll("a").find((a) => a.text() === "Print label");
+
+  it("links to the Labels screen with this asset preselected", () => {
+    const link = printLink(page());
+    expect(link).toBeDefined();
+    expect(JSON.parse(link!.attributes("data-to")!)).toEqual({ path: "/shop/labels", query: { asset: ASSET_ID } });
+  });
+
+  it("is offered to a reader the Labels screen admits, without the manage buttons", () => {
+    Object.assign(caller, { can: () => false, admin: false, role: "auditor" });
+    const w = page();
+    expect(printLink(w)).toBeDefined();
+    expect(w.text()).not.toContain("Report a problem");
+  });
+
+  it("is not offered to a caller the Labels screen would turn away", () => {
+    Object.assign(caller, { can: () => false, admin: false, role: "driver" });
+    expect(printLink(page())).toBeUndefined();
   });
 });
