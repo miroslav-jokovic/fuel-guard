@@ -19,10 +19,17 @@ import { apiFetch } from "@/lib/api";
  * the shelf with a scanner is that those two numbers change while they work. Scanning the same bin
  * twice in a walk must ask again; a cached answer would show the count from before the case they
  * just put away, and the second scan is usually a person checking exactly that.
+ *
+ * ⚠ `staleTime: 0` alone did NOT deliver that, and it shipped broken until 2026-10-27
+ * (DRIVER-EQUIPMENT-AND-UNIT-TAGS-PLAN.md §5, R2). A query only runs again when its KEY changes,
+ * and the second scan of the same bin sets `code` to the value it already holds — so nothing
+ * changed, nothing ran, and the screen kept the quantity from before. After a wifi drop it kept the
+ * error, with Retry the only way out. `scanSeq` is bumped by EVERY scan, so every trigger pull is a
+ * new key and a new request, which is what "never served from cache" has to mean on this screen.
  */
-export function useScanQuery(code: Ref<string>) {
+export function useScanQuery(code: Ref<string>, scanSeq: Ref<number>) {
   return useQuery({
-    queryKey: ["scan", "resolve", code] as const,
+    queryKey: ["scan", "resolve", code, scanSeq] as const,
     enabled: computed(() => code.value.length > 0),
     staleTime: 0,
     gcTime: 0,

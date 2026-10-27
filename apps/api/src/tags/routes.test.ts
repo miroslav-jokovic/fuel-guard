@@ -167,6 +167,96 @@ describe("a code that is not ours", () => {
   });
 });
 
+/** An asset as `ASSET_COLUMNS` reads it — the shape `inventoryAssets.test.ts` uses. */
+const assetRow = {
+  id: "a-1",
+  tag_code: "Q4X2VW",
+  display_seq: 412,
+  asset_type_id: "t-1",
+  name: "Driver tablet",
+  serial_number: "R52W80ABCDE",
+  model: null,
+  manufacturer: null,
+  status: "in_service",
+  condition: "good",
+  location_id: "l-1",
+  vehicle_id: null,
+  trailer_id: null,
+  purchased_at: null,
+  purchase_cost: null,
+  warranty_expires_at: null,
+  image_path: null,
+  notes: null,
+  asset_types: { name: "Tablet" },
+  stock_locations: { name: "Main bay" },
+  vehicles: null,
+  trailers: null,
+};
+
+/** A table fixture that answers only the row whose `col` equals `val` — the recorder does not filter. */
+const onlyWhen = (col: string, val: unknown, row: object) => (q: { filters(): { col: string; val: unknown }[] }) =>
+  q.filters().some((f) => f.col === col && f.val === val) ? [row] : [];
+
+/**
+ * DRIVER-EQUIPMENT-AND-UNIT-TAGS-PLAN.md §5. A label prints its six-character code under the symbol
+ * and an asset's number large beside it, precisely so a person can type one when the symbol will not
+ * scan — and until R4 the endpoint refused both.
+ */
+describe("a code typed off the label", () => {
+  it("resolves the six characters printed under the symbol, without the SIL1 prefix (R4)", async () => {
+    rec = createSupabaseRecorder({
+      tables: { part_stock: onlyWhen("tag_code", "7K3M9P", stockRow), inventory_assets: () => [], parts: () => [] },
+    });
+    // Lower case and a hyphen, the way a person transcribes it.
+    expect((await resolve("7k3-m9p")).result?.kind).toBe("stock_line");
+  });
+
+  it("resolves an asset's number as printed, A-0412 (R4)", async () => {
+    rec = createSupabaseRecorder({
+      tables: { inventory_assets: onlyWhen("display_seq", 412, assetRow), part_stock: () => [], parts: () => [] },
+    });
+    expect((await resolve("A-0412")).result?.kind).toBe("asset");
+  });
+
+  /**
+   * Two kinds holding the same six characters is a one-in-a-billion draw, and neither guess would be
+   * honest; the symbol carries the kind and settles it. What must NOT happen is a confident answer.
+   */
+  it("answers nothing confident when a bare code matches two kinds", async () => {
+    rec = createSupabaseRecorder({
+      tables: {
+        part_stock: onlyWhen("tag_code", "Q4X2VW", stockRow),
+        inventory_assets: onlyWhen("tag_code", "Q4X2VW", assetRow),
+        parts: () => [],
+      },
+    });
+    expect((await resolve("Q4X2VW")).result?.kind).toBe("malformed");
+  });
+});
+
+describe("a label that arrived damaged, and a lookup that failed", () => {
+  /**
+   * R3. A non-US keyboard layout turns every colon into another character. Before this, the string
+   * fell through to the UPC lookup and the screen offered to create a part with it as the barcode.
+   */
+  it("calls a garbled SIL1 label a misread and never tries it as a UPC (R3)", async () => {
+    rec = createSupabaseRecorder({ tables: { parts: () => [], part_stock: () => [], inventory_assets: () => [] } });
+    const body = await resolve("SIL1ÑBINÑ7K3M9P");
+    expect(body.result).toMatchObject({ kind: "unknown_tag", tagKind: null, code: "SIL1ÑBINÑ7K3M9P" });
+    expect(rec.queries.some((q) => q.table === "parts")).toBe(false);
+  });
+
+  /** R5. A failed read told the technician a good label was "not on file" and sent them looking. */
+  it("answers a failed tag lookup with an error to retry, never unknown_tag (R5)", async () => {
+    rec = createSupabaseRecorder({
+      tables: { part_stock: { error: { message: "connection reset" } }, inventory_assets: () => [], parts: () => [] },
+    });
+    const res = await withServer((base) => fetch(`${base}/api/tags/resolve?code=${encodeURIComponent("SIL1:BIN:7K3M9P")}`));
+    expect(res.status).toBe(500);
+    expect(((await res.json()) as { error?: { code?: string } }).error?.code).toBe("db_error");
+  });
+});
+
 describe("the registry", () => {
   /** The step's own done-when: adding a kind is one registration and no change to this route. */
   it("dispatches to a kind registered from outside this file", async () => {

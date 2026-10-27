@@ -38,7 +38,12 @@ export type ScanAction =
   | { kind: "open-part"; partId: string }
   | { kind: "create-part"; upc: string };
 
-const props = defineProps<{ result: ScanResult }>();
+/**
+ * `canManage` hides every write. The screen is reachable at `maintenance: view`, and a verb a role
+ * cannot perform is a button that ends in a 403 (DRIVER-EQUIPMENT-AND-UNIT-TAGS-PLAN.md §5, R12).
+ * The read half — what this is, where it is, how many — is exactly what a viewer came for.
+ */
+const props = defineProps<{ result: ScanResult; canManage: boolean }>();
 const emit = defineEmits<{ action: [action: ScanAction] }>();
 
 const statusBadge = computed(() =>
@@ -71,6 +76,7 @@ const holderLine = computed(() => {
     </div>
     <ScanStockLine
       :line="result.stockLine"
+      :can-manage="canManage"
       @verb="emit('action', { kind: 'stock', verb: $event, line: result.stockLine })"
     />
   </section>
@@ -87,7 +93,7 @@ const holderLine = computed(() => {
       </p>
       <p class="mt-2 text-sm text-ink-secondary">{{ holderLine }}</p>
     </div>
-    <div class="grid grid-cols-2 gap-2">
+    <div v-if="canManage" class="grid grid-cols-2 gap-2">
       <BaseButton block variant="primary" @click="emit('action', { kind: 'asset', mode: 'move', asset: result.asset })">
         Move
       </BaseButton>
@@ -107,6 +113,7 @@ const holderLine = computed(() => {
       v-for="line in result.stockLines"
       :key="`${line.partId}:${line.locationId}`"
       :line="line"
+      :can-manage="canManage"
       @verb="emit('action', { kind: 'stock', verb: $event, line })"
     />
     <!-- A part the catalogue knows and no shelf holds. Real, and fixable from the part's own page,
@@ -118,6 +125,19 @@ const holderLine = computed(() => {
         Open the part
       </BaseButton>
     </div>
+  </section>
+
+  <!-- ── one of ours, arriving garbled ──────────────────────────────────────────────────────────
+       `tagKind: null` is the API's word for "starts like our label but did not parse" — a keyboard
+       layout turning the colons into something else (§5, R3). It names the fix, because the label
+       is fine and re-scanning will fail identically until the setting changes. -->
+  <section v-else-if="result.kind === 'unknown_tag' && result.tagKind === null" class="space-y-2">
+    <p class="text-base font-semibold text-ink">The scanner misread that label</p>
+    <p class="text-sm text-ink-secondary">
+      It starts like one of our labels but arrived garbled. Set the scanner and this device to the
+      US English keyboard layout, then scan again — or type the code printed on the label below.
+    </p>
+    <p class="font-mono text-xs text-ink-tertiary">{{ result.code }}</p>
   </section>
 
   <!-- ── one of ours, pointing at nothing here ─────────────────────────────────────────────── -->
@@ -141,7 +161,12 @@ const holderLine = computed(() => {
       </p>
       <p class="mt-2 font-mono text-xs text-ink-tertiary">{{ result.code }}</p>
     </div>
-    <BaseButton block variant="primary" @click="emit('action', { kind: 'create-part', upc: result.code })">
+    <BaseButton
+      v-if="canManage"
+      block
+      variant="primary"
+      @click="emit('action', { kind: 'create-part', upc: result.code })"
+    >
       Create a part with this barcode
     </BaseButton>
   </section>

@@ -1,5 +1,5 @@
 import type { ScanResult } from "@silvicom/shared";
-import type { TagResolverContext } from "../../../tags/registry.js";
+import { TagLookupError, type TagResolverContext } from "../../../tags/registry.js";
 import { STOCK_COLUMNS, toStockLineDto } from "./stock.js";
 import { ASSET_COLUMNS, toAssetDto, type AssetRow } from "./assets.js";
 
@@ -16,6 +16,13 @@ import { ASSET_COLUMNS, toAssetDto, type AssetRow } from "./assets.js";
  * it as `unknown_tag`. It is deliberately indistinguishable from "another org's tag": a resolver
  * that answered differently for a code that exists elsewhere would confirm the existence of another
  * tenant's label to anyone holding a phone.
+ *
+ * ── BUT A FAILED READ IS NOT NULL ─────────────────────────────────────────────────────────────
+ * Until 2026-10-27 both resolvers returned null on ANY error, so a dropped connection or a database
+ * fault reached the shop floor as "that label is not on file — it may belong to another account"
+ * (DRIVER-EQUIPMENT-AND-UNIT-TAGS-PLAN.md §5, R5). A technician told that walks off to find a label
+ * that is fine. A read that failed now THROWS `TagLookupError`, and the route answers 500 with a
+ * retry — the rule the UPC fall-through already followed.
  */
 
 /**
@@ -31,7 +38,8 @@ export async function resolveBinTag(ctx: TagResolverContext): Promise<ScanResult
     .eq("org_id", ctx.orgId)
     .eq("tag_code", ctx.id)
     .maybeSingle();
-  if (error || !data) return null;
+  if (error) throw new TagLookupError("resolveBinTag", error);
+  if (!data) return null;
   return { kind: "stock_line", code: ctx.code, stockLine: toStockLineDto(data as never) };
 }
 
@@ -42,7 +50,8 @@ export async function resolveAssetTag(ctx: TagResolverContext): Promise<ScanResu
     .eq("org_id", ctx.orgId)
     .eq("tag_code", ctx.id)
     .maybeSingle();
-  if (error || !data) return null;
+  if (error) throw new TagLookupError("resolveAssetTag", error);
+  if (!data) return null;
   /**
    * ⚠ No driver name and no "since when" on a scan.
    *
@@ -51,5 +60,30 @@ export async function resolveAssetTag(ctx: TagResolverContext): Promise<ScanResu
    * `AssetDto` marks both nullable, the verb sheet leads with Move and the asset's own page is one
    * tap away with the full answer.
    */
+  return { kind: "asset", code: ctx.code, asset: toAssetDto(data as unknown as AssetRow) };
+}
+
+/**
+ * An asset by the number printed big on its label — `A-0412` — typed into the scan screen's field
+ * (DRIVER-EQUIPMENT-AND-UNIT-TAGS-PLAN.md §5, R4). The number is what a person reads aloud in a
+ * yard, so it is the likeliest thing to be typed when a symbol will not scan.
+ *
+ * ⚠ The `A` is REQUIRED here, unlike the Assets search (`displaySeqOf` accepts a bare `412`). On the
+ * scan screen a bare number is far more likely to be a supplier barcode, and resolving `412` to an
+ * asset would hide the part that UPC names. `(org_id, display_seq)` is unique (0333), so one row.
+ */
+export async function resolveAssetByDisplayNo(
+  ctx: Pick<TagResolverContext, "admin" | "orgId" | "code">,
+): Promise<ScanResult | null> {
+  const m = /^a-?(\d{1,9})$/i.exec(ctx.code.trim());
+  if (!m) return null;
+  const { data, error } = await ctx.admin
+    .from("inventory_assets")
+    .select(ASSET_COLUMNS)
+    .eq("org_id", ctx.orgId)
+    .eq("display_seq", Number(m[1]))
+    .maybeSingle();
+  if (error) throw new TagLookupError("resolveAssetByDisplayNo", error);
+  if (!data) return null;
   return { kind: "asset", code: ctx.code, asset: toAssetDto(data as unknown as AssetRow) };
 }

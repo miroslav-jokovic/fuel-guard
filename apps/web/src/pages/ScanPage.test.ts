@@ -20,6 +20,8 @@ const PART = "22222222-2222-4222-8222-222222222222";
 
 const BIN_TAG = "SIL1:BIN:7K3M9P";
 const STRANGE_BARCODE = "0049000042566";
+/** `SIL1:BIN:7K3M9P` through a non-US keyboard layout: every colon became `Ñ`. */
+const MISREAD_TAG = "SIL1ÑBINÑ7K3M9P";
 
 const STOCK_LINE = {
   partId: PART,
@@ -42,15 +44,21 @@ const STOCK_LINE = {
 const RESULTS: Record<string, ScanResult> = {
   [BIN_TAG]: { kind: "stock_line", code: BIN_TAG, stockLine: STOCK_LINE },
   [STRANGE_BARCODE]: { kind: "malformed", code: STRANGE_BARCODE },
+  [MISREAD_TAG]: { kind: "unknown_tag", code: MISREAD_TAG, tagKind: null },
 };
 
 /** The ref the page hands to `useScanQuery` — the test reads it to see what was submitted. */
-const submitted = { code: null as Ref<string> | null };
+const submitted = { code: null as Ref<string> | null, seq: null as Ref<number> | null };
+/** The session's answer to "may this member write to maintenance". */
+const manage = ref(true);
+
+vi.mock("@/stores/session", () => ({ useSessionStore: () => ({ can: () => manage.value }) }));
 const refetch = vi.fn();
 
 vi.mock("@/features/inventory/useScan", () => ({
-  useScanQuery: (code: Ref<string>) => {
+  useScanQuery: (code: Ref<string>, seq: Ref<number>) => {
     submitted.code = code;
+    submitted.seq = seq;
     return {
       data: computed(() => RESULTS[code.value]),
       isFetching: ref(false),
@@ -97,6 +105,8 @@ function scan(code: string) {
 describe("ScanPage", () => {
   beforeEach(() => {
     submitted.code = null;
+    submitted.seq = null;
+    manage.value = true;
     refetch.mockClear();
   });
 
@@ -183,5 +193,67 @@ describe("ScanPage", () => {
 
     expect(refetch).toHaveBeenCalled();
     expect(wrapper.findComponent({ name: "MovementDrawer" }).exists()).toBe(false);
+  });
+
+  /**
+   * R2 (DRIVER-EQUIPMENT-AND-UNIT-TAGS-PLAN.md §5). The query re-runs only when its key changes, and
+   * the same label twice sets `code` to the value it already holds — so before the scan counter the
+   * second look-up never happened and the screen kept the old quantity. Typed twice here because the
+   * scanner path deliberately swallows the same code inside 800 ms (a held trigger), and typing is
+   * deliberate every time.
+   */
+  it("asks again when the same code arrives twice", async () => {
+    const wrapper = render();
+
+    await wrapper.find("input").setValue(BIN_TAG);
+    await wrapper.find("form").trigger("submit");
+    const first = submitted.seq!.value;
+    // Found again: under the stubbed Teleport, rendering the result re-creates the field.
+    await wrapper.find("input").setValue(BIN_TAG);
+    await wrapper.find("form").trigger("submit");
+
+    expect(submitted.code?.value).toBe(BIN_TAG);
+    expect(submitted.seq!.value).toBe(first + 1);
+  });
+
+  /** R11. A scanner set to end with Tab, firing into the focused field, used to submit nothing. */
+  it("submits the typed field on Tab", async () => {
+    const wrapper = render();
+    await wrapper.find("input").setValue(BIN_TAG);
+
+    await wrapper.find("input").trigger("keydown", { key: "Tab" });
+
+    expect(submitted.code?.value).toBe(BIN_TAG);
+    expect(wrapper.find("input").element.value).toBe("");
+  });
+
+  /**
+   * R3. A tag garbled by the keyboard layout must never be offered as a new part's barcode — that
+   * saves the garbage. The screen names the fix instead.
+   */
+  it("calls a garbled label a misread and offers no part to create", async () => {
+    const wrapper = render();
+    scan(MISREAD_TAG);
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.text()).toContain("The scanner misread that label");
+    expect(wrapper.text()).toContain("US English");
+    expect(wrapper.findAll("button").some((b) => b.text().includes("Create a part"))).toBe(false);
+  });
+
+  /** R12. The route is `maintenance: view`; a viewer sees what it is and is offered no writes. */
+  it("shows a viewer the shelf without its verbs", async () => {
+    manage.value = false;
+    const wrapper = render();
+    scan(BIN_TAG);
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.text()).toContain("Oil filter");
+    expect(wrapper.findAll("button").some((b) => b.text() === "Issue")).toBe(false);
+
+    scan(STRANGE_BARCODE);
+    await wrapper.vm.$nextTick();
+    expect(wrapper.text()).toContain("Not recognised");
+    expect(wrapper.findAll("button").some((b) => b.text().includes("Create a part"))).toBe(false);
   });
 });
