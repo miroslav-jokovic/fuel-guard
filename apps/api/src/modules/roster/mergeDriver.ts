@@ -92,6 +92,15 @@ export const DRIVER_REASSIGNMENTS: ReadonlyArray<{ table: string; column: string
    * duplicate's documents back to the Unmatched list.
    */
   { table: "document_sources", column: "matched_driver_id", orgScoped: true },
+  /*
+   * A tablet follows its driver (0523, D-DE1). Mechanical: when two driver records are one person,
+   * that person holds the tablet and that person was handed it. The ledger is append-only (IV021)
+   * EXCEPT these two driver columns, which 0523's guard leaves movable for exactly this merge. All
+   * three are `on delete restrict`, so a missing entry aborts the merge rather than lose the history.
+   */
+  { table: "inventory_assets", column: "driver_id", orgScoped: true },
+  { table: "asset_movements", column: "from_driver_id", orgScoped: true },
+  { table: "asset_movements", column: "to_driver_id", orgScoped: true },
 ];
 
 /** Atomically fold a duplicate driver into the canonical one. One rpc = one transaction — the
