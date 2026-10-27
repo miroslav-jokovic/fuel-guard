@@ -93,6 +93,18 @@ offline, good for drafts. `higgsfield` is the voice used in the maintenance prop
 the `higgsfield` CLI signed in, and it costs credits. `silent` makes no audio and estimates each line's
 length from its word count. `TUTORIAL_VOICE_NAME` picks a voice within the provider.
 
+The published cut uses `higgsfield`'s "Grady" voice (owner's call, 2026-10-27), at 0.7 credits a line.
+Each line is read as `Ready. <line> Okay.` and `produce/bracketTrim.ts` cuts the two bracket words
+back off by WORDS: `produce/words.py` transcribes the take with word timings, and each cut lands in
+the silence beside the line's first and last word. The films cut by pause shape alone, and on these
+lines that cut off 7 of 45 ("Now,", "Click it,", the end of a list); the header of `bracketTrim.ts`
+has the measurements. The same transcript is checked against the script. A take that fails is set
+aside as `.rejected-<n>.wav` and a new one is bought, up to three per line.
+
+It needs `uv` (`brew install uv`). The first run downloads Whisper `small.en` (~500 MB) into the
+Hugging Face cache. The paid, untrimmed take stays in the cache as `<key>.raw.wav`, with its transcript
+as `<key>.raw.words.json`, so changing the trim never pays for the voice again.
+
 ## 5. Traps already paid for
 
 - **No trace while filming.** A trace runs its own screencast, and the screencast that is already
