@@ -171,14 +171,20 @@ function refresh() {
        it back, on Android turn on "Use on-screen keyboard" under the physical keyboard settings. The
        hint says so, because the alternative is a technician deciding the field is broken. -->
   <Teleport to="#shop-action-bar">
-    <form class="flex items-end gap-2" @submit.prevent="submitTyped" @keydown.tab="onFieldTab">
+    <form class="flex items-end gap-2" @submit.prevent="submitTyped">
       <FormField
         v-slot="{ id }"
         label="Type a code"
         hint="Keyboard hidden? iPhone: double-press the trigger. Android: Settings → Keyboard → on-screen keyboard."
         class="flex-1"
       >
-        <BaseInput :id="id" v-model="typed" autocapitalize="characters" autocomplete="off" />
+        <BaseInput
+          :id="id"
+          v-model="typed"
+          autocapitalize="characters"
+          autocomplete="off"
+          @keydown.tab="onFieldTab"
+        />
       </FormField>
       <BaseButton type="submit" variant="primary" :disabled="!typed.trim()">Find</BaseButton>
     </form>
