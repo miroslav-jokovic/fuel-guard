@@ -69,9 +69,10 @@ stripped before Claude reads the file. -->
   the repository variable `RELEASE_TRAIN` is `on`; deleting that variable is half of the undo.
 - **Browser tests run in `bundle`**: `pnpm --filter @silvicom/web e2e:apply` runs
   `apps/web/e2e-apply/` — the applicant's page, built, in Chromium, against a stubbed API
-  (`e2e-apply/stubApi.ts`, raw JSON). They are the ONLY Playwright specs CI runs: `apps/web/e2e/` is
-  `smoke.yml`'s, against production after a deploy, so a stubbed spec must never go there. Locally:
-  build `dist` first (CI's placeholder `VITE_SUPABASE_*` values), then run `e2e:apply`.
+  (`e2e-apply/stubApi.ts`, raw JSON). Beside them, `tutorials --check` runs every video tutorial's
+  steps camera-less (`apps/web/tutorials/README.md`). Those two are the ONLY Playwright runs in CI:
+  `apps/web/e2e/` is `smoke.yml`'s, against production after a deploy, so a stubbed spec must never
+  go there. Locally: build `dist` first (CI's placeholder `VITE_SUPABASE_*` values), then run `e2e:apply`.
 
 ## Hard rules (each one is machine-enforced; the gate is named)
 
