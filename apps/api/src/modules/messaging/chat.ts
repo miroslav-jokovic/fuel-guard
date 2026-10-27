@@ -112,7 +112,8 @@ export async function chatDirectory(admin: SupabaseClient, orgId: string): Promi
   return (res.value ?? []).map((r) => chatDirectoryEntrySchema.parse(r));
 }
 
-async function conversationRow(
+/** One conversation's inbox row, as `userId` sees it; null when they are not in it. */
+export async function conversationRow(
   admin: SupabaseClient, orgId: string, userId: string, threadId: string,
 ): Promise<ChatConversation | null> {
   const res = await rpc<unknown[]>(admin, "chat_inbox", {

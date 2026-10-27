@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { recordId } from "./recordId.js";
+import { isRecordId, recordId } from "./recordId.js";
 
 /**
  * Office chat (docs/plans/messaging/OFFICE-CHAT-PLAN.md, CH1b) — the Teams-style conversations between
@@ -190,6 +190,87 @@ export const chatAddMembersRequestSchema = z.object({
   user_ids: z.array(recordId()).min(1).max(100),
 });
 export type ChatAddMembersRequest = z.infer<typeof chatAddMembersRequestSchema>;
+
+/** Quieten a conversation for yourself (D-CHAT23): `mentions` lets only a mention through. */
+export const chatMuteRequestSchema = z.object({ muted: z.enum(CHAT_MUTE_LEVELS) });
+export type ChatMuteRequest = z.infer<typeof chatMuteRequestSchema>;
+
+// ── Activity (D-CHAT25) ───────────────────────────────────────────────────────────────────────────
+
+export const CHAT_ACTIVITY_REASONS = ["mention", "reply"] as const;
+export type ChatActivityReason = (typeof CHAT_ACTIVITY_REASONS)[number];
+
+/**
+ * One Activity line (0521 `chat_activity`): a line that named you, or a reply to a channel post you
+ * wrote or answered. Derived on every read — there is no feed table — so a retracted line, or one in a
+ * conversation you have left, is simply not listed any more. `at` is the instant the item arrived and,
+ * with `message_id`, the keyset cursor; `unread` is `at` past your Activity read instant.
+ */
+export const chatActivityItemSchema = z.object({
+  message_id: recordId(),
+  reason: z.enum(CHAT_ACTIVITY_REASONS),
+  at: z.string(),
+  unread: z.boolean(),
+  thread_id: recordId(),
+  kind: z.enum(CHAT_KINDS),
+  subject: z.string().nullable(),
+  /** The channel's team; null for a direct or group conversation. */
+  space_id: recordId().nullable(),
+  /** The post a reply answers — where the reply panel opens. */
+  parent_id: recordId().nullable(),
+  seq: z.number().int().positive(),
+  sender_user_id: recordId().nullable(),
+  sender_name: z.string().nullable(),
+  body: z.string().nullable(),
+  created_at: z.string(),
+});
+export type ChatActivityItem = z.infer<typeof chatActivityItemSchema>;
+
+export const chatActivityResponseSchema = z.object({
+  items: z.array(chatActivityItemSchema),
+  /** Present when another page exists: pass both back as `before_at` / `before_id`. */
+  next: z.object({ before_at: z.string(), before_id: recordId() }).nullable(),
+  /** Every unread item, not this page's: the Activity tab's badge. */
+  unread: z.number().int().nonnegative(),
+});
+export type ChatActivityResponse = z.infer<typeof chatActivityResponseSchema>;
+
+export const chatActivityReadRequestSchema = z.object({
+  /** Read up to here; omitted = now. The database never moves it back, nor past now. */
+  at: z.iso.datetime({ offset: true }).optional(),
+});
+export type ChatActivityReadRequest = z.infer<typeof chatActivityReadRequestSchema>;
+
+// ── mentions (D-CHAT22) ───────────────────────────────────────────────────────────────────────────
+
+/**
+ * A mention is a token in the body, `<@user-id>` — the one record of what was written, so the ledger's
+ * hash, the export and the console all carry it in place. It reads the tokens 0521's `chat_mention_ids`
+ * reads: `<@`, an id, `>`. The shape is taken loosely here and the id is judged by `isRecordId`, the one
+ * definition of an id (D-US13, `lint:record-id`); for a whole token the two accept the same set, since
+ * 36 characters of hex and hyphens between `<@` and `>` are an id exactly when they are 8-4-4-4-12.
+ */
+const MENTION_SHAPE = /<@([0-9a-fA-F-]{36})>/g;
+
+
+export function chatMentionToken(userId: string): string {
+  return `<@${userId.toLowerCase()}>`;
+}
+
+/** The people a body names, each once, lower-cased as the database stores them. */
+export function chatMentionIds(body: string | null | undefined): string[] {
+  if (!body) return [];
+  return [...new Set([...body.matchAll(MENTION_SHAPE)].filter((m) => isRecordId(m[1])).map((m) => m[1]!.toLowerCase()))];
+}
+
+/**
+ * A body as words: every token becomes `@Name`. A token whose person `nameOf` cannot name reads
+ * `@someone` — never the raw id, which means nothing to a reader.
+ */
+export function chatBodyText(body: string, nameOf: (userId: string) => string | null | undefined): string {
+  return body.replace(MENTION_SHAPE, (token, raw: string) =>
+    isRecordId(raw) ? `@${nameOf(raw.toLowerCase())?.trim() || "someone"}` : token);
+}
 
 // ── derivations the inbox and the conversation share ────────────────────────────────────────────
 

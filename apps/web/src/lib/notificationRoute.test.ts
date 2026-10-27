@@ -56,6 +56,14 @@ describe("notificationRoute", () => {
     expect(notificationRoute("message_received", null, null)).toBe("/messages");
   });
 
+  it("a chat mention or reply opens its conversation — a channel at ?ch=, a direct or group line at ?c= (D-CHAT23)", () => {
+    const id = "33333333-3333-4333-8333-333333333333";
+    expect(notificationRoute("chat_reply", "chat_channel", id)).toBe(`/chat?ch=${id}`);
+    expect(notificationRoute("chat_mention", "chat_conversation", id)).toBe(`/chat?c=${id}`);
+    expect(notificationRoute("chat_mention", "thread", id)).toBeNull();
+    expect(notificationRoute("chat_mention", "chat_channel", null)).toBeNull();
+  });
+
   it("returns null for a destination the reader's guard would refuse (SP5)", () => {
     const opens = (to: string) => !to.startsWith("/hazmat");
     expect(notificationRoute("hazmat_review", "load", "L1", opens)).toBeNull();

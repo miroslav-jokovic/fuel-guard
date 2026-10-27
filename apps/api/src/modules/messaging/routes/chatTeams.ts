@@ -19,6 +19,7 @@ import { apiError, asyncHandler, validateBody } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
 import type { ChatResult } from "../chat.js";
+import { chatNotifySent } from "../chatNotify.js";
 import {
   chatChannelAddMembers,
   chatChannelArchive,
@@ -339,6 +340,8 @@ export function chatChannelsRouter(): Router {
       const { orgId, userId } = ctx(req);
       const body = bodyOf<ReturnType<typeof chatSendReplyRequestSchema.parse>>(res);
       const result = await chatSendReply(admin(req), orgId, userId, id, postId, body.message_id, body.body);
+      // The post's author and its earlier repliers hear of it, as D-CHAT23 says and 0521 decides (chatNotify.ts).
+      if (result.ok && !result.value.duplicate) await chatNotifySent(admin(req), orgId, userId, id, body.message_id, body.body);
       // 201 for a new reply, 200 for a retry the database recognised — the client treats both as sent.
       send(res, result, (v) => v, result.ok && !result.value.duplicate ? 201 : 200);
     }),
