@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import { isRecordId, type ChatTeam } from "@silvicom/shared";
+import { chatTitle, isRecordId, type ChatMuteLevel, type ChatTeam } from "@silvicom/shared";
 import { useSessionStore } from "@/stores/session";
 import { useToastStore } from "@/stores/toast";
 import { useModulesQuery } from "@/composables/useModules";
@@ -9,6 +9,8 @@ import { AppButton as BaseButton, AppCard as BaseCard, AppIcon, QueryState } fro
 import { ChatIcon } from "@silvicom/ui/icons";
 import ChatRail from "@/features/chat/ChatRail.vue";
 import ChatConversationStage from "@/features/chat/ChatConversationStage.vue";
+import ChatActivityStage from "@/features/chat/ChatActivityStage.vue";
+import { useChatActivityMarkRead, useChatActivityQuery, useChatActivityUnreadQuery } from "@/features/chat/useChatActivity";
 import NewChatDialog from "@/features/chat/NewChatDialog.vue";
 import ChatChannelStage from "@/features/chat/teams/ChatChannelStage.vue";
 import NewChannelDialog from "@/features/chat/teams/NewChannelDialog.vue";
@@ -25,6 +27,7 @@ import {
   useChatOpenDirect,
   useChatPeopleQuery,
   useChatSend,
+  useChatSetMute,
   type PendingLine,
 } from "@/features/chat/useChat";
 import { useChatFollow } from "@/features/chat/chatRealtime";
@@ -75,7 +78,9 @@ const param = (name: string) => computed<string | null>(() => {
 });
 const channelId = param("ch");
 const selectedId = computed(() => (channelId.value ? null : param("c").value));
-const open = computed(() => !!(selectedId.value || channelId.value));
+// Activity is a place on the stage like a conversation (CHAT-REDESIGN-PLAN §6), so it has an address.
+const activityOpen = computed(() => !channelId.value && !selectedId.value && route.query.activity === "1");
+const open = computed(() => !!(selectedId.value || channelId.value || activityOpen.value));
 
 // `query: { c }` and never a copy of the old query: vue-router would keep `ch`, `post` and `view`.
 function openConversation(id: string) {
@@ -83,6 +88,9 @@ function openConversation(id: string) {
 }
 function openChannel(id: string) {
   if (id !== channelId.value) void router.push({ query: { ch: id } });
+}
+function openActivity() {
+  if (!activityOpen.value) void router.push({ query: { activity: "1" } });
 }
 /** Back to the rail on a phone; nothing open on a desk. */
 function closeAll() {
@@ -147,6 +155,40 @@ async function start(memberIds: string[], subject: string | null) {
   }
 }
 
+// Activity (D-CHAT25): the rail's count always; the list only while it is on the stage. Showing it reads
+// it up to the newest item shown, so an item that lands meanwhile still counts.
+const activityUnread = useChatActivityUnreadQuery(entitled);
+const activity = useChatActivityQuery(computed(() => entitled.value && activityOpen.value));
+const activityRead = useChatActivityMarkRead();
+watch(
+  () => (activityOpen.value ? activity.items.value[0] : undefined),
+  (newest) => { if (newest?.unread) activityRead.mutate(newest.at); },
+  { immediate: true },
+);
+// Reading on sight would wipe the bold before anybody saw it, so an item that was unread when the list
+// was shown keeps looking unread while Activity stays open — the "New" line's rule (D-CHATUI6).
+const seenUnread = ref(new Set<string>());
+watch(
+  () => (activityOpen.value ? activity.items.value : null),
+  (items) => {
+    if (!items) { seenUnread.value = new Set(); return; }
+    const fresh = items.filter((i) => i.unread && !seenUnread.value.has(i.message_id));
+    if (fresh.length) seenUnread.value = new Set([...seenUnread.value, ...fresh.map((i) => i.message_id)]);
+  },
+  { immediate: true },
+);
+const activityItems = computed(() =>
+  activity.items.value.map((i) => (!i.unread && seenUnread.value.has(i.message_id) ? { ...i, unread: true } : i)));
+/** A group with no name is called what the rail calls it. */
+const titleOf = (threadId: string) => {
+  const c = conversations.value.find((x) => x.thread_id === threadId);
+  return c ? chatTitle(c) : null;
+};
+
+const setMute = useChatSetMute();
+const onMute = (level: ChatMuteLevel) =>
+  selectedId.value && setMute.mutateAsync({ threadId: selectedId.value, muted: level }).catch(fail("Could not change the mute."));
+
 const rail = useChatRailActions(entitled, openChannel, closeAll);
 const railRef = ref<InstanceType<typeof ChatRail> | null>(null);
 useChatShortcuts((s) => {
@@ -181,6 +223,8 @@ useChatShortcuts((s) => {
         :teams="teams"
         :can-manage="canManage"
         :selected-id="channelId ?? selectedId"
+        :activity-open="activityOpen"
+        :activity-unread="activityUnread.data.value ?? 0"
         :inbox-loading="inbox.isPending.value && !inbox.isError.value"
         :inbox-error="inbox.isError.value ? inbox.error.value : null"
         :inbox-retrying="inbox.isFetching.value"
@@ -189,6 +233,7 @@ useChatShortcuts((s) => {
         :teams-retrying="teamsQuery.isFetching.value"
         @open-conversation="openConversation"
         @open-channel="openChannel"
+        @open-activity="openActivity"
         @join="rail.onJoin"
         @new-conversation="starting = true"
         @new-team="rail.creatingTeam.value = true"
@@ -201,6 +246,21 @@ useChatShortcuts((s) => {
 
       <div class="min-h-0 min-w-0 flex-1" :class="open ? 'flex' : 'hidden lg:flex'">
         <ChatChannelStage v-if="channelId" :entitled="entitled" :viewer-name="viewerName" @back="closeAll" />
+        <ChatActivityStage
+          v-else-if="activityOpen"
+          :items="activityItems"
+          :viewer-id="session.userId ?? ''"
+          :title-of="titleOf"
+          :loading="activity.isPending.value && !activity.isError.value"
+          :error="activity.isError.value ? activity.error.value : null"
+          :retrying="activity.isFetching.value"
+          :has-more="activity.hasNextPage.value"
+          :loading-more="activity.isFetchingNextPage.value"
+          @open="(query: Record<string, string>) => router.push({ query })"
+          @more="activity.fetchNextPage()"
+          @retry="activity.refetch()"
+          @back="closeAll"
+        />
         <ChatConversationStage
           v-else-if="selectedId && conversation.data.value"
           :data="conversation.data.value"
@@ -215,6 +275,7 @@ useChatShortcuts((s) => {
           @retry="retry"
           @edit="onEdit"
           @remove="onRemove"
+          @mute="onMute"
           @back="closeAll"
         />
         <div v-else class="flex flex-1 items-center justify-center px-6 text-center text-sm text-ink-muted">

@@ -7,6 +7,7 @@ import type {
   ChatKind,
   ChatMember,
   ChatMessage,
+  ChatMuteLevel,
   ChatSendResponse,
 } from "@silvicom/shared";
 import { apiFetch } from "@/lib/api";
@@ -32,6 +33,8 @@ export const inboxKey = [...CHAT_KEY, "inbox"] as const;
 export const conversationKey = (id: string | null) => [...CHAT_KEY, "conversation", id] as const;
 /** The Teams rail. A channel's posts and replies sit under `conversationKey(id)`, so a send refreshes them. */
 export const teamsKey = [...CHAT_KEY, "teams"] as const;
+/** Activity (D-CHAT25): its pages and its badge sit under one key, so a signal refreshes both. */
+export const activityKey = [...CHAT_KEY, "activity"] as const;
 
 /** The poll used while the realtime link is live (D-CHAT2), else the one a poll-only page needs. */
 const RELAXED_POLL = 60_000;
@@ -180,6 +183,23 @@ export function useChatMarkRead() {
       await apiFetch(`/api/chat/${input.threadId}/read`, { method: "POST", body: { seq: input.seq } });
     },
     onSettled: () => Promise.all([qc.invalidateQueries({ queryKey: inboxKey }), qc.invalidateQueries({ queryKey: teamsKey })]),
+  });
+}
+
+/**
+ * Quieten a conversation or a channel for yourself (D-CHAT23). The rail moves it to Muted (`all`) and
+ * the badge drops it; nobody else sees it (D-CHAT24).
+ */
+export function useChatSetMute() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { threadId: string; muted: ChatMuteLevel }) =>
+      unwrap(apiFetch<{ muted: ChatMuteLevel }>(`/api/chat/${input.threadId}/mute`, { method: "PUT", body: { muted: input.muted } }), "Could not change the mute."),
+    onSettled: (_r, _e, input) => Promise.all([
+      qc.invalidateQueries({ queryKey: inboxKey }),
+      qc.invalidateQueries({ queryKey: teamsKey }),
+      qc.invalidateQueries({ queryKey: conversationKey(input.threadId) }),
+    ]),
   });
 }
 

@@ -537,3 +537,15 @@ TechRepublic / Windows Report on Teams 2026 updates.
   input event per key as a browser does (six cases failed before the fix). Still owed by D-CHAT22:
   the compliance console and the PDF show a token raw — they resolve names from the conversation's
   members in a later step. Next: the mute menu and Activity (CH6b-2's third PR).
+- 2026-10-27: **Mentions MERGED** (#1781, main 53b260b). **Mute and Activity on the web built** — the
+  last of CH6b-2 (`claude/office-chat-ch6b-2-activity`). Every conversation's and channel's header has
+  a menu with its mute — "Notify me of everything", "Only when I'm mentioned", "Mute" — General
+  included (Leave stays off General); `all` moves it to Muted as before. Activity is a rail item above
+  Chats with its count, and a place on the stage at `?activity=1`: who, what and where ("Ben replied
+  in # Loads"), the words with their chips, newest first, a page at a time; pressing one opens the
+  conversation, the channel, or the post's thread. Showing the list reads it up to the newest item
+  shown, and an item that was unread then keeps its dot until Activity is closed — the "New" line's
+  rule (D-CHATUI6); the browser pass found the first build wiping the bold within a second. A signal
+  on your own topic now refreshes Activity with the rail (pinned by a test of the handlers, which had
+  none). Fixtures: Activity and mute in `tools/chat-fixtures`. **CH6b-2 is complete**; next CH6c-1
+  (0522 is taken by finance's #1698 — check the next free number first) or CH6d.

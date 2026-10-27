@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import type { ChatPostPage, ChatTeamChannel } from "@silvicom/shared";
+import type { ChatMuteLevel, ChatPostPage, ChatTeamChannel } from "@silvicom/shared";
 import { AppButton as BaseButton } from "@silvicom/ui";
 import KebabMenu from "@/components/KebabMenu.vue";
 import ChatComposer from "../ChatComposer.vue";
 import ChatMessageList from "../ChatMessageList.vue";
 import ChatStageHeader from "../ChatStageHeader.vue";
+import ChatMuteItems from "../ChatMuteItems.vue";
 import { mergeLines, type PendingLine } from "../useChat";
 
 /**
@@ -15,8 +16,9 @@ import { mergeLines, type PendingLine } from "../useChat";
  * conversation's shape, the thread panel one post's.
  *
  * Posting, editing and removing are the conversation's own acts: a channel IS a conversation
- * (D-CHAT18), so the same optimistic send and the same row serve it. Leaving is the header's kebab;
- * General is the team, and leaving it is leaving the team, from the rail (0519).
+ * (D-CHAT18), so the same optimistic send and the same row serve it. The header's kebab holds the
+ * channel's mute (D-CHAT23) and Leave — not on General, which is the team: leaving it is leaving the
+ * team, from the rail (0519).
  *
  * An empty General greets the team by name with what its maker wrote about it — the team's
  * description — instead of "No posts yet" (CHAT-REDESIGN-PLAN CR4): General is where a new team first
@@ -43,6 +45,7 @@ const emit = defineEmits<{
   remove: [messageId: string];
   replies: [postId: string];
   leave: [];
+  mute: [level: ChatMuteLevel];
   back: [];
   earlier: [];
 }>();
@@ -56,8 +59,9 @@ const composer = ref<InstanceType<typeof ChatComposer> | null>(null);
 <template>
   <section class="flex h-full min-h-0 flex-1 flex-col bg-surface" :aria-label="`${channel.name}, ${teamName}`">
     <ChatStageHeader :title="channel.name" :subtitle="subtitle" glyph="channel" back-label="Back to chats and channels" @back="emit('back')">
-      <KebabMenu v-if="!channel.general" trigger-label="Channel actions" placement="bottom-end">
-        <BaseButton class="kebab-item" @click="emit('leave')">Leave channel</BaseButton>
+      <KebabMenu trigger-label="Channel actions" placement="bottom-end">
+        <ChatMuteItems :muted="channel.muted" @set="(level: ChatMuteLevel) => emit('mute', level)" />
+        <BaseButton v-if="!channel.general" class="kebab-item" @click="emit('leave')">Leave channel</BaseButton>
       </KebabMenu>
     </ChatStageHeader>
     <ChatMessageList

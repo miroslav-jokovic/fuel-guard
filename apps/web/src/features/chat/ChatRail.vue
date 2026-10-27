@@ -2,7 +2,7 @@
 import { computed, ref } from "vue";
 import { chatPreview, chatTitle, type ChatConversation, type ChatTeam, type ChatTeamChannel } from "@silvicom/shared";
 import { AppAvatar, AppButton as BaseButton, AppIcon, AppSearchField, QueryState } from "@silvicom/ui";
-import { PlusIcon, UserGroupIcon } from "@silvicom/ui/icons";
+import { BellIcon, PlusIcon, UserGroupIcon } from "@silvicom/ui/icons";
 import KebabMenu from "@/components/KebabMenu.vue";
 import { chatRowTime } from "./chatTime";
 import { useChatNames } from "./chatNames";
@@ -35,10 +35,15 @@ const props = defineProps<{
   teamsLoading: boolean;
   teamsError: Error | null;
   teamsRetrying: boolean;
+  /** Activity is on the stage (`?activity=1`). */
+  activityOpen?: boolean;
+  /** Activity items after the reader's read instant (D-CHAT25). */
+  activityUnread?: number;
 }>();
 const emit = defineEmits<{
   "open-conversation": [id: string];
   "open-channel": [id: string];
+  "open-activity": [];
   join: [id: string];
   "new-conversation": [];
   "new-team": [];
@@ -120,6 +125,17 @@ const channelLabel = (c: ChatTeamChannel) => `# ${c.name}${c.visibility === "pri
 
     <nav class="min-h-0 flex-1 overflow-y-auto py-2" aria-label="Chats and channels">
       <p v-if="nothingMatches" class="px-4 py-6 text-center text-sm text-ink-muted">Nothing in chat is called that.</p>
+
+      <!-- Activity, above Chats (CHAT-REDESIGN-PLAN §6): what named you or answered your posts. Not a search result. -->
+      <div v-if="!q" class="px-0 pb-2">
+        <BaseButton type="button" size="row" block :variant="activityOpen ? 'soft' : 'ghost'" class="px-3 py-1.5" :aria-current="activityOpen ? 'true' : undefined" @click="emit('open-activity')">
+          <span class="flex w-full min-w-0 items-center gap-3">
+            <span class="flex size-7 shrink-0 items-center justify-center text-ink-tertiary" aria-hidden="true"><AppIcon :icon="BellIcon" class="size-4" /></span>
+            <span class="min-w-0 flex-1 truncate text-sm text-ink" :class="activityUnread ? 'font-semibold' : 'font-normal'">Activity</span>
+            <span v-if="activityUnread" class="shrink-0 rounded-full bg-brand-accent-strong px-1.5 py-0.5 text-2xs font-semibold text-ink" :aria-label="`${activityUnread} unread`">{{ activityUnread }}</span>
+          </span>
+        </BaseButton>
+      </div>
 
       <!-- Chats -->
       <section v-if="!q || chats.length" aria-labelledby="chat-rail-chats" class="pb-2">

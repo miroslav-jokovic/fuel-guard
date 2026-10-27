@@ -1,13 +1,13 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import { isRecordId } from "@silvicom/shared";
+import { isRecordId, type ChatMuteLevel } from "@silvicom/shared";
 import { AppButton as BaseButton, QueryState, useConfirm } from "@silvicom/ui";
 import { useSessionStore } from "@/stores/session";
 import { useToastStore } from "@/stores/toast";
 import { useChatFollow } from "../chatRealtime";
 import { firstUnreadSeqOf } from "../chatGrouping";
-import { useChatMarkRead, useChatMembersQuery, useChatMessageActions, useChatSend, type PendingLine } from "../useChat";
+import { useChatMarkRead, useChatMembersQuery, useChatMessageActions, useChatSend, useChatSetMute, type PendingLine } from "../useChat";
 import { provideChatMentions, type MentionCandidate } from "../chatNames";
 import ChatChannelPane from "./ChatChannelPane.vue";
 import ChatRepliesPane from "./ChatRepliesPane.vue";
@@ -122,6 +122,10 @@ provideChatMentions({
   },
 });
 
+const setMute = useChatSetMute();
+const onMute = (level: ChatMuteLevel) =>
+  channelId.value && setMute.mutateAsync({ threadId: channelId.value, muted: level }).catch(fail("Could not change the mute."));
+
 const join = useJoinChannel();
 const onJoin = (id: string) => join.mutateAsync(id).catch(fail("Could not join the channel."));
 
@@ -162,6 +166,7 @@ async function onLeaveChannel() {
         @remove="onRemove"
         @replies="openReplies"
         @leave="onLeaveChannel"
+        @mute="onMute"
         @back="emit('back')"
       />
       <div v-else class="flex h-full flex-col items-center justify-center gap-3 px-4 text-center text-sm text-ink-muted">
