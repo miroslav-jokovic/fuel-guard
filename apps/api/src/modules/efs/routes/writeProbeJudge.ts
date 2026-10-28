@@ -1,3 +1,4 @@
+import type { WriteCheckRecommendation } from "@silvicom/shared";
 import type { ProbeStep } from "./writeProbeRealChange.js";
 
 /**
@@ -15,7 +16,8 @@ export type Entitlement = "unknown" | "confirmed" | "denied";
 
 export interface ProbeVerdict {
   entitlement: Entitlement;
-  recommendation: string;
+  /** Typed against the shared list so every code has a plain sentence for the page (CCF3, D-CCF6). */
+  recommendation: WriteCheckRecommendation;
   verdict: string;
 }
 
@@ -40,11 +42,7 @@ export interface ProbeVerdict {
  * only so the read-only VERDICT TEXT can stop telling an org that already proved its write access
  * that the access is "still unproven".
  */
-export function judge(steps: ProbeStep[], readOnly: boolean, priorEntitlement: Entitlement = "unknown"): {
-  entitlement: Entitlement;
-  recommendation: string;
-  verdict: string;
-} {
+export function judge(steps: ProbeStep[], readOnly: boolean, priorEntitlement: Entitlement = "unknown"): ProbeVerdict {
   const at = (n: number) => steps.find((s) => s.step === n);
   const failed = (n: number) => at(n) !== undefined && at(n)!.ok === false;
 

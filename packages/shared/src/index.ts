@@ -227,6 +227,7 @@ export * from "./cardControlLedger.js";
 export * from "./efs/types.js";
 export * from "./efs/stepUp.js";
 export * from "./efs/overrideFreeze.js";
+export * from "./efs/writeCheckVerdict.js";
 export * from "./efs/registry.js";
 export * from "./annualInspectionCatalogue.js";
 export * from "./annualInspectionContract.js";
