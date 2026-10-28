@@ -72,9 +72,17 @@ beforeEach(() => {
   audit.writeAudit.mockClear();
 });
 
+/**
+ * The register is a Settings card since D-MX1 (2026-10-27), and like every card in that directory it
+ * starts OFF for every role but admin (`startsOnFor: []`, Q-SET2). The write routes carry the real
+ * `requireSurface("maintenance.inspectors")`, so a technician reaches them only once the org has
+ * granted the screen — which this row is. Without it every write below is a 403, not a test of the write.
+ */
+const GRANTED = { org_role_surface_access: [{ role: "technician", surface_key: "maintenance.inspectors", allowed: true }] };
+
 describe("removing somebody from the register", () => {
   it("removes a row nothing points at, and audits that it did", async () => {
-    rec = createSupabaseRecorder({ tables: { maintenance_inspectors: { data: [], count: 1 } } });
+    rec = createSupabaseRecorder({ tables: { ...GRANTED, maintenance_inspectors: { data: [], count: 1 } } });
     const body = await withServer(async (base) => bodyOf(await del(base)));
 
     expect(body.ok).toBe(true);
@@ -87,7 +95,7 @@ describe("removing somebody from the register", () => {
   });
 
   it("scopes the delete to the caller's org, because the service role bypasses RLS", async () => {
-    rec = createSupabaseRecorder({ tables: { maintenance_inspectors: { data: [], count: 1 } } });
+    rec = createSupabaseRecorder({ tables: { ...GRANTED, maintenance_inspectors: { data: [], count: 1 } } });
     await withServer(async (base) => del(base));
     expectOrgScoped(rec, ORG);
   });
@@ -97,6 +105,7 @@ describe("removing somebody from the register", () => {
     // that this arrives as an answerable refusal rather than as a 500 nobody can act on.
     rec = createSupabaseRecorder({
       tables: {
+        ...GRANTED,
         maintenance_inspectors: {
           data: [],
           writeError: { code: "23503", message: "violates foreign key constraint" },
@@ -113,7 +122,7 @@ describe("removing somebody from the register", () => {
   });
 
   it("is a 404 when the id belongs to nobody", async () => {
-    rec = createSupabaseRecorder({ tables: { maintenance_inspectors: { data: [], count: 0 } } });
+    rec = createSupabaseRecorder({ tables: { ...GRANTED, maintenance_inspectors: { data: [], count: 0 } } });
     const res = await withServer(async (base) => del(base));
     expect(res.status).toBe(404);
     expect(audit.writeAudit).not.toHaveBeenCalled();

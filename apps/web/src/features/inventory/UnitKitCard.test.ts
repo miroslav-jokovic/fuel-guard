@@ -26,7 +26,7 @@ describe("the kit card", () => {
     setActivePinia(createPinia());
     const w = mount(UnitKitCard, { props: { kind: "tractor", unitId: "v1" }, global: { stubs: { RouterLink: true } } });
     const alert = w.get("[role=alert]");
-    expect(alert.text()).toContain("Could not load what this unit is carrying.");
+    expect(alert.text()).toContain("Could not load what it is carrying.");
     await alert.findAll("button").find((b) => b.text() === "Retry")!.trigger("click");
     expect(read.refetch).toHaveBeenCalledTimes(1);
   });

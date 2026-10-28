@@ -28,7 +28,6 @@ import {
   HazmatPlacardIcon,
   LicenseIcon,
   SparklesIcon,
-  ToolboxIcon,
   UnitKitIcon,
   TrailerIcon,
   TrophyIcon,
@@ -36,7 +35,6 @@ import {
   TruckStopIcon,
   UserGroupIcon,
   UserListIcon,
-  CertificateIcon,
   ChatIcon,
   ChecklistIcon,
   WrenchIcon,
@@ -121,12 +119,10 @@ export const SURFACE_ICONS: Record<string, Icon> = {
   "maintenance.parts": CubeIcon,
   // An asset is a thing with a number on it, kept in a box or on a truck. `ToolboxIcon` is unused
   // anywhere else in the menu; see the barrel for why it is not the wrench the group wears.
-  "maintenance.assets": ToolboxIcon,
   // What each truck is CARRYING, which is a different question from the truck itself — `TruckIcon`
   // is the fleet group's and `VehicleIcon` is Vehicles'. See the barrel for the whole note.
   "maintenance.units": UnitKitIcon,
   "maintenance.inspections": ChecklistIcon,
-  "maintenance.inspectors": CertificateIcon,
 
   "admin.settings": Cog6ToothIcon,
   "admin.users": UsersIcon,

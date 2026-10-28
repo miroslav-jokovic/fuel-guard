@@ -53,7 +53,7 @@ async function onSubmit(input: AssetCreateInput) {
 </script>
 
 <template>
-  <SlideOver :open="open" :title="asset ? 'Edit asset' : 'New asset'" size="lg" @close="emit('close')">
+  <SlideOver :open="open" :title="asset ? 'Edit equipment' : 'Add equipment'" size="lg" @close="emit('close')">
     <AssetForm :asset="asset" :types="types ?? []" :locations="locations ?? []" @submit="onSubmit" />
     <template #footer>
       <div class="flex items-center justify-end gap-3">

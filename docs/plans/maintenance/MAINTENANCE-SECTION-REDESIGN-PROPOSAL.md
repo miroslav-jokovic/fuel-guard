@@ -210,7 +210,7 @@ of what tabs hide.
 | Kit · Kit rules · Nothing expected yet | **Should carry** · **What each truck should carry** · **Not set up yet** | |
 | Short of kit · Missing | **Missing equipment** · **Missing: 2 straps** | the thing, not the count |
 | Assets · Asset kinds · New asset | **Equipment** · **Types of equipment** · **Add equipment** | "asset" is an accountant's word |
-| Stock · Stock locations · Reorder point · Low stock | **Parts on the shelf** · **Shelves** · **Order when below** · **Running low** | returns with Parts |
+| Stock · Stock locations · Reorder point · Low stock | **Show** (the filter) · **Places** · **Order when below** · **Running low** | "Shelves" was the first draft; a part's stock line was already "a shelf" ("Edit shelf"), so the places the shop keeps things are *Places* |
 | Moved today · Ledger rows since midnight | **Moves today** · *(drop the sub-line)* | |
 | Inspectors (register) · Reinstate · Retire | **Who can inspect** · **Put back** · **Remove** | "register" and "retire" are statutory words |
 | Qualified by | **Trained as** | the register's three qualification kinds get plain names in the drawer |
@@ -275,16 +275,17 @@ M1 and M2 are a week of work together; M3 is the largest because F10 was never b
 
 ---
 
-## 6. Open questions for the owner (answers change the work)
+## 6. Open questions for the owner — ALL ANSWERED 2026-10-27
 
-| # | Question | Recommendation |
+| # | Question | Owner's answer (2026-10-27, in chat) |
 |---|---|---|
-| **Q-MX1** | Who holds the tablet — the Chicago maintenance employee only, or also technicians in a bay and a remote coordination desk (the 2026-10-07 staffing deck)? A remote desk never scans and never checks a truck, which changes which verbs lead. | Design for the one employee on a tablet now; the desk is a desktop user of the same worklist. |
-| **Q-MX2** | Hide Parts until FleetPal F12, or keep it visible and empty? | Hide. An empty catalogue with "Add the first part" invites hand entry that F12 would then have to reconcile. |
-| **Q-MX3** | May Inspectors leave the sidebar (it becomes a button on Annual inspections)? | Yes; one row for one person's register is a row too many. |
-| **Q-MX4** | "Equipment" for what the code calls assets, and "Trucks & trailers" for units — or other words? | As proposed; the owner's own emails say "equipment" and never "asset". |
-| **Q-MX5** | Should the worklist include annual inspections due within 30 days (it needs the projected expiry, which the feature already writes)? | Yes — it is the one row on the list the shop fixes entirely inside our product. |
-| **Q-MX6** | The bottom tab row under `/shop` on phones (§4.5 rule 7) is a shell change other sections would eventually want. Build it for the shop only, or hold it for the design refresh? | Shop only, behind the route prefix; the refresh can generalise it. |
+| **Q-MX1** | Who holds the tablet? | **The maintenance employee, the in-shop workers, and the inspector** (ours, in maintenance). They use the scanner and the label printer that arrived 2026-10-27. So the verbs lead: Scan, Check what is on board, Start inspection. |
+| **Q-MX2** | Hide Parts until FleetPal F12, or keep it? | **Neither — fill it.** *"We have full FleetPal access via API, why are we not populating parts in there?"* Parts stays a sidebar row and FleetPal F12 (the parts catalogue sync) moves up the queue to right after M2. Recorded in `FLEETPAL-INTEGRATION-PLAN.md`'s log. |
+| **Q-MX3** | Inspectors off the sidebar? | **Yes — into Settings**, not a button on Annual inspections. It is a Settings card ("Who can inspect") with its own grant; `/shop/inspectors` redirects. |
+| **Q-MX4** | The words? | **"Wording proposed is ok."** One amendment made while applying it: stock locations became **Places**, not Shelves, because a part's stock line was already called a shelf ("Edit shelf") and the two would have collided. |
+| **Q-MX5** | Annual inspections due within 30 days on the worklist? | **(a) yes.** |
+| **Q-MX6** | The phone bottom tab row? | **"As proposed, with the best solution."** Built for the shop section in M4; the design refresh may generalise it. |
+| — | Sold trucks on the shop's lists? | No objection raised; they are excluded from Trucks & trailers (M1). |
 
 ---
 
@@ -310,3 +311,10 @@ M1 and M2 are a week of work together; M3 is the largest because F10 was never b
   (`supabase db query --linked`, `pg_stat_user_tables`), a staging browser pass as the fleet-manager
   test member at 390 and 834 px (26 full-page screenshots + target measurements, kept in the session
   scratchpad, not committed), and the research in §2. Not yet read by the owner.
+- **2026-10-27 (evening)** — Owner: *"make these updates as proposed"*; the six questions answered in
+  chat (§6). **M1 built** on `claude/maintenance-m1-words`: the glossary applied to 24 files (138
+  exact-string replacements, no key changed); Equipment parented to Trucks & trailers; Who can
+  inspect is a Settings card at `/settings/inspectors` with `/shop/inspectors` redirecting; sold
+  and winding-down trucks excluded from the shop's unit list; the roadside page's citation moved
+  into a comment. Queue after M1: M2 (worklist home) → **F12 (parts from FleetPal, pulled forward
+  by Q-MX2)** → M3 (hub) → M4 (phone rules) → M5 (owner pass on the tablet).

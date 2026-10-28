@@ -207,6 +207,22 @@ describe("listEquipmentIdentities — a truck in the shop is still in the fleet"
     expect(f!.val).not.toContain("retired");
   });
 
+  /**
+   * D-MX1 (2026-10-27): the shop's unit list drops trucks on their way out; the annual register
+   * keeps them. The op is `not("winding_down", "is", true)` so a truck never swept (null) stays.
+   */
+  it("drops winding-down trucks only when asked, with a filter that keeps the unswept", async () => {
+    const windingOp = (rec: ReturnType<typeof createSupabaseRecorder>) =>
+      rec.forTable("vehicles")[0]!.ops.find((o) => o.method === "not" && o.args[0] === "winding_down");
+    const asked = createSupabaseRecorder({ tables: { vehicles: (): unknown[] => [vehicleRow()] } });
+    await listEquipmentIdentities(asked.client, ORG, "tractor", { activeOnly: true, excludeWindingDown: true });
+    expect(windingOp(asked)?.args).toEqual(["winding_down", "is", true]);
+    expect(statusFilter(asked), "excluding sold trucks does not loosen the in-service filter").toBeDefined();
+    const notAsked = createSupabaseRecorder({ tables: { vehicles: (): unknown[] => [vehicleRow()] } });
+    await listEquipmentIdentities(notAsked.client, ORG, "tractor", { activeOnly: true });
+    expect(windingOp(notAsked)).toBeUndefined();
+  });
+
   it("asks for no status at all when the caller wants history", async () => {
     // resolveUnits.ts depends on this: a repair from March belongs to the truck that had it.
     const rec = createSupabaseRecorder({ tables: { vehicles: (): unknown[] => [vehicleRow()] } });

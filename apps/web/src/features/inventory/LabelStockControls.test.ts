@@ -43,6 +43,6 @@ describe("the stock controls", () => {
     expect(w.text()).toContain('2" × 2"');
     expect(w.text()).toContain("Each label prints as its own page");
     // The nudge stays: a roll printer's registration can be off by a constant too.
-    expect(w.text()).toContain("Nudge right");
+    expect(w.text()).toContain("Shift print right");
   });
 });

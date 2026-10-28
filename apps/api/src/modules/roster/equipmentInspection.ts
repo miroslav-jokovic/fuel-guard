@@ -158,6 +158,15 @@ export interface EquipmentListOptions {
    * `false` deliberately to see everything.
    */
   activeOnly?: boolean;
+  /**
+   * Tractors only; ignored for trailers, which have no such column. A truck the carrier has sold and
+   * marked out in McLeod (`tractor_status = 'I'`, `vehicles.winding_down`, D-DB11) stays in service
+   * until the buyer collects it, so `activeOnly` keeps it — rightly, for the annual register, which
+   * owes it a report until it leaves. The shop's equipment list does not: nothing is issued to a
+   * truck on its way out, and 27 of them read "506 - SOLD · Nothing set up yet" at the top of the
+   * list on 2026-10-27 (MAINTENANCE-SECTION-REDESIGN-PROPOSAL.md §1.2). Pass `true` to drop them.
+   */
+  excludeWindingDown?: boolean;
 }
 
 /**
@@ -210,8 +219,12 @@ export async function listEquipmentIdentities(
     const rows = await fetchAllPaged<Row>((from, to) =>
       kind === "tractor"
         ? (activeOnly
-            ? admin.from("vehicles").select("id, unit_number, vin, plate").eq("org_id", orgId).in("status", [...IN_SERVICE_VEHICLE_STATUSES])
-            : admin.from("vehicles").select("id, unit_number, vin, plate").eq("org_id", orgId)
+            ? options.excludeWindingDown
+              ? admin.from("vehicles").select("id, unit_number, vin, plate").eq("org_id", orgId).in("status", [...IN_SERVICE_VEHICLE_STATUSES]).not("winding_down", "is", true)
+              : admin.from("vehicles").select("id, unit_number, vin, plate").eq("org_id", orgId).in("status", [...IN_SERVICE_VEHICLE_STATUSES])
+            : options.excludeWindingDown
+              ? admin.from("vehicles").select("id, unit_number, vin, plate").eq("org_id", orgId).not("winding_down", "is", true)
+              : admin.from("vehicles").select("id, unit_number, vin, plate").eq("org_id", orgId)
           )
             .order("unit_number", { ascending: true })
             .order("id", { ascending: true })

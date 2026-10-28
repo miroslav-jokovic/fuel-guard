@@ -130,8 +130,8 @@ async function setActive(location: StockLocationDto, active: boolean) {
 <template>
   <SlideOver
     :open="open"
-    title="Stock locations"
-    description="Where the shop keeps things. A part sits on a shelf at one of these, and stock is counted per location."
+    title="Places"
+    description="Where the shop keeps things. A part sits on a shelf at one of these, and it is counted per place."
     @close="emit('close')"
   >
     <div class="space-y-4">
@@ -140,7 +140,7 @@ async function setActive(location: StockLocationDto, active: boolean) {
         :error="isError"
         :retrying="isFetching"
         loading-text="Loading the locations…"
-        error-text="Could not load the stock locations."
+        error-text="Could not load the places."
         @retry="refetch()"
       >
         <DataTable
@@ -150,7 +150,7 @@ async function setActive(location: StockLocationDto, active: boolean) {
           :columns="COLUMNS"
           :rows="locations ?? []"
           row-key="id"
-          empty-text="No locations yet. Add the shop itself first — everything on a shelf is somewhere."
+          empty-text="No places yet. Add the shop itself first — everything on a shelf is somewhere."
         >
           <template #cell-name="{ row }">
             <span class="font-medium text-ink">{{ row.name }}</span>
@@ -197,7 +197,7 @@ async function setActive(location: StockLocationDto, active: boolean) {
       </div>
       <div v-else class="flex items-center justify-end gap-3">
         <BaseButton variant="ghost" @click="emit('close')">Close</BaseButton>
-        <BaseButton variant="primary" @click="startAdd">Add a location</BaseButton>
+        <BaseButton variant="primary" @click="startAdd">Add a place</BaseButton>
       </div>
     </template>
   </SlideOver>

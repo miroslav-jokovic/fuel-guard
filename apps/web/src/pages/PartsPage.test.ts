@@ -151,7 +151,7 @@ describe("the list in the URL (D-US2)", () => {
   it("writes the Stock choice and a header click to the URL", async () => {
     low.value = { lines, total: 3 };
     const w = await page();
-    w.findAllComponents(FilterSelect).find((c) => c.props("label") === "Stock")!.vm.$emit("update:modelValue", "low");
+    w.findAllComponents(FilterSelect).find((c) => c.props("label") === "Show")!.vm.$emit("update:modelValue", "low");
     await flushPromises();
     w.findComponent({ name: "DataTable" }).vm.$emit("sort", "locationName");
     await flushPromises();
@@ -182,7 +182,7 @@ describe("the list in the URL (D-US2)", () => {
 describe("the header", () => {
   it("names what its buttons open, rather than showing an unlabelled gear", async () => {
     const text = (await page()).text();
-    expect(text).toContain("Stock locations");
+    expect(text).toContain("Places");
     expect(text).toContain("New part");
   });
 });

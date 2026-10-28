@@ -54,7 +54,7 @@ const kitFacts = computed<Fact[]>(() =>
          card rendered a `text-lg` "Kit" that was the loudest heading on a page whose own were
          `text-sm` (2026-09-10 critique). -->
     <div class="flex items-center justify-between gap-3">
-      <h2 class="text-sm font-semibold text-ink">Kit</h2>
+      <h2 class="text-sm font-semibold text-ink">Should carry</h2>
       <span
         v-if="unit && kitStatusBadge(unit.state)"
         :class="[BADGE_BASE, toneClass(kitStatusBadge(unit.state)!.tone)]"
@@ -70,8 +70,8 @@ const kitFacts = computed<Fact[]>(() =>
       :loading="isLoading"
       :error="isError ? error : null"
       :retrying="isFetching"
-      loading-text="Loading the kit…"
-      error-text="Could not load what this unit is carrying."
+      loading-text="Loading…"
+      error-text="Could not load what it is carrying."
       @retry="refetch()"
     >
     <template v-if="unit">

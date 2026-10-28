@@ -149,10 +149,10 @@ async function reinstate(i: Inspector) {
 async function remove(i: Inspector) {
   // The product's confirm (D-US7). Danger: a removal deletes the row, where Retire only dates it.
   const asked = await ask({
-    title: `Remove ${i.full_name} from the register?`,
+    title: `Delete ${i.full_name} from the list?`,
     message:
       "This is for a row added by mistake — anybody who has performed an inspection stays on file, and you will be told so.",
-    confirmLabel: "Remove from register",
+    confirmLabel: "Delete",
     tone: "danger",
   });
   if (!asked) return;
@@ -168,7 +168,7 @@ async function remove(i: Inspector) {
 
 <template>
   <div class="space-y-6">
-    <PageHeader description="Who may perform an annual inspection. The inspection form only offers people whose qualification covers the date being inspected.">
+    <PageHeader description="Who may perform an annual inspection. The inspection form only offers people whose training covers the date being inspected.">
       <template #actions>
         <BaseButton v-if="session.can('maintenance')" variant="primary" @click="adding = true">
           <AppIcon :icon="PlusIcon" class="-ml-0.5 size-5" aria-hidden="true" /> Add inspector
@@ -192,7 +192,7 @@ async function remove(i: Inspector) {
       @clear-all="resetFilters"
     >
       <template #filters>
-        <FilterSelect v-model="basis" label="Qualified by" :options="BASIS_OPTIONS" />
+        <FilterSelect v-model="basis" label="Trained as" :options="BASIS_OPTIONS" />
         <FilterSelect
           :model-value="showRetired ? 'all' : 'active'"
           label="Show"
@@ -219,13 +219,13 @@ async function remove(i: Inspector) {
       </template>
       <template #cell-period="{ row }">
         <span :class="row.qualified ? 'text-ink-secondary' : 'text-ink-tertiary'">{{ row.period }}</span>
-        <AppBadge v-if="!row.qualified" tone="neutral" class="ml-2">Retired</AppBadge>
+        <AppBadge v-if="!row.qualified" tone="neutral" class="ml-2">Off the list</AppBadge>
       </template>
       <template #actions="{ row }">
         <KebabMenu v-if="session.can('maintenance')">
-          <BaseButton v-if="row.qualified" class="kebab-item" @click="retire(row)">Retire</BaseButton>
-          <BaseButton v-else class="kebab-item" @click="reinstate(row)">Reinstate</BaseButton>
-          <BaseButton class="kebab-item kebab-item-danger" @click="remove(row)">Remove from register</BaseButton>
+          <BaseButton v-if="row.qualified" class="kebab-item" @click="retire(row)">Take off the list</BaseButton>
+          <BaseButton v-else class="kebab-item" @click="reinstate(row)">Put back on the list</BaseButton>
+          <BaseButton class="kebab-item kebab-item-danger" @click="remove(row)">Delete</BaseButton>
         </KebabMenu>
       </template>
       <template #empty>Nobody matches those filters.</template>

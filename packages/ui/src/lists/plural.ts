@@ -38,6 +38,7 @@ const IRREGULAR: Record<string, string> = {
   // Safety › Drug & Alcohol's Roster check counts people Med-Stop lists that no driver here matches,
   // so "drivers" would be wrong for some of them; "1 people" is what the rules would say.
   people: "person",
+  "trucks and trailers": "truck or trailer",
 };
 
 /** Words that end in `s` and are already singular — dropping the `s` would maim them. */
@@ -66,6 +67,10 @@ export function singularWord(word: string): string {
  * is the right answer for a label that was never a count of anything.
  */
 export function singularLabel(plural: string): string {
+  // A whole phrase first: "trucks and trailers" has two head nouns and its singular is "truck or
+  // trailer", which no per-word rule reaches (the shop's lists, D-MX1 2026-10-27).
+  const phrase = IRREGULAR[plural.toLowerCase()];
+  if (phrase) return phrase;
   const words = plural.split(" ");
   for (let i = words.length - 1; i >= 0; i -= 1) {
     const singular = singularWord(words[i]!);

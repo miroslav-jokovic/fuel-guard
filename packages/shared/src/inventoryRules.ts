@@ -45,9 +45,9 @@ export const KIT_STATES = ["complete", "short", "extra"] as const;
 export type KitState = (typeof KIT_STATES)[number];
 
 export const KIT_STATE_LABELS: Record<KitState, string> = {
-  complete: "Complete",
-  short: "Short",
-  extra: "Extra items",
+  complete: "Has everything",
+  short: "Missing equipment",
+  extra: "Extra equipment",
 };
 
 export interface KitLine {

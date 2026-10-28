@@ -70,7 +70,7 @@ describe("annual dates to check", () => {
     expect(w.findAll("tbody tr").map((tr) => tr.find("td").text())).toEqual(["817Truck", "9001Trailer", "654Truck", "3152Truck"]);
     expect(cells(w, "9001").slice(1, 4)).toEqual(["11/20/2026", "Overdue by 6 days10/10/2026", "41 days"]);
     expect(cells(w, "817").slice(1, 4)).toEqual(["Not recorded", "09/01/2027", "—"]);
-    expect(w.text()).toContain("4 units");
+    expect(w.text()).toContain("4 trucks and trailers");
   });
 
   it("says what to fix and where, from which side is later", async () => {
@@ -82,7 +82,7 @@ describe("annual dates to check", () => {
 
   it("names the rows that change what the board says, and only those", async () => {
     const w = await mountAt(AnnualDatesPage, "/shop/annual-dates");
-    const flagged = (unit: string) => cells(w, unit)[4]!.includes("The board would read it differently");
+    const flagged = (unit: string) => cells(w, unit)[4]!.includes("Dispatch would use a different date");
     expect(["817", "9001", "654", "3152"].map(flagged)).toEqual([true, true, false, false]);
   });
 

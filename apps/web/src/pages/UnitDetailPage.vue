@@ -124,13 +124,13 @@ const kitLines = computed<UnitKitLineDto[]>(() =>
          with a different answer — and said ONCE, in the header. A real render carried it twice,
          which reads as two facts about two moments rather than one fact stated plainly. -->
     <PageHeader
-      :title="unit ? `${UNIT_KIND_LABELS[unit.kind]} ${unit.unitNumber}` : 'Unit'"
+      :title="unit ? `${UNIT_KIND_LABELS[unit.kind]} ${unit.unitNumber}` : 'Truck or trailer'"
       :description="unit?.inferredDriverName ? `Assigned to ${unit.inferredDriverName} right now` : undefined"
     >
       <template v-if="unit && canManage" #actions>
-        <BaseButton @click="overriding = true">Kit for this unit</BaseButton>
+        <BaseButton @click="overriding = true">What this one should carry</BaseButton>
         <BaseButton variant="primary" :disabled="openWalk.isPending.value" @click="startCheck">
-          Check this unit
+          Check what is on board
         </BaseButton>
       </template>
     </PageHeader>
@@ -139,15 +139,15 @@ const kitLines = computed<UnitKitLineDto[]>(() =>
       :loading="isLoading && !unit"
       :error="isError ? error : null"
       :retrying="isFetching"
-      loading-text="Loading the unit…"
-      error-text="Could not load the unit."
-      not-found-text="That unit is not on the fleet. The link may be incomplete, or the unit belongs to another company."
+      loading-text="Loading…"
+      error-text="Could not load this truck or trailer."
+      not-found-text="That truck or trailer is not on the fleet. The link may be incomplete, or it belongs to another company."
       @retry="refetch()"
     >
       <template v-if="unit">
         <BaseCard>
           <div class="flex items-center justify-between gap-3">
-            <h2 class="text-sm font-semibold text-ink">Kit summary</h2>
+            <h2 class="text-sm font-semibold text-ink">Equipment</h2>
             <span
               v-if="kitStatusBadge(unit.state)"
               :class="[BADGE_BASE, toneClass(kitStatusBadge(unit.state)!.tone)]"
@@ -158,11 +158,11 @@ const kitLines = computed<UnitKitLineDto[]>(() =>
           <p class="mt-3 text-sm text-ink">
             <span v-if="unit.shortBy">Missing {{ unit.shortBy }}</span>
             <span v-else-if="unit.extraBy">Carrying {{ unit.extraBy }} more than the kit asks for</span>
-            <span v-else>Carrying everything the kit asks for</span>
+            <span v-else>Carrying everything it should</span>
           </p>
           <!-- R10: a shortfall on a unit nobody has walked is the records, not the truck. -->
           <p class="mt-1 text-sm text-ink-secondary">
-            {{ unit.lastCheckedAt ? `Last checked ${formatDate(unit.lastCheckedAt)}` : "Never checked — the kit above is what the records say" }}
+            {{ unit.lastCheckedAt ? `Last checked ${formatDate(unit.lastCheckedAt)}` : "Never checked — the list above is what the records say" }}
           </p>
         </BaseCard>
 
@@ -173,7 +173,7 @@ const kitLines = computed<UnitKitLineDto[]>(() =>
         />
 
         <section class="space-y-3">
-          <h2 class="text-sm font-semibold text-ink">Kit</h2>
+          <h2 class="text-sm font-semibold text-ink">Should carry</h2>
             <DataTable :columns="KIT_COLUMNS" :rows="kitLines" row-key="assetTypeId" :loading="isLoading">
               <template #cell-delta="{ value }">
                 <span v-if="value < 0" class="font-semibold text-danger-700">{{ value }}</span>
@@ -193,7 +193,7 @@ const kitLines = computed<UnitKitLineDto[]>(() =>
         </section>
 
         <section class="space-y-3">
-          <h2 class="text-sm font-semibold text-ink">On the unit</h2>
+          <h2 class="text-sm font-semibold text-ink">On board</h2>
             <DataTable :columns="ASSET_COLUMNS" :rows="assets" row-key="id" :loading="isLoading">
               <template #actions="{ row }">
                 <KebabMenu v-if="canManage">
@@ -204,7 +204,7 @@ const kitLines = computed<UnitKitLineDto[]>(() =>
                 </KebabMenu>
               </template>
               <template #empty>
-                <p>This unit is carrying nothing that has a number on it.</p>
+                <p>Nothing with a number on it is on board.</p>
               </template>
             </DataTable>
         </section>

@@ -84,16 +84,16 @@ const apart = (days: number | null) => (days == null ? "—" : `${Math.abs(days)
 <template>
   <div class="space-y-6">
     <PageHeader
-      description="Trucks and trailers whose annual inspection date in FleetPal disagrees with our record. The dispatch board reads our record."
+      description="Trucks and trailers whose annual inspection date in FleetPal disagrees with our record. Dispatch uses our date."
     />
 
     <DataWorkspace>
       <FilterBar
         v-model:search="search"
         embedded
-        search-placeholder="Search unit…"
+        search-placeholder="Search truck or trailer…"
         :count="rows.length"
-        count-label="units"
+        count-label="trucks and trailers"
         :active-count="activeFilterCount"
         @clear-all="clearFilters"
       >
@@ -127,10 +127,10 @@ const apart = (days: number | null) => (days == null ? "—" : `${Math.abs(days)
                screen (browser pass, 2026-10-16). -->
           <p class="text-ink-secondary">{{ whatToCheck(row) }}</p>
           <!-- The rows that change what the board says, named, since they are why this list exists. -->
-          <div v-if="row.ours !== row.fleetpal" class="mt-1"><AppBadge tone="caution">The board would read it differently</AppBadge></div>
+          <div v-if="row.ours !== row.fleetpal" class="mt-1"><AppBadge tone="caution">Dispatch would use a different date</AppBadge></div>
         </template>
         <template #empty>
-          <p v-if="activeFilterCount">No unit matches that.</p>
+          <p v-if="activeFilterCount">No truck or trailer matches that.</p>
           <p v-else>FleetPal and our record agree on every annual inspection date.</p>
         </template>
         <template #footer>

@@ -184,7 +184,7 @@ const uploadAccept = acceptFor(INVENTORY_PHOTO_CONTENT_TYPES);
 
 <template>
   <div class="space-y-6">
-    <PageHeader :title="asset?.displayNo ?? 'Asset'" :description="asset?.name">
+    <PageHeader :title="asset?.displayNo ?? 'Equipment'" :description="asset?.name">
       <template v-if="asset" #actions>
         <!-- R7: one asset's label, one tap from the asset — the Labels screen already takes `?asset=`
              and preselects it. Gated on the screen opening (SP5), not on manage: the list pages'
@@ -203,7 +203,7 @@ const uploadAccept = acceptFor(INVENTORY_PHOTO_CONTENT_TYPES);
       :error="isError ? error : null"
       :retrying="isFetching"
       loading-text="Loading the asset…"
-      error-text="Could not load the asset."
+      error-text="Could not load this item."
       not-found-text="That asset is not on the books. It may have been entered under another number, or the link is incomplete."
       @retry="refetch()"
     >
@@ -219,7 +219,7 @@ const uploadAccept = acceptFor(INVENTORY_PHOTO_CONTENT_TYPES);
                 :alt="`Photo of ${asset.displayNo}`"
                 class="size-12 shrink-0 rounded-surface object-cover ring-1 ring-edge"
               />
-              <h2 class="text-sm font-semibold text-ink">Asset summary</h2>
+              <h2 class="text-sm font-semibold text-ink">Details</h2>
             </div>
             <div class="flex shrink-0 items-center gap-2">
               <BaseButton

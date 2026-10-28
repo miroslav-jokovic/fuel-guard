@@ -82,7 +82,7 @@ const columns: DataTableColumn[] = [
 
 <template>
   <div class="space-y-6">
-    <PageHeader description="What the ledger booked against repairs and the shop, line by line. Annual inspections and inspectors have their own pages under Maintenance.">
+    <PageHeader description="What the books show was paid for repairs and the shop, line by line.">
       <template v-if="canReadFinance" #actions>
         <RouterLink to="/fleet-report" class="text-sm font-medium text-link hover:text-link-hover">
           Maintenance and tires on the fleet report →

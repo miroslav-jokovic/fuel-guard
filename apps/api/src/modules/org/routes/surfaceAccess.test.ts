@@ -208,8 +208,10 @@ describe("PUT /api/surface-access", () => {
    * the shipped gate moved underneath it.
    */
   it("allowing a screen back asks for NO row (null) instead of storing `true`", async () => {
+    // A screen that starts ON for the role. (It was `maintenance.inspectors` until D-MX1 made that a
+    // Settings card with `startsOnFor: []`, where `true` is the real answer the next case pins.)
     await withServer(async (base) => {
-      const res = await put(base, { role: "technician", surfaceKey: "maintenance.inspectors", allowed: true });
+      const res = await put(base, { role: "technician", surfaceKey: "maintenance.units", allowed: true });
       expect(res.status).toBe(200);
     });
     expect(cellCalls()).toHaveLength(1);

@@ -30,7 +30,9 @@ const { requireSurface } = await import("./requireSurface.js");
 beforeEach(() => {
   rec = createSupabaseRecorder({
     tables: {
-      org_role_surface_access: [],
+      // The register starts OFF for every role but admin since it became a Settings card (D-MX1,
+      // Q-SET2), so "their role keeps it" below is this row — the org granting it to technicians.
+      org_role_surface_access: [{ role: "technician", surface_key: "maintenance.inspectors", allowed: true }],
       user_surface_access: (q) => {
         const rows = [
           { user_id: GRANTED, surface_key: "admin.settings.org", allowed: true },

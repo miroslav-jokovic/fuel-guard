@@ -69,11 +69,11 @@ const KIND_OPTIONS = [
   { value: "trailer", label: "Trailers" },
 ];
 const KIT_OPTIONS = [
-  { value: "", label: "Every unit" },
-  { value: "short", label: "Short of something" },
+  { value: "", label: "Every truck and trailer" },
+  { value: "short", label: "Missing equipment" },
   // R10: the shop home's "Short of kit" tile links here. While a fleet is being tagged every unit is
   // short on paper; a unit somebody has walked and found short is the one worth the trip.
-  { value: "short-checked", label: "Short, and checked" },
+  { value: "short-checked", label: "Missing equipment, and checked" },
 ];
 
 const PAGE_SIZE = 20;
@@ -110,9 +110,9 @@ const page = qs.page();
 const pageRows = computed(() => rows.value.slice((page.value - 1) * PAGE_SIZE, page.value * PAGE_SIZE));
 
 const COLUMNS: DataTableColumn[] = [
-  { key: "unitNumber", label: "Unit", sortable: true, cellClass: "font-medium text-ink", width: "sm" },
+  { key: "unitNumber", label: "Number", sortable: true, cellClass: "font-medium text-ink", width: "sm" },
   { key: "kind", label: "Kind", sortable: true, cellClass: "text-ink-secondary" },
-  { key: "lines", label: "Kit" },
+  { key: "lines", label: "Should carry" },
   { key: "shortBy", label: "Missing", sortable: true, numeric: true },
   { key: "state", label: "Status", sortable: true, width: "sm" },
   { key: "lastCheckedAt", label: "Last checked", cellClass: "text-ink-secondary" },
@@ -144,12 +144,12 @@ const rulesOpen = ref(false);
 
 <template>
   <div class="space-y-6">
-    <PageHeader description="What every truck and trailer is supposed to be carrying, and what it is missing.">
+    <PageHeader description="What every truck and trailer should carry, and what it is missing.">
       <template #actions>
         <!-- Worded, not an icon-only gear — `PartsPage.vue` records why. This is the page's only
              action, and an unlabelled one was the whole of its header. -->
         <BaseButton v-if="session.can('maintenance')" @click="rulesOpen = true">
-          <AppIcon :icon="Cog6ToothIcon" class="-ml-0.5 size-5" aria-hidden="true" /> Kit rules
+          <AppIcon :icon="Cog6ToothIcon" class="-ml-0.5 size-5" aria-hidden="true" /> What each truck should carry
         </BaseButton>
       </template>
     </PageHeader>
@@ -158,15 +158,15 @@ const rulesOpen = ref(false);
       <FilterBar
         v-model:search="search"
         embedded
-        search-placeholder="Search unit number…"
+        search-placeholder="Search truck or trailer number…"
         :count="rows.length"
-        count-label="units"
+        count-label="trucks and trailers"
         :active-count="activeFilterCount"
         @clear-all="resetFilters"
       >
         <template #filters>
           <FilterSelect v-model="kind" label="Kind" :options="KIND_OPTIONS" />
-          <FilterSelect v-model="kit" label="Kit" :options="KIT_OPTIONS" />
+          <FilterSelect v-model="kit" label="Equipment" :options="KIT_OPTIONS" />
         </template>
       </FilterBar>
 
@@ -188,7 +188,7 @@ const rulesOpen = ref(false);
           <span v-if="expectedKinds(row)" class="text-ink-secondary">
             {{ carried(row) }} of {{ expectedKinds(row) }} carried
           </span>
-          <span v-else class="text-ink-tertiary">Nothing expected yet</span>
+          <span v-else class="text-ink-tertiary">Nothing set up yet</span>
         </template>
         <template #cell-shortBy="{ value }">
           <span v-if="value > 0" class="font-semibold text-danger-700">{{ value }}</span>
@@ -207,20 +207,20 @@ const rulesOpen = ref(false);
         </template>
         <template #actions="{ row }">
           <KebabMenu>
-            <BaseButton class="kebab-item" @click="openUnit(row)">Open unit</BaseButton>
+            <BaseButton class="kebab-item" @click="openUnit(row)">Open</BaseButton>
           </KebabMenu>
         </template>
         <template #empty>
-          <p v-if="search">No unit number matches that.</p>
+          <p v-if="search">No truck or trailer number matches that.</p>
           <p v-else-if="kit === 'short'">
-            Nothing is short. Every truck and trailer is carrying what its kit asks for.
+            Nothing is missing. Every truck and trailer is carrying what it should.
           </p>
           <p v-else-if="kit === 'short-checked'">
-            Nothing checked is short. Units nobody has checked yet are not counted here.
+            Nothing checked is missing anything. Trucks and trailers nobody has checked yet are not counted here.
           </p>
           <p v-else>
-            No units yet. Trucks and trailers arrive from the roster — add one there, and its kit
-            shows up here.
+            No trucks or trailers yet. They arrive from the roster — add one there, and it shows
+            up here.
           </p>
         </template>
         <template #footer>

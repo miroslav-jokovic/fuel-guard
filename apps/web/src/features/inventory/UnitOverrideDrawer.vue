@@ -97,10 +97,10 @@ async function submit() {
         quantity,
       });
     }
-    toast.success("Kit saved for this unit");
+    toast.success("Saved");
     emit("close");
   } catch (e) {
-    toast.error("Could not save this unit's kit", e instanceof Error ? e.message : undefined);
+    toast.error("Could not save", e instanceof Error ? e.message : undefined);
   }
 }
 </script>
@@ -108,8 +108,8 @@ async function submit() {
 <template>
   <SlideOver
     :open="open"
-    :title="`Kit for ${unit.unitNumber}`"
-    :description="`Numbers for this unit alone. Leave a row empty to follow the rule for every ${unit.kind === 'tractor' ? 'truck' : unit.kind === 'reefer_trailer' ? 'reefer' : 'trailer'}; type 0 to say this one carries none.`"
+    :title="`What ${unit.unitNumber} should carry`"
+    :description="`Numbers for this one alone. Leave a row empty to follow the rule for every ${unit.kind === 'tractor' ? 'truck' : unit.kind === 'reefer_trailer' ? 'reefer' : 'trailer'}; type 0 to say this one carries none.`"
     @close="emit('close')"
   >
     <form :id="FORM_ID" class="space-y-4" @submit.prevent="submit">
@@ -136,7 +136,7 @@ async function submit() {
       <div class="flex items-center justify-end gap-3">
         <BaseButton variant="ghost" :disabled="busy" @click="emit('close')">Cancel</BaseButton>
         <BaseButton :form="FORM_ID" type="submit" variant="primary" :disabled="busy || !rows.length">
-          {{ busy ? "Saving…" : "Save kit" }}
+          {{ busy ? "Saving…" : "Save" }}
         </BaseButton>
       </div>
     </template>

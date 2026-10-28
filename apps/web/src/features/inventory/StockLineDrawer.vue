@@ -120,21 +120,21 @@ async function onSubmit() {
           :id="id"
           v-model="form.locationId"
           :options="locationOptions"
-          placeholder="Choose a location"
-          empty-text="No stock locations yet — add one under Stock locations on Parts."
+          placeholder="Choose a place"
+          empty-text="No places yet — add one under Places on Parts."
         />
       </FormField>
 
       <div class="grid grid-cols-2 gap-3">
         <FormField
           v-slot="{ id }"
-          label="Reorder point"
+          label="Order when below"
           hint="Leave blank if nobody has decided. Blank is never low."
           :error="errors.reorderPoint"
         >
           <BaseInput :id="id" v-model="form.reorderPoint" inputmode="numeric" :invalid="!!errors.reorderPoint" />
         </FormField>
-        <FormField v-slot="{ id }" label="Reorder quantity" hint="How many to buy." :error="errors.reorderQuantity">
+        <FormField v-slot="{ id }" label="How many to order" hint="How many to buy." :error="errors.reorderQuantity">
           <BaseInput
             :id="id"
             v-model="form.reorderQuantity"

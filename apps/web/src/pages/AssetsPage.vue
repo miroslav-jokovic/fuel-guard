@@ -126,7 +126,7 @@ const creating = qs.flag("new");
              dead end `LocationsDrawer.vue` closed for stock locations at I4. Worded rather than an
              icon-only gear for the reason `PartsPage.vue` records. -->
         <BaseButton v-if="session.can('maintenance')" @click="typesOpen = true">
-          <AppIcon :icon="Cog6ToothIcon" class="-ml-0.5 size-5" aria-hidden="true" /> Asset kinds
+          <AppIcon :icon="Cog6ToothIcon" class="-ml-0.5 size-5" aria-hidden="true" /> Types of equipment
         </BaseButton>
         <!-- SP5: shown when Labels opens. It is `maintenance` view and answers to the shop home's screen
              (`maintenance.repair-spend`, D-SURF8), which is switchable per person apart from this page —
@@ -135,7 +135,7 @@ const creating = qs.flag("new");
           <AppIcon :icon="ScanIcon" class="-ml-0.5 size-5" aria-hidden="true" /> Labels
         </BaseButton>
         <BaseButton v-if="session.can('maintenance')" variant="primary" @click="creating = true">
-          <AppIcon :icon="PlusIcon" class="-ml-0.5 size-5" aria-hidden="true" /> New asset
+          <AppIcon :icon="PlusIcon" class="-ml-0.5 size-5" aria-hidden="true" /> Add equipment
         </BaseButton>
       </template>
     </PageHeader>
@@ -146,7 +146,7 @@ const creating = qs.flag("new");
         embedded
         search-placeholder="Search number, name, serial or tag…"
         :count="assets.data.value?.total ?? 0"
-        count-label="assets"
+        count-label="items"
         :active-count="activeFilterCount"
         @clear-all="resetFilters"
       >
@@ -186,16 +186,16 @@ const creating = qs.flag("new");
         </template>
         <template #actions="{ row }">
           <KebabMenu>
-            <BaseButton class="kebab-item" @click="openAsset(row)">Open asset</BaseButton>
+            <BaseButton class="kebab-item" @click="openAsset(row)">Open</BaseButton>
           </KebabMenu>
         </template>
         <template #empty>
-          <p v-if="search">No asset matches that. Try its number, its serial, or the tag on it.</p>
+          <p v-if="search">Nothing matches that. Try its number, its serial, or the tag on it.</p>
           <p v-else-if="filtered">
             Nothing matches those filters. Clear them to see everything the shop owns.
           </p>
           <p v-else>
-            No assets yet. Set up the kinds of thing under Asset kinds first — then add the first
+            No equipment yet. Set up the types under Types of equipment first — then add the first
             tablet or load bar, and the shop starts knowing which truck has it.
           </p>
         </template>

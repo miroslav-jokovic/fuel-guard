@@ -46,6 +46,17 @@ const TYPES = [
 
 /** Rows shaped as the roster's tables, because `listEquipmentIdentities` reads them directly. */
 const vehicles = [{ id: TRUCK, unit_number: "654", vin: null, plate: null }];
+/**
+ * Two sold trucks, one per reading of the fact (D-MX1): McLeod's `winding_down` column, and the
+ * "- SOLD" the office types into the unit number before the sweep carries it.
+ */
+const SOLD_SWEPT = "11111111-1111-4111-8111-00000000s001";
+const SOLD_TYPED = "11111111-1111-4111-8111-00000000s002";
+const soldVehicles = [
+  ...vehicles,
+  { id: SOLD_SWEPT, unit_number: "560", vin: null, plate: null, winding_down: true },
+  { id: SOLD_TYPED, unit_number: "506 - SOLD", vin: null, plate: null, winding_down: null },
+];
 const trailers = [
   { id: DRYVAN, unit_number: "T-4102", vin: null, plate: null, is_reefer: false, trailer_type: "dry_van" },
   { id: REEFER, unit_number: "R-8800", vin: null, plate: null, is_reefer: true, trailer_type: "reefer" },
@@ -95,10 +106,16 @@ const held = (assetTypeId: string, unit: { vehicle?: string; trailer?: string },
 const SCOPED = { exempt: ["user_profiles"] };
 
 /** Answers each table on the filters the service actually sent. */
-const recorder = (opts: { expectations?: unknown[]; held?: unknown[]; checks?: unknown[] } = {}) =>
+const recorder = (opts: { expectations?: unknown[]; held?: unknown[]; checks?: unknown[]; vehicles?: unknown[] } = {}) =>
   createSupabaseRecorder({
     tables: {
-      vehicles: () => vehicles,
+      // Honours the `not("winding_down", "is", true)` op the way Postgres would, so a swept sold
+      // truck is excluded only if the service actually sends the filter.
+      vehicles: (q) => {
+        const rows = (opts.vehicles ?? vehicles) as Array<Record<string, unknown>>;
+        const dropsWinding = q.ops.some((o) => o.method === "not" && o.args[0] === "winding_down");
+        return dropsWinding ? rows.filter((r) => r.winding_down !== true) : rows;
+      },
       trailers: () => trailers,
       asset_types: () => TYPES,
       kit_expectations: () => opts.expectations ?? [],
@@ -253,6 +270,19 @@ describe("the fleet list", () => {
     // The truck holds everything the type defaults ask for; the two trailers hold nothing.
     expect(all.units).toHaveLength(3);
     expect(short.units.map((u) => u.unitNumber).sort()).toEqual(["R-8800", "T-4102"]);
+  });
+
+  /**
+   * D-MX1 (2026-10-27): "506 - SOLD · Nothing set up yet" topped the list 27 times. Both readings
+   * of "sold" are dropped — the swept column by the query, the typed suffix by the service — and
+   * the live truck beside them is untouched.
+   */
+  it("leaves sold trucks off the shop's list, whichever way the fact was recorded", async () => {
+    rec = recorder({ vehicles: soldVehicles });
+    const result = await listUnitKits(rec.client, ORG, { kind: "tractor" });
+    if ("error" in result) throw new Error(result.error);
+    expect(result.units.map((u) => u.unitNumber)).toEqual(["654"]);
+    expect(result.total).toBe(1);
   });
 
   it("does not look a driver up for a list it does not show one on", async () => {

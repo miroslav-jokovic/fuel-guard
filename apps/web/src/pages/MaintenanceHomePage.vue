@@ -151,7 +151,7 @@ const LOW_COLUMNS: DataTableColumn[] = [
 ];
 
 const SHORT_COLUMNS: DataTableColumn[] = [
-  { key: "unitNumber", label: "Unit", cellClass: "font-medium text-ink", width: "sm" },
+  { key: "unitNumber", label: "Number", cellClass: "font-medium text-ink", width: "sm" },
   { key: "shortBy", label: "Missing", numeric: true },
   { key: "state", label: "Status", width: "sm" },
 ];
@@ -233,7 +233,7 @@ const unitPath = (u: UnitKitDto) =>
     <template v-else>
       <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard
-          label="Low stock"
+          label="Running low"
           :value="lowTotal"
           :muted="lowTotal === 0"
           :sub="lowTotal === 0 ? 'Nothing at its reorder point' : 'Shelves at or below their reorder point'"
@@ -246,7 +246,7 @@ const unitPath = (u: UnitKitDto) =>
           @retry="lowStock.refetch()"
         />
         <StatCard
-          label="Short of kit"
+          label="Missing equipment"
           :value="shortTotal"
           :muted="shortTotal === 0"
           :sub="shortTotal === 0 ? 'No checked unit is missing anything' : 'Checked units missing something'"
@@ -319,13 +319,13 @@ const unitPath = (u: UnitKitDto) =>
 
         <section class="space-y-3">
           <div class="flex items-center justify-between gap-4">
-            <h2 class="text-sm font-semibold text-ink">Short of kit</h2>
+            <h2 class="text-sm font-semibold text-ink">Missing equipment</h2>
             <RouterLink
               v-if="shortTotal > PREVIEW_ROWS && unitsOpen"
               to="/shop/units?kit=short-checked"
               class="text-sm font-medium text-link hover:text-link-hover"
             >
-              All {{ shortTotal }} units
+              All {{ shortTotal }} trucks and trailers
             </RouterLink>
           </div>
           <DataTable
@@ -348,7 +348,7 @@ const unitPath = (u: UnitKitDto) =>
               <span v-else class="text-ink-tertiary">—</span>
             </template>
             <template #empty>
-              <p>No checked unit is short. Units nobody has checked yet are not counted here.</p>
+              <p>No checked truck or trailer is missing anything. Ones nobody has checked yet are not counted here.</p>
             </template>
           </DataTable>
         </section>

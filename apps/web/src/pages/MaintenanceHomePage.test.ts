@@ -195,7 +195,7 @@ describe("the tiles", () => {
   it("counts the units short of their kit and links the tile to the Units page's own filter", () => {
     short.value = { units: [unit(), unit({ unitId: "u2", unitNumber: "720", shortBy: 1 })], total: 2 };
     const w = page();
-    expect(w.text()).toContain("Short of kit");
+    expect(w.text()).toContain("Missing equipment");
     expect(w.html()).toContain("/shop/units?kit=short-checked");
   });
 
@@ -298,9 +298,9 @@ describe("doors that open only where their page does (SP5)", () => {
     expect(page().html()).toContain("/shop/units?kit=short");
     session.surfaces = { "maintenance.units": false };
     const w = page();
-    expect(w.text()).toContain("Short of kit");
+    expect(w.text()).toContain("Missing equipment");
     expect(w.html()).not.toContain("/shop/units?kit=short");
-    expect(w.text()).not.toContain("All 12 units");
+    expect(w.text()).not.toContain("All 12 trucks and trailers");
   });
 
   it("drops Add a part when Parts is off for this person", () => {
@@ -406,7 +406,7 @@ describe("open counts", () => {
     };
     const text = page().text();
     expect(text).toContain("Open counts");
-    expect(text).toContain("Kit check — 654");
+    expect(text).toContain("Equipment check — 654");
   });
 
   it("draws nothing when nothing is open", () => {

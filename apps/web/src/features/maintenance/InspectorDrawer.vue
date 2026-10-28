@@ -96,7 +96,7 @@ async function save() {
       </section>
 
       <section aria-labelledby="inspector-qualification">
-        <h3 id="inspector-qualification" class="text-sm font-semibold text-ink">Qualification</h3>
+        <h3 id="inspector-qualification" class="text-sm font-semibold text-ink">Training</h3>
         <p class="mt-1 text-sm text-ink-muted">
           The report states that the person who signed it is qualified. This is what it states it from.
         </p>
@@ -106,7 +106,7 @@ async function save() {
                `ComboSelect` in forms. `AppSelect` is a bare native `<select>`, so its panel is drawn
                by the operating system: different type, different metrics, different focus ring, and
                on this drawer it sat directly beside a tokened one. -->
-          <FormField v-slot="{ id }" label="Qualified by">
+          <FormField v-slot="{ id }" label="Trained as">
             <ComboSelect
               :id="id"
               v-model="form.qualificationBasis"
@@ -116,8 +116,8 @@ async function save() {
               ]"
             />
           </FormField>
-          <AppCheckbox v-model="form.brakeQualified" label="Also qualified to inspect brakes" />
-          <FormField v-slot="{ id }" label="Qualified from">
+          <AppCheckbox v-model="form.brakeQualified" label="Also trained to inspect brakes" />
+          <FormField v-slot="{ id }" label="Trained since">
             <AppDateField :id="id" v-model="form.effectiveFrom" />
           </FormField>
           <FormField v-slot="{ id }" label="Notes">

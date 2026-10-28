@@ -103,10 +103,10 @@ async function submit() {
       if (unchanged) continue;
       await save.mutateAsync({ assetTypeId: row.id, unitKind: kind.value, quantity });
     }
-    toast.success("Kit rules saved");
+    toast.success("Saved");
     emit("close");
   } catch (e) {
-    toast.error("Could not save the kit rules", e instanceof Error ? e.message : undefined);
+    toast.error("Could not save", e instanceof Error ? e.message : undefined);
   }
 }
 </script>
@@ -114,15 +114,15 @@ async function submit() {
 <template>
   <SlideOver
     :open="open"
-    title="Kit rules"
-    description="How many of each thing a kind of unit carries. Leave a row empty to use the kind's own default; type 0 to say it carries none."
+    title="What each truck should carry"
+    description="How many of each thing a truck, dry van or reefer carries. Leave a row empty to use the type's own default; type 0 to say it carries none."
     @close="emit('close')"
   >
     <form :id="FORM_ID" class="space-y-6" @submit.prevent="submit">
       <AppSegmentedControl
         :model-value="kind"
         :options="KIND_OPTIONS"
-        label="Kind of unit"
+        label="Truck or trailer type"
         @update:model-value="kind = $event as UnitKind"
       />
 
@@ -132,7 +132,7 @@ async function submit() {
           :key="row.id"
           v-slot="{ id }"
           :label="row.name"
-          :hint="row.ruleId ? 'A rule for this kind' : `The type's own default is ${row.typeDefault}`"
+          :hint="row.ruleId ? 'A rule for this type' : `The default is ${row.typeDefault}`"
         >
           <BaseInput
             :id="id"

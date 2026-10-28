@@ -128,8 +128,8 @@ async function adoptKit() {
 <template>
   <SlideOver
     :open="props.open"
-    title="Asset kinds"
-    description="A kind of thing is what an asset is one of, and what a kit rule counts. Nothing can be added to the shop until at least one exists."
+    title="Types of equipment"
+    description="A type is what a piece of equipment is one of, and what a should-carry rule counts. Nothing can be added until at least one exists."
     @close="emit('close')"
   >
     <div class="space-y-4">
@@ -137,15 +137,15 @@ async function adoptKit() {
         :loading="isLoading"
         :error="isError"
         :retrying="isFetching"
-        loading-text="Loading the kinds of thing…"
-        error-text="Could not load the kinds of thing."
+        loading-text="Loading the types…"
+        error-text="Could not load the types."
         @retry="refetch()"
       >
         <!-- A4's answer, and only while there is nothing. See the header for why it disappears. -->
         <div v-if="empty" class="rounded-control bg-surface-subtle px-3 py-2.5 ring-1 ring-edge">
-          <p class="text-sm font-medium text-ink">Start from the standard kit</p>
+          <p class="text-sm font-medium text-ink">Start from the standard list</p>
           <p class="mt-0.5 text-xs text-ink-muted">
-            Twelve kinds of thing and the kit each truck, dry van and reefer carries — the five
+            Twelve types and what each truck, dry van and reefer carries — the five
             §393.95 asks about, plus this fleet's securement. Every number is editable afterwards.
           </p>
           <BaseButton class="mt-2" variant="primary" :disabled="busy" @click="adoptKit">
@@ -178,8 +178,8 @@ async function adoptKit() {
           </FormField>
           <FormField
             v-slot="{ id }"
-            label="How many a unit carries by default"
-            hint="Used when no kit rule says otherwise. Zero is the usual answer — the rules on Units say the rest."
+            label="How many a truck or trailer carries by default"
+            hint="Used when no rule says otherwise. Zero is the usual answer — the rules on Trucks & trailers say the rest."
             :error="errors.defaultKitQuantity"
           >
             <BaseInput :id="id" v-model="form.defaultKitQuantity" inputmode="numeric" />
@@ -208,7 +208,7 @@ async function adoptKit() {
       </div>
       <div v-else class="flex items-center justify-end gap-3">
         <BaseButton variant="ghost" @click="emit('close')">Close</BaseButton>
-        <BaseButton variant="primary" :disabled="busy" @click="startAdd">Add a kind of thing</BaseButton>
+        <BaseButton variant="primary" :disabled="busy" @click="startAdd">Add a type</BaseButton>
       </div>
     </template>
   </SlideOver>

@@ -137,8 +137,8 @@ describe("buildNavGroups is unchanged by the surface catalogue (S1)", () => {
       // I8's Assets, arriving GRANTED for exactly the reason the note above states: a surface claim
       // is sparse, and a screen that did not exist when this override was written cannot have been
       // denied by it. The list growing here is the rule working, not a regression.
-      "Assets → /shop/assets",
-      "Units → /shop/units",
+      // …and since D-MX1 (2026-10-27) Equipment is reached from Trucks & trailers rather than a row.
+      "Trucks & trailers → /shop/units",
       "Annual inspections → /shop/inspections",
     ]);
     expect(denied).toMatchSnapshot();
