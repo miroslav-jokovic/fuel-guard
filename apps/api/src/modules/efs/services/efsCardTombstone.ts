@@ -73,29 +73,41 @@ export async function tombstoneAbsentCards(
   env: Env,
   orgId: string,
   summaries: readonly CardSummaryRow[],
+  opts: { unseenSince?: string } = {},
 ): Promise<TombstoneResult> {
   const none: TombstoneResult = { tombstoned: 0, candidates: 0, refused: false };
   if (summaries.length === 0) return none;
   const present = new Set(summaries.map((s) => cardRefHmac(env, orgId, s.cardNumber)));
 
   // Read the org's hmac + current absent flag in pages (same max-rows discipline as the roster read).
-  const rows: { card_ref_hmac: string; absent_since: string | null }[] = [];
+  const rows: { card_ref_hmac: string; absent_since: string | null; synced_at: string | null }[] = [];
   const PAGE = 1_000;
   for (let from = 0; ; from += PAGE) {
     const { data, error } = await admin
       .from("efs_cards")
-      .select("card_ref_hmac, absent_since")
+      .select("card_ref_hmac, absent_since, synced_at")
       .eq("org_id", orgId)
       .order("card_ref_hmac", { ascending: true })
       .range(from, from + PAGE - 1);
     if (error) return none; // best effort: a tombstone failure must not fail the whole sweep
-    const page = (data ?? []) as { card_ref_hmac: string; absent_since: string | null }[];
+    const page = (data ?? []) as { card_ref_hmac: string; absent_since: string | null; synced_at: string | null }[];
     rows.push(...page);
     if (page.length < PAGE) break;
   }
 
   const nowIso = new Date().toISOString();
-  const toMark = rows.filter((r) => !present.has(r.card_ref_hmac) && r.absent_since === null).map((r) => r.card_ref_hmac);
+  // `unseenSince` is the status poll's evidence rule: one roster missing a card is not enough, but
+  // a card absent from every roster since the cutoff has missed several in a row — every poll that
+  // lists a card stamps its `synced_at`, so the column already counts the misses. Compared here, not
+  // in the query, so the rule is the same whatever the client does with a filter, and as instants,
+  // because PostgREST writes `+00:00` where JavaScript writes `Z`. The daily sweep passes nothing and
+  // keeps its one-roster rule.
+  const cutoff = opts.unseenSince === undefined ? null : Date.parse(opts.unseenSince);
+  const unseen = (r: { synced_at: string | null }) =>
+    cutoff === null || r.synced_at === null || Date.parse(r.synced_at) < cutoff;
+  const toMark = rows
+    .filter((r) => !present.has(r.card_ref_hmac) && r.absent_since === null && unseen(r))
+    .map((r) => r.card_ref_hmac);
   const toClear = rows.filter((r) => present.has(r.card_ref_hmac) && r.absent_since !== null).map((r) => r.card_ref_hmac);
 
   if (toClear.length > 0) {
