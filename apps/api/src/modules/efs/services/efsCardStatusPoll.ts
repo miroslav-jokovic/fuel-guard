@@ -9,6 +9,8 @@ import { signalCardStatusChangedExternally, signalStatusPollRefused } from "../.
 import { getCardSummaries, type CardSummaryRow } from "../lib/efsCardOps.js";
 import { orgTimeZone } from "./cardStatusSummary.js";
 import { cardRefHmac, refreshCardDetail, upsertFromSummary } from "./efsCardMirror.js";
+import { staleAfterMinutes } from "./efsCardCadence.js";
+import { tombstoneAbsentCards } from "./efsCardTombstone.js";
 import type { EfsSoapCredentials } from "./efsSoapCredentials.js";
 
 /**
@@ -28,9 +30,16 @@ import type { EfsSoapCredentials } from "./efsSoapCredentials.js";
  * answered by the arithmetic, not waived. Only a card whose status CHANGED (or that is new) costs a
  * `getCardv2`, bounded by `maxDetail`.
  *
- * ── WHAT IT DOES NOT DO ─────────────────────────────────────────────────────────────────────────
- * Tombstone. A card missing from one roster is not evidence enough to mark it absent every five
- * minutes; the daily sweep keeps that job and its ratio guard.
+ * ── A CARD WEX STOPS LISTING ────────────────────────────────────────────────────────────────────
+ * Marked absent once it has been missing from every roster for `staleAfterMinutes` — three polls —
+ * through the sweep's own `tombstoneAbsentCards` and its ratio guard. This poll first left that to
+ * the daily sweep, on the sound ground that ONE missing roster entry is not evidence; but a day is
+ * not the only alternative to one roster. On 2026-10-27 WEX de-listed two HOLD cards at 18:20Z: the
+ * poll stopped stamping them, nothing marked them gone, and until the sweep at ~05:30Z the next
+ * morning they sat in the list as live cards and held the Fuel Cards page at "Checked 6 hours ago.
+ * Refresh to see current settings." — advice no refresh could satisfy. Three consecutive misses is
+ * the same threshold at which the page calls a card stale, so the page never warns about a card
+ * this poll has not had the chance to settle. A card that comes back is cleared on the next poll.
  */
 
 /** Share of the fleet whose status may change in one poll before the batch is held back. */
@@ -50,6 +59,10 @@ export interface CardStatusPollResult {
   detailed: number;
   /** The ratio guard held the batch's status back. `statusChanges` still counts what it saw. */
   refused: boolean;
+  /** Cards marked absent this poll — unseen in every roster for `staleAfterMinutes`. */
+  tombstoned: number;
+  /** Absent candidates the tombstone ratio guard refused to mark; non-zero means `tombstoned` is 0 by decision. */
+  tombstoneRefused: number;
   failed: number;
   errors: string[];
 }
@@ -74,7 +87,7 @@ export async function pollEfsCardStatus(
   const orgId = creds.orgId;
   const result: CardStatusPollResult = {
     orgId, cardsSeen: 0, statusChanges: 0, externalChanges: 0, newCards: 0, detailed: 0,
-    refused: false, failed: 0, errors: [],
+    refused: false, tombstoned: 0, tombstoneRefused: 0, failed: 0, errors: [],
   };
   if (!isSecretBoxConfigured(env)) {
     // A new card's PAN is sealed on first sighting; refuse rather than store it any other way.
@@ -129,6 +142,12 @@ export async function pollEfsCardStatus(
   }
 
   if (!result.refused) {
+    // Not under the status guard's refusal: a roster that moved a fifth of the fleet's statuses at
+    // once is not one to judge absence by either.
+    const unseenSince = new Date(Date.now() - staleAfterMinutes(env) * 60_000).toISOString();
+    const absent = await tombstoneAbsentCards(admin, env, orgId, summaries, { unseenSince });
+    result.tombstoned = absent.tombstoned;
+    result.tombstoneRefused = absent.refused ? absent.candidates : 0;
     await refreshDetails(admin, env, creds, [...changes.map((c) => c.summary), ...fresh], opts, result);
     result.externalChanges = await recordExternalChanges(admin, orgId, changes, opts.now ?? new Date());
   }

@@ -33,6 +33,16 @@ export const efsWindowRefetchHandler: JobHandler = async (ctx, job) => {
   return result;
 };
 
+/**
+ * A `failed` ingest FAILS the job (2026-10-28). It used to be returned as stats on a `done` job, so
+ * the ledger read clean while the feed was refused: from the AWS cutover on 2026-10-27, the QA org's
+ * sandbox feed was refused by WEX's firewall every minute and every run was recorded `done`. That is
+ * worse than noise — `financialFreshness` measures "EFS transactions have not updated" from the last
+ * DONE `efs_soap_posted`, so a firewall block on a real fleet would have kept that alert silent for as
+ * long as it lasted. The status poll beside it (`efsCardStatusHandler`) already throws for the same
+ * reason. `skipped_*`, `empty` and `not_implemented` are answers, not faults, and stay `done`; the
+ * queue's backoff and the (org, kind) slot keep a refused feed to one run in flight.
+ */
 export const efsSoapHandler: JobHandler = async (ctx, job) => {
   const feed = job.kind === "efs_soap_rejected" ? "rejected" : "posted";
   const stats = await runEfsSoapIngest(ctx.admin, ctx.env, job.org_id, feed);
@@ -50,5 +60,6 @@ export const efsSoapHandler: JobHandler = async (ctx, job) => {
       meta: { status: stats.status, rowsFetched: stats.rowsFetched, pagesFetched: stats.pagesFetched, error: stats.error ?? null },
     });
   }
+  if (stats.status === "failed") throw new Error(`EFS ${feed} feed failed: ${stats.error ?? "unknown"}`);
   return stats;
 };

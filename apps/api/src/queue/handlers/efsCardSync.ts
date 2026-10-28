@@ -81,11 +81,12 @@ export const efsCardStatusHandler: JobHandler = async (ctx, job) => {
   if (result.cardsSeen > 0 && result.failed >= result.cardsSeen) {
     throw new Error(`[efs-cards] org ${job.org_id}: status poll wrote nothing — ${result.errors.slice(0, 3).join("; ")}`);
   }
-  if (result.statusChanges > 0 || result.newCards > 0 || result.failed > 0) {
+  if (result.statusChanges > 0 || result.newCards > 0 || result.failed > 0 || result.tombstoned > 0 || result.tombstoneRefused > 0) {
     console.log(
       `[efs-cards] org ${job.org_id}: status poll — ${result.statusChanges} changed ` +
         `(${result.externalChanges} outside Silvicom 360${result.refused ? ", HELD by the ratio guard" : ""}), ` +
-        `${result.newCards} new, ${result.failed} failed`,
+        `${result.newCards} new, ${result.tombstoned} no longer listed by WEX` +
+        `${result.tombstoneRefused > 0 ? ` (${result.tombstoneRefused} HELD by the absence guard)` : ""}, ${result.failed} failed`,
     );
   }
   // The daily summary (Q-F3, chunk 3b) rides the poll rather than a scheduler of its own. Its own

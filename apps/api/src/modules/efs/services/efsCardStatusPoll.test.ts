@@ -7,7 +7,7 @@ import { testEnv } from "../../../testing/testEnv.js";
 import { cardRefHmac } from "./efsCardMirror.js";
 import { pollEfsCardStatus } from "./efsCardStatusPoll.js";
 import type { EfsSoapCredentials } from "./efsSoapCredentials.js";
-import { staleAfterMinutes } from "../routes/read.js";
+import { staleAfterMinutes } from "./efsCardCadence.js";
 
 /**
  * The status poll (EFS audit, 2026-09-30). What it must prove, beyond the mirror's own suite:
@@ -70,11 +70,22 @@ function vendor(first: string[]) {
   return { fetchImpl, calls };
 }
 
-const mirrorRow = (n: number, status: string) => ({
+/**
+ * A mirror row as the table holds it. `absent_since` and `synced_at` are real columns the poll now
+ * reads (it marks cards WEX stopped listing); a fixture without them reads as "absent, came back".
+ */
+const mirrorRow = (n: number, status: string, over: { absent_since?: string | null; synced_at?: string } = {}) => ({
   id: `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`,
   card_ref_hmac: cardRefHmac(env, ORG, pan(n)),
   status,
+  absent_since: null,
+  synced_at: new Date().toISOString(),
+  ...over,
 });
+const minutesAgo = (m: number) => new Date(Date.now() - m * 60_000).toISOString();
+/** Every `absent_since` the poll stamped — the destructive direction. */
+const absenceMarks = (rec: ReturnType<typeof createSupabaseRecorder>) =>
+  rec.writtenRows("efs_cards").filter((r) => typeof r.absent_since === "string");
 
 /** Every notify() the poll made. `vi.mock` is hoisted, so the array is too. */
 const notified = vi.hoisted(() => [] as Array<Record<string, unknown>>);
@@ -335,5 +346,42 @@ describe("staleAfterMinutes (the roster clock)", () => {
 
   it("with the poll off, falls back to the daily sweep plus two hours", () => {
     expect(staleAfterMinutes({ EFS_CARD_SYNC_HOURS: 24, EFS_CARD_STATUS_POLL_MINUTES: 0 })).toBe(24 * 60 + 120);
+  });
+});
+
+describe("pollEfsCardStatus — a card WEX stops listing", () => {
+  // 2026-10-27: WEX de-listed two HOLD cards at 18:20Z; the poll stopped stamping them and nothing
+  // marked them gone until the next morning's sweep, so the Fuel Cards page said "Checked 6 hours ago".
+  const tables = (rows: ReturnType<typeof mirrorRow>[]) => ({
+    tables: { efs_cards: rows, efs_card_mutations: [], audit_logs: [], memberships: MANAGERS },
+  });
+
+  it("marks a card absent once every roster has missed it for the stale threshold", async () => {
+    const rec = createSupabaseRecorder(
+      tables([mirrorRow(1, "ACTIVE"), mirrorRow(2, "HOLD", { synced_at: minutesAgo(staleAfterMinutes(env) + 1) })]),
+    );
+    const v = vendor([loginOk, roster([{ n: 1, status: "ACTIVE" }])]);
+    const result = await pollEfsCardStatus(rec.client, env, creds, { fetchImpl: v.fetchImpl });
+    expect(result).toMatchObject({ tombstoned: 1, tombstoneRefused: 0 });
+    expect(absenceMarks(rec)).toHaveLength(1);
+    expectOrgScoped(rec, ORG);
+  });
+
+  it("does not mark a card one roster happened to miss", async () => {
+    // Seen by the poll before last: one or two missing rosters are a vendor hiccup until proven otherwise.
+    const rec = createSupabaseRecorder(tables([mirrorRow(1, "ACTIVE"), mirrorRow(2, "HOLD", { synced_at: minutesAgo(6) })]));
+    const v = vendor([loginOk, roster([{ n: 1, status: "ACTIVE" }])]);
+    const result = await pollEfsCardStatus(rec.client, env, creds, { fetchImpl: v.fetchImpl });
+    expect(result.tombstoned).toBe(0);
+    expect(absenceMarks(rec)).toHaveLength(0);
+  });
+
+  it("clears the mark from a card that is listed again", async () => {
+    const rec = createSupabaseRecorder(
+      tables([mirrorRow(1, "ACTIVE"), mirrorRow(2, "HOLD", { absent_since: minutesAgo(60), synced_at: minutesAgo(60) })]),
+    );
+    const v = vendor([loginOk, roster([{ n: 1, status: "ACTIVE" }, { n: 2, status: "HOLD" }])]);
+    await pollEfsCardStatus(rec.client, env, creds, { fetchImpl: v.fetchImpl });
+    expect(rec.writtenRows("efs_cards").some((r) => "absent_since" in r && r.absent_since === null)).toBe(true);
   });
 });

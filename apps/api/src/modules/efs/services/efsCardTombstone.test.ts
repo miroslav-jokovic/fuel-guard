@@ -126,3 +126,28 @@ describe("tombstoneAbsentCards — the ratio guard", () => {
     expect(marks(rec)).toHaveLength(0);
   });
 });
+
+describe("tombstoneAbsentCards — the status poll's unseenSince rule", () => {
+  const CUTOFF = "2026-10-27T18:30:00.000Z";
+  // PostgREST's spelling of an instant, not JavaScript's — the rule must compare instants, not text.
+  const row = (n: number, syncedAt: string | null) => ({
+    card_ref_hmac: cardRefHmac(env, ORG, pan(n)),
+    absent_since: null,
+    synced_at: syncedAt,
+  });
+
+  it("marks only a missing card unseen since the cutoff", async () => {
+    const rec = createSupabaseRecorder({
+      tables: { efs_cards: [row(1, "2026-10-27T18:40:00+00:00"), row(2, "2026-10-27T18:17:35.997+00:00"), row(3, "2026-10-27T18:31:00+00:00")] },
+    });
+    // Roster lists card 1 only. Card 2 was last seen before the cutoff, card 3 after it.
+    const result = await tombstoneAbsentCards(rec.client, env, ORG, rosterOf(1), { unseenSince: CUTOFF });
+    expect(result).toMatchObject({ tombstoned: 1, candidates: 1, refused: false });
+  });
+
+  it("leaves the daily sweep's one-roster rule alone when no cutoff is given", async () => {
+    const rec = createSupabaseRecorder({ tables: { efs_cards: [row(1, null), row(2, "2026-10-27T18:29:00+00:00")] } });
+    const result = await tombstoneAbsentCards(rec.client, env, ORG, rosterOf(1));
+    expect(result.tombstoned).toBe(1);
+  });
+});
