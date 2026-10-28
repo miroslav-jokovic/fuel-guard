@@ -95,6 +95,6 @@ describe("what the operator is told before pressing", () => {
   });
 
   it("explains why the box exists at all, not just what it does", () => {
-    expect(CLEAR_EXCEPTION_HELP).toContain("would not actually lock");
+    expect(CLEAR_EXCEPTION_HELP).toContain("would not actually go on hold");
   });
 });

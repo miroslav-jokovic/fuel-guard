@@ -161,7 +161,7 @@ async function submit(): Promise<void> {
 <template>
   <SlideOver
     :open="open"
-    title="Override mileage"
+    title="Correct mileage"
     description="Correct the odometer reading EFS holds for a truck. This changes EFS's copy only."
     size="lg"
     @close="emit('close')"
@@ -250,7 +250,7 @@ async function submit(): Promise<void> {
     <template #footer>
       <BaseButton variant="secondary" :disabled="saving" @click="emit('close')">Close</BaseButton>
       <BaseButton variant="primary" :disabled="!canSubmit" @click="submit">
-        {{ saving ? "Sending…" : "Override mileage" }}
+        {{ saving ? "Sending…" : "Correct mileage" }}
       </BaseButton>
     </template>
   </SlideOver>

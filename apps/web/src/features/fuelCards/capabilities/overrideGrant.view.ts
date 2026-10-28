@@ -18,18 +18,18 @@ export const overrideGrantView = defineView(overrideGrantContract, {
     const purchases = body.uses === 1 ? "1 purchase" : `${body.uses} purchases`;
     return {
       tone: "warning",
-      title: "Grant a fuel exception?",
+      title: "Grant a fuel override?",
       body:
         `This card will be allowed ${purchases} outside its normal limits ${whereLabel(body, card.locationLabel)}. ` +
-        "The exception is used up automatically — it does not need to be revoked." +
+        "The override is used up automatically — it does not need to be revoked." +
         // Step 10.3. Names the DESTRUCTION on the same screen as the button that causes it, the rule
         // `clearExceptionClause` follows: a product override removes the card's other limits (p194).
         overrideLimitsClause(body.limits ?? [], card.limitOptions ?? [])
         // Permanent, and named at the point of commitment as well as at the point of choice.
         + handEnterClause(body.allowHandEnter === true),
-      confirmLabel: "Grant exception",
+      confirmLabel: "Grant override",
       busyLabel: "Granting…",
-      doneLabel: "Exception granted",
+      doneLabel: "Override granted",
     };
   },
 
@@ -40,7 +40,7 @@ export const overrideGrantView = defineView(overrideGrantContract, {
    * row appears when the grant caps products, and it is the only one that describes a DELETION.
    */
   diff: (before, body: OverrideGrantBody) => [
-    row("Exception", usesLabel(before.overrideUses ?? 0), usesLabel(body.uses)),
+    row("Override", usesLabel(before.overrideUses ?? 0), usesLabel(body.uses)),
     row("Where", scopeLabel(before.overrideAllLocations === true, before.locationOverrideId ?? null),
       scopeLabel(body.scope.kind === "all", body.scope.kind === "location" ? body.scope.locationId : null)),
     /**

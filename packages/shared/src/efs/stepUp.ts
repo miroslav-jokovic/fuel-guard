@@ -88,7 +88,7 @@ export const cardUnlockNeedsStepUp = (status: string | null): boolean =>
   efsStatusEquals(status, "Fraud");
 
 export const CARD_UNLOCK_STEP_UP =
-  "This card is flagged for fraud. Confirm your password to unlock it.";
+  "This card is flagged for fraud. Confirm your password to make it active.";
 
 /**
  * EVERY explicit prompt removal is destructive, not only `DRID` — dropping any record stops the pump

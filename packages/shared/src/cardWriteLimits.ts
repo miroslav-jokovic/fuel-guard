@@ -45,7 +45,7 @@ export interface CardWriteLimit {
 }
 
 export const CARD_WRITE_LIMITS: Record<CardWriteBucket, CardWriteLimit> = {
-  card_status: { perMinute: 10, perDay: 100, label: "card lock changes", onCounterFailure: "open" },
+  card_status: { perMinute: 10, perDay: 100, label: "card status changes", onCounterFailure: "open" },
   card_override: { perMinute: 5, perDay: 25, label: "fuel overrides", onCounterFailure: "closed" },
   card_prompts: { perMinute: 10, perDay: 50, label: "prompt changes", onCounterFailure: "closed" },
   /**

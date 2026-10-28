@@ -274,7 +274,7 @@ const chips = computed(() => [
   ...(driver.value ? [{ key: "driver", label: "Driver", value: driver.value }] : []),
   ...(unit.value ? [{ key: "unit", label: "Unit", value: unit.value }] : []),
   ...(policy.value ? [{ key: "policy", label: "Policy", value: policy.value }] : []),
-  ...(override.value ? [{ key: "override", label: "Exception", value: override.value === "active" ? "Active" : "None" }] : []),
+  ...(override.value ? [{ key: "override", label: "Override", value: override.value === "active" ? "Active" : "None" }] : []),
   ...(linked.value ? [{ key: "linked", label: "Vehicle", value: linked.value === "linked" ? "Linked" : "Not linked" }] : []),
   ...(health.value ? [{ key: "health", label: "Sync", value: health.value === "errors" ? "With errors" : "Clean" }] : []),
 ]);
@@ -313,7 +313,7 @@ const mileageOpen = ref(false);
       <template #actions>
         <!-- Here rather than on a card page because the operation targets a UNIT, not a card. -->
         <BaseButton v-if="session.admin" variant="secondary" @click="mileageOpen = true">
-          Override mileage
+          Correct mileage
         </BaseButton>
       </template>
     </PageHeader>
@@ -367,12 +367,12 @@ const mileageOpen = ref(false);
         <FilterSelect v-model="policy" label="Policy" :options="policyOptions" block />
         <FilterSelect
           v-model="override"
-          label="Exception"
+          label="Override"
           block
           :options="[
             { value: '', label: 'Any' },
-            { value: 'active', label: 'Has an active exception' },
-            { value: 'none', label: 'No exception' },
+            { value: 'active', label: 'Has an active override' },
+            { value: 'none', label: 'No override' },
           ]"
         />
         <FilterSelect

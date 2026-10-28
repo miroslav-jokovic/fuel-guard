@@ -381,13 +381,13 @@ function sentNotice(version: string | null | undefined, operationId?: CardOperat
   if (operationId === "grant" && version) {
     return {
       kind: "warning",
-      title: "Exception granted — the scope is unconfirmed",
+      title: "Override granted — the scope is unconfirmed",
       message:
-        "The exception is on the card: EFS confirmed the number of uses. What it does not report " +
-        "back is WHERE the exception applies, so we cannot confirm the locations you chose. Check " +
+        "The override is on the card: EFS confirmed the number of uses. What it does not report " +
+        "back is WHERE the override applies, so we cannot confirm the locations you chose. Check " +
         "the card in the WEX portal — and do not grant another, because the first one is live.",
       retryNote:
-        "Trying again is disabled for this one. The exception is already on the card, so a retry would " +
+        "Trying again is disabled for this one. The override is already on the card, so a retry would " +
         "grant a second free tank rather than repair anything.",
     };
   }

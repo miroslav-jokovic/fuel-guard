@@ -31,8 +31,8 @@ export const cardUnlockContract = defineContract({
   /** `matchStatusCasing` spells the write from the fresh read, same as card_lock. */
   casingAdaptiveFields: ["status"],
   ui: {
-    title: "Unlock this card",
-    verb: "Unlock card",
+    title: "Make this card active",
+    verb: "Make active",
     tone: "warning",
     inputs: [],
     diffRows: ["status"],

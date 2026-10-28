@@ -213,7 +213,7 @@ async function run(): Promise<void> {
             Only named people may change cards.
             <span class="block text-ink-muted">
               On by default. Turning this off gives every {{ (query.data.value?.eligibleRoles ?? []).join(" and ").replace(/_/g, " ") }}
-              in this company the ability to lock cards and grant fuel exceptions.
+              in this company the ability to put cards on hold and grant fuel overrides.
             </span>
           </span>
         </BaseCheckbox>
@@ -228,7 +228,7 @@ async function run(): Promise<void> {
           <p class="text-sm text-ink-muted">
             Card changes are limited to
             {{ (query.data.value.eligibleRoles ?? []).join(" and ").replace(/_/g, " ") }}. A dispatcher
-            who grants fuel exceptions is the risk this product watches for. Within those roles, choose
+            who grants fuel overrides is the risk this product watches for. Within those roles, choose
             each person and what they may do.
           </p>
         </div>

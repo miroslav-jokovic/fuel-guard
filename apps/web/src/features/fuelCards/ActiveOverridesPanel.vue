@@ -60,7 +60,7 @@ const router = useRouter();
 const COLUMNS: DataTableColumn[] = [
   { key: "maskedRef", label: "Card" },
   { key: "identity", label: "Unit and driver" },
-  { key: "uses", label: "Exception" },
+  { key: "uses", label: "Override" },
   { key: "scopeLabel", label: "Where" },
   { key: "freshness", label: "Read" },
 ];
@@ -99,12 +99,12 @@ const loaded = computed(() => query.data.value !== undefined);
     :loading="false"
     :error="query.isError.value"
     :retrying="query.isFetching.value"
-    error-text="Could not load the active fuel exceptions."
+    error-text="Could not load the active fuel overrides."
     @retry="query.refetch()"
   />
   <section v-else-if="loaded" class="space-y-3">
     <div class="flex items-baseline gap-2">
-      <h2 class="text-sm font-semibold text-ink">Active fuel exceptions</h2>
+      <h2 class="text-sm font-semibold text-ink">Active fuel overrides</h2>
       <span v-if="rows.length > 0" :class="[BADGE_BASE, toneClass('warning')]">{{ rows.length }}</span>
     </div>
 
@@ -116,7 +116,7 @@ const loaded = computed(() => query.data.value !== undefined);
       :columns="COLUMNS"
       :rows="rows"
       row-key="id"
-      empty-text="No card currently carries a fuel exception."
+      empty-text="No card currently carries a fuel override."
     >
       <template #cell-maskedRef="{ row }">
         <RouterLink :to="`/fuel-cards/${row.id}`" class="font-medium text-link hover:text-link-hover">{{ row.maskedRef }}</RouterLink>
@@ -152,7 +152,7 @@ const loaded = computed(() => query.data.value !== undefined);
           <!-- One paced vendor call, on one card, when a person asks for it. See the docblock. -->
           <BaseButton class="kebab-item" :disabled="refreshing === row.id" @click="onReRead(row.id)">Re-read</BaseButton>
           <!-- Opens the drawer on the card, with its confirmation and its diff. Not a one-click clear. -->
-          <BaseButton class="kebab-item" @click="router.push(operationLink(row.id, clearOperation))">Remove exception…</BaseButton>
+          <BaseButton class="kebab-item" @click="router.push(operationLink(row.id, clearOperation))">Remove override…</BaseButton>
         </KebabMenu>
       </template>
     </DataTable>

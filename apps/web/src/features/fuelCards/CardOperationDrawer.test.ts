@@ -186,7 +186,7 @@ describe("invariant 1 — the payload is frozen when Confirm is pressed", () => 
     const wrapper = render("grant");
     await setDraft(wrapper, { uses: 2 });
 
-    await button(wrapper, "Grant exception").trigger("click");
+    await button(wrapper, "Grant override").trigger("click");
     await flushPromises();
 
     // Move the form UNDER the in-flight request.
@@ -230,7 +230,7 @@ describe("clear-and-lock reaches the wire (docs/22 H16, Option B)", () => {
 
     const wrapper = render("status", armed);
     await setDraft(wrapper, { targetStatus: "Hold", clearException: true });
-    await button(wrapper, "Lock card").trigger("click");
+    await button(wrapper, "Put on hold").trigger("click");
     await flushPromises();
 
     const arg = mutations.lock.mutateAsync.mock.calls[0]![0] as { clearException: boolean };
@@ -247,7 +247,7 @@ describe("clear-and-lock reaches the wire (docs/22 H16, Option B)", () => {
 
     const wrapper = render("status", { status: "Active", overrideUses: 0, capabilities: caps() });
     await setDraft(wrapper, { targetStatus: "Hold" });
-    await button(wrapper, "Lock card").trigger("click");
+    await button(wrapper, "Put on hold").trigger("click");
     await flushPromises();
 
     const arg = mutations.lock.mutateAsync.mock.calls[0]![0] as { clearException: boolean };
@@ -259,7 +259,7 @@ describe("clear-and-lock reaches the wire (docs/22 H16, Option B)", () => {
     const wrapper = render("status", armed);
     await setDraft(wrapper, { targetStatus: "Hold" });
 
-    expect(button(wrapper, "Lock card").attributes("disabled")).toBeDefined();
+    expect(button(wrapper, "Put on hold").attributes("disabled")).toBeDefined();
     expect(mutations.lock.mutateAsync).not.toHaveBeenCalled();
   });
 });
@@ -271,8 +271,8 @@ describe("clear-and-lock reaches the wire (docs/22 H16, Option B)", () => {
  */
 describe("the status window follows the status being sent (CCF1)", () => {
   it.each([
-    ["Hold", "Lock this card"],
-    ["Active", "Unlock this card"],
+    ["Hold", "Put this card on hold"],
+    ["Active", "Make this card active"],
     ["Inactive", "Deactivate this card"],
   ] as const)("titles a change to %s as %s", async (targetStatus, title) => {
     const wrapper = render("status", { status: targetStatus === "Active" ? "Hold" : "Active", capabilities: caps() });
@@ -283,12 +283,12 @@ describe("the status window follows the status being sent (CCF1)", () => {
   it("offers the exception checkbox on Hold, and on Active says what the API would refuse with", async () => {
     const wrapper = render("status", { status: "Hold", overrideUses: 2, capabilities: caps() });
     await setDraft(wrapper, { targetStatus: "Hold", clearException: false });
-    expect(wrapper.text()).toContain("Also remove the fuel exception");
+    expect(wrapper.text()).toContain("Also remove the fuel override");
 
     await setDraft(wrapper, { targetStatus: "Active", clearException: true });
-    expect(wrapper.text()).not.toContain("Also remove the fuel exception");
-    expect(wrapper.text()).toContain("Remove the exception first, then try again.");
-    expect(button(wrapper, "Unlock card").attributes("disabled")).toBeDefined();
+    expect(wrapper.text()).not.toContain("Also remove the fuel override");
+    expect(wrapper.text()).toContain("Remove the override first, then try again.");
+    expect(button(wrapper, "Take off hold").attributes("disabled")).toBeDefined();
   });
 });
 
@@ -302,7 +302,7 @@ describe("the grant carries its limits field (Step 10.1)", () => {
     mutations.grant.mutateAsync.mockResolvedValue({ status: "succeeded", mutationId: "m1" });
 
     const wrapper = render("grant");
-    await button(wrapper, "Grant exception").trigger("click");
+    await button(wrapper, "Grant override").trigger("click");
     await flushPromises();
 
     expect(mutations.grant.mutateAsync.mock.calls[0]![0]).toHaveProperty("limits");
@@ -393,7 +393,7 @@ describe("retiring a card (Step 8.1)", () => {
     // The control. Without it, a `typeToConfirm` accidentally left on every view would satisfy every
     // case above and quietly put a four-digit challenge in front of the 2am lock.
     expect(wrapper.findComponent({ name: "TypeToConfirm" }).exists()).toBe(false);
-    await button(wrapper, "Lock card").trigger("click");
+    await button(wrapper, "Put on hold").trigger("click");
     await flushPromises();
     expect(mutations.lock.mutateAsync).toHaveBeenCalledTimes(1);
   });
@@ -427,12 +427,12 @@ describe("retiring a card (Step 8.1)", () => {
 
     const held = render("status", { status: "Active", capabilities: caps() });
     await setDraft(held, { targetStatus: "Hold" });
-    await button(held, "Lock card").trigger("click");
+    await button(held, "Put on hold").trigger("click");
     await flushPromises();
 
     const active = render("status", { status: "Hold", capabilities: caps() });
     await setDraft(active, { targetStatus: "Active" });
-    await button(active, "Unlock card").trigger("click");
+    await button(active, "Take off hold").trigger("click");
     await flushPromises();
 
     expect(mutations.deactivate.mutateAsync).toHaveBeenCalledTimes(1);
@@ -491,7 +491,7 @@ describe("invariant 2 — reseeding pauses while the draft is dirty", () => {
 
     await setDraft(wrapper, { targetStatus: "Hold" });
 
-    await button(wrapper, "Lock card").trigger("click");
+    await button(wrapper, "Put on hold").trigger("click");
     await flushPromises();
 
     const arg = mutations.lock.mutateAsync.mock.calls[0]![0] as { idempotencyKey: string };
@@ -527,7 +527,7 @@ describe("invariant 4 — the result stays in the drawer", () => {
 
     const wrapper = render("status");
     await setDraft(wrapper, { targetStatus: "Hold" });
-    await button(wrapper, "Lock card").trigger("click");
+    await button(wrapper, "Put on hold").trigger("click");
     await flushPromises();
 
     expect(wrapper.emitted("close")).toBeUndefined();
@@ -542,7 +542,7 @@ describe("invariant 4 — the result stays in the drawer", () => {
 
     const wrapper = render("status");
     await setDraft(wrapper, { targetStatus: "Hold" });
-    await button(wrapper, "Lock card").trigger("click");
+    await button(wrapper, "Put on hold").trigger("click");
     await flushPromises();
 
     expect(button(wrapper, "Try again").attributes("disabled")).toBeUndefined();
@@ -558,7 +558,7 @@ describe("invariant 5 — step-up is predicted, not discovered", () => {
 
     expect(wrapper.text()).toContain("Confirm your password");
 
-    await button(wrapper, "Grant exception").trigger("click");
+    await button(wrapper, "Grant override").trigger("click");
     await flushPromises();
 
     // Predicted, so the prompt is shown without a round trip having been spent to learn it.
@@ -578,7 +578,7 @@ describe("invariant 5 — step-up is predicted, not discovered", () => {
     await setDraft(wrapper, { targetStatus: "Active" });
     expect(wrapper.text()).not.toContain("flagged for fraud");
 
-    await button(wrapper, "Unlock card").trigger("click");
+    await button(wrapper, "Take off hold").trigger("click");
     await flushPromises();
 
     expect(wrapper.find("[data-testid=step-up]").attributes("data-reason")).toContain("flagged for fraud");
@@ -592,7 +592,7 @@ describe("invariant 5 — step-up is predicted, not discovered", () => {
 
     const wrapper = render("grant");
     await setDraft(wrapper, { uses: 4 });
-    await button(wrapper, "Grant exception").trigger("click");
+    await button(wrapper, "Grant override").trigger("click");
     await flushPromises();
     expect(wrapper.find("[data-testid=step-up]").exists()).toBe(true);
 
@@ -615,7 +615,7 @@ describe("invariant 6 — a disabled button names what is missing", () => {
     const wrapper = render("grant");
     await setDraft(wrapper, { scopeKind: "location" });
 
-    expect(button(wrapper, "Grant exception").attributes("disabled")).toBeDefined();
+    expect(button(wrapper, "Grant override").attributes("disabled")).toBeDefined();
     expect(wrapper.text()).toContain("Choose the location");
   });
 
@@ -629,7 +629,7 @@ describe("invariant 6 — a disabled button names what is missing", () => {
     const wrapper = render("grant");
     expect(wrapper.find("[data-testid=reason]").exists()).toBe(false);
     expect(wrapper.text()).not.toContain("Say why");
-    expect(button(wrapper, "Grant exception").attributes("disabled")).toBeUndefined();
+    expect(button(wrapper, "Grant override").attributes("disabled")).toBeUndefined();
   });
 
   it("never demands a reason for a lock — nobody is stranded at a pump over a text box", async () => {
@@ -637,8 +637,8 @@ describe("invariant 6 — a disabled button names what is missing", () => {
     const wrapper = render("status");
     await setDraft(wrapper, { targetStatus: "Hold" });
 
-    expect(button(wrapper, "Lock card").attributes("disabled")).toBeUndefined();
-    await button(wrapper, "Lock card").trigger("click");
+    expect(button(wrapper, "Put on hold").attributes("disabled")).toBeUndefined();
+    await button(wrapper, "Put on hold").trigger("click");
     await flushPromises();
     expect(mutations.lock.mutateAsync).toHaveBeenCalledTimes(1);
     expect(mutations.lock.mutateAsync.mock.calls[0]![0]).not.toHaveProperty("reason");
@@ -651,7 +651,7 @@ describe("invariant 6 — a disabled button names what is missing", () => {
       capabilities: caps({ capabilityStates: { ...ALL_ENABLED, override_grant: "not_promoted" } }),
     });
 
-    expect(button(wrapper, "Grant exception").attributes("disabled")).toBeDefined();
+    expect(button(wrapper, "Grant override").attributes("disabled")).toBeDefined();
     // D-CCF8: approving is the operator CLI, so the sentence names who to ask, never a screen.
     expect(wrapper.text()).toContain("Ask your Silvicom 360 administrator.");
     expect(wrapper.text()).not.toContain("prove it on a test card");
@@ -680,13 +680,13 @@ describe("carried over from the old drawer, because they were right", () => {
 
     await setDraft(wrapper, { targetStatus: "Hold" });
 
-    await button(wrapper, "Lock card").trigger("click");
+    await button(wrapper, "Put on hold").trigger("click");
     await flushPromises();
     await button(wrapper, "Try again").trigger("click");
     await flushPromises();
     // `Try again` re-seeds, so the target returns to the card's own status and must be picked again.
     await setDraft(wrapper, { targetStatus: "Hold" });
-    await button(wrapper, "Lock card").trigger("click");
+    await button(wrapper, "Put on hold").trigger("click");
     await flushPromises();
 
     const first = (mutations.lock.mutateAsync.mock.calls[0]![0] as { idempotencyKey: string }).idempotencyKey;
@@ -700,7 +700,7 @@ describe("carried over from the old drawer, because they were right", () => {
 
     await setDraft(wrapper, { targetStatus: "Hold" });
 
-    await button(wrapper, "Lock card").trigger("click");
+    await button(wrapper, "Put on hold").trigger("click");
     await flushPromises();
 
     const sentKey = (mutations.lock.mutateAsync.mock.calls[0]![0] as { idempotencyKey: string }).idempotencyKey;
@@ -715,7 +715,7 @@ describe("carried over from the old drawer, because they were right", () => {
 
     await setDraft(wrapper, { targetStatus: "Hold" });
 
-    await button(wrapper, "Lock card").trigger("click");
+    await button(wrapper, "Put on hold").trigger("click");
     await flushPromises();
 
     const arg = mutations.lock.mutateAsync.mock.calls[0]![0] as { expectedVersion: string };
@@ -728,7 +728,7 @@ describe("carried over from the old drawer, because they were right", () => {
 
     await setDraft(wrapper, { targetStatus: "Hold" });
 
-    await button(wrapper, "Lock card").trigger("click");
+    await button(wrapper, "Put on hold").trigger("click");
     await flushPromises();
 
     expect(toast.push).not.toHaveBeenCalledWith("success", expect.anything(), expect.anything());
@@ -775,7 +775,7 @@ describe("re-homed from the drawer this replaced", () => {
 
     await setDraft(wrapper, { targetStatus: "Hold" });
 
-    await button(wrapper, "Lock card").trigger("click");
+    await button(wrapper, "Put on hold").trigger("click");
     await flushPromises();
 
     expect(toast.push).toHaveBeenCalledWith(
@@ -791,9 +791,9 @@ describe("re-homed from the drawer this replaced", () => {
 
     await setDraft(wrapper, { targetStatus: "Hold" });
 
-    await button(wrapper, "Lock card").trigger("click");
+    await button(wrapper, "Put on hold").trigger("click");
     await flushPromises();
-    await button(wrapper, "Locking…").trigger("click");
+    await button(wrapper, "Putting on hold…").trigger("click");
     await flushPromises();
 
     expect(mutations.lock.mutateAsync).toHaveBeenCalledTimes(1);
@@ -811,11 +811,11 @@ describe("re-homed from the drawer this replaced", () => {
 
     const wrapper = render("status");
     await setDraft(wrapper, { targetStatus: "Hold" });
-    await button(wrapper, "Lock card").trigger("click");
+    await button(wrapper, "Put on hold").trigger("click");
     await flushPromises();
     // The 409 reseeds from the live document EFS attached, so pick the target again.
     await setDraft(wrapper, { targetStatus: "Hold" });
-    await button(wrapper, "Lock card").trigger("click");
+    await button(wrapper, "Put on hold").trigger("click");
     await flushPromises();
 
     const second = mutations.lock.mutateAsync.mock.calls[1]![0] as { expectedVersion: string };
@@ -834,9 +834,9 @@ describe("a 409 keeps what the operator typed that the card did not seed (2026-1
 
     const wrapper = render("grant");
     await setDraft(wrapper, { uses: 2 });
-    await button(wrapper, "Grant exception").trigger("click");
+    await button(wrapper, "Grant override").trigger("click");
     await flushPromises();
-    await button(wrapper, "Grant exception").trigger("click");
+    await button(wrapper, "Grant override").trigger("click");
     await flushPromises();
 
     const second = mutations.grant.mutateAsync.mock.calls[1]![0] as { expectedVersion: string; body: { uses: number } };
