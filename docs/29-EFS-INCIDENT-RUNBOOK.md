@@ -9,6 +9,7 @@ second and costs nothing but a re-enable.
 | | |
 |---|---|
 | **Fastest containment** | `node scripts/efs.mjs promote <capability> --suspend --reason "…"` |
+| **No terminal to hand?** | Settings → Card control → untick **Let this company change fuel cards**. Every card write for the company stops on the next request (§2.1 row 2) |
 | **How fast** | **172 ms** to full effect on QA, measured 2026-08-16 — the very next call was refused. (481 ms on 2026-08-15; both are upper bounds, both are "the next call saw it") |
 | **Does it need a deploy?** | **No.** No cache anywhere in the gate |
 | **Blast radius of suspending** | One capability, one org. Reads are untouched |
@@ -17,9 +18,13 @@ second and costs nothing but a re-enable.
 > a flag lands in shell history and in the process table. `FG_TOKEN` is honoured **only** with
 > `--token-from-env`.
 >
-> ⚠ **`--api` defaults to the API host.** The web host runs a copy of this API that WEX's firewall
-> refuses, and since Step 5.10 it answers `efs_routes_not_served_here`. If you see that code, you
-> pointed the tool at the wrong host.
+> ⚠ **`--api` defaults to production's API, `https://api.360.silvicominc.com`** — read from `API_HOST`
+> in `infra/server/production.env`, the file the AWS deploy itself reads, and printed by
+> `node scripts/efs.mjs` with no arguments. Before 2026-10-28 (CCF2) it defaulted to the Railway
+> service, which was retired that day and now answers 404; a copy of this runbook or a shell alias
+> with that address reaches nothing. Staging is `--api https://staging-api.360.silvicominc.com`. The
+> web container fences card routes off (`EFS_ROUTES_ENABLED=false`) and answers
+> `efs_routes_not_served_here`; if you see that code, you pointed the tool at the wrong host.
 >
 > ⚠ **Reference cards by masked last four (`••••7671`).** PANs never enter this repository, a ticket,
 > or a chat message.
@@ -116,7 +121,9 @@ suspending the wrong one costs nothing. Do it first.
 node scripts/efs.mjs promote <capability> --suspend --reason "why, in a sentence"
 ```
 
-Capabilities: `card_lock`, `card_unlock`, `override_grant`, `override_clear`, `prompts_set`.
+Capabilities: `card_lock`, `card_unlock`, `card_deactivate`, `override_grant`, `override_clear`,
+`prompts_set` (the keys in `packages/shared/src/efs/capabilities/*.contract.ts`; `card_deactivate` has
+been its own capability since Phase 8.1 and was missing from this list until 2026-10-28).
 
 **What happens.** The promotion row for that org and capability moves to `suspended`. There is no
 cache anywhere in the gate, so **the next card write already sees it** and is refused before any
@@ -136,15 +143,38 @@ Escalating, in order. Each is broader and slower than the one above it.
 | # | Action | Effect | Speed |
 |---|---|---|---|
 | 1 | `--suspend` each affected capability | one capability, one org | ~0.5 s each |
-| 2 | `efs_card_control_settings.enabled = false` for the org | every write for that org | next request |
-| 3 | `EFS_CARD_CONTROL_ENABLED=false` on Railway | every write, every org, whole deploy | **needs a restart** |
-| 4 | `EFS_SOAP_ENABLED=false` on Railway | also stops the transaction feed | **needs a restart** |
+| 2 | Settings → Card control → untick **Let this company change fuel cards** (writes `efs_card_control_settings.enabled = false`) | every write for that org | next request |
+| 3 | `EFS_CARD_CONTROL_ENABLED=false` in Parameter Store, then redeploy | every write, every org, whole deploy | **~3 min** (redeploy) |
+| 4 | `EFS_SOAP_ENABLED=false` in Parameter Store, then redeploy | also stops the transaction feed | **~3 min** (redeploy) |
 
-**Prefer 1 and 2.** 3 and 4 require a Railway variable change and a restart, which is minutes, not
-milliseconds — and 4 takes down fuel-transaction ingestion, which is almost never what an incident
-about a *write* requires.
+**Prefer 1 and 2.** Row 2 needs no terminal and is the owner's own switch. 3 and 4 change a setting
+the containers read only at start, so they take a production redeploy — minutes, not milliseconds —
+and 4 takes down fuel-transaction ingestion, which is almost never what an incident about a *write*
+requires.
 
-Ask Miki before changing anything on Railway. `grep` the variables rather than dumping them.
+**Rows 3 and 4 on AWS** (production since 2026-10-27; Railway's production service was retired
+2026-10-28). Only the `api` service can write a card: `web` has `EFS_ROUTES_ENABLED=false` and no
+`EFS_CARD_CONTROL_ENABLED`, which defaults to off (`apps/api/src/envEfs.ts`). Both settings are
+`SecureString` parameters under `/silvicom/production/api/`. Writing them and starting the deploy are
+the owner's — hand them over as `!` commands:
+
+```bash
+aws ssm put-parameter --profile silvicom --region us-west-2 --overwrite --type SecureString \
+  --name /silvicom/production/api/EFS_CARD_CONTROL_ENABLED --value false
+# Redeploy the commit production already runs, so nothing but the setting changes:
+gh workflow run aws-production.yml -f sha="$(curl -s https://api.360.silvicominc.com/api/version | jq -r .commit)"
+```
+
+Measured 2026-10-28: a probe-switch change at ~14:20Z had the containers restarted at 14:22:58Z.
+Check it took before you call it contained — read the flag back (an on/off value, safe to print) and
+watch a card action be refused with `card_control_disabled`:
+
+```bash
+aws ssm get-parameter --profile silvicom --region us-west-2 --with-decryption \
+  --name /silvicom/production/api/EFS_CARD_CONTROL_ENABLED --query Parameter.Value --output text
+```
+
+Undo is the same two steps with `true`. Read single parameters by name; never dump the path.
 
 ### 2.2 Record it
 
@@ -263,10 +293,13 @@ before touching it, and record why in the incident notes.
 ## §5 The signals, and what each one means
 
 From Step 5.1. Every signal writes a `[card-control-signal] <name> {…}` line to the log **and** a
-Sentry event at the level below. To grep the Railway log for all of them:
+Sentry event at the level below. Production logs are CloudWatch group `/silvicom/production` (one
+stream per container, `silvicom-api-1`, `silvicom-api-2`, `silvicom-worker-1`…; kept 30 days). Search
+a short window — a whole day across every stream takes minutes:
 
-```
-[card-control-signal]
+```bash
+aws logs filter-log-events --profile silvicom --region us-west-2 --log-group-name /silvicom/production \
+  --filter-pattern '"card-control-signal"' --start-time "$(( ($(date +%s) - 3600) * 1000 ))"
 ```
 
 | Signal | Level | What it means | First move |
@@ -343,13 +376,13 @@ trigger each:
 | `card_mutation_settled` `succeeded` | Any successful `card_lock` on a QA card |
 | `card_mutation_settled` `failed` | Lock a card with a stale `expectedVersion` → refused by optimistic concurrency |
 | `card_mutation_settled` `sent` | Hardest, and the most valuable. Needs the re-read to fail while the write succeeds |
-| `promotion_state_changed` | **FIRED 2026-08-16** — the 6.1 drill suspends and re-enables, emitting it twice. Confirm both lines are in the `fleetguardapi` log |
+| `promotion_state_changed` | **FIRED 2026-08-16** — the 6.1 drill suspends and re-enables, emitting it twice. Confirm both lines are in the API containers' log (CloudWatch `/silvicom/production`, `silvicom-api-*`) |
 | `mirror_sweep_completed` | `node scripts/efs.mjs sync` |
 | `efs_breaker_opened` | Three consecutive bad-credential logins against QA. **Opens the breaker for 30 minutes** — do this last, or not at all if QA is needed |
 | `echo_unfaithful` | Do **not** trigger against a live account. It is exercised offline by `efs/harness/local.ts`, which is where a serializer bug is supposed to be caught |
 
 Confirm each arrives in Sentry at the level in §5, and that the `[card-control-signal]` line is in
-the Railway log.
+CloudWatch `/silvicom/production` (§5 has the command).
 
 ### 6.3 Not built
 
