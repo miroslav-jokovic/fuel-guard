@@ -35,18 +35,22 @@ export function attentionSentence(r: UnitAttentionReason): string {
   }
 }
 
-/** Where on the truck's page the sentence is answered — an anchor, not a tab (D-MX3). */
-export function attentionAnchor(r: UnitAttentionReason): string {
+/** The truck page's tabs (MAINTENANCE-SECTION-REDESIGN-PROPOSAL §7a.3, Q-MX9 (a)), in their order. */
+export const UNIT_TABS = ["repairs", "due", "equipment", "inspections", "papers"] as const;
+export type UnitTab = (typeof UNIT_TABS)[number];
+
+/** Which tab of the truck's page answers the sentence. It was an anchor down one long page until M6. */
+export function attentionTab(r: UnitAttentionReason): UnitTab {
   switch (r.kind) {
     case "defect":
     case "work_order":
-      return "section-repairs";
+      return "repairs";
     case "annual":
-      return "section-annual";
+      return "inspections";
     case "pm":
-      return "section-due";
+      return "due";
     case "short":
     case "open_check":
-      return "section-equipment";
+      return "equipment";
   }
 }

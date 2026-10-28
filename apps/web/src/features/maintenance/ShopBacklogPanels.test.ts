@@ -31,8 +31,8 @@ vi.mock("@/composables/useOrgTimezone", () => ({
 }));
 vi.mock("@/stores/session", () => ({ useSessionStore: () => ({ can: () => true, canView: () => true }) }));
 
-const WorkOrdersPage = (await import("@/pages/WorkOrdersPage.vue")).default;
-const DefectsPage = (await import("@/pages/DefectsPage.vue")).default;
+const WorkOrdersPage = (await import("@/features/maintenance/ShopWorkOrdersPanel.vue")).default;
+const DefectsPage = (await import("@/features/maintenance/ShopDefectsPanel.vue")).default;
 
 async function page(component: unknown, url: string) {
   const router = createRouter({ history: createMemoryHistory(), routes: [...ROUTE_TABLE] });

@@ -2,13 +2,14 @@
 import { computed } from "vue";
 import { AppCard as BaseCard, QueryState, useTouchTargets } from "@silvicom/ui";
 import { repairClock, type RoadsideRepairDueDto, type UnitAttentionReason } from "@silvicom/shared";
-import { attentionAnchor, attentionSentence } from "./attentionWords";
+import { RouterLink } from "vue-router";
+import { attentionSentence, attentionTab } from "./attentionWords";
 
 /**
  * The truck's first section: what needs attention on it (MAINTENANCE-SECTION-REDESIGN-PROPOSAL.md
- * §4.3; D-MX3). Its rows are this unit's rows from the Shop worklist — the same reasons, the same
- * words (`attentionWords.ts`) — each linking down the page to the section that answers it, which is
- * what "no tabs" means in practice: the page is one scroll and the first section is its index.
+ * §4.3). Its rows are this unit's rows from Trucks & trailers — the same reasons, the same words
+ * (`attentionWords.ts`) — each opening the tab of the page that answers it (§7a.3, M6): it sits above
+ * the tabs, so it is the page's index whichever tab is open.
  *
  * Roadside repairs due come as a separate list because they are matched by the unit the officer wrote
  * (D-IC7), in the browser, exactly as the roadside card beside them does; the page passes this unit's.
@@ -26,12 +27,12 @@ const rows = computed(() => [
   ...props.roadside.map((r) => {
     const c = repairClock(r.dueOn, props.today);
     const when = c.overdue ? `${c.days} day${c.days === 1 ? "" : "s"} overdue` : c.days === 0 ? "due today" : `${c.days} day${c.days === 1 ? "" : "s"} left`;
-    return { key: `roadside:${r.unitId}`, text: `Roadside violations to repair and certify — ${when}`, anchor: "section-roadside", urgent: c.overdue };
+    return { key: `roadside:${r.unitId}`, text: `Roadside violations to repair and certify — ${when}`, tab: "inspections", urgent: c.overdue };
   }),
   ...props.reasons.map((r, i) => ({
     key: `${r.kind}:${i}`,
     text: attentionSentence(r),
-    anchor: attentionAnchor(r),
+    tab: attentionTab(r),
     urgent: (r.kind === "annual" && r.daysRemaining < 0) || (r.kind === "pm" && r.verdict === "overdue"),
   })),
 ]);
@@ -54,7 +55,7 @@ const touch = useTouchTargets();
         <ul v-if="rows.length" class="divide-y divide-edge-subtle text-sm">
           <li v-for="r in rows" :key="r.key" class="flex items-center justify-between gap-4 py-2 first:pt-0 last:pb-0">
             <span :class="r.urgent ? 'font-medium text-danger-700' : 'text-ink'">{{ r.text }}</span>
-            <a :href="`#${r.anchor}`" class="shrink-0 text-sm font-medium text-link hover:text-link-hover" :class="touch && 'inline-flex min-h-12 items-center'">See below</a>
+            <RouterLink :to="{ query: { tab: r.tab } }" class="shrink-0 text-sm font-medium text-link hover:text-link-hover" :class="touch && 'inline-flex min-h-12 min-w-12 items-center justify-end'">Open</RouterLink>
           </li>
         </ul>
         <p v-else class="text-sm text-ink-secondary" data-test="unit-attention-none">Nothing needs attention on this unit today.</p>

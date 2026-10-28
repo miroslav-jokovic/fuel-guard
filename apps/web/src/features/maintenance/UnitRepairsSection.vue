@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { computed } from "vue";
-import { AppCard as BaseCard, DataTable, type DataTableColumn } from "@silvicom/ui";
+import { computed, ref } from "vue";
+import { AppCard as BaseCard, DataTable, TablePagination, type DataTableColumn } from "@silvicom/ui";
 import type { UnitShopFileDto, UnitWorkOrderHistoryDto } from "@silvicom/shared";
 import { formatDate } from "@/lib/format";
 import WorkOrderRows from "./WorkOrderRows.vue";
@@ -19,7 +19,11 @@ const HISTORY_COLUMNS: DataTableColumn[] = [
   { key: "work", label: "Work", card: "title" },
   { key: "downtimeDays", label: "Days out", card: "none", numeric: true, width: "sm" },
 ];
+/** Ten a page (contract §9 rule 9): a truck's history is years of work orders, and grows with every one. */
+const PAGE_SIZE = 10;
+const page = ref(1);
 const history = computed(() => props.file.history as unknown as Record<string, unknown>[]);
+const pageRows = computed(() => history.value.slice((page.value - 1) * PAGE_SIZE, page.value * PAGE_SIZE));
 const work = (r: UnitWorkOrderHistoryDto) => r.jobs.join(", ") || r.description || r.referenceNumber || "Work order";
 </script>
 
@@ -42,7 +46,7 @@ const work = (r: UnitWorkOrderHistoryDto) => r.jobs.join(", ") || r.description 
 
     <div class="space-y-3">
       <h2 class="text-sm font-semibold text-ink">Repair history</h2>
-      <DataTable :columns="HISTORY_COLUMNS" :rows="history" row-key="id" empty-text="No past work order on this unit.">
+      <DataTable :columns="HISTORY_COLUMNS" :rows="pageRows" row-key="id" empty-text="No past work order on this unit.">
         <template #cell-when="{ row }">{{ (row as unknown as UnitWorkOrderHistoryDto).completedAt ? formatDate((row as unknown as UnitWorkOrderHistoryDto).completedAt!) : (row as unknown as UnitWorkOrderHistoryDto).openedAt ? `Opened ${formatDate((row as unknown as UnitWorkOrderHistoryDto).openedAt!)}` : "—" }}</template>
         <template #cell-work="{ row }">
           <span class="text-ink">{{ work(row as unknown as UnitWorkOrderHistoryDto) }}</span>
@@ -50,6 +54,9 @@ const work = (r: UnitWorkOrderHistoryDto) => r.jobs.join(", ") || r.description 
         </template>
         <template #cell-downtimeDays="{ value }">{{ value ?? "—" }}</template>
         <template #empty><p>No past work order on this unit.</p></template>
+        <template #footer>
+          <TablePagination :page="page" :page-size="PAGE_SIZE" :total="history.length" @update:page="page = $event" />
+        </template>
       </DataTable>
     </div>
   </section>

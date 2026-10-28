@@ -143,6 +143,7 @@ async function setActive(location: StockLocationDto, active: boolean) {
         error-text="Could not load the places."
         @retry="refetch()"
       >
+        <!-- ui-adoption: never-paged — the org's places — a shop has a handful of rooms and racks, not pages of them. -->
         <DataTable
           embedded
           dense

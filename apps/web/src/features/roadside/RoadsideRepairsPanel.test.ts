@@ -40,7 +40,7 @@ vi.mock("@vueuse/core", async (orig) => {
   return { ...((await orig()) as Record<string, unknown>), useMediaQuery: () => r(true) };
 });
 
-const RoadsideRepairsPage = (await import("@/pages/RoadsideRepairsPage.vue")).default;
+const RoadsideRepairsPage = (await import("@/features/roadside/RoadsideRepairsPanel.vue")).default;
 const RepairUnitDecision = (await import("@/features/roadside/RepairUnitDecision.vue")).default;
 
 const unit = (unitId: string, dueOn: string, o: Partial<RoadsideRepairDueDto> = {}): RoadsideRepairDueDto => ({
@@ -87,17 +87,17 @@ describe("roadside repairs due", () => {
     expect(w.findAllComponents(RepairUnitDecision)).toHaveLength(1);
   });
 
-  it("keeps a recorded repair on its own tab, and finds a unit by its report", async () => {
-    expect(unitsListed((await page("?tab=recorded")).w)).toEqual(["Truck 700"]);
+  it("keeps a recorded repair under Show: Recorded, and finds a unit by its report", async () => {
+    expect(unitsListed((await page("?show=recorded")).w)).toEqual(["Truck 700"]);
     expect(unitsListed((await page("?search=IL500")).w)).toEqual(["Truck 500"]);
   });
 
-  it("arriving from the bell, narrows to its inspection, on the tab it is on, with its unit open", async () => {
+  it("arriving from the bell, narrows to its inspection, under the Show it is in, with its unit open", async () => {
     // Another recorded unit, on another inspection: narrowing leaves it out.
     due.value = [...due.value!, unit("801", "2026-10-09", { decision: recorded })];
     const { w, router } = await page("?inspection=insp-700");
     await flushPromises();
-    expect(router.currentRoute.value.query.tab).toBe("recorded");
+    expect(router.currentRoute.value.query.show).toBe("recorded");
     expect(unitsListed(w)).toEqual(["Truck 700"]);
     expect(router.currentRoute.value.query.unit).toBe("700");
   });

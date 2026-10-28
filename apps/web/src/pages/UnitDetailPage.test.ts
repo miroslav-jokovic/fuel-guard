@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { flushPromises, mount } from "@vue/test-utils";
 import { createPinia, setActivePinia } from "pinia";
-import { nextTick, ref } from "vue";
+import { nextTick, reactive, ref } from "vue";
 import type { AssetDto, UnitAttentionDto, UnitKitDto, UnitShopFileDto } from "@silvicom/shared";
 
 /**
@@ -113,17 +113,27 @@ vi.mock("@/composables/useOrgTimezone", async () => {
 });
 vi.mock("@/composables/useOpens", () => ({ useOpens: () => () => true }));
 vi.mock("@/stores/session", () => ({ useSessionStore: () => ({ can: () => true, canView: () => true }) }));
+/** The tab lives in the URL (`?tab=`); this route is the one the page reads and writes. */
+const route = reactive({ params: { kind: "tractor", id: TRUCK }, query: {} as Record<string, string>, meta: { title: "Unit" }, matched: [] });
 vi.mock("vue-router", async (importOriginal) => ({
   ...(({ routerKey, createRouter, createMemoryHistory, RouterLink }) => ({ routerKey, createRouter, createMemoryHistory, RouterLink }))(await importOriginal<typeof import("vue-router")>()),
-  useRoute: () => ({ params: { kind: "tractor", id: TRUCK }, query: {}, meta: { title: "Unit" }, matched: [] }),
-  useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
+  useRoute: () => route,
+  useRouter: () => ({
+    push: vi.fn(),
+    replace: async (to: { query: Record<string, string> }) => {
+      route.query = to.query;
+    },
+  }),
 }));
 
 const { useToastStore } = await import("@/stores/toast");
 const UnitDetailPage = (await import("@/pages/UnitDetailPage.vue")).default;
 const AssetMoveDrawer = (await import("@/features/inventory/AssetMoveDrawer.vue")).default;
-const STUBS = { SlideOver: true, UnitFileSection: true, UnitInspectionsCard: true, NewInspectionDrawer: true, RouterLink: { template: "<a><slot /></a>", props: ["to"] } };
-const page = () => mount(UnitDetailPage, { attachTo: document.body, global: { stubs: STUBS } });
+const STUBS = { SlideOver: true, UnitFileSection: true, UnitInspectionsCard: true, NewInspectionDrawer: true, RouterLink: { template: "<a :data-tab=\"to && to.query ? to.query.tab : undefined\"><slot /></a>", props: ["to"] } };
+const page = (tab?: string) => {
+  route.query = tab ? { tab } : {};
+  return mount(UnitDetailPage, { attachTo: document.body, global: { stubs: STUBS } });
+};
 
 async function rowActions(w: ReturnType<typeof page>): Promise<string[]> {
   const trigger = w.element.querySelector('button[aria-label="Actions"]') as HTMLButtonElement | null;
@@ -141,13 +151,19 @@ beforeEach(() => {
 });
 
 describe("the hub", () => {
-  it("is one page of sections in the proposal's order, with no tab strip", () => {
+  it("stands Needs attention above five tabs, opening on Repairs (§7a.3, Q-MX9)", () => {
     const w = page();
-    const ids = ["section-attention", "section-repairs", "section-due", "section-annual", "section-equipment", "section-roadside", "section-papers"];
-    const order = ids.map((id) => (Array.from(w.element.querySelectorAll("[id]")) as HTMLElement[]).findIndex((el) => el.id === id));
-    expect(order.every((i) => i >= 0)).toBe(true);
-    expect([...order].sort((a, b) => a - b)).toEqual(order);
-    expect(w.find("[role=tablist]").exists()).toBe(false);
+    expect(w.findAll("[role=tab]").map((t) => t.text())).toEqual(["Repairs", "Service due", "Equipment", "Inspections", "Papers"]);
+    expect(w.find("[role=tab][aria-selected=true]").text()).toBe("Repairs");
+    expect(w.find("[data-test=unit-attention]").exists()).toBe(true);
+    expect(w.find("[data-test=unit-repairs]").exists()).toBe(true);
+    expect(w.find("[data-test=unit-pm-due]").exists()).toBe(false);
+  });
+
+  it("draws one tab at a time, the one the URL names", () => {
+    const w = page("equipment");
+    expect(w.find("[data-test=unit-equipment]").exists()).toBe(true);
+    expect(w.find("[data-test=unit-repairs]").exists()).toBe(false);
   });
 
   it("names the unit, the driver once (D-INV3), and FleetPal's number beside the roster's meter", () => {
@@ -163,9 +179,10 @@ describe("the hub", () => {
     expect(card.text()).toContain("A defect found on an inspection is not fixed");
     expect(card.text()).toContain("Oil Change due in 1,133 mi");
     expect(card.text()).not.toContain("Missing 9");
-    // Each row links DOWN the page, to the section that answers it.
-    expect(card.findAll("a[href='#section-repairs']").length).toBe(1);
-    expect(card.findAll("a[href='#section-due']").length).toBe(1);
+    // Each row opens the tab that answers it.
+    const links = card.findAll("a[data-tab]").map((l) => l.attributes("data-tab"));
+    expect(links.filter((t) => t === "repairs")).toHaveLength(1);
+    expect(links.filter((t) => t === "due")).toHaveLength(1);
   });
 
   it("says so when nothing needs attention", () => {
@@ -174,7 +191,7 @@ describe("the hub", () => {
   });
 
   it("prints the server's PM verdict, and Can't tell for a schedule nobody can judge — never OK", () => {
-    const due = page().find("[data-test=unit-pm-due]");
+    const due = page("due").find("[data-test=unit-pm-due]");
     expect(due.text()).toContain("Oil Change");
     expect(due.text()).toContain("in 1,133 mi");
     expect(due.text()).toContain("Due soon");
@@ -201,7 +218,7 @@ describe("the hub", () => {
   });
 
   it("shows the annual's expiry by our record and the last report here, and Start inspection opens the drawer on THIS unit", async () => {
-    const w = page();
+    const w = page("inspections");
     const annual = w.find("[data-test=unit-annual]");
     expect(annual.text()).toContain("11/01/2025");
     expect(annual.text()).toContain("Lee Park");
@@ -216,7 +233,7 @@ describe("the hub", () => {
 /** The equipment section keeps the rules it had as the whole page (INVENTORY-PLAN.md I9). */
 describe("equipment it carries", () => {
   it("offers a MOVE for something on the unit, never a delete", async () => {
-    const w = page();
+    const w = page("equipment");
     const actions = await rowActions(w);
     expect(actions.some((t) => /move/i.test(t))).toBe(true);
     expect(actions.some((t) => /remove|delete|take off/i.test(t))).toBe(false);
@@ -226,16 +243,16 @@ describe("equipment it carries", () => {
   });
 
   it("renders the shortfall the API computed, and where each number came from", () => {
-    const text = page().text();
+    const text = page("equipment").text();
     expect(text).toContain("Missing 2");
     expect(text).toContain("Fleet default");
     expect(text).toContain("The type's own default");
   });
 
   it("says a never-checked kit is what the records say, and a checked one when", () => {
-    expect(page().text()).toContain("Never checked");
+    expect(page("equipment").text()).toContain("Never checked");
     unit.lastCheckedAt = "2026-10-20T12:00:00.000Z";
-    expect(page().text()).toContain("Last checked 10/20/2026");
+    expect(page("equipment").text()).toContain("Last checked 10/20/2026");
   });
 
   it("starts a check from the header verb, and says it is continuing when the server handed back the open one", async () => {

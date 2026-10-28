@@ -13,7 +13,6 @@ import {
 import { useMaintenanceSpendQuery } from "@/features/maintenance/useMaintenanceSpend";
 import { lastFullMonth } from "@/lib/dateWindow";
 import DateRangeFilter from "@/components/DateRangeFilter.vue";
-import PageHeader from "@/components/ui/PageHeader.vue";
 import { formatDate as fmtDate } from "@/lib/format";
 import { useOpens } from "@/composables/useOpens";
 
@@ -84,14 +83,15 @@ const touch = useTouchTargets();
 </script>
 
 <template>
-  <div class="space-y-6">
-    <PageHeader description="What the books show was paid for repairs and the shop, line by line.">
-      <template v-if="canReadFinance" #actions>
+  <div class="space-y-4">
+    <div class="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
+      <p class="text-sm text-ink-tertiary">What the books show was paid for repairs and the shop, line by line.</p>
+      <template v-if="canReadFinance">
         <RouterLink to="/fleet-report" class="text-sm font-medium text-link hover:text-link-hover" :class="touch && 'inline-flex min-h-12 items-center'">
           Maintenance and tires on the fleet report →
         </RouterLink>
       </template>
-    </PageHeader>
+    </div>
 
     <DataWorkspace>
       <FilterBar embedded :count="total" count-label="entries" :active-count="activeFilterCount" @clear-all="resetFilters">

@@ -32,40 +32,25 @@ export const maintenanceRoutes: RouteRecordRaw[] = [
     component: () => import("@/pages/MaintenanceHomePage.vue"),
     meta: { requiresAuth: true, title: "Shop" },
   },
-  {
-    path: "/shop/repair-spend",
-    name: "repair-spend",
-    component: () => import("@/pages/MaintenanceSpendPage.vue"),
-    meta: { requiresAuth: true, title: "Repair bills", parent: "/shop" },
-  },
   /**
-   * FleetPal's open work orders and open defects (FLEET-MANAGER-HOME-PLAN Q-FM6 (a)) — the lists
-   * behind the Shop card's figures and the shop home's repair tiles. Read-only: the repair is worked
-   * in FleetPal (D-INV10).
+   * The Shop page's tabs (MAINTENANCE-SECTION-REDESIGN-PROPOSAL §7a.3, M6). These four were pages of their
+   * own until M6 folded them into `/shop` as tabs; their addresses stay as redirects so an alert
+   * (`notificationRoute.ts`'s roadside link), a bookmark or another page's link lands on the same list,
+   * with every query it carried. They stay in the surface catalogue under the same keys (D-MX6): the
+   * Shop page asks each one's grant through `useOpens` before it draws that tab, so a per-person denial
+   * still closes exactly the list it closed. Roadside's own Open/Recorded was `tab=` and is `show=` now.
    */
-  {
-    path: "/shop/work-orders",
-    name: "work-orders",
-    component: () => import("@/pages/WorkOrdersPage.vue"),
-    meta: { requiresAuth: true, title: "Open work orders", parent: "/shop" },
-  },
-  /**
-   * Roadside repairs due (INSPECTION-CHALLENGE-PLAN IC11 B2b, Q-IC16 (a)): the technician's door to the
-   * 396.9(d) repair record, which the safety-gated inspection page is not. Opened by the Shop home's section
-   * and by the `roadside_repair_due` alert.
-   */
+  { path: "/shop/repair-spend", name: "repair-spend", redirect: (to) => ({ path: "/shop", query: { ...to.query, tab: "bills" } }) },
+  { path: "/shop/work-orders", name: "work-orders", redirect: (to) => ({ path: "/shop", query: { ...to.query, tab: "work-orders" } }) },
   {
     path: "/shop/roadside-repairs",
     name: "roadside-repairs",
-    component: () => import("@/pages/RoadsideRepairsPage.vue"),
-    meta: { requiresAuth: true, title: "Roadside repairs due", parent: "/shop" },
+    redirect: (to) => {
+      const { tab: old, ...rest } = to.query;
+      return { path: "/shop", query: { ...rest, ...(old === "recorded" ? { show: "recorded" } : {}), tab: "roadside" } };
+    },
   },
-  {
-    path: "/shop/defects",
-    name: "defects",
-    component: () => import("@/pages/DefectsPage.vue"),
-    meta: { requiresAuth: true, title: "Open defects", parent: "/shop" },
-  },
+  { path: "/shop/defects", name: "defects", redirect: (to) => ({ path: "/shop", query: { ...to.query, tab: "defects" } }) },
   {
     path: "/shop/inventory",
     name: "parts",

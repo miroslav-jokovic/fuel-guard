@@ -48,6 +48,7 @@ const label = (v: PmScheduleDto["verdict"]) => (v === "overdue" ? "Overdue" : v 
         <template v-if="fleetpalMeter"> · FleetPal read {{ miles(fleetpalMeter.miles) }} on {{ formatDate(fleetpalMeter.measuredAt) }}</template>
       </p>
     </div>
+    <!-- ui-adoption: never-paged — one unit's service schedules in FleetPal — a handful, all of which matter at once. -->
     <DataTable embedded :columns="COLUMNS" :rows="rows" row-key="fleetpalId" empty-text="FleetPal has no service schedule for this unit.">
       <template #cell-name="{ row }">{{ (row as unknown as PmScheduleDto).name ?? "Service" }}</template>
       <template #cell-lastDone="{ value }">{{ value ? formatDate(value) : "Never" }}</template>

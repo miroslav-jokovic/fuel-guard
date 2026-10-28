@@ -12,7 +12,6 @@ import {
   sortRows,
 } from "@silvicom/ui";
 import { daysSince, shopDayOf, todayInZone, type ShopWorkOrderDto } from "@silvicom/shared";
-import PageHeader from "@/components/ui/PageHeader.vue";
 import { useOpenWorkOrdersQuery } from "@/features/maintenance/useShopBacklog";
 import { useOrgTimezone } from "@/composables/useOrgTimezone";
 import { formatDate } from "@/lib/format";
@@ -77,8 +76,8 @@ watch([search, () => sort.value.key, () => sort.value.dir], () => (page.value = 
 </script>
 
 <template>
-  <div class="space-y-6">
-    <PageHeader description="Repairs FleetPal has open, oldest first. They are worked and closed in FleetPal." />
+  <div class="space-y-4">
+    <p class="text-sm text-ink-tertiary">Repairs FleetPal has open, oldest first. They are worked and closed in FleetPal.</p>
 
     <DataWorkspace>
       <FilterBar

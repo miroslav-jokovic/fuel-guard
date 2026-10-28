@@ -24,7 +24,7 @@ vi.mock("@/features/maintenance/useMaintenanceSpend", () => ({
 vi.mock("@/composables/useOpens", () => ({ useOpens: () => () => false }));
 vi.mock("@vueuse/core", async (orig) => ({ ...((await orig()) as object), useMediaQuery: () => ref(true) }));
 
-import MaintenanceSpendPage from "./MaintenanceSpendPage.vue";
+import MaintenanceSpendPage from "./ShopRepairBillsPanel.vue";
 import DateRangeFilter from "@/components/DateRangeFilter.vue";
 import { TablePagination } from "@silvicom/ui";
 
