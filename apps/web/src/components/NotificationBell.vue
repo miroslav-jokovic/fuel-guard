@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref } from "vue";
 import { useRouter } from "vue-router";
-import { AppIcon, AppButton as BaseButton } from "@silvicom/ui";
+import { AppIcon, AppButton as BaseButton, useTouchTargets } from "@silvicom/ui";
 import { BellIcon } from "@silvicom/ui/icons";
 import SlideOver from "@/components/SlideOver.vue";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
@@ -74,13 +74,16 @@ function openItem(n: OfficeNotification): void {
     void router.push(to);
   }
 }
+/** 48 px under the touch floor (DESIGN-SYSTEM-CONTRACT.md §9 rule 1); M4's pass measured it smaller. */
+const touch = useTouchTargets();
 </script>
 
 <template>
   <div>
     <button
       type="button"
-      class="relative inline-flex size-9 items-center justify-center rounded-control text-ink-tertiary transition-colors hover:bg-surface-muted hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
+      :class="touch ? 'size-12' : 'size-9'"
+      class="relative inline-flex items-center justify-center rounded-control text-ink-tertiary transition-colors hover:bg-surface-muted hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
       :aria-label="unread > 0 ? `Notifications — ${unread} unread` : 'Notifications'"
       @click="open = true"
     >

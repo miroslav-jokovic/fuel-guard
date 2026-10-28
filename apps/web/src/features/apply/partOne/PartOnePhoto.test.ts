@@ -108,13 +108,13 @@ describe("the scanner screen (§6.6.1)", () => {
     expect(w.find("img").exists()).toBe(false);
   });
 
-  it("every button on it is a 44 px tap target (§6.8)", async () => {
+  it("every button on it clears the 44 px tap target (§6.8) at the 48 px floor", async () => {
     const w = mountPhoto();
-    for (const b of w.findAll("button")) expect(b.classes()).toContain("h-11");
+    for (const b of w.findAll("button")) expect(b.classes()).toContain("h-12");
     await button(w, copy.take).trigger("click");
     await flushPromises();
     expect(w.findAll("button")).toHaveLength(2);
-    for (const b of w.findAll("button")) expect(b.classes()).toContain("h-11");
+    for (const b of w.findAll("button")) expect(b.classes()).toContain("h-12");
   });
 
   it("shows the photo large with Use this photo / Retake, and sends nothing until Use this photo", async () => {

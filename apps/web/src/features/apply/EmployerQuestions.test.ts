@@ -98,10 +98,10 @@ describe("asking them", () => {
     expect(w.text()).toContain(copy.operatedCmv);
   });
 
-  it("makes each choice a 44 px row — the Yes/No answers and the CMV box alike", () => {
+  it("makes each choice a 48 px row — the Yes/No answers and the CMV box alike", () => {
     const { w } = mountQuestions(emptyEmployer());
     const labels = w.findAll("label");
     expect(labels).toHaveLength(5);
-    for (const label of labels) expect(label.classes()).toContain("min-h-11");
+    for (const label of labels) expect(label.classes()).toContain("min-h-12");
   });
 });

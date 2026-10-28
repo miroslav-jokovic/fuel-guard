@@ -10,6 +10,7 @@ import ErrorState from "./ErrorState.vue";
 import type { SortState } from "../lists/sort";
 import { isBlank } from "../lists/dataTable";
 import { reportToWorkspace } from "../lists/workspaceTable";
+import { useTouchTargets } from "../touchTargets";
 
 /**
  * The one data table. Column-definition driven so alignment, selection,
@@ -65,6 +66,15 @@ export interface DataTableColumn {
   headerClass?: string;
   /** Extra td classes — truncation, tone overrides, … */
   cellClass?: string;
+  /**
+   * Where the column stands on a card (DESIGN-SYSTEM-CONTRACT.md §9 rule 3, Maintenance M4): the
+   * row's identifier, the ONE sentence that says why the row is in this list, its one date or
+   * amount — or nowhere. A card below `md` used to carry every column as a label/value grid, five
+   * lines a row on the shop's lists at 390 px (proposal §1.2); everything past three facts belongs on
+   * the row's own page. Marking any column switches the table's cards to that shape, and an unmarked
+   * column of a marked table is `none`. `lint:ui-adoption` refuses an unmarked column on a shop page.
+   */
+  card?: "title" | "sentence" | "meta" | "none";
 }
 
 /**
@@ -177,6 +187,8 @@ const emit = defineEmits<{
   "update:selected": [selected: Set<string>];
   "row-click": [row: Row];
 }>();
+/** A touched shop page draws cards at any width (contract §9): a tablet in a bay is above `md`. */
+const touch = useTouchTargets();
 
 // A toolbar above this table prints its count only once the table has an answer (F15).
 reportToWorkspace(() => ({ loading: props.loading, failed: !!props.error }));
@@ -288,7 +300,7 @@ const isWide = useMediaQuery("(min-width: 768px)");
       <slot name="empty">{{ emptyText }}</slot>
     </div>
     <DataTableCards
-      v-else-if="!isWide"
+      v-else-if="!isWide || touch"
       :columns="columns"
       :rows="rows"
       :key-of="keyOf"
@@ -299,6 +311,7 @@ const isWide = useMediaQuery("(min-width: 768px)");
       :has-actions="hasActions"
       @sort="emit('sort', $event)"
       @toggle-row="toggleRow"
+      @row-click="emit('row-click', $event)"
     >
       <!-- Every slot verbatim, so a `#cell-<key>` written for the table reaches the card unchanged.
            Forwarding by name rather than listing them is the only form that survives a page adding

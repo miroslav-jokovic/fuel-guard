@@ -16,10 +16,10 @@ import { formatDate } from "@/lib/format";
 const props = defineProps<{ pm: UnitShopFileDto["pm"]; fleetpalMeter: UnitShopFileDto["fleetpal"]["lastMeter"] }>();
 
 const COLUMNS: DataTableColumn[] = [
-  { key: "name", label: "Service", cellClass: "font-medium text-ink" },
-  { key: "lastDone", label: "Last done", width: "md" },
-  { key: "due", label: "Due" },
-  { key: "verdict", label: "Status", width: "sm" },
+  { key: "name", label: "Service", card: "title", cellClass: "font-medium text-ink" },
+  { key: "lastDone", label: "Last done", card: "none", width: "md" },
+  { key: "due", label: "Due", card: "sentence" },
+  { key: "verdict", label: "Status", card: "meta", width: "sm" },
 ];
 const rows = computed(() => props.pm.schedules as unknown as Record<string, unknown>[]);
 

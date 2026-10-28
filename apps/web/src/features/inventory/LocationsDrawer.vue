@@ -61,9 +61,9 @@ const { data: locations, isLoading, isError, isFetching, refetch } = useLocation
 const COLUMNS: DataTableColumn[] = [
   // The code rides beside the name, as it is said: a drawer is 400px, and a column of its own pushed
   // the row's menu past the edge (measured 430px, 2026-10-14).
-  { key: "name", label: "Location" },
-  { key: "address", label: "Address" },
-  { key: "active", label: "State" },
+  { key: "name", label: "Location", card: "title" },
+  { key: "address", label: "Address", card: "sentence" },
+  { key: "active", label: "State", card: "meta" },
 ];
 const create = useCreateLocation();
 const update = useUpdateLocation();

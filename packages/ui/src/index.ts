@@ -38,7 +38,7 @@ export { default as AppCallout } from "./components/AppCallout.vue";
 export type { SelectOption } from "./components/AppSelect.vue";
 export type { TabItem } from "./components/AppTabs.vue";
 export type { SegmentOption } from "./components/AppSegmentedControl.vue";
-export { provideTouchTargets } from "./touchTargets";
+export { provideTouchTargets, useTouchTargets } from "./touchTargets";
 
 // The list and read-state composites (US7, D-US11 — UI-STANDARDIZATION.md). They lived in
 // `apps/web/src/components/ui` until 2026-10-15, where the admin console could not reach them, so the

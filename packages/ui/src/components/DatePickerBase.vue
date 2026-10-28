@@ -137,8 +137,8 @@ function onChange(next: string | null) {
 }
 
 /**
- * Inside a thumb-pressed layout (`touchTargets.ts`) the input is 44 px like `AppInput`'s, and its two
- * buttons are 44 px wide with it: at 390 px on `/apply` the calendar button measured 36×36 (C3d3b2).
+ * Inside a thumb-pressed layout (`touchTargets.ts`) the input is 48 px like `AppInput`'s, and its two
+ * buttons are 48 px wide with it: at 390 px on `/apply` the calendar button measured 36×36 (C3d3b2).
  */
 const touchTargets = useTouchTargets();
 const INPUT_CLASS =
@@ -173,8 +173,8 @@ const INPUT_CLASS =
           :placeholder="placeholder"
           :class="[
             INPUT_CLASS,
-            touchTargets ? 'h-11' : 'h-9',
-            touchTargets ? (shown ? 'pr-24' : 'pr-11') : shown ? 'pr-16' : 'pr-9',
+            touchTargets ? 'h-12' : 'h-9',
+            touchTargets ? (shown ? 'pr-24' : 'pr-12') : shown ? 'pr-16' : 'pr-9',
             invalid ? 'ring-danger-600 focus:ring-danger-600' : 'ring-edge-control focus:ring-focus-ring',
           ]"
           autocomplete="off"
@@ -206,7 +206,7 @@ const INPUT_CLASS =
           v-if="shown && !disabled"
           type="button"
           class="absolute inset-y-0 flex items-center justify-center rounded-control text-ink-tertiary hover:text-ink-secondary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
-          :class="touchTargets ? 'right-11 w-11' : 'right-9 w-7'"
+          :class="touchTargets ? 'right-12 w-12' : 'right-9 w-7'"
           :aria-label="`Clear ${noun}`"
           @mousedown.prevent
           @click="onClear"
@@ -217,7 +217,7 @@ const INPUT_CLASS =
           type="button"
           :disabled="disabled"
           class="absolute inset-y-0 right-0 flex items-center justify-center rounded-r-control text-ink-tertiary hover:text-ink-secondary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring disabled:cursor-not-allowed disabled:text-ink-disabled"
-          :class="touchTargets ? 'w-11' : 'w-9'"
+          :class="touchTargets ? 'w-12' : 'w-9'"
           aria-haspopup="dialog"
           :aria-expanded="isMenuOpen"
           :aria-label="`Choose a ${noun}`"

@@ -8,6 +8,7 @@ import {
   TablePagination,
   DataTable,
   type DataTableColumn,
+  useTouchTargets,
 } from "@silvicom/ui";
 import { useMaintenanceSpendQuery } from "@/features/maintenance/useMaintenanceSpend";
 import { lastFullMonth } from "@/lib/dateWindow";
@@ -73,18 +74,20 @@ const canReadFinance = computed(() => opens("/fleet-report"));
 const fmtUsd = (n: number | string) => Number(n).toLocaleString(undefined, { style: "currency", currency: "USD" });
 
 const columns: DataTableColumn[] = [
-  { key: "occurred_at", label: "Date", cellClass: "text-ink-secondary" },
-  { key: "amount", label: "Amount", numeric: true },
-  { key: "external_id", label: "Reference", cellClass: "font-mono text-xs text-ink-secondary" },
-  { key: "source", label: "Source", cellClass: "text-ink-tertiary" },
+  { key: "occurred_at", label: "Date", card: "title", cellClass: "text-ink-secondary" },
+  { key: "amount", label: "Amount", card: "meta", numeric: true },
+  { key: "external_id", label: "Reference", card: "none", cellClass: "font-mono text-xs text-ink-secondary" },
+  { key: "source", label: "Source", card: "sentence", cellClass: "text-ink-tertiary" },
 ];
+/** A link standing on its own is a target, not a word: 48 px tall under the touch floor (contract §9 rule 1). */
+const touch = useTouchTargets();
 </script>
 
 <template>
   <div class="space-y-6">
     <PageHeader description="What the books show was paid for repairs and the shop, line by line.">
       <template v-if="canReadFinance" #actions>
-        <RouterLink to="/fleet-report" class="text-sm font-medium text-link hover:text-link-hover">
+        <RouterLink to="/fleet-report" class="text-sm font-medium text-link hover:text-link-hover" :class="touch && 'inline-flex min-h-12 items-center'">
           Maintenance and tires on the fleet report →
         </RouterLink>
       </template>

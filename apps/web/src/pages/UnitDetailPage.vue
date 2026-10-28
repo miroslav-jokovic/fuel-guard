@@ -7,7 +7,7 @@ import PageHeader from "@/components/ui/PageHeader.vue";
 import UnitFileSection from "@/components/files/UnitFileSection.vue";
 import type { UnitFileSubject } from "@/components/files/fileSubject";
 import UnitEquipmentSection from "@/features/inventory/UnitEquipmentSection.vue";
-import WalkActions, { type WalkAction } from "@/features/inventory/WalkActions.vue";
+import WalkActions, { type WalkAction } from "@/components/WalkActions.vue";
 import { useUnitKitQuery } from "@/features/inventory/useUnits";
 import UnitAttentionCard from "@/features/maintenance/UnitAttentionCard.vue";
 import UnitRepairsSection from "@/features/maintenance/UnitRepairsSection.vue";
@@ -109,7 +109,7 @@ const billsOpen = computed(() => opens("/shop/repair-spend"));
 </script>
 
 <template>
-  <div class="space-y-6 pb-20 sm:pb-0">
+  <div class="space-y-6">
     <PageHeader :title="title" :description="description">
       <template v-if="actions.length" #actions>
         <WalkActions :actions="actions" />

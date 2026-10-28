@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import type { RouteLocationRaw } from "vue-router";
-import { DataTable, type DataTableColumn } from "@silvicom/ui";
+import { DataTable, type DataTableColumn, useTouchTargets } from "@silvicom/ui";
 
 /**
  * One group of the Shop worklist (MAINTENANCE-SECTION-REDESIGN-PROPOSAL.md §4.2, D-MX2).
@@ -36,13 +36,15 @@ const props = defineProps<{
 const emit = defineEmits<{ retry: []; "row-click": [row: Record<string, unknown>] }>();
 
 const drawn = computed(() => props.loading || props.error !== null || props.rows.length > 0);
+/** A link standing on its own is a target, not a word: 48 px tall under the touch floor (contract §9 rule 1). */
+const touch = useTouchTargets();
 </script>
 
 <template>
   <section v-if="drawn" class="space-y-3" :data-test="testId">
     <div class="flex items-center justify-between gap-4">
       <h2 class="text-sm font-semibold text-ink">{{ title }}</h2>
-      <RouterLink v-if="allTo" :to="allTo" class="text-sm font-medium text-link hover:text-link-hover">
+      <RouterLink v-if="allTo" :to="allTo" class="text-sm font-medium text-link hover:text-link-hover" :class="touch && 'inline-flex min-h-12 items-center'">
         {{ allLabel }}
       </RouterLink>
     </div>

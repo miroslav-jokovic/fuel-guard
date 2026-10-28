@@ -14,9 +14,10 @@ import {
   TablePagination,
   sortRows,
 } from "@silvicom/ui";
-import { Cog6ToothIcon, PlusIcon, ScanIcon } from "@silvicom/ui/icons";
+import { Cog6ToothIcon, ScanIcon } from "@silvicom/ui/icons";
 import { UNIT_OF_MEASURE_LABELS, type StockLineDto } from "@silvicom/shared";
 import PageHeader from "@/components/ui/PageHeader.vue";
+import WalkActions, { type WalkAction } from "@/components/WalkActions.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
 import KebabMenu from "@/components/KebabMenu.vue";
 import PartDrawer from "@/features/inventory/PartDrawer.vue";
@@ -114,20 +115,20 @@ const failed = computed(() => (lowOnly.value ? low.error.value : catalogue.error
 const refetch = () => void (lowOnly.value ? low.refetch() : catalogue.refetch());
 
 const CATALOGUE_COLUMNS: DataTableColumn[] = [
-  { key: "partNumber", label: "Part number", cellClass: "font-mono text-xs text-ink", width: "md" },
-  { key: "description", label: "Description" },
-  { key: "manufacturer", label: "Manufacturer", cellClass: "text-ink-secondary" },
-  { key: "category", label: "Category", cellClass: "text-ink-tertiary" },
-  { key: "unitOfMeasure", label: "Counted in", cellClass: "text-ink-tertiary" },
+  { key: "partNumber", label: "Part number", card: "title", cellClass: "font-mono text-xs text-ink", width: "md" },
+  { key: "description", label: "Description", card: "sentence" },
+  { key: "manufacturer", label: "Manufacturer", card: "none", cellClass: "text-ink-secondary" },
+  { key: "category", label: "Category", card: "none", cellClass: "text-ink-tertiary" },
+  { key: "unitOfMeasure", label: "Counted in", card: "none", cellClass: "text-ink-tertiary" },
 ];
 
 const LOW_COLUMNS: DataTableColumn[] = [
-  { key: "partNumber", label: "Part number", sortable: true, cellClass: "font-mono text-xs text-ink", width: "md" },
-  { key: "partDescription", label: "Description" },
-  { key: "locationName", label: "Place", sortable: true, cellClass: "text-ink-secondary" },
-  { key: "quantityOnHand", label: "On hand", sortable: true, numeric: true },
-  { key: "reorderPoint", label: "Order below", sortable: true, numeric: true },
-  { key: "reorderQuantity", label: "Order", numeric: true },
+  { key: "partNumber", label: "Part number", card: "title", sortable: true, cellClass: "font-mono text-xs text-ink", width: "md" },
+  { key: "partDescription", label: "Description", card: "sentence" },
+  { key: "locationName", label: "Place", card: "none", sortable: true, cellClass: "text-ink-secondary" },
+  { key: "quantityOnHand", label: "On hand", card: "meta", sortable: true, numeric: true },
+  { key: "reorderPoint", label: "Order below", card: "none", sortable: true, numeric: true },
+  { key: "reorderQuantity", label: "Order", card: "none", numeric: true },
 ];
 
 const columns = computed(() => (lowOnly.value ? LOW_COLUMNS : CATALOGUE_COLUMNS));
@@ -162,6 +163,11 @@ const locationsOpen = ref(false);
 // `?new=1` opens the drawer. A flag in the same query buffer as the filters (D-US2): closing the
 // drawer removes `new` alone, where `router.replace({ query: {} })` would now also drop the filters.
 const creating = qs.flag("new");
+
+/** The page's one verb, in the header on a desk and the phone's bottom bar (contract §9 rule 2). */
+const actions = computed<WalkAction[]>(() =>
+  session.can("maintenance") ? [{ label: "New part", primary: true, onClick: () => (creating.value = true) }] : [],
+);
 </script>
 
 <template>
@@ -177,9 +183,7 @@ const creating = qs.flag("new");
         <BaseButton v-if="opens('/shop/labels')" to="/shop/labels">
           <AppIcon :icon="ScanIcon" class="-ml-0.5 size-5" aria-hidden="true" /> Labels
         </BaseButton>
-        <BaseButton v-if="session.can('maintenance')" variant="primary" @click="creating = true">
-          <AppIcon :icon="PlusIcon" class="-ml-0.5 size-5" aria-hidden="true" /> New part
-        </BaseButton>
+        <WalkActions :actions="actions" />
       </template>
     </PageHeader>
 
@@ -236,5 +240,6 @@ const creating = qs.flag("new");
 
     <PartDrawer :open="creating" @close="creating = false" />
     <LocationsDrawer :open="locationsOpen" @close="locationsOpen = false" />
+    <WalkActions v-if="actions.length" :actions="actions" bar />
   </div>
 </template>

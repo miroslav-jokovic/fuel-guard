@@ -64,11 +64,11 @@ watch([search, type], () => (page.value = 1));
 const pageRows = computed(() => rows.value.slice((page.value - 1) * PAGE_SIZE, page.value * PAGE_SIZE));
 
 const COLUMNS: DataTableColumn[] = [
-  { key: "unitNumber", label: "Unit", cellClass: "font-medium text-ink", width: "sm" },
-  { key: "ours", label: "Our record", width: "md" },
-  { key: "fleetpal", label: "FleetPal", width: "md" },
-  { key: "gapDays", label: "Apart", numeric: true, width: "sm" },
-  { key: "check", label: "What to check", width: "2xl" },
+  { key: "unitNumber", label: "Unit", card: "title", cellClass: "font-medium text-ink", width: "sm" },
+  { key: "ours", label: "Our record", card: "none", width: "md" },
+  { key: "fleetpal", label: "FleetPal", card: "none", width: "md" },
+  { key: "gapDays", label: "Apart", card: "meta", numeric: true, width: "sm" },
+  { key: "check", label: "What to check", card: "sentence", width: "2xl" },
 ];
 
 /** The fix, in the shop's words, from which side is later. */

@@ -6,6 +6,7 @@ import {
 } from "../icons";
 import { computed, ref, watch } from "vue";
 import BaseButton from "./AppButton.vue";
+import { useTouchTargets } from "../touchTargets";
 
 /**
  * `total: null` is a keyset-paged list that does not count its rows (Assignment history). It pages on
@@ -65,6 +66,8 @@ const commitJump = () => {
   draft.value = String(props.page); // reset invalid/out-of-range input back to the actual page
 };
 
+/** Newer/Older/Prev/Next are `AppButton`s and follow the floor themselves; the page box is this file's. */
+const touch = useTouchTargets();
 </script>
 
 <template>
@@ -104,6 +107,7 @@ const commitJump = () => {
           :value="draft"
           :disabled="loading"
           aria-label="Go to page"
+          :class="touch && 'h-12'"
           class="w-14 rounded-control border-0 py-1 text-center text-sm text-ink ring-1 ring-edge-control ring-inset focus:ring-2 focus:ring-focus-ring disabled:opacity-40 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
           @input="draft = ($event.target as HTMLInputElement).value"
           @keyup.enter="commitJump"

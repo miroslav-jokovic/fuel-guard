@@ -88,10 +88,12 @@ body {
    * Next) sat under it once the page was scrolled to its end (seen in Chromium 2026-10-15, US8).
    * `--assistant-clearance` is written by the launcher from its own measured position and size, and
    * is 0 when it is not drawn (AssistantLauncher.vue). 1.5rem is the gutter the page had before.
+   * `--bottom-chrome` is the shop's tab row plus a page's verb bar (`bottomChrome.ts`), set on `<main>`
+   * by `AppShell`, for a role or a page where no launcher is drawn to clear them already.
    */
   .shell-main-padding {
     padding-top: 1.5rem;
-    padding-bottom: max(1.5rem, var(--assistant-clearance, 0px));
+    padding-bottom: max(1.5rem, var(--assistant-clearance, 0px), var(--bottom-chrome, 0px));
   }
 
   .sidebar-glass {

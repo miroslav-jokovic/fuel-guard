@@ -81,11 +81,11 @@ const pageRows = computed(() => rows.value.slice((page.value - 1) * PAGE_SIZE, p
 watch([tab, search, focus], () => (page.value = 1));
 
 const COLUMNS: DataTableColumn[] = [
-  { key: "unit", label: "Unit", cellClass: "font-medium text-ink", width: "sm" },
-  { key: "inspection", label: "Inspection", width: "lg" },
-  { key: "violations", label: "Violations", width: "xl" },
-  { key: "proposal", label: "In FleetPal", width: "lg" },
-  { key: "due", label: "Due", width: "md" },
+  { key: "unit", label: "Unit", card: "title", cellClass: "font-medium text-ink", width: "sm" },
+  { key: "inspection", label: "Inspection", card: "none", width: "lg" },
+  { key: "violations", label: "Violations", card: "sentence", width: "xl" },
+  { key: "proposal", label: "In FleetPal", card: "none", width: "lg" },
+  { key: "due", label: "Due", card: "meta", width: "md" },
 ];
 
 /** What FleetPal shows for the unit, in a few words — the drawer holds the work orders themselves. */

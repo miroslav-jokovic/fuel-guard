@@ -28,12 +28,12 @@ const props = withDefaults(
   }>(),
   { variant: "ghost", size: "md", type: "button", disabled: false, to: undefined, pressed: undefined },
 );
-/** 44 px square inside a thumb-pressed layout (`touchTargets.ts`), whatever the size asked for. */
+/** 48 px square inside a thumb-pressed layout (`touchTargets.ts`), whatever the size asked for. */
 const touchTargets = useTouchTargets();
 
 const cls = computed(() => [
   "inline-flex shrink-0 items-center justify-center rounded-control transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring disabled:pointer-events-none disabled:opacity-60",
-  touchTargets ? "size-11" : props.size === "sm" ? "size-8" : "size-9",
+  touchTargets.value ? "size-12" : props.size === "sm" ? "size-8" : "size-9",
   props.variant === "secondary" && "bg-surface text-ink-secondary ring-1 ring-inset ring-edge-control hover:bg-surface-subtle",
   props.variant === "ghost" && "text-ink-tertiary hover:bg-surface-muted hover:text-ink",
   props.variant === "danger" && "text-danger-700 hover:bg-danger-subtle",

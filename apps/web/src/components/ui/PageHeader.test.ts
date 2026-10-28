@@ -2,6 +2,8 @@ import { describe, it, expect, afterEach, vi } from "vitest";
 import { mount } from "@vue/test-utils";
 import { createRouter, createMemoryHistory } from "vue-router";
 import axe from "axe-core";
+import { defineComponent, h } from "vue";
+import { provideTouchTargets } from "@silvicom/ui";
 import PageHeader from "./PageHeader.vue";
 
 // SP5: the links here ask the router guard's own function (`useOpens`), which reads the session. The
@@ -189,5 +191,29 @@ describe("PageHeader breadcrumbs (G2)", () => {
       rules: { "color-contrast": { enabled: false } },
     });
     expect(result.violations.map((v) => v.id)).toEqual([]);
+  });
+});
+
+/**
+ * One way back (DESIGN-SYSTEM-CONTRACT.md §9 rule 5): below `md` the shell's Back is drawn and the
+ * trail is not, and on a touched shop page — a coarse-pointer tablet is above `md` — neither is it.
+ */
+describe("PageHeader's one way back (§9 rule 5)", () => {
+  it("hides the trail below md and keeps it on a desk", async () => {
+    const nav = (await mountAt("/hazmat/loads/1")).get("nav[aria-label=Breadcrumb]");
+    expect(nav.classes()).toContain("max-md:hidden");
+    expect(nav.classes()).not.toContain("hidden");
+  });
+
+  it("hides the trail at any width while the page is touched", async () => {
+    const router = await routerFor("/hazmat/loads/1");
+    const Touched = defineComponent({
+      setup() {
+        provideTouchTargets();
+        return () => h(PageHeader);
+      },
+    });
+    const nav = mount(Touched, { global: { plugins: [router] } }).get("nav[aria-label=Breadcrumb]");
+    expect(nav.classes()).toContain("hidden");
   });
 });

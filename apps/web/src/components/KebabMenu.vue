@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { AppIcon } from "@silvicom/ui";
+import { AppIcon, useTouchTargets } from "@silvicom/ui";
 import {
   EllipsisVerticalIcon,
 } from "@silvicom/ui/icons";
@@ -37,6 +37,9 @@ const { floatingStyles } = useFloating(triggerRef, panelRef, {
   middleware: [offset(4), flip(), shift({ padding: 8 })],
   whileElementsMounted: autoUpdate,
 });
+
+/** A 48 px trigger under the touch floor (contract §9 rule 1); M3's pass measured it at 28. */
+const touch = useTouchTargets();
 </script>
 
 <template>
@@ -48,6 +51,7 @@ const { floatingStyles } = useFloating(triggerRef, panelRef, {
         $slots.trigger
           ? 'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400/80'
           : 'rounded-control p-1 text-ink-tertiary hover:bg-surface-muted hover:text-ink-secondary focus:ring-2 focus:ring-focus-ring focus:outline-none',
+        !$slots.trigger && touch ? 'inline-flex size-12 items-center justify-center' : '',
         block ? 'w-full' : '',
       ]"
       :aria-label="triggerLabel ?? ($slots.trigger ? undefined : 'Actions')"

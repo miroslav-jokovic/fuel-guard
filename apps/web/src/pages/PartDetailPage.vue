@@ -159,19 +159,19 @@ const shelfAdding = ref(false);
 const canManage = computed(() => session.can("maintenance"));
 
 const SHELF_COLUMNS: DataTableColumn[] = [
-  { key: "locationName", label: "Location", width: "lg" },
-  { key: "quantityOnHand", label: "On hand", numeric: true },
-  { key: "reorderPoint", label: "Reorder at", numeric: true },
-  { key: "reorderQuantity", label: "Order", numeric: true },
+  { key: "locationName", label: "Location", card: "title", width: "lg" },
+  { key: "quantityOnHand", label: "On hand", card: "meta", numeric: true },
+  { key: "reorderPoint", label: "Reorder at", card: "none", numeric: true },
+  { key: "reorderQuantity", label: "Order", card: "none", numeric: true },
 ];
 
 const LEDGER_COLUMNS: DataTableColumn[] = [
-  { key: "occurredAt", label: "When", width: "md", cellClass: "text-ink-secondary" },
-  { key: "reason", label: "What happened", width: "md" },
-  { key: "quantityDelta", label: "Change", numeric: true },
-  { key: "locationId", label: "Location", cellClass: "text-ink-secondary" },
-  { key: "actorName", label: "By", cellClass: "text-ink-secondary" },
-  { key: "note", label: "Detail", cellClass: "text-ink-tertiary" },
+  { key: "occurredAt", label: "When", card: "sentence", width: "md", cellClass: "text-ink-secondary" },
+  { key: "reason", label: "What happened", card: "title", width: "md" },
+  { key: "quantityDelta", label: "Change", card: "meta", numeric: true },
+  { key: "locationId", label: "Location", card: "none", cellClass: "text-ink-secondary" },
+  { key: "actorName", label: "By", card: "none", cellClass: "text-ink-secondary" },
+  { key: "note", label: "Detail", card: "none", cellClass: "text-ink-tertiary" },
 ];
 
 const fmtWhen = (iso: string) =>

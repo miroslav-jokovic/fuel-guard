@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { AppIcon } from "@silvicom/ui";
+import { AppIcon, useTouchTargets } from "@silvicom/ui";
 import {
   CalendarIcon,
   XMarkIcon,
@@ -99,10 +99,12 @@ function clear() {
   emit("update:from", undefined);
   emit("update:to", undefined);
 }
+/** The chip and its clear button at 48 px, 8 apart, under the touch floor (contract §9 rule 1) — as `FilterSelect`'s. */
+const touch = useTouchTargets();
 </script>
 
 <template>
-  <div class="inline-flex items-center gap-1">
+  <div class="inline-flex items-center" :class="touch ? 'gap-2' : 'gap-1'">
     <!-- `time-config`, not `enable-time-picker`: v14 regrouped the flat props, and a stale one is
          accepted as a plain HTML attribute rather than refused — this carried the pre-bump name,
          which landed on the root div and did nothing. Same class of silent break as the `--dp-*`
@@ -121,12 +123,11 @@ function clear() {
       <template #trigger>
         <button
           type="button"
-          class="inline-flex h-8 items-center gap-1.5 rounded-control px-2.5 text-sm font-medium ring-1 ring-inset transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
-          :class="
-            display
-              ? 'bg-brand-50/60 text-brand-800 ring-edge hover:bg-brand-50'
-              : 'bg-surface text-ink-secondary ring-edge hover:bg-surface-subtle'
-          "
+          class="inline-flex items-center gap-1.5 rounded-control px-2.5 text-sm font-medium ring-1 ring-inset transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
+          :class="[
+            display ? 'bg-brand-50/60 text-brand-800 ring-edge hover:bg-brand-50' : 'bg-surface text-ink-secondary ring-edge hover:bg-surface-subtle',
+            touch ? 'h-12' : 'h-8',
+          ]"
           :aria-label="display ? `Date filter: ${display}` : 'Filter by date range'"
         >
           <AppIcon :icon="CalendarIcon" class="size-4 shrink-0" :class="display ? 'text-brand-600' : 'text-ink-tertiary'" aria-hidden="true" />
@@ -137,7 +138,8 @@ function clear() {
     <button
       v-if="display"
       type="button"
-      class="inline-flex size-8 items-center justify-center rounded-control text-brand-700 ring-1 ring-inset ring-edge hover:bg-brand-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
+      :class="touch ? 'size-12' : 'size-8'"
+      class="inline-flex items-center justify-center rounded-control text-brand-700 ring-1 ring-inset ring-edge hover:bg-brand-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
       aria-label="Clear date filter"
       @click="clear"
     >

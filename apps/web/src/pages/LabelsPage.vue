@@ -2,7 +2,6 @@
 import { computed, ref, watch } from "vue";
 import { useRoute } from "vue-router";
 import {
-  AppButton as BaseButton,
   AppCard as BaseCard,
   AppSegmentedControl,
   QueryState,
@@ -16,6 +15,7 @@ import {
 import type { LabelPresetId } from "@silvicom/qr";
 import type { LabelTarget } from "@silvicom/shared";
 import PageHeader from "@/components/ui/PageHeader.vue";
+import WalkActions, { type WalkAction } from "@/components/WalkActions.vue";
 import LabelSheetPreview from "@/features/inventory/LabelSheetPreview.vue";
 import LabelStockControls from "@/features/inventory/LabelStockControls.vue";
 import { ASSETS_PAGE_SIZE, useAssetsQuery } from "@/features/inventory/useAssets";
@@ -251,17 +251,17 @@ function switchSource(next: Source) {
 }
 
 const stockColumns: DataTableColumn[] = [
-  { key: "partNumber", label: "Part" },
-  { key: "partDescription", label: "Description" },
-  { key: "locationName", label: "Location" },
-  { key: "tagCode", label: "Label" },
+  { key: "partNumber", label: "Part", card: "title" },
+  { key: "partDescription", label: "Description", card: "sentence" },
+  { key: "locationName", label: "Location", card: "none" },
+  { key: "tagCode", label: "Label", card: "meta" },
 ];
 
 const assetColumns: DataTableColumn[] = [
-  { key: "displayNo", label: "Number" },
-  { key: "name", label: "Name" },
-  { key: "assetTypeName", label: "Kind" },
-  { key: "tagCode", label: "Label" },
+  { key: "displayNo", label: "Number", card: "title" },
+  { key: "name", label: "Name", card: "sentence" },
+  { key: "assetTypeName", label: "Kind", card: "none" },
+  { key: "tagCode", label: "Label", card: "meta" },
 ];
 
 /** A one-label stock goes to the default label printer when there is one; a sheet goes to the PDF. */
@@ -294,19 +294,27 @@ async function print() {
     printing.value = false;
   }
 }
+
+/**
+ * Print, in the header on a desk and the phone's bottom bar (contract §9 rule 2). Labels is a desk
+ * screen (rule 6) — out of the phone's tab row — but reachable from Parts and Equipment, and a phone
+ * that does open it prints to the shop's label printer like any other device.
+ */
+const actions = computed<WalkAction[]>(() => [
+  {
+    label: printing.value ? "Preparing…" : `Print ${targets.value.length || ""}`.trim(),
+    primary: true,
+    disabled: targets.value.length === 0 || printing.value,
+    onClick: () => void print(),
+  },
+]);
 </script>
 
 <template>
   <div class="space-y-6">
     <PageHeader description="Pick what needs a label, choose the stock, and print.">
       <template #actions>
-        <BaseButton
-          variant="primary"
-          :disabled="targets.length === 0 || printing"
-          @click="print"
-        >
-          {{ printing ? "Preparing…" : `Print ${targets.length || ""}`.trim() }}
-        </BaseButton>
+        <WalkActions :actions="actions" />
       </template>
     </PageHeader>
     <p class="-mt-4 text-sm text-ink-muted" data-testid="print-destination">
@@ -452,5 +460,6 @@ async function print() {
         </BaseCard>
       </div>
     </div>
+    <WalkActions v-if="actions.length" :actions="actions" bar />
   </div>
 </template>

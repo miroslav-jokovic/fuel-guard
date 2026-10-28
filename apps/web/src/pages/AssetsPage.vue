@@ -11,9 +11,10 @@ import {
   type DataTableColumn,
   TablePagination,
 } from "@silvicom/ui";
-import { Cog6ToothIcon, PlusIcon, ScanIcon } from "@silvicom/ui/icons";
+import { Cog6ToothIcon, ScanIcon } from "@silvicom/ui/icons";
 import { ASSET_STATUSES, ASSET_STATUS_LABELS, type AssetDto } from "@silvicom/shared";
 import PageHeader from "@/components/ui/PageHeader.vue";
+import WalkActions, { type WalkAction } from "@/components/WalkActions.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
 import KebabMenu from "@/components/KebabMenu.vue";
 import AssetDrawer from "@/features/inventory/AssetDrawer.vue";
@@ -99,12 +100,12 @@ const filter = computed(() => ({
 const assets = useAssetsQuery(filter);
 
 const COLUMNS: DataTableColumn[] = [
-  { key: "displayNo", label: "Number", cellClass: "font-mono text-xs text-ink", width: "sm" },
-  { key: "name", label: "What it is" },
-  { key: "assetTypeName", label: "Kind", cellClass: "text-ink-secondary" },
-  { key: "holder", label: "Where it is" },
-  { key: "serialNumber", label: "Serial", cellClass: "font-mono text-xs text-ink-tertiary" },
-  { key: "status", label: "Status", width: "sm" },
+  { key: "displayNo", label: "Number", card: "none", cellClass: "font-mono text-xs text-ink", width: "sm" },
+  { key: "name", label: "What it is", card: "title" },
+  { key: "assetTypeName", label: "Kind", card: "none", cellClass: "text-ink-secondary" },
+  { key: "holder", label: "Where it is", card: "sentence" },
+  { key: "serialNumber", label: "Serial", card: "none", cellClass: "font-mono text-xs text-ink-tertiary" },
+  { key: "status", label: "Status", card: "meta", width: "sm" },
 ];
 
 const openAsset = (row: Record<string, unknown>) =>
@@ -115,6 +116,11 @@ const typesOpen = ref(false);
 // buffer as the filters (D-US2): closing the drawer removes `new` alone, where the old
 // `router.replace({ query: {} })` would now also have thrown the reader's filters away.
 const creating = qs.flag("new");
+
+/** The page's one verb, in the header on a desk and the phone's bottom bar (contract §9 rule 2). */
+const actions = computed<WalkAction[]>(() =>
+  session.can("maintenance") ? [{ label: "Add equipment", primary: true, onClick: () => (creating.value = true) }] : [],
+);
 </script>
 
 <template>
@@ -134,9 +140,7 @@ const creating = qs.flag("new");
         <BaseButton v-if="opens('/shop/labels')" to="/shop/labels">
           <AppIcon :icon="ScanIcon" class="-ml-0.5 size-5" aria-hidden="true" /> Labels
         </BaseButton>
-        <BaseButton v-if="session.can('maintenance')" variant="primary" @click="creating = true">
-          <AppIcon :icon="PlusIcon" class="-ml-0.5 size-5" aria-hidden="true" /> Add equipment
-        </BaseButton>
+        <WalkActions :actions="actions" />
       </template>
     </PageHeader>
 
@@ -212,5 +216,6 @@ const creating = qs.flag("new");
 
     <AssetDrawer :open="creating" @close="creating = false" />
     <AssetTypesDrawer :open="typesOpen" @close="typesOpen = false" />
+    <WalkActions v-if="actions.length" :actions="actions" bar />
   </div>
 </template>
