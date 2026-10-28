@@ -1,4 +1,4 @@
-import { overrideBlocksWrite } from "@silvicom/shared";
+import { OVERRIDE_BLOCKED_CAPABILITIES, overrideBlockedMessage, overrideBlocksWrite } from "@silvicom/shared";
 import type { OperationCard, OperationDraft } from "./cardOperations";
 
 /**
@@ -54,16 +54,37 @@ export const clearExceptionClause = (uses: number): string =>
   + "same time, and that cannot be undone from here — a new exception has to be granted.";
 
 /**
- * The status operation's blocker — invariant 6's SENTENCE, and the reason the checkbox exists.
+ * Whether the drawer offers the "Also remove the fuel exception" checkbox — Hold alone (D-CCF2).
+ *
+ * Keyed on the capability the draft RESOLVES to, not on the operation: the status control writes
+ * through three capabilities, and only `card_lock` carries `clearException`. Until CCF1
+ * (2026-10-28) the box rendered for Active and Inactive too, the operator ticked it, and the API
+ * refused the unlock or deactivate anyway with a different instruction — a way through that led
+ * nowhere (`docs/plans/fuel/CARD-CONTROL-CORRECTIONS-PLAN.md` B2).
+ */
+export const offersClearException = (capabilityKey: string, overrideUses: number | null | undefined): boolean =>
+  capabilityKey === "card_lock" && cardHasArmedException(overrideUses);
+
+/**
+ * The override freeze's blocker for ANY capability — invariant 6's SENTENCE.
  *
  * Here rather than in `cardOperations.ts` so it sits beside the checkbox label and help text it has to
  * agree with: the button says "tick the box", the box says what it does, and one file owns both. It
  * also keeps that file under the 500-line budget, which is the seam `promptDrafts.ts` and
  * `operationDrafts.ts` were cut along before it.
  *
- * ⚠ This does NOT block — it is the way through. The checkbox turns it off, and the write then carries
- * the exception out in the same request. A capability with no such offer (unlock, deactivate, prompts)
- * gets a flat refusal from the API instead, which is the Option A / Option B split.
+ * Two answers, the Option A / Option B split:
+ *   • `card_lock` — the checkbox is the way through, so the blocker asks for it and lifts once ticked.
+ *   • every other capability in `OVERRIDE_BLOCKED_CAPABILITIES` (unlock, deactivate, prompts) — the
+ *     sentence the API's `assertOverrideDoesNotBlock` refuses with, read from the same shared map and
+ *     message, so the drawer says before Confirm exactly what the server would say after it.
+ * A capability outside the map (grant, clear) is not frozen here; grant has its own blocker.
  */
-export const statusBlocker = (draft: OperationDraft, card: OperationCard): string | null =>
-  (cardHasArmedException(card.overrideUses) && !draft.clearException ? CLEAR_EXCEPTION_BLOCKER : null);
+export const overrideFreezeBlocker = (
+  capabilityKey: string, draft: OperationDraft, card: OperationCard,
+): string | null => {
+  if (!cardHasArmedException(card.overrideUses)) return null;
+  if (capabilityKey === "card_lock") return draft.clearException ? null : CLEAR_EXCEPTION_BLOCKER;
+  const what = OVERRIDE_BLOCKED_CAPABILITIES[capabilityKey];
+  return what ? overrideBlockedMessage(card.overrideUses ?? 0, what) : null;
+};

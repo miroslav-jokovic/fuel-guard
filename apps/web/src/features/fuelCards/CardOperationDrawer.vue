@@ -224,7 +224,7 @@ const context = computed(() => ({
 const body = computed<Record<string, unknown>>(() =>
   committed.value?.body ?? (props.operation ? props.operation.body(draft.value) : {}));
 
-const ui = computed(() => (props.operation ? operationUi(props.operation) : null));
+const ui = computed(() => (props.operation ? operationUi(props.operation, draft.value) : null));
 const confirmation = computed(() =>
   (props.operation ? operationConfirmation(props.operation, body.value, context.value, draft.value) : null));
 const diffRows = computed(() =>
