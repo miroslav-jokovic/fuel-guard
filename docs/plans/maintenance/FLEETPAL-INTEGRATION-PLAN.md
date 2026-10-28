@@ -1751,3 +1751,12 @@ out-of-order retry does not overwrite newer state — each proved by a test, and
   F12 (the parts catalogue sync) is next after the shop worklist (M2), ahead of F10/F11, which the
   redesign's M3 then builds. The DE plan's §0 ruling stands: shop parts come from FleetPal, truck
   equipment is ours.
+- **2026-10-28 · F12a — migration 0525 (`claude/fleetpal-f12a-parts-identity`).** `parts.fleetpal_id`
+  (unique per org where set, partial index), `parts.fleetpal_unit` (the vendor's word, kept), and
+  `'unmapped'` admitted by the unit-of-measure CHECK. The quantities-and-locations question F12's
+  note left open is CLOSED by the contract itself: `fleetpalPartSchema` has no quantity and no
+  location (D-FP11, F4), so FleetPal supplies the catalogue and the count supplies the balance;
+  D-INV10 stands as written. Readers and the sync ship in the next merge (F12b), after
+  `migrate-staging` applies this. Pinned in `supabase/tests/inventory-stock.test.mjs` rule 12 — six
+  assertions, two of them proved by mutating the migration (no `'unmapped'` → one fails; a plain
+  index → the duplicate-id assertion fails).
