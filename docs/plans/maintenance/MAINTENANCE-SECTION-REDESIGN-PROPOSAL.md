@@ -305,6 +305,101 @@ M1 and M2 are a week of work together; M3 is the largest because F10 was never b
 
 ---
 
+## 7a. Second round — the owner's review after M4 (2026-10-28)
+
+After M4 merged, the owner looked at the section again and named five things that are off. This section checks each one against what this plan and its neighbours had already decided (the honest answer is in the second column), then gives the fix. **It replaces two rulings above, said plainly:** D-MX2's *one worklist of stacked groups* (§4.2, M2) and D-MX3's *one page, no tabs* (§4.3, M3) give way to the product's own pattern — **one table per tab, every table paged**. D-MX1 (named doors), D-MX4 (plain words), D-MX5 (phone first, contract §9) and D-MX6 (keys never change) stand.
+
+### 7a.1 What the owner said, and whether it was planned
+
+| # | Owner, 2026-10-28 | Was it planned? (measured on `main` b1927b6) |
+|---|---|---|
+| R1 | *"Shop doesn't follow our flow from other pages — multiple tables on the same page instead of tabs."* | **The opposite was planned.** M2 built the home as five stacked groups (`MaintenanceHomePage.vue`: five `ShopWorklistSection` tables, no `AppTabs`), and M3 built the truck's page as seven sections on purpose ("no tabs", §4.3). Every other list in the product is tabs over one table: Annual inspections, Roadside repairs, Idling, Dispatch loads, the vehicle and driver pages. The shop is the one place that broke the pattern, and it did so by plan. |
+| R2 | *"Tables are without pagination, not standardised."* | **Partly true.** The home's five groups show the first 5 rows (`PREVIEW_ROWS`) with no pager and an "All N" link to a separate page; the truck's page has four tables with no pager (`UnitEquipmentSection` ×2, `UnitRepairsSection`, `UnitPmDueCard`). The full list pages (Work orders, Defects, Parts, Equipment, …) are standard — `DataWorkspace` + `FilterBar` + `TablePagination`. No gate checks that a table is paged outside a `DataWorkspace`. |
+| R3 | *"We don't have a separate Truck assignment page where we see the equipment assigned to each truck; a separate tab with the inventory list where we add and manage it; and invoices for this equipment."* | **Not planned as a page.** The pieces exist but are scattered: what each truck carries is a section on the truck's page and a "Missing equipment" filter on Trucks & trailers; the equipment list is `/shop/assets`, which M1 took **out** of the sidebar (`parent: maintenance.units`). **Invoices: not planned anywhere.** An item has `purchasedAt` and `purchaseCost` (`inventoryAssetContract.ts:218`) and nothing else — no vendor, no invoice number, no paper. `documents` cannot hold an equipment invoice (`DOCUMENT_SUBJECT_TYPES` has driver, tractor, trailer, load, organization, roadside_inspection). |
+| R4 | *"Parts page not clear to me — is it something FleetPal pulls, or is it for our truck equipment?"* | **Planned, but the page never says so.** Parts is the SHOP's parts catalogue, pulled from FleetPal every hour (FleetPal F12, #1801/#1803; Q-MX2). It has nothing to do with truck equipment — the owner's own ruling of 2026-10-27 keeps the two inventories apart (`DRIVER-EQUIPMENT-AND-UNIT-TAGS-PLAN.md`). Production shows 0 parts because the first sync has not run (Settings → FleetPal → Sync now, after the release; ≈3,558 expected). The page's header says "Everything the shop carries, and what is running low" — not where the list comes from, and not that it is managed in FleetPal. The shelf counts and "Running low" on it are ours, and FleetPal sends no quantities (D-FP11), so today they would be empty. |
+| R5 | *"When adding tablets as equipment we need to scan the IMEI directly from the tablet's sticker — is it possible to use barcodes?"* | **Not planned.** Equipment has one free-text `serialNumber` and no IMEI. The scanner was built for OUR tags (`SIL1;…`); a stray IMEI barcode was treated as a misread (R3 in the driver-equipment plan). Camera scanning was deferred ("later, not now", `PRINTERS-AND-SCANNERS-PLAN.md`). **It is possible, with what we already own** — see 7a.6. |
+
+### 7a.2 The rule that fixes R1 and R2 (contract §9, a ninth rule)
+
+**One table per tab; every table paged.** A page with more than one list puts each list on its own tab (`AppTabs`, the tab in the URL as `?tab=`, a count in each tab's label). Every `DataTable` gets a `TablePagination` in `#footer`. The only exception is a list that cannot grow — a truck's open work orders, say — and it says so where it stands (`ui-adoption: never-paged — <why>`). Gate: `check-phone-rules.mjs` gains two detectors — more than one `DataTable` on a shop page outside a tab panel, and a `DataTable` with no pager and no marker. Each gets a fixture that must fire.
+
+### 7a.3 The Shop page (R1, R2)
+
+The Shop page becomes tabs, each a standard list (search, filters, pager), most urgent first. Each tab label carries its count.
+
+| Tab | Rows | Was |
+|---|---|---|
+| **Defects** | Found on an inspection, not fixed (FleetPal) | home group + `/shop/defects` |
+| **Work orders** | In the shop now (FleetPal) | home group + `/shop/work-orders` |
+| **Roadside repairs** | Violations an officer wrote, repair due | home group + `/shop/roadside-repairs` |
+| **Annual due** | Annual inspections due within 30 days or overdue | home group (Q-MX5) |
+| **Repair bills** | What the books show was paid | tile + `/shop/repair-spend` |
+
+- It opens on the first tab that has rows. On a quiet day it opens on Defects with its empty sentence.
+- Scan stays the header verb (and the phone's bottom bar).
+- "Missing equipment" and "Running low" leave the Shop page for the pages they belong to: Equipment (7a.4) and Shop parts (7a.5).
+- The old addresses redirect to their tab (`/shop/defects` → `/shop?tab=defects`). Every surface key stays as it is (D-MX6). The four child screens already answer to the Shop's key, so access does not change.
+
+**The truck's page gets the same treatment** (recommended — Q-MX9): a header with the truck's facts and *Needs attention*, then the tabs **Repairs · Service due · Equipment · Inspections · Papers**, each paged. It measured 3,587 px on a phone after M4; one tab at a time is a screen or two.
+
+### 7a.4 Equipment becomes its own door: on trucks, inventory, invoices (R3)
+
+Equipment returns to the sidebar as its own row (surface `maintenance.assets`; the `parent` comes off, the key stays — D-MX6). The doors become **Shop · Trucks & trailers · Equipment · Annual inspections**, plus Shop parts (7a.5). The phone tab row follows by itself, because it reads the sidebar. One page, three tabs:
+
+| Tab | One row per | Shows | Does |
+|---|---|---|---|
+| **On trucks** (the "truck assignment" view) | truck or trailer | number · what it carries in one sentence (for example *"Tablet A-0412 (Dana Reyes), 2 load bars, fire extinguisher"*) · missing count · last checked. A tablet shows its driver, because tablets follow the driver (owner, 2026-10-27). | Opens the truck's **Equipment** tab; *Check what is on board*; filter *Missing something* / *Never checked* / kind. |
+| **Inventory** | item | number · what it is · where it is (truck, driver, place) · status | **Add equipment** (verb bar), edit, move, print label, retire; filter by kind, status, where. This is today's `/shop/assets`, moved in. |
+| **Invoices** | purchase | vendor · invoice number · date · total · how many items · the paper | **Add invoice**: vendor, number, date, total, the PDF or a photo, and which items it paid for. An item's page shows its invoice. |
+
+**What the invoice needs (one migration, then its reader in a later merge — `lint:migration-ordering`):**
+- A new table `equipment_purchases` (org, vendor, invoice number, invoice date, total, notes, created by), with RLS enabled. It is append-only in the evidence sense: a correction is a new row, and the old one is marked superseded.
+- Items get `inventory_assets.purchase_id`, a nullable reference to the purchase; the item's own `purchaseCost` stays.
+- The paper is a `documents` row, which means a new subject type `equipment_purchase` and the retention pin.
+- One invoice usually covers many items (ten tablets on one bill), so the invoice is its own row rather than three fields copied onto each item.
+- Optional, later: match the invoice number to McLeod's AP vouchers, the way FleetPal F9b does, so an invoice shows *"paid in McLeod on 10/02/2026"*.
+
+### 7a.5 Parts says what it is (R4)
+
+- **The name.** The sidebar row and page title become **Shop parts**. The header reads: *"The shop's parts catalogue, pulled from FleetPal every hour. Add and change parts in FleetPal."* A parts row shows *From FleetPal* the way a FleetPal work order does.
+- **No editing here.** The page stops offering New part and Edit for anything FleetPal owns. Editing here would make a second source of truth, which the two-inventories ruling exists to prevent.
+- **Shelf counting** (our places, counts and "Running low") stays hidden until the shop asks for it — Q-MX8. FleetPal has no quantities to fill it with, so today it can only show empty.
+- **The Equipment page never mentions parts, and Shop parts never mentions equipment.**
+
+### 7a.6 Scanning a tablet's IMEI (R5) — yes, with what we already have
+
+What a tablet sticker carries: an Android tablet with a SIM slot has a sticker (on the back or on the box) printing the **IMEI as a Code 128 barcode** — 15 digits, the last one a check digit (Luhn) — and usually the serial number as a second barcode. A Wi-Fi-only tablet has **no IMEI**, only the serial, so the field is optional and the serial is scanned the same way.
+
+1. **The handheld scanner (primary).** The Tera Pro reads Code 128, and it types what it reads like a keyboard (HID). So the *Add equipment* drawer gains an **IMEI** field (tablets only — the type says it carries one). The person clicks the field and pulls the trigger; the 15 digits land, the check digit is verified on the spot, and a bad read is refused (*"That is not an IMEI — scan the barcode marked IMEI"*). The same for **Serial**. This needs no new hardware and no camera. The scan screen also learns that 15 Luhn-valid digits are an IMEI: scanning one finds that tablet, or offers *"Add this tablet"*, instead of the misread message.
+2. **The phone or tablet camera (fallback, when no scanner is near).** We already ship a barcode reader: `zxing-wasm` 3.1.4 with a live camera, used on `/apply` to read the licence's PDF417 (`features/apply/capture/`). It reads Code 128 too. A camera button beside the IMEI field opens it. It is loaded only when pressed, like `/apply`'s (≈930 KiB). Because features may not import each other's internals, the camera and reader move to a shared place (`components/` + `lib/`) first; `/apply` keeps working unchanged, and its tests prove it.
+3. **Stored:** `inventory_assets.imei` (15 digits, unique per org — two tablets cannot share one), shown on the item, searchable, and printed on its label. The column ships in one merge and its reader and writer in the next.
+
+*A tablet cannot read its own sticker with its own camera — the sticker is on its back or on the box — so the camera path is another device's, or the handheld.*
+
+### 7a.7 The steps (each its own PR)
+
+| Step | What | Migration |
+|---|---|---|
+| **M6 — Tabs and pagers** | The ninth rule and its gate (7a.2); the Shop page as tabs (7a.3); old addresses redirect; the truck's page as tabs if Q-MX9 is yes. | none |
+| **M7 — Equipment door** | Equipment back in the sidebar; *On trucks* and *Inventory* tabs (7a.4); Missing equipment moves here from the Shop page. | none |
+| **M8 — Shop parts words** | 7a.5: the name, the header, From FleetPal, no editing of FleetPal's fields; shelf counting per Q-MX8. | none |
+| **M9a / M9b — IMEI** | M9a: the `imei` column. M9b: the field, the handheld-scanner flow, the scan screen's IMEI answer, the label line. | M9a |
+| **M9c — Camera** | The shared camera reader (promoted from `/apply`); the camera button beside IMEI and Serial. | none |
+| **M10a / M10b — Invoices** | M10a: `equipment_purchases`, `purchase_id`, the document subject type. M10b: the *Invoices* tab, Add invoice, the item's invoice line. | M10a |
+| **M5 — Owner pass** | Moves after M6–M8, so the owner walks the pages as they will be, not as they are. | — |
+
+### 7a.8 Questions for the owner
+
+| # | Question | Candidates | Recommendation |
+|---|---|---|---|
+| **Q-MX7** | The sidebar doors: **Shop · Trucks & trailers · Equipment · Annual inspections · Shop parts** — five rows (four tabs on a phone, plus the hamburger)? | (a) five as listed · (b) Shop parts reached from Shop only, four rows | **(a)** — Shop parts is a different thing from everything else on Shop, and a door says so. |
+| **Q-MX8** | Shelf counting on Shop parts (our places, counts, "Running low")? | (a) hidden until the shop asks · (b) keep it, counted by hand in our app · (c) drop it | **(a)** — FleetPal has no quantities and nobody counts shelves today; keep the built code, show nothing that cannot be filled. |
+| **Q-MX9** | The truck's page as tabs (Repairs · Service due · Equipment · Inspections · Papers) with *Needs attention* above them? | (a) tabs · (b) keep one long page | **(a)** — the same rule as everywhere else, and 3,587 px on a phone. |
+| **Q-MX10** | Where are equipment invoices today? | (a) paper or PDF only · (b) also in McLeod AP · (c) bought through FleetPal | Decides whether M10 later matches McLeod (b) or reads FleetPal (c); M10 itself is the same either way. |
+| **Q-MX11** | Which tablets — with a SIM (IMEI) or Wi-Fi only? | (a) all with SIM · (b) mixed · (c) Wi-Fi only | If (c), M9 becomes "scan the serial" and the IMEI column is not built. |
+
+---
+
 ## 8. Progress log
 
 - **2026-10-27** — Proposal written from a read of `origin/main` 1533e34, production row counts
@@ -340,3 +435,4 @@ M1 and M2 are a week of work together; M3 is the largest because F10 was never b
   4,115 px and twelve of its targets are under 44 px — the shared controls M4 (§4.5) is for. Next:
   **M4** (contract §9, `DataTable` card markers, the bottom tab row under `/shop`), then **M5**.
 - **2026-10-28 (night)** — **M4 built** on `claude/maintenance-m4-phone`: §4.5 is now `docs/DESIGN-SYSTEM-CONTRACT.md` §9, gated. The touch floor (`provideTouchTargets`) rose 44 → 48 and became a getter: `AppShell` holds it on a shop page while the pointer is coarse or the window is below `md`, so a tablet in the bay is 48 px and the office at a desk keeps 36 on the same page; `FilterSelect`, `KebabMenu`, `TablePagination`, `AppTabs`, `DateRangeFilter`, the bell and the card sort control read it. `DataTableColumn.card` (`title`/`sentence`/`meta`/`none`) draws three-fact cards — the title's link stretched over the card — and a touched shop page draws cards at any width; all 29 shop column sets are marked. `WalkActions` moved to `components/`, from `md`, and is the verb bar on Parts, Equipment, Annual inspections and Labels too. `SectionTabBar` is the shop's sidebar rows below `md` (`phoneTabs` over `buildNavGroups`, active tab by catalogue `parent`), the base of the bottom chrome with the verb bar standing on it. Breadcrumb hidden below `md` and on a touched page (one Back); staging banner one line. Gate: `scripts/check-phone-rules.mjs`, chained onto `lint:ui-adoption` — unmarked card column, primary verb in `PageHeader`, hand-sized control; files derived from the `/shop` routes. Rule 4 measured, not changed: Annual inspections stays a register (§4.6 "Unchanged"); Parts and Equipment open on everything because production has 0 counted shelves and 0 equipment today. Pass at 390 × 844 and 834 × 1194 with a touch context, 18 shop routes: **0 targets under 48 px, 0 neighbours closer than 8 px, one Back, 0 breadcrumbs**, tab row on phone shop pages only (`screenshots/m4-*.png`). Next: **M5**, the owner on the real tablet and a phone in the bay.
+- **2026-10-28 (night, after M4)** — **Owner review: five findings (R1–R5), §7a.** Checked against the plan: the Shop page's stacked tables and the truck page's no-tabs were *planned* (D-MX2, D-MX3) and are now replaced by "one table per tab, every table paged"; a truck-assignment page, equipment invoices and IMEI scanning were *not planned*; Parts was planned (FleetPal F12) but its page never says it comes from FleetPal. Steps M6–M10 added (two migrations, M9a and M10a); M5 (the owner's pass in the bay) moves after M6–M8. Questions Q-MX7–Q-MX11 open.
