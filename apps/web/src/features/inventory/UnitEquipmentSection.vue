@@ -115,6 +115,7 @@ const kitLines = computed<UnitKitLineDto[]>(() => props.unit.lines.filter((l) =>
 
     <div class="space-y-3">
       <h3 class="text-sm font-semibold text-ink">Should carry</h3>
+      <!-- ui-adoption: never-paged — what one truck should carry — one line per kind of equipment. -->
       <DataTable :columns="KIT_COLUMNS" :rows="kitLines" row-key="assetTypeId" :loading="loading">
         <template #cell-delta="{ value }">
           <span v-if="value < 0" class="font-semibold text-danger-700">{{ value }}</span>
@@ -132,6 +133,7 @@ const kitLines = computed<UnitKitLineDto[]>(() => props.unit.lines.filter((l) =>
 
     <div class="space-y-3">
       <h3 class="text-sm font-semibold text-ink">On board</h3>
+      <!-- ui-adoption: never-paged — what is on board one truck — a tablet and a few pieces of kit. -->
       <DataTable :columns="ASSET_COLUMNS" :rows="assets" row-key="id" :loading="loading">
         <template #actions="{ row }">
           <KebabMenu v-if="canManage">

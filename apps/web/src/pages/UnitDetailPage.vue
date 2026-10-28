@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, nextTick, ref } from "vue";
 import { useRoute } from "vue-router";
-import { AppCard as BaseCard, FactList, type Fact, QueryState } from "@silvicom/ui";
+import { AppCard as BaseCard, AppTabs, FactList, type Fact, QueryState, useQueryState } from "@silvicom/ui";
 import { repairSettled, todayInZone, type AssetDto, type RoadsideRepairDueDto, type UnitKitDto } from "@silvicom/shared";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import UnitFileSection from "@/components/files/UnitFileSection.vue";
@@ -15,6 +15,7 @@ import UnitRepairBillsLine from "@/features/maintenance/UnitRepairBillsLine.vue"
 import UnitPmDueCard from "@/features/maintenance/UnitPmDueCard.vue";
 import UnitAnnualCard from "@/features/maintenance/UnitAnnualCard.vue";
 import { useUnitShopFileQuery, useUnitsAttentionQuery } from "@/features/maintenance/useUnitShop";
+import { UNIT_TABS, type UnitTab } from "@/features/maintenance/attentionWords";
 import UnitInspectionsCard from "@/features/roadside/UnitInspectionsCard.vue";
 import { useRoadsideRepairsDueQuery } from "@/features/roadside/useRoadsideInspections";
 import { useOrgTimezone } from "@/composables/useOrgTimezone";
@@ -23,17 +24,18 @@ import { useSessionStore } from "@/stores/session";
 
 /**
  * The truck's page — the shop's hub for one truck or trailer (MAINTENANCE-SECTION-REDESIGN-PROPOSAL.md
- * §4.3, D-MX3; FleetPal F10 + F11). One page, sections in the order the shop asks its questions, and
- * NO TABS: the driver page's six tabs are the worked example of what tabs hide.
+ * §4.3; FleetPal F10 + F11). The facts and *Needs attention* stand above five tabs (§7a.3, Q-MX9 (a)):
  *
- *   1. Needs attention — this unit's rows from the Shop worklist, each linking down the page.
- *   2. In the shop / repair history — FleetPal's open orders, open defects and past orders (the record,
- *      D-INV10), with the bills in one line behind the coverage bound (D-FP4).
- *   3. Due — every PM schedule against the latest meter (F11, `pmStatus`).
- *   4. Annual inspection — our record's expiry, the last report, Start inspection.
- *   5. Equipment it carries — the kit controls that were this page until M3 (`UnitEquipmentSection`).
- *   6. Roadside inspections — the officer's record naming this unit (gated on the safety section).
- *   7. Papers — the unit's files (UF0–UF3).
+ *   Repairs      — FleetPal's open orders, open defects and past orders (the record, D-INV10), with the
+ *                  bills in one line behind the coverage bound (D-FP4).
+ *   Service due  — every PM schedule against the latest meter (F11, `pmStatus`).
+ *   Equipment    — what it should carry and what is on board (`UnitEquipmentSection`).
+ *   Inspections  — the annual inspection (Start inspection) and the roadside record (safety-gated).
+ *   Papers       — the unit's files (UF0–UF3).
+ *
+ * M3 built this as one long page with no tabs (D-MX3); it measured 3,587 px on a phone after M4, and
+ * the owner ruled for the product's own pattern — one thing at a time, in a tab (2026-10-28). The tab
+ * is in the URL (`?tab=`), so *Needs attention*'s Open links, Back, and a pasted link keep it.
  *
  * ── TWO ADDRESSES, ONE SET OF CARDS ───────────────────────────────────────────────────────────
  * The fleet section's `/vehicles/:id` and `/trailers/:id` keep their pages: they are gated on
@@ -95,14 +97,26 @@ const facts = computed<Fact[]>(() => {
 });
 const fileSubject = computed<UnitFileSubject>(() => ({ type: kind.value, id: unitId.value }));
 
+// ── the tabs ───────────────────────────────────────────────────────────────────────────────────
+const qs = useQueryState();
+const tab = qs.param("tab", [...UNIT_TABS], "repairs") as unknown as import("vue").Ref<UnitTab>;
+const TAB_LABELS: Record<UnitTab, string> = { repairs: "Repairs", due: "Service due", equipment: "Equipment", inspections: "Inspections", papers: "Papers" };
+const tabs = UNIT_TABS.map((value) => ({ value, label: TAB_LABELS[value] }));
+/** A verb whose card lives on another tab opens that tab first, then acts once the card is mounted. */
+async function onTab(to: UnitTab, act: () => void) {
+  tab.value = to;
+  await nextTick();
+  act();
+}
+
 // ── the verbs ──────────────────────────────────────────────────────────────────────────────────
 const equipment = ref<InstanceType<typeof UnitEquipmentSection> | null>(null);
 const annual = ref<InstanceType<typeof UnitAnnualCard> | null>(null);
 const actions = computed<WalkAction[]>(() => {
   if (!session.can("maintenance") || !file.value) return [];
   const list: WalkAction[] = [];
-  if (unit.value) list.push({ label: "Check what is on board", primary: true, disabled: Boolean(equipment.value?.openWalk.isPending.value), onClick: () => void equipment.value?.startCheck() });
-  if (opens("/shop/inspections")) list.push({ label: "Start inspection", onClick: () => annual.value?.start() });
+  if (unit.value) list.push({ label: "Check what is on board", primary: true, disabled: Boolean(equipment.value?.openWalk.isPending.value), onClick: () => void onTab("equipment", () => void equipment.value?.startCheck()) });
+  if (opens("/shop/inspections")) list.push({ label: "Start inspection", onClick: () => void onTab("inspections", () => annual.value?.start()) });
   return list;
 });
 const billsOpen = computed(() => opens("/shop/repair-spend"));
@@ -130,14 +144,18 @@ const billsOpen = computed(() => opens("/shop/repair-spend"));
 
         <UnitAttentionCard :reasons="reasons" :roadside="roadside" :today="today" :loading="attentionLoading" :error="attentionError" @retry="attentionQ.refetch(); roadsideQ.refetch()" />
 
-        <UnitRepairsSection :file="file" />
-        <UnitRepairBillsLine :kind="kind" :unit-id="unitId" :enabled="billsOpen" />
+        <AppTabs v-model="tab" :tabs="tabs" label="Truck or trailer" id-prefix="unit" />
 
-        <UnitPmDueCard :pm="file.pm" :fleetpal-meter="file.fleetpal.lastMeter" />
+        <div :id="`unit-panel-${tab}`" role="tabpanel" :aria-labelledby="`unit-tab-${tab}`" class="space-y-6">
+        <template v-if="tab === 'repairs'">
+          <UnitRepairsSection :file="file" />
+          <UnitRepairBillsLine :kind="kind" :unit-id="unitId" :enabled="billsOpen" />
+        </template>
 
-        <UnitAnnualCard ref="annual" :kind="kind" :unit-id="unitId" :unit-number="file.unit.unitNumber" :expires-on="file.unit.annualInspectionExpiresOn" :today="today" />
+        <UnitPmDueCard v-else-if="tab === 'due'" :pm="file.pm" :fleetpal-meter="file.fleetpal.lastMeter" />
 
         <QueryState
+          v-else-if="tab === 'equipment'"
           :loading="kitQ.isPending.value && !kitQ.isError.value"
           :error="kitQ.isError.value ? kitQ.error.value : null"
           :retrying="kitQ.isFetching.value"
@@ -148,13 +166,13 @@ const billsOpen = computed(() => opens("/shop/repair-spend"));
           <UnitEquipmentSection v-if="unit" ref="equipment" :kind="kind" :unit-id="unitId" :unit="unit" :assets="assets" :loading="kitQ.isFetching.value" />
         </QueryState>
 
-        <section id="section-roadside" class="scroll-mt-6">
+        <template v-else-if="tab === 'inspections'">
+          <UnitAnnualCard ref="annual" :kind="kind" :unit-id="unitId" :unit-number="file.unit.unitNumber" :expires-on="file.unit.annualInspectionExpiresOn" :today="today" />
           <UnitInspectionsCard :kind="kind" :unit-number="file.unit.unitNumber" :plate="file.unit.plate" />
-        </section>
+        </template>
 
-        <section id="section-papers" class="scroll-mt-6">
-          <UnitFileSection :subject="fileSubject" :unit-number="file.unit.unitNumber" :plate="file.unit.plate" />
-        </section>
+        <UnitFileSection v-else :subject="fileSubject" :unit-number="file.unit.unitNumber" :plate="file.unit.plate" />
+        </div>
       </template>
     </QueryState>
 

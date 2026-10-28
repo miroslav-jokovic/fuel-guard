@@ -95,6 +95,7 @@ async function close(s: CountSessionDto) {
     />
     <!-- The row is Continue — it opens the walk, as a row opens its record everywhere else — and Close
          is the row's one button (contract §5.6). Both write, so neither is offered to a viewer. -->
+    <!-- ui-adoption: never-paged — one truck's open checks; 0522 allows one open check per truck or trailer. -->
     <!-- ui-adoption: never-empty — the section is drawn only while something is open. -->
     <DataTable
       v-else

@@ -12,7 +12,6 @@ import {
   sortRows,
 } from "@silvicom/ui";
 import { daysSince, shopDayOf, todayInZone, type ShopDefectDto } from "@silvicom/shared";
-import PageHeader from "@/components/ui/PageHeader.vue";
 import { useUnresolvedDefectsQuery } from "@/features/maintenance/useShopBacklog";
 import { useOrgTimezone } from "@/composables/useOrgTimezone";
 import { formatDate } from "@/lib/format";
@@ -72,8 +71,8 @@ watch([search, () => sort.value.key, () => sort.value.dir], () => (page.value = 
 </script>
 
 <template>
-  <div class="space-y-6">
-    <PageHeader description="Defects found on inspections that FleetPal has not marked resolved, oldest first." />
+  <div class="space-y-4">
+    <p class="text-sm text-ink-tertiary">Defects found on inspections that FleetPal has not marked resolved, oldest first.</p>
 
     <DataWorkspace>
       <FilterBar

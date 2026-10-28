@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { attentionAnchor, attentionSentence } from "./attentionWords";
+import { attentionSentence, attentionTab } from "./attentionWords";
 
 /** The one sentence per worklist group (§4.3, D-MX4) — plain words, the product's date, singular and plural right. */
 describe("attentionSentence", () => {
@@ -21,10 +21,10 @@ describe("attentionSentence", () => {
     expect(attentionSentence(reason)).toBe(sentence);
   });
 
-  it("points each reason at the section that answers it", () => {
-    expect(attentionAnchor({ kind: "defect", count: 1, oldestDetectedAt: null })).toBe("section-repairs");
-    expect(attentionAnchor({ kind: "pm", name: null, pmKind: "oil", verdict: "due", dueOn: null, milesLeft: 1 })).toBe("section-due");
-    expect(attentionAnchor({ kind: "annual", expiresOn: "2026-11-10", daysRemaining: 1 })).toBe("section-annual");
-    expect(attentionAnchor({ kind: "short", shortBy: 1, lastCheckedAt: null })).toBe("section-equipment");
+  it("points each reason at the tab that answers it", () => {
+    expect(attentionTab({ kind: "defect", count: 1, oldestDetectedAt: null })).toBe("repairs");
+    expect(attentionTab({ kind: "pm", name: null, pmKind: "oil", verdict: "due", dueOn: null, milesLeft: 1 })).toBe("due");
+    expect(attentionTab({ kind: "annual", expiresOn: "2026-11-10", daysRemaining: 1 })).toBe("inspections");
+    expect(attentionTab({ kind: "short", shortBy: 1, lastCheckedAt: null })).toBe("equipment");
   });
 });

@@ -2,7 +2,6 @@
 import { computed, watch } from "vue";
 import {
   AppButton as BaseButton,
-  AppTabs,
   DataTable,
   DataWorkspace,
   FilterBar,
@@ -11,8 +10,8 @@ import {
   useQueryState,
 } from "@silvicom/ui";
 import { byRepairUrgency, repairClock, repairSettled, repairUnitName, todayInZone, type RepairEngineOutcome, type RoadsideRepairDueDto } from "@silvicom/shared";
-import PageHeader from "@/components/ui/PageHeader.vue";
 import SlideOver from "@/components/SlideOver.vue";
+import FilterSelect from "@/components/ui/FilterSelect.vue";
 import RepairUnitDecision from "@/features/roadside/RepairUnitDecision.vue";
 import { useRoadsideRepairsDueQuery } from "@/features/roadside/useRoadsideInspections";
 import { useOrgTimezone } from "@/composables/useOrgTimezone";
@@ -30,25 +29,34 @@ import { formatDate } from "@/lib/format";
  *
  * ── THE STANDARD LIST, AS EVERY QUEUE IN THE PRODUCT ───────────────────────────────────────────
  * Until IC16 it was a stack of unit cards, each with its work orders spread out. It is now the queue shape of
- * the design contract (§5.1, `AssignmentsPage`): Open and Recorded as tabs, a `DataWorkspace` with search, a
+ * the design contract (§5.1, `AssignmentsPage`): Open or Recorded under Show, a `DataWorkspace` with search, a
  * paged `DataTable` — open ones nearest to today first (`byRepairUrgency`) — and the decision in a drawer
  * (§5.7) on `RepairUnitDecision`, the inspection page's own component, so there is one way to name a repair.
  *
- * Every state is in the URL (D-US2): the tab, the search, the page, the open unit (`unit=`) and the inspection
+ * Every state is in the URL (D-US2): Show (`show=`), the search, the page, the open unit (`unit=`) and the inspection
  * the `roadside_repair_due` alert names (`inspection=`), which narrows the list to its units and opens the
  * first that is still open.
  *
- * Non-nav, parented on the Shop home: I4 fixes the maintenance group at six rows (`surfaceCatalogue.ts`).
+ * One tab of the Shop page since M6 (`/shop?tab=roadside`); `/shop/roadside-repairs` redirects there, query and all.
  */
 
 const PAGE_SIZE = 25;
 
 const qs = useQueryState();
-const tab = qs.param("tab", ["open", "recorded"], "open");
+/**
+ * Open or Recorded. They were this page's own tabs until it became the Shop page's Roadside repairs tab
+ * (MAINTENANCE-SECTION-REDESIGN-PROPOSAL §7a.3, M6): a tab row inside a tab is two rows of doors to one
+ * list, so the choice is a filter, and `show=` rather than `tab=`, which is now the Shop page's.
+ */
+const SHOW_OPTIONS = [
+  { value: "", label: "Open" },
+  { value: "recorded", label: "Recorded" },
+];
+const show = qs.param("show", SHOW_OPTIONS.map((o) => o.value));
 const search = qs.param("search");
 const focus = qs.param("inspection");
 const openUnit = qs.param("unit");
-const activeFilterCount = computed(() => [search.value.trim(), focus.value].filter(Boolean).length);
+const activeFilterCount = computed(() => [search.value.trim(), focus.value, show.value].filter(Boolean).length);
 
 const { zone } = useOrgTimezone();
 const today = computed(() => todayInZone(new Date(), zone.value));
@@ -63,7 +71,7 @@ const recorded = computed(() =>
 );
 const rows = computed(() => {
   const term = search.value.trim().toLowerCase();
-  const list = tab.value === "recorded" ? recorded.value : open.value;
+  const list = show.value === "recorded" ? recorded.value : open.value;
   if (!term) return list;
   return list.filter((r) =>
     [repairUnitName(r), r.inspection.reportNumber, r.inspection.reportState, r.inspection.locationDesc, ...r.violations.map((v) => v.code)].some((v) =>
@@ -71,14 +79,10 @@ const rows = computed(() => {
     ),
   );
 });
-const tabs = computed(() => [
-  { value: "open", label: "Open", badge: due.data.value ? open.value.length || undefined : undefined },
-  { value: "recorded", label: "Recorded", badge: due.data.value ? recorded.value.length || undefined : undefined },
-]);
 
 const page = qs.page();
 const pageRows = computed(() => rows.value.slice((page.value - 1) * PAGE_SIZE, page.value * PAGE_SIZE));
-watch([tab, search, focus], () => (page.value = 1));
+watch([show, search, focus], () => (page.value = 1));
 
 const COLUMNS: DataTableColumn[] = [
   { key: "unit", label: "Unit", card: "title", cellClass: "font-medium text-ink", width: "sm" },
@@ -122,7 +126,7 @@ const openRow = (r: RoadsideRepairDueDto) => (openUnit.value = r.unitId);
 const closeDrawer = () => (openUnit.value = "");
 
 /**
- * Arriving from the bell (`?inspection=`): the tab that holds its units, and the first open one in the drawer.
+ * Arriving from the bell (`?inspection=`): the Show that holds its units, and the first open one in the drawer.
  * Once only, when the record lands — a later refetch must not reopen what the reader closed.
  */
 let arrived = false;
@@ -132,25 +136,21 @@ watch(
     if (arrived || !list || !focus.value) return;
     arrived = true;
     const mine = list.filter((r) => r.inspection.id === focus.value);
-    if (mine.length && mine.every(repairSettled)) tab.value = "recorded";
+    if (mine.length && mine.every(repairSettled)) show.value = "recorded";
     const first = mine.find((r) => !repairSettled(r)) ?? mine[0];
     if (first && !openUnit.value) openUnit.value = first.unitId;
   },
   { immediate: true },
 );
-const clearAll = () => qs.set({ search: undefined, inspection: undefined });
+const clearAll = () => qs.set({ search: undefined, inspection: undefined, show: undefined });
 </script>
 
 <template>
-  <div class="space-y-6">
+  <div class="space-y-4">
     <!-- The fifteen days are 49 CFR 396.9(d). The citation lived in this sentence until 2026-10-27;
          it moved here under the house rule that visible copy carries no § references outside hazmat
          (D-AVI15, applied by MAINTENANCE-SECTION-REDESIGN-PROPOSAL.md §4.4). -->
-    <PageHeader
-      description="Every truck or trailer with a vehicle violation on a roadside inspection of the last year. Name the FleetPal work order that repaired it, or say where it was repaired — the report must be certified within 15 days of the inspection."
-    />
-
-    <AppTabs v-model="tab" :tabs="tabs" label="Roadside repairs" />
+    <p class="text-sm text-ink-tertiary">Every truck or trailer with a vehicle violation on a roadside inspection of the last year. Name the FleetPal work order that repaired it, or say where it was repaired — the report must be certified within 15 days of the inspection.</p>
 
     <DataWorkspace>
       <FilterBar
@@ -161,7 +161,11 @@ const clearAll = () => qs.set({ search: undefined, inspection: undefined });
         count-label="roadside repairs"
         :active-count="activeFilterCount"
         @clear-all="clearAll"
-      />
+      >
+        <template #filters>
+          <FilterSelect v-model="show" label="Show" :options="SHOW_OPTIONS" />
+        </template>
+      </FilterBar>
 
       <DataTable
         embedded
@@ -203,7 +207,7 @@ const clearAll = () => qs.set({ search: undefined, inspection: undefined });
         </template>
         <template #empty>
           <p v-if="activeFilterCount">No roadside repair matches that.</p>
-          <p v-else-if="tab === 'open'">Every roadside repair of the last year is recorded.</p>
+          <p v-else-if="show !== 'recorded'">Every roadside repair of the last year is recorded.</p>
           <p v-else>No roadside repair has been recorded yet.</p>
         </template>
         <template #footer>

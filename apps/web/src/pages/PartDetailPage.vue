@@ -269,6 +269,7 @@ const uploadAccept = acceptFor(INVENTORY_PHOTO_CONTENT_TYPES);
               <AppIcon :icon="PlusIcon" class="-ml-0.5 size-5" aria-hidden="true" /> Add a shelf
             </BaseButton>
           </div>
+            <!-- ui-adoption: never-paged — one part's places — the few shelves one part sits on. -->
             <DataTable
               :columns="SHELF_COLUMNS"
               :rows="shelves"

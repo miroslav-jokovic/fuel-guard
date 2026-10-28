@@ -19,6 +19,12 @@
  *      48 px with no touch branch. The primitives raise themselves under the floor; a hand-written
  *      control does not, which is the whole reason it must say why it is hand-written. A desk-only
  *      control says so where it stands: `ui-adoption: desk-only — <why>`.
+ *   4. One table per tab, every table paged (rule 9; proposal §7a.2, the owner's review of 2026-10-28).
+ *      A `DataTable` with no `TablePagination` inside it, unless it says why it cannot grow:
+ *      `ui-adoption: never-paged — <why>`. And a PAGE that draws more than one `DataTable` where
+ *      both can be on screen at once — each has to sit under a `v-if`/`v-else-if`/`v-else`, which is
+ *      what a tab panel is. M2's Shop home was five stacked tables and M3's truck page four; both are
+ *      tabs now, and this is what keeps the next page from stacking them again.
  *
  * ── WHICH FILES ARE THE SHOP'S ───────────────────────────────────────────────────────────────
  * Derived, never listed: every page a `/shop…` route in `router/routes/*.ts` imports, plus every
@@ -113,6 +119,48 @@ export function handSizedControls(relativePath, source) {
   return found;
 }
 
+const NEVER_PAGED = /ui-adoption: never-paged\s+—\s+\S/;
+const TAG = /<(\/?)([A-Za-z][\w-]*)\b((?:[^>"']|"[^"]*"|'[^']*')*?)(\/?)>/g;
+
+/** Rule 9a: a `DataTable` with no pager in it and no never-paged reason above it. */
+export function unpagedTables(relativePath, source) {
+  const code = stripComments(source);
+  const found = [];
+  for (const open of code.matchAll(/<DataTable\b(?:[^>"']|"[^"]*"|'[^']*')*?(\/?)>/g)) {
+    const end = open[1] ? open.index + open[0].length : code.indexOf("</DataTable>", open.index);
+    const paged = end > 0 && /<TablePagination\b/.test(code.slice(open.index, end));
+    const line = lineOf(code, open.index);
+    const before = source.split("\n").slice(Math.max(0, line - 5), line - 1).join("\n");
+    if (!paged && !NEVER_PAGED.test(before)) found.push(`${relativePath}:${line}`);
+  }
+  return found;
+}
+
+/**
+ * Rule 9b: a page with two tables that can be on screen together (neither under a branch). A table is a
+ * `DataTable` written here or any component in `tables` — the names of imported components that draw
+ * one, which is how M2's home stacked five: each group was a component.
+ */
+export function stackedTables(relativePath, source, tables = new Set()) {
+  const code = stripComments(source);
+  const template = code.indexOf("<template>");
+  if (template < 0) return [];
+  const stack = [];
+  const unbranched = [];
+  for (const m of code.slice(template).matchAll(TAG)) {
+    const [, closing, name, attrs, selfClosing] = m;
+    if (closing) {
+      const i = stack.findLastIndex((t) => t.name === name);
+      if (i >= 0) stack.length = i;
+      continue;
+    }
+    const branched = /\sv-(?:if|else-if|else)\b/.test(attrs);
+    if ((name === "DataTable" || tables.has(name)) && !branched && !stack.some((t) => t.branched)) unbranched.push(template + m.index);
+    if (!selfClosing) stack.push({ name, branched });
+  }
+  return unbranched.length > 1 ? unbranched.slice(1).map((at) => `${relativePath}:${lineOf(code, at)}`) : [];
+}
+
 /** The pages `/shop…` routes import, from the route files as written. */
 export function shopPages(routeSources) {
   return routeSources.flatMap((source) =>
@@ -153,6 +201,13 @@ function selfTest() {
   expect("touch branch passes", handSizedControls("c.vue", `<button type="button" class="px-2" :class="touch ? 'h-12' : 'h-8'">x</button><button class="h-8 px-2" :class="touch && 'h-12'">y</button>`), []);
   expect("desk-only reason passes", handSizedControls("c.vue", `<!-- ui-adoption: desk-only — prints a sheet -->\n<button class="h-8">x</button>`), []);
   expect("bare desk-only mark fails", handSizedControls("c.vue", `<!-- ui-adoption: desk-only -->\n<button class="h-8">x</button>`), ["c.vue:2"]);
+  expect("unpaged table flagged", unpagedTables("t.vue", `<template>\n<DataTable :rows="r" />\n</template>`), ["t.vue:2"]);
+  expect("paged table passes", unpagedTables("t.vue", `<DataTable :rows="r"><template #footer><TablePagination /></template></DataTable>`), []);
+  expect("never-paged reason passes", unpagedTables("t.vue", `<!-- ui-adoption: never-paged — a truck has a handful -->\n<DataTable :rows="r" />`), []);
+  expect("bare never-paged fails", unpagedTables("t.vue", `<!-- ui-adoption: never-paged -->\n<DataTable :rows="r" />`), ["t.vue:2"]);
+  expect("stacked tables flagged", stackedTables("p.vue", `<template>\n<div>\n<DataTable :rows="a" />\n<DataTable :rows="b" />\n</div>\n</template>`), ["p.vue:4"]);
+  expect("stacked table components flagged", stackedTables("p.vue", `<template>\n<ListA />\n<ListB />\n</template>`, new Set(["ListA", "ListB"])), ["p.vue:3"]);
+  expect("tabbed tables pass", stackedTables("p.vue", `<template><div><DataTable v-if="tab === 'a'" /><template v-else><DataTable :rows="b" /></template></div></template>`), []);
   expect("shop routes only", shopPages([`{ path: "/shop/units", component: () => import("@/pages/UnitsPage.vue") }, { path: "/vehicles", component: () => import("@/pages/VehiclesPage.vue") }`]).map((p) => relative(WEB_SRC, p)), ["pages/UnitsPage.vue"]);
   return failures;
 }
@@ -163,7 +218,7 @@ if (process.argv.includes("--self-test")) {
     console.error(`check-phone-rules: self-test failed\n  ${failures.join("\n  ")}`);
     process.exit(1);
   }
-  console.log("check-phone-rules: self-test passed (11 fixtures)");
+  console.log("check-phone-rules: self-test passed (18 fixtures)");
   process.exit(0);
 }
 
@@ -171,13 +226,28 @@ const routeDir = join(WEB_SRC, "router/routes");
 const routeSources = readdirSync(routeDir).filter((f) => f.endsWith(".ts") && !f.endsWith(".test.ts")).map((f) => readFileSync(join(routeDir, f), "utf8"));
 const pages = shopPages(routeSources);
 const files = renderSet(pages);
-const findings = { "an unmarked card column (rule 3)": [], "a primary verb in PageHeader, not WalkActions (rule 2)": [], "a hand-sized control under 48 px (rule 1)": [] };
+const findings = { "an unmarked card column (rule 3)": [], "a primary verb in PageHeader, not WalkActions (rule 2)": [], "a hand-sized control under 48 px (rule 1)": [], "a table with no pager (rule 9)": [], "two tables on screen at once — use tabs (rule 9)": [] };
 for (const file of files) {
   const source = readFileSync(file, "utf8");
   const at = relative(ROOT, file);
   findings["an unmarked card column (rule 3)"].push(...unmarkedColumns(at, source));
   findings["a primary verb in PageHeader, not WalkActions (rule 2)"].push(...headerVerbs(at, source));
   findings["a hand-sized control under 48 px (rule 1)"].push(...handSizedControls(at, source));
+  findings["a table with no pager (rule 9)"].push(...unpagedTables(at, source));
+  if (at.startsWith("apps/web/src/pages/")) {
+    // The components this page imports that draw a table themselves, by the name the template uses.
+    const tables = new Set(
+      [...stripComments(source).matchAll(/import\s+(\w+)\s+from\s+["']((?:@\/|\.{1,2}\/)[^"']+\.vue)["']/g)]
+        .filter(([, , spec]) => {
+          const path = spec.startsWith("@/") ? join(WEB_SRC, spec.slice(2)) : resolve(dirname(file), spec);
+          return existsSync(path) && /<DataTable\b/.test(stripComments(readFileSync(path, "utf8")));
+        })
+        .map(([, name]) => name)
+        // A drawer's table is drawn OVER the page, never beside another list on it.
+        .filter((name) => !/Drawer$/.test(name)),
+    );
+    findings["two tables on screen at once — use tabs (rule 9)"].push(...stackedTables(at, source, tables));
+  }
 }
 if (failures.length) console.error(`check-phone-rules: self-test failed\n  ${failures.join("\n  ")}`);
 const broken = Object.entries(findings).filter(([, list]) => list.length);

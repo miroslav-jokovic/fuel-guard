@@ -162,7 +162,7 @@ describe("Organization", async () => {
 });
 
 describe("Repair spend", async () => {
-  const Page = (await import("./MaintenanceSpendPage.vue")).default;
+  const Page = (await import("@/features/maintenance/ShopRepairBillsPanel.vue")).default;
 
   it("points at the fleet report only where the Fleet report opens, per person too", async () => {
     expect(hrefs(await mountPage(Page))).toContain("/fleet-report");

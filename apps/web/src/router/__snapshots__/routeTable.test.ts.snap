@@ -1546,14 +1546,10 @@ exports[`the route table survives being split by area > route table 1`] = `
     "redirect": null,
   },
   {
-    "meta": {
-      "parent": "/shop",
-      "requiresAuth": true,
-      "title": "Open defects",
-    },
+    "meta": {},
     "name": "defects",
     "path": "/shop/defects",
-    "redirect": null,
+    "redirect": "fn",
   },
   {
     "meta": {
@@ -1614,24 +1610,16 @@ exports[`the route table survives being split by area > route table 1`] = `
     "redirect": null,
   },
   {
-    "meta": {
-      "parent": "/shop",
-      "requiresAuth": true,
-      "title": "Repair bills",
-    },
+    "meta": {},
     "name": "repair-spend",
     "path": "/shop/repair-spend",
-    "redirect": null,
+    "redirect": "fn",
   },
   {
-    "meta": {
-      "parent": "/shop",
-      "requiresAuth": true,
-      "title": "Roadside repairs due",
-    },
+    "meta": {},
     "name": "roadside-repairs",
     "path": "/shop/roadside-repairs",
-    "redirect": null,
+    "redirect": "fn",
   },
   {
     "meta": {
@@ -1665,14 +1653,10 @@ exports[`the route table survives being split by area > route table 1`] = `
     "redirect": null,
   },
   {
-    "meta": {
-      "parent": "/shop",
-      "requiresAuth": true,
-      "title": "Open work orders",
-    },
+    "meta": {},
     "name": "work-orders",
     "path": "/shop/work-orders",
-    "redirect": null,
+    "redirect": "fn",
   },
   {
     "meta": {

@@ -347,6 +347,7 @@ async function close() {
       <!-- Review: what is missing and what is still short, which is what somebody acts on. -->
       <section v-else class="space-y-3">
         <h2 class="text-sm font-semibold text-ink">Review</h2>
+        <!-- ui-adoption: never-paged — one truck's kit under review — the handful of things it should carry. -->
         <DataTable :columns="REVIEW_COLUMNS" :rows="reviewRows" row-key="key" empty-text="Nothing to review.">
           <template #cell-label="{ row }">
             <span :class="[BADGE_BASE, toneClass(row.tone)]">{{ row.label }}</span>
