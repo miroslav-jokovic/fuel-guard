@@ -96,7 +96,7 @@ export function handleOperationFailure(error: unknown, on: OperationFailureHandl
     // Defence in depth: the drawer re-seeds on card change, so this should not happen — but if it
     // does, a fresh key makes the retry clean rather than stuck.
     on.rekey();
-    on.notify("error", "Please try that again", "The previous request could not be matched; a fresh attempt is ready.");
+    on.notify("error", "Try that again", "Nothing was sent for that attempt. Press the button again to send it.");
     return;
   }
   if (api?.status === 429) {

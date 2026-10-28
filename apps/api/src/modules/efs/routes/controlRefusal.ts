@@ -1,4 +1,4 @@
-import { PROMPT_REMOVAL_STEP_UP, promptRemovalNeedsStepUp } from "@silvicom/shared";
+import { CARD_BLOCKED_SENTENCES, PROMPT_REMOVAL_STEP_UP, promptRemovalNeedsStepUp } from "@silvicom/shared";
 import type { CardScope } from "../services/efsCardControlAccess.js";
 import { ActionRefusalError } from "../services/efsCardControlErrors.js";
 
@@ -28,7 +28,7 @@ export function assertPromptRemovalAllowed(
     // attribution decision loses its strongest signal — the guide warns about exactly this (p137).
     // Explicit flag AND a fresh sign-in; never a side effect of clearing a text box.
     throw new ActionRefusalError(
-      "Removing the Driver ID prompt needs allowRemoveDriverId: true — it stops the pump checking who is fuelling.",
+      "Removing the Driver ID prompt has to be confirmed on its own, because the pump then stops checking who is fueling.",
       "invalid_request",
     );
   }
@@ -39,50 +39,38 @@ export function assertPromptRemovalAllowed(
  * card scope — `routes/unitMileage.ts` writes to EFS without being a card capability and still has
  * to answer to the switch, in the same words.
  */
-export const KILL_SWITCH_REFUSAL: [string, string] = [
-  "card_control_disabled",
-  "Card actions are switched off for this deployment.",
-];
+export const KILL_SWITCH_REFUSAL: [string, string] = ["card_control_disabled", CARD_BLOCKED_SENTENCES.kill_switch];
 
-/** One sentence per blocked-by reason, each pointing at what would actually unblock it. */
-export function refusal(blockedBy: string | null, scope: CardScope): [string, string] {
+/**
+ * The error code per blocked-by reason. The SENTENCE is `CARD_BLOCKED_SENTENCES`, shared with the drawer
+ * and the card page since CCF4 (2026-10-28), so a refusal and the disabled button before it cannot word
+ * one cause two ways.
+ *
+ * `not_promoted` is deliberately not "not entitled": the account may well be entitled. What is missing
+ * is OUR record that somebody approved this capability here, and the fix is a proof run, not a WEX call.
+ */
+export function refusal(blockedBy: string | null, _scope: CardScope): [string, string] {
   switch (blockedBy) {
     case "kill_switch":
       return KILL_SWITCH_REFUSAL;
     case "not_enabled":
-      return [
-        "card_control_disabled",
-        "Card actions are not switched on for this company yet. An admin can enable them in Settings → Card control.",
-      ];
+      return ["card_control_disabled", CARD_BLOCKED_SENTENCES.not_enabled];
     case "no_credentials":
-      return ["efs_not_configured", "EFS is not connected for this company."];
+      return ["efs_not_configured", CARD_BLOCKED_SENTENCES.no_credentials];
     case "not_entitled":
-      return [
-        "card_control_not_entitled",
-        "EFS has not confirmed write access for this account. An admin needs to run the EFS write check.",
-      ];
+      return ["card_control_not_entitled", CARD_BLOCKED_SENTENCES.not_entitled];
     case "endpoint_changed":
-      return [
-        "card_control_not_entitled",
-        "The EFS connection changed since this company was checked. An admin needs to re-run the connection check before card actions work again.",
-      ];
+      return ["card_control_not_entitled", CARD_BLOCKED_SENTENCES.endpoint_changed];
     case "not_promoted":
-      return [
-        "card_control_not_promoted",
-        // Not "not entitled": the account may well be entitled. What is missing is OUR record that
-        // somebody approved this capability here, and the fix is a proof run, not a WEX call.
-        "This action has not been approved for this company yet. An admin needs to prove it on a test card first.",
-      ];
+      return ["card_control_not_promoted", CARD_BLOCKED_SENTENCES.not_promoted];
     case "capability_suspended":
-      return [
-        "card_control_suspended",
-        "This action is suspended for this company. An admin can re-enable it once whatever caused the suspension is resolved.",
-      ];
+      return ["card_control_suspended", CARD_BLOCKED_SENTENCES.capability_suspended];
     case "role":
-      return ["forbidden", "Your role cannot change fuel cards."];
+      return ["forbidden", CARD_BLOCKED_SENTENCES.role];
     case "not_approver":
-      return ["forbidden", "You are not on this company's card-control approver list."];
+      return ["forbidden", CARD_BLOCKED_SENTENCES.not_approver];
     default:
-      return ["forbidden", `You are not approved for the "${scope}" action on fuel cards.`];
+      // Never the raw scope code (plan W6): `"lock"` in quotes means nothing to a fleet manager.
+      return ["forbidden", "You are not approved for this action on fuel cards."];
   }
 }

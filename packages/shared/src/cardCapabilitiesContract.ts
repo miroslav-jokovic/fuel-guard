@@ -31,6 +31,32 @@ export const cardBlockedBySchema = z.enum([
 export type CardBlockedBy = z.infer<typeof cardBlockedBySchema>;
 
 /**
+ * One sentence per reason, read by the API's refusal, the drawer and the card page alike (CCF4).
+ *
+ * Until 2026-10-28 three files each wrote their own: `cardOperations.ts`'s `blockedSentence`,
+ * `cardAvailability.ts` and the API's `controlRefusal.ts`. They had drifted — the kill switch was
+ * "Card actions are paused." in one and "switched off for this deployment" in another (plan W7) —
+ * and four of them sent an admin to approve, re-enable or diagnose on screens that do not exist
+ * (B7). The rule (D-CCF8): where a screen exists, name it; where the next step is the operator CLI
+ * (approve a capability, lift a suspension), say "Ask your Silvicom 360 administrator" and stop.
+ */
+export const CARD_BLOCKED_SENTENCES: Readonly<Record<CardBlockedBy, string>> = {
+  kill_switch: "Card actions are switched off in Silvicom 360 right now. Ask your Silvicom 360 administrator.",
+  not_enabled: "Card actions are not switched on for this company yet. An admin can switch them on in Settings → Card control.",
+  not_entitled: "EFS has not confirmed that this company's account may change cards. An admin needs to run the check in Settings → Card control.",
+  role: "Your role cannot change fuel cards.",
+  not_approver: "You are not on this company's list of people who may do this. An admin can add you in Settings → Card control.",
+  no_credentials: "EFS is not connected for this company. An admin can connect it in Settings → EFS Integration.",
+  endpoint_changed: "The EFS connection changed since card actions were last checked. An admin needs to run the check again in Settings → Card control.",
+  not_promoted: "This action has not been approved for this company yet. Ask your Silvicom 360 administrator.",
+  capability_suspended: "This action is switched off for this company. Ask your Silvicom 360 administrator.",
+};
+
+/** The sentence for a reason read off the wire, or null for one this build does not know. */
+export const cardBlockedSentence = (reason: string | null | undefined): string | null =>
+  (reason && Object.hasOwn(CARD_BLOCKED_SENTENCES, reason) ? CARD_BLOCKED_SENTENCES[reason as CardBlockedBy] : null);
+
+/**
  * What the client may do, decided by the SERVER. The client never infers this from a role: the answer
  * depends on the org's write entitlement, the deploy kill switch and the approver list, none of which
  * the browser can see.

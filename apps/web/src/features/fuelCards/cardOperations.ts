@@ -12,6 +12,7 @@ import {
   type EfsWritableStatus,
   canonicalEfsStatus,
   efsStatusEquals,
+  cardBlockedSentence,
 } from "@silvicom/shared";
 import { CARD_CAPABILITY_VIEWS } from "./capabilities/registry.js";
 import type { CapabilityCardContext, CapabilityConfirmation, CapabilityDiffRow } from "./capabilities/types.js";
@@ -248,7 +249,7 @@ export const CARD_OPERATIONS: readonly CardOperationSpec[] = [
       allowRemoveDriverId: false,
     }),
     blocker: (draft) => {
-      if (!draft.addInfoId) return "This card already has every prompt this product can set.";
+      if (!draft.addInfoId) return "This card already has every prompt Silvicom 360 can set.";
       const added = draft.prompts.find((p) => p.infoId === draft.addInfoId);
       if (added?.validationType === "EXACT_MATCH" && !(added.matchValue ?? "").trim()) {
         // EXACT_MATCH is what makes the pump VALIDATE the entry. An empty one validates nothing and
@@ -278,7 +279,7 @@ export const CARD_OPERATIONS: readonly CardOperationSpec[] = [
       allowRemoveDriverId: false,
     }),
     blocker: (draft) =>
-      (draft.prompts.length === 0 ? "This card has no prompt this product can edit." : null),
+      (draft.prompts.length === 0 ? "This card has no prompt Silvicom 360 can edit." : null),
   },
   {
     id: "promptRemove",
@@ -315,7 +316,7 @@ export const CARD_OPERATIONS: readonly CardOperationSpec[] = [
       allowRemoveDriverId: draft.removeInfoId === "DRID",
     }),
     blocker: (draft) => {
-      if (draft.prompts.length === 0) return "This card has no prompt this product can remove.";
+      if (draft.prompts.length === 0) return "This card has no prompt Silvicom 360 can remove.";
       return draft.removeInfoId ? null : "Choose which prompt to remove.";
     },
   },
@@ -462,21 +463,9 @@ export const capabilityBlockedBy = (
   return scopes.includes(scope) ? null : "not_approver";
 };
 
-/** One sentence per reason, each naming who to ask or what to run — never a bare "forbidden". */
-export const blockedSentence = (reason: string): string => {
-  switch (reason) {
-    case "kill_switch": return "Card actions are switched off for this deployment.";
-    case "not_enabled": return "Card actions are not switched on for this company yet. An admin can enable them in Settings → Card control.";
-    case "no_credentials": return "EFS is not connected for this company.";
-    case "not_entitled": return "EFS has not confirmed write access for this account. An admin needs to run the EFS write check.";
-    case "endpoint_changed": return "The EFS connection changed since this company was checked. An admin needs to re-run the connection check.";
-    case "not_promoted": return "This action has not been approved for this company yet. An admin needs to prove it on a test card first.";
-    case "capability_suspended": return "This action is suspended for this company. An admin can re-enable it.";
-    case "role": return "Your role cannot change fuel cards.";
-    case "not_approver": return "You are not on this company's approver list for this action. Ask an admin to add you.";
-    default: return "This action is not available for you on this card.";
-  }
-};
+/** One sentence per reason, from the shared map the API refuses with (CCF4) — never a bare "forbidden". */
+export const blockedSentence = (reason: string): string =>
+  cardBlockedSentence(reason) ?? "This action is not available for you on this card.";
 
 /** The card fields the drawer feeds a view, from the shape the detail page already holds. */
 export const toOperationCard = (card: {

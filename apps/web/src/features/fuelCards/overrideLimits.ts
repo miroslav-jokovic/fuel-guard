@@ -107,7 +107,7 @@ export const P194_LIMIT_WINDOW = { hours: 1, minHours: 0 } as const;
  * late to change your mind about cheaply.
  */
 export const PRODUCT_OVERRIDE_HELP =
-  "Caps what the driver may buy during the exception. While it is armed the card's OTHER product "
+  "Caps what the driver may buy during the exception. While it is on the card, the card's OTHER product "
   + "limits are removed — that is how EFS applies a product override.";
 
 /**
