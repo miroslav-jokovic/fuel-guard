@@ -156,7 +156,8 @@ export interface ProveDeps {
 export const PROOF_CARD_IDLE_DAYS = 30;
 
 /**
- * Why this card is refused for a proof, or null when it is safe to write to.
+ * Why this card is refused for a proof — or for the write check's write half, which reads the same
+ * rule since CCF2 (D-CCF3, `routes/writeProbe.ts`) — or null when it is safe to write to.
  *
  * Read from the document EFS just returned, never the mirror, which can be a day behind the pump.
  * Never used (no date) is the ideal proof card. A date that will not parse is refused, not waved
@@ -172,7 +173,7 @@ export function recentlyUsedRefusal(lastUsedDate: string | null, nowMs: number):
   const idleDays = (nowMs - usedMs) / 86_400_000;
   if (idleDays >= PROOF_CARD_IDLE_DAYS) return null;
   return `this card was used for fuel ${Math.max(0, Math.floor(idleDays))} day(s) ago (${lastUsedDate}). `
-    + `A proof writes to the card twice, so it must be one nobody is using — pick a card unused for at `
+    + `A proof or a write check writes to the card, so it must be one nobody is using — pick a card unused for at `
     + `least ${PROOF_CARD_IDLE_DAYS} days. Nothing was sent.`;
 }
 
