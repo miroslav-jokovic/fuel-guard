@@ -110,6 +110,12 @@ const API_ALLOW = new Set([
   // seals it to its owner. The reverse edge ("samsara -> mcleod") has been here since the roster
   // syncs learned to defer on identity; this is the same cross-collector rule read the other way.
   "mcleod -> samsara",
+  // The FleetPal catalogue sweep writes the shop's parts through maintenance's own writer
+  // (`syncFleetpalPart`, FLEETPAL-INTEGRATION-PLAN.md F12, D-FP2): parts ARE the catalogue the Parts
+  // page, the scanner and the count read, so a `fleetpal_parts` mirror beside it would be a second
+  // catalogue nobody could keep in step. Narrow by construction: one function, through maintenance's
+  // index, and the writer decides what FleetPal may overwrite and what stays the shop's.
+  "fleetpal -> maintenance",
   // The same guard's second signal, added after the first proved insufficient (F14). A gateway can be
   // swapped out while the truck keeps working — unit 732's was, and the sweep retired it on
   // 2026-09-14 while its card was still buying diesel — so the retirement guard asks fuel "has this

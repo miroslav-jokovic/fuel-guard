@@ -100,7 +100,15 @@ const facts = computed<Fact[]>(() => {
   return [
     { label: "Manufacturer", value: p.manufacturer },
     { label: "Category", value: p.category },
-    { label: "Counted in", value: UNIT_OF_MEASURE_LABELS[p.unitOfMeasure] },
+    // An unmapped unit says FleetPal's own word, so the person deciding can see what it was (F12).
+    {
+      label: "Counted in",
+      value:
+        p.unitOfMeasure === "unmapped" && p.fleetpalUnit
+          ? `${UNIT_OF_MEASURE_LABELS.unmapped} — FleetPal says "${p.fleetpalUnit}"`
+          : UNIT_OF_MEASURE_LABELS[p.unitOfMeasure],
+    },
+    ...(p.fleetpalId ? [{ label: "Comes from", value: "FleetPal" }] : []),
     { label: "Barcode", value: p.upc },
     ...(p.notes ? [{ label: "Notes", value: p.notes }] : []),
   ];

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import type { PartDto, PartInput } from "@silvicom/shared";
-import { AppButton as BaseButton } from "@silvicom/ui";
+import { AppButton as BaseButton, AppCallout } from "@silvicom/ui";
 import SlideOver from "@/components/SlideOver.vue";
 import PartForm, { PART_FORM_ID } from "./PartForm.vue";
 import { useCreatePart, useUpdatePart } from "./useInventory";
@@ -50,6 +50,11 @@ async function onSubmit(input: PartInput) {
 
 <template>
   <SlideOver :open="open" :title="part ? 'Edit part' : 'New part'" @close="emit('close')">
+    <!-- F12: the catalogue sync overwrites FleetPal's fields on the next sweep; say so before the edit. -->
+    <AppCallout v-if="part?.fleetpalId" class="mb-4">
+      This part comes from FleetPal. Its number, description, unit and barcode are overwritten by the
+      next sweep; manufacturer, category, notes and the photo are the shop's and stay.
+    </AppCallout>
     <PartForm :part="part" :initial-upc="initialUpc" @submit="onSubmit" />
     <template #footer>
       <div class="flex items-center justify-end gap-3">

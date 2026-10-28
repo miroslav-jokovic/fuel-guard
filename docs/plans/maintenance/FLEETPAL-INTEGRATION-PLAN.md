@@ -1760,3 +1760,24 @@ out-of-order retry does not overwrite newer state — each proved by a test, and
   `migrate-staging` applies this. Pinned in `supabase/tests/inventory-stock.test.mjs` rule 12 — six
   assertions, two of them proved by mutating the migration (no `'unmapped'` → one fails; a plain
   index → the duplicate-id assertion fails).
+- **2026-10-28 · F12b — the catalogue sync (`claude/fleetpal-f12b-parts-sync`).** Measured first,
+  read-only walk of `/v1/parts/`: **7,590** parts; `unit_of_measure` null 6,531 · `ea` 922 · `bx`
+  68 · `set` 20 · `pk` 17 · `gal` 15 · `ft` 6 · `lb` 5 · `pr` 3 · `oz` 1 · `pt` 1 · `disp` 1 (twelve
+  values, not the spec's 23); `type` VENDOR_HIDDEN 4,032 · INTERNAL 3,522 · VENDOR 36; **4,031
+  entries have no number** (the VENDOR_HIDDEN quote lines); 7 numbers appear twice (case-
+  insensitive); `serialized_part` 0; UPC set on 3; `manufacturer` (an id) on 865; `component` on
+  all; longest description 322, 15 blank. Decisions, recorded here as **D-FP18–D-FP21**:
+  **D-FP18** parts are written through maintenance's `syncFleetpalPart`, not a `fleetpal_parts`
+  mirror (boundary edge `fleetpal -> maintenance` declared); found by `fleetpal_id` → updated in
+  place (number, description, unit, barcode; never manufacturer, category, notes, photo, active);
+  found by number on a hand-typed part → ADOPTED; found by number on another FleetPal id → reported
+  as a duplicate, never merged. **D-FP19** `FLEETPAL_UNIT_MAP` maps the seven exact counterparts
+  (`ea bx set gal ft lb pr`); `pk pt oz disp` and anything else are `unmapped`; a NULL unit is
+  `each` with `fleetpal_unit` null — null is not unmapped. **D-FP20** entries with no number are
+  skipped, not invented a number for; a blank description becomes the number; a long one is cut to
+  240. **D-FP21** the sweep runs in the hourly tier after vendors, watermarked on `updated`, moving
+  only past timestamps every row of which was written. Web: `PartForm` offers "Not mapped" only on
+  a part that already carries it; the part's page says *Not mapped — FleetPal says "disp"* and
+  *Comes from: FleetPal*; the edit drawer says what the next sweep overwrites. First production
+  sweep should report ≈3,558 created (3,522 INTERNAL + 36 VENDOR, minus 7 duplicates and any
+  hand-typed adoptions).

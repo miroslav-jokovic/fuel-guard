@@ -78,7 +78,12 @@ const form = reactive({
   active: props.part?.active ?? true,
 });
 
-const UNIT_OPTIONS = UNITS_OF_MEASURE.map((u) => ({ value: u, label: UNIT_OF_MEASURE_LABELS[u] }));
+// "Not mapped" is FleetPal's answer, never a person's choice: offered only on a part that already
+// carries it, so the form can be saved without silently turning it into "each" (F12, 0525).
+const UNIT_OPTIONS = UNITS_OF_MEASURE.filter((u) => u !== "unmapped" || props.part?.unitOfMeasure === "unmapped").map((u) => ({
+  value: u,
+  label: UNIT_OF_MEASURE_LABELS[u],
+}));
 
 const blankToNull = (v: string): string | null => (v.trim() === "" ? null : v);
 

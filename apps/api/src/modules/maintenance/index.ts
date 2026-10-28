@@ -33,3 +33,5 @@ export { createInspectionDraft, getInspection, patchInspection } from "./inspect
 export { listInspections } from "./inspections/inspectionList.js";
 export { createInspector, inspectorFor, isQualifiedOn, listInspectors } from "./inspections/inspectors.js";
 export type { InspectorDto, InspectorInput, InspectorRow } from "./inspections/inspectors.js";
+export { syncFleetpalPart } from "./inventory/partsSync.js";
+export type { FleetpalPartCandidate, PartSyncOutcome } from "./inventory/partsSync.js";

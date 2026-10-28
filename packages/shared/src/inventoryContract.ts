@@ -130,6 +130,9 @@ export const UNITS_OF_MEASURE = [
   "quart",
   "litre",
   "pound",
+  // 0525 / F12: a FleetPal unit with no counterpart here; `PartForm` offers it only on a part that
+  // already carries it, and the part's page shows FleetPal's own word beside it.
+  "unmapped",
 ] as const;
 export const unitOfMeasureSchema = z.enum(UNITS_OF_MEASURE);
 export type UnitOfMeasure = (typeof UNITS_OF_MEASURE)[number];
@@ -146,6 +149,7 @@ export const UNIT_OF_MEASURE_LABELS: Record<UnitOfMeasure, string> = {
   quart: "Quart",
   litre: "Litre",
   pound: "Pound",
+  unmapped: "Not mapped",
 };
 
 /** A count session is about one place, and it is open or it is closed. Closing is irreversible. */
@@ -234,6 +238,9 @@ export const partDtoSchema = z.object({
   lastCost: costSchema,
   active: z.boolean(),
   notes: optionalText(2000),
+  /** F12 / 0525: FleetPal's id (null for a hand-typed part) and its unit as sent, so an `unmapped` one can be read. */
+  fleetpalId: optionalText(64).optional(),
+  fleetpalUnit: optionalText(32).optional(),
 });
 export type PartDto = z.infer<typeof partDtoSchema>;
 
