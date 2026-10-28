@@ -127,6 +127,7 @@ What Settings honestly adds, so the owner's "set it up once" holds for scanners 
 | **Q-PS1** | ~~What is the print station?~~ **RULED 2026-10-28: (b) the office Windows PC** — printer by USB, our program as a Windows service that starts before login; sleep set to Never, update restarts in active hours. Scanner: dongle on the PC at the desk, Bluetooth to the tablet when walking (one host at a time). A Pi stays the move if the PC proves unreliable — same program. | (a) **A Raspberry Pi 5 (~$100 with case and power), plugged into the printer by USB, left on in the shop.** (b) The office Windows PC, if it is never switched off. (c) This Mac. | **(a).** A dedicated box nobody shuts down, updates or unplugs by accident; (b) works but printing stops whenever that PC sleeps or restarts. |
 | **Q-PS2** | ~~Whose program runs on the station?~~ **RULED 2026-10-28: (a) ours.** | (a) **Ours** (PS3). (b) PrintNode's client + their cloud ($9/month, 5,000 prints). | **(a).** The owner ruled out third parties; the job is small because the printer takes raw bytes and needs no driver. (b) is the fallback if PS3 slips. |
 | **Q-PS3** | USB or Bluetooth between the station and the printer? | USB · Bluetooth | **USB.** Bluetooth printing drops when either side sleeps; the station never moves. |
+| **Q-PS5** | Should \"printed\" wait for the printer, not just the queue? | (a) Queue accepted = printed (built). (b) Watch the spool job until it leaves the queue or reports a fault. | **(b), after PS5** shows how the MUNBYN's driver reports paper-out. |
 | **Q-PS4** | How many printers, and where? | one shop · shop + office · more | Decides how many stations to buy; the design takes any number. |
 
 ## 8. Progress log
@@ -159,6 +160,18 @@ What Settings honestly adds, so the owner's "set it up once" holds for scanners 
     X nudge is for (≈ −25 dots), set once in Settings during PS5.
   - **Next:** PS3 (the Windows station program) and PS4 (Settings → Devices, and the Labels screen's
     Print going to the default).
+- **2026-10-28 — PS3 built: `tools/print-station/`** (Node 20+, no dependencies). `pair` trades the
+  Settings code for a token (config written atomically; on Windows in `%ProgramData%`, locked to
+  Administrators and SYSTEM); `run` says hello with the machine's printers every minute, long-polls,
+  prints each job RAW through the operating system's queue (Windows: `winspool` from PowerShell run with
+  `-File`, so a printer name is a parameter and never code; macOS/Linux: `lp -o raw`) and reports;
+  an outage is backed off forever, a refusal stops it. `install-windows.ps1` registers a startup task as
+  SYSTEM that restarts itself, turns sleep off on mains power and logs to `station.log`. 14 node:test
+  checks, run by `lint:agent-syntax`.
+  - **Q-PS5 (open): "printed" means the queue accepted it.** A printer out of paper holds the label in
+    Windows' queue until the roll is changed. Watching the spool job to completion (and reporting the
+    printer's own fault) is the next precision step; recommendation: do it after PS5 shows how the
+    MUNBYN's driver reports faults.
 
 ## Sources
 
