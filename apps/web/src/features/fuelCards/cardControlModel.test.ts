@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { EFS_EDITABLE_INFO_IDS, resolveLimitVocabulary } from "@silvicom/shared";
+import { CARD_BLOCKED_SENTENCES, EFS_EDITABLE_INFO_IDS, resolveLimitVocabulary } from "@silvicom/shared";
 import type { CardCapabilities } from "@silvicom/shared";
 import {
   activeOverrides,
@@ -237,7 +237,7 @@ describe("write availability", () => {
     // The read layer ships first; hiding the actions makes Phase A look like a dead end.
     const notice = availability(caps({ blockedBy: "not_entitled", writeEntitlement: "unknown" }), true);
     expect(notice.mode).toBe("disabled");
-    expect(notice.message).toContain("EFS write check");
+    expect(notice.message).toContain("run the check in Settings → Card control");
     expect(notice.actionTo).toBe("/settings/card-control");
   });
 
@@ -253,7 +253,7 @@ describe("write availability", () => {
 
     expect(notice).toMatchObject({
       mode: "disabled",
-      message: "The EFS connection changed since this company was checked. An admin needs to re-run the connection check before card actions work again.",
+      message: CARD_BLOCKED_SENTENCES.endpoint_changed,
       actionTo: "/settings/card-control",
     });
   });
@@ -265,7 +265,7 @@ describe("write availability", () => {
 
   it("explains the kill switch without pointing anywhere", () => {
     expect(availability(caps({ blockedBy: "kill_switch" }), true)).toMatchObject({
-      mode: "disabled", message: "Card actions are paused.",
+      mode: "disabled", message: CARD_BLOCKED_SENTENCES.kill_switch,
     });
   });
 });
@@ -305,7 +305,7 @@ describe("outcomeNotice — a 200 is not a success", () => {
     // What IS true: the count landed, the scope did not come back, do not grant another.
     expect(notice.message).toMatch(/confirmed the number of uses/i);
     expect(notice.message).toMatch(/do not grant another/i);
-    expect(notice.retryNote).toMatch(/already armed/i);
+    expect(notice.retryNote).toMatch(/already on the card/i);
   });
 
   it("keeps the generic wording for a grant whose re-read failed — nothing is known there", () => {

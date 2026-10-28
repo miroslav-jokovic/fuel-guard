@@ -20,7 +20,7 @@ import DateRangeFilter from "@/components/DateRangeFilter.vue";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { cardIdentityLabel } from "./cardIdentityLabel";
 import { useCardMutationLog, type CardMutationLogFilters } from "./useCardControl";
-import { formatDateTime } from "@/lib/format";
+import { formatDate, formatDateTime } from "@/lib/format";
 
 /**
  * Every card change on the account — the Audit Log page's "Card changes" tab (Step 6.6).
@@ -120,7 +120,7 @@ const statusTone = (status: string): string => {
 
 const chips = computed<FilterChip[]>(() => [
   ...(from.value || to.value
-    ? [{ key: "dates", label: "Dates", value: `${from.value ?? "any"} → ${to.value ?? "any"}` }]
+    ? [{ key: "dates", label: "Dates", value: `${from.value ? formatDate(from.value) : "any"} → ${to.value ? formatDate(to.value) : "any"}` }]
     : []),
 ]);
 

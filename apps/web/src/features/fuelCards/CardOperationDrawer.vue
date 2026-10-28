@@ -378,7 +378,7 @@ const environmentBadge = computed(() =>
     :open="props.open"
     size="lg"
     :title="ui?.title ?? 'Card action'"
-    :description="`${props.maskedRef} — changes take effect at the pump immediately.`"
+    :description="`${props.maskedRef} — changes apply the next time this card is used at a pump.`"
     @close="requestClose"
   >
     <div v-if="props.operation" class="space-y-6">

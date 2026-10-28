@@ -99,7 +99,7 @@ export type CardControlScope = (typeof CARD_CONTROL_SCOPES)[number];
 export const CARD_SCOPE_LABELS: Record<CardControlScope, string> = {
   lock: "Lock a card",
   unlock: "Unlock a card",
-  deactivate: "Retire a card",
+  deactivate: "Deactivate a card",
   override: "Grant fuel exceptions",
   prompts: "Change pump prompts",
 };
@@ -108,7 +108,7 @@ export const CARD_SCOPE_LABELS: Record<CardControlScope, string> = {
 export const CARD_SCOPE_DESCRIPTIONS: Record<CardControlScope, string> = {
   lock: "Stop a card working at every location, immediately.",
   unlock: "Let a stopped card buy fuel again.",
-  deactivate: "Take a card out of service for good. It stops working immediately, and lifting a hold will not bring it back.",
+  deactivate: "Stop a card working everywhere, immediately, until someone sets it back to Active.",
   override: "Allow purchases outside the card's normal limits. This one spends money.",
   prompts: "Change what the pump asks the driver for, including the Driver ID check.",
 };

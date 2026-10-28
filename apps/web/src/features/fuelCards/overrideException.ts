@@ -35,7 +35,7 @@ export const clearExceptionLabel = (uses: number): string =>
  * rule invariant 6 applies to the Confirm button's blocker.
  */
 export const CLEAR_EXCEPTION_HELP =
-  "EFS ignores a status change while an exception is armed, so the card would not actually lock. "
+  "EFS ignores a status change while the card has an exception, so the card would not actually lock. "
   + "Removing it is the only way the change applies.";
 
 /**
@@ -43,7 +43,7 @@ export const CLEAR_EXCEPTION_HELP =
  * never a boolean — a disabled button whose tooltip says "invalid" tells an operator to go hunting).
  */
 export const CLEAR_EXCEPTION_BLOCKER =
-  "Tick “Also remove the fuel exception” — EFS will ignore the status change while one is armed.";
+  "Tick “Also remove the fuel exception” — EFS ignores the status change while the card has one.";
 
 /**
  * The clause the confirmation gains, so the destruction is named on the same screen as the button

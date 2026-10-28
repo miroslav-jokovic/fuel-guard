@@ -1,4 +1,4 @@
-import type { CardCapabilities } from "@silvicom/shared";
+import { CARD_BLOCKED_SENTENCES, type CardCapabilities } from "@silvicom/shared";
 
 // ─── Write availability ────────────────────────────────────────────────────────────────────────
 
@@ -31,40 +31,24 @@ export function availability(capabilities: CardCapabilities, isAdmin: boolean): 
     case "role":
     case "not_approver":
       return { mode: "hidden", message: "" };
+    // The sentences are the shared ones the drawer and the API use (CCF4, plan W7). Only the
+    // WEX-refused case below is this panel's own, because no other surface distinguishes it.
     case "kill_switch":
-      return { mode: "disabled", message: "Card actions are paused." };
+      return { mode: "disabled", message: CARD_BLOCKED_SENTENCES.kill_switch };
     case "no_credentials":
-      return {
-        mode: "disabled",
-        message: "EFS is not connected for this company.",
-        ...adminAction,
-      };
+      return { mode: "disabled", message: CARD_BLOCKED_SENTENCES.no_credentials, ...adminAction };
     case "not_enabled":
-      return {
-        mode: "disabled",
-        message: "Card actions are not switched on for this company.",
-        ...adminAction,
-      };
+      return { mode: "disabled", message: CARD_BLOCKED_SENTENCES.not_enabled, ...adminAction };
     case "not_entitled":
       return capabilities.writeEntitlement === "denied"
         ? {
             mode: "disabled",
             message:
-              "EFS has not enabled card changes for this account. Ask your WEX representative to add write access for the service account.",
+              "EFS has not enabled card changes for this account. Ask your WEX representative to allow card changes for it.",
           }
-        : {
-            mode: "disabled",
-            message:
-              "Card actions are not switched on yet. An admin needs to run the EFS write check.",
-            ...adminAction,
-          };
+        : { mode: "disabled", message: CARD_BLOCKED_SENTENCES.not_entitled, ...adminAction };
     case "endpoint_changed":
-      return {
-        mode: "disabled",
-        message:
-          "The EFS connection changed since this company was checked. An admin needs to re-run the connection check before card actions work again.",
-        ...adminAction,
-      };
+      return { mode: "disabled", message: CARD_BLOCKED_SENTENCES.endpoint_changed, ...adminAction };
     default:
       return { mode: "disabled", message: "Card actions are unavailable." };
   }

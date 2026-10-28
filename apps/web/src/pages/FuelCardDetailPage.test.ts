@@ -44,9 +44,35 @@ describe("FuelCardDetailPage — the card's facts", () => {
       "Hand entry": "DISALLOW",
       "Payroll status": "—",
       "Last used": "Never",
-      "Last authorisation": "—",
+      "Last authorization": "—",
     });
     // The blank is the list's own dash (tertiary, not a value in the value's ink).
     expect(w.get("dl").findAll("dd")[2]!.find("span.text-ink-tertiary").exists()).toBe(true);
+  });
+});
+
+/**
+ * CCF4 (D-CCF9, plan W5): a disabled card action said why only in a hover `title`, which a tablet
+ * never shows. The reason is now printed inside the menu item.
+ */
+describe("FuelCardDetailPage — a disabled action says why on screen", () => {
+  it("prints the reason under the menu label, with no hover title", async () => {
+    const before = data.value.capabilities;
+    data.value.capabilities = {
+      canLock: true, canUnlock: true, canDeactivate: true, canOverride: true, canSetPrompts: true,
+      writeEntitlement: "confirmed", blockedBy: null, environment: "production", editableInfoIds: [],
+      scopes: ["lock", "unlock", "deactivate", "override", "prompts"],
+      capabilityStates: { card_lock: null, card_unlock: null, card_deactivate: null, override_grant: "not_promoted", override_clear: null, prompts_set: null },
+    } as never;
+    const w = mount(Page, {
+      global: { stubs: { PageHeader: true, CardEffectiveConfig: true, CardOperationDrawer: true, KebabMenu: { template: "<div><slot /></div>" } } },
+    });
+    await flushPromises();
+    const grant = w.findAll("button").find((b) => b.text().startsWith("Grant exception…"))!;
+    expect(grant.attributes("disabled")).toBeDefined();
+    expect(grant.attributes("title")).toBeUndefined();
+    expect(grant.text()).toContain("This action has not been approved for this company yet. Ask your Silvicom 360 administrator.");
+    data.value.capabilities = before;
+    w.unmount();
   });
 });
