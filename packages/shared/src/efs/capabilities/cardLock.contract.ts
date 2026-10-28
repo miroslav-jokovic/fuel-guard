@@ -43,8 +43,8 @@ export const cardLockContract = defineContract({
   /** `matchStatusCasing` spells the write from the fresh read — see the comment above. */
   casingAdaptiveFields: ["status"],
   ui: {
-    title: "Lock this card",
-    verb: "Lock card",
+    title: "Put this card on hold",
+    verb: "Put on hold",
     /**
      * `danger`, matching what the drawer renders today. A lock is reversible and is the SAFE
      * direction, but it stops fuel at every location the moment it lands, and a driver stranded at a

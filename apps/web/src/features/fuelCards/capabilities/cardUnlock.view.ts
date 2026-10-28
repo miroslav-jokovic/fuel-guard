@@ -20,18 +20,21 @@ export const cardUnlockView = defineView(cardUnlockContract, {
     // efsStatusEquals, never ===: this account reports FRAUD upper-cased, and an exact comparison
     // would show the ordinary copy for the one case that most needs the stronger wording.
     const wasFraud = efsStatusEquals(card.card.status, "Fraud");
+    // Q-CCF1 (a), 2026-10-28: Hold is the word. This capability writes Active from Hold OR Inactive,
+    // so "take off hold" is said only for a held card; anything else is "make active".
+    const wasHeld = efsStatusEquals(card.card.status, "Hold");
     return {
       tone: wasFraud ? "danger" : "warning",
-      title: wasFraud ? "Unlock a card flagged for fraud?" : "Unlock this card?",
+      title: wasFraud ? "Make a card flagged for fraud active?" : wasHeld ? "Take this card off hold?" : "Make this card active?",
       body: wasFraud
         // Somebody — WEX, or this product's own detection — decided this card was being abused.
         // Releasing it is not the reversible safety action a lock is, and the copy should not
         // pretend otherwise.
-        ? "This card is flagged for fraud. Unlocking it lets fuel purchases go through again at every location it is allowed to use. Confirm your password to continue."
+        ? "This card is flagged for fraud. Making it active lets fuel purchases go through again at every location it is allowed to use. Confirm your password to continue."
         : "Fuel purchases will go through again at every location this card is allowed to use.",
-      confirmLabel: "Unlock card",
-      busyLabel: "Unlocking…",
-      doneLabel: "Card unlocked",
+      confirmLabel: wasHeld && !wasFraud ? "Take off hold" : "Make active",
+      busyLabel: "Saving…",
+      doneLabel: "Card active",
     };
   },
 

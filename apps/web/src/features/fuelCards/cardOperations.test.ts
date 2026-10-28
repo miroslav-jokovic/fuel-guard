@@ -334,14 +334,14 @@ describe("the grant blocker on a card already in override", () => {
   it("blocks with the uses left and the remedy, before any input question", () => {
     const blocker = operationById("grant")!.blocker!(emptyDraft(), armed, []);
     expect(blocker).toContain("2 purchases");
-    expect(blocker).toMatch(/remove that exception first/i);
+    expect(blocker).toMatch(/remove that override first/i);
   });
 
   it("outranks the draft's own blockers — the card's state is the first sentence", () => {
     // A location scope with no location chosen would otherwise block; the armed card speaks first,
     // because "choose the location" on a grant that can never send is a wild goose chase.
     const draft = { ...emptyDraft(), scopeKind: "location" as const };
-    expect(operationById("grant")!.blocker!(draft, armed, [])).toMatch(/already has a fuel exception/i);
+    expect(operationById("grant")!.blocker!(draft, armed, [])).toMatch(/already has a fuel override/i);
   });
 
   /** The control: the same draft on a quiet card blocks on the draft, not the card. */
@@ -368,5 +368,14 @@ describe("the grant blocker on a card that is not Active", () => {
   it("treats the account's own casing as Active — ACTIVE passes (H1)", () => {
     const upper = { ...QUIET_CARD, status: "ACTIVE" } as unknown as OperationCard;
     expect(operationById("grant")!.blocker!(emptyDraft(), upper, [])).toBeNull();
+  });
+});
+
+// CCF5 (owner, 2026-10-28): WEX's words in the card menu — Override, never exception or lock.
+describe("the card menu says Hold and Override", () => {
+  it("labels every operation without lock, unlock or exception", () => {
+    for (const op of CARD_OPERATIONS) expect(op.menuLabel, op.id).not.toMatch(/\b(un)?lock\b|\bexception\b/i);
+    expect(operationById("grant")!.menuLabel).toBe("Grant override…");
+    expect(operationById("clear")!.menuLabel).toBe("Remove override…");
   });
 });

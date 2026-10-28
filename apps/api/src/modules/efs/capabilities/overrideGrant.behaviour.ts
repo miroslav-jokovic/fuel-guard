@@ -245,7 +245,7 @@ export const overrideGrantBehaviour = defineBehaviour(overrideGrantContract, {
     if (source.trim().toUpperCase() !== "POLICY") return;
     throw new ActionRefusalError(
       "This card takes its product limits from the policy, so a card-level product override would "
-        + "be accepted by EFS and never used at the pump. Grant the exception without a product "
+        + "be accepted by EFS and never used at the pump. Grant the override without a product "
         + "limit, or change the policy instead.",
       "invalid_request",
     );

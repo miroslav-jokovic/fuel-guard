@@ -186,7 +186,7 @@ export const CARD_OPERATIONS: readonly CardOperationSpec[] = [
     capabilityKey: "override_grant",
     scope: "override",
     group: "Current card",
-    menuLabel: "Grant exception…",
+    menuLabel: "Grant override…",
     // Still listed on a card already in override — but BLOCKED there by `grantBlocker`, with the
     // sentence naming the remedy. The portal hides its button instead; a visible action with the
     // reason on it teaches the rule where it applies (invariant 6), beside Remove exception.
@@ -208,7 +208,7 @@ export const CARD_OPERATIONS: readonly CardOperationSpec[] = [
     capabilityKey: "override_clear",
     scope: "override",
     group: "Current card",
-    menuLabel: "Remove exception…",
+    menuLabel: "Remove override…",
     /**
      * Uses > 0 **or** a scope field armed — the Step 6.2 correction.
      *

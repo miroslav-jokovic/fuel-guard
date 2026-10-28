@@ -33,6 +33,36 @@ const context = (over: Partial<CapabilityCardContext["card"]> = {}): CapabilityC
   locationLabel: (id) => (id === "442" ? "Loves station 442, Effingham IL" : null),
 });
 
+/**
+ * CCF5 (owner, 2026-10-28, Q-CCF1 (a) and Q-CCF2 (a)): Hold and Override, WEX's own words. Every
+ * confirmation a status or override action can show, from every starting status.
+ */
+describe("the card actions say Hold and Override", () => {
+  const BANNED = /\b(un)?lock(s|ed|ing)?\b|\bexceptions?\b/i;
+  const words = (c: { title: string; body: string; confirmLabel: string; busyLabel: string; doneLabel: string }) =>
+    [c.title, c.body, c.confirmLabel, c.busyLabel, c.doneLabel];
+
+  it("never says lock, unlock or exception, from any starting status", () => {
+    for (const status of ["Active", "HOLD", "Inactive", "FRAUD"]) {
+      const card = context({ status, overrideUses: 2 });
+      const texts = [
+        ...words(cardLockView.confirmation({ status: "Hold", clearException: true, expectedVersion: "" }, card)),
+        ...words(cardUnlockView.confirmation({ expectedVersion: "" }, card)),
+        ...words(cardDeactivateView.confirmation({ expectedVersion: "" }, card)),
+        ...words(overrideClearView.confirmation({ expectedVersion: "" } as never, card)),
+        ...words(overrideGrantView.confirmation({ uses: 1, scope: { kind: "all" }, limits: [], allowHandEnter: false, expectedVersion: "" }, card)),
+      ];
+      for (const t of texts) expect(t, `${status}: ${t}`).not.toMatch(BANNED);
+    }
+  });
+
+  it("takes a held card off hold, and makes any other card active", () => {
+    expect(cardUnlockView.confirmation({ expectedVersion: "" }, context({ status: "HOLD" })).confirmLabel).toBe("Take off hold");
+    expect(cardUnlockView.confirmation({ expectedVersion: "" }, context({ status: "Inactive" })).confirmLabel).toBe("Make active");
+    expect(cardLockView.confirmation({ status: "Hold", clearException: false, expectedVersion: "" }, context()).confirmLabel).toBe("Put on hold");
+  });
+});
+
 describe("granting an exception names the numbers", () => {
   it("says how many purchases and where, rather than 'grant an override?'", () => {
     // A generic confirmation is how somebody grants nine when they meant one.
@@ -65,7 +95,7 @@ describe("granting an exception names the numbers", () => {
       { uses: 2, scope: { kind: "location", locationId: "442" }, limits: [], allowHandEnter: false, expectedVersion: "" },
     );
     expect(rows.map((r) => r.label)).toContain("Where");
-    expect(rows.find((r) => r.label === "Exception")?.after).toBe("2 purchases");
+    expect(rows.find((r) => r.label === "Override")?.after).toBe("2 purchases");
   });
 });
 
@@ -85,7 +115,7 @@ describe("locking says what happens to the DRIVER", () => {
     expect(cardDeactivateView.confirmation({ expectedVersion: "" }, context()).title)
       .toMatch(/deactivate/i);
     expect(cardLockView.confirmation({ status: "Hold", clearException: false, expectedVersion: "" }, context()).title)
-      .toMatch(/lock/i);
+      .toMatch(/on hold/i);
   });
 
   it("says a HELD card moves straight to Inactive, not that it is about to stop working", () => {
@@ -190,7 +220,7 @@ describe("prompts spell out what a removal costs", () => {
 describe("removing an exception says the same thing whichever mechanism sends it", () => {
   it("describes the operator's decision, not our plumbing", () => {
     const copy = overrideClearView.confirmation({ expectedVersion: "" }, context({ overrideUses: 2 }));
-    expect(copy.title).toMatch(/remove the exception/i);
+    expect(copy.title).toMatch(/remove the override/i);
     expect(copy.body).toMatch(/normal limits/i);
   });
 

@@ -12,14 +12,14 @@ import { defineView, row } from "./types.js";
 const clearView = {
   confirmation: () => ({
     tone: "warning" as const,
-    title: "Remove the exception?",
-    body: "The card goes back to its normal limits immediately. Any unused exceptions are cancelled.",
-    confirmLabel: "Remove exception",
+    title: "Remove the override?",
+    body: "The card goes back to its normal limits immediately. Any unused overrides are cancelled.",
+    confirmLabel: "Remove override",
     busyLabel: "Removing…",
-    doneLabel: "Exception removed",
+    doneLabel: "Override removed",
   }),
   diff: (before: { overrideUses: number | null }) => [
-    row("Exception", usesLabel(before.overrideUses ?? 0), "None"),
+    row("Override", usesLabel(before.overrideUses ?? 0), "None"),
   ],
 };
 

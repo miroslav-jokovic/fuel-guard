@@ -56,8 +56,8 @@ export const cardMutationSchema = z.object({
 export type CardMutation = z.infer<typeof cardMutationSchema>;
 
 export const CARD_MUTATION_INTENT_LABELS: Record<CardMutationIntent, string> = {
-  lock: "Locked card",
-  unlock: "Unlocked card",
+  lock: "Put card on hold",
+  unlock: "Made card active",
   deactivate: "Deactivated card",
   override_grant: "Granted override",
   override_clear: "Cleared override",
@@ -97,17 +97,17 @@ export const CARD_CONTROL_SCOPES = ["lock", "unlock", "deactivate", "override", 
 export type CardControlScope = (typeof CARD_CONTROL_SCOPES)[number];
 
 export const CARD_SCOPE_LABELS: Record<CardControlScope, string> = {
-  lock: "Lock a card",
-  unlock: "Unlock a card",
+  lock: "Put a card on hold",
+  unlock: "Make a card active",
   deactivate: "Deactivate a card",
-  override: "Grant fuel exceptions",
+  override: "Grant fuel overrides",
   prompts: "Change pump prompts",
 };
 
 /** One line each, for the settings screen — what the person can actually do to a truck. */
 export const CARD_SCOPE_DESCRIPTIONS: Record<CardControlScope, string> = {
   lock: "Stop a card working at every location, immediately.",
-  unlock: "Let a stopped card buy fuel again.",
+  unlock: "Let a card on hold or inactive buy fuel again.",
   deactivate: "Stop a card working everywhere, immediately, until someone sets it back to Active.",
   override: "Allow purchases outside the card's normal limits. This one spends money.",
   prompts: "Change what the pump asks the driver for, including the Driver ID check.",

@@ -28,14 +28,14 @@ export const cardHasArmedException = (overrideUses: number | null | undefined): 
  * different decisions and only one of them is on the card.
  */
 export const clearExceptionLabel = (uses: number): string =>
-  `Also remove the fuel exception (${uses === 1 ? "1 purchase" : `${uses} purchases`} left)`;
+  `Also remove the fuel override (${uses === 1 ? "1 purchase" : `${uses} purchases`} left)`;
 
 /**
  * Why the operator is being asked at all. Sits under the checkbox rather than in a tooltip — the same
  * rule invariant 6 applies to the Confirm button's blocker.
  */
 export const CLEAR_EXCEPTION_HELP =
-  "EFS ignores a status change while the card has an exception, so the card would not actually lock. "
+  "EFS ignores a status change while the card has an override, so the card would not actually go on hold. "
   + "Removing it is the only way the change applies.";
 
 /**
@@ -43,15 +43,15 @@ export const CLEAR_EXCEPTION_HELP =
  * never a boolean — a disabled button whose tooltip says "invalid" tells an operator to go hunting).
  */
 export const CLEAR_EXCEPTION_BLOCKER =
-  "Tick “Also remove the fuel exception” — EFS ignores the status change while the card has one.";
+  "Tick “Also remove the fuel override” — EFS ignores the status change while the card has one.";
 
 /**
  * The clause the confirmation gains, so the destruction is named on the same screen as the button
  * that causes it. `allowRemoveDriverId`'s rule: never inferred, always said out loud.
  */
 export const clearExceptionClause = (uses: number): string =>
-  ` Its fuel exception (${uses === 1 ? "1 purchase" : `${uses} purchases`} left) will be removed at the `
-  + "same time, and that cannot be undone from here — a new exception has to be granted.";
+  ` Its fuel override (${uses === 1 ? "1 purchase" : `${uses} purchases`} left) will be removed at the `
+  + "same time, and that cannot be undone from here — a new override has to be granted.";
 
 /**
  * Whether the drawer offers the "Also remove the fuel exception" checkbox — Hold alone (D-CCF2).

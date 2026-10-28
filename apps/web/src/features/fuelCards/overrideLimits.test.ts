@@ -184,7 +184,7 @@ describe("Allow hand enter says it is PERMANENT", () => {
   it("states that it does not expire, in the help and in the confirmation", () => {
     expect(ALLOW_HAND_ENTER_HELP).toMatch(/does NOT expire/i);
     expect(ALLOW_HAND_ENTER_HELP).toMatch(/until somebody changes it back/i);
-    expect(handEnterClause(true)).toMatch(/stays on after the exception is used up/i);
+    expect(handEnterClause(true)).toMatch(/stays on after the override is used up/i);
   });
 
   it("never implies the exception scopes it", () => {
@@ -193,7 +193,7 @@ describe("Allow hand enter says it is PERMANENT", () => {
     expect(copy).toMatch(/hand-entered card numbers/i);
     expect(copy.length).toBeGreaterThan(120);
     // The phrasings that would make it sound temporary. "for this exception", "while", "during".
-    expect(copy).not.toMatch(/for this exception|for these purchases|while the exception|temporar/i);
+    expect(copy).not.toMatch(/for this override|for these purchases|while the override|temporar/i);
   });
 
   it("says nothing at all when the operator did not ask", () => {
