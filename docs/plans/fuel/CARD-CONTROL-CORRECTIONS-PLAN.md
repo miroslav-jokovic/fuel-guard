@@ -78,6 +78,59 @@ a screen that does not exist: `cardOperations.ts:473-474` and `controlRefusal.ts
 to prove it on a test card first", "An admin can re-enable it"), `FuelCardsPage.vue:89` ("An admin can
 run the card diagnostic"), `writeProbeJudge.ts:62` ("Run the read diagnostic (POST /api/fuel-cards/diagnose)").
 
+## 1b. Security and operations findings (plan audit, same day)
+
+**S1 — Railway can still change fuel cards, and holds the secrets to do it.** Measured 10/28: the Railway
+`@fleetguard/api` service is online at `fleetguardapi-production.up.railway.app`, serving the same commit
+(`1533e34`), with `EFS_CARD_CONTROL_ENABLED=true`, `EFS_SOAP_ENABLED=true`, and `SECRETS_ENCRYPTION_KEY`,
+`SUPABASE_SERVICE_ROLE_KEY` and `EFS_SOAP_PASSWORD` set. Railway is the platform whose variables were read
+in the 2026-10-21 breach. Its HTTP traffic today is leftover browser tabs (chat, notifications); **no card
+routes**. Whether it could actually reach EFS depends on whether WEX's firewall still allows Railway's
+egress address. That is not known from here and is not tested, because testing it means sending a request
+to WEX from Railway. Nothing about AWS needs Railway to keep card control. Q-CCF8.
+
+**S2 — The incident runbook's containment still points at Railway.** `docs/29-EFS-INCIDENT-RUNBOOK.md`
+§2 step 1 runs `node scripts/efs.mjs promote … --suspend`, which calls Railway by default (B4). §2.1 rows 3–4
+say "`EFS_CARD_CONTROL_ENABLED=false` on Railway". On AWS the same switch is a Parameter Store write plus
+`aws-production.yml` (measured today: change at ~14:20Z, containers restarted 14:22:58Z, ~3 min). The
+runbook also omits the fastest owner-only containment that needs no terminal: Settings → Card control →
+untick "Let this company change fuel cards" (row 2 of §2.1, done from the screen).
+
+**S3 — The QA org still has card control on.** "FuelGuard EFS QA": `enabled=true`,
+`write_entitlement=confirmed`, one approver (an alias of the owner's address). Its sandbox endpoint is
+refused by WEX's firewall from AWS, so it cannot write today, but it is a second org with a live write
+switch. The owner's pending Disable click on its EFS connection (AWS memory, 10/28) closes the connection;
+its card-control switch should go off with it.
+
+**S4 — The override history on production is one clean proof and one contradiction.** 08/18 20:31 on ••6536:
+the count landed, then the revert threw "Another change to…" and the proof was `denied`. The background sweep
+later reconciled its two ledger rows to `failed` ("the card still does not carry the requested change").
+08/18 23:59 on ••7971: count landed and reverted, `proven`. The location/limit scope of an override is never
+readable back from EFS (`sent ACCEPTED as applied`, `harness/prove.ts:319`). This strengthens Q-CCF5.
+
+**S5 — No card action has gone through the app on AWS.** The last real one was an unlock on 10/23 12:24,
+on Railway. Today's write check proves WEX accepts writes from the AWS address through the same SOAP client,
+but the full path a fleet manager uses (card page → drawer → `/api/fuel-cards/:id/lock` → EFS → ledger →
+mirror) has not run on AWS. One supervised hold and unlock on a spare card closes it.
+
+**S6 — Checked and found sound, with the evidence:**
+- Every `efs_*` card table has RLS on and no client policy (deny-all). The two with policies are
+  `efs_processing_runs` and `efs_transactions` (reads). Measured in `pg_class`/`pg_policies`.
+- No card number in 24 h of AWS application logs: CloudWatch filter on `"70830"` and `"cardNumber"` returned
+  0 events. Log groups keep 30 days.
+- The role gate is checked at action time against `rolesThatManage("fuel")`
+  (`efsCardControlAccess.ts:303`), so an approver moved to dispatcher loses card actions immediately, even
+  with their approver row still present. Both approver rows today belong to admins.
+- No card action is stuck mid-flight: `efs_card_mutations` holds only `succeeded` (69) and `failed` (16). The
+  16 failures are 14 on the QA org in August and the 2 override rows of S4.
+- Every fuel-card route is classified for the vendor rate limit (`routes/vendorRateLimit.ts`, with a test
+  that every route is listed).
+
+**S7 — Card actions taken in Silvicom 360 notify nobody.** Status changes made OUTSIDE the app notify the
+fuel managers (`efsCardStatusPoll.ts:298`); changes made in the app write an audit row and a history entry
+only. With one approver this is moot. With several, a second manager learns a card was held only by opening
+it. Q-CCF9.
+
 ## 2. Findings in the operational state
 
 **P1 — Pump prompts are blocked.** The 09/23 proof on ••6122 applied (UNIT prompt changed) and the revert
@@ -196,6 +249,8 @@ add you, where "Ask an admin to add you." (`cardOperations.ts:476`) does.
 | **Q-CCF5** | First real fuel override | (a) one supervised override, checked in the WEX portal before staff use it · (b) let staff start using it | (a): never used in production, and the app cannot read back the scope (P2) |
 | **Q-CCF6** | Should a new EFS login also suspend the per-action approvals? | (a) keep as is: the account-wide check re-proves write access, and the approvals describe how WEX behaves per action, which a username does not change · (b) suspend all, re-prove each | (a), and record it in `docs/28` as a decision so it stops being an accident |
 | **Q-CCF7** | Screens for approve/suspend/diagnose | (a) none: CLI only, owner-run, rare (twice since August) · (b) build an admin screen | (a); the messages are fixed by D-CCF8 either way |
+| **Q-CCF8** | Railway's card-write capability (S1) | (a) now: Railway api `EFS_CARD_CONTROL_ENABLED=false` and `EFS_SOAP_ENABLED=false`, and ask WEX to remove Railway's address from the allowlist · (b) wait for AWS12 to delete the service | **(a) today.** It costs nothing on AWS and closes a write path on the breached platform. Railway variable writes are the owner's (refused to Claude) |
+| **Q-CCF9** | Tell the other fuel managers when a card is held, unlocked or deactivated from the app? | (a) yes, through `notify()` with the same entitlement as the external-change notice · (b) no, history only | (a) once there is a second approver (Q-CCF3); (b) until then |
 
 ## 6. Steps
 
@@ -204,6 +259,7 @@ Every fix is proven by reverting it and watching its test fail.
 
 | Step | What | Files | Depends on |
 |---|---|---|---|
+| **CCF0** | Close Railway's write path (S1) and QA's switch (S3). Owner actions: Railway api variables, WEX allowlist message, QA org Disable + card-control off. Claude verifies each by reading back | — | Q-CCF8 |
 | **CCF1** | B1 title from resolved capability (D-CCF1); B2 checkbox Hold-only + shared refusal sentence (D-CCF2) | `CardOperationDrawer.vue`, `cardOperations.ts`, `overrideException.ts`, `CardOperationInputs.vue` + tests | — |
 | **CCF2** | B3 idle rule in the write check (D-CCF3); B4 CLI default (D-CCF4); B5 `check.available` (D-CCF5); B6 the refusal sentence | `routes/writeProbe.ts`, `routes/settings.ts`, `scripts/efs.mjs`, `CardControlSettingsPage.vue` + tests | owner approves the `writeProbe.ts` edit |
 | **CCF3** | W4 plain verdict + technical section (D-CCF6) | `packages/shared` verdict map, `CardControlSettingsPage.vue` + tests | — |
@@ -211,6 +267,27 @@ Every fix is proven by reverting it and watching its test fail.
 | **CCF5** | Q-CCF1/Q-CCF2 one vocabulary for Hold and override | the files in W2/W3 | Q-CCF1, Q-CCF2 |
 | **CCF6** | Operations, not code: add approvers (Q-CCF3); prompts proof (Q-CCF4); first supervised override (Q-CCF5) | — (owner on screen / `pnpm efs:prove` with `FG_API` set until CCF2 lands) | answers |
 | **CCF7** | Record Q-CCF6's answer in `docs/28` | `docs/28-EFS-EXECUTION-PLAN.md` | Q-CCF6 |
+| **CCF8** | Runbook for AWS (S2): containment names the Settings switch, the CLI with the AWS default, and the Parameter Store + redeploy path with its measured ~3 min; remove "on Railway" | `docs/29-EFS-INCIDENT-RUNBOOK.md` | CCF2 (CLI default) |
+| **CCF9** | Q-CCF9's answer, if (a): notify fuel managers of in-app status changes | `efsCardControl` dispatch path + `notify()` + test | Q-CCF9 |
+
+## 6a. Done means (the production-ready checklist)
+
+Each item is a measurement, not a statement. The plan is complete when every line is ticked with its evidence.
+
+- [ ] Railway api cannot change a card: `EFS_CARD_CONTROL_ENABLED=false` read back, or the service deleted (S1)
+- [ ] QA org: EFS connection disabled and card control off, read back (S3)
+- [ ] Status window title matches the chosen status for all three targets; tested (B1)
+- [ ] On a card with uses left, Active/Inactive/prompts show the shared refusal sentence and no checkbox; tested (B2)
+- [ ] Write check refuses a card used in the last 30 days; tested (B3)
+- [ ] `pnpm efs:*` reaches `api.360.silvicominc.com` with no flag (B4)
+- [ ] Settings page shows "check unavailable" with its reason while the probe switches are off; tested (B5, B6)
+- [ ] No sentence in §1 B7 or §3 remains; each replacement is in a test or a snapshot (W1–W8)
+- [ ] One supervised hold + unlock through the card page on AWS, on a spare card: ledger `succeeded`, mirror status matches, history shows the reason (S5)
+- [ ] Second approver added with at least hold + unlock (Q-CCF3)
+- [ ] Prompts: re-proven and promoted, or recorded as deliberately off (Q-CCF4)
+- [ ] One supervised override, checked in the WEX portal (Q-CCF5, S4)
+- [ ] Runbook updated for AWS and its containment step 2 walked once on production by the owner (S2)
+- [ ] Q-CCF6 recorded in `docs/28`
 
 The prompts proof in CCF6 follows the same switch routine as today's check: both probe switches to `true` in
 Parameter Store → `aws-production.yml` on the released sha → `pnpm efs:prove prompts_set` → `pnpm
@@ -230,3 +307,4 @@ both switches back to `false` → redeploy.
 | Date | Step | Note |
 |---|---|---|
 | 2026-10-28 | — | Plan written from the 10/28 audit. Card actions on 14:56Z, write access confirmed 14:28Z from AWS. |
+| 2026-10-28 | — | Plan audited: added §1b (S1 Railway still write-capable with secrets, S2 runbook Railway-only, S3 QA switch on, S4 override history, S5 no in-app action on AWS yet, S6 what was checked sound, S7 no notice of in-app actions), Q-CCF8–9, CCF0/CCF8/CCF9 and the §6a checklist. |
