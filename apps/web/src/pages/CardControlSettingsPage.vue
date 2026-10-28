@@ -19,7 +19,7 @@ import {
   useRevokeCardApprover,
   useUpdateCardControlSettings,
 } from "@/features/fuelCards/useCardControlSettings";
-import type { CardControlScope } from "@silvicom/shared";
+import { writeCheckPlainVerdict, type CardControlScope } from "@silvicom/shared";
 
 /**
  * The EFS write check — the gate that decides whether card actions exist at all.
@@ -115,6 +115,14 @@ const ready = computed(
 
 const result = computed(() => probe.data.value ?? null);
 
+/**
+ * What the admin reads first: the plain sentence for the judge's `recommendation` code (CCF3, D-CCF6).
+ * The server's verdict is the engineering record and moves under "Technical details — for support";
+ * a code this build has no sentence for shows that verdict instead of a guess.
+ */
+const plainVerdict = (recommendation: string | null | undefined, verdict: string | null | undefined): string =>
+  writeCheckPlainVerdict(recommendation) ?? verdict ?? "";
+
 const entitlementTone = (entitlement: string): string =>
   entitlement === "confirmed" ? "success" : entitlement === "denied" ? "danger" : "caution";
 // The contract's values are codes (`cardCapabilitiesContract.ts`); "unknown" printed as-is read as a
@@ -132,8 +140,9 @@ async function run(): Promise<void> {
     // The card number is never persisted anywhere — not by the API, and not here.
     cardNumber.value = "";
     confirm.value = "";
-    if (outcome.entitlement === "confirmed") toast.success("Write access confirmed", outcome.verdict);
-    else toast.warning("Write access not confirmed", outcome.verdict);
+    const said = plainVerdict(outcome.recommendation, outcome.verdict);
+    if (outcome.entitlement === "confirmed") toast.success("Write access confirmed", said);
+    else toast.warning("Write access not confirmed", said);
   } catch (error) {
     if (error instanceof CardControlApiError && error.code === "step_up_required") {
       stepUp.value = true;
@@ -185,7 +194,7 @@ async function run(): Promise<void> {
 
         <p v-if="settings.writeEntitlement !== 'confirmed'" class="rounded-control bg-caution-50 px-3 py-2 text-sm text-caution-700">
           Card actions stay off until the check below has passed.
-          <template v-if="settings.probeVerdict"> Last check: {{ settings.probeVerdict }}</template>
+          <template v-if="settings.probeVerdict"> Last check: {{ plainVerdict(settings.probeRecommendation, settings.probeVerdict) }}</template>
         </p>
 
         <BaseCheckbox
@@ -235,8 +244,8 @@ async function run(): Promise<void> {
         <div class="space-y-1">
           <h2 class="text-sm font-semibold text-ink">Run the check</h2>
           <p class="text-sm text-ink-muted">
-            Use a spare card that WEX has agreed you may test with, and use the EFS test environment
-            first. The card number is never saved. Only its last four digits appear in the audit log.
+            Use a spare card that WEX has agreed you may test with and that no driver is using. The card
+            number is never saved. Only its last four digits appear in the audit log.
           </p>
         </div>
 
@@ -282,7 +291,19 @@ async function run(): Promise<void> {
           <span :class="[BADGE_BASE, toneClass(entitlementTone(result.entitlement))]">EFS write access: {{ entitlementLabel(result.entitlement) }}</span>
           <span class="text-sm text-ink-muted">{{ result.environment }}</span>
         </div>
-        <p class="text-sm leading-6 text-ink">{{ result.verdict }}</p>
+        <p class="text-sm leading-6 text-ink">{{ plainVerdict(result.recommendation, result.verdict) }}</p>
+
+        <p v-if="!result.persisted" class="text-sm text-caution-700">
+          The result above is accurate, but it could not be saved to this company's settings. Card
+          actions stay switched off until it is — run the check again.
+        </p>
+
+        <!--
+          The engineering record, kept rendered and copyable rather than collapsed: support reads it back
+          from a screenshot or a paste, and a closed <details> cannot be selected (see the textareas below).
+        -->
+        <h3 class="border-t border-edge-subtle pt-4 text-sm font-semibold text-ink">Technical details — for support</h3>
+        <p v-if="writeCheckPlainVerdict(result.recommendation)" class="text-sm text-ink-muted">{{ result.verdict }}</p>
 
         <ul class="space-y-2">
           <li v-for="step in result.steps" :key="step.step" class="flex items-start gap-2 text-sm">
@@ -362,10 +383,6 @@ async function run(): Promise<void> {
           EFS must have this address on its list of allowed addresses.
         </p>
 
-        <p v-if="!result.persisted" class="text-sm text-caution-700">
-          The result above is accurate, but it could not be saved to this company's settings. Card
-          actions stay switched off until it is — run the check again.
-        </p>
       </div>
     </BaseCard>
   </div>

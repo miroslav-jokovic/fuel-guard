@@ -2,6 +2,7 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 import { flushPromises, mount } from "@vue/test-utils";
 import { createPinia, setActivePinia } from "pinia";
 import { answerConfirm } from "@silvicom/ui/testing";
+import { WRITE_CHECK_PLAIN_VERDICT, WRITE_CHECK_RECOMMENDATIONS } from "@silvicom/shared";
 
 /**
  * The EFS integration and Card control pages speak to an office admin, not to the engineer who built
@@ -184,6 +185,36 @@ describe("the Card control page reads as plain words (W2)", () => {
     expect(offenders(readable(w))).toEqual([]);
     w.unmount();
   });
+
+  /**
+   * CCF3 (D-CCF6, plan W4): the judge's verdict names file paths, "Phase B" and `readOnly=false`. The
+   * page now LEADS with the plain sentence for its `recommendation` code and keeps the verdict, still
+   * rendered and copyable, under "Technical details — for support".
+   */
+  for (const recommendation of WRITE_CHECK_RECOMMENDATIONS) {
+    it(`leads with plain words for "${recommendation}" and keeps the engineering verdict under the support heading`, async () => {
+      const verdict = "Capture the getCardv2 response as a fixture in apps/api/src/lib/__fixtures__/efs/. Phase B.";
+      const base = settings("unknown");
+      card.settings = { ...base, settings: { ...base.settings, probeVerdict: verdict, probeRecommendation: recommendation } };
+      card.probe = {
+        entitlement: "unknown", environment: "production", recommendation, verdict, steps: [], documentShape: null,
+        changed: [], document: null, documentAfter: null, egressIp: null, persisted: true,
+      };
+      const { default: Page } = await import("./CardControlSettingsPage.vue");
+      const w = mount(Page, { global: { stubs } });
+      await flushPromises();
+      const text = w.text();
+      const support = text.indexOf("Technical details — for support");
+      expect(support).toBeGreaterThan(-1);
+      const plain = WRITE_CHECK_PLAIN_VERDICT[recommendation];
+      // Twice above the heading — the "Last check" line and the result — and the record only below it.
+      expect(text.slice(0, support).split(plain).length - 1).toBe(2);
+      expect(text.slice(0, support)).not.toContain(verdict);
+      expect(text.slice(support)).toContain(verdict);
+      expect(offenders(text.slice(0, support))).toEqual([]);
+      w.unmount();
+    });
+  }
 
   it("explains a check's result in plain words around the API's own text", async () => {
     card.settings = settings("unknown");
