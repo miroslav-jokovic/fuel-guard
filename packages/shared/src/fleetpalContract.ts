@@ -107,3 +107,5 @@ export interface FleetpalConnectionStatus {
     rowsSeen: number;
   }[];
 }
+
+export * from "./fleetpal/units.js";

@@ -19,7 +19,7 @@ import type { ServiceError } from "./types.js";
  */
 
 const WRITE_COLUMNS =
-  "id, part_number, description, manufacturer, category, unit_of_measure, upc, image_path, last_cost, active, notes";
+  "id, part_number, description, manufacturer, category, unit_of_measure, upc, image_path, last_cost, active, notes, fleetpal_id, fleetpal_unit";
 
 const row = (input: Partial<PartInput>) => {
   const out: Record<string, unknown> = {};

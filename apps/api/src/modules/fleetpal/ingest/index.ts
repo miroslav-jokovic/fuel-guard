@@ -3,6 +3,7 @@ import { ingestPmSchedules, ingestUnits, metersIngest } from "./equipment.js";
 import { jobItemsIngest, jobsIngest, serviceHistoryIngest, workOrdersIngest } from "./repair.js";
 import { poInvoicesIngest, poItemsIngest, poPaymentsIngest, purchaseOrdersIngest } from "./purchasing.js";
 import { ingestShops, vendorsIngest } from "./reference.js";
+import { ingestParts } from "./parts.js";
 import { runIngest } from "./run.js";
 import type { IngestContext, IngestResult } from "./types.js";
 
@@ -30,6 +31,8 @@ export async function sweepRepairRecord(ctx: IngestContext): Promise<IngestResul
   results.push(await ingestUnits(ctx));
   results.push(await runIngest(ctx, vendorsIngest));
   results.push(await ingestShops(ctx));
+  // F12: the catalogue, written through maintenance's own writer rather than a mirror.
+  results.push(await ingestParts(ctx));
   results.push(await runIngest(ctx, workOrdersIngest));
   results.push(await runIngest(ctx, jobsIngest));
   results.push(await runIngest(ctx, jobItemsIngest));
@@ -60,3 +63,4 @@ export { ingestPmSchedules, ingestUnits, metersIngest } from "./equipment.js";
 export { jobItemsIngest, jobsIngest, serviceHistoryIngest, workOrdersIngest } from "./repair.js";
 export { ingestShops, vendorsIngest } from "./reference.js";
 export type { IngestContext, IngestResult, ResourceIngest } from "./types.js";
+export { ingestParts, toCandidate as toFleetpalPartCandidate } from "./parts.js";

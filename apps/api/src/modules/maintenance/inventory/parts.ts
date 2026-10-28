@@ -15,7 +15,7 @@ import type { ServiceError } from "./types.js";
  */
 
 const COLUMNS =
-  "id, part_number, description, manufacturer, category, unit_of_measure, upc, image_path, last_cost, active, notes";
+  "id, part_number, description, manufacturer, category, unit_of_measure, upc, image_path, last_cost, active, notes, fleetpal_id, fleetpal_unit";
 
 interface PartRow {
   id: string;
@@ -29,6 +29,8 @@ interface PartRow {
   last_cost: number | string | null;
   active: boolean;
   notes: string | null;
+  fleetpal_id?: string | null;
+  fleetpal_unit?: string | null;
 }
 
 /**
@@ -50,6 +52,8 @@ export const toPartDto = (r: PartRow): PartDto => ({
   imagePath: r.image_path,
   lastCost: money(r.last_cost),
   active: r.active,
+  fleetpalId: r.fleetpal_id ?? null,
+  fleetpalUnit: r.fleetpal_unit ?? null,
   notes: r.notes,
 });
 
