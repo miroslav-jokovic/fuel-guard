@@ -144,7 +144,7 @@ describe("the hub", () => {
   it("is one page of sections in the proposal's order, with no tab strip", () => {
     const w = page();
     const ids = ["section-attention", "section-repairs", "section-due", "section-annual", "section-equipment", "section-roadside", "section-papers"];
-    const order = ids.map((id) => Array.from(w.element.querySelectorAll("[id]")).findIndex((el) => el.id === id));
+    const order = ids.map((id) => Array.from(w.element.querySelectorAll<HTMLElement>("[id]")).findIndex((el) => el.id === id));
     expect(order.every((i) => i >= 0)).toBe(true);
     expect([...order].sort((a, b) => a - b)).toEqual(order);
     expect(w.find("[role=tablist]").exists()).toBe(false);

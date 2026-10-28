@@ -156,7 +156,7 @@ describe("opening on what needs attention", () => {
     units.value = { units: [unit({ lastCheckedAt: "2026-10-20T12:00:00.000Z" })], total: 1 };
     attention.value = [{ kind: "tractor", unitId: TRUCK, unitNumber: "654", reasons: [{ kind: "short", shortBy: 2, lastCheckedAt: "2026-10-20T12:00:00.000Z" }] }];
     const w = await page();
-    const labels = w.findComponent(DataTable).props("columns").map((c: { label: string }) => c.label);
+    const labels = (w.findComponent({ name: "DataTable" }).props("columns") as { label: string }[]).map((c) => c.label);
     expect(labels).toEqual(["Number", "Needs", "Last checked"]);
     expect(w.text()).toContain("Missing 2 pieces of equipment");
     expect(w.text()).toContain("10/20/2026");
