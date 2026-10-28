@@ -213,10 +213,16 @@ export function supabaseLeaseStore(admin: SupabaseClient): LeaseStore {
 
 /**
  * This process's holder id: unique per process START, so a restarted process is a new holder and can
- * never mistake its predecessor's lease for its own. Railway's variables make it readable in the row.
+ * never mistake its predecessor's lease for its own. The platform's variables make it readable in the
+ * row — Railway's own, or the neutral names `infra/server/compose.yml` sets on the AWS servers.
+ *
+ * Until the AWS cutover (AWS11, 2026-10-27) only Railway's names were read, so the first leases AWS
+ * took read `local:<container id>` with every meta field null: the row could not say which server,
+ * environment or commit held production's schedulers — the question it exists to answer. Railway's
+ * names stay first until AWS12 removes Railway.
  */
 export function processHolderId(env: NodeJS.ProcessEnv = process.env): string {
-  const service = env.RAILWAY_SERVICE_NAME ?? "local";
+  const service = env.RAILWAY_SERVICE_NAME ?? env.SERVICE_NAME ?? "local";
   const where = env.RAILWAY_REPLICA_ID ?? hostname();
   return `${service}:${where}:${process.pid}:${randomUUID().slice(0, 8)}`.slice(0, 200);
 }
@@ -224,11 +230,14 @@ export function processHolderId(env: NodeJS.ProcessEnv = process.env): string {
 /** What the lease row shows about its holder — for the person reading it after an alarm. */
 export function processHolderMeta(env: NodeJS.ProcessEnv = process.env): Record<string, unknown> {
   return {
-    service: env.RAILWAY_SERVICE_NAME ?? null,
-    environment: env.RAILWAY_ENVIRONMENT_NAME ?? null,
+    service: env.RAILWAY_SERVICE_NAME ?? env.SERVICE_NAME ?? null,
+    environment: env.RAILWAY_ENVIRONMENT_NAME ?? env.DEPLOY_ENVIRONMENT ?? null,
     deploymentId: env.RAILWAY_DEPLOYMENT_ID ?? null,
-    replicaId: env.RAILWAY_REPLICA_ID ?? null,
-    region: env.RAILWAY_REPLICA_REGION ?? null,
-    commit: env.RAILWAY_GIT_COMMIT_SHA ?? null,
+    // On AWS the replica is the container: Docker makes its id the hostname, and `docker ps` and the
+    // awslogs stream name it the same way.
+    replicaId: env.RAILWAY_REPLICA_ID ?? (env.SERVICE_NAME ? hostname() : null),
+    region: env.RAILWAY_REPLICA_REGION ?? env.DEPLOY_REGION ?? null,
+    // Baked into the AWS image (infra/image/Dockerfile) — the same variable `buildInfo` reads.
+    commit: env.RAILWAY_GIT_COMMIT_SHA ?? env.GIT_COMMIT_SHA ?? null,
   };
 }
