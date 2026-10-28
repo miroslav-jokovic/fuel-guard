@@ -58,7 +58,7 @@ describe("card_lock on a card carrying a fuel exception", () => {
   it("says what to do about it, and does not send the operator elsewhere", () => {
     // The lock's sentence differs from the other four ON PURPOSE: this capability can remove the
     // exception itself, so "remove the exception first, then try again" would be false here.
-    expect(CARD_LOCK_OVERRIDE_BLOCKED).toContain("Confirm removing the exception");
+    expect(CARD_LOCK_OVERRIDE_BLOCKED).toContain("Confirm removing the override");
     expect(CARD_LOCK_OVERRIDE_BLOCKED).not.toContain("try again");
   });
 
@@ -107,7 +107,7 @@ describe("an ordinary lock is completely unchanged", () => {
 describe("the shared guard, for the four capabilities that get no way through", () => {
   it("names the count and tells the operator to remove it first", () => {
     expect(() => assertOverrideDoesNotBlock("prompts_set", ARMED()))
-      .toThrow(/2 purchases left.*a prompt change.*Remove the exception first/s);
+      .toThrow(/2 purchases left.*a prompt change.*Remove the override first/s);
   });
 
   it("is silent on a card with no exception — the whole fleet's ordinary case", () => {

@@ -28,8 +28,8 @@ export const overrideGrantContract = defineContract({
   vocabularyFields: ["overrideAllLocations"],
   emittableValues: { overrideAllLocations: ["true", "false"] },
   ui: {
-    title: "Grant a fuel exception",
-    verb: "Grant exception",
+    title: "Grant a fuel override",
+    verb: "Grant override",
     tone: "warning",
     inputs: [
       { name: "uses", control: "stepper", label: "How many purchases", min: EFS_OVERRIDE_MIN_USES, max: EFS_OVERRIDE_MAX_USES },

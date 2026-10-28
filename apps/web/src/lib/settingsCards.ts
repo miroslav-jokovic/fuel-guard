@@ -62,7 +62,7 @@ export const SETTINGS_CARDS: readonly SettingsCard[] = [
   { key: "maintenance.devices", icon: PrinterIcon, desc: "Label printers every device prints to without asking, the computer they hang off, and a scanner test.", block: "config" },
   { key: "admin.settings.fleetpal", icon: ConnectIcon, desc: "The FleetPal API key, the hourly repair-record sweep, and what each collection last brought in.", block: "config" },
   { key: "admin.settings.medstop", icon: ConnectIcon, desc: "The Med-Stop API key and its expiry, and the hourly read of the drug and alcohol roster and random pools.", block: "config" },
-  { key: "admin.settings.card-control", icon: LockIcon, desc: "Who may lock cards and grant fuel exceptions, and the EFS write-access check.", block: "config" },
+  { key: "admin.settings.card-control", icon: LockIcon, desc: "Who may put cards on hold and grant fuel overrides, and the EFS write-access check.", block: "config" },
   { key: "admin.settings.thresholds", icon: AdjustmentsHorizontalIcon, desc: "The limits that decide when a fill is flagged, and the AI second opinion.", block: "config" },
   { key: "admin.settings.driver-performance", icon: TrophyIcon, desc: "How safety, efficiency and idling are weighted into a driver's score.", block: "config" },
   { key: "admin.settings.fuel-planning", icon: MapIcon, desc: "The tank rules, the stations the planner may use, emergencies, prices, and the default load and truck.", block: "config" },

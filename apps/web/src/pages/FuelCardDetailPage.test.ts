@@ -68,7 +68,7 @@ describe("FuelCardDetailPage — a disabled action says why on screen", () => {
       global: { stubs: { PageHeader: true, CardEffectiveConfig: true, CardOperationDrawer: true, KebabMenu: { template: "<div><slot /></div>" } } },
     });
     await flushPromises();
-    const grant = w.findAll("button").find((b) => b.text().startsWith("Grant exception…"))!;
+    const grant = w.findAll("button").find((b) => b.text().startsWith("Grant override…"))!;
     expect(grant.attributes("disabled")).toBeDefined();
     expect(grant.attributes("title")).toBeUndefined();
     expect(grant.text()).toContain("This action has not been approved for this company yet. Ask your Silvicom 360 administrator.");

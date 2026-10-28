@@ -190,7 +190,7 @@ function chooseAdded(infoId: string): void {
   </div>
 
   <div v-else-if="props.operation === 'grant'" class="space-y-4">
-    <FormField label="How many purchases" hint="The exception is used up automatically — it does not need to be revoked.">
+    <FormField label="How many purchases" hint="The override is used up automatically — it does not need to be revoked.">
       <template #default="{ id }">
         <ComboSelect
           :id="id"
@@ -224,7 +224,7 @@ function chooseAdded(infoId: string): void {
     <div v-if="props.draft.scopeKind === 'location'" class="space-y-3">
       <FormField
         label="EFS location id"
-        hint="Six digits, from the truck stop or a lookup below. The exception opens the card up to this location as well as its usual network."
+        hint="Six digits, from the truck stop or a lookup below. The override opens the card up to this location as well as its usual network."
       >
         <template #default="{ id }">
           <BaseInput

@@ -43,8 +43,8 @@ export const overrideClearContract = defineContract({
   vocabularyFields: ["overrideAllLocations"],
   emittableValues: { overrideAllLocations: ["true", "false"] },
   ui: {
-    title: "Remove the exception",
-    verb: "Remove exception",
+    title: "Remove the override",
+    verb: "Remove override",
     tone: "warning",
     inputs: [],
     diffRows: ["override", "locationOverride", "overrideAllLocations"],
@@ -67,8 +67,8 @@ export const deleteOverrideContract = defineContract({
   vocabularyFields: [],
   emittableValues: {},
   ui: {
-    title: "Remove the exception",
-    verb: "Remove exception",
+    title: "Remove the override",
+    verb: "Remove override",
     tone: "warning",
     inputs: [],
     diffRows: ["override", "locationOverride", "overrideAllLocations"],

@@ -22,7 +22,7 @@ import { cardHasArmedException, clearExceptionClause } from "../overrideExceptio
 export const cardLockView = defineView(cardLockContract, {
   confirmation: (body: CardLockBody, card) => ({
     tone: "danger",
-    title: "Lock this card?",
+    title: "Put this card on hold?",
     /**
      * The base sentence is untouched — Step 3.5's rule that this prose moves but never rewords.
      *
@@ -36,9 +36,9 @@ export const cardLockView = defineView(cardLockContract, {
       + (body.clearException && cardHasArmedException(card.card.overrideUses)
         ? clearExceptionClause(card.card.overrideUses ?? 0)
         : ""),
-    confirmLabel: "Lock card",
-    busyLabel: "Locking…",
-    doneLabel: "Card locked",
+    confirmLabel: "Put on hold",
+    busyLabel: "Putting on hold…",
+    doneLabel: "Card on hold",
   }),
 
   /**

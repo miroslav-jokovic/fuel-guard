@@ -32,7 +32,7 @@ import type { OperationDraft } from "./cardOperations";
  * driver is declined for asking for more than the exception that was meant to help him. The label and
  * this help text are the whole defence, so they are here rather than inline in the template.
  */
-export const OVERRIDE_LIMIT_AMOUNT_LABEL = "Total allowed during the exception";
+export const OVERRIDE_LIMIT_AMOUNT_LABEL = "Total allowed during the override";
 export const OVERRIDE_LIMIT_AMOUNT_HELP =
   "This REPLACES the card's normal limit for this product — it is not added to it. A card capped at "
   + "100 gallons that needs 50 more wants 150 here, not 50.";
@@ -68,7 +68,7 @@ export function dieselPartnerAdvice(
 ): string | null {
   const partner = missingDieselPartner(limits, vocabulary);
   if (!partner) return null;
-  return `Truck stops ring up diesel under both DSL and ULSD — an exception naming only one can `
+  return `Truck stops ring up diesel under both DSL and ULSD — an override naming only one can `
     + `decline the driver where the pump uses the other. WEX's own guide advises adding ${partner} `
     + `as well, at the same amount.`;
 }
@@ -107,7 +107,7 @@ export const P194_LIMIT_WINDOW = { hours: 1, minHours: 0 } as const;
  * late to change your mind about cheaply.
  */
 export const PRODUCT_OVERRIDE_HELP =
-  "Caps what the driver may buy during the exception. While it is on the card, the card's OTHER product "
+  "Caps what the driver may buy during the override. While it is on the card, the card's OTHER product "
   + "limits are removed — that is how EFS applies a product override.";
 
 /**
@@ -128,13 +128,13 @@ export const PRODUCT_OVERRIDE_HELP =
  */
 export const ALLOW_HAND_ENTER_LABEL = "Allow hand-entered card numbers";
 export const ALLOW_HAND_ENTER_HELP =
-  "⚠ This does NOT expire with the exception. It stays on until somebody changes it back — the "
+  "⚠ This does NOT expire with the override. It stays on until somebody changes it back — the "
   + "vendor has no version of this setting that lasts only for the granted purchases.";
 
 /** The confirmation's clause, so the permanence is named where it is committed as well as chosen. */
 export const handEnterClause = (allow: boolean): string =>
   (allow
-    ? " Hand-entered card numbers will also be permitted — and that stays on after the exception is "
+    ? " Hand-entered card numbers will also be permitted — and that stays on after the override is "
       + "used up, until it is changed back."
     : "");
 
@@ -171,7 +171,7 @@ export function grantBlocker(
   const uses = card.overrideUses ?? 0;
   if (uses > 0) return overrideGrantBlockedMessage(uses);
   if (draft.scopeKind === "location" && draft.location === null) {
-    return "Choose the location this exception applies at.";
+    return "Choose the location this override applies at.";
   }
   return overrideLimitsBlocker(draft);
 }
@@ -201,7 +201,7 @@ export function overrideLimitsBlocker(draft: OperationDraft): string | null {
 
   const zero = limits.find((limit) => limit.limit <= 0);
   if (zero) {
-    return `Set an amount for ${zero.limitId} — an exception of zero declines the driver outright.`;
+    return `Set an amount for ${zero.limitId} — an override of zero declines the driver outright.`;
   }
   /**
    * ⚠ Deliberately NOT here: the diesel pair. It was this function's fourth refusal until
@@ -255,7 +255,7 @@ export function overrideLimitsClause(
     return `${option?.label ?? limit.limitId} at ${amountWithUnit(option, limit.limit)}`;
   });
   const bothDiesel = DIESEL_PAIR.every((id) => limits.some((l) => l.limitId === id));
-  return ` During the exception the card is capped at ${joinWithAnd(named)}, and its OTHER product `
+  return ` During the override the card is capped at ${joinWithAnd(named)}, and its OTHER product `
     + "limits are removed for the duration — that is how EFS applies a product override."
     + (bothDiesel ? DIESEL_ONE_PRODUCT : "");
 }

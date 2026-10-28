@@ -464,7 +464,7 @@ describe("a card already in override", () => {
     expect(error).toBeInstanceOf(ActionRefusalError);
     expect((error as ActionRefusalError).code).toBe("invalid_request");
     expect((error as ActionRefusalError).message).toContain("2 purchases");
-    expect((error as ActionRefusalError).message).toMatch(/remove that exception first/i);
+    expect((error as ActionRefusalError).message).toMatch(/remove that override first/i);
   });
 
   it("refuses a product grant the same way — the armed card outranks the limitSource question", async () => {
@@ -473,7 +473,7 @@ describe("a card already in override", () => {
     expect(error).toBeInstanceOf(ActionRefusalError);
     // The armed sentence, not the policy sentence: the remedy is Remove exception, and being told
     // to clear product lines first would send the operator to fix the wrong thing.
-    expect((error as ActionRefusalError).message).toMatch(/already has a fuel exception/i);
+    expect((error as ActionRefusalError).message).toMatch(/already has a fuel override/i);
     expect((error as ActionRefusalError).message).not.toMatch(/policy/i);
   });
 });

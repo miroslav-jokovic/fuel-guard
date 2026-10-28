@@ -45,8 +45,8 @@ export const overrideBlocksWrite = (overrideUses: number | null | undefined): bo
  * place. The lock sentence is the one that had to be different — see `CARD_LOCK_OVERRIDE_BLOCKED`.
  */
 export const overrideBlockedMessage = (uses: number, what: string): string =>
-  `This card has a fuel exception with ${uses === 1 ? "1 purchase" : `${uses} purchases`} left, and EFS `
-  + `silently ignores ${what} while an exception is armed. Remove the exception first, then try again.`;
+  `This card has a fuel override with ${uses === 1 ? "1 purchase" : `${uses} purchases`} left, and EFS `
+  + `silently ignores ${what} while the card has one. Remove the override first, then try again.`;
 
 /**
  * The lock's own sentence, and the one place this product offers to do it FOR the operator.
@@ -63,8 +63,8 @@ export const overrideBlockedMessage = (uses: number, what: string): string =>
  * the confirmation names it, and the audit row records it (the `allowRemoveDriverId` pattern).
  */
 export const CARD_LOCK_OVERRIDE_BLOCKED =
-  "This card has a fuel exception, and EFS silently ignores a status change while one is armed. "
-  + "Confirm removing the exception as part of locking the card.";
+  "This card has a fuel override, and EFS silently ignores a status change while the card has one. "
+  + "Confirm removing the override as part of putting the card on hold.";
 
 /**
  * Capabilities an armed override blocks, and the noun each refusal uses.
@@ -124,8 +124,8 @@ export const OVERRIDE_BLOCKED_CAPABILITIES: Readonly<Record<string, string>> = {
  * thing (invariant 6: name the remedy, never just refuse).
  */
 export const overrideGrantBlockedMessage = (uses: number): string =>
-  `This card already has a fuel exception with ${uses === 1 ? "1 purchase" : `${uses} purchases`} `
-  + "left. Remove that exception first — the vendor offers no second override on a card already in "
+  `This card already has a fuel override with ${uses === 1 ? "1 purchase" : `${uses} purchases`} `
+  + "left. Remove that override first — the vendor offers no second override on a card already in "
   + "override, and granting over one can apply only partially while EFS reports success either way.";
 
 /**
@@ -138,6 +138,6 @@ export const overrideGrantBlockedMessage = (uses: number): string =>
  * the driver is declined anyway. Same sentence on the API's precondition and the drawer's blocker.
  */
 export const overrideGrantStatusMessage = (status: string): string =>
-  `This card is ${status} — a fuel exception can only be granted on an Active card. The pump `
-  + "declines a held or inactive card regardless of any exception it carries, so granting one here "
+  `This card is ${status} — a fuel override can only be granted on an Active card. The pump `
+  + "declines a held or inactive card regardless of any override it carries, so granting one here "
   + "would only say the driver is covered when they are not.";
