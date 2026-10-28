@@ -70,20 +70,32 @@ const summaries = soap(
   `<getCardSummariesv2Response><return><value><cardNumber>${PAN}</cardNumber><policyNumber>14</policyNumber></value></return></getCardSummariesv2Response>`,
 );
 
-/** Login + card list + card read all succeed. No write is ever answered — read-only never asks. */
-function stubVendor(): void {
+/** Every SOAP request the vendor stub received, so a case can assert that no write was sent. */
+const vendorCalls: string[] = [];
+
+/**
+ * Login + card list + card read all succeed. No write is ever answered — read-only never asks.
+ * `lastUsedDate` replaces the fixture's (2026-08-09) for the CCF2 idle-card cases.
+ */
+function stubVendor(lastUsedDate?: string): void {
   const realFetch = globalThis.fetch;
+  vendorCalls.length = 0;
   vi.stubGlobal("fetch", (async (input: string | URL | Request, init?: RequestInit) => {
     const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
     if (url.includes("127.0.0.1") || url.includes("localhost")) {
       return realFetch(input as Parameters<typeof fetch>[0], init);
     }
     const body = String(init?.body ?? "");
+    vendorCalls.push(body);
     if (body.includes("CardManagementEP_login")) {
       return new Response(soap("<loginResponse><result>sess-1</result></loginResponse>"), { status: 200 });
     }
     if (body.includes("CardSummaries")) return new Response(summaries, { status: 200 });
-    return new Response(fixture("getCardV2.full.xml"), { status: 200 });
+    const card = fixture("getCardV2.full.xml");
+    return new Response(
+      lastUsedDate ? card.replace(/<lastUsedDate>[^<]*<\/lastUsedDate>/, `<lastUsedDate>${lastUsedDate}</lastUsedDate>`) : card,
+      { status: 200 },
+    );
   }) as typeof fetch);
 }
 
@@ -249,4 +261,33 @@ describe("a FULL write-check", () => {
     // EFS_CARD_VERIFY_RETRY_MS second look. That pause is the behaviour under test elsewhere, so it
     // is waited out here rather than stubbed away.
   }, 30_000);
+});
+
+/**
+ * B3 (CCF2, D-CCF3, 2026-10-28): the write half refuses a card in use, by `recentlyUsedRefusal` — the
+ * rule `pnpm efs:prove` has applied since 2026-09-23. The 10/28 check ran on a live driver's card.
+ */
+describe("the write half and a card in use", () => {
+  const yesterday = new Date(Date.now() - 86_400_000).toISOString();
+
+  it("refuses a card fueled yesterday, sends no write and records nothing", async () => {
+    stubVendor(yesterday);
+    const { status, payload, written } = await probe("confirmed", {
+      cardNumber: PAN,
+      confirm: `WRITE ${PAN.slice(-4)}`,
+      readOnly: false,
+    });
+
+    expect(status).toBe(409);
+    expect(payload.code ?? (payload.error as { code?: string } | undefined)?.code).toBe("card_in_use");
+    expect(JSON.stringify(payload)).toMatch(/used for fuel 1 day\(s\) ago/);
+    expect(vendorCalls.some((b) => b.includes("setCard"))).toBe(false);
+    expect(written).toHaveLength(0);
+  });
+
+  it("still lets a READ-ONLY run use that card, because it writes nothing to it", async () => {
+    stubVendor(yesterday);
+    const { status } = await probe("confirmed", { cardNumber: PAN, confirm: "", readOnly: true });
+    expect(status).toBe(200);
+  });
 });
