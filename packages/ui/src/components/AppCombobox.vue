@@ -249,7 +249,7 @@ function onKeydown(event: KeyboardEvent) {
           :key="option.value"
           class="flex items-center gap-2 px-3 py-1.5"
           :class="[
-            touchTargets && 'min-h-11',
+            touchTargets && 'min-h-12',
             option.disabled ? 'cursor-not-allowed text-ink-disabled' : 'cursor-pointer',
             option.value === modelValue ? 'font-medium text-brand-700' : 'text-ink-secondary',
             index === activeIndex

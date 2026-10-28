@@ -27,8 +27,10 @@ const props = withDefaults(
      * every crumb links, which is what the lab wants.
      */
     opens?: (to: string) => boolean;
+    /** The page is touched and the shell draws Back (rule 5) — `PageHeader` reads the touch floor. */
+    hideOnTouch?: boolean;
   }>(),
-  { opens: () => true },
+  { opens: () => true, hideOnTouch: false },
 );
 
 /**
@@ -46,8 +48,14 @@ const current = computed(() => props.trail[props.trail.length - 1]);
     Below `sm` only the immediate parent shows (D-DS17). A three-level trail wraps on a phone, and a
     wrapped trail is a worse tap target than the back chevron in the header bar — which is precisely
     why that chevron survives this change rather than being retired as redundant.
+
+    And below `md` the trail is not drawn at all (DESIGN-SYSTEM-CONTRACT.md §9 rule 5, Maintenance M4):
+    one way back. The proposal's pass measured the shell's Back AND a one-crumb trail on every tablet
+    and phone page — two controls, one destination, the trail's a 16 px target. The chevron is the one
+    kept, for the reason above. `hideOnTouch` takes the trail away on a touched shop page at any width
+    (a coarse-pointer tablet is above `md`), which the page header knows and this component does not.
   -->
-  <nav v-if="show" aria-label="Breadcrumb" class="mb-1.5">
+  <nav v-if="show" aria-label="Breadcrumb" class="mb-1.5 max-md:hidden" :class="{ hidden: hideOnTouch }">
     <ol class="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-ink-tertiary">
       <li
         v-for="(crumb, i) in links"

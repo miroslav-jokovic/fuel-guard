@@ -39,15 +39,23 @@ const detail = computed(() =>
 );
 </script>
 
+<!--
+  One line below `md` (DESIGN-SYSTEM-CONTRACT.md §9 rule 8). Wrapped, the UAT sentence took two lines
+  and 44 px of a 844 px phone above every page (measured on staging 2026-10-27, maintenance proposal
+  §1.2). The label is the fact; the sentence is its consequence, so the sentence is what truncates —
+  `title` keeps it whole for a long press — and from `md` up it wraps as it always did.
+-->
+
 <template>
   <div
     v-if="environment"
-    class="flex flex-wrap items-center justify-center gap-x-2 gap-y-1 bg-warning-50 px-4 py-1.5 text-center text-xs text-warning-800 ring-1 ring-inset ring-warning-200"
+    class="flex items-center justify-center gap-x-2 gap-y-1 bg-warning-50 px-4 py-1.5 text-center text-xs text-warning-800 ring-1 ring-inset ring-warning-200 md:flex-wrap"
     role="status"
+    :title="detail"
   >
     <!-- The eyebrow spec from the design contract §"Eyebrow / group label". The value stays lowercase
          in the data — uppercase is the CSS decision the contract allows, never a content one. -->
-    <span class="font-semibold tracking-wider uppercase">{{ environment }}</span>
-    <span class="text-warning-700">{{ detail }}</span>
+    <span class="shrink-0 font-semibold tracking-wider uppercase">{{ environment }}</span>
+    <span class="min-w-0 truncate text-warning-700 md:whitespace-normal">{{ detail }}</span>
   </div>
 </template>

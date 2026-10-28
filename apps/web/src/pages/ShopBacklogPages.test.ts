@@ -61,6 +61,18 @@ beforeEach(() => {
 });
 afterEach(() => vi.useRealTimers());
 
+// jsdom has no `matchMedia`, so DataTable would render its phone cards, and a card shows only its
+// three marked facts (DESIGN-SYSTEM-CONTRACT.md §9 rule 3). These read the columns, which is a table's
+// question, so the viewport is a desktop one.
+Object.defineProperty(window, "matchMedia", {
+  writable: true,
+  configurable: true,
+  value: (media: string) => ({
+    matches: true, media, onchange: null, addListener: () => {}, removeListener: () => {},
+    addEventListener: () => {}, removeEventListener: () => {}, dispatchEvent: () => false,
+  }),
+});
+
 describe("open work orders", () => {
   it("counts the whole list in the toolbar, past the first page", async () => {
     orders.value = Array.from({ length: 24 }, (_, i) => order({ id: `w${i}`, referenceNumber: `WO-${1000 + i}` }));

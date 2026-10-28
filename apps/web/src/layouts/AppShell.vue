@@ -25,7 +25,10 @@ import SidebarFlyoutSection from "@/layouts/SidebarFlyoutSection.vue";
 import SidebarNavSection from "@/layouts/SidebarNavSection.vue";
 import { useSidebarSections } from "@/composables/useSidebarSections";
 import SidebarProfileMenu from "@/layouts/SidebarProfileMenu.vue";
+import SectionTabBar from "@/layouts/SectionTabBar.vue";
 import { useOpens } from "@/composables/useOpens";
+import { usePhoneFirst } from "@/composables/usePhoneFirst";
+import { bottomChromeHeight } from "@/composables/bottomChrome";
 
 const session = useSessionStore();
 const opens = useOpens(); // SP5: "Back" to `meta.parent` only where the guard opens it (hazmat load → Loads).
@@ -81,6 +84,9 @@ const navGroups = computed<NavGroup[]>(() =>
     session.surfaces,
   ),
 );
+
+// The shop's touch floor and tab row (DESIGN-SYSTEM-CONTRACT.md §9): `usePhoneFirst` has the why.
+const { touch, tabs, currentTab } = usePhoneFirst(navGroups);
 
 // Pre-build a Set of explicit nav paths for O(1) lookup — used to decide whether prefix matching
 // is appropriate. If the current path IS an explicit nav item, only exact matches win; this
@@ -377,7 +383,7 @@ async function signOut() {
         <div class="flex items-center gap-x-3">
           <button
             type="button"
-            class="sidebar-shell-toggle -m-2.5 rounded-control p-2.5 text-ink-secondary lg:hidden"
+            class="sidebar-shell-toggle -m-3 rounded-control p-3 text-ink-secondary lg:hidden"
             @click="mobileOpen = true"
           >
             <span class="sr-only">Open sidebar</span>
@@ -402,7 +408,8 @@ async function signOut() {
             <span class="h-5 w-px bg-edge-subtle" aria-hidden="true" />
             <RouterLink
               :to="(route.meta.parent as string)"
-              class="inline-flex h-9 items-center gap-1.5 rounded-control px-2 text-sm font-medium text-ink-secondary transition-colors hover:bg-surface-muted hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
+              :class="touch ? 'h-12 px-3' : 'h-9 px-2'"
+              class="inline-flex items-center gap-1.5 rounded-control text-sm font-medium text-ink-secondary transition-colors hover:bg-surface-muted hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
             >
               <AppIcon :icon="ChevronLeftIcon" class="size-4" aria-hidden="true" />
               Back
@@ -435,7 +442,7 @@ async function signOut() {
         of every page in the product to buy 28px in the two environments a banner appears in. Named
         in DESIGN-REFRESH-2026-09.md §7 rather than traded for that.
       -->
-      <main id="main-content" tabindex="-1" class="outline-none" :class="fullBleed ? 'h-[calc(100dvh-4rem)] overflow-hidden' : 'shell-main-padding'">
+      <main id="main-content" tabindex="-1" class="outline-none" :class="fullBleed ? 'h-[calc(100dvh-4rem)] overflow-hidden' : 'shell-main-padding'" :style="{ '--bottom-chrome': `${bottomChromeHeight}px` }">
         <!-- Full-width content: tables use the whole screen; small gutters only. -->
         <div
           class="relative"
@@ -482,5 +489,6 @@ async function signOut() {
         </div>
       </main>
     </div>
+    <SectionTabBar v-if="tabs" :group="tabs" :current="currentTab" />
   </div>
 </template>

@@ -5,7 +5,6 @@ import {
   AppTabs,
   AppBadge,
   AppButton as BaseButton,
-  AppIcon,
   useQueryState,
   DataWorkspace,
   FilterBar,
@@ -14,9 +13,9 @@ import {
   TablePagination,
   useConfirm,
 } from "@silvicom/ui";
-import { PlusIcon } from "@silvicom/ui/icons";
 import { INSPECTION_SUBJECT_TYPES, type InspectionSubjectType } from "@silvicom/shared";
 import PageHeader from "@/components/ui/PageHeader.vue";
+import WalkActions, { type WalkAction } from "@/components/WalkActions.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
 import KebabMenu from "@/components/KebabMenu.vue";
 import DeleteInspectionDrawer from "@/features/maintenance/DeleteInspectionDrawer.vue";
@@ -142,12 +141,12 @@ const tabs = [
 ];
 
 const columns: DataTableColumn[] = [
-  { key: "unit", label: "Unit", width: "sm" },
-  { key: "inspected_on", label: "Inspected", width: "md" },
-  { key: "verdict", label: "Result", width: "sm" },
-  { key: "next_due_on", label: "Next due", width: "md", cellClass: "text-ink-secondary" },
-  { key: "inspector_name", label: "Inspector", width: "md", cellClass: "text-ink-secondary" },
-  { key: "decal_serial", label: "Decal", width: "md", cellClass: "font-mono text-xs text-ink-secondary" },
+  { key: "unit", label: "Unit", card: "title", width: "sm" },
+  { key: "inspected_on", label: "Inspected", card: "none", width: "md" },
+  { key: "verdict", label: "Result", card: "sentence", width: "sm" },
+  { key: "next_due_on", label: "Next due", card: "meta", width: "md", cellClass: "text-ink-secondary" },
+  { key: "inspector_name", label: "Inspector", card: "none", width: "md", cellClass: "text-ink-secondary" },
+  { key: "decal_serial", label: "Decal", card: "none", width: "md", cellClass: "font-mono text-xs text-ink-secondary" },
 ];
 
 const creating = ref(false);
@@ -204,15 +203,22 @@ async function discardDraft(row: InspectionSummary) {
     toast.error("Could not discard the inspection", e instanceof Error ? e.message : undefined);
   }
 }
+
+/**
+ * The page's one verb, drawn in the header on a desk and as the phone's bottom bar (contract §9 rule 2):
+ * an inspector starts a report standing at the unit, and the header has scrolled away by the time
+ * the register is read down to it.
+ */
+const actions = computed<WalkAction[]>(() =>
+  session.can("maintenance") ? [{ label: "New inspection", primary: true, onClick: () => (creating.value = true) }] : [],
+);
 </script>
 
 <template>
   <div class="space-y-6">
     <PageHeader description="Annual inspections for every tractor and trailer. A completed report is kept on file and produced on request.">
       <template #actions>
-        <BaseButton v-if="session.can('maintenance')" variant="primary" @click="creating = true">
-          <AppIcon :icon="PlusIcon" class="-ml-0.5 size-5" aria-hidden="true" /> New inspection
-        </BaseButton>
+        <WalkActions :actions="actions" />
       </template>
     </PageHeader>
 
@@ -315,5 +321,6 @@ async function discardDraft(row: InspectionSummary) {
       :can-manage="session.can('maintenance')"
       @close="printing = null"
     />
+    <WalkActions v-if="actions.length" :actions="actions" bar />
   </div>
 </template>

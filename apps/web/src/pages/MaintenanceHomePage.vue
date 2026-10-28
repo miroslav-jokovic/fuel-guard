@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import { useRouter } from "vue-router";
-import { AppCallout, StatCard, type DataTableColumn } from "@silvicom/ui";
+import { AppCallout, StatCard, countLabelFor, type DataTableColumn } from "@silvicom/ui";
 import { GaugeIcon } from "@silvicom/ui/icons";
 import {
   inspectionExpiry,
@@ -25,7 +25,7 @@ import { useUnitsQuery } from "@/features/inventory/useUnits";
 import StartCountDrawer from "@/features/inventory/StartCountDrawer.vue";
 import OpenCountsList from "@/features/inventory/OpenCountsList.vue";
 import StockLevelCell from "@/features/inventory/StockLevelCell.vue";
-import WalkActions, { type WalkAction } from "@/features/inventory/WalkActions.vue";
+import WalkActions, { type WalkAction } from "@/components/WalkActions.vue";
 import RoadsideRepairsDueSection from "@/features/roadside/RoadsideRepairsDueSection.vue";
 import { useRoadsideRepairsDueQuery } from "@/features/roadside/useRoadsideInspections";
 import { useOrgTimezone } from "@/composables/useOrgTimezone";
@@ -138,29 +138,29 @@ const actions = computed<WalkAction[]>(() => {
 
 // ── columns: three facts a row, because below `md` each row is a card (§4.5) ──────────────────
 const DEFECT_COLUMNS: DataTableColumn[] = [
-  { key: "unitNumber", label: "Unit", cellClass: "font-medium text-ink", width: "sm" },
-  { key: "what", label: "Found" },
-  { key: "detectedAt", label: "On", width: "md" },
+  { key: "unitNumber", label: "Unit", card: "title", cellClass: "font-medium text-ink", width: "sm" },
+  { key: "what", label: "Found", card: "sentence" },
+  { key: "detectedAt", label: "On", card: "meta", width: "md" },
 ];
 const ORDER_COLUMNS: DataTableColumn[] = [
-  { key: "unitNumber", label: "Unit", cellClass: "font-medium text-ink", width: "sm" },
-  { key: "work", label: "Work" },
-  { key: "openedAt", label: "Opened", width: "md" },
+  { key: "unitNumber", label: "Unit", card: "title", cellClass: "font-medium text-ink", width: "sm" },
+  { key: "work", label: "Work", card: "sentence" },
+  { key: "openedAt", label: "Opened", card: "meta", width: "md" },
 ];
 const ANNUAL_COLUMNS: DataTableColumn[] = [
-  { key: "unitNumber", label: "Unit", cellClass: "font-medium text-ink", width: "sm" },
-  { key: "due", label: "Due" },
-  { key: "subjectType", label: "Kind", width: "sm", cellClass: "text-ink-secondary" },
+  { key: "unitNumber", label: "Unit", card: "title", cellClass: "font-medium text-ink", width: "sm" },
+  { key: "due", label: "Due", card: "sentence" },
+  { key: "subjectType", label: "Kind", card: "meta", width: "sm", cellClass: "text-ink-secondary" },
 ];
 const SHORT_COLUMNS: DataTableColumn[] = [
-  { key: "unitNumber", label: "Number", cellClass: "font-medium text-ink", width: "sm" },
-  { key: "shortBy", label: "Missing", numeric: true },
-  { key: "lastCheckedAt", label: "Last checked", width: "md" },
+  { key: "unitNumber", label: "Number", card: "title", cellClass: "font-medium text-ink", width: "sm" },
+  { key: "shortBy", label: "Missing", card: "sentence", numeric: true },
+  { key: "lastCheckedAt", label: "Last checked", card: "meta", width: "md" },
 ];
 const LOW_COLUMNS: DataTableColumn[] = [
-  { key: "partNumber", label: "Part" },
-  { key: "quantityOnHand", label: "On hand", numeric: true },
-  { key: "reorderQuantity", label: "Order", numeric: true },
+  { key: "partNumber", label: "Part", card: "title" },
+  { key: "quantityOnHand", label: "On hand", card: "sentence", numeric: true },
+  { key: "reorderQuantity", label: "Order", card: "meta", numeric: true },
 ];
 
 /** "12 days left" / "3 days overdue", counted in the org's day rather than the server's (D-DS18). */
@@ -179,7 +179,7 @@ const asRows = <T,>(rows: T[]) => rows.slice(0, PREVIEW_ROWS) as unknown as Reco
 </script>
 
 <template>
-  <div class="space-y-6 pb-20 sm:pb-0">
+  <div class="space-y-6">
     <PageHeader description="What needs doing in the shop, most urgent first.">
       <template v-if="actions.length" #actions>
         <WalkActions :actions="actions" />
@@ -271,7 +271,8 @@ const asRows = <T,>(rows: T[]) => rows.slice(0, PREVIEW_ROWS) as unknown as Reco
       @row-click="(row) => router.push(unitPath(row as unknown as UnitKitDto))"
       @retry="shortQ.refetch()"
     >
-      <template #cell-shortBy="{ value }"><span class="font-semibold text-danger-700">{{ value }}</span></template>
+      <!-- The card's sentence (contract §9 rule 3), so it reads as one: a bare "2" said nothing on a phone. -->
+      <template #cell-shortBy="{ value }"><span class="font-semibold text-danger-700">{{ value }} {{ countLabelFor(value, "items") }} missing</span></template>
       <template #cell-lastCheckedAt="{ value }">{{ value ? formatDate(value) : "Never" }}</template>
     </ShopWorklistSection>
 

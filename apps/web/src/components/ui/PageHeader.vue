@@ -5,6 +5,7 @@ import { buildTrail } from "@/lib/breadcrumbs";
 import { hasHeroPlate } from "@/lib/layout";
 import BreadcrumbTrail from "@/components/ui/BreadcrumbTrail.vue";
 import { useOpens } from "@/composables/useOpens";
+import { useTouchTargets } from "@silvicom/ui";
 
 const props = withDefaults(
   defineProps<{
@@ -20,6 +21,8 @@ const route = useRoute();
 const router = useRouter();
 /** Each crumb links only where the guard opens it (SP5); `BreadcrumbTrail` renders the rest as text. */
 const opens = useOpens();
+/** A touched shop page keeps the shell's Back and drops the trail (contract §9 rule 5). */
+const touch = useTouchTargets();
 const resolvedTitle = computed(() => props.title ?? (route.meta.title as string) ?? "Silvicom 360");
 
 /**
@@ -75,7 +78,7 @@ const trail = computed(() =>
     ]"
   >
     <div class="min-w-0">
-      <BreadcrumbTrail :trail="trail" :opens="opens" />
+      <BreadcrumbTrail :trail="trail" :opens="opens" :hide-on-touch="touch" />
       <!--
         One step up on a plate (D-DT22): a 24px greeting beside a photograph ~100px tall read as a
         caption to the picture rather than the page's title — the image out-weighed the words it was

@@ -52,9 +52,9 @@ const open = computed<CountSessionDto[]>(() => data.value?.sessions ?? []);
 const closeWalk = useCloseCountSession();
 
 const COLUMNS: DataTableColumn[] = [
-  { key: "holderLabel", label: "What" },
-  { key: "openedAt", label: "Started", cellClass: "text-ink-secondary" },
-  { key: "startedByName", label: "By", cellClass: "text-ink-secondary" },
+  { key: "holderLabel", label: "What", card: "title" },
+  { key: "openedAt", label: "Started", card: "meta", cellClass: "text-ink-secondary" },
+  { key: "startedByName", label: "By", card: "sentence", cellClass: "text-ink-secondary" },
 ];
 
 const whatOf = (s: CountSessionDto) =>

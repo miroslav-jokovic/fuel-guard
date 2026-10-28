@@ -29,6 +29,8 @@ export interface NavCounts {
 }
 
 export interface NavGroup {
+  /** The catalogue's group key (`SURFACE_GROUPS`) — what `phoneFirst.ts` finds a section by. */
+  key: string;
   /** Section label (null = ungrouped top items). */
   label: string | null;
   /** Section icon shown in the collapsed rail (labeled sections only). */
@@ -73,6 +75,7 @@ export function buildNavGroups(
   surfaces: SurfaceClaim | null = null,
 ): NavGroup[] {
   return SURFACE_GROUPS.map((g) => ({
+    key: g.key,
     label: g.label,
     ...(GROUP_ICONS[g.key] ? { icon: GROUP_ICONS[g.key] } : {}),
     items: NAV_SURFACES.filter((s) => s.group === g.key)

@@ -102,9 +102,9 @@ describe("Text me the link", () => {
     expect(w.find("[role=alert]").text()).toBe(message);
   });
 
-  it("is a 44 px tap target (§6.8)", async () => {
+  it("clears the 44 px tap target (§6.8) at the 48 px floor", async () => {
     serve("agreed");
     const w = await mountIt();
-    expect(textButton(w)!.classes()).toContain("h-11");
+    expect(textButton(w)!.classes()).toContain("h-12");
   });
 });

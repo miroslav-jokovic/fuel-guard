@@ -135,12 +135,12 @@ const entries = computed<TimelineEntry[]>(() =>
 const byKey = computed(() => new Map(rows.value.map((m) => [m.id, m])));
 
 const LEDGER_COLUMNS: DataTableColumn[] = [
-  { key: "occurredAt", label: "When", width: "md", cellClass: "text-ink-secondary" },
-  { key: "reason", label: "What happened", width: "md" },
-  { key: "toHolder", label: "Where it went" },
-  { key: "condition", label: "Condition", cellClass: "text-ink-secondary" },
-  { key: "actorName", label: "By", cellClass: "text-ink-secondary" },
-  { key: "note", label: "Detail", cellClass: "text-ink-tertiary" },
+  { key: "occurredAt", label: "When", card: "meta", width: "md", cellClass: "text-ink-secondary" },
+  { key: "reason", label: "What happened", card: "title", width: "md" },
+  { key: "toHolder", label: "Where it went", card: "sentence" },
+  { key: "condition", label: "Condition", card: "none", cellClass: "text-ink-secondary" },
+  { key: "actorName", label: "By", card: "none", cellClass: "text-ink-secondary" },
+  { key: "note", label: "Detail", card: "none", cellClass: "text-ink-tertiary" },
 ];
 
 /**

@@ -105,6 +105,18 @@ beforeEach(() => {
   low.value = { lines: [line()], total: 1 };
 });
 
+// jsdom has no `matchMedia`, so DataTable would render its phone cards, and a card shows only its
+// three marked facts (DESIGN-SYSTEM-CONTRACT.md §9 rule 3). These read the columns, which is a table's
+// question, so the viewport is a desktop one.
+Object.defineProperty(window, "matchMedia", {
+  writable: true,
+  configurable: true,
+  value: (media: string) => ({
+    matches: true, media, onchange: null, addListener: () => {}, removeListener: () => {},
+    addEventListener: () => {}, removeEventListener: () => {}, dispatchEvent: () => false,
+  }),
+});
+
 describe("the stock filter", () => {
   it("opens with nothing applied — no ✕ to clear a filter nobody set", async () => {
     const w = await page();

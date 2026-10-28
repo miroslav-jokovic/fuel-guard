@@ -15,9 +15,9 @@ import WorkOrderRows from "./WorkOrderRows.vue";
 const props = defineProps<{ file: UnitShopFileDto }>();
 
 const HISTORY_COLUMNS: DataTableColumn[] = [
-  { key: "when", label: "Done", width: "md", cellClass: "text-ink-secondary" },
-  { key: "work", label: "Work" },
-  { key: "downtimeDays", label: "Days out", numeric: true, width: "sm" },
+  { key: "when", label: "Done", card: "meta", width: "md", cellClass: "text-ink-secondary" },
+  { key: "work", label: "Work", card: "title" },
+  { key: "downtimeDays", label: "Days out", card: "none", numeric: true, width: "sm" },
 ];
 const history = computed(() => props.file.history as unknown as Record<string, unknown>[]);
 const work = (r: UnitWorkOrderHistoryDto) => r.jobs.join(", ") || r.description || r.referenceNumber || "Work order";

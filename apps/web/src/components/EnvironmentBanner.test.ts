@@ -50,4 +50,14 @@ describe("EnvironmentBanner", () => {
   it("cannot be dismissed — there is no control to dismiss it with", () => {
     expect(render("uat").findAll("button")).toHaveLength(0);
   });
+
+  // DESIGN-SYSTEM-CONTRACT.md §9 rule 8: wrapped, the UAT sentence took two lines of a phone.
+  it("is one line below md — the sentence truncates, whole in its title — and wraps from md up", () => {
+    const w = render("uat");
+    const strip = w.find("[role=status]");
+    expect(strip.classes()).toContain("md:flex-wrap");
+    expect(strip.classes()).not.toContain("flex-wrap");
+    expect(strip.attributes("title")).toContain("FMCSA test account");
+    expect(w.findAll("span")[1]!.classes()).toContain("truncate");
+  });
 });

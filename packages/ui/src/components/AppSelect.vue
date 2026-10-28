@@ -2,7 +2,7 @@
 import { useTouchTargets } from "../touchTargets";
 
 defineOptions({ inheritAttrs: false });
-/** 36 px, or 44 inside a thumb-pressed layout (`touchTargets.ts`), as `AppInput`. */
+/** 36 px, or 48 inside a thumb-pressed layout (`touchTargets.ts`), as `AppInput`. */
 const touchTargets = useTouchTargets();
 
 export type SelectValue = string | number | undefined | null;
@@ -37,7 +37,7 @@ function update(raw: string) {
     :disabled="disabled"
     class="block w-full rounded-control border-0 bg-surface px-3 pr-8 text-base text-ink ring-1 ring-inset focus:outline-none focus:ring-2 disabled:cursor-not-allowed disabled:bg-surface-muted disabled:text-ink-disabled sm:text-sm"
     :class="[
-      touchTargets ? 'h-11' : 'h-9',
+      touchTargets ? 'h-12' : 'h-9',
       invalid ? 'ring-danger-600 focus:ring-danger-600' : 'ring-edge-control focus:ring-focus-ring',
     ]"
     @change="update(($event.target as HTMLSelectElement).value)"

@@ -125,9 +125,9 @@ const page = qs.page();
 const pageRows = computed(() => rows.value.slice((page.value - 1) * PAGE_SIZE, page.value * PAGE_SIZE) as unknown as Record<string, unknown>[]);
 
 const COLUMNS: DataTableColumn[] = [
-  { key: "unitNumber", label: "Number", sortable: true, cellClass: "font-medium text-ink", width: "sm" },
-  { key: "needs", label: "Needs" },
-  { key: "lastCheckedAt", label: "Last checked", sortable: true, width: "md", cellClass: "text-ink-secondary" },
+  { key: "unitNumber", label: "Number", card: "title", sortable: true, cellClass: "font-medium text-ink", width: "sm" },
+  { key: "needs", label: "Needs", card: "sentence" },
+  { key: "lastCheckedAt", label: "Last checked", card: "meta", sortable: true, width: "md", cellClass: "text-ink-secondary" },
 ];
 const { sort, onSort } = useUrlSort(
   qs.param("sort", COLUMNS.filter((c) => c.sortable).map((c) => c.key)),

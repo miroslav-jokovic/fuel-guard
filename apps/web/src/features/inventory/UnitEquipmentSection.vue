@@ -72,17 +72,17 @@ async function startCheck() {
 defineExpose({ startCheck, openWalk });
 
 const KIT_COLUMNS: DataTableColumn[] = [
-  { key: "assetTypeName", label: "What it should carry" },
-  { key: "expected", label: "Expected", numeric: true },
-  { key: "held", label: "On the unit", numeric: true },
-  { key: "delta", label: "Difference", numeric: true },
-  { key: "source", label: "Rule from", cellClass: "text-ink-tertiary" },
+  { key: "assetTypeName", label: "What it should carry", card: "title" },
+  { key: "expected", label: "Expected", card: "none", numeric: true },
+  { key: "held", label: "On the unit", card: "none", numeric: true },
+  { key: "delta", label: "Difference", card: "meta", numeric: true },
+  { key: "source", label: "Rule from", card: "sentence", cellClass: "text-ink-tertiary" },
 ];
 const ASSET_COLUMNS: DataTableColumn[] = [
-  { key: "displayNo", label: "Number", cellClass: "font-mono text-xs text-ink", width: "sm" },
-  { key: "name", label: "What it is" },
-  { key: "assetTypeName", label: "Kind", cellClass: "text-ink-secondary" },
-  { key: "serialNumber", label: "Serial", cellClass: "font-mono text-xs text-ink-tertiary" },
+  { key: "displayNo", label: "Number", card: "title", cellClass: "font-mono text-xs text-ink", width: "sm" },
+  { key: "name", label: "What it is", card: "sentence" },
+  { key: "assetTypeName", label: "Kind", card: "meta", cellClass: "text-ink-secondary" },
+  { key: "serialNumber", label: "Serial", card: "none", cellClass: "font-mono text-xs text-ink-tertiary" },
 ];
 /** Only the lines worth a row: expected here, or actually carried and unexpected. */
 const kitLines = computed<UnitKitLineDto[]>(() => props.unit.lines.filter((l) => l.expected > 0 || l.held > 0));

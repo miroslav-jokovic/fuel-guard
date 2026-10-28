@@ -38,9 +38,9 @@ const drawn = computed(
 );
 
 const COLUMNS: DataTableColumn[] = [
-  { key: "unit", label: "Unit", cellClass: "font-medium text-ink", width: "sm" },
-  { key: "inspected", label: "Inspected", width: "md" },
-  { key: "due", label: "Due", width: "md" },
+  { key: "unit", label: "Unit", card: "title", cellClass: "font-medium text-ink", width: "sm" },
+  { key: "inspected", label: "Inspected", card: "sentence", width: "md" },
+  { key: "due", label: "Due", card: "meta", width: "md" },
 ];
 
 function dueText(r: RoadsideRepairDueDto): { text: string; tone: string } {

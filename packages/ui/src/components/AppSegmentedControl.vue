@@ -31,7 +31,7 @@ import { useTouchTargets } from "../touchTargets";
  * `shadow-card`, the tab strip's did not — which is what made the de-grey a two-file edit instead
  * of a one-map one. Density stays here: `p-0.5` and `min-h-8`, because a permissions table draws
  * eleven of these per role and four more pixels each is a page taller — except inside a thumb-pressed
- * layout (`touchTargets.ts`), where a segment is 44 px: the signature adoption's three ways to sign on
+ * layout (`touchTargets.ts`), where a segment is 48 px: the signature adoption's three ways to sign on
  * `/apply` measured 99×32 at 390 px (C3d3b2).
  *
  * `inherited` draws the chosen segment outlined rather than filled. It exists for a layered answer
@@ -124,7 +124,7 @@ function onKey(event: KeyboardEvent): void {
       role="radio"
       class="whitespace-nowrap disabled:cursor-not-allowed"
       :class="[
-        touchTargets ? 'min-h-11' : 'min-h-8',
+        touchTargets ? 'min-h-12' : 'min-h-8',
         SEGMENTED_SEGMENT,
         option.value === modelValue
           ? inherited

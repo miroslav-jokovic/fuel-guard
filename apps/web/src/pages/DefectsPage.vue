@@ -58,11 +58,11 @@ const page = qs.page();
 const pageRows = computed(() => rows.value.slice((page.value - 1) * PAGE_SIZE, page.value * PAGE_SIZE));
 
 const COLUMNS: DataTableColumn[] = [
-  { key: "unitNumber", label: "Unit", sortable: true, cellClass: "font-medium text-ink", width: "sm" },
-  { key: "name", label: "Defect", sortable: true },
-  { key: "driverComment", label: "Driver's note" },
-  { key: "detectedDay", label: "Found", sortable: true, width: "sm" },
-  { key: "openFor", label: "Open for", sortable: true, numeric: true, width: "sm" },
+  { key: "unitNumber", label: "Unit", card: "title", sortable: true, cellClass: "font-medium text-ink", width: "sm" },
+  { key: "name", label: "Defect", card: "sentence", sortable: true },
+  { key: "driverComment", label: "Driver's note", card: "none" },
+  { key: "detectedDay", label: "Found", card: "none", sortable: true, width: "sm" },
+  { key: "openFor", label: "Open for", card: "meta", sortable: true, numeric: true, width: "sm" },
 ];
 const { sort, onSort } = useUrlSort(
   qs.param("sort", COLUMNS.filter((c) => c.sortable).map((c) => c.key)),

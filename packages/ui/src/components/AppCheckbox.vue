@@ -35,10 +35,10 @@ import { useTouchTargets } from "../touchTargets";
  * content sits at the top of it rather than floating in the middle, which is what a wrapped label
  * needs. Removing it shrinks every option row below the tap minimum.
  *
- * `size="touch"` makes that row 44px — the target APPLICATION-FLOW-V2-PLAN.md §6.8 sets for `/apply`,
+ * `size="touch"` makes that row 48px — the target APPLICATION-FLOW-V2-PLAN.md §6.8 sets for `/apply`,
  * as `AppButton`'s and `AppRadioGroup`'s `touch` do — by padding, so the 2px alignment above still
  * holds and a one-line label sits in the middle of the row. Added 2026-09-27
- * (C3c2b) for the application's job panel, where "I drove a commercial vehicle" sits among 44px
+ * (C3c2b) for the application's job panel, where "I drove a commercial vehicle" sits among 48px
  * Yes/No rows. Inside a thumb-pressed layout (`touchTargets.ts`) every checkbox is `touch`, asked or not.
  */
 defineOptions({ inheritAttrs: false });
@@ -48,11 +48,11 @@ const props = withDefaults(
 );
 const emit = defineEmits<{ "update:modelValue": [value: boolean] }>();
 const touchTargets = useTouchTargets();
-const touch = computed(() => touchTargets || props.size === "touch");
+const touch = computed(() => touchTargets.value || props.size === "touch");
 </script>
 
 <template>
-  <label class="flex items-start gap-2 text-sm text-ink-secondary" :class="touch ? 'min-h-11 py-3' : 'min-h-9'">
+  <label class="flex items-start gap-2 text-sm text-ink-secondary" :class="touch ? 'min-h-12 py-3.5' : 'min-h-9'">
     <input
       v-bind="$attrs"
       type="checkbox"

@@ -58,10 +58,10 @@ describe("AppButton size='row'", () => {
 });
 
 describe("AppButton size='touch'", () => {
-  // §6.8's bar on `/apply`: every tap target at least 44 × 44 CSS px. h-11 is 2.75rem = 44 px.
-  it("is 44 px tall, the phone tap target, and a control like any other", () => {
+  // The contract's §9 floor (48 since Maintenance M4; §6.8's bar on `/apply` is 44). h-12 is 3rem = 48 px.
+  it("is 48 px tall, the phone tap target, and a control like any other", () => {
     const cls = mount(AppButton, { props: { size: "touch", block: true }, slots: { default: "Take photo" } }).classes();
-    expect(cls).toContain("h-11");
+    expect(cls).toContain("h-12");
     expect(cls).toContain("w-full");
     expect(cls).not.toContain("h-9");
   });
@@ -80,7 +80,7 @@ describe("AppButton size='shutter'", () => {
     expect(cls).not.toContain("h-9");
   });
 
-  // Already above the 44 px floor, so a thumb-pressed layout leaves it alone rather than shrinking it to `touch`.
+  // Already above the 48 px floor, so a thumb-pressed layout leaves it alone rather than shrinking it to `touch`.
   it("keeps its size inside a thumb-pressed layout", () => {
     const Layout = defineComponent({
       setup() {
@@ -90,7 +90,7 @@ describe("AppButton size='shutter'", () => {
     });
     const cls = mount(Layout).findComponent(AppButton).classes();
     expect(cls).toContain("size-17");
-    expect(cls).not.toContain("h-11");
+    expect(cls).not.toContain("h-12");
   });
 });
 

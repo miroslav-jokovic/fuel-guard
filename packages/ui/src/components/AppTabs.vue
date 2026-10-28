@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { useTouchTargets } from "../touchTargets";
 import {
   SEGMENTED_COUNT,
   SEGMENTED_COUNT_IDLE,
@@ -272,6 +273,8 @@ onBeforeUnmount(() => {
   if (frame) cancelAnimationFrame(frame);
   observer?.disconnect();
 });
+/** A tab is 48 px tall under the touch floor (DESIGN-SYSTEM-CONTRACT.md §9 rule 1); the pill follows it. */
+const touch = useTouchTargets();
 </script>
 
 <template>
@@ -327,6 +330,7 @@ onBeforeUnmount(() => {
       class="relative py-1.5"
       :class="[
         SEGMENTED_SEGMENT,
+        touch && 'min-h-12',
         orientation === 'vertical' ? 'flex w-full items-center justify-between gap-2 text-left' : 'shrink-0 whitespace-nowrap',
         tab.value === modelValue
           ? orientation === 'vertical'

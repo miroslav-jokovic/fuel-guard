@@ -62,12 +62,12 @@ const page = qs.page();
 const pageRows = computed(() => rows.value.slice((page.value - 1) * PAGE_SIZE, page.value * PAGE_SIZE));
 
 const COLUMNS: DataTableColumn[] = [
-  { key: "referenceNumber", label: "Work order", sortable: true, cellClass: "font-medium text-ink", width: "md" },
-  { key: "unitNumber", label: "Unit", sortable: true, cellClass: "text-ink-secondary", width: "sm" },
-  { key: "description", label: "Description" },
-  { key: "priority", label: "Priority", sortable: true, cellClass: "text-ink-secondary", width: "sm" },
-  { key: "openedDay", label: "Opened", sortable: true, width: "sm" },
-  { key: "openFor", label: "Open for", sortable: true, numeric: true, width: "sm" },
+  { key: "referenceNumber", label: "Work order", card: "none", sortable: true, cellClass: "font-medium text-ink", width: "md" },
+  { key: "unitNumber", label: "Unit", card: "title", sortable: true, cellClass: "text-ink-secondary", width: "sm" },
+  { key: "description", label: "Description", card: "sentence" },
+  { key: "priority", label: "Priority", card: "none", sortable: true, cellClass: "text-ink-secondary", width: "sm" },
+  { key: "openedDay", label: "Opened", card: "none", sortable: true, width: "sm" },
+  { key: "openFor", label: "Open for", card: "meta", sortable: true, numeric: true, width: "sm" },
 ];
 const { sort, onSort } = useUrlSort(
   qs.param("sort", COLUMNS.filter((c) => c.sortable).map((c) => c.key)),

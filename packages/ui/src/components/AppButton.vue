@@ -85,13 +85,14 @@ const SIZES: Record<NonNullable<typeof props.size>, string> = {
    */
   row: "h-auto w-full gap-x-2 px-3 py-2 text-sm",
   /**
-   * A control pressed by a thumb on a phone: 44 CSS px tall, the target APPLICATION-FLOW-V2-PLAN.md §6.8
+   * A control pressed by a thumb on a phone: 48 CSS px tall (44 until DESIGN-SYSTEM-CONTRACT.md §9,
+   * Maintenance M4), above the target APPLICATION-FLOW-V2-PLAN.md §6.8
    * sets for `/apply` (Q-AW20: `/apply` first; WCAG 2.5.8's floor is 24). `md` is 36.
    *
    * Added 2026-09-27 for Part 1's scanner screen (C3b2b), for the reason `icon` and `row` were: the call
    * site would otherwise have written `!h-11`, and a missing size is the honest reading of that.
    */
-  touch: "h-11 gap-x-2 px-4 text-base",
+  touch: "h-12 gap-x-2 px-4 text-base",
   /**
    * A camera's shutter: a 68 CSS px disc, pressed by a thumb with the phone held in the other hand.
    *
@@ -116,21 +117,21 @@ const SIZES: Record<NonNullable<typeof props.size>, string> = {
 const LINK_SIZE = "h-auto gap-x-1 p-0 text-inherit";
 
 /**
- * Inside a thumb-pressed layout (`touchTargets.ts`), each compact size becomes its 44 px counterpart:
- * a labelled button becomes `touch`, a square one `size-11`, a list row keeps its own height above a
- * 44 px floor. `link` is left alone — it is inline text, which WCAG 2.5.8 exempts.
+ * Inside a thumb-pressed layout (`touchTargets.ts`), each compact size becomes its 48 px counterpart:
+ * a labelled button becomes `touch`, a square one `size-12`, a list row keeps its own height above a
+ * 48 px floor. `link` is left alone — it is inline text, which WCAG 2.5.8 exempts.
  */
 const touchTargets = useTouchTargets();
 const TOUCH_SIZES: Partial<Record<NonNullable<typeof props.size>, string>> = {
   sm: SIZES.touch,
   md: SIZES.touch,
-  icon: "size-11 p-0",
-  row: `${SIZES.row} min-h-11`,
+  icon: "size-12 p-0",
+  row: `${SIZES.row} min-h-12`,
 };
 const sizeClass = computed(() =>
   props.variant === "link"
     ? LINK_SIZE
-    : (touchTargets ? TOUCH_SIZES[props.size] : undefined) ?? SIZES[props.size],
+    : (touchTargets.value ? TOUCH_SIZES[props.size] : undefined) ?? SIZES[props.size],
 );
 
 /**

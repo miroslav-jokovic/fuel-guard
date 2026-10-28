@@ -118,15 +118,15 @@ const shippedTones = ["danger", "caution", "warning", "success", "info", "brand"
  */
 /** Every lab section is labelled, so narrow the nullable label away rather than assert past it. */
 const labNavGroups: (NavGroup & { label: string })[] = [
-  { label: "Fuel", items: [
+  { key: "fuel", label: "Fuel", items: [
     { show: true, name: "Fuel log", to: "/lab-fuel-log", icon: FuelCardIcon },
     { show: true, name: "Transactions", to: "/lab-transactions", icon: FuelCardIcon, badge: 24 },
   ]},
-  { label: "Safety", items: [
+  { key: "safety", label: "Safety", items: [
     { show: true, name: "Driver files", to: "/lab-driver-files", icon: ShieldCheckIcon },
     { show: true, name: "Hazmat", to: "/lab-hazmat", icon: ShieldCheckIcon, badge: 7 },
   ]},
-  { label: "Fleet", items: [
+  { key: "fleet", label: "Fleet", items: [
     { show: true, name: "Vehicles", to: "/lab-vehicles", icon: TruckIcon },
     { show: true, name: "Drivers", to: "/lab-drivers", icon: UserGroupIcon },
   ]},

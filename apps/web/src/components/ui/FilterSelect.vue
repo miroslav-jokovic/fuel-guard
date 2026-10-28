@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { AppIcon, AppInput } from "@silvicom/ui";
+import { AppIcon, AppInput, useTouchTargets } from "@silvicom/ui";
 import {
   CheckIcon,
   ChevronDownIcon,
@@ -166,21 +166,29 @@ function clear() {
   emit("update:modelValue", props.multiple ? [] : "");
   open.value = false;
 }
+
+/**
+ * 48 px under the touch floor (DESIGN-SYSTEM-CONTRACT.md §9 rule 1), with 8 px between the trigger and
+ * its clear button: M3's pass measured this trigger at 32 px on the shop's phone pages, the most
+ * repeated small target there. The office keeps 32 — the floor holds only where a thumb presses.
+ */
+const touch = useTouchTargets();
 </script>
 
 <template>
   <div :class="block ? 'w-full' : 'inline-block'">
-    <div class="flex items-center gap-1" :class="block ? 'w-full' : ''">
+    <div class="flex items-center" :class="[block ? 'w-full' : '', touch ? 'gap-2' : 'gap-1']">
       <button
         ref="triggerRef"
         type="button"
         :disabled="disabled"
-        class="inline-flex h-8 items-center gap-1.5 rounded-control px-2.5 text-sm font-medium ring-1 ring-inset transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring disabled:cursor-not-allowed disabled:opacity-60"
+        class="inline-flex items-center gap-1.5 rounded-control px-2.5 text-sm font-medium ring-1 ring-inset transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring disabled:cursor-not-allowed disabled:opacity-60"
         :class="[
           active
             ? 'bg-brand-50/60 text-brand-800 ring-edge hover:bg-brand-50'
             : 'bg-surface text-ink-secondary ring-edge hover:bg-surface-subtle',
           block ? 'min-w-0 flex-1 justify-between' : '',
+          touch ? 'h-12' : 'h-8',
         ]"
         :aria-expanded="open"
         aria-haspopup="listbox"
@@ -195,7 +203,8 @@ function clear() {
       <button
         v-if="active"
         type="button"
-        class="inline-flex size-8 shrink-0 items-center justify-center rounded-control text-brand-700 ring-1 ring-inset ring-edge hover:bg-brand-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
+        :class="touch ? 'size-12' : 'size-8'"
+        class="inline-flex shrink-0 items-center justify-center rounded-control text-brand-700 ring-1 ring-inset ring-edge hover:bg-brand-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
         :aria-label="`Clear ${label} filter`"
         @click.stop="clear"
       >
@@ -221,7 +230,8 @@ function clear() {
                 v-model="query"
                 type="text"
                 :placeholder="`Filter ${label.toLowerCase()}s…`"
-                class="h-8 py-1 pl-7 pr-2"
+                class="py-1 pl-7 pr-2"
+                :class="touch ? '' : 'h-8'"
                 @click.stop
               />
             </div>
@@ -232,11 +242,10 @@ function clear() {
               :key="opt.value"
               type="button"
               class="flex w-full items-center px-3 py-1.5 text-left"
-              :class="
-                rowChecked(opt.value)
-                  ? 'bg-brand-100 font-medium text-brand-700'
-                  : 'text-ink hover:bg-surface-subtle'
-              "
+              :class="[
+                rowChecked(opt.value) ? 'bg-brand-100 font-medium text-brand-700' : 'text-ink hover:bg-surface-subtle',
+                touch && 'min-h-12',
+              ]"
               role="option"
               :aria-selected="isChosen(opt.value)"
               @click="select(opt.value)"

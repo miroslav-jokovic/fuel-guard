@@ -26,7 +26,7 @@ import {
   useStockQuery,
 } from "@/features/inventory/useInventory";
 import { useWalk } from "@/features/inventory/useWalk";
-import WalkActions, { type WalkAction } from "@/features/inventory/WalkActions.vue";
+import WalkActions, { type WalkAction } from "@/components/WalkActions.vue";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { useToastStore } from "@/stores/toast";
 import { useSessionStore } from "@/stores/session";
@@ -264,11 +264,11 @@ const reviewRows = computed(() =>
 );
 
 const REVIEW_COLUMNS: DataTableColumn[] = [
-  { key: "partNumber", label: "Part number", cellClass: "font-medium text-ink", width: "md" },
-  { key: "partDescription", label: "Description", cellClass: "text-ink-secondary" },
-  { key: "counted", label: "Counted", numeric: true },
-  { key: "expected", label: "Expected", numeric: true },
-  { key: "state", label: "Result", width: "sm" },
+  { key: "partNumber", label: "Part number", card: "title", cellClass: "font-medium text-ink", width: "md" },
+  { key: "partDescription", label: "Description", card: "sentence", cellClass: "text-ink-secondary" },
+  { key: "counted", label: "Counted", card: "none", numeric: true },
+  { key: "expected", label: "Expected", card: "none", numeric: true },
+  { key: "state", label: "Result", card: "meta", width: "sm" },
 ];
 
 /** "12 of 40 · 3 short · blind" — counts, never percent: "30 %" is not a number of bins. */
@@ -332,7 +332,7 @@ async function close() {
 </script>
 
 <template>
-  <div class="space-y-6 pb-20 sm:pb-0">
+  <div class="space-y-6">
     <!-- The walk's own load and failure are drawn by CountSessionPage, the one place that reads the
          session and decides which body to mount (D-INV19); this body is mounted only once the walk
          has arrived, so it draws no second "not on file" of its own (D-US5). -->

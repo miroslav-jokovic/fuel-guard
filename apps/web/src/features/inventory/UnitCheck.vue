@@ -24,7 +24,7 @@ import { useCloseCountSession, useCountSessionQuery } from "@/features/inventory
 import { useAssetsQuery, useMoveAsset } from "@/features/inventory/useAssets";
 import { useUnitKitQuery } from "@/features/inventory/useUnits";
 import { useWalk } from "@/features/inventory/useWalk";
-import WalkActions, { type WalkAction } from "@/features/inventory/WalkActions.vue";
+import WalkActions, { type WalkAction } from "@/components/WalkActions.vue";
 import { useToastStore } from "@/stores/toast";
 
 /**
@@ -217,9 +217,9 @@ const reviewRows = computed(() => [
 ]);
 
 const REVIEW_COLUMNS: DataTableColumn[] = [
-  { key: "what", label: "What", cellClass: "font-medium text-ink", width: "md" },
-  { key: "detail", label: "Which", cellClass: "text-ink-secondary" },
-  { key: "label", label: "Result", width: "sm" },
+  { key: "what", label: "What", card: "title", cellClass: "font-medium text-ink", width: "md" },
+  { key: "detail", label: "Which", card: "sentence", cellClass: "text-ink-secondary" },
+  { key: "label", label: "Result", card: "meta", width: "sm" },
 ];
 
 async function close() {
@@ -252,7 +252,7 @@ async function close() {
 </script>
 
 <template>
-  <div class="space-y-6 pb-20 sm:pb-0">
+  <div class="space-y-6">
     <!-- The walk's own load and failure are drawn by CountSessionPage, the one place that reads the
          session and decides which body to mount (D-INV19); this body is mounted only once the walk
          has arrived, so it draws no second "not on file" of its own (D-US5). -->

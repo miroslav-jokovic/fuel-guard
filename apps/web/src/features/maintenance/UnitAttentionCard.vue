@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { AppCard as BaseCard, QueryState } from "@silvicom/ui";
+import { AppCard as BaseCard, QueryState, useTouchTargets } from "@silvicom/ui";
 import { repairClock, type RoadsideRepairDueDto, type UnitAttentionReason } from "@silvicom/shared";
 import { attentionAnchor, attentionSentence } from "./attentionWords";
 
@@ -35,6 +35,8 @@ const rows = computed(() => [
     urgent: (r.kind === "annual" && r.daysRemaining < 0) || (r.kind === "pm" && r.verdict === "overdue"),
   })),
 ]);
+/** A link standing on its own is a target, not a word: 48 px tall under the touch floor (contract §9 rule 1). */
+const touch = useTouchTargets();
 </script>
 
 <template>
@@ -52,7 +54,7 @@ const rows = computed(() => [
         <ul v-if="rows.length" class="divide-y divide-edge-subtle text-sm">
           <li v-for="r in rows" :key="r.key" class="flex items-center justify-between gap-4 py-2 first:pt-0 last:pb-0">
             <span :class="r.urgent ? 'font-medium text-danger-700' : 'text-ink'">{{ r.text }}</span>
-            <a :href="`#${r.anchor}`" class="shrink-0 text-sm font-medium text-link hover:text-link-hover">See below</a>
+            <a :href="`#${r.anchor}`" class="shrink-0 text-sm font-medium text-link hover:text-link-hover" :class="touch && 'inline-flex min-h-12 items-center'">See below</a>
           </li>
         </ul>
         <p v-else class="text-sm text-ink-secondary" data-test="unit-attention-none">Nothing needs attention on this unit today.</p>
