@@ -50,7 +50,7 @@ const layoutFix = isAndroid
         The punctuation came out wrong, which means this device is not using a US English keyboard for the scanner —
         real labels will read as "not a code we know". {{ layoutFix }}
       </AppCallout>
-      <AppCallout v-else tone="info">That is not the test label. Print one from a printer below and scan that.</AppCallout>
+      <AppCallout v-else tone="info">That is not the test label. Print one from a printer above and scan that.</AppCallout>
       <p class="text-xs text-ink-tertiary">Read: <span class="font-mono">{{ last.text }}</span></p>
     </div>
   </BaseCard>
