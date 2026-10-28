@@ -1,6 +1,7 @@
 # Printers and scanners on any device, chosen once in Settings (2026-10-28)
 
-**Status: PLAN — waiting on the owner's answers to Q-PS1 and Q-PS2 (§5).** No code yet.
+**Status: PLAN — Q-PS1 ruled 2026-10-28 (the office Windows PC is the station); Q-PS2 open (§7).**
+PS0 (the devices on Mac and Windows) runs in parallel with PS1–PS4.
 
 **What the owner asked for (2026-10-28).** Printers and scanners are *set up in Settings*. Once a
 printer is set, **it is the default and printing never asks which one** unless Settings changes.
@@ -96,6 +97,13 @@ What Settings honestly adds, so the owner's "set it up once" holds for scanners 
 
 ## 6. Steps
 
+- **PS0 — the two devices on Mac and Windows, in parallel with PS1–PS4 (owner 2026-10-28).**
+  On each computer: the printer by USB prints the driver's test page, then a label from
+  `/shop/labels` through the dialog (the D-PS5 fallback, at 100 % on 2 × 2 in); the scanner by its
+  dongle opens that label on `/shop/scan` with nothing focused. **Plus the D-PS2 spike on the Mac:**
+  a whole label drawn as one TSPL `BITMAP` and sent raw (`lp -o raw`) must print and scan back —
+  this proves the station's print path on the real firmware before PS2 is built on it, and answers
+  which bit value burns a dot on this firmware.
 - **PS1 — schema (migration, new tables, RLS on, no client policies):** `print_stations`
   (org, name, location, a hashed station token, last seen), `printers` (station, name, language,
   label stock), `print_defaults` (org + location, or a person), `print_jobs` (printer, payload
@@ -116,7 +124,7 @@ What Settings honestly adds, so the owner's "set it up once" holds for scanners 
 
 | # | Question | Candidates | Recommendation |
 |---|---|---|---|
-| **Q-PS1** | What is the print station? | (a) **A Raspberry Pi 5 (~$100 with case and power), plugged into the printer by USB, left on in the shop.** (b) The office Windows PC, if it is never switched off. (c) This Mac. | **(a).** A dedicated box nobody shuts down, updates or unplugs by accident; (b) works but printing stops whenever that PC sleeps or restarts. |
+| **Q-PS1** | ~~What is the print station?~~ **RULED 2026-10-28: (b) the office Windows PC** — printer by USB, our program as a Windows service that starts before login; sleep set to Never, update restarts in active hours. Scanner: dongle on the PC at the desk, Bluetooth to the tablet when walking (one host at a time). A Pi stays the move if the PC proves unreliable — same program. | (a) **A Raspberry Pi 5 (~$100 with case and power), plugged into the printer by USB, left on in the shop.** (b) The office Windows PC, if it is never switched off. (c) This Mac. | **(a).** A dedicated box nobody shuts down, updates or unplugs by accident; (b) works but printing stops whenever that PC sleeps or restarts. |
 | **Q-PS2** | Whose program runs on the station? | (a) **Ours** (PS3). (b) PrintNode's client + their cloud ($9/month, 5,000 prints). | **(a).** The owner ruled out third parties; the job is small because the printer takes raw bytes and needs no driver. (b) is the fallback if PS3 slips. |
 | **Q-PS3** | USB or Bluetooth between the station and the printer? | USB · Bluetooth | **USB.** Bluetooth printing drops when either side sleeps; the station never moves. |
 | **Q-PS4** | How many printers, and where? | one shop · shop + office · more | Decides how many stations to buy; the design takes any number. |
@@ -126,6 +134,8 @@ What Settings honestly adds, so the owner's "set it up once" holds for scanners 
 - **2026-10-28 — plan written** after the owner rejected the print-dialog model. Research: the
   RW403B is USB/Bluetooth-only and speaks a TSPL subset (bitmap only); browsers cannot select a
   printer; the scanner is already device-independent.
+- **2026-10-28 — Q-PS1 ruled: the Windows PC is the station.** PS0 added: the devices on Mac and
+  Windows in parallel, with the raw-TSPL spike on the Mac first.
 
 ## Sources
 
