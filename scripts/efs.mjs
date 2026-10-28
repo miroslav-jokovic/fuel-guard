@@ -44,9 +44,29 @@
  * independently and only one of them can reach EFS (docs/30 §4, Step 5.10).
  */
 import { randomUUID } from "node:crypto";
-import { writeFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 
-const API_DEFAULT = "https://fleetguardapi-production.up.railway.app";
+/**
+ * Production's API, read from the file the AWS production deploy itself reads — never typed here.
+ *
+ * This was a hand-written `https://fleetguardapi-production.up.railway.app` until CCF2 (2026-10-28,
+ * plan B4). Production moved to AWS on 2026-10-27 and Railway's service was retired the next day, so
+ * every `pnpm efs:*` command without `--api` was aimed at a host that no longer answers — including the
+ * suspend in the incident runbook's containment step. `infra/server/production.env`'s `API_HOST` is
+ * what Caddy serves production on, so the CLI now follows the deploy instead of a copy of it. Only
+ * that one key is read; the gate `lint:cli-streams` checks the usage line names the same host.
+ */
+function productionApi() {
+  const file = join(dirname(fileURLToPath(import.meta.url)), "..", "infra", "server", "production.env");
+  try {
+    const host = /^API_HOST=(\S+)$/m.exec(readFileSync(file, "utf8"))?.[1];
+    return host ? `https://${host}` : null;
+  } catch {
+    return null;
+  }
+}
 
 /**
  * `capability` is positional and OPTIONAL, so it cannot be destructured out of argv blindly.
@@ -69,7 +89,9 @@ for (let i = 0; i < rest.length; i += 1) {
   flags[key] = next && !next.startsWith("--") ? next : true;
 }
 
-const api = flags.api ?? process.env.FG_API ?? API_DEFAULT;
+// `||` for the variable: an exported-but-empty FG_API is unset, not a host called "".
+const api = flags.api ?? (process.env.FG_API || null) ?? productionApi()
+  ?? die("Could not read API_HOST from infra/server/production.env. Pass --api <url> or set FG_API.");
 
 function die(message) {
   console.error(message);
@@ -1498,6 +1520,7 @@ switch (command) {
         + "limit-restore --expect-org production --card-id <uuid>   (Step 10.4: does EFS restore a card's own limits when a "
         + "product override clears? WRITES — needs a card that HAS limits; on QA that is ••••7672) · "
         + "prove <capability> · promote <capability> [--proof <id> | --suspend] --reason <why>\n"
+        + `Talks to ${api} — pass --api <url> or set FG_API to use another host.\n`
         + "(card numbers and tokens are always prompted for, never passed as flags)\n"
         + "--out <path> writes the result to a file AFTER --expect-org passes; prefer it to `>`,\n"
         + "which your shell truncates before this tool can refuse anything.",

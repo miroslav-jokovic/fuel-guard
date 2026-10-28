@@ -51,6 +51,11 @@ export interface CardControlSettingsResponse {
   eligible: EligibleMember[];
   scopes: CardControlScope[];
   eligibleRoles: string[];
+  /**
+   * Whether the write check can run on this server (CCF2, B5). Optional: an API from before it sends
+   * none, and the page then behaves as it always did — offers the form and lets the server answer.
+   */
+  check?: { available: boolean; reason: string | null };
 }
 
 async function call<T>(path: string, method = "GET", body?: unknown): Promise<T> {

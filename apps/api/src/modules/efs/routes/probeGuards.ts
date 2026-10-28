@@ -30,6 +30,23 @@ export async function assertOrgOwnsCard(
   if (!data) throw new HttpError(404, "not_found", "That card is not in this company.");
 }
 
+/**
+ * Whether the write check can run on this server right now — what the settings page shows BEFORE
+ * an admin types a card number (CCF2, D-CCF5, plan B5).
+ *
+ * Both probe switches are off in normal running, so the page used to offer a check the server then
+ * refused in ~11 ms with 403 `probe_disabled` (measured 2026-10-28). Read from the same two switches
+ * the route reads, and nothing else: the org's EFS environment is NOT consulted, so on a sandbox org
+ * with only `EFS_CARD_CONTROL_PROBE_ENABLED` on this says "unavailable" where the route would allow
+ * it. That under-offers, never over-promises, and the one sandbox org (EFS QA) is refused by WEX's
+ * firewall from AWS in any case. The reason is the 403's own code, so page and refusal name one cause.
+ */
+export function writeCheckAvailability(env: Env): { available: boolean; reason: "probe_disabled" | null } {
+  return env.EFS_CARD_CONTROL_PROBE_ENABLED && env.EFS_ALLOW_PRODUCTION_PROBE
+    ? { available: true, reason: null }
+    : { available: false, reason: "probe_disabled" };
+}
+
 /** Throws a 403-shaped refusal when the resolved credentials point at production. */
 export function assertProbeAllowed(env: Env, creds: EfsSoapCredentials): void {
   let isProductionHost: boolean;

@@ -46,12 +46,13 @@ vi.mock("@/features/settings/useEfsSoap", async () => {
   };
 });
 
-const card = vi.hoisted(() => ({ settings: null as unknown, probe: null as unknown }));
+const card = vi.hoisted(() => ({ settings: null as unknown, probe: null as unknown, live: null as null | { value: unknown } }));
 vi.mock("@/features/fuelCards/useCardControlSettings", async () => {
   const { ref } = await import("vue");
   const mutation = () => ({ isPending: ref(false), mutateAsync: vi.fn(async () => ({})) });
   return {
-    useCardControlSettings: () => ({ data: ref(card.settings) }),
+    // `live` is the ref the page holds, so a case can stand in for a refetch (CCF2, B5).
+    useCardControlSettings: () => ({ data: (card.live = ref(card.settings)) }),
     useUpdateCardControlSettings: mutation,
     useGrantCardApprover: mutation,
     useRevokeCardApprover: mutation,
@@ -173,6 +174,50 @@ describe("the Card control page reads as plain words (W2)", () => {
       w.unmount();
     });
   }
+
+  /**
+   * CCF2 (plan B5): the server now says whether the check can run. With its switches off — the normal
+   * state — the form used to take a card number and the server refused it in ~11 ms.
+   */
+  it("disables the check and says why while the server has it switched off", async () => {
+    card.settings = { ...settings("confirmed"), check: { available: false, reason: "probe_disabled" } };
+    card.probe = null;
+    const { default: Page } = await import("./CardControlSettingsPage.vue");
+    const w = mount(Page, { global: { stubs } });
+    await flushPromises();
+    expect(w.text()).toContain("The check is switched off on the server, which is its normal state.");
+    const input = w.findAll("input").find((i) => i.attributes("inputmode") === "numeric")!;
+    expect(input.attributes("disabled")).toBeDefined();
+    expect(w.findAll("button").find((b) => b.text() === "Run the read-only check")!.attributes("disabled")).toBeDefined();
+    expect(offenders(readable(w))).toEqual([]);
+    w.unmount();
+  });
+
+  it("disables Run when a refetch switches the check off after a card number was typed", async () => {
+    card.settings = { ...settings("confirmed"), check: { available: true, reason: null } };
+    const { default: Page } = await import("./CardControlSettingsPage.vue");
+    const w = mount(Page, { global: { stubs } });
+    await flushPromises();
+    await w.findAll("input").find((i) => i.attributes("inputmode") === "numeric")!.setValue("70830000000000000");
+    card.live!.value = { ...settings("confirmed"), check: { available: false, reason: "probe_disabled" } };
+    await flushPromises();
+    expect(w.findAll("button").find((b) => b.text() === "Run the read-only check")!.attributes("disabled")).toBeDefined();
+    w.unmount();
+  });
+
+  it("keeps the form open when the server can run the check, or is too old to say", async () => {
+    for (const check of [{ available: true, reason: null }, undefined]) {
+      card.settings = { ...settings("confirmed"), check };
+      const { default: Page } = await import("./CardControlSettingsPage.vue");
+      const w = mount(Page, { global: { stubs } });
+      await flushPromises();
+      expect(w.text()).not.toContain("The check is switched off on the server");
+      const input = w.findAll("input").find((i) => i.attributes("inputmode") === "numeric")!;
+      await input.setValue("70830000000000000");
+      expect(w.findAll("button").find((b) => b.text() === "Run the read-only check")!.attributes("disabled")).toBeUndefined();
+      w.unmount();
+    }
+  });
 
   it("says what to type for a real change without naming the vendor's operation", async () => {
     card.settings = settings("unknown");
