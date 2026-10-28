@@ -86,3 +86,21 @@ export interface AnnualDisagreementDto {
   fleetpal: InspectionExpiryState;
   gapDays: number | null;
 }
+
+/**
+ * `GET /api/maintenance/annual-due` — trucks and trailers whose annual inspection, as OUR record
+ * holds it, is due within `INSPECTION_EXPIRY_WARNING_DAYS` or already overdue (the Shop worklist's
+ * fourth group, MAINTENANCE-SECTION-REDESIGN-PROPOSAL.md §4.2, owner Q-MX5 (a) 2026-10-27).
+ *
+ * Only `expiring` and `expired` rows: a unit with NO recorded inspection is "unknown", not due, and a
+ * list that carried every unrecorded truck would be the roster, not the shop's work. `daysRemaining`
+ * is negative once overdue; `expiresOn` is a calendar day. Read by the same `listAnnualInspectionExpiries`
+ * the FleetPal disagreement check reads, so the two lists cannot disagree about a unit's date.
+ */
+export interface AnnualDueDto {
+  subjectType: "tractor" | "trailer";
+  unitId: string;
+  unitNumber: string;
+  expiresOn: string;
+  daysRemaining: number;
+}
