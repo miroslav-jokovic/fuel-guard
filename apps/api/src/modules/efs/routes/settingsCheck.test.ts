@@ -31,7 +31,24 @@ beforeAll(() => {
 
 /** One server per switch setting: settings are read once at start, as on a real deploy. */
 async function settingsWith(switches: Record<string, string>) {
-  const env = loadEnv({ NODE_ENV: "test", EFS_CARD_CONTROL_ENABLED: "true", ...switches } as NodeJS.ProcessEnv);
+  const { base } = await serverWith(switches);
+  const rec = createSupabaseRecorder({
+    tables: {
+      efs_card_control_settings: { data: null, error: null },
+      efs_card_control_approvers: { data: [], error: null },
+      memberships: { data: [], error: null },
+    },
+  });
+  holder.client = rec.client;
+  const res = await fetch(`${base}/api/fuel-cards/settings`, { headers: { Authorization: "Bearer admin" } });
+  expectOrgScoped(rec, ORG);
+  return { status: res.status, body: (await res.json()) as { check?: unknown } };
+}
+
+async function serverWith(switches: Record<string, string>) {
+  const env = loadEnv({
+    NODE_ENV: "test", EFS_CARD_CONTROL_ENABLED: "true", SECRETS_ENCRYPTION_KEY: Buffer.alloc(32, 7).toString("base64"), ...switches,
+  } as NodeJS.ProcessEnv);
   const app = createApp(env);
   app.locals.verifyToken = async (token: string): Promise<AuthContext> => {
     if (token !== "admin") throw new Error("bad token");
@@ -41,20 +58,35 @@ async function settingsWith(switches: Record<string, string>) {
     const s = app.listen(0, () => resolve(s));
   });
   servers.push(server);
-  const rec = createSupabaseRecorder({
-    tables: {
-      efs_card_control_settings: { data: null, error: null },
-      efs_card_control_approvers: { data: [], error: null },
-      memberships: { data: [], error: null },
-    },
-  });
-  holder.client = rec.client;
-  const res = await fetch(`http://127.0.0.1:${(server.address() as AddressInfo).port}/api/fuel-cards/settings`, {
-    headers: { Authorization: "Bearer admin" },
-  });
-  expectOrgScoped(rec, ORG);
-  return { status: res.status, body: (await res.json()) as { check?: unknown } };
+  return { env, base: `http://127.0.0.1:${(server.address() as AddressInfo).port}` };
 }
+
+/**
+ * B6 (CCF2, 2026-10-28): the refusal said "Set EFS_CARD_CONTROL_PROBE_ENABLED=true on the staging API"
+ * while the check is run on production, from settings that live in Parameter Store and load on a deploy.
+ */
+describe("the write check's refusal while it is switched off", () => {
+  it("names both switches, Parameter Store and the deploy, and not the staging API", async () => {
+    const { env, base } = await serverWith({});
+    const { mintStepUpToken } = await import("../../../lib/stepUpToken.js");
+    const res = await fetch(`${base}/api/fuel-cards/write-check`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: "Bearer admin",
+        "x-step-up-token": mintStepUpToken(env, ADMIN.userId, ORG)!.token,
+      },
+      body: JSON.stringify({ cardNumber: "70830000000000000", confirm: "", readOnly: true }),
+    });
+    const text = JSON.stringify(await res.json());
+    expect(res.status).toBe(403);
+    expect(text).toContain("probe_disabled");
+    expect(text).toContain("EFS_ALLOW_PRODUCTION_PROBE");
+    expect(text).toContain("Parameter Store");
+    expect(text).toContain("next deploy");
+    expect(text).not.toContain("staging API");
+  });
+});
 
 describe("the settings page is told whether the write check can run", () => {
   it("says it cannot, with the refusal's own code, while the switches are off — their normal state", async () => {

@@ -16,6 +16,7 @@ import { requireFreshAuth } from "../../../middleware/requireFreshAuth.js";
 import { resolveProbeCredentials } from "./probeGuards.js";
 import { runRealChangeSteps, runStep, type ProbeStep } from "./writeProbeRealChange.js";
 import { judge, type Entitlement } from "./writeProbeJudge.js";
+import { recentlyUsedRefusal } from "../harness/prove.js";
 
 /**
  * ★ THE GATE. The one thing that decides whether Phase B may be switched on at all.
@@ -45,8 +46,9 @@ import { judge, type Entitlement } from "./writeProbeJudge.js";
  * entitlement is recorded as `unknown` with recommendation `fix_echo`, and Phase B does not start.
  *
  * ── The safety rails on the probe itself ─────────────────────────────────────────────────────────
- * Admin only · step-up re-authentication · `EFS_CARD_CONTROL_PROBE_ENABLED` (default false, staging
- * only, unset again afterwards) · an explicit typed confirmation string naming the card's last four,
+ * Admin only · step-up re-authentication · `EFS_CARD_CONTROL_PROBE_ENABLED` and, for production,
+ * `EFS_ALLOW_PRODUCTION_PROBE` (both default false, switched on for one run and off again) · the write
+ * half refuses a card fueled in the last 30 days (`recentlyUsedRefusal`, since CCF2) · an explicit typed confirmation string naming the card's last four,
  * so the write half cannot be reached by clicking a button twice · the card number is NEVER persisted
  * · every recorded string goes through `redactCardXml` first.
  *
@@ -99,7 +101,11 @@ export function fuelCardWriteProbeRouter(): Router {
       if (!env.EFS_CARD_CONTROL_PROBE_ENABLED) {
         res.status(403).json(apiError(
           "probe_disabled",
-          "The EFS write check is switched off. Set EFS_CARD_CONTROL_PROBE_ENABLED=true on the staging API, run it, then unset it.",
+          // B6 (CCF2, 2026-10-28): this said "on the staging API" while the check is run on production,
+          // and the settings live in Parameter Store and load only on a deploy.
+          "The EFS write check is switched off on this server. It runs only while EFS_CARD_CONTROL_PROBE_ENABLED "
+            + "and EFS_ALLOW_PRODUCTION_PROBE are true in Parameter Store (/silvicom/<environment>/api/), and a "
+            + "change there takes effect on the next deploy. Switch both back off and redeploy after the run.",
         ));
         return;
       }
@@ -164,6 +170,21 @@ export function fuelCardWriteProbeRouter(): Router {
           return `shape=${documentShape(fresh)}, ${fresh.card.infos.length} prompts, `
             + `${fresh.card.limits.length} limits, version ${fresh.version.slice(0, 12)}…`;
         }));
+      }
+
+      /**
+       * B3 (CCF2, D-CCF3, 2026-10-28): the write half refuses a card in use, by the proof's own rule.
+       *
+       * `pnpm efs:prove` has refused any card fueled in the last 30 days since the 2026-09-23 incident;
+       * this route had no such rule, and the 2026-10-28 check ran on ••7554, a live driver's card, holding
+       * it for under a second. Read from the document EFS just returned (step 3), never the mirror, and
+       * BEFORE step 5 — so a refused run sends no write and records nothing. A read-only run writes
+       * nothing to the card, so it may use any card.
+       */
+      const inUse = !readOnly && state.doc ? recentlyUsedRefusal(state.doc.card.lastUsedDate, Date.now()) : null;
+      if (inUse) {
+        res.status(409).json(apiError("card_in_use", `The write check refuses this card: ${inUse}`));
+        return;
       }
 
       // Step 4 needs NO write permission and runs regardless of what step 5 will do. Fixtures prove
