@@ -172,6 +172,18 @@ What Settings honestly adds, so the owner's "set it up once" holds for scanners 
     Windows' queue until the roll is changed. Watching the spool job to completion (and reporting the
     printer's own fault) is the next precision step; recommendation: do it after PS5 shows how the
     MUNBYN's driver reports faults.
+- **2026-10-28 — PS4 built.** **Settings → Printers & scanners** (`/settings/devices`, surface
+  `maintenance.devices`): print stations with Online / Offline / Not paired and "Move to another
+  computer" (a new code); printers with their status, *Use for my labels* (`view`), *Use for everyone*,
+  *Print a test label*, Edit (nudge in dots) and Retire (`manage`); recent jobs; and the **scanner test**
+  — the test label carries `SIL1:TEST:Ok-42z`, and a scan of it on the device in hand says *Works*, or
+  names Caps Lock or a non-US keyboard layout with that device's fix. **Labels:** on the 2" roll with a
+  default printer, Print sends the job there and reports the outcome where the button was pressed; a
+  sheet stock still opens the PDF (the stock chooses the destination). Like every Settings screen it
+  starts **admin-only** (Q-SET2); the admin turns it on for other roles in Permissions.
+  - `surfaceCatalogue.ts` was at its 500-line budget; `ADMIN_ONLY_SURFACES` moved to
+    `surfaceLookups.ts` beside the other derived questions, rather than a line squeezed out.
+  - **Next: PS5** — the owner's physical test, Mac → Windows → iPhone → Android.
 
 ## Sources
 

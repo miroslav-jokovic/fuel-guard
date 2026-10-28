@@ -11,7 +11,8 @@ import {
 import { USER_ROLE_LABELS, isRosterIssuedRole, type UserRole } from "./constants.js";
 import { moduleEnabled, type ModuleSet } from "./entitlements.js";
 import { surfaceAllowed, surfaceGateAllows, surfaceStartsOn, type Surface, type SurfaceClaim } from "./surfaces.js";
-import { ADMIN_ONLY_SURFACES, GRANTABLE_SURFACES, SURFACES } from "./surfaceCatalogue.js";
+import { GRANTABLE_SURFACES, SURFACES } from "./surfaceCatalogue.js";
+import { ADMIN_ONLY_SURFACES } from "./surfaceLookups.js";
 import {
   ACCESS_LABELS,
   LAYER_LABELS,

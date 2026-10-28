@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { LABEL_PRESETS, POINTS_PER_INCH, toTspl } from "@silvicom/qr";
-import type { PrintJobDto, PrintJobStatus, PrintLabelsRequest, StationJob } from "@silvicom/shared";
+import { SCANNER_TEST_PAYLOAD, type LabelFaceDto, type PrintJobDto, type PrintJobStatus, type PrintLabelsRequest, type StationJob } from "@silvicom/shared";
 import type { ServiceError } from "../inventory/types.js";
 import { resolveLabelFaces } from "../inventory/labels.js";
 import { renderLabelBitmap } from "./labelRaster.js";
@@ -86,8 +86,50 @@ export async function printLabels(
   const resolved = await resolveLabelFaces(admin, orgId, input.targets);
   if ("code" in resolved) return resolved;
   if (resolved.faces.length === 0) return fail("not_found", "None of those things can be labelled any more.");
+  return queueFaces(admin, orgId, userId, input.id, printer, stockId, resolved.faces, resolved.dropped);
+}
 
-  const bitmaps = resolved.faces.map((face) =>
+/**
+ * A test label for one printer, from Settings → Devices: it proves the whole path (station, queue,
+ * driver, stock, nudge) and carries `SCANNER_TEST_PAYLOAD`, so the same label then tests a scanner on
+ * whatever device scans it. Issues no tag — the face is fixed, not resolved.
+ */
+export async function printTestLabel(
+  admin: SupabaseClient,
+  orgId: string,
+  userId: string | null,
+  printerId: string,
+  jobId: string,
+): Promise<{ job: PrintJobDto; dropped: number } | ServiceError> {
+  const existing = await getJob(admin, orgId, jobId);
+  if (existing) return { job: existing, dropped: 0 };
+  const printer = await getPrinter(admin, orgId, printerId);
+  if (!printer) return fail("not_found", "That printer does not exist.");
+  if (printer.retired_at) return fail("printer_retired", "That printer is retired.");
+  const stockId = rollStockOrNull(printer.stock_id);
+  if (!stockId) return fail("unknown_stock", `${printer.name} is set to a stock this system cannot print on.`);
+  const face = {
+    target: { kind: "asset", assetId: "00000000-0000-4000-8000-000000000000" },
+    payload: SCANNER_TEST_PAYLOAD,
+    code: "TEST",
+    lines: [printer.name, "Scan me in Settings → Devices"],
+  } as LabelFaceDto;
+  return queueFaces(admin, orgId, userId, jobId, printer, stockId, [face], 0);
+}
+
+type PrinterForJob = NonNullable<Awaited<ReturnType<typeof getPrinter>>>;
+
+async function queueFaces(
+  admin: SupabaseClient,
+  orgId: string,
+  userId: string | null,
+  jobId: string,
+  printer: PrinterForJob,
+  stockId: NonNullable<ReturnType<typeof rollStockOrNull>>,
+  faces: LabelFaceDto[],
+  dropped: number,
+): Promise<{ job: PrintJobDto; dropped: number } | ServiceError> {
+  const bitmaps = faces.map((face) =>
     renderLabelBitmap(face, { presetId: stockId, dpi: printer.dpi, offsetX: printer.offset_x_dots, offsetY: printer.offset_y_dots }),
   );
   const label = LABEL_PRESETS[stockId].label;
@@ -97,12 +139,12 @@ export async function printLabels(
   const { data, error } = await admin
     .from("print_jobs")
     .insert({
-      id: input.id,
+      id: jobId,
       org_id: orgId,
       printer_id: printer.id,
       requested_by: userId,
-      description: describe(resolved.faces.length, resolved.faces[0]?.lines[0] ?? resolved.faces[0]?.code),
-      label_count: resolved.faces.length,
+      description: describe(faces.length, faces[0]?.lines[0] ?? faces[0]?.code),
+      label_count: faces.length,
       // PostgREST takes bytea as a hex string.
       payload: `\\x${Buffer.from(payload).toString("hex")}`,
     })
@@ -111,13 +153,13 @@ export async function printLabels(
   if (error) {
     // Two presses racing with one id: the loser answers with the winner's job.
     if (error.code === "23505") {
-      const winner = await getJob(admin, orgId, input.id);
-      if (winner) return { job: winner, dropped: resolved.dropped };
+      const winner = await getJob(admin, orgId, jobId);
+      if (winner) return { job: winner, dropped };
     }
     if (error.code === "PS004") return fail("printer_retired", "That printer is retired. Choose another in Settings → Devices.");
     return fail("db_error", error.message);
   }
-  return { job: toJobDto(data as unknown as JobRow), dropped: resolved.dropped };
+  return { job: toJobDto(data as unknown as JobRow), dropped };
 }
 
 export async function listJobs(admin: SupabaseClient, orgId: string, limit = 50): Promise<PrintJobDto[] | ServiceError> {

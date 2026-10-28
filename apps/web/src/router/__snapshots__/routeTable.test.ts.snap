@@ -577,6 +577,11 @@ exports[`the route table survives being split by area > resolution 1`] = `
     "url": "/settings/inspectors",
   },
   {
+    "name": "devices",
+    "params": {},
+    "url": "/settings/devices",
+  },
+  {
     "name": "medstop-settings",
     "params": {},
     "url": "/settings/medstop",
@@ -1334,6 +1339,16 @@ exports[`the route table survives being split by area > route table 1`] = `
     },
     "name": "data-sync",
     "path": "/settings/data",
+    "redirect": null,
+  },
+  {
+    "meta": {
+      "parent": "/settings",
+      "requiresAuth": true,
+      "title": "Printers & scanners",
+    },
+    "name": "devices",
+    "path": "/settings/devices",
     "redirect": null,
   },
   {

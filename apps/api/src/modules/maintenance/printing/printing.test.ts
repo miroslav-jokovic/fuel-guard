@@ -337,3 +337,26 @@ describe("pairing", () => {
     expect(toStationDto({ ...base, last_seen_at: null, pairing_expires_at: "2026-10-28T14:00:00Z" }, now).pairingExpiresAt).toBeNull();
   });
 });
+
+describe("printTestLabel", () => {
+  it("queues the scanner-test payload on the named printer, issuing no tag", async () => {
+    const { printTestLabel } = await import("./jobs.js");
+    const { SCANNER_TEST_PAYLOAD } = await import("@silvicom/shared");
+    labels.resolveLabelFaces.mockClear();
+    rec = createSupabaseRecorder({
+      tables: {
+        printers: [printerRow()],
+        print_jobs: (q) =>
+          q.write?.method === "insert"
+            ? [{ ...(q.write.payload as Record<string, unknown>), status: "queued", error: null, created_at: "x", finished_at: null, printers: { name: "P" } }]
+            : [],
+      },
+    });
+    const result = await printTestLabel(rec.client, ORG, USER, PRINTER, JOB);
+    expect(result).toMatchObject({ job: { id: JOB, printerId: PRINTER, labelCount: 1 } });
+    expect(labels.resolveLabelFaces).not.toHaveBeenCalled();
+    expect(rec.writtenRows("print_jobs")[0]).toMatchObject({ description: "Label — Office label printer" });
+    expect(SCANNER_TEST_PAYLOAD).toMatch(/:/);
+    expectOrgScoped(rec, ORG);
+  });
+});

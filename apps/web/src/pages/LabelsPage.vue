@@ -23,6 +23,7 @@ import { STOCK_PAGE_SIZE, useStockPageQuery } from "@/features/inventory/useInve
 import { fetchLabelSheet, useLabelFaces, useLabelPresetsQuery } from "@/features/inventory/useLabels";
 import { DEFAULT_LABEL_PRESET, pickLabelPreset, rememberLabelPreset } from "@/features/inventory/labelStockChoice";
 import { useToastStore } from "@/stores/toast";
+import { jobStatusText, usePrintDefaultsQuery, usePrintersQuery, usePrintJob, usePrintLabels } from "@/composables/usePrinting";
 
 /**
  * Printing labels (INVENTORY-PLAN.md I10 PR 2; D-INV25, research §5.15).
@@ -48,10 +49,35 @@ import { useToastStore } from "@/stores/toast";
  * actually be printed, which is the only version of a preview worth having. It also means the
  * preview is re-requested when the SELECTION changes and not when the stock does: which sheet you
  * print onto has no bearing on what a label says.
+ *
+ * ── ON THE ROLL, PRINT GOES STRAIGHT TO THE LABEL PRINTER ─────────────────────────────────────
+ * The owner's rule (PRINTERS-AND-SCANNERS-PLAN.md, 2026-10-28): a printer chosen once in Settings is
+ * used without asking. So when the stock is the 2" roll and a default label printer exists, Print
+ * sends the job to it — from any device, no dialog — and the button's line says where it went and how
+ * it came out. A SHEET stock still opens the PDF: a sheet is paper for an office printer, which the
+ * label printer cannot feed, and that is the stock choosing the destination rather than a fallback.
  */
 
 const route = useRoute();
 const toast = useToastStore();
+
+const printDefaults = usePrintDefaultsQuery();
+const printerList = usePrintersQuery();
+const printLabels = usePrintLabels();
+const defaultPrinter = computed(
+  () => printerList.data.value?.find((p) => p.id === printDefaults.data.value?.effectivePrinterId) ?? null,
+);
+const lastJobId = ref<string | null>(null);
+const lastJob = usePrintJob(lastJobId);
+watch(
+  () => lastJob.data.value?.status,
+  (status) => {
+    const job = lastJob.data.value;
+    if (!job) return;
+    if (status === "printed") toast.success(jobStatusText(job));
+    else if (status === "failed" || status === "unknown") toast.error("The label did not print", jobStatusText(job));
+  },
+);
 
 type Source = "stock" | "assets";
 const source = ref<Source>("stock");
@@ -238,10 +264,20 @@ const assetColumns: DataTableColumn[] = [
   { key: "tagCode", label: "Label" },
 ];
 
+/** A one-label stock goes to the default label printer when there is one; a sheet goes to the PDF. */
+const toPrinter = computed(
+  () => Boolean(defaultPrinter.value) && presets.value?.find((p) => p.id === presetId.value)?.perSheet === 1,
+);
+
 async function print() {
   if (targets.value.length === 0) return;
   printing.value = true;
   try {
+    if (toPrinter.value) {
+      const { job } = await printLabels.mutateAsync({ targets: targets.value });
+      lastJobId.value = job.id;
+      return;
+    }
     const url = await fetchLabelSheet(targets.value, {
       presetId: presetId.value,
       startPosition: startPosition.value,
@@ -262,7 +298,7 @@ async function print() {
 
 <template>
   <div class="space-y-6">
-    <PageHeader description="Pick what needs a label, choose the stock, and print the sheet.">
+    <PageHeader description="Pick what needs a label, choose the stock, and print.">
       <template #actions>
         <BaseButton
           variant="primary"
@@ -273,6 +309,12 @@ async function print() {
         </BaseButton>
       </template>
     </PageHeader>
+    <p class="-mt-4 text-sm text-ink-muted" data-testid="print-destination">
+      <template v-if="toPrinter && lastJob.data.value">{{ jobStatusText(lastJob.data.value) }}.</template>
+      <template v-else-if="toPrinter">Prints on {{ defaultPrinter?.name }}{{ defaultPrinter?.online ? "" : " — offline right now; labels wait until it is back" }}.</template>
+      <template v-else-if="defaultPrinter">This stock is a sheet, so Print opens a PDF for an office printer.</template>
+      <template v-else>Print opens a PDF. To print straight to a label printer from any device, set one up in Settings → Printers &amp; scanners.</template>
+    </p>
 
     <div class="grid gap-6 lg:grid-cols-[1fr_22rem]">
       <div class="space-y-4">

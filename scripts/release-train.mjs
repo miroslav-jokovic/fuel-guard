@@ -75,7 +75,7 @@ export const AREAS = [
     api: ["efs", "fuel", "fuel-spend", "idle", "posted-prices", "anomalies", "routing"],
     web: ["fuel", "fuelCards", "fueling", "idle", "anomalies", "reconcile", "import"], plans: ["fuel"] },
   { id: "maintenance", title: "Maintenance and inventory",
-    api: ["maintenance", "fleetpal"], web: ["maintenance", "inventory"], packages: ["qr"], plans: ["maintenance"] },
+    api: ["maintenance", "fleetpal"], web: ["maintenance", "inventory", "devices"], packages: ["qr"], plans: ["maintenance"] },
   { id: "drivers", title: "Drivers, hiring and compliance",
     api: ["recruiting", "evidence", "psp", "roster", "hazmat", "performance", "document-reading", "inspections", "medstop"],
     web: ["apply", "recruitment", "compliance", "drivers", "roster", "hazmat", "legal", "drugAlcohol", "roadside"],

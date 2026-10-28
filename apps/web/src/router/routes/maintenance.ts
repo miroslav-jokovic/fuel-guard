@@ -185,6 +185,12 @@ export const maintenanceRoutes: RouteRecordRaw[] = [
     meta: { requiresAuth: true, title: "Who can inspect", parent: "/settings" },
   },
   {
+    path: "/settings/devices",
+    name: "devices",
+    component: () => import("@/pages/DevicesSettingsPage.vue"),
+    meta: { requiresAuth: true, title: "Printers & scanners", parent: "/settings" },
+  },
+  {
     path: "/shop/inspectors",
     name: "inspector-register-legacy",
     redirect: { name: "inspector-register" },

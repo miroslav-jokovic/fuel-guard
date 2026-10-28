@@ -191,3 +191,31 @@ export const stationReportSchema = z.object({
   error: z.string().max(500).optional(),
 });
 export type StationReport = z.infer<typeof stationReportSchema>;
+
+// ── The test label, and what a scan of it says about the scanner ──────────────────────────────
+
+/**
+ * What a printer's test label encodes. Chosen to exercise the three ways a keyboard-mode scanner
+ * mistypes (plan §3): colons (a non-US layout turns them into another character — the fault that
+ * breaks every real label), mixed case (Caps Lock on the host inverts it) and a hyphen (moved on
+ * many European layouts). Never a real tag: `TEST` is not a tag kind, so it can never resolve to
+ * anything in the shop.
+ */
+export const SCANNER_TEST_PAYLOAD = "SIL1:TEST:Ok-42z";
+
+export const printTestLabelSchema = z.object({ id: recordId() });
+export type PrintTestLabelRequest = z.infer<typeof printTestLabelSchema>;
+
+export type ScannerTestVerdict = "works" | "caps_lock" | "keyboard_layout" | "not_the_test_label";
+
+/** Read a scan of the test label: works, or which setting on THIS device is wrong. */
+export function diagnoseScannerTest(scanned: string): ScannerTestVerdict {
+  const text = scanned.replace(/[\r\n\t]+$/g, "").trim();
+  if (text === SCANNER_TEST_PAYLOAD) return "works";
+  const swapped = [...SCANNER_TEST_PAYLOAD].map((c) => (c === c.toUpperCase() ? c.toLowerCase() : c.toUpperCase())).join("");
+  if (text === swapped) return "caps_lock";
+  // Same length and starting like ours, but the punctuation came out different: the keys were
+  // right and the host's keyboard layout turned them into other characters.
+  if (text.length === SCANNER_TEST_PAYLOAD.length && /^sil1/i.test(text)) return "keyboard_layout";
+  return "not_the_test_label";
+}

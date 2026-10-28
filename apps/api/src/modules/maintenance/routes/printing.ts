@@ -3,11 +3,13 @@ import {
   createPrinterSchema,
   createStationSchema,
   printLabelsSchema,
+  printTestLabelSchema,
   setDefaultSchema,
   updatePrinterSchema,
   type CreatePrinterRequest,
   type CreateStationRequest,
   type PrintLabelsRequest,
+  type PrintTestLabelRequest,
   type SetDefaultRequest,
   type UpdatePrinterRequest,
 } from "@silvicom/shared";
@@ -19,7 +21,7 @@ import { writeAudit } from "../../../lib/audit.js";
 import { isServiceError, type ServiceError } from "../inventory/types.js";
 import { createStation, listStations, renewPairingCode, revokeStation } from "../printing/stations.js";
 import { createPrinter, getDefaults, listPrinters, setDefault, updatePrinter } from "../printing/printers.js";
-import { cancelJob, listJobs, printLabels } from "../printing/jobs.js";
+import { cancelJob, getJob, listJobs, printLabels, printTestLabel } from "../printing/jobs.js";
 
 /**
  * `/api/maintenance/print` — Settings → Devices and the Print button (PRINTERS-AND-SCANNERS-PLAN.md
@@ -152,6 +154,21 @@ export function printingRouter(): Router {
     }),
   );
 
+  /** A test label: proves the printer end to end, and is the label the scanner test reads. */
+  router.post(
+    "/printers/:id/test",
+    requireOrg,
+    requireSection("maintenance", "manage"),
+    validateBody(printTestLabelSchema),
+    asyncHandler(async (req, res) => {
+      const { admin, orgId, userId } = ctx(req);
+      const body = res.locals.body as PrintTestLabelRequest;
+      const result = await printTestLabel(admin, orgId, userId, String(req.params.id), body.id);
+      if (isServiceError(result)) return send(res, result);
+      res.status(202).json({ ok: true, job: result.job });
+    }),
+  );
+
   // ── Defaults ────────────────────────────────────────────────────────────────────────────────
 
   router.get(
@@ -213,6 +230,19 @@ export function printingRouter(): Router {
       const result = await listJobs(admin, orgId);
       if (isServiceError(result)) return send(res, result);
       res.json({ ok: true, jobs: result });
+    }),
+  );
+
+  /** One job — what the Print button polls until its label is out. */
+  router.get(
+    "/jobs/:id",
+    requireOrg,
+    requireSection("maintenance", "view"),
+    asyncHandler(async (req, res) => {
+      const { admin, orgId } = ctx(req);
+      const job = await getJob(admin, orgId, String(req.params.id));
+      if (!job) return send(res, { code: "not_found", error: "That print job does not exist." });
+      res.json({ ok: true, job });
     }),
   );
 
