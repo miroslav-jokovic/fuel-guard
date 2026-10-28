@@ -16,7 +16,7 @@ import { AppRadioGroup as RadioGroup } from "@silvicom/ui";
 import EfsLocationPicker from "./EfsLocationPicker.vue";
 import OverrideLimitPicker from "./OverrideLimitPicker.vue";
 import { type CardOperationId, type OperationDraft, type StatusRow, blockedSentence } from "./cardOperations";
-import { CLEAR_EXCEPTION_HELP, cardHasArmedException, clearExceptionLabel } from "./overrideException";
+import { CLEAR_EXCEPTION_HELP, clearExceptionLabel, offersClearException } from "./overrideException";
 import { ALLOW_HAND_ENTER_HELP, ALLOW_HAND_ENTER_LABEL } from "./overrideLimits";
 
 /**
@@ -65,6 +65,9 @@ const props = defineProps<{
 const emit = defineEmits<{ "update:draft": [value: OperationDraft] }>();
 
 const patch = (over: Partial<OperationDraft>): void => emit("update:draft", { ...props.draft, ...over });
+/** The capability the ticked status row writes through — the checkbox is offered for `card_lock` alone. */
+const statusCapability = computed(() =>
+  props.statusRows?.find((r) => r.value === props.draft.targetStatus)?.capabilityKey ?? "");
 
 /** Vendor range is 1–9 (guide p194). Above three the API demands a fresh sign-in — the drawer warns. */
 const useOptions = Array.from({ length: 9 }, (_, i) => ({
@@ -173,8 +176,9 @@ function chooseAdded(infoId: string): void {
       docs/22 H16 — the way THROUGH, not a warning. EFS silently ignores a status change while a fuel
       exception is armed, so without this the change is refused; with it the exception leaves in the
       same write. Never pre-ticked: it destroys something the operator did not come here to destroy.
+      Hold only (D-CCF2): unlock and deactivate cannot carry it, so for them the footer says why instead.
     -->
-    <div v-if="cardHasArmedException(props.overrideUses)" class="space-y-1 rounded-control bg-caution-50 px-3 py-2">
+    <div v-if="offersClearException(statusCapability, props.overrideUses)" class="space-y-1 rounded-control bg-caution-50 px-3 py-2">
       <AppCheckbox
         :model-value="props.draft.clearException"
         :disabled="props.busy"

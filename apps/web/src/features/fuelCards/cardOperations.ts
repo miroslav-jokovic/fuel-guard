@@ -1,7 +1,6 @@
 import type {
   CardCapabilities, EfsLimitOption, EfsLocation, OverrideLimit, PromptInput, WsCard,
 } from "@silvicom/shared";
-import { statusBlocker } from "./overrideException.js";
 import { grantBlocker } from "./overrideLimits.js";
 import * as drafts from "./promptDrafts";
 export const { allowedInfoIdsFrom, allowedLimitsFrom, editableInfoIds, missingEditableInfoIds } = drafts;
@@ -179,8 +178,7 @@ export const CARD_OPERATIONS: readonly CardOperationSpec[] = [
     body: (draft) => (STATUS_CAPABILITY[draft.targetStatus].key === "card_lock"
       ? { status: draft.targetStatus, clearException: draft.clearException }
       : {}),
-    /** H16, and the rule lives in overrideException.ts with the checkbox copy it has to agree with. */
-    blocker: statusBlocker,
+    // H16's blocker is per RESOLVED capability, so `operationBlocker` owns it (CCF1, D-CCF2).
   },
   {
     id: "grant",
@@ -394,8 +392,10 @@ export const operationFromQuery = (action: unknown): CardOperationSpec | null =>
  * The `ui` block the contract declares — title, verb and tone, shared with the API's router and the
  * config scanner. The drawer's header reads it so a capability cannot be titled two different things
  * in two places.
+ * Pass the draft, or the status window reads "Lock this card" over "Unlock card" (CCF1, plan B1).
  */
-export const operationUi = (spec: CardOperationSpec) => CARD_CAPABILITY_CONTRACTS[spec.capabilityKey]?.ui ?? null;
+export const operationUi = (spec: CardOperationSpec, draft?: OperationDraft) =>
+  CARD_CAPABILITY_CONTRACTS[draft ? resolveCapability(spec, draft).key : spec.capabilityKey]?.ui ?? null;
 
 /**
  * Bridge to the view registry, which is typed `CapabilityView<never>`.

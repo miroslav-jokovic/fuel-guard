@@ -8,7 +8,9 @@ import {
   type OperationDraft,
   blockedSentence,
   operationBlockedBy,
+  resolveCapability,
 } from "./cardOperations";
+import { overrideFreezeBlocker } from "./overrideException";
 
 /**
  * Why Confirm is disabled, in words — invariant 6, out of the drawer so it can be read at a glance.
@@ -52,6 +54,10 @@ export function operationBlocker(input: BlockerInputs): string | null {
   if (!operation.applies(card, allowedInfoIdsFrom(capabilities))) {
     return "This card is not in a state where that applies.";
   }
+
+  // H16, for whichever capability THIS draft writes through — a status change resolves to one of three.
+  const frozen = overrideFreezeBlocker(resolveCapability(operation, draft).key, draft, card);
+  if (frozen) return frozen;
 
   // Step 10.3: the same shape as `allowedInfoIdsFrom` above — the ACCOUNT's vocabulary, so the
   // diesel-pair rule can check whether this account even offers the partner code before demanding it.

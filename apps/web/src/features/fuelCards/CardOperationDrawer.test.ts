@@ -265,6 +265,34 @@ describe("clear-and-lock reaches the wire (docs/22 H16, Option B)", () => {
 });
 
 /**
+ * CCF1 (2026-10-28), plan B1 and B2. The status window was titled from the operation's fixed
+ * `card_lock`, so it read "Lock this card" over an "Unlock card" button; and the exception checkbox
+ * showed for every target although only the lock can carry it.
+ */
+describe("the status window follows the status being sent (CCF1)", () => {
+  it.each([
+    ["Hold", "Lock this card"],
+    ["Active", "Unlock this card"],
+    ["Inactive", "Deactivate this card"],
+  ] as const)("titles a change to %s as %s", async (targetStatus, title) => {
+    const wrapper = render("status", { status: targetStatus === "Active" ? "Hold" : "Active", capabilities: caps() });
+    await setDraft(wrapper, { targetStatus });
+    expect(wrapper.find("h2").text()).toBe(title);
+  });
+
+  it("offers the exception checkbox on Hold, and on Active says what the API would refuse with", async () => {
+    const wrapper = render("status", { status: "Hold", overrideUses: 2, capabilities: caps() });
+    await setDraft(wrapper, { targetStatus: "Hold", clearException: false });
+    expect(wrapper.text()).toContain("Also remove the fuel exception");
+
+    await setDraft(wrapper, { targetStatus: "Active", clearException: true });
+    expect(wrapper.text()).not.toContain("Also remove the fuel exception");
+    expect(wrapper.text()).toContain("Remove the exception first, then try again.");
+    expect(button(wrapper, "Unlock card").attributes("disabled")).toBeDefined();
+  });
+});
+
+/**
  * The same drop, on the other capability that has a field to lose. `limits` is `[]` today, so this
  * asserts the field ARRIVES rather than what is in it — which is the whole point: 10.3 fills it in,
  * and a hop that silently discards it would make a product override write a scope-only one.
