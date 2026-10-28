@@ -23,6 +23,7 @@
  */
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
 const ROOT = join(fileURLToPath(new URL(".", import.meta.url)), "..");
@@ -67,6 +68,24 @@ for (const { name, args } of CASES) {
   }
 }
 
+/**
+ * The host every `pnpm efs:*` command reaches without `--api` — production's, read from the deploy.
+ *
+ * CCF2 (2026-10-28, plan B4): the default was a hand-typed Railway address for a day after Railway's
+ * production service was retired, so the incident runbook's suspend would have gone nowhere. The CLI
+ * now reads `API_HOST` from `infra/server/production.env`; this reads the same key independently and
+ * checks the usage line names it, so a copy creeping back in fails here. Only that key is read.
+ */
+const productionHost = /^API_HOST=(\S+)$/m.exec(
+  readFileSync(join(ROOT, "infra", "server", "production.env"), "utf8"),
+)?.[1];
+const usage = spawnSync(process.execPath, [CLI], { encoding: "utf8", env: { ...process.env, FG_TOKEN: "", FG_API: "" } });
+if (!productionHost) {
+  failures.push("infra/server/production.env has no API_HOST line, so the CLI has no production default");
+} else if (!(usage.stderr ?? "").includes(`Talks to https://${productionHost} `)) {
+  failures.push(`usage does not say it talks to https://${productionHost} — the CLI's default is not production's API`);
+}
+
 if (failures.length > 0) {
   console.error("✗ efs.mjs stream discipline violated — stdout must carry ONLY a JSON result:");
   for (const failure of failures) console.error(`  ${failure}`);
@@ -76,4 +95,4 @@ if (failures.length > 0) {
   );
   process.exit(1);
 }
-console.log(`✓ efs.mjs stream discipline ok — ${CASES.length} non-network path(s), stdout clean on each.`);
+console.log(`✓ efs.mjs stream discipline ok — ${CASES.length} non-network path(s), stdout clean on each; default host https://${productionHost}.`);
