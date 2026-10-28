@@ -3,6 +3,7 @@ import type { AssetDto, AssetHolder, AssetStatus, HolderKind } from "@silvicom/s
 import { nextDisplayNo } from "@silvicom/shared";
 import { traced } from "../inspections/serviceError.js";
 import { orFilterValue } from "../../../lib/postgrestFilters.js";
+import { IN_LIST_CHUNK, chunks } from "../../../lib/paging.js";
 import { PAGE_MAX } from "./parts.js";
 import type { ServiceError } from "./types.js";
 
@@ -152,23 +153,22 @@ export interface ListAssetsOptions {
  * for users and this is the same shape for drivers. `full_name` because it is the column the roster
  * maintains; assembling a name out of parts here would be a second spelling of somebody's name.
  */
-async function driverNames(
+export async function driverNames(
   admin: SupabaseClient,
   orgId: string,
   ids: string[],
 ): Promise<Map<string, string>> {
   const unique = [...new Set(ids)];
-  if (unique.length === 0) return new Map();
-  const { data } = await admin
-    .from("drivers")
-    .select("id, full_name")
-    .eq("org_id", orgId)
-    .in("id", unique);
-  return new Map(
-    ((data ?? []) as Array<{ id: string; full_name: string | null }>)
-      .filter((d) => d.full_name)
-      .map((d) => [d.id, d.full_name as string]),
-  );
+  const out = new Map<string, string>();
+  // Chunked: Equipment's On trucks asks for every tablet-carrying truck's driver at once, and an
+  // `.in()` past ~400 ids overflows Node 22's response headers (#1392, `IN_LIST_CHUNK`).
+  for (const part of chunks(unique, IN_LIST_CHUNK)) {
+    const { data } = await admin.from("drivers").select("id, full_name").eq("org_id", orgId).in("id", part);
+    for (const d of (data ?? []) as Array<{ id: string; full_name: string | null }>) {
+      if (d.full_name) out.set(d.id, d.full_name);
+    }
+  }
+  return out;
 }
 
 /**

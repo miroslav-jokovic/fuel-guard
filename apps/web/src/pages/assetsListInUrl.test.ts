@@ -22,6 +22,10 @@ vi.mock("@/features/inventory/useAssets", () => ({
   },
   useAssetTypesQuery: () => ({ data: ref([{ id: "type-tablet", name: "Tablet" }]) }),
 }));
+// The page's On trucks count reads the fleet's kit (M7); empty here, the Inventory tab is under test.
+vi.mock("@/features/inventory/useUnits", () => ({
+  useUnitsQuery: () => ({ data: ref({ units: [], total: 0 }), isLoading: ref(false), isError: ref(false), refetch: vi.fn() }),
+}));
 vi.mock("@/stores/session", () => ({ useSessionStore: () => ({ can: () => true, canView: () => true, canManage: true }) }));
 vi.mock("@/composables/useOpens", () => ({ useOpens: () => () => true }));
 // DataTable swaps to cards below 768px and jsdom has no matchMedia; the desktop breakpoint is stubbed.
@@ -36,7 +40,7 @@ async function mountAt(url: string) {
   await router.push(url);
   await router.isReady();
   const w = mount(AssetsPage, {
-    global: { plugins: [router, createPinia()], stubs: { AssetDrawer: true, AssetTypesDrawer: true, KebabMenu: true } },
+    global: { plugins: [router, createPinia()], stubs: { AssetDrawer: true, AssetTypesDrawer: true, KitRulesDrawer: true, KebabMenu: true } },
   });
   await flushPromises();
   return w;
@@ -49,37 +53,37 @@ beforeEach(() => vi.clearAllMocks());
 
 describe("Assets keeps its list in the URL", () => {
   it("reads filters and page from a pasted link into the request it sends", async () => {
-    const w = await mountAt("/shop/assets?status=in_repair&kind=type-tablet&search=A-04&page=2");
+    const w = await mountAt("/shop/assets?tab=inventory&status=in_repair&kind=type-tablet&search=A-04&page=2");
     expect(select(w, "Status").props("modelValue")).toBe("in_repair");
     expect(select(w, "Kind").props("modelValue")).toBe("type-tablet");
     expect(lastFilter.value).toEqual({ search: "A-04", status: "in_repair", assetTypeId: "type-tablet", page: 2 });
   });
 
   it("reads a status outside the catalogue as none, so a hand-edited link never reaches the API", async () => {
-    await mountAt("/shop/assets?status=stolen");
+    await mountAt("/shop/assets?tab=inventory&status=stolen");
     expect(lastFilter.value.status).toBeUndefined();
   });
 
   it("writes a filter to the URL and returns to page 1", async () => {
-    const w = await mountAt("/shop/assets?page=3");
+    const w = await mountAt("/shop/assets?tab=inventory&page=3");
     select(w, "Status").vm.$emit("update:modelValue", "spare");
     await flushPromises();
-    expect(query()).toEqual({ status: "spare" });
+    expect(query()).toEqual({ tab: "inventory", status: "spare" });
   });
 
   it("Clear filters empties every filter", async () => {
-    const w = await mountAt("/shop/assets?status=lost&kind=type-tablet&search=x&page=2");
+    const w = await mountAt("/shop/assets?tab=inventory&status=lost&kind=type-tablet&search=x&page=2");
     w.findComponent({ name: "FilterBar" }).vm.$emit("clear-all");
     await flushPromises();
-    expect(query()).toEqual({});
+    expect(query()).toEqual({ tab: "inventory" });
   });
 
   it("opens the drawer from ?new=1, and closing it keeps the filters", async () => {
-    const w = await mountAt("/shop/assets?status=lost&new=1");
+    const w = await mountAt("/shop/assets?tab=inventory&status=lost&new=1");
     const drawer = w.findComponent({ name: "AssetDrawer" });
     expect(drawer.props("open")).toBe(true);
     drawer.vm.$emit("close");
     await flushPromises();
-    expect(query()).toEqual({ status: "lost" });
+    expect(query()).toEqual({ tab: "inventory", status: "lost" });
   });
 });

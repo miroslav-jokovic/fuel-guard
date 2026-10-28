@@ -36,8 +36,8 @@ export function phoneTabs(matchedPath: string, groups: readonly NavGroup[]): Nav
 
 /**
  * Which tab the page at `matchedPath` stands under: the path of the sidebar row its catalogue
- * `parent` chain ends at. Equipment's parent is Trucks & trailers and Scan's is Shop, which no path
- * prefix could say — `/shop/assets` starts with `/shop`, and so does every page in the section.
+ * `parent` chain ends at. A truck's page stands under Trucks & trailers and Scan under Shop, which no
+ * path prefix could say — `/shop/scan` starts with `/shop`, and so does every page in the section.
  */
 export function phoneTabFor(matchedPath: string): string | null {
   let surface = surfaceForPath(matchedPath);

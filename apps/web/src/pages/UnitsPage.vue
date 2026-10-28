@@ -1,12 +1,11 @@
 <script setup lang="ts">
-import { computed, ref, watch } from "vue";
+import { computed, watch } from "vue";
 import { useRouter } from "vue-router";
 import {
   useQueryState,
   SORT_DIRECTIONS,
   useUrlSort,
   AppButton as BaseButton,
-  AppIcon,
   DataWorkspace,
   FilterBar,
   DataTable,
@@ -14,19 +13,16 @@ import {
   TablePagination,
   sortRows,
 } from "@silvicom/ui";
-import { Cog6ToothIcon } from "@silvicom/ui/icons";
 import { repairSettled, type RoadsideRepairDueDto, type UnitAttentionDto, type UnitKitDto } from "@silvicom/shared";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
 import KebabMenu from "@/components/KebabMenu.vue";
-import KitRulesDrawer from "@/features/inventory/KitRulesDrawer.vue";
 import { useUnitsQuery } from "@/features/inventory/useUnits";
 import { attentionSentence } from "@/features/maintenance/attentionWords";
 import { useUnitsAttentionQuery } from "@/features/maintenance/useUnitShop";
 import { useRoadsideRepairsDueQuery } from "@/features/roadside/useRoadsideInspections";
 import { useOpens } from "@/composables/useOpens";
 import { formatDate } from "@/lib/format";
-import { useSessionStore } from "@/stores/session";
 
 /**
  * Trucks & trailers — the fleet, opened on what needs attention (MAINTENANCE-SECTION-REDESIGN-
@@ -48,11 +44,11 @@ import { useSessionStore } from "@/stores/session";
  * ── SEARCH, SORT AND PAGING ARE THE PAGE'S OWN, BECAUSE THE FLEET ARRIVES WHOLE ───────────────
  * `/units` is unpaginated — a fleet is a few hundred rows at most — so the page may filter, order and
  * page what it holds without presenting a page-local answer as the fleet's. The filters live in the
- * URL (D-US2): the home's "Missing equipment · All N" is `?show=short`, and no `?show=` at all is
- * "needs attention" — the parameter's fallback, so the default view is the URL a reader lands on.
+ * URL (D-US2): no `?show=` at all is "needs attention" — the parameter's fallback, so the default view
+ * is the URL a reader lands on. "Missing equipment" (`?show=short`) moved to Equipment's On trucks tab
+ * in M7 (§7a.4); the route redirects the old address there.
  */
 const router = useRouter();
-const session = useSessionStore();
 const opens = useOpens();
 
 const KIND_OPTIONS = [
@@ -62,9 +58,6 @@ const KIND_OPTIONS = [
 ];
 const SHOW_OPTIONS = [
   { value: "attention", label: "Needs attention" },
-  // R10: a unit somebody has walked and found short is the one worth the trip; the never-checked are
-  // short on paper only, and are counted under "every".
-  { value: "short", label: "Missing equipment" },
   { value: "all", label: "Every truck and trailer" },
 ];
 const PAGE_SIZE = 20;
@@ -115,9 +108,7 @@ const rows = computed<Row[]>(() => {
     const urgent = Boolean(roadside) || (first?.kind === "annual" && first.daysRemaining < 0) || (first?.kind === "pm" && first.verdict === "overdue");
     return { ...u, rosterKind: rk, needs, urgent };
   });
-  const shown = all.filter((u) =>
-    show.value === "short" ? u.state === "short" && u.lastCheckedAt !== null : show.value === "all" ? true : u.needs !== null,
-  );
+  const shown = all.filter((u) => show.value === "all" || u.needs !== null);
   const found = term ? shown.filter((u) => u.unitNumber.toLowerCase().includes(term)) : shown;
   return sortRows(found, sort.value) as Row[];
 });
@@ -144,18 +135,12 @@ const openUnit = (row: Record<string, unknown>) => {
   // The URL carries the ROSTER's kind, because that is which table the id is in (a reefer is a trailer).
   void router.push({ name: "unit", params: { kind: rosterKind(u), id: u.unitId } });
 };
-const rulesOpen = ref(false);
 </script>
 
 <template>
   <div class="space-y-6">
-    <PageHeader description="Every truck and trailer, opened on what needs the shop's attention.">
-      <template #actions>
-        <BaseButton v-if="session.can('maintenance')" @click="rulesOpen = true">
-          <AppIcon :icon="Cog6ToothIcon" class="-ml-0.5 size-5" aria-hidden="true" /> What each truck should carry
-        </BaseButton>
-      </template>
-    </PageHeader>
+    <!-- What each truck should carry moved to Equipment's On trucks tab with Missing equipment (M7). -->
+    <PageHeader description="Every truck and trailer, opened on what needs the shop's attention." />
 
     <DataWorkspace>
       <FilterBar
@@ -202,7 +187,6 @@ const rulesOpen = ref(false);
         <template #empty>
           <p v-if="search">No truck or trailer number matches that.</p>
           <p v-else-if="show === 'attention'">Nothing needs the shop's attention today. Every truck and trailer is one tap away under Show.</p>
-          <p v-else-if="show === 'short'">Nothing checked is missing anything. Trucks and trailers nobody has checked yet are not counted here.</p>
           <p v-else>No trucks or trailers yet. They arrive from the roster — add one there, and it shows up here.</p>
         </template>
         <template #footer>
@@ -211,6 +195,5 @@ const rulesOpen = ref(false);
       </DataTable>
     </DataWorkspace>
 
-    <KitRulesDrawer :open="rulesOpen" @close="rulesOpen = false" />
   </div>
 </template>

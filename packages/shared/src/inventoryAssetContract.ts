@@ -414,9 +414,18 @@ export const KIT_EXPECTATION_SOURCE_LABELS: Record<KitExpectationSource, string>
   type: "The type's own default",
 };
 
+/**
+ * Who holds a kind of thing (`asset_types.held_by`, 0524, D-DE1): the bay, a truck or a trailer —
+ * or, for a tablet, a driver. The type decides, never its name: the shop may rename "Tablet".
+ */
+export const ASSET_HELD_BY = ["unit", "driver"] as const;
+export type AssetHeldBy = (typeof ASSET_HELD_BY)[number];
+
 export const unitKitLineDtoSchema = z.object({
   assetTypeId: recordId(),
   assetTypeName: z.string(),
+  /** The type's `held_by`. A `driver` line is worded with the truck's driver (Equipment's On trucks). */
+  heldBy: z.enum(ASSET_HELD_BY),
   expected: z.number().int().nonnegative(),
   held: z.number().int().nonnegative(),
   /** held − expected. Negative is a shortfall, which is the number the shop acts on. */

@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type {
   AssetDto,
+  AssetHeldBy,
   KitExpectationSource,
   UnitKind,
   UnitKitDto,
@@ -10,7 +11,7 @@ import { deriveKitStatus, isSoldAwaitingPickup, unitKindOf, type KitLine } from 
 import { listEquipmentIdentities, type EquipmentIdentity } from "../../roster/index.js";
 import { fetchAllPaged } from "../../../lib/paging.js";
 import { traced } from "../inspections/serviceError.js";
-import { listAssets } from "./assets.js";
+import { driverNames, listAssets } from "./assets.js";
 import { lastUnitChecks } from "./countSessions.js";
 import type { ServiceError } from "./types.js";
 
@@ -70,20 +71,24 @@ async function loadExpectations(
   return (data ?? []) as unknown as ExpectationRow[];
 }
 
-/** The types an org has at all — so a `default_kit_quantity` can be honoured without an expectation row. */
-async function loadTypeDefaults(
-  admin: SupabaseClient,
-  orgId: string,
-): Promise<Map<string, { name: string; quantity: number }> | ServiceError> {
+/** What this file needs of a type: its name, its default kit quantity, and who holds it. */
+type TypeDefaults = Map<string, { name: string; quantity: number; heldBy: AssetHeldBy }>;
+
+/**
+ * The types an org has at all — so a `default_kit_quantity` can be honoured without an expectation
+ * row. `held_by` (0524, D-DE1) is read so a tablet's line can be worded with its driver; a row
+ * without it is a `unit` type, the column's own default.
+ */
+async function loadTypeDefaults(admin: SupabaseClient, orgId: string): Promise<TypeDefaults | ServiceError> {
   const { data, error } = await admin
     .from("asset_types")
-    .select("id, name, default_kit_quantity")
+    .select("id, name, default_kit_quantity, held_by")
     .eq("org_id", orgId);
   if (error) return traced("loadTypeDefaults", "db_error", "Could not load the asset types", error);
   return new Map(
-    ((data ?? []) as Array<{ id: string; name: string; default_kit_quantity: number }>).map((t) => [
+    ((data ?? []) as Array<{ id: string; name: string; default_kit_quantity: number; held_by?: string | null }>).map((t) => [
       t.id,
-      { name: t.name, quantity: Number(t.default_kit_quantity) },
+      { name: t.name, quantity: Number(t.default_kit_quantity), heldBy: t.held_by === "driver" ? "driver" : "unit" },
     ]),
   );
 }
@@ -97,7 +102,7 @@ async function loadTypeDefaults(
 export function resolveExpected(
   unit: { kind: UnitKind; unitId: string },
   rows: ExpectationRow[],
-  typeDefaults: Map<string, { name: string; quantity: number }>,
+  typeDefaults: TypeDefaults,
 ): Array<{ assetTypeId: string; assetTypeName: string; quantity: number; source: KitExpectationSource }> {
   const out = new Map<string, { assetTypeName: string; quantity: number; source: KitExpectationSource }>();
 
@@ -140,6 +145,7 @@ function toUnitKitDto(
   // Only the type and its name are read, so the parameter says only that: an `AssetDto[]` satisfies
   // it structurally, and the list — which never builds a whole DTO per asset — is not made to cast.
   held: Array<{ assetTypeId: string; assetTypeName: string }>,
+  typeDefaults: TypeDefaults,
 ): UnitKitDto {
   const expectedLines: KitLine[] = expected.map((e) => ({ assetTypeId: e.assetTypeId, quantity: e.quantity }));
   const heldLines: KitLine[] = held.map((a) => ({ assetTypeId: a.assetTypeId, quantity: 1 }));
@@ -154,6 +160,7 @@ function toUnitKitDto(
     expected: l.expected,
     held: l.held,
     delta: l.delta,
+    heldBy: typeDefaults.get(l.assetTypeId)?.heldBy ?? "unit",
     // A line the unit carries but nothing expects came from no layer at all. It is reported as the
     // type's own, which is where its zero came from — and its `expected: 0` is what says the rest.
     source: bySource.get(l.assetTypeId)?.source ?? "type",
@@ -188,7 +195,7 @@ async function loadHeldAssets(
   admin: SupabaseClient,
   orgId: string,
   column: "vehicle_id" | "trailer_id",
-): Promise<Array<{ id: string; asset_type_id: string; unit_id: string }> | ServiceError> {
+): Promise<Array<{ id: string; asset_type_id: string; unit_id: string; driver_id: string | null }> | ServiceError> {
   try {
     // No `asset_types(name)` embed: the name comes from `loadTypeDefaults`' map, which this file
     // reads anyway. One join fewer, and — the reason it matters — one place a type's name is spelled.
@@ -197,10 +204,14 @@ async function loadHeldAssets(
       asset_type_id: string;
       vehicle_id: string | null;
       trailer_id: string | null;
+      // A to-one embed arrives as an object; the untyped client's inference says array, so both.
+      vehicles: { assigned_driver_id: string | null } | Array<{ assigned_driver_id: string | null }> | null;
     }>((from, to) =>
       admin
         .from("inventory_assets")
-        .select("id, asset_type_id, vehicle_id, trailer_id")
+        // The truck's driver rides along (D-INV3, inferred, never stored): On trucks words a tablet
+        // with it, and one embed beats a second read of 440 trucks. Null on a trailer's asset.
+        .select("id, asset_type_id, vehicle_id, trailer_id, vehicles(assigned_driver_id)")
         .eq("org_id", orgId)
         .not(column, "is", null)
         // A retired asset is off the fleet and is not part of anybody's kit; `move_asset` clears its
@@ -213,6 +224,7 @@ async function loadHeldAssets(
       id: r.id,
       asset_type_id: r.asset_type_id,
       unit_id: (column === "vehicle_id" ? r.vehicle_id : r.trailer_id) as string,
+      driver_id: (Array.isArray(r.vehicles) ? r.vehicles[0] : r.vehicles)?.assigned_driver_id ?? null,
     }));
   } catch (e) {
     return traced("loadHeldAssets", "db_error", "Could not load what the units are carrying", e);
@@ -266,6 +278,13 @@ export async function listUnitKits(
     const checked = await lastUnitChecks(admin, orgId, column);
     if (isError(checked)) return checked;
 
+    // The driver is named only for a truck carrying a driver's thing — a tablet follows its driver
+    // (D-DE1), so "Tablet (Dana Reyes)" is the fact; a truck of straps needs no name, and asking for
+    // 440 would be the lookup the note below refuses. One chunked read for the lot.
+    const tabletDrivers = new Map(
+      held.filter((a) => a.driver_id && typeDefaults.get(a.asset_type_id)?.heldBy === "driver").map((a) => [a.unit_id, a.driver_id as string]),
+    );
+    const names = await driverNames(admin, orgId, [...tabletDrivers.values()]);
     const byUnit = new Map<string, Array<{ assetTypeId: string; assetTypeName: string }>>();
     for (const a of held) {
       const list = byUnit.get(a.unit_id) ?? [];
@@ -287,13 +306,14 @@ export async function listUnitKits(
             kind: unitKind,
             unitId: identity.id,
             unitNumber: identity.unitNumber,
-            // Resolved for the DETAIL only — see `getUnitKit`. A list of 440 trucks would be 440
-            // driver lookups for a name the list does not show.
-            inferredDriverName: null,
+            // Only where a tablet is aboard (above); otherwise resolved for the DETAIL only — see
+            // `getUnitKit`. A list of 440 trucks would be 440 lookups for a name it does not show.
+            inferredDriverName: names.get(tabletDrivers.get(identity.id) ?? "") ?? null,
             lastCheckedAt: checked.get(identity.id) ?? null,
           },
           expected,
           holds,
+          typeDefaults,
         ),
       );
     }
@@ -358,6 +378,7 @@ export async function getUnitKit(
       { kind: unitKind, unitId, unitNumber: identity.unitNumber, inferredDriverName, lastCheckedAt: checked.get(unitId) ?? null },
       expected,
       holding.assets,
+      typeDefaults,
     ),
     assets: holding.assets,
   };

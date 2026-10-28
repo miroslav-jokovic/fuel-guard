@@ -23,9 +23,10 @@ describe("the shop's tab row", () => {
     const tabs = phoneTabs("/shop/units", groups);
     const sidebar = NAV_SURFACES.filter((s) => s.group === "maintenance").map((s) => s.label);
     expect(tabs?.items.map((i) => i.name)).toEqual(sidebar);
-    // Labels needs a printer and Equipment is reached from a truck's page: desk and child, not doors (rules 6, 7).
+    // Labels needs a printer: a desk child screen, not a door (rules 6, 7). Equipment is a door again
+    // since M7 (Q-MX7): Shop · Trucks & trailers · Equipment · Annual inspections · Parts.
     expect(tabs?.items.map((i) => i.name)).not.toContain("Labels");
-    expect(tabs?.items.map((i) => i.name)).not.toContain("Equipment");
+    expect(tabs?.items.map((i) => i.name)).toEqual(["Shop", "Trucks & trailers", "Equipment", "Annual inspections", "Parts"]);
   });
 
   it("is drawn under the shop only", () => {
@@ -43,8 +44,9 @@ describe("the shop's tab row", () => {
   it("marks the tab a page stands under by its catalogue parent, not by its path", () => {
     expect(phoneTabFor("/shop/units")).toBe("/shop/units");
     expect(phoneTabFor("/shop/units/:kind/:id")).toBe("/shop/units");
-    // Equipment's path starts with /shop, its parent is Trucks & trailers.
-    expect(phoneTabFor("/shop/assets")).toBe("/shop/units");
+    // Equipment is its own door (M7); one item lights it, a path prefix would light Shop.
+    expect(phoneTabFor("/shop/assets")).toBe("/shop/assets");
+    expect(phoneTabFor("/shop/assets/:id")).toBe("/shop/assets");
     expect(phoneTabFor("/shop/scan")).toBe("/shop");
     expect(phoneTabFor("/shop/inspections/:id")).toBe("/shop/inspections");
   });

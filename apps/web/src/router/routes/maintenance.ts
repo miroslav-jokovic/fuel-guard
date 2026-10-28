@@ -60,13 +60,13 @@ export const maintenanceRoutes: RouteRecordRaw[] = [
   /**
    * The assets (I8). A separate address from `/shop/inventory` rather than a tab on it: §2.1's seam
    * is two different questions about two different kinds of row, and one screen with a toggle is how
-   * the driver page grew six tabs.
+   * the driver page grew six tabs. Its own sidebar row again since M7 (Q-MX7), so its Back is Shop's.
    */
   {
     path: "/shop/assets",
     name: "assets",
     component: () => import("@/pages/AssetsPage.vue"),
-    meta: { requiresAuth: true, title: "Equipment", parent: "/shop/units" },
+    meta: { requiresAuth: true, title: "Equipment", parent: "/shop" },
   },
   {
     path: "/shop/assets/:id",
@@ -80,11 +80,20 @@ export const maintenanceRoutes: RouteRecordRaw[] = [
    * guess. `kind` here is the ROSTER's word — a reefer is a `trailer` — and `unitKindOf` draws the
    * kit distinction from `is_reefer`.
    */
+  /**
+   * "Missing equipment" was Trucks & trailers' `?show=short` until M7 moved it to Equipment's On trucks
+   * tab (§7a.4). A bookmark keeps landing on the same list, its kind and search carried.
+   */
   {
     path: "/shop/units",
     name: "units",
     component: () => import("@/pages/UnitsPage.vue"),
     meta: { requiresAuth: true, title: "Trucks & trailers", parent: "/shop" },
+    beforeEnter: (to) => {
+      if (to.query.show !== "short") return true;
+      const { show: _short, ...rest } = to.query;
+      return { path: "/shop/assets", query: { ...rest, tab: "on-trucks", show: "missing" } };
+    },
   },
   {
     path: "/shop/units/:kind/:id",
