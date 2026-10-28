@@ -169,20 +169,17 @@ describe("opening on what needs attention", () => {
 });
 
 describe("the other views", () => {
-  /** R10: the home's "Missing equipment · All N" lands on checked units that are short, and stays in the URL. */
-  it("lands the home's ?show=short on short units somebody has checked", async () => {
-    units.value = {
-      units: [
-        unit({ state: "short", shortBy: 1, lastCheckedAt: "2026-10-20T12:00:00.000Z" }),
-        unit({ unitId: REEFER, unitNumber: "R-8800", kind: "reefer_trailer", state: "short", shortBy: 3, lastCheckedAt: null }),
-      ],
-      total: 2,
-    };
-    const w = await page("/shop/units?show=short");
-    expect(showSelect(w).props("modelValue")).toBe("short");
-    expect(w.text()).toContain("654");
-    expect(w.text()).not.toContain("R-8800");
-    expect(urlQuery()).toEqual({ show: "short" });
+  /** M7 (§7a.4): "Missing equipment" moved to Equipment's On trucks tab; a bookmark follows it there. */
+  it("sends the old ?show=short to Equipment's On trucks, its kind and search carried", async () => {
+    const r = createRouter({ history: createMemoryHistory(), routes: [...ROUTE_TABLE] });
+    await r.push("/shop/units?show=short&kind=trailer&search=R-8");
+    expect(r.currentRoute.value.path).toBe("/shop/assets");
+    expect(r.currentRoute.value.query).toEqual({ kind: "trailer", search: "R-8", tab: "on-trucks", show: "missing" });
+  });
+
+  it("offers needs attention and everything under Show, and no longer Missing equipment", async () => {
+    const w = await page("/shop/units");
+    expect((showSelect(w).props("options") as Array<{ value: string }>).map((o) => o.value)).toEqual(["attention", "all"]);
   });
 
   it("finds a unit by number, and says so when none matches", async () => {
@@ -214,10 +211,10 @@ describe("the other views", () => {
     expect(w.text()).toContain("Showing 1–20 of 25");
   });
 
-  it("names its one header action, and gives every row a menu", async () => {
+  it("leaves what a truck should carry to Equipment (M7), and gives every row a menu", async () => {
     units.value = { units: [unit()], total: 1 };
     const w = await page("/shop/units?show=all");
-    expect(w.text()).toContain("What each truck should carry");
+    expect(w.text()).not.toContain("What each truck should carry");
     expect(w.find('button[aria-label="Actions"]').exists()).toBe(true);
   });
 

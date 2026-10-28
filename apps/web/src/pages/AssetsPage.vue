@@ -1,120 +1,71 @@
 <script setup lang="ts">
-import { computed, ref, watch } from "vue";
+import { computed, ref } from "vue";
 import { useRouter } from "vue-router";
-import {
-  useQueryState,
-  AppButton as BaseButton,
-  AppIcon,
-  DataWorkspace,
-  FilterBar,
-  DataTable,
-  type DataTableColumn,
-  TablePagination,
-} from "@silvicom/ui";
+import { AppButton as BaseButton, AppIcon, AppTabs, useQueryState } from "@silvicom/ui";
 import { Cog6ToothIcon, ScanIcon } from "@silvicom/ui/icons";
-import { ASSET_STATUSES, ASSET_STATUS_LABELS, type AssetDto } from "@silvicom/shared";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import WalkActions, { type WalkAction } from "@/components/WalkActions.vue";
-import FilterSelect from "@/components/ui/FilterSelect.vue";
-import KebabMenu from "@/components/KebabMenu.vue";
 import AssetDrawer from "@/features/inventory/AssetDrawer.vue";
 import AssetTypesDrawer from "@/features/inventory/AssetTypesDrawer.vue";
-import { ASSETS_PAGE_SIZE, useAssetsQuery, useAssetTypesQuery } from "@/features/inventory/useAssets";
-import { BADGE_BASE, assetStatusBadge, toneClass } from "@/lib/badges";
+import KitRulesDrawer from "@/features/inventory/KitRulesDrawer.vue";
+import EquipmentOnTrucksPanel from "@/features/inventory/EquipmentOnTrucksPanel.vue";
+import EquipmentInventoryPanel from "@/features/inventory/EquipmentInventoryPanel.vue";
+import { useUnitsQuery } from "@/features/inventory/useUnits";
+import { useAssetsQuery } from "@/features/inventory/useAssets";
+import { missingWords } from "@/features/inventory/onBoardWords";
 import { useSessionStore } from "@/stores/session";
 import { useOpens } from "@/composables/useOpens";
 
 /**
- * Assets — everything the shop owns that has an identity (INVENTORY-PLAN.md I8).
+ * Equipment — the truck inventory's own door (MAINTENANCE-SECTION-REDESIGN-PROPOSAL §7a.4, M7; owner
+ * Q-MX7 (a)). Everything here is Silvicom's alone; the shop's parts are FleetPal's and live on Parts
+ * (the two-inventories ruling, DRIVER-EQUIPMENT-AND-UNIT-TAGS-PLAN.md), so this page never says "part".
  *
- * ── WHY THIS IS A SEPARATE PAGE FROM PARTS AND NOT A TAB ON IT ────────────────────────────────
- * §2.1's seam, rendered. A case of oil filters is stock: the questions are "how many" and "where",
- * and the row is a SHELF. A tablet is A-0412: the questions are "which one" and "where was it
- * before", and the row is a THING. Two questions, two lists, two sets of columns — the plan's own
- * warning about six tabs on the driver page is what a single "Inventory" screen with a toggle
- * becomes.
+ * ── TWO TABS, ONE TABLE EACH (contract §9 rule 9) ─────────────────────────────────────────────
+ *   On trucks — a row per truck or trailer and what it carries (the owner's "truck assignment" view);
+ *   Inventory — a row per item, the list this page was until M7.
+ * Invoices joins them in M10. M1 had parented this page to Trucks & trailers ("the same question asked
+ * of the thing instead of the truck"); the owner's 2026-10-28 review asked for a page of its own, so
+ * the parent came off and the surface KEY stayed (`maintenance.assets`, D-MX6) — every stored grant
+ * about this screen still means what it meant.
  *
- * ── THE HOLDER IS ONE COLUMN, ASSEMBLED, NOT THREE ────────────────────────────────────────────
- * `assetDtoSchema.holder` arrives as one object with a kind, a label and — for a truck — the driver
- * the roster has assigned right now (D-INV3, inferred and never stored). Rendering three columns
- * that are null two-thirds of the time each would make the table unreadable and would leak the
- * schema's shape into the screen.
+ * The tab counts are what each tab is for: On trucks counts the units missing something (checked and
+ * short, R10), Inventory the items. Both read the query key their panel's unfiltered view reads, so
+ * vue-query asks once.
  *
- * ── AND THE STATUS PILL IS DELIBERATELY ABSENT FROM MOST ROWS ─────────────────────────────────
- * `assetStatusBadge` returns null for `in_service`, which nearly every asset is. A badge on every
- * row means nothing; the coloured ones are the exceptions worth walking over to.
- *
- * The pill is `[BADGE_BASE, toneClass(...)]` because that is the rule `apps/web/CLAUDE.md` states
- * for every badge. (It was once load-bearing as well: `AppBadge` carried `capitalize` until
- * 2026-09-09 and rendered "In Repair" on a real page. The primitive no longer does, so the base
- * classes are the convention here and not a workaround.)
- *
- * ── SEARCH IS THE API'S, AND THE COLUMNS DO NOT SORT ──────────────────────────────────────────
- * The list arrives one server page at a time, so the search box asks `/assets?search=` rather than
- * filtering the fifty rows on screen — a client filter over one page says "no such asset" about a
- * tablet on page two. The same fact is why no column header sorts: a page-local order presented as
- * the fleet's is the wrong answer that gets believed. Server-side sort is owed to the API.
- *
- * ── THE FILTERS' "EVERYTHING" IS `""` ─────────────────────────────────────────────────────────
- * `FilterSelect` reads any non-empty value as applied. `PartsPage.vue` carries the measurement.
+ * Add equipment is the page's verb (header on a desk, the bottom bar on a phone — §9 rule 2) on both
+ * tabs: whichever list a person is looking at, a new tablet is added the same way.
  */
 
 const router = useRouter();
 const session = useSessionStore();
 const opens = useOpens();
 
-const STATUS_OPTIONS = [
-  { value: "", label: "All statuses" },
-  ...ASSET_STATUSES.map((s) => ({ value: s, label: ASSET_STATUS_LABELS[s] })),
-];
-
-// Filters and page live in the URL (D-US2), so Back from an asset returns to the same page of the
-// same list. Status is a closed set and is checked against the shared catalogue; Kind is not — the
-// org's asset types arrive after the first render, and an unknown type id is not a hazard: it is
-// sent as `assetTypeId` and the API answers it with an empty list, which the chip explains.
-const qs = useQueryState();
-const search = qs.param("search");
-const status = qs.param("status", ASSET_STATUSES);
-const typeId = qs.param("kind");
-const page = qs.page();
-watch([search, status, typeId], () => (page.value = 1));
-
-const { data: types } = useAssetTypesQuery();
-const typeOptions = computed(() => [
-  { value: "", label: "All kinds" },
-  ...(types.value ?? []).map((t) => ({ value: t.id, label: t.name })),
-]);
-
-const filtered = computed(() => Boolean(search.value || status.value || typeId.value));
-const activeFilterCount = computed(() => [search.value.trim(), status.value, typeId.value].filter(Boolean).length);
-function resetFilters() {
-  qs.set({ search: undefined, status: undefined, kind: undefined });
-}
-
-const filter = computed(() => ({
-  search: search.value.trim() || undefined,
-  status: (status.value || undefined) as AssetDto["status"] | undefined,
-  assetTypeId: typeId.value || undefined,
-  page: page.value,
+const TABS = [
+  { value: "on-trucks", label: "On trucks" },
+  { value: "inventory", label: "Inventory" },
+] as const;
+const unitsQ = useUnitsQuery(computed(() => ({})));
+const itemsQ = useAssetsQuery(computed(() => ({ page: 1 })));
+const counts = computed<Record<string, number | undefined>>(() => ({
+  "on-trucks": unitsQ.data.value?.units.filter((u) => missingWords(u) !== null).length || undefined,
+  inventory: itemsQ.data.value?.total || undefined,
 }));
-const assets = useAssetsQuery(filter);
+const tabs = computed(() => TABS.map((t) => ({ value: t.value, label: t.label, badge: counts.value[t.value] })));
+type TabKey = (typeof TABS)[number]["value"];
 
-const COLUMNS: DataTableColumn[] = [
-  { key: "displayNo", label: "Number", card: "none", cellClass: "font-mono text-xs text-ink", width: "sm" },
-  { key: "name", label: "What it is", card: "title" },
-  { key: "assetTypeName", label: "Kind", card: "none", cellClass: "text-ink-secondary" },
-  { key: "holder", label: "Where it is", card: "sentence" },
-  { key: "serialNumber", label: "Serial", card: "none", cellClass: "font-mono text-xs text-ink-tertiary" },
-  { key: "status", label: "Status", card: "meta", width: "sm" },
-];
-
-const openAsset = (row: Record<string, unknown>) =>
-  void router.push({ name: "asset", params: { id: String(row.id) } });
+const qs = useQueryState();
+const asked = qs.param("tab", TABS.map((t) => t.value), "on-trucks");
+const tab = computed<TabKey>({
+  get: () => asked.value as TabKey,
+  // A tab is a different list, so its search, filters, sort and page do not follow it across.
+  set: (v) => void router.replace({ query: { tab: v } }),
+});
 
 const typesOpen = ref(false);
-// `?new=1` opens the drawer (a link may carry it). It is a flag in the same query
-// buffer as the filters (D-US2): closing the drawer removes `new` alone, where the old
-// `router.replace({ query: {} })` would now also have thrown the reader's filters away.
+const rulesOpen = ref(false);
+// `?new=1` opens the drawer (a link may carry it). It is a flag in the same query buffer as the
+// filters (D-US2): closing the drawer removes `new` alone and keeps the reader's filters.
 const creating = qs.flag("new");
 
 /** The page's one verb, in the header on a desk and the phone's bottom bar (contract §9 rule 2). */
@@ -125,97 +76,40 @@ const actions = computed<WalkAction[]>(() =>
 
 <template>
   <div class="space-y-6">
-    <PageHeader description="Everything with a number on it — tools, tablets, straps — and which truck has it.">
+    <PageHeader description="Everything with a number on it — tablets, load bars, straps — and which truck has it.">
       <template #actions>
+        <!-- What a truck should carry is the On trucks tab's rule; it moved here from Trucks &
+             trailers with Missing equipment (M7). -->
+        <BaseButton v-if="session.can('maintenance') && tab === 'on-trucks'" @click="rulesOpen = true">
+          <AppIcon :icon="Cog6ToothIcon" class="-ml-0.5 size-5" aria-hidden="true" /> What each truck should carry
+        </BaseButton>
         <!-- The kinds of thing, as a worded button. It is not a nicety: an asset cannot be created
              without a type, and until 2026-09-09 no screen in the product could make one — the same
              dead end `LocationsDrawer.vue` closed for stock locations at I4. Worded rather than an
              icon-only gear for the reason `PartsPage.vue` records. -->
-        <BaseButton v-if="session.can('maintenance')" @click="typesOpen = true">
+        <BaseButton v-if="session.can('maintenance') && tab === 'inventory'" @click="typesOpen = true">
           <AppIcon :icon="Cog6ToothIcon" class="-ml-0.5 size-5" aria-hidden="true" /> Types of equipment
         </BaseButton>
         <!-- SP5: shown when Labels opens. It is `maintenance` view and answers to the shop home's screen
              (`maintenance.repair-spend`, D-SURF8), which is switchable per person apart from this page —
              not `maintenance` manage, which hid it from a viewer the Labels page admits. -->
-        <BaseButton v-if="opens('/shop/labels')" to="/shop/labels">
+        <BaseButton v-if="opens('/shop/labels') && tab === 'inventory'" to="/shop/labels">
           <AppIcon :icon="ScanIcon" class="-ml-0.5 size-5" aria-hidden="true" /> Labels
         </BaseButton>
         <WalkActions :actions="actions" />
       </template>
     </PageHeader>
 
-    <DataWorkspace>
-      <FilterBar
-        v-model:search="search"
-        embedded
-        search-placeholder="Search number, name, serial or tag…"
-        :count="assets.data.value?.total ?? 0"
-        count-label="items"
-        :active-count="activeFilterCount"
-        @clear-all="resetFilters"
-      >
-        <template #filters>
-          <FilterSelect v-model="typeId" label="Kind" :options="typeOptions" />
-          <FilterSelect v-model="status" label="Status" :options="STATUS_OPTIONS" />
-        </template>
-      </FilterBar>
+    <AppTabs v-model="tab" :tabs="tabs" label="Equipment lists" id-prefix="equipment" />
 
-      <DataTable
-        embedded
-        :columns="COLUMNS"
-        :rows="assets.data.value?.assets ?? []"
-        :loading="assets.isLoading.value"
-        :error="assets.isError.value ? 'Could not load assets.' : null"
-        :row-class="() => 'cursor-pointer'"
-        @row-click="openAsset"
-        @retry="() => assets.refetch()"
-      >
-        <template #cell-holder="{ row }">
-          <span v-if="row.holder.label" class="text-ink">
-            {{ row.holder.label }}
-            <span v-if="row.holder.inferredDriverName" class="text-ink-tertiary">
-              · {{ row.holder.inferredDriverName }}
-            </span>
-          </span>
-          <span v-else class="text-ink-tertiary">Not placed</span>
-        </template>
-        <template #cell-status="{ value }">
-          <span
-            v-if="assetStatusBadge(value)"
-            :class="[BADGE_BASE, toneClass(assetStatusBadge(value)!.tone)]"
-          >
-            {{ assetStatusBadge(value)!.label }}
-          </span>
-          <span v-else class="text-ink-tertiary">—</span>
-        </template>
-        <template #actions="{ row }">
-          <KebabMenu>
-            <BaseButton class="kebab-item" @click="openAsset(row)">Open</BaseButton>
-          </KebabMenu>
-        </template>
-        <template #empty>
-          <p v-if="search">Nothing matches that. Try its number, its serial, or the tag on it.</p>
-          <p v-else-if="filtered">
-            Nothing matches those filters. Clear them to see everything the shop owns.
-          </p>
-          <p v-else>
-            No equipment yet. Set up the types under Types of equipment first — then add the first
-            tablet or load bar, and the shop starts knowing which truck has it.
-          </p>
-        </template>
-        <template #footer>
-          <TablePagination
-            :page="page"
-            :page-size="ASSETS_PAGE_SIZE"
-            :total="assets.data.value?.total ?? 0"
-            @update:page="page = $event"
-          />
-        </template>
-      </DataTable>
-    </DataWorkspace>
+    <div :id="`equipment-panel-${tab}`" role="tabpanel" :aria-labelledby="`equipment-tab-${tab}`">
+      <EquipmentOnTrucksPanel v-if="tab === 'on-trucks'" />
+      <EquipmentInventoryPanel v-else />
+    </div>
 
     <AssetDrawer :open="creating" @close="creating = false" />
     <AssetTypesDrawer :open="typesOpen" @close="typesOpen = false" />
+    <KitRulesDrawer :open="rulesOpen" @close="rulesOpen = false" />
     <WalkActions v-if="actions.length" :actions="actions" bar />
   </div>
 </template>

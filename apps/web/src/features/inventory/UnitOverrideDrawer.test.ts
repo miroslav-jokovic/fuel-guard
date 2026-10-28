@@ -68,8 +68,8 @@ const UNIT: UnitKitDto = {
   state: "short",
   shortBy: 1,
   lines: [
-    { assetTypeId: BAR, assetTypeName: "Load bar", expected: 2, held: 2, delta: 0, source: "fleet" },
-    { assetTypeId: TABLET, assetTypeName: "Tablet", expected: 1, held: 0, delta: -1, source: "type" },
+    { assetTypeId: BAR, assetTypeName: "Load bar", heldBy: "unit", expected: 2, held: 2, delta: 0, source: "fleet" },
+    { assetTypeId: TABLET, assetTypeName: "Tablet", heldBy: "driver", expected: 1, held: 0, delta: -1, source: "type" },
   ],
   extraBy: 0,
   lastCheckedAt: null,

@@ -28,6 +28,7 @@ import {
   HazmatPlacardIcon,
   LicenseIcon,
   SparklesIcon,
+  ToolboxIcon,
   UnitKitIcon,
   TrailerIcon,
   TrophyIcon,
@@ -118,7 +119,9 @@ export const SURFACE_ICONS: Record<string, Icon> = {
   // shared a glyph, and the collapsed rail is where that failure is worst.
   "maintenance.parts": CubeIcon,
   // An asset is a thing with a number on it, kept in a box or on a truck. `ToolboxIcon` is unused
-  // anywhere else in the menu; see the barrel for why it is not the wrench the group wears.
+  // anywhere else in the menu; see the barrel for why it is not the wrench the group wears. A row
+  // again since M7 (Q-MX7), after M1 had made it a child of Trucks & trailers.
+  "maintenance.assets": ToolboxIcon,
   // What each truck is CARRYING, which is a different question from the truck itself — `TruckIcon`
   // is the fleet group's and `VehicleIcon` is Vehicles'. See the barrel for the whole note.
   "maintenance.units": UnitKitIcon,

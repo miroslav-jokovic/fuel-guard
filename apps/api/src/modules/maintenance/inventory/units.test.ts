@@ -17,7 +17,8 @@ import { createSupabaseRecorder, expectOrgScoped, type SupabaseRecorder } from "
  *     `IV020` about the same trailer and each would look right on its own;
  *   · **kit status is `deriveKitStatus`'s answer, carried**, not arithmetic done again here;
  *   · **the org filter**, because the service role bypasses RLS;
- *   · **the driver is resolved for one unit and not for a list of 440.**
+ *   · **the driver is resolved for one unit and not for a list of 440** — except a truck carrying a
+ *     tablet, whose driver the list names in one read (D-DE1, Equipment's On trucks).
  *
  * ⚠ Fixtures are FUNCTIONS. `supabaseRecorder` records `.eq()` and does not apply it, so a flat
  * array answers "the trailers" with the tractors too — and every assertion about kinds would pass
@@ -31,6 +32,7 @@ const REEFER = "33333333-3333-4333-8333-333333333333";
 const TABLET = "44444444-4444-4444-8444-444444444444";
 const BAR = "55555555-5555-4555-8555-555555555555";
 const CABLE = "66666666-6666-4666-8666-666666666666";
+const DANA = "77777777-7777-4777-8777-777777777777";
 
 let rec: SupabaseRecorder;
 vi.mock("../../../lib/supabaseAdmin.js", () => ({ getSupabaseAdmin: () => rec.client }));
@@ -39,9 +41,9 @@ const { listUnitKits, getUnitKit, resolveExpected } = await import("./units.js")
 type ExpectationRow = Parameters<typeof resolveExpected>[1][number];
 
 const TYPES = [
-  { id: TABLET, name: "Tablet", default_kit_quantity: 1 },
-  { id: BAR, name: "Load bar", default_kit_quantity: 2 },
-  { id: CABLE, name: "Reefer cable", default_kit_quantity: 0 },
+  { id: TABLET, name: "Tablet", default_kit_quantity: 1, held_by: "driver" },
+  { id: BAR, name: "Load bar", default_kit_quantity: 2, held_by: "unit" },
+  { id: CABLE, name: "Reefer cable", default_kit_quantity: 0, held_by: "unit" },
 ];
 
 /** Rows shaped as the roster's tables, because `listEquipmentIdentities` reads them directly. */
@@ -106,7 +108,7 @@ const held = (assetTypeId: string, unit: { vehicle?: string; trailer?: string },
 const SCOPED = { exempt: ["user_profiles"] };
 
 /** Answers each table on the filters the service actually sent. */
-const recorder = (opts: { expectations?: unknown[]; held?: unknown[]; checks?: unknown[]; vehicles?: unknown[] } = {}) =>
+const recorder = (opts: { expectations?: unknown[]; held?: unknown[]; checks?: unknown[]; vehicles?: unknown[]; drivers?: unknown[] } = {}) =>
   createSupabaseRecorder({
     tables: {
       // Honours the `not("winding_down", "is", true)` op the way Postgres would, so a swept sold
@@ -126,7 +128,7 @@ const recorder = (opts: { expectations?: unknown[]; held?: unknown[]; checks?: u
           .map((o) => String(o.args[0]));
         return rows.filter((r) => notNull.every((col) => r[col] !== null));
       },
-      drivers: () => [],
+      drivers: () => opts.drivers ?? [],
       // Unit checks: answered on the status and the holder column the service sent, so a check that
       // is still OPEN, or one of the other kind of unit, cannot pass for a closed one of this kind.
       stock_count_sessions: (q) => {
@@ -152,7 +154,7 @@ describe("resolving what a unit should hold", () => {
     expectation({ trailer_id: DRYVAN, quantity: 1 }),                // this trailer: 1 bar
     expectation({ asset_type_id: CABLE, unit_kind: "reefer_trailer", quantity: 1, asset_types: { name: "Reefer cable", default_kit_quantity: 0 } }),
   ];
-  const defaults = new Map(TYPES.map((t) => [t.id, { name: t.name, quantity: t.default_kit_quantity }]));
+  const defaults = new Map(TYPES.map((t) => [t.id, { name: t.name, quantity: t.default_kit_quantity, heldBy: t.held_by as "unit" | "driver" }]));
 
   it("lets a per-unit override beat the fleet default, which beats the type's own", () => {
     const forDryVan = resolveExpected({ kind: "trailer", unitId: DRYVAN }, rows, defaults);
@@ -286,8 +288,23 @@ describe("the fleet list", () => {
   });
 
   it("does not look a driver up for a list it does not show one on", async () => {
+    rec = recorder({ held: [held(BAR, { vehicle: TRUCK })] });
     await listUnitKits(rec.client, ORG);
     expect(rec.forTable("drivers")).toHaveLength(0);
+  });
+
+  /** Equipment's On trucks words a tablet with its driver — tablets follow the driver (D-DE1). */
+  it("names the driver of a truck carrying a tablet, from the type's held_by and not its name", async () => {
+    const tablet = { ...held(TABLET, { vehicle: TRUCK }), vehicles: { unit_number: "654", assigned_driver_id: DANA } };
+    rec = recorder({ held: [tablet, held(BAR, { vehicle: TRUCK })], drivers: [{ id: DANA, full_name: "Dana Reyes" }] });
+    const result = await listUnitKits(rec.client, ORG, { kind: "tractor" });
+    if ("error" in result) throw new Error(result.error);
+    const truck = result.units[0]!;
+    expect(truck.inferredDriverName).toBe("Dana Reyes");
+    expect(truck.lines.find((l) => l.assetTypeId === TABLET)?.heldBy).toBe("driver");
+    expect(truck.lines.find((l) => l.assetTypeId === BAR)?.heldBy).toBe("unit");
+    expect(rec.forTable("drivers")).toHaveLength(1);
+    expectOrgScoped(rec, ORG, SCOPED);
   });
 });
 

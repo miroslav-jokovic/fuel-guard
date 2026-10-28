@@ -50,8 +50,8 @@ const attention = ref<UnitAttentionDto[]>([
 const unit: UnitKitDto = {
   kind: "tractor", unitId: TRUCK, unitNumber: "654", inferredDriverName: "Dana Reyes", state: "short", shortBy: 2, extraBy: 0, lastCheckedAt: null,
   lines: [
-    { assetTypeId: BAR, assetTypeName: "Load bar", expected: 2, held: 0, delta: -2, source: "fleet" },
-    { assetTypeId: "t2", assetTypeName: "Tablet", expected: 1, held: 1, delta: 0, source: "type" },
+    { assetTypeId: BAR, assetTypeName: "Load bar", heldBy: "unit", expected: 2, held: 0, delta: -2, source: "fleet" },
+    { assetTypeId: "t2", assetTypeName: "Tablet", heldBy: "driver", expected: 1, held: 1, delta: 0, source: "type" },
   ],
 };
 const openWalk = vi.fn(async () => ({ id: "99999999-9999-4999-8999-999999999999", resumed: false, openedAt: "2026-10-19T14:00:00.000Z", startedByName: "Shop Lead" }));

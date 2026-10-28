@@ -9,7 +9,7 @@ import { useBottomChrome } from "@/composables/bottomChrome";
  * A phone-first section's doors along the bottom edge, below `md` (DESIGN-SYSTEM-CONTRACT.md §9 rule 7;
  * MAINTENANCE-SECTION-REDESIGN-PROPOSAL §4.5, Q-MX6).
  *
- * In the bay the shop's three or four screens are what a technician moves between all day, and the
+ * In the bay the shop's five doors are what a technician moves between all day, and the
  * hamburger puts each of them two taps and a scan of the whole product away. A tab row is one tap,
  * where the thumb already is. The rows are the sidebar's own (`phoneTabs`), so this file holds no
  * list and no permission: what a role cannot reach it never sees. The hamburger stays for the rest
@@ -44,7 +44,7 @@ useBottomChrome(el, { base: true });
           :class="item.to === current ? 'text-brand-700' : 'text-ink-tertiary'"
         >
           <AppIcon :icon="item.icon" class="size-6 shrink-0" aria-hidden="true" />
-          <!-- Wraps to two lines rather than truncating: "Annual inspections" is wider than a quarter of a 390 px phone. -->
+          <!-- Wraps to two lines rather than truncating: "Annual inspections" is wider than a fifth of a 390 px phone. -->
           <span class="max-w-full text-center leading-tight text-balance">{{ item.name }}</span>
         </RouterLink>
       </li>

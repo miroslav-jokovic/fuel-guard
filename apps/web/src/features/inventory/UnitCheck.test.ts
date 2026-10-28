@@ -64,7 +64,7 @@ const unit: UnitKitDto = {
   shortBy: 1,
   extraBy: 0,
   lastCheckedAt: null,
-  lines: [{ assetTypeId: TABLET, assetTypeName: "Tablet", expected: 2, held: 1, delta: -1, source: "fleet" }],
+  lines: [{ assetTypeId: TABLET, assetTypeName: "Tablet", heldBy: "driver", expected: 2, held: 1, delta: -1, source: "fleet" }],
 };
 
 const walk = ref<Record<string, unknown> | undefined>({

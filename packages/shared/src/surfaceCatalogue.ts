@@ -251,21 +251,20 @@ export const SURFACES: readonly Surface[] = [
    * the half of their denial that already existed keeps meaning what it meant.
    */
   /**
-   * ── FOUR ROWS NAMED FOR JOBS SINCE 2026-10-27 (D-MX1), SIX NAMED FOR TABLES BEFORE ──────────────
-   * I4 fixed the group at Shop, Parts, Assets, Units, Annual inspections, Inspectors; the owner's
-   * 2026-10-27 review found "a bunch of pages without any purpose" (MAINTENANCE-SECTION-REDESIGN-
-   * PROPOSAL.md §1). Now: Shop (today's work), Parts (FleetPal fills it, F12), Trucks & trailers,
-   * Annual inspections. Equipment parents to Trucks & trailers — the same question asked of the
-   * thing instead of the truck. The inspector register is a Settings card (`reachedFrom`, SP1) in
-   * `group: "admin"` because `permissions/rows.ts` groups a directory's cards by their group, with
-   * `startsOnFor: []` because every Settings card starts off for every role but admin (Q-SET2);
-   * `/shop/inspectors` redirects. Every KEY is unchanged — see the note above on why.
+   * ── FIVE ROWS NAMED FOR JOBS SINCE 2026-10-28 (D-MX1, Q-MX7), SIX NAMED FOR TABLES BEFORE ──────
+   * I4 fixed Shop, Parts, Assets, Units, Annual inspections, Inspectors; the owner's 2026-10-27 review
+   * found "a bunch of pages without any purpose" (MAINTENANCE-SECTION-REDESIGN-PROPOSAL.md §1), and the
+   * 2026-10-28 one asked for a page of what each truck carries (§7a.4). Now: Shop (today's work),
+   * Trucks & trailers, Equipment (on trucks, inventory), Annual inspections, Parts (FleetPal fills it,
+   * F12) — last, because it is a different inventory (§7a.5). The inspector register is a Settings card
+   * (`reachedFrom`, SP1) in `group: "admin"` because `permissions/rows.ts` groups a directory's cards by
+   * group, with `startsOnFor: []` (Q-SET2); `/shop/inspectors` redirects. Every KEY is unchanged.
    */
   { key: "maintenance.repair-spend", label: "Shop", path: "/shop", group: "maintenance", gate: section("maintenance") },
-  { key: "maintenance.parts", label: "Parts", path: "/shop/inventory", group: "maintenance", gate: section("maintenance") },
   { key: "maintenance.units", label: "Trucks & trailers", path: "/shop/units", group: "maintenance", gate: section("maintenance") },
+  { key: "maintenance.assets", label: "Equipment", path: "/shop/assets", group: "maintenance", gate: section("maintenance") },
   { key: "maintenance.inspections", label: "Annual inspections", path: "/shop/inspections", group: "maintenance", gate: section("maintenance") },
-  { key: "maintenance.assets", label: "Equipment", path: "/shop/assets", group: "maintenance", gate: section("maintenance"), parent: "maintenance.units" },
+  { key: "maintenance.parts", label: "Parts", path: "/shop/inventory", group: "maintenance", gate: section("maintenance") },
   { key: "maintenance.inspectors", label: "Who can inspect", path: "/settings/inspectors", group: "admin", gate: section("maintenance"), reachedFrom: "admin.settings", startsOnFor: [] },
   { key: "maintenance.devices", label: "Printers & scanners", path: "/settings/devices", group: "admin", gate: section("maintenance"), reachedFrom: "admin.settings", startsOnFor: [] },
 

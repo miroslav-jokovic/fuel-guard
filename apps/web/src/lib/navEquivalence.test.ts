@@ -74,6 +74,12 @@ import { buildNavGroups } from "./nav";
  * with all modules, the badge case, both screen-answer cases, and the sections-claim snapshot twice
  * (two members). No line removed, no group moved, no driver snapshot moved (STAFF), and nothing moved
  * in a module set without Messages.
+ *
+ * ── AND A SIXTH TIME, ON 2026-10-28: EQUIPMENT IS A DOOR AGAIN (MAINTENANCE M7, Q-MX7) ───────────
+ * The owner's five shop doors: Shop · Trucks & trailers · Equipment · Annual inspections · Parts.
+ * Nineteen snapshots moved — every one holding a Maintenance group — and in each the whole change is
+ * that group: `Equipment → /shop/assets` added after Trucks & trailers, and `Parts → /shop/inventory`
+ * moved from second to last. No other group, no gate, no key; the denial case keeps its denials.
  */
 
 /** Every module enabled, none, and the shipped default — the three that change what the nav shows. */
@@ -133,13 +139,14 @@ describe("buildNavGroups is unchanged by the surface catalogue (S1)", () => {
       "maintenance.inspectors": false,
     } as never);
     expect(denied.find((g) => g.group === "Maintenance")?.items).toEqual([
-      "Parts → /shop/inventory",
+      "Trucks & trailers → /shop/units",
       // I8's Assets, arriving GRANTED for exactly the reason the note above states: a surface claim
       // is sparse, and a screen that did not exist when this override was written cannot have been
-      // denied by it. The list growing here is the rule working, not a regression.
-      // …and since D-MX1 (2026-10-27) Equipment is reached from Trucks & trailers rather than a row.
-      "Trucks & trailers → /shop/units",
+      // denied by it. The list growing here is the rule working, not a regression. (A child of
+      // Trucks & trailers from D-MX1, 2026-10-27, to M7, 2026-10-28; a door again since.)
+      "Equipment → /shop/assets",
       "Annual inspections → /shop/inspections",
+      "Parts → /shop/inventory",
     ]);
     expect(denied).toMatchSnapshot();
     // …and the same denials against a role that reaches those screens by a different section answer

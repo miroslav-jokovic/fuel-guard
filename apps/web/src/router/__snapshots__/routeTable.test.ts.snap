@@ -1517,7 +1517,7 @@ exports[`the route table survives being split by area > route table 1`] = `
   },
   {
     "meta": {
-      "parent": "/shop/units",
+      "parent": "/shop",
       "requiresAuth": true,
       "title": "Equipment",
     },

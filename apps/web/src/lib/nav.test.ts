@@ -247,15 +247,16 @@ describe("the shop group keeps its stored answers through I4's relabel", () => {
       .find((g) => g.label === "Maintenance")
       ?.items.map((i) => `${i.name} ${i.to}`) ?? [];
 
-  it("renders Shop at /shop and Parts at /shop/inventory, in that order", () => {
-    // Four rows since D-MX1 (2026-10-27): Equipment parents to Trucks & trailers and the inspector
-    // register is a Settings card. I4's six were Shop, Parts, Assets, Units, Annual inspections,
-    // Inspectors — the keys are all still here, only the sidebar shows fewer of them.
+  it("renders the shop's five doors, Shop first and Parts last", () => {
+    // Five rows since M7 (Q-MX7, 2026-10-28): Equipment is its own door again and Parts — FleetPal's,
+    // a different inventory — goes last; the inspector register is a Settings card (D-MX1). I4's six
+    // were Shop, Parts, Assets, Units, Annual inspections, Inspectors — every key is still here.
     expect(shopItems()).toEqual([
       "Shop /shop",
-      "Parts /shop/inventory",
       "Trucks & trailers /shop/units",
+      "Equipment /shop/assets",
       "Annual inspections /shop/inspections",
+      "Parts /shop/inventory",
     ]);
   });
 

@@ -20,7 +20,7 @@ describe("SectionTabBar", () => {
   it("draws one door per sidebar row, below md only", async () => {
     const w = await bar("/shop/units");
     expect(w.get("nav").classes()).toContain("md:hidden");
-    expect(w.findAll("a").map((a) => a.attributes("href"))).toEqual(["/shop", "/shop/inventory", "/shop/units", "/shop/inspections"]);
+    expect(w.findAll("a").map((a) => a.attributes("href"))).toEqual(["/shop", "/shop/units", "/shop/assets", "/shop/inspections", "/shop/inventory"]);
   });
 
   it("marks the door the page stands under, and only that one", async () => {
