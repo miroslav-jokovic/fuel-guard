@@ -108,8 +108,14 @@ const readOnly = ref(true);
 const stepUp = ref(false);
 
 const last4 = computed(() => cardNumber.value.trim().slice(-4));
+/**
+ * The server says whether the check can run (CCF2, B5). Both of its switches are off in normal running,
+ * and the form used to accept a card number only for the server to refuse it, so it is now disabled
+ * with the reason above it. A missing answer (an older API) leaves the form as it was.
+ */
+const checkOff = computed(() => query.data.value?.check?.available === false);
 const ready = computed(
-  () => /^[0-9]{10,25}$/.test(cardNumber.value.trim())
+  () => !checkOff.value && /^[0-9]{10,25}$/.test(cardNumber.value.trim())
     && (readOnly.value || confirm.value.trim().toUpperCase() === `WRITE ${last4.value}`),
 );
 
@@ -249,13 +255,18 @@ async function run(): Promise<void> {
           </p>
         </div>
 
+        <p v-if="checkOff" class="rounded-control bg-surface-subtle px-3 py-2 text-sm text-ink">
+          The check is switched off on the server, which is its normal state. Your Silvicom 360
+          administrator switches it on for one run and off again afterwards.
+        </p>
+
         <FormField label="Card number" required hint="Digits only. Never saved.">
           <template #default="{ id }">
-            <BaseInput :id="id" v-model="cardNumber" type="text" inputmode="numeric" autocomplete="off" :disabled="probe.isPending.value" />
+            <BaseInput :id="id" v-model="cardNumber" type="text" inputmode="numeric" autocomplete="off" :disabled="checkOff || probe.isPending.value" />
           </template>
         </FormField>
 
-        <BaseCheckbox v-model="readOnly" :disabled="probe.isPending.value" class="items-start">
+        <BaseCheckbox v-model="readOnly" :disabled="checkOff || probe.isPending.value" class="items-start">
           <span>
             Read only. Do not change the card.
             <span class="block text-ink-muted">

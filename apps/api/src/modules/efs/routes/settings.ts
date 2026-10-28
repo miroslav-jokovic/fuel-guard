@@ -16,6 +16,7 @@ import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { requireAuth, requireOrg, requireAdminOnly } from "../../../middleware/auth.js";
 import { requireFreshAuth } from "../../../middleware/requireFreshAuth.js";
 import { memberLabels } from "../../../lib/memberLabels.js";
+import { writeCheckAvailability } from "./probeGuards.js";
 
 /**
  * Who, in this company, may change a fuel card — and the record of every time that answer moved.
@@ -159,6 +160,9 @@ export function fuelCardSettingsRouter(): Router {
         probeRecommendation: settings.probe_result?.recommendation ?? null,
         probeWasReadOnly: settings.probe_result?.readOnly ?? null,
       },
+      // Whether `/write-check` would run at all on this server (CCF2, B5) — the page disables its form
+      // and says why instead of letting an admin type a card number into a guaranteed 403.
+      check: writeCheckAvailability(env),
       approvers: ((approverResult.data ?? []) as ApproverRow[])
         .map((row) => ({
           userId: row.user_id,
