@@ -86,6 +86,11 @@ services:
       # instead of filling the /tmp tmpfs with memory — host.sh creates the directory for uid 1000.
       DOC_OCR_CACHE_DIR: /var/cache/silvicom/ocr-models
       RAILWAY_DEPLOYMENT_DRAINING_SECONDS: ${DRAIN_SECONDS}
+      # Who holds a scheduler lane, in the lease row (lib/schedulerLease.ts processHolderMeta) — what
+      # Railway's own variables said there before AWS11. The region is the awslogs one above.
+      SERVICE_NAME: api
+      DEPLOY_ENVIRONMENT: ${ENV_NAME}
+      DEPLOY_REGION: us-west-2
       # Until this server's cutover (AWS10 staging, AWS11 production) Railway keeps the scheduler
       # lanes: an AWS container that won the `egress` lease would poll WEX from an IP WEX has not
       # allowlisted yet. The lease would keep it to one poller either way (D-AWS8); this keeps it
@@ -137,6 +142,9 @@ services:
       DOTENV_CONFIG_PATH: /run/settings.env
       DOTENV_CONFIG_QUIET: "true"
       RAILWAY_DEPLOYMENT_DRAINING_SECONDS: ${DRAIN_SECONDS}
+      SERVICE_NAME: worker # the lease row's holder, as for api
+      DEPLOY_ENVIRONMENT: ${ENV_NAME}
+      DEPLOY_REGION: us-west-2
       WORKER_ROLE: scheduler
       # The OCR models (~139 MB, downloaded once and verified by hash) outlive the container here
       # instead of filling the /tmp tmpfs with memory — host.sh creates the directory for uid 1000.

@@ -1,5 +1,13 @@
 import { describe, it, expect } from "vitest";
-import { startLaneLease, type LeaseStore, type LeaseRead, type LeaseTimers } from "./schedulerLease.js";
+import { hostname } from "node:os";
+import {
+  processHolderId,
+  processHolderMeta,
+  startLaneLease,
+  type LeaseStore,
+  type LeaseRead,
+  type LeaseTimers,
+} from "./schedulerLease.js";
 
 /**
  * The lease protocol (D-RLY2) against a store that behaves like 0506's function and a clock the test
@@ -202,5 +210,36 @@ describe("a scheduler lane's lease", () => {
     expect(s.calls).not.toContain("release:B");
     expect(s.holder()).toBe("A");
     expect(a.l.isHeld()).toBe(true);
+  });
+});
+
+describe("processHolderMeta", () => {
+  it("names an AWS container from the variables compose.yml sets, not as an anonymous local process", () => {
+    const env = {
+      SERVICE_NAME: "worker",
+      DEPLOY_ENVIRONMENT: "production",
+      DEPLOY_REGION: "us-west-2",
+      GIT_COMMIT_SHA: "1533e3465aabd789cd144e933e41e5f3b2e2a4b1",
+    };
+    expect(processHolderMeta(env)).toEqual({
+      service: "worker",
+      environment: "production",
+      deploymentId: null,
+      replicaId: hostname(),
+      region: "us-west-2",
+      commit: "1533e3465aabd789cd144e933e41e5f3b2e2a4b1",
+    });
+    expect(processHolderId(env).startsWith(`worker:${hostname()}:`)).toBe(true);
+  });
+
+  it("still prefers Railway's own variables while Railway runs", () => {
+    const env = { RAILWAY_SERVICE_NAME: "fleetguardapi", RAILWAY_REPLICA_ID: "r1", SERVICE_NAME: "api" };
+    expect(processHolderMeta(env)).toMatchObject({ service: "fleetguardapi", replicaId: "r1" });
+    expect(processHolderId(env).startsWith("fleetguardapi:r1:")).toBe(true);
+  });
+
+  it("leaves a local process unnamed rather than guessing", () => {
+    expect(processHolderMeta({})).toMatchObject({ service: null, environment: null, replicaId: null, commit: null });
+    expect(processHolderId({}).startsWith("local:")).toBe(true);
   });
 });
