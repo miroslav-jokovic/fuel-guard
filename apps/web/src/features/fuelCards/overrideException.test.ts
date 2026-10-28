@@ -5,8 +5,10 @@ import {
   cardHasArmedException,
   clearExceptionClause,
   clearExceptionLabel,
-  statusBlocker,
+  offersClearException,
+  overrideFreezeBlocker,
 } from "./overrideException";
+import { overrideBlockedMessage } from "@silvicom/shared";
 import type { OperationCard, OperationDraft } from "./cardOperations";
 
 /**
@@ -20,6 +22,7 @@ import type { OperationCard, OperationDraft } from "./cardOperations";
 const card = (overrideUses: number | null): OperationCard =>
   ({ status: "Active", infos: [], limits: [], overrideUses, overrideAllLocations: false, locationOverrideId: null }) as unknown as OperationCard;
 const draft = (clearException: boolean): OperationDraft => ({ clearException }) as unknown as OperationDraft;
+const statusBlocker = (d: OperationDraft, c: OperationCard) => overrideFreezeBlocker("card_lock", d, c);
 
 describe("when the offer appears", () => {
   it("appears on a card with uses left, and not on one without", () => {
@@ -47,6 +50,32 @@ describe("the blocker, which is the way through rather than a wall", () => {
     expect(CLEAR_EXCEPTION_BLOCKER).toContain("Tick");
     // POSITIVE CONTROL for that absence: it still says WHY, or the operator is being ordered about.
     expect(CLEAR_EXCEPTION_BLOCKER).toContain("ignore the status change");
+  });
+});
+
+/**
+ * CCF1 / plan B2 (2026-10-28): the checkbox used to render for every target status, but only
+ * `card_lock` carries `clearException`. An operator unlocking an armed card ticked it, pressed Confirm,
+ * and was refused by the API with a different instruction.
+ */
+describe("the offer is Hold's alone; the rest are told what the API would say (D-CCF2)", () => {
+  it("offers the checkbox for a lock and for nothing else", () => {
+    expect(offersClearException("card_lock", 2)).toBe(true);
+    expect(offersClearException("card_unlock", 2)).toBe(false);
+    expect(offersClearException("card_deactivate", 2)).toBe(false);
+    expect(offersClearException("prompts_set", 2)).toBe(false);
+    expect(offersClearException("card_lock", 0)).toBe(false);
+  });
+
+  it("refuses unlock, deactivate and prompts with the API's own sentence, which no tick can lift", () => {
+    expect(overrideFreezeBlocker("card_unlock", draft(true), card(2))).toBe(overrideBlockedMessage(2, "a status change"));
+    expect(overrideFreezeBlocker("card_deactivate", draft(true), card(1))).toBe(overrideBlockedMessage(1, "a status change"));
+    expect(overrideFreezeBlocker("prompts_set", draft(false), card(3))).toBe(overrideBlockedMessage(3, "a prompt change"));
+  });
+
+  it("leaves the override trio and an unarmed card alone", () => {
+    expect(overrideFreezeBlocker("override_clear", draft(false), card(2))).toBeNull();
+    expect(overrideFreezeBlocker("card_unlock", draft(false), card(0))).toBeNull();
   });
 });
 
