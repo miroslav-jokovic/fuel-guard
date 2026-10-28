@@ -179,8 +179,8 @@ describe("printLabels", () => {
     const hex = String(rec.writtenRows("print_jobs")[0]!.payload);
     expect(hex.startsWith("\\x")).toBe(true);
     const text = Buffer.from(hex.slice(2), "hex").toString("latin1");
-    expect(text.startsWith("SIZE 50.8 mm,50.8 mm\r\n")).toBe(true);
-    expect(text).toContain("BITMAP 0,0,51,406,1,");
+    expect(text.startsWith("SIZE 50.80 mm,50.80 mm\r\n")).toBe(true);
+    expect(text).toMatch(/BITMAP 0,0,51,406,3,\d+,/);
     expect(text).not.toMatch(/\b(TEXT|QRCODE|BAR|BOX)\b/);
     // The nudge moves the label: the same face without it is different bytes.
     const plain = happy(undefined, [], printerRow({ offset_x_dots: 0 }));
