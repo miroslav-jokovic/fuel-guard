@@ -295,7 +295,7 @@ async function print() {
               :model-value="source"
               :options="[
                 { value: 'stock', label: 'Shelves' },
-                { value: 'assets', label: 'Assets' },
+                { value: 'assets', label: 'Equipment' },
               ]"
               @update:model-value="switchSource($event as Source)"
             />
@@ -345,7 +345,7 @@ async function print() {
               <span v-if="row.tagCode" class="font-mono text-xs text-ink-secondary">{{ row.tagCode }}</span>
               <span v-else class="text-xs text-ink-tertiary">None yet</span>
             </template>
-            <template #empty>No assets yet.</template>
+            <template #empty>No equipment yet.</template>
             <template #footer>
               <TablePagination
                 :page="page"

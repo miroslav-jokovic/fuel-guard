@@ -353,7 +353,7 @@ exports[`the route table survives being split by area > resolution 1`] = `
     "url": "/shop/inspections/insp_1",
   },
   {
-    "name": "inspector-register",
+    "name": "inspector-register-legacy",
     "params": {},
     "url": "/shop/inspectors",
   },
@@ -570,6 +570,11 @@ exports[`the route table survives being split by area > resolution 1`] = `
     "name": "fleetpal-settings",
     "params": {},
     "url": "/settings/fleetpal",
+  },
+  {
+    "name": "inspector-register",
+    "params": {},
+    "url": "/settings/inspectors",
   },
   {
     "name": "medstop-settings",
@@ -1387,6 +1392,16 @@ exports[`the route table survives being split by area > route table 1`] = `
     "meta": {
       "parent": "/settings",
       "requiresAuth": true,
+      "title": "Who can inspect",
+    },
+    "name": "inspector-register",
+    "path": "/settings/inspectors",
+    "redirect": null,
+  },
+  {
+    "meta": {
+      "parent": "/settings",
+      "requiresAuth": true,
       "title": "McLeod fleets",
     },
     "name": "mcleod-fleets-settings",
@@ -1479,7 +1494,7 @@ exports[`the route table survives being split by area > route table 1`] = `
     "meta": {
       "parent": "/shop/inspections",
       "requiresAuth": true,
-      "title": "Annual dates to check",
+      "title": "Dates FleetPal disagrees on",
     },
     "name": "annual-dates",
     "path": "/shop/annual-dates",
@@ -1487,9 +1502,9 @@ exports[`the route table survives being split by area > route table 1`] = `
   },
   {
     "meta": {
-      "parent": "/shop",
+      "parent": "/shop/units",
       "requiresAuth": true,
-      "title": "Assets",
+      "title": "Equipment",
     },
     "name": "assets",
     "path": "/shop/assets",
@@ -1499,7 +1514,7 @@ exports[`the route table survives being split by area > route table 1`] = `
     "meta": {
       "parent": "/shop/assets",
       "requiresAuth": true,
-      "title": "Asset",
+      "title": "Equipment",
     },
     "name": "asset",
     "path": "/shop/assets/:id",
@@ -1546,14 +1561,12 @@ exports[`the route table survives being split by area > route table 1`] = `
     "redirect": null,
   },
   {
-    "meta": {
-      "parent": "/shop",
-      "requiresAuth": true,
-      "title": "Inspectors",
-    },
-    "name": "inspector-register",
+    "meta": {},
+    "name": "inspector-register-legacy",
     "path": "/shop/inspectors",
-    "redirect": null,
+    "redirect": {
+      "name": "inspector-register",
+    },
   },
   {
     "meta": {
@@ -1589,7 +1602,7 @@ exports[`the route table survives being split by area > route table 1`] = `
     "meta": {
       "parent": "/shop",
       "requiresAuth": true,
-      "title": "Repair spend",
+      "title": "Repair bills",
     },
     "name": "repair-spend",
     "path": "/shop/repair-spend",
@@ -1620,7 +1633,7 @@ exports[`the route table survives being split by area > route table 1`] = `
     "meta": {
       "parent": "/shop",
       "requiresAuth": true,
-      "title": "Units",
+      "title": "Trucks & trailers",
     },
     "name": "units",
     "path": "/shop/units",
@@ -1630,7 +1643,7 @@ exports[`the route table survives being split by area > route table 1`] = `
     "meta": {
       "parent": "/shop/units",
       "requiresAuth": true,
-      "title": "Unit",
+      "title": "Truck or trailer",
     },
     "name": "unit",
     "path": "/shop/units/:kind/:id",

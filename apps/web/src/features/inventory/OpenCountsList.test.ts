@@ -101,7 +101,7 @@ describe("the open walks", () => {
   it("names each walk, and opening a row continues that walk", async () => {
     state.sessions = [walk(), walk({ id: "33333333-3333-4333-8333-333333333333", kind: "location", holderLabel: "Main bay" })];
     const w = render();
-    expect(w.text()).toContain("Kit check — 654");
+    expect(w.text()).toContain("Equipment check — 654");
     expect(w.text()).toContain("Shelf count — Main bay");
     await clickRow(w, walk());
     expect(state.pushed).toEqual([{ name: "count-session", params: { sessionId: walk().id } }]);
@@ -129,7 +129,7 @@ describe("the open walks", () => {
     state.sessions = [walk()];
     state.manage = false;
     const w = render();
-    expect(w.text()).toContain("Kit check — 654");
+    expect(w.text()).toContain("Equipment check — 654");
     expect(button(w, "Close")).toBeUndefined();
     await clickRow(w, walk());
     expect(state.pushed).toEqual([]);

@@ -248,14 +248,14 @@ describe("the shop group keeps its stored answers through I4's relabel", () => {
       ?.items.map((i) => `${i.name} ${i.to}`) ?? [];
 
   it("renders Shop at /shop and Parts at /shop/inventory, in that order", () => {
-    // All six of I4's rows, complete at I9: Assets joined at I8 and Units here.
+    // Four rows since D-MX1 (2026-10-27): Equipment parents to Trucks & trailers and the inspector
+    // register is a Settings card. I4's six were Shop, Parts, Assets, Units, Annual inspections,
+    // Inspectors — the keys are all still here, only the sidebar shows fewer of them.
     expect(shopItems()).toEqual([
       "Shop /shop",
       "Parts /shop/inventory",
-      "Assets /shop/assets",
-      "Units /shop/units",
+      "Trucks & trailers /shop/units",
       "Annual inspections /shop/inspections",
-      "Inspectors /shop/inspectors",
     ]);
   });
 

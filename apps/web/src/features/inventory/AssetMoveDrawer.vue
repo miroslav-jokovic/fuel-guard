@@ -157,7 +157,7 @@ async function submit() {
 <template>
   <SlideOver
     :open="open"
-    :title="mode === 'move' ? 'Move this asset' : 'Report a problem'"
+    :title="mode === 'move' ? 'Move this' : 'Report a problem'"
     @close="emit('close')"
   >
     <form :id="FORM_ID" class="space-y-4" @submit.prevent="submit">
@@ -185,7 +185,7 @@ async function submit() {
           v-model="form.holder"
           :options="holderOptions"
           placeholder="A bay, a truck or a trailer"
-          empty-text="No bays or units to move it to."
+          empty-text="No bays, trucks or trailers to move it to."
         />
       </FormField>
 

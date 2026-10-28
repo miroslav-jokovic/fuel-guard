@@ -293,7 +293,9 @@ describe("the Roles tab", () => {
       { role: ROLE, section: "equipment", access: sectionAccess(ROLE, "equipment") },
     ]);
     expect(sectionAccess(ROLE, "equipment")).not.toBe("none");
-    expect(calls.setRoleSurface).toEqual([{ role: ROLE, surfaceKey: "maintenance.inspectors", allowed: true }]);
+    // The shipped default for this screen is `startsOnFor: []` since it became a Settings card
+    // (D-MX1, 2026-10-27): off for every role but admin, so "back to default" writes `false` here.
+    expect(calls.setRoleSurface).toEqual([{ role: ROLE, surfaceKey: "maintenance.inspectors", allowed: false }]);
   });
 
   it("offers no reset for a role the organisation has not changed", async () => {
@@ -505,7 +507,7 @@ describe("the People tab", () => {
 
   it("gives one person back a screen their whole role has lost", async () => {
     const w = await openPeople();
-    const inspectors = toggle(w, "Inspectors")!;
+    const inspectors = toggle(w, "Who can inspect")!;
     expect(inspectors.attributes("aria-checked")).toBe("false");
     await inspectors.trigger("click");
     await flushPromises();

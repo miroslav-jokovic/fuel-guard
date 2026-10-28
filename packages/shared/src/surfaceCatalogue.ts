@@ -250,22 +250,23 @@ export const SURFACES: readonly Surface[] = [
    * home rather than one report. The ledger below carries `parent: "maintenance.repair-spend"`, so
    * the half of their denial that already existed keeps meaning what it meant.
    */
+  /**
+   * ── FOUR ROWS NAMED FOR JOBS SINCE 2026-10-27 (D-MX1), SIX NAMED FOR TABLES BEFORE ──────────────
+   * I4 fixed the group at Shop, Parts, Assets, Units, Annual inspections, Inspectors; the owner's
+   * 2026-10-27 review found "a bunch of pages without any purpose" (MAINTENANCE-SECTION-REDESIGN-
+   * PROPOSAL.md §1). Now: Shop (today's work), Parts (FleetPal fills it, F12), Trucks & trailers,
+   * Annual inspections. Equipment parents to Trucks & trailers — the same question asked of the
+   * thing instead of the truck. The inspector register is a Settings card (`reachedFrom`, SP1) in
+   * `group: "admin"` because `permissions/rows.ts` groups a directory's cards by their group, with
+   * `startsOnFor: []` because every Settings card starts off for every role but admin (Q-SET2);
+   * `/shop/inspectors` redirects. Every KEY is unchanged — see the note above on why.
+   */
   { key: "maintenance.repair-spend", label: "Shop", path: "/shop", group: "maintenance", gate: section("maintenance") },
   { key: "maintenance.parts", label: "Parts", path: "/shop/inventory", group: "maintenance", gate: section("maintenance") },
-  /**
-   * The assets (INVENTORY-PLAN.md I8). Its own nav row and not a tab on Parts, because §2.1's seam
-   * is two questions: stock asks "how many and where" about a shelf, an asset asks "which one and
-   * where was it before" about a thing. I4's ruling fixes this group at six rows — Shop, Parts,
-   * Assets, Units, Annual inspections, Inspectors — and this is the fifth; Units arrives at I9.
-   */
-  { key: "maintenance.assets", label: "Assets", path: "/shop/assets", group: "maintenance", gate: section("maintenance") },
-  /**
-   * Units (I9) — the sixth and last row of the group I4's ruling fixed at six. It is the assets read
-   * from the other end: Assets answers "where is A-0412", Units answers "what is truck 654 missing".
-   */
-  { key: "maintenance.units", label: "Units", path: "/shop/units", group: "maintenance", gate: section("maintenance") },
+  { key: "maintenance.units", label: "Trucks & trailers", path: "/shop/units", group: "maintenance", gate: section("maintenance") },
   { key: "maintenance.inspections", label: "Annual inspections", path: "/shop/inspections", group: "maintenance", gate: section("maintenance") },
-  { key: "maintenance.inspectors", label: "Inspectors", path: "/shop/inspectors", group: "maintenance", gate: section("maintenance") },
+  { key: "maintenance.assets", label: "Equipment", path: "/shop/assets", group: "maintenance", gate: section("maintenance"), parent: "maintenance.units" },
+  { key: "maintenance.inspectors", label: "Who can inspect", path: "/settings/inspectors", group: "admin", gate: section("maintenance"), reachedFrom: "admin.settings", startsOnFor: [] },
 
   // ── admin ─────────────────────────────────────────────────────────────────────────────────────
   // Settings = org config (its route asks `view` since Q-SURF5, so the auditor's audit-log card is
@@ -307,10 +308,10 @@ export const SURFACES: readonly Surface[] = [
   // One roadside inspection, the row the list opens (INSPECTION-CHALLENGE-PLAN §6's Inspection page).
   { key: "safety.roadside-inspections.detail", label: "Roadside inspection", path: "/roadside-inspections/:id", group: "safety", gate: section("safety"), parent: "safety.roadside-inspections" },
   { key: "maintenance.inspections.detail", label: "Annual inspection", path: "/shop/inspections/:id", group: "maintenance", gate: section("maintenance"), parent: "maintenance.inspections" },
-  { key: "maintenance.inspections.annual-dates", label: "Annual dates to check", path: "/shop/annual-dates", group: "maintenance", gate: section("maintenance"), parent: "maintenance.inspections" },
+  { key: "maintenance.inspections.annual-dates", label: "Dates FleetPal disagrees on", path: "/shop/annual-dates", group: "maintenance", gate: section("maintenance"), parent: "maintenance.inspections" },
   { key: "maintenance.parts.detail", label: "Part", path: "/shop/inventory/:id", group: "maintenance", gate: section("maintenance"), parent: "maintenance.parts" },
-  { key: "maintenance.assets.detail", label: "Asset", path: "/shop/assets/:id", group: "maintenance", gate: section("maintenance"), parent: "maintenance.assets" },
-  { key: "maintenance.units.detail", label: "Unit", path: "/shop/units/:kind/:id", group: "maintenance", gate: section("maintenance"), parent: "maintenance.units" },
+  { key: "maintenance.assets.detail", label: "Equipment", path: "/shop/assets/:id", group: "maintenance", gate: section("maintenance"), parent: "maintenance.assets" },
+  { key: "maintenance.units.detail", label: "Truck or trailer", path: "/shop/units/:kind/:id", group: "maintenance", gate: section("maintenance"), parent: "maintenance.units" },
   /**
    * The shelf count (I5 PR 2b). `parent: "maintenance.parts"` rather than a key of its own, and the
    * choice is a permission argument: a count is a walk of the STOCK, so an org that has taken Parts
@@ -360,7 +361,7 @@ export const SURFACES: readonly Surface[] = [
   { key: "maintenance.work-orders", label: "Open work orders", path: "/shop/work-orders", group: "maintenance", gate: section("maintenance"), parent: "maintenance.repair-spend" },
   { key: "maintenance.defects", label: "Open defects", path: "/shop/defects", group: "maintenance", gate: section("maintenance"), parent: "maintenance.repair-spend" },
   { key: "maintenance.roadside-repairs", label: "Roadside repairs due", path: "/shop/roadside-repairs", group: "maintenance", gate: section("maintenance"), parent: "maintenance.repair-spend" },
-  { key: "maintenance.repair-spend.ledger", label: "Repair spend", path: "/shop/repair-spend", group: "maintenance", gate: section("maintenance"), parent: "maintenance.repair-spend" },
+  { key: "maintenance.repair-spend.ledger", label: "Repair bills", path: "/shop/repair-spend", group: "maintenance", gate: section("maintenance"), parent: "maintenance.repair-spend" },
 
   // ── non-nav screens that already state a section, transcribed (no behaviour change) ───────────
   // `dispatch.loads.new` (`/loads/new`) left in LR6 (LOADS-MIRROR-PLAN.md, Q-LMR7): loads come from

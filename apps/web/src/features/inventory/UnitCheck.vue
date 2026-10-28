@@ -272,7 +272,7 @@ async function close() {
         :error="kitFailed ? kitError : null"
         :retrying="kitFetching"
         loading-text="Loading the kit…"
-        error-text="Could not load the unit's kit."
+        error-text="Could not load the list."
         @retry="refetchKit()"
       >
       <template v-if="!reviewing">
@@ -280,7 +280,7 @@ async function close() {
         <BaseCard v-for="asset in remaining.slice(0, 1)" :key="asset.id">
           <div class="flex items-start justify-between gap-4">
             <div class="min-w-0">
-              <h2 class="text-sm font-semibold text-ink">Is this on the unit?</h2>
+              <h2 class="text-sm font-semibold text-ink">Is this on board?</h2>
               <p class="mt-2 text-base font-semibold text-ink">{{ asset.assetTypeName }}</p>
               <p class="text-sm text-ink-secondary">{{ asset.displayNo }} · {{ asset.name }}</p>
             </div>
@@ -298,7 +298,7 @@ async function close() {
 
         <!-- Short of something the kit asks for: the one-tap way to say it turned up. -->
         <section v-if="shortLines.length" class="space-y-3">
-          <h2 class="text-sm font-semibold text-ink">Short of</h2>
+          <h2 class="text-sm font-semibold text-ink">Missing</h2>
           <BaseCard padding="none">
             <ul class="divide-y divide-edge-subtle">
               <li v-for="line in shortLines" :key="line.assetTypeId" class="px-5 py-3">
@@ -333,7 +333,7 @@ async function close() {
 
         <!-- Carried but expected by nothing: the bucket only a walk can find. -->
         <section v-if="unexpected.length" class="space-y-3">
-          <h2 class="text-sm font-semibold text-ink">Not in the kit</h2>
+          <h2 class="text-sm font-semibold text-ink">Not on the list</h2>
           <BaseCard padding="none">
             <ul class="divide-y divide-edge-subtle text-sm">
               <li v-for="line in unexpected" :key="line.assetTypeId" class="px-5 py-3 text-ink-secondary">
@@ -347,7 +347,7 @@ async function close() {
       <!-- Review: what is missing and what is still short, which is what somebody acts on. -->
       <section v-else class="space-y-3">
         <h2 class="text-sm font-semibold text-ink">Review</h2>
-        <DataTable :columns="REVIEW_COLUMNS" :rows="reviewRows" row-key="key" empty-text="Nothing on this unit to review.">
+        <DataTable :columns="REVIEW_COLUMNS" :rows="reviewRows" row-key="key" empty-text="Nothing to review.">
           <template #cell-label="{ row }">
             <span :class="[BADGE_BASE, toneClass(row.tone)]">{{ row.label }}</span>
           </template>

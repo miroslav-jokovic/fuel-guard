@@ -143,8 +143,11 @@ const clearAll = () => qs.set({ search: undefined, inspection: undefined });
 
 <template>
   <div class="space-y-6">
+    <!-- The fifteen days are 49 CFR 396.9(d). The citation lived in this sentence until 2026-10-27;
+         it moved here under the house rule that visible copy carries no § references outside hazmat
+         (D-AVI15, applied by MAINTENANCE-SECTION-REDESIGN-PROPOSAL.md §4.4). -->
     <PageHeader
-      description="Every truck or trailer with a vehicle violation on a roadside inspection of the last year. Name the FleetPal work order that repaired it, or say where it was repaired — the report must be certified within 15 days of the inspection (49 CFR 396.9(d))."
+      description="Every truck or trailer with a vehicle violation on a roadside inspection of the last year. Name the FleetPal work order that repaired it, or say where it was repaired — the report must be certified within 15 days of the inspection."
     />
 
     <AppTabs v-model="tab" :tabs="tabs" label="Roadside repairs" />

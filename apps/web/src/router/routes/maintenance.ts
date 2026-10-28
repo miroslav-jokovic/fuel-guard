@@ -36,7 +36,7 @@ export const maintenanceRoutes: RouteRecordRaw[] = [
     path: "/shop/repair-spend",
     name: "repair-spend",
     component: () => import("@/pages/MaintenanceSpendPage.vue"),
-    meta: { requiresAuth: true, title: "Repair spend", parent: "/shop" },
+    meta: { requiresAuth: true, title: "Repair bills", parent: "/shop" },
   },
   /**
    * FleetPal's open work orders and open defects (FLEET-MANAGER-HOME-PLAN Q-FM6 (a)) — the lists
@@ -81,13 +81,13 @@ export const maintenanceRoutes: RouteRecordRaw[] = [
     path: "/shop/assets",
     name: "assets",
     component: () => import("@/pages/AssetsPage.vue"),
-    meta: { requiresAuth: true, title: "Assets", parent: "/shop" },
+    meta: { requiresAuth: true, title: "Equipment", parent: "/shop/units" },
   },
   {
     path: "/shop/assets/:id",
     name: "asset",
     component: () => import("@/pages/AssetDetailPage.vue"),
-    meta: { requiresAuth: true, title: "Asset", parent: "/shop/assets" },
+    meta: { requiresAuth: true, title: "Equipment", parent: "/shop/assets" },
   },
   /**
    * Units (I9). Two path params rather than one, because a truck and a trailer share neither a table
@@ -99,13 +99,13 @@ export const maintenanceRoutes: RouteRecordRaw[] = [
     path: "/shop/units",
     name: "units",
     component: () => import("@/pages/UnitsPage.vue"),
-    meta: { requiresAuth: true, title: "Units", parent: "/shop" },
+    meta: { requiresAuth: true, title: "Trucks & trailers", parent: "/shop" },
   },
   {
     path: "/shop/units/:kind/:id",
     name: "unit",
     component: () => import("@/pages/UnitDetailPage.vue"),
-    meta: { requiresAuth: true, title: "Unit", parent: "/shop/units" },
+    meta: { requiresAuth: true, title: "Truck or trailer", parent: "/shop/units" },
   },
   {
     path: "/shop/inventory/:id",
@@ -170,13 +170,24 @@ export const maintenanceRoutes: RouteRecordRaw[] = [
     path: "/shop/annual-dates",
     name: "annual-dates",
     component: () => import("@/pages/AnnualDatesPage.vue"),
-    meta: { requiresAuth: true, title: "Annual dates to check", parent: "/shop/inspections" },
+    meta: { requiresAuth: true, title: "Dates FleetPal disagrees on", parent: "/shop/inspections" },
+  },
+  /**
+   * The inspector register lives under Settings since 2026-10-27 (D-MX1, owner: "Inspectors can
+   * move to settings pages"). Declared here and not in `routes/settings.ts` because the screen is
+   * maintenance's — the file a URL is declared in names the module that owns it. The old address
+   * redirects: the annual-inspection form's "add an inspector first" link and any bookmark keep working.
+   */
+  {
+    path: "/settings/inspectors",
+    name: "inspector-register",
+    component: () => import("@/pages/InspectorRegisterPage.vue"),
+    meta: { requiresAuth: true, title: "Who can inspect", parent: "/settings" },
   },
   {
     path: "/shop/inspectors",
-    name: "inspector-register",
-    component: () => import("@/pages/InspectorRegisterPage.vue"),
-    meta: { requiresAuth: true, title: "Inspectors", parent: "/shop" },
+    name: "inspector-register-legacy",
+    redirect: { name: "inspector-register" },
   },
   {
     path: "/shop/inspections/:id",

@@ -180,7 +180,7 @@ describe("a kit that fails to load (D-US5)", () => {
     kitRead.fails = true;
     const w = page();
     expect(w.text()).not.toContain("Every item has been looked at");
-    expect(w.get("[role=alert]").text()).toContain("Could not load the unit's kit.");
+    expect(w.get("[role=alert]").text()).toContain("Could not load the list.");
     await press(w, "Retry");
     expect(kitRead.refetch).toHaveBeenCalledTimes(1);
   });

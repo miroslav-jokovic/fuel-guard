@@ -58,7 +58,7 @@ const COLUMNS: DataTableColumn[] = [
 ];
 
 const whatOf = (s: CountSessionDto) =>
-  s.kind === "unit" ? `Kit check — ${s.holderLabel ?? "a unit"}` : `Shelf count — ${s.holderLabel ?? "a bay"}`;
+  s.kind === "unit" ? `Equipment check — ${s.holderLabel ?? "a truck or trailer"}` : `Shelf count — ${s.holderLabel ?? "a bay"}`;
 
 const continueWalk = (s: CountSessionDto) =>
   void router.push({ name: "count-session", params: { sessionId: s.id } });

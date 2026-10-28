@@ -80,7 +80,7 @@ const opens = useOpens();
 
 const STOCK_OPTIONS = [
   { value: "", label: "All parts" },
-  { value: "low", label: "At reorder point" },
+  { value: "low", label: "Running low" },
 ];
 
 // Filters, sort and page live in the URL (D-US2). The home's low-stock card links here with
@@ -124,9 +124,9 @@ const CATALOGUE_COLUMNS: DataTableColumn[] = [
 const LOW_COLUMNS: DataTableColumn[] = [
   { key: "partNumber", label: "Part number", sortable: true, cellClass: "font-mono text-xs text-ink", width: "md" },
   { key: "partDescription", label: "Description" },
-  { key: "locationName", label: "Location", sortable: true, cellClass: "text-ink-secondary" },
+  { key: "locationName", label: "Place", sortable: true, cellClass: "text-ink-secondary" },
   { key: "quantityOnHand", label: "On hand", sortable: true, numeric: true },
-  { key: "reorderPoint", label: "Reorder at", sortable: true, numeric: true },
+  { key: "reorderPoint", label: "Order below", sortable: true, numeric: true },
   { key: "reorderQuantity", label: "Order", numeric: true },
 ];
 
@@ -166,10 +166,10 @@ const creating = qs.flag("new");
 
 <template>
   <div class="space-y-6">
-    <PageHeader description="Everything the shop carries, and what has fallen to its reorder point.">
+    <PageHeader description="Everything the shop carries, and what is running low.">
       <template #actions>
         <BaseButton v-if="session.can('maintenance')" @click="locationsOpen = true">
-          <AppIcon :icon="Cog6ToothIcon" class="-ml-0.5 size-5" aria-hidden="true" /> Stock locations
+          <AppIcon :icon="Cog6ToothIcon" class="-ml-0.5 size-5" aria-hidden="true" /> Places
         </BaseButton>
         <!-- SP5: shown when Labels opens. It is `maintenance` view and answers to the shop home's screen
              (`maintenance.repair-spend`, D-SURF8), which is switchable per person apart from this page —
@@ -194,7 +194,7 @@ const creating = qs.flag("new");
         @clear-all="resetFilters"
       >
         <template #filters>
-          <FilterSelect v-model="stock" label="Stock" :options="STOCK_OPTIONS" />
+          <FilterSelect v-model="stock" label="Show" :options="STOCK_OPTIONS" />
         </template>
       </FilterBar>
 

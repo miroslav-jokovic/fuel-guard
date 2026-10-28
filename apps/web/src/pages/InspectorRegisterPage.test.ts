@@ -109,7 +109,7 @@ describe("what the register shows", () => {
     expect(page([inspector()]).text()).toContain("Since 01/01/2024");
     const retired = page([inspector({ effective_to: "2026-01-31", qualified: false })]).text();
     expect(retired).toContain("01/01/2024 → 01/31/2026");
-    expect(retired).toContain("Retired");
+    expect(retired).toContain("Off the list");
   });
 
   // F6 (US6b): a failed read has no rows either, and is not an empty register.
@@ -128,7 +128,7 @@ describe("what the register shows", () => {
 describe("retiring somebody is a date, not a deletion", () => {
   it("closes the period rather than removing the row", async () => {
     const w = page([inspector()]);
-    await click(w, "Retire");
+    await click(w, "Take off the list");
     // A report has to name who performed it, and the qualification evidence outlives the employment
     // — so the only thing that ends is their availability for a NEW inspection.
     expect(state.setPeriod.mutateAsync).toHaveBeenCalledWith(
@@ -139,7 +139,7 @@ describe("retiring somebody is a date, not a deletion", () => {
 
   it("offers to bring a retired inspector back", async () => {
     const w = page([inspector({ qualified: false, effective_to: "2026-01-31" })]);
-    await click(w, "Reinstate");
+    await click(w, "Put back on the list");
     expect(state.setPeriod.mutateAsync).toHaveBeenCalledWith({ id: "i-1", effectiveTo: null });
   });
 });
@@ -148,11 +148,11 @@ describe("removing a row that was never used", () => {
   it("asks first, and does nothing when the answer is no", async () => {
     const asked = answerConfirm(false);
     const w = page([inspector()]);
-    await click(w, "Remove from register");
+    await click(w, "Delete");
     await flushPromises();
     // D-US7: the product's dialog, the person named in the question, the verb on a red button.
     expect(asked).toHaveBeenCalledWith(
-      expect.objectContaining({ title: "Remove George Gacev from the register?", confirmLabel: "Remove from register", tone: "danger" }),
+      expect.objectContaining({ title: "Delete George Gacev from the list?", confirmLabel: "Delete", tone: "danger" }),
     );
     expect(state.remove.mutateAsync).not.toHaveBeenCalled();
   });
@@ -160,7 +160,7 @@ describe("removing a row that was never used", () => {
   it("removes the row once it is confirmed", async () => {
     answerConfirm(true);
     const w = page([inspector()]);
-    await click(w, "Remove from register");
+    await click(w, "Delete");
     await flushPromises();
     expect(state.remove.mutateAsync).toHaveBeenCalledWith("i-1");
   });
@@ -174,7 +174,7 @@ describe("removing a row that was never used", () => {
       new Error("This person has performed inspections, so their record has to stay on file. Retire them instead."),
     );
     const w = page([inspector()]);
-    await click(w, "Remove from register");
+    await click(w, "Delete");
     await new Promise((r) => setTimeout(r, 0));
 
     const toasts = useToastStore().toasts;
@@ -223,7 +223,7 @@ describe("the register keeps its filters in the URL", () => {
 
   it("reads the basis, the search and Including retired back from a pasted link", async () => {
     const { w } = await at("/maintenance/inspectors?basis=state_federal_program&retired=1");
-    expect((await select(w, "Qualified by")).props("modelValue")).toBe("state_federal_program");
+    expect((await select(w, "Trained as")).props("modelValue")).toBe("state_federal_program");
     expect((await select(w, "Show")).props("modelValue")).toBe("all");
     expect(w.text()).toContain("Ruth State");
     expect(w.text()).not.toContain("George Gacev");
@@ -232,7 +232,7 @@ describe("the register keeps its filters in the URL", () => {
   it("writes a control change to the URL", async () => {
     const { w, query } = await at("/maintenance/inspectors");
     (await select(w, "Show")).vm.$emit("update:modelValue", "all");
-    (await select(w, "Qualified by")).vm.$emit("update:modelValue", "training_and_experience");
+    (await select(w, "Trained as")).vm.$emit("update:modelValue", "training_and_experience");
     await flushPromises();
     expect(query()).toEqual({ retired: "1", basis: "training_and_experience" });
   });
@@ -246,7 +246,7 @@ describe("the register keeps its filters in the URL", () => {
 
   it("reads a basis outside the contract's list as Any", async () => {
     const { w } = await at("/maintenance/inspectors?basis=grandfathered");
-    expect((await select(w, "Qualified by")).props("modelValue")).toBe("");
+    expect((await select(w, "Trained as")).props("modelValue")).toBe("");
     expect(w.text()).toContain("Ruth State");
     expect(w.text()).toContain("George Gacev");
   });

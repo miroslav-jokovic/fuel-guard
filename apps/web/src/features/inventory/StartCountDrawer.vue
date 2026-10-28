@@ -68,17 +68,17 @@ async function start() {
   <SlideOver
     :open="open"
     title="Count a shelf"
-    description="Walk one location and say what is actually there. The count is saved on the phone as you go."
+    description="Walk one place and say what is actually there. The count is saved on the phone as you go."
     @close="emit('close')"
   >
     <form :id="FORM_ID" class="space-y-4" @submit.prevent="start">
-      <FormField v-slot="{ id }" label="Which location" :error="error">
+      <FormField v-slot="{ id }" label="Which place" :error="error">
         <AppCombobox
           :id="id"
           v-model="locationId"
           :options="options"
-          placeholder="Choose a location"
-          empty-text="No stock locations yet — add one under Stock locations on Parts."
+          placeholder="Choose a place"
+          empty-text="No places yet — add one under Places on Parts."
         />
       </FormField>
 

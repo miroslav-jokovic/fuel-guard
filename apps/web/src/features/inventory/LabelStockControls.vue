@@ -91,7 +91,7 @@ function clamp(raw: string, min: number, max: number): number {
 
 <template>
   <div class="space-y-4">
-    <FormField v-slot="{ id }" label="Label stock">
+    <FormField v-slot="{ id }" label="Label size">
       <AppSelect
         :id="id"
         :model-value="presetId"
@@ -117,7 +117,7 @@ function clamp(raw: string, min: number, max: number): number {
     </FormField>
 
     <div class="grid grid-cols-2 gap-3">
-      <FormField v-slot="{ id }" label="Nudge right" hint="Points. Negative moves left.">
+      <FormField v-slot="{ id }" label="Shift print right" hint="In points (1/72 inch). Negative moves left.">
         <BaseInput
           :id="id"
           :model-value="String(nudgeX)"
@@ -125,7 +125,7 @@ function clamp(raw: string, min: number, max: number): number {
           @update:model-value="emit('update:nudgeX', clamp($event, -MAX_NUDGE, MAX_NUDGE))"
         />
       </FormField>
-      <FormField v-slot="{ id }" label="Nudge down" hint="Points. Negative moves up.">
+      <FormField v-slot="{ id }" label="Shift print down" hint="In points (1/72 inch). Negative moves up.">
         <BaseInput
           :id="id"
           :model-value="String(nudgeY)"
@@ -142,7 +142,7 @@ function clamp(raw: string, min: number, max: number): number {
         <strong>{{ labelSize }}</strong>, margins to <strong>None</strong> and scale to
         <strong>Actual size (100 %)</strong>. Each label prints as its own page.
       </p>
-      <p class="mt-2">If every label is off by the same amount, nudge.</p>
+      <p class="mt-2">If every label is off by the same amount, shift the print.</p>
     </AppCallout>
     <AppCallout v-else tone="info">
       <p class="font-semibold text-ink">Before you print</p>

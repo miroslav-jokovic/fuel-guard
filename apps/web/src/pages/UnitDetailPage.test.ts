@@ -191,7 +191,7 @@ describe("checking this unit", () => {
       startedByName: "Shop Lead",
     });
     const w = page();
-    await w.findAll("button").find((b) => b.text() === "Check this unit")!.trigger("click");
+    await w.findAll("button").find((b) => b.text() === "Check what is on board")!.trigger("click");
     await flushPromises();
     const toasts = useToastStore().toasts.map((t) => t.title);
     expect(toasts).toContain("Continuing the open check");
@@ -199,7 +199,7 @@ describe("checking this unit", () => {
 
   it("says nothing extra when the walk is new", async () => {
     const w = page();
-    await w.findAll("button").find((b) => b.text() === "Check this unit")!.trigger("click");
+    await w.findAll("button").find((b) => b.text() === "Check what is on board")!.trigger("click");
     await flushPromises();
     expect(useToastStore().toasts.map((t) => t.title)).not.toContain("Continuing the open check");
   });

@@ -7,7 +7,7 @@ import { defineComponent, h, ref } from "vue";
  * The shop's two configuration drawers answer a read in three ways — loading, failure with Retry,
  * empty — and never treat the first two as the third (the sweep after US6b batch 3, 2026-10-14).
  *
- * Before: Stock locations said "No locations yet. Add the shop itself first" when its read FAILED,
+ * Before: Stock locations said "No places yet. Add the shop itself first" when its read FAILED,
  * and Asset kinds offered "Set it up" — adopting the standard kit, which OVERWRITES the fleet's kit
  * rules — while its read was in flight and after it failed. The desktop breakpoint is stubbed
  * because jsdom has no `matchMedia` and DataTable would render cards.
@@ -64,7 +64,7 @@ describe("Stock locations", () => {
   it("says the read failed, with Retry, instead of telling the shop to add its first location", async () => {
     read.state = "failed";
     const w = render(LocationsDrawer);
-    expect(w.text()).toContain("Could not load the stock locations.");
+    expect(w.text()).toContain("Could not load the places.");
     expect(w.text()).not.toContain("No locations yet");
     await w.findAll("button").find((b) => b.text() === "Retry")!.trigger("click");
     expect(read.refetches).toBe(1);
@@ -79,7 +79,7 @@ describe("Stock locations", () => {
     loading.unmount();
     read.state = "empty";
     const empty = render(LocationsDrawer);
-    expect(empty.text()).toContain("No locations yet. Add the shop itself first");
+    expect(empty.text()).toContain("No places yet. Add the shop itself first");
     empty.unmount();
   });
 
@@ -104,7 +104,7 @@ describe("Asset kinds", () => {
       read.state = state;
       const w = render(AssetTypesDrawer);
       expect(w.findAll("button").map((b) => b.text())).not.toContain("Set it up");
-      expect(w.text()).toContain(state === "loading" ? "Loading the kinds of thing…" : "Could not load the kinds of thing.");
+      expect(w.text()).toContain(state === "loading" ? "Loading the types…" : "Could not load the types.");
       w.unmount();
     }
   });

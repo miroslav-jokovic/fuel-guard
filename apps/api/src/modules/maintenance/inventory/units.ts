@@ -6,7 +6,7 @@ import type {
   UnitKitDto,
   UnitKitLineDto,
 } from "@silvicom/shared";
-import { deriveKitStatus, unitKindOf, type KitLine } from "@silvicom/shared";
+import { deriveKitStatus, isSoldAwaitingPickup, unitKindOf, type KitLine } from "@silvicom/shared";
 import { listEquipmentIdentities, type EquipmentIdentity } from "../../roster/index.js";
 import { fetchAllPaged } from "../../../lib/paging.js";
 import { traced } from "../inspections/serviceError.js";
@@ -253,7 +253,10 @@ export async function listUnitKits(
 
   for (const kind of ["tractor", "trailer"] as const) {
     if (opts.kind && opts.kind !== kind) continue;
-    const identities = await listEquipmentIdentities(admin, orgId, kind, { activeOnly: true });
+    // Sold trucks are out (D-MX1, 2026-10-27): the column McLeod's sweep writes, and — until the VM
+    // carries that sweep — the "- SOLD" the office types into the unit number, read by the same
+    // helper the fleet-parity check uses. Two readings of one fact, never a third.
+    const identities = await listEquipmentIdentities(admin, orgId, kind, { activeOnly: true, excludeWindingDown: true });
     if ("error" in identities) {
       return traced("listUnitKits", "db_error", "Could not list the fleet", identities);
     }
@@ -274,6 +277,7 @@ export async function listUnitKits(
     }
 
     for (const identity of identities) {
+      if (isSoldAwaitingPickup(identity.unitNumber)) continue;
       const unitKind = kindOf(identity, kind);
       const expected = resolveExpected({ kind: unitKind, unitId: identity.id }, rows, typeDefaults);
       const holds = byUnit.get(identity.id) ?? [];

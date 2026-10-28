@@ -129,13 +129,13 @@ function onSubmit() {
       <h3 id="asset-form-what" class="text-sm font-semibold text-ink">What it is</h3>
       <p class="mt-1 text-sm text-ink-muted">The number is issued when it is saved; a tag comes from the label sheet.</p>
       <div class="mt-4 space-y-4">
-        <FormField v-slot="{ id }" label="Kind of thing" :error="errors.assetTypeId">
+        <FormField v-slot="{ id }" label="Type" :error="errors.assetTypeId">
           <ComboSelect
             :id="id"
             v-model="form.assetTypeId"
             :options="typeOptions"
             placeholder="Tablet, load bar, ratchet strap…"
-            empty-text="No kinds yet. Add one under Asset kinds first — a kind says whether each of these is tracked individually."
+            empty-text="No types yet. Add one under Types of equipment first — a type says whether each of these is tracked one by one."
           />
         </FormField>
 

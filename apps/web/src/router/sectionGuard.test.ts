@@ -144,7 +144,7 @@ describe("the section gates on the navigation guard", () => {
     ["/fleet-report", "accounting", "accountant", "dispatcher"],
     ["/billing", "billing", "accountant", "fleet_manager"],
     ["/shop", "maintenance", "technician", "dispatcher"],
-    ["/shop/inspectors", "maintenance", "accountant", "recruiter"],
+    ["/shop/units", "maintenance", "accountant", "recruiter"],
   ];
   for (const [path, sec, allowed, denied] of CLOSED) {
     it(`${path} (${sec}) admits ${allowed} and turns away ${denied}`, async () => {
@@ -191,18 +191,34 @@ describe("the section gates on the navigation guard", () => {
 
   // ── S3: the org's own answers about which screens a role may reach ───────────────────────
   // The owner's worked example, end to end at the router: "Technician shop should see only annual
-  // inspection page and nothing else."
+  // inspection page and nothing else." (Written against the inspector register until D-MX1 moved
+  // it into Settings; Trucks & trailers is the same kind of screen — a section-gated nav row.)
   it("an org that denies two maintenance screens to technicians is obeyed by the router", async () => {
-    session.surfaces = { "maintenance.repair-spend": false, "maintenance.inspectors": false };
+    session.surfaces = { "maintenance.repair-spend": false, "maintenance.units": false };
     expect(await landsOn("technician", "/shop")).toBe("dashboard");
-    expect(await landsOn("technician", "/shop/inspectors")).toBe("dashboard");
+    expect(await landsOn("technician", "/shop/units")).toBe("dashboard");
     // …and the one screen they were left keeps working, which is the whole point of the exercise.
     expect(await landsOn("technician", "/shop/inspections")).not.toBe("dashboard");
   });
 
   it("…and the denial is per ROLE, not per org — a fleet manager still reaches them", async () => {
     session.surfaces = null; // a fleet_manager's own claim carries no denials
-    expect(await landsOn("fleet_manager", "/shop/inspectors")).not.toBe("dashboard");
+    expect(await landsOn("fleet_manager", "/shop/units")).not.toBe("dashboard");
+  });
+
+  /**
+   * D-MX1 (2026-10-27): the inspector register is a Settings card. Like every card in that directory
+   * it starts OFF for every role but admin (Q-SET2, `startsOnFor: []`) and the admin grants it; the
+   * old `/shop/inspectors` address redirects there, so a bookmark lands on the same answer.
+   */
+  it("the inspector register starts closed to a technician and opens when the org grants it", async () => {
+    session.surfaces = null;
+    expect(await landsOn("technician", "/settings/inspectors")).toBe("dashboard");
+    expect(await landsOn("technician", "/shop/inspectors")).toBe("dashboard");
+    expect(await landsOn("admin", "/settings/inspectors")).not.toBe("dashboard");
+    session.surfaces = { "maintenance.inspectors": true };
+    expect(await landsOn("technician", "/settings/inspectors")).not.toBe("dashboard");
+    expect(await landsOn("technician", "/shop/inspectors")).not.toBe("dashboard");
   });
 
   it("a denial reaches the detail route through its parent (D-SURF8)", async () => {
@@ -237,14 +253,14 @@ describe("the section gates on the navigation guard", () => {
   it("a surface answer can only NARROW — it never lifts a role past its section (D-SURF2)", async () => {
     // A recruiter holds `maintenance: none`. An org saying "allowed" about a maintenance screen
     // must not become a way to hand them the section, which is why the gate is checked first.
-    session.surfaces = { "maintenance.inspectors": true, "maintenance.repair-spend": true };
-    expect(await landsOn("recruiter", "/shop/inspectors")).toBe("dashboard");
+    session.surfaces = { "maintenance.units": true, "maintenance.repair-spend": true };
+    expect(await landsOn("recruiter", "/shop/units")).toBe("dashboard");
     expect(await landsOn("recruiter", "/shop")).toBe("dashboard");
   });
 
   it("an empty answer denies nothing — the fail-open the store documents", async () => {
     session.surfaces = {};
-    expect(await landsOn("technician", "/shop/inspectors")).not.toBe("dashboard");
+    expect(await landsOn("technician", "/shop/units")).not.toBe("dashboard");
   });
 
   it("an uncatalogued authenticated route still resolves — the gate, not the guard, is the net", async () => {

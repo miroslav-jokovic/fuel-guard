@@ -125,7 +125,7 @@ describe("the fleet's kit", () => {
     };
     const w = await page();
     expect(w.text()).toContain("3");
-    expect(w.text()).toContain("Short");
+    expect(w.text()).toContain("Missing equipment");
   });
 
   it("gives a complete unit no badge at all", async () => {
@@ -153,7 +153,7 @@ describe("the fleet's kit", () => {
 
   it("says so plainly when nothing is expected of a unit yet (A4 ships empty)", async () => {
     units.value = { units: [unit()], total: 1 };
-    expect((await page()).text()).toContain("Nothing expected yet");
+    expect((await page()).text()).toContain("Nothing set up yet");
   });
 
   /**
@@ -197,9 +197,9 @@ describe("the fleet's kit", () => {
       await type("R-88");
       expect(w.text()).toContain("R-8800");
       expect(w.text()).not.toContain("654");
-      expect(w.text()).toContain("1 unit");
+      expect(w.text()).toContain("1 truck or trailer");
       await type("zzz");
-      expect(w.text()).toContain("No unit number matches that.");
+      expect(w.text()).toContain("No truck or trailer number matches that.");
     } finally {
       vi.useRealTimers();
     }
@@ -212,7 +212,7 @@ describe("the fleet's kit", () => {
       total: 25,
     };
     const w = await page();
-    expect(w.text()).toContain("25 units");
+    expect(w.text()).toContain("25 trucks and trailers");
     expect(w.text()).toContain("T-019");
     expect(w.text()).not.toContain("T-020");
     expect(w.text()).toContain("Showing 1–20 of 25");
@@ -221,7 +221,7 @@ describe("the fleet's kit", () => {
   it("names its one header action, and gives every row a menu", async () => {
     units.value = { units: [unit()], total: 1 };
     const w = await page();
-    expect(w.text()).toContain("Kit rules");
+    expect(w.text()).toContain("What each truck should carry");
     // The menu's items render only once it is open; the trigger is what proves the path exists.
     expect(w.find('button[aria-label="Actions"]').exists()).toBe(true);
   });
@@ -258,7 +258,7 @@ describe("the list in the URL (D-US2)", () => {
   it("lands the shop home's ?kit=short link on the shortfall filter, which stays in the URL", async () => {
     units.value = { units: [unit({ state: "short", shortBy: 1 })], total: 1 };
     const w = await page("/shop/units?kit=short");
-    const kit = w.findAllComponents(FilterSelect).find((c) => c.props("label") === "Kit")!;
+    const kit = w.findAllComponents(FilterSelect).find((c) => c.props("label") === "Equipment")!;
     expect(kit.props("modelValue")).toBe("short");
     expect(urlQuery()).toEqual({ kit: "short" });
   });
