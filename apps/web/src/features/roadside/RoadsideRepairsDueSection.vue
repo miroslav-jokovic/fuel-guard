@@ -18,6 +18,11 @@ import { useRoadsideRepairsDueQuery } from "./useRoadsideInspections";
  * worse than none.
  */
 
+/**
+ * D-MX2 (2026-10-27): on the worklist home a group with nothing in it is not drawn. The section keeps
+ * its empty sentence for any other caller; the home passes `hideWhenEmpty`.
+ */
+const props = defineProps<{ hideWhenEmpty?: boolean }>();
 const PREVIEW_ROWS = 5;
 
 const opens = useOpens();
@@ -28,6 +33,9 @@ const today = computed(() => todayInZone(new Date(), zone.value));
 
 const open = computed(() => (due.data.value ?? []).filter((r) => !repairSettled(r)).sort(byRepairUrgency(today.value)));
 const preview = computed(() => open.value.slice(0, PREVIEW_ROWS));
+const drawn = computed(
+  () => pageOpen.value && !(props.hideWhenEmpty && !due.isLoading.value && !due.isError.value && open.value.length === 0),
+);
 
 const COLUMNS: DataTableColumn[] = [
   { key: "unit", label: "Unit", cellClass: "font-medium text-ink", width: "sm" },
@@ -46,7 +54,7 @@ const openRow = (r: RoadsideRepairDueDto) => router.push({ path: "/shop/roadside
 </script>
 
 <template>
-  <section v-if="pageOpen" class="space-y-3" data-test="roadside-repairs-due">
+  <section v-if="drawn" class="space-y-3" data-test="roadside-repairs-due">
     <div class="flex items-center justify-between gap-4">
       <h2 class="text-sm font-semibold text-ink">Roadside repairs due</h2>
       <RouterLink to="/shop/roadside-repairs" class="text-sm font-medium text-link hover:text-link-hover" data-test="roadside-repairs-all">

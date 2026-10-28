@@ -250,6 +250,42 @@ describe("the lists behind it", () => {
     expect(rows[0]).toMatchObject({ ourExpiresOn: null, ours: "unknown", fleetpalDueOn: "2027-01-01", gapDays: null });
   });
 
+  /**
+   * The worklist's annual group (D-MX2, Q-MX5 (a)). The clock is 2026-10-16: 9001 (11/20) is 35 days
+   * out and NOT due; 657 (2027-01-01) and 659 are valid; a unit with no record (656) is unknown, not
+   * due. The fixture below adds one expiring and one overdue truck to prove membership and order.
+   */
+  it("lists the annual inspections due within 30 days or overdue, soonest first, by our record", async () => {
+    rec = createSupabaseRecorder({
+      tables: {
+        vehicles: (q) =>
+          [
+            ...VEHICLES,
+            { id: "v-700", unit_number: "700", status: "active", dot_annual_inspection_expires_at: "2026-10-30" },
+            { id: "v-701", unit_number: "701", status: "active", dot_annual_inspection_expires_at: "2026-10-10" },
+          ].filter(inService(q)),
+        trailers: (q) => [...TRAILERS, { id: "t-9002", unit_number: "9002", status: "active", dot_annual_inspection_expires_at: "2026-11-14" }].filter(inService(q)),
+      },
+    });
+    const { status, body } = await call("annual-due");
+    expect(status).toBe(200);
+    const rows = body.data as import("@silvicom/shared").AnnualDueDto[];
+    expect(rows.map((r) => [r.unitNumber, r.daysRemaining])).toEqual([
+      ["701", -6],
+      ["700", 14],
+      ["9002", 29],
+    ]);
+    expect(rows[2]).toEqual({ subjectType: "trailer", unitId: "t-9002", unitNumber: "9002", expiresOn: "2026-11-14", daysRemaining: 29 });
+    expectOrgScoped(rec, ORG);
+  });
+
+  it("refuses the annual-due list whole when a read fails, never echoing the database", async () => {
+    rec = createSupabaseRecorder({ tables: { vehicles: { data: null, error: { message: "relation vehicles: boom" } }, trailers: TRAILERS } });
+    const { status, body } = await call("annual-due");
+    expect(status).toBe(500);
+    expect(JSON.stringify(body)).not.toContain("relation");
+  });
+
   it("refuses the annual list whole when a read fails, never echoing the database", async () => {
     rec = createSupabaseRecorder({ tables: { vehicles: () => ({ data: null, error: { message: "relation vehicles: boom" } }) } });
     const { status, body } = await call("annual-disagreements");

@@ -9,6 +9,7 @@ import { listLowStock } from "../inventory/stock.js";
 import { isServiceError } from "../inventory/types.js";
 import { statusForServiceError } from "../inventory/httpStatus.js";
 import { readAnnualDisagreements } from "../inspections/annualDisagreements.js";
+import { readAnnualDue } from "../inspections/annualDue.js";
 
 /**
  * `GET /api/maintenance/shop-summary` — the Operations tab's Shop card (FLEET-MANAGER-HOME-PLAN.md
@@ -59,7 +60,7 @@ export function shopSummaryRouter(): Router {
   );
 
   /** Whole lists, unpaginated: a list of what the shop owes that stopped early would be believed. */
-  const list = (path: string, read: typeof readOpenWorkOrders | typeof readUnresolvedDefects | typeof readAnnualDisagreements, what: string) =>
+  const list = (path: string, read: typeof readOpenWorkOrders | typeof readUnresolvedDefects | typeof readAnnualDisagreements | typeof readAnnualDue, what: string) =>
     router.get(
       path,
       requireOrg,
@@ -76,6 +77,8 @@ export function shopSummaryRouter(): Router {
   list("/work-orders", readOpenWorkOrders, "open work orders");
   list("/defects", readUnresolvedDefects, "unresolved defects");
   list("/annual-disagreements", readAnnualDisagreements, "annual inspection dates");
+  // The worklist's fourth group (D-MX2): due within 30 days or overdue, by our record.
+  list("/annual-due", readAnnualDue, "annual inspections due");
 
   return router;
 }

@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/vue-query";
 import { apiFetch } from "@/lib/api";
-import type { AnnualDisagreementDto, ShopDefectDto, ShopSummary, ShopWorkOrderDto } from "@silvicom/shared";
+import type { AnnualDisagreementDto, AnnualDueDto, ShopDefectDto, ShopSummary, ShopWorkOrderDto } from "@silvicom/shared";
 
 /**
  * What is waiting on the shop (FLEET-MANAGER-HOME-PLAN FM3, Q-FM6 (a)): the four counts the Operations
@@ -41,5 +41,13 @@ export function useAnnualDisagreementsQuery() {
   return useQuery({
     queryKey: ["maintenance", "annual-disagreements"] as const,
     queryFn: () => read<AnnualDisagreementDto[]>("/api/maintenance/annual-disagreements", "the annual dates to check"),
+  });
+}
+
+/** The worklist's annual group (D-MX2, Q-MX5 (a)): due within 30 days or overdue, by our record. */
+export function useAnnualDueQuery() {
+  return useQuery({
+    queryKey: ["maintenance", "annual-due"],
+    queryFn: () => read<AnnualDueDto[]>("/api/maintenance/annual-due", "the annual inspections due"),
   });
 }

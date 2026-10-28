@@ -1,364 +1,322 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
+import { useRouter } from "vue-router";
+import { AppCallout, StatCard, type DataTableColumn } from "@silvicom/ui";
+import { GaugeIcon } from "@silvicom/ui/icons";
 import {
-  AppButton as BaseButton,
-  AppCallout,
-  AppIcon,
-  StatCard,
-  QueryState,
-  DataTable,
-  type DataTableColumn,
-} from "@silvicom/ui";
-import {
-  ArrowsRightLeftIcon,
-  ChecklistIcon,
-  ClipboardDocumentListIcon,
-  ExclamationTriangleIcon,
-  GaugeIcon,
-  PlusIcon,
-  ScanIcon,
-  TruckIcon,
-  WrenchIcon,
-} from "@silvicom/ui/icons";
+  inspectionExpiry,
+  repairSettled,
+  todayInZone,
+  type AnnualDueDto,
+  type ShopDefectDto,
+  type ShopWorkOrderDto,
+  type StockLineDto,
+  type UnitKitDto,
+} from "@silvicom/shared";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import { lastFullMonth } from "@/lib/dateWindow";
 import { fmtMoney } from "@/lib/chartTheme";
+import { formatDate } from "@/lib/format";
 import { useMaintenanceSpendQuery } from "@/features/maintenance/useMaintenanceSpend";
-import { useLowStockQuery, useMovementsQuery, usePartsQuery } from "@/features/inventory/useInventory";
+import { useAnnualDueQuery, useOpenWorkOrdersQuery, useUnresolvedDefectsQuery } from "@/features/maintenance/useShopBacklog";
+import ShopWorklistSection from "@/features/maintenance/ShopWorklistSection.vue";
+import { useCountSessionsQuery, useLowStockQuery } from "@/features/inventory/useInventory";
 import { useUnitsQuery } from "@/features/inventory/useUnits";
-import { useShopSummaryQuery } from "@/features/maintenance/useShopBacklog";
 import StartCountDrawer from "@/features/inventory/StartCountDrawer.vue";
 import OpenCountsList from "@/features/inventory/OpenCountsList.vue";
 import StockLevelCell from "@/features/inventory/StockLevelCell.vue";
+import WalkActions, { type WalkAction } from "@/features/inventory/WalkActions.vue";
 import RoadsideRepairsDueSection from "@/features/roadside/RoadsideRepairsDueSection.vue";
-import { BADGE_BASE, kitStatusBadge, toneClass } from "@/lib/badges";
-import { useSessionStore } from "@/stores/session";
+import { useRoadsideRepairsDueQuery } from "@/features/roadside/useRoadsideInspections";
+import { useOrgTimezone } from "@/composables/useOrgTimezone";
 import { useOpens } from "@/composables/useOpens";
-import type { StockLineDto, UnitKitDto } from "@silvicom/shared";
+import { useSessionStore } from "@/stores/session";
 
 /**
- * The shop's home (INVENTORY-PLAN.md step I4).
+ * The shop's home: one worklist (MAINTENANCE-SECTION-REDESIGN-PROPOSAL.md §4.2, M2, D-MX1/D-MX2).
  *
- * ── `/shop` USED TO BE THE REPAIR-SPEND LEDGER ────────────────────────────────────────────────
- * It was the only thing the section held while maintenance was a ledger family. The module owns
- * four tables of its own since I2, so the address a technician types is the section's front door
- * and the ledger is one card on it, at `/shop/repair-spend`. The surface KEY stayed
- * `maintenance.repair-spend` through that relabel, which is a permission decision rather than a
- * naming one — `packages/shared/src/surfaceCatalogue.ts` carries the measurement.
+ * ── A WORKLIST, NOT A ROW OF COUNTERS ─────────────────────────────────────────────────────────
+ * Until 2026-10-27 this page was six tiles over two previews, and production rendered it as two
+ * FleetPal zeros, an empty roadside card and a "no parts yet" callout above sixty percent blank
+ * screen — the 2026-09-10 critique's finding, back again because the inventory half was gated on
+ * the org having a part. D-MX2 is the rule that replaces the tiles: **no counter without its list.**
+ * Each group below is the head of a whole list with "All N" beside it, drawn only when it has rows
+ * (`ShopWorklistSection`), ordered by how hard the deadline is:
  *
- * ── IT IS A TODAY PAGE, NOT A ROW OF COUNTERS (2026-09-10) ────────────────────────────────────
- * Four tiles and, under them, the two lists somebody acts on: what to order and which units are
- * short of their kit. The page shipped as three tiles above an empty screen — the 2026-09-10
- * critique measured it at sixty percent blank at both widths — while Dashboard, Recruitment and
- * Compliance all put a working surface under their tiles. Both lists come from endpoints that
- * answer WHOLE (`/low-stock` and `/units` are deliberately unpaginated), so the preview below is an
- * honest head of a complete answer, and the link under each says how many more there are.
+ *   1. Roadside repairs due — a 15-day certification clock (Q-IC16 (a)).
+ *   2. Found on an inspection, not fixed — FleetPal's open defects, oldest first.
+ *   3. In the shop now — FleetPal's open work orders, oldest first.
+ *   4. Annual inspection due — within 30 days or overdue, by our record (Q-MX5 (a)).
+ *   5. Missing equipment — checked trucks and trailers short of what they should carry (R10).
+ *   6. Running low — shelves at or below their order point (Parts stays: FleetPal fills it, F12).
+ *   7. Checks left open — walks somebody started and nobody closed (R9).
  *
- * The kit-shortfall tile was withheld "until I7–I9" when this page was built; I8 and I9 have
- * shipped, `UnitsPage.vue` already reads `?kit=short` as this tile's link, and a fleet with no kit
- * recorded reads "Every unit has its kit", which is true and not a measurement of nothing.
+ * "Equipment not returned" (D-DE3) joins as group 5's neighbour when DE2 ships its read; nothing
+ * here guesses at it. The repair-bills figure is the one money figure and the door to its page; it
+ * is not a counter over a list, so it sits under the list rather than above it.
  *
- * "Moved today" has no page of its own to open — the ledger is per part — so the tile is a count
- * and nothing else. A link to nowhere would be worse than none.
+ * ── THE TWO VERBS, WHERE THE HAND IS ──────────────────────────────────────────────────────────
+ * Scan and Count a shelf are defined once and rendered twice by `WalkActions` — the header row from
+ * `sm` up, a fixed bottom bar below it — because the owner's users hold a tablet or a phone with a
+ * scanner in the other hand (Q-MX1), and the bottom of a phone is where the thumb is (research §5.1).
  *
- * ── THE REPAIR-SPEND CARD SHOWS DOLLARS, AND THE SUM IS THE ENDPOINT'S ────────────────────────
- * It counted LINES until 2026-09-09, because `GET /api/maintenance/spend` answered with a page and
- * a row count and no sum — and adding the page up here would have reported a total that stops at
- * fifty rows and would be believed, which is the exact defect the review found in `/low-stock`.
- * I4 recorded that as owed; the endpoint now returns `totalAmount` over the whole window, computed
- * by the ledger's own `summarizeByCategory`. **`entries` is still one page and must never be summed
- * here** — the figure on this card comes from the endpoint or it does not appear.
+ * ── A QUIET DAY SAYS SO ───────────────────────────────────────────────────────────────────────
+ * When every read has answered and every list is empty the page says "Nothing waits on the shop
+ * today" once — not seven headings over seven empty tables, and not while a read is still in flight
+ * or has failed, because either of those would turn a 500 into "nothing due" (D-US9).
  */
 
-/** How much of each complete list the home shows before handing over to the page that owns it. */
-const PREVIEW_ROWS = 8;
+/** How much of each whole list the home shows before handing over to the page that owns it. */
+const PREVIEW_ROWS = 5;
 
+const router = useRouter();
+const session = useSessionStore();
+const opens = useOpens();
+const { zone } = useOrgTimezone();
+const today = computed(() => todayInZone(new Date(), zone.value));
+
+// ── the reads ──────────────────────────────────────────────────────────────────────────────────
+const defectsQ = useUnresolvedDefectsQuery();
+const ordersQ = useOpenWorkOrdersQuery();
+const annualQ = useAnnualDueQuery();
+// The section draws its own rows; this read shares its key, so vue-query makes one request of it
+// and the page can still say whether the day is quiet.
+const roadsideOpen = computed(() => opens("/shop/roadside-repairs"));
+const roadsideQ = useRoadsideRepairsDueQuery(roadsideOpen);
+const shortFilter = ref({ shortOnly: true, checkedOnly: true });
+const shortQ = useUnitsQuery(shortFilter);
+const lowQ = useLowStockQuery();
+const walksFilter = ref({ status: "open" as const });
+const walksQ = useCountSessionsQuery(walksFilter);
 const window_ = lastFullMonth();
 const spendFilter = ref({ from: window_.from, to: window_.to, page: 1 });
 const spendQ = useMaintenanceSpendQuery(spendFilter);
-const spend = spendQ.data;
 
-const lowStock = useLowStockQuery();
-const lowTotal = computed(() => lowStock.data.value?.total ?? 0);
-const lowPreview = computed<StockLineDto[]>(() => (lowStock.data.value?.lines ?? []).slice(0, PREVIEW_ROWS));
+const defects = computed<ShopDefectDto[]>(() => defectsQ.data.value ?? []);
+const orders = computed<ShopWorkOrderDto[]>(() => ordersQ.data.value ?? []);
+const annual = computed<AnnualDueDto[]>(() => annualQ.data.value ?? []);
+const roadside = computed(() => (roadsideQ.data.value ?? []).filter((r) => !repairSettled(r)));
+const shortUnits = computed<UnitKitDto[]>(() => shortQ.data.value?.units ?? []);
+const shortTotal = computed(() => shortQ.data.value?.total ?? 0);
+const low = computed<StockLineDto[]>(() => lowQ.data.value?.lines ?? []);
+const lowTotal = computed(() => lowQ.data.value?.total ?? 0);
+const walksTotal = computed(() => walksQ.data.value?.total ?? 0);
 
-// R10: only units somebody has checked. Adopting the standard kit makes every unit short on paper
-// until its things are tagged, and a tile reading 440 for weeks is a tile nobody reads by the time
-// it means something. The tile says so, and links to the same filtered list.
-const shortFilter = ref({ shortOnly: true, checkedOnly: true });
-const shortUnits = useUnitsQuery(shortFilter);
-const shortTotal = computed(() => shortUnits.data.value?.total ?? 0);
-const shortPreview = computed<UnitKitDto[]>(() => (shortUnits.data.value?.units ?? []).slice(0, PREVIEW_ROWS));
+const reads = [defectsQ, ordersQ, annualQ, roadsideQ, shortQ, lowQ, walksQ];
+const settled = computed(() => reads.every((q) => !q.isLoading.value && !q.isError.value));
+const quiet = computed(
+  () =>
+    settled.value &&
+    defects.value.length === 0 &&
+    orders.value.length === 0 &&
+    annual.value.length === 0 &&
+    roadside.value.length === 0 &&
+    shortTotal.value === 0 &&
+    lowTotal.value === 0 &&
+    walksTotal.value === 0,
+);
 
-/**
- * Midnight local, as an instant.
- *
- * `occurred_at` is the CLIENT's clock (the phone that counted a shelf in a dead zone), so "today"
- * is the shop's day and not UTC's — a shift that starts at 06:00 Central would otherwise see its
- * first five hours fall into yesterday for anyone reading before 19:00.
- */
-const startOfToday = computed(() => {
-  const d = new Date();
-  d.setHours(0, 0, 0, 0);
-  return d.toISOString();
-});
-const todayFilter = computed(() => ({ since: startOfToday.value, page: 1 }));
-const todayQ = useMovementsQuery(todayFilter);
-const today = todayQ.data;
-
-/**
- * The repair backlog FleetPal holds (FLEET-MANAGER-HOME-PLAN Q-FM6 (a)) — the same counts as the
- * Operations tab's Shop card, from the same endpoint, each the length of the list it opens. They sit
- * ABOVE the first-run callout: "no parts on the shelves" is about inventory, and an org with no parts
- * entered still has trucks in the shop.
- */
-const summary = useShopSummaryQuery();
-
-const session = useSessionStore();
-const counting = ref(false);
-
-/**
- * Every door on this page is asked of its own page (SP5, plan §4b). They all share this page's
- * `maintenance` section, which is why nobody noticed they were ungated — but Parts and Units are each
- * a screen the admin can switch off per role and per person (D-SURF1), and a tile or a row pointing at
- * a switched-off one was a door the guard answered with the dashboard. Scan and the repair ledger
- * answer to this page's own screen (D-SURF8) and so open whenever it does; they are asked anyway, so
- * that fact lives in the catalogue and not in a guess written here.
- */
-const opens = useOpens();
-const partsOpen = computed(() => opens("/shop/inventory"));
+// ── the doors (SP5, plan §4b): every link asks whether its page opens for this reader ─────────
 const unitsOpen = computed(() => opens("/shop/units"));
+const partsOpen = computed(() => opens("/shop/inventory"));
+const inspectionsOpen = computed(() => opens("/shop/inspections"));
+const defectsOpen = computed(() => opens("/shop/defects"));
+const ordersOpen = computed(() => opens("/shop/work-orders"));
 
-const catalogueFilter = ref({ page: 1 });
-const catalogueQ = usePartsQuery(catalogueFilter);
+/** "All 7 open defects" — the count is the whole list's, which arrives whole (`useShopBacklog`). */
+const allLabel = (n: number, what: string) => `All ${n} ${what}`;
 
-/**
- * Nothing in the catalogue means nothing anywhere else either — every quantity is a quantity OF a part.
- * Only an ANSWER says the catalogue is empty (F1, US6b): a failed read has no parts either, and drew
- * "No parts on the shelves yet. Add the first part" over a shop whose parts nobody had read.
- */
-const firstRun = computed(() => catalogueQ.data.value !== undefined && catalogueQ.data.value.total === 0);
+// ── the verbs ──────────────────────────────────────────────────────────────────────────────────
+const counting = ref(false);
+const actions = computed<WalkAction[]>(() => {
+  if (!session.can("maintenance")) return [];
+  const list: WalkAction[] = [];
+  if (opens("/shop/scan")) list.push({ label: "Scan", primary: true, onClick: () => router.push("/shop/scan") });
+  if (partsOpen.value) list.push({ label: "Count a shelf", onClick: () => (counting.value = true) });
+  return list;
+});
 
-/**
- * Four columns, not the low-stock page's six: the preview sits in half the width, and a fifth
- * column pushed "Order" off the card in a real render. The shelf is on the page the link opens.
- */
+// ── columns: three facts a row, because below `md` each row is a card (§4.5) ──────────────────
+const DEFECT_COLUMNS: DataTableColumn[] = [
+  { key: "unitNumber", label: "Unit", cellClass: "font-medium text-ink", width: "sm" },
+  { key: "what", label: "Found" },
+  { key: "detectedAt", label: "On", width: "md" },
+];
+const ORDER_COLUMNS: DataTableColumn[] = [
+  { key: "unitNumber", label: "Unit", cellClass: "font-medium text-ink", width: "sm" },
+  { key: "work", label: "Work" },
+  { key: "openedAt", label: "Opened", width: "md" },
+];
+const ANNUAL_COLUMNS: DataTableColumn[] = [
+  { key: "unitNumber", label: "Unit", cellClass: "font-medium text-ink", width: "sm" },
+  { key: "due", label: "Due" },
+  { key: "subjectType", label: "Kind", width: "sm", cellClass: "text-ink-secondary" },
+];
+const SHORT_COLUMNS: DataTableColumn[] = [
+  { key: "unitNumber", label: "Number", cellClass: "font-medium text-ink", width: "sm" },
+  { key: "shortBy", label: "Missing", numeric: true },
+  { key: "lastCheckedAt", label: "Last checked", width: "md" },
+];
 const LOW_COLUMNS: DataTableColumn[] = [
-  { key: "partNumber", label: "Part number", cellClass: "font-mono text-xs text-ink" },
-  { key: "partDescription", label: "Description" },
+  { key: "partNumber", label: "Part" },
   { key: "quantityOnHand", label: "On hand", numeric: true },
   { key: "reorderQuantity", label: "Order", numeric: true },
 ];
 
-const SHORT_COLUMNS: DataTableColumn[] = [
-  { key: "unitNumber", label: "Number", cellClass: "font-medium text-ink", width: "sm" },
-  { key: "shortBy", label: "Missing", numeric: true },
-  { key: "state", label: "Status", width: "sm" },
-];
+/** "12 days left" / "3 days overdue", counted in the org's day rather than the server's (D-DS18). */
+function annualDue(row: AnnualDueDto): { text: string; tone: string } {
+  const e = inspectionExpiry(row.expiresOn, today.value);
+  const days = e.daysRemaining ?? row.daysRemaining;
+  const n = Math.abs(days);
+  const unit = n === 1 ? "day" : "days";
+  if (days < 0) return { text: `${formatDate(row.expiresOn)} · ${n} ${unit} overdue`, tone: "font-medium text-danger-700" };
+  if (days === 0) return { text: `${formatDate(row.expiresOn)} · today`, tone: "font-medium text-warning-700" };
+  return { text: `${formatDate(row.expiresOn)} · ${n} ${unit} left`, tone: days <= 7 ? "font-medium text-warning-700" : "" };
+}
 
-const unitPath = (u: UnitKitDto) =>
-  `/shop/units/${u.kind === "tractor" ? "tractor" : "trailer"}/${u.unitId}`;
+const unitPath = (u: UnitKitDto) => `/shop/units/${u.kind === "tractor" ? "tractor" : "trailer"}/${u.unitId}`;
+const asRows = <T,>(rows: T[]) => rows.slice(0, PREVIEW_ROWS) as unknown as Record<string, unknown>[];
 </script>
 
 <template>
-  <div class="space-y-6">
-    <PageHeader description="What is in for repair, what the shop holds, what needs ordering, and what moved today.">
-      <template v-if="session.can('maintenance')" #actions>
-        <!-- The two things on this page that start a task rather than opening a list.
-             Scan leads: it is the verb of the job — a technician arrives at this screen holding a
-             carton or standing at a bin, and every shelf verb is one trigger pull away behind it.
-             A count is the deliberate, slower act, and it is picked from a location. -->
-        <BaseButton v-if="opens('/shop/scan')" variant="primary" to="/shop/scan">
-          <AppIcon :icon="ScanIcon" class="-ml-0.5 size-5" aria-hidden="true" /> Scan
-        </BaseButton>
-        <BaseButton @click="counting = true">
-          <AppIcon :icon="ChecklistIcon" class="-ml-0.5 size-5" aria-hidden="true" /> Count a shelf
-        </BaseButton>
+  <div class="space-y-6 pb-20 sm:pb-0">
+    <PageHeader description="What needs doing in the shop, most urgent first.">
+      <template v-if="actions.length" #actions>
+        <WalkActions :actions="actions" />
       </template>
     </PageHeader>
 
-    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+    <AppCallout v-if="quiet" data-test="quiet-day">
+      Nothing waits on the shop today. No repair is due, nothing is in for repair, every annual inspection
+      is in date, and nothing is missing or running low.
+    </AppCallout>
+
+    <RoadsideRepairsDueSection hide-when-empty />
+
+    <ShopWorklistSection
+      title="Found on an inspection, not fixed"
+      test-id="defects"
+      :columns="DEFECT_COLUMNS"
+      :rows="asRows(defects)"
+      row-key="id"
+      :loading="defectsQ.isLoading.value"
+      :error="defectsQ.isError.value ? 'Could not load the open defects.' : null"
+      :all-to="defectsOpen ? '/shop/defects' : null"
+      :all-label="allLabel(defects.length, 'open defects')"
+      :clickable="defectsOpen"
+      empty-text="No open defects."
+      @row-click="router.push('/shop/defects')"
+      @retry="defectsQ.refetch()"
+    >
+      <template #cell-unitNumber="{ value }">{{ value ?? "—" }}</template>
+      <template #cell-what="{ row }">{{ (row as ShopDefectDto).name ?? (row as ShopDefectDto).description ?? "—" }}</template>
+      <template #cell-detectedAt="{ value }">{{ value ? formatDate(value) : "—" }}</template>
+    </ShopWorklistSection>
+
+    <ShopWorklistSection
+      title="In the shop now"
+      test-id="work-orders"
+      :columns="ORDER_COLUMNS"
+      :rows="asRows(orders)"
+      row-key="id"
+      :loading="ordersQ.isLoading.value"
+      :error="ordersQ.isError.value ? 'Could not load the open work orders.' : null"
+      :all-to="ordersOpen ? '/shop/work-orders' : null"
+      :all-label="allLabel(orders.length, 'open work orders')"
+      :clickable="ordersOpen"
+      empty-text="No open work orders."
+      @row-click="router.push('/shop/work-orders')"
+      @retry="ordersQ.refetch()"
+    >
+      <template #cell-unitNumber="{ value }">{{ value ?? "—" }}</template>
+      <template #cell-work="{ row }">
+        {{ (row as ShopWorkOrderDto).description ?? (row as ShopWorkOrderDto).referenceNumber ?? "—" }}
+      </template>
+      <template #cell-openedAt="{ value }">{{ value ? formatDate(value) : "—" }}</template>
+    </ShopWorklistSection>
+
+    <ShopWorklistSection
+      title="Annual inspection due"
+      test-id="annual-due"
+      :columns="ANNUAL_COLUMNS"
+      :rows="asRows(annual)"
+      row-key="unitId"
+      :loading="annualQ.isLoading.value"
+      :error="annualQ.isError.value ? 'Could not load the annual inspections due.' : null"
+      :all-to="inspectionsOpen ? '/shop/inspections' : null"
+      :all-label="allLabel(annual.length, 'due')"
+      :clickable="inspectionsOpen"
+      empty-text="No annual inspection is due."
+      @row-click="(row) => router.push({ path: '/shop/inspections', query: { search: (row as unknown as AnnualDueDto).unitNumber } })"
+      @retry="annualQ.refetch()"
+    >
+      <template #cell-due="{ row }">
+        <span :class="annualDue(row as unknown as AnnualDueDto).tone" data-test="annual-due-when">{{ annualDue(row as unknown as AnnualDueDto).text }}</span>
+      </template>
+      <template #cell-subjectType="{ value }">{{ value === "tractor" ? "Truck" : "Trailer" }}</template>
+    </ShopWorklistSection>
+
+    <ShopWorklistSection
+      title="Missing equipment"
+      test-id="missing-equipment"
+      :columns="SHORT_COLUMNS"
+      :rows="asRows(shortUnits)"
+      row-key="unitId"
+      :loading="shortQ.isLoading.value"
+      :error="shortQ.isError.value ? 'Could not load the fleet.' : null"
+      :all-to="unitsOpen ? '/shop/units?kit=short-checked' : null"
+      :all-label="allLabel(shortTotal, 'trucks and trailers')"
+      :clickable="unitsOpen"
+      empty-text="No checked truck or trailer is missing anything."
+      @row-click="(row) => router.push(unitPath(row as unknown as UnitKitDto))"
+      @retry="shortQ.refetch()"
+    >
+      <template #cell-shortBy="{ value }"><span class="font-semibold text-danger-700">{{ value }}</span></template>
+      <template #cell-lastCheckedAt="{ value }">{{ value ? formatDate(value) : "Never" }}</template>
+    </ShopWorklistSection>
+
+    <ShopWorklistSection
+      title="Running low"
+      test-id="running-low"
+      :columns="LOW_COLUMNS"
+      :rows="asRows(low)"
+      :row-key="(r: Record<string, unknown>) => `${r.partId}:${r.locationId}`"
+      :loading="lowQ.isLoading.value"
+      :error="lowQ.isError.value ? 'Could not load the reorder list.' : null"
+      :all-to="partsOpen ? '/shop/inventory?stock=low' : null"
+      :all-label="allLabel(lowTotal, 'shelves')"
+      :clickable="partsOpen"
+      empty-text="Nothing is running low."
+      @row-click="(row) => router.push(`/shop/inventory/${row.partId}`)"
+      @retry="lowQ.refetch()"
+    >
+      <template #cell-partNumber="{ row }">
+        <span class="font-mono text-xs text-ink">{{ (row as StockLineDto).partNumber }}</span>
+        <span class="ml-2 text-sm text-ink-secondary">{{ (row as StockLineDto).partDescription }}</span>
+      </template>
+      <template #cell-quantityOnHand="{ row }"><StockLevelCell :line="row as StockLineDto" /></template>
+    </ShopWorklistSection>
+
+    <!-- R9: draws nothing while nothing is open. -->
+    <OpenCountsList title="Checks left open" />
+
+    <!-- The one money figure: the door to the repair-bills page, under the work rather than over it. -->
+    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
       <StatCard
-        label="Open work orders"
-        :value="summary.data.value?.openWorkOrders ?? '—'"
-        :muted="summary.data.value?.openWorkOrders === 0"
-        sub="Repairs FleetPal has in progress"
-        :icon="WrenchIcon"
-        tone="warning"
-        :loading="summary.isLoading.value"
-        :error="summary.isError.value ? 'Could not load the work orders.' : null"
-        :retrying="summary.isFetching.value"
-        :to="opens('/shop/work-orders') ? '/shop/work-orders' : undefined"
-        @retry="summary.refetch()"
-      />
-      <StatCard
-        label="Open defects"
-        :value="summary.data.value?.unresolvedDefects ?? '—'"
-        :muted="summary.data.value?.unresolvedDefects === 0"
-        sub="Found on inspections, not yet resolved"
-        :icon="ClipboardDocumentListIcon"
-        tone="danger"
-        :loading="summary.isLoading.value"
-        :error="summary.isError.value ? 'Could not load the defects.' : null"
-        :retrying="summary.isFetching.value"
-        :to="opens('/shop/defects') ? '/shop/defects' : undefined"
-        @retry="summary.refetch()"
+        label="Repair bills"
+        :value="!spendQ.data.value || spendQ.data.value.pendingSources ? '—' : fmtMoney(spendQ.data.value.totalAmount)"
+        :sub="spendQ.data.value?.pendingSources ?? 'Booked in the last full month'"
+        :icon="GaugeIcon"
+        tone="success"
+        :loading="spendQ.isLoading.value"
+        :error="spendQ.isError.value ? 'Could not load the repair bills.' : null"
+        :retrying="spendQ.isFetching.value"
+        :to="opens('/shop/repair-spend') ? '/shop/repair-spend' : undefined"
+        @retry="spendQ.refetch()"
       />
     </div>
 
-    <!-- Beside FleetPal's backlog, above the parts: a 396.9(d) deadline is the shop's work whether or not any
-         part is on a shelf (IC11 B2b, Q-IC16 (a)). -->
-    <RoadsideRepairsDueSection />
-
-    <!-- A callout, not a hand-rolled card: it is a fact about the page that survives every action
-         on it, and the product has a primitive for exactly that. -->
-    <QueryState
-      v-if="catalogueQ.isError.value"
-      compact
-      :loading="false"
-      :error="true"
-      :retrying="catalogueQ.isFetching.value"
-      error-text="Could not load the parts."
-      @retry="catalogueQ.refetch()"
-    />
-    <AppCallout v-if="firstRun" tone="brand">
-      No parts on the shelves yet. Add the first part and the shop starts keeping count of it.
-      <template #actions>
-        <BaseButton v-if="partsOpen" variant="primary" size="sm" :to="{ path: '/shop/inventory', query: { new: '1' } }">
-          <AppIcon :icon="PlusIcon" class="-ml-0.5 size-4" aria-hidden="true" /> Add a part
-        </BaseButton>
-      </template>
-    </AppCallout>
-
-    <template v-else>
-      <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard
-          label="Running low"
-          :value="lowTotal"
-          :muted="lowTotal === 0"
-          :sub="lowTotal === 0 ? 'Nothing at its reorder point' : 'Shelves at or below their reorder point'"
-          :icon="ExclamationTriangleIcon"
-          tone="warning"
-          :loading="lowStock.isLoading.value"
-          :error="lowStock.isError.value ? 'Could not load the reorder list.' : null"
-          :retrying="lowStock.isFetching.value"
-          :to="partsOpen ? '/shop/inventory?stock=low' : undefined"
-          @retry="lowStock.refetch()"
-        />
-        <StatCard
-          label="Missing equipment"
-          :value="shortTotal"
-          :muted="shortTotal === 0"
-          :sub="shortTotal === 0 ? 'No checked unit is missing anything' : 'Checked units missing something'"
-          :icon="TruckIcon"
-          :tone="shortTotal > 0 ? 'danger' : 'neutral'"
-          :loading="shortUnits.isLoading.value"
-          :error="shortUnits.isError.value ? 'Could not load the fleet.' : null"
-          :retrying="shortUnits.isFetching.value"
-          :to="unitsOpen ? '/shop/units?kit=short-checked' : undefined"
-          @retry="shortUnits.refetch()"
-        />
-        <StatCard
-          label="Moved today"
-          :value="today?.total ?? '—'"
-          :muted="today?.total === 0"
-          sub="Ledger rows since midnight"
-          :icon="ArrowsRightLeftIcon"
-          tone="info"
-          :loading="todayQ.isLoading.value"
-          :error="todayQ.isError.value ? 'Could not load what moved today.' : null"
-          :retrying="todayQ.isFetching.value"
-          @retry="todayQ.refetch()"
-        />
-        <!-- `pendingSources` is the API's own sentence about why the store is empty; the page it
-             links to renders the same one. A zero here without it would be a mysterious zero. -->
-        <StatCard
-          label="Repair spend"
-          :value="!spend || spend.pendingSources ? '—' : fmtMoney(spend.totalAmount)"
-          :sub="spend?.pendingSources ?? 'Booked in the last full month'"
-          :icon="GaugeIcon"
-          tone="success"
-          :loading="spendQ.isLoading.value"
-          :error="spendQ.isError.value ? 'Could not load the repair spend.' : null"
-          :retrying="spendQ.isFetching.value"
-          :to="opens('/shop/repair-spend') ? '/shop/repair-spend' : undefined"
-          @retry="spendQ.refetch()"
-        />
-      </div>
-
-      <div class="grid grid-cols-1 gap-6 xl:grid-cols-2">
-        <section class="space-y-3">
-          <div class="flex items-center justify-between gap-4">
-            <h2 class="text-sm font-semibold text-ink">To order</h2>
-            <RouterLink
-              v-if="lowTotal > PREVIEW_ROWS && partsOpen"
-              to="/shop/inventory?stock=low"
-              class="text-sm font-medium text-link hover:text-link-hover"
-            >
-              All {{ lowTotal }} shelves
-            </RouterLink>
-          </div>
-          <DataTable
-            :columns="LOW_COLUMNS"
-            :rows="lowPreview"
-            :row-key="(r: StockLineDto) => `${r.partId}:${r.locationId}`"
-            :loading="lowStock.isLoading.value"
-            :error="lowStock.isError.value ? 'Could not load the reorder list.' : null"
-            :row-class="() => (partsOpen ? 'cursor-pointer' : '')"
-            @row-click="(row) => partsOpen && $router.push(`/shop/inventory/${row.partId}`)"
-            @retry="() => lowStock.refetch()"
-          >
-            <template #cell-quantityOnHand="{ row }">
-              <StockLevelCell :line="row as StockLineDto" />
-            </template>
-            <template #empty>
-              <p>Nothing to order. Every shelf with a reorder point is above it.</p>
-            </template>
-          </DataTable>
-        </section>
-
-        <section class="space-y-3">
-          <div class="flex items-center justify-between gap-4">
-            <h2 class="text-sm font-semibold text-ink">Missing equipment</h2>
-            <RouterLink
-              v-if="shortTotal > PREVIEW_ROWS && unitsOpen"
-              to="/shop/units?kit=short-checked"
-              class="text-sm font-medium text-link hover:text-link-hover"
-            >
-              All {{ shortTotal }} trucks and trailers
-            </RouterLink>
-          </div>
-          <DataTable
-            :columns="SHORT_COLUMNS"
-            :rows="shortPreview"
-            row-key="unitId"
-            :loading="shortUnits.isLoading.value"
-            :error="shortUnits.isError.value ? 'Could not load the fleet.' : null"
-            :row-class="() => (unitsOpen ? 'cursor-pointer' : '')"
-            @row-click="(row) => unitsOpen && $router.push(unitPath(row as unknown as UnitKitDto))"
-            @retry="() => shortUnits.refetch()"
-          >
-            <template #cell-shortBy="{ value }">
-              <span class="font-semibold text-danger-700">{{ value }}</span>
-            </template>
-            <template #cell-state="{ value }">
-              <span v-if="kitStatusBadge(value)" :class="[BADGE_BASE, toneClass(kitStatusBadge(value)!.tone)]">
-                {{ kitStatusBadge(value)!.label }}
-              </span>
-              <span v-else class="text-ink-tertiary">—</span>
-            </template>
-            <template #empty>
-              <p>No checked truck or trailer is missing anything. Ones nobody has checked yet are not counted here.</p>
-            </template>
-          </DataTable>
-        </section>
-      </div>
-    </template>
-
-    <!-- R9: walks somebody started and nobody closed. Outside the parts gate above, because a kit
-         check needs no part on any shelf; draws nothing while nothing is open. -->
-    <OpenCountsList title="Open counts" />
-
+    <WalkActions v-if="actions.length" :actions="actions" bar />
     <StartCountDrawer :open="counting" @close="counting = false" />
   </div>
 </template>

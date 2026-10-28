@@ -318,3 +318,12 @@ M1 and M2 are a week of work together; M3 is the largest because F10 was never b
   and winding-down trucks excluded from the shop's unit list; the roadside page's citation moved
   into a comment. Queue after M1: M2 (worklist home) → **F12 (parts from FleetPal, pulled forward
   by Q-MX2)** → M3 (hub) → M4 (phone rules) → M5 (owner pass on the tablet).
+- **2026-10-27 (night)** — **M2 built** on `claude/maintenance-m2-worklist`: the Shop home is one
+  worklist of seven groups drawn only when they have rows (`ShopWorklistSection.vue`; the roadside
+  section gained `hide-when-empty`), a quiet-day sentence that waits for every read to answer, Scan
+  and Count a shelf rendered once in the header and once as the phone's bottom bar (`WalkActions`),
+  the repair-bills figure under the list as the door to its page, and a new read
+  `GET /api/maintenance/annual-due` (`readAnnualDue`, `AnnualDueDto`) for the annual group — due
+  within 30 days or overdue, by our record, through the same `inspectionExpiry` the roster uses.
+  The six tiles, the first-run callout and the "Moved today" count are gone (D-MX2). "Equipment not
+  returned" waits for DE2's read. Next: **F12** (parts from FleetPal, Q-MX2), then M3.

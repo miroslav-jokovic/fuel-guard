@@ -1744,3 +1744,10 @@ out-of-order retry does not overwrite newer state — each proved by a test, and
   Reaches production with the next release. The check after it: `fleetpal_units` ≈ 489 rows, a
   `units` row in `fleetpal_sync_state` with no `last_error`, and the unmatched count on the
   FleetPal units page — F4 measured 48 unmatched of 474.
+
+- **2026-10-27 · F12 pulled forward by the owner (MAINTENANCE-SECTION-REDESIGN-PROPOSAL.md Q-MX2).**
+  Asked whether Parts should hide until FleetPal fills it, the owner answered: *"We have full
+  FleetPal access via API, why are we not populating parts in there?"* Parts stays a sidebar row and
+  F12 (the parts catalogue sync) is next after the shop worklist (M2), ahead of F10/F11, which the
+  redesign's M3 then builds. The DE plan's §0 ruling stands: shop parts come from FleetPal, truck
+  equipment is ours.
