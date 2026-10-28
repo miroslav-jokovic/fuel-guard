@@ -161,7 +161,7 @@ const facts = computed<Fact[]>(() => {
     { label: "Hand entry", value: c.handEnter },
     { label: "Payroll status", value: c.payrollStatus },
     { label: "Last used", value: c.lastUsedDate ? formatDateTime(c.lastUsedDate) : "Never" },
-    { label: "Last authorisation", value: c.lastTransaction },
+    { label: "Last authorization", value: c.lastTransaction },
   ];
 });
 
@@ -220,10 +220,11 @@ const facts = computed<Fact[]>(() => {
                 :key="row.op.id"
                 class="kebab-item"
                 :disabled="row.blocked !== null"
-                :title="row.reason ?? undefined"
                 @click="openOperation = row.op"
               >
                 {{ row.op.menuLabel }}
+                <!-- D-CCF9: the reason on screen, not in a hover title a tablet never shows. -->
+                <span v-if="row.reason" class="block text-xs text-ink-muted">{{ row.reason }}</span>
               </BaseButton>
             </KebabMenu>
           </div>
@@ -295,10 +296,11 @@ const facts = computed<Fact[]>(() => {
                 :key="row.op.id"
                 class="kebab-item"
                 :disabled="row.blocked !== null"
-                :title="row.reason ?? undefined"
                 @click="openOperation = row.op"
               >
                 {{ row.op.menuLabel }}
+                <!-- D-CCF9: the reason on screen, not in a hover title a tablet never shows. -->
+                <span v-if="row.reason" class="block text-xs text-ink-muted">{{ row.reason }}</span>
               </BaseButton>
             </KebabMenu>
           </template>

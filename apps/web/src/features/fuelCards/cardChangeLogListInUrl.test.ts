@@ -52,6 +52,13 @@ describe("Card changes keeps its list in the URL", () => {
     expect(w.findComponent(TablePagination).props("page")).toBe(3);
   });
 
+  // CCF4 (plan W8): the chip printed the raw query value, `2026-09-01 → 2026-09-30`.
+  it("shows the date chip in the app's one date format", async () => {
+    const { w } = await mountAt("/audit?tab=cards&cards.from=2026-09-01&cards.to=2026-09-30");
+    const chips = w.findComponent({ name: "FilterBar" }).props("chips") as { value: string }[];
+    expect(chips.map((c) => c.value)).toEqual(["09/01/2026 → 09/30/2026"]);
+  });
+
   it("reads a date that is not a real day as no bound", async () => {
     await mountAt("/audit?cards.from=2026-13-01");
     expect(filters()).toEqual({});

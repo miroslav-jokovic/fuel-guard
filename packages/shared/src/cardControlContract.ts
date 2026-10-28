@@ -241,6 +241,8 @@ export function mergeEffectiveConfig<T>(
  * the browser can see.
  */
 export {
+  CARD_BLOCKED_SENTENCES,
+  cardBlockedSentence,
   cardBlockedBySchema,
   cardCapabilitiesSchema,
   type CardBlockedBy,

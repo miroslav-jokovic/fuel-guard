@@ -32,7 +32,7 @@ export const cardLockView = defineView(cardLockContract, {
      * this product can now perform.
      */
     body:
-      "The card stops working at every location immediately. Fuel purchases will decline until you unlock it."
+      "The card stops working at every location immediately. Fuel purchases will decline until someone sets it back to Active."
       + (body.clearException && cardHasArmedException(card.card.overrideUses)
         ? clearExceptionClause(card.card.overrideUses ?? 0)
         : ""),

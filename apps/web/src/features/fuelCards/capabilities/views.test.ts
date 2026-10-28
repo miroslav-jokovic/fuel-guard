@@ -88,12 +88,15 @@ describe("locking says what happens to the DRIVER", () => {
       .toMatch(/lock/i);
   });
 
-  it("says a HELD card is being retired, not that it is about to stop working", () => {
+  it("says a HELD card moves straight to Inactive, not that it is about to stop working", () => {
     // The sentence Step 8.1 was written for. A card on Hold already declines fuel, so the ordinary
     // copy's "stops working at every location immediately" is false of it — and the claim that
     // matters is the one the step's own Verify names: it never becomes spendable on the way.
     const held = cardDeactivateView.confirmation({ expectedVersion: "" }, context({ status: "HOLD" }));
-    expect(held.title).toMatch(/retire/i);
+    // D-CCF7 (plan W1): deactivating is reversible — 5 production Inactive→Active unlocks.
+    expect(held.title).toBe("Deactivate this card?");
+    expect(held.body).toMatch(/until someone sets it back to Active/);
+    expect(`${held.title} ${held.body}`).not.toMatch(/retire|for good/i);
     expect(held.body).toMatch(/nothing changes at the pump/i);
     expect(held.body).not.toMatch(/stops working at every location/i);
   });

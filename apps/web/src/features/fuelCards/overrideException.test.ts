@@ -49,7 +49,7 @@ describe("the blocker, which is the way through rather than a wall", () => {
   it("names the tick rather than the failure — invariant 6 wants the remedy, not the diagnosis", () => {
     expect(CLEAR_EXCEPTION_BLOCKER).toContain("Tick");
     // POSITIVE CONTROL for that absence: it still says WHY, or the operator is being ordered about.
-    expect(CLEAR_EXCEPTION_BLOCKER).toContain("ignore the status change");
+    expect(CLEAR_EXCEPTION_BLOCKER).toContain("ignores the status change");
   });
 });
 

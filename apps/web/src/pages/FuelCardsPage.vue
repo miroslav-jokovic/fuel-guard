@@ -86,7 +86,7 @@ const syncOutcome = computed((): { tone: string; text: string; at?: string } | n
     if (/not\s*allowed/i.test(job.error ?? "")) {
       return {
         tone: "warning",
-        text: "EFS refused the card operations for this account. Transaction feeds are still working, so the credentials are fine. An admin can run the card diagnostic to see exactly which operations are refused before raising it with WEX.",
+        text: "EFS refused the card operations for this account. Transaction feeds are still working, so the credentials are fine. Ask your Silvicom 360 administrator to find out which card changes EFS refuses before raising it with WEX.",
       };
     }
     return { at, tone: "danger", text: `EFS refresh failed: ${job.error ?? "no reason reported"}` };
@@ -101,7 +101,7 @@ const syncOutcome = computed((): { tone: string; text: string; at?: string } | n
     return { at, tone: "danger", text: `EFS refresh could not store any cards: ${stats?.errors?.[0] ?? "see the API log"}` };
   }
   if ((stats?.cardsSeen ?? 0) === 0) {
-    return { at, tone: "warning", text: "EFS returned no cards for this account. Check that the service account can see this fleet's cards." };
+    return { at, tone: "warning", text: "EFS returned no cards for this account. Check that the EFS login in Settings → EFS Integration can see this fleet's cards." };
   }
   return null;
 });

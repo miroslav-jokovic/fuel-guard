@@ -652,7 +652,9 @@ describe("invariant 6 — a disabled button names what is missing", () => {
     });
 
     expect(button(wrapper, "Grant exception").attributes("disabled")).toBeDefined();
-    expect(wrapper.text()).toContain("An admin needs to prove it on a test card first");
+    // D-CCF8: approving is the operator CLI, so the sentence names who to ask, never a screen.
+    expect(wrapper.text()).toContain("Ask your Silvicom 360 administrator.");
+    expect(wrapper.text()).not.toContain("prove it on a test card");
   });
 });
 

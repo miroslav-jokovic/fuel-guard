@@ -387,7 +387,7 @@ function sentNotice(version: string | null | undefined, operationId?: CardOperat
         "back is WHERE the exception applies, so we cannot confirm the locations you chose. Check " +
         "the card in the WEX portal — and do not grant another, because the first one is live.",
       retryNote:
-        "Trying again is disabled for this one. The exception is already armed, so a retry would " +
+        "Trying again is disabled for this one. The exception is already on the card, so a retry would " +
         "grant a second free tank rather than repair anything.",
     };
   }

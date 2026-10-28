@@ -27,15 +27,15 @@ export const cardDeactivateView = defineView(cardDeactivateContract, {
     const wasHeld = efsStatusEquals(card.card.status, "Hold");
     return {
       tone: "danger",
-      title: wasHeld ? "Retire this card from the fleet?" : "Deactivate this card?",
+      // One title for both: "Retire … from the fleet" promised a permanence EFS does not have. CCF4
+      // (D-CCF7, plan W1) measured 5 production unlocks that took a card from Inactive back to Active.
+      title: "Deactivate this card?",
       body: wasHeld
-        // It is already declining fuel; what changes is that this is now how it stays. And it gets
-        // there directly — the card is never briefly spendable on the way, which is what made the old
-        // unlock-then-deactivate sequence worth removing.
-        ? "This card is already on hold, so nothing changes at the pump right now. Deactivating retires it for good — "
-          + "it will not be re-enabled by lifting the hold, and it never becomes spendable on the way there."
-        : "The card stops working at every location immediately, and deactivating is how a card is retired rather than paused. "
-          + "Fuel purchases will decline until somebody activates it again.",
+        // It is already declining fuel, and it gets to Inactive directly — the card is never briefly
+        // spendable on the way, which is what made the old unlock-then-deactivate sequence worth removing.
+        ? "This card is already on hold, so nothing changes at the pump right now. It moves straight to Inactive "
+          + "without working on the way, and stays off until someone sets it back to Active."
+        : "The card stops working at every location immediately, and stays off until someone sets it back to Active.",
       confirmLabel: "Deactivate card",
       busyLabel: "Deactivating…",
       doneLabel: "Card deactivated",

@@ -248,7 +248,7 @@ describe("removing a card's Driver ID prompt", () => {
     // problem no password solves.
     expect(error).toBeInstanceOf(ActionRefusalError);
     expect((error as ActionRefusalError).code).toBe("invalid_request");
-    expect((error as ActionRefusalError).message).toContain("allowRemoveDriverId");
+    expect((error as ActionRefusalError).message).toContain("has to be confirmed on its own");
     expect(inserted(rec)).toHaveLength(0);
   });
 
