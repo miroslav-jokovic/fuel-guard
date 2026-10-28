@@ -64,6 +64,13 @@ const DRAWABLE: ReadonlySet<number> = (() => {
   return new Set([...first!].filter((c) => rest.every((s) => s.has(c))));
 })();
 
+/**
+ * The face's bytes, for a renderer that draws glyphs itself rather than through a PDF library — the
+ * label printer's (`modules/maintenance/printing/labelRaster.ts`), which must use these files and
+ * not a copy of their paths.
+ */
+export const pdfFontBytes = (face: PdfFace): Buffer => BYTES[face];
+
 export const canDraw = (ch: string): boolean => DRAWABLE.has(ch.codePointAt(0)!);
 
 /**

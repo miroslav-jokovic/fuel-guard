@@ -520,6 +520,18 @@
   "platform_release_approvals": [
     "apps/admin-api/src/lib/releaseApproval.ts"
   ],
+  "print_defaults": [
+    "apps/api/src/modules/maintenance/printing/printers.ts"
+  ],
+  "print_jobs": [
+    "apps/api/src/modules/maintenance/printing/jobs.ts"
+  ],
+  "print_stations": [
+    "apps/api/src/modules/maintenance/printing/stations.ts"
+  ],
+  "printers": [
+    "apps/api/src/modules/maintenance/printing/printers.ts"
+  ],
   "psp_requests": [
     "apps/api/src/modules/psp/pspOrder.ts"
   ],

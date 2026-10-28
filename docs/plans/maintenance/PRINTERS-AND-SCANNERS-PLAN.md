@@ -1,6 +1,6 @@
 # Printers and scanners on any device, chosen once in Settings (2026-10-28)
 
-**Status: PLAN — Q-PS1 ruled 2026-10-28 (the office Windows PC is the station); Q-PS2 open (§7).**
+**Status: BUILDING — Q-PS1 and Q-PS2 ruled 2026-10-28; PS1 + PS2 in one PR (§8).**
 PS0 (the devices on Mac and Windows) runs in parallel with PS1–PS4.
 
 **What the owner asked for (2026-10-28).** Printers and scanners are *set up in Settings*. Once a
@@ -92,7 +92,7 @@ What Settings honestly adds, so the owner's "set it up once" holds for scanners 
 | **D-PS1** | **The server prints; the browser never talks to a device.** | Only this is the same on every OS and device (§1, §2's last row). |
 | **D-PS2** | **The label is rendered on the server as a bitmap in the printer's language** (TSPL `BITMAP` for the RW403B), from the same geometry and QR matrix the PDF uses. | The firmware drops everything else (§2); one renderer keeps PDF and printer labels identical. |
 | **D-PS3** | **A printer is a row with a language**, so a second printer — or a Zebra later — is a setting, not a release. | The owner: "not tied to one scanner or printer". |
-| **D-PS4** | **Default per location, overridable per person; no prompt while a default exists.** | The owner's rule. |
+| **D-PS4** | **Default per organization, overridable per person; no prompt while a default exists.** *Amended 2026-10-28 while building PS1: "per location" had nothing to stand on — the product has no office-location table (`terminals` was dropped in 0259), and inventing one for printers would be a second, printer-only idea of where people work. A person in the shop chooses the shop printer as their own default once; when sites become a real thing, a site default is one more `print_defaults` scope.* | The owner's rule. |
 | **D-PS5** | **The PDF + dialog path stays, labelled as the fallback** for a place with no station. | It is the only path that needs nothing installed; removing it would strand a site. |
 
 ## 6. Steps
@@ -125,7 +125,7 @@ What Settings honestly adds, so the owner's "set it up once" holds for scanners 
 | # | Question | Candidates | Recommendation |
 |---|---|---|---|
 | **Q-PS1** | ~~What is the print station?~~ **RULED 2026-10-28: (b) the office Windows PC** — printer by USB, our program as a Windows service that starts before login; sleep set to Never, update restarts in active hours. Scanner: dongle on the PC at the desk, Bluetooth to the tablet when walking (one host at a time). A Pi stays the move if the PC proves unreliable — same program. | (a) **A Raspberry Pi 5 (~$100 with case and power), plugged into the printer by USB, left on in the shop.** (b) The office Windows PC, if it is never switched off. (c) This Mac. | **(a).** A dedicated box nobody shuts down, updates or unplugs by accident; (b) works but printing stops whenever that PC sleeps or restarts. |
-| **Q-PS2** | Whose program runs on the station? | (a) **Ours** (PS3). (b) PrintNode's client + their cloud ($9/month, 5,000 prints). | **(a).** The owner ruled out third parties; the job is small because the printer takes raw bytes and needs no driver. (b) is the fallback if PS3 slips. |
+| **Q-PS2** | ~~Whose program runs on the station?~~ **RULED 2026-10-28: (a) ours.** | (a) **Ours** (PS3). (b) PrintNode's client + their cloud ($9/month, 5,000 prints). | **(a).** The owner ruled out third parties; the job is small because the printer takes raw bytes and needs no driver. (b) is the fallback if PS3 slips. |
 | **Q-PS3** | USB or Bluetooth between the station and the printer? | USB · Bluetooth | **USB.** Bluetooth printing drops when either side sleeps; the station never moves. |
 | **Q-PS4** | How many printers, and where? | one shop · shop + office · more | Decides how many stations to buy; the design takes any number. |
 
@@ -136,6 +136,29 @@ What Settings honestly adds, so the owner's "set it up once" holds for scanners 
   printer; the scanner is already device-independent.
 - **2026-10-28 — Q-PS1 ruled: the Windows PC is the station.** PS0 added: the devices on Mac and
   Windows in parallel, with the raw-TSPL spike on the Mac first.
+
+- **2026-10-28 — Q-PS2 ruled: our own program.** Building started.
+- **2026-10-28 — PS1 + PS2 built in one PR.** The four tables could not merge alone (`lint:table-producers`
+  wants a writer in the same PR), and a waiver naming the very next PR was paperwork. What shipped:
+  - **0526** — `print_stations`, `printers`, `print_defaults`, `print_jobs`; one same-org guard (PS001),
+    a job's life only forward (PS002) and fixed once queued (PS003), retired printers refused as new
+    defaults or jobs (PS004), the claim and report RPCs (PS005 for another station's job). A job taken
+    and never reported for two minutes becomes `unknown` — never re-queued (a second label), never
+    failed (a hidden one). Matrix `print-stations.test.mjs`, 49 checks; 10 mutants of the migration,
+    every one killed.
+  - **`@silvicom/qr`** gains `raster.ts` (one-bit bitmaps, QR drawn at whole dots per module, glyph
+    outlines filled non-zero) and `tspl.ts` (only the RW403B's honoured commands; **bit 0 burns** and
+    **`BITMAP` mode 1**, both as measured on the hardware by `m0n01d/munbyn-print`).
+  - **API** — `modules/maintenance/printing/` renders the PDF's own stacked face (`LABEL_FACE_POINTS`,
+    Liberation Sans from `lib/pdfFonts.ts`) at printer resolution; `/api/maintenance/print` (stations,
+    printers, defaults, jobs, `POST /labels` which never asks while a default exists);
+    `/api/print-station` (pair, hello, a 25-second long poll, report) with its own limiter, mounted
+    ahead of the per-address budget like the TMS agent.
+  - **Found on the way:** the same project measured the RW403B feeding ~1.9 % short and landing ~3.1 mm
+    right. On a 2" label the first is ~1 mm and harmless to a QR; the second is what the printer's
+    X nudge is for (≈ −25 dots), set once in Settings during PS5.
+  - **Next:** PS3 (the Windows station program) and PS4 (Settings → Devices, and the Labels screen's
+    Print going to the default).
 
 ## Sources
 

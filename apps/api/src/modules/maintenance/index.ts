@@ -29,6 +29,7 @@
  * `financial`.
  */
 export { maintenanceRouter } from "./routes/index.js";
+export { printStationRouter } from "./routes/printStation.js";
 export { createInspectionDraft, getInspection, patchInspection } from "./inspections/inspections.js";
 export { listInspections } from "./inspections/inspectionList.js";
 export { createInspector, inspectorFor, isQualifiedOn, listInspectors } from "./inspections/inspectors.js";

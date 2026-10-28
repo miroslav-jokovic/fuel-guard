@@ -16,6 +16,7 @@ import { inventoryAssetsRouter } from "./inventoryAssets.js";
 import { inventoryAssetTypesRouter } from "./inventoryAssetTypes.js";
 import { inventoryUnitsRouter, kitExpectationsRouter } from "./inventoryUnits.js";
 import { inventoryLabelsRouter } from "./inventoryLabels.js";
+import { printingRouter } from "./printing.js";
 import { fleetpalCostRouter } from "./fleetpalCost.js";
 import { fleetpalUnitsRouter } from "./fleetpalUnits.js";
 import { shopSummaryRouter } from "./shopSummary.js";
@@ -82,6 +83,8 @@ export function maintenanceRouter(): Router {
   // distinct concern rather than a shelf verb, and relying on the stock router falling through is a
   // dependency on a file that has no reason to know this route exists.
   router.use("/inventory/labels", inventoryLabelsRouter());
+  // Settings → Devices and the Print button (PRINTERS-AND-SCANNERS-PLAN.md PS2).
+  router.use("/print", printingRouter());
   router.use("/inventory/units", inventoryUnitsRouter());
   router.use("/inventory/kit-expectations", kitExpectationsRouter());
   router.use("/inventory", inventoryStockRouter());

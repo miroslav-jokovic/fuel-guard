@@ -28,7 +28,7 @@ import { reportsRouter, aiRouter, dashboardRouter } from "./modules/insights/ind
 import { iftaRouter } from "./modules/ifta/index.js";
 import { accountingRouter } from "./modules/accounting/index.js";
 import { billingRouter } from "./modules/billing/index.js";
-import { maintenanceRouter } from "./modules/maintenance/index.js";
+import { maintenanceRouter, printStationRouter } from "./modules/maintenance/index.js";
 import { tagsRouter } from "./tags/routes.js";
 import { registerTagResolvers } from "./tags/resolvers.js";
 import { auditRouter } from "./modules/org/index.js";
@@ -337,7 +337,7 @@ export function createApp(env: Env): Express {
   });
   app.use("/api/tms", ingestLimiter);
   app.use("/api/tms", tmsIngestRouter());
-
+  app.use("/api/print-station", printStationRouter()); // own limiter + parser, ahead of the per-address budget (printStation.ts)
   mountGeneralRateLimits(app);
 
   mountBodyParsers(app);
