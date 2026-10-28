@@ -26,6 +26,8 @@
 //   10. Cross-tenant isolation: one org's movement cannot land on another org's shelf.
 //   11. RLS: a technician's browser session reads and inserts; it cannot rewrite the ledger, and a
 //       dispatcher — `maintenance: none` — sees nothing at all.
+//   12. 0525 (F12): a part carries FleetPal's id once per org and may say its unit is `unmapped`,
+//       so a renumbered FleetPal part updates in place and an unmappable unit is never a silent `each`.
 //
 // Run:  node supabase/tests/inventory-stock.test.mjs
 import { PGlite } from "@electric-sql/pglite";
@@ -359,6 +361,30 @@ ok(
   "...and has no storage.objects policy",
   (await num(`select count(*)::int as n from pg_policies where schemaname='storage' and policyname like 'inventory%'`)) === 0,
 );
+
+// ── 12. 0525 — the catalogue's FleetPal identity (F12) ──────────────────────────────────────────
+const withFleetpal = (number, org, fleetpalId, unit = "each", raw = null) =>
+  attempt(
+    `insert into parts (org_id, part_number, description, unit_of_measure, fleetpal_id, fleetpal_unit)
+     values ($1,$2,$3,$4,$5,$6)`,
+    [org, number, `Part ${number}`, unit, fleetpalId, raw],
+  );
+ok("a part may carry FleetPal's id", (await withFleetpal("FP-1", ORG, "fp-aaa")) === "OK");
+ok(
+  "the same FleetPal id twice in one org is refused — a renumbered part updates in place, it does not double",
+  (await withFleetpal("FP-1-renumbered", ORG, "fp-aaa")) === "23505",
+);
+ok("the same FleetPal id in another org is that org's own part", (await withFleetpal("FP-1", OTHER, "fp-aaa")) === "OK");
+ok(
+  "two hand-typed parts with no FleetPal id do not collide on the partial index",
+  (await withFleetpal("HAND-1", ORG, null)) === "OK" && (await withFleetpal("HAND-2", ORG, null)) === "OK",
+);
+ok(
+  "an unmappable unit is stored as 'unmapped' with the vendor's word beside it, never forced to 'each'",
+  (await withFleetpal("FP-2", ORG, "fp-bbb", "unmapped", "disp")) === "OK" &&
+    (await one(`select fleetpal_unit as u from parts where org_id=$1 and fleetpal_id='fp-bbb'`, [ORG])).u === "disp",
+);
+ok("...and a unit outside the list is still refused", (await withFleetpal("FP-3", ORG, "fp-ccc", "bx")) === "23514");
 
 await db.close();
 console.log(`\nRESULT: ${pass} passed, ${fail} failed`);
