@@ -1,6 +1,7 @@
 import {
   FleetpalClient,
   getApiKey,
+  projectPmDue,
   recordSweep,
   resolveStagedUnits,
   sweepRepairRecord,
@@ -42,6 +43,15 @@ export const fleetpalSyncHandler: JobHandler = async (ctx, job) => {
   const client = new FleetpalClient({ apiKey: credential.apiKey, baseUrl: credential.baseUrl });
   const results = await sweepRepairRecord({ admin, client, orgId });
   const resolved = await resolveStagedUnits(admin, orgId);
+  // F11, after the resolve so a truck matched this sweep gets its due point this sweep. Its failure is
+  // the sweep's failure to project, not to collect: recorded in the result, never a reason to throw
+  // away eight resources' watermarks.
+  let pmDue: { trucks: number; changed: number } | { error: string };
+  try {
+    pmDue = await projectPmDue(admin, orgId);
+  } catch (e) {
+    pmDue = { error: e instanceof Error ? e.message : String(e) };
+  }
 
   const failed = results.filter((r) => r.error !== null);
   const fetched = results.reduce((n, r) => n + r.fetched, 0);
@@ -63,5 +73,6 @@ export const fleetpalSyncHandler: JobHandler = async (ctx, job) => {
     failedResources: failed.map((r) => `${r.resource}: ${r.error}`),
     unitsResolved: "error" in resolved ? 0 : resolved.updated,
     unmatched: "error" in resolved ? null : resolved.stillUnmatched,
+    pmDue,
   };
 };

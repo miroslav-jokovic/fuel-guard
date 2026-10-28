@@ -224,7 +224,7 @@ describe("the lists behind it", () => {
     const rows = (await call("work-orders")).body.data as ShopWorkOrderDto[];
     expect(rows.map((r) => r.id)).toEqual(["w2", "w1", "w3"]);
     expect(rows[1]).toEqual({
-      id: "w1", referenceNumber: "WO-w1", unitNumber: "654", description: "Brake chamber", priority: "HIGH",
+      id: "w1", referenceNumber: "WO-w1", unitNumber: "654", vehicleId: "v-654", trailerId: null, description: "Brake chamber", priority: "HIGH",
       openedAt: "2026-08-02T10:00:00+00:00",
     });
     // A unit nobody staged, and an order naming no unit, both stay on the list — with no number.

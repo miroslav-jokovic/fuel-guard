@@ -297,11 +297,11 @@ describe("the groups", () => {
 describe("doors that open only where their page does (SP5)", () => {
   it("keeps the missing-equipment rows but drops their link and their click when Trucks & trailers is off", async () => {
     short.value = { units: [unit()], total: 1 };
-    expect(page().html()).toContain("/shop/units?kit=short-checked");
+    expect(page().html()).toContain("/shop/units?show=short");
     session.surfaces = { "maintenance.units": false };
     const w = page();
     expect(section(w, "missing-equipment").text()).toContain("611");
-    expect(w.html()).not.toContain("/shop/units?kit=short-checked");
+    expect(w.html()).not.toContain("/shop/units?show=short");
     await section(w, "missing-equipment").find("tbody tr").trigger("click");
     expect(pushed).toEqual([]);
   });

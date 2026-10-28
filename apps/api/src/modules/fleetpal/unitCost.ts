@@ -199,7 +199,7 @@ function toRepair(r: Record<string, unknown>): UnitRepair {
  * zero days out of service is what a repair that never happened costs, and the two must not print
  * the same. Null when either end is missing, because "we do not know" is a third answer.
  */
-function downtimeOf(started: string | null, completed: string | null): number | null {
+export function downtimeOf(started: string | null, completed: string | null): number | null {
   if (!started || !completed) return null;
   const a = Date.parse(started);
   const b = Date.parse(completed);

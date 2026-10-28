@@ -1781,3 +1781,29 @@ out-of-order retry does not overwrite newer state — each proved by a test, and
   *Comes from: FleetPal*; the edit drawer says what the next sweep overwrites. First production
   sweep should report ≈3,558 created (3,522 INTERNAL + 36 VENDOR, minus 7 duplicates and any
   hand-typed adoptions).
+- **2026-10-28 · F10 + F11 — the truck's page (`claude/maintenance-m3-hub`, MAINTENANCE-SECTION-
+  REDESIGN-PROPOSAL.md M3).** F10 is built on `/shop/units/:kind/:id`: Needs attention · In the shop /
+  repair history · Due · Annual inspection · Equipment it carries · Roadside inspections · Papers, no
+  tabs, the two verbs in the header and the phone's bottom bar. Two reads: `GET /units/attention`
+  (`maintenance/unitAttention.ts`, every unit on the worklist and why, one derivation for the list and
+  the page) and `GET /units/:kind/:id/shop-file` (roster's `getUnitShopFacts` + the collector's
+  `readUnitShopRecord`, `.in()` over every FleetPal unit the row resolves to). The record is the
+  work orders (D-INV10); the money is one line through F9b's gated endpoint, printed only with its
+  "at least N%" bound or with the refusal (D-FP4/D-FP15). `ShopWorkOrderDto`/`ShopDefectDto` carry
+  `vehicleId`/`trailerId` from the F5 mapping, and the fleet pages' `UnitWorkOrdersCard` reads the
+  unit's own file by id — matching an order to a truck by the number string was a second rule beside
+  the mapping. F11: `pmStatus` in shared is the ONE judgement (the board's `pmWarning` now calls it);
+  `fleetpal/pmDue.ts` judges every non-annual schedule under FleetPal's own name ("PM Reefer" 44,
+  "Replace Suction Manifold" 31 in production) and `projectPmDue` writes `vehicles.next_pm_due_*`
+  after every sweep through roster's new `recordVehiclePmDue` (write-on-change; a truck whose
+  schedule FleetPal deleted is cleared to null, not left holding a date). **D-FP22** — the meter is
+  the roster's (Samsara's): measured 2026-10-28, FleetPal's latest ODOMETER reading and
+  `current_odometer` differ by a median of 109 mi across 227 matched trucks (171 of FleetPal's under
+  a week old), and two readings of one fact would put "due" on one screen and "ok" on another; the
+  page prints FleetPal's reading beside it as a fact. Done-whens held: a truck 500 mi from due is
+  projected at that due point across both of its FleetPal units (`projectPmDue.test.ts`); a truck
+  with no schedule shows nothing and a schedule nobody can judge says "Can't tell", never "OK"
+  (`UnitDetailPage.test.ts`); the page is driven under `preview:local` with raw-JSON route mocks at
+  390 and 834 px with zero console errors (`docs/plans/maintenance/screenshots/m3-*.png`). Open:
+  nothing reads `vehicles.next_pm_due_*` yet — the Vehicles list is the obvious first reader, in its
+  own PR.

@@ -327,3 +327,15 @@ M1 and M2 are a week of work together; M3 is the largest because F10 was never b
   within 30 days or overdue, by our record, through the same `inspectionExpiry` the roster uses.
   The six tiles, the first-run callout and the "Moved today" count are gone (D-MX2). "Equipment not
   returned" waits for DE2's read. Next: **F12** (parts from FleetPal, Q-MX2), then M3.
+- **2026-10-28 (evening)** — **M3 built** on `claude/maintenance-m3-hub`: the truck's page (§4.3) is
+  one page of seven sections in the proposal's order, no tabs, with Check what is on board and Start
+  inspection as the header verbs and the phone's bottom bar; the Trucks & trailers list opens on
+  "needs attention" with a row of three facts (number, the one sentence, last checked) and "every
+  truck and trailer" one tap away under Show. The sentence is the server's — `GET
+  /api/maintenance/units/attention` derives every unit's reasons once, and the page's first section
+  words the same rows (`attentionWords.ts`); roadside repairs due are merged by the unit the officer
+  wrote (D-IC7). FleetPal F10 and F11 landed with it (that plan's log, D-FP22: the meter is the
+  roster's). The fleet section's truck and trailer pages keep their addresses and now mount the same
+  by-id work-orders window. Shot at 390 and 834 px (`screenshots/m3-*.png`): the phone hub runs
+  4,115 px and twelve of its targets are under 44 px — the shared controls M4 (§4.5) is for. Next:
+  **M4** (contract §9, `DataTable` card markers, the bottom tab row under `/shop`), then **M5**.

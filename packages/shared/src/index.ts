@@ -239,6 +239,7 @@ export * from "./inventoryLabelContract.js";
 export * from "./inventoryRules.js";
 export * from "./fleetpalContract.js";
 export * from "./shopSummaryContract.js";
+export * from "./unitShopContract.js";
 export * from "./roadsideInspectionsContract.js";
 export * from "./roadsideSmsContract.js";
 export * from "./roadsideAttributionContract.js";

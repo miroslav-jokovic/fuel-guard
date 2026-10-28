@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { annualDisagreement, annualWarning, classifyPmName, pmDueOn, pmWarning, sortWarnings, type PmInterval } from "./maintenanceDue.js";
+import { annualDisagreement, annualWarning, classifyPmName, pmDueOn, pmStatus, pmWarning, sortWarnings, type PmInterval } from "./maintenanceDue.js";
 
 const NOW = new Date("2026-10-16T12:00:00Z");
 const MI = 1609.344;
@@ -39,6 +39,27 @@ describe("pmWarning", () => {
     expect(pmWarning("oil", "truck", oil, null, null, NOW)).toBeNull();
     expect(pmWarning("oil", "truck", { ...oil, lastDoneMeterMeters: null }, null, 125_000, NOW)).toBeNull();
     expect(pmWarning("six_month", "truck", { ...sixMonth, value: null }, "2026-01-01T00:00:00Z", null, NOW)).toBeNull();
+  });
+});
+
+describe("pmStatus — the one judgement the board's chip and the truck's page share (F11, M3)", () => {
+  const sixMonth: PmInterval = { intervalType: "TIME", value: 6, valueUnit: "MONTH", threshold: 30, thresholdUnit: "DAY", lastDoneMeterMeters: null };
+  const oil: PmInterval = { intervalType: "ODOMETER", value: 20_000 * MI, valueUnit: null, threshold: 7_000 * MI, thresholdUnit: null, lastDoneMeterMeters: 100_000 * MI };
+
+  it("answers ok with room left — where the chip says nothing — and carries the due point either way", () => {
+    expect(pmStatus(sixMonth, "2026-06-01T00:00:00Z", null, NOW)).toEqual({ verdict: "ok", dueOn: "2026-12-01", dueAtMiles: null, milesLeft: null });
+    expect(pmStatus(oil, null, 110_000, NOW)).toEqual({ verdict: "ok", dueOn: null, dueAtMiles: 120_000, milesLeft: 10_000 });
+  });
+
+  it("agrees with pmWarning on due and overdue", () => {
+    expect(pmStatus(oil, null, 118_867, NOW)).toMatchObject({ verdict: "due", milesLeft: 1_133 });
+    expect(pmStatus(sixMonth, "2026-03-01T00:00:00Z", null, NOW)).toMatchObject({ verdict: "overdue", dueOn: "2026-09-01" });
+  });
+
+  it("⚠ is null, never ok, for what it cannot judge", () => {
+    expect(pmStatus(sixMonth, null, null, NOW)).toBeNull();
+    expect(pmStatus(oil, null, null, NOW)).toBeNull();
+    expect(pmStatus({ ...oil, lastDoneMeterMeters: null }, null, 125_000, NOW)).toBeNull();
   });
 });
 

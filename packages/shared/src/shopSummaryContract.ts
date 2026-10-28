@@ -47,6 +47,13 @@ export interface ShopWorkOrderDto {
   id: string;
   referenceNumber: string | null;
   unitNumber: string | null;
+  /**
+   * Our roster row behind FleetPal's unit, when the reconciliation (F5) has matched it; both null for
+   * an unmatched unit, which stays on the list under the vendor's number. Added for the truck's page
+   * (M3): matching an order to a truck by the NUMBER string was a second rule beside the mapping.
+   */
+  vehicleId: string | null;
+  trailerId: string | null;
   description: string | null;
   priority: string | null;
   /** When FleetPal recorded the order — the instant the card's "oldest" figure is. */
@@ -56,6 +63,8 @@ export interface ShopWorkOrderDto {
 export interface ShopDefectDto {
   id: string;
   unitNumber: string | null;
+  vehicleId: string | null;
+  trailerId: string | null;
   name: string | null;
   description: string | null;
   driverComment: string | null;
