@@ -637,6 +637,7 @@
     "apps/api/src/modules/idle/idleCapabilitySync.ts",
     "apps/api/src/modules/roster/equipmentInspection.ts",
     "apps/api/src/modules/roster/vehicleFleetCodes.ts",
+    "apps/api/src/modules/roster/vehiclePmDue.ts",
     "apps/api/src/modules/samsara/samsaraVehicleSync.ts",
     "apps/web/src/composables/useDrivers.ts",
     "apps/web/src/composables/useVehicles.ts",

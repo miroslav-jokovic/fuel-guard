@@ -72,6 +72,11 @@ export {
 } from "./shopBacklog.js";
 export { readUnitCost, resolveUnitIds, type UnitCostAnswer, type UnitRepair } from "./unitCost.js";
 export { readFleetPalAnnualDue, readUnitMaintenance, type UnitMaintenance } from "./unitMaintenance.js";
+// The truck's page and the worklist's "needs attention" (M3, F10/F11): every PM schedule judged by
+// the shared `pmStatus`, and one unit's whole shop record.
+export { readPmDueFleet, judgeSchedule, type UnitPmDue } from "./pmDue.js";
+export { readUnitShopRecord, type UnitShopRecord } from "./unitShopRecord.js";
+export { projectPmDue } from "./projectPmDue.js";
 export { readWorkOrdersOnUnits, type UnitWorkOrder, type UnitWorkOrderIndex } from "./unitWorkOrders.js";
 export { readWorkOrderRecords, type WorkOrderRecord, type WorkOrderRecords } from "./workOrderRecord.js";
 export { describeComponents, clearComponentCache, type ComponentLabel } from "./vmrs.js";

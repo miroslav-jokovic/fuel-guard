@@ -48,6 +48,10 @@ export { getEquipmentIdentities, getEquipmentIdentity, listAnnualInspectionExpir
 export { readEquipmentIdentitySource, releaseEquipmentInspectionClaim } from "./equipmentInspection.js";
 export type { EquipmentIdentity, EquipmentListOptions } from "./equipmentInspection.js";
 export { listUnitFileFacts, type UnitFileFacts } from "./unitFileFacts.js";
+// The truck's page (M3): one unit's identity and meter for the shop, read through the owner.
+export { getUnitShopFacts, type UnitShopFacts } from "./unitShopFacts.js";
+// F11: FleetPal's collector computes the next PM due point and this module writes it (D-FP2).
+export { recordVehiclePmDue, type PmDuePlacement } from "./vehiclePmDue.js";
 // The attribution trail (DISPATCH-LOADS-COUNTS-PLAN D-DLC5): Samsara's driver↔vehicle segments, the
 // roster's table, read by the Loads module's history endpoint through here.
 export {

@@ -68,11 +68,45 @@ function addTime(fromIso: string, n: number, unit: string): Date | null {
 const ymd = (d: Date) => d.toISOString().slice(0, 10);
 
 /**
- * Is this 6-month inspection or oil change due? Overdue past the interval; due inside FleetPal's own
- * warning window (`threshold`, the same window FleetPal colours by); otherwise nothing to say, so null.
- * Null too when the schedule cannot be judged — never done, an unknown unit, no odometer — because a
- * chip claiming "overdue" for a truck whose record is merely incomplete is the false alarm that trains
- * people to ignore the column (the annual module's own rule, `inspectionExpiry`).
+ * Where one PM interval stands against the latest meter or the calendar — the ONE judgement, shared by
+ * the dispatch board's chip (`pmWarning`), the truck's page (MAINTENANCE-SECTION-REDESIGN-PROPOSAL.md
+ * §4.3, M3) and F11's `next_pm_due_*` projection, so no two screens can disagree about one schedule.
+ *
+ * `verdict` is `overdue` past the interval, `due` inside FleetPal's own warning window (`threshold`,
+ * the same window FleetPal colours by), `ok` with room left, and NULL when the schedule cannot be
+ * judged — never done, a mileage interval with no odometer, an interval with no unit — because a
+ * verdict claimed for a truck whose record is merely incomplete is the false alarm that trains people
+ * to ignore the column (the annual module's own rule, `inspectionExpiry`). A TIME interval carries
+ * `dueOn`; a mileage one carries `dueAtMiles` and `milesLeft` (negative once overdue).
+ */
+export interface PmStatus {
+  verdict: DueVerdict | "ok";
+  dueOn: string | null;
+  dueAtMiles: number | null;
+  milesLeft: number | null;
+}
+export function pmStatus(i: PmInterval, lastDone: string | null, odometerMiles: number | null, now: Date): PmStatus | null {
+  if (i.value == null || i.value <= 0) return null;
+  if ((i.intervalType ?? "").toUpperCase() === "ODOMETER") {
+    if (i.lastDoneMeterMeters == null || odometerMiles == null) return null;
+    const dueAtMiles = Math.round((i.lastDoneMeterMeters + i.value) / METERS_PER_MILE);
+    const left = Math.round(dueAtMiles - odometerMiles);
+    const window = (i.threshold ?? 0) / METERS_PER_MILE;
+    const verdict = left < 0 ? "overdue" : left <= window ? "due" : "ok";
+    return { verdict, dueOn: null, dueAtMiles, milesLeft: left };
+  }
+  if (!lastDone || !i.valueUnit) return null;
+  const due = addTime(lastDone, i.value, i.valueUnit);
+  if (!due) return null;
+  if (due.getTime() < now.getTime()) return { verdict: "overdue", dueOn: ymd(due), dueAtMiles: null, milesLeft: null };
+  const warnFrom = i.threshold && i.thresholdUnit ? addTime(due.toISOString(), -i.threshold, i.thresholdUnit) : due;
+  const verdict = warnFrom && now.getTime() >= warnFrom.getTime() ? "due" : "ok";
+  return { verdict, dueOn: ymd(due), dueAtMiles: null, milesLeft: null };
+}
+
+/**
+ * Is this 6-month inspection or oil change due? The board's chip: `pmStatus` with `ok` and "cannot be
+ * judged" both answered as null, because a chip is only drawn for something to act on.
  */
 export function pmWarning(
   kind: "six_month" | "oil",
@@ -82,23 +116,9 @@ export function pmWarning(
   odometerMiles: number | null,
   now: Date,
 ): MaintenanceWarning | null {
-  if (i.value == null || i.value <= 0) return null;
-  if ((i.intervalType ?? "").toUpperCase() === "ODOMETER") {
-    if (i.lastDoneMeterMeters == null || odometerMiles == null) return null;
-    const dueAtMiles = (i.lastDoneMeterMeters + i.value) / METERS_PER_MILE;
-    const left = Math.round(dueAtMiles - odometerMiles);
-    const window = (i.threshold ?? 0) / METERS_PER_MILE;
-    if (left < 0) return { unit, kind, verdict: "overdue", dueOn: null, milesLeft: left };
-    if (left <= window) return { unit, kind, verdict: "due", dueOn: null, milesLeft: left };
-    return null;
-  }
-  if (!lastDone || !i.valueUnit) return null;
-  const due = addTime(lastDone, i.value, i.valueUnit);
-  if (!due) return null;
-  if (due.getTime() < now.getTime()) return { unit, kind, verdict: "overdue", dueOn: ymd(due), milesLeft: null };
-  const warnFrom = i.threshold && i.thresholdUnit ? addTime(due.toISOString(), -i.threshold, i.thresholdUnit) : due;
-  if (warnFrom && now.getTime() >= warnFrom.getTime()) return { unit, kind, verdict: "due", dueOn: ymd(due), milesLeft: null };
-  return null;
+  const s = pmStatus(i, lastDone, odometerMiles, now);
+  if (!s || s.verdict === "ok") return null;
+  return { unit, kind, verdict: s.verdict, dueOn: s.dueOn, milesLeft: s.milesLeft };
 }
 
 /**

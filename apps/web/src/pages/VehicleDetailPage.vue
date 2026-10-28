@@ -233,7 +233,7 @@ const fillColumns: DataTableColumn[] = [
         <UnitKitCard v-if="id" kind="tractor" :unit-id="id" />
         <!-- Read-only windows onto the shop's open orders and the roadside record for this unit (UF5),
              each from a read its own page already makes, each linking out to where the work is done. -->
-        <UnitWorkOrdersCard v-if="vehicle" :unit-number="vehicle.unit_number" />
+        <UnitWorkOrdersCard v-if="vehicle" kind="tractor" :unit-id="id" />
         <UnitInspectionsCard v-if="vehicle" kind="tractor" :unit-number="vehicle.unit_number" :plate="vehicle.plate" />
       </section>
 

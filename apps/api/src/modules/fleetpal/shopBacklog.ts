@@ -73,27 +73,33 @@ async function readAll<T>(
   }
 }
 
-/** FleetPal's fleet number for each staged unit id the rows name. Missing ids simply map to nothing. */
-async function unitNumbers(
+/** A staged unit as the rows name it: FleetPal's fleet number and, once matched (F5), our roster row. */
+type StagedUnit = { number: string | null; vehicleId: string | null; trailerId: string | null };
+const NOBODY: StagedUnit = { number: null, vehicleId: null, trailerId: null };
+
+/** FleetPal's fleet number and roster match for each staged unit id the rows name. Missing ids simply map to nothing. */
+async function stagedUnits(
   admin: SupabaseClient,
   orgId: string,
   fleetpalIds: readonly (string | null)[],
-): Promise<Map<string, string | null> | { error: DbError }> {
+): Promise<Map<string, StagedUnit> | { error: DbError }> {
   const ids = [...new Set(fleetpalIds.filter((id): id is string => !!id))];
-  const out = new Map<string, string | null>();
+  const out = new Map<string, StagedUnit>();
   for (let i = 0; i < ids.length; i += IN_CHUNK) {
     const { data, error } = await admin
       .from("fleetpal_units")
-      .select("fleetpal_id, number")
+      .select("fleetpal_id, number, vehicle_id, trailer_id")
       .eq("org_id", orgId)
       .in("fleetpal_id", ids.slice(i, i + IN_CHUNK));
     if (error) return { error };
-    for (const u of (data ?? []) as { fleetpal_id: string; number: string | null }[]) out.set(u.fleetpal_id, u.number);
+    for (const u of (data ?? []) as { fleetpal_id: string; number: string | null; vehicle_id: string | null; trailer_id: string | null }[]) {
+      out.set(u.fleetpal_id, { number: u.number, vehicleId: u.vehicle_id, trailerId: u.trailer_id });
+    }
   }
   return out;
 }
 
-const unitOf = (units: Map<string, string | null>, id: string | null) => (id ? (units.get(id) ?? null) : null);
+const unitOf = (units: Map<string, StagedUnit>, id: string | null): StagedUnit => (id ? (units.get(id) ?? NOBODY) : NOBODY);
 
 /** Open work orders, oldest first. Errors carry the database's cause for the route to LOG, never to send. */
 export async function readOpenWorkOrders(
@@ -110,16 +116,21 @@ export async function readOpenWorkOrders(
       .order("id", { ascending: true }),
   );
   if ("error" in rows) return rows;
-  const units = await unitNumbers(admin, orgId, rows.map((r) => r.unit_fleetpal_id));
+  const units = await stagedUnits(admin, orgId, rows.map((r) => r.unit_fleetpal_id));
   if ("error" in units) return units;
-  return rows.map((r) => ({
-    id: r.id,
-    referenceNumber: r.reference_number,
-    unitNumber: unitOf(units, r.unit_fleetpal_id),
-    description: r.description,
-    priority: r.priority,
-    openedAt: r.vendor_created_at,
-  }));
+  return rows.map((r) => {
+    const u = unitOf(units, r.unit_fleetpal_id);
+    return {
+      id: r.id,
+      referenceNumber: r.reference_number,
+      unitNumber: u.number,
+      vehicleId: u.vehicleId,
+      trailerId: u.trailerId,
+      description: r.description,
+      priority: r.priority,
+      openedAt: r.vendor_created_at,
+    };
+  });
 }
 
 /** Unresolved defects, oldest first. A null `is_resolved` is not "unresolved" — the vendor never said. */
@@ -137,16 +148,21 @@ export async function readUnresolvedDefects(
       .order("id", { ascending: true }),
   );
   if ("error" in rows) return rows;
-  const units = await unitNumbers(admin, orgId, rows.map((r) => r.unit_fleetpal_id));
+  const units = await stagedUnits(admin, orgId, rows.map((r) => r.unit_fleetpal_id));
   if ("error" in units) return units;
-  return rows.map((r) => ({
-    id: r.id,
-    unitNumber: unitOf(units, r.unit_fleetpal_id),
-    name: r.name,
-    description: r.description,
-    driverComment: r.driver_comment,
-    detectedAt: r.detected_on,
-  }));
+  return rows.map((r) => {
+    const u = unitOf(units, r.unit_fleetpal_id);
+    return {
+      id: r.id,
+      unitNumber: u.number,
+      vehicleId: u.vehicleId,
+      trailerId: u.trailerId,
+      name: r.name,
+      description: r.description,
+      driverComment: r.driver_comment,
+      detectedAt: r.detected_on,
+    };
+  });
 }
 
 /**

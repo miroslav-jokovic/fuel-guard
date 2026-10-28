@@ -75,6 +75,8 @@ export interface Inspector {
 
 export interface InspectionFilter {
   subjectType: InspectionSubjectType;
+  /** One unit's reports only — the truck's page asks this way (M3). */
+  subjectId?: string;
   status?: "draft" | "final";
   outcome?: "pass" | "fail";
   q?: string;
@@ -96,6 +98,7 @@ export function useInspectionsQuery(filter: Ref<InspectionFilter>) {
         limit: String(PER_PAGE),
         offset: String((f.page - 1) * PER_PAGE),
       });
+      if (f.subjectId) params.set("subjectId", f.subjectId);
       if (f.status) params.set("status", f.status);
       if (f.outcome) params.set("outcome", f.outcome);
       if (f.q) params.set("q", f.q);

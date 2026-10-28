@@ -264,7 +264,7 @@ const asRows = <T,>(rows: T[]) => rows.slice(0, PREVIEW_ROWS) as unknown as Reco
       row-key="unitId"
       :loading="shortQ.isLoading.value"
       :error="shortQ.isError.value ? 'Could not load the fleet.' : null"
-      :all-to="unitsOpen ? '/shop/units?kit=short-checked' : null"
+      :all-to="unitsOpen ? '/shop/units?show=short' : null"
       :all-label="allLabel(shortTotal, 'trucks and trailers')"
       :clickable="unitsOpen"
       empty-text="No checked truck or trailer is missing anything."

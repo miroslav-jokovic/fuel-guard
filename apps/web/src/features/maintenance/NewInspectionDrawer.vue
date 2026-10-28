@@ -40,7 +40,11 @@ import { useCreateInspection, useInspectorsQuery } from "@/features/maintenance/
  * the report page mounts, so a decal applied at the end of the job is entered in the same shape.
  */
 
-const props = defineProps<{ open: boolean }>();
+/**
+ * `presetType`/`presetId`: the unit already chosen, when the drawer opens FROM a unit's page (M3).
+ * The combobox still shows the choice — a technician who opened the wrong truck's page can change it.
+ */
+const props = defineProps<{ open: boolean; presetType?: InspectionSubjectType; presetId?: string }>();
 const emit = defineEmits<{ created: [id: string]; close: [] }>();
 
 const toast = useToastStore();
@@ -58,8 +62,8 @@ watch(
   () => props.open,
   (open) => {
     if (!open) return;
-    subjectType.value = "tractor";
-    subjectId.value = "";
+    subjectType.value = props.presetType ?? "tractor";
+    subjectId.value = props.presetId ?? "";
     inspectorId.value = "";
     inspectedOn.value = today();
     decalSerial.value = null;

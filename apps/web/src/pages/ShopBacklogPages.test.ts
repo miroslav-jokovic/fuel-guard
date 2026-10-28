@@ -44,11 +44,11 @@ async function page(component: unknown, url: string) {
 }
 
 const order = (o: Partial<ShopWorkOrderDto> = {}): ShopWorkOrderDto => ({
-  id: "w1", referenceNumber: "WO-1001", unitNumber: "654", description: "Brake chamber leaking", priority: "HIGH",
+  id: "w1", referenceNumber: "WO-1001", unitNumber: "654", vehicleId: null, trailerId: null, description: "Brake chamber leaking", priority: "HIGH",
   openedAt: "2026-06-24T15:12:00+00:00", ...o,
 });
 const defect = (o: Partial<ShopDefectDto> = {}): ShopDefectDto => ({
-  id: "d1", unitNumber: "654", name: "Air leak", description: "Left rear", driverComment: "Hissing at the glad hand",
+  id: "d1", unitNumber: "654", vehicleId: null, trailerId: null, name: "Air leak", description: "Left rear", driverComment: "Hissing at the glad hand",
   detectedAt: "2026-10-10T14:00:00+00:00", ...o,
 });
 

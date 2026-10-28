@@ -21,9 +21,9 @@ import { classifyPmName, fetchAllPaged, pmDueOn, pmWarning, type MaintenanceWarn
 
 const OPEN_WORK_ORDER_STATUS = "OPEN";
 
-type UnitRow = { fleetpal_id: string; vehicle_id: string | null; trailer_id: string | null };
-type ScheduleRow = { fleetpal_id: string; unit_fleetpal_id: string | null; name: string | null; last_done: string | null };
-type IntervalRow = {
+export type PmUnitRow = { fleetpal_id: string; vehicle_id: string | null; trailer_id: string | null };
+export type PmScheduleRow = { fleetpal_id: string; unit_fleetpal_id: string | null; name: string | null; last_done: string | null };
+export type PmIntervalRow = {
   pm_schedule_fleetpal_id: string;
   interval_type: string | null;
   value_int: number | string | null;
@@ -41,16 +41,19 @@ export interface UnitMaintenance {
   byTrailerId: Map<string, MaintenanceWarning[]>;
 }
 
-/** The units, their PM schedules and each schedule's intervals — read once, for both readers below. */
-async function readPmSchedules(admin: SupabaseClient, orgId: string) {
+/**
+ * The units, their PM schedules and each schedule's intervals — read once, for both readers below and
+ * for `pmDue.ts` (the truck's page and F11's projection), so every PM reader walks the same rows.
+ */
+export async function readPmSchedules(admin: SupabaseClient, orgId: string) {
   // Each table named as a literal: a dynamic `.from(table)` is invisible to the table-access gates.
-  const units = await fetchAllPaged<UnitRow>((from, to) =>
+  const units = await fetchAllPaged<PmUnitRow>((from, to) =>
     admin.from("fleetpal_units").select("fleetpal_id, vehicle_id, trailer_id").eq("org_id", orgId).order("id").range(from, to),
   );
-  const schedules = await fetchAllPaged<ScheduleRow>((from, to) =>
+  const schedules = await fetchAllPaged<PmScheduleRow>((from, to) =>
     admin.from("fleetpal_pm_schedules").select("fleetpal_id, unit_fleetpal_id, name, last_done").eq("org_id", orgId).order("id").range(from, to),
   );
-  const intervals = await fetchAllPaged<IntervalRow>((from, to) =>
+  const intervals = await fetchAllPaged<PmIntervalRow>((from, to) =>
     admin
       .from("fleetpal_pm_intervals")
       .select("pm_schedule_fleetpal_id, interval_type, value_int, value_time_type, threshold_int, threshold_time_type, last_done_meter_value")
@@ -59,12 +62,12 @@ async function readPmSchedules(admin: SupabaseClient, orgId: string) {
       .range(from, to),
   );
   const unitOf = new Map(units.map((u) => [u.fleetpal_id, u]));
-  const intervalsOf = new Map<string, IntervalRow[]>();
+  const intervalsOf = new Map<string, PmIntervalRow[]>();
   for (const i of intervals) intervalsOf.set(i.pm_schedule_fleetpal_id, [...(intervalsOf.get(i.pm_schedule_fleetpal_id) ?? []), i]);
   return { unitOf, schedules, intervalsOf };
 }
 
-const toInterval = (i: IntervalRow): PmInterval => ({
+export const toInterval = (i: PmIntervalRow): PmInterval => ({
   intervalType: i.interval_type, value: num(i.value_int), valueUnit: i.value_time_type,
   threshold: num(i.threshold_int), thresholdUnit: i.threshold_time_type, lastDoneMeterMeters: num(i.last_done_meter_value),
 });
@@ -87,7 +90,7 @@ export async function readUnitMaintenance(
   );
 
   const out: UnitMaintenance = { byVehicleId: new Map(), byTrailerId: new Map() };
-  const add = (u: UnitRow, w: MaintenanceWarning) => {
+  const add = (u: PmUnitRow, w: MaintenanceWarning) => {
     const [map, id] = u.vehicle_id ? [out.byVehicleId, u.vehicle_id] : [out.byTrailerId, u.trailer_id!];
     const list = map.get(id) ?? [];
     // One chip per kind: a unit with two oil schedules (a typo'd duplicate) shows the worse of them once.
