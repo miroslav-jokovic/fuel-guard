@@ -155,6 +155,8 @@ const EXPECTED: Record<string, string> = {
   "roadside inspections": "roadside inspection",
   // IC16: the Shop's roadside repairs list.
   "roadside repairs": "roadside repair",
+  // M6: the Shop page's Annual due tab — "1 annual inspection due", the irregular the rule must not guess.
+  "annual inspections due": "annual inspection due",
   requirements: "requirement",
   // FilterBar's default, for a caller that passes a count and no label of its own.
   results: "result",
