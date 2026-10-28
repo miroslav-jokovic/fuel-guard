@@ -267,6 +267,7 @@ export const SURFACES: readonly Surface[] = [
   { key: "maintenance.inspections", label: "Annual inspections", path: "/shop/inspections", group: "maintenance", gate: section("maintenance") },
   { key: "maintenance.assets", label: "Equipment", path: "/shop/assets", group: "maintenance", gate: section("maintenance"), parent: "maintenance.units" },
   { key: "maintenance.inspectors", label: "Who can inspect", path: "/settings/inspectors", group: "admin", gate: section("maintenance"), reachedFrom: "admin.settings", startsOnFor: [] },
+  { key: "maintenance.devices", label: "Printers & scanners", path: "/settings/devices", group: "admin", gate: section("maintenance"), reachedFrom: "admin.settings", startsOnFor: [] },
 
   // ── admin ─────────────────────────────────────────────────────────────────────────────────────
   // Settings = org config (its route asks `view` since Q-SURF5, so the auditor's audit-log card is
@@ -489,11 +490,3 @@ export const NAV_SURFACES: readonly Surface[] = SURFACES.filter((s) => s.parent 
  * rows, the API's accepted keys and the stored-row filter all read this one list.
  */
 export const GRANTABLE_SURFACES: readonly Surface[] = SURFACES.filter((s) => isEditableSurface(s) && s.parent === undefined);
-
-/**
- * Q-SET1 (owner's ruling 2026-09-30): the screens that stay admin-only and are never offered —
- * Users, Permissions, Card control and EFS integration. DERIVED from the `ADMIN` gate rather than
- * listed, so the ruling cannot be restated in one place and contradicted in another; a test pins the
- * four keys, so a fifth `ADMIN` gate is a decision somebody has to make on purpose.
- */
-export const ADMIN_ONLY_SURFACES: readonly Surface[] = SURFACES.filter((s) => s.gate.kind === "admin");

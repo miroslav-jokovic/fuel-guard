@@ -75,6 +75,25 @@ vi.mock("@/features/inventory/useLabels", () => ({
   fetchLabelSheet: fetchSheet,
 }));
 
+/**
+ * The label printer (PRINTERS-AND-SCANNERS-PLAN.md PS4). Absent by default, so every older test
+ * still prints the PDF; the printing tests below set one as the default.
+ */
+const printing = vi.hoisted(() => ({
+  defaultPrinter: null as null | { id: string; name: string; online: boolean },
+  printLabels: vi.fn(async (_v: { targets: unknown[] }) => ({ job: { id: "job-1" }, dropped: 0 })),
+}));
+vi.mock("@/composables/usePrinting", async () => {
+  const { ref, computed } = await import("vue");
+  return {
+    usePrintDefaultsQuery: () => ({ data: computed(() => ({ effectivePrinterId: printing.defaultPrinter?.id ?? null })) }),
+    usePrintersQuery: () => ({ data: computed(() => (printing.defaultPrinter ? [printing.defaultPrinter] : [])) }),
+    usePrintLabels: () => ({ mutateAsync: printing.printLabels }),
+    usePrintJob: () => ({ data: ref(undefined) }),
+    jobStatusText: () => "",
+  };
+});
+
 /** A stock line; the paging tests fill the shelves with more of them. */
 const line = (partId: string, partNumber: string) => ({
   partId,
@@ -212,6 +231,8 @@ beforeEach(() => {
   fetchSheet.mockClear();
   extraLines = [];
   offered = [AVERY];
+  printing.defaultPrinter = null;
+  printing.printLabels.mockClear();
   // The repo's jsdom has no `localStorage` (useColorScheme.test.ts), so each test gets a fresh one.
   const kept = new Map<string, string>();
   Object.defineProperty(globalThis, "localStorage", {
@@ -566,5 +587,45 @@ describe("which stock the screen opens on", () => {
       { presetId: "roll-single", startPosition: 1, nudgeX: 0, nudgeY: 0 },
     );
     open.mockRestore();
+  });
+});
+
+describe("printing to the label printer chosen in Settings (PS4)", () => {
+  const SHOP = { id: "p-1", name: "Shop label printer", online: true };
+
+  it("on the roll, sends the run to the default printer — no PDF, no dialog", async () => {
+    offered = [AVERY, ROLL];
+    localStorage.setItem("silvicom:labels:preset", "roll-single");
+    printing.defaultPrinter = SHOP;
+    const open = vi.spyOn(window, "open").mockImplementation(() => null);
+    const w = await render(`/labels?asset=${ASSET}`);
+    expect(w.find("[data-testid=print-destination]").text()).toContain("Prints on Shop label printer");
+
+    await w.findAll("button").find((b) => b.text().startsWith("Print"))!.trigger("click");
+    await flushPromises();
+    expect(printing.printLabels).toHaveBeenCalledWith({ targets: [{ kind: "asset", assetId: ASSET }] });
+    expect(fetchSheet).not.toHaveBeenCalled();
+    expect(open).not.toHaveBeenCalled();
+    open.mockRestore();
+  });
+
+  it("a sheet stock still opens the PDF — the label printer cannot feed a sheet", async () => {
+    offered = [AVERY, ROLL];
+    localStorage.setItem("silvicom:labels:preset", "avery-22805");
+    printing.defaultPrinter = SHOP;
+    const open = vi.spyOn(window, "open").mockImplementation(() => null);
+    const w = await render(`/labels?asset=${ASSET}`);
+    await w.findAll("button").find((b) => b.text().startsWith("Print"))!.trigger("click");
+    await flushPromises();
+    expect(printing.printLabels).not.toHaveBeenCalled();
+    expect(fetchSheet).toHaveBeenCalled();
+    open.mockRestore();
+  });
+
+  it("says where to set a printer up when there is none", async () => {
+    offered = [AVERY, ROLL];
+    localStorage.setItem("silvicom:labels:preset", "roll-single");
+    const w = await render(`/labels?asset=${ASSET}`);
+    expect(w.find("[data-testid=print-destination]").text()).toContain("Settings → Printers & scanners");
   });
 });

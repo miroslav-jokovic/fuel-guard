@@ -31,13 +31,23 @@ import { winAnsi } from "../../../lib/pdfDraw.js";
  * label survive its second year, in exchange for a symbol nobody was struggling to scan.
  */
 
-/** Breathing room inside each backing square, in points. */
-const PAD = 4;
+/**
+ * The face's measurements in points. Exported because the printer's renderer
+ * (`printing/labelRaster.ts`, PRINTERS-AND-SCANNERS-PLAN.md D-PS2) draws the same face at printer
+ * resolution and must not hold a second copy of them — a label sent to the MUNBYN and one printed
+ * from this PDF are meant to be the same label.
+ */
+export const LABEL_FACE_POINTS = {
+  /** Breathing room inside each backing square. */
+  pad: 4,
+  code: 9,
+  line: 7,
+} as const;
+const PAD = LABEL_FACE_POINTS.pad;
+const CODE_SIZE = LABEL_FACE_POINTS.code;
+const LINE_SIZE = LABEL_FACE_POINTS.line;
 /** Below this ratio a label is too short to stack the symbol above the text, so the text sits beside it. */
 const STACK_RATIO = 0.8;
-
-const CODE_SIZE = 9;
-const LINE_SIZE = 7;
 
 /**
  * How the symbol and the text share one label.

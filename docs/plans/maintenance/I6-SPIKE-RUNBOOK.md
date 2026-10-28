@@ -107,6 +107,10 @@ hardware adds.
 
 ### Print one label (office PC)
 
+> **⚠ SUPERSEDED 2026-10-28 as the way the shop prints** — the owner rejected the print dialog
+> (printers chosen once in Settings, never asked, any device). `PRINTERS-AND-SCANNERS-PLAN.md` replaces
+> it with server-side printing through a print station. The steps below remain the FALLBACK (D-PS5).
+
 1. Install the MUNBYN driver from the maker's site. In the printer's preferences, add a paper size
    of **2 × 2 in (50.8 × 50.8 mm)** if the driver does not already list one.
 2. Load a 2" roll. Print the driver's own test page first, so a printer fault is not mistaken for ours.

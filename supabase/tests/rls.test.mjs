@@ -2291,6 +2291,15 @@ async function main() {
     handSeed: {
       org_usage_month: (org) =>
         `insert into org_usage_month (org_id, yyyymm) values ('${org}', '2026-08')`,
+      // 0526: a job's payload is the printer's bytes and may not be empty, which the generic seeder's
+      // placeholder bytea is; and its printer must be this org's, on this org's station (PS001), a
+      // chain the seeder cannot build — handed a real one inline.
+      print_jobs: (org) =>
+        `with st as (insert into print_stations (org_id, name) values ('${org}', 'rls ' || gen_random_uuid()) returning id), ` +
+        `p as (insert into printers (org_id, station_id, name, system_name, stock_id) ` +
+        `select '${org}', id, 'rls ' || gen_random_uuid(), 'rls', 'roll-single' from st returning id) ` +
+        `insert into print_jobs (org_id, printer_id, description, label_count, payload) ` +
+        `select '${org}', id, 'rls', 1, '\\x00'::bytea from p`,
       // 0502: `period_end > period_start` is a cross-column rule the column-by-column seeder cannot
       // satisfy — it writes the same placeholder date into both. The sandbox's own row, TMS 2026/8.
       mcleod_gl_control: (org) =>

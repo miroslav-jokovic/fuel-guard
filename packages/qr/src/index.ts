@@ -15,3 +15,7 @@ export { toSvg, toSvgPath } from "./svg.js";
 export type { SvgOptions } from "./svg.js";
 export { labelSheet, LABEL_PRESETS, LABEL_PRESET_IDS, POINTS_PER_INCH } from "./labelSheet.js";
 export type { LabelPreset, LabelPresetId, LabelPlacement, LabelSheet, LabelSheetOptions } from "./labelSheet.js";
+export { createBitmap, drawQr, fillPolygons, fillRect } from "./raster.js";
+export type { MonoBitmap, Polygon } from "./raster.js";
+export { toTspl, TSPL_COMMANDS_USED } from "./tspl.js";
+export type { TsplOptions } from "./tspl.js";

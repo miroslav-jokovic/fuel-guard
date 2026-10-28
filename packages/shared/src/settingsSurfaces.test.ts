@@ -2,7 +2,8 @@ import { describe, expect, it } from "vitest";
 import { USER_ROLES } from "./constants.js";
 import { callerCanView, type SectionClaim } from "./auth.js";
 import { surfaceAllowed, surfaceGateAllows, surfaceStartsOn } from "./surfaces.js";
-import { ADMIN_ONLY_SURFACES, GRANTABLE_SURFACES, NAV_SURFACES, SURFACES } from "./surfaceCatalogue.js";
+import { GRANTABLE_SURFACES, NAV_SURFACES, SURFACES } from "./surfaceCatalogue.js";
+import { ADMIN_ONLY_SURFACES } from "./surfaceLookups.js";
 import { directoryScreens } from "./surfaceLookups.js";
 
 /**
@@ -21,8 +22,8 @@ const SETTINGS = surface("admin.settings");
 const OFFICE_ROLES = USER_ROLES.filter((r) => r !== "driver");
 
 describe("by default only the admin sees Settings (Q-SET2 as revised)", () => {
-  it("links the directory to all twenty-two screens, so this block is not vacuous", () => {
-    expect(directoryScreens("admin.settings")).toHaveLength(22);
+  it("links the directory to all twenty-three screens, so this block is not vacuous", () => {
+    expect(directoryScreens("admin.settings")).toHaveLength(23);
   });
 
   for (const r of OFFICE_ROLES) {
