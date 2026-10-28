@@ -1013,6 +1013,36 @@ All three named tests pass, plus four more, and they run against the **real** ca
 - [x] **Standing gates green** — full suite, matrix 381/38/61/25, 7/7 registry mutations, all sixteen `ci.yml` gates
 - [x] **Step 4.7 DONE** — the measurement moved into `verifyStep`, which is the only place that knows which re-read saw the change. The proof harness and the entitlement probe now report the same physical quantity. No migration: the column's documented meaning was right all along, the code was measuring something else and calling it that
 
+### Decision — a new EFS login re-proves write access, not each action (owner, 2026-10-28, Q-CCF6 (a))
+
+**What the code does, read at the line.** When an org's EFS environment, endpoint, username or account
+id changes, `upsertEfsSoapCredentials` (`apps/api/src/modules/efs/services/efsSoapCredentials.ts`, the
+`changedFields.length > 0` branch) sets `efs_card_control_settings.write_entitlement = 'unknown'` and
+`enabled = false`. Nothing in that file writes `efs_capability_promotions`, so every per-action approval
+(`card_lock`, `card_unlock`, `card_deactivate`, `override_grant`, `prompts_set`) keeps its state.
+Measured after the 10/23 and 10/27 username rotations: write access went to `unknown` and was re-proven
+on 2026-10-28 14:28Z from AWS (ten of ten); all four `enabled` promotions stayed `enabled` and
+`prompts_set` stayed `denied`.
+
+**The decision: keep it, deliberately.** Until 2026-10-28 neither this document nor `docs/27` said
+whether this was intended (`docs/plans/fuel/CARD-CONTROL-CORRECTIONS-PLAN.md` P4). The owner ruled
+that it is. The two records answer different questions:
+
+- **Write access** is a fact about *this login on this endpoint*: does WEX let it write at all. A new
+  login can have different entitlements, so it must be re-proven, and the account-wide write check (ten
+  steps, one reversible change on a spare card) does that. Card actions stay off until it passes and an
+  admin switches them back on.
+- **A per-action approval** is a fact about *how WEX behaves for that action*: whether a hold lands,
+  whether an override's count is read back, whether a prompt revert completes. A username does not
+  change how WEX applies a hold, so re-proving every action on every rotation would cost one write per
+  action on a spare card, for no new evidence.
+
+**What would change it.** A move to another WEX account or to a different endpoint, rather than a new
+login on the same one, is a different installation: a proof carries across only when both answer in the
+same document shape (the rule `writeProbe.ts` step 3 and the card control page state). Re-prove every
+action then; `pnpm efs:promote <capability> --suspend` is
+how to stop one until it is.
+
 ---
 
 ## Phase 5 — Operational readiness
@@ -2157,3 +2187,11 @@ Fixed:
   through the capability's own undo. It works only on a proof's apply row, only while the card still
   reads at `after_version`, and under the proof flags.
 - Remediation of ••••6122 itself is still owed.
+
+**2026-10-28 — card control after the AWS move (CCF, `docs/plans/fuel/CARD-CONTROL-CORRECTIONS-PLAN.md`).**
+The ••••6122 remediation above is done: its UNIT prompt reads `EXACT_MATCH 669` again (measured
+2026-10-28). Write access re-proven from AWS 14:28Z, card actions on 14:56Z. The owner's rulings that
+change this document: a new EFS login re-proves write access and not each action (Phase 4, the
+decision above Phase 5); approving, suspending and diagnosing stay command-line only (Q-CCF7); the
+words are WEX's, Hold and Override (Q-CCF1, Q-CCF2). The write check now refuses a card fueled in the
+last 30 days, the same rule as `pnpm efs:prove`.
