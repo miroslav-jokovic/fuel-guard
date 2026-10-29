@@ -15,7 +15,7 @@ import { fileURLToPath } from "node:url";
 import { EcfrClient } from "./ecfrClient.js";
 import { resolveImportContext } from "./ecfr.js";
 import { extractSectionText } from "./referenceText.js";
-import { paragraphAt } from "./citationParagraph.js";
+import { paragraphAt } from "../src/citationParagraph.js";
 import { parseCitation } from "../src/referenceText.js";
 import { citationListSchema, normaliseCfrText, type CitationList } from "../src/citations.js";
 

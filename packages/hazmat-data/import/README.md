@@ -166,4 +166,4 @@ engine `Dataset` (structurally: `evaluateLoad()` only receives a `Dataset`, so i
   is display-only — a formatting imperfection is cosmetic, never a wrong verdict (unlike the HMT parser).
 - **`referenceTextBuild.ts`** — fetches each cited section via the eCFR client and writes
   `../datasets/referenceText.json`. Run where eCFR is reachable: `npx tsx import/referenceTextBuild.ts`.
-  Grow `REFERENCE_SECTIONS` as the H2/H3 rule catalogs cite more sections.
+  Its sections are derived from `../datasets/citations.json` (TC0.5): a new citation verified there is a new section here on the next run.

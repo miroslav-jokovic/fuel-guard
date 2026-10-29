@@ -458,3 +458,13 @@ slower reader on warm-booted reads, which is the measurement that would make the
   phrase. Mutation: §172.505(b) back in the engine fails four of its six tests. Pinned in `lint:reader-gate` (13 files).
   The census title and the PLACARD plan's body text now say (c). Not in this step: populating `referenceText.json`
   from the list (Q-TC6 (a)) — the list now names exactly the ≈40 sections to fetch; it is TC0.5's follow-up.
+- **2026-10-29 — TC0.5 MERGED as #1837.**
+- **2026-10-29 — Q-TC6 (a): the reference-text store is populated from the citation list.** `referenceText.json` was the
+  H1 skeleton (0.0.0, provisional, no sections) because `import/referenceTextBuild.ts` was never run, and its hand-kept
+  list of 16 sections missed 24 of the 39 the engine cites and held one it does not (§172.519). The builder now derives
+  its sections from `citations.json` and reads them at the list's eCFR date (2026-10-27): 39 sections, not provisional.
+  `paragraphAt` moved from `import/` to `src/` (exported) so the store can be held to the list: new
+  `hazmat-data/src/referenceText.census.test.ts` — every cited section is in the store and nothing else is, and the
+  paragraph each citation names says, in the store's own text, every `mustSay` phrase; every citation resolves through
+  `referenceForCitation`. Mutation: the old skeleton back fails 4 of 4. `/api/hazmat/reference/:section` now answers for
+  every section the engine cites (it is a direct store lookup; no route test exists for it). Next: TC1.1.
