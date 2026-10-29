@@ -2,6 +2,7 @@
 import { computed, reactive, ref, watch } from "vue";
 import {
   canEditLoad,
+  resolveVehicleKind,
   type HazmatLoadRow,
   type HazmatLoadStatus,
   type HazmatUpdateLoadRequest,
@@ -14,6 +15,7 @@ import {
   AppFormField as FormField,
   AppCombobox as ComboSelect,
   AppDateTimeField,
+  AppCallout,
 } from "@silvicom/ui";
 import { useToastStore } from "@/stores/toast";
 import { useVehiclesQuery } from "@/composables/useVehicles";
@@ -22,6 +24,7 @@ import { useHazmatTrailersQuery } from "@/features/hazmat/useHazmatEquipment";
 import { TANK_STATE_OPTIONS } from "@/features/hazmat/calcModel";
 import { useUpdateLoad } from "@/features/hazmat/useHazmatLoads";
 import { formatDateTime } from "@/lib/format";
+import { useOpens } from "@/composables/useOpens";
 import { FactList, type Fact } from "@silvicom/ui";
 
 /**
@@ -127,6 +130,20 @@ async function save() {
   }
 }
 
+// ── the equipment question (TWO-CLICK-READER-PLAN TC1.4, Q-TC4 (b)) ────────────────────────
+// The analysis withholds a load whose equipment type is not on file (hazmatReview.ts) rather than placard it as a
+// guessed tank, so the form asks first: the same `resolveVehicleKind` the server reads, over the trailer chosen.
+// With no trailer the server may still know the truck's tank from its row, which this form does not load — so the
+// question is asked of a chosen trailer only, and the analysis answers the rest.
+const opens = useOpens();
+const chosenTrailerId = computed(() => (editing.value ? form.trailerId : props.load.trailer_id) || null);
+const untypedTrailer = computed(() => {
+  const t = (trailers.value ?? []).find((x) => x.id === chosenTrailerId.value);
+  if (!t) return null;
+  const hasTank = t.cargo_capacity_gal != null || (t.cargo_compartments?.length ?? 0) > 0;
+  return resolveVehicleKind({ trailerType: t.trailer_type, hasCargoTankProfile: hasTank }).confident ? null : t.unit_number;
+});
+
 // ── read-only labels ──────────────────────────────────────────────────────────
 /** One tank-state vocabulary with the panel and the calculator, mapped rather than case-transformed. */
 // A field nobody has declared is null, and FactList draws its em dash (D-US6).
@@ -164,6 +181,13 @@ const facts = computed<Fact[]>(() => {
       </div>
       <BaseButton v-if="editable && !editing" variant="secondary" size="sm" @click="startEditing">Edit details</BaseButton>
     </div>
+
+    <AppCallout v-if="untypedTrailer" tone="warning" class="mt-4">
+      Trailer {{ untypedTrailer }} has no equipment type, so the analysis will stop rather than guess — a van and a tank
+      are placarded differently.
+      <template v-if="opens('/trailers')"> Set its type on the <RouterLink to="/trailers" class="font-medium underline">Trailers page</RouterLink>.</template>
+      <template v-else> Ask someone who manages trailers to set its type.</template>
+    </AppCallout>
 
     <!-- ── read-only ─────────────────────────────────────────────────────────────────────────── -->
     <FactList v-if="!editing" class="mt-4" :facts="facts" />

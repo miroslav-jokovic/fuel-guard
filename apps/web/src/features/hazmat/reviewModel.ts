@@ -63,6 +63,8 @@ const FLAG_LABELS: Record<string, { label: string; tier: ReviewTier }> = {
   page_incomplete: { label: "A multi-page shipping paper is missing pages.", tier: "conditional" },
   has_preprinted_lines: { label: "Dormant pre-printed template lines — confirm they are not loaded.", tier: "warning" },
   no_documents: { label: "No BOL document is attached to this load (cannot be cleared as-is).", tier: "violation" },
+  // TC1.4 (Q-TC4 (a)): the run was withheld, not computed — the fix is the trailer's type, then analyze again.
+  equipment_kind_unknown: { label: "The trailer's equipment type is not set — no placards were worked out. Set it on the Trailers page and analyze again.", tier: "violation" },
   document_unreadable: { label: "A BOL document could not be read from storage (cannot be cleared as-is).", tier: "violation" },
   budget_exhausted: { label: "Extraction token budget exhausted — re-run after topping up (cannot be cleared as-is).", tier: "violation" },
   entitlement_revoked: { label: "HazmatGuard entitlement was revoked mid-run.", tier: "violation" },

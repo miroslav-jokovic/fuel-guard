@@ -2,14 +2,14 @@ import { randomUUID, createHash } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { evaluateLoad, type LoadInput, type Verdict } from "@hazmat/engine";
 import type { HaulVehicleKind } from "@silvicom/shared";
-import { equipmentAssumptionAdvisory, readEquipmentKind } from "./hazmatEquipment.js";
+import { readEquipmentKind } from "./hazmatEquipment.js";
 import { loadDataset, type Dataset } from "@hazmat/data";
 import { transitionLoad } from "./hazmatLoads.js";
 import { notifyReviewersOfFlag } from "./hazmatNotify.js";
 import type { Env } from "../../env.js";
 import { enqueueJob } from "../../queue/enqueue.js";
 import { evaluateQualification } from "./qualification.js";
-import { QUALIFICATION_EVAL_AT_NOW_FLAG } from "@silvicom/shared";
+import { HAZMAT_EQUIPMENT_UNKNOWN_FLAG, QUALIFICATION_EVAL_AT_NOW_FLAG } from "@silvicom/shared";
 
 /**
  * HazmatGuard analysis orchestrator (plan H4-4) — the MANUAL path. The `jobs` ledger (0027) is a
@@ -197,12 +197,18 @@ export async function executeManualAnalysis(
     // `cleared` load. Independent of the engine verdict; unioned into the flags below.
     const qual = await evaluateQualification(admin, orgId, { driver_id: l.driver_id, planned_pickup_at: l.planned_pickup_at, declared_lines: l.declared_lines }, equipment.kind, new Date().toISOString());
 
-    let verdict: Verdict | { error: string };
+    let verdict: Verdict | { error: string } | { withheld: typeof HAZMAT_EQUIPMENT_UNKNOWN_FLAG; because: string };
     let advisories: unknown[] = [];
     let outcome: "green" | "flagged";
     let flags: string[];
     let engineVersion = "unknown";
-    try {
+    // TC1.4 (Q-TC4 (a)): equipment of no known type is WITHHELD, never computed as the tank `resolveVehicleKind`
+    // falls back to — a hard block naming the Trailers page (hazmatReview.ts), not an advisory beside a tank verdict.
+    if (!equipment.confident) {
+      verdict = { withheld: HAZMAT_EQUIPMENT_UNKNOWN_FLAG, because: equipment.because };
+      flags = [HAZMAT_EQUIPMENT_UNKNOWN_FLAG];
+      outcome = "flagged";
+    } else try {
       const v = evaluateLoad(buildManualLoadInput(l, profile, dataset, new Date().toISOString(), undefined, equipment.kind));
       verdict = v; engineVersion = v.engineVersion;
       flags = computeManualFlags(v, dataset.provisional);
@@ -215,8 +221,6 @@ export async function executeManualAnalysis(
 
     flags = [...new Set([...flags, ...qual.flags])];
     outcome = flags.length ? "flagged" : "green";
-    const equipmentNote = equipmentAssumptionAdvisory(equipment);
-    if (equipmentNote) advisories = [...advisories, equipmentNote];
     if (qual.usedFallback) {
       // §10.3: tier-info, so it is an ADVISORY, not a flag — flags are blocking by definition here
       // (isGreen = zero flags) and "we evaluated at request time" must not block anything.

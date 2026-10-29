@@ -23,6 +23,14 @@ const UNCLEARABLE_CODES = new Set([
   "recapture_needed", "extraction_failed", "no_documents", "document_unreadable",
   "entitlement_revoked", "extraction_disabled", "budget_exhausted",
 ]);
+/**
+ * TWO-CLICK-READER-PLAN TC1.4 (Q-TC4 (a), ruled 2026-10-29): the equipment's type is not on file, so the run was
+ * WITHHELD — no placards were worked out. Until 2026-10-29 such a load was computed as a cargo tank with only an
+ * `info` advisory beside it: a van read as a tank gets bulk ID panels, no DANGEROUS and an N/X endorsement, and a
+ * reviewer saw that verdict as the answer. A van and a tank get different placards and there is no safe default,
+ * so the run stops and names what fixes it. A third hard-block family: neither a bad read nor a disqualification.
+ */
+export const HAZMAT_EQUIPMENT_UNKNOWN_FLAG = "equipment_kind_unknown";
 // §10.2: qualification failures are prefix families, not an enumerable set (driver_unqualified:cdl,
 // :training_safety, …) — hazmatUnclearableReason gained prefix matching for exactly this (M3).
 const UNCLEARABLE_PREFIXES = ["driver_unqualified:", "org_unqualified:"];
@@ -39,6 +47,9 @@ export function hazmatHasViolation(flags: string[]): boolean {
  *  untrustworthy read, and a legal disqualification — distinct messages because the remedies differ
  *  (recapture/re-run vs. fix the qualification record and re-analyze). */
 export function hazmatUnclearableReason(flags: string[]): string | null {
+  if (flags.includes(HAZMAT_EQUIPMENT_UNKNOWN_FLAG)) {
+    return "The trailer's equipment type is not set, so no placards were worked out — a van and a tank are placarded differently. Set the type on the Trailers page, then analyze the load again.";
+  }
   if (flags.some((f) => f.startsWith("driver_unqualified:") || f.startsWith("org_unqualified:"))) {
     return "This load carries a legal disqualification (driver or carrier qualification lapsed). It can NEVER be override-cleared — fix the qualification record and re-run the analysis.";
   }

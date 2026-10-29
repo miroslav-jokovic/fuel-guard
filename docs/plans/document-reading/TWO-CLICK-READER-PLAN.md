@@ -526,3 +526,17 @@ slower reader on warm-booted reads, which is the measurement that would make the
   resolver and the first oracle did not. Mutations: bulk treated as labelled, or the PG III "*" dropped, each fail it.
   **Replay of the 18 production reads** (10 replayable): `doc:replay` summary identical with and without the change, and
   all 63 `paper_class_pg_match` results identical in outcome and reason — no stored paper omits a required subsidiary.
+- **2026-10-29 — TC1.3 MERGED as #1843.**
+- **2026-10-29 — TC1.4 (Q-TC4 (a) + (b)): equipment of no known type is withheld, and the load form asks.** Shared
+  `HAZMAT_EQUIPMENT_UNKNOWN_FLAG` (`equipment_kind_unknown`) is a third hard-block family in `hazmatUnclearableReason` —
+  neither a bad read nor a disqualification — whose message names the Trailers page; no override or attestation clears
+  it. `executeManualAnalysis` records a withheld run (`{ withheld, because }`, no placards) instead of evaluating on
+  `resolveVehicleKind`'s tank fallback; the driver-capture path (`hazmatExtraction/orchestrate.ts`, retiring in TC4.1)
+  stops at the same point, before any model spend. The info advisory `vehicle_kind_assumed` is gone (unreachable). The
+  web flag label says what to do; `LoadDeclarationCard` warns under a chosen trailer with no type, from the same
+  `resolveVehicleKind` the server reads, linking the Trailers page where the viewer may open it — a chosen trailer only,
+  since a truck's own tank data is not loaded by that form and the analysis answers that case. Tests: an end-to-end
+  `executeManualAnalysis` against the recorder (withheld run, hard block, org-scoped; typed tanker still FLAMMABLE) —
+  removing the branch fails it; the hard block refuses a 200-character override; `resolveVehicleKind` over every trailer
+  type × tank data × none (unsure only when neither is on file); the form asks for T-9 and not for a van or no trailer.
+  Not tested: the orchestrate early return (no harness exists for that path; it retires in TC4.1).
