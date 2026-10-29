@@ -131,6 +131,17 @@ export const REQUIRED = [
       "keeps, for every entry, eCFR's words at the paragraph it names, saying every phrase it must",
     ],
   },
+  {
+    step: "TC1.1 segregation by the grid row a material is on (D-TC8)",
+    file: "packages/hazmat-golden/src/segregationCensus.test.ts",
+    titles: [
+      "column 9's phase agrees with the shipping name on every row where both state one",
+      "has a partner on every row of the grid, and a 6.1 and an 8 on no row",
+      "never a violation the rows cannot prove, never a proven violation missed, never a finding worse than the worst row",
+      "never segregates a material from its own subsidiary hazard — acrolein (6.1 PG I zone A, subsidiary 3) alone",
+      "puts no restriction on paint (3, PG II) beside trichloroethylene (6.1, PG III) — E1",
+    ],
+  },
 ];
 
 const TEST_TITLE = /\b(?:it|test|describe)(?:\.each\s*\([\s\S]*?\))?\s*\(\s*(["'`])((?:\\.|(?!\1)[\s\S])*?)\1/g;

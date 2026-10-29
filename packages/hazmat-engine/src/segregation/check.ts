@@ -9,8 +9,12 @@
  * so they carry no §177.848(d) restriction.
  *
  * Pure function; reads the dataset through a minimal consumer view (the engine may not import
- * @hazmat/data). Never under-restricts: when a class maps to several qualified grid labels (e.g. the
- * two 2.3 zones), it takes the most severe applicable value.
+ * @hazmat/data). A material is matched to the grid row its OWN facts name (qualifiers.ts, TWO-CLICK-READER-
+ * PLAN TC1.1, D-TC8): "6.1 liquids PG I zone A" is the row of PG I zone-A liquids, not of every Division 6.1
+ * material. Until 2026-10-29 every row sharing a class number counted and the most severe won, which made a
+ * 3 + 6.1 PG III load a blocking violation the CFR does not impose (E1). Where a qualifier cannot be told from
+ * the table, the most severe row the material might be on is reported as a `conditional`
+ * (`segregation_unresolved`) naming the rows — never as a `violation`.
  *
  * SUBSIDIARY classes count. §177.848 segregates on hazard, and a material's subsidiary risk is a
  * hazard it actually carries — a Class 3 flammable with a subsidiary 4.3 is dangerous-when-wet on
@@ -24,8 +28,9 @@
 
 import type { Finding, LoadInput, TraceNode } from "../types.js";
 import { parseHmtRef } from "../hmtRef.js";
+import { factsOf, labelMatches, type QualifierEntry } from "./qualifiers.js";
 
-interface DsEntry { entryId: string; hazardClass: string | null; subsidiaryClasses?: string[] }
+interface DsEntry extends QualifierEntry { entryId: string; hazardClass: string | null; subsidiaryClasses?: string[] }
 interface DsSegCell { rowClass: string; colClass: string; value: "X" | "O" | "*"; notes: string | null }
 interface DsView { entries: DsEntry[]; segregation: DsSegCell[] }
 
@@ -76,31 +81,41 @@ export function checkSegregation(load: LoadInput): SegregationResult {
   // from. The provenance is not decoration: "Class 4.3 and Class 8 may not be loaded together" sends
   // a loader looking for a 4.3 placard that is not on the paperwork, whereas "Class 4.3 (subsidiary
   // risk of gas — UN1203) and Class 8" names the drum they are actually holding.
+  const gridLabels = new Set<string>();
+  for (const c of ds.segregation) for (const l of [c.rowClass, c.colClass]) if (typeof l === "string") gridLabels.add(l);
+
+  // Per class on the load: where it came from, and each grid row a material of it is DEFINITELY on or MIGHT be on
+  // (a qualifier the table cannot settle), with WHICH material — §177.848 keeps materials apart from each other, so
+  // a material's primary hazard is never segregated from its own subsidiary one (acrolein, 6.1 with a subsidiary 3,
+  // was a 3 × 6.1 violation on its own until 2026-10-29). A subsidiary hazard is read with its material's own row.
+  type Placement = { label: string; material: string; sure: boolean };
   const classSources = new Map<string, Set<string>>();
-  const noteClass = (raw: string | null | undefined, entryId: string, kind: "class" | "subsidiary") => {
+  const placements = new Map<string, Placement[]>();
+  const add = (m: Map<string, Set<string>>, k: string, v: string) => (m.get(k) ?? m.set(k, new Set()).get(k)!).add(v);
+  const noteClass = (raw: string | null | undefined, entry: DsEntry, pg: string | null, kind: "class" | "subsidiary") => {
     const text = (raw ?? "").trim();
     if (!text) return;
     const base = baseClass(text);
     if (!base) return;
-    if (!classSources.has(base)) classSources.set(base, new Set<string>());
-    classSources.get(base)!.add(`${entryId} (${kind} ${text})`);
+    add(classSources, base, `${entry.entryId} (${kind} ${text})`);
+    const facts = factsOf(entry, base, pg);
+    const material = `${entry.entryId}#${pg ?? "none"}`;
+    for (const label of gridLabels) {
+      if (baseClass(label) !== base) continue;
+      const m = labelMatches(label, facts);
+      if (m !== "no") (placements.get(base) ?? placements.set(base, []).get(base)!).push({ label, material, sure: m === "yes" });
+    }
   };
   for (const line of load.lines) {
-    const { entryId } = parseHmtRef(line.hmtRef);
+    const { entryId, pg } = parseHmtRef(line.hmtRef);
     const entry = ds.entries.find((e) => e.entryId === entryId);
     if (!entry) continue;
-    noteClass(entry.hazardClass, entry.entryId, "class");
-    for (const sub of entry.subsidiaryClasses ?? []) noteClass(sub, entry.entryId, "subsidiary");
+    noteClass(entry.hazardClass, entry, pg, "class");
+    for (const sub of entry.subsidiaryClasses ?? []) noteClass(sub, entry, pg, "subsidiary");
   }
   const classes = new Set<string>(classSources.keys());
   const sourcesFor = (cls: string): string[] => [...(classSources.get(cls) ?? [])].sort();
-
-  const gridLabels = new Set<string>();
-  for (const c of ds.segregation) {
-    gridLabels.add(c.rowClass);
-    gridLabels.add(c.colClass);
-  }
-  const labelsFor = (cls: string): string[] => [...gridLabels].filter((l) => baseClass(l) === cls);
+  const placed = (cls: string, sureOnly: boolean): Placement[] => (placements.get(cls) ?? []).filter((p) => p.sure || !sureOnly);
 
   const cellValue = (a: string, b: string): "X" | "O" | "*" | null => {
     const hit = ds.segregation.find((c) => (c.rowClass === a && c.colClass === b) || (c.rowClass === b && c.colClass === a));
@@ -113,17 +128,34 @@ export function checkSegregation(load: LoadInput): SegregationResult {
     for (let j = i + 1; j < classList.length; j++) {
       const a = classList[i] as string;
       const b = classList[j] as string;
-      // most-severe applicable grid value across all label combinations (never under-restrict)
-      let worst: "X" | "O" | "*" | null = null;
-      for (const la of labelsFor(a)) {
-        for (const lb of labelsFor(b)) {
-          const v = cellValue(la, lb);
-          if (v && (worst == null || SEVERITY[v]! > SEVERITY[worst]!)) worst = v;
+      const worstOf = (sureOnly: boolean) => {
+        let w: { value: "X" | "O" | "*"; rows: [string, string] } | null = null;
+        for (const pa of placed(a, sureOnly)) for (const pb of placed(b, sureOnly)) {
+          if (pa.material === pb.material) continue;
+          const v = cellValue(pa.label, pb.label);
+          if (v && (w == null || SEVERITY[v]! > SEVERITY[w.value]!)) w = { value: v, rows: [pa.label, pb.label] };
         }
+        return w;
+      };
+      const worst = worstOf(true)?.value ?? null;
+      const maybe = worstOf(false);
+      const cite = [{ cfr: "49 CFR 177.848(d)" }];
+      // A worse cell the load is only POSSIBLY on (a phase, zone or PG the table cannot settle) is a person's
+      // question, not a violation: it names the two rows so the dispatcher can answer it from the paper.
+      if (maybe && (worst === null || SEVERITY[maybe.value]! > SEVERITY[worst]!)) {
+        restrictedPairs++;
+        const rule = maybe.value === "X" ? "prohibits loading them together" : maybe.value === "O" ? "requires them kept away from each other" : "applies a specific segregation";
+        findings.push({
+          ruleId: "segregation_unresolved",
+          tier: "conditional",
+          message: `Class ${a} and class ${b}: if these materials are the table's "${maybe.rows[0]}" and "${maybe.rows[1]}" rows, §177.848(d) ${rule}. The Hazardous Materials Table does not say which row they are on — check the shipping paper.`,
+          citations: cite,
+          evidence: { classA: a, classB: b, value: maybe.value, rows: maybe.rows, sourcesA: sourcesFor(a), sourcesB: sourcesFor(b) },
+        });
+        continue;
       }
       if (!worst) continue;
       restrictedPairs++;
-      const cite = [{ cfr: "49 CFR 177.848(d)" }];
       if (worst === "X") {
         findings.push({
           ruleId: "segregation_prohibited",

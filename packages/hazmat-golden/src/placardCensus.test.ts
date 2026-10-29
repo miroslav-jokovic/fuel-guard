@@ -54,8 +54,6 @@ function own(ref: string) {
   return a;
 }
 
-/** The class or division a §177.848(d) grid label names: "2.3 gas zone A" → "2.3", "8 liquids only" → "8". */
-const baseOf = (label: string): string => /^(\d(?:\.\d)?)/.exec(label.trim())?.[1] ?? label.trim();
 
 /** Seeded (mulberry32), so a failure names a load that reproduces. */
 function rng(seed: number) {
@@ -149,32 +147,9 @@ describe("the placard census — the whole Hazardous Materials Table", () => {
     expect(bad).toEqual([]);
   });
 
-  // §177.848 segregates on the hazards a material carries, its subsidiary ones included (segregation/check.ts,
-  // audit 2026-08-09 finding 4.2) — which the same empty field had made unreachable on the real table.
-  it("a material's subsidiary class segregates it from a class the §177.848(d) grid restricts, on every such entry", () => {
-    const grid = new Map(ds.segregation.map((c) => [`${baseOf(c.rowClass)}|${baseOf(c.colClass)}`, c.value]));
-    const plainOf = new Map<string, string>();
-    for (const e of ds.entries) if (e.hazardClass && e.subsidiaryClasses.length === 0 && !plainOf.has(e.hazardClass)) plainOf.set(e.hazardClass, `${e.entryId}#${e.pgRows[0]?.pg ?? "none"}`);
-    const bad: string[] = [];
-    let checked = 0;
-    for (const e of ds.entries) {
-      if (!e.hazardClass || /^1\./.test(e.hazardClass)) continue;
-      for (const sub of e.subsidiaryClasses) {
-        for (const [cls, plainRef] of plainOf) {
-          if (/^1\./.test(cls) || cls === e.hazardClass || cls === sub) continue;
-          const cell = grid.get(`${sub}|${cls}`) ?? grid.get(`${cls}|${sub}`);
-          if (cell !== "X" && cell !== "O") continue;
-          if (grid.get(`${e.hazardClass}|${cls}`) === "X" || grid.get(`${cls}|${e.hazardClass}`) === "X" || grid.get(`${e.hazardClass}|${cls}`) === "O" || grid.get(`${cls}|${e.hazardClass}`) === "O") continue; // the primary restricts it already
-          checked++;
-          const v = evaluateLoad(load([{ ref: `${e.entryId}#${e.pgRows[0]?.pg ?? "none"}`, kind: "non_bulk", lb: 500 }, { ref: plainRef, kind: "non_bulk", lb: 500 }]));
-          if (v.segregation.some((f) => f.ruleId === "segregation_none")) bad.push(`${e.entryId} (${e.hazardClass} with ${sub}) beside ${cls}: segregation_none`);
-          break; // one restricted partner per subsidiary is the proof
-        }
-      }
-    }
-    expect(checked).toBeGreaterThan(100);
-    expect(bad.slice(0, 20)).toEqual([]);
-  });
+  // Segregation, subsidiary hazards included, moved to segregationCensus.test.ts on 2026-10-29 (TWO-CLICK-READER-PLAN
+  // TC1.1). The test that stood here collapsed every grid label to its class number ("6.1 liquids PG I zone A" → "6.1")
+  // with a helper of its own — the engine's simplification restated — and so demanded the false violations of E1.
 
   it("same-class pairs — the Mayo shape, two bulk materials of one class — across every class", () => {
     const r = rng(1824_1830);

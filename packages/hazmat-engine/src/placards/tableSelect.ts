@@ -52,11 +52,11 @@ export type TableSelection<S extends TableSelectSpec> =
   | { ok: false; reason: string; citation: string };
 
 /** §172.102(c)(1) codes that ASSERT poison-by-inhalation. Code 5 is deliberately absent — see above. */
-const PIH_ASSERTING_PROVISIONS = new Set(["1", "2", "3", "4"]);
+export const PIH_ASSERTING_PROVISIONS = new Set(["1", "2", "3", "4"]);
 /** §172.102(c)(1) code 5 — conditional on the shipper's name choice; decides nothing on its own. */
-const PIH_CONDITIONAL_PROVISION = "5";
+export const PIH_CONDITIONAL_PROVISION = "5";
 
-const PIH_PSN_PATTERN = /poisonous by inhalation|toxic by inhalation|inhalation hazard/i;
+export const PIH_PSN_PATTERN = /poisonous by inhalation|toxic by inhalation|inhalation hazard/i;
 
 function provisionsOf(entry: TableSelectEntry): Set<string> {
   const out = new Set<string>();

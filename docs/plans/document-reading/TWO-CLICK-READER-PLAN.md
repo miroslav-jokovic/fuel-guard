@@ -468,3 +468,24 @@ slower reader on warm-booted reads, which is the measurement that would make the
   paragraph each citation names says, in the store's own text, every `mustSay` phrase; every citation resolves through
   `referenceForCitation`. Mutation: the old skeleton back fails 4 of 4. `/api/hazmat/reference/:section` now answers for
   every section the engine cites (it is a direct store lookup; no route test exists for it). Next: TC1.1.
+- **2026-10-29 — Q-TC6 (a) MERGED as #1838** (39 sections at eCFR 2026-10-27; `/reference/:section` answers).
+- **2026-10-29 — TC1.1: segregation by the grid row a material is on (engine 0.25.0; E1 closed).** New
+  `segregation/qualifiers.ts`: each grid label's qualifiers read from its own words ("6.1 liquids PG I zone A" → liquid,
+  PG I, zone A); each material's from its HMT row — PG from the row; zone from §172.102(c)(1) provisions 1–4 (the PIH
+  constants `tableSelect.ts` owns, now exported), unknown under provision 5 or an inhalation name, always unknown for
+  an unzoned 2.3; phase a fact of the MATERIAL (Class 2 primary → gas, so a gas's subsidiary 8 is never "8 liquids
+  only"), else the shipping name's word, else column 9's L/kg (decides 367 of 386 Class 8 rows), else a zone ⇒ liquid
+  (§173.116(a)/§173.133(a)). A cell restricts only rows two DIFFERENT materials are on — found by the census: acrolein
+  (6.1 PG I zone A with subsidiary 3) was a 3 × 6.1 violation against itself, on the old code too. Where a qualifier is
+  unknown and the worst row it might be on is worse than the rows it is surely on, the finding is
+  `segregation_unresolved`, a conditional naming both rows — never a violation. E1 (UN1263 PG II + UN1710 PG III) →
+  `segregation_none`; 6.1 PG I zone A + 3 still X; 8 solid + 5.1 → none; 2.3 zone B + 3 → O. New census
+  `hazmat-golden/src/segregationCensus.test.ts`: every non-explosive row × a plain partner on each grid row (and a 6.1
+  and an 8 on no row), against an oracle that reads zones from §172.102's own text in the reference store, phase from
+  the shipping name (column 9 only where the name is silent, and column 9 is itself held to the names on the 300+
+  non-gas rows where both speak), and the labels' qualifiers from §177.848(d)'s printed row titles by hand; no
+  violation it cannot prove (4,195 proven), none missed, none beyond the worst row. Mutations: main's engine fails 3
+  of its 6 tests, dropping the different-materials rule fails 2. The old placard-census test that collapsed labels with
+  its own `baseOf()` is removed (it demanded E1's false violations). `check.test.ts` gains the plan's cases (6.1 PG III
+  + 3, 8 solid + 5.1, 2.3 zone B + 3, unknown phase/zone, a gas's subsidiary 8, a material's own subsidiary). Pinned in
+  `lint:reader-gate` (14 files). Explosives (class 1) stay out of scope, as before.
