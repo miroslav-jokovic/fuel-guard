@@ -3,11 +3,13 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   DOCUMENT_PROFILES,
   fieldEvidenceSchema,
+  readStageOf,
   valueAtPath,
   type DocumentProfileId,
   type FieldEvidence,
   type PaperAuditView,
   type ReadResponse,
+  type ReadStageTimings,
   type ReviewBatchRequest,
 } from "@silvicom/shared";
 import { workingSizeOf } from "../pages/canonical.js";
@@ -125,6 +127,7 @@ interface ReadRow {
   failure_code: ReadResponse["failureCode"];
   result: ReadResponse["result"];
   evidence: unknown;
+  stage_timings: ReadStageTimings | null;
 }
 interface PageColumns {
   working_path: string;
@@ -142,7 +145,7 @@ interface PageColumns {
 export async function getRead(admin: SupabaseClient, orgId: string, readId: string): Promise<ReadResponse | ReaderError> {
   const { data, error } = await admin
     .from("document_reads")
-    .select("id, source_id, assembly_id, profile, profile_version, status, failure_code, result, evidence")
+    .select("id, source_id, assembly_id, profile, profile_version, status, failure_code, result, evidence, stage_timings")
     .eq("org_id", orgId).eq("id", readId).maybeSingle();
   if (error) return fail("query_failed", error.message);
   if (!data) return fail("not_found", "That read is not in this organization.");
@@ -192,6 +195,7 @@ export async function getRead(admin: SupabaseClient, orgId: string, readId: stri
     profile: read.profile,
     profileVersion: read.profile_version,
     status: read.status,
+    stage: readStageOf(read.status, read.stage_timings),
     failureCode: read.failure_code,
     result: read.result,
     evidence,

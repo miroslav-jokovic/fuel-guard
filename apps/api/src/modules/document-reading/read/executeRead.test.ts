@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import Anthropic from "@anthropic-ai/sdk";
 import sharp from "sharp";
 import { describe, expect, it, vi } from "vitest";
-import { DOCUMENT_PROFILES, printedHazmatLineSchema, readersAgree } from "@silvicom/shared";
+import { DOCUMENT_PROFILES, printedHazmatLineSchema, readersAgree, readStageOf, type ReadStageTimings } from "@silvicom/shared";
 import { createSupabaseRecorder, expectOrgScoped, type RecordedQuery } from "../../../testing/supabaseRecorder.js";
 import { TransientModelError, type ModelClient } from "../model/readPages.js";
 import { combinedSchemaHash, sectionWireSchemas } from "../model/readSections.js";
@@ -61,6 +61,8 @@ interface World {
   classifier?: Record<string, { pageClass: string; rotation: string }> | ((pageId: string) => Anthropic.Message | Promise<Anthropic.Message>);
   /** The OCR witness's engine (§7B A5); absent = none, as with DOC_OCR_WITNESS=off. */
   ocr?: RecognisePage;
+  /** Every mid-read stage mark (TC0.2) answers with this error, as an RPC the database refused would. */
+  markError?: { message: string };
 }
 
 function message(over: Partial<Anthropic.Message> = {}): Anthropic.Message {
@@ -79,6 +81,9 @@ function sliceBySchema(doc: unknown, schema: unknown): unknown {
   if (!props || doc === null || typeof doc !== "object" || Array.isArray(doc)) return doc;
   return Object.fromEntries(Object.entries(props).map(([k, sub]) => [k, sliceBySchema((doc as Record<string, unknown>)[k], sub)]));
 }
+
+/** A mid-read stage mark (TC0.2, 0529): reading → reading carrying the stages finished so far. */
+const isMark = (m: Record<string, unknown>) => m.p_to === "reading" && m.p_stage_timings !== undefined;
 
 async function world(w: World = {}) {
   const pages = w.pages ?? [
@@ -103,9 +108,13 @@ async function world(w: World = {}) {
       document_read_reviews: { data: [], count: w.reviews ?? 0 },
       org_usage_month: w.used === undefined ? [] : [{ input_tokens: w.used, output_tokens: 0 }],
     },
-    rpc: (fn) => (fn === "document_page_current_class"
-      ? Object.entries(w.classes ?? {}).map(([page_id, page_class]) => ({ page_id, page_class, rotation: w.rotations?.[page_id] ?? null }))
-      : null),
+    rpc: (fn, args) => {
+      if (fn === "document_page_current_class") {
+        return Object.entries(w.classes ?? {}).map(([page_id, page_class]) => ({ page_id, page_class, rotation: w.rotations?.[page_id] ?? null }));
+      }
+      if (w.markError && isMark(args as Record<string, unknown>)) return { error: w.markError };
+      return null;
+    },
     storage: {
       download: (path: string) => {
         const p = pages.find((x) => x.path === path);
@@ -141,16 +150,22 @@ async function world(w: World = {}) {
     },
   };
   const gates: string[] = [];
+  // Each reading of the clock is 100 ms after the last, so every stage's timing is a known, non-zero number.
+  let tick = 0;
   const deps = {
     client,
     env: { ...ENV, ...w.env },
     now: () => new Date("2026-10-09T12:00:00Z"),
+    clock: () => (tick += 100),
     gateFor: async (_a: unknown, org: string) => (gates.push(org), w.gate ?? { open: true, monthlyTokenBudget: null }),
     ocr: w.ocr,
   };
   const run = () => executeRead(rec.client, ORG, READ, deps);
-  const transitions = () => rec.rpcs().filter((r) => r.fn === "document_read_transition").map((r) => r.args as Record<string, unknown>);
-  return { rec, run, requests, classifyRequests, transitions, pages, gates };
+  const moves = () => rec.rpcs().filter((r) => r.fn === "document_read_transition").map((r) => r.args as Record<string, unknown>);
+  // The read's own moves (queued → reading → its outcome); the stage marks written in between are `marks`.
+  const transitions = () => moves().filter((m) => !isMark(m));
+  const marks = () => moves().filter(isMark);
+  return { rec, run, requests, classifyRequests, transitions, marks, moves, pages, gates };
 }
 
 describe("executeRead — a one-reader profile (UNIT-FILES-PLAN UF7b2)", () => {
@@ -201,7 +216,11 @@ describe("executeRead — a read that reaches the model", () => {
     const r = await w.run();
     // 18,000 / 2,400 for three section reads by each of two readers, plus 500 / 20 for classifying p2, the
     // one page with no verdict.
-    expect(r).toEqual({ outcome: "done", cacheHit: false, inputTokens: 18_500, outputTokens: 2420, pages: 2 });
+    expect(r).toEqual({
+      outcome: "done", cacheHit: false, inputTokens: 18_500, outputTokens: 2420, pages: 2,
+      // No OCR engine in this world, so no `ocr` stage.
+      stageTimings: { classify: expect.any(Number), fetch: expect.any(Number), passA: expect.any(Number), passB: expect.any(Number), evidence: expect.any(Number) },
+    });
     expect(w.classifyRequests).toHaveLength(1);
     // The classifier's own pin (DOC_CLASSIFY_MODEL), never the reader's or pass B's.
     expect(w.classifyRequests[0]!.model).toBe("claude-haiku-5-5");
@@ -287,7 +306,11 @@ describe("executeRead — a read that reaches the model", () => {
   it("ends failed with the section's code and the tokens it spent when the model refuses", async () => {
     const w = await world({ model: () => message({ stop_reason: "refusal", content: [] }), classes: { p1: "bol", p2: "bol" } });
     // Both readers' three sections, 3,000 / 400 each: pass B was asked at the same moment as pass A.
-    expect(await w.run()).toEqual({ outcome: "failed", code: "refusal", inputTokens: 18_000, outputTokens: 2400 });
+    // Every page already classed, so no `classify`; refused before the evidence, so no `evidence`.
+    expect(await w.run()).toEqual({
+      outcome: "failed", code: "refusal", inputTokens: 18_000, outputTokens: 2400,
+      stageTimings: { fetch: expect.any(Number), passA: expect.any(Number), passB: expect.any(Number) },
+    });
     expect(w.transitions()[1]).toMatchObject({ p_to: "failed", p_failure_code: "refusal", p_input_tokens: 18_000 });
   });
 
@@ -295,6 +318,63 @@ describe("executeRead — a read that reaches the model", () => {
     const w = await world({ model: () => { throw new Anthropic.RateLimitError(429, undefined, "rate limited", new Headers()); } });
     await expect(w.run()).rejects.toBeInstanceOf(TransientModelError);
     expect(w.transitions().map((t) => t.p_to)).toEqual(["reading"]);
+  });
+});
+
+describe("executeRead — stage timings (TWO-CLICK-READER-PLAN TC0.2, D-TC4)", () => {
+  // An OCR engine that answers after both readers have, as the cold engine of 2026-10-29 did.
+  const lateOcr: RecognisePage = async () => (await new Promise((r) => setTimeout(r, 5)), { items: [], view: null });
+
+  it("writes every stage it ran onto the row with the outcome, the same numbers the outcome carries", async () => {
+    const w = await world({ ocr: lateOcr });
+    const r = await w.run();
+    expect(r.outcome).toBe("done");
+    const timings = (r as { stageTimings: Record<string, number> }).stageTimings;
+    expect(Object.keys(timings).sort()).toEqual(["classify", "evidence", "fetch", "ocr", "passA", "passB"]);
+    for (const ms of Object.values(timings)) expect(ms).toBeGreaterThan(0);
+    expect(w.transitions().at(-1)!.p_stage_timings).toEqual(timings);
+  });
+
+  it("times the OCR witness by its own run, so an OCR answering after the readers shows as the longer stage", async () => {
+    const w = await world({ ocr: lateOcr, classes: { p1: "bol", p2: "bol" } });
+    const t = ((await w.run()) as { stageTimings: Record<string, number> }).stageTimings;
+    expect(t.ocr).toBeGreaterThan(t.passA!);
+    expect(t.ocr).toBeGreaterThan(t.passB!);
+  });
+
+  it("marks the row twice while reading — pages fetched, then both readers answered — and ends with the outcome", async () => {
+    const w = await world({ ocr: lateOcr });
+    await w.run();
+    const [fetched, answered] = w.marks().map((m) => m.p_stage_timings as ReadStageTimings);
+    expect(w.marks()).toHaveLength(2);
+    expect(Object.keys(fetched!).sort()).toEqual(["classify", "fetch"]);
+    expect(answered).toMatchObject({ passA: expect.any(Number), passB: expect.any(Number) });
+    // The screen's words come from what the marks say was finished (readStageOf), never from a clock.
+    expect(readStageOf("reading", fetched!)).toBe("reading");
+    expect(readStageOf("reading", answered!)).toBe("checking");
+    expect(w.moves().map((m) => (isMark(m) ? "mark" : m.p_to))).toEqual(["reading", "mark", "mark", "done"]);
+  });
+
+  it("finishes the read exactly as it would when the database refuses every stage mark", async () => {
+    const refused = await world({ markError: { message: "the stage mark was refused" } });
+    const fine = await world();
+    expect(await refused.run()).toEqual(await fine.run());
+    expect(refused.marks()).toHaveLength(2);
+    expect(refused.transitions()).toEqual(fine.transitions());
+  });
+
+  it("marks a refused read once, at the pages fetched, before ending it failed with its stages", async () => {
+    const w = await world({ model: () => message({ stop_reason: "refusal", content: [] }), classes: { p1: "bol", p2: "bol" } });
+    await w.run();
+    expect(w.moves().map((m) => (isMark(m) ? "mark" : m.p_to))).toEqual(["reading", "mark", "failed"]);
+    expect(w.transitions().at(-1)!.p_stage_timings).toMatchObject({ fetch: expect.any(Number), passA: expect.any(Number) });
+  });
+
+  it("does not mark a cache hit, which reads nothing", async () => {
+    const w = await world({ cached: { identity: {} }, classes: { p1: "bol", p2: "bol" } });
+    await w.run();
+    expect(w.marks()).toEqual([]);
+    expect(w.transitions().at(-1)!.p_stage_timings).toEqual({ fetch: expect.any(Number) });
   });
 });
 
@@ -381,7 +461,10 @@ describe("executeRead — P2, classify and orient (§7A.3, Q-DR19 (a))", () => {
 
   it("counts a refused read's classification tokens too: the model was asked", async () => {
     const w = await world({ model: () => message({ stop_reason: "refusal", content: [] }) });
-    expect(await w.run()).toEqual({ outcome: "failed", code: "refusal", inputTokens: 19_000, outputTokens: 2440 });
+    expect(await w.run()).toEqual({
+      outcome: "failed", code: "refusal", inputTokens: 19_000, outputTokens: 2440,
+      stageTimings: { classify: expect.any(Number), fetch: expect.any(Number), passA: expect.any(Number), passB: expect.any(Number) },
+    });
   });
 });
 
@@ -585,7 +668,8 @@ describe("executeRead — a read that ends before the model", () => {
   it("replays a finished read with the same cache key, spending nothing and asking no budget (D17's order)", async () => {
     const cached = { identity: { bolNumber: "123" } };
     const w = await world({ cached, used: 10_000_000, gate: { open: true, monthlyTokenBudget: 1 }, classes: { p1: "bol", p2: "bol" } });
-    expect(await w.run()).toEqual({ outcome: "done", cacheHit: true, inputTokens: 0, outputTokens: 0, pages: 2 });
+    // A cache hit stops after `fetch`: no reader ran, so it has no reader's time.
+    expect(await w.run()).toEqual({ outcome: "done", cacheHit: true, inputTokens: 0, outputTokens: 0, pages: 2, stageTimings: { fetch: expect.any(Number) } });
     expect(w.transitions()[1]).toMatchObject({ p_to: "done", p_result: cached, p_input_tokens: 0, p_output_tokens: 0 });
     expect(w.requests).toEqual([]);
     expect(w.rec.forTable("org_usage_month")).toEqual([]);

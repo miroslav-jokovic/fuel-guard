@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { DOCUMENT_PROFILES, withinBudget, type DocumentProfileId, type PageRotation, type ReadFailureCode } from "@silvicom/shared";
+import { DOCUMENT_PROFILES, withinBudget, type DocumentProfileId, type PageRotation, type ReadFailureCode, type ReadStageTiming, type ReadStageTimings } from "@silvicom/shared";
 import type { Env } from "../../../env.js";
 import { readModels } from "../model/models.js";
 import { readPages, SEND_RULE_VERSION, type ModelClient, type PageImage } from "../model/readPages.js";
@@ -62,12 +62,14 @@ export interface ReadDeps {
   ocr?: RecognisePage;
   /** The month the budget is counted in — injectable so a test does not depend on the clock. */
   now?: () => Date;
+  /** A monotonic millisecond clock for the stage timings (TC0.2) — injectable for the same reason. */
+  clock?: () => number;
 }
 
 export type ExecuteReadOutcome =
   | { outcome: "skipped"; reason: "not_found" | "already_terminal" }
-  | { outcome: "done"; cacheHit: boolean; inputTokens: number; outputTokens: number; pages: number }
-  | { outcome: "failed"; code: ReadFailureCode; inputTokens: number; outputTokens: number };
+  | { outcome: "done"; cacheHit: boolean; inputTokens: number; outputTokens: number; pages: number; stageTimings: ReadStageTimings }
+  | { outcome: "failed"; code: ReadFailureCode; inputTokens: number; outputTokens: number; stageTimings: ReadStageTimings };
 
 interface ReadRow {
   id: string;
@@ -195,6 +197,22 @@ export async function executeRead(admin: SupabaseClient, orgId: string, readId: 
   }
   await transition(admin, orgId, readId, "reading");
 
+  // TC0.2 (D-TC4, 0529): every stage's milliseconds, on the row and in the handler's `[metrics]` line, so a slow
+  // read says where its time went (1f251e08's 88 s on 2026-10-29 could not). `mark` records the stages finished
+  // so far while the read is still reading — the screen words the stage from them (`readStageOf`). It is best
+  // effort: a timing that cannot be written is a missing number, never the read's outcome.
+  const clock = deps.clock ?? (() => performance.now());
+  const timings: ReadStageTimings = {};
+  const timed = async <T>(stage: ReadStageTiming, work: Promise<T>): Promise<T> => {
+    const t0 = clock();
+    try {
+      return await work;
+    } finally {
+      timings[stage] = Math.round(clock() - t0);
+    }
+  };
+  const mark = (): Promise<void> => transition(admin, orgId, readId, "reading", { p_stage_timings: { ...timings } }).catch(() => undefined);
+
   const prompt = READ_PROMPTS[read.profile];
   const pins = readModels(deps.env, read.profile);
   const models = pins.B === null ? [pins.A] : [pins.A, pins.B];
@@ -209,8 +227,9 @@ export async function executeRead(admin: SupabaseClient, orgId: string, readId: 
       p_cache_key: versions.cacheKey,
       p_input_tokens: input,
       p_output_tokens: output,
+      p_stage_timings: { ...timings },
     });
-    return { outcome: "failed", code, inputTokens: input, outputTokens: output };
+    return { outcome: "failed", code, inputTokens: input, outputTokens: output, stageTimings: { ...timings } };
   };
   // `replay` is what the witnesses were handed (RC2, 0487): pass B's whole document, the OCR words and the
   // text-layer words of the pages read, so the read can be judged again from its own row when the pairing,
@@ -230,8 +249,9 @@ export async function executeRead(admin: SupabaseClient, orgId: string, readId: 
       p_input_tokens: input,
       p_output_tokens: output,
       p_replay_inputs: replay,
+      p_stage_timings: { ...timings },
     });
-    return { outcome: "done", cacheHit, inputTokens: input, outputTokens: output, pages };
+    return { outcome: "done", cacheHit, inputTokens: input, outputTokens: output, pages, stageTimings: { ...timings } };
   };
 
   // Re-checked here, not only when the read was requested: no model spend once the org is switched off.
@@ -251,7 +271,7 @@ export async function executeRead(admin: SupabaseClient, orgId: string, readId: 
   if (unclassified.length > 0) {
     const used = await tokensUsedThisMonth(admin, orgId, deps.now?.() ?? new Date());
     if (!withinBudget(used, gate.monthlyTokenBudget)) return fail("budget_exhausted");
-    const c = await classifyPages(admin, orgId, unclassified, deps.env.DOC_CLASSIFY_MODEL, deps.client);
+    const c = await timed("classify", classifyPages(admin, orgId, unclassified, deps.env.DOC_CLASSIFY_MODEL, deps.client));
     for (const [id, v] of c.verdicts) verdicts.set(id, v);
     spent.input = c.inputTokens;
     spent.output = c.outputTokens;
@@ -260,7 +280,7 @@ export async function executeRead(admin: SupabaseClient, orgId: string, readId: 
 
   const pages = readablePages(given, verdicts, read.profile);
   if (pages.length === 0) return fail("no_readable_page", spent.input, spent.output);
-  const loaded = await loadImages(admin, pages, models[0]!, rotationOf);
+  const loaded = await timed("fetch", loadImages(admin, pages, models[0]!, rotationOf));
   if (loaded === "integrity_mismatch") return fail("integrity_mismatch", spent.input, spent.output);
   const { images, originals } = loaded;
 
@@ -289,21 +309,28 @@ export async function executeRead(admin: SupabaseClient, orgId: string, readId: 
   };
   // The OCR witness (§7B A5) runs on its own thread while the models read; it costs no tokens, and its
   // failure is its absence, never the read's.
-  const ocrRun = deps.ocr ? ocrPages(originals, deps.ocr).catch(() => null) : Promise.resolve(null);
+  // Not awaited: a mark is a round trip, and the readers do not wait on the screen's stage text. Each is
+  // settled before the next write, so the row's writes stay in order and the terminal move is the last.
+  const marked = mark();
+  const ocrRun = deps.ocr ? timed("ocr", ocrPages(originals, deps.ocr).catch(() => null)) : Promise.resolve(null);
   // Pass A is the document; pass B is a second, independent witness to it (§7B A3). They are asked AT ONCE.
   // Until 2026-10-15 they ran in turn so that a refusal of A ended the read before B was paid for; that
   // saving is a rare refusal's tokens, and its price was every read's wait doubled — a 13-page BOL spent
   // ~195 s of its 4 min 44 s on the two readers back to back (read 795bf4bc), past the screen's patience.
   // The owner asked for fast (2026-10-15), so a failed A now costs B's tokens too, and they are counted.
   // A one-reader profile (`readers: 1`) asks pass A alone; its second witness is the person who files it.
-  const [a, b] = await Promise.all([read1(pins.A), pins.B === null ? null : read1(pins.B)]);
+  const [a, b] = await Promise.all([timed("passA", read1(pins.A)), pins.B === null ? null : timed("passB", read1(pins.B))]);
   const total = { input: spend(a.usage).input + (b?.usage.input ?? 0), output: spend(a.usage).output + (b?.usage.output ?? 0) };
-  if (a.kind !== "ok") return fail(a.kind, total.input, total.output);
+  if (a.kind !== "ok") return marked.then(() => fail(a.kind, total.input, total.output));
   // Pass B failing (refusal, truncation, off-schema) does not fail the read: its fields are one reader's.
   const text = textLayerPages(pages.map((p) => ({ textLayer: p.text_layer, rotation: rotationOf(p.id) })));
   const passB = b?.kind === "ok" ? b.document : null;
+  const checking = marked.then(mark);
   const ocr = await ocrRun;
+  const e0 = clock();
   const evidence = EVIDENCE_FOR[read.profile](a.document, passB, ACCEPTANCE_RULE_VERSION, ocr, text);
+  timings.evidence = Math.round(clock() - e0);
+  await checking;
   return done(a.document, evidence, false, total.input, total.output, pages.length, { passB, ocr, textLayer: text });
 }
 

@@ -9,6 +9,8 @@ import FileDropzone from "@/components/ui/FileDropzone.vue";
  * sent, and a page moved earlier is read earlier.
  */
 const calls: { path: string; method: string; body?: Record<string, unknown> }[] = [];
+/** What the read answers while it runs; null = it is done at once. */
+let running: { status: string; stage: string } | null = null;
 vi.mock("@/lib/api", () => ({
   apiFetch: vi.fn(async (path: string, init?: { method?: string; body?: Record<string, unknown> }) => {
     const method = init?.method ?? "GET";
@@ -21,9 +23,10 @@ vi.mock("@/lib/api", () => ({
     if (path.startsWith("/api/documents/sources/")) return { ok: true, status: 200, data: { status: "ready", refusal: null, pageCount: 1, readId: null } };
     if (path === "/api/documents/assemblies") return { ok: true, status: 201, data: { assemblyId: "asm-1", pageCount: 2 } };
     if (path === "/api/documents/reads") return { ok: true, status: 201, data: { readId: "read-1" } };
+    if (running) return { ok: true, status: 200, data: { id: "read-1", ...running, failureCode: null, result: null, evidence: [], pages: [] } };
     return {
       ok: true, status: 200,
-      data: { id: "read-1", status: "done", failureCode: null, result: {}, evidence: [], pages: [
+      data: { id: "read-1", status: "done", stage: null, failureCode: null, result: {}, evidence: [], pages: [
         { page: 1, pageClass: "bol", url: "https://signed.test/1", width: 10, height: 10 },
         { page: 2, pageClass: "placard", url: "https://signed.test/2", width: 10, height: 10 },
       ] },
@@ -40,12 +43,23 @@ const photo = (name: string) => new File([new Uint8Array([0xff, 0xd8, 0xff, 0xe0
 beforeEach(() => {
   setActivePinia(createPinia());
   calls.length = 0;
+  running = null;
   globalThis.URL.createObjectURL = vi.fn(() => "blob:preview");
   globalThis.URL.revokeObjectURL = vi.fn();
   globalThis.fetch = vi.fn(async () => new Response(null, { status: 200 })) as typeof fetch;
 });
 
 describe("BolReadPanel", () => {
+  it("words the stage the server says the read is in, not the same sentence for the whole read (TC0.2)", async () => {
+    sessionStorage.setItem(PENDING_READ_KEY, "read-1");
+    running = { status: "reading", stage: "checking" };
+    const w = mount(BolReadPanel);
+    await flushPromises();
+    expect(w.text()).toContain("Checking the reading against the page…");
+    w.unmount();
+    sessionStorage.removeItem(PENDING_READ_KEY);
+  });
+
   it("reads only the ticked photos, in the order shown, and says how many pages were read", async () => {
     const w = mount(BolReadPanel);
     w.findComponent(FileDropzone).vm.$emit("files", [photo("a.jpg"), photo("b.jpg"), photo("c.jpg")]);

@@ -392,3 +392,16 @@ zones; (c) leave D4-revised. *Recommendation:* (a) — the simple half; zones an
   (`document-reader-tables` matrix, mutation-checked: dropping that guard fails "a mid-read stage write keeps the read
   reading and does not restart its clock (0529)"). 0528 was left to the maintenance plan's M10, which named it first.
   Next: merge 2 — the writer in `executeRead.ts`, the `[metrics]` line, the read response and the screen's stage text.
+- **2026-10-29 — TC0.2 merge 1 MERGED as #1832** (0529 on staging with the merge; production with the next approved
+  release, migrations first).
+- **2026-10-29 — TC0.2 merge 2 of 2: the writer, the `[metrics]` line and the stage on screen.** `executeRead` times
+  `classify`, `fetch`, `passA`, `passB`, `ocr` (the witness's own run, from the readers' start — `ocr` beyond the slower
+  reader is the wait it cost) and `evidence`; writes them with the outcome (done and failed alike) and marks the row twice
+  while reading — pages fetched, then both readers answered — off the critical path and best effort (a refused mark
+  changes nothing: "finishes the read exactly as it would when the database refuses every stage mark"). A cache hit
+  carries `fetch` only. The vocabulary is one list in the contract (`READ_STAGE_TIMINGS`); `readStageOf` turns the
+  finished stages into `preparing` / `reading` / `checking`, which `GET /api/documents/reads/:id` returns as `stage` and
+  the panel words ("Getting the pages ready…", "Reading the bill of lading…", "Checking the reading against the page…")
+  instead of one sentence for the whole read. One `[metrics] {"documentRead": …, "stagesMs": …}` line per finished
+  read. Mutation-checked: dropping the timings from the done write, or the second mark, fails two tests each. TC0.2's
+  done-when (the next production read's row names each stage) waits on the release.

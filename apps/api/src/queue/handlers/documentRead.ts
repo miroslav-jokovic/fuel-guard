@@ -8,6 +8,7 @@ import {
   failUnavailableRead,
   ocrEngine,
   TransientModelError,
+  type ExecuteReadOutcome,
   type ReadGateFor,
   type RecognisePage,
 } from "../../modules/document-reading/index.js";
@@ -53,11 +54,28 @@ let engine: RecognisePage | undefined;
 const ocrFor = (env: Env): RecognisePage | undefined =>
   env.DOC_OCR_WITNESS === "off" ? undefined : (engine ??= ocrEngine({ cacheDir: env.DOC_OCR_CACHE_DIR ?? join(tmpdir(), "silvicom-ocr-models"), prepare: env.DOC_OCR_PREPARE !== "off" }));
 
+/**
+ * One `[metrics]` line per finished read (TWO-CLICK-READER-PLAN TC0.2, D-TC4), the same prefix the request summary
+ * uses (requestMetrics.ts), so a read's stages can be grepped out of Railway's log stream beside the row's
+ * `stage_timings`. Ids and numbers only — never a page's words.
+ */
+export function documentReadMetricsLine(readId: string, r: Exclude<ExecuteReadOutcome, { outcome: "skipped" }>): string {
+  return `[metrics] ${JSON.stringify({
+    documentRead: readId,
+    outcome: r.outcome === "done" ? (r.cacheHit ? "cache_hit" : "done") : `failed:${r.code}`,
+    ...(r.outcome === "done" ? { pages: r.pages } : {}),
+    inputTokens: r.inputTokens,
+    outputTokens: r.outputTokens,
+    stagesMs: r.stageTimings,
+  })}`;
+}
+
 export const documentReadHandler: JobHandler = async (ctx, job) => {
   const readId = typeof job.payload.readId === "string" ? job.payload.readId : "";
   if (!readId) throw new Error("document_read job has no readId");
   try {
     const r = await executeRead(ctx.admin, job.org_id, readId, { client: anthropicClient(ctx.env), gateFor: gateForEnv(ctx.env), env: ctx.env, ocr: ocrFor(ctx.env) });
+    if (r.outcome !== "skipped") console.log(documentReadMetricsLine(readId, r));
     return { readId, ...r };
   } catch (e) {
     const retried = e instanceof TransientModelError && job.attempts < job.max_attempts;
