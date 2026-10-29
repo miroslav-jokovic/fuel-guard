@@ -65,6 +65,9 @@ const READ_BY_RULES = {
   residue: [(line: Line) => (line.isResidueLine = true)],
 };
 
+/** A whole-table sweep is ~1 s locally and ~7 s on CI's runner (2026-10-29); vitest's 5 s default is not a census's. */
+const SWEEP_MS = 600_000;
+
 const isAudit = (ruleId: string) => ruleId.startsWith("not_evaluated:");
 /** The verdict with the input audit removed — what the rules decided, which a probed input must not move. */
 const decided = (v: Verdict) => JSON.stringify({
@@ -126,16 +129,16 @@ describe("the coverage statement against the rules — no probed input moves a v
     expect(UNEVALUATED_LINE_INPUTS.map((p) => p.key as string)).not.toContain("isResidueLine");
     expect(moved(READ_BY_RULES.vessel, (l) => l).length).toBeGreaterThan(10);
     expect(moved(READ_BY_RULES.residue, (l) => l.lines[0]!).length).toBeGreaterThan(10);
-  });
+  }, SWEEP_MS);
 
   for (const probe of UNEVALUATED_INPUTS) {
     it(`no rule reads ${probe.path}: giving it a value moves no verdict on any entry`, () => {
       expect(moved(LOAD_VALUES[probe.path] ?? [], (l) => l).slice(0, 5)).toEqual([]);
-    });
+    }, SWEEP_MS);
   }
   for (const probe of UNEVALUATED_LINE_INPUTS) {
     it(`no rule reads a line's ${probe.key}: giving it a value moves no verdict on any entry`, () => {
       expect(moved(LINE_VALUES[probe.key] ?? [], (l) => l.lines[0]!).slice(0, 5)).toEqual([]);
-    });
+    }, SWEEP_MS);
   }
 });
