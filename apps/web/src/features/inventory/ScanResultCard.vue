@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import type { AssetDto, ScanResult, StockLineDto } from "@silvicom/shared";
+import { IMEI_REFUSAL, readStickerCode, type AssetDto, type ScanResult, type StockLineDto } from "@silvicom/shared";
+import type { AssetFormSeed } from "@/features/inventory/AssetForm.vue";
 import { AppBadge, AppButton as BaseButton } from "@silvicom/ui";
 import { assetStatusBadge } from "@/lib/badges";
 import ScanStockLine from "@/features/inventory/ScanStockLine.vue";
@@ -30,13 +31,21 @@ import type { DeskVerb } from "@/features/inventory/MovementDrawer.vue";
  * from a scan and a movement recorded from the part detail must be the same row written the same
  * way, and a second form for the phone would be a second place for D-INV27's id rule to be got
  * wrong. Reuse here is not tidiness; it is the idempotency key having one owner.
+ *
+ * ── "NOT RECOGNISED" READS THE CODE FIRST (M9b, 2026-10-29) ───────────────────────────────────
+ * A tablet's sticker scanned here used to land as "No part carries this barcode — create a part",
+ * which was wrong twice: a tablet is equipment, and since M8 shop parts are FleetPal's and are not
+ * created here. The API looks a sticker's IMEI and serial up before it says `malformed`; when nothing
+ * matched, `readStickerCode` says what the code IS, and the card offers what fits — an IMEI is a
+ * tablet not on file yet ("Add this tablet", the IMEI filled in), a misread IMEI is refused with the
+ * form's own sentence, the SIM's number is named, and anything else gets "Add equipment" with it.
  */
 
 export type ScanAction =
   | { kind: "stock"; verb: DeskVerb; line: StockLineDto }
   | { kind: "asset"; mode: "move" | "report"; asset: AssetDto }
   | { kind: "open-part"; partId: string }
-  | { kind: "create-part"; upc: string };
+  | { kind: "create-asset"; fill: AssetFormSeed };
 
 /**
  * `canManage` hides every write. The screen is reachable at `maintenance: view`, and a verb a role
@@ -57,6 +66,17 @@ const statusBadge = computed(() =>
  * nobody signs for it, and the name is here because "654 — Dana Reyes" is how a technician finds
  * the truck in the yard, not because Dana is answerable for the fridge.
  */
+/** What an unrecognised code is, off a device's sticker — only read when nothing matched it. */
+const sticker = computed(() => (props.result.kind === "malformed" ? readStickerCode(props.result.code) : null));
+const fill = computed<AssetFormSeed>(() => {
+  const s = sticker.value;
+  if (!s) return {};
+  if (s.kind === "imei") return { imei: s.imei };
+  if (s.kind === "serial") return { serialNumber: s.serial };
+  if (s.kind === "model") return { model: s.model, manufacturer: s.manufacturer };
+  return {};
+});
+
 const holderLine = computed(() => {
   if (props.result.kind !== "asset") return null;
   // The holder object always exists; "held by nobody" is spelled as a null LABEL, because the API
@@ -152,22 +172,47 @@ const holderLine = computed(() => {
     <p class="font-mono text-xs text-ink-tertiary">{{ result.code }}</p>
   </section>
 
-  <!-- ── not ours, and not a barcode the catalogue knows ───────────────────────────────────── -->
+  <!-- ── a tablet's IMEI that no equipment carries yet (M9b) ───────────────────────────────── -->
+  <section v-else-if="sticker?.kind === 'imei'" class="space-y-3" data-test="scan-new-tablet">
+    <div>
+      <p class="text-base font-semibold text-ink">A tablet not on file yet</p>
+      <p class="mt-1 text-sm text-ink-secondary">No equipment has this IMEI.</p>
+      <p class="mt-2 font-mono text-xs text-ink-tertiary">IMEI {{ sticker.imei }}</p>
+    </div>
+    <BaseButton v-if="canManage" block variant="primary" @click="emit('action', { kind: 'create-asset', fill })">
+      Add this tablet
+    </BaseButton>
+  </section>
+
+  <section v-else-if="sticker?.kind === 'bad_imei'" class="space-y-2">
+    <p class="text-base font-semibold text-danger-700">{{ IMEI_REFUSAL }}</p>
+    <p class="text-sm text-ink-secondary">Fifteen digits arrived, but the last one does not check out — the barcode was misread.</p>
+    <p class="font-mono text-xs text-ink-tertiary">{{ result.code }}</p>
+  </section>
+
+  <section v-else-if="sticker?.kind === 'sim'" class="space-y-2">
+    <p class="text-base font-semibold text-ink">That is the SIM card's number</p>
+    <p class="text-sm text-ink-secondary">It is not stored. Scan the barcode marked IMEI to find or add the tablet.</p>
+    <p class="font-mono text-xs text-ink-tertiary">{{ result.code }}</p>
+  </section>
+
+  <!-- ── not ours, and nothing on file carries it ──────────────────────────────────────────────
+       No "create a part" (M8): shop parts are FleetPal's. A serial or a model may be a device the
+       shop has not entered, so those offer Add equipment with the code in its field. -->
   <section v-else class="space-y-3">
     <div>
       <p class="text-base font-semibold text-ink">Not recognised</p>
       <p class="mt-1 text-sm text-ink-secondary">
-        No part in the catalogue carries this barcode.
+        No equipment and no shop part carries this code. Shop parts come from FleetPal.
       </p>
       <p class="mt-2 font-mono text-xs text-ink-tertiary">{{ result.code }}</p>
     </div>
     <BaseButton
-      v-if="canManage"
+      v-if="canManage && (sticker?.kind === 'serial' || sticker?.kind === 'model')"
       block
-      variant="primary"
-      @click="emit('action', { kind: 'create-part', upc: result.code })"
+      @click="emit('action', { kind: 'create-asset', fill })"
     >
-      Create a part with this barcode
+      Add equipment with this code
     </BaseButton>
   </section>
 </template>

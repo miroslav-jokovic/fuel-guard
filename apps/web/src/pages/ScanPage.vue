@@ -9,7 +9,8 @@ import { useScanQuery } from "@/features/inventory/useScan";
 import ScanResultCard, { type ScanAction } from "@/features/inventory/ScanResultCard.vue";
 import MovementDrawer, { type DeskVerb } from "@/features/inventory/MovementDrawer.vue";
 import AssetMoveDrawer from "@/features/inventory/AssetMoveDrawer.vue";
-import PartDrawer from "@/features/inventory/PartDrawer.vue";
+import AssetDrawer from "@/features/inventory/AssetDrawer.vue";
+import type { AssetFormSeed } from "@/features/inventory/AssetForm.vue";
 import type { AssetDto, StockLineDto } from "@silvicom/shared";
 
 /**
@@ -59,10 +60,11 @@ const { data: result, isFetching, isError, error, refetch } = useScanQuery(code,
 
 const moving = ref<{ verb: DeskVerb; line: StockLineDto } | null>(null);
 const assetAction = ref<{ mode: "move" | "report"; asset: AssetDto } | null>(null);
-const creatingPartWith = ref<string | null>(null);
+/** "Add this tablet": the code the scan read, carried into the Add equipment form (M9b). */
+const creatingAssetWith = ref<AssetFormSeed | null>(null);
 
 const drawerOpen = computed(
-  () => moving.value !== null || assetAction.value !== null || creatingPartWith.value !== null,
+  () => moving.value !== null || assetAction.value !== null || creatingAssetWith.value !== null,
 );
 
 const scanner = useScanInput({
@@ -106,8 +108,8 @@ function act(action: ScanAction) {
     case "asset":
       assetAction.value = { mode: action.mode, asset: action.asset };
       return;
-    case "create-part":
-      creatingPartWith.value = action.upc;
+    case "create-asset":
+      creatingAssetWith.value = action.fill;
       return;
     case "open-part":
       // One of the two deliberate exits. Adding a shelf is a decision about where stock lives, and
@@ -170,7 +172,12 @@ function refresh() {
        ⚠ A paired scanner suppresses the on-screen keyboard — on iOS double-press the trigger to get
        it back, on Android turn on "Use on-screen keyboard" under the physical keyboard settings. The
        hint says so, because the alternative is a technician deciding the field is broken. -->
-  <Teleport to="#shop-action-bar">
+  <!-- `defer` (Vue 3.5): `ShopLayout` draws `#shop-action-bar` AFTER its slot, so without it this
+       Teleport looked for its target before it existed — in a production build its children never
+       mounted, the typed fallback was missing, and the next re-render threw "reading 'emitsOptions'",
+       which is why Move, Report, Issue and Add opened nothing on this page (found in M9b's browser
+       pass, 2026-10-29). -->
+  <Teleport defer to="#shop-action-bar">
     <form class="flex items-end gap-2" @submit.prevent="submitTyped">
       <FormField
         v-slot="{ id }"
@@ -206,13 +213,13 @@ function refresh() {
     :locations="locations ?? []"
     @close="((assetAction = null), refresh())"
   />
-  <!-- Creating a part from an unrecognised barcode carries the code into the form (research §2.5:
-       "attach or create" with the code kept, never a shrug). -->
-  <PartDrawer
-    v-if="creatingPartWith"
+  <!-- An unrecognised IMEI, serial or model carries into Add equipment (research §2.5: "attach or
+       create" with the code kept, never a shrug). Shop parts are FleetPal's since M8, so there is no
+       "create a part" any more. On close, the same code is asked again — now it finds the tablet. -->
+  <AssetDrawer
+    v-if="creatingAssetWith"
     :open="true"
-    :initial-upc="creatingPartWith"
-    @close="creatingPartWith = null"
-    @saved="((creatingPartWith = null), refresh())"
+    :initial="creatingAssetWith"
+    @close="((creatingAssetWith = null), refresh())"
   />
 </template>

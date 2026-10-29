@@ -38,7 +38,7 @@ import type { ServiceError } from "./types.js";
  * list would be a second answer to "what is an asset", and the two would drift on the next column.
  */
 export const ASSET_COLUMNS =
-  "id, tag_code, display_seq, asset_type_id, name, serial_number, model, manufacturer, status, " +
+  "id, tag_code, display_seq, asset_type_id, name, serial_number, imei, model, manufacturer, status, " +
   "condition, location_id, vehicle_id, trailer_id, purchased_at, purchase_cost, warranty_expires_at, " +
   "image_path, notes, asset_types(name), stock_locations(name), vehicles(unit_number, assigned_driver_id), " +
   "trailers(unit_number)";
@@ -50,6 +50,7 @@ export interface AssetRow {
   asset_type_id: string;
   name: string;
   serial_number: string | null;
+  imei: string | null;
   model: string | null;
   manufacturer: string | null;
   status: AssetStatus;
@@ -116,6 +117,7 @@ export const toAssetDto = (
   assetTypeName: r.asset_types?.name ?? "",
   name: r.name,
   serialNumber: r.serial_number,
+  imei: r.imei,
   model: r.model,
   manufacturer: r.manufacturer,
   status: r.status,
@@ -205,6 +207,8 @@ export async function listAssets(
     const clauses = [
       `name.ilike.${term}`,
       `serial_number.ilike.${term}`,
+      // M9b: the IMEI, so the last digits read off a sticker find the tablet.
+      `imei.ilike.${term}`,
       `manufacturer.ilike.${term}`,
       `model.ilike.${term}`,
       `tag_code.ilike.${term}`,

@@ -51,6 +51,7 @@ const asset = (id: string, tagCode: string | null, seq: number, name = "Cab tabl
   tag_code: tagCode,
   display_seq: seq,
   name,
+  imei: null as string | null,
 });
 
 /**
@@ -154,6 +155,14 @@ describe("resolving a label run", () => {
     expect(face.payload).toMatch(/^SIL1:AST:[0-9A-Z]{6}$/);
     expect(face.payload).not.toContain("A-0412");
     expect(face.lines).toEqual(["Cab tablet"]);
+  });
+
+  /** M9b: a tablet's IMEI is its label's second line — what the office reads when a SIM is in question. */
+  it("prints a tablet's IMEI as its second line, and nothing for an item with none", async () => {
+    rec = recorder({ assets: [{ ...asset(ASSET, null, 412), imei: "490154203237518" }] });
+    const result = await resolveLabelFaces(rec.client, ORG, [{ kind: "asset", assetId: ASSET }]);
+    if ("error" in result) throw new Error(result.error);
+    expect(result.faces[0]!.lines).toEqual(["Cab tablet", "IMEI 490154203237518"]);
   });
 
   it("draws again when the index refuses a code, rather than failing the run", async () => {

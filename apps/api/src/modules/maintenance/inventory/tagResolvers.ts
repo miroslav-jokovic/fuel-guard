@@ -1,4 +1,4 @@
-import type { ScanResult } from "@silvicom/shared";
+import { readStickerCode, type ScanResult } from "@silvicom/shared";
 import { TagLookupError, type TagResolverContext } from "../../../tags/registry.js";
 import { STOCK_COLUMNS, toStockLineDto } from "./stock.js";
 import { ASSET_COLUMNS, toAssetDto, type AssetRow } from "./assets.js";
@@ -86,4 +86,29 @@ export async function resolveAssetByDisplayNo(
   if (error) throw new TagLookupError("resolveAssetByDisplayNo", error);
   if (!data) return null;
   return { kind: "asset", code: ctx.code, asset: toAssetDto(data as unknown as AssetRow) };
+}
+
+/**
+ * A device by what its maker printed on the sticker — the IMEI or the serial (M9b, §7a.6). Scanning
+ * the back of a tablet on the Scan page finds that tablet; before M9b fifteen digits fell through to
+ * the supplier-barcode lookup and came back "not recognised".
+ *
+ * The code is sorted by `readStickerCode` first, so only an IMEI asks the IMEI column and only a
+ * serial-shaped code asks the serial column — a twelve-digit box barcode never matches a serial by
+ * accident. The serial is compared case-insensitively and exactly, as 0522's unique index compares
+ * it (`lower(btrim(...))`, values are stored trimmed); `%`, `_` and `\` are escaped so a serial
+ * cannot be read as a pattern. Null means "no such device here"; the route goes on to the UPC lookup.
+ */
+export async function resolveAssetByDevice(
+  ctx: Pick<TagResolverContext, "admin" | "orgId" | "code">,
+): Promise<ScanResult | null> {
+  const read = readStickerCode(ctx.code);
+  if (read.kind !== "imei" && read.kind !== "serial") return null;
+  let q = ctx.admin.from("inventory_assets").select(ASSET_COLUMNS).eq("org_id", ctx.orgId);
+  q = read.kind === "imei" ? q.eq("imei", read.imei) : q.ilike("serial_number", read.serial.replace(/[\\%_]/g, (c) => `\\${c}`));
+  const { data, error } = await q.limit(2);
+  if (error) throw new TagLookupError("resolveAssetByDevice", error);
+  const rows = (data ?? []) as unknown as AssetRow[];
+  if (rows.length !== 1) return null;
+  return { kind: "asset", code: ctx.code, asset: toAssetDto(rows[0]!) };
 }

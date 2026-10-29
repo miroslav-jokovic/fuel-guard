@@ -6,7 +6,7 @@ import { apiError, asyncHandler } from "../lib/http.js";
 import { getSupabaseAdmin } from "../lib/supabaseAdmin.js";
 import { getAppLocals } from "../lib/appLocals.js";
 import { TagLookupError, getTagResolver, type TagResolverContext } from "./registry.js";
-import { resolveAssetByDisplayNo } from "../modules/maintenance/inventory/tagResolvers.js";
+import { resolveAssetByDevice, resolveAssetByDisplayNo } from "../modules/maintenance/inventory/tagResolvers.js";
 import { findPartsByUpc, listStock } from "../modules/maintenance/inventory/index.js";
 import { isServiceError } from "../modules/maintenance/inventory/types.js";
 
@@ -87,6 +87,16 @@ export function tagsRouter(): Router {
         const typed = await resolveTyped({ admin, orgId, code });
         if (typed) {
           res.json({ ok: true, result: typed });
+          return;
+        }
+
+        // ── a device's sticker: its IMEI or its serial (M9b) ─────────────────────────────────────
+        // Before the UPC lookup, because a tablet scanned here is the shop's own thing, and its
+        // sticker's codes are never a supplier's. Not found falls through, and the screen reads the
+        // code with the same `readStickerCode` to offer "Add this tablet" with it filled in.
+        const device = await resolveAssetByDevice({ admin, orgId, code });
+        if (device) {
+          res.json({ ok: true, result: device });
           return;
         }
       } catch (e) {

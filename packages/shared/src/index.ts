@@ -234,6 +234,7 @@ export * from "./annualInspectionContract.js";
 export * from "./tagContract.js";
 export * from "./inventoryContract.js";
 export * from "./inventoryAssetContract.js";
+export * from "./deviceSticker.js";
 export * from "./inventoryKitCatalogue.js";
 export * from "./inventoryScanContract.js";
 export * from "./inventoryLabelContract.js";

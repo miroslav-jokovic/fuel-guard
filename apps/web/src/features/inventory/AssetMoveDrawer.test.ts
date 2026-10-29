@@ -54,6 +54,7 @@ const ASSET: AssetDto = {
   assetTypeName: "Tablet",
   name: "Cab tablet",
   serialNumber: "SN-1",
+  imei: null,
   model: null,
   manufacturer: null,
   status: "in_service",

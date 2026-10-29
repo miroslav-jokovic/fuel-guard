@@ -28,7 +28,7 @@ import type { ServiceError } from "./types.js";
  */
 
 const WRITE_COLUMNS =
-  "id, tag_code, display_seq, asset_type_id, name, serial_number, model, manufacturer, status, " +
+  "id, tag_code, display_seq, asset_type_id, name, serial_number, imei, model, manufacturer, status, " +
   "condition, location_id, vehicle_id, trailer_id, purchased_at, purchase_cost, warranty_expires_at, " +
   "image_path, notes, asset_types(name), stock_locations(name), vehicles(unit_number, assigned_driver_id), " +
   "trailers(unit_number)";
@@ -38,6 +38,7 @@ const row = (input: Partial<AssetInput>) => {
   if (input.assetTypeId !== undefined) out.asset_type_id = input.assetTypeId;
   if (input.name !== undefined) out.name = input.name;
   if (input.serialNumber !== undefined) out.serial_number = input.serialNumber;
+  if (input.imei !== undefined) out.imei = input.imei;
   if (input.model !== undefined) out.model = input.model;
   if (input.manufacturer !== undefined) out.manufacturer = input.manufacturer;
   if (input.status !== undefined) out.status = input.status;
@@ -73,6 +74,14 @@ const failure = (error: { code?: string; message?: string }): ServiceError | nul
     return {
       error: "That serial number is already on another asset. Find that one and edit it instead.",
       code: "duplicate_serial",
+    };
+  }
+  // 23505 on 0527's `idx_inventory_assets_imei_unique`: the tablet is already on file (M9b). Same
+  // shape as the serial's, and the Scan page is where a scan of that sticker finds the one on file.
+  if (error.code === "23505" && /idx_inventory_assets_imei_unique/.test(error.message ?? "")) {
+    return {
+      error: "That IMEI is already on another tablet. Scan its sticker on the Scan page to find that one.",
+      code: "duplicate_imei",
     };
   }
   // 23505 on `idx_inventory_assets_tag`: the same collision under concurrency, where both writers

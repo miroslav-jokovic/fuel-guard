@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { recordId } from "./recordId.js";
 import { holderKindSchema, itemConditionSchema } from "./inventoryContract.js";
+import { IMEI_REFUSAL, isImei } from "./deviceSticker.js";
 import { KIT_STATES } from "./inventoryRules.js";
 
 /**
@@ -164,6 +165,14 @@ export type AssetHolder = z.infer<typeof assetHolderSchema>;
 // ── asset types ──────────────────────────────────────────────────────────────────────────────────
 
 /**
+ * Who holds a kind of thing (`asset_types.held_by`, 0524, D-DE1): the bay, a truck or a trailer —
+ * or, for a tablet, a driver. The type decides, never its name: the shop may rename "Tablet".
+ */
+export const ASSET_HELD_BY = ["unit", "driver"] as const;
+export type AssetHeldBy = (typeof ASSET_HELD_BY)[number];
+
+
+/**
  * A kind of thing: "tablet", "load bar", "ratchet strap".
  *
  * `serialized` is the distinction that decides whether individual identity is tracked. A tablet is
@@ -179,6 +188,8 @@ export const assetTypeDtoSchema = z.object({
   serialized: z.boolean(),
   defaultKitQuantity: z.number().int().nonnegative(),
   imagePath: optionalText(400),
+  /** `held_by` (0524). A `driver` type is a tablet: the Add equipment form picks it for an IMEI scan. */
+  heldBy: z.enum(ASSET_HELD_BY),
 });
 export type AssetTypeDto = z.infer<typeof assetTypeDtoSchema>;
 
@@ -210,6 +221,8 @@ export const assetDtoSchema = z.object({
   assetTypeName: z.string(),
   name: trimmedText(120),
   serialNumber: optionalText(64),
+  /** 0527, M9b: 15 digits, Luhn-checked before every write; null for a device with none. */
+  imei: z.string().nullable(),
   model: optionalText(64),
   manufacturer: optionalText(120),
   status: assetStatusSchema,
@@ -227,6 +240,9 @@ export const assetInputSchema = z.object({
   assetTypeId: recordId(),
   name: trimmedText(120).min(1, "Name the asset."),
   serialNumber: optionalText(64).optional(),
+  // The check digit is refused HERE, with a sentence, before 0527's CHECK (shape only) would refuse
+  // it with a constraint name — a misread barcode is the person's to rescan (deviceSticker.ts).
+  imei: z.string().nullable().optional().refine((v) => v == null || isImei(v), IMEI_REFUSAL),
   model: optionalText(64).optional(),
   manufacturer: optionalText(120).optional(),
   status: assetStatusSchema,
@@ -413,13 +429,6 @@ export const KIT_EXPECTATION_SOURCE_LABELS: Record<KitExpectationSource, string>
   fleet: "Fleet default",
   type: "The type's own default",
 };
-
-/**
- * Who holds a kind of thing (`asset_types.held_by`, 0524, D-DE1): the bay, a truck or a trailer —
- * or, for a tablet, a driver. The type decides, never its name: the shop may rename "Tablet".
- */
-export const ASSET_HELD_BY = ["unit", "driver"] as const;
-export type AssetHeldBy = (typeof ASSET_HELD_BY)[number];
 
 export const unitKitLineDtoSchema = z.object({
   assetTypeId: recordId(),

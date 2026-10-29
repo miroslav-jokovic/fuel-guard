@@ -1,10 +1,15 @@
 <script lang="ts">
 /** The form's id, which its drawer's pinned footer submits by `form=`. */
 export const ASSET_FORM_ID = "asset-form";
+
+/** Values a new item starts with: a code from the Scan page, or "Save and add another"'s carry. */
+export type AssetFormSeed = Partial<
+  Record<"assetTypeId" | "name" | "serialNumber" | "imei" | "model" | "manufacturer" | "locationId" | "purchasedAt" | "purchaseCost" | "warrantyExpiresAt", string>
+>;
 </script>
 
 <script setup lang="ts">
-import { computed, reactive, ref } from "vue";
+import { computed, reactive, ref, watch } from "vue";
 import {
   ASSET_STATUSES,
   ASSET_STATUS_LABELS,
@@ -15,6 +20,7 @@ import {
   type AssetCreateInput,
   type AssetDto,
   type AssetTypeDto,
+  type StickerCode,
   type StockLocationDto,
 } from "@silvicom/shared";
 import {
@@ -24,6 +30,8 @@ import {
   AppInput as BaseInput,
   AppTextarea as BaseTextarea,
 } from "@silvicom/ui";
+import StickerScanField from "./StickerScanField.vue";
+import { fillFromSticker } from "./stickerFill";
 
 /**
  * What an asset IS — never where it is (INVENTORY-PLAN.md I8, D-INV3).
@@ -52,12 +60,23 @@ import {
  * wheel while every other date in the product opened ours. Selects are `AppCombobox` for the reason
  * `InspectorDrawer.vue` records, and the buttons live in the drawer's pinned footer, submitting
  * this form by id (`PartForm.vue` carries that argument).
+ *
+ * ── THE STICKER FILLS IT (M9b, 2026-10-29) ────────────────────────────────────────────────────
+ * The first field is "Scan the sticker" (`StickerScanField`): the handheld reads the barcodes on the
+ * back of a tablet and `fillFromSticker` puts the IMEI, serial, model and maker in their fields and
+ * offers the type and name. The IMEI field shows for a serialized type (a tablet is; straps are not)
+ * or once an IMEI is in it. Enter in any field is NOT a submit: the scanner ends every read with
+ * Enter, and one trigger pull into the IMEI field would otherwise have saved a half-filled tablet —
+ * so the form saves only from its button.
  */
 
 
 const props = defineProps<{
   asset?: AssetDto | null;
   types: AssetTypeDto[];
+  initial?: AssetFormSeed;
+  /** Whether the drawer is open — the sticker field listens for the scanner only then. */
+  active?: boolean;
   /** Active locations only: 0333 refuses a placement into a bay that has been closed (`IV012`). */
   locations: StockLocationDto[];
 }>();
@@ -65,20 +84,41 @@ const emit = defineEmits<{ submit: [input: AssetCreateInput] }>();
 
 const editing = computed(() => Boolean(props.asset));
 
+const seed = props.initial ?? {};
 const form = reactive({
-  assetTypeId: props.asset?.assetTypeId ?? "",
-  name: props.asset?.name ?? "",
-  serialNumber: props.asset?.serialNumber ?? "",
-  model: props.asset?.model ?? "",
-  manufacturer: props.asset?.manufacturer ?? "",
+  assetTypeId: props.asset?.assetTypeId ?? seed.assetTypeId ?? "",
+  name: props.asset?.name ?? seed.name ?? "",
+  serialNumber: props.asset?.serialNumber ?? seed.serialNumber ?? "",
+  imei: props.asset?.imei ?? seed.imei ?? "",
+  model: props.asset?.model ?? seed.model ?? "",
+  manufacturer: props.asset?.manufacturer ?? seed.manufacturer ?? "",
   status: (props.asset?.status ?? "in_service") as string,
   condition: (props.asset?.condition ?? "good") as string,
-  purchasedAt: props.asset?.purchasedAt ?? "",
-  purchaseCost: props.asset?.purchaseCost === null || props.asset === undefined ? "" : String(props.asset?.purchaseCost ?? ""),
-  warrantyExpiresAt: props.asset?.warrantyExpiresAt ?? "",
+  purchasedAt: props.asset?.purchasedAt ?? seed.purchasedAt ?? "",
+  purchaseCost: props.asset ? (props.asset.purchaseCost === null ? "" : String(props.asset.purchaseCost)) : (seed.purchaseCost ?? ""),
+  warrantyExpiresAt: props.asset?.warrantyExpiresAt ?? seed.warrantyExpiresAt ?? "",
   notes: props.asset?.notes ?? "",
-  locationId: "",
+  locationId: seed.locationId ?? "",
 });
+
+/** A serialized type can carry an IMEI (a tablet); a load bar cannot. Shown too once one is in the field. */
+const showImei = computed(() => Boolean(form.imei) || Boolean(props.types.find((t) => t.id === form.assetTypeId)?.serialized));
+
+// The name the sticker last filled in: it follows the sticker until the person types their own.
+let autoName = seed.name ?? "";
+const stickerNote = ref<string | null>(null);
+/** The scanner's Enter in a text field: swallowed, so a read never submits (see the header). */
+function swallowEnter(e: KeyboardEvent) {
+  if ((e.target as HTMLElement).tagName === "INPUT") e.preventDefault();
+}
+
+function onSticker(code: StickerCode) {
+  const { patch, note } = fillFromSticker(form, code, props.types, autoName);
+  if (patch.name !== undefined) autoName = patch.name;
+  Object.assign(form, patch);
+  stickerNote.value = note;
+  if (patch.imei) delete errors.value.imei;
+}
 
 const typeOptions = computed(() => props.types.map((t) => ({ value: t.id, label: t.name })));
 const locationOptions = computed(() =>
@@ -95,6 +135,7 @@ function onSubmit() {
     assetTypeId: form.assetTypeId,
     name: form.name,
     serialNumber: blankToNull(form.serialNumber),
+    imei: blankToNull(form.imei.replace(/\s/g, "")),
     model: blankToNull(form.model),
     manufacturer: blankToNull(form.manufacturer),
     status: form.status,
@@ -121,10 +162,32 @@ function onSubmit() {
   errors.value = {};
   emit("submit", result.data as AssetCreateInput);
 }
+// A code carried in from the Scan page ("Add this tablet") goes through the same rules as a scan
+// here, so the type and name are offered too — once, when the types have arrived. Last in the
+// script, because `onSticker` reads `errors`, declared above.
+let seeded = props.asset !== undefined && props.asset !== null;
+watch(
+  () => props.types,
+  (types) => {
+    if (seeded || !types.length || !(seed.imei || seed.model)) return;
+    seeded = true;
+    if (seed.imei) onSticker({ kind: "imei", imei: seed.imei });
+    if (seed.model) onSticker({ kind: "model", model: seed.model, manufacturer: seed.manufacturer ?? "" });
+  },
+  { immediate: true },
+);
 </script>
 
 <template>
-  <form :id="ASSET_FORM_ID" class="space-y-6" @submit.prevent="onSubmit">
+  <!-- Enter in a field saves nothing — see the header: the scanner presses it after every read. The
+       keydown is a guard on the scanner's suffix, not a control; the form saves from its button. -->
+  <!-- eslint-disable-next-line vuejs-accessibility/no-static-element-interactions -->
+  <form :id="ASSET_FORM_ID" class="space-y-6" @submit.prevent="onSubmit" @keydown.enter="swallowEnter">
+    <div>
+      <StickerScanField :active="active ?? false" :focus-first="!editing" @read="onSticker" />
+      <p v-if="stickerNote" class="mt-2 text-sm text-warning-700" data-test="sticker-note">{{ stickerNote }}</p>
+    </div>
+
     <section aria-labelledby="asset-form-what">
       <h3 id="asset-form-what" class="text-sm font-semibold text-ink">What it is</h3>
       <p class="mt-1 text-sm text-ink-muted">The number is issued when it is saved; a tag comes from the label sheet.</p>
@@ -146,6 +209,9 @@ function onSubmit() {
         <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <FormField v-slot="{ id }" label="Serial number" hint="What is stamped on it. Optional.">
             <BaseInput :id="id" v-model="form.serialNumber" />
+          </FormField>
+          <FormField v-if="showImei" v-slot="{ id }" label="IMEI" hint="15 digits, on the sticker beside its barcode." :error="errors.imei">
+            <BaseInput :id="id" v-model="form.imei" :invalid="!!errors.imei" inputmode="numeric" autocomplete="off" data-test="imei" />
           </FormField>
           <FormField v-slot="{ id }" label="Model">
             <BaseInput :id="id" v-model="form.model" />

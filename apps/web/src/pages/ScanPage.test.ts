@@ -22,6 +22,9 @@ const BIN_TAG = "SIL1:BIN:7K3M9P";
 const STRANGE_BARCODE = "0049000042566";
 /** `SIL1:BIN:7K3M9P` through a non-US keyboard layout: every colon became `Ñ`. */
 const MISREAD_TAG = "SIL1ÑBINÑ7K3M9P";
+/** M9b: a tablet's IMEI that no equipment has, and the same fifteen digits misread. */
+const NEW_IMEI = "490154203237518";
+const BAD_IMEI = "490154203237519";
 
 const STOCK_LINE = {
   partId: PART,
@@ -45,6 +48,8 @@ const RESULTS: Record<string, ScanResult> = {
   [BIN_TAG]: { kind: "stock_line", code: BIN_TAG, stockLine: STOCK_LINE },
   [STRANGE_BARCODE]: { kind: "malformed", code: STRANGE_BARCODE },
   [MISREAD_TAG]: { kind: "unknown_tag", code: MISREAD_TAG, tagKind: null },
+  [NEW_IMEI]: { kind: "malformed", code: NEW_IMEI },
+  [BAD_IMEI]: { kind: "malformed", code: BAD_IMEI },
 };
 
 /** The ref the page hands to `useScanQuery` — the test reads it to see what was submitted. */
@@ -90,7 +95,7 @@ function render() {
         Teleport: true,
         MovementDrawer: drawerStub("MovementDrawer", ["verb", "line", "locations"]),
         AssetMoveDrawer: drawerStub("AssetMoveDrawer", ["asset", "mode", "locations"]),
-        PartDrawer: drawerStub("PartDrawer", ["part", "initialUpc"]),
+        AssetDrawer: drawerStub("AssetDrawer", ["initial"]),
       },
     },
   });
@@ -101,6 +106,26 @@ function scan(code: string) {
   for (const char of code) document.dispatchEvent(new KeyboardEvent("keydown", { key: char }));
   document.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter" }));
 }
+
+/**
+ * The page inside its REAL layout, Teleport not stubbed. `ShopLayout` draws `#shop-action-bar` after
+ * the page, and until 2026-10-29 the page's Teleport looked for it too early: in a build the typed
+ * fallback never mounted and every drawer on this page failed to open ("reading 'emitsOptions'").
+ * Every other test here stubs Teleport, which is how that hid.
+ */
+describe("ScanPage in its own layout", () => {
+  it("puts the typed fallback in the layout's bottom bar", async () => {
+    const { defineComponent, h } = await import("vue");
+    const { createRouter, createMemoryHistory } = await import("vue-router");
+    const ShopLayout = (await import("@/layouts/ShopLayout.vue")).default;
+    const router = createRouter({ history: createMemoryHistory(), routes: [{ path: "/", component: { template: "<div />" } }] });
+    const Shell = defineComponent({ render: () => h(ShopLayout, null, { default: () => h(ScanPage) }) });
+    const wrapper = mount(Shell, { attachTo: document.body, global: { plugins: [router] } });
+    await new Promise((r) => setTimeout(r, 0));
+    expect(document.querySelector("#shop-action-bar input")).not.toBeNull();
+    wrapper.unmount();
+  });
+});
 
 describe("ScanPage", () => {
   beforeEach(() => {
@@ -158,23 +183,44 @@ describe("ScanPage", () => {
   });
 
   /**
-   * The receiving desk's most common scan of all: a carton from a supplier the shop has never bought
-   * from. Research §2.5 found that what the good products do here is "attach or create" with the code
-   * KEPT — so the barcode has to reach the form, because the alternative is reading thirteen digits
-   * off one part of the screen and typing them into another with the carton in the other hand.
+   * M8 made shop parts FleetPal's, so a supplier barcode nobody knows is no longer an offer to create
+   * a part here: the screen says where shop parts come from and offers nothing to save.
    */
-  it("carries an unrecognised barcode into the new-part form", async () => {
+  it("says a supplier barcode nobody knows is not recognised, and offers no part to create (M8)", async () => {
     const wrapper = render();
     scan(STRANGE_BARCODE);
     await wrapper.vm.$nextTick();
 
     expect(wrapper.text()).toContain("Not recognised");
-    await wrapper
-      .findAll("button")
-      .find((b) => b.text().includes("Create a part"))!
-      .trigger("click");
+    expect(wrapper.text()).toContain("Shop parts come from FleetPal");
+    expect(wrapper.findAll("button").some((b) => b.text().includes("Create a part") || b.text().includes("Add"))).toBe(false);
+  });
 
-    expect(wrapper.findComponent({ name: "PartDrawer" }).props("initialUpc")).toBe(STRANGE_BARCODE);
+  /**
+   * M9b. The sticker on the back of a new tablet, scanned here: the IMEI is not on file, so the card
+   * says so and "Add this tablet" opens Add equipment with the IMEI in it — read off the scan, never
+   * retyped. While that drawer is open the page stops listening, as it does for every drawer.
+   */
+  it("offers to add a tablet whose IMEI is not on file, with the IMEI carried into the form", async () => {
+    const wrapper = render();
+    scan(NEW_IMEI);
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.text()).toContain("A tablet not on file yet");
+    await wrapper.findAll("button").find((b) => b.text() === "Add this tablet")!.trigger("click");
+    expect(wrapper.findComponent({ name: "AssetDrawer" }).props("initial")).toEqual({ imei: NEW_IMEI });
+
+    scan(BIN_TAG);
+    await wrapper.vm.$nextTick();
+    expect(submitted.code?.value).toBe(NEW_IMEI);
+  });
+
+  it("refuses a misread IMEI with the form's sentence, and offers nothing to save", async () => {
+    const wrapper = render();
+    scan(BAD_IMEI);
+    await wrapper.vm.$nextTick();
+    expect(wrapper.text()).toContain("That is not an IMEI — scan the barcode marked IMEI.");
+    expect(wrapper.findAll("button").some((b) => b.text().includes("Add"))).toBe(false);
   });
 
   /**
