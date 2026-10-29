@@ -62,6 +62,25 @@ export async function pair({ code, apiUrl, configPath, fetchImpl = fetch }) {
   return body.stationName;
 }
 
+/**
+ * A pause that a stop ends early. Without it a stop waited out whatever the station was doing — up to
+ * a 25-second long poll or a 30-second backoff — so `kill`, launchd and Ctrl-C seemed to be ignored
+ * (PS5, 10/29: the Mac's station outlived its SIGTERM and needed SIGKILL).
+ */
+export function sleepUnless(signal) {
+  return (ms) =>
+    new Promise((resolve) => {
+      if (signal.aborted) return resolve();
+      const done = () => {
+        clearTimeout(timer);
+        signal.removeEventListener("abort", done);
+        resolve();
+      };
+      const timer = setTimeout(done, ms);
+      signal.addEventListener("abort", done, { once: true });
+    });
+}
+
 async function hello(config, deps) {
   const printers = (await deps.listPrinters()).slice(0, 50);
   await request(config.apiUrl, "/api/print-station/hello", {
@@ -69,6 +88,7 @@ async function hello(config, deps) {
     token: config.token,
     body: { hostName: deps.hostName.slice(0, 120), agentVersion: VERSION, printers },
     fetchImpl: deps.fetchImpl,
+    signal: deps.signal,
   });
   return printers;
 }
@@ -78,6 +98,9 @@ async function hello(config, deps) {
  * whatever the system said), never thrown — it is the job's outcome, not the station's fault. A
  * report that cannot reach the API is retried a few times; if it never lands, 0526 turns the job
  * `unknown` and the screen offers Retry, which is the honest answer.
+ *
+ * A stop does NOT cut a job short: the label is already in hand, so it is printed and its report sent
+ * without the stop signal. Only the retries of a report that fails are given up on a stop.
  */
 export async function handleJob(job, config, deps) {
   let outcome;
@@ -100,6 +123,7 @@ export async function handleJob(job, config, deps) {
       return outcome;
     } catch (e) {
       if (e instanceof RefusedError) throw e;
+      if (deps.stop()) break;
       await deps.sleep(BACKOFF_MS[Math.min(attempt, BACKOFF_MS.length - 1)]);
     }
   }
@@ -110,7 +134,8 @@ export async function handleJob(job, config, deps) {
 /**
  * The loop. Returns only when the server refuses the station (revoked, or re-paired elsewhere) or
  * `deps.stop()` says so; every other failure is backed off and retried, forever, because this runs
- * unattended.
+ * unattended. `deps.signal` aborts the wait in hand when the stop comes; the server checks for a
+ * hung-up poll before it claims a job (`printStation.ts`), so an abandoned poll strands nothing.
  */
 export async function runLoop(config, deps) {
   let failures = 0;
@@ -126,6 +151,7 @@ export async function runLoop(config, deps) {
         token: config.token,
         timeoutMs: POLL_TIMEOUT_MS,
         fetchImpl: deps.fetchImpl,
+        signal: deps.signal,
       });
       failures = 0;
       if (status === 200 && body?.job) await handleJob(body.job, config, deps);
@@ -134,6 +160,7 @@ export async function runLoop(config, deps) {
         log(`Silvicom refused this station (${e.message}). Pair it again from Settings → Devices.`);
         return "refused";
       }
+      if (deps.stop()) break; // the stop aborted this request; it is not an outage
       const wait = BACKOFF_MS[Math.min(failures, BACKOFF_MS.length - 1)];
       failures += 1;
       log(`cannot reach Silvicom (${e?.message ?? e}); trying again in ${wait / 1000}s`);
@@ -166,16 +193,24 @@ async function main(argv) {
   }
   if (command === "run") {
     const config = readConfig(configPath);
-    let stopping = false;
-    for (const signal of ["SIGINT", "SIGTERM"]) process.on(signal, () => (stopping = true));
+    // First signal: finish the label in hand, then exit. A second one exits now.
+    const stop = new AbortController();
+    for (const signal of ["SIGINT", "SIGTERM"]) {
+      process.on(signal, () => {
+        if (stop.signal.aborted) process.exit(1);
+        log(`${signal}: stopping`);
+        stop.abort();
+      });
+    }
     const result = await runLoop(config, {
       fetchImpl: fetch,
       listPrinters: () => listPrinters(),
       printRaw: (name, bytes) => printRaw(name, bytes),
       hostName: hostname(),
       now: () => Date.now(),
-      sleep: (ms) => new Promise((r) => setTimeout(r, ms)),
-      stop: () => stopping,
+      sleep: sleepUnless(stop.signal),
+      stop: () => stop.signal.aborted,
+      signal: stop.signal,
     });
     // A refused station exits non-zero so the service manager shows it failed, rather than looping.
     return result === "refused" ? 2 : 0;
