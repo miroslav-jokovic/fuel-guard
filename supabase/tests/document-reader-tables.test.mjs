@@ -434,6 +434,41 @@ async function asClient(org, sql, params = []) {
   ok("the transition has one signature, so a named call finds no overload (0487)",
     (await one(`select count(*)::int n from pg_proc where proname = 'document_read_transition'`)).n === 1);
 }
+// 0529 (TC0.2, D-TC4): stage timings ride the same door — mid-read as each stage finishes, merged, never
+// restarting the read's clock; the retry's bare reading → reading still changes nothing.
+{
+  const timing = (id, to, t, extra = "") => sqlstate(
+    `select document_read_transition(p_org => $1, p_read => $2, p_to => $3, p_stage_timings => $4::jsonb${extra})`, [ORG, id, to, t]);
+  const row = async (id) => one(`select status, started_at, stage_timings from document_reads where id = $1`, [id]);
+  const RT = await newRead();
+  await move(RT, "reading");
+  const started = (await row(RT)).started_at;
+  // Two statements can share a millisecond in PGlite, and then a restarted clock reads unchanged.
+  await new Promise((r) => setTimeout(r, 25));
+  ok("a read still reading records a finished stage (0529)",
+    (await timing(RT, "reading", '{"classify":1200}')) === null && JSON.stringify((await row(RT)).stage_timings) === '{"classify":1200}',
+    JSON.stringify(await row(RT)));
+  const mid = await row(RT);
+  ok("a mid-read stage write keeps the read reading and does not restart its clock (0529)",
+    mid.status === "reading" && mid.started_at.getTime() === started.getTime(), JSON.stringify(mid));
+  const end = await timing(RT, "done", '{"fetch":300,"passA":9000}', `, p_result => '{}'::jsonb`);
+  const merged = (await row(RT)).stage_timings;
+  ok("the terminal move merges its stages into the ones already written (0529)",
+    end === null && merged?.classify === 1200 && merged?.fetch === 300 && merged?.passA === 9000, `${end} ${JSON.stringify(merged)}`);
+  const RB = await newRead();
+  await move(RB, "reading");
+  ok("a negative stage time is refused (0529)", (await timing(RB, "reading", '{"ocr":-1}')) === "23514");
+  ok("a stage time that is not a number is refused (0529)", (await timing(RB, "reading", '{"ocr":"slow"}')) === "23514");
+  ok("stage timings that are not an object are refused (0529)", (await timing(RB, "reading", "[1,2]")) === "23514");
+  const RQ = await newRead();
+  await move(RQ, "reading");
+  ok("the retry's reading → reading without timings still changes nothing (0448, 0529)",
+    (await move(RQ, "reading")) === null && (await row(RQ)).stage_timings === null);
+  ok("a call without p_stage_timings — every caller before the writer — still finishes a read (0529)",
+    (await move(RQ, "done", { result: "{}" })) === null && (await row(RQ)).stage_timings === null);
+  ok("the transition still has one signature after 0529",
+    (await one(`select count(*)::int n from pg_proc where proname = 'document_read_transition'`)).n === 1);
+}
 for (const t of ["document_sources", "document_pages", "document_page_classes", "document_reads", "document_read_reviews"]) {
   const r = await asClient(ORG, `select count(*)::int n from ${t}`);
   ok(`an admin's browser session reads nothing from ${t} (no client policy)`, r.error === null && r.rows[0].n === 0, JSON.stringify(r));

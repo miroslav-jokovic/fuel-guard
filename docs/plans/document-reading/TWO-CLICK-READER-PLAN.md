@@ -384,3 +384,11 @@ zones; (c) leave D4-revised. *Recommendation:* (a) — the simple half; zones an
 - **2026-10-29 (later) — owner ruled Q-TC1–Q-TC6, each as recommended** ("record these rulings as recommended and proceed with
   implementation as proposed"). Every step in §4 is now unblocked except TC0.1 (the release approval the owner gives on the
   release PR) and TC5.1 (the owner names the attester). Implementation starts at TC0.2.
+- **2026-10-29 — TC0.2 merge 1 of 2: migration 0529 `document_reads.stage_timings`.** A jsonb object of stage → ms
+  (CHECK: an object of non-negative numbers; the stage names are the worker's, not the schema's), written only by
+  `document_read_transition`, which gains `p_stage_timings` merged with `||`. reading → reading WITH timings now writes
+  them, so a stage is recorded as it finishes and the screen can name the real one; without timings it is still the
+  retry's no-op, and `started_at` is stamped only on queued → reading so a mid-read write cannot restart the clock
+  (`document-reader-tables` matrix, mutation-checked: dropping that guard fails "a mid-read stage write keeps the read
+  reading and does not restart its clock (0529)"). 0528 was left to the maintenance plan's M10, which named it first.
+  Next: merge 2 — the writer in `executeRead.ts`, the `[metrics]` line, the read response and the screen's stage text.
