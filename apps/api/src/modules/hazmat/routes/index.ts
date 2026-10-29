@@ -69,7 +69,10 @@ export function hazmatRouter(): Router {
   });
 
   // ── stateless calculator (also the H12 licensed-API surface) ────────────────
-  router.post("/calc", validateBody(hazmatCalcRequestSchema), asyncHandler(async (_req: Request, res: Response) => {
+  // Behind the section's view gate, like `/products` beside it and the calculator page (surface catalogue,
+  // `section("hazmat")`) — until 2026-10-29 any member of an entitled org could call it (TC1.5). The anonymous
+  // public calculator is a separate route (`publicHazmat.ts`) and is unchanged.
+  router.post("/calc", canView, validateBody(hazmatCalcRequestSchema), asyncHandler(async (_req: Request, res: Response) => {
     const result = computeCalc(res.locals.body as HazmatCalcRequest); // shared with the public M7 calculator
     if ("code" in result) { res.status(400).json(apiError(result.code, result.message)); return; }
     res.json(result);
