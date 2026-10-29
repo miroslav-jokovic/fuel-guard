@@ -83,10 +83,10 @@ export const ADJUST_REASON_LABELS: Record<AdjustReason, string> = {
  *
  * `unassigned` is a real state and not a null: an asset in the tool crib on nobody's shelf, or one
  * just created and not yet put anywhere, is a different fact from one whose holder was never
- * recorded. D-INV3 is what fixes the list — a holder is a place or a unit, never a person, so there
- * is deliberately no `driver` member here and no `drivers` foreign key on any inventory table.
+ * recorded. D-INV3 fixed the list at a place or a unit, never a person; D-DE1 (owner 2026-10-27, 0524)
+ * amended it for tablets only: `driver` holds a `held_by = 'driver'` type's assets, nothing else (`IV025`).
  */
-export const HOLDER_KINDS = ["location", "vehicle", "trailer", "unassigned"] as const;
+export const HOLDER_KINDS = ["location", "vehicle", "trailer", "driver", "unassigned"] as const;
 export const holderKindSchema = z.enum(HOLDER_KINDS);
 export type HolderKind = (typeof HOLDER_KINDS)[number];
 
@@ -94,6 +94,7 @@ export const HOLDER_KIND_LABELS: Record<HolderKind, string> = {
   location: "Location",
   vehicle: "Truck",
   trailer: "Trailer",
+  driver: "Driver",
   unassigned: "Unassigned",
 };
 

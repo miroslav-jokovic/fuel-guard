@@ -72,6 +72,7 @@ const row = (input: Partial<AssetTypeInput>) => {
   if (input.category !== undefined) out.category = input.category;
   if (input.serialized !== undefined) out.serialized = input.serialized;
   if (input.defaultKitQuantity !== undefined) out.default_kit_quantity = input.defaultKitQuantity;
+  if (input.heldBy !== undefined) out.held_by = input.heldBy;
   return out;
 };
 
@@ -116,6 +117,17 @@ export async function updateAssetType(
   if (error) {
     if (error.code === "23505") {
       return { error: `There is already a type called ${input.name}.`, code: "duplicate_asset_type" };
+    }
+    // 0524's `guard_asset_type_held_by`: the switch would leave some of this type's things with the
+    // wrong kind of holder. Said as what to do, because the person can do it: move them first.
+    if (error.code === "IV025") {
+      return {
+        error:
+          input.heldBy === "driver"
+            ? "Some of these are on a truck or trailer. Move them to the shop first, then change who holds them."
+            : "Some of these are with a driver. Return them to the shop first, then change who holds them.",
+        code: "held_by_conflict",
+      };
     }
     return traced("updateAssetType", "db_error", "Could not update the asset type", error);
   }

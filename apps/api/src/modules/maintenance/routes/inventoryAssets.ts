@@ -45,6 +45,12 @@ import { isServiceError } from "../inventory/types.js";
  * from `req.auth.orgId` and never from the request, because the bucket carries no RLS.
  */
 
+/**
+ * A yes/no in a query string. Not `z.coerce.boolean()`, which is `Boolean("false")` — true — so
+ * `?unassigned=false` used to ask for the unassigned pile (found 2026-10-29, DE2).
+ */
+const queryFlag = z.enum(["true", "false"]).transform((v) => v === "true");
+
 const listSchema = z.object({
   search: z.string().max(120).optional(),
   assetTypeId: recordId().optional(),
@@ -52,7 +58,10 @@ const listSchema = z.object({
   locationId: recordId().optional(),
   vehicleId: recordId().optional(),
   trailerId: recordId().optional(),
-  unassigned: z.coerce.boolean().optional(),
+  // DE2: a driver's tablets (the driver page's card), and the shop's "Tablets not returned" count.
+  driverId: recordId().optional(),
+  notReturned: queryFlag.optional(),
+  unassigned: queryFlag.optional(),
   limit: z.coerce.number().int().min(1).max(200).optional(),
   offset: z.coerce.number().int().min(0).optional(),
 });

@@ -32,6 +32,13 @@ const STATUS: Record<string, number> = {
   duplicate_location_code: 409,
   duplicate_asset_type: 409,
   duplicate_serial: 409, // 0522 (R8): one serial number, one asset, per org
+  // 0527 (M9b): one IMEI, one tablet, per org. Missing from this map until DE2, so a tablet scanned in
+  // twice was answered 500 — a server failure — for a fact about the fleet (found 2026-10-29).
+  duplicate_imei: 409,
+  // 0524 (D-DE1). Both are facts about where things ARE: a tablet aimed at a truck, or a type switched
+  // while its things sit with the other kind of holder. Moving them first is the fix, not editing the request.
+  IV025: 409, // wrong kind of holder for the type
+  held_by_conflict: 409, // `assetTypes.ts`'s wording of the same IV025, on a type
   // The payload names something unusable.
   IV012: 422, // unknown_location
   IV013: 422, // part_inactive

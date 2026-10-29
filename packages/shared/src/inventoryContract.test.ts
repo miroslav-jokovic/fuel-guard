@@ -57,8 +57,14 @@ describe("every vocabulary has a label for every member", () => {
     expect(Object.keys(COUNT_SESSION_STATUS_LABELS).sort()).toEqual(["closed", "open"]);
   });
 
-  it("has no driver among the holder kinds — D-INV3", () => {
-    expect(HOLDER_KINDS).not.toContain("driver");
+  /**
+   * D-INV3 said a holder is never a person, and this test pinned it. The owner amended it for tablets on
+   * 2026-10-27 (D-DE1, DRIVER-EQUIPMENT-AND-UNIT-TAGS-PLAN.md): 0524 gave assets and movements a driver
+   * column, and DE2 makes `driver` a holder kind. What keeps every OTHER asset off a person is now the
+   * type's `held_by` and the database's `IV025` — `inventory-driver-held.test.mjs` pins that half.
+   */
+  it("has a driver among the holder kinds since D-DE1 amended D-INV3, and the unit and place kinds still", () => {
+    expect([...HOLDER_KINDS].sort()).toEqual(["driver", "location", "trailer", "unassigned", "vehicle"]);
   });
 });
 

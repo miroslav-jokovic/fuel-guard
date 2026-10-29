@@ -20,6 +20,11 @@ import { KIT_STATES } from "./inventoryRules.js";
  * shown by INFERENCE from `vehicles.assigned_driver_id` at read time and is not stored, no table
  * below takes a `drivers` foreign key, and there is no signature anywhere in this contract.
  *
+ * ⚠ **Amended for tablets by D-DE1 (owner 2026-10-27, migration 0524, DE2).** A type marked
+ * `held_by = 'driver'` is held by a DRIVER — the holder kind `driver`, a real `drivers` foreign key —
+ * because a tablet follows its driver from truck to truck. Everything below about signatures still
+ * stands: giving a driver a tablet is a dated movement, not a signed handover.
+ *
  * That is a legal position, not a modelling shortcut. Deductions for unreturned equipment are a
  * live dispute area in trucking, and a signed handover is an instrument that invites the argument
  * it appears to settle. Shelf, the best-designed product in the category, made the same choice. A
@@ -159,8 +164,11 @@ export const assetHolderSchema = z.object({
   inferredDriverName: z.string().nullable(),
   /** When the current holder took it — the answer to "since when", read off the last movement. */
   since: z.string().nullable(),
+  /** D-DE3: a driver holds it and has left (`driverHasLeft`, read-time, stored nowhere). Absent = false. */
+  notReturned: z.boolean().optional(),
 });
 export type AssetHolder = z.infer<typeof assetHolderSchema>;
+
 
 // ── asset types ──────────────────────────────────────────────────────────────────────────────────
 
@@ -198,6 +206,12 @@ export const assetTypeInputSchema = z.object({
   category: optionalText(64).optional(),
   serialized: z.boolean(),
   defaultKitQuantity: z.number().int().nonnegative(),
+  /**
+   * DE2: who holds this kind of thing. Optional — a type written without it keeps what it has (a new
+   * one takes the column's default, `unit`). 0524's guard refuses a switch while any of the type's
+   * assets sits with the other kind of holder (`IV025`), and the service words that refusal.
+   */
+  heldBy: z.enum(ASSET_HELD_BY).optional(),
 });
 export type AssetTypeInput = z.infer<typeof assetTypeInputSchema>;
 
@@ -291,19 +305,21 @@ export const assetMovementInputSchema = z
     toLocationId: recordId().nullable().optional(),
     toVehicleId: recordId().nullable().optional(),
     toTrailerId: recordId().nullable().optional(),
+    /** DE2: give a driver-held thing to a driver (D-DE1). `move_asset` has read it since 0524. */
+    toDriverId: recordId().nullable().optional(),
     condition: itemConditionSchema.optional(),
     note: optionalText(2000).optional(),
     countSessionId: recordId().nullable().optional(),
     occurredAt: z.string(),
   })
   .refine(
-    (v) => [v.toLocationId, v.toVehicleId, v.toTrailerId].filter(Boolean).length <= 1,
+    (v) => [v.toLocationId, v.toVehicleId, v.toTrailerId, v.toDriverId].filter(Boolean).length <= 1,
     { message: "An asset is in one place at a time.", path: ["toLocationId"] },
   )
   .refine(
     (v) =>
       movesHolder(v.reason) ||
-      [v.toLocationId, v.toVehicleId, v.toTrailerId].filter(Boolean).length === 0,
+      [v.toLocationId, v.toVehicleId, v.toTrailerId, v.toDriverId].filter(Boolean).length === 0,
     {
       message: "Reporting an item missing or damaged does not move it — leave the destination empty.",
       path: ["reason"],

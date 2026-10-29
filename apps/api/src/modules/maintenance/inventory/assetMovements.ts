@@ -22,8 +22,8 @@ import type { ServiceError } from "./types.js";
  */
 
 const COLUMNS =
-  "id, asset_id, reason, from_location_id, from_vehicle_id, from_trailer_id, to_location_id, " +
-  "to_vehicle_id, to_trailer_id, condition, note, actor_user_id, actor_driver_id, count_session_id, " +
+  "id, asset_id, reason, from_location_id, from_vehicle_id, from_trailer_id, from_driver_id, to_location_id, " +
+  "to_vehicle_id, to_trailer_id, to_driver_id, condition, note, actor_user_id, actor_driver_id, count_session_id, " +
   "occurred_at, received_at";
 
 interface MovementRow {
@@ -33,9 +33,12 @@ interface MovementRow {
   from_location_id: string | null;
   from_vehicle_id: string | null;
   from_trailer_id: string | null;
+  /** 0524 (D-DE1). Optional only so a row read before DE2's column list still assembles. */
+  from_driver_id?: string | null;
   to_location_id: string | null;
   to_vehicle_id: string | null;
   to_trailer_id: string | null;
+  to_driver_id?: string | null;
   condition: AssetMovementDto["condition"];
   note: string | null;
   actor_user_id: string | null;
@@ -58,11 +61,12 @@ const endpoint = (
   locationId: string | null,
   vehicleId: string | null,
   trailerId: string | null,
+  driverId: string | null = null,
 ): AssetMovementDto["fromHolder"] => {
-  if (!locationId && !vehicleId && !trailerId) return null;
+  if (!locationId && !vehicleId && !trailerId && !driverId) return null;
   return {
-    kind: locationId ? "location" : vehicleId ? "vehicle" : "trailer",
-    id: locationId ?? vehicleId ?? trailerId,
+    kind: locationId ? "location" : vehicleId ? "vehicle" : trailerId ? "trailer" : "driver",
+    id: locationId ?? vehicleId ?? trailerId ?? driverId,
     label: null,
     inferredDriverName: null,
     since: null,
@@ -76,8 +80,8 @@ export const toAssetMovementDto = (
   id: r.id,
   assetId: r.asset_id,
   reason: r.reason,
-  fromHolder: endpoint(r.from_location_id, r.from_vehicle_id, r.from_trailer_id),
-  toHolder: endpoint(r.to_location_id, r.to_vehicle_id, r.to_trailer_id),
+  fromHolder: endpoint(r.from_location_id, r.from_vehicle_id, r.from_trailer_id, r.from_driver_id ?? null),
+  toHolder: endpoint(r.to_location_id, r.to_vehicle_id, r.to_trailer_id, r.to_driver_id ?? null),
   condition: r.condition,
   note: r.note,
   actorUserId: r.actor_user_id,
@@ -97,7 +101,8 @@ export const toAssetMovementDto = (
  * `movements.ts` says the same thing about the same code for the same reason.
  */
 const MESSAGES: Record<string, string> = {
-  IV012: "That bay, truck or trailer is not available.",
+  // A driver joined this sentence in 0524: a give to a driver who has left is refused here (D-DE2).
+  IV012: "That bay, truck, trailer or driver is not available — a driver must be active or on leave.",
   IV014: "This device's clock looks wrong — check the date and try again.",
   IV015: "That movement is incomplete.",
   IV016: "That move is already being recorded — try again in a moment.",
@@ -105,6 +110,8 @@ const MESSAGES: Record<string, string> = {
   IV021: "The movement history cannot be edited — record a correction instead.",
   IV023: "That asset has been retired.",
   IV024: "That asset is not available.",
+  // 0524 (D-DE1): the type decides who may hold it, so the sentence says which way round it was.
+  IV025: "That kind of equipment can't go there — a tablet goes to a driver, everything else to a truck, trailer or the shop.",
 };
 
 export interface ListAssetMovementsOptions {
