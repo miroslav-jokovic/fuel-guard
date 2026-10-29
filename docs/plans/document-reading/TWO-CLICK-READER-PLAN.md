@@ -336,25 +336,37 @@ Opus 5.5 unmeasured. *Candidates:* (a) rule on TC2.2's table — move if wrong U
 rise; (b) keep the lock and let only pass B gain the pixels. *Recommendation:* (a). The lock was right on what it
 measured; it could not measure the cap. Cost: a 2-page read ≈ $0.08 today → ≈ $0.10–0.15 with both readers high-tier.
 
+**Ruled 2026-10-29 (owner, as recommended): (a).** Pass A moves on TC2.2's table where wrong UN ids ≤ Sonnet 4.6's and RC5 defects do not rise; D-DR20 is superseded by that measurement.
+
 **Q-TC2 — One click or two?** Auto-read on drop is certain. *Candidates:* (a) Calculate auto-runs when nothing is
 pending and the equipment is known — one click; (b) the Calculate press stays — two. *Recommendation:* (b) now, (a)
 behind a per-user setting later: the press is the act the review record is keyed to and the moment the dispatcher
 commits; a calculation nobody asked for is a verdict nobody owns.
 
+**Ruled 2026-10-29 (owner, as recommended): (b).** Auto-read on drop; the Calculate press stays; auto-Calculate is not built.
+
 **Q-TC3 — Unify the driver capture this quarter (D-TC12)?** *Evidence:* §2.6 — Haiku 4.5 as a reader, two caches, two
 prompts. *Recommendation:* yes, TC4.1, after TC3; the driver path is where the best photos are and today the weakest reader.
+
+**Ruled 2026-10-29 (owner, as recommended): yes.** TC4.1 after TC3; `hazmatExtraction` retires.
 
 **Q-TC4 — A load with no trailer type: refuse, ask, or assume a tank?** *Evidence:* §2.7, `resolveVehicleKind` fallback.
 *Candidates:* (a) withhold with the reason (TC1.4); (b) ask in the load form before submit; (c) keep the assumption.
 *Recommendation:* (a) in the engine path and (b) in the load form — the web calculator already refuses to default it.
 
+**Ruled 2026-10-29 (owner, as recommended): (a) and (b).** TC1.4 withholds; the load form asks before submit.
+
 **Q-TC5 — Table 1 scope for a general carrier.** *Evidence:* 147 entries of 2.3, 89 of 4.3, 20 of 7 refused wholesale.
 *Candidates:* (a) 4.3 and Class 7 Yellow-III (placard at any quantity, no zones) this quarter; (b) all of Table 1 with
 zones; (c) leave D4-revised. *Recommendation:* (a) — the simple half; zones and explosives stay a later pack.
 
+**Ruled 2026-10-29 (owner, as recommended): (a).** TC5.2 builds 4.3 and Class 7 Yellow-III; 2.3, PIH 6.1 and explosives stay refused.
+
 **Q-TC6 — The reference-text store.** *Evidence:* `0.0.0, provisional, 0 sections`; endpoint 404s. *Candidates:*
 (a) populate from the citation list's paragraphs (Cornell LII text, dated); (b) remove the endpoint and the D12 claim.
 *Recommendation:* (a), small: ≈40 paragraphs the engine actually cites.
+
+**Ruled 2026-10-29 (owner, as recommended): (a).** The store is populated from the citation list; the endpoint stays.
 
 ---
 
@@ -369,3 +381,6 @@ zones; (c) leave D4-revised. *Recommendation:* (a) — the simple half; zones an
   segregation grid is matched by class number (false violation on 6.1 loads); Class 9 and non-bulk combustible are
   over-required; §172.505(b) should read (c); two eligibility probes contradict the rules that read them. Nothing
   built. Next: TC0.1 (release), TC0.2–TC0.5 (no owner input).
+- **2026-10-29 (later) — owner ruled Q-TC1–Q-TC6, each as recommended** ("record these rulings as recommended and proceed with
+  implementation as proposed"). Every step in §4 is now unblocked except TC0.1 (the release approval the owner gives on the
+  release PR) and TC5.1 (the owner names the attester). Implementation starts at TC0.2.
