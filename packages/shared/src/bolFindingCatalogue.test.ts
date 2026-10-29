@@ -26,6 +26,9 @@ const CASES: Array<[BolFindingRuleId, BolFindingContext, string]> = [
   ["paper_class_pg_match", ctx("fail", "class_format", { lineLabel: "UN2924", printedClass: "3, 8", printedPg: "II", requiredClass: "3 (8)", requiredPg: "II", classProblem: "format", pgProblem: null }), "The BOL for UN2924 prints class \"3, 8\": the right classes, but §172.202(a)(3) says the subsidiary \"must be entered in parentheses\" after the primary — 3 (8) — and PHMSA's letter 04-0188 holds the parentheses mandatory."],
   ["paper_class_pg_match", ctx("fail", "class_or_pg_wrong", { lineLabel: "UN2924", printedClass: "3, 8", printedPg: "I", requiredClass: "3 (8)", requiredPg: "II", classProblem: "format", pgProblem: "differs" }), "The BOL for UN2924 prints class \"3, 8\" with the subsidiary outside the parentheses §172.202(a)(3) requires (the table's form is 3 (8)) and prints PG I where the table requires PG II."],
   ["paper_class_pg_match", ctx("pass", "matches", { lineLabel: "UN1203", requiredClass: "3", requiredPg: "II" }), "UN1203's class 3 and PG II match the table."],
+
+  // Q-PC6 (a), TC1.3: a subsidiary whose label §172.402 requires, left off the paper.
+  ["paper_class_pg_match", ctx("fail", "subsidiary_omitted", { lineLabel: "UN2924", printedClass: "3", printedPg: "II", requiredClass: "3 (8)", requiredPg: "II", requiredLabels: ["8"] }), "The BOL for UN2924 prints class \"3\" without the subsidiary 8. A package of this material must carry that label (§172.402), so §172.202(a)(3) requires it on the paper: 3 (8)."],
   ["paper_technical_name", ctx("fail", "missing", { lineLabel: "UN1993", requiredPsn: "Flammable liquids, n.o.s." }), "UN1993 is an n.o.s. entry (\"Flammable liquids, n.o.s.\") and the BOL doesn't name what is actually in it."],
   ["paper_technical_name", ctx("pass", "printed", { lineLabel: "UN1993", technicalName: "toluene" }), "UN1993 names its contents (toluene), as an n.o.s. entry must."],
   ["paper_technical_name", ctx("fail", "needs_two_components", { lineLabel: "UN1993", technicalName: "toluene", namedComponents: 1 }), "UN1993 is a mixture of two or more hazardous materials and the BOL names only one (toluene); the two that contribute most to the hazard must be named."],
@@ -137,6 +140,7 @@ describe("BOL finding catalogue (§5.3, D-DR7)", () => {
   it("hands the right classes in the wrong punctuation to the shipper, and a wrong class to the driver (D-PC2)", () => {
     const e = BOL_FINDING_CATALOGUE.paper_class_pg_match;
     expect(bolFindingActor(e, ctx("fail", "class_format", { classProblem: "format" }))).toBe("shipper_must_correct");
+    expect(bolFindingActor(e, ctx("fail", "subsidiary_omitted", { requiredLabels: ["8"] }))).toBe("shipper_must_correct");
     expect(bolFindingActor(e, ctx("fail", "class_or_pg_wrong", { classProblem: "format", pgProblem: "differs" }))).toBe("driver_must_not_accept");
     expect(bolFindingActor(e, ctx("fail", "class_or_pg_wrong", { classProblem: "differs" }))).toBe("driver_must_not_accept");
     // A rule without a per-reason actor answers its own.

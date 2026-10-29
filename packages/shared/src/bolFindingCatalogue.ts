@@ -169,7 +169,8 @@ export const BOL_FINDING_CATALOGUE = {
     cite: "49 CFR 172.202(a)(3)-(4)",
     actor: "driver_must_not_accept",
     // The right classes in the wrong punctuation name the right hazard (D-PC2): the shipper reprints, the load moves.
-    actorFor: (ctx) => (ctx.reason === "class_format" ? "shipper_must_correct" : "driver_must_not_accept"),
+    // So does a required subsidiary left off (Q-PC6 (a), TC1.3): the placards come from the table, never the paper.
+    actorFor: (ctx) => (ctx.reason === "class_format" || ctx.reason === "subsidiary_omitted" ? "shipper_must_correct" : "driver_must_not_accept"),
     howToFix: "Ask the shipper for a corrected BOL with the hazard class and packing group the Hazardous Materials Table gives for this entry.",
     sentence(ctx) {
       const c = common(ctx, SUBJECT.paper_class_pg_match);
@@ -180,6 +181,10 @@ export const BOL_FINDING_CATALOGUE = {
       }
       if (ctx.reason === "class_format") {
         return `The BOL for ${line(ctx)} prints class "${s(ctx.facts.printedClass)}": the right classes, but §172.202(a)(3) says the subsidiary "must be entered in parentheses" after the primary — ${s(ctx.facts.requiredClass)} — and PHMSA's letter 04-0188 holds the parentheses mandatory.`;
+      }
+      if (ctx.reason === "subsidiary_omitted") {
+        const labels = Array.isArray(ctx.facts.requiredLabels) ? ctx.facts.requiredLabels.join(", ") : s(ctx.facts.requiredLabels);
+        return `The BOL for ${line(ctx)} prints class "${s(ctx.facts.printedClass)}" without the subsidiary ${labels}. A package of this material must carry that label (§172.402), so §172.202(a)(3) requires it on the paper: ${s(ctx.facts.requiredClass)}.`;
       }
       const parts: string[] = [];
       if (ctx.facts.classProblem === "missing") parts.push(`prints no hazard class (the table says ${s(ctx.facts.requiredClass)})`);

@@ -90,6 +90,8 @@ export const REQUIRED = [
       "passes every rule on a correctly printed paper, in drums and in a cargo tank",
       "fails only its own rule: …",
       "never matches a paper to the look-alike row that excepts more (the placard path's Limited Quantity, P1)",
+      // TC1.3 (Q-PC6 (a)): a defect only where §172.402 requires the subsidiary's label.
+      "calls an omitted subsidiary wrong exactly where §172.402 requires its label — every row × packaging × LQ claim",
     ],
   },
   {
