@@ -1,22 +1,9 @@
 import { computed, onScopeDispose, ref, shallowRef, type Ref } from "vue";
 import { BUNDLED_DEFAULT_CONFIG, computeMetrics } from "@silvicom/capture-engine";
 import type { AamvaLicence } from "@silvicom/shared";
-import { openLiveCamera, type LiveCamera, type OpenResult, type Snapshot } from "./liveCamera";
-import {
-  LIVE_SLOTS,
-  meetsResolutionFloor,
-  mirrored,
-  settled,
-  trimHistory,
-  viewRectToVideo,
-  withMargin,
-  type LiveFacing,
-  type LiveRefusal,
-  type LiveSlot,
-  type Rect,
-  type ScoredFrame,
-  type Size,
-} from "./liveFrame";
+import { viewRectToVideo, withMargin, type LiveFacing, type LiveRefusal, type Rect, type Size } from "@/lib/camera/cameraFrame";
+import { onNextVideoFrame, openLiveCamera, type LiveCamera, type OpenResult, type Snapshot } from "@/lib/camera/liveCamera";
+import { LIVE_SLOTS, meetsResolutionFloor, mirrored, settled, trimHistory, type LiveSlot, type ScoredFrame } from "./liveFrame";
 import { readLicenceBarcode } from "./readLicenceBarcode";
 
 /**
@@ -229,13 +216,4 @@ export function useLiveScan(video: Ref<HTMLVideoElement | null>, options: LiveSc
   onScopeDispose(release);
 
   return { state, refusal, start, shutter, stop: release, torchOn, torchAvailable, toggleTorch };
-}
-
-/**
- * `requestVideoFrameCallback` runs once per NEW camera frame (Safari 15.4+, Chrome 83+). A repaint-timed
- * callback, the fallback, can score one frame several times — harmless for ranking, which is all it feeds.
- */
-function onNextVideoFrame(video: HTMLVideoElement, callback: () => void): void {
-  if ("requestVideoFrameCallback" in video) video.requestVideoFrameCallback(() => callback());
-  else requestAnimationFrame(() => callback());
 }

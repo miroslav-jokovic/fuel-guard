@@ -2,7 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { flushPromises, mount, type VueWrapper } from "@vue/test-utils";
 import { ref } from "vue";
 import type { LiveCapture, LiveScanState } from "@/features/apply/capture/useLiveScan";
-import { TAKEN_HOLD_MS, type LiveRefusal, type LiveSlot } from "@/features/apply/capture/liveFrame";
+import { TAKEN_HOLD_MS, type LiveSlot } from "@/features/apply/capture/liveFrame";
+import type { LiveRefusal } from "@/lib/camera/cameraFrame";
 import { pickImageFile, pickPhotoFromCamera } from "@/features/apply/capture/webImageIo";
 
 /**

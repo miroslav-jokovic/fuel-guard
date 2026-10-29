@@ -25,9 +25,9 @@ import {
   SHUTTER_DEADLINE_MS,
   TAKEN_HOLD_MS,
   tipsKind,
-  type LiveRefusal,
   type LiveSlot,
 } from "@/features/apply/capture/liveFrame";
+import type { LiveRefusal } from "@/lib/camera/cameraFrame";
 import type { PickedPhoto } from "@/features/apply/capture/webFileProvider";
 import { pickImageFile, pickPhotoFromCamera, uploadAccept } from "@/features/apply/capture/webImageIo";
 import { APPLY_COPY } from "@/features/apply/strings";
@@ -67,7 +67,7 @@ import { APPLY_COPY } from "@/features/apply/strings";
  *
  * ── THE CAMERA APP IS NEVER MORE THAN ONE PRESS AWAY ──────────────────────────────────────────
  * On the tips, in the live view and after a refusal (camera denied, busy, too few pixels —
- * `liveFrame.LiveRefusal`) the camera app and an upload are both on screen. They open from the driver's own
+ * `cameraFrame.LiveRefusal`) the camera app and an upload are both on screen. They open from the driver's own
  * press, because a file input opened any other way is refused by the browser (it needs a user gesture).
  *
  * ⚠ `scheme-light` on the panel: `--scrim` stays dark in both schemes but `--ink-inverse` FLIPS to near-black
