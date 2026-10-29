@@ -121,6 +121,16 @@ export const REQUIRED = [
       "no rule reads a line's …",
     ],
   },
+  {
+    step: "TC0.5 every cfr the engine emits is verified against eCFR (D-TC10)",
+    file: "packages/hazmat-golden/src/citationCensus.test.ts",
+    titles: [
+      "emits no citation outside the verified list, on any load of the sweep",
+      "holds no citation in its source outside the verified list",
+      "lists nothing the engine no longer emits",
+      "keeps, for every entry, eCFR's words at the paragraph it names, saying every phrase it must",
+    ],
+  },
 ];
 
 const TEST_TITLE = /\b(?:it|test|describe)(?:\.each\s*\([\s\S]*?\))?\s*\(\s*(["'`])((?:\\.|(?!\1)[\s\S])*?)\1/g;

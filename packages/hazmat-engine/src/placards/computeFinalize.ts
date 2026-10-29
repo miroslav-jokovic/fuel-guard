@@ -32,7 +32,10 @@ export function addSubsidiaryPlacards(
   const pihLines = table2.filter((r) => subsidiary505(r.entry).pih);
   const dwwLines = table2.filter((r) => subsidiary505(r.entry).dww);
   if (pihLines.length > 0) add505("POISON_INHALATION_HAZARD", "49 CFR 172.505(a)", pihLines);
-  if (dwwLines.length > 0) add505("DANGEROUS_WHEN_WET", "49 CFR 172.505(b)", dwwLines);
+  // §172.505(c), not (b): (b) is uranium hexafluoride. Cited as (b) from 2026-08 until 2026-10-29 (TWO-CLICK-READER-PLAN
+  // E4), on the verdict chip and in the defense packet; the citation census (hazmat-golden) now holds every `cfr`
+  // the engine emits to a phrase its eCFR paragraph must say.
+  if (dwwLines.length > 0) add505("DANGEROUS_WHEN_WET", "49 CFR 172.505(c)", dwwLines);
   return subsidiaryPlacards;
 }
 

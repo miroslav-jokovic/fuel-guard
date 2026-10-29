@@ -442,3 +442,19 @@ slower reader on warm-booted reads, which is the measurement that would make the
   and nothing else; both left the lists and stay in the census as positive controls (it must see their verdicts move).
   Done-when as tests: "a vessel question answered either way is evaluated, never reported as ignored", "a residue line
   is evaluated by the aggregate, never reported as ignored". Pinned in `lint:reader-gate`. ≈15 s.
+- **2026-10-29 — TC0.4 MERGED as #1836** (a follow-up commit gave the census's sweeps the census timeout: CI's runner
+  took 13 s on the two-sweep control where vitest allows 5).
+- **2026-10-29 — TC0.5: every `cfr` the engine emits is checked against eCFR; two were wrong (engine 0.24.0).** New
+  `packages/hazmat-data/datasets/citations.json`: 65 CFR paragraphs + 4 `internal:` plan references, each paragraph
+  with `mustSay` — the words it must contain for the engine's use to be right, written by a person — and the excerpt,
+  section, paragraph and eCFR URL that `import/citationsBuild.ts` writes after checking them against eCFR 2026-10-27
+  (paragraph located by `import/citationParagraph.ts`, which handles eCFR's headed inline children and roman-vs-letter
+  numbering). Existence is not the check: §172.505(b) and §172.302(c) both exist. Given the two old strings back, the
+  builder refused both, naming the phrase each lacks. Corrected: DANGEROUS WHEN WET → **§172.505(c)** (E4); a bulk
+  line's ID number → **§172.302(a)** (it cited (c), special-permit packagings — found by this step, not in §2.7); and
+  `§177.848(d)` lost its stray `§`. New census `hazmat-golden/src/citationCensus.test.ts`: every `cfr` reached over the
+  whole table (each row at five loads, LQ, residue, vessel leg, 4,000 seeded pairs, both early exits) and every
+  literal in the engine's source is in the list; the list holds nothing stale; every entry's stored excerpt says its
+  phrase. Mutation: §172.505(b) back in the engine fails four of its six tests. Pinned in `lint:reader-gate` (13 files).
+  The census title and the PLACARD plan's body text now say (c). Not in this step: populating `referenceText.json`
+  from the list (Q-TC6 (a)) — the list now names exactly the ≈40 sections to fetch; it is TC0.5's follow-up.

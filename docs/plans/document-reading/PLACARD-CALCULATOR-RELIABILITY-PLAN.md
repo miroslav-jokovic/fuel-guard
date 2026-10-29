@@ -24,7 +24,7 @@ downstream of that:
    entries have one**. §172.202(a)(3) requires the shipper to print the subsidiary in parentheses after the
    primary class, so every correctly printed line of such a material — UN2922 "8(6.1)", UN3098 "5.1(8)",
    UN2924 "3 (8)" — is **refused by the table matcher**, lands on the calculator with **no product**, and the
-   BOL check calls the correct paper **"wrong"**. The engine's §172.505(b) DANGEROUS WHEN WET subsidiary
+   BOL check calls the correct paper **"wrong"**. The engine's §172.505(c) DANGEROUS WHEN WET subsidiary
    placard and the §177.848 segregation check read the same empty field, so both are blind to subsidiaries
    on the shipped dataset. The RC5 golden census printed the class from that field, so it never exercised the
    parenthesised format (a vacuously complete fold).
@@ -73,7 +73,7 @@ hand (the rows record the paper's `8(6.1)` as *corrected* to `8` — a wrong lab
   `class_mismatch`; UN2924 "3, 8", "3 (8)", "3(8)" → `class_mismatch`;** "8" alone resolves.
 - The paper audit's `paper_class_pg_match` takes `class_mismatch` as "differs" and prints *"prints class 8(6.1)
   where the table says 8"* — the table says 8 (6.1); the sentence is built from the same empty field.
-- `@hazmat/engine` `subsidiary505()` reads `entry.subsidiaryClasses` for §172.505(b): **13 non-4.3 entries whose
+- `@hazmat/engine` `subsidiary505()` reads `entry.subsidiaryClasses` for §172.505(c): **13 non-4.3 entries whose
   labels include 4.3** (UN2870 Aluminum borohydride, UN3094/UN3096 water-reactive corrosives, UN2210 Maneb, …)
   can never raise DANGEROUS WHEN WET. `segregation/check.ts` builds its class set from the same field (its own
   header says it reads it "one module over"), so a 3 (4.3) beside a Class 8 answers `segregation_none`.
@@ -197,7 +197,7 @@ nine stored reads in its PR (D-RC2), and false-accept 0 on the gate (D-RC3).
 
 | Step | What | Owner input | Done when |
 |---|---|---|---|
-| **PC1** | Subsidiary classes (D-PC1): `subsidiaryClassesOf(entry)` in `@hazmat/data`, applied in `hmtAssemble` and `loadDataset`; `resolveLine.census.test.ts` gains every subsidiary printing of §172.202(a)(3) for every entry that has one; `paperGoldenCensus` prints the real class and gains the vacuity guard; `placardCensus` adds a §172.505(b) invariant over the 13 entries and a segregation invariant over subsidiary pairs; the audit sentence prints the full class. Engine, data and golden versions bump; **needs a release** | — | census: 561 entries, 0 refused across ≥5 printings each; the Henkel replay fills 4 of 4 lines and the audit shows 0 "wrong"; the 13 DWW entries raise DANGEROUS WHEN WET |
+| **PC1** | Subsidiary classes (D-PC1): `subsidiaryClassesOf(entry)` in `@hazmat/data`, applied in `hmtAssemble` and `loadDataset`; `resolveLine.census.test.ts` gains every subsidiary printing of §172.202(a)(3) for every entry that has one; `paperGoldenCensus` prints the real class and gains the vacuity guard; `placardCensus` adds a §172.505(c) invariant over the 13 entries and a segregation invariant over subsidiary pairs; the audit sentence prints the full class. Engine, data and golden versions bump; **needs a release** | — | census: 561 entries, 0 refused across ≥5 printings each; the Henkel replay fills 4 of 4 lines and the audit shows 0 "wrong"; the 13 DWW entries raise DANGEROUS WHEN WET |
 | **PC2** | Class punctuation (D-PC2): matcher accepts the comma/slash/CLASS forms; `paper_class_pg_match` gains reason `class_format` with its own catalogue sentence and actor; property test: every entry × every printing → right classes resolve, only the non-parenthesised ones get the format note, a swapped or added subsidiary fails | Q-PC1 | PureTech replay: 5 products, 5 format notes, 0 "wrong" |
 | **PC3** | Weight as printed (D-PC3): profile 1.6.0 (`grossWeightText`, `netWeightText`), `parsePrintedWeight` census over units × separators × decimals, prefill and arithmetic witness read the parsed pounds; replay | — | PureTech replay fills 1,814 kg → 3,999 lb on each line; the ten office BOLs unchanged on live re-read |
 | **PC4** | PG and description as printed (D-PC6): profile 1.6.0 `pg` string, normaliser + Roman-numeral rule; one-character punctuation tolerance in `readingExtent.ts`, property-tested over every table name | — | PureTech replay: descriptions agree on 5 of 5, "PG 3" is a format finding |
@@ -219,7 +219,7 @@ wait on Q-PC2 and Q-PC3 but can be built behind them.
   from 5 findings to 2; the Calculate gate asks only for what the engine reads.
 - **Placard calculation:** the engine was right on every verified load. The wrong answers the owner could have
   seen (Henkel without OXIDIZER; PureTech with nothing) came from lines the table refused; PC1 fixes the cause,
-  and PC1's census makes the §172.505(b) and segregation rules live on the real dataset for the first time.
+  and PC1's census makes the §172.505(c) and segregation rules live on the real dataset for the first time.
 
 ## 6. Open questions — researched 2026-10-26
 
@@ -416,3 +416,6 @@ bulk) or print the subsidiary (PureTech). Until it is built, (c) holds.
   reads identical in every count and status (Henkel's "8(6.1)" and "5.1(8)" are the parenthesised form and carry
   no finding); relaxed 0. Not built: the omitted-subsidiary rule — the engine derives no §172.402 label requirement,
   so it is Q-PC6 rather than a guess. Needs a release with PC1.
+
+- **2026-10-29 — correction (TWO-CLICK-READER-PLAN TC0.5).** The DANGEROUS WHEN WET subsidiary rule is §172.505(**c**);
+  (b) is uranium hexafluoride. §1, §2, §4 and §5 above now say (c); the log entries keep what was written then.

@@ -66,7 +66,7 @@ export function checkSegregation(load: LoadInput): SegregationResult {
       ruleId: "segregation_grid_unavailable",
       tier: "conditional",
       message: "The dataset carries no §177.848 segregation grid — load compatibility was NOT checked.",
-      citations: [{ cfr: "49 CFR §177.848(d)" }],
+      citations: [{ cfr: "49 CFR 177.848(d)" }],
       evidence: { cells: 0 },
     });
     return { findings, trace, hasViolation: false, gridPresent: false };
