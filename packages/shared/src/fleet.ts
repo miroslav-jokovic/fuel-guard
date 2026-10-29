@@ -208,6 +208,11 @@ export interface VehicleKindResolution {
  *
  * The difference from the hard-code it replaces is not the value; it is that this one is flagged and
  * fixable. Set the trailer's type and the assumption goes away.
+ *
+ * Since 2026-10-29 (TWO-CLICK-READER-PLAN TC1.4, Q-TC4 (a)) no analysis computes a verdict on the fallback:
+ * `confident: false` makes every hazmat analysis WITHHOLD (`HAZMAT_EQUIPMENT_UNKNOWN_FLAG`), because a tank answer
+ * shown as THE answer is not conservative — it is a different, wrong verdict for a van. The fallback's values
+ * remain only as the form's starting packaging default, and the load form asks for the type before submit.
  */
 export function resolveVehicleKind(input: {
   trailerType?: string | null;

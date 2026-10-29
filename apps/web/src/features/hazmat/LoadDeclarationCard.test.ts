@@ -6,7 +6,13 @@ import { ref } from "vue";
 /** D-US6 — the record's read-only load details are a FactList; an undeclared field is a dash. */
 vi.mock("@/composables/useVehicles", () => ({ useVehiclesQuery: () => ({ data: ref([{ id: "v1", unit_number: "654" }]) }) }));
 vi.mock("@/composables/useDrivers", () => ({ useDriversQuery: () => ({ data: ref([{ id: "d1", full_name: "Ann Lee" }]) }) }));
-vi.mock("@/features/hazmat/useHazmatEquipment", () => ({ useHazmatTrailersQuery: () => ({ data: ref([]) }) }));
+// Two trailers: one with no equipment type and no tank data on file, one typed (TC1.4).
+const TRAILERS = [
+  { id: "t-untyped", unit_number: "T-9", trailer_type: null, cargo_capacity_gal: null, cargo_compartments: null },
+  { id: "t-van", unit_number: "T-1", trailer_type: "dry_van", cargo_capacity_gal: null, cargo_compartments: null },
+];
+vi.mock("@/features/hazmat/useHazmatEquipment", () => ({ useHazmatTrailersQuery: () => ({ data: ref(TRAILERS) }) }));
+vi.mock("@/composables/useOpens", () => ({ useOpens: () => () => true }));
 vi.mock("@/features/hazmat/useHazmatLoads", () => ({
   useUpdateLoad: () => ({ mutateAsync: vi.fn(), isPending: ref(false) }),
 }));
@@ -35,5 +41,21 @@ describe("the load details card", () => {
   it("adds the shipper's no-placard claim only when the paper makes it", () => {
     const w = mount(LoadDeclarationCard, { props: { load: load({ claimed_no_placards: true }), canManage: false } });
     expect(w.findAll("dt").at(-1)!.text()).toBe("Shipper's claim");
+  });
+});
+
+describe("the equipment question (TWO-CLICK-READER-PLAN TC1.4, Q-TC4 (b))", () => {
+  const mountWith = (trailerId: string | null) =>
+    mount(LoadDeclarationCard, { props: { load: load({ trailer_id: trailerId }), canManage: false }, global: { stubs: { RouterLink: { template: "<a><slot /></a>" } } } });
+
+  it("asks before submit when the trailer has no equipment type, and says the analysis will not guess", () => {
+    const text = mountWith("t-untyped").text();
+    expect(text).toContain("Trailer T-9 has no equipment type, so the analysis will stop rather than guess");
+    expect(text).toContain("Trailers page");
+  });
+
+  it("asks nothing for a typed trailer, or when no trailer is chosen", () => {
+    expect(mountWith("t-van").text()).not.toContain("no equipment type");
+    expect(mountWith(null).text()).not.toContain("no equipment type");
   });
 });

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { HAZMAT_EQUIPMENT_UNKNOWN_FLAG, resolveVehicleKind, TRAILER_TYPES } from "./index.js";
 import {
   buildHazmatAttestation,
   checkHazmatClear,
@@ -69,5 +70,25 @@ describe("buildHazmatAttestation", () => {
     expect(s.startsWith(HAZMAT_ATTESTATION_TEXT)).toBe(true);
     expect(s).toContain("DOT-SP 12345");
     expect(s).toContain("OVERRIDE: shipper confirmed the permit covers this");
+  });
+});
+
+describe("equipment of no known type (TWO-CLICK-READER-PLAN TC1.4, Q-TC4 (a))", () => {
+  it("is a hard block naming the Trailers page, which no override reason or attestation clears", () => {
+    const flags = [HAZMAT_EQUIPMENT_UNKNOWN_FLAG];
+    expect(hazmatUnclearableReason(flags)).toMatch(/equipment type is not set.*Trailers page/);
+    const check = checkHazmatClear({ flags, datasetProvisional: false, specialPermits: [], overrideReason: "x".repeat(200), spAcknowledged: true });
+    expect(check).toMatchObject({ ok: false, code: "document_unusable" });
+  });
+});
+
+describe("resolveVehicleKind over every equipment input (TC1.4)", () => {
+  it("is confident on every trailer type and on tank data, and unsure only when neither is on file", () => {
+    for (const trailerType of [...TRAILER_TYPES, null, ""]) {
+      for (const hasCargoTankProfile of [true, false]) {
+        const r = resolveVehicleKind({ trailerType, hasCargoTankProfile });
+        expect(r.confident, `${trailerType} tank=${hasCargoTankProfile}`).toBe(Boolean(trailerType) || hasCargoTankProfile);
+      }
+    }
   });
 });

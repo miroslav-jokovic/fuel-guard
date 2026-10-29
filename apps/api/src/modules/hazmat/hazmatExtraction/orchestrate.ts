@@ -15,7 +15,7 @@ import { notifyReviewersOfFlag } from "../hazmatNotify.js";
 import { enqueueJob } from "../../../queue/enqueue.js";
 import type { DeclaredLineRef } from "./mapBolLines.js";
 import { evaluateQualification } from "../qualification.js";
-import { QUALIFICATION_EVAL_AT_NOW_FLAG } from "@silvicom/shared";
+import { HAZMAT_EQUIPMENT_UNKNOWN_FLAG, QUALIFICATION_EVAL_AT_NOW_FLAG } from "@silvicom/shared";
 import { readEquipmentKind } from "../hazmatEquipment.js";
 
 /**
@@ -92,6 +92,8 @@ export async function executeExtraction(admin: SupabaseClient, orgId: string, lo
     // §5/§5.1 (M3): qualification gate — evaluated BEFORE hashing because its inputs are a cache-key
     // term (§10.10): renew a medical card and the same photo MUST re-evaluate, not replay a stale pass.
     const qual = await evaluateQualification(admin, orgId, { driver_id: load.driver_id, planned_pickup_at: load.planned_pickup_at }, equipment.kind, now);
+    // TC1.4 (Q-TC4 (a)): no placards on a guessed equipment kind — and no model spend on a run that cannot finish.
+    if (!equipment.confident) return finish(null, [HAZMAT_EQUIPMENT_UNKNOWN_FLAG, ...qual.flags], null);
 
     const { data: docs } = await admin
       .from("hazmat_documents").select("storage_path, content_type, page, sha256, capture_mode")

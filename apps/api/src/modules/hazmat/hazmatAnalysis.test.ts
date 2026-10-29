@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { evaluateLoad, type Verdict } from "@hazmat/engine";
 import { loadDataset } from "@hazmat/data";
+import { HAZMAT_EQUIPMENT_UNKNOWN_FLAG, hazmatUnclearableReason } from "@silvicom/shared";
+import { createSupabaseRecorder, expectOrgScoped } from "../../testing/supabaseRecorder.js";
 import {
-  buildManualLoadInput, computeManualFlags, manualInputHash,
+  buildManualLoadInput, computeManualFlags, executeManualAnalysis, manualInputHash,
   type ManualLoadRow,
 } from "./hazmatAnalysis.js";
 
@@ -51,5 +53,39 @@ describe("hazmatAnalysis — manual-path decision logic (plan H4-4)", () => {
     expect(a).not.toBe(c);
     expect(a).not.toBe(d); // engine-version bump changes the cache key
     expect(a).toMatch(/^sha256:[0-9a-f]{64}$/);
+  });
+});
+
+describe("executeManualAnalysis — equipment of no known type is withheld (TWO-CLICK-READER-PLAN TC1.4, Q-TC4 (a))", () => {
+  const LOAD = "load-1";
+  const ORG = "org-1";
+  const run = async (trailer: Record<string, unknown> | null) => {
+    const rec = createSupabaseRecorder({
+      tables: {
+        hazmat_loads: [{ id: LOAD, ...gasLoad, trailer_id: trailer ? "trailer-1" : null }],
+        trailers: trailer ? [{ id: "trailer-1", cargo_capacity_gal: null, cargo_compartments: null, ...trailer }] : [],
+      },
+      rpc: (fn) => (fn === "org_module_enabled" ? true : null),
+    });
+    await executeManualAnalysis(rec.client, ORG, LOAD, "run-1");
+    const recorded = rec.rpcs().find((r) => r.fn === "record_hazmat_run")?.args as Record<string, unknown> | undefined;
+    return { rec, recorded };
+  };
+
+  it("records a withheld run, flagged with the hard block, and works out no placards on a guessed tank", async () => {
+    const { recorded, rec } = await run({ trailer_type: null });
+    expect(recorded).toBeDefined();
+    expect(recorded!.p_flags).toContain(HAZMAT_EQUIPMENT_UNKNOWN_FLAG); // beside any qualification flags, which still apply
+    expect(recorded!.p_outcome).toBe("flagged");
+    expect(recorded!.p_verdict).toEqual({ withheld: HAZMAT_EQUIPMENT_UNKNOWN_FLAG, because: expect.stringContaining("not set") });
+    expect(JSON.stringify(recorded!.p_verdict)).not.toContain("placards");
+    expect(hazmatUnclearableReason(recorded!.p_flags as string[])).toMatch(/Trailers page/);
+    expectOrgScoped(rec, ORG);
+  });
+
+  it("computes the verdict as before when the trailer's type is on file", async () => {
+    const { recorded } = await run({ trailer_type: "tanker" });
+    expect(recorded!.p_flags).not.toContain(HAZMAT_EQUIPMENT_UNKNOWN_FLAG);
+    expect((recorded!.p_verdict as Verdict).placards.required.map((p) => p.placard)).toContain("FLAMMABLE");
   });
 });

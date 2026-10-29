@@ -11,8 +11,9 @@ import { resolveVehicleKind, type VehicleKindResolution } from "@silvicom/shared
  * columns together, and the callers stopped making their own profile queries.
  *
  * The decision itself lives in `resolveVehicleKind` (shared, so the dashboard and the engine cannot
- * disagree). A load with no trailer and no vehicle still resolves — to the conservative answer,
- * flagged as an assumption. Silence was the old behaviour and it is what this replaces.
+ * disagree). A load with no trailer and no vehicle still resolves — `confident: false` — and since TC1.4 (Q-TC4 (a))
+ * every analysis path WITHHOLDS on it (`HAZMAT_EQUIPMENT_UNKNOWN_FLAG`); the info advisory that used to ride beside a
+ * tank verdict is gone.
  */
 export interface CargoTankData {
   cargo_capacity_gal: number | null;
@@ -68,21 +69,5 @@ export async function readEquipmentKind(
     trailerId: load.trailer_id,
     trailerType,
     tank,
-  };
-}
-
-/**
- * The advisory a load carries when its equipment kind was assumed rather than read. Surfaced as an
- * advisory, not a flag: an unset trailer type must not block a load, it must be visible and fixable.
- */
-export function equipmentAssumptionAdvisory(equipment: EquipmentContext): Record<string, unknown> | null {
-  if (equipment.confident) return null;
-  return {
-    ruleId: "vehicle_kind_assumed",
-    tier: "info",
-    message:
-      `The equipment kind was not read from the fleet — ${equipment.because}. ` +
-      "Set the trailer's type on the Trailers page so placarding is decided from what you are actually hauling.",
-    citations: [{ cfr: "internal: equipment context (F-P2 / D-H4)" }],
   };
 }
