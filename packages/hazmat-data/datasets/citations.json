@@ -1,0 +1,695 @@
+{
+  "_note": "Every `cfr` string @hazmat/engine emits (TWO-CLICK-READER-PLAN TC0.5, D-TC10). `cfr` and `mustSay` are written by a person: what the engine cites, and the words its eCFR paragraph must contain for the engine's use of it to be right. Everything else is written by import/citationsBuild.ts from eCFR at `ecfrDate` — run it after any change. The census (@hazmat/golden citationCensus.test.ts) holds the engine to this list.",
+  "ecfrDate": "2026-10-27",
+  "readOn": "2026-10-29",
+  "citations": [
+    {
+      "cfr": "49 CFR 171.4(c)(1)",
+      "mustSay": [
+        "do not apply to non-bulk packagings transported by motor vehicle"
+      ],
+      "section": "171.4",
+      "paragraph": "(c)(1)",
+      "excerpt": " when all or part of the transportation is by vessel, the requirements of this subchapter specific to marine pollutants do not apply to non-bulk packagings transported by motor vehicle, rail car or aircraft.",
+      "source": "https://www.ecfr.gov/on/2026-10-27/title-49/section-171.4#p-171.4(c)(1)"
+    },
+    {
+      "cfr": "49 CFR 171.4(c)(2)",
+      "mustSay": [
+        "5 l or less for liquids",
+        "5 kg or less for solids"
+      ],
+      "section": "171.4",
+      "paragraph": "(c)(2)",
+      "excerpt": "(2) single or combination packagings containing a net quantity per single or inner packaging of 5 l or less for liquids or having a net mass of 5 kg or less for solids, are not subject to any other requirements of this subchapter provided the packagings meet the general requirements in §§ 173.24 and 173.24a. this exce",
+      "source": "https://www.ecfr.gov/on/2026-10-27/title-49/section-171.4#p-171.4(c)(2)"
+    },
+    {
+      "cfr": "49 CFR 171.8",
+      "mustSay": [
+        "bulk packaging means",
+        "limited quantity"
+      ],
+      "section": "171.8",
+      "paragraph": null,
+      "excerpt": "r unitized for purposes of transportation as opposed to bulk and containerized freight. btu means british thermal unit. bulk packaging means a packaging, other than a vessel or a barge, including a transport vehicle or freight container, in which hazardous materials are loaded with no intermediate form of containment. a large packaging in",
+      "source": "https://www.ecfr.gov/on/2026-10-27/title-49/section-171.8"
+    },
+    {
+      "cfr": "49 CFR 172.101 col. 8A",
+      "mustSay": [
+        "column 8a"
+      ],
+      "section": "172.101",
+      "paragraph": null,
+      "excerpt": "is subchapter and any other applicable requirements in subparts a and b of part 173 of this subchapter. (1) exceptions. column 8a contains exceptions from some of the requirements of this subchapter. the referenced exceptions are in addition to those specified in subpart a of part 173 and elsewhere in this subchapter. a \"none\" ",
+      "source": "https://www.ecfr.gov/on/2026-10-27/title-49/section-172.101"
+    },
+    {
+      "cfr": "49 CFR 172.101(d)(4)",
+      "mustSay": [
+        "is modified to read \"combustible liquid\""
+      ],
+      "section": "172.101",
+      "paragraph": "(d)(4)",
+      "excerpt": "(4) each reference to a class 3 material is modified to read \"combustible liquid\" when that material is reclassified in accordance with § 173.150(e) or (f) of this subchapter or has a flash point above 60 °c (140 °f) but below 93 °c (200 °f).",
+      "source": "https://www.ecfr.gov/on/2026-10-27/title-49/section-172.101#p-172.101(d)(4)"
+    },
+    {
+      "cfr": "49 CFR 172.102(c)(1)",
+      "mustSay": [
+        "poisonous by inhalation",
+        "hazard zone a"
+      ],
+      "section": "172.102",
+      "paragraph": "(c)(1)",
+      "excerpt": "(1) numeric provisions. these provisions are multi-modal and apply to bulk and non-bulk packagings: 1 this material is poisonous by inhalation (see § 171.8 of this subchapter) in hazard zone a (see § 173.116(a) or § 173.133(a) of this subchapter), and must be described as an inhalation hazard under the provisions of this subchapter. 2 this ",
+      "source": "https://www.ecfr.gov/on/2026-10-27/title-49/section-172.102#p-172.102(c)(1)"
+    },
+    {
+      "cfr": "49 CFR 172.102(c)(1) special provision 5",
+      "mustSay": [
+        "5 if this material"
+      ],
+      "section": "172.102",
+      "paragraph": "(c)(1)",
+      "excerpt": " 173.116(a) of this subchapter), and must be described as an inhalation hazard under the provisions of this subchapter. 5 if this material meets the definition for a material poisonous by inhalation (see § 171.8 of this subchapter), a shipping name must be selected which identifies the inhalation hazard, in division 2.3 or division 6.1,",
+      "source": "https://www.ecfr.gov/on/2026-10-27/title-49/section-172.102#p-172.102(c)(1)"
+    },
+    {
+      "cfr": "49 CFR 172.200-172.204",
+      "mustSay": [
+        "shall describe the hazardous material on the shipping paper"
+      ],
+      "section": "172.200",
+      "paragraph": null,
+      "excerpt": " required. except as otherwise provided in this subpart, each person who offers a hazardous material for transportation shall describe the hazardous material on the shipping paper in the manner required by this subpart. (b) this subpart does not apply to any material, other than a hazardous substance, hazardous waste or marine pollutant, that is— (1) identified by the letter \"",
+      "source": "https://www.ecfr.gov/on/2026-10-27/title-49/section-172.200"
+    },
+    {
+      "cfr": "49 CFR 172.201",
+      "mustSay": [
+        "description of hazardous material is required to be included on a shipping paper"
+      ],
+      "section": "172.201",
+      "paragraph": null,
+      "excerpt": "(a) contents. when a description of hazardous material is required to be included on a shipping paper, that description must conform to the following requirements: (1) when a hazardous material and a material not subject to the requirements of this subchapter are described on the same shipping paper,",
+      "source": "https://www.ecfr.gov/on/2026-10-27/title-49/section-172.201"
+    },
+    {
+      "cfr": "49 CFR 172.202",
+      "mustSay": [
+        "the shipping description of a hazardous material on the shipping paper must include"
+      ],
+      "section": "172.202",
+      "paragraph": null,
+      "excerpt": "(a) the shipping description of a hazardous material on the shipping paper must include: (1) the identification number prescribed for the material as shown in column (4) of the § 172.101 table; (2) the proper shipping name prescribed for the material in column (2) of the § 172.101 table",
+      "source": "https://www.ecfr.gov/on/2026-10-27/title-49/section-172.202"
+    },
+    {
+      "cfr": "49 CFR 172.202(a)",
+      "mustSay": [
+        "the shipping description of a hazardous material on the shipping paper must include"
+      ],
+      "section": "172.202",
+      "paragraph": "(a)",
+      "excerpt": "(a) the shipping description of a hazardous material on the shipping paper must include: (1) the identification number prescribed for the material as shown in column (4) of the § 172.101 table; (2) the proper shipping name prescribed for the material in column (2) of the § 172.101 table",
+      "source": "https://www.ecfr.gov/on/2026-10-27/title-49/section-172.202#p-172.202(a)"
+    },
+    {
+      "cfr": "49 CFR 172.202(a)(7)",
+      "mustSay": [
+        "the number and type of packages must be indicated"
+      ],
+      "section": "172.202",
+      "paragraph": "(a)(7)",
+      "excerpt": "(7) the number and type of packages must be indicated. the type of packages must be indicated by description of the package (for example, \"12 drums\"). indication of the packaging specification number (\"1h1\") may be included in the description of the pac",
+      "source": "https://www.ecfr.gov/on/2026-10-27/title-49/section-172.202#p-172.202(a)(7)"
+    },
+    {
+      "cfr": "49 CFR 172.203",
+      "mustSay": [
+        "limited quantity"
+      ],
+      "section": "172.203",
+      "paragraph": null,
+      "excerpt": "es. when a shipping paper is required by this subchapter, the description for a material offered for transportation as \"limited quantity,\" as authorized by this subchapter, must include the words \"limited quantity\" or \"ltd qty\" following the basic description. (c) hazardous substances. (1) except for class 7 (radioactive) materials de",
+      "source": "https://www.ecfr.gov/on/2026-10-27/title-49/section-172.203"
+    },
+    {
+      "cfr": "49 CFR 172.204",
+      "mustSay": [
+        "shall certify that the material is offered for transportation"
+      ],
+      "section": "172.204",
+      "paragraph": null,
+      "excerpt": "t as provided in paragraphs (b) and (c) of this section, each person who offers a hazardous material for transportation shall certify that the material is offered for transportation in accordance with this subchapter by printing (manually or mechanically) on the shipping paper containing the required shipping description the certification contained in paragraph (a)(1) of this se",
+      "source": "https://www.ecfr.gov/on/2026-10-27/title-49/section-172.204"
+    },
+    {
+      "cfr": "49 CFR 172.301(a)(3)",
+      "mustSay": [
+        "large quantities of a single hazardous material in non-bulk packages",
+        "contains no other material, hazardous or otherwise"
+      ],
+      "section": "172.301",
+      "paragraph": "(a)(3)",
+      "excerpt": "(3) large quantities of a single hazardous material in non-bulk packages. a transport vehicle or freight container containing only a single hazardous material in non-bulk packages must be marked, on each side and each end as specified in the § 172.332 or § 172.336, with t",
+      "source": "https://www.ecfr.gov/on/2026-10-27/title-49/section-172.301#p-172.301(a)(3)"
+    },
+    {
+      "cfr": "49 CFR 172.302(a)",
+      "mustSay": [
+        "in a bulk packaging unless the packaging is marked",
+        "identification number"
+      ],
+      "section": "172.302",
+      "paragraph": "(a)",
+      "excerpt": " except as otherwise provided in this subpart, no person may offer for transportation or transport a hazardous material in a bulk packaging unless the packaging is marked as required by § 172.332 with the identification number specified for the material in the § 172.101 table— (1) on each side and each end, if the packaging has a capacity of 3,785 l (1,000 gallons) or",
+      "source": "https://www.ecfr.gov/on/2026-10-27/title-49/section-172.302#p-172.302(a)"
+    },
+    {
+      "cfr": "49 CFR 172.303",
+      "mustSay": [
+        "unless the package contains the identified hazardous material or its residue"
+      ],
+      "section": "172.303",
+      "paragraph": null,
+      "excerpt": "r of a hazardous material or any other markings indicating that the material is hazardous (e.g., rq, inhalation hazard) unless the package contains the identified hazardous material or its residue. (b) this section does not apply to— (1) transportation of a package in a transport vehicle or freight container if the package is not visible during transportation and is loaded by the shipper and u",
+      "source": "https://www.ecfr.gov/on/2026-10-27/title-49/section-172.303"
+    },
+    {
+      "cfr": "49 CFR 172.315",
+      "mustSay": [
+        "must display the limited quantity marking"
+      ],
+      "section": "172.315",
+      "paragraph": null,
+      "excerpt": "le limited quantity requirements in part 173 of this subchapter and offered for transportation by a mode other than air must display the limited quantity marking shown in paragraph (a)(1) of this section. a package displaying this mark is not subject to the marking requirements of § 172.301 of this subpart unless the limited quantity package also contains a h",
+      "source": "https://www.ecfr.gov/on/2026-10-27/title-49/section-172.315"
+    },
+    {
+      "cfr": "49 CFR 172.315(a)",
+      "mustSay": [
+        "must display the limited quantity marking"
+      ],
+      "section": "172.315",
+      "paragraph": "(a)",
+      "excerpt": "le limited quantity requirements in part 173 of this subchapter and offered for transportation by a mode other than air must display the limited quantity marking shown in paragraph (a)(1) of this section. a package displaying this mark is not subject to the marking requirements of § 172.301 of this subpart unless the limited quantity package also contains a h",
+      "source": "https://www.ecfr.gov/on/2026-10-27/title-49/section-172.315#p-172.315(a)"
+    },
+    {
+      "cfr": "49 CFR 172.322",
+      "mustSay": [
+        "marine pollutant mark"
+      ],
+      "section": "172.322",
+      "paragraph": null,
+      "excerpt": "02(c)(1), special provision 441 for additional provisions; and (2) except as otherwise provided in this subchapter, the marine pollutant mark shall be placed in association with the hazard warning labels required by subpart e of this part or, in the absence of any labels, in association with the marked proper shipping name. (b) except as o",
+      "source": "https://www.ecfr.gov/on/2026-10-27/title-49/section-172.322"
+    },
+    {
+      "cfr": "49 CFR 172.322(a)",
+      "mustSay": [
+        "each non-bulk packaging that contains a marine pollutant"
+      ],
+      "section": "172.322",
+      "paragraph": "(a)",
+      "excerpt": "(a) for vessel transportation of each non-bulk packaging that contains a marine pollutant— (1) for a proper shipping name used to describe a hazardous material that is a marine pollutant and assigned the letter \"g\" in column (1) of the § 172.101 hazardous materials table or that contains ",
+      "source": "https://www.ecfr.gov/on/2026-10-27/title-49/section-172.322#p-172.322(a)"
+    },
+    {
+      "cfr": "49 CFR 172.322(b)",
+      "mustSay": [
+        "a bulk packaging that contains a marine pollutant must"
+      ],
+      "section": "172.322",
+      "paragraph": "(b)",
+      "excerpt": "(b) except as otherwise provided in this subchapter, a bulk packaging that contains a marine pollutant must— (1) be marked with the marine pollutant mark on at least two opposing sides or two ends other than the bottom if the packaging has a capacity of less than 3,785 l (1,000 gallons). the mark must be v",
+      "source": "https://www.ecfr.gov/on/2026-10-27/title-49/section-172.322#p-172.322(b)"
+    },
+    {
+      "cfr": "49 CFR 172.322(c)",
+      "mustSay": [
+        "a transport vehicle or freight container that contains a package subject to the marking requirements",
+        "marine pollutant mark"
+      ],
+      "section": "172.322",
+      "paragraph": "(c)",
+      "excerpt": "(c) a transport vehicle or freight container that contains a package subject to the marking requirements of paragraph (a) or (b) of this section must be marked with the marine pollutant mark. the mark must appear on each side and each end of the transport vehicle or freight container, and must be visibl",
+      "source": "https://www.ecfr.gov/on/2026-10-27/title-49/section-172.322#p-172.322(c)"
+    },
+    {
+      "cfr": "49 CFR 172.322(d)(1)",
+      "mustSay": [
+        "a net quantity of 5 l (1.3 gallons) or less for liquids",
+        "a net mass of 5 kg (11 pounds) or less for solids"
+      ],
+      "section": "172.322",
+      "paragraph": "(d)(1)",
+      "excerpt": "ckagings or combination packagings where each single package or each inner packaging of combination packagings has: (i) a net quantity of 5 l (1.3 gallons) or less for liquids; or (ii) a net mass of 5 kg (11 pounds) or less for solids",
+      "source": "https://www.ecfr.gov/on/2026-10-27/title-49/section-172.322#p-172.322(d)(1)"
+    },
+    {
+      "cfr": "49 CFR 172.322(d)(3)",
+      "mustSay": [
+        "except for transportation by vessel, on a bulk packaging, freight container or transport vehicle that bears a label or placard"
+      ],
+      "section": "172.322",
+      "paragraph": "(d)(3)",
+      "excerpt": "(3) except for transportation by vessel, on a bulk packaging, freight container or transport vehicle that bears a label or placard specified in subparts e or f of this part.",
+      "source": "https://www.ecfr.gov/on/2026-10-27/title-49/section-172.322#p-172.322(d)(3)"
+    },
+    {
+      "cfr": "49 CFR 172.322(d)(4)",
+      "mustSay": [
+        "on a package of limited quantity material marked in accordance with § 172.315"
+      ],
+      "section": "172.322",
+      "paragraph": "(d)(4)",
+      "excerpt": "(4) on a package of limited quantity material marked in accordance with § 172.315 of this part.",
+      "source": "https://www.ecfr.gov/on/2026-10-27/title-49/section-172.322#p-172.322(d)(4)"
+    },
+    {
+      "cfr": "49 CFR 172.325",
+      "mustSay": [
+        "elevated temperature material must be marked",
+        "the word \"hot\""
+      ],
+      "section": "172.325",
+      "paragraph": null,
+      "excerpt": "(a) except as provided in paragraph (b) of this section, a bulk packaging containing an elevated temperature material must be marked on two opposing sides with the word \"hot\" in black or white gothic lettering on a contrasting background. the marking must be displayed on the packaging itself or in black lettering on a plain white ",
+      "source": "https://www.ecfr.gov/on/2026-10-27/title-49/section-172.325"
+    },
+    {
+      "cfr": "49 CFR 172.331",
+      "mustSay": [
+        "required identification numbers on placards"
+      ],
+      "section": "172.331",
+      "paragraph": null,
+      "excerpt": "a hazardous material to a motor carrier for transportation in a bulk packaging shall provide the motor carrier with the required identification numbers on placards or plain white square-on-point display configurations, as authorized, or shall affix orange panels containing the required identification numbers to the packaging prior to or at the time the material",
+      "source": "https://www.ecfr.gov/on/2026-10-27/title-49/section-172.331"
+    },
+    {
+      "cfr": "49 CFR 172.332",
+      "mustSay": [
+        "identification number markings must be displayed on orange panels or placards"
+      ],
+      "section": "172.332",
+      "paragraph": null,
+      "excerpt": "(a) general. when required by § 172.301, § 172.302, § 172.313, § 172.326, § 172.328, § 172.330, or § 172.331, identification number markings must be displayed on orange panels or placards as specified in this section, or on white square-on-point configurations as prescribed in § 172.336(b). (b) orange panels. display of an identification number on an orange panel shall be in conforman",
+      "source": "https://www.ecfr.gov/on/2026-10-27/title-49/section-172.332"
+    },
+    {
+      "cfr": "49 CFR 172.332(b)",
+      "mustSay": [
+        "display of an identification number on an orange panel"
+      ],
+      "section": "172.332",
+      "paragraph": "(b)",
+      "excerpt": "(b) orange panels. display of an identification number on an orange panel shall be in conformance with the following: (1) the orange panel must be 160 mm (6.3 inches) high by 400 mm (15.7 inches) wide with a 15 mm (0.6 inches) black outer border. the identification number ",
+      "source": "https://www.ecfr.gov/on/2026-10-27/title-49/section-172.332#p-172.332(b)"
+    },
+    {
+      "cfr": "49 CFR 172.332(c)",
+      "mustSay": [
+        "display of an identification number on a hazard warning placard"
+      ],
+      "section": "172.332",
+      "paragraph": "(c)",
+      "excerpt": "(c) placards. display of an identification number on a hazard warning placard shall be in conformance with the following: (1) the identification number shall be displayed across the center area of the placard in 88 mm (3.5 inches) black alpine gothic or alternate gothic no. 3 ",
+      "source": "https://www.ecfr.gov/on/2026-10-27/title-49/section-172.332#p-172.332(c)"
+    },
+    {
+      "cfr": "49 CFR 172.334",
+      "mustSay": [
+        "no person may display an identification number on a radioactive",
+        "subsidiary hazard placard"
+      ],
+      "section": "172.334",
+      "paragraph": null,
+      "excerpt": "(a) no person may display an identification number on a radioactive, explosives 1.1, 1.2, 1.3, 1.4, 1.5 or 1.6, dangerous, or subsidiary hazard placard. (b) no person may display an identification number on a placard, orange panel or white square-on-point display con",
+      "source": "https://www.ecfr.gov/on/2026-10-27/title-49/section-172.334"
+    },
+    {
+      "cfr": "49 CFR 172.334(d)",
+      "mustSay": [
+        "correct identification number for all hazardous materials of the same class"
+      ],
+      "section": "172.334",
+      "paragraph": "(d)",
+      "excerpt": "rd bearing an identification number may not be used to meet the requirements of subpart f of this part unless it is the correct identification number for all hazardous materials of the same class in the transport vehicle or freight container on which it is displayed.",
+      "source": "https://www.ecfr.gov/on/2026-10-27/title-49/section-172.334#p-172.334(d)"
+    },
+    {
+      "cfr": "49 CFR 172.334(f)",
+      "mustSay": [
+        "may not be displayed on an orange panel unless it is displayed in proximity to the placard"
+      ],
+      "section": "172.334",
+      "paragraph": "(f)",
+      "excerpt": "(f) if a placard is required by § 172.504, an identification number may not be displayed on an orange panel unless it is displayed in proximity to the placard.",
+      "source": "https://www.ecfr.gov/on/2026-10-27/title-49/section-172.334#p-172.334(f)"
+    },
+    {
+      "cfr": "49 CFR 172.336",
+      "mustSay": [
+        "plain white square-on-point display configuration"
+      ],
+      "section": "172.336",
+      "paragraph": null,
+      "excerpt": "ubpart. (b) identification numbers, when required, must be displayed on either orange panels (see § 172.332(b)) or on a plain white square-on-point display configuration having the same outside dimensions as a placard. in addition, for materials in hazard classes for which placards are specified and identification number displays are required, but for which identific",
+      "source": "https://www.ecfr.gov/on/2026-10-27/title-49/section-172.336"
+    },
+    {
+      "cfr": "49 CFR 172.336(b)",
+      "mustSay": [
+        "identification numbers, when required, must be displayed on either orange panels"
+      ],
+      "section": "172.336",
+      "paragraph": "(b)",
+      "excerpt": "(b) identification numbers, when required, must be displayed on either orange panels (see § 172.332(b)) or on a plain white square-on-point display configuration having the same outside dimensions as a placard. in addition, for materials in hazard classes for which placards are speci",
+      "source": "https://www.ecfr.gov/on/2026-10-27/title-49/section-172.336#p-172.336(b)"
+    },
+    {
+      "cfr": "49 CFR 172.500(b)(2)",
+      "mustSay": [
+        "offered for transportation as a limited quantity"
+      ],
+      "section": "172.500",
+      "paragraph": "(b)(2)",
+      "excerpt": "(2) hazardous materials authorized by this subchapter to be offered for transportation as a limited quantity when identified as such on a shipping paper in accordance with § 172.203(b) or when marked as such in accordance with § 172.315.",
+      "source": "https://www.ecfr.gov/on/2026-10-27/title-49/section-172.500#p-172.500(b)(2)"
+    },
+    {
+      "cfr": "49 CFR 172.502(a)",
+      "mustSay": [
+        "prohibited placarding",
+        "the placard represents a hazard of the hazardous material"
+      ],
+      "section": "172.502",
+      "paragraph": "(a)",
+      "excerpt": "(a) prohibited placarding. except as provided in paragraph (b) of this section, no person may affix or display on a packaging, freight container, unit load device, motor vehicle or rail car— (1) any placard described in this ",
+      "source": "https://www.ecfr.gov/on/2026-10-27/title-49/section-172.502#p-172.502(a)"
+    },
+    {
+      "cfr": "49 CFR 172.502(c)",
+      "mustSay": [
+        "placards may be displayed for a hazardous material, even when not required"
+      ],
+      "section": "172.502",
+      "paragraph": "(c)",
+      "excerpt": "(c) permissive placarding. placards may be displayed for a hazardous material, even when not required, if the placarding otherwise conforms to the requirements of this subpart.",
+      "source": "https://www.ecfr.gov/on/2026-10-27/title-49/section-172.502#p-172.502(c)"
+    },
+    {
+      "cfr": "49 CFR 172.504",
+      "mustSay": [
+        "must be placarded on each side and each end"
+      ],
+      "section": "172.504",
+      "paragraph": null,
+      "excerpt": "ing, freight container, unit load device, transport vehicle or rail car containing any quantity of a hazardous material must be placarded on each side and each end with the type of placards specified in tables 1 and 2 of this section and in accordance with other placarding requirements of this subpart, including the specifications for the placards named in the ",
+      "source": "https://www.ecfr.gov/on/2026-10-27/title-49/section-172.504"
+    },
+    {
+      "cfr": "49 CFR 172.504(a)",
+      "mustSay": [
+        "must be placarded on each side and each end",
+        "tables 1 and 2"
+      ],
+      "section": "172.504",
+      "paragraph": "(a)",
+      "excerpt": "ing, freight container, unit load device, transport vehicle or rail car containing any quantity of a hazardous material must be placarded on each side and each end with the type of placards specified in tables 1 and 2 of this section and in accordance with other placarding requirements of this subpart, including the specifications for the placards named in the ",
+      "source": "https://www.ecfr.gov/on/2026-10-27/title-49/section-172.504#p-172.504(a)"
+    },
+    {
+      "cfr": "49 CFR 172.504(b)",
+      "mustSay": [
+        "dangerous placard",
+        "two or more categories of hazardous materials"
+      ],
+      "section": "172.504",
+      "paragraph": "(b)",
+      "excerpt": "(b) dangerous placard. a freight container, unit load device, transport vehicle, or rail car which contains non-bulk packages with two or more categories of hazardous materials that require different placards specified in",
+      "source": "https://www.ecfr.gov/on/2026-10-27/title-49/section-172.504#p-172.504(b)"
+    },
+    {
+      "cfr": "49 CFR 172.504(c)",
+      "mustSay": [
+        "except for bulk packagings and hazardous materials subject to § 172.505",
+        "less than 454 kg (1001 pounds) aggregate gross weight"
+      ],
+      "section": "172.504",
+      "paragraph": "(c)",
+      "excerpt": "(c) exception for less than 454 kg (1,001 pounds). except for bulk packagings and hazardous materials subject to § 172.505, when hazardous materials covered by table 2 of this section are transported by highway or rail, placards are not required on— (1) a transport vehicle or freight container which contains less than 45",
+      "source": "https://www.ecfr.gov/on/2026-10-27/title-49/section-172.504#p-172.504(c)"
+    },
+    {
+      "cfr": "49 CFR 172.504(d)",
+      "mustSay": [
+        "contains only the residue of a hazardous material covered by table 2",
+        "need not be included in determining placarding requirements"
+      ],
+      "section": "172.504",
+      "paragraph": "(d)",
+      "excerpt": "ptions for empty packages. (1) non-bulk. except for hazardous materials subject to § 172.505, a non-bulk packaging that contains only the residue of a hazardous material covered by table 2 of paragraph (e) of this section need not be included in determining placarding requirements. (2) ibcs. transport vehicles or freight containers used to transport empty ibcs in accordance with § 173.",
+      "source": "https://www.ecfr.gov/on/2026-10-27/title-49/section-172.504#p-172.504(d)"
+    },
+    {
+      "cfr": "49 CFR 172.505",
+      "mustSay": [
+        "poison inhalation hazard",
+        "dangerous when wet"
+      ],
+      "section": "172.505",
+      "paragraph": null,
+      "excerpt": "cle, freight container, portable tank, unit load device, or rail car that contains a poisonous material subject to the \"poison inhalation hazard\" shipping description of § 172.203(m) must be placarded with a poison inhalation hazard or poison gas placard, as appropriate, on each side and each end, in addition to any other placard required for",
+      "source": "https://www.ecfr.gov/on/2026-10-27/title-49/section-172.505"
+    },
+    {
+      "cfr": "49 CFR 172.505(a)",
+      "mustSay": [
+        "\"poison inhalation hazard\" shipping description",
+        "in addition to any other placard required"
+      ],
+      "section": "172.505",
+      "paragraph": "(a)",
+      "excerpt": "icle, freight container, portable tank, unit load device, or rail car that contains a poisonous material subject to the \"poison inhalation hazard\" shipping description of § 172.203(m) must be placarded with a poison inhalation hazard or poison gas placard, as appropriate, on each side and each end, in addition to any other placard required for that material in § 17",
+      "source": "https://www.ecfr.gov/on/2026-10-27/title-49/section-172.505#p-172.505(a)"
+    },
+    {
+      "cfr": "49 CFR 172.505(c)",
+      "mustSay": [
+        "a subsidiary hazard of being dangerous when wet",
+        "dangerous when wet placards"
+      ],
+      "section": "172.505",
+      "paragraph": "(c)",
+      "excerpt": "(c) each transport vehicle, portable tank, freight container or unit load device that contains a material which has a subsidiary hazard of being dangerous when wet, as defined in § 173.124 of this subchapter, shall be placarded with dangerous when wet placards, on each side and each end, in addition to the placards required by § 172.504.",
+      "source": "https://www.ecfr.gov/on/2026-10-27/title-49/section-172.505#p-172.505(c)"
+    },
+    {
+      "cfr": "49 CFR 172.528",
+      "mustSay": [
+        "the non-flammable gas placard must be as follows"
+      ],
+      "section": "172.528",
+      "paragraph": null,
+      "excerpt": "(a) except for size and color, the non-flammable gas placard must be as follows: (b) in addition to complying with § 172.519, the background color on the non-flammable gas placard must be green. the letters in both words must be at least 38 mm (1.5 inches) high. the symbol, text",
+      "source": "https://www.ecfr.gov/on/2026-10-27/title-49/section-172.528"
+    },
+    {
+      "cfr": "49 CFR 172.532",
+      "mustSay": [
+        "the flammable gas placard must be as follows"
+      ],
+      "section": "172.532",
+      "paragraph": null,
+      "excerpt": "(a) except for size and color, the flammable gas placard must be as follows: (b) in addition to complying with § 172.519, the background color on the flammable gas placard must be red. the symbol, text, class number and inner border must be white.",
+      "source": "https://www.ecfr.gov/on/2026-10-27/title-49/section-172.532"
+    },
+    {
+      "cfr": "49 CFR 172.542",
+      "mustSay": [
+        "the flammable placard must be as follows"
+      ],
+      "section": "172.542",
+      "paragraph": null,
+      "excerpt": "(a) except for size and color, the flammable placard must be as follows: (b) in addition to complying with § 172.519, the background color on the flammable placard must be red. the symbol, text, class number and inner border must be white. (c) the word \"gasoline\" may be ",
+      "source": "https://www.ecfr.gov/on/2026-10-27/title-49/section-172.542"
+    },
+    {
+      "cfr": "49 CFR 172.542(c)",
+      "mustSay": [
+        "the word \"gasoline\" may be used in place of the word \"flammable\"",
+        "cargo tank"
+      ],
+      "section": "172.542",
+      "paragraph": "(c)",
+      "excerpt": "(c) the word \"gasoline\" may be used in place of the word \"flammable\" on a placard that is displayed on a cargo tank or a portable tank being used to transport gasoline by highway. the word \"gasoline\" must be shown in white.",
+      "source": "https://www.ecfr.gov/on/2026-10-27/title-49/section-172.542#p-172.542(c)"
+    },
+    {
+      "cfr": "49 CFR 172.544",
+      "mustSay": [
+        "the combustible placard must be as follows"
+      ],
+      "section": "172.544",
+      "paragraph": null,
+      "excerpt": "(a) except for size and color, the combustible placard must be as follows: (b) in addition to complying with § 172.519, the background color on the combustible placard must be red. the symbol, text, class number and inner border must be white. on a combustible placard with",
+      "source": "https://www.ecfr.gov/on/2026-10-27/title-49/section-172.544"
+    },
+    {
+      "cfr": "49 CFR 172.544(c)",
+      "mustSay": [
+        "the words \"fuel oil\" may be used in place of the word \"combustible\""
+      ],
+      "section": "172.544",
+      "paragraph": "(c)",
+      "excerpt": "(c) the words \"fuel oil\" may be used in place of the word \"combustible\" on a placard that is displayed on a cargo tank or portable tank being used to transport by highway fuel oil that is not classed as a flammable liquid. the words \"fuel oil\" must be white.",
+      "source": "https://www.ecfr.gov/on/2026-10-27/title-49/section-172.544#p-172.544(c)"
+    },
+    {
+      "cfr": "49 CFR 172.546",
+      "mustSay": [
+        "the flammable solid placard must be as follows"
+      ],
+      "section": "172.546",
+      "paragraph": null,
+      "excerpt": "(a) except for size and color, the flammable solid placard must be as follows: (b) in addition to complying with § 172.519, the background on the flammable solid placard must be white with seven vertical red stripes. the stripes must be equally spaced, with one red stripe plac",
+      "source": "https://www.ecfr.gov/on/2026-10-27/title-49/section-172.546"
+    },
+    {
+      "cfr": "49 CFR 172.547",
+      "mustSay": [
+        "the spontaneously combustible placard must be as follows"
+      ],
+      "section": "172.547",
+      "paragraph": null,
+      "excerpt": "(a) except for size and color, the spontaneously combustible placard must be as follows: (b) in addition to complying with § 172.519, the background color on the spontaneously combustible placard must be red in the lower half and white in upper half. the letters in the word \"spontaneous",
+      "source": "https://www.ecfr.gov/on/2026-10-27/title-49/section-172.547"
+    },
+    {
+      "cfr": "49 CFR 172.550",
+      "mustSay": [
+        "the oxidizer placard must be as follows"
+      ],
+      "section": "172.550",
+      "paragraph": null,
+      "excerpt": "(a) except for size and color, the oxidizer placard must be as follows: (b) in addition to complying with § 172.519, the background color on the oxidizer placard must be yellow. the symbol, text, division number and inner border must be black.",
+      "source": "https://www.ecfr.gov/on/2026-10-27/title-49/section-172.550"
+    },
+    {
+      "cfr": "49 CFR 172.552",
+      "mustSay": [
+        "the organic peroxide placard must be as follows"
+      ],
+      "section": "172.552",
+      "paragraph": null,
+      "excerpt": "(a) except for size and color, the organic peroxide placard must be as follows: (b) in addition to complying with § 172.519, the background on the organic peroxide placard must be red in the top half and yellow in the lower half. the text, division number and inner border must ",
+      "source": "https://www.ecfr.gov/on/2026-10-27/title-49/section-172.552"
+    },
+    {
+      "cfr": "49 CFR 172.554",
+      "mustSay": [
+        "the poison placard must be as follows"
+      ],
+      "section": "172.554",
+      "paragraph": null,
+      "excerpt": "(a) except for size and color, the poison placard must be as follows: (b) in addition to complying with § 172.519, the background on the poison placard must be white. the symbol, text, class number and inner border must be black. the word \"toxic\" may be used in lieu o",
+      "source": "https://www.ecfr.gov/on/2026-10-27/title-49/section-172.554"
+    },
+    {
+      "cfr": "49 CFR 172.558",
+      "mustSay": [
+        "the corrosive placard must be as follows"
+      ],
+      "section": "172.558",
+      "paragraph": null,
+      "excerpt": "(a) except for size and color, the corrosive placard must be as follows: (b) in addition to complying with § 172.519, the background color on the corrosive placard must be black in the lower portion with a white triangle in the upper portion. the base of the white triang",
+      "source": "https://www.ecfr.gov/on/2026-10-27/title-49/section-172.558"
+    },
+    {
+      "cfr": "49 CFR 172.560",
+      "mustSay": [
+        "placard must be as follows",
+        "class 9"
+      ],
+      "section": "172.560",
+      "paragraph": null,
+      "excerpt": "(a) except for size and color the class 9 (miscellaneous hazardous materials) placard must be as follows: (b) in addition to conformance with § 172.519, the background on the class 9 placard must be white with seven black vertical stripes on the top half extending from the top of the placard to one inch",
+      "source": "https://www.ecfr.gov/on/2026-10-27/title-49/section-172.560"
+    },
+    {
+      "cfr": "49 CFR 172.602",
+      "mustSay": [
+        "emergency response information"
+      ],
+      "section": "172.602",
+      "paragraph": null,
+      "excerpt": "(a) information required. for purposes of this subpart, the term \"emergency response information\" means information that can be used in the mitigation of an incident involving hazardous materials and, as a minimum, must contain the following information: (1) the basic description and technical n",
+      "source": "https://www.ecfr.gov/on/2026-10-27/title-49/section-172.602"
+    },
+    {
+      "cfr": "49 CFR 172.604",
+      "mustSay": [
+        "emergency response telephone number"
+      ],
+      "section": "172.604",
+      "paragraph": null,
+      "excerpt": "(a) a person who offers a hazardous material for transportation must provide a numeric emergency response telephone number, including the area code, for use in an emergency involving the hazardous material. for telephone numbers outside the united states, the international access code or the \"+\" (plus) sign, country code",
+      "source": "https://www.ecfr.gov/on/2026-10-27/title-49/section-172.604"
+    },
+    {
+      "cfr": "49 CFR 173.150(b)",
+      "mustSay": [
+        "limited quantities of flammable liquids (class 3) and combustible liquids"
+      ],
+      "section": "173.150",
+      "paragraph": "(b)",
+      "excerpt": "(b) limited quantities. limited quantities of flammable liquids (class 3) and combustible liquids are excepted from labeling requirements, unless the material is offered for transportation or transported by aircraft, and are excepted from the specification packaging requirements of this subchapte",
+      "source": "https://www.ecfr.gov/on/2026-10-27/title-49/section-173.150#p-173.150(b)"
+    },
+    {
+      "cfr": "49 CFR 173.29(c)",
+      "mustSay": [
+        "a non-bulk packaging containing only the residue of a hazardous material covered by table 2",
+        "does not have to be included in determining the applicability of the placarding requirements"
+      ],
+      "section": "173.29",
+      "paragraph": "(c)",
+      "excerpt": "(c) a non-bulk packaging containing only the residue of a hazardous material covered by table 2 of § 172.504 of this subchapter that is not a material poisonous by inhalation or its residue shipped under the subsidiary placarding provisions of § 172.505— (1) does not have to be included in dete",
+      "source": "https://www.ecfr.gov/on/2026-10-27/title-49/section-173.29#p-173.29(c)"
+    },
+    {
+      "cfr": "49 CFR 177.848(d)",
+      "mustSay": [
+        "segregation table for hazardous materials"
+      ],
+      "section": "177.848",
+      "paragraph": "(d)",
+      "excerpt": "ials must be stored, loaded or transported in accordance with the following table and other provisions of this section: segregation table for hazardous materials",
+      "source": "https://www.ecfr.gov/on/2026-10-27/title-49/section-177.848#p-177.848(d)"
+    }
+  ],
+  "internal": [
+    {
+      "cfr": "internal: Table 1 out of scope (plan D4-revised / D2)",
+      "why": "The engine refuses a Table 1 load (§172.504(e) Table 1) rather than computing it; this names the plan decision, not a CFR paragraph. D-TC13's catalogue words it for the screen."
+    },
+    {
+      "cfr": "internal: determination withheld (plan D2/D4)",
+      "why": "A line whose class the dataset cannot resolve is withheld, never guessed; a plan decision, not a CFR paragraph."
+    },
+    {
+      "cfr": "internal: explosives out of scope (plan D4-revised / D2)",
+      "why": "Explosives are refused rather than computed; a plan decision, not a CFR paragraph."
+    },
+    {
+      "cfr": "internal: provisional dataset (plan H1.6/D2)",
+      "why": "A provisional dataset withholds every placard determination rather than computing one from unattested data; a plan decision, not a CFR paragraph. Reached only on a provisional dataset, so the sweep (the shipped LATEST) never emits it."
+    }
+  ]
+}

@@ -127,12 +127,12 @@ describe("the placard census — the whole Hazardous Materials Table", () => {
     expect(bad.slice(0, 20)).toEqual([]);
   }, 600_000);
 
-  // §172.505(b): "Each transport vehicle … that contains a material that has a subsidiary hazard of being dangerous
-  // when wet … must be placarded with the DANGEROUS WHEN WET placard". The engine read the entries' subsidiary list
+  // §172.505(c): "Each transport vehicle … that contains a material which has a subsidiary hazard of being dangerous
+  // when wet … shall be placarded with DANGEROUS WHEN WET placards" (cited as (b) until 2026-10-29 — E4). The engine read the entries' subsidiary list
   // for this since 2026-08 and the list was empty on every entry of every cut until 2026-10-26 (D-PC1), so this
   // placard had never once been asked for on the real table — and invariant 6 above, which allows a §172.505
   // placard, was vacuous. The count is the guard: a dataset that lists no 4.3 subsidiary fails here, not silently.
-  it("every entry whose column (6) lists a 4.3 subsidiary raises DANGEROUS WHEN WET, non-bulk at 500 lb and bulk alike (§172.505(b))", () => {
+  it("every entry whose column (6) lists a 4.3 subsidiary raises DANGEROUS WHEN WET, non-bulk at 500 lb and bulk alike (§172.505(c))", () => {
     const dww = ds.entries.filter((e) => e.hazardClass !== "4.3" && e.subsidiaryClasses.includes("4.3"));
     expect(dww.length).toBeGreaterThan(10);
     const bad: string[] = [];

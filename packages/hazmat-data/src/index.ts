@@ -6,10 +6,12 @@ import raw2026100 from "../datasets/2026.10.0.json" with { type: "json" };
 import raw2026120 from "../datasets/2026.12.0.json" with { type: "json" };
 import rawReferenceText from "../datasets/referenceText.json" with { type: "json" };
 import rawInterpretations from "../datasets/interpretations.json" with { type: "json" };
+import rawCitations from "../datasets/citations.json" with { type: "json" };
 import { parseDataset, type Dataset } from "./schema.js";
 import { withSubsidiaryClasses } from "./subsidiaryClasses.js";
 import { parseReferenceStore, type ReferenceStore } from "./referenceText.js";
 import { parseInterpretations, type InterpretationsFile } from "./interpretations.js";
+import { citationListSchema, type CitationList } from "./citations.js";
 
 /**
  * @hazmat/data — versioned regulatory dataset + typed loader (Phase H1). Ships dataset JSON validated
@@ -28,6 +30,8 @@ export * from "./safetyPermit.js";
 // Reference text (D12) is a SEPARATE export from the Dataset — display + audit only, never the engine.
 export * from "./referenceText.js";
 export * from "./interpretations.js";
+// The verified citation list (TC0.5) — evidence ABOUT the engine, never read by it.
+export * from "./citations.js";
 
 const RAW: Readonly<Record<string, unknown>> = {
   "2026.02": raw202602,
@@ -86,6 +90,11 @@ export function loadDatasetAsCut(version: string = LATEST_DATASET_VERSION): Data
  */
 export function loadReferenceText(): ReferenceStore {
   return parseReferenceStore(rawReferenceText);
+}
+
+/** Load the verified citation list (TWO-CLICK-READER-PLAN TC0.5): every `cfr` the engine emits, checked against eCFR. */
+export function loadCitations(): CitationList {
+  return citationListSchema.parse(rawCitations);
 }
 
 /** Load the curated PHMSA interpretation letters (H1) — provenance/display metadata for rule citations. */

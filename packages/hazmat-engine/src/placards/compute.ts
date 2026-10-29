@@ -298,21 +298,22 @@ export function computePlacards(load: LoadInput): PlacardComputation {
   );
   const pendingIds: PendingIdDisplay[] = [];
 
-  // 6) §172.302(c)/172.331 ID-number display for bulk (R3: exact bulk trigger pending the SME footnote)
+  // 6) §172.302(a)/172.331 ID-number display for bulk (R3: exact bulk trigger pending the SME footnote). Cited as
+  //    §172.302(c) — special-permit packagings — until 2026-10-29; the citation census found it (TC0.5).
   const bulkLines = resolved.filter((r) => r.line.packagingKind === "bulk" || isTank);
   const seenId = new Set<string>();
   for (const r of bulkLines) {
     const idNumber = `${r.entry.idPrefix}${r.entry.idNumber}`;
     if (seenId.has(idNumber)) continue;
     seenId.add(idNumber);
-    pendingIds.push({ idNumber, placard: r.placard, because: [{ cfr: "49 CFR 172.302(c)" }, { cfr: "49 CFR 172.331" }] });
+    pendingIds.push({ idNumber, placard: r.placard, because: [{ cfr: "49 CFR 172.302(a)" }, { cfr: "49 CFR 172.331" }] });
   }
   if (bulkLines.length > 0) {
     trace.push({
       ruleId: "bulk_id_display",
       fired: true,
       inputs: { ids: [...seenId] },
-      citations: [{ cfr: "49 CFR 172.302(c)" }, { cfr: "49 CFR 172.331" }],
+      citations: [{ cfr: "49 CFR 172.302(a)" }, { cfr: "49 CFR 172.331" }],
       note: "Multiple distillate fuels in one tank may display only the lowest-flash-point ID (PHMSA 18-0023/14-0178) — not yet applied. R3: confirm the bulk-definition footnote.",
     });
   }
