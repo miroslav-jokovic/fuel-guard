@@ -6,16 +6,20 @@ const h = vi.hoisted(() => ({
   executeRead: vi.fn(),
   failUnavailableRead: vi.fn(),
   gate: vi.fn(),
+  warm: vi.fn(),
+  engines: 0,
 }));
 
 vi.mock("../../modules/document-reading/index.js", async (orig) => {
   const real = await orig<typeof import("../../modules/document-reading/index.js")>();
-  return { ...real, executeRead: h.executeRead, failUnavailableRead: h.failUnavailableRead };
+  // The engine the handler builds: counted, and warmed through `h.warm`, so no test starts the real models.
+  const ocrEngine = () => (h.engines++, Object.assign(async () => null, { warm: () => h.warm() }));
+  return { ...real, executeRead: h.executeRead, failUnavailableRead: h.failUnavailableRead, ocrEngine };
 });
 vi.mock("../../modules/hazmat/index.js", () => ({ shippingDocumentReadGate: h.gate }));
 vi.mock("../../lib/anthropic.js", () => ({ anthropicClient: () => ({ messages: { create: vi.fn() } }) }));
 
-const { documentReadHandler } = await import("./documentRead.js");
+const { documentReadHandler, warmDocumentReadOcr } = await import("./documentRead.js");
 const { TransientModelError } = await import("../../modules/document-reading/index.js");
 
 const ctx = { admin: {}, env: {} } as unknown as JobContext;
@@ -54,6 +58,36 @@ describe("document_read handler — one [metrics] line per read (TWO-CLICK-READE
 
   it("logs nothing for a read it skipped", async () => {
     expect(await logged({ outcome: "skipped", reason: "already_terminal" })).toEqual([]);
+  });
+});
+
+describe("warmDocumentReadOcr — the OCR models load at boot, not in the first read (TC0.3)", () => {
+  const env = (witness: "on" | "off") => ({ DOC_OCR_WITNESS: witness }) as unknown as JobContext["env"];
+
+  it("does nothing, and builds no engine, when the OCR witness is off", async () => {
+    const lines: string[] = [];
+    const before = h.engines;
+    await warmDocumentReadOcr(env("off"), (l) => lines.push(l));
+    expect(lines).toEqual([]);
+    expect(h.engines).toBe(before);
+  });
+
+  it("warms the one engine the reads will use, and says how long it took", async () => {
+    h.warm.mockResolvedValue(true);
+    const lines: string[] = [];
+    await warmDocumentReadOcr(env("on"), (l) => lines.push(l));
+    await warmDocumentReadOcr(env("on"), (l) => lines.push(l));
+    expect(h.engines).toBe(1);
+    expect(lines).toHaveLength(2);
+    expect(lines[0]).toMatch(/^\[document-ocr\] engine warm in \d+ ms$/);
+  });
+
+  it("logs a warm that failed or threw, and never throws itself", async () => {
+    const lines: string[] = [];
+    h.warm.mockResolvedValueOnce(false).mockRejectedValueOnce(new Error("download refused"));
+    await warmDocumentReadOcr(env("on"), (l) => lines.push(l));
+    await expect(warmDocumentReadOcr(env("on"), (l) => lines.push(l))).resolves.toBeUndefined();
+    for (const l of lines) expect(l).toMatch(/engine did not warm .*the first read will start it/);
   });
 });
 

@@ -7,6 +7,7 @@ import { exitOnLostLease } from "./lib/schedulerLeaseExit.js";
 import type { LaneLease } from "./lib/schedulerLease.js";
 import { getSupabaseAdmin } from "./lib/supabaseAdmin.js";
 import { registerAllHandlers } from "./queue/handlers/index.js";
+import { warmDocumentReadOcr } from "./queue/handlers/documentRead.js";
 import { startQueueWorker } from "./queue/worker.js";
 import { startQueueMetricsLogger } from "./queue/metrics.js";
 import { installShutdownHandlers } from "./lib/shutdown.js";
@@ -97,6 +98,8 @@ if (
   registerAllHandlers();
   startQueueWorker(getSupabaseAdmin(env), env, { kindCaps: KIND_CAPS });
   console.log("[Silvicom 360 worker] queue consumer started (JOB_EXECUTION_MODE=queue)");
+  // This consumer runs `document_read`: its OCR models load now, not during the first read (TC0.3).
+  void warmDocumentReadOcr(env);
 } else if (runsConsumer && env.JOB_EXECUTION_MODE !== "queue") {
   console.warn(
     "[Silvicom 360 worker] WORKER_ROLE includes consumer but JOB_EXECUTION_MODE!=queue — nothing to consume.",

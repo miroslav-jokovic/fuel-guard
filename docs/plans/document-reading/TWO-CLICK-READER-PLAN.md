@@ -368,6 +368,17 @@ zones; (c) leave D4-revised. *Recommendation:* (a) — the simple half; zones an
 
 **Ruled 2026-10-29 (owner, as recommended): (a).** The store is populated from the citation list; the endpoint stays.
 
+**Q-TC7 — Keep the OCR engine resident (D-TC5's "never idle-stopped")?** *Evidence, measured 2026-10-29 building
+TC0.3 on this code (Apple silicon, the pinned PP-OCRv6 models):* starting the engine with no models on disk took
+**29 s** (the download — the 10/15 note's ≈30 s); with them on disk **0.56 s**; a loaded engine holds **~0.5 GB**
+resident, **~1.2 GB** once it has read a page. The download is what reads were paying, and TC0.3 moves it to boot
+without holding anything. What a resident engine would still save is the restart from disk plus first inference,
+**≈1.6 s a read** (≈8 % of the 21 s median), for ~1.2 GB held in every process that runs reads — production's host is
+one t4g.large (8 GB) shared by api, web and the console, and api averages ~1.2 GB today. *Candidates:* (a) keep the
+two-minute idle stop (what TC0.3 ships); (b) never stop, as D-TC5 proposed; (c) a long idle (24 h), which holds the
+memory most of the day for the same saving. *Recommendation:* (a) — re-ask if `stage_timings` shows `ocr` beyond the
+slower reader on warm-booted reads, which is the measurement that would make the 1.6 s worth the memory.
+
 ---
 
 ## 7. Progress log
@@ -405,3 +416,18 @@ zones; (c) leave D4-revised. *Recommendation:* (a) — the simple half; zones an
   instead of one sentence for the whole read. One `[metrics] {"documentRead": …, "stagesMs": …}` line per finished
   read. Mutation-checked: dropping the timings from the done write, or the second mark, fails two tests each. TC0.2's
   done-when (the next production read's row names each stage) waits on the release.
+- **2026-10-29 — TC0.2 merge 2 MERGED as #1833.** TC0.2 is built; its done-when (the next production read's row names
+  each stage) waits on the release.
+- **2026-10-29 — TC0.3: the OCR models load at boot; the idle stop stays, and its removal is Q-TC7.** Measured first,
+  on this code: an engine started with no models on disk took 29 s (the download), with them on disk 0.56 s; a loaded
+  engine holds ~0.5 GB resident, ~1.2 GB after its first page. So the cold read was paying the DOWNLOAD, once per
+  container — and a release ships a new container most nights. `ocrEngine` gains `warm()` (the thread answers `ready`
+  once its models are loaded; `ocrWorker.ts` handles the message), and `warmDocumentReadOcr` calls it at boot in the
+  process that runs `document_read` — the API in `inprocess` mode (`index.ts`, production today), the queue consumer
+  otherwise (`worker.ts`). It is not a scheduler: one start, no tick, nothing written. D-TC5 also proposed never
+  idle-stopping; at ~1.2 GB per process on an 8 GB shared host for ≈1.6 s a read, that is put to the owner as Q-TC7
+  (recommendation: keep the stop) rather than shipped. Owner action still open: `DOC_OCR_CACHE_DIR` on a persistent
+  path, which saves the 139 MB download each deploy (on Railway: a volume; after the AWS cutover: a Docker volume).
+  Tests: the engine against a protocol fixture worker (warm → same thread reads the next page; failed load → not
+  warm and no OCR; idle stop still restarts), `warmDocumentReadOcr` (off → nothing; one engine; failures logged, never
+  thrown). Mutation: ignoring the thread's `ready` fails "answers warm once the thread has its models…".

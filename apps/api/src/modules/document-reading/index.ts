@@ -47,4 +47,4 @@ export { intakeStoredBytes, type StoredBytesOutcome } from "./intake/storedBytes
 export { readOfBytes, type ReadOfBytes } from "./read/readOfBytes.js";
 export { requestRead, getRead, recordReviews, reviewEntryProblem, readDedupKey } from "./read/requests.js";
 export { DOCUMENT_BUCKET } from "./storage.js";
-export { ocrEngine, type RecognisePage } from "./ocr/pageOcr.js";
+export { ocrEngine, type OcrEngine, type RecognisePage } from "./ocr/pageOcr.js";
