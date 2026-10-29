@@ -34,10 +34,12 @@ const ready = (async () => {
 ready.catch(() => {});
 
 let queue: Promise<unknown> = Promise.resolve();
-parentPort!.on("message", (msg: { id: number; png: Uint8Array }) => {
+parentPort!.on("message", (msg: { id: number; png?: Uint8Array; warm?: true }) => {
   queue = queue.then(async () => {
     try {
       const service = await ready;
+      // `warm` (TC0.3): the process asks at boot so the models are loaded before the first read, not during it.
+      if (msg.warm || !msg.png) return void parentPort!.postMessage({ id: msg.id, ready: true });
       const png = Buffer.from(msg.png.buffer, msg.png.byteOffset, msg.png.byteLength);
       // The prepared view (prepareOcrView.ts) is the witness's own; failing to make one reads the page as is.
       const view = prepare ? await prepareOcrView(png).catch(() => null) : null;

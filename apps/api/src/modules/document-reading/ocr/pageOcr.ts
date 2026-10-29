@@ -40,8 +40,14 @@ export async function ocrPages(pages: readonly PageForOcr[], recognise: Recognis
   return out;
 }
 
-/** `prepare: false` reads every page as it is, as before the prepared view (`DOC_OCR_PREPARE=off`). */
-export interface EngineOptions { cacheDir: string; idleMs?: number; timeoutMs?: number; prepare?: boolean }
+/**
+ * `prepare: false` reads every page as it is, as before the prepared view (`DOC_OCR_PREPARE=off`). `bootstrap` is
+ * the thread's source — `workerBootstrap()` unless a test speaks the protocol without the models.
+ */
+export interface EngineOptions { cacheDir: string; idleMs?: number; timeoutMs?: number; prepare?: boolean; bootstrap?: string }
+
+/** The process's OCR engine: recognise a page, or `warm` it — start the thread and load the models, no page. */
+export type OcrEngine = RecognisePage & { warm: () => Promise<boolean> };
 
 /**
  * The engine thread's entry: a two-line bootstrap that registers tsx in the thread, THEN imports the worker.
@@ -60,8 +66,21 @@ export function workerBootstrap(workerUrl: URL = new URL("./ocrWorker.ts", impor
   return `import(${JSON.stringify(tsxApi)}).then((m) => { m.register(); return import(${JSON.stringify(workerUrl.href)}); });`;
 }
 
-/** The process's engine thread behind a `RecognisePage`. */
-export function ocrEngine({ cacheDir, idleMs = 120_000, timeoutMs = 180_000, prepare = true }: EngineOptions): RecognisePage {
+/**
+ * The process's engine thread behind a `RecognisePage`.
+ *
+ * WARMED AT BOOT (TWO-CLICK-READER-PLAN TC0.3, D-TC5). The cold start a read used to pay is almost all DOWNLOAD:
+ * measured 2026-10-29 on this code, starting the engine with no models on disk took 29 s (the 10/15 note's ≈30 s);
+ * with them on disk, 0.56 s. A deploy starts a fresh container, and releases ship most nights, so the first read of
+ * nearly every day paid the 29 s. `warm()` — called at boot by the process that runs reads (documentRead.ts) —
+ * downloads, verifies and loads the models before any read; the thread then idles out like any other, and a later
+ * read restarts it from disk (≈0.6 s, plus ≈1 s of first inference).
+ *
+ * The thread still stops after two idle minutes, which D-TC5 proposed to remove: the same measurement found a
+ * loaded engine holding ~0.5 GB, ~1.2 GB once it has read a page, in every process that runs reads, to save those
+ * ≈1.6 s a read. That trade is the owner's (Q-TC7 in the plan), not this code's.
+ */
+export function ocrEngine({ cacheDir, idleMs = 120_000, timeoutMs = 180_000, prepare = true, bootstrap }: EngineOptions): OcrEngine {
   let worker: Worker | null = null;
   let idle: NodeJS.Timeout | null = null;
   let next = 0;
@@ -76,33 +95,40 @@ export function ocrEngine({ cacheDir, idleMs = 120_000, timeoutMs = 180_000, pre
     pending.clear();
   };
   const start = (): Worker => {
-    const w = new Worker(workerBootstrap(), { eval: true, workerData: { cacheDir, prepare } });
-    w.on("message", (m: { id: number; items?: OcrItem[]; view?: Recognised["view"]; error?: string }) => {
+    const w = new Worker(bootstrap ?? workerBootstrap(), { eval: true, workerData: { cacheDir, prepare } });
+    w.on("message", (m: { id: number; items?: OcrItem[]; view?: Recognised["view"]; ready?: true; error?: string }) => {
       const settle = pending.get(m.id);
       pending.delete(m.id);
       if (m.error !== undefined) {
         settle?.(null);
         stop(m.error);
-      } else settle?.(m.items ? { items: m.items, view: m.view ?? null } : null);
+      } else settle?.(m.items ? { items: m.items, view: m.view ?? null } : m.ready ? READY : null);
     });
     w.on("error", (e: Error) => stop(e.message));
     w.unref();
     return w;
   };
 
-  return (png) => {
+  const ask = (message: { png: Buffer } | { warm: true }, limitMs: number) => {
     if (idle) clearTimeout(idle);
     worker ??= start();
     const w = worker;
     const id = next++;
     return new Promise<Recognised | null>((resolve) => {
-      const timer = setTimeout(() => stop(`a page took longer than ${timeoutMs} ms`), timeoutMs);
+      const timer = setTimeout(() => stop(`${"warm" in message ? "loading the models" : "a page"} took longer than ${limitMs} ms`), limitMs);
       pending.set(id, (r) => {
         clearTimeout(timer);
         resolve(r);
         if (pending.size === 0 && worker) idle = setTimeout(() => stop("idle"), idleMs).unref();
       });
-      w.postMessage({ id, png });
+      w.postMessage({ id, ...message });
     });
   };
+  // Loading the models may download them first (~139 MB, ocrModels.ts), so it is given longer than a page.
+  const engine = ((png: Buffer) => ask({ png }, timeoutMs)) as OcrEngine;
+  engine.warm = async () => (await ask({ warm: true }, timeoutMs * 2)) === READY;
+  return engine;
 }
+
+/** The thread's answer to `warm`: its models are loaded. Never a page's answer — a page carries items. */
+const READY: Recognised = Object.freeze({ items: [], view: null }) as Recognised;

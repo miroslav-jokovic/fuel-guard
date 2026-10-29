@@ -9,8 +9,8 @@ import {
   ocrEngine,
   TransientModelError,
   type ExecuteReadOutcome,
+  type OcrEngine,
   type ReadGateFor,
-  type RecognisePage,
 } from "../../modules/document-reading/index.js";
 import { shippingDocumentReadGate } from "../../modules/hazmat/index.js";
 import { roadsideReportReadGate } from "../../modules/inspections/index.js";
@@ -49,9 +49,10 @@ const gatesFor = (env: Env) =>
   }) as const satisfies Record<DocumentProfileId, (...a: Parameters<ReadGateFor>) => ReturnType<ReadGateFor>>;
 const gateForEnv = (env: Env): ReadGateFor => (admin, orgId, profile) => gatesFor(env)[profile](admin, orgId);
 
-// The OCR witness's engine (§7B A5): one per process, started by the first read that needs it.
-let engine: RecognisePage | undefined;
-const ocrFor = (env: Env): RecognisePage | undefined =>
+// The OCR witness's engine (§7B A5): one per process, warmed at boot where reads run (below), else started by
+// the first read that needs it.
+let engine: OcrEngine | undefined;
+const ocrFor = (env: Env): OcrEngine | undefined =>
   env.DOC_OCR_WITNESS === "off" ? undefined : (engine ??= ocrEngine({ cacheDir: env.DOC_OCR_CACHE_DIR ?? join(tmpdir(), "silvicom-ocr-models"), prepare: env.DOC_OCR_PREPARE !== "off" }));
 
 /**
@@ -68,6 +69,21 @@ export function documentReadMetricsLine(readId: string, r: Exclude<ExecuteReadOu
     outputTokens: r.outputTokens,
     stagesMs: r.stageTimings,
   })}`;
+}
+
+/**
+ * Load the OCR witness's models before the first read (TWO-CLICK-READER-PLAN TC0.3, D-TC5): called at boot by the
+ * process that runs `document_read` — the API in `inprocess` mode (production), a queue consumer otherwise. The
+ * 29 s a read used to wait was the models' download (pageOcr.ts); paid here, it is paid by the deploy. A failed
+ * warm is logged and is nothing more: the first read tries again, and the witness's failure is its absence.
+ */
+export async function warmDocumentReadOcr(env: Env, log: (line: string) => void = console.log): Promise<void> {
+  const ocr = ocrFor(env);
+  if (!ocr) return;
+  const t0 = performance.now();
+  const ok = await ocr.warm().catch(() => false);
+  const ms = Math.round(performance.now() - t0);
+  log(ok ? `[document-ocr] engine warm in ${ms} ms` : `[document-ocr] engine did not warm (${ms} ms); the first read will start it`);
 }
 
 export const documentReadHandler: JobHandler = async (ctx, job) => {

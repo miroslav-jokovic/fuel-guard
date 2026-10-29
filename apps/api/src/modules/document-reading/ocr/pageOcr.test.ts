@@ -1,7 +1,7 @@
 import sharp from "sharp";
 import { Worker } from "node:worker_threads";
 import { describe, expect, it, vi } from "vitest";
-import { ocrPages, workerBootstrap, type RecognisePage } from "./pageOcr.js";
+import { ocrEngine, ocrPages, workerBootstrap, type RecognisePage } from "./pageOcr.js";
 
 /** The read's pages to the OCR engine (§7B A5): upright, in order, all or nothing. */
 const png = (width: number, height: number) => sharp({ create: { width, height, channels: 3, background: "#fff" } }).png().toBuffer();
@@ -47,5 +47,49 @@ describe("workerBootstrap", () => {
     } finally {
       await w.terminate();
     }
+  });
+});
+
+describe("ocrEngine — warmed at boot (TWO-CLICK-READER-PLAN TC0.3)", () => {
+  // The protocol worker answers each page with the id of the thread that read it.
+  const engineOf = (opts: { idleMs?: number; failReady?: boolean } = {}) => ocrEngine({
+    cacheDir: opts.failReady ? "no-models" : "unused", idleMs: opts.idleMs,
+    bootstrap: `${workerBootstrap(new URL("./fixtures/engineProtocolWorker.ts", import.meta.url))}`,
+  });
+  const threadOf = async (engine: RecognisePage) => (await engine(Buffer.from("page")))?.items[0]?.text;
+
+  it("answers warm once the thread has its models, and the next page is read by that same thread", async () => {
+    const engine = engineOf();
+    expect(await engine.warm()).toBe(true);
+    const first = await threadOf(engine);
+    expect(first).toMatch(/^thread \d+$/);
+    expect(await threadOf(engine)).toBe(first);
+  });
+
+  it("answers not warm when the models do not load, and a page then has no OCR rather than a wrong one", async () => {
+    const engine = engineOf({ failReady: true });
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    try {
+      expect(await engine.warm()).toBe(false);
+      expect(await engine(Buffer.from("page"))).toBeNull();
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it("never mistakes a warm for a page: the page after it carries its own items", async () => {
+    const engine = engineOf();
+    await engine.warm();
+    expect((await engine(Buffer.from("page")))?.items).toHaveLength(1);
+  });
+
+  it("still stops an idle thread, so a later page starts a new one (the resident engine is Q-TC7's to rule)", async () => {
+    const engine = engineOf({ idleMs: 30 });
+    await engine.warm();
+    const first = await threadOf(engine);
+    await new Promise((r) => setTimeout(r, 120));
+    const second = await threadOf(engine);
+    expect(second).toMatch(/^thread \d+$/);
+    expect(second).not.toBe(first);
   });
 });
