@@ -107,6 +107,11 @@ vi.mock("@/composables/useTrailers", async () => {
   const { ref: r } = await import("vue");
   return { useTrailersQuery: () => ({ data: r([]) }) };
 });
+// DE2b: the move drawer reads the roster for its Give-to-a-driver picker.
+vi.mock("@/composables/useDrivers", async () => {
+  const { ref: r } = await import("vue");
+  return { useDriversQuery: () => ({ data: r([]) }) };
+});
 vi.mock("@/composables/useOrgTimezone", async () => {
   const { computed: c } = await import("vue");
   return { useOrgTimezone: () => ({ zone: c(() => "America/Chicago"), isResolved: c(() => true) }) };

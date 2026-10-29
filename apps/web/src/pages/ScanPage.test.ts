@@ -25,6 +25,33 @@ const MISREAD_TAG = "SIL1ÑBINÑ7K3M9P";
 /** M9b: a tablet's IMEI that no equipment has, and the same fifteen digits misread. */
 const NEW_IMEI = "490154203237518";
 const BAD_IMEI = "490154203237519";
+/** DE2b: the label on a tablet a driver holds, and on one whose driver has left. */
+const DANA_TABLET = "SIL1:AST:DANA01";
+const LEFT_TABLET = "SIL1:AST:LEFT01";
+const tabletWith = (code: string, label: string, notReturned: boolean): ScanResult => ({
+  kind: "asset",
+  code,
+  asset: {
+    id: "33333333-3333-4333-8333-333333333333",
+    tagCode: code.slice(9),
+    displayNo: "A-0412",
+    assetTypeId: "44444444-4444-4444-8444-444444444444",
+    assetTypeName: "Tablet",
+    name: "Cab tablet",
+    serialNumber: null,
+    imei: null,
+    model: null,
+    manufacturer: null,
+    status: "in_service",
+    condition: "good",
+    holder: { kind: "driver", id: "55555555-5555-4555-8555-555555555555", label, inferredDriverName: null, since: null, notReturned },
+    purchasedAt: null,
+    purchaseCost: null,
+    warrantyExpiresAt: null,
+    imagePath: null,
+    notes: null,
+  },
+});
 
 const STOCK_LINE = {
   partId: PART,
@@ -50,6 +77,8 @@ const RESULTS: Record<string, ScanResult> = {
   [MISREAD_TAG]: { kind: "unknown_tag", code: MISREAD_TAG, tagKind: null },
   [NEW_IMEI]: { kind: "malformed", code: NEW_IMEI },
   [BAD_IMEI]: { kind: "malformed", code: BAD_IMEI },
+  [DANA_TABLET]: tabletWith(DANA_TABLET, "Dana Reyes", false),
+  [LEFT_TABLET]: tabletWith(LEFT_TABLET, "Sam Ortiz", true),
 };
 
 /** The ref the page hands to `useScanQuery` — the test reads it to see what was submitted. */
@@ -199,6 +228,27 @@ describe("ScanPage", () => {
     expect(submitted.code?.value).toBe(BIN_TAG);
     expect(wrapper.text()).toContain("Oil filter");
     expect(wrapper.findComponent({ name: "BarcodeCamera" }).exists()).toBe(false);
+  });
+
+  /** DE2b: a tablet handed in at the shop window is scanned here — whose it is, and take it back. */
+  it("names a driver's tablet by its driver and opens Return to shop on it", async () => {
+    const wrapper = render();
+    scan(DANA_TABLET);
+    await wrapper.vm.$nextTick();
+    expect(wrapper.text()).toContain("Dana Reyes's tablet");
+    expect(wrapper.text()).not.toContain("Not returned");
+    await wrapper.findAll("button").find((b) => b.text() === "Return to shop")!.trigger("click");
+    const drawer = wrapper.findComponent({ name: "AssetMoveDrawer" });
+    expect(drawer.props("mode")).toBe("move");
+    expect(drawer.props("asset")).toMatchObject({ holder: { kind: "driver", label: "Dana Reyes" } });
+  });
+
+  it("flags a tablet whose driver has left as not returned", async () => {
+    const wrapper = render();
+    scan(LEFT_TABLET);
+    await wrapper.vm.$nextTick();
+    expect(wrapper.text()).toContain("Sam Ortiz's tablet");
+    expect(wrapper.text()).toContain("Not returned");
   });
 
   it("opens the desk's own movement drawer on the shelf that was scanned", async () => {

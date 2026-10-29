@@ -44,6 +44,10 @@ export interface AssetsFilter {
   vehicleId?: string;
   trailerId?: string;
   unassigned?: boolean;
+  /** DE2: one driver's tablets — the driver page's Equipment card. */
+  driverId?: string;
+  /** D-DE3: tablets whose driver has left. The Inventory tab's *Not returned* filter. */
+  notReturned?: boolean;
   page: number;
 }
 
@@ -70,11 +74,33 @@ export function useAssetsQuery(filter: Ref<AssetsFilter>) {
       if (f.vehicleId) params.set("vehicleId", f.vehicleId);
       if (f.trailerId) params.set("trailerId", f.trailerId);
       if (f.unassigned) params.set("unassigned", "true");
+      if (f.driverId) params.set("driverId", f.driverId);
+      if (f.notReturned) params.set("notReturned", "true");
       const r = await apiFetch<{ assets: AssetDto[]; total: number }>(
         `/api/maintenance/inventory/assets?${params}`,
       );
       if (!r.ok || !r.data) throw new Error(r.error?.message ?? "Could not load assets");
       return r.data;
+    },
+  });
+}
+
+/**
+ * *Tablets not returned* (D-DE3): how many tablets sit with a driver who has left.
+ *
+ * ⚠ The API's `total` for `?notReturned=true&limit=1`, never a page's length. The database counts it
+ * (`assets.ts`); a count taken off the fifty rows on screen is the I0–I3 audit's third defect — a number
+ * that stops at fifty and is believed.
+ */
+export function useNotReturnedCountQuery() {
+  return useQuery({
+    queryKey: ["inventory", "assets", "not-returned-count"] as const,
+    queryFn: async (): Promise<number> => {
+      const r = await apiFetch<{ assets: AssetDto[]; total: number }>(
+        "/api/maintenance/inventory/assets?notReturned=true&limit=1",
+      );
+      if (!r.ok || !r.data) throw new Error(r.error?.message ?? "Could not count the tablets not returned");
+      return r.data.total;
     },
   });
 }
@@ -147,10 +173,13 @@ export function useCreateAssetType() {
 }
 
 /**
- * Edit a type — its name, category, whether it is serialized, its own default quantity.
+ * Edit a type — its name, category, whether it is serialized, its own default quantity, and (DE2b)
+ * who holds it.
  *
  * ⚠ `serialized` is not cosmetic: `move_asset` reads it, and `IV020` fires only for a serialized
  * type. Turning it on for ratchet straps would make a trailer unable to accept a second one.
+ * ⚠ Nor is `heldBy`: 0524 refuses the switch while any of the type's things sit with the other kind of
+ * holder (`held_by_conflict`, 409) — the screen says "move them first", in the API's words.
  */
 export function useUpdateAssetType() {
   const qc = useQueryClient();
@@ -160,7 +189,11 @@ export function useUpdateAssetType() {
         `/api/maintenance/inventory/asset-types/${input.id}`,
         { method: "PATCH", body: input.patch },
       );
-      if (!r.ok || !r.data) throw new Error(r.error?.message ?? "Could not save the type");
+      // The API's `code` travels with the Error (SP9's pattern, `lib/api.ts`): `held_by_conflict` is
+      // answered beside the Held-by choice, where the person can act on it, not in a passing toast.
+      if (!r.ok || !r.data) {
+        throw Object.assign(new Error(r.error?.message ?? "Could not save the type"), { code: r.error?.code });
+      }
       return r.data.type;
     },
     onSuccess: () => void qc.invalidateQueries({ queryKey: ["inventory"] }),

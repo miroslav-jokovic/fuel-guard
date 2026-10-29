@@ -24,6 +24,9 @@ import VehicleDetailPage from "@/pages/VehicleDetailPage.vue";
  */
 const tables: string[] = [];
 let fuelAccess: "none" | "view" | "manage" = "none";
+/** DE2b: the driver page's Equipment card reads the shop's assets route, which needs `maintenance: view`. */
+let maintenanceAccess: "none" | "view" = "view";
+const apiCalls: string[] = [];
 
 const chain = (result: unknown) => {
   const proxy: unknown = new Proxy(() => undefined, {
@@ -51,13 +54,19 @@ vi.mock("@/lib/supabase", () => ({
 vi.mock("@/stores/session", () => ({
   useSessionStore: () => ({
     can: (s: string) => (s === "fuel" ? fuelAccess === "manage" : true),
-    canView: (s: string) => (s === "fuel" ? fuelAccess !== "none" : true),
+    canView: (s: string) =>
+      s === "fuel" ? fuelAccess !== "none" : s === "maintenance" ? maintenanceAccess !== "none" : true,
   }),
 }));
 // The driver profile comes from the roster API, not PostgREST (`useDriverQuery`), so without this the
 // summary card never renders and the "status badge stays" case would assert against an empty page.
 vi.mock("@/lib/api", () => ({
-  apiFetch: async () => ({ ok: true, data: { driver: { id: "d-1", full_name: "Marcus Reyes", status: "active" } }, error: null }),
+  apiFetch: async (url: string) => {
+    apiCalls.push(url);
+    return url.startsWith("/api/maintenance/inventory/assets")
+      ? { ok: true, data: { assets: [], total: 0 }, error: null }
+      : { ok: true, data: { driver: { id: "d-1", full_name: "Marcus Reyes", status: "active" } }, error: null };
+  },
 }));
 vi.mock("@/stores/toast", () => ({ useToastStore: () => ({ success: vi.fn(), error: vi.fn() }) }));
 
@@ -115,5 +124,27 @@ describe("DriverDetailPage — fuel history follows the fuel section", () => {
     expect(tables).toContain("fuel_transactions");
     expect(w.find("#section-fuel").exists()).toBe(true);
     expect(w.text()).toContain("MPG on this driver's fills");
+  });
+});
+
+describe("DriverDetailPage — the Equipment card follows the maintenance section (DE2b)", () => {
+  beforeEach(() => {
+    apiCalls.length = 0;
+    fuelAccess = "view";
+  });
+
+  it("asks for nothing and shows no card to a role without the shop's section", async () => {
+    maintenanceAccess = "none";
+    const w = await mountPage(DriverDetailPage, "/drivers/d-1", "/drivers/:id");
+    expect(apiCalls.some((u) => u.startsWith("/api/maintenance/inventory/assets"))).toBe(false);
+    expect(w.find("[data-test='driver-equipment']").exists()).toBe(false);
+    maintenanceAccess = "view";
+  });
+
+  it("reads this driver's tablets for a view-only shop role", async () => {
+    maintenanceAccess = "view";
+    const w = await mountPage(DriverDetailPage, "/drivers/d-1", "/drivers/:id");
+    expect(apiCalls).toContainEqual(expect.stringContaining("driverId=d-1"));
+    expect(w.find("[data-test='driver-equipment']").text()).toContain("No tablet or other equipment is with this driver.");
   });
 });

@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import { computed, reactive, ref } from "vue";
-import { assetTypeInputSchema, type AssetTypeDto } from "@silvicom/shared";
+import { assetTypeInputSchema, type AssetHeldBy, type AssetTypeDto } from "@silvicom/shared";
 import {
   AppButton as BaseButton,
   AppCheckbox as BaseCheckbox,
   AppFormField as FormField,
   AppInput as BaseInput,
+  AppSegmentedControl,
 } from "@silvicom/ui";
 import SlideOver from "@/components/SlideOver.vue";
 import { QueryState } from "@silvicom/ui";
@@ -41,6 +42,14 @@ import { useToastStore } from "@/stores/toast";
  * does rather than naming the column. A tablet is serialized — which tablet matters. Ratchet straps
  * are not: four straps are four straps, and a tag per strap is how the discipline gets abandoned in
  * week two (§2.1).
+ *
+ * ── AND SO IS `heldBy` (DE2b; D-DE1, owner 2026-10-27 and 2026-10-29) ─────────────────────────
+ * Who holds this kind of thing: a truck, trailer or the shop — or a driver, which is a tablet's answer
+ * and nothing else's. It decides what the move drawer offers (Give to a driver / Return to the shop,
+ * or the truck-and-trailer picker) and how the On trucks tab words a kit line. No catalogue line and
+ * no migration sets it: the owner sets Tablet once, here. Switching it while any of the type's things
+ * sit with the other kind of holder is refused by 0524 (`held_by_conflict`), and the API's sentence —
+ * move them first — is shown beside the choice, because that is where the person reads it.
  */
 
 const props = defineProps<{ open: boolean }>();
@@ -65,11 +74,24 @@ const busy = computed(() => create.isPending.value || update.isPending.value || 
 
 const adding = ref(false);
 const editing = ref<AssetTypeDto | null>(null);
-const form = reactive({ name: "", category: "", serialized: true, defaultKitQuantity: "0" });
+const form = reactive({
+  name: "",
+  category: "",
+  serialized: true,
+  defaultKitQuantity: "0",
+  heldBy: "unit" as AssetHeldBy,
+});
+
+/** The two answers, in the words a shop uses — the values are `asset_types.held_by`'s (0524). */
+const HELD_BY_OPTIONS: { value: AssetHeldBy; label: string }[] = [
+  { value: "unit", label: "A truck, trailer or the shop" },
+  { value: "driver", label: "A driver (tablets)" },
+];
 
 function startAdd() {
   editing.value = null;
-  Object.assign(form, { name: "", category: "", serialized: true, defaultKitQuantity: "0" });
+  Object.assign(form, { name: "", category: "", serialized: true, defaultKitQuantity: "0", heldBy: "unit" });
+  errors.value = {};
   adding.value = true;
 }
 function startEdit(type: AssetTypeDto) {
@@ -79,7 +101,9 @@ function startEdit(type: AssetTypeDto) {
     category: type.category ?? "",
     serialized: type.serialized,
     defaultKitQuantity: String(type.defaultKitQuantity),
+    heldBy: type.heldBy,
   });
+  errors.value = {};
   adding.value = true;
 }
 
@@ -91,6 +115,7 @@ async function submit() {
     category: form.category.trim() === "" ? null : form.category,
     serialized: form.serialized,
     defaultKitQuantity: Number(form.defaultKitQuantity || "0"),
+    heldBy: form.heldBy,
   });
   if (!parsed.success) {
     const map: Record<string, string> = {};
@@ -108,6 +133,10 @@ async function submit() {
     toast.success(editing.value ? "Type saved" : "Type added");
     adding.value = false;
   } catch (e) {
+    if ((e as { code?: string }).code === "held_by_conflict") {
+      errors.value = { heldBy: (e as Error).message };
+      return;
+    }
     toast.error("Could not save the type", e instanceof Error ? e.message : undefined);
   }
 }
@@ -160,6 +189,7 @@ async function adoptKit() {
               <p class="mt-0.5 text-xs text-ink-tertiary">
                 {{ type.category ?? "No category" }}
                 <span v-if="type.serialized"> · tracked one by one</span>
+                <span v-if="type.heldBy === 'driver'"> · held by a driver</span>
               </p>
             </div>
             <BaseButton size="sm" @click="startEdit(type)">Edit</BaseButton>
@@ -183,6 +213,13 @@ async function adoptKit() {
             :error="errors.defaultKitQuantity"
           >
             <BaseInput :id="id" v-model="form.defaultKitQuantity" inputmode="numeric" />
+          </FormField>
+          <FormField
+            label="Who holds one"
+            hint="A driver takes a tablet home with them; everything else stays on a truck, a trailer or a shelf."
+            :error="errors.heldBy"
+          >
+            <AppSegmentedControl v-model="form.heldBy" :options="HELD_BY_OPTIONS" label="Who holds one" />
           </FormField>
           <!-- The copy says what the flag DOES, because what it does is refuse a second one. -->
           <div class="rounded-control bg-surface-subtle px-3 py-2.5 ring-1 ring-edge">

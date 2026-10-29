@@ -5,6 +5,7 @@ import { traced } from "../inspections/serviceError.js";
 import { orFilterValue } from "../../../lib/postgrestFilters.js";
 import { IN_LIST_CHUNK, chunks, fetchAllPaged } from "../../../lib/paging.js";
 import { PAGE_MAX } from "./parts.js";
+import { sinceGivenTo } from "./driverHeld.js";
 import type { ServiceError } from "./types.js";
 
 /**
@@ -291,6 +292,9 @@ export async function listAssets(
   if (error) return traced("listAssets", "db_error", "Could not load the assets", error);
 
   const rows = (data ?? []) as unknown as AssetRow[];
+  // DE2b: a driver's own list answers "since when" — bounded, unlike a page (`sinceGivenTo`).
+  const since = opts.driverId ? await sinceGivenTo(admin, orgId, opts.driverId, rows.map((r) => r.id)) : new Map<string, string>();
+  if (!(since instanceof Map)) return since;
   const names = await driverNames(
     admin,
     orgId,
@@ -302,6 +306,7 @@ export async function listAssets(
         inferredDriverName: r.vehicles?.assigned_driver_id
           ? (names.get(r.vehicles.assigned_driver_id) ?? null)
           : null,
+        since: since.get(r.id) ?? null,
       }),
     ),
     total: count ?? 0,
@@ -311,7 +316,8 @@ export async function listAssets(
 /**
  * One asset, with the answer to "since when".
  *
- * ⚠ `since` is populated HERE and is null in `listAssets`, deliberately. It is the occurred_at of
+ * ⚠ `since` is populated HERE and is null in `listAssets` (except one driver's own list, DE2b's
+ * `sinceGivenTo` — a driver holds one or two tablets), deliberately. It is the occurred_at of
  * the last movement that actually moved the thing, which is one bounded query for one asset and
  * would be an unbounded one for a page — and an unbounded read is how nine filter menus quietly
  * lost 30 % of their values to PostgREST's 1,000-row cap. The detail page is where the plan asks

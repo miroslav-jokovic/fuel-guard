@@ -95,6 +95,11 @@ vi.mock("@/features/inventory/useInventory", async () => {
     useLocationsQuery: () => ({ data: r([{ id: CRIB, name: "Tool crib", code: "CRIB", address: null, active: true }]) }),
   };
 });
+const DANA = "66666666-6666-4666-8666-666666666666";
+vi.mock("@/composables/useDrivers", async () => {
+  const { ref: r } = await import("vue");
+  return { useDriversQuery: () => ({ data: r([{ id: DANA, full_name: "Dana Reyes", status: "active", archived_at: null }]) }) };
+});
 /** The caller. `useOpens` (SP5) asks the route catalogue with the role, so the role is real here. */
 const caller = { can: () => true, admin: true, role: "admin" as string, sections: null, surfaces: null };
 vi.mock("@/stores/session", () => ({ useSessionStore: () => caller }));
@@ -187,6 +192,35 @@ describe("the history", () => {
     // An empty rail is furniture that reports a finding, so `TimelineRail` renders nothing at all and
     // the page says the sentence itself.
     expect(w.findComponent(TimelineRail).exists()).toBe(false);
+  });
+});
+
+describe("a driver's tablet (DE2b, D-DE1/D-DE3)", () => {
+  const withDana = (notReturned: boolean) =>
+    asset({ holder: { kind: "driver", id: DANA, label: "Dana Reyes", inferredDriverName: null, since: "2026-10-29T15:00:00.000Z", notReturned } });
+
+  it("says who has it, as custody, and offers Return to shop instead of Move", () => {
+    detail.value = { asset: withDana(false), photoUrl: null };
+    const w = page();
+    expect(w.text()).toContain("Who has it");
+    expect(w.text()).toContain("With Dana Reyes");
+    expect(w.findAll("button").map((b) => b.text())).toContain("Return to shop");
+    expect(w.text()).not.toContain("Not returned");
+  });
+
+  it("flags it Not returned when the driver has left", () => {
+    detail.value = { asset: withDana(true), photoUrl: null };
+    expect(page().text()).toContain("Not returned");
+  });
+
+  it("names the driver a movement gave it to, off the roster", () => {
+    history.value = {
+      movements: [movement(0, { toHolder: { kind: "driver", id: DANA, label: null, inferredDriverName: null, since: null } })],
+      total: 1,
+    };
+    const w = page();
+    expect(w.text()).toContain("to Dana Reyes");
+    expect(w.text()).not.toContain("to a trailer");
   });
 });
 

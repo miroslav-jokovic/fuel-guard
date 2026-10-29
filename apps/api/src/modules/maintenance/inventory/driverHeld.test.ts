@@ -160,6 +160,41 @@ describe("a tablet's holder is its driver (D-DE1)", () => {
   });
 });
 
+describe("a driver's own list says since when (DE2b)", () => {
+  // Newest first, as the service orders them: Dana took A_DANA on 10/29 after an earlier give on 10/02;
+  // a report on 10/30 moved nothing (no destination) and is not "since"; A_LEFT's give went to somebody else.
+  const MOVES = [
+    { asset_id: A_DANA, to_driver_id: null, occurred_at: "2026-10-30T08:00:00.000Z" },
+    { asset_id: A_DANA, to_driver_id: DANA, occurred_at: "2026-10-29T15:00:00.000Z" },
+    { asset_id: A_LEFT, to_driver_id: LEFT, occurred_at: "2026-10-15T09:00:00.000Z" },
+    { asset_id: A_DANA, to_driver_id: DANA, occurred_at: "2026-10-02T09:00:00.000Z" },
+  ];
+  beforeEach(() => {
+    rec = createSupabaseRecorder({
+      tables: {
+        inventory_assets: (q) => applied(ROWS(), q),
+        drivers: (q) => applied(DRIVERS, q),
+        asset_movements: (q) => applied(MOVES, q),
+      },
+    });
+  });
+
+  it("is the latest give to THIS driver, read once and org-scoped", async () => {
+    const page = await listAssets(rec.client, ORG, { driverId: DANA });
+    if ("error" in page) throw new Error("unexpected");
+    expect(page.assets.map((a) => [a.id, a.holder.since])).toEqual([[A_DANA, "2026-10-29T15:00:00.000Z"]]);
+    expect(rec.forTable("asset_movements")).toHaveLength(1);
+    expectOrgScoped(rec, ORG, SCOPED);
+  });
+
+  it("stays null on a page that is not one driver's — that read would be unbounded", async () => {
+    const page = await listAssets(rec.client, ORG);
+    if ("error" in page) throw new Error("unexpected");
+    expect(page.assets.every((a) => a.holder.since === null)).toBe(true);
+    expect(rec.forTable("asset_movements")).toHaveLength(0);
+  });
+});
+
 describe("giving and returning goes through move_asset", () => {
   it("carries the driver ends of a movement back as driver endpoints", async () => {
     const row = {

@@ -66,3 +66,34 @@ export async function assignedDriverOf(admin: SupabaseClient, orgId: string, veh
   if (error) return traced("assignedDriverOf", "db_error", "Could not read the truck's driver", error);
   return (data as { assigned_driver_id: string | null } | null)?.assigned_driver_id ?? null;
 }
+
+/**
+ * When each of one driver's tablets reached them (DE2b) — the driver page's "since 10/29/2026".
+ *
+ * `listAssets` leaves `since` null on purpose (`getAsset` says why: one bounded query per asset, never one
+ * per page). A driver's own list is the bounded case — a driver holds one tablet, two at most — so it is
+ * answered for that list alone: the latest movement that put each asset in THIS driver's hands. One read,
+ * chunked by asset id; the first row per asset in occurred_at-descending order is the answer.
+ */
+export async function sinceGivenTo(
+  admin: SupabaseClient,
+  orgId: string,
+  driverId: string,
+  assetIds: string[],
+): Promise<Map<string, string> | ServiceError> {
+  const out = new Map<string, string>();
+  for (const part of chunks(assetIds, IN_LIST_CHUNK)) {
+    const { data, error } = await admin
+      .from("asset_movements")
+      .select("asset_id, occurred_at")
+      .eq("org_id", orgId)
+      .eq("to_driver_id", driverId)
+      .in("asset_id", part)
+      .order("occurred_at", { ascending: false });
+    if (error) return traced("sinceGivenTo", "db_error", "Could not read when the driver took it", error);
+    for (const m of (data ?? []) as { asset_id: string; occurred_at: string }[]) {
+      if (!out.has(m.asset_id)) out.set(m.asset_id, m.occurred_at);
+    }
+  }
+  return out;
+}
