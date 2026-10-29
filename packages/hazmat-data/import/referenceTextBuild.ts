@@ -4,52 +4,54 @@
  * Runs LOCALLY (eCFR reachable). Uses the eCFR client to fetch each cited section's XML, extracts
  * readable paragraphs, and writes the store. Display + audit only — never read by the engine.
  *
- *   npx tsx import/referenceTextBuild.ts
+ *   npx tsx import/referenceTextBuild.ts [YYYY-MM-DD]     (default: the verified list's eCFR date)
  *
- * The section list is the set our rule catalog cites. Grow it as rules are added (H2/H3); an unknown
- * citation just links out to eCFR rather than showing inline text, so a missing section is graceful.
+ * The sections are DERIVED from datasets/citations.json — every section a verified citation names
+ * (TWO-CLICK-READER-PLAN TC0.5/Q-TC6 (a), 2026-10-29). Until then this file kept its own list of 16, which
+ * missed 24 of the 39 sections the engine cites (§171.4, §171.8, §172.315, §172.331–.334, every placard-design
+ * section …) and held one it does not (§172.519) — and was never run, so the store was empty and every
+ * /reference request answered 404. Read at the list's date, so a citation and the text shown for it are the
+ * same printing of the CFR.
  */
 
 import { writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { EcfrClient } from "./ecfrClient.js";
 import { resolveImportContext } from "./ecfr.js";
+import { readFileSync } from "node:fs";
 import { extractSectionText } from "./referenceText.js";
-import type { ReferenceStore } from "../src/referenceText.js";
+import { parseCitation, type ReferenceStore } from "../src/referenceText.js";
+import { citationListSchema } from "../src/citations.js";
 
 const OUT_URL = new URL("../datasets/referenceText.json", import.meta.url);
 
-/** Sections HazmatGuard cites for display. Keep in sync with the H2/H3 rule catalogs. */
-export const REFERENCE_SECTIONS = [
-  "172.101", // HMT purpose & use
-  "172.102", // special provisions
-  "172.201", "172.202", "172.203", "172.204", // shipping paper description + certification
-  "172.301", "172.302", "172.303", // marking
-  "172.322", "172.336", // marine pollutant / ID-number marking
-  "172.504", "172.505", "172.519", // placarding: general, subsidiary, general placard specs
-  "173.150", // flammable/combustible liquid exceptions
-  "177.848", // segregation
-] as const;
+const CITATIONS = citationListSchema.parse(JSON.parse(readFileSync(new URL("../datasets/citations.json", import.meta.url), "utf8")));
+
+/** Every section a verified citation names, in section order. A range ("172.200-172.204") names its first. */
+export const REFERENCE_SECTIONS: readonly string[] = [
+  ...new Set(CITATIONS.citations.map((c) => parseCitation(c.cfr).sectionNumber).filter((s): s is string => s !== null)),
+].sort((a, b) => a.localeCompare(b, "en", { numeric: true }));
 
 async function main(): Promise<void> {
   const client = new EcfrClient();
   const ctx = await resolveImportContext(client);
+  const date = process.argv[2] ?? CITATIONS.ecfrDate ?? ctx.date;
   const store: ReferenceStore = {
-    version: ctx.date,
+    version: date,
     provisional: false,
-    source: `eCFR Title 49 @ ${ctx.date}`,
+    source: `eCFR Title 49 @ ${date}`,
     sections: {},
   };
 
   for (const section of REFERENCE_SECTIONS) {
-    const xml = await client.getFullXml(ctx.date, ctx.title, { section });
-    const ref = extractSectionText(xml, { sectionNumber: section, sourceVersion: ctx.date });
+    const xml = await client.getFullXml(date, ctx.title, { section });
+    const ref = extractSectionText(xml, { sectionNumber: section, sourceVersion: date });
     store.sections[section] = ref;
     console.log(`  ${section}  "${ref.subject}"  (${ref.paragraphs.length} paragraphs)`);
   }
 
   writeFileSync(fileURLToPath(OUT_URL), JSON.stringify(store, null, 2) + "\n");
-  console.log(`\nWrote datasets/referenceText.json — ${Object.keys(store.sections).length} sections @ ${ctx.date}.`);
+  console.log(`\nWrote datasets/referenceText.json — ${Object.keys(store.sections).length} sections @ ${date}.`);
 }
 
 main().catch((err: unknown) => {

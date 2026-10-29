@@ -1,4 +1,4 @@
-import type { ReferenceParagraph } from "../src/referenceText.js";
+import type { ReferenceParagraph } from "./referenceText.js";
 
 /**
  * Find the paragraph a citation's designators name — "(d)(1)(ii)" — in a section's paragraphs as

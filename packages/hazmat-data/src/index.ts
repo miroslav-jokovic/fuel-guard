@@ -32,6 +32,7 @@ export * from "./referenceText.js";
 export * from "./interpretations.js";
 // The verified citation list (TC0.5) — evidence ABOUT the engine, never read by it.
 export * from "./citations.js";
+export { paragraphAt } from "./citationParagraph.js";
 
 const RAW: Readonly<Record<string, unknown>> = {
   "2026.02": raw202602,
