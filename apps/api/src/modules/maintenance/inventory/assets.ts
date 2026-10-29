@@ -44,7 +44,7 @@ import type { ServiceError } from "./types.js";
 export const ASSET_COLUMNS =
   "id, tag_code, display_seq, asset_type_id, name, serial_number, imei, model, manufacturer, status, " +
   "condition, location_id, vehicle_id, trailer_id, driver_id, purchased_at, purchase_cost, warranty_expires_at, " +
-  "image_path, notes, asset_types(name), stock_locations(name), vehicles(unit_number, assigned_driver_id), " +
+  "image_path, notes, purchase_id, asset_types(name), stock_locations(name), vehicles(unit_number, assigned_driver_id), " +
   // One foreign key to `drivers` on this table (0524's `driver_id`), so the embed is unambiguous.
   "trailers(unit_number), drivers(full_name, status)";
 
@@ -69,6 +69,8 @@ export interface AssetRow {
   warranty_expires_at: string | null;
   image_path: string | null;
   notes: string | null;
+  /** 0530: the live bill that paid for it. */
+  purchase_id: string | null;
   asset_types: { name: string } | null;
   stock_locations: { name: string } | null;
   vehicles: { unit_number: string | null; assigned_driver_id: string | null } | null;
@@ -139,6 +141,8 @@ export const toAssetDto = (
   purchasedAt: r.purchased_at,
   purchaseCost: r.purchase_cost === null ? null : Number(r.purchase_cost),
   warrantyExpiresAt: r.warranty_expires_at,
+  // `?? null`: a row selected before 0530 — or a test fixture — has no such key, and means "no bill".
+  purchaseId: r.purchase_id ?? null,
   imagePath: r.image_path,
   notes: r.notes,
 });

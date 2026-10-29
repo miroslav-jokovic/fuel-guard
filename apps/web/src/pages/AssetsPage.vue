@@ -11,6 +11,9 @@ import KitRulesDrawer from "@/features/inventory/KitRulesDrawer.vue";
 import EquipmentOnTrucksPanel from "@/features/inventory/EquipmentOnTrucksPanel.vue";
 import EquipmentInventoryPanel from "@/features/inventory/EquipmentInventoryPanel.vue";
 import EquipmentDriversPanel from "@/features/inventory/EquipmentDriversPanel.vue";
+import EquipmentInvoicesPanel from "@/features/inventory/EquipmentInvoicesPanel.vue";
+import InvoiceDrawer from "@/features/inventory/InvoiceDrawer.vue";
+import InvoiceDetailDrawer from "@/features/inventory/InvoiceDetailDrawer.vue";
 import { KIT_RULES_SHOWN } from "@silvicom/shared";
 import { useUnitsQuery } from "@/features/inventory/useUnits";
 import { useAssetsQuery } from "@/features/inventory/useAssets";
@@ -22,21 +25,22 @@ import { useOpens } from "@/composables/useOpens";
  * Q-MX7 (a)). Everything here is Silvicom's alone; the shop's parts are FleetPal's and live on Parts
  * (the two-inventories ruling, DRIVER-EQUIPMENT-AND-UNIT-TAGS-PLAN.md), so this page never says "part".
  *
- * ── THREE TABS, BY WHO HOLDS IT (EA2; contract §9 rule 9, one table each) ────────────────────
+ * ── FOUR TABS: THREE BY WHO HOLDS IT, THEN THE BILLS (EA2, M10b; contract §9 rule 9, one table each) ──
  *   Trucks & trailers — a row per unit carrying something, and what it carries;
  *   Drivers — a row per thing a driver holds (tablets, D-DE1), with *Not returned* (D-DE3);
- *   In the shop — everything no truck, trailer or driver holds, with a Where filter for "anywhere".
+ *   In the shop — everything no truck, trailer or driver holds, with a Where filter for "anywhere";
+ *   Invoices — a row per bill the shop paid for its equipment (M10b, Q-MX10).
  * The owner's 2026-10-30 brief: "On our equipment pages we will have displayed trucks and drivers
  * (separate tabs) with assigned equipment listed" (EQUIPMENT-ASSIGN-BY-SCAN-PROPOSAL §3.4). Assigning
  * happens on the truck's or driver's own page by scan (EA1); a row here opens that page. M7's
- * `on-trucks` / `inventory` addresses redirect (`routes/maintenance.ts`). Invoices joins them in M10b.
+ * `on-trucks` / `inventory` addresses redirect (`routes/maintenance.ts`).
  * The surface KEY stays `maintenance.assets` (D-MX6) — every stored grant still means what it meant.
  *
  * Each tab's count is how many rows it lists, read off the same query key its panel's unfiltered view
  * reads, so vue-query asks once.
  *
- * Add equipment is the page's verb (header on a desk, the bottom bar on a phone — §9 rule 2) on every
- * tab: a new item lands In the shop until it is assigned.
+ * Add equipment is the page's verb (header on a desk, the bottom bar on a phone — §9 rule 2) on the
+ * three holder tabs: a new item lands In the shop until it is assigned. Invoices' verb is Add invoice.
  */
 
 const router = useRouter();
@@ -47,6 +51,7 @@ const TABS = [
   { value: "trucks", label: "Trucks & trailers" },
   { value: "drivers", label: "Drivers" },
   { value: "shop", label: "In the shop" },
+  { value: "invoices", label: "Invoices" },
 ] as const;
 const unitsQ = useUnitsQuery(computed(() => ({})));
 const driversQ = useAssetsQuery(computed(() => ({ holder: "driver" as const, page: 1 })));
@@ -72,11 +77,21 @@ const rulesOpen = ref(false);
 // `?new=1` opens the drawer (a link may carry it). It is a flag in the same query buffer as the
 // filters (D-US2): closing the drawer removes `new` alone and keeps the reader's filters.
 const creating = qs.flag("new");
+// M10b: one invoice open over the Invoices tab — an item's page links here with `?invoice=<id>`.
+const invoice = qs.param("invoice");
+const addingInvoice = ref(false);
 
-/** The page's one verb, in the header on a desk and the phone's bottom bar (contract §9 rule 2). */
-const actions = computed<WalkAction[]>(() =>
-  session.can("maintenance") ? [{ label: "Add equipment", primary: true, onClick: () => (creating.value = true) }] : [],
-);
+/**
+ * The page's one verb, in the header on a desk and the phone's bottom bar (contract §9 rule 2): on
+ * the Invoices tab it is Add invoice, since that is the list a person is looking at; elsewhere Add
+ * equipment.
+ */
+const actions = computed<WalkAction[]>(() => {
+  if (!session.can("maintenance")) return [];
+  return tab.value === "invoices"
+    ? [{ label: "Add invoice", primary: true, onClick: () => (addingInvoice.value = true) }]
+    : [{ label: "Add equipment", primary: true, onClick: () => (creating.value = true) }];
+});
 </script>
 
 <template>
@@ -112,12 +127,16 @@ const actions = computed<WalkAction[]>(() =>
     <div :id="`equipment-panel-${tab}`" role="tabpanel" :aria-labelledby="`equipment-tab-${tab}`">
       <EquipmentOnTrucksPanel v-if="tab === 'trucks'" />
       <EquipmentDriversPanel v-else-if="tab === 'drivers'" />
-      <EquipmentInventoryPanel v-else />
+      <EquipmentInventoryPanel v-else-if="tab === 'shop'" />
+      <EquipmentInvoicesPanel v-else @open="invoice = $event" />
     </div>
 
     <AssetDrawer :open="creating" @close="creating = false" />
     <AssetTypesDrawer :open="typesOpen" @close="typesOpen = false" />
     <KitRulesDrawer v-if="KIT_RULES_SHOWN" :open="rulesOpen" @close="rulesOpen = false" />
+    <!-- Mounted while open, as the detail drawer is: neither has anything to keep between openings. -->
+    <InvoiceDrawer v-if="addingInvoice" :open="true" @close="addingInvoice = false" @saved="invoice = $event.id" />
+    <InvoiceDetailDrawer v-if="invoice" :open="true" :purchase-id="invoice" @close="invoice = ''" @open-invoice="invoice = $event" />
     <WalkActions v-if="actions.length" :actions="actions" bar />
   </div>
 </template>

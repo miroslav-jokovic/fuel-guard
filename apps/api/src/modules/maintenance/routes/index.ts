@@ -16,6 +16,7 @@ import { inventoryAssetsRouter } from "./inventoryAssets.js";
 import { inventoryAssetTypesRouter } from "./inventoryAssetTypes.js";
 import { inventoryUnitsRouter, kitExpectationsRouter } from "./inventoryUnits.js";
 import { inventoryLabelsRouter } from "./inventoryLabels.js";
+import { inventoryPurchasesRouter } from "./inventoryPurchases.js";
 import { printingRouter } from "./printing.js";
 import { fleetpalCostRouter } from "./fleetpalCost.js";
 import { fleetpalUnitsRouter } from "./fleetpalUnits.js";
@@ -77,6 +78,8 @@ export function maintenanceRouter(): Router {
   // would have been load-bearing.
   router.use("/inventory/assets", inventoryAssetsRouter());
   router.use("/inventory/asset-types", inventoryAssetTypesRouter());
+// M10b (0530): equipment bills, before the catch-all `/inventory` for the reason above.
+router.use("/inventory/purchases", inventoryPurchasesRouter());
   // I9's units: the same assets read from the other end — what a truck is expected to hold against
   // what it does. `kit-expectations` is the rules behind those numbers, and gets its own prefix for
   // the reason `asset-types` did: `/units/kit-expectations` would collide with `/units/:kind/:id`.

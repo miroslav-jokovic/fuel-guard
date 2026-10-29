@@ -48,6 +48,7 @@ const tabletWith = (code: string, label: string, notReturned: boolean): ScanResu
     purchasedAt: null,
     purchaseCost: null,
     warrantyExpiresAt: null,
+    purchaseId: null,
     imagePath: null,
     notes: null,
   },

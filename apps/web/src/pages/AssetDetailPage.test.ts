@@ -48,6 +48,7 @@ const asset = (over: Partial<AssetDto> = {}): AssetDto => ({
   purchasedAt: "2025-11-02",
   purchaseCost: 429,
   warrantyExpiresAt: null,
+  purchaseId: null,
   imagePath: null,
   notes: null,
   ...over,
@@ -71,7 +72,7 @@ const movement = (i: number, over: Partial<AssetMovementDto> = {}): AssetMovemen
   ...over,
 });
 
-const detail = ref<{ asset: AssetDto; photoUrl: string | null }>({ asset: asset(), photoUrl: null });
+const detail = ref<{ asset: AssetDto; photoUrl: string | null; purchase?: { id: string; vendor: string; invoiceNumber: string; invoiceDate: string } | null }>({ asset: asset(), photoUrl: null });
 const history = ref<{ movements: AssetMovementDto[]; total: number }>({ movements: [], total: 0 });
 
 vi.mock("@/features/inventory/useAssets", async () => {
@@ -259,6 +260,21 @@ describe("what the header says about the thing", () => {
     expect(facts.findAll("dt").map((d) => d.text())).not.toContain("Notes");
     detail.value = { asset: asset({ notes: "Cracked corner" }), photoUrl: null };
     expect(page().get("dl").findAll("dt").map((d) => d.text())).toContain("Notes");
+  });
+
+  it("names the invoice that paid for it and links to it on Equipment's Invoices tab (M10b)", () => {
+    expect(page().find('[data-test="asset-invoice"]').exists()).toBe(false);
+    expect(page().get("dl").findAll("dt").map((d) => d.text())).not.toContain("Invoice");
+    const BILL = "66666666-6666-4666-8666-666666666666";
+    detail.value = { asset: asset(), photoUrl: null, purchase: { id: BILL, vendor: "AT&T Business", invoiceNumber: "INV-1001", invoiceDate: "2026-10-02" } };
+    const w = page();
+    const invoice = w.get('[data-test="asset-invoice"]');
+    expect(invoice.text()).toBe("AT&T Business INV-1001");
+    expect(w.findAllComponents(RouterLinkStub).find((l) => l.text() === "AT&T Business INV-1001")!.props("to")).toEqual({
+      path: "/shop/assets",
+      query: { tab: "invoices", invoice: BILL },
+    });
+    expect(w.get("dl").text()).toContain("10/02/2026");
   });
 
   it("says out loud what retiring did, because nothing can be recorded against it afterwards", () => {

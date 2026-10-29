@@ -93,6 +93,7 @@ const ASSET: AssetDto = {
   purchasedAt: null,
   purchaseCost: null,
   warrantyExpiresAt: null,
+  purchaseId: null,
   imagePath: null,
   notes: null,
 };

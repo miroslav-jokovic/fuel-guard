@@ -87,6 +87,7 @@ const id = computed(() => String(route.params.id ?? ""));
 
 const { data, isLoading, isError, error, refetch, isFetching } = useAssetQuery(id);
 const asset = computed(() => data.value?.asset ?? null);
+const purchase = computed(() => data.value?.purchase ?? null);
 const canManage = computed(() => session.can("maintenance"));
 const opens = useOpens();
 const labelLink = computed(() => ({ path: "/shop/labels", query: { asset: id.value } }));
@@ -170,6 +171,8 @@ const facts = computed<Fact[]>(() => {
     ...(a.imei ? [{ label: "IMEI", value: a.imei }] : []),
     { label: "Make and model", value: [a.manufacturer, a.model].filter(Boolean).join(" ") || null },
     { label: "Bought", value: a.purchasedAt ? fmtDate(a.purchasedAt) : null },
+    // M10b: the bill that paid for it, a link to the invoice — shown only when there is one.
+    ...(purchase.value ? [{ key: "invoice", label: "Invoice", value: `${purchase.value.vendor} ${purchase.value.invoiceNumber}` }] : []),
     { label: "Warranty until", value: a.warrantyExpiresAt ? fmtDate(a.warrantyExpiresAt) : null },
     ...(a.notes ? [{ label: "Notes", value: a.notes }] : []),
   ];
@@ -254,6 +257,17 @@ const uploadAccept = acceptFor(INVENTORY_PHOTO_CONTENT_TYPES);
             </div>
           </div>
           <FactList class="mt-4" :facts="facts">
+            <template #value-invoice>
+              <RouterLink
+                v-if="purchase"
+                :to="{ path: '/shop/assets', query: { tab: 'invoices', invoice: purchase.id } }"
+                class="font-medium text-link hover:text-link-hover"
+                data-test="asset-invoice"
+              >
+                {{ purchase.vendor }} {{ purchase.invoiceNumber }}
+              </RouterLink>
+              <span v-if="purchase" class="block text-xs font-normal text-ink-tertiary">{{ fmtDate(purchase.invoiceDate) }}</span>
+            </template>
             <template #value-holder>
               <template v-if="asset.holder.kind === 'driver'">With {{ asset.holder.label ?? "a driver" }}</template>
               <template v-else>{{ asset.holder.label ?? "Not placed" }}</template>
