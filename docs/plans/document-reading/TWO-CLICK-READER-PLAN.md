@@ -509,3 +509,20 @@ slower reader on warm-booted reads, which is the measurement that would make the
   Placard census invariant 1 now knows both exceptions and gains invariant 7 (CLASS 9 never required); its `own()`
   reads a Class 9 row's permitted placard — without that every load holding one would have been skipped as "withheld".
   Mutations: removing either exception fails its census test. Pinned in `lint:reader-gate` (15 files).
+- **2026-10-29 — TC1.2 MERGED as #1841.**
+- **2026-10-29 — TC1.3 (Q-PC6 (a)): an omitted subsidiary is a paper defect only where §172.402 requires its label
+  (engine 0.27.0).** `@hazmat/data` derives each PG row's `subsidiaryLabels` beside `subsidiaryClasses` at load (column
+  (6) is per row — UN1287 PG II is labelled 3, PG III nothing); the cut files and their checksums are unchanged, and the
+  guard test names the new derived field. New `bol/subsidiaryLabels.ts`: required on a non-bulk package per column (6);
+  not required on bulk (placarded at any quantity, §172.400(a)(2)); `unknown` — never called wrong — for a bulk Class 9
+  (its placard waived, §172.504(f)(9)), a subsidiary 3 in PG III (§172.402(a)(2)'s "*" flash-point exception), a Class 8's
+  6.1 (§172.400a(c)), an LQ claim, or unknown packaging. `paper_class_pg_match` fails `subsidiary_omitted` (actor:
+  shipper_must_correct, like `class_format` — the placards come from the table, never the paper) only where a label is
+  required; otherwise it passes with `omittedSubsidiaries` and `labelNeeds` in its facts. Catalogue sentence + actor added
+  in `bolFindingCatalogue.ts`. Census (in `paperGoldenCensus.test.ts`, both datasets): every non-explosive row whose own
+  cell names a subsidiary × {bulk, non-bulk, unknown} × {no claim, LQ}, printed primary-only and printed in full,
+  against the regulation's text — and it found the table's same-name sibling rows with different labels (UN1230
+  Methanol PG II is "3, 6.1" and "3"): a paper fitting any of them is not wrong, which the engine already did through the
+  resolver and the first oracle did not. Mutations: bulk treated as labelled, or the PG III "*" dropped, each fail it.
+  **Replay of the 18 production reads** (10 replayable): `doc:replay` summary identical with and without the change, and
+  all 63 `paper_class_pg_match` results identical in outcome and reason — no stored paper omits a required subsidiary.

@@ -8,6 +8,7 @@
 import type { PaperRuleResult } from "./paperTypes.js";
 import { blank, classMayBeOmitted, formatClass, gated, lineLabel, make, requiredPgs, rowOf, sameNameRows, type LineCtx } from "./paperSupport.js";
 import { layoutDescription } from "./paperDescriptionText.js";
+import { printedClasses, subsidiaryLabelNeed } from "./subsidiaryLabels.js";
 
 /**
  * paper_sequence — §172.202(a)(1)–(4) and (b): id, PSN, class and PG are all printed, and — when the line's
@@ -103,8 +104,11 @@ export function paperPsnMatchesHmt(ctx: LineCtx): PaperRuleResult {
  * `class_format` failure — the shipper's to correct, not the driver's to refuse — and only when nothing else on the
  * line is wrong: with a wrong PG beside it the line is `class_or_pg_wrong`, the format noted in its facts. A
  * subsidiary the table does not list is `class_mismatch` from the resolver and stays wrong. A subsidiary printed
- * nowhere passes here as before: §172.202(a)(3) excuses it where no subsidiary label is required under §172.402,
- * and nothing in this engine derives §172.402's label requirements yet — PLACARD-CALCULATOR-RELIABILITY-PLAN Q-PC6.
+ * nowhere is `subsidiary_omitted` only where §172.402 REQUIRES its label (subsidiaryLabels.ts; Q-PC6 (a), TC1.3):
+ * §172.202(a)(3) excuses it where the label is not required, and where that turns on what only the shipper knows
+ * (a flash point, a tissue-only toxicity, an LQ claim, an unknown packaging) it passes with the omission in its facts.
+ * It is the shipper's to reprint, like the punctuation: the hazard is the table's, and the engine never reads it
+ * from the paper.
  */
 export function paperClassPgMatch(ctx: LineCtx): PaperRuleResult {
   const r = make("paper_class_pg_match", ctx.index);
@@ -141,7 +145,14 @@ export function paperClassPgMatch(ctx: LineCtx): PaperRuleResult {
   if (classProblem || pgProblem) return r("fail", "class_or_pg_wrong", facts);
   if (!row) return r("cannot_tell", "line_unresolved", { lineLabel: label });
   if (noClassInTable && !blank(p.hazardClass)) return r("cannot_tell", "class_not_in_table", facts);
-  return r("pass", "matches", facts);
+  const labels = row.entry.pgRows.find((x) => x.pg === (row.pg ?? null))?.subsidiaryLabels;
+  const printed = new Set(printedClasses(p.hazardClass));
+  const omitted = (labels ?? []).filter((c) => !printed.has(c));
+  if (omitted.length === 0 || blank(p.hazardClass)) return r("pass", "matches", facts);
+  const needs = omitted.map((code) => ({ code, ...subsidiaryLabelNeed({ primary: row.entry.hazardClass ?? "", code, pg: row.pg ?? null, packagingKind: ctx.resolved.packagingKind, limitedQuantity: ctx.resolved.claimedLimitedQuantity }) }));
+  const required = needs.filter((n) => n.need === "required").map((n) => n.code);
+  const omission = { ...facts, omittedSubsidiaries: omitted, labelNeeds: needs.map((n) => `${n.code}:${n.need}:${n.because}`) };
+  return required.length ? r("fail", "subsidiary_omitted", { ...omission, requiredLabels: required }) : r("pass", "matches", omission);
 }
 
 /** §172.202(a)(5)(iii)(A)'s examples are "1 cargo tank" and "2 IBCs"; these are the bulk packagings by name. */

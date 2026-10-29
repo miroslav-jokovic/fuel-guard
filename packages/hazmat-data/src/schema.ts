@@ -19,6 +19,9 @@ export const pgRowSchema = z.object({
   /** null for entries with an empty PG column — Class 2 gases (UN1075/UN1978 have NO packing group). */
   pg: packingGroupSchema.nullable(),
   labelCodes: z.array(z.string()).default([]),
+  /** This row's subsidiary labels — its column (6) codes other than the primary — DERIVED by `withSubsidiaryClasses`
+   *  at load (TWO-CLICK-READER-PLAN TC1.3), never stored in a cut: optional, so no minted file's checksum moves. */
+  subsidiaryLabels: z.array(z.string()).optional(),
   specialProvisions: z.array(z.string()).default([]),
   /** Column 8A — the §173.* EXCEPTIONS section for this row ("150" → §173.150), or null when the
    *  printed cell is "None"/blank. The key LQ trigger (H-LQ). OPTIONAL (not defaulted) on purpose:

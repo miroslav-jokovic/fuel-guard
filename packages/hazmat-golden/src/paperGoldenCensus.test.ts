@@ -372,5 +372,48 @@ for (const version of VERSIONS) {
         if (!rows.every((r) => d.mayWait?.(r))) expect(failed, `${failed} of ${rows.length} rows failed`).toBeGreaterThan(rows.length / 2);
       }, 120_000);
     }
+
+    // Q-PC6 (a), TC1.3 — a subsidiary printed nowhere is wrong only where §172.402 requires its label. The row's labels
+    // are read here from its own column (6) text (a code of the entry's subsidiary list that the row's cell names), and
+    // the expectation from the regulation as written, not from the engine's module:
+    //   §172.400(a)(1)-(2)  non-bulk packages are labelled; a bulk packaging other than a tank only "unless placarded",
+    //                       and a bulk packaging placards at any quantity (§172.504(c)) — Class 9 aside, §172.504(f)(9);
+    //   §172.402(a)(2) "*"  a subsidiary 3 in PG III may go unlabelled by highway when the flash point is ≥ 38 °C;
+    //   §172.400a(c)        a Class 8's 6.1 label may go when its toxicity is only the corrosive destruction of tissue;
+    // and an LQ claim or unknown packaging is the shipper's to settle. Required → `subsidiary_omitted`; else → pass.
+    // The table prints some materials twice with one id, name and PG and different labels (UN1230 Methanol PG II is
+    // "3, 6.1" and "3"): a paper that fits ANY such row is not wrong, so a label is owed only when every one owes it.
+    it("calls an omitted subsidiary wrong exactly where §172.402 requires its label — every row × packaging × LQ claim", () => {
+      const named = (raw: string, code: string) => (code.includes(".") ? raw.includes(code) : new RegExp(`(^|[^\\d.])${code}(?![\\d.])`).test(raw));
+      const bad: string[] = [];
+      let required = 0, excused = 0;
+      for (const row of c.rows) {
+        const primary = row.e.hazardClass;
+        if (!primary || primary.startsWith("1")) continue;
+        const labelsOf = (r: Row) => r.e.subsidiaryClasses.filter((code) => named((r.e.pgRows.find((x) => x.pg === r.pg)?.labelCodes ?? []).join(" "), code));
+        const labels = labelsOf(row);
+        if (labels.length === 0) continue;
+        const siblings = c.rows.filter((r) => r.e.idPrefix === row.e.idPrefix && r.e.idNumber === row.e.idNumber && r.pg === row.pg &&
+          r.e.hazardClass === primary && r.e.psnPrinted.toLowerCase() === row.e.psnPrinted.toLowerCase());
+        for (const packaging of ["bulk", "non_bulk", null] as const) {
+          for (const lq of [null, true]) {
+            const owes = (r: Row) => labelsOf(r).some((code) => !(code === "3" && r.pg === "III") && !(code === "6.1" && primary === "8"));
+            const owed = packaging === "non_bulk" && !lq && siblings.every(owes);
+            const base = c.golden(row, packaging === "bulk");
+            const paper = { ...reprint(base, { cls: primary }), resolved: { ...base.resolved, packagingKind: packaging, claimedLimitedQuantity: lq } };
+            const r = c.audit(paper).find((x) => x.ruleId === "paper_class_pg_match")!;
+            const at = `${row.e.entryId} PG ${row.pg ?? "-"} ${packaging ?? "unknown"}${lq ? " LQ" : ""} prints "${primary}" (labels ${labels.join(",")})`;
+            if (owed && r.reason !== "subsidiary_omitted") bad.push(`MISSED ${at}: ${r.outcome} ${r.reason}`);
+            if (!owed && r.reason === "subsidiary_omitted") bad.push(`FALSE WRONG ${at}`);
+            if (owed) required++; else excused++;
+            const full = { ...reprint(base, { cls: `${primary} (${labels.join(", ")})` }), resolved: paper.resolved };
+            if (c.audit(full).find((x) => x.ruleId === "paper_class_pg_match")!.reason === "subsidiary_omitted") bad.push(`FALSE WRONG ${at} printed in full`);
+          }
+        }
+      }
+      expect(required).toBeGreaterThan(300);
+      expect(excused).toBeGreaterThan(required);
+      expect(bad.slice(0, 15), `${bad.length} wrong`).toEqual([]);
+    }, 300_000);
   });
 }

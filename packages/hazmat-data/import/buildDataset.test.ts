@@ -124,11 +124,14 @@ describe("the registered datasets are the files their cuts wrote", () => {
     }
   });
 
+  // TC1.3 (2026-10-29) added each row's derived `subsidiaryLabels`; it is the only other field loading may add.
   it("what consumers load is the minted file plus the derived subsidiary classes, and nothing else", () => {
+    const bare = (e: ReturnType<typeof loadDataset>["entries"][number]) =>
+      ({ ...e, subsidiaryClasses: [], pgRows: e.pgRows.map(({ subsidiaryLabels: _derived, ...r }) => r) });
     for (const v of listDatasetVersions()) {
       const cut = loadDatasetAsCut(v);
       const loaded = loadDataset(v);
-      expect(loaded.entries.map((e) => ({ ...e, subsidiaryClasses: [] }))).toEqual(cut.entries.map((e) => ({ ...e, subsidiaryClasses: [] })));
+      expect(loaded.entries.map(bare)).toEqual(cut.entries.map(bare));
       expect({ ...loaded, entries: [] }).toEqual({ ...cut, entries: [] });
     }
   });

@@ -61,10 +61,15 @@ export function subsidiaryClassesOf(hazardClass: string | null, pgRows: Readonly
   return out;
 }
 
-/** The dataset with `subsidiaryClasses` filled from the label codes wherever the cut's file left it empty. */
+/**
+ * The dataset with `subsidiaryClasses` filled from the label codes wherever the cut's file left it empty, and each row's
+ * own `subsidiaryLabels` beside it (TC1.3). Column (6) is per packing group — UN1287 "Rubber solution" is labelled 3 in PG II
+ * and carries no label in PG III — so whether a printed line owes a subsidiary is a question of its row, not the entry.
+ */
 export function withSubsidiaryClasses(dataset: Dataset): Dataset {
-  const entries: HmtEntry[] = dataset.entries.map((e) =>
-    e.subsidiaryClasses.length > 0 ? e : { ...e, subsidiaryClasses: subsidiaryClassesOf(e.hazardClass, e.pgRows) },
-  );
+  const entries: HmtEntry[] = dataset.entries.map((e) => {
+    const pgRows = e.pgRows.map((r) => ({ ...r, subsidiaryLabels: subsidiaryClassesOf(e.hazardClass, [r]) }));
+    return { ...e, pgRows, subsidiaryClasses: e.subsidiaryClasses.length > 0 ? e.subsidiaryClasses : subsidiaryClassesOf(e.hazardClass, e.pgRows) };
+  });
   return { ...dataset, entries };
 }

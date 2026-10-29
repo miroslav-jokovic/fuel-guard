@@ -122,7 +122,7 @@ describe("computePlacards — fuel scope (§172.504)", () => {
   });
 
   it("stamps the bumped engine version", () => {
-    expect(evaluateLoad(load()).engineVersion).toBe("0.26.0");
+    expect(evaluateLoad(load()).engineVersion).toBe("0.27.0");
   });
 
   // D4-revised Table 1 gate: recognized and blocked, never assessed (fail-closed, D2).
