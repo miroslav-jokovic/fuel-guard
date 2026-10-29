@@ -54,12 +54,19 @@ vi.mock("@/features/inventory/useUnits", async () => {
     useDeleteKitExpectation: () => ({ mutateAsync: vi.fn(), isPending: r(false) }),
   };
 });
+/** DE2b: the database's *Tablets not returned* count, and every filter the list was asked with. */
+const notReturned = ref(0);
+const assetFilters: Array<{ value: Record<string, unknown> }> = [];
 vi.mock("@/features/inventory/useAssets", async () => {
   const { ref: r } = await import("vue");
   return {
     ASSETS_PAGE_SIZE: 50,
-    useAssetsQuery: () => ({ data: r({ assets: [], total: 7 }), isLoading: r(false), isError: r(false), refetch: vi.fn() }),
+    useAssetsQuery: (f: { value: Record<string, unknown> }) => {
+      assetFilters.push(f);
+      return { data: r({ assets: [], total: 7 }), isLoading: r(false), isError: r(false), refetch: vi.fn() };
+    },
     useAssetTypesQuery: () => ({ data: r([]) }),
+    useNotReturnedCountQuery: () => ({ data: notReturned }),
   };
 });
 vi.mock("@/composables/useOpens", () => ({ useOpens: () => () => true }));
@@ -87,6 +94,8 @@ const tabsOf = (w: Mounted) => w.findComponent(AppTabs).props("tabs") as Array<{
 beforeEach(() => {
   setActivePinia(createPinia());
   units.value = { units: [], total: 0 };
+  notReturned.value = 0;
+  assetFilters.length = 0;
 });
 
 describe("Equipment's two tabs", () => {
@@ -150,5 +159,27 @@ describe("Equipment's two tabs", () => {
     expect(router.currentRoute.value.query).toEqual({ tab: "inventory" });
     expect(w.text()).toContain("Types of equipment");
     expect(w.text()).not.toContain("What each truck should carry");
+  });
+});
+
+describe("Tablets not returned (DE2b, D-DE3)", () => {
+  it("states the database's count and offers the list, which asks the API for exactly those", async () => {
+    notReturned.value = 3;
+    const w = await page("/shop/assets?tab=inventory");
+    const callout = w.find("[data-test='not-returned-callout']");
+    expect(callout.text()).toContain("3 tablets are still with a driver who has left.");
+    const returned = w.findAllComponents(FilterSelect).find((c) => c.props("label") === "Returned")!;
+    expect(returned.props("options")).toContainEqual({ value: "not-returned", label: "Not returned", count: "3" });
+
+    const filtered = await page("/shop/assets?tab=inventory&returned=not-returned");
+    expect(assetFilters.at(-1)!.value).toMatchObject({ notReturned: true });
+    // The warning has done its job once the list is showing them.
+    expect(filtered.find("[data-test='not-returned-callout']").exists()).toBe(false);
+  });
+
+  it("says nothing when every tablet has come back", async () => {
+    const w = await page("/shop/assets?tab=inventory");
+    expect(w.find("[data-test='not-returned-callout']").exists()).toBe(false);
+    expect(assetFilters.at(-1)!.value.notReturned).toBeUndefined();
   });
 });

@@ -4,6 +4,7 @@ import { useRouter } from "vue-router";
 import {
   useQueryState,
   AppButton as BaseButton,
+  AppCallout,
   DataWorkspace,
   FilterBar,
   DataTable,
@@ -13,7 +14,12 @@ import {
 import { ASSET_STATUSES, ASSET_STATUS_LABELS, type AssetDto } from "@silvicom/shared";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
 import KebabMenu from "@/components/KebabMenu.vue";
-import { ASSETS_PAGE_SIZE, useAssetsQuery, useAssetTypesQuery } from "@/features/inventory/useAssets";
+import {
+  ASSETS_PAGE_SIZE,
+  useAssetsQuery,
+  useAssetTypesQuery,
+  useNotReturnedCountQuery,
+} from "@/features/inventory/useAssets";
 import { BADGE_BASE, assetStatusBadge, toneClass } from "@/lib/badges";
 
 /**
@@ -51,6 +57,13 @@ import { BADGE_BASE, assetStatusBadge, toneClass } from "@/lib/badges";
  *
  * ── THE FILTERS' "EVERYTHING" IS `""` ─────────────────────────────────────────────────────────
  * `FilterSelect` reads any non-empty value as applied. `PartsPage.vue` carries the measurement.
+ *
+ * ── TABLETS NOT RETURNED IS THE DATABASE'S COUNT (DE2b, D-DE3) ────────────────────────────────
+ * The office's chase list: tablets still with a driver who has left. The number is the API's `total`
+ * for `?notReturned=true&limit=1` — never the rows on screen, which stop at fifty — and it appears in
+ * two places that are one control: the *Returned* filter's count, and, while there are any and the
+ * filter is off, a warning line whose button applies it. A driver's tablet reads "Dana Reyes" in the
+ * holder column with the *Not returned* pill beside it.
  */
 
 const router = useRouter();
@@ -68,8 +81,16 @@ const qs = useQueryState();
 const search = qs.param("search");
 const status = qs.param("status", ASSET_STATUSES);
 const typeId = qs.param("kind");
+const returned = qs.param("returned", ["not-returned"] as const);
 const page = qs.page();
-watch([search, status, typeId], () => (page.value = 1));
+watch([search, status, typeId, returned], () => (page.value = 1));
+
+const notReturnedQ = useNotReturnedCountQuery();
+const notReturnedCount = computed(() => notReturnedQ.data.value ?? 0);
+const returnedOptions = computed(() => [
+  { value: "", label: "All equipment" },
+  { value: "not-returned", label: "Not returned", count: String(notReturnedCount.value) },
+]);
 
 const { data: types } = useAssetTypesQuery();
 const typeOptions = computed(() => [
@@ -77,16 +98,19 @@ const typeOptions = computed(() => [
   ...(types.value ?? []).map((t) => ({ value: t.id, label: t.name })),
 ]);
 
-const filtered = computed(() => Boolean(search.value || status.value || typeId.value));
-const activeFilterCount = computed(() => [search.value.trim(), status.value, typeId.value].filter(Boolean).length);
+const filtered = computed(() => Boolean(search.value || status.value || typeId.value || returned.value));
+const activeFilterCount = computed(
+  () => [search.value.trim(), status.value, typeId.value, returned.value].filter(Boolean).length,
+);
 function resetFilters() {
-  qs.set({ search: undefined, status: undefined, kind: undefined });
+  qs.set({ search: undefined, status: undefined, kind: undefined, returned: undefined });
 }
 
 const filter = computed(() => ({
   search: search.value.trim() || undefined,
   status: (status.value || undefined) as AssetDto["status"] | undefined,
   assetTypeId: typeId.value || undefined,
+  notReturned: returned.value === "not-returned" || undefined,
   page: page.value,
 }));
 const assets = useAssetsQuery(filter);
@@ -106,6 +130,13 @@ const openAsset = (row: Record<string, unknown>) =>
 
 <template>
   <DataWorkspace>
+    <AppCallout v-if="notReturnedCount > 0 && !returned" tone="warning" data-test="not-returned-callout">
+      {{ notReturnedCount === 1 ? "1 tablet is" : `${notReturnedCount} tablets are` }} still with a driver who has left.
+      <template #actions>
+        <BaseButton size="sm" @click="returned = 'not-returned'">Show them</BaseButton>
+      </template>
+    </AppCallout>
+
     <FilterBar
       v-model:search="search"
       embedded
@@ -118,6 +149,7 @@ const openAsset = (row: Record<string, unknown>) =>
       <template #filters>
         <FilterSelect v-model="typeId" label="Kind" :options="typeOptions" />
         <FilterSelect v-model="status" label="Status" :options="STATUS_OPTIONS" />
+        <FilterSelect v-model="returned" label="Returned" :options="returnedOptions" />
       </template>
     </FilterBar>
 
@@ -132,7 +164,11 @@ const openAsset = (row: Record<string, unknown>) =>
       @retry="() => assets.refetch()"
     >
       <template #cell-holder="{ row }">
-        <span v-if="row.holder.label" class="text-ink">
+        <span v-if="row.holder.kind === 'driver'" class="text-ink">
+          {{ row.holder.label ?? "A driver" }}
+          <span v-if="row.holder.notReturned" :class="[BADGE_BASE, toneClass('danger'), 'ml-1']">Not returned</span>
+        </span>
+        <span v-else-if="row.holder.label" class="text-ink">
           {{ row.holder.label }}
           <span v-if="row.holder.inferredDriverName" class="text-ink-tertiary">
             · {{ row.holder.inferredDriverName }}
@@ -155,7 +191,8 @@ const openAsset = (row: Record<string, unknown>) =>
         </KebabMenu>
       </template>
       <template #empty>
-        <p v-if="search">Nothing matches that. Try its number, its serial, or the tag on it.</p>
+        <p v-if="returned">Every tablet given to a driver who has left has come back.</p>
+        <p v-else-if="search">Nothing matches that. Try its number, its serial, or the tag on it.</p>
         <p v-else-if="filtered">
           Nothing matches those filters. Clear them to see everything the shop owns.
         </p>

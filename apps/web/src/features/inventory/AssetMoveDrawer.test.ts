@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { mount } from "@vue/test-utils";
 import { createPinia, setActivePinia } from "pinia";
 import { ref } from "vue";
-import type { AssetDto } from "@silvicom/shared";
+import type { AssetDto, AssetTypeDto } from "@silvicom/shared";
 
 /**
  * Move an asset, or report a problem (INVENTORY-PLAN.md I8).
@@ -31,7 +31,37 @@ const record = vi.hoisted(() => ({
   mutateAsync: vi.fn(async (_input: Record<string, unknown>) => ({ id: "m-1" })),
   isPending: { value: false },
 }));
-vi.mock("@/features/inventory/useAssets", () => ({ useMoveAsset: () => record }));
+const DANA = "66666666-6666-4666-8666-666666666666";
+const LEE = "77777777-7777-4777-8777-777777777777";
+const GONE = "88888888-8888-4888-8888-888888888888";
+const BENCH = "99999999-9999-4999-8999-999999999999";
+/** Mutable per test: the type's `held_by` is what the drawer reads, never its name. */
+const heldBy = vi.hoisted(() => ({ value: "unit" as "unit" | "driver" }));
+vi.mock("@/features/inventory/useAssets", () => ({
+  useMoveAsset: () => record,
+  useAssetTypesQuery: () => ({
+    data: ref<AssetTypeDto[]>([
+      {
+        id: "33333333-3333-4333-8333-333333333333",
+        name: "Tablet",
+        category: null,
+        serialized: true,
+        defaultKitQuantity: 1,
+        imagePath: null,
+        heldBy: heldBy.value,
+      },
+    ]),
+  }),
+}));
+vi.mock("@/composables/useDrivers", () => ({
+  useDriversQuery: () => ({
+    data: ref([
+      { id: "66666666-6666-4666-8666-666666666666", full_name: "Dana Reyes", status: "active", archived_at: null },
+      { id: "77777777-7777-4777-8777-777777777777", full_name: "Lee Park", status: "on_leave", archived_at: null },
+      { id: "88888888-8888-4888-8888-888888888888", full_name: "Sam Gone", status: "terminated", archived_at: null },
+    ]),
+  }),
+}));
 vi.mock("@/composables/useVehicles", () => ({
   useVehiclesQuery: () => ({ data: ref([{ id: VEHICLE, unit_number: "654" }]) }),
 }));
@@ -69,9 +99,9 @@ const ASSET: AssetDto = {
 
 const LOCATIONS = [{ id: CRIB, name: "Tool crib", code: "CRIB", address: null, active: true }];
 
-const drawer = (mode: "move" | "report") =>
+const drawer = (mode: "move" | "report", asset: AssetDto = ASSET, locations = LOCATIONS) =>
   mount(AssetMoveDrawer, {
-    props: { open: true, asset: ASSET, mode, locations: LOCATIONS } as never,
+    props: { open: true, asset, mode, locations } as never,
     global: { stubs: { SlideOver: SlideOverStub } },
   });
 
@@ -97,6 +127,7 @@ beforeEach(() => {
   setActivePinia(createPinia());
   record.mutateAsync.mockClear();
   record.mutateAsync.mockImplementation(async () => ({ id: "m-1" }));
+  heldBy.value = "unit";
 });
 afterEach(() => {
   vi.useRealTimers();
@@ -195,5 +226,70 @@ describe("moving it", () => {
     expect(w.findAll("label").some((l) => l.text().startsWith("Where it goes"))).toBe(false);
     await submit(w);
     expect(lastSent()).toMatchObject({ reason: "retired", toVehicleId: null, toLocationId: null });
+  });
+});
+
+describe("a driver's tablet (DE2b, D-DE1)", () => {
+  const ON_SHELF: AssetDto = { ...ASSET, holder: { kind: "location", id: CRIB, label: "Tool crib", inferredDriverName: null, since: null } };
+  const WITH_DANA: AssetDto = { ...ASSET, holder: { kind: "driver", id: DANA, label: "Dana Reyes", inferredDriverName: null, since: null } };
+  const vm = (w: W) => w.vm as unknown as { tablet: boolean; verb: string; driverOptions: { value: string }[]; holderOptions: { value: string }[] };
+  const setVerb = async (w: W, v: string) => {
+    vm(w).verb = v;
+    await w.vm.$nextTick();
+  };
+
+  it("never offers a driver for a truck's equipment — 0524 refuses it (IV025)", () => {
+    const w = drawer("move", ON_SHELF);
+    expect(vm(w).tablet).toBe(false);
+    expect(vm(w).holderOptions.some((o) => o.value.startsWith("driver:"))).toBe(false);
+  });
+
+  it("gives a shelved tablet to a driver: reason assigned, the driver's column and no other", async () => {
+    heldBy.value = "driver";
+    const w = drawer("move", ON_SHELF);
+    expect(vm(w).verb).toBe("give");
+    await setHolder(w, `driver:${DANA}`);
+    await submit(w);
+    const sent = lastSent()!;
+    expect(sent).toMatchObject({ reason: "assigned", toDriverId: DANA });
+    expect(sent.toLocationId).toBeNull();
+    expect(sent.toVehicleId).toBeNull();
+    expect(sent.toTrailerId).toBeNull();
+  });
+
+  it("offers only active and on-leave drivers — the pair IV012 admits", () => {
+    heldBy.value = "driver";
+    const offered = vm(drawer("move", ON_SHELF)).driverOptions.map((o) => o.value);
+    expect(offered).toEqual([`driver:${DANA}`, `driver:${LEE}`]);
+    expect(offered).not.toContain(`driver:${GONE}`);
+  });
+
+  it("refuses to send a give that names nobody", async () => {
+    heldBy.value = "driver";
+    await submit(drawer("move", ON_SHELF));
+    expect(record.mutateAsync).not.toHaveBeenCalled();
+  });
+
+  it("hands one driver's tablet straight to another as a transfer, never back to the same driver", async () => {
+    const w = drawer("move", WITH_DANA);
+    await setVerb(w, "give");
+    expect(vm(w).driverOptions.map((o) => o.value)).toEqual([`driver:${LEE}`]);
+    await setHolder(w, `driver:${LEE}`);
+    await submit(w);
+    expect(lastSent()).toMatchObject({ reason: "transferred", toDriverId: LEE });
+  });
+
+  it("opens a driver's tablet on Return, to the shop's only bay", async () => {
+    const w = drawer("move", WITH_DANA);
+    expect(vm(w).verb).toBe("return");
+    await submit(w);
+    expect(lastSent()).toMatchObject({ reason: "removed", toLocationId: CRIB, toDriverId: null });
+  });
+
+  it("preselects no bay when the shop has two — picking one by name would be a guess", async () => {
+    const two = [...LOCATIONS, { id: BENCH, name: "Bench", code: "B1", address: null, active: true }];
+    const w = drawer("move", WITH_DANA, two);
+    await submit(w);
+    expect(lastSent()).toMatchObject({ reason: "removed", toLocationId: null, toDriverId: null });
   });
 });

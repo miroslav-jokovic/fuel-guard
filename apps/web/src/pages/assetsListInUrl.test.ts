@@ -21,6 +21,7 @@ vi.mock("@/features/inventory/useAssets", () => ({
     return { data: ref({ assets: [], total: 120 }), isLoading: ref(false), isError: ref(false), refetch: vi.fn() };
   },
   useAssetTypesQuery: () => ({ data: ref([{ id: "type-tablet", name: "Tablet" }]) }),
+  useNotReturnedCountQuery: () => ({ data: ref(0) }),
 }));
 // The page's On trucks count reads the fleet's kit (M7); empty here, the Inventory tab is under test.
 vi.mock("@/features/inventory/useUnits", () => ({

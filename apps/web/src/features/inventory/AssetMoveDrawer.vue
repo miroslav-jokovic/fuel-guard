@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { computed, reactive, ref } from "vue";
+import { computed, reactive, ref, watch } from "vue";
 import {
   ASSET_MOVEMENT_REASONS,
+  DRIVER_STATUSES_THAT_TAKE_A_TABLET,
   ASSET_MOVEMENT_REASON_LABELS,
   ITEM_CONDITIONS,
   ITEM_CONDITION_LABELS,
@@ -17,12 +18,23 @@ import {
   AppButton as BaseButton,
   AppCombobox,
   AppFormField as FormField,
+  AppSegmentedControl,
   AppTextarea as BaseTextarea,
 } from "@silvicom/ui";
 import SlideOver from "@/components/SlideOver.vue";
 import { useVehiclesQuery } from "@/composables/useVehicles";
 import { useTrailersQuery } from "@/composables/useTrailers";
-import { useMoveAsset } from "./useAssets";
+import { useDriversQuery } from "@/composables/useDrivers";
+import { useAssetTypesQuery, useMoveAsset } from "./useAssets";
+import {
+  TABLET_VERB_LABELS,
+  defaultReturnBay,
+  defaultTabletVerb,
+  isDriverHeld,
+  tabletReason,
+  tabletVerbs,
+  type TabletVerb,
+} from "./driverHeldMove";
 import { useToastStore } from "@/stores/toast";
 
 /**
@@ -46,6 +58,14 @@ import { useToastStore } from "@/stores/toast";
  * the endpoint, narrows the two contract schemas and tones the history rail. `reportAssetSchema`
  * refuses a destination and 0333's CHECK refuses the row, so this is the third of three places the
  * one rule holds, not a fourth statement of it.
+ *
+ * ── A DRIVER'S TABLET MOVES BY VERB, NOT BY REASON (DE2b, D-DE1) ──────────────────────────────
+ * A `held_by = 'driver'` type is given to a driver, returned to the shop, or retired — three verbs,
+ * each choosing its own ledger reason (`driverHeldMove.ts` says why). Its picker lists drivers or bays,
+ * never a truck or trailer, because 0524 refuses those (`IV025`); a truck's equipment never sees a
+ * driver for the same reason. The drivers offered are `DRIVER_STATUSES_THAT_TAKE_A_TABLET` — the pair
+ * `IV012` admits — so the list cannot hold a name the database will refuse. Reports are unchanged:
+ * a tablet reported missing is still the driver's, missing from them.
  */
 
 const props = defineProps<{
@@ -62,6 +82,23 @@ const toast = useToastStore();
 const record = useMoveAsset();
 const { data: vehicles } = useVehiclesQuery();
 const { data: trailers } = useTrailersQuery();
+const { data: types } = useAssetTypesQuery();
+const { data: drivers } = useDriversQuery();
+
+/** A driver-held type's move is the three verbs; its report is the same as anybody's. */
+const tablet = computed(() => props.mode === "move" && isDriverHeld(props.asset, types.value));
+const verbOptions = computed(() => tabletVerbs(props.asset).map((v) => ({ value: v, label: TABLET_VERB_LABELS[v] })));
+const verb = ref<TabletVerb>(defaultTabletVerb(props.asset));
+const driverOptions = computed(() =>
+  (drivers.value ?? [])
+    .filter((d) => !d.archived_at && (DRIVER_STATUSES_THAT_TAKE_A_TABLET as readonly string[]).includes(d.status))
+    // Handing it to the driver who already has it is not a move; 0524 would write a row saying it was.
+    .filter((d) => !(props.asset.holder.kind === "driver" && props.asset.holder.id === d.id))
+    .map((d) => ({ value: `driver:${d.id}`, label: d.full_name })),
+);
+const bayOptions = computed(() =>
+  props.locations.map((l) => ({ value: `location:${l.id}`, label: `${l.name} (${l.code})` })),
+);
 
 /** Minted ONCE, here — see the header. Not in the submit handler, and not in the hook. */
 const movementId = crypto.randomUUID();
@@ -108,9 +145,32 @@ const holderOptions = computed(() => [
  * whatever the payload says. Hiding the field is how the screen agrees with the RPC instead of
  * offering a choice the database will overrule.
  */
-const asksWhere = computed(() => props.mode === "move" && form.reason !== "retired");
+const asksWhere = computed(() =>
+  tablet.value ? verb.value !== "retire" : props.mode === "move" && form.reason !== "retired",
+);
+
+/**
+ * The verb owns the reason and resets the destination: a driver picked for Give is not a bay for
+ * Return. Return opens on the shop's only bay when it has one (`defaultReturnBay`).
+ */
+watch(
+  [tablet, verb],
+  () => {
+    if (!tablet.value) return;
+    form.reason = tabletReason(verb.value, props.asset);
+    const bay = defaultReturnBay(props.locations);
+    form.holder = verb.value === "return" && bay ? `location:${bay}` : "";
+  },
+  { immediate: true },
+);
 
 const errors = ref<Record<string, string>>({});
+
+const submitLabel = computed(() => {
+  if (props.mode === "report") return "Record it";
+  if (tablet.value) return { give: "Give it", return: "Return it", retire: "Retire it" }[verb.value];
+  return "Move it";
+});
 
 function payload(): unknown {
   const [kind, id] = form.holder.split(":");
@@ -121,6 +181,7 @@ function payload(): unknown {
     toLocationId: asksWhere.value && kind === "location" ? id : null,
     toVehicleId: asksWhere.value && kind === "vehicle" ? id : null,
     toTrailerId: asksWhere.value && kind === "trailer" ? id : null,
+    toDriverId: asksWhere.value && kind === "driver" ? id : null,
     condition: form.condition === "" ? undefined : form.condition,
     note: form.note.trim() === "" ? null : form.note,
     occurredAt: occurredAt.value,
@@ -129,6 +190,12 @@ function payload(): unknown {
 
 async function submit() {
   occurredAt.value ??= new Date().toISOString();
+  // Give names a driver. The contract allows "nowhere" for a move, and that is a real answer for a
+  // truck's equipment — but a hand-over to nobody is not one, so the screen asks rather than sending it.
+  if (tablet.value && verb.value === "give" && !form.holder) {
+    errors.value = { toLocationId: "Pick the driver who takes it." };
+    return;
+  }
   const schema = props.mode === "move" ? moveAssetSchema : reportAssetSchema;
   const parsed = schema.safeParse(payload());
   if (!parsed.success) {
@@ -143,7 +210,7 @@ async function submit() {
   errors.value = {};
   try {
     await record.mutateAsync(parsed.data as AssetMovementInput);
-    toast.success(props.mode === "move" ? "Moved" : "Recorded");
+    toast.success(tablet.value ? { give: "Given", return: "Returned", retire: "Retired" }[verb.value] : props.mode === "move" ? "Moved" : "Recorded");
     emit("close");
   } catch (e) {
     // The API's own sentence. `IV020` says the truck already carries the one it is expected to
@@ -157,7 +224,7 @@ async function submit() {
 <template>
   <SlideOver
     :open="open"
-    :title="mode === 'move' ? 'Move this' : 'Report a problem'"
+    :title="mode === 'report' ? 'Report a problem' : tablet ? 'Give or return' : 'Move this'"
     @close="emit('close')"
   >
     <form :id="FORM_ID" class="space-y-4" @submit.prevent="submit">
@@ -166,15 +233,38 @@ async function submit() {
         <p class="mt-0.5 text-xs text-ink-muted">
           {{ asset.assetTypeName }} ·
           {{ asset.holder.label ? `with ${asset.holder.label}` : "nowhere yet" }}
+          <span v-if="asset.holder.notReturned" class="font-medium text-danger-700"> · not returned</span>
         </p>
       </div>
 
-      <FormField v-slot="{ id }" label="What happened" :error="errors.reason">
+      <template v-if="tablet">
+        <AppSegmentedControl v-model="verb" :options="verbOptions" label="What to do with it" />
+        <FormField v-if="verb === 'give'" v-slot="{ id }" label="Driver" :error="errors.toLocationId">
+          <AppCombobox
+            :id="id"
+            v-model="form.holder"
+            :options="driverOptions"
+            placeholder="Who takes it"
+            empty-text="No active or on-leave drivers."
+          />
+        </FormField>
+        <FormField
+          v-else-if="verb === 'return'"
+          v-slot="{ id }"
+          label="Where it goes in the shop"
+          hint="Leave empty if it has not been put on a shelf yet."
+          :error="errors.toLocationId"
+        >
+          <AppCombobox :id="id" v-model="form.holder" :options="bayOptions" placeholder="A bay" empty-text="No bays yet." />
+        </FormField>
+      </template>
+
+      <FormField v-if="!tablet" v-slot="{ id }" label="What happened" :error="errors.reason">
         <AppCombobox :id="id" v-model="form.reason" :options="reasonOptions" placeholder="What happened to it" />
       </FormField>
 
       <FormField
-        v-if="asksWhere"
+        v-if="asksWhere && !tablet"
         v-slot="{ id }"
         label="Where it goes"
         hint="Leave empty to take it out of service without putting it anywhere."
@@ -208,7 +298,7 @@ async function submit() {
       <div class="flex items-center justify-end gap-3">
         <BaseButton variant="ghost" :disabled="record.isPending.value" @click="emit('close')">Cancel</BaseButton>
         <BaseButton :form="FORM_ID" type="submit" variant="primary" :disabled="record.isPending.value">
-          {{ record.isPending.value ? (mode === "move" ? "Moving…" : "Recording…") : mode === "move" ? "Move it" : "Record it" }}
+          {{ record.isPending.value ? "Saving…" : submitLabel }}
         </BaseButton>
       </div>
     </template>

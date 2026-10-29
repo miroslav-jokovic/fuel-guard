@@ -3,7 +3,7 @@ import { computed } from "vue";
 import { IMEI_REFUSAL, readStickerCode, type AssetDto, type ScanResult, type StockLineDto } from "@silvicom/shared";
 import type { AssetFormSeed } from "@/features/inventory/AssetForm.vue";
 import { AppBadge, AppButton as BaseButton } from "@silvicom/ui";
-import { assetStatusBadge } from "@/lib/badges";
+import { BADGE_BASE, assetStatusBadge, toneClass } from "@/lib/badges";
 import ScanStockLine from "@/features/inventory/ScanStockLine.vue";
 import type { DeskVerb } from "@/features/inventory/MovementDrawer.vue";
 
@@ -39,6 +39,12 @@ import type { DeskVerb } from "@/features/inventory/MovementDrawer.vue";
  * matched, `readStickerCode` says what the code IS, and the card offers what fits — an IMEI is a
  * tablet not on file yet ("Add this tablet", the IMEI filled in), a misread IMEI is refused with the
  * form's own sentence, the SIM's number is named, and anything else gets "Add equipment" with it.
+ *
+ * ── A DRIVER'S TABLET NAMES THE DRIVER AND OFFERS RETURN (DE2b, D-DE1/D-DE3) ──────────────────
+ * A tablet handed in at the shop window is scanned here, so the card says whose it is ("Dana Reyes's
+ * tablet") and its first button is Return to the shop — the move drawer opens on Return for a driver's
+ * tablet. *Not returned* (the driver has left, read by the API off the driver's status) is the
+ * danger-tone pill, because that is the tablet the office has been chasing.
  */
 
 export type ScanAction =
@@ -82,6 +88,8 @@ const holderLine = computed(() => {
   // The holder object always exists; "held by nobody" is spelled as a null LABEL, because the API
   // assembles it from whichever of the three columns is set and an unassigned asset sets none.
   const h = props.result.asset.holder;
+  // A driver HOLDS a tablet (D-DE1) — custody, unlike the truck's inferred driver below.
+  if (h.kind === "driver") return `${h.label ?? "A driver"}'s ${props.result.asset.assetTypeName.toLowerCase()}`;
   if (!h.label) return "Not placed anywhere";
   return h.inferredDriverName ? `${h.label} — ${h.inferredDriverName}` : h.label;
 });
@@ -107,6 +115,7 @@ const holderLine = computed(() => {
       <div class="flex items-center gap-2">
         <p class="min-w-0 truncate text-base font-semibold text-ink">{{ result.asset.name }}</p>
         <AppBadge v-if="statusBadge" :tone="statusBadge.tone">{{ statusBadge.label }}</AppBadge>
+        <span v-if="result.asset.holder.notReturned" :class="[BADGE_BASE, toneClass('danger')]">Not returned</span>
       </div>
       <p class="mt-0.5 font-mono text-xs text-ink-secondary">
         {{ result.asset.displayNo }} · {{ result.asset.assetTypeName }}
@@ -115,7 +124,7 @@ const holderLine = computed(() => {
     </div>
     <div v-if="canManage" class="grid grid-cols-2 gap-2">
       <BaseButton block variant="primary" @click="emit('action', { kind: 'asset', mode: 'move', asset: result.asset })">
-        Move
+        {{ result.asset.holder.kind === "driver" ? "Return to shop" : "Move" }}
       </BaseButton>
       <BaseButton block @click="emit('action', { kind: 'asset', mode: 'report', asset: result.asset })">
         Report

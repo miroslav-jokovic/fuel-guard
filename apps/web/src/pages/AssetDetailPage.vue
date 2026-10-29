@@ -41,6 +41,7 @@ import {
   useAttachAssetPhoto,
 } from "@/features/inventory/useAssets";
 import { useLocationsQuery } from "@/features/inventory/useInventory";
+import { useDriversQuery } from "@/composables/useDrivers";
 import { BADGE_BASE, assetMovementMarker, assetStatusBadge, toneClass } from "@/lib/badges";
 import { useOpens } from "@/composables/useOpens";
 import { useSessionStore } from "@/stores/session";
@@ -71,6 +72,12 @@ import { formatDate as fmtDate, formatDateTime as fmtWhen } from "@/lib/format";
  * Titled summary card, status badge top-right, plain fact labels, `text-sm` section headings,
  * `QueryState` for the loading line and the failure with its retry, plain `DataTable` for the lone table, and the photo dropzone only
  * while somebody is adding one. `PartDetailPage.vue` carries the reasoning in full.
+ *
+ * ── A DRIVER'S TABLET IS "WITH DANA REYES" (DE2b, D-DE1/D-DE3) ────────────────────────────────
+ * Custody, said as custody: the holder fact reads "With Dana Reyes" and *Since* is when she took it.
+ * *Not returned* is the danger pill beside the status when she has left. The header's verb is Return
+ * to shop while a driver holds it. History rows name the driver off the roster list (the movement
+ * carries only an id, like a bay's), and fall back to "a driver" for one the list no longer has.
  */
 
 const route = useRoute();
@@ -90,6 +97,7 @@ const rows = computed<AssetMovementDto[]>(() => movements.data.value?.movements 
 
 /** Active only: a move into a bay that has been closed is refused by 0333 (`IV012`). */
 const { data: locations } = useLocationsQuery();
+const { data: drivers } = useDriversQuery();
 
 const editing = ref(false);
 const acting = ref<"move" | "report" | null>(null);
@@ -119,6 +127,7 @@ const fmtTime = (iso: string) =>
 const holderLabel = (h: AssetMovementDto["toHolder"]): string | null => {
   if (!h?.id) return null;
   if (h.kind === "location") return locations.value?.find((l) => l.id === h.id)?.name ?? "a bay";
+  if (h.kind === "driver") return drivers.value?.find((d) => d.id === h.id)?.full_name ?? "a driver";
   return h.kind === "vehicle" ? "a truck" : "a trailer";
 };
 
@@ -152,7 +161,7 @@ const facts = computed<Fact[]>(() => {
   const a = asset.value;
   if (!a) return [];
   return [
-    { key: "holder", label: "Where it is", value: a.holder.label ?? "Not placed" },
+    { key: "holder", label: a.holder.kind === "driver" ? "Who has it" : "Where it is", value: a.holder.label ?? "Not placed" },
     { label: "Since", value: a.holder.since ? fmtWhen(a.holder.since) : null },
     { label: "Kind", value: a.assetTypeName },
     { label: "Condition", value: ITEM_CONDITION_LABELS[a.condition] },
@@ -195,7 +204,9 @@ const uploadAccept = acceptFor(INVENTORY_PHOTO_CONTENT_TYPES);
         <template v-if="canManage">
           <BaseButton @click="acting = 'report'">Report a problem</BaseButton>
           <BaseButton @click="editing = true">Edit</BaseButton>
-          <BaseButton variant="primary" @click="acting = 'move'">Move</BaseButton>
+          <BaseButton variant="primary" @click="acting = 'move'">
+            {{ asset.holder.kind === "driver" ? "Return to shop" : "Move" }}
+          </BaseButton>
         </template>
       </template>
     </PageHeader>
@@ -224,6 +235,7 @@ const uploadAccept = acceptFor(INVENTORY_PHOTO_CONTENT_TYPES);
               <h2 class="text-sm font-semibold text-ink">Details</h2>
             </div>
             <div class="flex shrink-0 items-center gap-2">
+              <span v-if="asset.holder.notReturned" :class="[BADGE_BASE, toneClass('danger')]">Not returned</span>
               <BaseButton
                 v-if="canManage && !data?.photoUrl && !addingPhoto"
                 variant="ghost"
@@ -243,7 +255,8 @@ const uploadAccept = acceptFor(INVENTORY_PHOTO_CONTENT_TYPES);
           </div>
           <FactList class="mt-4" :facts="facts">
             <template #value-holder>
-              {{ asset.holder.label ?? "Not placed" }}
+              <template v-if="asset.holder.kind === 'driver'">With {{ asset.holder.label ?? "a driver" }}</template>
+              <template v-else>{{ asset.holder.label ?? "Not placed" }}</template>
               <!-- D-INV3: the driver is read off the truck at the moment somebody looks, and is
                    stored nowhere. There is no handover and no signature anywhere in this feature. -->
               <span v-if="asset.holder.inferredDriverName" class="block text-xs font-normal text-ink-tertiary">

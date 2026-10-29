@@ -39,6 +39,7 @@ import ExportButton from "@/components/ExportButton.vue";
 import QualificationSection from "@/features/compliance/QualificationSection.vue";
 import SevenDayStatementSection from "@/features/roster/SevenDayStatementSection.vue";
 import DriverContactSection from "@/features/roster/DriverContactSection.vue";
+import DriverEquipmentCard from "@/features/inventory/DriverEquipmentCard.vue";
 import { useDriverQuery } from "@/composables/useDrivers";
 import { useDispatchHoldQuery } from "@/composables/useCompliance";
 import { formatDate } from "@/lib/format";
@@ -139,6 +140,9 @@ const session = useSessionStore();
 // than the cards merely hidden, so no role without the section sends the request, and the cards go with
 // them: a summary reading "Fills 0 · Gallons 0" would claim the driver has never fuelled.
 const canSeeFuel = computed(() => session.canView("fuel"));
+// DE2b: the tablets this driver holds come from the shop's assets route (`maintenance: view`), which a
+// recruiter on this page may not hold — so the card is the matrix's answer, not everybody's.
+const canSeeEquipment = computed(() => session.canView("maintenance"));
 const toast = useToastStore();
 const requestBinder = useRequestBinder();
 async function exportWholeFile(): Promise<void> {
@@ -403,6 +407,8 @@ const fillColumns: DataTableColumn[] = [
           </template>
         </FactList>
       </BaseCard>
+
+      <DriverEquipmentCard v-if="canSeeEquipment" :driver-id="id" />
 
       <BaseCard v-if="canSeeFuel" id="section-fuel" class="scroll-mt-6">
         <h3 class="mb-3 text-sm font-semibold text-ink">MPG history</h3>

@@ -293,3 +293,28 @@ proof none of this replaces — the scanner on an Android tablet, and a printed 
   (D-DE1 confirmed), set once through DE2b's *Held by* setting, not by a migration or a catalogue
   change — `inventoryKitCatalogue.ts`'s Tablet line stays a kit line (D-DE4 counts it through the
   driver). The owner wants the tablet PRs (M9c, DE2a, DE2b) released as soon as DE2b merges.
+- **2026-10-29 — DE2b, the screens** (`claude/inventory-de2b-tablet-screens`). No migration.
+  - *Types of equipment*: a **Who holds one** choice per type — "A truck, trailer or the shop" / "A
+    driver (tablets)" — sent as `heldBy`; 0524's `held_by_conflict` is shown beside the choice in the
+    API's words (the update hook now carries the API's `code` on its Error, SP9's pattern).
+  - *Move drawer*: a driver-held type moves by verb — **Give** to a driver (active + on-leave only,
+    `DRIVER_STATUSES_THAT_TAKE_A_TABLET`, derived in `inventoryDriverHeld.ts` from the employed and
+    left lists; never the driver who already has it), **Return** to the shop (offered while a driver
+    holds it; preselects the shop's bay only when there is exactly one — "the crib" is not a column)
+    and **Retire**. The verb picks the ledger reason (`assigned` / `transferred` / `removed`,
+    `driverHeldMove.ts`). A unit type keeps the truck/trailer/bay picker and never sees a driver. The
+    movement id is still minted once per open (D-INV27).
+  - *Holder everywhere*: Scan card "Dana Reyes's tablet" with **Return to shop**; Inventory tab's
+    holder column; asset page "Who has it — With Dana Reyes", Return to shop in the header, driver
+    names in the history (it read "to a trailer" for a driver end before). **Not returned** is the
+    danger pill on all of them.
+  - *Equipment › Inventory*: **Tablets not returned** — the database's count
+    (`?notReturned=true&limit=1` → `total`) as the *Returned* filter's count, and a warning line with
+    *Show them* while any exist.
+  - *Driver page*: an **Equipment** card (number, name, IMEI's last five, since when, Not returned),
+    shown only for `session.canView("maintenance")` — the assets route's own requirement. To say
+    "since when" the API now fills `holder.since` for `?driverId=` lists only (`sinceGivenTo`, one
+    bounded read; every other list keeps it null, `getAsset`'s reason).
+  - Tests: drawer (7 new), types drawer (4), Scan page (2), asset page (3), Equipment page (2), card
+    (4), driver-page gate (2), API since (2), shared (2); 28 mutants, all killed (one survivor fixed
+    by strengthening its test). **Next:** the owner flips Tablet to "A driver" on staging, then release.
