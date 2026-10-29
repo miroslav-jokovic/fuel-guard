@@ -90,14 +90,19 @@ export type ComplianceStatus = (typeof COMPLIANCE_STATUSES)[number];
  */
 export const COMPLIANCE_DOCUMENT_SUBJECT_TYPES = ["driver", "tractor", "trailer", "load", "organization"] as const;
 /**
- * Every subject `documents` admits — mirrors the SQL check constraint exactly (0476, 0484).
+ * Every subject `documents` admits — mirrors the SQL check constraint exactly (0476, 0484, 0530).
  *
  * `roadside_inspection` (0476, INSPECTION-CHALLENGE-PLAN IC2) is the `safety` section's (D-IC12): its
  * paper is filed and listed only through `/api/roadside-inspections/:id/documents`. It is kept out of
  * the compliance route's list above on purpose — that route answers to `roster` and `equipment`, and
  * neither's reader is a safety reader, so widening its schema would have let one read a citation.
  */
-export const DOCUMENT_SUBJECT_TYPES = [...COMPLIANCE_DOCUMENT_SUBJECT_TYPES, "roadside_inspection"] as const;
+export const DOCUMENT_SUBJECT_TYPES = [
+  ...COMPLIANCE_DOCUMENT_SUBJECT_TYPES, "roadside_inspection",
+  // 0530 (M10a): an equipment bill's paper, filed against its `equipment_purchases` row and read only
+  // through the inventory routes (the `maintenance` section), never the compliance route above.
+  "equipment_purchase",
+] as const;
 export const documentSubjectTypeSchema = z.enum(DOCUMENT_SUBJECT_TYPES);
 export type DocumentSubjectType = (typeof DOCUMENT_SUBJECT_TYPES)[number];
 
@@ -132,8 +137,12 @@ export const ROADSIDE_DOCUMENT_KINDS = [
   "roadside_repair_record",
 ] as const;
 export type RoadsideDocumentKind = (typeof ROADSIDE_DOCUMENT_KINDS)[number];
-/** Every kind `documents` admits — mirrors the SQL check constraint exactly (0476, 0484, 0490). */
-export const DOCUMENT_KINDS = [...COMPLIANCE_DOCUMENT_KINDS, ...ROADSIDE_DOCUMENT_KINDS] as const;
+/** An equipment bill's scan or PDF (0530, M10a), filed only against an `equipment_purchase` subject. */
+export const EQUIPMENT_PURCHASE_DOCUMENT_KINDS = ["equipment_invoice"] as const;
+/** Every kind `documents` admits — mirrors the SQL check constraint exactly (0476, 0484, 0490, 0530). */
+export const DOCUMENT_KINDS = [
+  ...COMPLIANCE_DOCUMENT_KINDS, ...ROADSIDE_DOCUMENT_KINDS, ...EQUIPMENT_PURCHASE_DOCUMENT_KINDS,
+] as const;
 export const documentKindSchema = z.enum(DOCUMENT_KINDS);
 export type DocumentKind = (typeof DOCUMENT_KINDS)[number];
 

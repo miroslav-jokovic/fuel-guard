@@ -230,6 +230,11 @@ export const RETENTION_FORBIDDEN = [
    */
   "dataqs_cases",
   /**
+   * An equipment bill (0530, M10a): what the company paid for its tablets and truck gear, and which items
+   * that bill paid for. Append-only by trigger; a correction is a new row the old one points at.
+   */
+  "equipment_purchases",
+  /**
    * Office chat (0511, OFFICE-CHAT-PLAN D-CHAT12/D-CHAT13). The messages, the words an edit replaced and
    * the hash-chained ledger of every chat fact. Chat is read after a crash or in an HR case, and the
    * owner ruled on 2026-10-23 (Q-CHAT5) that it is kept until counsel names a period — so the only
