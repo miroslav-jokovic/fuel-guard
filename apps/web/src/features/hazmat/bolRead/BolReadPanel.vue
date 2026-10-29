@@ -2,7 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from "vue";
 import { AppButton as BaseButton, AppCallout, AppCard as BaseCard, AppCheckbox, AppIcon, AppIconButton } from "@silvicom/ui";
 import { ChevronLeftIcon, ChevronRightIcon, DocumentTextIcon, XMarkIcon } from "@silvicom/ui/icons";
-import { INTAKE_LIMITS, READABLE_FORMATS_TEXT, type ReadResponse } from "@silvicom/shared";
+import { INTAKE_LIMITS, READABLE_FORMATS_TEXT, type ReadResponse, type ReadStage } from "@silvicom/shared";
 import FileDropzone from "@/components/ui/FileDropzone.vue";
 import { apiFetch } from "@/lib/api";
 import { sha256Hex } from "@/composables/useCompliance";
@@ -115,6 +115,14 @@ onMounted(() => {
   if (pending) void resume(pending);
 });
 
+// The stage the server says the read is in (TWO-CLICK-READER-PLAN TC0.2, `readStageOf`), not a guess from the
+// clock: until 2026-10-29 every read said "Reading" for its whole length, so an 88-second read looked the same
+// at second 5 as at second 80.
+const READ_STEP_TEXT: Record<ReadStage, string> = {
+  preparing: "Getting the pages ready…",
+  reading: "Reading the bill of lading…",
+  checking: "Checking the reading against the page…",
+};
 const clock = (ms: number) => {
   const sec = Math.max(0, Math.floor(ms / 1000));
   return `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, "0")}`;
@@ -124,7 +132,7 @@ const stageText = computed(() => {
   if (!s) return "";
   if (s.kind === "uploading") return `Uploading page ${Math.min(s.done + 1, s.total)} of ${s.total}…`;
   if (s.kind === "preparing") return `Preparing pages… ${s.done} of ${s.total} ready`;
-  return `Reading the bill of lading… ${clock(now.value - (readingSince.value ?? now.value))}`;
+  return `${READ_STEP_TEXT[s.step ?? "preparing"]} ${clock(now.value - (readingSince.value ?? now.value))}`;
 });
 
 const readPages = computed(() => (outcome.value?.kind === "done" ? outcome.value.read.pages : []));

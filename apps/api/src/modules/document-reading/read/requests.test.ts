@@ -233,6 +233,21 @@ describe("getRead", () => {
     expect(rec.rpcs().filter((r) => r.fn === "document_read_transition")).toEqual([]);
   });
 
+  it("names where a read in flight is from the stages its row says it finished, and nothing once it ended (TC0.2)", async () => {
+    const at = async (row: Record<string, unknown>) => {
+      const out = await getRead(world(signAll, { ...readRow, result: null, ...row }, "running").client, ORG, READ);
+      return "stage" in out ? out.stage : out;
+    };
+    expect(await at({ status: "queued", stage_timings: null })).toBe("preparing");
+    expect(await at({ status: "reading", stage_timings: null })).toBe("preparing");
+    expect(await at({ status: "reading", stage_timings: { classify: 900, fetch: 300 } })).toBe("reading");
+    expect(await at({ status: "reading", stage_timings: { fetch: 300, passA: 9000, passB: 14000 } })).toBe("checking");
+    expect(await at({ status: "done", result: readRow.result, stage_timings: { fetch: 300, passA: 9000 } })).toBeNull();
+    const rec = world(signAll);
+    await getRead(rec.client, ORG, READ);
+    expect(rec.forTable("document_reads")[0]!.ops.find((o) => o.method === "select")!.args[0]).toContain("stage_timings");
+  });
+
   it("answers not_found for a read outside the org", async () => {
     const rec = world(signAll, null);
     expect(await getRead(rec.client, ORG, READ)).toMatchObject({ code: "not_found" });

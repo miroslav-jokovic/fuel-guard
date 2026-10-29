@@ -4,6 +4,7 @@ import {
   type CreateAssemblyResponse,
   type CreateSourceResponse,
   type ReadResponse,
+  type ReadStage,
   type SourceStatusResponse,
 } from "@silvicom/shared";
 import type { ApiResult } from "@/lib/api";
@@ -37,8 +38,11 @@ export interface BolReadIo {
 export type BolReadStage =
   | { kind: "uploading"; done: number; total: number }
   | { kind: "preparing"; done: number; total: number }
-  /** The read exists on the server from here on, whatever happens to this page: `followRead` finds it again. */
-  | { kind: "reading"; readId: string };
+  /**
+   * The read exists on the server from here on, whatever happens to this page: `followRead` finds it again.
+   * `step` is where the server says it is (`readStageOf`, TC0.2) — null until the first answer.
+   */
+  | { kind: "reading"; readId: string; step: ReadStage | null };
 
 export type BolReadOutcome =
   | { kind: "done"; read: ReadResponse }
@@ -107,10 +111,12 @@ async function waitForSources(io: BolReadIo, sent: { id: string; name: string }[
   return { refused, resolved };
 }
 
-async function waitForRead(io: BolReadIo, readId: string): Promise<BolReadOutcome> {
+async function waitForRead(io: BolReadIo, readId: string, onStage: (s: BolReadStage) => void): Promise<BolReadOutcome> {
   for (let waited = 0; ; waited += POLL_MS) {
     const read = must(await io.api<ReadResponse>(`${BASE}/reads/${readId}`), "The read");
     if (read.status === "done") return { kind: "done", read };
+    // Told only when the server names a stage; a stage it has not reached yet is not news.
+    if (read.stage) onStage({ kind: "reading", readId, step: read.stage });
     if (read.status === "failed") {
       return { kind: "failed", message: read.failureCode ? READ_FAILURES[read.failureCode] : "The read did not finish." };
     }
@@ -124,9 +130,9 @@ export const PENDING_READ_KEY = "silvicom.bolRead.pending";
 
 /** Pick up a read already started — after `waiting`, or after the page was reloaded mid-read. */
 export async function followRead(io: BolReadIo, readId: string, onStage: (s: BolReadStage) => void): Promise<BolReadOutcome> {
-  onStage({ kind: "reading", readId });
+  onStage({ kind: "reading", readId, step: null });
   try {
-    return await waitForRead(io, readId);
+    return await waitForRead(io, readId, onStage);
   } catch (e) {
     if (e instanceof Stop) return { kind: "failed", message: e.message };
     throw e;
@@ -157,8 +163,8 @@ export async function readBol(io: BolReadIo, files: readonly BolFile[], onStage:
     const read = must(await io.api<{ readId: string }>(`${BASE}/reads`, {
       method: "POST", body: { assemblyId: assembly.assemblyId, profile: "shipping_document" },
     }), "Starting the read");
-    onStage({ kind: "reading", readId: read.readId });
-    return await waitForRead(io, read.readId);
+    onStage({ kind: "reading", readId: read.readId, step: null });
+    return await waitForRead(io, read.readId, onStage);
   } catch (e) {
     if (e instanceof Stop) return { kind: "failed", message: e.message };
     throw e;

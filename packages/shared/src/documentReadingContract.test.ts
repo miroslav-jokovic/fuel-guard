@@ -7,6 +7,10 @@ import {
   READ_FAILURES,
   READ_FAILURE_CODES,
   READ_FAILURE_KIND,
+  READ_STAGES,
+  READ_STAGE_TIMINGS,
+  readStageOf,
+  type ReadStageTimings,
   createSourceRequestSchema,
   reviewBatchRequestSchema,
   shippingDocumentLabelsSchema,
@@ -160,5 +164,33 @@ describe("routes and refusals", () => {
   it("registers shipping_document reading only BOL and delivery-copy pages (D-DR11)", () => {
     expect(DOCUMENT_PROFILES.shipping_document.readsPageClasses).toEqual(["bol", "delivery_copy"]);
     expect(DOCUMENT_PROFILES.shipping_document.empty()).toEqual(emptyShippingDocument());
+  });
+});
+
+describe("readStageOf — where a running read is, from the stages it finished (TWO-CLICK-READER-PLAN TC0.2)", () => {
+  // Every subset of the stage names × every status: the whole input space, 64 × 4.
+  const subsets = READ_STAGE_TIMINGS.reduce<ReadStageTimings[]>(
+    (all, stage) => all.flatMap((t) => [t, { ...t, [stage]: 1 }]), [{}]);
+
+  it("answers nothing for an ended read, whatever its timings", () => {
+    for (const status of ["done", "failed"] as const) {
+      expect(readStageOf(status, null)).toBeNull();
+      for (const t of subsets) expect(readStageOf(status, t)).toBeNull();
+    }
+  });
+
+  it("says checking once pass A has answered, reading once the pages are fetched, preparing before, for every subset", () => {
+    expect(subsets).toHaveLength(64);
+    for (const status of ["queued", "reading"] as const) {
+      expect(readStageOf(status, null)).toBe("preparing");
+      for (const t of subsets) {
+        const want = t.passA !== undefined ? "checking" : t.fetch !== undefined ? "reading" : "preparing";
+        expect(readStageOf(status, t), JSON.stringify(t)).toBe(want);
+      }
+    }
+  });
+
+  it("names a stage the screen knows for every answer", () => {
+    for (const t of subsets) expect(READ_STAGES).toContain(readStageOf("reading", t));
   });
 });

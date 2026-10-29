@@ -23,6 +23,40 @@ const job = (attempts: number, payload: Record<string, unknown> = { readId: "rea
   ({ id: "job-1", org_id: "org-1", kind: "document_read", payload, attempts, max_attempts: 3 });
 const report = async () => undefined;
 
+describe("document_read handler — one [metrics] line per read (TWO-CLICK-READER-PLAN TC0.2)", () => {
+  beforeEach(() => h.executeRead.mockReset());
+  const logged = async (outcome: unknown) => {
+    h.executeRead.mockResolvedValue(outcome);
+    const log = vi.spyOn(console, "log").mockImplementation(() => undefined);
+    try {
+      await documentReadHandler(ctx, job(1), report);
+      return log.mock.calls.map((c) => String(c[0])).filter((l) => l.startsWith("[metrics] "));
+    } finally {
+      log.mockRestore();
+    }
+  };
+
+  it("logs a finished read's stages, tokens and pages as one greppable JSON line", async () => {
+    const stageTimings = { classify: 900, fetch: 300, passA: 9000, passB: 14000, ocr: 31000, evidence: 40 };
+    const lines = await logged({ outcome: "done", cacheHit: false, inputTokens: 30_000, outputTokens: 4000, pages: 2, stageTimings });
+    expect(lines).toHaveLength(1);
+    expect(JSON.parse(lines[0]!.slice("[metrics] ".length))).toEqual({
+      documentRead: "read-1", outcome: "done", pages: 2, inputTokens: 30_000, outputTokens: 4000, stagesMs: stageTimings,
+    });
+  });
+
+  it("names a cache hit and a failure by what they were", async () => {
+    const hit = await logged({ outcome: "done", cacheHit: true, inputTokens: 0, outputTokens: 0, pages: 1, stageTimings: { fetch: 5 } });
+    expect(JSON.parse(hit[0]!.slice(10)).outcome).toBe("cache_hit");
+    const failed = await logged({ outcome: "failed", code: "refusal", inputTokens: 10, outputTokens: 1, stageTimings: {} });
+    expect(JSON.parse(failed[0]!.slice(10))).toMatchObject({ outcome: "failed:refusal", stagesMs: {} });
+  });
+
+  it("logs nothing for a read it skipped", async () => {
+    expect(await logged({ outcome: "skipped", reason: "already_terminal" })).toEqual([]);
+  });
+});
+
 describe("document_read handler (Step 1.6)", () => {
   beforeEach(() => {
     h.executeRead.mockReset();
@@ -35,8 +69,8 @@ describe("document_read handler (Step 1.6)", () => {
   });
 
   it("returns the read's outcome as the job's stats", async () => {
-    h.executeRead.mockResolvedValue({ outcome: "done", cacheHit: false, inputTokens: 9, outputTokens: 1, pages: 2 });
-    expect(await documentReadHandler(ctx, job(1), report)).toEqual({ readId: "read-1", outcome: "done", cacheHit: false, inputTokens: 9, outputTokens: 1, pages: 2 });
+    h.executeRead.mockResolvedValue({ outcome: "done", cacheHit: false, inputTokens: 9, outputTokens: 1, pages: 2, stageTimings: { fetch: 3 } });
+    expect(await documentReadHandler(ctx, job(1), report)).toEqual({ readId: "read-1", outcome: "done", cacheHit: false, inputTokens: 9, outputTokens: 1, pages: 2, stageTimings: { fetch: 3 } });
     expect(h.executeRead.mock.calls[0]!.slice(0, 3)).toEqual([ctx.admin, "org-1", "read-1"]);
   });
 

@@ -16,7 +16,7 @@ interface Script {
   duplicate?: string[];
   statuses?: Record<string, string[]>;
   refusal?: Record<string, string>;
-  read?: { status: string; failureCode?: string }[];
+  read?: { status: string; stage?: string; failureCode?: string }[];
   completeStatus?: number;
   putFails?: boolean;
   /** The source a file's intake resolved to, when not its own registration (the same bytes registered twice). */
@@ -54,7 +54,7 @@ function fakeIo(s: Script = {}) {
       if (path.endsWith("/reads/read-1")) {
         const seq = s.read ?? [{ status: "done" }];
         const r = seq[Math.min(readPoll++, seq.length - 1)]!;
-        return ok({ id: "read-1", status: r.status, failureCode: r.failureCode ?? null, pages: [], evidence: [], result: null }) as ApiResult<T>;
+        return ok({ id: "read-1", status: r.status, stage: r.stage ?? null, failureCode: r.failureCode ?? null, pages: [], evidence: [], result: null }) as ApiResult<T>;
       }
       throw new Error(`unexpected ${method} ${path}`);
     },
@@ -85,7 +85,7 @@ describe("readBol", () => {
     expect(calls.find((c) => c.path.endsWith("/complete"))!.body).toEqual({ sha256: SHA("b.jpg"), profile: null });
     expect(calls.find((c) => c.path.endsWith("/assemblies"))!.body).toEqual({ sourceIds: ["src-b.jpg", "src-a.jpg"] });
     expect(calls.find((c) => c.path.endsWith("/reads"))!.body).toEqual({ assemblyId: "asm-1", profile: "shipping_document" });
-    expect(stages.at(-1)).toEqual({ kind: "reading", readId: "read-1" });
+    expect(stages.at(-1)).toEqual({ kind: "reading", readId: "read-1", step: null });
     expect(stages).toContainEqual({ kind: "preparing", done: 1, total: 2 });
   });
 
@@ -142,11 +142,21 @@ describe("readBol", () => {
     expect(slept).toBe(READ_TIMEOUT_MS / POLL_MS);
   });
 
+  it("passes on each stage the server names while the read runs, in the order it names them (TC0.2)", async () => {
+    const { io } = fakeIo({ read: [
+      { status: "queued", stage: "preparing" }, { status: "reading", stage: "reading" }, { status: "reading", stage: "reading" },
+      { status: "reading", stage: "checking" }, { status: "done" },
+    ] });
+    const stages: BolReadStage[] = [];
+    expect(await followRead(io, "read-1", (s) => stages.push(s))).toMatchObject({ kind: "done" });
+    expect(stages.map((s) => (s.kind === "reading" ? s.step : s.kind))).toEqual([null, "preparing", "reading", "reading", "checking"]);
+  });
+
   it("picks up a read already started, asking only about that read, until it ends", async () => {
     const { io, calls } = fakeIo({ read: [{ status: "reading" }, { status: "reading" }, { status: "done" }] });
     const stages: BolReadStage[] = [];
     expect(await followRead(io, "read-1", (s) => stages.push(s))).toMatchObject({ kind: "done", read: { id: "read-1" } });
-    expect(stages).toEqual([{ kind: "reading", readId: "read-1" }]);
+    expect(stages).toEqual([{ kind: "reading", readId: "read-1", step: null }]);
     expect(new Set(calls.map((c) => `${c.method} ${c.path}`))).toEqual(new Set(["GET /api/documents/reads/read-1"]));
   });
 

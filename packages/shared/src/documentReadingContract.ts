@@ -80,6 +80,31 @@ export const READ_STATUSES = ["queued", "reading", "done", "failed"] as const;
 export type ReadStatus = (typeof READ_STATUSES)[number];
 
 /**
+ * The stages a read is timed in (TWO-CLICK-READER-PLAN TC0.2, D-TC4; `document_reads.stage_timings`, 0529), in the
+ * order they finish: classify the never-seen pages, fetch + size every page, the two readers (asked at once), the
+ * OCR witness (on its own thread from the readers' start — its ms is its own run, so `ocr` beyond the slower reader
+ * is the time the read waited on it), and the evidence. A cache hit stops after `fetch`. The database holds any
+ * object of non-negative numbers; the names are this list's.
+ */
+export const READ_STAGE_TIMINGS = ["classify", "fetch", "passA", "passB", "ocr", "evidence"] as const;
+export type ReadStageTiming = (typeof READ_STAGE_TIMINGS)[number];
+export type ReadStageTimings = Partial<Record<ReadStageTiming, number>>;
+
+/**
+ * Where a read still running is, as the screen words it — derived from the stages it has FINISHED, which the worker
+ * writes as it passes them, never from a clock: `preparing` until the pages are fetched, `reading` while the
+ * readers run, `checking` once both have answered and the witnesses are being weighed. Null once the read ended.
+ */
+export const READ_STAGES = ["preparing", "reading", "checking"] as const;
+export type ReadStage = (typeof READ_STAGES)[number];
+export function readStageOf(status: ReadStatus, timings: ReadStageTimings | null): ReadStage | null {
+  if (status === "done" || status === "failed") return null;
+  if (timings?.passA !== undefined) return "checking";
+  if (timings?.fetch !== undefined) return "reading";
+  return "preparing";
+}
+
+/**
  * A read's terminal failures (§4.7), each with the sentence the dispatcher sees. Transient model errors
  * (429, 5xx, timeout) are NOT here: they rethrow so the queue retries them (§2 Queue).
  */
@@ -371,6 +396,8 @@ export const readResponseSchema = z.object({
   profile: z.enum(DOCUMENT_PROFILE_IDS),
   profileVersion: z.string(),
   status: z.enum(READ_STATUSES),
+  /** Where a read still running is (`readStageOf`); null once it ended. */
+  stage: z.enum(READ_STAGES).nullable(),
   failureCode: z.enum(READ_FAILURE_CODES as [ReadFailureCode, ...ReadFailureCode[]]).nullable(),
   /** The profile document; null until `done`. Parse it with the profile's schema. */
   result: z.json().nullable(),
