@@ -110,6 +110,17 @@ export const REQUIRED = [
     file: "packages/hazmat-engine/src/bol/paperRowGate.test.ts",
     titles: ["answers cannot_tell, naming the field, on every rule whose verdict depends on the row"],
   },
+  {
+    step: "TC0.4 the coverage statement against the rules (D-TC11)",
+    file: "packages/hazmat-golden/src/probeCensus.test.ts",
+    titles: [
+      "has a value for every probe the engine lists, and no value for a probe it does not",
+      "raises a not_evaluated finding for every value it gives, so each mutation is one the audit sees",
+      "sees a verdict move when a rule does read the input — the vessel question and a residue line, on many entries",
+      "no rule reads …",
+      "no rule reads a line's …",
+    ],
+  },
 ];
 
 const TEST_TITLE = /\b(?:it|test|describe)(?:\.each\s*\([\s\S]*?\))?\s*\(\s*(["'`])((?:\\.|(?!\1)[\s\S])*?)\1/g;
