@@ -1531,6 +1531,17 @@
         "why": "no rows in production 2026-09-21; bounded by the number of orgs."
       }
     },
+    "equipment_purchases": {
+      "module": "maintenance",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 5,
+        "why": "equipment bills typed by the shop (0530, M10a): a handful a month \u2014 tablets and truck gear bought outside FleetPal, plus a link per FleetPal purchase order (33 measured 2026-10-28). RETENTION_FORBIDDEN: it is the record of what was paid."
+      }
+    },
     "inventory_assets": {
       "module": "maintenance",
       "layer": "core",
