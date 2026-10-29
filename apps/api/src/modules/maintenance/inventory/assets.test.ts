@@ -65,6 +65,7 @@ const assetRow = (over: Record<string, unknown> = {}) => ({
   location_id: CRIB,
   vehicle_id: null,
   trailer_id: null,
+  driver_id: null,
   purchased_at: null,
   purchase_cost: "429.00",
   warranty_expires_at: null,
@@ -97,7 +98,7 @@ const inTrailer = () =>
     trailers: { unit_number: "T-4102" },
   });
 
-/** Nothing decided yet — three nulls, which is a state and not a missing value. */
+/** Nothing decided yet — four nulls (a driver joined in 0524), which is a state and not a missing value. */
 const unplaced = () =>
   assetRow({ id: A_LOOSE, display_seq: 2, location_id: null, stock_locations: null });
 
@@ -171,7 +172,7 @@ describe("asset reads", () => {
     });
   });
 
-  it("sends the unassigned filter as three IS NULLs, which no equality can ask for", async () => {
+  it("sends the unassigned filter as four IS NULLs — a driver's tablet is not loose (DE2)", async () => {
     const result = await listAssets(rec.client, ORG, { unassigned: true });
     if ("error" in result) throw new Error("unexpected error");
     expect(result.assets.map((a) => a.id)).toEqual([A_LOOSE]);

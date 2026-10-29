@@ -13,6 +13,7 @@ import { fetchAllPaged } from "../../../lib/paging.js";
 import { traced } from "../inspections/serviceError.js";
 import { driverNames, listAssets } from "./assets.js";
 import { lastUnitChecks } from "./countSessions.js";
+import { assignedDriverOf, loadDriverHeldByTruck } from "./driverHeld.js";
 import type { ServiceError } from "./types.js";
 
 /**
@@ -284,16 +285,17 @@ export async function listUnitKits(
     const tabletDrivers = new Map(
       held.filter((a) => a.driver_id && typeDefaults.get(a.asset_type_id)?.heldBy === "driver").map((a) => [a.unit_id, a.driver_id as string]),
     );
+    // D-DE4: a truck also counts what its driver holds — and is then a truck carrying a driver's
+    // thing, so its driver is named exactly as above.
+    const driverHeld = kind === "tractor" ? await loadDriverHeldByTruck(admin, orgId) : new Map<string, { driverId: string; typeIds: string[] }>();
+    if (isError(driverHeld)) return driverHeld;
+    for (const [truckId, d] of driverHeld) if (d.typeIds.length > 0) tabletDrivers.set(truckId, d.driverId);
     const names = await driverNames(admin, orgId, [...tabletDrivers.values()]);
     const byUnit = new Map<string, Array<{ assetTypeId: string; assetTypeName: string }>>();
-    for (const a of held) {
-      const list = byUnit.get(a.unit_id) ?? [];
-      list.push({
-        assetTypeId: a.asset_type_id,
-        assetTypeName: typeDefaults.get(a.asset_type_id)?.name ?? "",
-      });
-      byUnit.set(a.unit_id, list);
-    }
+    const carry = (unitId: string, assetTypeId: string) =>
+      byUnit.set(unitId, [...(byUnit.get(unitId) ?? []), { assetTypeId, assetTypeName: typeDefaults.get(assetTypeId)?.name ?? "" }]);
+    for (const a of held) carry(a.unit_id, a.asset_type_id);
+    for (const [truckId, d] of driverHeld) for (const typeId of d.typeIds) carry(truckId, typeId);
 
     for (const identity of identities) {
       if (isSoldAwaitingPickup(identity.unitNumber)) continue;
@@ -360,26 +362,33 @@ export async function getUnitKit(
     limit: 200,
   });
   if (isError(holding)) return holding;
+  // D-DE4: a truck's kit counts its driver's tablet, so the page lists it among what the truck carries.
+  const driverId = kind === "tractor" ? await assignedDriverOf(admin, orgId, unitId) : null;
+  if (driverId !== null && typeof driverId !== "string") return driverId;
+  const driverHolds = driverId ? await listAssets(admin, orgId, { driverId, limit: 200 }) : { assets: [], total: 0 };
+  if (isError(driverHolds)) return driverHolds;
+  const carried = [...holding.assets, ...driverHolds.assets];
 
   const checked = await lastUnitChecks(admin, orgId, kind === "tractor" ? "vehicle_id" : "trailer_id");
   if (isError(checked)) return checked;
 
   const unitKind = kindOf(identity, kind);
   const expected = resolveExpected({ kind: unitKind, unitId }, rows, typeDefaults);
-  // `listAssets` already resolved the driver off the holding vehicle — the same inference D-INV3
-  // allows and the same one the asset detail shows. Reading it back off an asset the unit holds
-  // avoids a second lookup for a fact the page has already paid for; a unit carrying nothing has no
-  // asset to read it from, which is why the fallback is null rather than an extra query.
+  // The driver's name off what the page already read: a driver-held asset's holder IS the driver
+  // (D-DE1), and a truck-held one carries the inferred name (D-INV3). A truck whose driver holds
+  // nothing and which carries nothing has no asset to read it from, so the fallback is null.
   const inferredDriverName =
-    kind === "tractor" ? (holding.assets.find((a) => a.holder.inferredDriverName)?.holder.inferredDriverName ?? null) : null;
+    kind === "tractor"
+      ? (driverHolds.assets[0]?.holder.label ?? holding.assets.find((a) => a.holder.inferredDriverName)?.holder.inferredDriverName ?? null)
+      : null;
 
   return {
     unit: toUnitKitDto(
       { kind: unitKind, unitId, unitNumber: identity.unitNumber, inferredDriverName, lastCheckedAt: checked.get(unitId) ?? null },
       expected,
-      holding.assets,
+      carried,
       typeDefaults,
     ),
-    assets: holding.assets,
+    assets: carried,
   };
 }

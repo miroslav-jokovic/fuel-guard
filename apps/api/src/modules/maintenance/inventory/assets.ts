@@ -1,9 +1,9 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { AssetDto, AssetHolder, AssetStatus, HolderKind } from "@silvicom/shared";
-import { nextDisplayNo } from "@silvicom/shared";
+import { DRIVER_LEFT_STATUSES, driverHasLeft, nextDisplayNo } from "@silvicom/shared";
 import { traced } from "../inspections/serviceError.js";
 import { orFilterValue } from "../../../lib/postgrestFilters.js";
-import { IN_LIST_CHUNK, chunks } from "../../../lib/paging.js";
+import { IN_LIST_CHUNK, chunks, fetchAllPaged } from "../../../lib/paging.js";
 import { PAGE_MAX } from "./parts.js";
 import type { ServiceError } from "./types.js";
 
@@ -29,6 +29,9 @@ import type { ServiceError } from "./types.js";
  *     person is whoever `vehicles.assigned_driver_id` names at the moment somebody looks. There is
  *     no driver column anywhere in 0333 and there is no handover signature, which is a legal
  *     position rather than a modelling shortcut — see `inventoryAssetContract.ts`'s header.
+ *   · **except a tablet, which a driver HOLDS (D-DE1, 0524, DE2).** Its holder is the `driver_id`
+ *     column, its label is the driver's name off the `drivers` embed, and whether that driver has left
+ *     — D-DE3's "not returned" — is read off the same embed's status, never stored.
  */
 
 /**
@@ -39,9 +42,10 @@ import type { ServiceError } from "./types.js";
  */
 export const ASSET_COLUMNS =
   "id, tag_code, display_seq, asset_type_id, name, serial_number, imei, model, manufacturer, status, " +
-  "condition, location_id, vehicle_id, trailer_id, purchased_at, purchase_cost, warranty_expires_at, " +
+  "condition, location_id, vehicle_id, trailer_id, driver_id, purchased_at, purchase_cost, warranty_expires_at, " +
   "image_path, notes, asset_types(name), stock_locations(name), vehicles(unit_number, assigned_driver_id), " +
-  "trailers(unit_number)";
+  // One foreign key to `drivers` on this table (0524's `driver_id`), so the embed is unambiguous.
+  "trailers(unit_number), drivers(full_name, status)";
 
 export interface AssetRow {
   id: string;
@@ -58,6 +62,7 @@ export interface AssetRow {
   location_id: string | null;
   vehicle_id: string | null;
   trailer_id: string | null;
+  driver_id: string | null;
   purchased_at: string | null;
   purchase_cost: number | string | null;
   warranty_expires_at: string | null;
@@ -67,17 +72,19 @@ export interface AssetRow {
   stock_locations: { name: string } | null;
   vehicles: { unit_number: string | null; assigned_driver_id: string | null } | null;
   trailers: { unit_number: string | null } | null;
+  drivers: { full_name: string | null; status: string | null } | null;
 }
 
 /**
- * The three holder columns as one object.
+ * The four holder columns as one object.
  *
  * `unassigned` is a real state and not a missing value: an asset still in its box, or one just
  * handed back with nowhere decided yet, is genuinely nowhere. 0333's CHECK is `<= 1` for exactly
  * that reason, where a count session's is `= 1`.
  */
 export const holderOf = (
-  r: Pick<AssetRow, "location_id" | "vehicle_id" | "trailer_id" | "stock_locations" | "vehicles" | "trailers">,
+  r: Pick<AssetRow, "location_id" | "vehicle_id" | "trailer_id" | "stock_locations" | "vehicles" | "trailers"> &
+    Partial<Pick<AssetRow, "driver_id" | "drivers">>,
   extra: { inferredDriverName?: string | null; since?: string | null } = {},
 ): AssetHolder => {
   const kind: HolderKind = r.location_id
@@ -86,7 +93,9 @@ export const holderOf = (
       ? "vehicle"
       : r.trailer_id
         ? "trailer"
-        : "unassigned";
+        : r.driver_id
+          ? "driver"
+          : "unassigned";
   const label =
     kind === "location"
       ? (r.stock_locations?.name ?? null)
@@ -94,15 +103,18 @@ export const holderOf = (
         ? (r.vehicles?.unit_number ?? null)
         : kind === "trailer"
           ? (r.trailers?.unit_number ?? null)
-          : null;
+          : kind === "driver"
+            ? (r.drivers?.full_name ?? null)
+            : null;
   return {
     kind,
-    id: r.location_id ?? r.vehicle_id ?? r.trailer_id ?? null,
+    id: r.location_id ?? r.vehicle_id ?? r.trailer_id ?? r.driver_id ?? null,
     label,
     // Only a truck has a driver. A trailer's driver is whoever is pulling it today, which is a
     // different question with a different answer, and the kit screen does not ask it.
     inferredDriverName: kind === "vehicle" ? (extra.inferredDriverName ?? null) : null,
     since: extra.since ?? null,
+    notReturned: kind === "driver" && driverHasLeft(r.drivers?.status),
   };
 };
 
@@ -142,7 +154,14 @@ export interface ListAssetsOptions {
   locationId?: string;
   vehicleId?: string;
   trailerId?: string;
-  /** The crib's "nothing decided yet" pile — three nulls, which no `.eq()` can ask for. */
+  /** A driver's tablets (DE2) — what the driver page's Equipment card lists. */
+  driverId?: string;
+  /**
+   * Tablets whose driver has left (D-DE3). With `limit: 1`, `total` is the shop's *Tablets not returned*
+   * count — counted here, by the database, never as a page total (the I0–I3 audit's third defect).
+   */
+  notReturned?: boolean;
+  /** The crib's "nothing decided yet" pile — four nulls, which no `.eq()` can ask for. */
   unassigned?: boolean;
   limit?: number;
   offset?: number;
@@ -174,6 +193,46 @@ export async function driverNames(
 }
 
 /**
+ * The drivers who have left (D-DE3) and still hold something — the ids `notReturned` filters by.
+ *
+ * Two plain reads rather than a filter through the `drivers` embed: "assets whose embedded driver's
+ * status is in (…)" needs `!inner` or PostgREST's null-filter on an embed, and the asset select is one
+ * literal shared with the tag resolver (`ASSET_COLUMNS`) — a second, conditional select string is
+ * what supabase-js types as an error. The first read is every driver-held asset's driver (a fleet's
+ * worth of tablets, paged past the 1,000-row cap); the second keeps the ones whose status says they
+ * left. Small sets, both: tablets number in the hundreds.
+ */
+async function driversWhoLeftHolding(admin: SupabaseClient, orgId: string): Promise<string[] | ServiceError> {
+  try {
+    const held = await fetchAllPaged<{ driver_id: string | null }>((from, to) =>
+      admin
+        .from("inventory_assets")
+        .select("driver_id")
+        .eq("org_id", orgId)
+        .not("driver_id", "is", null)
+        .neq("status", "retired")
+        .order("id", { ascending: true })
+        .range(from, to),
+    );
+    const ids = [...new Set(held.map((r) => r.driver_id).filter((id): id is string => Boolean(id)))];
+    const left: string[] = [];
+    for (const part of chunks(ids, IN_LIST_CHUNK)) {
+      const { data, error } = await admin
+        .from("drivers")
+        .select("id")
+        .eq("org_id", orgId)
+        .in("id", part)
+        .in("status", [...DRIVER_LEFT_STATUSES]);
+      if (error) return traced("driversWhoLeftHolding", "db_error", "Could not read who has the tablets", error);
+      left.push(...((data ?? []) as Array<{ id: string }>).map((d) => d.id));
+    }
+    return left;
+  } catch (e) {
+    return traced("driversWhoLeftHolding", "db_error", "Could not read who has the tablets", e);
+  }
+}
+
+/**
  * The integer behind a display number, if the search term is one. `A-0412`, `a0412`, `0412` and
  * `412` all name display_seq 412; anything with letters after the prefix is not a number and gets
  * no sequence clause at all.
@@ -197,7 +256,15 @@ export async function listAssets(
   if (opts.locationId) q = q.eq("location_id", opts.locationId);
   if (opts.vehicleId) q = q.eq("vehicle_id", opts.vehicleId);
   if (opts.trailerId) q = q.eq("trailer_id", opts.trailerId);
-  if (opts.unassigned) q = q.is("location_id", null).is("vehicle_id", null).is("trailer_id", null);
+  if (opts.driverId) q = q.eq("driver_id", opts.driverId);
+  // ⚠ `driver_id` too: before DE2 three nulls meant nowhere, and a driver's tablet has all three.
+  if (opts.unassigned) q = q.is("location_id", null).is("vehicle_id", null).is("trailer_id", null).is("driver_id", null);
+  if (opts.notReturned) {
+    const left = await driversWhoLeftHolding(admin, orgId);
+    if ("error" in left) return left;
+    if (left.length === 0) return { assets: [], total: 0 };
+    q = q.in("driver_id", left);
+  }
   if (opts.search?.trim()) {
     // ⚠ QUOTED, never interpolated raw — `parts.ts` carries the reason: `.or()` is one string
     // PostgREST parses, and a serial number with a comma in it would otherwise build a filter

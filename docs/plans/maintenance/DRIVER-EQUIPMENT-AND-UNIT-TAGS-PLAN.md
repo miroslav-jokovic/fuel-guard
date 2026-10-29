@@ -268,3 +268,24 @@ proof none of this replaces — the scanner on an Android tablet, and a printed 
     pins that.
   - **Owed to DE2:** the round trip of every new column — `driverId` on the asset DTO, the movement's
     `fromDriverId`/`toDriverId`, `heldBy` on the type — per the I0–I3 audit's first defect.
+- **2026-10-29 — DE2 split in two, and DE2a built (API only; no migration, no screen).** DE2 is the
+  setting, the verbs, the driver card, the count and the kit rule at once — too much for one review — so
+  **DE2a** is everything below the screens and **DE2b** is the screens. Nothing in DE2a is reachable
+  from the UI, so no dead end ships: the *Held by* setting and *Give to driver / Return to shop* arrive
+  together in DE2b, as this plan's DE2 line requires. DE2a:
+  - **The round trip owed since DE1.** `HOLDER_KINDS` gains `driver` (D-INV3's pin test rewritten to the
+    amended rule); `ASSET_COLUMNS` reads `driver_id` + `drivers(full_name, status)`; `holderOf` makes a
+    `driver` holder named for the driver; movements read `from_driver_id`/`to_driver_id` as `driver` ends.
+  - **D-DE3** as `holder.notReturned`, from `driverHasLeft` (`DRIVER_LEFT_STATUSES` = inactive,
+    terminated — said once in the contract). `GET /assets?notReturned=true&limit=1` → `total` is the
+    *Tablets not returned* count, made by the database; `?driverId=` is the driver card's list.
+  - **Verbs:** `toDriverId` on `assetMovementInputSchema` (one holder at a time now counts four);
+    `move_asset` already read it (0524). `IV025` and a driver-worded `IV012` are sentences, 409/422.
+  - **Setting:** `heldBy` on `assetTypeInputSchema`; `updateAssetType` writes `held_by` and words 0524's
+    `guard_asset_type_held_by` refusal as what to move first (`held_by_conflict`, 409).
+  - **D-DE4:** `listUnitKits` counts each truck's assigned driver's driver-held things
+    (`driverHeld.ts`: two fleet-wide reads, chunked); `getUnitKit` lists them among what the truck carries.
+  - Found on the way, fixed: `duplicate_imei` (M9b) was missing from `httpStatus.ts`, so a tablet scanned
+    in twice answered **500**; `?unassigned=false` meant true (`z.coerce.boolean`), now a strict flag; and
+    `unassigned` was three IS NULLs, which would have called every driver's tablet loose.
+  - Tests: `driverHeld.test.ts` (16; 16 mutants, all killed). **Next: DE2b** — the screens.
