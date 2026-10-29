@@ -202,6 +202,15 @@ What Settings honestly adds, so the owner's "set it up once" holds for scanners 
   a label and somebody at the printer. The `m0n01d/munbyn-print` subset (§2) is necessary, not
   sufficient: it was measured on a different firmware.
 
+- **2026-10-29 — PS5 on the Mac passed end to end; the station now stops when told.** *Print a test
+  label* on production printed through the Mac's station (#1820 released), and the Tera scanner on its
+  USB cable typed `SIL1:TEST:Ok-42z` exactly. The Mac's station runs as a LaunchAgent (KeepAlive) — it
+  had gone "Offline" only because the first one was a child of a closed terminal session. Stopping it
+  showed the station ignored SIGTERM: the flag was read only after the 25-second long poll or a
+  30-second backoff ended. A stop now aborts the poll and the pause (0.27 s measured, was up to ~25 s);
+  a label already in hand is still printed and reported. On Windows the scheduled task's *End* kills
+  the process outright, so this mattered for macOS, Linux and Ctrl-C.
+
 ## Sources
 
 - MUNBYN RW403B: https://munbyn.com/products/munbyn-rw403b-bluetooth-thermal-label-printer

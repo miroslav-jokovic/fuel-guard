@@ -64,8 +64,10 @@ export function writeConfig(path, config) {
 /**
  * One request. Resolves `{ status, body }` for 2xx; throws `RefusedError` for 4xx (never retried) and a
  * plain Error for a 5xx, a timeout or a network fault (the caller backs off and tries again).
+ * `signal` is the station's stop: it ends a long poll at once instead of when the poll would.
  */
-export async function request(apiUrl, path, { method = "GET", token, body, timeoutMs = REQUEST_TIMEOUT_MS, fetchImpl = fetch } = {}) {
+export async function request(apiUrl, path, { method = "GET", token, body, timeoutMs = REQUEST_TIMEOUT_MS, fetchImpl = fetch, signal } = {}) {
+  const timeout = AbortSignal.timeout(timeoutMs);
   const res = await fetchImpl(`${apiUrl}${path}`, {
     method,
     headers: {
@@ -74,7 +76,7 @@ export async function request(apiUrl, path, { method = "GET", token, body, timeo
     },
     body: body !== undefined ? JSON.stringify(body) : undefined,
     redirect: "error",
-    signal: AbortSignal.timeout(timeoutMs),
+    signal: signal ? AbortSignal.any([timeout, signal]) : timeout,
   });
   const text = await res.text();
   let parsed = null;

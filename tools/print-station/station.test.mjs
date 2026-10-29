@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { handleJob, runLoop } from "./station.mjs";
+import { handleJob, runLoop, sleepUnless } from "./station.mjs";
 
 // The loop with a scripted API: what the station does with a job, a print failure, an outage and a
 // refusal — without a network, a printer or a real clock.
@@ -68,4 +68,71 @@ test("a report that cannot land is retried, then left for Silvicom to call unkno
   const outcome = await handleJob(JOB, CONFIG, h.deps);
   assert.deepEqual(outcome, { ok: true });
   assert.equal(h.calls.filter((c) => c.path.endsWith("/report")).length, 5);
+});
+
+// PS5, 10/29: a SIGTERM waited out the 25-second long poll, so the station looked like it ignored it.
+// Each wait below has a deadline, so a stop that is ignored fails here instead of hanging the run.
+
+const within = (ms, promise) =>
+  Promise.race([promise, new Promise((_, reject) => setTimeout(() => reject(new Error(`still waiting after ${ms} ms`)), ms).unref())]);
+
+test("a stop ends a long poll at once, and is not logged as an outage", async () => {
+  const stop = new AbortController();
+  const h = harness([]);
+  let polls = 0;
+  const slept = [];
+  Object.assign(h.deps, {
+    signal: stop.signal,
+    stop: () => stop.signal.aborted,
+    sleep: async (ms) => slept.push(ms),
+    // A poll that never answers by itself — only an abort of its signal ends it.
+    fetchImpl: async (url, init) => {
+      if (new URL(url).pathname.endsWith("/hello")) return new Response("{}", { status: 200 });
+      polls += 1;
+      setTimeout(() => stop.abort(), 5);
+      return new Promise((_, reject) => init.signal.addEventListener("abort", () => reject(init.signal.reason)));
+    },
+  });
+  assert.equal(await within(1_000, runLoop(CONFIG, h.deps)), "stopped");
+  assert.equal(polls, 1);
+  assert.deepEqual(slept, [], "no backoff after a stop");
+});
+
+test("a label already in hand is printed and reported even when the stop comes mid-print", async () => {
+  const stop = new AbortController();
+  const h = harness([]);
+  const reports = [];
+  Object.assign(h.deps, {
+    signal: stop.signal,
+    stop: () => stop.signal.aborted,
+    printRaw: async () => stop.abort(),
+    fetchImpl: async (url, init) => {
+      assert.equal(init.signal.aborted, false, "the report is not sent with the stop signal");
+      reports.push(new URL(url).pathname);
+      return new Response("{}", { status: 200 });
+    },
+  });
+  assert.deepEqual(await handleJob(JOB, CONFIG, h.deps), { ok: true });
+  assert.deepEqual(reports, [`/api/print-station/jobs/${JOB.jobId}/report`]);
+});
+
+test("sleepUnless waits, and a stop cuts the wait short", async () => {
+  const stop = new AbortController();
+  const sleep = sleepUnless(stop.signal);
+  const started = Date.now();
+  setTimeout(() => stop.abort(), 10);
+  await within(1_000, sleep(60_000));
+  assert.ok(Date.now() - started < 1_000);
+  await within(1_000, sleep(60_000)); // already stopped: no wait at all
+  const plain = sleepUnless(new AbortController().signal);
+  const t0 = Date.now();
+  await plain(30);
+  assert.ok(Date.now() - t0 >= 25);
+});
+
+test("after a stop, a report that fails is not retried", async () => {
+  const h = harness([{ throw: "down" }, { throw: "down" }, { throw: "down" }]);
+  h.deps.stop = () => true;
+  assert.deepEqual(await handleJob(JOB, CONFIG, h.deps), { ok: true });
+  assert.equal(h.calls.filter((c) => c.path.endsWith("/report")).length, 1);
 });
