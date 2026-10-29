@@ -38,7 +38,7 @@ comes out. The device in the person's hand stops mattering, which is exactly the
 |---|---|---|
 | The RW403B connects by **USB and Bluetooth only** — no Wi-Fi, no Ethernet. | munbyn.com product page; RW403B manual | Our server cannot reach it on its own. **Something always on must sit next to it** (§4, the print station). |
 | It speaks **TSPL**: its USB device id reports `CMD:TSPL`; it is a plain USB printer-class device (bulk OUT 0x03). | `m0n01d/munbyn-print` (tested on the hardware) | We can send it **raw bytes**. No driver, on any box. |
-| Its firmware honours only a **subset** of TSPL: `SIZE`, `GAP`, `REFERENCE`, `OFFSET`, `DENSITY`, `SPEED`, `DIRECTION`, `CLS`, **`BITMAP` (mode 1)**, `PRINT`. `TEXT`, `BAR`, `QRCODE` and `GAPDETECT` are **silently dropped** — a job using them prints nothing. | same | **The server draws the whole label as one bitmap** — QR modules from `@silvicom/qr`'s matrix, and the unit/asset number and code in a bitmap font — and sends `BITMAP`. Never the printer's own text or QR commands. Calibration is the feed button, once per roll. |
+| Its firmware honours only a **subset** of TSPL: `SIZE`, `GAP`, `REFERENCE`, `OFFSET`, `DENSITY`, `SPEED`, `DIRECTION`, `CLS`, **`BITMAP`**, `PRINT` — and on the office's RW403B-N only MUNBYN's driver's header with a heatshrink-compressed `BITMAP` mode 3 prints (§8, PS5). `TEXT`, `BAR`, `QRCODE` and `GAPDETECT` are **silently dropped** — a job using them prints nothing. | same | **The server draws the whole label as one bitmap** — QR modules from `@silvicom/qr`'s matrix, and the unit/asset number and code in a bitmap font — and sends `BITMAP`. Never the printer's own text or QR commands. Calibration is the feed button, once per roll. |
 | Raw printing needs no CUPS driver; official MUNBYN drivers exist for Windows and Mac only. | MUNBYN support; TSPL CUPS projects | The print station needs **no MUNBYN software at all**. |
 | The Tera Pro is a **keyboard (HID)** on every connection — dongle, Bluetooth, cable. It has no network mode. | §1.1 of the equipment plan | See §3: nothing to "find on the network"; it already works in every browser. |
 | Browser access to devices: WebHID / WebUSB / Web Bluetooth exist **only in Chromium** (desktop; Android partly) — **never Safari or iOS**. | caniuse | A design that talks to devices *from the browser* would make the device matter. Ruled out (D-PS1). |
@@ -148,8 +148,9 @@ What Settings honestly adds, so the owner's "set it up once" holds for scanners 
     failed (a hidden one). Matrix `print-stations.test.mjs`, 49 checks; 10 mutants of the migration,
     every one killed.
   - **`@silvicom/qr`** gains `raster.ts` (one-bit bitmaps, QR drawn at whole dots per module, glyph
-    outlines filled non-zero) and `tspl.ts` (only the RW403B's honoured commands; **bit 0 burns** and
-    **`BITMAP` mode 1**, both as measured on the hardware by `m0n01d/munbyn-print`).
+    outlines filled non-zero) and `tspl.ts` (only the RW403B's honoured commands; **bit 0 burns**, as measured
+    on the hardware by `m0n01d/munbyn-print`; its `BITMAP` mode 1 did NOT print on the office's
+    RW403B-N — superseded by PS5's mode 3 below).
   - **API** — `modules/maintenance/printing/` renders the PDF's own stacked face (`LABEL_FACE_POINTS`,
     Liberation Sans from `lib/pdfFonts.ts`) at printer resolution; `/api/maintenance/print` (stations,
     printers, defaults, jobs, `POST /labels` which never asks while a default exists);
@@ -184,6 +185,22 @@ What Settings honestly adds, so the owner's "set it up once" holds for scanners 
   - `surfaceCatalogue.ts` was at its 500-line budget; `ADMIN_ONLY_SURFACES` moved to
     `surfaceLookups.ts` beside the other derived questions, rather than a line squeezed out.
   - **Next: PS5** — the owner's physical test, Mac → Windows → iPhone → Android.
+- **2026-10-28 — PS5 on the Mac: the printer prints, after one correction.** The RW403B-N enumerates
+  over USB as `MFG:Munbyn;CMD:TSPL;MDL:RW403B-N` (plus a 16 MB disk holding only a driver link).
+  macOS refuses a bare raw queue ("Raw queues are no longer supported"), so the queue
+  `MUNBYN_RW403B` carries the generic PostScript PPD and the station's `lp -o raw` bypasses it — the
+  same pass-through Windows' winspool gives. Pairing (`station.mjs pair`), the long poll and *Print a
+  test label* from production all worked first time: the job reached CUPS and the USB backend
+  wrote every byte. **Nothing came out** — not our label (mode 1, then mode 0), not a bare
+  `SELFTEST`. MUNBYN's own macOS driver's output (`/Library/Printers/Munbyn/pdf_to_tspl`), sent
+  through the same queue, **printed**. Its picture is `BITMAP …,3,<length>,…` — heatshrink-compressed,
+  window 11 / lookahead 4 (the only pair that decodes it to the 51 × 406 bytes of a 2" label) — and
+  its header differs from ours (`OFFSET 0`, `DIRECTION 0,0`, two-decimal millimetres, another order).
+  Our picture compressed like theirs under OUR header did not print; under THEIRS it did. So
+  `@silvicom/qr` now sends the driver's header verbatim and every picture compressed, mode 3
+  (`heatshrink.ts`); which header line the firmware objects to was not narrowed down — each try costs
+  a label and somebody at the printer. The `m0n01d/munbyn-print` subset (§2) is necessary, not
+  sufficient: it was measured on a different firmware.
 
 ## Sources
 

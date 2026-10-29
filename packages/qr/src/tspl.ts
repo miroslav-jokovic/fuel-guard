@@ -1,3 +1,4 @@
+import { heatshrinkEncode } from "./heatshrink.js";
 import type { MonoBitmap } from "./raster.js";
 
 /**
@@ -5,10 +6,20 @@ import type { MonoBitmap } from "./raster.js";
  *
  * ── ONLY COMMANDS THIS FIRMWARE HONOURS ──────────────────────────────────────────────────────
  * Over USB the RW403B accepts `SIZE`, `GAP`/`BLINE`, `REFERENCE`, `OFFSET`, `SETC AUTODOTTED OFF`,
- * `DENSITY`, `SPEED`, `DIRECTION`, `CLS`, `BITMAP` (mode 1) and `PRINT`; anything else makes it drop
- * the WHOLE job silently — no error, no feed (plan §2, measured on the hardware by
- * `m0n01d/munbyn-print`). So this encoder emits nothing outside that list, and a test pins the list:
- * one stray `TEXT` would turn every print into a blank that looks like a paper fault.
+ * `DENSITY`, `SPEED`, `DIRECTION`, `CLS`, `BITMAP` and `PRINT`; anything else makes it drop the
+ * WHOLE job silently — no error, no feed (plan §2, from `m0n01d/munbyn-print`). So this encoder
+ * emits nothing outside that list, and a test pins the list: one stray `TEXT` would turn every print
+ * into a blank that looks like a paper fault.
+ *
+ * ── MUNBYN'S DRIVER, BYTE FOR BYTE (PS5, 10/28) ──────────────────────────────────────────────
+ * That list was not enough. On the office's RW403B-N, a job using it with an uncompressed `BITMAP`
+ * (mode 1, then mode 0) went over USB complete and printed nothing; MUNBYN's own macOS driver's
+ * output printed; and OUR picture, compressed like theirs (`./heatshrink.ts`, mode 3), printed only
+ * once it sat under THEIR setup lines — our old `DIRECTION 1` / `SIZE 50.8 mm` header with the
+ * same picture did not. Which of those lines the firmware objects to was not narrowed down: each
+ * try costs a label and an owner at the printer, and the driver's header is the one MUNBYN ships
+ * and tests. So the header below is the driver's, in its order and its two-decimal millimetres,
+ * and a test pins it — a "tidier" header is the regression this note exists to prevent.
  *
  * ── BIT 0 BURNS ──────────────────────────────────────────────────────────────────────────────
  * In a TSPL bitmap a CLEAR bit is black and a set bit is white — the reverse of almost every image
@@ -36,7 +47,7 @@ export interface TsplOptions {
 }
 
 /** The commands this encoder may emit, and nothing else (see the header). */
-export const TSPL_COMMANDS_USED = ["SIZE", "GAP", "DIRECTION", "REFERENCE", "DENSITY", "SPEED", "CLS", "BITMAP", "PRINT"] as const;
+export const TSPL_COMMANDS_USED = ["SIZE", "GAP", "REFERENCE", "OFFSET", "DENSITY", "SPEED", "DIRECTION", "CLS", "BITMAP", "PRINT"] as const;
 
 /** Commands are plain ASCII; no TextEncoder, because this package is pure TS with no platform lib. */
 const ascii = (s: string): Uint8Array => Uint8Array.from(s, (c) => c.charCodeAt(0) & 0x7f);
@@ -57,7 +68,8 @@ function packRows(bitmap: MonoBitmap, blackIsOne: boolean): { widthBytes: number
   return { widthBytes, bytes };
 }
 
-const mm = (n: number): string => `${Number(n.toFixed(2))} mm`;
+/** Two decimals, always — the driver's form ("50.80 mm", "0.00 mm"; see the header). */
+const mm = (n: number): string => `${n.toFixed(2)} mm`;
 
 /**
  * One job: every bitmap is one label, in order. Each label is its own `CLS … PRINT 1,1` block, so a
@@ -74,18 +86,20 @@ export function toTspl(labels: readonly MonoBitmap[], options: TsplOptions): Uin
     ascii(
       [
         `SIZE ${mm(options.widthMm)},${mm(options.heightMm)}`,
-        `GAP ${mm(options.gapMm)},0 mm`,
-        "DIRECTION 1",
+        `GAP ${mm(options.gapMm)},${mm(0)}`,
         "REFERENCE 0,0",
+        "OFFSET 0",
         `DENSITY ${density}`,
         `SPEED ${speed}`,
+        "DIRECTION 0,0",
         "",
       ].join("\r\n"),
     ),
   ];
   for (const label of labels) {
     const { widthBytes, bytes } = packRows(label, options.blackIsOne ?? false);
-    parts.push(ascii(`CLS\r\nBITMAP 0,0,${widthBytes},${label.height},1,`), bytes, ascii("\r\nPRINT 1,1\r\n"));
+    const packed = heatshrinkEncode(bytes);
+    parts.push(ascii(`CLS\r\nBITMAP 0,0,${widthBytes},${label.height},3,${packed.length},`), packed, ascii("\r\nPRINT 1,1\r\n"));
   }
   const total = parts.reduce((n, p) => n + p.length, 0);
   const out = new Uint8Array(total);
