@@ -64,10 +64,30 @@ export function listDatasetVersions(): string[] {
   return Object.keys(RAW);
 }
 
+/**
+ * Parsed once per version per process, and frozen (TWO-CLICK-READER-PLAN TC1.5): every `/calc` and `/products`
+ * request re-ran the zod parse of ~2,500 entries — 4.2 ms warm on a laptop, 10–30 ms on production's host
+ * (2026-10-29). The file never changes inside a process, so neither does its parse. Frozen deep, because every caller
+ * now shares one object: a caller that writes into it throws instead of changing the next request's dataset.
+ */
+const parsed = new Map<string, Dataset>();
+function deepFreeze<T>(v: T): T {
+  if (v && typeof v === "object" && !Object.isFrozen(v)) {
+    Object.freeze(v);
+    for (const x of Object.values(v as Record<string, unknown>)) deepFreeze(x);
+  }
+  return v;
+}
+
 export function loadDataset(version: string = LATEST_DATASET_VERSION): Dataset {
   // D-PC1: the cuts shipped before 2026-10-26 carry label codes per row and an empty subsidiaryClasses on
   // every entry; the field is derived here so no cut has to be re-minted to carry it (subsidiaryClasses.ts).
-  return withSubsidiaryClasses(loadDatasetAsCut(version));
+  let ds = parsed.get(version);
+  if (!ds) {
+    ds = deepFreeze(withSubsidiaryClasses(loadDatasetAsCut(version)));
+    parsed.set(version, ds);
+  }
+  return ds;
 }
 
 /**
