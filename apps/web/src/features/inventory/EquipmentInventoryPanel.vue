@@ -109,7 +109,7 @@ const openAsset = (row: Record<string, unknown>) =>
     <FilterBar
       v-model:search="search"
       embedded
-      search-placeholder="Search number, name, serial or tag…"
+      search-placeholder="Search number, name, serial, IMEI or tag…"
       :count="assets.data.value?.total ?? 0"
       count-label="items"
       :active-count="activeFilterCount"

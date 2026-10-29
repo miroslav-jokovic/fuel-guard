@@ -42,6 +42,7 @@ const asset = (id: string, over: Partial<AssetDto> = {}): AssetDto => ({
   assetTypeName: "Tablet",
   name: "Cab tablet",
   serialNumber: null,
+  imei: null,
   model: null,
   manufacturer: null,
   status: "in_service",

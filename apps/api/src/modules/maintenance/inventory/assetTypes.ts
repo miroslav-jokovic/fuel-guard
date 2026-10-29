@@ -25,7 +25,7 @@ import { setKitExpectation } from "./kitExpectations.js";
  * type and not evidence of anything.
  */
 
-const COLUMNS = "id, name, category, serialized, default_kit_quantity, image_path";
+const COLUMNS = "id, name, category, serialized, default_kit_quantity, image_path, held_by";
 
 interface TypeRow {
   id: string;
@@ -34,6 +34,7 @@ interface TypeRow {
   serialized: boolean;
   default_kit_quantity: number;
   image_path: string | null;
+  held_by?: string | null;
 }
 
 export const toAssetTypeDto = (r: TypeRow): AssetTypeDto => ({
@@ -43,6 +44,8 @@ export const toAssetTypeDto = (r: TypeRow): AssetTypeDto => ({
   serialized: r.serialized,
   defaultKitQuantity: Number(r.default_kit_quantity),
   imagePath: r.image_path,
+  // 0524's column; a row read without it is a `unit` type, the column's own default.
+  heldBy: r.held_by === "driver" ? "driver" : "unit",
 });
 
 export async function listAssetTypes(

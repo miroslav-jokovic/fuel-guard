@@ -157,6 +157,8 @@ const facts = computed<Fact[]>(() => {
     { label: "Kind", value: a.assetTypeName },
     { label: "Condition", value: ITEM_CONDITION_LABELS[a.condition] },
     { label: "Serial", value: a.serialNumber },
+    // M9b: shown only where there is one — a load bar has no IMEI, and a dash there says nothing.
+    ...(a.imei ? [{ label: "IMEI", value: a.imei }] : []),
     { label: "Make and model", value: [a.manufacturer, a.model].filter(Boolean).join(" ") || null },
     { label: "Bought", value: a.purchasedAt ? fmtDate(a.purchasedAt) : null },
     { label: "Warranty until", value: a.warrantyExpiresAt ? fmtDate(a.warrantyExpiresAt) : null },

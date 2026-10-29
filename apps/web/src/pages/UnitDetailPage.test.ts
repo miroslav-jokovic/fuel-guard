@@ -56,7 +56,7 @@ const unit: UnitKitDto = {
 };
 const openWalk = vi.fn(async () => ({ id: "99999999-9999-4999-8999-999999999999", resumed: false, openedAt: "2026-10-19T14:00:00.000Z", startedByName: "Shop Lead" }));
 const asset: AssetDto = {
-  id: "as-1", tagCode: null, displayNo: "A-0412", assetTypeId: "t2", assetTypeName: "Tablet", name: "Cab tablet", serialNumber: "SN-1", model: null, manufacturer: null,
+  id: "as-1", tagCode: null, displayNo: "A-0412", assetTypeId: "t2", assetTypeName: "Tablet", name: "Cab tablet", serialNumber: "SN-1", imei: null, model: null, manufacturer: null,
   status: "in_service", condition: "good", holder: { kind: "vehicle", id: TRUCK, label: "654", inferredDriverName: "Dana Reyes", since: null },
   purchasedAt: null, purchaseCost: null, warrantyExpiresAt: null, imagePath: null, notes: null,
 };

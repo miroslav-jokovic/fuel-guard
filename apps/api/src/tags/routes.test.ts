@@ -61,7 +61,7 @@ async function withServer<T>(fn: (base: string) => Promise<T>): Promise<T> {
 
 interface Body {
   ok?: boolean;
-  result?: { kind: string; code: string; tagKind?: string | null; part?: { id: string }; stockLines?: unknown[] };
+  result?: { kind: string; code: string; tagKind?: string | null; part?: { id: string }; stockLines?: unknown[]; asset?: { imei: string | null } };
 }
 const resolve = async (code: string): Promise<Body> =>
   withServer(async (base) =>
@@ -231,6 +231,53 @@ describe("a code typed off the label", () => {
       },
     });
     expect((await resolve("Q4X2VW")).result?.kind).toBe("malformed");
+  });
+});
+
+/**
+ * M9b (§7a.6): the sticker on the back of a tablet. Its IMEI or serial finds the tablet; an IMEI the
+ * shop has not got falls through to `malformed` with the code kept, which the screen reads as "Add
+ * this tablet". A twelve-digit box barcode never asks the serial column.
+ */
+describe("a device's sticker", () => {
+  const IMEI = "490154203237518";
+  const ilikeWhen = (val: string, row: object) => (q: { ops: { method: string; args: unknown[] }[] }) =>
+    q.ops.some((o) => o.method === "ilike" && o.args[0] === "serial_number" && o.args[1] === val) ? [row] : [];
+
+  it("finds the tablet by its IMEI", async () => {
+    rec = createSupabaseRecorder({
+      tables: { inventory_assets: onlyWhen("imei", IMEI, { ...assetRow, imei: IMEI }), part_stock: () => [], parts: () => [] },
+    });
+    const body = await resolve(IMEI);
+    expect(body.result?.kind).toBe("asset");
+    expect(body.result?.asset?.imei).toBe(IMEI);
+  });
+
+  it("finds it by its serial, in any case, as the serial index compares it", async () => {
+    rec = createSupabaseRecorder({
+      tables: { inventory_assets: ilikeWhen("R52W80ABCDE", assetRow), part_stock: () => [], parts: () => [] },
+    });
+    expect((await resolve("r52w80abcde")).result?.kind).toBe("asset");
+  });
+
+  it("answers malformed with the IMEI kept when no tablet has it, so the screen can offer to add one", async () => {
+    rec = createSupabaseRecorder({ tables: { inventory_assets: () => [], part_stock: () => [], parts: () => [] } });
+    expect((await resolve(IMEI)).result).toMatchObject({ kind: "malformed", code: IMEI });
+  });
+
+  it("never asks the serial column about a box barcode, which goes to the supplier lookup", async () => {
+    rec = createSupabaseRecorder({ tables: { inventory_assets: () => [], part_stock: () => [], parts: () => [] } });
+    await resolve("036000291452");
+    const serialAsked = rec.queries.some((q) => q.table === "inventory_assets" && q.ops.some((o) => o.method === "ilike"));
+    expect(serialAsked).toBe(false);
+  });
+
+  it("answers a failed device lookup with an error to retry, never 'not recognised'", async () => {
+    rec = createSupabaseRecorder({
+      tables: { inventory_assets: { error: { message: "connection reset" } }, part_stock: () => [], parts: () => [] },
+    });
+    const res = await withServer((base) => fetch(`${base}/api/tags/resolve?code=${IMEI}`));
+    expect(res.status).toBe(500);
   });
 });
 

@@ -295,6 +295,29 @@ describe("writing an asset", () => {
     expect((created as { error: string }).error).toMatch(/serial number is already on another asset/);
     expect(await updateAsset(rec.client, ORG, A_CRIB, { serialNumber: "R9TW40" })).toMatchObject({ code: "duplicate_serial" });
   });
+
+  /** M9b: 0527's IMEI index is a third 23505 on this table; its name says which sentence is true. */
+  it("says the IMEI is on another tablet when 0527's index refused it", async () => {
+    rec = createSupabaseRecorder({
+      tables: {
+        inventory_assets: () => ({
+          error: { code: "23505", message: 'duplicate key value violates unique constraint "idx_inventory_assets_imei_unique"' },
+        }),
+      },
+    });
+    const created = await createAsset(rec.client, ORG, { ...input, imei: "490154203237518" }, { locationId: CRIB });
+    expect(created).toMatchObject({ code: "duplicate_imei" });
+    expect((created as { error: string }).error).toMatch(/IMEI is already on another tablet/);
+  });
+
+  it("writes the IMEI it is given, and leaves it alone when an edit does not mention it", async () => {
+    rec = createSupabaseRecorder({ tables: { inventory_assets: [assetRow()], drivers: DRIVERS } });
+    await createAsset(rec.client, ORG, { ...input, imei: "490154203237518" }, { locationId: CRIB });
+    await updateAsset(rec.client, ORG, A_CRIB, { name: "Renamed" });
+    const writes = rec.writes().filter((w) => w.table === "inventory_assets").map((w) => w.write?.payload as Record<string, unknown>);
+    expect(writes[0]!.imei).toBe("490154203237518");
+    expect(writes[1]!).not.toHaveProperty("imei");
+  });
 });
 
 describe("moving an asset", () => {

@@ -47,7 +47,7 @@ import { isServiceError, type ServiceError } from "./types.js";
  */
 const STOCK_FACE_COLUMNS: string =
   "part_id, location_id, tag_code, parts!inner(part_number), stock_locations!inner(name)";
-const ASSET_FACE_COLUMNS: string = "id, tag_code, display_seq, name";
+const ASSET_FACE_COLUMNS: string = "id, tag_code, display_seq, name, imei";
 
 interface StockFaceRow {
   part_id: string;
@@ -62,6 +62,7 @@ interface AssetFaceRow {
   tag_code: string | null;
   display_seq: number;
   name: string;
+  imei: string | null;
 }
 
 const stockKey = (partId: string, locationId: string) => `${partId}:${locationId}`;
@@ -151,7 +152,9 @@ export async function resolveLabelFaces(
       // D-INV18: an asset has two identifiers, and the SEQUENTIAL one is what gets printed and said
       // out loud. The opaque code is in the symbol; nobody reads it aloud over a radio.
       code: nextDisplayNo(row.display_seq),
-      lines: [row.name].filter(Boolean),
+      // M9b: a tablet's IMEI is its second line — what AT&T bills the line against, and what the
+      // office reads off the label when a driver calls about a SIM. Two lines is the face's maximum.
+      lines: [row.name, row.imei ? `IMEI ${row.imei}` : ""].filter(Boolean),
     });
   }
 
