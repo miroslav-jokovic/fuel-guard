@@ -1,9 +1,10 @@
-import { classifyCameraError, type LiveFacing, type LiveRefusal, type Rect, type Size } from "./liveFrame";
+import { classifyCameraError, type LiveFacing, type LiveRefusal, type Rect, type Size } from "./cameraFrame";
 
 /**
- * The phone's camera inside the page — the browser half of the live scanner (2026-09-30).
+ * The phone's camera inside the page — the browser half of the live scanner (2026-09-30), and since M9c
+ * (2026-10-29) of the shop's barcode camera too (`useBarcodeCamera.ts`), which is why it lives in `lib/`.
  *
- * Behind an interface for the reason `webImageIo` is: what the scanner DECIDES (`liveFrame.ts`,
+ * Behind an interface for the reason `webImageIo` is: what the scanner DECIDES (`cameraFrame.ts`, `/apply`'s `liveFrame.ts`,
  * `useLiveScan.ts`) must be testable without a camera, so a test hands in its own `LiveCamera`. This file is
  * the only one that touches `getUserMedia`, a `<video>` and a canvas.
  *
@@ -17,7 +18,7 @@ import { classifyCameraError, type LiveFacing, type LiveRefusal, type Rect, type
  */
 
 export interface LiveCamera {
-  /** What the camera granted — never what was asked for (`liveFrame.viewRectToVideo`). */
+  /** What the camera granted — never what was asked for (`cameraFrame.viewRectToVideo`). */
   size(): Size;
   /** The crop of the frame on screen now, downscaled so its long edge is at most `longEdge`. */
   sample(crop: Rect, longEdge: number): ImageData;
@@ -48,7 +49,7 @@ export type OpenResult = { ok: true; camera: LiveCamera } | { ok: false; refusal
 
 /**
  * A camera at the most pixels it will give — the rear one for a document, the front one for the selfie
- * (`liveFrame.LIVE_SLOTS`). `ideal`, never `exact`: an unmet `exact` rejects the whole request, and a camera at
+ * (`/apply`'s `liveFrame.LIVE_SLOTS`). `ideal`, never `exact`: an unmet `exact` rejects the whole request, and a camera at
  * 1920×1080 is still a camera — whether it is enough is `meetsResolutionFloor`'s call, made on what came back.
  * The same holds for the facing: a phone or a laptop with one camera answers `user` with the one it has.
  *
@@ -170,4 +171,14 @@ function drawScaled(ctx: CanvasRenderingContext2D, source: CanvasImageSource, cr
   ctx.canvas.height = height;
   ctx.drawImage(source, crop.x, crop.y, crop.width, crop.height, 0, 0, width, height);
   return ctx.getImageData(0, 0, width, height);
+}
+
+/**
+ * `requestVideoFrameCallback` runs once per NEW camera frame (Safari 15.4+, Chrome 83+). A repaint-timed
+ * callback, the fallback, can hand over one frame several times — harmless for ranking or reading, which is
+ * all it feeds.
+ */
+export function onNextVideoFrame(video: HTMLVideoElement, callback: () => void): void {
+  if ("requestVideoFrameCallback" in video) video.requestVideoFrameCallback(() => callback());
+  else requestAnimationFrame(() => callback());
 }

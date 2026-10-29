@@ -96,6 +96,8 @@ function render() {
         MovementDrawer: drawerStub("MovementDrawer", ["verb", "line", "locations"]),
         AssetMoveDrawer: drawerStub("AssetMoveDrawer", ["asset", "mode", "locations"]),
         AssetDrawer: drawerStub("AssetDrawer", ["initial"]),
+        // `once` typed Boolean, as the component types it, or a bare attribute reads as "".
+        BarcodeCamera: { name: "BarcodeCamera", props: { reader: Object, once: Boolean, title: String, hint: String }, template: "<div />" },
       },
     },
   });
@@ -125,6 +127,37 @@ describe("ScanPage in its own layout", () => {
     expect(document.querySelector("#shop-action-bar input")).not.toBeNull();
     wrapper.unmount();
   });
+
+  /**
+   * DESIGN-SYSTEM-CONTRACT.md §9 rule 1 on the one page `AppShell` does not wrap. Until M9c's browser pass
+   * (2026-10-29) nothing provided the touch floor here, and the Scan page — used with a scanner in the other
+   * hand — drew Back, the typed code, Find and the camera at 36 px.
+   */
+  it.each([
+    ["a touched tablet", true, "h-12"],
+    ["a desk with a mouse", false, "h-9"],
+  ])("draws its controls at the touch floor on %s, and not otherwise", async (_name, coarse, height) => {
+    Object.defineProperty(window, "matchMedia", {
+      writable: true,
+      configurable: true,
+      value: (media: string) => ({
+        matches: media.includes("coarse") ? coarse : false,
+        media, onchange: null, addListener: () => {}, removeListener: () => {},
+        addEventListener: () => {}, removeEventListener: () => {}, dispatchEvent: () => false,
+      }),
+    });
+    const { defineComponent, h } = await import("vue");
+    const { createRouter, createMemoryHistory } = await import("vue-router");
+    const ShopLayout = (await import("@/layouts/ShopLayout.vue")).default;
+    const router = createRouter({ history: createMemoryHistory(), routes: [{ path: "/", component: { template: "<div />" } }] });
+    const Shell = defineComponent({ render: () => h(ShopLayout, null, { default: () => h(ScanPage) }) });
+    const wrapper = mount(Shell, { attachTo: document.body, global: { plugins: [router] } });
+    await new Promise((r) => setTimeout(r, 0));
+    const find = [...document.querySelectorAll("#shop-action-bar button")].find((b) => b.textContent?.trim() === "Find")!;
+    expect(find.className.split(" ")).toContain(height);
+    expect(document.querySelector('[data-test="scan-camera"]')!.className.split(" ")).toContain(height);
+    wrapper.unmount();
+  });
 });
 
 describe("ScanPage", () => {
@@ -145,6 +178,27 @@ describe("ScanPage", () => {
     expect(wrapper.text()).toContain("Oil filter");
     expect(wrapper.text()).toContain("Tool crib");
     expect(wrapper.text()).toContain("Issue");
+  });
+
+  /**
+   * M9c: the camera, for when the handheld is not near. Its read must land where a trigger pull lands — the
+   * same submit, the same lookup — and one code is one lookup, so it is opened to close after the first.
+   */
+  it("opens the camera from the bottom bar, and its read is looked up like a scanner's", async () => {
+    const wrapper = render();
+    expect(wrapper.findComponent({ name: "BarcodeCamera" }).exists()).toBe(false);
+    await wrapper.find('[data-test="scan-camera"]').trigger("click");
+
+    const camera = wrapper.findComponent({ name: "BarcodeCamera" });
+    expect(camera.props("once")).toBe(true);
+    expect(camera.props("reader").formats).toEqual(expect.arrayContaining(["QRCode", "Code128", "UPC-A"]));
+
+    camera.vm.$emit("read", BIN_TAG);
+    camera.vm.$emit("close");
+    await wrapper.vm.$nextTick();
+    expect(submitted.code?.value).toBe(BIN_TAG);
+    expect(wrapper.text()).toContain("Oil filter");
+    expect(wrapper.findComponent({ name: "BarcodeCamera" }).exists()).toBe(false);
   });
 
   it("opens the desk's own movement drawer on the shelf that was scanned", async () => {

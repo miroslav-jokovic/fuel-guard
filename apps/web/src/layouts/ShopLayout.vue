@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { useRouter } from "vue-router";
-import { AppButton as BaseButton, AppIcon } from "@silvicom/ui";
+import { AppButton as BaseButton, AppIcon, provideTouchTargets } from "@silvicom/ui";
 import { ChevronLeftIcon } from "@silvicom/ui/icons";
+import { useTouchedWindow } from "@/composables/usePhoneFirst";
 
 /**
  * The shell for a phone held in a bay (D-INV17, INVENTORY-PLAN.md I5 PR 2b).
@@ -32,8 +33,16 @@ import { ChevronLeftIcon } from "@silvicom/ui/icons";
  * page teleports into `#shop-action-bar` instead. The strip collapses with `:empty` when no page has
  * filled it, so a screen with no primary action does not grow an empty band above the home
  * indicator.
+ *
+ * ── THE TOUCH FLOOR IS PROVIDED HERE TOO (DESIGN-SYSTEM-CONTRACT.md §9 rule 1) ────────────────
+ * `AppShell` provides it through `usePhoneFirst`; this shell has no `AppShell` around it, so until M9c's
+ * browser pass (2026-10-29) the Scan page — the one screen used with a scanner in the other hand — drew
+ * every control at 36 px: Back, the typed code, Find, Add this tablet. Every route on this shell is a shop
+ * route, so the section question is already answered; what is left is whether the window is touched, asked
+ * through the same definition `AppShell` uses, so a desk with a mouse keeps its density here as well.
  */
 const router = useRouter();
+provideTouchTargets(useTouchedWindow());
 </script>
 
 <template>

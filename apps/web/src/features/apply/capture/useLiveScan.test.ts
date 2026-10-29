@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { effectScope, ref } from "vue";
 import type { AamvaLicence } from "@silvicom/shared";
-import type { LiveCamera, OpenResult, Snapshot } from "./liveCamera";
+import type { LiveCamera, OpenResult, Snapshot } from "@/lib/camera/liveCamera";
 import { SHUTTER_DEADLINE_MS } from "./liveFrame";
 import { useLiveScan, type LiveCapture, type LiveScanOptions } from "./useLiveScan";
 

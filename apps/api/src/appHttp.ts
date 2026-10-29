@@ -44,9 +44,10 @@ export function securityMiddleware(env: Env) {
         /**
          * `'wasm-unsafe-eval'` lets a page COMPILE WebAssembly and does nothing else — it is not
          * `'unsafe-eval'` (no `eval`, no `new Function`) and it names no origin. It is here for the
-         * licence-barcode decoder on the apply page (AW5, `licenceBarcodeReader.ts`), whose binary is one
-         * of this server's own assets: without it Chrome refuses `WebAssembly.instantiate` under a
-         * `script-src` that omits it, the read fails, and the driver types instead — silently, since an
+         * barcode decoder (`lib/barcode/barcodeReader.ts` — the licence on the apply page, AW5, and the
+         * shop's camera since M9c), whose binary is one of this server's own assets: without it Chrome
+         * refuses `WebAssembly.instantiate` under a `script-src` that omits it, the read fails, and the
+         * driver types instead — silently, since an
          * unreadable barcode is designed to cost nothing. Only a page served with this header shows it.
          */
         scriptSrc: ["'self'", "'wasm-unsafe-eval'"],

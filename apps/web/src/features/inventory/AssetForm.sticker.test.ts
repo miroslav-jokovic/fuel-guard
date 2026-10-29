@@ -105,4 +105,36 @@ describe("Add equipment, filled from the sticker", () => {
     expect(mountForm({ initial: { assetTypeId: TYPES[1]!.id } }).find('[data-test="imei"]').exists()).toBe(false);
     expect(mountForm({ initial: { assetTypeId: TYPES[0]!.id } }).find('[data-test="imei"]').exists()).toBe(true);
   });
+
+  /**
+   * M9c: the camera's reads go through the same `take` a handheld's do — same field, same list — and the list
+   * is drawn under the camera's picture, so the person sees each barcode land without closing it.
+   */
+  it("fills the form from the camera exactly as from the handheld, and shows each read under the picture", async () => {
+    const w = mount(AssetForm, {
+      props: { types: TYPES, locations: [], active: true },
+      attachTo: document.body,
+      global: { stubs: { BarcodeCamera: { name: "BarcodeCamera", props: { reader: Object, title: String, hint: String, once: Boolean }, template: "<div data-test=\"camera\"><slot /></div>" } } },
+    });
+    await flushPromises();
+    expect(w.find('[data-test="camera"]').exists()).toBe(false);
+    await w.find('[data-test="sticker-camera"]').trigger("click");
+
+    const camera = w.findComponent({ name: "BarcodeCamera" });
+    expect(camera.props("once")).toBe(false);
+    expect(camera.props("reader").formats).toContain("Code128");
+    for (const code of ["SM-T575", IMEI, "R52W40ABCDE"]) camera.vm.$emit("read", code);
+    await flushPromises();
+
+    expect((w.find('[data-test="imei"]').element as HTMLInputElement).value).toBe(IMEI);
+    expect(value(w, "Serial number")).toBe("R52W40ABCDE");
+    expect(value(w, "Model")).toBe("SM-T575");
+    expect(w.find('[data-test="sticker-camera-log"]').text()).toContain(`IMEI ${IMEI}`);
+    expect(w.emitted("submit")).toBeUndefined();
+
+    camera.vm.$emit("close");
+    await flushPromises();
+    expect(w.find('[data-test="camera"]').exists()).toBe(false);
+    w.unmount();
+  });
 });

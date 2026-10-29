@@ -1,8 +1,11 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import { useRouter } from "vue-router";
-import { AppButton as BaseButton, AppFormField as FormField, AppInput as BaseInput, ErrorState } from "@silvicom/ui";
+import { AppButton as BaseButton, AppFormField as FormField, AppIcon, AppInput as BaseInput, ErrorState } from "@silvicom/ui";
+import { ScanIcon } from "@silvicom/ui/icons";
 import { useScanInput } from "@/composables/useScanInput";
+import BarcodeCamera from "@/components/BarcodeCamera.vue";
+import { SCAN_PAGE_READER } from "@/features/inventory/shopBarcodeFormats";
 import { useLocationsQuery } from "@/features/inventory/useInventory";
 import { useSessionStore } from "@/stores/session";
 import { useScanQuery } from "@/features/inventory/useScan";
@@ -44,6 +47,12 @@ import type { AssetDto, StockLineDto } from "@silvicom/shared";
  * typed staying put, against a part they are no longer looking at. The scanner beeps either way, so
  * the technician gets no signal that anything was ignored; that is acceptable and the alternative is
  * not, because a wrong write is silent and a missed scan is one more trigger pull.
+ *
+ * ── THE CAMERA, FOR WHEN THE HANDHELD IS NOT NEAR (M9c, 2026-10-29) ───────────────────────────
+ * The camera half of I6, landed behind the same loop as the header above promised: the camera button in the
+ * bottom bar opens `BarcodeCamera` as an overlay — never a route, D-INV17's reason in full — reading our QR
+ * labels, a tablet's Code 128 and a carton's UPC. Its first read goes to `scanner.submit`, exactly where a
+ * typed code goes, and the camera closes: one code is one lookup.
  */
 
 const router = useRouter();
@@ -61,6 +70,7 @@ const { data: result, isFetching, isError, error, refetch } = useScanQuery(code,
 const moving = ref<{ verb: DeskVerb; line: StockLineDto } | null>(null);
 const assetAction = ref<{ mode: "move" | "report"; asset: AssetDto } | null>(null);
 /** "Add this tablet": the code the scan read, carried into the Add equipment form (M9b). */
+const cameraOpen = ref(false);
 const creatingAssetWith = ref<AssetFormSeed | null>(null);
 
 const drawerOpen = computed(
@@ -161,7 +171,7 @@ function refresh() {
       <p class="mx-auto mt-1 max-w-sm text-sm text-ink-tertiary">
         If nothing happens when you scan, check the scanner is connected — paired in Bluetooth
         settings, or its USB receiver plugged in. You can also type the code printed on the label
-        below.
+        below, or use the camera beside it.
       </p>
     </div>
   </div>
@@ -193,10 +203,22 @@ function refresh() {
           @keydown.tab="onFieldTab"
         />
       </FormField>
+      <BaseButton type="button" variant="secondary" aria-label="Use the camera" title="Use the camera" data-test="scan-camera" @click="cameraOpen = true">
+        <AppIcon :icon="ScanIcon" class="size-5" aria-hidden="true" />
+      </BaseButton>
       <BaseButton type="submit" variant="primary" :disabled="!typed.trim()">Find</BaseButton>
     </form>
   </Teleport>
 
+  <BarcodeCamera
+    v-if="cameraOpen"
+    title="Scan"
+    hint="Hold the label or barcode inside the box."
+    :reader="SCAN_PAGE_READER"
+    once
+    @read="(text) => scanner.submit(text)"
+    @close="cameraOpen = false"
+  />
   <MovementDrawer
     v-if="moving"
     :open="true"

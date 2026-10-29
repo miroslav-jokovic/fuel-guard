@@ -1,4 +1,4 @@
-import { computed, type Ref } from "vue";
+import { computed, type ComputedRef, type Ref } from "vue";
 import { useRoute } from "vue-router";
 import { useMediaQuery } from "@vueuse/core";
 import { provideTouchTargets } from "@silvicom/ui";
@@ -18,13 +18,24 @@ export function usePhoneFirst(navGroups: Ref<NavGroup[]>) {
   const route = useRoute();
   /** The DECLARED path (`/shop/units/:kind/:id`), which is what the catalogue is keyed on. */
   const declared = computed(() => route.matched[0]?.path ?? route.path);
-  const coarse = useMediaQuery("(pointer: coarse)");
-  const narrow = useMediaQuery("(max-width: 767.98px)");
-  const touch = computed(() => isPhoneFirst(declared.value) && (coarse.value || narrow.value));
+  const touched = useTouchedWindow();
+  const touch = computed(() => isPhoneFirst(declared.value) && touched.value);
   provideTouchTargets(touch);
   return {
     touch,
     tabs: computed(() => phoneTabs(declared.value, navGroups.value)),
     currentTab: computed(() => phoneTabFor(declared.value)),
   };
+}
+
+/**
+ * Whether this window is being touched: a coarse pointer (a tablet, at any width) or a window below `md`. One
+ * definition, read by `usePhoneFirst` above for `AppShell`, and by `ShopLayout` — the Scan page's own shell,
+ * which has no `AppShell` around it and so had no touch floor at all until M9c's browser pass measured its
+ * controls at 36 px (2026-10-29).
+ */
+export function useTouchedWindow(): ComputedRef<boolean> {
+  const coarse = useMediaQuery("(pointer: coarse)");
+  const narrow = useMediaQuery("(max-width: 767.98px)");
+  return computed(() => coarse.value || narrow.value);
 }
