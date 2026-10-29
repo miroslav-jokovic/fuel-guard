@@ -16,6 +16,9 @@ import { loadDataset } from "@hazmat/data";
  *   4 §172.334(d)    — a placard that carries numbers carries every number of its class aboard.
  *   5 (display)      — a number on no placard is not recommended `on_placard`.
  *   6 §172.504       — no required placard that no line aboard asked for (a §172.505 subsidiary is asked for).
+ *   7 §172.504(f)(9) — CLASS 9 is never required in domestic transportation (bulk included); its ID number still is.
+ * Since 2026-10-29 (TC1.2) invariant 1 knows two exceptions the ladder now applies: CLASS 9 (7 above), and a non-bulk
+ * combustible liquid, which §173.150(f)(2) takes out of the regulations — no placard, and no weight in the aggregate.
  * A line the engine refuses (Table 1, explosives, an ambiguous class) withholds the WHOLE verdict — no
  * placards at all — which is checked instead of 1–6.
  */
@@ -48,7 +51,9 @@ function own(ref: string) {
   if (!a) {
     const v = evaluateLoad(load([{ ref, kind: "bulk", lb: 500 }]));
     const req = v.placards.required.map((p) => p.placard);
-    a = { placard: req[0] ?? null, id: v.placards.idDisplays[0]?.idNumber ?? null, withheld: req.length === 0 };
+    // A Class 9 row's own placard is permitted, not required (§172.504(f)(9)) — still its own, never a refusal.
+    const placard = req[0] ?? (v.placards.permitted.some((p) => p.placard === "CLASS_9") ? "CLASS_9" : null);
+    a = { placard, id: v.placards.idDisplays[0]?.idNumber ?? null, withheld: placard === null };
     alone.set(ref, a);
   }
   return a;
@@ -75,11 +80,18 @@ function violations(picks: Pick[]): string[] {
     return [];
   }
   const sub = new Set(v.trace.filter((t) => t.ruleId === "subsidiary_placard_172_505").flatMap((t) => (t.inputs.placard ? [String(t.inputs.placard)] : [])));
+  const notRegulated = (o: { kind: Kind; placard: string | null }) => o.kind === "non_bulk" && o.placard === "COMBUSTIBLE"; // §173.150(f)(2)
   const nonBulkLb = new Map<string, number>();
-  for (const o of owns) if (o.kind === "non_bulk" && o.placard) nonBulkLb.set(o.placard, (nonBulkLb.get(o.placard) ?? 0) + o.lb);
+  for (const o of owns) if (o.kind === "non_bulk" && o.placard && !notRegulated(o)) nonBulkLb.set(o.placard, (nonBulkLb.get(o.placard) ?? 0) + o.lb);
   const totalNonBulk = [...nonBulkLb.values()].reduce((s, x) => s + x, 0);
+  if (req.has("CLASS_9")) out.push("7 CLASS_9 required");
   for (const o of owns) {
     if (!o.placard) continue;
+    if (notRegulated(o) && req.has("COMBUSTIBLE") && !owns.some((x) => x.placard === "COMBUSTIBLE" && x.kind === "bulk")) out.push(`1 ${o.ref} non_bulk combustible → COMBUSTIBLE required`);
+    if (o.placard === "CLASS_9" || notRegulated(o)) {
+      if (o.kind === "bulk" && o.id && !v.placards.idDisplays.some((d) => d.idNumber === o.id)) out.push(`2 ${o.ref} → ${o.id} not displayed`);
+      continue;
+    }
     if ((o.kind === "bulk" || totalNonBulk >= 1001) && !req.has(o.placard) && !v.placards.optionalSubstitutions.some((s) => s.instead === o.placard))
       out.push(`1 ${o.ref} ${o.kind} → ${o.placard} not required`);
     if (o.kind === "bulk" && o.id && !v.placards.idDisplays.some((d) => d.idNumber === o.id)) out.push(`2 ${o.ref} → ${o.id} not displayed`);

@@ -672,6 +672,27 @@
       "paragraph": "(d)",
       "excerpt": "ials must be stored, loaded or transported in accordance with the following table and other provisions of this section: segregation table for hazardous materials",
       "source": "https://www.ecfr.gov/on/2026-10-27/title-49/section-177.848#p-177.848(d)"
+    },
+    {
+      "cfr": "49 CFR 172.504(f)(9)",
+      "mustSay": [
+        "class 9 placard is not required for domestic transportation",
+        "a bulk packaging must be marked with the appropriate identification number"
+      ],
+      "section": "172.504",
+      "paragraph": "(f)(9)",
+      "excerpt": "(9) for class 9, a class 9 placard is not required for domestic transportation, including that portion of international transportation, defined in § 171.8 of this subchapter, which occurs within the united states. however, a bulk packaging must be marked with the appropriate id",
+      "source": "https://www.ecfr.gov/on/2026-10-27/title-49/section-172.504#p-172.504(f)(9)"
+    },
+    {
+      "cfr": "49 CFR 173.150(f)(2)",
+      "mustSay": [
+        "do not apply to a material classed as a combustible liquid in a non-bulk packaging"
+      ],
+      "section": "173.150",
+      "paragraph": "(f)(2)",
+      "excerpt": "(2) the requirements in this subchapter do not apply to a material classed as a combustible liquid in a non-bulk packaging unless the combustible liquid is a hazardous substance, a hazardous waste, or a marine pollutant.",
+      "source": "https://www.ecfr.gov/on/2026-10-27/title-49/section-173.150#p-173.150(f)(2)"
     }
   ],
   "internal": [

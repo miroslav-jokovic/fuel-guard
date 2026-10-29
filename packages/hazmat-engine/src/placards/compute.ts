@@ -26,6 +26,7 @@ import { addSubsidiaryPlacards, finalizePlacards } from "./computeFinalize.js";
 import { applyMarinePollutantMark } from "./marinePollutant.js";
 import { applyScopeGates } from "./computeScopeGates.js";
 import { resolvePlacardLines } from "./resolve.js";
+import { CLASS_9_PLACARD, exceptClass9Placard, exceptNonBulkCombustible } from "./domesticExceptions.js";
 
 export function computePlacards(load: LoadInput): PlacardComputation {
   const ds = readDataset(load);
@@ -40,7 +41,7 @@ export function computePlacards(load: LoadInput): PlacardComputation {
   }
 
   const resolution = resolvePlacardLines(load, ds, placards, findings, trace);
-  const { resolved, table1Hits, explosivesHits } = resolution;
+  const { table1Hits, explosivesHits } = resolution;
   if (!resolution.complete) return { placards, findings, trace };
 
   // Materials the engine recognises and refuses to assess — Table 1 and explosives (D4-revised).
@@ -48,6 +49,10 @@ export function computePlacards(load: LoadInput): PlacardComputation {
   if (applyScopeGates({ table1Hits, explosivesHits, findings, trace })) {
     return { placards, findings, trace };
   }
+  const isTank = load.vehicle.kind === "cargo_tank";
+  const isBulk = (r: Resolved): boolean => r.line.packagingKind === "bulk" || isTank;
+  // §173.150(f)(2): a non-bulk combustible liquid is not regulated on the highway — out of every rule below.
+  const resolved = exceptNonBulkCombustible(resolution.resolved, isBulk, findings, trace);
 
   if (resolved.length === 0) {
     trace.push({ ruleId: "any_placardable_line", fired: false, inputs: {}, citations: [] });
@@ -69,7 +74,6 @@ export function computePlacards(load: LoadInput): PlacardComputation {
   //     to come back with NO placards — the most dangerous output this function could produce.
   //   · RESIDUE-only non-bulk lines are excluded from the aggregate (§172.504(d), §173.29(c)).
   //   · §172.505 subsidiary materials placard regardless of the aggregate.
-  const isTank = load.vehicle.kind === "cargo_tank";
   // H-LQ: an ACCEPTED Limited Quantity line is excepted from this entire subpart (§172.500(b)(2)) —
   // it leaves the Table 2 processing here (no placard requirement, no §172.504(c) aggregate, no
   // DANGEROUS category). Refused claims kept `lqAccepted: false` and stay fully regulated. LQ lines
@@ -77,7 +81,6 @@ export function computePlacards(load: LoadInput): PlacardComputation {
   // §172.301(a)(3) marking aggregate — that is subpart D, not F, and keeping them can only
   // over-display (safe direction).
   const table2 = resolved.filter((r) => r.spec.table === 2 && !r.lqAccepted); // Table 1 already gated out above
-  const isBulk = (r: Resolved): boolean => r.line.packagingKind === "bulk" || isTank;
   const has505 = (r: Resolved): boolean => subsidiary505(r.entry).pih || subsidiary505(r.entry).dww;
 
   const alwaysPlacard = table2.filter((r) => isBulk(r) || has505(r));
@@ -221,6 +224,7 @@ export function computePlacards(load: LoadInput): PlacardComputation {
   for (const placard of distinct.keys()) {
     placards.required.push({ placard, positions: "each_side_and_each_end", because: [{ cfr: "49 CFR 172.504(a)" }] });
   }
+  exceptClass9Placard(placards, findings, trace); // §172.504(f)(9); a bulk line's ID number still finds a carrier
 
   // Sub-threshold categories are PERMITTED, not absent (§172.502(c)).
   if (!thresholdMet) {
@@ -236,7 +240,7 @@ export function computePlacards(load: LoadInput): PlacardComputation {
   // ── 4) §172.504(b) DANGEROUS — three restrictions, none of which existed ──────────────────────
   // It was offered on any load with two Table 2 categories, including a cargo tank, where the rule is
   // a hard block. The 2,205 lb bar and the non-bulk-only limit were a comment string.
-  const nonBulkRequiring = requiring.filter((r) => !isBulk(r) && !has505(r));
+  const nonBulkRequiring = requiring.filter((r) => !isBulk(r) && !has505(r) && r.placard !== CLASS_9_PLACARD);
   const nonBulkCategories = new Map<PlacardName, Resolved[]>();
   for (const r of nonBulkRequiring) {
     const arr = nonBulkCategories.get(r.placard) ?? [];
