@@ -289,3 +289,7 @@ proof none of this replaces — the scanner on an Android tablet, and a printed 
     in twice answered **500**; `?unassigned=false` meant true (`z.coerce.boolean`), now a strict flag; and
     `unassigned` was three IS NULLs, which would have called every driver's tablet loose.
   - Tests: `driverHeld.test.ts` (16; 16 mutants, all killed). **Next: DE2b** — the screens.
+- **2026-10-29 — owner: "proceed as proposed"** on DE2's open point. **The Tablet type is driver-held**
+  (D-DE1 confirmed), set once through DE2b's *Held by* setting, not by a migration or a catalogue
+  change — `inventoryKitCatalogue.ts`'s Tablet line stays a kit line (D-DE4 counts it through the
+  driver). The owner wants the tablet PRs (M9c, DE2a, DE2b) released as soon as DE2b merges.
