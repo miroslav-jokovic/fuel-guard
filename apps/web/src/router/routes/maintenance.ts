@@ -55,7 +55,7 @@ export const maintenanceRoutes: RouteRecordRaw[] = [
     path: "/shop/inventory",
     name: "parts",
     component: () => import("@/pages/PartsPage.vue"),
-    meta: { requiresAuth: true, title: "Parts", parent: "/shop" },
+    meta: { requiresAuth: true, title: "Shop parts", parent: "/shop" },
   },
   /**
    * The assets (I8). A separate address from `/shop/inventory` rather than a tab on it: §2.1's seam

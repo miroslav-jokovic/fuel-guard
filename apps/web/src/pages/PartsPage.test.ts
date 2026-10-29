@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { flushPromises, mount } from "@vue/test-utils";
 import { createMemoryHistory, createRouter, type Router } from "vue-router";
 import { createPinia, setActivePinia } from "pinia";
@@ -59,6 +59,13 @@ const line = (over: Partial<StockLineDto> = {}): StockLineDto => ({
 const catalogue = ref<{ parts: PartDto[]; total: number }>({ parts: [], total: 0 });
 const low = ref<{ lines: StockLineDto[]; total: number }>({ lines: [], total: 0 });
 
+// The shelf-counting flag (Q-MX8) as a live getter, so one file tests the hidden page AND the kept code.
+const flags = vi.hoisted(() => ({ shown: true }));
+vi.mock("@/lib/shelfCounting", () => ({
+  get SHELF_COUNTING_SHOWN() {
+    return flags.shown;
+  },
+}));
 vi.mock("@/features/inventory/useInventory", async () => {
   const { ref: r } = await import("vue");
   return {
@@ -181,21 +188,44 @@ describe("the list in the URL (D-US2)", () => {
     expect(foreign.findComponent({ name: "DataTable" }).props("sort")).toEqual({ key: null, dir: "asc" });
   });
 
-  it("opens the drawer from ?new=1 and closing it keeps the filters", async () => {
-    const w = await page("/shop/inventory?stock=low&new=1");
-    const drawer = w.findComponent({ name: "PartDrawer" });
-    expect(drawer.props("open")).toBe(true);
-    drawer.vm.$emit("close");
-    await flushPromises();
-    expect(urlQuery()).toEqual({ stock: "low" });
-  });
 });
 
 describe("the header", () => {
   it("names what its buttons open, rather than showing an unlabelled gear", async () => {
     const text = (await page()).text();
     expect(text).toContain("Places");
-    expect(text).toContain("New part");
+  });
+});
+
+/**
+ * M8 (§7a.5) — the page as it ships: FleetPal's catalogue, shelf counting hidden (Q-MX8). Everything
+ * above runs with the flag ON, because the shelf code is kept and must keep working the day it is on.
+ */
+describe("Shop parts as it ships: FleetPal's list, shelf counting hidden", () => {
+  beforeEach(() => (flags.shown = false));
+  afterEach(() => (flags.shown = true));
+
+  it("says where the list comes from and where it is changed, and offers no New part", async () => {
+    const text = (await page()).text();
+    expect(text).toContain("The shop's parts catalogue, pulled from FleetPal every hour. Add and change parts in FleetPal.");
+    expect(text).not.toContain("New part");
+    expect(text).not.toContain("Places");
+    expect(text).not.toContain("Labels");
+  });
+
+  it("draws no Running low filter, and opens an old ?stock=low link on the catalogue", async () => {
+    catalogue.value = { parts: [part()], total: 1 };
+    low.value = { lines: [line({ locationId: "l1", locationName: "Main shelf" })], total: 1 };
+    const w = await page("/shop/inventory?stock=low");
+    expect(w.findAllComponents(FilterSelect).find((c) => c.props("label") === "Show")).toBeUndefined();
+    expect(w.findComponent({ name: "DataTable" }).props("rows")).toEqual(catalogue.value.parts);
+  });
+
+  it("marks a FleetPal part From FleetPal, and a hand-typed one not", async () => {
+    catalogue.value = { parts: [part({ fleetpalId: "fp-1" }), part({ id: "p2", partNumber: "X1" })], total: 2 };
+    const marks = (await page()).findAll('[data-test="from-fleetpal"]');
+    expect(marks).toHaveLength(1);
+    expect(marks[0]!.text()).toBe("· From FleetPal");
   });
 });
 

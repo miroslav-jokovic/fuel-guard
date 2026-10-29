@@ -253,7 +253,9 @@ describe("every count is the row count behind its door (D-FM7)", () => {
 
   it("shop: the summary's counts, each the length of its list on the server, and the oldest order's age", () => {
     const w = render();
-    expect([n(w, "work-orders"), n(w, "defects"), n(w, "low-stock")]).toEqual(["24", "52", "3"]);
+    expect([n(w, "work-orders"), n(w, "defects")]).toEqual(["24", "52"]);
+    // Shelf counting is hidden (Q-MX8, `lib/shelfCounting.ts`), and its "Shelves to reorder" row with it.
+    expect(w.find("[data-test='widget-ops.shop']").text()).not.toContain("Shelves to reorder");
     // The carrier's calendar day, counted the way the list's "Open for" column counts it.
     expect(w.get("[data-test='widget-ops.shop']").text()).toContain("oldest open 110 days");
   });
@@ -263,7 +265,7 @@ describe("every count is the row count behind its door (D-FM7)", () => {
     expect(render().get("[data-test='widget-ops.shop']").text()).not.toContain("oldest");
     shop.value = undefined as unknown as typeof SHOP;
     const w = render();
-    expect([n(w, "work-orders"), n(w, "defects"), n(w, "low-stock")]).toEqual(["—", "—", "—"]);
+    expect([n(w, "work-orders"), n(w, "defects")]).toEqual(["—", "—"]);
   });
 
   it("roadside: asks for the page's range, and gives FMCSA's rates with what each is of (IC16)", () => {
@@ -311,7 +313,7 @@ describe("every count is the row count behind its door (D-FM7)", () => {
       "/vehicles?check=no_driver", "/drivers?status=active&seat=none", "/vehicles?status=ordered", "/vehicles?check=winding_down",
       "/vehicles?check=inspection_overdue", "/vehicles?check=registration_missing",
       "/?tab=fleet", "/anomalies", "/idling", "/hazmat/review", "/recruitment", "/recruitment?waiting=them",
-      "/shop/work-orders", "/shop/defects", "/shop/inventory?stock=low",
+      "/shop/work-orders", "/shop/defects",
       "/roadside-inspections?view=all&from=2026-09-12&to=2026-10-12",
       "/roadside-inspections?view=all&from=2026-09-12&to=2026-10-12&clean=1",
       "/roadside-inspections?view=all&from=2026-09-12&to=2026-10-12&oos=vehicle&insp=vehicle",

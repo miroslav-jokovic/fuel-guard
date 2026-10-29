@@ -255,7 +255,7 @@ export const SURFACES: readonly Surface[] = [
    * I4 fixed Shop, Parts, Assets, Units, Annual inspections, Inspectors; the owner's 2026-10-27 review
    * found "a bunch of pages without any purpose" (MAINTENANCE-SECTION-REDESIGN-PROPOSAL.md §1), and the
    * 2026-10-28 one asked for a page of what each truck carries (§7a.4). Now: Shop (today's work),
-   * Trucks & trailers, Equipment (on trucks, inventory), Annual inspections, Parts (FleetPal fills it,
+   * Trucks & trailers, Equipment (on trucks, inventory), Annual inspections, Shop parts (FleetPal's,
    * F12) — last, because it is a different inventory (§7a.5). The inspector register is a Settings card
    * (`reachedFrom`, SP1) in `group: "admin"` because `permissions/rows.ts` groups a directory's cards by
    * group, with `startsOnFor: []` (Q-SET2); `/shop/inspectors` redirects. Every KEY is unchanged.
@@ -264,7 +264,7 @@ export const SURFACES: readonly Surface[] = [
   { key: "maintenance.units", label: "Trucks & trailers", path: "/shop/units", group: "maintenance", gate: section("maintenance") },
   { key: "maintenance.assets", label: "Equipment", path: "/shop/assets", group: "maintenance", gate: section("maintenance") },
   { key: "maintenance.inspections", label: "Annual inspections", path: "/shop/inspections", group: "maintenance", gate: section("maintenance") },
-  { key: "maintenance.parts", label: "Parts", path: "/shop/inventory", group: "maintenance", gate: section("maintenance") },
+  { key: "maintenance.parts", label: "Shop parts", path: "/shop/inventory", group: "maintenance", gate: section("maintenance") },
   { key: "maintenance.inspectors", label: "Who can inspect", path: "/settings/inspectors", group: "admin", gate: section("maintenance"), reachedFrom: "admin.settings", startsOnFor: [] },
   { key: "maintenance.devices", label: "Printers & scanners", path: "/settings/devices", group: "admin", gate: section("maintenance"), reachedFrom: "admin.settings", startsOnFor: [] },
 

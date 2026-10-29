@@ -67,7 +67,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > a null modu
       "Trucks & trailers → /shop/units",
       "Equipment → /shop/assets",
       "Annual inspections → /shop/inspections",
-      "Parts → /shop/inventory",
+      "Shop parts → /shop/inventory",
     ],
   },
   {
@@ -130,7 +130,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > accountant 
       "Trucks & trailers → /shop/units",
       "Equipment → /shop/assets",
       "Annual inspections → /shop/inspections",
-      "Parts → /shop/inventory",
+      "Shop parts → /shop/inventory",
     ],
   },
 ]
@@ -174,7 +174,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > accountant 
       "Trucks & trailers → /shop/units",
       "Equipment → /shop/assets",
       "Annual inspections → /shop/inspections",
-      "Parts → /shop/inventory",
+      "Shop parts → /shop/inventory",
     ],
   },
 ]
@@ -218,7 +218,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > accountant 
       "Trucks & trailers → /shop/units",
       "Equipment → /shop/assets",
       "Annual inspections → /shop/inspections",
-      "Parts → /shop/inventory",
+      "Shop parts → /shop/inventory",
     ],
   },
 ]
@@ -297,7 +297,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > admin · al
       "Trucks & trailers → /shop/units",
       "Equipment → /shop/assets",
       "Annual inspections → /shop/inspections",
-      "Parts → /shop/inventory",
+      "Shop parts → /shop/inventory",
     ],
   },
   {
@@ -379,7 +379,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > admin · de
       "Trucks & trailers → /shop/units",
       "Equipment → /shop/assets",
       "Annual inspections → /shop/inspections",
-      "Parts → /shop/inventory",
+      "Shop parts → /shop/inventory",
     ],
   },
   {
@@ -459,7 +459,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > admin · no
       "Trucks & trailers → /shop/units",
       "Equipment → /shop/assets",
       "Annual inspections → /shop/inspections",
-      "Parts → /shop/inventory",
+      "Shop parts → /shop/inventory",
     ],
   },
   {
@@ -539,7 +539,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > auditor · 
       "Trucks & trailers → /shop/units",
       "Equipment → /shop/assets",
       "Annual inspections → /shop/inspections",
-      "Parts → /shop/inventory",
+      "Shop parts → /shop/inventory",
     ],
   },
 ]
@@ -611,7 +611,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > auditor · 
       "Trucks & trailers → /shop/units",
       "Equipment → /shop/assets",
       "Annual inspections → /shop/inspections",
-      "Parts → /shop/inventory",
+      "Shop parts → /shop/inventory",
     ],
   },
 ]
@@ -681,7 +681,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > auditor · 
       "Trucks & trailers → /shop/units",
       "Equipment → /shop/assets",
       "Annual inspections → /shop/inspections",
-      "Parts → /shop/inventory",
+      "Shop parts → /shop/inventory",
     ],
   },
 ]
@@ -760,7 +760,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > badges are 
       "Trucks & trailers → /shop/units",
       "Equipment → /shop/assets",
       "Annual inspections → /shop/inspections",
-      "Parts → /shop/inventory",
+      "Shop parts → /shop/inventory",
     ],
   },
   {
@@ -1002,7 +1002,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > fleet_manag
       "Trucks & trailers → /shop/units",
       "Equipment → /shop/assets",
       "Annual inspections → /shop/inspections",
-      "Parts → /shop/inventory",
+      "Shop parts → /shop/inventory",
     ],
   },
 ]
@@ -1069,7 +1069,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > fleet_manag
       "Trucks & trailers → /shop/units",
       "Equipment → /shop/assets",
       "Annual inspections → /shop/inspections",
-      "Parts → /shop/inventory",
+      "Shop parts → /shop/inventory",
     ],
   },
 ]
@@ -1134,7 +1134,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > fleet_manag
       "Trucks & trailers → /shop/units",
       "Equipment → /shop/assets",
       "Annual inspections → /shop/inspections",
-      "Parts → /shop/inventory",
+      "Shop parts → /shop/inventory",
     ],
   },
 ]
@@ -1393,7 +1393,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > technician 
       "Trucks & trailers → /shop/units",
       "Equipment → /shop/assets",
       "Annual inspections → /shop/inspections",
-      "Parts → /shop/inventory",
+      "Shop parts → /shop/inventory",
     ],
   },
 ]
@@ -1421,7 +1421,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > technician 
       "Trucks & trailers → /shop/units",
       "Equipment → /shop/assets",
       "Annual inspections → /shop/inspections",
-      "Parts → /shop/inventory",
+      "Shop parts → /shop/inventory",
     ],
   },
 ]
@@ -1449,7 +1449,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > technician 
       "Trucks & trailers → /shop/units",
       "Equipment → /shop/assets",
       "Annual inspections → /shop/inspections",
-      "Parts → /shop/inventory",
+      "Shop parts → /shop/inventory",
     ],
   },
 ]
@@ -1477,7 +1477,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > the org's S
       "Trucks & trailers → /shop/units",
       "Equipment → /shop/assets",
       "Annual inspections → /shop/inspections",
-      "Parts → /shop/inventory",
+      "Shop parts → /shop/inventory",
     ],
   },
 ]
@@ -1545,7 +1545,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > the org's S
       "Trucks & trailers → /shop/units",
       "Equipment → /shop/assets",
       "Annual inspections → /shop/inspections",
-      "Parts → /shop/inventory",
+      "Shop parts → /shop/inventory",
     ],
   },
 ]
