@@ -80,6 +80,10 @@ import { buildNavGroups } from "./nav";
  * Nineteen snapshots moved — every one holding a Maintenance group — and in each the whole change is
  * that group: `Equipment → /shop/assets` added after Trucks & trailers, and `Parts → /shop/inventory`
  * moved from second to last. No other group, no gate, no key; the denial case keeps its denials.
+ *
+ * ── AND A SEVENTH TIME, THE SAME DAY: PARTS IS "SHOP PARTS" (MAINTENANCE M8, §7a.5) ──────────────
+ * The same nineteen snapshots, one line each: `Parts → /shop/inventory` reads `Shop parts →
+ * /shop/inventory`. A label only — same key, same path, same place, same gate.
  */
 
 /** Every module enabled, none, and the shipped default — the three that change what the nav shows. */
@@ -146,7 +150,7 @@ describe("buildNavGroups is unchanged by the surface catalogue (S1)", () => {
       // Trucks & trailers from D-MX1, 2026-10-27, to M7, 2026-10-28; a door again since.)
       "Equipment → /shop/assets",
       "Annual inspections → /shop/inspections",
-      "Parts → /shop/inventory",
+      "Shop parts → /shop/inventory",
     ]);
     expect(denied).toMatchSnapshot();
     // …and the same denials against a role that reaches those screens by a different section answer

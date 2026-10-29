@@ -247,7 +247,7 @@ describe("the shop group keeps its stored answers through I4's relabel", () => {
       .find((g) => g.label === "Maintenance")
       ?.items.map((i) => `${i.name} ${i.to}`) ?? [];
 
-  it("renders the shop's five doors, Shop first and Parts last", () => {
+  it("renders the shop's five doors, Shop first and Shop parts last", () => {
     // Five rows since M7 (Q-MX7, 2026-10-28): Equipment is its own door again and Parts — FleetPal's,
     // a different inventory — goes last; the inspector register is a Settings card (D-MX1). I4's six
     // were Shop, Parts, Assets, Units, Annual inspections, Inspectors — every key is still here.
@@ -256,13 +256,13 @@ describe("the shop group keeps its stored answers through I4's relabel", () => {
       "Trucks & trailers /shop/units",
       "Equipment /shop/assets",
       "Annual inspections /shop/inspections",
-      "Parts /shop/inventory",
+      "Shop parts /shop/inventory",
     ]);
   });
 
   it("still answers to `maintenance.repair-spend`, which is the key production already stores", () => {
     expect(shopItems({ "maintenance.repair-spend": false })).not.toContain("Shop /shop");
     // …and only that entry. A denial that took the whole group with it would be a different bug.
-    expect(shopItems({ "maintenance.repair-spend": false })).toContain("Parts /shop/inventory");
+    expect(shopItems({ "maintenance.repair-spend": false })).toContain("Shop parts /shop/inventory");
   });
 });

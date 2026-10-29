@@ -93,7 +93,7 @@ beforeEach(() => {
 describe("a record that does not exist is its own state, with the way back to its list (F21)", () => {
   it.each([
     ["AssetDetailPage", `/shop/assets/${ID}`, "That asset is not on the books.", "Back to Equipment", `/assets/${ID}`],
-    ["PartDetailPage", `/shop/inventory/${ID}`, "That part is not in the catalogue.", "Back to Parts", `/parts/${ID}`],
+    ["PartDetailPage", `/shop/inventory/${ID}`, "That part is not in the catalogue.", "Back to Shop parts", `/parts/${ID}`],
     ["UnitDetailPage", `/shop/units/tractor/${ID}`, "That truck or trailer is not on the fleet.", "Back to Trucks & trailers", `/units/tractor/${ID}`],
     ["AnnualInspectionFormPage", `/shop/inspections/${ID}`, "That inspection is not on file.", "Back to Annual inspections", `/inspections/${ID}`],
     ["FuelInvoiceCheckPage", `/fuel-invoices/${ID}`, "There's no invoice check with that link.", "Back to Pilot invoices", `/recon-runs/${ID}`],

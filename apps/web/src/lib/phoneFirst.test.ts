@@ -26,7 +26,7 @@ describe("the shop's tab row", () => {
     // Labels needs a printer: a desk child screen, not a door (rules 6, 7). Equipment is a door again
     // since M7 (Q-MX7): Shop · Trucks & trailers · Equipment · Annual inspections · Parts.
     expect(tabs?.items.map((i) => i.name)).not.toContain("Labels");
-    expect(tabs?.items.map((i) => i.name)).toEqual(["Shop", "Trucks & trailers", "Equipment", "Annual inspections", "Parts"]);
+    expect(tabs?.items.map((i) => i.name)).toEqual(["Shop", "Trucks & trailers", "Equipment", "Annual inspections", "Shop parts"]);
   });
 
   it("is drawn under the shop only", () => {

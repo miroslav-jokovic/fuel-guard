@@ -71,3 +71,21 @@ describe("PartDetailPage — the summary's facts", () => {
     expect(pairs(page()).Notes).toBe("Fits the 2019 Cascadias");
   });
 });
+
+/** M8 (§7a.5): FleetPal owns a synced part's fields, and shelf counting is hidden (Q-MX8). */
+describe("a FleetPal part", () => {
+  it("offers no Edit part for a FleetPal part, and keeps it for a hand-typed one", () => {
+    detail.value = { part: part({ fleetpalId: "fp-1" }), stock: [], photoUrl: null };
+    const synced = page();
+    expect(synced.text()).not.toContain("Edit part");
+    expect(pairs(synced)["Comes from"]).toBe("FleetPal");
+    detail.value = { part: part(), stock: [], photoUrl: null };
+    expect(page().text()).toContain("Edit part");
+  });
+
+  it("shows no Shelves or History while shelf counting is hidden", () => {
+    const text = page().text();
+    expect(text).not.toContain("Shelves");
+    expect(text).not.toContain("History");
+  });
+});

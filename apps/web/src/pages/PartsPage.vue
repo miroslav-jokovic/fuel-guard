@@ -17,19 +17,26 @@ import {
 import { Cog6ToothIcon, ScanIcon } from "@silvicom/ui/icons";
 import { UNIT_OF_MEASURE_LABELS, type StockLineDto } from "@silvicom/shared";
 import PageHeader from "@/components/ui/PageHeader.vue";
-import WalkActions, { type WalkAction } from "@/components/WalkActions.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
 import KebabMenu from "@/components/KebabMenu.vue";
-import PartDrawer from "@/features/inventory/PartDrawer.vue";
 import StockLevelCell from "@/features/inventory/StockLevelCell.vue";
 import LocationsDrawer from "@/features/inventory/LocationsDrawer.vue";
 import { INVENTORY_PAGE_SIZE, useLowStockQuery, usePartsQuery } from "@/features/inventory/useInventory";
+import { SHELF_COUNTING_SHOWN } from "@/lib/shelfCounting";
 import { useSessionStore } from "@/stores/session";
 import { useOpens } from "@/composables/useOpens";
 
 /**
- * Parts — the shop's catalogue, and the low-stock list (INVENTORY-PLAN.md I4; I12's "the Parts
- * filter" is this step's, and its step text says so).
+ * Shop parts — the shop's catalogue, pulled from FleetPal, and the low-stock list (INVENTORY-PLAN.md
+ * I4; I12's "the Parts filter" is this step's, and its step text says so).
+ *
+ * ── FLEETPAL'S LIST, SHOWN HERE, CHANGED THERE (M8, 2026-10-28) ───────────────────────────────
+ * The owner could not tell what this page was (R4): FleetPal's parts, or our truck equipment? It is
+ * FleetPal's — synced every hour since F12 (PRs 1801 and 1803) — and the header now says so, each row says
+ * "From FleetPal", and the page offers no New part: a part typed here would be a second catalogue
+ * beside FleetPal's, the second source of truth the two-inventories ruling exists to prevent
+ * (DRIVER-EQUIPMENT-AND-UNIT-TAGS-PLAN.md). Truck equipment is Equipment's, and never named here.
+ * The shelf half of this page — Places, Labels, Running low — is hidden (`lib/shelfCounting.ts`, Q-MX8).
  *
  * ── ONE FILTER THAT CHANGES THE QUESTION, NOT ONE TABLE WITH A HIDDEN COLUMN ──────────────────
  * "Everything we carry" and "everything at its reorder point" are two different lists of two
@@ -79,6 +86,8 @@ const router = useRouter();
 const session = useSessionStore();
 const opens = useOpens();
 
+// Running low is shelf counting's (hidden, Q-MX8): with the flag off the filter is not drawn and the
+// parameter accepts only "", so an old `?stock=low` link opens the catalogue.
 const STOCK_OPTIONS = [
   { value: "", label: "All parts" },
   { value: "low", label: "Running low" },
@@ -89,7 +98,7 @@ const STOCK_OPTIONS = [
 // mirrored back by hand — so the same link also survives a reload and Back from a part.
 const qs = useQueryState();
 const search = qs.param("search");
-const stock = qs.param("stock", STOCK_OPTIONS.map((o) => o.value));
+const stock = qs.param("stock", SHELF_COUNTING_SHOWN ? STOCK_OPTIONS.map((o) => o.value) : [""]);
 const page = qs.page();
 watch([search, stock], () => (page.value = 1));
 
@@ -160,20 +169,13 @@ const openPart = (row: Record<string, unknown>) =>
   void router.push({ name: "part", params: { id: String(lowOnly.value ? row.partId : row.id) } });
 
 const locationsOpen = ref(false);
-// `?new=1` opens the drawer. A flag in the same query buffer as the filters (D-US2): closing the
-// drawer removes `new` alone, where `router.replace({ query: {} })` would now also drop the filters.
-const creating = qs.flag("new");
-
-/** The page's one verb, in the header on a desk and the phone's bottom bar (contract §9 rule 2). */
-const actions = computed<WalkAction[]>(() =>
-  session.can("maintenance") ? [{ label: "New part", primary: true, onClick: () => (creating.value = true) }] : [],
-);
+const shelvesShown = SHELF_COUNTING_SHOWN;
 </script>
 
 <template>
   <div class="space-y-6">
-    <PageHeader description="Everything the shop carries, and what is running low.">
-      <template #actions>
+    <PageHeader description="The shop's parts catalogue, pulled from FleetPal every hour. Add and change parts in FleetPal.">
+      <template v-if="shelvesShown" #actions>
         <BaseButton v-if="session.can('maintenance')" @click="locationsOpen = true">
           <AppIcon :icon="Cog6ToothIcon" class="-ml-0.5 size-5" aria-hidden="true" /> Places
         </BaseButton>
@@ -183,7 +185,6 @@ const actions = computed<WalkAction[]>(() =>
         <BaseButton v-if="opens('/shop/labels')" to="/shop/labels">
           <AppIcon :icon="ScanIcon" class="-ml-0.5 size-5" aria-hidden="true" /> Labels
         </BaseButton>
-        <WalkActions :actions="actions" />
       </template>
     </PageHeader>
 
@@ -197,7 +198,7 @@ const actions = computed<WalkAction[]>(() =>
         :active-count="activeFilterCount"
         @clear-all="resetFilters"
       >
-        <template #filters>
+        <template v-if="shelvesShown" #filters>
           <FilterSelect v-model="stock" label="Show" :options="STOCK_OPTIONS" />
         </template>
       </FilterBar>
@@ -215,6 +216,11 @@ const actions = computed<WalkAction[]>(() =>
         @row-click="openPart"
         @retry="refetch"
       >
+        <!-- "From FleetPal" rides on the sentence, so a card says it too (§7a.5); a hand-typed part from
+             before F12 says nothing. -->
+        <template #cell-description="{ row }">
+          {{ row.description }}<span v-if="row.fleetpalId" class="text-ink-tertiary" data-test="from-fleetpal"> · From FleetPal</span>
+        </template>
         <template #cell-unitOfMeasure="{ value }">{{ UNIT_OF_MEASURE_LABELS[value as keyof typeof UNIT_OF_MEASURE_LABELS] }}</template>
         <template #cell-quantityOnHand="{ row }">
           <StockLevelCell :line="row as StockLineDto" />
@@ -230,7 +236,7 @@ const actions = computed<WalkAction[]>(() =>
             open a part and add a shelf to say how many is enough.
           </p>
           <p v-else-if="search">No part matches that. Try the part number, or the supplier's barcode.</p>
-          <p v-else>No parts yet. Add the first one, and the shop starts keeping count of it.</p>
+          <p v-else>No parts yet. They arrive from FleetPal within the hour once its sync is on (Settings › FleetPal).</p>
         </template>
         <template v-if="!lowOnly" #footer>
           <TablePagination :page="page" :page-size="INVENTORY_PAGE_SIZE" :total="total" @update:page="page = $event" />
@@ -238,8 +244,6 @@ const actions = computed<WalkAction[]>(() =>
       </DataTable>
     </DataWorkspace>
 
-    <PartDrawer :open="creating" @close="creating = false" />
     <LocationsDrawer :open="locationsOpen" @close="locationsOpen = false" />
-    <WalkActions v-if="actions.length" :actions="actions" bar />
   </div>
 </template>

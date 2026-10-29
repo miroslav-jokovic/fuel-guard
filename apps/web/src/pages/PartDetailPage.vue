@@ -35,6 +35,7 @@ import {
   usePartQuery,
 } from "@/features/inventory/useInventory";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
+import { SHELF_COUNTING_SHOWN } from "@/lib/shelfCounting";
 import { useSessionStore } from "@/stores/session";
 import { useToastStore } from "@/stores/toast";
 import { formatDateTime } from "@/lib/format";
@@ -69,6 +70,12 @@ import { formatDateTime } from "@/lib/format";
  * it in two places. Both carry `transferGroupId`, and the reason column says "Transferred" on each;
  * without the pairing the ledger renders a transfer as two unexplained rows, one negative and one
  * positive, which is what shipped until the review put the column on the DTO.
+ *
+ * ── SINCE M8 (2026-10-28): FLEETPAL'S FIELDS ARE NOT EDITED HERE, AND THE SHELVES ARE HIDDEN ──
+ * A part with a `fleetpalId` is FleetPal's: the hourly sync owns its number, description, maker and
+ * unit, so Edit part is offered only for a hand-typed part from before F12 — editing a synced one here
+ * would be overwritten within the hour, or worse, become a second truth (§7a.5). The photo is ours
+ * and stays. Shelves and History are shelf counting's, hidden with it (`lib/shelfCounting.ts`, Q-MX8).
  */
 
 const route = useRoute();
@@ -157,6 +164,8 @@ const moving = ref<{ verb: DeskVerb; line: StockLineDto } | null>(null);
 const shelfEditing = ref<StockLineDto | null>(null);
 const shelfAdding = ref(false);
 const canManage = computed(() => session.can("maintenance"));
+const canEdit = computed(() => canManage.value && !part.value?.fleetpalId);
+const shelvesShown = SHELF_COUNTING_SHOWN;
 
 const SHELF_COLUMNS: DataTableColumn[] = [
   { key: "locationName", label: "Location", card: "title", width: "lg" },
@@ -207,7 +216,7 @@ const uploadAccept = acceptFor(INVENTORY_PHOTO_CONTENT_TYPES);
 <template>
   <div class="space-y-6">
     <PageHeader :title="part?.partNumber ?? 'Part'" :description="part?.description">
-      <template v-if="part && canManage" #actions>
+      <template v-if="part && canEdit" #actions>
         <BaseButton @click="editing = true">Edit part</BaseButton>
       </template>
     </PageHeader>
@@ -262,7 +271,7 @@ const uploadAccept = acceptFor(INVENTORY_PHOTO_CONTENT_TYPES);
           />
         </BaseCard>
 
-        <section class="space-y-3">
+        <section v-if="shelvesShown" class="space-y-3">
           <div class="flex items-center justify-between gap-4">
             <h2 class="text-sm font-semibold text-ink">Shelves</h2>
             <BaseButton v-if="canManage" @click="shelfAdding = true">
@@ -307,7 +316,7 @@ const uploadAccept = acceptFor(INVENTORY_PHOTO_CONTENT_TYPES);
             </DataTable>
         </section>
 
-        <section class="space-y-3">
+        <section v-if="shelvesShown" class="space-y-3">
           <h2 class="text-sm font-semibold text-ink">History</h2>
             <DataTable
               :columns="LEDGER_COLUMNS"
