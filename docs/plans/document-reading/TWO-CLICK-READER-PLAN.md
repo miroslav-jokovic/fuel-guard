@@ -489,3 +489,23 @@ slower reader on warm-booted reads, which is the measurement that would make the
   its own `baseOf()` is removed (it demanded E1's false violations). `check.test.ts` gains the plan's cases (6.1 PG III
   + 3, 8 solid + 5.1, 2.3 zone B + 3, unknown phase/zone, a gas's subsidiary 8, a material's own subsidiary). Pinned in
   `lint:reader-gate` (14 files). Explosives (class 1) stay out of scope, as before.
+- **2026-10-29 — TC1.1 MERGED as #1840.**
+- **2026-10-29 — TC1.2: §172.504(f)(9) and §173.150(f)(2) in the ladder (engine 0.26.0; E2, E3 closed).** New
+  `placards/domesticExceptions.ts` (compute.ts gains only the call sites — it sits at 490 of 500 lines). **One reading
+  differs from D-TC9, on the CFR's words:** (f)(9) waives the CLASS 9 placard for domestic transportation in every
+  packaging, not only non-bulk ("However, a bulk packaging must be marked with the appropriate identification number on
+  a CLASS 9 placard, an orange panel, or a white square-on-point"). So CLASS 9 moves from required to permitted on any
+  load, with an `info` finding; the line stays resolved, so a bulk line's ID number is still required and, its placard
+  not being required, is carried on an orange panel / white square (existing `assignIdCarriers` path); CLASS 9 is not a
+  §172.504(b) DANGEROUS category. Its non-bulk weight STAYS in the §172.504(c) aggregate — the waiver is of the placard,
+  not of Table 2 membership — so 1,500 lb of it beside 500 lb of paint still requires FLAMMABLE (the reading that never
+  under-placards; recorded so a PHMSA letter saying otherwise would be a one-line change). (f)(2): a line placarded
+  COMBUSTIBLE in non-bulk (NA1993 "Comb liq", or a Class 3 reclassed under (f)(1)) leaves `resolved` before the ladder —
+  no placard, no aggregate weight, no §172.301(a)(3) count — with an `info` finding; bulk combustible unchanged, and the
+  marine-pollutant mark still reads every recognised line. Both new citations verified against eCFR into
+  `citations.json` by the builder (the citation census refused the engine until they were — the gate working). New
+  census `hazmat-golden/src/domesticExceptionsCensus.test.ts`: every Class 9 row and every combustible row (NA1993 + each
+  Class 3 row reclassed) × bulk tank / bulk van / non-bulk 500, 1,500, 9,000 lb, alone and beside 500 lb of paint.
+  Placard census invariant 1 now knows both exceptions and gains invariant 7 (CLASS 9 never required); its `own()`
+  reads a Class 9 row's permitted placard — without that every load holding one would have been skipped as "withheld".
+  Mutations: removing either exception fails its census test. Pinned in `lint:reader-gate` (15 files).

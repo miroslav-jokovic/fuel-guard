@@ -142,6 +142,15 @@ export const REQUIRED = [
       "puts no restriction on paint (3, PG II) beside trichloroethylene (6.1, PG III) — E1",
     ],
   },
+  {
+    step: "TC1.2 §172.504(f)(9) and §173.150(f)(2) over every row they reach (D-TC9)",
+    file: "packages/hazmat-golden/src/domesticExceptionsCensus.test.ts",
+    titles: [
+      "never requires CLASS 9, alone or beside paint, and displays a bulk line's ID number off any placard",
+      "still counts Class 9 non-bulk weight toward the aggregate: 1,500 lb of it beside 500 lb of paint requires FLAMMABLE",
+      "takes no placard and adds nothing to the aggregate in non-bulk, at any weight; placards COMBUSTIBLE in bulk",
+    ],
+  },
 ];
 
 const TEST_TITLE = /\b(?:it|test|describe)(?:\.each\s*\([\s\S]*?\))?\s*\(\s*(["'`])((?:\\.|(?!\1)[\s\S])*?)\1/g;

@@ -97,9 +97,14 @@ describe("computePlacards — fuel scope (§172.504)", () => {
     expect(subs(v)).toContain("FLAMMABLE_GAS->DANGEROUS");
   });
 
-  it("elevated-temperature liquid (UN3257) → CLASS 9 + HOT mark (§172.325)", () => {
+  // §172.504(f)(9) (0.26.0, TC1.2): the CLASS 9 placard is permitted, not required, domestically — bulk included; the
+  // bulk ID number still displays, on an orange panel or white square-on-point since no placard carries it.
+  it("elevated-temperature liquid (UN3257), bulk → CLASS 9 permitted, ID number still displayed, HOT mark (§172.504(f)(9), §172.325)", () => {
     const v = evaluateLoad(load({ lines: [line({ hmtRef: "UN3257-hot#III" })] }));
-    expect(names(v)).toEqual(["CLASS_9"]);
+    expect(names(v)).toEqual([]);
+    expect(v.placards.permitted.map((p) => p.placard)).toContain("CLASS_9");
+    expect(v.placards.idDisplays.map((d) => d.idNumber)).toEqual(["UN3257"]);
+    expect(v.placards.idDisplays[0]!.format).not.toBe("on_placard");
     expect(v.placards.marks.map((m) => m.mark)).toContain("HOT");
   });
 
@@ -117,7 +122,7 @@ describe("computePlacards — fuel scope (§172.504)", () => {
   });
 
   it("stamps the bumped engine version", () => {
-    expect(evaluateLoad(load()).engineVersion).toBe("0.25.0");
+    expect(evaluateLoad(load()).engineVersion).toBe("0.26.0");
   });
 
   // D4-revised Table 1 gate: recognized and blocked, never assessed (fail-closed, D2).
