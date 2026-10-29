@@ -431,3 +431,14 @@ slower reader on warm-booted reads, which is the measurement that would make the
   Tests: the engine against a protocol fixture worker (warm → same thread reads the next page; failed load → not
   warm and no OCR; idle stop still restarts), `warmDocumentReadOcr` (off → nothing; one engine; failures logged, never
   thrown). Mutation: ignoring the thread's `ready` fails "answers warm once the thread has its models…".
+- **2026-10-29 — TC0.3 MERGED as #1835.** Waits on the release and, for the download saving, on the owner's
+  `DOC_OCR_CACHE_DIR`; Q-TC7 open.
+- **2026-10-29 — TC0.4: the coverage statement is tested against the rules; the two stale probes are gone (engine
+  0.23.0).** New census `packages/hazmat-golden/src/probeCensus.test.ts`: every entry of the shipped table (alone, bulk
+  on a cargo tank and 1,500 lb non-bulk in a van) is evaluated without and then with each value every probe of
+  `UNEVALUATED_INPUTS` / `UNEVALUATED_LINE_INPUTS` (now exported) would report, and the verdict minus the input audit
+  must not move; its value map must name exactly the lists' probes, and every value must raise its own finding (no
+  vacuous pass). Run on main's engine it failed on exactly `portContext.vesselConnected` (E6) and `isResidueLine` (E5)
+  and nothing else; both left the lists and stay in the census as positive controls (it must see their verdicts move).
+  Done-when as tests: "a vessel question answered either way is evaluated, never reported as ignored", "a residue line
+  is evaluated by the aggregate, never reported as ignored". Pinned in `lint:reader-gate`. ≈15 s.

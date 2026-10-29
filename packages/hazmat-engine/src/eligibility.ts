@@ -28,7 +28,6 @@ export const UNEVALUATED_INPUTS: readonly Probe[] = [
   { path: "tankState=residue_uncleaned", provided: (l) => l.tankState === "residue_uncleaned", note: "residue placard/paper semantics pending (H2/H9)" },
   { path: "claimedExceptions.shipperClaimsNoPlacards", provided: (l) => l.claimedExceptions.shipperClaimsNoPlacards, note: "claimed exception is recorded, not verified by the engine" },
   { path: "claimedExceptions.claimedSpecialPermits", provided: (l) => l.claimedExceptions.claimedSpecialPermits.length > 0, note: "special permits are reviewed by a human (H7) — never engine-evaluated" },
-  { path: "portContext.vesselConnected", provided: (l) => l.portContext.vesselConnected != null, note: "IMDG/§176 port rules not implemented" },
   { path: "portContext.imdgPapers", provided: (l) => l.portContext.imdgPapers != null, note: "IMDG paper rules not implemented" },
   { path: "tripContext.previousOrCurrentBusinessDayIds", provided: (l) => l.tripContext.previousOrCurrentBusinessDayIds != null, note: "business-day ID retention rules pending (H2)" },
 ];
@@ -41,11 +40,18 @@ export const UNEVALUATED_INPUTS: readonly Probe[] = [
 // weight-threshold and ID-display evidence, and cross-checked against the packaging kind). Real BOLs
 // always state a package count (§172.202(a)(7)), so keeping it "unevaluated" meant every accurately
 // described load blocked auto-clear — the tool punished precision.
-const LINE_PROBES: ReadonlyArray<{ key: "flashPointF" | "ethanolPct" | "compartmentIndex"; note: string } | { key: "isResidueLine"; note: string }> = [
+// Two entries left both lists in 0.23.0 (TWO-CLICK-READER-PLAN TC0.4, D-TC11), each found contradicting a rule that
+// reads it: `portContext.vesselConnected` is read by the marine-pollutant rule (marinePollutant.ts), so the
+// calculator's vessel question answered "No" blocked every load as "not evaluated"; a line's `isResidueLine` is
+// read by the §172.504(c) aggregate (compute.ts excludes residue, with its own finding), so one verdict said it
+// used the line and ignored it. The probe census (hazmat-golden probeCensus.test.ts) now gives every entry of the
+// table each probed value and fails when a verdict moves — a probe a rule reads cannot stay on these lists.
+
+/** The line-level half of the coverage statement, reported per line (`lines[i].<key>`). */
+export const UNEVALUATED_LINE_INPUTS: ReadonlyArray<{ key: "flashPointF" | "ethanolPct" | "compartmentIndex"; note: string }> = [
   { key: "flashPointF", note: "flash-point reclass verification pending (H2)" },
   { key: "ethanolPct", note: "ethanol-blend rules pending (H2)" },
   { key: "compartmentIndex", note: "compartment rules pending (H2)" },
-  { key: "isResidueLine", note: "residue-line semantics pending (H2/H9)" },
 ];
 
 export interface InputAudit {
@@ -70,10 +76,8 @@ export function auditProvidedInputs(load: LoadInput): InputAudit {
     }
   }
   load.lines.forEach((line, i) => {
-    for (const probe of LINE_PROBES) {
-      const v = line[probe.key];
-      const provided = probe.key === "isResidueLine" ? v === true : v != null;
-      if (provided) {
+    for (const probe of UNEVALUATED_LINE_INPUTS) {
+      if (line[probe.key] != null) {
         const path = `lines[${i}].${probe.key}`;
         paths.push(path);
         findings.push({

@@ -73,7 +73,7 @@ describe("input audit (M5.3 — G5: nothing accepted and silently ignored)", () 
     ["residue tank state", { tankState: "residue_uncleaned" as LoadInput["tankState"] }, "not_evaluated:tankState=residue_uncleaned"],
     ["claimed no-placards", { claimedExceptions: { shipperClaimsNoPlacards: true, claimedSpecialPermits: [] } as LoadInput["claimedExceptions"] }, "not_evaluated:claimedExceptions.shipperClaimsNoPlacards"],
     ["special permits", { claimedExceptions: { shipperClaimsNoPlacards: false, claimedSpecialPermits: ["DOT-SP 12345"] } as LoadInput["claimedExceptions"] }, "not_evaluated:claimedExceptions.claimedSpecialPermits"],
-    ["port context", { portContext: { vesselConnected: true, imdgPapers: null } as LoadInput["portContext"] }, "not_evaluated:portContext.vesselConnected"],
+    ["IMDG papers", { portContext: { vesselConnected: null, imdgPapers: true } as LoadInput["portContext"] }, "not_evaluated:portContext.imdgPapers"],
     ["business-day IDs", { tripContext: { previousOrCurrentBusinessDayIds: ["UN1203"], carrierRelationship: "unknown" } as LoadInput["tripContext"] }, "not_evaluated:tripContext.previousOrCurrentBusinessDayIds"],
   ];
   for (const [label, over, expected] of cases) {
@@ -88,6 +88,19 @@ describe("input audit (M5.3 — G5: nothing accepted and silently ignored)", () 
     const v = evaluateLoad(cleanLoad({ lines: [{ ...cleanLine(), flashPointF: -45 }] as unknown as LoadInput["lines"] }));
     expect(v.eligibility.status).toBe("not_checked");
     expect(v.eligibility.blocks.map((b) => b.ruleId)).toContain("not_evaluated:lines[0].flashPointF");
+  });
+
+  // TC0.4 (0.23.0): the two inputs the coverage statement listed while a rule read them (E5, E6).
+  it("a vessel question answered either way is evaluated, never reported as ignored", () => {
+    for (const vesselConnected of [true, false]) {
+      const v = evaluateLoad(cleanLoad({ portContext: { vesselConnected, imdgPapers: null } as LoadInput["portContext"] }));
+      expect(v.eligibility.blocks.map((b) => b.ruleId).filter((r) => r.startsWith("not_evaluated:"))).toEqual([]);
+    }
+  });
+
+  it("a residue line is evaluated by the aggregate, never reported as ignored", () => {
+    const v = evaluateLoad(cleanLoad({ lines: [{ ...cleanLine(), isResidueLine: true }] as unknown as LoadInput["lines"] }));
+    expect(v.eligibility.blocks.map((b) => b.ruleId).filter((r) => r.startsWith("not_evaluated:"))).toEqual([]);
   });
 
   it("packageCount is EVALUATED since 0.9.0 (H-P1) — providing it never blocks auto-clear", () => {
