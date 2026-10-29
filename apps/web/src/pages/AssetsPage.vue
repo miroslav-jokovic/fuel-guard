@@ -87,7 +87,9 @@ const actions = computed<WalkAction[]>(() =>
              without a type, and until 2026-09-09 no screen in the product could make one — the same
              dead end `LocationsDrawer.vue` closed for stock locations at I4. Worded rather than an
              icon-only gear for the reason `PartsPage.vue` records. -->
-        <BaseButton v-if="session.can('maintenance') && tab === 'inventory'" @click="typesOpen = true">
+        <!-- On both tabs (owner 2026-10-29, "I don't see where I can add types"): the page opens on On
+             trucks, and the kit rules there count types too. -->
+        <BaseButton v-if="session.can('maintenance')" @click="typesOpen = true">
           <AppIcon :icon="Cog6ToothIcon" class="-ml-0.5 size-5" aria-hidden="true" /> Types of equipment
         </BaseButton>
         <!-- SP5: shown when Labels opens. It is `maintenance` view and answers to the shop home's screen

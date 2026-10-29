@@ -115,6 +115,8 @@ describe("Equipment's two tabs", () => {
       { value: "inventory", label: "Inventory", badge: 7 },
     ]);
     expect(w.text()).toContain("What each truck should carry");
+    // The page opens here, so the door to the types is here too (owner 2026-10-29).
+    expect(w.text()).toContain("Types of equipment");
   });
 
   it("words what a truck carries — a tablet with its driver — and what is missing", async () => {
