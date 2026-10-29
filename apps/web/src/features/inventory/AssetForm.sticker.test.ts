@@ -1,7 +1,10 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { flushPromises, mount } from "@vue/test-utils";
 import { createPinia, setActivePinia } from "pinia";
 import type { AssetTypeDto } from "@silvicom/shared";
+/** The TAC lookup's answer — the API is not under test here; `tacMatch.test.ts` pins the rule. */
+const same = vi.hoisted(() => ({ answer: null as null | { manufacturer: string; model: string; fromDisplayNo: string } }));
+vi.mock("./tacMatch", () => ({ findSameModel: async () => same.answer }));
 import AssetForm from "./AssetForm.vue";
 
 /**
@@ -135,6 +138,48 @@ describe("Add equipment, filled from the sticker", () => {
     camera.vm.$emit("close");
     await flushPromises();
     expect(w.find('[data-test="camera"]').exists()).toBe(false);
+    w.unmount();
+  });
+});
+
+describe("the maker from the IMEI (owner 2026-10-29)", () => {
+  beforeEach(() => { same.answer = null; });
+
+  it("fills maker, model and name from a tablet on file with the same TAC, and says where from", async () => {
+    same.answer = { manufacturer: "Samsung", model: "SM-T575", fromDisplayNo: "A-0412" };
+    const w = mountForm();
+    await scanInto(w.find('[data-test="sticker-scan"]'), IMEI);
+    await flushPromises();
+    expect(value(w, "Manufacturer")).toBe("Samsung");
+    expect(value(w, "Model")).toBe("SM-T575");
+    expect(value(w, "Name")).toBe("Samsung SM-T575");
+    expect(w.find('[data-test="tac-note"]').text()).toContain("A-0412");
+    w.unmount();
+  });
+
+  it("never overwrites a maker already typed", async () => {
+    same.answer = { manufacturer: "Samsung", model: "SM-T575", fromDisplayNo: "A-0412" };
+    const w = mountForm({ initial: { manufacturer: "Lenovo" } });
+    await scanInto(w.find('[data-test="sticker-scan"]'), IMEI);
+    await flushPromises();
+    expect(value(w, "Manufacturer")).toBe("Lenovo");
+    w.unmount();
+  });
+
+  it("leaves the fields empty when no tablet on file shares the TAC", async () => {
+    const w = mountForm();
+    await scanInto(w.find('[data-test="sticker-scan"]'), IMEI);
+    await flushPromises();
+    expect(value(w, "Manufacturer")).toBe("");
+    expect(w.find('[data-test="tac-note"]').exists()).toBe(false);
+    w.unmount();
+  });
+
+  it("offers the way to the types from the Type field, without submitting the form", async () => {
+    const w = mountForm();
+    await w.find('[data-test="manage-types"]').trigger("click");
+    expect(w.emitted("manage-types")).toHaveLength(1);
+    expect(w.emitted("submit")).toBeUndefined();
     w.unmount();
   });
 });

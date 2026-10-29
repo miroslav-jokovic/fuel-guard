@@ -25,6 +25,8 @@ vi.mock("./useAssets", async () => {
   };
 });
 vi.mock("./useInventory", async () => ({ useLocationsQuery: () => ({ data: ref([]) }) }));
+// The types drawer opened from the Type field is its own component, pinned by its own tests.
+vi.mock("./AssetTypesDrawer.vue", () => ({ default: { name: "AssetTypesDrawer", props: ["open"], template: "<div data-test='types-drawer' />" } }));
 
 const AssetDrawer = (await import("./AssetDrawer.vue")).default;
 const AssetForm = (await import("./AssetForm.vue")).default;
@@ -68,5 +70,19 @@ describe("Save and add another", () => {
     w.findComponent(AssetForm).vm.$emit("submit", input());
     await flushPromises();
     expect(w.emitted("close")).toHaveLength(1);
+  });
+});
+
+describe("the way to the types (owner 2026-10-29)", () => {
+  it("opens Types of equipment over the form from the Type field, and closes back to it", async () => {
+    const w = mountDrawer();
+    expect(w.find("[data-test='types-drawer']").exists()).toBe(false);
+    await w.find("[data-test='manage-types']").trigger("click");
+    expect(w.find("[data-test='types-drawer']").exists()).toBe(true);
+    w.findComponent({ name: "AssetTypesDrawer" }).vm.$emit("close");
+    await w.vm.$nextTick();
+    expect(w.find("[data-test='types-drawer']").exists()).toBe(false);
+    expect(w.find("form").exists()).toBe(true);
+    w.unmount();
   });
 });

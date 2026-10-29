@@ -24,6 +24,7 @@ import {
   type StockLocationDto,
 } from "@silvicom/shared";
 import {
+  AppButton as BaseButton,
   AppCombobox as ComboSelect,
   AppDateField,
   AppFormField as FormField,
@@ -32,6 +33,7 @@ import {
 } from "@silvicom/ui";
 import StickerScanField from "./StickerScanField.vue";
 import { fillFromSticker } from "./stickerFill";
+import { findSameModel } from "./tacMatch";
 
 /**
  * What an asset IS — never where it is (INVENTORY-PLAN.md I8, D-INV3).
@@ -80,7 +82,7 @@ const props = defineProps<{
   /** Active locations only: 0333 refuses a placement into a bay that has been closed (`IV012`). */
   locations: StockLocationDto[];
 }>();
-const emit = defineEmits<{ submit: [input: AssetCreateInput] }>();
+const emit = defineEmits<{ submit: [input: AssetCreateInput]; "manage-types": [] }>();
 
 const editing = computed(() => Boolean(props.asset));
 
@@ -118,6 +120,24 @@ function onSticker(code: StickerCode) {
   Object.assign(form, patch);
   stickerNote.value = note;
   if (patch.imei) delete errors.value.imei;
+  if (code.kind === "imei" && patch.imei && (!form.manufacturer || !form.model)) void fillMakerFromImei(code.imei);
+}
+
+/**
+ * The maker and model from a tablet already on file with the same TAC (`tacMatch.ts`). Applied only
+ * while the IMEI is still the one that asked — a second scan in the meantime wins — and only into
+ * empty fields, through the sticker's own rules, so the name follows as it does for a model barcode.
+ */
+const tacNote = ref<string | null>(null);
+async function fillMakerFromImei(imei: string) {
+  const same = await findSameModel(imei);
+  if (!same || form.imei !== imei) return;
+  const { patch } = fillFromSticker(form, { kind: "model", model: same.model, manufacturer: same.manufacturer }, props.types, autoName);
+  if (patch.name !== undefined) autoName = patch.name;
+  Object.assign(form, patch);
+  if (patch.manufacturer || patch.model) {
+    tacNote.value = `Make and model copied from ${same.fromDisplayNo} — its IMEI starts with the same model code.`;
+  }
 }
 
 const typeOptions = computed(() => props.types.map((t) => ({ value: t.id, label: t.name })));
@@ -186,6 +206,7 @@ watch(
     <div>
       <StickerScanField :active="active ?? false" :focus-first="!editing" @read="onSticker" />
       <p v-if="stickerNote" class="mt-2 text-sm text-warning-700" data-test="sticker-note">{{ stickerNote }}</p>
+      <p v-if="tacNote" class="mt-2 text-sm text-ink-muted" data-test="tac-note">{{ tacNote }}</p>
     </div>
 
     <section aria-labelledby="asset-form-what">
@@ -198,8 +219,13 @@ watch(
             v-model="form.assetTypeId"
             :options="typeOptions"
             placeholder="Tablet, load bar, ratchet strap…"
-            empty-text="No types yet. Add one under Types of equipment first — a type says whether each of these is tracked one by one."
+            empty-text="No types yet. Add one with the button below — a type says whether each of these is tracked one by one."
           />
+          <!-- The door to the types from the one place a person discovers they need one (owner 2026-10-29:
+               "I don't see where I can add types"). The drawer opens over this one, not instead of it. -->
+          <BaseButton variant="ghost" size="sm" class="mt-1 -ml-2" data-test="manage-types" @click="emit('manage-types')">
+            Add or change types
+          </BaseButton>
         </FormField>
 
         <FormField v-slot="{ id }" label="Name" :error="errors.name">

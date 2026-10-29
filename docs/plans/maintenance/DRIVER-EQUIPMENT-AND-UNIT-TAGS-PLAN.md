@@ -318,3 +318,13 @@ proof none of this replaces — the scanner on an Android tablet, and a printed 
   - Tests: drawer (7 new), types drawer (4), Scan page (2), asset page (3), Equipment page (2), card
     (4), driver-page gate (2), API since (2), shared (2); 28 mutants, all killed (one survivor fixed
     by strengthening its test). **Next:** the owner flips Tablet to "A driver" on staging, then release.
+- **2026-10-29 — after the release (v2026.10.29 second train, cb52e6f): two owner findings.**
+  - *"I don't see where I can add types."* The *Types of equipment* button lived only on the Inventory
+    tab and Equipment opens on On trucks; the Add equipment form's empty Type list pointed at it with no
+    way there. Now the button is on both tabs, and the Type field has **Add or change types**, which
+    opens the types drawer over the form (nested, so Escape closes the inner one first).
+  - *"Manufacturer should be scanned like IMEI and serial."* No sticker encodes the maker. The IMEI's
+    first eight digits (TAC, 3GPP TS 23.003) name one device model, so scanning an IMEI now copies make
+    and model from a tablet already on file with the same TAC (`tacMatch.ts`) — empty fields only, and
+    nothing when two such tablets disagree. The first of each model still needs its maker typed, or its
+    `SM-`/`TB-` model barcode scanned. GSMA's TAC database is licensed, so the world's lookup is not used.

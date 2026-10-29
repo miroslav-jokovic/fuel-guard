@@ -4,6 +4,7 @@ import type { AssetCreateInput, AssetDto, AssetInput } from "@silvicom/shared";
 import { AppButton as BaseButton } from "@silvicom/ui";
 import SlideOver from "@/components/SlideOver.vue";
 import AssetForm, { ASSET_FORM_ID, type AssetFormSeed } from "./AssetForm.vue";
+import AssetTypesDrawer from "./AssetTypesDrawer.vue";
 import { useCreateAsset, useUpdateAsset, useAssetTypesQuery } from "./useAssets";
 import { useLocationsQuery } from "./useInventory";
 import { useToastStore } from "@/stores/toast";
@@ -41,6 +42,14 @@ const { data: types } = useAssetTypesQuery();
 /** Active only: 0333 refuses a placement into a closed bay, so offering one is an error the form can prevent. */
 const { data: locations } = useLocationsQuery();
 const submitting = computed(() => create.isPending.value || update.isPending.value);
+
+/**
+ * Types of equipment, opened from the Type field. Inside this drawer's body, not beside it: a sibling
+ * dialog and this one would both answer Escape (memory `sibling-dialogs-both-own-escape`), and nested
+ * HeadlessUI dialogs close innermost first. A type added there arrives in the Type list by the
+ * `["inventory"]` invalidation the create hook already does.
+ */
+const typesOpen = ref(false);
 
 const another = ref(false);
 const carry = ref<AssetFormSeed | undefined>(props.initial);
@@ -99,9 +108,11 @@ async function onSubmit(input: AssetCreateInput) {
       :types="types ?? []"
       :locations="locations ?? []"
       :initial="carry"
-      :active="open"
+      :active="open && !typesOpen"
       @submit="onSubmit"
+      @manage-types="typesOpen = true"
     />
+    <AssetTypesDrawer v-if="typesOpen" :open="true" @close="typesOpen = false" />
     <template #footer>
       <div class="flex flex-wrap items-center justify-end gap-3">
         <BaseButton variant="ghost" :disabled="submitting" @click="emit('close')">Cancel</BaseButton>
