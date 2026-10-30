@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { mount } from "@vue/test-utils";
 import { defineComponent, ref, type Ref } from "vue";
-import { useScanInput } from "@/composables/useScanInput";
+import { deliverRelayedScan, useScanInput } from "@/composables/useScanInput";
 
 /**
  * Reading a Bluetooth HID scanner (INVENTORY-PLAN.md I6).
@@ -19,6 +19,9 @@ import { useScanInput } from "@/composables/useScanInput";
  * `useScanInput.ts` with their reasons; what is asserted here is that each of them actually governs.
  */
 
+/** Every harness still mounted — unmounted after each test, so no listener outlives its test. */
+const mounted: Array<{ unmount(): void }> = [];
+
 /** A component whose only job is to be alive so the composable's lifecycle hooks run. */
 function harness(enabled: Ref<boolean>, onScan: (code: string) => void) {
   let api: ReturnType<typeof useScanInput> | null = null;
@@ -30,6 +33,7 @@ function harness(enabled: Ref<boolean>, onScan: (code: string) => void) {
       },
     }),
   );
+  mounted.push(wrapper);
   return { wrapper, api: api! };
 }
 
@@ -72,6 +76,7 @@ describe("useScanInput", () => {
   });
 
   afterEach(() => {
+    for (const w of mounted.splice(0)) w.unmount();
     vi.useRealTimers();
     vi.restoreAllMocks();
     document.body.innerHTML = "";
@@ -210,5 +215,38 @@ describe("useScanInput", () => {
     enter();
 
     expect(onScan).not.toHaveBeenCalled();
+  });
+
+  describe("a read relayed from the office scanner (SCANNER-RELAY-PLAN.md D-SR6)", () => {
+    it("reaches every enabled listener, exactly as a keystroke burst would, and none that is off", () => {
+      const page = vi.fn();
+      const drawer = vi.fn();
+      const off = vi.fn();
+      harness(ref(true), page);
+      harness(ref(true), drawer);
+      harness(ref(false), off);
+
+      expect(deliverRelayedScan(TAG)).toBe(true);
+
+      expect(page).toHaveBeenCalledExactlyOnceWith(TAG);
+      expect(drawer).toHaveBeenCalledExactlyOnceWith(TAG);
+      expect(off).not.toHaveBeenCalled();
+    });
+
+    it("says nobody took it when no scan screen is open", () => {
+      harness(ref(false), vi.fn());
+      expect(deliverRelayedScan(TAG)).toBe(false);
+    });
+
+    it("keeps the same-code window: a scanner in continuous mode is one scan, not five", () => {
+      const onScan = vi.fn();
+      harness(ref(true), onScan);
+      deliverRelayedScan(TAG);
+      clock += 100;
+      deliverRelayedScan(TAG);
+      clock += 1_000;
+      deliverRelayedScan(TAG);
+      expect(onScan).toHaveBeenCalledTimes(2);
+    });
   });
 });

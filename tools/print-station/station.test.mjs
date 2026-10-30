@@ -25,7 +25,7 @@ function harness(script) {
     fetchImpl: async (url, init) => {
       const path = new URL(url).pathname;
       calls.push({ path, method: init.method, auth: init.headers.authorization, body: init.body ? JSON.parse(init.body) : undefined });
-      const step = path.endsWith("/hello") ? { status: 200, body: { ok: true } } : script[i++] ?? { status: 204 };
+      const step = path.endsWith("/hello") ? { status: 200, body: deps.helloAnswer ?? { ok: true } } : script[i++] ?? { status: 204 };
       if (step.throw) throw new Error(step.throw);
       return new Response(step.body === undefined ? null : JSON.stringify(step.body), { status: step.status });
     },
@@ -41,6 +41,32 @@ test("a job is printed with its own bytes on its own printer, then reported prin
   assert.deepEqual(report.body, { ok: true });
   assert.ok(h.calls.every((c) => c.auth === "Bearer t0k"));
   assert.deepEqual(h.calls[0].body.printers, [{ name: "MUNBYN RW403B" }], "says hello with this machine's printers first");
+});
+
+test("the hello carries the serial ports and scanner states, and hands its answer's scanners to the relay", async () => {
+  const h = harness([{ status: 204 }]);
+  const synced = [];
+  const scanner = { id: "55555555-5555-4555-8555-555555555555", portName: "COM3", vendorId: "0581", productId: "0215" };
+  h.deps.helloAnswer = { ok: true, stationName: "Office PC", scanners: [scanner] };
+  h.deps.scanners = {
+    refreshPorts: async () => [{ name: "COM3", vendorId: "0581", productId: "0215" }],
+    states: () => [{ scannerId: scanner.id, state: "reading", portName: "COM3" }],
+    sync: (list) => synced.push(list),
+  };
+  assert.equal(await runLoop(CONFIG, h.deps), "stopped");
+  assert.deepEqual(h.calls[0].body.serialPorts, [{ name: "COM3", vendorId: "0581", productId: "0215" }]);
+  assert.deepEqual(h.calls[0].body.scannerStates, [{ scannerId: scanner.id, state: "reading", portName: "COM3" }]);
+  assert.equal(h.calls[0].body.agentVersion, "1.1.0");
+  assert.deepEqual(synced, [[scanner]]);
+});
+
+test("an older Silvicom answers the hello without scanners: nothing is read, and printing goes on", async () => {
+  const h = harness([{ status: 200, body: { ok: true, job: JOB } }, { status: 200, body: { ok: true, status: "printed" } }]);
+  const synced = [];
+  h.deps.scanners = { refreshPorts: async () => [], states: () => [], sync: (list) => synced.push(list) };
+  assert.equal(await runLoop(CONFIG, h.deps), "stopped");
+  assert.deepEqual(synced, []);
+  assert.equal(h.printed.length, 1);
 });
 
 test("a print failure is reported with the system's words, and the station carries on", async () => {

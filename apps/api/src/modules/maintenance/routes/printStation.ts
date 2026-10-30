@@ -4,9 +4,11 @@ import {
   stationHelloSchema,
   stationPairSchema,
   stationReportSchema,
+  stationScanSchema,
   type StationHello,
   type StationPairRequest,
   type StationReport,
+  type StationScanRequest,
 } from "@silvicom/shared";
 import { apiError, asyncHandler, validateBody } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
@@ -14,6 +16,7 @@ import { getAppLocals } from "../../../lib/appLocals.js";
 import { isServiceError } from "../inventory/types.js";
 import { pairStation, stationForToken, stationHello, type StationRow } from "../printing/stations.js";
 import { claimNextJob, finishJob } from "../printing/jobs.js";
+import { recordRead, recordStationPorts, scannersForStation } from "../printing/scannerStation.js";
 
 /**
  * `/api/print-station` — the print station program's API (PRINTERS-AND-SCANNERS-PLAN.md PS2/PS3).
@@ -37,6 +40,12 @@ import { claimNextJob, finishJob } from "../printing/jobs.js";
  * an idle station costs one request every 25 seconds instead of one a second — and needs nothing
  * opened on the office's firewall, because the station always dials out. The wait asks the database
  * once a second (0526's claim, which is also the heartbeat); it ends early if the station hangs up.
+ *
+ * ── SCANNERS RIDE THE SAME CONNECTION (SCANNER-RELAY-PLAN.md SR2) ────────────────────────────
+ * The hello also carries the station's serial ports and its scanner readers' states, and its answer
+ * names the scanners the station is to read. Each read is one `POST /scans`, under its OWN budget
+ * (D-SR8): 1,800 per 15 minutes — two a second, sustained, which a person pulling a trigger cannot
+ * outrun — and skipped by the budget above, so a busy unit check can never starve the print poll.
  */
 
 export const LONG_POLL_MS = 25_000;
@@ -54,7 +63,16 @@ export function printStationRouter(options: { longPollMs?: number; pollEveryMs?:
   const longPollMs = options.longPollMs ?? LONG_POLL_MS;
   const pollEveryMs = options.pollEveryMs ?? POLL_EVERY_MS;
   const router = Router();
-  router.use(rateLimit({ windowMs: 15 * 60_000, limit: 300, standardHeaders: "draft-7", legacyHeaders: false }));
+  router.use(
+    rateLimit({
+      windowMs: 15 * 60_000,
+      limit: 300,
+      standardHeaders: "draft-7",
+      legacyHeaders: false,
+      skip: (req) => req.path === "/scans",
+    }),
+  );
+  const scanLimit = rateLimit({ windowMs: 15 * 60_000, limit: 1_800, standardHeaders: "draft-7", legacyHeaders: false });
   router.use(json({ limit: "64kb" }));
 
   router.post(
@@ -89,12 +107,19 @@ export function printStationRouter(options: { longPollMs?: number; pollEveryMs?:
     "/hello",
     validateBody(stationHelloSchema),
     asyncHandler(async (req, res) => {
-      const error = await stationHello(getSupabaseAdmin(getAppLocals(req).env), req.printStation!, res.locals.body as StationHello);
+      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      const hello = res.locals.body as StationHello;
+      const error = (await stationHello(admin, req.printStation!, hello)) ?? (await recordStationPorts(admin, req.printStation!, hello));
       if (error) {
         res.status(500).json(apiError(error.code, error.error));
         return;
       }
-      res.json({ ok: true, stationName: req.printStation!.name });
+      const scanners = await scannersForStation(admin, req.printStation!);
+      if (isServiceError(scanners)) {
+        res.status(500).json(apiError(scanners.code, scanners.error));
+        return;
+      }
+      res.json({ ok: true, stationName: req.printStation!.name, scanners });
     }),
   );
 
@@ -145,6 +170,20 @@ export function printStationRouter(options: { longPollMs?: number; pollEveryMs?:
         return;
       }
       res.json({ ok: true, status: result });
+    }),
+  );
+
+  router.post(
+    "/scans",
+    scanLimit,
+    validateBody(stationScanSchema),
+    asyncHandler(async (req, res) => {
+      const result = await recordRead(getSupabaseAdmin(getAppLocals(req).env), req.printStation!, res.locals.body as StationScanRequest);
+      if (isServiceError(result)) {
+        res.status(result.code === "not_found" ? 404 : 500).json(apiError(result.code, result.error));
+        return;
+      }
+      res.json({ ok: true, delivered: result.delivered });
     }),
   );
 

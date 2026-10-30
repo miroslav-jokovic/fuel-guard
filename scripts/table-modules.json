@@ -2334,6 +2334,39 @@
         "why": "new 2026-10-28 (0526); one row per physical printer \u2014 bounded by the number of offices."
       }
     },
+    "print_station_ports": {
+      "module": "maintenance",
+      "layer": "infra",
+      "lifecycle": {
+        "growth": "fleet",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "new 2026-10-30 (0532); one row per print station, replaced on every hello \u2014 bounded by the number of stations."
+      }
+    },
+    "scanner_reads": {
+      "module": "maintenance",
+      "layer": "infra",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": 7,
+        "partition": null,
+        "budget_rows_per_day": 2000,
+        "why": "new 2026-10-30 (0532); one row per relayed scan, pruned after 7 days (D-SR7). Budget is an estimate: a busy unit-check day is a few hundred scans, x5 headroom."
+      }
+    },
+    "scanners": {
+      "module": "maintenance",
+      "layer": "infra",
+      "lifecycle": {
+        "growth": "fleet",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "new 2026-10-30 (0532); one row per physical scanner on a print station \u2014 bounded by the number of offices."
+      }
+    },
     "psp_requests": {
       "module": "psp",
       "layer": "raw",

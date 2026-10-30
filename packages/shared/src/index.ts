@@ -243,6 +243,7 @@ export * from "./inventoryKitShown.js";
 export * from "./inventoryScanContract.js";
 export * from "./inventoryLabelContract.js";
 export * from "./printingContract.js";
+export * from "./scannerRelayContract.js";
 export * from "./inventoryRules.js";
 export * from "./fleetpalContract.js";
 export * from "./shopSummaryContract.js";

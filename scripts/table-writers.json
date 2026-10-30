@@ -526,6 +526,9 @@
   "print_jobs": [
     "apps/api/src/modules/maintenance/printing/jobs.ts"
   ],
+  "print_station_ports": [
+    "apps/api/src/modules/maintenance/printing/scannerStation.ts"
+  ],
   "print_stations": [
     "apps/api/src/modules/maintenance/printing/stations.ts"
   ],
@@ -573,6 +576,9 @@
   ],
   "saved_views": [
     "apps/api/src/modules/org/routes/savedViews.ts"
+  ],
+  "scanners": [
+    "apps/api/src/modules/maintenance/printing/scanners.ts"
   ],
   "scoring_attempts": [
     "apps/api/src/modules/anomalies/scoring/persist.ts"

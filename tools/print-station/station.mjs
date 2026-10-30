@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 /**
- * The Silvicom print station (PRINTERS-AND-SCANNERS-PLAN.md PS3).
+ * The Silvicom print station (PRINTERS-AND-SCANNERS-PLAN.md PS3), which also reads the shop's
+ * scanners for every device (SCANNER-RELAY-PLAN.md SR3, `scanners.mjs`).
  *
  * Runs on the always-on machine the label printer is plugged into — the office Windows PC (Q-PS1).
  * It dials OUT to the Silvicom API, waits for print jobs, writes each one's bytes to the printer
@@ -13,18 +14,23 @@
  *   node station.mjs run                                                 forever (the installer sets
  *                                                                       this to start with Windows)
  *   node station.mjs printers                                            what this machine can print to
+ *   node station.mjs ports                                               the serial ports a scanner in
+ *                                                                       USB-COM mode can be read on
  *
  * Options: --config <file> (default: %ProgramData%\Silvicom\PrintStation\config.json on Windows,
  * ~/.silvicom-print-station/config.json elsewhere); --log <file> (default: the console).
  */
-import { appendFileSync, renameSync, statSync } from "node:fs";
+import { appendFileSync, mkdirSync, renameSync, statSync, writeFileSync } from "node:fs";
 import { hostname, homedir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { POLL_TIMEOUT_MS, RefusedError, readConfig, request, validateApiUrl, writeConfig } from "./client.mjs";
 import { listPrinters, printRaw } from "./platform.mjs";
+import { createScannerRelay } from "./scanners.mjs";
+import { listSerialPorts, spawnReader, WINDOWS_READ_PORT } from "./serial.mjs";
 
-export const VERSION = "1.0.0";
+/** 1.1.0: reads scanners (the contract's SCANNER_STATION_MIN_VERSION). */
+export const VERSION = "1.1.0";
 /** How often the station re-announces itself and its printers (also its heartbeat between polls). */
 export const HELLO_EVERY_MS = 60_000;
 const BACKOFF_MS = [1_000, 2_000, 5_000, 10_000, 30_000];
@@ -81,15 +87,28 @@ export function sleepUnless(signal) {
     });
 }
 
+/**
+ * The hello: what this machine is, its printers, its serial ports and how its scanner readers are
+ * doing. The answer names the scanners to read; an older Silvicom answers without `scanners`, and
+ * then nothing is read — this station prints exactly as 1.0.0 did.
+ */
 async function hello(config, deps) {
   const printers = (await deps.listPrinters()).slice(0, 50);
-  await request(config.apiUrl, "/api/print-station/hello", {
+  const serialPorts = deps.scanners ? (await deps.scanners.refreshPorts()).slice(0, 50) : [];
+  const { body } = await request(config.apiUrl, "/api/print-station/hello", {
     method: "POST",
     token: config.token,
-    body: { hostName: deps.hostName.slice(0, 120), agentVersion: VERSION, printers },
+    body: {
+      hostName: deps.hostName.slice(0, 120),
+      agentVersion: VERSION,
+      printers,
+      serialPorts,
+      scannerStates: deps.scanners ? deps.scanners.states() : [],
+    },
     fetchImpl: deps.fetchImpl,
     signal: deps.signal,
   });
+  if (deps.scanners && Array.isArray(body?.scanners)) deps.scanners.sync(body.scanners);
   return printers;
 }
 
@@ -191,6 +210,11 @@ async function main(argv) {
     for (const p of await listPrinters()) console.log(p.name);
     return 0;
   }
+  if (command === "ports") {
+    // What Settings will offer as scanner ports. A scanner still in keyboard mode is not one of them.
+    for (const p of await listSerialPorts()) console.log([p.name, p.label, p.vendorId && `${p.vendorId}:${p.productId}`].filter(Boolean).join("  "));
+    return 0;
+  }
   if (command === "run") {
     const config = readConfig(configPath);
     // First signal: finish the label in hand, then exit. A second one exits now.
@@ -202,7 +226,25 @@ async function main(argv) {
         stop.abort();
       });
     }
+    // Windows reads a port through a PowerShell script FILE (serial.mjs); it lives beside the config.
+    let scriptPath;
+    if (process.platform === "win32") {
+      scriptPath = join(dirname(configPath), "read-port.ps1");
+      mkdirSync(dirname(scriptPath), { recursive: true });
+      writeFileSync(scriptPath, WINDOWS_READ_PORT, "utf8");
+    }
+    const scanners = createScannerRelay(config, {
+      fetchImpl: fetch,
+      listSerialPorts: () => listSerialPorts(),
+      spawnReader: (port, options) => spawnReader(port, options),
+      scriptPath,
+      now: () => Date.now(),
+      sleep: sleepUnless(stop.signal),
+      log,
+    });
+    stop.signal.addEventListener("abort", () => scanners.stop(), { once: true });
     const result = await runLoop(config, {
+      scanners,
       fetchImpl: fetch,
       listPrinters: () => listPrinters(),
       printRaw: (name, bytes) => printRaw(name, bytes),
@@ -212,10 +254,11 @@ async function main(argv) {
       stop: () => stop.signal.aborted,
       signal: stop.signal,
     });
+    scanners.stop();
     // A refused station exits non-zero so the service manager shows it failed, rather than looping.
     return result === "refused" ? 2 : 0;
   }
-  console.log("Usage: node station.mjs pair <CODE> --api <https://…> | run | printers   [--config <file>]");
+  console.log("Usage: node station.mjs pair <CODE> --api <https://…> | run | printers | ports   [--config <file>]");
   return command ? 1 : 0;
 }
 

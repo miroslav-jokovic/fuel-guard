@@ -151,6 +151,9 @@ const drawerStub = (name: string, props: string[]) => ({
   template: "<div />",
 });
 
+// The office-scanner control has its own suite (UseOfficeScanner.test.ts) and needs a query client.
+vi.mock("@/components/UseOfficeScanner.vue", () => ({ default: { name: "UseOfficeScanner", template: "<div data-testid='use-office-scanner' />" } }));
+
 const ScanPage = (await import("@/pages/ScanPage.vue")).default;
 
 function render() {

@@ -37,8 +37,9 @@ const layoutFix = isAndroid
   <BaseCard>
     <h3 class="text-sm font-semibold text-ink">Test a scanner on this device</h3>
     <p class="mt-1 text-sm text-ink-muted">
-      Pair the scanner with this phone, tablet or computer (Bluetooth, or its USB receiver), print a test label from a
-      printer below, and scan it here. Any number of scanners work — each one with the device it is paired to.
+      Pair the scanner with this phone, tablet or computer (Bluetooth, or its USB receiver) — or press "Use on this
+      device" on a scanner above — print a test label from a printer, and scan it here. A scanner types into one device
+      at a time: if your scans appear on another computer, it is still connected there.
     </p>
     <p v-if="!last" class="mt-4 text-sm text-ink-tertiary">Waiting for a scan…</p>
     <div v-else class="mt-4 space-y-2" data-testid="scanner-verdict">

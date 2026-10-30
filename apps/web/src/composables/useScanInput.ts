@@ -119,6 +119,28 @@ export interface ScanInputOptions {
   onScan: (code: string) => void;
 }
 
+/**
+ * Every mounted listener, so a read relayed from the office scanner (SCANNER-RELAY-PLAN.md D-SR6)
+ * reaches exactly the listeners a keystroke burst would: each one that is `enabled`. The pages
+ * already settle among themselves who owns the keyboard by flipping `enabled` while a drawer is
+ * open; a relayed read obeys the same rule instead of inventing a second one.
+ */
+const listeners = new Set<{ enabled: Ref<boolean>; receive: (code: string) => void }>();
+
+/**
+ * Hand a relayed read to the page, as though the scanner had typed it here. True when a listener
+ * took it; false when no scan screen is open — the relay then says so rather than dropping it.
+ */
+export function deliverRelayedScan(code: string): boolean {
+  let taken = false;
+  for (const l of listeners) {
+    if (!l.enabled.value) continue;
+    l.receive(code);
+    taken = true;
+  }
+  return taken;
+}
+
 export function useScanInput({ enabled, onScan }: ScanInputOptions) {
   let buffer = "";
   let lastKeyAt = 0;
@@ -178,9 +200,25 @@ export function useScanInput({ enabled, onScan }: ScanInputOptions) {
     idleTimer = setTimeout(emit, IDLE_FLUSH_MS);
   }
 
-  onMounted(() => document.addEventListener("keydown", onKeydown));
+  /** A relayed read: no timing rule (it is a whole read already), but the same-code window holds. */
+  const listener = {
+    enabled,
+    receive(code: string) {
+      const at = now();
+      if (code === lastEmitted && at - lastEmittedAt < SAME_CODE_MS) return;
+      lastEmitted = code;
+      lastEmittedAt = at;
+      onScan(code);
+    },
+  };
+
+  onMounted(() => {
+    document.addEventListener("keydown", onKeydown);
+    listeners.add(listener);
+  });
   onBeforeUnmount(() => {
     document.removeEventListener("keydown", onKeydown);
+    listeners.delete(listener);
     reset();
   });
 
