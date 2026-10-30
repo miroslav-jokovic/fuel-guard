@@ -3,6 +3,9 @@
 **Attach:** `SILVICOM-READ-ROUTINE.sql` (this folder, as on `main`; Part 5's header is the only change,
 and its three statements are the same ones you reviewed).
 
+> **Optional since the owner's ruling Q-RL2a (2026-10-30):** the owner has admin on the VM and does
+> not need Alex's agreement. This is kept as a courtesy note the owner may send. It is not a gate.
+>
 > **Why this exists (ROSTER-LIFECYCLE-PLAN RL2, owner's ruling Q-RL2 2026-10-30).** Alex's approval of
 > 2026-09-24 set a condition: "Part 5 stays manual." Putting Part 5 on a timer changes that condition,
 > so it is asked for, not just announced. The other half of the same VM update (RL1, `ROSTER_MODE=create`)

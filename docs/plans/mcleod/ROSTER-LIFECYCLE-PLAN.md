@@ -1,6 +1,6 @@
 # McLeod roster lifecycle — hires, departures and truck changes reach Silvicom 360 on their own
 
-Status: **RULED 2026-10-30** (§5). RL1 + RL2 built in one PR; the VM update waits on the release and on Alex's reply about Part 5. Defers to
+Status: **RULED 2026-10-30** (§5, §5a). RL1 + RL2 built in one PR; one VM update installs both (the owner has admin on the VM). Defers to
 `MCLEOD-ROSTER-SYNC-PLAN.md` (M5 creation, M6 deactivation) and does not restate it.
 
 ## 1. What the owner saw
@@ -116,6 +116,19 @@ dispatch truth is the load's driver and tractor, which the VM already sends ever
   either way. ⚠ **It needs Alex's agreement.** "Part 5 stays manual" is a condition in his 2026-09-24
   approval (`mail.md`), not just our wording. The request is `tools/mcleod-agent/review/REQUEST-TO-ALEX-2026-10-30-ROSTER.md`,
   for the owner to send.
+- **Q-RL2a — the owner, later the same day: "we have admin privileges on the VM, we don't need Alex
+  anymore."** The approval condition is the owner's to change, and they changed it. The request file
+  stays in `review/` as an optional note to Alex, not a gate. Two conditions came with the ruling, and
+  both were measured against `lme` before merging:
+  - *No overload.* Under `SET STATISTICS TIME, IO`, the three Part 5 reads cost **15 ms CPU and 507
+    logical reads** together (driver 356, tractor 109, trailer 42), the same as Part 3, which already runs
+    every 15 minutes. They go through the same `withPool` as every read: one connection,
+    `LOCK_TIMEOUT 5000`, `DEADLOCK_PRIORITY LOW`, `MAXDOP 1`, a 15-second ceiling, and the
+    three-timeout breaker.
+  - *Precise column names.* Every column referenced in the six roster and retire statements (18 / 15 /
+    12 / 4 / 4 / 4) exists in `INFORMATION_SCHEMA.COLUMNS` for `dbo.driver` / `dbo.tractor` /
+    `dbo.trailer`, and every one returns data. The only exception is `termination_date` on active
+    drivers, which is correctly empty.
 - **Q-RL3 — as recommended:** McLeod dispatch is the fallback only, and disagreements are flagged.
 - **Q-RL4 — Ferguson is driving.** RL1 creates him on its first sweep.
 
@@ -135,5 +148,6 @@ dispatch truth is the load's driver and tractor, which the VM already sends ever
   sent. The change is asked for in the request file.
 - **VM update (after release):** `agent.mjs`, `schedule.mjs`, `service.mjs`, the routine file, and in
   `connector.env` `ROSTER_MODE=create`. Same method as 10/12 (download at a pinned commit, SHA-256,
-  Stop → copy → tests → Start). If Alex has not answered, install RL1 alone: the env change plus the
-  released API. RL1 needs no agent change.
+  Stop → copy → tests → Start). RL1 is safe before the release on today's data: the
+  only applicant matching a McLeod driver by name (CHAIRSTO) also matches by licence, so the
+  production API holds him either way.
