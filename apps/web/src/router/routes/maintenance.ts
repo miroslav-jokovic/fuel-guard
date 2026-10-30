@@ -1,4 +1,5 @@
 import type { RouteRecordRaw } from "vue-router";
+import { KIT_RULES_SHOWN } from "@silvicom/shared";
 
 /**
  * The maintenance section — the shop (INVENTORY-PLAN.md step I4, D-S360-7).
@@ -62,11 +63,20 @@ export const maintenanceRoutes: RouteRecordRaw[] = [
    * is two different questions about two different kinds of row, and one screen with a toggle is how
    * the driver page grew six tabs. Its own sidebar row again since M7 (Q-MX7), so its Back is Shop's.
    */
+  /**
+   * EA2 renamed the tabs to who holds the thing (EQUIPMENT-ASSIGN-BY-SCAN-PROPOSAL §3.4): M7's
+   * `on-trucks` is `trucks`, its `inventory` is `shop`. A bookmark or an alert link keeps landing on the
+   * list it meant; anything else in its query is carried.
+   */
   {
     path: "/shop/assets",
     name: "assets",
     component: () => import("@/pages/AssetsPage.vue"),
     meta: { requiresAuth: true, title: "Equipment", parent: "/shop" },
+    beforeEnter: (to) => {
+      const renamed = { "on-trucks": "trucks", inventory: "shop" }[String(to.query.tab ?? "")];
+      return renamed ? { path: to.path, query: { ...to.query, tab: renamed } } : true;
+    },
   },
   {
     path: "/shop/assets/:id",
@@ -82,7 +92,9 @@ export const maintenanceRoutes: RouteRecordRaw[] = [
    */
   /**
    * "Missing equipment" was Trucks & trailers' `?show=short` until M7 moved it to Equipment's On trucks
-   * tab (§7a.4). A bookmark keeps landing on the same list, its kind and search carried.
+   * tab (§7a.4). A bookmark keeps landing on the same list, its kind and search carried — and since
+   * EA2 hid Should carry (`KIT_RULES_SHOWN`), on Equipment's Trucks & trailers tab without the
+   * "missing" filter, which there is no longer.
    */
   {
     path: "/shop/units",
@@ -92,7 +104,7 @@ export const maintenanceRoutes: RouteRecordRaw[] = [
     beforeEnter: (to) => {
       if (to.query.show !== "short") return true;
       const { show: _short, ...rest } = to.query;
-      return { path: "/shop/assets", query: { ...rest, tab: "on-trucks", show: "missing" } };
+      return { path: "/shop/assets", query: { ...rest, tab: "trucks", ...(KIT_RULES_SHOWN ? { show: "missing" } : {}) } };
     },
   },
   {

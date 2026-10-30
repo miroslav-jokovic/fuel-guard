@@ -178,6 +178,25 @@ describe("asset reads", () => {
     expect(result.assets.map((a) => a.id)).toEqual([A_LOOSE]);
   });
 
+  /** EA2: Equipment's In the shop tab — no truck, trailer or driver, and not retired unless asked. */
+  it("asks for In the shop as three IS NULLs and not retired — a shelf and the unplaced pile both count", async () => {
+    const result = await listAssets(rec.client, ORG, { holder: "shop" });
+    if ("error" in result) throw new Error("unexpected error");
+    expect(result.assets.map((a) => a.id).sort()).toEqual([A_CRIB, A_LOOSE].sort());
+    const ops = rec.queries.find((q) => q.table === "inventory_assets")!.ops;
+    expect(ops).toContainEqual({ method: "neq", args: ["status", "retired"] });
+    await listAssets(rec.client, ORG, { holder: "shop", status: "retired" });
+    const asked = rec.queries.filter((q) => q.table === "inventory_assets").at(-1)!.ops;
+    expect(asked).not.toContainEqual({ method: "neq", args: ["status", "retired"] });
+  });
+
+  /** EA2: Equipment's Drivers tab — everything a driver holds, whoever the driver. */
+  it("asks for the Drivers tab as driver_id IS NOT NULL", async () => {
+    await listAssets(rec.client, ORG, { holder: "driver" });
+    const ops = rec.queries.find((q) => q.table === "inventory_assets")!.ops;
+    expect(ops).toContainEqual({ method: "not", args: ["driver_id", "is", null] });
+  });
+
   it("sends the holder filter rather than filtering after the fact", async () => {
     const result = await listAssets(rec.client, ORG, { vehicleId: T654 });
     if ("error" in result) throw new Error("unexpected error");

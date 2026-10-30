@@ -62,6 +62,8 @@ const listSchema = z.object({
   driverId: recordId().optional(),
   notReturned: queryFlag.optional(),
   unassigned: queryFlag.optional(),
+  // EA2: Equipment's Drivers and In the shop tabs.
+  holder: z.enum(["shop", "driver"]).optional(),
   limit: z.coerce.number().int().min(1).max(200).optional(),
   offset: z.coerce.number().int().min(0).optional(),
 });

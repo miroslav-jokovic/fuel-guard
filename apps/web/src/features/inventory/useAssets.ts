@@ -48,6 +48,8 @@ export interface AssetsFilter {
   driverId?: string;
   /** D-DE3: tablets whose driver has left. The Inventory tab's *Not returned* filter. */
   notReturned?: boolean;
+  /** EA2: Equipment's Drivers tab (`driver`) and In the shop tab (`shop`). */
+  holder?: "shop" | "driver";
   page: number;
 }
 
@@ -77,6 +79,7 @@ export function useAssetsQuery(filter: Ref<AssetsFilter>, enabled: Ref<boolean> 
       if (f.unassigned) params.set("unassigned", "true");
       if (f.driverId) params.set("driverId", f.driverId);
       if (f.notReturned) params.set("notReturned", "true");
+      if (f.holder) params.set("holder", f.holder);
       const r = await apiFetch<{ assets: AssetDto[]; total: number }>(
         `/api/maintenance/inventory/assets?${params}`,
       );

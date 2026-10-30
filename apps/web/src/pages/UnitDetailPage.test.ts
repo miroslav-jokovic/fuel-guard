@@ -4,6 +4,15 @@ import { createPinia, setActivePinia } from "pinia";
 import { nextTick, reactive, ref } from "vue";
 import type { AssetDto, UnitAttentionDto, UnitKitDto, UnitShopFileDto } from "@silvicom/shared";
 
+/** Should carry's switch (EA2), live: hidden by default, turned on where the kept kit code is under test. */
+const kit = vi.hoisted(() => ({ shown: false }));
+vi.mock("@silvicom/shared", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@silvicom/shared")>()),
+  get KIT_RULES_SHOWN() {
+    return kit.shown;
+  },
+}));
+
 /**
  * The truck's page — the shop's hub (MAINTENANCE-SECTION-REDESIGN-PROPOSAL.md §4.3, M3, D-MX3).
  *
@@ -153,6 +162,7 @@ async function rowActions(w: ReturnType<typeof page>): Promise<string[]> {
 }
 
 beforeEach(() => {
+  kit.shown = false;
   document.body.innerHTML = "";
   setActivePinia(createPinia());
   shopFile.value = file();
@@ -253,7 +263,16 @@ describe("equipment it carries", () => {
     expect(w.findComponent(AssetMoveDrawer).props("mode")).toBe("report");
   });
 
+  it("shows no Should carry while it is hidden — what it holds, and when it was last checked (EA2)", () => {
+    const text = page("equipment").text();
+    expect(text).not.toContain("Should carry");
+    expect(text).not.toContain("Missing 2");
+    expect(text).not.toContain("What this one should carry");
+    expect(text).toContain("Never checked");
+  });
+
   it("renders the shortfall the API computed, and where each number came from", () => {
+    kit.shown = true;
     const text = page("equipment").text();
     expect(text).toContain("Missing 2");
     expect(text).toContain("Fleet default");

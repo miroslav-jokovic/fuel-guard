@@ -237,6 +237,7 @@ export * from "./inventoryAssetContract.js";
 export * from "./inventoryDriverHeld.js";
 export * from "./deviceSticker.js";
 export * from "./inventoryKitCatalogue.js";
+export * from "./inventoryKitShown.js";
 export * from "./inventoryScanContract.js";
 export * from "./inventoryLabelContract.js";
 export * from "./printingContract.js";

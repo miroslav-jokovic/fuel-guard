@@ -2,7 +2,7 @@
 import { computed, ref } from "vue";
 import { useRouter } from "vue-router";
 import { AppButton as BaseButton, AppCard as BaseCard, DataTable, type DataTableColumn } from "@silvicom/ui";
-import { KIT_EXPECTATION_SOURCE_LABELS, type UnitKitDto, type UnitKitLineDto } from "@silvicom/shared";
+import { KIT_EXPECTATION_SOURCE_LABELS, KIT_RULES_SHOWN, type UnitKitDto, type UnitKitLineDto } from "@silvicom/shared";
 import HolderEquipmentCard from "./HolderEquipmentCard.vue";
 import UnitOverrideDrawer from "./UnitOverrideDrawer.vue";
 import OpenCountsList from "./OpenCountsList.vue";
@@ -24,6 +24,11 @@ import { useToastStore } from "@/stores/toast";
  * planned from. The ASSETS are the individual things with numbers on them, and are what a person
  * standing at the truck actually touches. Folding them into one table would mean either losing the
  * shortfall (which has no single asset behind it) or repeating the expectation on every row.
+ *
+ * ── SHOULD CARRY IS HIDDEN (EA2, `KIT_RULES_SHOWN`) ───────────────────────────────────────────
+ * The kit summary, its badge, the Should carry table and "What this one should carry" render only
+ * while the switch is on. Hidden, the tab is what the truck holds (the card, with Assign and Return),
+ * when it was last checked, and any check left open — the code below stays, tested behind the switch.
  *
  * ── REMOVING SOMETHING IS A MOVE, NOT A DELETE ────────────────────────────────────────────────
  * "Take it off this truck" is Return to shop on `HolderEquipmentCard` — `move_asset` with a
@@ -80,7 +85,7 @@ const kitLines = computed<UnitKitLineDto[]>(() => props.unit.lines.filter((l) =>
 
 <template>
   <section id="section-equipment" class="scroll-mt-6 space-y-4" data-test="unit-equipment">
-    <BaseCard>
+    <BaseCard v-if="KIT_RULES_SHOWN">
       <div class="flex flex-wrap items-center justify-between gap-3">
         <h2 class="text-sm font-semibold text-ink">Equipment it carries</h2>
         <div class="flex items-center gap-3">
@@ -101,9 +106,19 @@ const kitLines = computed<UnitKitLineDto[]>(() => props.unit.lines.filter((l) =>
       </p>
     </BaseCard>
 
+    <!-- EA1: what is on board is the same card the fleet's truck and trailer pages show, with Assign
+         and Return on it — one spelling of "what this truck carries" and one way to change it. -->
+    <HolderEquipmentCard
+      :target="{ kind: kind === 'tractor' ? 'vehicle' : 'trailer', id: unitId, label: `${kind === 'tractor' ? 'Truck' : 'Trailer'} ${unit.unitNumber}` }"
+      :shop-link="false"
+    />
+    <p v-if="!KIT_RULES_SHOWN" class="text-sm text-ink-secondary" data-test="unit-last-checked">
+      {{ unit.lastCheckedAt ? `Last checked ${formatDate(unit.lastCheckedAt)}` : "Never checked — the list above is what the records say" }}
+    </p>
+
     <OpenCountsList title="Open check" :vehicle-id="kind === 'tractor' ? unitId : undefined" :trailer-id="kind === 'trailer' ? unitId : undefined" />
 
-    <div class="space-y-3">
+    <div v-if="KIT_RULES_SHOWN" class="space-y-3">
       <h3 class="text-sm font-semibold text-ink">Should carry</h3>
       <!-- ui-adoption: never-paged — what one truck should carry — one line per kind of equipment. -->
       <DataTable :columns="KIT_COLUMNS" :rows="kitLines" row-key="assetTypeId" :loading="loading">
@@ -121,12 +136,6 @@ const kitLines = computed<UnitKitLineDto[]>(() => props.unit.lines.filter((l) =>
       </DataTable>
     </div>
 
-    <!-- EA1: what is on board is the same card the fleet's truck and trailer pages show, with Assign
-         and Return on it — one spelling of "what this truck carries" and one way to change it. -->
-    <HolderEquipmentCard
-      :target="{ kind: kind === 'tractor' ? 'vehicle' : 'trailer', id: unitId, label: `${kind === 'tractor' ? 'Truck' : 'Trailer'} ${unit.unitNumber}` }"
-      :shop-link="false"
-    />
-    <UnitOverrideDrawer v-if="overriding" :open="true" :unit="unit" :roster-kind="kind" @close="overriding = false" />
+    <UnitOverrideDrawer v-if="KIT_RULES_SHOWN && overriding" :open="true" :unit="unit" :roster-kind="kind" @close="overriding = false" />
   </section>
 </template>

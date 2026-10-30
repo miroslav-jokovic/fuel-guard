@@ -164,6 +164,13 @@ export interface ListAssetsOptions {
   notReturned?: boolean;
   /** The crib's "nothing decided yet" pile — four nulls, which no `.eq()` can ask for. */
   unassigned?: boolean;
+  /**
+   * Equipment's tabs (EA2): `driver` is everything a driver holds (the Drivers tab); `shop` is
+   * everything no truck, trailer or driver holds — on a shelf or nowhere yet — and not retired, since
+   * a retired thing's holder is cleared too and it is not "in the shop". A status filter asked for
+   * alongside wins, so *In the shop › Retired* still finds the retired.
+   */
+  holder?: "shop" | "driver";
   limit?: number;
   offset?: number;
 }
@@ -260,6 +267,11 @@ export async function listAssets(
   if (opts.driverId) q = q.eq("driver_id", opts.driverId);
   // ⚠ `driver_id` too: before DE2 three nulls meant nowhere, and a driver's tablet has all three.
   if (opts.unassigned) q = q.is("location_id", null).is("vehicle_id", null).is("trailer_id", null).is("driver_id", null);
+  if (opts.holder === "driver") q = q.not("driver_id", "is", null);
+  if (opts.holder === "shop") {
+    q = q.is("vehicle_id", null).is("trailer_id", null).is("driver_id", null);
+    if (!opts.status) q = q.neq("status", "retired");
+  }
   if (opts.notReturned) {
     const left = await driversWhoLeftHolding(admin, orgId);
     if ("error" in left) return left;

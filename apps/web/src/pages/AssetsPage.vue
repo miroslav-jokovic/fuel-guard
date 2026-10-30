@@ -10,9 +10,10 @@ import AssetTypesDrawer from "@/features/inventory/AssetTypesDrawer.vue";
 import KitRulesDrawer from "@/features/inventory/KitRulesDrawer.vue";
 import EquipmentOnTrucksPanel from "@/features/inventory/EquipmentOnTrucksPanel.vue";
 import EquipmentInventoryPanel from "@/features/inventory/EquipmentInventoryPanel.vue";
+import EquipmentDriversPanel from "@/features/inventory/EquipmentDriversPanel.vue";
+import { KIT_RULES_SHOWN } from "@silvicom/shared";
 import { useUnitsQuery } from "@/features/inventory/useUnits";
 import { useAssetsQuery } from "@/features/inventory/useAssets";
-import { missingWords } from "@/features/inventory/onBoardWords";
 import { useSessionStore } from "@/stores/session";
 import { useOpens } from "@/composables/useOpens";
 
@@ -21,20 +22,21 @@ import { useOpens } from "@/composables/useOpens";
  * Q-MX7 (a)). Everything here is Silvicom's alone; the shop's parts are FleetPal's and live on Parts
  * (the two-inventories ruling, DRIVER-EQUIPMENT-AND-UNIT-TAGS-PLAN.md), so this page never says "part".
  *
- * ── TWO TABS, ONE TABLE EACH (contract §9 rule 9) ─────────────────────────────────────────────
- *   On trucks — a row per truck or trailer and what it carries (the owner's "truck assignment" view);
- *   Inventory — a row per item, the list this page was until M7.
- * Invoices joins them in M10. M1 had parented this page to Trucks & trailers ("the same question asked
- * of the thing instead of the truck"); the owner's 2026-10-28 review asked for a page of its own, so
- * the parent came off and the surface KEY stayed (`maintenance.assets`, D-MX6) — every stored grant
- * about this screen still means what it meant.
+ * ── THREE TABS, BY WHO HOLDS IT (EA2; contract §9 rule 9, one table each) ────────────────────
+ *   Trucks & trailers — a row per unit carrying something, and what it carries;
+ *   Drivers — a row per thing a driver holds (tablets, D-DE1), with *Not returned* (D-DE3);
+ *   In the shop — everything no truck, trailer or driver holds, with a Where filter for "anywhere".
+ * The owner's 2026-10-30 brief: "On our equipment pages we will have displayed trucks and drivers
+ * (separate tabs) with assigned equipment listed" (EQUIPMENT-ASSIGN-BY-SCAN-PROPOSAL §3.4). Assigning
+ * happens on the truck's or driver's own page by scan (EA1); a row here opens that page. M7's
+ * `on-trucks` / `inventory` addresses redirect (`routes/maintenance.ts`). Invoices joins them in M10b.
+ * The surface KEY stays `maintenance.assets` (D-MX6) — every stored grant still means what it meant.
  *
- * The tab counts are what each tab is for: On trucks counts the units missing something (checked and
- * short, R10), Inventory the items. Both read the query key their panel's unfiltered view reads, so
- * vue-query asks once.
+ * Each tab's count is how many rows it lists, read off the same query key its panel's unfiltered view
+ * reads, so vue-query asks once.
  *
- * Add equipment is the page's verb (header on a desk, the bottom bar on a phone — §9 rule 2) on both
- * tabs: whichever list a person is looking at, a new tablet is added the same way.
+ * Add equipment is the page's verb (header on a desk, the bottom bar on a phone — §9 rule 2) on every
+ * tab: a new item lands In the shop until it is assigned.
  */
 
 const router = useRouter();
@@ -42,20 +44,23 @@ const session = useSessionStore();
 const opens = useOpens();
 
 const TABS = [
-  { value: "on-trucks", label: "On trucks" },
-  { value: "inventory", label: "Inventory" },
+  { value: "trucks", label: "Trucks & trailers" },
+  { value: "drivers", label: "Drivers" },
+  { value: "shop", label: "In the shop" },
 ] as const;
 const unitsQ = useUnitsQuery(computed(() => ({})));
-const itemsQ = useAssetsQuery(computed(() => ({ page: 1 })));
+const driversQ = useAssetsQuery(computed(() => ({ holder: "driver" as const, page: 1 })));
+const shopQ = useAssetsQuery(computed(() => ({ holder: "shop" as const, page: 1 })));
 const counts = computed<Record<string, number | undefined>>(() => ({
-  "on-trucks": unitsQ.data.value?.units.filter((u) => missingWords(u) !== null).length || undefined,
-  inventory: itemsQ.data.value?.total || undefined,
+  trucks: unitsQ.data.value?.units.filter((u) => u.lines.some((l) => l.held > 0)).length || undefined,
+  drivers: driversQ.data.value?.total || undefined,
+  shop: shopQ.data.value?.total || undefined,
 }));
 const tabs = computed(() => TABS.map((t) => ({ value: t.value, label: t.label, badge: counts.value[t.value] })));
 type TabKey = (typeof TABS)[number]["value"];
 
 const qs = useQueryState();
-const asked = qs.param("tab", TABS.map((t) => t.value), "on-trucks");
+const asked = qs.param("tab", TABS.map((t) => t.value), "trucks");
 const tab = computed<TabKey>({
   get: () => asked.value as TabKey,
   // A tab is a different list, so its search, filters, sort and page do not follow it across.
@@ -76,11 +81,11 @@ const actions = computed<WalkAction[]>(() =>
 
 <template>
   <div class="space-y-6">
-    <PageHeader description="Everything with a number on it — tablets, load bars, straps — and which truck has it.">
+    <PageHeader description="Who has each tablet, load bar and strap. To assign one, open the truck or driver and scan it.">
       <template #actions>
-        <!-- What a truck should carry is the On trucks tab's rule; it moved here from Trucks &
-             trailers with Missing equipment (M7). -->
-        <BaseButton v-if="session.can('maintenance') && tab === 'on-trucks'" @click="rulesOpen = true">
+        <!-- What a truck should carry is the Trucks & trailers tab's rule (M7) — hidden with the rest of
+             Should carry since EA2 (`KIT_RULES_SHOWN`). -->
+        <BaseButton v-if="KIT_RULES_SHOWN && session.can('maintenance') && tab === 'trucks'" @click="rulesOpen = true">
           <AppIcon :icon="Cog6ToothIcon" class="-ml-0.5 size-5" aria-hidden="true" /> What each truck should carry
         </BaseButton>
         <!-- The kinds of thing, as a worded button. It is not a nicety: an asset cannot be created
@@ -95,7 +100,7 @@ const actions = computed<WalkAction[]>(() =>
         <!-- SP5: shown when Labels opens. It is `maintenance` view and answers to the shop home's screen
              (`maintenance.repair-spend`, D-SURF8), which is switchable per person apart from this page —
              not `maintenance` manage, which hid it from a viewer the Labels page admits. -->
-        <BaseButton v-if="opens('/shop/labels') && tab === 'inventory'" to="/shop/labels">
+        <BaseButton v-if="opens('/shop/labels') && tab === 'shop'" to="/shop/labels">
           <AppIcon :icon="ScanIcon" class="-ml-0.5 size-5" aria-hidden="true" /> Labels
         </BaseButton>
         <WalkActions :actions="actions" />
@@ -105,13 +110,14 @@ const actions = computed<WalkAction[]>(() =>
     <AppTabs v-model="tab" :tabs="tabs" label="Equipment lists" id-prefix="equipment" />
 
     <div :id="`equipment-panel-${tab}`" role="tabpanel" :aria-labelledby="`equipment-tab-${tab}`">
-      <EquipmentOnTrucksPanel v-if="tab === 'on-trucks'" />
+      <EquipmentOnTrucksPanel v-if="tab === 'trucks'" />
+      <EquipmentDriversPanel v-else-if="tab === 'drivers'" />
       <EquipmentInventoryPanel v-else />
     </div>
 
     <AssetDrawer :open="creating" @close="creating = false" />
     <AssetTypesDrawer :open="typesOpen" @close="typesOpen = false" />
-    <KitRulesDrawer :open="rulesOpen" @close="rulesOpen = false" />
+    <KitRulesDrawer v-if="KIT_RULES_SHOWN" :open="rulesOpen" @close="rulesOpen = false" />
     <WalkActions v-if="actions.length" :actions="actions" bar />
   </div>
 </template>

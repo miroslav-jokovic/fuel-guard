@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, reactive, ref } from "vue";
-import { assetTypeInputSchema, type AssetHeldBy, type AssetTypeDto } from "@silvicom/shared";
+import { KIT_RULES_SHOWN, assetTypeInputSchema, type AssetHeldBy, type AssetTypeDto } from "@silvicom/shared";
 import {
   AppButton as BaseButton,
   AppCheckbox as BaseCheckbox,
@@ -158,7 +158,11 @@ async function adoptKit() {
   <SlideOver
     :open="props.open"
     title="Types of equipment"
-    description="A type is what a piece of equipment is one of, and what a should-carry rule counts. Nothing can be added until at least one exists."
+    :description="
+      KIT_RULES_SHOWN
+        ? 'A type is what a piece of equipment is one of, and what a should-carry rule counts. Nothing can be added until at least one exists.'
+        : 'A type is what a piece of equipment is one of — a tablet, a load bar. Nothing can be added until at least one exists.'
+    "
     @close="emit('close')"
   >
     <div class="space-y-4">
@@ -170,8 +174,9 @@ async function adoptKit() {
         error-text="Could not load the types."
         @retry="refetch()"
       >
-        <!-- A4's answer, and only while there is nothing. See the header for why it disappears. -->
-        <div v-if="empty" class="rounded-control bg-surface-subtle px-3 py-2.5 ring-1 ring-edge">
+        <!-- A4's answer, and only while there is nothing. See the header for why it disappears. Hidden
+             with Should carry (EA2, `KIT_RULES_SHOWN`): adopting it writes kit rules nobody could see. -->
+        <div v-if="empty && KIT_RULES_SHOWN" class="rounded-control bg-surface-subtle px-3 py-2.5 ring-1 ring-edge">
           <p class="text-sm font-medium text-ink">Start from the standard list</p>
           <p class="mt-0.5 text-xs text-ink-muted">
             Twelve types and what each truck, dry van and reefer carries — the five
@@ -206,7 +211,10 @@ async function adoptKit() {
           <FormField v-slot="{ id }" label="Category" hint="How the list groups. Optional.">
             <BaseInput :id="id" v-model="form.category" placeholder="Securement" />
           </FormField>
+          <!-- Should carry's, hidden with it (EA2). An edit still sends the value the type has, so hiding
+               the field changes no type's number. -->
           <FormField
+            v-if="KIT_RULES_SHOWN"
             v-slot="{ id }"
             label="How many a truck or trailer carries by default"
             hint="Used when no rule says otherwise. Zero is the usual answer — the rules on Trucks & trailers say the rest."
