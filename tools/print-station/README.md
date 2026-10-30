@@ -23,10 +23,32 @@ The installer registers a scheduled task, **Silvicom Print Station**, that start
 anyone logs in, runs as SYSTEM, restarts itself if it stops, and turns sleep off on mains power.
 Its log is `C:\ProgramData\Silvicom\PrintStation\station.log`.
 
+## A scanner on this PC, used from any device (SCANNER-RELAY-PLAN.md)
+
+The same program reads the shop's scanner, so a phone, tablet or another computer can use a scanner
+plugged into this PC — the scans go to whichever device pressed **Use** (Scan page, or Settings →
+Printers & scanners), never into a window on this PC.
+
+1. Plug the scanner (or its 2.4 GHz USB receiver) into this PC.
+2. Switch the scanner to **USB-COM / virtual serial port** mode: scan that setup barcode in the
+   scanner's own manual. It stops typing like a keyboard and becomes a serial port. (The manual's
+   **USB HID Keyboard** barcode switches it back.)
+3. Check the PC sees it: `node station.mjs ports` lists it (Windows: a `COM` number; Mac:
+   `/dev/cu.usbmodem…`). Windows also shows it under *Ports (COM & LPT)* in Device Manager.
+4. In Silvicom: **Settings → Printers & scanners → Add scanner**, pick this station and that port.
+   Within a minute its status turns **Ready**.
+5. On any device: **Scan → Use Office scanner**. A blue strip at the top says scans now come to that
+   screen; **Stop** lets it go. Settings shows who is using each scanner and when it last read.
+
+A scanner that Silvicom shows as **Not found** is unplugged or still in keyboard mode; **Cannot open**
+means another program on this PC holds the port. Needs version 1.1.0 of this program or newer — older
+versions keep printing and are shown as *Update station*.
+
 ## Try it on a Mac or Linux machine
 
 ```sh
 node station.mjs printers                                  # what CUPS can print to
+node station.mjs ports                                     # serial ports a scanner can be read on
 node station.mjs pair ABCD-EFGH --api https://<your Silvicom address>
 node station.mjs run                                       # Ctrl-C to stop
 ```

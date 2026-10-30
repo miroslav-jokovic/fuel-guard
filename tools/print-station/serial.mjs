@@ -193,7 +193,7 @@ export function spawnReader(portName, { platform = process.platform, spawnImpl =
  * silence, `useScanInput`'s IDLE_FLUSH reasoning. Control characters are dropped; an empty line is
  * nothing; a read longer than `maxLength` is refused whole, never cut into a wrong code.
  */
-export function createFramer(onRead, { idleMs = 150, maxLength = 200, onRefused = () => {} } = {}) {
+export function createFramer(onRead, { idleMs = 200, maxLength = 200, onRefused = () => {} } = {}) {
   let buffer = "";
   let timer = null;
   const flush = () => {

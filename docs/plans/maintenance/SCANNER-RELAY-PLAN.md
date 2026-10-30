@@ -78,6 +78,19 @@ Settings. A scanner paired by Bluetooth straight to a phone or tablet keeps work
   USB 0x0581:0x0215 on the Mac (model unknown → Q-SR1). The print station on the Mac (LaunchAgent,
   1.0.0) keeps printing through the change: its hello is accepted unchanged and it is never sent a
   scanner it cannot read.
+- **2026-10-30 — SR1–SR4 built; the Mac's reader proven on a real terminal device.** 0532 + matrix
+  `scanner-relay.test.mjs` (40 checks; five mutants of the routing, lease and age rules each caught).
+  Station 1.1.0 reads ports through `stty raw` + `cat` (macOS/Linux) and `System.IO.Ports` (Windows).
+  A pseudo-terminal standing in for the scanner on the office Mac delivered `SIL1:TEST:Ok-42z` and a
+  12-digit UPC exactly, through the real `spawnReader` and framer. The office scanner itself is still
+  in keyboard mode, so SR5 — the serial port appearing, over the cable and the receiver — waits on
+  Q-SR1. Found while probing: a read with no line ending was split by a 150 ms pause; the framer now
+  waits 200 ms, `useScanInput`'s own IDLE_FLUSH, so both paths cut a suffix-less read the same way.
+- **What SR5 needs on the Mac, in order:** the scanner's model (Q-SR1) → its USB-COM barcode → `node
+  tools/print-station/station.mjs ports` lists a `/dev/cu.usbmodem…` → update the Mac's station
+  (LaunchAgent `com.silvicom.print-station` runs `~/Projects/FuelGuard-print/tools/print-station`,
+  1.0.0) to this version and restart it → Settings → Add scanner → Scan → Use → scan the test label
+  from a tablet's screen.
 
 ## Sources
 
