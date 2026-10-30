@@ -72,7 +72,7 @@ vi.mock("@/stores/toast", () => ({ useToastStore: () => ({ success: vi.fn(), err
 
 const STUBS = {
   QualificationSection: { template: "<div />" }, SevenDayStatementSection: { template: "<div />" },
-  UnitKitCard: { template: "<div />" }, UnitFileSection: { template: "<div />" }, UnitWorkOrdersCard: { template: "<div />" },
+  UnitFileSection: { template: "<div />" }, UnitWorkOrdersCard: { template: "<div />" },
   UnitInspectionsCard: { template: "<div />" }, BaseChart: { template: "<div />" }, DataTable: { template: "<table />" },
 };
 const mountPage = async (component: unknown, path: string, route: string) => {
@@ -127,7 +127,7 @@ describe("DriverDetailPage — fuel history follows the fuel section", () => {
   });
 });
 
-describe("DriverDetailPage — the Equipment card follows the maintenance section (DE2b)", () => {
+describe("DriverDetailPage — the Equipment card follows the maintenance section (DE2b, EA1)", () => {
   beforeEach(() => {
     apiCalls.length = 0;
     fuelAccess = "view";
@@ -137,7 +137,7 @@ describe("DriverDetailPage — the Equipment card follows the maintenance sectio
     maintenanceAccess = "none";
     const w = await mountPage(DriverDetailPage, "/drivers/d-1", "/drivers/:id");
     expect(apiCalls.some((u) => u.startsWith("/api/maintenance/inventory/assets"))).toBe(false);
-    expect(w.find("[data-test='driver-equipment']").exists()).toBe(false);
+    expect(w.find("[data-test='holder-equipment']").exists()).toBe(false);
     maintenanceAccess = "view";
   });
 
@@ -145,6 +145,6 @@ describe("DriverDetailPage — the Equipment card follows the maintenance sectio
     maintenanceAccess = "view";
     const w = await mountPage(DriverDetailPage, "/drivers/d-1", "/drivers/:id");
     expect(apiCalls).toContainEqual(expect.stringContaining("driverId=d-1"));
-    expect(w.find("[data-test='driver-equipment']").text()).toContain("No tablet or other equipment is with this driver.");
+    expect(w.find("[data-test='holder-equipment']").text()).toContain("No tablet is with this driver.");
   });
 });

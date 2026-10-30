@@ -2,7 +2,7 @@
 import { computed, nextTick, ref } from "vue";
 import { useRoute } from "vue-router";
 import { AppCard as BaseCard, AppTabs, FactList, type Fact, QueryState, useQueryState } from "@silvicom/ui";
-import { repairSettled, todayInZone, type AssetDto, type RoadsideRepairDueDto, type UnitKitDto } from "@silvicom/shared";
+import { repairSettled, todayInZone, type RoadsideRepairDueDto, type UnitKitDto } from "@silvicom/shared";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import UnitFileSection from "@/components/files/UnitFileSection.vue";
 import type { UnitFileSubject } from "@/components/files/fileSubject";
@@ -41,8 +41,8 @@ import { useSessionStore } from "@/stores/session";
  * The fleet section's `/vehicles/:id` and `/trailers/:id` keep their pages: they are gated on
  * `equipment`, which a technician holds as view and a dispatcher holds too, and they carry the fuel
  * history the shop has no business with. What they show of the shop — the kit, the open orders, the
- * roadside record — are the SAME components mounted here (`UnitKitCard` is the read-only window on
- * `UnitEquipmentSection`'s read; `UnitWorkOrdersCard` and `UnitRepairsSection` share one query), so
+ * roadside record — are the SAME components mounted here (`HolderEquipmentCard` is on both, with
+ * Assign and Return since EA1; `UnitWorkOrdersCard` and `UnitRepairsSection` share one query), so
  * neither page is a second source of truth about the truck.
  *
  * ── THE VERBS, WHERE THE HAND IS ──────────────────────────────────────────────────────────────
@@ -63,7 +63,6 @@ const fileQ = useUnitShopFileQuery(kind, unitId);
 const file = computed(() => fileQ.data.value ?? null);
 const kitQ = useUnitKitQuery(kind, unitId);
 const unit = computed<UnitKitDto | null>(() => kitQ.data.value?.unit ?? null);
-const assets = computed<AssetDto[]>(() => kitQ.data.value?.assets ?? []);
 const attentionQ = useUnitsAttentionQuery();
 const reasons = computed(() => (attentionQ.data.value ?? []).find((u) => u.kind === kind.value && u.unitId === unitId.value)?.reasons ?? []);
 // Roadside repairs due, matched by the unit the officer wrote (D-IC7) — the roadside card's rule.
@@ -163,7 +162,7 @@ const billsOpen = computed(() => opens("/shop/repair-spend"));
           error-text="Could not load what it is carrying."
           @retry="kitQ.refetch()"
         >
-          <UnitEquipmentSection v-if="unit" ref="equipment" :kind="kind" :unit-id="unitId" :unit="unit" :assets="assets" :loading="kitQ.isFetching.value" />
+          <UnitEquipmentSection v-if="unit" ref="equipment" :kind="kind" :unit-id="unitId" :unit="unit" :loading="kitQ.isFetching.value" />
         </QueryState>
 
         <template v-else-if="tab === 'inspections'">

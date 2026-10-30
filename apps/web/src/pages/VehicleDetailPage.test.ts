@@ -33,7 +33,7 @@ vi.mock("@/stores/session", () => ({ useSessionStore: () => ({ can: () => true, 
 
 // The file and maintenance sections (UF5) have reads and stores of their own and their own suites;
 // this file pins the summary card and the fuel panels.
-const STUBS = { UnitKitCard: true, UnitFileSection: true, UnitWorkOrdersCard: true, UnitInspectionsCard: true, BaseChart: true, DataTable: true };
+const STUBS = { HolderEquipmentCard: true, UnitFileSection: true, UnitWorkOrdersCard: true, UnitInspectionsCard: true, BaseChart: true, DataTable: true };
 const mountPage = async () => {
   const router = createRouter({ history: createMemoryHistory(), routes: [{ path: "/vehicles/:id", component: VehicleDetailPage }] });
   await router.push("/vehicles/v-1");

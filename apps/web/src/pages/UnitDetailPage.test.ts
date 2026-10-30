@@ -97,7 +97,12 @@ vi.mock("@/features/inventory/useInventory", async () => {
 });
 vi.mock("@/features/inventory/useAssets", async () => {
   const { ref: r } = await import("vue");
-  return { useAssetTypesQuery: () => ({ data: r([]) }), useMoveAsset: () => ({ mutateAsync: vi.fn(), isPending: r(false) }) };
+  return {
+    // EA1: the On board list is `HolderEquipmentCard`, which reads the assets route for this truck.
+    useAssetsQuery: () => ({ data: r({ assets: [asset], total: 1 }), isLoading: r(false), isError: r(false), isFetching: r(false), refetch: vi.fn() }),
+    useAssetTypesQuery: () => ({ data: r([]) }),
+    useMoveAsset: () => ({ mutateAsync: vi.fn(), isPending: r(false) }),
+  };
 });
 vi.mock("@/composables/useVehicles", async () => {
   const { ref: r } = await import("vue");
@@ -237,14 +242,15 @@ describe("the hub", () => {
 
 /** The equipment section keeps the rules it had as the whole page (INVENTORY-PLAN.md I9). */
 describe("equipment it carries", () => {
-  it("offers a MOVE for something on the unit, never a delete", async () => {
+  // EA1: taking it off is Return to shop — a move into the bay — and a report is a report; never a delete.
+  it("offers Return to shop and a report for something on the unit, never a delete", async () => {
     const w = page("equipment");
+    expect(w.find("[data-test=holder-return]").text()).toBe("Return to shop");
     const actions = await rowActions(w);
-    expect(actions.some((t) => /move/i.test(t))).toBe(true);
-    expect(actions.some((t) => /remove|delete|take off/i.test(t))).toBe(false);
-    Array.from(document.body.querySelectorAll("button")).find((b) => /move it somewhere/i.test(b.textContent ?? ""))!.click();
+    expect(actions.some((t) => /delete/i.test(t))).toBe(false);
+    Array.from(document.body.querySelectorAll("button")).find((b) => /report missing or damaged/i.test(b.textContent ?? ""))!.click();
     await nextTick();
-    expect(w.findComponent(AssetMoveDrawer).exists()).toBe(true);
+    expect(w.findComponent(AssetMoveDrawer).props("mode")).toBe("report");
   });
 
   it("renders the shortfall the API computed, and where each number came from", () => {

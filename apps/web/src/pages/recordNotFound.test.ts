@@ -61,7 +61,7 @@ const SECTIONS = [
   "QualificationSection",
   "SevenDayStatementSection",
   "DriverContactSection",
-  "UnitKitCard",
+  "HolderEquipmentCard",
   "UnitFileSection",
   "UnitWorkOrdersCard",
   "UnitInspectionsCard",
@@ -136,7 +136,7 @@ describe("a record that does not exist is its own state, with the way back to it
     expect(state.exists()).toBe(true);
     expect(state.text()).toContain("That trailer is not on the fleet.");
     expect(state.text()).toContain("Back to Trailers");
-    expect(w.findComponent({ name: "UnitKitCard" }).exists()).toBe(false);
+    expect(w.findComponent({ name: "HolderEquipmentCard" }).exists()).toBe(false);
     expect(w.findComponent({ name: "UnitFileSection" }).exists()).toBe(false);
     w.unmount();
   });
@@ -149,7 +149,7 @@ describe("a record that does not exist is its own state, with the way back to it
     expect(state.text()).toContain("Back to Vehicles");
     expect(w.text()).not.toContain("No fills yet.");
     expect(w.text()).not.toContain("No anomalies.");
-    expect(w.findComponent({ name: "UnitKitCard" }).exists()).toBe(false);
+    expect(w.findComponent({ name: "HolderEquipmentCard" }).exists()).toBe(false);
     w.unmount();
   });
 });
