@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { mount } from "@vue/test-utils";
+import { flushPromises, mount } from "@vue/test-utils";
 import AppTabs from "./AppTabs.vue";
 
 /**
@@ -144,3 +144,50 @@ describe("AppTabs markup contract", () => {
     expect(rail.classes()).not.toContain("w-fit");
   });
 });
+
+/**
+ * A strip that scrolls must show the tab it selected (Equipment's fourth tab, 390 px, 2026-10-30).
+ * jsdom lays nothing out, so each tab is given a box: three 100 px tabs in a 150 px strip.
+ */
+describe("AppTabs keeps the selected tab on screen", () => {
+  function laidOut(modelValue: string) {
+    const geometry = (el: Element, left: number, width: number) => {
+      Object.defineProperty(el, "offsetLeft", { configurable: true, get: () => left });
+      Object.defineProperty(el, "offsetWidth", { configurable: true, get: () => width });
+    };
+    const proto = HTMLElement.prototype;
+    const original = Object.getOwnPropertyDescriptor(proto, "clientWidth");
+    Object.defineProperty(proto, "clientWidth", { configurable: true, get() { return this.getAttribute("role") === "tablist" ? 150 : 0; } });
+    const w = mountTabs(modelValue);
+    w.findAll('[role="tab"]').forEach((t, i) => geometry(t.element, i * 100, 100));
+    return { w, restore: () => (original ? Object.defineProperty(proto, "clientWidth", original) : delete (proto as { clientWidth?: number }).clientWidth) };
+  }
+
+  it("scrolls the strip to a selected tab past its edge, and only the strip", async () => {
+    const { w, restore } = laidOut("drivers");
+    const strip = w.get('[role="tablist"]').element as HTMLElement;
+    await flushPromises();
+    expect(strip.scrollLeft).toBe(0);
+    await w.setProps({ modelValue: "audit" });
+    await flushPromises();
+    // The third tab ends at 300; a 150 px strip shows it from 150.
+    expect(strip.scrollLeft).toBe(150);
+    await w.setProps({ modelValue: "drivers" });
+    await flushPromises();
+    expect(strip.scrollLeft).toBe(0);
+    restore();
+  });
+
+  it("scrolls only as far as the selected tab needs, not to its start", async () => {
+    const { w, restore } = laidOut("drivers");
+    const strip = w.get('[role="tablist"]').element as HTMLElement;
+    await flushPromises();
+    strip.scrollLeft = 40;
+    await w.setProps({ modelValue: "exports" });
+    await flushPromises();
+    // Exports spans 100–200 and the view is 40–190, so it still moves — only by 10.
+    expect(strip.scrollLeft).toBe(50);
+    restore();
+  });
+});
+
