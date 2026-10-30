@@ -242,3 +242,6 @@ Tera Pro simulated by `keyboard.type` + Enter.
     opens the move drawer to ask which. The equipment card (EA1) and the Scan page both use it, so both
     doors write the same `removed` row, with the per-item movement id kept until it lands (D-INV27).
   - Tests: ScanPage +4 (open the driver / the truck, one-tap return, two bays ask, in-shop hint).
+  - Browser pass at 390/834 px (Tera simulated): a truck's load bar → *Open Truck 654* (`/vehicles/…`) and
+    *Return to shop* wrote one `removed` into the only bay; a shelf item showed the assign hint and no
+    Return; no console errors. Screenshots `screenshots/ea4-*.png`.
