@@ -2291,6 +2291,13 @@ async function main() {
     handSeed: {
       org_usage_month: (org) =>
         `insert into org_usage_month (org_id, yyyymm) values ('${org}', '2026-08')`,
+      // 0531: a unit tag names exactly one truck OR trailer (`unit_tags_one_unit`), both nullable, so the
+      // generic seeder fills neither; and the code is six Crockford characters, unique per org.
+      unit_tags: (org) =>
+        `with v as (insert into vehicles (org_id, unit_number, fuel_type, tank_capacity_gal) ` +
+        `values ('${org}', 'rls ' || gen_random_uuid(), 'diesel', 100) returning id) ` +
+        `insert into unit_tags (org_id, vehicle_id, tag_code) select '${org}', id, ` +
+        `translate(upper(substr(md5(gen_random_uuid()::text), 1, 6)), 'ILOU', '1100') from v`,
       // 0526: a job's payload is the printer's bytes and may not be empty, which the generic seeder's
       // placeholder bytea is; and its printer must be this org's, on this org's station (PS001), a
       // chain the seeder cannot build — handed a real one inline.
