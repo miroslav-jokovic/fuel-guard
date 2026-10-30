@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { TmsRosterCheckpoint } from "@silvicom/shared";
+import type { RosterHeldDriver, TmsRosterCheckpoint } from "@silvicom/shared";
 import type { ParitySummary } from "./fleetParity.js";
 import {
   unitResolver,
@@ -367,4 +367,51 @@ export async function ingestDriverTimeOff(
     if (error) throw new Error(error.message);
   }
   return { received: windows.length, upserted: rows.length, unmatched: [...unmatched] };
+}
+
+/**
+ * The roster's "needs a decision" list (ROSTER-LIFECYCLE-PLAN RL3): its own row, provider
+ * `mcleod_roster_held`, no token. Not a key on `mcleod_roster`'s config, because `stampRosterRead`
+ * replaces that config whole on every checkpoint, which is the step right after the driver POST that
+ * writes this list, so the list would be erased by the next call of the same sweep.
+ *
+ * Read-modify-write without a lock is safe here for the same reason the agent can run unattended at
+ * all: one connector per org posts one call at a time (service.mjs's lock), so the two calls that write
+ * this row, a driver POST and a retire POST, never overlap.
+ *
+ * `next` turns the stored list into the new one (`mergeHeld`, `clearedByRetire`). The write is skipped
+ * when nothing changed, so `last_synced_at` means "the list last changed", not "a POST arrived".
+ */
+export const ROSTER_HELD_PROVIDER = "mcleod_roster_held";
+
+export async function updateRosterHeld(
+  admin: SupabaseClient,
+  orgId: string,
+  next: (previous: RosterHeldDriver[]) => RosterHeldDriver[],
+): Promise<void> {
+  const { data, error } = await admin
+    .from("org_integrations")
+    .select("config")
+    .eq("org_id", orgId)
+    .eq("provider", ROSTER_HELD_PROVIDER)
+    .maybeSingle();
+  if (error) throw new Error(`Could not read the roster's held list: ${error.message}`);
+  const previous = ((data as { config?: { drivers?: RosterHeldDriver[] } } | null)?.config?.drivers ?? []) as RosterHeldDriver[];
+  const drivers = next(previous);
+  if (JSON.stringify(drivers) === JSON.stringify(previous) && data) return;
+  const at = new Date().toISOString();
+  const config = { drivers };
+  if (data) {
+    const { error: upErr } = await admin
+      .from("org_integrations")
+      .update({ last_synced_at: at, config })
+      .eq("org_id", orgId)
+      .eq("provider", ROSTER_HELD_PROVIDER);
+    if (upErr) throw new Error(`Could not record the roster's held list: ${upErr.message}`);
+    return;
+  }
+  const { error: insErr } = await admin
+    .from("org_integrations")
+    .insert({ org_id: orgId, provider: ROSTER_HELD_PROVIDER, enabled: true, config, last_synced_at: at });
+  if (insErr && insErr.code !== "23505") throw new Error(`Could not record the roster's held list: ${insErr.message}`);
 }

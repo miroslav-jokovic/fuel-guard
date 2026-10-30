@@ -84,7 +84,7 @@ dispatch truth is the load's driver and tractor, which the VM already sends ever
   first run retires (expected: the 7 in §2 plus any trucks and trailers).
   - **Done when:** a driver made inactive in McLeod is `terminated` in 360 within one cadence, with
     McLeod's termination date.
-- **RL3 — "Needs a decision" list.** Surface the sweep's held items on the Drivers page next to the
+- **RL3 — "Needs a decision" list.** BUILT 2026-10-30 (§6). Surface the sweep's held items on the Drivers page next to the
   McLeod freshness line: applicant collisions (finish the hire), EFS rows waiting for a licence,
   rehires to review, ambiguous matches. Read from the last roster checkpoint, which needs a small
   addition to what the checkpoint stores. No new sync.
@@ -160,3 +160,16 @@ dispatch truth is the load's driver and tractor, which the VM already sends ever
   objects via `windows/manifest.mjs`. Rehearsed on the Mac from the public raw URLs at `43f6abc`: 36/36
   checksums match, 151/151 tests, and a create-mode `--roster --dry-run` against `lme` read 182 / 215 / 223
   and wrote no state.
+- 2026-10-30 — **VM updated by the owner over RDP (20:04Z) and verified in production.** The first retire run
+  terminated 9 drivers (the 7 in §2, plus JOVANB and RBRIGHT, both terminated in McLeod that day) and
+  retired trucks 556, 571 and 583. The 20:16Z roster sweep created JBUREN, JFERGUSO and JKHALFAN with
+  licence, medical card and hire date, one row each. CHAIRSTO is held as an applicant.
+- 2026-10-30 — **RL3 built.** The sweep's held drivers are kept on their own `org_integrations` row
+  (`mcleod_roster_held`), not on the checkpoint's config, which `stampRosterRead` replaces whole. Each
+  driver POST updates only the drivers it carried (`mergeHeld`); the retire POST clears departures
+  (`clearedByRetire`). It is read at `GET /api/integrations/mcleod/roster-held` (roster: view) and shown
+  above the Drivers list (`RosterHeldList`) with the step that settles each reason. No agent change, no
+  VM update. Found while building it: in create mode, a McLeod driver who answers only to an ARCHIVED
+  former row whose rehire McLeod's dates do not prove was read as `unmatched` and would have been created
+  a second time. `ingestDrivers` now never inserts for a `rehireReview` id. It had not happened yet:
+  today's three hires have no former rows.

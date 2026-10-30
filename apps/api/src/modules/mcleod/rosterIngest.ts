@@ -355,8 +355,10 @@ export async function ingestDrivers(
     // reviews a driver who was never created — whereas a partially-named one appears, carries its
     // licence for matching, and can be finished by an admin. Visible and imperfect beats absent and
     // tidy. (Theoretical against this carrier: all 164 active drivers have a surname.)
+    // Never beside a former row a person must review (D-MR7a): the matcher's pool leaves archived rows
+    // out, so that driver reads `unmatched` and would be created a second time (ROSTER-LIFECYCLE-PLAN RL3).
     const insert =
-      mode === "create" && name ? { ...patch, full_name: name, status: "active" } : null;
+      mode === "create" && name && !out.rehireReview?.includes(r.external_id) ? { ...patch, full_name: name, status: "active" } : null;
     const driverId = await applyOutcome(admin, orgId, "drivers", r.external_id, r.company_id, outcome, out, patch, sourceOf, NEVER_INSPECTION_OWNED, insert, WRITES[mode]);
 
     /**

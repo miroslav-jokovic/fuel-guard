@@ -14,6 +14,7 @@ import SlideOver from "@/components/SlideOver.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
 import ArchiveDriverModal from "@/components/ArchiveDriverModal.vue";
 import RosterFreshnessLine from "@/components/RosterFreshnessLine.vue";
+import RosterHeldList from "@/components/RosterHeldList.vue";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import DriverForm from "@/features/roster/DriverForm.vue";
 import { useToastStore } from "@/stores/toast";
@@ -303,6 +304,8 @@ async function onSubmit(input: DriverInput) {
       </template>
       <template #freshness><RosterFreshnessLine /></template>
     </PageHeader>
+
+    <RosterHeldList />
 
     <DataWorkspace>
     <!-- The roster can now be arrived at narrowed, from a link or a saved view, so it needs a way back

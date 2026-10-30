@@ -75,6 +75,19 @@ describe("create mode — a McLeod hire becomes a driver row (RL1)", () => {
     }
   });
 
+  it("never creates a second row beside an archived former driver whose rehire McLeod's dates do not prove", async () => {
+    // Archived 09-14, rehired in McLeod with a hire date BEFORE the termination: not proven (D-MR7a), so
+    // the former row is left for a person — and the matcher's pool, which leaves archived rows out, would
+    // otherwise read this driver as `unmatched` and create them again.
+    const former = driver({ id: "d-old", status: "terminated", identity_source: "efs", full_name: "JOHN BUREN", cdl_number: "B1234567", termination_date: "2026-11-15", archived_at: "2026-09-14T19:10:00Z" });
+    const rec = seed([former]);
+    const r = await ingestDrivers(rec.client, ORG, [buren], "create");
+    expect(rec.writtenRows("drivers")).toEqual([]);
+    expect(r.created).toBe(0);
+    expect(r.rehireReview).toEqual(["JBUREN"]);
+    expect(r.retry).toContain("JBUREN");
+  });
+
   it("creates nothing when two applicants share the name — nobody can tell which is the hire", async () => {
     const rec = seed([
       driver({ id: "d-a1", status: "applicant", identity_source: "manual", full_name: "CURTIS HAIRSTON" }),

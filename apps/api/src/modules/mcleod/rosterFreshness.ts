@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { RosterFreshness } from "@silvicom/shared";
-import { ROSTER_PROVIDER } from "./tmsIngest.js";
+import type { RosterFreshness, RosterHeld, RosterHeldDriver } from "@silvicom/shared";
+import { ROSTER_HELD_PROVIDER, ROSTER_PROVIDER } from "./tmsIngest.js";
 
 /**
  * Reads the roster's freshness row. The row is WRITTEN by `stampRosterRead` in `tmsIngest.ts`,
@@ -25,4 +25,20 @@ export async function readRosterFreshness(admin: SupabaseClient, orgId: string):
     readAt: row?.last_synced_at ?? null,
     counts: row?.config?.counts ?? null,
   };
+}
+
+/**
+ * The McLeod drivers the sweep held for a person (ROSTER-LIFECYCLE-PLAN RL3). Written by
+ * `updateRosterHeld` in `tmsIngest.ts`; empty, never an error, for an org with no McLeod roster.
+ */
+export async function readRosterHeld(admin: SupabaseClient, orgId: string): Promise<RosterHeld> {
+  const { data, error } = await admin
+    .from("org_integrations")
+    .select("last_synced_at, config")
+    .eq("org_id", orgId)
+    .eq("provider", ROSTER_HELD_PROVIDER)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  const row = data as { last_synced_at?: string | null; config?: { drivers?: RosterHeldDriver[] } | null } | null;
+  return { at: row?.last_synced_at ?? null, drivers: row?.config?.drivers ?? [] };
 }

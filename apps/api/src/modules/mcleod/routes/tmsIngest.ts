@@ -14,7 +14,9 @@ import {
   tmsTrailersPayloadSchema,
   tmsRetirePayloadSchema,
   tmsRosterCheckpointSchema,
+  type TmsDriverInput,
 } from "@silvicom/shared";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { orgForIngestToken, ingestMovements, ingestDriverTimeOff, touchLastSynced } from "../tmsIngest.js";
 import { ingestLoads } from "../tmsLoadIngest.js";
 import { ingestDispatchers } from "../tmsDispatcherIngest.js";
@@ -24,11 +26,24 @@ import { ingestDrivers, ingestVehicles, ingestTrailers } from "../rosterIngest.j
 import { reconcileAbsentFromTms, retireFromTms } from "../rosterRetire.js";
 import { runFleetParity, type ParitySummary } from "../fleetParity.js";
 import { isTmsRosterMaster } from "../rosterMastery.js";
-import { stampRosterRead } from "../tmsIngest.js";
+import { stampRosterRead, updateRosterHeld } from "../tmsIngest.js";
+import { clearedByRetire, heldFromIngest, mergeHeld } from "../rosterHeld.js";
 import type { RosterMode } from "../rosterIngest.js";
 
 /** The modes this build understands, safest first. Anything else is refused — see the route below. */
 const ROSTER_MODES = ["report", "link", "identity", "create", "reconcile"] as const;
+
+/**
+ * Best-effort, like the freshness stamps: the list explains the sweep, so failing to record it must
+ * never fail the sweep it explains. Logged, so a list that stops moving has a reason in the logs.
+ */
+async function recordHeld(admin: SupabaseClient, orgId: string, next: Parameters<typeof updateRosterHeld>[2]): Promise<void> {
+  try {
+    await updateRosterHeld(admin, orgId, next);
+  } catch (e) {
+    console.error(`[roster-held] org ${orgId}: ${(e as Error).message}`);
+  }
+}
 
 /**
  * Writing identity, creating rows and retiring them are all claims on WHO OWNS THE ROSTER, and that
@@ -175,6 +190,13 @@ export function tmsIngestRouter(): Router {
         // anything was refreshed. The "as of HH:MM" the operator reads (D-MR2) is NOT this stamp —
         // it fires only for changed rows — but the roster's own checkpoint row below (E6).
         if (mode !== "report") await touchLastSynced(admin, orgId, provider);
+        // The "needs a decision" list (RL3). A report decides nothing, so it changes nothing here.
+        if (key === "drivers" && mode !== "report") {
+          const sent = rows as TmsDriverInput[];
+          await recordHeld(admin, orgId, (prev) =>
+            mergeHeld(prev, sent.map((r) => r.external_id), heldFromIngest(sent, result, new Date().toISOString())),
+          );
+        }
         res.json(result);
       }),
     );
@@ -229,6 +251,9 @@ export function tmsIngestRouter(): Router {
         if (await refuseUnlessRosterMaster(admin, orgId, res)) return;
         const result = await retireFromTms(admin, orgId, entity, parsed.data.retire);
         await touchLastSynced(admin, orgId, provider);
+        if (entity === "drivers" && !result.refused) {
+          await recordHeld(admin, orgId, (prev) => clearedByRetire(prev, parsed.data.retire.map((r) => r.external_id)));
+        }
         res.json(result);
       }),
     );
