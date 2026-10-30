@@ -219,6 +219,7 @@ of what tabs hide.
 | Label stock · Nudge right/down · Points | **Label size** · **Shift print right/down** · **mm** | a shop measures in millimetres or inches, not points |
 | 49 CFR 396.9(d) (on the roadside page) | **certify within 15 days** | the house rule keeps citations in comments (D-AVI15); check this page against the inspection-challenge plan's Q-IC16 before removing |
 | Count a shelf · Check this unit | **Count a shelf** · **Check this truck** | the first is already right |
+| Equipment's tabs: Trucks & trailers · Drivers · In the shop · Invoices | **Trucks** · **Drivers** · **Shop** · **Invoices** | owner, 2026-10-30 (M5): all four fit a phone's strip; the rows still say truck or trailer |
 
 ### 4.5 Phone and tablet rules — a new §9 for the design contract
 
@@ -470,3 +471,6 @@ What a tablet sticker carries: an Android tablet with a SIM slot has a sticker (
   | 7 | **Scan** page → scan a strap → **Return to shop**. | One tap (one bay). The strap moves to the **In the shop** tab. |
   | 8 | Equipment → **Invoices** → **Add invoice** → vendor, number, date, total, the paper (photo), the straps it paid for → save. | The invoice opens; a strap's own page shows *Invoice* naming it. |
   | 9 | Every screen above. | Note anything unclear, slow, or too small to tap with a glove. |
+  | 10 | Labels → **Trucks & trailers** → tick a truck and a trailer → print on the roll. Stick the truck's label inside the cab (driver door jamb) and the trailer's inside its front wall. On the **Scan** page, scan the truck's label; then a strap; then the trailer's label. | The truck's page opens with *Assign equipment to Truck …* already up. After the trailer's label the list says *Now assigning to Trailer …* and the strap still says *Goes on Truck …*. Press **Assign 2**. (Added 2026-10-30 with DE4/DE5, PRs 1855 and 1856.) |
+
+- **2026-10-30 (M5, the owner's rulings)** — The pass was handed to the owner on staging (main `eaf0063`, schema 0531) with line 10 added above. The owner answered *"proceed as suggested and proposed"*; no finding from the lines themselves was reported in the chat, so none is logged here. The two open items, ruled as recommended: (1) **Equipment's tabs are one word each — Trucks · Drivers · Shop · Invoices** (§4.4 gains the row). At 390 px "Trucks & trailers" and "In the shop" pushed Invoices behind a swipe; now all four sit on the strip — measured at 390 × 844 with touch: Invoices ends at x = 298, every tab 48 px tall, 0 console errors (`screenshots/m5-tabs/`). The sidebar row and the phone's bottom row keep *Trucks & trailers* — that is the section's door, not this tab. (2) **The dash on printed unit labels stays as it is** — the PDF's hyphen in "Inside cab - driver door jamb" is WinAnsi's fold, and nothing changes unless a printed label at line 10 reads wrong. Any finding from walking the lines goes under a new dated entry, its own PR each.

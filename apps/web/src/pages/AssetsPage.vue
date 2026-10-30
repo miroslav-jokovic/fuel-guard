@@ -39,6 +39,11 @@ import { useOpens } from "@/composables/useOpens";
  * Each tab's count is how many rows it lists, read off the same query key its panel's unfiltered view
  * reads, so vue-query asks once.
  *
+ * The labels are one word each — Trucks · Drivers · Shop · Invoices — by the owner's ruling of
+ * 2026-10-30 (MAINTENANCE-SECTION-REDESIGN-PROPOSAL §4.4, M5): at 390 px "Trucks & trailers" and
+ * "In the shop" pushed Invoices off the strip and behind a swipe. "Trucks" covers trailers here as
+ * the page's rows and their words still say which is which.
+ *
  * Add equipment is the page's verb (header on a desk, the bottom bar on a phone — §9 rule 2) on the
  * three holder tabs: a new item lands In the shop until it is assigned. Invoices' verb is Add invoice.
  */
@@ -48,9 +53,9 @@ const session = useSessionStore();
 const opens = useOpens();
 
 const TABS = [
-  { value: "trucks", label: "Trucks & trailers" },
+  { value: "trucks", label: "Trucks" },
   { value: "drivers", label: "Drivers" },
-  { value: "shop", label: "In the shop" },
+  { value: "shop", label: "Shop" },
   { value: "invoices", label: "Invoices" },
 ] as const;
 const unitsQ = useUnitsQuery(computed(() => ({})));
