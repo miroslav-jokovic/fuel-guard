@@ -179,6 +179,7 @@ test("with no readable copy at all, it stops and names the file rather than forg
 
 test("the service refuses to retire by absence, and refuses to run as a dry run", () => {
   assert.deepEqual(serviceConfigProblems({ rosterMode: "identity", dryRun: false }), []);
-  assert.match(serviceConfigProblems({ rosterMode: "reconcile", dryRun: false })[0], /Part 5/);
+  assert.match(serviceConfigProblems({ rosterMode: "reconcile", dryRun: false })[0], /by absence/);
+  assert.deepEqual(serviceConfigProblems({ rosterMode: "create", dryRun: false }), []);
   assert.match(serviceConfigProblems({ rosterMode: "identity", dryRun: true })[0], /cannot run as a dry run/);
 });

@@ -871,9 +871,11 @@ SELECT
 OPTION (MAXDOP 1);
 
 -- ========================================================================================
--- PART 5 - WHO HAS LEFT (by hand only, never on a timer)
+-- PART 5 - WHO HAS LEFT (every 15 minutes, right after Part 3)
 --
--- Drivers, trucks and trailers marked inactive in McLeod. Run when the lists are cleaned up.
+-- Drivers, trucks and trailers McLeod itself marks inactive, with the driver's termination date.
+-- Silvicom 360 marks the same people and units as gone. Nothing is ever inferred from a row that
+-- is simply missing. About 210 ms for all three, measured on LME 2026-10-30.
 -- ========================================================================================
 
 -- ----------------------------------------------------------------------------------------

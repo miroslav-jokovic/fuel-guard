@@ -1,7 +1,7 @@
 # FuelGuard ⇄ McLeod sync agent
 
 > **2026-09-28 — how it runs in production: `--service` on the Board VM.** One process, one held LME
-> connection, every feed on its own schedule (loads 1 min, close 10 min, roster 15 min, finance 02:00
+> connection, every feed on its own schedule (loads 1 min, close 10 min, roster 15 min, who-has-left 15 min since 2026-10-30, finance 02:00
 > Central). Configuration is `connector.env`, from `connector.example.env`; the install notes are
 > `review/CONNECTOR-ON-THE-VM.md` and the statements it runs are `review/SILVICOM-READ-ROUTINE.sql`.
 > What the service guarantees and refuses is in `service.mjs` (tested by `service.test.mjs`): https

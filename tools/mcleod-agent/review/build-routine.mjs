@@ -117,8 +117,12 @@ const PARTS = [
     ],
   },
   {
-    title: "PART 5 - WHO HAS LEFT (by hand only, never on a timer)",
-    intro: ["Drivers, trucks and trailers marked inactive in McLeod. Run when the lists are cleaned up."],
+    title: `PART 5 - WHO HAS LEFT (${every("retire")}, right after Part 3)`,
+    intro: [
+      "Drivers, trucks and trailers McLeod itself marks inactive, with the driver's termination date.",
+      "Silvicom 360 marks the same people and units as gone. Nothing is ever inferred from a row that",
+      "is simply missing. About 210 ms for all three, measured on LME 2026-10-30.",
+    ],
     statements: [
       ["INACTIVE DRIVERS", "", retire.drivers],
       ["RETIRED TRUCKS", "", retire.vehicles],

@@ -946,6 +946,7 @@ async function runService() {
     loads: () => serviceLoads(state),
     close: () => serviceClose(state),
     roster: () => runRoster(),
+    retire: () => runRetire(),
     financial: () => runFinancial(),
   };
   const jobs = JOBS.filter((j) => j.name !== "financial" || CFG.financeFeed);
