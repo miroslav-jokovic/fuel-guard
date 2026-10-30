@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import { AppButton as BaseButton, AppCard as BaseCard, QueryState } from "@silvicom/ui";
-import type { AssetDto, AssetMovementInput } from "@silvicom/shared";
+import type { AssetDto } from "@silvicom/shared";
 import KebabMenu from "@/components/KebabMenu.vue";
 import { useVehiclesQuery } from "@/composables/useVehicles";
 import { useDriversQuery } from "@/composables/useDrivers";
@@ -9,12 +9,10 @@ import { useOpens } from "@/composables/useOpens";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { formatDate } from "@/lib/format";
 import { useSessionStore } from "@/stores/session";
-import { useToastStore } from "@/stores/toast";
 import AssignEquipmentDrawer from "./AssignEquipmentDrawer.vue";
 import AssetMoveDrawer from "./AssetMoveDrawer.vue";
-import { useAssetsQuery, useMoveAsset } from "./useAssets";
-import { useLocationsQuery } from "./useInventory";
-import { defaultReturnBay } from "./driverHeldMove";
+import { useAssetsQuery } from "./useAssets";
+import { useReturnToShop } from "./useReturnToShop";
 import { holderPartner, type AssignTarget } from "./assignLine";
 import { useStartUnitCheck } from "./useStartUnitCheck";
 
@@ -35,10 +33,8 @@ import { useStartUnitCheck } from "./useStartUnitCheck";
  * `holderPartner`, the same link the Assign list offers "Give to Dana Reyes instead" through.
  *
  * ── RETURN IS ONE TAP WHEN THE SHOP HAS ONE BAY ───────────────────────────────────────────────
- * Production has one bay (2026-10-30), so asking "which bay?" would be a question with one answer.
- * With one, Return writes the move at once (`removed`, the word the move drawer's Return writes);
- * with more or none, the move drawer opens and asks. The movement id is kept per item until it lands,
- * so a second tap after a lost answer re-sends the same move rather than writing another (D-INV27).
+ * `useReturnToShop` (shared with the Scan page since EA4): with one bay the move is written at once;
+ * with more or none, the move drawer opens and asks.
  *
  * ── CHECK EQUIPMENT (EA3) ─────────────────────────────────────────────────────────────────────
  * On a truck's or trailer's card: opens the unit check (`useStartUnitCheck`), where each label is
@@ -57,7 +53,6 @@ const props = withDefaults(defineProps<{ target: AssignTarget; shopLink?: boolea
 });
 
 const session = useSessionStore();
-const toast = useToastStore();
 const opens = useOpens();
 const maySee = computed(() => session.canView("maintenance"));
 const canManage = computed(() => session.can("maintenance"));
@@ -84,41 +79,15 @@ const driverFilter = computed(() => ({ page: 1, driverId: truckDriver.value?.id 
 const driverQ = useAssetsQuery(driverFilter, computed(() => maySee.value && Boolean(truckDriver.value)));
 const driverRows = computed(() => (truckDriver.value ? (driverQ.data.value?.assets ?? []) : []));
 
-const { data: locations } = useLocationsQuery();
 const assigning = ref(false);
 const check = useStartUnitCheck();
 const canCheck = computed(() => props.checkButton && canManage.value && props.target.kind !== "driver");
 const startCheck = () => check.startCheck(props.target.kind === "vehicle" ? "tractor" : "trailer", props.target.id);
 const moving = ref<{ asset: AssetDto; mode: "move" | "report" } | null>(null);
-const record = useMoveAsset();
-/** Per item, until it lands — see the header. */
-const returnIds = new Map<string, string>();
-const returning = ref<string | null>(null);
-
+/** Return to shop: one tap with one bay, the move drawer otherwise (`useReturnToShop`). */
+const { giveBack: returnIt, returning, locations } = useReturnToShop();
 async function giveBack(asset: AssetDto) {
-  const bay = defaultReturnBay(locations.value ?? []);
-  if (!bay) {
-    moving.value = { asset, mode: "move" };
-    return;
-  }
-  const id = returnIds.get(asset.id) ?? crypto.randomUUID();
-  returnIds.set(asset.id, id);
-  returning.value = asset.id;
-  try {
-    await record.mutateAsync({
-      id,
-      assetId: asset.id,
-      reason: "removed",
-      toLocationId: bay,
-      occurredAt: new Date().toISOString(),
-    } as AssetMovementInput);
-    returnIds.delete(asset.id);
-    toast.success(`${asset.displayNo} returned to the shop`);
-  } catch (e) {
-    toast.error("Could not return it", e instanceof Error ? e.message : undefined);
-  } finally {
-    returning.value = null;
-  }
+  if (!(await returnIt(asset))) moving.value = { asset, mode: "move" };
 }
 
 const emptyText = computed(() =>
