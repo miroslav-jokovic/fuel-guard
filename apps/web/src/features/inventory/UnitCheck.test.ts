@@ -7,6 +7,15 @@ import "fake-indexeddb/auto";
 import { IDBFactory } from "fake-indexeddb";
 import type { AssetDto, UnitKitDto } from "@silvicom/shared";
 
+/** Should carry's switch (EA2), live: the kit's "Missing" / "Not on the list" are its, and tested with it on. */
+const kitShown = vi.hoisted(() => ({ value: true }));
+vi.mock("@silvicom/shared", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@silvicom/shared")>()),
+  get KIT_RULES_SHOWN() {
+    return kitShown.value;
+  },
+}));
+
 /**
  * A truck's kit, walked on a phone (INVENTORY-PLAN.md I9; D-INV19, D-INV24, D-INV27).
  *
@@ -175,6 +184,7 @@ beforeEach(() => {
   kitRead.fails = false;
   kitRead.refetch.mockClear();
   resolved.clear();
+  kitShown.value = true;
 });
 
 /** The Tera Pro: a burst of keydowns on the document and an Enter, as `useScanInput` reads it. */
@@ -340,6 +350,19 @@ describe("closing", () => {
     await press(w, "Close the check");
     expect(move.mutateAsync).not.toHaveBeenCalled();
     expect(closeWalk.mutateAsync).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows no Short, Missing or Not on the list while Should carry is hidden (EA3)", async () => {
+    kitShown.value = false;
+    kit.value = {
+      unit: { ...unit, lines: [...unit.lines, { assetTypeId: STRAP, assetTypeName: "Strap", heldBy: "unit", expected: 0, held: 2, delta: 2, source: "type" }] },
+      assets: [asset(ON_UNIT)],
+    };
+    const w = page();
+    expect(w.text()).not.toContain("One turned up");
+    expect(w.text()).not.toContain("Not on the list");
+    await press(w, "Review");
+    expect(w.text()).not.toContain("Short");
   });
 
   it("shows what is short at review, which is what somebody acts on", async () => {

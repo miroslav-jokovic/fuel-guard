@@ -226,3 +226,10 @@ Tera Pro simulated by `keyboard.type` + Enter.
     header has it.
   - Tests: UnitCheck (+6), HolderEquipmentCard (+2); 4 mutants each failed a test — the fourth (drop the
     "is it this unit's" lookup) first SURVIVED, which found the untested driver's-tablet case, now pinned.
+  - **Found in EA3's browser pass:** the check page still showed Should carry's own sections — "Not on the
+    list · Ratchet strap · 2 carried" (every carried thing, with no rules), the "Missing" kinds with
+    *One turned up*, and "Short" rows at review — which EA2 had missed. Now behind `KIT_RULES_SHOWN`; a
+    stray is moved on by scanning it instead (*Move it here*). Pass at 390/834 px: scan ticked the strap
+    and the driver's tablet, the stray read "recorded on Truck 702" and moved with `found`, close asked
+    "Report 1 not found and close?" and wrote one `reported_missing`, then landed on the truck's
+    Equipment tab; 0 controls under 44 px, no console errors. Screenshots `screenshots/ea3-*.png`.

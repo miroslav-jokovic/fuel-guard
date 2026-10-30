@@ -2,6 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import {
+  KIT_RULES_SHOWN,
   UNIT_KIND_LABELS,
   assetMovementInputSchema,
   type AssetDto,
@@ -104,8 +105,11 @@ const title = computed(() => {
   return unit ? `${UNIT_KIND_LABELS[unit.kind]} ${unit.unitNumber}` : (walk.value?.holderLabel ?? "Unit check");
 });
 const lines = computed<UnitKitLineDto[]>(() => kit.value?.unit.lines ?? []);
-const shortLines = computed(() => lines.value.filter((l) => l.delta < 0));
-const unexpected = computed(() => lines.value.filter((l) => l.expected === 0 && l.held > 0));
+// "Missing" kinds and "Not on the list" are Should carry's — a shortfall against a rule and a thing no
+// rule expects — and hidden with it (EA2/EA3, `KIT_RULES_SHOWN`): with no rules every carried thing
+// read as "Not on the list", and the 200-tablet default would have read as 199 missing.
+const shortLines = computed(() => (KIT_RULES_SHOWN ? lines.value.filter((l) => l.delta < 0) : []));
+const unexpected = computed(() => (KIT_RULES_SHOWN ? lines.value.filter((l) => l.expected === 0 && l.held > 0) : []));
 
 const remaining = computed(() => held.value.filter((a) => answered.value[a.id] === undefined));
 const missingCount = computed(() => Object.values(answered.value).filter((v) => v === "missing").length);
