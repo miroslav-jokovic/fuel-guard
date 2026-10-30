@@ -4,6 +4,7 @@ import { IMEI_REFUSAL, readStickerCode, type AssetDto, type ScanResult, type Sto
 import type { AssetFormSeed } from "@/features/inventory/AssetForm.vue";
 import { AppBadge, AppButton as BaseButton } from "@silvicom/ui";
 import { BADGE_BASE, assetStatusBadge, toneClass } from "@/lib/badges";
+import { useOpens } from "@/composables/useOpens";
 import ScanStockLine from "@/features/inventory/ScanStockLine.vue";
 import type { DeskVerb } from "@/features/inventory/MovementDrawer.vue";
 
@@ -50,6 +51,8 @@ import type { DeskVerb } from "@/features/inventory/MovementDrawer.vue";
 export type ScanAction =
   | { kind: "stock"; verb: DeskVerb; line: StockLineDto }
   | { kind: "asset"; mode: "move" | "report"; asset: AssetDto }
+  /** EA4: back to the shop's bay — one tap with one bay (`useReturnToShop`), the move drawer otherwise. */
+  | { kind: "return"; asset: AssetDto }
   | { kind: "open-part"; partId: string }
   | { kind: "create-asset"; fill: AssetFormSeed };
 
@@ -82,6 +85,31 @@ const fill = computed<AssetFormSeed>(() => {
   if (s.kind === "model") return { model: s.model, manufacturer: s.manufacturer };
   return {};
 });
+
+/**
+ * EA4 (EQUIPMENT-ASSIGN-BY-SCAN-PROPOSAL §3.6): the card answers "what is this, and where", and its
+ * door is the holder's page — where Assign, Return and Check are — rather than a list of every bay,
+ * truck and trailer to pick a destination from. A thing on a truck, a trailer or with a driver offers
+ * *Open* that page and *Return to shop*; a thing in the shop has nowhere to open, and is assigned by
+ * scanning it from the truck's page, which the card says.
+ */
+const holderPage = computed(() => {
+  if (props.result.kind !== "asset") return null;
+  const h = props.result.asset.holder;
+  if (!h.id) return null;
+  if (h.kind === "vehicle") return { name: "vehicle-detail", params: { id: h.id } };
+  if (h.kind === "trailer") return { name: "trailer-detail", params: { id: h.id } };
+  if (h.kind === "driver") return { name: "driver-detail", params: { id: h.id } };
+  return null;
+});
+const holderPageLabel = computed(() => {
+  if (props.result.kind !== "asset") return "";
+  const h = props.result.asset.holder;
+  return h.kind === "driver" ? `Open ${h.label ?? "the driver"}` : `Open ${h.label ?? (h.kind === "trailer" ? "the trailer" : "the truck")}`;
+});
+const opens = useOpens();
+const canOpenHolder = computed(() => holderPage.value !== null && opens(holderPage.value));
+const away = computed(() => props.result.kind === "asset" && holderPage.value !== null);
 
 const holderLine = computed(() => {
   if (props.result.kind !== "asset") return null;
@@ -122,14 +150,20 @@ const holderLine = computed(() => {
       </p>
       <p class="mt-2 text-sm text-ink-secondary">{{ holderLine }}</p>
     </div>
-    <div v-if="canManage" class="grid grid-cols-2 gap-2">
-      <BaseButton block variant="primary" @click="emit('action', { kind: 'asset', mode: 'move', asset: result.asset })">
-        {{ result.asset.holder.kind === "driver" ? "Return to shop" : "Move" }}
+    <div class="grid grid-cols-2 gap-2">
+      <BaseButton v-if="canOpenHolder" block variant="primary" :to="holderPage!" data-test="scan-open-holder">
+        {{ holderPageLabel }}
       </BaseButton>
-      <BaseButton block @click="emit('action', { kind: 'asset', mode: 'report', asset: result.asset })">
+      <BaseButton v-if="canManage && away" block data-test="scan-return" @click="emit('action', { kind: 'return', asset: result.asset })">
+        Return to shop
+      </BaseButton>
+      <BaseButton v-if="canManage" block @click="emit('action', { kind: 'asset', mode: 'report', asset: result.asset })">
         Report
       </BaseButton>
     </div>
+    <p v-if="!away && result.asset.status !== 'retired'" class="text-sm text-ink-tertiary" data-test="scan-assign-hint">
+      To put it on a truck or give it to a driver, open that truck or driver and press Assign equipment — then scan it there.
+    </p>
   </section>
 
   <!-- ── a supplier barcode we know ────────────────────────────────────────────────────────── -->

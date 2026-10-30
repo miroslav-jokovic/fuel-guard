@@ -233,3 +233,12 @@ Tera Pro simulated by `keyboard.type` + Enter.
     and the driver's tablet, the stray read "recorded on Truck 702" and moved with `found`, close asked
     "Report 1 not found and close?" and wrote one `reported_missing`, then landed on the truck's
     Equipment tab; 0 controls under 44 px, no console errors. Screenshots `screenshots/ea3-*.png`.
+- 2026-10-30 — **EA4 built** (`claude/equipment-assign-ea4`). No migration, no API change.
+  - The Scan page's card for a thing: where it is (unchanged sentence), then **Open** its holder's page
+    (truck, trailer or driver — gated by `useOpens`) and **Return to shop**; *Report* stays. The
+    destination list (*Move*) is gone from this card; a thing in the shop shows how to assign it ("open
+    that truck or driver and press Assign equipment — then scan it there").
+  - `useReturnToShop.ts` — the one Return: one tap with exactly one bay, `false` otherwise so the caller
+    opens the move drawer to ask which. The equipment card (EA1) and the Scan page both use it, so both
+    doors write the same `removed` row, with the per-item movement id kept until it lands (D-INV27).
+  - Tests: ScanPage +4 (open the driver / the truck, one-tap return, two bays ask, in-shop hint).

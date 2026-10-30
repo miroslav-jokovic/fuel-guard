@@ -9,6 +9,7 @@ import { SCAN_PAGE_READER } from "@/features/inventory/shopBarcodeFormats";
 import { useLocationsQuery } from "@/features/inventory/useInventory";
 import { useSessionStore } from "@/stores/session";
 import { useScanQuery } from "@/features/inventory/useScan";
+import { useReturnToShop } from "@/features/inventory/useReturnToShop";
 import ScanResultCard, { type ScanAction } from "@/features/inventory/ScanResultCard.vue";
 import MovementDrawer, { type DeskVerb } from "@/features/inventory/MovementDrawer.vue";
 import AssetMoveDrawer from "@/features/inventory/AssetMoveDrawer.vue";
@@ -109,6 +110,7 @@ function onFieldTab(event: KeyboardEvent) {
  */
 const session = useSessionStore();
 const canManage = computed(() => session.can("maintenance"));
+const returnToShop = useReturnToShop();
 
 function act(action: ScanAction) {
   switch (action.kind) {
@@ -117,6 +119,13 @@ function act(action: ScanAction) {
       return;
     case "asset":
       assetAction.value = { mode: action.mode, asset: action.asset };
+      return;
+    case "return":
+      // EA4: one tap with one bay; otherwise the move drawer asks which (`useReturnToShop`).
+      void returnToShop.giveBack(action.asset).then((done) => {
+        if (done) refresh();
+        else assetAction.value = { mode: "move", asset: action.asset };
+      });
       return;
     case "create-asset":
       creatingAssetWith.value = action.fill;

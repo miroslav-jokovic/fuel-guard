@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { mount } from "@vue/test-utils";
+import { flushPromises, mount } from "@vue/test-utils";
 import { computed, ref, type Ref } from "vue";
 import type { ScanResult } from "@silvicom/shared";
 
@@ -71,6 +71,8 @@ const STOCK_LINE = {
   active: true,
 };
 
+const ON_TRUCK = "SIL1:AST:TRUCK1";
+const ON_SHELF = "SIL1:AST:SHELF1";
 const RESULTS: Record<string, ScanResult> = {
   [BIN_TAG]: { kind: "stock_line", code: BIN_TAG, stockLine: STOCK_LINE },
   [STRANGE_BARCODE]: { kind: "malformed", code: STRANGE_BARCODE },
@@ -79,6 +81,15 @@ const RESULTS: Record<string, ScanResult> = {
   [BAD_IMEI]: { kind: "malformed", code: BAD_IMEI },
   [DANA_TABLET]: tabletWith(DANA_TABLET, "Dana Reyes", false),
   [LEFT_TABLET]: tabletWith(LEFT_TABLET, "Sam Ortiz", true),
+  // EA4: one on a truck, one on the shelf.
+  [ON_TRUCK]: (() => {
+    const r = tabletWith(ON_TRUCK, "x", false) as Extract<ScanResult, { kind: "asset" }>;
+    return { ...r, asset: { ...r.asset, assetTypeName: "Load bar", name: "Bar", holder: { kind: "vehicle", id: "66666666-6666-4666-8666-666666666666", label: "Truck 654", inferredDriverName: null, since: null } } };
+  })(),
+  [ON_SHELF]: (() => {
+    const r = tabletWith(ON_SHELF, "x", false) as Extract<ScanResult, { kind: "asset" }>;
+    return { ...r, asset: { ...r.asset, assetTypeName: "Load bar", name: "Bar", holder: { kind: "location", id: CRIB, label: "Tool crib", inferredDriverName: null, since: null } } };
+  })(),
 };
 
 /** The ref the page hands to `useScanQuery` — the test reads it to see what was submitted. */
@@ -87,6 +98,17 @@ const submitted = { code: null as Ref<string> | null, seq: null as Ref<number> |
 const manage = ref(true);
 
 vi.mock("@/stores/session", () => ({ useSessionStore: () => ({ can: () => manage.value }) }));
+vi.mock("@/composables/useOpens", () => ({ useOpens: () => () => true }));
+/** EA4: Return to shop is one tap with one bay; `bays` says whether the shop has exactly one. */
+const returned = vi.hoisted(() => ({ calls: [] as unknown[], oneBay: true }));
+vi.mock("@/features/inventory/useReturnToShop", () => ({
+  useReturnToShop: () => ({
+    giveBack: async (asset: unknown) => {
+      returned.calls.push(asset);
+      return returned.oneBay;
+    },
+  }),
+}));
 const refetch = vi.fn();
 
 vi.mock("@/features/inventory/useScan", () => ({
@@ -122,6 +144,8 @@ function render() {
     global: {
       stubs: {
         Teleport: true,
+        // EA4: the card's Open is a link to the holder's page; there is no router in this file.
+        RouterLink: { props: ["to"], template: "<a><slot /></a>" },
         MovementDrawer: drawerStub("MovementDrawer", ["verb", "line", "locations"]),
         AssetMoveDrawer: drawerStub("AssetMoveDrawer", ["asset", "mode", "locations"]),
         AssetDrawer: drawerStub("AssetDrawer", ["initial"]),
@@ -230,17 +254,55 @@ describe("ScanPage", () => {
     expect(wrapper.findComponent({ name: "BarcodeCamera" }).exists()).toBe(false);
   });
 
-  /** DE2b: a tablet handed in at the shop window is scanned here — whose it is, and take it back. */
-  it("names a driver's tablet by its driver and opens Return to shop on it", async () => {
+  /**
+   * DE2b: a tablet handed in at the shop window is scanned here — whose it is, and take it back. EA4:
+   * the card opens the driver's page, and Return to shop is one tap when the shop has one bay; with
+   * more, the move drawer asks which.
+   */
+  it("names a driver's tablet by its driver, opens the driver, and returns it in one tap", async () => {
+    returned.calls.length = 0;
+    returned.oneBay = true;
     const wrapper = render();
     scan(DANA_TABLET);
     await wrapper.vm.$nextTick();
     expect(wrapper.text()).toContain("Dana Reyes's tablet");
     expect(wrapper.text()).not.toContain("Not returned");
-    await wrapper.findAll("button").find((b) => b.text() === "Return to shop")!.trigger("click");
+    expect(wrapper.find("[data-test=scan-open-holder]").text()).toBe("Open Dana Reyes");
+    await wrapper.find("[data-test=scan-return]").trigger("click");
+    await flushPromises();
+    expect(returned.calls).toHaveLength(1);
+    expect(wrapper.findComponent({ name: "AssetMoveDrawer" }).exists()).toBe(false);
+  });
+
+  it("opens the truck a thing is on, and offers no destination list (EA4)", async () => {
+    const wrapper = render();
+    scan(ON_TRUCK);
+    await wrapper.vm.$nextTick();
+    expect(wrapper.find("[data-test=scan-open-holder]").text()).toBe("Open Truck 654");
+    expect(wrapper.find("[data-test=scan-return]").exists()).toBe(true);
+    expect(wrapper.findAll("button").map((b) => b.text())).not.toContain("Move");
+  });
+
+  it("says how to assign a thing that is in the shop, which has nowhere to open or return from (EA4)", async () => {
+    const wrapper = render();
+    scan(ON_SHELF);
+    await wrapper.vm.$nextTick();
+    expect(wrapper.find("[data-test=scan-open-holder]").exists()).toBe(false);
+    expect(wrapper.find("[data-test=scan-return]").exists()).toBe(false);
+    expect(wrapper.find("[data-test=scan-assign-hint]").text()).toContain("press Assign equipment");
+  });
+
+  it("asks where with the move drawer when the shop has more than one bay", async () => {
+    returned.oneBay = false;
+    const wrapper = render();
+    scan(DANA_TABLET);
+    await wrapper.vm.$nextTick();
+    await wrapper.find("[data-test=scan-return]").trigger("click");
+    await flushPromises();
     const drawer = wrapper.findComponent({ name: "AssetMoveDrawer" });
     expect(drawer.props("mode")).toBe("move");
     expect(drawer.props("asset")).toMatchObject({ holder: { kind: "driver", label: "Dana Reyes" } });
+    returned.oneBay = true;
   });
 
   it("flags a tablet whose driver has left as not returned", async () => {
