@@ -139,14 +139,14 @@ beforeEach(() => {
 const empty = () => unit({ unitId: REEFER, unitNumber: "R-8800", kind: "reefer_trailer", lastCheckedAt: null, lines: [] });
 
 describe("Equipment's tabs", () => {
-  it("opens on Trucks & trailers and counts what each tab lists — no Should carry while it is hidden", async () => {
+  it("opens on Trucks and counts what each tab lists — no Should carry while it is hidden", async () => {
     units.value = { units: [unit({ state: "short", shortBy: 2 }), empty()], total: 2 };
     const w = await page();
     expect(w.findComponent(AppTabs).props("modelValue")).toBe("trucks");
     expect(tabsOf(w)).toEqual([
-      { value: "trucks", label: "Trucks & trailers", badge: 1 },
+      { value: "trucks", label: "Trucks", badge: 1 },
       { value: "drivers", label: "Drivers", badge: 7 },
-      { value: "shop", label: "In the shop", badge: 7 },
+      { value: "shop", label: "Shop", badge: 7 },
       { value: "invoices", label: "Invoices", badge: undefined },
     ]);
     expect(w.text()).not.toContain("What each truck should carry");
