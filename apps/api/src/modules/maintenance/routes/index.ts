@@ -18,6 +18,7 @@ import { inventoryUnitsRouter, kitExpectationsRouter } from "./inventoryUnits.js
 import { inventoryLabelsRouter } from "./inventoryLabels.js";
 import { inventoryPurchasesRouter } from "./inventoryPurchases.js";
 import { printingRouter } from "./printing.js";
+import { scannersRouter } from "./scanners.js";
 import { fleetpalCostRouter } from "./fleetpalCost.js";
 import { fleetpalUnitsRouter } from "./fleetpalUnits.js";
 import { shopSummaryRouter } from "./shopSummary.js";
@@ -89,6 +90,8 @@ router.use("/inventory/purchases", inventoryPurchasesRouter());
   router.use("/inventory/labels", inventoryLabelsRouter());
   // Settings → Devices and the Print button (PRINTERS-AND-SCANNERS-PLAN.md PS2).
   router.use("/print", printingRouter());
+  // A scanner on one PC, used from any device (SCANNER-RELAY-PLAN.md SR2).
+  router.use("/scanners", scannersRouter());
   router.use("/inventory/units", inventoryUnitsRouter());
   router.use("/inventory/kit-expectations", kitExpectationsRouter());
   router.use("/inventory", inventoryStockRouter());

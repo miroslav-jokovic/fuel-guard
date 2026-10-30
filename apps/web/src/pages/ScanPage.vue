@@ -5,6 +5,7 @@ import { AppButton as BaseButton, AppFormField as FormField, AppIcon, AppInput a
 import { ScanIcon } from "@silvicom/ui/icons";
 import { useScanInput } from "@/composables/useScanInput";
 import BarcodeCamera from "@/components/BarcodeCamera.vue";
+import UseOfficeScanner from "@/components/UseOfficeScanner.vue";
 import { SCAN_PAGE_READER } from "@/features/inventory/shopBarcodeFormats";
 import { useLocationsQuery } from "@/features/inventory/useInventory";
 import { useSessionStore } from "@/stores/session";
@@ -171,6 +172,8 @@ function refresh() {
       <p class="mt-0.5 text-sm text-ink-secondary">
         Pull the trigger on the scanner. Whatever it reads lands here.
       </p>
+      <!-- A scanner plugged into the office's print station, used from this device (SCANNER-RELAY-PLAN.md). -->
+      <UseOfficeScanner class="mt-3" />
     </header>
 
     <p v-if="isFetching" class="text-sm text-ink-tertiary">Looking it up…</p>
@@ -194,8 +197,8 @@ function refresh() {
       <p class="text-sm font-semibold text-ink">Ready</p>
       <p class="mx-auto mt-1 max-w-sm text-sm text-ink-tertiary">
         If nothing happens when you scan, check the scanner is connected — paired in Bluetooth
-        settings, or its USB receiver plugged in. You can also type the code printed on the label
-        below, or use the camera beside it.
+        settings, its USB receiver plugged in, or, for the office scanner, "Use" pressed above. You
+        can also type the code printed on the label below, or use the camera beside it.
       </p>
     </div>
   </div>

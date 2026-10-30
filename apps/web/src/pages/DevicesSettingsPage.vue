@@ -18,6 +18,7 @@ import KebabMenu from "@/components/KebabMenu.vue";
 import StationDrawer from "@/features/devices/StationDrawer.vue";
 import PrinterDrawer from "@/features/devices/PrinterDrawer.vue";
 import ScannerTestCard from "@/features/devices/ScannerTestCard.vue";
+import ScannersSection from "@/features/devices/ScannersSection.vue";
 import { useSessionStore } from "@/stores/session";
 import { useToastStore } from "@/stores/toast";
 import { formatDateTime } from "@/lib/format";
@@ -62,7 +63,8 @@ const stationDrawer = ref(false);
 const issued = ref<PairingCodeDto | null>(null);
 const printerDrawer = ref(false);
 const editing = ref<PrinterDto | null>(null);
-const drawerOpen = computed(() => stationDrawer.value || printerDrawer.value);
+const scannerDrawer = ref(false);
+const drawerOpen = computed(() => stationDrawer.value || printerDrawer.value || scannerDrawer.value);
 
 const livePrinters = computed(() => (printers.data.value ?? []).filter((p) => !p.retired));
 const noStation = computed(() => stations.isSuccess.value && (stations.data.value ?? []).length === 0);
@@ -229,6 +231,7 @@ const JOB_TONE = { queued: "neutral", sent: "info", printed: "success", failed: 
     </SettingsSection>
 
     <SettingsSection title="Scanners">
+      <ScannersSection :stations="stations.data.value ?? []" :manage="manage" @drawer="scannerDrawer = $event" />
       <ScannerTestCard :enabled="!drawerOpen" />
     </SettingsSection>
 

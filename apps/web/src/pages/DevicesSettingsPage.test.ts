@@ -75,7 +75,7 @@ const PRINTER = {
 const render = async () => {
   const w = mount(DevicesSettingsPage, {
     // The menu's items render open, so what each role is OFFERED can be read.
-    global: { stubs: { PageHeader: true, StationDrawer: true, PrinterDrawer: true, SlideOver: true, KebabMenu: { template: "<div><slot /></div>" } } },
+    global: { stubs: { PageHeader: true, StationDrawer: true, PrinterDrawer: true, SlideOver: true, ScannersSection: true, KebabMenu: { template: "<div><slot /></div>" } } },
   });
   await flushPromises();
   return w;

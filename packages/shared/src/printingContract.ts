@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { recordId } from "./recordId.js";
 import { labelTargetSchema, MAX_LABELS_PER_RUN } from "./inventoryLabelContract.js";
+import { scannerReaderStateSchema, serialPortSchema } from "./scannerRelayContract.js";
 
 /**
  * Printers chosen once in Settings, and the print queue behind every Print button
@@ -174,6 +175,13 @@ export const stationHelloSchema = z.object({
   hostName: z.string().trim().min(1).max(120),
   agentVersion: z.string().trim().min(1).max(40),
   printers: z.array(discoveredPrinterSchema).max(50),
+  /**
+   * The serial ports the station sees and how its scanner readers are doing (SCANNER-RELAY-PLAN.md
+   * SR3). Defaulted, because a 1.0.0 station — the office Mac's, on 10/30 — sends neither and must
+   * keep printing.
+   */
+  serialPorts: z.array(serialPortSchema).max(50).default([]),
+  scannerStates: z.array(scannerReaderStateSchema).max(20).default([]),
 });
 export type StationHello = z.infer<typeof stationHelloSchema>;
 

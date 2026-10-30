@@ -13,6 +13,7 @@ import UpdateBanner from "@/components/UpdateBanner.vue";
 import EnvironmentBanner from "@/components/EnvironmentBanner.vue";
 import SkipLink from "@/components/SkipLink.vue";
 import AssistantLauncher from "@/components/assistant/AssistantLauncher.vue";
+import ScannerRelayBar from "@/components/ScannerRelayBar.vue";
 import { useSessionStore } from "@/stores/session";
 import { resolveLayout } from "@/lib/layout";
 import { useOpens } from "@/composables/useOpens";
@@ -88,6 +89,9 @@ const isShellLayout = computed(() => layout.value === undefined);
   <!-- First in the tab order, over the banners too; only over the shell, whose sidebar is the block to bypass.
        The other layouts put at most one control before their content, and a link past one is noise. -->
   <SkipLink v-if="isShellLayout" />
+  <!-- Which device the office scanner's scans go to (SCANNER-RELAY-PLAN.md D-SR3), on every signed-in
+       page of both shells — the shop's tablet screens included, which is where it is used most. -->
+  <ScannerRelayBar v-if="(isShellLayout || isShopLayout) && session.isAuthenticated" />
   <template v-if="layout === null" />
   <RouterView v-else-if="isLabLayout" />
   <AuthLayout v-else-if="isAuthLayout">

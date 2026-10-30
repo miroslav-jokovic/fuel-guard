@@ -308,6 +308,18 @@ export const RETENTION_RULES: RetentionRule[] = [
     orgScoped: true,
     why: "DB7 (DISPATCH-BOARD-PLAN): the dispatch board's recorded ETAs, scored against arrivals over two weeks; the stop and its actual arrival live on in load_stops",
   },
+  {
+    // 0532 (SCANNER-RELAY-PLAN D-SR7). A diagnostic trail, not a record: "did my scan reach
+    // Silvicom, and which screen got it?" is asked the same day. A read older than 60 s is never
+    // delivered anyway (D-SR5), and whatever the scan led to — an assignment, a unit check — is
+    // recorded by its own table. 7 days covers a week's "it didn't work on Monday".
+    table: "scanner_reads",
+    timeColumn: "read_at",
+    keepDays: 7,
+    strategy: "id",
+    orgScoped: true,
+    why: "D-SR7 (SCANNER-RELAY-PLAN): relayed scanner reads and the tab each was routed to; never delivered past 60 s, and what a scan led to lives in its own table",
+  },
 ];
 
 export { RETENTION_FORBIDDEN } from "./dataRetentionForbidden.js";
