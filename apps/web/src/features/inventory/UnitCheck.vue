@@ -29,6 +29,7 @@ import { useAssetsQuery, useMoveAsset } from "@/features/inventory/useAssets";
 import { SCAN_PAGE_READER } from "@/features/inventory/shopBarcodeFormats";
 import type { AssignTarget } from "@/features/inventory/assignLine";
 import { useCheckScan } from "@/features/inventory/useCheckScan";
+import { useStartUnitCheck } from "@/features/inventory/useStartUnitCheck";
 import { useUnitKitQuery } from "@/features/inventory/useUnits";
 import { useWalk } from "@/features/inventory/useWalk";
 import WalkActions, { type WalkAction } from "@/components/WalkActions.vue";
@@ -205,6 +206,13 @@ const { lastScan, onScan, SCAN_TONE } = useCheckScan({
   enabled: computed(() => walk.value?.status === "open" && !reviewing.value && !cameraOpen.value),
 });
 
+/** DE5: another unit's label scanned here — its own check, started or resumed (R9); this one stays open. */
+const otherCheck = useStartUnitCheck();
+function checkOther(unit: AssignTarget) {
+  lastScan.value = null;
+  void otherCheck.startCheck(unit.kind === "vehicle" ? "tractor" : "trailer", unit.id);
+}
+
 async function moveHere(asset: AssetDto) {
   lastScan.value = null;
   await itsHereNow(asset);
@@ -339,6 +347,9 @@ async function close() {
           </p>
           <BaseButton v-if="lastScan?.moveable" size="sm" class="mt-2" data-test="check-move-here" @click="moveHere(lastScan.moveable)">
             Move it here
+          </BaseButton>
+          <BaseButton v-if="lastScan?.otherUnit" size="sm" class="mt-2" data-test="check-other-unit" @click="checkOther(lastScan.otherUnit)">
+            Check {{ lastScan.otherUnit.label }}
           </BaseButton>
         </div>
 

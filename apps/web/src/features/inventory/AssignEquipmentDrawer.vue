@@ -70,8 +70,10 @@ interface Line {
   moveId: string;
   state: LineState;
   result: ScanResult | null;
-  /** Where it goes: the page's holder, or the one a refused line offered instead. */
+  /** Where it goes: the holder it was scanned against, or the one a refused line offered instead. */
   to: AssignTarget;
+  /** The holder the list was on when this line was scanned — which `to` an "instead" is offered from (DE5). */
+  home: AssignTarget;
   error: string | null;
   flash: boolean;
 }
@@ -89,7 +91,16 @@ const move = useMoveAsset();
 const { data: types } = useAssetTypesQuery();
 const { data: vehicles } = useVehiclesQuery();
 const { data: drivers } = useDriversQuery();
-const partner = computed(() => holderPartner(props.target, vehicles.value, drivers.value));
+/**
+ * ── WHO THE LIST IS ASSIGNING TO, WHICH A UNIT'S LABEL CAN CHANGE (DE5) ───────────────────────
+ * The page's holder to start with. Scanning another truck's or trailer's own label moves the list on to
+ * it — owner 2026-10-30, "yes, build DE5": walking down a row of trucks, the next truck's label is the
+ * quickest way to say "now this one". Lines already scanned keep the holder they were judged against
+ * (`home`), so a strap scanned for 654 still goes on 654, and the switch is said on screen.
+ */
+const current = ref<AssignTarget>(props.target);
+const switchedTo = ref<AssignTarget | null>(null);
+const partnerOf = (t: AssignTarget) => holderPartner(t, vehicles.value, drivers.value);
 
 const lines = ref<Line[]>([]);
 let seq = 0;
@@ -101,8 +112,8 @@ const saving = computed(() => lines.value.some((l) => l.state === "saving"));
 
 function verdictOf(line: Line): AssignVerdict | null {
   if (!line.result) return null;
-  // Only the page's own holder offers somewhere else: an "instead" has no "instead" of its own.
-  const offer = line.to.id === props.target.id ? partner.value : null;
+  // Only the holder a line was scanned against offers somewhere else: an "instead" has no "instead" of its own.
+  const offer = line.to.id === line.home.id ? partnerOf(line.home) : null;
   return judgeScan(line.result, line.to, types.value, offer);
 }
 
@@ -117,7 +128,7 @@ async function take(raw: string) {
   const same = lines.value.find((l) => l.code === code && l.state !== "lookup_failed");
   if (same) return flash(same);
   lines.value = [
-    { key: (seq += 1), code, moveId: crypto.randomUUID(), state: "looking", result: null, to: props.target, error: null, flash: false },
+    { key: (seq += 1), code, moveId: crypto.randomUUID(), state: "looking", result: null, to: current.value, home: current.value, error: null, flash: false },
     ...lines.value,
   ];
   // The reactive copy, so the answer landing re-renders the line.
@@ -128,6 +139,14 @@ async function take(raw: string) {
   } catch (e) {
     added.state = "lookup_failed";
     added.error = e instanceof Error ? e.message : "Could not look that code up.";
+    return;
+  }
+  // Another unit's own label is not a line: it moves the list on (DE5).
+  const v = judgeScan(added.result, current.value, types.value, null);
+  if (v.kind === "switch") {
+    lines.value = lines.value.filter((l) => l !== added);
+    current.value = v.to;
+    switchedTo.value = v.to;
     return;
   }
   // The same item scanned by a second label or by its IMEI is one line, not two moves.
@@ -171,7 +190,7 @@ function onSaved(asset: AssetDto) {
     return;
   }
   lines.value = [
-    { key: (seq += 1), code: asset.displayNo, moveId: crypto.randomUUID(), state: "judged", result, to: props.target, error: null, flash: false },
+    { key: (seq += 1), code: asset.displayNo, moveId: crypto.randomUUID(), state: "judged", result, to: current.value, home: current.value, error: null, flash: false },
     ...lines.value,
   ];
 }
@@ -215,6 +234,8 @@ async function confirm() {
 
 function close() {
   lines.value = [];
+  current.value = props.target;
+  switchedTo.value = null;
   occurredAt = null;
   cameraOpen.value = false;
   addingFor.value = null;
@@ -225,7 +246,7 @@ const confirmLabel = computed(() => {
   const n = toAssign.value.length;
   if (saving.value) return "Saving…";
   if (n === 0) return "Confirm";
-  return `${props.target.kind === "driver" ? "Give" : "Assign"} ${n}`;
+  return `${current.value.kind === "driver" ? "Give" : "Assign"} ${n}`;
 });
 
 /** One sentence per line, and the tone it is said in. */
@@ -250,6 +271,9 @@ function describe(line: Line): { text: string; tone: "ok" | "warn" | "muted" | "
     case "new":
     case "refused":
       return { text: v.message, tone: v.kind === "new" ? "warn" : "danger" };
+    case "switch":
+      // Never a line — `take` moves the list on instead — but the union is answered whole.
+      return { text: `Now assigning to ${v.to.label}`, tone: "ok" };
   }
 }
 
@@ -278,7 +302,7 @@ const TONE = {
   danger: "font-medium text-danger-700",
 } as const;
 
-const heading = computed(() => (props.target.kind === "driver" ? `Give equipment to ${props.target.label}` : `Assign equipment to ${props.target.label}`));
+const heading = computed(() => (current.value.kind === "driver" ? `Give equipment to ${current.value.label}` : `Assign equipment to ${current.value.label}`));
 const FORM_ID = "assign-equipment-form";
 </script>
 
@@ -288,8 +312,9 @@ const FORM_ID = "assign-equipment-form";
       <div class="rounded-control bg-surface-subtle p-4 ring-1 ring-edge">
         <p class="text-sm font-medium text-ink">Scan each label</p>
         <p class="mt-0.5 text-sm text-ink-secondary">
-          {{ target.kind === "driver" ? "Tablets go to drivers." : "Everything except tablets goes on a truck or trailer." }}
-          Scan as many as you like, then press {{ target.kind === "driver" ? "Give" : "Assign" }}.
+          {{ current.kind === "driver" ? "Tablets go to drivers." : "Everything except tablets goes on a truck or trailer." }}
+          Scan as many as you like, then press {{ current.kind === "driver" ? "Give" : "Assign" }}.
+          <template v-if="current.kind !== 'driver'"> Scanning another truck's or trailer's own label moves on to it.</template>
         </p>
         <FormField v-slot="{ id }" label="Or type the code" hint="The code printed under the QR, or the item's number like A-0412." class="mt-3">
           <!-- Stacked on a phone, as the sticker field is (M9c's pass: 105 px beside the button at 390 px). -->
@@ -311,6 +336,11 @@ const FORM_ID = "assign-equipment-form";
           </div>
         </FormField>
       </div>
+
+      <!-- DE5: the switch is said where the eye is, and stays until the list closes. -->
+      <p v-if="switchedTo" role="status" class="rounded-control bg-selected-surface px-4 py-3 text-sm font-medium text-ink" data-test="assign-switched">
+        Now assigning to {{ switchedTo.label }}. What you scanned before stays where it was going.
+      </p>
 
       <p v-if="lines.length === 0" class="py-6 text-center text-sm text-ink-tertiary" data-test="assign-empty">
         Nothing scanned yet.
