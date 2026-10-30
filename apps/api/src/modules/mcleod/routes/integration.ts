@@ -1,5 +1,5 @@
 import type { Router } from "express";
-import { requireOrg, requireAnySection, requireAdminOnly } from "../../../middleware/auth.js";
+import { requireOrg, requireAnySection, requireAdminOnly, requireSection } from "../../../middleware/auth.js";
 import { asyncHandler } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
@@ -9,7 +9,7 @@ import {
   enableTmsIntegration,
   disableTmsIntegration,
 } from "../tmsIngest.js";
-import { readRosterFreshness } from "../rosterFreshness.js";
+import { readRosterFreshness, readRosterHeld } from "../rosterFreshness.js";
 
 /** McLeod integration config — enable/rotate/disable the on-prem agent's ingest token. Moved
  *  here from routes/integrations.ts at the P1.6 split (2026-08-27); paths unchanged. */
@@ -35,6 +35,18 @@ export function registerMcleodIntegrationRoutes(router: Router): void {
     asyncHandler(async (req, res) => {
       const admin = getSupabaseAdmin(getAppLocals(req).env);
       res.json(await readRosterFreshness(admin, req.auth!.orgId!));
+    }),
+  );
+
+  // McLeod drivers the roster sweep held for a person (ROSTER-LIFECYCLE-PLAN RL3). These are people's
+  // names and hire dates, so it takes the DRIVER roster's own view right, not the equipment pages' too.
+  router.get(
+    "/mcleod/roster-held",
+    requireOrg,
+    requireSection("roster", "view"),
+    asyncHandler(async (req, res) => {
+      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      res.json(await readRosterHeld(admin, req.auth!.orgId!));
     }),
   );
 
