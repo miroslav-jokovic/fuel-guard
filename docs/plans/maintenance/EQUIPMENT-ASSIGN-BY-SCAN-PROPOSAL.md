@@ -245,3 +245,9 @@ Tera Pro simulated by `keyboard.type` + Enter.
   - Browser pass at 390/834 px (Tera simulated): a truck's load bar → *Open Truck 654* (`/vehicles/…`) and
     *Return to shop* wrote one `removed` into the only bay; a shelf item showed the assign hint and no
     Return; no console errors. Screenshots `screenshots/ea4-*.png`.
+- 2026-10-30 — **Data fix, production only.** Asset type *Tablet* (org `86d6b3ea-…`) had
+  `default_kit_quantity = 200` — the fleet's tablet count typed into "how many a truck carries". Reset to
+  **0** on the owner's request: one `UPDATE` scoped by the type's id, its org and the old value. **Staging
+  was not touched** (the Supabase CLI is linked to production).
+- 2026-10-30 — **M10b (Invoices) rebased onto EA1–EA4.** Equipment's tabs are now Trucks & trailers,
+  Drivers, In the shop, Invoices; Invoices' verb is *Add invoice*, the other three keep *Add equipment*.
