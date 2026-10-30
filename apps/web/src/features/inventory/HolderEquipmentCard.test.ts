@@ -29,6 +29,8 @@ vi.mock("./useAssets", async () => {
   };
 });
 vi.mock("./useInventory", () => ({ useLocationsQuery: () => ({ data: ref(bays.value) }) }));
+const started = vi.hoisted(() => vi.fn());
+vi.mock("./useStartUnitCheck", () => ({ useStartUnitCheck: () => ({ startCheck: started, openWalk: { isPending: { value: false } } }) }));
 vi.mock("@/composables/useVehicles", () => ({
   useVehiclesQuery: () => ({ data: ref([{ id: "v-654", unit_number: "654", assigned_driver_id: "d-1" }]) }),
 }));
@@ -114,6 +116,18 @@ describe("on a truck's page", () => {
     await flushPromises();
     expect(record.mutateAsync).not.toHaveBeenCalled();
     expect(w.findComponent({ name: "AssetMoveDrawer" }).exists()).toBe(true);
+  });
+});
+
+describe("Check equipment (EA3)", () => {
+  it("starts the truck's check from its card, by the roster's word for it", async () => {
+    const w = render(truck);
+    await w.find("[data-test=check-open]").trigger("click");
+    expect(started).toHaveBeenCalledWith("tractor", "v-654");
+  });
+
+  it("is not offered on a driver's card — a check walks a unit", () => {
+    expect(render(dana).find("[data-test=check-open]").exists()).toBe(false);
   });
 });
 

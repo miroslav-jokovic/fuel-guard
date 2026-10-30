@@ -33,6 +33,13 @@ const ELSEWHERE = "66666666-6666-4666-8666-666666666666";
  *  refused at the edge — and the screen would then record nothing for a reason that is the
  *  fixture's, not the code's. `MovementDrawer.test.ts` carries the same note. */
 const ON_UNIT = "77777777-7777-4777-8777-777777777777";
+const STRAP = "88888888-8888-4888-8888-888888888888";
+const ON_702 = "99999999-9999-4999-8999-999999999999";
+/** EA3: what `/api/tags/resolve` answers, by code. */
+const resolved = vi.hoisted(() => new Map<string, unknown>());
+vi.mock("@/features/inventory/useScan", () => ({
+  resolveScanCode: async (code: string) => resolved.get(code) ?? { kind: "malformed", code },
+}));
 
 const asset = (id: string, over: Partial<AssetDto> = {}): AssetDto => ({
   id,
@@ -114,6 +121,8 @@ vi.mock("@/features/inventory/useAssets", async () => {
   return {
     useAssetsQuery: () => ({ data: r({ assets: [asset(ELSEWHERE, { holder: { kind: "location", id: "loc", label: "Tool crib", inferredDriverName: null, since: null } })], total: 1 }) }),
     useMoveAsset: () => move,
+    // EA3: the scan's judgement reads the types; a strap here is a truck's thing.
+    useAssetTypesQuery: () => ({ data: r([{ id: STRAP, name: "Strap", category: null, serialized: false, defaultKitQuantity: 0, imagePath: null, heldBy: "unit" }]) }),
   };
 });
 vi.mock("vue-router", async (importOriginal) => ({
@@ -165,7 +174,15 @@ beforeEach(() => {
   kit.value = { unit, assets: [asset(ON_UNIT)] };
   kitRead.fails = false;
   kitRead.refetch.mockClear();
+  resolved.clear();
 });
+
+/** The Tera Pro: a burst of keydowns on the document and an Enter, as `useScanInput` reads it. */
+async function scan(code: string) {
+  for (const key of code) document.dispatchEvent(new KeyboardEvent("keydown", { key }));
+  document.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter" }));
+  await settle();
+}
 
 /** D-INV17 as amended 2026-09-10: the check is a page in the app's own shell, titled like the unit's page. */
 describe("the page's anatomy", () => {
@@ -243,8 +260,50 @@ describe("the promise the queue keeps", () => {
   });
 });
 
+describe("scanning (EA3)", () => {
+  it("ticks off what this unit holds and writes nothing for it", async () => {
+    resolved.set("SIL1:AST:ONUNIT", { kind: "asset", code: "SIL1:AST:ONUNIT", asset: asset(ON_UNIT) });
+    const w = page();
+    await scan("SIL1:AST:ONUNIT");
+    expect(w.text()).toContain("1 of 1 checked");
+    expect(w.find("[data-test=check-last-scan]").text()).toContain("here");
+    expect(move.mutateAsync).not.toHaveBeenCalled();
+  });
+
+  // D-DE4: a truck's check lists its driver's tablet, held by the DRIVER — the scan must tick it, not
+  // judge it as "a tablet goes to a driver", which is what the Assign list would say about it.
+  it("ticks off the truck's driver's tablet, which the driver holds", async () => {
+    const tablet = asset(ON_UNIT, { holder: { kind: "driver", id: "d-1", label: "Dana Reyes", inferredDriverName: null, since: null } });
+    kit.value = { unit, assets: [tablet] };
+    resolved.set("SIL1:AST:TABLET", { kind: "asset", code: "SIL1:AST:TABLET", asset: tablet });
+    const w = page();
+    await scan("SIL1:AST:TABLET");
+    expect(w.text()).toContain("1 of 1 checked");
+  });
+
+  it("says where a thing recorded elsewhere is, and Move it here writes the `found` move", async () => {
+    const strap = asset(ON_702, { assetTypeId: STRAP, assetTypeName: "Strap", name: "Strap 9", holder: { kind: "vehicle", id: "v-702", label: "Truck 702", inferredDriverName: null, since: null } });
+    resolved.set("SIL1:AST:ON702A", { kind: "asset", code: "SIL1:AST:ON702A", asset: strap });
+    const w = page();
+    await scan("SIL1:AST:ON702A");
+    expect(w.find("[data-test=check-last-scan]").text()).toContain("is recorded on Truck 702");
+    await w.find("[data-test=check-move-here]").trigger("click");
+    await settle();
+    expect(move.mutateAsync.mock.calls.at(-1)![0]).toMatchObject({ assetId: ON_702, reason: "found", toVehicleId: TRUCK, countSessionId: SESSION });
+  });
+
+  it("says what a label is when it is nothing this check can tick", async () => {
+    resolved.set("012345678905", { kind: "part_by_upc", code: "012345678905", part: {}, stockLines: [] });
+    const w = page();
+    await scan("012345678905");
+    expect(w.find("[data-test=check-last-scan]").text()).toBe("That is a shop part, not equipment.");
+    expect(w.find("[data-test=check-move-here]").exists()).toBe(false);
+  });
+});
+
 describe("closing", () => {
-  it("warns about items nobody looked at, and leaves them alone", async () => {
+  /** EA3: what nobody scanned or ticked is reported not found on the way out — and the dialog says so first. */
+  it("names how many will be reported not found, and writes nothing when cancelled", async () => {
     const asked = answerConfirm(false);
     const w = page();
     await press(w, "Review");
@@ -252,21 +311,34 @@ describe("closing", () => {
     // D-US7: the product's dialog, red because closing cannot be undone.
     expect(asked).toHaveBeenCalledWith(
       expect.objectContaining({
-        title: expect.stringContaining("1 item"),
-        confirmLabel: "Close check",
+        title: "Report 1 not found and close?",
+        confirmLabel: "Report and close",
         tone: "danger",
       }),
     );
-    // Cancelled: nothing closed, and no movement invented for the unlooked-at item.
     expect(closeWalk.mutateAsync).not.toHaveBeenCalled();
     expect(move.mutateAsync).not.toHaveBeenCalled();
   });
 
-  it("closes the check when the question is answered yes", async () => {
+  it("reports what was not looked at as missing — never a move — then closes", async () => {
     answerConfirm(true);
     const w = page();
     await press(w, "Review");
     await press(w, "Close the check");
+    expect(move.mutateAsync).toHaveBeenCalledTimes(1);
+    const sent = move.mutateAsync.mock.calls[0]![0];
+    expect(sent).toMatchObject({ assetId: ON_UNIT, reason: "reported_missing", countSessionId: SESSION });
+    expect(sent.toVehicleId).toBeUndefined();
+    expect(closeWalk.mutateAsync).toHaveBeenCalledTimes(1);
+  });
+
+  it("reports nothing when everything was looked at", async () => {
+    answerConfirm(true);
+    const w = page();
+    await press(w, "It's here");
+    await press(w, "Review and close");
+    await press(w, "Close the check");
+    expect(move.mutateAsync).not.toHaveBeenCalled();
     expect(closeWalk.mutateAsync).toHaveBeenCalledTimes(1);
   });
 

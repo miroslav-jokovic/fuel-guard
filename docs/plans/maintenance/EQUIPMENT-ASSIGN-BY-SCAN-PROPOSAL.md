@@ -211,3 +211,18 @@ Tera Pro simulated by `keyboard.type` + Enter.
     status is asked; `driver` = `driver_id is not null`.
   - Tests: EquipmentPage (11), assets.test (+2), unitAttention (+1), read-states (+1), UnitDetailPage (+1);
     5 mutants each failed a test and were reverted byte-identical.
+- 2026-10-30 — **EA3 built** (`claude/equipment-assign-ea3`). No migration, no API change.
+  - The unit check takes the scanner (`useCheckScan.ts`): a label of something this unit holds ticks it
+    off and writes nothing (as *It's here* does) — the truck's driver's tablet included (D-DE4), which
+    is why the check's own list is asked before `judgeScan`, whose answer for a tablet on a truck is
+    "goes to a driver"; something recorded elsewhere says where and offers *Move it here* (the `found`
+    move *One turned up* writes); anything else gets the Assign list's sentence. One answer line,
+    replaced per scan. Camera kept open for many reads.
+  - **Close reports what nobody scanned or ticked as not found** (`reported_missing`, holder unmoved,
+    D-INV24), after a dialog that names how many ("Report 2 not found and close?"). Until EA3 those
+    were left as they were. Close returns to the truck's Equipment tab, not the Trucks & trailers list.
+  - *Check equipment* on the truck's and trailer's equipment card (`useStartUnitCheck`, now the one
+    starter the shop's header verb uses too); not on a driver's card, nor on the shop truck page whose
+    header has it.
+  - Tests: UnitCheck (+6), HolderEquipmentCard (+2); 4 mutants each failed a test — the fourth (drop the
+    "is it this unit's" lookup) first SURVIVED, which found the untested driver's-tablet case, now pinned.

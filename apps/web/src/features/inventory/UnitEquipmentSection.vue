@@ -1,16 +1,14 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import { useRouter } from "vue-router";
 import { AppButton as BaseButton, AppCard as BaseCard, DataTable, type DataTableColumn } from "@silvicom/ui";
 import { KIT_EXPECTATION_SOURCE_LABELS, KIT_RULES_SHOWN, type UnitKitDto, type UnitKitLineDto } from "@silvicom/shared";
 import HolderEquipmentCard from "./HolderEquipmentCard.vue";
 import UnitOverrideDrawer from "./UnitOverrideDrawer.vue";
 import OpenCountsList from "./OpenCountsList.vue";
-import { useOpenCountSession } from "./useInventory";
+import { useStartUnitCheck } from "./useStartUnitCheck";
 import { BADGE_BASE, kitStatusBadge, toneClass } from "@/lib/badges";
-import { formatDate, formatDateTime } from "@/lib/format";
+import { formatDate } from "@/lib/format";
 import { useSessionStore } from "@/stores/session";
-import { useToastStore } from "@/stores/toast";
 
 /**
  * Equipment it carries — the shop's controls over one unit's kit (INVENTORY-PLAN.md I9), as a section
@@ -37,39 +35,15 @@ import { useToastStore } from "@/stores/toast";
  */
 const props = defineProps<{ kind: "tractor" | "trailer"; unitId: string; unit: UnitKitDto; loading: boolean }>();
 
-const router = useRouter();
 const session = useSessionStore();
-const toast = useToastStore();
 const canManage = computed(() => session.can("maintenance"));
 
 const overriding = ref(false);
 
-/**
- * Start a walk of this unit (D-INV19).
- *
- * The session id is the SERVER's, exactly as a shelf count's is: a walk is opened with the network
- * up, because the screen cannot show what to check without it, and two taps of Start must not make
- * two walks. `blind` is false — a kit check is not a blind count, because the whole question is
- * "is the thing the system names actually here", which cannot be asked without naming it.
- */
-const openWalk = useOpenCountSession();
-async function startCheck() {
-  try {
-    const walk = await openWalk.mutateAsync({
-      kind: "unit",
-      ...(props.kind === "tractor" ? { vehicleId: props.unitId } : { trailerId: props.unitId }),
-      blind: false,
-    });
-    // R9: the server hands back this unit's open check rather than starting a second walk, and the
-    // screen says so — a technician who expected a fresh list should know answers are already in it.
-    if (walk.resumed) {
-      toast.info("Continuing the open check", `Started ${formatDateTime(walk.openedAt)}${walk.startedByName ? ` by ${walk.startedByName}` : ""}.`);
-    }
-    void router.push({ name: "count-session", params: { sessionId: walk.id } });
-  } catch (e) {
-    toast.error("Could not start the check", e instanceof Error ? e.message : undefined);
-  }
-}
+/** Start a walk of this unit — the header verb's (D-INV19); `useStartUnitCheck` says why it is the server's. */
+const check = useStartUnitCheck();
+const openWalk = check.openWalk;
+const startCheck = () => check.startCheck(props.kind, props.unitId);
 defineExpose({ startCheck, openWalk });
 
 const KIT_COLUMNS: DataTableColumn[] = [
@@ -111,6 +85,7 @@ const kitLines = computed<UnitKitLineDto[]>(() => props.unit.lines.filter((l) =>
     <HolderEquipmentCard
       :target="{ kind: kind === 'tractor' ? 'vehicle' : 'trailer', id: unitId, label: `${kind === 'tractor' ? 'Truck' : 'Trailer'} ${unit.unitNumber}` }"
       :shop-link="false"
+      :check-button="false"
     />
     <p v-if="!KIT_RULES_SHOWN" class="text-sm text-ink-secondary" data-test="unit-last-checked">
       {{ unit.lastCheckedAt ? `Last checked ${formatDate(unit.lastCheckedAt)}` : "Never checked — the list above is what the records say" }}
