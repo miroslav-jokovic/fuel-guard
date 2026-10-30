@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { sortAttentionReasons, type UnitAttentionDto, type UnitAttentionReason, type UnitRosterKind } from "@silvicom/shared";
+import { KIT_RULES_SHOWN, sortAttentionReasons, type UnitAttentionDto, type UnitAttentionReason, type UnitRosterKind } from "@silvicom/shared";
 import { readPmDueFleet, readOpenWorkOrders, readUnresolvedDefects } from "../fleetpal/index.js";
 import { readFleetIdentities } from "../roster/index.js";
 import { listUnitKits } from "./inventory/units.js";
@@ -25,7 +25,9 @@ export async function readUnitsAttention(admin: SupabaseClient, orgId: string, n
     readOpenWorkOrders(admin, orgId),
     readUnresolvedDefects(admin, orgId),
     readAnnualDue(admin, orgId, now),
-    listUnitKits(admin, orgId, { shortOnly: true, checkedOnly: true }),
+    // EA2: "missing equipment" is a kit-rule shortfall, and the kit layer is hidden (`KIT_RULES_SHOWN`).
+    // Not read at all while it is, so no truck is listed for a reason the screens never show.
+    KIT_RULES_SHOWN ? listUnitKits(admin, orgId, { shortOnly: true, checkedOnly: true }) : { units: [] },
     listCountSessions(admin, orgId, { status: "open", kind: "unit", limit: 500 }),
   ]);
   if ("error" in orders) return { error: orders.error };

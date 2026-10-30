@@ -10,6 +10,8 @@ import { readUnitsAttention } from "./unitAttention.js";
  *      number — that list does not need a roster row).
  *   2. Reasons are counted per unit and sorted: overdue first, then the worklist's order.
  *   3. The annual due is our record's; a PM due is `pmStatus`'s; a short kit only once checked (R10).
+ *   4. While "Should carry" is hidden (`KIT_RULES_SHOWN`, EA2) the kit is not read at all, so no unit is
+ *      listed for "missing equipment" — a reason no screen would show and nobody could fix.
  */
 const ORG = "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d";
 const NOW = new Date("2026-10-28T15:00:00.000Z");
@@ -61,5 +63,11 @@ describe("readUnitsAttention", () => {
     ]);
     // 9001: its annual expired 27 days ago — the overdue reason, and the only one.
     expect(rows[1]!.reasons).toEqual([{ kind: "annual", expiresOn: "2026-10-01", daysRemaining: -27 }]);
+  });
+
+  it("does not read the kit while Should carry is hidden", async () => {
+    const rec = recorder();
+    await readUnitsAttention(rec.client, ORG, NOW);
+    expect(rec.queries.map((q) => q.table)).not.toContain("kit_expectations");
   });
 });

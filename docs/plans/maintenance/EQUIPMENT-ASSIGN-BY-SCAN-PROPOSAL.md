@@ -189,3 +189,25 @@ Tera Pro simulated by `keyboard.type` + Enter.
     5 mutants (tablet allowed on a truck, id per Confirm, no de-dupe, Return to nowhere, verbs for a
     viewer) each failed a test and were reverted byte-identical.
   - Next: EA2 (Equipment tabs; Should carry behind a flag), EA3 (scan-driven check), EA4 (Scan page card).
+- 2026-10-30 — **EA2 built** (`claude/equipment-assign-ea2`). No migration.
+  - **Measured on the way in:** production's one type, Tablet, has `default_kit_quantity = 200` — typed
+    into "how many a truck or trailer carries by default", read as how many the shop owns. With Should
+    carry live, every truck's first check would have put it on the worklist as "Missing 199 pieces of
+    equipment". The value is left as the owner entered it (an edit of the type still sends it back);
+    hiding the layer makes it inert. Resetting it to 0 is the owner's call.
+  - `KIT_RULES_SHOWN = false` in `@silvicom/shared` (`inventoryKitShown.ts`) — shared, not web-only like
+    `SHELF_COUNTING_SHOWN`, because `unitAttention.ts` reads it too and stops reading the kit, so no unit
+    is on the worklist for "missing equipment". Hidden behind it: the kit card, badge and Should carry
+    table on the truck's Equipment tab, "What this one should carry", Equipment's "What each truck should
+    carry" and "Missing something", the default-quantity field and the standard-kit button on Types of
+    equipment. Tests flip it with a live getter so the kept code stays tested.
+  - Equipment's tabs: **Trucks & trailers** (`trucks`; opens on units carrying something; Show › Every
+    truck and trailer / Never checked), **Drivers** (`drivers`; new `EquipmentDriversPanel`, a row per
+    thing a driver holds, driver first, opens the driver's page; the Tablets not returned callout and
+    Returned filter moved here), **In the shop** (`shop`; Where › In the shop / Anywhere). M7's
+    `?tab=on-trucks|inventory` redirect in `routes/maintenance.ts`; `/shop/units?show=short` lands on
+    `trucks`.
+  - API: `GET /assets?holder=shop|driver` — `shop` = no truck/trailer/driver and not retired unless a
+    status is asked; `driver` = `driver_id is not null`.
+  - Tests: EquipmentPage (11), assets.test (+2), unitAttention (+1), read-states (+1), UnitDetailPage (+1);
+    5 mutants each failed a test and were reverted byte-identical.

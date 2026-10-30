@@ -13,6 +13,14 @@ import { defineComponent, h, ref } from "vue";
  * because jsdom has no `matchMedia` and DataTable would render cards.
  */
 vi.mock("@vueuse/core", async (orig) => ({ ...((await orig()) as object), useMediaQuery: () => ref(true) }));
+/** Should carry's switch (EA2), live, so the kept standard-kit offer stays tested with it on. */
+const kit = vi.hoisted(() => ({ shown: true }));
+vi.mock("@silvicom/shared", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@silvicom/shared")>()),
+  get KIT_RULES_SHOWN() {
+    return kit.shown;
+  },
+}));
 
 const { read, answer, mutation } = await vi.hoisted(async () => {
   const { ref } = await import("vue");
@@ -119,5 +127,14 @@ describe("Asset kinds", () => {
     expect(some.findAll("button").map((b) => b.text())).not.toContain("Set it up");
     expect(some.text()).toContain("Tablet");
     some.unmount();
+  });
+
+  it("never offers it while Should carry is hidden — adopting it writes kit rules nobody could see (EA2)", () => {
+    kit.shown = false;
+    read.state = "empty";
+    const empty = render(AssetTypesDrawer);
+    expect(empty.findAll("button").map((b) => b.text())).not.toContain("Set it up");
+    empty.unmount();
+    kit.shown = true;
   });
 });

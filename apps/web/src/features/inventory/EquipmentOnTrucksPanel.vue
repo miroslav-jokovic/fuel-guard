@@ -13,7 +13,7 @@ import {
   TablePagination,
   sortRows,
 } from "@silvicom/ui";
-import type { UnitKitDto } from "@silvicom/shared";
+import { KIT_RULES_SHOWN, type UnitKitDto } from "@silvicom/shared";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
 import KebabMenu from "@/components/KebabMenu.vue";
 import { useUnitsQuery } from "@/features/inventory/useUnits";
@@ -21,9 +21,15 @@ import { missingWords, onBoardSentence } from "@/features/inventory/onBoardWords
 import { formatDate } from "@/lib/format";
 
 /**
- * Equipment › On trucks — one row per truck or trailer and what it carries (MAINTENANCE-SECTION-
- * REDESIGN-PROPOSAL §7a.4, M7; the owner's R3: "a separate page where we see the equipment assigned
- * to each truck").
+ * Equipment › Trucks & trailers — one row per truck or trailer and what it carries (MAINTENANCE-SECTION-
+ * REDESIGN-PROPOSAL §7a.4, M7, where it was "On trucks"; the owner's R3: "a separate page where we see
+ * the equipment assigned to each truck"). Renamed by EA2, which lists by who holds a thing.
+ *
+ * ── IT OPENS ON THE UNITS CARRYING SOMETHING (EA2) ────────────────────────────────────────────
+ * Four hundred units of which a handful carry tagged equipment is a list of "Nothing on board yet",
+ * so the tab's own default (`?show=` empty) is the units holding at least one thing — what the owner
+ * asked to see. *Every truck and trailer* is one tap away, and is where a unit is found to assign to;
+ * the row opens it, where Assign equipment is.
  *
  * ── WHERE "MISSING EQUIPMENT" WENT ────────────────────────────────────────────────────────────
  * It was a group on the Shop page (M2), then a Show option on Trucks & trailers, whose `?show=short`
@@ -37,8 +43,7 @@ import { formatDate } from "@/lib/format";
  * truck carrying a tablet (`listUnitKits`, D-DE1). The fleet arrives whole — a few hundred rows — so
  * the panel searches, sorts and pages what it holds, as Trucks & trailers does.
  *
- * Opens on every unit (contract §9 rule 4's measured exception: production holds 0 equipment, so
- * nothing here can need attention yet); "Missing something" is one tap away and switches the day it can.
+ * "Missing something" and the red "N missing" are Should carry's, and hidden with it (`KIT_RULES_SHOWN`).
  */
 
 const PAGE_SIZE = 20;
@@ -48,11 +53,13 @@ const KIND_OPTIONS = [
   { value: "trailer", label: "Trailers" },
 ];
 const SHOW_OPTIONS = [
-  { value: "", label: "Every truck and trailer" },
+  { value: "", label: "Carrying something" },
+  { value: "all", label: "Every truck and trailer" },
   // R10: a unit somebody walked and found short; the never-checked are short on paper only.
-  { value: "missing", label: "Missing something" },
+  ...(KIT_RULES_SHOWN ? [{ value: "missing", label: "Missing something" }] : []),
   { value: "never", label: "Never checked" },
 ];
+const carries = (u: UnitKitDto) => u.lines.some((l) => l.held > 0);
 
 const router = useRouter();
 const qs = useQueryState();
@@ -72,8 +79,10 @@ interface Row extends UnitKitDto {
 const rows = computed<Row[]>(() => {
   const term = search.value.trim().toLowerCase();
   const all = (units.data.value?.units ?? [])
-    .map((u): Row => ({ ...u, carries: onBoardSentence(u), missing: missingWords(u) }))
-    .filter((u) => (show.value === "missing" ? u.missing !== null : show.value === "never" ? u.lastCheckedAt === null : true))
+    .map((u): Row => ({ ...u, carries: onBoardSentence(u), missing: KIT_RULES_SHOWN ? missingWords(u) : null }))
+    .filter((u) =>
+      show.value === "missing" ? u.missing !== null : show.value === "never" ? u.lastCheckedAt === null : show.value === "all" ? true : carries(u),
+    )
     .filter((u) => !term || u.unitNumber.toLowerCase().includes(term));
   return sortRows(all, sort.value) as Row[];
 });
@@ -101,7 +110,7 @@ const openUnit = (row: Record<string, unknown>) => {
 
 <template>
   <div class="space-y-4">
-    <p class="text-sm text-ink-tertiary">What each truck and trailer carries. Open one to see each item or check what is on board.</p>
+    <p class="text-sm text-ink-tertiary">What each truck and trailer carries. Open one to assign more by scanning, or to return something.</p>
 
     <DataWorkspace>
       <FilterBar
@@ -152,6 +161,10 @@ const openUnit = (row: Record<string, unknown>) => {
           <p v-if="search">No truck or trailer number matches that.</p>
           <p v-else-if="show === 'missing'">Nothing checked is missing anything. Trucks and trailers nobody has checked yet are under Never checked.</p>
           <p v-else-if="show === 'never'">Every truck and trailer has been checked at least once.</p>
+          <p v-else-if="!show">
+            Nothing is assigned to a truck or trailer yet. Open one — choose Show › Every truck and trailer — and
+            press Assign equipment.
+          </p>
           <p v-else>No trucks or trailers yet. They arrive from the roster — add one there, and it shows up here.</p>
         </template>
         <template #footer>

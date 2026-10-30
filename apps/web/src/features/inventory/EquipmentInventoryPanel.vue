@@ -4,7 +4,6 @@ import { useRouter } from "vue-router";
 import {
   useQueryState,
   AppButton as BaseButton,
-  AppCallout,
   DataWorkspace,
   FilterBar,
   DataTable,
@@ -14,18 +13,20 @@ import {
 import { ASSET_STATUSES, ASSET_STATUS_LABELS, type AssetDto } from "@silvicom/shared";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
 import KebabMenu from "@/components/KebabMenu.vue";
-import {
-  ASSETS_PAGE_SIZE,
-  useAssetsQuery,
-  useAssetTypesQuery,
-  useNotReturnedCountQuery,
-} from "@/features/inventory/useAssets";
+import { ASSETS_PAGE_SIZE, useAssetsQuery, useAssetTypesQuery } from "@/features/inventory/useAssets";
 import { BADGE_BASE, assetStatusBadge, toneClass } from "@/lib/badges";
 
 /**
- * Equipment › Inventory — everything the shop owns that has an identity (INVENTORY-PLAN.md I8). It
- * was the whole of `/shop/assets` until M7 (MAINTENANCE-SECTION-REDESIGN-PROPOSAL §7a.4) made that
- * page two tabs; the list moved in as it was.
+ * Equipment › In the shop — everything the shop owns that no truck, trailer or driver holds
+ * (EQUIPMENT-ASSIGN-BY-SCAN-PROPOSAL §3.4, EA2). It was the whole of `/shop/assets` until M7, then its
+ * Inventory tab; EA2 named the tabs by who holds a thing, and this is the one place a returned strap
+ * or a new tablet still in its box can be found.
+ *
+ * ── "ANYWHERE" IS ONE TAP AWAY ────────────────────────────────────────────────────────────────
+ * The tab opens on the shop (`?holder=shop`: three holder nulls, not retired). *Where › Anywhere*
+ * widens it to everything the org owns, which is how a serial or an IMEI is found when nobody knows
+ * which truck has it — the search this list has always been for. Anywhere counts as an applied
+ * filter; the tab's own default does not.
  *
  * ── WHY THIS IS A SEPARATE PAGE FROM PARTS AND NOT A TAB ON IT ────────────────────────────────
  * §2.1's seam, rendered. A case of oil filters is stock: the questions are "how many" and "where",
@@ -58,12 +59,8 @@ import { BADGE_BASE, assetStatusBadge, toneClass } from "@/lib/badges";
  * ── THE FILTERS' "EVERYTHING" IS `""` ─────────────────────────────────────────────────────────
  * `FilterSelect` reads any non-empty value as applied. `PartsPage.vue` carries the measurement.
  *
- * ── TABLETS NOT RETURNED IS THE DATABASE'S COUNT (DE2b, D-DE3) ────────────────────────────────
- * The office's chase list: tablets still with a driver who has left. The number is the API's `total`
- * for `?notReturned=true&limit=1` — never the rows on screen, which stop at fifty — and it appears in
- * two places that are one control: the *Returned* filter's count, and, while there are any and the
- * filter is off, a warning line whose button applies it. A driver's tablet reads "Dana Reyes" in the
- * holder column with the *Not returned* pill beside it.
+ * *Tablets not returned* (DE2b, D-DE3) moved to the Drivers tab with EA2 — a question about drivers.
+ * Under *Anywhere* a driver's tablet still reads "Dana Reyes" here, with the *Not returned* pill.
  */
 
 const router = useRouter();
@@ -81,16 +78,13 @@ const qs = useQueryState();
 const search = qs.param("search");
 const status = qs.param("status", ASSET_STATUSES);
 const typeId = qs.param("kind");
-const returned = qs.param("returned", ["not-returned"] as const);
+const where = qs.param("where", ["anywhere"] as const);
 const page = qs.page();
-watch([search, status, typeId, returned], () => (page.value = 1));
-
-const notReturnedQ = useNotReturnedCountQuery();
-const notReturnedCount = computed(() => notReturnedQ.data.value ?? 0);
-const returnedOptions = computed(() => [
-  { value: "", label: "All equipment" },
-  { value: "not-returned", label: "Not returned", count: String(notReturnedCount.value) },
-]);
+watch([search, status, typeId, where], () => (page.value = 1));
+const WHERE_OPTIONS = [
+  { value: "", label: "In the shop" },
+  { value: "anywhere", label: "Anywhere" },
+];
 
 const { data: types } = useAssetTypesQuery();
 const typeOptions = computed(() => [
@@ -98,19 +92,19 @@ const typeOptions = computed(() => [
   ...(types.value ?? []).map((t) => ({ value: t.id, label: t.name })),
 ]);
 
-const filtered = computed(() => Boolean(search.value || status.value || typeId.value || returned.value));
+const filtered = computed(() => Boolean(search.value || status.value || typeId.value || where.value));
 const activeFilterCount = computed(
-  () => [search.value.trim(), status.value, typeId.value, returned.value].filter(Boolean).length,
+  () => [search.value.trim(), status.value, typeId.value, where.value].filter(Boolean).length,
 );
 function resetFilters() {
-  qs.set({ search: undefined, status: undefined, kind: undefined, returned: undefined });
+  qs.set({ search: undefined, status: undefined, kind: undefined, where: undefined });
 }
 
 const filter = computed(() => ({
   search: search.value.trim() || undefined,
   status: (status.value || undefined) as AssetDto["status"] | undefined,
   assetTypeId: typeId.value || undefined,
-  notReturned: returned.value === "not-returned" || undefined,
+  holder: where.value === "anywhere" ? undefined : ("shop" as const),
   page: page.value,
 }));
 const assets = useAssetsQuery(filter);
@@ -130,13 +124,6 @@ const openAsset = (row: Record<string, unknown>) =>
 
 <template>
   <DataWorkspace>
-    <AppCallout v-if="notReturnedCount > 0 && !returned" tone="warning" data-test="not-returned-callout">
-      {{ notReturnedCount === 1 ? "1 tablet is" : `${notReturnedCount} tablets are` }} still with a driver who has left.
-      <template #actions>
-        <BaseButton size="sm" @click="returned = 'not-returned'">Show them</BaseButton>
-      </template>
-    </AppCallout>
-
     <FilterBar
       v-model:search="search"
       embedded
@@ -149,7 +136,7 @@ const openAsset = (row: Record<string, unknown>) =>
       <template #filters>
         <FilterSelect v-model="typeId" label="Kind" :options="typeOptions" />
         <FilterSelect v-model="status" label="Status" :options="STATUS_OPTIONS" />
-        <FilterSelect v-model="returned" label="Returned" :options="returnedOptions" />
+        <FilterSelect v-model="where" label="Where" :options="WHERE_OPTIONS" />
       </template>
     </FilterBar>
 
@@ -191,10 +178,13 @@ const openAsset = (row: Record<string, unknown>) =>
         </KebabMenu>
       </template>
       <template #empty>
-        <p v-if="returned">Every tablet given to a driver who has left has come back.</p>
-        <p v-else-if="search">Nothing matches that. Try its number, its serial, or the tag on it.</p>
+        <p v-if="search">Nothing matches that. Try its number, its serial, or the tag on it.</p>
         <p v-else-if="filtered">
           Nothing matches those filters. Clear them to see everything the shop owns.
+        </p>
+        <p v-else-if="!where && (types ?? []).length > 0">
+          Nothing is in the shop — everything is on a truck, a trailer or with a driver. Choose Where ›
+          Anywhere to see it all.
         </p>
         <p v-else>
           No equipment yet. Set up the types under Types of equipment first — then add the first

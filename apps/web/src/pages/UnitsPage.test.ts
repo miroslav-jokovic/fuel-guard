@@ -170,11 +170,12 @@ describe("opening on what needs attention", () => {
 
 describe("the other views", () => {
   /** M7 (§7a.4): "Missing equipment" moved to Equipment's On trucks tab; a bookmark follows it there. */
-  it("sends the old ?show=short to Equipment's On trucks, its kind and search carried", async () => {
+  // EA2: the tab is Trucks & trailers now, and "missing" is Should carry's, hidden (`KIT_RULES_SHOWN`).
+  it("sends the old ?show=short to Equipment's Trucks & trailers, its kind and search carried", async () => {
     const r = createRouter({ history: createMemoryHistory(), routes: [...ROUTE_TABLE] });
     await r.push("/shop/units?show=short&kind=trailer&search=R-8");
     expect(r.currentRoute.value.path).toBe("/shop/assets");
-    expect(r.currentRoute.value.query).toEqual({ kind: "trailer", search: "R-8", tab: "on-trucks", show: "missing" });
+    expect(r.currentRoute.value.query).toEqual({ kind: "trailer", search: "R-8", tab: "trucks" });
   });
 
   it("offers needs attention and everything under Show, and no longer Missing equipment", async () => {
