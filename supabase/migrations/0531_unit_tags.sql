@@ -4,7 +4,7 @@
 -- `vehicles` and `trailers` are written by the Samsara and McLeod syncs, and `vehicles.status` is
 -- already restated seventeen times across the code (memory `vehicles-status-is-restated-17-times`).
 -- A tag is the shop's fact about a unit, not the fleet feed's, so it gets the shop's table:
--- maintenance-owned, written by one API file (`unitTagIssuance.ts`, DE4), read by the resolver. A
+-- maintenance-owned, written and read by one API file (`maintenance/inventory/unitTags.ts`, DE4). A
 -- new table is also exempt from the migration-ordering split — its first reader can ride the next
 -- merge without a column landing under old code.
 --
