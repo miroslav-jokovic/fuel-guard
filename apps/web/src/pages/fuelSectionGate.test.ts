@@ -72,14 +72,18 @@ vi.mock("@/stores/toast", () => ({ useToastStore: () => ({ success: vi.fn(), err
 
 const STUBS = {
   QualificationSection: { template: "<div />" }, SevenDayStatementSection: { template: "<div />" },
+  // EA1: the vehicle page's equipment card is the shop's, and not what this file is about; the driver
+  // page's is, so the Equipment describe below mounts it for real (`withEquipment`).
+  HolderEquipmentCard: { template: "<div />" },
   UnitFileSection: { template: "<div />" }, UnitWorkOrdersCard: { template: "<div />" },
   UnitInspectionsCard: { template: "<div />" }, BaseChart: { template: "<div />" }, DataTable: { template: "<table />" },
 };
-const mountPage = async (component: unknown, path: string, route: string) => {
+const mountPage = async (component: unknown, path: string, route: string, withEquipment = false) => {
   const router = createRouter({ history: createMemoryHistory(), routes: [{ path: route, component: component as never }, { path: "/recruitment/:id", component: { template: "<div />" } }] });
   await router.push(path);
   await router.isReady();
-  const w = mount(component as never, { attachTo: document.body, global: { plugins: [router, VueQueryPlugin], stubs: STUBS } });
+  const { HolderEquipmentCard: _card, ...rest } = STUBS;
+  const w = mount(component as never, { attachTo: document.body, global: { plugins: [router, VueQueryPlugin], stubs: withEquipment ? rest : STUBS } });
   await flushPromises();
   return w;
 };
@@ -135,7 +139,7 @@ describe("DriverDetailPage — the Equipment card follows the maintenance sectio
 
   it("asks for nothing and shows no card to a role without the shop's section", async () => {
     maintenanceAccess = "none";
-    const w = await mountPage(DriverDetailPage, "/drivers/d-1", "/drivers/:id");
+    const w = await mountPage(DriverDetailPage, "/drivers/d-1", "/drivers/:id", true);
     expect(apiCalls.some((u) => u.startsWith("/api/maintenance/inventory/assets"))).toBe(false);
     expect(w.find("[data-test='holder-equipment']").exists()).toBe(false);
     maintenanceAccess = "view";
@@ -143,7 +147,7 @@ describe("DriverDetailPage — the Equipment card follows the maintenance sectio
 
   it("reads this driver's tablets for a view-only shop role", async () => {
     maintenanceAccess = "view";
-    const w = await mountPage(DriverDetailPage, "/drivers/d-1", "/drivers/:id");
+    const w = await mountPage(DriverDetailPage, "/drivers/d-1", "/drivers/:id", true);
     expect(apiCalls).toContainEqual(expect.stringContaining("driverId=d-1"));
     expect(w.find("[data-test='holder-equipment']").text()).toContain("No tablet is with this driver.");
   });
