@@ -151,3 +151,12 @@ dispatch truth is the load's driver and tractor, which the VM already sends ever
   Stop → copy → tests → Start). RL1 is safe before the release on today's data: the
   only applicant matching a McLeod driver by name (CHAIRSTO) also matches by licence, so the
   production API holds him either way.
+- 2026-10-30 — RL1 + RL2 merged (#1858, `43f6abc`). The VM update is now a script,
+  `tools/mcleod-agent/windows/update-connector.ps1`, built on `set-connector-line.ps1`'s pattern. It
+  installs the WHOLE connector source (36 files) from one pinned commit rather than patching file by file,
+  because after the 10/10, 10/12 and 10/14 patches nobody could say which version of each file the VM
+  runs. Every file is checked by SHA-256 before the connector is stopped, the tests run on the VM, exactly
+  one env line (`ROSTER_MODE`) changes, and any failure restores everything. Checksums come from git
+  objects via `windows/manifest.mjs`. Rehearsed on the Mac from the public raw URLs at `43f6abc`: 36/36
+  checksums match, 151/151 tests, and a create-mode `--roster --dry-run` against `lme` read 182 / 215 / 223
+  and wrote no state.
