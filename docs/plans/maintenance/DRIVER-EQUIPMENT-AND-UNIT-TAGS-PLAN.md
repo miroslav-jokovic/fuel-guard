@@ -138,6 +138,15 @@ Numbered on from the inventory plan's I13; I14 moved to its own plan.
 - Scanning a unit tag opens the truck's or trailer's page (Q-DE3 settled 2026-10-30) with its Assign list
   open (`?assign=1`) for somebody who may assign — the owner's "scan the truck's label → its Assign list opens".
 
+### DE5 — A unit's label switches the list it is scanned into — *no migration* (owner 2026-10-30: "yes, build DE5 too")
+- Not in the first plan: added when DE4 made unit labels scannable. Walking down a row of trucks, the next
+  truck's label is the quickest way to say "now this one".
+- In the **Assign list**: another truck's or trailer's own label moves the list on to that unit, and says
+  so ("Now assigning to Trailer 1203"). Lines already scanned keep the holder they were judged against —
+  and their "instead" offer. The unit's own label changes nothing ("That is Truck 654's own label").
+- In a **check**: another unit's label never abandons the open check. It says "This check stays open" and
+  offers *Check Trailer 1203* (`useStartUnitCheck`, which resumes that unit's open check, R9).
+
 ---
 
 ## 4. Open questions
@@ -361,4 +370,14 @@ proof none of this replaces — the scanner on an Android tablet, and a printed 
     refused by name until DE5 makes it switch.
   - Tests: api `unitTags.test.ts` (9), shared `unitTagContract.test.ts` (4), web Scan page (3), card (3), Labels (3),
     `judgeScan` (1). 11 mutants, all killed.
+- **2026-10-30 — DE5: a unit's label switches the list** (`claude/unit-tags-de5`). No migration, no API change.
+  - `judgeScan` answers another unit's label with a new verdict, `switch`; the unit's own label stays refused.
+  - `AssignEquipmentDrawer` keeps a `current` holder (the page's to start with). Each line records `home`, the
+    holder it was scanned against, so a strap scanned for 654 still goes on 654 after the switch, and a tablet's
+    "Give to Dana Reyes instead" is still offered from 654's driver. The switch is a status line above the list
+    and moves the heading, the hint and the confirm verb with it.
+  - `useCheckScan` turns `switch` into a warning that this check stays open, plus `otherUnit`; `UnitCheck`
+    draws *Check <unit>*, which calls `useStartUnitCheck`. Nothing is written and the open check is not closed.
+  - Tests: drawer (3), check (1), `judgeScan` (updated). 8 mutants, all killed — the fourth ("offer from the
+    current unit") needed the tablet test written for it first.
 

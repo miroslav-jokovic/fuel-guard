@@ -41,6 +41,8 @@ export type AssignVerdict =
   | { kind: "retired"; asset: AssetDto }
   /** Nothing on file carries it, and it reads like a device's own code — the line offers Add it. */
   | { kind: "new"; code: string; seed: AssetFormSeed; message: string }
+  /** Another truck's or trailer's own label (DE5): the list moves on to that unit. */
+  | { kind: "switch"; code: string; to: AssignTarget }
   | { kind: "refused"; code: string; message: string };
 
 /**
@@ -98,10 +100,14 @@ export function judgeScan(
     case "asset":
       return judgeAsset(result.asset, to, types, partner);
     case "unit": {
-      // A truck's or trailer's own label (DE4). It names where things go, so it is never equipment.
+      // A truck's or trailer's own label (DE4) names where things go, so it is never equipment. Another
+      // unit's switches the list to it (DE5, owner 2026-10-30): standing at the next truck, its label is
+      // the quickest way to say so. This one's own label changes nothing.
       const name = unitName(result.unit);
-      const self = result.unit.kind === to.kind && result.unit.id === to.id;
-      return { kind: "refused", code: result.code, message: self ? `That is ${name}'s own label.` : `That is ${name}'s label, not equipment.` };
+      if (result.unit.kind === to.kind && result.unit.id === to.id) {
+        return { kind: "refused", code: result.code, message: `That is ${name}'s own label.` };
+      }
+      return { kind: "switch", code: result.code, to: { kind: result.unit.kind, id: result.unit.id, label: name } };
     }
     case "stock_line":
     case "part_by_upc":

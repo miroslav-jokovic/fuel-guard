@@ -27,6 +27,11 @@ export interface LastScan {
   tone: ScanTone;
   /** Recorded on another holder: the screen offers to move it onto this unit. */
   moveable: AssetDto | null;
+  /**
+   * DE5: another truck's or trailer's own label. The screen offers to check THAT unit — never silently:
+   * this check stays open, and `useStartUnitCheck` resumes the other's if one is open already (R9).
+   */
+  otherUnit?: AssignTarget;
 }
 
 export const SCAN_TONE: Record<ScanTone, string> = {
@@ -67,6 +72,10 @@ export function useCheckScan(opts: {
     if (mine) return tick(mine);
     const v = judgeScan(result, opts.target.value, types.value, null);
     if (v.kind === "here") return tick(v.asset);
+    if (v.kind === "switch") {
+      lastScan.value = { text: `That is ${v.to.label}'s label. This check stays open.`, tone: "warn", moveable: null, otherUnit: v.to };
+      return;
+    }
     if (v.kind === "assign") {
       lastScan.value = {
         text: `${v.asset.displayNo} · ${v.asset.name} is recorded ${v.fromLabel ? `on ${v.fromLabel}` : "in the shop"}.`,

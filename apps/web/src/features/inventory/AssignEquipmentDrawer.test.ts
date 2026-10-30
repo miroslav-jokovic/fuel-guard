@@ -155,3 +155,47 @@ describe("Confirm (D-INV27)", () => {
     w.unmount();
   });
 });
+
+describe("scanning another unit's own label moves the list on (DE5)", () => {
+  const TRAILER = "dddddddd-dddd-4ddd-8ddd-dddddddddddd";
+  beforeEach(() => {
+    answers.set("SIL1:TRL:X4Q2VW", { kind: "unit", code: "SIL1:TRL:X4Q2VW", unit: { kind: "trailer", id: TRAILER, unitNumber: "1203" } });
+    answers.set("SIL1:VEH:7K3M9P", { kind: "unit", code: "SIL1:VEH:7K3M9P", unit: { kind: "vehicle", id: TRUCK, unitNumber: "654" } });
+  });
+
+  it("says so, keeps what was scanned going where it was going, and sends each to its own unit", async () => {
+    const w = drawer();
+    await scan("SIL1:AST:AAAAAA");
+    await scan("SIL1:TRL:X4Q2VW");
+    expect(w.get("[data-test=assign-switched]").text()).toContain("Now assigning to Trailer 1203");
+    // The label is not a line, and the strap scanned for 654 still goes on 654.
+    expect(lines(w)).toHaveLength(1);
+    expect(lines(w)[0]).toContain("Goes on Truck 654");
+    await scan("SIL1:AST:BBBBBB");
+    expect(lines(w)[0]).toContain("Goes on Trailer 1203");
+    await w.find("form").trigger("submit");
+    await flushPromises();
+    // Newest line first, as the list shows them.
+    expect(sent()).toEqual([
+      expect.objectContaining({ assetId: STRAP_B.id, toTrailerId: TRAILER, toVehicleId: null }),
+      expect.objectContaining({ assetId: STRAP_A.id, toVehicleId: TRUCK, toTrailerId: null }),
+    ]);
+    w.unmount();
+  });
+
+  it("keeps a tablet's offer to give it to 654's driver after the list has moved to a trailer", async () => {
+    const w = drawer();
+    await scan("SIL1:AST:CCCCCC");
+    await scan("SIL1:TRL:X4Q2VW");
+    expect(w.find("[data-test=assign-instead]").text()).toBe("Give to Dana Reyes instead");
+    w.unmount();
+  });
+
+  it("does nothing for the truck's own label but say so", async () => {
+    const w = drawer();
+    await scan("SIL1:VEH:7K3M9P");
+    expect(w.find("[data-test=assign-switched]").exists()).toBe(false);
+    expect(lines(w)[0]).toContain("That is Truck 654's own label.");
+    w.unmount();
+  });
+});

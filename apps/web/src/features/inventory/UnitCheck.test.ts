@@ -145,6 +145,10 @@ vi.mock("vue-router", async (importOriginal) => ({
   useRouter: () => ({ push: vi.fn(), resolve: () => ({ name: "not-found", meta: {} }) }),
 }));
 
+/** DE5: another unit's own label offers that unit's check — started (or resumed, R9) here. */
+const started = vi.hoisted(() => vi.fn());
+vi.mock("@/features/inventory/useStartUnitCheck", () => ({ useStartUnitCheck: () => ({ startCheck: started, openWalk: { isPending: { value: false } } }) }));
+
 const { pending } = await import("@/features/inventory/countQueue");
 const UnitCheck = (await import("@/features/inventory/UnitCheck.vue")).default;
 
@@ -373,3 +377,22 @@ describe("closing", () => {
     expect(w.text()).toContain("Unchecked");
   });
 });
+
+describe("another unit's own label (DE5)", () => {
+  const TRAILER = "abababab-abab-4bab-8bab-abababababab";
+
+  it("offers that unit's check, and leaves this one open with nothing written", async () => {
+    started.mockClear();
+    resolved.set("SIL1:TRL:X4Q2VW", { kind: "unit", code: "SIL1:TRL:X4Q2VW", unit: { kind: "trailer", id: TRAILER, unitNumber: "1203" } });
+    const w = page();
+    await scan("SIL1:TRL:X4Q2VW");
+    expect(w.get("[data-test=check-last-scan]").text()).toBe("That is Trailer 1203's label. This check stays open.");
+    expect(started).not.toHaveBeenCalled();
+    await w.get("[data-test=check-other-unit]").trigger("click");
+    await settle();
+    expect(started).toHaveBeenCalledWith("trailer", TRAILER);
+    expect(closeWalk.mutateAsync).not.toHaveBeenCalled();
+    expect(move.mutateAsync).not.toHaveBeenCalled();
+  });
+});
+
