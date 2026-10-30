@@ -1,5 +1,6 @@
 import { registerTagResolver } from "./registry.js";
 import { resolveBinTag, resolveAssetTag } from "../modules/maintenance/inventory/tagResolvers.js";
+import { resolveTrailerTag, resolveVehicleTag } from "../modules/maintenance/inventory/unitTags.js";
 
 /**
  * Every kind this deployment can resolve (D-INV7; plan I6).
@@ -16,4 +17,7 @@ export function registerTagResolvers(): void {
   registerTagResolver("BIN", resolveBinTag);
   // An asset: a thing with an identity, which I7 gave `tag_code` and I10 will start printing.
   registerTagResolver("AST", resolveAssetTag);
+  // A truck or a trailer: its own label, inside the cab or the front wall (DE4, D-DE5; `unit_tags`).
+  registerTagResolver("VEH", resolveVehicleTag);
+  registerTagResolver("TRL", resolveTrailerTag);
 }

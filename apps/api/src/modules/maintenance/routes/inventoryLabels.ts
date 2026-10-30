@@ -91,7 +91,7 @@ export function inventoryLabelsRouter(): Router {
       const admin = getSupabaseAdmin(getAppLocals(req).env);
       const orgId = req.auth!.orgId!;
       const body = res.locals.body as LabelFacesRequest;
-      const result = await resolveLabelFaces(admin, orgId, body.targets);
+      const result = await resolveLabelFaces(admin, orgId, body.targets, req.auth!.userId ?? null);
       if (isServiceError(result)) {
         res.status(statusForServiceError(result.code)).json(apiError(result.code, result.error));
         return;
@@ -138,7 +138,7 @@ export function inventoryLabelsRouter(): Router {
 
       const admin = getSupabaseAdmin(getAppLocals(req).env);
       const orgId = req.auth!.orgId!;
-      const result = await resolveLabelFaces(admin, orgId, run.targets);
+      const result = await resolveLabelFaces(admin, orgId, run.targets, req.auth!.userId ?? null);
       if (isServiceError(result)) {
         res.status(statusForServiceError(result.code)).json(apiError(result.code, result.error));
         return;

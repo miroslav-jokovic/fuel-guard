@@ -83,7 +83,7 @@ export async function printLabels(
   const stockId = rollStockOrNull(printer.stock_id);
   if (!stockId) return fail("unknown_stock", `${printer.name} is set to a stock this system cannot print on.`);
 
-  const resolved = await resolveLabelFaces(admin, orgId, input.targets);
+  const resolved = await resolveLabelFaces(admin, orgId, input.targets, userId);
   if ("code" in resolved) return resolved;
   if (resolved.faces.length === 0) return fail("not_found", "None of those things can be labelled any more.");
   return queueFaces(admin, orgId, userId, input.id, printer, stockId, resolved.faces, resolved.dropped);

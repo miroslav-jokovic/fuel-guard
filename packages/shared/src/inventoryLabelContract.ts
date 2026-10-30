@@ -33,13 +33,27 @@ import { recordId } from "./recordId.js";
  * Which thing to label.
  *
  * A stock line is named by the PAIR that identifies it — one part at one location — because that is
- * its primary key and there is no surrogate id to send. An asset has one.
+ * its primary key and there is no surrogate id to send. An asset has one. A truck or trailer (DE4) is
+ * named by its table and id — `vehicles` and `trailers` are two tables, and a unit number is not unique
+ * across them (a truck and a trailer may both be 1203).
  */
 export const labelTargetSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("stock"), partId: recordId(), locationId: recordId() }),
   z.object({ kind: z.literal("asset"), assetId: recordId() }),
+  z.object({ kind: z.literal("unit"), unitKind: z.enum(["vehicle", "trailer"]), unitId: recordId() }),
 ]);
 export type LabelTarget = z.infer<typeof labelTargetSchema>;
+
+/**
+ * Where a unit's label goes, printed ON the label (owner, 2026-10-30; DRIVER-EQUIPMENT-AND-UNIT-TAGS-PLAN.md
+ * Q-DE2 (a)). The roll is direct thermal and fades in sunlight, so the label is stuck where the sun does not
+ * reach, and says so to whoever peels the next one: a truck's inside the cab, a trailer's — which has no
+ * cab — inside its front wall. Exterior plates are the long-term answer and are ordered later.
+ */
+export const UNIT_LABEL_PLACEMENT = {
+  vehicle: "Inside cab — driver door jamb",
+  trailer: "Inside front wall",
+} as const;
 
 /**
  * The most labels one run may ask for.

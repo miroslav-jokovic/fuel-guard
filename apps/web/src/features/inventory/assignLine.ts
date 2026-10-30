@@ -1,6 +1,7 @@
 import { readStickerCode, type AssetDto, type AssetMovementReason, type AssetTypeDto, type ScanResult } from "@silvicom/shared";
 import type { AssetFormSeed } from "./AssetForm.vue";
 import { isDriverHeld } from "./driverHeldMove";
+import { unitName } from "./unitPage";
 
 /**
  * What one scan means on the Assign equipment list (EQUIPMENT-ASSIGN-BY-SCAN-PROPOSAL.md §3.1, EA1).
@@ -96,6 +97,12 @@ export function judgeScan(
   switch (result.kind) {
     case "asset":
       return judgeAsset(result.asset, to, types, partner);
+    case "unit": {
+      // A truck's or trailer's own label (DE4). It names where things go, so it is never equipment.
+      const name = unitName(result.unit);
+      const self = result.unit.kind === to.kind && result.unit.id === to.id;
+      return { kind: "refused", code: result.code, message: self ? `That is ${name}'s own label.` : `That is ${name}'s label, not equipment.` };
+    }
     case "stock_line":
     case "part_by_upc":
       // Shop parts are FleetPal's and never ride on a truck as equipment (the two inventories, §0).

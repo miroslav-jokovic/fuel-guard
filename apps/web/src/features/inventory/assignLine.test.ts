@@ -146,3 +146,17 @@ describe("the holder a refused line offers", () => {
     expect(holderPartner({ kind: "driver", id: "d-3", label: "Kim Ortiz" }, vehicles, drivers)).toEqual(truck);
   });
 });
+
+describe("a truck's or trailer's own label on a list (DE4)", () => {
+  const label = (kind: "vehicle" | "trailer", id: string, unitNumber: string): ScanResult => ({ kind: "unit", code: "SIL1:VEH:7K3M9P", unit: { kind, id, unitNumber } });
+
+  it("is never equipment: another unit's label is refused by name, and this unit's says it is its own", () => {
+    expect(judgeScan(label("trailer", "t-1203", "1203"), truck, types, dana)).toEqual({
+      kind: "refused",
+      code: "SIL1:VEH:7K3M9P",
+      message: "That is Trailer 1203's label, not equipment.",
+    });
+    expect(judgeScan(label("vehicle", truck.id, "654"), truck, types, dana)).toMatchObject({ kind: "refused", message: "That is Truck 654's own label." });
+  });
+});
+

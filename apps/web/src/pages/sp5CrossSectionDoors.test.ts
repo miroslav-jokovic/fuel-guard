@@ -1,3 +1,5 @@
+import { createMemoryHistory, createRouter } from "vue-router";
+import { ROUTE_TABLE } from "@/router/table";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { mount } from "@vue/test-utils";
 import { createPinia, setActivePinia } from "pinia";
@@ -65,7 +67,9 @@ describe("the hazmat panel on a load", () => {
 describe("the equipment card on a vehicle", () => {
   it("opens the unit in the shop, and not for a person whose Units screen is off", () => {
     const target = { kind: "vehicle", id: "v1", label: "Truck 654" } as const;
-    const shop = () => mount(HolderEquipmentCard, { props: { target }, global }).text();
+    // The card reads `?assign=` off the route since DE4, so it mounts under a router of its own.
+    const router = createRouter({ history: createMemoryHistory(), routes: [...ROUTE_TABLE] });
+    const shop = () => mount(HolderEquipmentCard, { props: { target }, global: { ...global, plugins: [...global.plugins, router] } }).text();
     expect(shop()).toContain("Open in the shop");
     session.surfaces = { "maintenance.units": false };
     expect(shop()).not.toContain("Open in the shop");

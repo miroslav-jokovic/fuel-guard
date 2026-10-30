@@ -37,7 +37,7 @@ describe("parseTag — a supplier barcode is never one of ours", () => {
   });
 
   it("returns null for a kind no resolver is registered for", () => {
-    expect(parseTag("SIL1:VEH:7K3M9P")).toBeNull();
+    expect(parseTag("SIL1:DOC:7K3M9P")).toBeNull();
   });
 
   it("returns null for an id of the wrong length", () => {

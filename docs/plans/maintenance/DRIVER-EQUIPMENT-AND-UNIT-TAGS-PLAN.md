@@ -135,7 +135,8 @@ Numbered on from the inventory plan's I13; I14 moved to its own plan.
 ### DE4 — Unit tags: issuance, resolver, labels — *no migration*
 - `VEH`/`TRL` in `TAG_KINDS`; two resolvers; issuance on `tagIssuance.ts`'s model.
 - `/shop/labels`: a third segment, **Trucks & trailers**, picking by unit number; the face per D-DE6.
-- Scanning a unit tag opens the vehicle page (trailers: Q-DE3).
+- Scanning a unit tag opens the truck's or trailer's page (Q-DE3 settled 2026-10-30) with its Assign list
+  open (`?assign=1`) for somebody who may assign — the owner's "scan the truck's label → its Assign list opens".
 
 ---
 
@@ -341,3 +342,23 @@ proof none of this replaces — the scanner on an Android tablet, and a printed 
   - Schema-only, so `check-table-producers` pins it until DE4's label print issues the first code.
   - Matrix `unit-tags.test.mjs` (21). 9 mutants: 8 killed; the 9th (dropping the guard's `revoke`) is a
     no-op, because 0412 already closes new functions to clients — the same finding as 0530's matrix.
+- **2026-10-30 — DE4: unit labels, printed and scanned** (`claude/unit-tags-de4`). No migration (0531's reader and writer).
+  - `VEH`/`TRL` join `TAG_KINDS`; the resolvers (`maintenance/inventory/unitTags.ts`, registered in
+    `tags/resolvers.ts`) answer a new scan result, `unit` — the table, id and unit number. A `VEH` code answers only
+    a truck's row, a `TRL` only a trailer's.
+  - Issued on first print, preview included, like an asset's (I10): an INSERT into `unit_tags` whose 23505 is told
+    apart by re-reading the unit — taken code → draw again, unit labelled a moment ago → their code. `issued_by` is
+    the person printing. `check-table-producers` drops 0531's pin; `table-writers.json` names `unitTags.ts`.
+  - The face (D-DE6): the unit number big, then the six-character code, then where it goes —
+    `UNIT_LABEL_PLACEMENT`: "Inside cab — driver door jamb" / "Inside front wall" (the PDF's WinAnsi prints the dash
+    as a hyphen). Both the PDF and the label printer's job read the same faces (`resolveLabelFaces`).
+  - Labels gains a third source, **Trucks & trailers** (`UnitLabelTable.vue`): the units the Equipment tab reads, one
+    response, searched by unit number or driver here; a tractor is a `vehicles` target, a trailer or reefer a
+    `trailers` one.
+  - The Scan page opens a scanned unit's page by `router.replace` — with `?assign=1` for somebody who may assign,
+    which `HolderEquipmentCard` now reads as its Assign list's open state (closing drops the flag alone). A reader
+    the fleet page does not admit gets a card naming the unit. Inside an Assign list or a check a unit label is
+    refused by name until DE5 makes it switch.
+  - Tests: api `unitTags.test.ts` (9), shared `unitTagContract.test.ts` (4), web Scan page (3), card (3), Labels (3),
+    `judgeScan` (1). 11 mutants, all killed.
+
