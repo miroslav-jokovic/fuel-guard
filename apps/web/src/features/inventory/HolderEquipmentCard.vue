@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import { AppButton as BaseButton, AppCard as BaseCard, QueryState } from "@silvicom/ui";
+import { AppButton as BaseButton, AppCard as BaseCard, QueryState, useQueryState } from "@silvicom/ui";
 import type { AssetDto } from "@silvicom/shared";
 import KebabMenu from "@/components/KebabMenu.vue";
 import { useVehiclesQuery } from "@/composables/useVehicles";
@@ -41,6 +41,12 @@ import { useStartUnitCheck } from "./useStartUnitCheck";
  * scanned to tick it off. Not on the shop's truck page, whose header already carries the same verb
  * (`checkButton: false`), and not on a driver's — a check walks a unit, not a person.
  *
+ * ── `?assign=1` OPENS THE ASSIGN LIST (DE4) ───────────────────────────────────────────────────
+ * The owner's "scan the truck's label → its Assign list opens → scan the items → Confirm" (2026-10-30):
+ * the Scan page sends a scanned truck or trailer label here with the flag, so the list is already open
+ * when the page is. A flag in the query rather than a prop for the same reason Equipment's `?new=1` is
+ * one (D-US2): closing the list removes the flag alone, and a back button does not reopen it.
+ *
  * ── WHO SEES WHAT ─────────────────────────────────────────────────────────────────────────────
  * The list reads the shop's assets route, `maintenance: view` — the card renders nothing without it,
  * because a card full of blanks would say "this truck carries nothing", which is a different and
@@ -79,7 +85,7 @@ const driverFilter = computed(() => ({ page: 1, driverId: truckDriver.value?.id 
 const driverQ = useAssetsQuery(driverFilter, computed(() => maySee.value && Boolean(truckDriver.value)));
 const driverRows = computed(() => (truckDriver.value ? (driverQ.data.value?.assets ?? []) : []));
 
-const assigning = ref(false);
+const assigning = useQueryState().flag("assign");
 const check = useStartUnitCheck();
 const canCheck = computed(() => props.checkButton && canManage.value && props.target.kind !== "driver");
 const startCheck = () => check.startCheck(props.target.kind === "vehicle" ? "tractor" : "trailer", props.target.id);
@@ -162,7 +168,7 @@ const shopRoute = computed(() =>
         Open in the shop
       </RouterLink>
     </QueryState>
-    <AssignEquipmentDrawer v-if="assigning" :open="true" :target="target" @close="assigning = false" />
+    <AssignEquipmentDrawer v-if="assigning && canManage" :open="true" :target="target" @close="assigning = false" />
     <AssetMoveDrawer
       v-if="moving"
       :open="true"

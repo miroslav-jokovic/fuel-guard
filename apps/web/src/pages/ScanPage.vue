@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, ref, watch } from "vue";
 import { useRouter } from "vue-router";
 import { AppButton as BaseButton, AppFormField as FormField, AppIcon, AppInput as BaseInput, ErrorState } from "@silvicom/ui";
 import { ScanIcon } from "@silvicom/ui/icons";
@@ -8,6 +8,8 @@ import BarcodeCamera from "@/components/BarcodeCamera.vue";
 import { SCAN_PAGE_READER } from "@/features/inventory/shopBarcodeFormats";
 import { useLocationsQuery } from "@/features/inventory/useInventory";
 import { useSessionStore } from "@/stores/session";
+import { useOpens } from "@/composables/useOpens";
+import { unitPage } from "@/features/inventory/unitPage";
 import { useScanQuery } from "@/features/inventory/useScan";
 import { useReturnToShop } from "@/features/inventory/useReturnToShop";
 import ScanResultCard, { type ScanAction } from "@/features/inventory/ScanResultCard.vue";
@@ -144,6 +146,19 @@ function act(action: ScanAction) {
  * anything, and a stale number on a screen they are still looking at is the kind of thing that ends
  * with somebody counting the shelf by hand to see which figure was right.
  */
+/**
+ * DE4: a truck's or trailer's own label opens that unit's page — with its Assign list open, for
+ * somebody who may assign — rather than a card asking for a second tap (`unitPage.ts`). Replace, not
+ * push: Back from the truck returns to whatever came before the Scan page, not to a page that would
+ * open the truck again. The card stays the answer for a reader the fleet page does not admit.
+ */
+const opens = useOpens();
+watch(result, (r) => {
+  if (r?.kind !== "unit") return;
+  const door = unitPage(r.unit, canManage.value);
+  if (opens(door)) void router.replace(door);
+});
+
 function refresh() {
   if (code.value) void refetch();
 }

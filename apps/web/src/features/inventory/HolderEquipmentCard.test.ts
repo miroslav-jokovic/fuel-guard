@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { flushPromises, mount } from "@vue/test-utils";
 import { createPinia, setActivePinia } from "pinia";
 import { ref } from "vue";
+import { createMemoryHistory, createRouter, type Router } from "vue-router";
 
 /**
  * The equipment card on a truck's, trailer's and driver's page (EA1). It took over DE2b's driver card,
@@ -50,10 +51,12 @@ const item = (id: string, typeName: string, holder: Record<string, unknown>, ime
 });
 const truck = { kind: "vehicle", id: "v-654", label: "Truck 654" } as const;
 const dana = { kind: "driver", id: "d-1", label: "Dana Reyes" } as const;
-const render = (target: typeof truck | typeof dana) =>
+/** The Assign list's open state is `?assign=1` (DE4), so the card reads the route. */
+const makeRouter = () => createRouter({ history: createMemoryHistory(), routes: [{ path: "/:any(.*)*", component: { template: "<div />" } }] });
+const render = (target: typeof truck | typeof dana, router: Router = makeRouter()) =>
   mount(HolderEquipmentCard, {
     props: { target },
-    global: { stubs: { RouterLink: { template: "<a><slot /></a>" }, AssignEquipmentDrawer: true, AssetMoveDrawer: true, KebabMenu: { template: "<div><slot /></div>" } } },
+    global: { plugins: [router], stubs: { RouterLink: { template: "<a><slot /></a>" }, AssignEquipmentDrawer: true, AssetMoveDrawer: true, KebabMenu: { template: "<div><slot /></div>" } } },
   });
 
 beforeEach(() => {
@@ -147,3 +150,39 @@ describe("who sees what", () => {
     expect(asked.every((a) => !a.enabled)).toBe(true);
   });
 });
+
+describe("a scanned truck label opens the Assign list (DE4)", () => {
+  async function at(url: string) {
+    const router = makeRouter();
+    await router.push(url);
+    const w = render(truck, router);
+    await flushPromises();
+    return { w, router };
+  }
+
+  it("opens with the list already up when the address carries ?assign=1, and closing it drops only the flag", async () => {
+    const { w, router } = await at("/vehicles/v-654?assign=1&section=maintenance");
+    const drawer = w.findComponent({ name: "AssignEquipmentDrawer" });
+    expect(drawer.exists()).toBe(true);
+    expect(drawer.props("target")).toEqual(truck);
+    drawer.vm.$emit("close");
+    await flushPromises();
+    expect(router.currentRoute.value.query).toEqual({ section: "maintenance" });
+    expect(w.findComponent({ name: "AssignEquipmentDrawer" }).exists()).toBe(false);
+  });
+
+  it("keeps it shut for somebody who may only look, whatever the address says", async () => {
+    perms.manage = false;
+    const { w } = await at("/vehicles/v-654?assign=1");
+    expect(w.findComponent({ name: "AssignEquipmentDrawer" }).exists()).toBe(false);
+  });
+
+  it("opens from the button too, by writing the same flag", async () => {
+    const { w, router } = await at("/vehicles/v-654");
+    await w.get('[data-test="assign-open"]').trigger("click");
+    await flushPromises();
+    expect(router.currentRoute.value.query).toMatchObject({ assign: "1" });
+    expect(w.findComponent({ name: "AssignEquipmentDrawer" }).exists()).toBe(true);
+  });
+});
+

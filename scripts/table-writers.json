@@ -622,6 +622,9 @@
     "apps/api/src/modules/samsara/samsaraTrailerSync.ts",
     "apps/web/src/composables/useTrailers.ts"
   ],
+  "unit_tags": [
+    "apps/api/src/modules/maintenance/inventory/unitTags.ts"
+  ],
   "user_dashboard_layout": [
     "apps/api/src/modules/org/routes/dashboardLayout.ts"
   ],

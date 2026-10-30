@@ -190,6 +190,22 @@ let router: Router;
 
 const toast = { error: vi.fn(), push: vi.fn(), success: vi.fn() };
 vi.mock("@/stores/toast", () => ({ useToastStore: () => toast }));
+/** DE4: the fleet's units, as the Trucks & trailers tab reads them — a tractor, a reefer, a dry van. */
+const TRUCK_ID = "77777777-7777-4777-8777-777777777777";
+const REEFER_ID = "88888888-8888-4888-8888-888888888888";
+const VAN_ID = "99999999-9999-4999-8999-999999999999";
+vi.mock("@/features/inventory/useUnits", async () => {
+  const { ref: r } = await import("vue");
+  const unit = (kind: string, unitId: string, unitNumber: string, inferredDriverName: string | null) => ({
+    kind, unitId, unitNumber, inferredDriverName, state: "complete", shortBy: 0, extraBy: 0, lastCheckedAt: null, lines: [],
+  });
+  return {
+    useUnitsQuery: () => ({
+      data: r({ units: [unit("tractor", TRUCK_ID, "654", "Dana Reyes"), unit("reefer_trailer", REEFER_ID, "R-8800", null), unit("trailer", VAN_ID, "1203", null)], total: 3 }),
+      isLoading: r(false), isError: r(false), isFetching: r(false), refetch: vi.fn(),
+    }),
+  };
+});
 
 const LabelsPage = (await import("@/pages/LabelsPage.vue")).default;
 
@@ -629,3 +645,40 @@ describe("printing to the label printer chosen in Settings (PS4)", () => {
     expect(w.find("[data-testid=print-destination]").text()).toContain("Settings → Printers & scanners");
   });
 });
+
+describe("Trucks & trailers (DE4)", () => {
+  async function onUnits(url = "/labels") {
+    const w = await render(url);
+    w.findComponent({ name: "AppSegmentedControl" }).vm.$emit("update:modelValue", "units");
+    await flushPromises();
+    return w;
+  }
+
+  it("offers trucks and trailers as a third thing to label", async () => {
+    const w = await render();
+    const options = w.findComponent({ name: "AppSegmentedControl" }).props("options") as Array<{ value: string; label: string }>;
+    expect(options.map((o) => o.label)).toEqual(["Shelves", "Equipment", "Trucks & trailers"]);
+  });
+
+  it("asks for a truck's label from `vehicles` and a reefer's from `trailers` — the table the label names", async () => {
+    const w = await onUnits();
+    const table = w.findComponent({ name: "DataTable" });
+    const rows = table.props("rows") as Array<Record<string, unknown>>;
+    expect(rows.map((r) => r.unitNumber)).toEqual(["654", "R-8800", "1203"]);
+    const key = table.props("rowKey") as (r: Record<string, unknown>) => string;
+    table.vm.$emit("update:selected", new Set([key(rows[0]!), key(rows[1]!)]));
+    await flushPromises();
+    expect(facesMutate).toHaveBeenLastCalledWith([
+      { kind: "unit", unitKind: "vehicle", unitId: TRUCK_ID },
+      { kind: "unit", unitKind: "trailer", unitId: REEFER_ID },
+    ]);
+  });
+
+  it("searches by unit number or driver", async () => {
+    const byDriver = await onUnits("/labels?search=dana");
+    expect((byDriver.findComponent({ name: "DataTable" }).props("rows") as Array<{ unitNumber: string }>).map((r) => r.unitNumber)).toEqual(["654"]);
+    const byNumber = await onUnits("/labels?search=12");
+    expect((byNumber.findComponent({ name: "DataTable" }).props("rows") as Array<{ unitNumber: string }>).map((r) => r.unitNumber)).toEqual(["1203"]);
+  });
+});
+

@@ -18,6 +18,7 @@ import PageHeader from "@/components/ui/PageHeader.vue";
 import WalkActions, { type WalkAction } from "@/components/WalkActions.vue";
 import LabelSheetPreview from "@/features/inventory/LabelSheetPreview.vue";
 import LabelStockControls from "@/features/inventory/LabelStockControls.vue";
+import UnitLabelTable from "@/features/inventory/UnitLabelTable.vue";
 import { ASSETS_PAGE_SIZE, useAssetsQuery } from "@/features/inventory/useAssets";
 import { STOCK_PAGE_SIZE, useStockPageQuery } from "@/features/inventory/useInventory";
 import { fetchLabelSheet, useLabelFaces, useLabelPresetsQuery } from "@/features/inventory/useLabels";
@@ -79,7 +80,8 @@ watch(
   },
 );
 
-type Source = "stock" | "assets";
+// DE4: `units` — a truck or trailer gets its own label, read off the fleet's units (`UnitLabelTable`).
+type Source = "stock" | "assets" | "units";
 const source = ref<Source>("stock");
 // The search is the list's one filter and lives in the URL (D-US2). The source switch and the ticks do
 // not: the ticks cannot (the measurement above), and the switch clears them, so a link that restored
@@ -184,12 +186,13 @@ const printing = ref(false);
  * that identifies it, joined. `targetOf` is the only place that string is taken apart again.
  */
 const keyOf = (t: LabelTarget) =>
-  t.kind === "stock" ? `stock:${t.partId}:${t.locationId}` : `asset:${t.assetId}`;
+  t.kind === "stock" ? `stock:${t.partId}:${t.locationId}` : t.kind === "unit" ? `unit:${t.unitKind}:${t.unitId}` : `asset:${t.assetId}`;
 
 function targetOf(key: string): LabelTarget | null {
   const [kind, a, b] = key.split(":");
   if (kind === "stock" && a && b) return { kind: "stock", partId: a, locationId: b };
   if (kind === "asset" && a) return { kind: "asset", assetId: a };
+  if (kind === "unit" && (a === "vehicle" || a === "trailer") && b) return { kind: "unit", unitKind: a, unitId: b };
   return null;
 }
 
@@ -238,7 +241,8 @@ watch(targets, readFaces, { deep: true, immediate: true });
 
 const stockPage = computed(() => stock.value?.lines ?? []);
 /** The showing list's row count, and the clamp that pulls the page back when that list shrinks. */
-const listTotal = computed(() => (source.value === "assets" ? assets.value?.total : stock.value?.total) ?? null);
+// Units clamp their own page (`UnitLabelTable`): their list is searched where it is shown.
+const listTotal = computed(() => (source.value === "assets" ? assets.value?.total : source.value === "stock" ? stock.value?.total : null) ?? null);
 watch(listTotal, (total) => {
   if (total === null) return;
   const maxPage = Math.max(1, Math.ceil(total / (source.value === "assets" ? ASSETS_PAGE_SIZE : STOCK_PAGE_SIZE)));
@@ -333,7 +337,7 @@ const actions = computed<WalkAction[]>(() => [
         <FilterBar
           embedded
           v-model:search="search"
-          :search-placeholder="source === 'assets' ? 'Search number, name, serial or tag…' : 'Search part #, description, location…'"
+          :search-placeholder="source === 'assets' ? 'Search number, name, serial or tag…' : source === 'units' ? 'Search unit number or driver…' : 'Search part #, description, location…'"
           :count="targets.length"
           count-label="labels"
           :active-count="search.trim() ? 1 : 0"
@@ -346,6 +350,7 @@ const actions = computed<WalkAction[]>(() => [
               :options="[
                 { value: 'stock', label: 'Shelves' },
                 { value: 'assets', label: 'Equipment' },
+                { value: 'units', label: 'Trucks & trailers' },
               ]"
               @update:model-value="switchSource($event as Source)"
             />
@@ -376,6 +381,15 @@ const actions = computed<WalkAction[]>(() => [
               <TablePagination :page="page" :page-size="STOCK_PAGE_SIZE" :total="stock?.total ?? 0" :loading="stockLoading" @update:page="page = $event" />
             </template>
           </DataTable>
+
+          <UnitLabelTable
+            v-else-if="source === 'units'"
+            :search="search"
+            :page="page"
+            :selected="selected"
+            @update:selected="selected = $event"
+            @update:page="page = $event"
+          />
 
           <DataTable
             embedded

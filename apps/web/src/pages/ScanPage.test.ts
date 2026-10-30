@@ -72,12 +72,20 @@ const STOCK_LINE = {
   active: true,
 };
 
+/** DE4: a truck's own label, inside its cab, and a trailer's, inside its front wall. */
+const TRUCK_LABEL = "SIL1:VEH:7K3M9P";
+const TRAILER_LABEL = "SIL1:TRL:X4Q2VW";
+const TRUCK_ID = "77777777-7777-4777-8777-777777777777";
+const TRAILER_ID = "88888888-8888-4888-8888-888888888888";
+
 const ON_TRUCK = "SIL1:AST:TRUCK1";
 const ON_SHELF = "SIL1:AST:SHELF1";
 const RESULTS: Record<string, ScanResult> = {
   [BIN_TAG]: { kind: "stock_line", code: BIN_TAG, stockLine: STOCK_LINE },
   [STRANGE_BARCODE]: { kind: "malformed", code: STRANGE_BARCODE },
   [MISREAD_TAG]: { kind: "unknown_tag", code: MISREAD_TAG, tagKind: null },
+  [TRUCK_LABEL]: { kind: "unit", code: TRUCK_LABEL, unit: { kind: "vehicle", id: TRUCK_ID, unitNumber: "654" } },
+  [TRAILER_LABEL]: { kind: "unit", code: TRAILER_LABEL, unit: { kind: "trailer", id: TRAILER_ID, unitNumber: "1203" } },
   [NEW_IMEI]: { kind: "malformed", code: NEW_IMEI },
   [BAD_IMEI]: { kind: "malformed", code: BAD_IMEI },
   [DANA_TABLET]: tabletWith(DANA_TABLET, "Dana Reyes", false),
@@ -99,7 +107,12 @@ const submitted = { code: null as Ref<string> | null, seq: null as Ref<number> |
 const manage = ref(true);
 
 vi.mock("@/stores/session", () => ({ useSessionStore: () => ({ can: () => manage.value }) }));
-vi.mock("@/composables/useOpens", () => ({ useOpens: () => () => true }));
+/** DE4: whether the reader's matrix admits a page — false to see the card a scanned unit falls back to. */
+const admits = vi.hoisted(() => ({ value: true }));
+vi.mock("@/composables/useOpens", () => ({ useOpens: () => () => admits.value }));
+/** DE4: a scanned truck label replaces the Scan page with the truck's; this is the router it asks. */
+const nav = vi.hoisted(() => ({ replace: vi.fn(async () => undefined), push: vi.fn(async () => undefined) }));
+vi.mock("vue-router", async (orig) => ({ ...(await orig<typeof import("vue-router")>()), useRouter: () => nav }));
 /** EA4: Return to shop is one tap with one bay; `bays` says whether the shop has exactly one. */
 const returned = vi.hoisted(() => ({ calls: [] as unknown[], oneBay: true }));
 vi.mock("@/features/inventory/useReturnToShop", () => ({
@@ -470,3 +483,39 @@ describe("ScanPage", () => {
     expect(wrapper.findAll("button").some((b) => b.text().includes("Create a part"))).toBe(false);
   });
 });
+
+describe("a truck's or trailer's own label (DE4)", () => {
+  beforeEach(() => {
+    admits.value = true;
+    manage.value = true;
+    nav.replace.mockClear();
+  });
+
+  it("opens the truck's page with its Assign list already open — no second tap", async () => {
+    const w = render();
+    scan(TRUCK_LABEL);
+    await flushPromises();
+    expect(nav.replace).toHaveBeenCalledWith({ name: "vehicle-detail", params: { id: TRUCK_ID }, query: { assign: "1" } });
+    w.unmount();
+  });
+
+  it("opens a trailer's page, and for somebody who may only look, without the list they could not use", async () => {
+    manage.value = false;
+    const w = render();
+    scan(TRAILER_LABEL);
+    await flushPromises();
+    expect(nav.replace).toHaveBeenCalledWith({ name: "trailer-detail", params: { id: TRAILER_ID }, query: {} });
+    w.unmount();
+  });
+
+  it("names the unit and stays put when the fleet page is not this reader's", async () => {
+    admits.value = false;
+    const w = render();
+    scan(TRUCK_LABEL);
+    await flushPromises();
+    expect(nav.replace).not.toHaveBeenCalled();
+    expect(w.get('[data-test="scan-unit"]').text()).toBe("Truck 654");
+    w.unmount();
+  });
+});
+

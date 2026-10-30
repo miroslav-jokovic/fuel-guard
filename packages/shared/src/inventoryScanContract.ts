@@ -29,6 +29,7 @@ import { assetDtoSchema } from "./inventoryAssetContract.js";
 export const SCAN_RESULT_KINDS = [
   "stock_line",
   "asset",
+  "unit",
   "part_by_upc",
   "unknown_tag",
   "malformed",
@@ -47,6 +48,21 @@ export const assetScanResultSchema = z.object({
   kind: z.literal("asset"),
   code: z.string(),
   asset: assetDtoSchema,
+});
+
+/**
+ * A `VEH` or `TRL` tag: a truck's or trailer's own label, inside its cab or front wall (DE4, D-DE5).
+ * Its answer is the unit's page, where Assign, Return and Check are — so the result carries only what
+ * opening that page needs, and the number a person says out loud.
+ */
+export const unitScanResultSchema = z.object({
+  kind: z.literal("unit"),
+  code: z.string(),
+  unit: z.object({
+    kind: z.enum(["vehicle", "trailer"]),
+    id: z.string(),
+    unitNumber: z.string(),
+  }),
 });
 
 /**
@@ -83,6 +99,7 @@ export const malformedScanResultSchema = z.object({
 export const scanResultSchema = z.discriminatedUnion("kind", [
   stockLineScanResultSchema,
   assetScanResultSchema,
+  unitScanResultSchema,
   partByUpcScanResultSchema,
   unknownTagScanResultSchema,
   malformedScanResultSchema,
@@ -91,6 +108,7 @@ export type ScanResult = z.infer<typeof scanResultSchema>;
 
 export type StockLineScanResult = z.infer<typeof stockLineScanResultSchema>;
 export type AssetScanResult = z.infer<typeof assetScanResultSchema>;
+export type UnitScanResult = z.infer<typeof unitScanResultSchema>;
 export type PartByUpcScanResult = z.infer<typeof partByUpcScanResultSchema>;
 export type UnknownTagScanResult = z.infer<typeof unknownTagScanResultSchema>;
 export type MalformedScanResult = z.infer<typeof malformedScanResultSchema>;
@@ -100,5 +118,5 @@ export type MalformedScanResult = z.infer<typeof malformedScanResultSchema>;
  * create" sheet on screen rather than a verb list.
  */
 export function isResolvedScan(result: ScanResult): boolean {
-  return result.kind === "stock_line" || result.kind === "asset" || result.kind === "part_by_upc";
+  return result.kind === "stock_line" || result.kind === "asset" || result.kind === "unit" || result.kind === "part_by_upc";
 }

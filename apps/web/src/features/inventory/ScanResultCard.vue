@@ -6,6 +6,7 @@ import { AppBadge, AppButton as BaseButton } from "@silvicom/ui";
 import { BADGE_BASE, assetStatusBadge, toneClass } from "@/lib/badges";
 import { useOpens } from "@/composables/useOpens";
 import ScanStockLine from "@/features/inventory/ScanStockLine.vue";
+import { unitName, unitPage } from "@/features/inventory/unitPage";
 import type { DeskVerb } from "@/features/inventory/MovementDrawer.vue";
 
 /**
@@ -111,6 +112,13 @@ const opens = useOpens();
 const canOpenHolder = computed(() => holderPage.value !== null && opens(holderPage.value));
 const away = computed(() => props.result.kind === "asset" && holderPage.value !== null);
 
+/**
+ * DE4: a truck's or trailer's own label. The Scan page opens its page straight away (`unitPage.ts`);
+ * this card is what shows when it cannot — a reader without the fleet page — and names the unit.
+ */
+const unitDoor = computed(() => (props.result.kind === "unit" ? unitPage(props.result.unit, props.canManage) : null));
+const canOpenUnit = computed(() => unitDoor.value !== null && opens(unitDoor.value));
+
 const holderLine = computed(() => {
   if (props.result.kind !== "asset") return null;
   // The holder object always exists; "held by nobody" is spelled as a null LABEL, because the API
@@ -164,6 +172,14 @@ const holderLine = computed(() => {
     <p v-if="!away && result.asset.status !== 'retired'" class="text-sm text-ink-tertiary" data-test="scan-assign-hint">
       To put it on a truck or give it to a driver, open that truck or driver and press Assign equipment — then scan it there.
     </p>
+  </section>
+
+  <!-- ── a truck's or trailer's own label (DE4) ───────────────────────────────────────────── -->
+  <section v-else-if="result.kind === 'unit'" class="space-y-3" data-test="scan-unit">
+    <p class="text-base font-semibold text-ink">{{ unitName(result.unit) }}</p>
+    <BaseButton v-if="canOpenUnit" block variant="primary" :to="unitDoor!">
+      {{ canManage ? `Assign equipment to ${unitName(result.unit)}` : `Open ${unitName(result.unit)}` }}
+    </BaseButton>
   </section>
 
   <!-- ── a supplier barcode we know ────────────────────────────────────────────────────────── -->

@@ -1,7 +1,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { formatTag, nextDisplayNo, type LabelFaceDto, type LabelTarget } from "@silvicom/shared";
+import { UNIT_LABEL_PLACEMENT, formatTag, nextDisplayNo, type LabelFaceDto, type LabelTarget } from "@silvicom/shared";
 import { traced } from "../inspections/serviceError.js";
 import { issueTagCode } from "./tagIssuance.js";
+import { issueUnitTagCode, readUnitFaceFacts, unitKey } from "./unitTags.js";
 import { isServiceError, type ServiceError } from "./types.js";
 
 /**
@@ -80,6 +81,8 @@ export async function resolveLabelFaces(
   admin: SupabaseClient,
   orgId: string,
   targets: LabelTarget[],
+  /** Who asked — recorded on a unit's tag row when this run issues it (0531 `issued_by`). */
+  issuedBy: string | null = null,
 ): Promise<{ faces: LabelFaceDto[]; dropped: number } | ServiceError> {
   const partIds = [...new Set(targets.filter((t) => t.kind === "stock").map((t) => t.partId))];
   const locationIds = [...new Set(targets.filter((t) => t.kind === "stock").map((t) => t.locationId))];
@@ -108,6 +111,10 @@ export async function resolveLabelFaces(
     for (const r of (data ?? []) as unknown as AssetFaceRow[]) assets.set(r.id, r);
   }
 
+  const unitTargets = targets.flatMap((t) => (t.kind === "unit" ? [{ kind: t.unitKind, id: t.unitId }] : []));
+  const units = unitTargets.length > 0 ? await readUnitFaceFacts(admin, orgId, unitTargets) : new Map();
+  if (isServiceError(units)) return units;
+
   const faces: LabelFaceDto[] = [];
   let dropped = 0;
 
@@ -133,6 +140,26 @@ export async function resolveLabelFaces(
         code,
         // Longest-lived fact first: a part number outlives the bay it currently sits in.
         lines: [row.parts?.part_number ?? "", row.stock_locations?.name ?? ""].filter(Boolean),
+      });
+      continue;
+    }
+
+    if (target.kind === "unit") {
+      const facts = units.get(unitKey(target.unitKind, target.unitId));
+      if (!facts) {
+        dropped += 1;
+        continue;
+      }
+      const code = facts.tagCode ?? (await issueUnitTagCode(admin, orgId, target.unitKind, target.unitId, issuedBy));
+      if (isServiceError(code)) return code;
+      faces.push({
+        target,
+        payload: formatTag(target.unitKind === "vehicle" ? "VEH" : "TRL", code),
+        // D-DE6: the unit number is what is said in the yard, so it is the big line; the six-character
+        // code is the radio's fallback when the symbol is fogged, and the last line says where the label
+        // goes, because direct thermal fades in the sun (Q-DE2 (a), owner 2026-10-30).
+        code: facts.unitNumber,
+        lines: [code, UNIT_LABEL_PLACEMENT[target.unitKind]],
       });
       continue;
     }

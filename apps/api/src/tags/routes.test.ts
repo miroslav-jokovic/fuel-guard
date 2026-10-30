@@ -317,9 +317,9 @@ describe("the registry", () => {
     expect(registeredTagKinds()).toEqual(["AST"]);
   });
 
-  it("registers both of maintenance's kinds at startup", () => {
+  it("registers all four of maintenance's kinds at startup — an asset, a shelf, a truck, a trailer", () => {
     clearTagResolvers();
     registerTagResolvers();
-    expect(registeredTagKinds().sort()).toEqual(["AST", "BIN"]);
+    expect(registeredTagKinds().sort()).toEqual(["AST", "BIN", "TRL", "VEH"]);
   });
 });

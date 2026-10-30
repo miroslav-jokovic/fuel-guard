@@ -43,20 +43,23 @@
 export const TAG_VERSION = "SIL1";
 
 /**
- * What a tag can point at. Two kinds today; §2.10 lists the ones the product will want later —
- * `vehicle`/`trailer` for the digital truck file, `inspection` for the printed §396.17 report,
+ * What a tag can point at. Four kinds today: an asset, a shelf, and since DE4 a truck (`VEH`) and a
+ * trailer (`TRL`) — the "digital truck file" (DRIVER-EQUIPMENT-AND-UNIT-TAGS-PLAN.md D-DE5, codes in
+ * `unit_tags`, 0531). §2.10 lists the ones the product will want later — `inspection` for the printed §396.17 report,
  * `document` for a DQ binder cover, `location` for a shelf, `invite` for a printed invitation.
  * Each of those is one line here plus one `registerTagResolver` call in its owning module (D-INV7).
  *
  * Three characters, alphabetic, so the kind is legible to a person reading a code aloud over a
  * radio and so no kind can be confused with the digits of a UPC.
  */
-export const TAG_KINDS = ["AST", "BIN"] as const;
+export const TAG_KINDS = ["AST", "BIN", "VEH", "TRL"] as const;
 export type TagKind = (typeof TAG_KINDS)[number];
 
 export const TAG_KIND_LABELS: Record<TagKind, string> = {
   AST: "Asset",
   BIN: "Stock line",
+  VEH: "Truck",
+  TRL: "Trailer",
 };
 
 /**
