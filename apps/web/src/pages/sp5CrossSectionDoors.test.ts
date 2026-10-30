@@ -19,16 +19,13 @@ const { __session: session } = (await import("@/stores/session")) as unknown as 
   __session: import("@/testing/fakeSession").FakeSession;
 };
 vi.mock("@/lib/api", () => ({ apiFetch: vi.fn(async () => ({ ok: true, data: null })) }));
-vi.mock("@/features/inventory/useUnits", () => ({
-  useUnitKitQuery: () => ({
-    data: ref({ unit: { state: "complete", lines: [] } }),
-    isLoading: ref(false),
-    isError: ref(false),
-  }),
+vi.mock("@/features/inventory/useAssets", () => ({
+  useAssetsQuery: () => ({ data: ref({ assets: [], total: 0 }), isLoading: ref(false), isError: ref(false), isFetching: ref(false) }),
+  useMoveAsset: () => ({ mutateAsync: vi.fn() }),
 }));
 
 const HazmatPanel = (await import("@/features/hazmat/HazmatPanel.vue")).default;
-const UnitKitCard = (await import("@/features/inventory/UnitKitCard.vue")).default;
+const HolderEquipmentCard = (await import("@/features/inventory/HolderEquipmentCard.vue")).default;
 
 const RouterLink = { props: ["to"], template: `<a :href="typeof to === 'string' ? to : JSON.stringify(to)"><slot /></a>` };
 const global = { plugins: [VueQueryPlugin], stubs: { RouterLink } };
@@ -65,9 +62,10 @@ describe("the hazmat panel on a load", () => {
   });
 });
 
-describe("the kit card on a vehicle", () => {
+describe("the equipment card on a vehicle", () => {
   it("opens the unit in the shop, and not for a person whose Units screen is off", () => {
-    const shop = () => mount(UnitKitCard, { props: { kind: "tractor", unitId: "v1" }, global }).text();
+    const target = { kind: "vehicle", id: "v1", label: "Truck 654" } as const;
+    const shop = () => mount(HolderEquipmentCard, { props: { target }, global }).text();
     expect(shop()).toContain("Open in the shop");
     session.surfaces = { "maintenance.units": false };
     expect(shop()).not.toContain("Open in the shop");

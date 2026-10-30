@@ -43,3 +43,14 @@ export function useScanQuery(code: Ref<string>, scanSeq: Ref<number>) {
     },
   });
 }
+
+/**
+ * One lookup, outside a query — the Assign equipment list's (EA1), where every scan is its own line
+ * and a line is never refreshed from a cache: it holds the answer it was judged on. Same endpoint and
+ * same refusal sentence as `useScanQuery`, so the two screens cannot disagree about a code.
+ */
+export async function resolveScanCode(code: string): Promise<ScanResult> {
+  const r = await apiFetch<{ result: ScanResult }>(`/api/tags/resolve?code=${encodeURIComponent(code)}`);
+  if (!r.ok || !r.data) throw new Error(r.error?.message ?? "Could not read that code");
+  return r.data.result;
+}

@@ -22,7 +22,7 @@ import {
   NotFoundError,
   isNotFound,
 } from "@silvicom/ui";
-import UnitKitCard from "@/features/inventory/UnitKitCard.vue";
+import HolderEquipmentCard from "@/features/inventory/HolderEquipmentCard.vue";
 import UnitWorkOrdersCard from "@/features/maintenance/UnitWorkOrdersCard.vue";
 import UnitInspectionsCard from "@/features/roadside/UnitInspectionsCard.vue";
 import UnitFileSection from "@/components/files/UnitFileSection.vue";
@@ -230,7 +230,7 @@ const fillColumns: DataTableColumn[] = [
              inside it, so this is a window and never a control. A reader without the shop section gets
              no card at all — a card full of blanks would say "this truck carries nothing", which is a
              different and alarming claim. -->
-        <UnitKitCard v-if="id" kind="tractor" :unit-id="id" />
+        <HolderEquipmentCard v-if="vehicle" :target="{ kind: 'vehicle', id, label: `Truck ${vehicle.unit_number}` }" />
         <!-- Read-only windows onto the shop's open orders and the roadside record for this unit (UF5),
              each from a read its own page already makes, each linking out to where the work is done. -->
         <UnitWorkOrdersCard v-if="vehicle" kind="tractor" :unit-id="id" />

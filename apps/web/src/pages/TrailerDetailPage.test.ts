@@ -26,7 +26,7 @@ vi.mock("@/lib/supabase", () => ({ supabase: { from: (table: string) => chain(ta
 vi.mock("@/stores/session", () => ({ useSessionStore: () => ({ can: () => true, canView: () => true }) }));
 vi.mock("@/composables/useVehicles", () => ({ useVehiclesQuery: () => ({ data: ref([{ id: "v-1", unit_number: "654" }]) }) }));
 
-const STUBS = { UnitKitCard: true, UnitFileSection: true, UnitWorkOrdersCard: true, UnitInspectionsCard: true };
+const STUBS = { HolderEquipmentCard: true, UnitFileSection: true, UnitWorkOrdersCard: true, UnitInspectionsCard: true };
 const mountPage = async (path = "/trailers/t-1") => {
   const router = createRouter({ history: createMemoryHistory(), routes: [{ path: "/trailers/:id", component: TrailerDetailPage }] });
   await router.push(path);

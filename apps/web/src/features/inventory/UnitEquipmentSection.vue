@@ -2,12 +2,11 @@
 import { computed, ref } from "vue";
 import { useRouter } from "vue-router";
 import { AppButton as BaseButton, AppCard as BaseCard, DataTable, type DataTableColumn } from "@silvicom/ui";
-import { KIT_EXPECTATION_SOURCE_LABELS, type AssetDto, type UnitKitDto, type UnitKitLineDto } from "@silvicom/shared";
-import KebabMenu from "@/components/KebabMenu.vue";
-import AssetMoveDrawer from "./AssetMoveDrawer.vue";
+import { KIT_EXPECTATION_SOURCE_LABELS, type UnitKitDto, type UnitKitLineDto } from "@silvicom/shared";
+import HolderEquipmentCard from "./HolderEquipmentCard.vue";
 import UnitOverrideDrawer from "./UnitOverrideDrawer.vue";
 import OpenCountsList from "./OpenCountsList.vue";
-import { useLocationsQuery, useOpenCountSession } from "./useInventory";
+import { useOpenCountSession } from "./useInventory";
 import { BADGE_BASE, kitStatusBadge, toneClass } from "@/lib/badges";
 import { formatDate, formatDateTime } from "@/lib/format";
 import { useSessionStore } from "@/stores/session";
@@ -17,7 +16,8 @@ import { useToastStore } from "@/stores/toast";
  * Equipment it carries — the shop's controls over one unit's kit (INVENTORY-PLAN.md I9), as a section
  * of the truck's page (MAINTENANCE-SECTION-REDESIGN-PROPOSAL.md §4.3, M3). Until M3 this WAS the
  * shop's unit page; the page became the hub and this became its fifth section, unchanged in what it
- * does. The fleet section's `UnitKitCard` is the read-only window on the same read (D-AVI17).
+ * does. Since EA1 its On board table is `HolderEquipmentCard`, the card the fleet's truck and trailer
+ * pages show too (EQUIPMENT-ASSIGN-BY-SCAN-PROPOSAL.md §3.3).
  *
  * ── TWO TABLES, BECAUSE THEY ANSWER TWO QUESTIONS ─────────────────────────────────────────────
  * The KIT is by kind of thing — "two load bars expected, one held" — and is what a yard walk is
@@ -26,21 +26,17 @@ import { useToastStore } from "@/stores/toast";
  * shortfall (which has no single asset behind it) or repeating the expectation on every row.
  *
  * ── REMOVING SOMETHING IS A MOVE, NOT A DELETE ────────────────────────────────────────────────
- * "Take it off this truck" is `move_asset` with a destination, because an asset is always somewhere
- * and a row that stopped naming a holder without a movement would leave the ledger unable to say
- * where the thing went. The drawer is `AssetMoveDrawer` — the same one the asset page opens, so
- * both paths write the same row through the same door (D-INV3).
+ * "Take it off this truck" is Return to shop on `HolderEquipmentCard` — `move_asset` with a
+ * destination, because an asset is always somewhere and a row that stopped naming a holder without a
+ * movement would leave the ledger unable to say where the thing went (D-INV3).
  */
-const props = defineProps<{ kind: "tractor" | "trailer"; unitId: string; unit: UnitKitDto; assets: AssetDto[]; loading: boolean }>();
+const props = defineProps<{ kind: "tractor" | "trailer"; unitId: string; unit: UnitKitDto; loading: boolean }>();
 
 const router = useRouter();
 const session = useSessionStore();
 const toast = useToastStore();
 const canManage = computed(() => session.can("maintenance"));
 
-/** Active only: a move into a bay that has been closed is refused by 0333 (`IV012`). */
-const { data: locations } = useLocationsQuery();
-const moving = ref<AssetDto | null>(null);
 const overriding = ref(false);
 
 /**
@@ -77,12 +73,6 @@ const KIT_COLUMNS: DataTableColumn[] = [
   { key: "held", label: "On the unit", card: "none", numeric: true },
   { key: "delta", label: "Difference", card: "meta", numeric: true },
   { key: "source", label: "Rule from", card: "sentence", cellClass: "text-ink-tertiary" },
-];
-const ASSET_COLUMNS: DataTableColumn[] = [
-  { key: "displayNo", label: "Number", card: "title", cellClass: "font-mono text-xs text-ink", width: "sm" },
-  { key: "name", label: "What it is", card: "sentence" },
-  { key: "assetTypeName", label: "Kind", card: "meta", cellClass: "text-ink-secondary" },
-  { key: "serialNumber", label: "Serial", card: "none", cellClass: "font-mono text-xs text-ink-tertiary" },
 ];
 /** Only the lines worth a row: expected here, or actually carried and unexpected. */
 const kitLines = computed<UnitKitLineDto[]>(() => props.unit.lines.filter((l) => l.expected > 0 || l.held > 0));
@@ -131,22 +121,12 @@ const kitLines = computed<UnitKitLineDto[]>(() => props.unit.lines.filter((l) =>
       </DataTable>
     </div>
 
-    <div class="space-y-3">
-      <h3 class="text-sm font-semibold text-ink">On board</h3>
-      <!-- ui-adoption: never-paged — what is on board one truck — a tablet and a few pieces of kit. -->
-      <DataTable :columns="ASSET_COLUMNS" :rows="assets" row-key="id" :loading="loading">
-        <template #actions="{ row }">
-          <KebabMenu v-if="canManage">
-            <!-- "Take it off" is a MOVE. An asset is always somewhere, and a row that stopped naming a
-                 holder without a movement would leave the ledger unable to say where the thing went. -->
-            <BaseButton class="kebab-item" @click="moving = row">Move it somewhere</BaseButton>
-          </KebabMenu>
-        </template>
-        <template #empty><p>Nothing with a number on it is on board.</p></template>
-      </DataTable>
-    </div>
-
-    <AssetMoveDrawer v-if="moving" :open="true" :asset="moving" mode="move" :locations="locations ?? []" @close="moving = null" />
+    <!-- EA1: what is on board is the same card the fleet's truck and trailer pages show, with Assign
+         and Return on it — one spelling of "what this truck carries" and one way to change it. -->
+    <HolderEquipmentCard
+      :target="{ kind: kind === 'tractor' ? 'vehicle' : 'trailer', id: unitId, label: `${kind === 'tractor' ? 'Truck' : 'Trailer'} ${unit.unitNumber}` }"
+      :shop-link="false"
+    />
     <UnitOverrideDrawer v-if="overriding" :open="true" :unit="unit" :roster-kind="kind" @close="overriding = false" />
   </section>
 </template>

@@ -1,4 +1,4 @@
-import { computed, type Ref } from "vue";
+import { computed, ref, type Ref } from "vue";
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/vue-query";
 import { apiFetch } from "@/lib/api";
 import { recordOrThrow } from "@silvicom/ui";
@@ -57,9 +57,10 @@ export interface AssetDetail {
   photoUrl: string | null;
 }
 
-export function useAssetsQuery(filter: Ref<AssetsFilter>) {
+export function useAssetsQuery(filter: Ref<AssetsFilter>, enabled: Ref<boolean> = ref(true)) {
   return useQuery({
     queryKey: ["inventory", "assets", filter] as const,
+    enabled,
     placeholderData: keepPreviousData,
     queryFn: async (): Promise<{ assets: AssetDto[]; total: number }> => {
       const f = filter.value;

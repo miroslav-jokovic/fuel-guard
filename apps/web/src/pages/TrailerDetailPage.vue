@@ -15,7 +15,7 @@ import {
   NotFoundError,
   isNotFound,
 } from "@silvicom/ui";
-import UnitKitCard from "@/features/inventory/UnitKitCard.vue";
+import HolderEquipmentCard from "@/features/inventory/HolderEquipmentCard.vue";
 import UnitWorkOrdersCard from "@/features/maintenance/UnitWorkOrdersCard.vue";
 import UnitInspectionsCard from "@/features/roadside/UnitInspectionsCard.vue";
 import UnitFileSection from "@/components/files/UnitFileSection.vue";
@@ -120,7 +120,7 @@ const facts = computed<Fact[]>(() => {
 
       <section id="section-maintenance" class="scroll-mt-6 space-y-4">
         <!-- Read only and gated `maintenance: view`, as on the truck page: a window, never a control. -->
-        <UnitKitCard v-if="id" kind="trailer" :unit-id="id" />
+        <HolderEquipmentCard v-if="trailer" :target="{ kind: 'trailer', id, label: `Trailer ${trailer.unit_number}` }" />
         <UnitWorkOrdersCard v-if="trailer" kind="trailer" :unit-id="id" />
         <UnitInspectionsCard v-if="trailer" kind="trailer" :unit-number="trailer.unit_number" :plate="trailer.plate" />
       </section>

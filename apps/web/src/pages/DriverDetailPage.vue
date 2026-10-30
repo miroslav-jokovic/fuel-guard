@@ -39,7 +39,7 @@ import ExportButton from "@/components/ExportButton.vue";
 import QualificationSection from "@/features/compliance/QualificationSection.vue";
 import SevenDayStatementSection from "@/features/roster/SevenDayStatementSection.vue";
 import DriverContactSection from "@/features/roster/DriverContactSection.vue";
-import DriverEquipmentCard from "@/features/inventory/DriverEquipmentCard.vue";
+import HolderEquipmentCard from "@/features/inventory/HolderEquipmentCard.vue";
 import { useDriverQuery } from "@/composables/useDrivers";
 import { useDispatchHoldQuery } from "@/composables/useCompliance";
 import { formatDate } from "@/lib/format";
@@ -408,7 +408,7 @@ const fillColumns: DataTableColumn[] = [
         </FactList>
       </BaseCard>
 
-      <DriverEquipmentCard v-if="canSeeEquipment" :driver-id="id" />
+      <HolderEquipmentCard v-if="canSeeEquipment && driver" :target="{ kind: 'driver', id, label: driver.full_name }" />
 
       <BaseCard v-if="canSeeFuel" id="section-fuel" class="scroll-mt-6">
         <h3 class="mb-3 text-sm font-semibold text-ink">MPG history</h3>
