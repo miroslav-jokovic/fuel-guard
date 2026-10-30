@@ -256,11 +256,45 @@ function settle(jump = false): void {
   frame = requestAnimationFrame(step);
 }
 
-watch(() => [props.modelValue, props.tabs.length, props.orientation], () => void nextTick(() => settle()));
+/**
+ * ── THE SELECTED TAB IS ON SCREEN ─────────────────────────────────────────────────────────────
+ * A strip that scrolls (above, US6b) can hold its selected tab past the edge. Measured 2026-10-30 on
+ * Equipment at 390 px: an item's invoice link opens `?tab=invoices`, the fourth tab, and the strip
+ * showed three tabs with none marked — the reader could not see which list they were on. So the strip
+ * scrolls itself, only as far as needed, whenever the selection is set from outside or by a key.
+ *
+ * ⚠ `scrollLeft` on the strip, not `scrollIntoView`: that also scrolls every ancestor, so a page
+ * opened on its fourth tab would jump down to the strip. Only the strip's own axis moves.
+ */
+function reveal(jump = false): void {
+  const el = buttons.value[activeIndex.value];
+  const box = strip.value;
+  if (!el || !box || props.orientation === "vertical") return;
+  const start = el.offsetLeft;
+  const end = start + el.offsetWidth;
+  let left = box.scrollLeft;
+  if (start < left) left = start;
+  else if (end > left + box.clientWidth) left = end - box.clientWidth;
+  if (left === box.scrollLeft) return;
+  if (typeof box.scrollTo === "function") box.scrollTo({ left, behavior: jump || reducedMotion() ? "auto" : "smooth" });
+  else box.scrollLeft = left;
+}
+
+watch(
+  () => [props.modelValue, props.tabs.length, props.orientation],
+  () =>
+    void nextTick(() => {
+      settle();
+      reveal();
+    }),
+);
 
 let observer: ResizeObserver | undefined;
 onMounted(() => {
-  void nextTick(() => settle(true));
+  void nextTick(() => {
+    settle(true);
+    reveal(true);
+  });
   // The strip's own width decides where every tab starts, so a container change moves the target
   // without any state changing. ⚠ Guarded: jsdom has no ResizeObserver, and this component is
   // mounted in tests that have nothing to do with the pill.
