@@ -245,6 +245,8 @@ export const assetDtoSchema = z.object({
   purchasedAt: z.string().nullable(),
   purchaseCost: z.number().nonnegative().nullable(),
   warrantyExpiresAt: z.string().nullable(),
+  /** 0530, M10b: the live bill that paid for it (`inventoryPurchaseContract.ts`); set only by recording one. */
+  purchaseId: recordId().nullable(),
   imagePath: optionalText(400),
   notes: optionalText(2000),
 });

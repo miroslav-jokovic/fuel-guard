@@ -67,6 +67,7 @@ const asset = (id: string, over: Partial<AssetDto> = {}): AssetDto => ({
   purchasedAt: null,
   purchaseCost: null,
   warrantyExpiresAt: null,
+  purchaseId: null,
   imagePath: null,
   notes: null,
   ...over,

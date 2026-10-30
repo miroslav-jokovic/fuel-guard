@@ -48,7 +48,7 @@ function asset(id: string, displayNo: string, typeId: string, typeName: string):
     id, tagCode: null, displayNo, assetTypeId: typeId, assetTypeName: typeName, name: `${typeName} ${displayNo}`,
     serialNumber: null, imei: null, model: null, manufacturer: null, status: "in_service", condition: "good",
     holder: { kind: "location", id: "bay", label: "Shop", inferredDriverName: null, since: null },
-    purchasedAt: null, purchaseCost: null, warrantyExpiresAt: null, imagePath: null, notes: null,
+    purchasedAt: null, purchaseCost: null, warrantyExpiresAt: null, purchaseId: null, imagePath: null, notes: null,
   };
 }
 const STRAP_A = asset("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", "A-0001", STRAP_TYPE, "Ratchet strap");

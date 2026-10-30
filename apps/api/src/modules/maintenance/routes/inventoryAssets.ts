@@ -16,6 +16,7 @@ import { writeAudit } from "../../../lib/audit.js";
 import { getAsset, listAssets } from "../inventory/assets.js";
 import { createAsset, setAssetImagePath, updateAsset } from "../inventory/assetsWrite.js";
 import { listAssetMovements, moveAsset } from "../inventory/assetMovements.js";
+import { purchaseRefFor } from "../inventory/purchases.js";
 import { signPartPhotoUpload, signPartPhotoUrl } from "../inventory/photos.js";
 import { statusForServiceError } from "../inventory/httpStatus.js";
 import { isServiceError } from "../inventory/types.js";
@@ -107,7 +108,7 @@ export function inventoryAssetsRouter(): Router {
   );
 
   /**
-   * One asset, with a signed URL for its photo.
+   * One asset, with a signed URL for its photo and the bill that paid for it (M10b).
    *
    * The history is NOT in this response and is a page of its own below. A detail page renders 30
    * movements and a tablet that has been round the fleet for two years has hundreds; folding them
@@ -130,7 +131,13 @@ export function inventoryAssetsRouter(): Router {
         res.status(404).json(apiError("not_found", "That asset is not on the books."));
         return;
       }
-      res.json({ ok: true, asset, photoUrl: await signPartPhotoUrl(admin, asset.imagePath) });
+      // M10b: the bill that paid for it, as one line on the item's page — read here, beside the
+      // photo, so the page does not wait on a second request to say where the tablet came from.
+      const [photoUrl, purchase] = await Promise.all([
+        signPartPhotoUrl(admin, asset.imagePath),
+        purchaseRefFor(admin, orgId, asset.purchaseId),
+      ]);
+      res.json({ ok: true, asset, photoUrl, purchase });
     }),
   );
 

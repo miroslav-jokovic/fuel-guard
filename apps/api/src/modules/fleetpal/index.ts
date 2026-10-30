@@ -79,6 +79,7 @@ export { readUnitShopRecord, type UnitShopRecord } from "./unitShopRecord.js";
 export { projectPmDue } from "./projectPmDue.js";
 export { readWorkOrdersOnUnits, type UnitWorkOrder, type UnitWorkOrderIndex } from "./unitWorkOrders.js";
 export { readWorkOrderRecords, type WorkOrderRecord, type WorkOrderRecords } from "./workOrderRecord.js";
+export { findPurchaseOrders, purchaseOrderRefs, PURCHASE_ORDER_CHOICES_MAX } from "./purchaseOrderRefs.js";
 export { describeComponents, clearComponentCache, type ComponentLabel } from "./vmrs.js";
 export { labelRepairs } from "./componentLabels.js";
 export {

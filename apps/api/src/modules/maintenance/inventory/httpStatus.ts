@@ -39,6 +39,12 @@ const STATUS: Record<string, number> = {
   // while its things sit with the other kind of holder. Moving them first is the fix, not editing the request.
   IV025: 409, // wrong kind of holder for the type
   held_by_conflict: 409, // `assetTypes.ts`'s wording of the same IV025, on a type
+  // 0530 (M10b), equipment bills. A bill already on file, edited, corrected first by somebody else, or
+  // holding an item another bill holds — all facts about the books the form could not see.
+  IV026: 409, // equipment_purchases_append_only
+  IV028: 409, // purchase_superseded — open the newest one
+  IV029: 409, // asset_on_another_purchase
+  duplicate_invoice: 409, // the live-bill index, mapped by name in `purchases.ts`
   // The payload names something unusable.
   IV012: 422, // unknown_location
   IV013: 422, // part_inactive
@@ -46,6 +52,8 @@ const STATUS: Record<string, number> = {
   IV015: 422, // malformed_movement
   IV023: 422, // asset_retired — the asset named is out of service for good
   IV024: 422, // unknown_asset — not this org's, or gone. 0331's IV013 is the parts vocabulary
+  IV027: 422, // unknown_purchase — the bill a correction names is not ours (0530)
+  unknown_purchase_order: 422, // a FleetPal purchase order that is not ours, or not staged (0530)
   // A CHECK on `stock_count_sessions` refused the row — two holders, none, or a `kind` that
   // disagrees with the one that is set. Not an `IV0xx`: no migration raises it, `countSessions.ts`
   // synthesises it from 23514, and a fictional SQLSTATE is worse than a named condition.

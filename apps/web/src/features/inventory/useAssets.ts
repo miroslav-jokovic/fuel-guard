@@ -4,6 +4,7 @@ import { apiFetch } from "@/lib/api";
 import { recordOrThrow } from "@silvicom/ui";
 import { uploadContentType } from "@/lib/fileFormat";
 import type {
+  AssetPurchaseRef,
   AssetCreateInput,
   AssetDto,
   AssetInput,
@@ -57,6 +58,8 @@ export interface AssetDetail {
   asset: AssetDto;
   /** Signed, 300 s (D-INV8). Null until a photo is attached. */
   photoUrl: string | null;
+  /** M10b: the bill that paid for it. Optional because an API from before M10b sends no such key. */
+  purchase?: AssetPurchaseRef | null;
 }
 
 export function useAssetsQuery(filter: Ref<AssetsFilter>, enabled: Ref<boolean> = ref(true)) {

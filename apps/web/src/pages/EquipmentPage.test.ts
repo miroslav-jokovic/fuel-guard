@@ -8,7 +8,7 @@ import { ROUTE_TABLE } from "@/router/table";
 
 /**
  * Equipment (M7; EA2 — EQUIPMENT-ASSIGN-BY-SCAN-PROPOSAL §3.4): three tabs by who holds a thing —
- * Trucks & trailers, Drivers, In the shop.
+ * Trucks & trailers, Drivers, In the shop — and Invoices, the bills that paid for it (M10b).
  *
  * ── WHAT THIS SCREEN CAN GET WRONG THAT NOTHING ELSE WOULD CATCH ──────────────────────────────
  *   1. **Opening on the wrong list**, or an M7 link (`on-trucks`, `inventory`) landing nowhere.
@@ -84,6 +84,26 @@ vi.mock("@/features/inventory/useAssets", async () => {
     useNotReturnedCountQuery: () => ({ data: notReturned }),
   };
 });
+/** M10b: the Invoices tab's list, and every filter it was asked with. */
+const purchaseFilters: Array<{ value: Record<string, unknown> }> = [];
+vi.mock("@/features/inventory/usePurchases", async () => {
+  const { ref: r } = await import("vue");
+  return {
+    PURCHASES_PAGE_SIZE: 50,
+    usePurchasesQuery: (f: { value: Record<string, unknown> }) => {
+      purchaseFilters.push(f);
+      return {
+        data: r({
+          purchases: [{ id: "bill-1", vendor: "AT&T Business", invoiceNumber: "INV-1001", invoiceDate: "2026-10-02", total: 4120.5, itemCount: 10, paperCount: 1 }],
+          total: 1,
+        }),
+        isLoading: r(false),
+        isError: r(false),
+        refetch: vi.fn(),
+      };
+    },
+  };
+});
 vi.mock("@/composables/useOpens", () => ({ useOpens: () => () => true }));
 vi.mock("@/stores/session", () => ({ useSessionStore: () => ({ can: () => true, canView: () => true, canManage: true }) }));
 
@@ -99,7 +119,7 @@ async function page(url = "/shop/assets") {
   await router.isReady();
   push = vi.fn().mockResolvedValue(undefined);
   router.push = push as unknown as Router["push"];
-  const w = mount(AssetsPage, { global: { plugins: [router], stubs: { SlideOver: true, AssetDrawer: true, AssetTypesDrawer: true, KitRulesDrawer: true } } });
+  const w = mount(AssetsPage, { global: { plugins: [router], stubs: { SlideOver: true, AssetDrawer: true, AssetTypesDrawer: true, KitRulesDrawer: true, InvoiceDrawer: true, InvoiceDetailDrawer: true } } });
   await flushPromises();
   return w;
 }
@@ -113,11 +133,12 @@ beforeEach(() => {
   assetFilters.length = 0;
   driverRows.value = [];
   kit.shown = false;
+  purchaseFilters.length = 0;
 });
 
 const empty = () => unit({ unitId: REEFER, unitNumber: "R-8800", kind: "reefer_trailer", lastCheckedAt: null, lines: [] });
 
-describe("Equipment's three tabs", () => {
+describe("Equipment's tabs", () => {
   it("opens on Trucks & trailers and counts what each tab lists — no Should carry while it is hidden", async () => {
     units.value = { units: [unit({ state: "short", shortBy: 2 }), empty()], total: 2 };
     const w = await page();
@@ -126,6 +147,7 @@ describe("Equipment's three tabs", () => {
       { value: "trucks", label: "Trucks & trailers", badge: 1 },
       { value: "drivers", label: "Drivers", badge: 7 },
       { value: "shop", label: "In the shop", badge: 7 },
+      { value: "invoices", label: "Invoices", badge: undefined },
     ]);
     expect(w.text()).not.toContain("What each truck should carry");
     expect(w.text()).toContain("Types of equipment");
@@ -201,6 +223,33 @@ describe("In the shop (EA2)", () => {
     expect(assetFilters.at(-1)!.value).toMatchObject({ holder: "shop", page: 1 });
     await page("/shop/assets?tab=shop&where=anywhere");
     expect(assetFilters.at(-1)!.value.holder).toBeUndefined();
+  });
+});
+
+describe("Invoices (M10b)", () => {
+  it("lists the live bills with their total, items and paper, and its verb is Add invoice", async () => {
+    const w = await page("/shop/assets?tab=invoices");
+    const row = w.findComponent(DataTable).text();
+    expect(row).toContain("AT&T Business");
+    expect(row).toContain("$4,120.50");
+    expect(row).toContain("10/02/2026");
+    // The paper and item count are table columns (a phone's card shows date, vendor, number, total).
+    expect((w.findComponent(DataTable) as unknown as { props: (k: string) => unknown }).props("rows")).toEqual([expect.objectContaining({ itemCount: 10, paperCount: 1 })]);
+    expect(w.text()).toContain("Add invoice");
+    expect(w.text()).not.toContain("Add equipment");
+    expect(purchaseFilters.at(-1)!.value).toEqual({ search: undefined, page: 1 });
+  });
+
+  it("opens an invoice from its row, and from an address an item's page links to", async () => {
+    const w = await page("/shop/assets?tab=invoices");
+    expect(w.findComponent({ name: "InvoiceDetailDrawer" }).exists()).toBe(false);
+    (w.findComponent(DataTable) as unknown as { vm: { $emit: (e: string, p: unknown) => void } }).vm.$emit("row-click", { id: "bill-1" });
+    await flushPromises();
+    expect(router.currentRoute.value.query).toMatchObject({ tab: "invoices", invoice: "bill-1" });
+    expect(w.findComponent({ name: "InvoiceDetailDrawer" }).props("purchaseId")).toBe("bill-1");
+
+    const linked = await page("/shop/assets?tab=invoices&invoice=bill-9");
+    expect(linked.findComponent({ name: "InvoiceDetailDrawer" }).props("purchaseId")).toBe("bill-9");
   });
 });
 

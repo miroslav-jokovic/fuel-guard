@@ -181,6 +181,30 @@ describe("reading assets", () => {
     expect(body).toHaveProperty("photoUrl");
   });
 
+  it("names the bill that paid for it (M10b), and null when there is none", async () => {
+    const BILL = "66666666-6666-4666-8666-666666666666";
+    rec = createSupabaseRecorder({
+      tables: {
+        inventory_assets: [assetRow({ purchase_id: BILL })],
+        equipment_purchases: (q) =>
+          q.ops.some((o) => o.method === "eq" && o.args[0] === "id" && o.args[1] === BILL)
+            ? [{ id: BILL, vendor: "AT&T Business", invoice_number: "INV-1001", invoice_date: "2026-10-02" }]
+            : [],
+        drivers: [],
+      },
+    });
+    type Answer = { purchase: unknown; asset: { purchaseId: string | null } };
+    const withBill = (await withServer(async (base) => (await call(base, `/assets/${ASSET}`)).json())) as Answer;
+    expect(withBill.purchase).toEqual({ id: BILL, vendor: "AT&T Business", invoiceNumber: "INV-1001", invoiceDate: "2026-10-02" });
+    expect(withBill.asset.purchaseId).toBe(BILL);
+    expectOrgScoped(rec, ORG, SCOPED);
+
+    rec = createSupabaseRecorder({ tables: { inventory_assets: [assetRow()], drivers: [] } });
+    const without = (await withServer(async (base) => (await call(base, `/assets/${ASSET}`)).json())) as Answer;
+    expect(without.purchase).toBeNull();
+    expect(rec.forTable("equipment_purchases")).toHaveLength(0);
+  });
+
   it("answers 404 for an asset that is not this org's, which is what a missing one also is", async () => {
     rec = createSupabaseRecorder({ tables: { inventory_assets: () => [] } });
     const res = await withServer((base) => call(base, `/assets/${ASSET}`));
