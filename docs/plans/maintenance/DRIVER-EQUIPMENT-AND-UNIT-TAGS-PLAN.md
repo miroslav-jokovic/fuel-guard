@@ -144,8 +144,8 @@ Numbered on from the inventory plan's I13; I14 moved to its own plan.
 | # | Question | Candidates | Recommendation |
 |---|---|---|---|
 | **Q-DE1** | Does a driver sign when given a tablet? | (a) No signature — Q7 stands; a dispute gets an `esign_consents`-shaped acknowledgement on the movement row. (b) A tap-to-acknowledge in the driver app at handover. (c) A paper form scanned into the driver file. | **RULED 2026-10-27: none in the product.** Drivers already sign a paper hand-receipt for a tablet; the paper is the signature and the dated movement row is ours. No signature step is built. |
-| **Q-DE2** | What goes on the OUTSIDE of a truck or trailer? | (a) Inside the cab (door jamb) on the direct-thermal roll — cheapest, fades within months. (b) **Pre-printed vinyl or aluminium QR plates from a vendor**, printed from our PDF, priced per plate for ~450 units (not yet quoted). (c) A thermal-TRANSFER printer with polyester labels (~$300 printer + ribbon). | **DEFERRED 2026-10-27: (b), ordered later by the owner.** Nothing is built for it: a vendor prints from the same PDF DE4 produces. Until then no unit label goes outside. |
-| **Q-DE3** | Where does a scanned trailer land? There is **no trailer detail page** (`/trailers` is a list — inventory plan, I9 findings). | (a) A trailer detail page with its kit card. (b) The trailer list filtered to it. | **DEFERRED 2026-10-27: (a), planned separately later.** The owner will plan the truck and trailer pages on their own; DE3–DE4 wait for that plan. |
+| **Q-DE2** | What goes on the OUTSIDE of a truck or trailer? | (a) Inside the cab (door jamb) on the direct-thermal roll — cheapest, fades within months. (b) **Pre-printed vinyl or aluminium QR plates from a vendor**, printed from our PDF, priced per plate for ~450 units (not yet quoted). (c) A thermal-TRANSFER printer with polyester labels (~$300 printer + ribbon). | ~~DEFERRED 2026-10-27: (b), ordered later by the owner.~~ **RULED 2026-10-30: (a) now — "yes, cab labels on the roll we have".** A truck's label goes inside the cab on the driver's door jamb; a trailer's inside its front wall (owner, same day: "trailer labels go inside the front wall"). Both on the 2"×2" direct-thermal roll (`roll-single`), and the label says where it goes, because direct thermal fades in the sun. (b), exterior plates, stays the long-term answer and is ordered later; a vendor prints from the same PDF DE4 produces. A faded label is reprinted with the same code (0531). |
+| **Q-DE3** | Where does a scanned trailer land? There is **no trailer detail page** (`/trailers` is a list — inventory plan, I9 findings). | (a) A trailer detail page with its kit card. (b) The trailer list filtered to it. | ~~DEFERRED 2026-10-27~~ **SETTLED 2026-10-30: (a).** `/trailers/:id` exists and carries the equipment card (EQUIPMENT-ASSIGN-BY-SCAN EA1), so a scanned trailer opens its page. |
 | **Q-DE4** | ~~How does the parts catalogue get in?~~ | — | **MOVED OUT 2026-10-27 — a shop-inventory question, asked here by mistake (§0).** The owner's answer: shop inventory is pulled from FleetPal (`FLEETPAL-INTEGRATION-PLAN.md` F12). Truck inventory is entered here and nowhere else. |
 
 ---
@@ -328,3 +328,16 @@ proof none of this replaces — the scanner on an Android tablet, and a printed 
     and model from a tablet already on file with the same TAC (`tacMatch.ts`) — empty fields only, and
     nothing when two such tablets disagree. The first of each model still needs its maker typed, or its
     `SM-`/`TB-` model barcode scanned. GSMA's TAC database is licensed, so the world's lookup is not used.
+- **2026-10-30 — DE3: the unit tag's table** (`claude/unit-tags-de3`). Q-DE2 ruled (a) and Q-DE3 settled
+  (§4), so DE3–DE5 are unparked; DE5 (a unit's tag scanned inside the Assign list or a check switches to
+  that unit) was approved the same day and is written in with its PR.
+  - Migration **0531** (`0531_unit_tags.sql`; main and staging both at 0530). `unit_tags`: org, a truck
+    XOR a trailer, the six-character code, issued at/by. One tag per unit, one unit per code per org; no
+    column ever changes (`IV022`, the asset and shelf tags' SQLSTATE) — a faded label is reprinted with
+    the SAME code. The unit must be ours (`inventory_holder_is_ours`, `IV012`, because `vehicles` and
+    `trailers` have no `(id, org_id)` key and adding one to a sync-written table is not this step's
+    business). `on delete restrict`: a sold truck keeps its tag. RLS on, no client policy. No column on
+    `vehicles`/`trailers` (D-DE5).
+  - Schema-only, so `check-table-producers` pins it until DE4's label print issues the first code.
+  - Matrix `unit-tags.test.mjs` (21). 9 mutants: 8 killed; the 9th (dropping the guard's `revoke`) is a
+    no-op, because 0412 already closes new functions to clients — the same finding as 0530's matrix.

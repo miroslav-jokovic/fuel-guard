@@ -83,6 +83,10 @@ const WAIVERS = new Map([
   // then the reader and the routes that write it. It leaves in UF7b, whose intake read inserts one row per
   // proposed paper and whose file/discard routes decide them.
   ["file_intake_items", "UNIT-FILES-PLAN.md UF7b — the compliance intake read and the file/discard routes write it (schema-only, 0505)"],
+  // unit_tags (0531, DRIVER-EQUIPMENT-AND-UNIT-TAGS-PLAN.md DE3) ships schema-only: the plan splits the
+  // unit tag into its table (DE3) and its issuance, resolver and labels (DE4). It leaves in DE4, whose
+  // label print issues a truck's or trailer's code on first print.
+  ["unit_tags", "DRIVER-EQUIPMENT-AND-UNIT-TAGS-PLAN.md DE4 — the label print issues a unit's code (schema-only, 0531)"],
 ]);
 
 const files = readdirSync(MIGRATIONS).filter((f) => f.endsWith(".sql")).sort();
