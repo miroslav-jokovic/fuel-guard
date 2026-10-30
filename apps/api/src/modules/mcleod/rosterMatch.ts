@@ -79,6 +79,14 @@ export function makeDriverMatcher(candidates: Candidate[]): DriverMatcher {
   const byCdl = index(pool, (c) => cdlKey(c.cdl_number));
   const byName = index(pool, (c) => driverMatchKey(c.full_name ?? ""));
   const applicantByCdl = index(applicants, (c) => cdlKey(c.cdl_number));
+  // By NAME as well, and only ever to HOLD, never to link (ROSTER-LIFECYCLE-PLAN RL1). While the sweep
+  // could only link, an applicant reached by neither key fell through to `unmatched`: a report, harmless.
+  // In create mode `unmatched` means INSERT. An applicant whose form left the licence blank, or typed it
+  // differently from McLeod, would then get a second, McLeod-owned row beside the one Hiring is still
+  // working on, and finishing the hire would make two active drivers for one person. A name is too weak
+  // to merge on (D-MR16), but it is strong enough to stop the sweep from creating a second row and to
+  // hand the decision to a person.
+  const applicantByName = index(applicants, (c) => driverMatchKey(c.full_name ?? ""));
 
   return {
     match({ external_id, cdl_number, name }) {
@@ -100,6 +108,9 @@ export function makeDriverMatcher(candidates: Candidate[]): DriverMatcher {
         const hit = byName.get(nk);
         if (hit) return { kind: "matched", id: hit.id, by: "name" };
         if (hit === null) return { kind: "ambiguous", by: "name" };
+        const app = applicantByName.get(nk);
+        if (app) return { kind: "applicant", id: app.id };
+        if (app === null) return { kind: "ambiguous", by: "name" };
       }
       return { kind: "unmatched" };
     },

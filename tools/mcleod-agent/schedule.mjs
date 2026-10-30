@@ -19,6 +19,15 @@ export const JOBS = [
   { name: "loads", everyMs: 60_000 },
   { name: "close", everyMs: 10 * 60_000 },
   { name: "roster", everyMs: 15 * 60_000 },
+  // Who has left (Part 5): McLeod's own inactive flag and termination date, sent as explicit statuses.
+  // Never inferred from absence; that is `reconcile`, which the service still refuses to start with.
+  // It was "by hand only" until ROSTER-LIFECYCLE-PLAN RL2. Run by hand, it was last run in September,
+  // and on 2026-10-30 seven drivers McLeod had terminated 10/23–10/28 were still active here, holding
+  // trucks and tablets. Measured that day: about 210 ms and 1,953 rows for all three reads, at most
+  // half of each roster per call (the API's bad-fetch guard), and no write for a row already right.
+  // Listed after `roster`: when both are due, a new hire reaching the office matters more than a
+  // departure leaving it.
+  { name: "retire", everyMs: 15 * 60_000 },
   // Nightly, outside dispatch hours. A failed night retries every 30 minutes until it succeeds, rather
   // than waiting a whole day or hammering the server every tick.
   { name: "financial", dailyAtHour: 2, retryMs: 30 * 60_000 },

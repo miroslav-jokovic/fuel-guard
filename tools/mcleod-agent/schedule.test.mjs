@@ -6,21 +6,22 @@ import { dueJobs, lastDailyAnchor, zonedHourToUtc } from "./schedule.mjs";
 const T = Date.parse("2026-09-24T15:00:00Z"); // 10:00 Central, a working morning
 const MIN = 60_000;
 
-test("a first start runs loads, close and roster, one list, loads first", () => {
-  assert.deepEqual(dueJobs(T, { financial: { succeededAt: T, attemptedAt: T } }), ["loads", "close", "roster"]);
+test("a first start runs loads, close, roster and retire, one list, loads first", () => {
+  assert.deepEqual(dueJobs(T, { financial: { succeededAt: T, attemptedAt: T } }), ["loads", "close", "roster", "retire"]);
 });
 
-test("loads every minute, close every ten, roster every fifteen — counted from the last attempt", () => {
+test("loads every minute, close every ten, roster every fifteen, retire with it — counted from the last attempt", () => {
   const runs = {
     loads: { attemptedAt: T },
     close: { attemptedAt: T },
     roster: { attemptedAt: T },
+    retire: { attemptedAt: T },
     financial: { succeededAt: T, attemptedAt: T },
   };
   assert.deepEqual(dueJobs(T + 59_999, runs), []);
   assert.deepEqual(dueJobs(T + MIN, runs), ["loads"]);
   assert.deepEqual(dueJobs(T + 10 * MIN, runs), ["loads", "close"]);
-  assert.deepEqual(dueJobs(T + 15 * MIN, runs), ["loads", "close", "roster"]);
+  assert.deepEqual(dueJobs(T + 15 * MIN, runs), ["loads", "close", "roster", "retire"]);
 });
 
 test("a failed feed waits its normal interval instead of retrying every tick", () => {

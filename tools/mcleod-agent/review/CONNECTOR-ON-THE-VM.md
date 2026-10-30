@@ -46,7 +46,7 @@ node --env-file=connector.env agent.mjs --service
 - It keeps one connection to LME open and runs the feeds one after another:
   - open loads, every minute;
   - closing loads, every 10 minutes;
-  - drivers/trucks/trailers, every 15 minutes;
+  - drivers/trucks/trailers, every 15 minutes, and right after it who has left (Part 5);
   - finance, at 2:00 AM Central.
 - It logs one line per step to standard output: counts, times and McLeod ids, never addresses or
   licence details. Under systemd that lands in the journal. It can also write to a file if

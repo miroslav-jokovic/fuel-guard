@@ -226,15 +226,17 @@ export function saveServiceState(path, state) {
 /**
  * Settings that would break a condition in Alex's approval (2026-09-24), refused at start rather than
  * discovered in production:
- *  · `ROSTER_MODE=reconcile` retires every Silvicom row absent from McLeod's roster — "Part 5 stays
- *    manual", and absence is exactly the signal that retired 33 vehicles and 120 drivers on 2026-09-14.
+ *  · `ROSTER_MODE=reconcile` retires every Silvicom row ABSENT from McLeod's roster, and absence is
+ *    exactly the signal that retired 33 vehicles and 120 drivers on 2026-09-14. Part 5 itself is
+ *    scheduled since ROSTER-LIFECYCLE-PLAN RL2, on McLeod's explicit inactive flag; inferring a
+ *    departure from a row that went missing stays a step a person runs.
  *  · `--dry-run` with `--service`: the service posts; a dry run must not. The old behaviour was to exit
  *    on the first POST, which looked like a crash.
  */
 export function serviceConfigProblems({ rosterMode, dryRun }) {
   const problems = [];
   if (rosterMode === "reconcile") {
-    problems.push("ROSTER_MODE=reconcile retires rows by absence, which must stay a manual step (Part 5). Use identity.");
+    problems.push("ROSTER_MODE=reconcile retires rows by absence, which must stay a step a person runs. Use create.");
   }
   if (dryRun) problems.push("--service cannot run as a dry run. Use --loads --dry-run, --close --dry-run or --roster --dry-run.");
   return problems;
