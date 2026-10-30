@@ -2642,6 +2642,17 @@
         "why": "bounded by fleet/org size, not by elapsed time; it cannot run away."
       }
     },
+    "unit_tags": {
+      "module": "maintenance",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "fleet",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "one row per truck or trailer ever labelled (0531, DE3): bounded by the fleet, 211 active trucks on 2026-10-30. Never deleted: a sold unit's label still says which unit it was."
+      }
+    },
     "user_dashboard_layout": {
       "module": "org",
       "layer": "core",
