@@ -16,6 +16,7 @@ import { useAssetsQuery, useMoveAsset } from "./useAssets";
 import { useLocationsQuery } from "./useInventory";
 import { defaultReturnBay } from "./driverHeldMove";
 import { holderPartner, type AssignTarget } from "./assignLine";
+import { useStartUnitCheck } from "./useStartUnitCheck";
 
 /**
  * What a truck, trailer or driver holds, and the two things a person does to it: assign more by
@@ -39,13 +40,21 @@ import { holderPartner, type AssignTarget } from "./assignLine";
  * with more or none, the move drawer opens and asks. The movement id is kept per item until it lands,
  * so a second tap after a lost answer re-sends the same move rather than writing another (D-INV27).
  *
+ * ── CHECK EQUIPMENT (EA3) ─────────────────────────────────────────────────────────────────────
+ * On a truck's or trailer's card: opens the unit check (`useStartUnitCheck`), where each label is
+ * scanned to tick it off. Not on the shop's truck page, whose header already carries the same verb
+ * (`checkButton: false`), and not on a driver's — a check walks a unit, not a person.
+ *
  * ── WHO SEES WHAT ─────────────────────────────────────────────────────────────────────────────
  * The list reads the shop's assets route, `maintenance: view` — the card renders nothing without it,
  * because a card full of blanks would say "this truck carries nothing", which is a different and
  * alarming claim (UnitKitCard's rule, kept). Assign, Return and Report are `maintenance` manage.
  */
 
-const props = withDefaults(defineProps<{ target: AssignTarget; shopLink?: boolean }>(), { shopLink: true });
+const props = withDefaults(defineProps<{ target: AssignTarget; shopLink?: boolean; checkButton?: boolean }>(), {
+  shopLink: true,
+  checkButton: true,
+});
 
 const session = useSessionStore();
 const toast = useToastStore();
@@ -77,6 +86,9 @@ const driverRows = computed(() => (truckDriver.value ? (driverQ.data.value?.asse
 
 const { data: locations } = useLocationsQuery();
 const assigning = ref(false);
+const check = useStartUnitCheck();
+const canCheck = computed(() => props.checkButton && canManage.value && props.target.kind !== "driver");
+const startCheck = () => check.startCheck(props.target.kind === "vehicle" ? "tractor" : "trailer", props.target.id);
 const moving = ref<{ asset: AssetDto; mode: "move" | "report" } | null>(null);
 const record = useMoveAsset();
 /** Per item, until it lands — see the header. */
@@ -123,9 +135,14 @@ const shopRoute = computed(() =>
       <h2 class="text-sm font-semibold text-ink">
         Equipment<span v-if="total > 0" class="font-normal text-ink-tertiary"> ({{ total }})</span>
       </h2>
-      <BaseButton v-if="canManage" size="sm" variant="primary" data-test="assign-open" @click="assigning = true">
-        {{ target.kind === "driver" ? "Give a tablet" : "Assign equipment" }}
-      </BaseButton>
+      <div class="flex flex-wrap items-center gap-2">
+        <BaseButton v-if="canCheck" size="sm" :disabled="check.openWalk.isPending.value" data-test="check-open" @click="startCheck">
+          Check equipment
+        </BaseButton>
+        <BaseButton v-if="canManage" size="sm" variant="primary" data-test="assign-open" @click="assigning = true">
+          {{ target.kind === "driver" ? "Give a tablet" : "Assign equipment" }}
+        </BaseButton>
+      </div>
     </div>
     <QueryState
       compact

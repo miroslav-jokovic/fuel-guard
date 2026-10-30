@@ -211,3 +211,25 @@ Tera Pro simulated by `keyboard.type` + Enter.
     status is asked; `driver` = `driver_id is not null`.
   - Tests: EquipmentPage (11), assets.test (+2), unitAttention (+1), read-states (+1), UnitDetailPage (+1);
     5 mutants each failed a test and were reverted byte-identical.
+- 2026-10-30 — **EA3 built** (`claude/equipment-assign-ea3`). No migration, no API change.
+  - The unit check takes the scanner (`useCheckScan.ts`): a label of something this unit holds ticks it
+    off and writes nothing (as *It's here* does) — the truck's driver's tablet included (D-DE4), which
+    is why the check's own list is asked before `judgeScan`, whose answer for a tablet on a truck is
+    "goes to a driver"; something recorded elsewhere says where and offers *Move it here* (the `found`
+    move *One turned up* writes); anything else gets the Assign list's sentence. One answer line,
+    replaced per scan. Camera kept open for many reads.
+  - **Close reports what nobody scanned or ticked as not found** (`reported_missing`, holder unmoved,
+    D-INV24), after a dialog that names how many ("Report 2 not found and close?"). Until EA3 those
+    were left as they were. Close returns to the truck's Equipment tab, not the Trucks & trailers list.
+  - *Check equipment* on the truck's and trailer's equipment card (`useStartUnitCheck`, now the one
+    starter the shop's header verb uses too); not on a driver's card, nor on the shop truck page whose
+    header has it.
+  - Tests: UnitCheck (+6), HolderEquipmentCard (+2); 4 mutants each failed a test — the fourth (drop the
+    "is it this unit's" lookup) first SURVIVED, which found the untested driver's-tablet case, now pinned.
+  - **Found in EA3's browser pass:** the check page still showed Should carry's own sections — "Not on the
+    list · Ratchet strap · 2 carried" (every carried thing, with no rules), the "Missing" kinds with
+    *One turned up*, and "Short" rows at review — which EA2 had missed. Now behind `KIT_RULES_SHOWN`; a
+    stray is moved on by scanning it instead (*Move it here*). Pass at 390/834 px: scan ticked the strap
+    and the driver's tablet, the stray read "recorded on Truck 702" and moved with `found`, close asked
+    "Report 1 not found and close?" and wrote one `reported_missing`, then landed on the truck's
+    Equipment tab; 0 controls under 44 px, no console errors. Screenshots `screenshots/ea3-*.png`.
