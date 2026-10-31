@@ -35,9 +35,10 @@ function readJsonFromDriverDir<T>(relative: string): T {
  * more automatic answer and was this plan's original decision, but it hashes the resolved dependency
  * tree — and in a pnpm workspace a `--frozen-lockfile` CI install and a laptop install can produce
  * different hashes for the SAME commit. The failure mode is silent: updates simply never arrive, with
- * nothing logged anywhere. The safety it would have bought is bought instead in CI, which compares
- * the fingerprint of the last shipped APK against this build's and refuses to publish a JavaScript
- * update when the native side moved (.github/workflows/driver-ota.yml). Loud check, boring config.
+ * nothing logged anywhere. The safety it would have bought was bought instead in CI, which compared
+ * the fingerprint of the last shipped APK against the update's and refused to publish when the native
+ * side moved (driver-ota.yml). That lane and its server were switched off in the AWS move (D-AWS16):
+ * the app ships through the stores, and with UPDATES_URL unset the `updates` block below is omitted.
  */
 const NATIVE_RUNTIME_VERSION = readJsonFromDriverDir<{ runtimeVersion: string }>(
   'runtime-version.json',
@@ -45,7 +46,7 @@ const NATIVE_RUNTIME_VERSION = readJsonFromDriverDir<{ runtimeVersion: string }>
 
 /**
  * The marketing version (D-PR2) comes from package.json rather than being restated here. It was
- * restated here until 2026-09-07, and `driver-android.yml` names the APK from the package.json copy
+ * restated here until 2026-09-07, and `driver-android.yml` (retired, D-AWS16) named the APK from the package.json copy
  * — two values that had to agree with nothing checking that they did. One home, read from it.
  * Bumped by hand, semver; the BUILD numbers below are never hand-edited.
  */
@@ -382,7 +383,7 @@ const config: ExpoConfig = {
      * The upload runs sentry-cli at build time and FAILS THE BUILD when it cannot authenticate — it
      * is a plain `exec` with no `ignoreExitValue` (node_modules/@sentry/react-native/sentry.gradle).
      * Only `SENTRY_DISABLE_AUTO_UPLOAD=true` skips it, which is why driver-android.yml — a lane that
-     * has never had a Sentry token — sets exactly that. EAS production builds (P2) set the token
+     * never had a Sentry token — set exactly that (retired, D-AWS16). EAS production builds (P2) set the token
      * instead and let it run.
      */
     [
