@@ -11,6 +11,9 @@ Read-only audit of `main` `e07046d` plus production (`supabase db query --linked
 counts and field NAMES only — no applicant values were read out). Every finding below carries the
 call site it was measured at. §5 is the build queue; §6 the questions only the owner can answer.
 
+**Second opinion and the two-day build are §8 and §9 (2026-10-31 evening).** §9 is the operative
+queue; §5 is the full one it was cut from. §8 corrects two things §0–§4 get wrong or miss.
+
 **This plan REPLACES, if the owner accepts §6's recommendations:** D-HB5 (handbook blocks the hire),
 the travel refusal (`TRAVEL_REFUSES_WITHOUT`), and the AI005 / AI006 / DR032 / DR036 / HB022 / HB023
 ordering refusals. Each is named again where it is replaced.
@@ -420,6 +423,9 @@ and the applicant record:
 
 ## 5. Build queue
 
+> ⚠ **Superseded as the working order by §9** (2026-10-31). This table is the full queue; §9 says
+> which rows ship in the two days and which wait, and why.
+
 One step, one PR, branch off `origin/main`. A column and its first reader in two merges. Ordered by
 what the office feels soonest.
 
@@ -478,6 +484,155 @@ Each has a recommendation; none is mine to rule.
 
 ---
 
+## 8. Second opinion — what the audit gets right, what it misses (2026-10-31)
+
+A second read of the system against the audit, every claim checked at `origin/main` `fde9a56`.
+The findings in §1–§4 held; two things below correct the audit, the rest is what it did not look at.
+
+### 8.1 Corrections to §2 and §4
+
+- **§4.1 relaxes six SQL refusals; only three are order.** AI005 (`send_application_invitation`,
+  `0365:229`), AI006 (`open_packet_signing`, `0369:191`) and HB022 (`handbook_marks_guard`,
+  `0385:78`) are preference and go. **DR032 stays**: approval writes the carrier's half into the
+  packet (§2.2 ⚠), so a mark before it has nothing to sign — it is reworded, not removed. **DR036
+  and HB023 are mechanical**: opening signing is what issues the token the mark is made with; without
+  it there is no mark to refuse. §9's migration touches three functions, not six.
+- **The draft is NOT unguarded.** `application_drafts.revision` exists since `0376:1488`, the
+  6-argument `save_application_draft` refuses DA041 on a stale revision, the API maps it to a 409
+  (`applicationDraft.ts:193`) and the phone shows a conflict callout with a reload button
+  (`DraftNotice.vue:22`). So §4.5's "office edits the draft until the applicant signs" is safe on
+  the applicant's side already. **The hole is the office's side**: `editApplication` reads the
+  payload and writes it back with a bare `.update({ payload })` (`applicationReview.ts:212,247`),
+  outside the revision check. A recruiter typing a job while the phone autosaves can overwrite the
+  phone's save. §9 P5 routes the office write through the same RPC with the revision it read.
+
+### 8.2 What the audit does not look at
+
+- **There is no human layer on the applicant record.** No notes table, no activity feed, no assigned
+  recruiter, no follow-up date (`git grep applicant_notes` → nothing; `ApplicantTextsStatus.vue` is
+  SMS consent only). A recruiter on the phone has nowhere to write *"called 10/30, sends the SSN
+  card Monday"*. Every hiring tool has this; this one does not. §9 P7/P10 add an append-only
+  `applicant_notes` table and an activity feed **derived** from the evidence rows that already exist
+  (invitation, Part 1, releases, each `qualification_records` kind, `psp_requests`, SMS, edits,
+  travel) — derived, because a stored feed is the second copy `applicantPipeline.ts:8` refuses.
+- **The recruiter cannot press Hire, and the fix is a setting, not code.** `canHire` is
+  `session.can("roster")` (`RecruitmentPage.vue:231`) and the API gate is
+  `requireSection("roster")` read from the ORG's editable matrix (SP5). So the owner can grant the
+  recruiter role `roster: manage` in Settings → Permissions today. What is unverified is whether
+  0213's trigger (which refuses a recruiter's `drivers.status` change) reads the role or the grant
+  — §9 P11 is that check on staging, with the recruiter test member.
+- **The process is a TypeScript array.** `hiringSteps.ts`'s header says carrier steps "are insertable
+  anywhere"; nothing lets anyone insert one. A hair test, fingerprinting, ELD training, fuel card
+  issued, equipment issued — each is a release today. The honest home is a per-org checklist editor
+  in Settings → Recruiting: the six federal rows and the two consent gates locked with their
+  regulation shown; every other row the carrier's to add, rename, reorder, hide, choose what proves
+  it (tick + note, signed document, upload, date) and whether it blocks the hire. **Not two-day
+  work** — it is a table, a reader and a fold change — but every §9 step is shaped so that it can
+  follow (`warns` lists, the `HIRE_REFUSES_WITHOUT` base, the hire-policy toggles of P12).
+- **Settings → Recruiting holds four things** (link lifetime, reminder, representatives, examiners;
+  `SettingsRecruitingPage.vue:39-58`) and the Templates tab is blank paper forms only
+  (`RecruitmentTemplatesPage.vue:54`). Missing, in the order they matter: hire-policy toggles (which
+  non-federal steps block the hire — Q-WF1/Q-WF6 should be a switch per carrier, not a ruling in a
+  plan), the required set of carrier questions (Q-WF3 as a setting served by one endpoint and read by
+  both validators keeps the client/server agreement the contract comment defends), the documents
+  offered, message templates (invitation, reminder, travel, videos), auto-archive after N days
+  without a response. P12 ships the first; the rest wait.
+- **After Send the applicant sees a wait screen** (`ApplyWaitScreen.vue`). A status page that shows
+  the office's stages in plain words and the one thing the applicant owes next removes the "what is
+  happening with my application" calls. Waits.
+- **Dispositions are three outcomes** (`applicantDisposition.ts:23`: declined, withdrawn,
+  no response). No on-hold, no rehire-eligible / do-not-rehire, no reactivate. Waits.
+- **§4.8's "watched to the end"** needs a player we host. First version is a link list and an
+  attestation tick. The DAC report (Q-WF7) waits, as the audit says.
+
+### 8.3 Rulings §9 assumes (the owner's to overturn, by Saturday evening)
+
+| Q | Assumed | Why |
+|---|---|---|
+| Q-WF1 | (a) the six federal checks, at hire | "hired" makes the person dispatchable |
+| Q-WF2 | (a) warn and allow the road test before the drug result | §382.301(b) exceptions; the strict reading is an inference |
+| Q-WF3 | required: position, applying as, heard from, legally able to work, proof of age, may we contact employers, education | the audit's recommendation |
+| Q-WF4 | (a) the roles that see the full SSN today | same sensitivity |
+| Q-WF5 | (a) accept the model; the office write goes through the revision RPC | §8.1 |
+| Q-WF6 | neither videos nor orientation block; **the handbook stops blocking too** (D-HB5 replaced) | the owner's complaint is the ruling; P12 makes it a switch |
+
+---
+
+## 9. The two-day build — Saturday 2026-10-31 and Sunday 2026-11-01
+
+**What "production ready" means here, said plainly.** After these two days the hire the office runs
+today works end to end without a developer sentence, a dead button or a refusal the law does not
+require; the office can fix an application on the phone; the applicant cannot send a blank job or
+skip the questions the carrier needs; every document can be offered and the office can upload one;
+the record has notes and a history; and the owner decides what blocks a hire. **The employment
+timeline (HW5b/c/d), PSP suggestions (HW6), orientation (HW8), the checklist editor, the applicant
+status page and the other settings of §8.2 are not two-day work and are not in this list.** They
+are the next week, in that order.
+
+**Calendar.** Today is Saturday. The release train runs Sunday–Thursday nights at 01:07 CT
+(`RELEASE-TRAIN-PLAN.md`), so everything merged by Sunday evening is on production **Monday
+2026-11-02 at 01:07 CT** once the owner approves the open `main → production` PR. A merge is on
+staging in minutes, so the owner can walk each step as it lands. Migrations 0533–0536 are applied
+to staging on merge and to production first in the train; each has its reader in a later PR
+(`lint:migration-ordering`), and both halves ride the same train.
+
+**How every PR is made.** Its own worktree and branch off `origin/main` (parallel sessions share one
+tree — never work on the main checkout); one PR per row; body under the four template headings; every
+gate run locally with `$?` checked and `CI=true` for vitest; migration numbers re-checked by NAME
+against `origin/main` right before merge (a parallel chat may have taken one); merge when CI is
+green; nothing pushed during a rebase. Four lanes run in parallel; a lane's rows are sequential.
+
+### 9.1 Saturday — the defects
+
+| PR | Lane | What | Files | Proof | Size |
+|---|---|---|---|---|---|
+| **P1** | A | **Road test** RT-A1…A10 exactly as §4.2. Pass `identity.cdl_number` into the panel; "Add the licence number first" opens the identity correction in place; hide "Record another" after a pass and reset the form after any record; examiner errors say Settings → Recruiting (link for admins, "ask an administrator" otherwise), refetch on `not_found`; `step="1" max="1000"`, `max` today on the date, server issues mapped to field errors; failed attempts listed with their PDF under "Attempts"; `IN_SERVICE_VEHICLE_STATUSES` with empty/error states; rows labelled by what counted; "Mark all satisfactory" + "Still needed: …"; *Before driving* / *On the road* groups; label on a real control; "Needs training". | `RoadTestPanel.vue`, `useRoadTest.ts`, `HiringStepDrawer.vue:66,256`, `api/.../roadTest.ts:282-291`, `roadTestContract.ts:20,39` | `RoadTestPanel.test.ts`: one case per RT id, each shown red first by reverting the one line it pins | S |
+| **P2** | B | **Drawers.** `hired → HireDrawer` (D-1); `send_application`/`packet` without a live invitation say what to do ("Send the invitation first", with the button) (D-2); medical step's link hidden for roles that cannot write the DQ file (D-3); Clearinghouse panel shows non-safety roles "Ask {role} to run it" (D-4); "Add another examiner" leaves the form (D-5). The §3.2 copy table: every quoted sentence replaced by an instruction or deleted; section numbers always with words; `formatDisplayDate` everywhere; one heading style; `AppCallout` for every warning; no box inside a drawer; process paragraphs behind a "Why?" disclosure. | `hiringStepDrawers.ts:142-146`, `HiringStepDrawer.vue`, `RecordedActPanel.vue`, `DispositionSection.vue:171`, `PspRecordsSection.vue:36,243`, `EmployerCallsPanel.vue:33`, `ClearinghouseConsentPanel.vue:72-73`, `HireDrawer.vue:62,83`, `DobImportCard.vue`, `SignatoryAddForm.vue:106`, `SelfieCheckPanel.vue:43`, `EmployerInquirySection.vue:46,54`, `ApplicantRecordPage.vue:135` | existing panel tests updated to the new strings; `lint:comment-claims` green; a grep for each old sentence returns nothing | M |
+| **P3** | C | **Migration 0533** — `send_application_invitation` without AI005, `open_packet_signing` without AI006, `handbook_marks_guard` without HB022. Each function's `comment on` rewritten to say the order is advised, not refused, and to cite this plan. DR032/DR036/HB023 untouched (§8.1). **Merge before P4.** | `supabase/migrations/0533_hiring_order_advises.sql` | the PGlite matrix for each function gains "sends/opens/marks with the predecessor open" and keeps the refusals that remain; `RESULT` line printed | S |
+| **P4** | C, after P3 | **Free order in code.** `TRAVEL_REFUSES_WITHOUT` → `TRAVEL_WARNS_ON`; `REFUSAL_EDGES` keeps only `hired`; `HIRE_REFUSES_WITHOUT` loses `handbook` (Q-WF6 assumed; P12 makes it a switch); `applicantTravel.ts:104-111` returns warnings instead of 409; `TravelPanel.vue:61` always shows the form with a caution callout "Still open: PSP, drug test — book anyway?"; `applicationSend.ts:105-109`, `applicationSendForSigning.ts:56-59`, `handbookSigning.ts:161`, `applicationReleases.ts:115`, `signatureAdoption.ts:119` → warn; `SendForSigningPanel.vue:141` and `HandbookPanel.vue:92` always show their button; MVR refusal (`hiringEvidence.ts:104-124`) names the paper-consent route and links `PaperAuthorizationForm`. **Hire shows its six before the press**: `HireDrawer` opens with the six federal checks, a tick or a link each, from the existing `GET …/hire-preview`; the board's `next` no longer skips "blocked" rows; `ApplicantRecordPage.vue:135` reads *"Every step can be done in any order. Hiring waits for the six federal checks; the MVR and PSP wait for the applicant's consent."* | `hiringSteps.ts:166-240`, `hiringChecklist.ts:365-376`, the eight API/UI files named | `hiringChecklist.test.ts` (no step but `hired` has a refusal edge); API tests for each route: predecessor open → 200 with `warnings[]`, was 409; `HireDrawer.test.ts`: six rows, each a tick or a link; e2e-apply unchanged | M |
+| **P5** | D | **The office edits the draft, fully, until filing.** `applicationIsEditable` → true from `application_sent_at` (and from `intake_completed_at` for the identity half) until `submitted_at`, closing EM-1 and EM-4; `editApplication` writes through `save_application_draft(…, p_expected_revision)` with the revision it read and maps DA041 to 409 *"The applicant changed this just now — reload and try again"* (§8.1); the correction list includes **null** cells (EM-2); employer rows addressed by `key`, never index (Q-AX7); **Remove row** with confirm; **Add a job** with a street field (EM-3, `address_line1` no longer `""`); **Explain a gap** writes the draft's gap list; every edit logged in `application_edits` as today. Both forms get the applicant's defaults (`operated_cmv` true). | `applicationReview.ts:200-260`, `editableFields.ts:12-22,137-144`, `ApplicationReviewDrawer.vue`, `AddEmployerForm.vue:26-32,86`, `applicationContract.ts` (edit op shape) | `applicationReview.test.ts`: edit before send 200; stale revision 409; null cell editable; delete by key; add with street files under `applicationFilingRules`; a mutation that drops the revision argument fails the stale test | M |
+| **P6** | A, after P1 | **Migration 0534 — documents.** Slot CHECK adds `twic`, `passport`, `work_authorization`, `hazmat_endorsement`, `road_test_certificate`, `training_certificate`; `documents.kind` CHECK adds `passport`, `ssn_card`, `work_authorization`, `training_certificate`, `road_test_certificate`; `application/pdf` allowed; `unique (invitation_id, slot)` → `unique (invitation_id, slot, ordinal)` with `ordinal` default 0 and a per-slot limit of 5 in the CHECK. Reader is P9. | `supabase/migrations/0534_application_document_slots.sql` | matrix: each new slot inserts; a sixth ordinal refuses; old rows unchanged (`ordinal` 0) | S |
+| **P7** | B, after P2 | **Migration 0535 — `applicant_notes`.** `id, org_id, driver_id (→ drivers, cascade), invitation_id null, body text, author_id, author_name, pinned bool, created_at`; RLS enabled, no client policies (deny-all); append-only — no `update`/`delete` grant, pinning through a one-column RPC. **Listed in `merge_driver`'s cascade** (the trap in `merge-driver-cascade-trap`), **added to the applicant purge** (`applicantPurgeContract.ts` — a purge that leaves notes leaves the applicant), and **not** in `RETENTION_FORBIDDEN` (notes are working papers, not evidence). Reader is P10. | `supabase/migrations/0535_applicant_notes.sql`, `check-rls.mjs` green | matrix: insert, pin, no update of body, cascades on merge, deleted by purge | S |
+
+**Saturday evening (owner):** walk P1–P5 on staging as they land — the road test with a truck in
+the shop and a fail before a pass; travel booked with PSP open; an application edited from the
+office before the applicant sent it. Answer §8.3 if any assumed ruling is wrong.
+
+### 9.2 Sunday — the applicant, the documents, the record, the switch
+
+| PR | Lane | What | Files | Proof | Size |
+|---|---|---|---|---|---|
+| **P8** | A | **The applicant form** (§4.4). Q-WF3's seven questions become `APPLICATION_CROSS_FIELD_RULES` entries, so the wizard and the API refuse the same thing; `questionnaire_answers` parsed by `questionnaireAnswersSchema` on the API (AF-1); `"questions"` leaves `OPTIONAL_TASKS`, the hub says *"3 of 11 answered"* (AF-2); every optional question gets *"I'd rather not say"* / *"Doesn't apply"* as a stored choice; **a job saves only with a name and a start date**, a half-filled drawer is listed *"Unfinished — finish or remove"* with the row named (AF-4); the review shows *"4 answers missing"* with one link per field (AF-5); military "when" only after "yes", yes/no as two buttons, required marked (AF-6); AF-7 hint rewritten; new intro (§4.4). **Spanish strings in the same PR** — C4 is live. | `questionnaireContract.ts:116-173,212`, `applicationRules.ts`, `applicationContract.ts:308`, `applicationSections.ts:72`, `taskHub.ts:46,96`, `EmployerDrawer.vue:139-148`, `ApplyEmploymentFields.vue:148-154`, `reviewSummary.ts`, `QuestionnaireFields.vue:122-128`, `strings.ts`, `es/strings.es.*.ts` | contract tests: each required key refused with the same issue path on client and server; e2e-apply (`apps/web/e2e-apply/`, the only Playwright CI runs): send refused with the missing list, then accepted; blank job cannot be saved; Spanish walk still passes | M |
+| **P9** | C | **Documents** (§4.7), reader of 0534. Part 2's task becomes **"Your documents"**: CDL shows the Part 1 thumbnails and never re-asks; every slot offered; photo or PDF; several training certificates; copy *"Send what you have now — you can bring the rest to the office."* **Office upload on the applicant record**: a Documents section with the same list, drag-drop or camera, filing to `documents` for the applicant's `driver_id` through `useUploadDocument`, each row badged *sent by applicant* / *added by {name}*. SSN card and passport images viewable only by the roles that see the full SSN (Q-WF4 (a)). | `DocumentCaptureFields.vue`, `applicationCaptureContract.ts:24-62`, `applicationCapture.ts:91`, `strings.ts:320-321` (+ es), `ApplicantRecordPage.vue`, new `ApplicantDocumentsSection.vue`, `useCompliance.ts:124` | capture contract tests for each slot and PDF; `ApplicantDocumentsSection.test.ts`: upload files with the driver id and org (`expectOrgScoped`); a recruiter sees the SSN card row and not its image | M |
+| **P10** | B | **Notes and activity**, reader of 0535. On the applicant record, above the checklist: **Notes** (append-only list, newest first, pin one to the top, "Add a note" is one textarea) and **Activity**, a dated list derived at read time from the rows that exist — invitation sent, Part 1 finished, each permission signed, each `qualification_records` kind, PSP ordered/filed, every SMS in and out, each `application_edits` row ("{name} filled in the street for ABC Trucking"), travel booked, disposition — one API read, org-scoped. The board's row gets *"last note: 2 d ago · {name}"*. | new `applicant_notes` service + routes, `applicantActivity.ts`, `ApplicantNotesPanel.vue`, `ApplicantActivityList.vue`, `ApplicantRecordPage.vue`, `applicantBoardReads.ts` | API tests: note insert org-scoped; activity for a fixture applicant lists every kind in date order; purge removes notes; a mutation that drops `.eq("org_id")` fails `expectOrgScoped` | M |
+| **P11** | D, **no code unless it fails** | **A recruiter hires.** On staging, grant the recruiter role `roster: manage` in Settings → Permissions; sign in as the recruiter test member (`staging-test-members`); hire a test applicant. **Pass** → write the outcome and the setting into §7 and `RECRUITER-ROLE-SCOPE.md`; the owner does the same on production after the release. **Fail on 0213's trigger** → migration 0536 makes the trigger read the org grant, reader Monday; written into §7 either way. | — | the staging act itself, recorded with the driver id and time | XS |
+| **P12** | D, after P11 | **Hire policy is a switch.** `recruiting_settings` gains `handbook_blocks_hire`, `orientation_blocks_hire`, `videos_block_hire` (all default false) in **migration 0536** (0537 if P11 took 0536); reader in a **second PR** the same afternoon: Settings → Recruiting gets a *"Before we hire"* section — the six federal checks listed and locked with their regulation, then three switches; `HIRE_REFUSES_WITHOUT` = the base six + whatever is switched on, read by `hireApplicant.ts` and `HireDrawer`'s six-row list (which becomes six-to-nine). | `0536_hire_policy.sql`, `recruitingSettingsContract.ts`, `RecruitingSettingsForm.vue`, `hireApplicant.ts:94-104`, `HireDrawer.vue` | matrix: defaults false; API: with `handbook_blocks_hire` on and no handbook → 409 listing it, off → 200; settings PUT org-scoped. **Drops first if Sunday runs out** — the base six already work from P4 | S+S |
+
+**Sunday evening — the pass and the release.**
+
+1. **Three fixtures on staging** (`browser-pass-three-fixtures`): the failing API, the empty org,
+   and the staging org, 9 s settle each, on the board, the record, every drawer, the applicant link
+   in English and Spanish.
+2. **The walk, as the office**: invite → Part 1 on a phone → permissions → office edits two jobs in
+   and removes a blank row → send → applicant answers the required seven and is refused once with the
+   missing list → office approves → travel booked with PSP open (warned) → office uploads a TWIC →
+   road test on a truck in maintenance, one fail then one pass → signing → handbook → **hire by the
+   recruiter** (P11) with the six shown green before the press → a note and the activity list read
+   back the whole day.
+3. **The release**: the owner approves the open `main → production` PR by 23:00 CT; the train runs
+   01:07 CT Monday, migrations 0533–0536 first, then the code. Monday 08:00 `pnpm verify:live`
+   confirms the commit and migration, and the owner flips the recruiter's roster grant on production.
+
+### 9.3 After the release — the next week, in this order
+
+HW5b (timeline + one employer form, L) → HW5c (`driver_employment_gaps`, post-signing corrections)
+→ HW5d (call results **Apply**) → HW6a (QCMobile client + lookup) → HW6b (PSP suggestions) → the
+checklist editor (§8.2) → required-questions and documents as settings → message templates → the
+applicant status page → dispositions → HW8a/b orientation (link list + attestation first) → DAC
+(Q-WF7, priced after HW6b).
+
+---
+
 ## 7. Progress log
 
 - **2026-10-31** — Audit written. Measured on production: 0 filed applications, 4 drafts, 1 real
@@ -486,3 +641,10 @@ Each has a recommendation; none is mine to rule.
   vs no `'hire'` branch), RT-A2 (`RoadTestPanel.vue:204` / `roadTest.ts:150`), RT-A6
   (`RoadTestPanel.vue:77`), EM-3 (`AddEmployerForm.vue:86`), EM-5 (`EmploymentForm.vue:42,86`).
   Nothing built.
+- **2026-10-31 (evening)** — Second opinion (§8) and the two-day build (§9) written after a second
+  read at `origin/main` `fde9a56`. Corrected: only AI005 / AI006 / HB022 are order refusals
+  (DR032 is "nothing to sign yet", DR036 / HB023 are mechanical); the draft IS revision-guarded
+  (0376 DA041) and the hole is the office's bare `.update` in `applicationReview.ts:247`. Added: no
+  notes / activity on the record; the recruiter's hire is an org grant (SP5) pending the 0213 check;
+  the process is an array with no editor; Settings → Recruiting has four things. §9 is twelve PRs
+  over Saturday and Sunday, release Monday 2026-11-02 01:07 CT. Nothing built yet.
