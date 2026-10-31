@@ -143,11 +143,11 @@ async function press(): Promise<void> {
     <template v-else>
       <template v-if="!result">
         <p v-if="lastSend === 'live'" class="text-xs text-ink-secondary">
-          Sent. The link works until {{ formatDateTime(invite.sign_link_expires_at!) }}. Sending again makes
+          Sent. The link works until {{ formatDateTime(invite?.sign_link_expires_at ?? "") }}. Sending again makes
           a new link, and the one before stops working.
         </p>
         <p v-else-if="lastSend === 'ran_out'" class="text-xs text-ink-secondary">
-          The last link ran out {{ formatDateTime(invite.sign_link_expires_at!) }}. Send again for a new one.
+          The last link ran out {{ formatDateTime(invite?.sign_link_expires_at ?? "") }}. Send again for a new one.
         </p>
         <AppCallout v-else-if="lastSend === 'stopped'" tone="caution">
           The last link stopped after {{ SIGN_LINK_UNLOCK_LIMIT }} wrong dates of birth. Check it is the
