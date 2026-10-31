@@ -1,7 +1,10 @@
-# Recruiting ads agent — five days to a production Meta ads control plane, with Indeed and Tenstreet feeding the same lead ledger · 2026-10-31
+# Recruiting ads agent — a production Meta ads control plane with its own creative studio, and Indeed and Tenstreet feeding the same lead ledger · 2026-10-31
 
-**Status: PROPOSED 2026-10-31. Nothing built. Waits on the owner's answers to Q-AD1–Q-AD9 (§9)
-and on three access requests the owner starts today (§2, "Day 0").**
+**Status: PROPOSED 2026-10-31; revised the same day (v2) after the owner's second message.
+Q-AD2 RULED (a person launches). The money rules move to a settings page (§4b). Creative production
+is added (§4a): Claude composes, Higgsfield renders, the brand kit and the visual rules are set by
+the office, and 4–5 concept presets are rotated. Nothing built. Waits on Q-AD1, Q-AD3–Q-AD6 and
+Q-AD8–Q-AD14 (§9), and on the access requests in §6 "Day 0".**
 
 The owner's ask (2026-10-31): *an automated ads agent that creates, manages, runs and monitors all
 our social-media ads, to get leads and improve recruitment, with Tenstreet and Indeed integrated
@@ -21,7 +24,7 @@ stands. Item IDs below are that plan's.
 
 | The ask | What five days can make production-ready | What five days cannot, and why |
 |---|---|---|
-| Create ads | The agent drafts each ad (EN + ES) from a **requisition** — pay, home time, equipment, lane — and refuses any claim the requisition does not hold; it creates the Meta campaign, ad set, Instant Form and ad **paused**. | Google, TikTok, LinkedIn: not researched against their employment policies; later adapters. |
+| Create ads | The agent picks two of the 4–5 approved **concept presets**, Claude writes the copy (EN + ES) into the preset's fixed slots from the **opening** (pay, home time, equipment, lane), Higgsfield renders the stills and motion under the **brand kit**, and our renderer lays the exact figures and logo on top. Copy, visual and render checks run before a person approves. It then creates the campaign, ad set, Instant Form and ad **paused** (§4a). | Google, TikTok, LinkedIn: not researched against their employment policies; later adapters. |
 | Run ads | A person presses **Launch** and approves every budget increase (Q-RA3 (b), ruled). Money is fenced three times: our cap in code, a Meta-enforced campaign spend cap, and the ad account's own spending limit. | Launching on its own — the owner ruled against it on 10/26. See Q-AD2 if "run" means otherwise. |
 | Manage ads | The agent **pauses** on its own in the safe direction: requisition filled, cap reached, ad rejected by Meta, kill switch. It **recommends** budget moves; a person applies them. | Automatic budget reallocation — D-RA10 gates it on eight weeks of data on drivers still seated at 90 days. |
 | Monitor ads | Hourly spend and delivery pull, daily reconcile, alerts (overspend, rejected ad, spend with no leads, lead not contacted), a daily brief per campaign with cost per lead. | Cost per *seated driver* needs 90 days of hires to exist. |
@@ -31,9 +34,10 @@ stands. Item IDs below are that plan's.
 
 **What decides the date is mostly not code.** Meta works on day 1: an app that manages only our own
 ad account gets the Marketing API's Limited tier with no App Review and no Business Verification.
-Tenstreet and Indeed both need a person at the vendor to approve us. The plan below ships everything
-we control by the **Thursday 11/05 night release (live Friday 11/06 morning)**, and finishes the two
-vendor connectors the day their access arrives. They are finished, not routed around (`CLAUDE.md`, "No
+Tenstreet and Indeed both need a person at the vendor to approve us. The plan below ships the control plane
+and still-image ads with the **Thursday 11/05 night release (live Friday 11/06)**, motion with the
+**Sunday 11/08 release (live Monday 11/09)**, and finishes the two vendor connectors the day their
+access arrives (§6). They are finished, not routed around (`CLAUDE.md`, "No
 workarounds").
 
 ---
@@ -182,6 +186,10 @@ means BEFORE triggers that fire for the service role (EI010/SO010 family), plus 
 | `ads_spend_hourly` | pulled insights: spend, impressions, clicks, leads, by campaign by hour | Pulled, so re-derivable |
 | `recruiting_ads_settings` | per-channel monthly cap, per-campaign daily cap ceiling, kill-switch state, uncontacted threshold | Defaults in code (`recruiting_settings` pattern) |
 | `recruiting_ai_outputs` | D-RA4 provenance for drafted copy and briefs (the `document_reads` column set) | Append-only status transitions |
+| `ad_brand_kits` (+ versions) | v2, D-AD10 — logo, colours, fonts, overlay templates per format, equipment reference photos, visual-rule checklist | Assets in storage by sha256 |
+| `ad_concept_presets` (+ versions) | v2, D-AD11 — hook, copy structure, slot templates, motion template, formats, enabled | Owner-edited |
+| `ad_generations` | v2, D-AD13 — **append-only**: every Claude and Higgsfield call, prompt, model, request id, idempotency key, cost, asset sha256, check results | The creative audit trail |
+| `recruiting_ads_settings_versions` | v2, §4b — every save of the settings page with its actor | Replaces the single settings row |
 
 ### 4.2 Shared (pure, no clock or model — `lint:boundaries`)
 `hiringProfileContract.ts`, `requisitionContract.ts`, `leadContract.ts`, `leadMatch.ts` (handoff
@@ -222,6 +230,142 @@ allowed Instant Form questions, and refuses a prohibited question type).
 
 ---
 
+## 4a. Creative production (v2, the owner's 2026-10-31 second message)
+
+The owner's words: *use our Higgsfield connection for images and motion, our Anthropic API and
+skills to compose the ads, be able to set rules for this, control the visual and design rules, and
+keep 4–5 viral/trending concept presets that the system picks at random instead of reinventing a
+concept each time; precise, secure, really controlled, easy to use and automated.*
+
+### Research behind it (read 2026-10-31)
+
+- **Higgsfield has a server API** (`https://api.higgsfield.ai`; header
+  `Authorization: Key <id>:<secret>`). It is asynchronous: submit a request, then poll
+  `/requests/{id}/status` or receive a webhook. Submissions accept an `Idempotency-Key`. **Output
+  files are kept for at least seven days only**, so we copy each one into our storage at once.
+  Keys come from Higgsfield Cloud. There is an official Python client; the JS SDK is "coming soon",
+  so we call REST. ⚠ **What we have today is the `higgsfield` CLI on a Mac**, signed in as the
+  development account. That is not a server integration. Production needs its own API key, sealed
+  per org like the Meta token, with its own credit budget (Q-AD10).
+- **Anthropic.** Ad composing is a single structured call, not an agent loop: one request with a
+  `strict` JSON schema returns the copy and the filled prompt slots. Anthropic's runtime "Agent
+  Skills" run inside a code-execution container, which is more machinery and attack surface than
+  a copywriting call needs. **"Our skills" therefore become versioned prompt packs in the repo**
+  (system prompt + schema + fixtures), held to the regression gate 12.6 of the parent plan. The
+  design skills we use in Claude Code (`banner-design`, `design-system`, `impeccable`) are used at
+  build time, to design the presets and overlay templates, not at run time (Q-AD11).
+  ⚠ The current model generation (Opus 5.5 / Sonnet 5.5 / Haiku 5.5) **rejects forced
+  `tool_choice`**, which `callClaude` relies on today. The generic helper (handoff RA1.8) uses
+  structured outputs (`output_config.format`) or `strict` tools with `auto`. Model choice stays in
+  `AI_MODELS`, per agent, and is decided by the fixture gate (Q-RA22), not by this plan.
+- **Meta and AI images.** Ordinary (non-political) ads do not have to declare AI use. Meta itself
+  adds an "AI info" label when it detects AI, including from C2PA metadata (third-party sources say
+  since June 2026). The label shows beside "Sponsored" only when the image has a **photorealistic
+  AI-made person**. → The presets prefer trucks, roads and cabs over AI-made faces.
+- **FTC 16 CFR 465** (in force 2024-10-21): a testimonial by someone who does not exist, or who did
+  not have the experience, is prohibited; an AI avatar is not banned by itself. → **No preset puts
+  words in a generated person's mouth.** Quotes come only from real drivers with a signed release
+  (Q-AD13).
+- **Employment-ad law on images** (Title VII §704(b); ADEA, 29 CFR 1625.4): an ad may not indicate
+  a preference by age, sex, race and so on, and pictures can do that as well as words. → A visual
+  rule: generated people, when there are any, vary across the set, and no set shows only one
+  demographic. Counsel confirms the wording (Q-AD8).
+- **"Trending" cannot be fetched reliably.** Meta's Ad Library API returns only political and
+  social-issue ads outside the EU, and no API reports what is "viral". → Presets are curated by a
+  person and versioned. The system measures which preset works *for us* (§8) and reports it.
+
+### D-AD9 · The image model never writes text or numbers
+Generated images and video carry **no lettering**: every prompt ends with "no text, no logos, no
+lettering", and the visual check (D-AD12) rejects any frame with glyphs in it. Pay, home time, the
+call to action, the logo and the "Equal Opportunity Employer" line are **composited by our own
+renderer** (server-side, from templates in the brand kit). The figures therefore come straight
+from the requisition and are always exact. The precision of an ad never depends on an image model
+spelling "$0.68/mile" correctly.
+
+### D-AD10 · The brand kit and the visual rules are data, versioned, set in Settings
+`ad_brand_kits` (versioned) holds the logo files, the brand colours, the fonts, the overlay
+templates per format (1:1 and 4:5 feed, 9:16 Stories/Reels) with their safe zones, the reference
+photos of our real equipment (tractor make and colour, trailer types), and the visual rules as a
+closed list of checks (allowed and forbidden elements, people policy, text coverage, competitors'
+marks). Each ad records the brand-kit version it was made under, so a past ad can be explained.
+
+### D-AD11 · Concept presets: 4–5, versioned, rotated with a recorded seed
+A preset (`ad_concept_presets`, versioned, owner-edited) is a fixed recipe, **not a free prompt**:
+the hook formula, the copy structure, the image prompt *template* with named slots (equipment,
+time of day, setting), the motion template, the overlay template and the formats. The model
+**only fills the slots** from the requisition and the brand kit; it cannot change the concept.
+
+**Selection: random, but fair and reproducible.** For each new campaign, the system draws from the
+enabled presets **excluding any preset already live for the same requisition**. The draw is
+uniform until §8 has data. Its seed is stored, so the same inputs show why that preset was picked.
+Each campaign carries **two creatives from two different presets** in one ad set, so Meta's
+delivery compares them and our report learns from it. Reweighting toward winners is a
+*recommendation* until D-RA10's data exists, then a switch.
+
+**Starting presets** (proposed; the owner edits them before AD3, Q-AD12):
+
+| # | Preset | Format | What it shows | Why it works for drivers |
+|---|---|---|---|---|
+| P1 | **Windshield sunrise** | 9:16 motion (Reels/Stories), 4:5 still | POV from the cab at dawn on an open highway, slow push-in; overlay: pay + home time | First-person "this could be your morning" is the most-copied trucking Reels hook |
+| P2 | **The number** | 1:1 / 4:5 still | A late-model tractor (from our equipment reference), dark background; the pay figure large in the overlay | Drivers scan for the pay; it answers the first question in one second |
+| P3 | **Home on time** | 4:5 still, 9:16 motion | The truck pulling into a quiet street at dusk, porch light on; no faces needed | Home time is the top reason drivers change carriers |
+| P4 | **Walk-around** | 9:16 motion | Slow orbit of our actual equipment (image-to-video from the reference photo) | Shows real equipment, not stock photos — a trust signal |
+| P5 | **Straight talk** | 1:1 carousel (3 cards) | Card 1 what you get, card 2 what we need (from the Hiring Profile), card 3 how to apply | Self-qualifies: fewer junk leads (the "not 1,000 junk leads" rule) |
+
+### D-AD12 · Every creative passes three checks before a person sees it
+1. **Copy check** (pure, D-AD1): every claim is in the requisition, no forbidden term, the length
+   fits each placement, and both EN and ES are present.
+2. **Visual check** (Claude vision, a fixed checklist from the brand kit): no glyphs or lettering,
+   no foreign logos, the equipment matches the reference type, no malformed people or vehicles,
+   the people policy is met, and the overlay's safe zone is clear. Each item is answered
+   `pass/fail` with a reason and stored with provenance. A fail **regenerates once** with the
+   failure added to the prompt, then stops and shows the reason. It never loops on credits.
+3. **Render check** (pure): the composited overlay's text measures inside its safe zone and meets
+   the contrast floor, measured over the zone the text occupies (the measuring trap recorded in
+   the Higgsfield memory). Video length and aspect ratio are within Meta's limits.
+
+Only a creative with three greens can be approved; a person still sees and approves every one.
+
+### D-AD13 · Generation is a ledgered, budgeted, idempotent job
+`ad_generations` (append-only) records each Claude call and each Higgsfield request: preset and
+brand-kit versions, the full prompt, the model, the Higgsfield request id, the `Idempotency-Key`
+(= our generation id), cost (tokens; Higgsfield credits), status, the stored asset's sha256 and
+path. Higgsfield's webhook (or a poll as backstop) completes the job. The asset is copied into our
+storage at once (outputs expire after seven days). Monthly budgets for Anthropic tokens and for
+Higgsfield credits are settings (§4b). An exhausted budget is a recorded `budget_exhausted`, not a
+crash, and it never blocks pausing or monitoring.
+
+### The one-screen flow (easy to use)
+**New campaign → pick the opening → the system picks two presets, writes, renders and checks
+(about 2–4 minutes for stills; motion takes longer and arrives when ready) → one review screen
+shows every format of both creatives with the three checks → Approve (or "Regenerate this one" /
+"Edit copy") → Create (paused) → Launch.** That is four clicks for a recruiter and one for the
+approver. Nothing on the screen asks for a prompt.
+
+---
+
+## 4b. The Ads control settings page (v2 — replaces Q-AD7's "tell me the numbers")
+
+`/settings/recruiting/ads` is admin-only to edit (the *ads approve* action, Q-AD3) and readable by
+recruiters. Every save writes a new version with its actor; nothing is edited in place.
+
+| Group | Settings | Enforced where |
+|---|---|---|
+| **Spending limits** | monthly cap per channel; maximum daily budget per campaign; maximum lifetime per campaign; the largest raise one approval may make (in % and $) | `adsPolicy` before every call (D-AD3) + Meta's campaign `spend_cap` |
+| **Account guard** | the ad account's spending limit as Meta reports it (read-only), shown beside the monthly cap with a red state when it is missing or higher | Launch refuses (D-AD3 fence 3) |
+| **Auto-pause rules** | pause when cost per lead exceeds $X after Y leads; when $Z is spent with no lead; when frequency exceeds N; at the daily cap; when the opening is filled | the hourly pull (AD4), each pause ledgered with its rule |
+| **Approvals** | who may launch, raise or change the area (from the permission matrix, not a role list); whether a second approver is needed above $X | the approval route |
+| **AI and rendering budgets** | Anthropic tokens per month; Higgsfield credits per month; maximum regenerations per creative | D-AD13 |
+| **Alerts** | who gets each alert (overspend, rejected, no leads, external change, budget nearly used); the uncontacted-lead threshold | `notify()` categories |
+| **Kill switch** | one button, with the reason required; shows what it paused | D-AD3 |
+
+The same page shows **spend control live**: month-to-date spend against each cap, per campaign
+today and lifetime, the forecast to month end at the current daily budgets, AI and render credits
+used, and the reconcile status. The figures come from the D-AD5 fold, so the settings page and the
+ads page can never disagree.
+
+---
+
 ## 5. The agent's authority table (D-AD2) — the thing that makes it safe
 
 | Action | Who may | Guard |
@@ -235,34 +379,41 @@ allowed Instant Form questions, and refuses a prohibited question type).
 | Edit a live ad's copy | person | the edit re-runs the claim check and goes back through Meta review |
 | Change area or targeting | person | radius ≥ 15 mi; no ZIP field exists |
 | Archive | agent (after its requisition closes) or person | never delete |
+| Pick presets, compose, render, check, regenerate once | agent | D-AD11–D-AD13; within the AI and render budgets |
+| Approve a creative | person | three green checks (D-AD12) |
+| Edit the brand kit, presets, settings | admin | versioned; actor recorded |
 | Message a lead | **nobody automated** | D-RA2 |
 | Billing, payment method, account spending limit | **owner, in Meta only** | not in our token's code paths |
 
 ---
 
-## 6. Five days, with the release train
+## 6. The schedule, with the release train (v2: creative production adds two build days)
 
-Releases run at 01:07 CT, Sunday to Thursday nights, after the owner approves the candidate. A
-merge reaches staging in minutes. The migration number is checked by *name* before merge (a
-parallel chat may take 0533).
+Releases run at 01:07 CT, Sunday to Thursday nights, after the owner approves the candidate; there
+is no release on Friday or Saturday night. A merge reaches staging in minutes. The migration number
+is checked by *name* before merge (a parallel chat may take 0533). `/code-review` and
+`/security-review` run on every PR as it goes, not saved for the end.
 
 | Day | Merges (each a PR, CI green, merged by hand) | Done when (measured) |
 |---|---|---|
-| **0 · Sat 10/31** | This plan. **Owner:** answers Q-AD1–9; emails the Tenstreet account manager (Q-AD4/Q-RA1b); submits the Indeed Job Sync request (Q-AD5); in Meta: Business Manager, ad account, Page, the account spending limit, an app with the Marketing API, a system user, a sandbox ad account | Each request has a sent date in the log |
-| **1 · Sun 11/01** | **AD1:** migration (all §4.1 tables + categories) · shared contracts, `leadMatch`, `adClaims`, `adsPolicy`, `adsReport` with boundary tests | Fixture tests cover every rule's edge; matrix shows append-only `ads_actions` refusing UPDATE/DELETE for the service role. **Release Sun night** → schema in production |
-| **2 · Mon 11/02** | **AD2:** Meta client + sealed account + create-paused + approvals + kill switch + caps · webhook + hourly backfill + `ingest_lead` + dedupe | On staging (sandbox): a campaign is created paused with EMPLOYMENT and `spend_cap`; a cap + 1 request is refused; a test lead arrives once via webhook and once via backfill and is stored once |
-| **3 · Tue 11/03** | **AD3:** web — ads page, leads queue, profile + caps settings · generic `callClaude` + copy drafter + claim check · `lead_new` notify | A recruiter on staging drafts → creates → (admin) launches a sandbox campaign; a test lead appears in the queue with its verdicts and a notification |
-| **4 · Wed 11/04** | **AD4:** insights pull, reconcile, auto-pause rules, alerts, daily brief · failed-jobs page · Indeed mailbox intake · Tenstreet listener (switch off) | Forced overspend → paused + alert; forced Ads Manager edit → `external_change` alert; forced job failure is listed on the page |
-| **5 · Thu 11/05** | Hardening: mutation pass on every guard (each PR lists the mutation that went red), the security review, the full staging walk, the runbook. **Release Thu night** | Owner's staging walk passes; the release PR body lists the approver's steps |
-| **Fri 11/06** | Production: owner connects the real ad account, sets caps, launches the first campaign at a small budget | First real lead reaches a recruiter; the brief arrives the next morning |
-| **When the vendors answer** | Tenstreet schema → listener on; Indeed approval → Job Sync posting (1.5) | A pushed Tenstreet subject is stored once and answered "accepted"; an Indeed posting goes live from a requisition |
+| **0 · Sat 10/31** | This plan. **Owner:** the questions in §9; Tenstreet email (Q-AD4); Indeed Job Sync request (Q-AD5); in Meta: Business Manager, ad account, Page, the account spending limit, an app with the Marketing API, a system user, a sandbox ad account; **a Higgsfield Cloud API key** (Q-AD10); **the brand kit assets** (Q-AD14) | Each request has a sent date in the log |
+| **1 · Sun 11/01** | **AD1:** migration (all §4.1 tables, creative tables, settings versions, notify categories) · shared: `leadMatch`, `adClaims`, `adsPolicy`, `adsReport`, preset + brand-kit contracts, `presetDraw` (seeded), render-check geometry | Boundary tests on every rule; matrix proves `ads_actions` and `ad_generations` refuse UPDATE/DELETE for the service role. **Release Sun night** → schema in production |
+| **2 · Mon 11/02** | **AD2:** Meta client + sealed account + create-paused + approvals + kill switch + caps · lead webhook + hourly backfill + `ingest_lead` + dedupe | Staging (sandbox): a campaign is created paused with EMPLOYMENT and `spend_cap`; cap + 1 refused; a test lead arrives once by webhook and once by backfill and is stored once |
+| **3 · Tue 11/03** | **AD3: the creative engine** — generic Claude helper (structured outputs), the composer prompt pack + fixtures, Higgsfield client (stills, webhook + poll, idempotency key, copy to storage), visual check, overlay renderer, `ad_generations` | From a fixture requisition, P2 and P5 produce creatives whose overlay figures equal the requisition's; a planted glyph frame fails the visual check; a replayed generation does not spend credits twice |
+| **4 · Wed 11/04** | **AD4: the screens** — settings page (§4b), brand kit + preset editors, the one-screen campaign flow, the leads queue | A recruiter on staging goes from opening to a paused sandbox campaign in four clicks; an admin launches it; a test lead shows in the queue with its verdicts |
+| **5 · Thu 11/05** | **AD5: monitoring** — insights pull, reconcile, auto-pause rules, alerts, daily brief, failed-jobs page · the full staging walk. **Release Thu night if the walk passes** | Forced overspend → paused + alert; Ads Manager edit → `external_change`; forced job failure listed |
+| **Fri 11/06** | **Production, still images:** owner connects the real accounts, sets the limits, approves the presets, launches the first campaign at a small budget | First real lead reaches a recruiter; the brief arrives next morning |
+| **6 · Sun 11/08** | **AD6:** motion (image-to-video for P1, P3, P4; 9:16) · Indeed mailbox intake · Tenstreet listener (switch off) · the mutation pass written into each PR. **Release Sun night** | A motion creative passes the visual check on sampled frames; an Indeed email becomes one proposed lead |
+| **Mon 11/09** | **Production, motion** | First Reels creative approved and launched |
+| **When the vendors answer** | Tenstreet schema → listener on; Indeed approval → Job Sync posting (1.5) | A pushed Tenstreet subject is stored once and answered "accepted"; an Indeed posting goes live from an opening |
 
-**Risk to the date, said plainly:** five merges in five days is the pace this repo has kept
-(e.g. Maintenance M1–M9, 10/28–10/29). The risks are (a) the owner's Meta setup on day 0 — without
-a system-user token, AD2 is tested only against recorded responses and cannot be called
-production-ready; (b) a release night the owner does not approve, which moves everything a day;
-(c) Meta's own review of the first real ad (usually under 24 h; it can be longer). None is solved
-by writing code faster.
+**The date, said plainly.** Static-image Meta ads with the full control plane: **Friday 11/06**.
+Motion and the Indeed mailbox: **Monday 11/09** — the two added build days are the creative
+engine and its screens, and there is no Friday or Saturday release. The risks are (a) the Day 0
+setup (without a Meta system-user token and a Higgsfield key, AD2/AD3 are tested only against
+recorded responses and are not production-ready); (b) a release the owner does not approve, which
+moves everything a day; (c) Meta's review of the first real ad (usually under 24 h). Writing code
+faster solves none of them.
 
 ---
 
@@ -281,6 +432,13 @@ by writing code faster.
   `proposed` until a person confirms it, and whose tool schema cannot trigger an action.
 - Money: §3 D-AD3 + §5. The kill switch works even when the API is degraded (it is a DB flag every
   spend path reads, *then* the pause calls).
+- Higgsfield: the key is sealed per org (AAD = org + `higgsfield`), never on a developer's Mac in
+  production; its webhook is verified, otherwise the job polls; asset URLs are fetched only from
+  Higgsfield's host (allowlist) and stored by sha256; the credit budget is checked before submit.
+- Brand-kit uploads go through the upload gate that knows files by their bytes (type sniffed, not
+  trusted from the name); SVG logos are sanitised or rasterised before use.
+- No lead data, applicant data or person's name ever reaches the composer or Higgsfield: they see
+  the opening, the brand kit and the preset only (D-RA5's allowlist test extends to both).
 - Gates: `lint:migrations`, `check-rls.mjs`, `lint:upserts`, `lint:boundaries`,
   `lint:table-lifecycle`, `lint:filesize`/`funcsize`, `lint:comment-claims`, `lint:secrets`; all CI
   jobs; `/code-review` and `/security-review` on AD2 and AD4.
@@ -292,7 +450,8 @@ by writing code faster.
 Cost per lead and per *qualified* lead (recruiter-confirmed Class A + experience) per campaign;
 median minutes from lead to first contact; share of leads converted to an application; reconcile
 mismatches (target: zero unexplained); Meta rejections per creative; agent agreement (drafts
-approved without edits vs edited).
+approved without edits vs edited); per preset: cost per qualified lead, visual-check first-pass
+rate, and Higgsfield credits per approved creative.
 
 ---
 
@@ -302,11 +461,7 @@ approved without edits vs edited).
   Instagram) only; (b) + Google Ads; (c) + TikTok/LinkedIn. **Recommendation (a):** Meta is where
   the owner already runs ads (Q-RA7f), and each extra platform needs its own employment-policy
   research and adapter. *Fallback:* (a).
-- **Q-AD2 · Does "run" change the 10/26 ruling Q-RA3 (b)?** That ruling says the agent creates
-  paused and a person launches and approves budget rises. This plan keeps it and adds that the
-  agent may **pause and lower** on its own. Candidates: (a) keep (b) + autonomous pause/lower;
-  (b) agent may also launch within a pre-approved monthly envelope. **Recommendation (a)** until
-  §8's numbers exist. *Fallback:* (a).
+- **Q-AD2 · RULED 2026-10-31: (a).** A person launches; the agent may pause and lower on its own.
 - **Q-AD3 · Who may approve spend?** **Recommendation:** admin only, a new *ads approve* action in
   the permission matrix (not a hand-written role list); recruiters draft and create paused.
   *Fallback:* admin only.
@@ -318,8 +473,8 @@ approved without edits vs edited).
   integration request today. *Fallback:* manual posting, email intake, spend typed in monthly.
 - **Q-AD6 · Intake mailbox** (= Q-RA12). A new M365 mailbox (e.g. `jobs@`) read through Graph.
   **Recommendation:** yes — the code and credentials exist. *Fallback:* the paste box.
-- **Q-AD7 · Money.** Monthly cap for Meta, maximum daily per campaign, and the ad account spending
-  limit you will set (= Q-RA7f-ii). *Fallback:* nothing launches until set (the code refuses).
+- **Q-AD7 · RULED 2026-10-31: a settings page** (§4b), not numbers in code. Still owed: the first
+  values (= Q-RA7f-ii). *Fallback:* nothing launches until they are set; the code refuses.
 - **Q-AD8 · Counsel** (adds to Q-RA6): confirm that Instant Form questions on Class A, years of
   experience and hazmat are acceptable, and the wording of the age floor in the ad. *Fallback:*
   those three questions only; age stated in the copy; the open counsel memo status (sent?) is still
@@ -327,6 +482,23 @@ approved without edits vs edited).
 - **Q-AD9 · The first requisition.** Pay (basis + range), home time, equipment, lanes, the yard and
   radius with its operational reason (= Q-LS2, **never ZIP**), headcount. The agent cannot write an
   ad without it, by design (D-AD1).
+- **Q-AD10 · Higgsfield for production.** A Higgsfield Cloud API key for the server (not the CLI
+  login), which account pays, and a monthly credit cap. *Fallback:* no rendering; AD3 is built
+  against recorded responses and the ads page offers no "generate" until a key exists.
+- **Q-AD11 · What "our skills" means.** (a) The Claude Code design skills we already use, applied
+  at build time to design presets and overlay templates; (b) runtime Anthropic Agent Skills in a
+  code-execution container. **Recommendation (a)**, with the composing rules held as a versioned
+  prompt pack in the repo: one structured call is cheaper, faster, and has no sandbox to secure.
+  *Fallback:* (a).
+- **Q-AD12 · The five presets.** Approve, edit or replace P1–P5 (§4a) before AD3. Each one is
+  editable later in Settings, versioned. *Fallback:* P2 and P5 only (stills; nothing invented).
+- **Q-AD13 · Real drivers.** May we use real drivers' photos or words? Only with a signed release
+  stored on their record. *Fallback:* no people in quotes; generated scenes favour trucks, roads and
+  cabs (FTC 16 CFR 465; Meta's "AI info" label beside a photorealistic AI person).
+- **Q-AD14 · The brand kit.** The logo as vector, the colours, the font (if any), the company name
+  exactly as it should read, the phone number shown, and 5–10 real photos of our tractors and
+  trailers from several angles (these become the reference images, so generated trucks look like
+  ours). *Fallback:* no logo overlay; equipment drawn generically, which weakens P4.
 
 ---
 
@@ -350,6 +522,16 @@ approved without edits vs edited).
 [Tenstreet integrations](https://www.tenstreet.com/integrations) ·
 [LeadsBridge: Tenstreet](https://leadsbridge.com/documentation/tenstreet/)
 
+**Creative (v2)** — [Higgsfield API docs](https://docs.higgsfield.ai/docs) ·
+[Higgsfield API reference](https://docs.higgsfield.ai/docs/api-reference/overview) ·
+[Higgsfield quickstart](https://docs.higgsfield.ai/docs/quickstart.md) ·
+[Official Higgsfield platforms](https://higgsfield.ai/creator-hub/help-center/getting-started/official-higgsfield-platforms) ·
+[AI images in Facebook ads: Meta's rules (Showfolk)](https://www.showfolk.ai/blog/ai-generated-images-facebook-ads-rules) ·
+[AI ad disclosure requirements 2026 (CineRads)](https://www.cinerads.com/blog/ai-ad-disclosure-requirements) ·
+[Does Meta allow AI-generated ads? (Mockingbird)](https://www.mockingbirdhouse.com/learning/ai-ad-creative/does-meta-allow-ai-generated-ads) ·
+[FTC final rule banning fake reviews and testimonials](https://www.ftc.gov/news-events/news/press-releases/2024/08/federal-trade-commission-announces-final-rule-banning-fake-reviews-testimonials) ·
+[Sidley: FTC rule on fake and AI-generated reviews](https://www.sidley.com/en/insights/newsupdates/2024/08/us-ftcs-new-rule-on-fake-and-ai-generated-reviews-and-social-media-bots)
+
 ---
 
 ## Progress log
@@ -362,3 +544,14 @@ approved without edits vs edited).
   approval; Tenstreet API activation is by request (a fee is reported). Re-orders
   RECRUITER-AUTOMATION-PLAN: ads control plane + Meta intake pulled forward on top of the
   lead-ledger part of RA1. **Nothing built.**
+- **2026-10-31, later (v2)** — Owner's second message. **Q-AD2 ruled:** a person launches. **Q-AD7
+  ruled:** the money rules live on a settings page (§4b) with spend shown live. Creative production
+  added as §4a (D-AD9–D-AD13): Claude composes into fixed preset slots; Higgsfield renders through
+  its server API (the CLI login on the Mac is not production); the image model never writes text,
+  so the figures are composited by our renderer from the opening; the brand kit and the visual
+  rules are versioned data; 4–5 presets rotate by a recorded seeded draw, two per campaign; every
+  creative passes copy, visual and render checks before a person approves it. Research: Higgsfield
+  outputs expire after seven days; Meta labels AI content itself and shows the label beside
+  "Sponsored" only for a photorealistic AI person; the FTC bans testimonials from people who do
+  not exist; the current Claude models reject forced `tool_choice`. Schedule moved: stills Friday
+  11/06, motion Monday 11/09. **Nothing built.**
