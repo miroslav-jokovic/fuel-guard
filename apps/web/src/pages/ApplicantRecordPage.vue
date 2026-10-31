@@ -99,14 +99,6 @@ const missing = computed(() => isNotFound(driverQ.error.value));
  * exists, rather than a panel describing something the server no longer reports.
  */
 const openStepKey = ref<HiringStepKey | null>(null);
-// §9 P4: `?step=<key>` opens that row — the hire drawer's "Open" beside a federal check lands here.
-watch(
-  () => route.query.step,
-  (step) => {
-    if (typeof step === "string" && step) openStepKey.value = step as HiringStepKey;
-  },
-  { immediate: true },
-);
 const openStep = computed(
   () => checklistQ.data.value?.steps.find((s) => s.key === openStepKey.value) ?? null,
 );
@@ -127,6 +119,18 @@ function openReview(invitation: string): void {
 const session = useSessionStore();
 const canHire = computed(() => session.can("roster"));
 const hiring = ref(false);
+// §9 P4: `?step=<key>` opens that row — the hire drawer's "Open" beside a federal check lands here.
+watch(
+  () => route.query.step,
+  (step) => {
+    if (typeof step === "string" && step) {
+      // The hire drawer's "Open" beside a federal check lands here: swap one drawer for the other.
+      hiring.value = false;
+      openStepKey.value = step as HiringStepKey;
+    }
+  },
+  { immediate: true },
+);
 function openRow(step: { key: HiringStepKey; state: string }): void {
   if (step.key === "hired" && canHire.value && step.state !== "done") {
     openStepKey.value = null;

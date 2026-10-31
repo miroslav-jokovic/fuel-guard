@@ -659,3 +659,15 @@ applicant status page → dispositions → HW8a/b orientation (link list + attes
   errors, Mark all satisfactory + Still needed, grouped items, examiner problems → Settings →
   Recruiting (new 409 `examiner_unavailable`), drug test open = a caution. 13/13 mutants killed.
   Kept: the §392.7 item text, which prints on the carrier's form.
+- **2026-10-31** — **P5 merged (#1873, `2556eb4`), no migration.** The office edits the draft from
+  its own send until the driver's FIRST PACKET MARK (not "until filing": once signing starts the
+  document stays put — the one point where the old "closes at approval" reason is real). Every write
+  goes through `save_application_draft` with the revision the office read (§8.1's hole closed); DA041
+  → "The applicant changed this just now". Null cells offered, jobs by `key` (keyless legacy rows are
+  given one on the first office write), remove with confirm, add with a street, gaps explained.
+  Part 1 corrections follow to filing. 10/10 mutants killed. Gates caught two (adoption, table-writer
+  ratchet), fixed in the PR.
+- **2026-10-31** — **P2 merged (#1874, `f35027f`), no migration.** D-1 (record page opens
+  `HireDrawer` for `roster: manage`, the step drawer says who hires otherwise), D-2, D-3, D-4; all
+  twelve §3.2 sentences gone; `formatDisplayDate` in four panels; one heading style; callouts.
+  7/7 mutants killed. The record-page sentence and the Travel/Send/Signing paragraphs went with P4.

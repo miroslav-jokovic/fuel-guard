@@ -150,6 +150,15 @@ const settle = async (w: Awaited<ReturnType<typeof mountPage>>) => {
 };
 
 describe("the drawer a row opens", () => {
+  /** §9 P4: the hire drawer's "Open" beside a federal check links here with `?step=`, and it opens. */
+  it("opens the row named in ?step=, closing the hire", async () => {
+    const w = await mountPage();
+    await router.push("/recruitment/00000000-0000-4000-8000-0000000000d1?step=mvr");
+    await settle(w);
+    expect(document.body.querySelector("[data-drawer]")?.getAttribute("data-step")).toBe("mvr");
+    await router.push("/recruitment/00000000-0000-4000-8000-0000000000d1");
+  });
+
   /** D-1 (§9 P2): the Hired row opened a step drawer with nothing in it; it opens the hire. */
   it("D-1: the Hired row opens the hire for a reader who may hire, and the step drawer for anybody else", async () => {
     access.roster = true;
