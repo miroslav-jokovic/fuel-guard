@@ -90,12 +90,12 @@ const press = async (w: ReturnType<typeof mountIt>, label = "Send for signing") 
 };
 
 describe("sending the packet for signing", () => {
-  it("offers nothing to send before the application is approved", async () => {
+  it("§9 P4: offers the send before the application is approved", async () => {
     state.invite = { approved_at: null, signing_opened_at: null, submitted_at: null };
     const w = mountIt();
     await flushPromises();
-    expect(w.text()).toContain("Approve the application first");
-    expect(button(w, "Send for signing")).toBeUndefined();
+    // §9 P4 (G4): approval is advised first, never required to send — the button is there.
+    expect(button(w, "Send for signing")).toBeDefined();
   });
 
   it("names the federal gates and road test still outstanding, and lets it be sent anyway", async () => {
@@ -249,11 +249,11 @@ describe("previewing the envelope before sending it", () => {
     expect(button(w, "Preview the handbook")).toBeDefined();
   });
 
-  it("offers no preview before approval", async () => {
+  it("§9 P4: offers the preview before approval too", async () => {
     state.invite = { ...APPROVED, approved_at: null };
     const w = mountIt();
     await flushPromises();
-    expect(button(w, "Preview the application")).toBeUndefined();
+    expect(button(w, "Preview the application")).toBeDefined();
   });
 
   it("closes the viewer when the drawer moves to another applicant", async () => {

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, ref, watch } from "vue";
 import { useRoute } from "vue-router";
 import { useQuery } from "@tanstack/vue-query";
 import type { Driver, HiringStepKey } from "@silvicom/shared";
@@ -119,6 +119,18 @@ function openReview(invitation: string): void {
 const session = useSessionStore();
 const canHire = computed(() => session.can("roster"));
 const hiring = ref(false);
+// §9 P4: `?step=<key>` opens that row — the hire drawer's "Open" beside a federal check lands here.
+watch(
+  () => route.query.step,
+  (step) => {
+    if (typeof step === "string" && step) {
+      // The hire drawer's "Open" beside a federal check lands here: swap one drawer for the other.
+      hiring.value = false;
+      openStepKey.value = step as HiringStepKey;
+    }
+  },
+  { immediate: true },
+);
 function openRow(step: { key: HiringStepKey; state: string }): void {
   if (step.key === "hired" && canHire.value && step.state !== "done") {
     openStepKey.value = null;
@@ -180,9 +192,10 @@ function openOrder(medstopId: string): void {
           the orientation day and the handbook are part of the process and are not listed yet, which is
           why “ready to travel” stays open even when every row above is green.
         </p>
+        <!-- §9 P4 (HIRING-WORKFLOW-AUDIT §4.1): the sentence the product now makes true. -->
         <p>
-          Steps are blocked only by law or by a rule the database enforces. Anything else can be done in
-          whatever order suits the day.
+          Every step can be done in any order. Hiring waits for the six federal checks; the MVR and PSP
+          wait for the applicant's consent.
         </p>
       </ExplainerPanel>
 

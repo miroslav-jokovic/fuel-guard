@@ -2,7 +2,8 @@ import { describe, it, expect } from "vitest";
 import { hireBlockers, hiringChecklist, readyToScreen, roadTestCounts, type HiringChecklistInputs } from "./hiringChecklist.js";
 import {
   HIRE_REFUSES_WITHOUT,
-  TRAVEL_REFUSES_WITHOUT,
+  TRAVEL_WARNS_ON,
+  REFUSING_STEPS,
   HIRING_PHASE_LABELS,
   HIRING_STEPS,
   hiringStep,
@@ -141,7 +142,7 @@ describe("the catalogue", () => {
       "invitation_sent", "intake_completed", "permissions_signed", "mvr", "psp", "clearinghouse",
       "drug_test", "application_sent", "application_filled", "medical_certificate",
     ]);
-    expect(TRAVEL_REFUSES_WITHOUT).toEqual(before);
+    expect(TRAVEL_WARNS_ON).toEqual(before);
   });
 
   /**
@@ -217,8 +218,10 @@ describe("the four states", () => {
   it("is blocked, and says by what", () => {
     const c = hiringChecklist(input({ invitedAt: "2026-09-01T00:00:00Z" }));
     const mvr = c.steps.find((s) => s.key === "mvr")!;
+    // §9 P4: the MVR still blocks — its consent is law (`REFUSING_STEPS`).
     expect(mvr.state).toBe("blocked");
     expect(mvr.blockedBy).toBe("permissions_signed");
+    expect(mvr.advisedFirst).toBeNull();
   });
 
   it("is done when the evidence exists, and carries the artifact that proves it", () => {
@@ -328,8 +331,9 @@ describe("the §391.23 investigation", () => {
   it("is blocked by the application, and says so", () => {
     const c = hiringChecklist(input({ invitedAt: "2026-09-01T00:00:00Z" }));
     const step = c.steps.find((s) => s.key === "employment_investigation")!;
-    expect(step.state).toBe("blocked");
-    expect(step.blockedBy).toBe("application_filled");
+    // §9 P4: advice, not a block — the step is worked as usual and names what usually comes first.
+    expect(step.state).not.toBe("blocked");
+    expect(step.advisedFirst).toBe("application_filled");
   });
 
   /**
@@ -481,8 +485,9 @@ describe("what each step actually reads", () => {
       qualificationKinds: ["mvr", "medical_registry_verification"],
     }));
     const road = c.steps.find((s) => s.key === "road_test")!;
-    expect(road.state).toBe("blocked");
-    expect(road.blockedBy).toBe("drug_test");
+    // §9 P4: advice, not a block — the step is worked as usual and names what usually comes first.
+    expect(road.state).not.toBe("blocked");
+    expect(road.advisedFirst).toBe("drug_test");
 
     const noQuery = hiringChecklist(complete({
       qualificationKinds: ALL_KINDS.filter((k) => k !== "clearinghouse_full"),
@@ -591,8 +596,9 @@ describe("the one next action", () => {
     expect(c.next).toBe("mvr");
     expect(stateOf(c, "application_sent")).toBe("waiting_on_us");
     // The form is not the applicant's to fill until it is sent: blocked, and it names why.
-    expect(stateOf(c, "application_filled")).toBe("blocked");
-    expect(c.steps.find((s) => s.key === "application_filled")!.blockedBy).toBe("application_sent");
+    // §9 P4: not blocked any more — advised after the send, and the applicant's to fill once it is sent.
+    expect(stateOf(c, "application_filled")).not.toBe("blocked");
+    expect(c.steps.find((s) => s.key === "application_filled")!.advisedFirst).toBe("application_sent");
   });
 
   /** And the stamp 0365 sets — or backfilled — is what makes it done. */
@@ -634,10 +640,10 @@ describe("the handbook (D-HB1, D-HB5)", () => {
     expect(handbookOf(hiringChecklist(complete())).state).toBe("done");
   });
 
-  it("waits for the packet: blocked until the application is signed", () => {
+  it("§9 P4: is never blocked by the packet — its order is advice (filing still waits on PC030)", () => {
     const c = hiringChecklist(complete({ qualificationKinds: without, packetMarks: 0, hiredAt: null }));
-    expect(handbookOf(c).state).toBe("blocked");
-    expect(handbookOf(c).blockedBy).toBe("application_signed");
+    expect(handbookOf(c).state).not.toBe("blocked");
+    expect(handbookOf(c).blockedBy).toBeNull();
   });
 
   it("is the office's to open, then the driver's while places are left, then the office's to countersign", () => {
@@ -655,10 +661,10 @@ describe("the handbook (D-HB1, D-HB5)", () => {
     expect(handbookOf(c).state).not.toBe("done");
   });
 
-  it("is something hiring requires (D-HB5)", () => {
-    expect(HIRING_STEPS.find((s) => s.key === "hired")!.requires).toContain("handbook");
+  it("§9 P4 (Q-WF6): is no longer something the hire waits for — D-HB5 replaced", () => {
+    expect(HIRING_STEPS.find((s) => s.key === "hired")!.requires).not.toContain("handbook");
     const c = hiringChecklist(complete({ qualificationKinds: without, hiredAt: null }));
-    expect(c.steps.find((s) => s.key === "hired")!.blockedBy).toBe("handbook");
+    expect(c.steps.find((s) => s.key === "hired")!.state).not.toBe("blocked");
   });
 });
 
@@ -764,9 +770,9 @@ describe("an MVR from every licensing jurisdiction (AF7, §391.23(a)(1))", () =>
 });
 
 describe("what the hire refuses without (Q-HM5, D-HB5)", () => {
-  it("is the six federal gates and the handbook — not everything `hired` waits for", () => {
+  it("is the six federal gates and nothing else — the handbook left with §9 P4 (Q-WF6)", () => {
     expect([...HIRE_REFUSES_WITHOUT].sort()).toEqual([
-      "application_filled", "clearinghouse", "drug_test", "handbook", "medical_certificate", "mvr", "road_test",
+      "application_filled", "clearinghouse", "drug_test", "medical_certificate", "mvr", "road_test",
     ]);
     // Q-HM5: these two WARN. `hired` still lists them as what it waits for.
     expect(HIRE_REFUSES_WITHOUT).not.toContain("employment_investigation");
@@ -777,9 +783,18 @@ describe("what the hire refuses without (Q-HM5, D-HB5)", () => {
     expect(hireBlockers(hiringChecklist(complete()))).toEqual([]);
   });
 
-  it("names the handbook when it is the only thing missing", () => {
+  it("§9 P4: names nothing when only the handbook is missing — it no longer blocks the hire", () => {
     const c = hiringChecklist(complete({ qualificationKinds: ALL_KINDS.filter((k) => k !== "handbook"), hiredAt: null }));
-    expect(hireBlockers(c)).toEqual(["handbook"]);
+    expect(hireBlockers(c)).toEqual([]);
+  });
+
+  it("§9 P4: no step but the hire has a refusal edge — travel warns", () => {
+    const refusing = HIRING_STEPS.filter((s) => s.requires.length > 0 && !REFUSING_STEPS.has(s.key)).map((s) => s.key);
+    // Steps that still list the owner's order as `requires` are advice; only `REFUSING_STEPS` block.
+    const c = hiringChecklist(input({}));
+    for (const key of refusing) expect(stateOf(c, key), key).not.toBe("blocked");
+    expect(HIRING_STEPS.find((s) => s.key === "travel_booked")!.requires).toEqual([]);
+    expect([...REFUSING_STEPS].sort()).toEqual(["hired", "mvr", "psp"]);
   });
 
   it("does not refuse for an open employment investigation (it warns)", () => {
@@ -844,7 +859,7 @@ describe("Part 1 finished (APPLICATION-FLOW-V2-PLAN §7)", () => {
   it("is done on a v2 link once Part 1 is stamped, and theirs until then", () => {
     const open = hiringChecklist(input({ ...INVITED, intake: { v2: true, completedAt: null } }));
     expect(stateOf(open, "intake_completed")).toBe("waiting_on_them");
-    expect(open.steps.find((s) => s.key === "permissions_signed")!.blockedBy).toBe("intake_completed");
+    expect(open.steps.find((s) => s.key === "permissions_signed")!.advisedFirst).toBe("intake_completed");
     expect(stateOf(hiringChecklist(input({ ...INVITED, ...PART1 })), "intake_completed")).toBe("done");
   });
 
@@ -866,7 +881,8 @@ describe("Part 1 finished (APPLICATION-FLOW-V2-PLAN §7)", () => {
   /** ⚠ The identity is the driver's, not the link's: nobody invited has finished nobody's Part 1. */
   it("does not finish Part 1 for somebody nobody has invited", () => {
     const c = hiringChecklist(input({ identityOnFile: true }));
-    expect(stateOf(c, "intake_completed")).toBe("blocked");
+    // §9 P4: not blocked (only the hire, the MVR and PSP refuse) — but not done either.
+    expect(stateOf(c, "intake_completed")).not.toBe("done");
   });
 
   /** ⚠ A v2 link is judged on its stamp alone — the legacy halves must not finish a Part 1 in progress. */
@@ -885,7 +901,7 @@ describe("Part 1 finished (APPLICATION-FLOW-V2-PLAN §7)", () => {
     const c = hiringChecklist(input({ ...INVITED, ...PART1 }));
     expect(stateOf(c, "medical_certificate")).toBe("waiting_on_us");
     const before = hiringChecklist(input({ ...INVITED, intake: { v2: true, completedAt: null } }));
-    expect(before.steps.find((s) => s.key === "medical_certificate")!.blockedBy).toBe("intake_completed");
+    expect(before.steps.find((s) => s.key === "medical_certificate")!.advisedFirst).toBe("intake_completed");
   });
 });
 
@@ -898,8 +914,9 @@ describe("travel booked (D-AW7)", () => {
       travelBooked: false,
       qualificationKinds: ALL_KINDS.filter((k) => k !== "drug_test"),
     })));
-    expect(row.state).toBe("blocked");
-    expect(row.blockedBy).toBe("drug_test");
+    // §9 P4 (G2): never blocked — booking warns on what is open (`travelWarnings`).
+    expect(row.state).not.toBe("blocked");
+    expect(row.advisedFirst).toBeNull();
   });
 
   /** ⚠ Not on the approval: the owner buys the ticket before the office reads the application. */

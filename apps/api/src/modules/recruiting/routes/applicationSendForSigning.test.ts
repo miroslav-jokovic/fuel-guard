@@ -259,7 +259,8 @@ describe("the office sends it for signing", () => {
     const ops = start.ops.map((o) => `${o.method}:${String(o.args[0])}:${String(o.args[1])}:${String(o.args[2])}`);
     expect(ops).toContain("is:revoked_at:null:undefined");
     expect(ops).toContain("is:submitted_at:null:undefined");
-    expect(ops).toContain("not:approved_at:is:null");
+    // §9 P4 (G4): approval is advised, not required — the start no longer filters on it.
+    expect(ops).not.toContain("not:approved_at:is:null");
     expect(start.filters()).toEqual(expect.arrayContaining([{ col: "org_id", val: ORG }, { col: "id", val: INV }]));
   });
 
@@ -329,16 +330,14 @@ describe("the office sends it for signing", () => {
     expect(JSON.stringify(audit)).not.toContain(hashInvitationToken(token));
   });
 
-  it("refuses an application nobody has approved, from the row, writing nothing", async () => {
+  it("§9 P4 (G4): sends an application nobody has approved yet, and warns that approval is open", async () => {
     mail.fn.mockClear();
     const rec = seed({ invitation: { approved_at: null } });
     holder.client = rec.client;
     const res = await open();
-    expect(res.status).toBe(409);
-    expect(await code(res)).toBe("application_not_approved");
-    expect(rec.rpcs()).toHaveLength(0);
-    expect(rec.writes()).toHaveLength(0);
-    expect(mail.fn).not.toHaveBeenCalled();
+    expect(res.status).toBe(201);
+    expect(((await res.json()) as { warnings: string[] }).warnings).toContain("office_approved");
+    expect(rec.rpcs().map((r) => r.fn)).toContain("open_packet_signing");
   });
 
   it("refuses a revoked invitation and a filed application, writing nothing", async () => {
@@ -366,11 +365,11 @@ describe("the office sends it for signing", () => {
 
   it("still maps the function's own refusal, sending nothing", async () => {
     mail.fn.mockClear();
-    const rec = seed({ rpc: { open_packet_signing: { error: { code: "AI006", message: "packet_not_yet_approved" } } } });
+    const rec = seed({ rpc: { open_packet_signing: { error: { code: "AI002", message: "application_invitation_unusable" } } } });
     holder.client = rec.client;
     const res = await open();
     expect(res.status).toBe(409);
-    expect(await code(res)).toBe("application_not_approved");
+    expect(await code(res)).toBe("invitation_revoked");
     expect(rec.writtenRows("audit_logs")).toHaveLength(0);
     expect(mail.fn).not.toHaveBeenCalled();
   });

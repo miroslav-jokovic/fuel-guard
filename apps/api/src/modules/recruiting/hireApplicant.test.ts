@@ -130,14 +130,11 @@ describe("what hiring refuses", () => {
   });
 });
 
-describe("what hiring refuses without (Q-HM5, D-HB5)", () => {
-  it("refuses without the signed handbook, names it, and never calls the transaction", async () => {
+describe("what hiring refuses without (Q-HM5; Q-WF6 since §9 P4)", () => {
+  it("§9 P4 (Q-WF6): hires without the signed handbook — it no longer blocks the hire", async () => {
     const rec = seed({ evidence: READY_KINDS.filter((k) => k !== "handbook") });
     const result = await hireApplicant(rec.client, ORG, "u", body, TODAY);
-    expect(isHireError(result) && result.code).toBe("not_ready_to_hire");
-    expect(isHireError(result) && result.missing).toEqual(["handbook"]);
-    expect(isHireError(result) && result.message).toMatch(/Handbook signed/);
-    expect(rec.rpcs()).toHaveLength(0);
+    expect(isHireError(result)).toBe(false);
   });
 
   it("refuses without a federal gate — the drug test — and names it", async () => {
@@ -155,9 +152,9 @@ describe("what hiring refuses without (Q-HM5, D-HB5)", () => {
   });
 
   it("the preview names what the press will be refused for, before it", async () => {
-    const rec = seed({ evidence: READY_KINDS.filter((k) => k !== "handbook") });
+    const rec = seed({ evidence: READY_KINDS.filter((k) => k !== "drug_test") });
     const result = await previewHire(rec.client, ORG, DRIVER);
-    expect(!isHireError(result) && result.hireBlockedBy).toEqual(["handbook"]);
+    expect(!isHireError(result) && result.hireBlockedBy).toEqual(["drug_test"]);
   });
 });
 

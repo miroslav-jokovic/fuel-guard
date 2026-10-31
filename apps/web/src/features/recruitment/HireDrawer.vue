@@ -1,11 +1,18 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
-import { HANDOFF_SKIP_LABELS, RETURN_TO_DUTY_BLOCK, type HandoffSkipReason } from "@silvicom/shared";
+import {
+  HANDOFF_SKIP_LABELS,
+  HIRE_REFUSES_WITHOUT,
+  RETURN_TO_DUTY_BLOCK,
+  hiringStep,
+  type HandoffSkipReason,
+} from "@silvicom/shared";
 import { AppButton as BaseButton, AppCallout, AppDateField, AppFormField as FormField } from "@silvicom/ui";
 import SlideOver from "@/components/SlideOver.vue";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { useToastStore } from "@/stores/toast";
 import { useHireApplicant, useHirePreviewQuery } from "@/features/recruitment/useHire";
+import { useApplicantChecklistQuery } from "@/features/recruitment/useApplicantChecklist";
 
 /**
  * Hiring an applicant, with the file shown before the button is pressed (H8).
@@ -25,6 +32,21 @@ const emit = defineEmits<{ close: [] }>();
 const toast = useToastStore();
 const target = computed(() => (props.open ? props.driverId : null));
 const previewQ = useHirePreviewQuery(target);
+
+/**
+ * §9 P4 (Q-WF1 (a)): the hire refuses without the six federal checks (`HIRE_REFUSES_WITHOUT`), so they
+ * are shown BEFORE the press — each done, or a link to the row that does it — from the same checklist
+ * fold the API's refusal reads (`hireBlockers`). The press waits until all six are done.
+ */
+const checklistQ = useApplicantChecklistQuery(computed(() => target.value ?? ""));
+const federalChecks = computed(() =>
+  HIRE_REFUSES_WITHOUT.map((key) => ({
+    key,
+    label: hiringStep(key).label,
+    done: (checklistQ.data.value?.steps ?? []).some((s) => s.key === key && s.state === "done"),
+  })),
+);
+const checksDone = computed(() => checklistQ.data.value !== undefined && federalChecks.value.every((c) => c.done));
 const hire = useHireApplicant();
 
 const hireDate = ref(new Date().toISOString().slice(0, 10));
@@ -66,6 +88,22 @@ async function submit(): Promise<void> {
       <FormField v-slot="{ id }" label="Hire date" hint="The three-year employment window is measured back from this date.">
         <AppDateField :id="id" v-model="hireDate" />
       </FormField>
+
+      <section data-testid="federal-checks">
+        <h3 class="text-sm font-semibold text-ink">The six federal checks</h3>
+        <ul class="mt-2 space-y-1 text-sm">
+          <li v-for="c in federalChecks" :key="c.key" class="flex items-center justify-between gap-3">
+            <span class="text-ink">{{ c.label }}</span>
+            <span v-if="c.done" :class="[BADGE_BASE, toneClass('success')]">Done</span>
+            <BaseButton v-else-if="driverId" variant="link" size="sm" :to="`/recruitment/${driverId}?step=${c.key}`">
+              Open
+            </BaseButton>
+          </li>
+        </ul>
+        <p v-if="checklistQ.data.value && !checksDone" class="mt-2 text-xs text-ink-muted">
+          Hiring waits for all six. Everything else can be finished after.
+        </p>
+      </section>
 
       <div v-if="previewQ.isLoading.value" class="text-sm text-ink-muted">Reading the file…</div>
 
@@ -112,7 +150,7 @@ async function submit(): Promise<void> {
     <template #footer>
       <div class="flex items-center justify-end gap-3">
         <BaseButton variant="ghost" :disabled="hire.isPending.value" @click="emit('close')">Cancel</BaseButton>
-        <BaseButton variant="primary" :disabled="!hireDate || hire.isPending.value" @click="submit">
+        <BaseButton variant="primary" :disabled="!hireDate || !checksDone || hire.isPending.value" @click="submit">
           {{ hire.isPending.value ? "Hiring…" : "Hire" }}
         </BaseButton>
       </div>

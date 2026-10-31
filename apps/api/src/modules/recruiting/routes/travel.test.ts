@@ -151,22 +151,25 @@ describe("booking the trip (D-AW7)", () => {
     expect(JSON.stringify(audit)).not.toContain("QX7K2P");
   });
 
-  /** One step before travel missing at a time — each must refuse, and name itself. */
+  /**
+   * §9 P4 (audit §2, G2): one step before travel missing at a time — each BOOKS, names itself as still
+   * open, and the audit row records what the office was warned about. It refused until 2026-10-31.
+   */
   it.each([
     ["drug_test", { kinds: SCREENED.filter((k) => k !== "drug_test") }],
     ["medical_certificate", { kinds: SCREENED.filter((k) => k !== "medical_registry_verification") }],
     ["psp", { kinds: SCREENED.filter((k) => k !== "psp_report") }],
     ["intake_completed", { intakeDone: false }],
-  ] as const)("refuses while %s is open, and writes nothing", async (step, over) => {
+  ] as const)("§9 P4: books while %s is open, and warns about it", async (step, over) => {
     const rec = seed(over);
     holder.client = rec.client;
     const res = await call("POST", "/travel", "recruiter", TRIP);
-    expect(res.status).toBe(409);
-    const body = (await res.json()) as { error: { code: string }; missing: string[] };
-    expect(body.error.code).toBe("not_ready_to_travel");
-    expect(body.missing).toEqual([step]);
-    expect(rec.writtenRows("applicant_travel")).toHaveLength(0);
-    expect(rec.writtenRows("audit_logs")).toHaveLength(0);
+    expect(res.status).toBe(201);
+    const body = (await res.json()) as { warnings: string[] };
+    expect(body.warnings).toEqual([step]);
+    // The insert (and the cancel of any older live trip) — the trip IS recorded.
+    expect(rec.writtenRows("applicant_travel").length).toBeGreaterThan(0);
+    expect((rec.writtenRows("audit_logs")[0] as { meta: { openSteps: string[] } }).meta.openSteps).toEqual([step]);
   });
 
   it("refuses an arrival before the departure, naming the field", async () => {

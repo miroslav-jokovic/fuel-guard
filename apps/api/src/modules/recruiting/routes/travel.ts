@@ -21,8 +21,6 @@ import { carrierToday } from "../carrierClock.js";
 const STATUS: Record<TravelError["code"], number> = {
   not_found: 404,
   no_invitation: 409,
-  // ⚠ 409, not 400: the body is fine, the applicant's state is not — `hire.ts`'s `not_ready_to_hire`.
-  not_ready_to_travel: 409,
   write_failed: 500,
 };
 
@@ -75,9 +73,11 @@ export function recruitmentTravelRouter(): Router {
           departAt: result.trip.departAt,
           arriveAt: result.trip.arriveAt,
           replaced: result.replaced,
+          // §9 P4: what was still open when the office booked anyway — the warning it was shown.
+          openSteps: result.warnings,
         },
       });
-      res.status(201).json({ trip: result.trip });
+      res.status(201).json({ trip: result.trip, warnings: result.warnings });
     }),
   );
 

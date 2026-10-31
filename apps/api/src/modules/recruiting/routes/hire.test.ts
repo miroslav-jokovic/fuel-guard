@@ -204,14 +204,14 @@ describe("what the hire records", () => {
    * Q-HM5 + D-HB5 through the mount: the refusal is a 409 with the steps named beside the envelope,
    * so the screen can list them — and no audit row, because nothing was hired.
    */
-  it("answers 409 naming the handbook when it is not signed, and hires nobody", async () => {
-    rec = seed(READY.filter((k) => k !== "handbook"));
+  it("answers 409 naming the drug test when it is not on file, and hires nobody", async () => {
+    rec = seed(READY.filter((k) => k !== "drug_test"));
     holder.client = rec.client;
     const res = await call("/hire", { method: "POST", token: "fleet", body: HIRE });
     expect(res.status).toBe(409);
     const body = (await res.json()) as { error: { code: string }; missing: string[] };
     expect(body.error.code).toBe("not_ready_to_hire");
-    expect(body.missing).toEqual(["handbook"]);
+    expect(body.missing).toEqual(["drug_test"]);
     expect(rec.rpcs()).toHaveLength(0);
     expect(rec.writtenRows("audit_logs")).toHaveLength(0);
   });

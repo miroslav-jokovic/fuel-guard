@@ -1,7 +1,7 @@
 import type { AddressInfo } from "node:net";
 import type { Server } from "node:http";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
-import { SMS_CONSENT, type AuthContext } from "@silvicom/shared";
+import { APPLICATION_RELEASE_ORDER, SMS_CONSENT, type AuthContext } from "@silvicom/shared";
 import { createApp } from "../../../app.js";
 import { loadEnv } from "../../../env.js";
 import {
@@ -51,6 +51,8 @@ const invitation = (over: Record<string, unknown> = {}) => ({
 const seed = (over: {
   invitation?: Record<string, unknown> | null;
   kinds?: string[];
+  /** §9 P4: the permissions signed — the send warns, never refuses, when they are not. */
+  permissions?: boolean;
   rpc?: Record<string, unknown>;
   /** D-SMS7: a live consent to be texted, as `sendApplicationSms` reads one. */
   consents?: Record<string, unknown>[];
@@ -65,7 +67,9 @@ const seed = (over: {
       application_invitations: over.invitation === null ? [] : [invitation(over.invitation)],
       organizations: [{ name: "Silvicom Inc" }],
       drivers: [{ id: DRIVER, org_id: ORG, hire_date: null, date_of_birth: "1980-04-01", cdl_number: "D1", cdl_state: "IL" }],
-      driver_authorizations: [],
+      driver_authorizations: over.permissions === false ? [] : APPLICATION_RELEASE_ORDER.map((purpose, i) => ({
+        id: `auth-${i}`, org_id: ORG, driver_id: DRIVER, purpose, accepted_at: "2026-09-01T07:00:00Z", revokes: null,
+      })),
       qualification_records: (q: RecordedQuery) =>
         q.filters().some((f) => f.col === "driver_id") ? (over.kinds ?? []).map((kind) => ({
           driver_id: DRIVER, kind, occurred_on: "2026-09-18",
@@ -243,13 +247,11 @@ describe("the office sends the application", () => {
     expect(JSON.stringify(audit)).not.toContain(hashInvitationToken(token));
   });
 
-  it("refuses before the permissions are signed, as a conflict", async () => {
-    const rec = seed({ rpc: { send_application_invitation: { error: { code: "AI005", message: "releases_not_complete" } } } });
-    holder.client = rec.client;
+  it("§9 P4 (G3): sends before the permissions are signed, and warns that they are open", async () => {
+    holder.client = seed({ permissions: false, kinds: ["mvr", "drug_test", "clearinghouse_full", "psp_report", "medical_registry_verification"] }).client;
     const res = await send();
-    expect(res.status).toBe(409);
-    expect(await code(res)).toBe("permissions_incomplete");
-    expect(rec.writtenRows("audit_logs")).toHaveLength(0);
+    expect(res.status).toBe(201);
+    expect(((await res.json()) as { warnings: string[] }).warnings).toEqual(["permissions_signed"]);
   });
 
   it("scopes every read to the caller's org", async () => {

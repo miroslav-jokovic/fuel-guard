@@ -118,9 +118,12 @@ async function prerequisiteRefusal(
   if (missing.length === 0) return null;
   return {
     code: "authorization_missing",
+    // §9 P4 (audit §2, G8): the consent is law (FCRA §604(b)(2)), so this still refuses — and names the
+    // way through when the record came another way: a signed paper consent, recorded on the
+    // Permissions row ("Record a paper signature", `PaperAuthorizationForm`).
     message: `This can't be recorded until the applicant has signed: ${missing
       .map((p) => AUTHORIZATION_PURPOSE_LABELS[p])
-      .join(", ")}.`,
+      .join(", ")}. If they signed on paper, record it on the Permissions row first (Record a paper signature).`,
   };
 }
 
