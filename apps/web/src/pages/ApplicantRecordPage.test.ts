@@ -92,6 +92,12 @@ const DrawerStub = {
     '<div v-if="open" data-drawer :data-step="step?.key" :data-state="step?.state" />',
 };
 
+// D-1 (§9 P2): the page asks the session whether this reader may hire (`roster: manage`, SP5).
+const access = vi.hoisted(() => ({ roster: true }));
+vi.mock("@/stores/session", () => ({
+  useSessionStore: () => ({ can: (section: string) => (section === "roster" ? access.roster : true), canReadKind: () => true }),
+}));
+
 const router = createRouter({
   history: createMemoryHistory(),
   routes: [
@@ -120,6 +126,7 @@ async function mountPage() {
       plugins: [router, VueQueryPlugin],
       stubs: {
         HiringStepDrawer: DrawerStub,
+        HireDrawer: { name: "HireDrawer", props: ["open", "driverId"], template: '<div v-if="open" data-hire-drawer :data-driver="driverId" />' },
         ApplicationReviewDrawer: true,
         DispositionSection: true,
         ExplainerPanel: { template: "<div><slot /></div>" },
@@ -143,6 +150,24 @@ const settle = async (w: Awaited<ReturnType<typeof mountPage>>) => {
 };
 
 describe("the drawer a row opens", () => {
+  /** D-1 (§9 P2): the Hired row opened a step drawer with nothing in it; it opens the hire. */
+  it("D-1: the Hired row opens the hire for a reader who may hire, and the step drawer for anybody else", async () => {
+    access.roster = true;
+    const w = await mountPage();
+    await w.findAll("button").find((b) => b.text().includes("Hired"))!.trigger("click");
+    await settle(w);
+    expect(document.body.querySelector("[data-hire-drawer]")?.getAttribute("data-driver")).toBe("00000000-0000-4000-8000-0000000000d1");
+    expect(document.body.querySelector("[data-drawer]")).toBeNull();
+
+    access.roster = false;
+    const other = await mountPage();
+    await other.findAll("button").find((b) => b.text().includes("Hired"))!.trigger("click");
+    await settle(other);
+    expect(document.body.querySelectorAll("[data-hire-drawer]")).toHaveLength(1);
+    expect(document.body.querySelector("[data-drawer]")?.getAttribute("data-step")).toBe("hired");
+    access.roster = true;
+  });
+
   it("opens on the step that was clicked", async () => {
     const w = await mountPage();
     await w.findAll("button").find((b) => b.text().includes("Driving record"))!.trigger("click");

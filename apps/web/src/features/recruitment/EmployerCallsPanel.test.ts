@@ -62,7 +62,7 @@ describe("recording a call", () => {
     await settle(w);
     // One button: the keyless entry says why it cannot take a call instead.
     expect(w.findAll("button").filter((b) => b.text() === "Record a call")).toHaveLength(1);
-    expect(w.text()).toContain("Entered before employers carried a reference");
+    expect(w.text()).toContain("on the inquiry list once the application is filed");
 
     await button(w, "Record a call")!.trigger("click");
     await settle(w);

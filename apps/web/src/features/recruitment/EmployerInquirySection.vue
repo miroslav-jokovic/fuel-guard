@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from "vue";
 import {
+  formatDisplayDate,
   INQUIRY_METHODS,
   INQUIRY_METHOD_LABELS,
   INQUIRY_OUTCOME_LABELS,
@@ -174,7 +175,7 @@ const FORM_ID = "employer-inquiry-form";
           <div>
             <p class="text-sm font-medium text-ink">{{ employer.employer_name }}</p>
             <p class="text-xs text-ink-muted">
-              {{ employer.started_on }} → {{ employer.ended_on ?? "present" }}
+              {{ formatDisplayDate(employer.started_on) }} → {{ employer.ended_on ? formatDisplayDate(employer.ended_on) : "present" }}
             </p>
           </div>
           <BaseButton size="sm" @click="composeFor = employer.id">Compose an inquiry</BaseButton>
@@ -201,7 +202,7 @@ const FORM_ID = "employer-inquiry-form";
           <span class="font-medium text-ink">{{ row.employer_name }}</span>
           <span v-if="row.employer_address" class="ml-2 text-xs text-ink-muted">{{ row.employer_address }}</span>
         </template>
-        <template #cell-contacted_on="{ row }">{{ row.contacted_on }}</template>
+        <template #cell-contacted_on="{ row }">{{ formatDisplayDate(row.contacted_on) }}</template>
         <template #cell-method="{ row }">
           <span class="text-ink-muted">{{ INQUIRY_METHOD_LABELS[row.method as InquiryMethod] ?? row.method }}</span>
         </template>
@@ -209,7 +210,7 @@ const FORM_ID = "employer-inquiry-form";
           <span :class="[BADGE_BASE, toneClass(OUTCOME_TONE[row.outcome] ?? 'neutral')]">
             {{ INQUIRY_OUTCOME_LABELS[row.outcome as keyof typeof INQUIRY_OUTCOME_LABELS] ?? row.outcome }}
           </span>
-          <span v-if="row.outcome_on" class="ml-2 text-xs text-ink-muted">{{ row.outcome_on }}</span>
+          <span v-if="row.outcome_on" class="ml-2 text-xs text-ink-muted">{{ formatDisplayDate(row.outcome_on) }}</span>
         </template>
         <template #actions="{ row }">
           <KebabMenu v-if="canInvestigate && row.outcome === 'awaiting'" :trigger-label="`Record the answer from ${row.employer_name}`">

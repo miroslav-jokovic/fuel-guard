@@ -61,7 +61,7 @@ describe("the portal consent", () => {
     const w = mountPanel();
     await settle(w);
     expect(button(w, "Record the consent")).toBeUndefined();
-    expect(w.text()).toContain("A safety manager or an admin records it");
+    expect(w.text()).toContain("Ask a safety manager or an administrator to record it");
   });
 
   it("says the query is the office's once the consent is on file", async () => {

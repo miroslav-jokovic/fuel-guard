@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import { AppButton as BaseButton, QueryState } from "@silvicom/ui";
+import { AppButton as BaseButton, AppCallout, QueryState } from "@silvicom/ui";
 import { SELFIE_VERDICTS, SELFIE_VERDICT_LABELS, type SelfieVerdict } from "@silvicom/shared";
 import { formatDateTime } from "@/lib/format";
 import { useSessionStore } from "@/stores/session";
@@ -64,7 +64,7 @@ function loaded(): void {
 <template>
   <div class="space-y-4 border-t border-edge pt-6" data-selfie-check>
     <div>
-      <p class="text-sm font-medium text-ink">Is it them?</p>
+      <h3 class="text-sm font-semibold text-ink">Is it them?</h3>
       <p class="mt-1 text-xs text-ink-secondary">
         Their photo beside their licence photo. Look, and say what you see — no software compares them.
       </p>
@@ -109,9 +109,9 @@ function loaded(): void {
           Reading on file: <span class="font-medium text-ink">{{ SELFIE_VERDICT_LABELS[data.verdict.verdict] }}</span>,
           {{ formatDateTime(data.verdict.at) }}.
         </p>
-        <p v-if="data.verdict?.verdict === 'does_not_match' || data.verdict?.verdict === 'unclear'" class="text-xs text-warning-700">
+        <AppCallout v-if="data.verdict?.verdict === 'does_not_match' || data.verdict?.verdict === 'unclear'" tone="caution">
           Check their licence against them in person when they come to the office.
-        </p>
+        </AppCallout>
 
         <div v-if="canRecord" class="flex flex-wrap gap-2">
           <BaseButton

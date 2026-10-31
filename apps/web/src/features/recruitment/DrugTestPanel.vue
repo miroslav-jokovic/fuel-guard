@@ -109,7 +109,7 @@ async function cancelLive(): Promise<void> {
 <template>
   <div v-if="!done || live" class="space-y-6 border-t border-edge pt-6">
     <div>
-      <p class="text-sm font-medium text-ink">Appointment</p>
+      <h3 class="text-sm font-semibold text-ink">Appointment</h3>
       <div class="mt-1">
         <QueryState
           :loading="listQ.isLoading.value"
@@ -175,7 +175,7 @@ async function cancelLive(): Promise<void> {
     </div>
 
     <div v-if="earlier.length">
-      <p class="text-sm font-medium text-ink">Earlier appointments</p>
+      <h3 class="text-sm font-semibold text-ink">Earlier appointments</h3>
       <ul class="mt-2 space-y-1">
         <li v-for="a in earlier" :key="a.id" class="text-2xs text-ink-secondary">
           {{ a.siteName }} · {{ at(a.windowStart) }} · cancelled {{ at(a.cancelledAt!) }}

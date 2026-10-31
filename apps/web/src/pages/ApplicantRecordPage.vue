@@ -10,6 +10,8 @@ import { QueryState, NotFoundError, isNotFound } from "@silvicom/ui";
 import DispositionSection from "@/features/recruitment/DispositionSection.vue";
 import HiringChecklistCard from "@/features/recruitment/HiringChecklistCard.vue";
 import HiringStepDrawer from "@/features/recruitment/HiringStepDrawer.vue";
+import HireDrawer from "@/features/recruitment/HireDrawer.vue";
+import { useSessionStore } from "@/stores/session";
 import ApplicationReviewDrawer from "@/features/apply/ApplicationReviewDrawer.vue";
 import OrderTestDrawer, { type OrderSeed } from "@/components/medstop/OrderTestDrawer.vue";
 import { useApplicantChecklistQuery } from "@/features/recruitment/useApplicantChecklist";
@@ -108,6 +110,24 @@ function openReview(invitation: string): void {
   reviewing.value = invitation;
 }
 
+/**
+ * D-1 (HIRING-WORKFLOW-AUDIT-2026-10-31 §9 P2): the Hired row opens the hire itself — `HireDrawer`,
+ * the same drawer the board opens — not a step drawer with nothing in it. Gated as the board gates it
+ * (SP5: `roster: manage` from the org's matrix, the gate `POST /api/recruitment/hire` reads); anybody
+ * else, and a hire already done, get the step drawer, which says what to do.
+ */
+const session = useSessionStore();
+const canHire = computed(() => session.can("roster"));
+const hiring = ref(false);
+function openRow(step: { key: HiringStepKey; state: string }): void {
+  if (step.key === "hired" && canHire.value && step.state !== "done") {
+    openStepKey.value = null;
+    hiring.value = true;
+    return;
+  }
+  openStepKey.value = step.key;
+}
+
 /** UX4 (MEDSTOP-PLAN §7A.5): the drug-test step's pre-employment order, swapped in the same way. */
 const ordering = ref<OrderSeed | null>(null);
 function openOrder(medstopId: string): void {
@@ -143,7 +163,7 @@ function openOrder(medstopId: string): void {
         :error="checklistQ.error.value ? 'Could not load the hiring checklist.' : null"
         :retrying="checklistQ.isFetching.value"
         @retry="checklistQ.refetch()"
-        @open="openStepKey = $event.key"
+        @open="openRow($event)"
       />
 
       <!-- ⚠ Collapsed, and below the work. D-HUI3's rule that a row answers three questions only
@@ -180,6 +200,7 @@ function openOrder(medstopId: string): void {
         @close="openStepKey = null"
         @review="openReview"
         @order-test="openOrder"
+        @open-step="openStepKey = $event"
       />
 
       <!-- Reading the answers, correcting them, and approving them so the applicant can sign. The
@@ -193,6 +214,8 @@ function openOrder(medstopId: string): void {
       />
 
       <OrderTestDrawer :open="ordering !== null" :seed="ordering" @close="ordering = null" />
+
+      <HireDrawer :open="hiring" :driver-id="id" :full-name="driver?.full_name ?? ''" @close="hiring = false" />
     </template>
   </div>
 </template>

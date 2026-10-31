@@ -149,6 +149,14 @@ describe("what is already on file", () => {
     expect(w.text()).not.toContain("LAB-42");
   });
 
+  /** §9 P2: dates through `formatDisplayDate` — MM/DD/YYYY from one definition, never the stored ISO. */
+  it("shows the record's date as MM/DD/YYYY, never the stored ISO date", async () => {
+    const w = mountPanel("mvr");
+    await settle(w);
+    expect(w.text()).toContain("09/10/2026");
+    expect(w.text()).not.toContain("2026-09-10");
+  });
+
   it("offers the scan, and says so when a filed one will not sign", async () => {
     const w = mountPanel("mvr");
     await settle(w);

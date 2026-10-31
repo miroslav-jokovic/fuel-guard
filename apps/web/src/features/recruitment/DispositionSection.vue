@@ -182,8 +182,8 @@ async function submit(): Promise<void> {
         </div>
 
         <AppCallout v-if="isCarrierDecision(outcome) && restedOnReport" tone="info">
-          Recorded, and nothing is sent. Notifying an applicant when a bought report costs them the
-          job is a separate piece of work that has not been built.
+          Recorded. Nothing is sent to the applicant from here — send them any notice the report
+          requires yourself.
         </AppCallout>
       </div>
 

@@ -134,7 +134,7 @@ async function countersignAndFile(): Promise<void> {
 
     <!-- The countersignature: only once the driver is done, and never after filing. -->
     <div v-if="status?.driverComplete && !status.filedAt" class="space-y-4">
-      <p class="text-sm font-medium text-ink">Countersign for the carrier</p>
+      <h3 class="text-sm font-semibold text-ink">Countersign for the carrier</h3>
       <FormField v-if="reps.length > 0" v-slot="{ id }" label="Representative" hint="Their signature prints on the handbook's Agreed line and on the application's four carrier lines (pages 18, 19 and 22).">
         <ComboSelect :id="id" v-model="representativeId" :options="repOptions" />
       </FormField>
@@ -151,7 +151,7 @@ async function countersignAndFile(): Promise<void> {
 
     <!-- The Representatives, managed here like the maintenance inspectors (D-HB3). -->
     <div class="space-y-3">
-      <p class="text-sm font-medium text-ink">Representatives</p>
+      <h3 class="text-sm font-semibold text-ink">Representatives</h3>
       <SignatoryRegister
         kind="representative"
         @added="representativeId = $event.id"

@@ -4,6 +4,7 @@ import {
   PSP_IMPORT_CONSENT_ATTESTATION,
   PSP_SOURCE_LABELS,
   canReadInvestigationHistory,
+  formatDisplayDate,
   hasStructuredPspData,
   pspRecordSource,
   type QualificationRecordRow,
@@ -170,11 +171,11 @@ const sourceTone = (row: QualificationRecordRow): string => {
       <div class="flex flex-wrap items-start justify-between gap-4">
         <div class="min-w-0 flex-1 basis-64">
           <h3 class="text-sm font-semibold text-ink">PSP records</h3>
+          <!-- §9 P2: what to do, not why the API cannot list past purchases (that reason is in
+               PSP-PLAN.md, where a developer looks for it). -->
           <p class="mt-1 text-sm text-ink-muted">
-            The FMCSA Pre-Employment Screening Program is voluntary — a file without one is still a
-            lawful qualification file. A record bought on the PSP portal can be filed here; there is no way
-            for us to fetch it, because the REST API has no endpoint that lists past transactions and
-            a report can only be retrieved with the code from the request that bought it.
+            Optional — a qualification file without one is still lawful. Order one here, or import the PDF
+            of one you already bought on the PSP portal.
           </p>
         </div>
         <div v-if="canFile" class="flex flex-wrap items-center gap-3">
@@ -197,7 +198,7 @@ const sourceTone = (row: QualificationRecordRow): string => {
         @retry="recordsQ.refetch()"
       >
         <template #cell-occurred_on="{ row }">
-          <span class="font-medium text-ink">{{ row.occurred_on }}</span>
+          <span class="font-medium text-ink">{{ formatDisplayDate(row.occurred_on, "") }}</span>
         </template>
         <template #cell-source="{ row }">
           <span :class="[BADGE_BASE, toneClass(sourceTone(row))]">{{ sourceLabel(row) }}</span>
@@ -245,13 +246,11 @@ const sourceTone = (row: QualificationRecordRow): string => {
     <SlideOver :open="drawerOpen" size="lg" title="Import a PSP record" @close="drawerOpen = false">
       <div class="space-y-6">
         <p class="text-sm text-ink-muted">
-          For a record already bought on the PSP portal. Nothing is ordered and nothing is charged.
-          The PDF satisfies the qualification file; it carries no structured inspection data, so it
-          does not feed the employment cross-check.
+          For a report you already bought on the PSP portal. Nothing is ordered and nothing is charged.
         </p>
 
         <div>
-          <p class="text-sm font-medium text-ink">The report</p>
+          <h3 class="text-sm font-semibold text-ink">The report</h3>
           <div class="mt-2">
             <FileDropzone
               accept=".pdf"

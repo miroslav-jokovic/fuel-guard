@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import {
+  formatDisplayDate,
   employmentCoverage,
   CMV_WINDOW_YEARS,
   EMPLOYMENT_SOURCE_LABELS,
@@ -204,7 +205,7 @@ const sourceLabel = (s: string): string =>
           <span v-if="!row.dot_regulated" class="ml-2 text-xs text-ink-muted">· not DOT-regulated</span>
         </template>
         <template #cell-period="{ row }">
-          {{ row.started_on }} → {{ row.ended_on ?? "present" }}
+          {{ formatDisplayDate(row.started_on) }} → {{ row.ended_on ? formatDisplayDate(row.ended_on) : "present" }}
         </template>
         <template #cell-usdot_number="{ row }">
           <span v-if="row.usdot_number" class="font-mono text-xs text-ink-secondary">{{ row.usdot_number }}</span>

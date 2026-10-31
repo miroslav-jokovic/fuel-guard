@@ -1,4 +1,4 @@
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, afterEach, vi } from "vitest";
 import { mount, type VueWrapper } from "@vue/test-utils";
 import { createRouter, createMemoryHistory } from "vue-router";
 import { VueQueryPlugin } from "@tanstack/vue-query";
@@ -27,6 +27,13 @@ const routes = [
 ];
 
 const DRIVER = "driver-1";
+
+// D-3 / D-1 (§9 P2): the drawer asks the session whether this reader can write the qualification file.
+const session = vi.hoisted(() => ({ roster: true }));
+vi.mock("@/stores/session", () => ({ useSessionStore: () => ({ can: (s: string) => (s === "roster" ? session.roster : true) }) }));
+afterEach(() => {
+  session.roster = true;
+});
 
 const stub = (name: string) => ({ name, template: `<div data-body="${name}" />` });
 
@@ -84,7 +91,7 @@ afterEach(() => {
  * not enough when a single test opens more than one. It is the trap B5's handoff names, met from the
  * other side: *teleported panels outlive the test*.
  */
-async function openOn(key: string, invitationId: string | null = "invite-1") {
+async function openOn(key: string, invitationId: string | null = "invite-1", over: Partial<HiringStep> = {}) {
   wrapper?.unmount();
   wrapper = null;
   document.body.innerHTML = "";
@@ -94,7 +101,7 @@ async function openOn(key: string, invitationId: string | null = "invite-1") {
   wrapper = mount(HiringStepDrawer, {
     props: {
       open: true,
-      step: stepOf(key),
+      step: { ...stepOf(key), ...over },
       driverId: DRIVER,
       driverStatus: "applicant",
       invitationId,
@@ -281,7 +288,7 @@ describe("the steps with no affordance yet say so, and point at the act", () => 
    */
   it("names the artifact and links the qualification file for a recorded act", async () => {
     const root = await openOn("medical_certificate");
-    expect(root.textContent).toContain("Registry check");
+    expect(root.textContent).toContain("registry check");
     const link = [...root.querySelectorAll("a")].find((a) =>
       a.textContent?.includes("qualification file"),
     );
@@ -297,11 +304,27 @@ describe("the steps with no affordance yet say so, and point at the act", () => 
     expect(bodyOf(await openOn("application_signed"))).toBe("send-for-signing");
   });
 
-  it("says the packet is signed in the office when there is no invitation", async () => {
-    const root = await openOn("application_signed", null);
-    expect(bodies(root)).not.toContain("send-for-signing");
-    expect(root.textContent).toContain("signs this in the office");
-    expect(root.textContent).not.toContain("their own link");
+  /** D-2 (§9 P2): no invitation means no link to send on — say so, and open the row that sends it. */
+  it("D-2: with no invitation, the packet and the send rows say to send the invitation first", async () => {
+    for (const key of ["application_signed", "application_sent"] as const) {
+      const root = await openOn(key, null);
+      expect(bodies(root)).not.toContain("send-for-signing");
+      expect(root.querySelector('[data-testid="needs-invitation"]')?.textContent).toContain("Send the invitation first");
+    }
+  });
+
+  it("D-3: a reader who cannot write the qualification file is told who records it, not given the link", async () => {
+    session.roster = false;
+    const root = await openOn("medical_certificate");
+    expect([...root.querySelectorAll("a")].some((a) => a.textContent?.includes("qualification file"))).toBe(false);
+    expect(root.querySelector('[data-testid="ask-file-keeper"]')?.textContent).toContain("safety manager");
+  });
+
+  it("D-1: the hired row says who hires to a reader without roster access, never the old dead-end sentence", async () => {
+    session.roster = false;
+    const root = await openOn("hired", "invite-1", { state: "waiting_on_us" });
+    expect(root.querySelector('[data-testid="hire-body"]')?.textContent).toContain("Settings → Permissions");
+    expect(root.textContent).not.toContain("nothing in the schema");
   });
 });
 
@@ -384,7 +407,7 @@ describe("what the drawer says about the step itself", () => {
    */
   it("offers no application to open when there is no live invitation", async () => {
     const root = await openOn("application_filled", null);
-    expect(root.textContent).toContain("no live invitation");
+    expect(root.textContent).toContain("Send the invitation first");
     expect([...root.querySelectorAll("button")].some((b) => b.textContent?.includes("Open the application")))
       .toBe(false);
   });

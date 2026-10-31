@@ -12,6 +12,7 @@ import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { hiringStepStateBadge } from "@/lib/badges.recruiting";
 import { hiringArtifactLink } from "@/features/recruitment/hiringArtifacts";
 import { hiringDrawerBody } from "@/features/recruitment/hiringStepDrawers";
+import { useSessionStore } from "@/stores/session";
 import ApplicationInviteCard from "@/features/recruitment/ApplicationInviteCard.vue";
 import AuthorizationsPanel from "@/features/recruitment/AuthorizationsPanel.vue";
 import ApplicantIdentityCorrection from "@/features/recruitment/ApplicantIdentityCorrection.vue";
@@ -69,7 +70,21 @@ const props = defineProps<{
 
 // `orderTest` (UX4): the drug-test step's Med-Stop card asks for the order drawer, which the page
 // opens in place of this one — for the reason `review` is emitted rather than opened here.
-const emit = defineEmits<{ close: []; review: [invitationId: string]; orderTest: [medstopId: string] }>();
+// `openStep` (§9 P2, D-2): a body that cannot work yet hands the office to the row that comes first.
+const emit = defineEmits<{
+  close: [];
+  review: [invitationId: string];
+  orderTest: [medstopId: string];
+  openStep: [key: HiringStep["key"]];
+}>();
+
+/**
+ * D-3 (§9 P2): the qualification file is written by `roster: manage` (the compliance routes' gate), so
+ * its link is offered only to a role that can act there; anybody else is told who records it.
+ * The same answer gates the hire (SP5), which is why the hired row can say who hires.
+ */
+const session = useSessionStore();
+const canWriteFile = computed(() => session.can("roster"));
 
 const body = computed(() => (props.step ? hiringDrawerBody(props.step.key) : null));
 const badge = computed(() => (props.step ? hiringStepStateBadge(props.step.state) : null));
@@ -160,10 +175,8 @@ const authorizationsQ = useAuthorizationsQuery(driverId);
       <!-- §7 (D-AW1): Part 1 is the applicant's, on their link, so the office's levers are the link's. -->
       <template v-else-if="body === 'intake'">
         <p class="text-xs text-ink-secondary">
-          Part 1 is the applicant's first visit on their link: identity, phone, address, every licence
-          held in the last three years, photos of the CDL and the medical card, and a photo of
-          themselves. Their permissions open once it is finished. A link sent before Part 1 existed
-          counts it done once their identity or permissions are in.
+          The applicant fills in Part 1 on their link: who they are, their address, their licences and
+          photos. Check their photo against their licence below.
         </p>
         <ApplicationInviteCard
           :driver-id="driverId"
@@ -218,10 +231,7 @@ const authorizationsQ = useAuthorizationsQuery(driverId);
         <BaseButton v-if="invitationId" size="sm" variant="primary" @click="emit('review', invitationId)">
           Open the application
         </BaseButton>
-        <p v-else class="text-xs text-ink-muted">
-          There is no live invitation to open — the application has not been started, or its link was
-          revoked.
-        </p>
+        <p v-else class="text-xs text-ink-muted">No application yet. Send the invitation first.</p>
 
         <EmploymentHistorySection :driver-id="driverId" />
       </template>
@@ -274,31 +284,38 @@ const authorizationsQ = useAuthorizationsQuery(driverId);
         <EmployerInquirySection :driver-id="driverId" />
       </template>
 
-      <!-- ⚠ The five recorded acts (D-HM6) and the packet. No affordance in this drawer yet, and
-           saying so plainly is the point: D1, D2 and C1 build them. What it CAN do is take the
-           reader to the page where the act is performed today, which is better than a dead drawer
-           and honest about being a signpost rather than a workbench. -->
-      <div v-else-if="body === 'recorded_act' || body === 'packet'" class="space-y-3">
-        <p class="text-xs text-ink-secondary">
-          <template v-if="body === 'packet'">
-            The applicant signs this in the office. There is no live invitation to open signing on.
-          </template>
-          <template v-else>
-            Recorded rather than fetched: a record pulled anywhere else still counts, and files the
-            same way.
-          </template>
-        </p>
-        <p v-if="artifact" class="text-xs text-ink-secondary">
-          Proved by: <span class="font-medium text-ink">{{ artifact.label }}</span>
-        </p>
-        <BaseButton v-if="artifact?.to" :to="artifact.to" size="sm">
-          Open the driver's qualification file
-        </BaseButton>
+      <!-- D-2 (§9 P2): sending the form or the packet needs the invitation's link — say so, and open
+           the row that sends it, instead of a dead end. -->
+      <div v-else-if="body === 'send_application' || body === 'packet'" class="space-y-3" data-testid="needs-invitation">
+        <p class="text-xs text-ink-secondary">Send the invitation first — this goes out on the same link.</p>
+        <BaseButton size="sm" @click="emit('openStep', 'invitation_sent')">Send the invitation</BaseButton>
       </div>
 
-      <p v-else class="text-xs text-ink-muted">
-        This step has nothing in the schema to prove it yet, so there is nothing to show.
-      </p>
+      <!-- The medical certificate (D-HM6): recorded in the qualification file, where the office keeps it.
+           D-3: the link only for a role that can write there; anybody else is told who can. -->
+      <div v-else-if="body === 'recorded_act'" class="space-y-3">
+        <p class="text-xs text-ink-secondary">
+          Record the {{ artifact?.label?.toLowerCase() ?? "record" }} in the driver's qualification file.
+        </p>
+        <BaseButton v-if="artifact?.to && canWriteFile" :to="artifact.to" size="sm">
+          Open the driver's qualification file
+        </BaseButton>
+        <p v-else-if="artifact?.to" class="text-xs text-ink-muted" data-testid="ask-file-keeper">
+          Ask a safety manager or an administrator to record it there.
+        </p>
+      </div>
+
+      <!-- D-1 (§9 P2): the page opens HireDrawer for anybody who may hire; this is what everybody else,
+           and a hire already done, sees. -->
+      <div v-else-if="body === 'hire'" class="space-y-3" data-testid="hire-body">
+        <p v-if="step.state === 'done'" class="text-xs text-ink-secondary">Hired. They are on the roster.</p>
+        <p v-else class="text-xs text-ink-secondary">
+          Hiring puts them on the roster, so it needs roster access. Ask an administrator to hire them, or to
+          give your role roster access in Settings → Permissions.
+        </p>
+      </div>
+
+      <p v-else class="text-xs text-ink-muted">Nothing to record here yet.</p>
     </div>
   </SlideOver>
 </template>

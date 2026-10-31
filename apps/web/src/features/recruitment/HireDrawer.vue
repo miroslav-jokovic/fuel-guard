@@ -59,9 +59,8 @@ async function submit(): Promise<void> {
   <SlideOver :open="open" size="lg" :title="`Hire ${fullName}`" @close="emit('close')">
     <div class="space-y-6">
       <p class="text-sm text-ink-muted">
-        Hiring opens their qualification file and carries the safety-history inquiries you have
-        already recorded into it as dated evidence. Everything else they signed is already filed
-        against them.
+        Hiring puts them on the roster and opens their qualification file, with the employer
+        inquiries you have recorded. Everything they signed is already in it.
       </p>
 
       <FormField v-slot="{ id }" label="Hire date" hint="The three-year employment window is measured back from this date.">
@@ -80,8 +79,7 @@ async function submit(): Promise<void> {
             </li>
           </ul>
           <p class="mt-2 text-xs text-ink-muted">
-            These stay out of the file rather than being filed under a date nobody recorded. Add the
-            dates and hire again, or hire now and record them on the driver's page.
+            Add their dates and hire again, or hire now and record them on the driver's page.
           </p>
         </div>
 

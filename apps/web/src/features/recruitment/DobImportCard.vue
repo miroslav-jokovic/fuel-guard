@@ -97,10 +97,9 @@ const rejectGroups = computed(() => {
       <div>
         <h3 class="text-sm font-semibold text-ink">Import dates of birth</h3>
         <p class="mt-1 text-sm text-ink-muted">
-          A spreadsheet with a <span class="font-mono text-xs">date_of_birth</span> column and a name,
-          employee number, licence number or driver id to match on. Dates must be written as
-          <span class="font-mono text-xs">YYYY-MM-DD</span> — nothing here guesses between 03/04 and
-          04/03. A date already on file is never overwritten.
+          Use the template: one row per driver, with their date of birth written year first (for example
+          1980-04-01) and their name, employee number or licence number. A date already on file is never
+          changed.
         </p>
       </div>
       <BaseButton to="/api/recruitment/screening-readiness/template.csv" target="_blank">
