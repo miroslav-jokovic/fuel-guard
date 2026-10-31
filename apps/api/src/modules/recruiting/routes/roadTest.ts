@@ -34,7 +34,7 @@ import { recordPaperCopyGiven, roadTestCertificateCopies } from "../roadTestCert
  * printed on every test recorded in the examiner's name.
  */
 const statusOf = (e: RoadTestError): number =>
-  e.code === "not_found" ? 404 : e.code === "invalid_request" ? 400 : e.code === "already_passed" ? 409 : 500;
+  e.code === "not_found" ? 404 : e.code === "invalid_request" ? 400 : e.code === "already_passed" || e.code === "examiner_unavailable" ? 409 : 500;
 
 export function recruitmentRoadTestRouter(): Router {
   const router = Router();

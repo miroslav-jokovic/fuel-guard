@@ -18,18 +18,31 @@ import type { AppSection } from "./auth.js";
  * line never changes what a filed test recorded.
  */
 export const ROAD_TEST_ITEMS = [
-  { key: "pretrip_inspection", text: "The pretrip inspection required by § 392.7.", source: "added" },
-  { key: "placing_in_operation", text: "Placing the vehicle in operation.", source: "added" },
-  { key: "coupling_uncoupling", text: "Coupling and uncoupling of combination units.", source: "added" },
-  { key: "street_traffic", text: "Operating the vehicle in street traffic and while passing other vehicles.", source: "carrier" },
-  { key: "highway_traffic", text: "Operating the vehicle in HWY traffic and while passing other vehicles.", source: "carrier" },
-  { key: "controls_emergency", text: "Use of vehicle’s controls and emergency equipment.", source: "carrier" },
-  { key: "turning", text: "Turning the vehicle.", source: "carrier" },
-  { key: "braking_slowing", text: "Braking and slowing the vehicle by means other than breaking.", source: "carrier" },
-  { key: "backing_parking", text: "Backing and parking the vehicles.", source: "carrier" },
+  { key: "pretrip_inspection", text: "The pretrip inspection required by § 392.7.", source: "added", phase: "before_driving" },
+  { key: "placing_in_operation", text: "Placing the vehicle in operation.", source: "added", phase: "before_driving" },
+  { key: "coupling_uncoupling", text: "Coupling and uncoupling of combination units.", source: "added", phase: "before_driving" },
+  { key: "street_traffic", text: "Operating the vehicle in street traffic and while passing other vehicles.", source: "carrier", phase: "on_the_road" },
+  { key: "highway_traffic", text: "Operating the vehicle in HWY traffic and while passing other vehicles.", source: "carrier", phase: "on_the_road" },
+  { key: "controls_emergency", text: "Use of vehicle’s controls and emergency equipment.", source: "carrier", phase: "on_the_road" },
+  { key: "turning", text: "Turning the vehicle.", source: "carrier", phase: "on_the_road" },
+  { key: "braking_slowing", text: "Braking and slowing the vehicle by means other than breaking.", source: "carrier", phase: "on_the_road" },
+  { key: "backing_parking", text: "Backing and parking the vehicles.", source: "carrier", phase: "on_the_road" },
 ] as const;
 
 export type RoadTestItemKey = (typeof ROAD_TEST_ITEMS)[number]["key"];
+
+/**
+ * The two groups the office's screen shows the nine items in (HIRING-WORKFLOW-AUDIT §4.2, RT-A8):
+ * what the examiner watches before the truck moves, then what they watch on the road. A property of
+ * each item, not a second list, so a re-ordered or added item can never fall out of both groups.
+ * The printed form is unchanged — it lists the nine in `ROAD_TEST_ITEMS`' order.
+ */
+export const ROAD_TEST_ITEM_PHASES = ["before_driving", "on_the_road"] as const;
+export type RoadTestItemPhase = (typeof ROAD_TEST_ITEM_PHASES)[number];
+export const ROAD_TEST_ITEM_PHASE_LABELS: Record<RoadTestItemPhase, string> = {
+  before_driving: "Before driving",
+  on_the_road: "On the road",
+};
 export const ROAD_TEST_ITEM_KEYS = ROAD_TEST_ITEMS.map((i) => i.key) as [RoadTestItemKey, ...RoadTestItemKey[]];
 
 /** §391.31(d) asks for a RATING per item. These are the carrier's own words, from its Evaluation. */
@@ -62,7 +75,11 @@ export const roadTestRecordSchema = z.object({
   /** The date the test was given — the date on the certificate. */
   tested_on: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Expected a date as YYYY-MM-DD"),
   /** §391.31(f): "approximately ___ miles of driving". */
-  miles: z.number().int().positive().max(1000),
+  miles: z
+    .number({ message: "Enter the miles driven." })
+    .int("Enter the miles as a whole number.")
+    .positive("Enter the miles driven.")
+    .max(1000, "Enter 1,000 miles or fewer."),
   items: z.record(z.enum(ROAD_TEST_ITEM_KEYS), z.enum(ROAD_TEST_RATINGS)),
   general_performance: z.enum(ROAD_TEST_RATINGS),
   remarks: z.string().max(1000).nullish(),

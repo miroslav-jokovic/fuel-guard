@@ -163,7 +163,11 @@ describe("recording a road test", () => {
     const rec = seed({ signatureFile: false });
     holder.client = rec.client;
     const res = await post(`/applicants/${DRIVER}/road-test`, "recruiter", TEST);
-    expect(res.status).toBe(400);
+    // RT-A3: its own code, and it says where the examiner register is.
+    expect(res.status).toBe(409);
+    const error = ((await res.json()) as { error: { code: string; message: string } }).error;
+    expect(error.code).toBe("examiner_unavailable");
+    expect(error.message).toContain("Settings → Recruiting");
     expect(rec.writtenRows("documents")).toHaveLength(0);
     expect(rec.writtenRows("qualification_records")).toHaveLength(0);
   });
@@ -201,7 +205,7 @@ describe("recording a road test", () => {
     holder.client = seed().client;
     expect((await post(`/applicants/${DRIVER}/road-test`, "admin", { ...TEST, vehicle_id: FOREIGN_TRUCK })).status).toBe(400);
     holder.client = seed().client;
-    expect((await post(`/applicants/${DRIVER}/road-test`, "admin", { ...TEST, examiner_id: RETIRED })).status).toBe(400);
+    expect((await post(`/applicants/${DRIVER}/road-test`, "admin", { ...TEST, examiner_id: RETIRED })).status).toBe(409);
   });
 
   it("refuses a date in the future", async () => {
