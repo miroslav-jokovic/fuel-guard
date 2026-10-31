@@ -102,12 +102,6 @@ export async function sendApplication(
     p_extend_days: days,
   });
   if (error) {
-    if (error.code === "AI005") {
-      return {
-        code: "permissions_incomplete",
-        message: "The applicant has not signed every permission yet, so there is nothing to send.",
-      };
-    }
     if (error.code === "AI002") {
       return { code: "invitation_revoked", message: "This invitation was revoked. Nothing was sent." };
     }

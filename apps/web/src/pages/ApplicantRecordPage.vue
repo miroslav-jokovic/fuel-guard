@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, ref, watch } from "vue";
 import { useRoute } from "vue-router";
 import { useQuery } from "@tanstack/vue-query";
 import type { Driver, HiringStepKey } from "@silvicom/shared";
@@ -99,6 +99,14 @@ const missing = computed(() => isNotFound(driverQ.error.value));
  * exists, rather than a panel describing something the server no longer reports.
  */
 const openStepKey = ref<HiringStepKey | null>(null);
+// §9 P4: `?step=<key>` opens that row — the hire drawer's "Open" beside a federal check lands here.
+watch(
+  () => route.query.step,
+  (step) => {
+    if (typeof step === "string" && step) openStepKey.value = step as HiringStepKey;
+  },
+  { immediate: true },
+);
 const openStep = computed(
   () => checklistQ.data.value?.steps.find((s) => s.key === openStepKey.value) ?? null,
 );
@@ -180,9 +188,10 @@ function openOrder(medstopId: string): void {
           the orientation day and the handbook are part of the process and are not listed yet, which is
           why “ready to travel” stays open even when every row above is green.
         </p>
+        <!-- §9 P4 (HIRING-WORKFLOW-AUDIT §4.1): the sentence the product now makes true. -->
         <p>
-          Steps are blocked only by law or by a rule the database enforces. Anything else can be done in
-          whatever order suits the day.
+          Every step can be done in any order. Hiring waits for the six federal checks; the MVR and PSP
+          wait for the applicant's consent.
         </p>
       </ExplainerPanel>
 

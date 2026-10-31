@@ -237,6 +237,10 @@ const artifactOf = (key: HiringStepKey) => {
               <span v-else-if="step.outstandingJurisdictions.length" class="text-ink-muted">
                 Still needed from: {{ step.outstandingJurisdictions.join(", ") }}
               </span>
+              <!-- §9 P4: the owner's order, as advice — the step is worked as usual. -->
+              <span v-else-if="step.advisedFirst" class="text-ink-muted">
+                Usually after: {{ stepLabel(step.advisedFirst) }}
+              </span>
               <span v-else class="text-ink-muted">—</span>
             </span>
           </li>

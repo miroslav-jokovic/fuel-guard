@@ -90,7 +90,7 @@ async function press(): Promise<void> {
       Sent {{ formatDate(sentAt) }}. Sending again makes a new link, and the one sent before stops working.
     </p>
     <p v-else-if="!result" class="text-xs text-ink-secondary">
-      The applicant has signed their permissions and is waiting for the application form.
+      Send the application form to the applicant's phone.
     </p>
 
     <AppCallout v-if="!result && outstanding.length > 0" tone="caution">

@@ -53,10 +53,6 @@ const NOT_FOUND: SendForSigningError = {
   code: "application_not_found",
   message: "That application is not in this organization.",
 };
-const NOT_APPROVED: SendForSigningError = {
-  code: "application_not_approved",
-  message: "Approve the application before sending it for signing.",
-};
 const REVOKED: SendForSigningError = { code: "invitation_revoked", message: "This invitation was revoked. Nothing was sent." };
 const FILED: SendForSigningError = { code: "already_filed", message: "The application is already signed and filed." };
 
@@ -95,7 +91,8 @@ export async function sendForSigning(
   if (!invitation) return NOT_FOUND;
   if (invitation.revoked_at) return REVOKED;
   if (invitation.submitted_at) return FILED;
-  if (!invitation.approved_at) return NOT_APPROVED;
+  // §9 P4: approval is advised first, not refused — it is on `OPEN_SIGNING_WARNS_ON`, and the packet
+  // itself still refuses a mark until it (DR032).
 
   // Read BEFORE the write, so the warning describes what the office knew when it pressed the button.
   const checklist = await applicantChecklist(admin, orgId, invitation.driver_id);
@@ -113,7 +110,6 @@ export async function sendForSigning(
     .eq("id", invitation.id)
     .is("revoked_at", null)
     .is("submitted_at", null)
-    .not("approved_at", "is", null)
     .select("id");
   if (startError) return { code: "send_for_signing_failed", message: startError.message };
   if (((started ?? []) as unknown[]).length !== 1) {
@@ -129,7 +125,6 @@ export async function sendForSigning(
     p_extend_days: days,
   });
   if (error) {
-    if (error.code === "AI006") return NOT_APPROVED;
     if (error.code === "AI002") return REVOKED;
     if (error.code === "AI003") return FILED;
     if (error.code === "AI001") return NOT_FOUND;

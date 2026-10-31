@@ -321,7 +321,7 @@ export const TRAVEL_CONFIRMATION_MAX_LENGTH = 100;
 /**
  * Recording the applicant's trip to the office (D-AW7, AW11) — `POST
  * /recruitment/applicants/:driverId/travel`. The writer refuses until every step before travel is done
- * (`TRAVEL_REFUSES_WITHOUT`); a second booking replaces the live one (a changed flight is a new trip).
+ * (`TRAVEL_WARNS_ON` — warned since §9 P4, no longer refused); a second booking replaces the live one (a changed flight is a new trip).
  *
  * ⚠ Arrival not before departure is 0376's `applicant_travel_order_check`, checked here on the wall
  * times so the office is told which field, instead of a 500 from the CHECK. Both are read in the one

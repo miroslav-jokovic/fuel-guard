@@ -19,7 +19,8 @@
  * *"these are done before applicant even come to office, road test is when he comes to office."*
  * Screening happens before the applicant gets on a plane; the road test onwards happens while they
  * stand in the office. `beforeTravel` is that seam, `readyToTravel` is that predicate over this
- * array, and since D-AW7 (2026-09-26) `TRAVEL_REFUSES_WITHOUT` is the same predicate as a refusal.
+ * array; D-AW7 (2026-09-26) made it a refusal on the ticket, and §9 P4 (2026-10-31) made it a warning
+ * again (`TRAVEL_WARNS_ON`). Since P4 only `REFUSING_STEPS` refuse; every other edge here is advice.
  */
 
 import type { HiringStepDefinition, HiringStepKey, HiringStepSpec } from "./hiringStepGraph.js";
@@ -156,15 +157,11 @@ const DEFINED: readonly HiringStepDefinition[] = [
     federalGate: true, beforeTravel: true, owes: "us", requires: ["intake_completed"],
     evidence: { table: "qualification_records.medical_registry_verification", label: "Registry check" },
   },
-  // ⚠ D-AW7 (APPLICATION-FLOW-V2-PLAN §7): the trip is recorded (`applicant_travel`), and the writer
-  // REFUSES until everything before travel is done — Q-HM5, *"we will not even bring him if this not
-  // green"*. Here, after the last screening step and before the phone checks, because that is where
-  // the owner's fourteen put it (§6.5, "Travel (8)").
-  //
-  // ⚠ Its `requires` is `TRAVEL_REFUSES_WITHOUT`, stamped below rather than typed here, for the reason
-  // G-11 gives `hired` its refusal list: a row reading "Waiting on you" over a writer that refuses is
-  // the disagreement D-HM2 is written against. D-AW7's "not a `requires` edge" was about the steps
-  // BEFORE travel — none of them gains an edge onto the ticket — and that stands.
+  // ⚠ D-AW7 (APPLICATION-FLOW-V2-PLAN §7): the trip is recorded (`applicant_travel`). The writer
+  // refused until everything before travel was done (Q-HM5) until §9 P4 (2026-10-31), which made it a
+  // warning (`TRAVEL_WARNS_ON`): no rule covers a plane ticket (audit §2, G2). Here, after the last
+  // screening step, because that is where the owner's fourteen put it (§6.5, "Travel (8)"). No
+  // `requires`: the warning is the panel's, read from the fold.
   {
     key: "travel_booked", label: "Travel booked",
     action: "Book the applicant's travel",
@@ -268,8 +265,9 @@ const DEFINED: readonly HiringStepDefinition[] = [
   // 2026-09-25): *"add it as separate step between Application Signed and Hired"*. It was step 15,
   // before the packet (D-HM10). Two things follow from the new place: the driver's adopted signature
   // already exists, so the handbook is signed with it; and the receipt's own sentence — *"I certify
-  // that I have passed a safety training"* — is true when it is signed. `handbook_marks` refuses a
-  // mark until the application is filed (0374, HB022), so the order is the database's too.
+  // that I have passed a safety training"* — is true when it is signed. Since 0533 (§9 P3) the marks
+  // no longer wait on the filed application (HB022 dropped); filing the handbook still waits on the
+  // countersigned packet (PC030, 0388), so it is advised after the packet and not refused.
   //
   // ⚠ `owes: "us"` for `application_signed`'s reason: the office sends the envelope at the desk, the
   // driver signs its five places straight after the application on the same link (D-AW16, C3s4b), then
@@ -290,8 +288,7 @@ const DEFINED: readonly HiringStepDefinition[] = [
   // Q-HM9 investigation — beside `HIRE_REFUSES_WITHOUT` and `readyToHire`: three definitions of "ready
   // to hire" that disagreed. The row read "Blocked by Previous employers checked" while the hire, which
   // Q-HM5 lets proceed with that open (§391.23(c)(1)'s 30 days run from the first day), went through.
-  // Now the row is blocked exactly when the hire refuses. The packet is still waited for — the
-  // handbook requires it, and 0374's HB022 refuses a handbook mark before the filing.
+  // Now the row is blocked exactly when the hire refuses — the six federal checks since §9 P4.
   {
     key: "hired", label: "Hired",
     action: "Hire and open the driver file",
@@ -302,40 +299,51 @@ const DEFINED: readonly HiringStepDefinition[] = [
 ];
 
 /**
- * What recording the trip REFUSES without (D-AW7, Q-HM5): every step before travel.
+ * What recording the trip WARNS about when still open — every step before travel.
  *
- * ⚠ Derived from `beforeTravel`, the way `HIRE_REFUSES_WITHOUT` is from `federalGate`, so the plane
- * ticket and the readiness answer (`readyToTravel`) read one predicate — measured by §7 on
- * 2026-09-26 as Part 1, the permissions, the MVR, PSP, the Clearinghouse query, the drug test, the
- * application sent and filled, and the medical certificate. Includes the invitation, trivially.
+ * ⚠ It REFUSED until 2026-10-31 (D-AW7, Q-HM5: *"we will not even bring him if this not green"*).
+ * HIRING-WORKFLOW-AUDIT-2026-10-31 §2 (G2) measured it as preference — no rule covers a plane ticket,
+ * and PSP, in the list, is voluntary — and the owner's complaint that the software dictates the order
+ * is the ruling §9 P4 implements: the office books, the panel shows "Still open: …" first.
+ * Derived from `beforeTravel`, so the warning and `readyToTravel` read one predicate.
  */
-export const TRAVEL_REFUSES_WITHOUT: readonly HiringStepKey[] =
+export const TRAVEL_WARNS_ON: readonly HiringStepKey[] =
   DEFINED.filter((s) => s.beforeTravel).map((s) => s.key);
 
 /**
- * What the hire REFUSES without (Q-HM5 + D-HB5; `hireApplicant.ts`) — and since G-11 the ONE
- * definition of "ready to hire": the `hired` row's edges and `readyToHire` both read it.
+ * What the hire REFUSES without (Q-HM5; `hireApplicant.ts`) — and since G-11 the ONE definition of
+ * "ready to hire": the `hired` row's edges and `readyToHire` both read it.
  *
  * ⚠ Q-HM5 (2026-09-17): *"readyToHire refuses the hire outright on all six"* federal gates, and
- * *"everything that is not one of the six warns and never blocks"* — so `employment_investigation`
- * warns. D-HB5 (2026-09-25) then moved the handbook from "warns" to "blocks": *"block, he needs sign
- * it before hiring."* So: derived from `federalGate`, plus the one step the owner named, the shape
- * `OPEN_SIGNING_WARNS_ON` has. The orientation videos and day are in neither (Q-AW23's default): they
- * have no evidence table until D3/D4, and a gate on a row nobody can tick is a gate nobody can pass.
+ * *"everything that is not one of the six warns and never blocks"*. D-HB5 (2026-09-25) added the
+ * handbook; **Q-WF6, as assumed in HIRING-WORKFLOW-AUDIT §8.3, takes it out again (2026-10-31, §9
+ * P4)**: nothing non-federal blocks the hire, and §9 P12 makes the handbook a per-carrier switch.
+ * So: the six `federalGate` steps, derived, and nothing else. The orientation videos and day are not
+ * here either (Q-AW23's default; Q-WF6).
  */
-export const HIRE_REFUSES_WITHOUT: readonly HiringStepKey[] = [
-  ...DEFINED.filter((s) => s.federalGate).map((s) => s.key),
-  "handbook",
-];
+export const HIRE_REFUSES_WITHOUT: readonly HiringStepKey[] = DEFINED.filter((s) => s.federalGate).map((s) => s.key);
 
 /**
- * The two rows whose edges ARE a refusal list rather than a law, stamped here because the lists are
- * derived from the catalogue and a literal above cannot read a value computed from itself.
+ * The row whose edges ARE a refusal list, stamped here because the list is derived from the catalogue
+ * and a literal above cannot read a value computed from itself. Only `hired` since §9 P4: travel
+ * warns (`TRAVEL_WARNS_ON`).
  */
 const REFUSAL_EDGES: Partial<Record<HiringStepKey, readonly HiringStepKey[]>> = {
-  travel_booked: TRAVEL_REFUSES_WITHOUT,
   hired: HIRE_REFUSES_WITHOUT,
 };
+
+/**
+ * The steps whose `requires` the product REFUSES on (§9 P4) — every other edge in the catalogue is the
+ * owner's advised order and never stops anybody.
+ *
+ *   · `hired` — the six federal checks (Q-WF1 (a)).
+ *   · `mvr`, `psp` — the applicant's signed consent is LAW (FCRA §604(b)(2); 49 USC 31150), and the
+ *     record and order writers refuse without it (`hiringEvidence.ts`, `pspOrder.ts`; audit §2 G8/G9).
+ *
+ * The fold reads this: a step in the set with an unmet requirement is "Blocked"; any other step with
+ * one is worked as usual and names it as `advisedFirst` ("Usually after: …").
+ */
+export const REFUSING_STEPS: ReadonlySet<HiringStepKey> = new Set<HiringStepKey>(["hired", "mvr", "psp"]);
 
 /** The catalogue as every caller reads it: numbered by position, the two refusal rows given their edges. */
 export const HIRING_STEPS: readonly HiringStepSpec[] = DEFINED.map((s, i) => ({
@@ -355,20 +363,23 @@ export const HIRING_STEPS: readonly HiringStepSpec[] = DEFINED.map((s, i) => ({
  * verification is screening now, done before the form like the other four.
  */
 export const APPLICATION_SEND_WARNS_ON: readonly HiringStepKey[] = [
-  "mvr", "psp", "clearinghouse", "drug_test", "medical_certificate",
+  // §9 P4: the permissions too, since 0533 dropped AI005 — the form no longer waits for them.
+  "permissions_signed", "mvr", "psp", "clearinghouse", "drug_test", "medical_certificate",
 ];
 
 /**
  * What "Send for signing" (AF5's "Open signing" until C3s3a) warns about when it is not done yet (AF5,
  * D-AF6; plan §3.2).
  *
- * ⚠ It WARNS and never refuses, like Send: the only refusal is the SQL's (not approved, AI006), and
- * whether the applicant is standing in the office is not something software can check. The list is
+ * ⚠ It WARNS and never refuses, like Send. Since §9 P3/P4 (0533 dropped AI006) the office's approval is
+ * on the list too: the link can go before approval, and the packet itself still refuses a mark until
+ * the office approves (DR032) — the applicant sees the reading copy meanwhile (D-HUI12). The list is
  * DERIVED rather than written out — every federal gate that belongs before travel, plus the road
  * test, which is recorded on the same office day and is the one gate a packet should not be signed
  * ahead of. A step added to the catalogue with `federalGate && beforeTravel` joins it by itself.
  */
 export const OPEN_SIGNING_WARNS_ON: readonly HiringStepKey[] = [
+  "office_approved",
   ...HIRING_STEPS.filter((s) => s.federalGate && s.beforeTravel).map((s) => s.key),
   "road_test",
 ];

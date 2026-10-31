@@ -138,10 +138,8 @@ async function press(): Promise<void> {
     <p v-if="invite?.submitted_at" class="text-xs text-ink-secondary">
       Signed and filed {{ formatDate(invite.submitted_at) }}.
     </p>
-    <p v-else-if="!invite?.approved_at" class="text-xs text-ink-secondary">
-      The applicant signs the packet on their own phone while they are in the office. Approve the
-      application first; send it for signing once they are here.
-    </p>
+    <!-- §9 P4 (G4): approval is advised first, not required to send — it is in "Still outstanding" below,
+         and the packet itself takes no mark until it is approved (DR032). -->
     <template v-else>
       <template v-if="!result">
         <p v-if="lastSend === 'live'" class="text-xs text-ink-secondary">
@@ -156,8 +154,8 @@ async function press(): Promise<void> {
           applicant holding the phone, then send again.
         </AppCallout>
         <p v-else class="text-xs text-ink-secondary">
-          Approved. When the applicant is here, send it to their phone. The link works for
-          {{ SIGN_LINK_LIFETIME_HOURS }} hours.
+          {{ invite?.approved_at ? "Approved. " : "" }}When the applicant is here, send it to their phone. The link
+          works for {{ SIGN_LINK_LIFETIME_HOURS }} hours.
         </p>
       </template>
 

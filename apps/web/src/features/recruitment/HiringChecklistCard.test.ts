@@ -168,9 +168,12 @@ describe("state is never colour alone (D-HUI4)", () => {
   it("shouts on exactly the rows that are the office's own move", async () => {
     const wrapper = await mountWith(JUST_INVITED);
     const loud = wrapper.findAll("li").filter((row) => row.html().includes("bg-warning-50"));
-    expect(loud.map((row) => row.text())).toEqual([
-      expect.stringContaining("Medical certificate verified"),
-    ]);
+    // §9 P4: since only the hire, the MVR and PSP are blocked, more rows are the office's move on a
+    // just-invited applicant — the loud rows are exactly those, by label, and the blocked MVR is not.
+    const ours = hiringChecklist(JUST_INVITED).steps.filter((st) => st.state === "waiting_on_us").map((st) => st.label);
+    expect(ours).toContain("Medical certificate verified");
+    expect(ours).not.toContain("Driving record");
+    expect(loud.map((row) => row.text())).toEqual(ours.map((label) => expect.stringContaining(label)));
   });
 });
 

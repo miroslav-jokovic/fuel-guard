@@ -4,11 +4,14 @@ import {
   TRAVEL_MODES,
   TRAVEL_MODE_LABELS,
   formatDisplayDateTime,
+  hiringStep,
+  travelWarnings,
   type ApplicantTravel,
   type TravelMode,
 } from "@silvicom/shared";
 import {
   AppButton as BaseButton,
+  AppCallout,
   AppInput as BaseInput,
   AppDateTimeField,
   AppFormField as FormField,
@@ -18,30 +21,31 @@ import {
 import { useSessionStore } from "@/stores/session";
 import { useToastStore } from "@/stores/toast";
 import { useApplicantTravelQuery, useBookTravel, useCancelTravel } from "@/features/recruitment/useApplicantTravel";
+import { useApplicantChecklistQuery } from "@/features/recruitment/useApplicantChecklist";
 
 /**
  * The applicant's trip to the office — D-AW7 (APPLICATION-FLOW-V2-PLAN §7, C2b2).
  *
- * ── REFUSED UNTIL SCREENING IS DONE, AND THE PANEL SAYS SO BEFORE THE SERVER DOES ─────────────
- * Q-HM5: *"we will not even bring him if this not green."* The API refuses a booking while any step
- * before travel is open (`TRAVEL_REFUSES_WITHOUT`), and the checklist row is blocked on exactly that
- * list — so while the row is blocked the form is not offered, and the drawer's own "Needs:" line above
- * names what it waits for. The server's refusal is still read and shown if a race gets past this.
+ * ── BOOKED WHENEVER THE OFFICE CHOOSES, WITH WHAT IS STILL OPEN SAID FIRST (§9 P4) ────────────
+ * Until 2026-10-31 the API refused a booking while any step before travel was open (Q-HM5) and this
+ * form was hidden. HIRING-WORKFLOW-AUDIT §2 (G2) measured that as preference, so the form is always
+ * offered and a caution names what is still open — `travelWarnings`, the fold the API reads too.
  *
  * ── THE CARRIER'S CLOCK ───────────────────────────────────────────────────────────────────────
  * Times are typed as the itinerary shows them and read on the CARRIER's clock (`carrierWallTimeSchema`),
  * never the browser's, so the form names that zone; the list shows every time on the same clock.
  */
-const props = defineProps<{
-  driverId: string;
-  /** The checklist row is blocked: a step before travel is still open, and the API would refuse. */
-  blocked: boolean;
-}>();
+const props = defineProps<{ driverId: string }>();
 
 const session = useSessionStore();
 const toast = useToastStore();
 const driverId = computed(() => props.driverId);
 const travelQ = useApplicantTravelQuery(driverId);
+const checklistQ = useApplicantChecklistQuery(driverId);
+/** "PSP report, Drug test result" — the steps before travel still open, in the checklist's order. */
+const stillOpen = computed(() =>
+  checklistQ.data.value ? travelWarnings(checklistQ.data.value).map((k) => hiringStep(k).label) : [],
+);
 const book = useBookTravel();
 const cancel = useCancelTravel();
 
@@ -65,7 +69,7 @@ const MODE_OPTIONS = TRAVEL_MODES.map((m) => ({ value: m, label: TRAVEL_MODE_LAB
 
 const form = reactive({ mode: "air" as TravelMode, departAt: "", arriveAt: "", confirmationRef: "" });
 const changing = ref(false);
-const showForm = computed(() => canBook.value && !props.blocked && (!live.value || changing.value));
+const showForm = computed(() => canBook.value && (!live.value || changing.value));
 const ready = computed(() => Boolean(form.departAt) && Boolean(form.arriveAt));
 
 const at = (instant: string) => formatDisplayDateTime(instant, undefined, zone.value ?? undefined);
@@ -134,10 +138,9 @@ async function cancelLive(): Promise<void> {
       </div>
     </div>
 
-    <p v-if="blocked" class="text-xs text-ink-secondary">
-      Travel is booked once everything before the office day is done. The line above names what is
-      still open.
-    </p>
+    <AppCallout v-if="showForm && stillOpen.length" tone="caution" data-testid="travel-still-open">
+      Still open: {{ stillOpen.join(", ") }}. You can book the trip anyway.
+    </AppCallout>
 
     <div v-if="showForm" class="space-y-4">
       <p class="text-xs text-ink-secondary">Times are {{ zoneName }}, as the office reads them.</p>

@@ -5,7 +5,7 @@ import type { HiringChecklistInputs } from "./hiringChecklistInputs.js";
 import { mvrJurisdictionsOutstanding } from "./mvrJurisdictions.js";
 import { packetDriverMarkCount } from "./packetPlacements.js";
 import {
-  HIRE_REFUSES_WITHOUT, HIRING_STEPS, TRAVEL_REFUSES_WITHOUT, measurableHiringSteps,
+  HIRE_REFUSES_WITHOUT, HIRING_STEPS, REFUSING_STEPS, TRAVEL_WARNS_ON, measurableHiringSteps,
   type HiringEvidence, type HiringStepKey, type HiringStepSpec,
 } from "./hiringSteps.js";
 
@@ -93,6 +93,12 @@ export interface HiringStep extends HiringStepSpec {
   /** When blocked, the first unmet requirement — so the row names its blocker in words, not a grey. */
   blockedBy: HiringStepKey | null;
   /**
+   * §9 P4: the first step the owner's order puts before this one that is not done yet — ADVICE, for a
+   * step the product does not refuse (`REFUSING_STEPS`). The row says "Usually after: …" and the step
+   * is worked as usual. Null when blocked (then `blockedBy` says it), done, or nothing comes first.
+   */
+  advisedFirst: HiringStepKey | null;
+  /**
    * The declared licensing jurisdictions with no MVR on file yet, as the applicant wrote them (AF7).
    * Only the `mvr` step ever fills it, and only while it is not done — *"Still needed from: …"*.
    */
@@ -127,7 +133,7 @@ export interface HiringChecklist {
   steps: HiringStep[];
   done: number;
   total: number;
-  /** Every `beforeTravel` step: the gate on the plane ticket, the list `TRAVEL_REFUSES_WITHOUT` refuses on. */
+  /** Every `beforeTravel` step: the gate on the plane ticket, the list booking it warns on (`TRAVEL_WARNS_ON`, §9 P4). */
   readyToTravel: HiringReadiness;
   /** `HIRE_REFUSES_WITHOUT`: the gate on the hire itself, the list `hireApplicant` refuses on. */
   readyToHire: HiringReadiness;
@@ -362,11 +368,13 @@ export function hiringChecklist(input: HiringChecklistInputs): HiringChecklist {
     // ⚠ A requirement that is not MEASURABLE cannot block: `orientation_videos` has no table, and a
     // step waiting on it would be permanently blocked by something that can never complete. The
     // summary carries that gap instead, as `unmeasured`, where it is visible rather than disabling.
-    const blockedBy =
+    const unmet =
       spec.requires.find((r) => {
         const req = HIRING_STEPS.find((s) => s.key === r);
         return req?.evidence !== null && !done.has(r);
       }) ?? null;
+    // §9 P4: only a refusing step is blocked by an unmet requirement; for the rest it is advice.
+    const blockedBy = REFUSING_STEPS.has(spec.key) ? unmet : null;
 
     let state: HiringStepState;
     if (evidence.done) state = "done";
@@ -380,6 +388,7 @@ export function hiringChecklist(input: HiringChecklistInputs): HiringChecklist {
       state,
       artifact: evidence.done ? spec.evidence : null,
       blockedBy: state === "blocked" ? blockedBy : null,
+      advisedFirst: state !== "done" && !blockedBy ? unmet : null,
       outstandingJurisdictions: evidence.done ? [] : (evidence.outstandingJurisdictions ?? []),
       paperOnlyPurposes: evidence.done ? [] : (evidence.paperOnlyPurposes ?? []),
     });
@@ -421,9 +430,9 @@ export function hireBlockers(checklist: Pick<HiringChecklist, "steps">): HiringS
   return notDone(checklist, HIRE_REFUSES_WITHOUT);
 }
 
-/** The steps recording the trip is refused for (D-AW7) — `hireBlockers`' rule, over the travel list. */
-export function travelBlockers(checklist: Pick<HiringChecklist, "steps">): HiringStepKey[] {
-  return notDone(checklist, TRAVEL_REFUSES_WITHOUT);
+/** The steps still open before travel — what booking it WARNS about (§9 P4; it refused under D-AW7). */
+export function travelWarnings(checklist: Pick<HiringChecklist, "steps">): HiringStepKey[] {
+  return notDone(checklist, TRAVEL_WARNS_ON);
 }
 
 /**

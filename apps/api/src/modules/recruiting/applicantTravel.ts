@@ -1,7 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
-  hiringStep,
-  travelBlockers,
+  travelWarnings,
   type ApplicantTravel,
   type ApplicantTravelBooking,
   type ApplicantTravelList,
@@ -14,14 +13,12 @@ import { carrierZone, instantOf } from "./carrierClock.js";
 /**
  * The applicant's trip to the office — D-AW7, AW11 (APPLICATION-FLOW-V2-PLAN §7, C2b2).
  *
- * ── A RECORD, AND A REFUSAL ───────────────────────────────────────────────────────────────────
- * Q-HM5 (owner, 2026-09-17): *"we will not even bring him if this not green."* Until now that ruling
- * lived only as `readyToTravel`, an answer nobody was obliged to read — the ticket was bought outside
- * the product and nothing recorded that it had been. So D-AW7 gives the trip a row
- * (`applicant_travel`, 0376) and this writer REFUSES to record one while any step before travel is
- * open (`TRAVEL_REFUSES_WITHOUT`). The refusal is the checklist's own fold (`travelBlockers`), read
- * through `applicantChecklist` — the drawer's green and this refusal cannot disagree, for the reason
- * `hireApplicant.ts` gives for the hire.
+ * ── A RECORD, AND A WARNING (§9 P4) ───────────────────────────────────────────────────────────
+ * D-AW7 gave the trip a row (`applicant_travel`, 0376), and until 2026-10-31 this writer REFUSED to
+ * record one while any step before travel was open (Q-HM5). HIRING-WORKFLOW-AUDIT-2026-10-31 §2 (G2)
+ * measured that as preference — no rule covers a plane ticket, and PSP is voluntary — so it now
+ * records the trip and hands back what is still open (`travelWarnings`, `TRAVEL_WARNS_ON`), read from
+ * the checklist's own fold so the panel's "Still open: …" and the rows cannot disagree.
  *
  * ── ON THE LIVE INVITATION ────────────────────────────────────────────────────────────────────
  * A trip belongs to one application (0376 keys it on `invitation_id`): a rehire travels again, and
@@ -40,9 +37,8 @@ import { carrierZone, instantOf } from "./carrierClock.js";
  */
 
 export type TravelError = {
-  code: "not_found" | "no_invitation" | "not_ready_to_travel" | "write_failed";
+  code: "not_found" | "no_invitation" | "write_failed";
   message: string;
-  /** `not_ready_to_travel`: the steps still open, in the catalogue's order. */
   missing?: HiringStepKey[];
 };
 
@@ -96,23 +92,15 @@ export async function bookTravel(
   driverId: string,
   body: ApplicantTravelBooking,
   today: string,
-): Promise<{ trip: ApplicantTravel; invitationId: string; replaced: number } | TravelError> {
+): Promise<{ trip: ApplicantTravel; invitationId: string; replaced: number; warnings: HiringStepKey[] } | TravelError> {
   // The checklist first: it is the org membership check (a 404 for another org's driver) AND the
-  // refusal, in the fold the drawer shows.
+  // warning, in the fold the drawer shows.
   const checklist = await applicantChecklist(admin, orgId, driverId, today);
   if (isChecklistError(checklist)) return { code: "not_found", message: checklist.message };
-  const missing = travelBlockers(checklist);
-  if (missing.length > 0) {
-    return {
-      code: "not_ready_to_travel",
-      message: `Travel waits for: ${missing.map((k) => hiringStep(k).label).join(", ")}.`,
-      missing,
-    };
-  }
+  const warnings = travelWarnings(checklist);
   const invitation = await readLiveInvitation(admin, orgId, driverId);
-  // Unreachable while `invitation_sent` is in the travel list — kept so a catalogue change cannot turn
-  // it into a null dereference.
-  if (!invitation) return { code: "no_invitation", message: "This applicant has no live invitation." };
+  // A trip belongs to an application (0376 keys it on the invitation), so this one still refuses.
+  if (!invitation) return { code: "no_invitation", message: "Send the invitation first — a trip is booked on the application." };
 
   const zone = await carrierZone(admin, orgId);
   const { data, error } = await admin
@@ -140,7 +128,7 @@ export async function bookTravel(
     .is("cancelled_at", null)
     .neq("id", trip.id)
     .select("id");
-  return { trip, invitationId: invitation.id, replaced: (replaced ?? []).length };
+  return { trip, invitationId: invitation.id, replaced: (replaced ?? []).length, warnings };
 }
 
 /**

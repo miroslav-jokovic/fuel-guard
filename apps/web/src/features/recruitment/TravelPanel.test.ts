@@ -14,6 +14,8 @@ const state = vi.hoisted(() => ({
   trips: [] as unknown[],
   requests: [] as Array<{ url: string; method: string; body: unknown }>,
   canManage: true,
+  /** §9 P4: the steps before travel still open on the checklist the panel reads. */
+  open: [] as string[],
 }));
 
 vi.mock("@/lib/api", () => ({
@@ -22,6 +24,10 @@ vi.mock("@/lib/api", () => ({
     if (method !== "GET") {
       state.requests.push({ url, method, body: opts?.body });
       return { ok: true, data: { trip: { id: "t-new" } } };
+    }
+    if (url.endsWith("/checklist")) {
+      const { TRAVEL_WARNS_ON } = await import("@silvicom/shared");
+      return { ok: true, data: { checklist: { steps: TRAVEL_WARNS_ON.map((key) => ({ key, state: state.open.includes(key) ? "waiting_on_us" : "done" })) } } };
     }
     return { ok: true, data: { trips: state.trips, timeZone: "America/Chicago" } };
   }),
@@ -34,8 +40,10 @@ const settle = async (w: ReturnType<typeof mount>) => {
     await new Promise((r) => setTimeout(r, 0));
   }
 };
-const mountPanel = (blocked = false) =>
-  mount(TravelPanel, { props: { driverId: "d1", blocked }, global: { plugins: [VueQueryPlugin] } });
+const mountPanel = (open: string[] = []) => {
+  state.open = open;
+  return mount(TravelPanel, { props: { driverId: "d1" }, global: { plugins: [VueQueryPlugin] } });
+};
 const button = (w: ReturnType<typeof mount>, text: string) => w.findAll("button").find((b) => b.text().includes(text));
 
 const LIVE = {
@@ -69,11 +77,17 @@ describe("booking", () => {
   });
 
   /** Q-HM5: the API refuses while a step before travel is open, so the form is not offered at all. */
-  it("offers no form while the row is blocked, and says why", async () => {
-    const w = mountPanel(true);
+  it("§9 P4 (G2): offers the form with steps still open, and names them first", async () => {
+    const w = mountPanel(["psp", "drug_test"]);
     await settle(w);
-    expect(button(w, "Record the trip")).toBeUndefined();
-    expect(w.text()).toContain("Travel is booked once everything before the office day is done.");
+    expect(button(w, "Record the trip")).toBeDefined();
+    expect(w.get('[data-testid="travel-still-open"]').text()).toContain("Still open: PSP report, Drug test result");
+  });
+
+  it("§9 P4: says nothing is open when nothing is", async () => {
+    const w = mountPanel([]);
+    await settle(w);
+    expect(w.find('[data-testid="travel-still-open"]').exists()).toBe(false);
   });
 
   it("offers no form to somebody who may only view the section", async () => {

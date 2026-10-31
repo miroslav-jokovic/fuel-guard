@@ -132,6 +132,9 @@ const recordedActStep = computed(() =>
 const blockedBy = computed(() =>
   props.step?.blockedBy ? hiringStep(props.step.blockedBy).label : null,
 );
+const advisedFirst = computed(() =>
+  props.step?.advisedFirst ? hiringStep(props.step.advisedFirst).label : null,
+);
 
 const driverId = computed(() => props.driverId);
 const authorizationsQ = useAuthorizationsQuery(driverId);
@@ -155,6 +158,10 @@ const authorizationsQ = useAuthorizationsQuery(driverId);
           {{ badge.label }}
         </span>
         <span v-if="blockedBy" class="text-xs text-ink-secondary">Needs: {{ blockedBy }}</span>
+        <!-- §9 P4: the owner's order as advice — never a refusal. -->
+        <span v-else-if="advisedFirst" class="text-xs text-ink-muted" data-testid="advised-first-line">
+          Usually after: {{ advisedFirst }}
+        </span>
         <span v-else-if="step.outstandingJurisdictions.length" class="text-xs text-ink-secondary">
           Still needed from: {{ step.outstandingJurisdictions.join(", ") }}
         </span>
@@ -270,10 +277,10 @@ const authorizationsQ = useAuthorizationsQuery(driverId);
         :done="step.state === 'done'"
         :invitation-id="invitationId"
         :identity="identity ?? null"
-        :advised-first="step.state === 'done' ? null : blockedBy"
+        :advised-first="step.key === 'road_test' && step.advisedFirst === 'drug_test' ? advisedFirst : null"
       />
       <HandbookPanel v-else-if="body === 'handbook'" :driver-id="driverId" :done="step.state === 'done'" />
-      <TravelPanel v-else-if="body === 'travel'" :driver-id="driverId" :blocked="step.state === 'blocked'" />
+      <TravelPanel v-else-if="body === 'travel'" :driver-id="driverId" />
 
       <!-- ⚠ Q-HM9's step. The section is unchanged — it was already the whole §391.23(c)(2) record,
            it simply had no row to open it. What the row adds is that the investigation is now

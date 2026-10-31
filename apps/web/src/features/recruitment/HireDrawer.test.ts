@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { mount } from "@vue/test-utils";
 import { createPinia, setActivePinia } from "pinia";
 import { VueQueryPlugin } from "@tanstack/vue-query";
-import { RETURN_TO_DUTY_BLOCK } from "@silvicom/shared";
+import { HIRE_REFUSES_WITHOUT, RETURN_TO_DUTY_BLOCK } from "@silvicom/shared";
 import HireDrawer from "@/features/recruitment/HireDrawer.vue";
 
 /**
@@ -27,9 +27,16 @@ const preview = vi.hoisted(() => ({
   },
 }));
 
+/** §9 P4: the checklist the six federal checks are read from; `open` lists the ones not done. */
+const checklist = vi.hoisted(() => ({ open: [] as string[] }));
+
 vi.mock("@/lib/api", () => ({
   apiFetch: vi.fn(async (path: string, init?: { method?: string; body?: unknown }) => {
     calls.push({ path, init });
+    if (path.endsWith("/checklist")) {
+      const { HIRE_REFUSES_WITHOUT: six } = await import("@silvicom/shared");
+      return { ok: true, data: { checklist: { steps: six.map((key) => ({ key, state: checklist.open.includes(key) ? "waiting_on_us" : "done" })) } } };
+    }
     if (path.includes("hire-preview")) return { ok: true, data: preview.value };
     return { ok: true, data: { driverId: "d1", hireDate: "2026-08-19", filed: 1, skipped: [], outstanding: [] } };
   }),
@@ -43,7 +50,10 @@ const SlideOverStub = {
 const mountDrawer = () =>
   mount(HireDrawer, {
     props: { open: true, driverId: "d1", fullName: "An Applicant" },
-    global: { plugins: [VueQueryPlugin], stubs: { SlideOver: SlideOverStub, teleport: true } },
+    global: {
+      plugins: [VueQueryPlugin],
+      stubs: { SlideOver: SlideOverStub, teleport: true, RouterLink: { props: ["to"], template: '<a :data-to="to"><slot /></a>' } },
+    },
   });
 
 const settle = async (w: ReturnType<typeof mountDrawer>) => {
@@ -53,10 +63,41 @@ const settle = async (w: ReturnType<typeof mountDrawer>) => {
   }
 };
 
+describe("§9 P4 (Q-WF1 (a)): the six federal checks, before the press", () => {
+  beforeEach(() => {
+    setActivePinia(createPinia());
+    checklist.open = [];
+  });
+
+  it("lists all six, each done or a link to the row that does it", async () => {
+    checklist.open = ["drug_test"];
+    const w = mountDrawer();
+    await settle(w);
+    const rows = w.get('[data-testid="federal-checks"]').findAll("li");
+    expect(rows).toHaveLength(HIRE_REFUSES_WITHOUT.length);
+    expect(HIRE_REFUSES_WITHOUT).toHaveLength(6);
+    expect(w.get('[data-to="/recruitment/d1?step=drug_test"]').text()).toBe("Open");
+    expect(rows.filter((r) => r.text().includes("Done"))).toHaveLength(5);
+  });
+
+  it("holds the press until all six are done, as the API would refuse", async () => {
+    checklist.open = ["road_test"];
+    const w = mountDrawer();
+    await settle(w);
+    const hire = () => w.findAll("button").find((b) => b.text().trim() === "Hire")!;
+    expect(hire().attributes("disabled")).toBeDefined();
+    checklist.open = [];
+    const ready = mountDrawer();
+    await settle(ready);
+    expect(ready.findAll("button").find((b) => b.text().trim() === "Hire")!.attributes("disabled")).toBeUndefined();
+  });
+});
+
 describe("hiring an applicant", () => {
   beforeEach(() => {
     setActivePinia(createPinia());
     calls.length = 0;
+    checklist.open = [];
     preview.value.returnToDutyBlocked = false;
     preview.value.returnToDutyCause = null;
   });
