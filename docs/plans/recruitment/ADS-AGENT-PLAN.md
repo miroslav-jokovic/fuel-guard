@@ -250,6 +250,104 @@ and what each does to this plan.
 
 ---
 
+## 2c. Four platforms, the company accounts, Higgsfield, and the orchestrator (v5, owner's message 2026-10-31)
+
+The owner: *no Job Store (Q-AD15 → C, build). Use our company accounts for Facebook, Instagram,
+X and TikTok. Our Higgsfield connection has made our videos before, so the ads agent uses it too.
+Should we have separate smaller agents, each in charge of one task, and an orchestrator that runs
+the whole operation?*
+
+### Company accounts: connected through each platform's own sign-in, never by password
+Every proven ads tool (Birch, Smartly, Hootsuite, Boostpoint) connects the *company's* account the
+same way. An admin presses **Connect** in our Settings, signs in on the platform's own page with
+the company's business login, and approves the requested permissions. We receive a token. **We
+never see, store or type the company's password.** Automating a password login breaks on two-factor
+codes, trips the platforms' security checks, and breaks their terms, which risks a ban on the
+company's own page. Tokens are sealed per org (`secretBox`, AAD = org + platform), refreshed by a
+leased job, and their expiry raises an alert. Disconnecting is one button, and the platform's side
+can always revoke.
+
+| Platform | How the company account connects | Access we must request | Job-ad rules | Leads back to us | Readiness |
+|---|---|---|---|---|---|
+| **Facebook + Instagram** | One Meta connection (Business Manager → system user); Instagram is a placement of the same campaign | Marketing API, Limited tier — at once, no review (§2) | EMPLOYMENT category: no age/gender/ZIP, ≥ 15 mi, no lookalikes | Instant Form webhook + hourly backfill; Conversions API back (D-AD14) | **Day 1** |
+| **TikTok** | TikTok for Business account + Business Center; our developer app; the admin authorises by OAuth | Developer profile → developer app review, **2–3 business days** (TikTok); 3–7 days (third parties); a form since 2026-03-20 only if we ask for "TikTok Accounts" scope (we do not) | **HEC Special Ad Category toggle** for US job ads: age and gender targeting removed (official); ZIP and lookalikes also removed according to secondary sources | TikTok Instant Form (lead-gen) libraries are in the Marketing API; leads pulled by API, webhook to be confirmed in AD-T | **~3–5 business days after the app request** |
+| **X** | X Ads account; our developer app; the admin authorises by OAuth | **Ads API access is granted through an X representative**; no self-serve form; rate limits are fixed | Not yet researched to the same standard (Q-AD21) | Lead cards and their API: to verify (Q-AD21) | **Unknown — depends on X** |
+
+Each platform is one **adapter** behind the same interface (create paused, launch, pause, budget,
+read spend, read leads, apply rules). The control plane, caps, settings page, creative studio and
+ledgers are shared and are built once. Adding TikTok is an adapter, not a second system. **Meta
+ships first** because it is where the drivers and the benchmark data are (§2a). TikTok follows
+the day its app is approved; X follows when X grants access.
+
+**Organic posts are a different capability** (posting to the company's feed, not paid ads). They
+need different APIs: Meta content publishing, the TikTok Content Posting API (whose audit third
+parties put at 1–4 weeks), and X's paid API tiers. Not in this build unless the owner asks (Q-AD19).
+
+### Higgsfield: what "our connection" is, measured on the Mac 2026-10-31
+- The `higgsfield` CLI is signed in by **browser OAuth (PKCE)** as the development account. It
+  stores a personal access and refresh token in `~/.config/higgsfield/credentials.json` and spends
+  the account's **plan credits**. The video project `Silvicom-360-Videos` used exactly this,
+  through the `higgsfield-generate` skill (defaults: GPT Image 2.5 for stills, Seedance 2.5 for
+  video), with Remotion composing the finished film.
+- Higgsfield's help centre: **the API is a separate product with separate, prepaid USD billing;
+  plan credits do not extend to the API, and API charges never touch the plan.** The API uses a
+  key (ID + secret, shown once) created at open.higgsfield.ai and kept server-side. The CLI and MCP
+  use "your higgsfield.ai account, no API key".
+- **Marketing Studio** (in the CLI) already does much of what §4a planned to build: brand kits,
+  ad modes (`product_showcase`, `tv_spot`, `ugc`, …), presets, and a **Virality Predictor**. Over
+  the API only "Marketing Studio Image" (with presets) is documented; brand kits are not.
+
+**Decision proposed (D-AD15): same Higgsfield, server-grade connection.** The ads agent uses the
+same Higgsfield models, presets and prompting that made our videos, through the **API key** of a
+Higgsfield API account, sealed per org with its own prepaid budget. Running the CLI's personal
+login unattended on a server would tie production to one person's token on one machine. It would
+fail silently when the refresh token lapses, and it would mix ad spend into the creative team's
+plan credits. That is a workaround in this repo's sense (`CLAUDE.md`). If the owner chooses it
+anyway (Q-AD20), it ships labelled as one, with what removes it.
+- **Reuse, not rebuild:** the overlay renderer (D-AD9) is the **Remotion** composition from
+  `Silvicom-360-Videos` (already proven on our own trucks and fonts), moved into a package. Our
+  presets map onto Higgsfield's own presets and modes where they fit. Testimonial-style `ugc` and
+  `product_review` modes with AI presenters stay off (FTC 16 CFR 465, §4a). The Virality Predictor
+  score is shown beside each creative as information, **never as a gate**, until §8 shows whether
+  it predicts our cost per qualified lead.
+
+### The orchestrator and the agents (D-AD16)
+**Yes to small modules with one job each. The orchestrator is code, not a model.** This is
+Anthropic's own published guidance: use a *workflow* (predefined code paths) when the task's
+structure is stable; use an LLM *orchestrator* only when the subtasks cannot be known in advance.
+An ad campaign's lifecycle is the same every time (brief → create → check → approve → publish →
+watch → learn), and every step touches money or the law. A model deciding *which step runs next*
+would be the least controlled part of the system. Anthropic also measured multi-agent setups
+at ~15× the tokens of a chat, and others report concurrent agents making conflicting choices. Both
+argue against an LLM in charge of spend.
+
+So the **Orchestrator** is a deterministic state machine per campaign, running on our durable job
+queue and leased schedulers (D-RA8). It owns the state, the order, the retries, the approvals and
+the ledgers. It calls these workers, each with one contract, its own switch (D-RA9), its own budget
+and its own fixture tests:
+
+| Worker | Kind | Its one job | May not |
+|---|---|---|---|
+| **Brief** | code | Turns an opening + profile version into the ad brief (facts, allowed claims, area) | invent a fact |
+| **Copywriter** | Claude | Fills a preset's copy slots EN/ES from the brief | change the concept, state a figure not in the brief |
+| **Art director** | Claude | Fills the preset's image/motion prompt slots from the brand kit and reference photos | write text into images |
+| **Renderer** | Higgsfield + Remotion | Generates stills/motion, composites the exact overlay | spend past the render budget |
+| **Checker** | code + Claude vision | Copy, visual and render checks (D-AD12); one regeneration | approve |
+| **Publisher** | code, one adapter per platform | Creates paused, launches on approval, pauses, sets caps and platform rules | launch or raise without an approval row |
+| **Budget guard** | code | Every spend-affecting call passes `adsPolicy`; the kill switch | be bypassed: it is the only path to an adapter's spend calls |
+| **Monitor** | code | Hourly pull, reconcile, auto-pause rules, fatigue flags | change a budget upward |
+| **Lead intake** | code (+ Claude for email) | Webhooks, backfills, mailbox, dedupe, `leadMatch` | contact a lead |
+| **Outcome feed** | code | Sends lead stages back to each platform (D-AD14) | send anything but id + stage |
+| **Analyst** | code fold + Claude narration | Daily brief, cohort report, recommendations | state a number the fold did not produce; act |
+
+Five of the eleven workers use a model; none of them decides what happens next, touches money,
+or contacts a person. Each worker is a folder under `apps/api/src/modules/recruiting/ads/` with
+its own contract in `packages/shared`, so a worker can be replaced (another image vendor, another
+platform) without touching the others. That is the "smaller modules in charge of smaller tasks"
+the owner asked for.
+
+---
+
 ## 3. Decisions proposed (D-AD*)
 
 All D-RA rulings apply unchanged. These add to them. None is ruled until the owner says so.
@@ -648,9 +746,7 @@ rate, and Higgsfield credits per approved creative.
 - **Q-AD13 · Real drivers.** May we use real drivers' photos or words? Only with a signed release
   stored on their record. *Fallback:* no people in quotes; generated scenes favour trucks, roads and
   cabs (FTC 16 CFR 465; Meta's "AI info" label beside a photorealistic AI person).
-- **Q-AD15 · Build, buy, or Job Store** (§2a): A Tenstreet Job Store, B a managed vendor, C build
-  thin on Meta's machinery. **Recommendation C**, run beside whatever is live today for four weeks.
-  *Fallback:* C.
+- **Q-AD15 · RULED 2026-10-31: C, build.** No Job Store.
 - **Q-AD16 · What runs today.** Does the carrier already buy Facebook/Instagram through Job Store,
   an agency, or by hand in Ads Manager? Monthly spend and cost per applicant if known. *Fallback:*
   no baseline; §8 starts from zero.
@@ -661,6 +757,18 @@ rate, and Higgsfield credits per approved creative.
   a month (≈ $5,400 at the benchmark), and leaving the learning phase wants about 50 results a week
   per ad set. Is the monthly Meta budget near that? *Fallback:* one ad set per opening, the plain
   lead goal, and the switch is offered when the volume is there.
+- **Q-AD19 · Organic posts too?** Paid ads only (this plan), or also posting to the company's
+  Facebook, Instagram, X and TikTok feeds? *Fallback:* paid ads only; organic posting gets its own
+  plan (different APIs and audits).
+- **Q-AD20 · Higgsfield connection.** (a) A Higgsfield API account with a server key and its own
+  prepaid budget (D-AD15, recommended); (b) the CLI's personal login running on the server,
+  labelled as a workaround. *Fallback:* (a); until it exists, the creative studio runs against
+  recorded responses and the ads page offers no "generate".
+- **Q-AD21 · X** (us, after the owner contacts X): Ads API access through X's representative; X's
+  employment-ad policy and lead-card API, researched to the same standard as Meta and TikTok
+  before any X adapter is built. *Fallback:* X waits.
+- **Q-AD22 · Platform order** (owner): Meta first (Day 1), TikTok when its app is approved, X when
+  access is granted. *Fallback:* that order.
 - **Q-AD14 · The brand kit.** The logo as vector, the colours, the font (if any), the company name
   exactly as it should read, the phone number shown, and 5–10 real photos of our tractors and
   trailers from several angles (these become the reference images, so generated trucks look like
@@ -687,6 +795,22 @@ rate, and Higgsfield credits per approved creative.
 **Tenstreet** — [What you need to know about Tenstreet's API](https://www.tenstreet.com/blog/integrations-2/tenstreets-api-guide-everyone-else/) ·
 [Tenstreet integrations](https://www.tenstreet.com/integrations) ·
 [LeadsBridge: Tenstreet](https://leadsbridge.com/documentation/tenstreet/)
+
+**Platforms, Higgsfield and agents (v5)** — [TikTok HEC ad policy](https://ads.tiktok.com/resources/help/article/housing-employment-credit-hec-ad-policy) ·
+[TikTok: create a developer app](https://business-api.tiktok.com/portal/docs/create-a-developer-app/v1.3) ·
+[TikTok Marketing API](https://business-api.tiktok.com/portal/docs/marketing-api/v1.3) ·
+[TikTok form libraries](https://business-api.tiktok.com/portal/docs/get-form-libraries/v1.3) ·
+[TikTok Marketing API v1.3 explained (Soku)](https://soku.ai/blog/tiktok-marketing-api-v1-3-explained) ·
+[Boostpoint: TikTok recruiting 2026](https://boostpoint.com/tiktok-recruiting/) ·
+[PPC Land: special ad categories](https://ppc.land/special-ad-category/) ·
+[X Ads API: getting started](https://docs.x.com/x-ads-api/getting-started) ·
+[X Ads API: increasing access](https://docs.x.com/x-ads-api/getting-started/increasing-access) ·
+[Higgsfield: what is the API](https://higgsfield.ai/creator-hub/help-center/integrations/what-is-the-higgsfield-api) ·
+[Higgsfield Marketing Studio Image API](https://docs.higgsfield.ai/docs/models/marketing-studio-image/generate-and-edit) ·
+[Higgsfield Python client](https://github.com/higgsfield-ai/higgsfield-client) ·
+[Anthropic's effective-agents patterns (AgentPatterns)](https://agentpatterns.ai/patterns/agent-design/anthropic-effective-agents-framework/) ·
+[Workflow vs agent playbook](https://mer.vin/2026/05/when-not-to-build-ai-agents-anthropics-workflow-vs-agent-playbook/) ·
+[Anthropic's multi-agent research architecture](https://theaiengineer.substack.com/p/how-anthropic-built-multi-agent-deep)
 
 **Cross-industry (v4)** — [Meta conversion leads + CRM feedback (MarketingQL)](https://marketingql.com/blog/meta-conversion-leads-crm-feedback/) ·
 [Conversion Leads & Conversions API for CRM (Zephra)](https://zephraai.com/guides/meta-ads-academy/conversion-leads-optimization) ·
@@ -775,3 +899,14 @@ rate, and Higgsfield credits per approved creative.
   qualification lag; a code-generated naming taxonomy; hook and hold rate for video; a separate
   test campaign. Q-AD17 (Conversion Leads under EMPLOYMENT — undocumented, sandbox test) and
   Q-AD18 (budget against Meta's volume floors). **Nothing built.**
+- **2026-10-31, v5** — Owner: no Job Store (**Q-AD15 ruled C**); company accounts for Facebook,
+  Instagram, X and TikTok; Higgsfield as used for our videos; small agents plus an orchestrator.
+  Added §2c. Accounts connect by each platform's OAuth with the company's business login, never by
+  password. Meta ships first, TikTok after app review (2–3 business days per TikTok; HEC toggle),
+  and X when X's representative grants Ads API access. Each platform is an adapter behind one
+  interface. Measured: the CLI uses a personal OAuth login and plan credits, while Higgsfield's API
+  is separate, key-based and prepaid → D-AD15 recommends an API key, and Q-AD20 asks. The Remotion
+  composition from Silvicom-360-Videos is reused as the overlay renderer; Marketing Studio presets
+  are reused where they fit; Virality Predictor is shown, never a gate. D-AD16: the orchestrator is
+  a deterministic state machine on the job queue, calling eleven single-job workers (five use
+  Claude; none decides, spends or contacts). New questions Q-AD19–Q-AD22. **Nothing built.**
