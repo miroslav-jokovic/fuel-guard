@@ -30,6 +30,9 @@
 -- this table, and its body already deletes from evidence's, psp's and roster's tables as one audited act
 -- (0380, 0387); nothing about those deletes changes here.
 --
+-- raw-access-waiver: `purge_applicant` is copied whole from 0387 and has always deleted the applicant's
+-- `psp_requests` rows itself — the purge is the one audited act that removes everything they wrote.
+--
 -- ⚠ DEPLOY WINDOW: a new table, so no old reader can trip over it. The one code change in the same
 -- PR is the merge list, which updates this table; a merge run in the minutes between the code
 -- deploying and `migrate-staging` applying this would fail loudly on the missing table, and is an
