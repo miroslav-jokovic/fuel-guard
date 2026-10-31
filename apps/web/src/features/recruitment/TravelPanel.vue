@@ -103,7 +103,7 @@ async function cancelLive(): Promise<void> {
 <template>
   <div class="space-y-6">
     <div>
-      <p class="text-sm font-medium text-ink">Booked</p>
+      <h3 class="text-sm font-semibold text-ink">Booked</h3>
       <div class="mt-1">
         <QueryState
           :loading="travelQ.isLoading.value"
@@ -164,7 +164,7 @@ async function cancelLive(): Promise<void> {
     </div>
 
     <div v-if="cancelled.length">
-      <p class="text-sm font-medium text-ink">Earlier bookings</p>
+      <h3 class="text-sm font-semibold text-ink">Earlier bookings</h3>
       <ul class="mt-2 space-y-1">
         <li v-for="t in cancelled" :key="t.id" class="text-2xs text-ink-secondary">
           {{ TRAVEL_MODE_LABELS[t.mode] }} · leaves {{ at(t.departAt) }} · cancelled {{ at(t.cancelledAt!) }}

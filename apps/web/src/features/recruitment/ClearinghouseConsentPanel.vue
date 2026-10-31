@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import { AppButton as BaseButton, AppDateField, AppFormField as FormField } from "@silvicom/ui";
+import { AppButton as BaseButton, AppCallout, AppDateField, AppFormField as FormField } from "@silvicom/ui";
 import { useSessionStore } from "@/stores/session";
 import { useToastStore } from "@/stores/toast";
 import { useApplicantChecklistQuery } from "@/features/recruitment/useApplicantChecklist";
@@ -52,7 +52,7 @@ async function save(): Promise<void> {
 
 <template>
   <div v-if="!done" class="space-y-4 border-t border-edge pt-6">
-    <p class="text-sm font-medium text-ink">The driver's consent</p>
+    <h3 class="text-sm font-semibold text-ink">The driver's consent</h3>
     <p v-if="consented" class="text-xs text-ink-secondary">
       Recorded — the portal shows their consent, so the query is yours to run.
     </p>
@@ -67,11 +67,13 @@ async function save(): Promise<void> {
         </FormField>
         <BaseButton size="sm" :disabled="!occurredOn || record.isPending.value" @click="save">Record the consent</BaseButton>
       </div>
-      <p v-else class="text-xs text-ink-muted">A safety manager or an admin records it: it is a drug and alcohol record.</p>
+      <!-- D-4 (§9 P2): who to ask, not the rule that stopped them. -->
+      <p v-else class="text-xs text-ink-muted">
+        Ask a safety manager or an administrator to record it — it is a drug and alcohol record, so it is theirs.
+      </p>
     </template>
-    <p v-if="drugTestPending" class="text-xs text-warning-700">
-      The drug test result is not in yet. The office's order is the result first, then the query — you can
-      still run it.
-    </p>
+    <AppCallout v-if="drugTestPending" tone="caution">
+      The drug test result is not in yet. You can still run the query now.
+    </AppCallout>
   </div>
 </template>

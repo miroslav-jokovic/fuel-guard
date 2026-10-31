@@ -103,8 +103,9 @@ async function save(): Promise<void> {
 </script>
 
 <template>
-  <div class="space-y-4 rounded-surface border border-edge p-4">
-    <p class="text-sm font-medium text-ink">{{ copy.heading }}</p>
+  <!-- §9 P2: no box inside a drawer — the form sits in the drawer's own flow under a heading. -->
+  <div class="space-y-4">
+    <h3 class="text-sm font-semibold text-ink">{{ copy.heading }}</h3>
     <p class="text-xs text-ink-secondary">{{ copy.blurb }}</p>
     <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
       <FormField v-slot="{ id }" label="Name">

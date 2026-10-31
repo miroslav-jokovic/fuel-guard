@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { acceptFor, DOCUMENT_CONTENT_TYPES } from "@silvicom/shared";
+import { acceptFor, DOCUMENT_CONTENT_TYPES, formatDisplayDate } from "@silvicom/shared";
 import { computed, reactive, ref, watch } from "vue";
 import {
   DQ_KIND_LABELS,
@@ -155,14 +155,13 @@ const uploadAccept = acceptFor(DOCUMENT_CONTENT_TYPES);
 <template>
   <div class="space-y-6">
     <p class="text-xs text-ink-secondary">
-      Recorded rather than fetched: a record pulled anywhere else still counts, and files the same
-      way.
+      Pulled it somewhere else? Record it here — it counts the same.
     </p>
 
     <!-- What is on file. Shown before the form, because the first question a recruiter opening this
          has is whether somebody already did it. -->
     <div v-if="canRead">
-      <p class="text-sm font-medium text-ink">On file</p>
+      <h3 class="text-sm font-semibold text-ink">On file</h3>
       <div class="mt-1">
         <QueryState
           :loading="recordsQ.isLoading.value"
@@ -184,7 +183,7 @@ const uploadAccept = acceptFor(DOCUMENT_CONTENT_TYPES);
           <ul v-else class="mt-1 space-y-3">
             <li v-for="row in filed" :key="row.id">
               <p class="text-xs">
-                <span class="font-medium text-ink">{{ row.occurred_on }}</span>
+                <span class="font-medium text-ink">{{ formatDisplayDate(row.occurred_on, "") }}</span>
                 <span v-if="jurisdictionOf(row)" class="text-ink"> · {{ jurisdictionOf(row) }}</span>
                 <span v-if="row.result" class="text-ink-secondary"> · {{ row.result }}</span>
               </p>
@@ -248,7 +247,7 @@ const uploadAccept = acceptFor(DOCUMENT_CONTENT_TYPES);
       </div>
 
       <div>
-        <p class="text-sm font-medium text-ink">Scan</p>
+        <h3 class="text-sm font-semibold text-ink">Scan</h3>
         <p class="mt-1 text-sm text-ink-muted">
           Optional — you can attach it later from the driver's file.
         </p>

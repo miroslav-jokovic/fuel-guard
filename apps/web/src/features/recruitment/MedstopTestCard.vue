@@ -46,7 +46,7 @@ const kindText = (kind: string) => (kind === "drug" ? "Drug test" : kind === "al
 
 <template>
   <div v-if="q.isLoading.value || q.isError.value || data?.connected" class="space-y-2 border-t border-edge pt-6">
-    <p class="text-sm font-medium text-ink">Med-Stop</p>
+    <h3 class="text-sm font-semibold text-ink">Med-Stop</h3>
     <QueryState
       :loading="q.isLoading.value"
       :error="q.isError.value ? q.error.value : null"

@@ -79,7 +79,7 @@ const uploadAccept = acceptFor(DOCUMENT_CONTENT_TYPES);
 
 <template>
   <div class="space-y-4 rounded-surface border border-edge p-4">
-    <p class="text-sm font-medium text-ink">Record a paper signature</p>
+    <h3 class="text-sm font-semibold text-ink">Record a paper signature</h3>
     <p class="text-xs text-ink-secondary">
       Print the blank from Recruitment → Templates, have the driver sign it, then upload the scan. The
       wording on file is the carrier's current text for that permission.

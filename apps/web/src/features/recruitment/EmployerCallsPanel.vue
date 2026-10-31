@@ -105,7 +105,7 @@ async function save(): Promise<void> {
 <template>
   <div class="space-y-4">
     <div>
-      <p class="text-sm font-medium text-ink">Calls before filing</p>
+      <h3 class="text-sm font-semibold text-ink">Calls before filing</h3>
       <p class="mt-1 text-xs text-ink-secondary">
         <template v-if="data?.filed">
           The application is filed, so these calls are on the inquiry list below. Record new contact there.
@@ -141,7 +141,7 @@ async function save(): Promise<void> {
             </li>
           </ul>
           <p v-if="e.key === null" class="text-2xs text-ink-muted">
-            Entered before employers carried a reference, so a call can't be recorded against it until filing puts it on the inquiry list.
+            Record calls about this job on the inquiry list once the application is filed.
           </p>
           <template v-else-if="canRecord && !data.filed">
             <BaseButton v-if="openKey !== e.key" size="sm" @click="start(e)">Record a call</BaseButton>
