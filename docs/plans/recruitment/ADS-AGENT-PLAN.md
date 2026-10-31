@@ -109,6 +109,78 @@ Indeed email intake is only a stop-gap. Q-AD4.
 
 ---
 
+## 2a. Proven practice — what carriers and ad platforms already do (v3, read 2026-10-31)
+
+The owner, 2026-10-31: *don't reinvent the system; thousands of companies run this already;
+research proven real-world examples and best practice and use them.* This section is that survey.
+Every part of §3–§6 now says which proven pattern it copies. Where we still build, the reason is
+written down.
+
+### What exists on the market
+
+| Kind | Examples | What they do | Price signals (public) |
+|---|---|---|---|
+| **ATS marketplace** | **Tenstreet Job Store** (already in the carrier's Tenstreet dashboard) | One posting to ~20 boards and social sites, **Facebook and Instagram included**, run as lead-generation campaigns that go to a lead form; free attribution reports (Origins); a free concierge for active clients who manages the spend across merchants | Job Store itself free; you pay the merchant per posting |
+| **Managed social recruiting for CDL** | Boostpoint, Leadgamp, Conversion Interactive, Randall Reilly, CDLLife (several are Tenstreet partner agencies) | Build and optimise Meta campaigns for driver jobs; short mobile application; ATS integration (Tenstreet, DriverReach) | Boostpoint: $750/month minimum ad budget. Leadgamp: $6,000/month for ads management + ATS integration |
+| **Programmatic job advertising** | Appcast, Joveo, PandoLogic | Spread a budget across job boards, bidding per click or applicant toward a target cost | Platform fee typically 10–20 % of media; PandoLogic pay-per-applicant (e.g. $25) |
+| **Meta rules engines** | Meta's own Automated Rules (free), Birch (ex-Revealbot), Madgicx | Pause/scale/notify on conditions; Birch runs rules you write, Madgicx moves budget itself | Birch rules from $99/month |
+| **AI creative platforms** | Smartly, Pencil, AdCreative.ai, Creatify | Brand kit → templated variants → predictive scoring → launch | $39–$249/month self-serve; Smartly enterprise ($50K+/month spend) |
+
+### The proven practices, and what each one changes here
+
+1. **Lead Ads (Instant Forms) beat landing pages for drivers.** Agencies that tested landing pages,
+   calls, messages and Instant Experiences report lead forms win: Meta pre-fills name, phone and
+   email, so applying takes two taps. → Unchanged: the ad click lands on an Instant Form (§1).
+2. **Lead with real pay and real home time.** Drivers screenshot misleading ads into Facebook
+   groups. → D-AD1 and D-AD9 already force every figure to come from the opening.
+3. **Real equipment, real drivers.** Drivers want to see what they will drive; real-driver video
+   is reported as the best-performing type. → **D-AD9 tightened (below): generated media must start
+   from our real photos**, and P4 "Walk-around" (real truck, animated) becomes the lead preset.
+   Invented scenes are a supplement, never the main creative.
+4. **Speed to lead decides conversion.** Facebook leads are passive and apply to several carriers
+   the same day. → D-AD7 unchanged (instant notify + escalation); the uncontacted-lead threshold
+   is the one setting this plan treats as most important.
+5. **Guardrails as rules, enforced by the platform.** Practitioners pause at about 2× target cost
+   per result once a minimum spend is reached, exclude ad sets still in Meta's learning phase, and
+   scale winners in steps of about 20 %. Rules start conservative on a small budget. → **D-AD3
+   gains a fourth fence: our settings are also written as Meta Automated Rules**
+   (`/act_<id>/adrules_library`, PAUSE / NOTIFICATION, half-hourly), so Meta enforces them even
+   when our server is down. ⚠ A developer reports error 2703 when a PAUSE rule uses a spend
+   condition. AD2 tests that in the sandbox, and our hourly pull stays the backstop whatever the
+   answer.
+6. **Many diverse creatives, few ad sets, broad targeting.** Meta's delivery rewards a pool of
+   different creatives over narrow targeting (and EMPLOYMENT forbids narrow targeting anyway).
+   → D-AD11's two-presets-per-campaign stands; the cap on live creatives per ad set is a setting.
+7. **Defaults come from a benchmark, not a guess.** Boostpoint's 2026 benchmark for CDL drivers
+   on Meta (891 campaigns): **median $26.86 per applicant, middle half $17.00–$42.31, 8 % apply
+   rate**; about 37 applicants per $1,000. → The settings page ships with these as its starting
+   defaults, each labelled with its source: alert above $42 per lead after 5 leads; pause an ad that
+   spends $85 (≈ 2 × $42) with no lead. The owner changes them; four weeks of our own data replaces
+   them (§8).
+8. **Attribution to hire, not to click.** Appcast's 2025 benchmark puts the median cost per hire at
+   $851 across 1,300 employers; vendors sell "listing to hire" tracking (Tenstreet Origins).
+   → This is the one thing **no vendor can do for us**: only Silvicom holds the hire *and* whether
+   the driver is still seated at 90 days (McLeod, Samsara). It is the reason to own the ledger
+   (D-RA1), and it is RA6/11.2 of the parent plan.
+
+### Build, buy or use what we already pay for — the honest comparison (Q-AD15)
+
+| Option | What we get | What we give up |
+|---|---|---|
+| **A. Tenstreet Job Store for Facebook/Instagram** (already in the dashboard) | Campaigns run by Tenstreet; concierge; zero build | Ads, spend and leads stay inside Tenstreet; no cost per *seated* driver; no control of creative or caps in our system; ends when Tenstreet is cancelled (T2 plan) |
+| **B. A managed vendor** (Boostpoint, Leadgamp, …) | Proven CDL playbook; fast start | ≥ $750/month media minimum or ~$6,000/month fees; leads arrive through an ATS integration; creative rules are theirs |
+| **C. Build as planned, on Meta's own machinery** | Our caps, our brand rules, leads in our ledger, cost per seated driver; Meta does the delivery, rules enforcement and creative testing | Six build days (§6); we own the maintenance |
+
+**Recommendation: C, built thin.** We copy the proven pieces as they are (Lead Ads, EMPLOYMENT
+broad targeting, Meta Automated Rules, campaign spend caps, the benchmark defaults, real-photo
+creative) and build only the parts no vendor can give us: one lead ledger tied to the hire and
+the 90-day outcome, the claim checks against the opening, and the settings page. **Before AD1
+starts we need one fact (Q-AD16):** if the carrier already buys Facebook through Job Store or an
+agency, that is the baseline C must beat on cost per qualified lead. Both run side by side for four
+weeks, and the cheaper one wins.
+
+---
+
 ## 3. Decisions proposed (D-AD*)
 
 All D-RA rulings apply unchanged. These add to them. None is ruled until the owner says so.
@@ -274,7 +346,11 @@ concept each time; precise, secure, really controlled, easy to use and automated
   social-issue ads outside the EU, and no API reports what is "viral". → Presets are curated by a
   person and versioned. The system measures which preset works *for us* (§8) and reports it.
 
-### D-AD9 · The image model never writes text or numbers
+### D-AD9 · The image model never writes text or numbers, and starts from our real photos
+**v3 (proven practice 3):** wherever a preset shows equipment, the generation is *image-to-image*
+or *image-to-video* from a real photo in the brand kit (Higgsfield takes an uploaded image as
+input — the day/night pair in the Higgsfield memory is the same technique). A preset may use a
+text-only scene (road, sky, a cab interior) only when it shows no equipment and no person.
 Generated images and video carry **no lettering**: every prompt ends with "no text, no logos, no
 lettering", and the visual check (D-AD12) rejects any frame with glyphs in it. Pay, home time, the
 call to action, the logo and the "Equal Opportunity Employer" line are **composited by our own
@@ -353,7 +429,7 @@ recruiters. Every save writes a new version with its actor; nothing is edited in
 |---|---|---|
 | **Spending limits** | monthly cap per channel; maximum daily budget per campaign; maximum lifetime per campaign; the largest raise one approval may make (in % and $) | `adsPolicy` before every call (D-AD3) + Meta's campaign `spend_cap` |
 | **Account guard** | the ad account's spending limit as Meta reports it (read-only), shown beside the monthly cap with a red state when it is missing or higher | Launch refuses (D-AD3 fence 3) |
-| **Auto-pause rules** | pause when cost per lead exceeds $X after Y leads; when $Z is spent with no lead; when frequency exceeds N; at the daily cap; when the opening is filled | the hourly pull (AD4), each pause ledgered with its rule |
+| **Auto-pause rules** | pause when cost per lead exceeds $X after Y leads; when $Z is spent with no lead; when frequency exceeds N; at the daily cap; when the opening is filled. **Defaults from the 2026 CDL benchmark (§2a.7), labelled with their source** | written to Meta as Automated Rules (§2a.5) **and** checked by our hourly pull; each pause ledgered with its rule |
 | **Approvals** | who may launch, raise or change the area (from the permission matrix, not a role list); whether a second approver is needed above $X | the approval route |
 | **AI and rendering budgets** | Anthropic tokens per month; Higgsfield credits per month; maximum regenerations per creative | D-AD13 |
 | **Alerts** | who gets each alert (overspend, rejected, no leads, external change, budget nearly used); the uncontacted-lead threshold | `notify()` categories |
@@ -495,6 +571,12 @@ rate, and Higgsfield credits per approved creative.
 - **Q-AD13 · Real drivers.** May we use real drivers' photos or words? Only with a signed release
   stored on their record. *Fallback:* no people in quotes; generated scenes favour trucks, roads and
   cabs (FTC 16 CFR 465; Meta's "AI info" label beside a photorealistic AI person).
+- **Q-AD15 · Build, buy, or Job Store** (§2a): A Tenstreet Job Store, B a managed vendor, C build
+  thin on Meta's machinery. **Recommendation C**, run beside whatever is live today for four weeks.
+  *Fallback:* C.
+- **Q-AD16 · What runs today.** Does the carrier already buy Facebook/Instagram through Job Store,
+  an agency, or by hand in Ads Manager? Monthly spend and cost per applicant if known. *Fallback:*
+  no baseline; §8 starts from zero.
 - **Q-AD14 · The brand kit.** The logo as vector, the colours, the font (if any), the company name
   exactly as it should read, the phone number shown, and 5–10 real photos of our tractors and
   trailers from several angles (these become the reference images, so generated trucks look like
@@ -521,6 +603,25 @@ rate, and Higgsfield credits per approved creative.
 **Tenstreet** — [What you need to know about Tenstreet's API](https://www.tenstreet.com/blog/integrations-2/tenstreets-api-guide-everyone-else/) ·
 [Tenstreet integrations](https://www.tenstreet.com/integrations) ·
 [LeadsBridge: Tenstreet](https://leadsbridge.com/documentation/tenstreet/)
+
+**Proven practice (v3)** — [Tenstreet integrations / Job Store merchants](https://www.tenstreet.com/integrations) ·
+[Tenstreet: Facebook in Job Store](https://www.tenstreet.com/blog/job-store/facebook-now-available-job-store) ·
+[Tenstreet FAQs](https://www.tenstreet.com/tenstreet-faqs) ·
+[FreightWaves: Tenstreet automated marketing tools](https://www.freightwaves.com/news/tenstreets-automated-marketing-tools-help-recruiters-target-the-right-drivers) ·
+[Boostpoint: CDL recruiting costs and 2026 benchmarks](https://boostpoint.com/industries-trucking/cdl-driver-recruiting-costs-channels/) ·
+[Leadgamp](https://leadgamp.com/) ·
+[Leadgamp: social media for truck drivers](https://leadgamp.com/blog/tpost/g6ybd5j5z1-how-to-use-social-media-to-recruit-truck) ·
+[Recruit truck drivers on social media (2026)](https://otrucking.com/resources/guides/social-media-recruiting-truck-drivers/) ·
+[MA Team: driver recruiting channels](https://mateam.net/truck-driver-recruiting-channels/) ·
+[Joveo: programmatic platforms 2026](https://www.joveo.com/blog/best-programmatic-job-advertising-platforms/) ·
+[Programmatic job advertising costs (Prepzo)](https://prepzo.ai/blog/programmatic-job-advertising) ·
+[Birch: Facebook ads automation](https://bir.ch/blog/facebook-ads-automation) ·
+[Birch: automated rules cheat sheet](https://bir.ch/facebook-automated-rules) ·
+[Madgicx vs Birch 2026](https://www.get-ryze.ai/blog/madgicx-vs-birch-revealbot-2026) ·
+[Meta: schedule-based ad rules](https://developers.facebook.com/documentation/ads-commerce/marketing-api/ad-rules/guides/scheduled-based-rules) ·
+[Meta: ad rule reference](https://developers.facebook.com/docs/marketing-api/reference/ad-rule/) ·
+[Report of error 2703 on spend-condition PAUSE rules](https://github.com/MojoTheApe/adopy-campaing-launcher/issues/787) ·
+[AI ad creative platforms 2026 (Superside)](https://www.superside.com/blog/ai-ad-creative-generators)
 
 **Creative (v2)** — [Higgsfield API docs](https://docs.higgsfield.ai/docs) ·
 [Higgsfield API reference](https://docs.higgsfield.ai/docs/api-reference/overview) ·
@@ -555,3 +656,12 @@ rate, and Higgsfield credits per approved creative.
   "Sponsored" only for a photorealistic AI person; the FTC bans testimonials from people who do
   not exist; the current Claude models reject forced `tool_choice`. Schedule moved: stills Friday
   11/06, motion Monday 11/09. **Nothing built.**
+- **2026-10-31, later still (v3)** — Owner: *don't reinvent; research proven real-world systems
+  and best practice.* Added §2a: the market (Tenstreet Job Store already runs Facebook/Instagram
+  lead campaigns for carriers; managed CDL vendors; programmatic platforms; Meta rules engines; AI
+  creative platforms), eight proven practices, and the build/buy comparison (Q-AD15, recommends
+  building thin on Meta's own machinery and running it beside today's channel for four weeks).
+  Changes: our limits are also written as Meta Automated Rules (spend-condition PAUSE to be tested,
+  error 2703 reported); setting defaults come from Boostpoint's 2026 CDL benchmark (median $26.86
+  per applicant); generated media starts from our real equipment photos. Q-AD16 asks what runs
+  today. **Nothing built.**
