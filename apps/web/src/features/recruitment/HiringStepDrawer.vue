@@ -253,7 +253,15 @@ const authorizationsQ = useAuthorizationsQuery(driverId);
         />
       </template>
 
-      <RoadTestPanel v-else-if="body === 'road_test'" :driver-id="driverId" :done="step.state === 'done'" />
+      <!-- §9 P1: the licence (RT-A1) and the step advised first (RT-A10) come from what this drawer holds. -->
+      <RoadTestPanel
+        v-else-if="body === 'road_test'"
+        :driver-id="driverId"
+        :done="step.state === 'done'"
+        :invitation-id="invitationId"
+        :identity="identity ?? null"
+        :advised-first="step.state === 'done' ? null : blockedBy"
+      />
       <HandbookPanel v-else-if="body === 'handbook'" :driver-id="driverId" :done="step.state === 'done'" />
       <TravelPanel v-else-if="body === 'travel'" :driver-id="driverId" :blocked="step.state === 'blocked'" />
 

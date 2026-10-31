@@ -39,7 +39,12 @@ import {
  */
 
 export interface RoadTestError {
-  code: "not_found" | "invalid_request" | "storage_failed" | "insert_failed" | "already_passed";
+  /**
+   * `examiner_unavailable` (HIRING-WORKFLOW-AUDIT §9 P1, RT-A3): the examiner chosen is retired, or their
+   * signature file cannot be read. Its own code so the screen can refetch the examiner list and say
+   * where the register lives (Settings → Recruiting), instead of a 400 that reads as a typo.
+   */
+  code: "not_found" | "invalid_request" | "storage_failed" | "insert_failed" | "already_passed" | "examiner_unavailable";
   message: string;
   issues?: Array<{ field: string; message: string }>;
 }
@@ -214,7 +219,7 @@ async function gather(
   if (!driver) return { code: "not_found", message: "That applicant is not in this organization." };
   const vehicle = vehicleRow as { unit_number: string; make: string | null; year: number | null } | null;
   if (!vehicle) return { code: "invalid_request", message: "That truck is not on this carrier's roster." };
-  if (!examiner) return { code: "invalid_request", message: "That examiner is not on file." };
+  if (!examiner) return { code: "examiner_unavailable", message: "That examiner is no longer on file. Choose another examiner." };
 
   return {
     carrier: await carrierOf(admin, orgId),
@@ -278,8 +283,8 @@ export async function recordRoadTest(
   // with nothing said, on a document §391.31(e) says the examiner signs.
   if (!input.examiner.signature) {
     return {
-      code: "invalid_request",
-      message: "The examiner's signature could not be read, so the road test cannot be signed. Add their signature again under Examiners, then record it.",
+      code: "examiner_unavailable",
+      message: "The examiner's signature on file could not be read, so the road test cannot be signed. An administrator adds the examiner again in Settings → Recruiting; then record the test.",
     };
   }
   // ⚠ A pass files the §391.31(e) certificate, which states the driver's licence number; a blank one
@@ -287,7 +292,7 @@ export async function recordRoadTest(
   if (roadTestPassed(body) && !input.driver.licenceNumber?.trim()) {
     return {
       code: "invalid_request",
-      message: "The applicant has no licence number on file, and the road-test certificate prints it. Add it to their record, then record the test.",
+      message: "The applicant has no licence number on file, and the road-test certificate prints it. Add the licence number on this step, then record the test.",
     };
   }
 
