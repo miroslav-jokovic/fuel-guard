@@ -109,11 +109,13 @@ ok("a representative who has signed nothing can be deleted",
 const LIVE = await invitation();
 ok("a driver mark on a filed application with signing open is accepted", (await mark(LIVE, "h1")) === null);
 ok("the same place twice is refused by the index (23505)", (await mark(LIVE, "h1")) === "23505");
-ok("before the application is filed: HB022", (await mark(await invitation({ submitted_at: "null", sent: false }), "h1")) === "HB022");
 ok("before the office sends the envelope: HB023", (await mark(await invitation({ sent: false }), "h1")) === "HB023");
-// D-AW16 (0382): the envelope the office SENT opens the handbook — no second press.
-ok("0382: sent for signing but the packet NOT filed — still HB022 (packet first, then handbook)",
-  (await mark(await invitation({ submitted_at: "null" }), "h1")) === "HB022");
+ok("0533: unfiled and unsent still answers HB023 — the token, not the filing, is what is missing",
+  (await mark(await invitation({ submitted_at: "null", sent: false }), "h1")) === "HB023");
+// D-AW16 (0382): the envelope the office SENT opens the handbook — no second press. Since 0533
+// (HIRING-WORKFLOW-AUDIT §9 P3, Q-WF6) the application need not be filed first: HB022 is gone.
+ok("0533: sent for signing with the application NOT filed — the driver's mark is accepted",
+  (await mark(await invitation({ submitted_at: "null" }), "h1")) === null);
 ok("after the handbook is filed: HB024", (await mark(await invitation({ filed: true }), "h1")) === "HB024");
 ok("on an expired link: HB021", (await mark(await invitation({ expires: "now() - interval '1 day'" }), "h1")) === "HB021");
 const REVOKED = await invitation();

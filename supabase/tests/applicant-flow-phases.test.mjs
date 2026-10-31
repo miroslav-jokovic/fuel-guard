@@ -248,14 +248,17 @@ const invitationOf = (id) =>
   one(`select token_hash, expires_at, application_sent_at from application_invitations where id = $1`, [id]);
 
 {
-  const e = await raised(() => send(INV, "hash-rotated-1"));
-  ok("refuses before the permissions are complete (AI005)", e?.code === "AI005", e?.code);
-  ok("and did not rotate the link", (await invitationOf(INV)).token_hash === "hash-susan");
+  // 0533 (HIRING-WORKFLOW-AUDIT §9 P3): the permissions coming first is advised, not refused.
+  const e = await raised(() => send(INV, "hash-rotated-0"));
+  ok("0533: sends with the permissions still open — AI005 is no longer raised", e === null, e?.code);
+  ok("and rotated the link", (await invitationOf(INV)).token_hash === "hash-rotated-0");
+  ok("and the permissions are still open on the row",
+    (await one(`select releases_completed_at from application_invitations where id = $1`, [INV])).releases_completed_at === null);
 
   await db.query(`update application_invitations set releases_completed_at = now() where id = $1`, [INV]);
   const sent = (await send(INV, "hash-rotated-1")).rows[0].sent;
   const after = await invitationOf(INV);
-  ok("sends once the permissions are complete, rotating the hash", after.token_hash === "hash-rotated-1");
+  ok("sends again once the permissions are complete, rotating the hash", after.token_hash === "hash-rotated-1");
   ok("stamps application_sent_at and returns it", after.application_sent_at !== null && sent?.getTime() === after.application_sent_at.getTime());
 
   // A second press — the email was lost. Rotates again; the stamp keeps its first date.
