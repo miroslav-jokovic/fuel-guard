@@ -680,3 +680,9 @@ applicant status page → dispositions → HW8a/b orientation (link list + attes
   before filing — the applicant link, its status and PDF are keyed on the filed application and it
   signs with the packet's adopted mark; a signing-flow change, not a refusal to delete; next week)
   and G7 (permissions before Part 1 — an applicant-link order, SQL AI007; not an office refusal).
+- **2026-10-31** — **P6 merged (#1876, `a2ea571`), migration `0534_application_document_slots`.**
+  Six new capture slots (TWIC, passport, work authorization, hazmat endorsement, road-test and
+  training certificates); PDFs except the selfie and the two marks; `ordinal` with up to five of the
+  multi-document slots and the one-row rule kept for the rest; a 10-argument
+  `stage_application_capture` beside the unchanged 9-argument one; five new `documents.kind`s
+  (`APPLICANT_PAPER_KINDS`). 27-case matrix, red without 0534. Reader: P9.
