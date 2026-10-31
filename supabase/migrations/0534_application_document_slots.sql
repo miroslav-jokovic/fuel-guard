@@ -36,6 +36,10 @@
 -- · Who may SEE an SSN-card or passport image (Q-WF4) is not schema: `documents` has no client
 --   policies for those reads; the API's document reader gates it (P9).
 --
+-- cross-module-waiver: recruiting's capture slots and evidence's `documents.kind` are one decision —
+-- a capture of a new slot is promoted into a document of the matching new kind, so the two lists widen
+-- together or a promoted capture would be refused at filing.
+--
 -- ⚠ DEPLOY WINDOW: every change widens what is accepted. Old code writes ordinal 0 through the
 -- unchanged 9-argument function and never names a new slot or kind; new code (P9) is merged after.
 -- Production shape: the unique constraint is named `application_captures_invitation_id_slot_key` in
