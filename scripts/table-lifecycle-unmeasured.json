@@ -1,6 +1,7 @@
 [
 "anomaly_thresholds",
 "applicant_dispositions",
+"applicant_notes",
 "application_edits",
 "application_packet_marks",
 "asset_movements",

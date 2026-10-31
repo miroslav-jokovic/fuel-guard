@@ -35,6 +35,17 @@
         "why": "budget derived from production 2026-09-21: 0 rows/day, x3 headroom. Retention unruled \u2014 DATA-LIFECYCLE-PLAN L9."
       }
     },
+    "applicant_notes": {
+      "module": "recruiting",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "unmeasured",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "new in 0535 (2026-10-31); a few notes per applicant, bounded by hiring volume; removed by the applicant purge."
+      }
+    },
     "applicant_dispositions": {
       "module": "recruiting",
       "layer": "core",
