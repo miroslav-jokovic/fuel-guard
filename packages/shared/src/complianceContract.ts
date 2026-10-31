@@ -122,8 +122,17 @@ export const EQUIPMENT_PAPER_ONLY_KINDS = ["title"] as const;
  * kind, the equipment papers that need no record, plus `other`. A document is uploaded BEFORE the record that cites it exists — you scan the
  * medical card, then record the certification — so it cannot borrow its parent's kind.
  */
+/**
+ * An applicant's own papers that no record cites (0534, HIRING-WORKFLOW-AUDIT §9 P6/P9): identity and
+ * work papers, and certificates they bring. Filed against the driver like the rest of the file.
+ * ⚠ `ssn_card` and `passport` images are as sensitive as the SSN itself (Q-WF4): who may SEE one is
+ * the document reader's decision, not this list's.
+ */
+export const APPLICANT_PAPER_KINDS = [
+  "passport", "ssn_card", "work_authorization", "training_certificate", "road_test_certificate",
+] as const;
 export const COMPLIANCE_DOCUMENT_KINDS = [
-  ...CERTIFICATION_KINDS, ...QUALIFICATION_RECORD_KINDS, ...EQUIPMENT_PAPER_ONLY_KINDS, "other",
+  ...CERTIFICATION_KINDS, ...QUALIFICATION_RECORD_KINDS, ...EQUIPMENT_PAPER_ONLY_KINDS, ...APPLICANT_PAPER_KINDS, "other",
 ] as const;
 export type ComplianceDocumentKind = (typeof COMPLIANCE_DOCUMENT_KINDS)[number];
 /**
@@ -139,7 +148,7 @@ export const ROADSIDE_DOCUMENT_KINDS = [
 export type RoadsideDocumentKind = (typeof ROADSIDE_DOCUMENT_KINDS)[number];
 /** An equipment bill's scan or PDF (0530, M10a), filed only against an `equipment_purchase` subject. */
 export const EQUIPMENT_PURCHASE_DOCUMENT_KINDS = ["equipment_invoice"] as const;
-/** Every kind `documents` admits — mirrors the SQL check constraint exactly (0476, 0484, 0490, 0530). */
+/** Every kind `documents` admits — mirrors the SQL check constraint exactly (0476, 0484, 0490, 0530, 0534). */
 export const DOCUMENT_KINDS = [
   ...COMPLIANCE_DOCUMENT_KINDS, ...ROADSIDE_DOCUMENT_KINDS, ...EQUIPMENT_PURCHASE_DOCUMENT_KINDS,
 ] as const;

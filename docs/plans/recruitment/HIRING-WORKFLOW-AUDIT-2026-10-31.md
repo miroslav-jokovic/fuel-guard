@@ -671,3 +671,12 @@ applicant status page → dispositions → HW8a/b orientation (link list + attes
   `HireDrawer` for `roster: manage`, the step drawer says who hires otherwise), D-2, D-3, D-4; all
   twelve §3.2 sentences gone; `formatDisplayDate` in four panels; one heading style; callouts.
   7/7 mutants killed. The record-page sentence and the Travel/Send/Signing paragraphs went with P4.
+- **2026-10-31** — **P4 merged (#1875, `8666e0c`), no migration.** Travel books with "Still open: …"
+  (G2); send (G3) and send-for-signing (G4) warn on the permissions / approval; only `hired`, `mvr`
+  and `psp` block (`REFUSING_STEPS` — the six federal checks, and consent, which is law); every other
+  edge reads "Usually after: …" (`advisedFirst`); the hire is the six (handbook out, Q-WF6) and the
+  hire drawer lists them before the press with an Open link (`?step=`); the MVR refusal names the
+  paper-consent route (G8). 9/9 mutants killed. **Deferred, with reasons:** G6 (handbook signable
+  before filing — the applicant link, its status and PDF are keyed on the filed application and it
+  signs with the packet's adopted mark; a signing-flow change, not a refusal to delete; next week)
+  and G7 (permissions before Part 1 — an applicant-link order, SQL AI007; not an office refusal).
