@@ -196,6 +196,12 @@ export function describeField(path: FieldPath): string {
     if (column === undefined) return where;
     return `${where} · ${row.columns[String(column)] ?? String(column)}`;
   }
+  // §9 P5 (Q-AX7): an employer named by its key rather than its position. The key is a reference, not
+  // words, so the row is named by its noun alone; a screen that holds the row names it better.
+  if (row && typeof index === "string") {
+    if (column === undefined) return row.noun;
+    return `${row.noun} · ${row.columns[String(column)] ?? String(column)}`;
+  }
   return topLabels()[key] ?? key;
 }
 

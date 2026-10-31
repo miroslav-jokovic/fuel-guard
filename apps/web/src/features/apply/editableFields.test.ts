@@ -42,14 +42,15 @@ const keys = (draft: ApplicationDraft) => fieldsOf(draft).map((f) => pathKey(f.p
 describe("which answers the office is offered", () => {
   it("addresses every answer by its contract path, in the words the driver's screen used", () => {
     const found = fieldsOf(filled());
-    const city = found.find((f) => pathKey(f.path) === "employers.0.city");
+    // §9 P5 (Q-AX7): an employer by its key; the label still says which one, by position.
+    const city = found.find((f) => pathKey(f.path) === "employers.40000000-0000-4000-8000-00000000000a.city");
     expect(city?.label).toBe("Employer 1 · City");
     expect(city?.value).toBe("Jolliet");
     expect(city?.kind).toBe("text");
   });
 
   it("marks a yes/no answer as one, so it is not offered as a box to type into", () => {
-    const operated = fieldsOf(filled()).find((f) => pathKey(f.path) === "employers.0.operated_cmv");
+    const operated = fieldsOf(filled()).find((f) => pathKey(f.path) === "employers.40000000-0000-4000-8000-00000000000a.operated_cmv");
     expect(operated?.kind).toBe("boolean");
     expect(operated?.value).toBe(true);
   });
@@ -82,6 +83,22 @@ describe("which answers the office is offered", () => {
     const name = fieldsOf(filled()).find((f) => pathKey(f.path) === "other_names.0");
     expect(name?.value).toBe("Susan Bellweather");
     expect(name?.label).toBe("Name 1");
+  });
+
+  it("§9 P5 (EM-2): offers a cell the applicant left empty — a yes/no as a yes/no, anything else as text", () => {
+    const payload = toDraftPayload(filled()) as { employers: Array<Record<string, unknown>> };
+    payload.employers[0] = { ...payload.employers[0], subject_to_fmcsr: null, position_held: null };
+    const found = editableFields(payload, questionnaire);
+    const fmcsr = found.find((f) => pathKey(f.path) === "employers.40000000-0000-4000-8000-00000000000a.subject_to_fmcsr");
+    expect(fmcsr).toMatchObject({ kind: "boolean", value: "" });
+    expect(found.find((f) => pathKey(f.path) === "employers.40000000-0000-4000-8000-00000000000a.position_held")).toMatchObject({ kind: "text", value: "" });
+  });
+
+  it("§9 P5 (Q-AX7): never offers an employer's own reference as an answer, and names a keyless row by position", () => {
+    expect(keys(filled())).not.toContain("employers.40000000-0000-4000-8000-00000000000a.key");
+    const payload = toDraftPayload(filled()) as { employers: Array<Record<string, unknown>> };
+    delete payload.employers[0]!.key;
+    expect(editableFields(payload, questionnaire).map((f) => pathKey(f.path))).toContain("employers.0.city");
   });
 
   it("treats no draft at all as nothing to correct", () => {
@@ -119,7 +136,7 @@ describe("a v2 application's Part 1 answers", () => {
 
   it("still offers what Part 1 never asked — an earlier address, the current one's months, the name", () => {
     const offered = keys(true);
-    for (const k of ["addresses.0.line1", "addresses.1.from", "first_name", "employers.0.city"]) expect(offered, k).toContain(k);
+    for (const k of ["addresses.0.line1", "addresses.1.from", "first_name", "employers.40000000-0000-4000-8000-00000000000a.city"]) expect(offered, k).toContain(k);
   });
 
   it("offers a legacy application everything it did before", () => {
@@ -137,7 +154,7 @@ describe("finding one field among sixty", () => {
   it("matches on any word of the label, because that is what the office has to go on", () => {
     const found = fieldsOf(filled());
     expect(matchingFields(found, "employer 1").length).toBeGreaterThan(0);
-    expect(matchingFields(found, "CITY").some((f) => pathKey(f.path) === "employers.0.city")).toBe(true);
+    expect(matchingFields(found, "CITY").some((f) => pathKey(f.path) === "employers.40000000-0000-4000-8000-00000000000a.city")).toBe(true);
     expect(matchingFields(found, "")).toHaveLength(found.length);
     expect(matchingFields(found, "nothing like this")).toHaveLength(0);
   });

@@ -35,13 +35,13 @@ const NOT_FOUND: PartOneCorrectionError = {
 interface CorrectableInvitation {
   id: string;
   driver_id: string;
-  approved_at: string | null;
+  submitted_at: string | null;
 }
 
 async function invitationOf(admin: SupabaseClient, orgId: string, invitationId: string): Promise<CorrectableInvitation | null> {
   const { data } = await admin
     .from("application_invitations")
-    .select("id, driver_id, approved_at")
+    .select("id, driver_id, submitted_at")
     .eq("org_id", orgId)
     .eq("id", invitationId)
     .maybeSingle();
@@ -130,9 +130,9 @@ async function overwrite(
 /**
  * The office's "Correct Part 1" — the whole set, overwriting, audited.
  *
- * ⚠ Refused once the office has APPROVED the application, the same line the draft's own corrections
- * stop at (`applicationIsEditable`): approval tells the driver "this document, now, sign it", and a
- * fact changed after that is one they were not shown. The audit row names the fields and carries no
+ * ⚠ Refused once the application is FILED — the line the draft's own corrections stop at since §9 P5
+ * (`applicationIsEditable`, HIRING-WORKFLOW-AUDIT-2026-10-31). It closed at approval until then; the
+ * office now corrects until filing, and the driver is shown what changed before they sign. The audit row names the fields and carries no
  * value — a phone number and a licence number are what `apps/api/CLAUDE.md` says never to log.
  */
 export async function correctApplicantPartOne(
@@ -144,10 +144,10 @@ export async function correctApplicantPartOne(
 ): Promise<{ ok: true } | PartOneCorrectionError> {
   const invitation = await invitationOf(admin, orgId, invitationId);
   if (!invitation) return NOT_FOUND;
-  if (invitation.approved_at) {
+  if (invitation.submitted_at) {
     return {
       code: "application_not_editable",
-      message: "You approved this application, so what it says is fixed now.",
+      message: "This application is signed and filed, so what it says is fixed now.",
     };
   }
   if (!(await hasIntakeRow(admin, orgId, invitation.id))) {

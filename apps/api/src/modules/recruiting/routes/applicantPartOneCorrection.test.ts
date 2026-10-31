@@ -52,7 +52,7 @@ const seed = (over: {
   createSupabaseRecorder({
     tables: {
       application_invitations: over.invitation === null ? [] : [{
-        id: INV, org_id: ORG, driver_id: DRIVER, approved_at: null, ...over.invitation,
+        id: INV, org_id: ORG, driver_id: DRIVER, submitted_at: null, ...over.invitation,
       }],
       application_intakes: over.intake === false ? [] : [{ id: "intake-1", invitation_id: INV }],
       application_intake_licences: over.licences ?? STORED_LICENCES,
@@ -154,9 +154,9 @@ describe("the office corrects Part 1", () => {
     expect(rec.writes()).toHaveLength(0);
   });
 
-  /** Approval tells the driver "this document, now" — the draft's own corrections stop there too. */
-  it("refuses once the office has approved the application, writing nothing", async () => {
-    const rec = seed({ invitation: { approved_at: "2026-09-27T10:00:00Z" } });
+  /** §9 P5: the office corrects until filing — the line the draft's own corrections stop at too. */
+  it("refuses once the application is filed, writing nothing", async () => {
+    const rec = seed({ invitation: { submitted_at: "2026-09-27T10:00:00Z" } });
     holder.client = rec.client;
     const res = await correct();
     expect(res.status).toBe(409);

@@ -648,3 +648,14 @@ applicant status page → dispositions → HW8a/b orientation (link list + attes
   notes / activity on the record; the recruiter's hire is an org grant (SP5) pending the 0213 check;
   the process is an array with no editor; Settings → Recruiting has four things. §9 is twelve PRs
   over Saturday and Sunday, release Monday 2026-11-02 01:07 CT. Nothing built yet.
+- **2026-10-31** — **P3 merged (#1871, `3144925`), migration `0533_hiring_order_advises`.**
+  `send_application_invitation` without AI005, `open_packet_signing` without AI006,
+  `handbook_marks_guard` without HB022; DR032 / DR036 / HB023 / PC030 kept (§8.1). Three matrices
+  gained the "with the predecessor open" cases; with 0533 removed each went red (2 failures each).
+  The API still refuses on its own until P4.
+- **2026-10-31** — **P1 merged (#1872, `5a74cb0`), no migration.** Road test RT-A1…A10 and D-5:
+  licence added in place before a pass, form reset after every record and no second pass offered,
+  failed attempts listed with their form, in-service trucks (shop included), contract-worded field
+  errors, Mark all satisfactory + Still needed, grouped items, examiner problems → Settings →
+  Recruiting (new 409 `examiner_unavailable`), drug test open = a caution. 13/13 mutants killed.
+  Kept: the §392.7 item text, which prints on the carrier's form.

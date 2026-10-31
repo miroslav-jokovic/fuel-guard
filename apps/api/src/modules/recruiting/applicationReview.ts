@@ -1,6 +1,10 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { randomUUID } from "node:crypto";
 import {
+  applyApplicationEdit,
   applicationIsEditable,
+  isEditRefusal,
+  withEmployerKeys,
   applicationReviewState,
   applicationDraftPayloadSchema,
   type ApplicationEdit,
@@ -23,12 +27,13 @@ import { partOneFactsView } from "./applicantIntake.js";
  * moved behind the review: correcting a draft costs nothing, and correcting a filed §391.51 document
  * is not a thing anyone should be able to do.
  *
- * ── THE WINDOW, AND WHY IT CLOSES AT APPROVAL AND NOT AT SIGNING ──────────────────────────────
- * `applicationIsEditable` is true only between the driver sending it and the office approving it.
- * ⚠ It would be easy to leave editing open until the driver signs — the draft is still a draft, after
- * all. It must not be: approval is what tells the driver *this document, now, please sign it*, and an
- * answer changing underneath them between being asked and signing is exactly the thing this flow was
- * built to stop happening.
+ * ── THE WINDOW: FROM THE OFFICE'S SEND UNTIL THE DRIVER'S FIRST MARK (§9 P5, Q-WF5) ──────────
+ * Until 2026-10-31 it closed at approval, so that an answer could not change between the driver being
+ * asked to sign and signing. The owner's office needs the reverse — the recruiter types the jobs in on
+ * the phone, before the applicant sends and after approval — and the protection that mattered is kept
+ * at the point it is real: the first mark on the packet. From then on the driver is signing a document
+ * and it does not move (`signingStarted`); before it, every change is shown to them at signing
+ * (`applicantVisibleEdits`) and they certify what is on the screen that day.
  *
  * ── AND WHY EVERY EDIT RE-PARSES THE WHOLE DOCUMENT ───────────────────────────────────────────
  * `applicationEditSchema.value` is `unknown`, deliberately: which type is legal depends entirely on
@@ -111,6 +116,8 @@ export interface ApplicationForReview {
   state: ApplicationReviewState;
   editable: boolean;
   payload: Record<string, unknown> | null;
+  /** The draft's revision as read (0376); 0 when there is no draft yet. Every edit names it (§9 P5). */
+  revision: number;
   /**
    * A v2 invitation's Part 1 facts (C3c2c2, Q-AW34), null for a legacy one — so the drawer composes the
    * document filing will (`composeFiledApplication`) rather than showing the draft's retyped copy.
@@ -130,7 +137,7 @@ export async function applicationForReview(
 
   const { data: draft } = await admin
     .from("application_drafts")
-    .select("payload")
+    .select("payload, revision")
     .eq("org_id", orgId)
     .eq("invitation_id", invitationId)
     .maybeSingle();
@@ -149,6 +156,8 @@ export async function applicationForReview(
     state: applicationReviewState(phases),
     editable: applicationIsEditable(phases),
     payload: ((draft as { payload?: Record<string, unknown> } | null)?.payload) ?? null,
+    // §9 P5: the revision the office is looking at, sent back with every edit.
+    revision: ((draft as { revision?: number | null } | null)?.revision) ?? 0,
     partOne: await partOneFactsView(admin, orgId, inv, new Date()),
     edits: (edits ?? []).map((e) => {
       const row = e as { path: ApplicationPath; before: unknown; after: unknown; edited_at: string; edited_by: string | null };
@@ -157,45 +166,45 @@ export async function applicationForReview(
   };
 }
 
-/** The value at a contract path, or undefined — the same walk `fieldLabels.ts` does for a message. */
-function valueAt(root: unknown, path: ApplicationPath): unknown {
-  let at: unknown = root;
-  for (const step of path) {
-    if (at === null || typeof at !== "object") return undefined;
-    at = (at as Record<string | number, unknown>)[step as string | number];
-  }
-  return at;
-}
-
-/**
- * Write `value` at `path` in a COPY of `root`.
- *
- * ⚠ Structural-shares nothing: every container on the way down is cloned, so the original payload is
- * untouched if the result turns out not to parse. Refusing an edit has to leave the draft exactly as
- * the driver left it, and an in-place write that is then "rolled back" is a rollback nobody wrote.
- */
-function withValueAt(root: unknown, path: ApplicationPath, value: unknown): unknown {
-  const [head, ...rest] = path;
-  if (head === undefined) return value;
-  const clone: Record<string | number, unknown> = Array.isArray(root)
-    ? ([...root] as unknown as Record<string | number, unknown>)
-    : { ...((root as Record<string, unknown>) ?? {}) };
-  clone[head as string | number] = rest.length === 0
-    ? value
-    : withValueAt(clone[head as string | number], rest as ApplicationPath, value);
-  return clone;
-}
-
 export interface EditContext {
   actorId: string;
 }
 
 /**
- * Correct one answer.
+ * §8.1 / §9 P5: the applicant's phone and the office write the same draft, and only one revision of
+ * it can win. Said in the office's words; the drawer reloads and the recruiter types it again.
+ */
+export const DRAFT_CHANGED: ReviewError = {
+  code: "draft_revision_conflict",
+  message: "The applicant changed this just now — reload the application and try again.",
+};
+
+const SIGNING_STARTED: ReviewError = {
+  code: "application_not_editable",
+  message: "The applicant has started signing, so what the application says is fixed now.",
+};
+
+/** Has the driver made any mark on the packet? From then on the document they are signing stays put. */
+async function signingStarted(admin: SupabaseClient, orgId: string, invitationId: string): Promise<boolean> {
+  const { count } = await admin
+    .from("application_packet_marks")
+    .select("id", { count: "exact", head: true })
+    .eq("org_id", orgId)
+    .eq("invitation_id", invitationId);
+  return (count ?? 0) > 0;
+}
+
+/**
+ * Change the draft — one answer, a job removed or added, or a gap explained (§9 P5).
  *
- * Returns the new payload, or a refusal. Nothing is written unless the corrected document parses
- * against `driverApplicationObject` — the same object the applicant's own wizard validates with, so
- * the office cannot put the draft into a state the driver would then be unable to certify.
+ * Returns the new payload and revision, or a refusal. Nothing is written unless the changed document
+ * parses against the same draft schema the applicant's own saves are held to, so the office cannot
+ * put the draft into a state the driver would then be unable to certify.
+ *
+ * ⚠ Written through `save_application_draft` with the revision the office READ (0376, DA041) — never
+ * a bare update. Until 2026-10-31 it was `.update({ payload })`, outside the check the applicant's
+ * phone is held to, so a recruiter's correction could land over an autosave made a second earlier
+ * and erase it (HIRING-WORKFLOW-AUDIT §8.1). Now whichever writes second is told, on either side.
  */
 export async function editApplication(
   admin: SupabaseClient,
@@ -203,22 +212,25 @@ export async function editApplication(
   invitationId: string,
   edit: ApplicationEdit,
   ctx: EditContext,
-): Promise<{ payload: Record<string, unknown> } | ReviewError> {
+): Promise<{ payload: Record<string, unknown>; revision: number | null } | ReviewError> {
   const inv = await invitation(admin, orgId, invitationId);
   if (!inv) return NOT_FOUND;
   if (!applicationIsEditable(phasesOf(inv))) return NOT_EDITABLE;
+  if (await signingStarted(admin, orgId, invitationId)) return SIGNING_STARTED;
 
   const { data: draft } = await admin
     .from("application_drafts")
-    .select("payload")
+    .select("payload, revision")
     .eq("org_id", orgId)
     .eq("invitation_id", invitationId)
     .maybeSingle();
-  const payload = ((draft as { payload?: Record<string, unknown> } | null)?.payload) ?? null;
-  if (!payload) return NOT_FOUND;
+  const row = draft as { payload?: Record<string, unknown> | null; revision?: number | null } | null;
+  // EM-1: before the applicant has typed anything there is no draft; the office's edit makes the first.
+  const original = row?.payload ?? {};
+  if ((row?.revision ?? 0) !== edit.revision) return DRAFT_CHANGED;
 
-  const before = valueAt(payload, edit.path);
-  const next = withValueAt(payload, edit.path, edit.value) as Record<string, unknown>;
+  const applied = applyApplicationEdit(withEmployerKeys(original, randomUUID), original, edit);
+  if (isEditRefusal(applied)) return applied;
 
   /**
    * ⚠ The DRAFT schema, not the certified one.
@@ -226,12 +238,10 @@ export async function editApplication(
    * This read `driverApplicationObject.partial()` until 2026-09-11, and that refused every correction
    * an office could make: a real autosaved payload carries `questionnaire`, the certified document
    * does not, and the contract is `.strict()` — so the parse failed on an unrecognised key before any
-   * field was looked at. It passed the tests because their fixture was a hand-written contract-shaped
-   * object rather than anything `toDraftPayload` has ever written. `applicationDraftPayloadSchema`
-   * carries the reasoning; what it still checks is that every field PRESENT is a legal value of its
-   * own type, which is the one thing this path needs.
+   * field was looked at. `applicationDraftPayloadSchema` carries the reasoning; what it still checks
+   * is that every field PRESENT is a legal value of its own type, which is the one thing this path needs.
    */
-  const parsed = applicationDraftPayloadSchema.safeParse(next);
+  const parsed = applicationDraftPayloadSchema.safeParse(applied.payload);
   if (!parsed.success) {
     const issue = parsed.error.issues[0];
     return {
@@ -243,19 +253,25 @@ export async function editApplication(
   // The draft first, then the record of the change. If the second write fails the edit is still
   // made — and an edit nobody can see is exactly what D-AX13 exists to prevent — so the audit and
   // the edit row are written before anything is reported as done, and a failure surfaces.
-  const { error: saveError } = await admin
-    .from("application_drafts")
-    .update({ payload: next })
-    .eq("org_id", orgId)
-    .eq("invitation_id", invitationId);
-  if (saveError) return { code: "edit_failed", message: "That change could not be saved. Try again." };
+  const { data: saved, error: saveError } = await admin.rpc("save_application_draft", {
+    p_org: orgId,
+    p_invitation: invitationId,
+    p_driver: inv.driver_id,
+    p_payload: applied.payload,
+    p_section: null,
+    p_expected_revision: edit.revision,
+  });
+  if (saveError) {
+    if ((saveError as { code?: string }).code === "DA041") return DRAFT_CHANGED;
+    return { code: "edit_failed", message: "That change could not be saved. Try again." };
+  }
 
   const { error: logError } = await admin.from("application_edits").insert({
     org_id: orgId,
     invitation_id: invitationId,
-    path: edit.path,
-    before: before ?? null,
-    after: edit.value ?? null,
+    path: applied.logPath,
+    before: applied.before ?? null,
+    after: applied.after ?? null,
     edited_by: ctx.actorId,
   });
   if (logError) return { code: "edit_not_recorded", message: "That change could not be recorded. Try again." };
@@ -266,10 +282,11 @@ export async function editApplication(
     action: "application_answer_edited",
     entity: "application_invitations",
     entityId: invitationId,
-    meta: { path: edit.path },
+    meta: { path: applied.logPath, op: edit.op ?? "set" },
   });
 
-  return { payload: next };
+  const revision = (saved as { revision?: unknown } | null)?.revision;
+  return { payload: applied.payload, revision: typeof revision === "number" ? revision : null };
 }
 
 /**

@@ -23,13 +23,15 @@ import {
  * (b)(11) require the list in full. So creating a ROW is offered here, explicitly and separately,
  * while creating a FIELD stays refused.
  *
- * ── ⚠ APPENDS. NEVER INSERTS, NEVER REMOVES ──────────────────────────────────────────────────
- * The new employer goes at the end of the list, and there is no delete. Both follow from
- * `application_edits` storing a contract PATH: `["employers", 2, "city"]` names a row by its index,
- * so inserting or removing one silently re-points every correction already recorded against the rows
- * after it. Appending is the only mutation that cannot do that. A duplicate or wrong employer is
- * corrected field by field in the list above; removing one is Q-AX7 and needs a way to mark a row
- * dead rather than move its neighbours.
+ * ── ⚠ APPENDS, BY KEY ───────────────────────────────────────────────────────────────────────
+ * The new employer goes at the end of the list with its own `key`. Since §9 P5 (Q-AX7) every edit to
+ * an employer names the row by that key, not its position, so the drawer can also REMOVE a job without
+ * re-pointing the corrections recorded against its neighbours.
+ *
+ * ── AND THE STREET (EM-3, §9 P5) ──────────────────────────────────────────────────────────────
+ * This form had no street and wrote `address_line1: ""`, which a v2 filing refuses ("Give this
+ * employer's street, city and state", `applicationFilingRules.ts`) — so the office's own add made the
+ * application unfileable. The street is asked, as the driver's form asks it.
  *
  * ── AND WHY IT COLLECTS THE WHOLE EMPLOYER BEFORE IT SAVES ────────────────────────────────────
  * `applicationDraftPayloadSchema` is `.partial()` at the TOP level only — `employers` may be absent,
@@ -41,14 +43,14 @@ import {
  * They were DERIVED — "subject to the FMCSRs" copied from "DOT-regulated employer", "safety-sensitive"
  * from "drove a commercial vehicle" — so the office filed two answers nobody gave, and a v2 filing's
  * rule that refuses a blank could never see it. They are asked here as the driver's panel asks them,
- * and REQUIRED before the row is added: the office's correction list offers only answers the payload
- * already holds as a value (`editableFields` skips a null cell), so a blank added here could never be
- * filled in afterwards, and a v2 filing would refuse it for good. Asked of every row, including one
+ * and REQUIRED before the row is added, so the job is whole the moment it lands. (Since §9 P5 a blank
+ * one could be filled in afterwards — the correction list offers empty cells — but a recruiter with
+ * the driver across the desk should not have to come back for it.) Asked of every row, including one
  * from years four to ten that the regulation does not ask about — this form does not know the
  * application's day, and one more answer from a driver sitting across the desk costs nothing.
  */
-const props = defineProps<{ nextIndex: number; pending: boolean }>();
-const emit = defineEmits<{ add: [path: (string | number)[], value: Record<string, unknown>] }>();
+const props = defineProps<{ pending: boolean }>();
+const emit = defineEmits<{ add: [employer: Record<string, unknown>] }>();
 
 const EMPLOYMENT = APPLY_COPY.employment;
 
@@ -59,6 +61,7 @@ const YES_NO = [
 
 const form = reactive({
   employer_name: "",
+  address_line1: "",
   city: "",
   state: "",
   phone: "",
@@ -83,7 +86,7 @@ const candidate = computed(() => ({
   key: key.value,
   employer_name: form.employer_name.trim(),
   usdot_number: "",
-  address_line1: "",
+  address_line1: form.address_line1.trim(),
   city: form.city.trim(),
   state: form.state.trim(),
   phone: form.phone.trim(),
@@ -105,14 +108,22 @@ const problem = computed(() => {
 });
 
 /** Both (iv) questions answered — see the header for why this form refuses a blank the schema allows. */
-const unanswered = computed(() => form.subject_to_fmcsr === "" || form.safety_sensitive === "");
+const unanswered = computed(
+  () =>
+    form.subject_to_fmcsr === "" ||
+    form.safety_sensitive === "" ||
+    // EM-3: (b)(10)(i) asks for the employer's address, and a v2 filing refuses one without it.
+    form.address_line1.trim() === "" ||
+    form.city.trim() === "" ||
+    form.state.trim() === "",
+);
 
 function submit(): void {
   if (problem.value || unanswered.value || props.pending) return;
-  emit("add", ["employers", props.nextIndex], candidate.value);
+  emit("add", candidate.value);
   key.value = newEmployerKey();
   Object.assign(form, {
-    employer_name: "", city: "", state: "", phone: "", position_held: "",
+    employer_name: "", address_line1: "", city: "", state: "", phone: "", position_held: "",
     started_on: "", ended_on: "", operated_cmv: "yes", dot_regulated: "yes", reason_for_leaving: "",
     subject_to_fmcsr: "", safety_sensitive: "",
   });
@@ -132,6 +143,9 @@ function submit(): void {
       </FormField>
       <FormField id="apply-add-employer-position" v-slot="{ id }" label="Position held">
         <BaseInput :id="id" v-model="form.position_held" autocomplete="off" />
+      </FormField>
+      <FormField id="apply-add-employer-street" v-slot="{ id }" label="Street" class="sm:col-span-2">
+        <BaseInput :id="id" v-model="form.address_line1" autocomplete="off" />
       </FormField>
       <FormField id="apply-add-employer-city" v-slot="{ id }" label="City">
         <BaseInput :id="id" v-model="form.city" autocomplete="off" />

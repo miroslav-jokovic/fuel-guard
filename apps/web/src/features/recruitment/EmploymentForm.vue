@@ -39,7 +39,8 @@ const form = reactive({
   started_on: "",
   ended_on: "",
   dot_regulated: true,
-  operated_cmv: false,
+  // §9 P5 (EM-5): the applicant's own default — a recruiter adding a job for a driver is adding a driving job.
+  operated_cmv: true,
   reason_for_leaving: "",
   inquiry_status: "pending",
   inquiry_sent_on: "",
@@ -61,7 +62,7 @@ watch(
       started_on: e?.started_on ?? "",
       ended_on: e?.ended_on ?? "",
       dot_regulated: e?.dot_regulated ?? true,
-      operated_cmv: e?.operated_cmv ?? false,
+      operated_cmv: e?.operated_cmv ?? true,
       reason_for_leaving: e?.reason_for_leaving ?? "",
       inquiry_status: e?.inquiry_status ?? "pending",
       inquiry_sent_on: e?.inquiry_sent_on ?? "",

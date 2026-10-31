@@ -1,4 +1,5 @@
 import {
+  applicationEmployerSchema,
   PART_ONE_COMPOSED_KEYS,
   PART_ONE_STREET_KEYS,
   type ApplicationPath,
@@ -106,6 +107,30 @@ function composedFromPartOne(key: string, row?: Record<string, unknown>, column?
   return current && (PART_ONE_STREET_KEYS as readonly string[]).includes(column ?? "");
 }
 
+/**
+ * §9 P5 (EM-2): a cell the applicant left EMPTY (`null`) is offered too — it was skipped, so the office
+ * could not fill in the one answer a filing then refused. Its control comes from the employer schema:
+ * a column that is a boolean there is a Yes/No here, anything else is text. Read from the contract,
+ * never listed again here.
+ */
+function unwrap(schema: unknown): { def?: { type?: string; innerType?: unknown } } | undefined {
+  let at = schema as { def?: { type?: string; innerType?: unknown } } | undefined;
+  while (at?.def?.innerType) at = at.def.innerType as typeof at;
+  return at;
+}
+const EMPLOYER_BOOLEANS = new Set(
+  Object.entries(applicationEmployerSchema.shape)
+    .filter(([, schema]) => unwrap(schema)?.def?.type === "boolean")
+    .map(([column]) => column),
+);
+
+/**
+ * The row's address in a path: an employer by its `key` (Q-AX7, §9 P5 — so a row removed later
+ * re-points nothing), any other row, or an employer with no key yet, by its position.
+ */
+const rowRef = (key: string, row: Record<string, unknown>, i: number): string | number =>
+  key === "employers" && typeof row.key === "string" && row.key !== "" ? row.key : i;
+
 export function editableFields(
   payload: Record<string, unknown> | null | undefined,
   questionnaire: QuestionnaireDefinition,
@@ -142,10 +167,20 @@ export function editableFields(
         return;
       }
       if (!row || typeof row !== "object") return;
-      for (const [column, cell] of Object.entries(row as Record<string, unknown>)) {
-        if (!scalar(cell)) continue;
-        if (partOne && composedFromPartOne(key, row as Record<string, unknown>, column)) continue;
-        out.push(field([key, i, column], cell));
+      const record = row as Record<string, unknown>;
+      const ref = rowRef(key, record, i);
+      for (const [column, cell] of Object.entries(record)) {
+        // The row's own reference is not an answer.
+        if (key === "employers" && column === "key") continue;
+        if (partOne && composedFromPartOne(key, record, column)) continue;
+        // Labelled by position ("Employer 2 · City") — words a recruiter can say on the phone — while
+        // the path names the row by its key.
+        const label = describeField([key, i, column]);
+        if (scalar(cell)) out.push(field([key, ref, column], cell, label));
+        else if (cell === null || cell === undefined) {
+          const boolean = key === "employers" && EMPLOYER_BOOLEANS.has(column);
+          out.push({ path: [key, ref, column], label, value: "", kind: boolean ? "boolean" : "text" });
+        }
       }
     });
   }
