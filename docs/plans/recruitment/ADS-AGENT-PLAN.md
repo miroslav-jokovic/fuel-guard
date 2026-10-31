@@ -24,7 +24,7 @@ stands. Item IDs below are that plan's.
 
 | The ask | What five days can make production-ready | What five days cannot, and why |
 |---|---|---|
-| Create ads | The agent picks two of the 4–5 approved **concept presets**, Claude writes the copy (EN + ES) into the preset's fixed slots from the **opening** (pay, home time, equipment, lane), Higgsfield renders the stills and motion under the **brand kit**, and our renderer lays the exact figures and logo on top. Copy, visual and render checks run before a person approves. It then creates the campaign, ad set, Instant Form and ad **paused** (§4a). | Google, TikTok, LinkedIn: not researched against their employment policies; later adapters. |
+| Create ads | The agent makes one creative per approved **concept preset** (4–5 distinct concepts in one ad set, §2b.2); Claude writes the copy (EN + ES) into the preset's fixed slots from the **opening** (pay, home time, equipment, lane), Higgsfield renders the stills and motion under the **brand kit**, and our renderer lays the exact figures and logo on top. Copy, visual and render checks run before a person approves. It then creates the campaign, ad set, Instant Form and ad **paused** (§4a). | Google, TikTok, LinkedIn: not researched against their employment policies; later adapters. |
 | Run ads | A person presses **Launch** and approves every budget increase (Q-RA3 (b), ruled). Money is fenced three times: our cap in code, a Meta-enforced campaign spend cap, and the ad account's own spending limit. | Launching on its own — the owner ruled against it on 10/26. See Q-AD2 if "run" means otherwise. |
 | Manage ads | The agent **pauses** on its own in the safe direction: requisition filled, cap reached, ad rejected by Meta, kill switch. It **recommends** budget moves; a person applies them. | Automatic budget reallocation — D-RA10 gates it on eight weeks of data on drivers still seated at 90 days. |
 | Monitor ads | Hourly spend and delivery pull, daily reconcile, alerts (overspend, rejected ad, spend with no leads, lead not contacted), a daily brief per campaign with cost per lead. | Cost per *seated driver* needs 90 days of hires to exist. |
@@ -178,6 +178,75 @@ the 90-day outcome, the claim checks against the opening, and the settings page.
 starts we need one fact (Q-AD16):** if the carrier already buys Facebook through Job Store or an
 agency, that is the baseline C must beat on cost per qualified lead. Both run side by side for four
 weeks, and the cheaper one wins.
+
+---
+
+## 2b. The same machine in other industries (v4, read 2026-10-31)
+
+The owner, 2026-10-31: *this concept is used in every industry; borrow from all of them, not only
+recruitment.* Recruiting is a lead-generation business with extra rules (EMPLOYMENT targeting,
+FCRA, HB 3773). The engine underneath is the one that DTC brands, insurance agencies, home-service
+contractors, real-estate and auto dealers run on Meta every day. These are their proven practices,
+and what each does to this plan.
+
+1. **Send the outcome back to Meta (Conversions API for CRM → "Conversion Leads").** Standard in
+   insurance, home services and real estate. The CRM sends each lead's stage changes (keyed by
+   Meta's `leadgen_id`, `action_source: system_generated`) through the Conversions API. Meta then
+   shows the ad to people who become *qualified* leads, not just people who fill in forms.
+   Meta reports 15–21 % lower cost per quality lead (Meta's own figures, no methodology published).
+   Since April 2026, Meta's qualified-lead goal for new Instant Form campaigns **requires** this
+   feed. Eligibility: about **200 leads a month**, uploads at least daily, and a stage that 1–40 %
+   of leads reach within 28 days.
+   → **Adopted (D-AD14).** Our ledger already knows each stage, so we send `contacted`, `qualified`
+   (recruiter-confirmed), `applied` and `hired` from day one. Volume check: at the benchmark
+   $26.86 per lead, 200 leads ≈ **$5,400 a month**. Below that, campaigns run on the plain lead
+   goal while the feed builds history, and the switch is offered when the volume is there.
+   ⚠ Whether Conversion Leads is available under the EMPLOYMENT category is **not documented
+   anywhere we found** — tested in the sandbox in AD2 (Q-AD17).
+2. **Concept diversity beats volume (Meta's Andromeda retrieval, 2025–26).** Meta treats
+   near-duplicate creatives as one, and calls "creative diversification" its best lever. It
+   recommends fewer ad sets with *diverse* creatives in each. Practitioners measure in **distinct
+   concepts**: four or more per ad set, the largest concept under 40 % of the ads, a refresh every
+   one to three weeks, and new creatives added two at a time into a working ad set. Meta's own
+   Delivery column flags "Creative fatigue" and "Creative limited".
+   → **D-AD11 revised:** the presets *are* the concepts. One campaign and one ad set per opening,
+   holding 4–5 concepts (one creative per preset, both languages), not "two presets per
+   campaign". The rotation draw decides *which variant* of a concept is made next and in what
+   order new ones enter, two at a time. Fatigue is read from Meta's delivery flags and from cost
+   per qualified lead rising to 2× the concept's own history. A fatigued creative is paused and its
+   preset's next variant is proposed for approval.
+3. **Speed to lead is an integration metric.** Lead-gen playbooks: the lead reaches the CRM within
+   5 minutes; past 10 minutes, fix the integration before touching the ads. Contact within 5
+   minutes is widely cited as converting several times better (the figure traces to sales
+   lead-response studies, not to trucking). Home-service contractors with automated speed to
+   contact report 18–28 % lead-to-booked against 8–14 % without it.
+   → Measured separately: **webhook-to-ledger latency** (target < 1 min; alert at 5) and
+   **ledger-to-first-contact** (the recruiter metric, D-AD7). The second never excuses the first.
+4. **Judge quality, not cost per lead, and respect the lag.** Every lead-gen playbook reports
+   lead-to-qualified, -appointment and -close *by ad*, and warns that recent cohorts look worse
+   because qualification takes days. Meta's learning phase in local lead gen is quoted at 30–45
+   days, and rules act only past a minimum spend.
+   → The fold (D-AD5) reports **by lead-date cohort** and greys out cohorts younger than the
+   median days-to-qualify. Auto-pause rules need minimum spend and minimum leads before they act
+   (defaults in §4b), and never act on an ad set Meta marks as learning, except the spend caps.
+5. **A naming taxonomy makes creative analysis possible.** Creative-analytics tools (Motion and
+   others) parse ad names into fields (`DATE_FORMAT_HOOK_ANGLE`); without consistent names "you
+   lose most of the value". For video they track **hook rate** (3-second plays ÷ impressions;
+   about 25–35 % is solid on cold audiences) and **hold rate** (ThruPlays ÷ 3-second plays;
+   40–50 % average).
+   → Every Meta object we create is named by code, never by hand:
+   `S360_<opening>_<preset>-v<n>_<format>_<lang>_<yyyymmdd>`. The same fields are stored as
+   columns, so the report never parses names. Hook and hold rate are computed for every video
+   creative and shown per preset.
+6. **Rules engines over autopilots.** Agencies split into rule-runners (you write the rules,
+   e.g. Birch) and autopilots (the tool moves budget, e.g. Madgicx). The trade they name is
+   visibility into why a decision was made.
+   → Confirms D-AD2/D-RA10: written rules with their reasons; budget moves only as
+   recommendations until the data exists.
+7. **Structure: one campaign per objective, few ad sets, broad targeting, a separate small test
+   campaign for experiments, about 50 optimisation events a week per ad set.**
+   → One campaign per opening; area experiments (a second radius, a second yard) go in a separate
+   test campaign under its own cap, never inside the live one.
 
 ---
 
@@ -374,8 +443,9 @@ time of day, setting), the motion template, the overlay template and the formats
 **Selection: random, but fair and reproducible.** For each new campaign, the system draws from the
 enabled presets **excluding any preset already live for the same requisition**. The draw is
 uniform until §8 has data. Its seed is stored, so the same inputs show why that preset was picked.
-Each campaign carries **two creatives from two different presets** in one ad set, so Meta's
-delivery compares them and our report learns from it. Reweighting toward winners is a
+**v4 (§2b.2):** one ad set per opening holds one creative per enabled preset (4–5 distinct
+concepts), so Meta's delivery compares concepts and our report learns from it. New creatives enter
+two at a time, in the order the seeded draw sets. Reweighting toward winners is a
 *recommendation* until D-RA10's data exists, then a switch.
 
 **Starting presets** (proposed; the owner edits them before AD3, Q-AD12):
@@ -411,10 +481,17 @@ storage at once (outputs expire after seven days). Monthly budgets for Anthropic
 Higgsfield credits are settings (§4b). An exhausted budget is a recorded `budget_exhausted`, not a
 crash, and it never blocks pausing or monitoring.
 
+### D-AD14 · Lead outcomes go back to Meta (§2b.1)
+Each stage change in the ledger (`contacted`, `qualified` (a recruiter's confirmation), `applied`,
+`hired`) enqueues one Conversions API event for that `leadgen_id`. Events are idempotent by
+`event_id` = our stage-row id, batched at least daily, and carry no data beyond the lead id and the
+stage. Hashed contact fields are added only if Meta's match rate requires them, and counsel
+approves first (Q-AD8). Disabled per org by a switch; the send is ledgered like every vendor call.
+
 ### The one-screen flow (easy to use)
-**New campaign → pick the opening → the system picks two presets, writes, renders and checks
+**New campaign → pick the opening → the system makes one creative per preset, writes, renders and checks
 (about 2–4 minutes for stills; motion takes longer and arrives when ready) → one review screen
-shows every format of both creatives with the three checks → Approve (or "Regenerate this one" /
+shows every format of every creative with the three checks → Approve (or "Regenerate this one" /
 "Edit copy") → Create (paused) → Launch.** That is four clicks for a recruiter and one for the
 approver. Nothing on the screen asks for a prompt.
 
@@ -577,6 +654,13 @@ rate, and Higgsfield credits per approved creative.
 - **Q-AD16 · What runs today.** Does the carrier already buy Facebook/Instagram through Job Store,
   an agency, or by hand in Ads Manager? Monthly spend and cost per applicant if known. *Fallback:*
   no baseline; §8 starts from zero.
+- **Q-AD17 · Conversion Leads under EMPLOYMENT** (us, AD2 sandbox): is the optimisation goal
+  offered for an EMPLOYMENT campaign? *Fallback:* the plain lead goal; the CAPI feed still runs,
+  so the history exists when it is offered.
+- **Q-AD18 · Budget against Meta's volume floors** (owner): Conversion Leads wants about 200 leads
+  a month (≈ $5,400 at the benchmark), and leaving the learning phase wants about 50 results a week
+  per ad set. Is the monthly Meta budget near that? *Fallback:* one ad set per opening, the plain
+  lead goal, and the switch is offered when the volume is there.
 - **Q-AD14 · The brand kit.** The logo as vector, the colours, the font (if any), the company name
   exactly as it should read, the phone number shown, and 5–10 real photos of our tractors and
   trailers from several angles (these become the reference images, so generated trucks look like
@@ -603,6 +687,23 @@ rate, and Higgsfield credits per approved creative.
 **Tenstreet** — [What you need to know about Tenstreet's API](https://www.tenstreet.com/blog/integrations-2/tenstreets-api-guide-everyone-else/) ·
 [Tenstreet integrations](https://www.tenstreet.com/integrations) ·
 [LeadsBridge: Tenstreet](https://leadsbridge.com/documentation/tenstreet/)
+
+**Cross-industry (v4)** — [Meta conversion leads + CRM feedback (MarketingQL)](https://marketingql.com/blog/meta-conversion-leads-crm-feedback/) ·
+[Conversion Leads & Conversions API for CRM (Zephra)](https://zephraai.com/guides/meta-ads-academy/conversion-leads-optimization) ·
+[CAPI for lead ads (LeadSync)](https://leadsync.me/blog/meta-conversions-api-lead-ads/) ·
+[Meta's shift to lead optimisation (Click Here Digital)](https://www.clickheredigital.com/insights/meta-shift-to-lead-optimization) ·
+[Meta lead ads guide 2026 (AdLibrary)](https://adlibrary.com/posts/meta-lead-ads-guide-2026) ·
+[Meta ads for lead generation 2026 (AdLibrary)](https://adlibrary.com/posts/meta-ads-for-lead-generation) ·
+[Home service lead-gen benchmarks 2026](https://www.nowbookedmarketing.com/blog/home-service-lead-generation-benchmarks-2026) ·
+[Insurance lead generation 2026 (brandID)](https://brandid.app/blog/insurance-lead-generation) ·
+[Meta Andromeda guide (Confect)](https://confect.io/tactics/meta-andromeda-2026) ·
+[Andromeda: why creative diversity drives delivery (Soku)](https://soku.ai/blog/meta-andromeda) ·
+[Andromeda creative playbook (Segwise)](https://segwise.ai/blog/meta-andromeda-update-creative-strategy-2026) ·
+[Creatives per ad set (AdScale)](https://adscale.com/blog/how-many-ad-creatives-per-ad-set/) ·
+[Andromeda changes (Jetfuel)](https://jetfuel.agency/metas-2026-algorithm-update-what-andromeda-changed-and-how-to-adapt-your-ads/) ·
+[Video creative benchmarks 2026 (AdSights)](https://www.adsights.ai/resources/guides/video-creative-metrics-benchmarks-2026-guide) ·
+[Hook rate benchmarks 2026 (Sepia Lab)](https://sepia-lab.com/en/blog/hook-rate-benchmarks) ·
+[Motion app technical guide](https://www.datashake.fr/en/articles/motion-app-complete-technical-guide-audit)
 
 **Proven practice (v3)** — [Tenstreet integrations / Job Store merchants](https://www.tenstreet.com/integrations) ·
 [Tenstreet: Facebook in Job Store](https://www.tenstreet.com/blog/job-store/facebook-now-available-job-store) ·
@@ -665,3 +766,12 @@ rate, and Higgsfield credits per approved creative.
   error 2703 reported); setting defaults come from Boostpoint's 2026 CDL benchmark (median $26.86
   per applicant); generated media starts from our real equipment photos. Q-AD16 asks what runs
   today. **Nothing built.**
+- **2026-10-31, v4** — Owner: *borrow from every industry, not only recruiting.* Added §2b: the
+  CRM-to-Meta outcome feed (Conversions API for CRM / Conversion Leads; mandatory for the
+  qualified-lead goal since April 2026; ~200 leads/month floor) adopted as D-AD14; Andromeda's
+  concept diversity turns the presets into the ad set's 4–5 concepts (D-AD11 revised: one ad set
+  per opening, fatigue from Meta's flags and 2× own history, new creatives two at a time);
+  webhook-to-ledger latency measured apart from recruiter response; cohort reporting with
+  qualification lag; a code-generated naming taxonomy; hook and hold rate for video; a separate
+  test campaign. Q-AD17 (Conversion Leads under EMPLOYMENT — undocumented, sandbox test) and
+  Q-AD18 (budget against Meta's volume floors). **Nothing built.**
