@@ -641,3 +641,8 @@ and the two UNVERIFIED facts in §1.3 (was the counsel memo sent; was the toll-f
   counts are shown and the recruiter judges — so A11's precision metric (§8) cannot use "meets" for
   violations and must use the recruiter's recorded decision reason (item 7.3) instead. **Nothing
   built.**
+- **2026-10-31** — The owner asked for the ads agent with Tenstreet and Indeed in 4–5 days, production
+  ready. Written as `ADS-AGENT-PLAN.md`: it re-orders this plan (ads control plane 1.2/1.3/1.6/1.8–1.10
+  and Meta intake 2.4 pulled ahead of the rest of RA1, on top of 2.1/2.10/1.1/3.1) without changing
+  any D-RA ruling, and asks Q-AD1–9. Q-RA10 gets a fallback from Meta's form rules (no age, no
+  location, no criminal history, no licence number). **Nothing built.**
