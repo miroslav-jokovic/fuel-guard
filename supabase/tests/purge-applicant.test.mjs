@@ -209,6 +209,8 @@ async function seedApplicant(org, name) {
   await db.query(
     `insert into applicant_dispositions (org_id, driver_id, outcome, decided_on) values ($1,$2,'withdrawn','2026-09-01')`,
     [org, d]);
+  // 0535 (§9 P7): the office's notes go with the applicant.
+  await db.query(`insert into applicant_notes (org_id, driver_id, invitation_id, body, author_name) values ($1,$2,$3,'Called 10/30','Dana')`, [org, d, inv]);
   const doc = (await one(
     `insert into documents (id, org_id, subject_type, subject_id, kind, storage_path, content_type, sha256)
      values (gen_random_uuid(),$1,'driver',$2,'employment_application',$3,'application/pdf',$4) returning id`,
@@ -282,7 +284,7 @@ ok(
 );
 const ownedByDriver = ["application_invitations", "driver_applications", "driver_authorizations", "esign_consents",
   "application_drafts", "application_captures", "driver_employment_history", "employer_inquiries", "psp_requests",
-  "qualification_records", "applicant_dispositions", "sms_consents", "sms_outbox", "sms_suppressions"];
+  "qualification_records", "applicant_dispositions", "sms_consents", "sms_outbox", "sms_suppressions", "applicant_notes"];
 ok(
   "and in every drivers-referencing table the purge owns",
   ownedByDriver.every((t) => before[`${t}.driver_id`] > 0),
@@ -311,6 +313,7 @@ const expectCounts = {
   application_intake_licences: 1, drug_test_appointments: 1, applicant_travel: 1, application_screen_events: 1,
   sms_outbox: 1, sms_consents: 1, application_edits: 1, application_drafts: 1, application_captures: 1,
   applicant_dispositions: 1, documents: 2, certifications: 1, qualification_records: 1,
+  applicant_notes: 1,
 };
 const wrongCounts = Object.entries(expectCounts).filter(([t, n]) => result.counts[t] !== n);
 ok("it returns the count it deleted from each table", wrongCounts.length === 0,
