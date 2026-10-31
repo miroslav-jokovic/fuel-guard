@@ -60,6 +60,7 @@ const review = (over: Record<string, unknown> = {}) => ({
   state: "awaiting_review",
   editable: true,
   payload: PAYLOAD,
+  revision: 7,
   edits: [],
   ...over,
 });
@@ -143,8 +144,8 @@ describe("what the office reads", () => {
     expect(legacy.find("input#apply-phone").exists()).toBe(true);
   });
 
-  /** Q-AW36: the correction the note asks for sits under it — on a v2 application, until approval. */
-  it("offers the Part 1 correction on a v2 application until it is approved, and never on a legacy one", async () => {
+  /** Q-AW36: the correction the note asks for sits under it — on a v2 application, until filing (§9 P5). */
+  it("offers the Part 1 correction on a v2 application until it is filed, and never on a legacy one", async () => {
     const FACTS = {
       intake: { phone: "+13125550142", address_line1: "1 Main St", address_line2: null, city: "Joliet", state: "IL",
         postal_code: "60431", prior_positive_2y: false, cdl_class: "A" },
@@ -154,7 +155,7 @@ describe("what the office reads", () => {
     for (const [over, shown] of [
       [{ partOne: FACTS }, true],
       [{ partOne: FACTS, state: "filling", editable: false }, true],
-      [{ partOne: FACTS, state: "approved", editable: false }, false],
+      [{ partOne: FACTS, state: "approved", editable: true }, true],
       [{ partOne: FACTS, state: "certified", editable: false }, false],
       [{}, false],
     ] as const) {
@@ -189,12 +190,36 @@ async function answer(w: ReturnType<typeof drawer>, id: string, value: "yes" | "
   await settle(w);
 }
 
+/** EM-3 (§9 P5): the street, city and state a v2 filing requires of every employer. */
+async function fillAddress(w: ReturnType<typeof drawer>): Promise<void> {
+  await w.find("input#apply-add-employer-street").setValue("1 Frontier Rd");
+  await w.find("input#apply-add-employer-city").setValue("Omaha");
+  await w.find("input#apply-add-employer-state").setValue("NE");
+}
+
 describe("adding an employer the applicant left out", () => {
+  it("EM-3: will not add an employer without its street", async () => {
+    const w = drawer();
+    await settle(w);
+    await w.find("input#apply-add-employer-name").setValue("Werner");
+    await w.findAllComponents({ name: "AppDateField" })[0]!.vm.$emit("update:modelValue", "2019-03-01");
+    await answer(w, "apply-add-employer-fmcsr", "yes");
+    await answer(w, "apply-add-employer-tested", "yes");
+    await w.find("input#apply-add-employer-city").setValue("Omaha");
+    await w.find("input#apply-add-employer-state").setValue("NE");
+    await settle(w);
+    expect(button(w, "Add this employer")!.attributes("disabled")).toBeDefined();
+    await w.find("input#apply-add-employer-street").setValue("1 Frontier Rd");
+    await settle(w);
+    expect(button(w, "Add this employer")!.attributes("disabled")).toBeUndefined();
+  });
+
   it("appends at the end of the list, on the same transport as a correction", async () => {
     const w = drawer();
     await settle(w);
 
     await w.find("input#apply-add-employer-name").setValue("Werner");
+    await fillAddress(w);
     // ⚠ `From` is an AppDateField wrapping DatePickerBase, not a native <input type="date">, so it is
     // driven by its own event rather than by setValue on an input that does not exist.
     await w.findAllComponents({ name: "AppDateField" })[0]!.vm.$emit("update:modelValue", "2019-03-01");
@@ -207,15 +232,17 @@ describe("adding an employer the applicant left out", () => {
 
     const call = apiFetch.mock.calls.find((c) => c[1]?.method === "PATCH");
     expect(call?.[0]).toBe("/api/recruitment/applications/inv-1/answer");
-    // ⚠ Index 1, because the fixture's driver declared one. Appending is what keeps every path
-    // already recorded in `application_edits` pointing at the row it was written against.
-    expect(call?.[1].body.path).toEqual(["employers", 1]);
-    expect(call?.[1].body.value.employer_name).toBe("Werner");
+    // §9 P5: its own op, with its key and the revision the drawer read — never a position.
+    expect(call?.[1].body).toMatchObject({ op: "add_employer", revision: 7 });
+    expect(typeof call?.[1].body.employer.key).toBe("string");
+    expect(call?.[1].body.employer.employer_name).toBe("Werner");
     expect(typeof call?.[1].body).toBe("object");
+    // EM-3: the street, which a v2 filing refuses without — no longer a hard-coded "".
+    expect(call?.[1].body.employer.address_line1).toBe("1 Frontier Rd");
     // Q-AW33 (C3c2b): what was chosen, each on its own — no longer copied from "DOT-regulated" and
     // "drove a CMV", which both start at Yes, so a derived answer would read Yes/Yes here.
-    expect(call?.[1].body.value.subject_to_fmcsr).toBe(true);
-    expect(call?.[1].body.value.safety_sensitive).toBe(false);
+    expect(call?.[1].body.employer.subject_to_fmcsr).toBe(true);
+    expect(call?.[1].body.employer.safety_sensitive).toBe(false);
     // And back to nothing chosen for the next one — a kept answer would be a default for a stranger.
     for (const id of ["apply-add-employer-fmcsr", "apply-add-employer-tested"]) {
       expect(w.findAllComponents({ name: "AppCombobox" }).find((c) => c.props("id") === id)!.props("modelValue"), id).toBe("");
@@ -230,6 +257,7 @@ describe("adding an employer the applicant left out", () => {
     const w = drawer();
     await settle(w);
     await w.find("input#apply-add-employer-name").setValue("Werner");
+    await fillAddress(w);
     await w.findAllComponents({ name: "AppDateField" })[0]!.vm.$emit("update:modelValue", "2019-03-01");
     await answer(w, "apply-add-employer-fmcsr", "yes");
     await settle(w);
@@ -274,6 +302,8 @@ describe("correcting one answer", () => {
     expect(typeof call?.[1].body).toBe("object");
     expect(call?.[1].body.path).toEqual(["employers", 0, "city"]);
     expect(call?.[1].body.value).toBe("Joliet");
+    // §8.1 / §9 P5: the revision the drawer read, so the API can refuse a write over a newer save.
+    expect(call?.[1].body.revision).toBe(7);
   });
 
   it("offers nothing to save until something is actually different", async () => {
@@ -306,14 +336,31 @@ describe("correcting one answer", () => {
  * a draft. It must not be: approval is what tells the driver *this document, now, please sign it*.
  */
 describe("when the answers may still be changed", () => {
-  it("offers no correction and no approval once it has been sent back to sign", async () => {
+  it("offers no correction and no approval once the applicant has started signing", async () => {
     apiFetch.mockResolvedValue({ ok: true, data: review({ state: "approved", editable: false }) });
     const w = drawer();
     await settle(w);
     expect(w.find("input#apply-employers-0-city").exists()).toBe(false);
     expect(button(w, "Approve")).toBeUndefined();
     // And says why, rather than simply having nothing there.
-    expect(w.text()).toContain("asked the applicant to sign it");
+    expect(w.text()).toContain("started signing");
+  });
+
+  it("§9 P5 (EM-4): still offers corrections after approval, before signing — but no second approval", async () => {
+    apiFetch.mockResolvedValue({ ok: true, data: review({ state: "approved", editable: true }) });
+    const w = drawer();
+    await settle(w);
+    expect(w.find("input#apply-employers-0-city").exists()).toBe(true);
+    expect(button(w, "Approve")).toBeUndefined();
+  });
+
+  it("§9 P5 (EM-1): offers corrections while the applicant is still filling it in, and no approval", async () => {
+    apiFetch.mockResolvedValue({ ok: true, data: review({ state: "filling", editable: true }) });
+    const w = drawer();
+    await settle(w);
+    expect(w.find("input#apply-employers-0-city").exists()).toBe(true);
+    expect(button(w, "Approve")).toBeUndefined();
+    expect(w.text()).toContain("type in what they tell you on the phone");
   });
 
   it("offers no correction while the driver is still filling it in", async () => {

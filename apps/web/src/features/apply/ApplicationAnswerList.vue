@@ -82,9 +82,9 @@ function save(f: EditableField): void {
           <AppSelect
             v-if="f.kind === 'boolean'"
             :id="fieldId(f.path)"
-            :model-value="current(f) ? 'yes' : 'no'"
+            :model-value="current(f) === '' ? '' : current(f) ? 'yes' : 'no'"
             :options="YES_NO"
-            :placeholder="''"
+            :placeholder="current(f) === '' ? 'Not answered' : ''"
             class="sm:flex-1"
             @update:model-value="set(f, $event === 'yes')"
           />
@@ -92,6 +92,7 @@ function save(f: EditableField): void {
             v-else
             :id="fieldId(f.path)"
             :model-value="String(current(f))"
+            :placeholder="f.value === '' ? 'Not answered' : undefined"
             class="sm:flex-1"
             @update:model-value="set(f, String($event))"
           />

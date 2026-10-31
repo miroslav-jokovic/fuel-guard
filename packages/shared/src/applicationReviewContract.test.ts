@@ -65,12 +65,13 @@ describe("where an application has got to", () => {
 });
 
 describe("who may do what, and when", () => {
-  it("lets the office edit only between the driver sending and the driver signing", () => {
+  it("§9 P5: lets the office edit from its own send until filing", () => {
     expect(applicationIsEditable(phases())).toBe(false);
+    // EM-1: while the applicant is still filling it in — the recruiter on the phone.
+    expect(applicationIsEditable(phases({ applicationSentAt: "w" }))).toBe(true);
     expect(applicationIsEditable(phases({ reviewRequestedAt: "x" }))).toBe(true);
-    // ⚠ Not after approval: the driver has been told to sign THAT document, and an answer changing
-    // underneath them between being asked and signing is the one thing this whole flow exists to stop.
-    expect(applicationIsEditable(phases({ reviewRequestedAt: "x", approvedAt: "y" }))).toBe(false);
+    // EM-4: after approval too — the service refuses once the driver has marked the packet.
+    expect(applicationIsEditable(phases({ reviewRequestedAt: "x", approvedAt: "y" }))).toBe(true);
     expect(applicationIsEditable(phases({ reviewRequestedAt: "x", approvedAt: "y", submittedAt: "z" }))).toBe(false);
   });
 
@@ -98,7 +99,13 @@ describe("addressing one answer", () => {
     // A boolean at `declares_no_accidents`, a string at `employers.0.city`, an array at `addresses`.
     // Narrowing here would restate the contract; the service re-parses the whole document instead.
     for (const value of ["Joliet", true, 4, null, ["a"], { k: 1 }]) {
-      expect(applicationEditSchema.safeParse({ path: ["cdl_number"], value }).success).toBe(true);
+      expect(applicationEditSchema.safeParse({ path: ["cdl_number"], value, revision: 3 }).success).toBe(true);
     }
+  });
+
+  it("§9 P5: refuses an edit that does not say which revision of the draft it was made against", () => {
+    expect(applicationEditSchema.safeParse({ path: ["cdl_number"], value: "X" }).success).toBe(false);
+    expect(applicationEditSchema.safeParse({ op: "remove_employer", key: "k1" }).success).toBe(false);
+    expect(applicationEditSchema.safeParse({ op: "remove_employer", key: "k1", revision: 0 }).success).toBe(true);
   });
 });

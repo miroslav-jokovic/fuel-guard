@@ -1,6 +1,6 @@
 import { computed, type Ref } from "vue";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/vue-query";
-import type { ApplicationPath, ApplicationReviewState, PartOneCorrection, PartOneFactsView } from "@silvicom/shared";
+import type { ApplicationEdit, ApplicationPath, ApplicationReviewState, PartOneCorrection, PartOneFactsView } from "@silvicom/shared";
 import { apiFetch } from "@/lib/api";
 
 /**
@@ -25,9 +25,15 @@ export interface ApplicationReview {
   invitationId: string;
   driverId: string;
   state: ApplicationReviewState;
-  /** Only while it is waiting for review. Approval is what tells the driver to sign THAT document. */
+  /** From the office's send until filing — and refused by the API once the driver has marked the packet (§9 P5). */
   editable: boolean;
   payload: Record<string, unknown> | null;
+  /**
+   * The draft's revision as read (0376); every edit sends it back, so an edit made against an answer
+   * the applicant has since changed is refused rather than written over it (§9 P5). Optional: an API
+   * from before P5 sends none, and 0 is what the first draft is checked against.
+   */
+  revision?: number;
   /**
    * A v2 application's Part 1 facts (C3c2c2, Q-AW34), null for a legacy one — so the drawer reads the
    * document filing will compose, not the draft's copy. Optional: an API older than C3c2c2 sends none.
@@ -55,14 +61,16 @@ export function useApplicationReviewQuery(invitationId: Ref<string | null>) {
 export function useEditApplicationAnswer(invitationId: Ref<string | null>) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (input: { path: ApplicationPath; value: unknown }): Promise<void> => {
+    mutationFn: async (input: ApplicationEdit): Promise<void> => {
       const res = await apiFetch(
         `/api/recruitment/applications/${encodeURIComponent(invitationId.value ?? "")}/answer`,
         { method: "PATCH", body: input },
       );
       if (!res.ok) throw new Error(res.error?.message ?? "That change could not be saved.");
     },
-    onSuccess: () => void qc.invalidateQueries({ queryKey: key(invitationId.value ?? "") }),
+    // Settled, not only on success: a refusal for a stale revision (the applicant saved since this
+    // was read) is answered by reading the application again, so the next try is made on what is there.
+    onSettled: () => void qc.invalidateQueries({ queryKey: key(invitationId.value ?? "") }),
   });
 }
 

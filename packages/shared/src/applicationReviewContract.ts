@@ -41,10 +41,43 @@ export type ApplicationPath = z.infer<typeof applicationPathSchema>;
  * this schema would mean restating the contract; the service applies the edit and re-parses the WHOLE
  * document against `driverApplicationSchema`, which is the only check that can actually be right.
  */
-export const applicationEditSchema = z.object({
-  path: applicationPathSchema,
-  value: z.unknown(),
-});
+/**
+ * §9 P5 (HIRING-WORKFLOW-AUDIT-2026-10-31): every office write names the draft `revision` it read.
+ * The applicant's phone autosaves through the same revision check (0376, DA041), and the office's
+ * write used to be a bare update outside it — a recruiter typing a job while the phone saved could
+ * overwrite the phone. Now a stale revision is refused, on both sides, the same way.
+ */
+const draftRevision = z.number().int().min(0);
+
+/**
+ * The four things the office does to a draft (§4.5): change one answer, remove a job, add a job, and
+ * explain a gap. Employer rows are named by their `key`, never by position (Q-AX7) — see
+ * `applicationReviewEdits.ts`. `op` is optional on `set` so the one-answer write keeps its shape.
+ */
+export const applicationEditSchema = z.union([
+  z.object({
+    op: z.literal("set").optional(),
+    path: applicationPathSchema,
+    value: z.unknown(),
+    revision: draftRevision,
+  }),
+  z.object({ op: z.literal("remove_employer"), key: z.string().min(1).max(80), revision: draftRevision }),
+  z.object({
+    op: z.literal("add_employer"),
+    // Checked as a whole by the draft schema once it is in the list, like every other edit.
+    employer: z.record(z.string(), z.unknown()),
+    revision: draftRevision,
+  }),
+  z.object({
+    op: z.literal("explain_gap"),
+    gap: z.object({
+      from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+      to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+      explanation: z.string().trim().min(1, "Say what they were doing in this time").max(500),
+    }),
+    revision: draftRevision,
+  }),
+]);
 
 export type ApplicationEdit = z.infer<typeof applicationEditSchema>;
 
@@ -114,9 +147,21 @@ export function applicationReviewState(phases: ApplicationPhases): ApplicationRe
   return "filling";
 }
 
-/** May the office still change answers? Only between the driver sending it and the driver signing. */
+/**
+ * May the office still change answers? From the moment the office SENDS the form until it is filed
+ * (§9 P5, Q-WF5 — closing EM-1 and EM-4).
+ *
+ * ⚠ Until 2026-10-31 this was "awaiting review" only: nothing before the applicant pressed Send, and
+ * nothing after approval. The owner's office works the other way — a recruiter on the phone types the
+ * jobs the driver cannot remember, before and after approval — and the driver certifies what is on the
+ * screen on the day they sign (§391.21(b)(12)), with every office change shown to them first
+ * (`applicantVisibleEdits`). Two things keep that honest: the revision check (the phone and the office
+ * cannot overwrite each other) and the service's refusal once the driver has made the first mark on
+ * the packet — from then on they are signing a document, and it does not move underneath them.
+ * `reviewRequestedAt` also opens it, for a link sent before the office's send existed (0365).
+ */
 export const applicationIsEditable = (phases: ApplicationPhases): boolean =>
-  applicationReviewState(phases) === "awaiting_review";
+  Boolean(phases.applicationSentAt || phases.reviewRequestedAt) && !phases.submittedAt;
 
 /**
  * Where the application has got to, INCLUDING whether anybody has typed anything (F5).

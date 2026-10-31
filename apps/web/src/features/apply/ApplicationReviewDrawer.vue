@@ -3,6 +3,7 @@ import { computed, ref, toRef, watch } from "vue";
 import { AppButton as BaseButton, AppCallout, QueryState } from "@silvicom/ui";
 import {
   APPLICATION_REVIEW_STATE_LABELS,
+  formatDisplayDate,
   questionnaireForApplicant,
   type ApplicationPath,
 } from "@silvicom/shared";
@@ -17,7 +18,9 @@ import { applyPartOne } from "./partOneFacts";
 import { buildReviewSummary } from "./reviewSummary";
 import { describeField } from "./fieldLabels";
 import { editableFields, pathKey } from "./editableFields";
+import { employerName } from "./officeJobs";
 import AddEmployerForm from "./AddEmployerForm.vue";
+import OfficeJobsSection from "./OfficeJobsSection.vue";
 import PartOneCorrection from "./PartOneCorrection.vue";
 import ApplicationAnswerList from "./ApplicationAnswerList.vue";
 import {
@@ -46,11 +49,12 @@ import {
  * mounts this drawer, and a page may import any feature, so the rule is satisfied by putting the
  * component where its dependencies already live rather than by an exemption.
  *
- * ── THE WINDOW, SHOWN RATHER THAN ASSUMED ─────────────────────────────────────────────────────
- * ⚠ Editing closes at APPROVAL, not at signing, because approval is what tells the driver *this
- * document, now, please sign it*. The server refuses either way; a screen that offered an edit the
- * server would reject wastes somebody's afternoon. So the controls follow `editable`, and when they
- * are gone the reason is on the page.
+ * ── THE WINDOW, SHOWN RATHER THAN ASSUMED (§9 P5, Q-WF5) ─────────────────────────────────────
+ * The office edits from the moment it SENDS the form until the driver makes the first mark on the
+ * packet — before the applicant has sent it (a recruiter on the phone typing the jobs in, EM-1) and
+ * after approval (EM-4). Every change is shown to the driver before they sign. The controls follow
+ * `editable`, and when they are gone the reason is on the page. Every write names the revision it
+ * was made against, so the applicant's autosave and the office never overwrite each other (§8.1).
  */
 const props = defineProps<{ open: boolean; invitationId: string | null }>();
 const emit = defineEmits<{ close: [] }>();
@@ -65,6 +69,7 @@ const payload = computed(() => review.data.value?.payload ?? null);
 const state = computed(() => review.data.value?.state ?? "filling");
 const editable = computed(() => review.data.value?.editable === true);
 const edits = computed(() => review.data.value?.edits ?? []);
+const revision = computed(() => review.data.value?.revision ?? 0);
 
 const summary = computed(() => {
   if (!payload.value) return [];
@@ -92,29 +97,46 @@ const correctionNote = computed(() => {
   return typeof note === "string" && note.trim() !== "" ? note.trim() : null;
 });
 
-/**
- * How many employers the driver declared — the index an added one takes.
- *
- * ⚠ Read from the payload rather than counted from `fields`, which lists FIELDS and would give the
- * number of editable boxes rather than the number of rows.
- */
-const employerCount = computed(() => {
+/** The jobs on the draft, as rows — with their key, which every edit to one names (Q-AX7). */
+const employers = computed(() => {
   const list = (payload.value as { employers?: unknown[] } | null)?.employers;
-  return Array.isArray(list) ? list.length : 0;
+  return (Array.isArray(list) ? list : []).filter(
+    (e): e is Record<string, unknown> => Boolean(e) && typeof e === "object",
+  );
 });
+const givenGaps = computed(
+  () => (payload.value as { employment_gaps?: Array<{ from: string; explanation?: string }> } | null)?.employment_gaps ?? [],
+);
 
 /**
- * Adding a row, on the same transport as correcting a field: one `{path, value}` write, one
- * `application_edits` line, one thing for the driver to see before they certify.
+ * Adding a row: one write, one `application_edits` line, one thing for the driver to see before they
+ * certify.
  */
-async function addEmployer(path: (string | number)[], value: Record<string, unknown>): Promise<void> {
+async function addEmployer(employer: Record<string, unknown>): Promise<void> {
   try {
-    await edit.mutateAsync({ path: path as ApplicationPath, value });
-    toast.push("success", `${String(value.employer_name)} added`);
+    await edit.mutateAsync({ op: "add_employer", employer, revision: revision.value });
+    toast.push("success", `${String(employer.employer_name)} added`);
   } catch (e) {
     toast.push("error", e instanceof Error ? e.message : "That employer could not be added.");
   }
 }
+
+
+/** "What you changed": an employer named by key is named by the job, which is what a recruiter reads. */
+function changeLabel(row: { path: ApplicationPath; before: unknown; after: unknown }): string {
+  const [head, ref] = row.path;
+  if (head === "employers" && typeof ref === "string") {
+    const index = employers.value.findIndex((e) => e.key === ref);
+    const named = (index >= 0 ? employers.value[index] : (row.before ?? row.after)) as Record<string, unknown> | null;
+    const job = named ? employerName(named) : "A job";
+    if (row.path.length === 2) return row.after === null ? `${job} removed` : `${job} added`;
+    return `${job} · ${describeField(["employers", 0, row.path[2]!]).split(" · ")[1] ?? String(row.path[2])}`;
+  }
+  if (head === "employment_gaps") return `Gap from ${formatDisplayDate(String(ref))}`;
+  return describeField(row.path);
+}
+const shownValue = (v: unknown): string =>
+  v === null || v === undefined ? "—" : typeof v === "object" ? employerName(v as Record<string, unknown>) : String(v);
 
 /**
  * The paths already corrected, for the answer list's mark.
@@ -133,8 +155,8 @@ const tone = computed(() =>
 
 async function save(path: ApplicationPath, value: string | boolean): Promise<void> {
   try {
-    await edit.mutateAsync({ path, value });
-    toast.push("success", `${describeField(path)} corrected`);
+    await edit.mutateAsync({ path, value, revision: revision.value });
+    toast.push("success", "Answer corrected");
   } catch (e) {
     toast.push("error", e instanceof Error ? e.message : "That change could not be saved.");
   }
@@ -250,14 +272,18 @@ async function approveIt(): Promise<void> {
         @retry="review.refetch()"
       >
         <AppCallout v-if="state === 'filling'" tone="info">
-          The applicant is still filling this in. You will be able to read it and correct it once they
-          send it to you.
+          The applicant is still filling this in. You can type in what they tell you on the phone — they
+          see every change before they sign.
         </AppCallout>
 
-        <!-- ⚠ Says WHY the controls are gone rather than simply not rendering them. -->
+        <!-- ⚠ Says what still moves and until when, rather than simply rendering controls. -->
+        <AppCallout v-else-if="state === 'approved' && editable" tone="info">
+          Approved. You can still correct it until the applicant starts signing; they are shown every
+          change first.
+        </AppCallout>
         <AppCallout v-else-if="state === 'approved'" tone="caution">
-          You approved this and asked the applicant to sign it, so the answers are fixed now. If
-          something still needs changing, ask them for a new application.
+          The applicant has started signing, so the answers are fixed now. If something still needs
+          changing, ask them for a new application.
         </AppCallout>
         <AppCallout v-else-if="state === 'certified'" tone="success">
           Signed and filed. These answers are part of the qualification file.
@@ -270,7 +296,7 @@ async function approveIt(): Promise<void> {
           <p class="mt-1 whitespace-pre-line">{{ correctionNote }}</p>
         </AppCallout>
         <PartOneCorrection
-          v-if="invitationId && review.data.value?.partOne && state !== 'approved' && state !== 'certified'"
+          v-if="invitationId && review.data.value?.partOne && state !== 'certified'"
           :invitation-id="invitationId"
           :facts="review.data.value.partOne"
         />
@@ -334,12 +360,18 @@ async function approveIt(): Promise<void> {
               before they sign. §391.21 asks for three years of all work, and ten years of driving work.
             </p>
           </div>
-          <AddEmployerForm
-            :next-index="employerCount"
-            :pending="edit.isPending.value"
-            @add="addEmployer"
-          />
+          <AddEmployerForm :pending="edit.isPending.value" @add="addEmployer" />
         </section>
+
+        <OfficeJobsSection
+          v-if="editable && invitationId"
+          :invitation-id="invitationId"
+          :employers="employers"
+          :given-gaps="givenGaps"
+          :revision="revision"
+        />
+
+
 
         <!-- ⚠ INSIDE the drawer's body, and that placement is the whole fix (B8, measured 2026-09-18).
              As a sibling of `SlideOver` it rendered correctly and still broke: HeadlessUI decides which
@@ -365,11 +397,11 @@ async function approveIt(): Promise<void> {
               :key="i"
               class="rounded-surface bg-surface-muted p-3 text-sm"
             >
-              <p class="font-medium text-ink">{{ describeField(row.path) }}</p>
-              <p class="break-words text-ink-muted">
-                <span class="line-through">{{ row.before ?? "—" }}</span>
+              <p class="font-medium text-ink">{{ changeLabel(row) }}</p>
+              <p v-if="row.path.length !== 2 || row.path[0] !== 'employers'" class="break-words text-ink-muted">
+                <span class="line-through">{{ shownValue(row.before) }}</span>
                 →
-                <span class="text-ink">{{ row.after ?? "—" }}</span>
+                <span class="text-ink">{{ shownValue(row.after) }}</span>
               </p>
               <p class="text-2xs text-ink-tertiary">{{ formatDateTime(row.editedAt) }}</p>
             </li>
@@ -395,7 +427,7 @@ async function approveIt(): Promise<void> {
           Open as a PDF
         </BaseButton>
         <BaseButton
-          v-if="editable"
+          v-if="editable && state === 'awaiting_review'"
           variant="primary"
           class="w-full sm:w-auto"
           :disabled="approve.isPending.value"
