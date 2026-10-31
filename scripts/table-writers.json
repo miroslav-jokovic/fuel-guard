@@ -12,9 +12,6 @@
   "applicant_travel": [
     "apps/api/src/modules/recruiting/applicantTravel.ts"
   ],
-  "application_drafts": [
-    "apps/api/src/modules/recruiting/applicationReview.ts"
-  ],
   "application_edits": [
     "apps/api/src/modules/recruiting/applicationReview.ts"
   ],

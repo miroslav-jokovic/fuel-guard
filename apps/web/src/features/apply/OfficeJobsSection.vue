@@ -28,7 +28,7 @@ const props = defineProps<{
 }>();
 
 const toast = useToastStore();
-const confirm = useConfirm();
+const ask = useConfirm();
 const edit = useEditApplicationAnswer(toRef(props, "invitationId"));
 
 /**
@@ -38,7 +38,7 @@ const edit = useEditApplicationAnswer(toRef(props, "invitationId"));
  */
 async function removeEmployer(row: Record<string, unknown>): Promise<void> {
   if (typeof row.key !== "string") return;
-  const ok = await confirm({
+  const ok = await ask({
     title: `Remove ${employerName(row)}?`,
     message: "It comes off the application. The applicant is shown the removal before they sign.",
     confirmLabel: "Remove",
