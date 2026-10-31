@@ -217,13 +217,19 @@ ok("an opening stamp does not stand in for approval (DR032)", stray?.code === "D
 
 // ── opening signing: the office's act, and the one writer of the stamp and the sign link ────────
 const OPEN = await invite("open", "now() - interval '3 days'");
-const notApproved = await raised(() => openSigning(OPEN));
-ok("opening refuses a packet the office has not approved (AI006)", notApproved?.code === "AI006", String(notApproved?.code));
+// 0533 (HIRING-WORKFLOW-AUDIT §9 P3): approval coming first is advised, not refused — the office may
+// open the session at the desk while approval is pending. What can be SIGNED still waits (DR032).
+const EARLY_OPEN = await invite("early-open");
+const notApproved = await raised(() => openSigning(EARLY_OPEN, "sign-early"));
+ok("0533: opening a packet the office has not approved yet succeeds — AI006 is no longer raised",
+  notApproved === null, String(notApproved?.code));
 ok(
-  "and stamps nothing",
-  (await one(`select signing_opened_at, sign_token_hash from application_invitations where id = $1`, [OPEN]))
-    .signing_opened_at === null,
+  "and stamps the opening and the sign link",
+  (await one(`select signing_opened_at, sign_token_hash from application_invitations where id = $1`, [EARLY_OPEN]))
+    .sign_token_hash === "sign-early",
 );
+const earlyMark = await raised(() => mark(EARLY_OPEN, STOPS[0]));
+ok("but the packet still refuses a mark until it is approved (DR032)", earlyMark?.code === "DR032", String(earlyMark?.code));
 await approve(OPEN);
 const firstOpen = (await openSigning(OPEN, "sign-first")).rows[0].opened;
 const afterFirst = await one(
