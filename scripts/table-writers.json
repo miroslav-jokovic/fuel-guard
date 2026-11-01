@@ -1,4 +1,7 @@
 {
+  "ad_generations": [
+    "apps/api/src/modules/ads/generations/generationLedger.ts"
+  ],
   "anomalies": [
     "apps/api/src/modules/anomalies/assignAnomalies.ts",
     "apps/api/src/modules/anomalies/scoring/cardMultiReconcile.ts"

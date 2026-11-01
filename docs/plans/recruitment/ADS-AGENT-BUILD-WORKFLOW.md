@@ -433,3 +433,39 @@ blocking step in §3 above.
   stores no plaintext token (envelope-shape CHECK), and keeps every cross-table reference inside
   one org (composite FKs). Matrix `ads-foundation.test.mjs` 71/71; three guard mutations each went
   red. Correction §1.2-9: the recruiting tables move to a new step D0.
+- **2026-11-01, A3a + A3b** — A3a (#1898): `campaignMachine` (924 state × event × actor triples
+  enumerated), `adsPolicy` (the monthly cap checked against a month-end forecast; account-limit
+  fence; raise bounds; the authority table), the settings contract (nothing in force until saved),
+  `AdBriefSource` / `LeadSink`, and a parity test holding the shared lists to 0537's CHECKs. A3b:
+  `adClaims` (every digit in the copy must be a figure the brief holds — money, a number with a unit,
+  an age floor, a listed promise — in English and Spanish, spelled numbers included; protected-class
+  wording refused), `presetDraw` (seeded Fisher–Yates over FNV-1a + mulberry32, live presets for the
+  same brief excluded, uniformity held over 6,000 fixed seeds; `fnv1a32` factored out of `ai.ts`
+  rather than copied), `naming` (`S360|…` names that round-trip; anything else parses to null for
+  D-AD4's reconcile), `renderGeometry` (safe zones, WCAG contrast over the worst sampled pixel,
+  overflow refused) and `adsReport` (spend and lead-cohort folds, the month in Central time).
+  ⚠ The forbidden-wording and promise-term lists are a first cut for counsel (G12, Q-AD8): "criminal
+  record" and "conviction" are refused outright, which also refuses "no DUI convictions"; counsel
+  decides whether a driving-record clause is allowed and in which words.
+- **2026-11-01, handoff 2** — The rest of Stage 1 moves to a fresh chat from
+  `HANDOFF-2026-11-01-ADS-STAGE1-A4.md` (main `acd6b5f`, last migration 0537; HW PRs hold 0538/0539).
+  Measured for A4: `callClaude` (forced assessment tool) has no caller, so A4 copies the document
+  reader's and hazmat's `anthropicClient` + monthly-budget pattern rather than preserving a fuel call
+  site that no longer exists.
+- **2026-11-01, A4** — The AI rail. `lib/anthropic.ts` gains `callForcedTool`: the caller's Zod schema
+  is the tool (its JSON schema derived by `z.toJSONSchema`, never mirrored by hand), and the answer is
+  parsed with that schema before a `value` exists. **Decision: `callClaude` is retired, not
+  reshaped** — it had no caller since the anomaly-verification AI was retired (991a830), so there was
+  nothing to keep compatible, and keeping it would have left a second, unvalidated way to force a tool;
+  `callClaudeText` (weekly digest) stays. `modules/ads/generations/` is the ads rail every Claude worker
+  uses: replay by `(org, idempotency_key)` first (a success comes back from the row, re-validated; a
+  failure, a budget refusal or a `started` row asks no model), then the per-agent switch (D-RA9; new
+  `budgets.agents_enabled` in the settings contract, absent = off, `AD_AI_AGENTS` = the five
+  model-using workers), then the month's token budget (`aiGate`; a null budget REFUSES, unlike
+  `withinBudget`'s null — said in code), then `started` → the call → one completion with the tokens
+  billed whatever the outcome. The month is the carrier's Central-time month, folded from
+  `ad_generations` by keyset pages (not `org_usage_month`, which is the document reader's and hazmat's
+  shared budget). `modules/ads/settings/settingsVersions.ts` reads the settings in force (A5 adds the
+  save). `canonicalJson` moved to shared (one definition; the reader's `wireSchema.ts` re-exports it)
+  and `aiInputHash` became generic over it. Waivers for `ad_generations` and `ads_settings_versions`
+  left `check-table-producers.mjs`. Nine mutations each went red. No migration.

@@ -6,6 +6,7 @@ import { BellIcon, BookmarkIcon, ChatAddIcon, HashtagIcon, UserGroupIcon, UsersI
 import KebabMenu from "@/components/KebabMenu.vue";
 import KebabMenuItem from "@/components/KebabMenuItem.vue";
 import ChatUnreadCount from "./ChatUnreadCount.vue";
+import ChatDesktopAlertsControl from "./ChatDesktopAlertsControl.vue";
 import { chatRowTime } from "./chatTime";
 import { useChatNames } from "./chatNames";
 
@@ -253,5 +254,6 @@ const channelLabel = (c: ChatTeamChannel) => `# ${c.name}${c.visibility === "pri
         </ul>
       </section>
     </nav>
+    <ChatDesktopAlertsControl />
   </aside>
 </template>

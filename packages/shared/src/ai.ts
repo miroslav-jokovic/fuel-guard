@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { canonicalJson } from "./canonicalJson.js";
 import { ANOMALY_SEVERITIES, type AnomalySeverity } from "./constants.js";
 
 /**
@@ -150,13 +151,26 @@ export function withinBudget(usedTokens: number, monthlyBudget: number | null): 
   return monthlyBudget == null || usedTokens < monthlyBudget;
 }
 
-/** Stable hash of the context for caching / dedup (FNV-1a over canonical JSON). */
-export function aiInputHash(context: AiVerificationContext): string {
-  const json = JSON.stringify(context);
+/**
+ * 32-bit FNV-1a over a string's UTF-16 code units. One definition: `aiInputHash` below and the ads
+ * preset draw's seed (`ads/presetDraw.ts`) both read it. Not cryptographic — a stable spread, nothing more.
+ */
+export function fnv1a32(text: string): number {
   let h = 0x811c9dc5;
-  for (let i = 0; i < json.length; i++) {
-    h ^= json.charCodeAt(i);
+  for (let i = 0; i < text.length; i++) {
+    h ^= text.charCodeAt(i);
     h = Math.imul(h, 0x01000193);
   }
-  return (h >>> 0).toString(16).padStart(8, "0");
+  return h >>> 0;
+}
+
+/**
+ * Stable short hash of any model input, for caching / dedup (FNV-1a over canonical JSON). Generic since
+ * ads A4: it was typed to `AiVerificationContext` and hashed plain `JSON.stringify`, so two equal
+ * contexts built in a different key order hashed apart — not the "canonical" its comment promised. No
+ * stored value depended on it: it had no caller outside its test. Not cryptographic: a column that
+ * requires a sha256 (`ad_generations.input_hash`, 0537) hashes `canonicalJson` with node's crypto.
+ */
+export function aiInputHash(input: unknown): string {
+  return fnv1a32(canonicalJson(input)).toString(16).padStart(8, "0");
 }

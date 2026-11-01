@@ -47,6 +47,17 @@ export type ActionKind = (typeof ACTION_KINDS)[number];
 export const OUTCOME_STAGES = ["contacted", "qualified", "applied", "hired", "lost"] as const;
 export type OutcomeStage = (typeof OUTCOME_STAGES)[number];
 
+/**
+ * The five workers that ask a model (ADS-AGENT-PLAN §2c's worker table: "five of the eleven workers
+ * use a model"). Each has its own per-org switch, off until an admin turns it on (D-RA9), and is the
+ * `agent` an `ad_generations` row names. Lead intake's email extraction is not here: under D-AD17
+ * it is recruiting's, and recruiting keeps its own provenance (`recruiting_ai_outputs`, step D0).
+ * 0537 checks `ad_generations.agent` by shape (`^[a-z][a-z_]{1,40}$`), not by list, so a worker added
+ * here needs no migration — every name below fits that shape.
+ */
+export const AD_AI_AGENTS = ["copywriter", "art_director", "renderer", "checker", "analyst"] as const;
+export type AdAiAgent = (typeof AD_AI_AGENTS)[number];
+
 // ── the brief: the only source of an ad's facts (D-AD1) ─────────────────────────────────────────
 /**
  * A fact the copy may state. `money` is in cents with what it is per; `quantity` is a number with a

@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { recordId } from "../recordId.js";
 import { NOTIFICATION_CATEGORIES, type NotificationCategory } from "../notificationsContract.js";
-import { AD_PLATFORMS, type AdPlatform } from "./contracts.js";
+import { AD_AI_AGENTS, AD_PLATFORMS, type AdPlatform } from "./contracts.js";
 
 /**
  * Settings › Ads control (ADS-AGENT-PLAN §4b): what one save of the page holds. Stored whole as
@@ -43,10 +43,18 @@ export const adsApprovalsSchema = z.object({
 });
 
 export const adsBudgetsSchema = z.object({
+  /** Null refuses every Claude call (`aiRail.ts`), unlike `withinBudget`'s null, which means unlimited. */
   anthropic_tokens_monthly: z.number().int().min(0).max(1_000_000_000).nullable(),
   higgsfield_credits_monthly: z.number().int().min(0).max(10_000_000).nullable(),
   /** 0–5, the same bounds as `ads_creatives.regenerations` (0537). */
   max_regenerations: z.number().int().min(0).max(5),
+  /**
+   * D-RA9: every model-using worker has its own switch, OFF by default. An agent absent from this
+   * record is off, so a worker added to `AD_AI_AGENTS` later starts switched off in every org that
+   * saved settings before it existed — the safe direction, with no backfill. `.default({})` lets a
+   * version saved before this field existed (none had been saved when it was added, A4) still parse.
+   */
+  agents_enabled: z.partialRecord(z.enum(AD_AI_AGENTS), z.boolean()).default({}),
 });
 
 /** The bell's ads categories, read from the contract rather than restated (0537 added them). */
@@ -81,7 +89,7 @@ export const ADS_SETTINGS_UNSET: AdsSettings = {
     pause_at_daily_cap: true, pause_when_filled: true,
   },
   approvals: { second_approver_above_cents: null },
-  budgets: { anthropic_tokens_monthly: null, higgsfield_credits_monthly: null, max_regenerations: 1 },
+  budgets: { anthropic_tokens_monthly: null, higgsfield_credits_monthly: null, max_regenerations: 1, agents_enabled: {} },
   alerts: { recipients: {}, uncontacted_lead_minutes: 15 },
 };
 
