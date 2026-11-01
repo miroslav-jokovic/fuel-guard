@@ -59,6 +59,17 @@ export const APPLICATION_CAPTURE_SLOTS = [
    */
   "selfie",
   "other",
+  /**
+   * The papers 0534 opened (HIRING-WORKFLOW-AUDIT-2026-10-31 §3.5/§4.7, §9 P6/P9). The audit measured
+   * why the owner saw "only the CDL": the link offered nothing else. Each is offered on Part 2's
+   * "Your documents" list, none is required, and each files under its own `documents.kind` below.
+   */
+  "twic",
+  "passport",
+  "work_authorization",
+  "hazmat_endorsement",
+  "road_test_certificate",
+  "training_certificate",
 ] as const;
 
 export type ApplicationCaptureSlot = (typeof APPLICATION_CAPTURE_SLOTS)[number];
@@ -112,6 +123,12 @@ export const APPLICATION_CAPTURE_SLOT_LABELS: Record<ApplicationCaptureSlot, str
   initials_mark: "Your initials",
   selfie: "A photo of you",
   other: "Anything else",
+  twic: "TWIC card",
+  passport: "Passport",
+  work_authorization: "Green card or work permit",
+  hazmat_endorsement: "Hazmat endorsement",
+  road_test_certificate: "Road test certificate from a past job",
+  training_certificate: "Training certificate",
 };
 
 /**
@@ -122,9 +139,9 @@ export const APPLICATION_CAPTURE_SLOT_LABELS: Record<ApplicationCaptureSlot, str
  * photograph of a piece of paper rather than the mark D-APP8 describes. (`initials_mark` was the one
  * addition Q-HUI14's writer half had to make sure NOT to make: the list drives the capture screen, the
  * review summary and `ApplyExpectations`, so an entry here would have asked every applicant to
- * photograph their own initials.) `other` is absent because a form that opens with "anything
- * else" invites a folder of receipts into an evidence bucket; it exists in the vocabulary so a later
- * step can ask for something specific without a migration.
+ * photograph their own initials.) `other` was absent until §9 P9, on the argument that a form opening
+ * with "anything else" invites a folder of receipts into an evidence bucket; the audit's §4.7 list
+ * ends with it, and 0534's limit of five is what answers that argument now.
  */
 /**
  * The slots that belong to the APPLICATION, not to the permissions visit (AF4, D-AF1).
@@ -141,14 +158,82 @@ export const APPLICATION_CAPTURE_SLOT_LABELS: Record<ApplicationCaptureSlot, str
  * office screens on (Q-HM5). Only the Social Security card still waits for the application, and Q-AW4
  * moves it after the hire.
  */
-export const APPLICATION_ONLY_CAPTURE_SLOTS: readonly ApplicationCaptureSlot[] = ["ssn_card"];
+export const APPLICATION_ONLY_CAPTURE_SLOTS: readonly ApplicationCaptureSlot[] = [
+  "ssn_card",
+  // §9 P9: every paper 0534 added is asked on the application's documents list and nowhere else, so
+  // it waits for the office's send exactly as the Social Security card does — and so does `other`,
+  // which that list now offers.
+  "twic",
+  "passport",
+  "work_authorization",
+  "hazmat_endorsement",
+  "road_test_certificate",
+  "training_certificate",
+  "other",
+];
 
+/**
+ * ⚠ §9 P9 (HIRING-WORKFLOW-AUDIT §4.7): **every** paper an applicant may hold, in the order Part 2's
+ * "Your documents" list shows them. Until P9 this was four, and the audit's measurement is the
+ * reason it grew: the owner saw "only the CDL" because nothing else could be sent. The licence's two
+ * sides stay first and are shown from Part 1 — never asked again (`PART_ONE_CAPTURE_SLOTS`). `other`
+ * is offered now, as "Anything else", because the audit's list ends with it; the cap of
+ * `APPLICATION_CAPTURE_MAX_PER_SLOT` (0534's CHECK) is what keeps it from becoming free storage.
+ */
 export const APPLICATION_CAPTURE_REQUESTED: readonly ApplicationCaptureSlot[] = [
   "cdl_front",
   "cdl_back",
   "medical_card",
+  "twic",
+  "passport",
+  "work_authorization",
   "ssn_card",
+  "hazmat_endorsement",
+  "road_test_certificate",
+  "training_certificate",
+  "other",
 ];
+
+/**
+ * The slots Part 1 photographs beside the licence number (AF3). The documents list shows what Part 1
+ * took and never asks for them again (§4.7: "already taken → shows the thumbnail, never re-asks"); a
+ * wrong licence photograph is corrected through Part 1's own correction, which owns the number too.
+ */
+export const PART_ONE_CAPTURE_SLOTS: readonly ApplicationCaptureSlot[] = ["cdl_front", "cdl_back"];
+
+/**
+ * The slots that come in several (0534's `application_captures_ordinal_check`): a driver may hold
+ * three training certificates and two past road tests. Every other slot is one document, and a
+ * re-shoot replaces it (D-APP10) — ordinal 0 always.
+ */
+export const MULTI_DOCUMENT_CAPTURE_SLOTS: readonly ApplicationCaptureSlot[] = [
+  "training_certificate",
+  "road_test_certificate",
+  "other",
+];
+
+/**
+ * How many of one multi-document slot a link may hold — ordinals 0..4. ⚠ The number is 0534's CHECK
+ * (`ordinal between 1 and 4`, plus 0); this is its TypeScript reading, so the page stops offering
+ * "Add another" exactly where the database would refuse the sixth.
+ */
+export const APPLICATION_CAPTURE_MAX_PER_SLOT = 5;
+
+/** The ordinals a slot may use: 0..4 for the multi-document slots, 0 alone for every other. */
+export const captureOrdinalLimit = (slot: ApplicationCaptureSlot): number =>
+  MULTI_DOCUMENT_CAPTURE_SLOTS.includes(slot) ? APPLICATION_CAPTURE_MAX_PER_SLOT : 1;
+
+/**
+ * The slots that are pictures by nature — the selfie and the two adopted marks — and so never a PDF.
+ * 0534's content-type CHECK names the same three; a PDF of a face is not a photograph of one.
+ */
+export const IMAGE_ONLY_CAPTURE_SLOTS: readonly ApplicationCaptureSlot[] = ["selfie", "signature_mark", "initials_mark"];
+
+/** Whether a slot may take this content type — every slot an image, every slot but those three a PDF. */
+export const captureAcceptsContentType = (slot: ApplicationCaptureSlot, contentType: string): boolean =>
+  contentType === "application/pdf"
+    ? !IMAGE_ONLY_CAPTURE_SLOTS.includes(slot)
+    : (APPLICATION_CAPTURE_IMAGE_TYPES as readonly string[]).includes(contentType);
 
 /**
  * Which slots the driver must have photographed before they can send the application.
@@ -177,7 +262,9 @@ export const APPLICATION_CAPTURE_DOCUMENT_KIND: Record<PromotedCaptureSlot, Docu
   cdl_front: "cdl",
   cdl_back: "cdl",
   medical_card: "medical_card",
-  ssn_card: "other",
+  // §9 P9: a kind of its own since 0534. Until then it filed as `other`, and so its image was as
+  // readable as any `other` paper — the row's kind is what Q-WF4's image rule (`canSeePaperImage`) reads.
+  ssn_card: "ssn_card",
   signature_mark: "other",
   // The initials picture files exactly where its sibling does, and for the same reason: there is no
   // §391.51 record kind for a decoration. `sources.ts` finds either of them by the staged row's
@@ -185,6 +272,15 @@ export const APPLICATION_CAPTURE_DOCUMENT_KIND: Record<PromotedCaptureSlot, Docu
   // after promotion even though `documents` calls them the same thing.
   initials_mark: "other",
   other: "other",
+  // §9 P9 (0534's five kinds, `APPLICANT_PAPER_KINDS`, plus two the file already had). The hazmat
+  // endorsement is a certification kind; its document is the paper behind one, filed before the
+  // record that cites it, as every scan is (`COMPLIANCE_DOCUMENT_KINDS`' note).
+  twic: "twic",
+  passport: "passport",
+  work_authorization: "work_authorization",
+  hazmat_endorsement: "endorsement",
+  road_test_certificate: "road_test_certificate",
+  training_certificate: "training_certificate",
 };
 
 /**
@@ -202,6 +298,12 @@ export const APPLICATION_CAPTURE_PAGE: Record<PromotedCaptureSlot, number> = {
   signature_mark: 1,
   initials_mark: 1,
   other: 1,
+  twic: 1,
+  passport: 1,
+  work_authorization: 1,
+  hazmat_endorsement: 1,
+  road_test_certificate: 1,
+  training_certificate: 1,
 };
 
 /**
@@ -219,10 +321,17 @@ export const APPLICATION_CAPTURES_BUCKET = "application-captures";
  *
  * A strict subset of `DOCUMENT_CONTENT_TYPES`: the web provider re-encodes every photograph through a
  * canvas to WebP or JPEG (which is what strips EXIF — see `webImageIo.ts`), and PNG is what a
- * signature canvas produces. `image/heic` and `application/pdf` are absent because nothing on this
- * path can produce them, and a content type nothing produces is a content type nothing has tested.
+ * signature canvas produces. `image/heic` is absent because nothing on this path can produce it.
  */
-export const APPLICATION_CAPTURE_CONTENT_TYPES = ["image/jpeg", "image/png", "image/webp"] as const;
+export const APPLICATION_CAPTURE_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"] as const;
+
+/**
+ * Everything the staging surface takes: the three pictures, and — since 0534 (§9 P9) — a PDF, sent as
+ * the driver holds it. A clinic emails the medical certificate; a training school emails the
+ * certificate; until P9 the link drew page 1 of such a file into a picture and dropped the rest. Which
+ * slot may take which is `captureAcceptsContentType`, the same rule as 0534's CHECK.
+ */
+export const APPLICATION_CAPTURE_CONTENT_TYPES = [...APPLICATION_CAPTURE_IMAGE_TYPES, "application/pdf"] as const;
 export type ApplicationCaptureContentType = (typeof APPLICATION_CAPTURE_CONTENT_TYPES)[number];
 
 /** Storage key extension per content type — the single place this mapping is decided for captures. */
@@ -230,6 +339,7 @@ export const APPLICATION_CAPTURE_EXTENSIONS: Record<ApplicationCaptureContentTyp
   "image/jpeg": "jpg",
   "image/png": "png",
   "image/webp": "webp",
+  "application/pdf": "pdf",
 };
 
 /**
@@ -238,6 +348,9 @@ export const APPLICATION_CAPTURE_EXTENSIONS: Record<ApplicationCaptureContentTyp
  * 8 MB is far above what the provider produces — it downscales to the config long edge and encodes at
  * WebP q80, which puts a licence photograph in the low hundreds of kilobytes — and far below what an
  * unauthenticated caller could use a driver's link as free storage for.
+ *
+ * ⚠ A PDF (§9 P9) is sent as it is, not re-encoded, so this is its ceiling too, checked in the browser
+ * before a byte is sent and by the bucket after: a scanned certificate of a few pages is well under it.
  */
 export const APPLICATION_CAPTURE_MAX_BYTES = 8 * 1024 * 1024;
 
@@ -266,10 +379,14 @@ export function applicationCaptureStoragePath(
  * leaves an object nobody registered (swept by the nightly orphan reconcile after its 24-hour grace),
  * never a row claiming a photograph that was never taken.
  */
+const slotTakesType = (b: { slot: ApplicationCaptureSlot; content_type: string }): boolean =>
+  captureAcceptsContentType(b.slot, b.content_type);
+const SLOT_TYPE_ISSUE = { message: "This document cannot be sent as that kind of file", path: ["content_type"] };
+
 export const applicationCaptureStartSchema = z.object({
   slot: z.enum(APPLICATION_CAPTURE_SLOTS),
   content_type: z.enum(APPLICATION_CAPTURE_CONTENT_TYPES),
-});
+}).refine(slotTakesType, SLOT_TYPE_ISSUE);
 export type ApplicationCaptureStart = z.infer<typeof applicationCaptureStartSchema>;
 
 /**
@@ -289,12 +406,29 @@ export const applicationCaptureConfirmSchema = z.object({
    */
   content_type: z.enum(APPLICATION_CAPTURE_CONTENT_TYPES),
   sha256: z.string().regex(/^[0-9a-f]{64}$/, "A sha256 is 64 hexadecimal characters"),
-});
-export type ApplicationCaptureConfirm = z.infer<typeof applicationCaptureConfirmSchema>;
+  /**
+   * Which of several documents in the slot (0534, §9 P9) — 0 unless the slot comes in several, and
+   * then below `APPLICATION_CAPTURE_MAX_PER_SLOT`. Optional with a default of 0 so a page served
+   * before P9 confirms exactly as it did. A re-shoot replaces the same (slot, ordinal).
+   */
+  ordinal: z.number().int().min(0).max(APPLICATION_CAPTURE_MAX_PER_SLOT - 1).default(0),
+})
+  .refine(slotTakesType, SLOT_TYPE_ISSUE)
+  .refine((b) => b.ordinal < captureOrdinalLimit(b.slot), {
+    message: "Only one of this document can be sent",
+    path: ["ordinal"],
+  });
+/** The request as sent — `ordinal` may be absent and means 0 (a page served before §9 P9). */
+export type ApplicationCaptureConfirm = z.input<typeof applicationCaptureConfirmSchema>;
 
 /** What `GET /:token` tells the page about a slot it has already collected. */
 export interface ApplicationCaptureView {
   slot: ApplicationCaptureSlot;
+  /**
+   * Which of several in the slot (0534). Optional on the READ side because a page may meet a bundle
+   * written before P9 (or a test's fixture): absent is 0, the only ordinal that existed.
+   */
+  ordinal?: number;
   contentType: string;
   bytes: number | null;
   capturedAt: string;

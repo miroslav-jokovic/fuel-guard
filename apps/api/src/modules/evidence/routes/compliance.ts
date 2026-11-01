@@ -16,6 +16,7 @@ import {
   type QualificationSeedRequest,
   type ExistingCertKey,
   canReadRestrictedKind,
+  canSeePaperImage,
   dispatchHoldForReader,
   filterRestrictedRows,
   shouldDerive,
@@ -265,7 +266,8 @@ export function complianceRouter(): Router {
       // see by the same two rules the documents list below applies — the paper's section (D-UF5)
       // and the restricted-kind rule (Phase G). Only this route asks for papers.
       const withPapers = (kind: string) => mayFile(req, "view", "driver", kind) && canReadRestrictedKind(kind, req.auth!.role);
-      res.json(await getComplianceOverview(admin, orgId, today, { medstopViolations, withPapers }));
+      const imageVisible = (kind: string) => canSeePaperImage(kind, req.auth!.role);
+      res.json(await getComplianceOverview(admin, orgId, today, { medstopViolations, withPapers, imageVisible }));
     }),
   );
 
@@ -360,7 +362,11 @@ export function complianceRouter(): Router {
       // Phase G (D-DQ15): scans of restricted records are as restricted as the records. Service-role
       // read, so the filter lives here, mirroring the qualification-records list above.
       const readable = result.rows.filter((d) => mayFile(req, "view", q.subjectType, d.kind));
-      res.json({ documents: filterRestrictedRows(readable, req.auth!.role) });
+      // Q-WF4 (§9 P9): an SSN card's or a passport's row is listed and its picture is not handed over —
+      // every URL to it is dropped here, before the response, for a role `canSeePaperImage` refuses.
+      const documents = filterRestrictedRows(readable, req.auth!.role).map((d) =>
+        canSeePaperImage(d.kind, req.auth!.role) ? d : { ...d, url: null, thumbUrl: null, normalizedUrl: null });
+      res.json({ documents });
     }),
   );
 
@@ -389,6 +395,10 @@ export function complianceRouter(): Router {
       if (!mayFile(req, "view", result.subjectType, result.kind)) return void refuse(res);
       if (!canReadRestrictedKind(result.kind, req.auth!.role)) {
         res.status(403).json(apiError("forbidden", "Downloading restricted records requires a safety manager or admin."));
+        return;
+      }
+      if (!canSeePaperImage(result.kind, req.auth!.role)) {
+        res.status(403).json(apiError("forbidden", "Only an administrator or a safety manager can open this document."));
         return;
       }
       await writeAudit(admin, {

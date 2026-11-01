@@ -1,5 +1,6 @@
 import {
   APPLICATION_CAPTURE_REQUESTED,
+  PART_ONE_CAPTURE_SLOTS,
   APPLICATION_FILLING_SECTIONS,
   APPLICATION_SECTION_KEYS,
   type ApplicationCaptureView,
@@ -54,11 +55,16 @@ function touched(section: ApplicationSection, filed: Record<string, unknown>): b
   return APPLICATION_SECTION_KEYS[section].some((key) => JSON.stringify(filed[key]) !== JSON.stringify(EMPTY[key]));
 }
 
-/** The photographs' own status: how many of the requested slots are on file. */
+/**
+ * The documents' own status (§9 P9). Every paper on the list is optional and the screen says "send what
+ * you have now", so one sent is the task done — counting against all eleven would leave it "in progress"
+ * for every driver who has no passport. The licence's sides came with Part 1 and do not count here.
+ */
 function documentsStatus(captures: readonly ApplicationCaptureView[]): TaskStatus {
-  const have = APPLICATION_CAPTURE_REQUESTED.filter((slot) => captures.some((c) => c.slot === slot)).length;
-  if (have === 0) return "not_started";
-  return have === APPLICATION_CAPTURE_REQUESTED.length ? "completed" : "in_progress";
+  const sent = APPLICATION_CAPTURE_REQUESTED.filter(
+    (slot) => !PART_ONE_CAPTURE_SLOTS.includes(slot) && captures.some((c) => c.slot === slot),
+  ).length;
+  return sent === 0 ? "not_started" : "completed";
 }
 
 export function taskStatus(

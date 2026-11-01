@@ -21,13 +21,15 @@ const DRIVER_DOC = "d0000002-0000-4000-8000-000000000000";
 const SHA = "a".repeat(64);
 
 let rec: SupabaseRecorder;
+/** The caller's role — `admin` unless a case says otherwise (Q-WF4's cases below). */
+let role = "admin";
 
 vi.mock("../../../lib/supabaseAdmin.js", () => ({ getSupabaseAdmin: () => rec.client }));
 vi.mock("../../../lib/appLocals.js", () => ({ getAppLocals: () => ({ env: {} }) }));
 vi.mock("../../../queue/dispatch.js", () => ({ dispatchJob: async () => ({ ok: true }) }));
 vi.mock("../../../middleware/auth.js", () => ({
   requireAuth: (req: Request, _res: Response, next: NextFunction) => {
-    req.auth = { userId: "u-1", orgId: ORG, role: "admin", email: "admin@example.test" };
+    req.auth = { userId: "u-1", orgId: ORG, role, email: `${role}@example.test` } as Request["auth"];
     next();
   },
   requireOrg: (_req: Request, _res: Response, next: NextFunction) => next(),
@@ -46,6 +48,7 @@ const row = (id: string, subject_type: string, subject_id: string, kind: string)
 const DOCUMENTS = [row(ROADSIDE_DOC, "roadside_inspection", INSP, "citation"), row(DRIVER_DOC, "driver", DRIVER, "other")];
 
 beforeEach(() => {
+  role = "admin";
   rec = createSupabaseRecorder({
     tables: {
       documents: (q) => (q.write ? [] : DOCUMENTS.filter((d) => val(q, "id") === undefined || d.id === val(q, "id"))),
@@ -109,6 +112,52 @@ describe("/api/compliance/documents keeps a roadside inspection's paper out (047
     rec.reset();
     const res = await send("GET", `/documents/${ROADSIDE_DOC}/download`);
     expect(res.status).toBe(404);
+    expect(res.body.url).toBeUndefined();
+    expect(rec.writtenRows("audit_logs")).toHaveLength(0);
+  });
+});
+
+/**
+ * Q-WF4 (HIRING-WORKFLOW-AUDIT §9 P9): an SSN card's or a passport's image is withheld from every role
+ * `canSeePaperImage` refuses — on the driver's file too, not only on the applicant record. The row stays.
+ */
+describe("/api/compliance/documents withholds an identity paper's picture (Q-WF4)", () => {
+  const PASSPORT = "d0000003-0000-4000-8000-000000000000";
+  const withPassport = () => {
+    const docs = [row(PASSPORT, "driver", DRIVER, "passport"), row(DRIVER_DOC, "driver", DRIVER, "other")];
+    rec = createSupabaseRecorder({
+      tables: {
+        documents: (q) => (q.write ? [] : docs.filter((d) => val(q, "id") === undefined || d.id === val(q, "id"))),
+        drivers: [{ full_name: "Jovana Petrović" }],
+        audit_logs: [],
+      },
+      storage: {
+        createSignedUrl: (path: string) => ({ data: { signedUrl: `https://storage.test/download/${path}` }, error: null }),
+        createSignedUrls: (paths: string[]) => ({ data: paths.map((path) => ({ path, signedUrl: `https://storage.test/${path}` })), error: null }),
+      },
+    });
+  };
+  type Listed = { id: string; url: string | null };
+  const listed = async () => ((await send("GET", `/documents?subjectType=driver&subjectId=${DRIVER}`)).body as unknown as { documents: Listed[] }).documents;
+
+  it("lists a passport to a fleet manager with no link to its picture, and other papers with theirs", async () => {
+    withPassport();
+    role = "fleet_manager";
+    const docs = await listed();
+    expect(docs.find((d) => d.id === PASSPORT)).toMatchObject({ url: null });
+    expect(docs.find((d) => d.id === DRIVER_DOC)?.url).toBeTruthy();
+  });
+
+  it("hands the admin the passport's picture (the control)", async () => {
+    withPassport();
+    expect((await listed()).find((d) => d.id === PASSPORT)?.url).toBeTruthy();
+  });
+
+  it("refuses the passport's download to a fleet manager, and writes no download to the ledger", async () => {
+    withPassport();
+    role = "fleet_manager";
+    const res = await send("GET", `/documents/${PASSPORT}/download`);
+    expect(res.status).toBe(403);
     expect(res.body.url).toBeUndefined();
     expect(rec.writtenRows("audit_logs")).toHaveLength(0);
   });

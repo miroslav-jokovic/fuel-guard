@@ -19,6 +19,8 @@ import {
   rolesThatCanView,
   RESTRICTED_QUALIFICATION_KINDS,
   canReadAllRestricted,
+  canSeePaperImage,
+  IDENTITY_NUMBER_IMAGE_KINDS,
   canWriteDriverLifecycle,
   canArchiveDriver,
   canReadInvestigationHistory,
@@ -466,5 +468,23 @@ describe("effectiveSectionAccess", () => {
 
   it("still answers 'none' for no role at all", () => {
     expect(effectiveSectionAccess(null, "fuel", { admin: { fuel: "manage" } })).toBe("none");
+  });
+});
+
+/** Q-WF4 (§9 P9): an SSN card's or a passport's picture is the number; the row is not. */
+describe("identity papers whose image is the number (Q-WF4)", () => {
+  it("withholds an SSN card's and a passport's image from a recruiter, and nothing else", () => {
+    for (const kind of IDENTITY_NUMBER_IMAGE_KINDS) expect(canSeePaperImage(kind, "recruiter"), kind).toBe(false);
+    expect(canSeePaperImage("twic", "recruiter")).toBe(true);
+    expect(canSeePaperImage("cdl", "dispatcher")).toBe(true);
+  });
+
+  it("shows them to the roles holding the narrowest existing read — both restricted halves", () => {
+    for (const role of USER_ROLES) {
+      expect(canSeePaperImage("ssn_card", role), role).toBe(canReadAllRestricted(role));
+      expect(canSeePaperImage("passport", role), role).toBe(canReadAllRestricted(role));
+    }
+    expect(canSeePaperImage("ssn_card", "admin")).toBe(true);
+    expect(canSeePaperImage("ssn_card", null)).toBe(false);
   });
 });

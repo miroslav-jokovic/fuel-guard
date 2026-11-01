@@ -25,28 +25,46 @@ beforeAll(async () => {
 
 describe("what it refuses, and why", () => {
   it("refuses a picture over the pixel ceiling before decoding it, by name", async () => {
-    const result = await verifyCaptureBytes(tiny, sha(tiny), "cdl_front", 4);
+    const result = await verifyCaptureBytes(tiny, sha(tiny), "cdl_front", "image/png", 4);
     expect(result).toMatchObject({ ok: false, reason: "too_many_pixels" });
   });
 
   it("takes the same picture under the ceiling, and measures it", async () => {
-    const result = await verifyCaptureBytes(tiny, sha(tiny), "cdl_front", 9);
+    const result = await verifyCaptureBytes(tiny, sha(tiny), "cdl_front", "image/png", 9);
     expect(result).toMatchObject({ ok: true, bytes: tiny.byteLength });
     expect(result.ok && result.metrics?.configVersion).toBeTruthy();
   });
 
   it("takes an ordinary capture under the shipped ceiling", async () => {
-    const result = await verifyCaptureBytes(tiny, sha(tiny), "cdl_front");
+    const result = await verifyCaptureBytes(tiny, sha(tiny), "cdl_front", "image/png");
     expect(result.ok).toBe(true);
   });
 
   it("refuses bytes that are not a picture — the header gives no size", async () => {
     const junk = Buffer.from("not a picture at all");
-    expect(await verifyCaptureBytes(junk, sha(junk), "cdl_front")).toMatchObject({ ok: false, reason: "not_an_image" });
+    expect(await verifyCaptureBytes(junk, sha(junk), "cdl_front", "image/png")).toMatchObject({ ok: false, reason: "not_an_image" });
   });
 
   it("refuses a hash that is not the bytes', before looking at the picture", async () => {
-    expect(await verifyCaptureBytes(tiny, "0".repeat(64), "cdl_front")).toMatchObject({ ok: false, reason: "hash_mismatch" });
+    expect(await verifyCaptureBytes(tiny, "0".repeat(64), "cdl_front", "image/png")).toMatchObject({ ok: false, reason: "hash_mismatch" });
+  });
+});
+
+/** §9 P9: a PDF is sent as the driver holds it — checked for its hash and its signature, never decoded. */
+describe("a PDF", () => {
+  const pdf = Buffer.from("%PDF-1.7\n1 0 obj << /Type /Catalog >> endobj\ntrailer << /Root 1 0 R >>\n%%EOF\n");
+
+  it("takes a PDF whose bytes are the ones sent, and measures nothing — a scan has no camera", async () => {
+    const result = await verifyCaptureBytes(pdf, sha(pdf), "training_certificate", "application/pdf");
+    expect(result).toMatchObject({ ok: true, bytes: pdf.byteLength, metrics: null });
+  });
+
+  it("refuses bytes sent as a PDF that are not one", async () => {
+    expect(await verifyCaptureBytes(tiny, sha(tiny), "medical_card", "application/pdf")).toMatchObject({ ok: false, reason: "not_a_pdf" });
+  });
+
+  it("refuses a PDF whose hash is not the bytes'", async () => {
+    expect(await verifyCaptureBytes(pdf, "0".repeat(64), "passport", "application/pdf")).toMatchObject({ ok: false, reason: "hash_mismatch" });
   });
 });
 

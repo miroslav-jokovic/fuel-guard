@@ -56,6 +56,7 @@ import { verifyCaptureBytes } from "./captureVerification.js";
 interface CaptureRow {
   id: string;
   slot: ApplicationCaptureSlot;
+  ordinal: number | null;
   storage_path: string;
   content_type: ApplicationCaptureContentType;
   bytes: number | null;
@@ -63,7 +64,7 @@ interface CaptureRow {
   captured_at: string;
 }
 
-const CAPTURE_COLUMNS = "id, slot, storage_path, content_type, bytes, sha256, captured_at";
+const CAPTURE_COLUMNS = "id, slot, ordinal, storage_path, content_type, bytes, sha256, captured_at";
 
 /**
  * The three refusals every capture call shares with every other write on this link.
@@ -160,7 +161,7 @@ export async function confirmCapture(
   now: Date,
   /** `verifyCaptureBytes`'s ceiling, a parameter for the same test's reason. */
   maxPixels?: number,
-): Promise<{ slot: ApplicationCaptureSlot; capturedAt: string } | IntakeError> {
+): Promise<{ slot: ApplicationCaptureSlot; ordinal: number; capturedAt: string } | IntakeError> {
   const session = await openSession(admin, token, now, body.slot);
   if (isIntakeError(session)) return session;
 
@@ -184,7 +185,9 @@ export async function confirmCapture(
   // the object's own, which is what makes the row a description of the object rather than of a claim.
   const { data: object, error: readError } = await admin.storage.from(APPLICATION_CAPTURES_BUCKET).download(path);
   if (readError || !object) return CAPTURE_UPLOAD_FAILED;
-  const verified = await verifyCaptureBytes(Buffer.from(await object.arrayBuffer()), body.sha256, body.slot, maxPixels);
+  const verified = await verifyCaptureBytes(
+    Buffer.from(await object.arrayBuffer()), body.sha256, body.slot, body.content_type, maxPixels,
+  );
   if (!verified.ok) {
     console.warn("[capture-verify] refused", { slot: body.slot, reason: verified.reason });
     // Best effort, as with a superseded photo: the nightly sweep collects what this misses.
@@ -206,6 +209,11 @@ export async function confirmCapture(
     p_content_type: body.content_type,
     p_bytes: verified.bytes,
     p_sha256: body.sha256,
+    // §9 P9: 0534's 10-argument overload, which replaces only this (slot, ordinal) — so a second
+    // training certificate stands beside the first, and a re-shot licence still replaces its photo.
+    // The schema has already held the ordinal to the slot's limit (`captureOrdinalLimit`); 0534's
+    // CHECK refuses the same thing again in the database.
+    p_ordinal: body.ordinal ?? 0,
   });
   if (error) return { code: "capture_stage_failed", message: error.message };
 
@@ -233,7 +241,7 @@ export async function confirmCapture(
       console.warn("[application] could not remove a superseded capture", { path: replaced });
     }
   }
-  return { slot: body.slot, capturedAt: String(row?.captured_at ?? now.toISOString()) };
+  return { slot: body.slot, ordinal: body.ordinal ?? 0, capturedAt: String(row?.captured_at ?? now.toISOString()) };
 }
 
 /**
@@ -257,6 +265,7 @@ export async function listCaptures(
     .eq("invitation_id", invitationId);
   return ((data ?? []) as CaptureRow[]).map((row) => ({
     slot: row.slot,
+    ordinal: row.ordinal ?? 0,
     contentType: row.content_type,
     bytes: row.bytes,
     capturedAt: row.captured_at,

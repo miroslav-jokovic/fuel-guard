@@ -56,10 +56,12 @@ describe("each task's status", () => {
     expect(taskStatus("employment", d, AS_OF, NONE)).toBe("in_progress");
   });
 
-  it("counts the photographs from what is on file", () => {
+  it("counts the documents from what is on file — one paper sent is the task done (§9 P9)", () => {
     const cap = (slot: string): ApplicationCaptureView => ({ slot, contentType: "image/webp", bytes: 1, capturedAt: "2026-09-20T00:00:00Z" }) as ApplicationCaptureView;
     expect(taskStatus("documents", emptyDraft(), AS_OF, [])).toBe("not_started");
-    expect(taskStatus("documents", emptyDraft(), AS_OF, [cap("cdl_front")])).toBe("in_progress");
+    // The licence came with Part 1: it is shown on the list, and is not this task's doing.
+    expect(taskStatus("documents", emptyDraft(), AS_OF, [cap("cdl_front"), cap("cdl_back")])).toBe("not_started");
+    expect(taskStatus("documents", emptyDraft(), AS_OF, [cap("cdl_front"), cap("twic")])).toBe("completed");
   });
 });
 

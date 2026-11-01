@@ -151,6 +151,8 @@ export async function getComplianceOverview(
      * hundred URLs for a reader who will never open one.
      */
     withPapers?: (kind: string) => boolean;
+    /** Q-WF4 (§9 P9): which papers' thumbnails this reader may be handed (`canSeePaperImage`). */
+    imageVisible?: (kind: string) => boolean;
   } = {},
 ): Promise<ComplianceOverview> {
   const [drivers, certs, records, docs, hazmatRes] = await Promise.all([
@@ -215,7 +217,7 @@ export async function getComplianceOverview(
   const recordsBy = groupBy(records, (r) => r.driver_id);
   const docsBy = groupBy(docs, (d) => d.subject_id);
   // Nothing is signed unless papers were asked for: `paperThumbsBySubject` is the only Storage call here.
-  const papersBy = opts.withPapers ? await paperThumbsBySubject(admin, docs as PaperDocRow[], opts.withPapers) : null;
+  const papersBy = opts.withPapers ? await paperThumbsBySubject(admin, docs as PaperDocRow[], opts.withPapers, opts.imageVisible) : null;
 
   const out: DriverOverview[] = drivers.map((d) => {
     const file = buildDqFile({

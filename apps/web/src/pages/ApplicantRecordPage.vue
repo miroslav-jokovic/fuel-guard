@@ -8,6 +8,7 @@ import PageHeader from "@/components/ui/PageHeader.vue";
 import ExplainerPanel from "@/components/ui/ExplainerPanel.vue";
 import { QueryState, NotFoundError, isNotFound } from "@silvicom/ui";
 import DispositionSection from "@/features/recruitment/DispositionSection.vue";
+import ApplicantDocumentsSection from "@/features/recruitment/ApplicantDocumentsSection.vue";
 import HiringChecklistCard from "@/features/recruitment/HiringChecklistCard.vue";
 import HiringStepDrawer from "@/features/recruitment/HiringStepDrawer.vue";
 import HireDrawer from "@/features/recruitment/HireDrawer.vue";
@@ -206,6 +207,9 @@ function openOrder(medstopId: string): void {
           wait for the applicant's consent.
         </p>
       </ExplainerPanel>
+
+      <!-- §9 P9: the applicant's papers, and the office's upload beside them. -->
+      <ApplicantDocumentsSection :driver-id="id" />
 
       <!-- Not a step: how an application ENDS without a hire (0238). See the header for why it did not
            go behind a row. -->
