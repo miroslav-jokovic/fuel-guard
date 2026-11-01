@@ -433,3 +433,17 @@ blocking step in §3 above.
   stores no plaintext token (envelope-shape CHECK), and keeps every cross-table reference inside
   one org (composite FKs). Matrix `ads-foundation.test.mjs` 71/71; three guard mutations each went
   red. Correction §1.2-9: the recruiting tables move to a new step D0.
+- **2026-11-01, A3a + A3b** — A3a (#1898): `campaignMachine` (924 state × event × actor triples
+  enumerated), `adsPolicy` (the monthly cap checked against a month-end forecast; account-limit
+  fence; raise bounds; the authority table), the settings contract (nothing in force until saved),
+  `AdBriefSource` / `LeadSink`, and a parity test holding the shared lists to 0537's CHECKs. A3b:
+  `adClaims` (every digit in the copy must be a figure the brief holds — money, a number with a unit,
+  an age floor, a listed promise — in English and Spanish, spelled numbers included; protected-class
+  wording refused), `presetDraw` (seeded Fisher–Yates over FNV-1a + mulberry32, live presets for the
+  same brief excluded, uniformity held over 6,000 fixed seeds; `fnv1a32` factored out of `ai.ts`
+  rather than copied), `naming` (`S360|…` names that round-trip; anything else parses to null for
+  D-AD4's reconcile), `renderGeometry` (safe zones, WCAG contrast over the worst sampled pixel,
+  overflow refused) and `adsReport` (spend and lead-cohort folds, the month in Central time).
+  ⚠ The forbidden-wording and promise-term lists are a first cut for counsel (G12, Q-AD8): "criminal
+  record" and "conviction" are refused outright, which also refuses "no DUI convictions"; counsel
+  decides whether a driving-record clause is allowed and in which words.
