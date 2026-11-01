@@ -58,6 +58,22 @@ does not need to.
    Manager must grant our app.
 4. **Every per-object job carries a `dedup_key`** (M4). Without it, the second campaign of an org
    waits behind the first.
+5. **(A1, 2026-11-01) `ads_approvals` is added to A2.** A5's "launch without an approval row is
+   refused" needs a row to look for, and A2's list had no table for it. Append-only: an approval
+   is evidence of who allowed which spend; a withdrawal is a new row.
+6. **(A1) The ads module's AI provenance is `ad_generations`, not `recruiting_ai_outputs`.** A4
+   said the provenance writer writes `recruiting_ai_outputs`; under D-AD17 `ads` may not write a
+   recruiting table (D-ARC3). The generic rail takes its provenance writer from the caller.
+7. **(A1) The ads schedulers run in the `general` lane, not `egress`.** `egress` exists for the
+   one host WEX allowlists (`schedulers.ts`: the SOAP poller, card sync, mTLS watcher, EFS
+   re-fetch); FleetPal and Med-Stop, which also call vendors, are `general`. Meta, TikTok, X and
+   Higgsfield check no caller address. Recorded in `docs/WORKER-DEPLOYMENT.md`.
+8. **(A1) There is no `APP_ENVIRONMENT` variable.** The handoff and §4R named one; measured, the
+   environment name is `RAILWAY_ENVIRONMENT_NAME ?? DEPLOY_ENVIRONMENT`
+   (`apps/api/src/lib/schedulerLease.ts:234`; AWS sets `DEPLOY_ENVIRONMENT` from
+   `infra/server/<env>.env`). Step 7 moves that expression into one helper and the simulator
+   guard reads it, failing closed: allowed only for a known non-production name, or with both
+   unset and `NODE_ENV` ≠ `production`.
 
 ### 1.3 New decision
 
@@ -165,11 +181,11 @@ template headings, the mutation that went red, CI green, merged by hand, staging
 | Step | What | Files | Blocked by | Done when |
 |---|---|---|---|---|
 | **A1** docs | D-AD17 recorded; `docs/ARCHITECTURE.md` module row `ads` + table ownership; `docs/WORKER-DEPLOYMENT.md` lists the new schedulers' lane | docs | — | Merged |
-| **A2** migration | All tables (plan §4.1 + v2/v4 additions): `ads_platform_connections` (sealed), `ads_campaigns`, `ads_creatives`, `ad_generations` (append-only), `ads_actions` (append-only), `ads_spend_hourly`, `ads_settings_versions`, `ad_brand_kits(+versions)`, `ad_concept_presets(+versions)`, `ads_outcome_events` (append-only), `recruiting_openings(+versions)`, `hiring_profiles(+versions)`, `recruiting_leads`, `recruiting_contacts` (append-only), `lead_match_verdicts`, `lead_conversions`, `recruiting_ai_outputs`; notification CHECK = 0521's list + 8 categories; RLS on, service-role only, `forbid_org_change()`; matrix `supabase/tests/ads_append_only.test.mjs` | `supabase/migrations/05xx_ads_foundation.sql`, `scripts/table-modules.json`, retention registry | — | `check-rls`, `lint:migrations`, `lint:table-modules`, `lint:table-lifecycle` green; matrix prints `RESULT` and refuses UPDATE/DELETE on the four ledgers |
+| **A2** migration | All tables (plan §4.1 + v2/v4 additions): `ads_platform_connections` (sealed), `ads_campaigns`, `ads_creatives`, `ad_generations` (append-only), `ads_actions` (append-only), `ads_spend_hourly`, `ads_settings_versions`, `ad_brand_kits(+versions)`, `ad_concept_presets(+versions)`, `ads_outcome_events` (append-only), `ads_approvals` (append-only; §1.2-5), `recruiting_openings(+versions)`, `hiring_profiles(+versions)`, `recruiting_leads`, `recruiting_contacts` (append-only), `lead_match_verdicts`, `lead_conversions`, `recruiting_ai_outputs`; notification CHECK = 0521's list + 8 categories; RLS on, service-role only, `forbid_org_change()`; matrix `supabase/tests/ads_append_only.test.mjs` | `supabase/migrations/05xx_ads_foundation.sql`, `scripts/table-modules.json`, retention registry | — | `check-rls`, `lint:migrations`, `lint:table-modules`, `lint:table-lifecycle` green; matrix prints `RESULT` and refuses UPDATE/DELETE on the five ledgers |
 | **A3** shared | `packages/shared/src/ads/*` + `recruiting/leads/*` (§2) with boundary tests: caps at −1/0/+1, raise limit, claim check (planted figure fails), presetDraw reproducible from seed and never repeats a live preset, naming round-trip, `campaignMachine` rejects every illegal transition, `leadMatch` edges (22/23 y, 23/24 months, each look-back), cohort fold greys young cohorts | shared | A2 (types only) | `pnpm test` + `lint:boundaries` + `lint:shared-contracts` green |
-| **A4** AI rail | `callClaude` takes the tool schema as an argument (fuel caller passes its own); generic `aiInputHash`; provenance writer to `recruiting_ai_outputs`; per-agent switch + monthly budget (`withinBudget`) | `apps/api/src/lib/anthropic.ts`, `shared/ai.ts` | — | Fuel tests unchanged and green; a budget-exhausted call records `budget_exhausted` |
+| **A4** AI rail | `callClaude` takes the tool schema as an argument (fuel caller passes its own); generic `aiInputHash`; provenance writer passed in by the caller (ads → `ad_generations`, recruiting → `recruiting_ai_outputs`; §1.2-6); per-agent switch + monthly budget (`withinBudget`) | `apps/api/src/lib/anthropic.ts`, `shared/ai.ts` | — | Fuel tests unchanged and green; a budget-exhausted call records `budget_exhausted` |
 | **A5** guard | `ADMIN_ONLY_CAPABILITIES` += `ads.connection`, `ads.spend` (with reasons); `budgetGuard` (the only exported path to adapter spend methods — enforced by a test that greps adapter imports), kill switch, approvals service, settings-versions API | `namedGrants.ts`, `modules/ads/guard/*`, `settings/*` | A2, A3 | `routeGateLedger.test.ts` green both ways; cap+1 refused; kill switch blocks a launch in a test |
-| **A6** orchestrator spine | Runner for `campaignMachine`: job kinds `ads_step` with `dedup_key` = campaign id + state (M4), `KIND_CAPS` entries, leased scheduler `ads-orchestrator` (lane `egress`), failure → terminal state visible | `modules/ads/orchestrator/*`, `worker.ts`, `schedulers.ts`, `jobs.ts` | A3, A5 | Two campaigns in one org advance concurrently (test); a crashed step resumes once (at-least-once + idempotent) |
+| **A6** orchestrator spine | Runner for `campaignMachine`: job kinds `ads_step` with `dedup_key` = campaign id + state (M4), `KIND_CAPS` entries, leased scheduler `ads-orchestrator` (lane `general`; §1.2-7), failure → terminal state visible | `modules/ads/orchestrator/*`, `worker.ts`, `schedulers.ts`, `jobs.ts` | A3, A5 | Two campaigns in one org advance concurrently (test); a crashed step resumes once (at-least-once + idempotent) |
 
 ### Phase B — Meta adapter (build on fixtures from day 2; live checks need G1)
 
@@ -286,7 +302,7 @@ a PR that review sees.
 | `FakeClock` | Drives schedulers and the orchestrator through simulated days in seconds | — |
 | `packages/ads-golden` | Scenario package: each scenario is a JSON timeline (settings, opening, platform events, insight curves, leads, faults) + the expected ledger and alerts. Runs in CI | `packages/hazmat-golden` |
 | Claude replay + live eval | CI replays recorded model outputs (deterministic, free). `pnpm ads:eval <worker>` calls the real model on the evaluation set and reports agreement; required before a prompt or model version ships | `apps/api/src/scripts/replayDocumentReads.ts` |
-| **Simulator platform** | An adapter backed by `FakeMeta`, selectable only when `APP_ENVIRONMENT` ≠ production (a test proves production cannot select it). The whole product runs end to end on staging, so the owner walks it before any credential exists | — |
+| **Simulator platform** | An adapter backed by `FakeMeta`, selectable only on a positively non-production environment, fail-closed (§1.2-8; a test proves production and an unknown name cannot select it). The whole product runs end to end on staging, so the owner walks it before any credential exists | — |
 
 ### What each worker must survive (L2) and score (L3)
 
@@ -395,3 +411,9 @@ blocking step in §3 above.
   `HANDOFF-2026-11-01-ADS-STAGE1.md`: the read-first list, every owner ruling, steps 1–11 in
   order with the traps measured on main `cb6fc2c` (last migration 0536; HW program PR #1883 open),
   what is out of Stage 1, and the owner's parallel track. **Nothing built.**
+- **2026-11-01, A1** — Stage 1 started in the planning chat (owner: "proceed"). Main `74b0202`,
+  last migration `0536_hire_policy.sql`; release candidate #1890 pins its SHA, so these merges ride
+  the next train. A1: `ads` row and D-AD17 in `docs/ARCHITECTURE.md` (with the recruiting tables
+  planned under `recruiting`), the ads schedulers in `docs/WORKER-DEPLOYMENT.md`. Measuring for A1
+  found four corrections (§1.2-5…8): an `ads_approvals` table A2 lacked, ads AI provenance in
+  `ad_generations`, lane `general` not `egress`, and no `APP_ENVIRONMENT` variable.

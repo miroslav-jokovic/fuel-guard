@@ -121,6 +121,25 @@ three files from `compliance-exports` (`<org>/chat/<export>/`) seven days after 
 `chat_exports` row purged; the row, its hashes and its ledger entry stay. Hourly, first tick four minutes
 after boot, the `dq-export-sweeper` shape. A bounded indexed read that returns nothing on almost every run.
 
+**Ads (`ads-orchestrator`, `ads-insights`, `ads-leads-backfill`, `ads-reconcile`; general lane; planned
+2026-11-01, D-AD16/D-AD17, `docs/plans/recruitment/ADS-AGENT-BUILD-WORKFLOW.md` A6/B4/B5).** The
+`general` lane, not `egress`: `egress` exists for the one host WEX allowlists, and Meta, TikTok, X
+and Higgsfield check no caller address, so these follow FleetPal and Med-Stop's placement, not the
+EFS poller's. They follow FleetPal's three rules as well: **off** unless `ADS_ENABLED=true` on the
+service that holds `general`; one `KIND_CAPS` entry per vendor kind in `worker.ts` (Meta and
+Higgsfield at 1); and every job that acts on ONE campaign, creative or generation carries
+`dedup_key` = that object's id. ⚠ That last rule is not style: the `jobs` ledger allows one
+active job per `(org_id, kind)` when `dedup_key` is null (`0095_jobs_queue.sql:21`), so without it
+an org's second campaign would wait silently behind its first. The orchestrator tick only
+enqueues; it never calls a vendor itself, so a tick on a standby that loses the lease mid-run
+leaves at most a queued job, which the next holder runs once. On a non-production host with no
+platform connected, the simulator platform (workflow §4R) stands in. It fails closed: it runs
+only where the environment name — `RAILWAY_ENVIRONMENT_NAME ?? DEPLOY_ENVIRONMENT`, the expression
+`lib/schedulerLease.ts:234` already reads, moved into one helper rather than restated — is
+positively a non-production one, or both are unset and `NODE_ENV` is not `production` (a laptop,
+CI). AWS production sets `DEPLOY_ENVIRONMENT=production` (`infra/server/production.env`); an
+unknown name is treated as production.
+
 ## Safety model
 - The `jobs` ledger (partial unique index on `(org_id, kind)`) already prevents two concurrent runs of the
   same per-org work across processes.

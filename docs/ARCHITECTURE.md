@@ -123,7 +123,8 @@ Harness modules read core through owners' interfaces, own their feature-specific
 | `idle` (carved 2026-08-26, `apps/api/src/modules/idle/`) | `idle_events`, `idle_park_sessions`, `idle_rollup_days`, `idle_settings`, `idle_telemetry_windows`, `vehicle_engine_days`, `weather_cache` — sync and rollup deliberately together; the collector/harness seam inside idle runs through shared windows and evidence versions | fleet, dashboard |
 | `performance` (carved 2026-08-27, `apps/api/src/modules/performance/`) | `driver_scores`, `driver_performance_weeks`, `driver_performance_settings` | drivers; driver-app score |
 | `compliance` (DQF, binders) | (reads `evidence`; folded INTO `evidence` at the carve-out — binder rendering lives at `modules/evidence/dqBinder/`, routes mounted as `complianceRouter`; corrected 2026-08-27, the old `services/dqBinder/` path is dead) | compliance |
-| `recruiting` (carved 2026-08-27, `apps/api/src/modules/recruiting/`) | `driver_applications`, `application_drafts`, `application_invitations`, `application_captures`, `applicant_dispositions`, `employer_inquiries`, `driver_employment_history`, `esign_consents`, `sms_consents`, `seven_day_statements`, `driver_authorizations` (transferred from `psp` 2026-08-27 — recruiting is its only writer) | recruitment, apply |
+| `recruiting` (carved 2026-08-27, `apps/api/src/modules/recruiting/`) | `driver_applications`, `application_drafts`, `application_invitations`, `application_captures`, `applicant_dispositions`, `employer_inquiries`, `driver_employment_history`, `esign_consents`, `sms_consents`, `seven_day_statements`, `driver_authorizations` (transferred from `psp` 2026-08-27 — recruiting is its only writer). **Planned 2026-11-01 (D-AD17, `docs/plans/recruitment/ADS-AGENT-BUILD-WORKFLOW.md` A2):** `hiring_profiles` + `hiring_profile_versions`, `recruiting_openings` + `recruiting_opening_versions`, `recruiting_leads`, `recruiting_contacts` (append-only), `lead_match_verdicts`, `lead_conversions`, `recruiting_ai_outputs` — written from `modules/recruiting/leads/`, which implements the two seams `ads` defines (`AdBriefSource`, `LeadSink`) | recruitment, apply |
+| `ads` (planned 2026-11-01, D-AD17; `apps/api/src/modules/ads/`, build steps A1–F1 of `docs/plans/recruitment/ADS-AGENT-BUILD-WORKFLOW.md`) | `ads_platform_connections` (sealed tokens, one per org × platform), `ads_settings_versions` (append-only; newest row is current, kill switch included), `ad_brand_kits` + `ad_brand_kit_versions`, `ad_concept_presets` + `ad_concept_preset_versions`, `ads_campaigns`, `ads_creatives`, `ads_approvals` (append-only), `ads_actions` (append-only — every vendor call that can move money or delivery), `ad_generations` (append-only — every Claude and Higgsfield call, the ads module's AI provenance), `ads_spend_hourly`, `ads_outcome_events` (append-only) | ads (settings, brand kit + presets, campaign flow); the leads queue is recruitment's |
 | `hazmat` (carved 2026-08-27, `apps/api/src/modules/hazmat/`) | `hazmat_loads`, `hazmat_documents`, `hazmat_policies`, `hazmat_reviews`, `hazmat_runs` | hazmat |
 | `dispatch` | (reads `loads`; carved UNDER `loads` — code lives at `modules/loads/dispatchLoads/`, mounted as `dispatchRouter`; corrected 2026-08-27) | dispatch |
 | `messaging` (carved 2026-08-27, `apps/api/src/modules/messaging/` — took `device_push_tokens` from driver-app parking, its writers live here) | `message_threads`, `messages`, `message_reports`, `thread_participants`, `notification_events`, `notification_preferences`, `notification_reads`, `notification_dedupe_keys` | messages; driver-app messages |
@@ -141,6 +142,18 @@ this matrix records ownership, not endorsement.
 This matrix is the **initial assignment**, made from the audit's read of who actually writes
 what. A carve-out PR may move a table with a stated reason — what it may not do is leave a table
 unowned or co-owned.
+
+**D-AD17 (2026-11-01) · `ads` is industry-neutral; recruiting plugs into it through two
+interfaces.** `ads` knows platforms, campaigns, creatives, spend, rules, outcome feeds and the
+orchestrator, and nothing about drivers: no `ads` file imports `modules/recruiting`, and no `ads`
+table has a `drivers` or `driver_applications` FK. What it advertises arrives as an
+`AdBriefSource` (an opening's facts, allowed claims, area and form questions); every platform lead
+leaves as a call to a `LeadSink`, which hands stage changes back for the outcome feed. Both
+interfaces live in `packages/shared/src/ads/contracts.ts`; recruiting implements both in
+`modules/recruiting/leads/`. A second brief source (a fuel-card offer, a customer campaign) plugs
+into the same module. The ads module's AI provenance is `ad_generations`, not
+`recruiting_ai_outputs` — a model call made to compose an ad is an ads fact, and writing it into a
+recruiting table would be the cross-module write D-ARC3 forbids.
 
 ## 5. Migration strategy — strangler, not rewrite (D-ARC4)
 
