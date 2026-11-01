@@ -1,6 +1,6 @@
 # Ads agent — the build workflow, step by step, with every gap and blocker named · 2026-11-01
 
-**Status: PROPOSED 2026-11-01. Nothing built.** This is the executable companion to
+**Status: PROPOSED 2026-11-01; v2 the same day: agents first, credentials last, a readiness suite (§4R) gates every real case. Nothing built.** This is the executable companion to
 `ADS-AGENT-PLAN.md` (v1–v5, #1864–#1868). The plan says *what* and *why*. This document says *in
 which order, from which files, blocked by what, and how each step proves it is done*. Where the
 two differ, this document is newer and says so (§1.2).
@@ -237,32 +237,96 @@ template headings, the mutation that went red, CI green, merged by hand, staging
 
 ---
 
-## 5. Critical path and calendar (if the Day-0 inputs arrive by Tuesday 11/03)
+## 4R. Agents first, credentials last — and a readiness suite before any real case (v2, owner 2026-11-01)
+
+The owner, 2026-11-01: *build the agents first and add the social-network credentials after;
+we want tests that make sure each agent and the orchestrator are production ready before we
+test in a real situation.* **Agreed. The code already allows it:** only the four platform
+adapters and the Higgsfield client need a vendor credential. Everything else (the orchestrator,
+the Brief, Copywriter, Art director, Checker, Budget guard, Monitor, Lead intake, Outcome feed and
+Analyst workers, the settings, the screens) is built and proven against fakes. The Anthropic key
+the API already uses is enough for the Claude workers' evaluations.
+
+**What "100 % production ready" can honestly mean.** No test suite can prove how Meta or TikTok
+will behave tomorrow. What this suite proves:
+- every rule we wrote holds, and each test has been shown to fail when its rule is broken
+  (mutation);
+- every failure we can name has been injected and survived: vendor errors, crashes, double
+  delivery, an expired token, the kill switch;
+- every fake we test against matches the real vendor. The *same* contract tests run against the
+  real sandbox the day the credentials arrive, so a fake built on a misreading of the docs is
+  caught there, not in production.
+
+The first real campaign is then still created paused and launched by a person under a small cap.
+That is "production ready" with the residual risk named, not hidden.
+
+### The readiness levels (every worker and the orchestrator climb them in order)
+
+| Level | Name | What proves it | Needs credentials? |
+|---|---|---|---|
+| **L1** | Unit-proven | Contract + boundary tests; each guard's mutation listed in its PR and shown red | no |
+| **L2** | Fault-proven | Runs against the fakes with injected failures (table below); no double spend, no lost lead, no silent failure | no |
+| **L3** | Scenario-proven | Golden scenarios (orchestrator) / evaluation set at its threshold (Claude workers) | no (Claude workers use the existing Anthropic key) |
+| **L4** | Sandbox-certified | The **same** contract suite re-run with `ADS_TARGET=sandbox` against Meta's sandbox ad account, TikTok's test account and a small Higgsfield API budget; every recorded fixture re-recorded and diffed | **yes — this is where credentials enter** |
+| **L5** | Canary | One real campaign, small cap, created paused, launched by the owner; 72 h with zero unexplained reconcile rows | yes |
+
+**The gate:** `lint:ads-readiness` (new, in `gates`, added to `ci.yml` in the same PR, written on
+the pattern of `lint:reader-gate`). It holds a `REQUIRED` list per worker and level (file + test
+titles) and fails `build` if a listed test is missing, renamed, skipped, focused or `todo`.
+`pnpm ads:readiness` prints the scorecard (worker × level). **Production launch (L5) is refused in
+code** unless the scorecard shows L4 for every worker the campaign uses: the Launch route reads
+the scorecard committed at the deployed sha. Retiring a required test means editing that list in
+a PR that review sees.
+
+### The harness (built in Stage 1; no new dependencies)
+
+| Piece | What it is | Pattern it copies |
+|---|---|---|
+| `FakeMeta`, `FakeTikTok`, `FakeHiggsfield` | In-process `node:http` servers implementing exactly the endpoints our adapters call, with the documented request/response shapes, signed webhooks, and **fault injection** per call: 429 + `x-business-use-case-usage`, 5xx, timeout, error 2703, token expired/revoked, half-created objects, duplicate webhook, out-of-order webhook, a lead the webhook never sends | the Samsara/Telnyx signature tests |
+| `FakeClock` | Drives schedulers and the orchestrator through simulated days in seconds | — |
+| `packages/ads-golden` | Scenario package: each scenario is a JSON timeline (settings, opening, platform events, insight curves, leads, faults) + the expected ledger and alerts. Runs in CI | `packages/hazmat-golden` |
+| Claude replay + live eval | CI replays recorded model outputs (deterministic, free). `pnpm ads:eval <worker>` calls the real model on the evaluation set and reports agreement; required before a prompt or model version ships | `apps/api/src/scripts/replayDocumentReads.ts` |
+| **Simulator platform** | An adapter backed by `FakeMeta`, selectable only when `APP_ENVIRONMENT` ≠ production (a test proves production cannot select it). The whole product runs end to end on staging, so the owner walks it before any credential exists | — |
+
+### What each worker must survive (L2) and score (L3)
+
+| Worker | Injected faults / adversarial inputs (L2) | Evaluation or scenario bar (L3) |
+|---|---|---|
+| **Orchestrator** | Process killed **after every side effect** (each state × each vendor call) then restarted; the same job delivered twice; two campaigns in one org at once (M4); kill switch pressed in **every** state; approval missing; budget exhausted mid-step; settings changed mid-run | Every (state, event) pair enumerated: legal ones advance, illegal ones refuse (exhaustive, the machine is finite); 0 duplicate vendor creates (idempotency keys) across all crash points; golden scenarios green |
+| **Budget guard** | Cap −1/0/+1; concurrent launches racing the cap; a raise just over the limit; clock at month boundary (Central time); kill switch while a call is in flight | 100 % of spend calls pass through it: a test fails if any adapter spend method is imported outside `guard/` |
+| **Publisher (per adapter)** | 429/5xx/timeout on each create step; half-created campaign (campaign yes, ad set no) → resumed, never duplicated; token revoked → stops + alert | Contract suite green on the fake (L2) and on the sandbox (L4) |
+| **Monitor** | Insights late, missing hours, numbers revised downward by the platform; an Ads-Manager edit; 30 simulated days with fatigue, overspend, zero-lead spend | Golden scenarios: each rule fires exactly at its threshold and minimum spend, never on a learning-phase ad set except caps; reconcile flags every planted mismatch and nothing else |
+| **Lead intake** | Forged signature; duplicate webhook; webhook lost (backfill must bring it); same person on two platforms; malformed phone; prompt-injection text in a lead's free-text answer | 0 lost, 0 duplicated leads over the scenario set; injection text never reaches an action (extractor output stays `proposed`) |
+| **Outcome feed** | Replay of the same stage; a stage arriving after 28 days; platform refuses an event | Exactly one accepted event per stage row |
+| **Copywriter** (Claude) | Brief missing pay; brief in Spanish; brief containing an instruction ("ignore the rules…"); a preset whose slots are too short | Evaluation set (≥ 40 briefs × presets, EN + ES, written in Stage 1): **0 claims outside the brief reach review** (enforced by the pure claim checker, so this bar is absolute); human-rated "approve without edit" rate recorded as the baseline |
+| **Art director** (Claude) | Brand kit missing photos; a preset showing people while the people policy is "none" | Every prompt ends with the no-lettering clause and uses a reference photo when the preset shows equipment (pure check, absolute) |
+| **Checker** (Claude vision + pure) | **Planted-defect corpus**: images with lettering, a foreign logo, the wrong truck type, malformed people, overlay outside its safe zone, low contrast — generated for evaluation with the existing Higgsfield CLI login (developer use, not production) | Pure checks (geometry, contrast, length, claims) catch 100 % of their planted defects. The vision checklist's recall per defect type is measured and shown, and an owner-set threshold gates L3. Because a model's recall is never assumed perfect, **a person still approves every creative** (D-AD12) |
+| **Analyst** (Claude narration) | A fold with a zero, a negative revision, a young cohort | 0 numbers in the narration that the fold did not produce (claim checker, absolute) |
+| **Renderer / Higgsfield client** | Webhook never arrives (poll recovers); output URL expired; replay with the same idempotency key; credit budget exhausted | 0 double charges across replays (fake counts submits); every stored asset matches its sha256 |
+| **Security (all)** | Token in a log line; token in an API response; a cross-org read; a non-admin hitting Connect or Launch | Each is a test that fails on the leak (`expectOrgScoped`, log scrape, response scrape, `routeGateLedger.test.ts`) |
+
+---
+
+## 5. Critical path and calendar (v2: credentials leave the critical path until Stage 2)
 
 Releases run Sunday–Thursday nights at 01:07 CT, on the owner's approval. Merges reach staging in
 minutes on any day.
 
-| Day | Build (merges) | Owner / vendors (parallel) |
-|---|---|---|
-| **Sun 11/01** | this workflow · V6, V7 | O1 Meta setup (click-path in §6) · G2 Higgsfield API key · G7 TikTok app · G8 X contact · Tenstreet/Indeed emails |
-| **Mon 11/02** | A1, A2, A3 (release Mon night → schema in production) | G3 brand kit, G4 first opening, G5 values, G6 presets |
-| **Tue 11/03** | A4, A5, A6 · V1–V4 as soon as G1/G2 exist | |
-| **Wed 11/04** | B1, B2, C1, C3 | |
-| **Thu 11/05** | B3, B4, C2, C4 | |
-| **Fri 11/06** | B5, C5, D1 (if HW merged), E1 | |
-| **Sat 11/07** | E2, E3, E4, D2, E5, F1 · G-walk on staging | |
-| **Sun 11/08** | G-sec fixes, G-runbook · **release Sun night** | owner's staging walk |
-| **Mon 11/09** | **G-launch: Meta stills in production** | |
-| **Tue 11/10** | C6 video, B6 outcome feed, D3 mailbox · release Tue night | |
-| **Wed 11/11** | Video live | |
-| **from ~11/05** | H1 TikTok the day after its app is approved | |
+| Stage | When | Work | Exit criterion |
+|---|---|---|---|
+| **Stage 1 — build + prove, no credentials** | Mon 11/02 → Sat 11/07 | A1–A6 · harness (fakes, FakeClock, `ads-golden`, simulator) · workers on fakes: B1–B5 + C1–C5 + D1–D2 + F1 against fakes · evaluation sets + `pnpm ads:eval` · E1–E5 on the simulator · `lint:ads-readiness` | Scorecard shows **L3 for every worker**; owner walks the full flow on staging in simulation mode |
+| Release | Sun 11/08 night | everything above to production, **with no platform connected** (Launch refuses: no L4) | `verify:live` shows the release |
+| **Stage 2 — credentials + certification** | from Mon 11/09 (or the day the owner's setup is done, if later) | owner connects Meta sandbox + real account, Higgsfield API key; V1–V4; L4 contract suite on the sandbox; fixtures re-recorded and diffed; any difference fixed and re-certified | Scorecard shows **L4** for every worker the first campaign uses |
+| **Stage 3 — canary** | the day after L4 (earliest Tue 11/10) | first opening, limits saved, presets approved, one Meta stills campaign at a small cap, launched by the owner | 72 h, zero unexplained reconcile rows, first lead reached a recruiter → **L5** |
+| Video, outcome feed, mailbox | after the canary | C6, B6, D3 — each climbs L1→L4 the same way | — |
+| TikTok, X | when each platform grants access | H1, H2 — adapter + its L4 against that platform's sandbox/test account | — |
 
-**What moves the date, plainly:** every Day-0 input not in by Tuesday moves the step it blocks by
-the same number of days. G1 (Meta) moves the whole launch; G2/G3 move creative; G4/G5 move only
-the launch itself. A release the owner does not approve moves everything a day. A step that fails
-its *done when* is not merged. **11/09 is a target with these conditions, not a promise.**
-
----
+**What this changes against v1 of this calendar:** the first real ad moves from Mon 11/09 to the
+day after L4 (earliest **Tue 11/10–Wed 11/11**). In exchange, the owner's Meta, Higgsfield, TikTok
+and X setup is no longer on the critical path until 11/09, and nothing reaches a real platform
+before it has been proven against a fake **and** certified against that platform's sandbox. **What
+still moves the date:** a Stage-1 worker that does not reach L3 (it is not merged around), the
+setup not done by 11/09 (Stage 2 starts the day it is), and an unapproved release night.
 
 ## 6. Day-0 click-path for the owner (Meta, the one that gates the launch)
 
@@ -317,3 +381,13 @@ blocking step in §3 above.
   Page token derived from the system user. 18 gaps/blockers + 7 unverified facts registered, each
   with its blocking step and fallback; 7 verification steps run before anything depends on them.
   **Nothing built.**
+- **2026-11-01, v2** — Owner: build the agents first, add social credentials after; tests must
+  prove each agent and the orchestrator production ready before any real case. Added §4R:
+  readiness levels L1–L5, `lint:ads-readiness` (reader-gate pattern) with Launch refused in code
+  below L4, fakes with fault injection, `packages/ads-golden` (hazmat-golden pattern), Claude
+  replay + live eval (replayDocumentReads pattern), a simulator platform for staging only, and
+  per-worker fault and evaluation bars. The same contract suite runs on the fakes and later on
+  the sandboxes, so a fake built on a misread doc is caught before production. Calendar v2: Stage
+  1 (no credentials) through Sat 11/07; Stage 2 certification from Mon 11/09; canary earliest Tue
+  11/10–Wed 11/11. Measured: no fast-check/msw/nock installed, so state-machine pairs are
+  enumerated exhaustively and fakes are `node:http`. **Nothing built.**
