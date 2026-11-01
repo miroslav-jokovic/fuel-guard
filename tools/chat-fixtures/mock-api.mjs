@@ -23,8 +23,8 @@ const uuid = (n) => `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
 const people = [
   { user_id: "22222222-2222-4222-8222-222222222222", name: "Marcus Reyes", role: "dispatcher" },
   { user_id: "33333333-3333-4333-8333-333333333333", name: "Dana Whitfield", role: "safety_manager" },
-  { user_id: "44444444-4444-4444-8444-444444444444", name: "Luis Ortega", role: "shop_manager" },
-  { user_id: "55555555-5555-4555-8555-555555555555", name: "Priya Natarajan", role: "accounting" },
+  { user_id: "44444444-4444-4444-8444-444444444444", name: "Luis Ortega", role: "technician" },
+  { user_id: "55555555-5555-4555-8555-555555555555", name: "Priya Natarajan", role: "accountant" },
   { user_id: "66666666-6666-4666-8666-666666666666", name: "Tom Becker", role: "fleet_manager" },
   { user_id: "77777777-7777-4777-8777-777777777777", name: "Elena Vasquez", role: "recruiter" },
 ];

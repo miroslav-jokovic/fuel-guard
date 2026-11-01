@@ -115,9 +115,13 @@ describe("making a team", () => {
     name.dispatchEvent(new Event("input"));
     // The viewer is not offered: they are in the team already.
     expect(dialog.textContent).not.toContain("Me");
-    const ben = [...dialog.querySelectorAll("label")].find((l) => l.textContent?.includes("Ben Dispatch"))!;
-    ben.querySelector<HTMLInputElement>("input[type=checkbox], button[role=checkbox]")!.click();
+    const ben = [...dialog.querySelectorAll<HTMLButtonElement>("button[role=checkbox]")].find((b) => b.textContent?.includes("Ben Dispatch"))!;
+    expect(ben.getAttribute("aria-checked")).toBe("false");
+    ben.click();
     await flushPromises();
+    // Picked: the row says so, and the person shows as a chip that removes them.
+    expect(ben.getAttribute("aria-checked")).toBe("true");
+    expect(dialog.querySelector('button[aria-label="Remove Ben Dispatch"]')).not.toBeNull();
     const make = [...dialog.querySelectorAll("button")].find((b) => b.textContent?.trim() === "Make the team of 2")!;
     make.click();
     await flushPromises();

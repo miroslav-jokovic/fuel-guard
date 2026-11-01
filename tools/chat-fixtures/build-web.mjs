@@ -29,7 +29,7 @@ import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const webRoot = "/Users/miroslavjokovic/Projects/FuelGuard-office-chat/apps/web/";
+const webRoot = fileURLToPath(new URL("../../apps/web/", import.meta.url));
 const envPath = `${webRoot}.env`;
 
 /**
@@ -106,6 +106,6 @@ function run(args) {
 }
 
 env.VITE_DEV_BYPASS = "true";
-env.VITE_SUPABASE_URL = "http://localhost:8080";
-env.VITE_API_URL = "http://localhost:8080";
+env.VITE_SUPABASE_URL = `http://localhost:${process.env.MOCK_PORT ?? 8080}`;
+env.VITE_API_URL = `http://localhost:${process.env.MOCK_PORT ?? 8080}`;
 await run(["build"]);
