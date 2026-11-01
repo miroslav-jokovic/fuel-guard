@@ -63,6 +63,11 @@ moved into the sidebar header (the rail's logo turns into it on hover/focus). Ro
 desk and 44 px on touch (`usePhoneFirst`'s `touch`, and always in the phone drawer). Section headers
 wear the section's icon, the one the rail already shows. `AppShell.vue` 494 → ~360 lines.
 
+**D-SB7 — Ask AI moves from ⌘K to ⌘J.** Ask AI took ⌘K in AUDIT W6 because "no command palette
+exists for it to collide with". The browser pass found both opening at once on one keypress. ⌘K is
+the go-to-page key in nearly every product people already use, so the palette keeps it, and the
+assistant moved to ⌘J, a key AI assistants elsewhere commonly use. Its button label and tooltip say ⌘J.
+
 ## 3. Open questions
 
 - **Q-SB1 — Search records, not just pages?** Typing a unit number, a driver name or a load number
@@ -84,3 +89,8 @@ wear the section's icon, the one the rail already shows. `AppShell.vue` 494 → 
   were verified by script (every snapshot parsed old/new into path → group, label): no role gained
   or lost a page in any of the 32; the only group changes are `/anomalies` and `/idling`; the only
   label changes are the twelve above.
+- **2026-11-01, browser pass** (built app, dev-bypass admin, light/dark, 1440 and 390 wide, the rail
+  and its flyout, the phone drawer, pin → navigate → Pinned + Recent, ⌘K "card" → Enter opened Card
+  control). Found the ⌘K collision (D-SB7), fixed. The Card control page drew its error state in the
+  pass because the stub answered `[]` where the page reads `data.settings`: the fixture, not this
+  branch, which does not touch that page.

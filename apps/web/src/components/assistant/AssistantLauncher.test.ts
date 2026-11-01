@@ -123,9 +123,9 @@ describe("AssistantLauncher", () => {
     w.unmount();
   });
 
-  it("toggles on Ctrl/⌘K and closes on Escape from inside the dock", async () => {
+  it("toggles on Ctrl/⌘J and closes on Escape from inside the dock", async () => {
     const { w } = await mountAt("/");
-    window.dispatchEvent(new KeyboardEvent("keydown", { key: "k", ctrlKey: true }));
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "j", ctrlKey: true }));
     await flushPromises();
     expect(useAssistantStore().open).toBe(true);
     dock()!.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
@@ -136,7 +136,7 @@ describe("AssistantLauncher", () => {
 
   it("does not claim Escape pressed outside the dock", async () => {
     const { w } = await mountAt("/");
-    window.dispatchEvent(new KeyboardEvent("keydown", { key: "k", metaKey: true }));
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "j", metaKey: true }));
     await flushPromises();
     document.body.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
     await flushPromises();

@@ -48,7 +48,7 @@ const visible = computed(() => allowed.value && !onAskPage.value);
 const suggestions = computed(() => suggestionsFor(route.matched.at(-1)?.path ?? route.path));
 
 const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.userAgent);
-const shortcut = isMac ? "⌘K" : "Ctrl K";
+const shortcut = isMac ? "⌘J" : "Ctrl J";
 
 const panel = ref<HTMLElement | null>(null);
 const launcher = ref<HTMLButtonElement | null>(null);
@@ -99,10 +99,16 @@ function hide() {
   nextTick(() => launcher.value?.focus());
 }
 
-/** ⌘K / Ctrl K toggles from anywhere; no command palette exists for it to collide with (AUDIT W6). */
+/**
+ * ⌘J / Ctrl J toggles from anywhere. It was ⌘K (AUDIT W6) while "no command palette exists for it to
+ * collide with"; the sidebar redesign built one (SIDEBAR-REDESIGN-PLAN.md D-SB7), and ⌘K is the
+ * palette's by the convention every reader brings from other software, so the assistant moved one
+ * key along to the one AI assistants elsewhere commonly use. Both handlers listening to one chord
+ * opened both panels at once (browser pass 2026-11-01).
+ */
 useEventListener(window, "keydown", (e: KeyboardEvent) => {
   if (!visible.value) return;
-  if ((e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === "k") {
+  if ((e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === "j") {
     e.preventDefault();
     if (store.open) hide();
     else show();
