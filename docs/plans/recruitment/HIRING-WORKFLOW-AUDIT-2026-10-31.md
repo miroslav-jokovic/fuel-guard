@@ -703,3 +703,19 @@ applicant status page → dispositions → HW8a/b orientation (link list + attes
   handbook_blocks_hire` (default false, Q-WF6). **Departure from §9 P12:** `orientation_blocks_hire`
   and `videos_block_hire` are NOT added — both steps have `evidence: null`, so switching either on
   would refuse every hire forever. They come with HW8's evidence tables. Reader: P12b.
+- **2026-11-01** — **P12a merged (#1878, `6acfd07`), migration `0536_hire_policy`.** As above: the
+  handbook switch only.
+- **2026-11-01** — **P10 merged (#1879, `35efe8d`), no migration.** Notes on the applicant record
+  (one textarea, pinned first then newest, pin/unpin through 0535's RPC; recruitment view reads,
+  manage writes; the audit row never carries the body) and an Activity list derived at read time
+  from invitation phases, permissions, qualification records, PSP orders (through the psp module's
+  `pspOrdersFor`), texts and consent, office corrections in the form's own words, travel,
+  disposition and notes. The board row reads "Last note: 2 d ago · {name}" from one batched read.
+  **Not shown, because nothing stores them:** inbound texts other than STOP/START, and the
+  applicant's own "text me the link". 17/17 mutants killed, including each dropped `.eq("org_id")`.
+- **2026-11-01** — **P12b (this PR), no migration.** Settings → Recruiting's "Before we hire": the
+  six federal checks listed and locked ("Federal requirement"), and the handbook switch.
+  `hireRefusesWithout(policy)` is the one list; the checklist fold stamps it on the `hired` row, and
+  `hireBlockers`, `readyToHire`, the API's refusal and the hire drawer ("· your company's rule") all
+  read that row. A save from a screen served before this one keeps the switch rather than turning it
+  off. 10/10 mutants killed.
