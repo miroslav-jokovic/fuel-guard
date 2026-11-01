@@ -62,7 +62,9 @@ const CARVE_OUTS = new Map([
     // Moved here from apps/driver/tests/theme-colors.test.ts on 2026-09-07: scripts/gen-app-icons.mjs
     // needed the same arithmetic to decide which brand-mark fills become white, and this gate is what
     // stopped it becoming a second copy. The test now imports from here, so there is still one.
-    "apps/driver/scripts/srgb.mjs",
+    // Moved to packages/shared on 2026-11-01 (ads render check needed it at runtime); the driver's
+    // build-time apps/driver/scripts/srgb.mjs now imports it, so there is still ONE copy.
+    "packages/shared/src/srgb.ts",
     "WCAG relative luminance for contrast ratios — a DIFFERENT question that happens to share the " +
       "Rec.709 weights. It applies the sRGB-to-linear transfer function first, so it computes " +
       "linear-light luminance where the scanner computes gamma-encoded luma; pointing it at " +
