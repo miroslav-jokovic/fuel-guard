@@ -1,7 +1,7 @@
 import type { AddressInfo } from "node:net";
 import type { Server } from "node:http";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { type AuthContext } from "@silvicom/shared";
+import { type AuthContext, type EmploymentGapsView } from "@silvicom/shared";
 import { createApp } from "../../../app.js";
 import { loadEnv } from "../../../env.js";
 import { createSupabaseRecorder, expectOrgScoped, type SupabaseRecorder } from "../../../testing/supabaseRecorder.js";
@@ -111,9 +111,9 @@ describe("reading", () => {
     seed();
     const res = await call(`/applicants/${DRIVER}/employment-gaps`, "recruiter");
     expect(res.status).toBe(200);
-    const body = await res.json();
-    expect(body.recorded.map((g: { id: string }) => g.id).sort()).toEqual([GAP_A, GAP_W].sort());
-    expect(body.recorded.find((g: { id: string }) => g.id === GAP_W).withdrawnAt).toBe("2026-10-31T10:00:00Z");
+    const body = (await res.json()) as EmploymentGapsView;
+    expect(body.recorded.map((g) => g.id).sort()).toEqual([GAP_A, GAP_W].sort());
+    expect(body.recorded.find((g) => g.id === GAP_W)?.withdrawnAt).toBe("2026-10-31T10:00:00Z");
     // The unreadable entry is skipped, not shown half.
     expect(body.applicant).toEqual([{ from: "2023-05-01", to: "2023-08-01", explanation: "School" }]);
     expectOrgScoped(rec, ORG);
