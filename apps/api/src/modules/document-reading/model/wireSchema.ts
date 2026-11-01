@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { canonicalJson } from "@silvicom/shared";
 import { z } from "zod";
 
 /**
@@ -84,15 +85,8 @@ export function wireSchemaFor(schema: z.ZodType): JsonSchema {
   return toWireSchema(z.toJSONSchema(schema, { io: "output" }) as JsonSchema);
 }
 
-/** Key-sorted JSON (arrays keep their order — `required` and `enum` order is meaning, not noise). */
-export function canonicalJson(value: unknown): string {
-  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`;
-  if (isSchema(value)) {
-    const keys = Object.keys(value).sort();
-    return `{${keys.map((k) => `${JSON.stringify(k)}:${canonicalJson(value[k])}`).join(",")}}`;
-  }
-  return JSON.stringify(value);
-}
+/** Key-sorted JSON — one definition in shared since ads A4; re-exported for the reader's own callers. */
+export { canonicalJson };
 
 /** sha256 of the canonical wire schema — stored on every read and in the cache key (§4.6). */
 export function schemaHash(wire: JsonSchema): string {

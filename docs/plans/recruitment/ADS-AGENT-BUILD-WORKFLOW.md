@@ -452,3 +452,20 @@ blocking step in §3 above.
   Measured for A4: `callClaude` (forced assessment tool) has no caller, so A4 copies the document
   reader's and hazmat's `anthropicClient` + monthly-budget pattern rather than preserving a fuel call
   site that no longer exists.
+- **2026-11-01, A4** — The AI rail. `lib/anthropic.ts` gains `callForcedTool`: the caller's Zod schema
+  is the tool (its JSON schema derived by `z.toJSONSchema`, never mirrored by hand), and the answer is
+  parsed with that schema before a `value` exists. **Decision: `callClaude` is retired, not
+  reshaped** — it had no caller since the anomaly-verification AI was retired (991a830), so there was
+  nothing to keep compatible, and keeping it would have left a second, unvalidated way to force a tool;
+  `callClaudeText` (weekly digest) stays. `modules/ads/generations/` is the ads rail every Claude worker
+  uses: replay by `(org, idempotency_key)` first (a success comes back from the row, re-validated; a
+  failure, a budget refusal or a `started` row asks no model), then the per-agent switch (D-RA9; new
+  `budgets.agents_enabled` in the settings contract, absent = off, `AD_AI_AGENTS` = the five
+  model-using workers), then the month's token budget (`aiGate`; a null budget REFUSES, unlike
+  `withinBudget`'s null — said in code), then `started` → the call → one completion with the tokens
+  billed whatever the outcome. The month is the carrier's Central-time month, folded from
+  `ad_generations` by keyset pages (not `org_usage_month`, which is the document reader's and hazmat's
+  shared budget). `modules/ads/settings/settingsVersions.ts` reads the settings in force (A5 adds the
+  save). `canonicalJson` moved to shared (one definition; the reader's `wireSchema.ts` re-exports it)
+  and `aiInputHash` became generic over it. Waivers for `ad_generations` and `ads_settings_versions`
+  left `check-table-producers.mjs`. Nine mutations each went red. No migration.
