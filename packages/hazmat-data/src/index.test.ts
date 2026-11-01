@@ -103,3 +103,17 @@ describe("resolveEntry — 'resolves uniquely' = one entryId + one pg-row (fail-
     expect(resolveEntry(synthetic, { psn: "nothing here" })).toEqual({ status: "not_found" });
   });
 });
+
+describe("loadDataset — parsed once per version, frozen (TWO-CLICK-READER-PLAN TC1.5)", () => {
+  it("returns the same parsed dataset for a version, and a different one for another version", () => {
+    expect(loadDataset()).toBe(loadDataset(LATEST_DATASET_VERSION));
+    expect(loadDataset("2026.10.0")).not.toBe(loadDataset());
+  });
+
+  it("is frozen to its leaves, so a caller cannot change the next request's dataset", () => {
+    const ds = loadDataset();
+    expect(Object.isFrozen(ds)).toBe(true);
+    expect(Object.isFrozen(ds.entries[0]!.pgRows[0]!)).toBe(true);
+    expect(() => { (ds.entries[0] as { psnPrinted: string }).psnPrinted = "x"; }).toThrow(TypeError);
+  });
+});
