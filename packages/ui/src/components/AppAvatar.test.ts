@@ -53,4 +53,12 @@ describe("AppAvatar (G4)", () => {
       expect(cls, c).toContain(c);
     }
   });
+
+  it("takes a colour derived from `identity` and drops the grey ring; without one it stays neutral (D-CHATUI22)", () => {
+    const tinted = mount(AppAvatar, { props: { label: "Marcus Reyes", identity: "22222222-2222-4222-8222-222222222222" } }).classes();
+    expect(tinted.some((c) => /^bg-identity-[1-8]$/.test(c))).toBe(true);
+    expect(tinted.some((c) => /^text-identity-[1-8]-ink$/.test(c))).toBe(true);
+    expect(tinted).not.toContain("ring-edge");
+    expect(mount(AppAvatar, { props: { label: "Marcus Reyes", identity: null } }).classes()).toContain("bg-surface-muted");
+  });
 });

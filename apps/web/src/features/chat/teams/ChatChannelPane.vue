@@ -37,6 +37,8 @@ const props = defineProps<{
   earlierFailed?: boolean;
   openPostId: string | null;
   firstUnreadSeq?: number | null;
+  /** The channel's members, as faces in the header (D-CHATUI24); absent while they load. */
+  members?: ReadonlyArray<{ user_id: string; name: string | null }>;
 }>();
 const emit = defineEmits<{
   send: [body: string];
@@ -58,7 +60,11 @@ const composer = ref<InstanceType<typeof ChatComposer> | null>(null);
 
 <template>
   <section class="flex h-full min-h-0 flex-1 flex-col bg-surface" :aria-label="`${channel.name}, ${teamName}`">
-    <ChatStageHeader :title="channel.name" :subtitle="subtitle" glyph="channel" back-label="Back to chats and channels" @back="emit('back')">
+    <ChatStageHeader
+      :title="channel.name"
+      :subtitle="subtitle"
+      glyph="channel"
+      :people="members?.map((m) => ({ id: m.user_id, label: m.name }))" back-label="Back to chats and channels" @back="emit('back')">
       <KebabMenu trigger-label="Channel actions" placement="bottom-end">
         <ChatMuteItems :muted="channel.muted" @set="(level: ChatMuteLevel) => emit('mute', level)" />
         <BaseButton v-if="!channel.general" class="kebab-item" @click="emit('leave')">Leave channel</BaseButton>

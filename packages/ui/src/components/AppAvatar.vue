@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
+import { identityClass } from "../identity";
 
 /**
  * AppAvatar — the initial-in-a-circle used to stand in for a person (G4, UI-GAPS-PLAN.md).
@@ -23,8 +24,14 @@ const props = withDefaults(
     /** The person this stands for — an email today, a name if a caller ever has one. */
     label: string | null | undefined;
     size?: "xs" | "sm" | "md";
+    /**
+     * A stable key for the person — their user id — from which the circle's colour is derived
+     * (D-CHATUI22, `identity.ts`). Absent, the circle is the neutral grey it has always been, which
+     * is what the sidebar's account menu keeps: one person, nobody to tell them apart from.
+     */
+    identity?: string | null;
   }>(),
-  { size: "md" },
+  { size: "md", identity: null },
 );
 
 /**
@@ -46,13 +53,16 @@ const initials = computed(() => {
 
 // `xs` (24px, 10px initials) is a chip's: a person picked in the chat people picker (2026-11-01).
 const SIZES = { xs: "size-6 text-2xs", sm: "size-7 text-xs", md: "size-8 text-xs" } as const;
+const NEUTRAL = "bg-surface-muted text-ink ring-1 ring-inset ring-edge";
+// A coloured circle carries no ring: the tint is its edge, and a grey ring over it reads as a stain.
+const tone = computed(() => identityClass(props.identity) ?? NEUTRAL);
 </script>
 
 <template>
   <span
     :class="[
       'flex shrink-0 items-center justify-center rounded-full font-semibold',
-      'bg-surface-muted text-ink ring-1 ring-inset ring-edge',
+      tone,
       SIZES[props.size],
     ]"
     aria-hidden="true"

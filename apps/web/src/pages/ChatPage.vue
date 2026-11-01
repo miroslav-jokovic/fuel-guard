@@ -5,12 +5,12 @@ import { chatTitle, isRecordId, type ChatMuteLevel, type ChatTeam } from "@silvi
 import { useSessionStore } from "@/stores/session";
 import { useToastStore } from "@/stores/toast";
 import { useModulesQuery } from "@/composables/useModules";
-import { AppButton as BaseButton, AppCard as BaseCard, AppIcon, QueryState } from "@silvicom/ui";
-import { ChatIcon } from "@silvicom/ui/icons";
+import { AppCard as BaseCard, QueryState } from "@silvicom/ui";
 import ChatRail from "@/features/chat/ChatRail.vue";
 import ChatConversationStage from "@/features/chat/ChatConversationStage.vue";
 import ChatActivityStage from "@/features/chat/ChatActivityStage.vue";
 import { useChatActivityMarkRead, useChatActivityQuery, useChatActivityUnreadQuery } from "@/features/chat/useChatActivity";
+import ChatEmptyStage from "@/features/chat/ChatEmptyStage.vue";
 import NewChatDialog from "@/features/chat/NewChatDialog.vue";
 import ChatChannelStage from "@/features/chat/teams/ChatChannelStage.vue";
 import NewChannelDialog from "@/features/chat/teams/NewChannelDialog.vue";
@@ -289,20 +289,7 @@ useChatShortcuts((s) => {
             error-text="Could not open that conversation."
             @retry="conversation.refetch()"
           />
-          <div v-else-if="firstRun" class="flex flex-col items-center gap-4">
-            <span class="flex size-12 items-center justify-center rounded-full bg-surface-muted text-ink-secondary ring-1 ring-inset ring-edge" aria-hidden="true">
-              <AppIcon :icon="ChatIcon" class="size-6" />
-            </span>
-            <div>
-              <h2 class="text-lg font-semibold text-ink">Nobody has started a conversation yet</h2>
-              <p class="mt-1 max-w-sm">Message somebody in the office<template v-if="canManage">, or make a team with a channel for each thing it talks about</template>.</p>
-            </div>
-            <div class="flex flex-wrap justify-center gap-2">
-              <BaseButton variant="primary" @click="starting = true">New conversation</BaseButton>
-              <BaseButton v-if="canManage" @click="rail.creatingTeam.value = true">New team</BaseButton>
-            </div>
-          </div>
-          <p v-else class="max-w-xs">Pick a conversation or a channel, or start one with New.</p>
+          <ChatEmptyStage v-else :first-run="firstRun" :can-manage="canManage" @new-conversation="starting = true" @new-team="rail.creatingTeam.value = true" />
         </div>
       </div>
     </template>

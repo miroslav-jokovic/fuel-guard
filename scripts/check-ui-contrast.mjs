@@ -131,6 +131,13 @@ const pairs = [
    * light's 500→700 in dark puts the glyph on a pale ground at 1.78:1. Re-step a chip and this
    * gate is what tells you, in the scheme you were not looking at.
    */
+  /**
+   * The eight person-identity grounds and their initials (D-CHATUI22, office chat 2026-11-01).
+   * 4.5:1, not 3: the initials are TEXT (10-12px, semibold), which WCAG 1.4.3 governs. Each tone
+   * carries its own `-ink` rather than sharing `--ink`, because a hue-tinted letter on its own
+   * tint is what keeps eight colours from reading as eight warnings.
+   */
+  ...[1, 2, 3, 4, 5, 6, 7, 8].map((n) => [`identity initials / tone ${n}`, `--identity-${n}-ink`, `--identity-${n}`, 4.5]),
   ...["danger", "caution", "warning", "success", "info", "brand", "neutral"].flatMap((tone) => [
     [`chip glyph / ${tone} head`, "--chip-glyph", `--chip-${tone}-from`, 3],
     [`chip glyph / ${tone} foot`, "--chip-glyph", `--chip-${tone}-to`, 3],

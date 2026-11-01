@@ -69,7 +69,12 @@ const seenSeq = computed(() => (direct.value && myLastSeq.value !== null && othe
 
 <template>
   <section class="flex h-full min-h-0 flex-1 flex-col bg-surface" :aria-label="title">
-    <ChatStageHeader :title="title" :subtitle="subtitle" :glyph="direct ? 'person' : 'group'" back-label="Back to conversations" @back="$emit('back')">
+    <ChatStageHeader
+      :title="title"
+      :subtitle="subtitle"
+      :glyph="direct ? 'person' : 'group'"
+      :identity="direct ? others[0]?.user_id : null"
+      :people="direct ? undefined : data.members.map((m) => ({ id: m.user_id, label: m.name }))" back-label="Back to conversations" @back="$emit('back')">
       <!-- Its mute (D-CHAT23): what reaches you from it, and whether it sits in Muted. -->
       <KebabMenu trigger-label="Conversation actions" placement="bottom-end">
         <ChatMuteItems :muted="data.conversation.muted" @set="(level: ChatMuteLevel) => $emit('mute', level)" />

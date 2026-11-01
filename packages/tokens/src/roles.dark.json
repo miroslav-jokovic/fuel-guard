@@ -259,6 +259,118 @@
     "chip-neutral-to": {
       "$type": "color",
       "$value": "var(--ramp-neutral-300)"
+    },
+    "identity-1": {
+      "$type": "color",
+      "$value": "oklch(35% 0.055 25)",
+      "$extensions": {
+        "silvicom.expose": "color"
+      }
+    },
+    "identity-1-ink": {
+      "$type": "color",
+      "$value": "oklch(89% 0.05 25)",
+      "$extensions": {
+        "silvicom.expose": "color"
+      }
+    },
+    "identity-2": {
+      "$type": "color",
+      "$value": "oklch(35% 0.055 65)",
+      "$extensions": {
+        "silvicom.expose": "color"
+      }
+    },
+    "identity-2-ink": {
+      "$type": "color",
+      "$value": "oklch(89% 0.05 65)",
+      "$extensions": {
+        "silvicom.expose": "color"
+      }
+    },
+    "identity-3": {
+      "$type": "color",
+      "$value": "oklch(35% 0.055 105)",
+      "$extensions": {
+        "silvicom.expose": "color"
+      }
+    },
+    "identity-3-ink": {
+      "$type": "color",
+      "$value": "oklch(89% 0.05 105)",
+      "$extensions": {
+        "silvicom.expose": "color"
+      }
+    },
+    "identity-4": {
+      "$type": "color",
+      "$value": "oklch(35% 0.055 150)",
+      "$extensions": {
+        "silvicom.expose": "color"
+      }
+    },
+    "identity-4-ink": {
+      "$type": "color",
+      "$value": "oklch(89% 0.05 150)",
+      "$extensions": {
+        "silvicom.expose": "color"
+      }
+    },
+    "identity-5": {
+      "$type": "color",
+      "$value": "oklch(35% 0.054 190)",
+      "$extensions": {
+        "silvicom.expose": "color"
+      }
+    },
+    "identity-5-ink": {
+      "$type": "color",
+      "$value": "oklch(89% 0.05 190)",
+      "$extensions": {
+        "silvicom.expose": "color"
+      }
+    },
+    "identity-6": {
+      "$type": "color",
+      "$value": "oklch(35% 0.055 235)",
+      "$extensions": {
+        "silvicom.expose": "color"
+      }
+    },
+    "identity-6-ink": {
+      "$type": "color",
+      "$value": "oklch(89% 0.05 235)",
+      "$extensions": {
+        "silvicom.expose": "color"
+      }
+    },
+    "identity-7": {
+      "$type": "color",
+      "$value": "oklch(35% 0.055 285)",
+      "$extensions": {
+        "silvicom.expose": "color"
+      }
+    },
+    "identity-7-ink": {
+      "$type": "color",
+      "$value": "oklch(89% 0.05 285)",
+      "$extensions": {
+        "silvicom.expose": "color"
+      }
+    },
+    "identity-8": {
+      "$type": "color",
+      "$value": "oklch(35% 0.055 330)",
+      "$extensions": {
+        "silvicom.expose": "color"
+      }
+    },
+    "identity-8-ink": {
+      "$type": "color",
+      "$value": "oklch(89% 0.05 330)",
+      "$extensions": {
+        "silvicom.expose": "color"
+      }
     }
   }
 }

@@ -20,6 +20,8 @@ const props = defineProps<{ open: boolean; people: ChatDirectoryEntry[]; viewerI
 const emit = defineEmits<{ close: []; start: [memberIds: string[], subject: string | null] }>();
 
 const picked = ref<Set<string>>(new Set());
+const picker = ref<InstanceType<typeof PeoplePicker> | null>(null);
+const searchField = computed(() => picker.value?.searchInput() ?? null);
 const subject = ref("");
 watch(
   () => props.open,
@@ -42,10 +44,11 @@ function start() {
     :open="open"
     title="New conversation"
     description="Pick one person for a private conversation, or several for a group."
+    :initial-focus="searchField"
     @close="emit('close')"
   >
     <div class="space-y-3">
-      <PeoplePicker v-model="picked" :people="people" :viewer-id="viewerId" :reset-key="open" />
+      <PeoplePicker ref="picker" v-model="picked" :people="people" :viewer-id="viewerId" :reset-key="open" />
       <FormField v-if="isGroup" label="Group name (optional)">
         <BaseInput v-model="subject" placeholder="e.g. Night dispatch" maxlength="200" />
       </FormField>

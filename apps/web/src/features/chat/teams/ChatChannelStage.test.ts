@@ -274,7 +274,9 @@ describe("the channel's @ list (Q-CHAT20 (a))", () => {
     (ta.element as HTMLTextAreaElement).setSelectionRange(1, 1);
     await ta.trigger("input");
     // Never yourself; members first; the one not in it says what picking does.
-    expect(w.findAll('[role="option"]').map((o) => o.text())).toEqual(["Ben", "Cara RuizAdd to # Loads"]);
+    // The avatar's initials are aria-hidden, so they are dropped as a screen reader drops them.
+    const spoken = (el: Element) => { const c = el.cloneNode(true) as Element; c.querySelectorAll('[aria-hidden="true"]').forEach((n) => n.remove()); return c.textContent?.trim(); };
+    expect(w.findAll('[role="option"]').map((o) => spoken(o.element))).toEqual(["Ben", "Cara RuizAdd to # Loads"]);
     await ta.trigger("keydown", { key: "ArrowDown" });
     await ta.trigger("keydown", { key: "Enter" });
     await flushPromises();

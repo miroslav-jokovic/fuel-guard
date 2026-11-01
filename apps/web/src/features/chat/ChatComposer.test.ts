@@ -37,7 +37,13 @@ async function type(w: ReturnType<typeof render>, text: string) {
   await ta.trigger("input");
   return ta;
 }
-const options = (w: ReturnType<typeof render>) => w.findAll('[role="option"]').map((o) => o.text());
+// What a reader hears: the avatar's initials are aria-hidden, so they are not part of an option's text.
+const spoken = (el: Element) => {
+  const copy = el.cloneNode(true) as Element;
+  copy.querySelectorAll('[aria-hidden="true"]').forEach((n) => n.remove());
+  return copy.textContent?.trim() ?? "";
+};
+const options = (w: ReturnType<typeof render>) => w.findAll('[role="option"]').map((o) => spoken(o.element));
 const sent = (w: ReturnType<typeof render>) => w.findComponent(ChatComposer).emitted("send")?.map((e) => e[0]);
 
 const people: MentionCandidate[] = [
@@ -112,5 +118,41 @@ describe("ChatComposer's @ list", () => {
     const ta = await type(w, "@ben ok");
     await ta.trigger("keydown", { key: "Enter" });
     expect(sent(w)).toEqual(["@ben ok"]);
+  });
+});
+
+/**
+ * The toolbar (D-CHATUI23). Both buttons only edit the draft — nothing reaches the server until Send —
+ * so what a writer relies on is WHERE the text lands: at the caret, not at the end.
+ */
+describe("ChatComposer's toolbar", () => {
+  it("@ writes an @ at the caret, a space before it after a word, and opens the same list typing one does", async () => {
+    const w = render(people);
+    await type(w, "ask");
+    await w.find('button[aria-label="Mention someone"]').trigger("click");
+    await flushPromises();
+    expect((w.find("textarea").element as HTMLTextAreaElement).value).toBe("ask @");
+    expect(options(w)).toEqual(["Ben Admin", "Aaron VanceAdd to # Loads", "Cara RuizAdd to # Loads"]);
+  });
+
+  it("an emoji lands at the caret, not at the end, and is sent as typed text", async () => {
+    const w = render(people);
+    const ta = await type(w, "on it ");
+    (ta.element as HTMLTextAreaElement).setSelectionRange(0, 0);
+    await w.find('button[aria-label="Add emoji"]').trigger("click");
+    await flushPromises();
+    const thumbs = [...document.body.querySelectorAll<HTMLButtonElement>('[aria-label="Emoji"] button')].find((b) => b.textContent === "👍")!;
+    thumbs.click();
+    await flushPromises();
+    expect((ta.element as HTMLTextAreaElement).value).toBe("👍on it ");
+    await ta.trigger("keydown", { key: "Enter" });
+    expect(sent(w)).toEqual(["👍on it"]);
+    w.unmount();
+  });
+
+  it("has no attach button until files exist (CH7)", () => {
+    const w = render(people);
+    expect(w.find('[aria-label*="ttach"]').exists()).toBe(false);
+    expect(w.find('[role="toolbar"]').text()).toContain("Enter to send");
   });
 });

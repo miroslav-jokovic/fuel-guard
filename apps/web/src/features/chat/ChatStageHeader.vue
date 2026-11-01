@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { AppAvatar, AppIcon, AppIconButton } from "@silvicom/ui";
+import { AppAvatar, AppAvatarStack, AppIcon, AppIconButton } from "@silvicom/ui";
 import { BellIcon, ChevronLeftIcon, UserGroupIcon } from "@silvicom/ui/icons";
 
 /**
@@ -16,6 +16,13 @@ defineProps<{
   backLabel?: string;
   /** The width from which the thing behind is beside this rather than replaced by it: `lg` for the rail, `xl` for a channel behind its thread. */
   backUntil?: "lg" | "xl";
+  /** The other person's user id, for a direct conversation's avatar colour (D-CHATUI22). */
+  identity?: string | null;
+  /**
+   * Who is in it, as faces at the header's right (D-CHATUI24) — a group's or a channel's members.
+   * The stack shows three and "+N"; its label is the count, because the names are the subtitle's.
+   */
+  people?: ReadonlyArray<{ id: string; label: string | null }>;
 }>();
 defineEmits<{ back: [] }>();
 </script>
@@ -23,10 +30,10 @@ defineEmits<{ back: [] }>();
 <template>
   <header class="flex h-14 shrink-0 items-center gap-2 border-b border-edge-subtle px-2 sm:px-4">
     <AppIconButton v-if="backLabel" :icon="ChevronLeftIcon" :label="backLabel" :class="backUntil === 'xl' ? 'xl:hidden' : 'lg:hidden'" @click="$emit('back')" />
-    <AppAvatar v-if="glyph === 'person'" :label="title" size="sm" />
+    <AppAvatar v-if="glyph === 'person'" :label="title" :identity="identity" />
     <span
       v-else
-      class="flex size-7 shrink-0 items-center justify-center rounded-full bg-surface-muted text-sm font-semibold text-ink-secondary ring-1 ring-inset ring-edge"
+      class="flex size-8 shrink-0 items-center justify-center rounded-full bg-surface-muted text-sm font-semibold text-ink-secondary ring-1 ring-inset ring-edge"
       aria-hidden="true"
     >
       <AppIcon v-if="glyph === 'group'" :icon="UserGroupIcon" class="size-4" />
@@ -37,6 +44,12 @@ defineEmits<{ back: [] }>();
       <h2 class="truncate text-sm font-semibold text-ink">{{ title }}</h2>
       <p v-if="subtitle" class="truncate text-xs text-ink-muted">{{ subtitle }}</p>
     </div>
+    <AppAvatarStack
+      v-if="people && people.length > 1"
+      :people="people"
+      :label="`${people.length} people`"
+      class="mr-1 hidden shrink-0 sm:flex"
+    />
     <div class="flex shrink-0 items-center gap-1"><slot /></div>
   </header>
 </template>

@@ -225,7 +225,7 @@ describe("ChatPage", () => {
     const { w } = await render();
     expect(w.text()).toContain("No conversations yet");
     expect(w.text()).toContain("Nobody has started a conversation yet");
-    expect(w.text()).not.toContain("Pick a conversation or a channel");
+    expect(w.text()).not.toContain("Pick one on the left");
     expect(w.findAll("button").filter((b) => b.text() === "New team")).toHaveLength(0);
     await w.findAll("button").find((b) => b.text() === "New conversation")!.trigger("click");
     expect(w.findComponent(NewChatDialog).props("open")).toBe(true);
@@ -235,11 +235,15 @@ describe("ChatPage", () => {
     expect(w2.findAll("button").filter((b) => b.text() === "New team")).toHaveLength(1);
   });
 
-  it("tells the empty stage what to do once anything exists", async () => {
-    state.teams = { teams: [team], can_manage: false };
+  it("tells the empty stage what to do once anything exists, and holds the button to do it (D-CHATUI25)", async () => {
+    state.teams = { teams: [team], can_manage: true };
     const { w } = await render();
-    expect(w.text()).toContain("Pick a conversation or a channel, or start one with New.");
+    expect(w.text()).toContain("Pick one on the left, or start a new one.");
     expect(w.text()).not.toContain("Nobody has started");
+    // New team belongs to the first run only; once a team exists it is the rail's New menu.
+    expect(w.findAll("button").filter((b) => b.text() === "New team")).toHaveLength(0);
+    await w.findAll("button").find((b) => b.text() === "New conversation")!.trigger("click");
+    expect(w.findComponent(NewChatDialog).props("open")).toBe(true);
   });
 
   it("sends / to the rail's search and J and K along the rail, and nothing while typing (CR2)", async () => {

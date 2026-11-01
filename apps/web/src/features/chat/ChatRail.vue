@@ -2,8 +2,10 @@
 import { computed, ref } from "vue";
 import { chatPreview, chatTitle, type ChatConversation, type ChatTeam, type ChatTeamChannel } from "@silvicom/shared";
 import { AppAvatar, AppButton as BaseButton, AppIcon, AppSearchField, QueryState } from "@silvicom/ui";
-import { BellIcon, PlusIcon, UserGroupIcon } from "@silvicom/ui/icons";
+import { BellIcon, ChatAddIcon, HashtagIcon, UserGroupIcon, UsersIcon } from "@silvicom/ui/icons";
 import KebabMenu from "@/components/KebabMenu.vue";
+import KebabMenuItem from "@/components/KebabMenuItem.vue";
+import ChatUnreadCount from "./ChatUnreadCount.vue";
 import { chatRowTime } from "./chatTime";
 import { useChatNames } from "./chatNames";
 
@@ -111,15 +113,13 @@ const channelLabel = (c: ChatTeamChannel) => `# ${c.name}${c.visibility === "pri
   <aside ref="root" class="flex h-full min-h-0 flex-col border-r border-edge-subtle bg-canvas">
     <div class="flex shrink-0 items-center gap-2 border-b border-edge-subtle px-3 py-2.5">
       <AppSearchField v-model="query" placeholder="Search chat" label="Search chat" :debounce="0" class="min-w-0 flex-1" />
-      <KebabMenu trigger-label="New" placement="bottom-end">
-        <template #trigger>
-          <span class="inline-flex size-9 items-center justify-center rounded-control bg-action-primary text-action-primary-foreground hover:bg-action-primary-hover" title="New">
-            <AppIcon :icon="PlusIcon" class="size-5" aria-hidden="true" />
-          </span>
-        </template>
-        <BaseButton class="kebab-item" @click="emit('new-conversation')">New conversation</BaseButton>
-        <BaseButton v-if="canManage" class="kebab-item" @click="emit('new-team')">New team</BaseButton>
-        <BaseButton v-for="t in teams" :key="t.space_id" class="kebab-item" @click="emit('new-channel', t)">New channel in {{ t.name }}</BaseButton>
+      <!-- New (D-CHATUI23): a quiet compose button the height of the search, not a solid brand square —
+           the loudest thing on the page used to be the way to start something done twice a day. Each
+           choice says what it makes. -->
+      <KebabMenu trigger-label="New" :icon="ChatAddIcon" icon-variant="secondary" placement="bottom-end" width="wide">
+        <KebabMenuItem :icon="ChatAddIcon" label="New conversation" description="Message one person, or a few as a group" @click="emit('new-conversation')" />
+        <KebabMenuItem v-if="canManage" :icon="UsersIcon" label="New team" description="A standing group with its own channels" @click="emit('new-team')" />
+        <KebabMenuItem v-for="t in teams" :key="t.space_id" :icon="HashtagIcon" :label="`New channel in ${t.name}`" description="A topic everyone in the team can follow" @click="emit('new-channel', t)" />
       </KebabMenu>
     </div>
 
@@ -127,12 +127,12 @@ const channelLabel = (c: ChatTeamChannel) => `# ${c.name}${c.visibility === "pri
       <p v-if="nothingMatches" class="px-4 py-6 text-center text-sm text-ink-muted">Nothing in chat is called that.</p>
 
       <!-- Activity, above Chats (CHAT-REDESIGN-PLAN §6): what named you or answered your posts. Not a search result. -->
-      <div v-if="!q" class="px-0 pb-2">
-        <BaseButton type="button" size="row" block :variant="activityOpen ? 'soft' : 'ghost'" class="px-3 py-1.5" :aria-current="activityOpen ? 'true' : undefined" @click="emit('open-activity')">
+      <div v-if="!q" class="px-2 pb-2">
+        <BaseButton type="button" size="row" block :variant="activityOpen ? 'soft' : 'ghost'" class="rounded-control px-2 py-1.5" :aria-current="activityOpen ? 'true' : undefined" @click="emit('open-activity')">
           <span class="flex w-full min-w-0 items-center gap-3">
-            <span class="flex size-7 shrink-0 items-center justify-center text-ink-tertiary" aria-hidden="true"><AppIcon :icon="BellIcon" class="size-4" /></span>
+            <span class="flex size-8 shrink-0 items-center justify-center text-ink-tertiary" aria-hidden="true"><AppIcon :icon="BellIcon" class="size-4" /></span>
             <span class="min-w-0 flex-1 truncate text-sm text-ink" :class="activityUnread ? 'font-semibold' : 'font-normal'">Activity</span>
-            <span v-if="activityUnread" class="shrink-0 rounded-full bg-brand-accent-strong px-1.5 py-0.5 text-2xs font-semibold text-ink" :aria-label="`${activityUnread} unread`">{{ activityUnread }}</span>
+            <ChatUnreadCount :count="activityUnread ?? 0" />
           </span>
         </BaseButton>
       </div>
@@ -140,12 +140,12 @@ const channelLabel = (c: ChatTeamChannel) => `# ${c.name}${c.visibility === "pri
       <!-- Chats -->
       <section v-if="!q || chats.length" aria-labelledby="chat-rail-chats" class="pb-2">
         <h3 id="chat-rail-chats" class="px-4 pt-1 pb-1 text-xs font-semibold tracking-wider text-ink-muted uppercase">Chats</h3>
-        <ul v-if="chats.length">
+        <ul v-if="chats.length" class="space-y-px px-2">
           <li v-for="c in chats" :key="c.thread_id">
-            <BaseButton type="button" size="row" block :variant="variant(c.thread_id)" class="px-3 py-2" :aria-current="current(c.thread_id)" @click="emit('open-conversation', c.thread_id)">
+            <BaseButton type="button" size="row" block :variant="variant(c.thread_id)" class="rounded-control px-2 py-2" :aria-current="current(c.thread_id)" @click="emit('open-conversation', c.thread_id)">
               <span class="flex w-full min-w-0 items-center gap-3">
-                <AppAvatar v-if="c.kind === 'direct'" :label="chatTitle(c)" size="sm" />
-                <span v-else class="flex size-7 shrink-0 items-center justify-center rounded-full bg-surface-muted text-ink-secondary ring-1 ring-inset ring-edge" aria-hidden="true">
+                <AppAvatar v-if="c.kind === 'direct'" :label="chatTitle(c)" :identity="c.title_members[0]?.user_id" size="md" />
+                <span v-else class="flex size-8 shrink-0 items-center justify-center rounded-full bg-surface-muted text-ink-secondary ring-1 ring-inset ring-edge" aria-hidden="true">
                   <AppIcon :icon="UserGroupIcon" class="size-4" />
                 </span>
                 <span class="block min-w-0 flex-1">
@@ -157,7 +157,7 @@ const channelLabel = (c: ChatTeamChannel) => `# ${c.name}${c.visibility === "pri
                     <span class="truncate text-xs" :class="bold(c) ? 'text-ink-secondary' : 'text-ink-muted'">
                       <template v-if="c.kind !== 'direct' && c.last_message?.sender_name">{{ c.last_message.sender_name }}: </template>{{ chatPreview(c.last_message, 90, nameOf) }}
                     </span>
-                    <span v-if="c.unread > 0" class="shrink-0 rounded-full bg-brand-accent-strong px-1.5 py-0.5 text-2xs font-semibold text-ink" :aria-label="`${c.unread} unread`">{{ c.unread }}</span>
+                    <ChatUnreadCount :count="c.unread" />
                   </span>
                 </span>
               </span>
@@ -182,15 +182,15 @@ const channelLabel = (c: ChatTeamChannel) => `# ${c.name}${c.visibility === "pri
               <BaseButton class="kebab-item" @click="emit('leave-team', t)">Leave team</BaseButton>
             </KebabMenu>
           </div>
-          <ul :aria-label="`${t.name} channels`">
+          <ul class="space-y-px px-2" :aria-label="`${t.name} channels`">
             <li v-for="c in joinedOf(t)" :key="c.thread_id">
-              <BaseButton type="button" size="row" block :variant="variant(c.thread_id)" class="px-3 py-1.5" :aria-current="current(c.thread_id)" :aria-label="channelLabel(c)" @click="emit('open-channel', c.thread_id)">
+              <BaseButton type="button" size="row" block :variant="variant(c.thread_id)" class="rounded-control px-2 py-1.5" :aria-current="current(c.thread_id)" :aria-label="channelLabel(c)" @click="emit('open-channel', c.thread_id)">
                 <span class="flex w-full min-w-0 items-center gap-3">
-                  <span class="w-7 shrink-0 text-center text-sm text-ink-tertiary" aria-hidden="true">#</span>
+                  <span class="w-8 shrink-0 text-center text-sm text-ink-tertiary" aria-hidden="true">#</span>
                   <span class="min-w-0 flex-1 truncate text-sm text-ink" :class="bold(c) ? 'font-semibold' : 'font-normal'">
                     {{ c.name }}<span v-if="c.visibility === 'private'" class="ml-1 text-2xs text-ink-tertiary">private</span>
                   </span>
-                  <span v-if="c.unread > 0" class="shrink-0 rounded-full bg-brand-accent-strong px-1.5 py-0.5 text-2xs font-semibold text-ink" :aria-label="`${c.unread} unread`">{{ c.unread }}</span>
+                  <ChatUnreadCount :count="c.unread" />
                 </span>
               </BaseButton>
             </li>
@@ -201,7 +201,7 @@ const channelLabel = (c: ChatTeamChannel) => `# ${c.name}${c.visibility === "pri
             </BaseButton>
             <ul v-if="browsing.has(t.space_id) || q" class="pb-1" :aria-label="`${t.name} channels to join`">
               <li v-for="c in toJoinOf(t)" :key="c.thread_id" class="flex items-center gap-3 py-1 pl-1 text-sm">
-                <span class="w-7 shrink-0 text-center text-ink-tertiary" aria-hidden="true">#</span>
+                <span class="w-8 shrink-0 text-center text-ink-tertiary" aria-hidden="true">#</span>
                 <span class="min-w-0 flex-1 truncate text-ink-muted">{{ c.name }}</span>
                 <BaseButton size="sm" variant="secondary" :aria-label="`Join # ${c.name}`" @click="emit('join', c.thread_id)">Join</BaseButton>
               </li>
@@ -221,22 +221,22 @@ const channelLabel = (c: ChatTeamChannel) => `# ${c.name}${c.visibility === "pri
           <span id="chat-rail-muted" class="font-semibold tracking-wider text-ink-muted uppercase">Muted</span>
           <span class="ml-1 text-ink-tertiary">{{ mutedCount }}</span>
         </BaseButton>
-        <ul v-if="showMuted || q">
+        <ul v-if="showMuted || q" class="space-y-px px-2">
           <li v-for="c in mutedChats" :key="c.thread_id">
-            <BaseButton type="button" size="row" block :variant="variant(c.thread_id)" class="px-3 py-1.5" :aria-current="current(c.thread_id)" @click="emit('open-conversation', c.thread_id)">
+            <BaseButton type="button" size="row" block :variant="variant(c.thread_id)" class="rounded-control px-2 py-1.5" :aria-current="current(c.thread_id)" @click="emit('open-conversation', c.thread_id)">
               <span class="flex w-full min-w-0 items-center gap-3">
-                <AppAvatar :label="chatTitle(c)" size="sm" />
+                <AppAvatar :label="chatTitle(c)" :identity="c.kind === 'direct' ? c.title_members[0]?.user_id : null" size="md" />
                 <span class="min-w-0 flex-1 truncate text-sm text-ink-secondary">{{ chatTitle(c) }}</span>
-                <span v-if="c.unread > 0" class="shrink-0 text-2xs tabular-nums text-ink-tertiary" :aria-label="`${c.unread} unread`">{{ c.unread }}</span>
+                <ChatUnreadCount :count="c.unread" muted />
               </span>
             </BaseButton>
           </li>
           <li v-for="{ team, channel: c } in mutedChannels" :key="c.thread_id">
-            <BaseButton type="button" size="row" block :variant="variant(c.thread_id)" class="px-3 py-1.5" :aria-current="current(c.thread_id)" :aria-label="`${channelLabel(c)}, ${team.name}`" @click="emit('open-channel', c.thread_id)">
+            <BaseButton type="button" size="row" block :variant="variant(c.thread_id)" class="rounded-control px-2 py-1.5" :aria-current="current(c.thread_id)" :aria-label="`${channelLabel(c)}, ${team.name}`" @click="emit('open-channel', c.thread_id)">
               <span class="flex w-full min-w-0 items-center gap-3">
-                <span class="w-7 shrink-0 text-center text-sm text-ink-tertiary" aria-hidden="true">#</span>
+                <span class="w-8 shrink-0 text-center text-sm text-ink-tertiary" aria-hidden="true">#</span>
                 <span class="min-w-0 flex-1 truncate text-sm text-ink-secondary">{{ c.name }} <span class="text-2xs text-ink-tertiary">{{ team.name }}</span></span>
-                <span v-if="c.unread > 0" class="shrink-0 text-2xs tabular-nums text-ink-tertiary" :aria-label="`${c.unread} unread`">{{ c.unread }}</span>
+                <ChatUnreadCount :count="c.unread" muted />
               </span>
             </BaseButton>
           </li>

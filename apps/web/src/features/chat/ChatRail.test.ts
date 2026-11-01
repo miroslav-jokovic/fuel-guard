@@ -57,7 +57,9 @@ function render(over: Partial<InstanceType<typeof ChatRail>["$props"]> = {}) {
 /** The search field emits after a zero debounce — a timer, not a microtask. */
 const tick = () => new Promise((r) => setTimeout(r, 1));
 const buttons = (w: VueWrapper, text: string) => w.findAll("button").filter((b) => b.text().trim() === text);
-const bodyButtons = (text: string) => [...document.body.querySelectorAll("button")].filter((b) => b.textContent?.trim() === text);
+// A described menu item (KebabMenuItem) is named by its label line; a plain kebab item by its text.
+const bodyButtons = (text: string) =>
+  [...document.body.querySelectorAll("button")].filter((b) => (b.querySelector("[data-kebab-label]") ?? b).textContent?.trim() === text);
 
 // Unmount before the body is cleared: a kebab's menu is teleported there, and Vue trips over a
 // teleported node that has already gone.
