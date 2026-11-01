@@ -93,6 +93,12 @@ export interface ChatScrollSource {
   count: number;
   /** The newest line is the reader's own — a send, pending or confirmed — which is always followed. */
   lastOwn: boolean;
+  /**
+   * How many files the newest line shows (CH7). A sent line keeps its key from "Sending 2 files…" to the
+   * confirmed line, which then draws its thumbnails and cards: the same end, a few hundred pixels taller.
+   * Unwatched, a reader at the bottom was left looking at the top of their own photo.
+   */
+  lastFiles?: number;
 }
 
 /** Within this of the bottom the reader is "at the bottom": a new line is followed, not counted. */
@@ -131,7 +137,15 @@ export function useChatScroll(scroller: Ref<HTMLElement | null>, source: () => C
     async (now, old) => {
       const sameView = old !== undefined && now.view === old.view;
       const sameEnd = sameView && now.last === old.last;
-      if (sameEnd && now.first === old.first) return;
+      if (sameEnd && now.first === old.first) {
+        // The newest line grew under a reader at the bottom (its files drew): keep them at the bottom.
+        // Measured now, before the DOM has the files — the reader's place as it was.
+        if ((now.lastFiles ?? 0) !== (old.lastFiles ?? 0) && nearBottom()) {
+          await nextTick();
+          jump();
+        }
+        return;
+      }
       if (sameEnd) {
         // An earlier page landed above: the line being read stays where it was.
         const fromBottom = scroller.value ? scroller.value.scrollHeight - scroller.value.scrollTop : 0;

@@ -248,6 +248,9 @@ export {
   SmileIcon                   as SmileIcon,
   BubbleChatAddIcon           as ChatAddIcon,
   HashtagIcon                 as HashtagIcon,
+  // Office chat files (CH7, 2026-11-01): the composer's paperclip, an image file's card.
+  Attachment01Icon            as PaperclipIcon,
+  Image01Icon                 as ImageFileIcon,
 
   // The sidebar's Pinned block (D-SB2): pin a page to the top, take it off again. A pin, not a star —
   // a star reads as "favourite" or a rating, and this is a place you keep within reach.

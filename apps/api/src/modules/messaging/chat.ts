@@ -51,6 +51,9 @@ const CHAT_ERRORS: Record<string, { status: 403 | 404 | 409 | 422; code: string;
   CH012: { status: 409, code: "name_in_use", message: "That name is already in use" },
   // 0521 (CH6b-1, Q-CHAT20): a `<@id>` token must name somebody in the conversation now.
   CH013: { status: 422, code: "mention_not_in_conversation", message: "That person is not in this conversation. Add them first" },
+  // 0539 (CH7): a line needs words or a file; the files it names must be uploaded, one to ten.
+  CH014: { status: 422, code: "empty_message", message: "Write something or attach a file first" },
+  CH015: { status: 422, code: "file_not_uploaded", message: "A file did not finish uploading. Attach it again" },
 };
 
 export type ChatResult<T> =

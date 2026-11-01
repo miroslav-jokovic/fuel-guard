@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import type { ChatPost, ChatPostPage } from "@silvicom/shared";
+import type { ChatFileRef, ChatPost, ChatPostPage } from "@silvicom/shared";
 import { AppIconButton, QueryState } from "@silvicom/ui";
 import { XMarkIcon } from "@silvicom/ui/icons";
 import ChatComposer from "../ChatComposer.vue";
@@ -30,7 +30,7 @@ const props = defineProps<{
   earlierFailed?: boolean;
 }>();
 const emit = defineEmits<{
-  send: [body: string];
+  send: [body: string, files: ChatFileRef[]];
   retry: [line: PendingLine];
   edit: [messageId: string, body: string];
   remove: [messageId: string];
@@ -79,7 +79,7 @@ const composer = ref<InstanceType<typeof ChatComposer> | null>(null);
       @exit-bottom="composer?.focus()"
     />
 
-    <ChatComposer v-if="!post.deleted_at" ref="composer" placeholder="Reply" label="Reply" action="Reply" :thread-key="post.id" @send="(body: string) => emit('send', body)" @up="log?.focusLast()" />
+    <ChatComposer v-if="!post.deleted_at" ref="composer" placeholder="Reply" label="Reply" action="Reply" :thread-key="post.id" :upload-to="threadId" @send="(body: string, files: ChatFileRef[]) => emit('send', body, files)" @up="log?.focusLast()" />
     <p v-else class="shrink-0 border-t border-edge-subtle px-4 py-3 text-sm text-ink-muted">This post was removed, so it takes no new replies.</p>
   </section>
 </template>

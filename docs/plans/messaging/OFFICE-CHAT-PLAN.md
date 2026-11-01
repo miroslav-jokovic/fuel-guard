@@ -258,7 +258,7 @@ One PR each unless noted. A column and its first reader ship in separate merges
 | CH6c-1 | Migration 0522: `message_reactions` (the six of D-CHAT26), `chat_pins`, `chat_saved`; ledger actions `reaction_added`/`reaction_removed`/`message_pinned`/`message_unpinned`; a reaction or pin bumps the message's `rev` so `/sync` re-delivers it (D-CHAT24); history, sync, posts and replies return `reactions` and `pinned_at` (drop + create by full signature). PGlite matrix | CH6b-1 |
 | CH6c-2 | API + web: reaction bar, Pin + a Pinned panel per conversation, Save + a Saved list; reactions to your messages join Activity | CH6c-1 on staging |
 | CH6d | Web only: browser notifications while the tab is open and hidden (Q-CHAT4 (a)), asked for from a button, honouring mute (Q-CHAT18) | CH6b-2 |
-| CH7 | Files | CH2 |
+| CH7 | Files — **built 2026-11-01** (§9.3): a line carries up to ten files (photos, PDFs, Office documents, text, CSV; 25 MB each), uploaded straight to a private bucket, checked by the API against their hash, ledgered with it; thumbnails and cards in the log, a Files list per conversation. Migration 0539 (number re-checked at merge) | CH2 |
 | CH8 | Search (`tsvector` + GIN, readable conversations only; the console reuses it org-wide) | CH2 |
 | CH9 | Presence, status, typing (Presence/Broadcast, ephemeral, never stored) | CH3b |
 | CH10 | Web Push | Q-CHAT4 |
@@ -382,6 +382,44 @@ Decisions (**ruled 2026-10-26, as recommended** — owner: "Proceed as recommend
 - **Matrix rows CH6c-1 must pin:** one reaction of a kind per person per line; reacting bumps the
   line's `rev` and writes one ledger row; a retracted line refuses reactions and pins; saving is
   invisible to every other reader; the ledger refuses UPDATE/DELETE of the new actions as of all others.
+
+### 9.3 CH7's shape (2026-11-01)
+
+Measured before building: `messages.attachment_path` (0096) is the driver thread's one photo and office chat
+never wrote it; no table, bucket or function held a line's files. CHAT-REDESIGN-PLAN Q-CHATUI5 kept the
+composer's `+` out until this existed.
+
+- **D-CHAT27 — a file belongs to a line.** `chat_attachments` is one row per file, written in the same
+  transaction as its line (`chat_send_files`), never before it. The bytes go first to the private
+  `chat-files` bucket through a signed upload URL the API gives out only after `chat_file_can_upload`; an
+  object no line claims is swept after 24 h by the nightly bucket reconcile, as every evidence bucket is.
+  The bytes never pass through the API process, which also runs the schedulers.
+- **D-CHAT28 — a file is evidence, like its line.** Append-only (`RETENTION_FORBIDDEN`), ledgered by trigger
+  as `file_attached` with its SHA-256, size and name, so the chain covers WHAT was sent. The API reads each
+  stored object back and checks its size, SHA-256 and magic bytes against the declaration before it calls
+  `chat_send_files` (CH015 when an object is missing) — it never takes the browser's word. A removed line
+  stops showing its files, as it stops showing its words; rows and bytes stay.
+- **D-CHAT29 — a line may be only files.** The body CHECK limits length only; a deferred constraint trigger
+  refuses an empty body unless the line carries a file at commit (CH014). A driver thread still needs words.
+- **D-CHAT30 — what a line may carry.** Ten files, 25 MB each, a name of 1–200 characters with no folder.
+  The kinds are the shared contract's `CHAT_FILE_TYPES`: photos (JPEG, PNG, WebP, GIF), PDF, Word, Excel,
+  PowerPoint, plain text and CSV — nothing that runs (no executables, scripts, HTML, archives). Each kind
+  says whether a browser draws it: an image is signed to draw inline and shown as a thumbnail; every other
+  kind is signed as a DOWNLOAD under its own name, so a document never renders on our page. Links last five
+  minutes.
+
+What a person sees: a paperclip at the composer's left (and drop, and paste) that starts each upload at
+once, each file's state in a strip above the toolbar (uploading, ready, failed with Retry, removable), Send
+held until every file is there; under a line, its images as thumbnails and its documents as cards with
+Download; a Files item in every conversation's and channel's header menu listing what was sent, newest
+first, with who sent it.
+
+**Open after CH7 (recorded, not built):** the compliance console (CHA2) and its export (CHA3b) do not yet
+show or include a line's files. A compliance export without them is incomplete — the ledger proves a file
+was sent and its hash, but the export does not carry the bytes or list them. Next step:
+`chat_compliance_export_rows` returns each line's attachments with their SHA-256, the console's conversation view draws
+them through the same signed-link path behind its step-up, and the export bundles the files beside the
+JSONL with their hashes in `manifest.json`. One migration and one API/console PR.
 
 ## 10. Open questions
 
@@ -598,4 +636,14 @@ TechRepublic / Windows Report on Teams 2026 updates.
   refuses a prompt nobody pressed for); the choice is per browser (`fg.chat.desktop-alerts`), and a
   browser that blocked them is told how to undo it. Rules in `chatDesktopAlerts.ts` (12 tests), the tab
   in `useChatDesktopAlerts.ts` (4, with a fake Notification). Next: CH7 Files.
-
+- 2026-11-01: **CH7 built** (`claude/chat-ch7-files`): migration 0539 (D-CHAT27–30, §9.3), matrix
+  `office-chat-files.test.mjs` 40/40; API `POST/GET /api/chat/:id/files`, `GET /api/chat/files/:id`, both
+  send routes take `files` and check every stored object before `chat_send_files`; contract
+  `chatFilesContract.ts`. Web: composer paperclip + drop + paste (`useChatAttachments`, `FilePickButton`),
+  `ChatAttachments` (thumbnails, then `ChatAttachmentFile` cards whose Download asks for its link only when
+  pressed), the pending line says "Sending N files…", a Files list in each header menu (`ChatFilesDialog`).
+  Two things the browser pass found and fixed: a sent line kept its key from pending to confirmed, so when
+  its files drew the log no longer followed it (`useChatScroll` now watches the newest line's file count);
+  and a line of files alone left its "Seen" on an empty line (it now follows the files). Seen too, not
+  CH7's and not fixed here: on staging the UAT banner adds 28 px a full-bleed page does not subtract, so
+  `/chat` and the map scroll by that much. Open: compliance console and export do not include files (§9.3).

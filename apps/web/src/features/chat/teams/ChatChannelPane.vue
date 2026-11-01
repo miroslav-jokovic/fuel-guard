@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import type { ChatMuteLevel, ChatPostPage, ChatTeamChannel } from "@silvicom/shared";
+import type { ChatFileRef, ChatMuteLevel, ChatPostPage, ChatTeamChannel } from "@silvicom/shared";
 import { AppButton as BaseButton } from "@silvicom/ui";
 import KebabMenu from "@/components/KebabMenu.vue";
 import ChatComposer from "../ChatComposer.vue";
 import ChatMessageList from "../ChatMessageList.vue";
 import ChatStageHeader from "../ChatStageHeader.vue";
 import ChatMuteItems from "../ChatMuteItems.vue";
+import ChatFilesDialog from "../ChatFilesDialog.vue";
 import ChatPinnedDialog from "../ChatPinnedDialog.vue";
 import { mergeLines, type PendingLine } from "../useChat";
 
@@ -42,7 +43,7 @@ const props = defineProps<{
   members?: ReadonlyArray<{ user_id: string; name: string | null }>;
 }>();
 const emit = defineEmits<{
-  send: [body: string];
+  send: [body: string, files: ChatFileRef[]];
   retry: [line: PendingLine];
   edit: [messageId: string, body: string];
   remove: [messageId: string];
@@ -66,6 +67,10 @@ const composer = ref<InstanceType<typeof ChatComposer> | null>(null);
 const pinsOpen = ref(false);
 const pinsMounted = ref(false);
 const openPins = () => { pinsMounted.value = true; pinsOpen.value = true; };
+/** Its Files list (CH7), mounted on first open for the same reason. */
+const filesOpen = ref(false);
+const filesMounted = ref(false);
+const openFiles = () => { filesMounted.value = true; filesOpen.value = true; };
 </script>
 
 <template>
@@ -77,6 +82,7 @@ const openPins = () => { pinsMounted.value = true; pinsOpen.value = true; };
       :people="members?.map((m) => ({ id: m.user_id, label: m.name }))" back-label="Back to chats and channels" @back="emit('back')">
       <KebabMenu trigger-label="Channel actions" placement="bottom-end">
         <BaseButton class="kebab-item" @click="openPins">Pinned messages</BaseButton>
+        <BaseButton class="kebab-item" @click="openFiles">Files</BaseButton>
         <ChatMuteItems :muted="channel.muted" @set="(level: ChatMuteLevel) => emit('mute', level)" />
         <BaseButton v-if="!channel.general" class="kebab-item" @click="emit('leave')">Leave channel</BaseButton>
       </KebabMenu>
@@ -111,7 +117,8 @@ const openPins = () => { pinsMounted.value = true; pinsOpen.value = true; };
         </div>
       </template>
     </ChatMessageList>
-    <ChatComposer ref="composer" :placeholder="`Message # ${channel.name}`" label="Post" action="Post" :thread-key="channel.thread_id" @send="(body: string) => emit('send', body)" @up="log?.focusLast()" />
+    <ChatComposer ref="composer" :placeholder="`Message # ${channel.name}`" label="Post" action="Post" :thread-key="channel.thread_id" :upload-to="channel.thread_id" @send="(body: string, files: ChatFileRef[]) => emit('send', body, files)" @up="log?.focusLast()" />
+    <ChatFilesDialog v-if="filesMounted" :open="filesOpen" :thread-id="channel.thread_id" :viewer-id="viewerId" @close="filesOpen = false" />
     <ChatPinnedDialog v-if="pinsMounted" :open="pinsOpen" :thread-id="channel.thread_id" :viewer-id="viewerId" @thread="(id: string) => emit('replies', id)" @close="pinsOpen = false" />
   </section>
 </template>

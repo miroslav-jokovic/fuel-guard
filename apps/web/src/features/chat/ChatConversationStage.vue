@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import { chatTitle, type ChatConversationResponse, type ChatMuteLevel } from "@silvicom/shared";
+import { chatTitle, type ChatConversationResponse, type ChatFileRef, type ChatMuteLevel } from "@silvicom/shared";
 import { AppButton as BaseButton } from "@silvicom/ui";
 import KebabMenu from "@/components/KebabMenu.vue";
 import { mergeLines, type PendingLine } from "./useChat";
@@ -8,6 +8,7 @@ import ChatComposer from "./ChatComposer.vue";
 import ChatMessageList from "./ChatMessageList.vue";
 import ChatStageHeader from "./ChatStageHeader.vue";
 import ChatMuteItems from "./ChatMuteItems.vue";
+import ChatFilesDialog from "./ChatFilesDialog.vue";
 import ChatPinnedDialog from "./ChatPinnedDialog.vue";
 import { provideChatMentions } from "./chatNames";
 
@@ -33,7 +34,7 @@ const props = defineProps<{
   firstUnreadSeq?: number | null;
 }>();
 defineEmits<{
-  send: [body: string];
+  send: [body: string, files: ChatFileRef[]];
   retry: [line: PendingLine];
   edit: [messageId: string, body: string];
   remove: [messageId: string];
@@ -76,6 +77,10 @@ const seenSeq = computed(() => (direct.value && myLastSeq.value !== null && othe
 const pinsOpen = ref(false);
 const pinsMounted = ref(false);
 const openPins = () => { pinsMounted.value = true; pinsOpen.value = true; };
+/** Its Files list (CH7), mounted on first open for the same reason. */
+const filesOpen = ref(false);
+const filesMounted = ref(false);
+const openFiles = () => { filesMounted.value = true; filesOpen.value = true; };
 </script>
 
 <template>
@@ -89,6 +94,7 @@ const openPins = () => { pinsMounted.value = true; pinsOpen.value = true; };
       <!-- Its mute (D-CHAT23): what reaches you from it, and whether it sits in Muted. -->
       <KebabMenu trigger-label="Conversation actions" placement="bottom-end">
         <BaseButton class="kebab-item" @click="openPins">Pinned messages</BaseButton>
+        <BaseButton class="kebab-item" @click="openFiles">Files</BaseButton>
         <ChatMuteItems :muted="data.conversation.muted" @set="(level: ChatMuteLevel) => $emit('mute', level)" />
       </KebabMenu>
     </ChatStageHeader>
@@ -112,7 +118,8 @@ const openPins = () => { pinsMounted.value = true; pinsOpen.value = true; };
       @earlier="$emit('earlier')"
       @exit-bottom="composer?.focus()"
     />
-    <ChatComposer ref="composer" :placeholder="`Message ${title}`" :thread-key="data.conversation.thread_id" @send="(body: string) => $emit('send', body)" @up="log?.focusLast()" />
+    <ChatComposer ref="composer" :placeholder="`Message ${title}`" :thread-key="data.conversation.thread_id" :upload-to="data.conversation.thread_id" @send="(body: string, files: ChatFileRef[]) => $emit('send', body, files)" @up="log?.focusLast()" />
+    <ChatFilesDialog v-if="filesMounted" :open="filesOpen" :thread-id="data.conversation.thread_id" :viewer-id="viewerId" @close="filesOpen = false" />
     <ChatPinnedDialog v-if="pinsMounted" :open="pinsOpen" :thread-id="data.conversation.thread_id" :viewer-id="viewerId" @close="pinsOpen = false" />
   </section>
 </template>

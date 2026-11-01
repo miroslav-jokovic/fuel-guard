@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { isRecordId, recordId } from "./recordId.js";
+import { CHAT_FILES_PER_LINE, chatAttachmentSchema, chatFileRefSchema } from "./chatFilesContract.js";
 
 /**
  * Office chat (docs/plans/messaging/OFFICE-CHAT-PLAN.md, CH1b) — the Teams-style conversations between
@@ -133,6 +134,8 @@ export const chatMessageSchema = z.object({
   reactions: z.array(chatLineReactionSchema).default([]),
   pinned_at: z.string().nullable().default(null),
   saved: z.boolean().default(false),
+  /** CH7 (0539): the line's files, in the order sent; none once it is retracted. Default = before 0539. */
+  attachments: z.array(chatAttachmentSchema).default([]),
 });
 export type ChatMessage = z.infer<typeof chatMessageSchema>;
 
@@ -207,11 +210,21 @@ export const chatCreateGroupRequestSchema = z.object({
 });
 export type ChatCreateGroupRequest = z.infer<typeof chatCreateGroupRequestSchema>;
 
+/**
+ * A line's words and, from CH7, its files. A line may be only files (0539, D-CHAT29) — the words may then
+ * be empty — but never neither. Shared by a conversation's send and a channel reply's.
+ */
+export const chatLineFields = {
+  body: z.string().max(CHAT_BODY_MAX).default(""),
+  files: z.array(chatFileRefSchema).max(CHAT_FILES_PER_LINE).default([]),
+};
+export const wordsOrFiles = (l: { body: string; files: unknown[] }) => l.body.trim().length > 0 || l.files.length > 0;
+
 export const chatSendRequestSchema = z.object({
   /** Client UUID and the row's primary key: a retried send is recognised, never doubled. */
   message_id: recordId(),
-  body,
-});
+  ...chatLineFields,
+}).refine(wordsOrFiles, { message: "Write something first", path: ["body"] });
 export type ChatSendRequest = z.infer<typeof chatSendRequestSchema>;
 
 export const chatEditRequestSchema = z.object({ body });
@@ -364,6 +377,8 @@ export function chatPreview(
   if (!m) return "No messages yet";
   if (m.deleted || m.body === null) return "Message removed";
   const text = chatBodyText(m.body, nameOf).replace(/\s+/g, " ").trim();
+  // A line with no words carries a file — the database refuses one with neither (0539, D-CHAT29).
+  if (!text) return "Sent a file";
   return text.length <= max ? text : `${text.slice(0, max - 1)}…`;
 }
 

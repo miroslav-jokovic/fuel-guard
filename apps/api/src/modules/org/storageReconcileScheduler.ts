@@ -3,6 +3,7 @@ import type { Env } from "../../env.js";
 import { getSupabaseAdmin } from "../../lib/supabaseAdmin.js";
 import {
   reconcileApplicationCaptureOrphans,
+  reconcileChatFileOrphans,
   reconcileComplianceDocOrphans,
   reconcileHazmatStorageOrphans,
   reconcileLoadPhotoOrphans,
@@ -71,6 +72,7 @@ export function startStorageReconcileScheduler(env: Env): void {
       ["load-photos", reconcileLoadPhotoOrphans],
       ["compliance-docs", reconcileComplianceDocOrphans],
       ["application-captures", reconcileApplicationCaptureOrphans],
+      ["chat-files", reconcileChatFileOrphans],
     ] as const) {
       try {
         const r = await reconcile(admin, { apply: true });

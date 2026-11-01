@@ -274,6 +274,21 @@ export function reconcileApplicationCaptureOrphans(
   );
 }
 
+/**
+ * Office chat's files (0539, OFFICE-CHAT-PLAN CH7, D-CHAT27). The browser PUTs a file's bytes before the
+ * line that carries it is sent, and `chat_attachments` is written only WITH the line — so an upload whose
+ * line was never sent (the person closed the tab, removed the file, or the send was refused) is an object
+ * no row points at. That is the normal orphan here, the same direction as `application-captures`, and the
+ * 24-hour grace is far longer than any composer stays open. A row whose object is missing is flagged, never
+ * deleted: a line saying a file was sent while the bytes are gone is the signal worth waking someone for.
+ */
+export function reconcileChatFileOrphans(
+  admin: SupabaseClient,
+  opts: { apply?: boolean; nowIso?: string } = {},
+): Promise<StorageReconcileResult> {
+  return reconcileBucketOrphans(admin, { bucket: "chat-files", table: "chat_attachments", label: "chat_attachments" }, opts);
+}
+
 /** A driver's proof of work at each stop — the same evidence guarantee, previously unreconciled. */
 export function reconcileLoadPhotoOrphans(
   admin: SupabaseClient,

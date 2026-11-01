@@ -5,6 +5,7 @@ import {
   reconcileComplianceDocOrphans,
   reconcileHazmatStorageOrphans,
   reconcileLoadPhotoOrphans,
+  reconcileChatFileOrphans,
 } from "./storageReconcile.js";
 
 const NOW = "2026-08-06T12:00:00Z";
@@ -237,6 +238,14 @@ describe("bucket ↔ table bindings", () => {
   it("the other buckets have no deferred column and still select storage_path alone", async () => {
     const calls: StubCall = {};
     await reconcileLoadPhotoOrphans(stubAdmin(calls), { apply: false });
+    expect(calls.columns).toBe("storage_path");
+  });
+
+  it("chat-files reconciles against `chat_attachments` (0539), so an upload nobody sent is swept", async () => {
+    const calls: StubCall = {};
+    await reconcileChatFileOrphans(stubAdmin(calls), { apply: false });
+    expect(calls.bucket).toBe("chat-files");
+    expect(calls.table).toBe("chat_attachments");
     expect(calls.columns).toBe("storage_path");
   });
 
