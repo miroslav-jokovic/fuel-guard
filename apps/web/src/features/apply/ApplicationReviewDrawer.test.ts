@@ -109,8 +109,10 @@ describe("what the office reads", () => {
     await settle(w);
     expect(w.text()).toContain("Susan Godfrey");
     expect(w.text()).toContain("Old Carrier");
-    // The driver's summary and the office's list call the same field the same thing.
-    expect(w.text()).toContain("Employer 1 · City");
+    // HW5b: the jobs are on the one timeline, and corrected in the one employer form — not offered a
+    // second time, cell by cell, in the correction list.
+    expect(w.find("[data-testid='employment-timeline']").text()).toContain("Old Carrier");
+    expect(w.find("input#apply-employers-0-city").exists()).toBe(false);
   });
 
   /**
@@ -177,109 +179,115 @@ describe("what the office reads", () => {
  * ⚠ The correction an office visit is actually for, and it is an ADDITION.
  *
  * The owner, 2026-09-14: *"the only critical part is previous companies he has worked and they
- * usually don't remember companies or dates, so we can go together and update this."* Correcting a
- * field the driver filled in was never the hard case; the hard case is a job they left out, which
- * `editableFields` refuses to offer because creating a path it cannot see would be an invention.
- * Creating a ROW is offered separately, and these pin that it appends rather than overwrites.
+ * usually don't remember companies or dates, so we can go together and update this."* Since HW5b the
+ * office adds, changes and fills a job in the applicant's own form (`EmployerFormDrawer`), on P5's
+ * transport: one `add_employer`, or one `set` per changed answer, each naming the revision it follows.
  */
-/** Choose Yes or No in one of the office form's pickers, found by the id its field gives it. */
-async function answer(w: ReturnType<typeof drawer>, id: string, value: "yes" | "no"): Promise<void> {
-  const picker = w.findAllComponents({ name: "AppCombobox" }).find((c) => c.props("id") === id);
-  expect(picker, id).toBeTruthy();
-  picker!.vm.$emit("update:modelValue", value);
+const PART_ONE = {
+  intake: { phone: "+13125550142", address_line1: "1 Main St", address_line2: null, city: "Joliet", state: "IL",
+    postal_code: "60431", prior_positive_2y: false, cdl_class: "A" },
+  licences: [{ position: 0, state_code: "IL", agency: null, licence_number: "IL123", expires_on: "2029-03-01" }],
+  asOf: "2026-09-26",
+};
+
+const field = (w: ReturnType<typeof drawer>, name: string) => w.find(`#office-employer-${name}`);
+const patches = () => apiFetch.mock.calls.filter((c) => c[1]?.method === "PATCH").map((c) => c[1].body);
+
+/** Fill the one form, as the office would across the desk. */
+async function fillJob(w: ReturnType<typeof drawer>, over: { street?: boolean; tested?: boolean } = {}): Promise<void> {
+  await field(w, "employer_name").setValue("Werner");
+  const dates = w.findAllComponents({ name: "AppDateField" });
+  dates.find((d) => d.html().includes('id="office-employer-started_on"'))!.vm.$emit("update:modelValue", "2025-03-01");
+  if (over.street !== false) await field(w, "address_line1").setValue("1 Frontier Rd");
+  await field(w, "city").setValue("Omaha");
+  w.findAllComponents({ name: "AppCombobox" }).find((c) => c.props("id") === "office-employer-state")!.vm.$emit("update:modelValue", "NE");
+  await field(w, "reason_for_leaving").setValue("Moved");
+  await settle(w);
+  await field(w, "subject_to_fmcsr").findAll("input[type=radio]")[0]!.setValue(true);
+  if (over.tested !== false) await field(w, "safety_sensitive").findAll("input[type=radio]")[1]!.setValue(true);
   await settle(w);
 }
 
-/** EM-3 (§9 P5): the street, city and state a v2 filing requires of every employer. */
-async function fillAddress(w: ReturnType<typeof drawer>): Promise<void> {
-  await w.find("input#apply-add-employer-street").setValue("1 Frontier Rd");
-  await w.find("input#apply-add-employer-city").setValue("Omaha");
-  await w.find("input#apply-add-employer-state").setValue("NE");
-}
-
-describe("adding an employer the applicant left out", () => {
-  it("EM-3: will not add an employer without its street", async () => {
+describe("adding a job the applicant left out (HW5b, the one form)", () => {
+  it("EM-3: will not add a job without its street on a v2 application, and says so under the box", async () => {
+    apiFetch.mockResolvedValue({ ok: true, data: review({ partOne: PART_ONE }) });
     const w = drawer();
     await settle(w);
-    await w.find("input#apply-add-employer-name").setValue("Werner");
-    await w.findAllComponents({ name: "AppDateField" })[0]!.vm.$emit("update:modelValue", "2019-03-01");
-    await answer(w, "apply-add-employer-fmcsr", "yes");
-    await answer(w, "apply-add-employer-tested", "yes");
-    await w.find("input#apply-add-employer-city").setValue("Omaha");
-    await w.find("input#apply-add-employer-state").setValue("NE");
+    await button(w, "Add a job")!.trigger("click");
     await settle(w);
-    expect(button(w, "Add this employer")!.attributes("disabled")).toBeDefined();
-    await w.find("input#apply-add-employer-street").setValue("1 Frontier Rd");
+    await fillJob(w, { street: false });
+    await button(w, "Save this job")!.trigger("click");
     await settle(w);
-    expect(button(w, "Add this employer")!.attributes("disabled")).toBeUndefined();
+    expect(patches()).toHaveLength(0);
+    expect(field(w, "address_line1").attributes("aria-invalid")).toBe("true");
   });
 
-  it("appends at the end of the list, on the same transport as a correction", async () => {
+  it("will not add a job in the last three years until both (b)(10)(iv) questions are answered", async () => {
+    apiFetch.mockResolvedValue({ ok: true, data: review({ partOne: PART_ONE }) });
     const w = drawer();
     await settle(w);
-
-    await w.find("input#apply-add-employer-name").setValue("Werner");
-    await fillAddress(w);
-    // ⚠ `From` is an AppDateField wrapping DatePickerBase, not a native <input type="date">, so it is
-    // driven by its own event rather than by setValue on an input that does not exist.
-    await w.findAllComponents({ name: "AppDateField" })[0]!.vm.$emit("update:modelValue", "2019-03-01");
-    await answer(w, "apply-add-employer-fmcsr", "yes");
-    await answer(w, "apply-add-employer-tested", "no");
+    await button(w, "Add a job")!.trigger("click");
     await settle(w);
-    apiFetch.mockResolvedValueOnce({ ok: true, data: { ok: true } });
-    await button(w, "Add this employer")!.trigger("click");
+    await fillJob(w, { tested: false });
+    await button(w, "Save this job")!.trigger("click");
     await settle(w);
-
-    const call = apiFetch.mock.calls.find((c) => c[1]?.method === "PATCH");
-    expect(call?.[0]).toBe("/api/recruitment/applications/inv-1/answer");
-    // §9 P5: its own op, with its key and the revision the drawer read — never a position.
-    expect(call?.[1].body).toMatchObject({ op: "add_employer", revision: 7 });
-    expect(typeof call?.[1].body.employer.key).toBe("string");
-    expect(call?.[1].body.employer.employer_name).toBe("Werner");
-    expect(typeof call?.[1].body).toBe("object");
-    // EM-3: the street, which a v2 filing refuses without — no longer a hard-coded "".
-    expect(call?.[1].body.employer.address_line1).toBe("1 Frontier Rd");
-    // Q-AW33 (C3c2b): what was chosen, each on its own — no longer copied from "DOT-regulated" and
-    // "drove a CMV", which both start at Yes, so a derived answer would read Yes/Yes here.
-    expect(call?.[1].body.employer.subject_to_fmcsr).toBe(true);
-    expect(call?.[1].body.employer.safety_sensitive).toBe(false);
-    // And back to nothing chosen for the next one — a kept answer would be a default for a stranger.
-    for (const id of ["apply-add-employer-fmcsr", "apply-add-employer-tested"]) {
-      expect(w.findAllComponents({ name: "AppCombobox" }).find((c) => c.props("id") === id)!.props("modelValue"), id).toBe("");
-    }
+    expect(patches()).toHaveLength(0);
+    expect(w.text()).toContain("Say whether this job was subject to DOT drug and alcohol testing");
   });
 
-  /**
-   * Q-AW33 (C3c2b): a blank the schema allows, refused here — the office's correction list skips a null
-   * cell (`editableFields`), so a blank added now could never be filled in, and a v2 filing refuses it.
-   */
-  it("will not add an employer until both (b)(10)(iv) questions are answered", async () => {
+  it("appends at the end of the list, by its own key, with the revision the drawer read", async () => {
+    apiFetch.mockResolvedValue({ ok: true, data: review({ partOne: PART_ONE }) });
     const w = drawer();
     await settle(w);
-    await w.find("input#apply-add-employer-name").setValue("Werner");
-    await fillAddress(w);
-    await w.findAllComponents({ name: "AppDateField" })[0]!.vm.$emit("update:modelValue", "2019-03-01");
-    await answer(w, "apply-add-employer-fmcsr", "yes");
+    await button(w, "Add a job")!.trigger("click");
     await settle(w);
-    expect(button(w, "Add this employer")!.attributes("disabled")).toBeDefined();
-    await answer(w, "apply-add-employer-tested", "yes");
+    await fillJob(w);
+    apiFetch.mockResolvedValueOnce({ ok: true, data: { ok: true, revision: 8 } });
+    await button(w, "Save this job")!.trigger("click");
     await settle(w);
-    expect(button(w, "Add this employer")!.attributes("disabled")).toBeUndefined();
+
+    const [body] = patches();
+    expect(body).toMatchObject({ op: "add_employer", revision: 7 });
+    expect(typeof body.employer.key).toBe("string");
+    expect(body.employer).toMatchObject({
+      employer_name: "Werner",
+      // EM-3: the street — no longer a hard-coded "".
+      address_line1: "1 Frontier Rd",
+      // EM-5: the applicant's defaults, on the office's add too.
+      operated_cmv: true,
+      dot_regulated: true,
+      // Q-AW33: what was chosen, each on its own.
+      subject_to_fmcsr: true,
+      safety_sensitive: false,
+    });
   });
 
-  it("will not send half an employer", async () => {
-    // The draft schema is partial at the TOP level only: an element present must be a whole employer.
-    // Refusing here rather than at the API is the difference between a field-level message and a toast.
+  it("changes a job as one correction per changed answer, each on the revision the last one returned", async () => {
     const w = drawer();
     await settle(w);
-    expect(button(w, "Add this employer")!.attributes("disabled")).toBeDefined();
+    await w.find("[data-job] button").trigger("click");
+    await settle(w);
+    await field(w, "city").setValue("Joliet");
+    await field(w, "reason_for_leaving").setValue("Closer to home");
+    // The applicant's job has no key (a draft from before AW1): the first write gives it one.
+    apiFetch.mockResolvedValueOnce({ ok: true, data: { ok: true, revision: 12, payload: { employers: [{ key: "k-minted" }] } } });
+    apiFetch.mockResolvedValueOnce({ ok: true, data: { ok: true, revision: 13, payload: {} } });
+    await button(w, "Save this job")!.trigger("click");
+    await settle(w);
+
+    expect(patches()).toEqual([
+      { path: ["employers", 0, "city"], value: "Joliet", revision: 7 },
+      { path: ["employers", "k-minted", "reason_for_leaving"], value: "Closer to home", revision: 12 },
+    ]);
   });
 
-  it("offers nothing to add once the application has gone back for signature", async () => {
+  it("offers nothing to add or change once the applicant has started signing", async () => {
     apiFetch.mockResolvedValue({ ok: true, data: review({ state: "approved", editable: false }) });
     const w = drawer();
     await settle(w);
-    expect(w.find("input#apply-add-employer-name").exists()).toBe(false);
+    expect(w.find("[data-testid='employment-timeline']").text()).toContain("Old Carrier");
+    expect(button(w, "Add a job")).toBeUndefined();
+    expect(w.find("[data-job] button").exists()).toBe(false);
   });
 });
 
@@ -288,8 +296,8 @@ describe("correcting one answer", () => {
     const w = drawer();
     await settle(w);
 
-    const city = w.find("input#apply-employers-0-city");
-    await city.setValue("Joliet");
+    const name = w.find("input#apply-first_name");
+    await name.setValue("Suzan");
     await settle(w);
     apiFetch.mockResolvedValueOnce({ ok: true, data: { ok: true } });
     await button(w, "Save")!.trigger("click");
@@ -300,8 +308,8 @@ describe("correcting one answer", () => {
     // ⚠ The object, never a JSON string — `apiFetch` serialises it, and a double-encoded body is
     // refused by express and surfaces as a generic 500 with no audit row.
     expect(typeof call?.[1].body).toBe("object");
-    expect(call?.[1].body.path).toEqual(["employers", 0, "city"]);
-    expect(call?.[1].body.value).toBe("Joliet");
+    expect(call?.[1].body.path).toEqual(["first_name"]);
+    expect(call?.[1].body.value).toBe("Suzan");
     // §8.1 / §9 P5: the revision the drawer read, so the API can refuse a write over a newer save.
     expect(call?.[1].body.revision).toBe(7);
   });
@@ -319,14 +327,13 @@ describe("correcting one answer", () => {
       ok: true,
       data: review({
         edits: [
-          { path: ["employers", 0, "city"], before: "Jolliet", after: "Joliet", editedAt: "2026-09-11T12:00:00Z", editedBy: "Dana" },
+          { path: ["first_name"], before: "Suzan", after: "Susan", editedAt: "2026-09-11T12:00:00Z", editedBy: "Dana" },
         ],
       }),
     });
     const w = drawer();
     await settle(w);
-    expect(w.text()).toContain("Jolliet");
-    expect(w.text()).toContain("Joliet");
+    expect(w.text()).toContain("Suzan");
     expect(w.text()).toContain("Corrected");
   });
 });
@@ -340,7 +347,7 @@ describe("when the answers may still be changed", () => {
     apiFetch.mockResolvedValue({ ok: true, data: review({ state: "approved", editable: false }) });
     const w = drawer();
     await settle(w);
-    expect(w.find("input#apply-employers-0-city").exists()).toBe(false);
+    expect(w.find("input#apply-first_name").exists()).toBe(false);
     expect(button(w, "Approve")).toBeUndefined();
     // And says why, rather than simply having nothing there.
     expect(w.text()).toContain("started signing");
@@ -350,7 +357,7 @@ describe("when the answers may still be changed", () => {
     apiFetch.mockResolvedValue({ ok: true, data: review({ state: "approved", editable: true }) });
     const w = drawer();
     await settle(w);
-    expect(w.find("input#apply-employers-0-city").exists()).toBe(true);
+    expect(w.find("input#apply-first_name").exists()).toBe(true);
     expect(button(w, "Approve")).toBeUndefined();
   });
 
@@ -358,7 +365,7 @@ describe("when the answers may still be changed", () => {
     apiFetch.mockResolvedValue({ ok: true, data: review({ state: "filling", editable: true }) });
     const w = drawer();
     await settle(w);
-    expect(w.find("input#apply-employers-0-city").exists()).toBe(true);
+    expect(w.find("input#apply-first_name").exists()).toBe(true);
     expect(button(w, "Approve")).toBeUndefined();
     expect(w.text()).toContain("type in what they tell you on the phone");
   });

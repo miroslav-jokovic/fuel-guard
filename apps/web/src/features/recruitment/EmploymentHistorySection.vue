@@ -1,12 +1,10 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import {
-  formatDisplayDate,
   employmentCoverage,
   CMV_WINDOW_YEARS,
   EMPLOYMENT_SOURCE_LABELS,
   EMPLOYMENT_WINDOW_YEARS,
-  GAP_TOLERANCE_DAYS,
   type EmploymentHistory,
   type EmploymentPeriod,
   type EmploymentSource,
@@ -14,20 +12,24 @@ import {
 import {
   AppCard as BaseCard,
   AppButton as BaseButton,
-  DataTable,
+  AppFormField as FormField,
+  AppTextarea,
   FactList,
+  QueryState,
   type Fact,
-  type DataTableColumn,
 } from "@silvicom/ui";
-import SlideOver from "@/components/SlideOver.vue";
-import KebabMenu from "@/components/KebabMenu.vue";
+import EmploymentTimeline from "@/components/employment/EmploymentTimeline.vue";
+import EmployerFormDrawer from "@/components/employment/EmployerFormDrawer.vue";
+import { EMPLOYMENT_OFFICE_COPY } from "@/components/employment/employmentCopy";
+import { employerProblems, type EmployerFields } from "@/components/employment/employerRow";
+import type { TimelineJob } from "@/components/employment/timeline";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { formatDateRange } from "@/lib/format";
 import { employmentInquiryBadge } from "@/lib/badges.recruiting";
 import { useSessionStore } from "@/stores/session";
 import { useToastStore } from "@/stores/toast";
 import { useDriverQuery } from "@/composables/useDrivers";
-import EmploymentForm from "@/features/recruitment/EmploymentForm.vue";
+import { historyToFields, historyWrite } from "@/features/recruitment/employmentRecord";
 import {
   useAddEmployment,
   useEmploymentHistoryQuery,
@@ -36,11 +38,20 @@ import {
 } from "@/features/recruitment/useEmployment";
 
 /**
- * One driver's §391.21(b)(10) employment history, as a section of the driver page (D1).
+ * One driver's §391.21(b)(10) employment history, as a section of the driver page (D1) — since HW5b
+ * the one timeline and the one employer form the applicant and the review drawer use
+ * (HIRING-WORKFLOW-AUDIT-2026-10-31 §4.5).
  *
  * The window ends at the HIRE DATE when we have one, not at today: §391.21(b)(10) asks about the
  * three years preceding the application, so measuring a five-year employee against today would
  * manufacture three years of gap that nobody was ever required to declare.
+ *
+ * What HW5b fixed here (EM-5, EM-6): Remove asks first (the panel's confirm); a job the office adds is
+ * saved as "Added by the office", not "Declared on the application"; "drove a truck" starts at Yes as it
+ * does for the applicant; the street, the email and both (iv) answers are asked; and the inquiry's
+ * status and dates are no longer typed here — the inquiry derives them from its attempts, and a typed
+ * value overwrote that on every save. The gaps are drawn but not yet explained: after filing they have
+ * no home until `driver_employment_gaps` (HW5c, EM-7).
  */
 const props = defineProps<{ driverId: string }>();
 const driverId = computed(() => props.driverId);
@@ -52,10 +63,17 @@ const historyQ = useEmploymentHistoryQuery(driverId);
 const add = useAddEmployment();
 const update = useUpdateEmployment();
 const remove = useRemoveEmployment();
+const copy = {
+  ...EMPLOYMENT_OFFICE_COPY,
+  removeMessage: "It comes off the office's record. The signed application keeps what the applicant wrote.",
+};
+const canEdit = computed(() => session.can("recruitment"));
 
 const asOf = computed(
   () => driverQ.data.value?.hire_date ?? new Date().toISOString().slice(0, 10),
 );
+
+const rows = computed(() => historyQ.data.value ?? []);
 
 const toPeriod = (r: EmploymentHistory): EmploymentPeriod => ({
   id: r.id,
@@ -67,9 +85,7 @@ const toPeriod = (r: EmploymentHistory): EmploymentPeriod => ({
   inquiryStatus: r.inquiry_status as EmploymentPeriod["inquiryStatus"],
 });
 
-const coverage = computed(() =>
-  employmentCoverage((historyQ.data.value ?? []).map(toPeriod), asOf.value),
-);
+const coverage = computed(() => employmentCoverage(rows.value.map(toPeriod), asOf.value));
 
 // The two coverage summaries (D-US6). Zero gaps or inquiries reads "None" — an answer, not a blank.
 const allEmploymentFacts = computed<Fact[]>(() => [
@@ -82,32 +98,50 @@ const cmvFacts = computed<Fact[]>(() => [
   { label: "Other listed", value: coverage.value.segmentB.otherEmployers, numeric: true },
 ]);
 
+/** The rows as the timeline draws them; what each still lacks is the filing's own rules for a job. */
+const jobs = computed<TimelineJob[]>(() =>
+  rows.value.map((r) => ({
+    key: r.id,
+    name: r.employer_name,
+    startedOn: r.started_on,
+    endedOn: r.ended_on,
+    operatedCmv: r.operated_cmv,
+    dotRegulated: r.dot_regulated,
+    missing: new Set(employerProblems(historyToFields(r), asOf.value).map((p) => p.field)).size,
+    unfinished: false,
+  })),
+);
+const rowById = (id: string): EmploymentHistory | null => rows.value.find((r) => r.id === id) ?? null;
+
+// ── the panel ────────────────────────────────────────────────────────────────────────────────
 const drawerOpen = ref(false);
 const editing = ref<EmploymentHistory | null>(null);
-/** Ties the footer's submit button to the form in the drawer body (contract §6.2). */
-const FORM_ID = "employment-form";
-const saving = computed(() => add.isPending.value || update.isPending.value);
+const prefill = ref<Partial<EmployerFields> | null>(null);
+const errors = ref<Record<string, string>>({});
+/** The office's working note on the row — the record's, not the application's, so it rides below the form. */
+const notes = ref("");
+const saving = computed(() => add.isPending.value || update.isPending.value || remove.isPending.value);
 
-function openAdd(): void {
-  editing.value = null;
-  drawerOpen.value = true;
-}
-function openEdit(row: EmploymentHistory): void {
+function openPanel(row: EmploymentHistory | null, dates: Partial<EmployerFields> | null = null): void {
   editing.value = row;
+  prefill.value = dates;
+  notes.value = row?.notes ?? "";
+  errors.value = {};
   drawerOpen.value = true;
 }
 
-async function submit(payload: Record<string, unknown>): Promise<void> {
+async function save(fields: EmployerFields): Promise<void> {
+  const { body, errors: found } = historyWrite(fields, notes.value, driverId.value, editing.value);
+  errors.value = found;
+  if (!body) return;
   try {
     if (editing.value) {
-      await update.mutateAsync({
-        id: editing.value.id,
-        driverId: driverId.value,
-        input: payload as never,
-      });
+      if (Object.keys(body).length > 0) {
+        await update.mutateAsync({ id: editing.value.id, driverId: driverId.value, input: body as never });
+      }
       toast.success("Employer updated");
     } else {
-      await add.mutateAsync(payload as never);
+      await add.mutateAsync(body as never);
       toast.success("Employer added");
     }
     drawerOpen.value = false;
@@ -117,22 +151,19 @@ async function submit(payload: Record<string, unknown>): Promise<void> {
   }
 }
 
-async function removeRow(row: EmploymentHistory): Promise<void> {
+/** After the panel's confirm (EM-5) — the removal used to happen straight from a kebab. */
+async function removeRow(): Promise<void> {
+  const row = editing.value;
+  if (!row) return;
   try {
     await remove.mutateAsync({ id: row.id, driverId: driverId.value });
     toast.success("Employer removed");
+    drawerOpen.value = false;
+    editing.value = null;
   } catch (e) {
     toast.error("Could not remove the employer", e instanceof Error ? e.message : undefined);
   }
 }
-
-const columns: DataTableColumn[] = [
-  { key: "employer_name", label: "Employer" },
-  { key: "period", label: "Period" },
-  { key: "usdot_number", label: "USDOT" },
-  { key: "inquiry_status", label: "Safety-history inquiry" },
-  { key: "source", label: "Source" },
-];
 
 const sourceLabel = (s: string): string =>
   EMPLOYMENT_SOURCE_LABELS[s as EmploymentSource] ?? s;
@@ -150,7 +181,7 @@ const sourceLabel = (s: string): string =>
             a commercial vehicle<template v-if="driverQ.data.value?.hire_date">. Measured from the hire date</template>.
           </p>
         </div>
-        <BaseButton v-if="session.can('recruitment')" variant="primary" @click="openAdd">Add employer</BaseButton>
+        <BaseButton v-if="canEdit" variant="primary" @click="openPanel(null)">Add employer</BaseButton>
       </div>
 
       <!-- Two lists, two rules. Only the first carries a gap figure — see the note below it. -->
@@ -174,76 +205,54 @@ const sourceLabel = (s: string): string =>
         </div>
       </div>
 
-      <ul v-if="coverage.segmentA.gaps.length" class="mt-4 space-y-1 text-sm">
-        <li v-for="g in coverage.segmentA.gaps" :key="g.from" class="text-ink-secondary">
-          <span :class="[BADGE_BASE, toneClass('warning')]">{{ g.days }} days</span>
-          <span class="ml-2">{{ formatDateRange(g.from, g.to) }} is not accounted for.</span>
-        </li>
-      </ul>
-      <p v-if="coverage.segmentA.gaps.length" class="mt-2 text-xs text-ink-muted">
-        Breaks under {{ GAP_TOLERANCE_DAYS }} days are not shown. The FMCSA sets no gap threshold;
-        this one is carrier practice.
-      </p>
     </BaseCard>
 
-    <BaseCard padding="none">
-      <DataTable
-        embedded
-        :columns="columns"
-        :rows="historyQ.data.value ?? []"
-        row-key="id"
+    <BaseCard>
+      <QueryState
         :loading="historyQ.isLoading.value"
-        :error="historyQ.isError.value ? 'Could not load employment history.' : null"
+        :error="historyQ.isError.value ? historyQ.error.value : null"
         :retrying="historyQ.isFetching.value"
-        empty-text="No employers recorded yet. Add them from the driver's application."
+        loading-text="Loading employment history…"
+        error-text="Could not load employment history."
+        @retry="historyQ.refetch()"
       >
-        <template #cell-employer_name="{ row }">
-          <span class="font-medium text-ink">{{ row.employer_name }}</span>
-          <span v-if="row.employer_city" class="ml-2 text-xs text-ink-muted">
-            {{ row.employer_city }}{{ row.employer_state ? `, ${row.employer_state}` : "" }}
-          </span>
-          <span v-if="!row.dot_regulated" class="ml-2 text-xs text-ink-muted">· not DOT-regulated</span>
-        </template>
-        <template #cell-period="{ row }">
-          {{ formatDisplayDate(row.started_on) }} → {{ row.ended_on ? formatDisplayDate(row.ended_on) : "present" }}
-        </template>
-        <template #cell-usdot_number="{ row }">
-          <span v-if="row.usdot_number" class="font-mono text-xs text-ink-secondary">{{ row.usdot_number }}</span>
-          <span v-else class="text-ink-muted">—</span>
-        </template>
-        <template #cell-inquiry_status="{ row }">
-          <span :class="[BADGE_BASE, toneClass(employmentInquiryBadge(row.inquiry_status).tone)]">
-            {{ employmentInquiryBadge(row.inquiry_status).label }}
-          </span>
-        </template>
-        <template #cell-source="{ row }">
-          <span class="text-ink-muted">{{ sourceLabel(row.source) }}</span>
-        </template>
-        <template #actions="{ row }">
-          <KebabMenu v-if="session.can('recruitment')">
-            <BaseButton class="kebab-item" @click="openEdit(row)">Edit</BaseButton>
-            <BaseButton class="kebab-item" @click="removeRow(row)">Remove</BaseButton>
-          </KebabMenu>
-        </template>
-      </DataTable>
+        <EmploymentTimeline
+          :jobs="jobs"
+          :as-of="asOf"
+          :copy="copy"
+          :show-gaps="jobs.length > 0"
+          :editable="canEdit"
+          @edit="openPanel(rowById($event))"
+          @add="openPanel(null, $event)"
+        >
+          <template #job-meta="{ job }">
+            <span :class="[BADGE_BASE, toneClass(employmentInquiryBadge(rowById(job.key)?.inquiry_status ?? '').tone)]">
+              {{ employmentInquiryBadge(rowById(job.key)?.inquiry_status ?? "").label }}
+            </span>
+            <span class="text-xs text-ink-muted">{{ sourceLabel(rowById(job.key)?.source ?? "") }}</span>
+          </template>
+        </EmploymentTimeline>
+      </QueryState>
     </BaseCard>
 
-    <!-- size="lg" because it holds a real form, and the actions ride in #footer — contract §6.2. -->
-    <SlideOver
+    <EmployerFormDrawer
       :open="drawerOpen"
-      size="lg"
-      :title="editing ? 'Edit employer' : 'Add employer'"
+      :employer="editing ? historyToFields(editing) : null"
+      :prefill="prefill"
+      :copy="copy"
+      id-prefix="record-employer"
+      :as-of="asOf"
+      :errors="errors"
+      :removable="Boolean(editing)"
+      :pending="saving"
+      description="The office's record. The signed application is not changed."
+      @save="save"
+      @remove="removeRow"
       @close="drawerOpen = false"
     >
-      <EmploymentForm :form-id="FORM_ID" :driver-id="driverId" :existing="editing" @submit="submit" />
-      <template #footer>
-        <div class="flex items-center justify-end gap-3">
-          <BaseButton @click="drawerOpen = false">Cancel</BaseButton>
-          <BaseButton :form="FORM_ID" type="submit" variant="primary" :disabled="saving">
-            {{ saving ? "Saving…" : editing ? "Save changes" : "Add employer" }}
-          </BaseButton>
-        </div>
-      </template>
-    </SlideOver>
+      <FormField v-slot="{ id }" label="Notes">
+        <AppTextarea :id="id" v-model="notes" :rows="2" />
+      </FormField>
+    </EmployerFormDrawer>
   </div>
 </template>

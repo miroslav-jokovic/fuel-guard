@@ -51,6 +51,11 @@ export const employmentHistorySchema = z.object({
   driver_id: recordId(),
   employer_name: z.string(),
   usdot_number: z.string().nullable(),
+  /**
+   * The street (0222). Optional in the read: an API from before HW5b selects none, and absent reads as
+   * "not recorded", never as an error.
+   */
+  employer_address_line1: z.string().nullable().optional(),
   employer_city: z.string().nullable(),
   employer_state: z.string().nullable(),
   employer_phone: z.string().nullable(),
@@ -87,6 +92,12 @@ export const usdotNumberSchema = z.preprocess(
 const employmentFields = {
   employer_name: z.string().min(1).max(200),
   usdot_number: usdotNumberSchema,
+  /**
+   * §391.23(c)(2)'s written record needs the employer's ADDRESS. The column has existed since 0222 and
+   * filing has always copied the applicant's street into it, but the office's own form could neither
+   * show nor write it (EM-5) — the one employer form (HW5b) asks it everywhere, so the contract carries it.
+   */
+  employer_address_line1: z.string().max(200).nullish(),
   employer_city: z.string().max(120).nullish(),
   employer_state: z.string().max(40).nullish(),
   employer_phone: z.string().max(40).nullish(),
