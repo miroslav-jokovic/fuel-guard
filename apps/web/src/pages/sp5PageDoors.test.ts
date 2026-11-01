@@ -126,12 +126,12 @@ describe("Reports", async () => {
     expect(buttons(await mountPage(Page))).not.toContain("Send digest now");
   });
 
-  it("keeps Odometer Mismatches as words where the Odometer page does not open", async () => {
+  it("keeps Odometer mismatches as words where the Odometer page does not open", async () => {
     expect(hrefs(await mountPage(Page))).toContain("/odometer");
     session.surfaces = { "fleet.odometer": false };
     const w = await mountPage(Page);
     expect(hrefs(w)).not.toContain("/odometer");
-    expect(w.text()).toContain("Odometer Mismatches");
+    expect(w.text()).toContain("Odometer mismatches");
   });
 });
 

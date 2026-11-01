@@ -20,7 +20,7 @@ export const fleetRoutes: RouteRecordRaw[] = [
     path: "/odometer",
     name: "odometer",
     component: () => import("@/pages/OdometerPage.vue"),
-    meta: { requiresAuth: true, title: "Odometer Mismatches" },
+    meta: { requiresAuth: true, title: "Odometer mismatches" },
   },
   {
     path: "/coverage",
@@ -64,7 +64,7 @@ export const fleetRoutes: RouteRecordRaw[] = [
     path: "/drug-alcohol",
     name: "drug-alcohol",
     component: () => import("@/pages/DrugAlcoholPage.vue"),
-    meta: { requiresAuth: true, title: "Drug & Alcohol" },
+    meta: { requiresAuth: true, title: "Drug & alcohol" },
   },
   {
     // Safety › Roadside inspections (INSPECTION-CHALLENGE-PLAN §6, Q-FM7 (a)). Gated by its surface

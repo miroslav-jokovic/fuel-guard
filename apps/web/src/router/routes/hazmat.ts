@@ -21,13 +21,13 @@ export const hazmatRoutes: RouteRecordRaw[] = [
     path: "/hazmat/calculator",
     name: "hazmat-calculator",
     component: () => import("@/pages/HazmatCalculatorPage.vue"),
-    meta: { requiresAuth: true, title: "Placard Calculator" },
+    meta: { requiresAuth: true, title: "Placard calculator" },
   },
   {
     path: "/hazmat/review",
     name: "hazmat-review",
     component: () => import("@/pages/HazmatReviewPage.vue"),
-    meta: { requiresAuth: true, title: "Hazmat Review" },
+    meta: { requiresAuth: true, title: "Hazmat review" },
   },
   // D-H17: the second board and the create path that orphaned its records. These sit BEFORE the
   // workspace's `:id` route on purpose — vue-router ranks a static segment above a dynamic one, but

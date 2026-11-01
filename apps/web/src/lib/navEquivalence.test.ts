@@ -84,6 +84,16 @@ import { buildNavGroups } from "./nav";
  * ── AND A SEVENTH TIME, THE SAME DAY: PARTS IS "SHOP PARTS" (MAINTENANCE M8, §7a.5) ──────────────
  * The same nineteen snapshots, one line each: `Parts → /shop/inventory` reads `Shop parts →
  * /shop/inventory`. A label only — same key, same path, same place, same gate.
+ *
+ * ── AND AN EIGHTH TIME, ON 2026-11-01: THE SIDEBAR REDESIGN (SIDEBAR-REDESIGN-PLAN.md D-SB4/D-SB5) ──
+ * Twenty-six snapshots moved, and the diff is large because group ORDER changed (Dispatch before
+ * Fuel, Maintenance before Finance), which reorders every multi-group snapshot. So it was checked by
+ * script rather than by eye: every snapshot parsed old and new into path → (group, label), and across
+ * all 32 the set of PATHS is identical in every one — no role gained or lost a page. The only group
+ * changes are `/anomalies` and `/idling`, Safety → Fuel. The only label changes are the twelve
+ * renames to sentence case and plainer names (Cards → Fuel cards, Alerts → Fuel alerts, Messages →
+ * Driver messages, Invoices → Customer invoices, Odometer → Odometer mismatches (its page title), and
+ * seven capitalisation fixes). No gate, no key.
  */
 
 /** Every module enabled, none, and the shipped default — the three that change what the nav shows. */

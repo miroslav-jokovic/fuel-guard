@@ -9,9 +9,7 @@ import {
 } from "@silvicom/ui/icons";
 import { useColorScheme, type ColorScheme } from "@/composables/useColorScheme";
 import { USER_ROLE_LABELS, type UserRole } from "@silvicom/shared";
-import { RouterLink } from "vue-router";
 import KebabMenu from "@/components/KebabMenu.vue";
-import { useOpens } from "@/composables/useOpens";
 import { useServedRelease } from "@/composables/useServedRelease";
 
 const props = defineProps<{
@@ -23,11 +21,11 @@ const props = defineProps<{
 }>();
 
 /**
- * The Settings link shows exactly when the guard would open `/settings` (SP5). The shell used to pass
- * that in as a prop computed by `pathOpens`; the menu asks the guard's own function directly now, so
- * there is no second copy of the question for a caller to get wrong.
+ * There is no Settings link in this menu any more (SIDEBAR-REDESIGN-PLAN.md D-SB4). It was added when
+ * Settings sat at the bottom of a sidebar too long to see the end of; since the redesign Settings is
+ * in the sidebar's fixed footer directly above this menu, and two Settings links 40 px apart are
+ * exactly the "two ways to the same place" the redesign is removing.
  */
-const opens = useOpens();
 
 const emit = defineEmits<{ signOut: [] }>();
 
@@ -116,7 +114,6 @@ const subline = computed(() => (props.name && props.email ? `${props.email} · $
       </button>
     </div>
     <div class="sidebar-divider mb-1 border-t" />
-    <RouterLink v-if="opens('/settings')" to="/settings" class="sidebar-account-item">Settings</RouterLink>
     <button
       type="button"
       class="sidebar-account-item text-danger-700 hover:text-danger-800"

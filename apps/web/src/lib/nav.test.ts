@@ -46,42 +46,42 @@ describe("buildNavGroups", () => {
     expect(names).not.toContain("Hazmat review");
   });
 
-  it("places Driver Qualification in Safety without duplicating it in Fleet", () => {
+  it("places Driver qualification in Safety without duplicating it in Fleet", () => {
     const groups = buildNavGroups("admin", null);
     const safety = groups.find((group) => group.label === "Safety");
     const fleet = groups.find((group) => group.label === "Fleet");
 
-    expect(safety?.items.map((item) => item.name)).toContain("Driver Qualification");
-    expect(fleet?.items.map((item) => item.name)).not.toContain("Driver Qualification");
+    expect(safety?.items.map((item) => item.name)).toContain("Driver qualification");
+    expect(fleet?.items.map((item) => item.name)).not.toContain("Driver qualification");
   });
 
-  it("preserves the existing Fleet permission gate for Driver Qualification", () => {
+  it("preserves the existing Fleet permission gate for Driver qualification", () => {
     const dispatcherSafety = buildNavGroups("dispatcher", null).find((group) => group.label === "Safety");
     const driverSafety = buildNavGroups("driver", null).find((group) => group.label === "Safety");
 
-    expect(dispatcherSafety?.items.map((item) => item.name)).toEqual(["Driver Qualification"]);
+    expect(dispatcherSafety?.items.map((item) => item.name)).toEqual(["Driver qualification"]);
     expect(driverSafety).toBeUndefined();
   });
 });
 
 describe("fuel cards", () => {
-  it("shows Cards to every role that can VIEW the fuel section", () => {
+  it("shows Fuel cards to every role that can VIEW the fuel section", () => {
     for (const role of ["admin", "fleet_manager", "dispatcher", "safety_manager", "auditor"] as const) {
       const fuel = buildNavGroups(role, null).find((g) => g.label === "Fuel");
-      expect(fuel?.items.filter((i) => i.show).map((i) => i.name)).toContain("Cards");
+      expect(fuel?.items.filter((i) => i.show).map((i) => i.name)).toContain("Fuel cards");
     }
   });
 
-  it("hides Cards from a driver", () => {
+  it("hides Fuel cards from a driver", () => {
     // The card inventory is a fraud-detection surface; a driver reading it is reading about themselves.
     const fuel = buildNavGroups("driver", null).find((g) => g.label === "Fuel");
-    expect(fuel?.items.filter((i) => i.show).map((i) => i.name) ?? []).not.toContain("Cards");
+    expect(fuel?.items.filter((i) => i.show).map((i) => i.name) ?? []).not.toContain("Fuel cards");
   });
 
   it("needs no module entitlement — card control is not a separate product", () => {
     // It is what the EFS integration the customer already pays for does once EFS allows it.
     const fuel = buildNavGroups("admin", null).find((g) => g.label === "Fuel");
-    expect(fuel?.items.find((i) => i.name === "Cards")?.show).toBe(true);
+    expect(fuel?.items.find((i) => i.name === "Fuel cards")?.show).toBe(true);
   });
 });
 
@@ -192,8 +192,8 @@ describe("buildNavGroups under an org's overrides", () => {
   });
 
   it("shows a section the org has granted a role that does not ship with it", () => {
-    expect(names("dispatcher")).not.toContain("Alerts");
-    expect(names("dispatcher", { safety: "view" })).toContain("Alerts");
+    expect(names("dispatcher")).not.toContain("Fuel alerts");
+    expect(names("dispatcher", { safety: "view" })).toContain("Fuel alerts");
   });
 
   it("hides a section the org has taken away", () => {
@@ -206,9 +206,9 @@ describe("buildNavGroups under an org's overrides", () => {
     // Transactions and Import; C2 made the first a tab of the Fuel Log and C4 made the second a
     // drawer on it, so neither is a grantable screen any more.)
     const viewOnly = names("recruiter", { fuel: "view" });
-    expect(viewOnly).toContain("Cards");
-    expect(viewOnly).not.toContain("Fuel Costs");
-    expect(names("recruiter", { fuel: "manage" })).toContain("Fuel Costs");
+    expect(viewOnly).toContain("Fuel cards");
+    expect(viewOnly).not.toContain("Fuel costs");
+    expect(names("recruiter", { fuel: "manage" })).toContain("Fuel costs");
   });
 
   it("leaves untouched sections alone, because the claim is sparse", () => {
@@ -264,5 +264,32 @@ describe("the shop group keeps its stored answers through I4's relabel", () => {
     expect(shopItems({ "maintenance.repair-spend": false })).not.toContain("Shop /shop");
     // …and only that entry. A denial that took the whole group with it would be a different bug.
     expect(shopItems({ "maintenance.repair-spend": false })).toContain("Shop parts /shop/inventory");
+  });
+});
+
+/**
+ * A sidebar entry and the page it opens say the same name (SIDEBAR-REDESIGN-PLAN.md D-SB5). The
+ * route's `meta.title` is what the page header and the browser tab show, and until 2026-11-01
+ * nothing compared it with the catalogue label: they agreed by habit, and the redesign's twelve
+ * renames would have left "Fuel alerts" in the sidebar opening a page titled "Alerts". The title
+ * is still a second copy (routes cannot import labels without the table depending on the catalogue
+ * at load time); this is what keeps the copy honest.
+ */
+describe("sidebar labels and page titles", () => {
+  it("every sidebar entry's route has the entry's label as its title", async () => {
+    const { ROUTE_TABLE } = await import("@/router/table");
+    const { NAV_SURFACES } = await import("@silvicom/shared");
+    const titled = new Map<string, unknown>();
+    const walk = (rs: readonly import("vue-router").RouteRecordRaw[]) => {
+      for (const r of rs) {
+        if (r.meta?.title !== undefined) titled.set(r.path, r.meta.title);
+        if (r.children) walk(r.children);
+      }
+    };
+    walk(ROUTE_TABLE);
+    const mismatched = NAV_SURFACES.filter((s) => titled.has(s.path) && titled.get(s.path) !== s.label && s.path !== "/").map(
+      (s) => `${s.path}: sidebar "${s.label}", page "${String(titled.get(s.path))}"`,
+    );
+    expect(mismatched).toEqual([]);
   });
 });

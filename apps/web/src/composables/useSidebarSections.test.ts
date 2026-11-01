@@ -1,13 +1,14 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { useSidebarSections } from "@/composables/useSidebarSections";
+import { nextTick, ref } from "vue";
+import { resetSidebarSectionsForTest, useSidebarSections } from "@/composables/useSidebarSections";
 
 /**
- * Sidebar section state (phase 6).
+ * Sidebar section state (phase 6; default reversed by SIDEBAR-REDESIGN-PLAN.md D-SB3).
  *
- * The rule worth pinning is the override: the section holding the current route stays open no matter
- * what was stored. Without it a deep link, a post-sign-in redirect or a notification can land on a
- * page whose own section is collapsed — the nav would be pointing away from where you are, silently,
- * and only for the person whose stored preference happened to include that section.
+ * Two rules are worth pinning. Sections start CLOSED except the one holding the current page — that
+ * is the whole point of D-SB3, the change from a 2,000 px wall to a list of headers. And arriving in
+ * a section you had closed reopens it: without that a deep link, a post-sign-in redirect or the ⌘K
+ * palette can land on a page whose own section is shut, and the nav points away from where you are.
  *
  * This suite installs its own storage: the repo's jsdom has none at all (`localStorage` is undefined
  * bare, on `window` and on `globalThis`), so the no-storage path is what CI actually runs.
@@ -33,56 +34,69 @@ function installStorage() {
 describe("useSidebarSections", () => {
   beforeEach(() => {
     installStorage();
-    // Reset module state by collapsing then expanding nothing — the set lives at module scope.
-    const { isOpen, toggle } = useSidebarSections(() => null);
-    for (const label of ["Fuel", "Dispatch", "Safety"]) if (!isOpen(label)) toggle(label);
+    resetSidebarSectionsForTest();
   });
 
-  it("starts with every section open, which is exactly the old behaviour", () => {
+  it("starts every section closed except the one holding the current page", () => {
+    const { isOpen } = useSidebarSections(() => "dispatch");
+    expect(isOpen("dispatch")).toBe(true);
+    expect(isOpen("fuel")).toBe(false);
+    expect(isOpen("safety")).toBe(false);
+  });
+
+  it("starts everything closed on a page that belongs to no section", () => {
     const { isOpen } = useSidebarSections(() => null);
-    expect(isOpen("Fuel")).toBe(true);
-    expect(isOpen("Dispatch")).toBe(true);
+    expect(isOpen("dispatch")).toBe(false);
+    expect(isOpen("fuel")).toBe(false);
   });
 
-  it("closes a section on the FIRST click", () => {
-    // The bug this pins: storing OPEN sections meant the set started empty while the sidebar
-    // started expanded, so the first click added the section to "open" and it stayed open. Storing
-    // the closed ones makes the empty set mean what the UI already shows.
+  it("opens a closed section on the FIRST click, and closes it on the second", () => {
     const { isOpen, toggle } = useSidebarSections(() => null);
-    toggle("Fuel");
-    expect(isOpen("Fuel")).toBe(false);
+    toggle("fuel");
+    expect(isOpen("fuel")).toBe(true);
+    toggle("fuel");
+    expect(isOpen("fuel")).toBe(false);
   });
 
-  it("reopens on a second click", () => {
-    const { isOpen, toggle } = useSidebarSections(() => null);
-    toggle("Fuel");
-    toggle("Fuel");
-    expect(isOpen("Fuel")).toBe(true);
+  it("lets the reader close the section they are standing in", () => {
+    // Phase 6 forced the current section open, so its header did nothing when clicked — a control
+    // that ignores you. The reader just watched it close, so nothing is hidden from them.
+    const { isOpen, toggle } = useSidebarSections(() => "dispatch");
+    toggle("dispatch");
+    expect(isOpen("dispatch")).toBe(false);
   });
 
-  it("leaves other sections alone", () => {
-    const { isOpen, toggle } = useSidebarSections(() => null);
-    toggle("Fuel");
-    expect(isOpen("Dispatch")).toBe(true);
+  it("keeps a section the reader opened open after they leave it", () => {
+    const here = ref<string | null>(null);
+    const { isOpen, toggle } = useSidebarSections(() => here.value);
+    toggle("fuel");
+    here.value = "dispatch";
+    expect(isOpen("fuel")).toBe(true);
   });
 
-  it("keeps the section holding the current route open, whatever was stored", () => {
-    const collapseAll = useSidebarSections(() => null);
-    collapseAll.toggle("Safety");
-    expect(collapseAll.isOpen("Safety")).toBe(false);
-
-    // Same stored state, but now the user is standing inside Safety.
-    const onSafetyPage = useSidebarSections(() => "Safety");
-    expect(onSafetyPage.isOpen("Safety")).toBe(true);
-    // …and that override does not leak to its neighbours.
-    onSafetyPage.toggle("Fuel");
-    expect(onSafetyPage.isOpen("Fuel")).toBe(false);
+  it("reopens a section the reader had closed when they arrive in it", async () => {
+    const here = ref<string | null>(null);
+    const { isOpen, toggle } = useSidebarSections(() => here.value);
+    toggle("safety");
+    toggle("safety"); // an explicit "closed" is now stored for Safety
+    expect(isOpen("safety")).toBe(false);
+    here.value = "safety";
+    await nextTick();
+    expect(isOpen("safety")).toBe(true);
   });
 
-  it("remembers the choice across a fresh caller", () => {
-    useSidebarSections(() => null).toggle("Dispatch");
-    expect(useSidebarSections(() => null).isOpen("Dispatch")).toBe(false);
-    expect(JSON.parse(localStorage.getItem("fg.sidebar-collapsed")!)).toContain("Dispatch");
+  it("remembers the choice across a fresh caller, keyed by group key", () => {
+    useSidebarSections(() => null).toggle("dispatch");
+    resetSidebarSectionsForTest();
+    expect(useSidebarSections(() => null).isOpen("dispatch")).toBe(true);
+    expect(JSON.parse(localStorage.getItem("fg.sidebar-sections")!)).toEqual({ dispatch: true });
+  });
+
+  it("ignores the phase-6 storage, which held labels and meant the opposite", () => {
+    localStorage.setItem("fg.sidebar-collapsed", JSON.stringify(["Fuel"]));
+    resetSidebarSectionsForTest();
+    expect(useSidebarSections(() => null).isOpen("fuel")).toBe(false);
+    expect(useSidebarSections(() => null).isOpen("Fuel")).toBe(false);
   });
 
   it("still toggles when storage is unavailable", () => {
@@ -92,9 +106,10 @@ describe("useSidebarSections", () => {
         throw new Error("storage disabled");
       },
     });
+    resetSidebarSectionsForTest();
     const { isOpen, toggle } = useSidebarSections(() => null);
-    expect(() => toggle("Fleet")).not.toThrow();
-    expect(isOpen("Fleet")).toBe(false);
+    expect(() => toggle("fleet")).not.toThrow();
+    expect(isOpen("fleet")).toBe(true);
     installStorage();
   });
 });

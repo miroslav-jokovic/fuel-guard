@@ -44,17 +44,21 @@ import {
  * the next person to document this file should know why it reads the way it does.
  */
 
-/** Group order IS sidebar order. */
+/**
+ * Group order IS sidebar order — by how many people open a section every day, since the sidebar
+ * redesign (D-SB4, owner 2026-11-01; `docs/plans/design-system/SIDEBAR-REDESIGN-PLAN.md`). Admin is the
+ * `footer` group: it is drawn below the scrolling list, beside the account, never inside it.
+ */
 export const SURFACE_GROUPS: readonly SurfaceGroup[] = [
   { key: "top", label: null },
-  { key: "fuel", label: "Fuel" },
   { key: "dispatch", label: "Dispatch" },
+  { key: "fuel", label: "Fuel" },
   { key: "safety", label: "Safety" },
   { key: "recruitment", label: "Recruitment" },
   { key: "fleet", label: "Fleet" },
-  { key: "finance", label: "Finance" },
   { key: "maintenance", label: "Maintenance" },
-  { key: "admin", label: "Admin" },
+  { key: "finance", label: "Finance" },
+  { key: "admin", label: "Admin", footer: true },
 ];
 
 /**
@@ -97,17 +101,17 @@ export const SURFACES: readonly Surface[] = [
    * is a NARROWING for `recruiter` and `technician`, whose shipped `fuel` is `none`; both snapshots
    * record it.
    */
-  { key: "fuel.log", label: "Fuel Log", path: "/fuel-log", group: "fuel", gate: section("fuel") },
+  { key: "fuel.log", label: "Fuel log", path: "/fuel-log", group: "fuel", gate: section("fuel") },
   // EFS card inventory + control. Read-only until the write entitlement is confirmed; the page
   // itself explains that, so the catalogue entry does not need to know.
-  { key: "fuel.cards", label: "Cards", path: "/fuel-cards", group: "fuel", gate: section("fuel") },
+  { key: "fuel.cards", label: "Fuel cards", path: "/fuel-cards", group: "fuel", gate: section("fuel") },
   // `fuel.import` (`/import`) was here until FUEL-C4 (2026-09-03). Its three capabilities are drawers
   // now — the EFS backfill on Fuel Log, prices and locations on Truck Stops, Repair on Settings →
   // Data & sync — so there is no screen left to grant, and each drawer carries the `manage` check
   // this entry used to carry at the route. Rows written against the retired key are inert (0296).
   // D-FX8 named it Fuel Spend; FS2 (§5, D-FSV7) renamed it Fuel Costs, one report with no tabs. The key
   // and the path stay, so every grant and every link written against them still resolves.
-  { key: "fuel.spend", label: "Fuel Costs", path: "/fuel-spend", group: "fuel", gate: manage("fuel") },
+  { key: "fuel.spend", label: "Fuel costs", path: "/fuel-spend", group: "fuel", gate: manage("fuel") },
   // FS3, D-FSV8: the saved invoice checks, out of the spend page. A READ surface, like Findings and
   // IFTA — a controller confirming last month's bill was checked needs no permission to upload one; the
   // "Check an invoice" button carries the `manage` check, as the API's POST routes do.
@@ -130,9 +134,13 @@ export const SURFACES: readonly Surface[] = [
    * `safety` simply has no theft cases in their list rather than being refused the page.
    */
   // F02-F04 chunk 8c4 (Q-F12 (b), 2026-10-08): "Fuel problems" at `/fuel-problems`. The queue holds card
-  // fraud and short fills as well as money findings, and "Findings" named only the last. Alerts keeps
+  // fraud and short fills as well as money findings, and "Findings" named only the last. Fuel alerts keeps
   // `/anomalies` for safety work; `/findings` redirects here. The key stays, for the reason above.
   { key: "fuel.exceptions", label: "Fuel problems", path: "/fuel-problems", group: "fuel", gate: section("fuel") },
+  // D-SB5: these two read fuel (card fills that look wrong; fuel burnt standing still), so they sit in
+  // Fuel. Keys and gates are unchanged — where an item SITS is navigation, where it is GATED is not.
+  { key: "safety.alerts", label: "Fuel alerts", path: "/anomalies", group: "fuel", gate: section("safety") },
+  { key: "safety.idling", label: "Idling", path: "/idling", group: "fuel", gate: section("safety") },
   { key: "fuel.ifta", label: "IFTA", path: "/ifta", group: "fuel", gate: section("fuel") },
 
   // ── dispatch ──────────────────────────────────────────────────────────────────────────────────
@@ -151,19 +159,17 @@ export const SURFACES: readonly Surface[] = [
   { key: "dispatch.loads", label: "Loads", path: "/loads", group: "dispatch", gate: section("dispatch"), module: "dispatch" },
   // Phase 7 (D-PM4): the dispatch inbox — participation-scoped, module-gated, badge = unread.
   // Q-PR2 (2026-10-06): Tier C, hidden until it has a named first user; an admin grant turns it back on.
-  { key: "dispatch.messages", label: "Messages", path: "/messages", group: "dispatch", gate: section("dispatch"), module: "messages", badge: "messagesUnread", startsOnFor: [] },
+  { key: "dispatch.messages", label: "Driver messages", path: "/messages", group: "dispatch", gate: section("dispatch"), module: "messages", badge: "messagesUnread", startsOnFor: [] },
   { key: "dispatch.assignments", label: "Dispatch board", path: "/assignments", group: "dispatch", gate: section("dispatch"), module: "dispatch" },
-  { key: "dispatch.fuel-planning", label: "Fuel Planning", path: "/fuel-planning", group: "dispatch", gate: manage("dispatch") },
-  { key: "dispatch.truck-stops", label: "Truck Stops", path: "/truck-stops", group: "dispatch", gate: section("dispatch") },
+  { key: "dispatch.fuel-planning", label: "Fuel planning", path: "/fuel-planning", group: "dispatch", gate: manage("dispatch") },
+  { key: "dispatch.truck-stops", label: "Truck stops", path: "/truck-stops", group: "dispatch", gate: section("dispatch") },
 
   // ── safety ────────────────────────────────────────────────────────────────────────────────────
-  { key: "safety.alerts", label: "Alerts", path: "/anomalies", group: "safety", gate: section("safety") },
-  { key: "safety.driver-performance", label: "Driver Performance", path: "/driver-performance", group: "safety", gate: section("safety") },
-  { key: "safety.idling", label: "Idling", path: "/idling", group: "safety", gate: section("safety") },
+  { key: "safety.driver-performance", label: "Driver performance", path: "/driver-performance", group: "safety", gate: section("safety") },
   // The DOT drug & alcohol program as Med-Stop holds it (MEDSTOP-PLAN §6 F-1/F-2, 2026-10-13): who is
   // outside the random pool, how far the year's rate has to go. `safety` reads it; who is selected
   // and untested is held inside the page to the roles that read testing records.
-  { key: "safety.drug-alcohol", label: "Drug & Alcohol", path: "/drug-alcohol", group: "safety", gate: section("safety") },
+  { key: "safety.drug-alcohol", label: "Drug & alcohol", path: "/drug-alcohol", group: "safety", gate: section("safety") },
   // Our FMCSA roadside inspections, newest first (INSPECTION-CHALLENGE-PLAN §6, the Inspections inbox's
   // first slice; FLEET-MANAGER-HOME-PLAN Q-FM7 (a), 2026-10-13) — and the list the Operations tab's
   // Roadside card opens. `safety` per D-IC12; cases and filings join this page in IC4.
@@ -174,7 +180,7 @@ export const SURFACES: readonly Surface[] = [
    * was `fleet` until the D-ROS12 split. Named for what it is rather than "Compliance", which said
    * nothing; `/compliance` stays the path so nobody's bookmark breaks.
    */
-  { key: "safety.driver-qualification", label: "Driver Qualification", path: "/compliance", group: "safety", gate: section("roster") },
+  { key: "safety.driver-qualification", label: "Driver qualification", path: "/compliance", group: "safety", gate: section("roster") },
   /**
    * TWO hazmat entries (D-H15, owner decision 2026-08-30) — the hub they used to share is gone.
    * H-C4 cut five items to one because four duplicated Loads, Trailers and Compliance; that retires
@@ -220,7 +226,7 @@ export const SURFACES: readonly Surface[] = [
   // The group stays `fleet`: where an item SITS is a navigation question, where it is GATED is a
   // permission one, and only the second moved. Stored answers are untouched — production holds two
   // `false` ones (an org's dispatcher, one person) and a `false` narrows under any gate.
-  { key: "fleet.odometer", label: "Odometer", path: "/odometer", group: "fleet", gate: section("fuel") },
+  { key: "fleet.odometer", label: "Odometer mismatches", path: "/odometer", group: "fleet", gate: section("fuel") },
 
   // ── finance ───────────────────────────────────────────────────────────────────────────────────
   // The money sections (P5, D-SEP7): visible only to the roles the matrix names — the accountant,
@@ -232,7 +238,7 @@ export const SURFACES: readonly Surface[] = [
   // "Revenue & margin" until R7 of the fleet report's UI plan (2026-09-04): its dispatcher table
   // moved onto the fleet report and its per-truck margin was retired (D-FLEET1). What is left is
   // the invoice lookup, so the page is named for the one thing it does.
-  { key: "finance.billing", label: "Invoices", path: "/billing", group: "finance", gate: section("billing") },
+  { key: "finance.billing", label: "Customer invoices", path: "/billing", group: "finance", gate: section("billing") },
 
   // ── maintenance ───────────────────────────────────────────────────────────────────────────────
   /**

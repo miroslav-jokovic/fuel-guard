@@ -134,6 +134,8 @@ export interface SurfaceGroup {
   key: string;
   /** `null` renders ungrouped, above every labelled group — Dashboard and Ask AI. */
   label: string | null;
+  /** Drawn in the sidebar's fixed footer beside the account rather than in the scrolling list (D-SB4). */
+  footer?: true;
 }
 
 /**
