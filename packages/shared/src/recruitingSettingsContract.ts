@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { INVITE_TTL_DAYS_DEFAULT, INVITE_TTL_DAYS_MAX } from "./applicationIntake.js";
 import { STALE_DRAFT_HOURS } from "./applicationNudge.js";
+import { HIRE_POLICY_DEFAULT } from "./hiringSteps.js";
 
 /**
  * The carrier's own answers about an application link's lifetime and its reminder
@@ -44,17 +45,25 @@ export const recruitingSettingsSchema = z
     invite_ttl_days: z.number().int().min(1).max(INVITE_TTL_DAYS_MAX),
     reminders_enabled: z.boolean(),
     reminder_after_hours: z.number().int().min(REMINDER_AFTER_HOURS_MIN).max(REMINDER_AFTER_HOURS_MAX),
+    // §9 P12 (0536): whether this carrier's hire also waits for the signed handbook (`HirePolicy`).
+    // ⚠ Optional on the way IN, and absent means "leave it as it is", never "off": a screen served
+    // before P12 saves the three link answers only, and must not quietly switch a carrier's policy off.
+    handbook_blocks_hire: z.boolean().optional(),
   })
   .refine((s) => stoppedBeforeLinkExpires(s.invite_ttl_days, s.reminder_after_hours), {
     path: ["reminder_after_hours"],
     message: STOPPED_BEFORE_EXPIRY_MESSAGE,
   });
-export type RecruitingSettings = z.infer<typeof recruitingSettingsSchema>;
+/** What a PUT may carry — the hire switch may be absent (kept as it is). */
+export type RecruitingSettingsInput = z.infer<typeof recruitingSettingsSchema>;
+/** What is in force — every answer present. */
+export type RecruitingSettings = Required<RecruitingSettingsInput>;
 
 export const RECRUITING_SETTINGS_DEFAULTS: RecruitingSettings = {
   invite_ttl_days: INVITE_TTL_DAYS_DEFAULT,
   reminders_enabled: true,
   reminder_after_hours: STALE_DRAFT_HOURS,
+  handbook_blocks_hire: HIRE_POLICY_DEFAULT.handbook_blocks_hire,
 };
 
 /** `GET /api/recruitment/settings` — what is in force, and whether the carrier has ever chosen it. */

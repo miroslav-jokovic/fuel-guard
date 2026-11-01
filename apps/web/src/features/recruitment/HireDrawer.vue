@@ -34,18 +34,28 @@ const target = computed(() => (props.open ? props.driverId : null));
 const previewQ = useHirePreviewQuery(target);
 
 /**
- * §9 P4 (Q-WF1 (a)): the hire refuses without the six federal checks (`HIRE_REFUSES_WITHOUT`), so they
- * are shown BEFORE the press — each done, or a link to the row that does it — from the same checklist
- * fold the API's refusal reads (`hireBlockers`). The press waits until all six are done.
+ * §9 P4 (Q-WF1 (a)): the hire refuses without the six federal checks, so they are shown BEFORE the
+ * press — each done, or a link to the row that does it — from the same checklist fold the API's refusal
+ * reads (`hireBlockers`). The press waits until all of them are done.
+ *
+ * §9 P12: the list is the `hired` row's own edges, which the fold stamps from the carrier's hire policy
+ * (`hireRefusesWithout`) — six, or seven with the handbook switched on in Settings → Recruiting. Read
+ * from the row, never recomputed here, so the drawer and the API's refusal cannot disagree. Before the
+ * checklist answers, the six are shown (`HIRE_REFUSES_WITHOUT`), never an empty list.
  */
 const checklistQ = useApplicantChecklistQuery(computed(() => target.value ?? ""));
+const hireList = computed(
+  () => checklistQ.data.value?.steps.find((s) => s.key === "hired")?.requires ?? HIRE_REFUSES_WITHOUT,
+);
 const federalChecks = computed(() =>
-  HIRE_REFUSES_WITHOUT.map((key) => ({
+  hireList.value.map((key) => ({
     key,
     label: hiringStep(key).label,
+    federal: hiringStep(key).federalGate,
     done: (checklistQ.data.value?.steps ?? []).some((s) => s.key === key && s.state === "done"),
   })),
 );
+const carrierRules = computed(() => federalChecks.value.some((c) => !c.federal));
 const checksDone = computed(() => checklistQ.data.value !== undefined && federalChecks.value.every((c) => c.done));
 const hire = useHireApplicant();
 
@@ -90,10 +100,15 @@ async function submit(): Promise<void> {
       </FormField>
 
       <section data-testid="federal-checks">
-        <h3 class="text-sm font-semibold text-ink">The six federal checks</h3>
+        <h3 class="text-sm font-semibold text-ink">
+          {{ carrierRules ? "Before the hire" : "The six federal checks" }}
+        </h3>
         <ul class="mt-2 space-y-1 text-sm">
           <li v-for="c in federalChecks" :key="c.key" class="flex items-center justify-between gap-3">
-            <span class="text-ink">{{ c.label }}</span>
+            <span class="text-ink">
+              {{ c.label }}
+              <span v-if="!c.federal" class="text-xs text-ink-muted"> · your company's rule</span>
+            </span>
             <span v-if="c.done" :class="[BADGE_BASE, toneClass('success')]">Done</span>
             <BaseButton v-else-if="driverId" variant="link" size="sm" :to="`/recruitment/${driverId}?step=${c.key}`">
               Open
@@ -101,7 +116,7 @@ async function submit(): Promise<void> {
           </li>
         </ul>
         <p v-if="checklistQ.data.value && !checksDone" class="mt-2 text-xs text-ink-muted">
-          Hiring waits for all six. Everything else can be finished after.
+          Hiring waits for {{ carrierRules ? "every one of these" : "all six" }}. Everything else can be finished after.
         </p>
       </section>
 

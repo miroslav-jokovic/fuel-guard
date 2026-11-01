@@ -24,6 +24,7 @@ import {
   type MarkRow,
   type QualificationRow,
 } from "./applicantBoardReads.js";
+import { recruitingSettings } from "./recruitingSettings.js";
 
 /**
  * The ONE builder of `hiringChecklist`'s input — for the board's every row and the drawer's one
@@ -100,7 +101,7 @@ export async function checklistInputs(
 
   const [
     records, pspRequested, marks, drafts, employment, inquiries, handbookMarks, intakes, travel, driverRows,
-    intakeLicences, zone,
+    intakeLicences, zone, settings,
   ] = await Promise.all([
     readQualificationRecords(admin, orgId, driverIds),
     // ⚠ Through the psp module's own interface, never `psp_requests` directly: that table is its
@@ -116,6 +117,10 @@ export async function checklistInputs(
     readDriverRowFacts(admin, orgId, driverIds),
     readIntakeLicences(admin, orgId, invitationIds),
     readCarrierZone(admin, orgId),
+    // §9 P12: the carrier's hire policy, once for the whole batch. A failed read throws rather than
+    // falling back to "off" — a carrier who switched the handbook on must not see a hire go through
+    // because one read failed (`recruitingSettings`' own rule).
+    recruitingSettings(admin, orgId),
   ]);
 
   for (const s of subjects) {
@@ -137,6 +142,7 @@ export async function checklistInputs(
     });
 
     const inputs: HiringChecklistInputs = {
+      hirePolicy: { handbook_blocks_hire: settings.handbook_blocks_hire },
       invitedAt: inv?.created_at ?? null,
       phases: inv
         ? {

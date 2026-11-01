@@ -393,6 +393,8 @@ describe("what it reads, and how much", () => {
         "application_intakes", "applicant_travel", "drivers",
         // AW7 (C2b3): Part 1's licence list, and the carrier's zone G-3's thirty days are counted in.
         "application_intake_licences", "organizations",
+        // §9 P12: the carrier's hire policy, once for the board.
+        "recruiting_settings",
       ]),
     );
   });
@@ -408,7 +410,7 @@ describe("what it reads, and how much", () => {
    * a set-based read and an N+1. Six applicants folding the §391.23 investigation per driver would
    * read thirteen.
    */
-  it("costs the same twelve queries for six applicants as for one", async () => {
+  it("costs the same fourteen queries for six applicants as for one", async () => {
     const one = seed();
     await boardChecklists(one.client, ORG, [applicant(1)], NOW);
 
@@ -424,8 +426,9 @@ describe("what it reads, and how much", () => {
     // since §7 added Part 1, the trip and the identity (C2b2) — each one `.in()` for the whole board;
     // twelve since AW7 added Part 1's licences and the carrier's zone (C2b3), one each for the board;
     // thirteen since 2026-10-20, when the board's own day moved onto the carrier's calendar — one
-    // zone read for the whole fold, as the licences' one is.
-    expect(many.queries.length).toBe(13);
+    // zone read for the whole fold, as the licences' one is; fourteen since §9 P12 read the carrier's
+    // hire policy, once for the board.
+    expect(many.queries.length).toBe(14);
   });
 
   /**

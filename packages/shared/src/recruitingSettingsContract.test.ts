@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { INVITE_TTL_DAYS_DEFAULT, INVITE_TTL_DAYS_MAX, applicationInviteCreateSchema } from "./applicationIntake.js";
 import { STALE_DRAFT_HOURS } from "./applicationNudge.js";
+import { HIRE_POLICY_DEFAULT } from "./hiringSteps.js";
 import {
   RECRUITING_SETTINGS_DEFAULTS,
   REMINDER_AFTER_HOURS_MAX,
@@ -17,8 +18,16 @@ describe("the defaults", () => {
       invite_ttl_days: INVITE_TTL_DAYS_DEFAULT,
       reminders_enabled: true,
       reminder_after_hours: STALE_DRAFT_HOURS,
+      handbook_blocks_hire: HIRE_POLICY_DEFAULT.handbook_blocks_hire,
     });
     expect(recruitingSettingsSchema.safeParse(RECRUITING_SETTINGS_DEFAULTS).success).toBe(true);
+  });
+
+  it("§9 P12: accepts a save without the hire switch (a screen served before it), and refuses a non-boolean", () => {
+    const { handbook_blocks_hire: _absent, ...older } = RECRUITING_SETTINGS_DEFAULTS;
+    const parsed = recruitingSettingsSchema.safeParse(older);
+    expect(parsed.success && parsed.data.handbook_blocks_hire).toBe(undefined);
+    expect(recruitingSettingsSchema.safeParse({ ...older, handbook_blocks_hire: "yes" }).success).toBe(false);
   });
 });
 

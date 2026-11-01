@@ -1,6 +1,7 @@
 import type { AuthorizationRow } from "./authorizationContract.js";
 import type { ApplicationPhases } from "./applicationReviewContract.js";
 import type { ApplyingAs } from "./questionnaireContract.js";
+import type { HirePolicy } from "./hiringSteps.js";
 
 /**
  * What `hiringChecklist()` is GIVEN — every field a row a caller already has, never a query.
@@ -142,4 +143,9 @@ export interface HiringChecklistInputs {
   applyingAs?: ApplyingAs | null;
   /** The hire date, once there is one. */
   hiredAt?: string | null;
+  /**
+   * The carrier's hire policy (§9 P12, `recruiting_settings`). Absent reads `HIRE_POLICY_DEFAULT` —
+   * the six federal checks only — which is what every org without a settings row is.
+   */
+  hirePolicy?: HirePolicy | null;
 }

@@ -37,7 +37,7 @@ const READY_KINDS = ["mvr", "clearinghouse_full", "drug_test", "medical_registry
 const ceremonyProvenance = (kind: string) => (kind === "road_test" ? { source: "road_test" } : {});
 const selectOf = (q: RecordedQuery): string => String(q.ops.find((o) => o.method === "select")?.args[0] ?? "");
 
-const seed = (over: { drivers?: unknown[]; employment?: unknown[]; records?: unknown[]; evidence?: string[]; rpc?: unknown } = {}) =>
+const seed = (over: { drivers?: unknown[]; employment?: unknown[]; records?: unknown[]; evidence?: string[]; rpc?: unknown; settings?: unknown[] } = {}) =>
   createSupabaseRecorder({
     tables: {
       drivers: over.drivers ?? [{ id: DRIVER, full_name: "An Applicant", status: "applicant", hire_date: null }],
@@ -49,6 +49,8 @@ const seed = (over: { drivers?: unknown[]; employment?: unknown[]; records?: unk
         selectOf(q).includes("jurisdiction") ? (over.evidence ?? READY_KINDS).map((kind) => ({ driver_id: DRIVER, kind, occurred_on: "2026-08-05", ...ceremonyProvenance(kind) })) : (over.records ?? []),
       application_invitations: [{ id: "inv-1", created_at: "2026-08-01T00:00:00Z", submitted_at: "2026-08-10T00:00:00Z" }],
       audit_logs: [],
+      // §9 P12: no row is the product's defaults — the six federal checks only.
+      recruiting_settings: over.settings ?? [],
     },
     rpc: { hire_applicant: over.rpc ?? { status: "active", hire_date: "2026-09-01", filed: 2 } },
   });
@@ -135,6 +137,18 @@ describe("what hiring refuses without (Q-HM5; Q-WF6 since §9 P4)", () => {
     const rec = seed({ evidence: READY_KINDS.filter((k) => k !== "handbook") });
     const result = await hireApplicant(rec.client, ORG, "u", body, TODAY);
     expect(isHireError(result)).toBe(false);
+  });
+
+  it("§9 P12: refuses without the signed handbook when the carrier switched it on, and names it", async () => {
+    const rec = seed({
+      evidence: READY_KINDS.filter((k) => k !== "handbook"),
+      settings: [{ invite_ttl_days: 14, reminders_enabled: true, reminder_after_hours: 48, handbook_blocks_hire: true, updated_at: "x" }],
+    });
+    const result = await hireApplicant(rec.client, ORG, "u", body, TODAY);
+    expect(isHireError(result) && result.code).toBe("not_ready_to_hire");
+    expect(isHireError(result) && result.missing).toEqual(["handbook"]);
+    expect(rec.rpcs()).toHaveLength(0);
+    expectOrgScoped(rec, ORG);
   });
 
   it("refuses without a federal gate — the drug test — and names it", async () => {

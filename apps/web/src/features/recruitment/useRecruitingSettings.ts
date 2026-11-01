@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/vue-query";
-import type { RecruitingSettings, RecruitingSettingsView } from "@silvicom/shared";
+import type { RecruitingSettingsInput, RecruitingSettingsView } from "@silvicom/shared";
 import { apiFetch } from "@/lib/api";
 
 /**
@@ -22,7 +22,7 @@ export function useRecruitingSettings() {
 export function useSaveRecruitingSettings() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (input: RecruitingSettings): Promise<RecruitingSettingsView> => {
+    mutationFn: async (input: RecruitingSettingsInput): Promise<RecruitingSettingsView> => {
       const res = await apiFetch<RecruitingSettingsView>("/api/recruitment/settings", { method: "PUT", body: input });
       if (!res.ok || !res.data) throw new Error(res.error?.message ?? "Could not save the recruiting settings.");
       return res.data;
