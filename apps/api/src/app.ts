@@ -57,6 +57,7 @@ import { dispatchRouter } from "./modules/loads/index.js";
 import { liveMapRouter } from "./modules/livemap/index.js";
 import { idleRouter } from "./modules/idle/index.js";
 import { drugAlcoholRouter } from "./modules/medstop/index.js";
+import { adsRouter } from "./modules/ads/index.js";
 import { roadsideInspectionsRouter } from "./modules/inspections/index.js";
 import { hazmatRouter, meHazmatRouter, publicHazmatRouter } from "./modules/hazmat/index.js";
 import { publicApplicationRouter, recruitmentRouter } from "./modules/recruiting/index.js";
@@ -286,6 +287,7 @@ function mountApiRouters(app: Express, env: Env): void {
   app.use("/api/dispatch", dispatchRouter()); // was defined but unmounted on main — wired here
   app.use("/api/livemap", liveMapRouter()); // the dispatcher's board (LM6) — gated dispatch:view
   app.use("/api/idle", idleRouter()); // the idle cost basis (Q9) — gated safety:view
+  app.use("/api/ads", adsRouter()); // ads module guard: settings, kill switch, spend approvals (ADS A5)
   app.use("/api/drug-alcohol", drugAlcoholRouter()); // Med-Stop program view (MEDSTOP MS1) — gated safety:view
   app.use("/api/roadside-inspections", roadsideInspectionsRouter()); // the inspections list + Roadside card (Q-FM7) — gated safety:view
   mountPublic(app); // M7 hazmat calculator + H5 application intake — both unauthenticated

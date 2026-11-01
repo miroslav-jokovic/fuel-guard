@@ -81,6 +81,14 @@ does not need to.
    recruiting's purge and merge list — recruiting work, in a module the HW program was editing.
    Under D-AD17 no ads table references a recruiting one, so nothing in A2–C5 waits for D0.
 
+10. **(A5, 2026-11-01) `ads.connection` joins `ADMIN_ONLY_CAPABILITIES` in B1, not A5.**
+   `routeGateLedger.test.ts` refuses a listed capability that guards no route, and Connect is B1's
+   route; listing it now would show the Permissions page an act nothing protects. A5 adds
+   `ads.spend` (save the limits, approve a launch / raise / area change, clear the kill switch), each
+   with a fresh sign-in. Two more measured while building: an approval is **single-use** (one yes,
+   one act — an approval already cited by a started or succeeded act does not launch the ad again
+   after a pause), and it covers only amounts **at or below** what was approved.
+
 ### 1.3 New decision
 
 - **D-AD17 · Two modules and one seam.** `modules/ads/` is industry-neutral. It owns platforms,
@@ -469,3 +477,21 @@ blocking step in §3 above.
   save). `canonicalJson` moved to shared (one definition; the reader's `wireSchema.ts` re-exports it)
   and `aiInputHash` became generic over it. Waivers for `ad_generations` and `ads_settings_versions`
   left `check-table-producers.mjs`. Nine mutations each went red. No migration.
+- **2026-11-01, A5** — The guard. `ads.spend` on the admin-only list (fresh sign-in on every use);
+  `ads.connection` moves to B1 with its route (§1.2-10). `modules/ads/guard/budgetGuard.ts` is the
+  only path to a platform's spend methods: `platforms/adapter.ts` splits each adapter into
+  `PlatformSafe` (reads, pause, lower) and `PlatformSpend` (launch, raise, widen the area), and
+  `budgetGuard.boundary.test.ts` fails if any other file names `PlatformSpend` or calls its methods.
+  Before a launch or raise it collects every refusal in one pass — kill switch, unset caps, the
+  month-end forecast with this platform's month-to-date spend and every other live campaign's daily
+  budget, the account limit read from the platform at that moment, and a standing, unused approval
+  covering the amounts (two different people above `second_approver_above_cents`) — and records a
+  refusal as an `ads_actions` row with no vendor call. Then `started` → the call → one completion, keyed
+  by the approval, so a delivered-twice job sends nothing twice; the database's own fences (AX020,
+  AX021) racing the guard come back as refusals. `guard/killSwitch.ts` (press = anyone managing
+  recruitment, no password; clear = `ads.spend`), `guard/approvals.ts` (approvals + withdrawals), and
+  the settings save in `settings/settingsVersions.ts`: a save carries the half it does not change,
+  so saving a cap never switches spending back on, and two saves at once give a 409 instead of a silent
+  overwrite. Doors at `/api/ads` (`routes/guard.ts`). Six producer waivers left
+  `check-table-producers.mjs`. Fourteen mutations went red (one first attempt was a no-op and was
+  replaced by a real bypass). No migration. Pausing what is live when the switch is pressed is A6's.

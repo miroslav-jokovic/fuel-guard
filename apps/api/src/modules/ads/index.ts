@@ -6,3 +6,7 @@
  */
 export { generateWithClaude } from "./generations/claudeGeneration.js";
 export type { ClaudeGenerationDeps, ClaudeGenerationOutcome, ClaudeGenerationRequest } from "./generations/claudeGeneration.js";
+// A5: the guard's doors (`/api/ads`) and the one path to a platform's spend methods.
+export { adsRouter } from "./routes/guard.js";
+export { guardedAreaChange, guardedSpend } from "./guard/budgetGuard.js";
+export type { GuardDeps, GuardOutcome, SpendAsk } from "./guard/budgetGuard.js";
