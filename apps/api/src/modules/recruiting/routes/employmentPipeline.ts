@@ -26,7 +26,7 @@ import { readLastNotes } from "../applicantBoardReads.js";
  */
 
 export const HISTORY_COLS =
-  "id, driver_id, employer_name, usdot_number, employer_city, employer_state, employer_phone, employer_email, position_held, started_on, ended_on, dot_regulated, operated_cmv, subject_to_fmcsr, safety_sensitive, reason_for_leaving, inquiry_status, inquiry_sent_on, inquiry_response_on, source, notes, created_at, updated_at";
+  "id, driver_id, employer_name, usdot_number, employer_address_line1, employer_city, employer_state, employer_phone, employer_email, position_held, started_on, ended_on, dot_regulated, operated_cmv, subject_to_fmcsr, safety_sensitive, reason_for_leaving, inquiry_status, inquiry_sent_on, inquiry_response_on, source, notes, created_at, updated_at";
 
 interface HistoryRow {
   id: string;
