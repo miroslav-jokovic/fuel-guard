@@ -22,7 +22,7 @@ const props = withDefaults(
   defineProps<{
     /** The person this stands for — an email today, a name if a caller ever has one. */
     label: string | null | undefined;
-    size?: "sm" | "md";
+    size?: "xs" | "sm" | "md";
   }>(),
   { size: "md" },
 );
@@ -44,13 +44,14 @@ const initials = computed(() => {
   return (first + last).toUpperCase();
 });
 
-const SIZES = { sm: "size-7", md: "size-8" } as const;
+// `xs` (24px, 10px initials) is a chip's: a person picked in the chat people picker (2026-11-01).
+const SIZES = { xs: "size-6 text-2xs", sm: "size-7 text-xs", md: "size-8 text-xs" } as const;
 </script>
 
 <template>
   <span
     :class="[
-      'flex shrink-0 items-center justify-center rounded-full text-xs font-semibold',
+      'flex shrink-0 items-center justify-center rounded-full font-semibold',
       'bg-surface-muted text-ink ring-1 ring-inset ring-edge',
       SIZES[props.size],
     ]"

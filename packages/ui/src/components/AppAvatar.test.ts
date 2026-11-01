@@ -44,6 +44,7 @@ describe("AppAvatar (G4)", () => {
   it("the two sizes are the two the sidebar uses, collapsed and expanded", () => {
     expect(mount(AppAvatar, { props: { label: "a", size: "sm" } }).classes()).toContain("size-7");
     expect(mount(AppAvatar, { props: { label: "a" } }).classes()).toContain("size-8");
+    expect(mount(AppAvatar, { props: { label: "a", size: "xs" } }).classes()).toEqual(expect.arrayContaining(["size-6", "text-2xs"]));
   });
 
   it("carries the treatment that used to live in the web stylesheet", () => {
