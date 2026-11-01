@@ -225,6 +225,10 @@ const FORMAT_PINNED = {
   "chat_exports.content_sha256": "repeat('a', 64)", // same format check (0517)
   // 'conversation' (the CHECK's first literal) needs a thread_id the seeder leaves null; a search names none.
   "chat_exports.scope": "'search'",
+  "chat_attachments.sha256": "repeat('a', 64)", // check (sha256 ~ '^[0-9a-f]{64}$') (0539)
+  "chat_attachments.mime": "'application/pdf'", // check (mime ~ '^[a-z]+/[a-z0-9.+-]+$') (0539)
+  // Its check's only quoted literal is the forbidden-character class '[/\\]', which the CHECK reader would seed.
+  "chat_attachments.file_name": "'seed.pdf'",
 };
 
 function valueFor(meta, table, c, orgId, tsIndex = 0) {
