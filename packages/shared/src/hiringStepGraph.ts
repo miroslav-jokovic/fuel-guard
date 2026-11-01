@@ -97,6 +97,7 @@ export type HiringEvidenceTable =
   | "qualification_records.medical_registry_verification"
   | "qualification_records.road_test"
   | "qualification_records.handbook"
+  | "orientation_video_attestations"
   | "application_packet_marks"
   | "employer_inquiries"
   | "drivers.hire_date";

@@ -43,6 +43,16 @@ export const authRoutes: RouteRecordRaw[] = [
     meta: { public: true, layout: "apply", title: "Driver application", noindex: true },
   },
   /**
+   * HW8a (0538): the orientation videos the office sent, on the application link's own token — the
+   * token is the access control here exactly as on the form above, so the same meta.
+   */
+  {
+    path: "/apply/:token/videos",
+    name: "driver-application-videos",
+    component: () => import("@/pages/ApplyVideosPage.vue"),
+    meta: { public: true, layout: "apply", title: "Orientation videos", noindex: true },
+  },
+  /**
    * The invited user's landing page. `public: true` since 2026-09-02, and that is the fix rather
    * than a side effect of one: it was `requiresAuth: true`, so the guard above converted EVERY way
    * an invite link can fail — spent by a mail scanner, expired, or simply carrying a `token_hash`

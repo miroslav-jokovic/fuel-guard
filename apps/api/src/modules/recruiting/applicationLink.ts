@@ -5,6 +5,7 @@ import {
   renderApplicationLinkResentEmail,
   stoppedBeforeLinkExpires,
   type ApplicationInviteTextOutcome,
+  type RenderedEmail,
 } from "@silvicom/shared";
 import type { Env } from "../../env.js";
 import { writeAudit } from "../../lib/audit.js";
@@ -176,17 +177,32 @@ export async function createApplicationInvite(
 }
 
 /**
+ * What else a rotation may carry, for an act that sends the same link for a reason of its own — HW8a's
+ * "Send the videos" opens `/apply/<token>/videos` on this one token rather than minting a scheme of its
+ * own. Every field defaults to "send the link again".
+ */
+export interface LinkRotation {
+  /** Columns stamped in the same conditional UPDATE as the new token (e.g. `orientation_videos_sent_at`). */
+  stamp?: Record<string, string>;
+  /** Where on the link the email points; the application's own page by default. */
+  path?: (token: string) => string;
+  email?: (carrier: string, link: string, days: number) => RenderedEmail;
+  auditAction?: string;
+}
+
+/**
  * The same invitation, a new link (Q-AX5): rotate the hash and keep the link alive for another of the
  * carrier's link lifetimes (Q-AW41) — never shortening it (0232's rule, as the handbook's extension).
  *
  * The UPDATE is conditional on the invitation still being re-sendable, so a revoke or a handbook filing
  * that lands between the read and the write is honoured rather than overwritten.
  */
-async function resendOnInvitation(
+export async function resendOnInvitation(
   admin: SupabaseClient,
   env: Env,
   input: { orgId: string; userId: string; invitation: { id: string; driver_id: string; email: string | null; expires_at: string } },
   now: Date,
+  how: LinkRotation = {},
 ): Promise<ApplicationLinkResult | ApplicationLinkError> {
   const { invitation } = input;
   const { invite_ttl_days: ttl } = await recruitingSettings(admin, input.orgId);
@@ -195,7 +211,7 @@ async function resendOnInvitation(
   const { token, hash } = mintInvitationToken();
   const { data, error } = await admin
     .from("application_invitations")
-    .update({ token_hash: hash, expires_at: expiresAt })
+    .update({ ...how.stamp, token_hash: hash, expires_at: expiresAt })
     .eq("org_id", input.orgId)
     .eq("id", invitation.id)
     .is("revoked_at", null)
@@ -210,17 +226,17 @@ async function resendOnInvitation(
   await writeAudit(admin, {
     orgId: input.orgId,
     actorId: input.userId,
-    action: "compliance.application_link_resent",
+    action: how.auditAction ?? "compliance.application_link_resent",
     entity: "application_invitations",
     entityId: invitation.id,
     // The ids and the expiry (Q-AX5). Never the token or its hash.
     meta: { driverId: invitation.driver_id, expiresAt },
   });
 
-  const link = applyLink(env, token);
+  const link = how.path ? `${env.WEB_APP_URL}${how.path(token)}` : applyLink(env, token);
   const carrier = await carrierName(admin, input.orgId);
   const days = Math.max(1, Math.round((Date.parse(expiresAt) - now.getTime()) / 86_400_000));
-  const delivery = await deliverApplicationMail(env, invitation.email, renderApplicationLinkResentEmail(carrier, link, days));
+  const delivery = await deliverApplicationMail(env, invitation.email, (how.email ?? renderApplicationLinkResentEmail)(carrier, link, days));
   return { invitation: rows[0]!, link, delivery, text: null, mode: "resent" };
 }
 

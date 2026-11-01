@@ -24,6 +24,7 @@ import {
   type MarkRow,
   type QualificationRow,
 } from "./applicantBoardReads.js";
+import { readOrientationVideoFacts } from "./orientationVideos.js";
 import { recruitingSettings } from "./recruitingSettings.js";
 
 /**
@@ -101,7 +102,7 @@ export async function checklistInputs(
 
   const [
     records, pspRequested, marks, drafts, employment, inquiries, handbookMarks, intakes, travel, driverRows,
-    intakeLicences, zone, settings,
+    intakeLicences, zone, settings, videos,
   ] = await Promise.all([
     readQualificationRecords(admin, orgId, driverIds),
     // ⚠ Through the psp module's own interface, never `psp_requests` directly: that table is its
@@ -121,6 +122,8 @@ export async function checklistInputs(
     // falling back to "off" — a carrier who switched the handbook on must not see a hire go through
     // because one read failed (`recruitingSettings`' own rule).
     recruitingSettings(admin, orgId),
+    // HW8a (0538): the carrier's required videos, what each driver ticked, and the office's last send.
+    readOrientationVideoFacts(admin, orgId, subjects.map((s) => ({ driverId: s.driverId, invitationId: s.invitation?.id ?? null }))),
   ]);
 
   for (const s of subjects) {
@@ -142,7 +145,7 @@ export async function checklistInputs(
     });
 
     const inputs: HiringChecklistInputs = {
-      hirePolicy: { handbook_blocks_hire: settings.handbook_blocks_hire },
+      hirePolicy: { handbook_blocks_hire: settings.handbook_blocks_hire, videos_block_hire: settings.videos_block_hire },
       invitedAt: inv?.created_at ?? null,
       phases: inv
         ? {
@@ -198,6 +201,7 @@ export async function checklistInputs(
         signedPlacementIds: inv ? (handbookMarks.get(inv.id) ?? []).map((r) => r.placement_id) : [],
       }),
       hiredAt: s.hiredAt,
+      orientationVideos: videos.get(s.driverId) ?? null,
     };
     out.set(s.driverId, { inputs, records: own, marks: markRows });
   }

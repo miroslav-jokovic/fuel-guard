@@ -3,7 +3,7 @@ import { enableAutoUnmount, mount } from "@vue/test-utils";
 import { VueQueryPlugin } from "@tanstack/vue-query";
 import { createPinia, setActivePinia } from "pinia";
 import { answerConfirm } from "@silvicom/ui/testing";
-import { HIRE_REFUSES_WITHOUT, hiringStep, sectionAccess } from "@silvicom/shared";
+import { HIRE_POLICY_SWITCHES, HIRE_REFUSES_WITHOUT, hiringStep, sectionAccess } from "@silvicom/shared";
 import { useToastStore } from "@/stores/toast";
 import SettingsRecruitingPage from "@/pages/SettingsRecruitingPage.vue";
 
@@ -21,7 +21,9 @@ const state = vi.hoisted(() => ({
   calls: [] as Array<{ url: string; method: string; body: unknown }>,
   refuse: null as null | { code: string; message: string },
   /** The carrier's link settings as the api holds them (Q-AW41); null = never saved. */
-  settings: null as null | { invite_ttl_days: number; reminders_enabled: boolean; reminder_after_hours: number; handbook_blocks_hire?: boolean },
+  settings: null as null | { invite_ttl_days: number; reminders_enabled: boolean; reminder_after_hours: number; handbook_blocks_hire?: boolean; videos_block_hire?: boolean },
+  /** HW8a: the carrier's orientation videos. */
+  videos: [] as unknown[],
 }));
 
 vi.mock("@/lib/api", () => ({
@@ -33,6 +35,8 @@ vi.mock("@/lib/api", () => ({
       const person = { id: "new-1", full_name: "Ana Perić", title: "Safety manager", created_at: "2026-09-28T15:00:00Z" };
       if (url.endsWith("/representatives")) return { ok: true, data: { representative: person } };
       if (url.endsWith("/road-test-examiners")) return { ok: true, data: { examiner: person } };
+      if (url.endsWith("/orientation-videos")) return { ok: true, data: { video: { id: "v-new", ...(opts!.body as object) } } };
+      if (url.includes("/orientation-videos/")) return { ok: true, data: { video: { id: url.split("/").at(-1) } } };
       if (url.endsWith("/settings")) {
         state.settings = opts!.body as typeof state.settings;
         return { ok: true, data: { settings: state.settings, isDefault: false, updatedAt: "2026-09-28T16:00:00Z" } };
@@ -41,10 +45,11 @@ vi.mock("@/lib/api", () => ({
     }
     if (url.endsWith("/representatives")) return { ok: true, data: { representatives: state.reps } };
     if (url.endsWith("/road-test-examiners")) return { ok: true, data: { examiners: state.examiners } };
+    if (url.endsWith("/orientation-videos")) return { ok: true, data: { videos: state.videos } };
     if (url.endsWith("/settings")) {
       return state.settings
         ? { ok: true, data: { settings: state.settings, isDefault: false, updatedAt: "2026-09-27T09:00:00Z" } }
-        : { ok: true, data: { settings: { invite_ttl_days: 14, reminders_enabled: true, reminder_after_hours: 48, handbook_blocks_hire: false }, isDefault: true, updatedAt: null } };
+        : { ok: true, data: { settings: { invite_ttl_days: 14, reminders_enabled: true, reminder_after_hours: 48, handbook_blocks_hire: false, videos_block_hire: false }, isDefault: true, updatedAt: null } };
     }
     throw new Error(`unexpected GET ${url}`);
   }),
@@ -88,6 +93,7 @@ beforeEach(() => {
   state.calls = [];
   state.refuse = null;
   state.settings = null;
+  state.videos = [];
   state.reps = [{ id: REP, full_name: "Miroslav Jokovic", title: "Owner", created_at: "2026-09-01T12:00:00Z" }];
   state.examiners = [{ id: EXAMINER, full_name: "Arvidera Gakhal", title: "Maintenance manager", created_at: "2026-09-02T12:00:00Z" }];
   asked = answerConfirm(true);
@@ -273,7 +279,7 @@ describe("the application links (Q-AW41)", () => {
     await saveButton(w)!.trigger("click");
     await settle(w);
     expect(state.calls).toEqual([
-      { url: "/api/recruitment/settings", method: "PUT", body: { invite_ttl_days: 7, reminders_enabled: true, reminder_after_hours: 72, handbook_blocks_hire: false } },
+      { url: "/api/recruitment/settings", method: "PUT", body: { invite_ttl_days: 7, reminders_enabled: true, reminder_after_hours: 72, handbook_blocks_hire: false, videos_block_hire: false } },
     ]);
   });
 
@@ -297,7 +303,7 @@ describe("the application links (Q-AW41)", () => {
     await inputs(w)[1]!.setValue("60");
     await saveButton(w)!.trigger("click");
     await settle(w);
-    expect(state.calls.at(-1)!.body).toEqual({ invite_ttl_days: 3, reminders_enabled: false, reminder_after_hours: 60, handbook_blocks_hire: false });
+    expect(state.calls.at(-1)!.body).toEqual({ invite_ttl_days: 3, reminders_enabled: false, reminder_after_hours: 60, handbook_blocks_hire: false, videos_block_hire: false });
   });
 
   it("switched off, still refuses a delay that would come after the link dies (C-AL1)", async () => {
@@ -330,31 +336,98 @@ describe("the application links (Q-AW41)", () => {
 describe("before we hire (§9 P12)", () => {
   const hirePart = (w: ReturnType<typeof mount>) => w.get('[data-testid="before-we-hire"]');
 
-  it("lists the six federal checks, locked, and the handbook as the one switch", async () => {
+  it("lists the six federal checks, locked, and one switch per policy switch, labelled by its step", async () => {
     asRole("admin");
     const w = await page();
     const part = hirePart(w);
     expect(part.findAll("li")).toHaveLength(HIRE_REFUSES_WITHOUT.length);
     for (const key of HIRE_REFUSES_WITHOUT) expect(part.text()).toContain(hiringStep(key).label);
-    expect(part.findAllComponents({ name: "AppSwitch" })).toHaveLength(1);
-    expect(part.text()).toContain(hiringStep("handbook").label);
+    // Derived from `HIRE_POLICY_SWITCHES`: HW8a's videos and the handbook.
+    expect(part.findAllComponents({ name: "AppSwitch" })).toHaveLength(HIRE_POLICY_SWITCHES.length);
+    for (const sw of HIRE_POLICY_SWITCHES) expect(part.text()).toContain(hiringStep(sw.step).label);
+    expect(part.text()).toContain("While no video on your list is required, it waits for nothing.");
   });
 
   it("saves the handbook switch with the rest of the answers", async () => {
     asRole("admin");
     const w = await page();
-    hirePart(w).findComponent({ name: "AppSwitch" }).vm.$emit("update:modelValue", true);
+    w.get('[data-testid="hire-switch-handbook_blocks_hire"]').findComponent({ name: "AppSwitch" }).vm.$emit("update:modelValue", true);
     await settle(w);
     await w.findAll("button").find((b) => b.text() === "Save")!.trigger("click");
     await settle(w);
     expect(state.calls).toEqual([
-      { url: "/api/recruitment/settings", method: "PUT", body: { invite_ttl_days: 14, reminders_enabled: true, reminder_after_hours: 48, handbook_blocks_hire: true } },
+      { url: "/api/recruitment/settings", method: "PUT", body: { invite_ttl_days: 14, reminders_enabled: true, reminder_after_hours: 48, handbook_blocks_hire: true, videos_block_hire: false } },
     ]);
+  });
+
+  it("HW8a: saves the videos switch with the rest of the answers", async () => {
+    asRole("admin");
+    const w = await page();
+    w.get('[data-testid="hire-switch-videos_block_hire"]').findComponent({ name: "AppSwitch" }).vm.$emit("update:modelValue", true);
+    await settle(w);
+    await w.findAll("button").find((b) => b.text() === "Save")!.trigger("click");
+    await settle(w);
+    expect(state.calls.at(-1)!.body).toEqual({ invite_ttl_days: 14, reminders_enabled: true, reminder_after_hours: 48, handbook_blocks_hire: false, videos_block_hire: true });
   });
 
   it("shows an auditor the switch and lets them change nothing", async () => {
     asRole("auditor");
     const w = await page();
-    expect(hirePart(w).findComponent({ name: "AppSwitch" }).props("disabled")).toBe(true);
+    for (const s of hirePart(w).findAllComponents({ name: "AppSwitch" })) expect(s.props("disabled")).toBe(true);
+  });
+});
+
+describe("orientation videos (HW8a)", () => {
+  const videosPart = (w: ReturnType<typeof mount>) => section(w, "Orientation videos");
+  const V = { id: "v-1", title: "Pre-trip", url: "https://v.example/1", minutes: 10, required: true, position: 0, created_at: "2026-10-01T00:00:00Z", retired_at: null };
+
+  it("ships empty and says what to add", async () => {
+    asRole("admin");
+    const w = await page();
+    expect(videosPart(w).get('[data-testid="no-videos"]').text()).toContain("No videos yet.");
+  });
+
+  it("adds a video by its title and link, required unless the office says otherwise", async () => {
+    asRole("recruiter");
+    const w = await page();
+    const inputs = videosPart(w).get('[data-testid="add-video"]').findAll("input:not([type=checkbox])");
+    await inputs[0]!.setValue("Pre-trip");
+    await inputs[1]!.setValue("https://v.example/1");
+    await settle(w);
+    await videosPart(w).findAll("button").find((b) => b.text() === "Add the video")!.trigger("click");
+    await settle(w);
+    expect(state.calls).toEqual([
+      { url: "/api/recruitment/orientation-videos", method: "POST", body: { title: "Pre-trip", url: "https://v.example/1", minutes: null, required: true } },
+    ]);
+  });
+
+  it("will not add a link that is not https", async () => {
+    asRole("recruiter");
+    const w = await page();
+    const inputs = videosPart(w).get('[data-testid="add-video"]').findAll("input:not([type=checkbox])");
+    await inputs[0]!.setValue("Pre-trip");
+    await inputs[1]!.setValue("http://v.example/1");
+    await settle(w);
+    expect(videosPart(w).text()).toContain("starting with https://");
+    expect(videosPart(w).findAll("button").find((b) => b.text() === "Add the video")!.attributes("disabled")).toBeDefined();
+  });
+
+  it("removes a video by retiring it, after asking — never a DELETE", async () => {
+    asRole("recruiter");
+    state.videos = [V];
+    const w = await page();
+    await videosPart(w).findAll("button").find((b) => b.text() === "Remove")!.trigger("click");
+    await settle(w);
+    expect(asked).toHaveBeenCalled();
+    expect(state.calls).toEqual([{ url: "/api/recruitment/orientation-videos/v-1", method: "PATCH", body: { retire: true } }]);
+  });
+
+  it("shows an auditor the list and no act at all", async () => {
+    asRole("auditor");
+    state.videos = [V];
+    const w = await page();
+    expect(videosPart(w).text()).toContain("Pre-trip");
+    expect(videosPart(w).find('[data-testid="add-video"]').exists()).toBe(false);
+    expect(videosPart(w).findAll("button").some((b) => b.text() === "Remove")).toBe(false);
   });
 });
