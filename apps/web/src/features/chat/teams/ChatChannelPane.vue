@@ -7,6 +7,7 @@ import ChatComposer from "../ChatComposer.vue";
 import ChatMessageList from "../ChatMessageList.vue";
 import ChatStageHeader from "../ChatStageHeader.vue";
 import ChatMuteItems from "../ChatMuteItems.vue";
+import ChatPinnedDialog from "../ChatPinnedDialog.vue";
 import { mergeLines, type PendingLine } from "../useChat";
 
 /**
@@ -56,6 +57,15 @@ const lines = computed(() => mergeLines(props.page.posts, props.pending, props.c
 const subtitle = computed(() => `${props.teamName}${props.channel.visibility === "private" ? " · private channel" : ""}`);
 const log = ref<InstanceType<typeof ChatMessageList> | null>(null);
 const composer = ref<InstanceType<typeof ChatComposer> | null>(null);
+
+/**
+ * The header menu's Pinned messages list (CH6c-2). Mounted the first time it opens, then kept: before
+ * that no stage asks for its pins, and kept mounted, its closing transition still runs, which is when
+ * "Show" puts focus on the line (BaseModal `closed`).
+ */
+const pinsOpen = ref(false);
+const pinsMounted = ref(false);
+const openPins = () => { pinsMounted.value = true; pinsOpen.value = true; };
 </script>
 
 <template>
@@ -66,6 +76,7 @@ const composer = ref<InstanceType<typeof ChatComposer> | null>(null);
       glyph="channel"
       :people="members?.map((m) => ({ id: m.user_id, label: m.name }))" back-label="Back to chats and channels" @back="emit('back')">
       <KebabMenu trigger-label="Channel actions" placement="bottom-end">
+        <BaseButton class="kebab-item" @click="openPins">Pinned messages</BaseButton>
         <ChatMuteItems :muted="channel.muted" @set="(level: ChatMuteLevel) => emit('mute', level)" />
         <BaseButton v-if="!channel.general" class="kebab-item" @click="emit('leave')">Leave channel</BaseButton>
       </KebabMenu>
@@ -101,5 +112,6 @@ const composer = ref<InstanceType<typeof ChatComposer> | null>(null);
       </template>
     </ChatMessageList>
     <ChatComposer ref="composer" :placeholder="`Message # ${channel.name}`" label="Post" action="Post" :thread-key="channel.thread_id" @send="(body: string) => emit('send', body)" @up="log?.focusLast()" />
+    <ChatPinnedDialog v-if="pinsMounted" :open="pinsOpen" :thread-id="channel.thread_id" :viewer-id="viewerId" @thread="(id: string) => emit('replies', id)" @close="pinsOpen = false" />
   </section>
 </template>

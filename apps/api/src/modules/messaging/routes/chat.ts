@@ -8,9 +8,11 @@ import {
   chatEditRequestSchema,
   chatMuteRequestSchema,
   chatOpenDirectRequestSchema,
+  chatReactRequestSchema,
   chatReadRequestSchema,
   chatRenameRequestSchema,
   chatSendRequestSchema,
+  chatToggleRequestSchema,
   isRecordId,
   type ChatKind,
 } from "@silvicom/shared";
@@ -41,6 +43,7 @@ import {
 } from "../chat.js";
 import { chatActivity, chatActivityMarkRead, chatActivityUnread, chatSetMute } from "../chatActivity.js";
 import { chatLineBeforeEdit, chatNotifyEdited, chatNotifySent } from "../chatNotify.js";
+import { chatPin, chatPins, chatReact, chatSave, chatSavedLines } from "../chatLineActs.js";
 
 /**
  * Office chat (OFFICE-CHAT-PLAN.md CH1b) — `/api/chat`. The conversations between the people in the
@@ -158,6 +161,23 @@ export function chatRouter(): Router {
     }),
   );
 
+  /** The caller's saved lines (CH6c-2), newest save first. Ahead of `/:id`, as `/activity` is. */
+  router.get(
+    "/saved",
+    asyncHandler(async (req, res) => {
+      const beforeAt = typeof req.query.before_at === "string" ? req.query.before_at : null;
+      const beforeId = typeof req.query.before_id === "string" && isRecordId(req.query.before_id) ? req.query.before_id : null;
+      if ((beforeAt === null) !== (beforeId === null) || (beforeAt !== null && Number.isNaN(Date.parse(beforeAt)))) {
+        res.status(400).json(apiError("bad_cursor", "before_at and before_id go together"));
+        return;
+      }
+      const { orgId, userId } = ctx(req);
+      res.json(await chatSavedLines(admin(req), orgId, userId, {
+        before_at: beforeAt, before_id: beforeId, limit: intQuery(req.query.limit) ?? undefined,
+      }));
+    }),
+  );
+
   /** Open (or find) the one conversation with a person. 200 either way: the caller just wants it. */
   router.post(
     "/direct",
@@ -206,6 +226,48 @@ export function chatRouter(): Router {
     }),
   );
 
+  /**
+   * CH6c-2: react to a line, pin it, save it. Each is idempotent (0523): asking for what is already so
+   * changes nothing and answers the same. A reaction or a pin answers the line's new `rev`, which the
+   * realtime signal is already carrying to every other tab; a save answers only whether it is saved.
+   * None of these is a new message, so none rings a bell or counts against the message budget.
+   */
+  router.post(
+    "/messages/:messageId/reactions",
+    validateBody(chatReactRequestSchema),
+    asyncHandler(async (req, res) => {
+      const messageId = idParam(req, "messageId");
+      if (!messageId) { notFound(res); return; }
+      const body = res.locals.body as ReturnType<typeof chatReactRequestSchema.parse>;
+      const { orgId, userId } = ctx(req);
+      send(res, await chatReact(admin(req), orgId, userId, messageId, body.reaction, body.on), (rev) => ({ rev }));
+    }),
+  );
+
+  router.put(
+    "/messages/:messageId/pin",
+    validateBody(chatToggleRequestSchema),
+    asyncHandler(async (req, res) => {
+      const messageId = idParam(req, "messageId");
+      if (!messageId) { notFound(res); return; }
+      const body = res.locals.body as ReturnType<typeof chatToggleRequestSchema.parse>;
+      const { orgId, userId } = ctx(req);
+      send(res, await chatPin(admin(req), orgId, userId, messageId, body.on), (rev) => ({ rev }));
+    }),
+  );
+
+  router.put(
+    "/messages/:messageId/save",
+    validateBody(chatToggleRequestSchema),
+    asyncHandler(async (req, res) => {
+      const messageId = idParam(req, "messageId");
+      if (!messageId) { notFound(res); return; }
+      const body = res.locals.body as ReturnType<typeof chatToggleRequestSchema.parse>;
+      const { orgId, userId } = ctx(req);
+      send(res, await chatSave(admin(req), orgId, userId, messageId, body.on), (saved) => ({ saved }));
+    }),
+  );
+
   /** One conversation: header, members, newest page. */
   router.get(
     "/:id",
@@ -239,7 +301,18 @@ export function chatRouter(): Router {
     }),
   );
 
-  /** What changed after `since_rev`: new messages, edits, retractions. */
+  /** Its pinned lines, the latest pin first (CH6c-2). */
+  router.get(
+    "/:id/pins",
+    asyncHandler(async (req, res) => {
+      const id = idParam(req, "id");
+      if (!id) { notFound(res); return; }
+      const { orgId, userId } = ctx(req);
+      send(res, await chatPins(admin(req), orgId, userId, id), (pins) => ({ pins }));
+    }),
+  );
+
+  /** What changed after `since_rev`: new messages, edits, retractions, reactions and pins. */
   router.get(
     "/:id/sync",
     asyncHandler(async (req, res) => {

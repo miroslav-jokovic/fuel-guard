@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { AppAvatar, AppAvatarStack, AppIcon, AppIconButton } from "@silvicom/ui";
-import { BellIcon, ChevronLeftIcon, UserGroupIcon } from "@silvicom/ui/icons";
+import { BellIcon, BookmarkIcon, ChevronLeftIcon, UserGroupIcon } from "@silvicom/ui/icons";
 
 /**
  * The strip above a log (CHAT-REDESIGN-PLAN §4): who or what this is, in the same glyph the rail
@@ -11,7 +11,7 @@ import { BellIcon, ChevronLeftIcon, UserGroupIcon } from "@silvicom/ui/icons";
 defineProps<{
   title: string;
   subtitle?: string | null;
-  glyph: "person" | "group" | "channel" | "activity";
+  glyph: "person" | "group" | "channel" | "activity" | "saved";
   /** Why the back chevron is there: "Back to conversations", "Back to the channel". */
   backLabel?: string;
   /** The width from which the thing behind is beside this rather than replaced by it: `lg` for the rail, `xl` for a channel behind its thread. */
@@ -38,6 +38,7 @@ defineEmits<{ back: [] }>();
     >
       <AppIcon v-if="glyph === 'group'" :icon="UserGroupIcon" class="size-4" />
       <AppIcon v-else-if="glyph === 'activity'" :icon="BellIcon" class="size-4" />
+      <AppIcon v-else-if="glyph === 'saved'" :icon="BookmarkIcon" class="size-4" />
       <template v-else>#</template>
     </span>
     <div class="min-w-0 flex-1">

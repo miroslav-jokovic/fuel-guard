@@ -31,7 +31,7 @@ const P = "44444444-4444-4444-8444-444444444444";
 const msg = (seq: number, patch: Partial<ChatMessage> = {}): ChatMessage => ({
   id: `00000000-0000-4000-8000-${String(seq).padStart(12, "0")}`, thread_id: T, seq, rev: seq,
   sender_user_id: null, sender_name: "Ana", body: `line ${seq}`, created_at: "2026-10-26T12:00:00Z",
-  edited_at: null, deleted_at: null, parent_id: null, reply_count: 0, last_reply_at: null, ...patch,
+  edited_at: null, deleted_at: null, parent_id: null, reply_count: 0, last_reply_at: null, reactions: [], pinned_at: null, saved: false, ...patch,
 });
 const range = (from: number, to: number) => Array.from({ length: to - from + 1 }, (_, i) => msg(from + i));
 const before = (lines: ChatMessage[]) => (lines[0] && lines[0].seq > 1 ? lines[0].seq : null);

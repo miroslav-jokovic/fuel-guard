@@ -29,7 +29,7 @@ const at = (minutesAgo: number) => new Date(NOW - minutesAgo * 60_000).toISOStri
 const msg = (seq: number, sender: string, over: Partial<ChatMessage> = {}, minutesAgo = 10 - seq): ChatMessage => ({
   id: `00000000-0000-4000-8000-${String(seq).padStart(12, "0")}`, thread_id: T, seq, rev: seq,
   sender_user_id: sender, sender_name: sender === ME ? "Ana" : "Ben Admin", body: `line ${seq}`,
-  created_at: at(minutesAgo), edited_at: null, deleted_at: null, parent_id: null, reply_count: 0, last_reply_at: null, ...over,
+  created_at: at(minutesAgo), edited_at: null, deleted_at: null, parent_id: null, reply_count: 0, last_reply_at: null, reactions: [], pinned_at: null, saved: false, ...over,
 });
 const data = (messages: ChatMessage[], benReadSeq = 0, kind: "direct" | "group" = "direct"): ChatConversationResponse => ({
   conversation: {

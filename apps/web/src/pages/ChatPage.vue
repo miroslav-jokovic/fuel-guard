@@ -9,6 +9,8 @@ import { AppCard as BaseCard, QueryState } from "@silvicom/ui";
 import ChatRail from "@/features/chat/ChatRail.vue";
 import ChatConversationStage from "@/features/chat/ChatConversationStage.vue";
 import ChatActivityStage from "@/features/chat/ChatActivityStage.vue";
+import ChatSavedStage from "@/features/chat/ChatSavedStage.vue";
+import { provideChatLineActs, useChatSavedQuery } from "@/features/chat/useChatLineActs";
 import { useChatActivityMarkRead, useChatActivityQuery, useChatActivityUnreadQuery } from "@/features/chat/useChatActivity";
 import ChatEmptyStage from "@/features/chat/ChatEmptyStage.vue";
 import NewChatDialog from "@/features/chat/NewChatDialog.vue";
@@ -80,7 +82,9 @@ const channelId = param("ch");
 const selectedId = computed(() => (channelId.value ? null : param("c").value));
 // Activity is a place on the stage like a conversation (CHAT-REDESIGN-PLAN §6), so it has an address.
 const activityOpen = computed(() => !channelId.value && !selectedId.value && route.query.activity === "1");
-const open = computed(() => !!(selectedId.value || channelId.value || activityOpen.value));
+// Saved (CH6c-2) is another such place, `?saved=1`.
+const savedOpen = computed(() => !channelId.value && !selectedId.value && !activityOpen.value && route.query.saved === "1");
+const open = computed(() => !!(selectedId.value || channelId.value || activityOpen.value || savedOpen.value));
 
 // `query: { c }` and never a copy of the old query: vue-router would keep `ch`, `post` and `view`.
 function openConversation(id: string) {
@@ -91,6 +95,9 @@ function openChannel(id: string) {
 }
 function openActivity() {
   if (!activityOpen.value) void router.push({ query: { activity: "1" } });
+}
+function openSaved() {
+  if (!savedOpen.value) void router.push({ query: { saved: "1" } });
 }
 /** Back to the rail on a phone; nothing open on a desk. */
 function closeAll() {
@@ -134,6 +141,9 @@ const { edit, retract } = useChatMessageActions(selectedId);
 const fail = (fallback: string) => (e: unknown) => toast.error(e instanceof Error ? e.message : fallback);
 const onEdit = (messageId: string, body: string) => edit.mutateAsync({ messageId, body }).catch(fail("Could not save the edit."));
 const onRemove = (messageId: string) => retract.mutateAsync(messageId).catch(fail("Could not remove the message."));
+// React, pin and save (CH6c-2): provided once here, injected by every line's row in every stage.
+const lineActs = provideChatLineActs((message) => toast.error(message));
+const saved = useChatSavedQuery(computed(() => entitled.value && savedOpen.value));
 
 const starting = ref(false);
 // The office's people: the New conversation dialog's list, and who every `<@id>` on the page is
@@ -225,6 +235,7 @@ useChatShortcuts((s) => {
         :selected-id="channelId ?? selectedId"
         :activity-open="activityOpen"
         :activity-unread="activityUnread.data.value ?? 0"
+        :saved-open="savedOpen"
         :inbox-loading="inbox.isPending.value && !inbox.isError.value"
         :inbox-error="inbox.isError.value ? inbox.error.value : null"
         :inbox-retrying="inbox.isFetching.value"
@@ -234,6 +245,7 @@ useChatShortcuts((s) => {
         @open-conversation="openConversation"
         @open-channel="openChannel"
         @open-activity="openActivity"
+        @open-saved="openSaved"
         @join="rail.onJoin"
         @new-conversation="starting = true"
         @new-team="rail.creatingTeam.value = true"
@@ -259,6 +271,22 @@ useChatShortcuts((s) => {
           @open="(query: Record<string, string>) => router.push({ query })"
           @more="activity.fetchNextPage()"
           @retry="activity.refetch()"
+          @back="closeAll"
+        />
+        <ChatSavedStage
+          v-else-if="savedOpen"
+          :items="saved.items.value"
+          :viewer-id="session.userId ?? ''"
+          :title-of="titleOf"
+          :loading="saved.isPending.value && !saved.isError.value"
+          :error="saved.isError.value ? saved.error.value : null"
+          :retrying="saved.isFetching.value"
+          :has-more="saved.hasNextPage.value"
+          :loading-more="saved.isFetchingNextPage.value"
+          @open="(query: Record<string, string>) => router.push({ query })"
+          @unsave="(id: string) => lineActs.save(id, false)"
+          @more="saved.fetchNextPage()"
+          @retry="saved.refetch()"
           @back="closeAll"
         />
         <ChatConversationStage

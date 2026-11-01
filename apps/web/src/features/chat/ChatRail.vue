@@ -2,7 +2,7 @@
 import { computed, ref } from "vue";
 import { chatPreview, chatTitle, type ChatConversation, type ChatTeam, type ChatTeamChannel } from "@silvicom/shared";
 import { AppAvatar, AppButton as BaseButton, AppIcon, AppSearchField, QueryState } from "@silvicom/ui";
-import { BellIcon, ChatAddIcon, HashtagIcon, UserGroupIcon, UsersIcon } from "@silvicom/ui/icons";
+import { BellIcon, BookmarkIcon, ChatAddIcon, HashtagIcon, UserGroupIcon, UsersIcon } from "@silvicom/ui/icons";
 import KebabMenu from "@/components/KebabMenu.vue";
 import KebabMenuItem from "@/components/KebabMenuItem.vue";
 import ChatUnreadCount from "./ChatUnreadCount.vue";
@@ -41,11 +41,14 @@ const props = defineProps<{
   activityOpen?: boolean;
   /** Activity items after the reader's read instant (D-CHAT25). */
   activityUnread?: number;
+  /** Saved is on the stage (`?saved=1`, CH6c-2). */
+  savedOpen?: boolean;
 }>();
 const emit = defineEmits<{
   "open-conversation": [id: string];
   "open-channel": [id: string];
   "open-activity": [];
+  "open-saved": [];
   join: [id: string];
   "new-conversation": [];
   "new-team": [];
@@ -133,6 +136,13 @@ const channelLabel = (c: ChatTeamChannel) => `# ${c.name}${c.visibility === "pri
             <span class="flex size-8 shrink-0 items-center justify-center text-ink-tertiary" aria-hidden="true"><AppIcon :icon="BellIcon" class="size-4" /></span>
             <span class="min-w-0 flex-1 truncate text-sm text-ink" :class="activityUnread ? 'font-semibold' : 'font-normal'">Activity</span>
             <ChatUnreadCount :count="activityUnread ?? 0" />
+          </span>
+        </BaseButton>
+        <!-- Saved (CH6c-2), under Activity: the lines you kept. Yours alone, so it carries no count. -->
+        <BaseButton type="button" size="row" block :variant="savedOpen ? 'soft' : 'ghost'" class="rounded-control px-2 py-1.5" :aria-current="savedOpen ? 'true' : undefined" @click="emit('open-saved')">
+          <span class="flex w-full min-w-0 items-center gap-3">
+            <span class="flex size-8 shrink-0 items-center justify-center text-ink-tertiary" aria-hidden="true"><AppIcon :icon="BookmarkIcon" class="size-4" /></span>
+            <span class="min-w-0 flex-1 truncate text-sm text-ink">Saved</span>
           </span>
         </BaseButton>
       </div>

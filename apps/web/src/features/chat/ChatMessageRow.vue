@@ -1,8 +1,11 @@
 <script setup lang="ts">
 import { computed, nextTick, ref } from "vue";
-import type { ChatMessage } from "@silvicom/shared";
-import { AppAvatar, AppButton as BaseButton, AppIconButton, AppTextarea as BaseTextarea } from "@silvicom/ui";
-import { ChatIcon, PencilSquareIcon, TrashIcon } from "@silvicom/ui/icons";
+import type { ChatMessage, ChatReaction } from "@silvicom/shared";
+import { AppAvatar, AppButton as BaseButton, AppIcon, AppIconButton, AppTextarea as BaseTextarea } from "@silvicom/ui";
+import { BookmarkIcon, ChatIcon, PencilSquareIcon, PinIcon, TrashIcon, UnpinIcon } from "@silvicom/ui/icons";
+import ChatReactionBar from "./ChatReactionBar.vue";
+import ChatReactionPicker from "./ChatReactionPicker.vue";
+import { useChatLineActs } from "./useChatLineActs";
 import { chatClock, chatStamp } from "./chatTime";
 import ChatBody from "./ChatBody.vue";
 import { useChatNames } from "./chatNames";
@@ -27,6 +30,11 @@ import { fromDraft, toDraft } from "./mentionDraft";
  *
  * A mention is drawn as a chip (`ChatBody`, D-CHAT22) and edited as the words `@Name`, which become its
  * token again on save (`mentionDraft.ts`), so an edit that does not touch a mention keeps it.
+ *
+ * CH6c-2: anybody's line takes a reaction, a pin and a save from the same toolbar, so it now shows on
+ * every live line, not only your own and channel posts. The acts come from the page
+ * (`useChatLineActs`); where none were provided — the compliance console — the row draws none of them.
+ * A pinned line says so above its words; its reactions sit under them (`ChatReactionBar`).
  */
 const props = defineProps<{
   message: ChatMessage;
@@ -67,6 +75,12 @@ const name = computed(() => props.message.sender_name ?? "Someone");
 const clock = computed(() => chatClock(props.message.created_at));
 const stamp = computed(() => chatStamp(props.message.created_at));
 const replies = computed(() => props.message.reply_count);
+
+const acts = useChatLineActs();
+const mineReactions = computed<ChatReaction[]>(() =>
+  props.message.reactions.filter((r) => r.users.some((u) => u.toLowerCase() === props.viewerId.toLowerCase())).map((r) => r.reaction));
+const react = (r: ChatReaction, on = !mineReactions.value.includes(r)) => acts?.react(props.message.id, r, on);
+const pinned = computed(() => !!props.message.pinned_at);
 
 function onKeydown(e: KeyboardEvent) {
   // The row itself only: its buttons and an edit in progress keep their keys.
@@ -109,6 +123,9 @@ function onKeydown(e: KeyboardEvent) {
       </div>
       <!-- A screen reader hears the time of a continuation line too; a sighted reader finds it in the gutter. -->
       <span v-else class="sr-only">{{ name }}, {{ clock }}</span>
+      <p v-if="pinned && !message.deleted_at" class="flex items-center gap-1 text-2xs font-medium text-ink-tertiary">
+        <AppIcon :icon="PinIcon" class="size-3" aria-hidden="true" />Pinned
+      </p>
 
       <template v-if="editing">
         <BaseTextarea ref="editor" v-model="draft" :rows="2" aria-label="Edit message" class="mt-1 min-h-0!" @keydown.enter.exact.prevent="save" @keydown.esc.stop="endEdit" />
@@ -123,6 +140,14 @@ function onKeydown(e: KeyboardEvent) {
         <slot name="stamp" />
       </p>
 
+      <ChatReactionBar
+        v-if="!message.deleted_at"
+        :reactions="message.reactions"
+        :viewer-id="viewerId"
+        :disabled="!acts"
+        @toggle="(r: ChatReaction, on: boolean) => react(r, on)"
+      />
+
       <!-- A post's thread, as a line under it: how many replies and when the last came (D-CHATUI9). -->
       <BaseButton v-if="canReply && replies > 0" size="sm" variant="link" class="mt-1 text-xs" :aria-pressed="open" @click="emit('reply', message.id)">
         {{ replies }} {{ replies === 1 ? "reply" : "replies" }}<template v-if="message.last_reply_at"> · {{ chatClock(message.last_reply_at) }}</template>
@@ -130,12 +155,15 @@ function onKeydown(e: KeyboardEvent) {
     </div>
 
     <div
-      v-if="!message.deleted_at && !editing && (canReply || mine)"
+      v-if="!message.deleted_at && !editing && (canReply || mine || acts)"
       class="absolute -top-3 right-2 flex items-center rounded-control bg-surface p-0.5 shadow-card ring-1 ring-edge-subtle opacity-0 group-hover:opacity-100 group-focus-within:opacity-100"
       role="toolbar"
       aria-label="Message actions"
     >
+      <ChatReactionPicker v-if="acts" :mine="mineReactions" @pick="(r: ChatReaction) => react(r)" />
       <AppIconButton v-if="canReply" :icon="ChatIcon" label="Reply in thread" size="sm" @click="emit('reply', message.id)" />
+      <AppIconButton v-if="acts" :icon="pinned ? UnpinIcon : PinIcon" :label="pinned ? 'Unpin' : 'Pin'" size="sm" @click="acts.pin(message.id, !pinned)" />
+      <AppIconButton v-if="acts" :icon="BookmarkIcon" :label="message.saved ? 'Remove from Saved' : 'Save'" :pressed="message.saved" size="sm" @click="acts.save(message.id, !message.saved)" />
       <AppIconButton v-if="mine" :icon="PencilSquareIcon" label="Edit" size="sm" @click="startEdit" />
       <AppIconButton v-if="mine" :icon="TrashIcon" label="Remove" size="sm" variant="danger" @click="emit('remove', message.id)" />
     </div>

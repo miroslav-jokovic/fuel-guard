@@ -42,7 +42,8 @@ function line(thread, sender, body, at, over = {}) {
   const m = {
     id: randomUUID(), thread_id: thread, seq, rev: seq,
     sender_user_id: sender, sender_name: sender === ME ? "Miki Jokovic" : people.find((p) => p.user_id === sender)?.name ?? null,
-    body, created_at: at, edited_at: null, deleted_at: null, parent_id: null, reply_count: 0, last_reply_at: null, ...over,
+    body, created_at: at, edited_at: null, deleted_at: null, parent_id: null, reply_count: 0, last_reply_at: null,
+    reactions: [], pinned_at: null, pinned_by: null, saved: false, saved_at: null, ...over,
   };
   (msgs[thread] ??= []).push(m);
   return m;
@@ -56,7 +57,8 @@ function seed() {
   line(T.marcus, ME, "Good. Did the reefer pre-cool finish?", day(1, 7, 2));
   line(T.marcus, P.marcus.user_id, "Yes, 34°F at 6:40.", day(1, 7, 3));
   line(T.marcus, P.marcus.user_id, "He also asked about the gate code for the Joliet drop.", day(1, 7, 3));
-  line(T.marcus, ME, "4411. Same as last week.", day(1, 7, 10), { edited_at: day(1, 7, 11) });
+  // CH6c-2: a pinned line with a reaction, one the dev session saved.
+  line(T.marcus, ME, "4411. Same as last week.", day(1, 7, 10), { edited_at: day(1, 7, 11), pinned_at: day(1, 7, 12), pinned_by: P.marcus.user_id, reactions: [{ reaction: "thumbs_up", users: [P.marcus.user_id] }] });
   line(T.marcus, P.marcus.user_id, "Got it, sent to him.", day(1, 7, 12));
   line(T.marcus, P.marcus.user_id, "Truck 702 is sitting at the Pilot in Gary — 3h idle on the map. Calling him now.", ago(190));
   line(T.marcus, ME, "Thanks. If it's the APU again, have Luis look at it on Friday.", ago(140));
@@ -64,7 +66,7 @@ function seed() {
   line(T.marcus, P.marcus.user_id, "APU threw a code. I put a note on the unit.", ago(128));
   line(T.marcus, P.marcus.user_id, "Also 455 needs a reset on the ELD before his 14 runs out at 15:20.", ago(44));
   line(T.marcus, ME, "On it.", ago(41));
-  line(T.marcus, P.marcus.user_id, "Can you approve the detention on load L-20481? Shipper held him 4h.", ago(6));
+  line(T.marcus, P.marcus.user_id, "Can you approve the detention on load L-20481? Shipper held him 4h.", ago(6), { saved: true, saved_at: ago(4) });
   line(T.marcus, P.marcus.user_id, "I attached the BOL time stamps in the load.", ago(5));
 
   line(T.dana, P.dana.user_id, "Roadside on 455 in Indiana, level 2. No OOS. Report is in the inspection queue.", ago(75));
@@ -85,7 +87,10 @@ function seed() {
 
   // Channels
   line(CH.general, P.tom.user_id, "Welcome to Dispatch. Shift handovers go in #west-region or #roadside, general notes here.", day(6, 9));
-  line(CH.general, P.marcus.user_id, "Reminder: HOS resets this week — 455, 702 and 318 all run out Thursday.", day(1, 8, 30));
+  line(CH.general, P.marcus.user_id, "Reminder: HOS resets this week — 455, 702 and 318 all run out Thursday.", day(1, 8, 30), {
+    pinned_at: day(1, 9), pinned_by: P.tom.user_id,
+    reactions: [{ reaction: "thumbs_up", users: [P.tom.user_id, P.dana.user_id, ME] }, { reaction: "done", users: [P.luis.user_id] }],
+  });
   const post = line(CH.general, P.dana.user_id, "New rule from Friday: every roadside inspection gets photographed before the truck leaves the scale. Driver app → Inspection.", day(0, 9, 15), { reply_count: 3, last_reply_at: ago(20) });
   line(CH.general, P.luis.user_id, "Bay 1 is down until Wednesday, compressor. Route PMs to bay 2.", ago(95));
   line(CH.general, ME, "Noted. Marcus, keep 318's PM on Thursday but push 611 to next week.", ago(90));
@@ -253,10 +258,34 @@ http.createServer(async (req, res) => {
       }
       return json(res, 200, {});
     }
+    if (seg[2] === "saved") {
+      const items = empty ? [] : Object.values(msgs).flat().filter((m) => m.saved && !m.deleted_at)
+        .sort((a, b) => b.saved_at.localeCompare(a.saved_at))
+        .map((m) => ({ message_id: m.id, saved_at: m.saved_at, thread_id: m.thread_id, kind: convMeta[m.thread_id]?.kind ?? "direct",
+          subject: convMeta[m.thread_id]?.subject ?? null, space_id: null, parent_id: m.parent_id, seq: m.seq,
+          sender_user_id: m.sender_user_id, sender_name: m.sender_name, body: m.body, created_at: m.created_at }));
+      return json(res, 200, { items, next: null });
+    }
     if (seg[2] === "messages") {
       const id = seg[3];
       for (const list of Object.values(msgs)) {
         const m = list.find((x) => x.id === id);
+        if (m && seg[4]) {
+          // CH6c-2: react, pin, save — each moves the line's rev but the save (D-CHAT24).
+          const b = await readBody(req);
+          if (seg[4] === "reactions") {
+            const k = m.reactions.find((r) => r.reaction === b.reaction);
+            if (b.on && !k) m.reactions.push({ reaction: b.reaction, users: [ME] });
+            else if (b.on && !k.users.includes(ME)) k.users.push(ME);
+            else if (!b.on && k) { k.users = k.users.filter((u) => u !== ME); if (!k.users.length) m.reactions = m.reactions.filter((r) => r !== k); }
+            const order = ["thumbs_up", "heart", "laugh", "surprised", "sad", "done"];
+            m.reactions.sort((x, y) => order.indexOf(x.reaction) - order.indexOf(y.reaction));
+            m.rev++;
+            return json(res, 200, { rev: m.rev });
+          }
+          if (seg[4] === "pin") { m.pinned_at = b.on ? new Date().toISOString() : null; m.pinned_by = b.on ? ME : null; m.rev++; return json(res, 200, { rev: m.rev }); }
+          if (seg[4] === "save") { m.saved = b.on; m.saved_at = b.on ? new Date().toISOString() : null; return json(res, 200, { saved: b.on }); }
+        }
         if (m) {
           if (req.method === "PATCH") { const b = await readBody(req); m.body = b.body; m.edited_at = new Date().toISOString(); m.rev++; }
           if (req.method === "DELETE") { m.body = null; m.deleted_at = new Date().toISOString(); m.rev++; }
@@ -275,6 +304,13 @@ http.createServer(async (req, res) => {
     }
     if (seg[3] === "messages" && req.method === "GET") return json(res, 200, { messages: [], before_seq: null });
     if (seg[3] === "members" && req.method === "GET") return json(res, 200, { members: members(id) });
+    if (seg[3] === "pins") {
+      const name = (uid) => (uid === ME ? "Miki Jokovic" : people.find((p) => p.user_id === uid)?.name ?? null);
+      const pins = (msgs[id] ?? []).filter((m) => m.pinned_at && !m.deleted_at).sort((a, b) => b.pinned_at.localeCompare(a.pinned_at))
+        .map((m) => ({ id: m.id, thread_id: m.thread_id, seq: m.seq, rev: m.rev, sender_user_id: m.sender_user_id, sender_name: m.sender_name,
+          body: m.body, created_at: m.created_at, edited_at: m.edited_at, parent_id: m.parent_id, pinned_at: m.pinned_at, pinned_by: m.pinned_by, pinned_by_name: name(m.pinned_by) }));
+      return json(res, 200, { pins });
+    }
     if (seg[3] === "messages" && req.method === "POST") {
       const b = await readBody(req);
       const m = line(id, ME, b.body, new Date().toISOString(), { id: b.message_id });
