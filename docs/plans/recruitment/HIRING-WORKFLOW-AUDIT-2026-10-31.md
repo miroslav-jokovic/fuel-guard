@@ -729,3 +729,26 @@ applicant status page → dispositions → HW8a/b orientation (link list + attes
   `hireBlockers`, `readyToHire`, the API's refusal and the hire drawer ("· your company's rule") all
   read that row. A save from a screen served before this one keeps the switch rather than turning it
   off. 10/10 mutants killed.
+- **2026-11-01** — **P12b merged (#1883, `6a95f84`), no migration.** As above.
+- **2026-11-01** — **P9 merged (#1887, `88f5df8`), no migration.** Part 2's "Your documents": every
+  slot offered as a photo or a PDF (`%PDF-` signature and hash checked), up to five training,
+  road-test and "other" papers (`p_ordinal`), the Part 1 licence never asked again; the SSN card now
+  files as `ssn_card`. The applicant record's Documents section lists captures and filed papers
+  ("Sent by applicant" / "Added by {name}") and uploads through a recruitment door
+  (`/api/recruitment/applicants/:id/documents`, `requireSection("recruitment")`, kind composed from
+  the slot, written through evidence's `registerDocument`) — not by widening `roster`. SSN-card and
+  passport images: no signed URL for a role that may not see them, on every reader. **Q-WF4b
+  opened** (§6): no role sees the full SSN today, so Q-WF4 (a) had nothing to derive from;
+  provisionally admin + safety manager (`canReadAllRestricted`, `identityPaperImages.ts`). SSN
+  cards filed before as `other` are left as they were (append-only evidence). 21/21 mutants killed.
+- **2026-11-01** — **P8 merged (#1886, `e6f7f40`), no migration.** The served questionnaire is v3:
+  Q-WF3's seven `required`, enforced through `APPLICATION_CROSS_FIELD_RULES` at
+  `questionnaire_answers.<id>` on client and server, and `questionnaireAnswersSchema` on the API. A
+  draft carries the questionnaire version it was answered against; a draft with no version reads as
+  v2 (nothing required), so the one production draft in flight is not refused for a rule its
+  applicant never saw. Skips ("I'd rather not say" / "Doesn't apply") stored and printed in words;
+  a job saves only with a name and a start date and a half-filled one is listed "Unfinished — finish
+  or remove"; the review lists "N answers missing" with a link each; yes/no as two buttons; military
+  "when" only after yes; Spanish throughout. **Departures:** the hub says "0 of 4 answered" (four
+  questions are on that screen, not eleven); AF-8 (optional federal fields) untouched. 16/16 mutants
+  killed; e2e-apply 31 specs, three new.
