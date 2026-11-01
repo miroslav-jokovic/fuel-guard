@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import { isRecordId, type ChatMuteLevel } from "@silvicom/shared";
+import { isRecordId, type ChatFileRef, type ChatMuteLevel } from "@silvicom/shared";
 import { AppButton as BaseButton, QueryState, useConfirm } from "@silvicom/ui";
 import { useSessionStore } from "@/stores/session";
 import { useToastStore } from "@/stores/toast";
@@ -89,9 +89,9 @@ watch(channelId, (id, old) => { if (old && old !== id) unreadMarks.value.delete(
 
 const pending = ref<PendingLine[]>([]);
 const sender = useChatSend(pending);
-const post = (body: string) => channelId.value && sender.mutate({ threadId: channelId.value, body });
-const reply = (body: string) => channelId.value && postId.value && sender.mutate({ threadId: channelId.value, body, parentId: postId.value });
-const retry = (l: PendingLine) => sender.mutate({ threadId: l.thread_id, body: l.body, messageId: l.message_id, parentId: l.parent_id });
+const post = (body: string, files: ChatFileRef[]) => channelId.value && sender.mutate({ threadId: channelId.value, body, files });
+const reply = (body: string, files: ChatFileRef[]) => channelId.value && postId.value && sender.mutate({ threadId: channelId.value, body, files, parentId: postId.value });
+const retry = (l: PendingLine) => sender.mutate({ threadId: l.thread_id, body: l.body, files: l.files, messageId: l.message_id, parentId: l.parent_id });
 
 const { edit, retract } = useChatMessageActions(channelId);
 const fail = (fallback: string) => (e: unknown) => toast.error(e instanceof Error ? e.message : fallback);

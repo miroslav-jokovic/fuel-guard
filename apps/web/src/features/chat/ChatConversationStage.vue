@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import { chatTitle, type ChatConversationResponse, type ChatMuteLevel } from "@silvicom/shared";
+import { chatTitle, type ChatConversationResponse, type ChatFileRef, type ChatMuteLevel } from "@silvicom/shared";
 import { AppButton as BaseButton } from "@silvicom/ui";
 import KebabMenu from "@/components/KebabMenu.vue";
 import { mergeLines, type PendingLine } from "./useChat";
@@ -33,7 +33,7 @@ const props = defineProps<{
   firstUnreadSeq?: number | null;
 }>();
 defineEmits<{
-  send: [body: string];
+  send: [body: string, files: ChatFileRef[]];
   retry: [line: PendingLine];
   edit: [messageId: string, body: string];
   remove: [messageId: string];
@@ -112,7 +112,7 @@ const openPins = () => { pinsMounted.value = true; pinsOpen.value = true; };
       @earlier="$emit('earlier')"
       @exit-bottom="composer?.focus()"
     />
-    <ChatComposer ref="composer" :placeholder="`Message ${title}`" :thread-key="data.conversation.thread_id" @send="(body: string) => $emit('send', body)" @up="log?.focusLast()" />
+    <ChatComposer ref="composer" :placeholder="`Message ${title}`" :thread-key="data.conversation.thread_id" :upload-to="data.conversation.thread_id" @send="(body: string, files: ChatFileRef[]) => $emit('send', body, files)" @up="log?.focusLast()" />
     <ChatPinnedDialog v-if="pinsMounted" :open="pinsOpen" :thread-id="data.conversation.thread_id" :viewer-id="viewerId" @close="pinsOpen = false" />
   </section>
 </template>

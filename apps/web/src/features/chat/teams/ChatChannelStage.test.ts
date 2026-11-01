@@ -107,7 +107,7 @@ const teams = (description: string | null = null) => ({
 const line = (seq: number, over: Record<string, unknown> = {}) => ({
   id: `00000000-0000-4000-8000-${String(seq).padStart(12, "0")}`, thread_id: LOADS, seq, rev: seq,
   sender_user_id: "22222222-2222-4222-8222-222222222222", sender_name: "Ben", body: `post ${seq}`,
-  created_at: "2026-10-25T15:00:00Z", edited_at: null, deleted_at: null, parent_id: null, reply_count: 0, last_reply_at: null, reactions: [], pinned_at: null, saved: false, ...over,
+  created_at: "2026-10-25T15:00:00Z", edited_at: null, deleted_at: null, parent_id: null, reply_count: 0, last_reply_at: null, reactions: [], pinned_at: null, saved: false, attachments: [], ...over,
 });
 const buttons = (w: VueWrapper, label: string) => w.findAll("button").filter((b) => b.text().trim() === label);
 const bodyButtons = (label: string) => [...document.body.querySelectorAll("button")].filter((b) => b.textContent?.trim() === label);

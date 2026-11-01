@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/vue-query";
 import type {
   ChatConversationResponse,
   ChatDirectoryEntry,
+  ChatFileRef,
   ChatInboxResponse,
   ChatKind,
   ChatMember,
@@ -114,6 +115,8 @@ export interface PendingLine {
   /** The channel post it replies to (D-CHAT19); null for a line of the conversation itself. */
   parent_id: string | null;
   body: string;
+  /** The files it carries (CH7): uploaded already; a retry sends the same references. */
+  files: ChatFileRef[];
   state: "pending" | "failed";
   error: string | null;
 }
@@ -146,11 +149,11 @@ export function useChatSend(pending: Ref<PendingLine[]>) {
       : pending.value.map((p) => (p.message_id === id ? { ...p, ...patch } : p));
   };
   return useMutation({
-    mutationFn: async (input: { threadId: string; body: string; messageId?: string; parentId?: string | null }): Promise<ChatSendResponse> => {
+    mutationFn: async (input: { threadId: string; body: string; files?: ChatFileRef[]; messageId?: string; parentId?: string | null }): Promise<ChatSendResponse> => {
       const id = input.messageId ?? genUuid();
       const parentId = input.parentId ?? null;
       if (!pending.value.some((p) => p.message_id === id)) {
-        pending.value = [...pending.value, { message_id: id, thread_id: input.threadId, parent_id: parentId, body: input.body, state: "pending", error: null }];
+        pending.value = [...pending.value, { message_id: id, thread_id: input.threadId, parent_id: parentId, body: input.body, files: input.files ?? [], state: "pending", error: null }];
       } else {
         set(id, { state: "pending", error: null });
       }
@@ -160,7 +163,7 @@ export function useChatSend(pending: Ref<PendingLine[]>) {
         : `/api/chat/${input.threadId}/messages`;
       try {
         const sent = await unwrap(
-          apiFetch<ChatSendResponse>(path, { method: "POST", body: { message_id: id, body: input.body } }),
+          apiFetch<ChatSendResponse>(path, { method: "POST", body: { message_id: id, body: input.body, ...(input.files?.length ? { files: input.files } : {}) } }),
           "Could not send the message.",
         );
         await qc.invalidateQueries({ queryKey: conversationKey(input.threadId) });

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import type { ChatMuteLevel, ChatPostPage, ChatTeamChannel } from "@silvicom/shared";
+import type { ChatFileRef, ChatMuteLevel, ChatPostPage, ChatTeamChannel } from "@silvicom/shared";
 import { AppButton as BaseButton } from "@silvicom/ui";
 import KebabMenu from "@/components/KebabMenu.vue";
 import ChatComposer from "../ChatComposer.vue";
@@ -42,7 +42,7 @@ const props = defineProps<{
   members?: ReadonlyArray<{ user_id: string; name: string | null }>;
 }>();
 const emit = defineEmits<{
-  send: [body: string];
+  send: [body: string, files: ChatFileRef[]];
   retry: [line: PendingLine];
   edit: [messageId: string, body: string];
   remove: [messageId: string];
@@ -111,7 +111,7 @@ const openPins = () => { pinsMounted.value = true; pinsOpen.value = true; };
         </div>
       </template>
     </ChatMessageList>
-    <ChatComposer ref="composer" :placeholder="`Message # ${channel.name}`" label="Post" action="Post" :thread-key="channel.thread_id" @send="(body: string) => emit('send', body)" @up="log?.focusLast()" />
+    <ChatComposer ref="composer" :placeholder="`Message # ${channel.name}`" label="Post" action="Post" :thread-key="channel.thread_id" :upload-to="channel.thread_id" @send="(body: string, files: ChatFileRef[]) => emit('send', body, files)" @up="log?.focusLast()" />
     <ChatPinnedDialog v-if="pinsMounted" :open="pinsOpen" :thread-id="channel.thread_id" :viewer-id="viewerId" @thread="(id: string) => emit('replies', id)" @close="pinsOpen = false" />
   </section>
 </template>

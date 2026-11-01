@@ -1,8 +1,11 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from "vue";
-import { CHAT_BODY_MAX } from "@silvicom/shared";
+import { CHAT_BODY_MAX, CHAT_FILE_ACCEPT, type ChatFileRef } from "@silvicom/shared";
 import { AppAvatar, AppButton as BaseButton, AppIcon, AppIconButton, AppTextarea as BaseTextarea } from "@silvicom/ui";
-import { AtIcon, PaperAirplaneIcon } from "@silvicom/ui/icons";
+import { AtIcon, PaperAirplaneIcon, PaperclipIcon } from "@silvicom/ui/icons";
+import FilePickButton from "@/components/ui/FilePickButton.vue";
+import ChatComposerFiles from "./ChatComposerFiles.vue";
+import { useChatAttachments } from "./useChatAttachments";
 import ChatEmojiTray from "./ChatEmojiTray.vue";
 import { useBottomChrome } from "@/composables/bottomChrome";
 import { useChatMentions, type MentionCandidate } from "./chatNames";
@@ -36,17 +39,35 @@ import { fromDraft, mentionLabel, mentionQueryAt } from "./mentionDraft";
  * typing one does; the tray writes its emoji at the caret. Neither is a new path to the server: both
  * only edit `draft`, which `submit` sends exactly as before.
  *
- * ⚠ No `+` (attach) yet, on purpose. Files are CH7 (OFFICE-CHAT-PLAN §9) and have no storage, contract
- * or ledger action; a + that opened a menu of nothing would be a workaround drawn as a feature. It
- * joins the toolbar's left end with CH7.
+ * FILES (CH7): the paperclip at the toolbar's left, a drop onto the box, or a paste. Each file starts
+ * uploading at once (`useChatAttachments`); Send carries their references, waits while any is still on its
+ * way, and a line may be only files. `uploadTo` is the conversation the files belong to — for a reply,
+ * its channel, not the post `threadKey` names. Without it the box takes words only.
  */
-const props = withDefaults(defineProps<{ placeholder?: string; label?: string; action?: string; threadKey?: string | null }>(), {
+const props = withDefaults(defineProps<{ placeholder?: string; label?: string; action?: string; threadKey?: string | null; uploadTo?: string | null }>(), {
   placeholder: "Message",
   label: "Message",
   action: "Send",
   threadKey: null,
+  uploadTo: null,
 });
-const emit = defineEmits<{ send: [body: string]; up: [] }>();
+const emit = defineEmits<{ send: [body: string, files: ChatFileRef[]]; up: [] }>();
+const attachments = useChatAttachments(computed(() => props.uploadTo));
+const { files: pendingFiles, refusal } = attachments;
+/** Send waits for every file; a failed one must be retried or removed first. */
+const canSend = computed(() =>
+  (outgoing.value.trim().length > 0 || attachments.ready.value.length > 0) && !over.value && !attachments.uploading.value && !attachments.failed.value);
+function onDrop(e: DragEvent) {
+  if (!props.uploadTo) return;
+  const dropped = [...(e.dataTransfer?.files ?? [])];
+  if (dropped.length) attachments.add(dropped);
+}
+function onPaste(e: ClipboardEvent) {
+  const pasted = [...(e.clipboardData?.files ?? [])];
+  if (!props.uploadTo || pasted.length === 0) return; // words paste as words
+  e.preventDefault();
+  attachments.add(pasted);
+}
 
 const draft = ref("");
 const picks = ref(new Map<string, string>());
@@ -108,12 +129,13 @@ function grow() {
 }
 watch(draft, grow, { flush: "post" });
 // A different conversation is a different draft: the field empties and shrinks with it.
-watch(() => props.threadKey, () => { draft.value = ""; picks.value = new Map(); typed.value = null; });
+watch(() => props.threadKey, () => { draft.value = ""; picks.value = new Map(); typed.value = null; attachments.clear(); });
 
 function submit() {
   const body = outgoing.value.trim();
-  if (!body || over.value) return;
-  emit("send", body);
+  if (!canSend.value) return;
+  emit("send", body, attachments.ready.value);
+  attachments.clear();
   draft.value = "";
   picks.value = new Map();
   typed.value = null;
@@ -171,7 +193,7 @@ defineExpose({ focus: () => field.value?.$el.focus() });
 </script>
 
 <template>
-  <form ref="form" class="shrink-0 px-2 pt-1 pb-2 sm:px-4 sm:pb-3" @submit.prevent="submit">
+  <form ref="form" class="shrink-0 px-2 pt-1 pb-2 sm:px-4 sm:pb-3" @submit.prevent="submit" @dragover.prevent @drop.prevent="onDrop">
     <div
       class="relative max-w-3xl rounded-surface bg-surface shadow-card ring-1 ring-inset transition-shadow focus-within:ring-2"
       :class="over ? 'ring-danger-600 focus-within:ring-danger-600' : 'ring-edge-strong focus-within:ring-focus-ring'"
@@ -194,6 +216,7 @@ defineExpose({ focus: () => field.value?.$el.focus() });
         @keyup.left="readCaret"
         @keyup.right="readCaret"
         @blur="typed = null"
+        @paste="onPaste"
       />
       <ul
         v-if="listOpen"
@@ -219,7 +242,9 @@ defineExpose({ focus: () => field.value?.$el.focus() });
           <span v-if="!c.member && mentions?.addLabel.value" class="shrink-0 text-2xs text-ink-tertiary">{{ mentions.addLabel.value }}</span>
         </li>
       </ul>
+      <ChatComposerFiles :files="pendingFiles" :refusal="refusal" @remove="attachments.remove" @retry="attachments.retry" />
       <div class="flex items-center gap-0.5 px-1.5 pb-1.5" role="toolbar" aria-label="Message tools">
+        <FilePickButton v-if="uploadTo" :icon="PaperclipIcon" label="Attach files" :accept="CHAT_FILE_ACCEPT" @files="attachments.add" />
         <ChatEmojiTray @pick="insertAtCaret" />
         <AppIconButton v-if="mentions" :icon="AtIcon" label="Mention someone" size="sm" @click="startMention" />
         <!-- The key hint is a desk's; the limit is everyone's, so it shows on a phone too. -->
@@ -232,7 +257,7 @@ defineExpose({ focus: () => field.value?.$el.focus() });
           </template>
           <template v-else>Enter to send · Shift+Enter for a new line</template>
         </span>
-        <BaseButton type="submit" size="icon" variant="primary" :class="nearLimit ? '' : 'ml-auto sm:ml-0'" :aria-label="props.action" :title="props.action" :disabled="!draft.trim() || over">
+        <BaseButton type="submit" size="icon" variant="primary" :class="nearLimit ? '' : 'ml-auto sm:ml-0'" :aria-label="props.action" :title="props.action" :disabled="!canSend">
           <AppIcon :icon="PaperAirplaneIcon" class="size-4" aria-hidden="true" />
         </BaseButton>
       </div>

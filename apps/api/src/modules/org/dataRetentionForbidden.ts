@@ -242,6 +242,10 @@ export const RETENTION_FORBIDDEN = [
    * The two record tables are append-only by trigger (CL001) already; messages are soft-deleted (MG001).
    */
   "messages", "message_versions", "chat_ledger",
+  // + a line's files (0539, D-CHAT28): evidence like its words, removed only with its line by that purge.
+  // A rule here would also be a storage deletion a day later — the nightly sweep deletes every object
+  // no row points at (`reconcileChatFileOrphans`), as `hazmat_documents`' note above explains.
+  "chat_attachments",
   /**
    * Office chat's legal holds and exports (0517, OFFICE-CHAT-PLAN D-CHAT15/D-CHAT20). A hold is the
    * record that the company was told to keep a person's or a conversation's words, and an export is

@@ -29,7 +29,7 @@ function msg(seq: number, rev = seq, patch: Partial<ChatMessage> = {}): ChatMess
     id: `00000000-0000-4000-8000-${String(seq).padStart(12, "0")}`,
     thread_id: T, seq, rev, sender_user_id: YOU, sender_name: "Ana", body: `line ${seq}`,
     created_at: `2026-10-23T12:00:${String(seq).padStart(2, "0")}Z`, edited_at: null, deleted_at: null,
-    parent_id: null, reply_count: 0, last_reply_at: null, reactions: [], pinned_at: null, saved: false,
+    parent_id: null, reply_count: 0, last_reply_at: null, reactions: [], pinned_at: null, saved: false, attachments: [],
     ...patch,
   };
 }
