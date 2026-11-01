@@ -225,6 +225,7 @@ export * from "./efsAccountContract.js";
 export * from "./returnToDuty.js";
 export * from "./applicantDisposition.js";
 export * from "./applicantNotesContract.js";
+export * from "./employmentGapContract.js";
 export * from "./packetPlacements.js";
 export * from "./permissionInstrument.js";
 export * from "./signingPlaceDestination.js";
