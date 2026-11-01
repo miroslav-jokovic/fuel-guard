@@ -686,3 +686,20 @@ applicant status page → dispositions → HW8a/b orientation (link list + attes
   multi-document slots and the one-row rule kept for the rest; a 10-argument
   `stage_application_capture` beside the unchanged 9-argument one; five new `documents.kind`s
   (`APPLICANT_PAPER_KINDS`). 27-case matrix, red without 0534. Reader: P9.
+- **2026-10-31** — **P7 merged (#1877, `e18a545`), migration `0535_applicant_notes`.** Append-only
+  notes (AN010–AN013), one pinned (`set_applicant_note_pinned`, AN020), `driver_id on delete
+  restrict` and listed in `DRIVER_REASSIGNMENTS` so a roster merge moves them, deleted by the
+  redefined `purge_applicant`; not in `RETENTION_FORBIDDEN` (working papers, not evidence). 15-case
+  matrix; purge matrix fixture extended. Reader: P10.
+- **2026-11-01** — **P11, desk half.** A recruiter's hire is not stopped by 0213: the hire writes
+  through `hire_applicant` with the service role, where `auth_role()` is null and
+  `guard_driver_lifecycle` passes (`routes/hire.ts` header); 0386's `guard_applicant_hire` reads
+  only the hire's own session flag. So the one gate is `requireSection("roster")` over the org's
+  editable matrix — granting the recruiter role `roster: manage` in Settings → Permissions is the
+  whole change, and no migration is needed. The staging act (sign in as a recruiter, hire a test
+  applicant) is the owner's: there is no recruiter test member on staging yet, and creating one
+  needs the staging service key.
+- **2026-11-01** — **P12a (this PR), migration `0536_hire_policy`.** `recruiting_settings.
+  handbook_blocks_hire` (default false, Q-WF6). **Departure from §9 P12:** `orientation_blocks_hire`
+  and `videos_block_hire` are NOT added — both steps have `evidence: null`, so switching either on
+  would refuse every hire forever. They come with HW8's evidence tables. Reader: P12b.

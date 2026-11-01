@@ -149,6 +149,23 @@ await db.query(`delete from organizations where id = $1`, [ORG]);
 const gone = await db.query(`select count(*)::int n from recruiting_settings`);
 ok("deleting the org deletes its settings", gone.rows[0].n === 0);
 
+// ── 5. the hire-policy switch (0536, §9 P12) ──────────────────────────────────────────────────
+// A row saved with 0379's three answers only — what the code served before P12 writes — reads "off".
+await put(ORG_B, 14, true, 48);
+const sw = await db.query(`select handbook_blocks_hire from recruiting_settings where org_id = $1`, [ORG_B]);
+ok("a row written without the hire switch reads handbook_blocks_hire = false (Q-WF6's default)",
+  sw.rows[0]?.handbook_blocks_hire === false);
+ok("the switch turns on", !(await refused(
+  `update recruiting_settings set handbook_blocks_hire = true where org_id = $1`, [ORG_B])));
+ok("the switch is never null", await refused(
+  `update recruiting_settings set handbook_blocks_hire = null where org_id = $1`, [ORG_B]));
+const policyCols = await db.query(
+  `select column_name from information_schema.columns
+    where table_name = 'recruiting_settings' and column_name like '%block%' order by 1`);
+ok("only the handbook is a switch — orientation and videos have no evidence to read yet (0536 header)",
+  policyCols.rows.map((r) => r.column_name).join(",") === "handbook_blocks_hire");
+await clear();
+
 // ── 4. deny-all ───────────────────────────────────────────────────────────────────────────────
 const rls = await db.query(`select relrowsecurity from pg_class where relname='recruiting_settings'`);
 const pol = await db.query(`select count(*)::int n from pg_policies where tablename='recruiting_settings'`);
