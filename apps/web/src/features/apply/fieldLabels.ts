@@ -306,3 +306,27 @@ export function valueAt(root: unknown, path: FieldPath): unknown {
   }
   return at;
 }
+
+/**
+ * An office correction, as the applicant record's activity list says it (HIRING-WORKFLOW-AUDIT-2026-10-31
+ * §9 P10): "filled in “Street address” for ABC Trucking". Here, beside the labels, because the field
+ * must be named in the words the applicant's own screen prints — the activity list is in
+ * `features/recruitment`, which may not import this feature, so the page hands it this function.
+ */
+export function describeOfficeEdit(edit: {
+  path: FieldPath;
+  change: "filled" | "changed" | "cleared" | "added" | "removed";
+  employer: string | null;
+}): string {
+  const at = edit.employer ? ` for ${edit.employer}` : "";
+  if (edit.change === "added") return edit.employer ? `added a job: ${edit.employer}` : "added a job";
+  if (edit.change === "removed") return edit.employer ? `removed a job: ${edit.employer}` : "removed a job";
+  const [head, , column] = edit.path;
+  // A job's own answer is named by its column alone — the employer's name says which job.
+  const label =
+    edit.employer && column !== undefined
+      ? (rowLabels()[String(head)]?.columns[String(column)] ?? describeField(edit.path))
+      : describeField(edit.path);
+  const verb = edit.change === "filled" ? "filled in" : edit.change === "cleared" ? "cleared" : "changed";
+  return `${verb} “${label}”${at}`;
+}

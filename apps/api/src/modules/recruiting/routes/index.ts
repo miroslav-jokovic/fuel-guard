@@ -21,6 +21,7 @@ import { recruitmentDrugTestRouter } from "./drugTest.js";
 import { recruitmentEmployerCallsRouter } from "./employerCalls.js";
 import { recruitmentPurgeRouter } from "./purge.js";
 import { recruitmentSelfieRouter } from "./selfie.js";
+import { recruitmentNotesRouter } from "./notes.js";
 
 /**
  * Everything mounted at `/api/recruitment`, composed in one place.
@@ -55,5 +56,6 @@ export function recruitmentRouter(): Router {
   router.use(recruitmentEmployerCallsRouter()); // previous employers verified by phone before filing (D-AW8)
   router.use(recruitmentPurgeRouter()); // an admin deletes an applicant who was never hired (Q-AW40)
   router.use(recruitmentSelfieRouter()); // the selfie beside the licence photo, read by a person (AW6)
+  router.use(recruitmentNotesRouter()); // the office's notes and the derived activity list (§9 P10)
   return router;
 }

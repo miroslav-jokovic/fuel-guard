@@ -11,6 +11,7 @@ import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
 import { boardChecklists } from "../applicantBoard.js";
 import { carrierToday } from "../carrierClock.js";
+import { readLastNotes } from "../applicantBoardReads.js";
 
 /**
  * `GET /pipeline` — the applicant board's read, and the history columns it shares with the
@@ -203,8 +204,9 @@ export const applicantPipelineHandler = asyncHandler(async (req, res) => {
     }),
   );
 
-  // One carrier day for the whole page (`carrierClock.ts`), read once rather than per row.
-  const today = await carrierToday(admin, orgId);
+  // One carrier day for the whole page (`carrierClock.ts`), read once rather than per row — and the
+  // newest note per applicant in one set-based read beside it (§9 P10), never one per row.
+  const [today, lastNotes] = await Promise.all([carrierToday(admin, orgId), readLastNotes(admin, orgId, ids)]);
   const rows = (applicants ?? []).map((a) => {
     const own = historyBy.get(a.id) ?? [];
     const asOf = String(a.created_at ?? "").slice(0, 10) || today;
@@ -249,6 +251,8 @@ export const applicantPipelineHandler = asyncHandler(async (req, res) => {
       // The board's five columns since B4. Always present — the fold answers for an applicant
       // who has done nothing as readily as for one who has done everything.
       checklist: checklists.get(a.id) ?? null,
+      // §9 P10: "last note: 2 d ago · {name}" — when and who, never the words.
+      last_note: lastNotes.get(a.id) ?? null,
     };
   });
 
