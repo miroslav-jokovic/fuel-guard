@@ -9,7 +9,7 @@ import ChatBody from "./ChatBody.vue";
  * confirmed line (D-CHATUI4): it continues your run, and only its small print says it is not there yet.
  * It is a row the arrows walk over too (`data-chat-row`, D-CHATUI16), so Retry is a Tab away from it.
  */
-defineProps<{ line: PendingLine; first: boolean; viewerName: string }>();
+defineProps<{ line: PendingLine; first: boolean; viewerName: string; viewerId: string }>();
 defineEmits<{ retry: [line: PendingLine] }>();
 </script>
 
@@ -20,7 +20,7 @@ defineEmits<{ retry: [line: PendingLine] }>();
     tabindex="-1"
     data-chat-row
   >
-    <div class="w-9 shrink-0"><AppAvatar v-if="first" :label="viewerName" size="sm" class="ml-auto" /></div>
+    <div class="w-9 shrink-0"><AppAvatar v-if="first" :label="viewerName" :identity="viewerId" class="ml-auto" /></div>
     <div class="min-w-0 flex-1 text-sm">
       <div v-if="first" class="flex items-baseline gap-2"><span class="truncate font-semibold text-ink">{{ viewerName }}</span></div>
       <p class="whitespace-pre-wrap break-words" :class="line.state === 'failed' ? 'text-ink' : 'text-ink-muted'"><ChatBody :body="line.body" viewer-id="" /></p>

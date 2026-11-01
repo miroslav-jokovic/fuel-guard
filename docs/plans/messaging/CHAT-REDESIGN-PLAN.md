@@ -199,6 +199,25 @@ tokens, `@silvicom/ui`); nothing new is invented at the token level.
   case is a group such as Night dispatch, and that waits for CH6c, when reactions and pins arrive and the three
   together make a group behave like a small channel. Revisit with one measurement: how many group messages
   quote an earlier one.
+- **D-CHATUI22 — a person has a colour, derived from their id** (owner, 2026-11-01: "design looks outdated
+  and boring … proceed as proposed"). ⚠ This REVERSES §3's "nothing new is invented at the token level":
+  eight `--identity-N` grounds with their own `--identity-N-ink`, muted, gated 4.5:1 in both schemes
+  (`lint:ui-contrast`) and in sRGB (`lint:token-gamut`). `AppAvatar :identity` takes the user id;
+  `identityTone` (FNV-1a + a final mix, `packages/ui/src/identity.ts`) picks the tone, so one person is
+  one colour in the rail, the log, the picker, the mention list and the header. D-CHATUI19 stands: own
+  lines are still not told apart by side or ground; your colour is the only thing that is yours.
+- **D-CHATUI23 — the composer is a card with a toolbar, and New says what each choice makes.** The text
+  on top; emoji tray, `@`, the key hint and Send along its foot (`ChatComposer`, `ChatEmojiTray`). Both
+  tools only edit the draft. The rail's New is a quiet compose button (`KebabMenu :icon`, the secondary
+  icon-button look) whose items carry a description (`KebabMenuItem`). The unread count wears the
+  action pair (`ChatUnreadCount`), which D-CHATUI5's `brand-accent-strong` + `ink` failed to read as in
+  dark. ⚠ No `+` attach: files are CH7 (Q-CHATUI5).
+- **D-CHATUI24 — a group's or a channel's header shows its people.** `AppAvatarStack` — three faces and
+  "+N", 28px with a 4px overlap (6px cut the initials, measured). A direct conversation's header wears
+  the other person's colour.
+- **D-CHATUI25 — the empty stage holds the button.** `ChatEmptyStage`: the brand chip, a heading, and New
+  conversation, in place of one grey sentence pointing at a button elsewhere. New conversation's
+  dialog opens on its search (`BaseModal :initial-focus`), not on its ×.
 - **D-CHATUI15 — tests move with the structure.** `ChatPage.test` loses the tab cases and gains the rail
   ones; `ChatConversationPane.test` loses "own lines on the right" and gains runs and dividers;
   `ChatTeamsView.test` becomes `ChatChannelStage.test`; `chatGrouping.test` pins the run and day rules
@@ -235,6 +254,9 @@ not on this page (page back, CH6a).
 | Q-CHATUI2 | Compact density — when? | **RULED 2026-10-26 → D-CHATUI20: not now, and not as a setting until a named person on a 13" screen asks.** (a) After CR1, as a person's setting (CR3). (b) Never. CR3 stays in the queue behind that ask |
 | Q-CHATUI3 | Keyboard model — Slack's (Esc marks read, Up into the log) or Linear's (J/K, U)? | **RULED 2026-10-26: D-CHATUI16 ratified as built in CR2** — Slack's for the log, Linear's J/K for the rail, no Esc-marks-read |
 | Q-CHATUI4 | Should the thread panel also show on direct and group conversations (Google Chat's 2025 inline threading in DMs)? | **RULED 2026-10-26 → D-CHATUI21: not now.** D-CHAT19 gives replies to channels only; a direct conversation has nothing to fork, and the group case waits for CH6c, measured first |
+| Q-CHATUI5 | The composer's `+` — what does it hold? | **OPEN.** (a) Files only, when CH7 builds storage, contract and ledger action — **recommended**: a `+` that opens a menu of nothing is a workaround drawn as a feature. (b) "Share a load / truck / driver" as a linked card — needs a record picker and a body token the server validates (a contract change, like `<@id>`); worth it, but its own item after CH7 |
+| Q-CHATUI6 | Should "L-20481" or "Truck 702" in a line become a link to the record? | **OPEN.** The web cannot resolve a load number or a unit number to a record id without an API read per line; a chip that only filtered a list by the typed text would be a copy of the search box. (a) A server-side resolver that returns `{ text, kind, id }` spans with the line, org-scoped — **recommended**, one reader, no client guessing. (b) Leave it until (a) is planned |
+| Q-CHATUI7 | Search in a conversation, pinned and reactions in the header? | **Waits, not open:** search is CH8, pins and reactions are CH6c-2. The header's right side has room for both |
 
 ## 9. Progress log
 
@@ -252,3 +274,11 @@ not on this page (page back, CH6a).
   D-CHATUI16 ratified, D-CHATUI19 (own lines not told apart), D-CHATUI20 (one density until a named person
   asks; CR3 waits on that), D-CHATUI21 (no threads in direct or group conversations before CH6c). No open
   questions remain in this plan; the queue is CR3, held.
+- 2026-11-01: The owner's screenshot of New conversation showed each tick box 8px above its name — fixed in
+  #1881 (merged 08762f1): the picker's row is one `role="checkbox"` button with a drawn box, picked people
+  show as chips. Then "outdated and boring" → proposal V1–V6 → owner: "proceed as proposed". Built
+  D-CHATUI22–25 on `claude/chat-modern-look`. Deferred with reasons: V3 entity links (Q-CHATUI6), the `+`
+  (Q-CHATUI5), header search and pins (Q-CHATUI7), message-arrival motion (the log's scroll rules,
+  D-CHATUI17, would have to learn which rows are new — not worth it for a fade). Found on the way: the
+  identity hash first read only the low three bits of each character (a mutant survived); fixed with a
+  final mix. Seen in the built page against the fixtures, light and dark, 1440 wide.

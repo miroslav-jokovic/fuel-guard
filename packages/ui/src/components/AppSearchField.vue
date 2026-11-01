@@ -25,6 +25,14 @@ watch(local, (value) => {
 });
 onBeforeUnmount(() => clearTimeout(timer));
 
+/**
+ * The field itself, for a dialog that opens on a search (BaseModal `initialFocus`, 2026-11-01). The
+ * root is a wrapper and `AppInput` renders one <input>, so the element is read from the wrapper
+ * rather than threaded through a second component's expose.
+ */
+const root = ref<HTMLElement | null>(null);
+defineExpose({ input: () => root.value?.querySelector("input") ?? null });
+
 function clear() {
   local.value = "";
   clearTimeout(timer);
@@ -33,7 +41,7 @@ function clear() {
 </script>
 
 <template>
-  <div class="relative">
+  <div ref="root" class="relative">
     <AppIcon
       :icon="MagnifyingGlassIcon"
       class="pointer-events-none absolute top-1/2 left-3 z-sticky size-4 -translate-y-1/2 text-ink-tertiary"

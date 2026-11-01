@@ -39,6 +39,10 @@ const shown = computed(() => {
 });
 // In the list's order, so the chips do not reshuffle as people are added.
 const chosen = computed(() => others.value.filter((p) => picked.value.has(p.user_id)));
+// The dialog that holds this opens on the search, not on its close button (BaseModal `initialFocus`).
+const search = ref<InstanceType<typeof AppSearchField> | null>(null);
+defineExpose({ searchInput: () => search.value?.input() ?? null });
+
 function toggle(id: string) {
   const next = new Set(picked.value);
   if (next.has(id)) next.delete(id);
@@ -58,13 +62,13 @@ function toggle(id: string) {
           :aria-label="`Remove ${nameOf(p)}`"
           @click="toggle(p.user_id)"
         >
-          <AppAvatar :label="nameOf(p)" size="xs" />
+          <AppAvatar :label="nameOf(p)" :identity="p.user_id" size="xs" />
           <span class="max-w-40 truncate text-ink">{{ nameOf(p) }}</span>
           <AppIcon :icon="XMarkIcon" class="size-3.5" aria-hidden="true" />
         </BaseButton>
       </li>
     </ul>
-    <AppSearchField v-model="query" placeholder="Search people" label="Search people" :debounce="0" />
+    <AppSearchField ref="search" v-model="query" placeholder="Search people" label="Search people" :debounce="0" />
     <ul class="-mx-2 max-h-72 space-y-0.5 overflow-y-auto" aria-label="People">
       <li v-for="p in shown" :key="p.user_id">
         <BaseButton
@@ -84,7 +88,7 @@ function toggle(id: string) {
             >
               <AppIcon v-if="picked.has(p.user_id)" :icon="CheckIcon" class="size-3" />
             </span>
-            <AppAvatar :label="nameOf(p)" size="sm" />
+            <AppAvatar :label="nameOf(p)" :identity="p.user_id" size="sm" />
             <span class="min-w-0 flex-1 truncate font-medium text-ink">{{ nameOf(p) }}</span>
             <span class="shrink-0 text-xs text-ink-muted">{{ roleLabel(p.role) }}</span>
           </span>

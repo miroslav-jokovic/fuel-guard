@@ -157,6 +157,7 @@ async function onLeaveChannel() {
         :pending="pending"
         :open-post-id="postId"
         :first-unread-seq="firstUnreadSeq"
+        :members="members.data.value ?? undefined"
         :earlier-loading="earlierPosts.isPending.value"
         :earlier-failed="earlierPosts.isError.value"
         @earlier="earlierPosts.mutate()"

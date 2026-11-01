@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from "vue";
 import { CHAT_BODY_MAX } from "@silvicom/shared";
-import { AppButton as BaseButton, AppIcon, AppTextarea as BaseTextarea } from "@silvicom/ui";
-import { PaperAirplaneIcon } from "@silvicom/ui/icons";
+import { AppAvatar, AppButton as BaseButton, AppIcon, AppIconButton, AppTextarea as BaseTextarea } from "@silvicom/ui";
+import { AtIcon, PaperAirplaneIcon } from "@silvicom/ui/icons";
+import ChatEmojiTray from "./ChatEmojiTray.vue";
 import { useBottomChrome } from "@/composables/bottomChrome";
 import { useChatMentions, type MentionCandidate } from "./chatNames";
 import { fromDraft, mentionLabel, mentionQueryAt } from "./mentionDraft";
@@ -27,6 +28,17 @@ import { fromDraft, mentionLabel, mentionQueryAt } from "./mentionDraft";
  * keys are the list's, not Send's or the log's. A pick writes `@Name` into the field and is remembered;
  * on send every remembered label becomes its `<@id>` token (`mentionDraft.ts`), so the limit counts what
  * is sent. A person not in a channel yet is offered as "Add to # Loads", and picking them adds them first.
+ *
+ * ── The toolbar (D-CHATUI23, 2026-11-01) ──────────────────────────────────────────────────────────
+ * The field used to be a thin outline with a send arrow and nothing else, the owner's "outdated". It is
+ * now a card: the text on top and a toolbar along its foot — emoji, `@`, the key hint, Send — the shape
+ * Slack's, Teams' and Linear's composers share. `@` writes an `@` at the caret and opens the same list
+ * typing one does; the tray writes its emoji at the caret. Neither is a new path to the server: both
+ * only edit `draft`, which `submit` sends exactly as before.
+ *
+ * ⚠ No `+` (attach) yet, on purpose. Files are CH7 (OFFICE-CHAT-PLAN §9) and have no storage, contract
+ * or ledger action; a + that opened a menu of nothing would be a workaround drawn as a feature. It
+ * joins the toolbar's left end with CH7.
  */
 const props = withDefaults(defineProps<{ placeholder?: string; label?: string; action?: string; threadKey?: string | null }>(), {
   placeholder: "Message",
@@ -136,13 +148,32 @@ function onKey(e: KeyboardEvent) {
     emit("up");
   }
 }
+/** Writes `text` at the caret (or over the selection) and leaves the caret after it. */
+async function insertAtCaret(text: string) {
+  const el = field.value?.$el;
+  const start = el?.selectionStart ?? draft.value.length;
+  const end = el?.selectionEnd ?? start;
+  draft.value = `${draft.value.slice(0, start)}${text}${draft.value.slice(end)}`;
+  await nextTick();
+  const caret = start + text.length;
+  el?.focus();
+  el?.setSelectionRange(caret, caret);
+  readCaret();
+}
+/** `@` from the toolbar: a space first when it would otherwise join the word before it. */
+function startMention() {
+  const el = field.value?.$el;
+  const at = el?.selectionStart ?? draft.value.length;
+  void insertAtCaret(at > 0 && !/\s/.test(draft.value[at - 1] ?? "") ? " @" : "@");
+}
+
 defineExpose({ focus: () => field.value?.$el.focus() });
 </script>
 
 <template>
   <form ref="form" class="shrink-0 px-2 pt-1 pb-2 sm:px-4 sm:pb-3" @submit.prevent="submit">
     <div
-      class="relative max-w-3xl rounded-surface bg-surface ring-1 ring-inset focus-within:ring-2"
+      class="relative max-w-3xl rounded-surface bg-surface shadow-card ring-1 ring-inset transition-shadow focus-within:ring-2"
       :class="over ? 'ring-danger-600 focus-within:ring-danger-600' : 'ring-edge-strong focus-within:ring-focus-ring'"
     >
       <BaseTextarea
@@ -151,7 +182,7 @@ defineExpose({ focus: () => field.value?.$el.focus() });
         :rows="1"
         :placeholder="props.placeholder"
         :aria-label="props.label"
-        class="min-h-0! resize-none bg-transparent! py-2.5 pr-12 ring-0! focus:ring-0!"
+        class="min-h-0! resize-none bg-transparent! px-3 pt-3 pb-1 ring-0! focus:ring-0!"
         role="combobox"
         aria-autocomplete="list"
         :aria-expanded="listOpen"
@@ -169,7 +200,7 @@ defineExpose({ focus: () => field.value?.$el.focus() });
         :id="listId"
         role="listbox"
         aria-label="People to mention"
-        class="absolute bottom-full left-0 mb-1 w-72 max-w-full overflow-hidden rounded-surface bg-surface py-1 shadow-card ring-1 ring-edge-subtle"
+        class="absolute bottom-full left-0 mb-1 w-72 max-w-full overflow-hidden rounded-surface bg-surface py-1 shadow-overlay ring-1 ring-edge-subtle"
       >
         <!-- mousedown, not click: a click lands after the field's blur has closed the list. -->
         <li
@@ -178,25 +209,33 @@ defineExpose({ focus: () => field.value?.$el.focus() });
           :key="c.user_id"
           role="option"
           :aria-selected="i === active"
-          class="flex cursor-pointer items-center justify-between gap-2 px-3 py-1.5 text-sm"
+          class="flex cursor-pointer items-center gap-2 px-3 py-1.5 text-sm"
           :class="i === active ? 'bg-surface-subtle text-ink' : 'text-ink-secondary'"
           @mousedown.prevent="pick(c)"
           @mousemove="active = i"
         >
-          <span class="truncate">{{ c.name }}</span>
+          <AppAvatar :label="c.name" :identity="c.user_id" size="xs" />
+          <span class="min-w-0 flex-1 truncate">{{ c.name }}</span>
           <span v-if="!c.member && mentions?.addLabel.value" class="shrink-0 text-2xs text-ink-tertiary">{{ mentions.addLabel.value }}</span>
         </li>
       </ul>
-      <BaseButton type="submit" size="icon" variant="primary" class="absolute right-1.5 bottom-1.5" :aria-label="props.action" :title="props.action" :disabled="!draft.trim() || over">
-        <AppIcon :icon="PaperAirplaneIcon" class="size-4" aria-hidden="true" />
-      </BaseButton>
+      <div class="flex items-center gap-0.5 px-1.5 pb-1.5" role="toolbar" aria-label="Message tools">
+        <ChatEmojiTray @pick="insertAtCaret" />
+        <AppIconButton v-if="mentions" :icon="AtIcon" label="Mention someone" size="sm" @click="startMention" />
+        <!-- The key hint is a desk's; the limit is everyone's, so it shows on a phone too. -->
+        <span class="ml-auto px-2 text-2xs text-ink-tertiary" :class="nearLimit ? 'inline' : 'hidden sm:inline'">
+          <template v-if="nearLimit">
+            <span class="tabular-nums" :class="over ? 'text-danger-text' : ''" aria-live="polite">
+              <template v-if="over">{{ -remaining }} characters too long</template>
+              <template v-else>{{ remaining }} left</template>
+            </span>
+          </template>
+          <template v-else>Enter to send · Shift+Enter for a new line</template>
+        </span>
+        <BaseButton type="submit" size="icon" variant="primary" :class="nearLimit ? '' : 'ml-auto sm:ml-0'" :aria-label="props.action" :title="props.action" :disabled="!draft.trim() || over">
+          <AppIcon :icon="PaperAirplaneIcon" class="size-4" aria-hidden="true" />
+        </BaseButton>
+      </div>
     </div>
-    <p class="mt-1 flex max-w-3xl justify-between gap-2 text-2xs text-ink-tertiary">
-      <span>Enter to send · Shift+Enter for a new line</span>
-      <span v-if="nearLimit" class="tabular-nums" :class="over ? 'text-danger-text' : ''" aria-live="polite">
-        <template v-if="over">{{ -remaining }} characters too long</template>
-        <template v-else>{{ remaining }} left</template>
-      </span>
-    </p>
   </form>
 </template>

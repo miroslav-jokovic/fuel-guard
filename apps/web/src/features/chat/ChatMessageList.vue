@@ -151,7 +151,7 @@ defineExpose({ scroller, focusLast });
                 <span v-if="seenSeq !== null && seenSeq !== undefined && row.line.message.seq === seenSeq" class="ml-1 text-xs text-ink-muted">· Seen</span>
               </template>
             </ChatMessageRow>
-            <ChatPendingRow v-else :line="row.line.line" :first="row.first" :viewer-name="viewerName" @retry="(line: PendingLine) => emit('retry', line)" />
+            <ChatPendingRow v-else :line="row.line.line" :first="row.first" :viewer-name="viewerName" :viewer-id="viewerId" @retry="(line: PendingLine) => emit('retry', line)" />
           </template>
         </template>
       </div>

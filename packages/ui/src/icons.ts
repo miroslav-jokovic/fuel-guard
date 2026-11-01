@@ -241,6 +241,13 @@ export {
   FaceIdIcon                  as FaceIcon,
   HatGlassesIcon              as HatGlassesIcon,
   BulbIcon                    as LightIcon,
+  // Office chat's modern composer and rail (CHAT-REDESIGN-PLAN D-CHATUI23/24, 2026-11-01): `@` names
+  // somebody, the smile opens the emoji tray, the bubble-with-plus starts a conversation, `#` makes a
+  // channel. Each is the glyph Slack, Teams and Linear put on the same act.
+  AtIcon                      as AtIcon,
+  SmileIcon                   as SmileIcon,
+  BubbleChatAddIcon           as ChatAddIcon,
+  HashtagIcon                 as HashtagIcon,
 
   // The sidebar's Pinned block (D-SB2): pin a page to the top, take it off again. A pin, not a star —
   // a star reads as "favourite" or a rating, and this is a place you keep within reach.

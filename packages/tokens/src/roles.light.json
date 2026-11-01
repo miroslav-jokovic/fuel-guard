@@ -688,6 +688,121 @@
     "viz-tick": {
       "$type": "color",
       "$value": "var(--ink-muted)"
+    },
+    "identity-1": {
+      "$type": "color",
+      "$value": "oklch(92.5% 0.034 25)",
+      "$extensions": {
+        "silvicom.section": [
+          "person identity \u2014 the eight soft grounds an initials avatar draws from (D-CHATUI22, office chat 2026-11-01). The tone is DERIVED from the person's user id (`identityTone` in @silvicom/ui), never chosen, so one person is one colour in the rail, the log, the picker and the header. Muted on purpose: these sit beside status colour on every page and must never read as a severity. Each ground has its own `-ink`, gated at 4.5:1 in both schemes by lint:ui-contrast."
+        ],
+        "silvicom.expose": "color"
+      }
+    },
+    "identity-1-ink": {
+      "$type": "color",
+      "$value": "oklch(40% 0.1 25)",
+      "$extensions": {
+        "silvicom.expose": "color"
+      }
+    },
+    "identity-2": {
+      "$type": "color",
+      "$value": "oklch(92.5% 0.042 65)",
+      "$extensions": {
+        "silvicom.expose": "color"
+      }
+    },
+    "identity-2-ink": {
+      "$type": "color",
+      "$value": "oklch(40% 0.08 65)",
+      "$extensions": {
+        "silvicom.expose": "color"
+      }
+    },
+    "identity-3": {
+      "$type": "color",
+      "$value": "oklch(92.5% 0.042 105)",
+      "$extensions": {
+        "silvicom.expose": "color"
+      }
+    },
+    "identity-3-ink": {
+      "$type": "color",
+      "$value": "oklch(40% 0.076 105)",
+      "$extensions": {
+        "silvicom.expose": "color"
+      }
+    },
+    "identity-4": {
+      "$type": "color",
+      "$value": "oklch(92.5% 0.042 150)",
+      "$extensions": {
+        "silvicom.expose": "color"
+      }
+    },
+    "identity-4-ink": {
+      "$type": "color",
+      "$value": "oklch(40% 0.099 150)",
+      "$extensions": {
+        "silvicom.expose": "color"
+      }
+    },
+    "identity-5": {
+      "$type": "color",
+      "$value": "oklch(92.5% 0.042 190)",
+      "$extensions": {
+        "silvicom.expose": "color"
+      }
+    },
+    "identity-5-ink": {
+      "$type": "color",
+      "$value": "oklch(40% 0.062 190)",
+      "$extensions": {
+        "silvicom.expose": "color"
+      }
+    },
+    "identity-6": {
+      "$type": "color",
+      "$value": "oklch(92.5% 0.038 235)",
+      "$extensions": {
+        "silvicom.expose": "color"
+      }
+    },
+    "identity-6-ink": {
+      "$type": "color",
+      "$value": "oklch(40% 0.076 235)",
+      "$extensions": {
+        "silvicom.expose": "color"
+      }
+    },
+    "identity-7": {
+      "$type": "color",
+      "$value": "oklch(92.5% 0.033 285)",
+      "$extensions": {
+        "silvicom.expose": "color"
+      }
+    },
+    "identity-7-ink": {
+      "$type": "color",
+      "$value": "oklch(40% 0.1 285)",
+      "$extensions": {
+        "silvicom.expose": "color"
+      }
+    },
+    "identity-8": {
+      "$type": "color",
+      "$value": "oklch(92.5% 0.042 330)",
+      "$extensions": {
+        "silvicom.expose": "color"
+      }
+    },
+    "identity-8-ink": {
+      "$type": "color",
+      "$value": "oklch(40% 0.1 330)",
+      "$extensions": {
+        "silvicom.expose": "color"
+      }
     }
   }
 }

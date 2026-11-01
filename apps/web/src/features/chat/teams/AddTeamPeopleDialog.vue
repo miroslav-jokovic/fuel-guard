@@ -12,6 +12,8 @@ const props = defineProps<{ team: ChatTeam | null; people: ChatDirectoryEntry[];
 const emit = defineEmits<{ close: []; add: [userIds: string[]] }>();
 
 const picked = ref<Set<string>>(new Set());
+const picker = ref<InstanceType<typeof PeoplePicker> | null>(null);
+const searchField = computed(() => picker.value?.searchInput() ?? null);
 watch(() => props.team, () => { picked.value = new Set(); });
 const offered = computed(() => {
   const inTeam = new Set(props.memberIds);
@@ -24,9 +26,10 @@ const offered = computed(() => {
     :open="team !== null"
     :title="team ? `Add people to ${team.name}` : 'Add people'"
     description="They join the team and its General channel."
+    :initial-focus="searchField"
     @close="emit('close')"
   >
-    <PeoplePicker v-model="picked" :people="offered" :viewer-id="viewerId" :reset-key="team?.space_id" />
+    <PeoplePicker ref="picker" v-model="picked" :people="offered" :viewer-id="viewerId" :reset-key="team?.space_id" />
     <template #footer>
       <BaseButton variant="ghost" @click="emit('close')">Cancel</BaseButton>
       <BaseButton variant="primary" :disabled="picked.size === 0 || busy" @click="emit('add', [...picked])">

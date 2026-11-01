@@ -93,7 +93,7 @@ function onKeydown(e: KeyboardEvent) {
     @keydown="onKeydown"
   >
     <div class="w-9 shrink-0 text-right">
-      <AppAvatar v-if="first" :label="name" size="sm" class="ml-auto" />
+      <AppAvatar v-if="first" :label="name" :identity="message.sender_user_id" class="ml-auto" />
       <span
         v-else
         class="block pt-0.5 text-2xs tabular-nums text-ink-tertiary opacity-0 group-hover:opacity-100 group-focus-within:opacity-100"

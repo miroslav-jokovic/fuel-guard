@@ -32,8 +32,15 @@ const props = withDefaults(
     description?: string;
     size?: "md" | "lg" | "xl";
     printable?: boolean;
+    /**
+     * Where focus lands when the dialog opens. Headless UI's default is the first focusable element,
+     * which in this panel is the header's close button — so a dialog whose whole job is a search
+     * (office chat's New conversation, 2026-11-01) opened with a focus ring around its ×. A caller
+     * whose first act is typing passes that field.
+     */
+    initialFocus?: HTMLElement | null;
   }>(),
-  { description: undefined, size: "md", printable: false },
+  { description: undefined, size: "md", printable: false, initialFocus: null },
 );
 const emit = defineEmits<{ close: [] }>();
 const slots = useSlots();
@@ -45,7 +52,7 @@ const panelWidth = computed(() =>
 
 <template>
   <TransitionRoot as="template" :show="open">
-    <Dialog class="relative z-dialog" @close="emit('close')">
+    <Dialog class="relative z-dialog" :initial-focus="initialFocus ?? undefined" @close="emit('close')">
       <TransitionChild
         as="template"
         enter="ease-in-out duration-300"

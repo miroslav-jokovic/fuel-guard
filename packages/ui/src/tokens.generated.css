@@ -368,6 +368,29 @@
   --viz-money-kept: light-dark(oklch(62.5% 0.126 164.7), oklch(64.3% 0.1212 166.0)); /* the fleet report's net line (soft green); D-FRUI8 */
   --viz-grid: var(--ramp-neutral-100);
   --viz-tick: var(--ink-muted);
+
+  /* person identity — the eight soft grounds an initials avatar draws from (D-CHATUI22, office
+     chat 2026-11-01). The tone is DERIVED from the person's user id (`identityTone` in
+     @silvicom/ui), never chosen, so one person is one colour in the rail, the log, the picker and
+     the header. Muted on purpose: these sit beside status colour on every page and must never read
+     as a severity. Each ground has its own `-ink`, gated at 4.5:1 in both schemes by
+     lint:ui-contrast. */
+  --identity-1: light-dark(oklch(92.5% 0.034 25), oklch(35% 0.055 25));
+  --identity-1-ink: light-dark(oklch(40% 0.1 25), oklch(89% 0.05 25));
+  --identity-2: light-dark(oklch(92.5% 0.042 65), oklch(35% 0.055 65));
+  --identity-2-ink: light-dark(oklch(40% 0.08 65), oklch(89% 0.05 65));
+  --identity-3: light-dark(oklch(92.5% 0.042 105), oklch(35% 0.055 105));
+  --identity-3-ink: light-dark(oklch(40% 0.076 105), oklch(89% 0.05 105));
+  --identity-4: light-dark(oklch(92.5% 0.042 150), oklch(35% 0.055 150));
+  --identity-4-ink: light-dark(oklch(40% 0.099 150), oklch(89% 0.05 150));
+  --identity-5: light-dark(oklch(92.5% 0.042 190), oklch(35% 0.054 190));
+  --identity-5-ink: light-dark(oklch(40% 0.062 190), oklch(89% 0.05 190));
+  --identity-6: light-dark(oklch(92.5% 0.038 235), oklch(35% 0.055 235));
+  --identity-6-ink: light-dark(oklch(40% 0.076 235), oklch(89% 0.05 235));
+  --identity-7: light-dark(oklch(92.5% 0.033 285), oklch(35% 0.055 285));
+  --identity-7-ink: light-dark(oklch(40% 0.1 285), oklch(89% 0.05 285));
+  --identity-8: light-dark(oklch(92.5% 0.042 330), oklch(35% 0.055 330));
+  --identity-8-ink: light-dark(oklch(40% 0.1 330), oklch(89% 0.05 330));
 }
 
 @theme inline {
@@ -544,6 +567,22 @@
   --radius-surface: var(--shape-surface);
   --radius-overlay: var(--shape-overlay);
   --radius-dialog: var(--shape-dialog);
+  --color-identity-1: var(--identity-1);
+  --color-identity-1-ink: var(--identity-1-ink);
+  --color-identity-2: var(--identity-2);
+  --color-identity-2-ink: var(--identity-2-ink);
+  --color-identity-3: var(--identity-3);
+  --color-identity-3-ink: var(--identity-3-ink);
+  --color-identity-4: var(--identity-4);
+  --color-identity-4-ink: var(--identity-4-ink);
+  --color-identity-5: var(--identity-5);
+  --color-identity-5-ink: var(--identity-5-ink);
+  --color-identity-6: var(--identity-6);
+  --color-identity-6-ink: var(--identity-6-ink);
+  --color-identity-7: var(--identity-7);
+  --color-identity-7-ink: var(--identity-7-ink);
+  --color-identity-8: var(--identity-8);
+  --color-identity-8-ink: var(--identity-8-ink);
 }
 
 /* ── Shared component classes ─────────────────────────────────────────── */

@@ -2,6 +2,7 @@
 import { AppIcon, useTouchTargets } from "@silvicom/ui";
 import {
   EllipsisVerticalIcon,
+  type Icon,
 } from "@silvicom/ui/icons";
 import { computed, ref } from "vue";
 import { useFloating, offset, flip, shift, autoUpdate, type Placement } from "@floating-ui/vue";
@@ -20,14 +21,37 @@ const props = withDefaults(
     placement?: Placement;
     triggerLabel?: string;
     tone?: "default" | "sidebar";
+    /**
+     * `wide` (18rem) is for items that carry a line of description under their label
+     * (`KebabMenuItem`'s `description`) — office chat's New menu, 2026-11-01. The 12rem default
+     * wraps a description into three lines.
+     */
+    width?: "default" | "wide";
+    /**
+     * An icon trigger in place of the ⋮ (office chat's New and emoji buttons, 2026-11-01). It is drawn
+     * with `AppIconButton`'s own size and variant classes rather than BY `AppIconButton`, because the
+     * trigger is already this menu's <button> and a button inside a button is invalid markup.
+     * `triggerLabel` is its name and its tooltip.
+     */
+    icon?: Icon;
+    iconVariant?: "ghost" | "secondary";
   }>(),
   {
+    icon: undefined,
+    iconVariant: "ghost",
+    width: "default",
     block: false,
     placement: "bottom-end",
     triggerLabel: undefined,
     tone: "default",
   },
 );
+
+// AppIconButton's ghost and secondary looks, less the size (set by touch above).
+const ICON_TRIGGER = {
+  ghost: "inline-flex items-center justify-center rounded-control text-ink-tertiary hover:bg-surface-muted hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring",
+  secondary: "inline-flex items-center justify-center rounded-control bg-surface text-ink-secondary ring-1 ring-inset ring-edge-control hover:bg-surface-subtle hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring",
+} as const;
 
 const triggerRef = ref<HTMLElement | null>(null);
 const panelRef = ref<HTMLElement | null>(null);
@@ -50,17 +74,21 @@ const touch = useTouchTargets();
       :class="[
         $slots.trigger
           ? 'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400/80'
-          : 'rounded-control p-1 text-ink-tertiary hover:bg-surface-muted hover:text-ink-secondary focus:ring-2 focus:ring-focus-ring focus:outline-none',
+          : icon
+            ? ICON_TRIGGER[iconVariant]
+            : 'rounded-control p-1 text-ink-tertiary hover:bg-surface-muted hover:text-ink-secondary focus:ring-2 focus:ring-focus-ring focus:outline-none',
         !$slots.trigger && touch ? 'inline-flex size-12 items-center justify-center' : '',
+        icon && !touch ? (iconVariant === 'secondary' ? 'size-9' : 'size-8') : '',
         block ? 'w-full' : '',
       ]"
       :aria-label="triggerLabel ?? ($slots.trigger ? undefined : 'Actions')"
+      :title="icon ? triggerLabel : undefined"
       :aria-expanded="open"
       aria-haspopup="menu"
       @click.stop="open = !open"
       @keydown.escape="open = false"
     >
-      <slot name="trigger"><AppIcon :icon="EllipsisVerticalIcon" class="size-5" /></slot>
+      <slot name="trigger"><AppIcon :icon="icon ?? EllipsisVerticalIcon" :class="icon && iconVariant === 'ghost' ? 'size-4' : 'size-5'" /></slot>
     </button>
     <Teleport to="body">
       <template v-if="open">
@@ -70,12 +98,11 @@ const touch = useTouchTargets();
         <div
           ref="panelRef"
           :style="floatingStyles"
-          :class="
-            tone === 'sidebar'
-              ? 'sidebar-glass-popover rounded-dialog'
-              : 'rounded-control bg-surface shadow-overlay'
-          "
-          class="z-popover w-48 origin-top-right py-1"
+          :class="[
+            tone === 'sidebar' ? 'sidebar-glass-popover rounded-dialog' : 'rounded-control bg-surface shadow-overlay',
+            width === 'wide' ? 'w-72' : 'w-48',
+          ]"
+          class="z-popover origin-top-right py-1"
           @click="open = false"
         >
           <div v-if="tone === 'sidebar'" class="sidebar-glass-material" aria-hidden="true" />
