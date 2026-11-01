@@ -111,6 +111,25 @@ export const NOTIFICATION_CATEGORIES = [
    */
   "chat_mention",
   "chat_reply",
+  /**
+   * The ads agent (ADS-AGENT-PLAN §4.3; module `ads`, D-AD17). Office-facing and mutable; who receives
+   * each is a setting on Settings › Ads control (§4b "Alerts"), not a role list. Spend past a cap, an ad
+   * the platform rejected, spend with no lead, a change made in the platform's own tool, a connection
+   * token near its expiry, and the morning brief. Mirrored in the CHECK (0537); nothing writes them
+   * until the B/F steps.
+   */
+  "ads_overspend",
+  "ads_rejected",
+  "ads_no_leads",
+  "ads_external_change",
+  "ads_token_expiring",
+  "ads_brief",
+  /**
+   * A platform lead reached the queue, and one nobody has contacted past the threshold (recruiting's
+   * `leads/`, workflow D2). Mirrored in the CHECK (0537); nothing writes them until D2.
+   */
+  "lead_new",
+  "lead_uncontacted",
 ] as const;
 export type NotificationCategory = (typeof NOTIFICATION_CATEGORIES)[number];
 
@@ -150,6 +169,14 @@ export const NOTIFICATION_CATEGORY_LABELS: Record<NotificationCategory, string> 
   unit_file_expired: "Truck & trailer paper lapses",
   chat_mention: "Chat mentions",
   chat_reply: "Replies to your chat posts",
+  ads_overspend: "Ad spend over a limit",
+  ads_rejected: "Ads rejected by the platform",
+  ads_no_leads: "Ads spending without leads",
+  ads_external_change: "Ads changed outside Silvicom",
+  ads_token_expiring: "Ad account connection expiring",
+  ads_brief: "Daily ads brief",
+  lead_new: "New ad leads",
+  lead_uncontacted: "Ad leads waiting for contact",
 };
 
 /**

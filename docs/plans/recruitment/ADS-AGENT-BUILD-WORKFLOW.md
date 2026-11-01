@@ -74,6 +74,12 @@ does not need to.
    `infra/server/<env>.env`). Step 7 moves that expression into one helper and the simulator
    guard reads it, failing closed: allowed only for a known non-production name, or with both
    unset and `NODE_ENV` ≠ `production`.
+9. **(A2, 2026-11-01) A2 creates the ads tables only; the recruiting tables move to a new step
+   D0.** `lead_conversions` references a `drivers` row, and a drivers-referencing table that
+   `purge_applicant` does not own makes every purge of that applicant refuse (PA011, 0535) and a
+   roster merge lose it (the merge-driver cascade trap). Adding them therefore means editing
+   recruiting's purge and merge list — recruiting work, in a module the HW program was editing.
+   Under D-AD17 no ads table references a recruiting one, so nothing in A2–C5 waits for D0.
 
 ### 1.3 New decision
 
@@ -213,7 +219,8 @@ template headings, the mutation that went red, CI green, merged by hand, staging
 
 | Step | What | Blocked by | Done when |
 |---|---|---|---|
-| **D1** | `recruiting/leads`: `ingest_lead` RPC (UPDATE-or-INSERT, never partial upsert), dedupe (E.164 phone / lower email vs leads, applicants, drivers), `leadMatch` verdicts, queue read (paged, org-scoped), `convert_lead` → applicant + `lead_conversions` | A2, A3, **G11** | A lead created via webhook, paste and API shows once; convert carries attribution |
+| **D0** | Recruiting's migration (§1.2-9): `hiring_profiles(+versions)`, `recruiting_openings(+versions)`, `recruiting_leads`, `recruiting_contacts` (append-only), `lead_match_verdicts`, `lead_conversions`, `recruiting_ai_outputs`; `purge_applicant` and the roster merge list (`DRIVER_REASSIGNMENTS`) updated in the same PR; the driver-references check in `lint:migrations` green | A2, **G11** | Matrix: an applicant with a lead conversion is purged whole, and a merge moves it |
+| **D1** | `recruiting/leads`: `ingest_lead` RPC (UPDATE-or-INSERT, never partial upsert), dedupe (E.164 phone / lower email vs leads, applicants, drivers), `leadMatch` verdicts, queue read (paged, org-scoped), `convert_lead` → applicant + `lead_conversions` | D0, A3 | A lead created via webhook, paste and API shows once; convert carries attribution |
 | **D2** | `lead_new` instant notify to the assigned recruiter; `lead_uncontacted` escalation; webhook-to-ledger latency metric (alert > 5 min) | D1 | Latency measured on staging; escalation fires at the threshold |
 | **D3** | Indeed mailbox (Graph, existing `graphMail.ts`): raw stored, extractor → `proposed` lead, recruiter confirms | D1, G15 | One real Indeed email → one proposed lead |
 | **D4** | Tenstreet listener: accept/reject protocol, raw stored, switch **off** | D1 | Contract test against Tenstreet's published protocol; switch-on waits G13 |
@@ -417,3 +424,12 @@ blocking step in §3 above.
   planned under `recruiting`), the ads schedulers in `docs/WORKER-DEPLOYMENT.md`. Measuring for A1
   found four corrections (§1.2-5…8): an `ads_approvals` table A2 lacked, ads AI provenance in
   `ad_generations`, lane `general` not `egress`, and no `APP_ENVIRONMENT` variable.
+- **2026-11-01, A2** — Migration `0537_ads_foundation.sql`: the ads module's thirteen tables
+  (configuration versions, sealed connections, campaigns, creatives, and the four append-only
+  ledgers plus settings versions, pinned in `RETENTION_FORBIDDEN`) and the bell's eight categories.
+  Beyond the step text, the database itself refuses a launch, raise or area change without a
+  standing approval of that campaign and kind (AX020) or while the kill switch is on (AX021),
+  freezes a creative's content once it leaves the workers (AX030) and a campaign's brief (AX031),
+  stores no plaintext token (envelope-shape CHECK), and keeps every cross-table reference inside
+  one org (composite FKs). Matrix `ads-foundation.test.mjs` 71/71; three guard mutations each went
+  red. Correction §1.2-9: the recruiting tables move to a new step D0.

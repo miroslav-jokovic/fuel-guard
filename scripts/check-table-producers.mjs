@@ -85,6 +85,23 @@ const WAIVERS = new Map([
   // then the reader and the routes that write it. It leaves in UF7b, whose intake read inserts one row per
   // proposed paper and whose file/discard routes decide them.
   ["file_intake_items", "UNIT-FILES-PLAN.md UF7b — the compliance intake read and the file/discard routes write it (schema-only, 0505)"],
+  //
+  // The ads module's thirteen (0537, ADS-AGENT-BUILD-WORKFLOW.md A2) ship schema-only: the workflow
+  // builds the store first and each worker after it, one PR per step. Each entry names the step whose
+  // merge ships its writer and must remove the entry; the gate reports a stale one by itself.
+  ["ads_settings_versions", "ADS-AGENT-BUILD-WORKFLOW.md A5 — guard/settings saves a version behind the settings route (schema-only A2, 0537)"],
+  ["ad_brand_kits", "ADS-AGENT-BUILD-WORKFLOW.md C1 — the brand-kit API creates the kit (schema-only A2, 0537)"],
+  ["ad_brand_kit_versions", "ADS-AGENT-BUILD-WORKFLOW.md C1 — the brand-kit API saves each version (schema-only A2, 0537)"],
+  ["ad_concept_presets", "ADS-AGENT-BUILD-WORKFLOW.md C1 — the presets API seeds P1–P5 (schema-only A2, 0537)"],
+  ["ad_concept_preset_versions", "ADS-AGENT-BUILD-WORKFLOW.md C1 — the presets API saves each version (schema-only A2, 0537)"],
+  ["ads_platform_connections", "ADS-AGENT-BUILD-WORKFLOW.md B1 — Connect seals the token; step 7's simulator connects too (schema-only A2, 0537)"],
+  ["ads_campaigns", "ADS-AGENT-BUILD-WORKFLOW.md A6 — the orchestrator creates the campaign from a brief (schema-only A2, 0537)"],
+  ["ads_creatives", "ADS-AGENT-BUILD-WORKFLOW.md C2–C5 — the copywriter, renderer and checker write each creative (schema-only A2, 0537)"],
+  ["ads_approvals", "ADS-AGENT-BUILD-WORKFLOW.md A5 — guard/approvals records a person's yes (schema-only A2, 0537)"],
+  ["ads_actions", "ADS-AGENT-BUILD-WORKFLOW.md A5/A6 — budgetGuard and the orchestrator write every act and transition (schema-only A2, 0537)"],
+  ["ad_generations", "ADS-AGENT-BUILD-WORKFLOW.md A4 — the AI rail's provenance writer for the ads workers (schema-only A2, 0537)"],
+  ["ads_outcome_events", "ADS-AGENT-BUILD-WORKFLOW.md B6 — the outcome feed queues a stage event from the LeadSink (schema-only A2, 0537)"],
+  ["ads_spend_hourly", "ADS-AGENT-BUILD-WORKFLOW.md B5 — the hourly insights pull (schema-only A2, 0537)"],
 ]);
 
 const files = readdirSync(MIGRATIONS).filter((f) => f.endsWith(".sql")).sort();

@@ -289,4 +289,20 @@ export const RETENTION_FORBIDDEN = [
   "mcleod_gl_accounts",
   "mcleod_gl_days",
   "mcleod_gl_totals",
+  /**
+   * The ads module's ledgers (0537, ADS-AGENT-BUILD-WORKFLOW A2). `ads_actions` is the money audit
+   * trail — every launch, pause, budget change and refusal, with the approval it cited;
+   * `ads_approvals` is who allowed which spend; `ads_settings_versions` is which caps and kill-switch
+   * state were in force at any moment; `ad_generations` is what each model was asked, what it
+   * answered and what it cost (D-AD13, the ads module's AI provenance); `ads_outcome_events` is what
+   * we told a platform about a lead's progress. None is re-derivable — the platform keeps its own
+   * history, not ours — and each is what a billing dispute, a rejected ad's appeal or an
+   * employment-advertising complaint asks for. All five are append-only by trigger for the service
+   * role too (AX010–AX012); this pins them against a prune by age as well.
+   */
+  "ads_actions",
+  "ads_approvals",
+  "ads_settings_versions",
+  "ad_generations",
+  "ads_outcome_events",
 ] as const;

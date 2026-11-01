@@ -2949,6 +2949,149 @@
         "budget_rows_per_day": 500,
         "why": "One row per screen visit on an applicant's link, written by recruiting/applicationScreenEvents.ts since C3d3a — ~40 per completed application (AW14), a visit reported open then closed is one row. 180 days, in RETENTION_RULES with its writer as 0376 promised."
       }
+    },
+    "ads_settings_versions": {
+      "module": "ads",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 20,
+        "why": "new in 0537 (2026-11-01, ADS-AGENT-BUILD-WORKFLOW A2); one row per save of Settings > Ads control; a handful a month per org. Evidence of which caps were in force — RETENTION_FORBIDDEN, never pruned. Budget x10+ headroom."
+      }
+    },
+    "ad_brand_kits": {
+      "module": "ads",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "fleet",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "new in 0537 (2026-11-01, ADS-AGENT-BUILD-WORKFLOW A2); one or two brand kits per org; bounded by the number of orgs."
+      }
+    },
+    "ad_brand_kit_versions": {
+      "module": "ads",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 10,
+        "why": "new in 0537 (2026-11-01, ADS-AGENT-BUILD-WORKFLOW A2); one row per brand-kit save; immutable (AX012) and referenced by every creative made under it, so never pruned."
+      }
+    },
+    "ad_concept_presets": {
+      "module": "ads",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "fleet",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "new in 0537 (2026-11-01, ADS-AGENT-BUILD-WORKFLOW A2); 4–5 concept presets per org (D-AD11); bounded by the number of orgs."
+      }
+    },
+    "ad_concept_preset_versions": {
+      "module": "ads",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 20,
+        "why": "new in 0537 (2026-11-01, ADS-AGENT-BUILD-WORKFLOW A2); one row per preset save or enable/disable; immutable (AX012) and referenced by creatives, so never pruned."
+      }
+    },
+    "ads_platform_connections": {
+      "module": "ads",
+      "layer": "infra",
+      "lifecycle": {
+        "growth": "fleet",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "new in 0537 (2026-11-01, ADS-AGENT-BUILD-WORKFLOW A2); one row per org x provider x sandbox holding sealed tokens; bounded by orgs x 5 providers x 2."
+      }
+    },
+    "ads_campaigns": {
+      "module": "ads",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 20,
+        "why": "new in 0537 (2026-11-01, ADS-AGENT-BUILD-WORKFLOW A2); one row per campaign; a carrier runs a few openings at a time. Archived, never deleted (plan §5)."
+      }
+    },
+    "ads_creatives": {
+      "module": "ads",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 100,
+        "why": "new in 0537 (2026-11-01, ADS-AGENT-BUILD-WORKFLOW A2); one per enabled preset per campaign (4–5) plus regenerations and copy edits; ~25 per campaign at most."
+      }
+    },
+    "ads_approvals": {
+      "module": "ads",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 50,
+        "why": "new in 0537 (2026-11-01, ADS-AGENT-BUILD-WORKFLOW A2); one row per person's approve/reject/launch/raise/withdraw; append-only evidence, RETENTION_FORBIDDEN."
+      }
+    },
+    "ads_actions": {
+      "module": "ads",
+      "layer": "infra",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 300,
+        "why": "new in 0537 (2026-11-01, ADS-AGENT-BUILD-WORKFLOW A2); every state transition and every vendor act that can move money or delivery, plus refusals; append-only money audit trail, RETENTION_FORBIDDEN. ~10 transitions per campaign plus rule pauses and daily reconciles."
+      }
+    },
+    "ad_generations": {
+      "module": "ads",
+      "layer": "infra",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 300,
+        "why": "new in 0537 (2026-11-01, ADS-AGENT-BUILD-WORKFLOW A2); every Claude and Higgsfield call: ~6 per creative x 5 creatives per campaign, plus the daily brief. Append-only AI provenance (D-AD13), RETENTION_FORBIDDEN."
+      }
+    },
+    "ads_outcome_events": {
+      "module": "ads",
+      "layer": "infra",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 100,
+        "why": "new in 0537 (2026-11-01, ADS-AGENT-BUILD-WORKFLOW A2); one row per lead stage reached (contacted/qualified/applied/hired/lost) told to the platform; append-only, RETENTION_FORBIDDEN."
+      }
+    },
+    "ads_spend_hourly": {
+      "module": "ads",
+      "layer": "raw",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 500,
+        "why": "new in 0537 (2026-11-01, ADS-AGENT-BUILD-WORKFLOW A2); one row per live campaign per hour as the platform reports it; ~20 live campaigns x 24 h. Re-derivable from the platform; a retention rule can come with B5 once its reader's window is known."
+      }
     }
   }
 }
