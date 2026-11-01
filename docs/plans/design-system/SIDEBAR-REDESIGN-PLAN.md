@@ -104,10 +104,10 @@ Enter opens the record's own page.
 - **Q-SB3 — Fuel alerts and Fuel problems overlap.** Both hold card fraud since F02–F04 chunk 8c4.
   Now that they sit side by side in Fuel the overlap is visible. Recommendation: a product decision
   on whether Fuel alerts folds into Fuel problems; not a sidebar change.
-  **Still open after 2026-11-01:** "as recommended" carried no direction here, because none was
-  written. The two pages are gated differently — Fuel problems by `fuel`, Fuel alerts by `safety`
-  (its key is `safety.alerts`, held in per-person grants) — so folding one into the other is a
-  permission change, not a move, and needs the owner's direction first.
+  **Ruled 2026-11-01 — owner: "keep them as 2 pages as recommended".** They stay two pages side by
+  side in Fuel. Folding them would decide who sees card-fraud cases — Fuel problems is gated by
+  `fuel`, Fuel alerts by `safety` (key `safety.alerts`, held in per-person grants) — so any future
+  merge starts as its own plan with that permission answer, not as a sidebar change.
 - **Q-SB4 — "Vehicles" or "Trucks"?** Fleet reads Vehicles · Trailers · Drivers. "Trucks" is the
   office's word, but the page's own text says vehicles throughout. Left as Vehicles.
   **Ruled 2026-11-01 — owner: "proceed as recommended". Stays "Vehicles".**
