@@ -1,3 +1,5 @@
+<!-- ui-adoption: not-a-record — the token is a public link, not a record id, as on ApplyPage: every dead
+     link answers identically by design, and the applicant has no list to go back to. -->
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import { useRoute } from "vue-router";

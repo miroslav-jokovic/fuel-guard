@@ -335,6 +335,25 @@ describe("a text that carries the link", () => {
     expect(sms.fn).not.toHaveBeenCalled();
   });
 
+  /** HW8a (0538): the videos text rides the same text token, and opens the videos page on it. */
+  it("sends the orientation videos with a link to the videos page on a freshly minted text token", async () => {
+    const rec = seed();
+    expect(await sendOrQueueSms(rec.client, env, message({ template: "orientation_videos" }), OPEN)).toEqual({ sent: true, outboxId: "o-new" });
+    const body = String(sms.fn.mock.calls[0]![1].body);
+    expect(body).toContain("Please watch your orientation videos");
+    expect(body).toMatch(/\/apply\/[A-Za-z0-9_-]+\/videos /);
+    expect(hashInvitationToken(tokenIn(body))).toBe(rotation(rec)!.p_token_hash);
+    expect(rec.writtenRows("sms_outbox")[0]).toMatchObject({ template: "orientation_videos", reason: "orientation_videos", params: {} });
+  });
+
+  it("drains a queued videos text after approval — the videos are worth watching at any phase", async () => {
+    const rec = seed({
+      outbox: [queued("orientation_videos")],
+      invitations: [{ id: "inv-1", org_id: ORG, submitted_at: null, review_requested_at: "2027-01-10T10:00:00Z", approved_at: "2027-01-11T10:00:00Z" }],
+    });
+    expect(await drainSmsOutboxForOrg(rec.client, env, ORG, OPEN)).toMatchObject({ sent: 1, cancelled: 0 });
+  });
+
   it("cancels a queued link text that names no invitation — there is no link to mint", async () => {
     const rec = seed({ outbox: [{ ...queued("nudge"), invitation_id: null }] });
     expect(await drainSmsOutboxForOrg(rec.client, env, ORG, OPEN)).toMatchObject({ sent: 0, cancelled: 1 });

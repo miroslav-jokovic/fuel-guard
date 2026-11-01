@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { escapeEmailHtml as esc, type RenderedEmail } from "./email.js";
+import { recordId } from "./recordId.js";
 import type { SigningTextOutcome } from "./signingSend.js";
 
 /**
@@ -86,7 +87,7 @@ export const orientationVideoAttestSchema = z.object({
     .trim()
     .min(1, "Type your full name.")
     .max(ORIENTATION_VIDEO_SIGNER_MAX, `A name can be at most ${ORIENTATION_VIDEO_SIGNER_MAX} characters.`),
-  videoIds: z.array(z.string().uuid()).min(1).max(100),
+  videoIds: z.array(recordId()).min(1).max(100),
 });
 export type OrientationVideoAttest = z.infer<typeof orientationVideoAttestSchema>;
 
