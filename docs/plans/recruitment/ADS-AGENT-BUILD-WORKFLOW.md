@@ -447,3 +447,8 @@ blocking step in §3 above.
   ⚠ The forbidden-wording and promise-term lists are a first cut for counsel (G12, Q-AD8): "criminal
   record" and "conviction" are refused outright, which also refuses "no DUI convictions"; counsel
   decides whether a driving-record clause is allowed and in which words.
+- **2026-11-01, handoff 2** — The rest of Stage 1 moves to a fresh chat from
+  `HANDOFF-2026-11-01-ADS-STAGE1-A4.md` (main `acd6b5f`, last migration 0537; HW PRs hold 0538/0539).
+  Measured for A4: `callClaude` (forced assessment tool) has no caller, so A4 copies the document
+  reader's and hazmat's `anthropicClient` + monthly-budget pattern rather than preserving a fuel call
+  site that no longer exists.
