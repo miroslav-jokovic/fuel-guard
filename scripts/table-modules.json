@@ -497,6 +497,17 @@
         "why": "no rows in production 2026-09-21; bounded by the number of orgs."
       }
     },
+    "driver_employment_gaps": {
+      "module": "recruiting",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "unmeasured",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "new in 0538 (2026-11-01); a few rows per hired driver at most, bounded by hiring volume; removed by the applicant purge."
+      }
+    },
     "driver_employment_history": {
       "module": "recruiting",
       "layer": "core",
