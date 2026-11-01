@@ -213,6 +213,11 @@ async function seedApplicant(org, name) {
   await db.query(`insert into applicant_notes (org_id, driver_id, invitation_id, body, author_name) values ($1,$2,$3,'Called 10/30','Dana')`, [org, d, inv]);
   // 0538 (HW5c): the gaps the office recorded go with the applicant too.
   await db.query(`insert into driver_employment_gaps (org_id, driver_id, started_on, ended_on, explanation, recorded_by_name) values ($1,$2,'2024-01-01','2024-03-01','Cared for a parent','Dana')`, [org, d]);
+  // 0539 (HW8a): the applicant's "I watched these" and a link they opened go with the applicant.
+  const video = (await one(
+    `insert into orientation_videos (org_id, title, url) values ($1,'Pre-trip','https://example.com/pretrip') returning id`, [org])).id;
+  await db.query(`insert into orientation_video_attestations (org_id, driver_id, invitation_id, video_ids, signer_name) values ($1,$2,$3,$4,'Pat Driver')`, [org, d, inv, [video]]);
+  await db.query(`insert into orientation_video_opens (org_id, driver_id, invitation_id, video_id) values ($1,$2,$3,$4)`, [org, d, inv, video]);
   const doc = (await one(
     `insert into documents (id, org_id, subject_type, subject_id, kind, storage_path, content_type, sha256)
      values (gen_random_uuid(),$1,'driver',$2,'employment_application',$3,'application/pdf',$4) returning id`,
@@ -286,7 +291,8 @@ ok(
 );
 const ownedByDriver = ["application_invitations", "driver_applications", "driver_authorizations", "esign_consents",
   "application_drafts", "application_captures", "driver_employment_history", "employer_inquiries", "psp_requests",
-  "qualification_records", "applicant_dispositions", "sms_consents", "sms_outbox", "sms_suppressions", "applicant_notes", "driver_employment_gaps"];
+  "qualification_records", "applicant_dispositions", "sms_consents", "sms_outbox", "sms_suppressions", "applicant_notes", "driver_employment_gaps",
+  "orientation_video_attestations", "orientation_video_opens"];
 ok(
   "and in every drivers-referencing table the purge owns",
   ownedByDriver.every((t) => before[`${t}.driver_id`] > 0),
@@ -317,6 +323,7 @@ const expectCounts = {
   applicant_dispositions: 1, documents: 2, certifications: 1, qualification_records: 1,
   applicant_notes: 1,
   driver_employment_gaps: 1,
+  orientation_video_attestations: 1, orientation_video_opens: 1,
 };
 const wrongCounts = Object.entries(expectCounts).filter(([t, n]) => result.counts[t] !== n);
 ok("it returns the count it deleted from each table", wrongCounts.length === 0,
