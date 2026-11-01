@@ -102,11 +102,9 @@ const WAIVERS = new Map([
   ["ad_generations", "ADS-AGENT-BUILD-WORKFLOW.md A4 — the AI rail's provenance writer for the ads workers (schema-only A2, 0537)"],
   ["ads_outcome_events", "ADS-AGENT-BUILD-WORKFLOW.md B6 — the outcome feed queues a stage event from the LeadSink (schema-only A2, 0537)"],
   ["ads_spend_hourly", "ADS-AGENT-BUILD-WORKFLOW.md B5 — the hourly insights pull (schema-only A2, 0537)"],
-  // orientation_videos (0539, HIRING-WORKFLOW-AUDIT-2026-10-31 §5 HW8a) ships schema-only: a migration and
-  // its first reader never share a merge. Its two driver tables need no entry — 0539's own
-  // `purge_applicant` deletes from them. It leaves in HW8a's second PR, whose Settings → Recruiting list
-  // writes it (recruiting/orientationVideos.ts).
-  ["orientation_videos", "HIRING-WORKFLOW-AUDIT-2026-10-31 §5 HW8a PR 2 — Settings → Recruiting's video list writes it (schema-only, 0539)"],
+  // orientation_videos (0539, HIRING-WORKFLOW-AUDIT-2026-10-31 HW8a) left on 2026-11-01 in HW8a's second PR:
+  // recruiting/orientationVideos.ts writes it behind Settings → Recruiting's list. Pinned for the schema-only
+  // first PR only.
 ]);
 
 const files = readdirSync(MIGRATIONS).filter((f) => f.endsWith(".sql")).sort();

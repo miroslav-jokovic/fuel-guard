@@ -489,6 +489,15 @@
     "apps/api/src/modules/org/digestScheduler.ts",
     "apps/api/src/modules/org/routes/orgSettings.ts"
   ],
+  "orientation_video_attestations": [
+    "apps/api/src/modules/recruiting/orientationVideosApplicant.ts"
+  ],
+  "orientation_video_opens": [
+    "apps/api/src/modules/recruiting/orientationVideosApplicant.ts"
+  ],
+  "orientation_videos": [
+    "apps/api/src/modules/recruiting/orientationVideos.ts"
+  ],
   "part_stock": [
     "apps/api/src/modules/maintenance/inventory/stockSettings.ts",
     "apps/api/src/modules/maintenance/inventory/tagIssuance.ts"

@@ -52,6 +52,8 @@ const pub = (path: string, init: RequestInit = {}) =>
 const VIDEOS = [
   { id: V1, org_id: ORG, title: "Pre-trip", url: "https://v.example/1", minutes: 10, required: true, position: 0, created_at: "2026-10-01T00:00:00Z", retired_at: null },
   { id: V2, org_id: ORG, title: "Using the ELD", url: "https://v.example/2", minutes: null, required: false, position: 1, created_at: "2026-10-01T00:00:01Z", retired_at: null },
+  // Retired: off the list, and its position does not count toward the next one's.
+  { id: "90000000-0000-4000-8000-0000000000aa", org_id: ORG, title: "Old", url: "https://v.example/old", minutes: 3, required: true, position: 7, created_at: "2026-09-01T00:00:00Z", retired_at: "2026-10-02T00:00:00Z" },
   { id: V_THEIRS, org_id: OTHER_ORG, title: "Theirs", url: "https://v.example/x", minutes: 1, required: true, position: 0, created_at: "2026-10-01T00:00:00Z", retired_at: null },
 ];
 
