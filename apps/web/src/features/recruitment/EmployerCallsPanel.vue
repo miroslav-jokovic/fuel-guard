@@ -21,6 +21,7 @@ import {
 import { useSessionStore } from "@/stores/session";
 import { useToastStore } from "@/stores/toast";
 import { useEmployerCallsQuery, useRecordEmployerCall } from "@/features/recruitment/useApplicantScreening";
+import CallCorrectionApply from "@/features/recruitment/CallCorrectionApply.vue";
 
 /**
  * Previous employers verified by phone BEFORE the application is filed — D-AW8, AW12
@@ -52,6 +53,14 @@ const zone = computed(() => data.value?.timeZone ?? undefined);
 const at = (instant: string) => formatDisplayDateTime(instant, undefined, zone.value);
 
 const callsFor = (key: string | null) => (data.value?.calls ?? []).filter((c) => key !== null && c.employerKey === key);
+
+/**
+ * HW5d: each corrected answer on a call, which the office may write into the application while it can
+ * still be edited — before filing (after it, the inquiry list owns the job). The server refuses outside
+ * the office's edit window and says why.
+ */
+const correctionsOf = (c: { corrections: Partial<Record<VerificationQuestion, string>> | null }) =>
+  VERIFICATION_QUESTIONS.flatMap((q) => (c.corrections?.[q] ? [{ question: q, said: c.corrections[q]! }] : []));
 
 const OUTCOME_OPTIONS = VERIFICATION_OUTCOMES.map((o) => ({ value: o, label: VERIFICATION_OUTCOME_LABELS[o] }));
 
@@ -138,6 +147,18 @@ async function save(): Promise<void> {
               {{ at(c.calledAt) }} · {{ c.answeredBy }} ·
               {{ VERIFICATION_QUESTIONS.map((q) => `${VERIFICATION_QUESTION_LABELS[q]}: ${VERIFICATION_OUTCOME_LABELS[c.outcomes[q]]}`).join("; ") }}
               <template v-if="c.copiedInquiryId"> · on the inquiry list</template>
+              <div v-if="canRecord && !data.filed && correctionsOf(c).length" class="mt-2 space-y-2">
+                <CallCorrectionApply
+                  v-for="k in correctionsOf(c)"
+                  :key="`${c.id}-${k.question}`"
+                  :driver-id="driverId"
+                  :call-id="c.id"
+                  :question="k.question"
+                  :said="k.said"
+                  :employer="e"
+                  :revision="data.revision"
+                />
+              </div>
             </li>
           </ul>
           <p v-if="e.key === null" class="text-2xs text-ink-muted">

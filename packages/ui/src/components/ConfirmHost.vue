@@ -17,7 +17,7 @@ const open = computed(() => store.pending !== null);
     <p v-if="store.pending?.message" class="text-sm text-ink-secondary whitespace-pre-line">{{ store.pending.message }}</p>
     <template #footer>
       <div class="flex justify-end gap-3">
-        <BaseButton @click="store.answer(false)">Cancel</BaseButton>
+        <BaseButton @click="store.answer(false)">{{ store.pending?.cancelLabel ?? "Cancel" }}</BaseButton>
         <BaseButton
           :variant="store.pending?.tone === 'danger' ? 'danger' : 'primary'"
           data-testid="confirm-yes"

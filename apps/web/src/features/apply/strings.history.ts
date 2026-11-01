@@ -1,4 +1,5 @@
 import { CMV_WINDOW_YEARS, EMPLOYMENT_WINDOW_YEARS } from "@silvicom/shared";
+import { EMPLOYMENT_FORM_COPY } from "@/components/employment/employmentCopy";
 
 /**
  * The employment and safety-history screens' words — the two longest sections of the form.
@@ -11,42 +12,20 @@ import { CMV_WINDOW_YEARS, EMPLOYMENT_WINDOW_YEARS } from "@silvicom/shared";
  */
 export const APPLY_HISTORY_COPY = {
   employment: {
-    intro: `List every job — driving or not — from the last ${EMPLOYMENT_WINDOW_YEARS} years. For the ${CMV_WINDOW_YEARS - EMPLOYMENT_WINDOW_YEARS} years before that, list only the jobs where you drove a commercial vehicle. Time you were not driving is not a gap you need to explain.`,
+    /**
+     * The one employer form's and the timeline's words (HW5b), written once in
+     * `@/components/employment/employmentCopy.ts` because the office asks the same questions.
+     */
+    ...EMPLOYMENT_FORM_COPY,
+    /**
+     * EM-10: this said "Time you were not driving is not a gap you need to explain" while the gap boxes
+     * below asked exactly that. A stretch of the three years with no job IS asked about — by the filing,
+     * and by the boxes — so the intro now says so.
+     */
+    intro: `List every job — driving or not — from the last ${EMPLOYMENT_WINDOW_YEARS} years. For the ${CMV_WINDOW_YEARS - EMPLOYMENT_WINDOW_YEARS} years before that, list only the jobs where you drove a commercial vehicle. If there was time in the last ${EMPLOYMENT_WINDOW_YEARS} years with no job, you will be asked what you were doing.`,
     none: "I have not been employed during this period",
-    employer: "Employer",
-    usdot: "USDOT number",
-    usdotHint: "If you know it.",
-    address: "Street address",
-    addressHint: "We have to record where we wrote to.",
-    city: "City",
-    state: "State",
-    phone: "Phone",
-    phoneHint: "So we can contact them.",
-    email: "Email",
-    emailHint: "If you know it.",
-    position: "Position",
-    from: "From",
-    to: "Until",
-    toHint: "Blank if you work there now.",
-    reason: "Reason for leaving",
-    reasonHint: "Why you moved on.",
     operatedCmv: "I drove a commercial vehicle in this job",
     dotRegulated: "This employer was DOT-regulated",
-    /**
-     * The two "whether" questions the regulation asks about each job in the last three years, asked as
-     * Yes/No with nothing chosen (C3c2b, Q-AW33) — they were two unticked statements, so leaving them
-     * alone answered "No". Plain words for the regulation's; `EmployerQuestions.test.ts` holds each
-     * against the committed text (cfr-391-21/391.21.txt, (b)(10)(iv)(A) and (B)):
-     *   (A) "Applicant was subject to the FMCSRs while employed by that previous employer"
-     *   (B) "Job was designated as a safety sensitive function in any DOT regulated mode subject to
-     *       alcohol and controlled substances testing requirements as required by 49 CFR part 40"
-     * The review screen and the office's labels print these same questions beside the answer.
-     */
-    subjectToFmcsr: "In this job, did the Federal Motor Carrier Safety Regulations apply to you?",
-    subjectToFmcsrHint: "The federal safety rules for trucking companies and their drivers.",
-    safetySensitive: "Was this a safety-sensitive job that required DOT drug and alcohol testing?",
-    safetySensitiveHint:
-      "Any job the DOT tests for drugs and alcohol, in any industry it regulates — trucking, buses, aviation, rail, transit or pipelines.",
     /** A job on the list with an answer still missing (v2): the answers are inside, so the row says so. */
     jobNeedsAnswers: "Some answers are missing. Choose Change to finish them.",
     add: "Add another employer",
@@ -73,11 +52,6 @@ export const APPLY_HISTORY_COPY = {
     jobsHeading: "Your jobs",
     addFirstJob: "Add your first job",
     addJob: "Add another job",
-    editJob: "Change",
-    removeJob: "Remove",
-    jobNoDates: "No dates yet",
-    /** A job still being driven. The list has to say something; a blank reads as a missing answer. */
-    jobToNow: "now",
     coverageHeading: "How much you have accounted for",
     coverage: (percent: number, years: number): string =>
       `${percent}% of the last ${years} years is accounted for.`,
@@ -95,26 +69,6 @@ export const APPLY_HISTORY_COPY = {
     /** The review's heading over the explanations (C3c1). */
     gapsHeading: "Time between jobs",
     gapExplanationHint: "For example: looking for work, school, medical leave, caring for family.",
-    /**
-     * ⚠ Says the company name need not be exact. Owner, 2026-09-11: drivers do not remember the
-     * exact legal names of carriers they left years ago, and a form that looks like it wants one is
-     * a form they stop filling in. The office confirms the name at review; what it needs from the
-     * driver is enough to find the employer.
-     */
-    employerHint: "The name as you remember it is fine — we will confirm it.",
-    /**
-     * ⚠ "(optional)" is in the SUMMARY and not only in the hint below it. A `<details>` shows its
-     * hint only once opened, so a closed disclosure reading "More about this job" tells a driver
-     * nothing about whether they have to — which is the whole thing this change is for. Seen at
-     * 390px, 2026-09-11.
-     */
-    moreAboutJob: "More about this job (optional)",
-    moreAboutJobHint: "Add what you know. We will ask you later if we need the rest.",
-    drawerNew: "Add a job",
-    drawerIntro: "One job at a time. You can change it later.",
-    drawerSave: "Save this job",
-    drawerCancel: "Cancel",
-    aboutThisJob: "About this job",
   },
 
   safety: {

@@ -19,7 +19,6 @@ import { buildReviewSummary } from "./reviewSummary";
 import { describeField } from "./fieldLabels";
 import { editableFields, pathKey } from "./editableFields";
 import { employerName } from "./officeJobs";
-import AddEmployerForm from "./AddEmployerForm.vue";
 import OfficeJobsSection from "./OfficeJobsSection.vue";
 import PartOneCorrection from "./PartOneCorrection.vue";
 import ApplicationAnswerList from "./ApplicationAnswerList.vue";
@@ -89,8 +88,12 @@ const summary = computed(() => {
 // C3c2c2: on a v2 application, the answers filing takes from Part 1 are not offered — a correction
 // there would be filed over. They are corrected at their source instead: `PartOneCorrection` (Q-AW36),
 // and the date of birth beside the permissions.
+//
+// HW5b: the jobs are corrected in the one employer form below (`OfficeJobsSection`), not here — the
+// same answer offered in two places is two ways to disagree about it.
 const fields = computed(() =>
-  editableFields(payload.value, questionnaireForApplicant(), Boolean(review.data.value?.partOne)));
+  editableFields(payload.value, questionnaireForApplicant(), Boolean(review.data.value?.partOne))
+    .filter((f) => f.path[0] !== "employers"));
 /** "Something wrong? Tell us" (C3c2c2): the applicant's note about a Part 1 fact they could only read. */
 const correctionNote = computed(() => {
   const note = (payload.value as { correction_note?: unknown } | null)?.correction_note;
@@ -107,20 +110,6 @@ const employers = computed(() => {
 const givenGaps = computed(
   () => (payload.value as { employment_gaps?: Array<{ from: string; explanation?: string }> } | null)?.employment_gaps ?? [],
 );
-
-/**
- * Adding a row: one write, one `application_edits` line, one thing for the driver to see before they
- * certify.
- */
-async function addEmployer(employer: Record<string, unknown>): Promise<void> {
-  try {
-    await edit.mutateAsync({ op: "add_employer", employer, revision: revision.value });
-    toast.push("success", `${String(employer.employer_name)} added`);
-  } catch (e) {
-    toast.push("error", e instanceof Error ? e.message : "That employer could not be added.");
-  }
-}
-
 
 /** "What you changed": an employer named by key is named by the job, which is what a recruiter reads. */
 function changeLabel(row: { path: ApplicationPath; before: unknown; after: unknown }): string {
@@ -349,29 +338,18 @@ async function approveIt(): Promise<void> {
           />
         </section>
 
-        <!-- ⚠ Adding an employer the driver left out — the correction an office visit is actually for.
-             Separate from "Correct an answer" above because it CREATES a row rather than changing one,
-             and `editableFields` refuses to create by design. See AddEmployerForm's header. -->
-        <section v-if="editable" class="space-y-3">
-          <div>
-            <h3 class="text-sm font-semibold text-ink">Add an employer</h3>
-            <p class="mt-1 text-xs text-ink-muted">
-              For a job the applicant did not list. It is added at the end and the applicant is shown it
-              before they sign. §391.21 asks for three years of all work, and ten years of driving work.
-            </p>
-          </div>
-          <AddEmployerForm :pending="edit.isPending.value" @add="addEmployer" />
-        </section>
-
+        <!-- HW5b: the jobs on one timeline, and the one employer form — the applicant's own panel — for
+             adding a job (with its street, EM-3), changing or filling any answer, removing one after a
+             confirm, and explaining a gap. Read-only once the window has closed. -->
         <OfficeJobsSection
-          v-if="editable && invitationId"
+          v-if="invitationId && (employers.length || editable)"
           :invitation-id="invitationId"
           :employers="employers"
           :given-gaps="givenGaps"
           :revision="revision"
+          :v2="Boolean(review.data.value?.partOne)"
+          :editable="editable"
         />
-
-
 
         <!-- ⚠ INSIDE the drawer's body, and that placement is the whole fix (B8, measured 2026-09-18).
              As a sibling of `SlideOver` it rendered correctly and still broke: HeadlessUI decides which

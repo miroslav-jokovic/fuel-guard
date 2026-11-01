@@ -29,11 +29,4 @@ export const APPLY_QUESTIONS_COPY = {
     required: "Required",
     optional: "Optional",
   },
-  unfinishedJob: {
-    /** AF-4: a job with something in it but no name or no start date. */
-    line: "Unfinished — finish or remove",
-    /** The row's name when the applicant has not given one yet. */
-    noName: "A job with no name",
-    finish: "Finish",
-  },
 } as const;

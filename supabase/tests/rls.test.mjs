@@ -2333,6 +2333,25 @@ async function main() {
         adsCampaignSeed(org) +
         `insert into ads_spend_hourly (org_id, campaign_id, hour, currency) ` +
         `select '${org}', ${adsLatest("ads_campaigns", org)}, '2026-11-02T14:00:00Z', 'USD';`,
+      // 0539 (HW8a): a video's link is https-checked, and an attestation or an open must name this
+      // driver's own invitation and a live video of this carrier (OV023/OV024) — a chain the seeder,
+      // which makes every parent independently, cannot build.
+      orientation_videos: (org) =>
+        `insert into orientation_videos (org_id, title, url) values ('${org}', 'rls', 'https://example.com/rls')`,
+      orientation_video_attestations: (org) =>
+        `with d as (insert into drivers (org_id, full_name) values ('${org}', 'rls ' || gen_random_uuid()) returning id), ` +
+        `i as (insert into application_invitations (org_id, driver_id, token_hash, expires_at) ` +
+        `select '${org}', id, md5(gen_random_uuid()::text), now() + interval '1 day' from d returning id, driver_id), ` +
+        `v as (insert into orientation_videos (org_id, title, url) values ('${org}', 'rls', 'https://example.com/rls') returning id) ` +
+        `insert into orientation_video_attestations (org_id, driver_id, invitation_id, video_ids, signer_name) ` +
+        `select '${org}', i.driver_id, i.id, array[v.id], 'rls' from i, v`,
+      orientation_video_opens: (org) =>
+        `with d as (insert into drivers (org_id, full_name) values ('${org}', 'rls ' || gen_random_uuid()) returning id), ` +
+        `i as (insert into application_invitations (org_id, driver_id, token_hash, expires_at) ` +
+        `select '${org}', id, md5(gen_random_uuid()::text), now() + interval '1 day' from d returning id, driver_id), ` +
+        `v as (insert into orientation_videos (org_id, title, url) values ('${org}', 'rls', 'https://example.com/rls') returning id) ` +
+        `insert into orientation_video_opens (org_id, driver_id, invitation_id, video_id) ` +
+        `select '${org}', i.driver_id, i.id, v.id from i, v`,
       org_usage_month: (org) =>
         `insert into org_usage_month (org_id, yyyymm) values ('${org}', '2026-08')`,
       // 0531: a unit tag names exactly one truck OR trailer (`unit_tags_one_unit`), both nullable, so the

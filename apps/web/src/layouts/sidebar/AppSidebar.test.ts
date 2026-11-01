@@ -84,7 +84,7 @@ describe("AppSidebar", () => {
 
   it("offers search first, and asks the shell to open it", async () => {
     const w = await mountSidebar();
-    const search = w.findAll("button").find((b) => b.text().includes("Search pages"))!;
+    const search = w.findAll("button").find((b) => b.text().startsWith("Search"))!;
     await search.trigger("click");
     expect(w.emitted("openSearch")).toHaveLength(1);
   });

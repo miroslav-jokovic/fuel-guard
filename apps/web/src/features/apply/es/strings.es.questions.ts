@@ -19,9 +19,4 @@ export const APPLY_QUESTIONS_COPY_ES = {
     required: "Obligatoria",
     optional: "Opcional",
   },
-  unfinishedJob: {
-    line: "Sin terminar: termínelo o quítelo",
-    noName: "Un trabajo sin nombre",
-    finish: "Terminar",
-  },
 } satisfies Localized<typeof APPLY_QUESTIONS_COPY>;

@@ -162,8 +162,10 @@ ok("the switch is never null", await refused(
 const policyCols = await db.query(
   `select column_name from information_schema.columns
     where table_name = 'recruiting_settings' and column_name like '%block%' order by 1`);
-ok("only the handbook is a switch — orientation and videos have no evidence to read yet (0536 header)",
-  policyCols.rows.map((r) => r.column_name).join(",") === "handbook_blocks_hire");
+// 0539 (HW8a) adds the videos switch beside the videos' evidence tables; the live orientation day still
+// has none (HW8b), so it is still not a switch.
+ok("the handbook and the videos are switches — the orientation day has no evidence to read yet (0536, 0539 headers)",
+  policyCols.rows.map((r) => r.column_name).join(",") === "handbook_blocks_hire,videos_block_hire");
 await clear();
 
 // ── 4. deny-all ───────────────────────────────────────────────────────────────────────────────
