@@ -2,6 +2,8 @@
 import { computed, ref } from "vue";
 import {
   employmentCoverage,
+  formatDisplayDate,
+  rangesOverlap,
   CMV_WINDOW_YEARS,
   EMPLOYMENT_SOURCE_LABELS,
   EMPLOYMENT_WINDOW_YEARS,
@@ -22,7 +24,9 @@ import EmploymentTimeline from "@/components/employment/EmploymentTimeline.vue";
 import EmployerFormDrawer from "@/components/employment/EmployerFormDrawer.vue";
 import { EMPLOYMENT_OFFICE_COPY } from "@/components/employment/employmentCopy";
 import { employerProblems, type EmployerFields } from "@/components/employment/employerRow";
-import type { TimelineJob } from "@/components/employment/timeline";
+import { buildTimeline, type TimelineJob } from "@/components/employment/timeline";
+import RecordGapBox from "@/features/recruitment/RecordGapBox.vue";
+import { useEmploymentGapsQuery } from "@/features/recruitment/useEmploymentGaps";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { formatDateRange } from "@/lib/format";
 import { employmentInquiryBadge } from "@/lib/badges.recruiting";
@@ -112,6 +116,20 @@ const jobs = computed<TimelineJob[]>(() =>
   })),
 );
 const rowById = (id: string): EmploymentHistory | null => rows.value.find((r) => r.id === id) ?? null;
+
+/**
+ * HW5c (0538): what explains each drawn gap — the applicant's words from the signed application and
+ * the office's, recorded after signing (`RecordGapBox`). A recorded gap whose dates no longer meet a
+ * drawn one (a job was added over it since) is listed below the timeline rather than dropped: it was
+ * said, so the record keeps showing it.
+ */
+const gapsQ = useEmploymentGapsQuery(driverId);
+const drawnGaps = computed(() => buildTimeline(jobs.value, asOf.value, jobs.value.length > 0).gaps);
+const unplacedGaps = computed(() =>
+  (gapsQ.data.value?.recorded ?? []).filter(
+    (g) => !drawnGaps.value.some((d) => rangesOverlap({ from: g.startedOn, to: g.endedOn }, d)),
+  ),
+);
 
 // ── the panel ────────────────────────────────────────────────────────────────────────────────
 const drawerOpen = ref(false);
@@ -231,7 +249,17 @@ const sourceLabel = (s: string): string =>
             </span>
             <span class="text-xs text-ink-muted">{{ sourceLabel(rowById(job.key)?.source ?? "") }}</span>
           </template>
+          <template #gap="{ gap }">
+            <RecordGapBox :driver-id="driverId" :gap="gap" :view="gapsQ.data.value ?? null" :can-edit="canEdit" />
+          </template>
         </EmploymentTimeline>
+        <div v-if="unplacedGaps.length" class="mt-4 space-y-1 border-t border-edge pt-3" data-unplaced-gaps>
+          <h3 class="text-sm font-semibold text-ink">Gaps recorded for other dates</h3>
+          <p v-for="g in unplacedGaps" :key="g.id" class="text-xs" :class="g.withdrawnAt ? 'text-ink-muted line-through' : 'text-ink-secondary'">
+            {{ formatDisplayDate(g.startedOn) }} – {{ formatDisplayDate(g.endedOn) }}: {{ g.explanation }}
+            <span class="text-ink-muted">· added by {{ g.recordedByName }}, after signing</span>
+          </p>
+        </div>
       </QueryState>
     </BaseCard>
 

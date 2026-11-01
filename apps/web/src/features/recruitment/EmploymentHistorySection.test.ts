@@ -34,6 +34,14 @@ vi.mock("@/features/recruitment/useEmployment", () => ({
   useUpdateEmployment: mutation(mutations.update),
   useRemoveEmployment: mutation(mutations.remove),
 }));
+// HW5c: the gaps read and writes, as the tests below set them.
+const gapsView = ref<unknown>({ recorded: [], applicant: [] });
+const gapMutations = vi.hoisted(() => ({ record: vi.fn(), withdraw: vi.fn() }));
+vi.mock("@/features/recruitment/useEmploymentGaps", () => ({
+  useEmploymentGapsQuery: () => ({ data: gapsView }),
+  useRecordEmploymentGap: mutation(gapMutations.record),
+  useWithdrawEmploymentGap: mutation(gapMutations.withdraw),
+}));
 const EmploymentHistorySection = (await import("./EmploymentHistorySection.vue")).default;
 
 const SlideOverStub = {
@@ -106,5 +114,84 @@ describe("the record on the one timeline (HW5b)", () => {
     await flushPromises();
     expect(mutations.remove).toHaveBeenCalledWith({ id: ROW.id, driverId: DRIVER });
     w.unmount();
+  });
+});
+
+describe("HW5c: gaps after signing", () => {
+  // Two jobs with a gap between them: 2025-03-01 – 2025-05-31.
+  const JOBS = [
+    { ...ROW, id: "j1", employer_name: "First", started_on: "2023-01-01", ended_on: "2025-03-01" },
+    { ...ROW, id: "j2", employer_name: "Second", started_on: "2025-06-01", ended_on: null },
+  ];
+  const RECORDED = (over: Record<string, unknown> = {}) => ({
+    id: "g1", startedOn: "2025-03-10", endedOn: "2025-05-01", explanation: "Cared for a parent",
+    recordedByName: "Dana", createdAt: "2026-11-01T10:00:00Z", withdrawnAt: null, ...over,
+  });
+
+  beforeEach(() => {
+    rows.value = JOBS;
+    gapsView.value = { recorded: [], applicant: [] };
+    gapMutations.record.mockReset().mockResolvedValue({});
+    gapMutations.withdraw.mockReset().mockResolvedValue({});
+  });
+
+  it("records an explanation for a drawn gap with the gap's own dates", async () => {
+    const w = section();
+    await flushPromises();
+    const box = w.get("[data-record-gap]");
+    expect(box.text()).toContain("Not explained yet.");
+    await box.findAll("button").find((b) => b.text() === "Explain this gap")!.trigger("click");
+    await box.get("textarea").setValue("  Cared for a parent  ");
+    await box.findAll("button").find((b) => b.text() === "Record it")!.trigger("click");
+    await flushPromises();
+    expect(gapMutations.record).toHaveBeenCalledWith({
+      driverId: DRIVER,
+      gap: { started_on: expect.stringMatching(/^2025-0[23]-/), ended_on: expect.stringMatching(/^2025-0[56]-/), explanation: "Cared for a parent" },
+    });
+  });
+
+  it("shows the applicant's words and the office's beside the gap they overlap, and who added it after signing", async () => {
+    gapsView.value = { recorded: [RECORDED()], applicant: [{ from: "2025-03-02", to: "2025-05-30", explanation: "Moved house" }] };
+    const w = section();
+    await flushPromises();
+    const box = w.get("[data-record-gap]");
+    expect(box.get("[data-gap-applicant]").text()).toBe("The applicant said: Moved house");
+    expect(box.get("[data-gap-recorded]").text()).toContain("Added by Dana on 11/01/2026, after signing");
+    expect(box.text()).not.toContain("Not explained yet.");
+    expect(w.find("[data-unplaced-gaps]").exists()).toBe(false);
+  });
+
+  it("keeps a recorded gap that no longer meets a drawn one, below the timeline, never dropped", async () => {
+    gapsView.value = { recorded: [RECORDED({ startedOn: "2020-01-01", endedOn: "2020-02-01", explanation: "Old gap" })], applicant: [] };
+    const w = section();
+    await flushPromises();
+    expect(w.get("[data-unplaced-gaps]").text()).toContain("Old gap");
+  });
+
+  it("withdraws the office's explanation only after asking", async () => {
+    gapsView.value = { recorded: [RECORDED()], applicant: [] };
+    const w = section();
+    await flushPromises();
+    await w.get("[data-record-gap]").findAll("button").find((b) => b.text() === "Withdraw")!.trigger("click");
+    await flushPromises();
+    useConfirmStore().answer(false);
+    await flushPromises();
+    expect(gapMutations.withdraw).not.toHaveBeenCalled();
+    await w.get("[data-record-gap]").findAll("button").find((b) => b.text() === "Withdraw")!.trigger("click");
+    await flushPromises();
+    useConfirmStore().answer(true);
+    await flushPromises();
+    expect(gapMutations.withdraw).toHaveBeenCalledWith({ driverId: DRIVER, gapId: "g1" });
+    w.unmount();
+  });
+
+  it("shows a withdrawn explanation struck through, and does not count it as explaining the gap", async () => {
+    gapsView.value = { recorded: [RECORDED({ withdrawnAt: "2026-11-01T12:00:00Z" })], applicant: [] };
+    const w = section();
+    await flushPromises();
+    const box = w.get("[data-record-gap]");
+    expect(box.get("[data-gap-recorded] p").classes()).toContain("line-through");
+    expect(box.text()).toContain("Not explained yet.");
+    expect(box.findAll("button").some((b) => b.text() === "Withdraw")).toBe(false);
   });
 });

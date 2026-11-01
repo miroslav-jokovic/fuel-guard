@@ -111,6 +111,9 @@
     "apps/api/src/modules/recruiting/routes/authorizations.ts",
     "apps/api/src/scripts/seedPspQaDrivers.ts"
   ],
+  "driver_employment_gaps": [
+    "apps/api/src/modules/recruiting/employmentGaps.ts"
+  ],
   "driver_employment_history": [
     "apps/api/src/modules/recruiting/employerInquiry.ts",
     "apps/api/src/modules/recruiting/routes/employment.ts"
