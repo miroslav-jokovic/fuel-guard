@@ -1,12 +1,14 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import { chatTitle, type ChatConversationResponse, type ChatMuteLevel } from "@silvicom/shared";
+import { AppButton as BaseButton } from "@silvicom/ui";
 import KebabMenu from "@/components/KebabMenu.vue";
 import { mergeLines, type PendingLine } from "./useChat";
 import ChatComposer from "./ChatComposer.vue";
 import ChatMessageList from "./ChatMessageList.vue";
 import ChatStageHeader from "./ChatStageHeader.vue";
 import ChatMuteItems from "./ChatMuteItems.vue";
+import ChatPinnedDialog from "./ChatPinnedDialog.vue";
 import { provideChatMentions } from "./chatNames";
 
 /**
@@ -65,6 +67,15 @@ const myLastSeq = computed(() => {
   return mine.length ? mine[mine.length - 1]!.seq : null;
 });
 const seenSeq = computed(() => (direct.value && myLastSeq.value !== null && othersReadSeq.value >= myLastSeq.value ? myLastSeq.value : null));
+
+/**
+ * The header menu's Pinned messages list (CH6c-2). Mounted the first time it opens, then kept: before
+ * that no stage asks for its pins, and kept mounted, its closing transition still runs, which is when
+ * "Show" puts focus on the line (BaseModal `closed`).
+ */
+const pinsOpen = ref(false);
+const pinsMounted = ref(false);
+const openPins = () => { pinsMounted.value = true; pinsOpen.value = true; };
 </script>
 
 <template>
@@ -77,6 +88,7 @@ const seenSeq = computed(() => (direct.value && myLastSeq.value !== null && othe
       :people="direct ? undefined : data.members.map((m) => ({ id: m.user_id, label: m.name }))" back-label="Back to conversations" @back="$emit('back')">
       <!-- Its mute (D-CHAT23): what reaches you from it, and whether it sits in Muted. -->
       <KebabMenu trigger-label="Conversation actions" placement="bottom-end">
+        <BaseButton class="kebab-item" @click="openPins">Pinned messages</BaseButton>
         <ChatMuteItems :muted="data.conversation.muted" @set="(level: ChatMuteLevel) => $emit('mute', level)" />
       </KebabMenu>
     </ChatStageHeader>
@@ -101,5 +113,6 @@ const seenSeq = computed(() => (direct.value && myLastSeq.value !== null && othe
       @exit-bottom="composer?.focus()"
     />
     <ChatComposer ref="composer" :placeholder="`Message ${title}`" :thread-key="data.conversation.thread_id" @send="(body: string) => $emit('send', body)" @up="log?.focusLast()" />
+    <ChatPinnedDialog v-if="pinsMounted" :open="pinsOpen" :thread-id="data.conversation.thread_id" :viewer-id="viewerId" @close="pinsOpen = false" />
   </section>
 </template>

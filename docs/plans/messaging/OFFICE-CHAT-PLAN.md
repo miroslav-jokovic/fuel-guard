@@ -570,3 +570,19 @@ TechRepublic / Windows Report on Teams 2026 updates.
   API knows it would fail every Activity request for the deploy minutes. CH6c-2 therefore widens the
   contract (and gives the item who reacted, which today's shape has no column for) first; the function
   follows in a migration of its own after it. Next: CH6c-2 once 0523 is on staging.
+- 2026-11-01: **CH6c-2 built** (`claude/chat-ch6c-2`), on 0523 — already on production (checked against
+  `origin/production`), so no reader runs ahead of its schema. API: `POST /messages/:id/reactions`,
+  `PUT /messages/:id/pin`, `PUT /messages/:id/save`, `GET /:id/pins`, `GET /saved` (`chatLineActs.ts`);
+  none is a new message, so none counts against the budget or rings a bell. Contract: a line carries
+  `reactions` / `pinned_at` / `saved` (defaults = a pre-0523 line); `CHAT_ACTIVITY_REASONS` gains
+  `reaction` and the item gains `reaction` / `reactor_user_id` / `reactor_name`, all defaulted — the
+  reader lands BEFORE any function emits them. Web: every live line's toolbar takes a reaction (the six),
+  a pin and a save; reactions sit under the words as pills that say who and toggle the reader's own; a
+  pinned line says Pinned; each header's menu has Pinned messages (Show focuses the line once the dialog
+  has closed — `BaseModal` gained `closed`, because Headless UI restores focus after its leave hook and
+  overwrote a focus set there, measured); the rail has Saved under Activity (`?saved=1`). The acts are
+  provided once by the page and injected by every row (`useChatLineActs`), so the compliance console's
+  rows draw none. **Next, in its own migration and only after this is RELEASED:** `chat_activity` emits
+  `reaction` items (D-CHAT25's third reason) — in one release, migrations run first, and the old API
+  would refuse the new word for the deploy minutes.
+

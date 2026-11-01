@@ -8,7 +8,8 @@ const POST = "88888888-8888-4888-8888-888888888888";
 const item = (over: Partial<ChatActivityItem>): ChatActivityItem => ({
   message_id: "99999999-9999-4999-8999-999999999999", reason: "mention", at: "2026-10-27T15:00:00Z", unread: true,
   thread_id: T, kind: "channel", subject: "Loads", space_id: null, parent_id: null, seq: 3,
-  sender_user_id: null, sender_name: "Ben", body: "x", created_at: "2026-10-27T15:00:00Z", ...over,
+  sender_user_id: null, sender_name: "Ben", body: "x", created_at: "2026-10-27T15:00:00Z",
+  reaction: null, reactor_user_id: null, reactor_name: null, ...over,
 });
 const none = () => null;
 
@@ -27,6 +28,15 @@ describe("activityLine", () => {
 
   it("names a sender it does not know as Someone", () => {
     expect(activityLine(item({ sender_name: null }), none)).toBe("Someone mentioned you in # Loads");
+  });
+});
+
+describe("activityLine for a reaction (CH6c-2)", () => {
+  it("names who reacted and with what — not the line's sender, who is the reader", () => {
+    const r = item({ reason: "reaction", sender_name: "Me", reaction: "thumbs_up", reactor_name: "Cara" });
+    expect(activityLine(r, none)).toBe("Cara reacted 👍 in # Loads");
+    expect(activityLine({ ...r, kind: "direct", subject: null }, none)).toBe("Cara reacted 👍");
+    expect(activityLine({ ...r, reactor_name: null }, none)).toBe("Someone reacted 👍 in # Loads");
   });
 });
 

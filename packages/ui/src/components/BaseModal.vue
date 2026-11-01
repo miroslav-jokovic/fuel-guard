@@ -42,7 +42,17 @@ const props = withDefaults(
   }>(),
   { description: undefined, size: "md", printable: false, initialFocus: null },
 );
-const emit = defineEmits<{ close: [] }>();
+/**
+ * `closed` fires when the leave transition has finished and the dialog is gone. Until then Headless
+ * UI's focus trap holds focus inside the panel, so a caller that wants to put focus somewhere on the
+ * page after closing (the chat's Pinned list "Show", 2026-11-01 — measured: focus sat on the panel's
+ * close button for 300 ms, then fell to <body>) does it on `closed`, not on `close`.
+ */
+const emit = defineEmits<{ close: []; closed: [] }>();
+// ⚠ One task later, not at `after-leave` itself: the Dialog unmounts right after that hook, and its
+// focus trap then RESTORES focus to whatever held it before the dialog opened — a menu item that no
+// longer exists, so <body>. A caller's focus set at `after-leave` was overwritten by that (measured).
+const afterLeave = () => setTimeout(() => emit("closed"));
 const slots = useSlots();
 
 const panelWidth = computed(() =>
@@ -51,7 +61,7 @@ const panelWidth = computed(() =>
 </script>
 
 <template>
-  <TransitionRoot as="template" :show="open">
+  <TransitionRoot as="template" :show="open" @after-leave="afterLeave">
     <Dialog class="relative z-dialog" :initial-focus="initialFocus ?? undefined" @close="emit('close')">
       <TransitionChild
         as="template"

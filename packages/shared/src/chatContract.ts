@@ -29,6 +29,38 @@ export const CHAT_GROUP_MAX = 250;
 /** A page of history or of the inbox; the database clamps to 100 whatever is asked. */
 export const CHAT_PAGE_SIZE = 50;
 
+// ── Reactions (D-CHAT26) ──────────────────────────────────────────────────────────────────────────
+
+/**
+ * The six reactions, fixed (D-CHAT26): 👍 ❤️ 😂 😮 😢 ✅ — the last for "done", which an office says
+ * more often than 😡. Stored as these keys, never as the emoji, and in this order everywhere a line's
+ * reactions are listed (0523 `chat_line_reactions`). The database's CHECK lists the same six;
+ * chatReactionCheck.test.ts holds the two together, so a seventh is one list here and one migration.
+ */
+export const CHAT_REACTIONS = ["thumbs_up", "heart", "laugh", "surprised", "sad", "done"] as const;
+export type ChatReaction = (typeof CHAT_REACTIONS)[number];
+
+/** What each key is drawn as. */
+export const CHAT_REACTION_EMOJI: Record<ChatReaction, string> = {
+  thumbs_up: "👍",
+  heart: "❤️",
+  laugh: "😂",
+  surprised: "😮",
+  sad: "😢",
+  done: "✅",
+};
+
+/**
+ * A line's reactions as the readers return them (0523 `chat_line_reactions`): each kind present, in
+ * CHAT_REACTIONS' order, with the people who chose it in the order they did. A kind nobody chose is
+ * absent rather than empty; a retracted line has none.
+ */
+export const chatLineReactionSchema = z.object({
+  reaction: z.enum(CHAT_REACTIONS),
+  users: z.array(recordId()),
+});
+export type ChatLineReaction = z.infer<typeof chatLineReactionSchema>;
+
 // ── read shapes ───────────────────────────────────────────────────────────────────────────────────
 
 export const chatPersonSchema = z.object({
@@ -93,6 +125,14 @@ export const chatMessageSchema = z.object({
   parent_id: recordId().nullable().default(null),
   reply_count: z.number().int().nonnegative().default(0),
   last_reply_at: z.string().nullable().default(null),
+  /**
+   * CH6c (0523, D-CHAT24): the line's reactions, when it was pinned (null = not pinned), and whether
+   * the CALLER saved it — a save is one person's bookmark and is never anybody else's to see. The
+   * defaults are a line's true values before 0523, so a reader older than the schema parses.
+   */
+  reactions: z.array(chatLineReactionSchema).default([]),
+  pinned_at: z.string().nullable().default(null),
+  saved: z.boolean().default(false),
 });
 export type ChatMessage = z.infer<typeof chatMessageSchema>;
 
@@ -195,30 +235,15 @@ export type ChatAddMembersRequest = z.infer<typeof chatAddMembersRequestSchema>;
 export const chatMuteRequestSchema = z.object({ muted: z.enum(CHAT_MUTE_LEVELS) });
 export type ChatMuteRequest = z.infer<typeof chatMuteRequestSchema>;
 
-// ── Reactions (D-CHAT26) ──────────────────────────────────────────────────────────────────────────
-
-/**
- * The six reactions, fixed (D-CHAT26): 👍 ❤️ 😂 😮 😢 ✅ — the last for "done", which an office says
- * more often than 😡. Stored as these keys, never as the emoji, and in this order everywhere a line's
- * reactions are listed (0523 `chat_line_reactions`). The database's CHECK lists the same six;
- * chatReactionCheck.test.ts holds the two together, so a seventh is one list here and one migration.
- */
-export const CHAT_REACTIONS = ["thumbs_up", "heart", "laugh", "surprised", "sad", "done"] as const;
-export type ChatReaction = (typeof CHAT_REACTIONS)[number];
-
-/** What each key is drawn as. */
-export const CHAT_REACTION_EMOJI: Record<ChatReaction, string> = {
-  thumbs_up: "👍",
-  heart: "❤️",
-  laugh: "😂",
-  surprised: "😮",
-  sad: "😢",
-  done: "✅",
-};
-
 // ── Activity (D-CHAT25) ───────────────────────────────────────────────────────────────────────────
 
-export const CHAT_ACTIVITY_REASONS = ["mention", "reply"] as const;
+/**
+ * Why a line is in your Activity. `reaction` (CH6c-2, D-CHAT25's third reason) is accepted here a merge
+ * BEFORE any function emits it: the API parses `reason` strictly, so a `chat_activity` that sent
+ * `reaction` to an API that did not know the word would fail every Activity request for the deploy
+ * minutes (MIGRATION-DISCIPLINE §the-deploy-window). The function follows in its own migration.
+ */
+export const CHAT_ACTIVITY_REASONS = ["mention", "reply", "reaction"] as const;
 export type ChatActivityReason = (typeof CHAT_ACTIVITY_REASONS)[number];
 
 /**
@@ -244,6 +269,14 @@ export const chatActivityItemSchema = z.object({
   sender_name: z.string().nullable(),
   body: z.string().nullable(),
   created_at: z.string(),
+  /**
+   * A `reaction` item's who and what: somebody reacted to YOUR line, so `sender_*` is you and these say
+   * who reacted and with which. Null for a mention or a reply, and absent from a function older than
+   * the one that emits reactions — hence the defaults.
+   */
+  reaction: z.enum(CHAT_REACTIONS).nullable().default(null),
+  reactor_user_id: recordId().nullable().default(null),
+  reactor_name: z.string().nullable().default(null),
 });
 export type ChatActivityItem = z.infer<typeof chatActivityItemSchema>;
 
@@ -333,3 +366,56 @@ export function chatPreview(
   const text = chatBodyText(m.body, nameOf).replace(/\s+/g, " ").trim();
   return text.length <= max ? text : `${text.slice(0, max - 1)}…`;
 }
+
+// ── Reactions, pins and saved lines (CH6c-2) ─────────────────────────────────────────────────────
+
+/** Add (`on: true`) or take back one of your reactions. Idempotent both ways (0523 `chat_react`). */
+export const chatReactRequestSchema = z.object({ reaction: z.enum(CHAT_REACTIONS), on: z.boolean() });
+export type ChatReactRequest = z.infer<typeof chatReactRequestSchema>;
+
+/** Pin or unpin a line (anybody in the conversation), or save or unsave it (for yourself). */
+export const chatToggleRequestSchema = z.object({ on: z.boolean() });
+export type ChatToggleRequest = z.infer<typeof chatToggleRequestSchema>;
+
+/** One pinned line of a conversation (0523 `chat_pins`), the latest pin first. */
+export const chatPinnedLineSchema = z.object({
+  id: recordId(),
+  thread_id: recordId(),
+  seq: z.number().int().positive(),
+  rev: z.number().int().positive(),
+  sender_user_id: recordId().nullable(),
+  sender_name: z.string().nullable(),
+  body: z.string().nullable(),
+  created_at: z.string(),
+  edited_at: z.string().nullable(),
+  parent_id: recordId().nullable(),
+  pinned_at: z.string(),
+  pinned_by: recordId().nullable(),
+  pinned_by_name: z.string().nullable(),
+});
+export type ChatPinnedLine = z.infer<typeof chatPinnedLineSchema>;
+export const chatPinsResponseSchema = z.object({ pins: z.array(chatPinnedLineSchema) });
+export type ChatPinsResponse = z.infer<typeof chatPinsResponseSchema>;
+
+/** One of the caller's saved lines (0523 `chat_saved`), with where it lives so it can be opened. */
+export const chatSavedLineSchema = z.object({
+  message_id: recordId(),
+  saved_at: z.string(),
+  thread_id: recordId(),
+  kind: z.enum(CHAT_KINDS),
+  subject: z.string().nullable(),
+  space_id: recordId().nullable(),
+  parent_id: recordId().nullable(),
+  seq: z.number().int().positive(),
+  sender_user_id: recordId().nullable(),
+  sender_name: z.string().nullable(),
+  body: z.string().nullable(),
+  created_at: z.string(),
+});
+export type ChatSavedLine = z.infer<typeof chatSavedLineSchema>;
+export const chatSavedResponseSchema = z.object({
+  items: z.array(chatSavedLineSchema),
+  /** Present when another page exists: pass both back as `before_at` / `before_id`. */
+  next: z.object({ before_at: z.string(), before_id: recordId() }).nullable(),
+});
+export type ChatSavedResponse = z.infer<typeof chatSavedResponseSchema>;

@@ -29,6 +29,8 @@ const state = vi.hoisted(() => ({
   setActivityItems: (_: unknown[]) => {},
   activityRead: vi.fn(),
   activityAsked: [] as boolean[],
+  saved: [] as unknown[],
+  save: vi.fn(async () => undefined),
 }));
 
 vi.mock("@/composables/useModules", async () => {
@@ -66,6 +68,24 @@ vi.mock("@/features/chat/useChat", async () => {
     useChatOpenDirect: () => ({ mutateAsync: state.openDirect, isPending: ref(false) }),
     useChatCreateGroup: () => ({ mutateAsync: state.createGroup, isPending: ref(false) }),
     useChatMessageActions: () => ({ edit: { mutateAsync: vi.fn() }, retract: { mutateAsync: vi.fn() } }),
+  };
+});
+// CH6c-2: the line acts and the Saved list. Real `provide` so the page's provider runs as written.
+vi.mock("@/features/chat/useChatLineActs", async () => {
+  const { computed, provide, ref } = await import("vue");
+  return {
+    provideChatLineActs: () => {
+      const acts = { react: vi.fn(), pin: vi.fn(), save: state.save };
+      provide(Symbol.for("chat-line-acts-test"), acts);
+      return acts;
+    },
+    useChatLineActs: () => null,
+    useChatPinsQuery: () => ({ data: ref([]), isPending: ref(false), isError: ref(false), error: ref(null), isFetching: ref(false), refetch: vi.fn() }),
+    useChatSavedQuery: (enabled: { value: boolean }) => ({
+      items: computed(() => (enabled.value ? state.saved : [])),
+      isPending: ref(false), isError: ref(false), error: ref(null), isFetching: ref(false),
+      hasNextPage: ref(false), isFetchingNextPage: ref(false), fetchNextPage: vi.fn(), refetch: vi.fn(),
+    }),
   };
 });
 vi.mock("@/features/chat/useChatActivity", async () => {
@@ -146,6 +166,8 @@ async function render(path = "/chat") {
 }
 
 beforeEach(() => {
+  state.saved = [];
+  state.save.mockClear();
   state.activityUnread = 0;
   state.activityItems = [];
   state.activityAsked = [];
@@ -296,6 +318,34 @@ describe("ChatPage", () => {
     w.findComponent(ChatRail).vm.$emit("new-conversation");
     await flushPromises();
     expect(w.findComponent(NewChatDialog).props("open")).toBe(true);
+  });
+
+  describe("Saved (CH6c-2)", () => {
+    const line = {
+      message_id: "99999999-9999-4999-8999-999999999999", saved_at: "2026-10-30T10:00:00Z", thread_id: CH, kind: "channel",
+      subject: "Loads", space_id: SPACE, parent_id: null, seq: 4, sender_user_id: "22222222-2222-4222-8222-222222222222",
+      sender_name: "Ben", body: "Gate code 4411", created_at: "2026-10-30T09:00:00Z",
+    };
+
+    it("opens Saved from the rail at its own address, lists the kept lines, and opens one where it lives", async () => {
+      state.saved = [line];
+      const { w, router } = await render(`/chat?c=${T}`);
+      await w.findAll("button").find((b) => b.text().trim() === "Saved")!.trigger("click");
+      await flushPromises();
+      expect(router.currentRoute.value.query).toEqual({ saved: "1" });
+      const stage = w.find('section[aria-label="Saved"]');
+      expect(stage.text()).toContain("Ben in # Loads");
+      await stage.findAll("button").find((b) => b.text().includes("Gate code 4411"))!.trigger("click");
+      await flushPromises();
+      expect(router.currentRoute.value.query).toEqual({ ch: CH });
+    });
+
+    it("takes a line off the list through the same save act a row uses", async () => {
+      state.saved = [line];
+      const { w } = await render("/chat?saved=1");
+      await w.find('section[aria-label="Saved"] button[aria-label="Remove from Saved"]').trigger("click");
+      expect(state.save).toHaveBeenCalledWith(line.message_id, false);
+    });
   });
 
   describe("Activity and mute (CH6b-2)", () => {
