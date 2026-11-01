@@ -89,7 +89,9 @@ const WAIVERS = new Map([
   // The ads module's thirteen (0537, ADS-AGENT-BUILD-WORKFLOW.md A2) ship schema-only: the workflow
   // builds the store first and each worker after it, one PR per step. Each entry names the step whose
   // merge ships its writer and must remove the entry; the gate reports a stale one by itself.
-  ["ads_settings_versions", "ADS-AGENT-BUILD-WORKFLOW.md A5 — guard/settings saves a version behind the settings route (schema-only A2, 0537)"],
+  // A4 (2026-11-01): ad_generations left — modules/ads/generations/generationLedger.ts writes it (the AI
+  // rail's provenance). ads_settings_versions left with it — the rail READS the newest version
+  // (modules/ads/settings/settingsVersions.ts), and a read is producer evidence here; its save is A5.
   ["ad_brand_kits", "ADS-AGENT-BUILD-WORKFLOW.md C1 — the brand-kit API creates the kit (schema-only A2, 0537)"],
   ["ad_brand_kit_versions", "ADS-AGENT-BUILD-WORKFLOW.md C1 — the brand-kit API saves each version (schema-only A2, 0537)"],
   ["ad_concept_presets", "ADS-AGENT-BUILD-WORKFLOW.md C1 — the presets API seeds P1–P5 (schema-only A2, 0537)"],
@@ -99,7 +101,6 @@ const WAIVERS = new Map([
   ["ads_creatives", "ADS-AGENT-BUILD-WORKFLOW.md C2–C5 — the copywriter, renderer and checker write each creative (schema-only A2, 0537)"],
   ["ads_approvals", "ADS-AGENT-BUILD-WORKFLOW.md A5 — guard/approvals records a person's yes (schema-only A2, 0537)"],
   ["ads_actions", "ADS-AGENT-BUILD-WORKFLOW.md A5/A6 — budgetGuard and the orchestrator write every act and transition (schema-only A2, 0537)"],
-  ["ad_generations", "ADS-AGENT-BUILD-WORKFLOW.md A4 — the AI rail's provenance writer for the ads workers (schema-only A2, 0537)"],
   ["ads_outcome_events", "ADS-AGENT-BUILD-WORKFLOW.md B6 — the outcome feed queues a stage event from the LeadSink (schema-only A2, 0537)"],
   ["ads_spend_hourly", "ADS-AGENT-BUILD-WORKFLOW.md B5 — the hourly insights pull (schema-only A2, 0537)"],
 ]);

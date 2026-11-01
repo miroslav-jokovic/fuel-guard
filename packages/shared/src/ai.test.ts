@@ -73,6 +73,11 @@ describe("aiInputHash", () => {
     const other = { ...ctx, transaction: { ...ctx.transaction, gallons: 50 } };
     expect(aiInputHash(other)).not.toBe(aiInputHash(ctx));
   });
+
+  it("hashes the value, not the key order it was built in", () => {
+    expect(aiInputHash({ a: 1, b: { c: 2, d: [3, 4] } })).toBe(aiInputHash({ b: { d: [3, 4], c: 2 }, a: 1 }));
+    expect(aiInputHash({ d: [3, 4] })).not.toBe(aiInputHash({ d: [4, 3] }));
+  });
 });
 
 describe("aiOutputSchema", () => {
