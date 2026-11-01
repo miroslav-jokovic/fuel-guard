@@ -36,9 +36,11 @@ function table(opts: { row?: Record<string, unknown> | null; readError?: unknown
   };
 }
 
-const saved = { invite_ttl_days: 5, reminders_enabled: false, reminder_after_hours: 200, handbook_blocks_hire: true };
+const saved = { invite_ttl_days: 5, reminders_enabled: false, reminder_after_hours: 200, handbook_blocks_hire: true, videos_block_hire: true };
 /** What a screen served before §9 P12 PUTs: the three link answers, no hire switch. */
-const { handbook_blocks_hire: _omitted, ...oldScreen } = saved;
+const { handbook_blocks_hire: _omitted, videos_block_hire: _omittedToo, ...oldScreen } = saved;
+/** What a screen served before HW8a PUTs: the handbook switch, not the videos'. */
+const { videos_block_hire: _notYet, ...p12Screen } = saved;
 
 describe("reading what is in force", () => {
   it("is the shared constants while the carrier has no row", async () => {
@@ -48,6 +50,7 @@ describe("reading what is in force", () => {
       reminders_enabled: true,
       reminder_after_hours: STALE_DRAFT_HOURS,
       handbook_blocks_hire: false,
+      videos_block_hire: false,
     });
     expect(await recruitingSettingsView(rec.client, ORG)).toMatchObject({ isDefault: true, updatedAt: null });
     expectOrgScoped(rec, ORG);
@@ -104,10 +107,19 @@ describe("saving", () => {
     expect(out.view.settings.handbook_blocks_hire).toBe(true);
   });
 
+  it("HW8a: a save from a screen without the videos switch keeps it in force", async () => {
+    const rec = createSupabaseRecorder({
+      tables: { recruiting_settings: table({ row: { invite_ttl_days: 14, reminders_enabled: true, reminder_after_hours: 48, handbook_blocks_hire: false, videos_block_hire: true, updated_at: "x" } }) },
+    });
+    const out = await saveRecruitingSettings(rec.client, ORG, USER, p12Screen);
+    expect(rec.writtenRows("recruiting_settings")).toEqual([{ ...p12Screen, videos_block_hire: true, updated_by: USER }]);
+    expect(out.view.settings.videos_block_hire).toBe(true);
+  });
+
   it("§9 P12: a first save without the hire switch writes the default, off", async () => {
     const rec = createSupabaseRecorder({ tables: { recruiting_settings: table() } });
     await saveRecruitingSettings(rec.client, ORG, USER, oldScreen);
-    expect(rec.writtenRows("recruiting_settings").at(-1)).toMatchObject({ handbook_blocks_hire: false });
+    expect(rec.writtenRows("recruiting_settings").at(-1)).toMatchObject({ handbook_blocks_hire: false, videos_block_hire: false });
   });
 
   it("never writes with upsert", async () => {

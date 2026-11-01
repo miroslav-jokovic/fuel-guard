@@ -49,6 +49,9 @@ export const recruitingSettingsSchema = z
     // ⚠ Optional on the way IN, and absent means "leave it as it is", never "off": a screen served
     // before P12 saves the three link answers only, and must not quietly switch a carrier's policy off.
     handbook_blocks_hire: z.boolean().optional(),
+    // HW8a (0539): whether the hire also waits for every required orientation video — the same "absent
+    // keeps it" rule, for a screen served before HW8a's reader.
+    videos_block_hire: z.boolean().optional(),
   })
   .refine((s) => stoppedBeforeLinkExpires(s.invite_ttl_days, s.reminder_after_hours), {
     path: ["reminder_after_hours"],
@@ -64,6 +67,7 @@ export const RECRUITING_SETTINGS_DEFAULTS: RecruitingSettings = {
   reminders_enabled: true,
   reminder_after_hours: STALE_DRAFT_HOURS,
   handbook_blocks_hire: HIRE_POLICY_DEFAULT.handbook_blocks_hire,
+  videos_block_hire: HIRE_POLICY_DEFAULT.videos_block_hire,
 };
 
 /** `GET /api/recruitment/settings` — what is in force, and whether the carrier has ever chosen it. */

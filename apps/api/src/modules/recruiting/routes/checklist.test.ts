@@ -116,6 +116,7 @@ describe("what comes back", () => {
         readyToTravel: { ok: boolean; unmeasured: string[]; outstanding: string[] };
         readyToHire: { ok: boolean };
         unbuilt: string[];
+        unconfigured: string[];
         next: string | null;
       };
     };
@@ -127,8 +128,10 @@ describe("what comes back", () => {
     // about this response a client must not have to infer.
     expect(body.checklist.readyToTravel.ok).toBe(false);
     expect(body.checklist.readyToTravel.outstanding).toContain("intake_completed");
-    // §7 (Q-AW23's default): the unbuilt orientation rows left both ranges and are named instead.
-    expect(body.checklist.unbuilt).toEqual(["orientation_videos", "live_orientation"]);
+    // §7 (Q-AW23's default): the unbuilt orientation day left both ranges and is named instead; HW8a
+    // (0539): the videos are built, and a carrier with no required video is told to add them.
+    expect(body.checklist.unbuilt).toEqual(["live_orientation"]);
+    expect(body.checklist.unconfigured).toEqual(["orientation_videos"]);
   });
 
   /**

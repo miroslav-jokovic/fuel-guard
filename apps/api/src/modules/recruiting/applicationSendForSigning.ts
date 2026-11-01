@@ -66,7 +66,7 @@ interface InvitationToSend {
 }
 
 /** The outbox's answer, in the terms the office reads. The outbox id stays on the server. */
-function textOutcome(o: OutboxOutcome): SigningTextOutcome {
+export function textOutcome(o: OutboxOutcome): SigningTextOutcome {
   if (o.sent) return { state: "sent" };
   if ("queued" in o) return { state: "queued", notBefore: o.notBefore };
   if ("held" in o) return { state: "held", reason: o.held };

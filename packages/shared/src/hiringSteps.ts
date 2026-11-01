@@ -24,6 +24,8 @@
  */
 
 import type { HiringStepDefinition, HiringStepKey, HiringStepSpec } from "./hiringStepGraph.js";
+import type { HiringChecklistInputs } from "./hiringChecklistInputs.js";
+import { orientationVideosMeasurable } from "./orientationVideosContract.js";
 
 // The vocabulary — `HiringStepKey`, `HiringPhase`, `HiringEvidence`, `HiringStepSpec` and the phase
 // labels — lives next door since C1 (2026-09-26); re-exported so no import path changed.
@@ -206,10 +208,11 @@ const DEFINED: readonly HiringStepDefinition[] = [
     // per attempt rather than one per employer.
     evidence: { table: "employer_inquiries", label: "Inquiry record" },
   },
-  // ⚠ NO EVIDENCE TABLE. `DRIVER-TRAINING-PLAN.md` specifies the whole system in 1,396 lines and
-  // none of it is built: there is not one `training_*` table in any migration. Q-HM3 ruled these are
-  // assigned to an APPLICANT before they travel, which is what buys the half-day orientation — so
-  // this is the single most valuable unbuilt step in the list, and it is D4 in the queue.
+  // Q-HM3 ruled these are assigned to an APPLICANT before they travel, which is what buys the half-day
+  // orientation. HW8a (0539, HIRING-WORKFLOW-AUDIT §4.8/§8.2) gives it evidence: the carrier's list of
+  // links and the applicant's "I watched these" (`orientation_video_attestations`). It is measured only
+  // for a carrier with at least one required video (`orientationVideosMeasurable`); `DRIVER-TRAINING-
+  // PLAN.md`'s micro-LMS stays the later version.
   {
     key: "orientation_videos", label: "Orientation videos",
     action: "Finish the orientation videos",
@@ -217,11 +220,15 @@ const DEFINED: readonly HiringStepDefinition[] = [
     // AF4 (plan §3.3): the videos follow the drug test, not the approval — they are sent once the
     // result is in, and they are what fills the wait for travel.
     //
-    // ⚠ Not before travel since §7 (Q-AW23's default, 2026-09-26). With no evidence table the travel
-    // answer could never be `ok` while this sat inside its range, and D-AW7's writer refuses on that
-    // answer — so no ticket could ever be recorded. D4 builds the videos and decides their place then.
-    federalGate: false, beforeTravel: false, owes: "them", requires: ["drug_test"],
-    evidence: null,
+    // ⚠ Not before travel since §7 (Q-AW23's default, 2026-09-26), and HW8a leaves it there: Q-WF8 asks
+    // the owner whether any video is required before travel, and until he answers, putting it in
+    // `TRAVEL_WARNS_ON` would warn every booking about videos most carriers have not listed yet.
+    //
+    // ⚠ `owes: "us"` since HW8a, and it was "them": nothing reaches the driver until the office sends the
+    // link, so the office's move comes first; the send (`orientation_videos_sent_at`) is what hands it
+    // to "Waiting on them" — `application_signed`'s pattern.
+    federalGate: false, beforeTravel: false, owes: "us", requires: ["drug_test"],
+    evidence: { table: "orientation_video_attestations", label: "Videos watched" },
   },
   // ⚠ Blocked by the drug test on the STRICTER of two readings, and §5.1 is worth reading before
   // anybody changes this. FMCSA has said IN WRITING that the Clearinghouse query may follow a road
@@ -324,22 +331,25 @@ export const TRAVEL_WARNS_ON: readonly HiringStepKey[] =
 export const HIRE_REFUSES_WITHOUT: readonly HiringStepKey[] = DEFINED.filter((s) => s.federalGate).map((s) => s.key);
 
 /**
- * The carrier's hire policy (§9 P12, migration 0536): which NON-federal steps this carrier's hire also
- * waits for. The six federal checks are not here — they are law, not policy, and no switch removes them.
+ * The carrier's hire policy (§9 P12, migrations 0536 and 0539): which NON-federal steps this carrier's hire
+ * also waits for. The six federal checks are not here — they are law, not policy, and no switch removes them.
  *
- * ⚠ Only the handbook. The orientation videos and the live orientation day have `evidence: null`, so the
- * fold can never mark them done and a carrier who switched one on could never hire again (0536 header).
- * They join `HIRE_POLICY_SWITCHES` with HW8's evidence tables.
+ * ⚠ The handbook and, since HW8a (0539), the orientation videos. The live orientation day still has
+ * `evidence: null`, so the fold could never mark it done and a carrier who switched it on could never hire
+ * again (0536 header); it joins with HW8b's evidence. A switched-on step the fold cannot measure for THIS
+ * carrier — the videos with no required video listed — waits for nothing (`hiringChecklist`'s hire list).
  */
 export interface HirePolicy {
   handbook_blocks_hire: boolean;
+  videos_block_hire: boolean;
 }
 
 /** Q-WF6 as assumed (§8.3): nothing non-federal blocks the hire. An org with no settings row reads this. */
-export const HIRE_POLICY_DEFAULT: HirePolicy = { handbook_blocks_hire: false };
+export const HIRE_POLICY_DEFAULT: HirePolicy = { handbook_blocks_hire: false, videos_block_hire: false };
 
 /** Each switch and the step it adds to the hire's refusal list — the one mapping every reader uses. */
 export const HIRE_POLICY_SWITCHES: ReadonlyArray<{ setting: keyof HirePolicy; step: HiringStepKey }> = [
+  { setting: "videos_block_hire", step: "orientation_videos" },
   { setting: "handbook_blocks_hire", step: "handbook" },
 ];
 
@@ -347,8 +357,8 @@ export const HIRE_POLICY_SWITCHES: ReadonlyArray<{ setting: keyof HirePolicy; st
  * What THIS carrier's hire refuses without: the six federal checks plus every step its policy switches on,
  * in the catalogue's order. `HIRE_REFUSES_WITHOUT` is this with every switch off.
  */
-export function hireRefusesWithout(policy: HirePolicy = HIRE_POLICY_DEFAULT): HiringStepKey[] {
-  const on = new Set(HIRE_POLICY_SWITCHES.filter((s) => policy[s.setting]).map((s) => s.step));
+export function hireRefusesWithout(policy: Partial<HirePolicy> = HIRE_POLICY_DEFAULT): HiringStepKey[] {
+  const on = new Set(HIRE_POLICY_SWITCHES.filter((s) => policy[s.setting] === true).map((s) => s.step));
   return DEFINED.filter((s) => s.federalGate || on.has(s.key)).map((s) => s.key);
 }
 
@@ -430,3 +440,13 @@ export function hiringStep(key: HiringStepKey): HiringStepSpec {
 /** The steps this schema can actually prove, in D-HM9's order. Everything else is not a step yet. */
 export const measurableHiringSteps = (): HiringStepSpec[] =>
   HIRING_STEPS.filter((s) => s.evidence !== null);
+
+/**
+ * Can this step be measured for THIS applicant's carrier? (HW8a) A step with no evidence table never can;
+ * the orientation videos can only once the carrier lists a required video — with none, "every required
+ * video watched" is vacuously true, and a vacuous "done" certifies nothing.
+ */
+export function measuredFor(spec: Pick<HiringStepSpec, "key" | "evidence">, input: Pick<HiringChecklistInputs, "orientationVideos">): boolean {
+  if (spec.evidence === null) return false;
+  return spec.key !== "orientation_videos" || orientationVideosMeasurable(input.orientationVideos);
+}

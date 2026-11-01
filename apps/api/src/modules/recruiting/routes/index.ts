@@ -22,6 +22,7 @@ import { recruitmentEmployerCallsRouter } from "./employerCalls.js";
 import { recruitmentPurgeRouter } from "./purge.js";
 import { recruitmentSelfieRouter } from "./selfie.js";
 import { recruitmentNotesRouter } from "./notes.js";
+import { recruitmentOrientationVideosRouter } from "./orientationVideos.js";
 import { recruitmentApplicantDocumentsRouter } from "./applicantDocuments.js";
 
 /**
@@ -58,6 +59,7 @@ export function recruitmentRouter(): Router {
   router.use(recruitmentPurgeRouter()); // an admin deletes an applicant who was never hired (Q-AW40)
   router.use(recruitmentSelfieRouter()); // the selfie beside the licence photo, read by a person (AW6)
   router.use(recruitmentNotesRouter()); // the office's notes and the derived activity list (§9 P10)
+  router.use(recruitmentOrientationVideosRouter()); // the carrier's video links and an applicant's "I watched these" (HW8a)
   router.use(recruitmentApplicantDocumentsRouter()); // the applicant's papers, and the office's upload (§9 P9)
   return router;
 }

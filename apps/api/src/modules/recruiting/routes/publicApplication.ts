@@ -31,6 +31,7 @@ import { announceReadyToScreen } from "../readyToScreen.js";
 import { recordPacketMark } from "../applicationPacketMarks.js";
 import { recordApplicantIdentity } from "../applicantIdentity.js";
 import { publicApplicationHandbookRouter } from "./publicApplicationHandbook.js";
+import { publicApplicationVideosRouter } from "./publicApplicationVideos.js";
 import { publicApplicationIntakeRouter } from "./publicApplicationIntake.js";
 import { applicationBundleHandler } from "./publicApplicationBundle.js";
 import { unlockLimiter } from "../../../middleware/applicationLimits.js";
@@ -384,6 +385,8 @@ export function publicApplicationRouter(): Router {
 
   // The driver handbook, signed after the application (HANDBOOK-SIGNING-PLAN.md, D-HB1).
   router.use(publicApplicationHandbookRouter());
+  // HW8a (0539): the orientation videos page — the list of links, a pressed link, and "I watched these".
+  router.use(publicApplicationVideosRouter());
 
   // The optional agreement to be texted (SMS-OPT-IN-PLAN D-SMS1) — offered on the waiting screens,
   // never in the path.

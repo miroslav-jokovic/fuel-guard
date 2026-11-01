@@ -9,6 +9,7 @@ import {
   formatDisplayDateTime,
   hiringStep,
   recruitingSettingsSchema,
+  type HirePolicy,
   type RecruitingSettings,
 } from "@silvicom/shared";
 import {
@@ -43,9 +44,11 @@ import { useRecruitingSettings, useSaveRecruitingSettings } from "@/features/rec
  *
  * ── BEFORE WE HIRE (§9 P12, 0536) ─────────────────────────────────────────────────────────────
  * The six federal checks are listed and locked — law, not a setting (`HIRE_REFUSES_WITHOUT`). Below
- * them, one switch per `HIRE_POLICY_SWITCHES` entry: the handbook only, because the orientation steps
- * have no record yet and a switch on them would refuse every hire (0536's header). Saved with the rest
- * of this form, so the PUT always carries every answer.
+ * them, one switch per `HIRE_POLICY_SWITCHES` entry, rendered from that list: the orientation videos
+ * (HW8a, 0539) and the handbook. The live orientation day has no record yet and a switch on it would
+ * refuse every hire (0536's header). Saved with the rest of this form, so the PUT always carries every
+ * answer. Each switch's label is its step's; only the sentence under it is written here, in a `Record`
+ * over the policy's keys, so a new switch fails the typecheck until it has one.
  */
 const session = useSessionStore();
 const toast = useToastStore();
@@ -54,26 +57,34 @@ const settingsQ = useRecruitingSettings();
 const save = useSaveRecruitingSettings();
 
 // Strings, because a number input can hold "" while it is being typed in.
-const form = reactive({ days: "", enabled: true, hours: "", handbook: false });
+const form = reactive({
+  days: "", enabled: true, hours: "",
+  switches: Object.fromEntries(HIRE_POLICY_SWITCHES.map((s) => [s.setting, false])) as Record<keyof HirePolicy, boolean>,
+});
 const load = (s: RecruitingSettings): void => {
   Object.assign(form, {
     days: String(s.invite_ttl_days),
     enabled: s.reminders_enabled,
     hours: String(s.reminder_after_hours),
-    handbook: s.handbook_blocks_hire,
   });
+  for (const sw of HIRE_POLICY_SWITCHES) form.switches[sw.setting] = s[sw.setting];
 };
 
 const FEDERAL_CHECKS = HIRE_REFUSES_WITHOUT.map((key) => hiringStep(key).label);
-/** The switch's words, from the step it adds — never a second name for the same step. */
-const HANDBOOK_LABEL = hiringStep(HIRE_POLICY_SWITCHES.find((s) => s.setting === "handbook_blocks_hire")!.step).label;
+/** What each switch does, in the office's words. Its label is its step's — never a second name for it. */
+const SWITCH_NOTES: Record<keyof HirePolicy, string> = {
+  videos_block_hire:
+    "On, hire also waits for every required orientation video to be ticked as watched. While no video on your list is required, it waits for nothing.",
+  handbook_blocks_hire: "On, hire also waits for the driver handbook to be signed. Off, it can be signed after the hire.",
+};
+const SWITCHES = HIRE_POLICY_SWITCHES.map((s) => ({ setting: s.setting, label: hiringStep(s.step).label, note: SWITCH_NOTES[s.setting] }));
 watch(() => settingsQ.data.value?.settings, (s) => s && load(s), { immediate: true });
 
 const candidate = computed(() => ({
   invite_ttl_days: Number(form.days),
   reminders_enabled: form.enabled,
   reminder_after_hours: Number(form.hours),
-  handbook_blocks_hire: form.handbook,
+  ...form.switches,
 }));
 const parsed = computed(() => recruitingSettingsSchema.safeParse(candidate.value));
 /** The contract's first complaint, keyed by the field it is about. */
@@ -99,7 +110,8 @@ const changed = computed(() => {
   if (!c) return false;
   const v = candidate.value;
   return c.invite_ttl_days !== v.invite_ttl_days || c.reminders_enabled !== v.reminders_enabled
-    || c.reminder_after_hours !== v.reminder_after_hours || c.handbook_blocks_hire !== v.handbook_blocks_hire;
+    || c.reminder_after_hours !== v.reminder_after_hours
+    || HIRE_POLICY_SWITCHES.some((s) => c[s.setting] !== v[s.setting]);
 });
 
 async function submit(): Promise<void> {
@@ -172,14 +184,12 @@ async function submit(): Promise<void> {
               <span class="text-xs text-ink-muted">Federal requirement</span>
             </li>
           </ul>
-          <div class="flex items-start justify-between gap-4">
+          <div v-for="sw in SWITCHES" :key="sw.setting" class="flex items-start justify-between gap-4" :data-testid="`hire-switch-${sw.setting}`">
             <div>
-              <p class="text-sm font-medium text-ink">{{ HANDBOOK_LABEL }}</p>
-              <p class="mt-1 text-xs text-ink-secondary">
-                On, hire also waits for the driver handbook to be signed. Off, it can be signed after the hire.
-              </p>
+              <p class="text-sm font-medium text-ink">{{ sw.label }}</p>
+              <p class="mt-1 text-xs text-ink-secondary">{{ sw.note }}</p>
             </div>
-            <AppSwitch v-model="form.handbook" :disabled="!canManage" :label="`Hiring waits for: ${HANDBOOK_LABEL}`" />
+            <AppSwitch v-model="form.switches[sw.setting]" :disabled="!canManage" :label="`Hiring waits for: ${sw.label}`" />
           </div>
         </div>
 

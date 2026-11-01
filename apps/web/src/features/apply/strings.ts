@@ -6,6 +6,7 @@ import { APPLY_IDENTITY_COPY } from "./strings.identity";
 import { APPLY_PART_ONE_COPY } from "./strings.partOne";
 import { APPLY_HUB_COPY } from "./strings.hub";
 import { APPLY_HANDBOOK_COPY } from "./strings.handbook";
+import { APPLY_VIDEOS_COPY } from "./strings.videos";
 import { APPLY_DOCUMENTS_COPY } from "./strings.documents";
 import { APPLY_PERMISSIONS_COPY } from "./strings.permissions";
 import { APPLY_SMS_COPY } from "./strings.sms";
@@ -426,6 +427,7 @@ export const APPLY_COPY_EN = {
   ...APPLY_PERMISSIONS_COPY,
   ...APPLY_SMS_COPY,
   ...APPLY_HANDBOOK_COPY,
+  ...APPLY_VIDEOS_COPY,
   ...APPLY_DOCUMENTS_COPY,
   ...APPLY_QUESTIONS_COPY,
 } as const;

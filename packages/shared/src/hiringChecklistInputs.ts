@@ -2,6 +2,7 @@ import type { AuthorizationRow } from "./authorizationContract.js";
 import type { ApplicationPhases } from "./applicationReviewContract.js";
 import type { ApplyingAs } from "./questionnaireContract.js";
 import type { HirePolicy } from "./hiringSteps.js";
+import type { OrientationVideoFacts } from "./orientationVideosContract.js";
 
 /**
  * What `hiringChecklist()` is GIVEN — every field a row a caller already has, never a query.
@@ -147,5 +148,11 @@ export interface HiringChecklistInputs {
    * The carrier's hire policy (§9 P12, `recruiting_settings`). Absent reads `HIRE_POLICY_DEFAULT` —
    * the six federal checks only — which is what every org without a settings row is.
    */
-  hirePolicy?: HirePolicy | null;
+  hirePolicy?: Partial<HirePolicy> | null;
+  /**
+   * HW8a (0539): the carrier's required live videos, what this driver attested, and the office's last
+   * send. Absent or with no required video, the step is not measured for this carrier — left out of the
+   * rows and named in `unconfigured` (`orientationVideosMeasurable`), never read as done.
+   */
+  orientationVideos?: OrientationVideoFacts | null;
 }
