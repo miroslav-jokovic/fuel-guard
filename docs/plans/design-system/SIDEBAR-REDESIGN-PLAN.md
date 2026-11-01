@@ -100,11 +100,17 @@ Enter opens the record's own page.
 - **Q-SB2 — Should pins follow a person between devices?** Today they are per device, like the
   colour scheme. Moving them server-side needs a table, an RLS policy and a retention answer.
   Recommendation: wait until somebody asks.
+  **Ruled 2026-11-01 — owner: "proceed as recommended". Pins stay per device until somebody asks.**
 - **Q-SB3 — Fuel alerts and Fuel problems overlap.** Both hold card fraud since F02–F04 chunk 8c4.
   Now that they sit side by side in Fuel the overlap is visible. Recommendation: a product decision
   on whether Fuel alerts folds into Fuel problems; not a sidebar change.
+  **Still open after 2026-11-01:** "as recommended" carried no direction here, because none was
+  written. The two pages are gated differently — Fuel problems by `fuel`, Fuel alerts by `safety`
+  (its key is `safety.alerts`, held in per-person grants) — so folding one into the other is a
+  permission change, not a move, and needs the owner's direction first.
 - **Q-SB4 — "Vehicles" or "Trucks"?** Fleet reads Vehicles · Trailers · Drivers. "Trucks" is the
   office's word, but the page's own text says vehicles throughout. Left as Vehicles.
+  **Ruled 2026-11-01 — owner: "proceed as recommended". Stays "Vehicles".**
 
 ## 4. Progress log
 
