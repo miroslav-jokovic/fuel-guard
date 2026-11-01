@@ -193,6 +193,8 @@ defineExpose({ focus: () => field.value?.$el.focus() });
 </script>
 
 <template>
+  <!-- Dropping a file is a pointer's shortcut; the keyboard's way to the same act is the paperclip. -->
+  <!-- eslint-disable-next-line vuejs-accessibility/no-static-element-interactions -->
   <form ref="form" class="shrink-0 px-2 pt-1 pb-2 sm:px-4 sm:pb-3" @submit.prevent="submit" @dragover.prevent @drop.prevent="onDrop">
     <div
       class="relative max-w-3xl rounded-surface bg-surface shadow-card ring-1 ring-inset transition-shadow focus-within:ring-2"
