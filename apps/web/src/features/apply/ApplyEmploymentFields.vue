@@ -123,7 +123,9 @@ const explanationFor = (from: string) => draft.value.employment_gaps.find((g) =>
 const jobs = computed(() =>
   draft.value.employers
     .map((employer, index) => ({ employer, index, unfinished: employerIsUnfinished(employer) }))
-    .filter((row) => !employerIsBlank(row.employer)),
+    // The row being edited stays listed, behind its panel, as it always has: dropping it changed what
+    // the page renders under an opening drawer, and the tap-target sweep measured the panel mid-slide.
+    .filter((row) => !employerIsBlank(row.employer) || row.index === editing.value),
 );
 
 const period = (e: DraftEmployer): string => {
