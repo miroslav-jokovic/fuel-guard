@@ -89,6 +89,10 @@ const MODULE_SECTIONS = {
   // permission is the CONSUMER's section (the calculator asks hazmat ≥ manage), never its own. A
   // role-named policy on its tables would be a door that bypasses the consumer's gate.
   "document-reading": null,
+  // The ads module (0537, D-AD17): deny-all to every client. Its routes gate on the section of the
+  // brief's consumer (recruitment, for openings) plus the named admin capabilities `ads.connection`
+  // and `ads.spend` (A5); a role-named policy on its tables would be a door around both.
+  ads: null,
 };
 
 /**

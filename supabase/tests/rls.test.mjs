@@ -94,6 +94,21 @@ async function asAnon(sql, params = []) {
   }
 }
 
+// ── ads seeds (0537): the chain a campaign needs — a settings version, a connection, the campaign ────
+const adsLatest = (table, org) => `(select id from ${table} where org_id = '${org}' order by created_at desc limit 1)`;
+const adsCampaignSeed = (org) =>
+  `insert into ads_settings_versions (org_id, version, settings, created_by, created_by_name) ` +
+  `select '${org}', coalesce(max(version), 0) + 1, '{}', gen_random_uuid(), 'rls' from ads_settings_versions where org_id = '${org}';` +
+  `insert into ads_platform_connections (org_id, provider) values ('${org}', 'simulator') on conflict do nothing;` +
+  `insert into ads_campaigns (org_id, connection_id, brief_source, brief_ref, brief_snapshot, name, settings_version_id) ` +
+  `select '${org}', c.id, 'rls_test', 'rls', '{}', 'rls', ${adsLatest("ads_settings_versions", org)} ` +
+  `from ads_platform_connections c where c.org_id = '${org}' and c.provider = 'simulator' and not c.is_sandbox;`;
+const adsPresetSeed = (org) =>
+  `insert into ad_concept_presets (org_id, key) values ('${org}', 'R' || upper(substr(md5(gen_random_uuid()::text), 1, 8)));`;
+const adsPresetVersionSeed = (org) =>
+  `insert into ad_concept_preset_versions (org_id, preset_id, version, enabled, recipe, created_by, created_by_name) ` +
+  `select '${org}', ${adsLatest("ad_concept_presets", org)}, 1, true, '{}', gen_random_uuid(), 'rls';`;
+
 async function main() {
   // Supabase-managed objects (present in a real project; shimmed here).
   await db.exec(`
@@ -2289,6 +2304,35 @@ async function main() {
     viewer: { org_id: ORG_A, user_role: "admin" },
     asAnon,
     handSeed: {
+      // 0537 (ads, A2): every reference between the ads tables is a composite (org_id, …) FK and most
+      // text columns are shape-checked (a brief source, a preset key, a currency, an agent name), none of
+      // which the column-by-column seeder can satisfy. Each entry builds the chain it needs, inline.
+      ads_campaigns: (org) => adsCampaignSeed(org),
+      ad_concept_presets: (org) => adsPresetSeed(org),
+      ad_concept_preset_versions: (org) => adsPresetSeed(org) + adsPresetVersionSeed(org),
+      ad_brand_kit_versions: (org) =>
+        `insert into ad_brand_kits (org_id, name) values ('${org}', 'rls');` +
+        `insert into ad_brand_kit_versions (org_id, kit_id, version, kit, created_by, created_by_name) ` +
+        `select '${org}', id, 1, '{}', gen_random_uuid(), 'rls' from ad_brand_kits where org_id = '${org}' limit 1;`,
+      ads_creatives: (org) =>
+        adsCampaignSeed(org) + adsPresetSeed(org) + adsPresetVersionSeed(org) +
+        `insert into ads_creatives (org_id, campaign_id, preset_version_id) ` +
+        `select '${org}', ${adsLatest("ads_campaigns", org)}, ${adsLatest("ad_concept_preset_versions", org)};`,
+      ads_approvals: (org) =>
+        adsCampaignSeed(org) +
+        `insert into ads_approvals (org_id, campaign_id, kind, settings_version_id, approved_by, approved_by_name) ` +
+        `select '${org}', id, 'change_area', settings_version_id, gen_random_uuid(), 'rls' from ads_campaigns where org_id = '${org}' limit 1;`,
+      ads_actions: (org) =>
+        adsCampaignSeed(org) +
+        `insert into ads_actions (org_id, campaign_id, kind, actor_kind, actor_name) ` +
+        `select '${org}', ${adsLatest("ads_campaigns", org)}, 'transition', 'agent', 'rls';`,
+      ad_generations: (org) =>
+        `insert into ad_generations (org_id, agent, provider, idempotency_key) ` +
+        `values ('${org}', 'copywriter', 'anthropic', gen_random_uuid()::text);`,
+      ads_spend_hourly: (org) =>
+        adsCampaignSeed(org) +
+        `insert into ads_spend_hourly (org_id, campaign_id, hour, currency) ` +
+        `select '${org}', ${adsLatest("ads_campaigns", org)}, '2026-11-02T14:00:00Z', 'USD';`,
       org_usage_month: (org) =>
         `insert into org_usage_month (org_id, yyyymm) values ('${org}', '2026-08')`,
       // 0531: a unit tag names exactly one truck OR trailer (`unit_tags_one_unit`), both nullable, so the
