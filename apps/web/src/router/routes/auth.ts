@@ -43,7 +43,7 @@ export const authRoutes: RouteRecordRaw[] = [
     meta: { public: true, layout: "apply", title: "Driver application", noindex: true },
   },
   /**
-   * HW8a (0538): the orientation videos the office sent, on the application link's own token — the
+   * HW8a (0539): the orientation videos the office sent, on the application link's own token — the
    * token is the access control here exactly as on the form above, so the same meta.
    */
   {

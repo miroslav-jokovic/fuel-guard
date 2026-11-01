@@ -122,7 +122,7 @@ export async function checklistInputs(
     // falling back to "off" — a carrier who switched the handbook on must not see a hire go through
     // because one read failed (`recruitingSettings`' own rule).
     recruitingSettings(admin, orgId),
-    // HW8a (0538): the carrier's required videos, what each driver ticked, and the office's last send.
+    // HW8a (0539): the carrier's required videos, what each driver ticked, and the office's last send.
     readOrientationVideoFacts(admin, orgId, subjects.map((s) => ({ driverId: s.driverId, invitationId: s.invitation?.id ?? null }))),
   ]);
 

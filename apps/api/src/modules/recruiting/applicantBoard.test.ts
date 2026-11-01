@@ -395,7 +395,7 @@ describe("what it reads, and how much", () => {
         "application_intake_licences", "organizations",
         // §9 P12: the carrier's hire policy, once for the board.
         "recruiting_settings",
-        // HW8a (0538): the carrier's video list, every tick on the board, and each live link's last send.
+        // HW8a (0539): the carrier's video list, every tick on the board, and each live link's last send.
         "orientation_videos", "orientation_video_attestations", "application_invitations",
       ]),
     );

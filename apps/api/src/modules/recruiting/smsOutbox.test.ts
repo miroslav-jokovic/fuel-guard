@@ -335,7 +335,7 @@ describe("a text that carries the link", () => {
     expect(sms.fn).not.toHaveBeenCalled();
   });
 
-  /** HW8a (0538): the videos text rides the same text token, and opens the videos page on it. */
+  /** HW8a (0539): the videos text rides the same text token, and opens the videos page on it. */
   it("sends the orientation videos with a link to the videos page on a freshly minted text token", async () => {
     const rec = seed();
     expect(await sendOrQueueSms(rec.client, env, message({ template: "orientation_videos" }), OPEN)).toEqual({ sent: true, outboxId: "o-new" });

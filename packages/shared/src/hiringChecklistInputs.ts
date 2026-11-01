@@ -150,7 +150,7 @@ export interface HiringChecklistInputs {
    */
   hirePolicy?: Partial<HirePolicy> | null;
   /**
-   * HW8a (0538): the carrier's required live videos, what this driver attested, and the office's last
+   * HW8a (0539): the carrier's required live videos, what this driver attested, and the office's last
    * send. Absent or with no required video, the step is not measured for this carrier — left out of the
    * rows and named in `unconfigured` (`orientationVideosMeasurable`), never read as done.
    */

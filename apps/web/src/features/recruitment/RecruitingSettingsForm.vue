@@ -45,7 +45,7 @@ import { useRecruitingSettings, useSaveRecruitingSettings } from "@/features/rec
  * ── BEFORE WE HIRE (§9 P12, 0536) ─────────────────────────────────────────────────────────────
  * The six federal checks are listed and locked — law, not a setting (`HIRE_REFUSES_WITHOUT`). Below
  * them, one switch per `HIRE_POLICY_SWITCHES` entry, rendered from that list: the orientation videos
- * (HW8a, 0538) and the handbook. The live orientation day has no record yet and a switch on it would
+ * (HW8a, 0539) and the handbook. The live orientation day has no record yet and a switch on it would
  * refuse every hire (0536's header). Saved with the rest of this form, so the PUT always carries every
  * answer. Each switch's label is its step's; only the sentence under it is written here, in a `Record`
  * over the policy's keys, so a new switch fails the typecheck until it has one.

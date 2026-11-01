@@ -265,7 +265,7 @@ describe("what it reads, and from where", () => {
       "application_intake_licences", "organizations",
       // §9 P12: the carrier's hire policy.
       "recruiting_settings",
-      // HW8a (0538): the carrier's video list and this driver's ticks (the send is on the invitation).
+      // HW8a (0539): the carrier's video list and this driver's ticks (the send is on the invitation).
       "orientation_videos", "orientation_video_attestations",
     ]));
   });

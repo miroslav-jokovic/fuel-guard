@@ -209,7 +209,7 @@ const DEFINED: readonly HiringStepDefinition[] = [
     evidence: { table: "employer_inquiries", label: "Inquiry record" },
   },
   // Q-HM3 ruled these are assigned to an APPLICANT before they travel, which is what buys the half-day
-  // orientation. HW8a (0538, HIRING-WORKFLOW-AUDIT §4.8/§8.2) gives it evidence: the carrier's list of
+  // orientation. HW8a (0539, HIRING-WORKFLOW-AUDIT §4.8/§8.2) gives it evidence: the carrier's list of
   // links and the applicant's "I watched these" (`orientation_video_attestations`). It is measured only
   // for a carrier with at least one required video (`orientationVideosMeasurable`); `DRIVER-TRAINING-
   // PLAN.md`'s micro-LMS stays the later version.
@@ -331,10 +331,10 @@ export const TRAVEL_WARNS_ON: readonly HiringStepKey[] =
 export const HIRE_REFUSES_WITHOUT: readonly HiringStepKey[] = DEFINED.filter((s) => s.federalGate).map((s) => s.key);
 
 /**
- * The carrier's hire policy (§9 P12, migrations 0536 and 0538): which NON-federal steps this carrier's hire
+ * The carrier's hire policy (§9 P12, migrations 0536 and 0539): which NON-federal steps this carrier's hire
  * also waits for. The six federal checks are not here — they are law, not policy, and no switch removes them.
  *
- * ⚠ The handbook and, since HW8a (0538), the orientation videos. The live orientation day still has
+ * ⚠ The handbook and, since HW8a (0539), the orientation videos. The live orientation day still has
  * `evidence: null`, so the fold could never mark it done and a carrier who switched it on could never hire
  * again (0536 header); it joins with HW8b's evidence. A switched-on step the fold cannot measure for THIS
  * carrier — the videos with no required video listed — waits for nothing (`hiringChecklist`'s hire list).

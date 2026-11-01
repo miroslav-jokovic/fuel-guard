@@ -1,6 +1,6 @@
 import { sentenceCase } from "./sentenceCase";
 /**
- * The orientation videos page's words (HW8a, 0538; HIRING-WORKFLOW-AUDIT-2026-10-31 §4.8) — the page the
+ * The orientation videos page's words (HW8a, 0539; HIRING-WORKFLOW-AUDIT-2026-10-31 §4.8) — the page the
  * office's "Send the videos" opens, `/apply/<token>/videos`. Its own file for the reason the handbook's is
  * (`strings.handbook.ts`), spread into `APPLY_COPY` so `strings.test.ts` walks it.
  *

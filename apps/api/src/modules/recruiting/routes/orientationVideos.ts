@@ -19,7 +19,7 @@ import {
 import { applicantOrientationVideos, sendOrientationVideos } from "../orientationVideosApplicant.js";
 
 /**
- * The orientation videos, the office's side (HW8a, 0538; HIRING-WORKFLOW-AUDIT-2026-10-31 §4.8).
+ * The orientation videos, the office's side (HW8a, 0539; HIRING-WORKFLOW-AUDIT-2026-10-31 §4.8).
  *
  * The carrier's list lives in Settings → Recruiting beside the link lifetime and the examiners, behind
  * the same doors (`settings.ts`): `recruitment` view reads, `recruitment` manage writes. The applicant's

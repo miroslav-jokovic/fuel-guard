@@ -129,7 +129,7 @@ describe("what comes back", () => {
     expect(body.checklist.readyToTravel.ok).toBe(false);
     expect(body.checklist.readyToTravel.outstanding).toContain("intake_completed");
     // §7 (Q-AW23's default): the unbuilt orientation day left both ranges and is named instead; HW8a
-    // (0538): the videos are built, and a carrier with no required video is told to add them.
+    // (0539): the videos are built, and a carrier with no required video is told to add them.
     expect(body.checklist.unbuilt).toEqual(["live_orientation"]);
     expect(body.checklist.unconfigured).toEqual(["orientation_videos"]);
   });

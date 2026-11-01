@@ -5,7 +5,7 @@ import { createPinia, setActivePinia } from "pinia";
 import OrientationVideosPanel from "@/features/recruitment/OrientationVideosPanel.vue";
 
 /**
- * The orientation videos step's drawer (HW8a, 0538): what the applicant did with each video in honest
+ * The orientation videos step's drawer (HW8a, 0539): what the applicant did with each video in honest
  * words ("Opened", "Said they watched it" — never "watched" as a measured fact), the empty state that
  * points at Settings → Recruiting, and "Send the videos" asserted by the request it makes.
  */

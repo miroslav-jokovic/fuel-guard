@@ -10,8 +10,8 @@ import { postgrestFixture } from "../../../testing/postgrestFixture.js";
 import { hashInvitationToken } from "../applicationIntake.js";
 
 /**
- * The orientation videos (HW8a, 0538), through the mount: the carrier's list in Settings → Recruiting,
- * one applicant's videos and "Send the videos", and the applicant's page on their link. 0538's tables
+ * The orientation videos (HW8a, 0539), through the mount: the carrier's list in Settings → Recruiting,
+ * one applicant's videos and "Send the videos", and the applicant's page on their link. 0539's tables
  * have no client policies and the API reads with the service role, so `expectOrgScoped` is the only
  * layer that can see a missing org filter.
  */
