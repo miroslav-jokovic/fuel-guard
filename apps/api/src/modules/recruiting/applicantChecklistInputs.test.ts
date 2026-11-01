@@ -37,6 +37,8 @@ const seed = (opts: {
   licences?: Array<Record<string, unknown>>;
   drafts?: Array<Record<string, unknown>>;
   packetMarks?: Array<Record<string, unknown>>;
+  videos?: Array<Record<string, unknown>>;
+  ticks?: Array<Record<string, unknown>>;
 }) => {
   const org = (rows: Array<Record<string, unknown>>) => rows.map((r) => ({ org_id: ORG, ...r }));
   return createSupabaseRecorder({
@@ -55,6 +57,8 @@ const seed = (opts: {
       applicant_travel: postgrestFixture(org(opts.trips ?? [])),
       application_intake_licences: postgrestFixture(org(opts.licences ?? [])),
       organizations: postgrestFixture([{ id: ORG, operating_hours: { tz: "America/Chicago" } }]),
+      orientation_videos: postgrestFixture(org(opts.videos ?? [])),
+      orientation_video_attestations: postgrestFixture(org(opts.ticks ?? [])),
     },
   });
 };
@@ -179,6 +183,24 @@ describe("the board and the drawer fold the same input", () => {
     expect(drawer.steps.find((s) => s.key === "application_signed")!.state).toBe("done");
     expect(drawer.steps.find((s) => s.key === "handbook")!.state).toBe("waiting_on_them");
     expect(board.next).toBe(drawer.next);
+  });
+
+  /** HW8a (0538): the videos step reads the carrier's required list, the driver's ticks and the send. */
+  it("HW8a: folds the orientation videos the same on both — in flight once sent, done once every required one is ticked", async () => {
+    const V1 = "90000000-0000-4000-8000-000000000001";
+    const V2 = "90000000-0000-4000-8000-000000000002";
+    const videos = [
+      { id: V1, title: "Pre-trip", url: "https://v/1", minutes: 5, required: true, position: 0, created_at: "2026-09-01T00:00:00Z", retired_at: null },
+      { id: V2, title: "ELD", url: "https://v/2", minutes: 5, required: false, position: 1, created_at: "2026-09-01T00:00:01Z", retired_at: null },
+    ];
+    const sent = await bothDoors({ videos, invitation: { orientation_videos_sent_at: "2026-09-20T00:00:00Z" } });
+    expect(sent.drawer.steps.find((s) => s.key === "orientation_videos")!.state).toBe("waiting_on_them");
+    expect(sent.board.done).toBe(sent.drawer.done);
+    const ticked = await bothDoors({ videos, ticks: [{ id: "t1", driver_id: DRIVER, video_ids: [V1] }] });
+    expect(ticked.drawer.steps.find((s) => s.key === "orientation_videos")!.state).toBe("done");
+    expect(ticked.board.done).toBe(ticked.drawer.done);
+    const none = await bothDoors({});
+    expect(none.drawer.unconfigured).toEqual(["orientation_videos"]);
   });
 
   it("reads past PostgREST's 1,000-row answer, and scopes every page to the org", async () => {
