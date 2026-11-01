@@ -68,12 +68,35 @@ exists for it to collide with". The browser pass found both opening at once on o
 the go-to-page key in nearly every product people already use, so the palette keeps it, and the
 assistant moved to ⌘J, a key AI assistants elsewhere commonly use. Its button label and tooltip say ⌘J.
 
+**D-SB8 — ⌘K also finds trucks, trailers, drivers and loads (Q-SB1).** Type two characters or more
+and, under the matching pages, up to five of each kind arrive: trucks by unit number, plate or VIN;
+trailers by unit number or plate; drivers by name or employee id (the employed roster, as the
+Drivers page lists it, so an applicant is found in Recruitment); loads by number, newest first.
+Enter opens the record's own page.
+
+- **No new permission story.** A kind is searched only when its LIST page is in the caller's palette
+  (the sidebar's answer, which knows the org's modules — an org without Dispatch has no Loads and its
+  API would refuse them) AND its DETAIL page opens (`useOpens`, the guard's own function). Both are
+  read, neither restated. `lib/recordSearch.ts`.
+- **The rows come back through the reads the list pages already make.** Trucks, trailers and drivers
+  from PostgREST under RLS, the way Vehicles, Trailers and Drivers read them. Loads only ever go
+  through `/api/dispatch/*` (D49), so they get `GET /api/dispatch/loads/search?q=` behind the Loads
+  list's own gate, org-filtered on the server because the service role bypasses RLS
+  (`dispatchLoads/search.ts`). No migration: an `ilike` over one org's few hundred units and a
+  `limit 5` needs no index yet.
+- **The term is cut to what records are made of** (letters, digits, space, `- . ' #`), so neither a
+  LIKE wildcard nor PostgREST's `.or()` syntax can ride in on it (`recordSearchTerm`, shared).
+- Pages answer at once and stay on top; records arrive ~200 ms later underneath, so the row being
+  arrowed to never moves. A kind whose read fails says so by name ("Couldn't search loads just now")
+  and the others still answer. The sidebar button now reads "Search".
+- Each result wears its list page's icon and name ("Vehicles", "Loads") rather than a new word for a
+  truck while Q-SB4 is open.
+
 ## 3. Open questions
 
 - **Q-SB1 — Search records, not just pages?** Typing a unit number, a driver name or a load number
-  and landing on it. Needs one search endpoint with per-row org and section filtering (the service
-  role bypasses RLS) and a decision on which record types. Recommendation: trucks, trailers,
-  drivers and loads first, behind the same palette, as its own plan.
+  and landing on it. Recommendation was trucks, trailers, drivers and loads first, behind the same
+  palette. **Answered 2026-11-01 — owner: "proceed with what's left to build". Built as D-SB8.**
 - **Q-SB2 — Should pins follow a person between devices?** Today they are per device, like the
   colour scheme. Moving them server-side needs a table, an RLS policy and a retention answer.
   Recommendation: wait until somebody asks.
@@ -94,3 +117,9 @@ assistant moved to ⌘J, a key AI assistants elsewhere commonly use. Its button 
   control). Found the ⌘K collision (D-SB7), fixed. The Card control page drew its error state in the
   pass because the stub answered `[]` where the page reads `data.settings`: the fixture, not this
   branch, which does not touch that page.
+- **2026-11-01, D-SB8** — Built on `claude/palette-record-search` after the owner's "proceed with
+  what's left to build". Q-SB2 (pins across devices) stays "wait until somebody asks"; Q-SB3 and Q-SB4
+  are product decisions, not builds. Browser pass (built app, dev-bypass admin, light/dark, stubbed
+  reads): "1042" listed a truck, a driver and a load under no pages; Enter opened `/drivers/d1`; with
+  the load search answering 500 the other kinds still listed and the palette said "Couldn't search
+  loads just now"; with no Dispatch module the placeholder dropped "load" and no load request was made.

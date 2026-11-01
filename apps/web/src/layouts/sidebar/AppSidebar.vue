@@ -28,7 +28,7 @@ import SidebarProfileMenu from "./SidebarProfileMenu.vue";
  * Top to bottom, and why in this order:
  *   1. The mark, with the collapse control beside it (D-SB6) — it used to sit in the top bar, a
  *      control for the sidebar drawn on the other side of the page.
- *   2. "Search pages ⌘K" (D-SB1) — the fastest way anywhere, so it is first.
+ *   2. "Search ⌘K" (D-SB1, records since D-SB8) — the fastest way anywhere, so it is first.
  *   3. Pinned, then Recent (D-SB2) — the few pages this person actually uses.
  *   4. Dashboard / Chat / Ask AI, then the sections, closed unless they hold this page (D-SB3).
  *   5. A fixed footer that never scrolls: Settings and Users (the `footer` group, D-SB4), then the
@@ -121,8 +121,8 @@ const railLinkClass = (to: string) => [
           v-if="collapsed"
           type="button"
           class="sidebar-nav-item sidebar-nav-inactive flex min-h-9 w-full items-center justify-center rounded-control p-2"
-          :aria-label="`Search pages (${shortcut})`"
-          :title="`Search pages (${shortcut})`"
+          :aria-label="`Search pages and records (${shortcut})`"
+          :title="`Search pages and records (${shortcut})`"
           @click="emit('openSearch')"
         >
           <AppIcon :icon="MagnifyingGlassIcon" class="size-5" aria-hidden="true" />
@@ -135,7 +135,7 @@ const railLinkClass = (to: string) => [
           @click="emit('openSearch')"
         >
           <AppIcon :icon="MagnifyingGlassIcon" class="size-4 shrink-0" aria-hidden="true" />
-          <span class="flex-1">Search pages</span>
+          <span class="flex-1">Search</span>
           <kbd v-if="!drawer" class="sidebar-kbd rounded px-1.5 py-0.5 font-sans text-2xs font-medium">{{ shortcut }}</kbd>
         </button>
       </div>
