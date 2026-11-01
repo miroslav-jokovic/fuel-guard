@@ -115,8 +115,13 @@ export type HiringDrawerBody =
    */
   | "packet"
   /**
+   * `OrientationVideosPanel` (HW8a, 0538): the carrier's videos with what the applicant did with each,
+   * and "Send the videos" on the application link.
+   */
+  | "videos"
+  /**
    * A step this schema cannot prove, so the fold never emits it and no row can open it. Present
-   * only because the `Record` is total over `HiringStepKey` — D3 and D4 give these real bodies.
+   * only because the `Record` is total over `HiringStepKey` — the live orientation day's, until HW8b.
    */
   | "unbuilt";
 
@@ -141,8 +146,8 @@ const DRAWERS: Record<HiringStepKey, HiringDrawerBody> = {
   employment_investigation: "investigation",
   hired: "hire",
   handbook: "handbook",
-  // The two with no evidence table. The fold filters them out, so these are unreachable today.
-  orientation_videos: "unbuilt",
+  orientation_videos: "videos",
+  // No evidence table (HW8b). The fold filters it out, so this is unreachable today.
   live_orientation: "unbuilt",
 };
 

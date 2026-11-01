@@ -3,6 +3,7 @@ import PageHeader from "@/components/ui/PageHeader.vue";
 import SettingsSection from "@/components/ui/SettingsSection.vue";
 import SignatoryRegister from "@/features/recruitment/SignatoryRegister.vue";
 import RecruitingSettingsForm from "@/features/recruitment/RecruitingSettingsForm.vue";
+import OrientationVideosEditor from "@/features/recruitment/OrientationVideosEditor.vue";
 
 /**
  * Settings → Recruiting (APPLICATION-FLOW-V2-PLAN.md R1, Q-AW42 ruled (a) by the owner 2026-09-28).
@@ -29,6 +30,10 @@ import RecruitingSettingsForm from "@/features/recruitment/RecruitingSettingsFor
  * The link's lifetime and the reminder, first on the page because it shapes every invitation, where the
  * two registers above are consulted once per hire. `RecruitingSettingsForm` holds its own reads and
  * gate, as each register does, so the sections stay independent.
+ *
+ * ── ORIENTATION VIDEOS (HW8a, 0538) ───────────────────────────────────────────────────────────
+ * The carrier's list of video links, sent to an applicant from their checklist's videos step. Second,
+ * because it is set up once and then shapes every applicant's step, like the links above it.
  */
 </script>
 
@@ -42,6 +47,15 @@ import RecruitingSettingsForm from "@/features/recruitment/RecruitingSettingsFor
     >
       <div class="rounded-surface bg-surface p-4 ring-1 ring-edge">
         <RecruitingSettingsForm />
+      </div>
+    </SettingsSection>
+
+    <SettingsSection
+      title="Orientation videos"
+      description="Links to the videos a driver watches before coming in. Send them from the applicant's checklist."
+    >
+      <div class="rounded-surface bg-surface p-4 ring-1 ring-edge">
+        <OrientationVideosEditor />
       </div>
     </SettingsSection>
 

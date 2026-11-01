@@ -16,6 +16,7 @@ import {
 import { APPLICATION_RELEASE_ORDER } from "./applicationIntake.js";
 import type { AuthorizationRow } from "./authorizationContract.js";
 import { packetDriverMarkCount } from "./packetPlacements.js";
+import type { OrientationVideoFacts } from "./orientationVideosContract.js";
 
 /**
  * The fold behind the whole hiring module (B1, `HIRING-MODULE-PLAN.md` §9).
@@ -87,12 +88,11 @@ describe("the catalogue", () => {
   it("refuses to emit a step whose evidence table does not exist", () => {
     const c = hiringChecklist(complete());
     const emitted = c.steps.map((s) => s.key);
-    expect(emitted).not.toContain("orientation_videos");
     expect(emitted).not.toContain("live_orientation");
-    // And the catalogue still NAMES all of them, so the order is written down exactly once. Two now:
-    // the handbook gained its evidence table with HANDBOOK-SIGNING-PLAN.md.
-    expect(HIRING_STEPS.map((s) => s.key)).toContain("orientation_videos");
-    expect(HIRING_STEPS.length).toBe(measurableHiringSteps().length + 2);
+    // And the catalogue still NAMES it, so the order is written down exactly once. One now: the handbook
+    // gained its evidence table with HANDBOOK-SIGNING-PLAN.md, the orientation videos with HW8a (0538).
+    expect(HIRING_STEPS.map((s) => s.key)).toContain("live_orientation");
+    expect(HIRING_STEPS.length).toBe(measurableHiringSteps().length + 1);
   });
 
   /**
@@ -531,7 +531,9 @@ describe("the two readiness answers", () => {
     const c = hiringChecklist(complete({ hiredAt: null }));
     expect(c.readyToTravel).toEqual({ ok: true, unmeasured: [], outstanding: [] });
     expect(c.readyToHire).toEqual({ ok: true, unmeasured: [], outstanding: [] });
-    expect(c.unbuilt).toEqual(["orientation_videos", "live_orientation"]);
+    expect(c.unbuilt).toEqual(["live_orientation"]);
+    // HW8a: a carrier with no required video has a videos step it cannot measure — named, not a row.
+    expect(c.unconfigured).toEqual(["orientation_videos"]);
   });
 
   it("names what is outstanding", () => {
@@ -1047,5 +1049,63 @@ describe("ready to screen", () => {
     }));
     expect(hiringStep(c.next!).phase).not.toBe("screening");
     expect(readyToScreen(c)).toBe(false);
+  });
+});
+
+describe("the orientation videos (HW8a, 0538; HIRING-WORKFLOW-AUDIT §4.8)", () => {
+  const facts = (over: Partial<OrientationVideoFacts> = {}): OrientationVideoFacts =>
+    ({ required: ["v1", "v2"], attested: [], sentAt: null, ...over });
+  const row = (c: ReturnType<typeof hiringChecklist>) => c.steps.find((s) => s.key === "orientation_videos");
+
+  it("is done when every required video is attested, and names its evidence", () => {
+    const c = hiringChecklist(complete({ orientationVideos: facts({ attested: ["v2", "v1", "optional"], sentAt: "2026-09-05T00:00:00Z" }) }));
+    expect(row(c)?.state).toBe("done");
+    expect(row(c)?.artifact?.table).toBe("orientation_video_attestations");
+  });
+
+  it("is not done while one required video is unattested — a video added after the tick re-opens it", () => {
+    const c = hiringChecklist(complete({ orientationVideos: facts({ required: ["v1", "v2", "v3"], attested: ["v1", "v2"], sentAt: "2026-09-05T00:00:00Z" }) }));
+    expect(row(c)?.state).toBe("waiting_on_them");
+  });
+
+  it("is waiting on the driver once sent, and on the office before that", () => {
+    expect(row(hiringChecklist(complete({ orientationVideos: facts({ sentAt: "2026-09-05T00:00:00Z" }) })))?.state).toBe("waiting_on_them");
+    expect(row(hiringChecklist(complete({ orientationVideos: facts() })))?.state).toBe("waiting_on_us");
+  });
+
+  it("is not measured — no row, named unconfigured — for a carrier with no required video", () => {
+    for (const orientationVideos of [null, undefined, facts({ required: [], attested: ["v1"] })]) {
+      const c = hiringChecklist(complete({ orientationVideos }));
+      expect(row(c)).toBeUndefined();
+      expect(c.unconfigured).toEqual(["orientation_videos"]);
+      expect(c.unbuilt).not.toContain("orientation_videos");
+    }
+  });
+
+  it("is measured, and not unconfigured, once one required video is listed", () => {
+    const c = hiringChecklist(complete({ orientationVideos: facts() }));
+    expect(c.unconfigured).toEqual([]);
+    expect(row(c)).toBeDefined();
+  });
+
+  it("blocks the hire when the carrier switched it on and a required video is unattested", () => {
+    const c = hiringChecklist(complete({
+      hiredAt: null, orientationVideos: facts({ attested: ["v1"] }), hirePolicy: { handbook_blocks_hire: false, videos_block_hire: true },
+    }));
+    expect(hireBlockers(c)).toEqual(["orientation_videos"]);
+    expect(stateOf(c, "hired")).toBe("blocked");
+  });
+
+  it("does not block the hire when the switch is off", () => {
+    const c = hiringChecklist(complete({ hiredAt: null, orientationVideos: facts(), hirePolicy: { handbook_blocks_hire: false, videos_block_hire: false } }));
+    expect(hireBlockers(c)).toEqual([]);
+  });
+
+  it("switched on with no required video listed waits for nothing — what cannot complete cannot block", () => {
+    const c = hiringChecklist(complete({
+      hiredAt: null, orientationVideos: facts({ required: [] }), hirePolicy: { handbook_blocks_hire: false, videos_block_hire: true },
+    }));
+    expect(hireBlockers(c)).toEqual([]);
+    expect(c.readyToHire.ok).toBe(true);
   });
 });
