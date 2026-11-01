@@ -391,3 +391,7 @@ blocking step in §3 above.
   1 (no credentials) through Sat 11/07; Stage 2 certification from Mon 11/09; canary earliest Tue
   11/10–Wed 11/11. Measured: no fast-check/msw/nock installed, so state-machine pairs are
   enumerated exhaustively and fakes are `node:http`. **Nothing built.**
+- **2026-11-01, handoff** — Stage 1 is handed to a fresh chat in
+  `HANDOFF-2026-11-01-ADS-STAGE1.md`: the read-first list, every owner ruling, steps 1–11 in
+  order with the traps measured on main `cb6fc2c` (last migration 0536; HW program PR #1883 open),
+  what is out of Stage 1, and the owner's parallel track. **Nothing built.**
