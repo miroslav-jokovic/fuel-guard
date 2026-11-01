@@ -2114,6 +2114,39 @@
         "why": "no rows in production 2026-09-21; bounded by the number of orgs."
       }
     },
+    "orientation_video_attestations": {
+      "module": "recruiting",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "unmeasured",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "new in 0539 (2026-11-01); one row per applicant's tick, bounded by hiring volume; evidence, removed only by the applicant purge."
+      }
+    },
+    "orientation_video_opens": {
+      "module": "recruiting",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "unmeasured",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "new in 0539 (2026-11-01); a few rows per applicant (one per link pressed), bounded by hiring volume; removed by the applicant purge."
+      }
+    },
+    "orientation_videos": {
+      "module": "recruiting",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "unmeasured",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "new in 0539 (2026-11-01); the carrier's list, a handful of rows per org; retired, never deleted."
+      }
+    },
     "org_disclosures": {
       "module": "recruiting",
       "layer": "core",
