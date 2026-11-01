@@ -1,4 +1,10 @@
 import type { DriverApplicationFields } from "./applicationContract.js";
+import { isAnswered } from "./questionnaireAnswers.js";
+import {
+  questionnaireByRef,
+  questionnaireForApplicant,
+  type QuestionnaireQuestion,
+} from "./questionnaireContract.js";
 
 /**
  * The rules that no single field can express, in one list rather than in a `.refine()` chain.
@@ -14,8 +20,44 @@ import type { DriverApplicationFields } from "./applicationContract.js";
 export interface ApplicationCrossFieldRule {
   /** The field the message attaches to — and the field that decides which section owns the rule. */
   path: keyof DriverApplicationFields;
+  /**
+   * The rest of the issue's path, under `path` — a carrier question's id under `questionnaire_answers`
+   * (§9 P8). Both validators build the issue path as `[path, ...at]`, so the wizard and the API name the
+   * same box: `["questionnaire_answers", "position"]`.
+   */
+  at?: readonly (string | number)[];
   message: string;
   check: (v: Partial<DriverApplicationFields>) => boolean;
+}
+
+/**
+ * One rule per carrier question the served definition marks `required` (Q-WF3, §9 P8, AF-1).
+ *
+ * ⚠ Built FROM the definition, never listed: the flag on the question is the only place the set is
+ * written, and the screen's mark and the review's missing list read the same flag.
+ *
+ * ⚠ The check asks the definition the answers were given against (`questionnaire_version`), so an
+ * answer set from v2 — which required nothing — is not refused at its certification. No version at
+ * all means nothing was answered, and is judged by the served definition: that is the blank send the
+ * audit measured.
+ *
+ * ⚠ **Unlike the rules above, ABSENCE fires it.** Those can let an `undefined` pass because the object
+ * schema already refuses a missing `accidents`; the questionnaire's two keys are nullish, so a body that
+ * simply leaves them out parses — and a rule that skipped `undefined` let exactly that body through the
+ * API's submit route (measured while building P8: twelve rules, no issue). The wizard always hands the
+ * rules the whole candidate (`toApplication` writes both keys), and filters them by screen itself.
+ */
+function requiredQuestionRule(q: QuestionnaireQuestion): ApplicationCrossFieldRule {
+  return {
+    path: "questionnaire_answers",
+    at: [q.id],
+    message: `Answer the question "${q.label}"`,
+    check: (v) => {
+      const def = questionnaireByRef(v.questionnaire_version) ?? questionnaireForApplicant();
+      if (!def.questions.some((asked) => asked.id === q.id && asked.required)) return true;
+      return isAnswered((v.questionnaire_answers as Record<string, unknown> | null | undefined)?.[q.id]);
+    },
+  };
 }
 
 export const APPLICATION_CROSS_FIELD_RULES: readonly ApplicationCrossFieldRule[] = [
@@ -53,4 +95,8 @@ export const APPLICATION_CROSS_FIELD_RULES: readonly ApplicationCrossFieldRule[]
     message: "Describe the denial, revocation or suspension",
     check: (v) => v.licence_ever_denied !== true || Boolean(v.licence_denial_detail?.trim()),
   },
+  ...questionnaireForApplicant().questions.filter((q) => q.required).map(requiredQuestionRule),
 ];
+
+/** The issue path a rule reports — the one both validators build (`at`'s comment). */
+export const ruleIssuePath = (rule: ApplicationCrossFieldRule): (string | number)[] => [rule.path, ...(rule.at ?? [])];

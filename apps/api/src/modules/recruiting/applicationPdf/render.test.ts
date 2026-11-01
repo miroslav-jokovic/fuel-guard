@@ -549,6 +549,22 @@ describe("the questionnaire section", () => {
    * them. A questionnaire that printed "Not answered." over a driver's "No" would be worse than the
    * defect it replaced: the first misreads the document, the second only leaves a gap in it.
    */
+  /**
+   * §9 P8: a skip is a fourth fact — the applicant chose not to answer — and the filed document prints
+   * it in the carrier's words, on a scalar question and on a grid alike, never as "Not answered.".
+   */
+  it("prints a skipped question as the words the applicant chose, scalar and grid alike", async () => {
+    const lines = await pdfDrawnLines(await renderApplicationPdf(input({
+      application: {
+        ...APPLICATION,
+        questionnaire_version: "silvicom_driver@v3",
+        questionnaire_answers: { military_service: "I'd rather not say", references: "I'd rather not say" },
+      } as unknown as DriverApplication,
+    })));
+    expect(valueBeside(lines, "Have you ever served in the")).toBe("I'd rather not say");
+    expect(valueBeside(lines, "Three personal references")).toBe("I'd rather not say");
+  });
+
   it("never mistakes a false or a zero for a silence", async () => {
     const lines = await pdfDrawnLines(await renderApplicationPdf(answered({
       military_service: false,

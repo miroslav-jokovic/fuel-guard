@@ -349,6 +349,11 @@ export async function stubApi(page: Page, bundle: Json): Promise<Stub> {
         status: { offered: true, state: "none", phoneLast4: null },
       });
     }
+    // The hand-off to the office (F4): stamped, as the real route answers it (§9 P8's send spec).
+    if (method === "POST" && rest === "/review") {
+      state.bundle = { ...state.bundle, phases: { ...(state.bundle.phases as Json), reviewRequestedAt: NOW } };
+      return json(route, 200, { reviewRequestedAt: NOW });
+    }
     if (method === "POST" && rest === "/intake") return json(route, 201, { ok: true, keptExisting: [] });
     if (method === "POST" && rest === "/intake/licences") return json(route, 201, { ok: true, keptExisting: [], licenceCount: 1 });
     if (method === "POST" && rest === "/identity") return json(route, 201, { ok: true, keptExisting: [] });

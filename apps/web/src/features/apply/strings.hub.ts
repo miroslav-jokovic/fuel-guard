@@ -27,6 +27,8 @@ export const APPLY_HUB_COPY = {
       cannot_start: "Cannot start yet",
     },
     optional: "Optional",
+    /** §9 P8 (AF-2): the carrier's questions say how far along they are, not "Optional". */
+    answered: (done: number, total: number): string => `${done} of ${total} answered`,
     /** Why "Before you send" is shut, said on its row. */
     finishFirst: "Finish the tasks above first.",
     beforeYouSend: "Before you send",

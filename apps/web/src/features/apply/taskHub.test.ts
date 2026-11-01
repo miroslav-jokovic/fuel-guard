@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { ApplicationCaptureView } from "@silvicom/shared";
 import { emptyDraft, type ApplicationDraft } from "./draft";
 import { hubTasks, taskStatus } from "./taskHub";
+import { CARRIER_ANSWERS } from "@/testing/carrierAnswers";
 
 /**
  * Part 2's statuses (§6.4, C3c2a), read off the draft by the rules that already judge it. Pinned: the
@@ -13,6 +14,8 @@ const AS_OF = "2026-09-26";
 
 const complete = (): ApplicationDraft => ({
   ...emptyDraft(),
+  // §9 P8: the carrier's seven required answers — a complete application gives them.
+  questionnaire: { ...CARRIER_ANSWERS },
   experience: "Eight years, dry van and reefer.",
   first_name: "Susan", last_name: "Godfrey", date_of_birth: "1980-04-01",
   email: "s@example.test", phone: "555-0111",
@@ -72,11 +75,22 @@ describe("Before you send", () => {
     expect(status(hubTasks(d, AS_OF, NONE), "review")).toBe("cannot_start");
   });
 
-  it("opens when every required task passes, with the optional ones untouched", () => {
+  it("opens when every required task passes, with the optional one untouched", () => {
     const tasks = hubTasks(complete(), AS_OF, NONE);
-    expect(status(tasks, "questions")).toBe("not_started");
+    expect(status(tasks, "questions")).toBe("completed");
     expect(status(tasks, "documents")).toBe("not_started");
     expect(status(tasks, "review")).toBe("not_started");
+  });
+
+  /** §9 P8 (AF-2): the carrier's questions held "Before you send" open untouched; seven are required now. */
+  it("stays shut while a required carrier question is unanswered, and counts the task's answers", () => {
+    const d = complete();
+    const { education: _gone, ...rest } = d.questionnaire;
+    d.questionnaire = rest;
+    const tasks = hubTasks(d, AS_OF, NONE);
+    expect(status(tasks, "questions")).toBe("in_progress");
+    expect(status(tasks, "review")).toBe("cannot_start");
+    expect(tasks.find((t) => t.section === "questions")!.answered).toEqual({ answered: 0, total: 4 });
   });
 
   it("lists every task in §6.4's order and ends with Before you send", () => {
@@ -84,6 +98,6 @@ describe("Before you send", () => {
     expect(tasks.map((t) => t.section)).toEqual([
       "identity", "addresses", "licence", "employment", "safety", "questions", "documents", "review",
     ]);
-    expect(tasks.filter((t) => t.optional).map((t) => t.section)).toEqual(["questions", "documents"]);
+    expect(tasks.filter((t) => t.optional).map((t) => t.section)).toEqual(["documents"]);
   });
 });

@@ -156,7 +156,9 @@ const scalarAnswer = (value: unknown): string => {
 function questionnaireTable(doc: PDFKit.PDFDocument, question: QuestionnaireQuestion, value: unknown): void {
   const rows = Array.isArray(value) ? (value as Record<string, unknown>[]) : [];
   if (rows.length === 0) {
-    field(doc, question.label, NOT_ANSWERED);
+    // §9 P8: a grid answered with its skip ("I'd rather not say") prints those words — a skip is an
+    // answer, and "Not answered." beside it would say the applicant was never asked.
+    field(doc, question.label, typeof value === "string" && value.trim() !== "" ? value.trim() : NOT_ANSWERED);
     return;
   }
   doc.moveDown(0.3);

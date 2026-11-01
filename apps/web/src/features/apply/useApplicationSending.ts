@@ -1,7 +1,8 @@
 import { computed, ref, type ComputedRef, type Ref } from "vue";
-import { applicationBeforeCertificationSchema, driverApplicationSchema } from "@silvicom/shared";
+import { driverApplicationSchema } from "@silvicom/shared";
 import { toApplication, type ApplicationDraft } from "./draft";
 import { issuesFromParse, v2FilingIssues, type SectionIssue } from "./useApplicationWizard";
+import { documentIssues } from "./missingAnswers";
 import { useRequestReview, useSubmitApplication } from "./useApplication";
 import { APPLY_COPY } from "./strings";
 
@@ -61,13 +62,11 @@ export function useApplicationSending(
    * ("This is needed") from a two-character one ("This is too short").
    */
   function documentIsComplete(): boolean {
-    const candidate = toApplication(draft);
     // ⚠ WITHOUT the certification. On this visit the driver has not signed anything and must not have
     // to — `driverApplicationSchema` requires `certified` to be literally `true`, so checking with it
     // here would refuse every hand-off and tell the driver to tick a box that is not on their screen.
-    const parsed = applicationBeforeCertificationSchema.safeParse(candidate);
-    const found = parsed.success ? v2FilingIssues(draft, v2AsOf()) : issuesFromParse(parsed.error.issues, candidate);
-    return accept(found);
+    // The same check the review screen lists before this button is pressed (§9 P8, `missingAnswers.ts`).
+    return accept(documentIssues(draft, v2AsOf()));
   }
 
   /**

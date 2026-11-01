@@ -1,4 +1,3 @@
-import { z } from "zod";
 import type { ApplicationSection } from "./applicationSections.js";
 
 /**
@@ -110,24 +109,46 @@ export interface QuestionnaireQuestion {
   columns?: readonly QuestionColumn[];
   /** `table` only — how many rows the driver is asked for. The packet asks for three references. */
   maxRows?: number;
+  /**
+   * The carrier requires an answer (Q-WF3, owner 2026-10-31; HIRING-WORKFLOW-AUDIT §9 P8, AF-1).
+   * Enforced by `APPLICATION_CROSS_FIELD_RULES`, never by a screen alone — see the paragraph below.
+   */
+  required?: true;
+  /**
+   * An optional question's stored way of saying "I am not answering this" (§9 P8, §4.4) — so a skip and
+   * an unanswered box and a "no" are three different facts on the office's screen and on the packet.
+   *
+   * ⚠ The `value` is the carrier's English words and is what is STORED, the way every un-keyed answer
+   * here stores its own words (`QuestionChoice`'s header): the office's correction list, the filed PDF
+   * and page 16 of the packet then print it as written with no lookup, and a translation overlays the
+   * `label` only, so a Spanish applicant files the English words. Only on a question without
+   * `required` — a required question's schema refuses it.
+   */
+  skip?: QuestionChoice;
+  /**
+   * Asked only when another question has this answer (AF-6: "If so, when?" after a "yes" to military
+   * service). Data, like the rest, so the screen still knows no question by name.
+   */
+  askedWhen?: { question: string; is: boolean };
 }
 
 /**
- * ⚠ THERE IS NO `required` FLAG, AND A9'S TEXT ASKS FOR ONE. The reason is worth the paragraph.
+ * ⚠ `required` IS A FLAG NOW, AND ONLY BECAUSE IT IS ENFORCED IN BOTH VALIDATORS AT ONCE (§9 P8).
  *
- * A flag has to be enforced somewhere, and there are only two places: the wizard screen, and the
- * schema. Enforcing it in the screen alone breaks the property A3 built the wizard on — the client
- * validates with the SERVER'S OWN object, so the two can never disagree about what is required.
- * Enforcing it in the schema means a carrier's own question can refuse a §391.21 application, which
- * is the opposite of the decision A8a already took for photographs: a driver must not lose a
- * federally-required filing to a question the regulation never asked.
+ * This paragraph used to explain why there was no flag: one enforced by the wizard screen alone breaks
+ * the property A3 built the wizard on (the client validates with the SERVER'S OWN object), and one
+ * enforced nowhere is decoration that reads as a rule. Both still hold. What changed is that the
+ * owner decided (Q-WF3, 2026-10-31) that seven of these answers are worth refusing a send for — the
+ * audit measured applications arriving with the carrier's questions all blank, because nothing asked.
  *
- * A flag enforced in neither place is decoration that reads as a rule, and one enforced in one place
- * is a client/server disagreement waiting for its first crafted request. So the questionnaire blocks
- * nothing, both validators accept everything, and they agree exactly. If the carrier later wants an
- * answer made mandatory, the honest shape is an `APPLICATION_CROSS_FIELD_RULES` entry — which lands
- * in `driverApplicationSchema` and therefore in both validators at once — and that is a decision
- * somebody should make on purpose rather than inherit from an unused flag.
+ * So the flag is read in exactly one place: `APPLICATION_CROSS_FIELD_RULES` (`applicationRules.ts`)
+ * builds one rule per required question, and those rules land in `driverApplicationSchema` — the
+ * object both the applicant's page and the API's submit route parse with. The screen marks the box
+ * and the review lists what is missing from the same flag, so no copy of the list exists anywhere.
+ *
+ * ⚠ The rule reads the flag off the definition the answers were GIVEN against (`questionnaire_version`),
+ * not the one served today: an application answered against v2 — where nothing was required — is not
+ * refused at its certification for a rule its applicant was never shown.
  */
 
 export interface QuestionnaireDefinition {
@@ -317,6 +338,62 @@ export const SILVICOM_DRIVER_V2: QuestionnaireDefinition = {
   ],
 };
 
+/** A skip that says the applicant chose not to answer. */
+const RATHER_NOT_SAY: QuestionChoice = { value: "I'd rather not say", label: "I'd rather not say" };
+/** A skip that says the question is not about them. */
+const DOES_NOT_APPLY: QuestionChoice = { value: "Doesn't apply", label: "Doesn't apply" };
+
+/**
+ * Version 3 (§9 P8, HIRING-WORKFLOW-AUDIT §3.3/§4.4): the same eleven questions, asked differently.
+ *
+ *   · Q-WF3's seven are `required` — position, applying as, heard from, legally able to work, proof of
+ *     age, may we contact employers, education (AF-1).
+ *   · Every other question has a `skip`, so "I'd rather not say" is an answer the office can read.
+ *   · "If so, when?" is asked only after a "yes" to military service (AF-6).
+ *   · The intro stops telling the applicant these "are not part of the federal application" — an
+ *     invitation to skip, and half untrue once five of them moved to the first screen (AF-3).
+ *   · The proof-of-age hint says what the carrier requires instead of contrasting it with a federal
+ *     number the applicant cannot act on (AF-7). Same policy, plainer words.
+ *
+ * ⚠ A new VERSION and not an edit to v2, by this file's own rule: what somebody answered means
+ * something only beside the exact question they were asked, and an answer given when nothing was
+ * required is read beside v2 for good (`questionnaireByRef`). Ids, kinds and columns are v2's, so a v2
+ * answer set parses against v3 and a draft started on v2 keeps its answers.
+ */
+const v2 = (id: string): QuestionnaireQuestion => SILVICOM_DRIVER_V2.questions.find((q) => q.id === id)!;
+export const SILVICOM_DRIVER_V3: QuestionnaireDefinition = {
+  ...SILVICOM_DRIVER_V2,
+  version: "v3",
+  intro: "A few more questions about you. They help us place you on the right truck.",
+  questions: [
+    { ...v2("position"), required: true },
+    { ...v2(APPLYING_AS_QUESTION_ID), required: true },
+    { ...v2("heard_from"), required: true },
+    { ...v2("legally_work"), required: true },
+    {
+      ...v2("proof_of_age"),
+      required: true,
+      hint: "Silvicom hires drivers who are 23 or older. A driver's licence, passport or birth certificate shows your age.",
+    },
+    { ...v2("may_contact_employers"), required: true },
+    { ...v2("education"), required: true },
+    { ...v2("military_service"), skip: RATHER_NOT_SAY },
+    { ...v2("military_when"), skip: RATHER_NOT_SAY, askedWhen: { question: "military_service", is: true } },
+    { ...v2("other_training"), skip: DOES_NOT_APPLY },
+    { ...v2("references"), skip: RATHER_NOT_SAY },
+  ],
+};
+
+/**
+ * The definition a draft saved before drafts remembered their version was answered against (§9 P8).
+ *
+ * ⚠ A fact about history, not a choice: v2 was the only definition served from Q-HM14 (2026-09-24)
+ * until v3, so every answer in a draft that names no version was given against it. `fromDraftPayload`
+ * reads it for exactly those drafts — the one handed to the office on 2026-10-21 among them — so their
+ * certification is judged by the questions their applicant saw.
+ */
+export const QUESTIONNAIRE_BEFORE_DRAFTS_REMEMBERED = `${SILVICOM_DRIVER_V2.id}@${SILVICOM_DRIVER_V2.version}`;
+
 /**
  * The definition an applicant is served.
  *
@@ -326,7 +403,7 @@ export const SILVICOM_DRIVER_V2: QuestionnaireDefinition = {
  * as a feature and is really an unused join. The day a second carrier's form differs, the selection
  * becomes a column on `organizations` and this function grows an argument.
  */
-export const questionnaireForApplicant = (): QuestionnaireDefinition => SILVICOM_DRIVER_V2;
+export const questionnaireForApplicant = (): QuestionnaireDefinition => SILVICOM_DRIVER_V3;
 
 /**
  * The questions asked on one screen, in the definition's own order.
@@ -346,6 +423,7 @@ export const questionsForScreen = (
 export const QUESTIONNAIRES: Record<string, QuestionnaireDefinition> = {
   [`${SILVICOM_DRIVER_V1.id}@${SILVICOM_DRIVER_V1.version}`]: SILVICOM_DRIVER_V1,
   [`${SILVICOM_DRIVER_V2.id}@${SILVICOM_DRIVER_V2.version}`]: SILVICOM_DRIVER_V2,
+  [`${SILVICOM_DRIVER_V3.id}@${SILVICOM_DRIVER_V3.version}`]: SILVICOM_DRIVER_V3,
 };
 
 export const questionnaireRef = (def: QuestionnaireDefinition): string => `${def.id}@${def.version}`;
@@ -360,104 +438,3 @@ export const questionnaireRef = (def: QuestionnaireDefinition): string => `${def
  */
 export const questionnaireByRef = (ref: string | null | undefined): QuestionnaireDefinition | null =>
   (ref ? QUESTIONNAIRES[ref] ?? null : null);
-
-/**
- * One answer's shape, from its question.
- *
- * Everything is nullish. The questionnaire is answered inside the §391.21 flow and must never be what
- * stops a federally-required application being sent — `required` is enforced by the wizard screen
- * that collects it, not by the schema that stores it, for the same reason `APPLICATION_CAPTURE_REQUIRED`
- * is empty (A8a): a carrier's own question is not worth a lost candidate.
- */
-function answerSchema(q: QuestionnaireQuestion): z.ZodTypeAny {
-  switch (q.kind) {
-    case "boolean":
-      return z.boolean().nullish();
-    case "number":
-      return z.coerce.number().nullish();
-    case "longtext":
-      return z.string().max(4000).nullish();
-    case "table":
-      return z.array(z.record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null()])))
-        .max(q.maxRows ?? 20)
-        .nullish();
-    case "select":
-      // ⚠ A keyed `select` IS narrowed: code matches on its value, so a value outside the keys would
-      // be read as no answer by `applyingAsOf` while sitting in a filed payload looking like one.
-      if (q.choices) {
-        return z.enum(q.choices.map((c) => c.value) as [string, ...string[]]).nullish();
-      }
-      return z.string().max(500).nullish();
-    default:
-      // text, select and date are all stored as strings. `select` is NOT narrowed to its options
-      // here: the options may change between versions, and a stored answer from an older definition
-      // must still parse — it is displayed beside the question that produced it, never matched on.
-      return z.string().max(500).nullish();
-  }
-}
-
-/** The answers object for one definition — plus the reserved, never-rendered `eeo` key. */
-export function questionnaireAnswersSchema(def: QuestionnaireDefinition): z.ZodTypeAny {
-  const shape: Record<string, z.ZodTypeAny> = {};
-  for (const q of def.questions) shape[q.id] = answerSchema(q);
-  shape[EEO_ANSWER_KEY] = z.record(z.string(), z.unknown()).nullish();
-  // NOT `.strict()`, unlike the regulated contract: an answer set filed against a definition that has
-  // since gained a question must still parse, and the extra key is displayed beside nothing and
-  // therefore harms nothing.
-  return z.object(shape).partial();
-}
-
-/**
- * The answers inside a stored payload, DRAFT OR FILED.
- *
- * ⚠ **Two keys, one set of answers.** A draft holds them as `questionnaire`, the form's own shape; a
- * filed application holds `questionnaire_answers`, written at submit beside the definition's ref
- * (`applicationContract.ts`). The packet is rendered from both — the office's preview and the reading
- * copy the applicant signs beside are drawn from the DRAFT — and a reader of one key only prints the
- * page the applicant signs differently from the page that is filed.
- */
-export function questionnaireAnswersOf(payload: unknown): Record<string, unknown> {
-  const p = (payload && typeof payload === "object" ? payload : {}) as Record<string, unknown>;
-  for (const key of ["questionnaire_answers", "questionnaire"]) {
-    const v = p[key];
-    if (v && typeof v === "object" && !Array.isArray(v)) return v as Record<string, unknown>;
-  }
-  return {};
-}
-
-/**
- * What a stored payload says the applicant is applying as, or null.
- *
- * ⚠ **Null is a real answer and it means the PAPER** (Q-HM14). A payload filed before the question
- * existed has none, `driver_applications` is append-only so it never will, and the questionnaire
- * blocks nothing so a new applicant may leave it blank. Every consumer reads null as the packet as
- * the carrier printed it — nothing withdrawn, no reason ticked — because choosing either value for
- * somebody who never gave one would be inference printed onto a signed document.
- */
-export function applyingAsOf(payload: unknown): ApplyingAs | null {
-  return asApplyingAs(questionnaireAnswersOf(payload)[APPLYING_AS_QUESTION_ID]);
-}
-
-/** One stored value narrowed to the two keys — for a reader that selected the key alone. */
-export const asApplyingAs = (v: unknown): ApplyingAs | null =>
-  (APPLYING_AS as readonly unknown[]).includes(v) ? (v as ApplyingAs) : null;
-
-/**
- * A stored answer as a person reads it: a keyed choice's LABEL, and anything else unchanged.
- *
- * ⚠ Every screen and document that shows an answer goes through this, because a keyed answer shown
- * raw is `owner_operator` printed on a qualification file. Unchanged for everything else, so the
- * caller's own rules for booleans and blanks still apply after it.
- */
-export function choiceLabel(q: QuestionnaireQuestion, raw: unknown): unknown {
-  return q.choices?.find((c) => c.value === raw)?.label ?? raw;
-}
-
-/** What a reader may see: everything except the reserved EEO key. */
-export function readableAnswers(
-  answers: Record<string, unknown> | null | undefined,
-): Record<string, unknown> {
-  if (!answers) return {};
-  const { [EEO_ANSWER_KEY]: _eeo, ...rest } = answers;
-  return rest;
-}

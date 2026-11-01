@@ -1,4 +1,5 @@
 import { APPLY_COPY } from "./strings";
+import { applicantQuestionnaire } from "./questionnaireCopy";
 
 /**
  * What a driver is told went wrong, and where (APPLY-EXPERIENCE-PLAN D-AX3).
@@ -202,6 +203,12 @@ export function describeField(path: FieldPath): string {
     if (column === undefined) return row.noun;
     return `${row.noun} · ${row.columns[String(column)] ?? String(column)}`;
   }
+  // §9 P8: one carrier question, named by its own label in the page's language — the words printed
+  // above its box — rather than "The carrier's own questions" for all eleven.
+  if (key === QUESTIONNAIRE_ANSWERS && typeof index === "string") {
+    const question = applicantQuestionnaire().questions.find((q) => q.id === index);
+    if (question) return question.label;
+  }
   return topLabels()[key] ?? key;
 }
 
@@ -256,7 +263,14 @@ const overrides = (): Record<string, string> => ({
 const isEmpty = (v: unknown): boolean =>
   v === undefined || v === null || (typeof v === "string" && v.trim() === "");
 
+const QUESTIONNAIRE_ANSWERS = "questionnaire_answers";
+
 export function messageFor(issue: FieldIssueLike, value: unknown): string {
+  // §9 P8: a required carrier question left blank. Its rule's message is the API's, in English and
+  // naming the question; on the page the label already names it, and the sentence is in the page's language.
+  if (issue.code === "custom" && issue.path[0] === QUESTIONNAIRE_ANSWERS && issue.path.length === 2) {
+    return APPLY_COPY.carrierQuestions.answerNeeded;
+  }
   // Written for this reader already — the cross-field rules and the date-of-birth refinement.
   if (issue.code === "custom") return issue.message;
 

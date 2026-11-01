@@ -1,6 +1,7 @@
 import {
   APPLYING_AS_QUESTION_ID,
   SILVICOM_DRIVER_V2,
+  SILVICOM_DRIVER_V3,
   type QuestionnaireDefinition,
   type QuestionnaireQuestion,
 } from "./questionnaireContract.js";
@@ -27,6 +28,8 @@ export interface QuestionTranslation {
   choices?: Record<string, string>;
   /** For a `table`: label by column id. */
   columns?: Record<string, string>;
+  /** The `skip` choice's label (§9 P8). Its stored value stays the carrier's English words. */
+  skip?: string;
 }
 
 export interface QuestionnaireTranslation {
@@ -87,9 +90,31 @@ export const SILVICOM_DRIVER_ES: QuestionnaireTranslation = {
   },
 };
 
+/**
+ * v3's words (§9 P8): v2's, with the new intro, the plainer proof-of-age hint, and the skip labels.
+ * Drafted 2026-11-01 for the owner's review, like v2's.
+ */
+const SKIP_ES = { rather: "Prefiero no decirlo", na: "No corresponde" };
+export const SILVICOM_DRIVER_V3_ES: QuestionnaireTranslation = {
+  ...SILVICOM_DRIVER_ES,
+  intro: "Unas preguntas más sobre usted. Nos ayudan a asignarle el camión adecuado.",
+  questions: {
+    ...SILVICOM_DRIVER_ES.questions,
+    proof_of_age: {
+      label: SILVICOM_DRIVER_ES.questions.proof_of_age!.label,
+      hint: "Silvicom contrata conductores de 23 años o más. Una licencia de conducir, un pasaporte o un acta de nacimiento muestran su edad.",
+    },
+    military_service: { ...SILVICOM_DRIVER_ES.questions.military_service!, skip: SKIP_ES.rather },
+    military_when: { ...SILVICOM_DRIVER_ES.questions.military_when!, skip: SKIP_ES.rather },
+    other_training: { ...SILVICOM_DRIVER_ES.questions.other_training!, skip: SKIP_ES.na },
+    references: { ...SILVICOM_DRIVER_ES.questions.references!, skip: SKIP_ES.rather },
+  },
+};
+
 /** By `id@version`, like `QUESTIONNAIRES`; a definition with no entry for a language is shown in English. */
 export const QUESTIONNAIRE_TRANSLATIONS: Record<string, Record<string, QuestionnaireTranslation>> = {
   [`${SILVICOM_DRIVER_V2.id}@${SILVICOM_DRIVER_V2.version}`]: { es: SILVICOM_DRIVER_ES },
+  [`${SILVICOM_DRIVER_V3.id}@${SILVICOM_DRIVER_V3.version}`]: { es: SILVICOM_DRIVER_V3_ES },
 };
 
 function translateQuestion(question: QuestionnaireQuestion, words: QuestionTranslation | undefined): QuestionnaireQuestion {
@@ -104,6 +129,7 @@ function translateQuestion(question: QuestionnaireQuestion, words: QuestionTrans
     ...(question.columns
       ? { columns: question.columns.map((col) => ({ ...col, label: words.columns?.[col.id] ?? col.label })) }
       : {}),
+    ...(question.skip ? { skip: { ...question.skip, label: words.skip ?? question.skip.label } } : {}),
   };
 }
 

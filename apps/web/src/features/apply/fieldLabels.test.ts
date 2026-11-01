@@ -212,6 +212,10 @@ describe("the labels, in the page's language", () => {
       expect(FIELD_LABEL_KEYS.ROWS.employers?.noun).toBe(APPLY_COPY_ES.fields.nouns.employers);
       expect(messageFor({ code: "too_small", message: "x", path: ["phone"] }, "")).toBe(APPLY_COPY_ES.fields.needed);
       expect(messageFor({ code: "invalid_value", message: "x", path: ["certified"] }, false)).toBe(APPLY_COPY_ES.fields.certifyOverride);
+      // §9 P8: a required carrier question is named by its own Spanish label, and told in Spanish.
+      expect(describeField(["questionnaire_answers", "position"])).toBe("Puesto que solicita");
+      expect(messageFor({ code: "custom", message: "Answer the question", path: ["questionnaire_answers", "position"] }, undefined))
+        .toBe(APPLY_COPY_ES.carrierQuestions.answerNeeded);
     } finally {
       applyLanguage.value = "en";
     }

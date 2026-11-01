@@ -17,6 +17,7 @@ export const APPLY_HUB_COPY_ES = {
       cannot_start: "Todavía no se puede empezar",
     },
     optional: "Opcional",
+    answered: (done: number, total: number): string => `${done} de ${total} respondidas`,
     finishFirst: "Termine primero las tareas de arriba.",
     beforeYouSend: "Antes de enviar",
     backToList: "Volver a su solicitud",

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { SILVICOM_DRIVER_V2 } from "@silvicom/shared";
+import { questionnaireForApplicant, translateQuestionnaire } from "@silvicom/shared";
 import { APPLY_COPY, APPLY_COPY_EN } from "./strings";
 import { APPLY_COPY_ES } from "./es/strings.es";
 
@@ -78,13 +78,14 @@ function leaves(node: unknown, path: string, carrier = "Silvicom"): Array<{ path
  * the same rule.
  */
 describe("apply copy", () => {
-  // ⚠ The definition SERVED, which is v2 since Q-HM14 — walking v1 alone would leave `applying_as`'s
-  // label, hint and choices outside the gate, the blind spot this block was written to close.
+  // ⚠ The definition SERVED — v3 since §9 P8 — and the Spanish overlay of it: walking an older one alone
+  // would leave a newer label, hint or skip outside the gate, the blind spot this block was written to close.
   // Both languages (C4): the Spanish object is walked by the same rule, not trusted to mirror the English.
   const all = [
     ...leaves(APPLY_COPY, "APPLY_COPY"),
     ...leaves(APPLY_COPY_ES, "APPLY_COPY_ES"),
-    ...leaves(SILVICOM_DRIVER_V2, "SILVICOM_DRIVER_V2"),
+    ...leaves(questionnaireForApplicant(), "SERVED"),
+    ...leaves(translateQuestionnaire(questionnaireForApplicant(), "es"), "SERVED_ES"),
   ];
 
   it("reaches the carrier's own questions, which are copy too", () => {

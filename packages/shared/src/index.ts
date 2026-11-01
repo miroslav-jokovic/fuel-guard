@@ -185,6 +185,7 @@ export * from "./smsQuietHours.js";
 export * from "./smsConsentContract.js";
 export * from "./loadDispatchContract.js";
 export * from "./questionnaireContract.js";
+export * from "./questionnaireAnswers.js";
 export * from "./questionnaireTranslation.js";
 export * from "./hireHandoff.js";
 export * from "./hiringSteps.js";
