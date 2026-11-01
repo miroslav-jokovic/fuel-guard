@@ -123,6 +123,7 @@ export * from "./fuelDiscount.js";
 export * from "./accountClosureContract.js";
 export * from "./driverContract.js";
 export * from "./loadsContract.js";
+export * from "./recordSearchContract.js";
 export * from "./loadsLifecycle.js";
 export * from "./loadBoard.js";
 export * from "./loadActivity.js";

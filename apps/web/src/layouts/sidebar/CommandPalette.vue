@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, ref, toRef } from "vue";
 import { useRouter } from "vue-router";
 import {
   Combobox,
@@ -14,6 +14,8 @@ import {
 import { AppIcon } from "@silvicom/ui";
 import { MagnifyingGlassIcon } from "@silvicom/ui/icons";
 import { searchPalette, type PaletteEntry } from "@/lib/commandPalette";
+import { searchPlaceholder } from "@/lib/recordSearch";
+import { useRecordSearch } from "@/composables/useRecordSearch";
 
 /**
  * "Go to a page" (SIDEBAR-REDESIGN-PLAN.md D-SB1). ⌘K or Ctrl K anywhere in the signed-in app, or the
@@ -23,13 +25,20 @@ import { searchPalette, type PaletteEntry } from "@/lib/commandPalette";
  * having no list of its own is written. This file is the dialog: headless UI's Combobox inside its
  * Dialog, so the arrow keys, Enter, Escape, focus trapping and the listbox semantics are the
  * library's tested ones rather than ours.
+ *
+ * Pages answer at once, from memory; trucks, trailers, drivers and loads (D-SB8) answer a moment later
+ * from the server and are listed under the pages, so the rows a person is already arrowing through
+ * never move when the records arrive.
  */
 const props = defineProps<{ open: boolean; entries: PaletteEntry[] }>();
 const emit = defineEmits<{ close: [] }>();
 
 const router = useRouter();
 const query = ref("");
-const results = computed(() => searchPalette(props.entries, query.value));
+const pages = computed(() => searchPalette(props.entries, query.value));
+const { kinds, records, failed, searching } = useRecordSearch(query, toRef(props, "entries"));
+const placeholder = computed(() => searchPlaceholder(kinds.value));
+const nothing = computed(() => !pages.value.length && !records.value.length && !searching.value);
 
 function go(entry: PaletteEntry | null) {
   if (!entry) return;
@@ -76,15 +85,15 @@ function go(entry: PaletteEntry | null) {
                 />
                 <ComboboxInput
                   class="h-12 w-full border-0 bg-transparent pl-12 pr-4 text-base text-ink placeholder:text-ink-tertiary focus:outline-none focus:ring-0"
-                  placeholder="Go to a page…"
-                  aria-label="Search pages"
+                  :placeholder="placeholder"
+                  aria-label="Search pages and records"
                   autocomplete="off"
                   @change="query = ($event.target as HTMLInputElement).value"
                 />
               </div>
 
-              <ComboboxOptions v-if="results.length" static class="max-h-96 scroll-py-2 overflow-y-auto p-2">
-                <ComboboxOption v-for="entry in results" :key="entry.to" v-slot="{ active }" :value="entry" as="template">
+              <ComboboxOptions v-if="!nothing" static class="max-h-96 scroll-py-2 overflow-y-auto p-2">
+                <ComboboxOption v-for="entry in pages" :key="entry.to" v-slot="{ active }" :value="entry" as="template">
                   <li
                     class="flex cursor-default select-none items-center gap-3 rounded-control px-3 py-2 text-sm"
                     :class="active ? 'bg-selected-surface text-ink' : 'text-ink-secondary'"
@@ -94,11 +103,38 @@ function go(entry: PaletteEntry | null) {
                     <span v-if="entry.section" class="shrink-0 text-xs text-ink-tertiary">{{ entry.section }}</span>
                   </li>
                 </ComboboxOption>
+
+                <li
+                  v-if="records.length || searching || failed.length"
+                  role="presentation"
+                  class="px-3 pb-1 pt-3 text-2xs font-semibold uppercase tracking-wide text-ink-tertiary"
+                  :class="pages.length ? 'mt-1 border-t border-edge-subtle' : ''"
+                >
+                  Records
+                </li>
+                <ComboboxOption v-for="entry in records" :key="entry.key" v-slot="{ active }" :value="entry" as="template">
+                  <li
+                    class="flex cursor-default select-none items-center gap-3 rounded-control px-3 py-2 text-sm"
+                    :class="active ? 'bg-selected-surface text-ink' : 'text-ink-secondary'"
+                    data-test="palette-record"
+                  >
+                    <AppIcon :icon="entry.icon" class="size-5 shrink-0" :class="active ? 'text-brand-accent-strong' : 'text-ink-tertiary'" aria-hidden="true" />
+                    <span class="min-w-0 flex-1 truncate">
+                      <span class="font-medium">{{ entry.name }}</span>
+                      <span v-if="entry.detail" class="ml-2 text-xs text-ink-tertiary">{{ entry.detail }}</span>
+                    </span>
+                    <span class="shrink-0 text-xs text-ink-tertiary">{{ entry.section }}</span>
+                  </li>
+                </ComboboxOption>
+                <li v-if="searching && !records.length" role="presentation" class="px-3 py-2 text-sm text-ink-muted" aria-live="polite">
+                  Searching…
+                </li>
+                <li v-if="failed.length" role="presentation" class="px-3 py-2 text-sm text-ink-muted" aria-live="polite">
+                  Couldn’t search {{ failed.join(" and ") }} just now.
+                </li>
               </ComboboxOptions>
 
-              <p v-else class="px-6 py-10 text-center text-sm text-ink-muted">
-                No page matches “{{ query }}”. Pages only — trucks, drivers and loads are searched on their own pages.
-              </p>
+              <p v-else class="px-6 py-10 text-center text-sm text-ink-muted">Nothing matches “{{ query }}”.</p>
             </Combobox>
 
             <div class="flex items-center gap-4 border-t border-edge-subtle bg-surface-subtle px-4 py-2 text-2xs text-ink-tertiary">
