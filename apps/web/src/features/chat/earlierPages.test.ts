@@ -194,17 +194,19 @@ describe("useChatScroll", () => {
   async function list(initial: string[]) {
     const lines = ref(initial);
     const lastOwn = ref(false);
+    const lastFiles = ref(0);
+    const grown = ref(0); // rows of height the newest line gains without a new key
     let scroll!: ReturnType<typeof useChatScroll>;
     const w = mount(defineComponent({
       setup() {
         const scroller = ref<HTMLElement | null>(null);
-        scroll = useChatScroll(scroller, () => ({ view: "a", first: lines.value[0], last: lines.value.at(-1), count: lines.value.length, lastOwn: lastOwn.value }));
-        return { scroller, lines };
+        scroll = useChatScroll(scroller, () => ({ view: "a", first: lines.value[0], last: lines.value.at(-1), count: lines.value.length, lastOwn: lastOwn.value, lastFiles: lastFiles.value }));
+        return { scroller, lines, grown };
       },
-      template: `<div ref="scroller"><p v-for="l in lines" :key="l">{{ l }}</p></div>`,
+      template: `<div ref="scroller"><p v-for="l in lines" :key="l">{{ l }}</p><p v-for="n in grown" :key="'g' + n" /></div>`,
     }));
     await flushPromises();
-    return { lines, lastOwn, el: w.element as HTMLElement, unseen: scroll.unseen, jump: scroll.jump };
+    return { lines, lastOwn, lastFiles, grown, el: w.element as HTMLElement, unseen: scroll.unseen, jump: scroll.jump };
   }
 
   it("opens at the newest line, and follows a new one", async () => {
@@ -242,6 +244,24 @@ describe("useChatScroll", () => {
     lines.value = [...lines.value, "m11"];
     await flushPromises();
     expect(unseen.value).toBe(3);
+  });
+
+  it("keeps a reader at the bottom there when the newest line's files draw, and leaves a reader up the log alone (CH7)", async () => {
+    // "Sending 2 files…" becomes the confirmed line: the same key at the end, two thumbnails taller.
+    const atBottom = await list(["m5", "m6", "mine"]);
+    expect(atBottom.el.scrollTop).toBe(300);
+    atBottom.lastFiles.value = 2;
+    atBottom.grown.value = 2;
+    await flushPromises();
+    expect(atBottom.el.scrollTop).toBe(500);
+
+    const reading = await list(["m5", "m6", "m7", "mine"]);
+    reading.el.scrollTop = 0;
+    reading.lastFiles.value = 2;
+    reading.grown.value = 2;
+    await flushPromises();
+    expect(reading.el.scrollTop).toBe(0);
+    expect(reading.unseen.value).toBe(0);
   });
 
   it("follows the reader's own line wherever they are — they sent it, they want to see it land", async () => {

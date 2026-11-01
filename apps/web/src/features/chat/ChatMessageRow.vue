@@ -7,6 +7,7 @@ import ChatReactionBar from "./ChatReactionBar.vue";
 import ChatReactionPicker from "./ChatReactionPicker.vue";
 import { useChatLineActs } from "./useChatLineActs";
 import { chatClock, chatStamp } from "./chatTime";
+import ChatAttachments from "./ChatAttachments.vue";
 import ChatBody from "./ChatBody.vue";
 import { useChatNames } from "./chatNames";
 import { fromDraft, toDraft } from "./mentionDraft";
@@ -35,6 +36,10 @@ import { fromDraft, toDraft } from "./mentionDraft";
  * every live line, not only your own and channel posts. The acts come from the page
  * (`useChatLineActs`); where none were provided — the compliance console — the row draws none of them.
  * A pinned line says so above its words; its reactions sit under them (`ChatReactionBar`).
+ *
+ * CH7: a line's files sit between its words and its reactions (`ChatAttachments`). A removed line shows
+ * none of them — "Message removed" means the files too, as it means the words. A line of files alone
+ * draws no empty words paragraph; its small print ("Seen") follows the files instead.
  */
 const props = defineProps<{
   message: ChatMessage;
@@ -75,6 +80,8 @@ const name = computed(() => props.message.sender_name ?? "Someone");
 const clock = computed(() => chatClock(props.message.created_at));
 const stamp = computed(() => chatStamp(props.message.created_at));
 const replies = computed(() => props.message.reply_count);
+/** A line that is only files (CH7, 0539's CH014 lets one be): no words paragraph to draw. */
+const filesOnly = computed(() => !props.message.deleted_at && !(props.message.body ?? "").trim() && props.message.attachments.length > 0);
 
 const acts = useChatLineActs();
 const mineReactions = computed<ChatReaction[]>(() =>
@@ -134,11 +141,14 @@ function onKeydown(e: KeyboardEvent) {
           <BaseButton size="sm" variant="ghost" @click="endEdit">Cancel</BaseButton>
         </div>
       </template>
-      <p v-else class="whitespace-pre-wrap break-words" :class="message.deleted_at ? 'italic text-ink-muted' : 'text-ink'">
+      <p v-else-if="!filesOnly" class="whitespace-pre-wrap break-words" :class="message.deleted_at ? 'italic text-ink-muted' : 'text-ink'">
         <template v-if="message.deleted_at">Message removed</template>
         <template v-else><ChatBody :body="message.body ?? ''" :viewer-id="viewerId" /><span v-if="message.edited_at" class="ml-1 text-xs text-ink-muted">(edited)</span></template>
-        <slot name="stamp" />
+        <slot name="stamp" :alone="false" />
       </p>
+      <ChatAttachments v-if="!message.deleted_at && !editing" :files="message.attachments" />
+      <!-- A line of files alone has no words to end with its small print, so the print follows the files. -->
+      <p v-if="filesOnly && !editing" class="mt-1 empty:hidden"><slot name="stamp" :alone="true" /></p>
 
       <ChatReactionBar
         v-if="!message.deleted_at"

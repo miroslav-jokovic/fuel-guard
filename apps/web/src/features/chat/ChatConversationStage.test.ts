@@ -115,7 +115,7 @@ describe("ChatConversationStage", () => {
     await box.trigger("keydown", { key: "Enter", shiftKey: true });
     expect(w.emitted("send")).toBeUndefined();
     await box.trigger("keydown", { key: "Enter" });
-    expect(w.emitted("send")).toEqual([["hello"]]);
+    expect(w.emitted("send")).toEqual([["hello", []]]);
     expect((box.element as HTMLTextAreaElement).value).toBe("");
   });
 
