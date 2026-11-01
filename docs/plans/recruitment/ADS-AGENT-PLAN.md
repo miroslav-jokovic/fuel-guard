@@ -910,3 +910,8 @@ rate, and Higgsfield credits per approved creative.
   are reused where they fit; Virality Predictor is shown, never a gate. D-AD16: the orchestrator is
   a deterministic state machine on the job queue, calling eleven single-job workers (five use
   Claude; none decides, spends or contacts). New questions Q-AD19–Q-AD22. **Nothing built.**
+- **2026-11-01** — The step-by-step build is `ADS-AGENT-BUILD-WORKFLOW.md`, and it supersedes this
+  plan where they differ: Remotion is dropped (company license; stills via `@napi-rs/canvas` +
+  `sharp`, video via ffmpeg added to both builds); ads becomes its own module `modules/ads`, with
+  `recruiting/leads` behind two interfaces (D-AD17); Meta leads use a Page token derived from the
+  system user. All gaps and blockers are in its §3. **Nothing built.**
