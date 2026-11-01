@@ -585,4 +585,17 @@ TechRepublic / Windows Report on Teams 2026 updates.
   rows draw none. **Next, in its own migration and only after this is RELEASED:** `chat_activity` emits
   `reaction` items (D-CHAT25's third reason) — in one release, migrations run first, and the old API
   would refuse the new word for the deploy minutes.
+- 2026-11-01: **CH6c-2 MERGED** (#1897, main 1783bc8). **CH6d built** (`claude/chat-ch6d`), web only:
+  desktop alerts while the tab is open (Q-CHAT4 (a)), by Q-CHAT18 (a) exactly — a direct or group line
+  from somebody else rings unless muted; a channel rings only for a mention or a reply to you; a
+  conversation muted to `mentions` rings for a mention only, `all` never; a reaction never; the
+  conversation on screen in a VISIBLE tab never. Sender and place as the title, the first 80 characters
+  (mentions as names) as the text; one alert per conversation (`tag`), clicking opens the line. It reads
+  what the tab already fetches: the badge's inbox (refetched by every signal) for direct and group
+  lines, and Activity's unread count — asked only while alerts are on — whose rise fetches one page for
+  mentions and replies. The first snapshot of each is a baseline, so nothing rings for what was there
+  when the page loaded. Off until the person presses Turn on at the foot of the rail (the browser
+  refuses a prompt nobody pressed for); the choice is per browser (`fg.chat.desktop-alerts`), and a
+  browser that blocked them is told how to undo it. Rules in `chatDesktopAlerts.ts` (12 tests), the tab
+  in `useChatDesktopAlerts.ts` (4, with a fake Notification). Next: CH7 Files.
 

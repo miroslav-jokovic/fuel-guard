@@ -8,6 +8,7 @@ import { useHazmatReviewCountQuery } from "@/features/hazmat/useHazmatReview";
 import { useThreadsQuery } from "@/features/messages/useMessages";
 import { useChatInboxQuery } from "@/features/chat/useChat";
 import { useChatRealtime } from "@/features/chat/chatRealtime";
+import { useChatDesktopAlerts } from "@/features/chat/useChatDesktopAlerts";
 
 /**
  * The live counts beside sidebar entries (`NavCounts`), each asked only when its entry can show, and
@@ -33,6 +34,9 @@ export function useNavCounts(modules: ReturnType<typeof useModulesQuery>): Compu
   // ...and kept live by the tab's realtime link (CH3b): a message to me moves the badge at once, on any
   // page, and the poll behind it relaxes to 60 s.
   useChatRealtime(chatOpen);
+  // ...and, when the person turned them on in this browser, the desktop alerts that same inbox and
+  // Activity owe (CH6d) — on every page, as the badge is.
+  useChatDesktopAlerts(chatOpen, computed(() => chat.data.value?.conversations));
 
   return computed(() => ({
     hazmatReview: reviewCount.data.value ?? 0,
