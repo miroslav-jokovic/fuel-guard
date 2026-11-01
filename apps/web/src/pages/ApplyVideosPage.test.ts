@@ -89,6 +89,13 @@ describe("ApplyVideosPage", () => {
     expect(state.posts).toEqual([{ url: "/api/public/application/tok/videos/attest", body: { name: "Ana Plicant", videoIds: [V1, V2] } }]);
   });
 
+  it("will not send a name without the tick — the tick is the statement", async () => {
+    const w = await mountPage();
+    await w.get('[data-testid="attest"] input:not([type="checkbox"])').setValue("Ana Plicant");
+    await settle(w);
+    expect(w.get('[data-testid="attest-send"]').attributes("disabled")).toBeDefined();
+  });
+
   it("says the list changed when the server refuses the tick for it", async () => {
     state.refuse = { code: "list_changed", message: "x" };
     const w = await mountPage();
