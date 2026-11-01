@@ -235,7 +235,7 @@ export function rosterDriversRouter(): Router {
         return;
       }
       // A-9 (APPLICATION-FLOW-V2-PLAN.md): an applicant becomes an active driver only through the hire,
-      // which checks the federal gates and the handbook (`hireApplicant.ts`, `HIRE_REFUSES_WITHOUT`).
+      // which checks the six federal gates and the carrier's switched-on steps (`hireApplicant.ts`, `hireRefusesWithout`, §9 P12).
       // Refused here for the sentence; since 0386 (Q-AW21) the database refuses it too, for every
       // writer (HA011 outside `hire_applicant`), so this is the courtesy, not the guarantee.
       if (isApplicantStatus((current as { status: string }).status) && body.status === "active") {

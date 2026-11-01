@@ -1,10 +1,13 @@
 <script setup lang="ts">
 import { computed, reactive, watch } from "vue";
 import {
+  HIRE_POLICY_SWITCHES,
+  HIRE_REFUSES_WITHOUT,
   INVITE_TTL_DAYS_MAX,
   REMINDER_AFTER_HOURS_MAX,
   REMINDER_AFTER_HOURS_MIN,
   formatDisplayDateTime,
+  hiringStep,
   recruitingSettingsSchema,
   type RecruitingSettings,
 } from "@silvicom/shared";
@@ -37,6 +40,12 @@ import { useRecruitingSettings, useSaveRecruitingSettings } from "@/features/rec
  * Writes on `session.can("recruitment")`, what the api's PUT asks — the Representatives' rule on the same
  * page. What it changes: every link sent, re-sent or extended from now on, and the reminder sweep's next
  * run. A link already in a driver's inbox keeps the expiry it was given.
+ *
+ * ── BEFORE WE HIRE (§9 P12, 0536) ─────────────────────────────────────────────────────────────
+ * The six federal checks are listed and locked — law, not a setting (`HIRE_REFUSES_WITHOUT`). Below
+ * them, one switch per `HIRE_POLICY_SWITCHES` entry: the handbook only, because the orientation steps
+ * have no record yet and a switch on them would refuse every hire (0536's header). Saved with the rest
+ * of this form, so the PUT always carries every answer.
  */
 const session = useSessionStore();
 const toast = useToastStore();
@@ -45,16 +54,26 @@ const settingsQ = useRecruitingSettings();
 const save = useSaveRecruitingSettings();
 
 // Strings, because a number input can hold "" while it is being typed in.
-const form = reactive({ days: "", enabled: true, hours: "" });
+const form = reactive({ days: "", enabled: true, hours: "", handbook: false });
 const load = (s: RecruitingSettings): void => {
-  Object.assign(form, { days: String(s.invite_ttl_days), enabled: s.reminders_enabled, hours: String(s.reminder_after_hours) });
+  Object.assign(form, {
+    days: String(s.invite_ttl_days),
+    enabled: s.reminders_enabled,
+    hours: String(s.reminder_after_hours),
+    handbook: s.handbook_blocks_hire,
+  });
 };
+
+const FEDERAL_CHECKS = HIRE_REFUSES_WITHOUT.map((key) => hiringStep(key).label);
+/** The switch's words, from the step it adds — never a second name for the same step. */
+const HANDBOOK_LABEL = hiringStep(HIRE_POLICY_SWITCHES.find((s) => s.setting === "handbook_blocks_hire")!.step).label;
 watch(() => settingsQ.data.value?.settings, (s) => s && load(s), { immediate: true });
 
 const candidate = computed(() => ({
   invite_ttl_days: Number(form.days),
   reminders_enabled: form.enabled,
   reminder_after_hours: Number(form.hours),
+  handbook_blocks_hire: form.handbook,
 }));
 const parsed = computed(() => recruitingSettingsSchema.safeParse(candidate.value));
 /** The contract's first complaint, keyed by the field it is about. */
@@ -79,7 +98,8 @@ const changed = computed(() => {
   const c = current.value;
   if (!c) return false;
   const v = candidate.value;
-  return c.invite_ttl_days !== v.invite_ttl_days || c.reminders_enabled !== v.reminders_enabled || c.reminder_after_hours !== v.reminder_after_hours;
+  return c.invite_ttl_days !== v.invite_ttl_days || c.reminders_enabled !== v.reminders_enabled
+    || c.reminder_after_hours !== v.reminder_after_hours || c.handbook_blocks_hire !== v.handbook_blocks_hire;
 });
 
 async function submit(): Promise<void> {
@@ -140,6 +160,28 @@ async function submit(): Promise<void> {
         >
           <BaseInput :id="id" v-model="form.hours" type="number" :min="REMINDER_AFTER_HOURS_MIN" :max="REMINDER_AFTER_HOURS_MAX" inputmode="numeric" :disabled="!canManage" class="max-w-32" />
         </FormField>
+
+        <div class="space-y-3 border-t border-edge pt-5" data-testid="before-we-hire">
+          <h3 class="text-sm font-semibold text-ink">Before we hire</h3>
+          <p class="text-xs text-ink-secondary">
+            Hire stays locked until these are done. Federal rules require the first six, so they can't be turned off.
+          </p>
+          <ul class="space-y-1 text-sm">
+            <li v-for="label in FEDERAL_CHECKS" :key="label" class="flex items-center justify-between gap-3">
+              <span class="text-ink">{{ label }}</span>
+              <span class="text-xs text-ink-muted">Federal requirement</span>
+            </li>
+          </ul>
+          <div class="flex items-start justify-between gap-4">
+            <div>
+              <p class="text-sm font-medium text-ink">{{ HANDBOOK_LABEL }}</p>
+              <p class="mt-1 text-xs text-ink-secondary">
+                On, hire also waits for the driver handbook to be signed. Off, it can be signed after the hire.
+              </p>
+            </div>
+            <AppSwitch v-model="form.handbook" :disabled="!canManage" :label="`Hiring waits for: ${HANDBOOK_LABEL}`" />
+          </div>
+        </div>
 
         <BaseButton
           v-if="canManage"

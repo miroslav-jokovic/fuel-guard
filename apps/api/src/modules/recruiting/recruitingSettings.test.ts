@@ -36,7 +36,9 @@ function table(opts: { row?: Record<string, unknown> | null; readError?: unknown
   };
 }
 
-const saved = { invite_ttl_days: 5, reminders_enabled: false, reminder_after_hours: 200 };
+const saved = { invite_ttl_days: 5, reminders_enabled: false, reminder_after_hours: 200, handbook_blocks_hire: true };
+/** What a screen served before §9 P12 PUTs: the three link answers, no hire switch. */
+const { handbook_blocks_hire: _omitted, ...oldScreen } = saved;
 
 describe("reading what is in force", () => {
   it("is the shared constants while the carrier has no row", async () => {
@@ -45,6 +47,7 @@ describe("reading what is in force", () => {
       invite_ttl_days: INVITE_TTL_DAYS_DEFAULT,
       reminders_enabled: true,
       reminder_after_hours: STALE_DRAFT_HOURS,
+      handbook_blocks_hire: false,
     });
     expect(await recruitingSettingsView(rec.client, ORG)).toMatchObject({ isDefault: true, updatedAt: null });
     expectOrgScoped(rec, ORG);
@@ -90,6 +93,21 @@ describe("saving", () => {
     const out = await saveRecruitingSettings(rec.client, ORG, USER, saved);
     expect(rec.writes().map((w) => w.write!.method)).toEqual(["update", "insert", "update"]);
     expect(out.view.settings).toEqual(saved);
+  });
+
+  it("§9 P12: a save without the hire switch keeps the switch in force rather than turning it off", async () => {
+    const rec = createSupabaseRecorder({
+      tables: { recruiting_settings: table({ row: { invite_ttl_days: 14, reminders_enabled: true, reminder_after_hours: 48, handbook_blocks_hire: true, updated_at: "x" } }) },
+    });
+    const out = await saveRecruitingSettings(rec.client, ORG, USER, oldScreen);
+    expect(rec.writtenRows("recruiting_settings")).toEqual([{ ...oldScreen, handbook_blocks_hire: true, updated_by: USER }]);
+    expect(out.view.settings.handbook_blocks_hire).toBe(true);
+  });
+
+  it("§9 P12: a first save without the hire switch writes the default, off", async () => {
+    const rec = createSupabaseRecorder({ tables: { recruiting_settings: table() } });
+    await saveRecruitingSettings(rec.client, ORG, USER, oldScreen);
+    expect(rec.writtenRows("recruiting_settings").at(-1)).toMatchObject({ handbook_blocks_hire: false });
   });
 
   it("never writes with upsert", async () => {

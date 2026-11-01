@@ -3,7 +3,7 @@ import { enableAutoUnmount, mount } from "@vue/test-utils";
 import { VueQueryPlugin } from "@tanstack/vue-query";
 import { createPinia, setActivePinia } from "pinia";
 import { answerConfirm } from "@silvicom/ui/testing";
-import { sectionAccess } from "@silvicom/shared";
+import { HIRE_REFUSES_WITHOUT, hiringStep, sectionAccess } from "@silvicom/shared";
 import { useToastStore } from "@/stores/toast";
 import SettingsRecruitingPage from "@/pages/SettingsRecruitingPage.vue";
 
@@ -21,7 +21,7 @@ const state = vi.hoisted(() => ({
   calls: [] as Array<{ url: string; method: string; body: unknown }>,
   refuse: null as null | { code: string; message: string },
   /** The carrier's link settings as the api holds them (Q-AW41); null = never saved. */
-  settings: null as null | { invite_ttl_days: number; reminders_enabled: boolean; reminder_after_hours: number },
+  settings: null as null | { invite_ttl_days: number; reminders_enabled: boolean; reminder_after_hours: number; handbook_blocks_hire?: boolean },
 }));
 
 vi.mock("@/lib/api", () => ({
@@ -44,7 +44,7 @@ vi.mock("@/lib/api", () => ({
     if (url.endsWith("/settings")) {
       return state.settings
         ? { ok: true, data: { settings: state.settings, isDefault: false, updatedAt: "2026-09-27T09:00:00Z" } }
-        : { ok: true, data: { settings: { invite_ttl_days: 14, reminders_enabled: true, reminder_after_hours: 48 }, isDefault: true, updatedAt: null } };
+        : { ok: true, data: { settings: { invite_ttl_days: 14, reminders_enabled: true, reminder_after_hours: 48, handbook_blocks_hire: false }, isDefault: true, updatedAt: null } };
     }
     throw new Error(`unexpected GET ${url}`);
   }),
@@ -273,7 +273,7 @@ describe("the application links (Q-AW41)", () => {
     await saveButton(w)!.trigger("click");
     await settle(w);
     expect(state.calls).toEqual([
-      { url: "/api/recruitment/settings", method: "PUT", body: { invite_ttl_days: 7, reminders_enabled: true, reminder_after_hours: 72 } },
+      { url: "/api/recruitment/settings", method: "PUT", body: { invite_ttl_days: 7, reminders_enabled: true, reminder_after_hours: 72, handbook_blocks_hire: false } },
     ]);
   });
 
@@ -297,7 +297,7 @@ describe("the application links (Q-AW41)", () => {
     await inputs(w)[1]!.setValue("60");
     await saveButton(w)!.trigger("click");
     await settle(w);
-    expect(state.calls.at(-1)!.body).toEqual({ invite_ttl_days: 3, reminders_enabled: false, reminder_after_hours: 60 });
+    expect(state.calls.at(-1)!.body).toEqual({ invite_ttl_days: 3, reminders_enabled: false, reminder_after_hours: 60, handbook_blocks_hire: false });
   });
 
   it("switched off, still refuses a delay that would come after the link dies (C-AL1)", async () => {
@@ -324,5 +324,37 @@ describe("the application links (Q-AW41)", () => {
     expect(links(w).text()).toContain("Last changed");
     expect(inputs(w)[0]!.attributes("disabled")).toBeDefined();
     expect(saveButton(w)).toBeUndefined();
+  });
+});
+
+describe("before we hire (§9 P12)", () => {
+  const hirePart = (w: ReturnType<typeof mount>) => w.get('[data-testid="before-we-hire"]');
+
+  it("lists the six federal checks, locked, and the handbook as the one switch", async () => {
+    asRole("admin");
+    const w = await page();
+    const part = hirePart(w);
+    expect(part.findAll("li")).toHaveLength(HIRE_REFUSES_WITHOUT.length);
+    for (const key of HIRE_REFUSES_WITHOUT) expect(part.text()).toContain(hiringStep(key).label);
+    expect(part.findAllComponents({ name: "AppSwitch" })).toHaveLength(1);
+    expect(part.text()).toContain(hiringStep("handbook").label);
+  });
+
+  it("saves the handbook switch with the rest of the answers", async () => {
+    asRole("admin");
+    const w = await page();
+    hirePart(w).findComponent({ name: "AppSwitch" }).vm.$emit("update:modelValue", true);
+    await settle(w);
+    await w.findAll("button").find((b) => b.text() === "Save")!.trigger("click");
+    await settle(w);
+    expect(state.calls).toEqual([
+      { url: "/api/recruitment/settings", method: "PUT", body: { invite_ttl_days: 14, reminders_enabled: true, reminder_after_hours: 48, handbook_blocks_hire: true } },
+    ]);
+  });
+
+  it("shows an auditor the switch and lets them change nothing", async () => {
+    asRole("auditor");
+    const w = await page();
+    expect(hirePart(w).findComponent({ name: "AppSwitch" }).props("disabled")).toBe(true);
   });
 });

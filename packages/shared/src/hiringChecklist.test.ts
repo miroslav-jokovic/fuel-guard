@@ -1,7 +1,10 @@
 import { describe, it, expect } from "vitest";
 import { hireBlockers, hiringChecklist, readyToScreen, roadTestCounts, type HiringChecklistInputs } from "./hiringChecklist.js";
 import {
+  HIRE_POLICY_DEFAULT,
+  HIRE_POLICY_SWITCHES,
   HIRE_REFUSES_WITHOUT,
+  hireRefusesWithout,
   TRAVEL_WARNS_ON,
   REFUSING_STEPS,
   HIRING_PHASE_LABELS,
@@ -804,6 +807,45 @@ describe("what the hire refuses without (Q-HM5, D-HB5)", () => {
 
   it("fails closed on a refusing step the fold did not emit", () => {
     expect(hireBlockers({ steps: [] })).toEqual([...HIRE_REFUSES_WITHOUT]);
+  });
+});
+
+describe("the carrier's hire policy (§9 P12, 0536)", () => {
+  const noHandbook = { qualificationKinds: ALL_KINDS.filter((k) => k !== "handbook"), hiredAt: null };
+
+  it("with every switch off is exactly the six federal checks", () => {
+    expect(hireRefusesWithout()).toEqual([...HIRE_REFUSES_WITHOUT]);
+    expect(hireRefusesWithout(HIRE_POLICY_DEFAULT)).toEqual([...HIRE_REFUSES_WITHOUT]);
+  });
+
+  it("with the handbook switched on adds the handbook, in the catalogue's order, and nothing else", () => {
+    const list = hireRefusesWithout({ handbook_blocks_hire: true });
+    expect(list).toEqual(HIRING_STEPS.filter((s) => s.federalGate || s.key === "handbook").map((s) => s.key));
+  });
+
+  it("refuses the hire without the signed handbook when the carrier switched it on", () => {
+    const c = hiringChecklist(complete({ ...noHandbook, hirePolicy: { handbook_blocks_hire: true } }));
+    expect(hireBlockers(c)).toEqual(["handbook"]);
+    expect(stateOf(c, "hired")).toBe("blocked");
+    expect(c.readyToHire.outstanding).toEqual(["handbook"]);
+  });
+
+  it("does not refuse without the handbook when the switch is off or absent", () => {
+    for (const hirePolicy of [{ handbook_blocks_hire: false }, null, undefined]) {
+      const c = hiringChecklist(complete({ ...noHandbook, hirePolicy }));
+      expect(hireBlockers(c)).toEqual([]);
+      expect(c.readyToHire.ok).toBe(true);
+    }
+  });
+
+  it("stamps the policy's list on the hired row, the edges the drawer reads", () => {
+    const c = hiringChecklist(complete({ hirePolicy: { handbook_blocks_hire: true }, hiredAt: null }));
+    expect(c.steps.find((s) => s.key === "hired")!.requires).toEqual(hireRefusesWithout({ handbook_blocks_hire: true }));
+  });
+
+  it("every switch names a step that has evidence — a switch on an unmeasurable step would refuse every hire", () => {
+    for (const sw of HIRE_POLICY_SWITCHES) expect(hiringStep(sw.step).evidence, sw.step).not.toBeNull();
+    expect(HIRE_POLICY_SWITCHES.every((sw) => !hiringStep(sw.step).federalGate)).toBe(true);
   });
 });
 

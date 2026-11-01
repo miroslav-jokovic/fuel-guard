@@ -28,14 +28,18 @@ const preview = vi.hoisted(() => ({
 }));
 
 /** §9 P4: the checklist the six federal checks are read from; `open` lists the ones not done. */
-const checklist = vi.hoisted(() => ({ open: [] as string[] }));
+const checklist = vi.hoisted(() => ({ open: [] as string[], hiredRequires: null as string[] | null }));
 
 vi.mock("@/lib/api", () => ({
   apiFetch: vi.fn(async (path: string, init?: { method?: string; body?: unknown }) => {
     calls.push({ path, init });
     if (path.endsWith("/checklist")) {
       const { HIRE_REFUSES_WITHOUT: six } = await import("@silvicom/shared");
-      return { ok: true, data: { checklist: { steps: six.map((key) => ({ key, state: checklist.open.includes(key) ? "waiting_on_us" : "done" })) } } };
+      // §9 P12: with `hiredRequires` set, the fold's `hired` row carries the carrier's list.
+      const keys = checklist.hiredRequires ?? six;
+      const steps: Array<Record<string, unknown>> = keys.map((key) => ({ key, state: checklist.open.includes(key) ? "waiting_on_us" : "done" }));
+      if (checklist.hiredRequires) steps.push({ key: "hired", state: "blocked", requires: checklist.hiredRequires });
+      return { ok: true, data: { checklist: { steps } } };
     }
     if (path.includes("hire-preview")) return { ok: true, data: preview.value };
     return { ok: true, data: { driverId: "d1", hireDate: "2026-08-19", filed: 1, skipped: [], outstanding: [] } };
@@ -67,6 +71,7 @@ describe("§9 P4 (Q-WF1 (a)): the six federal checks, before the press", () => {
   beforeEach(() => {
     setActivePinia(createPinia());
     checklist.open = [];
+    checklist.hiredRequires = null;
   });
 
   it("lists all six, each done or a link to the row that does it", async () => {
@@ -90,6 +95,28 @@ describe("§9 P4 (Q-WF1 (a)): the six federal checks, before the press", () => {
     const ready = mountDrawer();
     await settle(ready);
     expect(ready.findAll("button").find((b) => b.text().trim() === "Hire")!.attributes("disabled")).toBeUndefined();
+  });
+});
+
+describe("§9 P12: the carrier's own rule joins the list", () => {
+  beforeEach(() => {
+    setActivePinia(createPinia());
+    checklist.open = [];
+    checklist.hiredRequires = null;
+  });
+
+  it("lists the handbook as the company's rule and holds the press while it is open", async () => {
+    const { hireRefusesWithout } = await import("@silvicom/shared");
+    checklist.hiredRequires = hireRefusesWithout({ handbook_blocks_hire: true });
+    checklist.open = ["handbook"];
+    const w = mountDrawer();
+    await settle(w);
+    const list = w.get('[data-testid="federal-checks"]');
+    expect(list.findAll("li")).toHaveLength(7);
+    expect(list.text()).toContain("Before the hire");
+    expect(list.text()).toContain("your company's rule");
+    expect(w.get('[data-to="/recruitment/d1?step=handbook"]').text()).toBe("Open");
+    expect(w.findAll("button").find((b) => b.text().trim() === "Hire")!.attributes("disabled")).toBeDefined();
   });
 });
 

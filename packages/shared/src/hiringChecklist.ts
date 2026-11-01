@@ -5,7 +5,7 @@ import type { HiringChecklistInputs } from "./hiringChecklistInputs.js";
 import { mvrJurisdictionsOutstanding } from "./mvrJurisdictions.js";
 import { packetDriverMarkCount } from "./packetPlacements.js";
 import {
-  HIRE_REFUSES_WITHOUT, HIRING_STEPS, REFUSING_STEPS, TRAVEL_WARNS_ON, measurableHiringSteps,
+  HIRE_REFUSES_WITHOUT, HIRING_STEPS, REFUSING_STEPS, TRAVEL_WARNS_ON, hireRefusesWithout, measurableHiringSteps,
   type HiringEvidence, type HiringStepKey, type HiringStepSpec,
 } from "./hiringSteps.js";
 
@@ -135,7 +135,7 @@ export interface HiringChecklist {
   total: number;
   /** Every `beforeTravel` step: the gate on the plane ticket, the list booking it warns on (`TRAVEL_WARNS_ON`, §9 P4). */
   readyToTravel: HiringReadiness;
-  /** `HIRE_REFUSES_WITHOUT`: the gate on the hire itself, the list `hireApplicant` refuses on. */
+  /** `hireRefusesWithout(policy)`: the gate on the hire itself, the list `hireApplicant` refuses on (§9 P12). */
   readyToHire: HiringReadiness;
   /**
    * Steps in the owner's process that nothing in the schema can prove yet — the orientation videos and
@@ -359,9 +359,13 @@ function readiness(
 export function hiringChecklist(input: HiringChecklistInputs): HiringChecklist {
   const steps: HiringStep[] = [];
   const done = new Set<HiringStepKey>();
+  // §9 P12: the `hired` row's edges are THIS carrier's refusal list — the six federal checks plus what its
+  // policy switches on — so the row, `readyToHire` and `hireBlockers` all read one list.
+  const hireRequires = hireRefusesWithout(input.hirePolicy ?? undefined);
 
   // One pass in D-HM9's order, so a step's requirements are always already decided when it is read.
-  for (const spec of measurableHiringSteps()) {
+  for (const listed of measurableHiringSteps()) {
+    const spec: HiringStepSpec = listed.key === "hired" ? { ...listed, requires: hireRequires } : listed;
     const evidence = evidenceFor(spec.key, input);
     if (evidence.done) done.add(spec.key);
 
@@ -414,7 +418,7 @@ export function hiringChecklist(input: HiringChecklistInputs): HiringChecklist {
     // ⚠ G-11: the ONE definition — what the hire refuses without. This read every step but `hired`
     // until 2026-09-26, which put the unbuilt orientation rows in range, so `ok` could never be true
     // for anybody; it had no caller, and the hire refused on a different list.
-    readyToHire: readiness(steps, (s) => HIRE_REFUSES_WITHOUT.includes(s.key)),
+    readyToHire: readiness(steps, (s) => hireRequires.includes(s.key)),
     unbuilt: HIRING_STEPS.filter((s) => s.evidence === null).map((s) => s.key),
     next,
   };
@@ -427,7 +431,10 @@ export function hiringChecklist(input: HiringChecklistInputs): HiringChecklist {
  * `readiness()`'s reason, that an absence of evidence is not evidence of completeness.
  */
 export function hireBlockers(checklist: Pick<HiringChecklist, "steps">): HiringStepKey[] {
-  return notDone(checklist, HIRE_REFUSES_WITHOUT);
+  // §9 P12: the carrier's list is the `hired` row's own edges (the fold stamps them from its policy).
+  // No `hired` row — a fold that emitted none — falls back to the six, never to nothing.
+  const hired = checklist.steps.find((s) => s.key === "hired");
+  return notDone(checklist, hired?.requires ?? HIRE_REFUSES_WITHOUT);
 }
 
 /** The steps still open before travel — what booking it WARNS about (§9 P4; it refused under D-AW7). */

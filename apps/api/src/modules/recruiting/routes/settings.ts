@@ -1,5 +1,5 @@
 import { Router, type Request, type Response } from "express";
-import { recruitingSettingsSchema, type RecruitingSettings } from "@silvicom/shared";
+import { recruitingSettingsSchema, type RecruitingSettingsInput } from "@silvicom/shared";
 import { requireAuth, requireOrg, requireSection } from "../../../middleware/auth.js";
 import { asyncHandler, validateBody } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
@@ -37,7 +37,7 @@ export function recruitmentSettingsRouter(): Router {
     asyncHandler(async (req: Request, res: Response) => {
       const admin = getSupabaseAdmin(getAppLocals(req).env);
       const orgId = req.auth!.orgId!;
-      const saved = await saveRecruitingSettings(admin, orgId, req.auth!.userId, res.locals.body as RecruitingSettings);
+      const saved = await saveRecruitingSettings(admin, orgId, req.auth!.userId, res.locals.body as RecruitingSettingsInput);
       await writeAudit(admin, {
         orgId,
         actorId: req.auth!.userId,

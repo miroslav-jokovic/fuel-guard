@@ -324,6 +324,35 @@ export const TRAVEL_WARNS_ON: readonly HiringStepKey[] =
 export const HIRE_REFUSES_WITHOUT: readonly HiringStepKey[] = DEFINED.filter((s) => s.federalGate).map((s) => s.key);
 
 /**
+ * The carrier's hire policy (§9 P12, migration 0536): which NON-federal steps this carrier's hire also
+ * waits for. The six federal checks are not here — they are law, not policy, and no switch removes them.
+ *
+ * ⚠ Only the handbook. The orientation videos and the live orientation day have `evidence: null`, so the
+ * fold can never mark them done and a carrier who switched one on could never hire again (0536 header).
+ * They join `HIRE_POLICY_SWITCHES` with HW8's evidence tables.
+ */
+export interface HirePolicy {
+  handbook_blocks_hire: boolean;
+}
+
+/** Q-WF6 as assumed (§8.3): nothing non-federal blocks the hire. An org with no settings row reads this. */
+export const HIRE_POLICY_DEFAULT: HirePolicy = { handbook_blocks_hire: false };
+
+/** Each switch and the step it adds to the hire's refusal list — the one mapping every reader uses. */
+export const HIRE_POLICY_SWITCHES: ReadonlyArray<{ setting: keyof HirePolicy; step: HiringStepKey }> = [
+  { setting: "handbook_blocks_hire", step: "handbook" },
+];
+
+/**
+ * What THIS carrier's hire refuses without: the six federal checks plus every step its policy switches on,
+ * in the catalogue's order. `HIRE_REFUSES_WITHOUT` is this with every switch off.
+ */
+export function hireRefusesWithout(policy: HirePolicy = HIRE_POLICY_DEFAULT): HiringStepKey[] {
+  const on = new Set(HIRE_POLICY_SWITCHES.filter((s) => policy[s.setting]).map((s) => s.step));
+  return DEFINED.filter((s) => s.federalGate || on.has(s.key)).map((s) => s.key);
+}
+
+/**
  * The row whose edges ARE a refusal list, stamped here because the list is derived from the catalogue
  * and a literal above cannot read a value computed from itself. Only `hired` since §9 P4: travel
  * warns (`TRAVEL_WARNS_ON`).

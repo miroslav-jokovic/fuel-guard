@@ -263,6 +263,8 @@ describe("what it reads, and from where", () => {
       "application_intakes", "applicant_travel",
       // AW7 (C2b3): Part 1's licence list, and the carrier's zone G-3's thirty days are counted in.
       "application_intake_licences", "organizations",
+      // §9 P12: the carrier's hire policy.
+      "recruiting_settings",
     ]));
   });
 

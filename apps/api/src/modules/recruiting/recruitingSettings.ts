@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   RECRUITING_SETTINGS_DEFAULTS,
   type RecruitingSettings,
+  type RecruitingSettingsInput,
   type RecruitingSettingsView,
 } from "@silvicom/shared";
 
@@ -18,12 +19,12 @@ import {
  * carrier who chose a 3-day link a 14-day one — longer-lived credentials than they asked for — so it
  * throws, and the caller's own error path answers.
  *
- * ── THE WRITE: ALL THREE ANSWERS, UPDATE THEN INSERT ──────────────────────────────────────────
+ * ── THE WRITE: EVERY ANSWER, UPDATE THEN INSERT ──────────────────────────────────────────
  * Never `.upsert()` (lint:upserts): the save is an UPDATE of the org's row, and an INSERT when there was
  * none. Two saves racing to create the row meet 0379's primary key; the loser's 23505 is answered by
  * updating the row the winner made, so the later press is the one that stands, as it would have been.
  */
-const COLS = "invite_ttl_days, reminders_enabled, reminder_after_hours, updated_at";
+const COLS = "invite_ttl_days, reminders_enabled, reminder_after_hours, handbook_blocks_hire, updated_at";
 
 type Row = RecruitingSettings & { updated_at: string };
 
@@ -42,6 +43,7 @@ const pick = (r: RecruitingSettings): RecruitingSettings => ({
   invite_ttl_days: r.invite_ttl_days,
   reminders_enabled: r.reminders_enabled,
   reminder_after_hours: r.reminder_after_hours,
+  handbook_blocks_hire: r.handbook_blocks_hire,
 });
 
 /** What is in force for this org: its row, else the product's defaults. Throws on a failed read. */
@@ -64,15 +66,23 @@ export interface RecruitingSettingsSaved {
   before: RecruitingSettings;
 }
 
-/** Writes all three answers. The input is the contract's, already validated (bounds and the refine). */
+/**
+ * Writes every answer. The input is the contract's, already validated (bounds and the refine).
+ * ⚠ §9 P12: a PUT without `handbook_blocks_hire` (a screen served before 0536's reader) keeps the value
+ * in force — "absent" is "unchanged", never "off".
+ */
 export async function saveRecruitingSettings(
   admin: SupabaseClient,
   orgId: string,
   userId: string,
-  input: RecruitingSettings,
+  input: RecruitingSettingsInput,
 ): Promise<RecruitingSettingsSaved> {
   const before = await recruitingSettings(admin, orgId);
-  const answers = { ...pick(input), updated_by: userId };
+  const complete: RecruitingSettings = {
+    ...input,
+    handbook_blocks_hire: input.handbook_blocks_hire ?? before.handbook_blocks_hire,
+  };
+  const answers = { ...pick(complete), updated_by: userId };
 
   const update = () =>
     admin.from("recruiting_settings").update(answers).eq("org_id", orgId).select(COLS);

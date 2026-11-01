@@ -235,3 +235,24 @@ writer, so it called `auth_role()` where nothing had, and the `rls` matrix went 
 
 Fixed in `0213` with `nullif`, matching the sibling, rather than worked around in the trigger — making
 one caller defensive would have left the same trap for the next one.
+
+## 9. A recruiter who hires — HIRING-WORKFLOW-AUDIT-2026-10-31 §9 P11 (2026-11-01)
+
+**Answer from the code:** a recruiter can press Hire once the carrier grants the recruiter role
+`roster: manage` in Settings → Permissions. No migration and no code change are needed.
+
+- The hire route checks `requireSection("roster")` (`apps/api/src/modules/recruiting/routes/hire.ts`)
+  against the org's editable matrix (SP5), not the matrix as shipped. A role the admin grants
+  `roster: manage` passes.
+- 0213's `guard_driver_lifecycle` names the three shipped roles, but it only checks a writer with a
+  JWT role. The hire writes through `hire_applicant` with the service role, where `auth_role()` is
+  null, so the trigger lets it through.
+- 0386's `guard_applicant_hire` reads only the hire's own session flag (`hiring_applicant`), not the
+  role.
+
+⚠ **What the grant also hands over.** `roster: manage` is the whole roster's writes, which this
+document's Option B kept from a recruiter on purpose (§3). That is the carrier's choice to make.
+Narrowing it to "hire only" would be a separate door for the hire. It is recorded here and not built.
+
+**Still owed:** checking it on staging (grant, sign in as a recruiter, hire a test applicant). There is
+no recruiter test member on staging yet (`staging-test-members` has a fleet manager and a dispatcher).
