@@ -38,6 +38,7 @@ import RecruitmentTabs from "@/features/recruitment/RecruitmentTabs.vue";
 import HireDrawer from "@/features/recruitment/HireDrawer.vue";
 import InviteApplicantDrawer from "@/features/recruitment/InviteApplicantDrawer.vue";
 import PurgeApplicantDrawer from "@/features/recruitment/PurgeApplicantDrawer.vue";
+import { lastNoteLine } from "@/features/recruitment/useApplicantNotes";
 import ArchiveDriverModal from "@/components/ArchiveDriverModal.vue";
 
 /**
@@ -394,6 +395,7 @@ async function setArchived(applicant: PipelineApplicant, archived: boolean) {
           <span class="font-medium text-ink">{{ row.full_name }}</span>
           <span class="ml-2 text-2xs text-ink-tertiary">invited {{ formatDate(row.applied_on) }}</span>
           <span v-if="showArchived" :class="[BADGE_BASE, toneClass('neutral'), 'ml-2']">Archived</span>
+          <span v-if="row.last_note" class="block text-2xs text-ink-tertiary">{{ lastNoteLine(row.last_note) }}</span>
         </template>
 
         <!--

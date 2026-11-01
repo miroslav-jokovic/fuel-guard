@@ -13,6 +13,9 @@ import HiringStepDrawer from "@/features/recruitment/HiringStepDrawer.vue";
 import HireDrawer from "@/features/recruitment/HireDrawer.vue";
 import { useSessionStore } from "@/stores/session";
 import ApplicationReviewDrawer from "@/features/apply/ApplicationReviewDrawer.vue";
+import { describeOfficeEdit } from "@/features/apply/fieldLabels";
+import ApplicantNotesPanel from "@/features/recruitment/ApplicantNotesPanel.vue";
+import ApplicantActivityList from "@/features/recruitment/ApplicantActivityList.vue";
 import OrderTestDrawer, { type OrderSeed } from "@/components/medstop/OrderTestDrawer.vue";
 import { useApplicantChecklistQuery } from "@/features/recruitment/useApplicantChecklist";
 import {
@@ -168,6 +171,11 @@ function openOrder(medstopId: string): void {
     />
 
     <template v-if="!missing">
+      <!-- §9 P10: the office's notes and what has happened, above the work. The activity names an
+           office correction in the applicant form's own words, which only this page may import. -->
+      <ApplicantNotesPanel :driver-id="id" />
+      <ApplicantActivityList :driver-id="id" :describe-edit="describeOfficeEdit" />
+
       <HiringChecklistCard
         :driver-id="id"
         :checklist="checklistQ.data.value ?? null"

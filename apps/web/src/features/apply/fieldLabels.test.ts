@@ -14,6 +14,7 @@ import { APPLY_COPY_ES } from "./es/strings.es";
 import {
   FIELD_LABEL_KEYS,
   describeField,
+  describeOfficeEdit,
   fieldId,
   messageFor,
   valueAt,
@@ -214,5 +215,14 @@ describe("the labels, in the page's language", () => {
     } finally {
       applyLanguage.value = "en";
     }
+  });
+});
+
+describe("describeOfficeEdit (§9 P10)", () => {
+  it("names a job's answer by its column and the job, and a top-level answer by its label", () => {
+    expect(describeOfficeEdit({ path: ["employers", "k1", "city"], change: "filled", employer: "ABC Trucking" }))
+      .toBe(`filled in “${FIELD_LABEL_KEYS.ROWS.employers!.columns.city}” for ABC Trucking`);
+    expect(describeOfficeEdit({ path: ["cdl_number"], change: "changed", employer: null })).toBe(`changed “${describeField(["cdl_number"])}”`);
+    expect(describeOfficeEdit({ path: ["employers", "k1"], change: "removed", employer: "ABC Trucking" })).toBe("removed a job: ABC Trucking");
   });
 });

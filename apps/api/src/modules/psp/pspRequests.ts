@@ -72,3 +72,26 @@ export async function driversWithPspRequest(
       .range(from, to));
   return new Set(rows.map((r) => r.driver_id));
 }
+
+/**
+ * When each PSP order for one driver was placed, and where it stands — the applicant's activity list
+ * (HIRING-WORKFLOW-AUDIT-2026-10-31 §9 P10). The same seam as the two above: recruiting asks, and the
+ * table's shape stays here (D-SEP1, `lint:table-access`). The REPORT, once filed, is the evidence
+ * layer's `psp_report` record and is listed from there, not from here.
+ */
+export async function pspOrdersFor(
+  admin: SupabaseClient,
+  orgId: string,
+  driverId: string,
+): Promise<Array<{ created_at: string; status: string }>> {
+  const { data, error } = await admin
+    .from("psp_requests")
+    .select("created_at, status")
+    .eq("org_id", orgId)
+    .eq("driver_id", driverId)
+    .order("created_at", { ascending: false })
+    // A driver is ordered for a handful of times at most; the cap is PostgREST's own, said out loud.
+    .limit(1000);
+  if (error) throw new Error(error.message);
+  return (data ?? []) as Array<{ created_at: string; status: string }>;
+}

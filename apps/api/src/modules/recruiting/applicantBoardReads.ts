@@ -4,6 +4,7 @@ import {
   asApplyingAs,
   declaredLicenceJurisdictions,
   organizationTimezone,
+  type ApplicantLastNote,
   type ApplyingAs,
   type QueueAttempt,
   type QueueEmployment,
@@ -297,6 +298,34 @@ export async function readIntakeLicences(
   const out = new Map<string, string[]>();
   for (const [inv, list] of groupBy(rows, (r) => r.invitation_id)) {
     out.set(inv, [...list].sort((a, b) => a.position - b.position).map((r) => r.state_code));
+  }
+  return out;
+}
+
+/**
+ * The newest note per applicant — the board's "last note: 2 d ago · {name}" (HIRING-WORKFLOW-AUDIT
+ * §9 P10). One set-based read for the whole board, never one per row, and the same chunked, paged
+ * shape as every read above. Only the two columns the line prints: the body stays on the record page.
+ */
+export async function readLastNotes(
+  admin: SupabaseClient,
+  orgId: string,
+  driverIds: readonly string[],
+): Promise<Map<string, ApplicantLastNote>> {
+  if (driverIds.length === 0) return new Map();
+  const rows = await pagedIn<{ driver_id: string; author_name: string; created_at: string }>(driverIds, (chunk) => (from, to) =>
+    admin
+      .from("applicant_notes")
+      .select("driver_id, author_name, created_at")
+      .eq("org_id", orgId)
+      .in("driver_id", chunk)
+      .order("id")
+      .range(from, to),
+  );
+  const out = new Map<string, ApplicantLastNote>();
+  for (const r of rows) {
+    const seen = out.get(r.driver_id);
+    if (!seen || r.created_at > seen.created_at) out.set(r.driver_id, { created_at: r.created_at, author_name: r.author_name });
   }
   return out;
 }

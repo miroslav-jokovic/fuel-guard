@@ -2,6 +2,7 @@ import { computed, type Ref } from "vue";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/vue-query";
 import type {
   ApplicantDispositionRow,
+  ApplicantLastNote,
   ApplicantRequirement,
   ApplicantStage,
   EmploymentHistory,
@@ -54,6 +55,8 @@ export interface PipelineApplicant {
    * different commits, so the page has to survive a response from yesterday's API.
    */
   checklist: BoardChecklist | null;
+  /** §9 P10: the newest note's when and who — "last note: 2 d ago · {name}". Absent from an older API. */
+  last_note?: ApplicantLastNote | null;
 }
 
 /** One row's worth of checklist. Mirrors `applicantBoard.ts`'s `BoardChecklist`, which owns it. */

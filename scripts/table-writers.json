@@ -9,6 +9,9 @@
   "applicant_dispositions": [
     "apps/api/src/modules/recruiting/routes/dispositions.ts"
   ],
+  "applicant_notes": [
+    "apps/api/src/modules/recruiting/applicantNotes.ts"
+  ],
   "applicant_travel": [
     "apps/api/src/modules/recruiting/applicantTravel.ts"
   ],
