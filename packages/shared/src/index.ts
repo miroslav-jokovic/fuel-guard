@@ -87,6 +87,7 @@ export * from "./passwordResetContract.js";
 export * from "./passwordResetEmail.js";
 export * from "./applicationSentEmail.js";
 export * from "./samsara/index.js";
+export * from "./ads/index.js";
 export * from "./recon/tankFuel.js";
 export * from "./recon/odometer.js";
 export * from "./recon/location.js";
