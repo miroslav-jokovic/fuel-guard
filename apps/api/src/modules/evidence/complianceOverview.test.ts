@@ -211,6 +211,15 @@ describe("papers on the overview (UF4b)", () => {
     expect(o.drivers[0]!.paper_count).toBe(3);
   });
 
+  /** Q-WF4 (§9 P9): a paper whose picture the reader may not see is drawn and counted, with no thumbnail signed. */
+  it("draws a paper whose picture is withheld without signing its thumbnail (Q-WF4)", async () => {
+    const r = rec();
+    const o = await getComplianceOverview(r.client, ORG, "2026-08-19", { withPapers: () => true, imageVisible: (kind) => kind !== "cdl" });
+    expect(o.drivers[0]!.papers!.find((p) => p.documentId === "cdl1")).toMatchObject({ thumbUrl: null });
+    expect(o.drivers[0]!.paper_count).toBe(4);
+    expect(r.storageCalls().flatMap((c) => c.args[0] as string[])).not.toContain("o/d/cdl1t.thumb.webp");
+  });
+
   it("signs nothing and carries no papers when nobody asked — the scheduler's and the digest's path", async () => {
     const r = rec();
     const o = await getComplianceOverview(r.client, ORG, "2026-08-19", { expiringWithinDays: 91 });

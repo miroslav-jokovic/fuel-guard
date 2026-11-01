@@ -170,6 +170,10 @@ export * from "./applicationFilingRules.js";
 export * from "./applicationComposition.js";
 export * from "./sevenDayStatement.js";
 export * from "./applicationCaptureContract.js";
+// §9 P9: the applicant's papers on their record, and the office's upload beside them.
+export * from "./applicantDocumentsContract.js";
+// Q-WF4: who may open an SSN card's or a passport's picture.
+export * from "./identityPaperImages.js";
 export * from "./signatureAdoptionContract.js";
 export * from "./applicationSections.js";
 export * from "./applicationScreens.js";

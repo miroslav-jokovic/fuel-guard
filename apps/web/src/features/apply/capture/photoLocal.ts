@@ -40,8 +40,13 @@ export interface KeptPhoto {
   expiresAt: string;
 }
 
-/** One row per link and slot: a new "Use this" on the same slot replaces the last. */
-export const photoKey = (spec: LocalCopySpec, slot: ApplicationCaptureSlot): string => `${spec.key}:${slot}`;
+/**
+ * One row per link and place: a new "Use this" on the same slot replaces the last. ⚠ Ordinal 0 keeps the
+ * key it always had, so a photograph kept before §9 P9 is still found; the others (0534's several
+ * training certificates) add their ordinal.
+ */
+export const photoKey = (spec: LocalCopySpec, slot: ApplicationCaptureSlot, ordinal = 0): string =>
+  ordinal === 0 ? `${spec.key}:${slot}` : `${spec.key}:${slot}:${ordinal}`;
 
 export async function keepPhoto(
   spec: LocalCopySpec,
@@ -50,9 +55,10 @@ export async function keepPhoto(
   contentType: ApplicationCaptureContentType,
   integrityHash: string,
   now: Date = new Date(),
+  ordinal = 0,
 ): Promise<void> {
   await putCopy<KeptPhoto>("photos", {
-    key: photoKey(spec, slot),
+    key: photoKey(spec, slot, ordinal),
     version: PHOTO_COPY_VERSION,
     slot,
     bytes: await blob.arrayBuffer(),
@@ -63,11 +69,11 @@ export async function keepPhoto(
   });
 }
 
-export const readKeptPhoto = (spec: LocalCopySpec, slot: ApplicationCaptureSlot, now: Date = new Date()): Promise<KeptPhoto | null> =>
-  readCopy<KeptPhoto>("photos", photoKey(spec, slot), (row) => isLive(row, PHOTO_COPY_VERSION, now));
+export const readKeptPhoto = (spec: LocalCopySpec, slot: ApplicationCaptureSlot, now: Date = new Date(), ordinal = 0): Promise<KeptPhoto | null> =>
+  readCopy<KeptPhoto>("photos", photoKey(spec, slot, ordinal), (row) => isLive(row, PHOTO_COPY_VERSION, now));
 
-export const dropKeptPhoto = (spec: LocalCopySpec, slot: ApplicationCaptureSlot): Promise<void> =>
-  deleteCopy("photos", photoKey(spec, slot));
+export const dropKeptPhoto = (spec: LocalCopySpec, slot: ApplicationCaptureSlot, ordinal = 0): Promise<void> =>
+  deleteCopy("photos", photoKey(spec, slot, ordinal));
 
 /**
  * Is the server's photograph for this slot newer than the kept one? Then the kept one is not sent again.

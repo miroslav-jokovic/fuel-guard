@@ -1,5 +1,5 @@
 import {
-  APPLICATION_CAPTURE_CONTENT_TYPES,
+  APPLICATION_CAPTURE_IMAGE_TYPES,
   type ApplicationCaptureContentType,
   type ApplicationCaptureSlot,
 } from "@silvicom/shared";
@@ -43,7 +43,8 @@ export const DEFAULT_CAPTURE_IO: CaptureIo = {
  * the caller fails visibly, instead of the server refusing a content type the client swore was fine.
  */
 export function captureContentType(mediaType: string | undefined): ApplicationCaptureContentType | null {
-  return (APPLICATION_CAPTURE_CONTENT_TYPES as readonly string[]).includes(mediaType ?? "")
+  // The camera pipeline's encoders produce pictures only; a PDF is sent by `useDocumentSends` as it is.
+  return (APPLICATION_CAPTURE_IMAGE_TYPES as readonly string[]).includes(mediaType ?? "")
     ? (mediaType as ApplicationCaptureContentType)
     : null;
 }
@@ -57,10 +58,12 @@ export async function stageCapture(
   blob: Blob,
   contentType: ApplicationCaptureContentType,
   io: CaptureIo = DEFAULT_CAPTURE_IO,
+  /** Which of several in the slot (0534, §9 P9) — 0 for every single-document slot. */
+  ordinal = 0,
 ): Promise<{ slot: ApplicationCaptureSlot; capturedAt: string }> {
   const sha256 = await io.digest(blob);
   const started = await io.start(token, slot, contentType);
   await io.upload(started.uploadUrl, blob);
   // Last, and only now: the row is what tells the driver the slot is filled.
-  return io.confirm(token, started.captureId, { slot, content_type: contentType, sha256 });
+  return io.confirm(token, started.captureId, { slot, content_type: contentType, sha256, ordinal });
 }

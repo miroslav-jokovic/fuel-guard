@@ -284,13 +284,15 @@ export function buildReviewSummary({ draft, questionnaire, captures }: ReviewInp
     },
   ];
 
-  const taken = new Set(captures.map((cap) => cap.slot));
+  // §9 P9: a paper that comes in several says how many ("Received (2)") — two training certificates are two.
+  const sentOf = (slot: string) => captures.filter((cap) => cap.slot === slot).length;
   const documents: ReviewGroup[] = [
     {
       entries: APPLICATION_CAPTURE_REQUESTED.map((slot) => ({
         label: APPLY_CAPTURE_TITLES[slot],
-        value: taken.has(slot) ? APPLY_COPY.documents.done : copy.none,
-        muted: !taken.has(slot),
+        value: sentOf(slot) === 0 ? copy.none
+          : sentOf(slot) === 1 ? APPLY_COPY.documents.done : `${APPLY_COPY.documents.done} (${sentOf(slot)})`,
+        muted: sentOf(slot) === 0,
       })),
     },
   ];

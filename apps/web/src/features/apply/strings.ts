@@ -6,6 +6,7 @@ import { APPLY_IDENTITY_COPY } from "./strings.identity";
 import { APPLY_PART_ONE_COPY } from "./strings.partOne";
 import { APPLY_HUB_COPY } from "./strings.hub";
 import { APPLY_HANDBOOK_COPY } from "./strings.handbook";
+import { APPLY_DOCUMENTS_COPY } from "./strings.documents";
 import { APPLY_PERMISSIONS_COPY } from "./strings.permissions";
 import { APPLY_SMS_COPY } from "./strings.sms";
 import {
@@ -332,50 +333,6 @@ export const APPLY_COPY_EN = {
     removeRow: "Remove",
   },
 
-  /**
-   * A8. The screen asks for photographs of documents a driver is carrying, which is a moment where
-   * the house rule — state the fact, then the next action — earns its keep twice: once for why the
-   * carrier wants them, and once for what to do when a photograph is refused. A rejection that says
-   * only "that did not work" sends a driver to a support call; one that names the problem sends them
-   * to a window.
-   */
-  documents: {
-    intro:
-      "Photograph the documents you are carrying. Each one takes a few seconds, and you can do them in any order — or skip them and send them to the carrier later.",
-    optional: "None of these stop you sending the application.",
-    take: "Take photo",
-    retake: "Take it again",
-    working: "One moment…",
-    done: "Received",
-    failedHeading: "That photo did not go through",
-    failed: "Check your signal and take it again. Nothing was lost.",
-    /** D-AW9: the server re-hashed the object and it was not the photo sent (422 `capture_not_intact`). */
-    notIntact: "That photo did not arrive intact. Take it again.",
-    /**
-     * Why a photograph was refused, in the driver's words rather than the gate's. Total over the
-     * rejection taxonomy on purpose: a reason with no sentence would reach a driver as a blank.
-     */
-    rejected: {
-      DOCUMENT_NOT_DETECTED: "No document in the picture. Lay it flat and fill the frame.",
-      IMAGE_BLURRED: "Too blurry to read. Hold still and try again.",
-      GLARE_OVER_TEXT: "There is glare across the text. Move away from the light.",
-      SHADOW_OVER_TEXT: "A shadow is covering the text. Move so your hand is not over it.",
-      RESOLUTION_TOO_LOW: "Too small to read. Take it closer so the document fills the frame, or choose a larger picture.",
-      LENS_DIRTY: "The lens looks smudged. Wipe it and try again.",
-      PAGE_INCOMPLETE: "Part of the document is out of frame. Fit all four corners in.",
-      LOW_CONTRAST: "Too washed out to read. Try somewhere with more light.",
-      UNDER_OR_OVER_EXPOSED: "Too dark or too bright. Try somewhere with even light.",
-      TEXT_ILLEGIBLE: "The text cannot be read. Move closer and try again.",
-      OCR_UNAVAILABLE: "Could not check the photo on this phone. Try again.",
-      SCANNER_MODULE_UNAVAILABLE: "Could not open the camera. Try again.",
-      UNSUPPORTED_DEVICE: "This phone cannot take the photo here. You can send it to the carrier instead.",
-      CAPTURE_CANCELLED: "No photo taken.",
-      // True for every source (2026-10-07): it said "the camera" until then, but a file the browser cannot
-      // open — a HEIC in Chrome, a damaged PDF — lands here too, from "Upload" with no camera involved.
-      PROVIDER_ERROR: "We could not open that picture. Take a new photo, or choose a different file.",
-    },
-  },
-
   review: {
     /**
      * ⚠ It no longer says "about to certify" (F4). On this visit the driver is about to SEND it —
@@ -468,6 +425,7 @@ export const APPLY_COPY_EN = {
   ...APPLY_PERMISSIONS_COPY,
   ...APPLY_SMS_COPY,
   ...APPLY_HANDBOOK_COPY,
+  ...APPLY_DOCUMENTS_COPY,
 } as const;
 
 export type ApplyCopy = Localized<typeof APPLY_COPY_EN>;

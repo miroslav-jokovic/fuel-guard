@@ -478,6 +478,16 @@ Each has a recommendation; none is mine to rule.
   how much PSP finds on our own applicants.
 - **Q-WF8 — The videos themselves.** Which exist today, who films the rest, and are any required
   before travel?
+- **Q-WF4b — Q-WF4 (a)'s premise does not hold: no role sees the full SSN today** (found building
+  §9 P9, 2026-11-01). `driver_applications.ssn_sealed` is written by `sealSsn` and opened by
+  nothing; every screen and document carries the last four at most (D-HIRE6). So "the roles that see
+  the full SSN" is the empty set, and an SSN card or passport image readable by nobody — not even an
+  admin checking work authorization — cannot be what (a) meant. Candidates: (a) admin and safety
+  manager — the narrowest read the matrix already grants, both restricted halves
+  (`canReadAllRestricted`) *(recommended; what P9 ships, provisionally, in `canSeeIdentityNumberImages`)*;
+  (b) admin only; (c) every role that manages recruitment (the recruiter included — Q-WF4 (b)).
+  Whichever is chosen is one line in `packages/shared/src/auth.ts`; every service-role path that
+  signs a paper's URL already asks `canSeePaperImage`.
 - **Carried, still open:** Q-OR7 (the drug-and-alcohol policy document is not on file — page 28's
   receipt points at nothing); PSP-PLAN Q10 (may PSP-derived data be kept after the hiring decision —
   governs whether suggestions may be stored or only shown).

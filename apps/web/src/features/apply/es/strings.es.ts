@@ -9,6 +9,7 @@ import type { ApplyCopy } from "../strings";
 import { sentenceCase } from "../sentenceCase";
 import { APPLY_FLOW_COPY_ES } from "./strings.es.flow";
 import { APPLY_HANDBOOK_COPY_ES } from "./strings.es.handbook";
+import { APPLY_DOCUMENTS_COPY_ES } from "./strings.es.documents";
 import { APPLY_HISTORY_COPY_ES } from "./strings.es.history";
 import { APPLY_HUB_COPY_ES } from "./strings.es.hub";
 import { APPLY_IDENTITY_COPY_ES } from "./strings.es.identity";
@@ -58,6 +59,12 @@ export const APPLICATION_CAPTURE_SLOT_LABELS_ES: Record<ApplicationCaptureSlot, 
   initials_mark: "Sus iniciales",
   selfie: "Una foto de usted",
   other: "Cualquier otra cosa",
+  twic: "Tarjeta TWIC",
+  passport: "Pasaporte",
+  work_authorization: "Tarjeta de residencia o permiso de trabajo",
+  hazmat_endorsement: "Endoso de materiales peligrosos",
+  road_test_certificate: "Certificado de prueba de manejo de un trabajo anterior",
+  training_certificate: "Certificado de capacitación",
 };
 
 export const APPLY_COPY_ES = {
@@ -222,36 +229,6 @@ export const APPLY_COPY_ES = {
     removeRow: "Quitar",
   },
 
-  documents: {
-    intro:
-      "Fotografíe los documentos que lleva consigo. Cada uno toma unos segundos, y puede hacerlos en cualquier orden, o saltarlos y enviárselos a la empresa después.",
-    optional: "Ninguno de estos le impide enviar la solicitud.",
-    take: "Tomar foto",
-    retake: "Tomarla de nuevo",
-    working: "Un momento…",
-    done: "Recibido",
-    failedHeading: "Esa foto no se envió",
-    failed: "Revise su señal y tómela de nuevo. No se perdió nada.",
-    notIntact: "Esa foto no llegó completa. Tómela de nuevo.",
-    rejected: {
-      DOCUMENT_NOT_DETECTED: "No hay un documento en la imagen. Póngalo plano y llene el encuadre.",
-      IMAGE_BLURRED: "Demasiado borrosa para leerla. No se mueva e inténtelo de nuevo.",
-      GLARE_OVER_TEXT: "Hay un reflejo sobre el texto. Aléjese de la luz.",
-      SHADOW_OVER_TEXT: "Una sombra tapa el texto. Muévase para que su mano no quede encima.",
-      RESOLUTION_TOO_LOW: "Demasiado pequeña para leerla. Tómela más de cerca para que el documento llene el encuadre, o elija una imagen más grande.",
-      LENS_DIRTY: "El lente parece manchado. Límpielo e inténtelo de nuevo.",
-      PAGE_INCOMPLETE: "Parte del documento quedó fuera del encuadre. Incluya las cuatro esquinas.",
-      LOW_CONTRAST: "Demasiado desvaída para leerla. Pruebe en un lugar con más luz.",
-      UNDER_OR_OVER_EXPOSED: "Demasiado oscura o demasiado brillante. Pruebe en un lugar con luz pareja.",
-      TEXT_ILLEGIBLE: "El texto no se puede leer. Acérquese e inténtelo de nuevo.",
-      OCR_UNAVAILABLE: "No se pudo revisar la foto en este teléfono. Inténtelo de nuevo.",
-      SCANNER_MODULE_UNAVAILABLE: "No se pudo abrir la cámara. Inténtelo de nuevo.",
-      UNSUPPORTED_DEVICE: "Este teléfono no puede tomar la foto aquí. Puede enviársela a la empresa después.",
-      CAPTURE_CANCELLED: "No se tomó ninguna foto.",
-      PROVIDER_ERROR: "No pudimos abrir esa imagen. Tome una foto nueva, o elija otro archivo.",
-    },
-  },
-
   review: {
     intro:
       "Esto es todo lo que está por enviar. Revíselo, y vuelva a cualquier sección que necesite cambios.",
@@ -318,4 +295,5 @@ export const APPLY_COPY_ES = {
   ...APPLY_PERMISSIONS_COPY_ES,
   ...APPLY_SMS_COPY_ES,
   ...APPLY_HANDBOOK_COPY_ES,
+  ...APPLY_DOCUMENTS_COPY_ES,
 } satisfies ApplyCopy;

@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import sharp from "sharp";
 import { BUNDLED_DEFAULT_CONFIG, computeMetrics, type MeasuredMetrics } from "@silvicom/capture-engine";
-import { APPLICATION_CAPTURE_MARK_SLOT, type ApplicationCaptureSlot } from "@silvicom/shared";
+import { APPLICATION_CAPTURE_MARK_SLOT, type ApplicationCaptureContentType, type ApplicationCaptureSlot } from "@silvicom/shared";
 
 /**
  * The server's half of a capture (APPLICATION-FLOW-V2-PLAN.md §6.6.3, D-AW9, AW4, C3b2a): the object
@@ -56,7 +56,15 @@ export interface CaptureMetricsRecord extends MeasuredMetrics {
 
 export type CaptureVerification =
   | { ok: true; serverSha256: string; bytes: number; metrics: CaptureMetricsRecord | null; cpuMs: number }
-  | { ok: false; reason: "hash_mismatch" | "not_an_image" | "too_many_pixels"; serverSha256: string };
+  | { ok: false; reason: "hash_mismatch" | "not_an_image" | "not_a_pdf" | "too_many_pixels"; serverSha256: string };
+
+/**
+ * A PDF's own signature (ISO 32000-1 §7.5.2): `%PDF-` within the first 1,024 bytes. §9 P9 sends a PDF
+ * as the driver holds it, so the server cannot decode it as a picture — it checks the bytes are the
+ * ones sent (the hash) and that they are a PDF at all, and measures nothing: a scan has no camera.
+ */
+const PDF_MAGIC = Buffer.from("%PDF-");
+export const looksLikePdf = (bytes: Buffer): boolean => bytes.subarray(0, 1024).includes(PDF_MAGIC);
 
 const MARK_SLOTS: readonly ApplicationCaptureSlot[] = Object.values(APPLICATION_CAPTURE_MARK_SLOT);
 
@@ -64,12 +72,19 @@ export async function verifyCaptureBytes(
   bytes: Buffer,
   claimedSha256: string,
   slot: ApplicationCaptureSlot,
+  /** The type the key was minted for (§9 P9): a PDF is checked as a PDF, everything else decoded. */
+  contentType: ApplicationCaptureContentType,
   /** A parameter for the test that proves the ceiling without encoding a 36-megapixel picture. */
   maxPixels: number = CAPTURE_MAX_PIXELS,
 ): Promise<CaptureVerification> {
   const started = process.cpuUsage();
   const serverSha256 = createHash("sha256").update(bytes).digest("hex");
   if (serverSha256 !== claimedSha256.toLowerCase()) return { ok: false, reason: "hash_mismatch", serverSha256 };
+  if (contentType === "application/pdf") {
+    if (!looksLikePdf(bytes)) return { ok: false, reason: "not_a_pdf", serverSha256 };
+    const used = process.cpuUsage(started);
+    return { ok: true, serverSha256, bytes: bytes.byteLength, metrics: null, cpuMs: (used.user + used.system) / 1000 };
+  }
 
   // The header first: width and height without decoding a pixel. A picture that will not even give
   // those is not a picture; one that is bigger than the ceiling is refused before it costs memory.

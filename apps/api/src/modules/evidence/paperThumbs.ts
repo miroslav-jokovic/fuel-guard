@@ -63,6 +63,11 @@ export async function paperThumbsBySubject(
   admin: SupabaseClient,
   docs: readonly PaperDocRow[],
   readable: (kind: string) => boolean = () => true,
+  /**
+   * Q-WF4 (§9 P9, `canSeePaperImage`): a paper the reader may know is on file and not see — an SSN card
+   * or a passport for anybody but the narrowest read. Drawn and counted, with no thumbnail signed.
+   */
+  imageVisible: (kind: string) => boolean = () => true,
 ): Promise<Map<string, SubjectPapers>> {
   const thumbOf = new Map<string, PaperDocRow>();
   for (const d of docs) if (d.variant === "thumb" && d.derived_from) thumbOf.set(d.derived_from, d);
@@ -81,6 +86,7 @@ export async function paperThumbsBySubject(
 
   const thumbPaths = [...originalsBy.values()]
     .flatMap((list) => list.slice(0, PAPERS_PER_ROW))
+    .filter((d) => imageVisible(d.kind))
     .map((d) => thumbOf.get(d.id)?.storage_path)
     .filter((p): p is string => p !== undefined);
   const drawn = [...originalsBy.values()].flatMap((list) => list.slice(0, PAPERS_PER_ROW));
@@ -95,7 +101,7 @@ export async function paperThumbsBySubject(
       const thumb = thumbOf.get(d.id);
       return {
         documentId: d.id, kind: d.kind, contentType: d.content_type,
-        thumbUrl: thumb ? (signed.get(thumb.storage_path) ?? null) : null,
+        thumbUrl: thumb && imageVisible(d.kind) ? (signed.get(thumb.storage_path) ?? null) : null,
         filedAt: d.created_at,
         datedAt: paperDate(dated(d)),
         uploadedBy: d.uploaded_by ? (names.get(d.uploaded_by) ?? null) : null,

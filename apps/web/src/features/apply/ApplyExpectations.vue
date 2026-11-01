@@ -63,7 +63,8 @@ const steps = APPLICATION_FILLING_SECTIONS.map((section) => ({
   label: APPLY_SECTION_TITLES[section],
   minutes: APPLICATION_SECTION_MINUTES[section],
 }));
-const photographs = APPLICATION_CAPTURE_REQUESTED.map((slot) => APPLY_CAPTURE_TITLES[slot]);
+// §9 P9: every paper on the documents list, less "Anything else" — a thing to have to hand is named.
+const photographs = APPLICATION_CAPTURE_REQUESTED.filter((slot) => slot !== "other").map((slot) => APPLY_CAPTURE_TITLES[slot]);
 </script>
 
 <template>

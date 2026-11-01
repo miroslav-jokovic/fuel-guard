@@ -3,10 +3,15 @@ import { computed, toRef } from "vue";
 import { AppButton as BaseButton } from "@silvicom/ui";
 import type { ApplicationCaptureSlot, ApplicationCaptureView } from "@silvicom/shared";
 import { useApplicationCaptures } from "@/features/apply/capture/useApplicationCaptures";
+import {
+  useDocumentSends,
+  type DocumentGroupView,
+  type DocumentPlaceView,
+} from "@/features/apply/capture/useDocumentSends";
 import { APPLY_COPY } from "@/features/apply/strings";
 
 /**
- * The capture screen (A8) — four slots, each one photograph, each replaceable.
+ * The capture screen (A8) — and, since §9 P9, Part 2's "Your documents": every paper offered, photo or PDF.
  *
  * ── WHY A REFUSED PHOTOGRAPH IS THE MOST IMPORTANT STATE ON THIS SCREEN ───────────────────────
  * The gate runs in the browser before anything is uploaded (A7), so the common case is a driver in a
@@ -32,20 +37,102 @@ const props = defineProps<{
 }>();
 
 const copy = APPLY_COPY.documents;
-const captures = useApplicationCaptures(toRef(props, "token"), toRef(props, "captures"), {
-  ...(props.only ? { only: props.only } : {}),
-  ...(props.onStaged ? { onStaged: props.onStaged } : {}),
-});
-const anyBusy = computed(() => captures.busy.value !== null);
+/**
+ * Two lists, one component: `only` is the identity step's licence sides (take, look, send — one
+ * photograph per slot); without it this is Part 2's "Your documents" (§9 P9), keyed by place, photo or
+ * PDF, several of the papers that come in several. See `useDocumentSends` for why they are two.
+ */
+const captures = props.only
+  ? useApplicationCaptures(toRef(props, "token"), toRef(props, "captures"), {
+      only: props.only,
+      ...(props.onStaged ? { onStaged: props.onStaged } : {}),
+    })
+  : null;
+const documents = props.only ? null : useDocumentSends(toRef(props, "token"), toRef(props, "captures"));
+const anyBusy = computed(() => (captures?.busy.value ?? documents?.busy.value ?? null) !== null);
+
+/** What a place says under its name, in the driver's words. */
+function status(place: DocumentPlaceView): string | null {
+  if (place.state === "done") return place.contentType === "application/pdf" ? copy.pdfDone : copy.done;
+  if (place.state === "rejected" && place.reason) return copy.rejected[place.reason];
+  if (place.state === "failed") {
+    if (place.failure === "not_intact") return copy.notIntact;
+    if (place.failure === "too_large") return copy.tooLarge;
+    return copy.failed;
+  }
+  return null;
+}
+const placeLabel = (group: DocumentGroupView, place: DocumentPlaceView): string =>
+  group.places.length > 1 || place.ordinal > 0 ? copy.numbered(group.label, place.ordinal + 1) : group.label;
 </script>
 
 <template>
-  <div class="space-y-4">
-    <div v-if="!only">
-      <p class="text-sm text-ink-muted">{{ copy.intro }}</p>
+  <div v-if="documents" class="space-y-4">
+    <div>
+      <p class="text-sm text-ink">{{ copy.intro }}</p>
       <p class="mt-1 text-sm text-ink-muted">{{ copy.optional }}</p>
     </div>
 
+    <ul class="space-y-3">
+      <li
+        v-for="group in documents.groups.value"
+        :key="group.slot"
+        class="space-y-3 rounded-surface bg-surface-muted p-4"
+        :data-document-slot="group.slot"
+      >
+        <div
+          v-for="place in group.places"
+          :key="place.ordinal"
+          class="flex flex-wrap items-center justify-between gap-3"
+        >
+          <img
+            v-if="place.previewUrl"
+            :src="place.previewUrl"
+            :alt="placeLabel(group, place)"
+            class="h-14 w-20 shrink-0 rounded-detail object-cover ring-1 ring-inset ring-edge"
+          />
+          <div class="min-w-0 flex-1">
+            <p class="text-sm font-medium text-ink">{{ placeLabel(group, place) }}</p>
+            <!-- §4.7: the licence Part 1 took is shown as received, and never asked for again. -->
+            <p v-if="group.fromPartOne && place.state === 'done'" class="mt-1 text-sm text-ink-muted">
+              {{ copy.fromLicenceStep }}
+            </p>
+            <p v-else-if="status(place)" class="mt-1 text-sm text-ink-secondary">{{ status(place) }}</p>
+          </div>
+          <div v-if="!(group.fromPartOne && place.state === 'done')" class="flex flex-wrap gap-2">
+            <BaseButton
+              :variant="place.state === 'done' ? 'ghost' : 'secondary'"
+              :disabled="anyBusy"
+              @click="documents.photo(place)"
+            >
+              <template v-if="place.state === 'working'">{{ copy.working }}</template>
+              <template v-else-if="place.state === 'done'">{{ copy.retake }}</template>
+              <template v-else>{{ copy.take }}</template>
+            </BaseButton>
+            <BaseButton variant="ghost" :disabled="anyBusy" @click="documents.file(place)">
+              {{ place.state === "done" ? copy.uploadAgain : copy.upload }}
+            </BaseButton>
+          </div>
+        </div>
+        <!-- 0534: up to five of a paper that comes in several. -->
+        <div v-if="group.next !== null" class="flex flex-wrap items-center gap-2">
+          <p class="min-w-0 flex-1 text-sm text-ink-muted">{{ copy.addAnother }}</p>
+          <BaseButton
+            variant="secondary"
+            :disabled="anyBusy"
+            @click="documents.photo({ slot: group.slot, ordinal: group.next })"
+          >
+            {{ copy.take }}
+          </BaseButton>
+          <BaseButton variant="ghost" :disabled="anyBusy" @click="documents.file({ slot: group.slot, ordinal: group.next })">
+            {{ copy.upload }}
+          </BaseButton>
+        </div>
+      </li>
+    </ul>
+  </div>
+
+  <div v-else-if="captures" class="space-y-4">
     <ul class="space-y-3">
       <li
         v-for="slot in captures.slots.value"

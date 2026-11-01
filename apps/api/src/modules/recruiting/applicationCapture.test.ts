@@ -264,6 +264,92 @@ describe("confirming that the bytes landed", () => {
   });
 });
 
+/**
+ * §9 P9, the reader of 0534: several of the documents that come in several, and a PDF sent as it is.
+ */
+describe("every document, as a photo or a PDF, and several training certificates (§9 P9)", () => {
+  const CAPTURE = "99999999-8888-4777-8666-555555555555";
+  const SENT = { application_sent_at: "2026-09-14T09:00:00Z" };
+  const pdf = Buffer.from("%PDF-1.7\n1 0 obj << /Type /Catalog >> endobj\n%%EOF\n");
+  const pdfSha = createHash("sha256").update(pdf).digest("hex");
+  const inBucket = (bytes: Buffer) => ({ download: () => ({ data: new Blob([new Uint8Array(bytes)]), error: null }) });
+
+  it("stages a second training certificate through 0534's 10-argument overload, at its own ordinal", async () => {
+    const rec = seed(SENT, inBucket(pdf));
+    const result = await confirmCapture(
+      rec.client, TOKEN, CAPTURE,
+      { slot: "training_certificate", content_type: "application/pdf", sha256: pdfSha, ordinal: 1 }, NOW,
+    );
+    expect(result).toMatchObject({ slot: "training_certificate", ordinal: 1 });
+    const stage = rec.rpcs().find((r) => r.fn === "stage_application_capture");
+    expect(stage?.args).toMatchObject({
+      p_org: ORG, p_invitation: INVITATION, p_slot: "training_certificate", p_ordinal: 1,
+      p_content_type: "application/pdf", p_path: `${ORG}/${INVITATION}/${CAPTURE}.pdf`, p_bytes: pdf.byteLength,
+    });
+    // A PDF is not a photograph: the server's record of the check carries no measurement.
+    expect(rec.rpcs().find((r) => r.fn === "confirm_application_capture")?.args).toMatchObject({ p_metrics: null });
+  });
+
+  it("stages a single-document slot at ordinal 0 when the page names none", async () => {
+    const rec = seed(SENT, inBucket(pdf));
+    await confirmCapture(rec.client, TOKEN, CAPTURE, { slot: "medical_card", content_type: "application/pdf", sha256: pdfSha }, NOW);
+    expect(rec.rpcs().find((r) => r.fn === "stage_application_capture")?.args).toMatchObject({ p_slot: "medical_card", p_ordinal: 0 });
+  });
+
+  it("refuses a file sent as a PDF that is not one, and stages nothing", async () => {
+    const junk = Buffer.from("not a pdf");
+    const rec = seed(SENT, { ...inBucket(junk), remove: () => ({ data: [], error: null }) });
+    const result = await confirmCapture(
+      rec.client, TOKEN, CAPTURE,
+      { slot: "passport", content_type: "application/pdf", sha256: createHash("sha256").update(junk).digest("hex") }, NOW,
+    );
+    expect(result).toMatchObject({ code: "capture_not_intact" });
+    expect(rec.rpcs()).toEqual([]);
+  });
+
+  it("waits for the office's send before taking a passport, as the SSN card does", async () => {
+    const rec = seed({ application_sent_at: null });
+    const result = await startCapture(rec.client, TOKEN, { slot: "passport", content_type: "application/pdf" }, NOW);
+    expect(result).toMatchObject({ code: "application_not_sent" });
+  });
+
+  it("files every staged paper under its own kind — the SSN card as `ssn_card`, two certificates as two", async () => {
+    const rows = [
+      { id: "c1", slot: "ssn_card", ordinal: 0, content_type: "image/webp" },
+      { id: "c2", slot: "training_certificate", ordinal: 0, content_type: "application/pdf" },
+      { id: "c3", slot: "training_certificate", ordinal: 1, content_type: "application/pdf" },
+      { id: "c4", slot: "hazmat_endorsement", ordinal: 0, content_type: "image/jpeg" },
+    ].map((r) => ({ ...r, storage_path: `${ORG}/${INVITATION}/${r.id}`, bytes: 1, sha256: SHA, captured_at: NOW.toISOString() }));
+    const rec = createSupabaseRecorder({
+      tables: { application_captures: rows },
+      storage: { copy: () => ({ data: { path: "x" }, error: null }) },
+    });
+    const result = await promoteCaptures(rec.client, ORG, INVITATION, DRIVER);
+    if ("code" in result) throw new Error("expected a promotion");
+    expect(result.map((r) => [r.capture_id, r.kind, r.storage_path.slice(-4)])).toEqual([
+      ["c1", "ssn_card", "webp"],
+      ["c2", "training_certificate", ".pdf"],
+      ["c3", "training_certificate", ".pdf"],
+      ["c4", "endorsement", ".jpg"],
+    ]);
+    expectOrgScoped(rec, ORG);
+  });
+
+  it("tells the page which of several each staged paper is", async () => {
+    const rec = createSupabaseRecorder({
+      tables: {
+        application_captures: [
+          { id: "c2", org_id: ORG, invitation_id: INVITATION, slot: "training_certificate", ordinal: 1, storage_path: "p", content_type: "application/pdf", bytes: 9, sha256: SHA, captured_at: NOW.toISOString() },
+        ],
+      },
+    });
+    expect(await listCaptures(rec.client, ORG, INVITATION)).toEqual([
+      { slot: "training_certificate", ordinal: 1, contentType: "application/pdf", bytes: 9, capturedAt: NOW.toISOString() },
+    ]);
+    expectOrgScoped(rec, ORG);
+  });
+});
+
 describe("promoting a staged set into the qualification file", () => {
   const CAP_A = "aaaaaaaa-1111-4111-8111-111111111111";
   const CAP_B = "bbbbbbbb-2222-4222-8222-222222222222";
@@ -358,7 +444,7 @@ describe("what the page is told", () => {
     });
     const views = await listCaptures(rec.client, ORG, INVITATION);
     expect(views).toEqual([
-      { slot: "medical_card", contentType: "image/webp", bytes: 2048, capturedAt: NOW.toISOString() },
+      { slot: "medical_card", ordinal: 0, contentType: "image/webp", bytes: 2048, capturedAt: NOW.toISOString() },
     ]);
     // No signed read URL is minted on an unauthenticated surface for a picture the driver just took.
     expect(rec.storageCalls()).toEqual([]);

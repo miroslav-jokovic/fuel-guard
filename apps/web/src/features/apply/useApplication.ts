@@ -407,7 +407,7 @@ export async function uploadCaptureBytes(uploadUrl: string, blob: Blob): Promise
 export const confirmApplicationCapture = (
   token: string,
   captureId: string,
-  body: { slot: ApplicationCaptureSlot; content_type: ApplicationCaptureContentType; sha256: string },
+  body: { slot: ApplicationCaptureSlot; content_type: ApplicationCaptureContentType; sha256: string; ordinal?: number },
 ): Promise<{ slot: ApplicationCaptureSlot; capturedAt: string }> =>
   publicFetch(`/${token}/capture/${captureId}`, { method: "PUT", body: JSON.stringify(body) });
 
