@@ -84,7 +84,7 @@ const DESTINATIONS: Record<HiringEvidenceTable, (driverId: string) => HiringArti
   // road-test certificate beside it.
   "qualification_records.handbook": qualificationFile,
   // HW8a: the applicant's "I watched these" is read in the step's own drawer — it is carrier training,
-  // not a §391.51 record, so it is not in the qualification file (0538 header).
+  // not a §391.51 record, so it is not in the qualification file (0539 header).
   "orientation_video_attestations": () => onThisPage("The videos watched"),
   "application_packet_marks": qualificationFile,
   // ⚠ Q-HM9's step. On this page since the same change: the investigation got its own checklist row

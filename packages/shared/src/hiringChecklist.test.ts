@@ -90,7 +90,7 @@ describe("the catalogue", () => {
     const emitted = c.steps.map((s) => s.key);
     expect(emitted).not.toContain("live_orientation");
     // And the catalogue still NAMES it, so the order is written down exactly once. One now: the handbook
-    // gained its evidence table with HANDBOOK-SIGNING-PLAN.md, the orientation videos with HW8a (0538).
+    // gained its evidence table with HANDBOOK-SIGNING-PLAN.md, the orientation videos with HW8a (0539).
     expect(HIRING_STEPS.map((s) => s.key)).toContain("live_orientation");
     expect(HIRING_STEPS.length).toBe(measurableHiringSteps().length + 1);
   });
@@ -1052,7 +1052,7 @@ describe("ready to screen", () => {
   });
 });
 
-describe("the orientation videos (HW8a, 0538; HIRING-WORKFLOW-AUDIT §4.8)", () => {
+describe("the orientation videos (HW8a, 0539; HIRING-WORKFLOW-AUDIT §4.8)", () => {
   const facts = (over: Partial<OrientationVideoFacts> = {}): OrientationVideoFacts =>
     ({ required: ["v1", "v2"], attested: [], sentAt: null, ...over });
   const row = (c: ReturnType<typeof hiringChecklist>) => c.steps.find((s) => s.key === "orientation_videos");

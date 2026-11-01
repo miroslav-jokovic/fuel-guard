@@ -18,7 +18,7 @@ import { APPLY_COPY } from "@/features/apply/strings";
 import { applyLanguage } from "@/features/apply/language";
 
 /**
- * The applicant's orientation videos (HW8a, 0538; HIRING-WORKFLOW-AUDIT-2026-10-31 §4.8, §8.2) — what the
+ * The applicant's orientation videos (HW8a, 0539; HIRING-WORKFLOW-AUDIT-2026-10-31 §4.8, §8.2) — what the
  * office's "Send the videos" opens, on the application link's own token (`/apply/<token>/videos`).
  *
  * ── A LINK LIST AND ONE TICK ──────────────────────────────────────────────────────────────────
@@ -26,7 +26,7 @@ import { applyLanguage } from "@/features/apply/language";
  * more — this page cannot see a video play). At the bottom, one tick, "I watched these videos", and the
  * driver's name: their word, which the checklist reads as the step done once every required video is in
  * it. The tick names every video on the page — the list they were shown — and the server checks it
- * against the carrier's live list (0538's trigger), so a list changed meanwhile is a reload, not a lie.
+ * against the carrier's live list (0539's trigger), so a list changed meanwhile is a reload, not a lie.
  *
  * A dead link is the surface's one neutral sentence, as on the application page.
  */

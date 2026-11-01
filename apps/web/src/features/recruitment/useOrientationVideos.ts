@@ -12,7 +12,7 @@ import { applicantChecklistKey } from "@/features/recruitment/useApplicantCheckl
 import { pipelineKey } from "@/features/recruitment/useEmployment";
 
 /**
- * The orientation videos, the office's side (HW8a, 0538): the carrier's list in Settings → Recruiting,
+ * The orientation videos, the office's side (HW8a, 0539): the carrier's list in Settings → Recruiting,
  * and one applicant's videos with "Send the videos" on the step's drawer.
  *
  * A change to the list changes what every applicant's step measures (a new required video re-opens a

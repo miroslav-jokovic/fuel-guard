@@ -115,7 +115,7 @@ export type HiringDrawerBody =
    */
   | "packet"
   /**
-   * `OrientationVideosPanel` (HW8a, 0538): the carrier's videos with what the applicant did with each,
+   * `OrientationVideosPanel` (HW8a, 0539): the carrier's videos with what the applicant did with each,
    * and "Send the videos" on the application link.
    */
   | "videos"

@@ -5,7 +5,7 @@ import type { SigningTextOutcome } from "./signingSend.js";
 
 /**
  * Orientation videos, first version (HIRING-WORKFLOW-AUDIT-2026-10-31 §4.8, §8.2, §5 HW8a; the tables
- * are 0538): the carrier's list of LINKS in Settings → Recruiting, the office's "Send the videos", and
+ * are 0539): the carrier's list of LINKS in Settings → Recruiting, the office's "Send the videos", and
  * the applicant's one tick, "I watched these", with their name.
  *
  * ── A LINK LIST AND A TICK, ON PURPOSE (§8.2) ─────────────────────────────────────────────────
@@ -21,16 +21,16 @@ import type { SigningTextOutcome } from "./signingSend.js";
  * vacuous "every video" certifies nothing) and the record says to add the videos in Settings →
  * Recruiting. `orientationVideosMeasurable` is that rule, stated once for the fold and the screens.
  *
- * ⚠ The lengths and the https rule are 0538's CHECKs, restated so the browser can say so before a
+ * ⚠ The lengths and the https rule are 0539's CHECKs, restated so the browser can say so before a
  * round trip; the database stays the authority.
  */
 
 export const ORIENTATION_VIDEO_TITLE_MAX = 200;
 export const ORIENTATION_VIDEO_URL_MAX = 2000;
 export const ORIENTATION_VIDEO_MINUTES_MAX = 600;
-/** 0538's `position between 0 and 1000`. */
+/** 0539's `position between 0 and 1000`. */
 export const ORIENTATION_VIDEO_POSITION_MAX = 1000;
-/** 0538's `orientation_video_attestations.signer_name`, after trimming. */
+/** 0539's `orientation_video_attestations.signer_name`, after trimming. */
 export const ORIENTATION_VIDEO_SIGNER_MAX = 200;
 
 const title = z
@@ -68,7 +68,7 @@ export const orientationVideoUpdateSchema = z
   .refine((v) => Object.keys(v).length > 0, { message: "Nothing to change." });
 export type OrientationVideoUpdate = z.infer<typeof orientationVideoUpdateSchema>;
 
-/** One video on the carrier's list, as the API returns it — 0538's row. */
+/** One video on the carrier's list, as the API returns it — 0539's row. */
 export interface OrientationVideo {
   id: string;
   title: string;

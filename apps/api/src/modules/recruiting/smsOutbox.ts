@@ -85,7 +85,7 @@ const REASON: Record<SmsTemplate, string> = {
   nudge: "nudge",
   signing_link: "signing_link",
   invite: "invite",
-  // HW8a: the office's "Send the videos" (0538 widened the CHECK one merge before this writer).
+  // HW8a: the office's "Send the videos" (0539 widened the CHECK one merge before this writer).
   orientation_videos: "orientation_videos",
 };
 

@@ -70,7 +70,7 @@ export interface RecruitingSettingsSaved {
 /**
  * Writes every answer. The input is the contract's, already validated (bounds and the refine).
  * ⚠ §9 P12: a PUT without `handbook_blocks_hire` (a screen served before 0536's reader), or without
- * HW8a's `videos_block_hire` (one served before 0538's reader), keeps the value
+ * HW8a's `videos_block_hire` (one served before 0539's reader), keeps the value
  * in force — "absent" is "unchanged", never "off".
  */
 export async function saveRecruitingSettings(

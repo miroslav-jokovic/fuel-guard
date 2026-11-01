@@ -18,13 +18,13 @@ import {
 } from "@/features/recruitment/useOrientationVideos";
 
 /**
- * Settings → Recruiting's orientation videos (HW8a, 0538; HIRING-WORKFLOW-AUDIT-2026-10-31 §4.8).
+ * Settings → Recruiting's orientation videos (HW8a, 0539; HIRING-WORKFLOW-AUDIT-2026-10-31 §4.8).
  *
  * A list of LINKS — the carrier's own videos wherever they live (YouTube, Vimeo, a drive) — not files:
  * §8.2's first version is "a link list and an attestation tick". Each is required unless the office says
  * otherwise; the applicant's step is done when every required one is ticked as watched.
  *
- * ⚠ No "edit the link". 0538 refuses it (OV011): the applicant's tick names the videos, and a link that
+ * ⚠ No "edit the link". 0539 refuses it (OV011): the applicant's tick names the videos, and a link that
  * moved would move what they said they watched. A new link is removed and added again — the copy says so.
  * Removing RETIRES the video (OV010): it leaves the list and every tick that named it still reads true.
  *

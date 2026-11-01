@@ -17,7 +17,7 @@ import { listOrientationVideos, type OrientationVideoError } from "./orientation
 import { sendOrQueueSms } from "./smsOutbox.js";
 
 /**
- * One applicant's orientation videos (HW8a, 0538): the office's view and its "Send the videos", and the
+ * One applicant's orientation videos (HW8a, 0539): the office's view and its "Send the videos", and the
  * applicant's page — the list of links, a pressed link recorded, and the one tick "I watched these".
  *
  * ── THE SEND REUSES THE APPLICATION LINK (no new token scheme) ────────────────────────────────
@@ -30,7 +30,7 @@ import { sendOrQueueSms } from "./smsOutbox.js";
  * ── THE APPLICANT'S HALF RESOLVES THE TOKEN LIKE EVERY OTHER PAGE ON THE LINK ─────────────────
  * Any of the invitation's three doors opens it (`resolveInvitation`), and a dead link is the one neutral
  * `invalid_link` the rest of the surface answers. The tick's videos are checked against the carrier's
- * live list by 0538's trigger, which also snapshots them — never from the request.
+ * live list by 0539's trigger, which also snapshots them — never from the request.
  *
  * ⚠ Every office query org-filters itself: the service role bypasses RLS.
  */

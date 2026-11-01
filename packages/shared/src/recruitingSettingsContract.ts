@@ -49,7 +49,7 @@ export const recruitingSettingsSchema = z
     // ⚠ Optional on the way IN, and absent means "leave it as it is", never "off": a screen served
     // before P12 saves the three link answers only, and must not quietly switch a carrier's policy off.
     handbook_blocks_hire: z.boolean().optional(),
-    // HW8a (0538): whether the hire also waits for every required orientation video — the same "absent
+    // HW8a (0539): whether the hire also waits for every required orientation video — the same "absent
     // keeps it" rule, for a screen served before HW8a's reader.
     videos_block_hire: z.boolean().optional(),
   })

@@ -5,7 +5,7 @@ import { applyLanguage } from "@/features/apply/language";
 import ApplyVideosPage from "@/pages/ApplyVideosPage.vue";
 
 /**
- * The applicant's orientation videos page (HW8a, 0538), against a stubbed `fetch`: the list of links, a
+ * The applicant's orientation videos page (HW8a, 0539), against a stubbed `fetch`: the list of links, a
  * pressed link reported as opened, the one tick with a name — sent with every video the page showed —
  * and Spanish.
  */
