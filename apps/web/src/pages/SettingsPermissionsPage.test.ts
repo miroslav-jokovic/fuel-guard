@@ -272,13 +272,13 @@ describe("the Roles tab", () => {
     expect(toggle(w, "IFTA")).toBeUndefined();
     expect(w.text()).toMatch(/Not listed: .*Fuel/);
     // A group with SOME reachable screens keeps the rest, each saying what it needs. The dispatcher
-    // holds `dispatch: manage` and `fuel: view`, so in the Fuel group Cards is a switch and Fuel
+    // holds `dispatch: manage` and `fuel: view`, so in the Fuel group Fuel cards is a switch and Fuel
     // Spend — `fuel: manage` — is an explanation.
     await openRole(w, USER_ROLE_LABELS.dispatcher);
     expect(sectionAccess("dispatcher", "fuel")).toBe("view");
-    expect(toggle(w, "Cards")).toBeTruthy();
-    expect(toggle(w, "Fuel Costs")).toBeUndefined();
-    expect(row(w, "Fuel Costs")!.text()).toContain("Needs Fuel · Manage");
+    expect(toggle(w, "Fuel cards")).toBeTruthy();
+    expect(toggle(w, "Fuel costs")).toBeUndefined();
+    expect(row(w, "Fuel costs")!.text()).toContain("Needs Fuel · Manage");
   });
 
   it("resets a role by writing each changed section back to its shipped default and each screen to allowed", async () => {
@@ -342,7 +342,7 @@ describe("the Settings screens (SP1, Q-SET2)", () => {
     expect(org.attributes("aria-checked")).toBe("false");
     expect(row(w, "Organization")!.text()).not.toContain("Changed");
     // A screen with no starting default is still drawn on, as every screen was before SP1.
-    expect(toggle(w, "Fuel Log")!.attributes("aria-checked")).toBe("true");
+    expect(toggle(w, "Fuel log")!.attributes("aria-checked")).toBe("true");
     await org.trigger("click");
     await flushPromises();
     expect(calls.setRoleSurface).toEqual([{ role: "fleet_manager", surfaceKey: "admin.settings.org", allowed: true }]);

@@ -51,7 +51,7 @@ export const coreRoutes: RouteRecordRaw[] = [
     path: "/messages",
     name: "messages",
     component: () => import("@/pages/MessagesPage.vue"),
-    meta: { requiresAuth: true, title: "Messages" },
+    meta: { requiresAuth: true, title: "Driver messages" },
   },
   {
     // Office chat (OFFICE-CHAT-PLAN CH2): every office role, the `messages` module; who reads which

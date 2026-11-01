@@ -86,7 +86,7 @@ export const settingsRoutes: RouteRecordRaw[] = [
     component: () => import("@/pages/DriverPerformanceSettingsPage.vue"),
     meta: {
       requiresAuth: true,
-      title: "Driver Performance",
+      title: "Driver performance",
       parent: "/settings",
     },
   },

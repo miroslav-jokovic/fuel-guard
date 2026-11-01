@@ -12,6 +12,8 @@ import {
 import { SURFACE_ICONS, GROUP_ICONS } from "./navIcons";
 
 export interface NavItem {
+  /** The surface key — stable and stored, so Pinned and Recent remember THIS, never a label (D-SB2). */
+  key: string;
   name: string;
   to: string;
   icon: Icon;
@@ -35,6 +37,8 @@ export interface NavGroup {
   label: string | null;
   /** Section icon shown in the collapsed rail (labeled sections only). */
   icon?: Icon;
+  /** Drawn in the sidebar's fixed footer rather than the scrolling list (`SurfaceGroup.footer`, D-SB4). */
+  footer?: boolean;
   items: NavItem[];
 }
 
@@ -78,8 +82,10 @@ export function buildNavGroups(
     key: g.key,
     label: g.label,
     ...(GROUP_ICONS[g.key] ? { icon: GROUP_ICONS[g.key] } : {}),
+    ...(g.footer ? { footer: true } : {}),
     items: NAV_SURFACES.filter((s) => s.group === g.key)
       .map((s) => ({
+        key: s.key,
         name: s.label,
         to: s.path,
         icon: SURFACE_ICONS[s.key]!,

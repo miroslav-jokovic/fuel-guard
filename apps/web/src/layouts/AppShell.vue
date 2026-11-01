@@ -1,14 +1,8 @@
 <script setup lang="ts">
 import { AppIcon } from "@silvicom/ui";
-import {
-  Bars3Icon,
-  ChevronLeftIcon,
-  PanelLeftCloseIcon,
-  PanelLeftOpenIcon,
-  XMarkIcon,
-} from "@silvicom/ui/icons";
+import { Bars3Icon, ChevronLeftIcon, XMarkIcon } from "@silvicom/ui/icons";
 import { computed, ref, watch } from "vue";
-import { useWindowScroll } from "@vueuse/core";
+import { onKeyStroke, useWindowScroll } from "@vueuse/core";
 import { RouterLink, useRoute, useRouter } from "vue-router";
 import { useQueryClient } from "@tanstack/vue-query";
 import { Dialog, DialogPanel, TransitionRoot, TransitionChild } from "@headlessui/vue";
@@ -19,12 +13,12 @@ import { useColorScheme } from "@/composables/useColorScheme";
 import { useModulesQuery } from "@/composables/useModules";
 import { useNavCounts } from "@/composables/useNavCounts";
 import NotificationBell from "@/components/NotificationBell.vue";
-import AppLogo from "@/components/AppLogo.vue";
-import AppWordmark from "@/components/AppWordmark.vue";
-import SidebarFlyoutSection from "@/layouts/SidebarFlyoutSection.vue";
-import SidebarNavSection from "@/layouts/SidebarNavSection.vue";
-import { useSidebarSections } from "@/composables/useSidebarSections";
-import SidebarProfileMenu from "@/layouts/SidebarProfileMenu.vue";
+import AppSidebar from "@/layouts/sidebar/AppSidebar.vue";
+import CommandPalette from "@/layouts/sidebar/CommandPalette.vue";
+import { useRecordSidebarVisits } from "@/composables/useSidebarShortcuts";
+import { currentItemKey } from "@/lib/sidebarShortcuts";
+import { paletteEntries } from "@/lib/commandPalette";
+import { visibleSettingsScreens } from "@/lib/settingsCards";
 import SectionTabBar from "@/layouts/SectionTabBar.vue";
 import { useOpens } from "@/composables/useOpens";
 import { usePhoneFirst } from "@/composables/usePhoneFirst";
@@ -106,29 +100,33 @@ const isCurrent = (to: string): boolean => {
   return false;
 };
 
-const activeClass = (to: string) =>
-  isCurrent(to) ? "sidebar-nav-active" : "sidebar-nav-inactive";
-
-/** Full expanded nav link — used in mobile drawer and expanded desktop sidebar. */
-const navLinkClass = (to: string) => [
-  activeClass(to),
-  "sidebar-nav-item group flex min-h-10 items-center gap-x-2.5 rounded-control px-2.5 py-2 text-sm font-medium leading-5",
-];
+// Pinned and Recent's history (D-SB2): recorded once here, read by both sidebar instances.
+useRecordSidebarVisits(() => currentItemKey(navGroups.value, isCurrent));
 
 /**
- * The section that owns the page you are on. `useSidebarSections` keeps it open regardless of what
- * was stored, so a deep link or a post-sign-in redirect can never land inside a collapsed section.
+ * "Go to a page" (D-SB1): ⌘K / Ctrl K from anywhere signed in, or the sidebar's search field. The
+ * list is the sidebar's own groups plus the Settings screens the Settings page would show — both the
+ * guard's answer already, so the palette can never offer a page the router refuses.
  */
-const currentSection = () =>
-  navGroups.value.find((group) => group.label && group.items.some((item) => isCurrent(item.to)))
-    ?.label ?? null;
-const { isOpen: sectionOpen, toggle: toggleSection } = useSidebarSections(currentSection);
-
-/** Icon-only nav link — used in collapsed desktop sidebar. */
-const navLinkClassCollapsed = (to: string) => [
-  activeClass(to),
-  "sidebar-nav-item flex min-h-9 items-center justify-center rounded-control p-2",
-];
+const paletteOpen = ref(false);
+const palette = computed(() =>
+  paletteEntries(
+    navGroups.value,
+    visibleSettingsScreens(session.role, session.sections, session.surfaces).map((s) => ({ key: s.key, name: s.name, to: s.to, icon: s.icon })),
+  ),
+);
+function openPalette() {
+  mobileOpen.value = false;
+  paletteOpen.value = true;
+}
+onKeyStroke(
+  (e) => (e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === "k",
+  (e) => {
+    e.preventDefault();
+    if (paletteOpen.value) paletteOpen.value = false;
+    else openPalette();
+  },
+);
 
 // Mobile sidebar drawer state; auto-close on navigation.
 const mobileOpen = ref(false);
@@ -206,58 +204,19 @@ async function signOut() {
                   <AppIcon :icon="XMarkIcon" class="size-6 text-ink-inverse" aria-hidden="true" />
                 </button>
               </div>
-              <!-- Mobile sidebar body -->
-              <div class="sidebar-glass relative flex grow overflow-hidden border-r">
-                <div class="sidebar-glass-material" aria-hidden="true" />
-                <div
-                  class="sidebar-glass-content flex min-h-0 grow flex-col overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden px-3 pb-3"
-                >
-                  <!-- Same size and placement as the desktop header below. -->
-                  <div
-                    class="sidebar-divider flex h-16 shrink-0 items-center justify-center border-b px-2.5"
-                  >
-                    <AppWordmark class="h-10" />
-                  </div>
-                  <nav aria-label="Primary navigation" class="flex flex-1 flex-col pt-2">
-                    <ul class="flex flex-1 flex-col gap-y-0.5">
-                      <template v-for="group in navGroups" :key="group.label ?? '_top'">
-                        <SidebarNavSection
-                          v-if="group.label"
-                          :group="group"
-                          :open="sectionOpen(group.label)"
-                          :is-current="isCurrent"
-                          :nav-link-class="navLinkClass"
-                          @toggle="toggleSection(group.label)"
-                        />
-                        <li v-for="item in group.items" v-else :key="item.name">
-                          <RouterLink
-                            :to="item.to"
-                            :class="navLinkClass(item.to)"
-                            :aria-current="isCurrent(item.to) ? 'page' : undefined"
-                          >
-                            <AppIcon :icon="item.icon" class="size-5 shrink-0" aria-hidden="true" />
-                            <span class="flex-1">{{ item.name }}</span>
-                            <span
-                              v-if="item.badge"
-                              class="sidebar-nav-badge rounded-full px-1.5 py-0.5 text-xs font-semibold"
-                              >{{ item.badge }}</span
-                            >
-                          </RouterLink>
-                        </li>
-                      </template>
-                    </ul>
-                  </nav>
-                  <!-- Account menu at the bottom of the mobile drawer. -->
-                  <div class="sidebar-divider mt-4 border-t pt-3">
-                    <SidebarProfileMenu
-                      :email="session.email"
-                      :name="session.fullName"
-                      :role="session.role"
-                      @sign-out="signOut"
-                    />
-                  </div>
-                </div>
-              </div>
+              <!-- The same sidebar as the desktop one (D-SB6), in a drawer. -->
+              <AppSidebar
+                drawer
+                :groups="navGroups"
+                :is-current="isCurrent"
+                :touch="true"
+                :email="session.email"
+                :name="session.fullName"
+                :role="session.role"
+                @open-search="openPalette"
+                @navigate="mobileOpen = false"
+                @sign-out="signOut"
+              />
             </DialogPanel>
           </TransitionChild>
         </div>
@@ -269,101 +228,18 @@ async function signOut() {
       class="hidden lg:fixed lg:inset-y-0 lg:z-dialog lg:flex lg:flex-col transition-[width] duration-300 ease-out motion-reduce:transition-none"
       :class="sidebarCollapsed ? 'lg:w-[3.75rem]' : 'lg:w-[17rem]'"
     >
-      <div class="sidebar-glass relative flex grow overflow-hidden border-r">
-        <div class="sidebar-glass-material" aria-hidden="true" />
-        <div class="sidebar-glass-content flex min-h-0 grow flex-col overflow-x-hidden">
-          <!-- Sidebar header -->
-          <div
-            class="sidebar-divider flex h-16 shrink-0 items-center justify-center border-b"
-            :class="sidebarCollapsed ? 'px-2' : 'px-3'"
-          >
-            <AppLogo v-if="sidebarCollapsed" class="size-7 shrink-0" />
-            <!--
-              The mark is centred rather than aligned to the nav icon column, and the whole chrome
-              band went 3.5rem → 4rem to give it room: the wordmark is a two-line lockup, so height
-              buys far less apparent size than it would for a single-line mark. It shipped at h-5 on
-              2026-08-29 with each 360 disc ~9px tall, went to h-8, and reads properly at h-10 —
-              ~21px of wordmark over a 14px nav label, with 12px of air above and below.
-
-              h-16 is duplicated by the mobile drawer header above and the main sticky header below,
-              on purpose: the three form one horizontal rule across the top of the app, and a
-              sidebar header taller than the content header would break it. Move all three or none.
-            -->
-            <AppWordmark v-else class="h-10" />
-          </div>
-
-          <!-- Nav -->
-          <nav
-            id="desktop-sidebar-navigation"
-            aria-label="Primary navigation"
-            class="flex flex-1 min-h-0 flex-col overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden pt-2"
-            :class="sidebarCollapsed ? 'px-2' : 'px-3'"
-          >
-            <!-- Expanded: grouped section labels + full links -->
-            <ul v-if="!sidebarCollapsed" class="flex flex-1 flex-col gap-y-0.5">
-              <template v-for="group in navGroups" :key="group.label ?? '_top'">
-                <SidebarNavSection
-                  v-if="group.label"
-                  :group="group"
-                  :open="sectionOpen(group.label)"
-                  :is-current="isCurrent"
-                  :nav-link-class="navLinkClass"
-                  @toggle="toggleSection(group.label)"
-                />
-                <li v-for="item in group.items" v-else :key="item.name">
-                  <RouterLink
-                    :to="item.to"
-                    :class="navLinkClass(item.to)"
-                    :aria-current="isCurrent(item.to) ? 'page' : undefined"
-                  >
-                    <AppIcon :icon="item.icon" class="size-5 shrink-0" aria-hidden="true" />
-                    <span class="flex-1">{{ item.name }}</span>
-                    <span
-                      v-if="item.badge"
-                      class="sidebar-nav-badge rounded-full px-1.5 py-0.5 text-xs font-semibold"
-                      >{{ item.badge }}</span
-                    >
-                  </RouterLink>
-                </li>
-              </template>
-            </ul>
-            <!-- Collapsed: ungrouped items as icons; each labeled section opens a flyout submenu on hover/click -->
-            <ul v-else class="flex flex-1 flex-col gap-y-1">
-              <template v-for="group in navGroups" :key="group.label ?? '_top'">
-                <template v-if="!group.label">
-                  <li v-for="item in group.items" :key="item.name">
-                    <RouterLink
-                      :to="item.to"
-                      :class="navLinkClassCollapsed(item.to)"
-                      :title="item.name"
-                      :aria-current="isCurrent(item.to) ? 'page' : undefined"
-                    >
-                      <AppIcon :icon="item.icon" class="size-5 shrink-0" aria-hidden="true" />
-                    </RouterLink>
-                  </li>
-                </template>
-                <li v-else>
-                  <SidebarFlyoutSection :group="group" :is-current="isCurrent" />
-                </li>
-              </template>
-            </ul>
-          </nav>
-
-          <!-- Account control stays visually separate from primary navigation. -->
-          <div
-            class="sidebar-divider mt-2 shrink-0 border-t py-2.5"
-            :class="sidebarCollapsed ? 'px-2' : 'px-2.5'"
-          >
-            <SidebarProfileMenu
-              :email="session.email"
-              :name="session.fullName"
-              :role="session.role"
-              :collapsed="sidebarCollapsed"
-              @sign-out="signOut"
-            />
-          </div>
-        </div>
-      </div>
+      <AppSidebar
+        :groups="navGroups"
+        :collapsed="sidebarCollapsed"
+        :is-current="isCurrent"
+        :touch="touch"
+        :email="session.email"
+        :name="session.fullName"
+        :role="session.role"
+        @toggle-collapse="toggleSidebar"
+        @open-search="openPalette"
+        @sign-out="signOut"
+      />
     </div>
 
     <!-- ── Main content area ─────────────────────────────────────────────── -->
@@ -389,23 +265,9 @@ async function signOut() {
             <span class="sr-only">Open sidebar</span>
             <AppIcon :icon="Bars3Icon" class="size-6" aria-hidden="true" />
           </button>
-          <button
-            type="button"
-            class="sidebar-shell-toggle -ml-2 hidden size-9 items-center justify-center rounded-control text-ink-tertiary transition-colors hover:bg-surface-muted hover:text-ink lg:inline-flex"
-            :title="sidebarCollapsed ? 'Expand navigation' : 'Collapse navigation'"
-            :aria-label="sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'"
-            :aria-expanded="!sidebarCollapsed"
-            aria-controls="desktop-sidebar-navigation"
-            @click="toggleSidebar"
-          >
-            <AppIcon
-              :icon="sidebarCollapsed ? PanelLeftOpenIcon : PanelLeftCloseIcon"
-              class="size-5"
-              aria-hidden="true"
-            />
-          </button>
           <template v-if="route.meta.parent && opens(route.meta.parent as string)">
-            <span class="h-5 w-px bg-edge-subtle" aria-hidden="true" />
+            <!-- The rule separates Back from the hamburger, which only exists below lg. -->
+            <span class="h-5 w-px bg-edge-subtle lg:hidden" aria-hidden="true" />
             <RouterLink
               :to="(route.meta.parent as string)"
               :class="touch ? 'h-12 px-3' : 'h-9 px-2'"
@@ -490,5 +352,6 @@ async function signOut() {
       </main>
     </div>
     <SectionTabBar v-if="tabs" :group="tabs" :current="currentTab" />
+    <CommandPalette :open="paletteOpen" :entries="palette" @close="paletteOpen = false" />
   </div>
 </template>

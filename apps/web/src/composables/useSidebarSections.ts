@@ -1,43 +1,80 @@
-import { createDeviationSet } from "@/composables/useDeviationSet";
+import { ref, watch } from "vue";
 
 /**
- * Which sidebar sections are collapsed (phase 6).
+ * Which sidebar sections are open (phase 6; reversed by SIDEBAR-REDESIGN-PLAN.md D-SB3).
  *
  * ── The problem this solves ─────────────────────────────────────────────────────────────────────
- * Every section and every item was visible at once — six labelled groups plus the ungrouped top —
- * so the nav scrolled, and a scrolling nav is one where you cannot see where you are. The confusion
- * is structural rather than cosmetic: a list long enough to scroll asks the reader to hold its shape
- * in their head.
+ * Every section and every item was visible at once, so the nav scrolled, and a scrolling nav is one
+ * where you cannot see where you are. Phase 6 made sections collapsible but left them all OPEN by
+ * default, which kept the wall for everybody who never clicked a header — measured 2026-11-01, an
+ * admin's sidebar was about 2,000 px tall in an ~800 px window. D-SB3 flips the default: only the
+ * section holding the page you are on starts open; everything else is a header with a badge total.
  *
- * ── Why the stored set is what CHANGED, not what is open ────────────────────────────────────────
- * The first draft stored open sections, and it was wrong in a way worth recording. That argument now
- * lives in `useDeviationSet`, which the live map's floating panels share (D-DR6) — it had already
- * been transcribed once into `useTableColumns` before anybody noticed it was a mechanism rather than
- * a remark. Every section here defaults to OPEN, so this set is exactly the collapsed ones and the
- * behaviour is unchanged from the draft that shipped.
+ * ── Why it stores explicit ANSWERS rather than a set of changed things ──────────────────────────
+ * Phase 6 stored "the sections that differ from the default" (`useDeviationSet`), which was right
+ * while the default was a constant. It is not any more: the default is "open if it holds the current
+ * page", so it moves every time you navigate, and a set of differences from a moving default changes
+ * meaning under the reader's feet. So each section the reader has touched stores what they chose,
+ * `true` or `false`, and an untouched section follows the route.
  *
- * ── One rule overrides the preference ───────────────────────────────────────────────────────────
- * The section containing the CURRENT route is always open, whatever was stored. Otherwise a deep
- * link, a redirect after sign-in, or a notification lands you on a page whose own section is
- * collapsed, and the nav is actively lying about where you are. Remembered state decides what else
- * is open; it never decides to hide the page you are on.
+ * Keyed by group KEY, not label, which is also new: this redesign renamed groups' contents and may
+ * rename a group, and a stored label would silently stop matching. That is why the storage key
+ * changed (`fg.sidebar-collapsed` held labels, and meant the opposite thing); the old one is simply
+ * no longer read, which costs a reader one click on a section they had closed.
  *
- * ⚠ That override is why this file still exists rather than the sidebar calling `createDeviationSet`
- * directly: it is a rule about the CURRENT ROUTE, which a generic set of changed things has no
- * business knowing.
+ * ── One rule still overrides the preference ─────────────────────────────────────────────────────
+ * Arriving in a section you had closed reopens it (the `false` is forgotten), so a deep link, a
+ * redirect after sign-in or the ⌘K palette can never land you on a page whose own section is shut
+ * — the nav would be lying about where you are. Closing it again WHILE you stand there is allowed:
+ * you just watched yourself do it, so nothing is hidden from you.
  */
-const STORAGE_KEY = "fg.sidebar-collapsed";
+const STORAGE_KEY = "fg.sidebar-sections";
 
-/** Module-level: one sidebar, one set of collapsed sections, however many components ask. */
-const sections = createDeviationSet(STORAGE_KEY);
+function read(): Record<string, boolean> {
+  try {
+    const parsed: unknown = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "{}");
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return {};
+    return Object.fromEntries(Object.entries(parsed).filter((e): e is [string, boolean] => typeof e[1] === "boolean"));
+  } catch {
+    // No storage — Safari private mode throws, and this project's own jsdom has none at all.
+    return {};
+  }
+}
+
+/** Module-level: one sidebar, one set of answers, however many components (drawer, desktop) ask. */
+const answers = ref<Record<string, boolean>>(read());
+
+function write(next: Record<string, boolean>) {
+  answers.value = next;
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+  } catch {
+    // A preference that cannot be stored still applies for this session.
+  }
+}
 
 export function useSidebarSections(currentSection: () => string | null) {
-  const isOpen = (label: string) => label === currentSection() || !sections.has(label);
+  // Arriving in a section the reader had closed reopens it — see the header.
+  watch(
+    currentSection,
+    (key) => {
+      if (key && answers.value[key] === false) {
+        const { [key]: _forgotten, ...rest } = answers.value;
+        write(rest);
+      }
+    },
+    { immediate: true },
+  );
+
+  const isOpen = (key: string) => answers.value[key] ?? key === currentSection();
 
   return {
     isOpen,
-    toggle: sections.toggle,
-    /** Exposed for tests and for a future "expand all" affordance. */
-    collapsedCount: sections.count,
+    toggle: (key: string) => write({ ...answers.value, [key]: !isOpen(key) }),
   };
+}
+
+/** Tests only: module state outlives a test, and a fresh read is what a new page load does. */
+export function resetSidebarSectionsForTest() {
+  answers.value = read();
 }

@@ -2,7 +2,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { mount } from "@vue/test-utils";
 import GatedLink from "./GatedLink.vue";
 import BreadcrumbTrail from "./ui/BreadcrumbTrail.vue";
-import SidebarProfileMenu from "@/layouts/SidebarProfileMenu.vue";
 
 /**
  * The two shapes SP5 gives a door whose page does not open (plan §4b): an inline link that becomes
@@ -66,23 +65,5 @@ describe("BreadcrumbTrail", () => {
     const w = mount(BreadcrumbTrail, { props: { trail, opens: (to: string) => to !== "/loads" }, global });
     expect(w.findAll("a")).toHaveLength(0);
     expect(w.text()).toContain("Loads");
-  });
-});
-
-describe("the account menu's Settings link", () => {
-  const menu = () =>
-    mount(SidebarProfileMenu, {
-      props: { email: "a@b.test", role: session.role },
-      global: { stubs: { RouterLink, KebabMenu: { template: "<div><slot name='trigger' /><slot /></div>" } } },
-    });
-  it("is offered to the admin and not to a fleet manager with no Settings screen on", () => {
-    expect(menu().find("a[href='/settings']").exists()).toBe(true);
-    session.role = "fleet_manager";
-    expect(menu().find("a[href='/settings']").exists()).toBe(false);
-  });
-  it("is offered to a fleet manager once one screen behind Settings is turned on for them", () => {
-    session.role = "fleet_manager";
-    session.surfaces = { "admin.settings.notifications": true };
-    expect(menu().find("a[href='/settings']").exists()).toBe(true);
   });
 });

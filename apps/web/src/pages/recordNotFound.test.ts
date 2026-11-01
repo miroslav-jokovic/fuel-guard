@@ -97,7 +97,7 @@ describe("a record that does not exist is its own state, with the way back to it
     ["UnitDetailPage", `/shop/units/tractor/${ID}`, "That truck or trailer is not on the fleet.", "Back to Trucks & trailers", `/units/tractor/${ID}`],
     ["AnnualInspectionFormPage", `/shop/inspections/${ID}`, "That inspection is not on file.", "Back to Annual inspections", `/inspections/${ID}`],
     ["FuelInvoiceCheckPage", `/fuel-invoices/${ID}`, "There's no invoice check with that link.", "Back to Pilot invoices", `/recon-runs/${ID}`],
-    ["FuelCardDetailPage", `/fuel-cards/${ID}`, "That card is not in this company.", "Back to Fuel Cards", `/fuel-cards/${ID}`],
+    ["FuelCardDetailPage", `/fuel-cards/${ID}`, "That card is not in this company.", "Back to Fuel cards", `/fuel-cards/${ID}`],
     ["DriverDetailPage", `/drivers/${ID}`, "That driver is not in this company.", "Back to Drivers", `/roster/drivers/${ID}`],
     // Found by the gate rule this finding added (`ui-adoption: not-a-record`), not by the browser pass.
     ["RoadsideInspectionPage", `/roadside-inspections/${ID}`, "That roadside inspection is not on file", "Back to Roadside inspections", `/roadside-inspections/${ID}`],

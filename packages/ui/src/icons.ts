@@ -242,4 +242,9 @@ export {
   HatGlassesIcon              as HatGlassesIcon,
   BulbIcon                    as LightIcon,
 
+  // The sidebar's Pinned block (D-SB2): pin a page to the top, take it off again. A pin, not a star —
+  // a star reads as "favourite" or a rating, and this is a place you keep within reach.
+  PinIcon                     as PinIcon,
+  PinOffIcon                  as UnpinIcon,
+
 } from "@hugeicons/core-free-icons";

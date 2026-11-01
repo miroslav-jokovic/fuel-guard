@@ -20,7 +20,7 @@ export const driverRoutes: RouteRecordRaw[] = [
     path: "/compliance",
     name: "compliance",
     component: () => import("@/pages/CompliancePage.vue"),
-    meta: { requiresAuth: true, title: "Driver Qualification" },
+    meta: { requiresAuth: true, title: "Driver qualification" },
   },
   {
     // D1/D2: the qualification file became a SECTION of the driver detail page — one driver, one
@@ -38,6 +38,6 @@ export const driverRoutes: RouteRecordRaw[] = [
     path: "/driver-performance",
     name: "driver-performance",
     component: () => import("@/pages/DriverPerformancePage.vue"),
-    meta: { requiresAuth: true, title: "Driver Performance" },
+    meta: { requiresAuth: true, title: "Driver performance" },
   },
 ];

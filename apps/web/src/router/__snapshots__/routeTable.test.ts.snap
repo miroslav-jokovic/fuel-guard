@@ -696,7 +696,7 @@ exports[`the route table survives being split by area > route table 1`] = `
   {
     "meta": {
       "requiresAuth": true,
-      "title": "Alerts",
+      "title": "Fuel alerts",
     },
     "name": "anomalies",
     "path": "/anomalies",
@@ -734,7 +734,7 @@ exports[`the route table survives being split by area > route table 1`] = `
   {
     "meta": {
       "requiresAuth": true,
-      "title": "Invoices",
+      "title": "Customer invoices",
     },
     "name": "billing",
     "path": "/billing",
@@ -753,7 +753,7 @@ exports[`the route table survives being split by area > route table 1`] = `
   {
     "meta": {
       "requiresAuth": true,
-      "title": "Driver Qualification",
+      "title": "Driver qualification",
     },
     "name": "compliance",
     "path": "/compliance",
@@ -808,7 +808,7 @@ exports[`the route table survives being split by area > route table 1`] = `
   {
     "meta": {
       "requiresAuth": true,
-      "title": "Driver Performance",
+      "title": "Driver performance",
     },
     "name": "driver-performance",
     "path": "/driver-performance",
@@ -836,7 +836,7 @@ exports[`the route table survives being split by area > route table 1`] = `
   {
     "meta": {
       "requiresAuth": true,
-      "title": "Drug & Alcohol",
+      "title": "Drug & alcohol",
     },
     "name": "drug-alcohol",
     "path": "/drug-alcohol",
@@ -890,7 +890,7 @@ exports[`the route table survives being split by area > route table 1`] = `
   {
     "meta": {
       "requiresAuth": true,
-      "title": "Fuel Cards",
+      "title": "Fuel cards",
     },
     "name": "fuel-cards",
     "path": "/fuel-cards",
@@ -900,7 +900,7 @@ exports[`the route table survives being split by area > route table 1`] = `
     "meta": {
       "parent": "/fuel-cards",
       "requiresAuth": true,
-      "title": "Fuel Card",
+      "title": "Fuel card",
     },
     "name": "fuel-card-detail",
     "path": "/fuel-cards/:id",
@@ -940,7 +940,7 @@ exports[`the route table survives being split by area > route table 1`] = `
   {
     "meta": {
       "requiresAuth": true,
-      "title": "Fuel Log",
+      "title": "Fuel log",
     },
     "name": "fuel-log",
     "path": "/fuel-log",
@@ -949,7 +949,7 @@ exports[`the route table survives being split by area > route table 1`] = `
   {
     "meta": {
       "requiresAuth": true,
-      "title": "Fuel Planning",
+      "title": "Fuel planning",
     },
     "name": "fuel-planning",
     "path": "/fuel-planning",
@@ -973,7 +973,7 @@ exports[`the route table survives being split by area > route table 1`] = `
   {
     "meta": {
       "requiresAuth": true,
-      "title": "Fuel Costs",
+      "title": "Fuel costs",
     },
     "name": "fuel-spend",
     "path": "/fuel-spend",
@@ -994,7 +994,7 @@ exports[`the route table survives being split by area > route table 1`] = `
   {
     "meta": {
       "requiresAuth": true,
-      "title": "Placard Calculator",
+      "title": "Placard calculator",
     },
     "name": "hazmat-calculator",
     "path": "/hazmat/calculator",
@@ -1025,7 +1025,7 @@ exports[`the route table survives being split by area > route table 1`] = `
   {
     "meta": {
       "requiresAuth": true,
-      "title": "Hazmat Review",
+      "title": "Hazmat review",
     },
     "name": "hazmat-review",
     "path": "/hazmat/review",
@@ -1120,7 +1120,7 @@ exports[`the route table survives being split by area > route table 1`] = `
   {
     "meta": {
       "requiresAuth": true,
-      "title": "Messages",
+      "title": "Driver messages",
     },
     "name": "messages",
     "path": "/messages",
@@ -1129,7 +1129,7 @@ exports[`the route table survives being split by area > route table 1`] = `
   {
     "meta": {
       "requiresAuth": true,
-      "title": "Odometer Mismatches",
+      "title": "Odometer mismatches",
     },
     "name": "odometer",
     "path": "/odometer",
@@ -1365,7 +1365,7 @@ exports[`the route table survives being split by area > route table 1`] = `
     "meta": {
       "parent": "/settings",
       "requiresAuth": true,
-      "title": "Driver Performance",
+      "title": "Driver performance",
     },
     "name": "driver-performance-settings",
     "path": "/settings/driver-performance",
@@ -1716,7 +1716,7 @@ exports[`the route table survives being split by area > route table 1`] = `
   {
     "meta": {
       "requiresAuth": true,
-      "title": "Truck Stops",
+      "title": "Truck stops",
     },
     "name": "truck-stops",
     "path": "/truck-stops",

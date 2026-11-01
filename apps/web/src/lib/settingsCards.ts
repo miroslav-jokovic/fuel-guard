@@ -19,6 +19,7 @@ import {
   TrophyIcon,
   type Icon,
 } from "@silvicom/ui/icons";
+import { SURFACES, surfaceAllowed, type SectionClaim, type SurfaceClaim, type UserRole } from "@silvicom/shared";
 
 /**
  * The Settings directory's cards — what each LOOKS like, and nothing about who sees it
@@ -75,3 +76,21 @@ export const SETTINGS_CARDS: readonly SettingsCard[] = [
   { key: "admin.reefer-coverage", icon: ReeferTruckIcon, desc: "Which trucks have reefer-fueling detection enabled.", block: "reports" },
   { key: "admin.recall-audit", icon: ClipboardDocumentCheckIcon, desc: "Check a sample of unflagged fills to measure what the system misses.", block: "reports" },
 ];
+
+/**
+ * The cards a caller may open, with their catalogue name and path — moved here out of
+ * `SettingsPage.vue` when the ⌘K palette became the second reader (SIDEBAR-REDESIGN-PLAN.md D-SB1).
+ * The page and the palette ask this one function, so a screen cannot be on the directory and missing
+ * from search, or the other way round: the same `surfaceAllowed` the router guard asks.
+ */
+export function visibleSettingsScreens(
+  role: UserRole | null,
+  sections: SectionClaim | null,
+  surfaces: SurfaceClaim | null,
+): (SettingsCard & { name: string; to: string })[] {
+  return SETTINGS_CARDS.flatMap((c) => {
+    const s = SURFACES.find((x) => x.key === c.key);
+    if (!s || !surfaceAllowed(s, role, sections, surfaces)) return [];
+    return [{ ...c, name: s.label, to: s.path }];
+  });
+}

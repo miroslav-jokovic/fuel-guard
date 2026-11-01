@@ -269,7 +269,7 @@ async function sendDigest() {
       <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h3 class="text-sm font-semibold text-ink">Odometer accuracy</h3>
-          <p class="text-sm text-ink-muted">Driver-entered odometer vs. Samsara reading. See <GatedLink to="/odometer" class="font-medium text-link hover:text-link-hover">Odometer Mismatches</GatedLink> for the fill-by-fill list.</p>
+          <p class="text-sm text-ink-muted">Driver-entered odometer vs. Samsara reading. See <GatedLink to="/odometer" class="font-medium text-link hover:text-link-hover">Odometer mismatches</GatedLink> for the fill-by-fill list.</p>
         </div>
         <div class="flex items-center gap-2">
           <AppSelect v-model="by" :options="[{ value: 'driver', label: 'By driver' }, { value: 'vehicle', label: 'By vehicle' }]" class="w-36" />

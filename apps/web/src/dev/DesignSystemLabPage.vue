@@ -11,7 +11,7 @@ import {
   AppTabs,
 } from "@silvicom/ui";
 import { FuelCardIcon, TruckIcon, UserGroupIcon, ShieldCheckIcon } from "@silvicom/ui/icons";
-import SidebarNavSection from "@/layouts/SidebarNavSection.vue";
+import SidebarNavSection from "@/layouts/sidebar/SidebarNavSection.vue";
 import BreadcrumbTrail from "@/components/ui/BreadcrumbTrail.vue";
 import CaseTimeline, { type NearMiss } from "@/features/anomalies/CaseTimeline.vue";
 import type { Crumb } from "@/lib/breadcrumbs";
@@ -118,27 +118,27 @@ const shippedTones = ["danger", "caution", "warning", "success", "info", "brand"
  */
 /** Every lab section is labelled, so narrow the nullable label away rather than assert past it. */
 const labNavGroups: (NavGroup & { label: string })[] = [
-  { key: "fuel", label: "Fuel", items: [
-    { show: true, name: "Fuel log", to: "/lab-fuel-log", icon: FuelCardIcon },
-    { show: true, name: "Transactions", to: "/lab-transactions", icon: FuelCardIcon, badge: 24 },
+  { key: "lab-fuel", label: "Fuel", items: [
+    { show: true, name: "Fuel log", to: "/lab-fuel-log", key: "lab-fuel-log", icon: FuelCardIcon },
+    { show: true, name: "Transactions", to: "/lab-transactions", key: "lab-transactions", icon: FuelCardIcon, badge: 24 },
   ]},
-  { key: "safety", label: "Safety", items: [
-    { show: true, name: "Driver files", to: "/lab-driver-files", icon: ShieldCheckIcon },
-    { show: true, name: "Hazmat", to: "/lab-hazmat", icon: ShieldCheckIcon, badge: 7 },
+  { key: "lab-safety", label: "Safety", items: [
+    { show: true, name: "Driver files", to: "/lab-driver-files", key: "lab-driver-files", icon: ShieldCheckIcon },
+    { show: true, name: "Hazmat", to: "/lab-hazmat", key: "lab-hazmat", icon: ShieldCheckIcon, badge: 7 },
   ]},
-  { key: "fleet", label: "Fleet", items: [
-    { show: true, name: "Vehicles", to: "/lab-vehicles", icon: TruckIcon },
-    { show: true, name: "Drivers", to: "/lab-drivers", icon: UserGroupIcon },
+  { key: "lab-fleet", label: "Fleet", items: [
+    { show: true, name: "Vehicles", to: "/lab-vehicles", key: "lab-vehicles", icon: TruckIcon },
+    { show: true, name: "Drivers", to: "/lab-drivers", key: "lab-drivers", icon: UserGroupIcon },
   ]},
 ];
-/** The lab pretends you are standing on Fuel log, so the always-open rule is visible too. */
+/**
+ * The lab pretends you are standing on Fuel log, so the opens-where-you-are rule is visible too. The
+ * keys are `lab-` prefixed because the section answers are module state shared with the real sidebar
+ * (D-SB3): a lab key of `fuel` would open or close the real Fuel section.
+ */
 const labCurrent = "/lab-fuel-log";
-const { isOpen: labSectionOpen, toggle: labToggleSection } = useSidebarSections(() => "Fuel");
+const { isOpen: labSectionOpen, toggle: labToggleSection } = useSidebarSections(() => "lab-fuel");
 const labIsCurrent = (to: string) => to === labCurrent;
-const labNavLinkClass = (to: string) => [
-  labIsCurrent(to) ? "sidebar-nav-active" : "sidebar-nav-inactive",
-  "sidebar-nav-item group flex min-h-10 items-center gap-x-2.5 rounded-control px-2.5 py-2 text-sm font-medium leading-5",
-];
 </script>
 
 <template>
@@ -439,12 +439,13 @@ const labNavLinkClass = (to: string) => [
           <ul class="flex flex-col gap-y-0.5">
             <SidebarNavSection
               v-for="group in labNavGroups"
-              :key="group.label"
+              :key="group.key"
               :group="group"
-              :open="labSectionOpen(group.label)"
+              :open="labSectionOpen(group.key)"
               :is-current="labIsCurrent"
-              :nav-link-class="labNavLinkClass"
-              @toggle="labToggleSection(group.label)"
+              :is-pinned="() => false"
+              :pin-full="false"
+              @toggle="labToggleSection(group.key)"
             />
           </ul>
         </nav>

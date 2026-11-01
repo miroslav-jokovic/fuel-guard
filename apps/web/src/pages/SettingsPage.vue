@@ -1,9 +1,8 @@
 <script setup lang="ts">
 import { AppIcon } from "@silvicom/ui";
-import { SURFACES, surfaceAllowed } from "@silvicom/shared";
 import { RouterLink } from "vue-router";
 import FleetReadiness from "@/features/dashboard/FleetReadiness.vue";
-import { SETTINGS_CARDS } from "@/lib/settingsCards";
+import { visibleSettingsScreens } from "@/lib/settingsCards";
 import { useSessionStore } from "@/stores/session";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import SettingsSection from "@/components/ui/SettingsSection.vue";
@@ -15,13 +14,10 @@ const session = useSessionStore();
  * over the same role, section claim and screen claim. Until SP1 each card wrote its own expression
  * — nine of them `session.admin` — which is why none of those nine could be offered as a permission.
  * The name and the path come from the catalogue too, so a card cannot link somewhere its label does
- * not describe. `lib/settingsCards.ts` holds only what a card looks like.
+ * not describe. `lib/settingsCards.ts` holds what a card looks like and, since the ⌘K palette became a
+ * second reader (D-SB1), this filter too.
  */
-const visible = SETTINGS_CARDS.flatMap((c) => {
-  const s = SURFACES.find((x) => x.key === c.key);
-  if (!s || !surfaceAllowed(s, session.role, session.sections, session.surfaces)) return [];
-  return [{ name: s.label, to: s.path, icon: c.icon, desc: c.desc, block: c.block }];
-});
+const visible = visibleSettingsScreens(session.role, session.sections, session.surfaces);
 const configCards = visible.filter((c) => c.block === "config");
 const reportCards = visible.filter((c) => c.block === "reports");
 </script>

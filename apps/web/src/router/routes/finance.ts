@@ -29,6 +29,6 @@ export const financeRoutes: RouteRecordRaw[] = [
     path: "/billing",
     name: "billing",
     component: () => import("@/pages/BillingPage.vue"),
-    meta: { requiresAuth: true, title: "Invoices" },
+    meta: { requiresAuth: true, title: "Customer invoices" },
   },
 ];

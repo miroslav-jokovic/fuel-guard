@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { RouterLink } from "vue-router";
 import { AppIcon } from "@silvicom/ui";
 import { ChevronDownIcon } from "@silvicom/ui/icons";
 import type { NavGroup } from "@/lib/nav";
+import SidebarNavItem from "./SidebarNavItem.vue";
 
 /**
  * One collapsible sidebar section.
@@ -16,18 +16,25 @@ import type { NavGroup } from "@/lib/nav";
  *
  * The chevron rotates rather than swapping glyph, so the transition is one property and reduced
  * motion flattens it along with everything else (D-DS9a).
+ *
+ * Since the sidebar redesign (D-SB3) sections start CLOSED unless they hold the current page, so the
+ * header is what most readers see of most sections. It therefore wears the section's own icon — the
+ * one the collapsed rail already shows — so the open sidebar and the rail read as one menu, and
+ * a reader who learnt the rail's icons finds the same ones here.
  */
 const props = defineProps<{
   group: NavGroup;
   open: boolean;
   isCurrent: (to: string) => boolean;
-  navLinkClass: (to: string) => (string | Record<string, boolean>)[];
+  touch?: boolean;
+  isPinned: (key: string) => boolean;
+  pinFull: boolean;
 }>();
 
-const emit = defineEmits<{ toggle: [] }>();
+const emit = defineEmits<{ toggle: []; togglePin: [key: string]; navigate: [] }>();
 
-/** Ids must survive a label with spaces — "Fuel cards" would otherwise be an invalid fragment. */
-const listId = computed(() => `sidebar-section-${(props.group.label ?? "").toLowerCase().replace(/[^a-z0-9]+/g, "-")}`);
+/** From the group KEY: stable across a relabel, and always a valid fragment. */
+const listId = computed(() => `sidebar-section-${props.group.key}`);
 
 /** A badge on a collapsed section is the only thing still reporting from inside it. */
 const hiddenBadgeTotal = computed(() =>
@@ -36,14 +43,16 @@ const hiddenBadgeTotal = computed(() =>
 </script>
 
 <template>
-  <li class="mt-4">
+  <li class="mt-1">
     <button
       type="button"
-      class="sidebar-section-toggle group flex w-full items-center gap-x-1.5 rounded-control px-2.5 py-1.5 text-left text-xs font-medium"
+      class="sidebar-section-toggle group flex w-full items-center gap-x-2 rounded-control px-2.5 text-left text-xs font-medium"
+      :class="touch ? 'min-h-11' : 'min-h-8'"
       :aria-expanded="open"
       :aria-controls="listId"
       @click="emit('toggle')"
     >
+      <AppIcon v-if="group.icon" :icon="group.icon" class="size-4 shrink-0" aria-hidden="true" />
       <span class="flex-1">{{ group.label }}</span>
       <span
         v-if="!open && hiddenBadgeTotal > 0"
@@ -56,7 +65,8 @@ const hiddenBadgeTotal = computed(() =>
         It led the label until then, which put the disclosure control in the same column as the nav
         items' ICONS one row below — two different meanings sharing a column, so the eye read the
         chevron as a section "icon" rather than as a control. On the right it sits in its own column
-        with nothing to be confused with, which is also what every comp draws.
+        with nothing to be confused with, which is also what every comp draws. (D-SB3 put the
+        section's real icon in that leading column, which makes the ruling's reason stronger.)
 
         The badge stays BEFORE it: when a section is collapsed the badge is the only thing still
         reporting from inside it, and a count that jumps outboard of the chevron when the section
@@ -72,22 +82,18 @@ const hiddenBadgeTotal = computed(() =>
   </li>
 
   <li v-show="open" :id="listId">
-    <ul class="flex flex-col gap-y-0.5">
-      <li v-for="item in group.items" :key="item.name">
-        <RouterLink
-          :to="item.to"
-          :class="navLinkClass(item.to)"
-          :aria-current="isCurrent(item.to) ? 'page' : undefined"
-        >
-          <AppIcon :icon="item.icon" class="size-5 shrink-0" aria-hidden="true" />
-          <span class="flex-1">{{ item.name }}</span>
-          <span
-            v-if="item.badge"
-            class="sidebar-nav-badge rounded-full px-1.5 py-0.5 text-xs font-semibold"
-            >{{ item.badge }}</span
-          >
-        </RouterLink>
-      </li>
+    <ul class="flex flex-col gap-y-0.5 pb-1">
+      <SidebarNavItem
+        v-for="item in group.items"
+        :key="item.key"
+        :item="item"
+        :current="isCurrent(item.to)"
+        :touch="touch"
+        :pinned="isPinned(item.key)"
+        :pin-full="pinFull"
+        @toggle-pin="emit('togglePin', item.key)"
+        @navigate="emit('navigate')"
+      />
     </ul>
   </li>
 </template>

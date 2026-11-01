@@ -6,19 +6,19 @@ export const fuelRoutes: RouteRecordRaw[] = [
     path: "/fuel-planning",
     name: "fuel-planning",
     component: () => import("@/pages/FuelPlanningPage.vue"),
-    meta: { requiresAuth: true, title: "Fuel Planning" },
+    meta: { requiresAuth: true, title: "Fuel planning" },
   },
   {
     path: "/truck-stops",
     name: "truck-stops",
     component: () => import("@/pages/FuelStationsPage.vue"),
-    meta: { requiresAuth: true, title: "Truck Stops" },
+    meta: { requiresAuth: true, title: "Truck stops" },
   },
   {
     path: "/fuel-log",
     name: "fuel-log",
     component: () => import("@/pages/FuelLogPage.vue"),
-    meta: { requiresAuth: true, title: "Fuel Log" },
+    meta: { requiresAuth: true, title: "Fuel log" },
   },
   /**
    * Fuel Costs (FS2, D-FSV1/D-FSV7) — one report, no tabs. It was Reconciliation, then Fuel Spend
@@ -29,7 +29,7 @@ export const fuelRoutes: RouteRecordRaw[] = [
     path: "/fuel-spend",
     name: "fuel-spend",
     component: () => import("@/pages/FuelCostsPage.vue"),
-    meta: { requiresAuth: true, title: "Fuel Costs" },
+    meta: { requiresAuth: true, title: "Fuel costs" },
   },
   {
     // Fuel Spend's Buy discipline tab, its own screen since the report lost its tabs (Q-FSV12).
@@ -143,19 +143,19 @@ export const fuelRoutes: RouteRecordRaw[] = [
     path: "/fuel-cards",
     name: "fuel-cards",
     component: () => import("@/pages/FuelCardsPage.vue"),
-    meta: { requiresAuth: true, title: "Fuel Cards" },
+    meta: { requiresAuth: true, title: "Fuel cards" },
   },
   {
     path: "/fuel-cards/:id",
     name: "fuel-card-detail",
     component: () => import("@/pages/FuelCardDetailPage.vue"),
-    meta: { requiresAuth: true, title: "Fuel Card", parent: "/fuel-cards" },
+    meta: { requiresAuth: true, title: "Fuel card", parent: "/fuel-cards" },
   },
   {
     path: "/anomalies",
     name: "anomalies",
     component: () => import("@/pages/AnomaliesPage.vue"),
-    meta: { requiresAuth: true, title: "Alerts" },
+    meta: { requiresAuth: true, title: "Fuel alerts" },
   },
   {
     // Merged into Fuel Log (same underlying fuel_transactions data) — redirect old links.

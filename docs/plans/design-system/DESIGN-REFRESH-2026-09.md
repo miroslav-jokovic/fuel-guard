@@ -1112,3 +1112,7 @@ conflict every time (`plan-progress-log-not-table-rows`).
   scrolls by the banner's height — 28px at 1512 and **64px at 390, where it wraps to two lines** —
   and anything on the bottom edge is under the fold. That is DR5 follow-up 2, still open, and it is
   the banner alone: this tab's strip lives inside `<main>` and takes its height from the same box.
+
+- **2026-11-01 — D-DR16 page half BUILT** by the sidebar redesign (`SIDEBAR-REDESIGN-PLAN.md` D-SB1):
+  ⌘K / Ctrl K and a "Search pages" field go to any page the caller can open. Record search stays open
+  there as Q-SB1.
