@@ -1,10 +1,11 @@
 import { describe, it, expect } from "vitest";
 import { effectScope, ref } from "vue";
-import { APPLICATION_SECTION_ORDER, driverApplicationSchema } from "@silvicom/shared";
+import { APPLICATION_SECTION_ORDER, driverApplicationSchema, questionnaireForApplicant, sectionOwningPath } from "@silvicom/shared";
 import { emptyDraft, type ApplicationDraft } from "./draft";
 import { issuesFromParse, useApplicationWizard, validateSection } from "./useApplicationWizard";
 import { toApplication } from "./draft";
 import { APPLY_COPY } from "./strings";
+import { CARRIER_ANSWERS } from "@/testing/carrierAnswers";
 
 /**
  * Per-screen validation (A3).
@@ -17,6 +18,8 @@ import { APPLY_COPY } from "./strings";
 
 const complete = (): ApplicationDraft => ({
   ...emptyDraft(),
+  // §9 P8: the carrier's seven required answers — a complete application gives them.
+  questionnaire: { ...CARRIER_ANSWERS },
   // §391.21(b)(6) is mandatory content of the application form, so a draft that passes every screen
   // answers at least one half of it.
   experience: "Eight years, dry van and reefer.",
@@ -273,5 +276,50 @@ describe("a v2 link's filing rules, on the page", () => {
     expect(wizard.next()).toBe(false);
     expect(wizard.issues.value).toHaveLength(1);
     scope.stop();
+  });
+});
+
+/**
+ * §9 P8 (AF-1): the wizard and the API refuse the same thing at the same path. Each required carrier
+ * question, left blank, is refused by the screen it is asked on with exactly the issue path the
+ * server's own parse reports — and by no other screen.
+ */
+describe("the carrier's required questions, on the page and on the server", () => {
+  const required = questionnaireForApplicant().questions.filter((q) => q.required).map((q) => q.id);
+
+  it("covers Q-WF3's seven", () => {
+    expect(required.sort()).toEqual([
+      "applying_as", "education", "heard_from", "legally_work", "may_contact_employers", "position", "proof_of_age",
+    ]);
+  });
+
+  it.each(required)("refuses a blank %s on its own screen at the server's path", (id) => {
+    const draft = complete();
+    const { [id]: _gone, ...rest } = draft.questionnaire;
+    draft.questionnaire = rest;
+    const server = driverApplicationSchema.safeParse(toApplication(draft));
+    const serverPaths = server.error!.issues.map((i) => i.path.join("."));
+    expect(serverPaths).toEqual([`questionnaire_answers.${id}`]);
+
+    const screen = sectionOwningPath(["questionnaire_answers", id])!;
+    const onScreen = validateSection(screen, draft);
+    expect(onScreen.map((i) => i.path.join("."))).toEqual(serverPaths);
+    expect(onScreen[0]!.section).toBe(screen);
+    expect(onScreen[0]!.fieldId).toBe(`apply-questionnaire_answers-${id}`);
+    expect(onScreen[0]!.say).toBe(APPLY_COPY.carrierQuestions.answerNeeded);
+    // The label is the question's own words, not "The carrier's own questions".
+    expect(onScreen[0]!.label).toBe(questionnaireForApplicant().questions.find((q) => q.id === id)!.label);
+    for (const other of APPLICATION_SECTION_ORDER.filter((s) => s !== screen)) {
+      expect({ other, issues: validateSection(other, draft) }).toEqual({ other, issues: [] });
+    }
+  });
+
+  it("sends the Send summary's entry to the screen the question is on", () => {
+    const draft = complete();
+    draft.questionnaire = {};
+    const parsed = driverApplicationSchema.safeParse(toApplication(draft));
+    const issues = issuesFromParse(parsed.error!.issues, toApplication(draft));
+    const position = issues.find((i) => i.path.join(".") === "questionnaire_answers.position")!;
+    expect(position.section).toBe("identity");
   });
 });

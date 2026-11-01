@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { mount } from "@vue/test-utils";
 import { emptyDraft } from "./draft";
 import ApplyTaskHub from "./ApplyTaskHub.vue";
-import { APPLY_COPY } from "./strings";
+import { APPLY_COPY, APPLY_SECTION_TITLES } from "./strings";
 
 /** The list itself (C3c2a): a row per task, its status in words, 44 px rows, a shut last row that says why. */
 const copy = APPLY_COPY.hub;
@@ -25,9 +25,10 @@ describe("the task list", () => {
     expect(last.attributes("disabled")).toBeDefined();
   });
 
-  it("marks the two optional tasks", () => {
+  it("marks only the photographs optional, and says how many carrier questions are answered (§9 P8, AF-2)", () => {
     const text = mountHub().findAll("li button").map((b) => b.text());
-    expect(text.filter((t) => t.includes(copy.optional))).toHaveLength(2);
+    expect(text.filter((t) => t.includes(copy.optional))).toHaveLength(1);
+    expect(text.find((t) => t.includes(APPLY_SECTION_TITLES.questions))).toContain(copy.answered(0, 4));
   });
 
   it("opens the task pressed", async () => {

@@ -105,6 +105,8 @@ function answersIn(node: unknown, key = ""): string[] {
   if (key === "applying_as" && node === "owner_operator") return ["Owner-operator"];
   // AW1: an employer's `key` is a reference the form minted, not something the driver typed.
   if (key === "key") return [];
+  // §9 P8: the definition the answers were given against — the form's bookkeeping, not an answer.
+  if (key === "questionnaire_version") return [];
   if (typeof node === "string") return node.trim() === "" ? [] : [node.trim()];
   if (typeof node === "number") return [String(node)];
   if (Array.isArray(node)) return node.flatMap((v) => answersIn(v, key));

@@ -10,6 +10,7 @@ import DocumentCaptureFields from "@/features/apply/DocumentCaptureFields.vue";
 import ReviewFields from "@/features/apply/ReviewFields.vue";
 import EmployerCheckNotice from "@/features/apply/EmployerCheckNotice.vue";
 import type { ApplicationDraft } from "@/features/apply/draft";
+import type { SectionIssue } from "@/features/apply/useApplicationWizard";
 import { useApplyScreen } from "@/features/apply/useScreenEvents";
 
 /**
@@ -34,7 +35,7 @@ const props = defineProps<{
   identityLockedBy: string | null;
 }>();
 const draft = defineModel<ApplicationDraft>({ required: true });
-const emit = defineEmits<{ goTo: [ApplicationSection] }>();
+const emit = defineEmits<{ goTo: [ApplicationSection]; show: [SectionIssue] }>();
 // Part 2's screens, one per section, in both the task list and the legacy wizard (AW14).
 useApplyScreen(() => `part2.${props.section}`);
 </script>
@@ -52,6 +53,12 @@ useApplyScreen(() => `part2.${props.section}`);
   <DocumentCaptureFields v-else-if="section === 'documents'" :token="token" :captures="captures" />
   <div v-else class="space-y-6">
     <EmployerCheckNotice />
-    <ReviewFields :draft="draft" :captures="captures" @go-to="emit('goTo', $event)" />
+    <ReviewFields
+      :draft="draft"
+      :captures="captures"
+      :v2-as-of="v2AsOf"
+      @go-to="emit('goTo', $event)"
+      @show="emit('show', $event)"
+    />
   </div>
 </template>

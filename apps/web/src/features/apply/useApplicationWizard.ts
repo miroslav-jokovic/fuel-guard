@@ -6,7 +6,9 @@ import {
   applicationV2FilingIssues,
   driverApplicationObject,
   isApplicationSection,
+  ruleIssuePath,
   sectionOwning,
+  sectionOwningPath,
   type ApplicationSection,
   type DriverApplicationFields,
 } from "@silvicom/shared";
@@ -89,8 +91,7 @@ export function v2FilingIssues(draft: ApplicationDraft, asOf: string | null): Se
   const candidate = toApplication(draft) as Parameters<typeof applicationV2FilingIssues>[0];
   return applicationV2FilingIssues(candidate, asOf).map((issue) => {
     const path = issue.path.split(".").map((p) => (/^\d+$/.test(p) ? Number(p) : p)) as FieldPath;
-    const key = String(path[0]) as keyof DriverApplicationFields;
-    return toSectionIssue({ code: "custom", message: issue.message, path }, sectionOwning(key), candidate);
+    return toSectionIssue({ code: "custom", message: issue.message, path }, sectionOwningPath(path), candidate);
   });
 }
 
@@ -118,7 +119,10 @@ export function validateSection(
   }
 
   for (const rule of APPLICATION_CROSS_FIELD_RULES) {
-    if (!keys.includes(rule.path)) continue;
+    // By the screen the rule's ISSUE lands on, not the key's owner (§9 P8): "Position you are applying
+    // for" is a `questionnaire_answers` rule, owned by `questions`, asked and refused on `identity`.
+    const path = ruleIssuePath(rule);
+    if (sectionOwningPath(path) !== section) continue;
     // The whole candidate, not the picked subset: a rule that reads `declares_no_accidents` to judge
     // `accidents` needs both, and both are on this screen by construction.
     if (!rule.check(candidate as Partial<DriverApplicationFields>)) {
@@ -126,7 +130,7 @@ export function validateSection(
       // and must pass through untouched, exactly like the refinements inside the schema.
       issues.push(
         toSectionIssue(
-          { code: "custom", message: rule.message, path: [rule.path as string] },
+          { code: "custom", message: rule.message, path },
           section,
           candidate,
         ),
@@ -153,10 +157,9 @@ export function issuesFromParse(
 ): SectionIssue[] {
   return issues.map((issue) => {
     const path = issue.path as FieldPath;
-    const key = String(path[0] ?? "");
     return toSectionIssue(
       { code: issue.code, message: issue.message, format: issue.format, path },
-      sectionOwning(key as keyof DriverApplicationFields),
+      sectionOwningPath(path),
       candidate,
     );
   });

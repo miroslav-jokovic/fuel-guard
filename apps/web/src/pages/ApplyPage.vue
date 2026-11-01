@@ -404,6 +404,7 @@ watch(
             :part-one="partOneFacts"
             :identity-locked-by="identityLockedBy"
             @go-to="goToSection"
+            @show="showIssue"
           />
         </BaseCard>
 

@@ -19,7 +19,7 @@ import EmployerWhereFields from "@/features/apply/EmployerWhereFields.vue";
 import { provideApplyIssues } from "@/features/apply/issues";
 import { describeField, fieldId, messageFor, valueAt, type FieldPath } from "@/features/apply/fieldLabels";
 import type { SectionIssue } from "@/features/apply/useApplicationWizard";
-import { emptyEmployer, toEmployerPayload, type DraftEmployer } from "@/features/apply/draft";
+import { emptyEmployer, employerIsBlank, toEmployerPayload, type DraftEmployer } from "@/features/apply/draft";
 import { APPLY_COPY } from "@/features/apply/strings";
 
 /**
@@ -67,7 +67,12 @@ const props = withDefaults(
   }>(),
   { v2AsOf: null },
 );
-const emit = defineEmits<{ save: [DraftEmployer]; remove: []; close: [] }>();
+/**
+ * `close` carries the panel's working copy (§9 P8, AF-4): the list decides what an unsaved job becomes
+ * — nothing if it is blank, an "Unfinished" row if the applicant typed something — and a job that was
+ * already finished keeps what was saved, which is what Cancel means.
+ */
+const emit = defineEmits<{ save: [DraftEmployer]; remove: []; close: [DraftEmployer] }>();
 
 const copy = APPLY_COPY.employment;
 
@@ -76,11 +81,16 @@ const local = ref<DraftEmployer>(emptyEmployer());
 const issues = ref<SectionIssue[]>([]);
 provideApplyIssues(issues);
 
-/** Only an existing job can be removed; a new one is discarded by Cancel and leaves no row. */
-const savedAlready = computed(() => (props.employer?.employer_name ?? "").trim() !== "");
+/**
+ * Only a job on the list can be removed — a finished one, or one left unfinished (§9 P8): either is a
+ * row the applicant can see. A new one is discarded by Cancel and leaves no row.
+ */
+const savedAlready = computed(() => props.employer !== null && !employerIsBlank(props.employer));
 
 const title = computed(() =>
-  props.employer?.employer_name.trim() ? props.employer.employer_name.trim() : copy.drawerNew,
+  props.employer?.employer_name.trim()
+    ? props.employer.employer_name.trim()
+    : savedAlready.value ? APPLY_COPY.unfinishedJob.noName : copy.drawerNew,
 );
 
 /**
@@ -149,7 +159,7 @@ function save(): void {
 </script>
 
 <template>
-  <SlideOver :open="open" :title="title" :description="copy.drawerIntro" size="lg" @close="emit('close')">
+  <SlideOver :open="open" :title="title" :description="copy.drawerIntro" size="lg" @close="emit('close', { ...local })">
     <div v-if="open" class="space-y-4">
       <!-- ── WHAT THE REGULATION ACTUALLY NEEDS, AND NOTHING ELSE ABOVE THE FOLD ───────────────
            Reported by the owner 2026-09-11: *"most of the drivers are not remembering all places
@@ -255,7 +265,7 @@ function save(): void {
         </BaseButton>
         <span v-else />
         <div class="flex items-center gap-3">
-          <BaseButton variant="secondary" size="touch" @click="emit('close')">{{ copy.drawerCancel }}</BaseButton>
+          <BaseButton variant="secondary" size="touch" @click="emit('close', { ...local })">{{ copy.drawerCancel }}</BaseButton>
           <BaseButton variant="primary" size="touch" @click="save">{{ copy.drawerSave }}</BaseButton>
         </div>
       </div>

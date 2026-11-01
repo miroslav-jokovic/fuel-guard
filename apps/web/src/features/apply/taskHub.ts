@@ -1,4 +1,5 @@
 import {
+  questionnaireProgress,
   APPLICATION_CAPTURE_REQUESTED,
   PART_ONE_CAPTURE_SLOTS,
   APPLICATION_FILLING_SECTIONS,
@@ -9,6 +10,7 @@ import {
 import { emptyDraft, toApplication, type ApplicationDraft } from "./draft";
 import { validateSection } from "./useApplicationWizard";
 import { APPLY_COPY, APPLY_SECTION_TITLES } from "./strings";
+import { applicantQuestionnaire } from "./questionnaireCopy";
 
 /**
  * Part 2 as a task list (APPLICATION-FLOW-V2-PLAN.md §6.4, D-AW11, C3c2a) — which tasks there are, and
@@ -26,11 +28,14 @@ import { APPLY_COPY, APPLY_SECTION_TITLES } from "./strings";
  *   Completed   — something would, and it would let them past.
  *   Cannot start yet — "Before you send", until every required task passes.
  *
- * ── TWO TASKS NEVER HOLD ANYTHING UP ──────────────────────────────────────────────────────────
- * The carrier's own questions discharge no §391.21 paragraph and are optional by D-APP12; the
- * photographs are optional by A8 (the CDL's two were taken in Part 1). Both show their status and are
- * marked optional; untouched, both pass, so "Before you send" never waits on them being done — only on
- * nothing in them being wrong.
+ * ── ONE TASK NEVER HOLDS ANYTHING UP ──────────────────────────────────────────────────────────
+ * The photographs are optional by A8 (the CDL's two were taken in Part 1): marked optional, and
+ * untouched they pass, so "Before you send" never waits on them being done.
+ *
+ * ⚠ The carrier's own questions were the second until §9 P8 (AF-2). Marked "Optional" and passing
+ * untouched, "Before you send" unlocked without anybody opening them — the audit measured the blank
+ * answers that produced. Seven of them are required now (Q-WF3), so the task is held like any other,
+ * and its row says how many of its questions are answered instead of "Optional".
  */
 
 export type TaskStatus = "not_started" | "in_progress" | "completed" | "cannot_start";
@@ -40,10 +45,12 @@ export interface HubTask {
   label: string;
   status: TaskStatus;
   optional: boolean;
+  /** How many of the task's questions are answered — the carrier's questions only (§9 P8, AF-2). */
+  answered?: { answered: number; total: number };
 }
 
 /** The tasks that never gate "Before you send" — see the header. */
-export const OPTIONAL_TASKS: readonly ApplicationSection[] = ["questions", "documents"];
+export const OPTIONAL_TASKS: readonly ApplicationSection[] = ["documents"];
 
 /** The last row, and the only one that can be shut. */
 export const SEND_TASK: ApplicationSection = "review";
@@ -90,13 +97,16 @@ export function hubTasks(
     label: APPLY_SECTION_TITLES[section],
     status: taskStatus(section, draft, v2AsOf, captures),
     optional: OPTIONAL_TASKS.includes(section),
+    ...(section === "questions"
+      ? { answered: questionnaireProgress(applicantQuestionnaire(draft.questionnaire_version), section, draft.questionnaire) }
+      : {}),
   }));
   /**
    * ⚠ Gated on PASSING, not on the Completed status, and on EVERY task: an optional task nobody touched is
-   * Not started and passes, because nothing on it is required. Today neither optional screen can fail
-   * (the carrier's answers are `record<unknown>`, the photographs own no field), so an exemption for them
-   * changed nothing — and it would have opened this row onto a filing refusal the day a carrier question
-   * gains a rule. Same `validateSection` the Send button's summary is built from.
+   * Not started and passes, because nothing on it is required. The comment here once said no optional
+   * screen could fail; §9 P8 is the day a carrier question gained a rule, and the gate needed no change —
+   * the questions task simply stopped being optional. Same `validateSection` the Send button's summary is
+   * built from.
    */
   const ready = work.every((t) => validateSection(t.section, draft, v2AsOf).length === 0);
   return [...work, { section: SEND_TASK, label: APPLY_COPY.hub.beforeYouSend, status: ready ? "not_started" : "cannot_start", optional: false }];

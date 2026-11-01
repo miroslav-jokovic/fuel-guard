@@ -8,6 +8,7 @@ import {
   toDraftPayload,
   type ApplicationDraft,
 } from "./draft";
+import { CARRIER_ANSWERS } from "@/testing/carrierAnswers";
 
 /**
  * The draft → contract conversion, which is where a form quietly asserts things on somebody's behalf
@@ -16,6 +17,8 @@ import {
 
 const complete = (): ApplicationDraft => ({
   ...emptyDraft(),
+  // §9 P8: the carrier's seven required answers — a complete application gives them.
+  questionnaire: { ...CARRIER_ANSWERS },
   // §391.21(b)(6): a complete application answers at least one half of it.
   experience: "Eight years, dry van and reefer.",
   first_name: "Susan", last_name: "Godfrey", date_of_birth: "1980-04-01",
@@ -99,11 +102,24 @@ describe("what the form sends", () => {
   /** An accidental "Add another" click is not a declaration about somebody's history. */
   it("drops rows the applicant added and left blank", () => {
     const draft = complete();
-    draft.employers.push({ ...draft.employers[0]!, employer_name: "" });
+    draft.employers.push(emptyEmployer());
     draft.addresses.push({ line1: "", line2: "", city: "", state: "", postal_code: "", from: "", to: "" });
     const sent = toApplication(draft) as { employers: unknown[]; addresses: unknown[] };
     expect(sent.employers).toHaveLength(1);
     expect(sent.addresses).toHaveLength(1);
+  });
+
+  /**
+   * §9 P8 (AF-4): a job with dates and no name used to be dropped here without a word, while the list
+   * showed it. It is kept, and the contract refuses its missing name on its own row.
+   */
+  it("keeps a job with something in it but no name, and the contract refuses it on that row", () => {
+    const draft = complete();
+    draft.employers.push({ ...emptyEmployer(), started_on: "2021-01-01" });
+    const sent = toApplication(draft) as { employers: unknown[] };
+    expect(sent.employers).toHaveLength(2);
+    const parsed = driverApplicationSchema.safeParse(sent);
+    expect(parsed.error?.issues.map((i) => i.path.join("."))).toEqual(["employers.1.employer_name"]);
   });
 
   /**
@@ -427,13 +443,29 @@ describe("the questionnaire", () => {
   });
 
   it("stamps the version only when something was actually answered", () => {
-    const blank = toApplication(complete()) as Record<string, unknown>;
+    const blank = toApplication({ ...complete(), questionnaire: {} }) as Record<string, unknown>;
     expect(blank.questionnaire_version).toBeNull();
     expect(blank.questionnaire_answers).toBeNull();
 
     const filled = toApplication(answered()) as Record<string, unknown>;
-    // v2 since Q-HM14 (`applying_as`): the definition an applicant is served today.
-    expect(filled.questionnaire_version).toBe("silvicom_driver@v2");
+    // v3 since §9 P8: the definition a new draft is answered against.
+    expect(filled.questionnaire_version).toBe("silvicom_driver@v3");
+  });
+
+  /**
+   * §9 P8: a draft saved before drafts remembered their version holds answers given against v2, and is
+   * judged by v2 — the one handed to the office on 2026-10-21 with two answers would otherwise be
+   * refused at its certification, past every screen it could fix them on.
+   */
+  it("reads a saved draft with answers and no version as answered against v2, and keeps a named one", () => {
+    const old = fromDraftPayload({ questionnaire: { position: "CDL A Hazmat driver ", heard_from: "George " } });
+    expect(old.questionnaire_version).toBe("silvicom_driver@v2");
+    const sent = { ...(toApplication({ ...complete(), questionnaire: old.questionnaire, questionnaire_version: old.questionnaire_version }) as Record<string, unknown>) };
+    expect(sent.questionnaire_version).toBe("silvicom_driver@v2");
+    expect(driverApplicationSchema.safeParse(sent).success).toBe(true);
+
+    expect(fromDraftPayload({ questionnaire: {} }).questionnaire_version).toBe("silvicom_driver@v3");
+    expect(fromDraftPayload(toDraftPayload(complete())).questionnaire_version).toBe("silvicom_driver@v3");
   });
 
   it("drops what nobody answered, and keeps false, which is an answer", () => {
@@ -447,13 +479,20 @@ describe("the questionnaire", () => {
     expect(answers.references).toHaveLength(1);
   });
 
-  it("produces a document the contract still accepts", () => {
+  it("produces a document the contract refuses only for the required answers it lacks (§9 P8)", () => {
     const parsed = driverApplicationSchema.safeParse({
       ...(toApplication(answered()) as Record<string, unknown>),
       certified: true,
       signed_name: "Susan Godfrey",
     });
-    expect(parsed.success).toBe(true);
+    expect(parsed.error?.issues.map((i) => i.path.join(".")).sort()).toEqual([
+      "questionnaire_answers.applying_as",
+      "questionnaire_answers.education",
+      "questionnaire_answers.heard_from",
+      "questionnaire_answers.proof_of_age",
+    ]);
+    const full = driverApplicationSchema.safeParse(toApplication({ ...answered(), questionnaire: { ...answered().questionnaire, ...CARRIER_ANSWERS } }));
+    expect(full.success).toBe(true);
   });
 
   it("autosaves and restores the answers", () => {

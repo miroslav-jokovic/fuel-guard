@@ -8,6 +8,20 @@ import {
 } from "./applicationContract.js";
 import { dateOfBirthSchema } from "./rosterContract.js";
 
+/**
+ * The carrier's seven required answers (§9 P8, Q-WF3), which every complete document gives since v3.
+ * Spread into each fixture below rather than left out: a fixture without them is refused for them,
+ * which is a different test (`requiredCarrierQuestions.test.ts`).
+ */
+const CARRIER = {
+  questionnaire_version: "silvicom_driver@v3",
+  questionnaire_answers: {
+    position: "Company driver", applying_as: "company_driver", heard_from: "A friend",
+    legally_work: true, proof_of_age: true, may_contact_employers: true,
+    education: [{ school: "Joliet High", years_completed: 4, graduated: true }],
+  },
+};
+
 /** The smallest document the contract accepts, so a test can change one field and ask about it. */
 const completeApplication = () => ({
   first_name: "Susan",
@@ -29,6 +43,7 @@ const completeApplication = () => ({
   licence_ever_denied: false,
   employers: [],
   declares_no_employment: true,
+  ...CARRIER,
   certified: true as const,
   signed_name: "Susan Godfrey",
 });
@@ -132,7 +147,8 @@ describe("the application itself", () => {
     licence_ever_denied: false,
     employers: [],
     declares_no_employment: true,
-    certified: true as const,
+    ...CARRIER,
+  certified: true as const,
     signed_name: "Susan Godfrey",
   };
 
@@ -267,7 +283,8 @@ describe("§391.21(b)(6)", () => {
     violations: [], declares_no_violations: true,
     licence_ever_denied: false,
     employers: [], declares_no_employment: true,
-    certified: true as const, signed_name: "Susan Godfrey",
+    ...CARRIER,
+  certified: true as const, signed_name: "Susan Godfrey",
   };
 
   it("refuses a document that answers neither the narrative nor the equipment", () => {
@@ -333,7 +350,8 @@ describe("other names", () => {
     violations: [], declares_no_violations: true,
     licence_ever_denied: false,
     employers: [], declares_no_employment: true,
-    certified: true as const, signed_name: "Susan Godfrey",
+    ...CARRIER,
+  certified: true as const, signed_name: "Susan Godfrey",
   };
 
   it("defaults to none, because the regulation does not ask for one", () => {

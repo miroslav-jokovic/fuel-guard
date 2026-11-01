@@ -222,3 +222,77 @@ describe("the job list", () => {
     expect(listWith([]).text()).not.toContain(copy.jobNeedsAnswers);
   });
 });
+
+/**
+ * §9 P8 (AF-4): a job saves only with a name and a start date, and a half-filled panel is never a
+ * silent blank row — it is kept as typed and named "Unfinished — finish or remove" on the list.
+ */
+describe("a job left unfinished", () => {
+  const unfinished = APPLY_COPY.unfinishedJob;
+
+  it("cannot be saved blank: Save names both missing answers and emits nothing", async () => {
+    const w = panel(emptyEmployer(), null);
+    await button(w, copy.drawerSave).trigger("click");
+    expect(w.emitted("save")).toBeUndefined();
+    expect(w.find("#apply-employers-0-employer_name").attributes("aria-invalid")).toBe("true");
+    expect(w.find("#apply-employers-0-started_on").attributes("aria-invalid")).toBe("true");
+    w.unmount();
+  });
+
+  it("hands its working copy back on close, so the list can keep what was typed", async () => {
+    const w = panel(emptyEmployer(), null);
+    await w.find("#apply-employers-0-employer_name").setValue("Half Carrier");
+    await button(w, copy.drawerCancel).trigger("click");
+    expect((w.emitted("close")![0]![0] as DraftEmployer).employer_name).toBe("Half Carrier");
+    w.unmount();
+  });
+
+  const screen = () => {
+    const draft = ref({ ...emptyDraft(), employers: [recent()] });
+    const w = mount(
+      defineComponent({ setup: () => () => h(ApplyEmploymentFields, { modelValue: draft.value, asOf: ASOF }) }),
+      { global: { stubs: { SlideOver: SlideOverStub } }, attachTo: document.body },
+    );
+    const press = (label: string) => w.findAll("button").find((b) => b.text().trim() === label)!.trigger("click");
+    return { draft, w, press };
+  };
+
+  it("leaves no row when the new job was closed blank", async () => {
+    const { draft, w, press } = screen();
+    await press(copy.addJob);
+    await press(copy.drawerCancel);
+    expect(draft.value.employers).toHaveLength(1);
+    expect(w.text()).not.toContain(unfinished.line);
+    w.unmount();
+  });
+
+  it("keeps a half-filled job and lists it by name as unfinished, never as a blank row", async () => {
+    const { draft, w, press } = screen();
+    await press(copy.addJob);
+    await w.find("#apply-employers-1-employer_name").setValue("Half Carrier");
+    await press(copy.drawerCancel);
+    expect(draft.value.employers.map((e) => e.employer_name)).toEqual(["Old Carrier", "Half Carrier"]);
+    const row = w.findAll("li").find((li) => li.text().includes("Half Carrier"))!;
+    expect(row.text()).toContain(unfinished.line);
+    expect(row.text()).toContain(unfinished.finish);
+    w.unmount();
+  });
+
+  it("names a job with dates and no name as a job with no name", async () => {
+    const { draft, w } = screen();
+    draft.value.employers = [...draft.value.employers, { ...emptyEmployer(), started_on: "2021-01-01" }];
+    await w.vm.$nextTick();
+    const row = w.findAll("li").find((li) => li.text().includes(unfinished.noName))!;
+    expect(row.text()).toContain(unfinished.line);
+    w.unmount();
+  });
+
+  it("keeps a finished job as saved when its edit is cancelled", async () => {
+    const { draft, w, press } = screen();
+    await press(copy.editJob);
+    await w.find("#apply-employers-0-employer_name").setValue("");
+    await press(copy.drawerCancel);
+    expect(draft.value.employers[0]!.employer_name).toBe("Old Carrier");
+    w.unmount();
+  });
+});

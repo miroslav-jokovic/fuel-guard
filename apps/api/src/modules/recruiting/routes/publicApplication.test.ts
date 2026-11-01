@@ -227,6 +227,13 @@ const APPLICATION = {
     violations: [], declares_no_violations: true,
     licence_ever_denied: false,
     employers: [], declares_no_employment: true,
+    // §9 P8: the carrier's seven required answers (Q-WF3) — a certified document gives them.
+    questionnaire_version: "silvicom_driver@v3",
+    questionnaire_answers: {
+      position: "Company driver", applying_as: "company_driver", heard_from: "A friend",
+      legally_work: true, proof_of_age: true, may_contact_employers: true,
+      education: [{ school: "Joliet High", years_completed: 4, graduated: true }],
+    },
     certified: true, signed_name: "Susan Godfrey",
   },
   ssn: null,
@@ -600,6 +607,28 @@ describe("submitting", () => {
       expect(res.status).toBe(409);
       expect(((await res.json()) as { error: { code: string } }).error.code).toBe("disclosure_not_final");
     });
+  });
+
+  /**
+   * §9 P8 (AF-1): the server refuses what the page refuses, at the same path — the page is a courtesy,
+   * this is the rule. A body that leaves the carrier's answers out entirely is refused too.
+   */
+  it("refuses an application missing a required carrier answer, naming the question, and files nothing", async () => {
+    const rec = seed({ consented_at: "2026-08-21T09:00:00Z" });
+    holder.client = rec.client;
+    const { position: _gone, ...answers } = APPLICATION.application.questionnaire_answers;
+    const res = await call(`/${TOKEN}`, {
+      method: "POST",
+      body: JSON.stringify({ application: { ...APPLICATION.application, questionnaire_answers: answers }, ssn: null }),
+    });
+    expect(res.status).toBe(400);
+    // The API's 400 carries the rule's own sentence, which names the question the page marks.
+    expect(((await res.json()) as { error: { message: string } }).error.message).toContain("Position you are applying for");
+    expect(rec.rpcs().map((c) => c.fn)).not.toContain("submit_driver_application");
+
+    const { questionnaire_version: _v, questionnaire_answers: _a, ...bare } = APPLICATION.application;
+    const blank = await call(`/${TOKEN}`, { method: "POST", body: JSON.stringify({ application: bare, ssn: null }) });
+    expect(blank.status).toBe(400);
   });
 
   it("refuses an application that is not certified", async () => {

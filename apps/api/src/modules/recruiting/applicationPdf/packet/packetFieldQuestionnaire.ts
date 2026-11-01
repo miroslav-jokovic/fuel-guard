@@ -81,7 +81,9 @@ export function page16(input: PacketFieldInput, into: PlacedFieldValue[], over: 
     PAGE_16_FILLER,
   );
 
-  push(into, "p16.military", yesNo(bool(a, "military_service")));
+  // §9 P8: v3's military question may hold its skip — the carrier's own words, stored as the answer —
+  // which prints as written rather than as the blank a non-boolean would otherwise give.
+  push(into, "p16.military", yesNo(bool(a, "military_service")) || answer(a, "military_service"));
   // The carrier gives `If so, when?` a 90pt rule and the answer is a free-text service record;
   // labelled for the same reason as page 2's explanation above.
   push(into, "p16.military_when", answer(a, "military_when"), P16.militaryWhen);

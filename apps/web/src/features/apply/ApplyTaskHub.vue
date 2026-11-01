@@ -61,6 +61,9 @@ const TONE: Record<TaskStatus, string> = {
                 {{ task.label }}
               </span>
               <span v-if="task.status === 'cannot_start'" class="block text-xs">{{ copy.finishFirst }}</span>
+              <span v-else-if="task.answered" class="block text-xs text-ink-muted">
+                {{ copy.answered(task.answered.answered, task.answered.total) }}
+              </span>
               <span v-else-if="task.optional" class="block text-xs text-ink-muted">{{ copy.optional }}</span>
             </span>
             <span class="shrink-0 text-xs" :class="TONE[task.status]">{{ copy.status[task.status] }}</span>

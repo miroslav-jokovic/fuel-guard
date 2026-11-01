@@ -3,6 +3,7 @@ import { ref } from "vue";
 import { emptyDraft, type ApplicationDraft } from "./draft";
 import type { SectionIssue } from "./useApplicationWizard";
 import { useApplicationSending } from "./useApplicationSending";
+import { CARRIER_ANSWERS } from "@/testing/carrierAnswers";
 
 /**
  * C3c1: a v2 application that PARSES can still be one filing refuses — at the office, after approval,
@@ -20,6 +21,8 @@ const AS_OF = "2026-09-26";
 /** Complete for §391.21(b), and with fifteen months since its one job ended — a gap to explain. */
 const complete = (): ApplicationDraft => ({
   ...emptyDraft(),
+  // §9 P8: the carrier's seven required answers — a complete application gives them.
+  questionnaire: { ...CARRIER_ANSWERS },
   experience: "Eight years, dry van and reefer.",
   first_name: "Susan", last_name: "Godfrey", date_of_birth: "1980-04-01",
   email: "s@example.test", phone: "555-0111",

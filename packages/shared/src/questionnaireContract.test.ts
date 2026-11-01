@@ -3,18 +3,21 @@ import {
   EEO_ANSWER_KEY,
   QUESTION_KINDS,
   SILVICOM_DRIVER_V1,
-  questionnaireAnswersSchema,
   questionnaireByRef,
   questionnaireForApplicant,
   questionnaireRef,
   questionsForScreen,
-  readableAnswers,
   APPLYING_AS_QUESTION_ID,
   SILVICOM_DRIVER_V2,
+  SILVICOM_DRIVER_V3,
+} from "./questionnaireContract.js";
+import {
+  questionnaireAnswersSchema,
+  readableAnswers,
   applyingAsOf,
   choiceLabel,
   questionnaireAnswersOf,
-} from "./questionnaireContract.js";
+} from "./questionnaireAnswers.js";
 import { APPLICATION_SECTION_ORDER } from "./applicationSections.js";
 import { driverApplicationSchema } from "./applicationContract.js";
 import { planApplicationIntake } from "./applicationIntake.js";
@@ -90,7 +93,9 @@ describe("the definition", () => {
     expect(questionnaireByRef(ref)).toBe(SILVICOM_DRIVER_V1);
     // ⚠ v1 stays addressable after v2 is served: answer sets filed against it still name it.
     expect(questionnaireByRef("silvicom_driver@v2")).toBe(SILVICOM_DRIVER_V2);
-    expect(questionnaireForApplicant()).toBe(SILVICOM_DRIVER_V2);
+    // §9 P8: v3 is served, and v2 stays addressable for the answer sets given against it.
+    expect(questionnaireByRef("silvicom_driver@v3")).toBe(SILVICOM_DRIVER_V3);
+    expect(questionnaireForApplicant()).toBe(SILVICOM_DRIVER_V3);
   });
 
   it("changes nothing in v2 but the one question Q-HM14 added", () => {
@@ -134,8 +139,12 @@ describe("the answers", () => {
     expect(schema.safeParse({}).success).toBe(true);
   });
 
-  /** The whole document, with nothing answered — the client and the server agree exactly here. */
-  it("does not make the application itself refusable", () => {
+  /**
+   * The whole document, with nothing answered, filed against v2 — which required nothing. §9 P8 makes
+   * v3's seven refusable; an answer set given against v2 is judged by v2's questions, so an application
+   * in flight when v3 shipped is not refused at its certification for a rule its applicant never saw.
+   */
+  it("does not make an application answered against v2 refusable", () => {
     const withNoAnswers = driverApplicationSchema.safeParse({
       first_name: "Susan", last_name: "Godfrey", date_of_birth: "1980-04-01",
       email: "s@example.test", phone: "555-0111",
@@ -148,7 +157,7 @@ describe("the answers", () => {
       violations: [], declares_no_violations: true,
       licence_ever_denied: false,
       employers: [], declares_no_employment: true,
-      questionnaire_version: null, questionnaire_answers: null,
+      questionnaire_version: "silvicom_driver@v2", questionnaire_answers: { position: "Driver" },
       certified: true, signed_name: "Susan Godfrey",
     });
     expect(withNoAnswers.success).toBe(true);

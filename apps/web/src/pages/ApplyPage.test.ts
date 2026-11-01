@@ -11,6 +11,7 @@ import { keepPhoto, readKeptPhoto } from "@/features/apply/capture/photoLocal";
 import EmployerDrawer from "@/features/apply/EmployerDrawer.vue";
 import ApplySection from "@/features/apply/ApplySection.vue";
 import { APPLY_COPY } from "@/features/apply/strings";
+import { CARRIER_ANSWERS } from "@/testing/carrierAnswers";
 
 /**
  * The applicant's page (H5b). Three things are pinned, and all three are about what a person with no
@@ -81,6 +82,8 @@ const COMPLETE_DRAFT = {
     subject_to_fmcsr: true, safety_sensitive: true,
   }],
   declares_no_employment: false,
+  // §9 P8: the carrier's seven required answers, which a draft walked to Send has to give.
+  questionnaire: CARRIER_ANSWERS,
 };
 
 /**

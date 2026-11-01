@@ -1,6 +1,6 @@
 import {
-  questionnaireForApplicant,
-  questionnaireRef,
+  QUESTIONNAIRE_BEFORE_DRAFTS_REMEMBERED,
+  questionnaireByRef,
   toJurisdictionCode,
   type DriverApplication,
   type QuestionnaireQuestion,
@@ -170,7 +170,10 @@ export function toApplication(draft: ApplicationDraft): unknown {
     licence_ever_denied: draft.licence_ever_denied,
     licence_denial_detail: text(draft.licence_denial_detail),
     prior_failed_pre_employment_test: draft.prior_failed_pre_employment_test,
-    employers: draft.employers.filter((e) => e.employer_name.trim()).map(toEmployerPayload),
+    // §9 P8 (AF-4): every job the applicant put anything into, named or not. Only a job with nothing in
+    // it is dropped — the accidental "Add". An unnamed job with dates used to vanish here silently, so
+    // the list showed a job the filing did not have; now the contract refuses its missing name, on its row.
+    employers: draft.employers.filter((e) => !employerIsBlank(e)).map(toEmployerPayload),
     declares_no_employment: draft.declares_no_employment,
     // AW1 (C3c1): only explanations the applicant actually wrote. Which gaps exist is the employment
     // screen's to keep current (`reconcileGapExplanations`); a box left empty is not an answer.
@@ -195,10 +198,28 @@ function questionnaireFields(draft: ApplicationDraft): Record<string, unknown> {
     return { questionnaire_version: null, questionnaire_answers: null };
   }
   return {
-    questionnaire_version: questionnaireRef(questionnaireForApplicant()),
+    // The definition the answers were given against (§9 P8) — see `ApplicationDraft.questionnaire_version`.
+    questionnaire_version: draft.questionnaire_version,
     questionnaire_answers: answers,
   };
 }
+
+/** The text a job can hold. The two booleans are defaults, not answers, so they do not count. */
+const EMPLOYER_TEXT: readonly (keyof DraftEmployer)[] = [
+  "employer_name", "usdot_number", "address_line1", "city", "state", "phone", "email", "position_held",
+  "started_on", "ended_on", "reason_for_leaving",
+];
+
+/** Did the applicant put anything into this job? An accidental "Add" did not (§9 P8, AF-4). */
+export const employerIsBlank = (e: DraftEmployer): boolean =>
+  EMPLOYER_TEXT.every((k) => String(e[k] ?? "").trim() === "");
+
+/**
+ * A job the list can show but the filing would refuse: the two answers `applicationEmployerSchema`
+ * itself requires — a name and a start date (§9 P8, AF-4). Read from the job, never stored.
+ */
+export const employerIsUnfinished = (e: DraftEmployer): boolean =>
+  !employerIsBlank(e) && (e.employer_name.trim() === "" || e.started_on === "");
 
 /**
  * Draft → the autosave payload (A2, D-APP3).
@@ -262,6 +283,8 @@ export function toDraftPayload(draft: ApplicationDraft): Record<string, unknown>
     // number and no field D-APP3 protects — the definition is fixed in code, so nothing the driver
     // types here can name a key the questionnaire did not ask for.
     questionnaire: draft.questionnaire,
+    // §9 P8: the version the answers above are being given against, so a reload keeps it.
+    questionnaire_version: draft.questionnaire_version,
     // C3c2c2: the note to the office. A message, not an answer — so it is saved and never filed.
     correction_note: draft.correction_note,
     // `certified` and `signed_name` are deliberately absent too, for a different reason: §391.21(b)'s
@@ -306,6 +329,10 @@ export function fromDraftPayload(payload: Record<string, unknown> | null | undef
     toJurisdictionCode(typeof v === "string" ? v : null) ?? "";
   /** A yes/no answer as saved, or `null` — "not answered" — for anything that is not one. */
   const answer = (v: unknown): boolean | null => (typeof v === "boolean" ? v : null);
+  const questionnaire =
+    payload.questionnaire && typeof payload.questionnaire === "object" && !Array.isArray(payload.questionnaire)
+      ? (payload.questionnaire as Record<string, unknown>)
+      : base.questionnaire;
 
   return {
     ...base,
@@ -352,9 +379,22 @@ export function fromDraftPayload(payload: Record<string, unknown> | null | undef
     ),
     additional_licences: rows<DraftLicence>("additional_licences", base.additional_licences),
     correction_note: str("correction_note"),
-    questionnaire:
-      payload.questionnaire && typeof payload.questionnaire === "object" && !Array.isArray(payload.questionnaire)
-        ? (payload.questionnaire as Record<string, unknown>)
-        : base.questionnaire,
+    questionnaire,
+    questionnaire_version: questionnaireVersionOf(payload, questionnaire),
   };
+}
+
+/**
+ * Which definition a saved draft's answers were given against (§9 P8).
+ *
+ * A version the draft names and this build carries; else, for a draft holding answers but no version —
+ * saved before drafts remembered one — the definition served when it was answered
+ * (`QUESTIONNAIRE_BEFORE_DRAFTS_REMEMBERED`); else, with nothing answered, the served one, which is
+ * where any answer it gets from now on will be given.
+ */
+function questionnaireVersionOf(payload: Record<string, unknown>, answers: Record<string, unknown>): string {
+  const named = payload.questionnaire_version;
+  if (typeof named === "string" && questionnaireByRef(named)) return named;
+  if (Object.keys(cleanQuestionnaire(answers)).length > 0) return QUESTIONNAIRE_BEFORE_DRAFTS_REMEMBERED;
+  return emptyDraft().questionnaire_version;
 }

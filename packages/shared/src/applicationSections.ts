@@ -1,4 +1,5 @@
 import { driverApplicationObject, type DriverApplicationFields } from "./applicationContract.js";
+import { questionnaireForApplicant } from "./questionnaireContract.js";
 
 /**
  * The application, cut into screens (A3, and one more since A8).
@@ -231,6 +232,22 @@ export function sectionOwning(key: keyof DriverApplicationFields): ApplicationSe
   return (
     APPLICATION_SECTION_ORDER.find((s) => APPLICATION_SECTION_KEYS[s].includes(key)) ?? null
   );
+}
+
+/**
+ * The section an ISSUE PATH belongs to — `sectionOwning` for every key but one (§9 P8).
+ *
+ * ⚠ `questionnaire_answers` is owned by `questions` as a contract key, but its answers are asked on
+ * three screens (D-AX7): "Position you are applying for" is on `identity`. A refusal about it has to
+ * send the applicant to the screen the question is on, which the question's own `screen` says.
+ */
+export function sectionOwningPath(path: readonly (string | number)[]): ApplicationSection | null {
+  const [key, id] = path;
+  if (key === "questionnaire_answers" && typeof id === "string") {
+    const question = questionnaireForApplicant().questions.find((q) => q.id === id);
+    if (question) return question.screen ?? "questions";
+  }
+  return sectionOwning(String(key ?? "") as keyof DriverApplicationFields);
 }
 
 /** Is this a section token we know? `furthest_section` is free text in the database on purpose. */

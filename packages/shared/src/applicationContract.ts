@@ -2,7 +2,9 @@ import { z } from "zod";
 import { isoDateSchema, requiredDateOfBirthSchema } from "./rosterContract.js";
 // ⚠ The rules that span fields live in their own module since 2026-09-11 (the 500-line budget), and
 // they import this file's TYPE only — `import type` is erased, so there is no runtime cycle.
-import { APPLICATION_CROSS_FIELD_RULES } from "./applicationRules.js";
+import { APPLICATION_CROSS_FIELD_RULES, ruleIssuePath } from "./applicationRules.js";
+import { questionnaireForApplicant } from "./questionnaireContract.js";
+import { questionnaireAnswersSchema } from "./questionnaireAnswers.js";
 import { applicationEmployerSchema, applicationEmploymentGapSchema } from "./applicationEmployerContract.js";
 import { LICENSING_AUTHORITY_MAX_LENGTH } from "./mvrJurisdictions.js";
 
@@ -305,7 +307,15 @@ export const driverApplicationObject = z
      * into the application PDF, which is a derivative of this payload rather than a projection of it.
      */
     questionnaire_version: z.string().max(120).nullish(),
-    questionnaire_answers: z.record(z.string(), z.unknown()).nullish(),
+    /**
+     * ⚠ Parsed by the questionnaire's own schema since §9 P8 (AF-1) — it was `record<unknown>`, so the
+     * API took any value under any key and `questionnaireAnswersSchema` was imported by nothing but its
+     * test. The SERVED definition's schema, because a field cannot read its sibling `questionnaire_version`:
+     * v3 has every id and kind v1 and v2 had, so an answer set from any of them parses, and a `skip`
+     * string is legal only where v3 offers one. Which answers are REQUIRED is the cross-field rules'
+     * business, and they do read the version.
+     */
+    questionnaire_answers: (questionnaireAnswersSchema(questionnaireForApplicant()) as z.ZodType<Record<string, unknown>>).nullish(),
     // The certification. §391.21(b) closes by requiring the applicant to sign that everything is
     // true and complete, and that sentence is the whole legal weight of the document.
     certified: z.literal(true),
@@ -362,7 +372,7 @@ export type ApplicationDraftPayload = z.infer<typeof applicationDraftPayloadSche
 const crossFieldRules = (v: object, ctx: z.RefinementCtx): void => {
   const fields = v as Partial<DriverApplicationFields>;
   for (const rule of APPLICATION_CROSS_FIELD_RULES) {
-    if (!rule.check(fields)) ctx.addIssue({ code: "custom", message: rule.message, path: [rule.path] });
+    if (!rule.check(fields)) ctx.addIssue({ code: "custom", message: rule.message, path: ruleIssuePath(rule) });
   }
 };
 

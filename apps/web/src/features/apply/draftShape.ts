@@ -1,4 +1,4 @@
-import type { EquipmentClass } from "@silvicom/shared";
+import { questionnaireForApplicant, questionnaireRef, type EquipmentClass } from "@silvicom/shared";
 
 // ⚠ Split out of `draft.ts` on 2026-09-26 (APPLICATION-FLOW-V2-PLAN §8.5, C1), at the 450-line
 // warning: this module is the form's working SHAPE and its empty values; `draft.ts` keeps the three
@@ -158,6 +158,16 @@ export interface ApplicationDraft {
    */
   questionnaire: Record<string, unknown>;
   /**
+   * The definition these answers are being given against, `id@version` (§9 P8).
+   *
+   * ⚠ Remembered rather than read off whatever is served at submit, because a version now decides
+   * something: v3 requires seven answers and v2 required none. A draft started on v2 and handed to the
+   * office before v3 shipped must be certified against v2's questions — the ones its applicant saw —
+   * or it is refused at the last step for a rule nobody showed them, with no screen left to fix it on.
+   * A new draft starts on the served definition; `fromDraftPayload` says what an old one reads as.
+   */
+  questionnaire_version: string;
+  /**
    * "Something wrong? Tell us" (C3c2c2, Q-AW34): a v2 applicant's note to the office about a Part 1 fact
    * they are shown and cannot edit. Autosaved like an answer, never filed (`toApplication` leaves it out;
    * the contract is strict), shown on the office's drawer.
@@ -231,6 +241,7 @@ export const emptyDraft = (): ApplicationDraft => ({
   // answer to "any others?" is none, and a pre-added blank row would invite an invented one.
   additional_licences: [],
   questionnaire: {},
+  questionnaire_version: questionnaireRef(questionnaireForApplicant()),
   correction_note: "",
   ssn: "",
 });

@@ -39,7 +39,7 @@ const copy = APPLY_COPY.signOff;
 const summary = computed(() =>
   buildReviewSummary({
     draft: draft.value,
-    questionnaire: applicantQuestionnaire(),
+    questionnaire: applicantQuestionnaire(draft.value.questionnaire_version),
     captures: props.captures,
   }),
 );

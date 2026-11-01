@@ -20,6 +20,8 @@ import QuestionnaireFields from "@/features/apply/QuestionnaireFields.vue";
 import {
   emptyEmployer,
   emptyEquipment,
+  employerIsBlank,
+  employerIsUnfinished,
   toApplication,
   type DraftEmployer,
   type ApplicationDraft,
@@ -113,11 +115,15 @@ watch(
 );
 const explanationFor = (from: string) => draft.value.employment_gaps.find((g) => g.from === from);
 
-/** Rows worth listing. A blank row from an accidental "Add" is not a job the driver declared. */
+/**
+ * Rows worth listing: every job with anything in it (§9 P8, AF-4). A blank row from an accidental "Add"
+ * is not a job the driver declared; a job with dates and no name IS one — it used to be hidden here and
+ * dropped by `toApplication`, so the applicant's typing vanished without a word.
+ */
 const jobs = computed(() =>
   draft.value.employers
-    .map((employer, index) => ({ employer, index }))
-    .filter((row) => row.employer.employer_name.trim() !== "" || row.index === editing.value),
+    .map((employer, index) => ({ employer, index, unfinished: employerIsUnfinished(employer) }))
+    .filter((row) => !employerIsBlank(row.employer)),
 );
 
 const period = (e: DraftEmployer): string => {
@@ -138,19 +144,25 @@ function saveJob(employer: DraftEmployer): void {
 }
 
 /**
- * Closing without saving.
+ * Closing without saving (§9 P8, AF-4).
  *
- * ⚠ A row that was added by `addJob` and never saved is REMOVED here. Leaving it would put a blank
- * card on the list that the driver did not create and cannot name, and — worse — `toApplication`
- * drops unnamed rows silently, so the count on the review screen would disagree with the list they
- * were looking at.
+ *   · A job that was finished keeps what was saved — Cancel discards the edit.
+ *   · A new or unfinished job with nothing in it is REMOVED: a blank card the driver did not create
+ *     and cannot name.
+ *   · A new or unfinished job with something in it is KEPT as typed, and the list names it
+ *     "Unfinished — finish or remove". Discarding it would lose the driver's typing; keeping it
+ *     silently would be the blank row the audit found in a draft. The filing's own schema then refuses
+ *     its missing name or start date, on its row, until it is finished or removed.
  */
-function closeDrawer(): void {
+function closeDrawer(working: DraftEmployer): void {
   const at = editing.value;
-  if (at !== null && draft.value.employers[at]?.employer_name.trim() === "") {
-    draft.value.employers = draft.value.employers.filter((_, i) => i !== at);
-  }
   editing.value = null;
+  const row = at === null ? undefined : draft.value.employers[at];
+  if (at === null || !row) return;
+  if (!employerIsBlank(row) && !employerIsUnfinished(row)) return;
+  draft.value.employers = employerIsBlank(working)
+    ? draft.value.employers.filter((_, i) => i !== at)
+    : draft.value.employers.map((r, i) => (i === at ? working : r));
 }
 
 const removeJob = (index: number): void => {
@@ -184,15 +196,18 @@ const removeJob = (index: number): void => {
             class="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-surface bg-surface-muted p-3"
           >
             <div class="min-w-0 flex-1">
-              <p class="text-sm font-medium text-ink">{{ row.employer.employer_name }}</p>
+              <p class="text-sm font-medium text-ink">{{ row.employer.employer_name.trim() || APPLY_COPY.unfinishedJob.noName }}</p>
               <p class="text-xs text-ink-muted">
                 {{ [row.employer.position_held, period(row.employer)].filter(Boolean).join(" · ") }}
               </p>
-              <p v-if="hasIssueWithin(['employers', row.index])" class="mt-1 text-sm text-danger-700">
+              <p v-if="row.unfinished" class="mt-1 text-sm text-danger-700">{{ APPLY_COPY.unfinishedJob.line }}</p>
+              <p v-else-if="hasIssueWithin(['employers', row.index])" class="mt-1 text-sm text-danger-700">
                 {{ copy.jobNeedsAnswers }}
               </p>
             </div>
-            <BaseButton variant="ghost" size="touch" @click="editing = row.index">{{ copy.editJob }}</BaseButton>
+            <BaseButton variant="ghost" size="touch" @click="editing = row.index">
+              {{ row.unfinished ? APPLY_COPY.unfinishedJob.finish : copy.editJob }}
+            </BaseButton>
           </li>
         </ul>
 

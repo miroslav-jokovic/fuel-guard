@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { AppButton as BaseButton } from "@silvicom/ui";
+import { AppButton as BaseButton, AppCallout } from "@silvicom/ui";
 import {
   type ApplicationCaptureView,
   type ApplicationSection,
@@ -8,6 +8,8 @@ import {
 import type { ApplicationDraft } from "@/features/apply/draft";
 import { applicantQuestionnaire } from "@/features/apply/questionnaireCopy";
 import { buildReviewSummary } from "@/features/apply/reviewSummary";
+import { missingAnswers } from "@/features/apply/missingAnswers";
+import type { SectionIssue } from "@/features/apply/useApplicationWizard";
 import { APPLY_COPY } from "@/features/apply/strings";
 
 /**
@@ -31,22 +33,48 @@ import { APPLY_COPY } from "@/features/apply/strings";
  * certified payload, and reprinting nine digits on a summary screen on a phone in a truck stop is
  * the opposite of what D-HIRE6 spends its effort on.
  */
-const props = defineProps<{ draft: ApplicationDraft; captures?: readonly ApplicationCaptureView[] }>();
-const emit = defineEmits<{ goTo: [ApplicationSection] }>();
+const props = defineProps<{
+  draft: ApplicationDraft;
+  captures?: readonly ApplicationCaptureView[];
+  /** The carrier's day on a v2 link, null on a legacy one — the Send check's own argument (C3c1). */
+  v2AsOf?: string | null;
+}>();
+const emit = defineEmits<{ goTo: [ApplicationSection]; show: [SectionIssue] }>();
 
 const copy = APPLY_COPY.review;
 const sections = computed(() =>
   buildReviewSummary({
     draft: props.draft,
-    questionnaire: applicantQuestionnaire(),
+    questionnaire: applicantQuestionnaire(props.draft.questionnaire_version),
     captures: props.captures ?? [],
   }),
 );
+
+/**
+ * What is missing, counted, one link per answer (§9 P8, AF-5) — the Send button's own check plus the
+ * optional questions nobody answered (`missingAnswers.ts`). Each link goes to the box, not the screen.
+ */
+const missing = computed(() => missingAnswers(props.draft, props.v2AsOf ?? null));
+const blocking = computed(() => missing.value.some((m) => m.required));
+const missingCopy = APPLY_COPY.missing;
 </script>
 
 <template>
   <section class="space-y-6">
     <p class="text-sm text-ink-muted">{{ copy.intro }}</p>
+
+    <AppCallout v-if="missing.length" :tone="blocking ? 'caution' : 'info'">
+      <h3 class="text-sm font-semibold text-ink">{{ missingCopy.heading(missing.length) }}</h3>
+      <p class="mt-1 text-sm">{{ blocking ? missingCopy.mustAnswer : missingCopy.canStillSend }}</p>
+      <ul class="mt-2 space-y-1 text-sm">
+        <li v-for="m in missing" :key="m.issue.fieldId + m.issue.message">
+          <BaseButton variant="link" @click="emit('show', m.issue)">
+            <span class="font-medium text-ink">{{ m.issue.label }}</span>
+          </BaseButton>
+          · {{ m.required ? missingCopy.required : missingCopy.optional }} — {{ m.issue.say }}
+        </li>
+      </ul>
+    </AppCallout>
 
     <div v-for="group in sections" :key="group.section" class="space-y-3">
       <div class="flex items-center justify-between gap-4">

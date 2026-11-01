@@ -27,6 +27,8 @@ const props = defineProps<{
   path: FieldPath;
   label?: string;
   hint?: string;
+  /** Marks the label and sets `aria-required` (§9 P8, AF-6) — `AppFormField`'s own marker, passed through. */
+  required?: boolean;
 }>();
 
 const { errorFor, idFor } = useApplyIssues();
@@ -35,7 +37,7 @@ const error = computed(() => errorFor(props.path));
 </script>
 
 <template>
-  <FormField :id="id" :label="label" :hint="hint" :error="error">
+  <FormField :id="id" :label="label" :hint="hint" :error="error" :required="required">
     <template #default="slotProps">
       <slot v-bind="slotProps" />
     </template>
