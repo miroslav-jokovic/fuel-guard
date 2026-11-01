@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  suggestCorrection,
   VERIFICATION_QUESTIONS,
   employerVerificationCallSchema,
   verificationCallSummary,
@@ -48,4 +49,25 @@ describe("what filing copies as `body_sent`", () => {
     expect(VERIFICATION_QUESTIONS).toHaveLength(5);
   });
 
+});
+
+describe("HW5d: the Apply form's first guess from the employer's words", () => {
+  it("reads a month range as the first of the first month to the last of the second", () => {
+    expect(suggestCorrection("dates", "02/2023–11/2024")).toEqual({ started_on: "2023-02-01", ended_on: "2024-11-30" });
+  });
+  it("reads full dates, and a range still open as no end", () => {
+    expect(suggestCorrection("dates", "2/15/2023 - present")).toEqual({ started_on: "2023-02-15", ended_on: null });
+  });
+  it("guesses nothing from words it cannot read", () => {
+    expect(suggestCorrection("dates", "about two years")).toEqual({ started_on: null, ended_on: null });
+    expect(suggestCorrection("dates", "13/2023")).toEqual({ started_on: null, ended_on: null });
+  });
+  it("reads a leading yes or no for the yes/no questions", () => {
+    expect(suggestCorrection("cmv", "No, dispatcher only")).toEqual({ value: false });
+    expect(suggestCorrection("dot_tested", "Yes")).toEqual({ value: true });
+    expect(suggestCorrection("cmv", "sometimes")).toEqual({ value: null });
+  });
+  it("offers the words themselves for position and reason", () => {
+    expect(suggestCorrection("position", " Driver II ")).toEqual({ value: "Driver II" });
+  });
 });
