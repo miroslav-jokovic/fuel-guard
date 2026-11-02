@@ -1311,6 +1311,28 @@
         "why": "no rows in production 2026-09-21; bounded by the number of orgs."
       }
     },
+    "hiring_carrier_step_records": {
+      "module": "recruiting",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "unmeasured",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "new in 0545 (2026-11-02); a few rows per applicant per carrier step (done, sometimes undone), bounded by hiring volume; evidence, removed only by the applicant purge."
+      }
+    },
+    "hiring_carrier_steps": {
+      "module": "recruiting",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "unmeasured",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "new in 0545 (2026-11-02); the carrier's own hiring steps, a handful of rows per org; retired, never deleted."
+      }
+    },
     "hos_duty_segments": {
       "module": "samsara",
       "layer": "raw",

@@ -222,6 +222,14 @@ async function seedApplicant(org, name) {
     `insert into documents (id, org_id, subject_type, subject_id, kind, storage_path, content_type, sha256)
      values (gen_random_uuid(),$1,'driver',$2,'employment_application',$3,'application/pdf',$4) returning id`,
     [org, d, `${org}/driver/${d}/application.pdf`, SHA])).id;
+  // 0545 (§10 CE1): the office's records on the carrier's own steps go with the applicant — one a tick,
+  // one pointing at the filed paper, so the purge must delete it before `documents` (on delete restrict).
+  const tickStep = (await one(
+    `insert into hiring_carrier_steps (org_id, label, after_step) values ($1,'Fuel card issued','road_test') returning id`, [org])).id;
+  const paperStep = (await one(
+    `insert into hiring_carrier_steps (org_id, label, after_step, proof) values ($1,'Hair test','drug_test','document') returning id`, [org])).id;
+  await db.query(`insert into hiring_carrier_step_records (org_id, step_id, driver_id, invitation_id, act, recorded_by_name) values ($1,$2,$3,$4,'done','Dana')`, [org, tickStep, d, inv]);
+  await db.query(`insert into hiring_carrier_step_records (org_id, step_id, driver_id, act, document_id, recorded_by_name) values ($1,$2,$3,'done',$4,'Dana')`, [org, paperStep, d, doc]);
   await db.query(
     `insert into documents (id, org_id, subject_type, subject_id, kind, storage_path, content_type, sha256, derived_from, variant)
      values (gen_random_uuid(),$1,'driver',$2,'employment_application',$3,'image/webp',$4,$5,'thumb')`,
@@ -292,7 +300,7 @@ ok(
 const ownedByDriver = ["application_invitations", "driver_applications", "driver_authorizations", "esign_consents",
   "application_drafts", "application_captures", "driver_employment_history", "employer_inquiries", "psp_requests",
   "qualification_records", "applicant_dispositions", "sms_consents", "sms_outbox", "sms_suppressions", "applicant_notes", "driver_employment_gaps",
-  "orientation_video_attestations", "orientation_video_opens"];
+  "orientation_video_attestations", "orientation_video_opens", "hiring_carrier_step_records"];
 ok(
   "and in every drivers-referencing table the purge owns",
   ownedByDriver.every((t) => before[`${t}.driver_id`] > 0),
@@ -324,6 +332,7 @@ const expectCounts = {
   applicant_notes: 1,
   driver_employment_gaps: 1,
   orientation_video_attestations: 1, orientation_video_opens: 1,
+  hiring_carrier_step_records: 2,
 };
 const wrongCounts = Object.entries(expectCounts).filter(([t, n]) => result.counts[t] !== n);
 ok("it returns the count it deleted from each table", wrongCounts.length === 0,

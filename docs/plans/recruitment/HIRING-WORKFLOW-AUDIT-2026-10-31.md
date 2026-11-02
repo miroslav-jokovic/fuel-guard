@@ -643,6 +643,48 @@ applicant status page → dispositions → HW8a/b orientation (link list + attes
 
 ---
 
+## 10. The checklist editor — the carrier's own steps (2026-11-02)
+
+§8.2's third bullet, next in §9.3's order after HW5b–d (all merged 2026-11-01; HW6a waits on the
+FMCSA QCMobile key). The owner said build it as proposed (2026-11-02). §8.2 proposed more than one
+first version should carry; this section says what CE1/CE2 build, what they leave, and why.
+
+**What it is for.** A hair test, fingerprinting, ELD training, the fuel card, the tablet issued: each is
+a step this carrier runs and the checklist cannot show, so it lives on paper and can never hold the
+hire. After CE2 the office adds it in Settings → Recruiting, the record shows it among the built-in
+steps, someone ticks it (or files its paper), and the hire waits for it when the carrier says so.
+
+**Decisions** (assumed as §8.3 assumed its rulings; the owner's to overturn):
+
+| ID | Decision | Why |
+|---|---|---|
+| D-CE1 | A carrier ADDS its own steps: a name, what to do, where it goes (after which built-in step), who owes it (the office, or the applicant), what proves it, and whether the hire waits for it. | The bullet's core; every example in it is an added step. |
+| D-CE2 | Proof is one of two: **a tick** (who, when, an optional note) or **a filed document** (the paper on the applicant's record, through P9's door). "Date" and "signed form" from §8.2 are not in the first version. | A date is a tick's own timestamp or its note; a signed form is a signing ceremony per step — the handbook's whole plan. Two proofs cover every example in §8.2. |
+| D-CE3 | A carrier may HIDE a built-in step it does not run — PSP, the trip, the handbook, the orientation videos, the live orientation day. Never the six federal checks, the consents, the application, the investigation (§391.23) or the hire. The hideable set is **derived** from the catalogue in TypeScript (`hiringSteps.ts`), not listed in SQL. | Deriving beats restating; a CHECK with keys would be a second catalogue. The reader ignores a locked key in the column, fail-safe. |
+| D-CE4 | The built-in steps keep their names and order. A carrier step sits AFTER a built-in step, ordered among its siblings by `position`. | The order is the owner's ruling and its edges are advice the drawers read (`advisedFirst`); renaming a built-in would change the words on every drawer, the PDF and the board at once. |
+| D-CE5 | A step is **retired, never deleted**; **its proof never changes** (a different proof is a different step). Each act on an applicant is an append-only record — `done`, or `undone` with a reason — and the latest act is the answer. | A record names its step; a step that could vanish or change meaning would leave the record pointing at nothing, or certify what it never checked. |
+| D-CE6 | A step that holds the hire (`blocks_hire`) joins `hireRefusesWithout` beside the six and the handbook switch, and the hire drawer lists it ("· your company's rule"). A retired step holds nothing. | One refusal list, read by the fold, the API and the drawer — P12b's shape. |
+| D-CE7 | The records are evidence (`RETENTION_FORBIDDEN`), moved by the roster merge, deleted only by the applicant purge. | 0535/0539's discipline. |
+
+**Open questions** (each has a recommendation; none blocks CE1/CE2):
+
+- **Q-CE1 — Rename or reorder the built-in steps?** (a) never — a carrier step placed after one is the
+  only way to change the order *(recommended for now, D-CE4)*; (b) a label override per carrier, words
+  only, the order kept; (c) full reorder (breaks the advised-order edges).
+- **Q-CE2 — More proofs?** A date ("hair test collected on"), a signed form, a value ("fuel card
+  number"). Recommend waiting until a carrier asks for one; each is a column, not a redesign.
+- **Q-CE3 — Who edits the list?** CE2 uses the gate Settings → Recruiting already uses. Recommend
+  keeping it; a separate permission is a matrix row nobody has asked for.
+
+**The build.** One step, one PR, a migration and its reader in two merges:
+
+| PR | What | Schema |
+|---|---|---|
+| **CE1** | Migration **0545**: `hiring_carrier_steps` (CS010–CS012), `hiring_carrier_step_records` (CS020–CS028), `recruiting_settings.hidden_hiring_steps`; `purge_applicant` redefined from 0539 with the record table; merge list, retention list, table manifests. | migration |
+| **CE2** | The reader: a contract in `packages/shared`; Settings → Recruiting's "Your hiring steps" (add, edit, place, retire; hide a built-in); the fold emits carrier rows among the built-ins and the hire's list reads `blocks_hire`; one drawer for a carrier step (tick or file the paper, undo with a reason); API routes org-scoped. | none |
+
+---
+
 ## 7. Progress log
 
 - **2026-10-31** — Audit written. Measured on production: 0 filed applications, 4 drafts, 1 real
@@ -752,3 +794,21 @@ applicant status page → dispositions → HW8a/b orientation (link list + attes
   "when" only after yes; Spanish throughout. **Departures:** the hub says "0 of 4 answered" (four
   questions are on that screen, not eleven); AF-8 (optional federal fields) untouched. 16/16 mutants
   killed; e2e-apply 31 specs, three new.
+- **2026-11-01** — **HW5c part 1 merged (#1892, `e54f117`), migration `0538_driver_employment_gaps`** —
+  numbered 0538, not 0537: a parallel chat took 0537 (`ads_foundation`). The office's record of a gap
+  after signing; append-only, merged with the driver, deleted by the purge.
+- **2026-11-01** — **HW5b merged (#1899, `a707c73`), no migration.** One `EmploymentTimeline` and one
+  employer form for the applicant and the office, with the 3- and 10-year marks, gaps, the DOT question
+  asked, delete always confirmed. **Deferred:** the questions for non-DOT jobs inside three years (the
+  filing rule requires them) — the owner's ruling.
+- **2026-11-01** — **HW8a part 1 merged (#1896, `26d7687`), migration `0539_orientation_videos`.** The
+  carrier's video links (retired never deleted, the link never edited), the applicant's "I watched
+  these", the opens, `videos_block_hire`. Reader: #1901.
+- **2026-11-01** — **HW5d merged (#1893, `b4c37bf`), no migration.** What a previous employer corrects
+  on the phone is applied to the application with one press, checked by the office first.
+- **2026-11-01** — **HW5c part 2 merged (#1902, `9915f3d`), no migration.** The timeline shows what
+  explains each gap; the office explains one after signing or withdraws a mistaken explanation. All five
+  shipped to production in the release of 2026-11-02 (#1907).
+- **2026-11-02** — **§10 written; CE1 (this PR), migration `0545_hiring_carrier_steps`.** Numbered 0545, not 0543: the office chat took 0543 (`office_chat_about`) and 0544 (`office_chat_compliance_files`) while this was built. The carrier's
+  own steps and the records on each applicant, as §10 D-CE1…D-CE7. 36-case matrix; with each of nine
+  guards removed in turn the matrix went red (9/9). Reader: CE2.
