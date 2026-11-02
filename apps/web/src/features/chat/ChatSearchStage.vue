@@ -14,7 +14,8 @@ import { useChatSearchQuery } from "./useChatSearch";
  *
  * The words live in the address, not in this component: typing replaces the query (the page's
  * `router.replace`), so Back leaves search rather than stepping through every letter. Each result opens
- * where it lives by the rule Activity and Saved use (`activityTarget`). What may be found — the
+ * where it lives by the rule Activity and Saved use (`activityTarget`), with `line` naming the line, so
+ * the log brings that line into view (`ChatMessageList` `focusId`). What may be found — the
  * conversations you are in now, never a removed line — is the database's (0542 `chat_search`).
  */
 const props = defineProps<{
@@ -52,7 +53,7 @@ const subtitle = computed(() => (props.within ? `In ${props.withinLabel ?? "this
     <div class="min-h-0 flex-1 overflow-y-auto px-2 py-2 sm:px-4">
       <ul v-if="search.items.value.length" class="max-w-3xl" aria-label="Messages found">
         <li v-for="line in search.items.value" :key="line.id" class="flex">
-          <ChatLineLink :line="line" :viewer-id="viewerId" :title-of="titleOf" @open="emit('open', activityTarget(line))" />
+          <ChatLineLink :line="line" :viewer-id="viewerId" :title-of="titleOf" @open="emit('open', { ...activityTarget(line), line: line.id })" />
         </li>
       </ul>
       <div v-if="search.items.value.length && search.hasNextPage.value" class="max-w-3xl px-3 py-2">

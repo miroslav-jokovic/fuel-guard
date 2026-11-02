@@ -811,3 +811,11 @@ TechRepublic / Windows Report on Teams 2026 updates.
   the label's own org filter on the incident, which the link's trigger already guarantees, and stays
   for the same reason 0543's three do. Next: the contract, API and web for the two kinds, once 0546 is
   on staging.
+- 2026-11-02: **CH8b's recorded gap closed — a search result opens AT its line** (`claude/chat-search-focus`,
+  web only). A result's address carries `&line=`; the conversation's log, a channel's posts or a post's
+  thread (a reply's address already names its post) brings that line into view, focuses it and rings it
+  with the focus token until the reader moves to another line, and a refetch never pulls them back. A
+  line older than the loaded pages is reached by loading the pages above one at a time
+  (`useChatFocusWalk`): never two at once, never after a failure, at most twenty — past that, or at the
+  start of the conversation, the stage says in words that it is further back or gone. Tests: walk 4,
+  log 3, stages and page 4, the search's address 1; 17 mutants, all failed tests.

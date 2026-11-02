@@ -182,6 +182,15 @@ describe("an open channel", () => {
     expect(router.currentRoute.value.query).toEqual({ ch: LOADS });
   });
 
+  it("hands the found line to the channel's log for a post, and to the thread for a reply (CH8)", async () => {
+    const L = "55555555-5555-4555-8555-555555555555";
+    const w = await render(`/chat?ch=${LOADS}&line=${L}`);
+    expect(w.findComponent({ name: "ChatChannelPane" }).props("focusId")).toBe(L);
+    const r = await render(`/chat?ch=${LOADS}&post=${POST}&line=${L}`);
+    expect(r.findComponent({ name: "ChatChannelPane" }).props("focusId")).toBeNull();
+    expect(r.findComponent({ name: "ChatRepliesPane" }).props("focusId")).toBe(L);
+  });
+
   it("opens a post's thread on Enter with the post focused (D-CHATUI16)", async () => {
     const w = await render(`/chat?ch=${LOADS}`);
     await w.find(`#chat-line-${POST}`).trigger("keydown", { key: "Enter" });
