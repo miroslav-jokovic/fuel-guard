@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useChatFocusWalk } from "../chatFocusWalk";
 import { computed, ref } from "vue";
 import type { ChatFileRef, ChatMuteLevel, ChatPostPage, ChatTeamChannel } from "@silvicom/shared";
 import { AppButton as BaseButton } from "@silvicom/ui";
@@ -37,6 +38,8 @@ const props = defineProps<{
   pending: PendingLine[];
   earlierLoading?: boolean;
   earlierFailed?: boolean;
+  /** CH8: the line a search result opened (`?line=`), brought into view; the pages above loaded to reach it. */
+  focusId?: string | null;
   openPostId: string | null;
   firstUnreadSeq?: number | null;
   /** The channel's members, as faces in the header (D-CHATUI24); absent while they load. */
@@ -54,6 +57,11 @@ const emit = defineEmits<{
   earlier: [];
   search: [];
 }>();
+const walk = useChatFocusWalk(
+  computed(() => props.focusId),
+  { beforeSeq: computed(() => props.page.before_seq), loading: computed(() => props.earlierLoading ?? false), failed: computed(() => props.earlierFailed ?? false) },
+  () => emit("earlier"),
+);
 
 const lines = computed(() => mergeLines(props.page.posts, props.pending, props.channel.thread_id));
 const subtitle = computed(() => `${props.teamName}${props.channel.visibility === "private" ? " · private channel" : ""}`);
@@ -105,6 +113,8 @@ const openFiles = () => { filesMounted.value = true; filesOpen.value = true; };
       empty-text="No posts yet. Start the channel off."
       can-reply
       :open-post-id="openPostId"
+      :focus-id="focusId ?? null"
+      @focus-missing="walk.onMissing"
       @edit="(id: string, body: string) => emit('edit', id, body)"
       @remove="(id: string) => emit('remove', id)"
       @reply="(id: string) => emit('replies', id)"
@@ -120,6 +130,9 @@ const openFiles = () => { filesMounted.value = true; filesOpen.value = true; };
         </div>
       </template>
     </ChatMessageList>
+    <p v-if="walk.lost.value" role="status"class="shrink-0 border-t border-edge-subtle px-4 py-1.5 text-center text-xs text-ink-muted">
+      That message is not in this channel any more, or it is further back than the pages loaded. Scroll up and press Show earlier to keep looking.
+    </p>
     <ChatComposer ref="composer" :placeholder="`Message # ${channel.name}`" label="Post" action="Post" :thread-key="channel.thread_id" :upload-to="channel.thread_id" @send="(body: string, files: ChatFileRef[]) => emit('send', body, files)" @up="log?.focusLast()" />
     <ChatFilesDialog v-if="filesMounted" :open="filesOpen" :thread-id="channel.thread_id" :viewer-id="viewerId" @close="filesOpen = false" />
     <ChatPinnedDialog v-if="pinsMounted" :open="pinsOpen" :thread-id="channel.thread_id" :viewer-id="viewerId" @thread="(id: string) => emit('replies', id)" @close="pinsOpen = false" />

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, nextTick, ref, watch } from "vue";
 import { AppButton as BaseButton, AppIcon } from "@silvicom/ui";
 import { ChevronDownIcon } from "@silvicom/ui/icons";
 import { chatLinkState } from "./transport";
@@ -45,6 +45,12 @@ const props = defineProps<{
   seenSeq?: number | null;
   canReply?: boolean;
   openPostId?: string | null;
+  /**
+   * CH8: the line a search result opened (`?line=`). Once it is among the lines it is brought into view,
+   * focused and ringed; while it is not, `focus-missing` asks the caller for the page above. Asked once
+   * per id — a refetch does not pull the reader back to it.
+   */
+  focusId?: string | null;
 }>();
 const emit = defineEmits<{
   edit: [messageId: string, body: string];
@@ -54,6 +60,8 @@ const emit = defineEmits<{
   earlier: [];
   /** Down past the newest line: the caller puts focus back in its composer. */
   "exit-bottom": [];
+  /** The `focusId` line is not among the lines: load the page above, or say it is not there. */
+  "focus-missing": [];
 }>();
 
 const days = computed(() => groupLines(props.lines, props.viewerId, props.firstUnreadSeq));
@@ -94,6 +102,31 @@ function onKeydown(e: KeyboardEvent) {
   else if (i === all.length - 1) emit("exit-bottom");
   else focusRow(all[i + 1]);
 }
+/** The line the search opened, ringed until the reader moves to another one. */
+const ring = ref<string | null>(null);
+/** The id already brought into view: a refetch, or the page above arriving, does not do it again. */
+let shown: string | null = null;
+watch(
+  () => [props.focusId ?? null, props.lines] as const,
+  async ([id]) => {
+    if (!id) { shown = null; ring.value = null; return; }
+    if (shown === id) return;
+    if (!props.lines.some((l) => l.kind === "server" && l.message.id === id)) {
+      emit("focus-missing");
+      return;
+    }
+    shown = id;
+    ring.value = id;
+    await nextTick();
+    const row = document.getElementById(`chat-line-${id}`);
+    row?.scrollIntoView?.({ block: "center" });
+    row?.focus();
+  },
+  { immediate: true },
+);
+function onFocusin(e: FocusEvent) {
+  if (ring.value && !(e.target as HTMLElement).closest?.(`#chat-line-${ring.value}`)) ring.value = null;
+}
 defineExpose({ scroller, focusLast });
 </script>
 
@@ -109,6 +142,7 @@ defineExpose({ scroller, focusLast });
       :aria-label="label"
       tabindex="0"
       @keydown="onKeydown"
+      @focusin="onFocusin"
     >
       <!-- Only once a live link has dropped (or never came up): the polls carry on meanwhile at their fast
            pace, so nothing is lost — it is only slower (CH3b). The stage's strip, since there is no page
@@ -144,6 +178,7 @@ defineExpose({ scroller, focusLast });
               :first="row.first"
               :can-reply="canReply"
               :open="openPostId === row.line.message.id"
+              :found="ring === row.line.message.id"
               @edit="(id: string, body: string) => emit('edit', id, body)"
               @remove="(id: string) => emit('remove', id)"
               @reply="(id: string) => emit('reply', id)"

@@ -49,6 +49,8 @@ const props = defineProps<{
   canReply?: boolean;
   /** This post's thread is open beside the channel. */
   open?: boolean;
+  /** CH8: the line a search result opened — ringed until the person moves on (`ChatMessageList`). */
+  found?: boolean;
 }>();
 const emit = defineEmits<{ edit: [messageId: string, body: string]; remove: [messageId: string]; reply: [messageId: string] }>();
 
@@ -108,7 +110,8 @@ function onKeydown(e: KeyboardEvent) {
     :id="`chat-line-${message.id}`"
     ref="root"
     class="group relative flex gap-3 rounded-control px-2 hover:bg-surface-subtle focus-within:bg-surface-subtle focus:outline-none"
-    :class="[first ? 'mt-3 py-1' : 'py-0.5', open ? 'bg-brand-50/40' : '']"
+    :class="[first ? 'mt-3 py-1' : 'py-0.5', open ? 'bg-brand-50/40' : '', found ? 'bg-brand-50/40 ring-2 ring-inset ring-focus-ring' : '']"
+    :data-chat-found="found ? '' : undefined"
     tabindex="-1"
     data-chat-row
     @keydown="onKeydown"

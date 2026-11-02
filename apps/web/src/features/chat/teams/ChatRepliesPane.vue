@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useChatFocusWalk } from "../chatFocusWalk";
 import { computed, ref } from "vue";
 import type { ChatFileRef, ChatPost, ChatPostPage } from "@silvicom/shared";
 import { AppIconButton, QueryState } from "@silvicom/ui";
@@ -28,6 +29,8 @@ const props = defineProps<{
   pending: PendingLine[];
   earlierLoading?: boolean;
   earlierFailed?: boolean;
+  /** CH8: the line a search result opened (`?line=`), brought into view; the pages above loaded to reach it. */
+  focusId?: string | null;
 }>();
 const emit = defineEmits<{
   send: [body: string, files: ChatFileRef[]];
@@ -38,6 +41,11 @@ const emit = defineEmits<{
   refetch: [];
   earlier: [];
 }>();
+const walk = useChatFocusWalk(
+  computed(() => props.focusId),
+  { beforeSeq: computed(() => props.page?.before_seq ?? null), loading: computed(() => props.earlierLoading ?? false), failed: computed(() => props.earlierFailed ?? false) },
+  () => emit("earlier"),
+);
 
 const lines = computed(() => mergeLines(props.page?.posts ?? [], props.pending, props.threadId, props.post.id));
 const log = ref<InstanceType<typeof ChatMessageList> | null>(null);
@@ -72,6 +80,8 @@ const composer = ref<InstanceType<typeof ChatComposer> | null>(null);
       :earlier-failed="earlierFailed ?? false"
       noun="replies"
       empty-text="No replies yet."
+      :focus-id="focusId ?? null"
+      @focus-missing="walk.onMissing"
       @edit="(id: string, body: string) => emit('edit', id, body)"
       @remove="(id: string) => emit('remove', id)"
       @retry="(line: PendingLine) => emit('retry', line)"
@@ -79,6 +89,9 @@ const composer = ref<InstanceType<typeof ChatComposer> | null>(null);
       @exit-bottom="composer?.focus()"
     />
 
+    <p v-if="walk.lost.value" role="status"class="shrink-0 border-t border-edge-subtle px-4 py-1.5 text-center text-xs text-ink-muted">
+      That message is not in this thread any more, or it is further back than the pages loaded. Scroll up and press Show earlier to keep looking.
+    </p>
     <ChatComposer v-if="!post.deleted_at" ref="composer" placeholder="Reply" label="Reply" action="Reply" :thread-key="post.id" :upload-to="threadId" @send="(body: string, files: ChatFileRef[]) => emit('send', body, files)" @up="log?.focusLast()" />
     <p v-else class="shrink-0 border-t border-edge-subtle px-4 py-3 text-sm text-ink-muted">This post was removed, so it takes no new replies.</p>
   </section>

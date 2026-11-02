@@ -52,6 +52,9 @@ const param = (name: string) => computed<string | null>(() => {
 });
 const channelId = param("ch");
 const postId = param("post");
+// CH8: a search result opens at the line it found (`&line=`) — a post in the channel's log, a reply in
+// its post's thread (the result's address carries `post` for a reply, `activityTarget`).
+const focusLine = param("line");
 // `query: { ch, … }` and never a copy of the old query: vue-router would keep `c` and `view` (D-CHATUI2).
 const go = (query: Record<string, string>) => void router.push({ query });
 const openReplies = (id: string) => channelId.value && go({ ch: channelId.value, post: id });
@@ -160,6 +163,7 @@ async function onLeaveChannel() {
         :members="members.data.value ?? undefined"
         :earlier-loading="earlierPosts.isPending.value"
         :earlier-failed="earlierPosts.isError.value"
+        :focus-id="postId ? null : focusLine"
         @earlier="earlierPosts.mutate()"
         @send="post"
         @retry="retry"
@@ -215,6 +219,7 @@ async function onLeaveChannel() {
         :pending="pending"
         :earlier-loading="earlierReplies.isPending.value"
         :earlier-failed="earlierReplies.isError.value"
+        :focus-id="focusLine"
         @earlier="earlierReplies.mutate()"
         @send="reply"
         @retry="retry"
