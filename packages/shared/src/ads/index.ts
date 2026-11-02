@@ -10,3 +10,4 @@ export * from "./naming.js";
 export * from "./renderGeometry.js";
 export * from "./adsReport.js";
 export * from "./aiRail.js";
+export * from "./guardContract.js";

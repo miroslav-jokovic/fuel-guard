@@ -2,6 +2,15 @@
   "ad_generations": [
     "apps/api/src/modules/ads/generations/generationLedger.ts"
   ],
+  "ads_actions": [
+    "apps/api/src/modules/ads/actions/actionLedger.ts"
+  ],
+  "ads_approvals": [
+    "apps/api/src/modules/ads/guard/approvals.ts"
+  ],
+  "ads_settings_versions": [
+    "apps/api/src/modules/ads/settings/settingsVersions.ts"
+  ],
   "anomalies": [
     "apps/api/src/modules/anomalies/assignAnomalies.ts",
     "apps/api/src/modules/anomalies/scoring/cardMultiReconcile.ts"

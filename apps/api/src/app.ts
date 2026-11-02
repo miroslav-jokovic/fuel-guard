@@ -7,10 +7,10 @@ import rateLimit from "express-rate-limit";
 import * as Sentry from "@sentry/node";
 import { APP_NAME, type UserRole, type SurfaceClaim } from "@silvicom/shared";
 import type { Env } from "./env.js";
-import { securityMiddleware, mountBodyParsers, mountCompression, mountGeneralRateLimits } from "./appHttp.js";
+import { securityMiddleware, mountBodyParsers, mountCompression, mountGeneralRateLimits, mountEfsSoapIntegrationGuard, refuseEfsRoute } from "./appHttp.js";
 import { setAppLocals } from "./lib/appLocals.js";
 import { getSupabaseAdmin } from "./lib/supabaseAdmin.js";
-import { apiError, asyncHandler } from "./lib/http.js";
+import { asyncHandler } from "./lib/http.js";
 import { getBuildInfo } from "./lib/buildInfo.js";
 import { getSchemaStatus } from "./lib/schemaVersion.js";
 import { requireAuth } from "./middleware/auth.js";
@@ -57,6 +57,7 @@ import { dispatchRouter } from "./modules/loads/index.js";
 import { liveMapRouter } from "./modules/livemap/index.js";
 import { idleRouter } from "./modules/idle/index.js";
 import { drugAlcoholRouter } from "./modules/medstop/index.js";
+import { adsRouter } from "./modules/ads/index.js";
 import { roadsideInspectionsRouter } from "./modules/inspections/index.js";
 import { hazmatRouter, meHazmatRouter, publicHazmatRouter } from "./modules/hazmat/index.js";
 import { publicApplicationRouter, recruitmentRouter } from "./modules/recruiting/index.js";
@@ -100,31 +101,6 @@ function mountFuelCardPrefix(app: Express, env: Env, vendorLimiter: RequestHandl
   app.use("/api/fuel-cards", requireAuth, vendorLimiter);
 }
 
-function refuseEfsRoute(_req: Request, res: Response): void {
-  res.status(503).json(apiError(
-    "efs_routes_not_served_here",
-    "Fuel-card operations are served only by the API host, which is the address WEX has whitelisted. "
-      + "This host cannot reach EFS.",
-  ));
-}
-
-/**
- * The same refusal for the EFS SOAP connection settings under `/api/integrations/efs-soap`.
- *
- * Step 5.10 fenced `/api/fuel-cards` and missed this prefix, found by the 2026-09-22 security audit.
- * `test-connection` and `client-cert/test` perform a real EFS LOGIN, and from the web host that login
- * leaves from an address WEX has not whitelisted. Worse than a wasted call: the login breaker in
- * `efsSoapSession.ts` is per PROCESS, so the api host's breaker never counts the web host's refused
- * logins — two processes spending one shared account's invalid-login allowance, the lockout that
- * stops the fuel feed. The whole prefix, not just the two dialling routes: the SPA calls the api host
- * for all of it (`VITE_API_URL`), so the web host serving the rest is only a second copy to drift.
- *
- * Mounted ahead of `integrationsRouter` rather than inside `mountFuelCardPrefix`, because that one
- * runs after the integration routers are registered and Express answers in registration order.
- */
-function mountEfsSoapIntegrationGuard(app: Express, env: Env): void {
-  if (!env.EFS_ROUTES_ENABLED) app.use("/api/integrations/efs-soap", refuseEfsRoute);
-}
 
 /**
  * The two unauthenticated surfaces, mounted together so the risk they share is stated once.
@@ -286,6 +262,7 @@ function mountApiRouters(app: Express, env: Env): void {
   app.use("/api/dispatch", dispatchRouter()); // was defined but unmounted on main — wired here
   app.use("/api/livemap", liveMapRouter()); // the dispatcher's board (LM6) — gated dispatch:view
   app.use("/api/idle", idleRouter()); // the idle cost basis (Q9) — gated safety:view
+  app.use("/api/ads", adsRouter()); // ads module guard: settings, kill switch, spend approvals (ADS A5)
   app.use("/api/drug-alcohol", drugAlcoholRouter()); // Med-Stop program view (MEDSTOP MS1) — gated safety:view
   app.use("/api/roadside-inspections", roadsideInspectionsRouter()); // the inspections list + Roadside card (Q-FM7) — gated safety:view
   mountPublic(app); // M7 hazmat calculator + H5 application intake — both unauthenticated

@@ -92,17 +92,17 @@ const WAIVERS = new Map([
   // A4 (2026-11-01): ad_generations left — modules/ads/generations/generationLedger.ts writes it (the AI
   // rail's provenance). ads_settings_versions left with it — the rail READS the newest version
   // (modules/ads/settings/settingsVersions.ts), and a read is producer evidence here; its save is A5.
+  // A5 (2026-11-01): ads_approvals and ads_actions left — modules/ads/guard/approvals.ts writes the first,
+  // modules/ads/actions/actionLedger.ts the second (the guard's refusals and acts, the kill switch's rows).
+  // ads_campaigns, ads_platform_connections and ads_spend_hourly left with them: guard/budgetGuard.ts READS
+  // all three (the campaign, its platform, the month's spend), and a read is producer evidence here.
+  // Their writers are still owed, each named in the workflow: A6 creates campaigns, B1 connects, B5 pulls spend.
   ["ad_brand_kits", "ADS-AGENT-BUILD-WORKFLOW.md C1 — the brand-kit API creates the kit (schema-only A2, 0537)"],
   ["ad_brand_kit_versions", "ADS-AGENT-BUILD-WORKFLOW.md C1 — the brand-kit API saves each version (schema-only A2, 0537)"],
   ["ad_concept_presets", "ADS-AGENT-BUILD-WORKFLOW.md C1 — the presets API seeds P1–P5 (schema-only A2, 0537)"],
   ["ad_concept_preset_versions", "ADS-AGENT-BUILD-WORKFLOW.md C1 — the presets API saves each version (schema-only A2, 0537)"],
-  ["ads_platform_connections", "ADS-AGENT-BUILD-WORKFLOW.md B1 — Connect seals the token; step 7's simulator connects too (schema-only A2, 0537)"],
-  ["ads_campaigns", "ADS-AGENT-BUILD-WORKFLOW.md A6 — the orchestrator creates the campaign from a brief (schema-only A2, 0537)"],
   ["ads_creatives", "ADS-AGENT-BUILD-WORKFLOW.md C2–C5 — the copywriter, renderer and checker write each creative (schema-only A2, 0537)"],
-  ["ads_approvals", "ADS-AGENT-BUILD-WORKFLOW.md A5 — guard/approvals records a person's yes (schema-only A2, 0537)"],
-  ["ads_actions", "ADS-AGENT-BUILD-WORKFLOW.md A5/A6 — budgetGuard and the orchestrator write every act and transition (schema-only A2, 0537)"],
   ["ads_outcome_events", "ADS-AGENT-BUILD-WORKFLOW.md B6 — the outcome feed queues a stage event from the LeadSink (schema-only A2, 0537)"],
-  ["ads_spend_hourly", "ADS-AGENT-BUILD-WORKFLOW.md B5 — the hourly insights pull (schema-only A2, 0537)"],
   // orientation_videos (0539, HIRING-WORKFLOW-AUDIT-2026-10-31 §5 HW8a) ships schema-only: a migration and
   // its first reader never share a merge. Its two driver tables need no entry — 0539's own
   // `purge_applicant` deletes from them. It leaves in HW8a's second PR, whose Settings → Recruiting list
