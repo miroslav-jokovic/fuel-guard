@@ -15,8 +15,12 @@ import PeoplePicker from "./PeoplePicker.vue";
  *
  * The list is `/api/chat/people`: the office members who are not suspended, from the same rule the
  * write enforces, so this cannot offer somebody the server would refuse. The viewer is not listed.
+ *
+ * `about` (CH11c, "Chat about this" on a record's page): the conversation is ALWAYS a group, even with
+ * one person picked — a direct conversation is between two people and never about anything (D-CHAT31)
+ * — and its name starts as the record's ("Load L-20481"), which the person may change.
  */
-const props = defineProps<{ open: boolean; people: ChatDirectoryEntry[]; viewerId: string; busy: boolean }>();
+const props = defineProps<{ open: boolean; people: ChatDirectoryEntry[]; viewerId: string; busy: boolean; about?: string | null }>();
 const emit = defineEmits<{ close: []; start: [memberIds: string[], subject: string | null] }>();
 
 const picked = ref<Set<string>>(new Set());
@@ -28,11 +32,11 @@ watch(
   (open) => {
     if (open) {
       picked.value = new Set();
-      subject.value = "";
+      subject.value = props.about ?? "";
     }
   },
 );
-const isGroup = computed(() => picked.value.size > 1);
+const isGroup = computed(() => !!props.about || picked.value.size > 1);
 function start() {
   if (picked.value.size === 0) return;
   emit("start", [...picked.value], isGroup.value ? subject.value.trim() || null : null);
@@ -42,21 +46,21 @@ function start() {
 <template>
   <BaseModal
     :open="open"
-    title="New conversation"
-    description="Pick one person for a private conversation, or several for a group."
+    :title="about ? `Chat about ${about}` : 'New conversation'"
+    :description="about ? 'Pick the people to talk it over with. Only they will see the conversation.' : 'Pick one person for a private conversation, or several for a group.'"
     :initial-focus="searchField"
     @close="emit('close')"
   >
     <div class="space-y-3">
       <PeoplePicker ref="picker" v-model="picked" :people="people" :viewer-id="viewerId" :reset-key="open" />
-      <FormField v-if="isGroup" label="Group name (optional)">
+      <FormField v-if="isGroup" :label="about ? 'Conversation name' : 'Group name (optional)'">
         <BaseInput v-model="subject" placeholder="e.g. Night dispatch" maxlength="200" />
       </FormField>
     </div>
     <template #footer>
       <BaseButton variant="ghost" @click="emit('close')">Cancel</BaseButton>
       <BaseButton variant="primary" :disabled="picked.size === 0 || busy" @click="start">
-        {{ isGroup ? `Start group of ${picked.size + 1}` : "Open conversation" }}
+        {{ about ? "Start the conversation" : isGroup ? `Start group of ${picked.size + 1}` : "Open conversation" }}
       </BaseButton>
     </template>
   </BaseModal>

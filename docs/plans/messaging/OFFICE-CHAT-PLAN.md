@@ -793,6 +793,17 @@ TechRepublic / Windows Report on Teams 2026 updates.
   the record so the seven-day sweep removes them with the rest. The PDF lists each line's files with
   their hashes; the Exports tab lists the carried files under the three links. Tests: API 9 new, web 2
   new; 17 mutants, all failed tests. §9.3's open item is closed.
+- 2026-11-02: **CH11b MERGED** (#1924); **compliance files closed** (#1926). **CH11c built** — "Chat about
+  this" on the load, driver and truck pages (`claude/chat-ch11c-record-pages`). `ChatAboutCard`: your own
+  conversations about the record, newest first, unread bold and counted, each opening in /chat, and
+  "Chat about this" — New conversation in an about-mode that is always a group (a direct conversation
+  is never about anything, D-CHAT31) and names it for the record ("Load L-20481"), changeable. Shown
+  only to somebody the sidebar offers Chat to (module, gate, the org's screen answer — the three layers
+  `useAssistantAccess` reads for Ask AI) who may also read that kind of record (`CHAT_ABOUT_READ_SECTION`,
+  the API's own check). Placed beside `HolderEquipmentCard` on the driver and truck pages and after the
+  summary on the load page. Tests: card 8, dialog 1, each page hands it its record (3); 17 mutants, all
+  failed tests after two were tightened (a renamed subject; bold read off the title, not the row). Next:
+  Q-CHAT21's two case links (ruled (c)).
 - 2026-11-02: **Q-CHAT21 (c), the database half** (`claude/chat-about-cases`, migration 0546): two more
   links on 0543's pattern, `card_fraud_incident_id` and `roadside_inspection_id` (D-CHAT35, D-CHAT36);
   the CHECK, the organisation trigger, the ledger's detail and 0543's three functions widened to the two
