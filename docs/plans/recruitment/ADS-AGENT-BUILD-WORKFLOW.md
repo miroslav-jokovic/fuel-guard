@@ -495,3 +495,7 @@ blocking step in §3 above.
   overwrite. Doors at `/api/ads` (`routes/guard.ts`). Six producer waivers left
   `check-table-producers.mjs`. Fourteen mutations went red (one first attempt was a no-op and was
   replaced by a real bypass). No migration. Pausing what is live when the switch is pressed is A6's.
+- **2026-11-02, handoff 3** — The rest of Stage 1 moves to a fresh chat from
+  `HANDOFF-2026-11-02-ADS-STAGE1-A6.md` (main `1a3992d`, last migration 0539; release candidate #1907
+  carries A4, A5 rides the next train). It records the A6 anchors measured on main and the traps from
+  A4–A5 (app.ts at its line budget, reads count as producers, the writers manifest, sleep-broken runs).
