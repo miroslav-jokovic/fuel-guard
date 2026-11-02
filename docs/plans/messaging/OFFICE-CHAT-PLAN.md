@@ -647,3 +647,16 @@ TechRepublic / Windows Report on Teams 2026 updates.
   and a line of files alone left its "Seen" on an empty line (it now follows the files). Seen too, not
   CH7's and not fixed here: on staging the UAT banner adds 28 px a full-bleed page does not subtract, so
   `/chat` and the map scroll by that much. Open: compliance console and export do not include files (§9.3).
+
+- 2026-11-02: **Reactions join Activity** (`claude/chat-activity-reactions`, migration 0541), D-CHAT25's
+  third reason, after #1897 was RELEASED (checked against `origin/production`), so the API already
+  parsing `reason = 'reaction'` serves before the function emits it. One item per line of yours that
+  somebody else reacted to — not one per reaction — saying the latest reaction (who and which) and
+  arriving when it did, so a fresh 👍 on an old line lifts it and makes it unread again; your own
+  reactions never count. Still derived: taking the latest back lets the one before stand in, taking the
+  last back removes it, and a retracted line or a conversation you left drops it as for mentions. No
+  bell and no desktop alert (`chatDesktopAlerts.ts` already skips the reason). `chat_activity` and
+  `chat_activity_items` gain columns, so both are dropped and made again with 0521's grants. Matrix
+  `office-chat-activity-reactions.test.mjs` (29 rows); ten mutants of 0541 each failed one, and the
+  eleventh — the reaction's own `org_id` filter — changed nothing, because 0523's trigger copies it from
+  the message the join already filters, so the clause was removed. Next: CH8 search.
