@@ -94,7 +94,7 @@ const lines = computed<ChatComplianceMessage[]>(() => data.value?.messages ?? []
         <p v-if="lines.length === 0" class="text-center text-ink-muted">No messages.</p>
         <div v-for="m in lines" :key="m.id" class="rounded-surface bg-surface-subtle px-3 py-2">
           <div class="mb-1 text-xs text-ink-muted">#{{ m.seq }} · {{ formatDateTime(m.created_at) }}</div>
-          <ComplianceMessage :message="m" />
+          <ComplianceMessage :message="m" :reason="reason" :run="run" />
         </div>
       </section>
     </div>

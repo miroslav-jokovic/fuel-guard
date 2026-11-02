@@ -1,0 +1,20 @@
+name: "The process dies after Meta created the campaign, before ours moved: the retry finds Meta's object and creates nothing new"
+why: >
+  workers.ts: every worker call gets the stint's key and must be idempotent on it, so the re-run
+  create returns the first one's object. §4R's bar is "0 duplicate vendor creates across all crash
+  points": two calls, one object.
+covers: [crash]
+verifiedBy: "Claude (7d), from workers.ts + ADS-AGENT-BUILD-WORKFLOW §4R"
+campaigns:
+  - { id: c1, state: approved }
+timeline:
+  - crash: { table: ads_campaigns, nth: 2 }        # 1 = approved → creating, 2 = creating → paused
+  - settle: true
+expect:
+  states: { c1: paused }
+  last_error: { c1: null }
+  ledger:
+    c1:
+      - "approved -create_paused-> creating succeeded"
+      - "creating -created-> paused succeeded"
+  vendor: { create: 2, creates: 1 }

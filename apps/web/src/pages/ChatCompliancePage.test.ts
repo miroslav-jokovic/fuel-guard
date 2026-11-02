@@ -20,6 +20,7 @@ const state = vi.hoisted(() => ({
   releaseHold: vi.fn(),
   createExport: vi.fn(),
   exportLinks: vi.fn(),
+  fileLink: vi.fn(),
   holds: [] as unknown[],
   exports: [] as unknown[],
   stepUpConfirm: null as null | (() => void),
@@ -39,6 +40,7 @@ vi.mock("@/features/chat/compliance/useChatCompliance", async (importOriginal) =
     releaseHold: state.releaseHold,
     createExport: state.createExport,
     exportLinks: state.exportLinks,
+    fileLink: state.fileLink,
     useComplianceHoldsQuery: () => ({ data: ref(state.holds), isPending: ref(false), isError: ref(false), isFetching: ref(false), refetch: vi.fn() }),
     useComplianceExportsQuery: () => ({ data: ref({ exports: state.exports, before_at: null }), isPending: ref(false), isError: ref(false), isFetching: ref(false), refetch: vi.fn() }),
     useComplianceRefresh: () => vi.fn(),
@@ -53,6 +55,8 @@ vi.mock("@/components/StepUpPrompt.vue", () => ({
   },
 }));
 vi.mock("@/stores/toast", () => ({ useToastStore: () => ({ success: vi.fn(), error: vi.fn() }) }));
+const followDownload = vi.hoisted(() => vi.fn());
+vi.mock("@/features/chat/useChatFileLink", async (importOriginal) => ({ ...(await importOriginal<object>()), followDownload }));
 
 import ChatCompliancePage from "./ChatCompliancePage.vue";
 
@@ -66,6 +70,7 @@ const conversation = {
 const HOLD = "44444444-4444-4444-8444-444444444444";
 const EXPORT = "55555555-5555-4555-8555-555555555555";
 const REASON = { category: "hr", text: "Grievance HR-14, night shift messages" };
+const FILE = "66666666-6666-4666-8666-000000000001";
 const button = (w: { findAll: (s: string) => Array<{ text: () => string }> }, label: string) =>
   w.findAll("button").find((b) => b.text() === label) as unknown as { trigger: (e: string) => Promise<void>; attributes: (a: string) => string | undefined } | undefined;
 const stepUpRefusal = () => Object.assign(new Error("Confirm your password to continue."), { code: "step_up_required" });
@@ -96,13 +101,16 @@ beforeEach(() => {
   state.messages.mockReset().mockResolvedValue({ messages: [], next: null });
   state.thread.mockReset().mockResolvedValue({
     conversation: { ...conversation, created_by: null, last_seq: 2, members: conversation.members },
-    messages: [{ id: "00000000-0000-4000-8000-000000000001", thread_id: T, seq: 1, sender_user_id: null, sender_name: "Ben", body: "Night shift starts at 9.", created_at: "2026-10-23T15:00:00Z", edited_at: null, deleted_at: null, versions: [] }],
+    messages: [{ id: "00000000-0000-4000-8000-000000000001", thread_id: T, seq: 1, sender_user_id: null, sender_name: "Ben", body: "Night shift starts at 9.", created_at: "2026-10-23T15:00:00Z", edited_at: null, deleted_at: null, versions: [],
+      attachments: [{ id: FILE, position: 0, file_name: "BOL L-20481 signed.pdf", mime: "application/pdf", byte_size: 9000, sha256: "ab12cd34ef56".padEnd(64, "0"), uploaded_by: null, created_at: "2026-10-23T15:00:00Z" }] }],
     before_seq: null,
   });
   state.setHold.mockReset().mockResolvedValue({ id: HOLD });
   state.releaseHold.mockReset().mockResolvedValue({ id: HOLD });
   state.createExport.mockReset().mockResolvedValue({ id: EXPORT, message_count: 1 });
-  state.exportLinks.mockReset().mockResolvedValue({ links: { pdf: "https://signed/pdf", jsonl: "https://signed/jsonl", manifest: "https://signed/manifest" }, expires_at: "2026-10-24T12:05:00Z" });
+  state.exportLinks.mockReset().mockResolvedValue({ links: { pdf: "https://signed/pdf", jsonl: "https://signed/jsonl", manifest: "https://signed/manifest" }, files: [], expires_at: "2026-10-24T12:05:00Z" });
+  state.fileLink.mockReset().mockResolvedValue({ url: "https://signed/file", file_name: "BOL L-20481 signed.pdf", expires_in: 300 });
+  followDownload.mockReset();
   state.holds = [];
   state.exports = [];
 });
@@ -212,7 +220,7 @@ describe("ChatCompliancePage", () => {
   });
 
   it("exports a search with the filters it ran with, not words typed since", async () => {
-    state.messages.mockResolvedValue({ messages: [{ id: "00000000-0000-4000-8000-000000000001", thread_id: T, thread_kind: "group", thread_subject: "Night dispatch", seq: 1, sender_user_id: null, sender_name: "Ben", body: "Night shift starts at 9.", created_at: "2026-10-23T15:00:00Z", edited_at: null, deleted_at: null, versions: [] }], next: null });
+    state.messages.mockResolvedValue({ messages: [{ id: "00000000-0000-4000-8000-000000000001", thread_id: T, thread_kind: "group", thread_subject: "Night dispatch", seq: 1, sender_user_id: null, sender_name: "Ben", body: "Night shift starts at 9.", created_at: "2026-10-23T15:00:00Z", edited_at: null, deleted_at: null, versions: [], attachments: [] }], next: null });
     const { w } = await render("/settings/chat-compliance?tab=messages");
     await giveReason(w);
     await w.find('input[aria-label="Words to find"]').setValue("night");
@@ -231,5 +239,41 @@ describe("ChatCompliancePage", () => {
     await flushPromises();
     expect(state.exportLinks).toHaveBeenCalledWith(EXPORT);
     expect(w.find('a[href="https://signed/pdf"]').exists()).toBe(true);
+  });
+
+  it("shows a line's files in a conversation, and Save asks for the file with the reason, then saves it (0544)", async () => {
+    state.fileLink.mockRejectedValueOnce(stepUpRefusal());
+    const { w } = await render();
+    await giveReason(w);
+    await searchButton(w).trigger("submit");
+    await flushPromises();
+    await button(w, "Open")!.trigger("click");
+    await flushPromises();
+    const file = document.body.querySelector("[data-compliance-file]")!;
+    expect(file.textContent).toContain("BOL L-20481 signed.pdf");
+    expect(file.textContent).toContain("PDF");
+    expect(file.textContent).toContain("9 KB");
+    expect(file.textContent).toContain("sha256 ab12cd34ef56…");
+    [...file.querySelectorAll("button")].find((b) => b.textContent?.trim() === "Save")!.click();
+    await flushPromises();
+    // A step-up refusal becomes the password prompt, and the same act runs once it is confirmed.
+    expect(followDownload).not.toHaveBeenCalled();
+    (document.body.querySelector('[data-test="confirm"]') as HTMLButtonElement).click();
+    await flushPromises();
+    expect(state.fileLink).toHaveBeenCalledTimes(2);
+    expect(state.fileLink).toHaveBeenLastCalledWith(FILE, { reason: { category: "hr", text: REASON_TEXT } });
+    expect(followDownload).toHaveBeenCalledWith("https://signed/file");
+    w.unmount();
+  });
+
+  it("lists an export's carried files by their own names beside the three files (0544)", async () => {
+    state.exports = [{ id: EXPORT, scope: "conversation", thread_id: T, thread_subject: "Night dispatch", filters: { thread: T }, reason: REASON, requested_by: "11111111-1111-4111-8111-111111111111", requested_by_name: "Ana", created_at: "2026-10-24T10:00:00Z", message_count: 2, ledger_seq: 41, content_sha256: "b".repeat(64), status: "ready", bytes: 4096, expires_at: "2026-10-31T10:00:00Z", purged_at: null }];
+    state.exportLinks.mockResolvedValueOnce({ links: { pdf: "https://signed/pdf", jsonl: "https://signed/jsonl", manifest: "https://signed/manifest" }, files: [{ name: `files/${FILE}-BOL L-20481 signed.pdf`, url: "https://signed/f1" }], expires_at: "2026-10-24T12:05:00Z" });
+    const { w } = await render("/settings/chat-compliance?tab=exports");
+    await button(w, "Get the files")!.trigger("click");
+    await flushPromises();
+    expect(w.find("details summary").text()).toBe("1 file");
+    const a = w.find('a[href="https://signed/f1"]');
+    expect(a.text()).toBe("BOL L-20481 signed.pdf");
   });
 });

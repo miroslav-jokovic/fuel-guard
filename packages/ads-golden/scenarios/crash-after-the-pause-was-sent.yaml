@@ -1,0 +1,21 @@
+name: "The process dies after the platform paused the ad, before ours moved: the retry reads the pause it sent and asks nothing again"
+why: >
+  runner.ts pauseStep: one pause act per stint of pausing, keyed `pause:<campaign>:<stint>`. The
+  re-run finds its own succeeded row (`duplicate`) and moves to paused with no second call.
+covers: [crash, kill_switch]
+verifiedBy: "Claude (7d), from runner.ts pauseStep"
+kill_switch: true
+campaigns:
+  - { id: c1, state: live }
+timeline:
+  - crash: { table: ads_campaigns, nth: 2 }        # 1 = live → pausing, 2 = pausing → paused
+  - settle: true
+expect:
+  states: { c1: paused }
+  last_error: { c1: null }
+  ledger:
+    c1:
+      - "live -kill-> pausing succeeded"
+      - "pause succeeded"
+      - "pausing -paused-> paused succeeded"
+  vendor: { pause: 1 }

@@ -1,6 +1,8 @@
 import { type Ref, toValue } from "vue";
 import { useQuery, useQueryClient } from "@tanstack/vue-query";
 import type {
+  ChatComplianceFileLink,
+  ChatComplianceFileRequest,
   ChatComplianceAccessLogResponse,
   ChatComplianceConversationsRequest,
   ChatComplianceConversationsResponse,
@@ -47,6 +49,14 @@ export function searchMessages(req: ChatComplianceMessagesRequest): Promise<Chat
 
 export function openThread(threadId: string, req: ChatComplianceThreadRequest): Promise<ChatComplianceThreadResponse> {
   return act(`${BASE}/conversations/${threadId}`, req, "Could not open the conversation.");
+}
+
+/**
+ * A link to one file of a line (0544): ledgered with the reason, like opening the conversation, so it
+ * runs when the reviewer presses Save and never on its own.
+ */
+export function fileLink(fileId: string, req: ChatComplianceFileRequest): Promise<ChatComplianceFileLink> {
+  return act(`${BASE}/files/${fileId}/link`, req, "Could not get the file.");
 }
 
 // ── holds and exports (CHA3b) ──────────────────────────────────────────────────────────────────────

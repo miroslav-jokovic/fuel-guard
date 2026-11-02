@@ -1,0 +1,21 @@
+name: "Launch pressed with no standing approval: the guard refuses, nothing is sent, the campaign is back in paused saying why"
+why: >
+  approvals.ts: a person's yes to the act and its amounts, or no launch. runner.ts: a refusal is
+  `launch_failed` → paused with the first refusal as `last_error` (E5 shows it); the guard records
+  the refusal as its own row, and no vendor call happens.
+covers: [approval_missing]
+verifiedBy: "Claude (7d), from approvals.ts + runner.ts launchStep"
+campaigns:
+  - { id: c1, state: paused }
+timeline:
+  - approver: { campaign: c1, event: launch }
+  - settle: true
+expect:
+  states: { c1: paused }
+  last_error: { c1: no_standing_approval }
+  ledger:
+    c1:
+      - "paused -launch-> launching succeeded"
+      - "launch refused"
+      - "launching -launch_failed-> paused succeeded"
+  vendor: { launch: 0 }

@@ -1,0 +1,26 @@
+name: "A second campaign's launch is refused because the first is already spending toward the month's cap"
+why: >
+  budgetGuard.ts forecasts the month from EVERY campaign that may still spend, not only the one
+  launching: c1 live at $50/day plus c2 asking $100/day, over the month's days left, is past the
+  $3,000 Meta cap → `monthly_cap_forecast`. c2 alone at $100/day would fit, so a guard that forgot
+  c1 would launch it.
+covers: [budget_exhausted, two_campaigns]
+verifiedBy: "Claude (7d), from budgetGuard.ts platformSpend + checkSpend's forecast"
+campaigns:
+  - { id: c1, state: live }
+  - { id: c2, state: paused, daily_budget_cents: 10000, lifetime_cap_cents: 100000 }
+approvals:
+  - { campaign: c2, daily_budget_cents: 10000, lifetime_cap_cents: 100000 }
+timeline:
+  - approver: { campaign: c2, event: launch }
+  - settle: true
+expect:
+  states: { c1: live, c2: paused }
+  last_error: { c2: monthly_cap_forecast }
+  ledger:
+    c1: []
+    c2:
+      - "paused -launch-> launching succeeded"
+      - "launch refused"
+      - "launching -launch_failed-> paused succeeded"
+  vendor: { launch: 0 }

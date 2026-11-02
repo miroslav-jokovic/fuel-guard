@@ -62,6 +62,20 @@ describe("applyCampaignEvent — racing writers and crashes", () => {
     expect(w.transitions().map((a) => [a.status, a.error_code])).toEqual([["succeeded", null], ["failed", "state_moved"]]);
   });
 
+  // Found by the 7d mutation pass (G6): with the stamp dropped from the compare-and-set, every other
+  // test stayed green, because only `pausing` moves to itself. A writer holding an earlier stint of
+  // `pausing` must lose to the move that started the current one, not overwrite it.
+  it("a stale read of an earlier stint of the SAME state loses: the stamp, not the state, is what the move compares", async () => {
+    const w = createAdsWorld({ campaigns: [campaign("c1", "pausing")] });
+    const stale = (await loadCampaign(w.admin, ORG, "c1"))!;
+    expect((await applyCampaignEvent(w.admin, stale, { event: "pause_failed", actor: AGENT, error: "rate_limited" }, w.now().toISOString())).kind).toBe("moved");
+    const restamped = w.byId("c1").state_changed_at;
+    expect(restamped).not.toBe(stale.state_changed_at);
+    const r = await applyCampaignEvent(w.admin, stale, { event: "paused", actor: AGENT }, w.now().toISOString());
+    expect(r).toEqual({ kind: "state_moved" });
+    expect(w.byId("c1")).toMatchObject({ state: "pausing", state_changed_at: restamped, last_error: "rate_limited" });
+  });
+
   it("a crash between the move and its completion is settled from the campaign's own stamp at the next move", async () => {
     const w = createAdsWorld({ campaigns: [campaign("c1", "composing")] });
     w.crashOnWrite("ads_actions", 2); // 1 = the started row, 2 = its completion

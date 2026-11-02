@@ -385,7 +385,7 @@ Q-AD1 is resolved by v5 (four platforms, Meta first). Still owed: **Q-AD4** Tens
 **Q-AD5** Indeed · **Q-AD6** mailbox · **Q-AD8** counsel (fallback defined, G12) · **Q-AD9**
 first opening · **Q-AD12** presets · **Q-AD13** real drivers · **Q-AD14** brand kit · **Q-AD16**
 baseline · **Q-AD18** budget vs floors · **Q-AD19** organic · **Q-AD20** Higgsfield key ·
-**Q-AD21** X · **Q-AD22** platform order. Each has its fallback in `ADS-AGENT-PLAN.md` §9 and its
+**Q-AD21** X · **Q-AD22** platform order · **Q-AD23** a launch delivered twice at once is paused (7d). Each has its fallback in `ADS-AGENT-PLAN.md` §9 and its
 blocking step in §3 above.
 
 ---
@@ -577,3 +577,30 @@ blocking step in §3 above.
   simulator's driver) says so. The webhook signature is checked in the tests by an independent
   implementation written from the docs, not by the fake's own `sign`. Eleven mutations each went red.
   No migration.
+- **2026-11-02, 7b + 7c merged** — FakeMeta #1921 (`dad251a`) and FakeHiggsfield #1923 (`ab01c0e`), gated
+  by GitHub CI on the owner's choice (no local `ci:local`). #1923's first CI run caught what no local
+  check had run: its test closed a server by hand instead of through `closeTestServer`
+  (`testServerTeardown.test.ts`), and one never-read initial value (`no-useless-assignment`). Fixed in
+  the PR.
+- **2026-11-02, 7d** — `packages/ads-golden` (`@silvicom/ads-golden`): scenarios as YAML, plus their
+  schema and loader, and nothing else. **Decision: the runner lives in `apps/api`**
+  (`src/testing/adsGolden.ts`, run by `modules/ads/orchestrator/golden.test.ts`). `@hazmat/golden` can
+  import its engine because that engine is a package; the ads orchestrator is a service module, and a
+  package may not import an app. The runner drives the REAL `orchestratorTick` + `runCampaignStep` +
+  `applyCampaignEvent` + budget guard over `adsWorld`, with only the vendors faked. The jobs ledger is
+  modelled as one slot per `dedup_key`, a thrown job retries next tick, and every held job runs at
+  once (harsher than `KIND_CAPS.ads_step = 2`). `adsWorld` gained mutable settings versions,
+  approvals and spend, and a scenario clock (`FakeClock`, strictly increasing). There are 15
+  scenarios, each with its whole ledger: happy path; two campaigns walking together; a second
+  campaign refused by the first one's spend; the kill switch before and during the launch call; a
+  throttled pause retried; a missing approval; a budget exhausted mid-step; settings changed mid-run;
+  crashes after the create, after the launch, losing the launch's answer, and after the pause; a
+  compose delivered twice; a launch delivered twice. A sweep also kills the happy path at each of its
+  23 writes in turn: at most one launch, one created object, one compose key, a ledger that chains,
+  and live — or paused when the launch's own answer was lost. The suite also has a negative control
+  and the §4R coverage list. Twelve mutations of the orchestrator and the guard: eleven went red in
+  the golden suite. The twelfth, the compare-and-set without the stint stamp, stayed green in EVERY
+  ads test (only `pausing` moves to itself), so `transitions.test.ts` gained "a stale read of an
+  earlier stint of the SAME state loses", which kills it. **Q-AD23 recorded, not routed around**
+  (ADS-AGENT-PLAN §9): a launch delivered twice at once is sent once but ends paused, because the
+  runner cannot tell an in-flight launch from a dead one. No migration.

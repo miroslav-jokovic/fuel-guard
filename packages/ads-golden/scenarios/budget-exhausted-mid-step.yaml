@@ -1,0 +1,24 @@
+name: "Spend that lands between Launch and the agent's step pushes the month over its cap: the launch is refused"
+why: >
+  budgetGuard.ts reads month-to-date spend at the moment of the act, not when Launch was pressed:
+  $2,000 spent + $50/day × the days left > the $3,000 Meta cap → `monthly_cap_forecast`. The approval
+  is not spent by a refusal, so a later launch under a lower budget could still use it.
+covers: [budget_exhausted]
+verifiedBy: "Claude (7d), from budgetGuard.ts + checkSpend"
+campaigns:
+  - { id: c1, state: paused }
+approvals:
+  - { campaign: c1, daily_budget_cents: 5000, lifetime_cap_cents: 50000 }
+timeline:
+  - approver: { campaign: c1, event: launch }
+  - spend: { campaign: c1, spend_cents: 200000 }
+  - settle: true
+expect:
+  states: { c1: paused }
+  last_error: { c1: monthly_cap_forecast }
+  ledger:
+    c1:
+      - "paused -launch-> launching succeeded"
+      - "launch refused"
+      - "launching -launch_failed-> paused succeeded"
+  vendor: { launch: 0 }

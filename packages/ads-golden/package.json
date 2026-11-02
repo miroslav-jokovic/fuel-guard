@@ -1,0 +1,26 @@
+{
+  "name": "@silvicom/ads-golden",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Ads agent golden scenarios (ADS-AGENT-BUILD-WORKFLOW \u00a74R, step 7d) \u2014 timelines and their expected ledgers, as data. The runner lives in apps/api, beside the orchestrator it drives.",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    }
+  },
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "zod": "4.4.3",
+    "yaml": "^2.5.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "typescript": "6.0.3",
+    "vitest": "4.1.9"
+  }
+}

@@ -1,0 +1,26 @@
+name: "The process dies between sending the launch and recording its answer: the campaign is paused, not marked stopped, and not re-sent"
+why: >
+  runner.ts, "A LAUNCH WHOSE OUTCOME IS UNKNOWN IS PAUSED": the launch row stays `started` (nobody
+  knows whether Meta is delivering), so the step sends `pause` — the safe direction, true whatever
+  the platform did — and a person launches again with a new approval.
+covers: [crash]
+verifiedBy: "Claude (7d), from runner.ts header"
+campaigns:
+  - { id: c1, state: paused }
+approvals:
+  - { campaign: c1, daily_budget_cents: 5000, lifetime_cap_cents: 50000 }
+timeline:
+  - approver: { campaign: c1, event: launch }
+  - crash: { table: ads_actions, nth: 2 }          # 1 = the launch's started row, 2 = its completion
+  - settle: true
+expect:
+  states: { c1: paused }
+  last_error: { c1: null }
+  ledger:
+    c1:
+      - "paused -launch-> launching succeeded"
+      - "launch started"
+      - "launching -pause-> pausing succeeded"
+      - "pause succeeded"
+      - "pausing -paused-> paused succeeded"
+  vendor: { launch: 1, pause: 1 }

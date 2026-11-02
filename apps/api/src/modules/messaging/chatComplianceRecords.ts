@@ -4,6 +4,7 @@ import {
   CHAT_EXPORT_FILE_DAYS,
   CHAT_EXPORT_FOLD,
   DQ_EXPORT_BUCKET,
+  chatExportFileName,
   chatExportRowsSchema,
   chatExportSchema,
   chatHoldSchema,
@@ -17,6 +18,7 @@ import {
   type ChatHoldsResponse,
 } from "@silvicom/shared";
 import { renderChatExportPdf } from "./chatExportPdf.js";
+import { CHAT_FILES_BUCKET } from "./chatFiles.js";
 
 /**
  * Legal holds and exports (OFFICE-CHAT-PLAN CHA3b; D-CHAT15, D-CHAT20; migration 0517). As in
@@ -29,6 +31,10 @@ import { renderChatExportPdf } from "./chatExportPdf.js";
  *      word comes back. From here on, the act is on the record whatever happens to the files.
  *   2. Three files into the private `compliance-exports` bucket under `<org>/chat/<export>/`: the
  *      JSONL (one line per message, the evidence), the PDF (the readable copy) and `manifest.json`.
+ *   2a. (0544) every chat file the lines carry, copied from `chat-files` into `<org>/chat/<export>/files/`
+ *      after its bytes are checked against the SHA-256 its `file_attached` ledger row holds — a file
+ *      that does not match fails the export, because a copy that disagrees with the ledger is not
+ *      evidence. One file in memory at a time; the database already refused an export past 1 GB.
  *   3. `chat_export_stored` with the manifest's own hash — or `chat_export_failed` with the error, so
  *      a failed export is visible in the Exports list instead of sitting at "building" for ever.
  *
@@ -93,6 +99,43 @@ export const chatExportPaths = (orgId: string, exportId: string): Record<ChatExp
   pdf: `${orgId}/chat/${exportId}/export.pdf`,
   manifest: `${orgId}/chat/${exportId}/manifest.json`,
 });
+/** Where one carried chat file is written: `files/<id>-<name>` beside the JSONL (0544). */
+export const chatExportFilePath = (orgId: string, exportId: string, f: { id: string; file_name: string }) =>
+  `${orgId}/chat/${exportId}/files/${chatExportFileName(f)}`;
+
+/** A carried file as it was written: where, its bytes and its hash, for the manifest. */
+export interface ChatExportCopiedFile { id: string; name: string; path: string; bytes: number; sha256: string }
+
+/**
+ * Step 2a: copy the export's chat files beside it. The keys come from 0544 `chat_compliance_file_keys`,
+ * which answers only files of this export's lines while it is building; each file's bytes must hash to
+ * what the ledger recorded, or the export fails naming the file.
+ */
+export async function copyChatExportFiles(
+  admin: SupabaseClient, orgId: string, exportId: string, rows: ChatExportRows,
+): Promise<ChatExportCopiedFile[]> {
+  const files = rows.lines.flatMap((l) => l.attachments);
+  if (files.length === 0) return [];
+  const keys = await rpc<Array<{ id: string; storage_path: string; sha256: string }>>(
+    admin, "chat_compliance_file_keys", { p_org: orgId, p_export: exportId, p_files: files.map((f) => f.id) });
+  if (!keys.ok) throw new Error(keys.message);
+  const byId = new Map((keys.value ?? []).map((k) => [k.id, k]));
+  const copied: ChatExportCopiedFile[] = [];
+  for (const f of files) {
+    const key = byId.get(f.id);
+    if (!key) throw new Error(`file ${f.id} (${f.file_name}) could not be found for this export`);
+    const { data, error } = await admin.storage.from(CHAT_FILES_BUCKET).download(key.storage_path);
+    if (error || !data) throw new Error(`file ${f.id} (${f.file_name}) could not be read: ${error?.message ?? "no bytes"}`);
+    const bytes = Buffer.from(await data.arrayBuffer());
+    const hash = sha256(bytes);
+    if (hash !== key.sha256) throw new Error(`file ${f.id} (${f.file_name}) does not match the hash in the chat ledger`);
+    const path = chatExportFilePath(orgId, exportId, f);
+    const up = await admin.storage.from(DQ_EXPORT_BUCKET).upload(path, bytes, { contentType: f.mime, upsert: true });
+    if (up.error) throw new Error(`upload of file ${f.id} failed: ${up.error.message}`);
+    copied.push({ id: f.id, name: `files/${chatExportFileName(f)}`, path, bytes: bytes.length, sha256: hash });
+  }
+  return copied;
+}
 
 /** One message per line, the shape the manifest's hashes are recomputed from. */
 export function chatExportJsonl(rows: ChatExportRows): string {
@@ -104,9 +147,11 @@ export function chatExportJsonl(rows: ChatExportRows): string {
  * this application — the fold rule in words, the ledger position, each line's and each earlier
  * version's hash, and the JSONL's and PDF's own hashes.
  */
-export function chatExportManifest(rows: ChatExportRows, files: { jsonl: Buffer; pdf: Buffer }) {
+export function chatExportManifest(rows: ChatExportRows, files: { jsonl: Buffer; pdf: Buffer; carried?: ChatExportCopiedFile[] }) {
+  const carried = files.carried ?? [];
   return {
-    format: "silvicom-chat-export/1",
+    // /2 (0544): the lines list their files and `files` holds each carried one with its hash.
+    format: "silvicom-chat-export/2",
     export_id: rows.export.id,
     scope: rows.export.scope,
     filters: rows.export.filters,
@@ -124,6 +169,7 @@ export function chatExportManifest(rows: ChatExportRows, files: { jsonl: Buffer;
     files: {
       "export.jsonl": { sha256: sha256(files.jsonl), bytes: files.jsonl.length },
       "export.pdf": { sha256: sha256(files.pdf), bytes: files.pdf.length },
+      ...Object.fromEntries(carried.map((c) => [c.name, { sha256: c.sha256, bytes: c.bytes }])),
     },
     lines: rows.lines.map((l) => ({
       id: l.id,
@@ -132,6 +178,7 @@ export function chatExportManifest(rows: ChatExportRows, files: { jsonl: Buffer;
       body_sha256: l.body_sha256,
       retracted: l.deleted_at !== null,
       versions: l.versions.map((v) => ({ version: v.version, body_sha256: v.body_sha256 })),
+      attachments: l.attachments.map((f) => ({ id: f.id, file_name: f.file_name, sha256: f.sha256, file: `files/${chatExportFileName(f)}` })),
     })),
   };
 }
@@ -154,7 +201,8 @@ export async function chatExportCreate(
     const rows = chatExportRowsSchema.parse((res.value ?? [])[0]);
     const jsonl = Buffer.from(chatExportJsonl(rows), "utf8");
     const pdf = await renderChatExportPdf(rows);
-    const manifest = Buffer.from(JSON.stringify(chatExportManifest(rows, { jsonl, pdf }), null, 2) + "\n", "utf8");
+    const carried = await copyChatExportFiles(admin, orgId, exportId, rows);
+    const manifest = Buffer.from(JSON.stringify(chatExportManifest(rows, { jsonl, pdf, carried }), null, 2) + "\n", "utf8");
     const paths = chatExportPaths(orgId, exportId);
     const uploads: Array<[string, Buffer, string]> = [
       [paths.jsonl, jsonl, "application/x-ndjson"],
@@ -166,8 +214,9 @@ export async function chatExportCreate(
       if (error) throw new Error(`upload of ${path.split("/").pop()} failed: ${error.message}`);
     }
     const stored = await rpc<null>(admin, "chat_export_stored", {
-      p_org: orgId, p_export: exportId, p_paths: [paths.jsonl, paths.pdf, paths.manifest],
-      p_bytes: jsonl.length + pdf.length + manifest.length, p_manifest_sha256: sha256(manifest),
+      // The carried files' paths too, so the seven-day sweep removes them with the rest.
+      p_org: orgId, p_export: exportId, p_paths: [paths.jsonl, paths.pdf, paths.manifest, ...carried.map((c) => c.path)],
+      p_bytes: jsonl.length + pdf.length + manifest.length + carried.reduce((n, c) => n + c.bytes, 0), p_manifest_sha256: sha256(manifest),
     });
     if (!stored.ok) throw new Error(stored.message);
     return { ok: true, value: { id: exportId, message_count: rows.export.message_count } };
@@ -204,12 +253,24 @@ export async function chatExportLinks(
     return { ok: false, status: 409, code: "not_ready", message: row.status === "failed" ? "This export failed. Export it again." : "This export is still being written." };
   }
   const paths = chatExportPaths(orgId, exportId);
-  const { data, error } = await admin.storage.from(DQ_EXPORT_BUCKET).createSignedUrls([paths.jsonl, paths.pdf, paths.manifest], CHAT_EXPORT_URL_TTL_SECONDS);
-  const [jsonl, pdf, manifest] = (data ?? []).map((d) => d.signedUrl);
-  if (error || !jsonl || !pdf || !manifest) throw new Error(error?.message ?? "Could not sign the export's files");
+  // The carried chat files (0544) are the stored paths that are not the three: read from the record, so
+  // a link is offered for exactly what was written.
+  const fixed = new Set<string>([paths.jsonl, paths.pdf, paths.manifest]);
+  const carried = row.storage_paths.filter((p) => !fixed.has(p));
+  const { data, error } = await admin.storage.from(DQ_EXPORT_BUCKET)
+    .createSignedUrls([paths.jsonl, paths.pdf, paths.manifest, ...carried], CHAT_EXPORT_URL_TTL_SECONDS);
+  const urls = (data ?? []).map((d) => d.signedUrl);
+  const [jsonl, pdf, manifest] = urls;
+  if (error || !jsonl || !pdf || !manifest || urls.length !== 3 + carried.length || urls.some((u) => !u)) {
+    throw new Error(error?.message ?? "Could not sign the export's files");
+  }
   return {
     ok: true,
-    value: { links: { jsonl, pdf, manifest }, expires_at: new Date(Date.now() + CHAT_EXPORT_URL_TTL_SECONDS * 1000).toISOString() },
+    value: {
+      links: { jsonl, pdf, manifest },
+      files: carried.map((p, i) => ({ name: `files/${p.split("/files/")[1] ?? p}`, url: urls[3 + i]! })),
+      expires_at: new Date(Date.now() + CHAT_EXPORT_URL_TTL_SECONDS * 1000).toISOString(),
+    },
   };
 }
 
