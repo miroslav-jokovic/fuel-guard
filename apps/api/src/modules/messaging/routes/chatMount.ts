@@ -3,6 +3,7 @@ import { chatRouter } from "./chat.js";
 import { chatComplianceRouter } from "./chatCompliance.js";
 import { chatComplianceRecordsRouter } from "./chatComplianceRecords.js";
 import { chatChannelsRouter, chatTeamsRouter } from "./chatTeams.js";
+import { chatFilesRouter } from "./chatFiles.js";
 
 /**
  * Everything under `/api/chat`: the compliance console FIRST, at `/api/chat/compliance`, then the chat
@@ -23,6 +24,9 @@ export function chatRouters(): Router {
   // conversation that does not exist. Each carries the office-chat gates itself (chatTeams.ts).
   router.use("/teams", chatTeamsRouter());
   router.use("/channels", chatChannelsRouter());
+  // CH7: files. Its routes carry their own gates (see chatFiles.ts) — `/files/:id` must be claimed before
+  // the conversation router could read `/files` as a conversation id.
+  router.use("/", chatFilesRouter());
   router.use("/", chatRouter());
   return router;
 }

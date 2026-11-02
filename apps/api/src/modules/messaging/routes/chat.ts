@@ -44,6 +44,7 @@ import {
 import { chatActivity, chatActivityMarkRead, chatActivityUnread, chatSetMute } from "../chatActivity.js";
 import { chatLineBeforeEdit, chatNotifyEdited, chatNotifySent } from "../chatNotify.js";
 import { chatPin, chatPins, chatReact, chatSave, chatSavedLines } from "../chatLineActs.js";
+import { chatSendFiles, filesForBell, verifyChatFiles } from "../chatFiles.js";
 
 /**
  * Office chat (OFFICE-CHAT-PLAN.md CH1b) — `/api/chat`. The conversations between the people in the
@@ -331,8 +332,13 @@ export function chatRouter(): Router {
       if (!id) { notFound(res); return; }
       const body = res.locals.body as ReturnType<typeof chatSendRequestSchema.parse>;
       const { orgId, userId } = ctx(req);
-      const result = await chatSend(admin(req), orgId, userId, id, body.message_id, body.body);
-      if (result.ok && !result.value.duplicate) await chatNotifySent(admin(req), orgId, userId, id, body.message_id, body.body);
+      // With files (CH7): the stored bytes are checked against what was declared before the database is
+      // asked to write anything, and the line and its files are written together.
+      const result = body.files.length
+        ? (await verifyChatFiles(admin(req), orgId, id, body.files))
+          ?? await chatSendFiles(admin(req), orgId, userId, id, { message_id: body.message_id, parent_id: null, body: body.body, files: body.files })
+        : await chatSend(admin(req), orgId, userId, id, body.message_id, body.body);
+      if (result.ok && !result.value.duplicate) await chatNotifySent(admin(req), orgId, userId, id, body.message_id, filesForBell(body.body, body.files));
       // 201 for a new message, 200 for a retry the database recognised — the client treats both as sent.
       send(res, result, (v) => v, result.ok && !result.value.duplicate ? 201 : 200);
     }),

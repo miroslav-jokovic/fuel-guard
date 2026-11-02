@@ -159,14 +159,17 @@ ok("...and gone once the line is", (await itemOf(ANA, M3)).length === 0);
 // ── Unread and the badge ──────────────────────────────────────────────────────────────────────────
 console.log("\n-- unread --");
 const M4 = await send(ANA, GROUP, "Fuel stop at Effingham");
-await db.query(`select chat_activity_mark_read($1,$2,null)`, [ORG, ANA]);
+const readAt = (await one(`select chat_activity_mark_read($1,$2,null) at`, [ORG, ANA])).at;
 ok("after Ana reads Activity, nothing of hers is unread", (await unread(ANA)) === 0);
 await react(DEV, M4, "surprised");
+// A clock can return one instant twice in a row; the reaction is set a second after the read, as it is in life.
+await at(DEV, M4, "surprised", new Date(new Date(readAt).getTime() + 1000).toISOString());
 items = await itemOf(ANA, M4);
 ok("a reaction after she read is an unread item", items.length === 1 && items[0].unread === true, JSON.stringify(items));
 ok("...and the badge counts exactly the unread items the list shows",
   (await unread(ANA)) === (await activity(ANA)).filter((a) => a.unread).length && (await unread(ANA)) === 1);
 await react(BEN, M2, "done");
+await at(BEN, M2, "done", new Date(new Date(readAt).getTime() + 2000).toISOString());
 ok("a new reaction to an OLD line lifts it to the top of the list, unread",
   (await activity(ANA))[0].message_id === M2 && (await activity(ANA))[0].unread === true, JSON.stringify((await activity(ANA))[0]));
 

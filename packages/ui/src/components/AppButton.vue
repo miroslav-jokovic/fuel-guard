@@ -7,7 +7,7 @@ import { useTouchTargets } from "../touchTargets";
 const props = withDefaults(
   defineProps<{
     variant?: "primary" | "secondary" | "danger" | "soft" | "ghost" | "inverse" | "link";
-    size?: "sm" | "md" | "icon" | "row" | "touch" | "shutter" | "thumb";
+    size?: "sm" | "md" | "icon" | "row" | "touch" | "shutter" | "thumb" | "media";
     type?: "button" | "submit" | "reset";
     block?: boolean;
     disabled?: boolean;
@@ -111,6 +111,12 @@ const SIZES: Record<NonNullable<typeof props.size>, string> = {
    * owns the `aria-label`.
    */
   thumb: "size-14 p-0",
+  /**
+   * A button that IS a picture whose size is the picture's own — office chat's image on a line (CH7,
+   * 2026-11-01). `thumb` is a fixed 56px square for a strip; an image in a conversation keeps its aspect,
+   * so the call site would otherwise have written `!size-auto !p-0`, the sign of a missing size again.
+   */
+  media: "h-auto w-auto overflow-hidden p-0",
 };
 
 /** The link variant sits in running text, so it takes the surrounding size and no box at all. */
