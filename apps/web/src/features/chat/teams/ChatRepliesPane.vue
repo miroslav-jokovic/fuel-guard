@@ -89,7 +89,7 @@ const composer = ref<InstanceType<typeof ChatComposer> | null>(null);
       @exit-bottom="composer?.focus()"
     />
 
-    <p v-if="walk.lost.value" role="status"class="shrink-0 border-t border-edge-subtle px-4 py-1.5 text-center text-xs text-ink-muted">
+    <p v-if="walk.lost.value" role="status" class="shrink-0 border-t border-edge-subtle px-4 py-1.5 text-center text-xs text-ink-muted">
       That message is not in this thread any more, or it is further back than the pages loaded. Scroll up and press Show earlier to keep looking.
     </p>
     <ChatComposer v-if="!post.deleted_at" ref="composer" placeholder="Reply" label="Reply" action="Reply" :thread-key="post.id" :upload-to="threadId" @send="(body: string, files: ChatFileRef[]) => emit('send', body, files)" @up="log?.focusLast()" />

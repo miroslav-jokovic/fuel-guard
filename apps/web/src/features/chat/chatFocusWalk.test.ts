@@ -16,7 +16,7 @@ vi.mock("./transport", async () => {
 });
 import ChatMessageList from "./ChatMessageList.vue";
 import { FOCUS_WALK_MAX_PAGES, useChatFocusWalk } from "./chatFocusWalk";
-import type { MergedLine } from "./useChat";
+import type { MergedLine } from "./chatGrouping";
 
 const ME = "11111111-1111-4111-8111-111111111111";
 const T = "33333333-3333-4333-8333-333333333333";

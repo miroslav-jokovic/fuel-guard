@@ -130,7 +130,7 @@ const openFiles = () => { filesMounted.value = true; filesOpen.value = true; };
         </div>
       </template>
     </ChatMessageList>
-    <p v-if="walk.lost.value" role="status"class="shrink-0 border-t border-edge-subtle px-4 py-1.5 text-center text-xs text-ink-muted">
+    <p v-if="walk.lost.value" role="status" class="shrink-0 border-t border-edge-subtle px-4 py-1.5 text-center text-xs text-ink-muted">
       That message is not in this channel any more, or it is further back than the pages loaded. Scroll up and press Show earlier to keep looking.
     </p>
     <ChatComposer ref="composer" :placeholder="`Message # ${channel.name}`" label="Post" action="Post" :thread-key="channel.thread_id" :upload-to="channel.thread_id" @send="(body: string, files: ChatFileRef[]) => emit('send', body, files)" @up="log?.focusLast()" />
