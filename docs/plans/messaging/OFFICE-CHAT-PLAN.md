@@ -819,3 +819,10 @@ TechRepublic / Windows Report on Teams 2026 updates.
   (`useChatFocusWalk`): never two at once, never after a failure, at most twenty — past that, or at the
   start of the conversation, the stage says in words that it is further back or gone. Tests: walk 4,
   log 3, stages and page 4, the search's address 1; 17 mutants, all failed tests.
+- 2026-11-02: **Q-CHATUI6 (a), the database half** (`claude/chat-entity-links-db`, migration 0547):
+  `chat_line_links(org, user, message ids)` answers which words of a line are a load or a truck of the
+  reader's organisation (CHAT-REDESIGN-PLAN Q-CHATUI6 has the rules and the measurement). Matrix
+  `office-chat-line-links.test.mjs` (16 rows); 15 mutants — four first survived and three were the
+  function's fault: a leading-zero rule the join made redundant (dropped), a second org filter the
+  thread's covered (dropped), and no row with another carrier's unit or load named in our line (added);
+  the fourth is 0412's revoke. Next: the API and the web, once 0547 is on staging.
