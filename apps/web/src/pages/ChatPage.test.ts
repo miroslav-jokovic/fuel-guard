@@ -72,6 +72,15 @@ vi.mock("@/features/chat/useChat", async () => {
   };
 });
 // CH6c-2: the line acts and the Saved list. Real `provide` so the page's provider runs as written.
+// Q-CHATUI6: the page turns line links on for its logs; the asking is useChatLineLinks.test.ts's.
+const linksProvided = vi.hoisted(() => ({ n: 0 }));
+vi.mock("@/features/chat/useChatLineLinks", async () => {
+  const { computed } = await import("vue");
+  return {
+    provideChatLineLinks: () => { linksProvided.n += 1; },
+    useChatLineLinksHere: () => ({ byLine: computed(() => new Map()) }),
+  };
+});
 // CH11b: what a group is about. The page asks only for a group, and hands the stage the link.
 vi.mock("@/features/chat/useChatAbout", async () => {
   const { computed, watch } = await import("vue");
@@ -257,6 +266,12 @@ describe("ChatPage", () => {
     expect(a.w.findComponent({ name: "ChatConversationStage" }).props("focusId")).toBe(L);
     const b = await render(`/chat?c=${T}&line=../x`);
     expect(b.w.findComponent({ name: "ChatConversationStage" }).props("focusId")).toBeNull();
+  });
+
+  it("turns line links on for the logs on the page (Q-CHATUI6)", async () => {
+    linksProvided.n = 0;
+    await render();
+    expect(linksProvided.n).toBe(1);
   });
 
   it("opens the direct conversation for one person, and a named group for several", async () => {

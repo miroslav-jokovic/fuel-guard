@@ -872,3 +872,11 @@ TechRepublic / Windows Report on Teams 2026 updates.
   (23 rows); 17 mutants, all failed rows after the month's accumulation got its own row. The 24-hour
   window is held by the function's text: the ledger stamps its own time, so no row can be aged — the
   property that makes it evidence. Next: the API (the model call) and the web, once 0549 is on staging.
+- 2026-11-02: **Q-CHATUI6 (a), API and web half** (`claude/chat-entity-links-web`, no migration): `POST
+  /api/chat/links { message_ids }` (≤ 200, the chat's own gates) asks 0547 `chat_line_links` with the
+  caller's org and user from the token; the chat page turns links on (`provideChatLineLinks`), so the
+  compliance console's log asks nothing. A log asks once for its live lines that hold a digit, keyed by id
+  and rev, so an edit re-asks only that line. `chatLinkParts` (shared) cuts the words only where they stand on
+  their own — the breakage check found that a bare `indexOf` would have cut the server's "unit 5" out of a
+  "unit 50" in the same line; the longest-first sort it once carried was dead once earliest-position and word
+  edges decided, and was removed. Tests: API 3 new, web 8 new; 8 mutants, all failed tests. Q-CHATUI6 complete.

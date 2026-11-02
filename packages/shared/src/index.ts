@@ -154,6 +154,7 @@ export * from "./messagesContract.js";
 export * from "./chatContract.js";
 export * from "./chatFilesContract.js";
 export * from "./chatAboutContract.js";
+export * from "./chatLinksContract.js";
 export * from "./chatSearchContract.js";
 export * from "./chatComplianceContract.js";
 export * from "./chatComplianceRecordsContract.js";

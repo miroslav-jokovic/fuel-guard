@@ -111,4 +111,35 @@ describe("GET /api/chat/search", () => {
     expect(res.status).toBe(200);
     expect(holder.rec!.rpcs().map((c) => c.fn)).not.toContain("chat_history");
   });
+
+});
+
+describe("POST /api/chat/links (Q-CHATUI6, 0547)", () => {
+  const M1 = "55555555-5555-4555-8555-000000000001";
+  const LOAD = "66666666-6666-4666-8666-000000000001";
+  const post = (body: unknown) => fetch(`${baseUrl}/api/chat/links`, { method: "POST", body: JSON.stringify(body), headers: { Authorization: "Bearer token", "Content-Type": "application/json" } });
+  const linkArgs = () => holder.rec!.rpcs().filter((c) => c.fn === "chat_line_links").map((c) => c.args);
+
+  it("asks chat_line_links with the caller's org and user from the token, and answers the words and records", async () => {
+    rpc.chat_line_links = [{ message_id: M1, text: "0137581", kind: "load", record_id: LOAD }];
+    const res = await post({ message_ids: [M1] });
+    expect(res.status).toBe(200);
+    expect(await json(res)).toEqual({ links: [{ message_id: M1, text: "0137581", kind: "load", record_id: LOAD }] });
+    expect(linkArgs()).toEqual([{ p_org: ORG, p_user: USER, p_messages: [M1] }]);
+    expectOrgScoped(holder.rec!, ORG);
+  });
+
+  it("refuses no ids, more than 200, or an id that is not one, before the database is asked", async () => {
+    expect((await post({ message_ids: [] })).status).toBe(400);
+    expect((await post({ message_ids: Array.from({ length: 201 }, () => M1) })).status).toBe(400);
+    expect((await post({ message_ids: ["0137581"] })).status).toBe(400);
+    expect(linkArgs()).toEqual([]);
+    expect((await post({ message_ids: Array.from({ length: 200 }, () => M1) })).status).toBe(200);
+  });
+
+  it("stands behind the chat's gates: a driver is refused", async () => {
+    me = { ...me, role: "driver" };
+    expect((await post({ message_ids: [M1] })).status).toBe(403);
+    expect(linkArgs()).toEqual([]);
+  });
 });
