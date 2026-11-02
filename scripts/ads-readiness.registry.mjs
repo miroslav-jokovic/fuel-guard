@@ -313,8 +313,27 @@ export const READINESS = [
             { file: RUNNER, titles: ["walks draft → composing → review, approved → creating → paused, launching → live, each with one transition row"] },
           ],
         },
-        { need: "a token in a log line, or in an API response", gap: "no platform token is held yet — B1 brings the sealed Meta token and its log and response scrapes" },
-        { need: "a non-admin hitting Connect or Launch", gap: "Connect and Launch routes arrive with B1 (`ads.connection`) and E3; the approve-spend door is pinned at L1" },
+        {
+          need: "a token in a log line, or in an API response (B1b)",
+          tests: [
+            { file: "apps/api/src/modules/ads/connections/connections.test.ts", titles: [
+              "is sealed to the org and the account kind, with the Page token beside it; the row is connected with the report",
+              "answers with the view's columns only — a sealed token cannot ride out even as ciphertext",
+              "is stored nowhere: no row, no ledger row, no audit — and the answer says why",
+            ] },
+            { file: "apps/api/src/modules/ads/routes/connections.test.ts", titles: ["anyone who can see recruitment lists the connections, and no answer carries a token column; an outsider cannot"] },
+            { file: "apps/api/src/modules/ads/platforms/meta/connectionTest.test.ts", titles: ["the report holds no token — neither the system user's nor the Page's — so it can be stored and shown as it is"] },
+            { file: "apps/api/src/modules/ads/platforms/meta/graphClient.test.ts", titles: ["never carries the token in a failure, even when the message would"] },
+          ],
+        },
+        {
+          need: "a non-admin hitting Connect (B1b)",
+          tests: [{ file: "apps/api/src/modules/ads/routes/connections.test.ts", titles: [
+            "only an admin with a fresh sign-in may connect, connect the simulator or disconnect — a manager may not",
+            "testing a connection is the admin's, without a password prompt; a manager may not",
+          ] }],
+        },
+        { need: "a non-admin hitting Launch", gap: "the Launch route arrives with E3; the approve-spend door is pinned at L1" },
       ],
       L3: later("L3"),
       L4: [{ need: "a token scrape over a sandbox run's logs", gap: STAGE2 }],

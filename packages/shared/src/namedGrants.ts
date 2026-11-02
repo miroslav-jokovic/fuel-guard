@@ -95,6 +95,12 @@ export const ADMIN_ONLY_CAPABILITIES = [
     why: "Approves launching an ad, raising its budget or widening its area on the carrier's ad accounts, sets the monthly caps every campaign is checked against, and switches spending back on after the kill switch. Each one moves real money, so each also asks for a fresh sign-in.",
   },
   {
+    // B1b (2026-11-02): listed with its route, as the ads.spend note above promised.
+    key: "ads.connection",
+    label: "Ad platform connections",
+    why: "Connects the carrier's Meta ad account with a token that can create and pause its ads, tests that connection, and disconnects it. Connecting and disconnecting each ask for a fresh sign-in.",
+  },
+  {
     key: "hazmat.policy",
     label: "HazmatGuard policy",
     why: "Sets the organisation-wide rules every hazmat load is analysed against; the database's own write policy is admin-only too.",

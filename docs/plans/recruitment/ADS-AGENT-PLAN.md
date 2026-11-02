@@ -785,6 +785,19 @@ rate, and Higgsfield credits per approved creative.
   the first one moves the campaign; (c) give the guard's launch row a heartbeat. **Recommendation:
   (a) now, then (b) once B1 measures Meta's real launch latency**, because (b)'s window is only
   safe when that latency is known. *Fallback:* (a).
+- **Q-AD24 · How we learn when the Meta token expires** (us, found building B1b, 2026-11-02). §7 says
+  `expires_on` raises an alert 14 days ahead, and Meta recommends 60-day expiring system-user tokens
+  (some businesses must use them). But the only documented way to read a token's expiry is
+  `debug_token`, which needs *an app access token or an app developer's user token* — i.e. our Meta
+  app's secret, which arrives in Stage 2. A system-user token reading its own expiry is not documented.
+  B1b therefore stores `token_expires_on` as null, and a dead token shows up as `failing` the next
+  time the connection is tested or used. Candidates: (a) the admin enters the expiry Business Settings
+  shows when the token is generated; (b) `debug_token` with our app token once the app secret is
+  sealed (Stage 2), plus a daily leased check; (c) generate non-expiring tokens only. **Recommendation:
+  (b)**, because it reads Meta's own answer and Stage 2 brings the secret anyway. Use (a) as a
+  stopgap only if the app secret is not sealed by 12/25: a 60-day token generated at the earliest
+  Connect (Mon 11/09) lapses 01/08, and §7's alert is due 14 days before that. *Fallback:* null
+  expiry, `failing` on first use.
 
 ---
 

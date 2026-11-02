@@ -8,6 +8,9 @@
   "ads_approvals": [
     "apps/api/src/modules/ads/guard/approvals.ts"
   ],
+  "ads_platform_connections": [
+    "apps/api/src/modules/ads/connections/connections.ts"
+  ],
   "ads_campaigns": [
     "apps/api/src/modules/ads/orchestrator/transitions.ts"
   ],
