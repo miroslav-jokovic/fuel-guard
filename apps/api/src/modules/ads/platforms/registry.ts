@@ -72,6 +72,31 @@ export async function graphForConnection(deps: RegistryDeps, c: ConnectionForGra
   return { ok: true, simulated: false, graph: new MetaGraph({ token, throttleKey, now: deps.now }) };
 }
 
+/**
+ * The same connection's PAGE client (B2b): Instant Forms are made with the Page's token, never the
+ * system user's (Lead Ads guide). Connect derived and sealed it (B1b) under its own purpose, so the
+ * user token's AAD cannot open it. The simulator hands out FakeMeta's Page token for its one Page.
+ */
+export async function pageGraphForConnection(deps: RegistryDeps, c: ConnectionForGraph & { page_token_sealed: string | null }): Promise<GraphForConnection> {
+  const throttleKey = `connection:${c.id}`;
+  if (c.provider === "simulator") {
+    const gate = simulatorGate(deps.processEnv ?? process.env);
+    if (!gate.allowed) return { ok: false, error_code: "simulator_not_allowed", reason: `The simulator is not available on this server: ${gate.reason}.` };
+    const sim = await simulatorMeta();
+    const page = sim.fake.pages.find((p) => p.id === SIMULATOR_PAGE_ID)!;
+    return { ok: true, simulated: true, graph: new MetaGraph({ token: page.access_token, throttleKey, baseUrl: sim.base, now: deps.now }) };
+  }
+  if (c.provider !== "meta") return { ok: false, error_code: "not_built", reason: `${c.provider} connections are not built yet.` };
+  if (!c.page_token_sealed) return { ok: false, error_code: "no_token", reason: "This connection holds no Page token. Run the connection test or connect it again." };
+  try {
+    const token = open(deps.env, c.page_token_sealed, secretAad(c.org_id, metaPageTokenPurpose(c.is_sandbox)));
+    return { ok: true, simulated: false, graph: new MetaGraph({ token, throttleKey, now: deps.now }) };
+  } catch (e) {
+    const why = e instanceof SecretBoxError ? e.code : "unknown";
+    return { ok: false, error_code: "token_unreadable", reason: `The stored Page token could not be opened (${why}). Connect it again.` };
+  }
+}
+
 // ── the in-process simulator ─────────────────────────────────────────────────────────────────────
 
 let simulator: Promise<{ token: string; base: string; fake: FakeMeta }> | null = null;

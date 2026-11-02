@@ -4,7 +4,7 @@ import { expectOrgScoped } from "../../../../testing/supabaseRecorder.js";
 import { campaign, CONN, createAdsWorld, ORG, type AdsWorld } from "../../../../testing/adsWorld.js";
 import { FakeMeta } from "../simulator/fakeMeta.js";
 import { MetaGraph, resetGraphThrottles } from "./graphClient.js";
-import { nameFor, publishCampaignAndAdSet, type PublishInput } from "./publisher.js";
+import { nameFor, publishPaused, type PublishInput } from "./publisher.js";
 
 /**
  * The Meta publisher's first half (B2a) against FakeMeta over real HTTP and the stateful ads world.
@@ -16,6 +16,7 @@ const TOKEN = "EAAB-publisher-token-0123456789";
 const ACCOUNT = "2001";
 const PAGE = "3001";
 const CAMPAIGN = "ab12cd34-0000-4000-8000-000000000001";
+const PAGE_TOKEN = "EAAB-page-token-9876543210";
 
 let meta: FakeMeta;
 let base: string;
@@ -23,7 +24,8 @@ let w: AdsWorld;
 
 beforeEach(async () => {
   resetGraphThrottles();
-  meta = new FakeMeta({ token: TOKEN, accounts: [{ id: ACCOUNT, spend_cap_cents: 300_000, amount_spent_cents: 0, account_status: 1, currency: "USD" }] });
+  meta = new FakeMeta({ token: TOKEN, accounts: [{ id: ACCOUNT, spend_cap_cents: 300_000, amount_spent_cents: 0, account_status: 1, currency: "USD" }],
+    pages: [{ id: PAGE, name: "Carrier Page", access_token: PAGE_TOKEN, tasks: ["ADVERTISE"] }] });
   base = await meta.start();
   w = createAdsWorld({ campaigns: [campaign(CAMPAIGN, "creating")] });
 });
@@ -33,11 +35,12 @@ const input = (patch: Partial<PublishInput> = {}): PublishInput => ({
   orgId: ORG, campaignId: CAMPAIGN, connectionId: CONN, accountId: ACCOUNT, pageId: PAGE, platform: "meta",
   brief_source: "recruiting_opening", brief_ref: "op-1@v3", created_at: "2026-11-02T15:00:00Z",
   area: { label: "Joliet yard", latitude: 41.525, longitude: -88.0817, radius_miles: 25, reason: "Drivers report to the Joliet yard daily" },
-  daily_budget_cents: 5_000, lifetime_cap_cents: 50_000, key: `${CAMPAIGN}:stint-1`, ...patch,
+  daily_budget_cents: 5_000, lifetime_cap_cents: 50_000, key: `${CAMPAIGN}:stint-1`,
+  form_questions: ["class_a_held", "class_a_years", "hazmat_endorsement"], locale: "en", privacy_url: "https://app.silvicom360.com/privacy", ...patch,
 });
 
-const graph = () => new MetaGraph({ token: TOKEN, throttleKey: "conn-pub", baseUrl: base, timeoutMs: 300, sleep: async () => {} });
-const publish = (patch: Partial<PublishInput> = {}) => publishCampaignAndAdSet({ admin: w.admin, graph: graph(), now: w.now }, input(patch));
+const graph = (token = TOKEN) => new MetaGraph({ token, throttleKey: "conn-pub", baseUrl: base, timeoutMs: 300, sleep: async () => {} });
+const publish = (patch: Partial<PublishInput> = {}) => publishPaused({ admin: w.admin, graph: graph(), pageGraph: graph(PAGE_TOKEN), now: w.now }, input(patch));
 const posts = (re: RegExp) => meta.requests.filter((r) => r.method === "POST" && re.test(r.path)).length;
 const creates = () => w.actions.filter((a) => a.kind === "create_paused");
 
@@ -50,7 +53,7 @@ describe("Meta publisher (B2a) — what it sends", () => {
     expect(c).toMatchObject({ status: "PAUSED", objective: "OUTCOME_LEADS", special_ad_categories: ["EMPLOYMENT"], special_ad_category_country: ["US"], spend_cap: "50000" });
     const a = meta.adsets.get(r.platform_refs.meta_adset_id)!;
     expect(a).toMatchObject({ campaign_id: c.id, status: "PAUSED", daily_budget: "5000", optimization_goal: "LEAD_GENERATION", destination_type: "ON_AD", promoted_object: { page_id: PAGE } });
-    expect(creates().map((x) => [x.request && (x.request as { level: string }).level, x.status])).toEqual([["campaign", "succeeded"], ["adset", "succeeded"]]);
+    expect(creates().map((x) => [x.request && (x.request as { level: string }).level, x.status])).toEqual([["campaign", "succeeded"], ["adset", "succeeded"], ["form", "succeeded"]]);
     expectOrgScoped(w.rec, ORG);
   });
 
@@ -76,6 +79,8 @@ describe("Meta publisher (B2a) — what it sends", () => {
     ["area_outside_meta_limits", { area: { ...input().area, radius_miles: 51 } }],
     ["area_invalid", { area: { ...input().area, radius_miles: 14 } }],
     ["connection_incomplete", { pageId: "" }],
+    ["form_question_not_allowed", { form_questions: ["class_a_held", "date_of_birth"] }],
+    ["privacy_url_not_https", { privacy_url: "http://app.silvicom360.com/privacy" }],
   ] as const)("refuses before calling Meta: %s — a refused row, and no request at all", async (code, patch) => {
     const r = await publish(patch as Partial<PublishInput>);
     expect(r).toEqual({ ok: false, error_code: code });
@@ -121,7 +126,7 @@ describe("Meta publisher (B2a) — resume, never duplicate (§4R Publisher L2)",
     expect([meta.campaigns.size, meta.adsets.size]).toEqual([1, 1]);
     expect(posts(/campaigns$/)).toBe(1);
     const stint2 = creates().filter((a) => String(a.idempotency_key).includes("stint-2"));
-    expect(stint2.map((a) => a.response)).toEqual([{ adopted: true }, null]);
+    expect(stint2.map((a) => a.response)).toEqual([{ adopted: true }, null, null]);
   });
 
   it.each([
@@ -165,7 +170,7 @@ describe("Meta publisher (B2a) — resume, never duplicate (§4R Publisher L2)",
   it("the same step delivered twice at once creates each object once", async () => {
     const [a, b] = await Promise.all([publish(), publish()]);
     expect([a.ok, b.ok].filter(Boolean)).toHaveLength(1);
-    expect([meta.campaigns.size, meta.adsets.size, posts(/campaigns$/), posts(/adsets$/)]).toEqual([1, 1, 1, 1]);
+    expect([meta.campaigns.size, meta.adsets.size, meta.forms.forms.size, posts(/campaigns$/), posts(/adsets$/), posts(/leadgen_forms$/)]).toEqual([1, 1, 1, 1, 1, 1]);
   });
 
   it("two objects carrying our name are refused, never a guess; one found active is refused, never adopted", async () => {
@@ -179,5 +184,51 @@ describe("Meta publisher (B2a) — resume, never duplicate (§4R Publisher L2)",
     twin("901", "PAUSED");
     expect(await publish({ key: "k2" })).toMatchObject({ ok: false, error_code: "duplicate_on_platform" });
     expect(posts(/./)).toBe(0);
+  });
+});
+
+describe("Meta publisher (B2b) — the Instant Form", () => {
+  it("makes the form on the Page with the Page's token: contact, then the catalogue's questions, our privacy page, shown only from the ad", async () => {
+    const r = await publish();
+    if (!r.ok) throw new Error(r.error_code);
+    const f = meta.forms.forms.get(r.platform_refs.meta_form_id)!;
+    expect(f).toMatchObject({ page_id: PAGE, status: "ACTIVE", locale: "EN_US", privacy_policy_url: "https://app.silvicom360.com/privacy" });
+    expect(f.questions.map((q) => q.key)).toEqual(["full_name", "phone", "email", "class_a_held", "class_a_years", "hazmat_endorsement"]);
+    expect(parseAdName(f.name)).toMatchObject({ level: "form", preset_key: "ALL", campaign_short: "ab12cd34" });
+    const sent = meta.requests.find((q) => q.method === "POST" && q.path.endsWith("/leadgen_forms"))!;
+    expect(JSON.parse(sent.body.block_display_for_non_targeted_viewer!)).toBe(true);
+  });
+
+  it("a Spanish ad gets a Spanish form with the same question keys", async () => {
+    const r = await publish({ locale: "es" });
+    if (!r.ok) throw new Error(r.error_code);
+    const f = meta.forms.forms.get(r.platform_refs.meta_form_id)!;
+    expect(f.locale).toBe("ES_LA");
+    expect(f.questions[3]!.label).toMatch(/Clase A/);
+  });
+
+  it("the system user's token cannot make a form — FakeMeta holds the Page-token rule", async () => {
+    const r = await graph(TOKEN).post(`${PAGE}/leadgen_forms`, { name: "x", questions: [{ type: "EMAIL", key: "email" }], privacy_policy: { url: "https://a.b/privacy" } }, { idempotent: false });
+    expect(r.ok ? null : r.error.error_code).toBe("token_invalid");
+  });
+
+  it("half-created (campaign and ad set yes, form no): the next attempt adopts both and makes one form", async () => {
+    meta.inject("POST", /leadgen_forms$/, { kind: "hang" });
+    expect(await publish()).toEqual({ ok: false, error_code: "create_outcome_unknown" });
+    expect((await publish({ key: `${CAMPAIGN}:stint-2` })).ok).toBe(true);
+    expect([meta.campaigns.size, meta.adsets.size, meta.forms.forms.size, posts(/campaigns$/), posts(/adsets$/)]).toEqual([1, 1, 1, 1, 1]);
+  });
+
+  it("a form create Meta applied but answered 5xx is found on the Page by name, never made twice", async () => {
+    meta.inject("POST", /leadgen_forms$/, { kind: "applied_then_temporary" });
+    expect((await publish()).ok).toBe(true);
+    expect([meta.forms.forms.size, posts(/leadgen_forms$/)]).toEqual([1, 1]);
+  });
+
+  it("a form with our name that asks other questions is refused, never adopted", async () => {
+    const name = nameFor(input(), "form");
+    meta.forms.forms.set("777", { id: "777", page_id: PAGE, name, status: "ACTIVE", locale: "EN_US", privacy_policy_url: "https://app.silvicom360.com/privacy", questions: [{ type: "EMAIL", key: "email" }] });
+    expect(await publish()).toMatchObject({ ok: false, error_code: "readback_mismatch", response: { id: "777", fields: ["questions"] } });
+    expect(posts(/leadgen_forms$/)).toBe(0);
   });
 });

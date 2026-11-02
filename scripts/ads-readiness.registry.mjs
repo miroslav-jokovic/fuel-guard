@@ -250,7 +250,25 @@ export const READINESS = [
             "FakeMeta holds Meta's employment rules: age, gender or a radius under 15 miles is a hard 2909035",
           ] }],
         },
-        { need: "the Instant Form (B2b), the creative and the ad (B2c), launch / pause through the guard (B3)", gap: "not built yet — B2b, B2c, B3" },
+        {
+          need: "the Instant Form (B2b): only the counsel fallback questions, made with the Page's token, our privacy page, read back",
+          tests: [
+            { file: "packages/shared/src/ads/metaLeadForm.test.ts", titles: [
+              "a key outside the counsel fallback catalogue is refused, never passed through as free text",
+              "no output of any catalogue subset carries a prohibited question type, and age is never asked",
+              "Spanish asks the same questions with the same option keys, in Spanish",
+            ] },
+            { file: PUBLISHER, titles: [
+              "makes the form on the Page with the Page's token: contact, then the catalogue's questions, our privacy page, shown only from the ad",
+              "the system user's token cannot make a form — FakeMeta holds the Page-token rule",
+            ] },
+            { file: "apps/api/src/modules/ads/platforms/registry.test.ts", titles: [
+              "opens the Page token under its own purpose; the system user's sealed token does not open as a Page token",
+              "hands out the simulator's Page client only on a positively non-production host",
+            ] },
+          ],
+        },
+        { need: "the creative and the ad (B2c), launch / pause through the guard (B3)", gap: "not built yet — B2c (after C3/C4), B3" },
       ],
       L2: [
         {
@@ -264,9 +282,12 @@ export const READINESS = [
             "a crash between a create and its ledger row: the next delivery adopts the object and never creates a second",
             "the same step delivered twice at once creates each object once",
             "two objects carrying our name are refused, never a guess; one found active is refused, never adopted",
+            "half-created (campaign and ad set yes, form no): the next attempt adopts both and makes one form",
+            "a form create Meta applied but answered 5xx is found on the Page by name, never made twice",
+            "a form with our name that asks other questions is refused, never adopted",
           ] }],
         },
-        { need: "token revoked → an alert to an admin, and the same faults on the form, creative, ad, launch and pause calls", gap: "the alert lands when the publisher is wired into the runner (B2c); the other calls with B2b, B2c, B3" },
+        { need: "token revoked → an alert to an admin, and the same faults on the creative, ad, launch and pause calls", gap: "the alert lands when the publisher is wired into the runner (B2c); the other calls with B2c, B3" },
       ],
       L3: later("L3"),
       L4: [{ need: "contract suite on Meta's sandbox", gap: STAGE2 }],
