@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { RouteLocationRaw } from "vue-router";
 import { AppAvatar, AppAvatarStack, AppIcon, AppIconButton } from "@silvicom/ui";
 import { BellIcon, BookmarkIcon, ChevronLeftIcon, MagnifyingGlassIcon, UserGroupIcon } from "@silvicom/ui/icons";
 
@@ -23,6 +24,11 @@ defineProps<{
    * The stack shows three and "+N"; its label is the count, because the names are the subtitle's.
    */
   people?: ReadonlyArray<{ id: string; label: string | null }>;
+  /**
+   * What a group is about (CH11, D-CHAT34): "Load L-20481", a link to that load's page, before the
+   * subtitle. The record's page links back here, so the two ends point at each other.
+   */
+  about?: { label: string; to: RouteLocationRaw } | null;
 }>();
 defineEmits<{ back: [] }>();
 </script>
@@ -44,7 +50,9 @@ defineEmits<{ back: [] }>();
     </span>
     <div class="min-w-0 flex-1">
       <h2 class="truncate text-sm font-semibold text-ink">{{ title }}</h2>
-      <p v-if="subtitle" class="truncate text-xs text-ink-muted">{{ subtitle }}</p>
+      <p v-if="subtitle || about" class="truncate text-xs text-ink-muted">
+        <template v-if="about">About <RouterLink :to="about.to" class="font-medium text-link hover:text-link-hover" data-chat-about>{{ about.label }}</RouterLink><template v-if="subtitle"> · </template></template>{{ subtitle }}
+      </p>
     </div>
     <AppAvatarStack
       v-if="people && people.length > 1"

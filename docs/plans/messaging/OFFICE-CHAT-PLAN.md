@@ -745,3 +745,15 @@ TechRepublic / Windows Report on Teams 2026 updates.
   among them); 17 mutants, 16 failed rows and the 17th was a revoke 0412 already makes. The first run
   showed the truck's and the driver's organisation checks unguarded — only the load's was tried — and two
   rows now try them. Next: CH11b once 0543 is on staging.
+- 2026-11-02: **Compliance files database half MERGED** (#1920, 0544). **CH11b built** — "Chat about this",
+  the API and chat's side (`claude/chat-ch11b-about-api`), on 0543 (applied to staging, migrate run for
+  1136f8f). Contract `chatAboutContract.ts`: `CHAT_ABOUT_KINDS`, and `CHAT_ABOUT_READ_SECTION` — a load
+  and a truck need nothing past chat (their read policies check the organisation only), a driver needs
+  `roster` view, the gate of `GET /api/drivers/:id`, which the route test reads from that route so the
+  two cannot drift. API (`routes/chatAbout.ts`, mounted ahead of the conversation router): `POST
+  /api/chat/about`, `GET /api/chat/about/:kind/:recordId`, `GET /api/chat/:id/about`; CH016 → 404. Web:
+  the page asks what an open group is about (once; the link never changes) and its header says "About
+  Load L-20481 · Ana, Ben" with the record a link to its page, by the router's own route names (a test
+  resolves each against the real router). Tests: route 11, web 5; 15 mutants, all failed tests after two
+  were added (a bad id on `/:id/about`, and the stage handing its header the link). Next: CH11c, the
+  record pages.

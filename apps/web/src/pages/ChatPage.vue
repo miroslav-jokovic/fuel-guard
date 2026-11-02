@@ -11,6 +11,7 @@ import ChatConversationStage from "@/features/chat/ChatConversationStage.vue";
 import ChatActivityStage from "@/features/chat/ChatActivityStage.vue";
 import ChatSavedStage from "@/features/chat/ChatSavedStage.vue";
 import ChatSearchStage from "@/features/chat/ChatSearchStage.vue";
+import { useChatThreadAbout } from "@/features/chat/useChatAbout";
 import { provideChatLineActs, useChatSavedQuery } from "@/features/chat/useChatLineActs";
 import { useChatActivityMarkRead, useChatActivityQuery, useChatActivityUnreadQuery } from "@/features/chat/useChatActivity";
 import ChatEmptyStage from "@/features/chat/ChatEmptyStage.vue";
@@ -131,6 +132,8 @@ function closeAll() {
 }
 
 const conversation = useChatConversationQuery(selectedId);
+// CH11: what a group is about, for its header's link — fixed when it was made, so asked once.
+const about = useChatThreadAbout(selectedId, computed(() => conversation.data.value?.conversation.kind === "group"));
 // The open conversation's own signals (CH3b); the shell already holds the inbox's.
 useChatFollow(selectedId);
 const earlier = useChatLoadEarlier(selectedId);
@@ -335,6 +338,7 @@ useChatShortcuts((s) => {
           :pending="pending"
           :sending="sender.isPending.value"
           :first-unread-seq="firstUnreadSeq"
+          :about="about.link.value"
           :earlier-loading="earlier.isPending.value"
           :earlier-failed="earlier.isError.value"
           @earlier="earlier.mutate()"
