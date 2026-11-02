@@ -81,6 +81,14 @@ does not need to.
    recruiting's purge and merge list — recruiting work, in a module the HW program was editing.
    Under D-AD17 no ads table references a recruiting one, so nothing in A2–C5 waits for D0.
 
+10. **(A5, 2026-11-01) `ads.connection` joins `ADMIN_ONLY_CAPABILITIES` in B1, not A5.**
+   `routeGateLedger.test.ts` refuses a listed capability that guards no route, and Connect is B1's
+   route; listing it now would show the Permissions page an act nothing protects. A5 adds
+   `ads.spend` (save the limits, approve a launch / raise / area change, clear the kill switch), each
+   with a fresh sign-in. Two more measured while building: an approval is **single-use** (one yes,
+   one act — an approval already cited by a started or succeeded act does not launch the ad again
+   after a pause), and it covers only amounts **at or below** what was approved.
+
 ### 1.3 New decision
 
 - **D-AD17 · Two modules and one seam.** `modules/ads/` is industry-neutral. It owns platforms,
@@ -433,3 +441,61 @@ blocking step in §3 above.
   stores no plaintext token (envelope-shape CHECK), and keeps every cross-table reference inside
   one org (composite FKs). Matrix `ads-foundation.test.mjs` 71/71; three guard mutations each went
   red. Correction §1.2-9: the recruiting tables move to a new step D0.
+- **2026-11-01, A3a + A3b** — A3a (#1898): `campaignMachine` (924 state × event × actor triples
+  enumerated), `adsPolicy` (the monthly cap checked against a month-end forecast; account-limit
+  fence; raise bounds; the authority table), the settings contract (nothing in force until saved),
+  `AdBriefSource` / `LeadSink`, and a parity test holding the shared lists to 0537's CHECKs. A3b:
+  `adClaims` (every digit in the copy must be a figure the brief holds — money, a number with a unit,
+  an age floor, a listed promise — in English and Spanish, spelled numbers included; protected-class
+  wording refused), `presetDraw` (seeded Fisher–Yates over FNV-1a + mulberry32, live presets for the
+  same brief excluded, uniformity held over 6,000 fixed seeds; `fnv1a32` factored out of `ai.ts`
+  rather than copied), `naming` (`S360|…` names that round-trip; anything else parses to null for
+  D-AD4's reconcile), `renderGeometry` (safe zones, WCAG contrast over the worst sampled pixel,
+  overflow refused) and `adsReport` (spend and lead-cohort folds, the month in Central time).
+  ⚠ The forbidden-wording and promise-term lists are a first cut for counsel (G12, Q-AD8): "criminal
+  record" and "conviction" are refused outright, which also refuses "no DUI convictions"; counsel
+  decides whether a driving-record clause is allowed and in which words.
+- **2026-11-01, handoff 2** — The rest of Stage 1 moves to a fresh chat from
+  `HANDOFF-2026-11-01-ADS-STAGE1-A4.md` (main `acd6b5f`, last migration 0537; HW PRs hold 0538/0539).
+  Measured for A4: `callClaude` (forced assessment tool) has no caller, so A4 copies the document
+  reader's and hazmat's `anthropicClient` + monthly-budget pattern rather than preserving a fuel call
+  site that no longer exists.
+- **2026-11-01, A4** — The AI rail. `lib/anthropic.ts` gains `callForcedTool`: the caller's Zod schema
+  is the tool (its JSON schema derived by `z.toJSONSchema`, never mirrored by hand), and the answer is
+  parsed with that schema before a `value` exists. **Decision: `callClaude` is retired, not
+  reshaped** — it had no caller since the anomaly-verification AI was retired (991a830), so there was
+  nothing to keep compatible, and keeping it would have left a second, unvalidated way to force a tool;
+  `callClaudeText` (weekly digest) stays. `modules/ads/generations/` is the ads rail every Claude worker
+  uses: replay by `(org, idempotency_key)` first (a success comes back from the row, re-validated; a
+  failure, a budget refusal or a `started` row asks no model), then the per-agent switch (D-RA9; new
+  `budgets.agents_enabled` in the settings contract, absent = off, `AD_AI_AGENTS` = the five
+  model-using workers), then the month's token budget (`aiGate`; a null budget REFUSES, unlike
+  `withinBudget`'s null — said in code), then `started` → the call → one completion with the tokens
+  billed whatever the outcome. The month is the carrier's Central-time month, folded from
+  `ad_generations` by keyset pages (not `org_usage_month`, which is the document reader's and hazmat's
+  shared budget). `modules/ads/settings/settingsVersions.ts` reads the settings in force (A5 adds the
+  save). `canonicalJson` moved to shared (one definition; the reader's `wireSchema.ts` re-exports it)
+  and `aiInputHash` became generic over it. Waivers for `ad_generations` and `ads_settings_versions`
+  left `check-table-producers.mjs`. Nine mutations each went red. No migration.
+- **2026-11-01, A5** — The guard. `ads.spend` on the admin-only list (fresh sign-in on every use);
+  `ads.connection` moves to B1 with its route (§1.2-10). `modules/ads/guard/budgetGuard.ts` is the
+  only path to a platform's spend methods: `platforms/adapter.ts` splits each adapter into
+  `PlatformSafe` (reads, pause, lower) and `PlatformSpend` (launch, raise, widen the area), and
+  `budgetGuard.boundary.test.ts` fails if any other file names `PlatformSpend` or calls its methods.
+  Before a launch or raise it collects every refusal in one pass — kill switch, unset caps, the
+  month-end forecast with this platform's month-to-date spend and every other live campaign's daily
+  budget, the account limit read from the platform at that moment, and a standing, unused approval
+  covering the amounts (two different people above `second_approver_above_cents`) — and records a
+  refusal as an `ads_actions` row with no vendor call. Then `started` → the call → one completion, keyed
+  by the approval, so a delivered-twice job sends nothing twice; the database's own fences (AX020,
+  AX021) racing the guard come back as refusals. `guard/killSwitch.ts` (press = anyone managing
+  recruitment, no password; clear = `ads.spend`), `guard/approvals.ts` (approvals + withdrawals), and
+  the settings save in `settings/settingsVersions.ts`: a save carries the half it does not change,
+  so saving a cap never switches spending back on, and two saves at once give a 409 instead of a silent
+  overwrite. Doors at `/api/ads` (`routes/guard.ts`). Six producer waivers left
+  `check-table-producers.mjs`. Fourteen mutations went red (one first attempt was a no-op and was
+  replaced by a real bypass). No migration. Pausing what is live when the switch is pressed is A6's.
+- **2026-11-02, handoff 3** — The rest of Stage 1 moves to a fresh chat from
+  `HANDOFF-2026-11-02-ADS-STAGE1-A6.md` (main `1a3992d`, last migration 0539; release candidate #1907
+  carries A4, A5 rides the next train). It records the A6 anchors measured on main and the traps from
+  A4–A5 (app.ts at its line budget, reads count as producers, the writers manifest, sleep-broken runs).

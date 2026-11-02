@@ -275,7 +275,7 @@ export function reconcileApplicationCaptureOrphans(
 }
 
 /**
- * Office chat's files (0539, OFFICE-CHAT-PLAN CH7, D-CHAT27). The browser PUTs a file's bytes before the
+ * Office chat's files (0540, OFFICE-CHAT-PLAN CH7, D-CHAT27). The browser PUTs a file's bytes before the
  * line that carries it is sent, and `chat_attachments` is written only WITH the line — so an upload whose
  * line was never sent (the person closed the tab, removed the file, or the send was refused) is an object
  * no row points at. That is the normal orphan here, the same direction as `application-captures`, and the

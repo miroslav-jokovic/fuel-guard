@@ -80,7 +80,7 @@ const name = computed(() => props.message.sender_name ?? "Someone");
 const clock = computed(() => chatClock(props.message.created_at));
 const stamp = computed(() => chatStamp(props.message.created_at));
 const replies = computed(() => props.message.reply_count);
-/** A line that is only files (CH7, 0539's CH014 lets one be): no words paragraph to draw. */
+/** A line that is only files (CH7, 0540's CH014 lets one be): no words paragraph to draw. */
 const filesOnly = computed(() => !props.message.deleted_at && !(props.message.body ?? "").trim() && props.message.attachments.length > 0);
 
 const acts = useChatLineActs();

@@ -74,15 +74,26 @@ const textOf = (v: unknown): string | null => (typeof v === "string" && v.trim()
  * defensively and an entry without a name is not an employer anybody can ring.
  */
 async function draftEmployers(admin: SupabaseClient, orgId: string, invitationId: string): Promise<VerifiableEmployer[]> {
+  return (await draftFacts(admin, orgId, invitationId)).employers;
+}
+
+/** The draft's employers and its revision, in one read — HW5d's Apply carries the revision it was shown. */
+async function draftFacts(
+  admin: SupabaseClient,
+  orgId: string,
+  invitationId: string,
+): Promise<{ employers: VerifiableEmployer[]; revision: number }> {
   const { data } = await admin
     .from("application_drafts")
-    .select("employers:payload->employers")
+    .select("employers:payload->employers, revision")
     .eq("org_id", orgId)
     .eq("invitation_id", invitationId)
     .maybeSingle();
-  const list = (data as { employers?: unknown } | null)?.employers;
-  if (!Array.isArray(list)) return [];
-  return list.flatMap((raw): VerifiableEmployer[] => {
+  const row = data as { employers?: unknown; revision?: number | null } | null;
+  const revision = row?.revision ?? 0;
+  const list = row?.employers;
+  if (!Array.isArray(list)) return { employers: [], revision };
+  return { revision, employers: list.flatMap((raw): VerifiableEmployer[] => {
     if (!raw || typeof raw !== "object") return [];
     const e = raw as Record<string, unknown>;
     const name = textOf(e.employer_name);
@@ -94,8 +105,12 @@ async function draftEmployers(admin: SupabaseClient, orgId: string, invitationId
       endedOn: textOf(e.ended_on),
       phone: textOf(e.phone),
       dotRegulated: typeof e.dot_regulated === "boolean" ? e.dot_regulated : null,
+      positionHeld: textOf(e.position_held),
+      reasonForLeaving: textOf(e.reason_for_leaving),
+      operatedCmv: typeof e.operated_cmv === "boolean" ? e.operated_cmv : null,
+      safetySensitive: typeof e.safety_sensitive === "boolean" ? e.safety_sensitive : null,
     }];
-  });
+  }) };
 }
 
 export async function listEmployerCalls(
@@ -105,9 +120,9 @@ export async function listEmployerCalls(
 ): Promise<EmployerVerificationList | EmployerCallError> {
   const invitation = await readLiveInvitation(admin, orgId, driverId);
   const timeZone = await carrierZone(admin, orgId);
-  if (!invitation) return { employers: [], calls: [], filed: false, timeZone };
-  const [employers, { data, error }] = await Promise.all([
-    draftEmployers(admin, orgId, invitation.id),
+  if (!invitation) return { employers: [], calls: [], filed: false, timeZone, revision: 0 };
+  const [{ employers, revision }, { data, error }] = await Promise.all([
+    draftFacts(admin, orgId, invitation.id),
     admin
       .from("employer_verification_calls")
       .select(CALL_COLS)
@@ -121,6 +136,7 @@ export async function listEmployerCalls(
     calls: ((data ?? []) as CallRow[]).map(toCall),
     filed: Boolean(invitation.submitted_at),
     timeZone,
+    revision,
   };
 }
 
@@ -177,6 +193,23 @@ export async function recordEmployerCall(
  *
  * Empty when there is nothing to copy, which is how the caller knows it may keep the old call shape.
  */
+/** One recorded call on this invitation, org-scoped — HW5d's Apply reads the call it applies. */
+export async function readCall(
+  admin: SupabaseClient,
+  orgId: string,
+  invitationId: string,
+  callId: string,
+): Promise<EmployerVerificationCall | null> {
+  const { data } = await admin
+    .from("employer_verification_calls")
+    .select(CALL_COLS)
+    .eq("org_id", orgId)
+    .eq("invitation_id", invitationId)
+    .eq("id", callId)
+    .maybeSingle();
+  return data ? toCall(data as CallRow) : null;
+}
+
 export async function uncopiedCallSummaries(
   admin: SupabaseClient,
   orgId: string,

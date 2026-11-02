@@ -10,8 +10,8 @@ import { chatPreview, chatSendRequestSchema } from "./chatContract.js";
 import { chatSendReplyRequestSchema } from "./chatTeamsContract.js";
 
 /**
- * CH7's contract (0539, D-CHAT27–D-CHAT30): what a file may be, and that a line is words or files. That
- * its limits equal 0539's CHECKs is held by apps/api's chatFileCheck.test.ts, which can read the SQL.
+ * CH7's contract (0540, D-CHAT27–D-CHAT30): what a file may be, and that a line is words or files. That
+ * its limits equal 0540's CHECKs is held by apps/api's chatFileCheck.test.ts, which can read the SQL.
  */
 const SHA = "a".repeat(64);
 const ID = "11111111-1111-4111-8111-111111111111";

@@ -141,3 +141,58 @@ describe("when the list of calls fails (D-US5)", () => {
     }
   });
 });
+
+describe("HW5d: applying what the employer corrected", () => {
+  const CALL = "50000000-0000-4000-8000-000000000001";
+  const withCorrection = (filed = false) => ({
+    ...LIST(filed),
+    employers: [{ ...LIST(filed).employers[0], positionHeld: "Driver", reasonForLeaving: null, operatedCmv: true, safetySensitive: null }],
+    calls: [{
+      id: CALL, employerKey: KEY, employerName: "Kowlage Haulage",
+      outcomes: { dates: "corrected", position: "confirmed", reason: "confirmed", cmv: "corrected", dot_tested: "confirmed" },
+      corrections: { dates: "02/2023–11/2024", cmv: "No, dispatch only" },
+      answeredBy: "Pat", calledAt: "2026-10-30T15:00:00Z", copiedInquiryId: null,
+    }],
+    revision: 4,
+  });
+
+  it("shows what they said beside what the application says, and writes the confirmed dates with the revision", async () => {
+    state.list = withCorrection();
+    const w = mountPanel();
+    await settle(w);
+    const rows = w.findAll("[data-call-correction]");
+    expect(rows).toHaveLength(2);
+    expect(rows[0]!.text()).toContain("they said “02/2023–11/2024”");
+    expect(rows[0]!.text()).toContain("The application says 01/01/2023 – now");
+    await rows[0]!.findAll("button").find((b) => b.text() === "Apply")!.trigger("click");
+    await settle(w);
+    await button(w, "Write it into the application")!.trigger("click");
+    await settle(w);
+    expect(state.requests).toEqual([{
+      url: `/api/recruitment/applicants/d1/employer-calls/${CALL}/apply`,
+      method: "POST",
+      body: { question: "dates", started_on: "2023-02-01", ended_on: "2024-11-30", revision: 4 },
+    }]);
+  });
+
+  it("pre-fills a yes/no from the employer's words", async () => {
+    state.list = withCorrection();
+    const w = mountPanel();
+    await settle(w);
+    await w.findAll("[data-call-correction]")[1]!.findAll("button").find((b) => b.text() === "Apply")!.trigger("click");
+    await settle(w);
+    await button(w, "Write it into the application")!.trigger("click");
+    await settle(w);
+    expect(state.requests.at(-1)!.body).toEqual({ question: "cmv", value: false, revision: 4 });
+  });
+
+  it("offers nothing to apply once the application is filed, or to a role that cannot record calls", async () => {
+    state.list = withCorrection(true);
+    expect((await (async () => { const w = mountPanel(); await settle(w); return w; })()).findAll("[data-call-correction]")).toHaveLength(0);
+    state.list = withCorrection();
+    state.canManage = false;
+    const w = mountPanel();
+    await settle(w);
+    expect(w.findAll("[data-call-correction]")).toHaveLength(0);
+  });
+});

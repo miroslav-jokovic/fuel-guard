@@ -87,6 +87,14 @@ export const ADMIN_ONLY_CAPABILITIES = [
     why: "Freezes settled weeks into the rewards ledger; a frozen week is what a bonus is paid on and is not recomputed afterwards.",
   },
   {
+    // Ads A5 (ADS-AGENT-PLAN §5, D-AD2/D-AD3). Its sibling `ads.connection` (Connect a platform) joins
+    // this list with its route in B1, not before: `routeGateLedger.test.ts` refuses a key that guards
+    // nothing, and a listed act with no door is exactly the lie that test exists to catch.
+    key: "ads.spend",
+    label: "Ad spending: launches, raises and limits",
+    why: "Approves launching an ad, raising its budget or widening its area on the carrier's ad accounts, sets the monthly caps every campaign is checked against, and switches spending back on after the kill switch. Each one moves real money, so each also asks for a fresh sign-in.",
+  },
+  {
     key: "hazmat.policy",
     label: "HazmatGuard policy",
     why: "Sets the organisation-wide rules every hazmat load is analysed against; the database's own write policy is admin-only too.",

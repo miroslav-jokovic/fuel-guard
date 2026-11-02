@@ -114,4 +114,9 @@ describe("what stays", () => {
   it("still validates Dispatch rather than 404ing it", async () => {
     expect(await call("POST", `/loads/${LOAD}/dispatch`, { driverId: "not-a-uuid" })).toBe(400);
   });
+
+  it("answers the palette's load search rather than reading 'search' as a load id (D-SB8)", async () => {
+    expect(await call("GET", "/loads/search?q=1042")).toBe(200);
+    expect(rec.queries.some((q) => q.table === "loads" && q.ops.some((o) => o.method === "ilike"))).toBe(true);
+  });
 });

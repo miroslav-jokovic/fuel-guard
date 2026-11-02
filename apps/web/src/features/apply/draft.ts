@@ -18,6 +18,7 @@ import {
   type DraftLicence,
   type DraftViolation,
 } from "./draftShape";
+import { employerRecord } from "@/components/employment/employerRow";
 
 // The form's working shape — the `Draft*` types, `ApplicationDraft` and the `empty*` factories —
 // lives in `draftShape.ts` since C1 (2026-09-26); re-exported so no import path changed.
@@ -76,33 +77,11 @@ const num = (v: string): number => {
  * dropped — an accidental "Add another" click is not a declaration.
  */
 /**
- * One employer, as the contract wants it.
- *
- * ⚠ Lifted out of `toApplication` so that ONE row can be validated on its own — X5 asks each job for
- * its fifteen answers in a drawer of its own and checks it when the driver saves, rather than
- * collecting six jobs and reporting ninety controls' worth of problems at once. A second mapper for
- * that would be a second opinion about what a row is, and the two would drift on the next field.
+ * One employer, as the contract wants it — lifted out of `toApplication` (X5) so ONE row can be
+ * validated on its own, and since HW5b the shared `employerRecord`, the same mapper the office's two
+ * screens use. A second mapper would be a second opinion about what a row is.
  */
-export function toEmployerPayload(e: DraftEmployer): Record<string, unknown> {
-  return {
-    key: isEmployerKey(e.key) ? e.key : null,
-    employer_name: e.employer_name.trim(),
-    usdot_number: text(e.usdot_number),
-    address_line1: text(e.address_line1),
-    city: text(e.city),
-    state: text(e.state),
-    phone: text(e.phone),
-    email: text(e.email),
-    position_held: text(e.position_held),
-    started_on: e.started_on,
-    ended_on: text(e.ended_on),
-    operated_cmv: e.operated_cmv,
-    dot_regulated: e.dot_regulated,
-    reason_for_leaving: text(e.reason_for_leaving),
-    subject_to_fmcsr: e.subject_to_fmcsr,
-    safety_sensitive: e.safety_sensitive,
-  };
-}
+export const toEmployerPayload = (e: DraftEmployer): Record<string, unknown> => employerRecord(e);
 
 /**
  * One address, as the contract wants it — lifted out of `toApplication` for `toEmployerPayload`'s reason

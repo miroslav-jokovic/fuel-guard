@@ -2,24 +2,24 @@ import { z } from "zod";
 import { recordId } from "./recordId.js";
 
 /**
- * Office chat files (docs/plans/messaging/OFFICE-CHAT-PLAN.md CH7; migration 0539, D-CHAT27–D-CHAT30).
+ * Office chat files (docs/plans/messaging/OFFICE-CHAT-PLAN.md CH7; migration 0540, D-CHAT27–D-CHAT30).
  *
  * A file travels in three steps, so its bytes never pass through the API process (the reason
  * `document-intake` and `inventory/photos.ts` give — it also runs the schedulers):
  *   1. `POST /api/chat/:id/files` with what the file is → a file id and a signed upload URL, once the
- *      database says the person may write in that conversation (0539 `chat_file_can_upload`);
+ *      database says the person may write in that conversation (0540 `chat_file_can_upload`);
  *   2. the browser PUTs the bytes to that URL;
  *   3. the line is sent with `files: [...]`. The API reads the stored bytes back, checks their SHA-256,
  *      size and kind against what was declared, and only then writes the line and its files in one
- *      transaction (0539 `chat_send_files`). An upload no line claims is swept after 24 h.
+ *      transaction (0540 `chat_send_files`). An upload no line claims is swept after 24 h.
  *
  * WHICH KINDS (D-CHAT30): what an office sends — photos, PDFs, the Office documents, plain text and CSV.
  * Nothing that runs: no executables, scripts, HTML or archives, which a work chat has no need for and
  * which are how a file becomes an attack. Each kind names its extensions (the picker's `accept`, and a
  * second check of the name) and whether a browser draws it inline (an image) or offers it to download.
  */
-export const CHAT_FILE_MAX_BYTES = 25 * 1024 * 1024; // = 0539's bucket and CHECK; chatFilesContract.test.ts
-export const CHAT_FILES_PER_LINE = 10; // = 0539's position CHECK
+export const CHAT_FILE_MAX_BYTES = 25 * 1024 * 1024; // = 0540's bucket and CHECK; chatFilesContract.test.ts
+export const CHAT_FILES_PER_LINE = 10; // = 0540's position CHECK
 
 export const CHAT_FILE_TYPES = {
   "image/jpeg": { extensions: [".jpg", ".jpeg"], label: "Photo", inline: true },
@@ -77,7 +77,7 @@ export type ChatFileUploadResponse = z.infer<typeof chatFileUploadResponseSchema
 export const chatFileRefSchema = z.object({ id: recordId() }).and(chatFileDeclarationSchema);
 export type ChatFileRef = z.infer<typeof chatFileRefSchema>;
 
-/** A line's file, as the readers return it (0539 `chat_line_files`) — never its storage key. */
+/** A line's file, as the readers return it (0540 `chat_line_files`) — never its storage key. */
 export const chatAttachmentSchema = z.object({
   id: recordId(),
   file_name: z.string(),
@@ -95,7 +95,7 @@ export const chatFileLinkSchema = z.object({
 });
 export type ChatFileLink = z.infer<typeof chatFileLinkSchema>;
 
-/** A conversation's files (0539 `chat_files`), newest first. */
+/** A conversation's files (0540 `chat_files`), newest first. */
 export const chatFileListItemSchema = z.object({
   id: recordId(),
   message_id: recordId(),

@@ -42,6 +42,12 @@ export interface ApplicationReview {
   edits: ApplicationEditRow[];
 }
 
+/** What one office write left behind: the draft's new revision and the payload as written. */
+export interface AppliedOfficeEdit {
+  revision: number | null;
+  payload: Record<string, unknown> | null;
+}
+
 const key = (invitationId: string) => ["recruitment", "application-review", invitationId] as const;
 
 export function useApplicationReviewQuery(invitationId: Ref<string | null>) {
@@ -61,12 +67,23 @@ export function useApplicationReviewQuery(invitationId: Ref<string | null>) {
 export function useEditApplicationAnswer(invitationId: Ref<string | null>) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (input: ApplicationEdit): Promise<void> => {
-      const res = await apiFetch(
+    /**
+     * Resolves to the draft's NEW revision and payload (the API has always returned both). The one employer form
+     * (HW5b) changes a job as one `set` per changed answer — one `application_edits` line each, as every
+     * office correction is logged — and each `set` must name the revision the previous one produced, or
+     * the second would be refused as somebody else's change; and a job from before AW1 is given its key by
+     * the first write, which the payload says. `null` revision from an API that sent none.
+     */
+    mutationFn: async (input: ApplicationEdit): Promise<AppliedOfficeEdit> => {
+      const res = await apiFetch<{ revision?: number | null; payload?: Record<string, unknown> }>(
         `/api/recruitment/applications/${encodeURIComponent(invitationId.value ?? "")}/answer`,
         { method: "PATCH", body: input },
       );
       if (!res.ok) throw new Error(res.error?.message ?? "That change could not be saved.");
+      return {
+        revision: typeof res.data?.revision === "number" ? res.data.revision : null,
+        payload: res.data?.payload ?? null,
+      };
     },
     // Settled, not only on success: a refusal for a stale revision (the applicant saved since this
     // was read) is answered by reading the application again, so the next try is made on what is there.

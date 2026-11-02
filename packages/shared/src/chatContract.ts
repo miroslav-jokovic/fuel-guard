@@ -134,7 +134,7 @@ export const chatMessageSchema = z.object({
   reactions: z.array(chatLineReactionSchema).default([]),
   pinned_at: z.string().nullable().default(null),
   saved: z.boolean().default(false),
-  /** CH7 (0539): the line's files, in the order sent; none once it is retracted. Default = before 0539. */
+  /** CH7 (0540): the line's files, in the order sent; none once it is retracted. Default = before 0540. */
   attachments: z.array(chatAttachmentSchema).default([]),
 });
 export type ChatMessage = z.infer<typeof chatMessageSchema>;
@@ -211,7 +211,7 @@ export const chatCreateGroupRequestSchema = z.object({
 export type ChatCreateGroupRequest = z.infer<typeof chatCreateGroupRequestSchema>;
 
 /**
- * A line's words and, from CH7, its files. A line may be only files (0539, D-CHAT29) — the words may then
+ * A line's words and, from CH7, its files. A line may be only files (0540, D-CHAT29) — the words may then
  * be empty — but never neither. Shared by a conversation's send and a channel reply's.
  */
 export const chatLineFields = {
@@ -377,7 +377,7 @@ export function chatPreview(
   if (!m) return "No messages yet";
   if (m.deleted || m.body === null) return "Message removed";
   const text = chatBodyText(m.body, nameOf).replace(/\s+/g, " ").trim();
-  // A line with no words carries a file — the database refuses one with neither (0539, D-CHAT29).
+  // A line with no words carries a file — the database refuses one with neither (0540, D-CHAT29).
   if (!text) return "Sent a file";
   return text.length <= max ? text : `${text.slice(0, max - 1)}…`;
 }

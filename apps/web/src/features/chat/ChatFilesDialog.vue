@@ -8,7 +8,7 @@ import { chatRowTime } from "./chatTime";
 import { useChatFilesQuery } from "./useChatFileLink";
 
 /**
- * Every file sent in a conversation or a channel — its posts and their replies alike (0539 `chat_files`)
+ * Every file sent in a conversation or a channel — its posts and their replies alike (0540 `chat_files`)
  * — newest first, from the header menu (CH7). Each is drawn as it is in the log, an image as its
  * thumbnail and a document as its card, so opening or saving one works the same way in both places;
  * under it, who sent it and when. A removed line's files are not listed: the reader leaves them out,

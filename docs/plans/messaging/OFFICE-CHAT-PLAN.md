@@ -258,7 +258,7 @@ One PR each unless noted. A column and its first reader ship in separate merges
 | CH6c-1 | Migration 0522: `message_reactions` (the six of D-CHAT26), `chat_pins`, `chat_saved`; ledger actions `reaction_added`/`reaction_removed`/`message_pinned`/`message_unpinned`; a reaction or pin bumps the message's `rev` so `/sync` re-delivers it (D-CHAT24); history, sync, posts and replies return `reactions` and `pinned_at` (drop + create by full signature). PGlite matrix | CH6b-1 |
 | CH6c-2 | API + web: reaction bar, Pin + a Pinned panel per conversation, Save + a Saved list; reactions to your messages join Activity | CH6c-1 on staging |
 | CH6d | Web only: browser notifications while the tab is open and hidden (Q-CHAT4 (a)), asked for from a button, honouring mute (Q-CHAT18) | CH6b-2 |
-| CH7 | Files — **built 2026-11-01** (§9.3): a line carries up to ten files (photos, PDFs, Office documents, text, CSV; 25 MB each), uploaded straight to a private bucket, checked by the API against their hash, ledgered with it; thumbnails and cards in the log, a Files list per conversation. Migration 0539 (number re-checked at merge) | CH2 |
+| CH7 | Files — **built 2026-11-01** (§9.3): a line carries up to ten files (photos, PDFs, Office documents, text, CSV; 25 MB each), uploaded straight to a private bucket, checked by the API against their hash, ledgered with it; thumbnails and cards in the log, a Files list per conversation. Migration 0540 (number re-checked at merge) | CH2 |
 | CH8 | Search (`tsvector` + GIN, readable conversations only; the console reuses it org-wide) | CH2 |
 | CH9 | Presence, status, typing (Presence/Broadcast, ephemeral, never stored) | CH3b |
 | CH10 | Web Push | Q-CHAT4 |
@@ -636,7 +636,7 @@ TechRepublic / Windows Report on Teams 2026 updates.
   refuses a prompt nobody pressed for); the choice is per browser (`fg.chat.desktop-alerts`), and a
   browser that blocked them is told how to undo it. Rules in `chatDesktopAlerts.ts` (12 tests), the tab
   in `useChatDesktopAlerts.ts` (4, with a fake Notification). Next: CH7 Files.
-- 2026-11-01: **CH7 built** (`claude/chat-ch7-files`): migration 0539 (D-CHAT27–30, §9.3), matrix
+- 2026-11-01: **CH7 built** (`claude/chat-ch7-files`): migration 0540 (D-CHAT27–30, §9.3), matrix
   `office-chat-files.test.mjs` 40/40; API `POST/GET /api/chat/:id/files`, `GET /api/chat/files/:id`, both
   send routes take `files` and check every stored object before `chat_send_files`; contract
   `chatFilesContract.ts`. Web: composer paperclip + drop + paste (`useChatAttachments`, `FilePickButton`),

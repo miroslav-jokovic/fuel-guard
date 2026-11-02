@@ -19,6 +19,10 @@
  * different forms and converting at each call site is how the second copy starts.
  */
 
+// The arithmetic lives in packages/shared since 2026-11-01 (one home for runtime and tooling); this
+// file keeps the colour parsing its two build-time callers need.
+import { contrastRatioOf, relativeLuminanceOf } from '../../../packages/shared/src/srgb.ts';
+
 /** @param {string} color `#rgb`, `#rrggbb`, or `"R G B"` @returns {[number, number, number]} 0-255 */
 export function toChannels(color) {
   const value = String(color).trim();
@@ -57,18 +61,12 @@ export function toHex(color) {
  * read raw and 0.216 decoded, and both look plausible.
  */
 export function relativeLuminance(color) {
-  const [r, g, b] = toChannels(color).map((channel) => {
-    const value = channel / 255;
-    return value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
-  });
-  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  return relativeLuminanceOf(toChannels(color));
 }
 
 /** WCAG contrast ratio, 1:1 to 21:1. Order-independent by definition. */
 export function contrastRatio(foreground, background) {
-  const a = relativeLuminance(foreground);
-  const b = relativeLuminance(background);
-  return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
+  return contrastRatioOf(toChannels(foreground), toChannels(background));
 }
 
 /**

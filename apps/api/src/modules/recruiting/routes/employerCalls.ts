@@ -1,6 +1,11 @@
 import { Router } from "express";
 import type { Request, Response } from "express";
-import { employerVerificationCallSchema, type EmployerVerificationCallInput } from "@silvicom/shared";
+import {
+  applyCallCorrectionSchema,
+  employerVerificationCallSchema,
+  type ApplyCallCorrection,
+  type EmployerVerificationCallInput,
+} from "@silvicom/shared";
 import { requireAuth, requireOrg, requireSection } from "../../../middleware/auth.js";
 import { apiError, asyncHandler, validateBody } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
@@ -12,6 +17,8 @@ import {
   recordEmployerCall,
   type EmployerCallError,
 } from "../applicantEmployerCalls.js";
+import { applyCallCorrection } from "../applyCallCorrection.js";
+import { isReviewError } from "../applicationReview.js";
 
 /**
  * Previous employers verified by phone before filing (D-AW8, APPLICATION-FLOW-V2-PLAN §8.4).
@@ -79,6 +86,46 @@ export function recruitmentEmployerCallsRouter(): Router {
         },
       });
       res.status(201).json({ call: result.call });
+    }),
+  );
+
+  /**
+   * HW5d: write one corrected answer from a call into the application, as an office edit. The body
+   * names the question and the value the office confirmed; the server composes the fields from the
+   * call's employer key (`applyCallCorrection.ts`).
+   */
+  router.post(
+    "/applicants/:driverId/employer-calls/:callId/apply",
+    requireOrg,
+    requireSection("recruitment"),
+    validateBody(applyCallCorrectionSchema),
+    asyncHandler(async (req: Request, res: Response) => {
+      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      const orgId = req.auth!.orgId!;
+      const driverId = String(req.params.driverId ?? "");
+      const callId = String(req.params.callId ?? "");
+      const body = res.locals.body as ApplyCallCorrection;
+      const result = await applyCallCorrection(admin, orgId, req.auth!.userId, driverId, callId, body);
+      if (isReviewError(result)) {
+        const code = result.code;
+        const http = code === "call_not_found" || code === "application_not_found" ? 404
+          : code === "invalid_edit" ? 400
+          : code === "edit_failed" ? 500
+          : 409;
+        res.status(http).json(apiError(code, result.message));
+        return;
+      }
+      // The values stay out of the log, as the call's own audit keeps the corrections out: the log is
+      // read by more people than the investigation file. `application_edits` holds what changed.
+      await writeAudit(admin, {
+        orgId,
+        actorId: req.auth!.userId,
+        action: "recruiting.employer_call_applied",
+        entity: "employer_verification_calls",
+        entityId: callId,
+        meta: { driverId, question: body.question, employerKey: result.employerKey, fields: result.applied },
+      });
+      res.json({ revision: result.revision, applied: result.applied });
     }),
   );
 

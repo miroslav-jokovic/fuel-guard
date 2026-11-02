@@ -1,4 +1,16 @@
 {
+  "ad_generations": [
+    "apps/api/src/modules/ads/generations/generationLedger.ts"
+  ],
+  "ads_actions": [
+    "apps/api/src/modules/ads/actions/actionLedger.ts"
+  ],
+  "ads_approvals": [
+    "apps/api/src/modules/ads/guard/approvals.ts"
+  ],
+  "ads_settings_versions": [
+    "apps/api/src/modules/ads/settings/settingsVersions.ts"
+  ],
   "anomalies": [
     "apps/api/src/modules/anomalies/assignAnomalies.ts",
     "apps/api/src/modules/anomalies/scoring/cardMultiReconcile.ts"
@@ -110,6 +122,9 @@
   "driver_authorizations": [
     "apps/api/src/modules/recruiting/routes/authorizations.ts",
     "apps/api/src/scripts/seedPspQaDrivers.ts"
+  ],
+  "driver_employment_gaps": [
+    "apps/api/src/modules/recruiting/employmentGaps.ts"
   ],
   "driver_employment_history": [
     "apps/api/src/modules/recruiting/employerInquiry.ts",

@@ -10,7 +10,7 @@ import { closeTestServer } from "../../../testing/httpServer.js";
 import { bytesAreKind } from "../chatFiles.js";
 
 /**
- * CH7's API (0539's rules run in `supabase/tests/office-chat-files.test.mjs`). What this holds the
+ * CH7's API (0540's rules run in `supabase/tests/office-chat-files.test.mjs`). What this holds the
  * routes to: an upload URL is signed only after the database says the person may write there, for a key
  * the SERVER chose; a send that names files reads each stored file back and refuses it unless its size,
  * hash and first bytes are what was declared — before the database is asked to write anything; a link is

@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { mount } from "@vue/test-utils";
+import { createPinia } from "pinia";
 import { emptyDraft } from "./draft";
 import ApplySection from "./ApplySection.vue";
-import EmployerDrawer from "./EmployerDrawer.vue";
+import ApplyEmploymentFields from "./ApplyEmploymentFields.vue";
 import AddressHistoryFields from "./AddressHistoryFields.vue";
 import { APPLY_COPY } from "./strings";
 
@@ -18,11 +19,12 @@ describe("ApplySection", () => {
     expect(at("identity")).not.toContain(APPLY_COPY.employerCheck.heading);
   });
 
-  it("hands the employment screen's job panel the v2 day, and a legacy link none (C3c2b)", () => {
+  it("hands the employment screen (and so its job panel's check) the v2 day, and a legacy link none (C3c2b)", () => {
     const panelDay = (v2AsOf?: string | null) =>
       mount(ApplySection, {
         props: { modelValue: emptyDraft(), section: "employment", token: "t", captures: [], asOf: "2026-09-26", v2AsOf, identityLockedBy: null },
-      }).findComponent(EmployerDrawer).props("v2AsOf");
+        global: { plugins: [createPinia()] },
+      }).findComponent(ApplyEmploymentFields).props("v2AsOf");
     expect(panelDay("2026-09-26")).toBe("2026-09-26");
     expect(panelDay(null)).toBeNull();
     expect(panelDay()).toBeNull();

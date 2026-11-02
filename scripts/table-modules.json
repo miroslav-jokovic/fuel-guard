@@ -197,7 +197,7 @@
         "retention_days": null,
         "partition": null,
         "budget_rows_per_day": 300,
-        "why": "OFFICE-CHAT-PLAN D-CHAT27/28 (0539): one row per file sent with a chat line, written with the line by chat_send_files and ledgered file_attached. Evidence like its line: never updated, removed only with its message (a declared purge cascades); RETENTION_FORBIDDEN. A few dozen a day for a 14-person office; the bytes live in the chat-files bucket, swept for unclaimed uploads by reconcileBucketOrphans."
+        "why": "OFFICE-CHAT-PLAN D-CHAT27/28 (0540): one row per file sent with a chat line, written with the line by chat_send_files and ledgered file_attached. Evidence like its line: never updated, removed only with its message (a declared purge cascades); RETENTION_FORBIDDEN. A few dozen a day for a 14-person office; the bytes live in the chat-files bucket, swept for unclaimed uploads by reconcileBucketOrphans."
       }
     },
     "chat_pins": {
@@ -506,6 +506,17 @@
         "partition": null,
         "budget_rows_per_day": null,
         "why": "no rows in production 2026-09-21; bounded by the number of orgs."
+      }
+    },
+    "driver_employment_gaps": {
+      "module": "recruiting",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "unmeasured",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "new in 0538 (2026-11-01); a few rows per hired driver at most, bounded by hiring volume; removed by the applicant purge."
       }
     },
     "driver_employment_history": {
@@ -2112,6 +2123,39 @@
         "partition": null,
         "budget_rows_per_day": null,
         "why": "no rows in production 2026-09-21; bounded by the number of orgs."
+      }
+    },
+    "orientation_video_attestations": {
+      "module": "recruiting",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "unmeasured",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "new in 0540 (2026-11-01); one row per applicant's tick, bounded by hiring volume; evidence, removed only by the applicant purge."
+      }
+    },
+    "orientation_video_opens": {
+      "module": "recruiting",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "unmeasured",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "new in 0540 (2026-11-01); a few rows per applicant (one per link pressed), bounded by hiring volume; removed by the applicant purge."
+      }
+    },
+    "orientation_videos": {
+      "module": "recruiting",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "unmeasured",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "new in 0540 (2026-11-01); the carrier's list, a handful of rows per org; retired, never deleted."
       }
     },
     "org_disclosures": {

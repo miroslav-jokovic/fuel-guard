@@ -241,7 +241,7 @@ describe("bucket ↔ table bindings", () => {
     expect(calls.columns).toBe("storage_path");
   });
 
-  it("chat-files reconciles against `chat_attachments` (0539), so an upload nobody sent is swept", async () => {
+  it("chat-files reconciles against `chat_attachments` (0540), so an upload nobody sent is swept", async () => {
     const calls: StubCall = {};
     await reconcileChatFileOrphans(stubAdmin(calls), { apply: false });
     expect(calls.bucket).toBe("chat-files");

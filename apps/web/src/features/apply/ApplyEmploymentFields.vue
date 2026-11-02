@@ -15,7 +15,12 @@ import {
   type ApplicationEmployer,
 } from "@silvicom/shared";
 import ApplyField from "@/features/apply/ApplyField.vue";
-import EmployerDrawer from "@/features/apply/EmployerDrawer.vue";
+import EmploymentTimeline from "@/components/employment/EmploymentTimeline.vue";
+import EmployerFormDrawer from "@/components/employment/EmployerFormDrawer.vue";
+import type { TimelineJob } from "@/components/employment/timeline";
+import { checkEmployer, errorsByField } from "@/features/apply/employerCheck";
+import { fieldId } from "@/features/apply/fieldLabels";
+import type { SectionIssue } from "@/features/apply/useApplicationWizard";
 import QuestionnaireFields from "@/features/apply/QuestionnaireFields.vue";
 import {
   emptyEmployer,
@@ -32,7 +37,6 @@ import {
   monthName,
   reconcileGapExplanations,
 } from "@/features/apply/employmentProgress";
-import { showDate } from "@/features/apply/reviewSummary";
 import { useApplyIssues } from "@/features/apply/issues";
 import { APPLY_COPY } from "@/features/apply/strings";
 
@@ -49,8 +53,10 @@ const EQUIPMENT_OPTIONS = EQUIPMENT_CLASSES.map((value) => ({ value, label: EQUI
  * §391.21(b) paragraph at a time" and this is where the promise was not kept, on the screen that
  * carries most of the work in the whole form.
  *
- * It is now a list of the jobs with a panel per job (`EmployerDrawer`), which is the shape a phone
- * can hold: what is on screen at any moment is either a short list or one job.
+ * It is now a timeline of the jobs (`EmploymentTimeline`, HW5b) with a panel per job (the one
+ * employer form, `EmployerFormDrawer`, which the office uses too), which is the shape a phone can
+ * hold: what is on screen at any moment is either the list or one job. The gaps the filing asks about
+ * sit on the timeline between the jobs they fall between, each with its box and "Add a job here".
  *
  * ── AND WHY IT SHOWS THE DRIVER THEIR OWN COVERAGE ────────────────────────────────────────────
  * The regulation asks two different questions over two different windows and the form already
@@ -80,11 +86,12 @@ const props = withDefaults(
 );
 const draft = defineModel<ApplicationDraft>({ required: true });
 const copy = APPLY_COPY.employment;
-/** The page's issues: a job whose answers are refused says so on its row — its boxes are in the panel. */
+/** The page's issues: a job whose answers are refused says so on its card — its boxes are in the panel. */
 const { hasIssueWithin } = useApplyIssues();
 
 const editing = ref<number | null>(null);
 const openDrawer = computed(() => editing.value !== null);
+const editingRow = computed(() => (editing.value === null ? null : (draft.value.employers[editing.value] ?? null)));
 
 const progress = computed(() => employmentProgress(draft.value.employers, props.asOf));
 
@@ -116,31 +123,60 @@ watch(
 const explanationFor = (from: string) => draft.value.employment_gaps.find((g) => g.from === from);
 
 /**
- * Rows worth listing: every job with anything in it (§9 P8, AF-4). A blank row from an accidental "Add"
- * is not a job the driver declared; a job with dates and no name IS one — it used to be hidden here and
- * dropped by `toApplication`, so the applicant's typing vanished without a word.
+ * The jobs, as the timeline draws them: every job with anything in it (§9 P8, AF-4). A blank row from
+ * an accidental "Add" is not a job the driver declared; a job with dates and no name IS one. What a
+ * job still lacks is `checkEmployer` — the same check its Save runs — or, failing that, whatever the
+ * page itself has refused inside it.
  */
-const jobs = computed(() =>
-  draft.value.employers
-    .map((employer, index) => ({ employer, index, unfinished: employerIsUnfinished(employer) }))
-    // The row being edited stays listed, behind its panel, as it always has: dropping it changed what
-    // the page renders under an opening drawer, and the tap-target sweep measured the panel mid-slide.
-    .filter((row) => !employerIsBlank(row.employer) || row.index === editing.value),
+const jobs = computed<TimelineJob[]>(() =>
+  draft.value.declares_no_employment
+    ? []
+    : draft.value.employers
+        .map((employer, index) => ({ employer, index }))
+        // The job being edited stays listed, behind its panel, as it always has: dropping it changed what
+        // the page renders under an opening drawer, and the tap-target sweep measured the panel mid-slide.
+        .filter(({ employer, index }) => !employerIsBlank(employer) || index === editing.value)
+        .map(({ employer, index }) => {
+          const missing = new Set(checkEmployer(employer, index, props.v2AsOf).map((i) => i.fieldId)).size;
+          return {
+            key: employer.key,
+            name: employer.employer_name.trim(),
+            startedOn: employer.started_on,
+            endedOn: employer.ended_on.trim() === "" ? null : employer.ended_on,
+            operatedCmv: employer.operated_cmv,
+            dotRegulated: employer.dot_regulated,
+            missing: missing || (hasIssueWithin(["employers", index]) ? 1 : 0),
+            unfinished: employerIsUnfinished(employer),
+          };
+        }),
 );
 
-const period = (e: DraftEmployer): string => {
-  if (!e.started_on) return copy.jobNoDates;
-  return `${showDate(e.started_on)} — ${e.ended_on.trim() === "" ? copy.jobToNow : showDate(e.ended_on)}`;
-};
+/** The panel's own refusals — what its Save found, or, on reopening a saved v2 job, what it still owes. */
+const panelIssues = ref<SectionIssue[]>([]);
+const panelErrors = computed(() => (editing.value === null ? {} : errorsByField(panelIssues.value, editing.value)));
 
-function addJob(): void {
-  draft.value.employers = [...draft.value.employers, emptyEmployer()];
-  editing.value = draft.value.employers.length - 1;
+function openJob(index: number): void {
+  editing.value = index;
+  const row = draft.value.employers[index];
+  panelIssues.value = props.v2AsOf && row && !employerIsBlank(row) ? checkEmployer(row, index, props.v2AsOf) : [];
+}
+
+function editJob(key: string): void {
+  const index = draft.value.employers.findIndex((e) => e.key === key);
+  if (index >= 0) openJob(index);
+}
+
+/** A new job — at the end, by its own key — with a gap's dates when it came from "Add a job here". */
+function addJob(prefill?: { started_on: string; ended_on: string }): void {
+  draft.value.employers = [...draft.value.employers, { ...emptyEmployer(), ...(prefill ?? {}) }];
+  openJob(draft.value.employers.length - 1);
 }
 
 function saveJob(employer: DraftEmployer): void {
   const at = editing.value;
   if (at === null) return;
+  panelIssues.value = checkEmployer(employer, at, props.v2AsOf);
+  if (panelIssues.value.length > 0) return;
   draft.value.employers = draft.value.employers.map((row, i) => (i === at ? employer : row));
   editing.value = null;
 }
@@ -151,7 +187,7 @@ function saveJob(employer: DraftEmployer): void {
  *   · A job that was finished keeps what was saved — Cancel discards the edit.
  *   · A new or unfinished job with nothing in it is REMOVED: a blank card the driver did not create
  *     and cannot name.
- *   · A new or unfinished job with something in it is KEPT as typed, and the list names it
+ *   · A new or unfinished job with something in it is KEPT as typed, and the timeline names it
  *     "Unfinished — finish or remove". Discarding it would lose the driver's typing; keeping it
  *     silently would be the blank row the audit found in a draft. The filing's own schema then refuses
  *     its missing name or start date, on its row, until it is finished or removed.
@@ -167,9 +203,12 @@ function closeDrawer(working: DraftEmployer): void {
     : draft.value.employers.map((r, i) => (i === at ? working : r));
 }
 
-const removeJob = (index: number): void => {
-  draft.value.employers = draft.value.employers.filter((_, i) => i !== index);
-};
+/** Removing a job, after the panel's confirm — by the row being edited, which is the job's own index. */
+function removeJob(): void {
+  const at = editing.value;
+  editing.value = null;
+  if (at !== null) draft.value.employers = draft.value.employers.filter((_, i) => i !== at);
+}
 </script>
 
 <template>
@@ -182,41 +221,38 @@ const removeJob = (index: number): void => {
 
     <BaseCheckbox v-model="draft.declares_no_employment">{{ copy.none }}</BaseCheckbox>
 
+    <!-- HW5b (EM-9): the jobs and the gaps on one timeline, the 3- and 10-year lines drawn on it. A box
+         per gap (C3c1): the dates are the calculator's, the words the driver's, at the filing's own
+         path (`employment_gaps.<start>`) so its refusal lands on the box. Drawn even when the driver
+         says they had no job — they still owe the three years, as one gap. -->
+    <EmploymentTimeline
+      :jobs="jobs"
+      :as-of="asOf"
+      :copy="copy"
+      :show-gaps="gaps.length > 0"
+      :editable="!draft.declares_no_employment"
+      touch
+      @edit="editJob"
+      @add="addJob"
+    >
+      <template #gap="{ gap }">
+        <p class="text-sm text-ink-secondary">{{ copy.gap(monthName(gap.from), monthName(gap.to)) }}</p>
+        <ApplyField
+          v-if="explanationFor(gap.from)"
+          v-slot="f"
+          :path="['employment_gaps', gap.from]"
+          :label="copy.gapExplanation"
+          :hint="copy.gapExplanationHint"
+        >
+          <BaseTextarea v-bind="f" v-model="explanationFor(gap.from)!.explanation" rows="2" maxlength="500" />
+        </ApplyField>
+      </template>
+    </EmploymentTimeline>
+
     <template v-if="!draft.declares_no_employment">
-      <div class="space-y-3">
-        <h3 class="text-sm font-semibold text-ink">{{ copy.jobsHeading }}</h3>
-
-        <ul v-if="jobs.length" class="space-y-2">
-          <!-- ⚠ Wraps rather than truncates, and carries ONE action. Measured at 390px: the meta
-               line read "Driver · 02/01/2025…" with the dates cut off, because two buttons and a
-               label were competing for 350px — so the list hid exactly the fact a driver checks it
-               for. Removing a job also moved into the panel: `Remove` sat a thumb's width from
-               `Change`, and the two are not equally undoable. -->
-          <li
-            v-for="row in jobs"
-            :key="row.index"
-            class="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-surface bg-surface-muted p-3"
-          >
-            <div class="min-w-0 flex-1">
-              <p class="text-sm font-medium text-ink">{{ row.employer.employer_name.trim() || APPLY_COPY.unfinishedJob.noName }}</p>
-              <p class="text-xs text-ink-muted">
-                {{ [row.employer.position_held, period(row.employer)].filter(Boolean).join(" · ") }}
-              </p>
-              <p v-if="row.unfinished" class="mt-1 text-sm text-danger-700">{{ APPLY_COPY.unfinishedJob.line }}</p>
-              <p v-else-if="hasIssueWithin(['employers', row.index])" class="mt-1 text-sm text-danger-700">
-                {{ copy.jobNeedsAnswers }}
-              </p>
-            </div>
-            <BaseButton variant="ghost" size="touch" @click="editing = row.index">
-              {{ row.unfinished ? APPLY_COPY.unfinishedJob.finish : copy.editJob }}
-            </BaseButton>
-          </li>
-        </ul>
-
-        <BaseButton :variant="jobs.length ? 'secondary' : 'primary'" size="touch" @click="addJob">
-          {{ jobs.length ? copy.addJob : copy.addFirstJob }}
-        </BaseButton>
-      </div>
+      <BaseButton :variant="jobs.length ? 'secondary' : 'primary'" size="touch" @click="addJob()">
+        {{ jobs.length ? copy.addJob : copy.addFirstJob }}
+      </BaseButton>
 
       <!-- What the recruiter will look at, shown to the driver while they can still act on it. -->
       <div class="space-y-2 rounded-surface bg-surface p-4 ring-1 ring-inset ring-edge">
@@ -238,22 +274,6 @@ const removeJob = (index: number): void => {
         </p>
       </div>
     </template>
-
-    <!-- A box per gap (C3c1): the dates are the calculator's, the words the driver's. Outside the jobs
-         block on purpose — a driver who had no job still owes the three years, as one gap. The path is
-         the filing's own (`employment_gaps.<start>`), so its refusal lands on the box. -->
-    <div v-for="gap in gaps" :key="gap.from" class="space-y-2 rounded-surface bg-surface-muted p-4">
-      <p class="text-sm text-ink-secondary">{{ copy.gap(monthName(gap.from), monthName(gap.to)) }}</p>
-      <ApplyField
-        v-if="explanationFor(gap.from)"
-        v-slot="f"
-        :path="['employment_gaps', gap.from]"
-        :label="copy.gapExplanation"
-        :hint="copy.gapExplanationHint"
-      >
-        <BaseTextarea v-bind="f" v-model="explanationFor(gap.from)!.explanation" rows="2" maxlength="500" />
-      </ApplyField>
-    </div>
 
     <!-- §391.21(b)(6) asks for two things in one sentence: "the nature and extent of the applicant's
          experience in the operation of motor vehicles, INCLUDING THE TYPE OF EQUIPMENT ... which
@@ -327,13 +347,20 @@ const removeJob = (index: number): void => {
       </BaseButton>
     </div>
 
-    <EmployerDrawer
+    <!-- The one employer form (HW5b): the office's screens open the same panel. A new job is passed as a
+         prefill, not as a job, so its title says "Add a job" and it offers no Remove. -->
+    <EmployerFormDrawer
       :open="openDrawer"
-      :index="editing ?? 0"
-      :employer="editing === null ? null : (draft.employers[editing] ?? null)"
-      :v2-as-of="v2AsOf"
+      :employer="editingRow && !employerIsBlank(editingRow) ? editingRow : null"
+      :prefill="editingRow"
+      :copy="copy"
+      :id-prefix="fieldId(['employers', editing ?? 0])"
+      :as-of="asOf"
+      :errors="panelErrors"
+      :removable="Boolean(editingRow) && !employerIsBlank(editingRow!)"
+      touch
       @save="saveJob"
-      @remove="removeJob(editing ?? 0); editing = null"
+      @remove="removeJob"
       @close="closeDrawer"
     />
   </section>

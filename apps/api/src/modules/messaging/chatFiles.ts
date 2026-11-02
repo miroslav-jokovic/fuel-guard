@@ -15,7 +15,7 @@ import {
 import { rpc, type ChatResult } from "./chat.js";
 
 /**
- * Office chat's files (OFFICE-CHAT-PLAN CH7; migration 0539, D-CHAT27–D-CHAT30). The bytes never pass
+ * Office chat's files (OFFICE-CHAT-PLAN CH7; migration 0540, D-CHAT27–D-CHAT30). The bytes never pass
  * through this process on the way IN — the browser PUTs them to a signed URL — and are read back exactly
  * once, at send, to be checked: the SHA-256 the ledger will record is computed HERE from what is stored,
  * never taken from the browser (D-CHAT28), and the first bytes must be the kind the file claims to be.
@@ -103,7 +103,7 @@ export function filesForBell(body: string, files: readonly Pick<ChatFileRef, "fi
   return files.length === 1 ? `Sent ${files[0]!.file_name}` : `Sent ${files.length} files`;
 }
 
-/** The line and its files, in one transaction (0539). `parentId` makes it a reply to that channel post. */
+/** The line and its files, in one transaction (0540). `parentId` makes it a reply to that channel post. */
 export async function chatSendFiles(
   admin: SupabaseClient, orgId: string, userId: string, threadId: string,
   input: { message_id: string; parent_id: string | null; body: string; files: readonly ChatFileRef[] },

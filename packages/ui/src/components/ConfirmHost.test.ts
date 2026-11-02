@@ -41,6 +41,16 @@ describe("ConfirmHost", () => {
     w.unmount();
   });
 
+  it("says no in the page's own word when it is given one", async () => {
+    const w = await host();
+    const answer = useConfirm()({ title: "¿Quitar este trabajo?", confirmLabel: "Quitar", cancelLabel: "Cancelar", tone: "danger" });
+    await flushPromises();
+    expect(button("Cancel")).toBeUndefined();
+    button("Cancelar")!.click();
+    expect(await answer).toBe(false);
+    w.unmount();
+  });
+
   it("answers the first question no when a second is asked, rather than stacking two dialogs", async () => {
     const w = await host();
     const ask = useConfirm();
