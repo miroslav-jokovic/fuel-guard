@@ -599,3 +599,15 @@ TechRepublic / Windows Report on Teams 2026 updates.
   browser that blocked them is told how to undo it. Rules in `chatDesktopAlerts.ts` (12 tests), the tab
   in `useChatDesktopAlerts.ts` (4, with a fake Notification). Next: CH7 Files.
 
+- 2026-11-02: **Reactions join Activity** (`claude/chat-activity-reactions`, migration 0541), D-CHAT25's
+  third reason, after #1897 was RELEASED (checked against `origin/production`), so the API already
+  parsing `reason = 'reaction'` serves before the function emits it. One item per line of yours that
+  somebody else reacted to — not one per reaction — saying the latest reaction (who and which) and
+  arriving when it did, so a fresh 👍 on an old line lifts it and makes it unread again; your own
+  reactions never count. Still derived: taking the latest back lets the one before stand in, taking the
+  last back removes it, and a retracted line or a conversation you left drops it as for mentions. No
+  bell and no desktop alert (`chatDesktopAlerts.ts` already skips the reason). `chat_activity` and
+  `chat_activity_items` gain columns, so both are dropped and made again with 0521's grants. Matrix
+  `office-chat-activity-reactions.test.mjs` (29 rows); ten mutants of 0541 each failed one, and the
+  eleventh — the reaction's own `org_id` filter — changed nothing, because 0523's trigger copies it from
+  the message the join already filters, so the clause was removed. Next: CH8 search.
