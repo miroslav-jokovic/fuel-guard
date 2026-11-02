@@ -1,4 +1,4 @@
--- Silvicom 360 — 0545 office chat: conversations about a card-fraud incident or a roadside inspection
+-- Silvicom 360 — 0546 office chat: conversations about a card-fraud incident or a roadside inspection
 -- (docs/plans/messaging/OFFICE-CHAT-PLAN.md §9.4; Q-CHAT21 ruled (c) 2026-11-02; D-CHAT35, D-CHAT36)
 --
 -- 0543 let a group be about a load, a driver or a truck. Q-CHAT21 asked which "cases" the plan meant;

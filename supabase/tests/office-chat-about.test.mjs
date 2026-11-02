@@ -1,5 +1,5 @@
 // Silvicom 360 — office chat: conversations about a load, a driver, a truck, a card-fraud incident or a
-// roadside inspection (migrations 0543 and 0545, OFFICE-CHAT-PLAN CH11a, §9.4; D-CHAT31–D-CHAT36, Q-CHAT6 (a),
+// roadside inspection (migrations 0543 and 0546, OFFICE-CHAT-PLAN CH11a, §9.4; D-CHAT31–D-CHAT36, Q-CHAT6 (a),
 // Q-CHAT21 (c)).
 //
 // What the database itself must guarantee, whoever calls the functions:
@@ -189,8 +189,8 @@ ok("merging the duplicate into Marcus carries its conversation to Marcus",
   (await one(`select driver_id from message_threads where id=$1`, [T_DUP])).driver_id === DRIVER
   && new Set(await list(CLEO, "driver", DRIVER)).has(T_DUP));
 
-// ── 0545: a card-fraud incident and a roadside inspection ─────────────────────────────────────────
-console.log("\n-- 0545: a fraud incident, a roadside inspection --");
+// ── 0546: a card-fraud incident and a roadside inspection ─────────────────────────────────────────
+console.log("\n-- 0546: a fraud incident, a roadside inspection --");
 const incident = async (org, cardRef) => (await one(
   `insert into card_fraud_incidents (org_id, incident_key, card_key, card_ref, opened_at, last_attempt_at, level, attempt_count, places, steps)
    values ($1, $2, 'k', $3, '2026-10-01', '2026-10-01', 'alert', 1, '[{}]', '[{}]') returning id`, [org, await uuid(), cardRef])).id;

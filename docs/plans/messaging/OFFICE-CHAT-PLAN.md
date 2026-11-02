@@ -462,7 +462,7 @@ incidents; (b) DataQs challenges; (c) both; (d) none until somebody asks. Recomm
 more nullable links on the same pattern, after CH11c, once the owner says which the office means — the
 pattern costs one column and one trigger per kind, so waiting costs nothing.
 
-- **D-CHAT35 — a DataQs challenge is linked through its roadside inspection** (found building 0545).
+- **D-CHAT35 — a DataQs challenge is linked through its roadside inspection** (found building 0546).
   `dataqs_cases` (0495) is append-only with one row per state — `approved`, then `filed` with its RDR
   number — so no row id stands for "the challenge", and a link to the approved row would point at a
   superseded record the day it is filed. The challenge is worked on its inspection's page
@@ -793,10 +793,10 @@ TechRepublic / Windows Report on Teams 2026 updates.
   the record so the seven-day sweep removes them with the rest. The PDF lists each line's files with
   their hashes; the Exports tab lists the carried files under the three links. Tests: API 9 new, web 2
   new; 17 mutants, all failed tests. §9.3's open item is closed.
-- 2026-11-02: **Q-CHAT21 (c), the database half** (`claude/chat-about-cases`, migration 0545): two more
+- 2026-11-02: **Q-CHAT21 (c), the database half** (`claude/chat-about-cases`, migration 0546): two more
   links on 0543's pattern, `card_fraud_incident_id` and `roadside_inspection_id` (D-CHAT35, D-CHAT36);
   the CHECK, the organisation trigger, the ledger's detail and 0543's three functions widened to the two
   kinds. Matrix `office-chat-about.test.mjs` now 45 rows; 14 mutants, 13 failed a row — the 14th removed
   the label's own org filter on the incident, which the link's trigger already guarantees, and stays
-  for the same reason 0543's three do. Next: the contract, API and web for the two kinds, once 0545 is
+  for the same reason 0543's three do. Next: the contract, API and web for the two kinds, once 0546 is
   on staging.
