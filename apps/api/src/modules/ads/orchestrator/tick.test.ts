@@ -1,0 +1,99 @@
+import { afterEach, describe, expect, it, vi } from "vitest";
+import type { CampaignState } from "@silvicom/shared";
+import { campaign, createAdsWorld } from "../../../testing/adsWorld.js";
+import { SCHEDULERS } from "../../../schedulers.js";
+import { dispatchJob } from "../../../queue/dispatch.js";
+import { adsStepDedupKey, adsStepEnqueue, orchestratorTick, startAdsOrchestrator, type Enqueue } from "./tick.js";
+
+vi.mock("../../../queue/dispatch.js", () => ({ dispatchJob: vi.fn(async () => ({ jobId: "job-1" })) }));
+import { adsWorkers, type CampaignWorkers } from "./workers.js";
+
+const ALL: CampaignWorkers = { compose: async () => ({ ok: true }), createPaused: async () => ({ ok: true }), platform: async () => null };
+
+/**
+ * The jobs ledger's rule, as 0095 states it: with a dedup_key, ONE active job per key (a global
+ * index); without one, one per (org, kind). The fake enforces exactly that, so a tick that forgot the
+ * key would see its org's second campaign refused here as it would be in production.
+ */
+function ledger() {
+  const active = new Set<string>();
+  const calls: Array<{ orgId: string; campaignId: string; state: CampaignState; key: string }> = [];
+  const enqueue: Enqueue = async (orgId, campaignId, state) => {
+    const key = adsStepDedupKey(campaignId, state);
+    calls.push({ orgId, campaignId, state, key });
+    if (active.has(key)) return "conflict";
+    active.add(key);
+    return "queued";
+  };
+  return { enqueue, calls };
+}
+
+describe("orchestratorTick — it only enqueues, one keyed step per campaign with agent work", () => {
+  it("two campaigns of one org each get their own slot, keyed by campaign and state", async () => {
+    const w = createAdsWorld({ campaigns: [campaign("c1", "composing"), campaign("c2", "composing"), campaign("c3", "review")] });
+    const l = ledger();
+    expect(await orchestratorTick(w.admin, ALL, l.enqueue)).toEqual({ campaigns: 2, queued: 2, conflicts: 0 });
+    expect(l.calls.map((c) => c.key)).toEqual(["ads_step:c1:composing", "ads_step:c2:composing"]);
+    expect(w.rec.writes()).toEqual([]);
+  });
+
+  it("a second tick while the first step is in flight is the queue saying 'already on it'", async () => {
+    const w = createAdsWorld({ campaigns: [campaign("c1", "composing")] });
+    const l = ledger();
+    await orchestratorTick(w.admin, ALL, l.enqueue);
+    expect(await orchestratorTick(w.admin, ALL, l.enqueue)).toEqual({ campaigns: 1, queued: 0, conflicts: 1 });
+  });
+
+  it("with no worker built (this build), nothing is queued unless the kill switch has something live to pause", async () => {
+    const live = [campaign("c1", "live"), campaign("c2", "composing"), campaign("c3", "launching")];
+    const quiet = ledger();
+    await orchestratorTick(createAdsWorld({ campaigns: live }).admin, adsWorkers(), quiet.enqueue);
+    expect(quiet.calls).toEqual([]);
+    const pressed = ledger();
+    await orchestratorTick(createAdsWorld({ campaigns: live, kill: true }).admin, adsWorkers(), pressed.enqueue);
+    expect(pressed.calls.map((c) => c.key).sort()).toEqual(["ads_step:c1:live", "ads_step:c3:launching"]);
+  });
+
+  it("asks the database only for states the agent can act in, and nothing at all when there are none", async () => {
+    const w = createAdsWorld({ campaigns: [campaign("c1", "archived")] });
+    await orchestratorTick(w.admin, ALL, ledger().enqueue);
+    const states = w.rec.forTable("ads_campaigns")[0]!.filters().find((f) => f.col === "state")!.val as string[];
+    expect(states).not.toContain("archived");
+    expect(states).not.toContain("review");
+    const none = createAdsWorld({ campaigns: [] });
+    await orchestratorTick(none.admin, { compose: null, createPaused: null, platform: null }, ledger().enqueue);
+    expect(none.rec.forTable("ads_campaigns").length).toBeGreaterThan(0); // launching/live: the switch can always act
+  });
+});
+
+describe("adsStepEnqueue — what the queue is really handed", () => {
+  it("an ads_step with the campaign and state in its payload, and dedup_key = campaign + state, never the (org, kind) slot", async () => {
+    const env = { JOB_EXECUTION_MODE: "queue" } as Parameters<typeof adsStepEnqueue>[1];
+    const enqueue = adsStepEnqueue(createAdsWorld({ campaigns: [] }).admin, env);
+    expect(await enqueue("org-a", "c1", "composing")).toBe("queued");
+    vi.mocked(dispatchJob).mockResolvedValueOnce({ conflict: true });
+    expect(await enqueue("org-a", "c2", "live")).toBe("conflict");
+    expect(vi.mocked(dispatchJob).mock.calls.map((c) => [c[2], c[3]])).toEqual([
+      ["ads_step", { orgId: "org-a", payload: { campaignId: "c1", state: "composing" }, dedupKey: "ads_step:c1:composing" }],
+      ["ads_step", { orgId: "org-a", payload: { campaignId: "c2", state: "live" }, dedupKey: "ads_step:c2:live" }],
+    ]);
+  });
+});
+
+describe("the ads-orchestrator scheduler", () => {
+  afterEach(() => vi.useRealTimers());
+
+  it("is registered once, in the general lane (workflow §1.2-7)", () => {
+    expect(SCHEDULERS.filter((s) => s.name === "ads-orchestrator").map((s) => s.lane)).toEqual(["general"]);
+  });
+
+  it("starts no timer unless ADS_ENABLED", () => {
+    vi.useFakeTimers();
+    const env = { ADS_ENABLED: false, SUPABASE_URL: "http://x", SUPABASE_SERVICE_ROLE_KEY: "k" } as Parameters<typeof startAdsOrchestrator>[0];
+    startAdsOrchestrator(env);
+    expect(vi.getTimerCount()).toBe(0);
+    startAdsOrchestrator({ ...env, ADS_ENABLED: true });
+    expect(vi.getTimerCount()).toBe(2);
+    vi.clearAllTimers();
+  });
+});

@@ -122,7 +122,13 @@ three files from `compliance-exports` (`<org>/chat/<export>/`) seven days after 
 after boot, the `dq-export-sweeper` shape. A bounded indexed read that returns nothing on almost every run.
 
 **Ads (`ads-orchestrator`, `ads-insights`, `ads-leads-backfill`, `ads-reconcile`; general lane; planned
-2026-11-01, D-AD16/D-AD17, `docs/plans/recruitment/ADS-AGENT-BUILD-WORKFLOW.md` A6/B4/B5).** The
+2026-11-01, D-AD16/D-AD17, `docs/plans/recruitment/ADS-AGENT-BUILD-WORKFLOW.md` A6/B4/B5).**
+`ads-orchestrator` is BUILT (A6, 2026-11-02; `modules/ads/orchestrator/tick.ts`): every minute,
+first tick 90 s after boot, one `ads_step` job (`KIND_CAPS` 2 — a step makes at most one platform
+call) per campaign the agent has work in, `dedup_key` = `ads_step:<campaign>:<state>`. Off unless
+`ADS_ENABLED=true`; until B1/B2/C land it has no worker to hand anything to, so even switched on it
+queues only the kill switch's pause of a launching or live campaign. The other three are still
+planned (B4/B5). The
 `general` lane, not `egress`: `egress` exists for the one host WEX allowlists, and Meta, TikTok, X
 and Higgsfield check no caller address, so these follow FleetPal and Med-Stop's placement, not the
 EFS poller's. They follow FleetPal's three rules as well: **off** unless `ADS_ENABLED=true` on the

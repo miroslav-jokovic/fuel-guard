@@ -1,6 +1,7 @@
 import { registerHandler } from "../registry.js";
 import { fleetpalSyncHandler } from "./fleetpal.js";
 import { medstopSyncHandler } from "./medstop.js";
+import { adsStepHandler } from "./adsStep.js";
 import { efsIngestHandler } from "./efsIngest.js";
 import { dataRetentionHandler } from "./retention.js";
 import { idleEngineHandler } from "./idleEngine.js";
@@ -88,4 +89,6 @@ export function registerAllHandlers(): void {
   // kinds use — and its cap is 1 because FleetPal publishes no rate limit at all (F4).
   registerHandler("fleetpal_sync", fleetpalSyncHandler);
   registerHandler("medstop_sync", medstopSyncHandler);
+  // A6: one orchestrator step for one campaign; dedup-keyed per campaign + state by its tick.
+  registerHandler("ads_step", adsStepHandler);
 }

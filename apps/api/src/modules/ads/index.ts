@@ -10,3 +10,8 @@ export type { ClaudeGenerationDeps, ClaudeGenerationOutcome, ClaudeGenerationReq
 export { adsRouter } from "./routes/guard.js";
 export { guardedAreaChange, guardedSpend } from "./guard/budgetGuard.js";
 export type { GuardDeps, GuardOutcome, SpendAsk } from "./guard/budgetGuard.js";
+// A6: the orchestrator — its scheduler, the step a queued job runs, and the one writer of a campaign's state.
+export { startAdsOrchestrator } from "./orchestrator/tick.js";
+export { runCampaignStep } from "./orchestrator/runner.js";
+export { adsWorkers } from "./orchestrator/workers.js";
+export { applyCampaignEvent } from "./orchestrator/transitions.js";
