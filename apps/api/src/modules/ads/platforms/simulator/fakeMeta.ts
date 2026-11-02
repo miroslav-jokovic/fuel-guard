@@ -1,5 +1,6 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import type { AddressInfo } from "node:net";
+import { META_GRAPH_VERSION } from "../meta/graphClient.js";
 
 /**
  * FakeMeta — an in-process `node:http` server that answers the Marketing API calls our Meta adapter
@@ -38,7 +39,8 @@ import type { AddressInfo } from "node:net";
  * answer for "Meta lost our campaign" too.
  */
 
-export const FAKE_META_VERSION = "v24.0";
+/** The client's version, read, not restated (B1a): the fake answers only the version production calls. */
+export const FAKE_META_VERSION = META_GRAPH_VERSION;
 
 export type FakeMetaFault =
   /** 80004 / 2446079, with the usage header at 100 %. */
