@@ -132,11 +132,30 @@ describe("GET /api/chat/:id/about", () => {
   });
 });
 
-describe("the driver gate is the driver page's own", () => {
+describe("each kind's gate is its record's own", () => {
   it("GET /api/drivers/:id is gated by roster view, which is what CHAT_ABOUT_READ_SECTION.driver says", () => {
     const src = readFileSync(fileURLToPath(new URL("../../roster/routes/drivers.ts", import.meta.url)), "utf8");
     expect(src).toMatch(/const canView = requireSection\("roster", "view"\);/);
     expect(src).toMatch(/"\/:id",\s*requireOrg,\s*canView,/);
-    expect(CHAT_ABOUT_READ_SECTION).toEqual({ load: null, driver: "roster", vehicle: null });
+    expect(CHAT_ABOUT_READ_SECTION).toEqual({ load: null, driver: "roster", vehicle: null, fraud_incident: "fuel", roadside_inspection: "safety" });
+  });
+
+  it("a fraud incident is read under fuel view and a roadside inspection under safety view — the routes' own gates", () => {
+    const fraud = readFileSync(fileURLToPath(new URL("../../anomalies/routes/cardFraudIncidents.ts", import.meta.url)), "utf8");
+    expect(fraud).toMatch(/"\/:id",\s*requireSection\("fuel", "view"\),/);
+    const roadside = readFileSync(fileURLToPath(new URL("../../inspections/routes/roadside.ts", import.meta.url)), "utf8");
+    expect(roadside).toMatch(/const canView = requireSection\("safety", "view"\);/);
+  });
+
+  it("an inspection needs safety view and a fraud incident fuel view: refused without, and nothing asked", async () => {
+    me = { ...me, role: "dispatcher", sections: { safety: "none", fuel: "none" } as AuthContext["sections"] };
+    expect((await post(create({ kind: "roadside_inspection", record_id: DRIVER }))).status).toBe(403);
+    expect((await call(`/about/fraud_incident/${DRIVER}`)).status).toBe(403);
+    expect(args("chat_create_about")).toEqual([]);
+    expect(args("chat_about")).toEqual([]);
+    // ...and an admin, who holds both, is asked for each.
+    me = { ...me, role: "admin", sections: null };
+    expect((await post(create({ kind: "roadside_inspection", record_id: DRIVER }))).status).toBe(201);
+    expect((await call(`/about/fraud_incident/${DRIVER}`)).status).toBe(200);
   });
 });

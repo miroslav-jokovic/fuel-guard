@@ -13,19 +13,21 @@ import { chatAboutRoute } from "./useChatAbout";
 const ID = "44444444-4444-4444-8444-444444444444";
 
 describe("what a conversation is about", () => {
-  it("each kind links to its record's real page — load, driver and truck", () => {
+  it("each kind links to its record's real page — a fraud incident to its drawer on Fuel problems", () => {
     const paths = CHAT_ABOUT_KINDS.map((k) => {
       const r = router.resolve(chatAboutRoute(k, ID));
       expect(r.name, k).not.toBe("not-found");
-      return r.path;
+      return r.fullPath;
     });
-    expect(paths).toEqual([`/loads/${ID}`, `/drivers/${ID}`, `/vehicles/${ID}`]);
+    expect(paths).toEqual([`/loads/${ID}`, `/drivers/${ID}`, `/vehicles/${ID}`, `/fuel-problems?incident=${ID}`, `/roadside-inspections/${ID}`]);
   });
 
   it("calls it Load, Driver or Truck and its label", () => {
     expect(chatAboutTitle("load", " L-20481 ")).toBe("Load L-20481");
     expect(chatAboutTitle("driver", "Marcus Reyes")).toBe("Driver Marcus Reyes");
     expect(chatAboutTitle("vehicle", "702")).toBe("Truck 702");
+    expect(chatAboutTitle("fraud_incident", "••7559")).toBe("Card fraud ••7559");
+    expect(chatAboutTitle("roadside_inspection", "MN1234567")).toBe("Roadside inspection MN1234567");
   });
 
   it("the header says About, links the record, then the people; with no link, just the people", () => {

@@ -32,6 +32,7 @@ import { NO_FIGURE, NO_FIGURE_NOTE, tileReady } from "@/lib/tileFigure";
 import { useToastStore } from "@/stores/toast";
 import { useSessionStore } from "@/stores/session";
 import { useVehiclesQuery } from "@/composables/useVehicles";
+import ChatAboutCard from "@/features/chat/ChatAboutCard.vue";
 import CaseDrawers from "@/features/anomalies/CaseDrawers.vue";
 import ExceptionSlideOver from "@/features/reconcile/ExceptionSlideOver.vue";
 import MoneyExportActions from "@/features/reconcile/MoneyExportActions.vue";
@@ -417,6 +418,12 @@ const truckOptions = computed(() =>
       :incident-id="drawer.incidentId.value"
       :unit-of="unitOfRow"
       @close="drawer.close"
-    />
+    >
+      <!-- CH11 (Q-CHAT21 (c)): the people's own conversations about this incident, and Chat about this.
+           Named by the card's last four, which the API already cut it to (D-CHAT36). -->
+      <template #incident="{ incident }">
+        <ChatAboutCard kind="fraud_incident" :record-id="drawer.incidentId.value" :label="`••${incident.cardLast4}`" />
+      </template>
+    </CaseDrawers>
   </div>
 </template>
