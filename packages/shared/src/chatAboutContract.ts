@@ -11,8 +11,12 @@ import { CHAT_GROUP_MAX } from "./chatContract.js";
  * conversation's header says what it is about, as a link back to that page.
  */
 
-/** The kinds of record a conversation may be about — 0543's `chat_create_about` takes exactly these. */
-export const CHAT_ABOUT_KINDS = ["load", "driver", "vehicle"] as const;
+/**
+ * The kinds of record a conversation may be about — 0543's `chat_create_about` takes exactly these, and
+ * 0546 added a card-fraud incident and a roadside inspection (Q-CHAT21 (c); D-CHAT35: a DataQs challenge
+ * is linked through its inspection).
+ */
+export const CHAT_ABOUT_KINDS = ["load", "driver", "vehicle", "fraud_incident", "roadside_inspection"] as const;
 export type ChatAboutKind = (typeof CHAT_ABOUT_KINDS)[number];
 
 /**
@@ -20,13 +24,26 @@ export type ChatAboutKind = (typeof CHAT_ABOUT_KINDS)[number];
  * a truck are readable by every office member of the organisation — `loads_select` and `vehicles_select`
  * check the organisation only, and office chat is office roles already — so they need no section here. A
  * driver's profile is read through `GET /api/drivers/:id`, which requires `roster` view, so a
- * conversation about a driver requires it too. When one of those gates changes, this changes with it:
+ * conversation about a driver requires it too; a card-fraud incident is read under `fuel` view
+ * (`GET /api/card-fraud-incidents/:id`) and a roadside inspection under `safety` view (roadside.ts
+ * `canView`). When one of those gates changes, this changes with it:
  * `apps/api/src/modules/messaging/routes/chatAbout.test.ts` reads the roster route and fails if its gate moves.
  */
 export const CHAT_ABOUT_READ_SECTION: Record<ChatAboutKind, AppSection | null> = {
   load: null,
   driver: "roster",
   vehicle: null,
+  fraud_incident: "fuel",
+  roadside_inspection: "safety",
+};
+
+/** What each kind is called, before its label: "Load L-20481", "Card fraud ••7559", "Roadside inspection MN12345". */
+export const CHAT_ABOUT_NOUNS: Record<ChatAboutKind, { title: string; noun: string }> = {
+  load: { title: "Load", noun: "load" },
+  driver: { title: "Driver", noun: "driver" },
+  vehicle: { title: "Truck", noun: "truck" },
+  fraud_incident: { title: "Card fraud", noun: "incident" },
+  roadside_inspection: { title: "Roadside inspection", noun: "inspection" },
 };
 
 /** Start a group about one record. `thread_id` is the client's, so a retried create returns the same group. */
@@ -67,6 +84,5 @@ export type ChatThreadAboutResponse = z.infer<typeof chatThreadAboutResponseSche
 
 /** "Load L-20481", "Driver Marcus Reyes", "Truck 702" — the header's words and a new conversation's subject. */
 export function chatAboutTitle(kind: ChatAboutKind, label: string): string {
-  const what = kind === "load" ? "Load" : kind === "driver" ? "Driver" : "Truck";
-  return `${what} ${label.trim()}`;
+  return `${CHAT_ABOUT_NOUNS[kind].title} ${label.trim()}`;
 }

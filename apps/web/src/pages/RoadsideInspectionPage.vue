@@ -29,6 +29,7 @@ import InspectionDriverCard from "@/features/roadside/InspectionDriverCard.vue";
 import InspectionDocumentsCard from "@/features/roadside/InspectionDocumentsCard.vue";
 import InspectionRepairCard from "@/features/roadside/InspectionRepairCard.vue";
 import InspectionNextSteps from "@/features/roadside/InspectionNextSteps.vue";
+import ChatAboutCard from "@/features/chat/ChatAboutCard.vue";
 import InspectionTicketsCard from "@/features/roadside/InspectionTicketsCard.vue";
 import { useOpens } from "@/composables/useOpens";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
@@ -309,6 +310,10 @@ const VIOLATION_COLUMNS: DataTableColumn[] = [
             </template>
           </DataTable>
         </BaseCard>
+        <!-- CH11 (Q-CHAT21 (c), D-CHAT35): conversations about this inspection — where its DataQs
+             challenges are worked — and Chat about this. The label is the server's rule: the report
+             number, or the day. -->
+        <ChatAboutCard kind="roadside_inspection" :record-id="inspection.id" :label="inspection.reportNumber || (inspection.inspectionDate ? formatDate(inspection.inspectionDate) : null)" />
       </template>
     </QueryState>
   </div>

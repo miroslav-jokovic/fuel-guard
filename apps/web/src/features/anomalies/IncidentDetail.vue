@@ -131,6 +131,9 @@ async function move(status: CardFraudIncidentTransition["status"]): Promise<void
           Reopen
         </BaseButton>
       </div>
+      <!-- What the page puts under the incident (Fuel problems: its Chat card, CH11), handed the incident it
+           read, so the page needs no second read and no feature reaches into another. -->
+      <slot :incident="incident" />
     </template>
     </QueryState>
   </div>

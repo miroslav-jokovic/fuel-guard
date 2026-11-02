@@ -1,6 +1,7 @@
 import { Router, type Request, type Response } from "express";
 import {
   CHAT_ABOUT_KINDS,
+  CHAT_ABOUT_NOUNS,
   CHAT_ABOUT_READ_SECTION,
   OFFICE_ROLES,
   callerCanView,
@@ -44,7 +45,7 @@ const send = <T>(res: Response, result: ChatResult<T>, ok: (v: T) => unknown, st
 function mayRead(kind: ChatAboutKind, req: Request, res: Response): boolean {
   const section = CHAT_ABOUT_READ_SECTION[kind];
   if (section === null || callerCanView(req.auth?.role ?? null, section, req.auth?.sections ?? null)) return true;
-  res.status(403).json(apiError("forbidden", `You cannot open that ${kind === "vehicle" ? "truck" : kind}`));
+  res.status(403).json(apiError("forbidden", `You cannot open that ${CHAT_ABOUT_NOUNS[kind].noun}`));
   return false;
 }
 const isKind = (v: unknown): v is ChatAboutKind => typeof v === "string" && (CHAT_ABOUT_KINDS as readonly string[]).includes(v);
