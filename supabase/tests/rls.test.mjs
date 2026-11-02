@@ -2579,6 +2579,9 @@ async function main() {
       recruiting_settings: (org) =>
         `insert into recruiting_settings (org_id, invite_ttl_days, reminders_enabled, reminder_after_hours) ` +
         `values ('${org}', 14, true, 48)`,
+      // 0551 (§12 MT1): the key has a shape (lower case and underscores) the synthesiser's random text misses.
+      recruiting_message_wording: (org) =>
+        `insert into recruiting_message_wording (org_id, message_key, saved_by_name) values ('${org}', 'invitation', 'rls')`,
       // 0374: the signature must sit in the org's OWN `representatives/` folder, as 0372's examiners must.
       carrier_representatives: (org) =>
         `with u as (insert into auth.users (id, email) values (gen_random_uuid(), 'rls-rep@example.com') returning id) ` +
