@@ -604,3 +604,20 @@ blocking step in §3 above.
   earlier stint of the SAME state loses", which kills it. **Q-AD23 recorded, not routed around**
   (ADS-AGENT-PLAN §9): a launch delivered twice at once is sent once but ends paused, because the
   runner cannot tell an in-flight launch from a dead one. No migration.
+- **2026-11-02, 8** — `lint:ads-readiness` (in CI's `gates`, with its `"//lint:ads-readiness"` key) and
+  `pnpm ads:readiness`. It is built like `lint:reader-gate`, with the same title scan and NOT_RUN list.
+  `scripts/ads-readiness.registry.mjs` gives every §4R worker five levels of **needs**, written from
+  §4R's tables. Each need is either **pinned** (test file + titles, golden scenario files) or an open
+  **gap** naming the step that closes it. The gate fails on a broken pin, on a need that is both or
+  neither, and when the registry's workers and §4R's table disagree — the names are READ from the
+  table's bold cells, not restated. A gap never fails. A worker is at level n when every level up to n
+  has no gap, so levels are climbed in order. Proven: 21 self-test cases, plus five changes to the
+  real repo, each of which turned the gate red: an `it.skip`, a renamed title, a deleted scenario, a
+  `describe.only`, a renamed §4R worker. **Scorecard today: Orchestrator L3, Budget guard L3, Security
+  L1, the nine unbuilt workers L0** (Copywriter and Checker have their pure checkers pinned under L1,
+  beside the worker's own gap). The Budget guard's one L2 gap, "concurrent launches racing the cap",
+  was closed here by `guard/budgetGuard.race.test.ts`: two launches at once never both reach the
+  platform. It holds without a lock because a campaign is in `launching` before its guard reads, and
+  the guard counts launching campaigns. Taking `launching` out of `SPENDING_STATES` turned two of its
+  three tests red. Not built yet, by design: the Launch route refusing a worker below L4 (it needs E3,
+  and is moot before Stage 2). `--json` is the shape it will read. No migration.
