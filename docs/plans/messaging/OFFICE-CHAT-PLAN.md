@@ -262,7 +262,7 @@ One PR each unless noted. A column and its first reader ship in separate merges
 | CH8 | Search (`tsvector` + GIN, readable conversations only; the console reuses it org-wide) | CH2 |
 | CH9 | Presence, status, typing (Presence/Broadcast, ephemeral, never stored) | CH3b |
 | CH10 | Web Push | Q-CHAT4 |
-| CH11 | "Chat about this" on loads, drivers, trucks, cases | Q-CHAT6 |
+| CH11 | "Chat about this" on loads, drivers, trucks (§9.4: CH11a migration, CH11b API + chat header, CH11c record pages); cases wait on Q-CHAT21 | Q-CHAT6 |
 | CH12 | AI catch-up (D-CHAT16), off by default, after release 2 | CHA3, CH5 |
 
 **Release 2 = CHA2 + CHA3 + CH5** (compliance console, teams and channels). After that each item ships
@@ -421,6 +421,47 @@ was sent and its hash, but the export does not carry the bytes or list them. Nex
 them through the same signed-link path behind its step-up, and the export bundles the files beside the
 JSONL with their hashes in `manifest.json`. One migration and one API/console PR.
 
+
+### 9.4 CH11's shape (2026-11-02)
+
+"Chat about this" (§2: what Teams cannot do). A dispatcher on load L-20481's page, a safety manager on
+a driver's, a shop lead on a truck's, starts a conversation ABOUT that record, and finds it again from
+the record. Q-CHAT6 was ruled (a) on 2026-10-23: seeing a record does not grant its conversations.
+
+- **D-CHAT31 — a group conversation may be about one record, fixed when it is made.** A load, a driver
+  or a truck: `message_threads.load_id` (0096's, already there and already ledgered), and new
+  `driver_id` and `vehicle_id`, each nullable, at most one of the three set (a CHECK), each refusing a
+  record of another organisation (`same_org`-style trigger, not an FK embed: memory "same_org FK breaks
+  embeds"). Only a `group` may carry one. A direct conversation is between two people, and a channel
+  belongs to its team; the link is part of what the conversation IS, so it is set at creation and never
+  changed. The ledger's `conversation_created` detail already carries `load_id` and gains the other two.
+  A driver merge re-points `driver_id` like every other driver FK (`lint:driver-references`).
+- **D-CHAT32 — participants only (Q-CHAT6 (a)).** The record's page lists the conversations about it
+  that the VIEWER is in, newest activity first, and nothing about the rest: not their number, not their
+  subjects. A record page must not tell a dispatcher that safety is discussing their driver. Bringing
+  somebody in is a participant's act: Add people, as in any group (0512 `chat_add_members`).
+- **D-CHAT33 — who may start one.** Whoever may open that record's page AND use chat. The API checks
+  the record is readable to the caller (its own section gate: loads under dispatch, drivers under
+  roster, trucks under fleet) before the database is asked; the database checks the record is in the
+  caller's organisation. The subject is filled in from the record ("Load L-20481", "Marcus Reyes",
+  "Truck 702") and can be changed, like any group's.
+- **D-CHAT34 — the two ends point at each other.** On the record: a Chat card listing your conversations
+  about it, and "Chat about this" (the New conversation dialog, people picked, subject prefilled). In
+  chat: a linked group's header says what it is about, as a link to the record's page.
+
+| Step | What | Depends on |
+|---|---|---|
+| CH11a | Migration: the three links, the CHECK, the org triggers, `chat_create_about`, `chat_about(record)` (yours only), readers return the link; driver merge; matrix | — |
+| CH11b | API + chat side: `POST /api/chat/about`, `GET /api/chat/about/:kind/:id`, the header's link | CH11a on staging |
+| CH11c | Record pages: the Chat card and "Chat about this" on the load, driver and truck pages | CH11b |
+
+**Q-CHAT21 (open) — which "case"?** The plan said "loads, drivers, trucks, cases", and the repo has
+three things called a case: a card-fraud incident (`card_fraud_incidents`), a DataQs challenge
+(`dataqs_cases`), and a fuel transaction scored with `case_signals`. Candidates: (a) card-fraud
+incidents; (b) DataQs challenges; (c) both; (d) none until somebody asks. Recommendation: **(c)**, as two
+more nullable links on the same pattern, after CH11c, once the owner says which the office means — the
+pattern costs one column and one trigger per kind, so waiting costs nothing.
+
 ## 10. Open questions
 
 | ID | Question | Candidates | Recommendation |
@@ -445,6 +486,7 @@ JSONL with their hashes in `manifest.json`. One migration and one API/console PR
 | Q-CHAT18 | Browser notifications (CH6d): what does one say, and when? | (a) **Sender and conversation, plus the first 80 characters**; direct and group lines ring unless muted, channel lines only for a mention or a reply to you; never while the conversation is open and the tab visible. (b) As (a) but no text — "New message from Ana in Dispatch". (c) A per-person choice between (a) and (b) | **RULED 2026-10-26, as recommended: (a).** It is the person's own screen, behind their login, and the text is what makes the notification worth reading; the same rules as the bell (D-CHAT23) so one person's mute means the same thing in both. (c) is one setting more if a shared-screen office asks |
 | Q-CHAT19 | `@channel` / `@team` (one mention reaching every member)? | (a) **Not in CH6.** Names only. (b) In channels, team owners only. (c) Anyone, as Teams' default | **RULED 2026-10-26, as recommended: (a).** In a 300-member channel it is a bell item for each of 300 people from one line, and nobody has asked. (b) is one token kind more when somebody does |
 | Q-CHAT20 | Found building CH6b-1: D-CHAT22 let a token in a public channel name a team member who has not joined it, but CH5a lets a team member read a public channel only after joining — so the bell and Activity would point somebody at words they may not read. Which way? | (a) **A mention names somebody in the conversation only.** In a channel the composer offers to add a team member who is not in it ("Add Ben to # Loads"), which any channel member may already do; then the mention works. (b) Allow it; the bell and Activity say "Ana mentioned you in # Loads" without the words, with a Join button. (c) A mention joins the person to the channel | **RULED 2026-10-26, as recommended: (a).** One rule for every kind of conversation, Activity lists only what you can open, nothing is readable before joining. (b) is a second kind of item that says something was said without saying it; (c) puts a person in a channel by somebody else's sentence |
+| Q-CHAT21 | Found writing CH11: the plan's "cases" — which? | (a) card-fraud incidents (`card_fraud_incidents`); (b) DataQs challenges (`dataqs_cases`); (c) both; (d) none until asked | **(c)**, OPEN — two more nullable links on 0543's pattern after CH11c, once the owner says which the office means (§9.4) |
 
 ## 11. Progress log
 
@@ -693,3 +735,13 @@ TechRepublic / Windows Report on Teams 2026 updates.
   and dark and 390 against the mock (`/api/chat/search` added to `mock-api.mjs`). Not built: putting
   the matched line in view and focused on arrival — a result opens its conversation at the newest line,
   as a Saved line does; recorded, not routed around. Next: CH11 "Chat about this".
+- 2026-11-02: **CH8b MERGED** (#1916) — search reaches people. **CH11 designed** (§9.4, D-CHAT31–34,
+  Q-CHAT21 open) and **CH11a built** (`claude/chat-ch11a-about`, migration 0543): `driver_id` and
+  `vehicle_id` beside 0096's `load_id`, at most one, only on a group (production measured: two office
+  conversations, both direct, no load — the CHECK validates in place); the organisation checked by a
+  trigger, not a composite FK (PGRST201); `chat_create_about`, `chat_about` (the caller's own only) and
+  `chat_thread_about` (kind, id, label); the ledger's `conversation_created` names the record; a driver
+  merge carries it (`DRIVER_REASSIGNMENTS`). Matrix `office-chat-about.test.mjs` (35 rows, a real merge
+  among them); 17 mutants, 16 failed rows and the 17th was a revoke 0412 already makes. The first run
+  showed the truck's and the driver's organisation checks unguarded — only the load's was tried — and two
+  rows now try them. Next: CH11b once 0543 is on staging.
