@@ -9,6 +9,7 @@ exports[`DataTable rendering, pinned across the R3b extraction > renders the nar
       <option value="gallons">Gallons</option>
     </select><button type="button" class="rounded-control px-2 py-1.5 text-sm font-medium text-ink-secondary ring-1 ring-inset ring-edge-control" aria-label="Sorted ascending, switch to descending">↑</button></div>
   <ul class="divide-y divide-edge-subtle">
+    <!--eslint-disable-next-line vuejs-accessibility/click-events-have-key-events, vuejs-accessibility/no-static-element-interactions -- the table row's own click, which has no key handler either; a link in a cell is the keyboard's way in-->
     <li class="px-4 py-3.5">
       <div class="flex items-start gap-3"><input type="checkbox" class="mt-0.5 size-4 shrink-0 rounded-control border-edge-control accent-brand-600" checked="" aria-label="Select Unit 204">
         <div class="min-w-0 flex-1">
@@ -31,7 +32,7 @@ exports[`DataTable rendering, pinned across the R3b extraction > renders the nar
           <div class="mt-2.5">
             <div data-testid="expanded">detail</div>
           </div>
-        </div>
+        </div><!--eslint-disable-next-line vuejs-accessibility/click-events-have-key-events, vuejs-accessibility/no-static-element-interactions -- stops the card's click; the menu inside is its own button-->
         <div class="shrink-0"><button type="button" data-testid="row-actions">Actions</button></div>
       </div>
     </li>
@@ -55,7 +56,7 @@ exports[`DataTable rendering, pinned across the R3b extraction > renders the nar
             <dd class="min-w-0 text-sm text-ink-secondary">—</dd>
           </dl>
           <!--v-if-->
-        </div>
+        </div><!--eslint-disable-next-line vuejs-accessibility/click-events-have-key-events, vuejs-accessibility/no-static-element-interactions -- stops the card's click; the menu inside is its own button-->
         <div class="shrink-0"><button type="button" data-testid="row-actions">Actions</button></div>
       </div>
     </li>
