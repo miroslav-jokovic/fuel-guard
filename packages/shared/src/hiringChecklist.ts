@@ -3,15 +3,18 @@ import { APPLICATION_RELEASE_ORDER } from "./applicationIntake.js";
 import { applicationReviewState } from "./applicationReviewContract.js";
 import type { HiringChecklistInputs } from "./hiringChecklistInputs.js";
 import { mvrJurisdictionsOutstanding } from "./mvrJurisdictions.js";
+import { orientationVideosOutstanding } from "./orientationVideosContract.js";
 import { packetDriverMarkCount } from "./packetPlacements.js";
 import {
-  HIRE_REFUSES_WITHOUT, HIRING_STEPS, REFUSING_STEPS, TRAVEL_WARNS_ON, hireRefusesWithout, measurableHiringSteps,
+  HIRE_REFUSES_WITHOUT, HIRING_STEPS, REFUSING_STEPS, TRAVEL_WARNS_ON, hireRefusesWithout, hiringStep, measuredFor,
   type HiringEvidence, type HiringStepKey, type HiringStepSpec,
 } from "./hiringSteps.js";
 
 // The input's shape lives next door since C2b2 (2026-09-26), split at the 450-line warning along the
 // line between what the fold is GIVEN and what it DECIDES; re-exported so no import path changed.
 export type { HiringChecklistInputs } from "./hiringChecklistInputs.js";
+// `readyToScreen` reads the fold's output, not its inputs — next door since HW8a, at the 500-line wall.
+export { readyToScreen } from "./hiringReadyToScreen.js";
 
 /**
  * Where a hire has got to, across every step in `HIRING_STEPS` (B1, `HIRING-MODULE-PLAN.md`). The owner
@@ -143,6 +146,11 @@ export interface HiringChecklist {
    * than let them vanish (§7, Q-AW23's default); in neither readiness answer's range.
    */
   unbuilt: HiringStepKey[];
+  /**
+   * HW8a: steps the schema can prove but THIS carrier has not set up — the orientation videos with no
+   * required video listed — so the record can say "add your videos in Settings → Recruiting".
+   */
+  unconfigured: HiringStepKey[];
   /** The one action to lead with — the office's own first, because that is what it can do today. */
   next: HiringStepKey | null;
 }
@@ -323,8 +331,6 @@ function evidenceFor(
       return { done: input.travelBooked === true, inFlight: false };
     case "hired":
       return { done: Boolean(input.hiredAt), inFlight: false };
-    // The three with no evidence table. Reached only if a caller asks directly; the fold never emits
-    // them, so they can never be `done` by accident.
     case "handbook":
       // Done on the filed record (HB3 writes it with the signed PDF), never on the marks: six signed
       // places with no countersignature and no filed document is a handbook in progress. In flight
@@ -334,7 +340,15 @@ function evidenceFor(
         done: hasKind(input, "handbook"),
         inFlight: Boolean(input.handbook?.openedAt) && !input.handbook?.driverComplete,
       };
-    case "orientation_videos":
+    case "orientation_videos": {
+      // HW8a (§4.8): done when every required, live video is attested — by any tick, so one added after
+      // the driver's tick re-opens it. In flight once the office sent the link. Unmeasured (never done)
+      // for a carrier with no required video: the fold does not emit it then (`measuredFor`).
+      const facts = input.orientationVideos;
+      if (!facts || facts.required.length === 0) return { done: false, inFlight: false };
+      return { done: orientationVideosOutstanding(facts).length === 0, inFlight: Boolean(facts.sentAt) };
+    }
+    // No evidence table (HW8b). Reached only if a caller asks directly; the fold never emits it.
     case "live_orientation":
       return { done: false, inFlight: false };
   }
@@ -344,13 +358,14 @@ function evidenceFor(
 function readiness(
   steps: readonly HiringStep[],
   inRange: (spec: HiringStepSpec) => boolean,
+  input: HiringChecklistInputs,
 ): HiringReadiness {
   const done = new Set(steps.filter((s) => s.state === "done").map((s) => s.key));
   const unmeasured: HiringStepKey[] = [];
   const outstanding: HiringStepKey[] = [];
   for (const spec of HIRING_STEPS) {
     if (!inRange(spec)) continue;
-    if (spec.evidence === null) unmeasured.push(spec.key);
+    if (!measuredFor(spec, input)) unmeasured.push(spec.key);
     else if (!done.has(spec.key)) outstanding.push(spec.key);
   }
   return { ok: unmeasured.length === 0 && outstanding.length === 0, unmeasured, outstanding };
@@ -361,10 +376,12 @@ export function hiringChecklist(input: HiringChecklistInputs): HiringChecklist {
   const done = new Set<HiringStepKey>();
   // §9 P12: the `hired` row's edges are THIS carrier's refusal list — the six federal checks plus what its
   // policy switches on — so the row, `readyToHire` and `hireBlockers` all read one list.
-  const hireRequires = hireRefusesWithout(input.hirePolicy ?? undefined);
+  // HW8a: a switched-on step this carrier cannot measure (the videos with none required) waits for nothing
+  // — the rule the `unmet` check below states for requirements: what cannot complete cannot block.
+  const hireRequires = hireRefusesWithout(input.hirePolicy ?? undefined).filter((k) => measuredFor(hiringStep(k), input));
 
   // One pass in D-HM9's order, so a step's requirements are always already decided when it is read.
-  for (const listed of measurableHiringSteps()) {
+  for (const listed of HIRING_STEPS.filter((s) => measuredFor(s, input))) {
     const spec: HiringStepSpec = listed.key === "hired" ? { ...listed, requires: hireRequires } : listed;
     const evidence = evidenceFor(spec.key, input);
     if (evidence.done) done.add(spec.key);
@@ -375,7 +392,7 @@ export function hiringChecklist(input: HiringChecklistInputs): HiringChecklist {
     const unmet =
       spec.requires.find((r) => {
         const req = HIRING_STEPS.find((s) => s.key === r);
-        return req?.evidence !== null && !done.has(r);
+        return req !== undefined && measuredFor(req, input) && !done.has(r);
       }) ?? null;
     // §9 P4: only a refusing step is blocked by an unmet requirement; for the rest it is advice.
     const blockedBy = REFUSING_STEPS.has(spec.key) ? unmet : null;
@@ -414,12 +431,13 @@ export function hiringChecklist(input: HiringChecklistInputs): HiringChecklist {
     steps,
     done: steps.filter((s) => s.state === "done").length,
     total: steps.length,
-    readyToTravel: readiness(steps, (s) => s.beforeTravel),
+    readyToTravel: readiness(steps, (s) => s.beforeTravel, input),
     // ⚠ G-11: the ONE definition — what the hire refuses without. This read every step but `hired`
     // until 2026-09-26, which put the unbuilt orientation rows in range, so `ok` could never be true
     // for anybody; it had no caller, and the hire refused on a different list.
-    readyToHire: readiness(steps, (s) => hireRequires.includes(s.key)),
+    readyToHire: readiness(steps, (s) => hireRequires.includes(s.key), input),
     unbuilt: HIRING_STEPS.filter((s) => s.evidence === null).map((s) => s.key),
+    unconfigured: HIRING_STEPS.filter((s) => s.evidence !== null && !measuredFor(s, input)).map((s) => s.key),
     next,
   };
 }
@@ -440,42 +458,6 @@ export function hireBlockers(checklist: Pick<HiringChecklist, "steps">): HiringS
 /** The steps still open before travel — what booking it WARNS about (§9 P4; it refused under D-AW7). */
 export function travelWarnings(checklist: Pick<HiringChecklist, "steps">): HiringStepKey[] {
   return notDone(checklist, TRAVEL_WARNS_ON);
-}
-
-/**
- * Is this applicant READY TO SCREEN — they have done everything they can alone, and the office has
- * filed nothing yet (APPLICATION-FLOW-V2-PLAN Q-AW56)?
- *
- * ── THE RULE, AND WHY IT READS THE FOLD AND NOT A STAMP ────────────────────────────────────────
- * Two things, both read off the fold's own states so this cannot disagree with the board's `next`:
- * the permissions are signed (the office may pull an MVR and order PSP only on their strength,
- * `SCREENING_PREREQUISITES`), and no screening step the office owes is done. While both hold the
- * fold's lead step is necessarily the MVR — it follows the permissions in D-HM9's order and nothing
- * else can be in front of it — so "the next move is the office's" is implied and not restated: a
- * third clause saying so was written first and no test could make it decide anything (mutation,
- * 2026-10-20), which is how a redundant rule announces itself.
- *
- * ⚠ Why not `releases_completed_at` alone: the stamp says the applicant finished; it does not say the
- * office has not started, and a flag that stayed up through the MVR and the PSP would count the
- * office's own work as its backlog. Measured need (production, 2026-10-20): two applicants sat in
- * exactly this state for nineteen days with nothing counting them.
- *
- * ⚠ The flag means "nothing FILED", not "nothing touched", and stays up through two office acts the
- * fold cannot see as screening: a drug test ORDERED (the evidence is the result, D-AW6) and the
- * application SENT without a record pulled first. Both are right — the MVR is still the office's
- * move, and sending the form screens nobody.
- *
- * ⚠ "Screening the office owes" is the BEFORE-TRAVEL half of the phase — the MVR, PSP, the
- * Clearinghouse query, the medical certificate — and not `travel_booked`, which carries the same
- * phase and owner (§7) but is the office's move AFTER screening. Without that word a booked ticket
- * read as a filed screening record: found by the board's own test on 2026-10-20, where the fixture's
- * trip turned the flag off for an applicant nobody had screened.
- */
-export function readyToScreen(checklist: Pick<HiringChecklist, "steps">): boolean {
-  const permissions = checklist.steps.find((s) => s.key === "permissions_signed");
-  if (permissions?.state !== "done") return false;
-  const officeScreening = checklist.steps.filter((s) => s.phase === "screening" && s.owes === "us" && s.beforeTravel);
-  return !officeScreening.some((s) => s.state === "done");
 }
 
 function notDone(checklist: Pick<HiringChecklist, "steps">, list: readonly HiringStepKey[]): HiringStepKey[] {

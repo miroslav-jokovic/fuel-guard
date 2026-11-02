@@ -117,6 +117,11 @@ const travel = computed(() => {
  * The fold never emits them as rows — a row nobody can tick is a decoration — so they are one line.
  */
 const unbuilt = computed(() => (props.checklist?.unbuilt ?? []).map(stepLabel).join(", "));
+/**
+ * HW8a: steps this carrier has not set up — the orientation videos with no required video listed. Not a
+ * row (nothing to tick yet), and not "not built": the office can switch it on, so the line says where.
+ */
+const unconfigured = computed(() => (props.checklist?.unconfigured ?? []).map(stepLabel).join(", "));
 
 const artifactOf = (key: HiringStepKey) => {
   const step = props.checklist?.steps.find((s) => s.key === key);
@@ -246,6 +251,9 @@ const artifactOf = (key: HiringStepKey) => {
           </li>
         </ul>
       </QueryState>
+      <p v-if="checklist && unconfigured" class="text-xs text-ink-muted" data-testid="unconfigured-steps">
+        {{ unconfigured }}: not set up yet. Add a required video in Settings → Recruiting to use this step.
+      </p>
       <p v-if="checklist && unbuilt" class="text-2xs text-ink-muted">Not built yet: {{ unbuilt }}.</p>
     </div>
   </BaseCard>
