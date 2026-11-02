@@ -1,5 +1,6 @@
-// Silvicom 360 — office chat: conversations about a load, a driver or a truck (migration 0543,
-// OFFICE-CHAT-PLAN CH11a, §9.4; D-CHAT31–D-CHAT34, Q-CHAT6 (a)).
+// Silvicom 360 — office chat: conversations about a load, a driver, a truck, a card-fraud incident or a
+// roadside inspection (migrations 0543 and 0545, OFFICE-CHAT-PLAN CH11a, §9.4; D-CHAT31–D-CHAT36, Q-CHAT6 (a),
+// Q-CHAT21 (c)).
 //
 // What the database itself must guarantee, whoever calls the functions:
 //   · a group may be about one record — a load, a driver or a truck — set when it is made, and the
@@ -187,6 +188,51 @@ await db.query(`select merge_driver_v2($1,$2,$3,$4::jsonb)`, [ORG, DUP, DRIVER, 
 ok("merging the duplicate into Marcus carries its conversation to Marcus",
   (await one(`select driver_id from message_threads where id=$1`, [T_DUP])).driver_id === DRIVER
   && new Set(await list(CLEO, "driver", DRIVER)).has(T_DUP));
+
+// ── 0545: a card-fraud incident and a roadside inspection ─────────────────────────────────────────
+console.log("\n-- 0545: a fraud incident, a roadside inspection --");
+const incident = async (org, cardRef) => (await one(
+  `insert into card_fraud_incidents (org_id, incident_key, card_key, card_ref, opened_at, last_attempt_at, level, attempt_count, places, steps)
+   values ($1, $2, 'k', $3, '2026-10-01', '2026-10-01', 'alert', 1, '[{}]', '[{}]') returning id`, [org, await uuid(), cardRef])).id;
+const inspection = async (org, report = null, day = null) => (await one(
+  `with r as (insert into fmcsa_fetch_runs (org_id, dataset, dot_number, started_at, outcome, complete)
+     values ($1, 'fx4q-ay7w', '1', now(), 'succeeded', true) returning id),
+   raw as (insert into fmcsa_raw_rows (org_id, fetch_run_id, dataset, natural_key, version, kind, payload, sha256)
+     select $1, id, 'fx4q-ay7w', gen_random_uuid()::text, 1, 'present', '{}'::jsonb, repeat('a', 64) from r returning id)
+   insert into roadside_inspections (org_id, fmcsa_inspection_id, raw_row_id, report_number, inspection_date)
+     select $1, (random() * 1e12)::bigint, id, $2, $3 from raw returning id`, [org, report, day])).id;
+const FRAUD = await incident(ORG, "7083050099003367559");
+const FRAUD_B = await incident(ORG_B, "1234");
+const INSP = await inspection(ORG, "MN1234567", "2026-10-21");
+const INSP_DAY = await inspection(ORG, null, "2026-10-21");
+const INSP_B = await inspection(ORG_B, "X1");
+const T_FRAUD = await about(DEV, [BEN], "fraud_incident", FRAUD, "Card fraud ••7559");
+const T_INSP = await about(CLEO, [BEN], "roadside_inspection", INSP, "Inspection MN1234567");
+ok("a group about a fraud incident and one about a roadside inspection, each linked and nothing else",
+  (await one(`select num_nonnulls(load_id, driver_id, vehicle_id, card_fraud_incident_id, roadside_inspection_id) n, card_fraud_incident_id c from message_threads where id=$1`, [T_FRAUD])).c === FRAUD
+  && (await one(`select roadside_inspection_id r, num_nonnulls(load_id, driver_id, vehicle_id, card_fraud_incident_id, roadside_inspection_id) n from message_threads where id=$1`, [T_INSP])).r === INSP);
+ok("...the ledger's conversation_created naming each",
+  (await one(`select detail from chat_ledger where thread_id=$1 and action='conversation_created'`, [T_FRAUD])).detail.card_fraud_incident_id === FRAUD
+  && (await one(`select detail from chat_ledger where thread_id=$1 and action='conversation_created'`, [T_INSP])).detail.roadside_inspection_id === INSP);
+const fraudSays = (await what(DEV, T_FRAUD))[0];
+ok("a fraud incident is called by the card's last four digits — never the number as stored (D-CHAT36)",
+  fraudSays?.kind === "fraud_incident" && fraudSays?.label === "••7559" && !JSON.stringify(fraudSays).includes("7083050099"), JSON.stringify(fraudSays));
+ok("an inspection by its report number", JSON.stringify(await what(CLEO, T_INSP)) === JSON.stringify([{ kind: "roadside_inspection", record_id: INSP, label: "MN1234567" }]));
+const T_DAY = await about(CLEO, [BEN], "roadside_inspection", INSP_DAY);
+ok("...or, without one, by its day as MM/DD/YYYY", (await what(CLEO, T_DAY))[0]?.label === "10/21/2026", JSON.stringify(await what(CLEO, T_DAY)));
+ok("the record's page finds them for the people in them only",
+  JSON.stringify(await list(DEV, "fraud_incident", FRAUD)) === JSON.stringify([T_FRAUD]) && (await list(ANA, "fraud_incident", FRAUD)).length === 0
+  && new Set(await list(BEN, "roadside_inspection", INSP)).has(T_INSP) && (await list(ANA, "roadside_inspection", INSP)).length === 0);
+ok("another organisation's incident or inspection is refused CH016",
+  (await sqlstate(`select chat_create_about($1,$2,$3,'x',$4,'fraud_incident',$5)`, [ORG, ANA, await uuid(), [BEN], FRAUD_B])) === "CH016"
+  && (await sqlstate(`select chat_create_about($1,$2,$3,'x',$4,'roadside_inspection',$5)`, [ORG, ANA, await uuid(), [BEN], INSP_B])) === "CH016");
+ok("re-pointing a link to another organisation's incident or inspection is refused CH016",
+  (await sqlstate(`update message_threads set card_fraud_incident_id=$2 where id=$1`, [T_FRAUD, FRAUD_B])) === "CH016"
+  && (await sqlstate(`update message_threads set roadside_inspection_id=$2 where id=$1`, [T_INSP, INSP_B])) === "CH016");
+ok("still at most one link: an inspection on a conversation about an incident is refused (23514)",
+  (await sqlstate(`update message_threads set roadside_inspection_id=$2 where id=$1`, [T_FRAUD, INSP])) === "23514");
+ok("...and a direct conversation is still about nothing (23514)",
+  (await sqlstate(`update message_threads set card_fraud_incident_id=$2 where id=$1`, [DIRECT, FRAUD])) === "23514");
 
 // ── The browser ───────────────────────────────────────────────────────────────────────────────────
 console.log("\n-- the browser --");
