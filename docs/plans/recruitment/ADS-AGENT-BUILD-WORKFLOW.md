@@ -665,3 +665,8 @@ blocking step in §3 above.
     hitting Connect" are pinned; the Launch half stays a gap until E3, so Security stays L1.
   - **Q-AD24 recorded:** a token's expiry is only readable with our app's secret (Stage 2), so
     `token_expires_on` stays null for now. No migration.
+- **2026-11-02, handoff 5** — The rest of Stage 1 moves to a fresh chat from
+  `HANDOFF-2026-11-02-ADS-STAGE1-B2.md` (main `2ab0738`, last migration 0550). 7b, 7c, 7d, 8, B1a and
+  B1b are merged and on staging; no ads branch is open. Next: B2, the publisher. It is to be split,
+  because `metaLeadForm.ts` does not exist yet and the ad needs C4's creative. Then B3. Q-AD23 and
+  Q-AD24 await the owner.
