@@ -183,3 +183,41 @@ otherwise record the result and stop.
   GGUF card (huggingface.co/openbmb/MiniCPM-OCR-Jev-gguf), Flowtivity's review (2026-10-28), TypeSafe Jev on
   OpenRouter / Cloudflare / LiteLLM docs. The reader's state read off `main`: Sonnet 4.6 + Sonnet 5.5
   readers, Haiku 5.5 classifier, PP-OCRv6 row witness on the prepared view. Production counts queried read-only.
+- **2026-11-02 — J0 run on the Mac (owner: "test it on Mac").** Rig: llama.cpp b12047 (Jev Q8_0, Metal) and b11901
+  (MiniCPM-OCR 1.0 Q8_0, Metal) — Homebrew's llama.cpp 0.8.0 fails to compile its Metal shaders on this macOS and b11901
+  does not know Jev's model type; the vendor's renderer (MiniCPM-OCR `c0881ac`, Ubuntu 24.04, pinned Chromium and fonts)
+  in Docker. Install check: the vendor's three reference cases within 0.011 of theirs (they allow 0.02). Truth labelled
+  by eye: 9 office BOLs with a UN line (19 lines) and 21 production BOL photos (35 lines, 71 values), downloaded
+  read-only. Scripts: `apps/api/src/scripts/judgeSpike.ts`, `judgeSpikeScore.ts`, `judgeMutantProbe.ts`.
+  **(1) Jev as a tie-breaker is excellent.** Each printed number box, scored against its own text and up to four
+  one-digit misreads of the value (the 9-for-6 kind): office 38/38 boxes ranked the truth first, 0 of 152 misreads
+  scored ≥ 0.5; photos 64/65 first (the 65th a 0–0 tie on a garbage box), 0 of 260 misreads ≥ 0.5; pairwise AUROC
+  1.000 and 0.992.
+  **(2) Jev's absolute score is NOT a usable "trust it" gate on our paper.** Correct transcripts scored low: office
+  median 0.13 on boxes where both engines agree, 14/38 true numbers ≥ 0.5; photos 49/65. A threshold gate (D-OJ7 as
+  written) would discard most true values. D-OJ2 should be restated as: Jev chooses between two transcripts of the same
+  box, and its choice counts only when the chosen one scores above the other by a margin; the threshold is not used.
+  Scoring a whole row strip at once gave ~0 even for correct transcripts — boxes, not rows.
+  **(3) On the row rule, the second engine adds little where today's witness already finds the row.** Office: live
+  backs 36/36. Photos: live 45/48, with MiniCPM per box + Jev 46/48 — it read `2,70O.0` as 2,700.0 (Jev 0.973 vs 0.000)
+  and `,102.00 5` as 1,102.00 (0.947 vs 0.000); on 7 boxes where the engines disagreed about a true value Jev picked
+  the true one 5 times, and both scored ~0 on the other 2. No lane backed a misread where live did not.
+  **(4) The real gap is the rows today's witness never finds: 11 of 35 photo lines** (abstained — the UN number not
+  read, or not printed as often as the lines carrying it, e.g. Sonny's supplement prints "1760" without "UN" twice).
+  MiniCPM-OCR on the WHOLE page (≈7 s a page on the Mac GPU) read the UN number on 13 of those 15 line-readings and
+  every one of their 26 true values somewhere on the page. That is page-level, not row-bound (the 0132900 "9" trap), so
+  it is not yet a witness — but it says the next experiment is MiniCPM's own layout + reading order as a row source
+  (J7's direction), not Jev on Paddle's rows.
+  **(5) A finding about TODAY's witness, independent of Jev:** on Mayo 14182 the UN1824 row's window reaches the next
+  line and prints its "2"; the true 8 totes is a class-8 token and unprovable, so if the readers split 8 vs 2 the row
+  would back the 2. Worth a row-window test in the reader-correctness census (RC-style), whatever happens to this plan.
+  Speed: ~2–5 s per box for MiniCPM + Jev on the Mac GPU (~20 boxes on the hazmat rows of a page); 24 of 215 office
+  boxes failed to render (vendor renderer timeout) and were counted as no opinion, 0 of 447 on photos. No CPU numbers
+  yet (Q-OJ1). **Gate (§4): 0 false-backs — met. Gain on today's rows — 1 value of 48, below Q-OJ5's bar.**
+  Recommendation to the owner in §6 Q-OJ6.
+
+**Q-OJ6 (2026-11-02, after J0) — What next?** *(a)* **Recommended:** stop building J1–J5 as written (Jev on today's
+rows clears ~2 % and its threshold gate does not work), and run J0b instead: MiniCPM-OCR's full parse (its layout model
+gives regions and reading order) as a SECOND row source for the lines today's witness cannot find, judged by the same
+`rowBacks` rule, with Jev only breaking ties between the two engines' text of one box. Same offline harness, ~1 day, no
+spend. *(b)* Build the parallel lane now as planned, to collect weeks of production data. *(c)* Stop here.
