@@ -20,6 +20,13 @@ exports[`the route table survives being split by area > resolution 1`] = `
     "url": "/apply/tok_123",
   },
   {
+    "name": "driver-application-videos",
+    "params": {
+      "token": "tok_123",
+    },
+    "url": "/apply/tok_123/videos",
+  },
+  {
     "name": "accept-invite",
     "params": {},
     "url": "/accept-invite",
@@ -711,6 +718,17 @@ exports[`the route table survives being split by area > route table 1`] = `
     },
     "name": "driver-application",
     "path": "/apply/:token",
+    "redirect": null,
+  },
+  {
+    "meta": {
+      "layout": "apply",
+      "noindex": true,
+      "public": true,
+      "title": "Orientation videos",
+    },
+    "name": "driver-application-videos",
+    "path": "/apply/:token/videos",
     "redirect": null,
   },
   {

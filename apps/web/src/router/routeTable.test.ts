@@ -33,7 +33,7 @@ import { router } from "./index";
 
 /** Every URL worth pinning: one per declared route, with the ambiguous pairs written out. */
 const PROBES = [
-  "/login", "/placard-calculator", "/apply/tok_123", "/accept-invite", "/pending", "/use-the-app",
+  "/login", "/placard-calculator", "/apply/tok_123", "/apply/tok_123/videos", "/accept-invite", "/pending", "/use-the-app",
   "/forgot-password", "/reset-password",
   "/",
   "/assignments",
@@ -215,6 +215,7 @@ describe("the route table survives being split by area", () => {
       "/:pathMatch(.*)*",
       "/accept-invite", // redeems the invitation's own token via /api/public/invites; membership written server-side
       "/apply/:token", // H5b — the applicant's form; the token IS the access control
+      "/apply/:token/videos", // HW8a — the orientation videos on the same token
       "/error",
       "/forgot-password", // 0363 — asks for a reset link; the API answers one sentence for every address
       "/login",

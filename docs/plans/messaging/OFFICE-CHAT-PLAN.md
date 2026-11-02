@@ -414,7 +414,7 @@ held until every file is there; under a line, its images as thumbnails and its d
 Download; a Files item in every conversation's and channel's header menu listing what was sent, newest
 first, with who sent it.
 
-**Open after CH7 (recorded, not built):** the compliance console (CHA2) and its export (CHA3b) do not yet
+**Open after CH7 (database half built 2026-11-02, migration 0544; console and export bytes next):** the compliance console (CHA2) and its export (CHA3b) do not yet
 show or include a line's files. A compliance export without them is incomplete — the ledger proves a file
 was sent and its hash, but the export does not carry the bytes or list them. Next step:
 `chat_compliance_export_rows` returns each line's attachments with their SHA-256, the console's conversation view draws
@@ -745,6 +745,19 @@ TechRepublic / Windows Report on Teams 2026 updates.
   among them); 17 mutants, 16 failed rows and the 17th was a revoke 0412 already makes. The first run
   showed the truck's and the driver's organisation checks unguarded — only the load's was tried — and two
   rows now try them. Next: CH11b once 0543 is on staging.
+- 2026-11-02: **CH11a MERGED** (#1917, 0543). **Compliance files, the database half** built
+  (`claude/chat-compliance-files`, migration 0544), §9.3's open item: `chat_compliance_line_files` (a
+  line's files with their hashes, a retracted line's included, never a storage key); the conversation
+  view, the message search and the export each carry them; `chat_compliance_file` ledgers a
+  `compliance_view` naming the file, its hash and the reason before it answers the key; an export counts
+  its files and bytes (header and ledger) and refuses past 1 GB (CH010); `chat_compliance_file_keys`
+  hands the API that export's keys only, while it is building, in the export's order. The fold is
+  unchanged — each file's hash is already in its own `file_attached` ledger row. Matrix
+  `office-chat-compliance-files.test.mjs` (25 rows, the ceiling tried with 50 real 25 MB rows and 40 under
+  it); 17 mutants, all failed rows after two rows were added — the first run found the ceiling held only by
+  a text match the mutant still satisfied, and the count not shown to stay inside the export's own
+  conversation, and that the keys came back in random-uuid order, not the export's. Next: the API and
+  the console, once 0544 is on staging.
 - 2026-11-02: **Compliance files database half MERGED** (#1920, 0544). **CH11b built** — "Chat about this",
   the API and chat's side (`claude/chat-ch11b-about-api`), on 0543 (applied to staging, migrate run for
   1136f8f). Contract `chatAboutContract.ts`: `CHAT_ABOUT_KINDS`, and `CHAT_ABOUT_READ_SECTION` — a load

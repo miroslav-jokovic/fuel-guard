@@ -25,6 +25,7 @@ import RecordedActPanel from "@/features/recruitment/RecordedActPanel.vue";
 import RoadTestPanel from "@/features/recruitment/RoadTestPanel.vue";
 import HandbookPanel from "@/features/recruitment/HandbookPanel.vue";
 import TravelPanel from "@/features/recruitment/TravelPanel.vue";
+import OrientationVideosPanel from "@/features/recruitment/OrientationVideosPanel.vue";
 import DrugTestPanel from "@/features/recruitment/DrugTestPanel.vue";
 import MedstopTestCard from "@/features/recruitment/MedstopTestCard.vue";
 import ClearinghouseConsentPanel from "@/features/recruitment/ClearinghouseConsentPanel.vue";
@@ -281,6 +282,7 @@ const authorizationsQ = useAuthorizationsQuery(driverId);
       />
       <HandbookPanel v-else-if="body === 'handbook'" :driver-id="driverId" :done="step.state === 'done'" />
       <TravelPanel v-else-if="body === 'travel'" :driver-id="driverId" />
+      <OrientationVideosPanel v-else-if="body === 'videos'" :driver-id="driverId" />
 
       <!-- ⚠ Q-HM9's step. The section is unchanged — it was already the whole §391.23(c)(2) record,
            it simply had no row to open it. What the row adds is that the investigation is now
