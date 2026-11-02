@@ -3,6 +3,7 @@ import { computed, ref } from "vue";
 import { useRoute } from "vue-router";
 import { isDispatchable, loadBoardState, LOAD_EVENT_LABELS } from "@silvicom/shared";
 import PageHeader from "@/components/ui/PageHeader.vue";
+import ChatAboutCard from "@/features/chat/ChatAboutCard.vue";
 import {
   AppCard as BaseCard,
   AppButton as BaseButton,
@@ -340,6 +341,8 @@ function markBroken(id: string) {
         </BaseCard>
 
         <DispatchLoadDrawer :load="dispatchOpen ? { ...load, last_dispatch: load.dispatches[0] ?? null } : null" @close="dispatchOpen = false" />
+        <!-- CH11c: the viewer's own conversations about this load, and Chat about this. -->
+        <ChatAboutCard kind="load" :record-id="loadId" :label="load.ref" />
       </template>
     </QueryState>
   </div>

@@ -33,7 +33,7 @@ vi.mock("@/stores/session", () => ({ useSessionStore: () => ({ can: () => true, 
 
 // The file and maintenance sections (UF5) have reads and stores of their own and their own suites;
 // this file pins the summary card and the fuel panels.
-const STUBS = { HolderEquipmentCard: true, UnitFileSection: true, UnitWorkOrdersCard: true, UnitInspectionsCard: true, BaseChart: true, DataTable: true };
+const STUBS = { HolderEquipmentCard: true, ChatAboutCard: true, UnitFileSection: true, UnitWorkOrdersCard: true, UnitInspectionsCard: true, BaseChart: true, DataTable: true };
 const mountPage = async () => {
   const router = createRouter({ history: createMemoryHistory(), routes: [{ path: "/vehicles/:id", component: VehicleDetailPage }] });
   await router.push("/vehicles/v-1");
@@ -51,6 +51,12 @@ describe("VehicleDetailPage — the summary's facts", () => {
   it("pairs each fact with its label, the tank with its unit", async () => {
     vehicle.row = { id: "v-1", unit_number: "654", status: "active", fuel_type: "diesel", tank_capacity_gal: 200, baseline_mpg: 6.8, current_odometer: 412000, odometer_offset: 0 };
     expect(pairs(await mountPage())).toEqual({ Tank: "200 gal", "Baseline MPG": "6.8", Odometer: "412000", "Open anomalies": "0" });
+  });
+
+  it("hands the Chat card the truck's id and its unit number (CH11c)", async () => {
+    vehicle.row = { id: "v-1", unit_number: "654", status: "active", fuel_type: "diesel", tank_capacity_gal: 200, baseline_mpg: 6.8, current_odometer: 412000, odometer_offset: 0 };
+    const card = (await mountPage()).findComponent({ name: "ChatAboutCard" });
+    expect(card.props()).toMatchObject({ kind: "vehicle", recordId: "v-1", label: "654" });
   });
 
   it("draws a dash for a truck with no tank or baseline on file, never a bare unit", async () => {

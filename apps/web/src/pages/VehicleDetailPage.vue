@@ -23,6 +23,7 @@ import {
   isNotFound,
 } from "@silvicom/ui";
 import HolderEquipmentCard from "@/features/inventory/HolderEquipmentCard.vue";
+import ChatAboutCard from "@/features/chat/ChatAboutCard.vue";
 import UnitWorkOrdersCard from "@/features/maintenance/UnitWorkOrdersCard.vue";
 import UnitInspectionsCard from "@/features/roadside/UnitInspectionsCard.vue";
 import UnitFileSection from "@/components/files/UnitFileSection.vue";
@@ -231,6 +232,8 @@ const fillColumns: DataTableColumn[] = [
              no card at all — a card full of blanks would say "this truck carries nothing", which is a
              different and alarming claim. -->
         <HolderEquipmentCard v-if="vehicle" :target="{ kind: 'vehicle', id, label: `Truck ${vehicle.unit_number}` }" />
+        <!-- CH11c: the viewer's own conversations about this truck, and Chat about this. -->
+        <ChatAboutCard v-if="vehicle" kind="vehicle" :record-id="id" :label="vehicle.unit_number" />
         <!-- Read-only windows onto the shop's open orders and the roadside record for this unit (UF5),
              each from a read its own page already makes, each linking out to where the work is done. -->
         <UnitWorkOrdersCard v-if="vehicle" kind="tractor" :unit-id="id" />
