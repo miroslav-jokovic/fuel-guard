@@ -25,6 +25,7 @@ import {
   type QualificationRow,
 } from "./applicantBoardReads.js";
 import { readOrientationVideoFacts } from "./orientationVideos.js";
+import { readCarrierStepFacts } from "./carrierSteps.js";
 import { recruitingSettings } from "./recruitingSettings.js";
 
 /**
@@ -102,7 +103,7 @@ export async function checklistInputs(
 
   const [
     records, pspRequested, marks, drafts, employment, inquiries, handbookMarks, intakes, travel, driverRows,
-    intakeLicences, zone, settings, videos,
+    intakeLicences, zone, settings, videos, carrierSteps,
   ] = await Promise.all([
     readQualificationRecords(admin, orgId, driverIds),
     // ⚠ Through the psp module's own interface, never `psp_requests` directly: that table is its
@@ -124,6 +125,8 @@ export async function checklistInputs(
     recruitingSettings(admin, orgId),
     // HW8a (0539): the carrier's required videos, what each driver ticked, and the office's last send.
     readOrientationVideoFacts(admin, orgId, subjects.map((s) => ({ driverId: s.driverId, invitationId: s.invitation?.id ?? null }))),
+    // §10 CE2 (0545): the carrier's own steps once, and the latest act on each for every driver.
+    readCarrierStepFacts(admin, orgId, driverIds),
   ]);
 
   for (const s of subjects) {
@@ -146,6 +149,9 @@ export async function checklistInputs(
 
     const inputs: HiringChecklistInputs = {
       hirePolicy: { handbook_blocks_hire: settings.handbook_blocks_hire, videos_block_hire: settings.videos_block_hire },
+      // §10 D-CE3: the built-in steps this carrier does not run; the fold honours only hideable keys.
+      hiddenSteps: settings.hidden_hiring_steps,
+      carrierSteps: carrierSteps.get(s.driverId) ?? null,
       invitedAt: inv?.created_at ?? null,
       phases: inv
         ? {

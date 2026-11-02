@@ -86,7 +86,7 @@ const DEFINED: readonly HiringStepDefinition[] = [
     key: "psp", label: "PSP report",
     action: "Get the PSP report",
     where: "office", phase: "screening",
-    federalGate: false, beforeTravel: true, owes: "us", requires: ["permissions_signed"],
+    federalGate: false, beforeTravel: true, owes: "us", carrierMayHide: true, requires: ["permissions_signed"],
     // ⚠ The REPORT, not the request. D-HM9's table names both — `psp_requests` is where an order
     // lives — but this string is only ever shown once the step is DONE, and what proves it is the
     // filed record. Both paths land there: `/psp-orders` files one on a settled order and
@@ -168,7 +168,7 @@ const DEFINED: readonly HiringStepDefinition[] = [
     key: "travel_booked", label: "Travel booked",
     action: "Book the applicant's travel",
     where: "office", phase: "screening",
-    federalGate: false, beforeTravel: false, owes: "us", requires: [],
+    federalGate: false, beforeTravel: false, owes: "us", carrierMayHide: true, requires: [],
     evidence: { table: "applicant_travel", label: "Itinerary" },
   },
   // ⚠ THE FIFTEENTH STEP, added by Q-HM9 on 2026-09-18, and it is the only one here that D-HM9 did
@@ -227,7 +227,7 @@ const DEFINED: readonly HiringStepDefinition[] = [
     // ⚠ `owes: "us"` since HW8a, and it was "them": nothing reaches the driver until the office sends the
     // link, so the office's move comes first; the send (`orientation_videos_sent_at`) is what hands it
     // to "Waiting on them" — `application_signed`'s pattern.
-    federalGate: false, beforeTravel: false, owes: "us", requires: ["drug_test"],
+    federalGate: false, beforeTravel: false, owes: "us", carrierMayHide: true, requires: ["drug_test"],
     evidence: { table: "orientation_video_attestations", label: "Videos watched" },
   },
   // ⚠ Blocked by the drug test on the STRICTER of two readings, and §5.1 is worth reading before
@@ -250,7 +250,7 @@ const DEFINED: readonly HiringStepDefinition[] = [
     key: "live_orientation", label: "Live orientation",
     action: "Hold the orientation day",
     where: "office", phase: "orientation",
-    federalGate: false, beforeTravel: false, owes: "us", requires: ["office_approved"],
+    federalGate: false, beforeTravel: false, owes: "us", carrierMayHide: true, requires: ["office_approved"],
     evidence: null,
   },
   // ⚠ The gate here is SQL, not an opinion: `record_packet_mark` raises DR032 until `approved_at` is
@@ -287,7 +287,7 @@ const DEFINED: readonly HiringStepDefinition[] = [
     key: "handbook", label: "Handbook signed",
     action: "Sign the driver handbook in the office",
     where: "office", phase: "office_day",
-    federalGate: false, beforeTravel: false, owes: "us", requires: ["application_signed"],
+    federalGate: false, beforeTravel: false, owes: "us", carrierMayHide: true, requires: ["application_signed"],
     evidence: { table: "qualification_records.handbook", label: "Signed handbook" },
   },
   // ⚠ Its `requires` is `HIRE_REFUSES_WITHOUT`, stamped below (G-11, APPLICATION-FLOW-V2-PLAN §7).

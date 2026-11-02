@@ -37,7 +37,7 @@ const READY_KINDS = ["mvr", "clearinghouse_full", "drug_test", "medical_registry
 const ceremonyProvenance = (kind: string) => (kind === "road_test" ? { source: "road_test" } : {});
 const selectOf = (q: RecordedQuery): string => String(q.ops.find((o) => o.method === "select")?.args[0] ?? "");
 
-const seed = (over: { drivers?: unknown[]; employment?: unknown[]; records?: unknown[]; evidence?: string[]; rpc?: unknown; settings?: unknown[] } = {}) =>
+const seed = (over: { drivers?: unknown[]; employment?: unknown[]; records?: unknown[]; evidence?: string[]; rpc?: unknown; settings?: unknown[]; carrierSteps?: unknown[]; carrierRecords?: unknown[] } = {}) =>
   createSupabaseRecorder({
     tables: {
       drivers: over.drivers ?? [{ id: DRIVER, full_name: "An Applicant", status: "applicant", hire_date: null }],
@@ -51,6 +51,8 @@ const seed = (over: { drivers?: unknown[]; employment?: unknown[]; records?: unk
       audit_logs: [],
       // §9 P12: no row is the product's defaults — the six federal checks only.
       recruiting_settings: over.settings ?? [],
+      hiring_carrier_steps: over.carrierSteps ?? [],
+      hiring_carrier_step_records: over.carrierRecords ?? [],
     },
     rpc: { hire_applicant: over.rpc ?? { status: "active", hire_date: "2026-09-01", filed: 2 } },
   });
@@ -149,6 +151,24 @@ describe("what hiring refuses without (Q-HM5; Q-WF6 since §9 P4)", () => {
     expect(isHireError(result) && result.missing).toEqual(["handbook"]);
     expect(rec.rpcs()).toHaveLength(0);
     expectOrgScoped(rec, ORG);
+  });
+
+  it("§10 D-CE6: refuses until a carrier step switched to hold the hire is done, and names it", async () => {
+    const step = { id: "s-fuel", label: "Fuel card issued", instructions: null, after_step: "road_test", position: 0, owes: "us",
+      proof: "tick", blocks_hire: true, created_at: "2026-11-01T00:00:00Z", retired_at: null };
+    const open = seed({ carrierSteps: [step] });
+    const refused = await hireApplicant(open.client, ORG, "u", body, TODAY);
+    expect(isHireError(refused) && refused.code).toBe("not_ready_to_hire");
+    expect(isHireError(refused) && refused.missingCarrierSteps).toEqual(["s-fuel"]);
+    expect(isHireError(refused) && refused.message).toContain("Fuel card issued");
+    expect(open.rpcs()).toHaveLength(0);
+    expectOrgScoped(open, ORG);
+
+    const done = seed({
+      carrierSteps: [step],
+      carrierRecords: [{ id: "r1", step_id: "s-fuel", driver_id: DRIVER, act: "done", note: null, document_id: null, recorded_by_name: "Dana", recorded_at: "2026-11-02T00:00:00Z" }],
+    });
+    expect(isHireError(await hireApplicant(done.client, ORG, "u", body, TODAY))).toBe(false);
   });
 
   it("refuses without a federal gate — the drug test — and names it", async () => {

@@ -78,7 +78,7 @@ export function recruitmentHireRouter(): Router {
           : result.code === "hire_failed" ? 500
           : 400;
         // `missing` rides beside the envelope so the screen can name each step (Q-HM5, D-HB5).
-        res.status(status).json({ ...apiError(result.code, result.message), missing: result.missing ?? [] });
+        res.status(status).json({ ...apiError(result.code, result.message), missing: result.missing ?? [], missingCarrierSteps: result.missingCarrierSteps ?? [] });
         return;
       }
 

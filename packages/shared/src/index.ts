@@ -230,6 +230,7 @@ export * from "./applicantDisposition.js";
 export * from "./applicantNotesContract.js";
 export * from "./employmentGapContract.js";
 export * from "./orientationVideosContract.js";
+export * from "./carrierStepsContract.js";
 export * from "./packetPlacements.js";
 export * from "./permissionInstrument.js";
 export * from "./signingPlaceDestination.js";

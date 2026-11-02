@@ -3,6 +3,7 @@ import type { ApplicationPhases } from "./applicationReviewContract.js";
 import type { ApplyingAs } from "./questionnaireContract.js";
 import type { HirePolicy } from "./hiringSteps.js";
 import type { OrientationVideoFacts } from "./orientationVideosContract.js";
+import type { CarrierStepFacts } from "./carrierStepsContract.js";
 
 /**
  * What `hiringChecklist()` is GIVEN — every field a row a caller already has, never a query.
@@ -155,4 +156,14 @@ export interface HiringChecklistInputs {
    * rows and named in `unconfigured` (`orientationVideosMeasurable`), never read as done.
    */
   orientationVideos?: OrientationVideoFacts | null;
+  /**
+   * §10 CE2 (0545): the carrier's own live steps and the latest act on each for this applicant. Absent
+   * reads as a carrier that has added none.
+   */
+  carrierSteps?: CarrierStepFacts | null;
+  /**
+   * §10 D-CE3 (0545, `recruiting_settings.hidden_hiring_steps`): the built-in steps this carrier does not
+   * run. Only `carrierMayHide` keys are honoured (`hiddenHiringSteps`); absent hides nothing.
+   */
+  hiddenSteps?: readonly string[] | null;
 }

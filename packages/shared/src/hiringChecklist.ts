@@ -12,6 +12,9 @@ import {
 
 // The input's shape lives next door since C2b2 (2026-09-26), split at the 450-line warning along the
 // line between what the fold is GIVEN and what it DECIDES; re-exported so no import path changed.
+import { hiddenHiringSteps } from "./carrierStepsContract.js";
+import { carrierChecklistRows, carrierHireBlockers, type CarrierChecklistRow } from "./hiringCarrierSteps.js";
+export * from "./hiringCarrierSteps.js";
 export type { HiringChecklistInputs } from "./hiringChecklistInputs.js";
 // `readyToScreen` reads the fold's output, not its inputs — next door since HW8a, at the 500-line wall.
 export { readyToScreen } from "./hiringReadyToScreen.js";
@@ -129,6 +132,8 @@ export interface HiringReadiness {
   unmeasured: HiringStepKey[];
   /** Steps in range that are measurable and not done. */
   outstanding: HiringStepKey[];
+  /** §10 D-CE6: the carrier's own steps in range (those that hold the hire) not done. Empty for travel. */
+  carrierOutstanding: string[];
 }
 
 export interface HiringChecklist {
@@ -153,6 +158,10 @@ export interface HiringChecklist {
   unconfigured: HiringStepKey[];
   /** The one action to lead with — the office's own first, because that is what it can do today. */
   next: HiringStepKey | null;
+  /** §10 CE2: the carrier's own steps, in place order; `showAfter` says where each goes among `steps`. */
+  carrierSteps: CarrierChecklistRow[];
+  /** §10 D-CE3: built-in steps this carrier does not run — left out of `steps` and of both readiness ranges. */
+  hidden: HiringStepKey[];
 }
 
 /**
@@ -363,12 +372,13 @@ function readiness(
   const done = new Set(steps.filter((s) => s.state === "done").map((s) => s.key));
   const unmeasured: HiringStepKey[] = [];
   const outstanding: HiringStepKey[] = [];
+  const hidden = hiddenHiringSteps(input.hiddenSteps);
   for (const spec of HIRING_STEPS) {
-    if (!inRange(spec)) continue;
+    if (!inRange(spec) || hidden.has(spec.key)) continue;
     if (!measuredFor(spec, input)) unmeasured.push(spec.key);
     else if (!done.has(spec.key)) outstanding.push(spec.key);
   }
-  return { ok: unmeasured.length === 0 && outstanding.length === 0, unmeasured, outstanding };
+  return { ok: unmeasured.length === 0 && outstanding.length === 0, unmeasured, outstanding, carrierOutstanding: [] };
 }
 
 export function hiringChecklist(input: HiringChecklistInputs): HiringChecklist {
@@ -378,10 +388,13 @@ export function hiringChecklist(input: HiringChecklistInputs): HiringChecklist {
   // policy switches on — so the row, `readyToHire` and `hireBlockers` all read one list.
   // HW8a: a switched-on step this carrier cannot measure (the videos with none required) waits for nothing
   // — the rule the `unmet` check below states for requirements: what cannot complete cannot block.
-  const hireRequires = hireRefusesWithout(input.hirePolicy ?? undefined).filter((k) => measuredFor(hiringStep(k), input));
+  // §10 D-CE3: a step the carrier does not run is left out — of the rows, of the hire's list, of every range.
+  const hidden = hiddenHiringSteps(input.hiddenSteps);
+  const runs = (spec: HiringStepSpec) => measuredFor(spec, input) && !hidden.has(spec.key);
+  const hireRequires = hireRefusesWithout(input.hirePolicy ?? undefined).filter((k) => runs(hiringStep(k)));
 
   // One pass in D-HM9's order, so a step's requirements are always already decided when it is read.
-  for (const listed of HIRING_STEPS.filter((s) => measuredFor(s, input))) {
+  for (const listed of HIRING_STEPS.filter(runs)) {
     const spec: HiringStepSpec = listed.key === "hired" ? { ...listed, requires: hireRequires } : listed;
     const evidence = evidenceFor(spec.key, input);
     if (evidence.done) done.add(spec.key);
@@ -392,7 +405,7 @@ export function hiringChecklist(input: HiringChecklistInputs): HiringChecklist {
     const unmet =
       spec.requires.find((r) => {
         const req = HIRING_STEPS.find((s) => s.key === r);
-        return req !== undefined && measuredFor(req, input) && !done.has(r);
+        return req !== undefined && runs(req) && !done.has(r);
       }) ?? null;
     // §9 P4: only a refusing step is blocked by an unmet requirement; for the rest it is advice.
     const blockedBy = REFUSING_STEPS.has(spec.key) ? unmet : null;
@@ -426,19 +439,25 @@ export function hiringChecklist(input: HiringChecklistInputs): HiringChecklist {
   // process order already encodes when a step is worth doing; reading it is both simpler and the
   // only one of the two that cannot recommend spending money on a stranger.
   const next = steps.find((s) => s.state !== "done" && s.state !== "blocked")?.key ?? null;
+  const carrierSteps = carrierChecklistRows(input.carrierSteps, steps.map((s) => s.key));
+  const hireReady = readiness(steps, (s) => hireRequires.includes(s.key), input);
+  const carrierOutstanding = carrierHireBlockers({ carrierSteps }).map((s) => s.id);
 
   return {
     steps,
-    done: steps.filter((s) => s.state === "done").length,
-    total: steps.length,
+    // §10 CE2: the count is the carrier's whole checklist, its own steps included.
+    done: steps.filter((s) => s.state === "done").length + carrierSteps.filter((s) => s.state === "done").length,
+    total: steps.length + carrierSteps.length,
     readyToTravel: readiness(steps, (s) => s.beforeTravel, input),
     // ⚠ G-11: the ONE definition — what the hire refuses without. This read every step but `hired`
     // until 2026-09-26, which put the unbuilt orientation rows in range, so `ok` could never be true
     // for anybody; it had no caller, and the hire refused on a different list.
-    readyToHire: readiness(steps, (s) => hireRequires.includes(s.key), input),
-    unbuilt: HIRING_STEPS.filter((s) => s.evidence === null).map((s) => s.key),
-    unconfigured: HIRING_STEPS.filter((s) => s.evidence !== null && !measuredFor(s, input)).map((s) => s.key),
+    readyToHire: { ...hireReady, ok: hireReady.ok && carrierOutstanding.length === 0, carrierOutstanding },
+    unbuilt: HIRING_STEPS.filter((s) => s.evidence === null && !hidden.has(s.key)).map((s) => s.key),
+    unconfigured: HIRING_STEPS.filter((s) => s.evidence !== null && !hidden.has(s.key) && !measuredFor(s, input)).map((s) => s.key),
     next,
+    carrierSteps,
+    hidden: HIRING_STEPS.filter((s) => hidden.has(s.key)).map((s) => s.key),
   };
 }
 

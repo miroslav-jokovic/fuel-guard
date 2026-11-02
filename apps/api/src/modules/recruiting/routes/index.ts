@@ -24,6 +24,7 @@ import { recruitmentSelfieRouter } from "./selfie.js";
 import { recruitmentNotesRouter } from "./notes.js";
 import { recruitmentEmploymentGapsRouter } from "./employmentGaps.js";
 import { recruitmentOrientationVideosRouter } from "./orientationVideos.js";
+import { recruitmentCarrierStepsRouter } from "./carrierSteps.js";
 import { recruitmentApplicantDocumentsRouter } from "./applicantDocuments.js";
 
 /**
@@ -62,6 +63,7 @@ export function recruitmentRouter(): Router {
   router.use(recruitmentNotesRouter()); // the office's notes and the derived activity list (§9 P10)
   router.use(recruitmentEmploymentGapsRouter()); // gaps the office records after signing (HW5c, 0538)
   router.use(recruitmentOrientationVideosRouter()); // the carrier's video links and an applicant's "I watched these" (HW8a)
+  router.use(recruitmentCarrierStepsRouter()); // the carrier's own hiring steps and the office's tick on each (§10 CE2, 0545)
   router.use(recruitmentApplicantDocumentsRouter()); // the applicant's papers, and the office's upload (§9 P9)
   return router;
 }

@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   RECRUITING_SETTINGS_DEFAULTS,
+  hiddenHiringSteps,
   type RecruitingSettings,
   type RecruitingSettingsInput,
   type RecruitingSettingsView,
@@ -24,7 +25,7 @@ import {
  * none. Two saves racing to create the row meet 0379's primary key; the loser's 23505 is answered by
  * updating the row the winner made, so the later press is the one that stands, as it would have been.
  */
-const COLS = "invite_ttl_days, reminders_enabled, reminder_after_hours, handbook_blocks_hire, videos_block_hire, updated_at";
+const COLS = "invite_ttl_days, reminders_enabled, reminder_after_hours, handbook_blocks_hire, videos_block_hire, hidden_hiring_steps, updated_at";
 
 type Row = RecruitingSettings & { updated_at: string };
 
@@ -45,6 +46,8 @@ const pick = (r: RecruitingSettings): RecruitingSettings => ({
   reminder_after_hours: r.reminder_after_hours,
   handbook_blocks_hire: r.handbook_blocks_hire,
   videos_block_hire: r.videos_block_hire,
+  // §10 CE2: only hideable keys survive the read (D-CE3) — a stored locked key is dropped here as in the fold.
+  hidden_hiring_steps: [...hiddenHiringSteps(r.hidden_hiring_steps)],
 });
 
 /** What is in force for this org: its row, else the product's defaults. Throws on a failed read. */
@@ -70,7 +73,8 @@ export interface RecruitingSettingsSaved {
 /**
  * Writes every answer. The input is the contract's, already validated (bounds and the refine).
  * ⚠ §9 P12: a PUT without `handbook_blocks_hire` (a screen served before 0536's reader), or without
- * HW8a's `videos_block_hire` (one served before 0539's reader), keeps the value
+ * HW8a's `videos_block_hire` (one served before 0539's reader), or without §10 CE2's
+ * `hidden_hiring_steps` (one served before 0545's reader), keeps the value
  * in force — "absent" is "unchanged", never "off".
  */
 export async function saveRecruitingSettings(
@@ -84,6 +88,7 @@ export async function saveRecruitingSettings(
     ...input,
     handbook_blocks_hire: input.handbook_blocks_hire ?? before.handbook_blocks_hire,
     videos_block_hire: input.videos_block_hire ?? before.videos_block_hire,
+    hidden_hiring_steps: input.hidden_hiring_steps ?? before.hidden_hiring_steps,
   };
   const answers = { ...pick(complete), updated_by: userId };
 

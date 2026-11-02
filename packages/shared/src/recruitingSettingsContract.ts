@@ -2,6 +2,7 @@ import { z } from "zod";
 import { INVITE_TTL_DAYS_DEFAULT, INVITE_TTL_DAYS_MAX } from "./applicationIntake.js";
 import { STALE_DRAFT_HOURS } from "./applicationNudge.js";
 import { HIRE_POLICY_DEFAULT } from "./hiringSteps.js";
+import { hiddenHiringStepsSchema } from "./carrierStepsContract.js";
 
 /**
  * The carrier's own answers about an application link's lifetime and its reminder
@@ -52,6 +53,9 @@ export const recruitingSettingsSchema = z
     // HW8a (0539): whether the hire also waits for every required orientation video — the same "absent
     // keeps it" rule, for a screen served before HW8a's reader.
     videos_block_hire: z.boolean().optional(),
+    // §10 CE2 (0545): the built-in steps this carrier does not run (D-CE3) — hideable keys only, and the
+    // same "absent keeps it" rule, for a screen served before this reader.
+    hidden_hiring_steps: hiddenHiringStepsSchema.optional(),
   })
   .refine((s) => stoppedBeforeLinkExpires(s.invite_ttl_days, s.reminder_after_hours), {
     path: ["reminder_after_hours"],
@@ -68,6 +72,7 @@ export const RECRUITING_SETTINGS_DEFAULTS: RecruitingSettings = {
   reminder_after_hours: STALE_DRAFT_HOURS,
   handbook_blocks_hire: HIRE_POLICY_DEFAULT.handbook_blocks_hire,
   videos_block_hire: HIRE_POLICY_DEFAULT.videos_block_hire,
+  hidden_hiring_steps: [],
 };
 
 /** `GET /api/recruitment/settings` — what is in force, and whether the carrier has ever chosen it. */

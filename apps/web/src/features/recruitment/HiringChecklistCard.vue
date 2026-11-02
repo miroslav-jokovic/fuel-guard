@@ -1,6 +1,12 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { hiringStep, type HiringChecklist, type HiringStep, type HiringStepKey } from "@silvicom/shared";
+import {
+  hiringStep,
+  type CarrierChecklistRow,
+  type HiringChecklist,
+  type HiringStep,
+  type HiringStepKey,
+} from "@silvicom/shared";
 import { AppButton as BaseButton, AppCard as BaseCard, AppIcon, QueryState } from "@silvicom/ui";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { hiringStepStateBadge } from "@/lib/badges.recruiting";
@@ -52,6 +58,8 @@ const props = defineProps<{
  */
 const emit = defineEmits<{
   open: [step: HiringStep];
+  /** §10 CE2: one of the carrier's own steps — the page opens its drawer. */
+  openCarrier: [step: CarrierChecklistRow];
   /**
    * The checklist failed and the reader asked again (D-US5). The card does not own the query, by the
    * same boundary as `open`: the page that fetched it refetches it.
@@ -87,6 +95,21 @@ const nextStep = computed<HiringStep | null>(
 const nextAction = computed(() => (nextStep.value ? hiringStep(nextStep.value.key).action : null));
 
 const stepLabel = (key: HiringStepKey): string => hiringStep(key).label;
+
+/**
+ * §10 CE2: the carrier's own steps interleaved with the built-in rows, each after the row the fold said
+ * (`showAfter`) — the fold places them, this only lays them out. One with no emitted step before it
+ * goes first.
+ */
+type Row = { kind: "built"; step: HiringStep } | { kind: "carrier"; step: CarrierChecklistRow };
+const rows = computed<Row[]>(() => {
+  const c = props.checklist;
+  if (!c) return [];
+  const carrier = c.carrierSteps ?? [];
+  const after = (k: HiringStepKey | null): Row[] =>
+    carrier.filter((r) => r.showAfter === k).map((step) => ({ kind: "carrier" as const, step }));
+  return [...after(null), ...c.steps.flatMap((step) => [{ kind: "built" as const, step }, ...after(step.key)])];
+});
 
 /**
  * The travel answer, in the only form it may honestly take (D-HM9, and B1's own header).
@@ -182,9 +205,30 @@ const artifactOf = (key: HiringStepKey) => {
         @retry="emit('retry')"
       >
         <ul v-if="checklist" class="divide-y divide-edge border-t border-edge">
+          <template v-for="row in rows" :key="row.kind === 'built' ? row.step.key : row.step.id">
+          <!-- §10 CE2: a carrier step — the same three columns; its proof is the latest record's words. -->
           <li
-            v-for="step in checklist.steps"
-            :key="step.key"
+            v-if="row.kind === 'carrier'"
+            class="grid gap-x-4 gap-y-1 py-1 sm:grid-cols-[minmax(0,1fr)_10rem] sm:items-center"
+            data-testid="carrier-step-row"
+          >
+            <BaseButton size="row" variant="ghost" class="rounded-detail" @click="emit('openCarrier', row.step)">
+              <span class="grid w-full grid-cols-[minmax(0,1fr)_9rem] items-center gap-x-4">
+                <span class="text-xs font-medium text-ink">{{ row.step.label }}</span>
+                <span :class="[BADGE_BASE, toneClass(hiringStepStateBadge(row.step.state).tone), 'justify-self-start']">
+                  <AppIcon :icon="hiringStepStateBadge(row.step.state).icon" class="size-3.5" aria-hidden="true" />
+                  {{ hiringStepStateBadge(row.step.state).label }}
+                </span>
+              </span>
+            </BaseButton>
+            <span class="px-3 text-2xs text-ink-muted sm:px-0 sm:justify-self-end sm:text-right">
+              <template v-if="row.step.state === 'done' && row.step.record">Done by {{ row.step.record.byName }}</template>
+              <template v-else-if="row.step.blocksHire">Your company's rule: hire waits</template>
+              <template v-else>—</template>
+            </span>
+          </li>
+          <li
+            v-else
             class="grid gap-x-4 gap-y-1 py-1 sm:grid-cols-[minmax(0,1fr)_10rem] sm:items-center"
           >
             <!-- ⚠ `BaseButton size="row"`, never a raw `<button>`: `lint:ui-adoption` fails on ANY
@@ -195,17 +239,17 @@ const artifactOf = (key: HiringStepKey) => {
                  ⚠ And the artifact stays OUTSIDE the button rather than inside it. It is a link, and
                  a link nested in a button is invalid markup and an unreachable target for a keyboard
                  — two destinations in one row have to be two siblings. -->
-            <BaseButton size="row" variant="ghost" class="rounded-detail" @click="emit('open', step)">
+            <BaseButton size="row" variant="ghost" class="rounded-detail" @click="emit('open', row.step)">
               <span class="grid w-full grid-cols-[minmax(0,1fr)_9rem] items-center gap-x-4">
-                <span class="text-xs font-medium text-ink">{{ step.label }}</span>
+                <span class="text-xs font-medium text-ink">{{ row.step.label }}</span>
 
                 <!-- D-HUI4: icon AND word, never a coloured dot. The four states are not ordered on a
                      good/bad axis, so only the one that means YOU is toned at all. -->
                 <span
-                  :class="[BADGE_BASE, toneClass(hiringStepStateBadge(step.state).tone), 'justify-self-start']"
+                  :class="[BADGE_BASE, toneClass(hiringStepStateBadge(row.step.state).tone), 'justify-self-start']"
                 >
-                  <AppIcon :icon="hiringStepStateBadge(step.state).icon" class="size-3.5" aria-hidden="true" />
-                  {{ hiringStepStateBadge(step.state).label }}
+                  <AppIcon :icon="hiringStepStateBadge(row.step.state).icon" class="size-3.5" aria-hidden="true" />
+                  {{ hiringStepStateBadge(row.step.state).label }}
                 </span>
               </span>
             </BaseButton>
@@ -215,18 +259,18 @@ const artifactOf = (key: HiringStepKey) => {
                  ⚠ A blocked row never renders as a grey with no explanation — that is the difference
                  between a checklist and a wall. -->
             <span class="px-3 text-2xs sm:px-0 sm:justify-self-end sm:text-right">
-              <template v-if="artifactOf(step.key)">
+              <template v-if="artifactOf(row.step.key)">
                 <router-link
-                  v-if="artifactOf(step.key)!.to"
-                  :to="artifactOf(step.key)!.to!"
+                  v-if="artifactOf(row.step.key)!.to"
+                  :to="artifactOf(row.step.key)!.to!"
                   class="text-brand-700 underline underline-offset-2"
                 >
-                  {{ artifactOf(step.key)!.label }} ↗
+                  {{ artifactOf(row.step.key)!.label }} ↗
                 </router-link>
                 <!-- ⚠ Words with no link rather than a link to somewhere nearby. `hiringArtifacts.ts`
                      names the four artifacts that have no address yet and why; three of them are on
                      this page and the fourth is the open Q-HUI6. -->
-                <span v-else class="text-ink-secondary">{{ artifactOf(step.key)!.label }}</span>
+                <span v-else class="text-ink-secondary">{{ artifactOf(row.step.key)!.label }}</span>
               </template>
               <!-- ⚠ `Needs: <Label>` and not `needs <label>`, which is what shipped for an hour and
                    was found by looking at the page at 1440 on 2026-09-18. The step labels are not one
@@ -234,21 +278,22 @@ const artifactOf = (key: HiringStepKey) => {
                    noun, "Office approved it" is a clause with its own object — so no preposition
                    composes with all twelve. *"needs office approved it"* is what that produced. The
                    colon makes it a label and a value, which reads correctly whatever the value is. -->
-              <span v-else-if="step.blockedBy" class="text-ink-muted">
-                Needs: {{ stepLabel(step.blockedBy) }}
+              <span v-else-if="row.step.blockedBy" class="text-ink-muted">
+                Needs: {{ stepLabel(row.step.blockedBy) }}
               </span>
               <!-- AF7, §391.23(a)(1): the licensing states with no MVR on file yet, as the applicant
                    wrote them, so the row says which record to pull rather than only that one is owed. -->
-              <span v-else-if="step.outstandingJurisdictions.length" class="text-ink-muted">
-                Still needed from: {{ step.outstandingJurisdictions.join(", ") }}
+              <span v-else-if="row.step.outstandingJurisdictions.length" class="text-ink-muted">
+                Still needed from: {{ row.step.outstandingJurisdictions.join(", ") }}
               </span>
               <!-- §9 P4: the owner's order, as advice — the step is worked as usual. -->
-              <span v-else-if="step.advisedFirst" class="text-ink-muted">
-                Usually after: {{ stepLabel(step.advisedFirst) }}
+              <span v-else-if="row.step.advisedFirst" class="text-ink-muted">
+                Usually after: {{ stepLabel(row.step.advisedFirst) }}
               </span>
               <span v-else class="text-ink-muted">—</span>
             </span>
           </li>
+          </template>
         </ul>
       </QueryState>
       <p v-if="checklist && unconfigured" class="text-xs text-ink-muted" data-testid="unconfigured-steps">
