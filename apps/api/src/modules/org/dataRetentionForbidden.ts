@@ -51,6 +51,12 @@ export const RETENTION_FORBIDDEN = [
   "orientation_video_attestations",
   "orientation_video_opens",
   /**
+   * §10 CE1 (0545): each done / undone act on a carrier's own hiring step. Append-only by trigger; a
+   * step the carrier switched to hold the hire stands on it, and a prune would turn a done step back
+   * into an open one with nothing to say why. Removed only with a never-hired applicant, by the purge.
+   */
+  "hiring_carrier_step_records",
+  /**
    * Part 1 of the applicant's link and what the office did with it (0376, APPLICATION-FLOW-V2-PLAN
    * §8.2). The intake and its licences are what screening READ — the MVR was ordered per licence, the
    * drug-test site found from the address — so a prune would leave a PSP pull and an MVR citing inputs

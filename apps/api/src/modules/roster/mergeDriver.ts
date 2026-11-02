@@ -61,6 +61,9 @@ export const DRIVER_REASSIGNMENTS: ReadonlyArray<{ table: string; column: string
   // this line would quietly turn "about Marcus" into "about nobody". Read only when a merge runs, and a
   // release applies 0543 before this code serves.
   { table: "message_threads", column: "driver_id", orgScoped: true },
+  // §10 CE1 (0545): what the office recorded on the carrier's own hiring steps — evidence that goes with
+  // the person; its guard lets `driver_id` move inside the carrier (CS022), `on delete restrict`.
+  { table: "hiring_carrier_step_records", column: "driver_id", orgScoped: true },
   // §391.51 events go with the driver (0203)
   { table: "qualification_records", column: "driver_id", orgScoped: true },
   // The four FKs check-driver-references.mjs found UNHANDLED by the SQL merge on its first run

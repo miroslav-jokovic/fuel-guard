@@ -58,6 +58,8 @@
 "hazmat_policies",
 "hazmat_reviews",
 "hazmat_runs",
+"hiring_carrier_step_records",
+"hiring_carrier_steps",
 "import_rows",
 "integration_credentials",
 "inventory_assets",
