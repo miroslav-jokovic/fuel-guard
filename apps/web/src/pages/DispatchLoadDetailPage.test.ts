@@ -35,7 +35,9 @@ vi.mock("vue-router", async (orig) => ({
 
 // Imported once at the top: a per-test dynamic import counts against each test's 5 s budget.
 const Page = (await import("./DispatchLoadDetailPage.vue")).default;
-const stubs = { PageHeader: true, HazmatPanel: true, DispatchLoadDrawer: true, RouterLink: { template: "<a><slot /></a>" } };
+// ChatAboutCard (CH11c) is its own component with its own test (ChatAboutCard.test.ts); here only what
+// the page hands it is held.
+const stubs = { PageHeader: true, HazmatPanel: true, DispatchLoadDrawer: true, ChatAboutCard: true, RouterLink: { template: "<a><slot /></a>" } };
 async function facts(over: Record<string, unknown> = {}) {
   setActivePinia(createPinia());
   load.value = tmsLoad(over);
@@ -66,5 +68,15 @@ describe("DispatchLoadDetailPage — the load's facts", () => {
   it("lists only the stages the load has reached", async () => {
     const [, progress] = await facts();
     expect(Object.keys(progress!)).toEqual(["Created", "Assigned"]);
+  });
+
+  it("hands the Chat card the load's id and its reference (CH11c)", async () => {
+    setActivePinia(createPinia());
+    load.value = tmsLoad();
+    const w = mount(Page, { global: { stubs } });
+    await flushPromises();
+    const card = w.findComponent({ name: "ChatAboutCard" });
+    expect(card.exists()).toBe(true);
+    expect(card.props()).toMatchObject({ kind: "load", recordId: "l-1", label: "L-1001" });
   });
 });

@@ -62,6 +62,7 @@ const STUBS = {
   SevenDayStatementSection: { props: ["driverId"], template: '<div data-testid="seven-day" />' },
   BaseChart: { template: "<div />" },
   DataTable: { template: "<table />" },
+  ChatAboutCard: { name: "ChatAboutCard", props: ["kind", "recordId", "label"], template: "<div />" },
 };
 
 const mountAt = async (query = "") => {
@@ -107,6 +108,11 @@ describe("DriverDetailPage — one scroll, not three tabs (R6b)", () => {
 
     expect(requestBinder).toHaveBeenCalledOnce();
     expect(requestBinder).toHaveBeenCalledWith({ driverIds: ["d-1"], asAt: null });
+  });
+
+  it("hands the Chat card the driver's id and name (CH11c)", async () => {
+    const { w } = await mountAt();
+    expect(w.findComponent({ name: "ChatAboutCard" }).props()).toMatchObject({ kind: "driver", recordId: "d-1", label: "Marcus Reyes" });
   });
 
   it("renders every remaining section at once, whatever ?section= says", async () => {

@@ -40,6 +40,7 @@ import QualificationSection from "@/features/compliance/QualificationSection.vue
 import SevenDayStatementSection from "@/features/roster/SevenDayStatementSection.vue";
 import DriverContactSection from "@/features/roster/DriverContactSection.vue";
 import HolderEquipmentCard from "@/features/inventory/HolderEquipmentCard.vue";
+import ChatAboutCard from "@/features/chat/ChatAboutCard.vue";
 import { useDriverQuery } from "@/composables/useDrivers";
 import { useDispatchHoldQuery } from "@/composables/useCompliance";
 import { formatDate } from "@/lib/format";
@@ -409,6 +410,8 @@ const fillColumns: DataTableColumn[] = [
       </BaseCard>
 
       <HolderEquipmentCard v-if="canSeeEquipment && driver" :target="{ kind: 'driver', id, label: driver.full_name }" />
+      <!-- CH11c: the viewer's own conversations about this driver, and Chat about this. -->
+      <ChatAboutCard v-if="driver" kind="driver" :record-id="id" :label="driver.full_name" />
 
       <BaseCard v-if="canSeeFuel" id="section-fuel" class="scroll-mt-6">
         <h3 class="mb-3 text-sm font-semibold text-ink">MPG history</h3>
