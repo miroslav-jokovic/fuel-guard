@@ -43,6 +43,14 @@ export const RETENTION_FORBIDDEN = [
    */
   "application_packet_countersignatures",
   /**
+   * HW8a (0539): the applicant's "I watched these" — which orientation videos, the name typed, when —
+   * and the links they opened from the list. Append-only by trigger; the checklist's orientation step
+   * stands on the first, and a prune would turn a done step back into an unsent one with nothing to
+   * say why. Removed only with a never-hired applicant, by the audited purge.
+   */
+  "orientation_video_attestations",
+  "orientation_video_opens",
+  /**
    * Part 1 of the applicant's link and what the office did with it (0376, APPLICATION-FLOW-V2-PLAN
    * §8.2). The intake and its licences are what screening READ — the MVR was ordered per licence, the
    * drug-test site found from the address — so a prune would leave a PSP pull and an MVR citing inputs

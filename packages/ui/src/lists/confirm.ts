@@ -25,6 +25,12 @@ export interface ConfirmRequest {
   confirmLabel: string;
   /** `danger` for an act that removes or cannot be undone; it draws the button red. */
   tone?: "danger" | "primary";
+  /**
+   * The word on the button that answers no. "Cancel" when absent. Given by a page that is not in
+   * English — the applicant's link in Spanish (C4) asks its "remove this job?" with "Cancelar", and a
+   * dialog half in one language and half in another reads as a mistake (HW5b, EM-5).
+   */
+  cancelLabel?: string;
 }
 
 interface Pending extends ConfirmRequest {

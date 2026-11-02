@@ -104,6 +104,79 @@ export interface EmployerVerificationCall {
   copiedInquiryId: string | null;
 }
 
+/**
+ * HW5d (HIRING-WORKFLOW-AUDIT §4.5, EM-8): which draft fields each question's correction writes. The
+ * ONE mapping — the server composes the edit's path from it, so a caller names a question, never a
+ * field. `dot_tested` is §391.21(b)(10)(iv)(B), the job's safety-sensitive testing (`safety_sensitive`).
+ */
+export const CALL_CORRECTION_FIELDS = {
+  dates: ["started_on", "ended_on"],
+  position: ["position_held"],
+  reason: ["reason_for_leaving"],
+  cmv: ["operated_cmv"],
+  dot_tested: ["safety_sensitive"],
+} as const satisfies Record<VerificationQuestion, readonly string[]>;
+
+const isoDay = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Expected a date");
+
+/**
+ * `POST …/employer-calls/:callId/apply` — write what the employer said into the application (EM-8:
+ * "never applied; the recruiter re-types them"). The office confirms the VALUE: a correction is the
+ * employer's words ("02/2023–11/2024"), so the screen pre-fills from it and the person applying says
+ * what it means; nothing parses free text into the application unseen. Logged as an office edit.
+ */
+export const applyCallCorrectionSchema = z.discriminatedUnion("question", [
+  z.object({ question: z.literal("dates"), started_on: isoDay, ended_on: isoDay.nullable(), revision: z.number().int().min(0) }),
+  z.object({ question: z.literal("position"), value: z.string().trim().min(1).max(120), revision: z.number().int().min(0) }),
+  z.object({ question: z.literal("reason"), value: z.string().trim().min(1).max(500), revision: z.number().int().min(0) }),
+  z.object({ question: z.literal("cmv"), value: z.boolean(), revision: z.number().int().min(0) }),
+  z.object({ question: z.literal("dot_tested"), value: z.boolean(), revision: z.number().int().min(0) }),
+]).superRefine((v, ctx) => {
+  if (v.question === "dates" && v.ended_on !== null && v.ended_on < v.started_on) {
+    ctx.addIssue({ code: "custom", path: ["ended_on"], message: "The end date cannot be before the start date." });
+  }
+});
+export type ApplyCallCorrection = z.infer<typeof applyCallCorrectionSchema>;
+
+/** The draft field values one correction writes, keyed by field — what the server sets, in order. */
+export function callCorrectionValues(input: ApplyCallCorrection): Array<[string, unknown]> {
+  if (input.question === "dates") return [["started_on", input.started_on], ["ended_on", input.ended_on]];
+  return [[CALL_CORRECTION_FIELDS[input.question][0], input.value]];
+}
+
+/**
+ * HW5d: the Apply form's FIRST GUESS from the employer's words — never written by itself, only shown
+ * for the office to confirm or change. Dates read "MM/YYYY" or "MM/DD/YYYY" ranges ("02/2023–11/2024",
+ * "2/1/2023 - present"); a month alone means its first day for a start and its last for an end. Yes/no
+ * reads a leading yes/no. Anything else is null, and the form starts from what the application says.
+ */
+export function suggestCorrection(
+  question: VerificationQuestion,
+  said: string,
+): { started_on: string | null; ended_on: string | null } | { value: string | boolean | null } {
+  const text = said.trim();
+  if (question === "dates") {
+    const parts = [...text.matchAll(/(\d{1,2})\/(?:(\d{1,2})\/)?(\d{4})/g)];
+    const day = (m: RegExpMatchArray | undefined, end: boolean): string | null => {
+      if (!m) return null;
+      const month = Number(m[1]);
+      const year = Number(m[3]);
+      if (month < 1 || month > 12) return null;
+      const last = new Date(Date.UTC(year, month, 0)).getUTCDate();
+      const d = m[2] ? Number(m[2]) : end ? last : 1;
+      if (d < 1 || d > last) return null;
+      return `${year}-${String(month).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+    };
+    return { started_on: day(parts[0], false), ended_on: day(parts[1], true) };
+  }
+  if (question === "cmv" || question === "dot_tested") {
+    if (/^(yes|y|si|sí)\b/i.test(text)) return { value: true };
+    if (/^(no|n)\b/i.test(text)) return { value: false };
+    return { value: null };
+  }
+  return { value: text === "" ? null : text };
+}
+
 /** One employer on the live draft, as the drawer offers it to call. */
 export interface VerifiableEmployer {
   /** Null for an entry typed before AW1 minted keys — it cannot take a call until the draft is saved. */
@@ -113,6 +186,11 @@ export interface VerifiableEmployer {
   endedOn: string | null;
   phone: string | null;
   dotRegulated: boolean | null;
+  /** HW5d: what the application says now, beside what the employer said — so "Apply" is a visible change. */
+  positionHeld: string | null;
+  reasonForLeaving: string | null;
+  operatedCmv: boolean | null;
+  safetySensitive: boolean | null;
 }
 
 /** `GET …/employer-calls`. */
@@ -125,6 +203,8 @@ export interface EmployerVerificationList {
    */
   filed: boolean;
   timeZone: string;
+  /** HW5d: the draft's revision, which an Apply carries so it cannot overwrite the applicant's newer typing. */
+  revision: number;
 }
 
 /**

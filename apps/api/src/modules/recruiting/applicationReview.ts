@@ -59,7 +59,8 @@ const NOT_FOUND: ReviewError = {
 
 const NOT_EDITABLE: ReviewError = {
   code: "application_not_editable",
-  message: "This application can only be changed while it is waiting for review.",
+  // §9 P5 moved the window to "the office's send until the first packet mark"; this said "waiting for review".
+  message: "This application can't be changed now — it has not been sent to the applicant yet, or it is filed.",
 };
 
 /**

@@ -12,11 +12,10 @@ import type { NavGroup } from "./nav";
  * here without anybody remembering to add it. A palette with its own table would be the third copy
  * of the sidebar `surfaces.ts` spent a plan getting rid of.
  *
- * ── Why page NAMES only ─────────────────────────────────────────────────────────────────────────
- * Searching trucks, drivers and loads by number needs an endpoint and a per-row permission story;
- * page names need neither, and they are the part that was missing — about twenty Settings screens
- * (EFS, Card control, Audit log…) are three clicks deep and named nowhere in the sidebar. Records
- * are the plan's open question Q-SB1, not something this file pretends to do.
+ * ── Pages here, records beside ──────────────────────────────────────────────────────────────────
+ * This file matches page NAMES, which are all in hand and need no server. Trucks, trailers, drivers
+ * and loads (Q-SB1, ruled D-SB8) are found by the server and only arrive as entries of the same shape:
+ * `recordSearch.ts` says who may search which, `useRecordSearch` runs the reads.
  */
 
 export interface PaletteEntry {
@@ -26,6 +25,8 @@ export interface PaletteEntry {
   icon: Icon;
   /** Where it lives, shown on the right and searchable: "Dispatch", "Settings". Null for top items. */
   section: string | null;
+  /** A record's second line — "Freightliner Cascadia", "ACME FOODS · Ana Petrovic". Pages have none. */
+  detail?: string | null;
 }
 
 export interface SettingsScreenEntry {

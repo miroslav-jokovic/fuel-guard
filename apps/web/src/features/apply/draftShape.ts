@@ -1,3 +1,4 @@
+import { blankEmployer, newEmployerKey, type EmployerFields } from "@/components/employment/employerRow";
 import { questionnaireForApplicant, questionnaireRef, type EquipmentClass } from "@silvicom/shared";
 
 // ⚠ Split out of `draft.ts` on 2026-09-26 (APPLICATION-FLOW-V2-PLAN §8.5, C1), at the 450-line
@@ -28,36 +29,12 @@ export interface DraftAddress {
   to: string;
 }
 
-export interface DraftEmployer {
-  /**
-   * The entry's stable reference (AW1, D-AW8): the office's phone call to this employer is recorded
-   * against it before filing, and filing copies the call onto the employment row made from it. Minted
-   * once, when the entry is created or first loaded without one, and never changed — an index would
-   * re-point every call when an entry above it is removed.
-   */
-  key: string;
-  employer_name: string;
-  usdot_number: string;
-  address_line1: string;
-  city: string;
-  state: string;
-  phone: string;
-  email: string;
-  position_held: string;
-  started_on: string;
-  ended_on: string;
-  operated_cmv: boolean;
-  dot_regulated: boolean;
-  reason_for_leaving: string;
-  /**
-   * §391.21(b)(10)(iv)(A) and (B), asked Yes/No — and `null` until the applicant answers (C3c2b,
-   * Q-AW33). They were `false` from `emptyEmployer` behind two unticked checkboxes, so the page always
-   * sent an answer nobody gave, and a v2 filing's `== null` rule could never fire. A saved `true` or
-   * `false` (a draft from before C3c2b) is kept as it was.
-   */
-  subject_to_fmcsr: boolean | null;
-  safety_sensitive: boolean | null;
-}
+/**
+ * One job on the application. The shape, its defaults and its key live in
+ * `@/components/employment/employerRow.ts` since HW5b — the one employer form is the office's too —
+ * and are named here as the application always named them, so no import path changed.
+ */
+export type DraftEmployer = EmployerFields;
 
 export interface DraftAccident {
   occurred_on: string;
@@ -189,22 +166,10 @@ export const emptyAddress = (): DraftAddress => ({
   line1: "", line2: "", city: "", state: "", postal_code: "", from: "", to: "",
 });
 
-/** A fresh employer reference — `crypto.randomUUID`, which `applicationEmployerSchema.key` checks is a UUID. */
-export const newEmployerKey = (): string => crypto.randomUUID();
+export { newEmployerKey };
 
-export const emptyEmployer = (): DraftEmployer => ({
-  key: newEmployerKey(),
-  employer_name: "", usdot_number: "", address_line1: "", city: "", state: "", phone: "", email: "",
-  position_held: "", started_on: "", ended_on: "",
-  // Both default TRUE because the applicant is being asked about driving jobs, and the cost of the
-  // two defaults is asymmetric: a warehouse job wrongly marked DOT-regulated produces an inquiry
-  // nobody owed, while a driving job wrongly marked otherwise silently drops a §391.23(a)(2)
-  // obligation the carrier is required to discharge.
-  operated_cmv: true, dot_regulated: true,
-  // ⚠ NOT defaulted, unlike the two above (Q-AW33): they are the regulation's own "whether" questions
-  // about this job, and a default is the one answer a filing rule cannot tell from the applicant's.
-  reason_for_leaving: "", subject_to_fmcsr: null, safety_sensitive: null,
-});
+/** A new job with the applicant's defaults — `blankEmployer`, which every surface shares (EM-5). */
+export const emptyEmployer = (): DraftEmployer => blankEmployer();
 
 export const emptyAccident = (): DraftAccident => ({
   occurred_on: "", nature: "", fatalities: "0", injuries: "0", hazmat_spill: false,

@@ -50,6 +50,12 @@ export const DRIVER_REASSIGNMENTS: ReadonlyArray<{ table: string; column: string
   // the person. Its guard lets `driver_id` move (AN012 keeps it in the org); `on delete restrict`, so a
   // merge that forgot this line would stop at the final driver delete instead of losing them.
   { table: "applicant_notes", column: "driver_id", orgScoped: true },
+  // HW5c (0538): the gaps the office recorded after signing — `on delete restrict`, so moved first.
+  { table: "driver_employment_gaps", column: "driver_id", orgScoped: true },
+  // HW8a (0539): the applicant's "I watched these" and the video links they opened — evidence that goes
+  // with the person; each guard lets `driver_id` move inside the carrier (OV022), `on delete restrict`.
+  { table: "orientation_video_attestations", column: "driver_id", orgScoped: true },
+  { table: "orientation_video_opens", column: "driver_id", orgScoped: true },
   // §391.51 events go with the driver (0203)
   { table: "qualification_records", column: "driver_id", orgScoped: true },
   // The four FKs check-driver-references.mjs found UNHANDLED by the SQL merge on its first run

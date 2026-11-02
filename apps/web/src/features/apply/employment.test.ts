@@ -1,5 +1,7 @@
-import { describe, expect, it } from "vitest";
-import { mount } from "@vue/test-utils";
+import { beforeEach, describe, expect, it } from "vitest";
+import { flushPromises, mount } from "@vue/test-utils";
+import { createPinia, setActivePinia } from "pinia";
+import { useConfirmStore } from "@silvicom/ui";
 import { employmentProgress, monthName } from "./employmentProgress";
 import { emptyDraft, emptyEmployer, type ApplicationDraft, type DraftEmployer } from "./draft";
 import ApplyEmploymentFields from "./ApplyEmploymentFields.vue";
@@ -16,6 +18,9 @@ import ApplyEmploymentFields from "./ApplyEmploymentFields.vue";
  */
 
 const ASOF = "2026-09-11";
+
+// The panel's Remove asks through `useConfirm` (HW5b, EM-5), a pinia store.
+beforeEach(() => setActivePinia(createPinia()));
 
 const job = (over: Partial<DraftEmployer> = {}): DraftEmployer => ({
   ...emptyEmployer(),
@@ -203,45 +208,38 @@ describe("the hub, and one job at a time", () => {
    * simply LOOKED mandatory, fifteen controls deep. What is pinned is that the three the regulation
    * needs are the three in front of the driver, and that nothing was dropped to get there.
    */
-  it("asks for three things, and puts the rest behind a disclosure", async () => {
+  /**
+   * HW5b (EM-10): the one employer form asks everything a filing needs in its main run — including
+   * "Was this employer regulated by the DOT?", which decides the §391.23 inquiry and was hidden behind
+   * "More about this job (optional)". Only phone, email and USDOT number — which nothing requires —
+   * sit behind the disclosure. Asked POSITIONALLY ("is this input inside the disclosure"), never by
+   * subtracting id lists: a field rendered in both places would vanish from a subtraction.
+   */
+  it("asks what a filing needs in the main run, the DOT question included, and only the optional three behind a disclosure", async () => {
     const d = emptyDraft();
     d.employers = [];
     const w = screen(d);
     await button(w, "Add your first job")!.trigger("click");
 
-    /**
-     * ⚠ Asked POSITIONALLY — "is this input a descendant of the disclosure" — and not by comparing
-     * id lists. The first version of this assertion gathered the ids inside `<details>` and
-     * subtracted them from all the ids on the panel, which looks equivalent and is not: a field
-     * rendered in BOTH places has its id in the subtracted set, so the copy sitting above the fold
-     * vanished from the comparison. A mutation that put `position_held` back on top passed it.
-     */
     const details = w.find("details").element;
     const primary = w
-      .findAll("input")
+      .findAll("input[id^='apply-employers'], fieldset[id^='apply-employers']")
       .filter((i) => !details.contains(i.element))
-      .map((i) => i.attributes("id"))
-      .filter((id) => id?.startsWith("apply-employers"));
-
+      .map((i) => i.attributes("id"));
     expect(primary).toEqual([
       "apply-employers-0-employer_name",
       "apply-employers-0-started_on",
       "apply-employers-0-ended_on",
+      "apply-employers-0-position_held",
+      "apply-employers-0-address_line1",
+      "apply-employers-0-city",
+      "apply-employers-0-state",
+      "apply-employers-0-reason_for_leaving",
+      "apply-employers-0-operated_cmv",
+      "apply-employers-0-dot_regulated",
     ]);
-  });
-
-  it("keeps every optional answer reachable, rather than deleting the question", async () => {
-    // Simpler is not the same as smaller: a driver who DOES remember the dispatcher's number must
-    // still have somewhere to put it, and §391.23 still wants an address to write to.
-    const d = emptyDraft();
-    d.employers = [];
-    const w = screen(d);
-    await button(w, "Add your first job")!.trigger("click");
-
-    for (const field of ["position_held", "usdot_number", "address_line1", "city", "state", "phone", "email", "reason_for_leaving"]) {
-      expect(w.find(`#apply-employers-0-${field}`).exists()).toBe(true);
-    }
-    expect(w.findAll("details")).toHaveLength(1);
+    const behind = w.findAll("input").filter((i) => details.contains(i.element)).map((i) => i.attributes("id"));
+    expect(behind).toEqual(["apply-employers-0-phone", "apply-employers-0-email", "apply-employers-0-usdot_number"]);
   });
 
   it("removes a job from inside the panel, not from a button beside Change", async () => {
@@ -249,10 +247,17 @@ describe("the hub, and one job at a time", () => {
     const d = emptyDraft();
     d.employers = [job({ employer_name: "Old Carrier" })];
     const w = screen(d);
-    expect(button(w, "Remove")).toBeUndefined();
+    expect(button(w, "Remove this job")).toBeUndefined();
 
     await button(w, "Change")!.trigger("click");
-    await button(w, "Remove")!.trigger("click");
+    await button(w, "Remove this job")!.trigger("click");
+    await flushPromises();
+    // EM-5: it asks first — nothing is gone until the answer is yes.
+    const confirm = useConfirmStore();
+    expect(confirm.pending?.title).toBe("Remove Old Carrier?");
+    expect(d.employers).toHaveLength(1);
+    confirm.answer(true);
+    await flushPromises();
     expect(d.employers).toHaveLength(0);
   });
 
@@ -263,7 +268,7 @@ describe("the hub, and one job at a time", () => {
     d.employers = [];
     const w = screen(d);
     await button(w, "Add your first job")!.trigger("click");
-    expect(button(w, "Remove")).toBeUndefined();
+    expect(button(w, "Remove this job")).toBeUndefined();
   });
 
   it("hides the list entirely when the driver declares no employment", async () => {

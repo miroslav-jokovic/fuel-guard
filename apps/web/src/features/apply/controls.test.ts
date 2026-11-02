@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { mount } from "@vue/test-utils";
+import { createPinia } from "pinia";
 import { reactive } from "vue";
 import { questionnaireForApplicant } from "@silvicom/shared";
 import QuestionnaireFields from "./QuestionnaireFields.vue";
@@ -112,7 +113,8 @@ describe("the equipment grid", () => {
   it("chooses a class of equipment with the forms control", () => {
     const w = mount(ApplyEmploymentFields, {
       props: { modelValue: withRow(), asOf: "2026-09-26" },
-      global: { stubs: { SlideOver: SlideOverStub } },
+      // The employer panel's Remove asks through `useConfirm`, a pinia store (HW5b).
+      global: { plugins: [createPinia()], stubs: { SlideOver: SlideOverStub } },
     });
     expect(w.findAll("select")).toHaveLength(0);
     // And it shows the choice back as its label, not as the stored token.

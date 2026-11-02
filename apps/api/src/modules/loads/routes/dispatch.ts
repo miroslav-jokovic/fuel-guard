@@ -1,5 +1,10 @@
 import { Router, type Request, type Response } from "express";
-import { deliveredWindowQuerySchema, dispatchLoadRequestSchema, resolveExceptionRequestSchema } from "@silvicom/shared";
+import {
+  deliveredWindowQuerySchema,
+  dispatchLoadRequestSchema,
+  loadSearchQuerySchema,
+  resolveExceptionRequestSchema,
+} from "@silvicom/shared";
 import { requireAuth, requireOrg, requireSection } from "../../../middleware/auth.js";
 import { requireModule } from "../../../middleware/requireModule.js";
 import { assignmentHistoryQuerySchema } from "@silvicom/shared";
@@ -16,6 +21,7 @@ import {
   resolveException,
   listEvents,
   listLoads,
+  searchLoads,
   type DispatchResult,
 } from "../dispatchLoads.js";
 import { dispatchLoad, previewLoadDispatch } from "../dispatchToDriver.js";
@@ -103,6 +109,25 @@ export function dispatchRouter(): Router {
         loadsHistoryFrom(admin, req.auth!.orgId!),
       ]);
       res.json({ loads, history_from });
+    }),
+  );
+
+  /**
+   * Loads by number for the ⌘K palette (SIDEBAR-REDESIGN-PLAN.md D-SB8). Registered before
+   * `/loads/:id`, which would otherwise read "search" as a load id and answer 404. The same gate as
+   * the list: whoever may open the Loads page may find a load on it, and nobody else.
+   */
+  router.get(
+    "/loads/search",
+    canView,
+    asyncHandler(async (req, res) => {
+      const q = loadSearchQuerySchema.safeParse(req.query);
+      if (!q.success) {
+        res.status(400).json(apiError("invalid_request", q.error.issues[0]?.message ?? "invalid search"));
+        return;
+      }
+      const loads = await searchLoads(getSupabaseAdmin(getAppLocals(req).env), req.auth!.orgId!, q.data.q);
+      res.json({ loads });
     }),
   );
 

@@ -1,6 +1,7 @@
 import { computed, type Ref } from "vue";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/vue-query";
 import type {
+  ApplyCallCorrection,
   DrugTestAppointment,
   DrugTestAppointmentBooking,
   DrugTestAppointmentList,
@@ -111,6 +112,29 @@ export function useRecordPortalConsent() {
 
 export const useEmployerCallsQuery = (driverId: Ref<string>) =>
   listQuery<EmployerVerificationList>(employerCallsKey, "employer-calls", "calls", driverId);
+
+/**
+ * HW5d: write one corrected answer into the application. Invalidates the calls (the employer's
+ * "on the application" values) and every application review under `["recruitment",
+ * "application-review"]` — the prefix, because this panel does not hold the invitation id the review
+ * drawer keys on, and a stale review drawer would show the old dates beside a logged edit.
+ */
+export function useApplyCallCorrection() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { driverId: string; callId: string; body: ApplyCallCorrection }) => {
+      const res = await apiFetch<{ revision: number | null; applied: string[] }>(
+        `${applicant(input.driverId)}/employer-calls/${input.callId}/apply`, { method: "POST", body: input.body },
+      );
+      if (!res.ok || !res.data) throw new Error(res.error?.message ?? "Could not apply the correction.");
+      return res.data;
+    },
+    onSettled: (_r, _e, input) => {
+      void qc.invalidateQueries({ queryKey: employerCallsKey(input.driverId) });
+      void qc.invalidateQueries({ queryKey: ["recruitment", "application-review"] });
+    },
+  });
+}
 
 export function useRecordEmployerCall() {
   return useScreeningWrite(employerCallsKey, async (input: { driverId: string; call: EmployerVerificationCallInput }) => {

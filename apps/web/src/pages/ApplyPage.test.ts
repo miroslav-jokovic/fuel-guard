@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { enableAutoUnmount, flushPromises, mount } from "@vue/test-utils";
 import { VueQueryPlugin } from "@tanstack/vue-query";
+import { createPinia } from "pinia";
 import { driverPlacements, APPLICATION_FILLING_SECTIONS, APPLICATION_RELEASE_ORDER, PART_ONE_SCREENS } from "@silvicom/shared";
 import "fake-indexeddb/auto";
 import { IDBFactory } from "fake-indexeddb";
@@ -8,7 +9,7 @@ import ApplyPage from "@/pages/ApplyPage.vue";
 import { toDraftPayload, fromDraftPayload } from "@/features/apply/draft";
 import { DRAFT_COPY_VERSION, readDraftCopy, writeDraftCopy } from "@/features/apply/draftLocal";
 import { keepPhoto, readKeptPhoto } from "@/features/apply/capture/photoLocal";
-import EmployerDrawer from "@/features/apply/EmployerDrawer.vue";
+import ApplyEmploymentFields from "@/features/apply/ApplyEmploymentFields.vue";
 import ApplySection from "@/features/apply/ApplySection.vue";
 import { APPLY_COPY } from "@/features/apply/strings";
 import { CARRIER_ANSWERS } from "@/testing/carrierAnswers";
@@ -99,8 +100,9 @@ const step = (n: number): string => `Step ${n} of ${TOTAL}`;
 const ok = (body: unknown) => ({ ok: true, json: async () => body });
 const dead = () => ({ ok: false, json: async () => ({ error: { code: "invalid_link", message: "This application link is not valid. Ask for a new one." } }) });
 
+// The app installs pinia; the employer panel's confirm (HW5b) is a pinia store, so the page needs it here too.
 const mountPage = () =>
-  mount(ApplyPage, { global: { plugins: [VueQueryPlugin] } });
+  mount(ApplyPage, { global: { plugins: [VueQueryPlugin, createPinia()] } });
 
 /**
  * ⚠ Every page is unmounted after its test (C3d1b). Before this, 43 of the 54 pages mounted here were
@@ -327,7 +329,7 @@ describe("the applicant's page", () => {
       phases: { consentedAt: null, releasesCompletedAt: null, submittedAt: null },
       draft: { locked: false, payload: null, furthestSection: null, updatedAt: null },
     }));
-    const w = mount(ApplyPage, { global: { plugins: [VueQueryPlugin] }, attachTo: document.body });
+    const w = mount(ApplyPage, { global: { plugins: [VueQueryPlugin, createPinia()] }, attachTo: document.body });
     await settle(w);
     await start(w);
     await advance(w);
@@ -344,7 +346,7 @@ describe("the applicant's page", () => {
       phases: { consentedAt: null, releasesCompletedAt: null, submittedAt: null },
       draft: { locked: false, payload: null, furthestSection: null, updatedAt: null },
     }));
-    const w = mount(ApplyPage, { global: { plugins: [VueQueryPlugin] }, attachTo: document.body });
+    const w = mount(ApplyPage, { global: { plugins: [VueQueryPlugin, createPinia()] }, attachTo: document.body });
     await settle(w);
     await start(w);
     await advance(w);
@@ -819,7 +821,7 @@ describe("the applicant's page", () => {
     await settle(w);
     await w.findAll("button").find((b) => b.text().includes("Where you have worked"))!.trigger("click");
     await flushPromises();
-    expect(w.findComponent(EmployerDrawer).props("v2AsOf")).toBe("2026-09-26");
+    expect(w.findComponent(ApplyEmploymentFields).props("v2AsOf")).toBe("2026-09-26");
   });
 
   /**
