@@ -4,6 +4,7 @@ import { chatComplianceRouter } from "./chatCompliance.js";
 import { chatComplianceRecordsRouter } from "./chatComplianceRecords.js";
 import { chatChannelsRouter, chatTeamsRouter } from "./chatTeams.js";
 import { chatFilesRouter } from "./chatFiles.js";
+import { chatAboutRouter } from "./chatAbout.js";
 import { chatSearchRouter } from "./chatSearch.js";
 
 /**
@@ -28,6 +29,8 @@ export function chatRouters(): Router {
   // CH7: files. Its routes carry their own gates (see chatFiles.ts) — `/files/:id` must be claimed before
   // the conversation router could read `/files` as a conversation id.
   router.use("/", chatFilesRouter());
+  // CH11b: "Chat about this" — `/about` would otherwise be read as a conversation id.
+  router.use("/", chatAboutRouter());
   // CH8: search, for the same reason — the conversation router would read `/search` as a conversation id.
   router.use("/", chatSearchRouter());
   router.use("/", chatRouter());

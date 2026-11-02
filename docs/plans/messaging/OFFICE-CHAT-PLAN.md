@@ -758,6 +758,18 @@ TechRepublic / Windows Report on Teams 2026 updates.
   a text match the mutant still satisfied, and the count not shown to stay inside the export's own
   conversation, and that the keys came back in random-uuid order, not the export's. Next: the API and
   the console, once 0544 is on staging.
+- 2026-11-02: **Compliance files database half MERGED** (#1920, 0544). **CH11b built** — "Chat about this",
+  the API and chat's side (`claude/chat-ch11b-about-api`), on 0543 (applied to staging, migrate run for
+  1136f8f). Contract `chatAboutContract.ts`: `CHAT_ABOUT_KINDS`, and `CHAT_ABOUT_READ_SECTION` — a load
+  and a truck need nothing past chat (their read policies check the organisation only), a driver needs
+  `roster` view, the gate of `GET /api/drivers/:id`, which the route test reads from that route so the
+  two cannot drift. API (`routes/chatAbout.ts`, mounted ahead of the conversation router): `POST
+  /api/chat/about`, `GET /api/chat/about/:kind/:recordId`, `GET /api/chat/:id/about`; CH016 → 404. Web:
+  the page asks what an open group is about (once; the link never changes) and its header says "About
+  Load L-20481 · Ana, Ben" with the record a link to its page, by the router's own route names (a test
+  resolves each against the real router). Tests: route 11, web 5; 15 mutants, all failed tests after two
+  were added (a bad id on `/:id/about`, and the stage handing its header the link). Next: CH11c, the
+  record pages.
 - 2026-11-02: **Compliance files, the API and the console** (`claude/chat-compliance-files-ui`), on 0544
   (#1920, applied to staging). A message in the console's conversation view and message search lists
   its files — kind, size, the start of its SHA-256 — a retracted line's too, with Save:

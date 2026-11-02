@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { flushPromises, mount } from "@vue/test-utils";
+import { flushPromises, mount, RouterLinkStub } from "@vue/test-utils";
 import type { ChatConversationResponse, ChatMessage } from "@silvicom/shared";
 import { AppAvatar } from "@silvicom/ui";
 
@@ -237,6 +237,17 @@ describe("the conversation's menu", () => {
     expect(w.emitted("search")).toHaveLength(1);
     w.unmount();
     document.body.innerHTML = "";
+  });
+});
+
+describe("what the conversation is about (CH11b)", () => {
+  it("hands its header the link the page gave it", () => {
+    const w = mount(ChatConversationStage, {
+      props: { data: data([], 0, "group"), viewerId: ME, pending: [], sending: false, about: { label: "Load L-20481", to: "/loads/x" } },
+      global: { stubs: { RouterLink: RouterLinkStub } },
+    });
+    expect(w.find("header").text()).toContain("About Load L-20481");
+    expect(w.findComponent(RouterLinkStub).props("to")).toBe("/loads/x");
   });
 });
 
