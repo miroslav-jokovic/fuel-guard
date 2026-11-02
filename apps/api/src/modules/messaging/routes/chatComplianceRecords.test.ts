@@ -91,7 +91,7 @@ beforeEach(() => {
     chat_export_stored: null,
     chat_export_failed: null,
     chat_exports_list: [],
-    chat_export_get: [{ id: EXPORT, status: "ready", storage_paths: ["a", "b", "c"], expires_at: "2026-10-31T10:00:00Z", purged_at: null }],
+    chat_export_get: [{ id: EXPORT, status: "ready", storage_paths: [`${ORG}/chat/${EXPORT}/export.jsonl`, `${ORG}/chat/${EXPORT}/export.pdf`, `${ORG}/chat/${EXPORT}/manifest.json`], expires_at: "2026-10-31T10:00:00Z", purged_at: null }],
   };
   holder.rec = createSupabaseRecorder({
     rpc: (fn, args) => {
@@ -204,13 +204,14 @@ describe("exports", () => {
     expect(jsonl!.toString("utf8").trim().split("\n").map((l) => JSON.parse(l).id)).toEqual([line(1).id, line(2).id]);
     expect(pdf!.subarray(0, 5).toString()).toBe("%PDF-");
     const manifest = JSON.parse(manifestBytes!.toString("utf8"));
+    expect(manifest.format).toBe("silvicom-chat-export/2");
     expect(manifest.ledger).toMatchObject({ seq: 41, hash: "a".repeat(64) });
     expect(manifest.content_sha256).toBe("b".repeat(64));
     expect(manifest.files["export.jsonl"].sha256).toBe(sha(jsonl!));
     expect(manifest.files["export.pdf"].sha256).toBe(sha(pdf!));
     expect(manifest.lines).toEqual([
-      { id: line(1).id, thread_id: THREAD, seq: 1, body_sha256: sha("line 1"), retracted: false, versions: [{ version: 1, body_sha256: sha("old words") }] },
-      { id: line(2).id, thread_id: THREAD, seq: 2, body_sha256: sha("line 2"), retracted: true, versions: [] },
+      { id: line(1).id, thread_id: THREAD, seq: 1, body_sha256: sha("line 1"), retracted: false, versions: [{ version: 1, body_sha256: sha("old words") }], attachments: [] },
+      { id: line(2).id, thread_id: THREAD, seq: 2, body_sha256: sha("line 2"), retracted: true, versions: [], attachments: [] },
     ]);
 
     expect(rpcArgs("chat_export_stored")).toEqual([{
@@ -244,6 +245,76 @@ describe("exports", () => {
     expect(failed).toHaveLength(1);
     expect(failed[0]).toMatchObject({ p_org: ORG, p_error: expect.stringContaining("bucket full") });
     expect(rpcArgs("chat_export_stored")).toEqual([]);
+  });
+});
+
+describe("exports carry the lines' chat files (0544)", () => {
+  const PHOTO = Buffer.from("\xff\xd8\xff photo bytes", "latin1");
+  const BOL = Buffer.from("%PDF-1.7 bol bytes", "latin1");
+  const F1 = "66666666-6666-4666-8666-000000000001";
+  const F2 = "66666666-6666-4666-8666-000000000002";
+  const att = (id: string, name: string, mime: string, bytes: Buffer, position: number) =>
+    ({ id, position, file_name: name, mime, byte_size: String(bytes.length), sha256: sha(bytes), uploaded_by: PEER, created_at: "2026-10-23T15:01:00Z" });
+  const stored: Record<string, Buffer> = {};
+  beforeEach(() => {
+    rpc.chat_compliance_export_rows = (args: Record<string, unknown>) => {
+      const [r] = exportRows(String(args.p_export_id));
+      return [{ ...r, export: { ...r!.export, file_count: 2, file_bytes: PHOTO.length + BOL.length },
+        lines: [{ ...r!.lines[0], attachments: [att(F1, "front.jpg", "image/jpeg", PHOTO, 0), att(F2, "BOL.pdf", "application/pdf", BOL, 1)] }, r!.lines[1]] }];
+    };
+    rpc.chat_compliance_file_keys = [
+      { id: F2, storage_path: `${ORG}/${THREAD}/${F2}`, sha256: sha(BOL), byte_size: BOL.length },
+      { id: F1, storage_path: `${ORG}/${THREAD}/${F1}`, sha256: sha(PHOTO), byte_size: PHOTO.length },
+    ];
+    stored[`${ORG}/${THREAD}/${F1}`] = PHOTO;
+    stored[`${ORG}/${THREAD}/${F2}`] = BOL;
+    storage.download = (path: unknown) => (stored[String(path)] ? { data: new Blob([new Uint8Array(stored[String(path)]!)]), error: null } : { data: null, error: { message: "Object not found" } });
+  });
+
+  it("copies each file beside the JSONL after checking its bytes, lists it in the manifest, and stores its path for the sweep", async () => {
+    const res = await post("/exports", { reason: REASON, scope: "conversation", thread: THREAD });
+    expect(res.status).toBe(201);
+    const { id } = (await res.json()) as { id: string };
+    expect(rpcArgs("chat_compliance_file_keys")).toEqual([{ p_org: ORG, p_export: id, p_files: [F1, F2] }]);
+    const files = uploads();
+    const filePaths = [`${ORG}/chat/${id}/files/${F1}-front.jpg`, `${ORG}/chat/${id}/files/${F2}-BOL.pdf`];
+    // The files first — the manifest needs their hashes — then the JSONL, the PDF and the manifest.
+    expect(files.map((u) => u.args[0])).toEqual([...filePaths, `${ORG}/chat/${id}/export.jsonl`, `${ORG}/chat/${id}/export.pdf`, `${ORG}/chat/${id}/manifest.json`]);
+    expect((files[0]!.args[1] as Buffer).equals(PHOTO)).toBe(true);
+    expect(files[0]!.args[2]).toMatchObject({ contentType: "image/jpeg" });
+    const manifest = JSON.parse((files[4]!.args[1] as Buffer).toString("utf8"));
+    expect(manifest.files[`files/${F1}-front.jpg`]).toEqual({ sha256: sha(PHOTO), bytes: PHOTO.length });
+    expect(manifest.files[`files/${F2}-BOL.pdf`]).toEqual({ sha256: sha(BOL), bytes: BOL.length });
+    expect(manifest.lines[0].attachments).toEqual([
+      { id: F1, file_name: "front.jpg", sha256: sha(PHOTO), file: `files/${F1}-front.jpg` },
+      { id: F2, file_name: "BOL.pdf", sha256: sha(BOL), file: `files/${F2}-BOL.pdf` },
+    ]);
+    const jsonl = (files[2]!.args[1] as Buffer).toString("utf8").trim().split("\n").map((l) => JSON.parse(l));
+    expect(jsonl[0].attachments.map((a: { id: string }) => a.id)).toEqual([F1, F2]);
+    const storedArgs = rpcArgs("chat_export_stored")[0]!;
+    expect(storedArgs.p_paths).toEqual(expect.arrayContaining(filePaths));
+    expect(storedArgs.p_bytes).toBe(files.reduce((n, u) => n + (u.args[1] as Buffer).length, 0));
+  });
+
+  it("fails the export, naming the file, when a file's bytes do not match the hash in the ledger", async () => {
+    stored[`${ORG}/${THREAD}/${F2}`] = Buffer.from("something else");
+    const res = await post("/exports", { reason: REASON, scope: "conversation", thread: THREAD });
+    expect(res.status).toBe(500);
+    expect(rpcArgs("chat_export_failed")[0]).toMatchObject({ p_error: expect.stringContaining(`file ${F2} (BOL.pdf) does not match the hash in the chat ledger`) });
+    expect(rpcArgs("chat_export_stored")).toEqual([]);
+  });
+
+  it("fails the export when a file cannot be found for it", async () => {
+    rpc.chat_compliance_file_keys = [{ id: F1, storage_path: `${ORG}/${THREAD}/${F1}`, sha256: sha(PHOTO), byte_size: PHOTO.length }];
+    expect((await post("/exports", { reason: REASON, scope: "conversation", thread: THREAD })).status).toBe(500);
+    expect(rpcArgs("chat_export_failed")[0]).toMatchObject({ p_error: expect.stringContaining(`file ${F2} (BOL.pdf) could not be found`) });
+  });
+
+  it("an export's links include each carried file, by its name in the folder", async () => {
+    rpc.chat_export_get = [{ id: EXPORT, status: "ready", storage_paths: [`${ORG}/chat/${EXPORT}/export.jsonl`, `${ORG}/chat/${EXPORT}/export.pdf`, `${ORG}/chat/${EXPORT}/manifest.json`, `${ORG}/chat/${EXPORT}/files/${F1}-front.jpg`], expires_at: "2026-10-31T10:00:00Z", purged_at: null }];
+    storage.createSignedUrls = (paths: unknown) => ({ data: (paths as string[]).map((p) => ({ path: p, signedUrl: `https://signed/${p}` })), error: null });
+    const body = (await (await post(`/exports/${EXPORT}/links`, {})).json()) as { files: Array<{ name: string; url: string }> };
+    expect(body.files).toEqual([{ name: `files/${F1}-front.jpg`, url: `https://signed/${ORG}/chat/${EXPORT}/files/${F1}-front.jpg` }]);
   });
 });
 

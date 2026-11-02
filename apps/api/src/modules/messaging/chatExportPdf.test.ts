@@ -16,7 +16,7 @@ const rows = (lines: number, conversations = [THREAD]): ChatExportRows => ({
     id: "55555555-5555-4555-8555-555555555555", scope: "search", filters: { q: "night" },
     reason: { category: "legal", text: "Litigation hold for matter 2026-CV-118" }, requested_by: "11111111-1111-4111-8111-111111111111",
     requested_by_name: "Đorđe Jokić", created_at: "2026-10-24T10:00:00Z", message_count: lines, ledger_seq: 41,
-    ledger_hash: "a".repeat(64), content_sha256: "b".repeat(64),
+    ledger_hash: "a".repeat(64), content_sha256: "b".repeat(64), file_count: 0, file_bytes: 0,
   },
   conversations: conversations.map((id) => ({
     thread_id: id, kind: "group", subject: "Night dispatch", load_id: null, created_at: "2026-10-23T14:00:00Z", archived_at: null,
@@ -28,6 +28,7 @@ const rows = (lines: number, conversations = [THREAD]): ChatExportRows => ({
     body_sha256: "c".repeat(64), created_at: "2026-10-23T15:00:00Z", edited_at: null,
     deleted_at: i === 0 ? "2026-10-23T16:00:00Z" : null,
     versions: i === 1 ? [{ version: 1, body: "earlier words", body_sha256: "d".repeat(64), replaced_at: "2026-10-23T15:30:00Z", replaced_by: null }] : [],
+    attachments: [],
   })),
 });
 
@@ -43,5 +44,19 @@ describe("renderChatExportPdf", () => {
   it("runs a long conversation on to more pages, and an empty export is still a cover and its conversation", async () => {
     expect(await pages(await renderChatExportPdf(rows(200)))).toBeGreaterThan(5);
     expect(await pages(await renderChatExportPdf({ ...rows(0), conversations: rows(1).conversations }))).toBe(2);
+  });
+
+  it("lists a line's files under it (0544): a hundred files run on to more pages than none", async () => {
+    const plain = rows(3);
+    const file = (n: number) => ({
+      id: `66666666-6666-4666-8666-${String(n).padStart(12, "0")}`, position: n % 10, file_name: `scan-${n}.pdf`, mime: "application/pdf",
+      byte_size: 26214400, sha256: "e".repeat(64), uploaded_by: null, created_at: "2026-10-23T15:00:00Z",
+    });
+    const heavy: ChatExportRows = {
+      ...plain,
+      export: { ...plain.export, file_count: 100, file_bytes: 100 * 26214400 },
+      lines: plain.lines.map((l, i) => (i === 2 ? { ...l, attachments: Array.from({ length: 100 }, (_, n) => file(n)) } : l)),
+    };
+    expect(await pages(await renderChatExportPdf(heavy))).toBeGreaterThan(await pages(await renderChatExportPdf(plain)));
   });
 });

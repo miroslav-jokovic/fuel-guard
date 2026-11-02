@@ -2,6 +2,8 @@ import {
   CHAT_COMPLIANCE_REASON_LABELS,
   CHAT_EXPORT_FOLD,
   DEFAULT_ORG_TIMEZONE,
+  chatExportFileName,
+  chatFileSize,
   formatDisplayDateTime,
   type ChatExportConversation,
   type ChatExportLine,
@@ -41,6 +43,13 @@ function drawLine(doc: PDFKit.PDFDocument, l: ChatExportLine): void {
     }
     doc.x = MARGIN;
   }
+  // 0544: each file the line carried — its copy is in files/ beside this PDF, under its id, and its
+  // SHA-256 is the one the ledger's `file_attached` row holds.
+  for (const f of l.attachments) {
+    doc.fillColor(MUTED).font("Helvetica").fontSize(8)
+      .text(pdfkitText(doc, `File: ${f.file_name} (${f.mime}, ${chatFileSize(f.byte_size)}) · files/${chatExportFileName(f)} · sha256 ${f.sha256}`), MARGIN + 12, undefined, { width: CONTENT_WIDTH - 12 });
+  }
+  if (l.attachments.length) doc.x = MARGIN;
 }
 
 export async function renderChatExportPdf(rows: ChatExportRows): Promise<Buffer> {
@@ -54,7 +63,7 @@ export async function renderChatExportPdf(rows: ChatExportRows): Promise<Buffer>
     ? "One conversation, whole: every message, including retracted ones, and every earlier version of an edited message."
     : `Every message matching a search${describeFilters(e.filters)}, including retracted ones and every earlier version.`);
   body(doc, `Made by ${e.requested_by_name ?? e.requested_by} on ${when(e.created_at)} for: ${CHAT_COMPLIANCE_REASON_LABELS[e.reason.category]} — ${e.reason.text}`);
-  body(doc, `${e.message_count} message${e.message_count === 1 ? "" : "s"} in ${rows.conversations.length} conversation${rows.conversations.length === 1 ? "" : "s"}.`);
+  body(doc, `${e.message_count} message${e.message_count === 1 ? "" : "s"} in ${rows.conversations.length} conversation${rows.conversations.length === 1 ? "" : "s"}${e.file_count ? `, carrying ${e.file_count} file${e.file_count === 1 ? "" : "s"} (${chatFileSize(e.file_bytes)}) in files/` : ""}.`);
 
   heading(doc, "How to check it");
   body(doc, "This PDF is the readable copy. export.jsonl beside it is the record, and manifest.json ties both to the company's chat ledger, which is append-only and hash-chained.");

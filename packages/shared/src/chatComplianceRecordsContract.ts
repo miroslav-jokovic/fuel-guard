@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { recordId } from "./recordId.js";
-import { chatComplianceMemberSchema, chatComplianceReasonSchema } from "./chatComplianceContract.js";
+import { chatComplianceFileSchema, chatComplianceMemberSchema, chatComplianceReasonSchema } from "./chatComplianceContract.js";
 
 /**
  * Legal holds and exports in the office chat compliance console (OFFICE-CHAT-PLAN CHA3, D-CHAT15,
@@ -123,6 +123,8 @@ export type ChatExportFile = (typeof CHAT_EXPORT_FILES)[number];
 /** Five-minute signed links to the three files, while they last. */
 export const chatExportLinksResponseSchema = z.object({
   links: z.record(z.enum(CHAT_EXPORT_FILES), z.string()),
+  /** The chat files the export carries (0544), each a link to `files/<id>-<name>` beside the JSONL. */
+  files: z.array(z.object({ name: z.string(), url: z.string() })).default([]),
   expires_at: z.string(),
 });
 export type ChatExportLinksResponse = z.infer<typeof chatExportLinksResponseSchema>;
@@ -149,6 +151,8 @@ export const chatExportLineSchema = z.object({
   edited_at: z.string().nullable(),
   deleted_at: z.string().nullable(),
   versions: z.array(chatExportVersionSchema),
+  /** Its files (0544), each copied into the export beside the JSONL; the manifest lists their hashes. */
+  attachments: z.array(chatComplianceFileSchema).default([]),
 });
 export type ChatExportLine = z.infer<typeof chatExportLineSchema>;
 
@@ -175,6 +179,9 @@ export const chatExportHeaderSchema = z.object({
   ledger_seq: z.number().int().positive(),
   ledger_hash: z.string(),
   content_sha256: z.string(),
+  /** How many files the export carries and their bytes (0544); zero from a function older than it. */
+  file_count: z.coerce.number().int().nonnegative().default(0),
+  file_bytes: z.coerce.number().int().nonnegative().default(0),
 });
 export type ChatExportHeader = z.infer<typeof chatExportHeaderSchema>;
 
@@ -191,3 +198,12 @@ export type ChatExportRows = z.infer<typeof chatExportRowsSchema>;
  */
 export const CHAT_EXPORT_FOLD =
   "For the lines in export order (conversation, then seq): sha256 of the lines' `id + ':' + sha256(body)` joined by '\\n', UTF-8, lower-case hex.";
+
+/**
+ * Where an exported file sits beside the JSONL: `files/<id>-<name>` — the id first, so two files of one
+ * name never collide and the manifest's entry is found by the id the JSONL carries. The name is kept for
+ * a reviewer reading the folder; 0540 already refuses a name with a slash in it.
+ */
+export function chatExportFileName(f: { id: string; file_name: string }): string {
+  return `${f.id}-${f.file_name}`;
+}

@@ -105,7 +105,7 @@ const where = (m: ChatComplianceMessage) => m.thread_subject?.trim() || (m.threa
             <span>· {{ where(m) }}</span>
             <BaseButton size="sm" variant="ghost" class="ml-auto" @click="emit('open', m.thread_id)">Open conversation</BaseButton>
           </div>
-          <ComplianceMessage :message="m" />
+          <ComplianceMessage :message="m" :reason="reason" :run="run" />
         </li>
       </ol>
       <div v-if="next" class="flex justify-center">

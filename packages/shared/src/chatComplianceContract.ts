@@ -112,6 +112,30 @@ export const chatComplianceConversationSchema = z.object({
 });
 export type ChatComplianceConversation = z.infer<typeof chatComplianceConversationSchema>;
 
+/**
+ * A line's file as the console sees it (0544 `chat_compliance_line_files`): what it is and its SHA-256 —
+ * the hash its `file_attached` ledger row carries — for a retracted line too. Never its storage key: the
+ * bytes come through `POST /api/chat/compliance/files/:id/link`, ledgered with the reason.
+ */
+export const chatComplianceFileSchema = z.object({
+  id: recordId(),
+  position: z.number().int().nonnegative(),
+  file_name: z.string(),
+  mime: z.string(),
+  byte_size: z.coerce.number().int().nonnegative(),
+  sha256: z.string(),
+  uploaded_by: recordId().nullable(),
+  created_at: z.string(),
+});
+export type ChatComplianceFile = z.infer<typeof chatComplianceFileSchema>;
+
+/** Open one file for review: the reason is ledgered with it, as every console act's is (0544). */
+export const chatComplianceFileRequestSchema = z.object({ reason: chatComplianceReasonSchema });
+export type ChatComplianceFileRequest = z.infer<typeof chatComplianceFileRequestSchema>;
+/** A five-minute link that saves the file under its own name. */
+export const chatComplianceFileLinkSchema = z.object({ url: z.string(), file_name: z.string(), expires_in: z.number().int().positive() });
+export type ChatComplianceFileLink = z.infer<typeof chatComplianceFileLinkSchema>;
+
 /** A message as the console sees it: its words even when retracted, and what an edit replaced. */
 export const chatComplianceMessageSchema = z.object({
   id: recordId(),
@@ -126,6 +150,8 @@ export const chatComplianceMessageSchema = z.object({
   edited_at: z.string().nullable(),
   deleted_at: z.string().nullable(),
   versions: z.array(chatComplianceVersionSchema),
+  /** Its files (0544); absent from a function older than 0544, hence the default. */
+  attachments: z.array(chatComplianceFileSchema).default([]),
 });
 export type ChatComplianceMessage = z.infer<typeof chatComplianceMessageSchema>;
 
