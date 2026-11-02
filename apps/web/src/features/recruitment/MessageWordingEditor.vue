@@ -36,6 +36,8 @@ const sampleVars = computed(() => ({
   days: message.value.placeholders.includes("days") ? props.days : null,
 }));
 const standard = computed(() => resolveMessageParts(props.messageKey, sampleVars.value));
+/** §12 MT3: the trip message's preview needs a trip; the others ignore it. */
+const SAMPLE = { trip: { mode: "Bus", leaves: "11/10/2026 8:00 AM CST", arrives: "11/10/2026 2:30 PM CST", confirmation: "ABC123" } };
 
 const form = reactive({
   emailSubject: props.saved.emailSubject ?? "",
@@ -56,8 +58,8 @@ const issues = computed(() => Object.fromEntries(PARTS.map((p) => {
 })) as Record<(typeof PARTS)[number], string | null>);
 const valid = computed(() => PARTS.every((p) => issues.value[p] === null));
 
-const email = computed(() => renderApplicantEmail(props.messageKey, sampleVars.value, SAMPLE_LINK, wording.value));
-const text = computed(() => renderApplicantText(props.messageKey, sampleVars.value, SAMPLE_LINK, wording.value));
+const email = computed(() => renderApplicantEmail(props.messageKey, sampleVars.value, SAMPLE_LINK, wording.value, SAMPLE));
+const text = computed(() => renderApplicantText(props.messageKey, sampleVars.value, SAMPLE_LINK, wording.value, SAMPLE));
 const parts = computed(() => textMessageParts(text.value));
 const placeholders = computed(() => message.value.placeholders.map((p) => `{${p}}`).join(" "));
 </script>
@@ -66,7 +68,7 @@ const placeholders = computed(() => message.value.placeholders.map((p) => `{${p}
   <div class="space-y-4" :data-testid="`message-editor-${messageKey}`">
     <p class="text-xs text-ink-secondary">
       Leave a field empty to use the standard words shown in it. You can use {{ placeholders }} — {first_name} is the
-      applicant's first name, or "there" when we do not have it. The link, how long it works and the STOP line are always added for you.
+      applicant's first name, or "there" when we do not have it. What the message is for — the link and how long it works, or the trip — and the STOP line are always added for you.
     </p>
     <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
       <div class="space-y-3">

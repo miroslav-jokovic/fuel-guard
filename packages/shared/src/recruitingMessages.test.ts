@@ -144,7 +144,7 @@ describe("what goes out", () => {
     expect(renderApplicantEmail("reminder", VARS, "u", W({ emailHeading: "Still there?" })).html).toContain("<h2");
   });
 
-  it.each(RECRUITING_MESSAGE_KEYS)("%s's text starts with the carrier's name and ends with STOP, around the carrier's lead", (key) => {
+  it.each(RECRUITING_MESSAGE_KEYS.filter((k) => k !== "travel"))("%s's text starts with the carrier's name and ends with STOP, around the carrier's lead", (key) => {
     const t = renderApplicantText(key, VARS, "https://app.test/apply/tok", W({ textLead: "Hi {first_name}, tap here:" }));
     expect(t.startsWith("Acme Freight: ")).toBe(true);
     expect(t).toContain("Hi Pat, tap here: https://app.test/apply/tok ");
@@ -155,5 +155,38 @@ describe("what goes out", () => {
     const t = renderApplicantText("invitation", VARS, "L", W({ textLead: "Tap:" }));
     expect(t).toBe("Acme Freight: You asked us to text you your driver application. Tap: L This link works for 14 days. "
       + "Msg & data rates may apply. Reply HELP for help, STOP to opt out.");
+  });
+});
+
+/** §12 MT3, D-MT9: the trip — no link, its lines fixed below whatever the carrier wrote. */
+describe("the trip message", () => {
+  const TRIP = { trip: { mode: "Bus", leaves: "01/14/2027 8:00 AM CST", arrives: "01/14/2027 2:30 PM CST", confirmation: "QX7K2P" } };
+
+  it("offers {first_name} and {carrier}, never {days} — a trip has no link to expire", () => {
+    expect(messagePartIssue("travel", "emailParagraph", "{days}")).toContain("{days}");
+    expect(messagePartIssue("travel", "emailParagraph", "{first_name} at {carrier}")).toBeNull();
+  });
+
+  it("keeps every trip line below the carrier's paragraph, and carries no link", () => {
+    const mail = renderApplicantEmail("travel", VARS, "", W({ emailSubject: "S", emailHeading: "H", emailParagraph: "P" }), TRIP);
+    expect(mail.subject).toBe("S");
+    expect(mail.text).toBe("H.\n\nP\n\nHow: Bus\nLeaves: 01/14/2027 8:00 AM CST\nArrives: 01/14/2027 2:30 PM CST\nConfirmation: QX7K2P");
+    expect(mail.html).not.toContain("href");
+  });
+
+  it("leaves the confirmation line out when there is none, and escapes the trip in the html", () => {
+    const mail = renderApplicantEmail("travel", VARS, "", STANDARD_WORDING, { trip: { ...TRIP.trip, mode: "<Bus>", confirmation: null } });
+    expect(mail.text).not.toContain("Confirmation");
+    expect(mail.html).toContain("&lt;Bus&gt;");
+  });
+
+  it("texts the carrier's lead, then the trip and STOP, whatever the lead ends with", () => {
+    expect(renderApplicantText("travel", VARS, "", W({ textLead: "See you soon, {first_name}" }), TRIP))
+      .toBe("Acme Freight: See you soon, Pat. Bus, leaves 01/14/2027 8:00 AM CST, arrives 01/14/2027 2:30 PM CST. Confirmation QX7K2P. Reply STOP to opt out.");
+  });
+
+  it("refuses to render without its trip rather than send a message about nothing", () => {
+    expect(() => renderApplicantEmail("travel", VARS, "")).toThrow("the travel message needs its trip");
+    expect(() => renderApplicantText("travel", VARS, "")).toThrow("the travel message needs its trip");
   });
 });

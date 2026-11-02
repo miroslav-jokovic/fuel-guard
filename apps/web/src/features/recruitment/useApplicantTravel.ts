@@ -1,6 +1,6 @@
 import { computed, type Ref } from "vue";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/vue-query";
-import type { ApplicantTravel, ApplicantTravelBooking, ApplicantTravelList } from "@silvicom/shared";
+import type { ApplicantTravel, ApplicantTravelBooking, ApplicantTravelList, SigningTextOutcome } from "@silvicom/shared";
 import { apiFetch } from "@/lib/api";
 import { applicantChecklistKey } from "@/features/recruitment/useApplicantChecklist";
 
@@ -56,5 +56,26 @@ export function useCancelTravel() {
     );
     if (!res.ok || !res.data) throw new Error(res.error?.message ?? "Could not cancel the trip.");
     return res.data.trip;
+  });
+}
+
+/** §12 MT3: what "Send the trip" answered — how each half went, in the words the toast needs. */
+export interface TravelSentAnswer {
+  email: { sent: boolean; email: string | null; reason: string | null };
+  text: SigningTextOutcome;
+}
+
+/** Send the booked trip to the applicant. Writes no trip, so nothing to invalidate but the activity list. */
+export function useSendTravel() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { driverId: string; travelId: string }): Promise<TravelSentAnswer> => {
+      const res = await apiFetch<TravelSentAnswer>(
+        `${base(input.driverId)}/${encodeURIComponent(input.travelId)}/send`, { method: "POST" },
+      );
+      if (!res.ok || !res.data) throw new Error(res.error?.message ?? "Could not send the trip.");
+      return res.data;
+    },
+    onSuccess: (_r, input) => void qc.invalidateQueries({ queryKey: ["recruitment", "activity", input.driverId] }),
   });
 }

@@ -53,6 +53,7 @@ const TEXT_LABELS: Record<SmsTemplate, string> = {
   signing_link: "the link to sign",
   invite: "the invitation link",
   orientation_videos: "the orientation videos",
+  travel: "the trip details",
 };
 
 type Invitation = {

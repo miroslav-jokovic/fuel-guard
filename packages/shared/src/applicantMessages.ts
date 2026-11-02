@@ -9,7 +9,7 @@ import {
 } from "./recruitingMessages.js";
 
 /**
- * The emails and texts an applicant is sent with a link, rendered from the catalogue's parts
+ * The emails and texts an applicant is sent (all but the trip carry a link), rendered from the catalogue's parts
  * (`recruitingMessages.ts`) and the fixed pieces no carrier writes (HIRING-WORKFLOW-AUDIT §12 D-MT2).
  *
  * ── ONE FUNCTION FOR THE SENDER AND THE PREVIEW (D-MT7) ───────────────────────────────────────
@@ -37,7 +37,30 @@ import {
 export interface ApplicantMessageExtra {
   sectionLabel?: string | null;
   part?: NudgePart;
+  /** `travel` only (§12 D-MT9): the trip, already worded on the carrier's clock by the caller. */
+  trip?: TripLines;
 }
+
+/**
+ * The trip as the applicant reads it (§12 MT3). The times are formatted by the caller on the CARRIER's
+ * clock with the zone named ("11/10/2026 8:00 AM CST"), the same clock the office typed them on — this
+ * file knows no zones.
+ */
+export interface TripLines {
+  /** "Bus", "Flight" — `TRAVEL_MODE_LABELS`. */
+  mode: string;
+  leaves: string;
+  arrives: string;
+  confirmation: string | null;
+}
+
+/** The trip's lines — fixed, never a carrier's part: they are what the message is for. */
+const tripLines = (t: TripLines): string[] => [
+  `How: ${t.mode}`,
+  `Leaves: ${t.leaves}`,
+  `Arrives: ${t.arrives}`,
+  ...(t.confirmation ? [`Confirmation: ${t.confirmation}`] : []),
+];
 
 const daysWords = (n: number | null): string => `${n ?? 0} ${n === 1 ? "day" : "days"}`;
 
@@ -53,7 +76,7 @@ interface Fixed {
   footer: (v: MessageVars) => string;
 }
 
-const FIXED: Record<Exclude<RecruitingMessageKey, "reminder">, Fixed> = {
+const FIXED: Record<Exclude<RecruitingMessageKey, "reminder" | "travel">, Fixed> = {
   invitation: {
     button: "Start my application →",
     textLabel: "Start your application:",
@@ -86,6 +109,7 @@ export function renderApplicantEmail(
 ): RenderedEmail {
   const p = resolveMessageParts(key, vars, wording);
   if (key === "reminder") return reminderEmail(p.emailSubject, p.emailHeading, p.emailParagraph, url, extra);
+  if (key === "travel") return travelEmail(p.emailSubject, p.emailHeading, p.emailParagraph, extra);
   const f = FIXED[key];
   const heading = p.emailHeading ?? "";
   const html =
@@ -132,12 +156,30 @@ function reminderEmail(
   return { subject, text, html };
 }
 
+/**
+ * The trip (§12 D-MT9): no link — there is nothing to do on the application about a ticket — and the
+ * trip's lines below the carrier's paragraph, which no wording can remove.
+ */
+function travelEmail(subject: string, heading: string | null, paragraph: string, extra: ApplicantMessageExtra): RenderedEmail {
+  if (!extra.trip) throw new Error("the travel message needs its trip");
+  const lines = tripLines(extra.trip);
+  const html =
+    `<div style="font-family:system-ui,sans-serif;color:#111">`
+    + (heading ? `<h2 style="margin:0 0 8px">${esc(heading)}</h2>` : "")
+    + `<p style="color:#555">${paragraphHtml(paragraph)}</p>`
+    + `<p style="margin:16px 0;line-height:1.6">${lines.map(esc).join("<br>")}</p>`
+    + `</div>`;
+  const text = (heading ? `${withStop(heading)}\n\n` : "") + `${paragraph}\n\n${lines.join("\n")}`;
+  return { subject, html, text };
+}
+
 /** The text for one message: `{carrier}: <lead> {link} <fixed tail>`, the tail never the carrier's. */
 export function renderApplicantText(
   key: RecruitingMessageKey,
   vars: MessageVars,
   link: string,
   wording: MessageWording = STANDARD_WORDING,
+  extra: ApplicantMessageExtra = {},
 ): string {
   const lead = resolveMessageParts(key, vars, wording).textLead;
   const c = vars.carrier;
@@ -151,6 +193,13 @@ export function renderApplicantText(
       return `${c}: ${lead} ${link} This link replaces any earlier one. Reply STOP to opt out.`;
     case "videos":
       return `${c}: ${lead} ${link} Reply STOP to opt out.`;
+    case "travel": {
+      if (!extra.trip) throw new Error("the travel message needs its trip");
+      const t = extra.trip;
+      return `${c}: ${withStop(lead)} ${t.mode}, leaves ${t.leaves}, arrives ${t.arrives}.`
+        + (t.confirmation ? ` Confirmation ${t.confirmation}.` : "")
+        + " Reply STOP to opt out.";
+    }
   }
 }
 

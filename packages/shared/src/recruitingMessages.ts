@@ -24,7 +24,7 @@ import { z } from "zod";
 export const MESSAGE_PLACEHOLDERS = ["first_name", "carrier", "days"] as const;
 export type MessagePlaceholder = (typeof MESSAGE_PLACEHOLDERS)[number];
 
-export const RECRUITING_MESSAGE_KEYS = ["invitation", "application_ready", "reminder", "videos"] as const;
+export const RECRUITING_MESSAGE_KEYS = ["invitation", "application_ready", "reminder", "videos", "travel"] as const;
 export type RecruitingMessageKey = (typeof RECRUITING_MESSAGE_KEYS)[number];
 
 export const isRecruitingMessageKey = (k: string): k is RecruitingMessageKey =>
@@ -117,6 +117,18 @@ export const RECRUITING_MESSAGES: readonly RecruitingMessage[] = [
       emailParagraph: "Please watch them before you come in. When you have, tick \"I watched these\" and type your "
         + "name — it shortens your day in the office.",
       textLead: "Please watch your orientation videos before you come in:",
+    }),
+  },
+  {
+    key: "travel",
+    label: "The trip",
+    sentWhen: "When you press Send the trip on an applicant's travel step.",
+    placeholders: ["first_name", "carrier"],
+    standardParts: ({ carrier }) => ({
+      emailSubject: `Your trip to ${carrier}`,
+      emailHeading: `Your trip to ${carrier} is booked`,
+      emailParagraph: "Here are the details. If anything here is wrong, or your plans change, call the office.",
+      textLead: "Your trip is booked.",
     }),
   },
 ];

@@ -23,6 +23,9 @@ vi.mock("@/lib/api", () => ({
     const method = opts?.method ?? "GET";
     if (method !== "GET") {
       state.requests.push({ url, method, body: opts?.body });
+      if (url.endsWith("/send")) {
+        return { ok: true, data: { email: { sent: true, email: "p@x.test", reason: null }, text: { state: "held", reason: "no_consent" } } };
+      }
       return { ok: true, data: { trip: { id: "t-new" } } };
     }
     if (url.endsWith("/checklist")) {
@@ -146,5 +149,36 @@ describe("when the list of trips fails (D-US5)", () => {
     } finally {
       vi.mocked(apiFetch).mockImplementation(real);
     }
+  });
+});
+
+/** §12 MT3: the office sends the booked trip; only a live trip that has not left offers the button. */
+describe("sending the trip", () => {
+  const UPCOMING = { ...LIVE, id: "t-9", departAt: "2099-01-12T14:00:00.000Z", arriveAt: "2099-01-12T20:00:00.000Z" };
+
+  it("posts to the live trip's send door and says how it went", async () => {
+    state.trips = [UPCOMING];
+    const w = mountPanel();
+    await settle(w);
+    await w.find('[data-testid="travel-send"]').trigger("click");
+    await settle(w);
+    expect(state.requests).toEqual([{ url: "/api/recruitment/applicants/d1/travel/t-9/send", method: "POST", body: undefined }]);
+  });
+
+  it("offers no send for a trip that has left, none with no trip, and none to a viewer", async () => {
+    state.trips = [LIVE];
+    const left = mountPanel();
+    await settle(left);
+    expect(left.text()).toContain("Change the trip");
+    expect(left.find('[data-testid="travel-send"]').exists()).toBe(false);
+    state.trips = [];
+    const empty = mountPanel();
+    await settle(empty);
+    expect(empty.find('[data-testid="travel-send"]').exists()).toBe(false);
+    state.trips = [UPCOMING];
+    state.canManage = false;
+    const viewer = mountPanel();
+    await settle(viewer);
+    expect(viewer.find('[data-testid="travel-send"]').exists()).toBe(false);
   });
 });

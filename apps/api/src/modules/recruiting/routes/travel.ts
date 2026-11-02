@@ -8,6 +8,7 @@ import { getAppLocals } from "../../../lib/appLocals.js";
 import { writeAudit } from "../../../lib/audit.js";
 import { bookTravel, cancelTravel, isTravelError, listTravel, type TravelError } from "../applicantTravel.js";
 import { carrierToday } from "../carrierClock.js";
+import { isTravelSendError, sendTravel } from "../applicantTravelSend.js";
 
 /**
  * The applicant's trip to the office (D-AW7, APPLICATION-FLOW-V2-PLAN §8.4). `applicantTravel.ts`
@@ -105,6 +106,41 @@ export function recruitmentTravelRouter(): Router {
         meta: { driverId, invitationId: result.invitationId },
       });
       res.json({ trip: result.trip });
+    }),
+  );
+
+  /**
+   * §12 MT3: send the booked trip to the applicant, by email and text. Manage, like booking it. The audit
+   * row says it went and how — never the confirmation reference, as booking's own row keeps it out.
+   */
+  router.post(
+    "/applicants/:driverId/travel/:travelId/send",
+    requireOrg,
+    requireSection("recruitment"),
+    asyncHandler(async (req: Request, res: Response) => {
+      const travelId = String(req.params.travelId ?? "");
+      if (!recordId().safeParse(travelId).success) {
+        res.status(404).json(apiError("not_found", "That trip is not on this applicant's application."));
+        return;
+      }
+      const env = getAppLocals(req).env;
+      const admin = getSupabaseAdmin(env);
+      const orgId = req.auth!.orgId!;
+      const driverId = String(req.params.driverId ?? "");
+      const result = await sendTravel(admin, env, orgId, driverId, travelId, new Date());
+      if (isTravelSendError(result)) {
+        res.status(result.status).json(apiError(result.code, result.message));
+        return;
+      }
+      await writeAudit(admin, {
+        orgId,
+        actorId: req.auth!.userId,
+        action: "recruiting.travel_sent",
+        entity: "applicant_travel",
+        entityId: travelId,
+        meta: { driverId, emailed: result.email.sent, text: result.text.state },
+      });
+      res.json(result);
     }),
   );
 

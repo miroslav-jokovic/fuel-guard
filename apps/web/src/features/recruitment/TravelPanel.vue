@@ -20,7 +20,7 @@ import {
 } from "@silvicom/ui";
 import { useSessionStore } from "@/stores/session";
 import { useToastStore } from "@/stores/toast";
-import { useApplicantTravelQuery, useBookTravel, useCancelTravel } from "@/features/recruitment/useApplicantTravel";
+import { useApplicantTravelQuery, useBookTravel, useCancelTravel, useSendTravel, type TravelSentAnswer } from "@/features/recruitment/useApplicantTravel";
 import { useApplicantChecklistQuery } from "@/features/recruitment/useApplicantChecklist";
 
 /**
@@ -34,6 +34,11 @@ import { useApplicantChecklistQuery } from "@/features/recruitment/useApplicantC
  * ── THE CARRIER'S CLOCK ───────────────────────────────────────────────────────────────────────
  * Times are typed as the itinerary shows them and read on the CARRIER's clock (`carrierWallTimeSchema`),
  * never the browser's, so the form names that zone; the list shows every time on the same clock.
+ *
+ * ── SENDING IT (§12 MT3, D-MT9) ───────────────────────────────────────────────────────────────
+ * "Send the trip to the applicant" emails and texts the live booking, in the carrier's wording (Settings →
+ * Recruiting → Messages). An act of its own, never a side effect of recording: the office may book before
+ * it is ready to say so. Offered only while the trip has not left — the API refuses one that has.
  */
 const props = defineProps<{ driverId: string }>();
 
@@ -48,6 +53,7 @@ const stillOpen = computed(() =>
 );
 const book = useBookTravel();
 const cancel = useCancelTravel();
+const sendTrip = useSendTravel();
 
 const canBook = computed(() => session.can("recruitment"));
 const zone = computed(() => travelQ.data.value?.timeZone ?? null);
@@ -93,6 +99,27 @@ async function save(): Promise<void> {
   }
 }
 
+const departed = computed(() => (live.value ? Date.parse(live.value.departAt) <= Date.now() : true));
+
+/** "Emailed and texted", "Emailed; the text goes at 8:00 AM", "Not emailed: no address on file" … */
+function sentSummary(a: TravelSentAnswer): string {
+  const email = a.email.sent ? "Emailed" : `Not emailed${a.email.reason ? `: ${a.email.reason}` : ""}`;
+  const text = a.text.state === "sent" ? "texted"
+    : a.text.state === "queued" ? `the text goes at ${at(a.text.notBefore)}`
+    : a.text.state === "held" ? "no text (they have not agreed to texts)" : "the text could not be sent";
+  return `${email}; ${text}.`;
+}
+
+async function sendLive(): Promise<void> {
+  if (!live.value) return;
+  try {
+    const answer = await sendTrip.mutateAsync({ driverId: props.driverId, travelId: live.value.id });
+    toast.success("Trip sent", sentSummary(answer));
+  } catch (e) {
+    toast.error("Could not send the trip", e instanceof Error ? e.message : undefined);
+  }
+}
+
 async function cancelLive(): Promise<void> {
   if (!live.value) return;
   try {
@@ -128,6 +155,16 @@ async function cancelLive(): Promise<void> {
               Confirmation <span class="font-mono">{{ live.confirmationRef }}</span>
             </p>
             <div v-if="canBook && !changing" class="flex gap-2 pt-2">
+              <BaseButton
+                v-if="!departed"
+                size="sm"
+                variant="primary"
+                :disabled="sendTrip.isPending.value"
+                data-testid="travel-send"
+                @click="sendLive"
+              >
+                {{ sendTrip.isPending.value ? "Sending…" : "Send the trip to the applicant" }}
+              </BaseButton>
               <BaseButton size="sm" @click="changing = true">Change the trip</BaseButton>
               <BaseButton size="sm" variant="ghost" :disabled="cancel.isPending.value" @click="cancelLive">
                 Cancel it
