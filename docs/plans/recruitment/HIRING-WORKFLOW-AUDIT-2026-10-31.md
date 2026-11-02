@@ -735,6 +735,65 @@ moment the applicant is served the form.
 
 ---
 
+## 12. Message templates — the carrier's own words (2026-11-02)
+
+§8.2's "message templates (invitation, reminder, travel, videos)", next in §9.3's order after §11. The
+owner said build as proposed (2026-11-02).
+
+**What it is for.** Every email and text an applicant gets is a TypeScript function. A carrier that
+wants to greet its drivers by name, say "call Dana at 555-0100 with any question", or name its yard,
+cannot; and the trip the office books (`applicant_travel`, 0376) is never sent to the applicant at all —
+`applicantTravel.ts` writes a row and nothing else, so the recruiter reads the flight out on the phone.
+After MT2 each message has an "Edit the wording" in Settings → Recruiting with a preview; after MT3 the
+travel panel sends the booked trip.
+
+**What exists, measured at `origin/main` `4e2d845`.** Emails: `renderApplicationInviteEmail` (the
+first link, `applicationLink.ts`), `renderApplicationSentEmail` (the office's Send), `nudgeEmail` (the
+reminder, `applicationNudgeSweep.ts`), `renderOrientationVideosEmail`; each is a subject, a heading, a
+paragraph, a button, the link pasted out and a footer with the expiry. Texts: `smsApplicationInvite`,
+`smsApplicationReady`, `smsApplicationReminder`, `smsOrientationVideos` — `{carrier}: <lead> {link}
+<fixed tail>`, the tail carrying the expiry, "your earlier link no longer works", rates, HELP and STOP.
+`sms_outbox` (0376) stores a template and its params, **never** a rendered body, and renders at send
+time (`smsOutbox.ts` `render`). Nothing records an email's words. Every applicant message is English;
+the Spanish (C4) is the page's only.
+
+**Decisions** (assumed as §8.3 assumed its rulings; the owner's to overturn):
+
+| ID | Decision | Why |
+|---|---|---|
+| D-MT1 | **Five messages**, a catalogue in `packages/shared` (`RECRUITING_MESSAGES`): `invitation` (the first link), `application_ready` (the office's Send), `reminder` (the 48-hour nudge), `videos` (the orientation videos) and `travel` (the booked trip, new in MT3). Each covers its email AND its text. **Not covered:** the opt-in confirmation and HELP reply (CTIA's required contents), the sign link (72 hours, sent with the driver in the office), the drug-test site (§40.61 photo ID), the approval notice, the resent link and "text me the link". | The four §8.2 names, plus `application_ready`: it is the second invitation, and leaving it out would leave a carrier's greeting on the first email and the product's on the next. The rest either carry rules or are not where a carrier's voice is asked for (Q-MT2). |
+| D-MT2 | A carrier writes **four parts** of a message, each optional: the email's subject, its heading, its paragraph, and the text's lead sentence. **Never** the link, the button, the pasted-out link, the expiry sentence, "your earlier link no longer works", the text's leading carrier name, or its rates / HELP / STOP — those stay in code, outside every part. A part left empty is the product's words for that part. | The handoff's shape. Every fixed piece is either a rule (CTIA, the rotation that kills the old link) or what makes the message work. |
+| D-MT3 | **Placeholders from a closed list per message**, declared in the catalogue: `{first_name}` and `{carrier}` everywhere; `{days}` where the message has an expiry (`invitation`, `application_ready`, `videos`). Any other `{…}` is refused on save. `{first_name}` is `drivers.first_name`, then the first word of `full_name`, then "there". | Checked in TypeScript, so a misspelt placeholder is a save error, never a literal `{frist_name}` in a driver's inbox. |
+| D-MT4 | **Limits**: subject and heading ≤ 120 characters, one line; paragraph ≤ 1,000, plain text (the sender escapes it; line breaks kept); text lead ≤ 120, one line, **GSM-7 characters only**. Lengths and line breaks are checked in SQL too (0551); GSM-7 in TypeScript only. | A subject with a newline is a header injection whoever wrote the row, so the database refuses it. One curly quote or emoji turns a text into UCS-2 at 70 characters a part — a cost rule, so TypeScript's. |
+| D-MT5 | **Storage: one append-only table, `recruiting_message_wording`** (0551): one row per save — org, message key, the four parts, who saved it and when. The newest row per (org, key) is the wording; "Use the standard wording" saves four nulls. Message keys are **not** a CHECK list (§10 D-CE3's rule; the CHECK is the key's shape). No `driver_id`, so no merge or purge work; not evidence (not in `RETENTION_FORBIDDEN`); deleted only with the organization. RLS on, no client policies. | Five messages × four parts would be twenty columns on `recruiting_settings` with no history, and the history is what answers D-MT6. |
+| D-MT6 | **What a message said is derived, not stored.** A sent message is never re-rendered, and its words are not copied beside it: the wording in force for a send is the newest row saved at or before the send instant the product already records (`created_at`, `application_sent_at`, the nudge stamps, `orientation_videos_sent_at`, `sms_outbox.sent_at`, MT3's audit row). A queued text renders at drain time with the wording in force then — the instant `sent_at` records. | Deriving beats restating; a rendered copy per send would be a second record of the code plus the setting. |
+| D-MT7 | **The preview is the sender's own function.** Settings → Recruiting's "Messages" renders each message, email and text, through the same shared render function the API sends with, on a sample link and the signed-in person's first name, and shows the text's length in parts. | A preview drawn by a second function is a second copy of the wording that can disagree. |
+| D-MT8 | **English only.** No `language` column; a Spanish message is its own step (Q-MT1). | No applicant message is in Spanish today; a column for a language nothing sends is a promise nothing keeps. |
+| D-MT9 | **The trip message (MT3)**: "Send the trip to {first name}" on the travel panel, for the newest live booking — the mode, departure and arrival in the carrier's zone (as the panel shows them) and the confirmation reference — by email to the invitation's address and by text through the outbox (reason `travel`, added to 0376's CHECK by 0551), worth sending until the departure. No link: there is nothing to do on the application about a ticket. Sent on the office's press, never on booking; an audit row records the send. | The office may book before it is ready to tell the applicant, and a moved trip is a new booking (`applicantTravel.ts`), so "send" is an act, not a side effect. |
+| D-MT10 | **Who edits**: the gate Settings → Recruiting already uses. | Q-CE3's reasoning. |
+
+**Open questions** (each has a recommendation; none blocks MT1–MT3):
+
+- **Q-MT1 — Spanish messages?** An applicant who read the page in Spanish still gets English email and
+  texts. Recommend: a later step that stamps the page's language on the invitation and sends the C4
+  translations, with a Spanish wording per message (then a `language` column). Waits for the owner.
+- **Q-MT2 — More messages in the catalogue?** The approval notice is the likeliest next one; the sign
+  link and the drug-test site carry rules. Recommend adding a message when a carrier asks — each is a
+  catalogue entry and a reader, no migration.
+- **Q-MT3 — Send the trip automatically on booking?** Recommend no (D-MT9); a "send on booking" switch is
+  one setting if the office asks.
+- **Q-MT4 — A ticket attached to the trip email?** Recommend later: the trip has no file today.
+
+**The build.** A migration and its reader in two merges, then the trip:
+
+| PR | What | Schema |
+|---|---|---|
+| **MT1** | Migration **0551**: `recruiting_message_wording` (MW010 never edited, MW011 never deleted but with the org; lengths and line breaks checked); `sms_outbox`'s reason CHECK gains `travel`. | migration |
+| **MT2** | The reader: `RECRUITING_MESSAGES`, the wording schema and placeholder check in `packages/shared`; the four existing render functions take the carrier's wording; `applicationLink.ts`, `applicationSend.ts`, the nudge sweep, the videos send and the outbox's `render` read it; Settings → Recruiting's "Messages" with the preview and "Use the standard wording". | none |
+| **MT3** | The trip: `renderTravelEmail` / `smsTravel` in the catalogue; `POST …/travel/send`; the travel panel's button. | none |
+
+---
+
 ## 7. Progress log
 
 - **2026-10-31** — Audit written. Measured on production: 0 filed applications, 4 drafts, 1 real
@@ -900,3 +959,7 @@ moment the applicant is served the form.
   code-to-Spanish map exists for them); recorded rather than built. 26/26 mutants killed (10 shared, 9 API, 7 web); two survivors on the first pass (the order a list
   is written in; the stamp offered to the office as a correction) got their tests.
 - **2026-11-02** — **S1 merged (#1935, `6c139d5`), migration `0550_hiring_question_document_settings`.** As above.
+- **2026-11-02** — **S2 merged (#1941, `2ab0738`), no migration.** As above.
+- **2026-11-02** — **§12 written; MT1 (this PR), migration `0551_recruiting_message_wording`.** The carrier's
+  wording for five applicant messages, one append-only row per save (MW010/MW011), lengths and line breaks
+  checked; `sms_outbox`'s reason CHECK gains `travel` for MT3. 25-case matrix; 14/14 mutants killed (each check, both guards, the org cascade, the reason, RLS). Reader: MT2.

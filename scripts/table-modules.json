@@ -1674,6 +1674,17 @@
         "why": "no rows yet (HB0 is schema only). A handful of office people who countersign for the carrier; a row is added when a Representative, title or signature changes. Evidence a signed handbook cites; retention unruled \u2014 DATA-LIFECYCLE-PLAN L9."
       }
     },
+    "recruiting_message_wording": {
+      "module": "recruiting",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "unmeasured",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "new in 0551 (2026-11-02); one row per save of a message's wording, a handful per carrier; append-only configuration history, deleted only with the organization."
+      }
+    },
     "recruiting_settings": {
       "module": "recruiting",
       "layer": "core",
