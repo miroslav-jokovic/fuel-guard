@@ -694,3 +694,20 @@ blocking step in §3 above.
   - Scorecard: Publisher L2 pinned (9 tests). L1 keeps one gap (B2b, B2c, B3), so it still reads L0.
     "Token revoked → alert" waits for the wiring in B2c. Ten mutations, all red; files restored
     byte-for-byte.
+- **2026-11-02, B2a merged; B2b** — #1945 (`f7ccb44`). **B2b** is the Instant Form:
+  - `packages/shared/src/ads/metaLeadForm.ts` (plan §4.2) maps the brief's `form_questions` keys to
+    Meta questions. Contact comes from Meta's prefilled FULL_NAME / PHONE / EMAIL. The only other
+    questions are the **G12 counsel fallback**: Class A held, years of Class A, hazmat (EN + ES). Any
+    other key is refused, never passed through. Widening the list is an edit after Q-AD8.
+  - A form is the Page's and is made with the **Page token** (Lead Ads guide: "access_token set to
+    your Page access token"). `registry.pageGraphForConnection` opens the Page token B1b sealed,
+    under its own purpose, so the system user's token cannot open as one. FakeMeta answers a Page
+    edge only for that Page's token. Revoking the system user's grant kills both tokens.
+  - The publisher's third level: find the form on the Page by name. The edge documents no
+    `filtering`, so it pages through, up to 1,000 forms, then refuses rather than risk a duplicate.
+    Then create or adopt, and read back by id. Questions, privacy URL, locale and `ACTIVE` must match;
+    a form with our name that asks other questions is refused. `block_display_for_non_targeted_viewer`
+    is true, so the form opens only from our ad. `privacy_policy` must be `https://<host>/privacy` (V7
+    still checks its wording). FakeMeta requires it, which is our reading of a doc that marks it
+    optional; L4 settles it.
+  - Nine mutations, all red.

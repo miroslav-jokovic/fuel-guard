@@ -1,15 +1,16 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
-  AD_NAME_ALL_PRESETS, adAreaSchema, buildAdName, DEFAULT_ORG_TIMEZONE, shortId, todayInZone,
-  type AdArea, type AdNameLevel,
+  AD_NAME_ALL_PRESETS, adAreaSchema, buildAdName, DEFAULT_ORG_TIMEZONE, metaLeadFormQuestions, shortId, todayInZone,
+  type AdArea, type AdNameLevel, type MetaFormLocale,
 } from "@silvicom/shared";
 import { completeAction, recordFinished, startAction, type ActionRow } from "../../actions/actionLedger.js";
 import type { PlatformOutcome } from "../adapter.js";
 import type { GraphFailure, GraphResult, MetaGraph } from "./graphClient.js";
 
 /**
- * The Meta publisher, first half (ADS-AGENT-BUILD-WORKFLOW.md B2a): put a campaign and its ad set on
- * the ad account, PAUSED. The Instant Form (B2b) and the creative + ad (B2c) are the other halves.
+ * The Meta publisher (ADS-AGENT-BUILD-WORKFLOW.md B2a + B2b): put a campaign and its ad set on the ad
+ * account, PAUSED (B2a), and the Instant Form the ad will open on the Page (B2b). The creative + ad
+ * (B2c) complete it. A form is made with the PAGE's token (`pageGraph`), not the system user's.
  *
  * ── WHY THIS IS NOT IN `workers.ts` YET ──────────────────────────────────────────────────────────
  * The runner's `created` event moves a campaign to `paused`, and `paused` is where a person presses
@@ -61,6 +62,11 @@ export interface PublishInput {
   area: AdArea;
   daily_budget_cents: number | null;
   lifetime_cap_cents: number | null;
+  /** The brief's form question keys (`metaLeadForm.ts` catalogue) and the ad's language. */
+  form_questions: readonly string[];
+  locale: MetaFormLocale;
+  /** The production web host's `/privacy` page (V7 checks its wording for Meta's review). */
+  privacy_url: string;
   /** The runner's `<campaign id>:<stint>` key. */
   key: string;
 }
@@ -68,14 +74,16 @@ export interface PublishInput {
 export interface PublisherDeps {
   admin: SupabaseClient;
   graph: MetaGraph;
+  /** The same connection, with the Page's token (`registry.pageGraphForConnection`). */
+  pageGraph: MetaGraph;
   now: () => Date;
 }
 
 export const PUBLISHER = { actor_kind: "agent" as const, actor_id: null, actor_name: "Ads publisher (Meta)" };
 
-export type PublishOutcome = Extract<PlatformOutcome, { ok: true }> & { platform_refs: { meta_campaign_id: string; meta_adset_id: string } } | Extract<PlatformOutcome, { ok: false }>;
+export type PublishOutcome = Extract<PlatformOutcome, { ok: true }> & { platform_refs: { meta_campaign_id: string; meta_adset_id: string; meta_form_id: string } } | Extract<PlatformOutcome, { ok: false }>;
 
-export async function publishCampaignAndAdSet(deps: PublisherDeps, input: PublishInput): Promise<PublishOutcome> {
+export async function publishPaused(deps: PublisherDeps, input: PublishInput): Promise<PublishOutcome> {
   const refusal = preflight(input);
   if (refusal) {
     await recordFinished(deps.admin, row(input, "campaign", { refused_before_call: true }), { status: "refused", error_code: refusal, at: deps.now().toISOString() });
@@ -100,7 +108,21 @@ export async function publishCampaignAndAdSet(deps: PublisherDeps, input: Publis
     expectCategory: false,
   });
   if (!adset.ok) return adset;
-  return { ok: true, platform_refs: { meta_campaign_id: campaign.id, meta_adset_id: adset.id } };
+
+  // The form is the Page's, so it is found on the Page by name. The Page edge takes no `filtering`
+  // (the reference documents none), so the publisher pages through and compares names itself.
+  const formName = nameFor(input, "form");
+  const spec = formParams(input, formName);
+  const form = await ensure(deps, input, "form", {
+    find: () => formsNamed(deps.pageGraph, input.pageId, formName),
+    readBack: (id) => deps.pageGraph.get<Found>(id, { fields: FORM_FIELDS }),
+    create: () => deps.pageGraph.post<{ id: string }>(`${input.pageId}/leadgen_forms`, spec, { idempotent: false }),
+    expect: { name: formName, status: "ACTIVE", privacy_policy_url: input.privacy_url, locale: spec.locale },
+    expectCategory: false,
+    verify: (o) => (sameQuestions(o.questions, spec.questions) ? [] : ["questions"]),
+  });
+  if (!form.ok) return form;
+  return { ok: true, platform_refs: { meta_campaign_id: campaign.id, meta_adset_id: adset.id, meta_form_id: form.id } };
 }
 
 // ── the builders: what we send, and nothing a campaign could target people by ─────────────────────
@@ -137,6 +159,19 @@ export function adSetParams(input: Pick<PublishInput, "area" | "daily_budget_cen
   };
 }
 
+export function formParams(input: Pick<PublishInput, "form_questions" | "locale" | "privacy_url">, name: string) {
+  const built = metaLeadFormQuestions(input.form_questions, input.locale);
+  if (!built.ok) throw new Error(`formParams: refused ${built.refused.join(", ")} — preflight should have said so`);
+  return {
+    name,
+    locale: built.locale,
+    questions: built.questions,
+    privacy_policy: { url: input.privacy_url, link_text: input.locale === "es" ? "Política de privacidad" : "Privacy policy" },
+    // The form opens only from our ad, never as an organic post on the Page.
+    block_display_for_non_targeted_viewer: true,
+  };
+}
+
 export function nameFor(input: Pick<PublishInput, "platform" | "brief_source" | "brief_ref" | "created_at" | "campaignId">, level: Exclude<AdNameLevel, "ad">): string {
   return buildAdName({
     platform: input.platform, level, brief_source: input.brief_source, brief_ref: input.brief_ref,
@@ -151,6 +186,8 @@ export function preflight(input: PublishInput): string | null {
   if (!adAreaSchema.safeParse(input.area).success) return "area_invalid";
   if (input.area.radius_miles < META_EMPLOYMENT_MIN_MILES || input.area.radius_miles > META_CUSTOM_LOCATION_MAX_MILES) return "area_outside_meta_limits";
   if (!input.accountId || !input.pageId) return "connection_incomplete";
+  if (!metaLeadFormQuestions(input.form_questions, input.locale).ok) return "form_question_not_allowed";
+  if (!/^https:\/\/[^/]+\/privacy$/.test(input.privacy_url)) return "privacy_url_not_https";
   return null;
 }
 
@@ -159,6 +196,32 @@ export function preflight(input: PublishInput): string | null {
 type Listing = { data: Array<Record<string, unknown> & { id: string }> };
 const CAMPAIGN_FIELDS = "id,name,status,special_ad_categories,special_ad_category_country,spend_cap";
 const ADSET_FIELDS = "id,name,status,daily_budget,campaign_id,targeting";
+const FORM_FIELDS = "id,name,status,locale,questions,privacy_policy_url";
+const FORM_PAGES_MAX = 10;
+
+/** The Page's forms carrying this name, as a `Listing` — `ensure` then reads it like any level. */
+async function formsNamed(pageGraph: MetaGraph, pageId: string, name: string): Promise<GraphResult<Listing>> {
+  const hits: Listing["data"] = [];
+  let after: string | undefined;
+  for (let page = 0; page < FORM_PAGES_MAX; page++) {
+    const r = await pageGraph.get<Listing & { paging?: { cursors?: { after?: string }; next?: string } }>(`${pageId}/leadgen_forms`, { fields: FORM_FIELDS, limit: 100, after });
+    if (!r.ok) return r;
+    hits.push(...(r.data.data ?? []).filter((f) => f.name === name));
+    after = r.data.paging?.next ? r.data.paging.cursors?.after : undefined;
+    if (!after) return { ok: true, data: { data: hits }, usage: r.usage, attempts: r.attempts };
+  }
+  // More than a thousand forms on one Page: an unread page could hold ours, so a create could duplicate.
+  return { ok: false, error: { kind: "invalid_request", error_code: "form_list_too_long", http: null, code: null, subcode: null, fbtrace_id: null, message: `more than ${FORM_PAGES_MAX * 100} forms on the Page`, retry_after_ms: null, outcome_unknown: false, attempts: 1 } };
+}
+
+/** The form Meta holds asks exactly our questions, in our order, with our option keys. */
+function sameQuestions(got: unknown, want: Array<{ type: string; key: string; options?: Array<{ key: string }> }>): boolean {
+  if (!Array.isArray(got) || got.length !== want.length) return false;
+  return want.every((q, i) => {
+    const g = got[i] as { type?: unknown; key?: unknown; options?: Array<{ key?: unknown }> };
+    return g.type === q.type && g.key === q.key && JSON.stringify((g.options ?? []).map((o) => o.key)) === JSON.stringify((q.options ?? []).map((o) => o.key));
+  });
+}
 type Found = Record<string, unknown> & { id: string };
 
 interface Level {
@@ -169,13 +232,17 @@ interface Level {
   /** Fields the object must carry, read back after the create (workflow B2: "read back and compared"). */
   expect: Record<string, string>;
   expectCategory: boolean;
+  /** Any further comparison a level needs (the form's questions); returns the wrong field names. */
+  verify?: (object: Found) => string[];
 }
 
 type Ensured = { ok: true; id: string } | { ok: false; error_code: string; response?: unknown };
 
 const byName = (name: string, fields: string) => ({ fields, filtering: [{ field: "name", operator: "EQUAL", value: name }], limit: 5 });
 
-async function ensure(deps: PublisherDeps, input: PublishInput, level: "campaign" | "adset", l: Level): Promise<Ensured> {
+type Level3 = "campaign" | "adset" | "form";
+
+async function ensure(deps: PublisherDeps, input: PublishInput, level: Level3, l: Level): Promise<Ensured> {
   const found = await lookup(l);
   if (!found.ok) return found;
   const base = row(input, level, { name: l.expect.name });
@@ -240,11 +307,13 @@ function checked(object: Found, l: Level): Ensured {
     const cats = object.special_ad_categories;
     if (!Array.isArray(cats) || !cats.includes("EMPLOYMENT")) wrong.push("special_ad_categories");
   }
-  if (wrong.length) return { ok: false, error_code: object.status !== "PAUSED" ? "found_not_paused" : "readback_mismatch", response: { id: object.id, fields: wrong } };
+  wrong.push(...(l.verify?.(object) ?? []));
+  const statusWrong = wrong.includes("status");
+  if (wrong.length) return { ok: false, error_code: statusWrong ? (l.expect.status === "PAUSED" ? "found_not_paused" : "found_wrong_status") : "readback_mismatch", response: { id: object.id, fields: wrong } };
   return { ok: true, id: object.id };
 }
 
-function row(input: PublishInput, level: "campaign" | "adset", request: Record<string, unknown>): ActionRow {
+function row(input: PublishInput, level: Level3, request: Record<string, unknown>): ActionRow {
   return {
     org_id: input.orgId, campaign_id: input.campaignId, connection_id: input.connectionId, kind: "create_paused",
     ...PUBLISHER, idempotency_key: `create_paused:${input.key}:${level}`, request: { level, ...request },

@@ -1,6 +1,8 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import type { AddressInfo } from "node:net";
 import { META_GRAPH_VERSION } from "../meta/graphClient.js";
+import { FakeForms } from "./fakeMetaForms.js";
+import { graphError, pick } from "./fakeMetaShapes.js";
 
 /**
  * FakeMeta — an in-process `node:http` server that answers the Marketing API calls our Meta adapter
@@ -50,7 +52,7 @@ import { META_GRAPH_VERSION } from "../meta/graphClient.js";
  *   https://developers.facebook.com/docs/marketing-api/audiences/reference/basic-targeting/
  *
  * ── NOT HERE YET, ON PURPOSE ───────────────────────────────────────────────────────────────────────
- * Ads, Instant Forms (B2b/B2c), leads + the signed `leadgen` webhook (B4), insights (B5). Each joins
+ * Instant Forms live in `fakeMetaForms.ts` (B2b). Ads and creatives (B2c), leads + the signed `leadgen` webhook (B4), insights (B5). Each joins
  * with the step that first calls it, so every endpoint here has a caller whose contract test reads it.
  *
  * In-memory: a simulator restart forgets every campaign. That is the simulator being honest about
@@ -152,6 +154,9 @@ export class FakeMeta {
   private trace = 0;
   readonly campaigns = new Map<string, FakeCampaign>();
   readonly adsets = new Map<string, FakeAdSet>();
+  /** Instant Forms (B2b), made and read with a Page's token. */
+  readonly forms: FakeForms;
+  private revoked = false;
   readonly accounts: Map<string, FakeMetaAccount>;
   /** Every request, in order, for "exactly one create" assertions. */
   readonly requests: Array<{ method: string; path: string; body: Record<string, string> }> = [];
@@ -168,6 +173,7 @@ export class FakeMeta {
     this.user = opts.user ?? { id: "61550000000001", name: "Silvicom ads system user" };
     this.permissions = { ...(opts.permissions ?? Object.fromEntries(DEFAULT_PERMISSIONS.map((p) => [p, "granted" as const]))) };
     this.pages = (opts.pages ?? []).map((p) => ({ ...p, tasks: [...p.tasks] }));
+    this.forms = new FakeForms(() => String(this.nextId++), () => this.traceId());
   }
 
   async start(): Promise<string> {
@@ -198,6 +204,8 @@ export class FakeMeta {
   /** The owner revokes our access in Business Settings: every call from now on is 190/463. */
   revokeToken(): void {
     this.token = `revoked:${this.token}`;
+    // A Page token is derived from the system user's grant: revoking that grant kills both.
+    this.revoked = true;
   }
 
   /** Someone used Ads Manager: the platform changed a campaign we did not ask it to (D-AD4). */
@@ -221,7 +229,7 @@ export class FakeMeta {
     if (parts[0] !== FAKE_META_VERSION) return this.error(res, 400, 2635, "OAuthException", `(#2635) Unsupported API version ${parts[0] ?? ""}`);
     const path = parts.slice(1).join("/");
     const token = body.access_token ?? bearer(req);
-    if (token !== this.token) return this.error(res, 400, 190, "OAuthException", "Error validating access token: The session has been invalidated.", 463);
+    if (token !== this.expectedToken(path)) return this.error(res, 400, 190, "OAuthException", "Error validating access token: The session has been invalidated.", 463);
 
     const fault = this.takeFault(method, path);
     if (fault?.kind === "hang") return; // never answered; the caller's timeout is what is under test
@@ -230,6 +238,15 @@ export class FakeMeta {
     const answer = this.route(method, path, body);
     if (fault?.kind === "applied_then_temporary" && answer.status < 400) return this.fault(res, { kind: "temporary" });
     send(res, answer.status, answer.body);
+  }
+
+  /** A Page's edges and its forms answer only that Page's token (Lead Ads guide); everything else the user's. */
+  private expectedToken(path: string): string | undefined {
+    const [head, edge] = path.split("/");
+    const pageId = edge === "leadgen_forms" ? head : edge === undefined ? this.forms.pageOf(head ?? "") : null;
+    if (!pageId) return this.token;
+    const page = this.pages.find((p) => p.id === pageId);
+    return page && !this.revoked ? page.access_token : undefined;
   }
 
   private takeFault(method: string, path: string): FakeMetaFault | null {
@@ -256,8 +273,14 @@ export class FakeMeta {
     if (adsets && method === "POST") return this.createAdSet(adsets[1]!, body);
     const children = /^(\d+)\/adsets$/.exec(path);
     if (children && method === "GET") return this.list([...this.adsets.values()].filter((a) => a.campaign_id === children[1]), body);
+    const pageForms = /^(\d+)\/leadgen_forms$/.exec(path);
+    if (pageForms && method === "POST") return this.forms.create(pageForms[1]!, body);
+    if (pageForms && method === "GET") return this.forms.list(pageForms[1]!, body.fields);
     const one = /^(\d+)$/.exec(path);
-    if (one && method === "GET" && this.adsets.has(one[1]!)) return { status: 200, body: pick({ ...this.adsets.get(one[1]!)!, effective_status: this.adsets.get(one[1]!)!.status }, body.fields, ["id"]) };
+    const form = one && method === "GET" ? this.forms.read(one[1]!, body.fields) : null;
+    if (form) return form;
+    const adset = one && method === "GET" ? this.adsets.get(one[1]!) : undefined;
+    if (adset) return { status: 200, body: pick({ ...adset, effective_status: adset.status }, body.fields, ["id"]) };
     if (one && method === "GET") return this.readCampaign(one[1]!, body.fields);
     if (one && method === "POST") return this.updateCampaign(one[1]!, body);
     return graphError(400, 100, "GraphMethodException", `Unsupported ${method} request. Object with ID '${path}' does not exist.`, this.traceId(), 33);
@@ -398,16 +421,6 @@ export class FakeMeta {
   private traceId(): string {
     return `FakeTrace${String(++this.trace).padStart(6, "0")}`;
   }
-}
-
-function graphError(status: number, code: number, type: string, message: string, fbtrace_id: string, error_subcode?: number) {
-  return { status, body: { error: { message, type, code, ...(error_subcode === undefined ? {} : { error_subcode }), fbtrace_id } } };
-}
-
-/** `fields=` as Graph answers it: the named fields plus the defaults; no `fields` = defaults only. */
-function pick(row: Record<string, unknown>, fields: string | undefined, defaults: string[]): Record<string, unknown> {
-  const want = new Set([...defaults, ...(fields ? fields.split(",").map((f) => f.trim()).filter(Boolean) : [])]);
-  return Object.fromEntries(Object.entries(row).filter(([k]) => want.has(k)));
 }
 
 function countries(raw: string | undefined): string[] | null {
