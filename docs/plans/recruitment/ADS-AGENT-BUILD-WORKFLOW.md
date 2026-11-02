@@ -526,3 +526,17 @@ blocking step in §3 above.
   mutations each went red. Orchestrator readiness: L1 done, L2 partly (crash points, double delivery,
   concurrency, kill switch); the rest of L2 and all of L3 (FakeClock, golden scenarios) are step 7's.
   No migration.
+- **2026-11-02, 7b** — `modules/ads/platforms/simulator/fakeMeta.ts`: an in-process `node:http` Marketing
+  API with the calls B1–B3 make — ad account read (cents as numeric strings, `spend_cap` "0" = none),
+  campaign create (`special_ad_categories` required, ACTIVE/PAUSED only, `spend_cap` ≥ $100 →
+  `{ id, success }`), status update (`{ success }`), campaign read with `fields=` + defaults — and
+  Meta's error envelope. Faults per call: throttle (80004 / 2446079 + `X-Business-Use-Case-Usage`),
+  temporary (code 1/2, HTTP 500), expired or revoked token (190 / 463), hang, **applied-then-error**
+  (the half-created object), plus an Ads Manager edit (D-AD4). It lives beside the adapters, not under
+  `testing/`, because the simulator runs it on staging. ⚠ Two shapes are our reading, not Meta's word
+  (the HTTP status of an error; `error_subcode` beside a throttle) — said in the file, and L4's re-run
+  against the sandbox exists to catch exactly that. Ad sets, forms, leads + webhook and insights join
+  with B2/B4/B5, their first callers. **Decision: the simulator platform is B1's real Meta client
+  pointed at FakeMeta behind `simulatorGate`** — a second client written now would be a copy B1 deletes.
+  A bug inside the fake answers 500 naming itself rather than hanging (found when a mutation made the
+  fake throw and the test failed by timeout). Ten mutations each went red. No migration.
