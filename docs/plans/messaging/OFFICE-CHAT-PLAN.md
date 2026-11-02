@@ -677,3 +677,19 @@ TechRepublic / Windows Report on Teams 2026 updates.
   **Open:** the compliance console still searches with `ilike` over every prior version (0516), which
   this index does not hold; moving it means indexing `message_versions` too — its own merge. Next: CH8b,
   the API (`GET /api/chat/search`) and the header and rail search, once 0542 is on staging.
+- 2026-11-02: **CH8b built — search, the API and the web** (`claude/chat-ch8-search-web`), on 0542 (merged
+  in #1913, applied to staging). API `GET /api/chat/search?q=&thread=&before_at=&before_id=`
+  (`routes/chatSearch.ts`), mounted ahead of the conversation router for the same reason as files, with
+  the chat's gates on the route; a search past 200 characters is refused 422 before the database is
+  asked. Contract `chatSearchContract.ts`. Web: the rail's name filter offers "Search messages for …"
+  (and Enter), which opens the Search stage at `?search=`, an address like Activity's and Saved's;
+  each conversation's and channel's menu has "Search in this …" (`&within=`), with "Search everywhere"
+  to widen it and Back returning to the conversation. Typing replaces the address rather than pushing,
+  so Back leaves search. Results open where they live (`activityTarget`, a reply in its post's thread).
+  `ChatLineLink` is now the one row Saved and Search both draw; the browser pass found it saying "Marcus
+  Reyes in Marcus Reyes" for a direct line the other person sent, which Saved had always done, and it now
+  names them once. Tests: route 8, web 9 (search stage, rail, both menus); 22 mutants, 21 failed tests
+  and the 22nd was a trim the search field already does, so it was removed. Browser pass at 1440 light
+  and dark and 390 against the mock (`/api/chat/search` added to `mock-api.mjs`). Not built: putting
+  the matched line in view and focused on arrival — a result opens its conversation at the newest line,
+  as a Saved line does; recorded, not routed around. Next: CH11 "Chat about this".

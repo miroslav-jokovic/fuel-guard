@@ -152,7 +152,21 @@ describe("ChatRail", () => {
     expect(w.text()).not.toContain("Chats");
     await w.find("input").setValue("zzz");
     await tick();
-    expect(w.text()).toContain("Nothing in chat is called that.");
+    expect(w.text()).toContain("No conversation or channel is called that.");
+  });
+
+  it("offers the same words as a message search (CH8), by its row and by Enter, and not while the field is empty", async () => {
+    const w = render();
+    expect(w.text()).not.toContain("Search messages for");
+    await w.find("input").trigger("keydown", { key: "Enter" });
+    expect(w.emitted("search-messages")).toBeUndefined();
+    await w.find("input").setValue("  L-20481 ");
+    await tick();
+    const row = w.findAll("button").find((b) => b.text().includes("Search messages for"));
+    expect(row?.text()).toBe("Search messages for “L-20481”");
+    await row!.trigger("click");
+    await w.find("input").trigger("keydown", { key: "Enter" });
+    expect(w.emitted("search-messages")).toEqual([["L-20481"], ["L-20481"]]);
   });
 
   it("tells an empty inbox how to begin, and a person with no team who can add them", () => {

@@ -153,6 +153,7 @@ export * from "./dutyContract.js";
 export * from "./messagesContract.js";
 export * from "./chatContract.js";
 export * from "./chatFilesContract.js";
+export * from "./chatSearchContract.js";
 export * from "./chatComplianceContract.js";
 export * from "./chatComplianceRecordsContract.js";
 export * from "./chatTeamsContract.js";
