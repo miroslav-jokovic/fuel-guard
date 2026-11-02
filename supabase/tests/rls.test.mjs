@@ -2352,6 +2352,15 @@ async function main() {
         `v as (insert into orientation_videos (org_id, title, url) values ('${org}', 'rls', 'https://example.com/rls') returning id) ` +
         `insert into orientation_video_opens (org_id, driver_id, invitation_id, video_id) ` +
         `select '${org}', i.driver_id, i.id, v.id from i, v`,
+      // 0545 (§10 CE1): a record must name a step of this carrier and a driver of this carrier (CS022/CS024)
+      // — a chain the seeder, which makes every parent independently, cannot build.
+      hiring_carrier_steps: (org) =>
+        `insert into hiring_carrier_steps (org_id, label, after_step) values ('${org}', 'rls', 'road_test')`,
+      hiring_carrier_step_records: (org) =>
+        `with d as (insert into drivers (org_id, full_name) values ('${org}', 'rls ' || gen_random_uuid()) returning id), ` +
+        `s as (insert into hiring_carrier_steps (org_id, label, after_step) values ('${org}', 'rls', 'road_test') returning id) ` +
+        `insert into hiring_carrier_step_records (org_id, step_id, driver_id, act, recorded_by_name) ` +
+        `select '${org}', s.id, d.id, 'done', 'rls' from d, s`,
       org_usage_month: (org) =>
         `insert into org_usage_month (org_id, yyyymm) values ('${org}', '2026-08')`,
       // 0531: a unit tag names exactly one truck OR trailer (`unit_tags_one_unit`), both nullable, so the

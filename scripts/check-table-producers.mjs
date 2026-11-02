@@ -106,6 +106,10 @@ const WAIVERS = new Map([
   // orientation_videos (0539, HIRING-WORKFLOW-AUDIT-2026-10-31 HW8a) left on 2026-11-01 in HW8a's second PR:
   // recruiting/orientationVideos.ts writes it behind Settings → Recruiting's list. Pinned for the schema-only
   // first PR only.
+  // hiring_carrier_steps (0545, HIRING-WORKFLOW-AUDIT-2026-10-31 §10 CE1) ships schema-only: a migration and
+  // its first reader never share a merge. Its record table needs no entry — 0545's own `purge_applicant` deletes from it. It leaves in
+  // CE2, whose Settings → Recruiting "Your hiring steps" list writes it (recruiting/carrierSteps.ts).
+  ["hiring_carrier_steps", "HIRING-WORKFLOW-AUDIT-2026-10-31 §10 CE2 — Settings → Recruiting's step list writes it (schema-only, 0545)"],
 ]);
 
 const files = readdirSync(MIGRATIONS).filter((f) => f.endsWith(".sql")).sort();
