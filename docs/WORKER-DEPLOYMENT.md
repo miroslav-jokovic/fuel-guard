@@ -141,7 +141,7 @@ enqueues; it never calls a vendor itself, so a tick on a standby that loses the 
 leaves at most a queued job, which the next holder runs once. On a non-production host with no
 platform connected, the simulator platform (workflow §4R) stands in. It fails closed: it runs
 only where the environment name — `RAILWAY_ENVIRONMENT_NAME ?? DEPLOY_ENVIRONMENT`, the expression
-`lib/schedulerLease.ts:234` already reads, moved into one helper rather than restated — is
+now `lib/deployEnvironment.ts` (step 7a, 2026-11-02; the scheduler lease reads it too) — is
 positively a non-production one, or both are unset and `NODE_ENV` is not `production` (a laptop,
 CI). AWS production sets `DEPLOY_ENVIRONMENT=production` (`infra/server/production.env`); an
 unknown name is treated as production.

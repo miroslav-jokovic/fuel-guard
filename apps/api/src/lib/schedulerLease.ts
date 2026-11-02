@@ -2,6 +2,7 @@ import { hostname } from "node:os";
 import { randomUUID } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { SchedulerLane } from "../schedulerLanes.js";
+import { deployEnvironmentName } from "./deployEnvironment.js";
 
 /**
  * Hold a scheduler lane's database lease (0506) — the guard that lets a service run more than one
@@ -231,7 +232,7 @@ export function processHolderId(env: NodeJS.ProcessEnv = process.env): string {
 export function processHolderMeta(env: NodeJS.ProcessEnv = process.env): Record<string, unknown> {
   return {
     service: env.RAILWAY_SERVICE_NAME ?? env.SERVICE_NAME ?? null,
-    environment: env.RAILWAY_ENVIRONMENT_NAME ?? env.DEPLOY_ENVIRONMENT ?? null,
+    environment: deployEnvironmentName(env),
     deploymentId: env.RAILWAY_DEPLOYMENT_ID ?? null,
     // On AWS the replica is the container: Docker makes its id the hostname, and `docker ps` and the
     // awslogs stream name it the same way.
