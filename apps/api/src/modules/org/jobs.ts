@@ -81,6 +81,12 @@ export type JobKind =
    * overlapping against a 100-a-minute limit.
    */
   | "medstop_sync"
+  /**
+   * One orchestrator step for ONE ads campaign (A6, ADS-AGENT-BUILD-WORKFLOW.md; D-AD16). Always
+   * enqueued with `dedup_key` = `ads_step:<campaign>:<state>` (`orchestrator/tick.ts`), so two
+   * campaigns of one org advance side by side instead of queueing behind one (org, kind) slot.
+   */
+  | "ads_step"
   // One org's nightly copy of its Storage objects to the off-provider bucket (storageBackup.ts). A kind so a
   // failed night has a row, and so `/api/version` can read the last success from the ledger.
   | "storage_backup";

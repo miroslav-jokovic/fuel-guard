@@ -499,3 +499,30 @@ blocking step in §3 above.
   `HANDOFF-2026-11-02-ADS-STAGE1-A6.md` (main `1a3992d`, last migration 0539; release candidate #1907
   carries A4, A5 rides the next train). It records the A6 anchors measured on main and the traps from
   A4–A5 (app.ts at its line budget, reads count as producers, the writers manifest, sleep-broken runs).
+- **2026-11-02, A6** — The orchestrator spine, `modules/ads/orchestrator/`. `transitions.ts` is the ONLY
+  writer of `ads_campaigns.state` (first entry for that table in `scripts/table-writers.json`): it asks
+  `stepCampaign`, records an illegal move as a `refused` row, and moves with one `ads_actions` row of kind
+  `transition` the way 0537's header prescribes — `started` (keyed by campaign, the stint's
+  `state_changed_at` and the event), a compare-and-set on `state` + `state_changed_at`, then the
+  completion; a crash between the last two is settled at the next move from the campaign's own stamp.
+  **Decision: no RPC, no migration** — the ledger's started/completed shape already gives "never an
+  unrecorded move", and an RPC would have cost a second merge under the deploy-window rule. `runner.ts`
+  runs one step per `ads_step` job: compose / create-paused through workers that are **null in this
+  build** (`workers.ts`: B1/B2/C fill them; a null worker means the campaign waits, visibly), a launch
+  only through `guard/guardedPlatform.ts` (`guardedLaunch`, the spend half closed over inside `guard/`;
+  the boundary test flagged the first draft's `.launch(` and the method was renamed rather than the
+  scan loosened), and the pause through `PlatformSafe.pause` (new). **The kill switch's second half**: a
+  pressed switch moves launching/live to `pausing` on the next tick, before any launch is attempted.
+  **A launch whose outcome is unknown is paused, not marked stopped** — the approval is single-use, so
+  a retried guard would refuse and `launch_failed → paused` would label a possibly-live ad as stopped.
+  Failure is `failed` with `last_error` (compose/create) or back to `paused` with the guard's refusals
+  (launch); a failed pause stays `pausing` under a new stamp and is retried every tick, each attempt a
+  row. `tick.ts` only enqueues (`ads_step`, `dedup_key` = `ads_step:<campaign>:<state>`, `KIND_CAPS` 2),
+  every minute, lane `general`, off unless `ADS_ENABLED`; `agentHasWork` is the one definition the tick
+  and the runner both read. Tests on a stateful fake (`testing/adsWorld.ts`: the unique idempotency key,
+  the CAS, crash injection per write): every (state, event, actor) — 924 — legal advances and illegal
+  refuses; two campaigns of one org composing at once; a crash after compose, after launch and after
+  pause each resumes once with no second vendor call; the kill switch in all eleven states. Twelve
+  mutations each went red. Orchestrator readiness: L1 done, L2 partly (crash points, double delivery,
+  concurrency, kill switch); the rest of L2 and all of L3 (FakeClock, golden scenarios) are step 7's.
+  No migration.

@@ -48,4 +48,17 @@ export interface PlatformSafe {
    * owner changes it by hand in the platform, and a stale copy is the one fence that would lie.
    */
   readAccountLimitCents(): Promise<number | null>;
+  /**
+   * Stop delivery (A6, 2026-11-02): the orchestrator's `pausing` step, and so the kill switch's second
+   * half — the switch stops new spending at once (AX021), this stops what is already delivering. The
+   * safe direction, so no guard and no approval; idempotent at the platform (pausing a paused
+   * campaign is a success), which is what lets a step that crashed mid-call simply ask again.
+   */
+  pause(call: { campaign: PlatformCampaignRef; idempotency_key: string }): Promise<PlatformOutcome>;
+}
+
+/** One connection's adapter, both halves. Built by B1's registry; the orchestrator never sees it whole. */
+export interface PlatformAdapter {
+  safe: PlatformSafe;
+  spend: PlatformSpend;
 }

@@ -25,6 +25,7 @@ import { startSmsOutboxScheduler } from "./modules/recruiting/index.js";
 import { startBoardEtaRecorder } from "./modules/livemap/index.js";
 import { startFmcsaFeedScheduler } from "./modules/inspections/index.js";
 import { startMcleodRelinkScheduler } from "./modules/mcleod/index.js";
+import { startAdsOrchestrator } from "./modules/ads/index.js";
 import { startInprocessJobDrain } from "./queue/inprocessDrain.js";
 import type { SchedulerLane } from "./schedulerLanes.js";
 import {
@@ -93,6 +94,7 @@ export const SCHEDULERS: readonly ScheduledTask[] = [
   },
   { name: "realtime-probe", lane: "general", start: startRealtimeProbeScheduler }, // CHA4 (0515): every 15 min, a broadcast from the database must reach a subscriber; /api/version → realtime
   { name: "chat-export-sweeper", lane: "general", start: startChatExportSweeper }, // CHA3b (0517): an office chat export's files have a 7-day life; the record stays
+  { name: "ads-orchestrator", lane: "general", start: startAdsOrchestrator }, // A6 (D-AD16): every minute, one ads_step job per campaign with agent work; OFF unless ADS_ENABLED
 ];
 
 /** A lane's schedulers, in registration order. Pure; exported for the partition test. */

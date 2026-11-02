@@ -86,6 +86,10 @@ const KIND_CAPS: Record<string, number> = {
   // guess made on a carrier's live maintenance system (plan F4, F8).
   fleetpal_sync: 1,
   medstop_sync: 1, // one key, one 100-a-minute limit, per org — and one org today
+  // Two, not one: a step makes at most one platform call (a pause, or a launch through the guard), and
+  // "two campaigns of one org advance concurrently" is A6's done-when. A vendor's own rate limit is its
+  // adapter client's to honour (B1 reads Meta's x-business-use-case-usage), not a queue-wide guess.
+  ads_step: 2,
   // sharp is CPU-bound; two at a time keeps a burst of uploads from starving the sync kinds.
   document_derive: 2,
 };

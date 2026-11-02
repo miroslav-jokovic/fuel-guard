@@ -1,0 +1,133 @@
+import { ADS_SETTINGS_UNSET, type AdsSettings, type CampaignState } from "@silvicom/shared";
+import { postgrestFixture, type FixtureRow } from "./postgrestFixture.js";
+import { createSupabaseRecorder, type RecordedQuery } from "./supabaseRecorder.js";
+
+/**
+ * A STATEFUL ads database for the orchestrator's tests (A6). The recorder's fixtures answer reads; the
+ * orchestrator's properties are about WRITES racing each other — a compare-and-set that must lose, an
+ * idempotency key that must collide, a crash between two writes — and a fixture that returns the same
+ * rows whatever was written cannot show any of them.
+ *
+ * It holds exactly the constraints the runner leans on, as 0537 states them, and nothing else:
+ *   · `ads_actions`: `unique (org_id, idempotency_key)` → 23505; a completion only from `started`;
+ *   · `ads_campaigns`: an UPDATE touches the rows its filters match, so a stale `state` /
+ *     `state_changed_at` matches none (the CAS).
+ * Reads go through `postgrestFixture`, so filters, order and limit are applied as PostgREST would.
+ * A query settles synchronously, so `Promise.all` over two runners interleaves at awaits exactly as
+ * two processes interleave at round trips. Not a database: no triggers, no joins (postgrestFixture's
+ * own rule) — the append-only and fence triggers are the PGlite matrix's (`ads-foundation.test.mjs`).
+ *
+ * `crash` makes the Nth write to a table fail as the process dying there would: the write does not
+ * happen and the caller sees an error. Counted per table, consumed once.
+ */
+
+export const ORG = "00000000-0000-4000-8000-0000000000a1";
+export const CONN = "00000000-0000-4000-8000-0000000000c1";
+export const T0 = "2026-11-02T12:00:00.000Z";
+
+export const LIVE_SETTINGS: AdsSettings = {
+  ...ADS_SETTINGS_UNSET,
+  limits: { monthly_cap_cents: { meta: 300_000 }, daily_max_cents: 10_000, lifetime_max_cents: 150_000, max_raise_pct: 25, max_raise_cents: 5_000 },
+};
+
+export interface WorldCampaign extends FixtureRow {
+  id: string;
+  org_id: string;
+  state: CampaignState;
+  state_changed_at: string;
+}
+
+export function campaign(id: string, state: CampaignState, patch: Partial<WorldCampaign> = {}): WorldCampaign {
+  return {
+    id, org_id: ORG, connection_id: CONN, state, state_changed_at: T0,
+    daily_budget_cents: 5_000, lifetime_cap_cents: 50_000, platform_refs: {}, last_error: null, ...patch,
+  };
+}
+
+export function createAdsWorld(opts: {
+  campaigns: WorldCampaign[];
+  kill?: boolean;
+  settings?: AdsSettings;
+  approvals?: FixtureRow[];
+  actions?: FixtureRow[];
+}) {
+  const campaigns = opts.campaigns.map((c) => ({ ...c }));
+  const actions: FixtureRow[] = (opts.actions ?? []).map((a) => ({ ...a }));
+  const settings = { kill: opts.kill ?? false };
+  const crashes = new Map<string, number[]>();
+  const writes = new Map<string, number>();
+  let seq = actions.length;
+  // A monotonic clock: every reading is one second after the last, so stamps never tie.
+  let tick = 0;
+  const now = () => new Date(Date.parse(T0) + 1000 * ++tick);
+
+  const crashed = (table: string): boolean => {
+    const n = (writes.get(table) ?? 0) + 1;
+    writes.set(table, n);
+    const at = crashes.get(table) ?? [];
+    if (!at.includes(n)) return false;
+    crashes.set(table, at.filter((x) => x !== n));
+    return true;
+  };
+  const dead = { data: null, error: { message: "connection terminated (injected crash)" }, writeError: { message: "connection terminated (injected crash)" } };
+  const matching = <R extends FixtureRow>(rows: R[], q: RecordedQuery): R[] =>
+    rows.filter((r) => postgrestFixture([{ ...r }])({ ...q, ops: q.ops.filter((o) => o.method !== "select" && o.method !== "limit") }).length > 0);
+
+  const rec = createSupabaseRecorder({
+    tables: {
+      ads_campaigns: (q) => {
+        if (q.write?.method === "update") {
+          if (crashed("ads_campaigns")) return dead;
+          const hit = matching(campaigns, q);
+          for (const c of hit) Object.assign(c, q.write.payload as object);
+          return hit.map((c) => ({ id: c.id }));
+        }
+        return postgrestFixture(campaigns)(q);
+      },
+      ads_actions: (q) => {
+        if (q.write?.method === "insert") {
+          if (crashed("ads_actions")) return dead;
+          const row = { ...(q.write.payload as FixtureRow) };
+          if (row.idempotency_key != null && actions.some((a) => a.org_id === row.org_id && a.idempotency_key === row.idempotency_key)) {
+            const dup = { code: "23505", message: "duplicate key value violates unique constraint" };
+            return { data: null, error: dup, writeError: dup };
+          }
+          const stored = { id: `act-${++seq}`, platform_refs: null, response: null, error_code: null, approval_id: null, ...row };
+          actions.push(stored);
+          return [{ id: stored.id }];
+        }
+        if (q.write?.method === "update") {
+          if (crashed("ads_actions")) return dead;
+          for (const a of matching(actions, q)) Object.assign(a, q.write.payload as object);
+          return [];
+        }
+        return postgrestFixture(actions)(q);
+      },
+      ads_settings_versions: () => [{
+        id: "set-1", version: 1, settings: opts.settings ?? LIVE_SETTINGS, kill_switch: settings.kill,
+        kill_reason: settings.kill ? "owner pressed it" : null, created_at: T0, created_by_name: "Owner",
+      }],
+      ads_approvals: postgrestFixture(opts.approvals ?? []),
+      ads_platform_connections: postgrestFixture([{ id: CONN, org_id: ORG, provider: "meta" }]),
+      ads_spend_hourly: [],
+    },
+  });
+
+  return {
+    rec,
+    admin: rec.client,
+    now,
+    campaigns,
+    actions,
+    settings,
+    byId: (id: string) => campaigns.find((c) => c.id === id)!,
+    transitions: (id?: string) => actions.filter((a) => a.kind === "transition" && (!id || a.campaign_id === id)),
+    /** The Nth write (1-based, counted from now) to `table` fails as a crash there would. */
+    crashOnWrite(table: "ads_campaigns" | "ads_actions", nth = 1) {
+      const base = writes.get(table) ?? 0;
+      crashes.set(table, [...(crashes.get(table) ?? []), base + nth]);
+    },
+  };
+}
+
+export type AdsWorld = ReturnType<typeof createAdsWorld>;

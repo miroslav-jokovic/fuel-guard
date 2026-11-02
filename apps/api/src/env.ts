@@ -399,6 +399,7 @@ const EnvSchema = z.object({
     .transform((v) => v === "true"),
   FLEETPAL_SYNC_HOURS: z.coerce.number().min(1).default(1),
   MEDSTOP_SYNC_ENABLED: z.enum(["true", "false"]).default("false").transform((v) => v === "true"), // api service only (D-MS3); the key is per org, sealed — MEDSTOP-PLAN §6
+  ADS_ENABLED: z.enum(["true", "false"]).default("false").transform((v) => v === "true"), // the ads orchestrator's tick (A6); off until Stage 1's exit — docs/WORKER-DEPLOYMENT.md § Ads
 });
 
 export type Env = z.infer<typeof EnvSchema>;
