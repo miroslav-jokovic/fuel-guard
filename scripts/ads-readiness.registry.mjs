@@ -278,7 +278,7 @@ export const READINESS = [
               "launch sets the approved amounts, then the ad and the ad set ACTIVE, and the campaign LAST, read back ACTIVE",
               "a launch with no ad is refused before any call: an active campaign with nothing to show would only look live",
               "raise sets the ad set's daily budget only; an area change keeps Meta's 15–50 mile window",
-              "the account limit is Meta's spend_cap now; \"0\" (no limit) and an unreadable account are unknown, never unlimited",
+              "the account limit is Meta's spend_cap now; …",
             ] },
             { file: META_PATH, titles: [
               "an approved launch goes through the guard to Meta: amounts set, campaign ACTIVE last, the campaign live",
