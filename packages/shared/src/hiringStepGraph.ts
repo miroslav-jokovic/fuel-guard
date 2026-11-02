@@ -195,6 +195,13 @@ export interface HiringStepSpec {
    * real gap rather than an oversight — named, so the next person to build one knows what to write.
    */
   evidence: HiringEvidence | null;
+  /**
+   * §10 D-CE3: a carrier may say it does not run this step (Settings → Recruiting), and the checklist
+   * then leaves it out. Set on the catalogue row itself, so the hideable list is DERIVED
+   * (`HIDEABLE_HIRING_STEPS`) rather than written out a second time. Never on a federal check, a consent,
+   * the application or the hire: absent means the step is the carrier's to run, always.
+   */
+  carrierMayHide?: true;
 }
 
 /** A catalogue entry as written: everything but the number, which its position decides. */

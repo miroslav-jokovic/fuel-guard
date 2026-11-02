@@ -320,6 +320,12 @@
   "hazmat_reviews": [
     "apps/api/src/modules/hazmat/hazmatLoads.ts"
   ],
+  "hiring_carrier_step_records": [
+    "apps/api/src/modules/recruiting/carrierSteps.ts"
+  ],
+  "hiring_carrier_steps": [
+    "apps/api/src/modules/recruiting/carrierSteps.ts"
+  ],
   "hos_duty_segments": [
     "apps/api/src/modules/samsara/hosSync.ts"
   ],

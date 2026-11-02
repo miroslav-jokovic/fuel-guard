@@ -4,6 +4,7 @@ import SettingsSection from "@/components/ui/SettingsSection.vue";
 import SignatoryRegister from "@/features/recruitment/SignatoryRegister.vue";
 import RecruitingSettingsForm from "@/features/recruitment/RecruitingSettingsForm.vue";
 import OrientationVideosEditor from "@/features/recruitment/OrientationVideosEditor.vue";
+import CarrierStepsEditor from "@/features/recruitment/CarrierStepsEditor.vue";
 
 /**
  * Settings → Recruiting (APPLICATION-FLOW-V2-PLAN.md R1, Q-AW42 ruled (a) by the owner 2026-09-28).
@@ -47,6 +48,15 @@ import OrientationVideosEditor from "@/features/recruitment/OrientationVideosEdi
     >
       <div class="rounded-surface bg-surface p-4 ring-1 ring-edge">
         <RecruitingSettingsForm />
+      </div>
+    </SettingsSection>
+
+    <SettingsSection
+      title="Your hiring steps"
+      description="Add steps your company runs that the checklist does not have, and turn off built-in steps you do not use."
+    >
+      <div class="rounded-surface bg-surface p-4 ring-1 ring-edge">
+        <CarrierStepsEditor />
       </div>
     </SettingsSection>
 

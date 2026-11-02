@@ -812,3 +812,20 @@ steps, someone ticks it (or files its paper), and the hire waits for it when the
 - **2026-11-02** — **§10 written; CE1 (this PR), migration `0545_hiring_carrier_steps`.** Numbered 0545, not 0543: the office chat took 0543 (`office_chat_about`) and 0544 (`office_chat_compliance_files`) while this was built. The carrier's
   own steps and the records on each applicant, as §10 D-CE1…D-CE7. 36-case matrix; with each of nine
   guards removed in turn the matrix went red (9/9). Reader: CE2.
+- **2026-11-02** — **CE1 merged (#1922, `432411c`), migration `0545_hiring_carrier_steps`.** As above.
+  Renumbered twice before merge (0543, then 0544, both taken by the office chat), checked by name.
+- **2026-11-02** — **CE2 (this PR), no migration.** The reader. Settings → Recruiting gets "Your hiring
+  steps": add a step (name, what to do, after which built-in step, who does it, a tick or a document,
+  whether the hire waits), remove it after a confirm (retired), and untick the built-in steps the carrier
+  does not run. Only `carrierMayHide` steps are offered (PSP, the trip, the orientation videos and day,
+  the handbook), derived from the catalogue; the six federal checks are listed as always on, and a
+  stored locked key is dropped on read and ignored by the fold. The fold leaves a hidden step out of
+  the rows, both readiness ranges, the hire's list and "not built yet". It emits `carrierSteps` beside
+  `steps`, each with `showAfter` (the nearest emitted step at or before its place, so a step placed
+  after a hidden one still shows), and counts them in done/total. The hire refuses on a step that holds
+  it and is not done, naming it (`missingCarrierSteps`). The step's drawer ticks a step done in one
+  press, or with one of the applicant's FILED papers for a document step (a staged capture has no
+  `documents` row), and takes it back with a reason. **Departure from §10:** the carrier rows are a list
+  beside `steps`, not rows in it — every `steps` reader switches on the closed `HiringStepKey` union.
+  25/25 mutants killed (10 shared, 10 API, 5 web); two survivors on the first pass (declining the
+  confirm; the done count) got their tests.

@@ -12,6 +12,7 @@ import ApplicantDocumentsSection from "@/features/recruitment/ApplicantDocuments
 import HiringChecklistCard from "@/features/recruitment/HiringChecklistCard.vue";
 import HiringStepDrawer from "@/features/recruitment/HiringStepDrawer.vue";
 import HireDrawer from "@/features/recruitment/HireDrawer.vue";
+import CarrierStepDrawer from "@/features/recruitment/CarrierStepDrawer.vue";
 import { useSessionStore } from "@/stores/session";
 import ApplicationReviewDrawer from "@/features/apply/ApplicationReviewDrawer.vue";
 import { describeOfficeEdit } from "@/features/apply/fieldLabels";
@@ -108,6 +109,15 @@ const openStep = computed(
 );
 const reviewing = ref<string | null>(null);
 
+/**
+ * §10 CE2: one of the carrier's own steps. By id, read back from the fold like `openStep`, so the
+ * drawer shows the row's latest act after a save refetches the checklist.
+ */
+const openCarrierId = ref<string | null>(null);
+const openCarrier = computed(
+  () => checklistQ.data.value?.carrierSteps?.find((s) => s.id === openCarrierId.value) ?? null,
+);
+
 /** One drawer at a time: opening the review closes the step it was opened from. */
 function openReview(invitation: string): void {
   openStepKey.value = null;
@@ -185,6 +195,7 @@ function openOrder(medstopId: string): void {
         :retrying="checklistQ.isFetching.value"
         @retry="checklistQ.refetch()"
         @open="openRow($event)"
+        @open-carrier="openStepKey = null; openCarrierId = $event.id"
       />
 
       <!-- ⚠ Collapsed, and below the work. D-HUI3's rule that a row answers three questions only
@@ -240,6 +251,7 @@ function openOrder(medstopId: string): void {
 
       <OrderTestDrawer :open="ordering !== null" :seed="ordering" @close="ordering = null" />
 
+      <CarrierStepDrawer :open="openCarrier !== null" :driver-id="id" :step="openCarrier" @close="openCarrierId = null" />
       <HireDrawer :open="hiring" :driver-id="id" :full-name="driver?.full_name ?? ''" @close="hiring = false" />
     </template>
   </div>

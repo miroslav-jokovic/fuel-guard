@@ -529,8 +529,8 @@ describe("the two readiness answers", () => {
    */
   it("can say ready to travel and ready to hire, and names the steps not built yet", () => {
     const c = hiringChecklist(complete({ hiredAt: null }));
-    expect(c.readyToTravel).toEqual({ ok: true, unmeasured: [], outstanding: [] });
-    expect(c.readyToHire).toEqual({ ok: true, unmeasured: [], outstanding: [] });
+    expect(c.readyToTravel).toEqual({ ok: true, unmeasured: [], outstanding: [], carrierOutstanding: [] });
+    expect(c.readyToHire).toEqual({ ok: true, unmeasured: [], outstanding: [], carrierOutstanding: [] });
     expect(c.unbuilt).toEqual(["live_orientation"]);
     // HW8a: a carrier with no required video has a videos step it cannot measure — named, not a row.
     expect(c.unconfigured).toEqual(["orientation_videos"]);

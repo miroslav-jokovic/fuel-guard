@@ -397,6 +397,8 @@ describe("what it reads, and how much", () => {
         "recruiting_settings",
         // HW8a (0539): the carrier's video list, every tick on the board, and each live link's last send.
         "orientation_videos", "orientation_video_attestations", "application_invitations",
+        // §10 CE2 (0545): the carrier's own step list, once (no steps here, so no record read).
+        "hiring_carrier_steps",
       ]),
     );
   });
@@ -412,7 +414,7 @@ describe("what it reads, and how much", () => {
    * a set-based read and an N+1. Six applicants folding the §391.23 investigation per driver would
    * read thirteen.
    */
-  it("costs the same seventeen queries for six applicants as for one", async () => {
+  it("costs the same eighteen queries for six applicants as for one", async () => {
     const one = seed();
     await boardChecklists(one.client, ORG, [applicant(1)], NOW);
 
@@ -430,8 +432,9 @@ describe("what it reads, and how much", () => {
     // thirteen since 2026-10-20, when the board's own day moved onto the carrier's calendar — one
     // zone read for the whole fold, as the licences' one is; fourteen since §9 P12 read the carrier's
     // hire policy, once for the board; seventeen since HW8a read the video list, the ticks and the sends —
-    // one each for the board.
-    expect(many.queries.length).toBe(17);
+    // one each for the board; eighteen since §10 CE2 read the carrier's own step list (a carrier with
+    // steps adds one more, every record on the board in one paged `.in()`).
+    expect(many.queries.length).toBe(18);
   });
 
   /**
