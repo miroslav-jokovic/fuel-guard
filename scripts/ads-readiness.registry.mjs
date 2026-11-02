@@ -30,6 +30,8 @@ const POLICY = "packages/shared/src/ads/adsPolicy.test.ts";
 const REPORT = "packages/shared/src/ads/adsReport.test.ts";
 const ROUTES = "apps/api/src/modules/ads/routes/guard.test.ts";
 const PUBLISHER = "apps/api/src/modules/ads/platforms/meta/publisher.test.ts";
+const META_ADAPTER = "apps/api/src/modules/ads/platforms/meta/metaAdapter.test.ts";
+const META_PATH = "apps/api/src/modules/ads/orchestrator/metaPath.test.ts";
 
 export const SCENARIO_DIR = "packages/ads-golden/scenarios";
 
@@ -268,7 +270,23 @@ export const READINESS = [
             ] },
           ],
         },
-        { need: "the creative and the ad (B2c), launch / pause through the guard (B3)", gap: "not built yet — B2c (after C3/C4), B3" },
+        {
+          need: "launch / pause / raise / area through the guard (B3a): the campaign is the master switch, activated last; every answer read back",
+          tests: [
+            { file: META_ADAPTER, titles: [
+              "pause sets the campaign alone to PAUSED and answers from Meta's read-back; pausing a paused campaign succeeds",
+              "launch sets the approved amounts, then the ad and the ad set ACTIVE, and the campaign LAST, read back ACTIVE",
+              "a launch with no ad is refused before any call: an active campaign with nothing to show would only look live",
+              "raise sets the ad set's daily budget only; an area change keeps Meta's 15–50 mile window",
+              "the account limit is Meta's spend_cap now; \"0\" (no limit) and an unreadable account are unknown, never unlimited",
+            ] },
+            { file: META_PATH, titles: [
+              "an approved launch goes through the guard to Meta: amounts set, campaign ACTIVE last, the campaign live",
+              "without an approval the guard refuses and Meta is never asked to activate anything",
+            ] },
+          ],
+        },
+        { need: "the creative and the ad (B2c, which also wires `createPaused`), the Automated Rules sync (B3b)", gap: "not built yet — B2c (after C3/C4), B3b" },
       ],
       L2: [
         {
@@ -285,9 +303,17 @@ export const READINESS = [
             "half-created (campaign and ad set yes, form no): the next attempt adopts both and makes one form",
             "a form create Meta applied but answered 5xx is found on the Page by name, never made twice",
             "a form with our name that asks other questions is refused, never adopted",
+          ] }, { file: META_ADAPTER, titles: [
+            "a 5xx on the pause is retried — it sets a value, so twice is once — and the campaign ends paused",
+            "Meta answering success without applying it is caught by the read-back: pause_not_applied, launch_not_applied",
+            "a launch that fails part way leaves the campaign PAUSED: the master switch is never reached",
+            "a revoked token stops the pause as token_invalid, and a campaign with no Meta ids is refused without a call",
+          ] }, { file: META_PATH, titles: [
+            "the kill switch's second half reaches the platform: a live campaign is paused on Meta, with one succeeded pause row",
+            "a disconnected connection gives no platform: the step fails no_platform rather than guessing",
           ] }],
         },
-        { need: "token revoked → an alert to an admin, and the same faults on the creative, ad, launch and pause calls", gap: "the alert lands when the publisher is wired into the runner (B2c); the other calls with B2c, B3" },
+        { need: "token revoked → an alert to an admin, and the same faults on the creative and ad calls", gap: "the alert lands when the publisher is wired into the runner (B2c); the creative and ad calls with B2c" },
       ],
       L3: later("L3"),
       L4: [{ need: "contract suite on Meta's sandbox", gap: STAGE2 }],

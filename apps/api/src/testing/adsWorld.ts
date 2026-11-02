@@ -52,6 +52,8 @@ export function createAdsWorld(opts: {
   actions?: FixtureRow[];
   /** Spend rows (`ads_spend_hourly`) — the guard's month-to-date. */
   spend?: FixtureRow[];
+  /** The org's connections (B3: a simulator row lets the real adapter run); default one bare Meta row. */
+  connections?: FixtureRow[];
   /**
    * The scenario's clock (7d, `FakeClock.now`). Every reading is still strictly after the last — a
    * millisecond on when the clock has not moved — so two stamps never tie, the property the
@@ -124,7 +126,7 @@ export function createAdsWorld(opts: {
         kill_reason: settings.kill ? "owner pressed it" : null, created_at: T0, created_by_name: "Owner",
       }],
       ads_approvals: postgrestFixture(approvals),
-      ads_platform_connections: postgrestFixture([{ id: CONN, org_id: ORG, provider: "meta" }]),
+      ads_platform_connections: postgrestFixture(opts.connections ?? [{ id: CONN, org_id: ORG, provider: "meta" }]),
       ads_spend_hourly: postgrestFixture(spend),
     },
   });

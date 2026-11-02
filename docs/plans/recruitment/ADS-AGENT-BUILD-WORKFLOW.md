@@ -711,3 +711,28 @@ blocking step in §3 above.
     still checks its wording). FakeMeta requires it, which is our reading of a doc that marks it
     optional; L4 settles it.
   - Nine mutations, all red.
+- **2026-11-02, B2b merged; B3 split; B3a** — #1946 (`c167f8f`). B3 is two PRs: **B3a** the Meta
+  adapter (launch / pause / raise / area) and `workers.platform`; **B3b** `rulesSpec` + the
+  `adrules_library` sync on settings save.
+  - `platforms/meta/metaAdapter.ts` implements `adapter.ts`'s two halves over `MetaGraph`. **The
+    campaign is the master switch:**
+    - pause = the campaign to PAUSED, alone (the fewest calls on the kill switch's path);
+    - launch = the approved amounts (ad set `daily_budget`, campaign `spend_cap`), then the ads and
+      the ad set ACTIVE, and the campaign LAST, so a launch that fails part way delivers nothing.
+    Every write sets a value, so it is retried (`idempotent: true`). Launch and pause answer from a
+    read-back, not from Meta's 200: FakeMeta's new fault `accepted_not_applied` proved the read-back
+    is load-bearing (that mutant survived until it existed). A launch with no ad is refused. An
+    account `spend_cap` of "0" is unknown, never unlimited.
+  - `registry.adapterForConnection` (org-scoped; null for missing / disconnected / unopenable) →
+    `workers.platform` → `guardPlatform`. **So a `pausing` campaign, the kill switch's second half,
+    now reaches Meta or the simulator for real.** `createPaused` is still null (B2c), so nothing
+    reaches `paused` by the agent, and so no launch happens unattended.
+  - FakeMeta: ad sets and ads move to `fakeMetaAdSets.ts` (file budget). They get `POST /{id}`
+    updates (status, `daily_budget`, `targeting`) and ad status.
+  - `orchestrator/metaPath.test.ts` drives the real runner → guard → adapter → `MetaGraph` →
+    simulator. It covers the kill pause reaching Meta, a guarded launch going live, a launch with
+    no approval sending nothing, and a disconnected connection failing `no_platform`. The handoff
+    asked for golden YAML scenarios here; these are TypeScript tests over the same path, because the
+    golden runner (7d) scripts the vendor. Moving the golden runner onto the simulator is recorded
+    for B2c, where the whole chain exists.
+  - Nine mutations, all red.
