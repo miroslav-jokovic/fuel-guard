@@ -599,3 +599,20 @@ TechRepublic / Windows Report on Teams 2026 updates.
   browser that blocked them is told how to undo it. Rules in `chatDesktopAlerts.ts` (12 tests), the tab
   in `useChatDesktopAlerts.ts` (4, with a fake Notification). Next: CH7 Files.
 
+- 2026-11-02: **CH8a built — search, the database half** (`claude/chat-ch8-search-db`, migration 0542). One
+  GIN index over `chat_search_vector(body)` — an expression, not a column, so nothing to backfill and no
+  reader to order behind it (production held 4 office lines, 120 kB for all of `messages`) — and
+  `chat_search(org, user, q, thread?, before_at, before_id, limit)`: lines in office conversations the
+  person is in now, never a driver conversation or a retracted line, every word matched as a prefix,
+  newest first on (created_at, id), 25 a page and 50 at most; given a conversation it searches only that
+  one and refuses one the person is not in (CH001). `simple`, not `english` — load numbers, unit numbers,
+  names and Spanish outnumber words a stemmer helps — and hyphens and dashes are read as spaces first,
+  because the parser measured "L-20481" as `l` and the NEGATIVE number `-20481`, so "20481" alone found
+  nothing. Not ledgered: a person reading their own conversations is not a compliance act. Matrix
+  `office-chat-search.test.mjs` (48 rows); 14 mutants of 0542 failed rows; six changed nothing and were
+  read: the two revokes (0412 closes every new function to clients already; they stay, as every chat
+  migration states them), and four clauses that were removed — a no-words shortcut (a null tsquery
+  matches nothing), a second org filter the thread's covers, and quote escaping no lexeme can need.
+  **Open:** the compliance console still searches with `ilike` over every prior version (0516), which
+  this index does not hold; moving it means indexing `message_versions` too — its own merge. Next: CH8b,
+  the API (`GET /api/chat/search`) and the header and rail search, once 0542 is on staging.
