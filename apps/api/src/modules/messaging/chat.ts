@@ -35,7 +35,7 @@ import {
  */
 
 /** The SQLSTATEs 0512, 0518–0521 raise, and the answer each becomes. */
-const CHAT_ERRORS: Record<string, { status: 403 | 404 | 409 | 422; code: string; message: string }> = {
+const CHAT_ERRORS: Record<string, { status: ChatRefusalStatus; code: string; message: string }> = {
   // 404, not 403: a conversation you are not in is one we do not confirm exists.
   CH001: { status: 404, code: "not_found", message: "That conversation does not exist" },
   CH002: { status: 422, code: "not_an_office_member", message: "That person cannot be added to an office conversation" },
@@ -57,11 +57,15 @@ const CHAT_ERRORS: Record<string, { status: 403 | 404 | 409 | 422; code: string;
   // 0543 (CH11): a conversation is about a load, a driver or a truck of this organisation — 404, as a
   // record of another organisation is one we do not confirm exists.
   CH016: { status: 404, code: "record_not_found", message: "That load, driver or truck does not exist" },
+  // 0549 (CH12): the person has used the day's catch-ups (CHAT_CATCHUP_DAILY_CAP in any 24 hours).
+  CH017: { status: 429, code: "catchup_limit", message: "You have used today's catch-ups" },
 };
 
+/** 502/503 are CH12's own (`chatCatchup.ts`): the model failed, or none is configured. */
+type ChatRefusalStatus = 403 | 404 | 409 | 422 | 429 | 502 | 503;
 export type ChatResult<T> =
   | { ok: true; value: T }
-  | { ok: false; status: 403 | 404 | 409 | 422; code: string; message: string };
+  | { ok: false; status: ChatRefusalStatus; code: string; message: string };
 
 interface RpcError { code?: string; message: string }
 

@@ -6,6 +6,7 @@ import { chatChannelsRouter, chatTeamsRouter } from "./chatTeams.js";
 import { chatFilesRouter } from "./chatFiles.js";
 import { chatAboutRouter } from "./chatAbout.js";
 import { chatSearchRouter } from "./chatSearch.js";
+import { chatCatchupRouter } from "./chatCatchup.js";
 
 /**
  * Everything under `/api/chat`: the compliance console FIRST, at `/api/chat/compliance`, then the chat
@@ -33,6 +34,8 @@ export function chatRouters(): Router {
   router.use("/", chatAboutRouter());
   // CH8: search, for the same reason — the conversation router would read `/search` as a conversation id.
   router.use("/", chatSearchRouter());
+  // CH12: "Catch me up", with its own module gate (D-CHAT37) on top of the chat's.
+  router.use("/", chatCatchupRouter());
   router.use("/", chatRouter());
   return router;
 }

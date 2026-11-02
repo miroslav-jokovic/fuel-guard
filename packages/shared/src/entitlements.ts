@@ -17,6 +17,9 @@ export const MODULE_KEYS = [
   "notifications",
   "dispatch",
   "navigation",
+  // OFFICE-CHAT-PLAN D-CHAT37 (0549): "Catch me up" in Chat. A module of its own rather than a screen,
+  // because it spends model tokens: the platform console turns it on for the carrier who pays for it.
+  "chat_ai",
 ] as const;
 export type ModuleKey = (typeof MODULE_KEYS)[number];
 
@@ -27,6 +30,7 @@ export const MODULE_LABELS: Record<ModuleKey, string> = {
   notifications: "Notifications",
   dispatch: "Dispatch",
   navigation: "Navigation",
+  chat_ai: "Chat AI catch-up",
 };
 
 /**
