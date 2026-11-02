@@ -2,8 +2,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   APPLICATION_SECTION_LABELS,
   planApplicationNudges,
+  renderApplicantEmail,
   type NudgeCandidate,
-  type NudgePart,
   type PlannedNudge,
 } from "@silvicom/shared";
 import type { Env } from "../../env.js";
@@ -13,6 +13,7 @@ import { notify } from "../messaging/index.js";
 import { mintInvitationToken } from "./applicationIntake.js";
 import { sendOrQueueSms } from "./smsOutbox.js";
 import { recruitingSettings } from "./recruitingSettings.js";
+import { firstNameOf, wordingFor, type DriverNames } from "./messageWording.js";
 
 /**
  * The abandonment sweep (A10, D-APP15) — one email to a driver who walked away, and one alert to the
@@ -36,49 +37,12 @@ import { recruitingSettings } from "./recruitingSettings.js";
 /** The link the driver is sent back to — the same shape `applicationInvites.ts` mints at invite time. */
 const applyLink = (env: Env, token: string): string => `${env.WEB_APP_URL}/apply/${token}`;
 
-const escapeHtml = (s: string): string =>
-  s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-
 /**
- * The last sentence, per part. Part 2's reminder is the last one the invitation can get; Part 1's is
- * not — a driver reminded now may be reminded once more, about the form, weeks later (Q-AW37 (b)) —
- * so Part 1's promise is narrower, and true.
+ * The email itself is `renderApplicantEmail("reminder", …)` in `@silvicom/shared` since §12 MT2, so
+ * Settings → Recruiting previews it with the carrier's wording through the same function. Written to a
+ * person who is doing the carrier a favour by applying at all: what is saved, where they stopped, one
+ * link, and the one caveat that matters — the older email's link is dead now.
  */
-const NO_MORE: Record<NudgePart, string> = {
-  part_one: "we will not remind you about this step again.",
-  part_two: "we will not send another reminder.",
-};
-
-/**
- * The email itself.
- *
- * Written to a person who is doing the carrier a favour by applying at all: what is saved, where they
- * stopped, one link, and the one caveat that matters — the older email's link is dead now. No
- * deadline, no chasing, and no second reminder about the same step, because there will not be one.
- */
-export function nudgeEmail(
-  carrier: string,
-  link: string,
-  sectionLabel: string | null,
-  part: NudgePart = "part_two",
-): { subject: string; text: string; html: string } {
-  const where = sectionLabel ? ` You had reached "${sectionLabel}".` : "";
-  const subject = `Your ${carrier} application is saved`;
-  const text =
-    `You started an application for ${carrier} and it is still saved.${where}\n\n`
-    + `Pick up where you left off: ${link}\n\n`
-    + "This link replaces the one in the earlier email, which no longer works. "
-    + `If you would rather not continue, you can ignore this — ${NO_MORE[part]}`;
-  const html = [
-    `<p>You started an application for ${escapeHtml(carrier)} and it is still saved.`,
-    sectionLabel ? ` You had reached &quot;${escapeHtml(sectionLabel)}&quot;.` : "",
-    "</p>",
-    `<p><a href="${escapeHtml(link)}">Pick up where you left off</a></p>`,
-    "<p>This link replaces the one in the earlier email, which no longer works. If you would rather "
-    + `not continue, you can ignore this — ${NO_MORE[part]}</p>`,
-  ].join("");
-  return { subject, text, html };
-}
 
 /**
  * The column list, named rather than inlined — the same shape `applicantChecklist.ts` uses, and for
@@ -256,12 +220,15 @@ export async function runApplicationNudgesOnce(
   const carrier = (org as { name?: string } | null)?.name ?? "the carrier";
   const notificationsOn = (org as { notifications_enabled?: boolean } | null)?.notifications_enabled !== false;
 
+  // §12 MT2: the carrier's reminder wording, read once for the whole sweep.
+  const wording = await wordingFor(admin, orgId, "reminder");
+
   let emailed = 0;
   let messaged = 0;
   for (const nudge of planned) {
     const { data: driver } = await admin
       .from("drivers")
-      .select("full_name")
+      .select("full_name, first_name")
       .eq("org_id", orgId)
       .eq("id", nudge.driverId)
       .maybeSingle();
@@ -298,7 +265,10 @@ export async function runApplicationNudgesOnce(
     }, now);
     if (texted.sent) messaged += 1;
 
-    const { subject, text, html } = nudgeEmail(carrier, link, label, nudge.part);
+    const { subject, text, html } = renderApplicantEmail(
+      "reminder", { carrier, firstName: firstNameOf(driver as DriverNames | null), days: null }, link, wording,
+      { sectionLabel: label, part: nudge.part },
+    );
     const sent = await sendEmail(env, { to: [nudge.email], subject, text, html });
     if (sent.ok) emailed += 1;
     else {

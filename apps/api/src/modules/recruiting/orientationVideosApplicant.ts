@@ -2,7 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   applicantVideosPath,
   canResendApplicationLink,
-  renderOrientationVideosEmail,
+  renderApplicantEmail,
   type ApplicantOrientationVideos,
   type ApplicantVideoPage,
   type OrientationVideoAttest,
@@ -15,6 +15,7 @@ import { carrierName } from "./applicationMail.js";
 import { textOutcome } from "./applicationSendForSigning.js";
 import { listOrientationVideos, type OrientationVideoError } from "./orientationVideos.js";
 import { sendOrQueueSms } from "./smsOutbox.js";
+import { messageInputs } from "./messageWording.js";
 
 /**
  * One applicant's orientation videos (HW8a, 0539): the office's view and its "Send the videos", and the
@@ -133,10 +134,12 @@ export async function sendOrientationVideos(
     return { status: 409, code: "no_videos", message: "There are no videos to send. Add them in Settings → Recruiting first." };
   }
   const sentAt = now.toISOString();
+  // §12 MT2: the carrier's videos wording and the applicant's first name; the rotation supplies the days.
+  const { vars, wording } = await messageInputs(admin, orgId, driverId, "videos", null);
   const rotated = await resendOnInvitation(admin, env, { orgId, userId, invitation }, now, {
     stamp: { orientation_videos_sent_at: sentAt },
     path: applicantVideosPath,
-    email: renderOrientationVideosEmail,
+    email: (carrier, link, days) => renderApplicantEmail("videos", { ...vars, carrier, days }, link, wording),
     auditAction: "compliance.orientation_videos_sent",
   });
   if (isApplicationLinkError(rotated)) return rotated;

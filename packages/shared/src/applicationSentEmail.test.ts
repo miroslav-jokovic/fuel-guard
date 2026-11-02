@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { renderApplicationSentEmail } from "./applicationSentEmail.js";
+import { renderApplicationSentEmail } from "./applicantMessages.js";
 
 describe("the application-sent email", () => {
   const mail = renderApplicationSentEmail("Silvicom <Inc>", "https://app.test/apply/abc", 14);

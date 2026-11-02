@@ -4,25 +4,14 @@ import {
   isDraftSmsConsent,
   nextSmsWindow,
   normalisePhone,
-  smsApplicationApproved,
-  smsApplicationInvite,
-  smsApplicationReady,
-  smsApplicationReminder,
-  smsDrugTestSite,
-  smsOrientationVideos,
   applicantVideosPath,
-  smsOptInConfirmation,
-  smsSigningLink,
   smsZonesFor,
   SIGN_LINK_UNLOCK_LIMIT,
-  SIGN_LINK_LIFETIME_HOURS,
-  type DrugTestSiteParams,
   type SmsHoldReason,
 } from "@silvicom/shared";
 import type { Env } from "../../env.js";
 import { redactNumber, sendSms } from "../../lib/sms.js";
-import { readCarrierZone } from "./applicantBoardReads.js";
-import { carrierName } from "./applicationMail.js";
+import { renderOutboxText } from "./smsOutboxRender.js";
 import { drugTestStillLive, markDrugTestSent } from "./applicantDrugTest.js";
 import { mintInvitationToken } from "./applicationIntake.js";
 import { isSuppressed } from "./smsSuppressions.js";
@@ -136,31 +125,6 @@ async function recipientZones(admin: SupabaseClient, orgId: string, invitationId
   return smsZonesFor((data as { state?: string | null } | null)?.state);
 }
 
-/** The words, rendered at SEND time from what the row holds — never stored. `link` only for LINK_TEMPLATES. */
-async function render(
-  admin: SupabaseClient,
-  orgId: string,
-  template: SmsTemplate,
-  params: Record<string, unknown>,
-  link: string | null,
-): Promise<string> {
-  const carrier = await carrierName(admin, orgId);
-  if (template === "consent_confirm") return smsOptInConfirmation(carrier);
-  if (template === "application_approved") return smsApplicationApproved(carrier);
-  if (template === "application_sent") return smsApplicationReady(carrier, String(link));
-  if (template === "nudge") return smsApplicationReminder(carrier, String(link));
-  if (template === "signing_link") return smsSigningLink(carrier, String(link), SIGN_LINK_LIFETIME_HOURS);
-  if (template === "orientation_videos") return smsOrientationVideos(carrier, String(link));
-  // Q-AW55: the lifetime the invitation was given, as the drawer's override or the carrier's setting,
-  // carried as a number of days — a date in the params would be a second statement of `expires_at`.
-  if (template === "invite") return smsApplicationInvite(carrier, String(link), Number(params.days));
-  const zone = await readCarrierZone(admin, orgId);
-  const label = new Intl.DateTimeFormat("en-US", { timeZone: zone, timeZoneName: "short" })
-    .formatToParts(new Date(String(params.window_start)))
-    .find((p) => p.type === "timeZoneName")?.value ?? zone;
-  return smsDrugTestSite(carrier, params as unknown as DrugTestSiteParams, zone, label);
-}
-
 /**
  * A fresh link on the invitation's TEXT token (0378), or null when the invitation was revoked or lapsed
  * — in which case nothing may be sent, because the only thing the text says is a link.
@@ -181,7 +145,7 @@ async function mintTextLink(
 }
 
 type SendingRow = {
-  id: string; org_id: string; invitation_id: string | null; phone: string;
+  id: string; org_id: string; driver_id: string; invitation_id: string | null; phone: string;
   template: SmsTemplate; params: Record<string, unknown>; attempts: number;
 };
 
@@ -204,7 +168,7 @@ async function transmit(
       return { ok: false, cancelled: true, detail: "invitation no longer live" };
     }
   }
-  const body = await render(admin, row.org_id, row.template, row.params, link);
+  const body = await renderOutboxText(admin, row.org_id, row.driver_id, row.template, row.params, link);
   const result = await sendSms(env, { to: row.phone, body });
   const stamp = now.toISOString();
   await admin
@@ -266,7 +230,7 @@ export async function sendOrQueueSms(admin: SupabaseClient, env: Env, message: S
   if (!open) return { sent: false, queued: true, outboxId, notBefore: notBefore.toISOString() };
 
   const sent = await transmit(admin, env, {
-    id: outboxId, org_id: message.orgId, invitation_id: message.invitationId, phone,
+    id: outboxId, org_id: message.orgId, driver_id: message.driverId, invitation_id: message.invitationId, phone,
     template: message.template, params: message.params, attempts: 0,
   }, now);
   return sent.ok ? { sent: true, outboxId } : { sent: false, failed: sent.detail ?? "send failed" };

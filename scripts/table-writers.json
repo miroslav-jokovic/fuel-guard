@@ -579,6 +579,9 @@
     "apps/api/src/modules/psp/pspImport.ts",
     "apps/api/src/modules/psp/pspOrder.ts"
   ],
+  "recruiting_message_wording": [
+    "apps/api/src/modules/recruiting/messageWording.ts"
+  ],
   "recruiting_settings": [
     "apps/api/src/modules/recruiting/recruitingSettings.ts"
   ],

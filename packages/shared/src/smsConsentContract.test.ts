@@ -11,16 +11,14 @@ import {
   SMS_CONSENT,
   SMS_OFFICE_INVITE_ATTESTATION,
   smsApplicationApproved,
-  smsApplicationInvite,
   smsApplicationPhoneLink,
-  smsApplicationReady,
-  smsApplicationReminder,
   smsConsentGrantSchema,
   smsDrugTestSite,
   smsHelpReply,
   smsOptInConfirmation,
   smsSigningLink,
 } from "./smsConsentContract.js";
+import { smsApplicationInvite, smsApplicationReady, smsApplicationReminder } from "./applicantMessages.js";
 
 /**
  * Consent to be texted (A11b, D-APP13).

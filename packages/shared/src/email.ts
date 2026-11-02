@@ -196,67 +196,8 @@ export function renderDigestEmail(
   return { subject, html, text };
 }
 
-/**
- * The subject line of the FIRST application email, as one string.
- *
- * Extracted when the linkless approval email quoted it back to the applicant as a phrase to search
- * their inbox for. Since AF5 nothing quotes it — the approval email sends the applicant to the office,
- * not to their inbox — and it stays one string because a subject line is still a thing to find.
- */
-export const applicationInviteSubject = (carrier: string): string =>
-  `Your driver application for ${carrier}`;
-
-/**
- * The FIRST invitation to fill in a driver application (A11b's unshipped half, D-APP13).
- *
- * ── WHY THIS IS NOT `renderInviteEmail` BELOW ─────────────────────────────────────────────────
- * That template says "Join {org} on Silvicom 360 … click below to set your password". It is written for
- * a colleague being given a LOGIN to this product. An applicant is not joining anything, will never
- * have a password, and in most cases has never heard of Silvicom 360 — the carrier is who they applied
- * to. Sending them the staff invitation would be the product talking about itself to somebody who
- * asked a trucking company for a job.
- *
- * ── AND WHY IT IS NOT `nudgeEmail` EITHER ─────────────────────────────────────────────────────
- * The abandonment nudge (A10) opens "You started an application and it is still saved", which is a
- * sentence about a draft that does not exist yet. The two templates are deliberately siblings rather
- * than one parameterised template: the first says *here is a form*, the second says *your form is
- * still here*, and a shared body that had to express both would say neither well.
- *
- * ── THE VOICE ─────────────────────────────────────────────────────────────────────────────────
- * The carrier's name first and Silvicom 360's nowhere — the applicant's relationship is with the
- * carrier. No deadline pressure beyond the fact of the expiry, because the link genuinely does
- * expire and saying so is information rather than a nudge. The "saves as you go" sentence is the one
- * piece of reassurance worth the line: the form is seven screens long and a driver reading this on a
- * phone in a truck stop needs to know they can stop.
- */
-export function renderApplicationInviteEmail(
-  carrier: string,
-  applyUrl: string,
-  expiresInDays: number,
-): RenderedEmail {
-  const subject = applicationInviteSubject(carrier);
-  const days = `${expiresInDays} ${expiresInDays === 1 ? "day" : "days"}`;
-  const html =
-    `<div style="font-family:system-ui,sans-serif;color:#111">`
-    + `<h2 style="margin:0 0 8px">${esc(carrier)} has sent you a driver application</h2>`
-    + `<p style="color:#555">Open it whenever suits you. Your answers save as you go, so you can `
-    + `close the page and come back to it.</p>`
-    + `<p style="margin:20px 0"><a href="${esc(applyUrl)}" style="background:#4f46e5;color:#fff;`
-    + `padding:10px 16px;border-radius:6px;text-decoration:none">Start my application →</a></p>`
-    + `<p style="color:#888;font-size:12px">If the button doesn't work, paste this link into your `
-    + `browser:<br>${esc(applyUrl)}</p>`
-    + `<p style="color:#aaa;font-size:12px">This link is yours alone and stops working in ${days}. `
-    + `If you were not expecting it, you can ignore this email.</p>`
-    + `</div>`;
-  const text =
-    `${carrier} has sent you a driver application.\n\n`
-    + `Open it whenever suits you — your answers save as you go, so you can close the page and come `
-    + `back to it.\n\n`
-    + `Start your application: ${applyUrl}\n\n`
-    + `This link is yours alone and stops working in ${days}. If you were not expecting it, you can `
-    + `ignore this email.`;
-  return { subject, html, text };
-}
+// The first invitation's email (and its subject) is `applicantMessages.ts`' since §12 MT2 — one
+// renderer for the sender and Settings' preview, with the carrier's wording.
 
 /**
  * The same application link, sent again by the office (Q-AX5, C2e).

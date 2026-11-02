@@ -360,3 +360,46 @@ describe("finding an applicant already on the board", () => {
     expect((await call("/applicant-matches", { token: "recruiter" })).status).toBe(400);
   });
 });
+
+/** §12 MT2: the invitation goes in the carrier's newest wording, with the applicant's first name. */
+describe("the carrier's wording", () => {
+  const seedWorded = (wording: Record<string, unknown> | null, error = false): SupabaseRecorder =>
+    createSupabaseRecorder({
+      tables: {
+        drivers: [{ id: DRIVER, status: "applicant", first_name: "Pat", full_name: "Pat Lee" }],
+        organizations: [{ id: ORG, name: "Acme Freight" }],
+        application_invitations: [{ id: "inv-1", driver_id: DRIVER, expires_at: "2099-01-01T00:00:00Z", revoked_at: null, handbook_filed_at: null }],
+        recruiting_message_wording: error
+          ? { error: { message: "connection reset" } }
+          : (q) => (q.filters().some((f) => f.col === "message_key" && f.val === "invitation") && wording ? [wording] : []),
+        audit_logs: [],
+      },
+    });
+  const lastMail = () => (mailer.fn.mock.calls.at(-1) as unknown as [unknown, { subject: string; text: string; html: string }])[1];
+
+  it("sends the carrier's subject, heading and paragraph with the placeholders filled — and keeps the link and the expiry", async () => {
+    const rec = seedWorded({
+      message_key: "invitation", email_subject: "{first_name}, your {carrier} application", email_heading: "Welcome, {first_name}",
+      email_paragraph: "Questions? Call Dana at 555-0100.", text_lead: null, saved_by_name: "Dana", saved_at: "2026-11-02T10:00:00Z",
+    });
+    holder.client = rec.client;
+    const res = await call("/application-invites", { method: "POST", token: "recruiter", body: BODY });
+    expect(res.status).toBe(201);
+    const { link } = (await res.json()) as { link: string };
+    const mail = lastMail();
+    expect(mail.subject).toBe("Pat, your Acme Freight application");
+    expect(mail.html).toContain("Welcome, Pat");
+    expect(mail.text).toContain("Questions? Call Dana at 555-0100.");
+    expect(mail.text).toContain(link);
+    expect(mail.text).toContain("stops working in 14 days");
+    expectOrgScoped(rec, ORG);
+  });
+
+  it("sends the standard words when nothing is saved, and when the wording cannot be read", async () => {
+    for (const rec of [seedWorded(null), seedWorded(null, true)]) {
+      holder.client = rec.client;
+      expect((await call("/application-invites", { method: "POST", token: "recruiter", body: BODY })).status).toBe(201);
+      expect(lastMail().subject).toBe("Your driver application for Acme Freight");
+    }
+  });
+});

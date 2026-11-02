@@ -2,7 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   requiredQuestionsToStamp,
   APPLICATION_SEND_WARNS_ON,
-  renderApplicationSentEmail,
+  renderApplicantEmail,
   type HiringStepKey,
   type SmsHoldReason,
 } from "@silvicom/shared";
@@ -10,7 +10,8 @@ import type { Env } from "../../env.js";
 import { writeAudit } from "../../lib/audit.js";
 import { applicantChecklist, isChecklistError } from "./applicantChecklist.js";
 import { mintInvitationToken } from "./applicationIntake.js";
-import { carrierName, deliverApplicationMail, type ApplicationInviteDelivery } from "./applicationMail.js";
+import { deliverApplicationMail, type ApplicationInviteDelivery } from "./applicationMail.js";
+import { messageInputs } from "./messageWording.js";
 import { sendOrQueueSms, type OutboxOutcome } from "./smsOutbox.js";
 import { recruitingSettings } from "./recruitingSettings.js";
 
@@ -127,7 +128,8 @@ export async function sendApplication(
   });
 
   const link = `${env.WEB_APP_URL}/apply/${token}`;
-  const carrier = await carrierName(admin, orgId);
+  // §12 MT2: the carrier's wording for "your application is ready", with the applicant's first name.
+  const { vars, wording } = await messageInputs(admin, orgId, invitation.driver_id, "application_ready", days);
   // D-SMS7: a text as well, when the applicant agreed to one on their waiting screen. Attempted
   // FIRST and the email goes regardless, as the nudge and the approval notice already do — every
   // gate that can refuse the text leaves the email and the on-screen link untouched. Through the
@@ -137,7 +139,7 @@ export async function sendApplication(
     orgId, driverId: invitation.driver_id, invitationId: invitation.id, template: "application_sent", params: {},
   }, new Date());
   const delivery = await deliverApplicationMail(
-    env, invitation.email, renderApplicationSentEmail(carrier, link, days),
+    env, invitation.email, renderApplicantEmail("application_ready", vars, link, wording),
   );
   return { link, warnings, applicationSentAt: String(sentAt), delivery, text: textOutcome(texted) };
 }

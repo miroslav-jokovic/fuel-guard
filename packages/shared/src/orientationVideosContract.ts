@@ -1,5 +1,4 @@
 import { z } from "zod";
-import { escapeEmailHtml as esc, type RenderedEmail } from "./email.js";
 import { recordId } from "./recordId.js";
 import type { SigningTextOutcome } from "./signingSend.js";
 
@@ -148,35 +147,4 @@ export interface ApplicantVideoPage {
 /** The path the videos link opens, on any of the invitation's doors. */
 export const applicantVideosPath = (token: string): string => `/apply/${token}/videos`;
 
-/** The text (`sms_outbox` template `orientation_videos`). */
-export const smsOrientationVideos = (carrier: string, link: string): string =>
-  `${carrier}: Please watch your orientation videos before you come in: ${link} Reply STOP to opt out.`;
-
-/**
- * The email. A sibling of the application emails (`email.ts`) and in their voice — the carrier's name
- * first — kept here beside the rest of the videos' words. It says the earlier link no longer works,
- * because sending it replaces the application link's token exactly as "send the link again" does.
- */
-export function renderOrientationVideosEmail(carrier: string, url: string, expiresInDays: number): RenderedEmail {
-  const subject = `Your ${carrier} orientation videos`;
-  const days = `${expiresInDays} ${expiresInDays === 1 ? "day" : "days"}`;
-  const html =
-    `<div style="font-family:system-ui,sans-serif;color:#111">`
-    + `<h2 style="margin:0 0 8px">${esc(carrier)} has sent your orientation videos</h2>`
-    + `<p style="color:#555">Please watch them before you come in. When you have, tick "I watched these" `
-    + `and type your name — it shortens your day in the office.</p>`
-    + `<p style="margin:20px 0"><a href="${esc(url)}" style="background:#4f46e5;color:#fff;`
-    + `padding:10px 16px;border-radius:6px;text-decoration:none">Open my videos →</a></p>`
-    + `<p style="color:#888;font-size:12px">If the button doesn't work, paste this link into your `
-    + `browser:<br>${esc(url)}</p>`
-    + `<p style="color:#aaa;font-size:12px">This link also opens your application. Any earlier link we `
-    + `sent you no longer works. This one is yours alone and stops working in ${days}.</p>`
-    + `</div>`;
-  const text =
-    `${carrier} has sent your orientation videos.\n\n`
-    + `Please watch them before you come in. When you have, tick "I watched these" and type your name:\n`
-    + `${url}\n\n`
-    + `This link also opens your application. Any earlier link we sent you no longer works. This one is `
-    + `yours alone and stops working in ${days}.`;
-  return { subject, html, text };
-}
+// Its email and text are `applicantMessages.ts`' since §12 MT2 (`renderApplicantEmail("videos", …)`).

@@ -58,6 +58,8 @@ const seed = (over: {
   consents?: Record<string, unknown>[];
   /** The carrier's own link lifetime (Q-AW41). Absent: no row, the product's defaults. */
   settings?: Record<string, unknown>;
+  /** §12 MT2: the carrier's saved wording rows, read newest first by message key. */
+  wording?: Record<string, unknown>[];
 } = {}): SupabaseRecorder =>
   createSupabaseRecorder({
     tables: {
@@ -66,7 +68,9 @@ const seed = (over: {
       sms_outbox: (q: RecordedQuery) => (q.write?.method === "insert" ? [{ id: "o-1" }] : []),
       application_invitations: over.invitation === null ? [] : [invitation(over.invitation)],
       organizations: [{ name: "Silvicom Inc" }],
-      drivers: [{ id: DRIVER, org_id: ORG, hire_date: null, date_of_birth: "1980-04-01", cdl_number: "D1", cdl_state: "IL" }],
+      recruiting_message_wording: (q: RecordedQuery) =>
+        (over.wording ?? []).filter((r) => q.filters().some((f) => f.col === "message_key" && f.val === r.message_key)),
+      drivers: [{ id: DRIVER, org_id: ORG, first_name: "Susan", full_name: "Susan Diaz", hire_date: null, date_of_birth: "1980-04-01", cdl_number: "D1", cdl_state: "IL" }],
       driver_authorizations: over.permissions === false ? [] : APPLICATION_RELEASE_ORDER.map((purpose, i) => ({
         id: `auth-${i}`, org_id: ORG, driver_id: DRIVER, purpose, accepted_at: "2026-09-01T07:00:00Z", revokes: null,
       })),
@@ -210,6 +214,25 @@ describe("the office sends the application", () => {
     const args = rec.rpcs().find((r) => r.fn === "send_application_invitation")!.args as Record<string, unknown>;
     expect(args.p_extend_days).toBe(5);
     expect(mail.fn.mock.calls[0]![1].text).toContain("stops working in 5 days");
+  });
+
+  it("§12 MT2: sends the carrier's 'application is ready' wording with {days} and {first_name} filled, the expiry kept", async () => {
+    mail.fn.mockClear();
+    const rec = seed({
+      settings: { invite_ttl_days: 5, reminders_enabled: true, reminder_after_hours: 48, updated_at: "2026-09-28T00:00:00Z" },
+      wording: [
+        { message_key: "invitation", email_subject: "Wrong message", email_heading: null, email_paragraph: null, text_lead: null, saved_by_name: "D", saved_at: "2026-11-02T10:00:00Z" },
+        { message_key: "application_ready", email_subject: "{first_name}, you have {days}", email_heading: null, email_paragraph: "Thanks from all of us at {carrier}.", text_lead: null, saved_by_name: "D", saved_at: "2026-11-02T10:00:00Z" },
+      ],
+    });
+    holder.client = rec.client;
+    expect((await send()).status).toBe(201);
+    const sent = mail.fn.mock.calls[0]![1] as unknown as { subject: string; text: string };
+    expect(sent.subject).toBe("Susan, you have 5 days");
+    expect(sent.text).toContain("Thanks from all of us at Silvicom Inc.");
+    expect(sent.text).toContain("the one in the earlier email no longer works");
+    expect(sent.text).toContain("stops working in 5 days");
+    expectOrgScoped(rec, ORG);
   });
 
   it("§11 D-RS3: stamps the standard seven when the carrier has not chosen — an array, never null", async () => {
