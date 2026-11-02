@@ -15,6 +15,7 @@ import { dropKeptPhoto, keepPhoto, readKeptPhoto, serverIsNewer } from "./photoL
 import { captureContentType, stageCapture, DEFAULT_CAPTURE_IO, type CaptureIo } from "./stageCapture";
 import { createWebFileProvider, type WebCaptureProvider } from "./webFileProvider";
 import { pickImageFile, pickPhotoFromCamera } from "./webImageIo";
+import { servedDocumentSlots } from "../servedForm";
 
 /**
  * Part 2's "Your documents" list (HIRING-WORKFLOW-AUDIT-2026-10-31 §4.7, §9 P9) — every paper an
@@ -124,7 +125,11 @@ export function useDocumentSends(
   };
 
   const groups = computed<DocumentGroupView[]>(() =>
-    APPLICATION_CAPTURE_REQUESTED.map((slot) => {
+    APPLICATION_CAPTURE_REQUESTED.filter(
+      // §11 D-RS6: the documents the carrier asks for — and any slot that already holds what this applicant
+      // sent before the carrier withheld it, so a paper they sent never seems to vanish.
+      (slot) => servedDocumentSlots.value.includes(slot) || already.value.some((c) => c.slot === slot),
+    ).map((slot) => {
       const limit = captureOrdinalLimit(slot);
       const used = new Set<number>([
         ...already.value.filter((c) => c.slot === slot).map((c) => c.ordinal ?? 0),

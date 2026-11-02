@@ -886,3 +886,17 @@ moment the applicant is served the form.
   renumbered by name before merge. Two carrier settings (required questions, documents offered), the required set stamped on
   the invitation at its first Send, `send_application_invitation` widened with a defaulted fifth
   argument. Reader: S2.
+- **2026-11-02** — **S2 (this PR), no migration.** The reader of 0550. Settings → Recruiting gets "The
+  application form": the questions an applicant must answer (ten offered, "If so, when?" never; the
+  standard seven ticked until the carrier chooses) and the documents the application asks for (the
+  licence and the medical card always). The office's Send stamps the resolved set on the invitation;
+  the applicant's bundle serves the stamp, `withRequiredQuestions` lays it over the questionnaire every
+  screen reads (marks, skips, the task hub, the review), and the candidate carries it, so the page's
+  rules and the API's agree. `submitApplication` overwrites the page's copy with the invitation's and
+  runs the carrier-question rules again (`questionnaireRequiredIssues`); a required question's skip is
+  not an answer. Part 2 lists only the offered documents (plus any that already hold a paper), and the
+  capture route refuses a withheld slot (409 `capture_slot_not_offered`). **Departure from §11:** the
+  stamp's refusal message on a stale tab is English only — every capture error from the API is (no
+  code-to-Spanish map exists for them); recorded rather than built. 26/26 mutants killed (10 shared, 9 API, 7 web); two survivors on the first pass (the order a list
+  is written in; the stamp offered to the office as a correction) got their tests.
+- **2026-11-02** — **S1 merged (#1935, `6c139d5`), migration `0550_hiring_question_document_settings`.** As above.

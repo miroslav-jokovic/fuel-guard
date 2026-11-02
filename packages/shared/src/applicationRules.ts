@@ -1,5 +1,6 @@
 import type { DriverApplicationFields } from "./applicationContract.js";
 import { isAnswered } from "./questionnaireAnswers.js";
+import { isRequirableQuestion, withRequiredQuestions } from "./applicationFormSettings.js";
 import {
   questionnaireByRef,
   questionnaireForApplicant,
@@ -31,7 +32,7 @@ export interface ApplicationCrossFieldRule {
 }
 
 /**
- * One rule per carrier question the served definition marks `required` (Q-WF3, §9 P8, AF-1).
+ * One rule per carrier question that may be required (Q-WF3, §9 P8, AF-1; per carrier since §11).
  *
  * ⚠ Built FROM the definition, never listed: the flag on the question is the only place the set is
  * written, and the screen's mark and the review's missing list read the same flag.
@@ -53,9 +54,17 @@ function requiredQuestionRule(q: QuestionnaireQuestion): ApplicationCrossFieldRu
     at: [q.id],
     message: `Answer the question "${q.label}"`,
     check: (v) => {
-      const def = questionnaireByRef(v.questionnaire_version) ?? questionnaireForApplicant();
-      if (!def.questions.some((asked) => asked.id === q.id && asked.required)) return true;
-      return isAnswered((v.questionnaire_answers as Record<string, unknown> | null | undefined)?.[q.id]);
+      const asked = questionnaireByRef(v.questionnaire_version) ?? questionnaireForApplicant();
+      // §11 D-RS4: the carrier's set as stamped on this applicant's invitation, laid over the definition
+      // the answers were given against. Null (an invitation sent before 0550's reader) leaves the
+      // definition's own flags in force, exactly as before.
+      const def = withRequiredQuestions(asked, v.questionnaire_required);
+      if (!def.questions.some((one) => one.id === q.id && one.required)) return true;
+      const raw = (v.questionnaire_answers as Record<string, unknown> | null | undefined)?.[q.id];
+      // D-RS5: the stored skip of a question the carrier requires is not an answer to it.
+      const skip = asked.questions.find((one) => one.id === q.id)?.skip;
+      if (skip && raw === skip.value) return false;
+      return isAnswered(raw);
     },
   };
 }
@@ -95,8 +104,22 @@ export const APPLICATION_CROSS_FIELD_RULES: readonly ApplicationCrossFieldRule[]
     message: "Describe the denial, revocation or suspension",
     check: (v) => v.licence_ever_denied !== true || Boolean(v.licence_denial_detail?.trim()),
   },
-  ...questionnaireForApplicant().questions.filter((q) => q.required).map(requiredQuestionRule),
+  // §11: one rule per question a carrier MAY require (D-RS2), each deciding from the stamp whether it
+  // applies — so the set lives on the invitation, and this list never changes with a carrier's setting.
+  ...questionnaireForApplicant().questions.filter(isRequirableQuestion).map(requiredQuestionRule),
 ];
 
 /** The issue path a rule reports — the one both validators build (`at`'s comment). */
 export const ruleIssuePath = (rule: ApplicationCrossFieldRule): (string | number)[] => [rule.path, ...(rule.at ?? [])];
+
+/**
+ * The carrier-question rules alone, over a whole document (§11 D-RS4) — what `submitApplication` runs
+ * again after laying the invitation's own stamp over the one the page sent. The route has already parsed
+ * the full contract; only the stamp changed, so only the rules that read it are asked again.
+ */
+export const questionnaireRequiredIssues = (
+  v: Partial<DriverApplicationFields>,
+): { path: string; message: string }[] =>
+  APPLICATION_CROSS_FIELD_RULES
+    .filter((rule) => rule.path === "questionnaire_answers" && !rule.check(v))
+    .map((rule) => ({ path: ruleIssuePath(rule).join("."), message: rule.message }));

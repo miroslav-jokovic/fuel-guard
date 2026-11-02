@@ -144,6 +144,11 @@ describe("a v2 application's Part 1 answers", () => {
     for (const k of ["phone", "cdl_number", "addresses.1.line1", "additional_licences.0.number"]) expect(offered, k).toContain(k);
   });
 
+  it("§11: never offers the questions an applicant was required to answer as something to correct", () => {
+    const fields = editableFields({ first_name: "Susan", questionnaire_required: ["position"] }, questionnaireForApplicant());
+    expect(fields.map((f) => f.path[0])).not.toContain("questionnaire_required");
+  });
+
   it("never offers the applicant's note to the office", () => {
     expect(keys(false)).not.toContain("correction_note");
     expect(keys(true)).not.toContain("correction_note");

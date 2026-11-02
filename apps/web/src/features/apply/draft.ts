@@ -19,6 +19,7 @@ import {
   type DraftViolation,
 } from "./draftShape";
 import { employerRecord } from "@/components/employment/employerRow";
+import { servedRequiredQuestions } from "./servedForm";
 
 // The form's working shape — the `Draft*` types, `ApplicationDraft` and the `empty*` factories —
 // lives in `draftShape.ts` since C1 (2026-09-26); re-exported so no import path changed.
@@ -173,13 +174,17 @@ export function toApplication(draft: ApplicationDraft): unknown {
 
 function questionnaireFields(draft: ApplicationDraft): Record<string, unknown> {
   const answers = cleanQuestionnaire(draft.questionnaire);
+  // §11 D-RS4: the questions this applicant must answer, as the bundle served them — so the page's checks
+  // read the same set the API lays over (and believes) at filing. Null: the definition decides.
+  const questionnaire_required = servedRequiredQuestions.value ? [...servedRequiredQuestions.value] : null;
   if (Object.keys(answers).length === 0) {
-    return { questionnaire_version: null, questionnaire_answers: null };
+    return { questionnaire_version: null, questionnaire_answers: null, questionnaire_required };
   }
   return {
     // The definition the answers were given against (§9 P8) — see `ApplicationDraft.questionnaire_version`.
     questionnaire_version: draft.questionnaire_version,
     questionnaire_answers: answers,
+    questionnaire_required,
   };
 }
 

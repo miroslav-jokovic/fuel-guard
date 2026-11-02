@@ -33,6 +33,8 @@ import { isIntakeError } from "../applicationIntake.js";
 function captureStatus(code: string): number {
   if (code === "invalid_link") return 404;
   if (code === "already_submitted" || code === "esign_consent_required" || code === "application_not_sent") return 409;
+  // §11 D-RS6: the carrier withheld the slot after the page opened — the state of the world, not the link.
+  if (code === "capture_slot_not_offered") return 409;
   if (code === "capture_upload_failed" || code === "capture_not_intact") return 422;
   if (code === "capture_too_large") return 413;
   return 500;

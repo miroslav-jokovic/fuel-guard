@@ -52,6 +52,8 @@ const NOT_AN_ANSWER = new Set([
   "ssn",
   "questionnaire_version",
   "questionnaire_answers",
+  // §11 D-RS4: the stamp the invitation carries. The office changes it in Settings, for applicants sent later.
+  "questionnaire_required",
   // C3c2c2: the applicant's note to the office. Theirs to write; the drawer shows it, never corrects it.
   "correction_note",
 ]);

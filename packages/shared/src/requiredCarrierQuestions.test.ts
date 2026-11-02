@@ -93,7 +93,9 @@ describe("the carrier's required questions (§9 P8)", () => {
   it("fires on a body that leaves both questionnaire keys out — a crafted request is refused too", () => {
     const { questionnaire_version: _v, questionnaire_answers: _a, ...bare } = DOCUMENT;
     expect(pathsOf(driverApplicationSchema.safeParse(bare))).toHaveLength(7);
-    expect(APPLICATION_CROSS_FIELD_RULES.filter((r) => r.path === "questionnaire_answers")).toHaveLength(7);
+    // §11: one rule per question a carrier MAY require (ten — all but "If so, when?"); with no stamp only
+    // the seven flagged ones fire.
+    expect(APPLICATION_CROSS_FIELD_RULES.filter((r) => r.path === "questionnaire_answers")).toHaveLength(10);
   });
 
   it("leaves a draft with old, unfinished answers savable — the draft is refused nothing", () => {

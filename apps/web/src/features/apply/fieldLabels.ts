@@ -68,6 +68,8 @@ const topLabels = (): Record<string, string> => {
   // Neither of these is a control. They are the questionnaire's two contract fields, written by the
   // questions screen as a pair, and a driver can no more "fix" one than they can fix a timestamp.
   questionnaire_version: fields.questionnaire,
+  // §11: the stamp is not something the applicant typed; a refusal about it names the carrier's questions.
+  questionnaire_required: fields.questionnaire,
   questionnaire_answers: fields.questionnaire,
   certified: certify.heading,
   signed_name: certify.signedName,

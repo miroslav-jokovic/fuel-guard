@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { todayInZone } from "@silvicom/shared";
+import { offeredCaptureSlots, requiredQuestionsOf, todayInZone } from "@silvicom/shared";
 import { apiError, asyncHandler } from "../../../lib/http.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
@@ -18,6 +18,7 @@ import { latestRoadTestCertificate } from "../applicationRoadTestCopy.js";
 import { linkHandbookStatus } from "../handbookCeremony.js";
 import { carrierZone } from "../carrierClock.js";
 import { adoptionsForLink } from "../signatureAdoption.js";
+import { recruitingSettings } from "../recruitingSettings.js";
 
 /**
  * `GET /api/public/apply/:token` — the bundle a link opens on.
@@ -105,6 +106,12 @@ export const applicationBundleHandler = asyncHandler(async (req, res) => {
   // C3a (§6.2): where Part 1 stands — null for a legacy link, which has none. Booleans and a stamp,
   // never an answer, for `identityComplete`'s reason.
   const partOne = await partOneStatus(admin, invitation.org_id, invitation);
+  // §11 D-RS6: the documents Part 2 asks for. ⚠ A failed settings read offers every slot rather than
+  // failing the page: offering a document the carrier withheld costs one photo the capture route then
+  // refuses, while a blank page costs the applicant.
+  const offeredDocumentSlots = await recruitingSettings(admin, invitation.org_id)
+    .then((s) => offeredCaptureSlots(s.offered_document_slots))
+    .catch(() => offeredCaptureSlots(null));
 
   res.json({
     // The carrier's name, and — since C3c1 — the one address §391.21(b)(1) puts on the application
@@ -148,5 +155,9 @@ export const applicationBundleHandler = asyncHandler(async (req, res) => {
     // The FCRA summary Part 1 ends on (AW3), served — like the instruments — so the version the page
     // posts back names text the server holds. Only to a link that has a Part 1 still to walk.
     fcraSummary: partOne && !partOne.completedAt ? FCRA_SUMMARY : null,
+    // §11 D-RS3/D-RS4: the questions THIS applicant must answer, as stamped at the office's first Send —
+    // never the live setting. Null for an invitation sent before 0550's reader (the definition decides).
+    requiredQuestions: requiredQuestionsOf(invitation.required_questions ?? null),
+    offeredDocumentSlots,
   });
 });

@@ -69,6 +69,12 @@ const APPLICATION = (over: Record<string, unknown> = {}) => ({
     accidents: [], declares_no_accidents: true, violations: [], declares_no_violations: true,
     licence_ever_denied: false, prior_failed_pre_employment_test: null,
     employers: [EMPLOYER], declares_no_employment: false, employment_gaps: [],
+    // §9 P8 / §11: a certified document answers the carrier's required questions (v3's seven).
+    questionnaire_version: "silvicom_driver@v3",
+    questionnaire_answers: {
+      position: "Company driver", applying_as: "company_driver", heard_from: "A friend", legally_work: true,
+      proof_of_age: true, may_contact_employers: true, education: [{ school: "Joliet High" }],
+    },
     certified: true as const, signed_name: "Susan Godfrey",
     ...over,
   },

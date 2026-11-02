@@ -20,7 +20,7 @@ import { questionnaireForApplicant } from "./questionnaireContract.js";
  * the server then refuses at submit, which is the worst possible place to discover it.
  *
  * ── THE ONE SCREEN WHOSE FIELDS ARE NOT THE REGULATION'S (A9) ─────────────────────────────────
- * `questions` owns `questionnaire_version` and `questionnaire_answers`, and no §391.21(b) paragraph.
+ * `questions` owns `questionnaire_version`, `questionnaire_answers` and (§11) `questionnaire_required`, and no §391.21(b) paragraph.
  * That is D-APP12 made visible in the map: the carrier's own questions travel in the same payload and
  * are answered in the same flow, and a reader checking this file against the CFR can see at a glance
  * which screen is not the CFR's.
@@ -200,7 +200,7 @@ export const APPLICATION_SECTION_KEYS: Record<
   ],
   // The two fields A9 added — the only place in this map where a screen owns keys that discharge no
   // §391.21(b) paragraph at all, which is exactly what D-APP12 separated them out to be.
-  questions: ["questionnaire_version", "questionnaire_answers"],
+  questions: ["questionnaire_version", "questionnaire_answers", "questionnaire_required"],
   // Nothing of its own: photographs are staged in `application_captures`, not in the certified
   // payload, so this screen owns no §391.21(b) field (A8, D-APP10).
   documents: [],

@@ -212,6 +212,37 @@ describe("the office sends the application", () => {
     expect(mail.fn.mock.calls[0]![1].text).toContain("stops working in 5 days");
   });
 
+  it("§11 D-RS3: stamps the standard seven when the carrier has not chosen — an array, never null", async () => {
+    mail.fn.mockClear();
+    const rec = seed();
+    holder.client = rec.client;
+    expect((await send()).status).toBe(201);
+    const args = rec.rpcs().find((r) => r.fn === "send_application_invitation")!.args as Record<string, unknown>;
+    expect([...(args.p_required_questions as string[])].sort()).toEqual(
+      ["applying_as", "education", "heard_from", "legally_work", "may_contact_employers", "position", "proof_of_age"],
+    );
+  });
+
+  it("§11 D-RS3: stamps the carrier's own set, read from its settings and not another carrier's", async () => {
+    mail.fn.mockClear();
+    const rec = seed({ settings: { invite_ttl_days: 14, reminders_enabled: true, reminder_after_hours: 48, required_questions: ["references", "military_when"], updated_at: "2026-09-28T00:00:00Z" } });
+    holder.client = rec.client;
+    expect((await send()).status).toBe(201);
+    const args = rec.rpcs().find((r) => r.fn === "send_application_invitation")!.args as Record<string, unknown>;
+    // "If so, when?" may never be required (D-RS2), so it is not stamped.
+    expect(args.p_required_questions).toEqual(["references"]);
+    expectOrgScoped(rec, ORG);
+  });
+
+  it("§11 D-RS3: stamps an empty array for a carrier that requires nothing", async () => {
+    mail.fn.mockClear();
+    const rec = seed({ settings: { invite_ttl_days: 14, reminders_enabled: true, reminder_after_hours: 48, required_questions: [], updated_at: "2026-09-28T00:00:00Z" } });
+    holder.client = rec.client;
+    expect((await send()).status).toBe(201);
+    const args = rec.rpcs().find((r) => r.fn === "send_application_invitation")!.args as Record<string, unknown>;
+    expect(args.p_required_questions).toEqual([]);
+  });
+
   it("emails the new link, and tells the applicant the old one is dead", async () => {
     mail.fn.mockClear();
     holder.client = seed().client;
