@@ -32,6 +32,7 @@ const ROUTES = "apps/api/src/modules/ads/routes/guard.test.ts";
 const PUBLISHER = "apps/api/src/modules/ads/platforms/meta/publisher.test.ts";
 const META_ADAPTER = "apps/api/src/modules/ads/platforms/meta/metaAdapter.test.ts";
 const META_PATH = "apps/api/src/modules/ads/orchestrator/metaPath.test.ts";
+const RULES_SYNC = "apps/api/src/modules/ads/platforms/meta/rulesSync.test.ts";
 
 export const SCENARIO_DIR = "packages/ads-golden/scenarios";
 
@@ -286,7 +287,26 @@ export const READINESS = [
             ] },
           ],
         },
-        { need: "the creative and the ad (B2c, which also wires `createPaused`), the Automated Rules sync (B3b)", gap: "not built yet — B2c (after C3/C4), B3b" },
+        {
+          need: "settings → Meta Automated Rules (B3b): only our ad sets, each threshold in cents, a diff that never duplicates, U2's refusal survived",
+          tests: [
+            { file: "packages/shared/src/ads/adsRulesSpec.test.ts", titles: [
+              "each rule fires at its threshold in cents: …",
+              "every rule pauses only OUR ad sets — by the naming taxonomy — on a schedule, over one time window",
+              "'pause when filled' is never a Meta rule: it depends on our opening, so the monitor owns it",
+            ] },
+            { file: RULES_SYNC, titles: [
+              "writes every rule the settings want on an empty account, recorded as one succeeded rules_sync row",
+              "running it again changes nothing on Meta: every rule unchanged, no write sent",
+              "a changed threshold rewrites its rule in place — the same rule, never a second",
+              "a threshold turned off disables our rule, and a rule someone else made is never touched",
+              "Meta refusing the spend rule (2703, U2) is recorded refused; the other rules still land and the sync is not a failure",
+              "a revoked token fails the sync with one failed row and no write",
+              "two rules carrying our name are refused as duplicate_rule and left as they are",
+            ] },
+          ],
+        },
+        { need: "the creative and the ad (B2c, which also wires `createPaused`)", gap: "not built yet — B2c, after C3 (Higgsfield client) and C4 (overlay renderer)" },
       ],
       L2: [
         {

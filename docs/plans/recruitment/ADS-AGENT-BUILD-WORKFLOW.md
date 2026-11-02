@@ -736,3 +736,20 @@ blocking step in §3 above.
     golden runner (7d) scripts the vendor. Moving the golden runner onto the simulator is recorded
     for B2c, where the whole chain exists.
   - Nine mutations, all red.
+- **2026-11-02, B3a merged; B3b** — #1947 (`2aefd98`). **B3b** = settings → Meta Automated Rules:
+  - `packages/shared/src/ads/adsRulesSpec.ts` (pure `rulesSpec`). One PAUSE rule per set threshold
+    (CPL once enough leads exist; spend with zero leads; frequency over 7 days; past 100% of the day).
+    Each is a SCHEDULE rule, every 30 minutes. Money is in cents, Meta's base unit. Each rule is scoped
+    `entity_type = ADSET` AND `name CONTAIN "S360|<code>|adset|"`, so an Ads Manager object is never
+    paused (D-AD4). `pause_when_filled` stays ours: it needs the opening's headcount.
+  - `platforms/meta/rulesSync.ts` is a diff against the account's rules carrying our
+    `S360|RULE|<code>|` names: create / update in place / unchanged / DISABLE (never delete). Two
+    with one name are refused. A Meta 2703 is `refused`, not a failure: that is **U2's fallback**,
+    and our monitor (B5) stays that threshold's only enforcer. One `rules_sync` row per run.
+  - The new job kind **`ads_rules_sync`** (`KIND_CAPS` 1) is queued by the settings save door on the
+    (org, kind) slot, so Meta is never called inside the Save request. Its handler throws on a failed
+    sync, so the job is listed failed (E5).
+  - FakeMeta: `fakeMetaRules.ts` (create / list / update). `refuseSpendPause` plays U2 before V2 can
+    measure it.
+  - Ten mutations, all red. The Publisher's L1 now has one gap left: **B2c** (creative + ad, after
+    C3/C4).

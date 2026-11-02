@@ -87,6 +87,11 @@ export type JobKind =
    * campaigns of one org advance side by side instead of queueing behind one (org, kind) slot.
    */
   | "ads_step"
+  /**
+   * One org's Meta Automated Rules re-written from its ads settings in force (B3b). Queued by the
+   * settings save door on the (org, kind) slot: a burst of saves runs one sync of the newest version.
+   */
+  | "ads_rules_sync"
   // One org's nightly copy of its Storage objects to the off-provider bucket (storageBackup.ts). A kind so a
   // failed night has a row, and so `/api/version` can read the last success from the ledger.
   | "storage_backup";

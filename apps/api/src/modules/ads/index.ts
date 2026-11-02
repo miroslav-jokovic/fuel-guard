@@ -14,4 +14,6 @@ export type { GuardDeps, GuardOutcome, SpendAsk } from "./guard/budgetGuard.js";
 export { startAdsOrchestrator } from "./orchestrator/tick.js";
 export { runCampaignStep } from "./orchestrator/runner.js";
 export { adsWorkers } from "./orchestrator/workers.js";
+// B3b: Meta Automated Rules follow the settings in force; the `ads_rules_sync` job runs this.
+export { syncOrgRules } from "./settings/rulesSyncJob.js";
 export { applyCampaignEvent } from "./orchestrator/transitions.js";

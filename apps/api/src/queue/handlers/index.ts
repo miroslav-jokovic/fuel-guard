@@ -2,6 +2,7 @@ import { registerHandler } from "../registry.js";
 import { fleetpalSyncHandler } from "./fleetpal.js";
 import { medstopSyncHandler } from "./medstop.js";
 import { adsStepHandler } from "./adsStep.js";
+import { adsRulesSyncHandler } from "./adsRulesSync.js";
 import { efsIngestHandler } from "./efsIngest.js";
 import { dataRetentionHandler } from "./retention.js";
 import { idleEngineHandler } from "./idleEngine.js";
@@ -91,4 +92,6 @@ export function registerAllHandlers(): void {
   registerHandler("medstop_sync", medstopSyncHandler);
   // A6: one orchestrator step for one campaign; dedup-keyed per campaign + state by its tick.
   registerHandler("ads_step", adsStepHandler);
+  // B3b: Meta Automated Rules follow the settings in force, after each save.
+  registerHandler("ads_rules_sync", adsRulesSyncHandler);
 }
