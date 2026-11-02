@@ -25,16 +25,16 @@ credentials**.
    - Memory `merge-driver-cascade-trap.md`: a new table cascading from drivers must be listed.
    - `supabase/CLAUDE.md` and `docs/MIGRATION-DISCIPLINE.md`.
 
-## 1. Done this session (all merged to main and served on staging, except where noted)
+## 1. Done this session (all merged to main and served on staging)
 
 | Step | PR | Merge | What |
 |---|---|---|---|
 | B2a | #1945 | `f7ccb44` | `platforms/meta/publisher.ts`: a paused EMPLOYMENT campaign + lead ad set. Every level reads by our exact name first. One found is taken, none is created, two are refused, one not paused is refused. A create with an unknown outcome is read again, never re-sent. Every create is read back by id. `naming.ts`: `ALL` above the ad level |
 | B2b | #1946 | `c167f8f` | The Instant Form. `packages/shared/src/ads/metaLeadForm.ts` asks contact plus the **G12 counsel fallback** only (Class A, years, hazmat; EN + ES). It is made with the **Page token** (`registry.pageGraphForConnection`) |
 | B3a | #1947 | `2aefd98` | `platforms/meta/metaAdapter.ts`. The campaign is the master switch: pause = the campaign alone; launch = amounts, then ads and ad set, campaign LAST. Answers come from the read-back. `workers.platform` is filled (`registry.adapterForConnection` → `guardPlatform`), **so the kill switch's pause reaches Meta / the simulator for real** |
-| B3b | #1949 | **open at handoff**, CI was running | `adsRulesSpec.ts` + `platforms/meta/rulesSync.ts`: settings → Meta Automated Rules, scoped to `S360\|<code>\|adset\|` names. It is a diff (update in place, DISABLE, never delete). A 2703 is recorded `refused` (U2 fallback). New job kind `ads_rules_sync` is queued by the settings save door |
+| B3b | #1949 | `b2567ab` | `adsRulesSpec.ts` + `platforms/meta/rulesSync.ts`: settings → Meta Automated Rules, scoped to `S360\|<code>\|adset\|` names. It is a diff (update in place, DISABLE, never delete). A 2703 is recorded `refused` (U2 fallback). New job kind `ads_rules_sync` is queued by the settings save door |
 
-- **Main at handoff:** `f2a88f4`. **Last migration on main:** `0551_recruiting_message_wording.sql`.
+- **Main at handoff:** `b2567ab`. **Last migration on main:** `0551_recruiting_message_wording.sql`.
   The hiring chat merged 0550 and 0551 on 11/02 and is still active. **Check the NAME before taking a
   number**, including on open PR branches (`gh pr list`, then look for `supabase/migrations/` files in them).
 - **Scorecard (`pnpm ads:readiness`):** Orchestrator L3, Budget guard L3, Security L1. The Publisher
@@ -47,7 +47,7 @@ credentials**.
     a violation is error 2909035.
   - Forms need the Page token.
   - Rule money is in cents. `name CONTAIN` is a documented rule filter.
-- Worktree `../FuelGuard-ads-b2a` holds this session's branches and may be removed after #1949 merges.
+- Worktree `../FuelGuard-ads-b2a` holds this session's branches and may be removed.
 
 ## 2. Open questions and blockers (do not route around them)
 
@@ -65,7 +65,7 @@ credentials**.
 
 | # | Step | Notes |
 |---|---|---|
-| 0 | **Merge #1949** if its CI is green (17 pass + `plan` skipped), then append "B3b merged" to the progress log | If red: fix on its branch, re-run `node scripts/ci-local.mjs --job gates` |
+| 0 | Append "B3b merged (#1949, `b2567ab`)" to the progress log, in D0's PR | — |
 | **D0** | **Recruiting's migration** (workflow §4 D0; plan §4.1) as the next free number, probably `0552` | Tables: `hiring_profiles(+versions)`, `recruiting_openings(+versions)`, `recruiting_leads`, `recruiting_contacts` (append-only), `lead_match_verdicts`, `lead_conversions`, `recruiting_ai_outputs`. RLS on, service-role only, `forbid_org_change()`. **First check what the hiring chat already built**: `hiring_profiles` or openings may exist under another name. Grep the migrations; deriving beats restating (CLAUDE.md "No workarounds"). In the same PR: `purge_applicant` purges a converted lead whole, `DRIVER_REASSIGNMENTS` + the merge-cascade list (memory `merge-driver-cascade-trap.md`), `scripts/table-modules.json`, the retention registry and `RETENTION_FORBIDDEN` for the append-only ones. Matrix `supabase/tests/*.test.mjs` printing `RESULT`: a purged applicant takes its lead conversion; a merge moves it; UPDATE/DELETE refused on the ledgers. **New tables are exempt from the two-merge rule; their first READER is not.** |
 | **D1** | **`recruiting/leads`: the `LeadSink`** | `ingest_lead` RPC (UPDATE-or-INSERT, never a partial upsert, `lint:upserts`). Idempotent on (provider, platform_lead_ref). Dedupe: E.164 phone / lower-case email against leads, applicants and drivers. `leadMatch` verdicts (pure, shared). A paged, org-scoped queue read. `convert_lead` → applicant + `lead_conversions`. Ship it in a separate merge after D0 (the deploy window). Lives under `src/features`/`modules/recruiting` and must not import ads internals (`lint:boundaries`): ads hands it a `PlatformLead` through the interface only |
 | **B4** | **Leads intake** | Split it: **B4a** the hourly backfill per live form (`GET /{form_id}/leads` with the Page token, FakeMeta endpoint joining with its first caller) → `LeadSink`. **B4b** the webhook: GET verify + POST HMAC over the RAW body, constant-time, 401 + a counter on a forged body, 503 with no `META_APP_SECRET`, Page subscribed to `leadgen`. §4R L2: forged signature, duplicate webhook, webhook lost (the backfill brings it), same person on two platforms, malformed phone, prompt injection in a free-text answer |
@@ -107,7 +107,7 @@ the next release (it carries A5 → B3b).
 ## 6. First action in the new chat
 
 1. Read §0.
-2. Check #1949: merge it if green.
+2. Confirm no ads PR is open (`gh pr list --search "Ads agent in:title"`).
 3. Confirm main's HEAD and the last migration **by name**, and check open PRs for migration files.
 4. Run `pnpm ads:readiness` and check it matches §1.
 5. Read what the hiring chat built (`hiring_profiles`, openings, `purge_applicant`) and propose D0's
