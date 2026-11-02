@@ -543,6 +543,11 @@ blocking step in §3 above.
   environment and nothing here reads it as one. `testing/fakeClock.ts`: a clock moved by hand
   (`advance`, `set`), bound `now` for the ads deps, refuses to run backwards. Six mutations each went
   red. No migration.
+- **2026-11-02, handoff 4** — The rest of Stage 1 moves to a fresh chat from
+  `HANDOFF-2026-11-02-ADS-STAGE1-7B.md` (main `da641c9`, last migration 0542). A6 (#1912) and 7a (#1914)
+  are merged; 7b (FakeMeta) and 7c (FakeHiggsfield) are pushed branches awaiting their gate run and PR
+  (a local gate run was stopped for low memory at 50/53 green); then 7d golden scenarios, 8 the readiness
+  gate, 9 the workers on fakes.
 - **2026-11-02, 7b** — `modules/ads/platforms/simulator/fakeMeta.ts`: an in-process `node:http` Marketing
   API with the calls B1–B3 make — ad account read (cents as numeric strings, `spend_cap` "0" = none),
   campaign create (`special_ad_categories` required, ACTIVE/PAUSED only, `spend_cap` ≥ $100 →

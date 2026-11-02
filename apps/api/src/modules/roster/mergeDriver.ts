@@ -56,6 +56,11 @@ export const DRIVER_REASSIGNMENTS: ReadonlyArray<{ table: string; column: string
   // with the person; each guard lets `driver_id` move inside the carrier (OV022), `on delete restrict`.
   { table: "orientation_video_attestations", column: "driver_id", orgScoped: true },
   { table: "orientation_video_opens", column: "driver_id", orgScoped: true },
+  // CH11a (0543): an office conversation about a driver follows them to the surviving record; 0543's
+  // trigger checks the survivor is in the same organisation. `on delete set null`, so a merge without
+  // this line would quietly turn "about Marcus" into "about nobody". Read only when a merge runs, and a
+  // release applies 0543 before this code serves.
+  { table: "message_threads", column: "driver_id", orgScoped: true },
   // §391.51 events go with the driver (0203)
   { table: "qualification_records", column: "driver_id", orgScoped: true },
   // The four FKs check-driver-references.mjs found UNHANDLED by the SQL merge on its first run

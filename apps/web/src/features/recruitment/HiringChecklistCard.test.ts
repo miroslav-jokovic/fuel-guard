@@ -270,7 +270,10 @@ describe("the header and the summary", () => {
     const wrapper = await mountWith(COMPLETE);
     expect(hiringChecklist(COMPLETE).readyToTravel.ok).toBe(true);
     expect(wrapper.text()).toContain("Everything before the office day is done.");
-    expect(wrapper.text()).toContain("Not built yet: Orientation videos, Live orientation.");
+    expect(wrapper.text()).toContain("Not built yet: Live orientation.");
+    // HW8a: the videos are built; a carrier with no required video is told where to set them up.
+    expect(wrapper.get('[data-testid="unconfigured-steps"]').text()).toContain("Orientation videos: not set up yet.");
+    expect(wrapper.text()).toContain("Settings → Recruiting");
   });
 
   it("names what is still open before travel, by count", async () => {

@@ -1,4 +1,4 @@
-import { computed, ref, type ComputedRef, type Ref, type WritableComputedRef } from "vue";
+import { computed, shallowRef, type ComputedRef, type ShallowRef, type WritableComputedRef } from "vue";
 import { useRoute, useRouter, type Router } from "vue-router";
 
 /**
@@ -95,8 +95,17 @@ export interface UrlQueryState {
  * buffer — which reopened the very race this file exists to close: the page's write and the tab's
  * write in one tick each spread the same stale `route.query`, and the second dropped the first. Keys
  * were always shared (they are one URL); the buffer has to be too.
+ *
+ * ⚠ A `shallowRef`, and it is what makes the buffer EMPTY itself. `write` clears it with an identity
+ * test (`buffer.value === merged`), and a deep `ref()` hands back a reactive proxy of the object it
+ * was given, so under `ref` that test was never true and nothing written was ever dropped. Harmless
+ * while each caller had its own buffer; once the buffer became per-router (above), a `?tab=` written
+ * on one page sat on top of every URL for the rest of the session, and a page that sets its tab with
+ * its own `router.replace` read the pinned value back — "the tabs stop responding until I refresh"
+ * (2026-11-02). The buffer is only ever replaced whole, never mutated, so shallow loses nothing.
+ * Pinned by "does not carry one page's tab onto the next page that shares the router".
  */
-const buffers = new WeakMap<Router, Ref<Record<string, string | undefined>>>();
+const buffers = new WeakMap<Router, ShallowRef<Record<string, string | undefined>>>();
 
 /**
  * `scope` prefixes every key this caller reads and writes (`history.from`), for a list that shares
@@ -110,7 +119,7 @@ export function useQueryState(scope?: string): UrlQueryState {
 
   let pending = buffers.get(router);
   if (!pending) {
-    pending = ref<Record<string, string | undefined>>({});
+    pending = shallowRef<Record<string, string | undefined>>({});
     buffers.set(router, pending);
   }
   const buffer = pending;

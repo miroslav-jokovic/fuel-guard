@@ -9,6 +9,8 @@ import {
   smsApplicationReady,
   smsApplicationReminder,
   smsDrugTestSite,
+  smsOrientationVideos,
+  applicantVideosPath,
   smsOptInConfirmation,
   smsSigningLink,
   smsZonesFor,
@@ -61,11 +63,14 @@ import { isSuppressed } from "./smsSuppressions.js";
 
 export const SMS_TEMPLATES = [
   "consent_confirm", "application_approved", "drug_test_site", "application_sent", "nudge", "signing_link", "invite",
+  "orientation_videos",
 ] as const;
 export type SmsTemplate = (typeof SMS_TEMPLATES)[number];
 
 /** The templates whose words carry the applicant's link — minted at send time, never stored. */
-export const LINK_TEMPLATES: ReadonlySet<SmsTemplate> = new Set<SmsTemplate>(["application_sent", "nudge", "signing_link", "invite"]);
+export const LINK_TEMPLATES: ReadonlySet<SmsTemplate> = new Set<SmsTemplate>([
+  "application_sent", "nudge", "signing_link", "invite", "orientation_videos",
+]);
 
 /**
  * 0376's reasons; `other` is the approval notice, which the CHECK has no word of its own for. `invite`
@@ -80,6 +85,8 @@ const REASON: Record<SmsTemplate, string> = {
   nudge: "nudge",
   signing_link: "signing_link",
   invite: "invite",
+  // HW8a: the office's "Send the videos" (0539 widened the CHECK one merge before this writer).
+  orientation_videos: "orientation_videos",
 };
 
 /**
@@ -143,6 +150,7 @@ async function render(
   if (template === "application_sent") return smsApplicationReady(carrier, String(link));
   if (template === "nudge") return smsApplicationReminder(carrier, String(link));
   if (template === "signing_link") return smsSigningLink(carrier, String(link), SIGN_LINK_LIFETIME_HOURS);
+  if (template === "orientation_videos") return smsOrientationVideos(carrier, String(link));
   // Q-AW55: the lifetime the invitation was given, as the drawer's override or the carrier's setting,
   // carried as a number of days — a date in the params would be a second statement of `expires_at`.
   if (template === "invite") return smsApplicationInvite(carrier, String(link), Number(params.days));
@@ -157,7 +165,9 @@ async function render(
  * A fresh link on the invitation's TEXT token (0378), or null when the invitation was revoked or lapsed
  * — in which case nothing may be sent, because the only thing the text says is a link.
  */
-async function mintTextLink(admin: SupabaseClient, env: Env, orgId: string, invitationId: string | null): Promise<string | null> {
+async function mintTextLink(
+  admin: SupabaseClient, env: Env, orgId: string, invitationId: string | null, template: SmsTemplate,
+): Promise<string | null> {
   if (!invitationId) return null;
   const { token, hash } = mintInvitationToken();
   const { data, error } = await admin.rpc("rotate_invitation_sms_token", {
@@ -166,7 +176,8 @@ async function mintTextLink(admin: SupabaseClient, env: Env, orgId: string, invi
     p_token_hash: hash,
   });
   if (error || data !== true) return null;
-  return `${env.WEB_APP_URL}/apply/${token}`;
+  // HW8a: the videos text opens the videos page on the same token; every other text, the application.
+  return template === "orientation_videos" ? `${env.WEB_APP_URL}${applicantVideosPath(token)}` : `${env.WEB_APP_URL}/apply/${token}`;
 }
 
 type SendingRow = {
@@ -183,7 +194,7 @@ async function transmit(
 ): Promise<{ ok: boolean; cancelled?: boolean; detail?: string }> {
   let link: string | null = null;
   if (LINK_TEMPLATES.has(row.template)) {
-    link = await mintTextLink(admin, env, row.org_id, row.invitation_id);
+    link = await mintTextLink(admin, env, row.org_id, row.invitation_id, row.template);
     if (!link) {
       await admin
         .from("sms_outbox")
@@ -287,6 +298,8 @@ async function stillWanted(
   if (!LINK_TEMPLATES.has(template)) return true;
   if (!invitationId) return false;
   if (template === "signing_link") return signingStillLive(admin, orgId, invitationId, now);
+  // HW8a: the videos are worth watching at any phase; a revoked or lapsed link is refused by the rotation.
+  if (template === "orientation_videos") return true;
   const { data } = await admin
     .from("application_invitations")
     .select("submitted_at, review_requested_at, approved_at")
