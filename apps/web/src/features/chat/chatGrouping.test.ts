@@ -22,7 +22,7 @@ const server = (seq: number, sender: string, minutesAgo: number): MergedLine => 
 });
 const local = (id: string, state: PendingLine["state"]): MergedLine => ({
   kind: "local",
-  line: { message_id: id, thread_id: "t", parent_id: null, body: id, state, error: state === "failed" ? "down" : null },
+  line: { message_id: id, thread_id: "t", parent_id: null, body: id, files: [], state, error: state === "failed" ? "down" : null },
 });
 const rows = (lines: MergedLine[], firstUnread: number | null = null) => groupLines(lines, ME, firstUnread, NOW).flatMap((d) => d.rows);
 

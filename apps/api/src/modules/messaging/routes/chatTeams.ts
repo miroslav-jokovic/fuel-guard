@@ -20,6 +20,7 @@ import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
 import type { ChatResult } from "../chat.js";
 import { chatNotifySent } from "../chatNotify.js";
+import { chatSendFiles, filesForBell, verifyChatFiles } from "../chatFiles.js";
 import {
   chatChannelAddMembers,
   chatChannelArchive,
@@ -339,9 +340,13 @@ export function chatChannelsRouter(): Router {
       if (!id || !postId) { notFound(res, "post"); return; }
       const { orgId, userId } = ctx(req);
       const body = bodyOf<ReturnType<typeof chatSendReplyRequestSchema.parse>>(res);
-      const result = await chatSendReply(admin(req), orgId, userId, id, postId, body.message_id, body.body);
+      // A reply may carry files too (CH7), checked and written as a post's are.
+      const result = body.files.length
+        ? (await verifyChatFiles(admin(req), orgId, id, body.files))
+          ?? await chatSendFiles(admin(req), orgId, userId, id, { message_id: body.message_id, parent_id: postId, body: body.body, files: body.files })
+        : await chatSendReply(admin(req), orgId, userId, id, postId, body.message_id, body.body);
       // The post's author and its earlier repliers hear of it, as D-CHAT23 says and 0521 decides (chatNotify.ts).
-      if (result.ok && !result.value.duplicate) await chatNotifySent(admin(req), orgId, userId, id, body.message_id, body.body);
+      if (result.ok && !result.value.duplicate) await chatNotifySent(admin(req), orgId, userId, id, body.message_id, filesForBell(body.body, body.files));
       // 201 for a new reply, 200 for a retry the database recognised — the client treats both as sent.
       send(res, result, (v) => v, result.ok && !result.value.duplicate ? 201 : 200);
     }),

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import { chatTitle, isRecordId, type ChatMuteLevel, type ChatTeam } from "@silvicom/shared";
+import { chatTitle, isRecordId, type ChatFileRef, type ChatMuteLevel, type ChatTeam } from "@silvicom/shared";
 import { useSessionStore } from "@/stores/session";
 import { useToastStore } from "@/stores/toast";
 import { useModulesQuery } from "@/composables/useModules";
@@ -129,12 +129,12 @@ watch(selectedId, (id, old) => { if (old && old !== id) unreadMarks.value.delete
 const viewerName = computed(() => session.fullName ?? "You");
 const pending = ref<PendingLine[]>([]);
 const sender = useChatSend(pending);
-function send(body: string) {
+function send(body: string, files: ChatFileRef[] = []) {
   if (!selectedId.value) return;
-  sender.mutate({ threadId: selectedId.value, body });
+  sender.mutate({ threadId: selectedId.value, body, files });
 }
 function retry(line: PendingLine) {
-  sender.mutate({ threadId: line.thread_id, body: line.body, messageId: line.message_id });
+  sender.mutate({ threadId: line.thread_id, body: line.body, files: line.files, messageId: line.message_id });
 }
 
 const { edit, retract } = useChatMessageActions(selectedId);
