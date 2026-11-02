@@ -113,3 +113,15 @@ describe("AppButton size='thumb'", () => {
     expect(cls).not.toContain("h-9");
   });
 });
+
+describe("AppButton size='media'", () => {
+  // Office chat's image on a line (CH7): the button is the picture's own size, so neither a fixed box nor
+  // the default `md` height and padding may ride along — `h-9` once squashed a thumbnail to 36 px.
+  it("takes its picture's size, with no padding and no fixed height", () => {
+    const cls = mount(AppButton, { props: { size: "media", variant: "ghost" } }).classes();
+    expect(cls).toEqual(expect.arrayContaining(["h-auto", "w-auto", "overflow-hidden", "p-0"]));
+    expect(cls).not.toContain("h-9");
+    expect(cls).not.toContain("h-8");
+    expect(cls).not.toContain("px-3");
+  });
+});

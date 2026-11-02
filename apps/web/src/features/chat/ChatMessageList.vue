@@ -66,6 +66,7 @@ const { unseen, jump } = useChatScroll(scroller, () => ({
   last: newest.value && lineKey(newest.value),
   count: props.lines.length,
   lastOwn: !!newest.value && (newest.value.kind === "local" || newest.value.message.sender_user_id === props.viewerId),
+  lastFiles: newest.value?.kind === "server" ? newest.value.message.attachments.length : 0,
 }));
 const one = computed(() => (props.noun === "replies" ? "reply" : props.noun.replace(/s$/, "")));
 
@@ -147,8 +148,8 @@ defineExpose({ scroller, focusLast });
               @remove="(id: string) => emit('remove', id)"
               @reply="(id: string) => emit('reply', id)"
             >
-              <template #stamp>
-                <span v-if="seenSeq !== null && seenSeq !== undefined && row.line.message.seq === seenSeq" class="ml-1 text-xs text-ink-muted">· Seen</span>
+              <template #stamp="{ alone }">
+                <span v-if="seenSeq !== null && seenSeq !== undefined && row.line.message.seq === seenSeq" class="text-xs text-ink-muted" :class="alone ? '' : 'ml-1'">{{ alone ? "Seen" : "· Seen" }}</span>
               </template>
             </ChatMessageRow>
             <ChatPendingRow v-else :line="row.line.line" :first="row.first" :viewer-name="viewerName" :viewer-id="viewerId" @retry="(line: PendingLine) => emit('retry', line)" />

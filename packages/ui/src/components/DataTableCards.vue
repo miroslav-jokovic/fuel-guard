@@ -114,6 +114,15 @@ const sortedColumn = computed(() => {
   return col ? { key: col.key, dir: props.sort!.dir } : null;
 });
 
+/*
+ * Both card shapes open their row, as the table row does at a desk. The full card did not until
+ * 2026-11-02: the 10/28 card work wired `row-click` into the three-fact branch only, so the 15 pages
+ * that mark no facts (Fuel Cards, Fills, Loads, Idling, IFTA, Recruitment…) opened a row's detail
+ * from the table and did nothing from the same row as a card on a phone. In both shapes the checkbox
+ * and the actions stop their own clicks, as the table's checkbox and actions cells do. Pinned by
+ * "opens the row from a tap on the full card too, but not from its menu or its checkbox".
+ */
+
 /** A stable id so the card view's sort control can label itself without colliding across tables. */
 const listId = `dt-${Math.random().toString(36).slice(2, 8)}`;
 
@@ -201,7 +210,8 @@ function onCardSort(key: string) {
   </ul>
 
   <ul v-else class="divide-y divide-edge-subtle">
-    <li v-for="row in rows" :key="keyOf(row)" class="px-4 py-3.5">
+    <!-- eslint-disable-next-line vuejs-accessibility/click-events-have-key-events, vuejs-accessibility/no-static-element-interactions -- the table row's own click, which has no key handler either; a link in a cell is the keyboard's way in -->
+    <li v-for="row in rows" :key="keyOf(row)" class="px-4 py-3.5" @click="emit('row-click', row)">
       <div class="flex items-start gap-3">
         <input
           v-if="selectable"
@@ -209,6 +219,7 @@ function onCardSort(key: string) {
           class="mt-0.5 size-4 shrink-0 rounded-control border-edge-control accent-brand-600"
           :checked="isSelected(row)"
           :aria-label="`Select ${String(cellValue(row, headingColumn!.key) ?? 'row')}`"
+          @click.stop
           @change="emit('toggle-row', row)"
         />
         <div class="min-w-0 flex-1">
@@ -259,7 +270,8 @@ function onCardSort(key: string) {
             <slot name="expanded" :row="row" />
           </div>
         </div>
-        <div v-if="hasActions" class="shrink-0">
+        <!-- eslint-disable-next-line vuejs-accessibility/click-events-have-key-events, vuejs-accessibility/no-static-element-interactions -- stops the card's click; the menu inside is its own button -->
+        <div v-if="hasActions" class="shrink-0" @click.stop>
           <slot name="actions" :row="row" />
         </div>
       </div>

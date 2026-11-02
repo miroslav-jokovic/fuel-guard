@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { recordId } from "./recordId.js";
-import { CHAT_BODY_MAX, CHAT_MUTE_LEVELS, chatMessageSchema } from "./chatContract.js";
+import { CHAT_MUTE_LEVELS, chatLineFields, chatMessageSchema, wordsOrFiles } from "./chatContract.js";
 
 /**
  * Office chat teams, channels and replies (docs/plans/messaging/OFFICE-CHAT-PLAN.md CH5b; D-CHAT17–19,
@@ -155,6 +155,6 @@ export type ChatRenameChannelRequest = z.infer<typeof chatRenameChannelRequestSc
 export const chatSendReplyRequestSchema = z.object({
   /** Client UUID: a retried reply is recognised, never doubled. */
   message_id: recordId(),
-  body: z.string().refine((s) => s.trim().length > 0, "Write something first").pipe(z.string().max(CHAT_BODY_MAX)),
-});
+  ...chatLineFields, // words and/or files (CH7)
+}).refine(wordsOrFiles, { message: "Write something first", path: ["body"] });
 export type ChatSendReplyRequest = z.infer<typeof chatSendReplyRequestSchema>;
