@@ -1,11 +1,10 @@
 <script setup lang="ts">
 import type { ChatSavedLine } from "@silvicom/shared";
-import { AppAvatar, AppButton as BaseButton, AppIconButton, QueryState } from "@silvicom/ui";
+import { AppButton as BaseButton, AppIconButton, QueryState } from "@silvicom/ui";
 import { BookmarkIcon } from "@silvicom/ui/icons";
-import ChatBody from "./ChatBody.vue";
+import ChatLineLink from "./ChatLineLink.vue";
 import ChatStageHeader from "./ChatStageHeader.vue";
 import { activityTarget } from "./chatActivity";
-import { chatRowTime } from "./chatTime";
 
 /**
  * Saved on the stage (CH6c-2; a rail item under Activity, `?saved=1`): the lines this person kept,
@@ -26,11 +25,6 @@ defineProps<{
 }>();
 defineEmits<{ open: [query: Record<string, string>]; unsave: [messageId: string]; more: []; retry: []; back: [] }>();
 
-/** Where it was said: "# Loads", a group's name, or the person a direct conversation is with. */
-function place(item: ChatSavedLine, titleOf: (id: string) => string | null): string {
-  if (item.kind === "channel") return `# ${item.subject?.trim() || "a channel"}`;
-  return item.subject?.trim() || titleOf(item.thread_id) || (item.kind === "direct" ? "a conversation" : "a group");
-}
 </script>
 
 <template>
@@ -39,20 +33,7 @@ function place(item: ChatSavedLine, titleOf: (id: string) => string | null): str
     <div class="min-h-0 flex-1 overflow-y-auto px-2 py-2 sm:px-4">
       <ul v-if="items.length" class="max-w-3xl">
         <li v-for="item in items" :key="item.message_id" class="flex items-start gap-1">
-          <BaseButton type="button" size="row" block variant="ghost" class="min-w-0 flex-1 px-3 py-2.5" @click="$emit('open', activityTarget(item))">
-            <span class="flex w-full min-w-0 gap-3 text-left">
-              <AppAvatar :label="item.sender_name" :identity="item.sender_user_id" size="sm" />
-              <span class="block min-w-0 flex-1">
-                <span class="flex items-baseline justify-between gap-2">
-                  <span class="truncate text-sm font-medium text-ink">{{ item.sender_name ?? "Someone" }} <span class="font-normal text-ink-muted">in {{ place(item, titleOf) }}</span></span>
-                  <time class="shrink-0 text-2xs tabular-nums text-ink-tertiary" :datetime="item.created_at">{{ chatRowTime(item.created_at) }}</time>
-                </span>
-                <span class="mt-0.5 line-clamp-2 block text-sm break-words text-ink-secondary">
-                  <ChatBody :body="item.body ?? ''" :viewer-id="viewerId" />
-                </span>
-              </span>
-            </span>
-          </BaseButton>
+          <ChatLineLink :line="item" :viewer-id="viewerId" :title-of="titleOf" @open="$emit('open', activityTarget(item))" />
           <AppIconButton :icon="BookmarkIcon" label="Remove from Saved" pressed size="sm" class="mt-2" @click="$emit('unsave', item.message_id)" />
         </li>
       </ul>

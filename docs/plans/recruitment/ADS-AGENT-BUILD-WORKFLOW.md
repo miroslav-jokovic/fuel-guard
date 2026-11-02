@@ -526,6 +526,23 @@ blocking step in §3 above.
   mutations each went red. Orchestrator readiness: L1 done, L2 partly (crash points, double delivery,
   concurrency, kill switch); the rest of L2 and all of L3 (FakeClock, golden scenarios) are step 7's.
   No migration.
+- **2026-11-02, step 7 split** — The harness is four PRs, in order: **7a** the environment helper, the
+  simulator's gate and `FakeClock`; **7b** `FakeMeta` + the simulator platform; **7c** `FakeHiggsfield`;
+  **7d** `packages/ads-golden` driving the orchestrator through scenarios. **Claude replay + `pnpm ads:eval`
+  move to C2**, the first Claude worker: a replay of recorded outputs needs a worker that produces them,
+  and an eval runner with nothing to evaluate would be a scaffold whose first real use reshapes it.
+- **2026-11-02, 7a** — `apps/api/src/lib/deployEnvironment.ts` is the ONE reading of the environment name
+  (§1.2-8): `RAILWAY_ENVIRONMENT_NAME ?? DEPLOY_ENVIRONMENT`, blank = unset; `schedulerLease.ts`'s holder
+  row now reads it instead of its own copy. `isPositivelyNonProduction` allows only the measured
+  non-production names (`uat` on Railway, `staging` on AWS — `railway environment list`,
+  `infra/server/deploy.sh`), or no name on a process that is not a built server; production, an unknown
+  name, a near miss (`Staging`) and a nameless built server all say no. `modules/ads/platforms/
+  simulatorGate.ts` is the simulator's question, with the reason for a no; B1's registry asks it.
+  ⚠ **Measured correction:** `GET /api/version`'s `env` (what `verify:live` prints) is `NODE_ENV`, and it
+  says `production` on staging too — every built host runs `NODE_ENV=production`. It is not the
+  environment and nothing here reads it as one. `testing/fakeClock.ts`: a clock moved by hand
+  (`advance`, `set`), bound `now` for the ads deps, refuses to run backwards. Six mutations each went
+  red. No migration.
 - **2026-11-02, 7b** — `modules/ads/platforms/simulator/fakeMeta.ts`: an in-process `node:http` Marketing
   API with the calls B1–B3 make — ad account read (cents as numeric strings, `spend_cap` "0" = none),
   campaign create (`special_ad_categories` required, ACTIVE/PAUSED only, `spend_cap` ≥ $100 →

@@ -41,6 +41,7 @@ defineEmits<{
   back: [];
   earlier: [];
   mute: [level: ChatMuteLevel];
+  search: [];
 }>();
 
 const lines = computed(() => mergeLines(props.data.messages, props.pending, props.data.conversation.thread_id));
@@ -93,6 +94,8 @@ const openFiles = () => { filesMounted.value = true; filesOpen.value = true; };
       :people="direct ? undefined : data.members.map((m) => ({ id: m.user_id, label: m.name }))" back-label="Back to conversations" @back="$emit('back')">
       <!-- Its mute (D-CHAT23): what reaches you from it, and whether it sits in Muted. -->
       <KebabMenu trigger-label="Conversation actions" placement="bottom-end">
+        <!-- CH8: search kept to this conversation, on the Search stage (`?search=&within=`). -->
+        <BaseButton class="kebab-item" @click="$emit('search')">Search in this conversation</BaseButton>
         <BaseButton class="kebab-item" @click="openPins">Pinned messages</BaseButton>
         <BaseButton class="kebab-item" @click="openFiles">Files</BaseButton>
         <ChatMuteItems :muted="data.conversation.muted" @set="(level: ChatMuteLevel) => $emit('mute', level)" />

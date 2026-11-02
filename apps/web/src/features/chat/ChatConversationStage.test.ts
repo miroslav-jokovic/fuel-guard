@@ -228,6 +228,18 @@ describe("the keyboard in the log (CR2, D-CHATUI16, D-CHATUI17)", () => {
   });
 });
 
+describe("the conversation's menu", () => {
+  it("Search in this conversation asks the page for the Search stage (CH8)", async () => {
+    const w = mount(ChatConversationStage, { props: { data: data([]), viewerId: ME, pending: [], sending: false }, attachTo: document.body });
+    await w.find('button[aria-label="Conversation actions"]').trigger("click");
+    await flushPromises();
+    [...document.body.querySelectorAll("button")].find((b) => b.textContent?.trim() === "Search in this conversation")!.click();
+    expect(w.emitted("search")).toHaveLength(1);
+    w.unmount();
+    document.body.innerHTML = "";
+  });
+});
+
 describe("mergeLines", () => {
   it("drops a pending line once the server lists its id — the server's copy wins", () => {
     const server = [msg(1, ME, { id: "p1" as unknown as string })];

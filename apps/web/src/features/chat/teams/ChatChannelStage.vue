@@ -168,6 +168,7 @@ async function onLeaveChannel() {
         @replies="openReplies"
         @leave="onLeaveChannel"
         @mute="onMute"
+        @search="go({ search: '', within: found.channel.thread_id })"
         @back="emit('back')"
       />
       <div v-else class="flex h-full flex-col items-center justify-center gap-3 px-4 text-center text-sm text-ink-muted">
