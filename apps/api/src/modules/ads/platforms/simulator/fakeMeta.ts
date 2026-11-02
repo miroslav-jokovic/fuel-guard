@@ -23,6 +23,11 @@ import { META_GRAPH_VERSION } from "../meta/graphClient.js";
  *   Throttle: code 80004 subcode 2446079 (Ads Management) with `X-Business-Use-Case-Usage`
  *   `{ <business id>: [{ type, call_count, total_cputime, total_time, estimated_time_to_regain_access }] }`.
  *   https://developers.facebook.com/docs/graph-api/overview/rate-limiting/
+ *   GET  /{v}/me?fields=id,name        the token's user (a system user, for Connect). (B1b)
+ *   GET  /{v}/me/permissions           `{ data: [{ permission, status }] }`, status ∈ granted, declined,
+ *                                       expired. https://developers.facebook.com/docs/graph-api/reference/user/permissions/
+ *   GET  /{v}/me/accounts              the Pages the token may act for: `{ data: [{ id, name, access_token,
+ *                                       tasks }] }`, `tasks` e.g. ADVERTISE. https://developers.facebook.com/docs/pages-api/getting-started
  *
  * ⚠ Neither the error-handling page nor the rate-limit page states the HTTP status of an error, or
  * where `error_subcode` sits beside a throttle: this fake answers 400 (client errors and throttling)
@@ -88,7 +93,23 @@ export interface FakeMetaOptions {
   accounts: FakeMetaAccount[];
   /** Business id the usage header is keyed by. */
   businessId?: string;
+  /** The token's user (B1b's connection test). */
+  user?: { id: string; name: string };
+  /** What `me/permissions` reports; defaults to the six scopes Connect asks for, all granted. */
+  permissions?: Record<string, "granted" | "declined" | "expired">;
+  /** Pages the token can act for; each carries the Page token `me/accounts` hands out. */
+  pages?: FakeMetaPage[];
 }
+
+export interface FakeMetaPage {
+  id: string;
+  name: string;
+  access_token: string;
+  tasks: string[];
+}
+
+/** The scopes the workflow's §6 click-path tells the owner to grant — the fake's default user has them. */
+const DEFAULT_PERMISSIONS = ["ads_management", "ads_read", "leads_retrieval", "pages_manage_metadata", "pages_read_engagement", "pages_show_list"];
 
 const STATUSES = ["ACTIVE", "PAUSED", "DELETED", "ARCHIVED"] as const;
 const SPECIAL = ["NONE", "EMPLOYMENT", "HOUSING", "CREDIT", "ISSUES_ELECTIONS_POLITICS", "ONLINE_GAMBLING_AND_GAMING", "FINANCIAL_PRODUCTS_SERVICES"];
@@ -105,11 +126,17 @@ export class FakeMeta {
   readonly requests: Array<{ method: string; path: string; body: Record<string, string> }> = [];
   private token: string;
   private readonly businessId: string;
+  readonly user: { id: string; name: string };
+  readonly permissions: Record<string, "granted" | "declined" | "expired">;
+  readonly pages: FakeMetaPage[];
 
   constructor(opts: FakeMetaOptions) {
     this.token = opts.token;
     this.accounts = new Map(opts.accounts.map((a) => [a.id, { ...a }]));
     this.businessId = opts.businessId ?? "1000000000001";
+    this.user = opts.user ?? { id: "61550000000001", name: "Silvicom ads system user" };
+    this.permissions = { ...(opts.permissions ?? Object.fromEntries(DEFAULT_PERMISSIONS.map((p) => [p, "granted" as const]))) };
+    this.pages = (opts.pages ?? []).map((p) => ({ ...p, tasks: [...p.tasks] }));
   }
 
   async start(): Promise<string> {
@@ -182,6 +209,13 @@ export class FakeMeta {
   }
 
   private route(method: string, path: string, body: Record<string, string>): { status: number; body: unknown } {
+    if (method === "GET" && path === "me") return { status: 200, body: pick({ ...this.user }, body.fields, ["id"]) };
+    if (method === "GET" && path === "me/permissions") {
+      return { status: 200, body: { data: Object.entries(this.permissions).map(([permission, status]) => ({ permission, status })) } };
+    }
+    if (method === "GET" && path === "me/accounts") {
+      return { status: 200, body: { data: this.pages.map((p) => pick({ ...p }, body.fields, ["id", "name", "access_token", "tasks"])) } };
+    }
     const account = /^act_(\d+)$/.exec(path);
     if (account && method === "GET") return this.readAccount(account[1]!, body.fields);
     const create = /^act_(\d+)\/campaigns$/.exec(path);

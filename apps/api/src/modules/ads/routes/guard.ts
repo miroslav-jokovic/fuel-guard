@@ -8,6 +8,7 @@ import { getAppLocals } from "../../../lib/appLocals.js";
 import { displayNameFor } from "../../../lib/memberLabels.js";
 import { recordApproval } from "../guard/approvals.js";
 import { setKillSwitch } from "../guard/killSwitch.js";
+import { mountConnectionRoutes } from "./connections.js";
 import { saveSettingsVersion, settingsInForce, type Actor } from "../settings/settingsVersions.js";
 
 /**
@@ -104,6 +105,7 @@ export function adsRouter(): Router {
     }),
   );
 
+  mountConnectionRoutes(router, { section: BRIEF_SECTION, actorOf });
   return router;
 }
 

@@ -385,7 +385,7 @@ Q-AD1 is resolved by v5 (four platforms, Meta first). Still owed: **Q-AD4** Tens
 **Q-AD5** Indeed · **Q-AD6** mailbox · **Q-AD8** counsel (fallback defined, G12) · **Q-AD9**
 first opening · **Q-AD12** presets · **Q-AD13** real drivers · **Q-AD14** brand kit · **Q-AD16**
 baseline · **Q-AD18** budget vs floors · **Q-AD19** organic · **Q-AD20** Higgsfield key ·
-**Q-AD21** X · **Q-AD22** platform order · **Q-AD23** a launch delivered twice at once is paused (7d). Each has its fallback in `ADS-AGENT-PLAN.md` §9 and its
+**Q-AD21** X · **Q-AD22** platform order · **Q-AD23** a launch delivered twice at once is paused (7d) · **Q-AD24** how we learn the Meta token's expiry (B1b). Each has its fallback in `ADS-AGENT-PLAN.md` §9 and its
 blocking step in §3 above.
 
 ---
@@ -640,3 +640,28 @@ blocking step in §3 above.
 
   16 contract tests against FakeMeta; 11 mutations, each red. Pinned under Publisher L1 beside its
   not-built gap, so the scorecard is unchanged (Publisher still L0). No migration.
+- **2026-11-02, B1a merged** — #1936 (`e5989c4`).
+- **2026-11-02, B1b** — Connect, test, Disconnect and the simulator connection:
+  - **Routes.** `/api/ads/connections`, hung off `adsRouter` because `app.ts` is at its budget.
+    Reading takes recruitment view; Test takes `ads.connection`; Connect, Connect-the-simulator and
+    Disconnect take `ads.connection` + a fresh sign-in. `ads.connection` is now on
+    `ADMIN_ONLY_CAPABILITIES`, with its route (§1.2-10).
+  - **Connection test** (`platforms/meta/connectionTest.ts`). Six checks, in order: the token
+    (`me`); the six §6 scopes (`me/permissions` — missing fails, extra is reported, not failed);
+    the account is ACTIVE; it bills in USD; Meta's own account spending limit is set (fence 3:
+    without one every launch is refused); and the Page with the ADVERTISE task (`me/accounts`). The
+    Page token travels BESIDE the report, only from a passing Page, to be sealed.
+  - **Connecting.** A token Meta refuses is stored nowhere; otherwise it is sealed with AAD = org +
+    `meta_ads:live|sandbox`, so a sandbox token cannot be moved into the live row. A token missing a
+    scope is saved `failing`, with what to fix, so the owner need not paste it again. Every test is
+    a `connection_test` ledger row; Connect and Disconnect are also `audit_logs` rows.
+  - **Disconnecting** is refused while any campaign on the connection may be delivering: pausing
+    needs the token, the kill switch's included.
+  - **The simulator** (`platforms/registry.ts`) is the real `MetaGraph` pointed at an in-process
+    FakeMeta (127.0.0.1, random port and token). The registry asks `simulatorGate` at every call,
+    so production, an unknown name or a nameless built server is refused with the reason.
+  - **Tests.** FakeMeta gained `me`, `me/permissions` and `me/accounts` in their documented shapes.
+    13 mutations, each red. The Security L2 needs "token in a log or response" and "non-admin
+    hitting Connect" are pinned; the Launch half stays a gap until E3, so Security stays L1.
+  - **Q-AD24 recorded:** a token's expiry is only readable with our app's secret (Stage 2), so
+    `token_expires_on` stays null for now. No migration.
