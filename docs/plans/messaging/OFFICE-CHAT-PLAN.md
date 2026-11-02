@@ -414,7 +414,7 @@ held until every file is there; under a line, its images as thumbnails and its d
 Download; a Files item in every conversation's and channel's header menu listing what was sent, newest
 first, with who sent it.
 
-**Open after CH7 (database half built 2026-11-02, migration 0544; console and export bytes next):** the compliance console (CHA2) and its export (CHA3b) do not yet
+**Open after CH7 — CLOSED 2026-11-02 (0544 + the console PR):** the compliance console (CHA2) and its export (CHA3b) do not yet
 show or include a line's files. A compliance export without them is incomplete — the ledger proves a file
 was sent and its hash, but the export does not carry the bytes or list them. Next step:
 `chat_compliance_export_rows` returns each line's attachments with their SHA-256, the console's conversation view draws
@@ -758,3 +758,15 @@ TechRepublic / Windows Report on Teams 2026 updates.
   a text match the mutant still satisfied, and the count not shown to stay inside the export's own
   conversation, and that the keys came back in random-uuid order, not the export's. Next: the API and
   the console, once 0544 is on staging.
+- 2026-11-02: **Compliance files, the API and the console** (`claude/chat-compliance-files-ui`), on 0544
+  (#1920, applied to staging). A message in the console's conversation view and message search lists
+  its files — kind, size, the start of its SHA-256 — a retracted line's too, with Save:
+  `POST /api/chat/compliance/files/:id/link`, behind the console's door and step-up, ledgered by 0544
+  and written to `audit_logs` (`chat_compliance.file`) before a five-minute link that saves the file
+  under its own name. An export now carries the files: each read from `chat-files` by the key 0544 hands
+  for that export only, its bytes hashed and compared with the ledger's hash (a mismatch fails the
+  export, naming the file), written to `files/<id>-<name>` beside the JSONL — before the manifest, which
+  lists each with its hash (format `silvicom-chat-export/2`; each line names its files) — and stored on
+  the record so the seven-day sweep removes them with the rest. The PDF lists each line's files with
+  their hashes; the Exports tab lists the carried files under the three links. Tests: API 9 new, web 2
+  new; 17 mutants, all failed tests. §9.3's open item is closed.

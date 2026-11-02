@@ -6,6 +6,8 @@ import {
   chatCompliancePersonSchema,
   isRosterIssuedRole,
   type ChatComplianceAccessLogResponse,
+  type ChatComplianceFileLink,
+  type ChatComplianceFileRequest,
   type ChatComplianceConversationsRequest,
   type ChatComplianceConversationsResponse,
   type ChatComplianceMessagesRequest,
@@ -15,6 +17,7 @@ import {
   type ChatComplianceThreadResponse,
 } from "@silvicom/shared";
 import { chatComplianceThreadResponseSchema } from "@silvicom/shared";
+import { CHAT_FILES_BUCKET } from "./chatFiles.js";
 
 /**
  * The compliance console's reads (OFFICE-CHAT-PLAN CHA2, D-CHAT14) — each one a call to a 0516
@@ -143,4 +146,28 @@ export async function chatComplianceAccessLog(
   const rows = (res.value ?? []).map((r) => chatComplianceAccessRowSchema.parse(r));
   const last = rows[rows.length - 1];
   return { rows, before_seq: rows.length === n && last && last.seq > 1 ? last.seq : null };
+}
+
+/** How long a reviewer's link to one file lives — the same five minutes as a chat member's (CH7). */
+export const COMPLIANCE_FILE_LINK_SECONDS = 300;
+
+/**
+ * One file for review (0544 `chat_compliance_file`): the database ledgers a `compliance_view` naming the
+ * file, its hash and the reason, then answers its key, which is signed here for five minutes as a
+ * DOWNLOAD under its own name — evidence is saved, never drawn on our page. Another organisation's file
+ * is the database's CH001.
+ */
+export async function chatComplianceFileLink(
+  admin: SupabaseClient, orgId: string, userId: string, fileId: string, req: ChatComplianceFileRequest,
+): Promise<ChatComplianceResult<ChatComplianceFileLink>> {
+  const res = await rpc<Array<{ storage_path: string; file_name: string }>>(admin, "chat_compliance_file", {
+    p_org: orgId, p_actor: userId, p_reason: req.reason, p_file: fileId,
+  });
+  if (!res.ok) return res.code === "not_found" ? { ...res, message: "That file does not exist" } : res;
+  const f = (res.value ?? [])[0];
+  if (!f) throw new Error("chat_compliance_file returned no row");
+  const { data, error } = await admin.storage.from(CHAT_FILES_BUCKET)
+    .createSignedUrl(f.storage_path, COMPLIANCE_FILE_LINK_SECONDS, { download: f.file_name });
+  if (error || !data) throw new Error(`chat-files link: ${error?.message ?? "no URL"}`);
+  return { ok: true, value: { url: data.signedUrl, file_name: f.file_name, expires_in: COMPLIANCE_FILE_LINK_SECONDS } };
 }

@@ -77,6 +77,15 @@ const what = (e: ChatExport) => {
             <a :href="links[row.id]!.links.jsonl" target="_blank" rel="noopener" class="text-link hover:text-link-hover">JSONL</a>
             <a :href="links[row.id]!.links.manifest" target="_blank" rel="noopener" class="text-link hover:text-link-hover">Manifest</a>
           </div>
+          <!-- 0544: the chat files the export carries, each beside the JSONL under files/. -->
+          <details v-if="links[row.id]!.files.length" class="mt-1 text-sm">
+            <summary class="cursor-pointer text-link hover:text-link-hover">{{ links[row.id]!.files.length }} {{ links[row.id]!.files.length === 1 ? "file" : "files" }}</summary>
+            <ul class="mt-1 space-y-0.5">
+              <li v-for="f in links[row.id]!.files" :key="f.name" class="truncate">
+                <a :href="f.url" target="_blank" rel="noopener" class="text-link hover:text-link-hover">{{ f.name.replace(/^files\/[0-9a-f-]{36}-/, "") }}</a>
+              </li>
+            </ul>
+          </details>
           <div class="text-xs text-ink-muted">Links work for five minutes</div>
         </template>
         <template v-else>

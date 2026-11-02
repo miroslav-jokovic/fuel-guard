@@ -1,6 +1,7 @@
 import { Router, type Request, type Response } from "express";
 import {
   chatComplianceConversationsRequestSchema,
+  chatComplianceFileRequestSchema,
   chatComplianceMessagesRequestSchema,
   chatComplianceThreadRequestSchema,
   isRecordId,
@@ -17,6 +18,7 @@ import { getAppLocals } from "../../../lib/appLocals.js";
 import {
   chatComplianceAccessLog,
   chatComplianceConversations,
+  chatComplianceFileLink,
   chatComplianceMessages,
   chatCompliancePeople,
   chatComplianceThread,
@@ -125,6 +127,23 @@ export function chatComplianceRouter(): Router {
         action: "chat_compliance.search", reason: body.reason, threadId: body.thread ?? null,
         filters: { scope: "messages", thread: body.thread ?? null, person: body.person ?? null, from: body.from ?? null, to: body.to ?? null, q: body.q?.trim() || null },
       });
+    }),
+  );
+
+  // 0544: one file of a line, for review — ledgered in the chat ledger AND written to `audit_logs`
+  // before the link is answered, as every other read here is.
+  router.post(
+    "/files/:id/link",
+    requireFreshAuth(),
+    validateBody(chatComplianceFileRequestSchema),
+    asyncHandler(async (req, res) => {
+      const raw = req.params.id;
+      const id = typeof raw === "string" && isRecordId(raw) ? raw : null;
+      if (!id) { res.status(404).json(apiError("not_found", "That file does not exist")); return; }
+      const body = res.locals.body as ReturnType<typeof chatComplianceFileRequestSchema.parse>;
+      const { orgId, userId } = ctx(req);
+      const result = await chatComplianceFileLink(admin(req), orgId, userId, id, body);
+      await recordAndSend(req, res, result, { action: "chat_compliance.file", reason: body.reason, filters: { file_id: id } });
     }),
   );
 
