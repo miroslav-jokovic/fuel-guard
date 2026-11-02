@@ -79,7 +79,8 @@ async function page(attachTo?: HTMLElement) {
   const router = createRouter({ history: createMemoryHistory(), routes: [...ROUTE_TABLE] });
   await router.push(`/roadside-inspections/${ID}`);
   await router.isReady();
-  const w = mount(RoadsideInspectionPage as never, { global: { plugins: [router] }, attachTo });
+  // ChatAboutCard (CH11) is its own component with its own test; here only what the page hands it.
+  const w = mount(RoadsideInspectionPage as never, { global: { plugins: [router], stubs: { ChatAboutCard: { name: "ChatAboutCard", props: ["kind", "recordId", "label"], template: "<div />" } } }, attachTo });
   await flushPromises();
   return w;
 }
@@ -238,5 +239,14 @@ describe("one roadside inspection", () => {
     expect(w.get("[data-test='sms-none']").text()).toBe("No violation on this inspection adds CSA points; each row says why.");
     expect(w.get("[data-test='sms']").text()).not.toContain("This inspection is");
     expect(w.findAll("[data-test='points-why']").map((c) => c.text())).toEqual(Array(2).fill("Older than 24 months, so SMS no longer counts it."));
+  });
+
+  it("hands the Chat card this inspection, named by its report number or else its day (CH11, D-CHAT35)", async () => {
+    inspection.value = detail();
+    let w = await page();
+    expect(w.findComponent({ name: "ChatAboutCard" }).props()).toMatchObject({ kind: "roadside_inspection", recordId: ID, label: "IL0912" });
+    inspection.value = detail({ reportNumber: null });
+    w = await page();
+    expect(w.findComponent({ name: "ChatAboutCard" }).props("label")).toBe("10/09/2026");
   });
 });

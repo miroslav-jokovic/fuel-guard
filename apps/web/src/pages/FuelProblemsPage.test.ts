@@ -99,7 +99,12 @@ vi.mock("@/features/anomalies/AnomalyDetail.vue", async () => {
 });
 vi.mock("@/features/anomalies/IncidentDetail.vue", async () => {
   const { defineComponent, h } = await import("vue");
-  return { default: defineComponent({ props: ["id"], setup: (p) => () => h("p", `incident-drawer:${p.id}`) }) };
+  // Its default slot is handed the incident it read, as the real one does (CH11).
+  return { default: defineComponent({ props: ["id"], setup: (p, { slots }) => () => h("div", [h("p", `incident-drawer:${p.id}`), slots.default?.({ incident: { id: p.id, cardLast4: "7559" } })]) }) };
+});
+vi.mock("@/features/chat/ChatAboutCard.vue", async () => {
+  const { defineComponent, h } = await import("vue");
+  return { default: defineComponent({ name: "ChatAboutCard", props: ["kind", "recordId", "label"], setup: (p) => () => h("p", `chat-about:${p.kind}:${p.recordId}:${p.label}`) }) };
 });
 
 import FuelProblemsPage from "./FuelProblemsPage.vue";
@@ -465,6 +470,13 @@ describe("Fuel problems", () => {
     await mountPage("?incident=i7");
     expect(document.body.textContent).toContain("incident-drawer:i7");
     expect(byId.asked).toBeNull();
+  });
+
+  it("puts the Chat card under the incident, named by the card's last four (CH11, D-CHAT36)", async () => {
+    listed.value = [];
+    listed.total = 0;
+    await mountPage("?incident=i7");
+    expect(document.body.textContent).toContain("chat-about:fraud_incident:i7:••7559");
   });
 
   it("carries an open drawer through the old /findings address", async () => {

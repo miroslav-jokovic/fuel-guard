@@ -30,6 +30,8 @@ const { data: openCase } = useAnomalyById(toRef(props, "caseId"));
     <AnomalyDetail v-if="openCase" :anomaly="openCase" :vehicle-unit="unitOf(caseId)" @changed="emit('close')" />
   </SlideOver>
   <SlideOver :open="!!incidentId" title="Card used away from its truck" @close="emit('close')">
-    <IncidentDetail v-if="incidentId" :id="incidentId" @changed="emit('close')" />
+    <IncidentDetail v-if="incidentId" :id="incidentId" @changed="emit('close')">
+      <template #default="{ incident }"><slot name="incident" :incident="incident" /></template>
+    </IncidentDetail>
   </SlideOver>
 </template>

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, toRef } from "vue";
 import { useRouter } from "vue-router";
-import { chatAboutTitle, chatTitle, type ChatAboutConversation, type ChatAboutKind } from "@silvicom/shared";
+import { CHAT_ABOUT_NOUNS, chatAboutTitle, chatTitle, type ChatAboutConversation, type ChatAboutKind } from "@silvicom/shared";
 import { AppButton as BaseButton, AppCard as BaseCard, QueryState } from "@silvicom/ui";
 import { useSessionStore } from "@/stores/session";
 import NewChatDialog from "./NewChatDialog.vue";
@@ -59,7 +59,7 @@ async function start(memberIds: string[], name: string | null) {
     <div class="flex items-center justify-between gap-3">
       <div class="min-w-0">
         <h2 class="text-sm font-semibold text-ink">Chat</h2>
-        <p class="text-xs text-ink-muted">Your conversations about this {{ kind === "vehicle" ? "truck" : kind }}. Only the people in each one see it.</p>
+        <p class="text-xs text-ink-muted">Your conversations about this {{ CHAT_ABOUT_NOUNS[kind].noun }}. Only the people in each one see it.</p>
       </div>
       <BaseButton size="sm" variant="secondary" @click="starting = true">Chat about this</BaseButton>
     </div>
