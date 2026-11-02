@@ -120,6 +120,11 @@ interface InvitationRow {
   sign_link_expires_at?: string | null;
   unlock_failures?: number;
   /**
+   * §11 D-RS3 (0550): the carrier questions this applicant must answer, stamped at the first Send. Null —
+   * or absent, from a fixture or select written before 0550 — means the definition's own flags decide.
+   */
+  required_questions?: string[] | null;
+  /**
    * WHICH hash the presented token matched — set by `resolveInvitation`, never read from the row. The
    * three doors open the same session (A5b), and until C3s3a nothing needed to tell them apart; the
    * sent link's 72 hours and its unlock counter are that link's, not the invitation's (D-AW14).
@@ -282,7 +287,7 @@ export async function resolveInvitation(
     .select(
       "id, org_id, driver_id, token_hash, sign_token_hash, sms_token_hash, expires_at, revoked_at, consented_at, "
       + "intake_completed_at, releases_completed_at, application_sent_at, review_requested_at, approved_at, signing_opened_at, "
-      + "submitted_at, handbook_filed_at, sign_link_expires_at, unlock_failures",
+      + "submitted_at, handbook_filed_at, sign_link_expires_at, unlock_failures, required_questions",
     )
     .or(`token_hash.eq.${hash},sign_token_hash.eq.${hash},sms_token_hash.eq.${hash}`)
     .maybeSingle();

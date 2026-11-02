@@ -308,6 +308,14 @@ export const driverApplicationObject = z
      */
     questionnaire_version: z.string().max(120).nullish(),
     /**
+     * §11 D-RS4: the carrier questions this applicant must answer, as stamped on their invitation at
+     * the office's first Send (0550). The applicant's page lays the bundle's copy on, so its checks and
+     * the API's agree; the API never believes the client's copy — `submitApplication` overwrites it
+     * with the invitation's own before filing. Null = an invitation sent before 0550's reader: the
+     * definition's flags decide. Filed with the payload, so the record says what was asked of them.
+     */
+    questionnaire_required: z.array(z.string().max(60)).max(60).nullish(),
+    /**
      * ⚠ Parsed by the questionnaire's own schema since §9 P8 (AF-1) — it was `record<unknown>`, so the
      * API took any value under any key and `questionnaireAnswersSchema` was imported by nothing but its
      * test. The SERVED definition's schema, because a field cannot read its sibling `questionnaire_version`:

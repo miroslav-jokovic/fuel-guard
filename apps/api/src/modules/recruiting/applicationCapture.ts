@@ -1,6 +1,8 @@
 import { randomUUID } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
+  WITHHOLDABLE_CAPTURE_SLOTS,
+  captureSlotOffered,
   APPLICATION_CAPTURES_BUCKET,
   APPLICATION_ONLY_CAPTURE_SLOTS,
   APPLICATION_CAPTURE_DOCUMENT_KIND,
@@ -27,6 +29,7 @@ import {
 } from "./applicationIntake.js";
 import { loadCarrierWording } from "./carrierWording.js";
 import { verifyCaptureBytes } from "./captureVerification.js";
+import { recruitingSettings } from "./recruitingSettings.js";
 
 /**
  * The applicant's photographs, staged and promoted (A8, D-APP10).
@@ -93,8 +96,20 @@ async function openSession(
   if (APPLICATION_ONLY_CAPTURE_SLOTS.includes(slot) && !invitation.application_sent_at) {
     return APPLICATION_NOT_SENT;
   }
+  // §11 D-RS6: a document the carrier stopped asking for is not taken — the page no longer offers it, so
+  // only a tab opened before the change reaches this. What was already staged in it is kept and filed.
+  if (WITHHOLDABLE_CAPTURE_SLOTS.includes(slot)) {
+    const { offered_document_slots: offered } = await recruitingSettings(admin, invitation.org_id);
+    if (!captureSlotOffered(slot, offered)) return SLOT_NOT_OFFERED;
+  }
   return invitation;
 }
+
+/** §11 D-RS6: the carrier withheld this slot after the page was opened. */
+export const SLOT_NOT_OFFERED: IntakeError = {
+  code: "capture_slot_not_offered",
+  message: "The carrier no longer asks for this document. Reload the page to see the list it asks for.",
+};
 
 export const CAPTURE_UPLOAD_FAILED: IntakeError = {
   code: "capture_upload_failed",

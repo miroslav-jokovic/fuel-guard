@@ -1,10 +1,11 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { effectScope, ref } from "vue";
 import type { CapturedPage } from "@silvicom/capture-engine";
 import { APPLICATION_CAPTURE_MAX_BYTES, APPLICATION_CAPTURE_REQUESTED, type ApplicationCaptureView } from "@silvicom/shared";
 import type { CaptureIo } from "./stageCapture";
 import type { WebCaptureProvider } from "./webFileProvider";
 import { useDocumentSends, type DocumentPlace } from "./useDocumentSends";
+import { takeServedForm } from "../servedForm";
 
 /**
  * Part 2's "Your documents" (HIRING-WORKFLOW-AUDIT §9 P9): every paper offered, photo or PDF, several
@@ -51,6 +52,22 @@ const pdf = (size = 1200) => new File([new Uint8Array(size)], "medical.pdf", { t
 
 beforeEach(() => {
   vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => {});
+});
+
+describe("§11 D-RS6: only the documents the carrier asks for", () => {
+  afterEach(() => takeServedForm({}));
+
+  it("lists the offered slots, in the catalogue's order", () => {
+    takeServedForm({ offeredDocumentSlots: ["cdl_front", "cdl_back", "medical_card", "twic"] });
+    const { sends } = harness();
+    expect(sends.groups.value.map((g) => g.slot)).toEqual(["cdl_front", "cdl_back", "medical_card", "twic"]);
+  });
+
+  it("keeps a withheld slot that already holds what this applicant sent, so it never seems to vanish", () => {
+    takeServedForm({ offeredDocumentSlots: ["cdl_front", "cdl_back", "medical_card"] });
+    const { sends } = harness([stored("passport")]);
+    expect(sends.groups.value.map((g) => g.slot)).toEqual(["cdl_front", "cdl_back", "medical_card", "passport"]);
+  });
 });
 
 describe("the documents list (§9 P9)", () => {

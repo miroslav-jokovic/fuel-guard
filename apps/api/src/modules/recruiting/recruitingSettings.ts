@@ -2,6 +2,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   RECRUITING_SETTINGS_DEFAULTS,
   hiddenHiringSteps,
+  offeredDocumentSlotsOf,
+  requiredQuestionsOf,
   type RecruitingSettings,
   type RecruitingSettingsInput,
   type RecruitingSettingsView,
@@ -25,7 +27,7 @@ import {
  * none. Two saves racing to create the row meet 0379's primary key; the loser's 23505 is answered by
  * updating the row the winner made, so the later press is the one that stands, as it would have been.
  */
-const COLS = "invite_ttl_days, reminders_enabled, reminder_after_hours, handbook_blocks_hire, videos_block_hire, hidden_hiring_steps, updated_at";
+const COLS = "invite_ttl_days, reminders_enabled, reminder_after_hours, handbook_blocks_hire, videos_block_hire, hidden_hiring_steps, required_questions, offered_document_slots, updated_at";
 
 type Row = RecruitingSettings & { updated_at: string };
 
@@ -48,6 +50,10 @@ const pick = (r: RecruitingSettings): RecruitingSettings => ({
   videos_block_hire: r.videos_block_hire,
   // §10 CE2: only hideable keys survive the read (D-CE3) — a stored locked key is dropped here as in the fold.
   hidden_hiring_steps: [...hiddenHiringSteps(r.hidden_hiring_steps)],
+  // §11 (0550): narrowed to what the catalogues allow (D-RS2, D-RS6); null — the standard set — stays null.
+  // `?? null` because a row read by a select written before 0550 has neither key.
+  required_questions: requiredQuestionsOf(r.required_questions ?? null),
+  offered_document_slots: offeredDocumentSlotsOf(r.offered_document_slots ?? null),
 });
 
 /** What is in force for this org: its row, else the product's defaults. Throws on a failed read. */
@@ -74,7 +80,8 @@ export interface RecruitingSettingsSaved {
  * Writes every answer. The input is the contract's, already validated (bounds and the refine).
  * ⚠ §9 P12: a PUT without `handbook_blocks_hire` (a screen served before 0536's reader), or without
  * HW8a's `videos_block_hire` (one served before 0539's reader), or without §10 CE2's
- * `hidden_hiring_steps` (one served before 0545's reader), keeps the value
+ * `hidden_hiring_steps` (one served before 0545's reader), or without §11's `required_questions` /
+ * `offered_document_slots` (one served before 0550's reader), keeps the value
  * in force — "absent" is "unchanged", never "off".
  */
 export async function saveRecruitingSettings(
@@ -89,6 +96,9 @@ export async function saveRecruitingSettings(
     handbook_blocks_hire: input.handbook_blocks_hire ?? before.handbook_blocks_hire,
     videos_block_hire: input.videos_block_hire ?? before.videos_block_hire,
     hidden_hiring_steps: input.hidden_hiring_steps ?? before.hidden_hiring_steps,
+    // §11 D-RS7: `undefined` (absent) keeps; `null` is a value — "use the standard set" — so `??` is wrong here.
+    required_questions: input.required_questions === undefined ? before.required_questions : input.required_questions,
+    offered_document_slots: input.offered_document_slots === undefined ? before.offered_document_slots : input.offered_document_slots,
   };
   const answers = { ...pick(complete), updated_by: userId };
 

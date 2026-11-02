@@ -1,4 +1,5 @@
 import { computed, type Ref } from "vue";
+import { takeServedForm } from "./servedForm";
 import { useMutation, useQuery } from "@tanstack/vue-query";
 import type {
   ApplicationCaptureContentType,
@@ -217,6 +218,13 @@ export interface ApplyInvitation {
   partOne?: PartOneStatus | null;
   /** The FCRA summary Part 1 ends on, served while Part 1 is still to finish (AW3). */
   fcraSummary?: FcraSummary | null;
+  /**
+   * §11 D-RS3: the carrier questions this applicant must answer, stamped at the office's first Send;
+   * null = sent before the stamp. ⚠ Optional, `identityComplete`'s reason.
+   */
+  requiredQuestions?: string[] | null;
+  /** §11 D-RS6: the documents Part 2 asks for. ⚠ Optional: absent reads as every slot. */
+  offeredDocumentSlots?: ApplicationCaptureSlot[];
 }
 
 /**
@@ -285,7 +293,12 @@ export function useApplyInvitationQuery(token: Ref<string>) {
     // One shot. A link that failed does not become valid by being retried, and a retry storm is what
     // the endpoint's rate limit exists to stop.
     retry: false,
-    queryFn: () => publicFetch<ApplyInvitation>(`/${token.value}`),
+    queryFn: async () => {
+      const bundle = await publicFetch<ApplyInvitation>(`/${token.value}`);
+      // §11: what the carrier asks of this applicant, for the screens that read it (`servedForm.ts`).
+      takeServedForm(bundle);
+      return bundle;
+    },
   });
 }
 

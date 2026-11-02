@@ -22,6 +22,9 @@ describe("the defaults", () => {
       videos_block_hire: HIRE_POLICY_DEFAULT.videos_block_hire,
       // §10 CE2 (0545): a carrier starts running every built-in step.
       hidden_hiring_steps: [],
+      // §11 (0550): both lists start on the standard sets (D-RS1, D-RS6).
+      required_questions: null,
+      offered_document_slots: null,
     });
     expect(recruitingSettingsSchema.safeParse(RECRUITING_SETTINGS_DEFAULTS).success).toBe(true);
   });

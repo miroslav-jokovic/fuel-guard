@@ -2,9 +2,11 @@ import {
   questionnaireByRef,
   questionnaireForApplicant,
   translateQuestionnaire,
+  withRequiredQuestions,
   type QuestionnaireDefinition,
 } from "@silvicom/shared";
 import { applyLanguage } from "./language";
+import { servedRequiredQuestions } from "./servedForm";
 
 /**
  * The carrier's questions as the applicant's screens show them: the definition the draft's answers are
@@ -14,4 +16,8 @@ import { applyLanguage } from "./language";
  * keep the English definition: what is filed is the carrier's English.
  */
 export const applicantQuestionnaire = (version?: string | null): QuestionnaireDefinition =>
-  translateQuestionnaire(questionnaireByRef(version) ?? questionnaireForApplicant(), applyLanguage.value);
+  translateQuestionnaire(
+    // §11 D-RS4: the carrier's set as stamped on this invitation — the same overlay the rule applies.
+    withRequiredQuestions(questionnaireByRef(version) ?? questionnaireForApplicant(), servedRequiredQuestions.value),
+    applyLanguage.value,
+  );

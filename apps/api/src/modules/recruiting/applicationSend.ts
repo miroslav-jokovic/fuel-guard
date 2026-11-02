@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
+  requiredQuestionsToStamp,
   APPLICATION_SEND_WARNS_ON,
   renderApplicationSentEmail,
   type HiringStepKey,
@@ -93,13 +94,16 @@ export async function sendApplication(
         .map((s) => s.key);
 
   // The carrier's link lifetime (Q-AW41), and the number the email promises — the same one.
-  const { invite_ttl_days: days } = await recruitingSettings(admin, orgId);
+  // §11 D-RS3: and the questions this applicant will be held to, resolved here (the carrier's set, or
+  // the standard seven) and stamped by the function on the FIRST Send only — a resend keeps the first.
+  const { invite_ttl_days: days, required_questions: required } = await recruitingSettings(admin, orgId);
   const { token, hash } = mintInvitationToken();
   const { data: sentAt, error } = await admin.rpc("send_application_invitation", {
     p_org: orgId,
     p_invitation: invitation.id,
     p_token_hash: hash,
     p_extend_days: days,
+    p_required_questions: requiredQuestionsToStamp(required),
   });
   if (error) {
     if (error.code === "AI002") {

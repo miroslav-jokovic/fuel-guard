@@ -5,6 +5,7 @@ import SignatoryRegister from "@/features/recruitment/SignatoryRegister.vue";
 import RecruitingSettingsForm from "@/features/recruitment/RecruitingSettingsForm.vue";
 import OrientationVideosEditor from "@/features/recruitment/OrientationVideosEditor.vue";
 import CarrierStepsEditor from "@/features/recruitment/CarrierStepsEditor.vue";
+import ApplicationFormSettings from "@/features/recruitment/ApplicationFormSettings.vue";
 
 /**
  * Settings → Recruiting (APPLICATION-FLOW-V2-PLAN.md R1, Q-AW42 ruled (a) by the owner 2026-09-28).
@@ -35,6 +36,10 @@ import CarrierStepsEditor from "@/features/recruitment/CarrierStepsEditor.vue";
  * ── ORIENTATION VIDEOS (HW8a, 0539) ───────────────────────────────────────────────────────────
  * The carrier's list of video links, sent to an applicant from their checklist's videos step. Second,
  * because it is set up once and then shapes every applicant's step, like the links above it.
+ *
+ * ── THE APPLICATION FORM (§11 S2, 0550) ───────────────────────────────────────────────────────
+ * The questions an applicant must answer and the documents the application asks for, after the hiring
+ * steps: both shape what the office sends, and each applicant keeps what they were sent (D-RS3).
  */
 </script>
 
@@ -57,6 +62,15 @@ import CarrierStepsEditor from "@/features/recruitment/CarrierStepsEditor.vue";
     >
       <div class="rounded-surface bg-surface p-4 ring-1 ring-edge">
         <CarrierStepsEditor />
+      </div>
+    </SettingsSection>
+
+    <SettingsSection
+      title="The application form"
+      description="Which of your questions an applicant must answer, and which documents the application asks for."
+    >
+      <div class="rounded-surface bg-surface p-4 ring-1 ring-edge">
+        <ApplicationFormSettings />
       </div>
     </SettingsSection>
 

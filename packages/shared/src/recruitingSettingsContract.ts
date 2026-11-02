@@ -3,6 +3,7 @@ import { INVITE_TTL_DAYS_DEFAULT, INVITE_TTL_DAYS_MAX } from "./applicationIntak
 import { STALE_DRAFT_HOURS } from "./applicationNudge.js";
 import { HIRE_POLICY_DEFAULT } from "./hiringSteps.js";
 import { hiddenHiringStepsSchema } from "./carrierStepsContract.js";
+import { offeredDocumentSlotsSchema, requiredQuestionsSchema } from "./applicationFormSettings.js";
 
 /**
  * The carrier's own answers about an application link's lifetime and its reminder
@@ -56,6 +57,11 @@ export const recruitingSettingsSchema = z
     // §10 CE2 (0545): the built-in steps this carrier does not run (D-CE3) — hideable keys only, and the
     // same "absent keeps it" rule, for a screen served before this reader.
     hidden_hiring_steps: hiddenHiringStepsSchema.optional(),
+    // §11 (0550): the questions an applicant must answer (null = the standard set, D-RS1) and the
+    // documents Part 2 asks for (null = every one, D-RS6) — "absent keeps it", for a screen served
+    // before this reader (D-RS7). Null is a value here, not an absence: it is "use the standard set".
+    required_questions: requiredQuestionsSchema.optional(),
+    offered_document_slots: offeredDocumentSlotsSchema.optional(),
   })
   .refine((s) => stoppedBeforeLinkExpires(s.invite_ttl_days, s.reminder_after_hours), {
     path: ["reminder_after_hours"],
@@ -73,6 +79,8 @@ export const RECRUITING_SETTINGS_DEFAULTS: RecruitingSettings = {
   handbook_blocks_hire: HIRE_POLICY_DEFAULT.handbook_blocks_hire,
   videos_block_hire: HIRE_POLICY_DEFAULT.videos_block_hire,
   hidden_hiring_steps: [],
+  required_questions: null,
+  offered_document_slots: null,
 };
 
 /** `GET /api/recruitment/settings` — what is in force, and whether the carrier has ever chosen it. */

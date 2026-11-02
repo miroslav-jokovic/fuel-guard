@@ -12,6 +12,8 @@ import {
   applyingAsOf,
   driverPlacementIds,
   packetDriverMarkCount,
+  questionnaireRequiredIssues,
+  requiredQuestionsOf,
 } from "@silvicom/shared";
 import type { Env } from "../../env.js";
 import { loadCarrierWording } from "./carrierWording.js";
@@ -300,11 +302,21 @@ export async function submitApplication(
    * is filed, so the rules and the file cannot judge two different texts. A legacy invitation (no Part
    * 1 row) is asked nothing new and files what it certified, as before.
    */
-  let certified = body.application;
+  /**
+   * §11 D-RS4: the carrier questions this applicant must answer are the ones stamped on THEIR invitation,
+   * never the copy the page sent — a body that named fewer would otherwise file blanks. Laid over and
+   * the carrier-question rules run again (`questionnaireRequiredIssues`), so the rules that refused or
+   * passed on the page are the same rules judged here, with the server's own set. Null (sent before 0550's reader) leaves the definition's flags.
+   */
+  const stamped = { ...body.application, questionnaire_required: requiredQuestionsOf(invitation.required_questions ?? null) };
+  const unanswered = questionnaireRequiredIssues(stamped);
+  if (unanswered.length > 0) return applicationIncomplete(unanswered);
+
+  let certified: ApplicationSubmit["application"] = stamped;
   const partOne = await partOneForFiling(admin, invitation.org_id, invitation);
   if (partOne) {
     const asOf = todayInZone(now, await carrierZone(admin, invitation.org_id));
-    const composed = composeFiledApplication(body.application, partOne.intake, partOne.licences, asOf);
+    const composed = composeFiledApplication(stamped, partOne.intake, partOne.licences, asOf);
     const issues = [...composed.issues, ...applicationV2FilingIssues(composed.application, asOf)];
     if (issues.length > 0) return applicationIncomplete(issues);
     certified = composed.application;

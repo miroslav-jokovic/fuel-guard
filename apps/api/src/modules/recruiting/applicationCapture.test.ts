@@ -31,6 +31,7 @@ const SHA = "a1".repeat(32);
 function seed(
   over: Record<string, unknown> = {},
   storage: Record<string, (...args: never[]) => unknown> = {},
+  tables: Record<string, unknown[]> = {},
 ): SupabaseRecorder {
   return createSupabaseRecorder({
     tables: {
@@ -45,6 +46,7 @@ function seed(
         ...over,
       }],
       application_captures: [],
+      ...tables,
     },
     rpc: { stage_application_capture: { capture_id: "cap-1", captured_at: NOW.toISOString(), replaced_path: null } },
     storage: {
@@ -305,6 +307,42 @@ describe("every document, as a photo or a PDF, and several training certificates
     );
     expect(result).toMatchObject({ code: "capture_not_intact" });
     expect(rec.rpcs()).toEqual([]);
+  });
+
+  describe("§11 D-RS6: a document the carrier withheld", () => {
+    const withheld = { recruiting_settings: [{ invite_ttl_days: 14, reminders_enabled: true, reminder_after_hours: 48, offered_document_slots: ["twic"], updated_at: "x" }] };
+
+    it("is refused, before any upload is signed", async () => {
+      const rec = seed(SENT, {}, withheld);
+      const result = await startCapture(rec.client, TOKEN, { slot: "passport", content_type: "application/pdf" }, NOW);
+      expect(result).toMatchObject({ code: "capture_slot_not_offered" });
+      // The carrier's settings are read for the org the token resolved to. The token lookup itself is the
+      // public door and is scoped by the token's hash, not an org (`resolveInvitation`).
+      expectOrgScoped(rec, ORG, { exempt: ["application_invitations"] });
+    });
+
+    it("is refused at the confirm too, and nothing is staged", async () => {
+      const rec = seed(SENT, {}, withheld);
+      const result = await confirmCapture(
+        rec.client, TOKEN, CAPTURE, { slot: "passport", content_type: "application/pdf", sha256: "a".repeat(64) }, NOW,
+      );
+      expect(result).toMatchObject({ code: "capture_slot_not_offered" });
+      expect(rec.rpcs()).toEqual([]);
+    });
+
+    it("leaves an offered slot, the licence, the medical card and the marks alone", async () => {
+      for (const slot of ["twic", "cdl_front", "medical_card"] as const) {
+        const rec = seed(SENT, {}, withheld);
+        expect(await startCapture(rec.client, TOKEN, { slot, content_type: "image/jpeg" }, NOW)).toHaveProperty("captureId");
+      }
+      const rec = seed(SENT, {}, withheld);
+      expect(await startCapture(rec.client, TOKEN, { slot: "signature_mark", content_type: "image/png" }, NOW)).toHaveProperty("captureId");
+    });
+
+    it("is offered to a carrier that never chose (no row: every slot)", async () => {
+      const rec = seed(SENT, {}, { recruiting_settings: [] });
+      expect(await startCapture(rec.client, TOKEN, { slot: "passport", content_type: "application/pdf" }, NOW)).toHaveProperty("captureId");
+    });
   });
 
   it("waits for the office's send before taking a passport, as the SSN card does", async () => {

@@ -61,6 +61,11 @@ const invitation = (over: Record<string, unknown> = {}) => ({
   expires_at: "2026-09-01T00:00:00Z",
   revoked_at: null,
   /**
+   * §11 D-RS3: stamped requiring nothing, so the filing's carrier-question check (D-RS4) stands aside
+   * for every test here that is about something else. Its own tests stamp a set.
+   */
+  required_questions: [],
+  /**
    * ⚠ Consented, since D-WORD1 (2026-09-14). The shipped catalogue stopped being draft, so
    * §390.32(d)'s gate is armed on every link and refuses every write before the consent exists —
    * `esign_consent_required` would otherwise be the answer to every test in this file, standing in
@@ -500,6 +505,35 @@ describe("submitting", () => {
     // ESIGN attribution evidence, the same three facts 0215 records for a staff-recorded signature.
     expect(args.p_ip).toBe("203.0.113.9");
     expect(args.p_user_agent).toBe("Mozilla/5.0");
+  });
+
+  /**
+   * §11 D-RS4: the questions this applicant must answer are the ones stamped on THEIR invitation. A page
+   * that sent a smaller list — or none — is not believed: the stamp is laid over and the rules run again.
+   */
+  it("§11: refuses an unanswered question the invitation's stamp requires, whatever list the page sent", async () => {
+    const rec = seed(submittableInvitation({ required_questions: ["heard_from"] }));
+    const body = { ...APPLICATION, application: { ...APPLICATION.application, questionnaire_required: [] } } as typeof APPLICATION;
+    const result = await submitApplication(rec.client, env(), TOKEN, body, CTX, NOW);
+    expect(isIntakeError(result) && result.code).toBe("application_incomplete");
+    expect(isIntakeError(result) && result.message).toContain("How did you hear about this company?");
+    expect(rec.rpcs()).toHaveLength(0);
+  });
+
+  it("§11: files the stamp it was judged by, over whatever the page sent", async () => {
+    const rec = seed(submittableInvitation({ required_questions: [] }));
+    const body = { ...APPLICATION, application: { ...APPLICATION.application, questionnaire_required: ["position"] } } as typeof APPLICATION;
+    const result = await submitApplication(rec.client, env(), TOKEN, body, CTX, NOW);
+    expect(isIntakeError(result)).toBe(false);
+    const payload = (rec.rpcs()[0]!.args as { p_payload: Record<string, unknown> }).p_payload;
+    expect(payload.questionnaire_required).toEqual([]);
+  });
+
+  it("§11: an invitation sent before the stamp existed is judged by the definition's own flags", async () => {
+    const rec = seed(submittableInvitation({ required_questions: null }));
+    const result = await submitApplication(rec.client, env(), TOKEN, APPLICATION, CTX, NOW);
+    // No answers and no version: the served v3's seven, as before §11.
+    expect(isIntakeError(result) && result.code).toBe("application_incomplete");
   });
 
   /** The FOR UPDATE lock's two verdicts, each turned into the answer that fits it. */

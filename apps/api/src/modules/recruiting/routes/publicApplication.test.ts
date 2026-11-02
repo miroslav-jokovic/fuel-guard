@@ -388,6 +388,24 @@ describe("opening the link", () => {
     });
   });
 
+  it("§11: serves the invitation's stamped questions — never the live setting — and the documents offered", async () => {
+    holder.client = seed(
+      { required_questions: ["references", "position"] },
+      { recruiting_settings: [{ invite_ttl_days: 14, reminders_enabled: true, reminder_after_hours: 48, required_questions: ["heard_from"], offered_document_slots: ["twic"], updated_at: "x" }] },
+    ).client;
+    const body = (await (await call(`/${TOKEN}`)).json()) as { requiredQuestions: string[] | null; offeredDocumentSlots: string[] };
+    expect(body.requiredQuestions).toEqual(["references", "position"]);
+    expect(body.offeredDocumentSlots).toEqual(["cdl_front", "cdl_back", "medical_card", "twic"]);
+  });
+
+  it("§11: serves null for an invitation sent before the stamp, and every document when the carrier never chose", async () => {
+    holder.client = seed({}, { recruiting_settings: [] }).client;
+    const body = (await (await call(`/${TOKEN}`)).json()) as { requiredQuestions: string[] | null; offeredDocumentSlots: string[] };
+    expect(body.requiredQuestions).toBeNull();
+    expect(body.offeredDocumentSlots).toContain("passport");
+    expect(body.offeredDocumentSlots).toContain("ssn_card");
+  });
+
   it("hands back what the office corrected, without naming who corrected it", async () => {
     // ⚠ D-AX12: the driver is about to certify that every entry is true, so they are owed the
     // changes somebody else made to their statement. Who typed it is the carrier's own record.
