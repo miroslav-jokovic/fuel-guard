@@ -685,6 +685,56 @@ steps, someone ticks it (or files its paper), and the hire waits for it when the
 
 ---
 
+## 11. Required questions and documents offered — two more settings (2026-11-02)
+
+§8.2's fourth and fifth items, next in §9.3's order after the checklist editor. The owner said build
+as proposed (2026-11-02).
+
+**What it is for.** Today the seven questions an applicant must answer are a flag on `SILVICOM_DRIVER_V3`
+(§9 P8), and Part 2's "Your documents" offers every slot (§9 P9). A carrier that does not care how a
+driver heard about it, or that never wants a passport photo, cannot say so; a carrier that wants the
+references answered cannot either. After S2 both are lists of checkboxes in Settings → Recruiting.
+
+**The hard part is the draft in flight.** A question made required on Tuesday must not refuse, on
+Thursday, an applicant who answered the form on Monday without being asked for it — the reason a draft
+carries its `questionnaire_version` (§9 P8). A carrier's setting is not a new version of the questions
+(the words are unchanged), so it cannot ride that mechanism; it needs its own snapshot, taken at the
+moment the applicant is served the form.
+
+**Decisions** (assumed as §8.3 assumed its rulings; the owner's to overturn):
+
+| ID | Decision | Why |
+|---|---|---|
+| D-RS1 | `recruiting_settings.required_questions text[]`, **null = the product default** (the served definition's own `required` flags — today Q-WF3's seven). Non-null is exactly the set required; empty means nothing is. | Null keeps every carrier on what it has today without a backfill, and keeps "has this carrier decided?" answerable. |
+| D-RS2 | **Which questions MAY be required is derived in TypeScript** from the served definition: every question except one asked only after another's answer (`askedWhen`: "If so, when?") and the reserved EEO key. Not listed in SQL; a stored id the definition does not have is ignored on read. | §10 D-CE3's rule: a CHECK naming question ids would be a second questionnaire. A conditional question required would refuse an applicant who was never asked it. |
+| D-RS3 | **The set is stamped on the invitation once, at the office's first Send** (`application_invitations.required_questions`, written by `send_application_invitation`'s new `p_required_questions`, only while `application_sent_at` is still null). The API resolves the set in TypeScript (the setting, or the default from D-RS1) and passes it; SQL only stores it. A resend never restamps. **Null on an invitation = sent before S2**, and reads exactly as today: the flags of the draft's own `questionnaire_version`. | The Send is when the applicant is first served the questions; stamping there is the version mechanism's twin. Resolving in TS keeps the default derived (D-RS2), not copied into SQL. |
+| D-RS4 | **The rule reads the stamp from the payload**: `questionnaire_required` (nullish, ≤ 60 ids) beside `questionnaire_version` in the application contract. The applicant's bundle serves the invitation's stamp and the wizard lays it on the candidate, so the per-screen check, the send check and the review's missing list read one function (`requiredQuestionIds(definition, stamp)`). **The API never believes the client's copy**: `submitApplication` overwrites it with the invitation's stamp and re-runs the rules before filing. | One function, two validators, one answer (the contract comment's promise). The filed payload then records which questions were required of this applicant. |
+| D-RS5 | **A required question loses its skip.** "I'd rather not say" on a question the carrier requires is not an answer: the screen does not offer it and the rule counts the stored skip as unanswered. | Otherwise requiring `references` would be satisfied by the one-tap way out of it. |
+| D-RS6 | `recruiting_settings.offered_document_slots text[]`, **null = every slot** (P9's behaviour). Non-null is the set Part 2 offers. **The licence (Part 1's `cdl_front`/`cdl_back`) and the medical card (§391.41/§391.43, a DQ-file item) are always offered**; which slots may be withheld is derived from the capture catalogue in TypeScript. Not stamped: offering fewer documents refuses nothing (`APPLICATION_CAPTURE_REQUIRED` is empty), so the live setting is read. A capture already staged in a withheld slot is kept and filed — nothing the applicant sent is dropped. | Same derivation rule as D-RS2. A withheld slot is a hidden button, not a refusal. |
+| D-RS7 | Both fields are **optional on the PUT, absent = keep what is stored**, as every field added to the settings since 0536. Settings → Recruiting gets two checkbox lists, each with "Use the standard set" (writes null). | A screen served before S2 must not clear them. |
+
+**Open questions** (each has a recommendation; none blocks S1/S2):
+
+- **Q-RS1 — Should the office see, on the applicant record, which questions were required of this
+  applicant?** Recommend no for now: the filed payload records it (D-RS4); a screen for it waits for
+  somebody to ask.
+- **Q-RS2 — Carrier-written questions** (a question the carrier types itself)? Not in this step: that is
+  a per-carrier questionnaire definition — `questionnaireForApplicant`'s header already names it as an
+  `organizations` column and an argument. Recommend waiting for a second carrier whose form differs.
+- **Q-RS3 — Should the applicant's existing hole close too?** The client sends `questionnaire_version`
+  and the API believes it, so a hand-made body naming v2 skips v3's required flags. D-RS4 closes it for
+  every invitation stamped after S2 (the stamp decides, whatever version is named); invitations stamped
+  null keep today's behaviour. Recommend no further change.
+
+**The build.** A migration and its reader in two merges:
+
+| PR | What | Schema |
+|---|---|---|
+| **S1** | Migration **0550** (0547–0549 are the office chat's): `recruiting_settings.required_questions`, `recruiting_settings.offered_document_slots`, `application_invitations.required_questions`; `send_application_invitation` widened with `p_required_questions text[] default null` (the 4-argument call still resolves, so code served before S2 keeps working) and stamping once. | migration |
+| **S2** | The reader: `requiredQuestionIds` / `offeredDocumentSlots` in `packages/shared`; the contract's `questionnaire_required`; the rule, the skip, the bundle, the wizard, `submitApplication`'s overwrite and re-check; `applicationSend.ts` passes the resolved set; the capture route and "Your documents" read the offered slots; Settings → Recruiting's two lists; Spanish for every applicant-facing string. | none |
+
+---
+
 ## 7. Progress log
 
 - **2026-10-31** — Audit written. Measured on production: 0 filed applications, 4 drafts, 1 real
@@ -829,3 +879,10 @@ steps, someone ticks it (or files its paper), and the hire waits for it when the
   beside `steps`, not rows in it — every `steps` reader switches on the closed `HiringStepKey` union.
   25/25 mutants killed (10 shared, 10 API, 5 web); two survivors on the first pass (declining the
   confirm; the done count) got their tests.
+- **2026-11-02** — **CE2 merged (#1929, `739213c`), no migration.** As above.
+- **2026-11-02** — **§11 written; S1 (this PR), migration `0550_hiring_question_document_settings`.**
+  Numbered 0550, not 0547: the office chat took 0547 (`office_chat_line_links`, #1932) before this
+  started, then 0548 (`office_chat_compliance_search_index`) while it was in CI and 0549 in an open PR;
+  renumbered by name before merge. Two carrier settings (required questions, documents offered), the required set stamped on
+  the invitation at its first Send, `send_application_invitation` widened with a defaulted fifth
+  argument. Reader: S2.
