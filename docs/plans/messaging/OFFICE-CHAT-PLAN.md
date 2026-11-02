@@ -473,6 +473,25 @@ pattern costs one column and one trigger per kind, so waiting costs nothing.
   rule), because a label becomes a subject and a subject is written into the chat ledger. Read under
   `fuel` view, as `GET /api/card-fraud-incidents/:id` is; it opens at `/fuel-problems?incident=`.
 
+
+### 9.5 CH12's shape (2026-11-02)
+
+D-CHAT16 set AI catch-up's rules: off by default, on demand only, over what the caller may read, a
+per-person daily cap, ledgered. Building it settled two things the rule left open.
+
+- **D-CHAT37 — the switch is a module, `chat_ai`.** The Permissions page grants SCREENS, each with a route,
+  and "Catch me up" is a button inside /chat. A module is off until a row says on (`org_module_enabled`,
+  0088) and the platform console turns it on per carrier — so a model's cost is switched on by whoever
+  pays for it, never by the side door. Inside a carrier with it on, every chat user may ask, 20 times in
+  any 24 hours.
+- **D-CHAT38 — "already read" means "may read".** Read literally, "runs over messages the caller already
+  read" summarises what needs no summary. It was written as the plan's rule everywhere else: content the
+  caller may see. A catch-up reads the caller's UNREAD lines of one conversation they are in — after their
+  read boundary, the newest 200 at most, retracted lines left out — and asking marks nothing read.
+- The ledger keeps the summary's SHA-256, the seq range, the line count, the model and the tokens — not
+  the summary, which is a model's words about lines the ledger already holds. The tokens count in the
+  carrier's month (`org_usage_month`), the budget gate's one source.
+
 ## 10. Open questions
 
 | ID | Question | Candidates | Recommendation |
@@ -727,8 +746,9 @@ TechRepublic / Windows Report on Teams 2026 updates.
   read: the two revokes (0412 closes every new function to clients already; they stay, as every chat
   migration states them), and four clauses that were removed — a no-words shortcut (a null tsquery
   matches nothing), a second org filter the thread's covers, and quote escaping no lexeme can need.
-  **Open:** the compliance console still searches with `ilike` over every prior version (0516), which
-  this index does not hold; moving it means indexing `message_versions` too — its own merge. Next: CH8b,
+  **Open (closed by 0548, 2026-11-02):** the compliance console still searches with `ilike` over every
+  prior version (0516), which this index does not hold; moving it means indexing `message_versions` too —
+  its own merge. Next: CH8b,
   the API (`GET /api/chat/search`) and the header and rail search, once 0542 is on staging.
 - 2026-11-02: **CH8b built — search, the API and the web** (`claude/chat-ch8-search-web`), on 0542 (merged
   in #1913, applied to staging). API `GET /api/chat/search?q=&thread=&before_at=&before_id=`
@@ -836,3 +856,19 @@ TechRepublic / Windows Report on Teams 2026 updates.
   function's fault: a leading-zero rule the join made redundant (dropped), a second org filter the
   thread's covered (dropped), and no row with another carrier's unit or load named in our line (added);
   the fourth is 0412's revoke. Next: the API and the web, once 0547 is on staging.
+- 2026-11-02: **#1931 MERGED — CH11 complete.** **The console's search moves onto the index**
+  (`claude/chat-compliance-fts`, migration 0548), 0542's open item: `message_versions` indexed by the same
+  expression, and the console's message search and its search export match as a person's search does —
+  every word, as a word's beginning, an edit's removed words still found. Said in the migration for the
+  reviewer: words, not fragments ("night" finds "nights", not "midnight"); a search of only symbols finds
+  nothing rather than everything. `chat_compliance_like` had no caller left and is dropped. Matrix
+  `office-chat-compliance.test.mjs` 40 rows (5 new, placed last because each search is itself a ledgered
+  act the earlier rows count); 9 mutants across both functions, 8 failed rows, the ninth a guard the
+  null tsquery made redundant, removed.
+- 2026-11-02: **CH12, the database half** (`claude/chat-ai-catchup-db`, migration 0549, §9.5, D-CHAT37/38):
+  `chat_ai` module key; `ai_catchup` ledger action; `chat_catchup_lines` (the unread lines, newest 200,
+  marks nothing read), `chat_catchup_left` (20 in any 24 hours) and `chat_catchup_record` (re-checks the
+  cap — CH017 — ledgers the row, counts the tokens in the month). Matrix `office-chat-catchup.test.mjs`
+  (23 rows); 17 mutants, all failed rows after the month's accumulation got its own row. The 24-hour
+  window is held by the function's text: the ledger stamps its own time, so no row can be aged — the
+  property that makes it evidence. Next: the API (the model call) and the web, once 0549 is on staging.
