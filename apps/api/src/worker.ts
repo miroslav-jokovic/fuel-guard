@@ -90,6 +90,8 @@ const KIND_CAPS: Record<string, number> = {
   // "two campaigns of one org advance concurrently" is A6's done-when. A vendor's own rate limit is its
   // adapter client's to honour (B1 reads Meta's x-business-use-case-usage), not a queue-wide guess.
   ads_step: 2,
+  // One at a time: a sync is a handful of Meta writes against one account's rate limit (B3b).
+  ads_rules_sync: 1,
   // sharp is CPU-bound; two at a time keeps a burst of uploads from starving the sync kinds.
   document_derive: 2,
 };

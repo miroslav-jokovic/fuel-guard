@@ -126,8 +126,11 @@ after boot, the `dq-export-sweeper` shape. A bounded indexed read that returns n
 `ads-orchestrator` is BUILT (A6, 2026-11-02; `modules/ads/orchestrator/tick.ts`): every minute,
 first tick 90 s after boot, one `ads_step` job (`KIND_CAPS` 2 — a step makes at most one platform
 call) per campaign the agent has work in, `dedup_key` = `ads_step:<campaign>:<state>`. Off unless
-`ADS_ENABLED=true`; until B1/B2/C land it has no worker to hand anything to, so even switched on it
-queues only the kill switch's pause of a launching or live campaign. The other three are still
+`ADS_ENABLED=true`. Since B3a (2026-11-02) its `platform` worker is real, so switched on it queues
+the launching and pausing steps, and a pause reaches Meta. `createPaused` and `compose` are still
+empty (B2c, C), so no campaign reaches `paused`, and so none reaches launch, unattended. One non-scheduler
+kind sits beside it: **`ads_rules_sync`** (B3b, `KIND_CAPS` 1). It is queued by the settings save door,
+not by a timer, and rewrites the account's Meta Automated Rules. The other three schedulers are still
 planned (B4/B5). The
 `general` lane, not `egress`: `egress` exists for the one host WEX allowlists, and Meta, TikTok, X
 and Higgsfield check no caller address, so these follow FleetPal and Med-Stop's placement, not the

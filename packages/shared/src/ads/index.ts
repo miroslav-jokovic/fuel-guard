@@ -8,6 +8,7 @@ export * from "./adClaims.js";
 export * from "./presetDraw.js";
 export * from "./naming.js";
 export * from "./metaLeadForm.js";
+export * from "./adsRulesSpec.js";
 export * from "./renderGeometry.js";
 export * from "./adsReport.js";
 export * from "./aiRail.js";

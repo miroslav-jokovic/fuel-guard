@@ -49,6 +49,9 @@ beforeEach(() => {
       ads_actions: [{ id: "act-1" }],
       ads_campaigns: [{ id: CAMPAIGN }],
       ads_approvals: (q) => (q.write ? [{ id: "appr-1" }] : []),
+      // B3b: a settings save queues the Automated Rules sync; inline here, over no connections.
+      jobs: [{ id: "job-1" }],
+      ads_platform_connections: [],
     },
   });
   holder.client = db.client;
@@ -90,8 +93,10 @@ describe("/api/ads — who may do what", () => {
     const res = await call("PUT", "settings", body);
     expect(res.status).toBe(200);
     expect(settingsWrites()).toEqual([expect.objectContaining({ org_id: ORG, version: 2, kill_switch: false })]);
+    expect(db.writtenRows("jobs")).toContainEqual(expect.objectContaining({ org_id: ORG, kind: "ads_rules_sync" }));
     // `user_profiles` is keyed by the caller's own user id (`displayNameFor`): a person's name, not org data.
-    expectOrgScoped(db, ORG, { exempt: ["user_profiles"] });
+    // `jobs`: the queue's ledger finishes its own row by primary key (`runJob`); its insert carries the org.
+    expectOrgScoped(db, ORG, { exempt: ["user_profiles", "jobs"] });
   });
 
   it("a manager presses the kill switch without a password prompt; only an admin clears it, freshly signed in", async () => {

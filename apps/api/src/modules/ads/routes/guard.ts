@@ -9,6 +9,7 @@ import { displayNameFor } from "../../../lib/memberLabels.js";
 import { recordApproval } from "../guard/approvals.js";
 import { setKillSwitch } from "../guard/killSwitch.js";
 import { mountConnectionRoutes } from "./connections.js";
+import { dispatchJob } from "../../../queue/dispatch.js";
 import { saveSettingsVersion, settingsInForce, type Actor } from "../settings/settingsVersions.js";
 
 /**
@@ -67,6 +68,9 @@ export function adsRouter(): Router {
       }
       const saved = await saveSettingsVersion(getSupabaseAdmin(getAppLocals(req).env), req.auth!.orgId!, await actorOf(req), { settings: parsed.data.settings });
       if (saved === "conflict") return conflict(res);
+      // B3b: Meta's Automated Rules follow the new version, in the queue. A sync already queued is the
+      // queue's (org, kind) slot answering "on it", and it reads the newest version when it runs.
+      await dispatchJob(getSupabaseAdmin(getAppLocals(req).env), getAppLocals(req).env, "ads_rules_sync", { orgId: req.auth!.orgId! });
       res.json({ version: saved.version });
     }),
   );
