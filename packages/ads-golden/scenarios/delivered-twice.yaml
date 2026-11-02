@@ -1,0 +1,20 @@
+name: "The same compose step delivered twice at once moves the campaign once"
+why: >
+  The queue is at-least-once: a lease can expire on a slow, alive job and a second worker picks it up
+  while the first still runs. Both runs hand the worker the same key; the transition key
+  (`transition:<id>:<stint>:<event>`) lets only one move happen and be recorded.
+covers: [delivered_twice]
+verifiedBy: "Claude (7d), from transitions.ts header"
+campaigns:
+  - { id: c1, state: composing }
+timeline:
+  - deliver_twice: true
+  - tick: 1
+  - settle: true
+expect:
+  states: { c1: review }
+  last_error: { c1: null }
+  ledger:
+    c1:
+      - "composing -creatives_ready-> review succeeded"
+  vendor: { compose: 2 }

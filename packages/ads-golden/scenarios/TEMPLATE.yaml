@@ -1,0 +1,53 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# ADS GOLDEN SCENARIO TEMPLATE — copy to a new name (one scenario per file) and fill it in.
+# See AUTHORING.md. Skipped by the loader.
+#
+# THE INDEPENDENCE RULE: write `expect` from the rules (campaignMachine.ts, runner.ts, the guard,
+# approvals.ts), never by running the orchestrator and pasting what it did.
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: "One sentence a reader understands: what happens and what must follow"
+why: >
+  The rule the expectation comes from, citing the file and its header section.
+covers: [happy_path]          # happy_path · crash · delivered_twice · two_campaigns · kill_switch ·
+                              # approval_missing · budget_exhausted · settings_changed · vendor_fault
+verifiedBy: "Who wrote the expectation, and from what"
+
+settings: live                # live (adsWorld.LIVE_SETTINGS) | unset (never saved: every launch refused)
+kill_switch: false
+account_limit_cents: 300000   # the ad account's own limit as Meta reports it; null = unreadable
+
+campaigns:                    # daily_budget_cents 5000 and lifetime_cap_cents 50000 unless given
+  - { id: c1, state: draft }
+
+approvals: []                 # [{ campaign, daily_budget_cents, lifetime_cap_cents }]
+spend: []                     # [{ campaign, hour?, spend_cents }] — month-to-date the guard reads
+
+vendor:                       # one answer per call, the last repeats: ok · fail:<code> · throw · ok+kill · absent
+  compose: [ok]
+  create: [ok]
+  launch: [ok]
+  pause: [ok]
+
+timeline:                     # one key per step
+  - settle: true              # tick until a tick runs no job (≤ 10)
+  # - tick: 1                 # one tick: the orchestrator queues, every queued job runs at once
+  # - person:   { campaign: c1, event: creatives_approved }
+  # - approver: { campaign: c1, event: launch }
+  # - platform: { campaign: c1, event: platform_paused }
+  # - approve:  { campaign: c1, daily_budget_cents: 5000, lifetime_cap_cents: 50000 }
+  # - kill_switch: true
+  # - settings: { daily_max_cents: 4000 }      # also monthly_cap_cents (Meta), lifetime_max_cents
+  # - spend:    { campaign: c1, spend_cents: 200000 }
+  # - crash:    { table: ads_actions, nth: 2 } # the Nth write from here dies
+  # - deliver_twice: true                      # the next tick runs each job twice at once
+  # - advance:  { hours: 1 }
+
+expect:
+  states: { c1: review }      # every seeded campaign
+  last_error: { c1: null }
+  ledger:                     # the WHOLE ads_actions ledger of the campaign, in order
+    c1:
+      - "draft -compose-> composing succeeded"
+      - "composing -creatives_ready-> review succeeded"
+  vendor: { compose: 1 }      # compose · create · creates (distinct objects) · launch · pause

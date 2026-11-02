@@ -1,0 +1,30 @@
+name: "The launch step delivered twice at once: Meta is called once, and the campaign ends paused (Q-AD23)"
+why: >
+  The bar is §4R's: never two launches for one approval. The second delivery finds the first's
+  launch row `started` and cannot tell "in flight" from "the process died". runner.ts pauses an
+  unknown outcome (the safe direction), and that pause wins the move, so the first delivery's
+  `launched` move is refused as state_moved. The ad was launched and then paused at the platform,
+  and the ledger says both. That a successful launch ends paused is Q-AD23 (ADS-AGENT-PLAN.md §9),
+  recorded rather than routed around. If (b) is chosen there, this expectation becomes live.
+covers: [delivered_twice]
+verifiedBy: "Claude (7d), from runner.ts header + approvals.ts single use; outcome flagged as Q-AD23"
+campaigns:
+  - { id: c1, state: paused }
+approvals:
+  - { campaign: c1, daily_budget_cents: 5000, lifetime_cap_cents: 50000 }
+timeline:
+  - approver: { campaign: c1, event: launch }
+  - deliver_twice: true
+  - settle: true
+expect:
+  states: { c1: paused }
+  last_error: { c1: null }
+  ledger:
+    c1:
+      - "paused -launch-> launching succeeded"
+      - "launch succeeded"
+      - "launching -pause-> pausing succeeded"
+      - "launching -launched-> live failed"
+      - "pause succeeded"
+      - "pausing -paused-> paused succeeded"
+  vendor: { launch: 1, pause: 1 }

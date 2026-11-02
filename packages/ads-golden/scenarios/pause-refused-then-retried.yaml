@@ -1,0 +1,25 @@
+name: "The kill switch's pause is throttled by the platform: the campaign stays pausing, says why, and the next tick asks again"
+why: >
+  runner.ts pauseStep: "a stuck pause is retried every tick and every attempt is a row, which is loud
+  on purpose". `pause_failed` stamps a new stint of pausing, so the second attempt has its own key.
+covers: [kill_switch, vendor_fault]
+verifiedBy: "Claude (7d), from runner.ts pauseStep"
+kill_switch: true
+campaigns:
+  - { id: c1, state: live }
+vendor:
+  pause: ["fail:rate_limited", "ok"]
+timeline:
+  - tick: 2
+  - settle: true
+expect:
+  states: { c1: paused }
+  last_error: { c1: null }
+  ledger:
+    c1:
+      - "live -kill-> pausing succeeded"
+      - "pause failed"
+      - "pausing -pause_failed-> pausing succeeded"
+      - "pause succeeded"
+      - "pausing -paused-> paused succeeded"
+  vendor: { pause: 2, launch: 0 }

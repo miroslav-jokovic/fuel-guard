@@ -1,0 +1,28 @@
+name: "The kill switch pressed while the launch call is in flight: the launch lands, the next tick pauses it"
+why: >
+  A launch already on the wire cannot be called back; the guard read the switch off before sending.
+  The ad goes live, and the switch's second half (runner.ts: "the next tick moves every launching or
+  live campaign to pausing") pauses it within two ticks.
+covers: [kill_switch]
+verifiedBy: "Claude (7d), from runner.ts header"
+campaigns:
+  - { id: c1, state: paused }
+approvals:
+  - { campaign: c1, daily_budget_cents: 5000, lifetime_cap_cents: 50000 }
+vendor:
+  launch: ["ok+kill"]
+timeline:
+  - approver: { campaign: c1, event: launch }
+  - settle: true
+expect:
+  states: { c1: paused }
+  last_error: { c1: null }
+  ledger:
+    c1:
+      - "paused -launch-> launching succeeded"
+      - "launch succeeded"
+      - "launching -launched-> live succeeded"
+      - "live -kill-> pausing succeeded"
+      - "pause succeeded"
+      - "pausing -paused-> paused succeeded"
+  vendor: { launch: 1, pause: 1 }

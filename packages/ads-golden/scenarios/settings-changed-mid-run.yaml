@@ -1,0 +1,30 @@
+name: "The owner lowers the daily maximum mid-run: the next launch is refused under the new settings, and allowed again once restored"
+why: >
+  The guard reads the settings version IN FORCE at the act (settingsVersions.ts), never a copy taken
+  when the campaign started. A refused launch does not spend its approval (only started or
+  succeeded acts cite one, approvals.ts), so after the owner restores the limit the same yes launches.
+covers: [settings_changed]
+verifiedBy: "Claude (7d), from settingsVersions.ts + approvals.ts"
+campaigns:
+  - { id: c1, state: paused }
+approvals:
+  - { campaign: c1, daily_budget_cents: 5000, lifetime_cap_cents: 50000 }
+timeline:
+  - approver: { campaign: c1, event: launch }
+  - settings: { daily_max_cents: 4000 }
+  - settle: true
+  - settings: { daily_max_cents: 10000 }
+  - approver: { campaign: c1, event: launch }
+  - settle: true
+expect:
+  states: { c1: live }
+  last_error: { c1: null }
+  ledger:
+    c1:
+      - "paused -launch-> launching succeeded"
+      - "launch refused"
+      - "launching -launch_failed-> paused succeeded"
+      - "paused -launch-> launching succeeded"
+      - "launch succeeded"
+      - "launching -launched-> live succeeded"
+  vendor: { launch: 1 }

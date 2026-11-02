@@ -50,16 +50,32 @@ export function createAdsWorld(opts: {
   settings?: AdsSettings;
   approvals?: FixtureRow[];
   actions?: FixtureRow[];
+  /** Spend rows (`ads_spend_hourly`) — the guard's month-to-date. */
+  spend?: FixtureRow[];
+  /**
+   * The scenario's clock (7d, `FakeClock.now`). Every reading is still strictly after the last — a
+   * millisecond on when the clock has not moved — so two stamps never tie, the property the
+   * transition keys and `launchThisStint`'s `started_at >= state_changed_at` lean on.
+   */
+  clock?: () => Date;
 }) {
   const campaigns = opts.campaigns.map((c) => ({ ...c }));
   const actions: FixtureRow[] = (opts.actions ?? []).map((a) => ({ ...a }));
-  const settings = { kill: opts.kill ?? false };
+  // Mutable on purpose (7d): a golden scenario presses the switch or saves new settings mid-run, and
+  // each save is a new version, as `saveSettingsVersion` makes one.
+  const settings = { kill: opts.kill ?? false, value: opts.settings ?? LIVE_SETTINGS, version: 1 };
+  const approvals: FixtureRow[] = (opts.approvals ?? []).map((a) => ({ ...a }));
+  const spend: FixtureRow[] = (opts.spend ?? []).map((r) => ({ ...r }));
   const crashes = new Map<string, number[]>();
   const writes = new Map<string, number>();
   let seq = actions.length;
-  // A monotonic clock: every reading is one second after the last, so stamps never tie.
+  // A monotonic clock: every reading is one second after the last, so stamps never tie. With a
+  // scenario clock, its reading — or one millisecond after the last, when it has not moved.
   let tick = 0;
-  const now = () => new Date(Date.parse(T0) + 1000 * ++tick);
+  let last = 0;
+  const now = opts.clock
+    ? () => new Date((last = Math.max(opts.clock!().getTime(), last + 1)))
+    : () => new Date(Date.parse(T0) + 1000 * ++tick);
 
   const crashed = (table: string): boolean => {
     const n = (writes.get(table) ?? 0) + 1;
@@ -104,12 +120,12 @@ export function createAdsWorld(opts: {
         return postgrestFixture(actions)(q);
       },
       ads_settings_versions: () => [{
-        id: "set-1", version: 1, settings: opts.settings ?? LIVE_SETTINGS, kill_switch: settings.kill,
+        id: `set-${settings.version}`, version: settings.version, settings: settings.value, kill_switch: settings.kill,
         kill_reason: settings.kill ? "owner pressed it" : null, created_at: T0, created_by_name: "Owner",
       }],
-      ads_approvals: postgrestFixture(opts.approvals ?? []),
+      ads_approvals: postgrestFixture(approvals),
       ads_platform_connections: postgrestFixture([{ id: CONN, org_id: ORG, provider: "meta" }]),
-      ads_spend_hourly: [],
+      ads_spend_hourly: postgrestFixture(spend),
     },
   });
 
@@ -120,6 +136,15 @@ export function createAdsWorld(opts: {
     campaigns,
     actions,
     settings,
+    approvals,
+    spend,
+    /** A new settings version in force from the next read (the owner saved). */
+    saveSettings(value: AdsSettings) {
+      settings.value = value;
+      settings.version += 1;
+    },
+    /** Writes so far to `table` (the crash sweep counts a clean run's, then crashes at each). */
+    writesTo: (table: "ads_campaigns" | "ads_actions") => writes.get(table) ?? 0,
     byId: (id: string) => campaigns.find((c) => c.id === id)!,
     transitions: (id?: string) => actions.filter((a) => a.kind === "transition" && (!id || a.campaign_id === id)),
     /** The Nth write (1-based, counted from now) to `table` fails as a crash there would. */
