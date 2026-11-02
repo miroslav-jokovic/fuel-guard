@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useChatLineLinksHere } from "./useChatLineLinks";
 import { computed, nextTick, ref, watch } from "vue";
 import { AppButton as BaseButton, AppIcon } from "@silvicom/ui";
 import { ChevronDownIcon } from "@silvicom/ui/icons";
@@ -65,6 +66,8 @@ const emit = defineEmits<{
 }>();
 
 const days = computed(() => groupLines(props.lines, props.viewerId, props.firstUnreadSeq));
+// Q-CHATUI6 (a): the load and truck numbers in the live lines, as the server finds them.
+const linkedLines = useChatLineLinksHere(computed(() => props.lines.flatMap((l) => (l.kind === "server" ? [l.message] : []))));
 
 const scroller = ref<HTMLElement | null>(null);
 const newest = computed(() => props.lines.at(-1));
@@ -179,6 +182,7 @@ defineExpose({ scroller, focusLast });
               :can-reply="canReply"
               :open="openPostId === row.line.message.id"
               :found="ring === row.line.message.id"
+              :links="linkedLines.byLine.value.get(row.line.message.id)"
               @edit="(id: string, body: string) => emit('edit', id, body)"
               @remove="(id: string) => emit('remove', id)"
               @reply="(id: string) => emit('reply', id)"

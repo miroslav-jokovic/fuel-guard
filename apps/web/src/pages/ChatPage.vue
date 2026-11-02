@@ -12,6 +12,7 @@ import ChatActivityStage from "@/features/chat/ChatActivityStage.vue";
 import ChatSavedStage from "@/features/chat/ChatSavedStage.vue";
 import ChatSearchStage from "@/features/chat/ChatSearchStage.vue";
 import { useChatThreadAbout } from "@/features/chat/useChatAbout";
+import { provideChatLineLinks } from "@/features/chat/useChatLineLinks";
 import { provideChatLineActs, useChatSavedQuery } from "@/features/chat/useChatLineActs";
 import { useChatActivityMarkRead, useChatActivityQuery, useChatActivityUnreadQuery } from "@/features/chat/useChatActivity";
 import ChatEmptyStage from "@/features/chat/ChatEmptyStage.vue";
@@ -174,6 +175,8 @@ const onEdit = (messageId: string, body: string) => edit.mutateAsync({ messageId
 const onRemove = (messageId: string) => retract.mutateAsync(messageId).catch(fail("Could not remove the message."));
 // React, pin and save (CH6c-2): provided once here, injected by every line's row in every stage.
 const lineActs = provideChatLineActs((message) => toast.error(message));
+// Q-CHATUI6 (a): every log on this page links the load and truck numbers its lines name.
+provideChatLineLinks();
 const saved = useChatSavedQuery(computed(() => entitled.value && savedOpen.value));
 
 const starting = ref(false);

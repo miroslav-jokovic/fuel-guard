@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, ref } from "vue";
-import type { ChatMessage, ChatReaction } from "@silvicom/shared";
+import type { ChatLineLink, ChatMessage, ChatReaction } from "@silvicom/shared";
 import { AppAvatar, AppButton as BaseButton, AppIcon, AppIconButton, AppTextarea as BaseTextarea } from "@silvicom/ui";
 import { BookmarkIcon, ChatIcon, PencilSquareIcon, PinIcon, TrashIcon, UnpinIcon } from "@silvicom/ui/icons";
 import ChatReactionBar from "./ChatReactionBar.vue";
@@ -51,6 +51,8 @@ const props = defineProps<{
   open?: boolean;
   /** CH8: the line a search result opened — ringed until the person moves on (`ChatMessageList`). */
   found?: boolean;
+  /** Q-CHATUI6: the load and truck numbers in this line, as the server found them (`useChatLineLinks`). */
+  links?: readonly ChatLineLink[];
 }>();
 const emit = defineEmits<{ edit: [messageId: string, body: string]; remove: [messageId: string]; reply: [messageId: string] }>();
 
@@ -146,7 +148,7 @@ function onKeydown(e: KeyboardEvent) {
       </template>
       <p v-else-if="!filesOnly" class="whitespace-pre-wrap break-words" :class="message.deleted_at ? 'italic text-ink-muted' : 'text-ink'">
         <template v-if="message.deleted_at">Message removed</template>
-        <template v-else><ChatBody :body="message.body ?? ''" :viewer-id="viewerId" /><span v-if="message.edited_at" class="ml-1 text-xs text-ink-muted">(edited)</span></template>
+        <template v-else><ChatBody :body="message.body ?? ''" :viewer-id="viewerId" :links="links" /><span v-if="message.edited_at" class="ml-1 text-xs text-ink-muted">(edited)</span></template>
         <slot name="stamp" :alone="false" />
       </p>
       <ChatAttachments v-if="!message.deleted_at && !editing" :files="message.attachments" />
