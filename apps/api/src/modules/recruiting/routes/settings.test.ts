@@ -69,7 +69,7 @@ describe("reading", () => {
     const res = await send("GET", "auditor");
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({
-      settings: { invite_ttl_days: 14, reminders_enabled: true, reminder_after_hours: 48, handbook_blocks_hire: false },
+      settings: { invite_ttl_days: 14, reminders_enabled: true, reminder_after_hours: 48, handbook_blocks_hire: false, videos_block_hire: false },
       isDefault: true,
       updatedAt: null,
     });

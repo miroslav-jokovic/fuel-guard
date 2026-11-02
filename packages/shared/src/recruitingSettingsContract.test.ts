@@ -19,6 +19,7 @@ describe("the defaults", () => {
       reminders_enabled: true,
       reminder_after_hours: STALE_DRAFT_HOURS,
       handbook_blocks_hire: HIRE_POLICY_DEFAULT.handbook_blocks_hire,
+      videos_block_hire: HIRE_POLICY_DEFAULT.videos_block_hire,
     });
     expect(recruitingSettingsSchema.safeParse(RECRUITING_SETTINGS_DEFAULTS).success).toBe(true);
   });

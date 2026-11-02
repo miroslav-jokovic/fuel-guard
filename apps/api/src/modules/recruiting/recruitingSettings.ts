@@ -24,7 +24,7 @@ import {
  * none. Two saves racing to create the row meet 0379's primary key; the loser's 23505 is answered by
  * updating the row the winner made, so the later press is the one that stands, as it would have been.
  */
-const COLS = "invite_ttl_days, reminders_enabled, reminder_after_hours, handbook_blocks_hire, updated_at";
+const COLS = "invite_ttl_days, reminders_enabled, reminder_after_hours, handbook_blocks_hire, videos_block_hire, updated_at";
 
 type Row = RecruitingSettings & { updated_at: string };
 
@@ -44,6 +44,7 @@ const pick = (r: RecruitingSettings): RecruitingSettings => ({
   reminders_enabled: r.reminders_enabled,
   reminder_after_hours: r.reminder_after_hours,
   handbook_blocks_hire: r.handbook_blocks_hire,
+  videos_block_hire: r.videos_block_hire,
 });
 
 /** What is in force for this org: its row, else the product's defaults. Throws on a failed read. */
@@ -68,7 +69,8 @@ export interface RecruitingSettingsSaved {
 
 /**
  * Writes every answer. The input is the contract's, already validated (bounds and the refine).
- * ⚠ §9 P12: a PUT without `handbook_blocks_hire` (a screen served before 0536's reader) keeps the value
+ * ⚠ §9 P12: a PUT without `handbook_blocks_hire` (a screen served before 0536's reader), or without
+ * HW8a's `videos_block_hire` (one served before 0539's reader), keeps the value
  * in force — "absent" is "unchanged", never "off".
  */
 export async function saveRecruitingSettings(
@@ -81,6 +83,7 @@ export async function saveRecruitingSettings(
   const complete: RecruitingSettings = {
     ...input,
     handbook_blocks_hire: input.handbook_blocks_hire ?? before.handbook_blocks_hire,
+    videos_block_hire: input.videos_block_hire ?? before.videos_block_hire,
   };
   const answers = { ...pick(complete), updated_by: userId };
 
