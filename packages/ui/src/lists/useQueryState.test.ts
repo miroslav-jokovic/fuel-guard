@@ -230,6 +230,57 @@ describe("useQueryState across callers on one route", () => {
   });
 });
 
+/**
+ * The buffer is a bridge over ONE navigation, and since 2026-10-12 it is shared by every page on the
+ * router — so a buffer that is not emptied when its navigation lands outlives the page that wrote it.
+ *
+ * ⚠ Found 2026-11-02 from the owner's report "when I switch pages the tabs stop responding until I
+ * refresh". The clear compared `buffer.value === merged`, and `ref()` hands back a reactive PROXY of
+ * the object it was given, so the comparison was never true and nothing written was ever dropped. A
+ * `?tab=` written on one page then sat on top of every later URL in the session: the next page that
+ * changes its tab with its own `router.replace` (Equipment, Shop) wrote the URL and read the pinned
+ * value back. Every test above mounts a fresh router, which is why none of them could see it.
+ */
+describe("useQueryState once its navigation has landed", () => {
+  it("lets the URL speak again, so Back and a plain replace are not overridden by an old write", async () => {
+    const { s, router } = await mountState();
+    s.set({ tab: "drivers" });
+    await settle();
+    await router.replace({ query: { tab: "shop" } });
+    await settle();
+    expect(s.one("tab")).toBe("shop");
+  });
+
+  it("does not carry one page's tab onto the next page that shares the router", async () => {
+    const router = createRouter({
+      history: createMemoryHistory(),
+      routes: [
+        { path: "/a", component: { template: "<div/>" } },
+        { path: "/b", component: { template: "<div/>" } },
+      ],
+    });
+    const states: UrlQueryState[] = [];
+    const C = defineComponent({
+      setup() {
+        states.push(useQueryState());
+        return () => h("div");
+      },
+    });
+    await router.push("/a");
+    await router.isReady();
+    mount(C, { global: { plugins: [router] } });
+    states[0]!.set({ tab: "invoices" });
+    await settle();
+
+    await router.push("/b");
+    mount(C, { global: { plugins: [router] } });
+    expect(states[1]!.one("tab")).toBeUndefined();
+    await router.replace({ query: { tab: "drivers" } });
+    await settle();
+    expect(states[1]!.one("tab")).toBe("drivers");
+  });
+});
+
 describe("oneParam", () => {
   it("treats an empty string the same as an absent parameter", () => {
     // `?cols=` is what a cleared filter leaves behind, and it must not read as a real value.
