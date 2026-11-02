@@ -2,7 +2,7 @@
 import { computed, ref } from "vue";
 import { chatPreview, chatTitle, type ChatConversation, type ChatTeam, type ChatTeamChannel } from "@silvicom/shared";
 import { AppAvatar, AppButton as BaseButton, AppIcon, AppSearchField, QueryState } from "@silvicom/ui";
-import { BellIcon, BookmarkIcon, ChatAddIcon, HashtagIcon, UserGroupIcon, UsersIcon } from "@silvicom/ui/icons";
+import { BellIcon, BookmarkIcon, ChatAddIcon, HashtagIcon, MagnifyingGlassIcon, UserGroupIcon, UsersIcon } from "@silvicom/ui/icons";
 import KebabMenu from "@/components/KebabMenu.vue";
 import KebabMenuItem from "@/components/KebabMenuItem.vue";
 import ChatUnreadCount from "./ChatUnreadCount.vue";
@@ -21,7 +21,8 @@ import { useChatNames } from "./chatNames";
  * its count in the brand accent (D-CHATUI5); a muted one keeps the count and never bolds. A team's
  * acts — New channel, Add people for its owner, Leave team — are its header's kebab, not three
  * buttons under every team. What a person may do is the database's to decide; these only show what it
- * would allow. The search filters by name across every section; it is this tab's, not a server call.
+ * would allow. The search filters by name across every section, in this tab; "Search messages for …"
+ * under it (and Enter) takes the same words to the Search stage, which asks the server (CH8).
  *
  * Two things the page's keys ask of it (D-CHATUI16): `focusSearch` for `/`, and `step` for J and K —
  * open the item after or before the open one in the rail's own order, Chats, then each team's
@@ -50,6 +51,8 @@ const emit = defineEmits<{
   "open-channel": [id: string];
   "open-activity": [];
   "open-saved": [];
+  /** CH8: search the lines themselves for the rail's words, on the Search stage. */
+  "search-messages": [q: string];
   join: [id: string];
   "new-conversation": [];
   "new-team": [];
@@ -75,6 +78,14 @@ const mutedCount = computed(() => mutedChats.value.length + mutedChannels.value.
 const nothingMatches = computed(
   () => !!q.value && chats.value.length === 0 && mutedCount.value === 0 && props.teams.every((t) => joinedOf(t).length === 0 && toJoinOf(t).length === 0),
 );
+
+/**
+ * Enter in the field, or the row under it: the same words, searched inside the lines (CH8). The field
+ * hands over its words already trimmed (AppSearchField), so they go as they are.
+ */
+function searchMessages() {
+  if (query.value) emit("search-messages", query.value);
+}
 
 const browsing = ref<Set<string>>(new Set());
 function toggleBrowse(spaceId: string) {
@@ -116,7 +127,7 @@ const channelLabel = (c: ChatTeamChannel) => `# ${c.name}${c.visibility === "pri
 <template>
   <aside ref="root" class="flex h-full min-h-0 flex-col border-r border-edge-subtle bg-canvas">
     <div class="flex shrink-0 items-center gap-2 border-b border-edge-subtle px-3 py-2.5">
-      <AppSearchField v-model="query" placeholder="Search chat" label="Search chat" :debounce="0" class="min-w-0 flex-1" />
+      <AppSearchField v-model="query" placeholder="Search chat" label="Search chat" :debounce="0" class="min-w-0 flex-1" @keydown.enter="searchMessages" />
       <!-- New (D-CHATUI23): a quiet compose button the height of the search, not a solid brand square —
            the loudest thing on the page used to be the way to start something done twice a day. Each
            choice says what it makes. -->
@@ -128,7 +139,16 @@ const channelLabel = (c: ChatTeamChannel) => `# ${c.name}${c.visibility === "pri
     </div>
 
     <nav class="min-h-0 flex-1 overflow-y-auto py-2" aria-label="Chats and channels">
-      <p v-if="nothingMatches" class="px-4 py-6 text-center text-sm text-ink-muted">Nothing in chat is called that.</p>
+      <!-- CH8: the filter above matches names; this asks the server for the words inside the lines. -->
+      <div v-if="q" class="px-2 pb-2">
+        <BaseButton type="button" size="row" block variant="ghost" class="rounded-control px-2 py-1.5" @click="searchMessages">
+          <span class="flex w-full min-w-0 items-center gap-3">
+            <span class="flex size-8 shrink-0 items-center justify-center text-ink-tertiary" aria-hidden="true"><AppIcon :icon="MagnifyingGlassIcon" class="size-4" /></span>
+            <span class="min-w-0 flex-1 truncate text-sm text-ink">Search messages for “{{ query }}”</span>
+          </span>
+        </BaseButton>
+      </div>
+      <p v-if="nothingMatches" class="px-4 py-6 text-center text-sm text-ink-muted">No conversation or channel is called that.</p>
 
       <!-- Activity, above Chats (CHAT-REDESIGN-PLAN §6): what named you or answered your posts. Not a search result. -->
       <div v-if="!q" class="px-2 pb-2">

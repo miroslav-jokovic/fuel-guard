@@ -213,6 +213,15 @@ describe("an open channel", () => {
     }
   });
 
+  it("Search in this channel opens the Search stage kept to it (CH8)", async () => {
+    const w = await render(`/chat?ch=${LOADS}`);
+    await w.find('button[aria-label="Channel actions"]').trigger("click");
+    await flushPromises();
+    bodyButtons("Search in this channel")[0]!.click();
+    await flushPromises();
+    expect(router.currentRoute.value.query).toEqual({ search: "", within: LOADS });
+  });
+
   it("asks before leaving a channel, and leaves nothing when declined", async () => {
     state.confirm.mockResolvedValue(false);
     const w = await render(`/chat?ch=${LOADS}`);

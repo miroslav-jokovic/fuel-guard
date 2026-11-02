@@ -41,7 +41,8 @@ export const activityKey = [...CHAT_KEY, "activity"] as const;
 const RELAXED_POLL = 60_000;
 const poll = (fallback: number) => () => (chatLinkState.value === "live" ? RELAXED_POLL : fallback);
 
-async function unwrap<T>(p: ReturnType<typeof apiFetch<T>>, fallback: string): Promise<T> {
+/** An API answer, or its error's words — the fallback when the server gave none. */
+export async function unwrap<T>(p: ReturnType<typeof apiFetch<T>>, fallback: string): Promise<T> {
   const res = await p;
   if (!res.ok || res.data === undefined || res.data === null) throw new Error(res.error?.message ?? fallback);
   return res.data;

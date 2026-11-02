@@ -299,6 +299,19 @@ http.createServer(async (req, res) => {
       }
       return json(res, 200, {});
     }
+    // CH8: search — every word a prefix of some word of the line, as 0542 reads them (dashes are spaces).
+    if (seg[2] === "search") {
+      const words = (url.searchParams.get("q") ?? "").toLowerCase().replace(/[-‐‑–—]/g, " ").split(/[^a-z0-9]+/).filter(Boolean);
+      const within = url.searchParams.get("thread");
+      const meta = (id) => convMeta[id] ?? (Object.values(CH).includes(id) ? { kind: "channel", subject: { [CH.general]: "General", [CH.west]: "west-region", [CH.roadside]: "roadside", [CH.shopGeneral]: "General", [CH.parts]: "parts" }[id] ?? "channel" } : { kind: "direct", subject: null });
+      const items = !words.length ? [] : Object.values(msgs).flat()
+        .filter((m) => !m.deleted_at && m.body && (!within || m.thread_id === within))
+        .filter((m) => { const own = m.body.toLowerCase().replace(/[-‐‑–—]/g, " ").split(/[^a-z0-9]+/); return words.every((w) => own.some((o) => o.startsWith(w))); })
+        .sort((a, b) => b.created_at.localeCompare(a.created_at))
+        .map((m) => ({ id: m.id, thread_id: m.thread_id, kind: meta(m.thread_id).kind, subject: meta(m.thread_id).subject, space_id: null,
+          parent_id: m.parent_id, seq: m.seq, sender_user_id: m.sender_user_id, sender_name: m.sender_name, body: m.body, created_at: m.created_at }));
+      return json(res, 200, { items, next: null });
+    }
     if (seg[2] === "saved") {
       const items = empty ? [] : Object.values(msgs).flat().filter((m) => m.saved && !m.deleted_at)
         .sort((a, b) => b.saved_at.localeCompare(a.saved_at))

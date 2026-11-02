@@ -10,6 +10,7 @@ import ChatRail from "@/features/chat/ChatRail.vue";
 import ChatConversationStage from "@/features/chat/ChatConversationStage.vue";
 import ChatActivityStage from "@/features/chat/ChatActivityStage.vue";
 import ChatSavedStage from "@/features/chat/ChatSavedStage.vue";
+import ChatSearchStage from "@/features/chat/ChatSearchStage.vue";
 import { provideChatLineActs, useChatSavedQuery } from "@/features/chat/useChatLineActs";
 import { useChatActivityMarkRead, useChatActivityQuery, useChatActivityUnreadQuery } from "@/features/chat/useChatActivity";
 import ChatEmptyStage from "@/features/chat/ChatEmptyStage.vue";
@@ -84,7 +85,11 @@ const selectedId = computed(() => (channelId.value ? null : param("c").value));
 const activityOpen = computed(() => !channelId.value && !selectedId.value && route.query.activity === "1");
 // Saved (CH6c-2) is another such place, `?saved=1`.
 const savedOpen = computed(() => !channelId.value && !selectedId.value && !activityOpen.value && route.query.saved === "1");
-const open = computed(() => !!(selectedId.value || channelId.value || activityOpen.value || savedOpen.value));
+// Search (CH8) is a third, `?search=<words>`, kept to one conversation or channel by `within`.
+const searchOpen = computed(() => !channelId.value && !selectedId.value && !activityOpen.value && !savedOpen.value && typeof route.query.search === "string");
+const searchWords = computed(() => (typeof route.query.search === "string" ? route.query.search : ""));
+const searchWithin = param("within");
+const open = computed(() => !!(selectedId.value || channelId.value || activityOpen.value || savedOpen.value || searchOpen.value));
 
 // `query: { c }` and never a copy of the old query: vue-router would keep `ch`, `post` and `view`.
 function openConversation(id: string) {
@@ -98,6 +103,27 @@ function openActivity() {
 }
 function openSaved() {
   if (!savedOpen.value) void router.push({ query: { saved: "1" } });
+}
+/** Search, everywhere or `within` one conversation or channel. Typing replaces the address, so Back leaves search. */
+function openSearch(words: string, within: string | null = null) {
+  void router.push({ query: { search: words, ...(within ? { within } : {}) } });
+}
+function retypeSearch(words: string) {
+  void router.replace({ query: { search: words, ...(searchWithin.value ? { within: searchWithin.value } : {}) } });
+}
+/** A channel `within` is called by its name, a conversation by the rail's title for it. */
+const channelOf = (id: string) => teams.value.flatMap((t) => t.channels).find((c) => c.thread_id === id) ?? null;
+const withinLabel = computed(() => {
+  const id = searchWithin.value;
+  if (!id) return null;
+  const ch = channelOf(id);
+  return ch ? `# ${ch.name}` : titleOf(id);
+});
+/** Back from a search kept to one place returns to it; from everywhere, to nothing open. */
+function leaveSearch() {
+  const id = searchWithin.value;
+  if (!id) { closeAll(); return; }
+  void router.push({ query: channelOf(id) ? { ch: id } : { c: id } });
 }
 /** Back to the rail on a phone; nothing open on a desk. */
 function closeAll() {
@@ -246,6 +272,7 @@ useChatShortcuts((s) => {
         @open-channel="openChannel"
         @open-activity="openActivity"
         @open-saved="openSaved"
+        @search-messages="(words: string) => openSearch(words)"
         @join="rail.onJoin"
         @new-conversation="starting = true"
         @new-team="rail.creatingTeam.value = true"
@@ -289,6 +316,18 @@ useChatShortcuts((s) => {
           @retry="saved.refetch()"
           @back="closeAll"
         />
+        <ChatSearchStage
+          v-else-if="searchOpen"
+          :q="searchWords"
+          :within="searchWithin"
+          :within-label="withinLabel"
+          :viewer-id="session.userId ?? ''"
+          :title-of="titleOf"
+          @update:q="retypeSearch"
+          @everywhere="openSearch(searchWords)"
+          @open="(query: Record<string, string>) => router.push({ query })"
+          @back="leaveSearch"
+        />
         <ChatConversationStage
           v-else-if="selectedId && conversation.data.value"
           :data="conversation.data.value"
@@ -304,6 +343,7 @@ useChatShortcuts((s) => {
           @edit="onEdit"
           @remove="onRemove"
           @mute="onMute"
+          @search="openSearch('', selectedId)"
           @back="closeAll"
         />
         <div v-else class="flex flex-1 items-center justify-center px-6 text-center text-sm text-ink-muted">

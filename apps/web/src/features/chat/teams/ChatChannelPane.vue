@@ -52,6 +52,7 @@ const emit = defineEmits<{
   mute: [level: ChatMuteLevel];
   back: [];
   earlier: [];
+  search: [];
 }>();
 
 const lines = computed(() => mergeLines(props.page.posts, props.pending, props.channel.thread_id));
@@ -81,6 +82,8 @@ const openFiles = () => { filesMounted.value = true; filesOpen.value = true; };
       glyph="channel"
       :people="members?.map((m) => ({ id: m.user_id, label: m.name }))" back-label="Back to chats and channels" @back="emit('back')">
       <KebabMenu trigger-label="Channel actions" placement="bottom-end">
+        <!-- CH8: search kept to this channel, its posts and their replies alike. -->
+        <BaseButton class="kebab-item" @click="emit('search')">Search in this channel</BaseButton>
         <BaseButton class="kebab-item" @click="openPins">Pinned messages</BaseButton>
         <BaseButton class="kebab-item" @click="openFiles">Files</BaseButton>
         <ChatMuteItems :muted="channel.muted" @set="(level: ChatMuteLevel) => emit('mute', level)" />
