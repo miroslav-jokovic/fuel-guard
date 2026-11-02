@@ -319,6 +319,11 @@ jobs:
       # it.skip, a census narrowed to one BOL. Turned on at zero violations.
       - name: The BOL reader's Promise-1 tests are in force
         run: pnpm lint:reader-gate
+      # Added 2026-11-02 (ADS-AGENT-BUILD-WORKFLOW §4R, step 8). The tests that put each ads worker at its readiness
+      # level must not leave quietly — a renamed file, an it.skip, a golden scenario deleted — or the scorecard
+      # would claim a level nobody can show. Open gaps are listed, not failed. Turned on at zero violations.
+      - name: The ads readiness tests are in force
+        run: pnpm lint:ads-readiness
 
       # Added 2026-09-20. D-DS17 pinned MM/dd/yyyy on 2026-08-31 but stated it for a COMPONENT, so
       # only the two date pickers obeyed it and nothing could see the drift: 13 duplicate fmtDate
