@@ -31,6 +31,7 @@ const state = vi.hoisted(() => ({
   activityAsked: [] as boolean[],
   saved: [] as unknown[],
   save: vi.fn(async () => undefined),
+  aboutAsked: [] as Array<string | null>,
 }));
 
 vi.mock("@/composables/useModules", async () => {
@@ -71,6 +72,16 @@ vi.mock("@/features/chat/useChat", async () => {
   };
 });
 // CH6c-2: the line acts and the Saved list. Real `provide` so the page's provider runs as written.
+// CH11b: what a group is about. The page asks only for a group, and hands the stage the link.
+vi.mock("@/features/chat/useChatAbout", async () => {
+  const { computed, watch } = await import("vue");
+  return {
+    useChatThreadAbout: (id: { value: string | null }, isGroup: { value: boolean }) => {
+      watch(() => [id.value, isGroup.value] as const, ([v, g]) => state.aboutAsked.push(g ? v : null), { immediate: true });
+      return { link: computed(() => (isGroup.value && id.value ? { label: "Load L-20481", to: "/loads/L" } : null)) };
+    },
+  };
+});
 vi.mock("@/features/chat/useChatLineActs", async () => {
   const { computed, provide, ref } = await import("vue");
   return {
@@ -217,6 +228,23 @@ describe("ChatPage", () => {
     const { w } = await render(`/chat?c=${T}`);
     expect(state.markRead).toHaveBeenCalledWith({ threadId: T, seq: 7 });
     expect(w.findComponent({ name: "ChatConversationStage" }).props("firstUnreadSeq")).toBe(6);
+  });
+
+  it("asks what a group is about and hands its header the link; a direct conversation asks nothing (CH11b)", async () => {
+    state.aboutAsked = [];
+    const detail = (kind: "group" | "direct") => ({
+      conversation: { thread_id: T, kind, subject: "Load L-20481", title_members: [], member_count: 3, unread: 0, last_seq: 1, read_seq: 1 },
+      members: [], messages: [], before_seq: null,
+    });
+    state.detail = detail("group");
+    const { w } = await render(`/chat?c=${T}`);
+    expect(state.aboutAsked).toContain(T);
+    expect(w.findComponent({ name: "ChatConversationStage" }).props("about")).toEqual({ label: "Load L-20481", to: "/loads/L" });
+    state.aboutAsked = [];
+    state.detail = detail("direct");
+    const second = await render(`/chat?c=${T}`);
+    expect(state.aboutAsked.every((v) => v === null)).toBe(true);
+    expect(second.w.findComponent({ name: "ChatConversationStage" }).props("about")).toBeNull();
   });
 
   it("opens the direct conversation for one person, and a named group for several", async () => {

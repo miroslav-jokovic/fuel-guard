@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { RouteLocationRaw } from "vue-router";
 import { computed, ref } from "vue";
 import { chatTitle, type ChatConversationResponse, type ChatFileRef, type ChatMuteLevel } from "@silvicom/shared";
 import { AppButton as BaseButton } from "@silvicom/ui";
@@ -32,6 +33,8 @@ const props = defineProps<{
   earlierFailed?: boolean;
   /** Where the "New" line goes (D-CHATUI6); null for nothing unread when it opened. */
   firstUnreadSeq?: number | null;
+  /** What a group is about (CH11, D-CHAT34), as its header's link; the page asks (`useChatThreadAbout`). */
+  about?: { label: string; to: RouteLocationRaw } | null;
 }>();
 defineEmits<{
   send: [body: string, files: ChatFileRef[]];
@@ -89,6 +92,7 @@ const openFiles = () => { filesMounted.value = true; filesOpen.value = true; };
     <ChatStageHeader
       :title="title"
       :subtitle="subtitle"
+      :about="about"
       :glyph="direct ? 'person' : 'group'"
       :identity="direct ? others[0]?.user_id : null"
       :people="direct ? undefined : data.members.map((m) => ({ id: m.user_id, label: m.name }))" back-label="Back to conversations" @back="$emit('back')">

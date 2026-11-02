@@ -54,6 +54,9 @@ const CHAT_ERRORS: Record<string, { status: 403 | 404 | 409 | 422; code: string;
   // 0540 (CH7): a line needs words or a file; the files it names must be uploaded, one to ten.
   CH014: { status: 422, code: "empty_message", message: "Write something or attach a file first" },
   CH015: { status: 422, code: "file_not_uploaded", message: "A file did not finish uploading. Attach it again" },
+  // 0543 (CH11): a conversation is about a load, a driver or a truck of this organisation — 404, as a
+  // record of another organisation is one we do not confirm exists.
+  CH016: { status: 404, code: "record_not_found", message: "That load, driver or truck does not exist" },
 };
 
 export type ChatResult<T> =
