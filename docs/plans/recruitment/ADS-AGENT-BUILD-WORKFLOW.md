@@ -562,3 +562,18 @@ blocking step in §3 above.
   pointed at FakeMeta behind `simulatorGate`** — a second client written now would be a copy B1 deletes.
   A bug inside the fake answers 500 naming itself rather than hanging (found when a mutation made the
   fake throw and the test failed by timeout). Ten mutations each went red. No migration.
+- **2026-11-02, 7c** — `modules/ads/creative/higgsfield/fakeHiggsfield.ts`: an in-process Higgsfield API
+  from its docs (read 2026-11-02, each page cited in the file): `Authorization: Key id:secret`; submit →
+  `queued` + `status_url` / `cancel_url` / `expires_after`; `Idempotency-Key` returns the original request,
+  the same key with other parameters is 422; status reads `completed` (`images[]` / `video`, `expires_at`
+  seven days on), `failed` (`error`), `nsfw`; cancel only while `queued` (409 after); the **signed webhook**
+  (Standard Webhooks: `webhook-id` constant across retries, HMAC-SHA256 over `id.timestamp.body`, key from
+  `whsec_`), sent only on a final state, deliverable once, twice or never; output files 404 once
+  `expires_at` passes on the scenario's clock. Faults: 429 queue full with `Retry-After`, 500, 503, hang,
+  and **accepted-then-error** (charged, answer lost — the keyed replay must find it). Money: failed, nsfw
+  and canceled are refunded; `submits` counts every submit that reached a model, the "0 double charges"
+  number §4R asks for. ⚠ Our reading, said in the file: the docs do not say when the balance is debited
+  or what a 403 body holds; the fake reserves at submit. Requests finish only when a test (or the
+  simulator's driver) says so. The webhook signature is checked in the tests by an independent
+  implementation written from the docs, not by the fake's own `sign`. Eleven mutations each went red.
+  No migration.
