@@ -11,7 +11,7 @@ import { createMemoryHistory, createRouter } from "vue-router";
  * line remembers where that read started.
  */
 const state = vi.hoisted(() => ({
-  modules: "has" as "has" | "lacks" | "pending",
+  modules: "has" as "has" | "ai" | "lacks" | "pending",
   conversations: [] as unknown[],
   teams: { teams: [], can_manage: false } as unknown,
   conversationAsked: [] as Array<string | null>,
@@ -38,7 +38,7 @@ vi.mock("@/composables/useModules", async () => {
   const { computed, ref } = await import("vue");
   return {
     useModulesQuery: () => ({
-      data: computed(() => (state.modules === "has" ? new Set(["messages"]) : state.modules === "lacks" ? new Set<string>() : undefined)),
+      data: computed(() => (state.modules === "has" ? new Set(["messages"]) : state.modules === "ai" ? new Set(["messages", "chat_ai"]) : state.modules === "lacks" ? new Set<string>() : undefined)),
       isPending: ref(state.modules === "pending"),
       isError: ref(false),
       error: ref(null),
@@ -81,6 +81,12 @@ vi.mock("@/features/chat/useChatLineLinks", async () => {
     useChatLineLinksHere: () => ({ byLine: computed(() => new Map()) }),
   };
 });
+// CH12: the page says whether "Catch me up" is offered; the asking is useChatCatchup.test.ts's.
+const catchupOn = vi.hoisted(() => ({ ref: null as { value: boolean } | null }));
+vi.mock("@/features/chat/useChatCatchup", async () => ({
+  provideChatCatchup: (on: { value: boolean }) => { catchupOn.ref = on; },
+  useChatCatchupOn: () => ({ value: false }),
+}));
 // CH11b: what a group is about. The page asks only for a group, and hands the stage the link.
 vi.mock("@/features/chat/useChatAbout", async () => {
   const { computed, watch } = await import("vue");
@@ -272,6 +278,14 @@ describe("ChatPage", () => {
     linksProvided.n = 0;
     await render();
     expect(linksProvided.n).toBe(1);
+  });
+
+  it("offers Catch me up only to a carrier with the chat_ai module (CH12, D-CHAT37)", async () => {
+    await render();
+    expect(catchupOn.ref?.value).toBe(false);
+    state.modules = "ai";
+    await render();
+    expect(catchupOn.ref?.value).toBe(true);
   });
 
   it("opens the direct conversation for one person, and a named group for several", async () => {

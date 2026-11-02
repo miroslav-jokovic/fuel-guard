@@ -49,6 +49,8 @@ const EnvSchema = z.object({
   WEB_DIST: z.string().optional(),
   // Phase 5.5 (Anthropic).
   ANTHROPIC_API_KEY: z.string().optional(),
+  // Office chat's "Catch me up" (OFFICE-CHAT-PLAN CH12): a short summary, so the small model.
+  CHAT_CATCHUP_MODEL: z.string().min(1).default("claude-haiku-5-5"),
 
   // Sentry error monitoring (optional; no-op when unset). DSN is a project ingest key; traces
   // sampling defaults to 0 (errors only) to bound event volume/cost. See instrument.ts.

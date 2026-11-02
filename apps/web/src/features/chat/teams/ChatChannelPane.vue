@@ -10,6 +10,8 @@ import ChatStageHeader from "../ChatStageHeader.vue";
 import ChatMuteItems from "../ChatMuteItems.vue";
 import ChatFilesDialog from "../ChatFilesDialog.vue";
 import ChatPinnedDialog from "../ChatPinnedDialog.vue";
+import ChatCatchupDialog from "../ChatCatchupDialog.vue";
+import { useChatCatchupOn } from "../useChatCatchup";
 import { mergeLines, type PendingLine } from "../useChat";
 
 /**
@@ -80,6 +82,11 @@ const openPins = () => { pinsMounted.value = true; pinsOpen.value = true; };
 const filesOpen = ref(false);
 const filesMounted = ref(false);
 const openFiles = () => { filesMounted.value = true; filesOpen.value = true; };
+/** "Catch me up" (CH12), offered only where the page turned it on; each opening asks once. */
+const catchupOn = useChatCatchupOn();
+const catchupOpen = ref(false);
+const catchupMounted = ref(false);
+const openCatchup = () => { catchupMounted.value = true; catchupOpen.value = true; };
 </script>
 
 <template>
@@ -91,6 +98,7 @@ const openFiles = () => { filesMounted.value = true; filesOpen.value = true; };
       :people="members?.map((m) => ({ id: m.user_id, label: m.name }))" back-label="Back to chats and channels" @back="emit('back')">
       <KebabMenu trigger-label="Channel actions" placement="bottom-end">
         <!-- CH8: search kept to this channel, its posts and their replies alike. -->
+        <BaseButton v-if="catchupOn" class="kebab-item" @click="openCatchup">Catch me up</BaseButton>
         <BaseButton class="kebab-item" @click="emit('search')">Search in this channel</BaseButton>
         <BaseButton class="kebab-item" @click="openPins">Pinned messages</BaseButton>
         <BaseButton class="kebab-item" @click="openFiles">Files</BaseButton>
@@ -135,6 +143,7 @@ const openFiles = () => { filesMounted.value = true; filesOpen.value = true; };
     </p>
     <ChatComposer ref="composer" :placeholder="`Message # ${channel.name}`" label="Post" action="Post" :thread-key="channel.thread_id" :upload-to="channel.thread_id" @send="(body: string, files: ChatFileRef[]) => emit('send', body, files)" @up="log?.focusLast()" />
     <ChatFilesDialog v-if="filesMounted" :open="filesOpen" :thread-id="channel.thread_id" :viewer-id="viewerId" @close="filesOpen = false" />
+    <ChatCatchupDialog v-if="catchupMounted" :open="catchupOpen" :thread-id="channel.thread_id" @close="catchupOpen = false" />
     <ChatPinnedDialog v-if="pinsMounted" :open="pinsOpen" :thread-id="channel.thread_id" :viewer-id="viewerId" @thread="(id: string) => emit('replies', id)" @close="pinsOpen = false" />
   </section>
 </template>

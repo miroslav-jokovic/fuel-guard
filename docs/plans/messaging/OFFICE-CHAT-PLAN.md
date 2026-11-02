@@ -880,3 +880,20 @@ TechRepublic / Windows Report on Teams 2026 updates.
   their own — the breakage check found that a bare `indexOf` would have cut the server's "unit 5" out of a
   "unit 50" in the same line; the longest-first sort it once carried was dead once earliest-position and word
   edges decided, and was removed. Tests: API 3 new, web 8 new; 8 mutants, all failed tests. Q-CHATUI6 complete.
+- 2026-11-02: **#1937 MERGED (0549 on staging); #1938 MERGED — Q-CHATUI6 complete.** **CH12, API and web**
+  (`claude/chat-ai-catchup`, no migration): `POST /api/chat/:id/catchup` behind the chat's gates plus
+  `requireModule("chat_ai")` (D-CHAT37; `chat_ai` joins `MODULE_KEYS`, so the platform console's switch list
+  shows it). Order, so nothing is spent that need not be: `chat_catchup_left` (none → 429 before a line is read),
+  `chat_catchup_lines` (none → "up to date", no model, no row), no `ANTHROPIC_API_KEY` → 503, the model
+  (`CHAT_CATCHUP_MODEL`, default `claude-haiku-5-5`) through a forced tool so its answer is a string or a
+  refusal (off its tool → 502, no row), then `chat_catchup_record`, whose CH017 (→ 429) covers two tabs that
+  both passed the first check, and whose count is what the person is told is left. The lines go to the model
+  quoted as data, each `<@id>` as the person's name. Web: "Catch me up" in a conversation's and a channel's ⋮
+  menu, offered only where the chat page turned it on for a carrier with `chat_ai` (`provideChatCatchup`);
+  each opening asks once; the dialog says the summary is AI's, from how many unread lines, that nothing was
+  marked read, and the server's count left. `chatCatchupCheck.test.ts` holds 20/day and 200 lines equal to
+  0549's functions; `moduleKeysCheck.test.ts` (new — nothing held them equal before) holds `MODULE_KEYS`
+  equal to the latest `org_modules` CHECK. Tests: API 13 new, web 10 new; 30 mutants, 29 failed tests — the
+  30th dropped `requireRole(...OFFICE_ROLES)`, a no-op while the `chat` surface already refuses a driver; it
+  stays because every chat route carries the same pair. **CH12 built.** To use it, the platform console turns
+  `chat_ai` on for a carrier. Left in this plan: CH9 and CH10, both waiting on the owner (Realtime limits, VAPID keys).

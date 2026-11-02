@@ -14,6 +14,7 @@ import ChatSearchStage from "@/features/chat/ChatSearchStage.vue";
 import { useChatThreadAbout } from "@/features/chat/useChatAbout";
 import { provideChatLineLinks } from "@/features/chat/useChatLineLinks";
 import { provideChatLineActs, useChatSavedQuery } from "@/features/chat/useChatLineActs";
+import { provideChatCatchup } from "@/features/chat/useChatCatchup";
 import { useChatActivityMarkRead, useChatActivityQuery, useChatActivityUnreadQuery } from "@/features/chat/useChatActivity";
 import ChatEmptyStage from "@/features/chat/ChatEmptyStage.vue";
 import NewChatDialog from "@/features/chat/NewChatDialog.vue";
@@ -66,6 +67,8 @@ const router = useRouter();
 const modules = useModulesQuery();
 const entitlementKnown = computed(() => modules.data.value !== undefined);
 const entitled = computed(() => modules.data.value?.has("messages") ?? false);
+// CH12: "Catch me up" in every conversation and channel menu, only while the carrier has `chat_ai` (D-CHAT37).
+provideChatCatchup(computed(() => entitled.value && (modules.data.value?.has("chat_ai") ?? false)));
 
 // The rail's two lists. Chats asks for direct and group only: channels are listed by their team.
 // The sidebar badge's own query (every kind) lives in `useNavCounts`.

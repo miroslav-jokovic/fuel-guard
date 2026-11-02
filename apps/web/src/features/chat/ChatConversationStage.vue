@@ -12,6 +12,8 @@ import ChatStageHeader from "./ChatStageHeader.vue";
 import ChatMuteItems from "./ChatMuteItems.vue";
 import ChatFilesDialog from "./ChatFilesDialog.vue";
 import ChatPinnedDialog from "./ChatPinnedDialog.vue";
+import ChatCatchupDialog from "./ChatCatchupDialog.vue";
+import { useChatCatchupOn } from "./useChatCatchup";
 import { provideChatMentions } from "./chatNames";
 
 /**
@@ -93,6 +95,11 @@ const openPins = () => { pinsMounted.value = true; pinsOpen.value = true; };
 const filesOpen = ref(false);
 const filesMounted = ref(false);
 const openFiles = () => { filesMounted.value = true; filesOpen.value = true; };
+/** "Catch me up" (CH12), offered only where the page turned it on; each opening asks once. */
+const catchupOn = useChatCatchupOn();
+const catchupOpen = ref(false);
+const catchupMounted = ref(false);
+const openCatchup = () => { catchupMounted.value = true; catchupOpen.value = true; };
 </script>
 
 <template>
@@ -107,6 +114,7 @@ const openFiles = () => { filesMounted.value = true; filesOpen.value = true; };
       <!-- Its mute (D-CHAT23): what reaches you from it, and whether it sits in Muted. -->
       <KebabMenu trigger-label="Conversation actions" placement="bottom-end">
         <!-- CH8: search kept to this conversation, on the Search stage (`?search=&within=`). -->
+        <BaseButton v-if="catchupOn" class="kebab-item" @click="openCatchup">Catch me up</BaseButton>
         <BaseButton class="kebab-item" @click="$emit('search')">Search in this conversation</BaseButton>
         <BaseButton class="kebab-item" @click="openPins">Pinned messages</BaseButton>
         <BaseButton class="kebab-item" @click="openFiles">Files</BaseButton>
@@ -140,6 +148,7 @@ const openFiles = () => { filesMounted.value = true; filesOpen.value = true; };
     </p>
     <ChatComposer ref="composer" :placeholder="`Message ${title}`" :thread-key="data.conversation.thread_id" :upload-to="data.conversation.thread_id" @send="(body: string, files: ChatFileRef[]) => $emit('send', body, files)" @up="log?.focusLast()" />
     <ChatFilesDialog v-if="filesMounted" :open="filesOpen" :thread-id="data.conversation.thread_id" :viewer-id="viewerId" @close="filesOpen = false" />
+    <ChatCatchupDialog v-if="catchupMounted" :open="catchupOpen" :thread-id="data.conversation.thread_id" @close="catchupOpen = false" />
     <ChatPinnedDialog v-if="pinsMounted" :open="pinsOpen" :thread-id="data.conversation.thread_id" :viewer-id="viewerId" @close="pinsOpen = false" />
   </section>
 </template>
