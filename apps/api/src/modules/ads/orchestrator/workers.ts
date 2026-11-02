@@ -29,6 +29,11 @@ export type WorkerResult = { ok: true } | { ok: false; error: string };
  * The workers this build has. A6 (2026-11-02): none — the adapters arrive in B1–B2 (and the simulator
  * platform in step 7, on non-production hosts only), the creative workers in C1–C5. Each of those
  * steps fills its line here. With `ADS_ENABLED` off everywhere until then, the tick finds nothing.
+ *
+ * B2a (2026-11-02) built the publisher's first half (`platforms/meta/publisher.ts`: campaign + ad set,
+ * paused) and deliberately leaves `createPaused` null. `created` moves a campaign to `paused`, where a
+ * person presses Launch; a campaign with no ad yet has nothing to launch, so wiring half a publisher
+ * would show a state that is not true. B2c fills it once the form and the ad complete the chain.
  */
 export function adsWorkers(): CampaignWorkers {
   return { compose: null, createPaused: null, platform: null };

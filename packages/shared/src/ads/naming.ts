@@ -4,7 +4,7 @@ import { AD_PLATFORMS, type AdPlatform } from "./contracts.js";
 /**
  * The name every object we create on a platform carries (plan §4.2 `naming.ts`).
  *
- *   S360|META|campaign|recruiting_opening|op-1@v3|P2|20261102|ab12cd34
+ *   S360|META|campaign|recruiting_opening|op-1@v3|ALL|20261102|ab12cd34
  *   S360|META|ad|recruiting_opening|op-1@v3|P2|20261102|ab12cd34|9f8e7d6c
  *
  * Two jobs, both load-bearing:
@@ -17,7 +17,23 @@ import { AD_PLATFORMS, type AdPlatform } from "./contracts.js";
  * `|` separates because no field may contain it (the builder refuses), and underscores, dots, `@` and
  * dashes are all legal inside fields. The day is the campaign's creation day, passed in (no clock).
  * The ids are the first 8 hex of our row uuids: enough to find the row, short enough to read.
+ *
+ * ── THE PRESET IS AN AD'S, NOT A CAMPAIGN'S (B2a, 2026-11-02) ────────────────────────────────────
+ * One campaign carries several concepts: `presetDraw.ts` orders them and `nextPresetBatch` starts them
+ * two at a time, each as its own ad (Andromeda's concept diversity, plan §2b.2). So only the `ad` level
+ * names one preset. Every level above it carries `ALL` — one reserved word, never a preset key (the
+ * presets are P1…P5), so a campaign's name never claims a concept its ads may not run. A3 first required
+ * a real key at every level; B2a, the first code to name a campaign, found that no single key is true
+ * there. Nothing had been named on a platform yet, so the format changed before any name existed.
+ *
+ * ── THE NAME IS WHAT RESUMES A CREATE ────────────────────────────────────────────────────────────
+ * Meta takes no idempotency key on a create (`graphClient.ts`). The publisher finds what an earlier,
+ * lost create made by reading the account for this exact name, so the name must be a pure function of
+ * our rows: the same campaign builds the same string on every attempt, on every host.
  */
+
+/** What every level above `ad` carries in the preset field. */
+export const AD_NAME_ALL_PRESETS = "ALL";
 
 export const AD_NAME_PREFIX = "S360";
 export const AD_NAME_LEVELS = ["campaign", "adset", "form", "ad"] as const;
@@ -63,7 +79,7 @@ export function buildAdName(p: AdNameParts): string {
   const problems: string[] = [];
   if (!SOURCE.test(p.brief_source)) problems.push("brief_source");
   if (p.brief_ref.length === 0 || p.brief_ref.length > 80 || /[|\s]/.test(p.brief_ref)) problems.push("brief_ref");
-  if (!PRESET.test(p.preset_key)) problems.push("preset_key");
+  if (!PRESET.test(p.preset_key) || (p.level === "ad") === (p.preset_key === AD_NAME_ALL_PRESETS)) problems.push("preset_key");
   if (!isRealDay(p.day)) problems.push("day");
   if (!SHORT.test(p.campaign_short)) problems.push("campaign_short");
   if ((p.level === "ad") !== (p.creative_short !== undefined)) problems.push("creative_short");

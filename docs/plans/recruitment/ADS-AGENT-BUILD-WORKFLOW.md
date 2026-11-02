@@ -670,3 +670,27 @@ blocking step in §3 above.
   B1b are merged and on staging; no ads branch is open. Next: B2, the publisher. It is to be split,
   because `metaLeadForm.ts` does not exist yet and the ad needs C4's creative. Then B3. Q-AD23 and
   Q-AD24 await the owner.
+- **2026-11-02, B2 split + B2a** — Owner, 11/02: "we have 2 more days to finish this to be production
+  ready". Two days hold the Meta path on the fake (B2a, B2b, B3, B4, B5), not all of Stage 1; the
+  rest moves the 11/07 date, as §5 says it must. B2 is three PRs: **B2a** campaign + ad set, paused;
+  **B2b** the Instant Form + `metaLeadForm.ts`; **B2c** the creative + the ad, after C3/C4.
+  - `platforms/meta/publisher.ts`. Every level READS the parent for our exact name first: one found
+    is taken, none is created, two or more are refused (`duplicate_on_platform`), one not paused is
+    refused (`found_not_paused`). A create with an unknown outcome reads once more. If nothing is
+    found the step fails `create_outcome_unknown`, and a person's Resume starts a new stint whose
+    read finds it. Each create is read back BY ID and compared (status, employment, amounts). Every
+    create and adoption is an `ads_actions` `create_paused` row per stint and level. A refusal
+    before any call is a row too.
+  - **Not wired into `workers.ts` yet, on purpose:** `created` moves a campaign to `paused`, where
+    Launch is pressed, and a campaign with no ad has nothing to launch. B2c wires it.
+  - **Measured on Meta's pages (2026-11-02):** a custom location's radius is 0.63–50 miles (Basic
+    Targeting). An employment ad set needs ≥ 15 miles in the US, no age, no gender, no ZIPs, no
+    exclusions, "enforced with a hard error" 2909035 (Special Ad Category). `adAreaSchema` allows
+    500 for other platforms, so the Meta adapter refuses > 50 itself (`area_outside_meta_limits`).
+    FakeMeta now enforces both rules, plus the ad set's required fields.
+  - **`naming.ts` corrected:** a campaign runs several presets (`nextPresetBatch`), so only the `ad`
+    level names one. Every level above carries the reserved `ALL`. A3 had required a real key
+    everywhere. No name existed on any platform yet.
+  - Scorecard: Publisher L2 pinned (9 tests). L1 keeps one gap (B2b, B2c, B3), so it still reads L0.
+    "Token revoked → alert" waits for the wiring in B2c. Ten mutations, all red; files restored
+    byte-for-byte.
