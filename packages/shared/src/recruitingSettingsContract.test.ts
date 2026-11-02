@@ -20,6 +20,8 @@ describe("the defaults", () => {
       reminder_after_hours: STALE_DRAFT_HOURS,
       handbook_blocks_hire: HIRE_POLICY_DEFAULT.handbook_blocks_hire,
       videos_block_hire: HIRE_POLICY_DEFAULT.videos_block_hire,
+      // §10 CE2 (0545): a carrier starts running every built-in step.
+      hidden_hiring_steps: [],
     });
     expect(recruitingSettingsSchema.safeParse(RECRUITING_SETTINGS_DEFAULTS).success).toBe(true);
   });

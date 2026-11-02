@@ -267,6 +267,8 @@ describe("what it reads, and from where", () => {
       "recruiting_settings",
       // HW8a (0539): the carrier's video list and this driver's ticks (the send is on the invitation).
       "orientation_videos", "orientation_video_attestations",
+      // §10 CE2 (0545): the carrier's own step list (none here, so no record read).
+      "hiring_carrier_steps",
     ]));
   });
 

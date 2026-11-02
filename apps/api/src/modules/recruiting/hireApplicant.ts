@@ -5,6 +5,7 @@ import { endApplicantLinks } from "./applicationLink.js";
 import { applicantChecklist, isChecklistError } from "./applicantChecklist.js";
 import {
   hireBlockers,
+  carrierHireBlockers,
   hiringGapsAfterHire,
   hiringStep,
   planHireHandoff,
@@ -48,6 +49,8 @@ export type HireError = {
   message: string;
   /** `not_ready_to_hire`: the refusing steps still open, in the catalogue's order (Q-HM5, D-HB5). */
   missing?: string[];
+  /** §10 D-CE6: the carrier's own steps the hire waits for, by id (their names are in `message`). */
+  missingCarrierSteps?: string[];
 };
 
 export interface HireResult {
@@ -103,11 +106,14 @@ async function hireRefusal(admin: SupabaseClient, orgId: string, driverId: strin
   const checklist = await applicantChecklist(admin, orgId, driverId, today);
   if (isChecklistError(checklist)) return { code: checklist.code, message: checklist.message };
   const missing = hireBlockers(checklist);
-  if (missing.length === 0) return null;
+  // §10 D-CE6: the carrier's own steps switched to hold the hire, read off the same fold.
+  const carrier = carrierHireBlockers(checklist);
+  if (missing.length === 0 && carrier.length === 0) return null;
   return {
     code: "not_ready_to_hire",
-    message: `Hiring waits for: ${missing.map((k) => hiringStep(k).label).join(", ")}.`,
+    message: `Hiring waits for: ${[...missing.map((k) => hiringStep(k).label), ...carrier.map((c) => c.label)].join(", ")}.`,
     missing,
+    missingCarrierSteps: carrier.map((c) => c.id),
   };
 }
 

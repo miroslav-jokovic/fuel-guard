@@ -36,11 +36,16 @@ function table(opts: { row?: Record<string, unknown> | null; readError?: unknown
   };
 }
 
-const saved = { invite_ttl_days: 5, reminders_enabled: false, reminder_after_hours: 200, handbook_blocks_hire: true, videos_block_hire: true };
+const saved = {
+  invite_ttl_days: 5, reminders_enabled: false, reminder_after_hours: 200, handbook_blocks_hire: true, videos_block_hire: true,
+  hidden_hiring_steps: ["psp" as const],
+};
 /** What a screen served before §9 P12 PUTs: the three link answers, no hire switch. */
-const { handbook_blocks_hire: _omitted, videos_block_hire: _omittedToo, ...oldScreen } = saved;
+const { handbook_blocks_hire: _omitted, videos_block_hire: _omittedToo, hidden_hiring_steps: _omitted3, ...oldScreen } = saved;
 /** What a screen served before HW8a PUTs: the handbook switch, not the videos'. */
-const { videos_block_hire: _notYet, ...p12Screen } = saved;
+const { videos_block_hire: _notYet, hidden_hiring_steps: _notYet2, ...p12Screen } = saved;
+/** What a screen served before §10 CE2 PUTs: both switches, no hidden steps. */
+const { hidden_hiring_steps: _notYet3, ...hw8aScreen } = saved;
 
 describe("reading what is in force", () => {
   it("is the shared constants while the carrier has no row", async () => {
@@ -51,6 +56,7 @@ describe("reading what is in force", () => {
       reminder_after_hours: STALE_DRAFT_HOURS,
       handbook_blocks_hire: false,
       videos_block_hire: false,
+      hidden_hiring_steps: [],
     });
     expect(await recruitingSettingsView(rec.client, ORG)).toMatchObject({ isDefault: true, updatedAt: null });
     expectOrgScoped(rec, ORG);
@@ -86,7 +92,7 @@ describe("saving", () => {
     const out = await saveRecruitingSettings(rec.client, ORG, USER, saved);
     expect(rec.writes().map((w) => w.write!.method)).toEqual(["update"]);
     expect(rec.writtenRows("recruiting_settings")).toEqual([{ ...saved, updated_by: USER }]);
-    expect(out.before).toEqual({ invite_ttl_days: 14, reminders_enabled: true, reminder_after_hours: 48 });
+    expect(out.before).toEqual({ invite_ttl_days: 14, reminders_enabled: true, reminder_after_hours: 48, hidden_hiring_steps: [] });
     expect(out.view.settings).toEqual(saved);
     expectOrgScoped(rec, ORG);
   });
@@ -103,7 +109,7 @@ describe("saving", () => {
       tables: { recruiting_settings: table({ row: { invite_ttl_days: 14, reminders_enabled: true, reminder_after_hours: 48, handbook_blocks_hire: true, updated_at: "x" } }) },
     });
     const out = await saveRecruitingSettings(rec.client, ORG, USER, oldScreen);
-    expect(rec.writtenRows("recruiting_settings")).toEqual([{ ...oldScreen, handbook_blocks_hire: true, updated_by: USER }]);
+    expect(rec.writtenRows("recruiting_settings")).toEqual([{ ...oldScreen, handbook_blocks_hire: true, hidden_hiring_steps: [], updated_by: USER }]);
     expect(out.view.settings.handbook_blocks_hire).toBe(true);
   });
 
@@ -112,8 +118,24 @@ describe("saving", () => {
       tables: { recruiting_settings: table({ row: { invite_ttl_days: 14, reminders_enabled: true, reminder_after_hours: 48, handbook_blocks_hire: false, videos_block_hire: true, updated_at: "x" } }) },
     });
     const out = await saveRecruitingSettings(rec.client, ORG, USER, p12Screen);
-    expect(rec.writtenRows("recruiting_settings")).toEqual([{ ...p12Screen, videos_block_hire: true, updated_by: USER }]);
+    expect(rec.writtenRows("recruiting_settings")).toEqual([{ ...p12Screen, videos_block_hire: true, hidden_hiring_steps: [], updated_by: USER }]);
     expect(out.view.settings.videos_block_hire).toBe(true);
+  });
+
+  it("§10 CE2: a save from a screen without the hidden steps keeps them as they are", async () => {
+    const rec = createSupabaseRecorder({
+      tables: { recruiting_settings: table({ row: { invite_ttl_days: 14, reminders_enabled: true, reminder_after_hours: 48, handbook_blocks_hire: false, videos_block_hire: false, hidden_hiring_steps: ["travel_booked"], updated_at: "x" } }) },
+    });
+    const out = await saveRecruitingSettings(rec.client, ORG, USER, hw8aScreen);
+    expect(rec.writtenRows("recruiting_settings")).toEqual([{ ...hw8aScreen, hidden_hiring_steps: ["travel_booked"], updated_by: USER }]);
+    expect(out.view.settings.hidden_hiring_steps).toEqual(["travel_booked"]);
+  });
+
+  it("§10 D-CE3: a stored locked step is dropped on the read, never honoured", async () => {
+    const rec = createSupabaseRecorder({
+      tables: { recruiting_settings: table({ row: { ...saved, hidden_hiring_steps: ["drug_test", "psp"], updated_at: STAMP } }) },
+    });
+    expect((await recruitingSettings(rec.client, ORG)).hidden_hiring_steps).toEqual(["psp"]);
   });
 
   it("§9 P12: a first save without the hire switch writes the default, off", async () => {
