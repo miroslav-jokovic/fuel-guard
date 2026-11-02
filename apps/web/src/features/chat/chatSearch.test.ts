@@ -93,7 +93,7 @@ describe("the Search stage", () => {
     expect(s.emitted("everywhere")).toHaveLength(1);
   });
 
-  it("opens a line where it lives: a conversation's in it, a channel reply in its post's thread", async () => {
+  it("opens a line where it lives — a conversation's in it, a channel reply in its post's thread — at the line", async () => {
     apiFetch.mockResolvedValue(ok({ items: [line(1), line(2, { thread_id: CH, kind: "channel", subject: "Loads", parent_id: POST })], next: null }));
     const { w, s } = stage({ q: "truck" });
     await flushPromises();
@@ -101,7 +101,8 @@ describe("the Search stage", () => {
     expect(rows[1]!.text()).toContain("Ben Admin in # Loads");
     await rows[0]!.trigger("click");
     await rows[1]!.trigger("click");
-    expect(s.emitted("open")).toEqual([[{ c: T1 }], [{ ch: CH, post: POST }]]);
+    // `line` names the line itself, so the log brings it into view.
+    expect(s.emitted("open")).toEqual([[{ c: T1, line: id(1) }], [{ ch: CH, post: POST, line: id(2) }]]);
   });
 
   it("a direct line the other person sent names them once, not 'Ben Admin in Ben Admin'; one you sent says who it was with", async () => {

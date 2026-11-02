@@ -251,6 +251,21 @@ describe("what the conversation is about (CH11b)", () => {
   });
 });
 
+describe("a line a search opened (CH8)", () => {
+  it("asks the page for the page above while the line is not loaded, and says so once there is none", async () => {
+    const d = { ...data([msg(5, BEN), msg(6, BEN)]), before_seq: 5 };
+    const w = mount(ChatConversationStage, { props: { data: d, viewerId: ME, pending: [], sending: false, focusId: "00000000-0000-4000-8000-000000000002" }, attachTo: document.body });
+    await flushPromises();
+    expect(w.emitted("earlier")).toHaveLength(1);
+    expect(w.find("[role='status']").exists()).toBe(false);
+    await w.setProps({ data: { ...d, before_seq: null } });
+    await flushPromises();
+    expect(w.find("[role='status']").text()).toContain("That message is not in this conversation any more");
+    w.unmount();
+    document.body.innerHTML = "";
+  });
+});
+
 describe("mergeLines", () => {
   it("drops a pending line once the server lists its id — the server's copy wins", () => {
     const server = [msg(1, ME, { id: "p1" as unknown as string })];

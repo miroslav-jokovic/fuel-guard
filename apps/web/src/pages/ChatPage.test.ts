@@ -247,6 +247,18 @@ describe("ChatPage", () => {
     expect(second.w.findComponent({ name: "ChatConversationStage" }).props("about")).toBeNull();
   });
 
+  it("hands the stage the line a search opened, and nothing that is not an id (CH8)", async () => {
+    state.detail = {
+      conversation: { thread_id: T, kind: "direct", subject: null, title_members: [], member_count: 2, unread: 0, last_seq: 1, read_seq: 1 },
+      members: [], messages: [], before_seq: null,
+    };
+    const L = "55555555-5555-4555-8555-555555555555";
+    const a = await render(`/chat?c=${T}&line=${L}`);
+    expect(a.w.findComponent({ name: "ChatConversationStage" }).props("focusId")).toBe(L);
+    const b = await render(`/chat?c=${T}&line=../x`);
+    expect(b.w.findComponent({ name: "ChatConversationStage" }).props("focusId")).toBeNull();
+  });
+
   it("opens the direct conversation for one person, and a named group for several", async () => {
     const { w, router } = await render();
     const dialog = w.findComponent(NewChatDialog);

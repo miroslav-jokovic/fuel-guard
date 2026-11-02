@@ -7,6 +7,7 @@ import KebabMenu from "@/components/KebabMenu.vue";
 import { mergeLines, type PendingLine } from "./useChat";
 import ChatComposer from "./ChatComposer.vue";
 import ChatMessageList from "./ChatMessageList.vue";
+import { useChatFocusWalk } from "./chatFocusWalk";
 import ChatStageHeader from "./ChatStageHeader.vue";
 import ChatMuteItems from "./ChatMuteItems.vue";
 import ChatFilesDialog from "./ChatFilesDialog.vue";
@@ -33,10 +34,12 @@ const props = defineProps<{
   earlierFailed?: boolean;
   /** Where the "New" line goes (D-CHATUI6); null for nothing unread when it opened. */
   firstUnreadSeq?: number | null;
+  /** CH8: the line a search result opened (`?line=`): brought into view, the pages above loaded to reach it. */
+  focusId?: string | null;
   /** What a group is about (CH11, D-CHAT34), as its header's link; the page asks (`useChatThreadAbout`). */
   about?: { label: string; to: RouteLocationRaw } | null;
 }>();
-defineEmits<{
+const emit = defineEmits<{
   send: [body: string, files: ChatFileRef[]];
   retry: [line: PendingLine];
   edit: [messageId: string, body: string];
@@ -47,6 +50,11 @@ defineEmits<{
   search: [];
 }>();
 
+const walk = useChatFocusWalk(
+  computed(() => props.focusId),
+  { beforeSeq: computed(() => props.data.before_seq), loading: computed(() => props.earlierLoading ?? false), failed: computed(() => props.earlierFailed ?? false) },
+  () => emit("earlier"),
+);
 const lines = computed(() => mergeLines(props.data.messages, props.pending, props.data.conversation.thread_id));
 // Up from the empty composer goes into the log; Down past its newest line comes back (D-CHATUI16).
 const log = ref<InstanceType<typeof ChatMessageList> | null>(null);
@@ -119,12 +127,17 @@ const openFiles = () => { filesMounted.value = true; filesOpen.value = true; };
       noun="messages"
       empty-text="No messages yet. Say hello."
       :seen-seq="seenSeq"
+      :focus-id="focusId ?? null"
+      @focus-missing="walk.onMissing"
       @edit="(id: string, body: string) => $emit('edit', id, body)"
       @remove="(id: string) => $emit('remove', id)"
       @retry="(line: PendingLine) => $emit('retry', line)"
       @earlier="$emit('earlier')"
       @exit-bottom="composer?.focus()"
     />
+    <p v-if="walk.lost.value" role="status" class="shrink-0 border-t border-edge-subtle px-4 py-1.5 text-center text-xs text-ink-muted">
+      That message is not in this conversation any more, or it is further back than the pages loaded. Scroll up and press Show earlier to keep looking.
+    </p>
     <ChatComposer ref="composer" :placeholder="`Message ${title}`" :thread-key="data.conversation.thread_id" :upload-to="data.conversation.thread_id" @send="(body: string, files: ChatFileRef[]) => $emit('send', body, files)" @up="log?.focusLast()" />
     <ChatFilesDialog v-if="filesMounted" :open="filesOpen" :thread-id="data.conversation.thread_id" :viewer-id="viewerId" @close="filesOpen = false" />
     <ChatPinnedDialog v-if="pinsMounted" :open="pinsOpen" :thread-id="data.conversation.thread_id" :viewer-id="viewerId" @close="pinsOpen = false" />

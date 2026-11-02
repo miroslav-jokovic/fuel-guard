@@ -90,6 +90,8 @@ const savedOpen = computed(() => !channelId.value && !selectedId.value && !activ
 const searchOpen = computed(() => !channelId.value && !selectedId.value && !activityOpen.value && !savedOpen.value && typeof route.query.search === "string");
 const searchWords = computed(() => (typeof route.query.search === "string" ? route.query.search : ""));
 const searchWithin = param("within");
+// CH8: a search result opens its conversation at the line it found (`&line=`).
+const focusLine = param("line");
 const open = computed(() => !!(selectedId.value || channelId.value || activityOpen.value || savedOpen.value || searchOpen.value));
 
 // `query: { c }` and never a copy of the old query: vue-router would keep `ch`, `post` and `view`.
@@ -339,6 +341,7 @@ useChatShortcuts((s) => {
           :sending="sender.isPending.value"
           :first-unread-seq="firstUnreadSeq"
           :about="about.link.value"
+          :focus-id="focusLine"
           :earlier-loading="earlier.isPending.value"
           :earlier-failed="earlier.isError.value"
           @earlier="earlier.mutate()"
