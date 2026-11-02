@@ -12,6 +12,7 @@ import {
 import { readCarrierZone } from "./applicantBoardReads.js";
 import { carrierName } from "./applicationMail.js";
 import { messageInputs } from "./messageWording.js";
+import { readTrip, tripLinesFor } from "./applicantTrip.js";
 import type { SmsTemplate } from "./smsOutbox.js";
 
 /**
@@ -22,7 +23,8 @@ import type { SmsTemplate } from "./smsOutbox.js";
  * The four outbox templates that are catalogue messages (`MESSAGE_OF`) render through
  * `renderApplicantText` with the carrier's newest wording and the applicant's first name, read here at
  * the moment of sending — so a text queued overnight goes in the words the carrier had saved when it
- * went, the instant `sms_outbox.sent_at` records. The others (opt-in confirmation, approval, sign link,
+ * went, the instant `sms_outbox.sent_at` records. The trip (`travel`, MT3) is a catalogue message too,
+ * rendered from the trip row as it stands when the text goes. The others (opt-in confirmation, approval, sign link,
  * drug-test site) carry rules and are not a carrier's to word (§12 D-MT1).
  */
 
@@ -48,6 +50,15 @@ export async function renderOutboxText(
     const days = template === "invite" ? Number(params.days) : null;
     const { vars, wording } = await messageInputs(admin, orgId, driverId, message, days);
     return renderApplicantText(message, vars, String(link), wording);
+  }
+  if (template === "travel") {
+    // The trip as it stands now: `stillWanted` has just checked it was not cancelled and has not left.
+    const trip = await readTrip(admin, orgId, String(params.travel_id ?? ""));
+    if (!trip) throw new Error("the trip this text announces is gone");
+    const [zone, { vars, wording }] = await Promise.all([
+      readCarrierZone(admin, orgId), messageInputs(admin, orgId, driverId, "travel", null),
+    ]);
+    return renderApplicantText("travel", vars, "", wording, { trip: tripLinesFor(trip, zone) });
   }
   const carrier = await carrierName(admin, orgId);
   if (template === "consent_confirm") return smsOptInConfirmation(carrier);

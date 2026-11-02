@@ -36,6 +36,8 @@ const seed = (over: {
   invitations?: unknown[]; rotated?: unknown;
   /** §12 MT2: the carrier's saved wording, and the applicant's name for `{first_name}`. */
   wording?: unknown[]; drivers?: unknown[];
+  /** §12 MT3: the booked trips a travel text announces. */
+  trips?: unknown[];
 } = {}) =>
   createSupabaseRecorder({
     rpc: { rotate_invitation_sms_token: over.rotated === undefined ? true : over.rotated },
@@ -55,6 +57,7 @@ const seed = (over: {
       organizations: [{ name: "Silvicom Inc", operating_hours: { tz: "America/Chicago" } }],
       recruiting_message_wording: postgrestFixture((over.wording ?? []) as Record<string, unknown>[]),
       drivers: postgrestFixture((over.drivers ?? []) as Record<string, unknown>[]),
+      applicant_travel: postgrestFixture((over.trips ?? []) as Record<string, unknown>[]),
       application_invitations: postgrestFixture((over.invitations ?? [
         { id: "inv-1", org_id: ORG, submitted_at: null, review_requested_at: null, approved_at: null },
       ]) as Record<string, unknown>[]),
@@ -430,5 +433,52 @@ describe("the carrier's wording", () => {
     const rec = seed({ wording: [saved("invitation", "Carrier words:", "2027-01-12T12:00:00Z")] });
     await sendOrQueueSms(rec.client, env, message({ template: "consent_confirm" }), OPEN);
     expect(String(sms.fn.mock.calls[0]![1].body)).toContain("You're signed up for texts");
+  });
+});
+
+/** §12 MT3: the trip by text — no link, the trip re-read when it goes, dropped if it was cancelled or left. */
+describe("the trip text", () => {
+  const TRIP = "20000000-0000-4000-8000-0000000000f1";
+  const trip = (over: Record<string, unknown> = {}) => ({
+    id: TRIP, org_id: ORG, invitation_id: "inv-1", mode: "bus", depart_at: "2027-01-14T14:00:00Z",
+    arrive_at: "2027-01-14T20:30:00Z", confirmation_ref: "QX7K2P", cancelled_at: null, ...over,
+  });
+  const queuedTrip = () => ({
+    id: "o-1", org_id: ORG, driver_id: DRIVER, invitation_id: "inv-1", phone: "+17082365732", template: "travel",
+    params: { travel_id: TRIP }, attempts: 0, status: "queued", not_before: "2027-01-12T15:00:00Z", expires_at: "2027-01-13T15:00:00Z",
+  });
+
+  it("sends the trip on the carrier's clock, under the travel reason, minting no link and storing only the trip's id", async () => {
+    const rec = seed({ trips: [trip()], drivers: [{ id: DRIVER, org_id: ORG, first_name: "Pat" }] });
+    const out = await sendOrQueueSms(rec.client, env, message({ template: "travel", params: { travel_id: TRIP } }), OPEN);
+    expect(out).toEqual({ sent: true, outboxId: "o-new" });
+    expect(String(sms.fn.mock.calls[0]![1].body)).toBe(
+      "Silvicom Inc: Your trip is booked. Bus, leaves 01/14/2027 8:00 AM CST, arrives 01/14/2027 2:30 PM CST. "
+      + "Confirmation QX7K2P. Reply STOP to opt out.",
+    );
+    expect(rec.writtenRows("sms_outbox")[0]).toMatchObject({ template: "travel", reason: "travel", params: { travel_id: TRIP } });
+    expect(rec.rpcs().find((r) => r.fn === "rotate_invitation_sms_token")).toBeUndefined();
+    expectOrgScoped(rec, ORG);
+  });
+
+  it.each([
+    ["cancelled overnight", { cancelled_at: "2027-01-12T03:00:00Z" }],
+    ["already left", { depart_at: "2027-01-12T15:30:00Z" }],
+  ])("cancels a queued trip text whose trip was %s, sending nothing", async (_l, over) => {
+    const rec = seed({ outbox: [queuedTrip()], trips: [trip(over)] });
+    expect(await drainSmsOutboxForOrg(rec.client, env, ORG, OPEN)).toMatchObject({ sent: 0, cancelled: 1 });
+    expect(sms.fn).not.toHaveBeenCalled();
+  });
+
+  it("drains a queued trip text in the morning with the carrier's lead", async () => {
+    const rec = seed({
+      outbox: [queuedTrip()], trips: [trip({ confirmation_ref: null })],
+      wording: [{ org_id: ORG, message_key: "travel", email_subject: null, email_heading: null, email_paragraph: null,
+        text_lead: "See you soon, {first_name}", saved_by_name: "D", saved_at: "2027-01-01T00:00:00Z" }],
+      drivers: [{ id: DRIVER, org_id: ORG, first_name: "Pat" }],
+    });
+    expect(await drainSmsOutboxForOrg(rec.client, env, ORG, OPEN)).toMatchObject({ sent: 1 });
+    const body = String(sms.fn.mock.calls[0]![1].body);
+    expect(body).toBe("Silvicom Inc: See you soon, Pat. Bus, leaves 01/14/2027 8:00 AM CST, arrives 01/14/2027 2:30 PM CST. Reply STOP to opt out.");
   });
 });

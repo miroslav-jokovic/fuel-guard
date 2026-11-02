@@ -975,3 +975,16 @@ the Spanish (C4) is the page's only.
   their placeholders, a preview and the text's part count) and "Use the standard wording". The audit row names the
   message and the parts written, never the words. **Departure from §12:** the GET also answers the carrier's
   name, so the preview's `{carrier}` is the one the senders write (the session holds no org name).
+- **2026-11-02** — **MT2 merged (#1948, `f2a88f4`), no migration.** As above.
+- **2026-11-02** — **MT3 (this PR), no migration.** "Send the trip to the applicant" on the travel panel, for a
+  live trip that has not left: the email (to the invitation's address) and the text (outbox reason `travel`,
+  0551) in the carrier's `travel` wording, with the trip's lines fixed below it — how, leaves, arrives on the
+  carrier's clock with the zone named, and the confirmation. No link. The outbox row carries only the trip's
+  id; the text re-reads the trip when it goes and is dropped if the trip was cancelled or has left
+  (`stillWanted`). Refused: a cancelled trip (409 `trip_cancelled`), a departed one (409 `trip_departed`),
+  another application's or carrier's (404). Audit `recruiting.travel_sent` without the confirmation; the
+  activity list names the text ("the trip details"). The trip joins Settings → Recruiting → Messages as a
+  fifth message (`{first_name}`, `{carrier}`; no `{days}`). 16 of 21 mutants killed on the first pass. Of the five
+  survivors, the three real ones (the missing-trip refusal checked only as a throw, the carrier zone untested off a Chicago clock, the
+  text's trip id) got their tests and were then killed; the other two were equivalent (an audit field that
+  never holds the confirmation; a malformed id the read already answers 404).

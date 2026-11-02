@@ -21,6 +21,18 @@ import { closeTestServer } from "../../../testing/httpServer.js";
  */
 const holder = vi.hoisted(() => ({ client: null as unknown }));
 vi.mock("../../../lib/supabaseAdmin.js", () => ({ getSupabaseAdmin: () => holder.client }));
+/** §12 MT3: the trip email, caught at the hand-off to the mailer and passed through. */
+const mails = vi.hoisted(() => ({ sent: [] as Array<{ subject: string; text: string; html: string }> }));
+vi.mock("../applicationMail.js", async (orig) => {
+  const real = await orig<typeof import("../applicationMail.js")>();
+  return {
+    ...real,
+    deliverApplicationMail: async (...args: Parameters<typeof real.deliverApplicationMail>) => {
+      mails.sent.push(args[2]);
+      return real.deliverApplicationMail(...args);
+    },
+  };
+});
 
 const ORG = "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d";
 const OTHER = "0f0f0f0f-4e5f-4a6b-8c7d-9e0f1a2b3c4d";
@@ -59,10 +71,13 @@ const travelTable = (rows: Array<Record<string, unknown>>) => {
   };
 };
 
-const seed = (over: { kinds?: string[]; intakeDone?: boolean; trips?: Array<Record<string, unknown>> } = {}): SupabaseRecorder =>
+const seed = (over: {
+  kinds?: string[]; intakeDone?: boolean; trips?: Array<Record<string, unknown>>; wording?: Array<Record<string, unknown>>;
+  consents?: Array<Record<string, unknown>>;
+} = {}): SupabaseRecorder =>
   createSupabaseRecorder({
     tables: {
-      drivers: postgrestFixture([{ id: DRIVER, org_id: ORG, hire_date: null }]),
+      drivers: postgrestFixture([{ id: DRIVER, org_id: ORG, hire_date: null, first_name: "Pat", full_name: "Pat Lee" }]),
       application_invitations: postgrestFixture([{
         id: INVITE, org_id: ORG, driver_id: DRIVER, created_at: "2026-09-01T00:00:00Z", revoked_at: null,
         intake_completed_at: over.intakeDone === false ? null : "2026-09-01T06:00:00Z",
@@ -92,7 +107,12 @@ const seed = (over: { kinds?: string[]; intakeDone?: boolean; trips?: Array<Reco
         { id: "trip-other-org", org_id: OTHER, invitation_id: INVITE, mode: "air", depart_at: "2026-10-04T13:00:00Z",
           arrive_at: "2026-10-04T15:00:00Z", confirmation_ref: null, created_at: "2026-09-21T00:00:00Z", cancelled_at: null },
       ]),
-      organizations: postgrestFixture([{ id: ORG, operating_hours: { tz: "America/Chicago" } }]),
+      organizations: postgrestFixture([{ id: ORG, name: "Acme Freight", operating_hours: { tz: "America/Chicago" } }]),
+      // §12 MT3: what "Send the trip" reads besides the trip — no texts agreed, the carrier's wording.
+      sms_consents: postgrestFixture(over.consents ?? []),
+      sms_suppressions: postgrestFixture([]),
+      sms_outbox: (q: RecordedQuery) => (q.write?.method === "insert" ? [{ id: "o-1" }] : []),
+      recruiting_message_wording: postgrestFixture(over.wording ?? []),
       audit_logs: [],
     },
   });
@@ -222,5 +242,73 @@ describe("reading and cancelling", () => {
     holder.client = seed().client;
     expect((await call("DELETE", "/travel/trip-old-app", "recruiter")).status).toBe(404);
     expect((await call("DELETE", `/travel/${NEW_TRIP}`, "recruiter")).status).toBe(404);
+  });
+});
+
+/** §12 MT3, D-MT9: the office sends the booked trip; the applicant reads it on the carrier's clock. */
+describe("sending the trip", () => {
+  const FUTURE = "20000000-0000-4000-8000-0000000000f1";
+  const trips = (over: Record<string, unknown> = {}) => [
+    { id: FUTURE, org_id: ORG, invitation_id: INVITE, mode: "bus", depart_at: "2099-01-12T14:00:00Z",
+      arrive_at: "2099-01-12T20:30:00Z", confirmation_ref: "QX7K2P", created_at: "2026-11-01T00:00:00Z", cancelled_at: null, ...over },
+    { id: "20000000-0000-4000-8000-0000000000f2", org_id: OTHER, invitation_id: "x", mode: "air", depart_at: "2099-01-12T14:00:00Z",
+      arrive_at: "2099-01-12T15:00:00Z", confirmation_ref: null, created_at: "2026-11-01T00:00:00Z", cancelled_at: null },
+  ];
+
+  it("emails the trip in the carrier's wording, times on the carrier's clock with the zone, and audits without the reference", async () => {
+    mails.sent.length = 0;
+    const rec = seed({
+      trips: trips(),
+      wording: [{ org_id: ORG, message_key: "travel", email_subject: "{first_name}, see you soon", email_heading: null,
+        email_paragraph: "Ask for Dana at the front desk.", text_lead: null, saved_by_name: "D", saved_at: "2026-11-01T00:00:00Z" }],
+    });
+    holder.client = rec.client;
+    const res = await call("POST", `/travel/${FUTURE}/send`, "recruiter");
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ text: { state: "held", reason: "no_consent" } });
+    const mail = mails.sent.at(-1)!;
+    expect(mail.subject).toBe("Pat, see you soon");
+    expect(mail.text).toContain("Ask for Dana at the front desk.");
+    expect(mail.text).toContain("How: Bus");
+    expect(mail.text).toContain("Leaves: 01/12/2099 8:00 AM CST");
+    expect(mail.text).toContain("Arrives: 01/12/2099 2:30 PM CST");
+    expect(mail.text).toContain("Confirmation: QX7K2P");
+    const audit = rec.writtenRows("audit_logs").find((a) => a.action === "recruiting.travel_sent");
+    expect(audit).toMatchObject({ entity_id: FUTURE, meta: { driverId: DRIVER, text: "held" } });
+    expect(JSON.stringify(audit)).not.toContain("QX7K2P");
+    expectOrgScoped(rec, ORG, { exempt: ["organizations"] });
+  });
+
+  it("files the text under this trip's id — and nothing else, no link — for an applicant who agreed to texts", async () => {
+    const rec = seed({
+      trips: trips(),
+      consents: [{ org_id: ORG, driver_id: DRIVER, phone: "+17082365732", revoked_at: null, granted_at: "2026-09-01T00:00:00Z" }],
+    });
+    holder.client = rec.client;
+    expect((await call("POST", `/travel/${FUTURE}/send`, "recruiter")).status).toBe(200);
+    const [row] = rec.writtenRows("sms_outbox");
+    expect(row).toMatchObject({ template: "travel", reason: "travel", params: { travel_id: FUTURE }, invitation_id: INVITE });
+  });
+
+  it("refuses a cancelled trip and one that has left, sending nothing", async () => {
+    for (const [over, code] of [[{ cancelled_at: "2026-11-01T00:00:00Z" }, "trip_cancelled"], [{ depart_at: "2020-01-01T00:00:00Z" }, "trip_departed"]] as const) {
+      mails.sent.length = 0;
+      const rec = seed({ trips: trips(over) });
+      holder.client = rec.client;
+      const res = await call("POST", `/travel/${FUTURE}/send`, "recruiter");
+      expect(res.status).toBe(409);
+      expect(((await res.json()) as { error: { code: string } }).error.code).toBe(code);
+      expect(mails.sent).toHaveLength(0);
+      expect(rec.writtenRows("audit_logs")).toHaveLength(0);
+    }
+  });
+
+  it("answers 404 for another carrier's trip, another application's, and a malformed id; 403 to a viewer", async () => {
+    holder.client = seed({ trips: trips() }).client;
+    expect((await call("POST", "/travel/20000000-0000-4000-8000-0000000000f2/send", "recruiter")).status).toBe(404);
+    holder.client = seed({ trips: trips({ invitation_id: OLD_INVITE }) }).client;
+    expect((await call("POST", `/travel/${FUTURE}/send`, "recruiter")).status).toBe(404);
+    expect((await call("POST", "/travel/not-a-uuid/send", "recruiter")).status).toBe(404);
+    expect((await call("POST", `/travel/${FUTURE}/send`, "auditor")).status).toBe(403);
   });
 });

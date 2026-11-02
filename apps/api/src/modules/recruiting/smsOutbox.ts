@@ -15,6 +15,7 @@ import { renderOutboxText } from "./smsOutboxRender.js";
 import { drugTestStillLive, markDrugTestSent } from "./applicantDrugTest.js";
 import { mintInvitationToken } from "./applicationIntake.js";
 import { isSuppressed } from "./smsSuppressions.js";
+import { readTrip } from "./applicantTrip.js";
 
 /**
  * Texts that may wait — the outbox (A-11, D-AW12, C2d).
@@ -52,7 +53,7 @@ import { isSuppressed } from "./smsSuppressions.js";
 
 export const SMS_TEMPLATES = [
   "consent_confirm", "application_approved", "drug_test_site", "application_sent", "nudge", "signing_link", "invite",
-  "orientation_videos",
+  "orientation_videos", "travel",
 ] as const;
 export type SmsTemplate = (typeof SMS_TEMPLATES)[number];
 
@@ -76,6 +77,8 @@ const REASON: Record<SmsTemplate, string> = {
   invite: "invite",
   // HW8a: the office's "Send the videos" (0539 widened the CHECK one merge before this writer).
   orientation_videos: "orientation_videos",
+  // §12 MT3: the booked trip (0551 widened the CHECK one merge before this writer).
+  travel: "travel",
 };
 
 /**
@@ -239,6 +242,7 @@ export async function sendOrQueueSms(admin: SupabaseClient, env: Env, message: S
 /**
  * Is what a queued text announces still true?
  *
+ *   · the trip (§12 MT3) — cancelled or replaced overnight, or already left;
  *   · the drug-test site — the office moved or cancelled the appointment after the text was queued (a
  *     rebooking cancels the older row), and a text naming a cancelled site sends the applicant to the
  *     wrong place;
@@ -259,6 +263,11 @@ async function stillWanted(
   now: Date,
 ): Promise<boolean> {
   if (template === "drug_test_site") return drugTestStillLive(admin, orgId, String(params.appointment_id ?? ""));
+  // §12 MT3: a trip text is worth sending while the trip stands and has not left.
+  if (template === "travel") {
+    const trip = await readTrip(admin, orgId, String(params.travel_id ?? ""));
+    return trip !== null && trip.cancelled_at === null && Date.parse(trip.depart_at) > now.getTime();
+  }
   if (!LINK_TEMPLATES.has(template)) return true;
   if (!invitationId) return false;
   if (template === "signing_link") return signingStillLive(admin, orgId, invitationId, now);
