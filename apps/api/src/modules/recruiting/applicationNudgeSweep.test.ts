@@ -7,7 +7,8 @@ import {
   type SupabaseRecorder,
 } from "../../testing/supabaseRecorder.js";
 import { loadEnv } from "../../env.js";
-import { nudgeEmail, runApplicationNudgesOnce } from "./applicationNudgeSweep.js";
+import { nudgeEmail } from "@silvicom/shared";
+import { runApplicationNudgesOnce } from "./applicationNudgeSweep.js";
 
 /**
  * The abandonment sweep (A10).
@@ -40,6 +41,8 @@ const seed = (over: {
   permission?: string;
   /** A live consent to be texted (Q-AW29). Absent: none, so the text is held and the email still goes. */
   consent?: boolean;
+  /** §12 MT2: the carrier's saved wording rows. */
+  wording?: Record<string, unknown>[];
   /** The carrier's own reminder and link lifetime (Q-AW41). Absent: no row, the product's defaults. */
   settings?: Record<string, unknown>;
 } = {}): SupabaseRecorder =>
@@ -66,7 +69,9 @@ const seed = (over: {
         ? [{ org_id: ORG, driver_id: DRIVER, phone: "+17082365732", revoked_at: null, granted_at: "2026-08-01T00:00:00Z" }]
         : [],
       sms_outbox: (q: RecordedQuery) => (q.write?.method === "insert" ? [{ id: "o-1" }] : []),
-      drivers: [{ full_name: "Susan Godfrey" }],
+      drivers: [{ full_name: "Susan Godfrey", first_name: null }],
+      recruiting_message_wording: (q: RecordedQuery) =>
+        (over.wording ?? []).filter((r) => q.filters().some((f) => f.col === "message_key" && f.val === r.message_key)),
     },
     rpc: {
       nudge_application_invitation: over.rotated === undefined ? true : over.rotated,
@@ -240,6 +245,23 @@ describe("an applicant the office is sitting on", () => {
     expect(await runApplicationNudgesOnce(rec.client, env(), ORG, ["user-1"], NOW))
       .toEqual({ stalled: 0, emailed: 0, messaged: 0 });
     expect(rec.rpcs()).toEqual([]);
+  });
+});
+
+describe("the carrier's reminder wording (§12 MT2)", () => {
+  it("emails the carrier's subject and paragraph, first name from the full name, and keeps where they stopped and the dead-link caveat", async () => {
+    sent.fn.mockReset().mockResolvedValue({ ok: true });
+    const rec = seed({ wording: [{
+      message_key: "reminder", email_subject: "{first_name}, we saved your spot", email_heading: "Still interested?",
+      email_paragraph: "Your {carrier} application is waiting.", text_lead: null, saved_by_name: "D", saved_at: "2026-08-20T10:00:00Z",
+    }] });
+    await runApplicationNudgesOnce(rec.client, env(), ORG, ["user-1"], NOW);
+    const [email] = sent.fn.mock.calls[0]!.slice(1) as [{ subject: string; text: string; html: string }];
+    expect(email.subject).toBe("Susan, we saved your spot");
+    expect(email.html).toContain("Still interested?");
+    expect(email.text).toContain("Your Silvicom Inc application is waiting. You had reached");
+    expect(email.text).toContain("replaces the one in the earlier email");
+    expect(email.text).toContain("https://app.test/apply/");
   });
 });
 

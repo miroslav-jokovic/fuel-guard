@@ -6,6 +6,7 @@ import RecruitingSettingsForm from "@/features/recruitment/RecruitingSettingsFor
 import OrientationVideosEditor from "@/features/recruitment/OrientationVideosEditor.vue";
 import CarrierStepsEditor from "@/features/recruitment/CarrierStepsEditor.vue";
 import ApplicationFormSettings from "@/features/recruitment/ApplicationFormSettings.vue";
+import ApplicantMessagesSettings from "@/features/recruitment/ApplicantMessagesSettings.vue";
 
 /**
  * Settings → Recruiting (APPLICATION-FLOW-V2-PLAN.md R1, Q-AW42 ruled (a) by the owner 2026-09-28).
@@ -40,6 +41,10 @@ import ApplicationFormSettings from "@/features/recruitment/ApplicationFormSetti
  * ── THE APPLICATION FORM (§11 S2, 0550) ───────────────────────────────────────────────────────
  * The questions an applicant must answer and the documents the application asks for, after the hiring
  * steps: both shape what the office sends, and each applicant keeps what they were sent (D-RS3).
+ *
+ * ── MESSAGES (§12 MT2, 0551) ──────────────────────────────────────────────────────────────────
+ * The carrier's own words in the invitation, "your application is ready", the reminder and the videos
+ * message, after the form: the form is what the applicant fills in, the messages how they are asked to.
  */
 </script>
 
@@ -71,6 +76,15 @@ import ApplicationFormSettings from "@/features/recruitment/ApplicationFormSetti
     >
       <div class="rounded-surface bg-surface p-4 ring-1 ring-edge">
         <ApplicationFormSettings />
+      </div>
+    </SettingsSection>
+
+    <SettingsSection
+      title="Messages"
+      description="Your own words in the emails and texts an applicant gets. The link, how long it works and the STOP line are always added."
+    >
+      <div class="rounded-surface bg-surface p-4 ring-1 ring-edge">
+        <ApplicantMessagesSettings />
       </div>
     </SettingsSection>
 

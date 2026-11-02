@@ -963,3 +963,15 @@ the Spanish (C4) is the page's only.
 - **2026-11-02** — **§12 written; MT1 (this PR), migration `0551_recruiting_message_wording`.** The carrier's
   wording for five applicant messages, one append-only row per save (MW010/MW011), lengths and line breaks
   checked; `sms_outbox`'s reason CHECK gains `travel` for MT3. 25-case matrix; 14/14 mutants killed (each check, both guards, the org cascade, the reason, RLS). Reader: MT2.
+- **2026-11-02** — **MT1 merged (#1944, `b01c4e6`), migration `0551_recruiting_message_wording`.** As above.
+- **2026-11-02** — **MT2 (this PR), no migration.** The reader of 0551. `RECRUITING_MESSAGES` (invitation,
+  application ready, reminder, videos) and the closed placeholder list in `packages/shared/src/recruitingMessages.ts`;
+  one renderer (`applicantMessages.ts`) for the email and the text of each, which the API sends with and Settings
+  previews with (D-MT7). The four old per-message functions are kept as its standard-wording calls, so their
+  callers and tests did not move. The invite, the Send, the reminder sweep, the videos send and the outbox's text
+  render (moved to `smsOutboxRender.ts` for the file budget) read the carrier's newest wording and the applicant's
+  first name; a queued text is worded when it goes (D-MT6); a failed wording read sends the standard words.
+  Settings → Recruiting's "Messages": each message with "Edit the wording" (four fields, the standard words as
+  their placeholders, a preview and the text's part count) and "Use the standard wording". The audit row names the
+  message and the parts written, never the words. **Departure from §12:** the GET also answers the carrier's
+  name, so the preview's `{carrier}` is the one the senders write (the session holds no org name).

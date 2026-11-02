@@ -109,10 +109,9 @@ const WAIVERS = new Map([
   // hiring_carrier_steps (0545, HIRING-WORKFLOW-AUDIT-2026-10-31 §10 CE1) left on 2026-11-02 in CE2:
   // recruiting/carrierSteps.ts writes it behind Settings → Recruiting's "Your hiring steps". Pinned for the
   // schema-only first PR only.
-  // recruiting_message_wording (0551, HIRING-WORKFLOW-AUDIT-2026-10-31 §12 MT1) ships schema-only: a migration and
-  // its first reader never share a merge. It leaves in MT2, whose Settings → Recruiting "Messages" section saves
-  // each wording (recruiting/messageWording.ts).
-  ["recruiting_message_wording", "HIRING-WORKFLOW-AUDIT-2026-10-31 §12 MT2 — Settings → Recruiting's Messages section saves it (schema-only, 0551)"],
+  // recruiting_message_wording (0551, HIRING-WORKFLOW-AUDIT-2026-10-31 §12 MT1) left on 2026-11-02 in MT2:
+  // recruiting/messageWording.ts writes it behind Settings → Recruiting's "Messages". Pinned for the
+  // schema-only first PR only.
 ]);
 
 const files = readdirSync(MIGRATIONS).filter((f) => f.endsWith(".sql")).sort();

@@ -34,6 +34,8 @@ const seed = (over: {
   consents?: unknown[]; state?: string | null; outbox?: unknown[]; appointments?: unknown[]; suppressions?: unknown[];
   /** Q-AW29: the invitation a link-bearing text is about, and what the text-token rotation answers. */
   invitations?: unknown[]; rotated?: unknown;
+  /** §12 MT2: the carrier's saved wording, and the applicant's name for `{first_name}`. */
+  wording?: unknown[]; drivers?: unknown[];
 } = {}) =>
   createSupabaseRecorder({
     rpc: { rotate_invitation_sms_token: over.rotated === undefined ? true : over.rotated },
@@ -51,6 +53,8 @@ const seed = (over: {
       drug_test_appointments: postgrestFixture((over.appointments ?? []) as Record<string, unknown>[]),
       sms_suppressions: postgrestFixture((over.suppressions ?? []) as Record<string, unknown>[]),
       organizations: [{ name: "Silvicom Inc", operating_hours: { tz: "America/Chicago" } }],
+      recruiting_message_wording: postgrestFixture((over.wording ?? []) as Record<string, unknown>[]),
+      drivers: postgrestFixture((over.drivers ?? []) as Record<string, unknown>[]),
       application_invitations: postgrestFixture((over.invitations ?? [
         { id: "inv-1", org_id: ORG, submitted_at: null, review_requested_at: null, approved_at: null },
       ]) as Record<string, unknown>[]),
@@ -384,5 +388,47 @@ describe("recordDeliveryReceipt", () => {
     expect(await recordDeliveryReceipt(r.client, { messageId: "tx-9", status: "delivered" }, OPEN)).toBe(false);
     expect(await recordDeliveryReceipt(r.client, { messageId: "tx-1", status: "delivery_unconfirmed" }, OPEN)).toBe(false);
     expect(r.writtenRows("sms_outbox")).toEqual([]);
+  });
+});
+
+/** §12 MT2 D-MT6: a text renders with the carrier's wording in force when it GOES, with the applicant's name. */
+describe("the carrier's wording", () => {
+  const saved = (key: string, lead: string, at: string) => ({
+    org_id: ORG, message_key: key, email_subject: null, email_heading: null, email_paragraph: null, text_lead: lead,
+    saved_by_name: "Dana", saved_at: at,
+  });
+  const queued = (template: string) => ({
+    id: "o-1", org_id: ORG, driver_id: DRIVER, invitation_id: "inv-1", phone: "+17082365732", template,
+    params: {}, attempts: 0, status: "queued", not_before: "2027-01-12T15:00:00Z", expires_at: "2027-01-13T15:00:00Z",
+  });
+
+  it("drains a queued reminder in the NEWEST lead the carrier saved, first name filled, the link and STOP kept", async () => {
+    const rec = seed({
+      outbox: [queued("nudge")],
+      wording: [saved("reminder", "Old words:", "2027-01-01T10:00:00Z"), saved("reminder", "Hi {first_name}, finish here:", "2027-01-12T12:00:00Z")],
+      drivers: [{ id: DRIVER, org_id: ORG, first_name: "Pat", full_name: "Pat Lee" }],
+    });
+    expect(await drainSmsOutboxForOrg(rec.client, env, ORG, OPEN)).toMatchObject({ sent: 1 });
+    const body = String(sms.fn.mock.calls[0]![1].body);
+    expect(body).toMatch(/^Silvicom Inc: Hi Pat, finish here: https?:\/\/\S+\/apply\/\S+ This link replaces any earlier one\. Reply STOP to opt out\.$/);
+    expectOrgScoped(rec, ORG);
+  });
+
+  it("reads the message the template is — the invitation's wording for an invite text, not another message's", async () => {
+    const rec = seed({
+      wording: [saved("reminder", "Wrong message:", "2027-01-12T12:00:00Z"), saved("invitation", "Tap to start:", "2027-01-12T12:00:00Z")],
+      drivers: [{ id: DRIVER, org_id: ORG, first_name: null, full_name: "Pat Lee" }],
+    });
+    await sendOrQueueSms(rec.client, env, message({ template: "invite", params: { days: 14 } }), OPEN);
+    const body = String(sms.fn.mock.calls[0]![1].body);
+    expect(body).toContain("You asked us to text you your driver application. Tap to start: ");
+    expect(body).toContain("works for 14 days");
+    expect(body).not.toContain("Wrong message");
+  });
+
+  it("leaves the texts that carry rules in the product's words, whatever is saved", async () => {
+    const rec = seed({ wording: [saved("invitation", "Carrier words:", "2027-01-12T12:00:00Z")] });
+    await sendOrQueueSms(rec.client, env, message({ template: "consent_confirm" }), OPEN);
+    expect(String(sms.fn.mock.calls[0]![1].body)).toContain("You're signed up for texts");
   });
 });

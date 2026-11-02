@@ -1,7 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   canResendApplicationLink,
-  renderApplicationInviteEmail,
+  renderApplicantEmail,
   renderApplicationLinkResentEmail,
   stoppedBeforeLinkExpires,
   type ApplicationInviteTextOutcome,
@@ -14,6 +14,7 @@ import { mintIntakeRow } from "./applicantIntake.js";
 import { inviteByText } from "./applicationInviteText.js";
 import { carrierName, deliverApplicationMail, type ApplicationInviteDelivery } from "./applicationMail.js";
 import { recruitingSettings } from "./recruitingSettings.js";
+import { messageInputs } from "./messageWording.js";
 
 /**
  * The office's hold on an applicant's link (C2e: Q-AX5, Q-AX6).
@@ -165,8 +166,9 @@ export async function createApplicationInvite(
   });
 
   const link = applyLink(env, token);
-  const carrier = await carrierName(admin, input.orgId);
-  const delivery = await deliverApplicationMail(env, input.email, renderApplicationInviteEmail(carrier, link, days));
+  // §12 MT2: the carrier's wording for the invitation, with the applicant's first name (D-MT3).
+  const { vars, wording } = await messageInputs(admin, input.orgId, input.driverId, "invitation", days);
+  const delivery = await deliverApplicationMail(env, input.email, renderApplicantEmail("invitation", vars, link, wording));
   const text = input.text
     ? await inviteByText(admin, env, {
       orgId: input.orgId, userId: input.userId, driverId: input.driverId, invitationId: invitation.id, days,

@@ -18,6 +18,18 @@ import { hashInvitationToken } from "../applicationIntake.js";
 
 const holder = vi.hoisted(() => ({ client: null as unknown }));
 vi.mock("../../../lib/supabaseAdmin.js", () => ({ getSupabaseAdmin: () => holder.client }));
+/** §12 MT2: the email the send composes, caught at the hand-off to the mailer and passed through. */
+const mails = vi.hoisted(() => ({ sent: [] as Array<{ subject: string; text: string; html: string }> }));
+vi.mock("../applicationMail.js", async (orig) => {
+  const real = await orig<typeof import("../applicationMail.js")>();
+  return {
+    ...real,
+    deliverApplicationMail: async (...args: Parameters<typeof real.deliverApplicationMail>) => {
+      mails.sent.push(args[2]);
+      return real.deliverApplicationMail(...args);
+    },
+  };
+});
 
 const ORG = "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d";
 const OTHER_ORG = "11111111-2222-4333-8444-555555555555";
@@ -57,15 +69,16 @@ const VIDEOS = [
   { id: V_THEIRS, org_id: OTHER_ORG, title: "Theirs", url: "https://v.example/x", minutes: 1, required: true, position: 0, created_at: "2026-10-01T00:00:00Z", retired_at: null },
 ];
 
-function seed(over: { videos?: unknown[]; invitations?: unknown[] } = {}): SupabaseRecorder {
+function seed(over: { videos?: unknown[]; invitations?: unknown[]; wording?: unknown[] } = {}): SupabaseRecorder {
   rec = createSupabaseRecorder({
     tables: {
       drivers: postgrestFixture([
-        { id: DRIVER, org_id: ORG, status: "applicant", email: "ana@x.test" },
+        { id: DRIVER, org_id: ORG, status: "applicant", email: "ana@x.test", first_name: "Ana", full_name: "Ana Plicant" },
         { id: OTHER_DRIVER, org_id: OTHER_ORG, status: "applicant", email: null },
       ]),
       organizations: postgrestFixture([{ id: ORG, name: "Silvicom Inc" }]),
       recruiting_settings: [],
+      recruiting_message_wording: postgrestFixture((over.wording as Record<string, unknown>[] | undefined) ?? []),
       orientation_videos: postgrestFixture((over.videos as Record<string, unknown>[] | undefined) ?? VIDEOS),
       application_invitations: postgrestFixture((over.invitations as Record<string, unknown>[] | undefined) ?? [{
         id: INV, org_id: ORG, driver_id: DRIVER, email: "ana@x.test", token_hash: hashInvitationToken(TOKEN),
@@ -207,6 +220,21 @@ describe("Send the videos", () => {
     expect(rec.writtenRows("audit_logs").map((a) => a.action)).toContain("compliance.orientation_videos_sent");
     // Never the link itself in the answer: it went to the applicant.
     expect(JSON.stringify(body)).not.toContain("/apply/");
+    expectOrgScoped(rec, ORG);
+  });
+
+  it("§12 MT2: emails the carrier's videos wording with the applicant's first name and the link's days", async () => {
+    mails.sent.length = 0;
+    seed({ wording: [{
+      org_id: ORG, message_key: "videos", email_subject: "{first_name}: watch before {carrier}", email_heading: null,
+      email_paragraph: "About an hour in all. You have {days}.", text_lead: null, saved_by_name: "D", saved_at: "2026-10-30T10:00:00Z",
+    }] });
+    expect((await call(`/applicants/${DRIVER}/orientation-videos/send`, "recruiter", { method: "POST" })).status).toBe(200);
+    const mail = mails.sent.at(-1)!;
+    expect(mail.subject).toBe("Ana: watch before Silvicom Inc");
+    expect(mail.text).toMatch(/About an hour in all\. You have \d+ days\./);
+    expect(mail.text).toContain("/videos");
+    expect(mail.text).toContain("Any earlier link we sent you no longer works.");
     expectOrgScoped(rec, ORG);
   });
 

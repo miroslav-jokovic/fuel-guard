@@ -322,33 +322,6 @@ export const smsOptInConfirmation = (carrier: string): string =>
   + "Msg & data rates may apply. Reply HELP for help, STOP to opt out.";
 
 /**
- * The application link, by text (D-SMS7).
- *
- * Carrier name first (every US programme requires the sender in the body) and STOP last. It says the
- * older link has stopped working because it has: sending rotates the token, and a driver holding the
- * permissions link would otherwise tap the dead one. No link shortener — carriers block public
- * shorteners on sight — so the full link, which is on the sender's own verified domain.
- */
-export const smsApplicationReady = (carrier: string, link: string): string =>
-  `${carrier}: Your driver application is ready. Fill it in here: ${link} `
-  + "Your earlier link no longer works. Reply STOP to opt out.";
-
-/**
- * The invitation itself, by text (Q-AW55, D-SMS11) — the first message this number ever gets from us.
- *
- * "You asked us to text you" is the attestation said back to the person, so a wrong number reads it
- * as the mistake it is rather than as spam. Because there is no opt-in confirmation ahead of it
- * (`smsOptInConfirmation` follows a box the applicant ticked; nobody ticked one here), this one
- * message carries what CTIA §5.1.2.1 asks of a first contact: the sender, the subject, rates, HELP and
- * STOP. The days are said because the link really does stop — the carrier's lifetime or the drawer's
- * override — and asking the office for another is the remedy. Two GSM-7 parts with a link of this
- * product's length; the disclosures are not what gets cut to fit.
- */
-export const smsApplicationInvite = (carrier: string, link: string, days: number): string =>
-  `${carrier}: You asked us to text you your driver application. Fill it in here: ${link} `
-  + `This link works for ${days} days. Msg & data rates may apply. Reply HELP for help, STOP to opt out.`;
-
-/**
  * What became of an invitation by text, as the drawer reads it (Q-AW55).
  *
  * `refused` is the attestation NOT recorded — nothing was written, because the number cannot be texted
@@ -395,11 +368,6 @@ export type TextLinkAnswer =
 export const smsSigningLink = (carrier: string, link: string, hours: number): string =>
   `${carrier}: Sign your driver application here: ${link} `
   + `This link works for ${hours} hours. Reply STOP to opt out.`;
-
-/** The 48-hour reminder (A10) — the same link rotation as above, so the same warning. */
-export const smsApplicationReminder = (carrier: string, link: string): string =>
-  `${carrier}: Your driver application is saved. Pick up where you left off: ${link} `
-  + "This link replaces any earlier one. Reply STOP to opt out.";
 
 /**
  * The approval notice (F4). No link, deliberately: since AF5 there is nothing to do on the

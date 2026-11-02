@@ -1,13 +1,12 @@
 import { describe, it, expect } from "vitest";
 import {
-  applicationInviteSubject,
   renderApplicationApprovedEmail,
-  renderApplicationInviteEmail,
   renderApplicationLinkResentEmail,
   renderDigestEmail,
   renderInviteEmail,
   renderSigningLinkEmail,
 } from "./email.js";
+import { applicationInviteSubject, renderApplicationInviteEmail } from "./applicantMessages.js";
 
 describe("renderApplicationInviteEmail", () => {
   const mail = () =>
