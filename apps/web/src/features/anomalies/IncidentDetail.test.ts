@@ -60,6 +60,12 @@ describe("the incident drawer", () => {
     expect(state.refetches).toBe(1);
   });
 
+  it("hands what its page puts under it the incident it read — the card's last four only (CH11)", async () => {
+    const w = mount(IncidentDetail, { props: { id: "i1" }, slots: { default: `<template #default="{ incident }"><p data-test="under">{{ incident.id }} {{ incident.cardLast4 }}</p></template>` } });
+    await flushPromises();
+    expect(w.find("[data-test='under']").text()).toBe("i1 7967");
+  });
+
   it("tells what happened in words, and lists each attempt", async () => {
     const w = mount(IncidentDetail, { props: { id: "i1" } });
     expect(w.text()).toContain("Card ••••7967 was tried 2 times in Jacksonville, FL.");

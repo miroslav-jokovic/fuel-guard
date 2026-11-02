@@ -24,10 +24,19 @@ import { CHAT_KEY, inboxKey, unwrap } from "./useChat";
  */
 export const aboutKey = (threadId: string | null) => [...CHAT_KEY, "about", threadId] as const;
 
-/** The page a record lives on — the router's own names for them. */
+/**
+ * The page a record lives on — the router's own names for them. A card-fraud incident has no page of its
+ * own: it opens as its drawer on Fuel problems (`?incident=`, 8c3); a DataQs challenge is worked on its
+ * roadside inspection's page (D-CHAT35).
+ */
 export function chatAboutRoute(kind: ChatAboutKind, id: string): RouteLocationRaw {
-  const name = kind === "load" ? "load-detail" : kind === "driver" ? "driver-detail" : "vehicle-detail";
-  return { name, params: { id } };
+  switch (kind) {
+    case "load": return { name: "load-detail", params: { id } };
+    case "driver": return { name: "driver-detail", params: { id } };
+    case "vehicle": return { name: "vehicle-detail", params: { id } };
+    case "fraud_incident": return { name: "fuel-problems", query: { incident: id } };
+    case "roadside_inspection": return { name: "roadside-inspection", params: { id } };
+  }
 }
 
 export function useChatThreadAbout(threadId: Ref<string | null>, isGroup: Ref<boolean>) {

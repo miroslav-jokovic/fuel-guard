@@ -819,3 +819,13 @@ TechRepublic / Windows Report on Teams 2026 updates.
   (`useChatFocusWalk`): never two at once, never after a failure, at most twenty — past that, or at the
   start of the conversation, the stage says in words that it is further back or gone. Tests: walk 4,
   log 3, stages and page 4, the search's address 1; 17 mutants, all failed tests.
+- 2026-11-02: **#1928 MERGED (0546), #1930 MERGED (search opens at the line).** **Q-CHAT21 (c), the screens**
+  (`claude/chat-about-cases-ui`): the contract names the two kinds, reads them under `fuel` and `safety`
+  view (the API test reads both routes' own gates), and calls them "Card fraud ••7559" and "Roadside
+  inspection MN12345" (`CHAT_ABOUT_NOUNS`). A fraud incident's Chat card sits under it in the Fuel
+  problems drawer — the incident view hands its slot the incident it read and the drawer passes it on, so
+  the page composes chat with anomalies and no feature imports another (`WEB_ALLOW` stays empty) — named
+  by the last four the API already cut it to. A roadside inspection's sits at the foot of its page.
+  /chat's header links a fraud conversation to `/fuel-problems?incident=` and an inspection's to its page.
+  Tests: API 2 new, web 6 new; 10 mutants, 9 failed tests — the tenth swapped the inspection's id for
+  the route's, which are the same id. CH11 is complete.
