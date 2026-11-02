@@ -37,7 +37,9 @@ const MARKED: DataTableColumn[] = [
 ];
 const ROWS = [{ id: "r1", unit: "654", why: "2 open defects", due: "11/10/2026", make: "Volvo", plate: "P 483" }];
 
-function mountTable(opts: { touch?: boolean; columns?: DataTableColumn[]; withLink?: boolean } = {}) {
+function mountTable(
+  opts: { touch?: boolean; columns?: DataTableColumn[]; withLink?: boolean; selectable?: boolean } = {},
+) {
   const Host = defineComponent({
     emits: ["row-click"],
     setup(_, { emit }) {
@@ -45,7 +47,13 @@ function mountTable(opts: { touch?: boolean; columns?: DataTableColumn[]; withLi
       return () =>
         h(
           DataTable,
-          { columns: opts.columns ?? MARKED, rows: ROWS, onRowClick: (row: unknown) => emit("row-click", row) },
+          {
+            columns: opts.columns ?? MARKED,
+            rows: ROWS,
+            selectable: opts.selectable ?? false,
+            selected: new Set<string>(),
+            onRowClick: (row: unknown) => emit("row-click", row),
+          },
           {
             ...(opts.withLink ? { "cell-unit": ({ row }: { row: (typeof ROWS)[number] }) => h("a", { href: `/u/${row.id}` }, row.unit) } : {}),
             actions: () => h("button", { type: "button", class: "kebab" }, "⋮"),
@@ -100,5 +108,21 @@ describe("the three-fact card", () => {
     const w = mountTable({ columns: unmarked });
     expect(w.find("dl").exists()).toBe(true);
     expect(w.text()).toContain("Volvo");
+  });
+
+  /*
+   * The full card is what every page that marks no facts renders on a phone — Fuel Cards, Fills,
+   * Loads and a dozen more. It used to swallow the tap that opens the row at a desk (2026-11-02).
+   */
+  it("opens the row from a tap on the full card too, but not from its menu or its checkbox", async () => {
+    setViewport(false);
+    const unmarked = MARKED.map(({ card: _card, ...col }) => col);
+    const w = mountTable({ columns: unmarked, selectable: true });
+    expect(w.find("dl").exists()).toBe(true);
+    await w.find("li").trigger("click");
+    expect(w.emitted("row-click")).toEqual([[ROWS[0]]]);
+    await w.find(".kebab").trigger("click");
+    await w.find('input[type="checkbox"]').trigger("click");
+    expect(w.emitted("row-click")).toHaveLength(1);
   });
 });
