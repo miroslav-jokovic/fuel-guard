@@ -21,7 +21,7 @@ export type ChatAboutKind = (typeof CHAT_ABOUT_KINDS)[number];
  * check the organisation only, and office chat is office roles already — so they need no section here. A
  * driver's profile is read through `GET /api/drivers/:id`, which requires `roster` view, so a
  * conversation about a driver requires it too. When one of those gates changes, this changes with it:
- * the API's `chatAbout.test.ts` reads the roster route and fails if its gate moves.
+ * `apps/api/src/modules/messaging/routes/chatAbout.test.ts` reads the roster route and fails if its gate moves.
  */
 export const CHAT_ABOUT_READ_SECTION: Record<ChatAboutKind, AppSection | null> = {
   load: null,
