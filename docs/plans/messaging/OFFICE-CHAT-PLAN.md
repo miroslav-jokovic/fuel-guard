@@ -727,8 +727,9 @@ TechRepublic / Windows Report on Teams 2026 updates.
   read: the two revokes (0412 closes every new function to clients already; they stay, as every chat
   migration states them), and four clauses that were removed — a no-words shortcut (a null tsquery
   matches nothing), a second org filter the thread's covers, and quote escaping no lexeme can need.
-  **Open:** the compliance console still searches with `ilike` over every prior version (0516), which
-  this index does not hold; moving it means indexing `message_versions` too — its own merge. Next: CH8b,
+  **Open (closed by 0548, 2026-11-02):** the compliance console still searches with `ilike` over every
+  prior version (0516), which this index does not hold; moving it means indexing `message_versions` too —
+  its own merge. Next: CH8b,
   the API (`GET /api/chat/search`) and the header and rail search, once 0542 is on staging.
 - 2026-11-02: **CH8b built — search, the API and the web** (`claude/chat-ch8-search-web`), on 0542 (merged
   in #1913, applied to staging). API `GET /api/chat/search?q=&thread=&before_at=&before_id=`
@@ -819,3 +820,12 @@ TechRepublic / Windows Report on Teams 2026 updates.
   (`useChatFocusWalk`): never two at once, never after a failure, at most twenty — past that, or at the
   start of the conversation, the stage says in words that it is further back or gone. Tests: walk 4,
   log 3, stages and page 4, the search's address 1; 17 mutants, all failed tests.
+- 2026-11-02: **#1931 MERGED — CH11 complete.** **The console's search moves onto the index**
+  (`claude/chat-compliance-fts`, migration 0548), 0542's open item: `message_versions` indexed by the same
+  expression, and the console's message search and its search export match as a person's search does —
+  every word, as a word's beginning, an edit's removed words still found. Said in the migration for the
+  reviewer: words, not fragments ("night" finds "nights", not "midnight"); a search of only symbols finds
+  nothing rather than everything. `chat_compliance_like` had no caller left and is dropped. Matrix
+  `office-chat-compliance.test.mjs` 40 rows (5 new, placed last because each search is itself a ledgered
+  act the earlier rows count); 9 mutants across both functions, 8 failed rows, the ninth a guard the
+  null tsquery made redundant, removed.

@@ -185,6 +185,27 @@ ok("an admin's browser cannot call the console's functions",
   && /permission denied/.test((await asUser(benJwt, `select * from chat_compliance_access_log($1,null,50)`, [ORG])).error ?? ""));
 ok("...and cannot check a reason for itself", /permission denied/.test((await asUser(benJwt, `select chat_compliance_reason($1)`, [REASON])).error ?? ""));
 
+// ── 0548 (last: each search below is itself a ledgered act, and the rows above count them) ─────
+console.log("\n-- 0548: the search index --");
+// 0548: the console searches with the search index (CH8's rules), earlier versions indexed too.
+const gone = await all(`select * from chat_compliance_messages($1,$2,$3,null,null,null,null,'yard',null,null,50)`, [ORG, BEN, REASON]);
+ok("0548: a word an edit REMOVED still finds its line, through the indexed earlier version",
+  (await all(`select * from chat_compliance_messages($1,$2,$3,null,null,null,null,'is at the',null,null,50)`, [ORG, BEN, REASON])).some((m) => m.id === M1) && gone.length === 1);
+ok("0548: a word's beginning finds it ('appro' finds 'Approved'), a fragment inside a word does not ('ight' is not 'night')",
+  (await all(`select * from chat_compliance_messages($1,$2,$3,null,null,null,null,'appro',null,null,50)`, [ORG, BEN, REASON])).map((m) => m.id).join() === M2
+  && (await all(`select * from chat_compliance_messages($1,$2,$3,null,null,null,null,'ight',null,null,50)`, [ORG, BEN, REASON])).length === 0);
+const allOfIt = (await all(`select * from chat_compliance_messages($1,$2,$3,null,null,null,null,null,null,null,100)`, [ORG, BEN, REASON])).length;
+ok("0548: a search of only symbols finds nothing, not everything; an empty one is still no filter",
+  (await all(`select * from chat_compliance_messages($1,$2,$3,null,null,null,null,'!!!',null,null,100)`, [ORG, BEN, REASON])).length === 0
+  && (await all(`select * from chat_compliance_messages($1,$2,$3,null,null,null,null,'   ',null,null,100)`, [ORG, BEN, REASON])).length === allOfIt && allOfIt >= 4);
+ok("0548: an export of a search reads the same way — 'yard' carries the edited line, '!!!' carries none",
+  (await one(`select * from chat_compliance_export_rows($1,$2,$3,$4,'search',null,null,null,null,'yard')`, [ORG, BEN, REASON, await uuid()])).lines.map((l) => l.id).join() === M1
+  && (await one(`select * from chat_compliance_export_rows($1,$2,$3,$4,'search',null,null,null,null,'!!!')`, [ORG, BEN, REASON, await uuid()])).lines.length === 0);
+await db.exec("set enable_seqscan = off");
+const vplan = (await all(`explain select 1 from message_versions v where chat_search_vector(v.body) @@ chat_search_query('yard')`)).map((r) => r["QUERY PLAN"]).join("\n");
+await db.exec("reset enable_seqscan");
+ok("0548: the earlier versions' match is the index's expression", vplan.includes("idx_message_versions_search"), vplan);
+
 await db.close();
 console.log(`\nRESULT: ${pass} passed, ${fail} failed`);
 process.exit(fail === 0 ? 0 : 1);
