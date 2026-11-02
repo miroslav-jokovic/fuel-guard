@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { CampaignState } from "@silvicom/shared";
+import { loadEnv } from "../../../env.js";
 import { campaign, createAdsWorld } from "../../../testing/adsWorld.js";
 import { SCHEDULERS } from "../../../schedulers.js";
 import { dispatchJob } from "../../../queue/dispatch.js";
@@ -44,14 +45,16 @@ describe("orchestratorTick — it only enqueues, one keyed step per campaign wit
     expect(await orchestratorTick(w.admin, ALL, l.enqueue)).toEqual({ campaigns: 1, queued: 0, conflicts: 1 });
   });
 
-  it("with no worker built (this build), nothing is queued unless the kill switch has something live to pause", async () => {
-    const live = [campaign("c1", "live"), campaign("c2", "composing"), campaign("c3", "launching")];
+  it("with this build's workers (the platform only, B3), launching and pausing are queued; composing waits, live waits for the kill switch", async () => {
+    const live = [campaign("c1", "live"), campaign("c2", "composing"), campaign("c3", "launching"), campaign("c4", "pausing")];
     const quiet = ledger();
-    await orchestratorTick(createAdsWorld({ campaigns: live }).admin, adsWorkers(), quiet.enqueue);
-    expect(quiet.calls).toEqual([]);
+    const w1 = createAdsWorld({ campaigns: live });
+    await orchestratorTick(w1.admin, adsWorkers({ admin: w1.admin, env: loadEnv({ NODE_ENV: "test" } as NodeJS.ProcessEnv), now: w1.now }), quiet.enqueue);
+    expect(quiet.calls.map((c) => c.key).sort()).toEqual(["ads_step:c3:launching", "ads_step:c4:pausing"]);
     const pressed = ledger();
-    await orchestratorTick(createAdsWorld({ campaigns: live, kill: true }).admin, adsWorkers(), pressed.enqueue);
-    expect(pressed.calls.map((c) => c.key).sort()).toEqual(["ads_step:c1:live", "ads_step:c3:launching"]);
+    const w2 = createAdsWorld({ campaigns: live, kill: true });
+    await orchestratorTick(w2.admin, adsWorkers({ admin: w2.admin, env: loadEnv({ NODE_ENV: "test" } as NodeJS.ProcessEnv), now: w2.now }), pressed.enqueue);
+    expect(pressed.calls.map((c) => c.key).sort()).toEqual(["ads_step:c1:live", "ads_step:c3:launching", "ads_step:c4:pausing"]);
   });
 
   it("asks the database only for states the agent can act in, and nothing at all when there are none", async () => {

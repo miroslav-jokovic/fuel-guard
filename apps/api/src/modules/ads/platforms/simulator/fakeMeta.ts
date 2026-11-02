@@ -1,6 +1,7 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import type { AddressInfo } from "node:net";
 import { META_GRAPH_VERSION } from "../meta/graphClient.js";
+import { FakeAdSets } from "./fakeMetaAdSets.js";
 import { FakeForms } from "./fakeMetaForms.js";
 import { graphError, pick } from "./fakeMetaShapes.js";
 
@@ -73,7 +74,9 @@ export type FakeMetaFault =
   /** Holds the response until the caller gives up (the request is never answered). */
   | { kind: "hang" }
   /** The act HAPPENS, then the answer is an error — the half-created object the adapter must resume. */
-  | { kind: "applied_then_temporary" };
+  | { kind: "applied_then_temporary" }
+  /** `{ success: true }` and nothing changes — why the adapter answers from a read-back, not the 200 (B3). */
+  | { kind: "accepted_not_applied" };
 
 interface FaultRule {
   method: "GET" | "POST";
@@ -94,20 +97,6 @@ export interface FakeCampaign {
   special_ad_category_country: string[] | null;
   spend_cap: string | null;
   daily_budget: string | null;
-}
-
-export interface FakeAdSet {
-  id: string;
-  account_id: string;
-  campaign_id: string;
-  name: string;
-  status: FakeCampaign["status"];
-  daily_budget: string;
-  billing_event: string;
-  optimization_goal: string;
-  destination_type: string | null;
-  promoted_object: Record<string, unknown> | null;
-  targeting: Record<string, unknown>;
 }
 
 export interface FakeMetaAccount {
@@ -153,7 +142,8 @@ export class FakeMeta {
   private nextId = 120_000_000_000_000;
   private trace = 0;
   readonly campaigns = new Map<string, FakeCampaign>();
-  readonly adsets = new Map<string, FakeAdSet>();
+  /** Ad sets (B2a) and ads (their status, B3; their creation is B2c's), in `fakeMetaAdSets.ts`. */
+  readonly sets: FakeAdSets;
   /** Instant Forms (B2b), made and read with a Page's token. */
   readonly forms: FakeForms;
   private revoked = false;
@@ -174,6 +164,7 @@ export class FakeMeta {
     this.permissions = { ...(opts.permissions ?? Object.fromEntries(DEFAULT_PERMISSIONS.map((p) => [p, "granted" as const]))) };
     this.pages = (opts.pages ?? []).map((p) => ({ ...p, tasks: [...p.tasks] }));
     this.forms = new FakeForms(() => String(this.nextId++), () => this.traceId());
+    this.sets = new FakeAdSets(() => String(this.nextId++), () => this.traceId(), (id) => this.campaigns.get(id));
   }
 
   async start(): Promise<string> {
@@ -208,6 +199,11 @@ export class FakeMeta {
     this.revoked = true;
   }
 
+  /** Ad sets by id — the tests' view of what the publisher made. */
+  get adsets(): Map<string, import("./fakeMetaAdSets.js").FakeAdSet> {
+    return this.sets.adsets;
+  }
+
   /** Someone used Ads Manager: the platform changed a campaign we did not ask it to (D-AD4). */
   externalStatusChange(campaignId: string, status: FakeCampaign["status"]): void {
     const c = this.campaigns.get(campaignId);
@@ -233,6 +229,7 @@ export class FakeMeta {
 
     const fault = this.takeFault(method, path);
     if (fault?.kind === "hang") return; // never answered; the caller's timeout is what is under test
+    if (fault?.kind === "accepted_not_applied") return send(res, 200, { success: true });
     if (fault && fault.kind !== "applied_then_temporary") return this.fault(res, fault);
 
     const answer = this.route(method, path, body);
@@ -270,17 +267,17 @@ export class FakeMeta {
     if (create && method === "POST") return this.createCampaign(create[1]!, body);
     if (create && method === "GET") return this.list([...this.campaigns.values()].filter((c) => c.account_id === create[1]), body);
     const adsets = /^act_(\d+)\/adsets$/.exec(path);
-    if (adsets && method === "POST") return this.createAdSet(adsets[1]!, body);
+    if (adsets && method === "POST") return this.accounts.has(adsets[1]!) ? this.sets.create(adsets[1]!, body) : graphError(400, 100, "OAuthException", "(#100) Ad account does not exist", this.traceId());
     const children = /^(\d+)\/adsets$/.exec(path);
-    if (children && method === "GET") return this.list([...this.adsets.values()].filter((a) => a.campaign_id === children[1]), body);
+    if (children && method === "GET") return this.list([...this.sets.adsets.values()].filter((a) => a.campaign_id === children[1]), body);
     const pageForms = /^(\d+)\/leadgen_forms$/.exec(path);
     if (pageForms && method === "POST") return this.forms.create(pageForms[1]!, body);
     if (pageForms && method === "GET") return this.forms.list(pageForms[1]!, body.fields);
     const one = /^(\d+)$/.exec(path);
     const form = one && method === "GET" ? this.forms.read(one[1]!, body.fields) : null;
     if (form) return form;
-    const adset = one && method === "GET" ? this.adsets.get(one[1]!) : undefined;
-    if (adset) return { status: 200, body: pick({ ...adset, effective_status: adset.status }, body.fields, ["id"]) };
+    const child = one ? this.sets.route(method, one[1]!, body) : null;
+    if (child) return child;
     if (one && method === "GET") return this.readCampaign(one[1]!, body.fields);
     if (one && method === "POST") return this.updateCampaign(one[1]!, body);
     return graphError(400, 100, "GraphMethodException", `Unsupported ${method} request. Object with ID '${path}' does not exist.`, this.traceId(), 33);
@@ -338,50 +335,6 @@ export class FakeMeta {
     return { status: 200, body: { data: out.map((r) => pick({ ...r }, b.fields, ["id"])) } };
   }
 
-  private createAdSet(accountId: string, b: Record<string, string>) {
-    const bad = (message: string, code = 100) => graphError(400, code, "OAuthException", `(#${code}) ${message}`, this.traceId());
-    if (!this.accounts.has(accountId)) return bad("Ad account does not exist");
-    const campaign = this.campaigns.get(b.campaign_id ?? "");
-    if (!campaign || campaign.account_id !== accountId) return bad("campaign_id is required and must belong to this ad account");
-    if (!b.name || b.name.length > 400) return bad("name is required, at most 400 characters");
-    if (!(Number(b.daily_budget) > 0)) return bad("Either daily_budget or lifetime_budget must be greater than 0");
-    if (!b.billing_event || !b.optimization_goal) return bad("billing_event and optimization_goal are required");
-    if (b.status !== "ACTIVE" && b.status !== "PAUSED") return bad("Only ACTIVE and PAUSED are valid during creation");
-    const json = (k: string): Record<string, unknown> | null => {
-      try {
-        const v: unknown = b[k] === undefined ? null : JSON.parse(b[k]!);
-        return v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : null;
-      } catch {
-        return null;
-      }
-    };
-    const targeting = json("targeting");
-    const promoted = json("promoted_object");
-    if (!targeting) return bad("targeting is required");
-    if (b.optimization_goal === "LEAD_GENERATION" && typeof promoted?.page_id !== "string") return bad("page_id needs to be passed as promoted_object");
-    const locations = ((targeting.geo_locations as { custom_locations?: unknown } | undefined)?.custom_locations ?? []) as Array<Record<string, unknown>>;
-    for (const l of locations) {
-      const miles = Number(l.radius) * (l.distance_unit === "kilometer" ? 0.621371 : 1);
-      if (!(miles >= 0.63 && miles <= 50)) return bad("custom_locations radius must be 0.63–50 miles");
-    }
-    if (campaign.special_ad_categories.includes("EMPLOYMENT")) {
-      const forbidden = ["age_min", "age_max", "genders", "excluded_geo_locations", "flexible_spec", "exclusions"].filter((k) => k in targeting);
-      const geo = (targeting.geo_locations ?? {}) as Record<string, unknown>;
-      const geoForbidden = ["zips", "subcity", "neighborhood", "metro_area", "small_geo_area", "subneighborhood", "electoral_district"].filter((k) => k in geo);
-      const tooSmall = locations.some((l) => Number(l.radius) * (l.distance_unit === "kilometer" ? 0.621371 : 1) < 15);
-      if (forbidden.length || geoForbidden.length || tooSmall) {
-        return bad(`Employment ads cannot use: ${[...forbidden, ...geoForbidden, ...(tooSmall ? ["radius under 15 miles"] : [])].join(", ")}`, 2909035);
-      }
-    }
-    const id = String(this.nextId++);
-    this.adsets.set(id, {
-      id, account_id: accountId, campaign_id: campaign.id, name: b.name, status: b.status, daily_budget: b.daily_budget!,
-      billing_event: b.billing_event, optimization_goal: b.optimization_goal, destination_type: b.destination_type ?? null,
-      promoted_object: promoted, targeting,
-    });
-    return { status: 200, body: { id } };
-  }
-
   private readCampaign(id: string, fields?: string) {
     const c = this.campaigns.get(id);
     if (!c) return graphError(400, 100, "GraphMethodException", `Unsupported get request. Object with ID '${id}' does not exist.`, this.traceId(), 33);
@@ -401,7 +354,7 @@ export class FakeMeta {
     return { status: 200, body: { success: true } };
   }
 
-  private fault(res: ServerResponse, f: Exclude<FakeMetaFault, { kind: "hang" } | { kind: "applied_then_temporary" }>): void {
+  private fault(res: ServerResponse, f: Exclude<FakeMetaFault, { kind: "hang" } | { kind: "applied_then_temporary" } | { kind: "accepted_not_applied" }>): void {
     if (f.kind === "throttle") {
       res.setHeader("X-Business-Use-Case-Usage", JSON.stringify({
         [this.businessId]: [{ type: "ads_management", call_count: 100, total_cputime: 34, total_time: 41, estimated_time_to_regain_access: f.regainMinutes ?? 5 }],

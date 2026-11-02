@@ -79,7 +79,7 @@ export function startAdsOrchestrator(env: Env): void {
     running = true;
     try {
       const admin = getSupabaseAdmin(env);
-      const r = await orchestratorTick(admin, adsWorkers(), adsStepEnqueue(admin, env));
+      const r = await orchestratorTick(admin, adsWorkers({ admin, env, now: () => new Date() }), adsStepEnqueue(admin, env));
       if (r.queued > 0) console.log(`[ads-orchestrator] ${r.queued} step(s) queued of ${r.campaigns} campaign(s) not at rest`);
     } catch (error) {
       console.error(`[ads-orchestrator] tick failed — ${error instanceof Error ? error.message : String(error)}`);

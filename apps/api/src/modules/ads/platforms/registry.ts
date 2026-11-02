@@ -1,7 +1,11 @@
 import { randomBytes } from "node:crypto";
 import type { Env } from "../../../env.js";
 import { open, secretAad, SecretBoxError } from "../../../lib/secretBox.js";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import type { AdPlatform } from "@silvicom/shared";
+import type { PlatformAdapter } from "./adapter.js";
 import { MetaGraph } from "./meta/graphClient.js";
+import { metaAdapter } from "./meta/metaAdapter.js";
 import { simulatorGate } from "./simulatorGate.js";
 import { FakeMeta } from "./simulator/fakeMeta.js";
 
@@ -97,6 +101,30 @@ export async function pageGraphForConnection(deps: RegistryDeps, c: ConnectionFo
   }
 }
 
+/**
+ * The adapter for one of this org's connections (B3) — what the orchestrator's `platform` worker binds
+ * to the guard. Null when the connection is missing, another org's, disconnected, or its client cannot
+ * be opened: the runner then records `no_platform` on the step instead of guessing. Org-scoped on
+ * purpose — the service role bypasses RLS (root CLAUDE.md).
+ */
+export async function adapterForConnection(
+  deps: RegistryDeps & { admin: SupabaseClient },
+  orgId: string,
+  connectionId: string,
+): Promise<{ platform: AdPlatform; adapter: PlatformAdapter } | null> {
+  const { data, error } = await deps.admin
+    .from("ads_platform_connections")
+    .select("id, org_id, provider, is_sandbox, token_sealed, account_ref, status")
+    .eq("org_id", orgId).eq("id", connectionId).maybeSingle();
+  if (error) throw new Error(`ads_platform_connections: ${error.message}`);
+  const row = data as (ConnectionForGraph & { account_ref: string | null; status: string }) | null;
+  if (!row || row.status === "disconnected" || !row.account_ref) return null;
+  const opened = await graphForConnection(deps, row);
+  if (!opened.ok) return null;
+  const platform: AdPlatform = row.provider === "simulator" ? "simulator" : "meta";
+  return { platform, adapter: metaAdapter({ graph: opened.graph, accountId: row.account_ref }) };
+}
+
 // ── the in-process simulator ─────────────────────────────────────────────────────────────────────
 
 let simulator: Promise<{ token: string; base: string; fake: FakeMeta }> | null = null;
@@ -114,6 +142,11 @@ function simulatorMeta(): Promise<{ token: string; base: string; fake: FakeMeta 
     return { token, base: await fake.start(), fake };
   })();
   return simulator;
+}
+
+/** For tests only: the simulator's FakeMeta, to seed objects and read what the adapter did. */
+export async function simulatorFakeForTests(): Promise<FakeMeta> {
+  return (await simulatorMeta()).fake;
 }
 
 /** For tests only: stop and forget the in-process simulator. */

@@ -1,5 +1,8 @@
 import type { CampaignState } from "@silvicom/shared";
-import type { GuardedPlatform } from "../guard/guardedPlatform.js";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import type { Env } from "../../../env.js";
+import { guardPlatform, type GuardedPlatform } from "../guard/guardedPlatform.js";
+import { adapterForConnection } from "../platforms/registry.js";
 import type { PlatformOutcome } from "../platforms/adapter.js";
 import type { CampaignRow } from "./transitions.js";
 
@@ -30,13 +33,31 @@ export type WorkerResult = { ok: true } | { ok: false; error: string };
  * platform in step 7, on non-production hosts only), the creative workers in C1–C5. Each of those
  * steps fills its line here. With `ADS_ENABLED` off everywhere until then, the tick finds nothing.
  *
+ * B3 (2026-11-02) fills `platform`: pause reaches Meta (or the simulator), and launch goes through the
+ * guard. `createPaused` is still null, so nothing reaches `paused` by the agent yet, and so no launch.
+ *
  * B2a (2026-11-02) built the publisher's first half (`platforms/meta/publisher.ts`: campaign + ad set,
  * paused) and deliberately leaves `createPaused` null. `created` moves a campaign to `paused`, where a
  * person presses Launch; a campaign with no ad yet has nothing to launch, so wiring half a publisher
  * would show a state that is not true. B2c fills it once the form and the ad complete the chain.
  */
-export function adsWorkers(): CampaignWorkers {
-  return { compose: null, createPaused: null, platform: null };
+export function adsWorkers(deps: WorkerDeps): CampaignWorkers {
+  return {
+    compose: null,
+    createPaused: null,
+    // B3: the connection's Meta adapter (or the simulator's, off production), its spend half closed
+    // inside the guard. With it, a pausing campaign — the kill switch's second half — reaches Meta.
+    platform: async (orgId, connectionId) => {
+      const found = await adapterForConnection({ admin: deps.admin, env: deps.env, now: deps.now }, orgId, connectionId);
+      return found ? guardPlatform(deps.admin, deps.now, found.platform, found.adapter) : null;
+    },
+  };
+}
+
+export interface WorkerDeps {
+  admin: SupabaseClient;
+  env: Env;
+  now: () => Date;
 }
 
 /**
