@@ -829,3 +829,10 @@ TechRepublic / Windows Report on Teams 2026 updates.
   /chat's header links a fraud conversation to `/fuel-problems?incident=` and an inspection's to its page.
   Tests: API 2 new, web 6 new; 10 mutants, 9 failed tests — the tenth swapped the inspection's id for
   the route's, which are the same id. CH11 is complete.
+- 2026-11-02: **Q-CHATUI6 (a), the database half** (`claude/chat-entity-links-db`, migration 0547):
+  `chat_line_links(org, user, message ids)` answers which words of a line are a load or a truck of the
+  reader's organisation (CHAT-REDESIGN-PLAN Q-CHATUI6 has the rules and the measurement). Matrix
+  `office-chat-line-links.test.mjs` (16 rows); 15 mutants — four first survived and three were the
+  function's fault: a leading-zero rule the join made redundant (dropped), a second org filter the
+  thread's covered (dropped), and no row with another carrier's unit or load named in our line (added);
+  the fourth is 0412's revoke. Next: the API and the web, once 0547 is on staging.
