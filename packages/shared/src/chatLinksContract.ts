@@ -29,25 +29,39 @@ export type ChatLineLink = z.infer<typeof chatLineLinkSchema>;
 export const chatLineLinksResponseSchema = z.object({ links: z.array(chatLineLinkSchema) });
 export type ChatLineLinksResponse = z.infer<typeof chatLineLinksResponseSchema>;
 
+const WORDY = /[0-9A-Za-z]/;
 /**
- * A line's text cut at every occurrence of the words it links, longest first so "load 0137581" is not
- * split by a shorter "0137581"; what is left stays text. Pure, so the web draws and a test reads it.
+ * Where `word` stands on its own in `text` from `from` on, or -1: not inside a longer word or number, the
+ * same edges 0547's patterns draw — so the server's "unit 5" is never cut out of a "unit 50" in the same line.
+ */
+function standingAt(text: string, word: string, from = 0): number {
+  for (let at = text.indexOf(word, from); at >= 0; at = text.indexOf(word, at + 1)) {
+    const before = at > 0 ? text[at - 1]! : "";
+    const after = text[at + word.length] ?? "";
+    if (!WORDY.test(before) && !WORDY.test(after)) return at;
+  }
+  return -1;
+}
+
+/**
+ * A line's text cut at every occurrence of the words it links, only where they stand on their own
+ * (`standingAt`), the earliest first — so "load 0137581" is taken whole before the bare "0137581" inside
+ * it can be; what is left stays text. Pure, so the web draws and a test reads it.
  */
 export function chatLinkParts(text: string, links: readonly Pick<ChatLineLink, "text" | "kind" | "record_id">[]):
   Array<{ text: string } | { link: string; kind: ChatLineLinkKind; record_id: string }> {
-  const words = [...links].sort((a, b) => b.text.length - a.text.length);
   const out: Array<{ text: string } | { link: string; kind: ChatLineLinkKind; record_id: string }> = [];
-  let rest = text;
-  while (rest.length) {
-    let best: { at: number; l: (typeof words)[number] } | null = null;
-    for (const l of words) {
-      const at = rest.indexOf(l.text);
+  let from = 0;
+  while (from < text.length) {
+    let best: { at: number; l: (typeof links)[number] } | null = null;
+    for (const l of links) {
+      const at = standingAt(text, l.text, from);
       if (at >= 0 && (!best || at < best.at)) best = { at, l };
     }
-    if (!best) { out.push({ text: rest }); break; }
-    if (best.at > 0) out.push({ text: rest.slice(0, best.at) });
+    if (!best) { out.push({ text: text.slice(from) }); break; }
+    if (best.at > from) out.push({ text: text.slice(from, best.at) });
     out.push({ link: best.l.text, kind: best.l.kind, record_id: best.l.record_id });
-    rest = rest.slice(best.at + best.l.text.length);
+    from = best.at + best.l.text.length;
   }
   return out;
 }

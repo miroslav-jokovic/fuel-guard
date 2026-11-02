@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { useChatLineLinksHere } from "./useChatLineLinks";
 import { computed, nextTick, ref, watch } from "vue";
 import { AppButton as BaseButton, AppIcon } from "@silvicom/ui";
 import { ChevronDownIcon } from "@silvicom/ui/icons";
@@ -10,6 +9,7 @@ import type { PendingLine } from "./useChat";
 import ChatEarlierButton from "./ChatEarlierButton.vue";
 import ChatMessageRow from "./ChatMessageRow.vue";
 import ChatPendingRow from "./ChatPendingRow.vue";
+import { useChatLineLinksHere } from "./useChatLineLinks";
 
 /**
  * The log of a conversation, a channel or a thread (CHAT-REDESIGN-PLAN D-CHATUI4, D-CHATUI6,

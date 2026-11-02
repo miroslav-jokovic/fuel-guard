@@ -28,7 +28,7 @@ const mounted: VueWrapper[] = [];
 afterEach(() => { for (const w of mounted.splice(0)) w.unmount(); apiFetch.mockReset(); });
 
 describe("chatLinkParts", () => {
-  it("cuts every occurrence, longest words first, and leaves the rest as text", () => {
+  it("cuts every occurrence, a reference whole before the number inside it, and leaves the rest as text", () => {
     const parts = chatLinkParts("load 0137581 then 0137581 again, and Truck 506.", [
       { text: "0137581", kind: "load", record_id: LOAD },
       { text: "load 0137581", kind: "load", record_id: LOAD },
@@ -40,6 +40,14 @@ describe("chatLinkParts", () => {
       { link: "Truck 506", kind: "vehicle", record_id: TRUCK }, { text: "." },
     ]);
   });
+  it("links words only where they stand on their own, never the start of a longer number", () => {
+    expect(chatLinkParts("unit 50 waits, unit 5 left", [{ text: "unit 5", kind: "vehicle", record_id: TRUCK }])).toEqual([
+      { text: "unit 50 waits, " },
+      { link: "unit 5", kind: "vehicle", record_id: TRUCK },
+      { text: " left" },
+    ]);
+  });
+
   it("a line with none of the words is one text part", () => {
     expect(chatLinkParts("nothing here", [{ text: "0137581", kind: "load", record_id: LOAD }])).toEqual([{ text: "nothing here" }]);
   });
