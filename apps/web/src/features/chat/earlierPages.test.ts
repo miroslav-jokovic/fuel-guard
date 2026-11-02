@@ -31,7 +31,7 @@ const P = "44444444-4444-4444-8444-444444444444";
 const msg = (seq: number, patch: Partial<ChatMessage> = {}): ChatMessage => ({
   id: `00000000-0000-4000-8000-${String(seq).padStart(12, "0")}`, thread_id: T, seq, rev: seq,
   sender_user_id: null, sender_name: "Ana", body: `line ${seq}`, created_at: "2026-10-26T12:00:00Z",
-  edited_at: null, deleted_at: null, parent_id: null, reply_count: 0, last_reply_at: null, reactions: [], pinned_at: null, saved: false, ...patch,
+  edited_at: null, deleted_at: null, parent_id: null, reply_count: 0, last_reply_at: null, reactions: [], pinned_at: null, saved: false, attachments: [], ...patch,
 });
 const range = (from: number, to: number) => Array.from({ length: to - from + 1 }, (_, i) => msg(from + i));
 const before = (lines: ChatMessage[]) => (lines[0] && lines[0].seq > 1 ? lines[0].seq : null);
@@ -194,17 +194,19 @@ describe("useChatScroll", () => {
   async function list(initial: string[]) {
     const lines = ref(initial);
     const lastOwn = ref(false);
+    const lastFiles = ref(0);
+    const grown = ref(0); // rows of height the newest line gains without a new key
     let scroll!: ReturnType<typeof useChatScroll>;
     const w = mount(defineComponent({
       setup() {
         const scroller = ref<HTMLElement | null>(null);
-        scroll = useChatScroll(scroller, () => ({ view: "a", first: lines.value[0], last: lines.value.at(-1), count: lines.value.length, lastOwn: lastOwn.value }));
-        return { scroller, lines };
+        scroll = useChatScroll(scroller, () => ({ view: "a", first: lines.value[0], last: lines.value.at(-1), count: lines.value.length, lastOwn: lastOwn.value, lastFiles: lastFiles.value }));
+        return { scroller, lines, grown };
       },
-      template: `<div ref="scroller"><p v-for="l in lines" :key="l">{{ l }}</p></div>`,
+      template: `<div ref="scroller"><p v-for="l in lines" :key="l">{{ l }}</p><p v-for="n in grown" :key="'g' + n" /></div>`,
     }));
     await flushPromises();
-    return { lines, lastOwn, el: w.element as HTMLElement, unseen: scroll.unseen, jump: scroll.jump };
+    return { lines, lastOwn, lastFiles, grown, el: w.element as HTMLElement, unseen: scroll.unseen, jump: scroll.jump };
   }
 
   it("opens at the newest line, and follows a new one", async () => {
@@ -242,6 +244,24 @@ describe("useChatScroll", () => {
     lines.value = [...lines.value, "m11"];
     await flushPromises();
     expect(unseen.value).toBe(3);
+  });
+
+  it("keeps a reader at the bottom there when the newest line's files draw, and leaves a reader up the log alone (CH7)", async () => {
+    // "Sending 2 files…" becomes the confirmed line: the same key at the end, two thumbnails taller.
+    const atBottom = await list(["m5", "m6", "mine"]);
+    expect(atBottom.el.scrollTop).toBe(300);
+    atBottom.lastFiles.value = 2;
+    atBottom.grown.value = 2;
+    await flushPromises();
+    expect(atBottom.el.scrollTop).toBe(500);
+
+    const reading = await list(["m5", "m6", "m7", "mine"]);
+    reading.el.scrollTop = 0;
+    reading.lastFiles.value = 2;
+    reading.grown.value = 2;
+    await flushPromises();
+    expect(reading.el.scrollTop).toBe(0);
+    expect(reading.unseen.value).toBe(0);
   });
 
   it("follows the reader's own line wherever they are — they sent it, they want to see it land", async () => {

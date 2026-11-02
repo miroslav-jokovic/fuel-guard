@@ -27,7 +27,7 @@ const MSG = "44444444-4444-4444-8444-444444444444";
 const message = (over: Partial<ChatMessage> = {}): ChatMessage => ({
   id: MSG, thread_id: "33333333-3333-4333-8333-333333333333", seq: 3, rev: 3, sender_user_id: BEN, sender_name: "Ben Admin",
   body: "Gate code 4411", created_at: "2026-10-30T09:00:00Z", edited_at: null, deleted_at: null, parent_id: null,
-  reply_count: 0, last_reply_at: null, reactions: [], pinned_at: null, saved: false, ...over,
+  reply_count: 0, last_reply_at: null, reactions: [], pinned_at: null, saved: false, attachments: [], ...over,
 });
 
 /** A row under acts that are spies, or under none at all (`acts: null`) — the compliance console's case. */

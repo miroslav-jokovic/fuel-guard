@@ -5,6 +5,7 @@
 // somebody else to a thread, so "N new messages" (CR2) can be seen without a second person.
 import http from "node:http";
 import { randomUUID } from "node:crypto";
+import zlib from "node:zlib";
 
 let mode = process.env.FIXTURE_MODE ?? "data";
 // MOCK_PORT: a second session's pass can run beside one already holding 8080.
@@ -43,13 +44,35 @@ function line(thread, sender, body, at, over = {}) {
     id: randomUUID(), thread_id: thread, seq, rev: seq,
     sender_user_id: sender, sender_name: sender === ME ? "Miki Jokovic" : people.find((p) => p.user_id === sender)?.name ?? null,
     body, created_at: at, edited_at: null, deleted_at: null, parent_id: null, reply_count: 0, last_reply_at: null,
-    reactions: [], pinned_at: null, pinned_by: null, saved: false, saved_at: null, ...over,
+    reactions: [], pinned_at: null, pinned_by: null, saved: false, saved_at: null, attachments: [], ...over,
   };
   (msgs[thread] ??= []).push(m);
   return m;
 }
 
+// ── CH7 files: declared, PUT to /__put/<id>, read back from /__file/<id> ──
+const files = {}; // id -> { thread_id, message_id, file_name, mime, byte_size, bytes, uploaded_by, created_at }
+/** A real PNG of one colour, so the thumbnail draws in the browser pass. */
+function png(w, h, [r, g, b]) {
+  const chunk = (type, data) => {
+    const len = Buffer.alloc(4); len.writeUInt32BE(data.length);
+    const body = Buffer.concat([Buffer.from(type), data]);
+    const crc = Buffer.alloc(4); crc.writeUInt32BE(zlib.crc32(body));
+    return Buffer.concat([len, body, crc]);
+  };
+  const ihdr = Buffer.alloc(13); ihdr.writeUInt32BE(w, 0); ihdr.writeUInt32BE(h, 4); ihdr[8] = 8; ihdr[9] = 2;
+  const row = Buffer.concat([Buffer.from([0]), Buffer.alloc(w * 3).map((_, i) => [r, g, b][i % 3])]);
+  return Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), chunk("IHDR", ihdr),
+    chunk("IDAT", zlib.deflateSync(Buffer.concat(Array(h).fill(row)))), chunk("IEND", Buffer.alloc(0))]);
+}
+function attach(m, file_name, mime, bytes, by = m.sender_user_id) {
+  const id = randomUUID();
+  files[id] = { thread_id: m.thread_id, message_id: m.id, file_name, mime, byte_size: bytes.length, bytes, uploaded_by: by, created_at: m.created_at };
+  m.attachments.push({ id, file_name, mime, byte_size: bytes.length });
+}
+
 function seed() {
+  for (const k of Object.keys(files)) delete files[k];
   seqs = {};
   for (const k of Object.keys(msgs)) delete msgs[k];
   // Marcus — a long direct conversation, with consecutive lines and a day boundary.
@@ -60,7 +83,12 @@ function seed() {
   // CH6c-2: a pinned line with a reaction, one the dev session saved.
   line(T.marcus, ME, "4411. Same as last week.", day(1, 7, 10), { edited_at: day(1, 7, 11), pinned_at: day(1, 7, 12), pinned_by: P.marcus.user_id, reactions: [{ reaction: "thumbs_up", users: [P.marcus.user_id] }] });
   line(T.marcus, P.marcus.user_id, "Got it, sent to him.", day(1, 7, 12));
-  line(T.marcus, P.marcus.user_id, "Truck 702 is sitting at the Pilot in Gary — 3h idle on the map. Calling him now.", ago(190));
+  const gary = line(T.marcus, P.marcus.user_id, "Truck 702 is sitting at the Pilot in Gary — 3h idle on the map. Calling him now.", ago(190));
+  attach(gary, "702-dash.png", "image/png", png(320, 200, [96, 120, 160]));
+  attach(gary, "702-gauge.png", "image/png", png(200, 240, [180, 140, 90]));
+  const bol = line(T.marcus, P.marcus.user_id, "", ago(186));
+  attach(bol, "BOL L-20481 signed.pdf", "application/pdf", Buffer.concat([Buffer.from("%PDF-1.4\n"), Buffer.alloc(240_000, 32)]));
+  attach(bol, "Detention log.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", Buffer.concat([Buffer.from("PK\x03\x04"), Buffer.alloc(18_400, 1)]));
   line(T.marcus, ME, "Thanks. If it's the APU again, have Luis look at it on Friday.", ago(140));
   line(T.marcus, P.marcus.user_id, null, ago(130), { deleted_at: ago(129) });
   line(T.marcus, P.marcus.user_id, "APU threw a code. I put a note on the unit.", ago(128));
@@ -208,6 +236,19 @@ http.createServer(async (req, res) => {
   if (path === "/__mode") { const b = await readBody(req); mode = b.mode; if (b.reseed) { seed(); activityReadAt = null; } if (b.clear) { delete msgs[b.clear]; seqs[b.clear] = 0; } console.log("[mock] mode", mode); return json(res, 200, { mode }); }
   // A line from somebody else, now — for "N new messages" (D-CHATUI17): POST /__line {"thread":"<id>","body":"…"}.
   if (path === "/__line") { const b = await readBody(req); const m = line(b.thread, b.sender ?? P.marcus.user_id, b.body, new Date().toISOString()); convMeta[b.thread] ??= { kind: "direct", subject: null, unread: 0 }; return json(res, 200, { id: m.id, seq: m.seq }); }
+  if (path.startsWith("/__put/")) {
+    const f = files[path.slice(7)];
+    const chunks = []; for await (const c of req) chunks.push(c);
+    if (f) f.bytes = Buffer.concat(chunks);
+    res.writeHead(f ? 200 : 404, { "access-control-allow-origin": "*" }); return res.end();
+  }
+  if (path.startsWith("/__file/")) {
+    const f = files[path.slice(8)];
+    if (!f?.bytes) return json(res, 404, { error: { message: "no such file" } });
+    const inline = f.mime.startsWith("image/");
+    res.writeHead(200, { "content-type": f.mime, ...(inline ? {} : { "content-disposition": `attachment; filename="${f.file_name}"` }) });
+    return res.end(f.bytes);
+  }
   console.log(`[mock] ${req.method} ${path}${url.search} (${mode})`);
 
   // Supabase REST (dev bypass still reads org_modules directly)
@@ -293,6 +334,11 @@ http.createServer(async (req, res) => {
       }
       return json(res, 200, {});
     }
+    if (seg[2] === "files") {
+      const f = files[seg[3]];
+      if (!f) return json(res, 404, { error: { message: "That file is not in a conversation you are in." } });
+      return json(res, 200, { url: `http://localhost:${port}/__file/${seg[3]}`, file_name: f.file_name, mime: f.mime, byte_size: f.byte_size });
+    }
     if (seg[2] === "direct" || seg[2] === "groups") return json(res, 200, { thread_id: T.marcus });
     const id = seg[2];
     if (seg.length === 3 && req.method === "GET") {
@@ -311,9 +357,31 @@ http.createServer(async (req, res) => {
           body: m.body, created_at: m.created_at, edited_at: m.edited_at, parent_id: m.parent_id, pinned_at: m.pinned_at, pinned_by: m.pinned_by, pinned_by_name: name(m.pinned_by) }));
       return json(res, 200, { pins });
     }
+    if (seg[3] === "files" && req.method === "POST") {
+      const b = await readBody(req);
+      const fid = randomUUID();
+      files[fid] = { thread_id: id, message_id: null, file_name: b.file_name, mime: b.mime, byte_size: b.byte_size, bytes: null, uploaded_by: ME, created_at: null };
+      return json(res, 200, { file_id: fid, upload_url: `http://localhost:${port}/__put/${fid}` });
+    }
+    if (seg[3] === "files" && req.method === "GET") {
+      const name = (uid) => (uid === ME ? "Miki Jokovic" : people.find((p) => p.user_id === uid)?.name ?? null);
+      const list = Object.entries(files).filter(([, f]) => f.thread_id === id && f.message_id)
+        .map(([fid, f]) => ({ fid, f, m: (msgs[id] ?? []).find((x) => x.id === f.message_id) }))
+        .filter(({ m }) => m && !m.deleted_at)
+        .sort((a, b) => b.f.created_at.localeCompare(a.f.created_at))
+        .map(({ fid, f, m }) => ({ id: fid, message_id: m.id, parent_id: m.parent_id, seq: m.seq, file_name: f.file_name, mime: f.mime, byte_size: f.byte_size,
+          uploaded_by: f.uploaded_by, uploaded_by_name: name(f.uploaded_by), created_at: f.created_at }));
+      return json(res, 200, { files: empty ? [] : list, next: null });
+    }
     if (seg[3] === "messages" && req.method === "POST") {
       const b = await readBody(req);
       const m = line(id, ME, b.body, new Date().toISOString(), { id: b.message_id });
+      for (const ref of b.files ?? []) {
+        const f = files[ref.id];
+        if (!f?.bytes) return json(res, 422, { error: { message: `${ref.file_name} did not finish uploading.` } });
+        f.message_id = m.id; f.created_at = m.created_at;
+        m.attachments.push({ id: ref.id, file_name: f.file_name, mime: f.mime, byte_size: f.bytes.length });
+      }
       return json(res, 200, { message_id: m.id, seq: m.seq, rev: m.rev, created_at: m.created_at, duplicate: false });
     }
     if (seg[3] === "read") return json(res, 200, {});
