@@ -794,6 +794,37 @@ the Spanish (C4) is the page's only.
 
 ---
 
+## 13. The applicant status page (2026-11-02)
+
+§8.2's "after Send the applicant sees a wait screen", next in §9.3's order after §12. Built as proposed.
+
+**What it is for.** Between the permissions and the office visit the applicant's link shows one of three wait
+screens (`ApplyWaitScreen.vue`: permissions received, handed over, approved) — a heading and two sentences, and
+the note "nothing more to do", even when the office has booked a drug test, sent videos or booked a trip. The
+office takes the "what is happening with my application" call. After SP1 the same three screens show where the
+application stands, in four stages, and what the applicant still owes.
+
+**Decisions** (assumed as §8.3 assumed its rulings; the owner's to overturn):
+
+| ID | Decision | Why |
+|---|---|---|
+| D-SP1 | **Four stages, in the applicant's words**: the permissions, the application (filled in and handed over), the company's review, the office visit (road test, orientation, signing). Each is done, current, or later — **derived from the phases the link already serves** (`phasesOf`: `releasesCompletedAt`, `reviewRequestedAt`, `approvedAt`, `submittedAt`), never stored. | The office's checklist has twenty rows; an applicant needs to know which of four places they are in. Deriving keeps the page and the office from disagreeing. |
+| D-SP2 | **What the applicant owes** is a list of at most three kinds, served on the bundle as `owes`: **the drug test** (a live appointment on this invitation whose window has not passed), **the orientation videos** (sent, and a required video not yet ticked — `readOrientationVideoFacts`, the checklist's own facts), **the trip** (a live booking that has not left). In that order: the drug test is time-bound, the videos are done before coming in, the trip is information. With nothing owed the screen keeps its "nothing more to do" note. | The "one thing you owe next" of §8.2, read from the rows the office's acts already write. |
+| D-SP3 | **Kinds, never details, on the bare link.** The status says a drug test is booked, never where or when; a trip is booked, never the times or confirmation. The details travel the way they already do — the drug-test text, MT3's trip message — and the item says so ("call the office if you have not had them"). The videos item links to the videos page, which the same token already opens. | D-APP16: an application link is forwarded and read on shared phones. A site address and a collection window are not for whoever holds the link. |
+| D-SP4 | **A failed read of what is owed serves an empty list** rather than failing the page. | The page must open; a missing "to do" costs less than a blank screen. |
+| D-SP5 | **No migration, no new table.** | Everything shown already exists. |
+
+**Open questions** (none blocks SP1):
+
+- **Q-SP1 — Show the drug test's day on the link?** Recommend no (D-SP3); the text carries it.
+- **Q-SP2 — Show the status page after filing too** (handbook, hire)? `ApplicationFiledCard` already says what
+  happened; recommend leaving it.
+
+**The build.** One PR: **SP1** — `owes` on the bundle (`applicantOwes.ts`), the stages fold
+(`applicantStages.ts`), `ApplicantStatusPanel.vue` inside the three wait screens, English and Spanish.
+
+---
+
 ## 7. Progress log
 
 - **2026-10-31** — Audit written. Measured on production: 0 filed applications, 4 drafts, 1 real
@@ -988,3 +1019,12 @@ the Spanish (C4) is the page's only.
   survivors, the three real ones (the missing-trip refusal checked only as a throw, the carrier zone untested off a Chicago clock, the
   text's trip id) got their tests and were then killed; the other two were equivalent (an audit field that
   never holds the confirmation; a malformed id the read already answers 404).
+- **2026-11-02** — **MT3 merged (#1951, `8d1d2ac`), no migration.** As above. §12 complete.
+- **2026-11-02** — **§13 written; SP1 (this PR), no migration.** The three wait screens show "Where your
+  application is" — the four stages from the served phases (`applicantStages.ts`) — and "For you to do": the drug
+  test, the orientation videos (linked to the videos page on the same token), the trip, as kinds served on the
+  bundle (`owes`, `applicantOwes.ts`, folded by `applicantOwed` in `@silvicom/shared`). The "nothing more to do"
+  note shows only when nothing is owed. A test pins that the bundle carries no site, time or reference. English
+  and Spanish. 19/19 mutants killed: on the first pass one did not apply and one broke the template (both rerun
+  and killed), and one real survivor — the phase chain dropping the phases on its way to a wait screen — got
+  `applicantStatusRouter.test.ts`, which also kills the owed list dropped the same way.

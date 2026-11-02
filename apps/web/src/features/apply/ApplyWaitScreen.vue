@@ -1,5 +1,8 @@
 <script setup lang="ts">
+import type { ApplicantOwedKind } from "@silvicom/shared";
 import SmsOptInCard from "@/features/apply/SmsOptInCard.vue";
+import ApplicantStatusPanel from "@/features/apply/ApplicantStatusPanel.vue";
+import type { ApplyPhases } from "@/features/apply/useApplication";
 
 /**
  * A screen that says the next move is the carrier's, not the applicant's — and nothing else.
@@ -16,15 +19,25 @@ import SmsOptInCard from "@/features/apply/SmsOptInCard.vue";
  * asks nothing is the one place an offer cannot be mistaken for a step. The first of these screens
  * comes before the office sends the application, which is what lets a consent given here cover
  * texting the application link itself.
+ *
+ * ── AND WHERE THE APPLICATION STANDS (§13 SP1) ────────────────────────────────────────────────
+ * Each screen shows the four stages and what the applicant still owes (`ApplicantStatusPanel`). The
+ * "nothing more to do" note is shown only when nothing is owed — the drug test booked, the videos sent,
+ * the trip booked would make it untrue.
  */
-defineProps<{ heading: string; body: string; note: string; token: string; carrier: string }>();
+withDefaults(defineProps<{
+  heading: string; body: string; note: string; token: string; carrier: string;
+  /** §13: absent on a bundle from before SP1, when the screen reads as it did. */
+  phases?: ApplyPhases | null; owes?: readonly ApplicantOwedKind[];
+}>(), { phases: null, owes: () => [] });
 </script>
 
 <template>
   <div>
     <h1 class="text-lg font-semibold text-ink">{{ heading }}</h1>
     <p class="mt-2 text-sm text-ink-muted">{{ body }}</p>
-    <p class="mt-2 text-sm text-ink-muted">{{ note }}</p>
+    <p v-if="owes.length === 0" class="mt-2 text-sm text-ink-muted" data-testid="wait-note">{{ note }}</p>
+    <ApplicantStatusPanel v-if="phases" :phases="phases" :owes="owes" :carrier="carrier" :token="token" />
     <!-- What the applicant can do while they wait, when there is something (C3a: the Clearinghouse). -->
     <slot />
     <SmsOptInCard :token="token" :carrier="carrier" />
