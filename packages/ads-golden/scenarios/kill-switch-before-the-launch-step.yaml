@@ -1,0 +1,25 @@
+name: "The kill switch pressed after Launch but before the agent's step: nothing is sent, the campaign is paused"
+why: >
+  runner.ts: "Checked before anything else in those states, so a launch caught by the switch is never
+  attempted." launching + switch → kill → pausing with no platform call; pausing then asks the
+  platform to pause (pausing an ad that never started is a success at the platform).
+covers: [kill_switch]
+verifiedBy: "Claude (7d), from runner.ts header + campaignMachine.ts"
+campaigns:
+  - { id: c1, state: paused }
+approvals:
+  - { campaign: c1, daily_budget_cents: 5000, lifetime_cap_cents: 50000 }
+timeline:
+  - approver: { campaign: c1, event: launch }
+  - kill_switch: true
+  - settle: true
+expect:
+  states: { c1: paused }
+  last_error: { c1: null }
+  ledger:
+    c1:
+      - "paused -launch-> launching succeeded"
+      - "launching -kill-> pausing succeeded"
+      - "pause succeeded"
+      - "pausing -paused-> paused succeeded"
+  vendor: { launch: 0, pause: 1 }

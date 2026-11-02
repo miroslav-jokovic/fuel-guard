@@ -1,0 +1,31 @@
+name: "A draft becomes a live ad: the agent composes and creates, a person approves and launches"
+why: >
+  The whole walk with nothing going wrong. The agent moves only its own transitions (compose,
+  creatives_ready, create_paused, created, launched — campaignMachine.ts); a person approves the
+  creatives and an approver presses Launch; the launch goes through the guard once, citing the one
+  approval. Every move is one transition row, every vendor act one row, nothing left open.
+covers: [happy_path]
+verifiedBy: "Claude (7d), from campaignMachine.ts + runner.ts"
+campaigns:
+  - { id: c1, state: draft }
+timeline:
+  - settle: true                                   # draft → composing → review, then the agent waits
+  - person: { campaign: c1, event: creatives_approved }
+  - settle: true                                   # approved → creating → paused (on Meta, paused)
+  - approve: { campaign: c1, daily_budget_cents: 5000, lifetime_cap_cents: 50000 }
+  - approver: { campaign: c1, event: launch }
+  - settle: true                                   # launching → live
+expect:
+  states: { c1: live }
+  last_error: { c1: null }
+  ledger:
+    c1:
+      - "draft -compose-> composing succeeded"
+      - "composing -creatives_ready-> review succeeded"
+      - "review -creatives_approved-> approved succeeded"
+      - "approved -create_paused-> creating succeeded"
+      - "creating -created-> paused succeeded"
+      - "paused -launch-> launching succeeded"
+      - "launch succeeded"
+      - "launching -launched-> live succeeded"
+  vendor: { compose: 1, create: 1, creates: 1, launch: 1, pause: 0 }

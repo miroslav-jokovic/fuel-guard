@@ -1,0 +1,34 @@
+name: "Two campaigns in one org walk to live side by side, neither waiting on the other"
+why: >
+  tick.ts: the dedup key is per campaign and state, so an org's second campaign is not held behind
+  its first (M4). Both launches pass the guard because the forecast counts the other's daily budget
+  (2 × $50/day × the month's days left ≤ the $3,000 cap) — two launches, one approval each.
+covers: [two_campaigns, happy_path]
+verifiedBy: "Claude (7d), from tick.ts + budgetGuard.ts"
+campaigns:
+  - { id: c1, state: draft }
+  - { id: c2, state: draft }
+timeline:
+  - settle: true
+  - person: { campaign: c1, event: creatives_approved }
+  - person: { campaign: c2, event: creatives_approved }
+  - settle: true
+  - approve: { campaign: c1, daily_budget_cents: 5000, lifetime_cap_cents: 50000 }
+  - approve: { campaign: c2, daily_budget_cents: 5000, lifetime_cap_cents: 50000 }
+  - approver: { campaign: c1, event: launch }
+  - approver: { campaign: c2, event: launch }
+  - settle: true
+expect:
+  states: { c1: live, c2: live }
+  ledger:
+    c1: &walk
+      - "draft -compose-> composing succeeded"
+      - "composing -creatives_ready-> review succeeded"
+      - "review -creatives_approved-> approved succeeded"
+      - "approved -create_paused-> creating succeeded"
+      - "creating -created-> paused succeeded"
+      - "paused -launch-> launching succeeded"
+      - "launch succeeded"
+      - "launching -launched-> live succeeded"
+    c2: *walk
+  vendor: { compose: 2, create: 2, creates: 2, launch: 2 }

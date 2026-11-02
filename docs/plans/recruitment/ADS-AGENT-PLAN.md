@@ -773,6 +773,18 @@ rate, and Higgsfield credits per approved creative.
   exactly as it should read, the phone number shown, and 5–10 real photos of our tractors and
   trailers from several angles (these become the reference images, so generated trucks look like
   ours). *Fallback:* no logo overlay; equipment drawn generically, which weakens P4.
+- **Q-AD23 · A launch delivered twice at once is paused** (us, found by the 7d golden scenario
+  `launch-delivered-twice.yaml`, 2026-11-02). When a lease lapses on a launch that is still running,
+  the second delivery finds the first's launch row `started`. The runner cannot tell "in flight" from
+  "the process died" (runner.ts, "A LAUNCH WHOSE OUTCOME IS UNKNOWN IS PAUSED"), so it pauses. The
+  ad is sent once and the ledger stays true, but a launch that succeeded ends paused, needing a new
+  approval, and its cause reads "after a restart". It is rare: the queue renews leases every ten
+  minutes (`queue/inprocessDrain.ts`), so it needs a launch call outliving a missed renewal.
+  Candidates: (a) keep pausing, the safe direction, and only correct the cause text; (b) treat a
+  `started` launch younger than the 30-minute lease as in flight, so the second delivery idles and
+  the first one moves the campaign; (c) give the guard's launch row a heartbeat. **Recommendation:
+  (a) now, then (b) once B1 measures Meta's real launch latency**, because (b)'s window is only
+  safe when that latency is known. *Fallback:* (a).
 
 ---
 
