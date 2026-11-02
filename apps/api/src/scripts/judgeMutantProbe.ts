@@ -20,6 +20,10 @@ import { mutants } from "./judgeSpike.js";
 
 const JEV_URL = process.env.JEV_URL ?? "http://127.0.0.1:18500";
 const MAX_MUTANTS = 4;
+/** Crop margin around the printed box, as a fraction of the page (PAD_X, PAD_Y) — J0 tuning of the crop Jev sees. */
+const PAD_X = Number(process.env.PAD_X ?? 0.004), PAD_Y = Number(process.env.PAD_Y ?? 0.003);
+const CATEGORY = process.env.CATEGORY ?? "text";
+const SEED_RNG = (() => { let x = 42; return () => ((x = (x * 1103515245 + 12345) % 2147483648) / 2147483648); })();
 const FIELDS = ["packageCount", "grossWeightLb", "quantity.value"] as const;
 const asRow = (text: string): Row => ({ page: 1, bbox: { x: 0, y: 0, w: 1, h: 1 }, items: [{ text, box: { x: 0, y: 0, width: 1, height: 1 } }] });
 
@@ -59,12 +63,12 @@ async function main(): Promise<void> {
         for (const it of row.items) {
           if (!rowShows(asRow(it.text), v)) continue;
           const cands = [it.text, ...mutants(v).slice(0, 40).map((m) => substitute(it.text, v, m)).filter((t): t is string => !!t && t !== it.text)];
-          const pick = [cands[0]!, ...cands.slice(1).sort(() => 0.5 - Math.random()).slice(0, MAX_MUTANTS)];
+          const pick = [cands[0]!, ...cands.slice(1).sort(() => 0.5 - SEED_RNG()).slice(0, MAX_MUTANTS)];
           if (pick.length < 2) continue;
           const b = pageBox(ocr[row.page - 1] as OcrPage, it.box);
-          const left = Math.max(0, Math.floor((b.x - 0.004) * W!)), top = Math.max(0, Math.floor((b.y - 0.003) * H!));
-          const crop = await sharp(upright).extract({ left, top, width: Math.max(4, Math.min(W! - left, Math.ceil((b.w + 0.008) * W!))), height: Math.max(4, Math.min(H! - top, Math.ceil((b.h + 0.006) * H!))) }).png().toBuffer();
-          const r = await fetch(`${JEV_URL}/v1/rm/score_best`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ input_form: "ternary", case_id: "m", image: crop.toString("base64"), category: "text", candidates: pick }), signal: AbortSignal.timeout(180_000) }).catch(() => null);
+          const left = Math.max(0, Math.floor((b.x - PAD_X) * W!)), top = Math.max(0, Math.floor((b.y - PAD_Y) * H!));
+          const crop = await sharp(upright).extract({ left, top, width: Math.max(4, Math.min(W! - left, Math.ceil((b.w + 2 * PAD_X) * W!))), height: Math.max(4, Math.min(H! - top, Math.ceil((b.h + 2 * PAD_Y) * H!))) }).png().toBuffer();
+          const r = await fetch(`${JEV_URL}/v1/rm/score_best`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ input_form: "ternary", case_id: "m", image: crop.toString("base64"), category: CATEGORY, candidates: pick }), signal: AbortSignal.timeout(180_000) }).catch(() => null);
           const j = r?.ok ? ((await r.json()) as { scores: number[]; verdicts: string[] }) : null;
           const scores = j ? j.scores.map((s, k) => (j.verdicts[k] === "scored" ? s : null)) : pick.map(() => null);
           out.push({ source: page.source ?? "office", file: page.file, id, nth, field: f, truth: v, candidates: pick, scores });
@@ -80,7 +84,9 @@ async function main(): Promise<void> {
   const first = valid.filter((r) => r.scores[0]! > Math.max(...r.scores.slice(1))).length;
   let wins = 0, pairs = 0;
   for (const r of valid) for (const m of r.scores.slice(1)) { pairs++; wins += r.scores[0]! > m ? 1 : r.scores[0] === m ? 0.5 : 0; }
-  console.error(`\nprobes ${rows.length}, fully scored ${valid.length}; truth ranked first ${first}/${valid.length}; pairwise AUROC ${(wins / Math.max(1, pairs)).toFixed(3)}`);
+  const tv = valid.map((r) => r.scores[0]!).sort((a, b) => a - b);
+  console.error(`\ntruth score median ${tv[Math.floor(tv.length / 2)]?.toFixed(3)}`);
+  console.error(`probes ${rows.length}, fully scored ${valid.length}; truth ranked first ${first}/${valid.length}; pairwise AUROC ${(wins / Math.max(1, pairs)).toFixed(3)}`);
   for (const t of [0.5, 0.8, 0.9, 0.95]) {
     const truthPass = valid.filter((r) => r.scores[0]! >= t).length;
     const mutPass = valid.reduce((a, r) => a + r.scores.slice(1).filter((m) => m >= t).length, 0);

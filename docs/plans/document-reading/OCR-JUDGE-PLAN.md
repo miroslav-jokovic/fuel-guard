@@ -221,3 +221,37 @@ rows clears ~2 % and its threshold gate does not work), and run J0b instead: Min
 gives regions and reading order) as a SECOND row source for the lines today's witness cannot find, judged by the same
 `rowBacks` rule, with Jev only breaking ties between the two engines' text of one box. Same offline harness, ~1 day, no
 spend. *(b)* Build the parallel lane now as planned, to collect weeks of production data. *(c)* Stop here.
+- **2026-11-02 (later) — Jev's one real setting is the crop.** `judgeMutantProbe.ts` with `PAD_X/PAD_Y`: the margin
+  around the printed box decides the absolute score. No margin vs the first run's 0.004/0.003: true-value median
+  0.175 → 0.839 (office), 0.874 → 0.958 (photos); truth ranked first 37/38 and 62/65; misreads scoring ≥ 0.5 still
+  0 of 412. Wider margins collapse it (0.03/0.015: office median 0.004). So D-OJ7's threshold may work after all
+  with tight crops — measure it on the labelled set (§8) before ruling. F16 vs Q8 not yet run (F16 downloaded).
+
+## 8. Training our own OCR on Samsara BOL photos (owner, 2026-11-02)
+
+Owner: "we dont want just to test them, maybe we should teach our OCR"; "start as proposed"; "create mechanism to
+not pull all images … use only BOL's". Samsara's "BOL, SECURMENT, PLACARDS" type holds 956 submissions / 4,008
+photos (09-04 → 11-02, 538 in the last 30 days), mixed with trailer, placard, seal and cargo photos.
+
+**D-OJ10 — the OCR is trained only on HUMAN-confirmed numbers.** It is the readers' independent witness; trained on
+the readers' answers it would learn their misreads and back them. Draft labels may come from engines and readers;
+every hazmat-row number is confirmed by a person before it is a training label. 20 % held out, never trained on.
+
+**Built (uncommitted until this entry's commit):**
+- `scripts/lib/bolPhotoFilter.ts` — `classifyPhotoText` (text boxes + shipping-paper vocabulary + not-BOL phrases)
+  and `judgePhoto` (1600 px copy, quarter-turn retry when < 10 boxes, full-resolution retry when text but not BOL).
+- `scripts/measureBolPhotoFilter.ts` — sharded (`--shards N`) measurement against labelled photos.
+- `scripts/pullBolCorpus.ts` (`doc:bol-corpus`) — pulls a date range newest first, judges each photo IN MEMORY,
+  writes only BOL pages to `packages/capture-engine/fixtures/real/private/bol-corpus/` (gitignored), logs refused
+  photo ids to `refused.jsonl`. Needs `node --env-file=apps/api/.env --import tsx` (loadEnv reads process.env only).
+
+**Measured:** 277 photos labelled by eye (196 old corpus + 81 from the first live chunk): BOL found **100/116**,
+non-BOL let in **1/161** (a placard photo with a paper corner). Misses are pages the OCR reads almost nothing on.
+**Pulled so far:** 97 BOL pages in 51 submissions, 47 printing a UN/NA id — first chunk 10-31..11-02 (22) + four
+weekly workers 10-03..10-31 stopped at 22/21/18/14 for a machine restart. Pace ≈ 4 BOL pages a minute with 4
+workers; 4 workers × ~1.2 GB OCR each pushed this 24 GB Mac into swap — use 3.
+
+**Next:** (1) resume the pull to ~300 BOL pages (re-runs skip pulled submissions); (2) draft labels per page —
+PaddleOCR boxes + MiniCPM-OCR text per box + both readers where a read exists — and flag disagreements; (3) a
+labelling pass for the office (Q-OJ7: who, and a batch file or a small screen); (4) train PaddleOCR detection +
+recognition on a rented GPU, export ONNX, pin like `ocrModels.ts`; (5) ship behind the Settings switch in parallel.
