@@ -223,7 +223,30 @@ export const READINESS = [
       L5: [{ need: "canary", gap: CANARY }],
     },
   },
-  { worker: "Publisher (per adapter)", levels: { L1: [notBuilt("B2 create paused, B3 launch / pause through the guard")], L2: later("L2"), L3: later("L3"), L4: [{ need: "contract suite on Meta's sandbox", gap: STAGE2 }], L5: [{ need: "canary", gap: CANARY }] } },
+  {
+    worker: "Publisher (per adapter)",
+    levels: {
+      L1: [
+        {
+          need: "the Meta Graph client it calls (B1a): one version, the token never in a URL, a create never re-sent, a throttle obeyed",
+          tests: [{ file: "apps/api/src/modules/ads/platforms/meta/graphClient.test.ts", titles: [
+            "calls the one Graph version FakeMeta answers, which is the version production calls",
+            "sends the token as a Bearer header, never in the URL or the body",
+            "never carries the token in a failure, even when the message would",
+            "a create that met a server error is NEVER re-sent, and says its outcome is unknown — it may have happened",
+            "a create that timed out is not re-sent either; a read that timed out is retried",
+            "a throttle is rate_limited with Meta's regain time, not retried, and later calls are refused without asking Meta",
+            "files every code the error-handling page lists where the page says it belongs",
+          ] }],
+        },
+        notBuilt("B2 create paused, B3 launch / pause through the guard"),
+      ],
+      L2: later("L2"),
+      L3: later("L3"),
+      L4: [{ need: "contract suite on Meta's sandbox", gap: STAGE2 }],
+      L5: [{ need: "canary", gap: CANARY }],
+    },
+  },
   { worker: "Monitor", levels: { L1: [notBuilt("B5 hourly insights, daily reconcile, external_change")], L2: later("L2"), L3: later("L3"), L4: [{ need: "insights from the sandbox", gap: STAGE2 }], L5: [{ need: "canary", gap: CANARY }] } },
   { worker: "Lead intake", levels: { L1: [notBuilt("B4 leadgen webhook + D1 ingest_lead")], L2: later("L2"), L3: later("L3"), L4: [{ need: "a test lead from Meta's lead-ads testing tool", gap: STAGE2 }], L5: [{ need: "canary", gap: CANARY }] } },
   { worker: "Outcome feed", levels: { L1: [notBuilt("B6 Conversions API events per stage")], L2: later("L2"), L3: later("L3"), L4: [{ need: "events accepted by the sandbox", gap: STAGE2 }], L5: [{ need: "canary", gap: CANARY }] } },

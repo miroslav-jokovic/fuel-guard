@@ -621,3 +621,22 @@ blocking step in §3 above.
   the guard counts launching campaigns. Taking `launching` out of `SPENDING_STATES` turned two of its
   three tests red. Not built yet, by design: the Launch route refusing a worker below L4 (it needs E3,
   and is moot before Stage 2). `--json` is the shape it will read. No migration.
+- **2026-11-02, B1a** — B1 is split in two. **B1a** is the Meta Graph client
+  (`platforms/meta/graphClient.ts`); **B1b** is Connect, Disconnect and the connection test, with
+  sealed tokens, `ads.connection`, the simulator connection and the Security pins. The client:
+  - **Version.** One constant, **v26.0** (introduced 2026-07-29; the changelog was read). FakeMeta's
+    version is now READ from it, not restated (it was v24.0).
+  - **Errors.** Each is filed by Meta's error-handling table: 1/2 are transient and retried; 4, 17,
+    341, 613 and 80000–80014 are a throttle, never retried; 190/102 mean the token is invalid; 3, 10
+    and 200–299 mean permission denied; 368 is a policy block; the rest are `meta_<code>`.
+  - **Throttling.** `X-Business-Use-Case-Usage` is read on every answer, and its regain time is
+    obeyed per connection without asking Meta again.
+  - **Retries.** A read is retried; a write only when the caller declares it idempotent. A create
+    that timed out or answered 5xx is **never re-sent** and comes back `outcome_unknown` (B2 reads
+    before re-creating).
+  - **The token** goes as a Bearer header, never in a URL, and is scrubbed from every failure
+    message. The client writes no ledger row — acts are recorded by their deciders.
+  - **Not here:** `appsecret_proof` needs our Meta app secret (Stage 2).
+
+  16 contract tests against FakeMeta; 11 mutations, each red. Pinned under Publisher L1 beside its
+  not-built gap, so the scorecard is unchanged (Publisher still L0). No migration.
