@@ -473,6 +473,25 @@ pattern costs one column and one trigger per kind, so waiting costs nothing.
   rule), because a label becomes a subject and a subject is written into the chat ledger. Read under
   `fuel` view, as `GET /api/card-fraud-incidents/:id` is; it opens at `/fuel-problems?incident=`.
 
+
+### 9.5 CH12's shape (2026-11-02)
+
+D-CHAT16 set AI catch-up's rules: off by default, on demand only, over what the caller may read, a
+per-person daily cap, ledgered. Building it settled two things the rule left open.
+
+- **D-CHAT37 — the switch is a module, `chat_ai`.** The Permissions page grants SCREENS, each with a route,
+  and "Catch me up" is a button inside /chat. A module is off until a row says on (`org_module_enabled`,
+  0088) and the platform console turns it on per carrier — so a model's cost is switched on by whoever
+  pays for it, never by the side door. Inside a carrier with it on, every chat user may ask, 20 times in
+  any 24 hours.
+- **D-CHAT38 — "already read" means "may read".** Read literally, "runs over messages the caller already
+  read" summarises what needs no summary. It was written as the plan's rule everywhere else: content the
+  caller may see. A catch-up reads the caller's UNREAD lines of one conversation they are in — after their
+  read boundary, the newest 200 at most, retracted lines left out — and asking marks nothing read.
+- The ledger keeps the summary's SHA-256, the seq range, the line count, the model and the tokens — not
+  the summary, which is a model's words about lines the ledger already holds. The tokens count in the
+  carrier's month (`org_usage_month`), the budget gate's one source.
+
 ## 10. Open questions
 
 | ID | Question | Candidates | Recommendation |
@@ -829,3 +848,10 @@ TechRepublic / Windows Report on Teams 2026 updates.
   /chat's header links a fraud conversation to `/fuel-problems?incident=` and an inspection's to its page.
   Tests: API 2 new, web 6 new; 10 mutants, 9 failed tests — the tenth swapped the inspection's id for
   the route's, which are the same id. CH11 is complete.
+- 2026-11-02: **CH12, the database half** (`claude/chat-ai-catchup-db`, migration 0549, §9.5, D-CHAT37/38):
+  `chat_ai` module key; `ai_catchup` ledger action; `chat_catchup_lines` (the unread lines, newest 200,
+  marks nothing read), `chat_catchup_left` (20 in any 24 hours) and `chat_catchup_record` (re-checks the
+  cap — CH017 — ledgers the row, counts the tokens in the month). Matrix `office-chat-catchup.test.mjs`
+  (23 rows); 17 mutants, all failed rows after the month's accumulation got its own row. The 24-hour
+  window is held by the function's text: the ledger stamps its own time, so no row can be aged — the
+  property that makes it evidence. Next: the API (the model call) and the web, once 0549 is on staging.
