@@ -1,15 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { buildAdName, parseAdName, shortId, type AdNameParts } from "./naming.js";
+import { AD_NAME_ALL_PRESETS, buildAdName, parseAdName, shortId, type AdNameParts } from "./naming.js";
 
 const campaign: AdNameParts = {
   platform: "meta", level: "campaign", brief_source: "recruiting_opening", brief_ref: "op-1@v3",
-  preset_key: "P2", day: "2026-11-02", campaign_short: shortId("AB12CD34-0000-4000-8000-000000000001"),
+  preset_key: "ALL", day: "2026-11-02", campaign_short: shortId("AB12CD34-0000-4000-8000-000000000001"),
 };
-const ad: AdNameParts = { ...campaign, level: "ad", creative_short: "9f8e7d6c" };
+const ad: AdNameParts = { ...campaign, level: "ad", preset_key: "P2", creative_short: "9f8e7d6c" };
 
 describe("ad names", () => {
   it("a campaign name reads as the opening, the preset and the day", () => {
-    expect(buildAdName(campaign)).toBe("S360|META|campaign|recruiting_opening|op-1@v3|P2|20261102|ab12cd34");
+    expect(buildAdName(campaign)).toBe("S360|META|campaign|recruiting_opening|op-1@v3|ALL|20261102|ab12cd34");
   });
 
   it.each([campaign, ad, { ...campaign, platform: "simulator" as const, level: "adset" as const }])(
@@ -20,14 +20,14 @@ describe("ad names", () => {
 
   it.each([
     "Driver Recruiting – Fall 2026",
-    "S360|META|campaign|recruiting_opening|op-1@v3|P2|20261102",
-    "S360|META|campaign|recruiting_opening|op-1@v3|P2|20261102|ab12cd34|9f8e7d6c",
+    "S360|META|campaign|recruiting_opening|op-1@v3|ALL|20261102",
+    "S360|META|campaign|recruiting_opening|op-1@v3|ALL|20261102|ab12cd34|9f8e7d6c",
     "S360|META|ad|recruiting_opening|op-1@v3|P2|20261102|ab12cd34",
-    "S360|GOOGLE|campaign|recruiting_opening|op-1@v3|P2|20261102|ab12cd34",
-    "S360|META|campaign|recruiting_opening|op-1@v3|P2|20261302|ab12cd34",
-    "S360|META|campaign|recruiting_opening|op-1@v3|p2|20261102|ab12cd34",
-    "s360|META|campaign|recruiting_opening|op-1@v3|P2|20261102|ab12cd34",
-    "S360|META|campaign|recruiting_opening|op-1@v3|P2|20261102|AB12CD34",
+    "S360|GOOGLE|campaign|recruiting_opening|op-1@v3|ALL|20261102|ab12cd34",
+    "S360|META|campaign|recruiting_opening|op-1@v3|ALL|20261302|ab12cd34",
+    "S360|META|campaign|recruiting_opening|op-1@v3|all|20261102|ab12cd34",
+    "s360|META|campaign|recruiting_opening|op-1@v3|ALL|20261102|ab12cd34",
+    "S360|META|campaign|recruiting_opening|op-1@v3|ALL|20261102|AB12CD34",
   ])("a name we did not build parses to null, never a guess: %s", (name) => {
     expect(parseAdName(name)).toBeNull();
   });
@@ -39,6 +39,14 @@ describe("ad names", () => {
     expect(() => buildAdName({ ...campaign, day: "11/02/2026" })).toThrow(/day/);
     expect(() => buildAdName({ ...campaign, creative_short: "9f8e7d6c" })).toThrow(/creative_short/);
     expect(() => buildAdName({ ...ad, creative_short: undefined })).toThrow(/creative_short/);
+  });
+
+  it("only an ad names a preset; every level above it carries ALL, because a campaign runs several", () => {
+    expect(() => buildAdName({ ...campaign, preset_key: "P2" })).toThrow(/preset_key/);
+    expect(() => buildAdName({ ...campaign, level: "adset", preset_key: "P2" })).toThrow(/preset_key/);
+    expect(() => buildAdName({ ...ad, preset_key: AD_NAME_ALL_PRESETS })).toThrow(/preset_key/);
+    expect(parseAdName("S360|META|campaign|recruiting_opening|op-1@v3|P2|20261102|ab12cd34")).toBeNull();
+    expect(parseAdName("S360|META|ad|recruiting_opening|op-1@v3|ALL|20261102|ab12cd34|9f8e7d6c")).toBeNull();
   });
 
   it("a short id is the uuid's first 8 hex, lower case", () => {

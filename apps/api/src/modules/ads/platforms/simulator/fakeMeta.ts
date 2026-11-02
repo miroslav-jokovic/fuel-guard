@@ -35,8 +35,22 @@ import { META_GRAPH_VERSION } from "../meta/graphClient.js";
  * does. Those two are OUR reading, not Meta's word — L4 re-runs the same contract suite against the
  * sandbox (§4R) precisely to catch a fake built on a misreading.
  *
+ *   GET  /{v}/act_{id}/campaigns,       a list, `{ data: [...] }`, narrowed by `filtering=[{ field: "name",
+ *        /{v}/{campaign_id}/adsets      operator: "EQUAL", value }]` — how the publisher finds what a lost
+ *                                       create made (B2a). https://developers.facebook.com/docs/marketing-api/reference/ad-account/campaigns/
+ *   POST /{v}/act_{id}/adsets           create (B2a): `name` (≤ 400), `campaign_id`, `daily_budget` > 0,
+ *                                       `billing_event`, `optimization_goal`, `targeting`, `status`;
+ *                                       LEAD_GENERATION needs `promoted_object.page_id`.
+ *                                       https://developers.facebook.com/docs/marketing-api/reference/ad-campaign/
+ *   GET  /{v}/{adset_id}?fields=…       read back.
+ *   Employment rules on an ad set, from the Special Ad Category page: no age, no gender, no ZIPs, no
+ *   exclusions, every location ≥ 15 miles in the US — "enforced with a hard error", code 2909035; and a
+ *   custom location's radius is 0.63–50 miles (Basic Targeting). Read 2026-11-02:
+ *   https://developers.facebook.com/docs/marketing-api/audiences/special-ad-category/ and
+ *   https://developers.facebook.com/docs/marketing-api/audiences/reference/basic-targeting/
+ *
  * ── NOT HERE YET, ON PURPOSE ───────────────────────────────────────────────────────────────────────
- * Ad sets, ads, Instant Forms (B2), leads + the signed `leadgen` webhook (B4), insights (B5). Each joins
+ * Ads, Instant Forms (B2b/B2c), leads + the signed `leadgen` webhook (B4), insights (B5). Each joins
  * with the step that first calls it, so every endpoint here has a caller whose contract test reads it.
  *
  * In-memory: a simulator restart forgets every campaign. That is the simulator being honest about
@@ -74,8 +88,24 @@ export interface FakeCampaign {
   objective: string | null;
   status: "ACTIVE" | "PAUSED" | "DELETED" | "ARCHIVED";
   special_ad_categories: string[];
+  /** Read back as sent; Meta defaults it to the account's tax country when absent (Special Ad Category page). */
+  special_ad_category_country: string[] | null;
   spend_cap: string | null;
   daily_budget: string | null;
+}
+
+export interface FakeAdSet {
+  id: string;
+  account_id: string;
+  campaign_id: string;
+  name: string;
+  status: FakeCampaign["status"];
+  daily_budget: string;
+  billing_event: string;
+  optimization_goal: string;
+  destination_type: string | null;
+  promoted_object: Record<string, unknown> | null;
+  targeting: Record<string, unknown>;
 }
 
 export interface FakeMetaAccount {
@@ -121,6 +151,7 @@ export class FakeMeta {
   private nextId = 120_000_000_000_000;
   private trace = 0;
   readonly campaigns = new Map<string, FakeCampaign>();
+  readonly adsets = new Map<string, FakeAdSet>();
   readonly accounts: Map<string, FakeMetaAccount>;
   /** Every request, in order, for "exactly one create" assertions. */
   readonly requests: Array<{ method: string; path: string; body: Record<string, string> }> = [];
@@ -220,9 +251,15 @@ export class FakeMeta {
     if (account && method === "GET") return this.readAccount(account[1]!, body.fields);
     const create = /^act_(\d+)\/campaigns$/.exec(path);
     if (create && method === "POST") return this.createCampaign(create[1]!, body);
-    const campaign = /^(\d+)$/.exec(path);
-    if (campaign && method === "GET") return this.readCampaign(campaign[1]!, body.fields);
-    if (campaign && method === "POST") return this.updateCampaign(campaign[1]!, body);
+    if (create && method === "GET") return this.list([...this.campaigns.values()].filter((c) => c.account_id === create[1]), body);
+    const adsets = /^act_(\d+)\/adsets$/.exec(path);
+    if (adsets && method === "POST") return this.createAdSet(adsets[1]!, body);
+    const children = /^(\d+)\/adsets$/.exec(path);
+    if (children && method === "GET") return this.list([...this.adsets.values()].filter((a) => a.campaign_id === children[1]), body);
+    const one = /^(\d+)$/.exec(path);
+    if (one && method === "GET" && this.adsets.has(one[1]!)) return { status: 200, body: pick({ ...this.adsets.get(one[1]!)!, effective_status: this.adsets.get(one[1]!)!.status }, body.fields, ["id"]) };
+    if (one && method === "GET") return this.readCampaign(one[1]!, body.fields);
+    if (one && method === "POST") return this.updateCampaign(one[1]!, body);
     return graphError(400, 100, "GraphMethodException", `Unsupported ${method} request. Object with ID '${path}' does not exist.`, this.traceId(), 33);
   }
 
@@ -256,9 +293,70 @@ export class FakeMeta {
     const id = String(this.nextId++);
     this.campaigns.set(id, {
       id, account_id: accountId, name: b.name ?? "", objective: b.objective ?? null, status: (b.status as FakeCampaign["status"]) ?? "ACTIVE",
-      special_ad_categories: (categories as string[]).map(String), spend_cap: b.spend_cap ?? null, daily_budget: b.daily_budget ?? null,
+      special_ad_categories: (categories as string[]).map(String), special_ad_category_country: countries(b.special_ad_category_country), spend_cap: b.spend_cap ?? null, daily_budget: b.daily_budget ?? null,
     });
     return { status: 200, body: { id, success: true } };
+  }
+
+  /** An edge read: `{ data }`, narrowed by a name-EQUAL `filtering` (the one filter our callers send). */
+  private list(rows: Array<{ name: string }>, b: Record<string, string>) {
+    let filters: unknown;
+    try {
+      filters = b.filtering === undefined ? [] : JSON.parse(b.filtering);
+    } catch {
+      filters = null;
+    }
+    if (!Array.isArray(filters)) return graphError(400, 100, "OAuthException", "(#100) filtering must be an array", this.traceId());
+    let out = rows;
+    for (const f of filters as Array<{ field?: unknown; operator?: unknown; value?: unknown }>) {
+      if (f.field !== "name" || f.operator !== "EQUAL") return graphError(400, 100, "OAuthException", `(#100) FakeMeta filters only name EQUAL, got ${String(f.field)} ${String(f.operator)}`, this.traceId());
+      out = out.filter((r) => r.name === f.value);
+    }
+    return { status: 200, body: { data: out.map((r) => pick({ ...r }, b.fields, ["id"])) } };
+  }
+
+  private createAdSet(accountId: string, b: Record<string, string>) {
+    const bad = (message: string, code = 100) => graphError(400, code, "OAuthException", `(#${code}) ${message}`, this.traceId());
+    if (!this.accounts.has(accountId)) return bad("Ad account does not exist");
+    const campaign = this.campaigns.get(b.campaign_id ?? "");
+    if (!campaign || campaign.account_id !== accountId) return bad("campaign_id is required and must belong to this ad account");
+    if (!b.name || b.name.length > 400) return bad("name is required, at most 400 characters");
+    if (!(Number(b.daily_budget) > 0)) return bad("Either daily_budget or lifetime_budget must be greater than 0");
+    if (!b.billing_event || !b.optimization_goal) return bad("billing_event and optimization_goal are required");
+    if (b.status !== "ACTIVE" && b.status !== "PAUSED") return bad("Only ACTIVE and PAUSED are valid during creation");
+    const json = (k: string): Record<string, unknown> | null => {
+      try {
+        const v: unknown = b[k] === undefined ? null : JSON.parse(b[k]!);
+        return v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : null;
+      } catch {
+        return null;
+      }
+    };
+    const targeting = json("targeting");
+    const promoted = json("promoted_object");
+    if (!targeting) return bad("targeting is required");
+    if (b.optimization_goal === "LEAD_GENERATION" && typeof promoted?.page_id !== "string") return bad("page_id needs to be passed as promoted_object");
+    const locations = ((targeting.geo_locations as { custom_locations?: unknown } | undefined)?.custom_locations ?? []) as Array<Record<string, unknown>>;
+    for (const l of locations) {
+      const miles = Number(l.radius) * (l.distance_unit === "kilometer" ? 0.621371 : 1);
+      if (!(miles >= 0.63 && miles <= 50)) return bad("custom_locations radius must be 0.63–50 miles");
+    }
+    if (campaign.special_ad_categories.includes("EMPLOYMENT")) {
+      const forbidden = ["age_min", "age_max", "genders", "excluded_geo_locations", "flexible_spec", "exclusions"].filter((k) => k in targeting);
+      const geo = (targeting.geo_locations ?? {}) as Record<string, unknown>;
+      const geoForbidden = ["zips", "subcity", "neighborhood", "metro_area", "small_geo_area", "subneighborhood", "electoral_district"].filter((k) => k in geo);
+      const tooSmall = locations.some((l) => Number(l.radius) * (l.distance_unit === "kilometer" ? 0.621371 : 1) < 15);
+      if (forbidden.length || geoForbidden.length || tooSmall) {
+        return bad(`Employment ads cannot use: ${[...forbidden, ...geoForbidden, ...(tooSmall ? ["radius under 15 miles"] : [])].join(", ")}`, 2909035);
+      }
+    }
+    const id = String(this.nextId++);
+    this.adsets.set(id, {
+      id, account_id: accountId, campaign_id: campaign.id, name: b.name, status: b.status, daily_budget: b.daily_budget!,
+      billing_event: b.billing_event, optimization_goal: b.optimization_goal, destination_type: b.destination_type ?? null,
+      promoted_object: promoted, targeting,
+    });
+    return { status: 200, body: { id } };
   }
 
   private readCampaign(id: string, fields?: string) {
@@ -310,6 +408,15 @@ function graphError(status: number, code: number, type: string, message: string,
 function pick(row: Record<string, unknown>, fields: string | undefined, defaults: string[]): Record<string, unknown> {
   const want = new Set([...defaults, ...(fields ? fields.split(",").map((f) => f.trim()).filter(Boolean) : [])]);
   return Object.fromEntries(Object.entries(row).filter(([k]) => want.has(k)));
+}
+
+function countries(raw: string | undefined): string[] | null {
+  try {
+    const v: unknown = raw === undefined ? null : JSON.parse(raw);
+    return Array.isArray(v) ? v.map(String) : null;
+  } catch {
+    return null;
+  }
 }
 
 function bearer(req: IncomingMessage): string | undefined {

@@ -29,6 +29,7 @@ const BOUNDARY = "apps/api/src/modules/ads/guard/budgetGuard.boundary.test.ts";
 const POLICY = "packages/shared/src/ads/adsPolicy.test.ts";
 const REPORT = "packages/shared/src/ads/adsReport.test.ts";
 const ROUTES = "apps/api/src/modules/ads/routes/guard.test.ts";
+const PUBLISHER = "apps/api/src/modules/ads/platforms/meta/publisher.test.ts";
 
 export const SCENARIO_DIR = "packages/ads-golden/scenarios";
 
@@ -239,9 +240,34 @@ export const READINESS = [
             "files every code the error-handling page lists where the page says it belongs",
           ] }],
         },
-        notBuilt("B2 create paused, B3 launch / pause through the guard"),
+        {
+          need: "create paused (B2a): an EMPLOYMENT campaign and a lead ad set, read back; no age/gender/ZIP sent; Meta's limits refused before a call",
+          tests: [{ file: PUBLISHER, titles: [
+            "creates a paused EMPLOYMENT campaign in the US with the spend cap, then a paused lead ad set on the Page, each read back",
+            "the ad set targets a pin and a radius and nothing else — no age, gender, ZIP or exclusion is ever sent",
+            "names come from naming.ts, the same on every attempt; a simulator connection's objects read SIM",
+            "refuses before calling Meta: …",
+            "FakeMeta holds Meta's employment rules: age, gender or a radius under 15 miles is a hard 2909035",
+          ] }],
+        },
+        { need: "the Instant Form (B2b), the creative and the ad (B2c), launch / pause through the guard (B3)", gap: "not built yet — B2b, B2c, B3" },
       ],
-      L2: later("L2"),
+      L2: [
+        {
+          need: "429/5xx/timeout on each create step; half-created campaign resumed, never duplicated; token revoked → stops",
+          tests: [{ file: PUBLISHER, titles: [
+            "a create Meta applied but answered 5xx is found by its name and taken, never sent twice",
+            "half-created (campaign yes, ad set no): the next attempt adopts the campaign and creates only the ad set",
+            "a 429 on …",
+            "%s on the campaign create is an unknown outcome: one create sent, and the next stint creates exactly one",
+            "a revoked token stops the step at its first read: token_invalid, and no create is sent",
+            "a crash between a create and its ledger row: the next delivery adopts the object and never creates a second",
+            "the same step delivered twice at once creates each object once",
+            "two objects carrying our name are refused, never a guess; one found active is refused, never adopted",
+          ] }],
+        },
+        { need: "token revoked → an alert to an admin, and the same faults on the form, creative, ad, launch and pause calls", gap: "the alert lands when the publisher is wired into the runner (B2c); the other calls with B2b, B2c, B3" },
+      ],
       L3: later("L3"),
       L4: [{ need: "contract suite on Meta's sandbox", gap: STAGE2 }],
       L5: [{ need: "canary", gap: CANARY }],
