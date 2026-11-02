@@ -232,15 +232,16 @@ describe("ChatPage", () => {
 
   it("asks what a group is about and hands its header the link; a direct conversation asks nothing (CH11b)", async () => {
     state.aboutAsked = [];
-    state.detail = {
-      conversation: { thread_id: T, kind: "group", subject: "Load L-20481", title_members: [], member_count: 3, unread: 0, last_seq: 1, read_seq: 1 },
+    const detail = (kind: "group" | "direct") => ({
+      conversation: { thread_id: T, kind, subject: "Load L-20481", title_members: [], member_count: 3, unread: 0, last_seq: 1, read_seq: 1 },
       members: [], messages: [], before_seq: null,
-    };
+    });
+    state.detail = detail("group");
     const { w } = await render(`/chat?c=${T}`);
     expect(state.aboutAsked).toContain(T);
     expect(w.findComponent({ name: "ChatConversationStage" }).props("about")).toEqual({ label: "Load L-20481", to: "/loads/L" });
     state.aboutAsked = [];
-    state.detail = { ...state.detail, conversation: { ...state.detail.conversation, kind: "direct" } };
+    state.detail = detail("direct");
     const second = await render(`/chat?c=${T}`);
     expect(state.aboutAsked.every((v) => v === null)).toBe(true);
     expect(second.w.findComponent({ name: "ChatConversationStage" }).props("about")).toBeNull();
