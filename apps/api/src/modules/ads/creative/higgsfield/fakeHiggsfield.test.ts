@@ -3,6 +3,7 @@ import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { FakeClock } from "../../../../testing/fakeClock.js";
+import { closeTestServer } from "../../../../testing/httpServer.js";
 import { FakeHiggsfield } from "./fakeHiggsfield.js";
 
 /**
@@ -39,8 +40,7 @@ beforeEach(async () => {
 });
 afterEach(async () => {
   await hf.stop();
-  hook.server.closeAllConnections();
-  await new Promise<void>((r) => hook.server.close(() => r()));
+  await closeTestServer(hook.server);
 });
 
 /**

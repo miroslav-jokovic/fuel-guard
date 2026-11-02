@@ -259,7 +259,7 @@ export class FakeHiggsfield {
       "content-type": "application/json", "webhook-id": eventId, "webhook-timestamp": timestamp,
       "webhook-signature": FakeHiggsfield.sign(this.opts.webhookSecret, eventId, timestamp, body),
     };
-    let status: number | null = null;
+    let status: number | null;
     try {
       status = (await fetch(r.webhook!, { method: "POST", headers, body, signal: AbortSignal.timeout(10_000) })).status;
     } catch {
