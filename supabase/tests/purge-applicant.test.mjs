@@ -255,7 +255,25 @@ async function seedApplicant(org, name) {
   await db.query(
     `insert into qualification_records (org_id, driver_id, kind, occurred_on, document_id)
      values ($1,$2,'employment_application','2026-09-01',$3)`, [org, d, doc]);
-  return { d, inv, adoption };
+  // Ads D0 (0553): the lead this applicant came from — a Meta lead a recruiter called, matched against a
+  // profile version, then converted. The purge takes it whole: contact, verdict, conversion and lead.
+  const profile = (await one(`insert into hiring_profiles (org_id, name) values ($1,'Class A') returning id`, [org])).id;
+  const pv = (await one(
+    `insert into hiring_profile_versions (org_id, profile_id, version, requirements, created_by, created_by_name)
+     values ($1,$2,1,'{}',$3,'Dana') returning id`, [org, profile, ADMIN])).id;
+  const lead = (await one(
+    `insert into recruiting_leads (org_id, channel, external_ref, full_name, phone_e164)
+     values ($1,'meta',$2,$3,'+13125550100') returning id`, [org, randomUUID(), name])).id;
+  await db.query(
+    `insert into recruiting_contacts (org_id, lead_id, direction, method, created_by, created_by_name)
+     values ($1,$2,'outbound','call',$3,'Dana')`, [org, lead, ADMIN]);
+  await db.query(
+    `insert into lead_match_verdicts (org_id, lead_id, profile_version_id, requirement, verdict)
+     values ($1,$2,$3,'age','unknown')`, [org, lead, pv]);
+  await db.query(
+    `insert into lead_conversions (org_id, lead_id, driver_id, converted_by, converted_by_name)
+     values ($1,$2,$3,$4,'Dana')`, [org, lead, d, ADMIN]);
+  return { d, inv, adoption, lead };
 }
 
 // Every row in the database that belongs to this applicant, table by table — the ruler the purge
@@ -300,7 +318,7 @@ ok(
 const ownedByDriver = ["application_invitations", "driver_applications", "driver_authorizations", "esign_consents",
   "application_drafts", "application_captures", "driver_employment_history", "employer_inquiries", "psp_requests",
   "qualification_records", "applicant_dispositions", "sms_consents", "sms_outbox", "sms_suppressions", "applicant_notes", "driver_employment_gaps",
-  "orientation_video_attestations", "orientation_video_opens", "hiring_carrier_step_records"];
+  "orientation_video_attestations", "orientation_video_opens", "hiring_carrier_step_records", "lead_conversions"];
 ok(
   "and in every drivers-referencing table the purge owns",
   ownedByDriver.every((t) => before[`${t}.driver_id`] > 0),
@@ -309,6 +327,14 @@ ok(
 
 const B = await seedApplicant(ORG, "Bo Standing");
 const bBefore = await footprint(B.d, B.inv);
+// A lead nobody converted, with A's phone: the same number is not the same person (D-LS10), so the purge
+// of A must not reach it.
+const STRAY = (await one(
+  `insert into recruiting_leads (org_id, channel, phone_e164) values ($1,'paste','+13125550100') returning id`, [ORG])).id;
+const leadRows = async (lead) => count(
+  `select (select count(*) from recruiting_leads where id = $1) + (select count(*) from recruiting_contacts where lead_id = $1)
+        + (select count(*) from lead_match_verdicts where lead_id = $1) + (select count(*) from lead_conversions where lead_id = $1) as n`,
+  [lead]);
 
 const result = (await one(`select purge_applicant($1,$2,$3) as r`, [ORG, A.d, ADMIN])).r;
 const after = await footprint(A.d, A.inv);
@@ -320,6 +346,9 @@ ok(
   (await count(`select count(*)::int as n from sms_suppressions where driver_id is null and org_id = $1`, [ORG])) === 1,
 );
 ok("another applicant in the same org is untouched", same(await footprint(B.d, B.inv), bBefore));
+ok("the lead the applicant came from is purged whole: lead, contact, verdict and conversion", (await leadRows(A.lead)) === 0);
+ok("another applicant's converted lead is untouched", (await leadRows(B.lead)) === 4);
+ok("a lead nobody converted is kept, even with the purged applicant's phone", (await leadRows(STRAY)) === 1);
 
 const expectCounts = {
   drivers: 1, application_invitations: 1, driver_applications: 1, driver_authorizations: 2, esign_consents: 1,
@@ -333,6 +362,7 @@ const expectCounts = {
   driver_employment_gaps: 1,
   orientation_video_attestations: 1, orientation_video_opens: 1,
   hiring_carrier_step_records: 2,
+  recruiting_contacts: 1, lead_conversions: 1, lead_match_verdicts: 1, recruiting_leads: 1,
 };
 const wrongCounts = Object.entries(expectCounts).filter(([t, n]) => result.counts[t] !== n);
 ok("it returns the count it deleted from each table", wrongCounts.length === 0,

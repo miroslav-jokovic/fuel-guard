@@ -1333,6 +1333,94 @@
         "why": "new in 0545 (2026-11-02); the carrier's own hiring steps, a handful of rows per org; retired, never deleted."
       }
     },
+    "hiring_profiles": {
+      "module": "recruiting",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "unmeasured",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "new in 0553 (2026-11-03); a hiring profile's identity, one or a few per org."
+      }
+    },
+    "hiring_profile_versions": {
+      "module": "recruiting",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "unmeasured",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "new in 0553 (2026-11-03); one row per save of a profile, a handful per org per year; immutable, cited by verdicts."
+      }
+    },
+    "recruiting_openings": {
+      "module": "recruiting",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "unmeasured",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "new in 0553 (2026-11-03); one row per opening the carrier advertises, tens per org per year."
+      }
+    },
+    "recruiting_opening_versions": {
+      "module": "recruiting",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "unmeasured",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "new in 0553 (2026-11-03); one row per save of an opening; immutable, pins a profile version."
+      }
+    },
+    "recruiting_leads": {
+      "module": "recruiting",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "unmeasured",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "new in 0553 (2026-11-03); one row per lead from every channel, bounded by ad spend and job-board volume; operational and prunable (D-LS7) once Q-REC7 sets the window, never while converted."
+      }
+    },
+    "recruiting_contacts": {
+      "module": "recruiting",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "unmeasured",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "new in 0553 (2026-11-03); one row per call/text/email a person made to a lead, a few per lead; evidence, removed only by the applicant purge."
+      }
+    },
+    "lead_match_verdicts": {
+      "module": "recruiting",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "unmeasured",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "new in 0553 (2026-11-03); one row per lead x requirement per computation (five rules in profile v1); goes with its lead."
+      }
+    },
+    "lead_conversions": {
+      "module": "recruiting",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "unmeasured",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "new in 0553 (2026-11-03); at most one row per lead, a fraction of leads; evidence, removed only by the applicant purge."
+      }
+    },
     "hos_duty_segments": {
       "module": "samsara",
       "layer": "raw",
