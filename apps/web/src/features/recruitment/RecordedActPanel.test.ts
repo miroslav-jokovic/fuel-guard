@@ -421,3 +421,38 @@ describe("when the read of the file fails (D-US5)", () => {
     }
   });
 });
+
+/** §14 OF6b: the AI check fills the form and hands over the scan it read, so the record cites those bytes. */
+describe("the MVR's AI check", () => {
+  beforeEach(() => {
+    setActivePinia(createPinia());
+    role.value = "recruiter";
+    calls.list = [];
+  });
+
+  it("is offered on the driving record only", async () => {
+    const mvr = mountPanel("mvr");
+    await settle(mvr);
+    expect(mvr.find("[data-testid=mvr-ai-check]").exists()).toBe(true);
+    role.value = "admin";
+    const ch = mountPanel("clearinghouse");
+    await settle(ch);
+    expect(ch.find("[data-testid=mvr-ai-check]").exists()).toBe(false);
+  });
+
+  it("records what the check filled in, citing the checked document without uploading it again", async () => {
+    const w = mountPanel("mvr");
+    await settle(w);
+    w.findComponent({ name: "MvrAiCheck" }).vm.$emit("use", {
+      documentId: "doc-mvr", occurredOn: "2026-11-01", jurisdiction: "IL", result: "VALID · class A · 0 violations", performedBy: "SambaSafety", reference: "",
+    });
+    await settle(w);
+    await button(w, "Record it")!.trigger("click");
+    await settle(w);
+    expect(calls.list.some((c) => c.url.endsWith("/document"))).toBe(false);
+    expect(calls.list.at(-1)).toEqual({
+      url: "/api/recruitment/applicants/00000000-0000-4000-8000-0000000000d1/records/mvr",
+      body: { occurred_on: "2026-11-01", document_id: "doc-mvr", result: "VALID · class A · 0 violations", performed_by: "SambaSafety", reference: null, jurisdiction: "IL" },
+    });
+  });
+});

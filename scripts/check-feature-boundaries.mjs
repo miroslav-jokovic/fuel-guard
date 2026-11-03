@@ -428,6 +428,11 @@ const API_ALLOW = new Set([
   //   profile (D-DR1: a profile, never a second pipeline). document-reading imports nothing of inspections';
   //   the read gate is wired at the composition root (queue/handlers/documentRead.ts).
   "inspections -> document-reading",
+  // · recruiting -> document-reading — HIRING-WORKFLOW-AUDIT §14 OF6b: the MVR a recruiter drops on the
+  //   driving-record drawer is handed to the reader through `intakeStoredBytes` under the `mvr_report`
+  //   profile, and its finished read fetched with `readOfBytes` — inspections' IC10 shape exactly.
+  //   document-reading imports nothing of recruiting's; the read gate is wired at the composition root.
+  "recruiting -> document-reading",
   // · inspections -> fleetpal — IC11 (INSPECTION-CHALLENGE-PLAN D-IC14): the repair record proposes the
   //   FleetPal work orders on an inspected unit; FleetPal's tables are read through its index
   //   (`readWorkOrdersOnUnits`), as the dispatch board reads `readUnitMaintenance`.

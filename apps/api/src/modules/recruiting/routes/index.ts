@@ -11,6 +11,7 @@ import { recruitmentApplicationReviewRouter } from "./applicationReview.js";
 import { recruitmentWordingRouter } from "./wording.js";
 import { recruitmentChecklistRouter } from "./checklist.js";
 import { recruitmentHiringEvidenceRouter } from "./hiringEvidence.js";
+import { mvrCheckRouter } from "./mvrCheck.js";
 import { recruitmentRoadTestRouter } from "./roadTest.js";
 import { recruitmentHandbookRouter } from "./handbook.js";
 import { recruitmentSettingsRouter } from "./settings.js";
@@ -53,6 +54,7 @@ export function recruitmentRouter(): Router {
   router.use(recruitmentWordingRouter()); // the carrier publishes its own instrument wording (0338)
   router.use(recruitmentChecklistRouter()); // where one applicant has got to, folded from evidence (B3)
   router.use(recruitmentHiringEvidenceRouter()); // the MVR, the Clearinghouse query and the drug test, recorded (D1)
+  router.use(mvrCheckRouter()); // the AI check of a dropped driving record (HIRING-WORKFLOW-AUDIT §14 OF6b)
   router.use(recruitmentRoadTestRouter()); // the §391.31 road test and its examiners (D2)
   router.use(recruitmentSettingsRouter()); // the link lifetime and reminder, Settings → Recruiting (Q-AW41)
   router.use(recruitmentHandbookRouter()); // the driver handbook and its Representatives (D-HB1..5)
