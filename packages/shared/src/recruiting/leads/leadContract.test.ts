@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { platformLeadSchema, type PlatformLead } from "../../ads/contracts.js";
 import { normalisePhone } from "../../smsConsentContract.js";
-import { leadFromManual, leadFromPlatform, leadProjectionSchema, manualLeadSchema, normaliseEmail, OPENING_BRIEF_SOURCE } from "./leadContract.js";
+import { leadFromManual, leadFromPlatform, leadProjectionSchema, manualLeadSchema, normaliseEmail, OPENING_BRIEF_SOURCE, openingOfBrief } from "./leadContract.js";
 import { openingSaveSchema, openingVersionRow } from "./opening.js";
 
 const OPENING = "6f1c2a9e-3b4d-4e5f-8a7b-1c2d3e4f5a6b";
@@ -26,6 +26,12 @@ describe("leadFromPlatform — what LeadSink.accept stores", () => {
   it("finds its opening from a recruiting brief", () => expect(p.opening_id).toBe(OPENING));
   it("names no opening when the brief came from another source", () => {
     expect(leadFromPlatform(lead({}, { brief_source: "fuel_card_offer" })).opening_id).toBeNull();
+  });
+  it("finds its opening from a campaign's frozen brief ref, <id>@v<version>", () => {
+    expect(leadFromPlatform(lead({}, { brief_ref: `${OPENING}@v3` })).opening_id).toBe(OPENING);
+  });
+  it("names no opening from a malformed version suffix", () => {
+    expect([openingOfBrief(OPENING_BRIEF_SOURCE, `${OPENING}@3`), openingOfBrief(OPENING_BRIEF_SOURCE, `${OPENING}@v0`)]).toEqual([null, null]);
   });
   it("names no opening when the ref is not an id", () => {
     expect(leadFromPlatform(lead({}, { brief_ref: "not-a-uuid" })).opening_id).toBeNull();

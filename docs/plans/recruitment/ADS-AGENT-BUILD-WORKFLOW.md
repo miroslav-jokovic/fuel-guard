@@ -832,3 +832,21 @@ blocking step in §3 above.
   next version through 0554, in the session's name; view reads, manage writes. 16 mutants, all killed.
   **D1 is complete.** Next: B4a (the hourly backfill → `recruitingLeadSink`), then B4b (the webhook,
   fail-closed until the owner's `META_APP_SECRET`).
+- **2026-11-03, D1c2 merged** (#1964, `e0f1328`). **D1 complete.**
+- **2026-11-03, B4a split; B4a1 = the backfill itself.**
+  - `modules/ads/leads/backfill.ts`: per connection, every campaign of ours carrying a `meta_form_id` →
+    `GET /{form}/leads` with the **Page token** (`filtering` `time_created > since`, 100 a page, at most
+    50 pages, past that `truncated`) → `platformLeadFromMeta` → the injected `LeadSink`.
+  - **A window, not a watermark:** each run re-reads the last 48 h. The sink stores a lead once, so there
+    is no "read up to" row to get wrong after a crash, and no migration. An explicit `since` (held to
+    Meta's 90-day retention) closes a longer outage.
+  - Every failure is reported, never skipped: a form Meta refused (`graph:<code>`), `truncated`, a lead
+    the sink refused (by id — never the sink's message, which can carry a phone), or a bad shape.
+  - FakeMeta gains `fakeMetaLeads.ts` (Meta's `+0000` times, cursor paging, `filtering`, Page token only).
+  - **Fix found reading 0537:** a campaign's brief ref is `<opening id>@v<version>`, and D1b's
+    `leadFromPlatform` accepted only a bare id, so every real ad lead would have reached recruiting with
+    no opening and no verdicts. `openingOfBrief` reads both.
+  - 14 tests; 17 mutants, all killed.
+  - **B4a2** (next): job kind `ads_leads_backfill` (`KIND_CAPS` 1, dedup per connection), the hourly
+    `ads-leads-backfill` scheduler (off unless `ADS_ENABLED`), the handler wiring `recruitingLeadSink`
+    in, and the readiness pins.
