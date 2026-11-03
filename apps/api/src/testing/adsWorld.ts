@@ -24,6 +24,7 @@ import { createSupabaseRecorder, type RecordedQuery } from "./supabaseRecorder.j
 export const ORG = "00000000-0000-4000-8000-0000000000a1";
 export const CONN = "00000000-0000-4000-8000-0000000000c1";
 export const T0 = "2026-11-02T12:00:00.000Z";
+export const ADMIN_USER = "00000000-0000-4000-8000-0000000000d1";
 
 export const LIVE_SETTINGS: AdsSettings = {
   ...ADS_SETTINGS_UNSET,
@@ -60,6 +61,8 @@ export function createAdsWorld(opts: {
    * transition keys and `launchThisStint`'s `started_at >= state_changed_at` lean on.
    */
   clock?: () => Date;
+  /** Active members (`memberships`), for alert recipients; default one admin. */
+  members?: FixtureRow[];
 }) {
   const campaigns = opts.campaigns.map((c) => ({ ...c }));
   const actions: FixtureRow[] = (opts.actions ?? []).map((a) => ({ ...a }));
@@ -68,6 +71,10 @@ export function createAdsWorld(opts: {
   const settings = { kill: opts.kill ?? false, value: opts.settings ?? LIVE_SETTINGS, version: 1 };
   const approvals: FixtureRow[] = (opts.approvals ?? []).map((a) => ({ ...a }));
   const spend: FixtureRow[] = (opts.spend ?? []).map((r) => ({ ...r }));
+  const connections: FixtureRow[] = (opts.connections ?? [{ id: CONN, org_id: ORG, provider: "meta" }]).map((c) => ({ ...c }));
+  const members: FixtureRow[] = (opts.members ?? [{ org_id: ORG, user_id: ADMIN_USER, role: "admin", suspended_at: null }]).map((m) => ({ ...m }));
+  // The bell as `emit_notification` keeps it: one row per (user, dedupe key), a repeat returns no id.
+  const bell: Array<{ user: string; category: string; title: string; severity: string; dedupe: string | null }> = [];
   const crashes = new Map<string, number[]>();
   const writes = new Map<string, number>();
   let seq = actions.length;
@@ -126,8 +133,23 @@ export function createAdsWorld(opts: {
         kill_reason: settings.kill ? "owner pressed it" : null, created_at: T0, created_by_name: "Owner",
       }],
       ads_approvals: postgrestFixture(approvals),
-      ads_platform_connections: postgrestFixture(opts.connections ?? [{ id: CONN, org_id: ORG, provider: "meta" }]),
+      ads_platform_connections: (q) => {
+        if (q.write?.method === "update") {
+          const hit = matching(connections, q);
+          for (const c of hit) Object.assign(c, q.write.payload as object);
+          return hit.map((c) => ({ id: c.id }));
+        }
+        return postgrestFixture(connections)(q);
+      },
+      memberships: postgrestFixture(members),
       ads_spend_hourly: postgrestFixture(spend),
+    },
+    rpc: (fn, args) => {
+      if (fn !== "emit_notification") return null;
+      const a = args as { p_user: string; p_category: string; p_title: string; p_severity: string; p_dedupe_key: string | null };
+      if (a.p_dedupe_key && bell.some((b) => b.user === a.p_user && b.dedupe === a.p_dedupe_key)) return null;
+      bell.push({ user: a.p_user, category: a.p_category, title: a.p_title, severity: a.p_severity, dedupe: a.p_dedupe_key });
+      return `ntf-${bell.length}`;
     },
   });
 
@@ -140,6 +162,9 @@ export function createAdsWorld(opts: {
     settings,
     approvals,
     spend,
+    connections,
+    /** What reached the bell (after `emit_notification`'s dedupe). */
+    bell,
     /** A new settings version in force from the next read (the owner saved). */
     saveSettings(value: AdsSettings) {
       settings.value = value;

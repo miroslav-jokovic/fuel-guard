@@ -321,6 +321,10 @@ const API_ALLOW = new Set([
   "mcleod -> org",
   "fuel -> messaging",
   "recruiting -> messaging",
+  // · ads -> messaging — the 2026-11-03 audit (H2): a pause the platform keeps refusing, and a connection
+  //   no pause can use, reach a person through notify() (`modules/ads/alerts/`), not only a failed
+  //   `ads_actions` row nobody reads. messaging imports nothing of ads'.
+  "ads -> messaging",
   "roster -> messaging",
   // Dispatch refuses a driver blocked on return-to-duty (§40.25(j)). `loads -> messaging` went with
   // Release in LR6 (LOADS-MIRROR-PLAN.md): it was the notification a released load sent its driver.

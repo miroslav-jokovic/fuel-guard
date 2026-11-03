@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { CampaignEvent, CampaignState } from "@silvicom/shared";
 import { completeAction, startAction } from "../actions/actionLedger.js";
+import { afterPauseFailed } from "../alerts/pauseAlerts.js";
 import type { GuardedPlatform } from "../guard/guardedPlatform.js";
 import { NOT_ON_PLATFORM } from "../platforms/adapter.js";
 import { brakeWorkers, killReason } from "./brake.js";
@@ -65,7 +66,20 @@ export async function runCampaignStep(deps: RunnerDeps, orgId: string, campaignI
   const ask = await decide(run, campaign, kill);
   if (!ask) return { kind: "idle", state: campaign.state, reason: "no_platform" };
   const result = await applyCampaignEvent(deps.admin, campaign, { actor: ORCHESTRATOR, ...ask }, deps.now().toISOString());
+  if (ask.event === "pause_failed" && result.kind === "moved") await alertQuietly(deps, campaign, ask.error ?? "pause_failed");
   return { kind: "stepped", event: ask.event, result };
+}
+
+/**
+ * A stuck pause is told to a person (`alerts/pauseAlerts.ts`, audit H2). Telling is never worth failing
+ * the step: the move is recorded, and a throw here would only re-run a pause the next tick runs anyway.
+ */
+async function alertQuietly(deps: RunnerDeps, c: CampaignRow, code: string): Promise<void> {
+  try {
+    await afterPauseFailed(deps.admin, deps.now(), c, code);
+  } catch (err) {
+    console.error(`[ads-orchestrator] campaign ${c.id}: the pause alert failed — ${err instanceof Error ? err.message : String(err)}`);
+  }
 }
 
 type Ask = Omit<TransitionAsk, "actor">;
