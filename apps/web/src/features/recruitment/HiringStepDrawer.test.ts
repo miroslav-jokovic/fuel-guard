@@ -58,6 +58,10 @@ const STUBS = {
   // UX4: no `data-body` — Med-Stop's card is not a body the map chooses; it only asks for the order
   // drawer, which the page opens in place of this one.
   MedstopTestCard: { name: "MedstopTestCard", emits: ["order"], template: `<button data-medstop @click="$emit('order', 'EE-APP')" />` },
+  // §14 OF3: the road test's own suite is `RoadTestPanel.test.ts`; here only which drawer it opens in.
+  RoadTestPanel: stub("road-test"),
+  ApplicantPhotoStrip: stub("photos"),
+  SelfieCheckPanel: stub("selfie"),
 };
 
 /** Everything the schema can see is done, so every step has a state worth opening. */
@@ -182,6 +186,23 @@ describe("a row opens the work behind the step", () => {
    * ⚠ Both application steps land on the application, and that is the ruling rather than a
    * coincidence: the office's act at step 4 IS reading what was filed at step 3 and approving it.
    */
+  // §14 D-OF6 (owner, 2026-11-03): Part 1 shows the link, the selfie check and every picture they sent.
+  it("opens Part 1 on the link, the selfie check and the photos the applicant sent", async () => {
+    expect(bodies(await openOn("intake_completed"))).toEqual(["invite", "selfie", "photos"]);
+  });
+
+  // §14 OF3: the road test is nine items with a three-way rating each, filled in on a tablet — the wide
+  // drawer, like the application. At the default width the item and its rating cannot sit side by side.
+  it("opens the road test and the application in the wide drawer, and everything else in the default", async () => {
+    const size = async (key: string) => {
+      await openOn(key);
+      return wrapper!.findComponent({ name: "SlideOver" }).props("size");
+    };
+    expect(await size("road_test")).toBe("xl");
+    expect(await size("application_filled")).toBe("xl");
+    expect(await size("psp")).toBe("md");
+  });
+
   // §14 D-OF2: the approval is drawn UNDER the application in one drawer, so it opens the review rather
   // than rendering the application body a second time.
   it("opens the application for the filling step, and the review for the approving step", async () => {

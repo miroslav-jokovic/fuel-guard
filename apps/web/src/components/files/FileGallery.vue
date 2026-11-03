@@ -40,6 +40,12 @@ const props = defineProps<{
    * of this same order. Fewer papers than that (one was filed since the list loaded) opens the newest.
    */
   startId?: string | null;
+  /**
+   * Only papers of these kinds (HIRING-WORKFLOW-AUDIT §14, D-OF6). An applicant's Part 1 drawer shows
+   * what the applicant SENT — the kinds their own list produces (`APPLICANT_DOCUMENT_KINDS`) — in this
+   * same gallery, rather than a second viewer for one page. Absent: every paper on the subject's file.
+   */
+  kinds?: readonly string[] | null;
 }>();
 const emit = defineEmits<{ close: [] }>();
 
@@ -48,7 +54,8 @@ const subjectId = computed(() => props.subject?.id ?? null);
 const docsQ = useDocumentsQuery(subjectType, subjectId);
 
 /** Newest first by the paper's own date, the cell's order (Q-UF10), so the cell's first thumb is the strip's first. */
-const papers = computed<DocumentRow[]>(() => [...(docsQ.data.value ?? [])].sort(newestPaperFirst));
+const papers = computed<DocumentRow[]>(() =>
+  (docsQ.data.value ?? []).filter((d) => !props.kinds || props.kinds.includes(d.kind)).sort(newestPaperFirst));
 const index = ref(0);
 watch(
   [papers, () => props.startId, () => props.subject],
