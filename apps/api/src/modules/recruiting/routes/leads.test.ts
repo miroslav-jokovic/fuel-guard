@@ -23,11 +23,14 @@ const ORG = "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d";
 const LEAD = "50000000-0000-4000-8000-000000000001";
 const NAMELESS = "50000000-0000-4000-8000-000000000002";
 const EMAIL_ONLY = "50000000-0000-4000-8000-000000000003";
+const QUALIFIED = "50000000-0000-4000-8000-000000000004";
+const PURGED = "50000000-0000-4000-8000-000000000005";
 const OPENING = "60000000-0000-4000-8000-000000000001";
 const PV = "70000000-0000-4000-8000-000000000001";
 const PV_OLD = "70000000-0000-4000-8000-000000000000";
 const APPLICANT = "77777777-8888-4999-8aaa-bbbbbbbbbbbb";
 const NEW_DRIVER = "77777777-8888-4999-8aaa-cccccccccccc";
+const CONTACT = "80000000-0000-4000-8000-000000000001";
 
 const ctx = (role: string): AuthContext => ({ userId: `u-${role}`, email: `${role}@x.test`, orgId: ORG, role } as AuthContext);
 const CTX: Record<string, AuthContext> = Object.fromEntries(["admin", "recruiter", "auditor", "dispatcher", "driver"].map((r) => [r, ctx(r)]));
@@ -46,11 +49,14 @@ const QUEUE_ROW = (id: string, at: string) => ({
   answers: {}, also: [], drivers: [],
 });
 
-const leadRows = postgrestFixture([
-  { id: LEAD, org_id: ORG, full_name: "Ray Driver", phone_e164: "+17082365732", email_lower: "ray@example.com", status: "new" },
-  { id: NAMELESS, org_id: ORG, full_name: null, phone_e164: "+17082365799", email_lower: null, status: "new" },
-  { id: EMAIL_ONLY, org_id: ORG, full_name: "Ana Lopez", phone_e164: null, email_lower: "ana@example.com", status: "new" },
-]);
+const LEADS: Array<Record<string, unknown>> = [
+  { id: LEAD, org_id: ORG, full_name: "Ray Driver", phone_e164: "+17082365732", email_lower: "ray@example.com", status: "new", purged_at: null },
+  { id: NAMELESS, org_id: ORG, full_name: null, phone_e164: "+17082365799", email_lower: null, status: "new", purged_at: null },
+  { id: EMAIL_ONLY, org_id: ORG, full_name: "Ana Lopez", phone_e164: null, email_lower: "ana@example.com", status: "new", purged_at: null },
+  { id: QUALIFIED, org_id: ORG, full_name: "Sam Hall", phone_e164: "+17082365700", email_lower: null, status: "qualified", purged_at: null },
+  { id: PURGED, org_id: ORG, full_name: null, phone_e164: null, email_lower: null, status: "lost", purged_at: "2026-11-01T00:00:00Z" },
+];
+let leads: Array<Record<string, unknown>> = [];
 let suppressions: Array<Record<string, unknown>> = [];
 
 interface Seed {
@@ -58,6 +64,7 @@ interface Seed {
   suppressions?: Array<Record<string, unknown>>;
   ingest?: unknown;
   convertError?: string;
+  contactError?: boolean;
   queue?: unknown[];
   existingVerdicts?: unknown[];
 }
@@ -65,6 +72,7 @@ interface Seed {
 let claims: Set<string> = new Set();
 function seed(over: Seed = {}): SupabaseRecorder {
   claims = new Set();
+  leads = LEADS.map((l) => ({ ...l }));
   suppressions = (over.suppressions ?? []).map((s) => ({ lifted_at: null, ...s }));
   rec = createSupabaseRecorder({
     tables: {
@@ -94,7 +102,16 @@ function seed(over: Seed = {}): SupabaseRecorder {
           const bad = { code: "22P02", message: `invalid input syntax for type uuid: "${id}"` };
           return { data: null, error: bad };
         }
-        return leadRows(q);
+        if (q.write?.method === "update") {
+          const hit = postgrestFixture(leads)({ ...q, ops: q.ops.filter((o) => o.method !== "select") });
+          for (const h of hit) Object.assign(leads.find((l) => l.id === h.id)!, q.write.payload as object);
+          return hit.map((h) => ({ status: leads.find((l) => l.id === h.id)!.status }));
+        }
+        return postgrestFixture(leads)(q);
+      },
+      recruiting_contacts: (q: RecordedQuery) => {
+        if (over.contactError) return { data: null, error: { message: "refused" }, writeError: { message: "refused" } };
+        return q.write?.method === "insert" ? [{ id: CONTACT }] : [];
       },
       recruiting_opening_versions: postgrestFixture([
         { org_id: ORG, opening_id: OPENING, version: 1, profile_version_id: PV_OLD },
@@ -376,5 +393,66 @@ describe("a lead who asked not to be contacted (lead-path audit H3)", () => {
     expect((await post("/leads/not-a-uuid/do-not-contact", "recruiter", {})).status).toBe(404);
     expect((await post(`/leads/${LEAD}/do-not-contact`, "auditor", {})).status).toBe(403);
     expect([suppressions, rec.writtenRows("audit_logs")]).toEqual([[], []]);
+  });
+});
+
+describe("a contact a person made with a lead (D2a)", () => {
+  const CALL = { direction: "outbound", method: "call", outcome: "no_answer", note: "  Left no message, Ray at +17082365732  " };
+  const statusOf = (id: string) => leads.find((l) => l.id === id)!.status;
+
+  it("is recorded in the session's name and moves a new lead to contacted, audited without the note", async () => {
+    seed();
+    const res = await post(`/leads/${LEAD}/contacts`, "recruiter", CALL);
+    expect([res.status, await res.json()]).toEqual([201, { contact_id: CONTACT, status: "contacted" }]);
+    expect(rec.writtenRows("recruiting_contacts")).toEqual([expect.objectContaining({
+      org_id: ORG, lead_id: LEAD, direction: "outbound", method: "call", outcome: "no_answer",
+      note: "Left no message, Ray at +17082365732", created_by: "u-recruiter", created_by_name: "Dana Recruiter",
+    })]);
+    expect(statusOf(LEAD)).toBe("contacted");
+    const audit = rec.writtenRows("audit_logs").at(-1) as { action: string; entity_id: string; meta: Record<string, unknown> };
+    expect([audit.action, audit.entity_id, audit.meta.method, audit.meta.outcome]).toEqual(["recruitment.lead_contact_logged", LEAD, "call", "no_answer"]);
+    expect(JSON.stringify(audit)).not.toContain("236");
+    expect(JSON.stringify(audit)).not.toContain("Left no message");
+    expectOrgScoped(rec, ORG, PROFILE_EXEMPT);
+  });
+
+  it("a second contact is a second row, and a lead further along keeps its status", async () => {
+    seed();
+    await post(`/leads/${LEAD}/contacts`, "recruiter", CALL);
+    const again = await post(`/leads/${LEAD}/contacts`, "recruiter", { direction: "inbound", method: "sms" });
+    expect([again.status, ((await again.json()) as { status: string }).status]).toEqual([201, "contacted"]);
+    const later = await post(`/leads/${QUALIFIED}/contacts`, "recruiter", CALL);
+    expect([later.status, ((await later.json()) as { status: string }).status, statusOf(QUALIFIED)]).toEqual([201, "qualified", "qualified"]);
+    expect(rec.writtenRows("recruiting_contacts")).toHaveLength(3);
+    expect(rec.writtenRows("recruiting_contacts")[1]).toMatchObject({ outcome: null, note: null });
+  });
+
+  it("a status changed by another request while the contact was written is not walked back", async () => {
+    seed();
+    const racing = rec.client.from.bind(rec.client);
+    vi.spyOn(rec.client, "from").mockImplementation(((table: string) => {
+      if (table === "recruiting_contacts") leads.find((l) => l.id === LEAD)!.status = "converted";
+      return racing(table);
+    }) as typeof rec.client.from);
+    const res = await post(`/leads/${LEAD}/contacts`, "recruiter", CALL);
+    expect([res.status, statusOf(LEAD)]).toEqual([201, "converted"]);
+  });
+
+  it("a contact that cannot be stored leaves the lead new, so it still reads as uncontacted", async () => {
+    seed({ contactError: true });
+    const res = await post(`/leads/${LEAD}/contacts`, "recruiter", CALL);
+    expect([res.status, statusOf(LEAD), rec.writtenRows("audit_logs")]).toEqual([500, "new", []]);
+  });
+
+  it("refuses in words: a purged lead, another carrier's lead, a malformed id, a bad list value, a long note, a view-only role", async () => {
+    seed();
+    const purged = await post(`/leads/${PURGED}/contacts`, "recruiter", CALL);
+    expect([purged.status, ((await purged.json()) as { error: { code: string } }).error.code]).toEqual([409, "lead_purged"]);
+    expect((await post("/leads/50000000-0000-4000-8000-0000000000ff/contacts", "recruiter", CALL)).status).toBe(404);
+    expect((await post("/leads/not-a-uuid/contacts", "recruiter", CALL)).status).toBe(404);
+    expect((await post(`/leads/${LEAD}/contacts`, "recruiter", { ...CALL, method: "fax" })).status).toBe(400);
+    expect((await post(`/leads/${LEAD}/contacts`, "recruiter", { ...CALL, note: "x".repeat(2001) })).status).toBe(400);
+    expect((await post(`/leads/${LEAD}/contacts`, "auditor", CALL)).status).toBe(403);
+    expect([rec.writtenRows("recruiting_contacts"), rec.writtenRows("audit_logs"), statusOf(LEAD)]).toEqual([[], [], "new"]);
   });
 });

@@ -151,3 +151,24 @@ export function leadFromManual(input: ManualLead): LeadProjection {
     email_lower: normaliseEmail(input.email),
   };
 }
+
+/**
+ * One call, text or email a person made to a lead, or took from one (`recruiting_contacts`, 0553; D-LS6: "all
+ * the contacts will be done by real persons", so this is what a person writes down afterwards, never a record
+ * of something the system sent). The three lists are 0553's CHECKs; the matrix `recruiting-leads.test.mjs`
+ * inserts every value here, so a list that drifts from its CHECK fails there.
+ *
+ * `outcome` is optional because an inbound text has none. `declined` means they declined the JOB, and blocks
+ * nothing: a person who asked not to be contacted goes through do-not-contact (`doNotContact.ts`' header).
+ * The note may name the person, which is why it never reaches the audit log.
+ */
+export const LEAD_CONTACT_DIRECTIONS = ["outbound", "inbound"] as const;
+export const LEAD_CONTACT_METHODS = ["call", "sms", "email", "platform_message", "in_person"] as const;
+export const LEAD_CONTACT_OUTCOMES = ["reached", "voicemail", "no_answer", "wrong_number", "declined"] as const;
+export const leadContactSchema = z.object({
+  direction: z.enum(LEAD_CONTACT_DIRECTIONS),
+  method: z.enum(LEAD_CONTACT_METHODS),
+  outcome: z.enum(LEAD_CONTACT_OUTCOMES).nullable().default(null),
+  note: z.string().trim().max(2000).nullable().default(null).transform((v) => v || null),
+});
+export type LeadContactInput = z.infer<typeof leadContactSchema>;
