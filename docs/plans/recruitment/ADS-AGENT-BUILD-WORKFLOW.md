@@ -989,3 +989,13 @@ blocking step in §3 above.
   - Readiness: Monitor stays L0 — B5a's tests are pinned on its L1 row beside `notBuilt` B5b/B5c.
   - Mutation: 14 mutants, all killed. One survived first (insert-or-skip instead of replace) because the test's
     in-memory table ignored the upsert's options; the harness now applies `ignoreDuplicates` as PostgREST does.
+- **2026-11-03, audit fixes E — the last three findings** (merged after #1983's entries).
+  - **M1 headroom (#1986):** the account-limit fence read Meta's account `spend_cap` raw, but it is a
+    LIFETIME total: an account with history was refused forever, one near its limit looked roomy.
+    `PlatformSafe.readAccountHeadroomCents` = `spend_cap − amount_spent`; `SpendRequest.account_headroom_cents`;
+    new refusal `account_limit_reached` at 0. The owner now sets the limit monthly to lifetime spend + ≤ cap.
+  - **M5 phones (#1988, 0560):** a number written with `+` keeps its own country, never `+1`-defaulted,
+    spaces allowed — `normalisePhone` and `phone_e164` alike, held by the parity matrix.
+  - **M1 convert once (#1989 0561, #1990):** `claim_lead_conversion` before roster's create; the loser of a
+    double click gets 409 `conversion_in_progress`; a claim lapses after 2 minutes; failures release it.
+  14 mutants across the four PRs (4 + 2 + 4 + 4), all killed. Next for this track: `HANDOFF-2026-11-03-LEADS-FIRST.md`.
