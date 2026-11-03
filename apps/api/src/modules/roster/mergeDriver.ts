@@ -64,6 +64,10 @@ export const DRIVER_REASSIGNMENTS: ReadonlyArray<{ table: string; column: string
   // §10 CE1 (0545): what the office recorded on the carrier's own hiring steps — evidence that goes with
   // the person; its guard lets `driver_id` move inside the carrier (CS022), `on delete restrict`.
   { table: "hiring_carrier_step_records", column: "driver_id", orgScoped: true },
+  // Ads D0 (0553): the lead an applicant came from — attribution that goes with the person, so "this hire
+  // came from Meta" survives the merge. Its guard lets only `driver_id` move (RL011) and the composite
+  // FK keeps it inside the carrier; `on delete restrict`, so a missing line aborts the merge, never loses it.
+  { table: "lead_conversions", column: "driver_id", orgScoped: true },
   // §391.51 events go with the driver (0203)
   { table: "qualification_records", column: "driver_id", orgScoped: true },
   // The four FKs check-driver-references.mjs found UNHANDLED by the SQL merge on its first run

@@ -753,3 +753,32 @@ blocking step in §3 above.
     measure it.
   - Ten mutations, all red. The Publisher's L1 now has one gap left: **B2c** (creative + ad, after
     C3/C4).
+- **2026-11-02, B3b merged** — #1949 (`b2567ab`).
+- **2026-11-03, D0** — migration **0553** `0553_recruiting_leads.sql`. 0552 was taken by the hiring chat's
+  uncommitted `0552_applicant_outcomes.sql` (in `../FuelGuard-disp`), which does not touch `purge_applicant`.
+  - **Checked before building: none of D0's tables existed under another name.** `recruiting_settings`
+    (`required_questions`, `offered_document_slots`, `hidden_hiring_steps`) is what the application asks,
+    not who qualifies. `hiring_carrier_steps` is the checklist after someone applies. `sms_outbox` is
+    queued texts to an applicant. No requirement constant exists in code: §3a's 23 / 2 years lives only
+    in RECRUITER-AUTOMATION-PLAN.
+  - Tables: `hiring_profiles` (+ `_versions`), `recruiting_openings` (+ `_versions`; area = point +
+    15–500 mi + reason, no ZIP column), `recruiting_leads` (unique (org, channel, external_ref);
+    attribution and raw frozen, RL013; E.164 phone and lower-case email by CHECK), `recruiting_contacts`
+    (a person's act, `created_by` not null; append-only, RL010), `lead_match_verdicts` (never edited,
+    RL014; go with the lead), `lead_conversions` (append-only, RL010/RL011, merge moves `driver_id`).
+    Contacts and conversions are in `RETENTION_FORBIDDEN`. A conversion points at its frozen lead instead
+    of copying the attribution, so a converted lead cannot be pruned (on delete restrict).
+  - `purge_applicant` (redefined whole from 0545) takes a converted lead whole: contacts, conversion,
+    verdicts, lead. A lead nobody converted is left alone even with the same phone (D-LS10).
+    `lead_conversions` is in `DRIVER_REASSIGNMENTS`.
+  - **Deferred: `recruiting_ai_outputs`.** It has no Stage 1 writer. Meta leads arrive structured, and the
+    first recruiting model call is D3's mailbox extractor (waits on G15). New tables are exempt from the
+    two-merge rule, so it ships with D3.
+  - **Gap found: no step owns WRITING profiles and openings.** D1's row names the ledger, queue,
+    `convert_lead` and the `AdBriefSource`, which only *reads* an opening; G4 says the owner supplies the
+    first opening, but no route or screen saves one. The four tables are on `check-table-producers`'
+    waiver list against D1. **Recommendation:** D1 carries the profile + opening save (shared contracts
+    `hiringProfile.ts` / `opening.ts`, two admin routes), and E-phase gets the screen. Without it, G4 has
+    nowhere to go and the first campaign has nothing to advertise.
+  - Matrices: `recruiting-leads.test.mjs` (new), `purge-applicant.test.mjs` (a converted lead in the
+    fixture), `rls.test.mjs` (seeders for the composite-FK chains).

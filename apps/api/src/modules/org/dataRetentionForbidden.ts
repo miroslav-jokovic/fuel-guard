@@ -57,6 +57,14 @@ export const RETENTION_FORBIDDEN = [
    */
   "hiring_carrier_step_records",
   /**
+   * Ads D0 (0553): every call, text or email a person made to a lead (D-LS6), and which applicant a lead
+   * became (D-LS5's attribution). Append-only by trigger (RL010/RL011). A lead itself is operational and
+   * prunable (D-LS7); these are the evidence that outlives a lead's working life — who reached the person,
+   * and where a hire came from. Removed only with a never-hired applicant, by the purge.
+   */
+  "recruiting_contacts",
+  "lead_conversions",
+  /**
    * Part 1 of the applicant's link and what the office did with it (0376, APPLICATION-FLOW-V2-PLAN
    * §8.2). The intake and its licences are what screening READ — the MVR was ordered per licence, the
    * drug-test site found from the address — so a prune would leave a PSP pull and an MVR citing inputs

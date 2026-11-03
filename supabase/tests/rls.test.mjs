@@ -2361,6 +2361,39 @@ async function main() {
         `s as (insert into hiring_carrier_steps (org_id, label, after_step) values ('${org}', 'rls', 'road_test') returning id) ` +
         `insert into hiring_carrier_step_records (org_id, step_id, driver_id, act, recorded_by_name) ` +
         `select '${org}', s.id, d.id, 'done', 'rls' from d, s`,
+      // Ads D0 (0553): every reference between the lead tables is a composite (org_id, …) FK, the channel and
+      // the area have shapes, and a non-`unknown` verdict needs evidence — chains the seeder cannot build.
+      hiring_profile_versions: (org) =>
+        `with p as (insert into hiring_profiles (org_id, name) values ('${org}', 'rls') returning id), ` +
+        `v as (insert into hiring_profile_versions (org_id, profile_id, version, requirements, created_by, created_by_name) ` +
+        `select '${org}', p.id, 1, '{}', gen_random_uuid(), 'rls' from p returning id) ` +
+        `select 1 from v`,
+      recruiting_opening_versions: (org) =>
+        `with p as (insert into hiring_profiles (org_id, name) values ('${org}', 'rls') returning id), ` +
+        `v as (insert into hiring_profile_versions (org_id, profile_id, version, requirements, created_by, created_by_name) ` +
+        `select '${org}', p.id, 1, '{}', gen_random_uuid(), 'rls' from p returning id), ` +
+        `o as (insert into recruiting_openings (org_id) values ('${org}') returning id) ` +
+        `insert into recruiting_opening_versions (org_id, opening_id, version, profile_version_id, title, facts, area_label, ` +
+        `area_latitude, area_longitude, area_radius_miles, area_reason, created_by, created_by_name) ` +
+        `select '${org}', o.id, 1, v.id, 'rls', '{}', 'rls yard', 41.5, -88.1, 50, 'rls reason', gen_random_uuid(), 'rls' from o, v`,
+      recruiting_leads: (org) =>
+        `insert into recruiting_leads (org_id, channel) values ('${org}', 'rls')`,
+      recruiting_contacts: (org) =>
+        `with l as (insert into recruiting_leads (org_id, channel) values ('${org}', 'rls') returning id) ` +
+        `insert into recruiting_contacts (org_id, lead_id, direction, method, created_by, created_by_name) ` +
+        `select '${org}', l.id, 'outbound', 'call', gen_random_uuid(), 'rls' from l`,
+      lead_match_verdicts: (org) =>
+        `with p as (insert into hiring_profiles (org_id, name) values ('${org}', 'rls') returning id), ` +
+        `v as (insert into hiring_profile_versions (org_id, profile_id, version, requirements, created_by, created_by_name) ` +
+        `select '${org}', p.id, 1, '{}', gen_random_uuid(), 'rls' from p returning id), ` +
+        `l as (insert into recruiting_leads (org_id, channel) values ('${org}', 'rls') returning id) ` +
+        `insert into lead_match_verdicts (org_id, lead_id, profile_version_id, requirement, verdict) ` +
+        `select '${org}', l.id, v.id, 'age', 'unknown' from l, v`,
+      lead_conversions: (org) =>
+        `with d as (insert into drivers (org_id, full_name) values ('${org}', 'rls ' || gen_random_uuid()) returning id), ` +
+        `l as (insert into recruiting_leads (org_id, channel) values ('${org}', 'rls') returning id) ` +
+        `insert into lead_conversions (org_id, lead_id, driver_id, converted_by, converted_by_name) ` +
+        `select '${org}', l.id, d.id, gen_random_uuid(), 'rls' from l, d`,
       org_usage_month: (org) =>
         `insert into org_usage_month (org_id, yyyymm) values ('${org}', '2026-08')`,
       // 0531: a unit tag names exactly one truck OR trailer (`unit_tags_one_unit`), both nullable, so the
