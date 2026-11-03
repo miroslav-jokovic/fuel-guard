@@ -32,13 +32,15 @@ is this the same truck again?* The data to answer them was staged since F6 and r
   own line — 311 lines on 93 work orders). Quantity is the sum of the lines.
 - **D-SPU3 — The date of a use is the repair's date**: work order `completed`, else `started`, else the
   line's creation.
-- **D-SPU4 — Prices are unit prices only, never totals of money.** Last price = the latest priced use;
-  typical = the 12-month median. Credits (price ≤ 0) count in quantity, never in a price. A per-part
-  spend total would be a FleetPal cost figure without its coverage bound, which D-FP4 forbids.
+- **D-SPU4 — No prices on screen until the owner rules (Q-SPU1).** D-FP4: "every surface printing
+  FleetPal money also prints its coverage ratio; a page that cannot compute the ratio does not print
+  the cost". A part's unit price is FleetPal money, and the truck page already declines to show any
+  for the same reason (`UnitRepairsSection.vue`). So the API drops the prices 0557 measures, and the
+  list offers no price sort. 0557 keeps measuring them (last price; 12-month median, low, high; credits
+  ≤ 0 excluded), so showing them later is a DTO field and a column, not a new read.
 - **D-SPU5 — SQL measures, TypeScript judges.** `shop_part_history` returns the days since the same
-  part went on the same unit; "came back within 30 days" is `REPEAT_WITHIN_DAYS` in
-  `packages/shared/src/shopPartsUsage.ts`. A price "well above usual" is judged there too, and only
-  when the typical price stands on at least `TYPICAL_PRICE_MIN_REPAIRS` repairs.
+  part went on the same unit; "again within 30 days" is `REPEAT_WITHIN_DAYS` in
+  `packages/shared/src/shopPartsUsage.ts`, and the badge sits beside the unit it is about.
 - **D-SPU6 — Columns that are always blank are removed** (manufacturer, category), and "From FleetPal"
   is said once, in the header. Only a hand-typed part (from before F12) is labelled, as "Added here".
 - **D-SPU7 — Search covers the manufacturer's number** printed on the box, not only the shop's own
@@ -47,21 +49,26 @@ is this the same truck again?* The data to answer them was staged since F6 and r
   from repair lines (no barcodes, §1); a "fix in FleetPal" list (the no-number lines are vendor quote
   lines nobody can renumber; the 7 duplicate numbers and 20 unmapped units are too few to need a
   screen); shelf counting stays off (Q-MX8 unchanged).
-- **D-SPU9 — Prices are shown to whoever can open Shop parts** (`maintenance` view), the same gate as a
-  truck's repair record, which already shows line prices. See Q-SPU1.
+- **D-SPU9 — Same gate as the catalogue** (`maintenance` view); nothing on these screens is more
+  sensitive than a truck's repair record.
 
 ## 3. Steps
 
 | Step | What | Merge |
 |---|---|---|
 | SP-U1 | Migration 0557: `shop_part_uses`, `shop_parts_list`, `shop_part_summary`, `shop_part_history` + matrix `shop-parts-usage.test.mjs` | 1st (alone — a function's reader is held behind it) |
-| SP-U2 | API: `GET /inventory/parts` reads `shop_parts_list` (window, used-only, sort); `GET /inventory/parts/:id/usage` (summary + paged history). Shared contract + verdicts. Web: Shop parts list (filter, sortable columns, phone cards), part page "Use" card + "Where it went" table with repeat and price badges | 2nd, after migrate-staging applies 0557 |
+| SP-U2 | API: `GET /inventory/part-usage` (its own mount — the pickers keep `GET /inventory/parts`) reads `shop_parts_list`; `GET /inventory/parts/:id/usage` (summary + paged history), both through fleetpal's index. Shared contract `shopPartsUsage.ts`. Web: Shop parts list (Show filter, server-sorted columns, phone cards), part page "How much the shop uses it" + "Where it went" with the repeat badge | 2nd, after migrate-staging applies 0557 |
+| SP-U3 | Prices, if Q-SPU1 is ruled (a) or (b) | later |
 
 ## 4. Open questions
 
-- **Q-SPU1 — Should mechanics see prices?** Today anyone who can open Shop parts can (D-SPU9).
-  Candidates: (a) keep; (b) a separate surface for prices; (c) admin/fleet manager only.
-  Recommendation (a) until the owner says otherwise — the truck page already shows them.
+- **Q-SPU1 — May a part's UNIT price show without the coverage ratio?** D-FP4 was written against
+  cost TOTALS ("FleetPal knows what the shop spent through FleetPal; a total read as the whole bill is
+  the plausible-but-wrong number"). A unit price ("$43.12 per shoe kit, typical $43.10") cannot be read
+  as the maintenance bill, and it is what an office orders by. Candidates: (a) allow unit prices
+  (last, typical, low–high) and a "well above usual" badge on a repair (≥ 1.5 × a median standing on ≥ 5
+  repairs), never a sum; (b) allow them only for admin and fleet manager; (c) keep D-FP4 literal.
+  Recommendation (a). Until ruled, no price is sent or shown (D-SPU4).
 - **Q-SPU2 — Repeat window.** 30 days is a starting value. Tires legitimately go on the same trailer
   twice within 30 days (different wheel positions), so a "Again after 12 days" badge on a tire is a
   fact to look at, not an accusation; the wording says so.
@@ -71,3 +78,9 @@ is this the same truck again?* The data to answer them was staged since F6 and r
 - 2026-11-03 — Plan written from production measurements; SP-U1 built (migration 0557, matrix 52
   checks, two mutations caught: dropping the CANCELED filter, unescaping LIKE). The list query took
   190 ms on production with a search (EXPLAIN ANALYZE, read-only).
+- 2026-11-03 — SP-U1 PR opened (migration 0557). SP-U2 built on a stacked branch. Prices taken OUT of
+  SP-U2 on finding D-FP4 forbids FleetPal money without coverage (the truck page shows none for the
+  same reason); recorded as Q-SPU1. Browser pass on a local build with production-shaped data at
+  1280 and 390 px: the phone card read a bare "311", so a card-only " used" suffix was added, and an
+  empty Note column drew a dash under every history card, so the repeat badge moved beside its unit.
+  Pre-existing, not this step's: on a part's page the sidebar lights both Shop and Shop parts.
