@@ -4,6 +4,7 @@ import { flushPromises, mount } from "@vue/test-utils";
 import { createMemoryHistory, createRouter, type Router } from "vue-router";
 import type { DqAttentionItem, DriverOverviewRow } from "@silvicom/shared";
 import QualificationFleetTable from "@/features/compliance/QualificationFleetTable.vue";
+import FileCell from "@/components/files/FileCell.vue";
 import { DataWorkspace, FilterBar } from "@silvicom/ui";
 
 /**
@@ -103,7 +104,8 @@ const at = (file: string, due: string) =>
 const namesFor = async (fileFilter: string, dueFilter: string): Promise<string[]> => {
   const { w } = await mountAt(at(fileFilter, dueFilter));
   // The name is the row's link, not a fixed column index: this table carries a selection checkbox
-  // and an expand toggle ahead of it, and counting columns made every assertion here fail at once.
+  // ahead of it (an expand toggle too, until DQ-FILE-COLUMN), and counting columns made every
+  // assertion here fail at once.
   return w.findAll("tbody tr").map((r) => r.findAll("a")[0]?.text().trim() ?? "").filter(Boolean);
 };
 
@@ -230,5 +232,40 @@ describe("QualificationFleetTable keeps its list in the URL", () => {
     const { w } = await mountAt("/compliance?file=bogus&sort=declined_at");
     expect(names(w)).toHaveLength(DRIVERS.length);
     expect(w.findComponent({ name: "DataTable" }).props("sort")).toEqual({ key: null, dir: "asc" });
+  });
+});
+
+describe("QualificationFleetTable's File column is the Vehicles and Trailers lists' (DQ-FILE-COLUMN)", () => {
+  const PAPER = { documentId: "doc1", kind: "medical_card", contentType: "application/pdf", thumbUrl: null, datedAt: "2026-10-01", filedAt: "2026-10-02", uploadedBy: null };
+
+  it("draws each driver's papers in the shared File cell, with no expand toggle left", async () => {
+    const router = newRouter();
+    overview.value = {
+      drivers: [row({ driver_id: "p", driver_name: "Pat Papers", papers: [PAPER], paper_count: 4 })],
+      includesHazmat: true,
+      truncated: false,
+    };
+    const w = mount(QualificationFleetTable, {
+      global: { plugins: [router], stubs: { RouterLink: { props: ["to"], template: "<a><slot /></a>" } } },
+    });
+    await flushPromises();
+    const cell = w.findComponent(FileCell);
+    expect(cell.props("papers")).toEqual([PAPER]);
+    expect(cell.props("paperCount")).toBe(4);
+    expect(w.find('[data-test="file-more"]').text()).toBe("+3");
+    expect(w.find('[aria-label^="Show requirements"]').exists()).toBe(false);
+  });
+
+  it("asks the page to open the gallery on a thumbnail, and to upload a scan dropped on the cell", async () => {
+    const { w } = await mountAt("/compliance");
+    const cell = w.findComponent(FileCell);
+    cell.vm.$emit("open", "doc9");
+    const scan = new File(["x"], "medical.pdf", { type: "application/pdf" });
+    cell.vm.$emit("drop", [scan]);
+    const [openRow, docId] = w.emitted("open-file")![0] as [{ id: string }, string];
+    expect(docId).toBe("doc9");
+    const [uploadRow, file] = w.emitted("upload")![0] as [{ id: string }, File];
+    expect(uploadRow.id).toBe(openRow.id);
+    expect(file).toBe(scan);
   });
 });

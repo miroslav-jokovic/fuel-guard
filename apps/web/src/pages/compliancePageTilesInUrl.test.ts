@@ -27,7 +27,10 @@ const overviewFailed = ref(false);
 vi.mock("@/composables/useCompliance", () => ({
   useComplianceOverviewQuery: () => ({ data: overview, isLoading: overviewLoading, isError: overviewFailed, error: ref(null), refetch: vi.fn(), isFetching: ref(false) }),
   useCertificationsQuery: () => ({ data: ref([]), isLoading: ref(false), isError: ref(false) }),
+  // The File column's gallery (DQ-FILE-COLUMN) reads a subject's papers only once it opens.
+  useDocumentsQuery: () => ({ data: ref([]), isLoading: ref(false), isError: ref(false) }),
 }));
+vi.mock("@/composables/useFileDropItems", () => ({ useDriverDropItems: () => ref([]) }));
 vi.mock("@/composables/useDqExports", () => ({ useRequestBinder: () => ({ mutateAsync: vi.fn(), isPending: ref(false) }) }));
 vi.mock("@/stores/toast", () => ({ useToastStore: () => ({ success: vi.fn(), error: vi.fn() }) }));
 vi.mock("@/stores/session", () => ({ useSessionStore: () => ({ restrictedAccess: false, orgId: "o", can: () => false, canView: () => true }) }));

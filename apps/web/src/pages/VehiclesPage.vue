@@ -18,7 +18,7 @@ import {
   PlusIcon,
 } from "@silvicom/ui/icons";
 import { ref, computed, watch } from "vue";
-import { RouterLink, useRouter } from "vue-router";
+import { RouterLink } from "vue-router";
 import { FILE_FILTERS, fileFilterOptions, VEHICLE_CHECKS, VEHICLE_CHECK_LABELS, VEHICLE_STATUSES, isStatusFromTms, matchesFileFilter, matchesVehicleCheck, paperStanding, PAPER_CHECK_ITEMS, todayInZone, unitFileChip, type Vehicle, type VehicleInput } from "@silvicom/shared";
 import { useSessionStore } from "@/stores/session";
 import { useVehiclesQuery, useCreateVehicle, useUpdateVehicle, useRetireVehicle, useBulkUpdateVehicles } from "@/composables/useVehicles";
@@ -26,6 +26,8 @@ import { useDriversQuery } from "@/composables/useDrivers";
 import { useUnitFilesQuery } from "@/composables/useCompliance";
 import FileCell from "@/components/files/FileCell.vue";
 import FileGallery from "@/components/files/FileGallery.vue";
+import FileUploadDialog from "@/components/files/FileUploadDialog.vue";
+import { useUnitDropItems } from "@/composables/useFileDropItems";
 import type { FileSubject } from "@/components/files/fileSubject";
 import SlideOver from "@/components/SlideOver.vue";
 import StatusBadge from "@/components/StatusBadge.vue";
@@ -43,8 +45,6 @@ import { useOrgTimezone } from "@/composables/useOrgTimezone";
 
 const PAGE_SIZE = 20;
 const session = useSessionStore();
-// A drop on a File cell opens the unit's File section (UNIT-FILES-PLAN UF5) — see `FileCell`'s note.
-const router = useRouter();
 const { data: vehicles, isLoading, isError, refetch, isFetching } = useVehiclesQuery();
 const { data: drivers } = useDriversQuery();
 
@@ -147,6 +147,16 @@ watch([search, statusFilter, checkFilter, fileFilter], () => (page.value = 1));
 const gallery = ref<{ subject: FileSubject; label: string; startId: string | null } | null>(null);
 function openGallery(v: Vehicle, documentId?: string) {
   gallery.value = { subject: { type: "tractor", id: v.id }, label: `Unit ${v.unit_number}`, startId: documentId ?? null };
+}
+/**
+ * Add a paper without leaving the list (DQ-FILE-COLUMN): a drop on the File cell carries its scan in,
+ * "Upload paper…" in the row menu opens it empty. Filing is the equipment section's write (D-UF5).
+ */
+const upload = ref<{ unit: Vehicle; file: File | null } | null>(null);
+const uploadId = computed(() => upload.value?.unit.id ?? null);
+const { items: uploadItems, outstanding: uploadOutstanding } = useUnitDropItems("tractor", uploadId);
+function openUpload(v: Vehicle, file?: File) {
+  if (session.can("equipment")) upload.value = { unit: v, file: file ?? null };
 }
 const pageRows = computed(() => sorted.value.slice((page.value - 1) * PAGE_SIZE, page.value * PAGE_SIZE));
 const createVehicle = useCreateVehicle();
@@ -306,7 +316,7 @@ async function onRetire(v: Vehicle) {
           :items="fileById.get(row.id)!.items"
           :subject-label="`Unit ${row.unit_number}`"
           @open="openGallery(row, $event)"
-          @drop="router.push(`/vehicles/${row.id}?section=file`)"
+          @drop="openUpload(row, $event[0])"
         />
         <span v-else class="text-ink-tertiary">—</span>
       </template>
@@ -354,6 +364,7 @@ async function onRetire(v: Vehicle) {
       <template #actions="{ row }">
         <KebabMenu v-if="session.can('equipment')">
           <BaseButton class="kebab-item" @click="openEdit(row)">Edit vehicle</BaseButton>
+          <BaseButton class="kebab-item" @click="openUpload(row)">Upload paper…</BaseButton>
           <!-- Q-7: a McLeod-linked truck is retired in McLeod, and the next sweep would un-retire it here. -->
           <BaseButton
             v-if="row.status !== 'retired' && !isStatusFromTms({ link: row.mcleod_tractor_id, identity_source: row.identity_source })"
@@ -378,6 +389,15 @@ async function onRetire(v: Vehicle) {
       :subject-label="gallery?.label ?? ''"
       :start-id="gallery?.startId ?? null"
       @close="gallery = null"
+    />
+    <FileUploadDialog
+      :subject="upload ? { type: 'tractor', id: upload.unit.id } : null"
+      :subject-label="upload ? `Unit ${upload.unit.unit_number}` : ''"
+      :items="uploadItems"
+      :outstanding="uploadOutstanding"
+      :initial-file="upload?.file ?? null"
+      :file-link="upload ? `/vehicles/${upload.unit.id}?section=file` : '/vehicles'"
+      @close="upload = null"
     />
 
     <SlideOver :open="setupOpen" title="Import vehicles" @close="setupOpen = false">

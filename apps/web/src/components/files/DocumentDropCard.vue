@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { acceptFor, DOCUMENT_CONTENT_TYPES } from "@silvicom/shared";
-import { computed, ref } from "vue";
+import { computed, ref, watch } from "vue";
 import { AppIcon } from "@silvicom/ui";
 import { ArrowUpTrayIcon } from "@silvicom/ui/icons";
 import { AppCard as BaseCard } from "@silvicom/ui";
@@ -22,13 +22,19 @@ const props = defineProps<{
   subject: FileSubject;
   /** The subject's requirements — what a dropped scan can prove. */
   items: Array<{ key: string; label: string; evidenceKind: string }>;
+  /**
+   * A file already dropped somewhere else — a list's File cell (DQ-FILE-COLUMN). The card opens on
+   * the "What does it prove?" step with it, so the reader does not drop the same scan twice.
+   */
+  initialFile?: File | null;
 }>();
 const emit = defineEmits<{ filed: [payload: { documentId: string; name: string; key: string }] }>();
 
 const toast = useToastStore();
 const upload = useUploadDocument();
 
-const dropped = ref<File | null>(null);
+const dropped = ref<File | null>(props.initialFile ?? null);
+watch(() => props.initialFile, (f) => (dropped.value = f ?? null));
 const dropKind = ref("");
 const dropOptions = computed(() => props.items.map((i) => ({ value: i.key, label: i.label })));
 

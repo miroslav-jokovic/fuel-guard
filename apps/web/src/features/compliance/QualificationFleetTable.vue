@@ -16,7 +16,7 @@ import {
   SORT_DIRECTIONS,
   useUrlSort,
 } from "@silvicom/ui";
-import { ArrowDownTrayIcon, ChevronDownIcon, ChevronRightIcon } from "@silvicom/ui/icons";
+import { ArrowDownTrayIcon } from "@silvicom/ui/icons";
 import {
   DQ_DUE_FILTERS,
   DQ_EXPORT_MAX_DRIVERS,
@@ -28,11 +28,12 @@ import {
   type DriverOverviewRow,
   type DqAttentionItem,
   type DqItemState,
+  type PaperThumb,
 } from "@silvicom/shared";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
 import KebabMenu from "@/components/KebabMenu.vue";
+import FileCell from "@/components/files/FileCell.vue";
 import { BADGE_BASE, dqFileBadge, dqItemBadge, toneClass } from "@/lib/badges";
-import { formatDate } from "@/lib/format";
 import { useComplianceOverviewQuery } from "@/composables/useCompliance";
 import { useToastStore } from "@/stores/toast";
 import { useSessionStore } from "@/stores/session";
@@ -42,9 +43,16 @@ import { useSessionStore } from "@/stores/session";
  *
  * The previous queue rendered one row per driver × requirement, so an unseeded ten-driver fleet was
  * nine pages of the same names repeating — thousands of "items" where the real unit of work is a
- * driver whose file needs attention. Here the driver is the row; the requirements are the detail,
- * one click away (expand) or on the file page. Worst file first, ranked by the same shared states
- * the file page computes, so the two surfaces cannot disagree.
+ * driver whose file needs attention. Here the driver is the row; the requirements are on the file
+ * page. Worst file first, ranked by the same shared states the file page computes, so the two
+ * surfaces cannot disagree.
+ *
+ * The File column is the Vehicles and Trailers lists' (DQ-FILE-COLUMN, 2026-11-03): the papers as
+ * thumbnails in `FileCell`, opened in the page's one `FileGallery`, and a paper added through the
+ * page's one `FileUploadDialog` — by a drop on the cell or "Upload paper" in the row menu. It replaced
+ * an expand chevron whose detail rows repeated the Status column in longer words and then sent the
+ * reader to the file page for anything they could act on. The table emits; the page owns both
+ * dialogs, as `DriversPage` does.
  */
 const PAGE_SIZE = 20;
 
@@ -52,11 +60,19 @@ const props = defineProps<{
   /** True while the page's binder request is in flight — disables the build button. */
   building?: boolean;
 }>();
-const emit = defineEmits<{ "build-binder": [driverIds: string[], includeRestricted: boolean] }>();
+const emit = defineEmits<{
+  "build-binder": [driverIds: string[], includeRestricted: boolean];
+  /** Open the gallery on this driver's papers — on one paper, or with no id for "+N". */
+  "open-file": [row: FleetRow, documentId?: string];
+  /** Add a paper to this driver's file — with the scan when it was dropped on the cell. */
+  upload: [row: FleetRow, file?: File];
+}>();
 
 const toast = useToastStore();
 const session = useSessionStore();
 const query = useComplianceOverviewQuery();
+/** Filing a paper is the roster section's write, as on the file page (`QualificationSection`). */
+const canUpload = computed(() => session.can("roster"));
 
 /** Phase G (D-DQ15): the default binder carries no §382.401/§391.53 evidence. Only a privileged
  *  role sees the opt-in, and the ask is recorded on the export ledger server-side. */
@@ -101,9 +117,8 @@ const page = qs.page();
 
 // The page's attention strip (C5) writes the same two parameters, so the tiles and these controls are
 // one filter model — the URL — with nothing mirrored between them (D-US2).
-const expanded = ref<Set<string>>(new Set());
 
-interface FleetRow {
+export interface FleetRow {
   id: string;
   driver_name: string;
   driver_status: string;
@@ -112,6 +127,9 @@ interface FleetRow {
   attention: DqAttentionItem[];
   /** Carried so this row satisfies the shared filter predicate; unused by this table's own controls. */
   requirements: DriverOverviewRow["requirements"];
+  /** The File cell's thumbnails and its "+N" count. */
+  papers: PaperThumb[];
+  paper_count: number;
   /** Sort rank: the file's worst state. Expired files first, complete files last. */
   worst: number;
   /** Days until the most urgent dated item — negative when overdue, null when nothing is dated. */
@@ -130,6 +148,8 @@ const all = computed<FleetRow[]>(() =>
       counts: d.counts,
       attention: d.attention,
       requirements: d.requirements,
+      papers: d.papers ?? [],
+      paper_count: d.paper_count ?? 0,
       worst:
         d.counts.expired > 0
           ? WORST_RANK.expired
@@ -187,15 +207,8 @@ function clearFilters(): void {
   qs.set({ search: undefined, file: undefined, due: undefined });
 }
 
-function toggleExpand(id: string): void {
-  const next = new Set(expanded.value);
-  if (next.has(id)) next.delete(id);
-  else next.add(id);
-  expanded.value = next;
-}
-
 /** The one-glance file summary in the D4 vocabulary: "5 blocked · 1 expiring", or a single word.
- *  Expired vs missing survives in the expanded rows, where each item says which it is. */
+ *  Expired vs missing survives on the file page and in the upload dialog, where each item says which it is. */
 const fileChips = (row: FleetRow): Array<{ text: string; tone: string }> => {
   const chips: Array<{ text: string; tone: string }> = [];
   const blocked = row.counts.expired + row.counts.missing;
@@ -220,7 +233,6 @@ function nextDue(row: FleetRow): string | null {
 }
 
 const columns: DataTableColumn[] = [
-  { key: "expand", label: "", headerClass: "w-8" },
   {
     key: "driver_name",
     label: "Driver",
@@ -228,7 +240,8 @@ const columns: DataTableColumn[] = [
     width: "xl",
     cellClass: "font-medium text-ink",
   },
-  { key: "file", label: "Qualification file", width: "2xl" },
+  { key: "file", label: "File", width: "lg" },
+  { key: "status", label: "Status", width: "xl" },
   {
     key: "soonest",
     label: "Next due",
@@ -287,7 +300,6 @@ const { sort, onSort } = useUrlSort(
       row-key="id"
       selectable
       :selected="selected"
-      :expanded="expanded"
       :loading="query.isLoading.value"
       :error="
         query.isError.value
@@ -296,7 +308,6 @@ const { sort, onSort } = useUrlSort(
       "
       :retrying="query.isFetching.value"
       :sort="sort"
-      :row-class="() => 'cursor-pointer'"
       :empty-text="
         all.length === 0
           ? 'No active drivers yet. Add drivers on the Fleet page, or sync from Samsara.'
@@ -304,30 +315,10 @@ const { sort, onSort } = useUrlSort(
       "
       @update:selected="setSelected"
       @sort="onSort"
-      @row-click="toggleExpand($event.id)"
       @retry="query.refetch()"
     >
-      <template #cell-expand="{ row }">
-        <BaseButton
-          variant="ghost"
-          size="sm"
-          :aria-expanded="expanded.has(row.id)"
-          :aria-label="`${expanded.has(row.id) ? 'Hide' : 'Show'} requirements for ${row.driver_name}`"
-          @click.stop="toggleExpand(row.id)"
-        >
-          <AppIcon
-            :icon="expanded.has(row.id) ? ChevronDownIcon : ChevronRightIcon"
-            class="size-4"
-            aria-hidden="true"
-          />
-        </BaseButton>
-      </template>
       <template #cell-driver_name="{ row }">
-        <RouterLink
-          :to="`/compliance/${row.id}`"
-          class="font-medium text-link hover:text-link-hover"
-          @click.stop
-        >
+        <RouterLink :to="`/compliance/${row.id}`" class="font-medium text-link hover:text-link-hover">
           {{ row.driver_name }}
         </RouterLink>
         <span
@@ -338,6 +329,16 @@ const { sort, onSort } = useUrlSort(
         </span>
       </template>
       <template #cell-file="{ row }">
+        <FileCell
+          :papers="row.papers"
+          :paper-count="row.paper_count"
+          :items="row.requirements"
+          :subject-label="row.driver_name"
+          @open="emit('open-file', row, $event)"
+          @drop="canUpload && emit('upload', row, $event[0])"
+        />
+      </template>
+      <template #cell-status="{ row }">
         <span
           v-if="row.state !== 'incomplete'"
           :class="[BADGE_BASE, toneClass(dqFileBadge(row.state).tone)]"
@@ -358,47 +359,10 @@ const { sort, onSort } = useUrlSort(
       </template>
       <template #actions="{ row }">
         <KebabMenu>
-          <RouterLink :to="`/compliance/${row.id}`" class="kebab-item"
-            >Open qualification file…</RouterLink
-          >
+          <BaseButton class="kebab-item" @click="emit('open-file', row)">View papers</BaseButton>
+          <BaseButton v-if="canUpload" class="kebab-item" @click="emit('upload', row)">Upload paper…</BaseButton>
+          <RouterLink :to="`/compliance/${row.id}`" class="kebab-item">Open qualification file…</RouterLink>
         </KebabMenu>
-      </template>
-      <template #expanded="{ row }">
-        <div v-if="row.attention.length === 0" class="text-sm text-ink-muted">
-          All requirements are on file.
-          <RouterLink :to="`/compliance/${row.id}`" class="font-medium text-link hover:text-link-hover"
-            >Open the file</RouterLink
-          >
-          to see the evidence.
-        </div>
-        <div v-else class="space-y-1.5">
-          <div
-            v-for="item in row.attention"
-            :key="item.key"
-            class="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm"
-          >
-            <span
-              :class="[BADGE_BASE, toneClass(dqItemBadge(item.state).tone), 'w-20 justify-center']"
-              >{{ dqItemBadge(item.state).label }}</span
-            >
-            <span class="text-ink">{{ item.label }}</span>
-            <span v-if="item.goodUntil" class="text-ink-muted">
-              good until {{ formatDate(item.goodUntil) }}
-              <template v-if="item.daysRemaining !== null"
-                >({{ dueText(item.daysRemaining) }})</template
-              >
-            </span>
-            <span v-else-if="item.state === 'missing'" class="text-ink-tertiary"
-              >never recorded</span
-            >
-          </div>
-          <RouterLink
-            :to="`/compliance/${row.id}`"
-            class="mt-1 inline-block text-sm font-medium text-link hover:text-link-hover"
-          >
-            Open the file to record or renew →
-          </RouterLink>
-        </div>
       </template>
       <template #footer>
         <TablePagination

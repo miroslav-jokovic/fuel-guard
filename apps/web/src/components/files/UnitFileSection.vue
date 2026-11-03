@@ -5,7 +5,6 @@ import {
   EQUIPMENT_ITEMS,
   OWNERSHIP_LABELS,
   OWNERSHIP_TYPES,
-  unitFileSpecs,
   unitGroups,
   type DocumentRow,
   type OwnershipType,
@@ -20,14 +19,15 @@ import { formatDate } from "@/lib/format";
 import { useSessionStore } from "@/stores/session";
 import { useToastStore } from "@/stores/toast";
 import { useDocumentsQuery, useUnitFilesQuery } from "@/composables/useCompliance";
-import { useVehiclesQuery, useSetVehicleOwnership } from "@/composables/useVehicles";
-import { useTrailersQuery, useSetTrailerOwnership } from "@/composables/useTrailers";
+import { useSetVehicleOwnership } from "@/composables/useVehicles";
+import { useSetTrailerOwnership } from "@/composables/useTrailers";
 import DocumentDropCard from "@/components/files/DocumentDropCard.vue";
 import RequirementDrawer from "@/components/files/RequirementDrawer.vue";
 import CertificationHistory from "@/components/files/CertificationHistory.vue";
 import DocumentPreview from "@/components/DocumentPreview.vue";
 import RequirementTable, { type RequirementRow } from "@/components/files/RequirementTable.vue";
 import UnitRelationStrip from "./UnitRelationStrip.vue";
+import { useUnitDropItems } from "@/composables/useFileDropItems";
 import type { UnitFileSubject } from "./fileSubject";
 
 /**
@@ -97,14 +97,8 @@ const groups = computed(() =>
 // ── the ownership question (D-UF11) ──────────────────────────────────────────────────────────────
 // Title and lease wait on it: while it is unknown they are neither required nor missing, and the office
 // answers it here, where it is asked, rather than in the form two screens away.
-const vehicles = useVehiclesQuery();
-const trailers = useTrailersQuery();
-const ownership = computed<OwnershipType | null>(() => {
-  const unit = props.subject.type === "tractor"
-    ? (vehicles.data.value ?? []).find((v) => v.id === props.subject.id)
-    : (trailers.data.value ?? []).find((t) => t.id === props.subject.id);
-  return unit?.ownership_type ?? row.value?.ownership ?? null;
-});
+// What a dropped scan can prove depends on it, so the drop options come from the composable the list's upload dialog shares.
+const { items: dropItems } = useUnitDropItems(props.subject.type, subjectId);
 const ownershipUnknownLabels = computed(() => (row.value?.ownership_unknown ?? []).map((k) => specByKey.get(k)?.label ?? k));
 const setVehicleOwnership = useSetVehicleOwnership();
 const setTrailerOwnership = useSetTrailerOwnership();
@@ -192,10 +186,6 @@ function closeDrawer(): void {
   openKey.value = null;
   presetDoc.value = null;
 }
-/** What a dropped scan can prove: the items that apply to this unit, by its type and ownership. */
-const dropItems = computed(() =>
-  unitFileSpecs(props.subject.type, ownership.value).specs.map((s) => ({ key: s.key, label: s.label, evidenceKind: s.evidenceKinds[0] ?? "other" })),
-);
 /**
  * Recording an item opens the drawer; for an item whose paper is on file but not dated (Q-UF13) the
  * drawer CITES that paper, as it does a drop-first scan (D-DQ10), so the office types the date it reads

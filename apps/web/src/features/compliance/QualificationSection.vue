@@ -4,7 +4,6 @@ import {
   buildDqFile,
   DQ_GROUP_LABELS,
   dqAttention,
-  dqCapturableSpecs,
   dqGroups,
   DQ_ITEMS,
   moduleEnabled,
@@ -32,6 +31,7 @@ import DocumentPreview from "@/components/DocumentPreview.vue";
 import RequirementTable, { type RequirementRow } from "@/components/files/RequirementTable.vue";
 import type { FileSubject } from "@/components/files/fileSubject";
 import { useExportDocument } from "@/composables/useDqExports";
+import { useDriverDropItems } from "@/composables/useFileDropItems";
 
 /**
  * One driver's §391.51 file (DQ redesign, D-DQ7).
@@ -243,28 +243,8 @@ function closeDrawer(): void {
 }
 
 // ── drop first, classify after (D-DQ10) ──────────────────────────────────────────────
-// From dqCapturableSpecs, not file.items: an advisory item (ELDT) is absent from the checklist until
-// evidence exists, and this list is where that first evidence comes from (D8). Restricted
-// requirements (Phase G, D-DQ15) stay absent for roles that cannot record them — the API would
-// refuse the record anyway; the option must not offer a dead end.
-const dropItems = computed(() =>
-  dqCapturableSpecs({
-    includeHazmat: moduleEnabled(modules.data.value ?? null, "hazmatguard"),
-    hasCdl: Boolean(driverQ.data.value?.cdl_number),
-    returnToDutyRequired: driverQ.data.value?.return_to_duty_required === true,
-    returnToDutyViolationOn: holdQ.data.value?.violationOn ?? null,
-  })
-    .filter(
-      (spec) =>
-        spec.evidenceKinds.every((k) => session.canReadKind(k)),
-    )
-    .map((spec) => ({
-      key: spec.key,
-      label: spec.label,
-      // Every catalogue item names at least one evidence kind; the fallback only satisfies the index check.
-      evidenceKind: spec.evidenceKinds[0] ?? "other",
-    })),
-);
+// What a dropped scan can prove — the same derivation the fleet table's upload dialog uses.
+const dropItems = useDriverDropItems(driverId);
 
 /**
  * Filing the scan is half the job: the requirement only counts as on file once its dates are
