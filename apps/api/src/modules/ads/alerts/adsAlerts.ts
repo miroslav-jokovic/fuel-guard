@@ -29,7 +29,7 @@ export interface AdsAlert {
 }
 
 export async function alertRecipients(admin: SupabaseClient, orgId: string, category: AdsAlert["category"]): Promise<string[]> {
-  let configured: string[] = [];
+  let configured: string[];
   try {
     configured = (await settingsInForce(admin, orgId)).settings.alerts.recipients[category] ?? [];
   } catch {
