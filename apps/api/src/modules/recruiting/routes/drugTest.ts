@@ -1,6 +1,6 @@
 import { Router } from "express";
 import type { Request, Response } from "express";
-import { drugTestAppointmentSchema, type DrugTestAppointmentBooking, recordId } from "@silvicom/shared";
+import { drugTestAppointmentSchema, type DrugTestAppointmentBooking, type MedstopStepTests, recordId } from "@silvicom/shared";
 import { requireAuth, requireOrg, requireSection } from "../../../middleware/auth.js";
 import { apiError, asyncHandler, validateBody } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
@@ -15,7 +15,7 @@ import {
 } from "../applicantDrugTest.js";
 import { sendDrugTestToDriver } from "../applicantDrugTestSend.js";
 import { readMedstopTestsForDriver } from "../../medstop/index.js";
-import { invitationIdsOf } from "../medstopApplicantFacts.js";
+import { invitationIdsOf, partOneHomeZip } from "../medstopApplicantFacts.js";
 
 /**
  * The drug test's appointment (D-AW6, APPLICATION-FLOW-V2-PLAN §8.4). `applicantDrugTest.ts` carries
@@ -66,8 +66,13 @@ export function recruitmentDrugTestRouter(): Router {
       const admin = getSupabaseAdmin(getAppLocals(req).env);
       const orgId = req.auth!.orgId!;
       const driverId = String(req.params.driverId ?? "");
-      const data = await readMedstopTestsForDriver(admin, orgId, driverId, req.auth!.role ?? null, await invitationIdsOf(admin, orgId, driverId));
-      res.json(data);
+      const [data, homeZip] = await Promise.all([
+        readMedstopTestsForDriver(admin, orgId, driverId, req.auth!.role ?? null, await invitationIdsOf(admin, orgId, driverId)),
+        // MSO1 (D-MSO2): the order drawer's site search starts at the applicant's home ZIP.
+        partOneHomeZip(admin, orgId, driverId),
+      ]);
+      const body: MedstopStepTests = { ...data, homeZip };
+      res.json(body);
     }),
   );
 

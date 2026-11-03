@@ -7,20 +7,22 @@ import { getAppLocals } from "../../../lib/appLocals.js";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { CalendarDay } from "@silvicom/shared";
 import { readDrugAlcoholProgram } from "../program.js";
-import { registerOrderRoutes } from "./order.js";
+import { registerOrderRoutes, type OrderRouteDeps } from "./order.js";
 
 /** Today in the org's own zone — a collection day and a selection's age are calendar days there. */
-async function orgToday(admin: SupabaseClient, orgId: string): Promise<CalendarDay> {
+async function orgClock(admin: SupabaseClient, orgId: string): Promise<{ today: CalendarDay; timeZone: string }> {
   const { data } = await admin.from("organizations").select("operating_hours").eq("id", orgId).maybeSingle();
-  return todayInZone(new Date(), organizationTimezone(data?.operating_hours));
+  const timeZone = organizationTimezone(data?.operating_hours);
+  return { today: todayInZone(new Date(), timeZone), timeZone };
 }
+const orgToday = async (admin: SupabaseClient, orgId: string): Promise<CalendarDay> => (await orgClock(admin, orgId)).today;
 
 /**
  * Safety › Drug & Alcohol (MEDSTOP-PLAN.md §6). `safety: view` reads the program — pool pace and the
  * roster reconciliation name no test and no result. The selection lists inside the answer are held
  * to the roles that read testing records (`program.ts`), so the gate here stays the section's.
  */
-export function drugAlcoholRouter(): Router {
+export function drugAlcoholRouter(deps: Pick<OrderRouteDeps, "fillOrderedAppointment">): Router {
   const router = Router();
   router.use(requireAuth, requireOrg);
 
@@ -35,6 +37,6 @@ export function drugAlcoholRouter(): Router {
     }),
   );
   // UX3: ordering a test — its own role gate, not the section's (`routes/order.ts`).
-  registerOrderRoutes(router, orgToday);
+  registerOrderRoutes(router, { orgClock, ...deps });
   return router;
 }

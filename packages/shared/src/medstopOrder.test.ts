@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   buildMedstopOrderPayload,
+  medstopDefaultGoBy,
   medstopOrderInputSchema,
   medstopOrderRefusal,
   medstopRequestIsOpen,
@@ -150,3 +151,14 @@ describe("observed collections (UX5d)", () => {
     expect(() => medstopSiteObserved(true, null)).toThrow(/gender/);
   });
 });
+
+describe("medstopDefaultGoBy (D-MSO2)", () => {
+  it("is the next business day at 4 pm: Monday after a Friday, Saturday or Sunday; tomorrow otherwise", () => {
+    expect(medstopDefaultGoBy("2026-11-03")).toEqual({ requestDate: "2026-11-04", requestTime: "16:00" }); // Tue → Wed
+    expect(medstopDefaultGoBy("2026-11-06").requestDate).toBe("2026-11-09"); // Fri → Mon
+    expect(medstopDefaultGoBy("2026-11-07").requestDate).toBe("2026-11-09"); // Sat → Mon
+    expect(medstopDefaultGoBy("2026-11-08").requestDate).toBe("2026-11-09"); // Sun → Mon
+    expect(medstopDefaultGoBy("2026-12-31").requestDate).toBe("2027-01-01"); // over the year end
+  });
+});
+

@@ -398,7 +398,11 @@ export interface DrugTestSiteParams {
  */
 export function smsDrugTestSite(carrier: string, p: DrugTestSiteParams, zone: string, zoneLabel: string): string {
   const from = formatDisplayDateTime(p.window_start, "", zone);
-  const until = p.window_end ? ` to ${formatDisplayDateTime(p.window_end, "", zone).split(" ").slice(1).join(" ")}` : "";
+  // The end's date is dropped only when it is the start's: a Med-Stop order's window runs from the
+  // moment it is placed to the next business day's 4 pm (MSO1, D-MSO2), and "1:00 PM to 4:00 PM" would
+  // tell the applicant today.
+  const end = p.window_end ? formatDisplayDateTime(p.window_end, "", zone) : "";
+  const until = end ? ` to ${end.split(" ")[0] === from.split(" ")[0] ? end.split(" ").slice(1).join(" ") : end}` : "";
   return [
     `${carrier}: Your drug test is at ${p.site_name}, ${p.site_address}, ${from}${until} ${zoneLabel}.`,
     p.site_phone ? `Site phone ${p.site_phone}.` : "",

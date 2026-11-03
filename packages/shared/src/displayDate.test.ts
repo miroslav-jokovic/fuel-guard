@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { formatDisplayDate, formatDisplayDateRange, formatDisplayDateTime, formatDisplayDayShort } from "./displayDate.js";
+import { formatDisplayDate, formatDisplayDateRange, formatDisplayDateTime, formatDisplayDayShort, formatDisplayWallTime } from "./displayDate.js";
 
 /**
  * The two cases that matter are the two the 13 deleted copies got wrong: the ordering (which they
@@ -119,5 +119,13 @@ describe("formatDisplayDateRange", () => {
     expect(formatDisplayDateRange("2026-10-12", null)).toBe("from 10/12/2026");
     expect(formatDisplayDateRange(undefined, "2026-10-18")).toBe("to 10/18/2026");
     expect(formatDisplayDateRange(null, null)).toBe("—");
+  });
+});
+
+describe("formatDisplayWallTime (MSO1)", () => {
+  it("reads a zone-less wall time exactly as written, in any reader's zone", () => {
+    expect(formatDisplayWallTime("2026-11-04T16:00")).toBe("11/04/2026 4:00 PM");
+    expect(formatDisplayWallTime("2026-11-04T00:05:00")).toBe("11/04/2026 12:05 AM");
+    expect(formatDisplayWallTime("not a time")).toBe("—");
   });
 });

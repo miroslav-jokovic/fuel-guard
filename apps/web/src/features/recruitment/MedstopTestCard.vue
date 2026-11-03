@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { MEDSTOP_OUTCOME_LABELS, MEDSTOP_PORTAL_URL, canOrderDrugTests } from "@silvicom/shared";
+import { MEDSTOP_OUTCOME_LABELS, MEDSTOP_PORTAL_URL, canOrderDrugTests, formatDisplayWallTime } from "@silvicom/shared";
 import { AppButton as BaseButton, QueryState } from "@silvicom/ui";
-import { useMedstopTestsQuery } from "@/features/recruitment/useApplicantScreening";
+import { useDrugTestAppointmentsQuery, useMedstopTestsQuery } from "@/features/recruitment/useApplicantScreening";
 import { BADGE_BASE, medstopOutcomeTone } from "@/lib/badges";
 import { formatDate } from "@/lib/format";
 import { useSessionStore } from "@/stores/session";
@@ -27,7 +27,7 @@ import { useSessionStore } from "@/stores/session";
  * refusal in Med-Stop's own words, or "did not answer" — so the office knows whether to add them by hand.
  */
 const props = defineProps<{ driverId: string }>();
-const emit = defineEmits<{ order: [medstopId: string] }>();
+const emit = defineEmits<{ order: [order: { medstopId: string; zip: string | null }] }>();
 const session = useSessionStore();
 const canOrder = computed(() => canOrderDrugTests(session.role));
 const q = useMedstopTestsQuery(computed(() => props.driverId));
@@ -41,6 +41,15 @@ const createText = computed(() => {
   if (c.outcome === "unknown") return c.message ?? "Med-Stop did not answer when this applicant was sent. Check Med-Stop before adding them.";
   return `Med-Stop did not accept this applicant from Part 1: ${c.message ?? "no reason given"}. Add them in Med-Stop yourself.`;
 });
+// MSO1 (D-MSO2, gap G5): while Med-Stop holds an open DRUG order the step shows that order, not the
+// Order button — Med-Stop refuses a second open order for the same test, so the office would fill the
+// whole drawer only to be refused at Review. Its address, code and the text to the applicant are the
+// appointment's, which the order filled (`DrugTestPanel`, just above this card).
+const openDrug = computed(() => data.value?.orders.find((o) => o.kind === "drug") ?? null);
+// The same query the appointment panel reads (one cache entry): an order placed by hand in Med-Stop's
+// portal filled nothing, and the line under it must not say it did.
+const appointments = useDrugTestAppointmentsQuery(computed(() => props.driverId));
+const appointmentLive = computed(() => (appointments.data.value?.appointments ?? []).some((a) => a.cancelledAt === null));
 const kindText = (kind: string) => (kind === "drug" ? "Drug test" : kind === "alcohol" ? "Alcohol test" : "Medical exam");
 </script>
 
@@ -72,7 +81,10 @@ const kindText = (kind: string) => (kind === "drug" ? "Drug test" : kind === "al
           <li v-for="o in data.orders" :key="o.requestId" class="text-ink-secondary">
             <span class="font-medium text-ink">{{ kindText(o.kind) }}</span>
             <template v-if="o.reason"> · {{ reasonText(o.reason) }}</template>
-            · ordered{{ o.requestedOn ? ` ${formatDate(o.requestedOn)}` : "" }}, not collected yet
+            <template v-if="o.site"> · {{ o.site }}</template>
+            <template v-if="o.goBy"> · go by {{ formatDisplayWallTime(o.goBy) }}</template>
+            <template v-else-if="o.requestedOn"> · ordered {{ formatDate(o.requestedOn) }}</template>
+            · not collected yet
           </li>
           <li v-for="t in data.tests" :key="t.testId" class="flex flex-wrap items-center gap-x-2 gap-y-1 text-ink-secondary">
             <span class="font-medium text-ink">{{ kindText(t.kind) }}</span>
@@ -83,7 +95,17 @@ const kindText = (kind: string) => (kind === "drug" ? "Drug test" : kind === "al
             <span v-if="t.outcome && t.outcome !== 'pending'" :class="[BADGE_BASE, medstopOutcomeTone(t.outcome)]">{{ MEDSTOP_OUTCOME_LABELS[t.outcome] }}</span>
           </li>
         </ul>
-        <BaseButton v-if="canOrder && data.applicantMedstopId" size="sm" class="mt-1" @click="emit('order', data.applicantMedstopId)">
+        <p v-if="openDrug" class="text-2xs text-ink-muted">
+          {{ appointmentLive
+            ? "The appointment above holds where to go and the code. Text it to the applicant from there."
+            : "Write where to go in the appointment above, then text it to the applicant." }}
+        </p>
+        <BaseButton
+          v-else-if="canOrder && data.applicantMedstopId"
+          size="sm"
+          class="mt-1"
+          @click="emit('order', { medstopId: data.applicantMedstopId, zip: data.homeZip })"
+        >
           Order pre-employment test
         </BaseButton>
       </template>

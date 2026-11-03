@@ -22,7 +22,7 @@ const db = () =>
         { medstop_id: "t1", service: "TD", reason: "PRE-EMPLOYMENT", status: "CLOSED", result: "NEGATIVE", collected_local: "2026-09-01T09:00:00" },
       ],
       medstop_requests: [
-        { medstop_id: "r3", service: "TD", reason: "PRE-EMPLOYMENT", status: "OPEN", requested_local: "2026-10-12T16:00:00", test_medstop_id: null },
+        { medstop_id: "r3", service: "TD", reason: "PRE-EMPLOYMENT", status: "OPEN", requested_local: "2026-10-12T16:00:00", location: " Concentra Joliet ", test_medstop_id: null },
         { medstop_id: "r2", service: "TD", reason: "PRE-EMPLOYMENT", status: "COMPLETED", requested_local: "2026-10-08T16:00:00", test_medstop_id: "t2" },
       ],
     },
@@ -33,7 +33,8 @@ describe("readMedstopTestsForDriver", () => {
     const r = db();
     const view = await readMedstopTestsForDriver(r.client, ORG, DRIVER, "recruiter");
     expect(view).toMatchObject({ connected: true, matched: true, outcomesVisible: false });
-    expect(view.orders).toEqual([{ requestId: "r3", kind: "drug", reason: "PRE-EMPLOYMENT", requestedOn: "2026-10-12", status: "OPEN" }]);
+    // MSO1: the open order carries its site and its go-by — Med-Stop's own wall clock, read as written.
+    expect(view.orders).toEqual([{ requestId: "r3", kind: "drug", reason: "PRE-EMPLOYMENT", requestedOn: "2026-10-12", status: "OPEN", site: "Concentra Joliet", goBy: "2026-10-12T16:00" }]);
     expect(view.tests[0]).toEqual({ testId: "t2", kind: "drug", reason: "PRE-EMPLOYMENT", stage: "At the lab", collectedOn: "2026-10-09", expectedOn: "2026-10-13", outcome: null });
     expect(view.tests[1]).toMatchObject({ testId: "t1", stage: "Result reported", expectedOn: null, outcome: null });
     expect(JSON.stringify(view)).not.toMatch(/NEGATIVE|negative/);

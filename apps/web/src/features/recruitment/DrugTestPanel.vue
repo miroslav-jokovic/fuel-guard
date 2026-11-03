@@ -25,7 +25,7 @@ import {
  * ticks the row: the result, recorded above, is the §382.301 fact. So this sits under the result's
  * form, and disappears once the result is in — nothing is left to arrange.
  *
- * "Text it to the driver" goes through the SMS outbox (C2d): at once in the applicant's civil hours,
+ * "Text it to the applicant" goes through the SMS outbox (C2d): at once in the applicant's civil hours,
  * otherwise queued for their morning, and the toast says which. An applicant who has not agreed to
  * texts is refused with words, and the office tells them by phone as before.
  *
@@ -88,8 +88,8 @@ async function textLive(): Promise<void> {
   if (!live.value) return;
   try {
     const r = await sendIt.mutateAsync({ driverId: props.driverId, appointmentId: live.value.id });
-    if (r.sent) toast.success("Texted to the driver");
-    else toast.success("Text queued", r.queuedUntil ? `It goes at ${at(r.queuedUntil)}, inside the driver's daytime hours.` : undefined);
+    if (r.sent) toast.success("Texted to the applicant");
+    else toast.success("Text queued", r.queuedUntil ? `It goes at ${at(r.queuedUntil)}, inside the applicant's daytime hours.` : undefined);
   } catch (e) {
     toast.error("Could not text the appointment", e instanceof Error ? e.message : undefined);
   }
@@ -131,10 +131,10 @@ async function cancelLive(): Promise<void> {
               From {{ at(live.windowStart) }}<template v-if="live.windowEnd"> to {{ at(live.windowEnd) }}</template>
               <template v-if="live.donorReference"> · reference <span class="font-mono">{{ live.donorReference }}</span></template>
             </p>
-            <p v-if="live.sentToDriverAt" class="text-2xs text-ink-muted">Texted to the driver {{ at(live.sentToDriverAt) }}.</p>
+            <p v-if="live.sentToDriverAt" class="text-2xs text-ink-muted">Texted to the applicant {{ at(live.sentToDriverAt) }}.</p>
             <div v-if="canArrange && !changing && !done" class="flex gap-2 pt-2">
               <BaseButton size="sm" :disabled="sendIt.isPending.value" @click="textLive">
-                {{ live.sentToDriverAt ? "Text it again" : "Text it to the driver" }}
+                {{ live.sentToDriverAt ? "Text it again" : "Text it to the applicant" }}
               </BaseButton>
               <BaseButton size="sm" @click="changing = true">Change it</BaseButton>
               <BaseButton size="sm" variant="ghost" :disabled="cancel.isPending.value" @click="cancelLive">Cancel it</BaseButton>

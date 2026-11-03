@@ -245,6 +245,46 @@ export interface MedstopOrderPreview {
   person: MedstopOrderablePerson;
 }
 
+/**
+ * What happened to the hiring step's appointment after a pre-employment order (MSO1, D-MSO1):
+ * - `filled` — the appointment now holds the site Med-Stop booked, its address, the "go by" and the code;
+ * - `site_unread` — the order is placed, but Med-Stop's request could not be read back, so nothing was
+ *   written: the office types the appointment as before;
+ * - `not_filled` — read, but the step refused it (no live invitation, say).
+ * `null` for every other reason: only an applicant has a step to fill.
+ */
+export type MedstopOrderAppointment = "filled" | "site_unread" | "not_filled";
+
 export interface MedstopOrderPlaced {
   requestId: string;
+  appointment: MedstopOrderAppointment | null;
+}
+
+/**
+ * Where and by when the applicant goes, as Med-Stop's own request reads after the order (`GET
+ * /Request/{id}`, MSO1). `goBy` is the carrier's wall clock (`YYYY-MM-DDTHH:MM`) — the deadline the order
+ * was placed with. `reference` is the request's code (and registration number) the site asks for.
+ * Med-Stop's half reads it; recruiting's half writes the step's appointment from it.
+ */
+export interface MedstopOrderedCollection {
+  requestId: string;
+  siteName: string;
+  siteAddress: string;
+  sitePhone: string | null;
+  goBy: string;
+  reference: string | null;
+}
+
+/**
+ * The order's default "Go by" (D-MSO2): the NEXT business day at 4:00 pm in the carrier's zone. Measured
+ * over 90 days of the office's own orders (§7A.21): the requested time clusters at 16:00 and people are
+ * collected a median 2.2 h before it — the time is a deadline, not an appointment. Business day = Monday
+ * to Friday; holidays are not modelled anywhere in the product, so the office moves the day by hand on one.
+ */
+export const MEDSTOP_GO_BY_TIME = "16:00";
+export function medstopDefaultGoBy(today: CalendarDay): { requestDate: CalendarDay; requestTime: string } {
+  let day = shiftDay(today, 1);
+  // A CalendarDay at noon UTC is that same weekday everywhere.
+  while ([0, 6].includes(new Date(`${day}T12:00:00Z`).getUTCDay())) day = shiftDay(day, 1);
+  return { requestDate: day, requestTime: MEDSTOP_GO_BY_TIME };
 }

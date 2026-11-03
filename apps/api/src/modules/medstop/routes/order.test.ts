@@ -80,7 +80,16 @@ describe("the order door", () => {
 
   it("says ordering is off, and lists who could be ordered for, org-scoped", async () => {
     const { body } = await call("/order/context");
-    expect(body.data).toEqual({ enabled: false, contactSet: false, people: [{ medstopId: "EE-ANN", driverId: "d-ann", name: "Ann Pooled" }] });
+    expect(body.data).toMatchObject({ enabled: false, contactSet: false, people: [{ medstopId: "EE-ANN", driverId: "d-ann", name: "Ann Pooled" }], timeZone: "America/Chicago" });
+    expectOrgScoped(db, ORG);
+  });
+
+  it("offers the next business day at 4 pm on the carrier's clock as the default 'Go by' (D-MSO2)", async () => {
+    const { body } = await call("/order/context");
+    const data = body.data as { today: string; goBy: { requestDate: string; requestTime: string } };
+    expect(data.goBy.requestTime).toBe("16:00");
+    expect(data.goBy.requestDate > data.today).toBe(true);
+    expect([0, 6]).not.toContain(new Date(`${data.goBy.requestDate}T12:00:00Z`).getUTCDay());
     expectOrgScoped(db, ORG);
   });
 

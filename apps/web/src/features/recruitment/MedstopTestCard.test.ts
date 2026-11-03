@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { mount } from "@vue/test-utils";
 import { VueQueryPlugin } from "@tanstack/vue-query";
-import { MEDSTOP_PORTAL_URL, type MedstopPersonTests } from "@silvicom/shared";
+import { MEDSTOP_PORTAL_URL, type MedstopStepTests } from "@silvicom/shared";
 import MedstopTestCard from "@/features/recruitment/MedstopTestCard.vue";
 
 /**
@@ -10,20 +10,26 @@ import MedstopTestCard from "@/features/recruitment/MedstopTestCard.vue";
  * without Med-Stop sees nothing at all; an unmatched applicant is told why there is nothing.
  * UX4: the order roles get "Order pre-employment test" for an applicant Med-Stop holds as one, and
  * "Add this applicant in Med-Stop first" for one it does not; a role that cannot order gets neither.
+ * MSO1: an open drug order replaces the Order button with where and by when, and the order carries the
+ * applicant's Part 1 home ZIP to the drawer.
  */
-const answer = vi.hoisted(() => ({ value: null as unknown }));
+const answer = vi.hoisted(() => ({ value: null as unknown, appointments: [] as unknown[] }));
 vi.mock("@/lib/api", () => ({
-  apiFetch: vi.fn(async () => ({ ok: true, data: answer.value })),
+  apiFetch: vi.fn(async (path: string) =>
+    path.includes("drug-test-appointments")
+      ? { ok: true, data: { appointments: answer.appointments, timeZone: "America/Chicago" } }
+      : { ok: true, data: answer.value }),
 }));
 const who = vi.hoisted(() => ({ role: "recruiter" as string | null }));
 vi.mock("@/stores/session", () => ({ useSessionStore: () => who }));
 
-const tests = (outcome: "negative" | null): MedstopPersonTests => ({
+const tests = (outcome: "negative" | null): MedstopStepTests => ({
   connected: true,
   matched: true,
   applicantMedstopId: null, applicantCreate: null,
+  homeZip: "60601",
   outcomesVisible: outcome !== null,
-  orders: [{ requestId: "r3", kind: "drug", reason: "PRE-EMPLOYMENT", requestedOn: "2026-10-12", status: "OPEN" }],
+  orders: [{ requestId: "r3", kind: "drug", reason: "PRE-EMPLOYMENT", requestedOn: "2026-10-12", status: "OPEN", site: null, goBy: null }],
   tests: [
     { testId: "t2", kind: "drug", reason: "PRE-EMPLOYMENT", stage: "At the lab", collectedOn: "2026-10-09", expectedOn: "2026-10-13", outcome: outcome === null ? null : "pending" },
     { testId: "t1", kind: "drug", reason: "PRE-EMPLOYMENT", stage: "Result reported", collectedOn: "2026-09-01", expectedOn: null, outcome },
@@ -42,13 +48,14 @@ const render = async () => {
 describe("MedstopTestCard", () => {
   beforeEach(() => {
     answer.value = null;
+    answer.appointments = [];
     who.role = "recruiter";
   });
 
   it("shows a recruiter the order, the stage and when the result is due — never a result", async () => {
     answer.value = tests(null);
     const w = await render();
-    expect(w.text()).toContain("ordered 10/12/2026, not collected yet");
+    expect(w.text()).toContain("ordered 10/12/2026 · not collected yet");
     expect(w.text()).toContain("At the lab");
     expect(w.text()).toContain("result expected by 10/13/2026");
     expect(w.text()).toContain("Result reported");
@@ -63,7 +70,7 @@ describe("MedstopTestCard", () => {
   });
 
   it("renders nothing for a carrier that has not connected Med-Stop", async () => {
-    answer.value = { connected: false, matched: false, applicantMedstopId: null, applicantCreate: null, orders: [], tests: [], outcomesVisible: false };
+    answer.value = { connected: false, matched: false, applicantMedstopId: null, applicantCreate: null, homeZip: null, orders: [], tests: [], outcomesVisible: false };
     const w = await render();
     expect(w.text()).toBe("");
   });
@@ -86,13 +93,37 @@ describe("MedstopTestCard", () => {
     expect(refused).not.toContain("Add this applicant in Med-Stop first");
   });
 
-  it("offers the recruiter a pre-employment order for an applicant Med-Stop holds, and emits its Med-Stop id", async () => {
-    answer.value = { ...tests(null), applicantMedstopId: "EE-APP" };
+  it("offers the recruiter a pre-employment order for an applicant Med-Stop holds, and emits its Med-Stop id and Part 1 home ZIP", async () => {
+    answer.value = { ...tests(null), orders: [], applicantMedstopId: "EE-APP" };
     const w = await render();
     const order = w.findAll("button").find((b) => b.text() === "Order pre-employment test");
     expect(order).toBeDefined();
     await order!.trigger("click");
-    expect(w.emitted("order")).toEqual([["EE-APP"]]);
+    expect(w.emitted("order")).toEqual([[{ medstopId: "EE-APP", zip: "60601" }]]);
+  });
+
+  it("shows an open drug order's site and go-by INSTEAD of the Order button — Med-Stop refuses a second (MSO1, G5)", async () => {
+    const open = { requestId: "r9", kind: "drug", reason: "PRE-EMPLOYMENT", requestedOn: "2026-11-04", status: "OPEN", site: "Concentra Joliet", goBy: "2026-11-04T16:00" };
+    answer.value = { ...tests(null), tests: [], orders: [open], applicantMedstopId: "EE-APP" };
+    answer.appointments = [{ id: "a1", siteName: "Concentra Joliet", siteAddress: "1 Main St", sitePhone: null, windowStart: "2026-11-03T18:00:00Z", windowEnd: "2026-11-04T22:00:00Z", donorReference: "C-1", arrangedAt: "2026-11-03T18:00:00Z", sentToDriverAt: null, cancelledAt: null }];
+    const w = await render();
+    expect(w.text()).toContain("Concentra Joliet · go by 11/04/2026 4:00 PM · not collected yet");
+    expect(w.text()).not.toContain("Order pre-employment test");
+    expect(w.text()).toContain("The appointment above holds where to go and the code");
+  });
+
+  it("does not claim the order filled an appointment when there is none (an order placed in Med-Stop's portal)", async () => {
+    const open = { requestId: "r9", kind: "drug", reason: "PRE-EMPLOYMENT", requestedOn: "2026-11-04", status: "OPEN", site: "Concentra Joliet", goBy: "2026-11-04T16:00" };
+    answer.value = { ...tests(null), tests: [], orders: [open], applicantMedstopId: "EE-APP" };
+    const w = await render();
+    expect(w.text()).toContain("Write where to go in the appointment above");
+    expect(w.text()).not.toContain("holds where to go");
+  });
+
+  it("still offers the drug order beside an open ALCOHOL order", async () => {
+    const alcohol = { requestId: "r8", kind: "alcohol", reason: "PRE-EMPLOYMENT", requestedOn: "2026-11-04", status: "OPEN", site: null, goBy: null };
+    answer.value = { ...tests(null), tests: [], orders: [alcohol], applicantMedstopId: "EE-APP" };
+    expect((await render()).text()).toContain("Order pre-employment test");
   });
 
   it("offers no order when Med-Stop holds the person on its active roster, not as an applicant", async () => {

@@ -18,6 +18,7 @@ import { describeOfficeEdit } from "@/features/apply/fieldLabels";
 import ApplicantNotesPanel from "@/features/recruitment/ApplicantNotesPanel.vue";
 import ApplicantActivityList from "@/features/recruitment/ApplicantActivityList.vue";
 import OrderTestDrawer, { type OrderSeed } from "@/components/medstop/OrderTestDrawer.vue";
+import { useRefreshDrugTestStep } from "@/features/recruitment/useApplicantScreening";
 import { useApplicantChecklistQuery } from "@/features/recruitment/useApplicantChecklist";
 import {
   liveApplicationInvitation,
@@ -161,9 +162,10 @@ function openRow(step: { key: HiringStepKey; state: string }): void {
 
 /** UX4 (MEDSTOP-PLAN §7A.5): the drug-test step's pre-employment order, swapped in the same way. */
 const ordering = ref<OrderSeed | null>(null);
-function openOrder(medstopId: string): void {
+const refreshDrugTestStep = useRefreshDrugTestStep();
+function openOrder(order: { medstopId: string; zip: string | null }): void {
   openStepKey.value = null;
-  ordering.value = { kind: "applicant", medstopId, name: driver.value?.full_name ?? "Applicant" };
+  ordering.value = { kind: "applicant", medstopId: order.medstopId, zip: order.zip, name: driver.value?.full_name ?? "Applicant" };
 }
 </script>
 
@@ -236,7 +238,7 @@ function openOrder(medstopId: string): void {
         @close="reviewing = null"
       />
 
-      <OrderTestDrawer :open="ordering !== null" :seed="ordering" @close="ordering = null" />
+      <OrderTestDrawer :open="ordering !== null" :seed="ordering" @close="ordering = null" @placed="refreshDrugTestStep(id)" />
 
       <CarrierStepDrawer :open="openCarrier !== null" :driver-id="id" :step="openCarrier" @close="openCarrierId = null" />
       <HireDrawer :open="hiring" :driver-id="id" :full-name="driver?.full_name ?? ''" @close="hiring = false" />

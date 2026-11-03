@@ -69,7 +69,7 @@ const fullName = computed(() => props.identity?.full_name ?? null);
 // `openStep` (§9 P2, D-2): a body that cannot work yet hands the office to the row that comes first.
 const emit = defineEmits<{
   review: [invitationId: string];
-  orderTest: [medstopId: string];
+  orderTest: [order: { medstopId: string; zip: string | null }];
   openStep: [key: HiringStep["key"]];
 }>();
 
