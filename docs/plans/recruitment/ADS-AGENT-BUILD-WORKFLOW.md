@@ -850,3 +850,10 @@ blocking step in §3 above.
   - **B4a2** (next): job kind `ads_leads_backfill` (`KIND_CAPS` 1, dedup per connection), the hourly
     `ads-leads-backfill` scheduler (off unless `ADS_ENABLED`), the handler wiring `recruitingLeadSink`
     in, and the readiness pins.
+- **2026-11-03, B4a2 — the backfill runs hourly.** The `ads-leads-backfill` scheduler (general lane, off
+  unless `ADS_ENABLED`, first tick 5 min after boot) queues one `ads_leads_backfill` job (`KIND_CAPS` 1,
+  `dedup_key` per connection) per connected Meta/simulator connection. `queue/handlers/adsLeadsBackfill.ts`
+  is the one place ads and recruiting meet: it hands `recruitingLeadSink` to `backfillConnectionLeads`, and
+  fails the job (lead ids only) when anything was not brought in. Readiness: Lead intake's L1 now pins the
+  sink, backfill, handler and tick tests, with **B4b** (the webhook) as its last gap, so it still reads L0
+  honestly. 8 mutants, all killed (one survived the first run: no test held the dedup key).

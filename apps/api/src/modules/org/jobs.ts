@@ -92,6 +92,12 @@ export type JobKind =
    * settings save door on the (org, kind) slot: a burst of saves runs one sync of the newest version.
    */
   | "ads_rules_sync"
+  /**
+   * One ads connection's leads backfill (B4a2): every form of ours, the last 48 hours, through recruiting's
+   * LeadSink. Queued hourly by `ads-leads-backfill` with `dedup_key` = `ads_leads_backfill:<connection>`, so a
+   * carrier's connections each get a slot; a payload `since` widens the window after an outage.
+   */
+  | "ads_leads_backfill"
   // One org's nightly copy of its Storage objects to the off-provider bucket (storageBackup.ts). A kind so a
   // failed night has a row, and so `/api/version` can read the last success from the ledger.
   | "storage_backup";
