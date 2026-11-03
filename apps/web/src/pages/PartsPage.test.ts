@@ -34,6 +34,7 @@ const part = (over: Partial<PartUsageRowDto> = {}): PartUsageRowDto => ({
   usedQuantity: 31,
   usedRepairs: 31,
   lastUsedAt: "2026-10-30T15:00:00.000Z",
+  lastPrice: 64.2,
   ...over,
 });
 
@@ -239,9 +240,29 @@ describe("Shop parts as it ships: FleetPal's list, shelf counting hidden", () =>
     expect(marks[0]!.element.textContent).toBe(" · Added here");
   });
 
-  it("shows no Manufacturer, Category or price column — blank on every FleetPal part, and money waits on D-FP4", async () => {
-    const labels = (await page()).findComponent({ name: "DataTable" }).props("columns").map((c: { label: string }) => c.label);
-    expect(labels).toEqual(["Part number", "Description", "Used, last 90 days", "Repairs", "Last used"]);
+  it("shows no Manufacturer or Category column — blank on every FleetPal part — and the last price", async () => {
+    const w = await page();
+    const labels = w.findComponent({ name: "DataTable" }).props("columns").map((c: { label: string }) => c.label);
+    expect(labels).toEqual(["Part number", "Description", "Used, 90 days", "Repairs", "Last used", "Last price"]);
+    expect(w.text()).toContain("$64.20");
+  });
+
+  it("draws no column every row leaves empty, and always the part number and description (D-SPU11)", async () => {
+    catalogue.value = {
+      rows: [part({ usedQuantity: 0, usedRepairs: 0, lastUsedAt: null, lastPrice: null }), part({ id: "p2", usedQuantity: 0, usedRepairs: 0, lastUsedAt: null, lastPrice: null })],
+      total: 2,
+      windowDays: 90,
+    };
+    const w = await page("/shop/inventory?show=all");
+    const keys = w.findComponent({ name: "DataTable" }).props("columns").map((c: { key: string }) => c.key);
+    expect(keys).toEqual(["partNumber", "description"]);
+    expect(w.text()).not.toContain("Never");
+  });
+
+  it("keeps a column one row fills", async () => {
+    catalogue.value = { rows: [part({ lastPrice: null }), part({ id: "p2", lastPrice: 12 })], total: 2, windowDays: 90 };
+    const keys = (await page()).findComponent({ name: "DataTable" }).props("columns").map((c: { key: string }) => c.key);
+    expect(keys).toContain("lastPrice");
   });
 });
 
@@ -318,7 +339,14 @@ describe("what the list asks for (SP-U2)", () => {
     expect(filter()).toMatchObject({ sort: "used", descending: true });
   });
 
-  it("reads a never-used part as Never, and a fractional quantity without trailing zeros", async () => {
+  it("a header click on Last price asks the server for the price sort", async () => {
+    const w = await page();
+    w.findComponent({ name: "DataTable" }).vm.$emit("sort", "lastPrice");
+    await flushPromises();
+    expect(filter()).toMatchObject({ sort: "last_price", descending: false });
+  });
+
+  it("reads a never-used part as Never beside a used one, and a fractional quantity without trailing zeros", async () => {
     catalogue.value = { rows: [part({ lastUsedAt: null, usedQuantity: 0, usedRepairs: 0 }), part({ id: "p2", usedQuantity: 12.5 })], total: 2, windowDays: 90 };
     const text = (await page("/shop/inventory?show=all")).text();
     expect(text).toContain("Never");

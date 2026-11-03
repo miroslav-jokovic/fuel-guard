@@ -64,7 +64,7 @@ export { sortRows, toggleSort } from "./lists/sort";
 export { useUrlSort, SORT_DIRECTIONS } from "./lists/useUrlSort";
 export type { SortState } from "./lists/sort";
 export { countLabelFor } from "./lists/plural";
-export { isBlank } from "./lists/dataTable";
+export { isBlank, columnsWithData } from "./lists/dataTable";
 export { provideWorkspaceTable, reportToWorkspace, useWorkspaceTable } from "./lists/workspaceTable";
 export { NotFoundError, isNotFound, retryUnlessNotFound, QUERY_DEFAULTS, recordOrThrow } from "./lists/notFound";
 export { provideRouteOpens } from "./lists/routeOpens";

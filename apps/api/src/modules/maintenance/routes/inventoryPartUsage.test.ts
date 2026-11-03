@@ -13,8 +13,8 @@ import { closeTestServer } from "../../../testing/httpServer.js";
  *   · every function call carries THIS org (the service role bypasses RLS; the argument is the boundary);
  *   · the 90-day window is computed from the clock, not left to SQL;
  *   · strings from PostgREST ("12.000") become numbers, and a missing date stays null;
- *   · NO price leaves the API, though 0557 returns them (D-SPU4: D-FP4 forbids FleetPal money without
- *     its coverage ratio, and the endpoint is where that is enforced);
+ *   · unit prices pass through (D-SPU10), a missing one stays null — never 0 — and a typical price
+ *     standing on fewer than five repairs is withheld;
  *   · a unit matched to our trailer links as a trailer, an unmatched one links nowhere;
  *   · a part of another org is 404 BEFORE any usage function is called;
  *   · a database failure is a 500 with a reference, not an empty list that reads "nothing used".
@@ -100,14 +100,16 @@ describe("GET /part-usage — the list", () => {
     expect(body.windowDays).toBe(90);
   });
 
-  it("turns PostgREST's strings into numbers, keeps a missing date null, and drops the price", async () => {
+  it("turns PostgREST's strings into numbers and keeps a missing date or price null", async () => {
     rec = createSupabaseRecorder({ rpc: { shop_parts_list: [listRow(), listRow({ part_id: "p2", last_price: null, used_quantity: "0", used_repairs: "0", last_used_at: null })] } });
     const { body } = await get("/part-usage");
     expect(body.total).toBe(392);
     expect(body.rows[0]).toEqual({
       id: PART, partNumber: "XK-4707", description: "Relined brake shoe kit", unitOfMeasure: "each",
       fleetpalId: "fpBrake", usedQuantity: 311, usedRepairs: 93, lastUsedAt: "2026-10-30T15:00:00.000Z",
+      lastPrice: 43.12,
     });
+    expect(body.rows[1].lastPrice).toBeNull();
     expect(body.rows[1].lastUsedAt).toBeNull();
     expect(body.rows[1].usedQuantity).toBe(0);
   });
@@ -120,11 +122,12 @@ describe("GET /part-usage — the list", () => {
     expect(body.total).toBe(0);
   });
 
-  it("refuses a sort it does not offer — including SQL's price sort — before calling anything", async () => {
+  it("refuses a sort SQL does not know before calling it, and passes the price sort", async () => {
     rec = createSupabaseRecorder({ rpc: { shop_parts_list: [] } });
     expect((await get("/part-usage?sort=cost")).status).toBe(400);
-    expect((await get("/part-usage?sort=last_price")).status).toBe(400);
     expect(rec.rpcs()).toHaveLength(0);
+    expect((await get("/part-usage?sort=last_price")).status).toBe(200);
+    expect((rec.rpcs()[0]!.args as Record<string, unknown>).p_sort).toBe("last_price");
   });
 
   it("a failed read is a 500 with a reference, never an empty list", async () => {
@@ -164,6 +167,7 @@ describe("GET /parts/:id/usage — one part", () => {
     expect(body.summary).toEqual({
       quantity90d: 311, repairs90d: 93, quantity365d: 1200, repairs365d: 380, units365d: 140,
       firstUsedAt: "2025-03-25T00:00:00.000Z", lastUsedAt: "2026-10-30T15:00:00.000Z",
+      lastPrice: 43.12, typicalPrice: 43.1, lowPrice365d: 40, highPrice365d: 88, pricedRepairs365d: 380,
     });
   });
 
@@ -173,10 +177,21 @@ describe("GET /parts/:id/usage — one part", () => {
     expect(body.uses[0].unit).toEqual({ kind: "trailer", id: TRAILER, number: "T-88" });
     expect(body.uses[0]).toEqual({
       workOrderNumber: 5675, workOrderStatus: "CLOSED", usedAt: "2026-10-30T15:00:00.000Z",
-      unit: { kind: "trailer", id: TRAILER, number: "T-88" }, quantity: 2, daysSincePreviousOnUnit: 12,
+      unit: { kind: "trailer", id: TRAILER, number: "T-88" }, quantity: 2, unitPrice: 88, daysSincePreviousOnUnit: 12,
     });
+    expect(body.uses[1].unitPrice).toBeNull();
     expect(body.uses[1].unit).toEqual({ kind: null, id: null, number: "999" });
     expect(body.uses[1].usedAt).toBeNull();
+  });
+
+  it("withholds a typical price that stands on fewer than five repairs, keeps the last price", async () => {
+    rec = createSupabaseRecorder({
+      tables: { parts: { data: PART_ROW } },
+      rpc: { shop_part_summary: [{ ...summary, priced_repairs_365d: 4 }], shop_part_history: [] },
+    });
+    const { body } = await get(`/parts/${PART}/usage`);
+    expect(body.summary.typicalPrice).toBeNull();
+    expect(body.summary.lastPrice).toBe(43.12);
   });
 
   it("is 404 for a part that is not this org's, and calls no usage function", async () => {
