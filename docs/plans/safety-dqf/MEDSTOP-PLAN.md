@@ -896,6 +896,23 @@ SQL, counts only). Nothing was ordered.
 - **Q-MSO4 — negative-dilute pre-employment results:** retest every time, or only when the MRO directs?
   *Recommend: only when the MRO directs (§40.197(b)); otherwise accept the negative.*
 
+**Owner's answers (2026-11-03) — these are the rulings the build follows:**
+- **D-MSO1 (Q-MSO1) — we tell the applicant, with the site's address.** *"We are sending him an address where to
+  do the test."* Our own text (option a): after Place order the step's appointment is filled from Med-Stop's
+  request (`GET /Request/{id}`: site, address, phone, deadline, code / registration number) and the office sends
+  it with one press through our outbox (`sms_outbox`, English/Spanish, carrier wording, STOP line). D-MSUX5 holds:
+  Med-Stop never texts anybody; `POST /Request/{id}/notify` stays OFF the allow-list.
+- **D-MSO2 (Q-MSO2) — as recommended.** The order asks **"Go by"**, defaulting to the next business day at 4:00 pm
+  in the carrier's zone; the site search's ZIP is pre-filled from Part 1's home address.
+- **D-MSO3 (Q-MSO3) — as recommended.** The step may close an open order in Med-Stop — **"Didn't go — mark
+  no-show"** and **"Cancel order"** — reviewed, single-shot, audited, through `POST /Request/{id}/status` after
+  reading its form (`GET /Request/{id}/status`). `MEDSTOP_WRITES` grows from two writes to three, pinned by its
+  test. Then **Order again** opens the drawer filled from the last order.
+- **D-MSO4 (Q-MSO4) — optional, and the office controls it.** A negative-dilute result never orders anything by
+  itself and never blocks. The DER sees **"Order a recollection"** on it, and the office chooses at order time
+  whether the collection is **observed** (a switch, default off; on = the same-gender observer path of UX5d,
+  `observedreason` citing §40.197(b)(1)). No carrier-wide rule is stored.
+
 ## 8. Open questions
 
 - ~~Q-MS1~~ — base URL: `https://api.med-stop.com` (API-Key-access.md).
@@ -1135,3 +1152,5 @@ SQL, counts only). Nothing was ordered.
   contact, 0 orders, 0 applicant creates. Measured over 90 days: 126 pre-employment orders by hand, one in
   three cancelled, 22 of 99 people re-ordered; the requested time is a 4 pm deadline (collection a median 2.2 h
   before it); tests near home. Gaps G1–G6, proposal MSO1–MSO3, questions Q-MSO1–Q-MSO4. Nothing built.
+- 2026-11-03 — Owner answered Q-MSO1–4 (D-MSO1–D-MSO4 under §7A.21). Build handed to a fresh chat:
+  `docs/plans/safety-dqf/HANDOFF-2026-11-03-MEDSTOP-ORDERING.md` (branch `claude/medstop-order-fills-step`).
