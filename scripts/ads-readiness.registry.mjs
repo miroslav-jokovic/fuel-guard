@@ -366,7 +366,9 @@ export const READINESS = [
               "fails the job when anything was not brought in, naming the lead by id only",
             ] },
             { file: "apps/api/src/modules/ads/leads/backfillTick.test.ts", titles: [
-              "queues one job per connected Meta or simulator connection, each in its own slot, across carriers",
+              // 2026-11-03 lead-path audit H1: `failing` connections are queued too, so a dead token's job fails
+              // loudly instead of never running; the title says so.
+              "queues one job per connected or failing Meta or simulator connection, each in its own slot, across carriers",
             ] },
           ],
         },
