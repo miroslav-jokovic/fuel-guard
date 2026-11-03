@@ -200,6 +200,7 @@ export * from "./questionnaireAnswers.js";
 export * from "./questionnaireTranslation.js";
 export * from "./hireHandoff.js";
 export * from "./hiringSteps.js";
+export * from "./hiringVendorPortals.js";
 export * from "./hiringChecklist.js";
 export * from "./hiringEvidence.js";
 export * from "./mvrJurisdictions.js";

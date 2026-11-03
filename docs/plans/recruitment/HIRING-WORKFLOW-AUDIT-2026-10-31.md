@@ -1094,3 +1094,19 @@ drawers (portal + upload) → OF6 AI MVR reader → OF7 drug-test ordering (afte
   `sm:` squeezed each item to one word per line inside a 448 px drawer — and it opens in the wide drawer.
   Seen in a browser at 1920/1440/820/390. 12/12 mutants killed (one survivor first: no test opened the Part 1
   drawer at all; it got one).
+- **2026-11-03** — **OF4, PSP production check (no code).** The order path already holds every guard the owner
+  asked for: the applicant's signed consent (refused before anything is built), the caller's password again
+  (step-up) on every order, a monthly cap (`PSP_MONTHLY_LIMIT`, default 50), one order in flight per driver
+  (unique index), the request body stored with the licence and birth date redacted, an audit line per order
+  (`compliance.psp_record_ordered`), and a two-switch production interlock. Production's settings (read on
+  Railway, values of secrets not printed; Parameter Store on AWS not readable from this machine):
+  `PSP_ORDERS_ENABLED=false`, `PSP_ENVIRONMENT=uat`, `PSP_PRODUCTION_ACKNOWLEDGED=false`,
+  `PSP_UNIT_PRICE_USD=10`, `PSP_MOTOR_CARRIER_ID` set; the carrier's DOT number is on its org row; 0 PSP
+  orders ever placed. `pnpm psp:uat --verify-key` (GET /DayMonitored45 — neither mints nor bills): the
+  August production token is **expired**; `docs/psp-docs/apitoken-new.txt` (10/13) **authenticates against
+  production**. PSP tokens live 60 days, so it lapses about **2026-12-12**. Going live is four settings, the
+  owner's to set on the production host: the new token as `PSP_API_KEY_PRODUCTION`, `PSP_ENVIRONMENT=production`,
+  `PSP_PRODUCTION_ACKNOWLEDGED=true`, `PSP_ORDERS_ENABLED=true`.
+- **2026-11-03** — **OF5** built (no migration): the MVR and Clearinghouse drawers open the vendor's portal in a
+  new tab (`HIRING_VENDOR_PORTALS`, shared; `VendorPortalCard.vue`) with what to do there, above the form whose
+  Scan drop files the PDF. Samba = the carrier's portal account (Q-OF1's recommendation), never the API.

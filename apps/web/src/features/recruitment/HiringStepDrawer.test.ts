@@ -271,6 +271,14 @@ describe("the three recorded acts D1 built (D-HM6)", () => {
    * 2026-09-19 and started performing the act. Each is asserted by name rather than looped, because
    * the interesting property is that these three moved and the neighbours did not.
    */
+  // §14 D-OF8: the MVR and the Clearinghouse query open their vendor portal above the form; the drug test does not.
+  it("puts the vendor portal above the MVR and the Clearinghouse forms, and none on the drug test", async () => {
+    const portal = (root: HTMLElement) => root.querySelector("[data-testid=vendor-portal-link]")?.getAttribute("href");
+    expect(portal(await openOn("mvr"))).toContain("sambasafety.com");
+    expect(portal(await openOn("clearinghouse"))).toContain("clearinghouse.fmcsa.dot.gov");
+    expect(portal(await openOn("drug_test"))).toBeUndefined();
+  });
+
   it("opens the recording panel for the MVR, the Clearinghouse query and the drug test", async () => {
     for (const key of ["mvr", "clearinghouse", "drug_test"]) {
       expect(bodyOf(await openOn(key)), key).toBe("record");
