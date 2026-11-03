@@ -445,6 +445,11 @@ const API_ALLOW = new Set([
   //   refusal through `medstopViolationOn`, never `.from("medstop_*")` (F-5). medstop imports nothing
   //   of recruiting's, so the arrow points one way.
   "recruiting -> medstop",
+  // · recruiting -> roster — ads D1c (2026-11-03): a lead becomes an applicant through roster's one door for
+  //   making a person's driver row (`createDriverRecord`, exported from roster's index), never a second
+  //   `.from("drivers").insert` that would have to remember `identity_source: "manual"` and the audit row.
+  //   roster imports nothing recruiting's, so the arrow points one way.
+  "recruiting -> roster",
   // · evidence -> medstop — the fleet queue and the restricted DQ binder show a Med-Stop hold to the
   //   §382.401(a) readers (MEDSTOP-PLAN §7A.15), reading `medstopViolationsByDriver`, the dispatch
   //   door's own read made org-wide, never `.from("medstop_*")`. The reverse arrow (medstop -> evidence)

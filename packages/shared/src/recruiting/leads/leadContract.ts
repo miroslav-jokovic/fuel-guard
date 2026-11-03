@@ -102,3 +102,42 @@ export function catalogueAnswer(question: string, raw: string | undefined): stri
   }
   return null;
 }
+
+// ── a lead a recruiter enters by hand (a phone call, a walk-in, a referral, a pasted post) ────────
+/**
+ * The other way in besides a platform form (D1's "created via webhook, paste and API shows once"). It has no
+ * outside id, so it is never deduplicated as the SAME LEAD — only matched as the same PERSON, by phone or
+ * email, which is why it needs one of them: a name alone cannot be matched to anybody (D-LS10).
+ */
+export const MANUAL_LEAD_CHANNELS = ["phone_call", "walk_in", "referral", "paste"] as const;
+export const manualLeadSchema = z
+  .object({
+    channel: z.enum(MANUAL_LEAD_CHANNELS),
+    full_name: z.string().trim().min(2).max(200),
+    phone: z.string().trim().max(40).nullable(),
+    email: z.string().trim().max(320).nullable(),
+    opening_id: recordId().nullable(),
+    /** What the recruiter heard or pasted; kept in the raw payload, never parsed into facts here. */
+    note: z.string().max(4000).nullable(),
+  })
+  .refine((v) => normalisePhone(v.phone) !== null || normaliseEmail(v.email) !== null, {
+    message: "A phone number or an email is needed, so the same person can be recognised.",
+    path: ["phone"],
+  });
+export type ManualLead = z.infer<typeof manualLeadSchema>;
+
+export function leadFromManual(input: ManualLead): LeadProjection {
+  return {
+    channel: input.channel,
+    external_ref: null,
+    source: null,
+    campaign_ref: null,
+    opening_id: input.opening_id,
+    platform_created_at: null,
+    raw: { entered: input.channel, phone: input.phone, email: input.email, note: input.note },
+    answers: {},
+    full_name: normaliseName(input.full_name),
+    phone_e164: normalisePhone(input.phone),
+    email_lower: normaliseEmail(input.email),
+  };
+}

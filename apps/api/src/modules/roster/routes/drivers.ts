@@ -6,7 +6,6 @@ import {
   callerCanManage,
   driverCreateSchema,
   driverUpdateSchema,
-  deriveFullName,
   touchesDriverLifecycle,
   resolveDriverUpdate,
   type DriverCreateRequest,
@@ -19,6 +18,7 @@ import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
 import { writeAudit } from "../../../lib/audit.js";
 import { reconcileDrivers, mergeDriverPair } from "../driverReconcile.js";
+import { createDriverRecord, DRIVER_LIST_COLS } from "../driverCreate.js";
 
 /**
  * Driver ROSTER — the admin-owned master-data surface for people (Master Data plan §6, M2 slice).
@@ -44,14 +44,6 @@ import { reconcileDrivers, mergeDriverPair } from "../driverReconcile.js";
  * that can disagree with the first. The roster row itself is never deleted; §391.51(c) retains the
  * qualification file for three years past the end of employment.
  */
-
-/**
- * Roster list columns — what a manager scans a 100-row table by, not the full profile.
- * Kept as ONE string literal (not concatenated): PostgREST's typings parse the select list at the
- * type level, and a concatenation widens to `string`, which collapses the row type to an error union.
- */
-const DRIVER_LIST_COLS =
-  "id, full_name, status, employee_id, phone, email, driver_type, identity_source, app_access_enabled, user_id, cdl_number, cdl_expires_at, medical_card_expires_at, hire_date, created_at, archived_at";
 
 /** The full profile — every column 0098 added, minus the ones another surface owns (app credentials,
  *  telematics HOS snapshots, the EFS card link). Same one-literal rule as above. */
@@ -129,38 +121,12 @@ export function rosterDriversRouter(): Router {
       const orgId = req.auth!.orgId!;
       const body = res.locals.body as DriverCreateRequest;
 
-      // `full_name` is NOT NULL and is what the Samsara matcher and every existing surface reads, so
-      // derive it when the admin filled only the structured parts. The contract guarantees one or the
-      // other is present.
-      const fullName = body.full_name?.trim() || deriveFullName(body);
-
-      const { full_name: _ignored, ...rest } = body;
-      const { data, error } = await admin
-        .from("drivers")
-        .insert({
-          ...rest,
-          org_id: orgId,
-          full_name: fullName,
-          // Never client-supplied: this row is admin-owned, so telematics must not overwrite its
-          // identity fields on the next sync (plan §4).
-          identity_source: "manual",
-        })
-        .select(DRIVER_LIST_COLS)
-        .single();
-
-      if (error || !data) {
+      const created = await createDriverRecord(admin, orgId, req.auth!.userId, body);
+      if ("error" in created) {
         res.status(500).json(apiError("db_error", "Could not create driver"));
         return;
       }
-
-      await writeAudit(admin, {
-        orgId,
-        actorId: req.auth!.userId,
-        action: "driver.created",
-        entity: "drivers",
-        entityId: data.id as string,
-        meta: { fullName },
-      });
+      const data = created.driver;
 
       res.status(201).json({ driver: data });
     }),

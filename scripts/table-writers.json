@@ -159,6 +159,7 @@
     "apps/api/src/modules/efs/services/efsIngest.ts",
     "apps/api/src/modules/fuel/driverAttribution.ts",
     "apps/api/src/modules/org/routes/members.ts",
+    "apps/api/src/modules/roster/driverCreate.ts",
     "apps/api/src/modules/roster/driverCredentials.ts",
     "apps/api/src/modules/roster/driverRehire.ts",
     "apps/api/src/modules/roster/routes/archive.ts",
@@ -407,6 +408,9 @@
   ],
   "kit_expectations": [
     "apps/api/src/modules/maintenance/inventory/kitExpectations.ts"
+  ],
+  "lead_match_verdicts": [
+    "apps/api/src/modules/recruiting/leads/verdicts.ts"
   ],
   "load_dispatches": [
     "apps/api/src/modules/loads/dispatchToDriver.ts"

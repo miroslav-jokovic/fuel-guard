@@ -33,8 +33,8 @@ export type FixtureRow = Record<string, unknown>;
 /**
  * Build a fixture over these rows.
  *
- * Applies, in PostgREST's order: the filters the query made (`eq`, `in`, `is`), the `select` list as
- * a projection, then `order`, then `limit`.
+ * Applies, in PostgREST's order: the filters the query made (`eq`, `in`, `is`), then `order`, then
+ * `limit`, then the `select` list as a projection.
  */
 export function postgrestFixture(rows: readonly FixtureRow[]): (q: RecordedQuery) => FixtureRow[] {
   return (q: RecordedQuery) => {
@@ -47,6 +47,23 @@ export function postgrestFixture(rows: readonly FixtureRow[]): (q: RecordedQuery
         return COMPARE[op.method]!(cellOf(row, op.args[0]), op.args[1]);
       }),
     );
+
+    // Order and limit BEFORE the projection, as PostgREST does: a query may order by a column it does not
+    // select (`.select("profile_version_id").order("version")` — "the newest version's profile"). Until
+    // 2026-11-03 the projection ran first, so such an order sorted on a column that was no longer there and
+    // silently did nothing; ads D1c's verdict test found it by picking the OLDEST opening version.
+    const order = q.ops.find((o) => o.method === "order");
+    if (order) {
+      const col = String(order.args[0]);
+      const asc = (order.args[1] as { ascending?: boolean } | undefined)?.ascending !== false;
+      // Numbers as numbers (a version 10 is after a version 2); everything else as PostgREST's ISO text sorts.
+      const cmp = (x: unknown, y: unknown) =>
+        typeof x === "number" && typeof y === "number" ? x - y : String(x).localeCompare(String(y));
+      out = [...out].sort((a, b) => cmp(a[col], b[col]) * (asc ? 1 : -1));
+    }
+
+    const limit = q.ops.find((o) => o.method === "limit");
+    if (limit) out = out.slice(0, Number(limit.args[0]));
 
     // ⚠ The projection is the half that caught B3's missing `revokes`: a service that never selects
     // a column must not be handed it, or the test cannot tell reading from not reading.
@@ -63,15 +80,6 @@ export function postgrestFixture(rows: readonly FixtureRow[]): (q: RecordedQuery
       );
     }
 
-    const order = q.ops.find((o) => o.method === "order");
-    if (order) {
-      const col = String(order.args[0]);
-      const asc = (order.args[1] as { ascending?: boolean } | undefined)?.ascending !== false;
-      out = [...out].sort((a, b) => String(a[col]).localeCompare(String(b[col])) * (asc ? 1 : -1));
-    }
-
-    const limit = q.ops.find((o) => o.method === "limit");
-    if (limit) out = out.slice(0, Number(limit.args[0]));
     return out;
   };
 }

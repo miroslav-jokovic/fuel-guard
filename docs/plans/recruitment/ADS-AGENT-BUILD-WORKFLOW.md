@@ -807,3 +807,22 @@ blocking step in §3 above.
   - 41 assertions; 22 mutants, all killed (three survived the first run as fixture gaps, now closed).
   - **D1b** = shared contracts (`hiringProfile`, `opening`, `leadContract`, `leadMatch`). **D1c** = the
     API (LeadSink, queue route, convert route, profile/opening saves), after 0554 is on staging.
+- **2026-11-03, D1a merged** (#1959, `a9ec63f`); **D1b merged** (#1961, `ef33a5f`): `packages/shared/src/
+  recruiting/leads/` holds `hiringProfile` (v1 = §3a), `opening` (its area IS `adAreaSchema`),
+  `leadContract` and `leadMatch`. 27 mutants, all killed.
+- **2026-11-03, D1c1 — the LeadSink, the queue, convert.**
+  - `modules/recruiting/leads/`: `recruitingLeadSink` (exported from recruiting's index for B4) →
+    `ingest_lead`, then `leadMatch` verdicts against the opening's newest profile version. The verdicts
+    are written once per (lead, profile version) and healed on a retry. The sink THROWS on a failed store
+    so the caller retries.
+  - Routes at `/api/recruitment`: `GET /leads` (keyset cursor), `POST /leads` (a call / walk-in /
+    referral / paste, needing a phone or an email), `POST /leads/:id/convert`.
+  - **Roster's create moved to `roster/driverCreate.ts`** (`createDriverRecord`, exported), so the
+    conversion makes its applicant through roster's door. `identity_source: "manual"` and the
+    `driver.created` audit cannot drift.
+  - **A fake fixed:** `postgrestFixture` projected `select` BEFORE `order`, so ordering by an unselected
+    column did nothing, and it compared numbers as text. It now orders and limits first; the whole api
+    suite (7863) is green on it. A survivor found it: the verdicts picked the OLDEST opening version
+    under the fake.
+  - 20 mutants, all killed (two survived the first run as fixture gaps).
+  - **D1c2** (next): the profile and opening save routes, plus `GET` for both.

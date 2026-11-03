@@ -27,6 +27,7 @@ import { recruitmentOrientationVideosRouter } from "./orientationVideos.js";
 import { recruitmentCarrierStepsRouter } from "./carrierSteps.js";
 import { recruitmentApplicantDocumentsRouter } from "./applicantDocuments.js";
 import { recruitmentMessageWordingRouter } from "./messageWording.js";
+import { recruitmentLeadsRouter } from "./leads.js";
 
 /**
  * Everything mounted at `/api/recruitment`, composed in one place.
@@ -67,5 +68,6 @@ export function recruitmentRouter(): Router {
   router.use(recruitmentCarrierStepsRouter()); // the carrier's own hiring steps and the office's tick on each (§10 CE2, 0545)
   router.use(recruitmentApplicantDocumentsRouter()); // the applicant's papers, and the office's upload (§9 P9)
   router.use(recruitmentMessageWordingRouter()); // the carrier's wording for the messages an applicant is sent (§12 MT2, 0551)
+  router.use(recruitmentLeadsRouter()); // the lead queue, a lead entered by hand, and a lead made an applicant (ads D1, 0553/0554)
   return router;
 }
