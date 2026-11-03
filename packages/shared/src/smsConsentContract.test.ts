@@ -99,6 +99,16 @@ describe("the number", () => {
     expect(normalisePhone("+447700900123")).toBe("+447700900123");
   });
 
+  it("never puts +1 on a number written with its own +, and reads one written with spaces (audit M5)", () => {
+    // 10 digits after the + is a German number, not a US one: before, +14930123456, somebody else.
+    expect(normalisePhone("+4930123456")).toBe("+4930123456");
+    expect(normalisePhone("+49 30 123456")).toBe("+4930123456");
+    expect(normalisePhone("+52 1 55 1234 5678")).toBe("+5215512345678");
+    expect(normalisePhone("+1 (708) 236-5732")).toBe("+17082365732");
+    expect(normalisePhone("+0123456789")).toBeNull();
+    expect(normaliseUsPhone("+4930123456")).toBeNull();
+  });
+
   /**
    * G-2 (C2d2): agreeing takes a dialable US number only. Matching stays permissive (above), because an
    * inbound STOP must find its row whatever shape it arrives in.
