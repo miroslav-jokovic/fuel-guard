@@ -89,12 +89,12 @@ describe("§9 P4 (Q-WF1 (a)): the six federal checks, before the press", () => {
     checklist.open = ["road_test"];
     const w = mountDrawer();
     await settle(w);
-    const hire = () => w.findAll("button").find((b) => b.text().trim() === "Hire")!;
+    const hire = () => w.findAll("button").find((b) => b.text().trim() === "Close application")!;
     expect(hire().attributes("disabled")).toBeDefined();
     checklist.open = [];
     const ready = mountDrawer();
     await settle(ready);
-    expect(ready.findAll("button").find((b) => b.text().trim() === "Hire")!.attributes("disabled")).toBeUndefined();
+    expect(ready.findAll("button").find((b) => b.text().trim() === "Close application")!.attributes("disabled")).toBeUndefined();
   });
 });
 
@@ -113,10 +113,10 @@ describe("§9 P12: the carrier's own rule joins the list", () => {
     await settle(w);
     const list = w.get('[data-testid="federal-checks"]');
     expect(list.findAll("li")).toHaveLength(7);
-    expect(list.text()).toContain("Before the hire");
+    expect(list.text()).toContain("Before closing");
     expect(list.text()).toContain("your company's rule");
     expect(w.get('[data-to="/recruitment/d1?step=handbook"]').text()).toBe("Open");
-    expect(w.findAll("button").find((b) => b.text().trim() === "Hire")!.attributes("disabled")).toBeDefined();
+    expect(w.findAll("button").find((b) => b.text().trim() === "Close application")!.attributes("disabled")).toBeDefined();
   });
 });
 
@@ -157,7 +157,7 @@ describe("hiring an applicant", () => {
     // test is about what reaches the API.
     w.findComponent({ name: "AppDateField" }).vm.$emit("update:modelValue", "2026-09-01");
     await w.vm.$nextTick();
-    await w.findAll("button").find((b) => b.text() === "Hire")!.trigger("click");
+    await w.findAll("button").find((b) => b.text() === "Close application")!.trigger("click");
     await settle(w);
 
     const post = calls.find((c) => c.init?.method === "POST")!;
@@ -170,7 +170,7 @@ describe("hiring an applicant", () => {
   it("offers the hire even when the file is incomplete", async () => {
     const w = mountDrawer();
     await settle(w);
-    const hire = w.findAll("button").find((b) => b.text() === "Hire")!;
+    const hire = w.findAll("button").find((b) => b.text() === "Close application")!;
     expect(hire.attributes("disabled")).toBeUndefined();
   });
 

@@ -68,6 +68,8 @@ const DEFINED: readonly HiringStepDefinition[] = [
     where: "remote", phase: "application",
     federalGate: false, beforeTravel: true, owes: "them", requires: ["intake_completed"],
     evidence: { table: "driver_authorizations", label: "Authorizations" },
+    // §14 D-OF2: signed on the same link, straight after Part 1 — one act to the office, one row.
+    shownIn: "intake_completed",
   },
   // ⚠ §391.23(a)(1) needs the record, and `SCREENING_PREREQUISITES.mvr_order` names what makes
   // ordering one lawful: the FCRA disclosure. It is NOT gated on the office approving — Q-HM2 ruled
@@ -79,6 +81,24 @@ const DEFINED: readonly HiringStepDefinition[] = [
     where: "office", phase: "screening",
     federalGate: true, beforeTravel: true, owes: "us", requires: ["permissions_signed"],
     evidence: { table: "qualification_records.mvr", label: "MVR report" },
+  },
+  // ⚠ The step that was missing until the owner recited the six gates back (D-HM9). Capture had been
+  // silently mistaken for the gate. Checking the examiner against the National Registry is a separate
+  // act with its own kind, which is why this requires the step that brings the card in, not the card.
+  //
+  // ⚠ That step is Part 1 since §7 (D-AW4), and it was the application: C2a moved the `medical_card`
+  // photo out of `APPLICATION_ONLY_CAPTURE_SLOTS` and `complete_applicant_intake` files it when Part 1
+  // finishes, weeks before the form. Requiring the application would hold a verification the office
+  // can do on day three behind a form it sends on day ten.
+  {
+    key: "medical_certificate", label: "Medical certificate verified",
+    action: "Verify the medical certificate",
+    where: "office", phase: "screening",
+    federalGate: true, beforeTravel: true, owes: "us", requires: ["intake_completed"],
+    evidence: { table: "qualification_records.medical_registry_verification", label: "Registry check" },
+    // §14 D-OF2, D-OF4: reviewed with the driving record (the owner's step 3), and still one of the six
+    // federal gates — drawn inside the MVR row, never dropped from the hire's refusal list.
+    shownIn: "mvr",
   },
   // ⚠ §5: "PSP is voluntary. It is a tool, not a requirement, which is why it can sit anywhere in
   // the order." Its prerequisites are the two signatures `SCREENING_PREREQUISITES.psp_record` names.
@@ -143,21 +163,33 @@ const DEFINED: readonly HiringStepDefinition[] = [
     // a wait the owner does not have.
     federalGate: false, beforeTravel: false, owes: "us", requires: ["application_filled"],
     evidence: { table: "application_invitations.approved_at", label: "Approval" },
+    // §14 D-OF2: approving IS the end of reviewing the application the row above receives (owner: "just
+    // a duplicate of the previous section"). The stamp still gates the packet's marks (DR032).
+    shownIn: "application_filled",
   },
-  // ⚠ The step that was missing until the owner recited the six gates back (D-HM9). Capture had been
-  // silently mistaken for the gate. Checking the examiner against the National Registry is a separate
-  // act with its own kind, which is why this requires the step that brings the card in, not the card.
-  //
-  // ⚠ That step is Part 1 since §7 (D-AW4), and it was the application: C2a moved the `medical_card`
-  // photo out of `APPLICATION_ONLY_CAPTURE_SLOTS` and `complete_applicant_intake` files it when Part 1
-  // finishes, weeks before the form. Requiring the application would hold a verification the office
-  // can do on day three behind a form it sends on day ten.
+  // §14 D-OF4 (2026-11-03): after the application and before travel — the owner's "training videos",
+  // sent in place of the approval row he removed.
+  // Q-HM3 ruled these are assigned to an APPLICANT before they travel, which is what buys the half-day
+  // orientation. HW8a (0539, HIRING-WORKFLOW-AUDIT §4.8/§8.2) gives it evidence: the carrier's list of
+  // links and the applicant's "I watched these" (`orientation_video_attestations`). It is measured only
+  // for a carrier with at least one required video (`orientationVideosMeasurable`); `DRIVER-TRAINING-
+  // PLAN.md`'s micro-LMS stays the later version.
   {
-    key: "medical_certificate", label: "Medical certificate verified",
-    action: "Verify the medical certificate",
-    where: "office", phase: "screening",
-    federalGate: true, beforeTravel: true, owes: "us", requires: ["intake_completed"],
-    evidence: { table: "qualification_records.medical_registry_verification", label: "Registry check" },
+    key: "orientation_videos", label: "Orientation videos",
+    action: "Finish the orientation videos",
+    where: "remote", phase: "orientation",
+    // AF4 (plan §3.3): the videos follow the drug test, not the approval — they are sent once the
+    // result is in, and they are what fills the wait for travel.
+    //
+    // ⚠ Not before travel since §7 (Q-AW23's default, 2026-09-26), and HW8a leaves it there: Q-WF8 asks
+    // the owner whether any video is required before travel, and until he answers, putting it in
+    // `TRAVEL_WARNS_ON` would warn every booking about videos most carriers have not listed yet.
+    //
+    // ⚠ `owes: "us"` since HW8a, and it was "them": nothing reaches the driver until the office sends the
+    // link, so the office's move comes first; the send (`orientation_videos_sent_at`) is what hands it
+    // to "Waiting on them" — `application_signed`'s pattern.
+    federalGate: false, beforeTravel: false, owes: "us", carrierMayHide: true, requires: ["drug_test"],
+    evidence: { table: "orientation_video_attestations", label: "Videos watched" },
   },
   // ⚠ D-AW7 (APPLICATION-FLOW-V2-PLAN §7): the trip is recorded (`applicant_travel`). The writer
   // refused until everything before travel was done (Q-HM5) until §9 P4 (2026-10-31), which made it a
@@ -202,33 +234,14 @@ const DEFINED: readonly HiringStepDefinition[] = [
     action: "Contact the previous employers",
     where: "office", phase: "screening",
     federalGate: false, beforeTravel: false, owes: "us", requires: ["application_filled"],
+    // §14 D-OF3 (2026-11-03): off the list — the owner keeps this manual for now. Still measured, still a
+    // §391.51(b)(3) item on the DQ file, which is where a missing one shows.
+    listed: false,
     // ⚠ The ATTEMPTS, not the replies. §391.23(c)(1) accepts "documentation of good faith efforts"
     // in place of an answer and §391.23(c)(2) requires a record of "the attempts made", so the
     // written record IS the deliverable when nobody writes back — which is why 0223 stores one row
     // per attempt rather than one per employer.
     evidence: { table: "employer_inquiries", label: "Inquiry record" },
-  },
-  // Q-HM3 ruled these are assigned to an APPLICANT before they travel, which is what buys the half-day
-  // orientation. HW8a (0539, HIRING-WORKFLOW-AUDIT §4.8/§8.2) gives it evidence: the carrier's list of
-  // links and the applicant's "I watched these" (`orientation_video_attestations`). It is measured only
-  // for a carrier with at least one required video (`orientationVideosMeasurable`); `DRIVER-TRAINING-
-  // PLAN.md`'s micro-LMS stays the later version.
-  {
-    key: "orientation_videos", label: "Orientation videos",
-    action: "Finish the orientation videos",
-    where: "remote", phase: "orientation",
-    // AF4 (plan §3.3): the videos follow the drug test, not the approval — they are sent once the
-    // result is in, and they are what fills the wait for travel.
-    //
-    // ⚠ Not before travel since §7 (Q-AW23's default, 2026-09-26), and HW8a leaves it there: Q-WF8 asks
-    // the owner whether any video is required before travel, and until he answers, putting it in
-    // `TRAVEL_WARNS_ON` would warn every booking about videos most carriers have not listed yet.
-    //
-    // ⚠ `owes: "us"` since HW8a, and it was "them": nothing reaches the driver until the office sends the
-    // link, so the office's move comes first; the send (`orientation_videos_sent_at`) is what hands it
-    // to "Waiting on them" — `application_signed`'s pattern.
-    federalGate: false, beforeTravel: false, owes: "us", carrierMayHide: true, requires: ["drug_test"],
-    evidence: { table: "orientation_video_attestations", label: "Videos watched" },
   },
   // ⚠ Blocked by the drug test on the STRICTER of two readings, and §5.1 is worth reading before
   // anybody changes this. FMCSA has said IN WRITING that the Clearinghouse query may follow a road
@@ -252,6 +265,8 @@ const DEFINED: readonly HiringStepDefinition[] = [
     where: "office", phase: "orientation",
     federalGate: false, beforeTravel: false, owes: "us", carrierMayHide: true, requires: ["office_approved"],
     evidence: null,
+    // §14 D-OF3: not in the owner's flow; HW8b would give it evidence if he asks for it again.
+    listed: false,
   },
   // ⚠ The gate here is SQL, not an opinion: `record_packet_mark` raises DR032 until `approved_at` is
   // set (migration 0339), and since 0369 DR036 until `signing_opened_at` is. The checklist agreeing
@@ -297,8 +312,12 @@ const DEFINED: readonly HiringStepDefinition[] = [
   // Q-HM5 lets proceed with that open (§391.23(c)(1)'s 30 days run from the first day), went through.
   // Now the row is blocked exactly when the hire refuses — the six federal checks since §9 P4.
   {
-    key: "hired", label: "Hired",
-    action: "Hire and open the driver file",
+    // ⚠ §14 D-OF5 (2026-11-03): "Close application", because the HIRE is done in McLeod. The act is the
+    // same and must stay one: the McLeod roster sweep holds an applicant it matches (`rosterMatch.ts`)
+    // until this turns the row into a driver, and only then links McLeod's driver to it — so the files
+    // gathered here stay with the person instead of McLeod creating a second, empty driver.
+    key: "hired", label: "Application closed",
+    action: "Close the application",
     where: "office", phase: "hire",
     federalGate: false, beforeTravel: false, owes: "us", requires: [],
     evidence: { table: "drivers.hire_date", label: "Driver file" },

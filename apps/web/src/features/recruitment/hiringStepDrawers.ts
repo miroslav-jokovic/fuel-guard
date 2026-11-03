@@ -123,7 +123,13 @@ export type HiringDrawerBody =
    * A step this schema cannot prove, so the fold never emits it and no row can open it. Present
    * only because the `Record` is total over `HiringStepKey` — the live orientation day's, until HW8b.
    */
-  | "unbuilt";
+  | "unbuilt"
+  /**
+   * §14 D-OF2: the approval, drawn under the application in the same drawer. The application body above
+   * it already opens the form and lists the history, so this only says where the approval is pressed —
+   * rendering the application body twice in one drawer was the duplicate the owner asked to remove.
+   */
+  | "approval";
 
 const DRAWERS: Record<HiringStepKey, HiringDrawerBody> = {
   invitation_sent: "invitation",
@@ -134,7 +140,7 @@ const DRAWERS: Record<HiringStepKey, HiringDrawerBody> = {
   // IS reading the answers filed at step 3 and approving them, and `ApplicationReviewDrawer` is the
   // surface that does both. Two rows, one document, one place to work.
   application_filled: "application",
-  office_approved: "application",
+  office_approved: "approval",
   mvr: "record",
   psp: "psp",
   clearinghouse: "record",

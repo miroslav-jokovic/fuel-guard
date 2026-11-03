@@ -4,6 +4,7 @@ import { HIRING_STEPS, type HiringStepKey } from "./hiringSteps.js";
 import {
   CARRIER_STEP_ANCHORS,
   HIDEABLE_HIRING_STEPS,
+  HIDEABLE_ROW_STEPS,
   carrierStepCreateSchema,
   carrierStepRecordSchema,
   carrierStepUpdateSchema,
@@ -52,7 +53,9 @@ const act = (stepId: string, a: "done" | "undone" = "done", over: Partial<Carrie
 
 describe("the hideable steps (D-CE3)", () => {
   it("are derived from the catalogue and never include a federal check, a refusing step or the hire", () => {
-    expect(HIDEABLE_HIRING_STEPS).toEqual(["psp", "travel_booked", "orientation_videos", "live_orientation", "handbook"]);
+    expect(HIDEABLE_HIRING_STEPS).toEqual(["psp", "orientation_videos", "travel_booked", "live_orientation", "handbook"]);
+    // §14 D-OF1: Settings offers rows only; the schema's list stays whole so stored settings still save.
+    expect(HIDEABLE_ROW_STEPS).toEqual(["psp", "orientation_videos", "travel_booked", "handbook"]);
     for (const k of HIDEABLE_HIRING_STEPS) {
       const spec = HIRING_STEPS.find((s) => s.key === k)!;
       expect(spec.federalGate).toBe(false);
@@ -93,8 +96,9 @@ describe("the hideable steps (D-CE3)", () => {
     expect(c.hidden).toEqual([]);
   });
 
-  it("a hidden step no longer counts as unbuilt", () => {
-    expect(hiringChecklist(ready()).unbuilt).toContain("live_orientation");
+  // §14 D-OF3: the live orientation day is off the list, so it is never "not built yet", hidden or not.
+  it("an unlisted step never counts as unbuilt, hidden or not", () => {
+    expect(hiringChecklist(ready()).unbuilt).not.toContain("live_orientation");
     expect(hiringChecklist(ready({ hiddenSteps: ["live_orientation"] })).unbuilt).not.toContain("live_orientation");
   });
 });
