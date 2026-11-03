@@ -2,7 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { partInputSchema, recordId } from "@silvicom/shared";
 import { requireAuth, requireOrg, requireSection } from "../../../middleware/auth.js";
-import { apiError, asyncHandler, validateBody } from "../../../lib/http.js";
+import { apiError, asyncHandler, dbErrorResponse, validateBody } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
 import { writeAudit } from "../../../lib/audit.js";
@@ -11,6 +11,7 @@ import { createPart, setPartImagePath, updatePart } from "../inventory/partsWrit
 import { signPartPhotoUpload, signPartPhotoUrl } from "../inventory/photos.js";
 import { listStock } from "../inventory/stock.js";
 import { statusForServiceError } from "../inventory/httpStatus.js";
+import { readPartUsageDetail } from "../../fleetpal/index.js";
 import { isServiceError } from "../inventory/types.js";
 
 /**
@@ -30,6 +31,8 @@ const listSchema = z.object({
 });
 
 const patchSchema = partInputSchema.partial();
+
+const usagePageSchema = z.coerce.number().int().min(1).max(10_000);
 
 const photoSchema = z.object({
   photoId: recordId(),
@@ -116,6 +119,42 @@ export function inventoryPartsRouter(): Router {
         stock: stock.lines,
         photoUrl: await signPartPhotoUrl(admin, part.imagePath),
       });
+    }),
+  );
+
+  /**
+   * What the shop went through with this part (SHOP-PARTS-USAGE-PLAN.md SP-U2): its 90-day and
+   * 12-month figures, and one page of the repairs that used it, newest first. 404 for a part that is
+   * not this org's — the same answer `/:id` gives — so a guessed id learns nothing.
+   */
+  router.get(
+    "/:id/usage",
+    requireOrg,
+    canView,
+    asyncHandler(async (req, res) => {
+      const page = usagePageSchema.safeParse(req.query.page ?? 1);
+      if (!page.success) {
+        res.status(400).json(apiError("bad_request", "page must be a whole number from 1."));
+        return;
+      }
+      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      const orgId = req.auth!.orgId!;
+      const id = String(req.params.id ?? "");
+      const part = await getPart(admin, orgId, id);
+      if (isServiceError(part)) {
+        res.status(statusForServiceError(part.code)).json(apiError(part.code, part.error));
+        return;
+      }
+      if (!part) {
+        res.status(404).json(apiError("not_found", "That part is not in the catalogue."));
+        return;
+      }
+      const result = await readPartUsageDetail(admin, orgId, id, page.data, new Date());
+      if (!result.ok) {
+        dbErrorResponse(res, "maintenance.inventory.part-usage-detail", result.error, "Could not load where this part went");
+        return;
+      }
+      res.json({ ok: true, ...result.data });
     }),
   );
 

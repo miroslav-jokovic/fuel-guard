@@ -811,6 +811,91 @@ screen shows the last good read. Production on 2026-10-15 was healthy: 13 sweeps
     3 hours (three missed hourly runs, past the page's 2-hour caution). Once a day while it lasts, the
     same daily reminder `roadside_feed_stale` gives. It names Med-Stop's error when there is one.
 
+### 7A.21 Ordering a pre-employment test, measured against how the office really orders (2026-11-03)
+
+The owner (2026-11-03), after the key work: *"we need to analyze documentation and real world cases and see do we
+have proper UI/UX and logic for making and ordering drug tests."* Read-only: Med-Stop's spec
+(`docs/Med-Stop/openapi.json`, `API-Key-access.md`) and production's mirror of Med-Stop (`medstop_*`, read by
+SQL, counts only). Nothing was ordered.
+
+**Where it stands [V]:**
+- The connection is healthy: last sweep 2026-11-03 15:48Z, no error. The key expires **2026-12-28** (the
+  admins are told at 30/14/7/3/1 days, §7A.20).
+- **Ordering has never run.** `orders_enabled` is off, the office contact (e-mail + phone) is empty, and
+  `audit_logs` holds no `medstop.*` row. `medstop_applicant_creates` is empty: no applicant was ever created
+  in Med-Stop from Part 1, because the create runs only while ordering is on (D-MSUX11).
+- So the six [?] of §7A.14 are still unanswered: `requesttime`'s format, the POST's request id, the random
+  link, zero messages to the driver, the observed fields, the gender read.
+
+**How the office orders today, by hand in Med-Stop's portal (last 90 days) [V]:**
+
+| Measure | Value | What it means for the drawer |
+|---|---|---|
+| Pre-employment orders | 126, for 99 people, all drug (TD) | A pre-employment ALCOHOL order is never used. |
+| Completed / cancelled / open | 82 / 41 / 3 | **One order in three is cancelled.** |
+| People needing a 2nd or 3rd order | 22 of 99 | Re-ordering is routine, not an edge case. |
+| Requested time vs collection (12 months, 319) | collected a median **2.2 h BEFORE** the requested time; 84% before | The office uses the time as a **deadline** ("go by 4 pm"), not an appointment. |
+| Requested time of day | clusters at **16:00** | The deadline is end of the business day. |
+| Sites | across the country (O'Hare, Irving, Houston, Hobby…) | The applicant tests near HOME — the Part 1 address, not the office. |
+| Pre-employment drug results (12 months, 316) | 302 negative · 6 negative-dilute · 4 positive · 4 cancelled | Dilute is about 2%. |
+| Payment | EMPLOYER on 725 of 726 | Matches the review's "billed to the company". |
+| Part 1 donor gender | 1 of 3 Part-1-complete applicants (2 predate UX5b) | Older applicants are added in Med-Stop by hand. |
+
+**What Med-Stop's spec offers that we do not use [V]:**
+- `GET /Request/{id}` returns the ordered site's **address, city, zip and phone**, the **requestdate**, a
+  **`code`** and a **`registrationnumber`** — what the applicant needs at the collection site.
+- `POST /Request/{id}/notify` sends the request's notice — *"test, site, deadline, authorization code"* — to a
+  given SMS number and/or e-mail.
+- `POST /Request/{id}/status` closes a request (CANCELED, NO SHOW …, list STATUSREQUESTCLOSE); `POST
+  /Request/noshow` closes every open request a person holds. Med-Stop's own guide flow is: find a site →
+  read the form → **show the payload for approval** → create → `GET /request/{recordid}` to confirm.
+
+**Gaps (the drawer against the measured practice):**
+- **G1 — It has never been turned on.** Nothing below is real until §7A.11's first-order runbook is run with
+  the owner watching (office contact, switch on, one order, the six [?] recorded here).
+- **G2 — Nobody tells the applicant where to go.** D-MSUX5 sends Med-Stop's notices to the office
+  (`sendsms`/`sendemail` = N). The drawer's "How the applicant was told" only RECORDS that somebody did.
+  The step's other card, the appointment (`DrugTestPanel`, D-AW6, texted through our outbox), is not filled
+  by the order. So after **Place order** the office must retype the site, address, deadline and code into the
+  appointment and press Send, or phone the applicant. Two systems in one drawer, joined by hand.
+- **G3 — It asks for an appointment; the office sets a deadline.** "Collection day / Time" defaults to
+  today at 09:00; the real value is "by 4 pm" on a coming day. The site search asks for a ZIP the office
+  types, though Part 1 holds the applicant's home ZIP.
+- **G4 — A no-show cannot be re-ordered here.** The API rightly refuses a second open order for the same
+  test (asked live). One order in three is cancelled, and closing it means going to Med-Stop's portal.
+  Then the drawer works again.
+- **G5 — "Order pre-employment test" shows while an order is open.** The office fills the whole drawer and
+  is refused at Review. The step lists the open order only as "ordered …, not collected yet", without the
+  site, the deadline or the code.
+- **G6 — A negative-dilute result has no next step.** The DER is alerted (MS2b). §40.197: a creatinine of
+  2–5 mg/dL makes the MRO direct an immediate recollection under direct observation; otherwise the employer's
+  policy decides whether to retest. The drawer never orders a pre-employment test observed.
+
+**Proposed (decisions below; nothing built):**
+- **MSO1 — the order fills the step (no new write).** After **Place order**, read `GET /Request/{id}`. Write
+  the applicant's appointment from it: site, address, phone, deadline, and `code`/`registrationnumber` as the
+  donor reference. The step offers ONE press, "Text it to the applicant", through our outbox (English or
+  Spanish, carrier wording, STOP line). D-MSUX5 holds: Med-Stop still never texts anybody.
+  - "Collection day / Time" becomes **"Go by"**, defaulting to the office's usual deadline.
+  - The ZIP is pre-filled from Part 1's address.
+  - An open order replaces the Order button with its card: site, address, deadline, code, "Text it again".
+- **MSO2 — no-show and re-order (two new writes, after Q-MSO3).** On an open order: **"Didn't go — mark
+  no-show"** and **"Cancel order"** — each reviewed, single-shot, audited (`POST /Request/{id}/status`). The
+  allow-list grows from two writes to three, pinned by its test. Then **Order again** opens the drawer
+  pre-filled from the last order.
+- **MSO3 — dilute (after Q-MSO4).** On a negative-dilute pre-employment result, the DER sees "Order a
+  recollection", observed when the MRO directs it.
+
+**Questions for the owner:**
+- **Q-MSO1 — how the applicant learns where to go.** (a) Our text, filled from Med-Stop's request (MSO1);
+  (b) Med-Stop's own notice (`/notify`) to the applicant's phone, which relaxes D-MSUX5 for applicants only.
+  *Recommend (a): one sender, Spanish, the carrier's words, already in the applicant's history.*
+- **Q-MSO2 — the default deadline.** *Recommend: the next business day at 4:00 pm, as the office does now.*
+- **Q-MSO3 — may the step close a no-show or cancel an order in Med-Stop?** *Recommend yes, reviewed and
+  single-shot, as the order is.*
+- **Q-MSO4 — negative-dilute pre-employment results:** retest every time, or only when the MRO directs?
+  *Recommend: only when the MRO directs (§40.197(b)); otherwise accept the negative.*
+
 ## 8. Open questions
 
 - ~~Q-MS1~~ — base URL: `https://api.med-stop.com` (API-Key-access.md).
@@ -1045,3 +1130,8 @@ screen shows the last good read. Production on 2026-10-15 was healthy: 13 sweeps
   Med-Stop scheduler judges every connected org each tick (`alertMedstopConnection`); the rules are
   shared (`medstopKeyThreshold`, `medstopSweepTrouble`), and Settings › Med-Stop's "expires soon" now
   starts at the same first threshold. A connection never swept yet is not judged.
+- 2026-11-03 — **§7A.21: ordering measured against the office's own orders** (read-only; owner: keys fixed,
+  "analyze … do we have proper UI/UX and logic for ordering"). Ordering has never run: switch off, no office
+  contact, 0 orders, 0 applicant creates. Measured over 90 days: 126 pre-employment orders by hand, one in
+  three cancelled, 22 of 99 people re-ordered; the requested time is a 4 pm deadline (collection a median 2.2 h
+  before it); tests near home. Gaps G1–G6, proposal MSO1–MSO3, questions Q-MSO1–Q-MSO4. Nothing built.

@@ -133,8 +133,12 @@ empty read a minute. An org whose settings row cannot be parsed is read as kille
 the launching and pausing steps, and a pause reaches Meta. `createPaused` and `compose` are still
 empty (B2c, C), so no campaign reaches `paused`, and so none reaches launch, unattended. One non-scheduler
 kind sits beside it: **`ads_rules_sync`** (B3b, `KIND_CAPS` 1). It is queued by the settings save door,
-not by a timer, and rewrites the account's Meta Automated Rules. The other three schedulers are still
-planned (B4/B5). The
+not by a timer, and rewrites the account's Meta Automated Rules. **`ads-leads-backfill`** is BUILT (B4a2, 2026-11-03;
+`modules/ads/leads/backfillTick.ts`): hourly, first tick 5 min after boot, one **`ads_leads_backfill`** job
+(`KIND_CAPS` 1) per connected Meta or simulator connection, `dedup_key` = `ads_leads_backfill:<connection>`.
+The job reads every form of ours for the last 48 h with the Page token and hands each lead to recruiting's
+`LeadSink` (`queue/handlers/adsLeadsBackfill.ts`, the one place the two modules meet); it fails, and is
+listed, when any form or lead was not brought in. `ads-insights` and `ads-reconcile` are still planned (B5). The
 `general` lane, not `egress`: `egress` exists for the one host WEX allowlists, and Meta, TikTok, X
 and Higgsfield check no caller address, so these follow FleetPal and Med-Stop's placement, not the
 EFS poller's. They follow FleetPal's three rules as well: **off** unless `ADS_ENABLED=true` on the

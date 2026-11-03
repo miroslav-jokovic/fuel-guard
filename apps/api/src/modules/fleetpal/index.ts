@@ -76,6 +76,8 @@ export { readFleetPalAnnualDue, readUnitMaintenance, type UnitMaintenance } from
 // the shared `pmStatus`, and one unit's whole shop record.
 export { readPmDueFleet, judgeSchedule, type UnitPmDue } from "./pmDue.js";
 export { readUnitShopRecord, type UnitShopRecord } from "./unitShopRecord.js";
+// Shop parts by use (SHOP-PARTS-USAGE-PLAN.md SP-U2): the list, and one part's figures and history.
+export { readPartUsageList, readPartUsageDetail, type PartUsageListQuery } from "./partUsage.js";
 export { projectPmDue } from "./projectPmDue.js";
 export { readWorkOrdersOnUnits, type UnitWorkOrder, type UnitWorkOrderIndex } from "./unitWorkOrders.js";
 export { readWorkOrderRecords, type WorkOrderRecord, type WorkOrderRecords } from "./workOrderRecord.js";
