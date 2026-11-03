@@ -278,6 +278,8 @@ export * from "./roadsideAttributionContract.js";
 export * from "./roadsideDocumentsContract.js";
 export * from "./roadsideInspectionReportContract.js";
 export * from "./compliancePaperContract.js";
+export * from "./mvrReportContract.js";
+export * from "./mvrReportFindings.js";
 export * from "./roadsideReportCheckContract.js";
 export * from "./roadsideRepairContract.js";
 export * from "./roadsideNextSteps.js";

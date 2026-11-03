@@ -1,5 +1,6 @@
-import type { CompliancePaperBatch, DocumentProfileId, FieldEvidence, RoadsideInspectionReport, ShippingDocument } from "@silvicom/shared";
+import type { CompliancePaperBatch, DocumentProfileId, FieldEvidence, MvrReport, RoadsideInspectionReport, ShippingDocument } from "@silvicom/shared";
 import { compliancePaperEvidence } from "./compliancePaperEvidence.js";
+import { mvrReportEvidence } from "./mvrReportEvidence.js";
 import type { OcrPage } from "./rowWitness.js";
 import { roadsideReportEvidence } from "./roadsideReportEvidence.js";
 import { shippingEvidence } from "./shippingEvidence.js";
@@ -18,6 +19,8 @@ export const EVIDENCE_FOR = {
     roadsideReportEvidence(a as RoadsideInspectionReport, b as RoadsideInspectionReport | null, ruleVersion, ocr, textLayer),
   compliance_paper: (a: unknown, b: unknown | null, ruleVersion: string, ocr: readonly OcrPage[] | null, textLayer: readonly OcrPage[] | null) =>
     compliancePaperEvidence(a as CompliancePaperBatch, b as CompliancePaperBatch | null, ruleVersion, ocr, textLayer),
+  mvr_report: (a: unknown, b: unknown | null, ruleVersion: string, ocr: readonly OcrPage[] | null, textLayer: readonly OcrPage[] | null) =>
+    mvrReportEvidence(a as MvrReport, b as MvrReport | null, ruleVersion, ocr, textLayer),
 } as const satisfies Record<
   DocumentProfileId,
   (a: unknown, b: unknown | null, ruleVersion: string, ocr: readonly OcrPage[] | null, textLayer: readonly OcrPage[] | null) => FieldEvidence[]
