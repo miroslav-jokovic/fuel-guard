@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import type { LeadSink, PlatformLead } from "@silvicom/shared";
-import type { Env } from "../../../env.js";
+import { testEnv } from "../../../testing/testEnv.js";
 import { createSupabaseRecorder, expectOrgScoped, type SupabaseRecorder } from "../../../testing/supabaseRecorder.js";
 import { postgrestFixture } from "../../../testing/postgrestFixture.js";
 import { SIMULATOR_PAGE_ID, simulatorFakeForTests, stopSimulatorForTests } from "../platforms/registry.js";
@@ -67,7 +67,7 @@ function seed(over: { status?: string; campaigns?: Array<Record<string, unknown>
   return rec;
 }
 const deps = (sink: LeadSink): BackfillDeps => ({
-  admin: rec.client as never, sink, now: () => NOW, env: {} as Env, processEnv: { NODE_ENV: "test" },
+  admin: rec.client as never, sink, now: () => NOW, env: testEnv(), processEnv: { NODE_ENV: "test" },
 });
 
 beforeAll(async () => {
