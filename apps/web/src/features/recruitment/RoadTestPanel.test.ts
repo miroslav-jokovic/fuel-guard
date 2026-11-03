@@ -186,6 +186,26 @@ describe("who may add an examiner", () => {
   });
 });
 
+/**
+ * §14 OF3 (owner, 2026-11-03: "broken layout in the drawer on large screens"). Measured in a browser at
+ * 1440 and 820: the item rows switched to two columns on `sm:` — the SCREEN's width — while they sit in a
+ * 448 px drawer, so each item was squeezed to one word per line. jsdom has no layout, so what can be pinned
+ * here is the rule the fix rests on: the rows break on the panel's own width, never the screen's.
+ */
+describe("the checklist follows the drawer's width, not the screen's (OF3)", () => {
+  it("lays every item row out by container query, with no screen breakpoint", async () => {
+    const w = mountPanel();
+    await settle(w);
+    expect(w.find(".\\@container").exists()).toBe(true);
+    const rows = w.findAll("[data-testid^=group-] li");
+    expect(rows).toHaveLength(ROAD_TEST_ITEMS.length);
+    for (const row of rows) {
+      expect(row.classes().some((c) => c.startsWith("@2xl:grid-cols"))).toBe(true);
+      expect(row.classes().some((c) => /^(sm|md|lg):/.test(c))).toBe(false);
+    }
+  });
+});
+
 describe("recording a test", () => {
   it("lets a recruiter record the test itself — only adding an examiner is the admin's", async () => {
     actAs("recruiter");

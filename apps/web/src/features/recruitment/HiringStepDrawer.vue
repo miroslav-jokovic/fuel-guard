@@ -51,8 +51,13 @@ const subtitle = computed(() =>
   props.row && props.row.state !== "done" ? props.row.lead.action : undefined,
 );
 
-/** The application's body holds the employment history table, which needs the wide drawer. */
-const wide = computed(() => props.row?.steps.some((s) => hiringDrawerBody(s.key) === "application") ?? false);
+/**
+ * The wide drawer for two bodies: the application's, which holds the employment history table, and the
+ * road test's (§14 OF3) — nine items each with a three-way rating, filled in by the examiner standing at
+ * the truck on a tablet. At the default 448 px the item and its rating cannot sit side by side.
+ */
+const WIDE_BODIES = new Set(["application", "road_test"]);
+const wide = computed(() => props.row?.steps.some((s) => WIDE_BODIES.has(hiringDrawerBody(s.key))) ?? false);
 </script>
 
 <template>

@@ -298,7 +298,11 @@ const showForm = computed(() => !props.done || adding.value);
 </script>
 
 <template>
-  <div class="space-y-6">
+  <!-- §14 OF3 (owner, 2026-11-03: "broken layout in the drawer on large screens"): every breakpoint here
+       is the DRAWER's width (`@container`), never the screen's. The rows used `sm:` — true on any
+       screen wider than 640 px — so inside a 448 px drawer on a desktop the nine items were squeezed
+       into a 60 px column beside their ratings, one word per line. Measured at 1440 and 820. -->
+  <div class="@container space-y-6">
     <section>
       <h3 class="text-sm font-semibold text-ink">On file</h3>
       <div class="mt-1">
@@ -378,7 +382,7 @@ const showForm = computed(() => !props.done || adding.value);
       </template>
 
       <div v-if="examiners.length > 0" class="space-y-5">
-        <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div class="grid grid-cols-1 gap-4 @md:grid-cols-2">
           <FormField v-slot="{ id }" label="Examiner">
             <ComboSelect :id="id" v-model="form.examinerId" :options="examinerOptions" />
           </FormField>
@@ -415,9 +419,11 @@ const showForm = computed(() => !props.done || adding.value);
           <div v-for="group in ITEM_GROUPS" :key="group.phase" :data-testid="`group-${group.phase}`">
             <h4 class="text-xs font-semibold text-ink-secondary">{{ group.label }}</h4>
             <ul class="mt-1 divide-y divide-edge border-y border-edge">
-              <li v-for="item in group.items" :key="item.key" class="grid gap-2 py-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
-                <span class="text-xs text-ink">{{ item.text }}</span>
+              <li v-for="item in group.items" :key="item.key" class="grid gap-2 py-3 @2xl:grid-cols-[minmax(0,1fr)_auto] @2xl:items-center @2xl:gap-6">
+                <span class="text-sm text-ink">{{ item.text }}</span>
+                <!-- Full width while stacked, so each rating is a wide target for a thumb on a phone. -->
                 <AppSegmentedControl
+                  class="w-full @2xl:w-auto"
                   :model-value="items[item.key] ?? ''"
                   :options="RATING_OPTIONS"
                   :label="item.text"
@@ -432,7 +438,7 @@ const showForm = computed(() => !props.done || adding.value);
              heading stands above it rather than a <label for> pointing at a div. -->
         <div>
           <h3 class="text-sm font-semibold text-ink">General performance</h3>
-          <AppSegmentedControl v-model="form.general" class="mt-1" :options="RATING_OPTIONS" label="General performance" />
+          <AppSegmentedControl v-model="form.general" class="mt-1 w-full @2xl:w-auto" :options="RATING_OPTIONS" label="General performance" />
         </div>
         <FormField v-slot="{ id }" label="Remarks" hint="Optional.">
           <AppTextarea :id="id" v-model="form.remarks" rows="2" />

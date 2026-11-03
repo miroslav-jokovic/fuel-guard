@@ -1086,3 +1086,11 @@ drawers (portal + upload) → OF6 AI MVR reader → OF7 drug-test ordering (afte
   the record page's explainer removed; the drawer opens a row and draws each half (`HiringStepBody.vue`).
   26/26 mutants killed (two survivors on the first pass — mixed us/them row state, a carrier step anchored
   on a merged half — each got a test).
+- **2026-11-03** — OF1 merged (#1955, `8b5f039`), no migration. **OF2 + OF3** built (no migration): the Part 1
+  drawer shows every picture the applicant sent (`ApplicantPhotoStrip.vue`) and opens it in `FileGallery`,
+  given a `kinds` filter (`APPLICANT_DOCUMENT_KINDS`) — read through `/api/compliance/documents`, which a
+  recruiter may read (`roster: view`) and which already withholds an SSN card's picture (Q-WF4). The road
+  test's rows break on the drawer's width (`@container`, `@2xl:`), not the screen's — measured at 1440 and 820,
+  `sm:` squeezed each item to one word per line inside a 448 px drawer — and it opens in the wide drawer.
+  Seen in a browser at 1920/1440/820/390. 12/12 mutants killed (one survivor first: no test opened the Part 1
+  drawer at all; it got one).

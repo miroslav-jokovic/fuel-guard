@@ -30,6 +30,7 @@ import MedstopTestCard from "@/features/recruitment/MedstopTestCard.vue";
 import ClearinghouseConsentPanel from "@/features/recruitment/ClearinghouseConsentPanel.vue";
 import EmployerCallsPanel from "@/features/recruitment/EmployerCallsPanel.vue";
 import SelfieCheckPanel from "@/features/recruitment/SelfieCheckPanel.vue";
+import ApplicantPhotoStrip from "@/features/recruitment/ApplicantPhotoStrip.vue";
 import { useAuthorizationsQuery } from "@/features/recruitment/useAuthorizations";
 
 /**
@@ -58,8 +59,9 @@ const props = defineProps<{
   /** The live invitation, resolved by the page. Null before one exists. */
   invitationId: string | null;
   /** The driver row's date of birth and licence (AF3), read by the page; null while it loads. */
-  identity?: { date_of_birth?: string | null; cdl_number?: string | null; cdl_state?: string | null } | null;
+  identity?: { date_of_birth?: string | null; cdl_number?: string | null; cdl_state?: string | null; full_name?: string | null } | null;
 }>();
+const fullName = computed(() => props.identity?.full_name ?? null);
 
 // `orderTest` (UX4): the drug-test step's Med-Stop card asks for the order drawer, which the page
 // opens in place of this one — for the reason `review` is emitted rather than opened here.
@@ -155,7 +157,7 @@ const authorizationsQ = useAuthorizationsQuery(driverId);
     <template v-else-if="body === 'intake'">
       <p class="text-xs text-ink-secondary">
         The applicant fills in Part 1 on their link: who they are, their address, their licences and
-        photos. Check their photo against their licence below.
+        photos. Check their photo against their licence, and read what they sent, below.
       </p>
       <ApplicationInviteCard
         :driver-id="driverId"
@@ -164,6 +166,8 @@ const authorizationsQ = useAuthorizationsQuery(driverId);
       />
       <!-- AW6 (§6.7): the one thing the office DOES on Part 1 — look at the selfie beside the licence. -->
       <SelfieCheckPanel :driver-id="driverId" />
+      <!-- §14 D-OF6: every picture they sent, in the trucks' and trailers' gallery. -->
+      <ApplicantPhotoStrip :driver-id="driverId" :full-name="fullName ?? 'Applicant'" />
     </template>
 
     <template v-else-if="body === 'authorizations'">
