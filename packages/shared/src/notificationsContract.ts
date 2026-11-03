@@ -128,7 +128,7 @@ export const NOTIFICATION_CATEGORIES = [
    * An ad we decided must stop (kill switch, Pause, auto-pause, a launch that failed part-way) that the
    * platform has not paused after repeated attempts, so it may still be spending (2026-11-03 audit H2).
    * Sent critical: it asks a person to pause it in the platform's own tool. Mirrored in the
-   * CHECK (0556); nothing writes it until the alert sender's merge.
+   * CHECK (0559); nothing writes it until the alert sender's merge.
    */
   "ads_pause_failed",
   /**

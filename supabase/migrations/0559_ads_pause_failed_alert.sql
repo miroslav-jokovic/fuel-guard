@@ -1,4 +1,4 @@
--- 0556 — one more ads alert: an ad we tried to pause that is still not paused (2026-11-03 audit of the
+-- 0559 — one more ads alert: an ad we tried to pause that is still not paused (2026-11-03 audit of the
 -- ads and lead path, finding H2; ADS-AGENT-BUILD-WORKFLOW.md progress log, "audit fixes B").
 --
 -- ── WHAT GAP ───────────────────────────────────────────────────────────────────────────────────
@@ -13,7 +13,8 @@
 -- ── THE SHAPE ──────────────────────────────────────────────────────────────────────────────────
 -- 0537 §12's CHECK restated whole, plus `ads_pause_failed`. `NOTIFICATION_CATEGORIES` gains it in the
 -- same PR; nothing writes it until the next merge (the alert sender), so the CHECK widens before any
--- writer exists — 0521's and 0537's order.
+-- writer exists — 0521's and 0537's order. Numbered 0559, not the 0556 it was written as: 0557 and 0558
+-- merged while it was open, and `supabase db push` refuses a migration older than the newest applied.
 --
 -- cross-module-waiver: restates messaging's `notification_events` category CHECK to add one ads
 -- category, as every new category has (0521 for chat, 0537 for ads); the contract moves with it.
