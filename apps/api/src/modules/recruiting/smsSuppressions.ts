@@ -10,9 +10,11 @@ import type { SupabaseClient } from "@supabase/supabase-js";
  * suppression is the number's own record: a STOP writes it, START lifts it, and every send path asks
  * it before anything else (`isSuppressed`).
  *
- * ── ONLY THE KEYWORD WRITES ONE ───────────────────────────────────────────────────────────────
- * Turning texts off on the application page revokes the consent and writes no suppression, and turning
- * them back on there works. The two roads mirror each other: what was said by text is undone by text
+ * ── THE KEYWORD, AND THE OFFICE'S HOLD ─────────────────────────────────────────────────────────
+ * A STOP writes one (`stop`), and since 2026-11-03 so does a recruiter recording that a lead asked not to
+ * be contacted (`manual`, `leads/doNotContact.ts`; lead-path audit H3). The office lifts its own hold;
+ * a STOP is lifted only by the person's START. Turning texts off on the application page revokes the
+ * consent and writes no suppression, and turning them back on there works. The two roads mirror each other: what was said by text is undone by text
  * (START), what was pressed on the page is undone on the page. Whether the toll-free network also
  * keeps its own STOP list, and refuses our texts until START, is unmeasured (SMS-OPT-IN-PLAN §7) — if it
  * does, this table agrees with it; if it does not, this table is the only list there is.
@@ -22,7 +24,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
  * `handleInboundSms` uses for the consents.
  */
 
-/** 0376's reasons. Only `stop` has a writer today; the others wait for theirs (receipts, the office). */
+/** 0376's reasons. `stop` and `manual` (the office's hold) have writers; the others wait for theirs (receipts). */
 export type SuppressionReason = "stop" | "carrier_block" | "invalid" | "manual";
 
 /** Is this number suppressed for this org? Asked by every send path, and by agreeing (C2d2). */
@@ -85,4 +87,32 @@ export async function liftStopSuppressions(admin: SupabaseClient, phone: string,
     lifted += ((rows ?? []) as unknown[]).length;
   }
   return lifted;
+}
+
+/** Which of these numbers are suppressed for this org now, any reason — one read for a page of the lead queue. */
+export async function suppressedPhones(admin: SupabaseClient, orgId: string, phones: readonly string[]): Promise<Set<string>> {
+  const wanted = [...new Set(phones.filter((p) => p))];
+  if (wanted.length === 0) return new Set();
+  const { data, error } = await admin
+    .from("sms_suppressions")
+    .select("phone")
+    .eq("org_id", orgId)
+    .in("phone", wanted)
+    .is("lifted_at", null);
+  if (error) throw new Error(`could not read suppressions: ${error.message}`);
+  return new Set(((data ?? []) as Array<{ phone: string }>).map((r) => r.phone));
+}
+
+/** The office lifts its own hold on a number. A STOP on it stays: only the person's START lifts that. */
+export async function liftManualSuppression(admin: SupabaseClient, orgId: string, phone: string, now: Date): Promise<number> {
+  const { data, error } = await admin
+    .from("sms_suppressions")
+    .update({ lifted_at: now.toISOString() })
+    .eq("org_id", orgId)
+    .eq("phone", phone)
+    .eq("reason", "manual")
+    .is("lifted_at", null)
+    .select("id");
+  if (error) throw new Error(`could not lift the hold: ${error.message}`);
+  return ((data ?? []) as unknown[]).length;
 }
