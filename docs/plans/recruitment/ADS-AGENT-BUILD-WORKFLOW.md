@@ -826,3 +826,9 @@ blocking step in §3 above.
     under the fake.
   - 20 mutants, all killed (two survived the first run as fixture gaps).
   - **D1c2** (next): the profile and opening save routes, plus `GET` for both.
+- **2026-11-03, D1c2 — hiring profiles and openings can be saved** (closes the D0 gap: G4's first opening
+  had nowhere to go). `GET/POST /api/recruitment/hiring-profiles` (the list carries the owner's v1 as
+  `defaults`), `GET/POST /api/recruitment/openings`, and `POST /openings/:id/status`. Every save is the
+  next version through 0554, in the session's name; view reads, manage writes. 16 mutants, all killed.
+  **D1 is complete.** Next: B4a (the hourly backfill → `recruitingLeadSink`), then B4b (the webhook,
+  fail-closed until the owner's `META_APP_SECRET`).

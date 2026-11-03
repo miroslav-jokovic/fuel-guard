@@ -586,6 +586,9 @@
   "recruiting_message_wording": [
     "apps/api/src/modules/recruiting/messageWording.ts"
   ],
+  "recruiting_openings": [
+    "apps/api/src/modules/recruiting/leads/hiringSetup.ts"
+  ],
   "recruiting_settings": [
     "apps/api/src/modules/recruiting/recruitingSettings.ts"
   ],
