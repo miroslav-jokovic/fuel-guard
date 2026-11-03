@@ -112,14 +112,8 @@ const WAIVERS = new Map([
   // recruiting_message_wording (0551, HIRING-WORKFLOW-AUDIT-2026-10-31 §12 MT1) left on 2026-11-02 in MT2:
   // recruiting/messageWording.ts writes it behind Settings → Recruiting's "Messages". Pinned for the
   // schema-only first PR only.
-  // Ads D0 (0553): recruiting's lead tables ship schema-only — a migration and its first reader never share a
-  // merge. recruiting_leads, recruiting_contacts, lead_match_verdicts and lead_conversions need no entry: 0553's own
-  // `purge_applicant` deletes from them (D1 writes all four). The profile and opening saves are owed by D1
-  // too (the AdBriefSource reads them) — recorded in the workflow's progress log, 2026-11-03.
-  ["hiring_profiles", "ADS-AGENT-BUILD-WORKFLOW.md D1 — recruiting/leads saves the hiring profile (schema-only D0, 0553)"],
-  ["hiring_profile_versions", "ADS-AGENT-BUILD-WORKFLOW.md D1 — recruiting/leads saves each profile version (schema-only D0, 0553)"],
-  ["recruiting_openings", "ADS-AGENT-BUILD-WORKFLOW.md D1 — recruiting/leads saves the opening (schema-only D0, 0553)"],
-  ["recruiting_opening_versions", "ADS-AGENT-BUILD-WORKFLOW.md D1 — recruiting/leads saves each opening version (schema-only D0, 0553)"],
+  // Ads D0 (0553)'s four profile and opening tables left on 2026-11-03 in D1a (0554): `save_hiring_profile_version`
+  // and `save_opening_version` write them. Their API caller follows in D1c.
 ]);
 
 const files = readdirSync(MIGRATIONS).filter((f) => f.endsWith(".sql")).sort();
