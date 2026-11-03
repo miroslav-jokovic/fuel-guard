@@ -66,11 +66,21 @@ const contactOf = (answers: Record<string, string>) => ({
   email: answers.email ?? null,
 });
 
+/**
+ * The opening a recruiting brief names. An ads campaign freezes its brief as `<opening id>@v<version>`
+ * (0537's `ads_campaigns.brief_ref`: "e.g. 'recruiting_opening' + '<id>@v<version>'"), so the id is what
+ * comes before the `@`; a bare id is accepted too. Anything else names no opening — never a guess.
+ */
+export function openingOfBrief(briefSource: string | null, briefRef: string | null): string | null {
+  if (briefSource !== OPENING_BRIEF_SOURCE || !briefRef) return null;
+  const m = /^([^@]+)(?:@v[1-9]\d{0,5})?$/.exec(briefRef);
+  return m && isRecordId(m[1]) ? m[1]! : null;
+}
+
 /** What `LeadSink.accept` stores for one platform lead. Pure: the caller adds nothing but the org. */
 export function leadFromPlatform(lead: PlatformLead): LeadProjection {
   const c = contactOf(lead.answers);
-  const opening =
-    lead.brief_source === OPENING_BRIEF_SOURCE && lead.brief_ref && isRecordId(lead.brief_ref) ? lead.brief_ref : null;
+  const opening = openingOfBrief(lead.brief_source, lead.brief_ref);
   return {
     channel: lead.provider,
     external_ref: lead.platform_lead_ref,

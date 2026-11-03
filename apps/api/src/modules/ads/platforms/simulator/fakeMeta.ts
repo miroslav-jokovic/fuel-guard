@@ -3,6 +3,7 @@ import type { AddressInfo } from "node:net";
 import { META_GRAPH_VERSION } from "../meta/graphClient.js";
 import { FakeAdSets } from "./fakeMetaAdSets.js";
 import { FakeForms } from "./fakeMetaForms.js";
+import { FakeLeads } from "./fakeMetaLeads.js";
 import { FakeRules } from "./fakeMetaRules.js";
 import { graphError, pick } from "./fakeMetaShapes.js";
 
@@ -54,7 +55,7 @@ import { graphError, pick } from "./fakeMetaShapes.js";
  *   https://developers.facebook.com/docs/marketing-api/audiences/reference/basic-targeting/
  *
  * ── NOT HERE YET, ON PURPOSE ───────────────────────────────────────────────────────────────────────
- * Instant Forms live in `fakeMetaForms.ts` (B2b), Automated Rules in `fakeMetaRules.ts` (B3b). Ads and creatives (B2c), leads + the signed `leadgen` webhook (B4), insights (B5). Each joins
+ * Instant Forms live in `fakeMetaForms.ts` (B2b), Automated Rules in `fakeMetaRules.ts` (B3b). Leads in `fakeMetaLeads.ts` (B4a). Ads and creatives (B2c), the signed `leadgen` webhook (B4b), insights (B5). Each joins
  * with the step that first calls it, so every endpoint here has a caller whose contract test reads it.
  *
  * In-memory: a simulator restart forgets every campaign. That is the simulator being honest about
@@ -147,6 +148,8 @@ export class FakeMeta {
   readonly sets: FakeAdSets;
   /** Instant Forms (B2b), made and read with a Page's token. */
   readonly forms: FakeForms;
+  /** The leads a form collected (B4a), read with the form's Page token, in `fakeMetaLeads.ts`. */
+  readonly leads: FakeLeads;
   /** Automated Rules (B3b), in `fakeMetaRules.ts`. */
   readonly rules: FakeRules;
   private revoked = false;
@@ -167,6 +170,7 @@ export class FakeMeta {
     this.permissions = { ...(opts.permissions ?? Object.fromEntries(DEFAULT_PERMISSIONS.map((p) => [p, "granted" as const]))) };
     this.pages = (opts.pages ?? []).map((p) => ({ ...p, tasks: [...p.tasks] }));
     this.forms = new FakeForms(() => String(this.nextId++), () => this.traceId());
+    this.leads = new FakeLeads(() => String(this.nextId++), () => this.traceId());
     this.rules = new FakeRules(() => String(this.nextId++), () => this.traceId());
     this.sets = new FakeAdSets(() => String(this.nextId++), () => this.traceId(), (id) => this.campaigns.get(id));
   }
@@ -244,7 +248,8 @@ export class FakeMeta {
   /** A Page's edges and its forms answer only that Page's token (Lead Ads guide); everything else the user's. */
   private expectedToken(path: string): string | undefined {
     const [head, edge] = path.split("/");
-    const pageId = edge === "leadgen_forms" ? head : edge === undefined ? this.forms.pageOf(head ?? "") : null;
+    const pageId = edge === "leadgen_forms" ? head
+      : edge === undefined || edge === "leads" ? this.forms.pageOf(head ?? "") : null;
     if (!pageId) return this.token;
     const page = this.pages.find((p) => p.id === pageId);
     return page && !this.revoked ? page.access_token : undefined;
@@ -277,6 +282,11 @@ export class FakeMeta {
     if (adsets && method === "POST") return this.accounts.has(adsets[1]!) ? this.sets.create(adsets[1]!, body) : graphError(400, 100, "OAuthException", "(#100) Ad account does not exist", this.traceId());
     const children = /^(\d+)\/adsets$/.exec(path);
     if (children && method === "GET") return this.list([...this.sets.adsets.values()].filter((a) => a.campaign_id === children[1]), body);
+    const formLeads = /^(\d+)\/leads$/.exec(path);
+    if (formLeads && method === "GET") {
+      return this.forms.pageOf(formLeads[1]!) ? this.leads.list(formLeads[1]!, body)
+        : graphError(400, 100, "GraphMethodException", `Unsupported get request. Object with ID '${formLeads[1]}' does not exist.`, this.traceId(), 33);
+    }
     const pageForms = /^(\d+)\/leadgen_forms$/.exec(path);
     if (pageForms && method === "POST") return this.forms.create(pageForms[1]!, body);
     if (pageForms && method === "GET") return this.forms.list(pageForms[1]!, body.fields);
