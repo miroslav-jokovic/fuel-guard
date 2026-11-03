@@ -49,6 +49,16 @@ export const HIDEABLE_HIRING_STEPS: readonly HiringStepKey[] =
 export const CARRIER_STEP_ANCHORS: readonly HiringStepKey[] =
   HIRING_STEPS.filter((s) => s.key !== "hired").map((s) => s.key);
 
+/**
+ * §14 D-OF1: what the Settings screen OFFERS — rows only. The two lists above stay whole because they are
+ * also the PUT schema's enums, and a carrier whose stored settings name a step that §14 took off the list
+ * (live orientation) or drew inside another row (the medical card) must still be able to save them.
+ */
+export const HIDEABLE_ROW_STEPS: readonly HiringStepKey[] =
+  HIDEABLE_HIRING_STEPS.filter((k) => HIRING_STEPS.some((s) => s.key === k && s.listed !== false && !s.shownIn));
+export const CARRIER_STEP_ANCHOR_ROWS: readonly HiringStepKey[] =
+  CARRIER_STEP_ANCHORS.filter((k) => HIRING_STEPS.some((s) => s.key === k && s.listed !== false && !s.shownIn));
+
 /** The keys a stored hidden list may hold that the checklist will honour — anything else is ignored. */
 export function hiddenHiringSteps(stored: readonly string[] | null | undefined): Set<HiringStepKey> {
   const allowed = new Set<string>(HIDEABLE_HIRING_STEPS);

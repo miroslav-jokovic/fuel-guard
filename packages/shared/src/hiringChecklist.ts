@@ -13,6 +13,8 @@ import {
 // The input's shape lives next door since C2b2 (2026-09-26), split at the 450-line warning along the
 // line between what the fold is GIVEN and what it DECIDES; re-exported so no import path changed.
 import { hiddenHiringSteps } from "./carrierStepsContract.js";
+import { hiringChecklistRows, nextStepOf, type HiringChecklistRow } from "./hiringChecklistRows.js";
+export * from "./hiringChecklistRows.js";
 import { carrierChecklistRows, carrierHireBlockers, type CarrierChecklistRow } from "./hiringCarrierSteps.js";
 export * from "./hiringCarrierSteps.js";
 export type { HiringChecklistInputs } from "./hiringChecklistInputs.js";
@@ -139,6 +141,8 @@ export interface HiringReadiness {
 export interface HiringChecklist {
   /** Only the measurable steps, in D-HM9's order. Completed ones stay — the count must not renumber. */
   steps: HiringStep[];
+  /** §14 D-OF1: the steps as the office reads them — merged pairs as one row, unlisted steps left out. */
+  rows: HiringChecklistRow[];
   done: number;
   total: number;
   /** Every `beforeTravel` step: the gate on the plane ticket, the list booking it warns on (`TRAVEL_WARNS_ON`, §9 P4). */
@@ -428,32 +432,29 @@ export function hiringChecklist(input: HiringChecklistInputs): HiringChecklist {
     });
   }
 
-  // The one action to lead with (the mockup's "Next: order the MVR"): the first step in D-HM9's own
-  // order that is neither done nor waiting on a predecessor.
-  //
-  // ⚠ **Not "the first thing the office owes", which is what this did first and it was wrong in a
-  // way worth keeping written down.** The Clearinghouse query has no in-product prerequisite — its
-  // consent is given in FMCSA's portal — so "the office's own move first" nominated *run the
-  // Clearinghouse query* for an applicant who had been sent a link and had signed nothing. That is a
-  // query the carrier pays for, against a §382.701(a) gate, on somebody who may never apply. The
-  // process order already encodes when a step is worth doing; reading it is both simpler and the
-  // only one of the two that cannot recommend spending money on a stranger.
-  const next = steps.find((s) => s.state !== "done" && s.state !== "blocked")?.key ?? null;
-  const carrierSteps = carrierChecklistRows(input.carrierSteps, steps.map((s) => s.key));
+  // The one action to lead with: the first row in the owner's order neither done nor waiting on a
+  // predecessor (`nextStepOf`). ⚠ Never "the first thing the office owes": the Clearinghouse query has no
+  // in-product prerequisite, so that rule nominated a paid §382.701(a) query for an applicant who had
+  // signed nothing. The order already encodes when a step is worth doing, and cannot recommend spending
+  // money on a stranger. ⚠ Read over ROWS since §14: an unlisted step is never "Next" (D-OF3).
+  const rows = hiringChecklistRows(steps);
+  const next = nextStepOf(rows);
+  const carrierSteps = carrierChecklistRows(input.carrierSteps, steps.filter((s) => s.listed !== false).map((s) => s.key));
   const hireReady = readiness(steps, (s) => hireRequires.includes(s.key), input);
   const carrierOutstanding = carrierHireBlockers({ carrierSteps }).map((s) => s.id);
 
   return {
     steps,
-    // §10 CE2: the count is the carrier's whole checklist, its own steps included.
-    done: steps.filter((s) => s.state === "done").length + carrierSteps.filter((s) => s.state === "done").length,
-    total: steps.length + carrierSteps.length,
+    rows,
+    // §10 CE2: the count is the carrier's whole checklist, its own steps included — in ROWS (§14).
+    done: rows.filter((r) => r.state === "done").length + carrierSteps.filter((s) => s.state === "done").length,
+    total: rows.length + carrierSteps.length,
     readyToTravel: readiness(steps, (s) => s.beforeTravel, input),
     // ⚠ G-11: the ONE definition — what the hire refuses without. This read every step but `hired`
     // until 2026-09-26, which put the unbuilt orientation rows in range, so `ok` could never be true
     // for anybody; it had no caller, and the hire refused on a different list.
     readyToHire: { ...hireReady, ok: hireReady.ok && carrierOutstanding.length === 0, carrierOutstanding },
-    unbuilt: HIRING_STEPS.filter((s) => s.evidence === null && !hidden.has(s.key)).map((s) => s.key),
+    unbuilt: HIRING_STEPS.filter((s) => s.evidence === null && s.listed !== false && !hidden.has(s.key)).map((s) => s.key),
     unconfigured: HIRING_STEPS.filter((s) => s.evidence !== null && !hidden.has(s.key) && !measuredFor(s, input)).map((s) => s.key),
     next,
     carrierSteps,

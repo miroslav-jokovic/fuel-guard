@@ -282,7 +282,7 @@ describe("the office sends the application", () => {
     const res = await send();
     expect(res.status).toBe(201);
     // §7: the medical certificate is screening now (Part 1 brings the card), so Send names it too.
-    expect(((await res.json()) as { warnings: string[] }).warnings).toEqual(["psp", "clearinghouse", "medical_certificate"]);
+    expect(((await res.json()) as { warnings: string[] }).warnings).toEqual(["medical_certificate", "psp", "clearinghouse"]); // §14: catalogue order
   });
 
   it("warns about nothing once screening is done", async () => {

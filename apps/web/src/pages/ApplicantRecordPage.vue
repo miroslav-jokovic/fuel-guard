@@ -2,10 +2,9 @@
 import { computed, ref, watch } from "vue";
 import { useRoute } from "vue-router";
 import { useQuery } from "@tanstack/vue-query";
-import type { Driver, HiringStepKey } from "@silvicom/shared";
+import { rowOfStep, type Driver, type HiringStepKey } from "@silvicom/shared";
 import { supabase } from "@/lib/supabase";
 import PageHeader from "@/components/ui/PageHeader.vue";
-import ExplainerPanel from "@/components/ui/ExplainerPanel.vue";
 import { QueryState, NotFoundError, isNotFound } from "@silvicom/ui";
 import DispositionSection from "@/features/recruitment/DispositionSection.vue";
 import ApplicantDocumentsSection from "@/features/recruitment/ApplicantDocumentsSection.vue";
@@ -102,11 +101,16 @@ const missing = computed(() => isNotFound(driverQ.error.value));
  * ⚠ Null is closed. There is no "which drawer" state beside this, and the drawer closes by itself
  * if the fold ever stops emitting the step — which is the honest response to a row that no longer
  * exists, rather than a panel describing something the server no longer reports.
+ *
+ * ⚠ §14 (D-OF2): the drawer opens a ROW, and the key held here may name either half of one — a
+ * `?step=medical_certificate` link from the close drawer opens the driving-record row that holds it.
+ * An unlisted step (previous employers, D-OF3) is in no row, so its link opens nothing.
  */
 const openStepKey = ref<HiringStepKey | null>(null);
-const openStep = computed(
-  () => checklistQ.data.value?.steps.find((s) => s.key === openStepKey.value) ?? null,
-);
+const openRowOf = computed(() => {
+  const c = checklistQ.data.value;
+  return c && openStepKey.value ? rowOfStep(c.rows ?? [], openStepKey.value) : null;
+});
 const reviewing = ref<string | null>(null);
 
 /**
@@ -146,6 +150,7 @@ watch(
   { immediate: true },
 );
 function openRow(step: { key: HiringStepKey; state: string }): void {
+  // §14 D-OF5: the "Application closed" row — the close drawer, for anybody who may close it.
   if (step.key === "hired" && canHire.value && step.state !== "done") {
     openStepKey.value = null;
     hiring.value = true;
@@ -166,7 +171,7 @@ function openOrder(medstopId: string): void {
   <div class="space-y-6">
     <PageHeader
       :title="driver?.full_name ?? 'Applicant'"
-      description="Everything needed before this driver can be hired, and who owes the next move."
+      description="Everything needed before this application can be closed, and who owes the next move."
     />
 
     <!-- The applicant's own read: loading, failure with a Retry, or the not-found answer that
@@ -198,26 +203,8 @@ function openOrder(medstopId: string): void {
         @open-carrier="openStepKey = null; openCarrierId = $event.id"
       />
 
-      <!-- ⚠ Collapsed, and below the work. D-HUI3's rule that a row answers three questions only
-           holds if the caveats have somewhere else to be; a page that explains itself in front of the
-           work is the surface this rebuild replaced. -->
-      <ExplainerPanel title="How this checklist is worked out">
-        <p>
-          Every row is derived from the records on file — an authorization, a qualification record, a
-          packet mark — rather than from a box somebody ticked. Recording the evidence is what moves a
-          step; there is nothing to mark as done.
-        </p>
-        <p>
-          A step only appears when this system holds something that can prove it. Orientation videos,
-          the orientation day and the handbook are part of the process and are not listed yet, which is
-          why “ready to travel” stays open even when every row above is green.
-        </p>
-        <!-- §9 P4 (HIRING-WORKFLOW-AUDIT §4.1): the sentence the product now makes true. -->
-        <p>
-          Every step can be done in any order. Hiring waits for the six federal checks; the MVR and PSP
-          wait for the applicant's consent.
-        </p>
-      </ExplainerPanel>
+      <!-- §14 D-OF7 (owner, 2026-11-03): the "How this checklist is worked out" panel is gone — the
+           rows say what each step needs, and the office did not read the panel. -->
 
       <!-- §9 P9: the applicant's papers, and the office's upload beside them. -->
       <ApplicantDocumentsSection :driver-id="id" />
@@ -227,8 +214,8 @@ function openOrder(medstopId: string): void {
       <DispositionSection :driver-id="id" :driver-status="driver?.status ?? ''" />
 
       <HiringStepDrawer
-        :open="openStep !== null"
-        :step="openStep"
+        :open="openRowOf !== null"
+        :row="openRowOf"
         :driver-id="id"
         :driver-status="driver?.status ?? ''"
         :invitation-id="invitationId"

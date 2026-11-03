@@ -111,6 +111,7 @@ describe("what comes back", () => {
       ok: boolean;
       checklist: {
         steps: Array<{ key: string; state: string }>;
+        rows: Array<{ key: string; state: string }>;
         done: number;
         total: number;
         readyToTravel: { ok: boolean; unmeasured: string[]; outstanding: string[] };
@@ -121,7 +122,9 @@ describe("what comes back", () => {
       };
     };
     expect(body.ok).toBe(true);
-    expect(body.checklist.steps.length).toBe(body.checklist.total);
+    // §14 D-OF1: the count is the office's rows, which the response carries beside the steps.
+    expect(body.checklist.rows.length).toBe(body.checklist.total);
+    expect(body.checklist.steps.length).toBeGreaterThan(body.checklist.rows.length);
     expect(body.checklist.done).toBe(0);
     expect(body.checklist.next).toBe("invitation_sent");
     // ⚠ The readiness answer names what is outstanding rather than quietly saying no — the one thing
@@ -130,7 +133,7 @@ describe("what comes back", () => {
     expect(body.checklist.readyToTravel.outstanding).toContain("intake_completed");
     // §7 (Q-AW23's default): the unbuilt orientation day left both ranges and is named instead; HW8a
     // (0539): the videos are built, and a carrier with no required video is told to add them.
-    expect(body.checklist.unbuilt).toEqual(["live_orientation"]);
+    expect(body.checklist.unbuilt).toEqual([]); // §14 D-OF3: the live orientation day is off the list
     expect(body.checklist.unconfigured).toEqual(["orientation_videos"]);
   });
 

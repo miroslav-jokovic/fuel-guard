@@ -176,6 +176,8 @@ describe("the board row is the fold's answer, projected", () => {
     const rec = seed({
       qualification_records: [
         { driver_id: driverId(1), kind: "mvr", created_at: "2026-09-04T00:00:00Z" },
+        // §14 D-OF2: the medical card shares the driving record's row, so both are filed to move past it.
+        { driver_id: driverId(1), kind: "medical_registry_verification", created_at: "2026-09-04T00:00:00Z" },
       ],
       psp_requests: [{ id: "psp-1", driver_id: driverId(1) }],
     });
@@ -191,6 +193,8 @@ describe("the board row is the fold's answer, projected", () => {
     const rec = seed({
       qualification_records: [
         { driver_id: driverId(1), kind: "mvr", created_at: "2026-09-04T00:00:00Z" },
+        // §14 D-OF2: the medical card shares the driving record's row, so both are filed to move past it.
+        { driver_id: driverId(1), kind: "medical_registry_verification", created_at: "2026-09-04T00:00:00Z" },
       ],
       psp_requests: [],
     });

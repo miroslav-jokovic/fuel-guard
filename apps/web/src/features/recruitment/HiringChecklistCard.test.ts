@@ -102,10 +102,12 @@ describe("a row answers D-HUI3's three questions", () => {
    * product shows a signed authorization (Q-HUI6), and a row that says "Authorizations" and opens
    * the wrong document is worse than one that does not open.
    */
+  // §14 D-OF2: the permissions are drawn inside the Part 1 row, whose artifact is Part 1 — on this page.
   it("states an artifact it cannot reach, without inventing a destination for it", async () => {
     const wrapper = await mountWith(COMPLETE);
-    expect(wrapper.text()).toContain("Authorizations");
-    expect(wrapper.findAll("a").some((a) => a.text().includes("Authorizations"))).toBe(false);
+    const row = wrapper.findAll("li").find((li) => li.text().includes("Part 1 finished"))!;
+    expect(row.text()).toContain("Part 1");
+    expect(row.findAll("a")).toHaveLength(0);
   });
 
   /** ⚠ The artifact is null until the step is done — showing it early names a proof that is not there. */
@@ -134,7 +136,28 @@ describe("a row answers D-HUI3's three questions", () => {
       mvrs: [{ jurisdiction: "IL", occurredOn: "2026-09-10" }],
     });
     const row = wrapper.findAll("li").find((li) => li.text().includes("Driving record"))!;
+    // §14: the medical card is in this row and done, so the MVR leads and its missing state is named.
     expect(row.text()).toContain("Still needed from: Indiana BMV");
+    expect(row.text()).not.toContain("MVR report");
+  });
+});
+
+/** §14 D-OF1/D-OF2 (owner, 2026-11-03): the office reads one row per act. */
+describe("the owner's rows", () => {
+  it("draws Part 1 with its permissions, the driving record with the medical card, the application with its approval", async () => {
+    const wrapper = await mountWith(COMPLETE);
+    const labels = wrapper.findAll("li").map((li) => li.find("button span span").text());
+    expect(labels).not.toContain("Permissions signed");
+    expect(labels).not.toContain("Medical certificate verified");
+    expect(labels).not.toContain("Office approved it");
+    expect(labels).not.toContain("Previous employers checked");
+    expect(labels.at(-1)).toBe("Application closed");
+  });
+
+  it("names the half that is left when one half of a row is done", async () => {
+    const wrapper = await mountWith({ ...COMPLETE, qualificationKinds: ["mvr", "clearinghouse_full", "drug_test", "road_test"] });
+    const row = wrapper.findAll("li").find((li) => li.text().includes("Driving record"))!;
+    expect(row.text()).toContain("Still to do: Medical certificate verified");
     expect(row.text()).not.toContain("MVR report");
   });
 });
@@ -169,10 +192,10 @@ describe("state is never colour alone (D-HUI4)", () => {
     const wrapper = await mountWith(JUST_INVITED);
     const loud = wrapper.findAll("li").filter((row) => row.html().includes("bg-warning-50"));
     // §9 P4: since only the hire, the MVR and PSP are blocked, more rows are the office's move on a
-    // just-invited applicant — the loud rows are exactly those, by label, and the blocked MVR is not.
-    const ours = hiringChecklist(JUST_INVITED).steps.filter((st) => st.state === "waiting_on_us").map((st) => st.label);
-    expect(ours).toContain("Medical certificate verified");
-    expect(ours).not.toContain("Driving record");
+    // just-invited applicant — the loud rows are exactly those, by label. §14 D-OF2: the driving-record
+    // row holds the blocked MVR AND the medical card the office can check now, so it is the office's.
+    const ours = hiringChecklist(JUST_INVITED).rows.filter((r) => r.state === "waiting_on_us").map((r) => r.label);
+    expect(ours).toContain("Driving record");
     expect(loud.map((row) => row.text())).toEqual(ours.map((label) => expect.stringContaining(label)));
   });
 });
@@ -190,7 +213,7 @@ describe("the row is where the work starts (B6)", () => {
     const emitted = wrapper.emitted("open");
     expect(emitted).toHaveLength(1);
     expect((emitted![0]![0] as { key: string }).key).toBe(
-      hiringChecklist(JUST_INVITED).steps[4]!.key,
+      hiringChecklist(JUST_INVITED).rows[4]!.key,
     );
   });
 
@@ -227,7 +250,7 @@ describe("the header and the summary", () => {
    * ⚠ Progress is a percentage of STEPS and the count never renumbers under somebody — completed
    * steps stay counted rather than being filtered out (`usePacketCeremony`'s ruling).
    */
-  it("counts steps, keeps the completed ones, and says the count in words", async () => {
+  it("counts rows, keeps the completed ones, and says the count in words", async () => {
     const wrapper = await mountWith(COMPLETE);
     const c = hiringChecklist(COMPLETE);
     expect(wrapper.text()).toContain(`${c.done} of ${c.total} done`);
@@ -266,11 +289,12 @@ describe("the header and the summary", () => {
    * recorded. They left the range (Q-AW23's default). What must not change is that they do not
    * vanish: a step nobody can tick is named on screen, never swallowed.
    */
-  it("calls a screened applicant ready to travel, and still names the steps not built yet", async () => {
+  // §14 D-OF3: the live orientation day is off the owner's list, so nothing is "not built yet" any more.
+  it("calls a screened applicant ready to travel, and names no unlisted step as not built", async () => {
     const wrapper = await mountWith(COMPLETE);
     expect(hiringChecklist(COMPLETE).readyToTravel.ok).toBe(true);
     expect(wrapper.text()).toContain("Everything before the office day is done.");
-    expect(wrapper.text()).toContain("Not built yet: Live orientation.");
+    expect(wrapper.text()).not.toContain("Not built yet");
     // HW8a: the videos are built; a carrier with no required video is told where to set them up.
     expect(wrapper.get('[data-testid="unconfigured-steps"]').text()).toContain("Orientation videos: not set up yet.");
     expect(wrapper.text()).toContain("Settings → Recruiting");

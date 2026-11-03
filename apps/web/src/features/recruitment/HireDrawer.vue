@@ -22,6 +22,12 @@ import { useApplicantChecklistQuery } from "@/features/recruitment/useApplicantC
  * and the person hiring is the only one who will notice in time. So the preview is not a summary of
  * what will happen; it is a list of what to go and fix first.
  *
+ * ── "CLOSE APPLICATION" SINCE §14 (D-OF5, owner 2026-11-03) ─────────────────────────────────────
+ * The carrier hires in McLeod, so the words are the office's: closing the application. The act is the
+ * same one and has to be: McLeod's roster sweep HOLDS a driver it matches to an applicant
+ * (`rosterMatch.ts`, RL1) until this turns the row into a driver, and then links McLeod's driver to it —
+ * so the PSP, the MVR, the scans and the signed papers stay with the person.
+ *
  * Nothing here blocks the hire. The carrier hired somebody; a product that refuses to write that
  * down does not prevent it, it just stops describing reality, and the driver would then have no
  * qualification file at all rather than one with a named gap.
@@ -75,33 +81,34 @@ async function submit(): Promise<void> {
   try {
     const result = await hire.mutateAsync({ driver_id: props.driverId, hire_date: hireDate.value });
     toast.success(
-      `${props.fullName} is on the roster`,
+      `${props.fullName}'s application is closed`,
       result.filed > 0
         ? `${result.filed} previous-employer record${result.filed === 1 ? "" : "s"} filed into their qualification file.`
-        : "Their qualification file is open. Nothing was carried over.",
+        : "They are on the roster with their qualification file. Nothing was carried over.",
     );
     emit("close");
   } catch (e) {
-    toast.error("Could not record the hire", e instanceof Error ? e.message : undefined);
+    toast.error("Could not close the application", e instanceof Error ? e.message : undefined);
   }
 }
 </script>
 
 <template>
-  <SlideOver :open="open" size="lg" :title="`Hire ${fullName}`" @close="emit('close')">
+  <SlideOver :open="open" size="lg" :title="`Close ${fullName}'s application`" @close="emit('close')">
     <div class="space-y-6">
       <p class="text-sm text-ink-muted">
-        Hiring puts them on the roster and opens their qualification file, with the employer
-        inquiries you have recorded. Everything they signed is already in it.
+        Hire them in McLeod as usual. Closing the application here puts them on the roster with their
+        qualification file, so the driver McLeod sends over links to it. Everything they signed is
+        already in it.
       </p>
 
-      <FormField v-slot="{ id }" label="Hire date" hint="The three-year employment window is measured back from this date.">
+      <FormField v-slot="{ id }" label="First day" hint="The day they start. The three-year employment window is measured back from it.">
         <AppDateField :id="id" v-model="hireDate" />
       </FormField>
 
       <section data-testid="federal-checks">
         <h3 class="text-sm font-semibold text-ink">
-          {{ carrierRules ? "Before the hire" : "The six federal checks" }}
+          {{ carrierRules ? "Before closing" : "The six federal checks" }}
         </h3>
         <ul class="mt-2 space-y-1 text-sm">
           <li v-for="c in federalChecks" :key="c.key" class="flex items-center justify-between gap-3">
@@ -116,7 +123,7 @@ async function submit(): Promise<void> {
           </li>
         </ul>
         <p v-if="checklistQ.data.value && !checksDone" class="mt-2 text-xs text-ink-muted">
-          Hiring waits for {{ carrierRules ? "every one of these" : "all six" }}. Everything else can be finished after.
+          Closing waits for {{ carrierRules ? "every one of these" : "all six" }}. Everything else can be finished after.
         </p>
       </section>
 
@@ -124,7 +131,7 @@ async function submit(): Promise<void> {
 
       <template v-else-if="previewQ.data.value">
         <div v-if="previewQ.data.value.skipped.length" class="rounded-surface bg-surface-muted p-3">
-          <p class="text-xs font-medium text-ink-secondary">Worth fixing before you hire</p>
+          <p class="text-xs font-medium text-ink-secondary">Worth fixing before you close it</p>
           <ul class="mt-2 space-y-1 text-sm">
             <li v-for="s in previewQ.data.value.skipped" :key="`${s.employmentId}-${s.reason}`">
               <span :class="[BADGE_BASE, toneClass('caution')]">{{ s.employerName }}</span>
@@ -132,7 +139,7 @@ async function submit(): Promise<void> {
             </li>
           </ul>
           <p class="mt-2 text-xs text-ink-muted">
-            Add their dates and hire again, or hire now and record them on the driver's page.
+            Add their dates first, or close now and record them on the driver's page.
           </p>
         </div>
 
@@ -166,7 +173,7 @@ async function submit(): Promise<void> {
       <div class="flex items-center justify-end gap-3">
         <BaseButton variant="ghost" :disabled="hire.isPending.value" @click="emit('close')">Cancel</BaseButton>
         <BaseButton variant="primary" :disabled="!hireDate || !checksDone || hire.isPending.value" @click="submit">
-          {{ hire.isPending.value ? "Hiring…" : "Hire" }}
+          {{ hire.isPending.value ? "Closing…" : "Close application" }}
         </BaseButton>
       </div>
     </template>

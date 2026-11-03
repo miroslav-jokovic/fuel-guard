@@ -108,9 +108,10 @@ describe("the catalogue", () => {
     expect(c.steps.map((s) => s.key)).toEqual([
       // §7 (2026-09-26): Part 1 before the permissions, the ticket after the last screening step.
       "invitation_sent", "intake_completed", "permissions_signed",
-      "mvr", "psp", "clearinghouse", "drug_test",
+      // §14 D-OF4 (owner, 2026-11-03): the medical card is reviewed with the driving record.
+      "mvr", "medical_certificate", "psp", "clearinghouse", "drug_test",
       "application_sent", "application_filled", "office_approved",
-      "medical_certificate", "travel_booked", "employment_investigation",
+      "travel_booked", "employment_investigation",
       // D-HB1 (owner, 2026-09-25): the handbook is its own step between the packet and the hire.
       "road_test", "application_signed", "handbook", "hired",
     ]);
@@ -126,8 +127,8 @@ describe("the catalogue", () => {
    */
   it("marks exactly the six federal gates", () => {
     expect(HIRING_STEPS.filter((s) => s.federalGate).map((s) => s.key)).toEqual([
-      "mvr", "clearinghouse", "drug_test", "application_filled",
-      "medical_certificate", "road_test",
+      "mvr", "medical_certificate", "clearinghouse", "drug_test",
+      "application_filled", "road_test",
     ]);
   });
 
@@ -142,8 +143,8 @@ describe("the catalogue", () => {
     // ⚠ §7 / D-AW7: the owner buys the ticket before the office reads the application, and the
     // unbuilt videos left the range so the travel answer can be `ok` at all (Q-AW23's default).
     expect(before).toEqual([
-      "invitation_sent", "intake_completed", "permissions_signed", "mvr", "psp", "clearinghouse",
-      "drug_test", "application_sent", "application_filled", "medical_certificate",
+      "invitation_sent", "intake_completed", "permissions_signed", "mvr", "medical_certificate", "psp",
+      "clearinghouse", "drug_test", "application_sent", "application_filled",
     ]);
     expect(TRAVEL_WARNS_ON).toEqual(before);
   });
@@ -531,7 +532,8 @@ describe("the two readiness answers", () => {
     const c = hiringChecklist(complete({ hiredAt: null }));
     expect(c.readyToTravel).toEqual({ ok: true, unmeasured: [], outstanding: [], carrierOutstanding: [] });
     expect(c.readyToHire).toEqual({ ok: true, unmeasured: [], outstanding: [], carrierOutstanding: [] });
-    expect(c.unbuilt).toEqual(["live_orientation"]);
+    // §14 D-OF3: the live orientation day is off the owner's list, so it is not "not built yet" either.
+    expect(c.unbuilt).toEqual([]);
     // HW8a: a carrier with no required video has a videos step it cannot measure — named, not a row.
     expect(c.unconfigured).toEqual(["orientation_videos"]);
   });
@@ -539,7 +541,7 @@ describe("the two readiness answers", () => {
   it("names what is outstanding", () => {
     const c = hiringChecklist(complete({ qualificationKinds: ["mvr"] }));
     expect(c.readyToTravel.outstanding).toEqual([
-      "clearinghouse", "drug_test", "medical_certificate",
+      "medical_certificate", "clearinghouse", "drug_test",
     ]);
     expect(c.readyToTravel.ok).toBe(false);
   });
@@ -578,7 +580,8 @@ describe("the one next action", () => {
       ...PART1,
       authorizations: [...ALL_PERMISSIONS],
       // Screening finished, which in the owner's order (plan §3.3) comes before the application.
-      qualificationKinds: ["mvr", "clearinghouse_full", "drug_test"],
+      // §14: the medical card is screening now, reviewed with the driving record.
+      qualificationKinds: ["mvr", "medical_registry_verification", "clearinghouse_full", "drug_test"],
       psp: { requested: true, reportReceived: true },
       phases: { applicationSentAt: "2026-09-01T12:00:00Z", reviewRequestedAt: "2026-09-02T00:00:00Z", approvedAt: null, signingOpenedAt: null, submittedAt: null },
     }));
@@ -1005,8 +1008,9 @@ describe("ready to screen", () => {
   it("goes out once the office has filed a screening record", () => {
     const c = hiringChecklist(input({ ...signed, qualificationKinds: ["mvr"], mvrs: [{ jurisdiction: null, occurredOn: "2026-09-02" }] }));
     expect(stateOf(c, "mvr")).toBe("done");
-    // The next office move is still a screening step and still theirs — the flag is about having STARTED.
-    expect(c.next).toBe("psp");
+    // The next office move is still a screening step — the flag is about having STARTED. §14: the MVR's own
+    // row is not finished until the medical card is checked, so that is the move.
+    expect(c.next).toBe("medical_certificate");
     expect(readyToScreen(c)).toBe(false);
   });
 
@@ -1016,7 +1020,7 @@ describe("ready to screen", () => {
       qualificationKinds: ["mvr"], mvrs: [{ jurisdiction: null, occurredOn: "2026-09-02" }],
       psp: { requested: true, reportReceived: false },
     }));
-    expect(c.next).toBe("psp");
+    expect(c.next).toBe("medical_certificate");
     expect(stateOf(c, "psp")).toBe("waiting_on_them");
     expect(readyToScreen(c)).toBe(false);
   });
