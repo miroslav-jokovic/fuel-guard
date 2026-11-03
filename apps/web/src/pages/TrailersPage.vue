@@ -16,7 +16,7 @@ import {
 } from "@silvicom/ui";
 import { PlusIcon } from "@silvicom/ui/icons";
 import { ref, computed, watch } from "vue";
-import { RouterLink, useRouter } from "vue-router";
+import { RouterLink } from "vue-router";
 import { FILE_FILTERS, fileFilterOptions, PAPER_CHECK_ITEMS, TRAILER_TYPE_LABELS, VEHICLE_STATUSES, handPairingPatch, isStatusFromTms, matchesFileFilter, paperStanding, todayInZone, unitFileChip, type Trailer, type TrailerInput, type TrailerWrite } from "@silvicom/shared";
 import { useTrailersOnLoadsQuery } from "@/composables/useTrailerLink";
 import { gpsPairingNote } from "@/lib/trailerPairingNote";
@@ -33,6 +33,8 @@ import { useUnitFilesQuery } from "@/composables/useCompliance";
 import { useOrgTimezone } from "@/composables/useOrgTimezone";
 import FileCell from "@/components/files/FileCell.vue";
 import FileGallery from "@/components/files/FileGallery.vue";
+import FileUploadDialog from "@/components/files/FileUploadDialog.vue";
+import { useUnitDropItems } from "@/composables/useFileDropItems";
 import type { FileSubject } from "@/components/files/fileSubject";
 import SlideOver from "@/components/SlideOver.vue";
 import StatusBadge from "@/components/StatusBadge.vue";
@@ -47,8 +49,6 @@ import { BADGE_BASE, toneClass } from "@/lib/badges";
 
 const PAGE_SIZE = 20;
 const session = useSessionStore();
-// A drop on a File cell opens the unit's File section (UNIT-FILES-PLAN UF5) — see `FileCell`'s note.
-const router = useRouter();
 const { data: trailers, isLoading, isError, refetch, isFetching } = useTrailersQuery();
 const { data: vehicles } = useVehiclesQuery();
 const toast = useToastStore();
@@ -117,6 +117,16 @@ watch([search, statusFilter, reeferFilter, fileFilter], () => (page.value = 1));
 const gallery = ref<{ subject: FileSubject; label: string; startId: string | null } | null>(null);
 function openGallery(t: Trailer, documentId?: string) {
   gallery.value = { subject: { type: "trailer", id: t.id }, label: `Trailer ${t.unit_number}`, startId: documentId ?? null };
+}
+/**
+ * Add a paper without leaving the list (DQ-FILE-COLUMN): a drop on the File cell carries its scan in,
+ * "Upload paper…" in the row menu opens it empty. Filing is the equipment section's write (D-UF5).
+ */
+const upload = ref<{ unit: Trailer; file: File | null } | null>(null);
+const uploadId = computed(() => upload.value?.unit.id ?? null);
+const { items: uploadItems, outstanding: uploadOutstanding } = useUnitDropItems("trailer", uploadId);
+function openUpload(t: Trailer, file?: File) {
+  if (session.can("equipment")) upload.value = { unit: t, file: file ?? null };
 }
 const pageRows = computed(() =>
   sorted.value.slice((page.value - 1) * PAGE_SIZE, page.value * PAGE_SIZE),
@@ -311,7 +321,7 @@ async function onRetire(t: Trailer) {
           :items="fileById.get(row.id)!.items"
           :subject-label="`Trailer ${row.unit_number}`"
           @open="openGallery(row, $event)"
-          @drop="router.push(`/trailers/${row.id}?section=file`)"
+          @drop="openUpload(row, $event[0])"
         />
         <span v-else class="text-ink-tertiary">—</span>
       </template>
@@ -352,6 +362,7 @@ async function onRetire(t: Trailer) {
       <template #actions="{ row }">
         <KebabMenu v-if="session.can('equipment')">
           <BaseButton class="kebab-item" @click="openEdit(row)">Edit</BaseButton>
+          <BaseButton class="kebab-item" @click="openUpload(row)">Upload paper…</BaseButton>
           <BaseButton class="kebab-item" @click="toggleReefer(row)">
             {{ row.is_reefer ? "Unmark reefer" : "Mark as reefer" }}
           </BaseButton>
@@ -380,6 +391,15 @@ async function onRetire(t: Trailer) {
       :subject-label="gallery?.label ?? ''"
       :start-id="gallery?.startId ?? null"
       @close="gallery = null"
+    />
+    <FileUploadDialog
+      :subject="upload ? { type: 'trailer', id: upload.unit.id } : null"
+      :subject-label="upload ? `Trailer ${upload.unit.unit_number}` : ''"
+      :items="uploadItems"
+      :outstanding="uploadOutstanding"
+      :initial-file="upload?.file ?? null"
+      :file-link="upload ? `/trailers/${upload.unit.id}?section=file` : '/trailers'"
+      @close="upload = null"
     />
 
     <SlideOver

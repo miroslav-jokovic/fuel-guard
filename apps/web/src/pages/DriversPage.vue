@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { AppIcon, FilterBar, DataWorkspace, AppButton as BaseButton, AppSelect, sortRows } from "@silvicom/ui";
+import { AppIcon, FilterBar, DataWorkspace, AppButton as BaseButton, sortRows } from "@silvicom/ui";
 import { PlusIcon } from "@silvicom/ui/icons";
 import { ref, computed, watch } from "vue";
 import type { Driver, DriverInput } from "@silvicom/shared";
@@ -19,13 +19,15 @@ import PageHeader from "@/components/ui/PageHeader.vue";
 import DriverForm from "@/features/roster/DriverForm.vue";
 import { useToastStore } from "@/stores/toast";
 import { describeDriverEdit } from "@/lib/format";
-import { useDriverReconcile } from "@/features/roster/useDriverReconcile";
+import DriverReconcilePanel from "@/features/roster/DriverReconcilePanel.vue";
 import DriverAccessModal from "@/features/roster/DriverAccessModal.vue";
 import DriverRosterTable from "@/features/roster/DriverRosterTable.vue";
 import { DRIVER_ROSTER_COLUMNS } from "@/features/roster/driverRosterColumns";
 import ColumnPicker from "@/components/ui/ColumnPicker.vue";
 import SavedViewMenu from "@/components/ui/SavedViewMenu.vue";
 import FileGallery from "@/components/files/FileGallery.vue";
+import FileUploadDialog from "@/components/files/FileUploadDialog.vue";
+import { useDriverDropItems } from "@/composables/useFileDropItems";
 import type { FileSubject } from "@/components/files/fileSubject";
 import { useSavedViewMenu } from "@/composables/useSavedViewMenu";
 import { useTableColumns } from "@/composables/useTableColumns";
@@ -82,40 +84,8 @@ watch(drivers, (list) => {
 });
 const saving = computed(() => createDriver.isPending.value || updateDriver.isPending.value);
 
-// ── Reconcile duplicate / name-only drivers with Samsara ──────────────────────────────────────────
-const reconcile = useDriverReconcile();
+// ── Reconcile duplicate / name-only drivers with Samsara (its own panel) ────────────────────────
 const reconcileOpen = ref(false);
-const linkTarget = ref<Record<string, string>>({}); // sourceId -> chosen canonical driver id
-async function openReconcile() {
-  reconcileOpen.value = true;
-  linkTarget.value = {};
-  await reconcile.preview();
-}
-// Samsara drivers to pick from when manually linking (those already carrying a Samsara id).
-const samsaraCandidates = computed(() =>
-  (drivers.value ?? [])
-    .filter((d) => d.samsara_driver_id)
-    .sort((a, b) => a.full_name.localeCompare(b.full_name)),
-);
-// Unmatched drivers the auto-plan did NOT cover (need a manual link).
-const stillUnmatched = computed(() => {
-  const autoIds = new Set((reconcile.report.value?.pairs ?? []).map((p) => p.sourceId));
-  return (drivers.value ?? []).filter((d) => !d.samsara_driver_id && !autoIds.has(d.id));
-});
-async function applyReconcile() {
-  const n = await reconcile.apply();
-  if (reconcile.error.value) toast.error("Reconcile failed", reconcile.error.value);
-  else toast.success(`Merged ${n} duplicate driver${n === 1 ? "" : "s"}`);
-}
-async function linkDriver(sourceId: string) {
-  const canonicalId = linkTarget.value[sourceId];
-  if (!canonicalId) return;
-  const ok = await reconcile.linkOne(sourceId, canonicalId);
-  if (ok) {
-    toast.success("Driver linked & merged");
-    await reconcile.preview();
-  } else toast.error("Link failed", reconcile.error.value ?? undefined);
-}
 
 /**
  * The id this table is known by, in the one place it is spelled (`SAVED_VIEW_TABLES`).
@@ -181,6 +151,15 @@ const viewMenu = useSavedViewMenu(ROSTER_TABLE, "roster");
 const gallery = ref<{ subject: FileSubject; label: string; startId: string | null } | null>(null);
 function openGallery(d: Driver, documentId?: string) {
   gallery.value = { subject: { type: "driver", id: d.id }, label: d.full_name, startId: documentId ?? null };
+}
+/**
+ * Add a paper from the File cell (DQ-FILE-COLUMN) — the dialog the Driver Qualification, Vehicles and
+ * Trailers lists open. A drop carries its scan in; filing is the roster section's write.
+ */
+const upload = ref<{ driver: Driver; file: File | null } | null>(null);
+const uploadItems = useDriverDropItems(computed(() => upload.value?.driver.id ?? null));
+function openUpload(d: Driver, file?: File) {
+  if (session.can("roster")) upload.value = { driver: d, file: file ?? null };
 }
 
 const archiving = ref<Driver | null>(null);
@@ -293,7 +272,7 @@ async function onSubmit(input: DriverInput) {
           <BaseButton
             v-if="canManageDriverIdentity(session.role)"
             title="Fold duplicate / name-only drivers into their Samsara record"
-            @click="openReconcile"
+            @click="reconcileOpen = true"
           >
             Reconcile with Samsara
           </BaseButton>
@@ -364,89 +343,13 @@ async function onSubmit(input: DriverInput) {
       @edit="openEdit"
       @manage-access="openAccess"
       @open-file="openGallery"
+      @upload-file="openUpload"
       @archive="archiving = $event"
       @restore="setArchived($event, false)"
     />
     </DataWorkspace>
 
-    <SlideOver
-      :open="reconcileOpen"
-      title="Reconcile drivers with Samsara"
-      @close="reconcileOpen = false"
-    >
-      <div v-if="reconcile.loading.value" class="text-sm text-ink-muted">Analyzing…</div>
-      <div v-else class="space-y-6">
-        <p class="text-sm text-ink-muted">
-          Drivers created from EFS fuel-card names are folded into their Samsara record, moving all
-          fuel, idle and HOS history onto the one row. Only confident matches (phone, or an
-          unambiguous full name) are auto-merged; the rest you can link by hand below.
-        </p>
-
-        <div>
-          <div class="flex items-center justify-between">
-            <h4 class="text-sm font-semibold text-ink">
-              Confident merges ({{ reconcile.report.value?.planned ?? 0 }})
-            </h4>
-            <BaseButton
-              v-if="(reconcile.report.value?.planned ?? 0) > 0"
-              variant="primary"
-              size="sm"
-              :disabled="reconcile.applying.value"
-              @click="applyReconcile"
-            >
-              {{
-                reconcile.applying.value
-                  ? "Merging…"
-                  : `Apply ${reconcile.report.value?.planned} merge(s)`
-              }}
-            </BaseButton>
-          </div>
-          <ul class="mt-2 divide-y divide-edge-subtle rounded-control border border-edge">
-            <li
-              v-for="pr in reconcile.report.value?.pairs ?? []"
-              :key="pr.sourceId"
-              class="flex items-center justify-between px-3 py-2 text-sm"
-            >
-              <span
-                ><span class="text-ink-secondary">{{ pr.sourceName }}</span> →
-                <span class="font-medium text-ink">{{ pr.canonicalName }}</span></span
-              >
-              <span class="text-xs text-ink-tertiary">by {{ pr.matchedBy }}</span>
-            </li>
-            <li
-              v-if="!(reconcile.report.value?.pairs ?? []).length"
-              class="px-3 py-2 text-sm text-ink-tertiary"
-            >
-              No confident merges found.
-            </li>
-          </ul>
-        </div>
-
-        <div>
-          <h4 class="text-sm font-semibold text-ink">Link by hand ({{ stillUnmatched.length }})</h4>
-          <p class="mt-1 text-xs text-ink-tertiary">
-            Drivers with no confident Samsara match — pick the right person to merge into.
-          </p>
-          <ul class="mt-2 space-y-2">
-            <li v-for="u in stillUnmatched" :key="u.id" class="flex items-center gap-2 text-sm">
-              <span class="min-w-0 flex-1 truncate">{{ u.full_name }}</span>
-              <AppSelect
-                v-model="linkTarget[u.id]"
-                class="max-w-64"
-                placeholder="Select Samsara driver…"
-                :options="samsaraCandidates.map((candidate) => ({ value: candidate.id, label: candidate.full_name }))"
-              />
-              <BaseButton size="sm" :disabled="!linkTarget[u.id]" @click="linkDriver(u.id)"
-                >Link</BaseButton
-              >
-            </li>
-            <li v-if="!stillUnmatched.length" class="text-sm text-ink-tertiary">
-              Nothing left to link.
-            </li>
-          </ul>
-        </div>
-      </div>
-    </SlideOver>
+    <DriverReconcilePanel :open="reconcileOpen" :drivers="drivers ?? []" @close="reconcileOpen = false" />
 
     <SlideOver
       :open="drawerOpen"
@@ -472,6 +375,15 @@ async function onSubmit(input: DriverInput) {
       :subject-label="gallery?.label ?? ''"
       :start-id="gallery?.startId ?? null"
       @close="gallery = null"
+    />
+    <FileUploadDialog
+      :subject="upload ? { type: 'driver', id: upload.driver.id } : null"
+      :subject-label="upload?.driver.full_name ?? ''"
+      :items="uploadItems"
+      :outstanding="upload ? (overviewRows.get(upload.driver.id)?.attention ?? []) : []"
+      :initial-file="upload?.file ?? null"
+      :file-link="upload ? `/drivers/${upload.driver.id}?section=qualification` : '/drivers'"
+      @close="upload = null"
     />
 
     <DriverAccessModal :open="accessOpen" :driver="accessDriver" @close="accessOpen = false" />

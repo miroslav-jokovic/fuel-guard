@@ -15,7 +15,11 @@ import { useCertificationsQuery, useComplianceOverviewQuery } from "@/composable
 import PageHeader from "@/components/ui/PageHeader.vue";
 import SlideOver from "@/components/SlideOver.vue";
 import CertManager from "@/features/hazmat/CertManager.vue";
-import QualificationFleetTable from "@/features/compliance/QualificationFleetTable.vue";
+import QualificationFleetTable, { type FleetRow } from "@/features/compliance/QualificationFleetTable.vue";
+import FileGallery from "@/components/files/FileGallery.vue";
+import FileUploadDialog from "@/components/files/FileUploadDialog.vue";
+import type { FileSubject } from "@/components/files/fileSubject";
+import { useDriverDropItems } from "@/composables/useFileDropItems";
 import QualificationSeedPanel from "@/features/compliance/QualificationSeedPanel.vue";
 import ExportHistory from "@/features/compliance/ExportHistory.vue";
 import { buildAttentionStrip } from "@/features/compliance/attentionStrip";
@@ -89,6 +93,18 @@ const orgSeeded = computed(() => {
   const kinds = new Set((orgCertsQ.data.value ?? []).map((c) => c.kind));
   return kinds.has("phmsa_registration") && kinds.has("financial_responsibility");
 });
+
+/**
+ * The File column's two dialogs (DQ-FILE-COLUMN) — one of each for the whole list, never one per row,
+ * as on the Vehicles, Trailers and Drivers pages. The gallery fetches papers only when it opens.
+ */
+const gallery = ref<{ subject: FileSubject; label: string; startId: string | null } | null>(null);
+function openGallery(row: FleetRow, documentId?: string): void {
+  gallery.value = { subject: { type: "driver", id: row.id }, label: row.driver_name, startId: documentId ?? null };
+}
+const upload = ref<{ row: FleetRow; file: File | null } | null>(null);
+const uploadDriverId = computed(() => upload.value?.row.id ?? null);
+const uploadItems = useDriverDropItems(uploadDriverId);
 
 const requestBinder = useRequestBinder();
 async function buildBinder(driverIds: string[], includeRestricted: boolean): Promise<void> {
@@ -184,6 +200,8 @@ async function buildBinder(driverIds: string[], includeRestricted: boolean): Pro
         <QualificationFleetTable
           :building="requestBinder.isPending.value"
           @build-binder="buildBinder"
+          @open-file="openGallery"
+          @upload="(row, file) => (upload = { row, file: file ?? null })"
         />
       </template>
     </div>
@@ -196,6 +214,22 @@ async function buildBinder(driverIds: string[], includeRestricted: boolean): Pro
     >
       <ExportHistory />
     </div>
+
+    <FileGallery
+      :subject="gallery?.subject ?? null"
+      :subject-label="gallery?.label ?? ''"
+      :start-id="gallery?.startId ?? null"
+      @close="gallery = null"
+    />
+    <FileUploadDialog
+      :subject="upload ? { type: 'driver', id: upload.row.id } : null"
+      :subject-label="upload?.row.driver_name ?? ''"
+      :items="uploadItems"
+      :outstanding="upload?.row.attention ?? []"
+      :initial-file="upload?.file ?? null"
+      :file-link="upload ? `/compliance/${upload.row.id}` : '/compliance'"
+      @close="upload = null"
+    />
 
     <SlideOver
       :open="carrierOpen"

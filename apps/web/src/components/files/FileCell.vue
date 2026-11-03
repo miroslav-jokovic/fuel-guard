@@ -23,10 +23,10 @@ import { useToastStore } from "@/stores/toast";
  * derive job has not run, or HEIC — is a type icon, never the 25 MB original. Each thumb is one tab
  * stop; hover or focus shows what it is, and Enter or a click opens the gallery on it.
  *
- * A drop on the cell OPENS THE UNIT'S FILE SECTION (UF5b): the cell emits `drop` and the page goes to
- * `/vehicles/:id?section=file`, where the drop card files the paper against the right requirement.
- * The dropped bytes do not travel — a navigation cannot carry a `File` — so the reader drops again
- * there; the plan's bulk intake scoped to the subject (UF7) is what takes the bytes from here.
+ * A drop on the cell emits `drop` with the files, and the page opens its `FileUploadDialog` with the
+ * first one (DQ-FILE-COLUMN, 2026-11-03), where the drop card asks what it proves. Until then the page
+ * navigated to the unit's File section (UF5b) and the reader dropped the same scan again, because a
+ * navigation cannot carry a `File`. The cell itself still knows nothing about what a drop leads to.
  */
 const props = defineProps<{
   papers: PaperThumb[];
@@ -43,7 +43,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   /** Open the gallery: on this paper, or with no id for "+N" — the first paper this cell did not draw. */
   open: [documentId?: string];
-  /** Files were dropped on the cell: open the unit's File section (UF5b). */
+  /** Files were dropped on the cell: the page opens its upload dialog with them. */
   drop: [files: File[]];
 }>();
 
