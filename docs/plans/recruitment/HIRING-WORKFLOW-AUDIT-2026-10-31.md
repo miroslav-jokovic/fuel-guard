@@ -856,23 +856,54 @@ Removed: 9 office approved (duplicate of 8), 10 medical certificate (part of 3),
 
 **Open questions** (each with a recommendation):
 
-- **Q-OF1 — Samba: a portal account, or the API?** The API was deprecated on cost on 2026-08-26. Recommend
-  the portal + upload + AI read (D-OF8), which costs only the per-record fee.
+- ~~**Q-OF1 — Samba: a portal account, or the API?**~~ **Ruled by the owner, 2026-11-03: "we will use samba as
+  external link to obtain MVRs for now", as the first message said.** Built (D-OF8, #1960 + #1962/#1965): the
+  driving-record drawer opens SambaSafety's portal in a new tab; the PDF is dropped back, read by the AI check,
+  and recorded by the recruiter; a filed scan opens in the vehicles' and trailers' gallery. No Samba API.
 - **Q-OF2 — "$10 per PSP": the carrier's own FMCSA bill, or Silvicom charging other carriers?** What is built
   is the first (order, a confirmation showing the price, FMCSA bills the account). The second needs a billing
   system. Recommend the first; the price is `PSP_UNIT_PRICE_USD` on each deployment.
-- **Q-OF3 — "Ignev": which travel vendor?** No API by that name was found. The trip is recorded by hand
-  (`TravelPanel`) until the vendor and its documentation are known.
-- **Q-OF4 — Drug-test ordering from the applicant page** needs Med-Stop's write API (MEDSTOP-PLAN MS3) and a
-  key Med-Stop's IP filter accepts (Q-MS7). Recommend building it once Q-MS7 clears.
+- **Q-OF3 — the travel vendor.** **Owner, 2026-11-03: Ignev is withdrawn; the owner is researching another
+  solution.** Until he names it, the trip is recorded by hand (`TravelPanel`) and nothing is built (OF8 waits).
+- **Q-OF4 — Drug-test ordering from the applicant page.** Q-MS7 was fixed by Med-Stop on 2026-10-13 and the
+  owner confirms the keys (2026-11-03). Ordering itself is BUILT (MEDSTOP-PLAN UX3–UX5) but has never been
+  switched on. **Measured against the office's real orders in MEDSTOP-PLAN §7A.21** — gaps G1–G6, proposal
+  MSO1–MSO3, decisions Q-MSO1–Q-MSO4 for the owner.
 - **Q-OF5 — The AI checking layer.** PSP arrives as structured data, so rules read it; the MVR arrives as a
   PDF and needs a reader. Recommend an MVR reader on the document-reading pipeline that proposes violations,
   suspensions and the medical status for the recruiter to confirm — never filing on its own.
 
 **The build, in order:** OF1 rows + order + close + explainer (shared + web, no schema) → OF2 Part 1 gallery
 → OF3 road test on phone, tablet and wide screens → OF4 PSP production check → OF5 MVR and Clearinghouse
-drawers (portal + upload) → OF6 AI MVR reader → OF7 drug-test ordering (after Q-MS7) → OF8 travel booking
-(after Q-OF3).
+drawers (portal + upload) → OF6 AI MVR reader → OF7 drug-test ordering (MEDSTOP-PLAN §7A.21, after Q-MSO1–4)
+→ OF8 travel booking (after Q-OF3: the owner's new vendor).
+
+### 14.1 The owner's first message, step by step — where each stands (re-checked 2026-11-03)
+
+The owner (2026-11-03): *"make sure that you have updated plan and follow my instructions from this first
+message."* Each step in his words, and what the product does now:
+
+| # | The owner's step | Now | State |
+|---|---|---|---|
+| 1 | Send invite (e-mail or phone); the applicant gets our form | Unchanged — already right | Done |
+| 2 | Part 1 finished — missing the applicant's images; permissions signed belong in it | One row (D-OF2); every photo in the vehicles' gallery (#1958) | Done |
+| 3 | Driving record — open our Samba account, pull the MVR, upload it; same viewer as vehicles and trailers | Samba portal in a new tab (D-OF8, the portal cannot be framed); drop the PDF → AI check → record; the filed scan opens in the vehicles' gallery (this merge) | Done |
+| 4 | PSP — production-ready, $10, secure | Every guard in place; production switched off; the 10/13 token verified (expires ~12/12); four settings to go live (§7, OF4) | **Owner's settings** |
+| 5 | Clearinghouse — open the login, send the request to the applicant | Clearinghouse in a new tab (login.gov refuses framing) with the steps; the consent request is sent from FMCSA's portal; result PDF dropped back | Done |
+| 6 | Drug test — order it from the applicant page, results there, upload if needed | Order, results and upload built; ordering never switched on; measured gaps in MEDSTOP-PLAN §7A.21 | **Owner's decisions Q-MSO1–4** |
+| 7 | Send the application | Unchanged — already right | Done |
+| 8 | Receive, review and edit the application | Plus the approval in the same row (D-OF2) | Done |
+| 9 | "Office approved" is a duplicate — instead, send the training videos | Approval folded into 8; orientation videos sit here (D-OF4); the videos themselves come later | Done (videos to come) |
+| 10 | Medical certificate is part of the MVR step | Drawn inside the driving-record row; still a federal check | Done |
+| 11 | Travel — search a ticket (Ignev) | Ignev withdrawn; recorded by hand until the new vendor (Q-OF3) | **Owner researching** |
+| 12 | Previous employers — leave manual, off the list | Unlisted (D-OF3); still on the DQ file | Done |
+| 13 | Road test — checklist, easy on phone/tablet, broken in the drawer on large screens | Lays out by the drawer's width, wide drawer, 48 px targets on touch (#1958) | Done |
+| 14 | Safety, admin or recruiter send the application for signing | Already: `recruitment` manage | Done |
+| 15 | Same, the handbook | Already: `recruitment` manage | Done |
+| 16 | "Hire" is wrong — Close application | "Application closed" (D-OF5); still links McLeod's driver to this file | Done |
+| — | AI as the checking layer for PSP and MVR | MVR: AI read + rules (#1962, #1965). PSP: structured data, read by rules on the PSP drawer | Done |
+| — | Remove "How this is calculated" | Removed (D-OF7) | Done |
+| — | Leads page | The parallel chat's | Theirs |
 
 ---
 
@@ -1130,3 +1161,8 @@ drawers (portal + upload) → OF6 AI MVR reader → OF7 drug-test ordering (afte
   the checked document (`useRecordHiringAct`'s `documentId`) with no second upload. The poll ends after three
   minutes (`MVR_CHECK_WAIT_MS`) — a file intake refuses never produces a read. Audit
   `recruiting.mvr_check_started`. Seen in a browser at 1440. 18/18 mutants killed.
+- **2026-11-03 (evening)** — OF6a #1962 (0555) and OF6b #1965 merged. Owner: Med-Stop keys fixed; Ignev withdrawn
+  (researching another vendor); Samba stays an external link (Q-OF1 ruled). §14.1 checks the first message step
+  by step. Step 3's "same viewer as vehicles and trailers" was still a new-tab link for a filed scan; it now opens
+  in `FileGallery` (this merge). Drug-test ordering measured against the office's real orders: MEDSTOP-PLAN
+  §7A.21 (never switched on; one order in three cancelled; the time is a 4 pm deadline; questions Q-MSO1–4).

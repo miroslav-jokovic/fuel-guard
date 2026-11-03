@@ -19,6 +19,7 @@ import {
 } from "@silvicom/ui";
 import { ClipboardDocumentCheckIcon } from "@silvicom/ui/icons";
 import FileDropzone from "@/components/ui/FileDropzone.vue";
+import FileGallery from "@/components/files/FileGallery.vue";
 import MvrAiCheck from "@/features/recruitment/MvrAiCheck.vue";
 import { useSessionStore } from "@/stores/session";
 import { useToastStore } from "@/stores/toast";
@@ -81,6 +82,9 @@ const scanUrl = computed(() => {
   for (const d of docsQ.data.value ?? []) if (d.url) m.set(d.id, d.url);
   return m;
 });
+
+/** The scan open in the gallery — this act's kind only, so the strip is this step's papers (§14). */
+const viewing = ref<string | null>(null);
 
 const filed = computed<QualificationRecordRow[]>(() =>
   (recordsQ.data.value ?? []).filter((r) => r.kind === kind.value),
@@ -206,15 +210,17 @@ const uploadAccept = acceptFor(DOCUMENT_CONTENT_TYPES);
                      link this minute, because `signDocumentRows` degrades a row to `url: null` rather
                      than failing the page. "Unavailable" is the honest word; a dead link and an em dash
                      are both lies about evidence. -->
-                <a
+                <!-- §14 (owner, 2026-11-03: "we will use same modal for images that we are using for Vehicles
+                     and Trailers"): the scan opens in the trucks' and trailers' gallery, not a new tab. -->
+                <BaseButton
                   v-if="row.document_id && scanUrl.get(row.document_id)"
-                  :href="scanUrl.get(row.document_id)"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  class="font-medium hover:text-link"
+                  variant="link"
+                  size="sm"
+                  data-testid="open-scan"
+                  @click="viewing = row.document_id"
                 >
                   Open the scan
-                </a>
+                </BaseButton>
                 <!-- ui-adoption: not-a-page-state — one cell's link standing in while the documents list loads; the panel's own fetch is QueryState's. -->
                 <span v-else-if="row.document_id && docsQ.isLoading.value" class="text-ink-muted">Loading…</span>
                 <span v-else-if="row.document_id" class="text-ink-muted">Scan unavailable</span>
@@ -292,5 +298,12 @@ const uploadAccept = acceptFor(DOCUMENT_CONTENT_TYPES);
         </BaseButton>
       </div>
     </div>
+    <FileGallery
+      :subject="viewing ? { type: 'driver', id: driverId } : null"
+      :subject-label="label"
+      :start-id="viewing"
+      :kinds="kind ? [kind] : null"
+      @close="viewing = null"
+    />
   </div>
 </template>
