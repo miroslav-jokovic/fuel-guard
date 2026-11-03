@@ -125,6 +125,13 @@ export const NOTIFICATION_CATEGORIES = [
   "ads_token_expiring",
   "ads_brief",
   /**
+   * An ad we decided must stop (kill switch, Pause, auto-pause, a launch that failed part-way) that the
+   * platform has not paused after repeated attempts, so it may still be spending (2026-11-03 audit H2).
+   * Sent critical: it asks a person to pause it in the platform's own tool. Mirrored in the
+   * CHECK (0559); nothing writes it until the alert sender's merge.
+   */
+  "ads_pause_failed",
+  /**
    * A platform lead reached the queue, and one nobody has contacted past the threshold (recruiting's
    * `leads/`, workflow D2). Mirrored in the CHECK (0537); nothing writes them until D2.
    */
@@ -175,6 +182,7 @@ export const NOTIFICATION_CATEGORY_LABELS: Record<NotificationCategory, string> 
   ads_external_change: "Ads changed outside Silvicom",
   ads_token_expiring: "Ad account connection expiring",
   ads_brief: "Daily ads brief",
+  ads_pause_failed: "Ads that could not be paused",
   lead_new: "New ad leads",
   lead_uncontacted: "Ad leads waiting for contact",
 };

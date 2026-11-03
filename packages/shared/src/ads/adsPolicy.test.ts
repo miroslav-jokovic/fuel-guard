@@ -121,7 +121,7 @@ describe("settings contract", () => {
   });
   it("alert recipients are keyed by the bell's ads categories, read from the contract", () => {
     expect([...ADS_ALERT_CATEGORIES].sort()).toEqual(
-      ["ads_brief", "ads_external_change", "ads_no_leads", "ads_overspend", "ads_rejected", "ads_token_expiring"],
+      ["ads_brief", "ads_external_change", "ads_no_leads", "ads_overspend", "ads_pause_failed", "ads_rejected", "ads_token_expiring"],
     );
   });
   it("a cap of zero, a negative cap and more than five regenerations are refused", () => {
