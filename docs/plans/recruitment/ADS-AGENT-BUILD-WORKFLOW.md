@@ -782,3 +782,8 @@ blocking step in §3 above.
     nowhere to go and the first campaign has nothing to advertise.
   - Matrices: `recruiting-leads.test.mjs` (new), `purge-applicant.test.mjs` (a converted lead in the
     fixture), `rls.test.mjs` (seeders for the composite-FK chains).
+  - **`lint:migrations`' driver-references check could not read a composite FK.** `foreign key (org_id,
+    driver_id) references drivers (org_id, id)` was invisible to it, so it reported `lead_conversions` as
+    a stale list entry. Worse, the same table left OFF the list would have passed in silence. The check
+    now reads the composite form, and a self-test pins it. No other unlisted FK turned up when it was
+    switched on, and removing `lead_conversions` from the list now fails the gate.

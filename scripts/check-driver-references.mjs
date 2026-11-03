@@ -63,7 +63,24 @@ const found = new Map(); // "table.column" -> migration file
  * statements — so `alter table asset_types add column held_by …; alter table inventory_assets add
  * column driver_id uuid references drivers(id);` reported `asset_types.driver_id`, a column that does
  * not exist, and missed the one that does. `--self-test` pins it.
+ *
+ * Composite foreign keys count too: `foreign key (org_id, driver_id) references drivers (org_id, id)`
+ * — the same-org shape 0459 introduced. Until 0553 (ads D0, 2026-11-03) only the one-column form was
+ * read, so a new table whose ONLY driver reference was composite was invisible: `lead_conversions` was
+ * reported as a stale list entry, and the same table left OFF the list would have passed in silence —
+ * the cascade trap this gate exists to close. The column paired with drivers' `id` is the one reported.
  */
+const COMPOSITE = /foreign\s+key\s*\(([^)]*)\)\s*references\s+(?:public\.)?drivers\s*\(([^)]*)\)/gi;
+function compositeDriverColumns(text) {
+  const cols = [];
+  for (const k of text.matchAll(COMPOSITE)) {
+    const from = k[1].split(",").map((x) => x.trim().toLowerCase());
+    const to = k[2].split(",").map((x) => x.trim().toLowerCase());
+    const i = to.indexOf("id");
+    if (from.length === to.length && from.length > 1 && i >= 0) cols.push(from[i]);
+  }
+  return cols;
+}
 function driverFks(sql) {
   const out = [];
   // create table bodies: capture table, then each "col ... references drivers(id)" line
@@ -71,6 +88,7 @@ function driverFks(sql) {
     const table = t[1].toLowerCase();
     for (const c of t[2].matchAll(/^\s*([a-z_][a-z0-9_]*)\s+[^,\n]*references\s+(?:public\.)?drivers\s*\(\s*id\s*\)/gim))
       out.push(`${table}.${c[1].toLowerCase()}`);
+    for (const col of compositeDriverColumns(t[2])) out.push(`${table}.${col}`);
   }
   // alter table add column ... references drivers(id)
   for (const a of sql.matchAll(/alter\s+table\s+(?:only\s+)?(?:public\.)?([a-z_][a-z0-9_]*)[^;]*?add\s+column\s+(?:if\s+not\s+exists\s+)?([a-z_][a-z0-9_]*)\s+[^,;]*references\s+(?:public\.)?drivers\s*\(\s*id\s*\)/gi))
@@ -78,6 +96,9 @@ function driverFks(sql) {
   // add constraint ... foreign key (col) references drivers(id)
   for (const k of sql.matchAll(/alter\s+table\s+(?:only\s+)?(?:public\.)?([a-z_][a-z0-9_]*)[^;]*?foreign\s+key\s*\(\s*([a-z_][a-z0-9_]*)\s*\)\s*references\s+(?:public\.)?drivers\s*\(\s*id\s*\)/gi))
     out.push(`${k[1].toLowerCase()}.${k[2].toLowerCase()}`);
+  // add constraint ... foreign key (org_id, col) references drivers (org_id, id)
+  for (const a of sql.matchAll(/alter\s+table\s+(?:only\s+)?(?:public\.)?([a-z_][a-z0-9_]*)([^;]*);/gi))
+    for (const col of compositeDriverColumns(a[2])) out.push(`${a[1].toLowerCase()}.${col}`);
   return out;
 }
 
@@ -124,8 +145,16 @@ if (process.argv.includes("--self-test")) {
   );
   if (twoAlters.join() !== "inventory_assets.driver_id")
     fails.push(`an alter table's match crossed its own semicolon: got ${twoAlters.join() || "nothing"}`);
+  // 0553's shape: the only driver reference is composite, inline in the table and in an alter.
+  const composite = driverFks(
+    "create table lead_conversions (\n  id uuid primary key,\n  driver_id uuid not null,\n" +
+      "  foreign key (org_id, driver_id) references public.drivers (org_id, id) on delete restrict\n);\n" +
+      "alter table load_x add constraint load_x_fk foreign key (org_id, co_driver_id) references drivers (org_id, id);",
+  );
+  if (composite.sort().join() !== "lead_conversions.driver_id,load_x.co_driver_id")
+    fails.push(`a composite drivers FK was not read: got ${composite.join() || "nothing"}`);
   if (fails.length) { for (const f of fails) console.error(`✗ self-test: ${f}`); process.exit(1); }
-  console.log("✓ driver-references self-test — the unaccounted-FK detector fires, and each alter table ends at its semicolon.");
+  console.log("✓ driver-references self-test — the unaccounted-FK detector fires, each alter table ends at its semicolon, and a composite FK is read.");
   process.exit(0);
 }
 
