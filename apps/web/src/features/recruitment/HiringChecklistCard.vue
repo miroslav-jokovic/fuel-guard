@@ -4,8 +4,10 @@ import {
   hiringStep,
   type CarrierChecklistRow,
   type HiringChecklist,
+  type HiringChecklistRow,
   type HiringStep,
   type HiringStepKey,
+  type HiringStepState,
 } from "@silvicom/shared";
 import { AppButton as BaseButton, AppCard as BaseCard, AppIcon, QueryState } from "@silvicom/ui";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
@@ -57,7 +59,8 @@ const props = defineProps<{
  * in here would be a recruitment-shaped assumption baked into it before that move.
  */
 const emit = defineEmits<{
-  open: [step: HiringStep];
+  /** A row, or the lead action's step — the page resolves either to the row that holds it (§14). */
+  open: [target: { key: HiringStepKey; state: HiringStepState }];
   /** §10 CE2: one of the carrier's own steps — the page opens its drawer. */
   openCarrier: [step: CarrierChecklistRow];
   /**
@@ -100,16 +103,29 @@ const stepLabel = (key: HiringStepKey): string => hiringStep(key).label;
  * §10 CE2: the carrier's own steps interleaved with the built-in rows, each after the row the fold said
  * (`showAfter`) — the fold places them, this only lays them out. One with no emitted step before it
  * goes first.
+ *
+ * ⚠ §14 (D-OF1): the built-in rows are the fold's `rows` — Part 1 with its permissions, the driving record
+ * with the medical card, the application with its approval — never re-grouped here. A carrier step placed
+ * after either half of a merged row shows after that row.
  */
-type Row = { kind: "built"; step: HiringStep } | { kind: "carrier"; step: CarrierChecklistRow };
+type Row = { kind: "built"; row: HiringChecklistRow } | { kind: "carrier"; step: CarrierChecklistRow };
 const rows = computed<Row[]>(() => {
   const c = props.checklist;
   if (!c) return [];
   const carrier = c.carrierSteps ?? [];
-  const after = (k: HiringStepKey | null): Row[] =>
-    carrier.filter((r) => r.showAfter === k).map((step) => ({ kind: "carrier" as const, step }));
-  return [...after(null), ...c.steps.flatMap((step) => [{ kind: "built" as const, step }, ...after(step.key)])];
+  const after = (keys: HiringStepKey[] | null): Row[] =>
+    carrier
+      .filter((r) => (keys === null ? r.showAfter === null : r.showAfter !== null && keys.includes(r.showAfter)))
+      .map((step) => ({ kind: "carrier" as const, step }));
+  return [
+    ...after(null),
+    ...(c.rows ?? []).flatMap((row) => [{ kind: "built" as const, row }, ...after(row.steps.map((s) => s.key))]),
+  ];
 });
+
+/** A merged row with one half done says which half is left — "Still to do: Medical certificate verified". */
+const halfDone = (row: HiringChecklistRow): string | null =>
+  row.steps.length > 1 && row.state !== "done" && row.steps.some((s) => s.state === "done") ? row.lead.label : null;
 
 /**
  * The travel answer, in the only form it may honestly take (D-HM9, and B1's own header).
@@ -146,8 +162,9 @@ const unbuilt = computed(() => (props.checklist?.unbuilt ?? []).map(stepLabel).j
  */
 const unconfigured = computed(() => (props.checklist?.unconfigured ?? []).map(stepLabel).join(", "));
 
-const artifactOf = (key: HiringStepKey) => {
-  const step = props.checklist?.steps.find((s) => s.key === key);
+/** The row's artifact once the whole row is done — the host step's, the document the office opens. */
+const artifactOf = (row: HiringChecklistRow) => {
+  const step = row.state === "done" ? row.steps[0] : null;
   if (!step?.artifact) return null;
   return { ...step.artifact, ...hiringArtifactLink(step.artifact.table, props.driverId) };
 };
@@ -205,25 +222,25 @@ const artifactOf = (key: HiringStepKey) => {
         @retry="emit('retry')"
       >
         <ul v-if="checklist" class="divide-y divide-edge border-t border-edge">
-          <template v-for="row in rows" :key="row.kind === 'built' ? row.step.key : row.step.id">
+          <template v-for="item in rows" :key="item.kind === 'built' ? item.row.key : item.step.id">
           <!-- §10 CE2: a carrier step — the same three columns; its proof is the latest record's words. -->
           <li
-            v-if="row.kind === 'carrier'"
+            v-if="item.kind === 'carrier'"
             class="grid gap-x-4 gap-y-1 py-1 sm:grid-cols-[minmax(0,1fr)_10rem] sm:items-center"
             data-testid="carrier-step-row"
           >
-            <BaseButton size="row" variant="ghost" class="rounded-detail" @click="emit('openCarrier', row.step)">
+            <BaseButton size="row" variant="ghost" class="rounded-detail" @click="emit('openCarrier', item.step)">
               <span class="grid w-full grid-cols-[minmax(0,1fr)_9rem] items-center gap-x-4">
-                <span class="text-xs font-medium text-ink">{{ row.step.label }}</span>
-                <span :class="[BADGE_BASE, toneClass(hiringStepStateBadge(row.step.state).tone), 'justify-self-start']">
-                  <AppIcon :icon="hiringStepStateBadge(row.step.state).icon" class="size-3.5" aria-hidden="true" />
-                  {{ hiringStepStateBadge(row.step.state).label }}
+                <span class="text-xs font-medium text-ink">{{ item.step.label }}</span>
+                <span :class="[BADGE_BASE, toneClass(hiringStepStateBadge(item.step.state).tone), 'justify-self-start']">
+                  <AppIcon :icon="hiringStepStateBadge(item.step.state).icon" class="size-3.5" aria-hidden="true" />
+                  {{ hiringStepStateBadge(item.step.state).label }}
                 </span>
               </span>
             </BaseButton>
             <span class="px-3 text-2xs text-ink-muted sm:px-0 sm:justify-self-end sm:text-right">
-              <template v-if="row.step.state === 'done' && row.step.record">Done by {{ row.step.record.byName }}</template>
-              <template v-else-if="row.step.blocksHire">Your company's rule: hire waits</template>
+              <template v-if="item.step.state === 'done' && item.step.record">Done by {{ item.step.record.byName }}</template>
+              <template v-else-if="item.step.blocksHire">Your company's rule: closing waits</template>
               <template v-else>—</template>
             </span>
           </li>
@@ -239,17 +256,17 @@ const artifactOf = (key: HiringStepKey) => {
                  ⚠ And the artifact stays OUTSIDE the button rather than inside it. It is a link, and
                  a link nested in a button is invalid markup and an unreachable target for a keyboard
                  — two destinations in one row have to be two siblings. -->
-            <BaseButton size="row" variant="ghost" class="rounded-detail" @click="emit('open', row.step)">
+            <BaseButton size="row" variant="ghost" class="rounded-detail" @click="emit('open', item.row)">
               <span class="grid w-full grid-cols-[minmax(0,1fr)_9rem] items-center gap-x-4">
-                <span class="text-xs font-medium text-ink">{{ row.step.label }}</span>
+                <span class="text-xs font-medium text-ink">{{ item.row.label }}</span>
 
                 <!-- D-HUI4: icon AND word, never a coloured dot. The four states are not ordered on a
                      good/bad axis, so only the one that means YOU is toned at all. -->
                 <span
-                  :class="[BADGE_BASE, toneClass(hiringStepStateBadge(row.step.state).tone), 'justify-self-start']"
+                  :class="[BADGE_BASE, toneClass(hiringStepStateBadge(item.row.state).tone), 'justify-self-start']"
                 >
-                  <AppIcon :icon="hiringStepStateBadge(row.step.state).icon" class="size-3.5" aria-hidden="true" />
-                  {{ hiringStepStateBadge(row.step.state).label }}
+                  <AppIcon :icon="hiringStepStateBadge(item.row.state).icon" class="size-3.5" aria-hidden="true" />
+                  {{ hiringStepStateBadge(item.row.state).label }}
                 </span>
               </span>
             </BaseButton>
@@ -259,18 +276,18 @@ const artifactOf = (key: HiringStepKey) => {
                  ⚠ A blocked row never renders as a grey with no explanation — that is the difference
                  between a checklist and a wall. -->
             <span class="px-3 text-2xs sm:px-0 sm:justify-self-end sm:text-right">
-              <template v-if="artifactOf(row.step.key)">
+              <template v-if="artifactOf(item.row)">
                 <router-link
-                  v-if="artifactOf(row.step.key)!.to"
-                  :to="artifactOf(row.step.key)!.to!"
+                  v-if="artifactOf(item.row)!.to"
+                  :to="artifactOf(item.row)!.to!"
                   class="text-brand-700 underline underline-offset-2"
                 >
-                  {{ artifactOf(row.step.key)!.label }} ↗
+                  {{ artifactOf(item.row)!.label }} ↗
                 </router-link>
                 <!-- ⚠ Words with no link rather than a link to somewhere nearby. `hiringArtifacts.ts`
                      names the four artifacts that have no address yet and why; three of them are on
                      this page and the fourth is the open Q-HUI6. -->
-                <span v-else class="text-ink-secondary">{{ artifactOf(row.step.key)!.label }}</span>
+                <span v-else class="text-ink-secondary">{{ artifactOf(item.row)!.label }}</span>
               </template>
               <!-- ⚠ `Needs: <Label>` and not `needs <label>`, which is what shipped for an hour and
                    was found by looking at the page at 1440 on 2026-09-18. The step labels are not one
@@ -278,17 +295,21 @@ const artifactOf = (key: HiringStepKey) => {
                    noun, "Office approved it" is a clause with its own object — so no preposition
                    composes with all twelve. *"needs office approved it"* is what that produced. The
                    colon makes it a label and a value, which reads correctly whatever the value is. -->
-              <span v-else-if="row.step.blockedBy" class="text-ink-muted">
-                Needs: {{ stepLabel(row.step.blockedBy) }}
+              <span v-else-if="item.row.lead.blockedBy" class="text-ink-muted">
+                Needs: {{ stepLabel(item.row.lead.blockedBy) }}
               </span>
               <!-- AF7, §391.23(a)(1): the licensing states with no MVR on file yet, as the applicant
                    wrote them, so the row says which record to pull rather than only that one is owed. -->
-              <span v-else-if="row.step.outstandingJurisdictions.length" class="text-ink-muted">
-                Still needed from: {{ row.step.outstandingJurisdictions.join(", ") }}
+              <span v-else-if="item.row.lead.outstandingJurisdictions.length" class="text-ink-muted">
+                Still needed from: {{ item.row.lead.outstandingJurisdictions.join(", ") }}
+              </span>
+              <!-- §14 D-OF2: a merged row half done names the half that is left. -->
+              <span v-else-if="halfDone(item.row)" class="text-ink-muted">
+                Still to do: {{ halfDone(item.row) }}
               </span>
               <!-- §9 P4: the owner's order, as advice — the step is worked as usual. -->
-              <span v-else-if="row.step.advisedFirst" class="text-ink-muted">
-                Usually after: {{ stepLabel(row.step.advisedFirst) }}
+              <span v-else-if="item.row.lead.advisedFirst" class="text-ink-muted">
+                Usually after: {{ stepLabel(item.row.lead.advisedFirst) }}
               </span>
               <span v-else class="text-ink-muted">—</span>
             </span>

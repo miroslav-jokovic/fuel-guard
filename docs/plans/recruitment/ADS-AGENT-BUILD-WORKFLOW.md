@@ -787,3 +787,23 @@ blocking step in §3 above.
     a stale list entry. Worse, the same table left OFF the list would have passed in silence. The check
     now reads the composite form, and a self-test pins it. No other unlisted FK turned up when it was
     switched on, and removing `lead_conversions` from the list now fails the gate.
+- **2026-11-03, D0 merged** (#1954, `86804ff`). **Gate:** #1956 (`211a811`). D0 left 0552 free for the
+  hiring chat's uncommitted file. `supabase db push` refuses a migration older than the last one applied,
+  so that file would have merged cleanly and then failed at migrate-staging. `check-migration-ordering.mjs`
+  now refuses a migration numbered at or below main's newest, and `docs/MIGRATION-DISCIPLINE.md` says a
+  number goes above main's newest, never into a gap. **The hiring chat's `0552_applicant_outcomes.sql`
+  must be renumbered** before its PR.
+- **2026-11-03, D1 split into three merges** (the deploy window: a function merges before its caller,
+  and `lint:migration-ordering` cannot see functions). **D1a** = migration **0554** with no caller:
+  - `phone_e164` is `normalisePhone` in SQL; the matrix holds the two together over 20 fixtures by
+    importing the built TypeScript.
+  - `ingest_lead` stores a lead once per (org, channel, ref): a repeat answers `duplicate` and never
+    updates. It returns the same person among leads and drivers, by phone or email only.
+  - `convert_lead` takes the applicant **roster** created (roster stays the only writer of `drivers`;
+    D1c exports roster's create). The same pair again is answered; RL020/021/022 refuse the rest.
+  - `save_hiring_profile_version` / `save_opening_version` number versions under a row lock.
+  - `recruiting_lead_queue` shows one person per row, newest first, keyset-paged. Sorting by match
+    (hard requirements met → fewest unknowns) needs D1c's verdicts and is the queue screen's step.
+  - 41 assertions; 22 mutants, all killed (three survived the first run as fixture gaps, now closed).
+  - **D1b** = shared contracts (`hiringProfile`, `opening`, `leadContract`, `leadMatch`). **D1c** = the
+    API (LeadSink, queue route, convert route, profile/opening saves), after 0554 is on staging.

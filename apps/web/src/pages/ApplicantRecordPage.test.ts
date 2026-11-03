@@ -41,7 +41,8 @@ const base = {
 };
 
 const BEFORE = hiringChecklist({ ...base, qualificationKinds: [] });
-const AFTER = hiringChecklist({ ...base, qualificationKinds: ["mvr"] });
+// §14 D-OF2: the driving-record row holds the medical card too, so it is green only with both.
+const AFTER = hiringChecklist({ ...base, qualificationKinds: ["mvr", "medical_registry_verification"] });
 
 /**
  * ⚠ The fold is a REAL `ref` created inside the factory and handed back through this holder, not a
@@ -84,12 +85,12 @@ vi.mock("@/lib/supabase", () => ({
   DEV_BYPASS: false,
 }));
 
-/** The drawer, reduced to the two facts the page is responsible for handing it. */
+/** The drawer, reduced to the two facts the page is responsible for handing it — the ROW since §14. */
 const DrawerStub = {
   name: "HiringStepDrawer",
-  props: ["open", "step", "driverId", "driverStatus", "invitationId"],
+  props: ["open", "row", "driverId", "driverStatus", "invitationId"],
   template:
-    '<div v-if="open" data-drawer :data-step="step?.key" :data-state="step?.state" />',
+    '<div v-if="open" data-drawer :data-step="row?.key" :data-state="row?.state" />',
 };
 
 // D-1 (§9 P2): the page asks the session whether this reader may hire (`roster: manage`, SP5).
@@ -129,7 +130,6 @@ async function mountPage() {
         HireDrawer: { name: "HireDrawer", props: ["open", "driverId"], template: '<div v-if="open" data-hire-drawer :data-driver="driverId" />' },
         ApplicationReviewDrawer: true,
         DispositionSection: true,
-        ExplainerPanel: { template: "<div><slot /></div>" },
       },
     },
     attachTo: document.body,
@@ -159,18 +159,33 @@ describe("the drawer a row opens", () => {
     await router.push("/recruitment/00000000-0000-4000-8000-0000000000d1");
   });
 
+  /** §14 D-OF2: the close drawer links the medical card by its own key; it lives in the driving-record row. */
+  it("opens the row that holds a step a ?step= link names", async () => {
+    const w = await mountPage();
+    await router.push("/recruitment/00000000-0000-4000-8000-0000000000d1?step=medical_certificate");
+    await settle(w);
+    expect(document.body.querySelector("[data-drawer]")?.getAttribute("data-step")).toBe("mvr");
+    await router.push("/recruitment/00000000-0000-4000-8000-0000000000d1");
+  });
+
+  /** §14 D-OF7 (owner, 2026-11-03): the "How this checklist is worked out" panel is gone. */
+  it("shows no explainer panel", async () => {
+    const w = await mountPage();
+    expect(w.text()).not.toContain("How this checklist is worked out");
+  });
+
   /** D-1 (§9 P2): the Hired row opened a step drawer with nothing in it; it opens the hire. */
   it("D-1: the Hired row opens the hire for a reader who may hire, and the step drawer for anybody else", async () => {
     access.roster = true;
     const w = await mountPage();
-    await w.findAll("button").find((b) => b.text().includes("Hired"))!.trigger("click");
+    await w.findAll("button").find((b) => b.text().includes("Application closed"))!.trigger("click");
     await settle(w);
     expect(document.body.querySelector("[data-hire-drawer]")?.getAttribute("data-driver")).toBe("00000000-0000-4000-8000-0000000000d1");
     expect(document.body.querySelector("[data-drawer]")).toBeNull();
 
     access.roster = false;
     const other = await mountPage();
-    await other.findAll("button").find((b) => b.text().includes("Hired"))!.trigger("click");
+    await other.findAll("button").find((b) => b.text().includes("Application closed"))!.trigger("click");
     await settle(other);
     expect(document.body.querySelectorAll("[data-hire-drawer]")).toHaveLength(1);
     expect(document.body.querySelector("[data-drawer]")?.getAttribute("data-step")).toBe("hired");
@@ -223,7 +238,7 @@ describe("the drawer a row opens", () => {
     await settle(w);
     expect(document.body.querySelector("[data-drawer]")).not.toBeNull();
 
-    fold.set!({ ...BEFORE, steps: BEFORE.steps.filter((s) => s.key !== "mvr") });
+    fold.set!({ ...BEFORE, rows: BEFORE.rows.filter((r) => r.key !== "mvr") });
     await settle(w);
     expect(document.body.querySelector("[data-drawer]")).toBeNull();
   });

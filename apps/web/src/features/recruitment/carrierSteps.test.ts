@@ -5,7 +5,7 @@ import { createPinia, setActivePinia } from "pinia";
 import { useConfirmStore } from "@silvicom/ui";
 import {
   APPLICATION_RELEASE_ORDER,
-  HIDEABLE_HIRING_STEPS,
+  HIDEABLE_ROW_STEPS,
   hiringChecklist,
   packetDriverMarkCount,
   type CarrierChecklistRow,
@@ -120,11 +120,12 @@ describe("Settings → Recruiting: your hiring steps", () => {
     const w = mountEditor();
     await settle(w);
     const boxes = w.findAll('[data-testid="built-in-steps"] input[type=checkbox]');
-    expect(boxes).toHaveLength(HIDEABLE_HIRING_STEPS.length);
+    // §14 D-OF1: rows only — the live orientation day is off the list, so it is not offered.
+    expect(boxes).toHaveLength(HIDEABLE_ROW_STEPS.length);
     expect(w.get('[data-testid="built-in-steps"]').text()).toContain("Drug test result");
     // PSP is hidden in the fixture, so its box (the first hideable) is unticked; untick the trip.
     expect((boxes[0]!.element as HTMLInputElement).checked).toBe(false);
-    await boxes[1]!.setValue(false);
+    await boxes[HIDEABLE_ROW_STEPS.indexOf("travel_booked")]!.setValue(false);
     await settle(w);
     expect(state.requests).toEqual([{
       url: "/api/recruitment/settings", method: "PUT",
@@ -162,6 +163,17 @@ describe("the checklist lays the carrier's rows out where the fold put them", ()
     expect(at("Fuel card issued")).toBe(at("Road test") + 1);
     expect(w.findAll('[data-testid="carrier-step-row"]')).toHaveLength(2);
     expect(w.text()).toContain(`of ${checklist.total} hiring steps`);
+  });
+
+  // §14 D-OF2: a step stored after the medical card (a half drawn inside the driving-record row) shows
+  // right after that row — never lost because its anchor is no longer a row of its own.
+  it("a carrier row placed after a half of a merged row sits after that row", async () => {
+    const checklist = hiringChecklist(input({
+      carrierSteps: { steps: [STEP("s2", { after_step: "medical_certificate" })], latest: [] },
+    }));
+    const w = mount(HiringChecklistCard, { props: { driverId: "d1", checklist, loading: false, error: null }, global: { stubs: { RouterLink: true } } });
+    const labels = w.findAll("li").map((li) => li.find("button").text().split("\n")[0]!.trim().split(/\s{2,}/)[0]!);
+    expect(labels.findIndex((l) => l.startsWith("Hair test"))).toBe(labels.findIndex((l) => l.startsWith("Driving record")) + 1);
   });
 
   it("opening a carrier row asks the page for that row", async () => {

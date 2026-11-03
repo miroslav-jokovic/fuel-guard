@@ -30,11 +30,11 @@ const PAPERS = [
 ];
 const MODAL_STUB = { BaseModal: { template: "<div><slot /><slot name='footer' /></div>", props: ["open", "title", "size", "printable"] } };
 
-function mountGallery(startId: string | null) {
+function mountGallery(startId: string | null, kinds: readonly string[] | null = null) {
   setActivePinia(createPinia());
   docs.value = PAPERS;
   return mount(FileGallery, {
-    props: { subject: { type: "tractor", id: "t-697" }, subjectLabel: "Unit 697", startId },
+    props: { subject: { type: "tractor", id: "t-697" }, subjectLabel: "Unit 697", startId, kinds },
     global: { stubs: MODAL_STUB },
   });
 }
@@ -60,5 +60,17 @@ describe("FileGallery", () => {
     await w.findAll("[data-test=gallery-thumb]")[4]!.trigger("click");
     expect(w.get("[data-test=gallery-position]").text()).toBe("5 of 5");
     expect(shown(w)).toBe("https://signed.test/cab21.webp");
+  });
+
+  // §14 D-OF6: the applicant's Part 1 drawer narrows the gallery to what the applicant sent.
+  it("shows only the kinds it is given, when it is given any", () => {
+    docs.value = [];
+    const w = mountGallery("annual", ["annual_inspection"]);
+    docs.value = [...PAPERS.slice(0, 2), { ...PAPERS[2]!, kind: "annual_inspection" }, ...PAPERS.slice(3)];
+    return w.vm.$nextTick().then(() => {
+      expect(w.findAll("[data-test=gallery-thumb]")).toHaveLength(0);
+      expect(w.find("[data-test=gallery-position]").exists()).toBe(false);
+      expect(shown(w)).toBe("https://signed.test/annual.webp");
+    });
   });
 });

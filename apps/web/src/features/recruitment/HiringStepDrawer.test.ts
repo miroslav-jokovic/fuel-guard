@@ -1,11 +1,12 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
-import { mount, type VueWrapper } from "@vue/test-utils";
+import { flushPromises, mount, type VueWrapper } from "@vue/test-utils";
 import { createRouter, createMemoryHistory } from "vue-router";
 import { VueQueryPlugin } from "@tanstack/vue-query";
 import {
   APPLICATION_RELEASE_ORDER,
   hiringChecklist,
   type HiringChecklistInputs,
+  type HiringChecklistRow,
   type HiringStep,
 } from "@silvicom/shared";
 import HiringStepDrawer from "@/features/recruitment/HiringStepDrawer.vue";
@@ -57,6 +58,10 @@ const STUBS = {
   // UX4: no `data-body` — Med-Stop's card is not a body the map chooses; it only asks for the order
   // drawer, which the page opens in place of this one.
   MedstopTestCard: { name: "MedstopTestCard", emits: ["order"], template: `<button data-medstop @click="$emit('order', 'EE-APP')" />` },
+  // §14 OF3: the road test's own suite is `RoadTestPanel.test.ts`; here only which drawer it opens in.
+  RoadTestPanel: stub("road-test"),
+  ApplicantPhotoStrip: stub("photos"),
+  SelfieCheckPanel: stub("selfie"),
 };
 
 /** Everything the schema can see is done, so every step has a state worth opening. */
@@ -91,6 +96,12 @@ afterEach(() => {
  * not enough when a single test opens more than one. It is the trap B5's handoff names, met from the
  * other side: *teleported panels outlive the test*.
  */
+/**
+ * §14: the drawer opens a ROW. Each test here is about one step's body, so it is mounted as the row that
+ * holds just that step — the merged rows have their own test below.
+ */
+const rowOf = (step: HiringStep): HiringChecklistRow => ({ key: step.key, label: step.label, state: step.state, steps: [step], lead: step });
+
 async function openOn(key: string, invitationId: string | null = "invite-1", over: Partial<HiringStep> = {}) {
   wrapper?.unmount();
   wrapper = null;
@@ -101,7 +112,7 @@ async function openOn(key: string, invitationId: string | null = "invite-1", ove
   wrapper = mount(HiringStepDrawer, {
     props: {
       open: true,
-      step: { ...stepOf(key), ...over },
+      row: rowOf({ ...stepOf(key), ...over }),
       driverId: DRIVER,
       driverStatus: "applicant",
       invitationId,
@@ -175,9 +186,60 @@ describe("a row opens the work behind the step", () => {
    * ⚠ Both application steps land on the application, and that is the ruling rather than a
    * coincidence: the office's act at step 4 IS reading what was filed at step 3 and approving it.
    */
-  it("opens the application for both the filling and the approving step", async () => {
+  // §14 D-OF6 (owner, 2026-11-03): Part 1 shows the link, the selfie check and every picture they sent.
+  it("opens Part 1 on the link, the selfie check and the photos the applicant sent", async () => {
+    expect(bodies(await openOn("intake_completed"))).toEqual(["invite", "selfie", "photos"]);
+  });
+
+  // §14 OF3: the road test is nine items with a three-way rating each, filled in on a tablet — the wide
+  // drawer, like the application. At the default width the item and its rating cannot sit side by side.
+  it("opens the road test and the application in the wide drawer, and everything else in the default", async () => {
+    const size = async (key: string) => {
+      await openOn(key);
+      return wrapper!.findComponent({ name: "SlideOver" }).props("size");
+    };
+    expect(await size("road_test")).toBe("xl");
+    expect(await size("application_filled")).toBe("xl");
+    expect(await size("psp")).toBe("md");
+  });
+
+  // §14 D-OF2: the approval is drawn UNDER the application in one drawer, so it opens the review rather
+  // than rendering the application body a second time.
+  it("opens the application for the filling step, and the review for the approving step", async () => {
     expect(bodyOf(await openOn("application_filled"))).toBe("employment");
-    expect(bodyOf(await openOn("office_approved"))).toBe("employment");
+    const approving = await openOn("office_approved", "invite-1", { state: "waiting_on_us" });
+    expect(bodies(approving)).toEqual([]);
+    expect(approving.querySelector('[data-testid="approval-body"]')).not.toBeNull();
+    [...approving.querySelectorAll("button")].find((b) => b.textContent?.trim() === "Review and approve")!.click();
+    expect(wrapper!.emitted("review")).toEqual([["invite-1"]]);
+  });
+
+  /**
+   * §14 D-OF2 (owner, 2026-11-03): one row, every half under its own heading — the driving record's row
+   * holds the MVR and the medical card, each with its own panel and its own state.
+   */
+  it("draws every step a merged row holds, each under its own heading", async () => {
+    wrapper?.unmount();
+    document.body.innerHTML = "";
+    const router = createRouter({ history: createMemoryHistory(), routes });
+    await router.push(`/recruitment/${DRIVER}`);
+    await router.isReady();
+    const mvr = stepOf("mvr");
+    const medical = stepOf("medical_certificate");
+    wrapper = mount(HiringStepDrawer, {
+      props: {
+        open: true,
+        row: { key: "mvr", label: mvr.label, state: "waiting_on_us", steps: [mvr, medical], lead: medical },
+        driverId: DRIVER, driverStatus: "applicant", invitationId: null,
+      },
+      global: { plugins: [router, VueQueryPlugin], stubs: STUBS },
+      attachTo: document.body,
+    });
+    await flushPromises();
+    const headings = [...document.body.querySelectorAll("h3")].map((h) => h.textContent?.trim());
+    expect(headings).toEqual(["Driving record", "Medical certificate verified"]);
+    expect(document.body.querySelector('[data-testid="row-step-mvr"] [data-body="record"]')).not.toBeNull();
+    expect(document.body.querySelector('[data-testid="row-step-medical_certificate"]')?.textContent).toContain("qualification file");
   });
 
   it("opens the PSP ledger for the PSP step", async () => {
@@ -269,7 +331,7 @@ describe("the three recorded acts D1 built (D-HM6)", () => {
     await router.push(`/recruitment/${DRIVER}`);
     await router.isReady();
     wrapper = mount(HiringStepDrawer, {
-      props: { open: true, step: filed, driverId: DRIVER, driverStatus: "applicant", invitationId: null },
+      props: { open: true, row: rowOf(filed), driverId: DRIVER, driverStatus: "applicant", invitationId: null },
       global: { plugins: [router, VueQueryPlugin], stubs: STUBS },
       attachTo: document.body,
     });
@@ -364,7 +426,7 @@ describe("what the drawer says about the step itself", () => {
     wrapper = mount(HiringStepDrawer, {
       props: {
         open: true,
-        step: blocked,
+        row: rowOf(blocked),
         driverId: DRIVER,
         driverStatus: "applicant",
         invitationId: null,
@@ -391,7 +453,7 @@ describe("what the drawer says about the step itself", () => {
       mvrs: [{ jurisdiction: "IL", occurredOn: "2026-09-10" }],
     }).steps.find((s) => s.key === "mvr")!;
     wrapper = mount(HiringStepDrawer, {
-      props: { open: true, step: owed, driverId: DRIVER, driverStatus: "applicant", invitationId: null },
+      props: { open: true, row: rowOf(owed), driverId: DRIVER, driverStatus: "applicant", invitationId: null },
       global: { plugins: [router, VueQueryPlugin], stubs: STUBS },
       attachTo: document.body,
     });

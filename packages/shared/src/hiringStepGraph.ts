@@ -68,7 +68,7 @@ export const HIRING_PHASE_LABELS: Record<HiringPhase, string> = {
   screening: "Screening",
   orientation: "Orientation",
   office_day: "Office day",
-  hire: "Ready to hire",
+  hire: "Ready to close",
 };
 
 /**
@@ -202,6 +202,19 @@ export interface HiringStepSpec {
    * the application or the hire: absent means the step is the carrier's to run, always.
    */
   carrierMayHide?: true;
+  /**
+   * §14 D-OF1/D-OF2 (2026-11-03): the row this step is DRAWN inside. The office reads one row for one
+   * act — Part 1 and its permissions, the driving record and the medical card, the application and its
+   * approval — while the fold keeps measuring each half, because the hire's refusal list, the travel and
+   * send warnings and the API read steps by key. Absent: the step is its own row. Always names a step
+   * that is itself a row (never a chain), and always one listed before it.
+   */
+  shownIn?: HiringStepKey;
+  /**
+   * §14 D-OF3: `false` keeps the step off the office's list entirely — measured by the fold, never a row,
+   * never the `next` action. Previous employers (manual for now) and the live orientation day.
+   */
+  listed?: false;
 }
 
 /** A catalogue entry as written: everything but the number, which its position decides. */

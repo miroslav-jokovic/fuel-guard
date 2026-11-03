@@ -825,6 +825,57 @@ application stands, in four stages, and what the applicant still owes.
 
 ---
 
+## 14. The owner's sixteen steps — the checklist as the office works it (2026-11-03)
+
+**What for.** On 2026-11-03 the owner wrote the hire out step by step, as the office actually works it,
+and asked whether the plan matched. It did not: the checklist showed rows that are halves of one act
+(Part 1 and its permissions; the application and its approval; the driving record and the medical
+card), a row the office does by hand outside the product (previous employers), a row nothing can tick
+(live orientation), and a last row called "Hired" for a hire that happens in McLeod. The owner's list:
+
+1 invite (email or phone) · 2 Part 1 finished — with every photo and the permissions · 3 driving
+record (Samba, uploaded, read by AI) with the medical card · 4 PSP (bought, $10) · 5 Clearinghouse ·
+6 drug test (ordered from here, result here) · 7 application sent · 8 application received, reviewed,
+edited — and approved · *training videos* · 11 travel (booked through a travel API) · 13 road test
+(checklist, phone and tablet) · 14 application signing · 15 handbook · 16 **close application**.
+Removed: 9 office approved (duplicate of 8), 10 medical certificate (part of 3), 12 previous employers
+(manual for now), "How this checklist is worked out" (unnecessary).
+
+**Decisions** (the owner said "proceed as proposed" on 2026-11-03; each is his to overturn):
+
+| ID | Decision | Why |
+|---|---|---|
+| D-OF1 | **Rows are what the office reads; steps are what the law measures — two lists.** The catalogue keeps every step and the fold keeps folding every one (hire refusal, travel and send warnings and the API read them by key). A step with `shownIn` is drawn INSIDE its host's row; a step with `listed: false` is drawn nowhere. `hiringChecklistRows()` (shared) is the one grouping, and `done`/`total` count rows. | Deleting `permissions_signed` or `medical_certificate` from the catalogue would delete a check from the hire's refusal list — the medical card is one of §5's six federal gates. Merging the *display* removes the duplicate without removing a gate. |
+| D-OF2 | **Part 1 row = Part 1 + permissions; driving-record row = MVR + medical card; application row = filled in + approved.** A merged row is done when every member is; otherwise it waits on the office if any member does, else on the applicant, else it is blocked. Its drawer shows each member's own body under its own heading. | Each of the owner's three "duplicates" is one act seen twice. "Waiting on you" whenever the office can move on any half is D-HUI4's rule — the loud state means *you*. |
+| D-OF3 | **Previous employers and live orientation are not listed.** The fold still measures the investigation (never a gate — §391.23(c)(1)'s 30 days run from the first day), and the DQ file still lists the §391.51(b)(3) items, so a missing one shows there. `next` never nominates an unlisted step. | Manual work stays possible without a row that nags. Live orientation has no evidence (HW8b) and the owner's flow does not name it. |
+| D-OF4 | **The order follows the owner's list**: the medical card beside the MVR; the orientation videos (his "training videos") after the application and before travel. | The list is the order the office works (`hiringSteps.ts` header). |
+| D-OF5 | **"Hired" becomes "Close application", and stays a real act.** The McLeod roster sweep HOLDS an applicant it matches by CDL or name (`rosterMatch.ts`, RL1) until the row stops being an applicant; closing does that, so McLeod's driver links to the same row and the PSP, MVR, scans and signed papers stay with it. | Deleting the act would let McLeod create a second, empty driver beside the applicant's file — the two-rows-for-one-person failure RL1 was written against. |
+| D-OF6 | **Part 1's photographs show in the Part 1 drawer, in the vehicles' and trailers' gallery** (`components/files/FileGallery.vue`). | One viewer for every file. |
+| D-OF7 | **The explainer panel on the applicant record goes.** | Owner: unnecessary. |
+| D-OF8 | **Vendor portals open in a new tab, never inside our window.** Samba's portal and FMCSA's Clearinghouse (login.gov) refuse to be framed. The drawer is: open the portal, drop the PDF it gives, our reader proposes what it says, the recruiter confirms. | A framed login page is blocked by the vendor's own headers; a modal that cannot load is a dead end. |
+
+**Open questions** (each with a recommendation):
+
+- **Q-OF1 — Samba: a portal account, or the API?** The API was deprecated on cost on 2026-08-26. Recommend
+  the portal + upload + AI read (D-OF8), which costs only the per-record fee.
+- **Q-OF2 — "$10 per PSP": the carrier's own FMCSA bill, or Silvicom charging other carriers?** What is built
+  is the first (order, a confirmation showing the price, FMCSA bills the account). The second needs a billing
+  system. Recommend the first; the price is `PSP_UNIT_PRICE_USD` on each deployment.
+- **Q-OF3 — "Ignev": which travel vendor?** No API by that name was found. The trip is recorded by hand
+  (`TravelPanel`) until the vendor and its documentation are known.
+- **Q-OF4 — Drug-test ordering from the applicant page** needs Med-Stop's write API (MEDSTOP-PLAN MS3) and a
+  key Med-Stop's IP filter accepts (Q-MS7). Recommend building it once Q-MS7 clears.
+- **Q-OF5 — The AI checking layer.** PSP arrives as structured data, so rules read it; the MVR arrives as a
+  PDF and needs a reader. Recommend an MVR reader on the document-reading pipeline that proposes violations,
+  suspensions and the medical status for the recruiter to confirm — never filing on its own.
+
+**The build, in order:** OF1 rows + order + close + explainer (shared + web, no schema) → OF2 Part 1 gallery
+→ OF3 road test on phone, tablet and wide screens → OF4 PSP production check → OF5 MVR and Clearinghouse
+drawers (portal + upload) → OF6 AI MVR reader → OF7 drug-test ordering (after Q-MS7) → OF8 travel booking
+(after Q-OF3).
+
+---
+
 ## 7. Progress log
 
 - **2026-10-31** — Audit written. Measured on production: 0 filed applications, 4 drafts, 1 real
@@ -1028,3 +1079,18 @@ application stands, in four stages, and what the applicant still owes.
   and Spanish. 19/19 mutants killed: on the first pass one did not apply and one broke the template (both rerun
   and killed), and one real survivor — the phase chain dropping the phases on its way to a wait screen — got
   `applicantStatusRouter.test.ts`, which also kills the owed list dropped the same way.
+- **2026-11-03** — §14 written from the owner's sixteen steps. **OF1** built (no migration): rows over steps
+  (`hiringChecklistRows.ts`, `shownIn`/`listed` on the catalogue); Part 1 + permissions, driving record +
+  medical card, application + approval are one row each; previous employers and live orientation unlisted;
+  medical card beside the MVR and videos before travel; "Hired" is "Application closed" (same act, D-OF5);
+  the record page's explainer removed; the drawer opens a row and draws each half (`HiringStepBody.vue`).
+  26/26 mutants killed (two survivors on the first pass — mixed us/them row state, a carrier step anchored
+  on a merged half — each got a test).
+- **2026-11-03** — OF1 merged (#1955, `8b5f039`), no migration. **OF2 + OF3** built (no migration): the Part 1
+  drawer shows every picture the applicant sent (`ApplicantPhotoStrip.vue`) and opens it in `FileGallery`,
+  given a `kinds` filter (`APPLICANT_DOCUMENT_KINDS`) — read through `/api/compliance/documents`, which a
+  recruiter may read (`roster: view`) and which already withholds an SSN card's picture (Q-WF4). The road
+  test's rows break on the drawer's width (`@container`, `@2xl:`), not the screen's — measured at 1440 and 820,
+  `sm:` squeezed each item to one word per line inside a 448 px drawer — and it opens in the wide drawer.
+  Seen in a browser at 1920/1440/820/390. 12/12 mutants killed (one survivor first: no test opened the Part 1
+  drawer at all; it got one).

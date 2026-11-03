@@ -2,9 +2,11 @@
 import { computed, reactive } from "vue";
 import {
   CARRIER_STEP_ANCHORS,
+  CARRIER_STEP_ANCHOR_ROWS,
   CARRIER_STEP_PROOF_LABELS,
   CARRIER_STEP_PROOFS,
   HIDEABLE_HIRING_STEPS,
+  HIDEABLE_ROW_STEPS,
   HIRE_REFUSES_WITHOUT,
   carrierStepCreateSchema,
   hiringStep,
@@ -52,14 +54,15 @@ const add = useAddCarrierStep();
 const update = useUpdateCarrierStep();
 const saveSettings = useSaveRecruitingSettings();
 
-const ANCHOR_OPTIONS = CARRIER_STEP_ANCHORS.map((k) => ({ value: k, label: `After “${hiringStep(k).label}”` }));
+// §14 D-OF1: offered as the office reads the checklist — rows, never a half drawn inside another row.
+const ANCHOR_OPTIONS = CARRIER_STEP_ANCHOR_ROWS.map((k) => ({ value: k, label: `After “${hiringStep(k).label}”` }));
 const PROOF_OPTIONS = CARRIER_STEP_PROOFS.map((p) => ({ value: p, label: CARRIER_STEP_PROOF_LABELS[p] }));
 const OWES_OPTIONS = [
   { value: "us", label: "The office does it" },
   { value: "them", label: "The applicant does it (we record it)" },
 ];
 const LOCKED = HIRE_REFUSES_WITHOUT.map((k) => hiringStep(k).label);
-const HIDEABLE = HIDEABLE_HIRING_STEPS.map((k) => ({ key: k, label: hiringStep(k).label }));
+const HIDEABLE = HIDEABLE_ROW_STEPS.map((k) => ({ key: k, label: hiringStep(k).label }));
 
 const blank = () => ({ label: "", instructions: "", afterStep: "road_test" as HiringStepKey, owes: "us" as "us" | "them", proof: "tick" as CarrierStepProof, blocksHire: false });
 const form = reactive(blank());
@@ -70,7 +73,7 @@ const labelError = computed(() =>
 
 const placeLabel = (s: CarrierStep) => {
   const anchor = CARRIER_STEP_ANCHORS.find((k) => k === s.after_step);
-  return anchor ? `After “${hiringStep(anchor).label}”` : "Before the hire";
+  return anchor ? `After “${hiringStep(anchor).label}”` : "Before closing";
 };
 
 async function submit(): Promise<void> {
