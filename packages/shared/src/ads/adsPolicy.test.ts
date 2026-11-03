@@ -19,7 +19,7 @@ const settings = (patch: Partial<AdsSettings["limits"]> = {}, approvals: Partial
 const launch = (patch: Partial<SpendRequest> = {}): SpendRequest => ({
   act: "launch", platform: "meta", daily_cents: 10_000, lifetime_cents: 100_000, current_daily_cents: null,
   month_to_date_cents: 0, platform_month_to_date_cents: 0, other_live_daily_cents: 0, days_left_in_month: 30,
-  account_limit_cents: 300_000, kill_switch: false, ...patch,
+  account_headroom_cents: 300_000, kill_switch: false, ...patch,
 });
 const refusals = (s: AdsSettings, r: SpendRequest) => { const v = checkSpend(s, r); return v.ok ? [] : v.refusals; };
 
@@ -29,7 +29,7 @@ describe("checkSpend — the monthly cap is a forecast to month end", () => {
   });
   it("one cent under the cap is allowed and one cent over is refused (cap −1 / 0 / +1)", () => {
     expect(checkSpend(settings({ monthly_cap_cents: { meta: 300_001 } }), launch()).ok).toBe(true);
-    expect(refusals(settings({ monthly_cap_cents: { meta: 299_999 } }), launch({ account_limit_cents: 299_999 }))).toEqual(["monthly_cap_forecast"]);
+    expect(refusals(settings({ monthly_cap_cents: { meta: 299_999 } }), launch({ account_headroom_cents: 299_999 }))).toEqual(["monthly_cap_forecast"]);
   });
   it("spend so far and the other live campaigns count against the same cap", () => {
     expect(refusals(settings(), launch({ month_to_date_cents: 1 }))).toEqual(["monthly_cap_forecast"]);
@@ -69,10 +69,11 @@ describe("checkSpend — nothing is in force until someone saves it", () => {
   it("the kill switch refuses, alongside anything else that is wrong", () => {
     expect(refusals(settings(), launch({ kill_switch: true, month_to_date_cents: 1 }))).toEqual(["kill_switch_on", "monthly_cap_forecast"]);
   });
-  it("the platform's account limit must be read, and no looser than our cap (fence 3)", () => {
-    expect(refusals(settings(), launch({ account_limit_cents: null }))).toEqual(["account_limit_unknown"]);
-    expect(refusals(settings(), launch({ account_limit_cents: 300_001 }))).toEqual(["account_limit_above_cap"]);
-    expect(checkSpend(settings(), launch({ account_limit_cents: 300_000 })).ok).toBe(true);
+  it("the room the platform's account limit leaves must be read, be more than nothing, and be no looser than our cap (fence 3)", () => {
+    expect(refusals(settings(), launch({ account_headroom_cents: null }))).toEqual(["account_limit_unknown"]);
+    expect(refusals(settings(), launch({ account_headroom_cents: 0 }))).toEqual(["account_limit_reached"]);
+    expect(refusals(settings(), launch({ account_headroom_cents: 300_001 }))).toEqual(["account_limit_above_cap"]);
+    expect(checkSpend(settings(), launch({ account_headroom_cents: 300_000 })).ok).toBe(true);
   });
 });
 

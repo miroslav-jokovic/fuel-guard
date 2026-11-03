@@ -8,6 +8,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { CalendarDay } from "@silvicom/shared";
 import { readDrugAlcoholProgram } from "../program.js";
 import { registerOrderRoutes, type OrderRouteDeps } from "./order.js";
+import { registerCloseRoutes } from "./close.js";
+import type { ReleaseOrderedAppointment } from "../closeOrder.js";
 
 /** Today in the org's own zone — a collection day and a selection's age are calendar days there. */
 async function orgClock(admin: SupabaseClient, orgId: string): Promise<{ today: CalendarDay; timeZone: string }> {
@@ -22,7 +24,7 @@ const orgToday = async (admin: SupabaseClient, orgId: string): Promise<CalendarD
  * roster reconciliation name no test and no result. The selection lists inside the answer are held
  * to the roles that read testing records (`program.ts`), so the gate here stays the section's.
  */
-export function drugAlcoholRouter(deps: Pick<OrderRouteDeps, "fillOrderedAppointment">): Router {
+export function drugAlcoholRouter(deps: Pick<OrderRouteDeps, "fillOrderedAppointment"> & { releaseOrderedAppointment: ReleaseOrderedAppointment }): Router {
   const router = Router();
   router.use(requireAuth, requireOrg);
 
@@ -37,6 +39,8 @@ export function drugAlcoholRouter(deps: Pick<OrderRouteDeps, "fillOrderedAppoint
     }),
   );
   // UX3: ordering a test — its own role gate, not the section's (`routes/order.ts`).
-  registerOrderRoutes(router, { orgClock, ...deps });
+  registerOrderRoutes(router, { orgClock, fillOrderedAppointment: deps.fillOrderedAppointment });
+  // MSO2: closing an open order as a no-show or cancelled — the same role gate (`routes/close.ts`).
+  registerCloseRoutes(router, { orgToday, releaseOrderedAppointment: deps.releaseOrderedAppointment });
   return router;
 }

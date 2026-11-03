@@ -18,6 +18,8 @@ import { describeOfficeEdit } from "@/features/apply/fieldLabels";
 import ApplicantNotesPanel from "@/features/recruitment/ApplicantNotesPanel.vue";
 import ApplicantActivityList from "@/features/recruitment/ApplicantActivityList.vue";
 import OrderTestDrawer, { type OrderSeed } from "@/components/medstop/OrderTestDrawer.vue";
+import CloseOrderDrawer from "@/components/medstop/CloseOrderDrawer.vue";
+import type { MedstopCloseStatus } from "@silvicom/shared";
 import { useRefreshDrugTestStep } from "@/features/recruitment/useApplicantScreening";
 import { useApplicantChecklistQuery } from "@/features/recruitment/useApplicantChecklist";
 import {
@@ -163,9 +165,17 @@ function openRow(step: { key: HiringStepKey; state: string }): void {
 /** UX4 (MEDSTOP-PLAN §7A.5): the drug-test step's pre-employment order, swapped in the same way. */
 const ordering = ref<OrderSeed | null>(null);
 const refreshDrugTestStep = useRefreshDrugTestStep();
-function openOrder(order: { medstopId: string; zip: string | null }): void {
+function openOrder(order: { medstopId: string; zip: string | null; locationId?: string | null }): void {
   openStepKey.value = null;
-  ordering.value = { kind: "applicant", medstopId: order.medstopId, zip: order.zip, name: driver.value?.full_name ?? "Applicant" };
+  closing.value = null;
+  ordering.value = { kind: "applicant", medstopId: order.medstopId, zip: order.zip, locationId: order.locationId ?? null, name: driver.value?.full_name ?? "Applicant" };
+}
+
+/** MSO2 (D-MSO3): closing the step's open order, swapped in the same way; "Order again" swaps to the order drawer. */
+const closing = ref<{ requestId: string; status: MedstopCloseStatus } | null>(null);
+function openClose(request: { requestId: string; status: MedstopCloseStatus }): void {
+  openStepKey.value = null;
+  closing.value = request;
 }
 </script>
 
@@ -225,6 +235,7 @@ function openOrder(order: { medstopId: string; zip: string | null }): void {
         @close="openStepKey = null"
         @review="openReview"
         @order-test="openOrder"
+        @close-order="openClose"
         @open-step="openStepKey = $event"
       />
 
@@ -239,6 +250,7 @@ function openOrder(order: { medstopId: string; zip: string | null }): void {
       />
 
       <OrderTestDrawer :open="ordering !== null" :seed="ordering" @close="ordering = null" @placed="refreshDrugTestStep(id)" />
+      <CloseOrderDrawer :open="closing !== null" :request="closing" @close="closing = null" @closed="refreshDrugTestStep(id)" @order-again="openOrder" />
 
       <CarrierStepDrawer :open="openCarrier !== null" :driver-id="id" :step="openCarrier" @close="openCarrierId = null" />
       <HireDrawer :open="hiring" :driver-id="id" :full-name="driver?.full_name ?? ''" @close="hiring = false" />

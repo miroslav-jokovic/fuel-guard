@@ -56,7 +56,7 @@ import { searchSites, useOrderContext, useOrderPreview, usePlaceOrder } from "@/
  */
 export type OrderSeed =
   | { kind: "selection"; selectionId: string; medstopId: string; name: string; service: MedstopOrderService }
-  | { kind: "applicant"; medstopId: string; name: string; zip?: string | null };
+  | { kind: "applicant"; medstopId: string; name: string; zip?: string | null; locationId?: string | null };
 const props = defineProps<{ open: boolean; seed: OrderSeed | null }>();
 const emit = defineEmits<{ close: []; placed: [] }>();
 
@@ -96,9 +96,17 @@ watch(
     reviewed.value = null;
     goByTouched.value = false;
     setGoBy();
+    // MSO2 "Order again" (D-MSO3): filled from the closed order — its ZIP searched and its site picked when
+    // Med-Stop still offers it. Only once ordering is known to be on; a refused search just leaves the list empty.
+    if (seed?.kind === "applicant" && seed.locationId && /^\d{5}$/.test(zip.value)) void reorderFrom(seed.locationId);
   },
   { immediate: true },
 );
+
+async function reorderFrom(locationId: string): Promise<void> {
+  await find("zip");
+  if (sites.value.some((s) => s.id === locationId)) siteId.value = locationId;
+}
 
 function setGoBy(): void {
   const goBy = context.data.value?.goBy ?? medstopDefaultGoBy(today.value);

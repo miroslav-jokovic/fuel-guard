@@ -76,12 +76,15 @@ export function metaAdapter(deps: MetaAdapterDeps): PlatformAdapter {
 
   return {
     safe: {
-      async readAccountLimitCents() {
-        const r = await graph.get<{ spend_cap?: string }>(`act_${deps.accountId}`, { fields: "spend_cap" });
+      async readAccountHeadroomCents() {
+        const r = await graph.get<{ spend_cap?: string; amount_spent?: string }>(`act_${deps.accountId}`, { fields: "spend_cap,amount_spent" });
         if (!r.ok) return null;
         // Meta's own rule: "0" is no limit — which the guard must read as unknown, never as unlimited.
-        const cents = Number(r.data.spend_cap);
-        return Number.isFinite(cents) && cents > 0 ? cents : null;
+        // Both are cents, and both are lifetime totals: what is left is the difference (adapter.ts).
+        const cap = Number(r.data.spend_cap);
+        const spent = Number(r.data.amount_spent);
+        if (!Number.isFinite(cap) || cap <= 0 || !Number.isFinite(spent) || spent < 0) return null;
+        return Math.max(0, cap - spent);
       },
 
       async readSpendCents({ since, until }) {

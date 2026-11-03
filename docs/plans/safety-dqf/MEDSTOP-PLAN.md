@@ -1180,3 +1180,27 @@ SQL, counts only). Nothing was ordered.
     `smsDrugTestSite` and the applicant's language on the invitation. That is not built, and it is not this work.
   - [?] still open until the first real order: `requestdate`'s exact format (falls back to the deadline sent),
     and whether `code` is what the site asks for.
+- 2026-11-03 — **Read live for MSO2 (GET only, production key, workstation):**
+  - `/List/STATUSREQUESTCLOSE` = **REFUSAL** ("REFUSAL TO TEST") · **NO SHOW** · **CANCELED** ("REQUEST CANCELED").
+    `COMPLETED` is not a close-out code: a collection completes the request itself.
+  - `GET /Request/{id}/status` on a real open request answers `id, employee, service, location, requestdate,
+    test, testlocation, status, comment, refusal, notification`; the last four are empty.
+  - `GET /Request/{id}`'s `requestdate` reads `2026-11-09T16:30:00Z`. **The `Z` is not UTC:** 16:30 is the wall
+    time that was requested. MSO1's parser reads it as the wall clock, which is right. `code` (14 chars) and
+    `registrationnumber` (9) are both filled, so the appointment's reference is "code (registration n)".
+    This answers one of §7A.14's [?] (the GET side; the POST's own echo is still the first order's to show).
+- 2026-11-03 — **MSO2 built (D-MSO3; no migration).**
+  - The step's open drug order offers **Didn't go — mark no-show** and **Cancel order** to the order roles.
+    Each opens a review drawer (the page swaps drawers; none is nested). On open, the api reads the order's
+    mirror row (ours, certain match), then `GET /Request/{id}` (must be OPEN now), then its close-out form.
+    It shows the person, the site, the go-by and the exact comment.
+  - **Close the order** POSTs that form once to `POST /Request/{id}/status`. Only `status`, `comment` (fixed
+    words ≥ 30 chars, plus the office's optional reason) and `refusal: "N"` are set. It is audited as
+    `medstop.order.closed`, or `close_unknown` when Med-Stop does not answer.
+  - `MEDSTOP_WRITES` holds three writes, pinned by its test. `{id}` matches exactly one segment, so `/notify`
+    and `/Request/noshow` (which closes EVERY open request a person holds) stay refused.
+  - **REFUSAL is not offered.** A refusal to test is the DER's §40.191 determination, never a step button.
+  - After the close, recruiting's writer retires the appointment the order filled (`releaseOrderedDrugTest`,
+    matched on the exact reference), and the request's new status is mirrored at once.
+  - **Order again** opens the order drawer filled from the closed order: same applicant, its ZIP searched,
+    its site picked if Med-Stop still offers it.

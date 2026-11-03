@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/vue-query";
 import type { Ref } from "vue";
-import type { MedstopOrderInput, MedstopOrderPlaced, MedstopOrderPreview, MedstopOrderablePerson, MedstopSite } from "@silvicom/shared";
+import type { MedstopCloseInput, MedstopClosePreview, MedstopClosed, MedstopOrderInput, MedstopOrderPlaced, MedstopOrderPreview, MedstopOrderablePerson, MedstopSite } from "@silvicom/shared";
 import { apiFetch } from "@/lib/api";
 
 /**
@@ -53,6 +53,23 @@ export function usePlaceOrder() {
   return useMutation({
     mutationFn: (input: MedstopOrderInput) =>
       unwrap<MedstopOrderPlaced>("/api/drug-alcohol/order", { method: "POST", body: input }, "Could not place the order"),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["drug-alcohol"] }),
+  });
+}
+
+/** MSO2: what closing an open order will send — Med-Stop's own reads, built by the api. */
+export function useClosePreview() {
+  return useMutation({
+    mutationFn: (v: { requestId: string; input: MedstopCloseInput }) =>
+      unwrap<MedstopClosePreview>(`/api/drug-alcohol/order/${encodeURIComponent(v.requestId)}/close/preview`, { method: "POST", body: v.input }, "Could not prepare closing the order"),
+  });
+}
+
+export function useCloseOrder() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (v: { requestId: string; input: MedstopCloseInput }) =>
+      unwrap<MedstopClosed>(`/api/drug-alcohol/order/${encodeURIComponent(v.requestId)}/close`, { method: "POST", body: v.input }, "Could not close the order"),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["drug-alcohol"] }),
   });
 }

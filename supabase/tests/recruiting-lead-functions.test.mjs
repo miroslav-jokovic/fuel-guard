@@ -61,7 +61,9 @@ const PHONES = ["(708) 236-5732", "708.236.5732", "7082365732", "17082365732", "
   " +17082365732 ", "+447911123456", "+44 7911 123456", "236-5732", "", null, "abc", "+0123456789", "001447911123456",
   "+1 708 236 5732", "12345678901234567", "(123) 456-7890",
   // 11 digits not starting with 1 is not a US number written long, and a padded non-US E.164 is kept, trimmed.
-  "27821234567", " +447911123456 "];
+  "27821234567", " +447911123456 ",
+  // 0560 (audit M5): a + number keeps its own country — 10 digits is not US — and spaces are allowed.
+  "+4930123456", "+49 30 123456", "+52 1 55 1234 5678", "+1 (708) 236-5732", "+(44) 7911-123456"];
 const mismatched = [];
 for (const raw of PHONES) {
   const sql = (await one(`select public.phone_e164($1) as v`, [raw])).v;
@@ -69,6 +71,9 @@ for (const raw of PHONES) {
   if (sql !== ts) mismatched.push({ raw, sql, ts });
 }
 ok(`phone_e164 agrees with normalisePhone on all ${PHONES.length} fixtures`, mismatched.length === 0, JSON.stringify(mismatched));
+const e164 = async (raw) => (await one(`select public.phone_e164($1) as v`, [raw])).v;
+ok("a + number is never US-defaulted: +4930123456 stays German (0560)", (await e164("+4930123456")) === "+4930123456");
+ok("a + number written with spaces is read (0560)", (await e164("+52 1 55 1234 5678")) === "+5215512345678");
 
 // ── 2. a lead is stored once ─────────────────────────────────────────────────────────────────────
 const ingest = async (org, lead) => (await one(`select public.ingest_lead($1, $2::jsonb) as r`, [org, JSON.stringify(lead)])).r;

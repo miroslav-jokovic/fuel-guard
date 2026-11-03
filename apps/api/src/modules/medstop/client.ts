@@ -26,7 +26,7 @@ import { z } from "zod";
  * The guide says back off about a minute. A full sweep is ~25 pages, so pages are paced at 650 ms
  * and a 429 waits 60 s, at most twice.
  *
- * ── ⚠ 5. ONE WRITE, BY NAME, NEVER RETRIED (UX3, MEDSTOP-PLAN §7A.4) ──────────────────────────
+ * ── ⚠ 5. FEW WRITES, BY NAME, NEVER RETRIED (UX3, MEDSTOP-PLAN §7A.4) ─────────────────────────
  * The only call that changes anything at Med-Stop is `POST /Request/new` — a billed, real order.
  * `MEDSTOP_WRITES` is the allow-list; anything else (`/Test/{id}/result`, `DELETE /Request`,
  * `/Employee/{id}/remove`, `/Request/{id}/notify` — which would text the driver, D-MSUX5) is refused
@@ -65,7 +65,16 @@ const USER_AGENT = "Silvicom360/1.0 (+https://silvicom360.com)";
 /** The ONLY Med-Stop writes this product may make (⚠ 5). Adding one is a decision, not a refactor. */
 // UX5c adds `POST /Employee/new` — the applicant created when Part 1 is complete (D-MS1), the same
 // once-only rule (`applicantCreate.ts` claims the attempt before sending).
-export const MEDSTOP_WRITES: ReadonlySet<string> = new Set(["POST /Request/new", "POST /Employee/new"]);
+// MSO2 adds `POST /Request/{id}/status` — closing an open order as a no-show or cancelled (D-MSO3, 2026-11-03),
+// reviewed and single-shot like the order (`closeOrder.ts`). `{id}` stands for exactly ONE path segment, so
+// `/Request/{id}/notify` (which would text the driver, D-MSUX5) and `/Request/noshow` (which closes EVERY open
+// request a person holds) stay refused.
+export const MEDSTOP_WRITES: ReadonlySet<string> = new Set(["POST /Request/new", "POST /Employee/new", "POST /Request/{id}/status"]);
+const MEDSTOP_WRITE_PATTERNS = [...MEDSTOP_WRITES].map(
+  (w) => new RegExp(`^${w.replace(/[.*+?^$()|[\]\\]/g, "\\$&").replace("{id}", "[A-Za-z0-9-]+")}$`),
+);
+/** Whether `METHOD path` is one of `MEDSTOP_WRITES`; `{id}` matches one Med-Stop id, nothing more. */
+export const medstopWriteAllowed = (method: string, path: string): boolean => MEDSTOP_WRITE_PATTERNS.some((r) => r.test(`${method} ${path}`));
 const PAGE_SIZE = 100;
 const RATE_LIMIT_WAIT_MS = 60_000;
 
@@ -139,8 +148,8 @@ export class MedstopClient {
 
   /** An allow-listed write (⚠ 5): sent once, never retried, refused before sending if not listed. */
   async write(method: "POST", path: string, body: unknown): Promise<unknown> {
-    // ⚠ The ids in a path are literal here: `/Employee/{id}/remove` is not `/Employee/new`.
-    if (!MEDSTOP_WRITES.has(`${method} ${path}`)) {
+    // ⚠ Only `{id}` in an entry is a wildcard, for one segment: `/Employee/{id}/remove` is not `/Employee/new`.
+    if (!medstopWriteAllowed(method, path)) {
       throw new MedstopError(`${method} ${path} is not a Med-Stop write this product makes`, "validation", null);
     }
     const controller = new AbortController();
