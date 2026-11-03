@@ -126,6 +126,15 @@ export class MetaGraph {
     return this.call<T>("GET", path, params, true);
   }
 
+  /**
+   * The same client — base URL, throttle key, clock — holding another token (B4b: the connection test
+   * subscribes the Page with the Page token `me/accounts` just handed out). Shares the throttle on purpose:
+   * one connection, one budget.
+   */
+  withToken(token: string): MetaGraph {
+    return new MetaGraph({ ...this.o, token });
+  }
+
   /** `idempotent: true` only for a write that sets a value (status, budget); never for a create. */
   post<T>(path: string, params: Params, opts: { idempotent: boolean }): Promise<GraphResult<T>> {
     return this.call<T>("POST", path, params, opts.idempotent);

@@ -56,7 +56,34 @@ export function drainKinds(env: Env, lane: SchedulerLane): JobKind[] {
   // behind, so this claims nothing that exists today — it only stops an operator's row from being
   // stranded the way the 2026-08-28 repair dispatch was.
   kinds.push("backfill");
+  // `ads_lead_fetch` (B4b) is born as a ROW on purpose: Meta's webhook must be answered fast, so the
+  // receiver enqueues and never runs the read inline (`dispatchJob` would, in this mode). The receiver
+  // kicks `drainKindNow` right after answering; this is the net for a kick the process did not live to
+  // finish, and for a retry's backoff — the hourly leads backfill is the net under both.
+  kinds.push("ads_lead_fetch");
   return kinds;
+}
+
+/**
+ * Run up to `max` queued rows of ONE kind now, in this process, through the same claim RPC and executor as
+ * the drain (B4b's receiver, after it has answered Meta). In queue mode the consumer owns the table and
+ * this does nothing. Never throws: a row it could not run stays queued for the drain tick.
+ */
+export async function drainKindNow(env: Env, admin: ReturnType<typeof getSupabaseAdmin>, kind: JobKind, max: number): Promise<number> {
+  if (env.JOB_EXECUTION_MODE === "queue") return 0;
+  const driver = pgQueueDriver(admin);
+  const ctx: JobContext = { admin, env };
+  let ran = 0;
+  try {
+    for (; ran < max && !isShuttingDown(); ran += 1) {
+      const job = await driver.claim(workerId("general"), [kind], LEASE_SECONDS, {});
+      if (!job) break;
+      await executeJob(driver, ctx, job, { workerId: workerId("general"), leaseSeconds: LEASE_SECONDS, renewEveryMs: RENEW_EVERY_MS });
+    }
+  } catch (e) {
+    console.error(`[job-drain] ${kind} kick stopped: ${e instanceof Error ? e.message : e}`);
+  }
+  return ran;
 }
 const TICK_MS = 2 * 60_000;
 /** One claimant id per lane: a renewal or completion can never be mistaken across the two drains. */

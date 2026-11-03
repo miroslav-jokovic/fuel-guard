@@ -19,7 +19,7 @@ const ORG = "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d";
 const ADMIN = { id: "11111111-1111-4111-8111-111111111111", name: "Owner" };
 const TOKEN = "EAAB-system-user-token-service-0001";
 const PAGE_TOKEN = "EAAB-page-token-service-0001";
-const PAGE = { id: "200100", name: "Silvicom Trucking", access_token: PAGE_TOKEN, tasks: ["ADVERTISE"] };
+const PAGE = { id: "200100", name: "Silvicom Trucking", access_token: PAGE_TOKEN, tasks: ["ADVERTISE", "MODERATE"] };
 const env = loadEnv({ NODE_ENV: "test", SECRETS_ENCRYPTION_KEY: Buffer.alloc(32, 9).toString("base64") } as NodeJS.ProcessEnv);
 const NOW = new Date("2026-11-02T18:00:00Z");
 

@@ -22,4 +22,8 @@ export { syncOrgRules } from "./settings/rulesSyncJob.js";
 export { backfillConnectionLeads, catchUpSince } from "./leads/backfill.js";
 export type { BackfillResult } from "./leads/backfill.js";
 export { adsLeadsBackfillDedupKey, startAdsLeadsBackfill } from "./leads/backfillTick.js";
+// B4b: Meta's leadgen webhook (public, signature-checked) and the job that reads the lead it names.
+export { metaWebhookRouter } from "./routes/metaWebhook.js";
+export { fetchWebhookLead } from "./leads/leadFetch.js";
+export { META_WEBHOOK_PATH, metaWebhookBootWarning } from "./leads/leadgenWebhook.js";
 export { applyCampaignEvent } from "./orchestrator/transitions.js";

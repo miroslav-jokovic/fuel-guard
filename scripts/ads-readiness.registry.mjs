@@ -375,7 +375,33 @@ export const READINESS = [
             ] },
           ],
         },
-        notBuilt("B4b leadgen webhook: GET verify, POST HMAC over the raw body, 503 without META_APP_SECRET"),
+        {
+          need: "the leadgen webhook (B4b): only what Meta signed is believed, over the raw bytes; fail-closed without the secret; a duplicate is one job and one lead",
+          tests: [
+            { file: "apps/api/src/modules/ads/routes/metaWebhook.test.ts", titles: [
+              "echoes the challenge, as plain text, for our verify token",
+              "refuses a wrong verify token with 403 and echoes nothing",
+              "answers 503 while no verify token is configured",
+              "no META_APP_SECRET: 503, counted, and nothing is looked up or queued",
+              "a forged body is 401, counted, and nothing is queued",
+              "a valid body serialised differently still verifies — the check is over the raw bytes",
+              "a duplicate delivery is one job and one lead — and one after the job finished is still one lead",
+              "a form we do not own is answered 200, counted, and nothing is queued or stored",
+              "createApp routes the path Meta is given, unauthenticated, and fails closed while unconfigured",
+            ] },
+            { file: "apps/api/src/modules/ads/leads/leadFetch.test.ts", titles: [
+              "reaches the sink with its campaign and brief, read by id with the Page's token",
+              "the same lead from the webhook and from the backfill is stored once",
+              "a lead Meta refuses to read fails, naming the lead by id",
+            ] },
+            { file: "apps/api/src/queue/handlers/adsLeadFetch.test.ts", titles: [
+              "fails the job when the lead was not brought in, so the queue retries it",
+            ] },
+            { file: "apps/api/src/modules/ads/platforms/meta/connectionTest.test.ts", titles: [
+              "subscribes the Page to leadgen with the Page token, never the system user's",
+            ] },
+          ],
+        },
       ],
       L2: later("L2"), L3: later("L3"),
       L4: [{ need: "a test lead from Meta's lead-ads testing tool", gap: STAGE2 }],

@@ -4,6 +4,7 @@ import { medstopSyncHandler } from "./medstop.js";
 import { adsStepHandler } from "./adsStep.js";
 import { adsRulesSyncHandler } from "./adsRulesSync.js";
 import { adsLeadsBackfillHandler } from "./adsLeadsBackfill.js";
+import { adsLeadFetchHandler } from "./adsLeadFetch.js";
 import { efsIngestHandler } from "./efsIngest.js";
 import { dataRetentionHandler } from "./retention.js";
 import { idleEngineHandler } from "./idleEngine.js";
@@ -96,4 +97,5 @@ export function registerAllHandlers(): void {
   // B3b: Meta Automated Rules follow the settings in force, after each save.
   registerHandler("ads_rules_sync", adsRulesSyncHandler);
   registerHandler("ads_leads_backfill", adsLeadsBackfillHandler);
+  registerHandler("ads_lead_fetch", adsLeadFetchHandler);
 }
