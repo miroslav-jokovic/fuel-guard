@@ -160,6 +160,7 @@ beforeAll(async () => {
 afterAll(async () => closeTestServer(server));
 
 describe("the LeadSink — how the ads module hands recruiting a lead", () => {
+  const CONFIGURED = async () => ["u-dana"];
   const LEAD_IN: PlatformLead = {
     provider: "meta", platform_lead_ref: "leadgen-1", campaign_id: null, brief_source: "recruiting_opening", brief_ref: OPENING,
     created_at: "2026-11-03T14:00:00+00:00", raw: { id: "leadgen-1" },
@@ -168,7 +169,7 @@ describe("the LeadSink — how the ads module hands recruiting a lead", () => {
 
   it("stores the projection once and writes leadMatch's verdicts against the opening's profile", async () => {
     seed();
-    const r = await recruitingLeadSink(rec.client as never, () => new Date("2026-11-03T15:00:00Z")).accept(ORG, LEAD_IN);
+    const r = await recruitingLeadSink(rec.client as never, CONFIGURED, () => new Date("2026-11-03T15:00:00Z")).accept(ORG, LEAD_IN);
     expect(r).toEqual({ stored: "new", ref: LEAD });
     const args = rec.rpcs().find((c) => c.fn === "ingest_lead")!.args as { p_org: string; p_lead: Record<string, unknown> };
     expect([args.p_org, args.p_lead.phone_e164, args.p_lead.opening_id, args.p_lead.external_ref]).toEqual([ORG, "+17082365732", OPENING, "leadgen-1"]);
@@ -181,22 +182,32 @@ describe("the LeadSink — how the ads module hands recruiting a lead", () => {
     expectOrgScoped(rec, ORG);
   });
 
+  it("rings lead_new for a lead stored for the first time, and not for a repeat of it (D2b)", async () => {
+    const rung = () => rec.rpcs().filter((c) => c.fn === "emit_notification").map((c) => (c.args as { p_user: string }).p_user);
+    seed();
+    await recruitingLeadSink(rec.client as never, CONFIGURED).accept(ORG, LEAD_IN);
+    expect(rung()).toEqual(["u-dana"]);
+    seed({ ingest: { lead_id: LEAD, stored: "duplicate", matches: { leads: [], drivers: [] } } });
+    await recruitingLeadSink(rec.client as never, CONFIGURED).accept(ORG, LEAD_IN);
+    expect(rung()).toEqual([]);
+  });
+
   it("a repeat of a lead whose verdicts are already written writes none again", async () => {
     seed({ ingest: { lead_id: LEAD, stored: "duplicate", matches: { leads: [], drivers: [] } },
       existingVerdicts: [{ id: "v1", org_id: ORG, lead_id: LEAD, profile_version_id: PV }] });
-    const r = await recruitingLeadSink(rec.client as never).accept(ORG, LEAD_IN);
+    const r = await recruitingLeadSink(rec.client as never, CONFIGURED).accept(ORG, LEAD_IN);
     expect([r.stored, rec.writtenRows("lead_match_verdicts").length]).toEqual(["duplicate", 0]);
   });
 
   it("a repeat of a lead stored before its verdicts were (a crash between the two) writes them", async () => {
     seed({ ingest: { lead_id: LEAD, stored: "duplicate", matches: { leads: [], drivers: [] } } });
-    await recruitingLeadSink(rec.client as never).accept(ORG, LEAD_IN);
+    await recruitingLeadSink(rec.client as never, CONFIGURED).accept(ORG, LEAD_IN);
     expect(rec.writtenRows("lead_match_verdicts").length).toBeGreaterThan(0);
   });
 
   it("throws when the store fails, so the caller retries rather than losing the lead", async () => {
     seed({ ingest: { error: { code: "XX000", message: "down" } } });
-    await expect(recruitingLeadSink(rec.client as never).accept(ORG, LEAD_IN)).rejects.toThrow(/ingest_lead failed/);
+    await expect(recruitingLeadSink(rec.client as never, CONFIGURED).accept(ORG, LEAD_IN)).rejects.toThrow(/ingest_lead failed/);
   });
 });
 
@@ -242,6 +253,12 @@ describe("the queue", () => {
 });
 
 describe("a lead entered by hand", () => {
+  it("rings nobody: the person who typed it in already knows", async () => {
+    seed();
+    const res = await post("/leads", "recruiter", { channel: "phone_call", full_name: "Ray Driver", phone: "(708) 236-5732", email: null, opening_id: null, note: null });
+    expect([res.status, rec.rpcs().some((c) => c.fn === "emit_notification")]).toEqual([201, false]);
+  });
+
   it("goes in through the same sink and is audited without the person's details", async () => {
     seed();
     const res = await post("/leads", "recruiter", { channel: "phone_call", full_name: "Ray Driver", phone: "(708) 236-5732", email: null, opening_id: null, note: "called the yard" });

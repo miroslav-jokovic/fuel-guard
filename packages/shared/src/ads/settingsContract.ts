@@ -57,14 +57,18 @@ export const adsBudgetsSchema = z.object({
   agents_enabled: z.partialRecord(z.enum(AD_AI_AGENTS), z.boolean()).default({}),
 });
 
-/** The bell's ads categories, read from the contract rather than restated (0537 added them). */
-type AdsAlertCategory = Extract<NotificationCategory, `ads_${string}`>;
+/**
+ * The bell's ads and lead categories, read from the contract rather than restated (0537 added them). The
+ * lead ones are here because the carrier picks who hears them on the same screen (D2b): an ad's leads are
+ * part of running the ad, and `uncontacted_lead_minutes` below is already this object's.
+ */
+export type AdsAlertCategory = Extract<NotificationCategory, `ads_${string}` | `lead_${string}`>;
 export const ADS_ALERT_CATEGORIES = NOTIFICATION_CATEGORIES.filter(
-  (c): c is AdsAlertCategory => c.startsWith("ads_"),
+  (c): c is AdsAlertCategory => c.startsWith("ads_") || c.startsWith("lead_"),
 ) as [AdsAlertCategory, ...AdsAlertCategory[]];
 
 export const adsAlertsSchema = z.object({
-  /** Member ids per alert; an empty list sends to the admins. */
+  /** Member ids per alert; an empty list sends to the admins (a lead alert: to who holds recruitment manage). */
   recipients: z.partialRecord(
     z.enum(ADS_ALERT_CATEGORIES),
     z.array(recordId()).max(50),

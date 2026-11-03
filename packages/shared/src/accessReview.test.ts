@@ -6,6 +6,7 @@ import {
   reviewMembers,
   screenAnswer,
   sectionAnswer,
+  sectionManagers,
   whoHasAccess,
 } from "./accessReview.js";
 import type { AccessReviewMember, AccessReviewState } from "./accessReviewContract.js";
@@ -171,6 +172,23 @@ describe("who is listed", () => {
     const acc = whoHasAccess(state, { kind: "section", section: "accounting" });
     expect(acc.holders).toEqual([]);
     expect(acc.without.map((x) => x.member.fullName)).toEqual(["Ann", "Bea"]);
+  });
+});
+
+describe("who can act in a section", () => {
+  it("is who answers Manage: a view-only role, a person taken down to view and a suspended member are left out", () => {
+    const state = empty({
+      members: [
+        m("u-admin", "admin"),
+        m("u-rec", "recruiter"),
+        m("u-down", "recruiter"),
+        m("u-aud", "auditor"),
+        m("u-gone", "recruiter", { suspendedAt: "2026-10-01T00:00:00Z" }),
+      ],
+      userSections: { "u-down": { recruitment: "view" } },
+    });
+    expect(whoHasAccess(state, { kind: "section", section: "recruitment" }).holders.map((r) => r.member.userId)).toContain("u-aud");
+    expect(sectionManagers(state, "recruitment").map((x) => x.userId).sort()).toEqual(["u-admin", "u-rec"]);
   });
 });
 
