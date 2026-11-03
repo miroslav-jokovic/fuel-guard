@@ -857,3 +857,76 @@ blocking step in §3 above.
   fails the job (lead ids only) when anything was not brought in. Readiness: Lead intake's L1 now pins the
   sink, backfill, handler and tick tests, with **B4b** (the webhook) as its last gap, so it still reads L0
   honestly. 8 mutants, all killed (one survived the first run: no test held the dedup key).
+- **2026-11-03, audit fixes A — the brake** (out of order, ahead of B4; from the 2026-11-03 read-only
+  audit of the ads and lead path). Three ways an ad could keep delivering while we believed it stopped:
+  - A launch whose row is `failed` went `launching → paused` on the failure alone. A failed read-back after
+    a successful `campaign_active` leaves Meta delivering under a `paused` label that nothing pauses and
+    the kill switch skips. Now every failed launch except `NOT_ON_PLATFORM` goes `pause → pausing`, and a
+    pause the platform confirms ends it (`runner.ts` `fromLaunchRow`).
+  - `ADS_ENABLED=false` stopped the tick outright, and with it the kill switch's second half. Now it is a
+    brake (`orchestrator/brake.ts`): the tick and the step run, every org is read as killed, and only the
+    pause path is left. The readiness pin "starts no timer unless ADS_ENABLED" asserted the old behaviour
+    and is replaced in the registry.
+  - One org's unparseable settings row threw inside the tick and stopped every org's pauses. Unreadable
+    settings are now read as killed, per org.
+  4 mutants, all killed. Still open from that audit: alerts (B-fixes), the guard's month-to-date read
+  (no writer of `ads_spend_hourly` before B5), and the key-rotation and reconnect fences.
+- **2026-11-03, audit fixes B — alerts** (from the same audit, H2: nothing in `modules/ads` told anyone
+  anything). B1 widened the bell's CHECK with `ads_pause_failed` (0559). B2, after it, sends it:
+  `alerts/pauseAlerts.ts` runs after every `pause_failed` move, and at three failed pauses in a row it rings
+  the campaign's recipients (Settings › Ads control, else the org's active admins) with a critical "An ad
+  could not be paused — pause it in Meta Ads Manager", once an hour while it stays stuck. The count is read
+  from transition rows, not pause rows, because `no_platform` fails before any pause row is written.
+  `token_invalid` and `no_platform` also move the connection `connected → failing` (the connections
+  service's new `markConnectionFailing`) and send `ads_token_expiring` once a day. An alert that cannot be
+  sent never fails the step. New boundary edge `ads -> messaging` (notify()). 8 mutants, all killed (two
+  survived the first run as test gaps: a history with no older move, and a disconnected connection).
+- **2026-11-03, audit fixes C — the guard reads spend from the platform** (audit H4). Nothing writes
+  `ads_spend_hourly` before B5, so the forecast always started from $0, and it never saw spend made in Ads
+  Manager on the same account. `PlatformSafe.readSpendCents` reads the account's insights for the
+  carrier's month so far (`monthContext`'s new `since_day`/`today`), and `checkSpend` forecasts from the
+  larger of our fold and the platform's figure; unreadable refuses `month_spend_unknown`. FakeMeta gains
+  `act_{id}/insights` (`fakeMetaInsights.ts`, an account's `month_spend_cents`). ⚠ The range is in the
+  org's zone; an ad account set to another zone can shift a few hours at the month's edges. 5 mutants,
+  all killed. Not done here: the account `spend_cap` is lifetime, so the limit fence should compare
+  `spend_cap − amount_spent` (audit M1) — left for its own step.
+- **2026-11-03, audit fixes D — key rotation and reconnect** (audit H2/H3).
+  - `lib/secretBox.ts` gains `SECRETS_ENCRYPTION_KEY_PREVIOUS`: during a rotation, values sealed under
+    the previous key still open, and every new seal uses the current one. Before this, a rotation made
+    every stored Meta token unreadable at once, so `no_platform` on every pause. Platform-wide (EFS
+    certificates, Samsara and FleetPal tokens benefit too); the HMAC subkeys derived from the key are not
+    covered.
+  - `connectMeta` refuses to move a slot to another account or Page while a campaign on it is launching,
+    live or pausing (`campaigns_delivering`, the disconnect rule), before Meta is asked anything. A fresh
+    token for the same account and Page is always allowed — it is how a dead token is fixed.
+  5 mutants, all killed.
+- **2026-11-03, audit fix — the backfill never skips silently, and catches up** (lead-path audit H1, on
+  B4a as merged in #1966). Three holes:
+  - The tick queued only `connected` connections, so a `failing` one (a dead token; #1970 marks it so)
+    got no job, so no failed job — its leads went unread and nothing said so. It now queues `failing`
+    too; the run is attempted, and fails loudly every hour while the token is dead.
+  - `backfillConnectionLeads` returned an empty, green result for any connection not `connected`. Now
+    only a disconnected one is not read, and with forms still on it that is a failure
+    (`connection:disconnected`).
+  - The fixed 48 h window lost a longer outage's leads for good. The handler now reaches back to an hour
+    before this connection's last `done` run (`catchUpSince`; the jobs ledger's own fact, via org's new
+    `lastDoneJobByKey`, kept 90 days like Meta's leads), and to Meta's 90 days when there is none.
+  7 mutants, all killed. Not done: an alert when a connection's backfill has failed for N hours (the
+  failed job is listed, but nobody is rung); it needs a lead alert category.
+- **2026-11-03, lead-path audit H3 (opt-out half) — a lead can be marked do-not-contact.** Ruled by the
+  owner in session: opt-out first; the Instant Form's consent box waits for counsel's wording (Q-RA6c),
+  and under D-RA2 nothing automated reaches a lead anyway. `POST/DELETE /recruitment/leads/:id/do-not-contact`
+  writes or lifts a `manual` hold in `sms_suppressions` (0376, recruiting's own table; no migration), naming
+  the applicant when the lead was converted. Every queue row carries `do_not_contact`, read from the
+  number, so a re-submission on any channel and a texted STOP show too. Lifting never lifts a STOP. Email
+  has no suppression list yet (RA 12.2), so an email-only lead is refused in words. 7 mutants, all killed
+  (the non-uuid id survived until the fake refused it as Postgres does, 22P02).
+- **2026-11-03, lead-path audit H2 — a lead's personal details can be deleted on request.** 0558 (#1979)
+  adds `purge_lead`: it empties an unconverted lead (name, phone, email, answers, raw) and deletes its
+  verdicts, leaving an anonymous tombstone so Meta's backfill reads the next copy as a duplicate and the
+  contacts stay (D-RA12). The do-not-contact hold on the number stays. The route, a merge after it:
+  `POST /recruitment/leads/:id/purge`, admin only with a fresh sign-in (`canPurgeLead` = the applicant
+  purge's ruling), `same_person` sweeps the carrier's other leads with that phone or email and names any
+  that became applicants. Named in `routeGateLedger.test.ts` beside the applicant purge. 8 SQL and 7 route
+  mutants, all killed. Still owner track: Q-LS6 / Q-RA8, how long an unconverted lead lives before this
+  runs on its own; counsel: whether contact notes on a purged lead should be redacted too.
