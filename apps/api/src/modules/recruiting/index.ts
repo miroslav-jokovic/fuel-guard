@@ -24,3 +24,5 @@ export { recordDeliveryReceipt, runSmsOutboxOnce } from "./smsOutbox.js";
 export { startSmsOutboxScheduler } from "./smsOutboxScheduler.js";
 export { returnToDutyBlocked, returnToDutyStanding } from "./returnToDuty.js";
 export { partOneFactsForMedstop } from "./medstopApplicantFacts.js";
+// The LeadSink every platform lead enters by (D-AD17): the ads module's intake (B4) is handed this, never a table.
+export { recruitingLeadSink } from "./leads/leadSink.js";

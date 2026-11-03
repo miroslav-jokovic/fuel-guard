@@ -29,6 +29,9 @@ export { writeAssignmentHistory, type HistoryWrite } from "./driverVehicleAssign
 export { readFleetIdentities, readTrailerAnnualInspections, type FleetIdentity } from "./fleetIdentityReads.js";
 // The truck's TMS home fleet, written by mcleod's roster sweep (DISPATCH-BOARD-PLAN DB1).
 export { recordVehicleFleetCodes, recordVehicleWindingDown, type FleetPlacement, type WindingDownPlacement } from "./vehicleFleetCodes.js";
+// The one door a person's driver row is made through — the roster route and recruiting's lead conversion
+// (ads D1c) both call it, so `identity_source: "manual"` and the `driver.created` audit cannot drift.
+export { createDriverRecord } from "./driverCreate.js";
 export { rosterDriversRouter } from "./routes/drivers.js";
 export { rosterArchiveRouter } from "./routes/archive.js";
 export { rosterCredentialsRouter } from "./routes/credentials.js";

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { platformLeadSchema, type PlatformLead } from "../../ads/contracts.js";
 import { normalisePhone } from "../../smsConsentContract.js";
-import { leadFromPlatform, leadProjectionSchema, normaliseEmail, OPENING_BRIEF_SOURCE } from "./leadContract.js";
+import { leadFromManual, leadFromPlatform, leadProjectionSchema, manualLeadSchema, normaliseEmail, OPENING_BRIEF_SOURCE } from "./leadContract.js";
 import { openingSaveSchema, openingVersionRow } from "./opening.js";
 
 const OPENING = "6f1c2a9e-3b4d-4e5f-8a7b-1c2d3e4f5a6b";
@@ -73,5 +73,22 @@ describe("opening — the one thing an ad may advertise", () => {
   it("the row for save_opening_version flattens the area into its columns", () => {
     const row = openingVersionRow(openingSaveSchema.parse(save));
     expect([row.area_radius_miles, row.area_reason, "area" in row]).toEqual([50, "Home weekly from the yard", false]);
+  });
+});
+
+describe("manual leads — a call or a paste a recruiter types in", () => {
+  it("needs a phone or an email, so the person can be recognised", () => {
+    const base = { channel: "phone_call", full_name: "Ray Driver", opening_id: null, note: null };
+    expect([
+      manualLeadSchema.safeParse({ ...base, phone: null, email: null }).success,
+      manualLeadSchema.safeParse({ ...base, phone: "555-01", email: null }).success,
+      manualLeadSchema.safeParse({ ...base, phone: "(708) 236-5732", email: null }).success,
+    ]).toEqual([false, false, true]);
+  });
+  it("projects with no outside id, the note kept raw, the contact normalised", () => {
+    const p = leadFromManual(manualLeadSchema.parse({
+      channel: "referral", full_name: "Ray  Driver", phone: null, email: "Ray@Example.com", opening_id: null, note: "Marcus's cousin",
+    }));
+    expect([p.external_ref, p.email_lower, p.full_name, (p.raw as { note: string }).note]).toEqual([null, "ray@example.com", "Ray Driver", "Marcus's cousin"]);
   });
 });
