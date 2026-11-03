@@ -14,6 +14,7 @@ import {
 } from "../../modules/document-reading/index.js";
 import { shippingDocumentReadGate } from "../../modules/hazmat/index.js";
 import { roadsideReportReadGate } from "../../modules/inspections/index.js";
+import { mvrReportReadGate } from "../../modules/recruiting/index.js";
 import { compliancePaperReadGate } from "../../modules/evidence/index.js";
 import type { JobHandler } from "../types.js";
 
@@ -46,6 +47,7 @@ const gatesFor = (env: Env) =>
     shipping_document: (admin, orgId) => shippingDocumentReadGate(admin, orgId),
     roadside_inspection_report: async () => roadsideReportReadGate(env),
     compliance_paper: async () => compliancePaperReadGate(env),
+    mvr_report: async () => mvrReportReadGate(env),
   }) as const satisfies Record<DocumentProfileId, (...a: Parameters<ReadGateFor>) => ReturnType<ReadGateFor>>;
 const gateForEnv = (env: Env): ReadGateFor => (admin, orgId, profile) => gatesFor(env)[profile](admin, orgId);
 

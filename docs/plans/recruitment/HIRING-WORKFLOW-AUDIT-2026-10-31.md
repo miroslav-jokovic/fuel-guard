@@ -1110,3 +1110,13 @@ drawers (portal + upload) → OF6 AI MVR reader → OF7 drug-test ordering (afte
 - **2026-11-03** — **OF5** built (no migration): the MVR and Clearinghouse drawers open the vendor's portal in a
   new tab (`HIRING_VENDOR_PORTALS`, shared; `VendorPortalCard.vue`) with what to do there, above the form whose
   Scan drop files the PDF. Samba = the carrier's portal account (Q-OF1's recommendation), never the API.
+- **2026-11-03** — OF2+OF3 merged (#1958, `dd9264e`). **OF6a** built, **migration 0555** (`mvr_report` in the
+  `document_reads` profile CHECK; 0552 is the hiring chat's, 0554 #1959's — re-check by name before merging):
+  the reader's fourth profile — `mvrReportContract.ts` (the licence, its status and class, the medical
+  certification the state holds, every violation, crash and withdrawal; never a birth date or address), its
+  prompt, `mvrReportEvidence` (one reader; the OCR witness on the licence, status, expiry and medical), and the
+  gate `MVR_REPORT_READING` (default on). The checking layer is `mvrReportFindings` (shared, pure): **stop** —
+  another licence number, a status that is not a valid word, expired, not medically certified, a withdrawal
+  in force, no record found; **check** — another state or name, a violation or crash in three years (how many
+  in a CMV), a withdrawal ended inside three years, anything it could not read. Nothing writes the profile yet:
+  OF6b (the drawer's read) is its first writer. 19/19 mutants killed.

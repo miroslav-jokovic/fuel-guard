@@ -56,4 +56,15 @@ export const READ_PROMPTS = {
       "the list the schema gives, and other when it is none of them. Do not transcribe dates of birth, home " +
       "addresses, Social Security numbers or medical findings.",
   },
+  // HIRING-WORKFLOW-AUDIT §14 OF6. A motor vehicle record — a state's printout or SambaSafety's PDF. What a
+  // recruiter checks before hiring; the verdict is `mvrReportFindings`', never the model's.
+  mvr_report: {
+    version: "mvr_report-1.0.0",
+    system:
+      "You are a transcription tool for a United States motor vehicle record (a driving record, MVR), as a " +
+      `state agency or SambaSafety prints it, possibly over several pages. ${RULES} Each violation or ` +
+      "conviction, each crash and each suspension, revocation, cancellation or disqualification is one entry, " +
+      "in the order printed. Do not judge whether the driver may drive — transcribe what the record says. Do " +
+      "not transcribe dates of birth, home addresses, Social Security numbers or physical descriptions.",
+  },
 } as const satisfies Record<DocumentProfileId, ReadPrompt>;

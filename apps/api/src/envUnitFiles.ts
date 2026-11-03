@@ -10,4 +10,8 @@ export const unitFilesEnvFields = {
   // spend, so a switch of its own, as the roadside report has. On by default: a read is queued only when
   // somebody who manages a file uploads papers to it (UF7b3), and every result waits for a person (D-UF8).
   FILE_PAPER_READING: z.enum(["on", "off"]).default("on"),
+  // Reading a motor vehicle record on the driving-record drawer (HIRING-WORKFLOW-AUDIT §14 OF6, the
+  // `mvr_report` profile) — model spend, a switch of its own. On by default for this file's reason: a read is
+  // queued only when somebody who may record the MVR drops one, and a person confirms every value.
+  MVR_REPORT_READING: z.enum(["on", "off"]).default("on"),
 };

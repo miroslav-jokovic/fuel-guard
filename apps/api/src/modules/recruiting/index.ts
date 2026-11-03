@@ -15,6 +15,7 @@
  * and the gates that hold that line live in the routes, not in this comment.
  */
 export { recruitmentRouter } from "./routes/index.js";
+export { mvrReportReadGate } from "./mvrReadGate.js";
 export { publicApplicationRouter } from "./routes/publicApplication.js";
 export { runApplicationNudgesOnce } from "./applicationNudgeSweep.js";
 export { loadScreeningReadiness } from "./screeningReadiness.js";

@@ -22,6 +22,7 @@ import {
   compliancePaperFieldCriticality,
   emptyCompliancePaperBatch,
 } from "./compliancePaperContract.js";
+import { MVR_REPORT_PROFILE_VERSION, emptyMvrReport, mvrReportFieldCriticality, mvrReportSchema } from "./mvrReportContract.js";
 
 /**
  * The document reader's routes, closed vocabularies and profile registry (DOCUMENT-READER-PLAN.md §2).
@@ -257,6 +258,18 @@ export const DOCUMENT_PROFILES = {
     readers: 1,
     empty: emptyCompliancePaperBatch,
     criticality: compliancePaperFieldCriticality,
+  },
+  // HIRING-WORKFLOW-AUDIT §14 OF6 (migration 0555). One motor vehicle record — a state's or SambaSafety's PDF —
+  // read WHOLE with ONE reader: the recruiter confirms every value before the MVR is recorded (D-UF8's rule),
+  // and `mvrReportFindings` turns what was read into what they must check. Every page class, for the roadside
+  // report's reason: the classifier's vocabulary is the BOL's.
+  mvr_report: {
+    version: MVR_REPORT_PROFILE_VERSION,
+    schema: mvrReportSchema,
+    readsPageClasses: PAGE_CLASSES,
+    readers: 1,
+    empty: emptyMvrReport,
+    criticality: mvrReportFieldCriticality,
   },
 } as const satisfies Record<string, DocumentProfile>;
 export type DocumentProfileId = keyof typeof DOCUMENT_PROFILES;
