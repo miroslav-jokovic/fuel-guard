@@ -10,6 +10,8 @@ import { FilterBar } from "@silvicom/ui";
 import ColumnPicker from "@/components/ui/ColumnPicker.vue";
 import SavedViewMenu from "@/components/ui/SavedViewMenu.vue";
 import FileGallery from "@/components/files/FileGallery.vue";
+import FileUploadDialog from "@/components/files/FileUploadDialog.vue";
+import FileCell from "@/components/files/FileCell.vue";
 
 /**
  * R2's safety net (DRIVER-ROSTER-PLAN.md §5): the roster table moves out of `DriversPage.vue` into
@@ -71,6 +73,8 @@ vi.mock("@/composables/useCompliance", () => ({
   // the papers inside it.
   useDocumentsQuery: () => ({ data: ref([]), isLoading: ref(false), isError: ref(false) }),
 }));
+// DQ-FILE-COLUMN: the upload dialog's options read a driver only once a drop opens it.
+vi.mock("@/composables/useFileDropItems", () => ({ useDriverDropItems: () => ref([]) }));
 vi.mock("@/features/roster/useDriverReconcile", () => ({
   useDriverReconcile: () => ({
     preview: vi.fn(),
@@ -269,6 +273,15 @@ const mountPage = async (at = "/drivers") => {
           props: ["open", "title", "description", "size", "printable"],
           template: `<div v-if="open" role="dialog"><slot /><slot name="footer" /></div>`,
         },
+        // The same for the slide-over panels (the upload dialog's, DQ-FILE-COLUMN): a HeadlessUI
+        // `Dialog` underneath, so the same jsdom failure.
+        SlideOver: {
+          props: ["open", "title", "description", "size"],
+          template: `<div v-if="open" role="dialog"><slot /><slot name="footer" /></div>`,
+        },
+        // The upload dialog's two steps have their own suites; this file pins which driver it opens on.
+        DocumentDropCard: true,
+        RequirementDrawer: true,
       },
     },
   });
@@ -454,6 +467,20 @@ describe("DriversPage roster table", () => {
     expect(gallery.props("subjectLabel")).toBe("Marcus Reyes");
     expect(gallery.props("startId")).toBe("mvr-1");
     expect(w.findAllComponents(FileGallery)).toHaveLength(1);
+  });
+
+  it("opens the upload dialog with a scan dropped on a driver's File cell (DQ-FILE-COLUMN)", async () => {
+    const w = await mountPage();
+    expect(w.findComponent(FileUploadDialog).props("subject")).toBeNull();
+    const scan = new File(["x"], "mvr.pdf", { type: "application/pdf" });
+    w.findAll("tbody tr")[0]!.findComponent(FileCell).vm.$emit("drop", [scan]);
+    await flushPromises();
+
+    const dialog = w.findComponent(FileUploadDialog);
+    expect(dialog.props("subject")).toEqual({ type: "driver", id: "d-1" });
+    expect(dialog.props("subjectLabel")).toBe("Marcus Reyes");
+    expect(dialog.props("initialFile")).toBe(scan);
+    expect(dialog.props("fileLink")).toBe("/drivers/d-1?section=qualification");
   });
 
   it("hides a column from the table when the picker turns it off", async () => {

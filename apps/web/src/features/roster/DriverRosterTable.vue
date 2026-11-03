@@ -60,6 +60,8 @@ const emit = defineEmits<{
   restore: [driver: Driver];
   /** A thumbnail or "+N" opens ONE gallery, owned by the page (D-ROS8) — never a dialog per row. */
   "open-file": [driver: Driver, documentId?: string];
+  /** A scan was dropped on the File cell: the page opens its upload dialog with it (DQ-FILE-COLUMN). */
+  "upload-file": [driver: Driver, file: File];
 }>();
 
 const session = useSessionStore();
@@ -181,6 +183,7 @@ const assignedUnits = (driverId: string) => unitsByDriver.value.get(driverId)?.j
         :items="overviewByDriver.get(row.id)!.requirements"
         :subject-label="row.full_name"
         @open="emit('open-file', row, $event)"
+        @drop="emit('upload-file', row, $event[0]!)"
       />
       <span v-else class="text-ink-tertiary">—</span>
     </template>
