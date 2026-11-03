@@ -19,6 +19,19 @@ import type { UserRole } from "./constants.js";
 export const canPurgeApplicant = (role: UserRole | null | undefined): boolean => isAdmin(role);
 
 /**
+ * Deleting a lead's personal details on request (2026-11-03 lead-path audit H2; 0558's `purge_lead`) —
+ * the same act on a person who never applied, so the same ruling: admin only, checked again in SQL.
+ */
+export const canPurgeLead = canPurgeApplicant;
+
+/**
+ * `same_person`: also every other unconverted lead of this carrier with the lead's phone or email — a
+ * deletion request is about a person, and the same person often came in on two channels.
+ */
+export const leadPurgeSchema = z.object({ same_person: z.boolean().default(false) });
+export type LeadPurge = z.infer<typeof leadPurgeSchema>;
+
+/**
  * The name typed to confirm must be the applicant's name as the board shows it. Case and runs of
  * spaces are forgiven — the point is that the admin read WHICH person, not that they reproduced
  * capitalisation — and nothing else is: a partial name or a different person's is refused.
