@@ -241,3 +241,25 @@ export async function recordOrderedDrugTest(
   });
   return { appointmentId: result.appointment.id };
 }
+
+/**
+ * A Med-Stop order closed as a no-show or cancelled (MEDSTOP-PLAN §7A.21, MSO2, D-MSO3) retires the appointment
+ * it filled, so the step stops offering to text a site the applicant may no longer go to. Matched by the
+ * order's reference EXACTLY (`medstopReferenceOf`, the words MSO1 wrote): an appointment the office typed for
+ * some other arrangement is left alone. The live invitation only; the row is cancelled, never deleted (0376:
+ * "the history of changes is readable"). Returns how many it retired.
+ */
+export async function releaseOrderedDrugTest(admin: SupabaseClient, orgId: string, driverId: string, reference: string): Promise<number> {
+  const invitation = await readLiveInvitation(admin, orgId, driverId);
+  if (!invitation) return 0;
+  const { data, error } = await admin
+    .from("drug_test_appointments")
+    .update({ cancelled_at: new Date().toISOString() })
+    .eq("org_id", orgId)
+    .eq("invitation_id", invitation.id)
+    .eq("donor_reference", reference)
+    .is("cancelled_at", null)
+    .select("id");
+  if (error) throw new Error(`drug_test_appointments update failed: ${error.message}`);
+  return (data ?? []).length;
+}

@@ -122,7 +122,8 @@ export async function runGolden(s: GoldenScenario, file = s.name): Promise<Golde
 
   const adapter: PlatformAdapter = {
     safe: {
-      readAccountLimitCents: async () => s.account_limit_cents,
+      // A scenario's `account_limit_cents` is the room the account has left: its fake account has spent nothing.
+      readAccountHeadroomCents: async () => s.account_limit_cents,
       // A scenario's spend is its `ads_spend_hourly` rows; the account spent nothing outside them.
       readSpendCents: async () => 0,
       pause: async () => {

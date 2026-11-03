@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { MEDSTOP_OUTCOME_LABELS, MEDSTOP_PORTAL_URL, canOrderDrugTests, formatDisplayWallTime } from "@silvicom/shared";
+import { MEDSTOP_CLOSE_LABEL, MEDSTOP_OUTCOME_LABELS, MEDSTOP_PORTAL_URL, canOrderDrugTests, formatDisplayWallTime, type MedstopCloseStatus } from "@silvicom/shared";
 import { AppButton as BaseButton, QueryState } from "@silvicom/ui";
 import { useDrugTestAppointmentsQuery, useMedstopTestsQuery } from "@/features/recruitment/useApplicantScreening";
 import { BADGE_BASE, medstopOutcomeTone } from "@/lib/badges";
@@ -27,7 +27,11 @@ import { useSessionStore } from "@/stores/session";
  * refusal in Med-Stop's own words, or "did not answer" — so the office knows whether to add them by hand.
  */
 const props = defineProps<{ driverId: string }>();
-const emit = defineEmits<{ order: [order: { medstopId: string; zip: string | null }] }>();
+const emit = defineEmits<{
+  order: [order: { medstopId: string; zip: string | null }];
+  // MSO2 (D-MSO3): the page opens the close drawer — this card sits inside the step's SlideOver.
+  closeOrder: [request: { requestId: string; status: MedstopCloseStatus }];
+}>();
 const session = useSessionStore();
 const canOrder = computed(() => canOrderDrugTests(session.role));
 const q = useMedstopTestsQuery(computed(() => props.driverId));
@@ -100,6 +104,12 @@ const kindText = (kind: string) => (kind === "drug" ? "Drug test" : kind === "al
             ? "The appointment above holds where to go and the code. Text it to the applicant from there."
             : "Write where to go in the appointment above, then text it to the applicant." }}
         </p>
+        <!-- MSO2 (D-MSO3): one order in three is cancelled, and Med-Stop refuses a second open order — so the
+             step closes this one itself, reviewed, and then the Order button comes back. -->
+        <div v-if="openDrug && canOrder" class="flex flex-wrap gap-2 pt-1">
+          <BaseButton size="sm" @click="emit('closeOrder', { requestId: openDrug.requestId, status: 'NO SHOW' })">{{ MEDSTOP_CLOSE_LABEL["NO SHOW"] }}</BaseButton>
+          <BaseButton size="sm" variant="ghost" @click="emit('closeOrder', { requestId: openDrug.requestId, status: 'CANCELED' })">{{ MEDSTOP_CLOSE_LABEL.CANCELED }}</BaseButton>
+        </div>
         <BaseButton
           v-else-if="canOrder && data.applicantMedstopId"
           size="sm"

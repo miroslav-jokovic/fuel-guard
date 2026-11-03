@@ -235,14 +235,26 @@ export function isHelpMessage(body: string | null | undefined): boolean {
  * Digits only, US-defaulted: every number this product holds was typed by an American recruiter into
  * a form, and a stored `(708) 236-5732` that cannot be matched to an inbound `+17082365732` is a
  * `STOP` that silently does nothing — which is the one failure this normalisation exists to prevent.
+ *
+ * ⚠ A LEADING `+` MEANS THE PERSON WROTE THE COUNTRY CODE, and it is never US-defaulted (2026-11-03
+ * lead-path audit M5). Before, the `+` was dropped before the length test, so a 10-digit international
+ * number such as `+49 30 123456` became `+14930123456` — somebody else's number, in a dedupe that
+ * matches people by phone — and `+52 1 55 1234 5678` (spaces) became nothing. Now a `+` number keeps
+ * its own digits, spaces and dashes dropped, if that is valid E.164. A Mexican number written without
+ * its `+52` still reads as US; the form gives no country to tell otherwise.
+ *
+ * ⚠ 0560's `phone_e164` is this function in SQL, value for value; `recruiting-lead-functions.test.mjs`
+ * holds the two together. Change one, change both.
  */
 export function normalisePhone(raw: string | null | undefined): string | null {
-  const digits = (raw ?? "").replace(/\D/g, "");
+  const trimmed = (raw ?? "").trim();
+  const digits = trimmed.replace(/\D/g, "");
+  if (trimmed.startsWith("+")) return /^[1-9]\d{7,14}$/.test(digits) ? `+${digits}` : null;
   if (digits.length === 10) return `+1${digits}`;
   if (digits.length === 11 && digits.startsWith("1")) return `+${digits}`;
-  // Anything else is returned only if it already looks like E.164; a guess here would be a wrong
-  // number, and a text to a wrong number is the expensive kind of mistake.
-  return /^\+[1-9]\d{7,14}$/.test((raw ?? "").trim()) ? (raw ?? "").trim() : null;
+  // Anything else is not a number we can dial without guessing, and a text to a wrong number is the
+  // expensive kind of mistake.
+  return null;
 }
 
 /**

@@ -103,11 +103,17 @@ describe("Meta adapter (B3) — launch, raise, area", () => {
     expect(await adapter().safe.readSpendCents(range)).toBeNull();
   });
 
-  it("the account limit is Meta's spend_cap now; \"0\" (no limit) and an unreadable account are unknown, never unlimited", async () => {
-    expect(await adapter().safe.readAccountLimitCents()).toBe(300_000);
+  it("the account's room is Meta's lifetime spend_cap less its lifetime amount_spent; reached is 0; \"0\" (no limit) and an unreadable account are unknown, never unlimited", async () => {
+    expect(await adapter().safe.readAccountHeadroomCents()).toBe(300_000);
+    // An account with history: a $55,000 cap on $50,000 already spent leaves $5,000, not $55,000.
+    meta.accounts.get(ACCOUNT)!.spend_cap_cents = 5_500_000;
+    meta.accounts.get(ACCOUNT)!.amount_spent_cents = 5_000_000;
+    expect(await adapter().safe.readAccountHeadroomCents()).toBe(500_000);
+    meta.accounts.get(ACCOUNT)!.amount_spent_cents = 5_600_000;
+    expect(await adapter().safe.readAccountHeadroomCents()).toBe(0);
     meta.accounts.get(ACCOUNT)!.spend_cap_cents = 0;
-    expect(await adapter().safe.readAccountLimitCents()).toBeNull();
+    expect(await adapter().safe.readAccountHeadroomCents()).toBeNull();
     meta.revokeToken();
-    expect(await adapter().safe.readAccountLimitCents()).toBeNull();
+    expect(await adapter().safe.readAccountHeadroomCents()).toBeNull();
   });
 });

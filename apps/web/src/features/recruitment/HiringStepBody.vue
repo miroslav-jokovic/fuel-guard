@@ -5,6 +5,7 @@ import {
   hiringStep,
   isHiringRecordedActStep,
   type HiringStep,
+  type MedstopCloseStatus,
 } from "@silvicom/shared";
 import { AppButton as BaseButton, AppIcon } from "@silvicom/ui";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
@@ -70,6 +71,7 @@ const fullName = computed(() => props.identity?.full_name ?? null);
 const emit = defineEmits<{
   review: [invitationId: string];
   orderTest: [order: { medstopId: string; zip: string | null }];
+  closeOrder: [request: { requestId: string; status: MedstopCloseStatus }];
   openStep: [key: HiringStep["key"]];
 }>();
 
@@ -252,7 +254,7 @@ const authorizationsQ = useAuthorizationsQuery(driverId);
       <DrugTestPanel v-if="step.key === 'drug_test'" :driver-id="driverId" :done="step.state === 'done'" />
       <!-- MS2c (MEDSTOP-PLAN F-4): the same step as Med-Stop sees it — order, stage, expected by.
            Renders nothing for a carrier that has not connected Med-Stop. -->
-      <MedstopTestCard v-if="step.key === 'drug_test'" :driver-id="driverId" @order="emit('orderTest', $event)" />
+      <MedstopTestCard v-if="step.key === 'drug_test'" :driver-id="driverId" @order="emit('orderTest', $event)" @close-order="emit('closeOrder', $event)" />
       <ClearinghouseConsentPanel
         v-if="step.key === 'clearinghouse'"
         :driver-id="driverId"

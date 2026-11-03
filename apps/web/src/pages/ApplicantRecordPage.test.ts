@@ -129,6 +129,8 @@ async function mountPage() {
         HiringStepDrawer: DrawerStub,
         HireDrawer: { name: "HireDrawer", props: ["open", "driverId"], template: '<div v-if="open" data-hire-drawer :data-driver="driverId" />' },
         ApplicationReviewDrawer: true,
+        CloseOrderDrawer: { name: "CloseOrderDrawer", props: ["open", "request"], emits: ["close", "closed", "orderAgain"], template: '<div v-if="open" data-close-drawer :data-request="request?.requestId" />' },
+        OrderTestDrawer: { name: "OrderTestDrawer", props: ["open", "seed"], emits: ["close", "placed"], template: '<div v-if="open" data-order-drawer :data-seed="JSON.stringify(seed)" />' },
         DispositionSection: true,
       },
     },
@@ -243,3 +245,17 @@ describe("the drawer a row opens", () => {
     expect(document.body.querySelector("[data-drawer]")).toBeNull();
   });
 });
+
+describe("the Med-Stop drawers the drug-test step asks for (UX4, MSO2)", () => {
+  it("swaps the step for the close drawer, and 'Order again' for the order drawer filled from the closed order", async () => {
+    const w = await mountPage();
+    w.findComponent({ name: "HiringStepDrawer" }).vm.$emit("closeOrder", { requestId: "REQ-77", status: "NO SHOW" });
+    await settle(w);
+    expect(document.body.querySelector("[data-close-drawer]")?.getAttribute("data-request")).toBe("REQ-77");
+    w.findComponent({ name: "CloseOrderDrawer" }).vm.$emit("orderAgain", { medstopId: "EE-APP", zip: "60435", locationId: "LOC-1" });
+    await settle(w);
+    expect(document.body.querySelector("[data-close-drawer]")).toBeNull();
+    expect(JSON.parse(document.body.querySelector("[data-order-drawer]")!.getAttribute("data-seed")!)).toMatchObject({ kind: "applicant", medstopId: "EE-APP", zip: "60435", locationId: "LOC-1" });
+  });
+});
+

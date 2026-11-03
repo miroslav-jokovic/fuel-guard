@@ -177,7 +177,8 @@ export const READINESS = [
           need: "the spend rules (pure) and who may perform each act",
           tests: [{ file: POLICY, titles: [
             "the unset settings refuse every launch",
-            "the platform's account limit must be read, and no looser than our cap (fence 3)",
+            // 2026-11-03 audit M1: the fence reads the HEADROOM Meta's lifetime limit leaves, and refuses zero; retitled.
+              "the room the platform's account limit leaves must be read, be more than nothing, and be no looser than our cap (fence 3)",
             "launch, raise and an area change belong to an approver alone — never the agent",
           ] }],
         },
@@ -282,7 +283,8 @@ export const READINESS = [
               "launch sets the approved amounts, then the ad and the ad set ACTIVE, and the campaign LAST, read back ACTIVE",
               "a launch with no ad is refused before any call: an active campaign with nothing to show would only look live",
               "raise sets the ad set's daily budget only; an area change keeps Meta's 15–50 mile window",
-              "the account limit is Meta's spend_cap now; …",
+              // 2026-11-03 audit M1: headroom = lifetime spend_cap − lifetime amount_spent; retitled.
+              "the account's room is Meta's lifetime spend_cap less its lifetime amount_spent; …",
             ] },
             { file: META_PATH, titles: [
               "an approved launch goes through the guard to Meta: amounts set, campaign ACTIVE last, the campaign live",

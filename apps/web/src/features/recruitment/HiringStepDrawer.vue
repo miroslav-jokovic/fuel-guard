@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import type { HiringChecklistRow, HiringStep } from "@silvicom/shared";
+import type { HiringChecklistRow, HiringStep, MedstopCloseStatus } from "@silvicom/shared";
 import SlideOver from "@/components/SlideOver.vue";
 import { hiringDrawerBody } from "@/features/recruitment/hiringStepDrawers";
 import HiringStepBody from "@/features/recruitment/HiringStepBody.vue";
@@ -36,6 +36,7 @@ const emit = defineEmits<{
   close: [];
   review: [invitationId: string];
   orderTest: [order: { medstopId: string; zip: string | null }];
+  closeOrder: [request: { requestId: string; status: MedstopCloseStatus }];
   openStep: [key: HiringStep["key"]];
 }>();
 
@@ -89,6 +90,7 @@ const wide = computed(() => props.row?.steps.some((s) => WIDE_BODIES.has(hiringD
           :identity="identity"
           @review="emit('review', $event)"
           @order-test="emit('orderTest', $event)"
+          @close-order="emit('closeOrder', $event)"
           @open-step="emit('openStep', $event)"
         />
       </section>
