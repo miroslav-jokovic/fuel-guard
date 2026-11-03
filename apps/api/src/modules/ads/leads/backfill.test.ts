@@ -6,7 +6,7 @@ import { postgrestFixture } from "../../../testing/postgrestFixture.js";
 import { SIMULATOR_PAGE_ID, simulatorFakeForTests, stopSimulatorForTests } from "../platforms/registry.js";
 import { resetGraphThrottles } from "../platforms/meta/graphClient.js";
 import type { FakeMeta } from "../platforms/simulator/fakeMeta.js";
-import { BACKFILL_WINDOW_HOURS, PAGES_MAX, backfillConnectionLeads, isoFromMeta, platformLeadFromMeta, type BackfillDeps } from "./backfill.js";
+import { BACKFILL_WINDOW_HOURS, PAGES_MAX, backfillConnectionLeads, catchUpSince, isoFromMeta, platformLeadFromMeta, type BackfillDeps } from "./backfill.js";
 
 /**
  * B4a — the hourly leads backfill against the in-process simulator over real HTTP (`registry.ts`'s FakeMeta,
@@ -158,11 +158,21 @@ describe("the backfill — what it never does silently", () => {
     expect(JSON.stringify(r)).not.toContain("1312");
   });
 
-  it("a disconnected connection reads nothing", async () => {
+  it("a disconnected connection reads nothing, and says so while forms are still on it — never an empty green run", async () => {
     fake.leads.submit(formA, { full_name: "Ray" }, hoursAgo(1));
     seed({ status: "disconnected" });
     const r = await backfillConnectionLeads(deps(memorySink().sink), ORG, CONN);
-    expect([r.forms, r.read]).toEqual([0, 0]);
+    expect([r.forms, r.read, r.failures]).toEqual([0, 0, [{ reason: "connection:disconnected" }]]);
+    seed({ status: "disconnected", campaigns: [] });
+    expect((await backfillConnectionLeads(deps(memorySink().sink), ORG, CONN)).failures).toEqual([]);
+  });
+
+  it("a connection marked failing is still read: its test's complaint does not stop the Page token reading leads", async () => {
+    fake.leads.submit(formA, { full_name: "Ray" }, hoursAgo(1));
+    seed({ status: "failing" });
+    const { sink, stored } = memorySink();
+    const r = await backfillConnectionLeads(deps(sink), ORG, CONN);
+    expect([r.forms, r.stored_new, r.failures, stored.size]).toEqual([2, 1, [], 1]);
   });
 
   it("reads with the Page's token — every leads request carries it, never the system user's", async () => {
@@ -192,5 +202,19 @@ describe("platformLeadFromMeta — one Meta lead as the sink takes it", () => {
   });
   it("Meta's +0000 offset reads as ISO's +00:00", () => {
     expect(isoFromMeta("2026-11-03T14:00:00+0000")).toBe("2026-11-03T14:00:00+00:00");
+  });
+});
+
+describe("catchUpSince — how far back a run reaches (audit H1: a gap must close itself)", () => {
+  const days = (d: number) => new Date(NOW.getTime() - d * 86_400_000);
+  it("an hour after a complete run, the 48-hour window is the reach", () => {
+    expect(catchUpSince(NOW, hoursAgo(1))).toEqual(hoursAgo(BACKFILL_WINDOW_HOURS));
+  });
+  it("after a weekend of failed runs, back to an hour before the last complete one", () => {
+    expect(catchUpSince(NOW, days(3))).toEqual(new Date(days(3).getTime() - 3_600_000));
+  });
+  it("with no complete run on record, or one older than Meta keeps leads, everything Meta keeps (90 days)", () => {
+    expect(catchUpSince(NOW, null)).toEqual(days(90));
+    expect(catchUpSince(NOW, days(120))).toEqual(days(90));
   });
 });

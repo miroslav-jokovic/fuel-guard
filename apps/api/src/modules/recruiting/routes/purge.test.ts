@@ -6,6 +6,7 @@ import { createApp } from "../../../app.js";
 import { loadEnv } from "../../../env.js";
 import { mintStepUpToken, STEP_UP_TOKEN_HEADER } from "../../../lib/stepUpToken.js";
 import { createSupabaseRecorder, expectOrgScoped, type SupabaseRecorder } from "../../../testing/supabaseRecorder.js";
+import { postgrestFixture } from "../../../testing/postgrestFixture.js";
 import { closeTestServer } from "../../../testing/httpServer.js";
 
 /**
@@ -234,5 +235,123 @@ describe("after the purge", () => {
     expect(((await res.json()) as { audited: boolean }).audited).toBe(false);
     expect(spy.mock.calls.some((c) => String(c[0]).includes("[purge]"))).toBe(true);
     spy.mockRestore();
+  });
+});
+
+// ── a lead's personal details, on request (lead-path audit H2; 0558) ─────────────────────────────
+const LEAD = "50000000-0000-4000-8000-000000000001";
+const SAME_PHONE = "50000000-0000-4000-8000-000000000002";
+const SAME_EMAIL = "50000000-0000-4000-8000-000000000003";
+const CONVERTED = "50000000-0000-4000-8000-000000000004";
+const STRANGER = "50000000-0000-4000-8000-000000000005";
+
+/** The leads as `purge_lead` sees them: purged ids answer `already`, a converted one RL041, an unknown one RL040. */
+function seedLeads(over: { converted?: string[]; purged?: string[]; refuse?: string } = {}): SupabaseRecorder {
+  const purged = new Set(over.purged ?? []);
+  const leads = [
+    { id: LEAD, org_id: ORG, phone_e164: "+17082365732", email_lower: "ray@example.com", purged_at: null },
+    { id: SAME_PHONE, org_id: ORG, phone_e164: "+17082365732", email_lower: null, purged_at: null },
+    { id: SAME_EMAIL, org_id: ORG, phone_e164: null, email_lower: "ray@example.com", purged_at: null },
+    { id: CONVERTED, org_id: ORG, phone_e164: "+17082365732", email_lower: null, purged_at: null },
+    { id: STRANGER, org_id: ORG, phone_e164: "+13125550100", email_lower: "ana@example.com", purged_at: null },
+    // Another carrier's lead with the same phone: never this carrier's to delete.
+    { id: "50000000-0000-4000-8000-000000000006", org_id: "99999999-0000-4000-8000-000000000000", phone_e164: "+17082365732", email_lower: null, purged_at: null },
+  ].map((l) => ({ ...l, purged_at: purged.has(l.id) ? "2026-11-02T00:00:00Z" : null }));
+  rec = createSupabaseRecorder({
+    tables: {
+      // Postgres refuses a non-uuid id with 22P02 rather than answering "no row" — the fake does the same.
+      recruiting_leads: (q) => {
+        const id = q.filters().find((f) => f.col === "id")?.val;
+        if (typeof id === "string" && !/^[0-9a-f-]{36}$/i.test(id)) return { data: null, error: { code: "22P02", message: "invalid input syntax for type uuid" } };
+        return postgrestFixture(leads)(q);
+      },
+      audit_logs: [],
+    },
+    rpc: (fn, args) => {
+      if (fn !== "purge_lead") return null;
+      const a = args as { p_org: string; p_lead: string };
+      if (over.refuse) return { error: { code: over.refuse, message: "refused" } };
+      if ((over.converted ?? []).includes(a.p_lead)) return { error: { code: "RL041", message: "became an applicant" } };
+      if (!leads.some((l) => l.id === a.p_lead && l.org_id === a.p_org)) return { error: { code: "RL040", message: "not this carrier's" } };
+      const already = purged.has(a.p_lead);
+      purged.add(a.p_lead);
+      return { lead_id: a.p_lead, purged: !already, already, verdicts_deleted: already ? 0 : 2, contacts_kept: 1 };
+    },
+  });
+  holder.client = rec.client;
+  return rec;
+}
+
+const purgeLeadAs = (role: string, body: unknown = {}, id = LEAD, stepUp = true) =>
+  fetch(`${baseUrl}/api/recruitment/leads/${id}/purge`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      Authorization: `Bearer ${role}`,
+      ...(stepUp ? { [STEP_UP_TOKEN_HEADER]: mintStepUpToken(env, `u-${role}`, ORG)!.token } : {}),
+    },
+    body: JSON.stringify(body),
+  });
+
+describe("deleting a lead's personal details", () => {
+  it("an admin with a fresh password empties the lead, and the audit row carries ids and counts, never a detail", async () => {
+    seedLeads();
+    const res = await purgeLeadAs("admin");
+    expect([res.status, await res.json()]).toEqual([200, { purged: [LEAD], already: [], skipped_applicants: [] }]);
+    expect(rec.rpcs()).toEqual([{ fn: "purge_lead", args: { p_org: ORG, p_lead: LEAD, p_actor: "u-admin" } }]);
+    const audit = rec.writtenRows("audit_logs") as Array<{ action: string; entity_id: string; meta: Record<string, unknown> }>;
+    expect(audit.map((a) => [a.action, a.entity_id])).toEqual([["recruitment.lead_purged", LEAD]]);
+    expect(JSON.stringify(audit)).not.toMatch(/236|ray@/);
+    expectOrgScoped(rec, ORG);
+  });
+
+  it("with same_person, every other lead of the person by phone or email goes too; one that became an applicant is named, not failed", async () => {
+    seedLeads({ converted: [CONVERTED] });
+    const body = (await (await purgeLeadAs("admin", { same_person: true })).json()) as { purged: string[]; skipped_applicants: string[] };
+    expect([body.purged.sort(), body.skipped_applicants]).toEqual([[LEAD, SAME_EMAIL, SAME_PHONE].sort(), [CONVERTED]]);
+    expect(rec.rpcs().map((c) => (c.args as { p_lead: string }).p_lead)).not.toContain(STRANGER);
+    expect((rec.writtenRows("audit_logs") as Array<{ meta: { samePersonAs?: string } }>).filter((a) => a.meta.samePersonAs === LEAD)).toHaveLength(2);
+    expectOrgScoped(rec, ORG);
+  });
+
+  it("with same_person, a lead of the person already emptied is not asked again", async () => {
+    seedLeads({ purged: [SAME_EMAIL], converted: [CONVERTED] });
+    const body = (await (await purgeLeadAs("admin", { same_person: true })).json()) as { purged: string[]; already: string[] };
+    expect([body.purged.sort(), body.already]).toEqual([[LEAD, SAME_PHONE].sort(), []]);
+    expect(rec.rpcs().map((c) => (c.args as { p_lead: string }).p_lead)).not.toContain(SAME_EMAIL);
+  });
+
+  it("without same_person, the person's other leads are left alone", async () => {
+    seedLeads();
+    await purgeLeadAs("admin");
+    expect(rec.rpcs()).toHaveLength(1);
+  });
+
+  it("a lead already emptied answers already and writes no second audit row", async () => {
+    seedLeads({ purged: [LEAD] });
+    expect(await (await purgeLeadAs("admin")).json()).toEqual({ purged: [], already: [LEAD], skipped_applicants: [] });
+    expect(rec.writtenRows("audit_logs")).toEqual([]);
+  });
+
+  it("says why it refuses: the lead became an applicant, another carrier's lead, a malformed id", async () => {
+    seedLeads({ converted: [LEAD] });
+    const conv = await purgeLeadAs("admin");
+    expect([conv.status, ((await conv.json()) as { error: { code: string } }).error.code]).toEqual([409, "became_applicant"]);
+    seedLeads();
+    expect((await purgeLeadAs("admin", {}, "50000000-0000-4000-8000-0000000000ff")).status).toBe(404);
+    expect((await purgeLeadAs("admin", {}, "not-a-uuid")).status).toBe(404);
+    expect(rec.rpcs()).toEqual([]);
+  });
+
+  it("no other role may, and an admin without step-up is asked for their password — nothing is read either way", async () => {
+    for (const role of ROLES.filter((r) => r !== "admin")) {
+      seedLeads();
+      expect((await purgeLeadAs(role)).status).toBe(403);
+      expect(rec.queries).toHaveLength(0);
+    }
+    seedLeads();
+    const res = await purgeLeadAs("admin", {}, LEAD, false);
+    expect([res.status, ((await res.json()) as { error: { code: string } }).error.code]).toEqual([403, "step_up_required"]);
+    expect(rec.queries).toHaveLength(0);
   });
 });

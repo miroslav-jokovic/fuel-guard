@@ -19,7 +19,7 @@ export { brakeFor } from "./orchestrator/brake.js";
 // B3b: Meta Automated Rules follow the settings in force; the `ads_rules_sync` job runs this.
 export { syncOrgRules } from "./settings/rulesSyncJob.js";
 // B4a: the hourly leads backfill — Meta forms → the LeadSink the caller hands in — and its scheduler.
-export { backfillConnectionLeads } from "./leads/backfill.js";
+export { backfillConnectionLeads, catchUpSince } from "./leads/backfill.js";
 export type { BackfillResult } from "./leads/backfill.js";
-export { startAdsLeadsBackfill } from "./leads/backfillTick.js";
+export { adsLeadsBackfillDedupKey, startAdsLeadsBackfill } from "./leads/backfillTick.js";
 export { applyCampaignEvent } from "./orchestrator/transitions.js";

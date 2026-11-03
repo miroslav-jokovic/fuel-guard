@@ -5,7 +5,7 @@ import { dispatchJob } from "../../../queue/dispatch.js";
 
 /**
  * The `ads-leads-backfill` scheduler (B4a2; docs/WORKER-DEPLOYMENT.md, ads row): every hour, one
- * `ads_leads_backfill` job per connected Meta (or simulator) connection, across every carrier — the
+ * `ads_leads_backfill` job per Meta (or simulator) connection that is `connected` OR `failing`, across every carrier — the
  * scheduler's one tenant-wide read, the same shape as the orchestrator's tick. The job, not the tick, talks
  * to Meta and to recruiting's sink (`queue/handlers/adsLeadsBackfill.ts`).
  *
@@ -31,7 +31,9 @@ export async function leadsBackfillTick(admin: SupabaseClient, enqueue: Backfill
       .from("ads_platform_connections")
       .select("id, org_id")
       .in("provider", ["meta", "simulator"])
-      .eq("status", "connected")
+      // `failing` too (2026-11-03 audit H1): skipping it made a dead token's lost leads silent — no job,
+      // so no failed job. Now its job runs, and fails loudly every hour until the token is fixed.
+      .in("status", ["connected", "failing"])
       .order("id")
       .range(from, from + PAGE - 1);
     if (error) throw new Error(`ads_platform_connections: ${error.message}`);

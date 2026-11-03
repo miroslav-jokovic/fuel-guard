@@ -208,16 +208,17 @@ describe("the admin-only acts are one named list, and the API gates exactly that
   /**
    * A bare `requireRole("admin")` is enforced and invisible — the state SP11 ended for the integration
    * acts. What may still carry one is closed and named here: the Users and Permissions screens'
-   * own endpoints (Q-SET1; the page lists them through `ADMIN_ONLY_SURFACES`), and two destructive
+   * own endpoints (Q-SET1; the page lists them through `ADMIN_ONLY_SURFACES`), and three destructive
    * record acts whose reasons live beside their gates. A new admin-only route anywhere else has to
    * choose a capability key — and so appear on the Permissions page — or be argued into this list.
    */
-  it("a bare admin-role gate appears only on Users/Permissions endpoints and two named record acts", () => {
+  it("a bare admin-role gate appears only on Users/Permissions endpoints and three named record acts", () => {
     // `/api/access-review` is the Permissions page's "Who has access" tab and its CSV (SP10).
     const USERS_AND_PERMISSIONS = ["/api/invites", "/api/members", "/api/section-access", "/api/surface-access", "/api/access-review"];
     const NAMED = new Map<string, string>([
       ["POST /api/maintenance/:id/delete-record", "destroys an inspection record; a technician certifies inspections and does not erase them (maintenance/routes/inspections.ts)"],
       ["POST /api/recruitment/applicants/:driverId/purge", "`canPurgeApplicant` — the audited service-role purge of an applicant's file, with a fresh sign-in (recruiting/routes/purge.ts)"],
+      ["POST /api/recruitment/leads/:leadId/purge", "`canPurgeLead` — the same ruling for a person who never applied: 0558 empties a lead's personal details on request, with a fresh sign-in (recruiting/routes/purge.ts)"],
     ]);
     const stray = [...everyRoute()]
       .filter(([, gates]) => gates.includes("role[admin]"))

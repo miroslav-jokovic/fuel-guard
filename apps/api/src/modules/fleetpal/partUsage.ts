@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   PART_HISTORY_PAGE_SIZE,
   PART_USAGE_WINDOW_DAYS,
+  typicalPriceOf,
   type PartUsageDetailDto,
   type PartUsageListDto,
   type PartUsageRowDto,
@@ -25,12 +26,11 @@ import {
  *
  * ── NUMBERS ARRIVE AS STRINGS OR NUMBERS ─────────────────────────────────────────────────────────
  * `numeric` and `bigint` may come back from PostgREST as JSON strings ("12.000"). `num` reads both and
- * keeps null as null.
+ * keeps null as null — a missing price is "no price", never 0.
  *
- * ── NO PRICES (D-SPU4) ───────────────────────────────────────────────────────────────────────────
- * 0557 returns unit prices; this reader drops them, because D-FP4 forbids FleetPal money on a surface
- * without its coverage ratio and the endpoint is where that is enforced (the F9b precedent: a second
- * consumer must not be one fetch away from the figure). Q-SPU1 is the owner's.
+ * ── UNIT PRICES YES, SUMS NO (D-SPU10) ───────────────────────────────────────────────────────────
+ * The owner ruled Q-SPU1 on 2026-11-03 ("we can show everything"): unit prices pass through. No money
+ * is ever summed here — a per-part spend total is still the figure D-FP4 guards.
  */
 
 type Failure = { ok: false; error: { message: string; code?: string } };
@@ -54,6 +54,7 @@ interface ListRow {
   used_quantity: unknown;
   used_repairs: unknown;
   last_used_at: string | null;
+  last_price: unknown;
   total_count: unknown;
 }
 
@@ -97,6 +98,7 @@ export async function readPartUsageList(
           usedQuantity: count(r.used_quantity),
           usedRepairs: count(r.used_repairs),
           lastUsedAt: iso(r.last_used_at),
+          lastPrice: num(r.last_price),
         }),
       ),
       // Every row carries the whole count; an empty page (past the end) has none, and its total is 0
@@ -115,6 +117,11 @@ interface SummaryRow {
   units_365d: unknown;
   first_used_at: string | null;
   last_used_at: string | null;
+  last_price: unknown;
+  typical_price_365d: unknown;
+  low_price_365d: unknown;
+  high_price_365d: unknown;
+  priced_repairs_365d: unknown;
 }
 
 interface HistoryRow {
@@ -125,6 +132,7 @@ interface HistoryRow {
   vehicle_id: string | null;
   trailer_id: string | null;
   quantity: unknown;
+  unit_price: unknown;
   days_since_previous_on_unit: unknown;
   total_count: unknown;
 }
@@ -153,6 +161,7 @@ export async function readPartUsageDetail(
   if (history.error) return { ok: false, error: history.error };
 
   const s = ((summary.data ?? []) as SummaryRow[])[0];
+  const pricedRepairs = count(s?.priced_repairs_365d);
   const summaryDto: PartUsageSummaryDto = {
     quantity90d: count(s?.quantity_90d),
     repairs90d: count(s?.repairs_90d),
@@ -161,6 +170,11 @@ export async function readPartUsageDetail(
     units365d: count(s?.units_365d),
     firstUsedAt: iso(s?.first_used_at),
     lastUsedAt: iso(s?.last_used_at),
+    lastPrice: num(s?.last_price),
+    typicalPrice: typicalPriceOf(num(s?.typical_price_365d), pricedRepairs),
+    lowPrice365d: num(s?.low_price_365d),
+    highPrice365d: num(s?.high_price_365d),
+    pricedRepairs365d: pricedRepairs,
   };
 
   const rows = (history.data ?? []) as HistoryRow[];
@@ -175,6 +189,7 @@ export async function readPartUsageDetail(
         number: r.unit_number,
       },
       quantity: count(r.quantity),
+      unitPrice: num(r.unit_price),
       daysSincePreviousOnUnit: num(r.days_since_previous_on_unit),
     }),
   );

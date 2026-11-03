@@ -32,7 +32,7 @@ is this the same truck again?* The data to answer them was staged since F6 and r
   own line — 311 lines on 93 work orders). Quantity is the sum of the lines.
 - **D-SPU3 — The date of a use is the repair's date**: work order `completed`, else `started`, else the
   line's creation.
-- **D-SPU4 — No prices on screen until the owner rules (Q-SPU1).** D-FP4: "every surface printing
+- **D-SPU4 — SUPERSEDED by D-SPU10 (2026-11-03).** ~~No prices on screen until the owner rules (Q-SPU1).~~ D-FP4: "every surface printing
   FleetPal money also prints its coverage ratio; a page that cannot compute the ratio does not print
   the cost". A part's unit price is FleetPal money, and the truck page already declines to show any
   for the same reason (`UnitRepairsSection.vue`). So the API drops the prices 0557 measures, and the
@@ -52,17 +52,28 @@ is this the same truck again?* The data to answer them was staged since F6 and r
 - **D-SPU9 — Same gate as the catalogue** (`maintenance` view); nothing on these screens is more
   sensitive than a truck's repair record.
 
+- **D-SPU10 — Unit prices are shown; money is never summed** (owner, 2026-11-03, answering Q-SPU1:
+  "we can show everything"). To everyone who can open Shop parts. List: Last price (sortable). Part
+  page: last price, typical (12-month median, only on ≥ 5 priced repairs), 12-month range; each repair's
+  price each, and "Well above usual" at ≥ 1.5 × typical. Narrows D-FP4 for unit prices on this surface;
+  D-FP4 still governs every FleetPal TOTAL.
+- **D-SPU11 — Nothing drawn over nothing** (owner, 2026-11-03: "let's not have empty rows and columns
+  if data does not exist"). A list column every row on the page leaves empty is not drawn (shared
+  `columnsWithData` in `@silvicom/ui`; a usage count of 0 counts as empty); part number and
+  description always are. A fact with no value is not listed (no "None", "Never", "0 in 12 months"); a
+  part no repair order named gets one sentence and no "Where it went" table.
+
 ## 3. Steps
 
 | Step | What | Merge |
 |---|---|---|
 | SP-U1 | Migration 0557: `shop_part_uses`, `shop_parts_list`, `shop_part_summary`, `shop_part_history` + matrix `shop-parts-usage.test.mjs` | 1st (alone — a function's reader is held behind it) |
 | SP-U2 | API: `GET /inventory/part-usage` (its own mount — the pickers keep `GET /inventory/parts`) reads `shop_parts_list`; `GET /inventory/parts/:id/usage` (summary + paged history), both through fleetpal's index. Shared contract `shopPartsUsage.ts`. Web: Shop parts list (Show filter, server-sorted columns, phone cards), part page "How much the shop uses it" + "Where it went" with the repeat badge | 2nd, after migrate-staging applies 0557 |
-| SP-U3 | Prices, if Q-SPU1 is ruled (a) or (b) | later |
+| SP-U3 | Prices (D-SPU10) and no empty columns or facts (D-SPU11) — no migration, 0557 already returns prices | 3rd |
 
 ## 4. Open questions
 
-- **Q-SPU1 — May a part's UNIT price show without the coverage ratio?** D-FP4 was written against
+- **Q-SPU1 — ANSWERED 2026-11-03: show everything → D-SPU10.** May a part's UNIT price show without the coverage ratio? D-FP4 was written against
   cost TOTALS ("FleetPal knows what the shop spent through FleetPal; a total read as the whole bill is
   the plausible-but-wrong number"). A unit price ("$43.12 per shoe kit, typical $43.10") cannot be read
   as the maintenance bill, and it is what an office orders by. Candidates: (a) allow unit prices
@@ -84,3 +95,8 @@ is this the same truck again?* The data to answer them was staged since F6 and r
   1280 and 390 px: the phone card read a bare "311", so a card-only " used" suffix was added, and an
   empty Note column drew a dash under every history card, so the repeat badge moved beside its unit.
   Pre-existing, not this step's: on a part's page the sidebar lights both Shop and Shop parts.
+- 2026-11-03 — SP-U2 merged. Owner: "We can show everything, also let's not have empty rows and
+  columns if data does not exist" → D-SPU10, D-SPU11, SP-U3 built. Browser pass at 1280 px: with Last
+  price added, the list ran off the right edge — descriptions now wrap (`:nowrap="false"`), figures and
+  dates do not. Mutations: a `columnsWithData` that keeps every column fails 2 tests; a well-above
+  rule of "any price above typical" fails 1.
