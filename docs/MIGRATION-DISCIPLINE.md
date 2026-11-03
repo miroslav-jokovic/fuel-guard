@@ -41,6 +41,13 @@ migration; never hand-apply SQL. The pipeline is the only door. (0422 was edited
 applied it, by the owner's ruling, because production could never apply it otherwise and every later
 migration was stuck behind it — the edit was a no-op wherever 0422 had already run. That is the bar.)
 
+**The number goes above main's newest, never into a gap.** `supabase db push` refuses a migration
+older than the last one the database applied (`--include-all` is deliberately not passed), so a file
+numbered below main's newest merges cleanly and then fails at migrate-staging. Do not leave a number
+free "for" a parallel chat's uncommitted file: whoever merges second must renumber anyway. Found
+2026-11-03 (0553 merged while a 0552 waited in another worktree); `check-migration-ordering.mjs` now
+refuses it on the pull request.
+
 ## The deploy window — a merge is served ~9 minutes before its migration is applied
 
 ### 2026-10-04: the release train changes which window you are in

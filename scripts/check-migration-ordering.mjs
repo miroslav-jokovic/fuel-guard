@@ -178,6 +178,26 @@ export function readsIntroduced(file, body, beforeBody, pending) {
   return out;
 }
 
+/**
+ * The migrations this change ADDS whose number is not above the newest one already on the base.
+ *
+ * `supabase db push` refuses a local migration older than the last one the remote database applied
+ * ("Found local migration files to be inserted before the last migration on remote database") unless
+ * it is given `--include-all`, which migrate.yml and release.yml deliberately do not pass. So a
+ * migration that merges BELOW main's newest is invisible to every other gate — its name collides with
+ * nothing, `lint:migrations` sees unique numbers — and fails only after the merge, at migrate-staging,
+ * leaving staging's schema one merge behind its code.
+ *
+ * Found 2026-11-03: the ads chat merged 0553 while the hiring chat held an uncommitted 0552 for its
+ * next PR. Main's first-parent history had never once merged a number below its newest until then, so
+ * nothing had needed to say it. The fix for the PR that trips this is to `git mv` its file to the next
+ * number above the base's newest. Pure, so `--self-test` can prove it fires.
+ */
+export function migrationsBelowBase(added, baseMax) {
+  return added.filter((m) => m.version <= baseMax).map((m) => ({ ...m, baseMax }));
+}
+const migrationVersion = (path) => Number((path.split("/").pop() ?? "").match(/^(\d+)_/)?.[1] ?? NaN);
+
 if (process.argv.includes("--self-test")) {
   // The real 0284 shape, reduced: two columns onto an existing table, then named in a SELECT list.
   const sql = `alter table public.vehicle_inspections
@@ -208,6 +228,10 @@ if (process.argv.includes("--self-test")) {
     "a pre-existing read is not blamed": alreadyRead.length === 0,
     "a rename is caught by its new name": renamed.length === 1 && renamed[0].column === "decal_serial",
     "a substring does not fire": substring.length === 0,
+    // 2026-11-03's shape: main holds 0553, the PR adds 0552 — refused; 0554 passes.
+    "a migration below the base's newest is refused":
+      migrationsBelowBase([{ file: "0552_a.sql", version: 552 }, { file: "0554_b.sql", version: 554 }], 553)
+        .map((m) => m.file).join() === "0552_a.sql",
   };
   const failed = Object.entries(checks).filter(([, ok]) => !ok).map(([name]) => name);
   console.log(
@@ -286,12 +310,18 @@ function check(from, head) {
         ...git(["ls-files", "--others", "--exclude-standard"]).split("\n"),
       ].filter(Boolean);
   const migrations = changed.filter((p) => /^supabase\/migrations\/\d+.*\.sql$/.test(p));
+  const onBase = new Set(git(["ls-tree", "--name-only", from, "supabase/migrations/"]).split("\n").filter(Boolean));
+  const baseMax = Math.max(0, ...[...onBase].map(migrationVersion).filter(Number.isFinite));
+  const behind = migrationsBelowBase(
+    migrations.filter((p) => !onBase.has(p)).map((file) => ({ file, version: migrationVersion(file) })),
+    baseMax,
+  );
   const pending = [];
   for (const file of migrations) {
     for (const c of addedColumns(read(file))) pending.push({ ...c, file });
   }
   const violations = [];
-  if (pending.length === 0) return { migrations: migrations.length, pending: 0, violations };
+  if (pending.length === 0) return { migrations: migrations.length, pending: 0, violations, behind };
 
   // A column name is matched as a WORD (readsIntroduced): a substring match would fire on
   // `renderer_version_label`, and would not fire on a column whose name is a common word in prose.
@@ -310,7 +340,7 @@ function check(from, head) {
     }
     violations.push(...readsIntroduced(file, body, beforeBody, pending));
   }
-  return { migrations: migrations.length, pending: pending.length, violations };
+  return { migrations: migrations.length, pending: pending.length, violations, behind };
 }
 
 const steps = mergesTo
@@ -327,13 +357,28 @@ if (steps.length === 0) {
 let migrations = 0;
 let pending = 0;
 const violations = [];
+const behind = [];
 for (const { from, head } of steps) {
   const r = check(from, head);
   migrations += r.migrations;
   pending += r.pending;
   violations.push(...r.violations.map((v) => ({ ...v, merge: head })));
+  behind.push(...r.behind.map((b) => ({ ...b, merge: head })));
 }
 const scope = mergesTo ? ` across ${steps.length} merge(s), each on its own` : "";
+
+if (behind.length > 0) {
+  console.error(`✗ ${behind.length} migration(s) numbered at or below the newest one already on main:\n`);
+  for (const b of behind) {
+    console.error(`  ${b.file}${b.merge ? ` (merge ${b.merge.slice(0, 7)})` : ""} — main's newest is ${String(b.baseMax).padStart(4, "0")}.`);
+  }
+  console.error(
+    "\n`supabase db push` refuses a migration older than the last one the database applied, so this" +
+      "\nwould merge cleanly and then fail at migrate-staging. Rename it to the next free number above" +
+      "\nmain's newest (`git mv`, then fix every reference to the old number) and regenerate the snapshot.",
+  );
+  process.exit(1);
+}
 
 if (migrations === 0) {
   console.log(`✓ migration ordering ok — no migrations in this change${scope}.`);
