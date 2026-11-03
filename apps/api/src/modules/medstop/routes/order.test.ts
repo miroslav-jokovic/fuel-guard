@@ -108,4 +108,16 @@ describe("the order door", () => {
   it("refuses a body carrying a field the preview never showed (a driver's phone, say)", async () => {
     expect((await call("/order/preview", { ...order, tosms: "7735550199" })).status).toBe(400);
   });
+
+  it("lets only a reader of results order a recollection or choose observation (MSO3) — the recruiter is refused before anything", async () => {
+    holder.auth = as("recruiter");
+    expect((await call("/order/preview", { ...order, recollectionOf: "T-DIL" })).status).toBe(403);
+    expect((await call("/order", { ...order, recollectionOf: "T-DIL", observed: true })).status).toBe(403);
+    expect((await call("/order/sites?service=drug&reason=POST-ACCIDENT&requestDate=2099-01-01&requestTime=16:00&zip=60601&medstopId=EE-ANN&observed=true")).status).toBe(403);
+    // The same order without the recollection reaches the next check (ordering is switched off here).
+    expect((await call("/order/preview", order)).status).toBe(409);
+    holder.auth = as("safety_manager");
+    expect((await call("/order/preview", { ...order, recollectionOf: "T-DIL" })).status).toBe(409);
+  });
 });
+

@@ -257,5 +257,14 @@ describe("the Med-Stop drawers the drug-test step asks for (UX4, MSO2)", () => {
     expect(document.body.querySelector("[data-close-drawer]")).toBeNull();
     expect(JSON.parse(document.body.querySelector("[data-order-drawer]")!.getAttribute("data-seed")!)).toMatchObject({ kind: "applicant", medstopId: "EE-APP", zip: "60435", locationId: "LOC-1" });
   });
+
+  it("opens the order drawer seeded as a pre-employment recollection of the dilute test (MSO3)", async () => {
+    const w = await mountPage();
+    w.findComponent({ name: "HiringStepDrawer" }).vm.$emit("recollect", { testId: "T-DIL", medstopId: "EE-APP", collectedOn: "2026-10-30", zip: "60435" });
+    await settle(w);
+    expect(JSON.parse(document.body.querySelector("[data-order-drawer]")!.getAttribute("data-seed")!)).toMatchObject({
+      kind: "recollection", testId: "T-DIL", medstopId: "EE-APP", reason: "PRE-EMPLOYMENT", zip: "60435",
+    });
+  });
 });
 
