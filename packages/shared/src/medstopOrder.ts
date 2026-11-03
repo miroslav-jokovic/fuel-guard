@@ -288,3 +288,60 @@ export function medstopDefaultGoBy(today: CalendarDay): { requestDate: CalendarD
   while ([0, 6].includes(new Date(`${day}T12:00:00Z`).getUTCDay())) day = shiftDay(day, 1);
   return { requestDate: day, requestTime: MEDSTOP_GO_BY_TIME };
 }
+
+/**
+ * Closing an open order from the hiring step (MEDSTOP-PLAN §7A.21, MSO2, owner's ruling D-MSO3): "Didn't go —
+ * mark no-show" and "Cancel order", through `POST /Request/{id}/status` — Med-Stop's one door for a request's
+ * final outcome. The codes are Med-Stop's list STATUSREQUESTCLOSE, read live 2026-11-03: REFUSAL ("REFUSAL TO
+ * TEST"), NO SHOW, CANCELED ("REQUEST CANCELED").
+ *
+ * ⚠ REFUSAL is deliberately not offered. A refusal to test is a §40.191 determination with consequences
+ * (Med-Stop's own form then demands the notification and opens the follow-up); it is the DER's, made with
+ * the facts, never a button on a recruiter's step. Not going by the deadline is a NO SHOW, not a refusal.
+ */
+export const MEDSTOP_CLOSE_STATUSES = ["NO SHOW", "CANCELED"] as const;
+export type MedstopCloseStatus = (typeof MEDSTOP_CLOSE_STATUSES)[number];
+export const MEDSTOP_CLOSE_LABEL: Record<MedstopCloseStatus, string> = {
+  "NO SHOW": "Didn't go — mark no-show",
+  CANCELED: "Cancel order",
+};
+
+/**
+ * The comment Med-Stop records on the request (`comment`, required, at least 30 characters). Fixed words, so
+ * the preview shows exactly what goes; the office's own reason, when it gives one, follows them.
+ */
+export const MEDSTOP_CLOSE_COMMENT: Record<MedstopCloseStatus, string> = {
+  "NO SHOW": "No show: the donor did not go to the collection site by the deadline. Closed by the employer's office.",
+  CANCELED: "Request canceled by the employer's office: this collection is no longer needed as ordered.",
+};
+export const MEDSTOP_CLOSE_NOTE_MAX_LENGTH = 500;
+
+export const medstopCloseInputSchema = z
+  .object({
+    status: z.enum(MEDSTOP_CLOSE_STATUSES),
+    note: z.string().trim().max(MEDSTOP_CLOSE_NOTE_MAX_LENGTH).optional(),
+  })
+  .strict();
+export type MedstopCloseInput = z.infer<typeof medstopCloseInputSchema>;
+
+export function medstopCloseComment(input: MedstopCloseInput): string {
+  return input.note ? `${MEDSTOP_CLOSE_COMMENT[input.status]} ${input.note}` : MEDSTOP_CLOSE_COMMENT[input.status];
+}
+
+/** What closing will do, as the drawer shows it before the office confirms — built by the api from Med-Stop's own reads. */
+export interface MedstopClosePreview {
+  requestId: string;
+  status: MedstopCloseStatus;
+  /** Exactly the `comment` that will be sent. */
+  comment: string;
+  person: string;
+  site: string | null;
+  goBy: string | null;
+}
+
+/** After a close: the order to place again, filled from the closed one (D-MSO3's "Order again"). */
+export interface MedstopClosed {
+  requestId: string;
+  status: MedstopCloseStatus;
+  reorder: { medstopId: string; zip: string | null; locationId: string | null } | null;
+}

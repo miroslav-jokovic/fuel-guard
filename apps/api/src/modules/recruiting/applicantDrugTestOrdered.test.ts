@@ -3,7 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { MedstopOrderedCollection } from "@silvicom/shared";
 import { createSupabaseRecorder, expectOrgScoped, type RecordedQuery } from "../../testing/supabaseRecorder.js";
 import { postgrestFixture } from "../../testing/postgrestFixture.js";
-import { recordOrderedDrugTest } from "./applicantDrugTest.js";
+import { recordOrderedDrugTest, releaseOrderedDrugTest } from "./applicantDrugTest.js";
 import { partOneHomeZip } from "./medstopApplicantFacts.js";
 
 /**
@@ -105,5 +105,24 @@ describe("partOneHomeZip (MSO1, D-MSO2)", () => {
     // Six digits is a typo, not a ZIP: guessing its first five would search the wrong town.
     expect(await partOneHomeZip(seed({ intakes: [{ org_id: ORG, invitation_id: INVITE, postal_code: "604351" }] }).client as unknown as SupabaseClient, ORG, DRIVER)).toBeNull();
     expect(await partOneHomeZip(seed({ invitations: [], intakes: [{ org_id: ORG, invitation_id: INVITE, postal_code: "60435" }] }).client as unknown as SupabaseClient, ORG, DRIVER)).toBeNull();
+  });
+});
+
+describe("releaseOrderedDrugTest (MSO2)", () => {
+  it("cancels only the live invitation's appointment carrying the order's exact reference, org-scoped", async () => {
+    const rec = seed();
+    await releaseOrderedDrugTest(rec.client as unknown as SupabaseClient, ORG, DRIVER, "AUTH-9 (registration 4471)");
+    const [update] = rec.forTable("drug_test_appointments").filter((q) => q.write?.method === "update");
+    expect(update!.filters()).toEqual(expect.arrayContaining([
+      { col: "org_id", val: ORG }, { col: "invitation_id", val: INVITE }, { col: "donor_reference", val: "AUTH-9 (registration 4471)" },
+    ]));
+    expect(update!.write?.payload).toEqual({ cancelled_at: expect.any(String) });
+    expectOrgScoped(rec, ORG);
+  });
+
+  it("touches nothing for an applicant with no live invitation", async () => {
+    const rec = seed({ invitations: [] });
+    expect(await releaseOrderedDrugTest(rec.client as unknown as SupabaseClient, ORG, DRIVER, "AUTH-9")).toBe(0);
+    expect(rec.forTable("drug_test_appointments")).toEqual([]);
   });
 });

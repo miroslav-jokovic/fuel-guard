@@ -62,16 +62,24 @@ export function orderedCollectionOf(
   const phone = text(r.phone1);
   const ext = text(r.ext1);
   const at = /^(\d{4}-\d{2}-\d{2})[T ](\d{2}):(\d{2})/.exec(text(r.requestdate) ?? "");
-  const code = text(r.code);
-  const registration = text(r.registrationnumber);
   return {
     requestId,
     siteName,
     siteAddress,
     sitePhone: phone ? (ext ? `${phone} ext ${ext}` : phone) : null,
     goBy: at ? `${at[1]}T${at[2]}:${at[3]}` : `${sent.requestDate}T${sent.requestTime}`,
-    reference: code && registration && code !== registration ? `${code} (registration ${registration})` : (code ?? registration),
+    reference: medstopReferenceOf(r),
   };
+}
+
+/**
+ * What the site asks the applicant for: the request's `code`, with its registration number when that differs.
+ * One definition — the appointment is written with it (MSO1) and a closed order's appointment is found by it (MSO2).
+ */
+export function medstopReferenceOf(r: Record<string, unknown>): string | null {
+  const code = text(r.code);
+  const registration = text(r.registrationnumber);
+  return code && registration && code !== registration ? `${code} (registration ${registration})` : (code ?? registration);
 }
 
 export async function followUpPlacedOrder(

@@ -156,8 +156,22 @@ export async function mirrorPlacedRequest(
   requestId: string,
   today: CalendarDay,
 ): Promise<boolean> {
-  const rows = await client.list(`/Request/list?requestedafter=${shiftDay(today, -1)}`, medstopRequestRow);
-  const placed = rows.filter((r) => r.id === requestId);
-  await merge(admin, orgId, "requests", placed.map(requestRecord));
-  return placed.length > 0;
+  return mirrorRequest(admin, client, orgId, requestId, shiftDay(today, -1));
+}
+
+/**
+ * The same, for any one request listed on or after `requestedAfter` — a closed order's NO SHOW or CANCELED
+ * reaches the step at once (MSO2), read from the list the sweep reads, never written from what we sent.
+ */
+export async function mirrorRequest(
+  admin: SupabaseClient,
+  client: MedstopClient,
+  orgId: string,
+  requestId: string,
+  requestedAfter: CalendarDay,
+): Promise<boolean> {
+  const rows = await client.list(`/Request/list?requestedafter=${requestedAfter}`, medstopRequestRow);
+  const found = rows.filter((r) => r.id === requestId);
+  await merge(admin, orgId, "requests", found.map(requestRecord));
+  return found.length > 0;
 }
