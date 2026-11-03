@@ -8,6 +8,7 @@ import { getAppLocals } from "../../../lib/appLocals.js";
 import { writeAudit } from "../../../lib/audit.js";
 import { displayNameFor } from "../../../lib/memberLabels.js";
 import { ingestLead } from "../leads/leadSink.js";
+import { liftDoNotContact, markDoNotContact, type DoNotContactOutcome } from "../leads/doNotContact.js";
 import { convertLead, isConvertError, parseQueueQuery, readLeadQueue } from "../leads/leadQueue.js";
 
 /**
@@ -19,7 +20,8 @@ import { convertLead, isConvertError, parseQueueQuery, readLeadQueue } from "../
  * route already admits `recruitment: manage` (`canWriteDriver`) for exactly this person.
  *
  * Nothing here contacts a lead (D-LS6, ruled 2026-09-25): no route sends to one, and the queue is a list a
- * person works through. The audit rows name the lead and the channel, never the person's details — the audit
+ * person works through. `do-not-contact` records that a person asked not to be contacted, and lifts the
+ * office's own record of it (`leads/doNotContact.ts`). The audit rows name the lead and the channel, never the person's details — the audit
  * log is readable by admins outside hiring (`notes.ts`' reason).
  */
 const convertSchema = z.object({ driver_id: recordId().nullable() });
@@ -88,6 +90,36 @@ export function recruitmentLeadsRouter(): Router {
       res.status(result.created_applicant ? 201 : 200).json(result);
     }),
   );
+
+  // A person asked not to be contacted (lead-path audit H3). POST holds the number; DELETE lifts the
+  // office's hold (never a STOP the person texted). Audited by lead id, never by number.
+  for (const [method, act] of [["post", "held"], ["delete", "lifted"]] as const) {
+    router[method](
+      "/leads/:leadId/do-not-contact",
+      requireOrg,
+      canManage,
+      asyncHandler(async (req, res) => {
+        const leadId = String(req.params.leadId ?? "");
+        if (!recordId().safeParse(leadId).success) {
+          res.status(404).json(apiError("not_found", "Lead not found"));
+          return;
+        }
+        const admin = getSupabaseAdmin(getAppLocals(req).env);
+        const orgId = req.auth!.orgId!;
+        const out: DoNotContactOutcome = act === "held" ? await markDoNotContact(admin, orgId, leadId) : await liftDoNotContact(admin, orgId, leadId, new Date());
+        if (out.kind === "refused") {
+          res.status(out.status).json(apiError(out.code, out.message));
+          return;
+        }
+        await writeAudit(admin, {
+          orgId, actorId: req.auth!.userId, action: `recruitment.lead_do_not_contact_${act}`,
+          entity: "recruiting_leads", entityId: leadId,
+          meta: out.kind === "held" ? { newly: out.newly, applicantId: out.applicant_id } : { lifted: out.lifted, stopRemains: out.stop_remains },
+        });
+        res.json(out);
+      }),
+    );
+  }
 
   return router;
 }

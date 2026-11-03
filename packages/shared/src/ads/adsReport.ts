@@ -21,6 +21,9 @@ export interface MonthContext {
   month: string;
   /** Days left in the month, today included: 1 on the last day. The `adsPolicy` forecast's multiplier. */
   days_left: number;
+  /** The month's first day and today, "YYYY-MM-DD" in the org's zone: the platform spend read's range. */
+  since_day: string;
+  today: string;
 }
 
 export function monthContext(now: Date, zone: string = DEFAULT_ORG_TIMEZONE): MonthContext {
@@ -35,6 +38,8 @@ export function monthContext(now: Date, zone: string = DEFAULT_ORG_TIMEZONE): Mo
     end: new Date(end).toISOString(),
     month: `${wc.year}-${String(wc.month).padStart(2, "0")}`,
     days_left: daysInMonth - wc.day + 1,
+    since_day: `${wc.year}-${String(wc.month).padStart(2, "0")}-01`,
+    today: `${wc.year}-${String(wc.month).padStart(2, "0")}-${String(wc.day).padStart(2, "0")}`,
   };
 }
 

@@ -21,7 +21,7 @@ function fakes(w: AdsWorld, opts: { launch?: PlatformOutcome | Error; pause?: Pl
     return opts.launch ?? { ok: true as const, platform_refs: { meta_campaign: "m-1" } };
   });
   const adapter = {
-    safe: { readAccountLimitCents: vi.fn(async () => 300_000), pause: vi.fn(async () => opts.pause ?? { ok: true as const }) },
+    safe: { readAccountLimitCents: vi.fn(async () => 300_000), readSpendCents: vi.fn(async () => 0), pause: vi.fn(async () => opts.pause ?? { ok: true as const }) },
     spend: { launch, raiseDailyBudget: vi.fn(), changeArea: vi.fn() },
   };
   const compose = vi.fn(async (_c: CampaignRow, _key: string): Promise<WorkerResult> => ({ ok: true }));
@@ -166,6 +166,35 @@ describe("runCampaignStep — the kill switch, in every state", () => {
   });
 });
 
+describe("runCampaignStep — the brake (ADS_ENABLED off) only pauses", () => {
+  it("never launches, composes or creates; launching and live go to pausing with the brake as the cause; pausing pauses", async () => {
+    const after: Record<string, string> = {};
+    for (const state of CAMPAIGN_STATES) {
+      const w = createAdsWorld({ campaigns: [campaign("c1", state)], approvals: [approval()] });
+      const f = fakes(w);
+      await runCampaignStep({ admin: w.admin, now: w.now, workers: f.workers, brake: "ADS_ENABLED is off" }, ORG, "c1");
+      expect(f.launch, state).not.toHaveBeenCalled();
+      expect(f.compose, state).not.toHaveBeenCalled();
+      expect(f.createPaused, state).not.toHaveBeenCalled();
+      after[state] = w.byId("c1").state;
+      if (state === "launching" || state === "live") expect(w.transitions()[0]).toMatchObject({ cause: "kill switch: ADS_ENABLED is off" });
+    }
+    expect(after).toEqual({
+      draft: "draft", composing: "composing", review: "review", approved: "approved", creating: "creating",
+      paused: "paused", launching: "pausing", live: "pausing", pausing: "paused", archived: "archived", failed: "failed",
+    });
+  });
+
+  it("settings that do not parse stop delivery instead of failing the step", async () => {
+    const w = createAdsWorld({ campaigns: [campaign("c1", "live")], settings: { not: "settings" } as never });
+    const quiet = vi.spyOn(console, "error").mockImplementation(() => {});
+    await step(w, fakes(w).workers);
+    quiet.mockRestore();
+    expect(w.byId("c1").state).toBe("pausing");
+    expect(w.transitions()[0]!.cause).toMatch(/^kill switch: settings unreadable/);
+  });
+});
+
 describe("runCampaignStep — failure is a visible state", () => {
   it("a compose that fails, or throws, ends in failed with its reason in last_error", async () => {
     for (const fail of [async () => ({ ok: false as const, error: "renderer quota" }), async () => { throw new Error("renderer quota"); }]) {
@@ -194,10 +223,23 @@ describe("runCampaignStep — failure is a visible state", () => {
     expect(w.transitions()[0]!.cause).toMatch(/^refused: no_standing_approval/);
   });
 
-  it("a launch the platform fails goes back to paused with the platform's code", async () => {
+  it("a launch the platform fails is paused and confirmed, never recorded as stopped on the 'failed' alone", async () => {
     const w = createAdsWorld({ campaigns: [campaign("c1", "launching")], approvals: [approval()] });
-    await step(w, fakes(w, { launch: { ok: false, error_code: "rate_limited" } }).workers);
-    expect(w.byId("c1")).toMatchObject({ state: "paused", last_error: "rate_limited" });
+    const f = fakes(w, { launch: { ok: false, error_code: "rate_limited" } });
+    await step(w, f.workers);
+    expect(w.byId("c1")).toMatchObject({ state: "pausing", last_error: "rate_limited" });
+    expect(w.transitions()[0]!.cause).toMatch(/^launch failed at the platform \(rate_limited\)/);
+    await step(w, f.workers);
+    expect(f.pause).toHaveBeenCalledTimes(1);
+    expect(w.byId("c1").state).toBe("paused");
+  });
+
+  it("a launch that never reached the platform (no platform ids) goes back to paused with no pause sent", async () => {
+    const w = createAdsWorld({ campaigns: [campaign("c1", "launching")], approvals: [approval()] });
+    const f = fakes(w, { launch: { ok: false, error_code: "no_platform_ref" } });
+    await step(w, f.workers);
+    expect(f.pause).not.toHaveBeenCalled();
+    expect(w.byId("c1")).toMatchObject({ state: "paused", last_error: "no_platform_ref" });
   });
 
   it("a pause that fails stays pausing under a new stamp, so the next tick asks again with a new key", async () => {

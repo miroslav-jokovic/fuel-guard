@@ -27,6 +27,13 @@ export type PlatformOutcome =
   /** `error_code` is the platform's, normalised by the adapter (e.g. `meta_2703`, `rate_limited`). */
   | { ok: false; error_code: string; response?: unknown };
 
+/**
+ * The one failure an adapter returns WITHOUT having written anything: the campaign has no platform ids
+ * recorded, so there is nothing on the platform to activate — or to pause. The runner reads it to tell
+ * a launch that never left us from one that failed part-way at the platform (2026-11-03 audit H1).
+ */
+export const NOT_ON_PLATFORM = "no_platform_ref";
+
 export interface SpendCall {
   campaign: PlatformCampaignRef;
   daily_budget_cents: number;
@@ -48,6 +55,13 @@ export interface PlatformSafe {
    * owner changes it by hand in the platform, and a stale copy is the one fence that would lie.
    */
   readAccountLimitCents(): Promise<number | null>;
+  /**
+   * What the ad account has spent from `since` to `until` (days, inclusive), as the platform reports it
+   * NOW, in cents; null when unreadable (2026-11-03 audit H4). The guard's month-to-date until B5's
+   * monitor writes `ads_spend_hourly` — and after, the check on it: it counts spend made in the
+   * platform's own tool on the same account, which our rows never see.
+   */
+  readSpendCents(range: { since: string; until: string }): Promise<number | null>;
   /**
    * Stop delivery (A6, 2026-11-02): the orchestrator's `pausing` step, and so the kill switch's second
    * half — the switch stops new spending at once (AX021), this stops what is already delivering. The

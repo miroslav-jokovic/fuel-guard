@@ -51,6 +51,17 @@ describe("orchestrator × the real Meta path on the simulator (B3)", () => {
     expect(w.actions.filter((a) => a.kind === "launch").map((a) => [a.status, a.approval_id])).toEqual([["succeeded", "appr-1"]]);
   });
 
+  it("a launch Meta applied but whose read-back failed is paused on Meta, not left delivering under a 'paused' label", async () => {
+    const approval = { id: "appr-2", org_id: ORG, campaign_id: "c5", kind: "launch", withdraws_id: null, approved_by: OWNER, approved_by_name: "Owner", daily_budget_cents: 5_000, lifetime_cap_cents: 50_000, created_at: T0 };
+    const w = createAdsWorld({ campaigns: [campaign("c5", "launching", { platform_refs: refs })], settings: SETTINGS, connections, approvals: [approval] });
+    const deps = { admin: w.admin, now: w.now, workers: adsWorkers({ admin: w.admin, env, now: w.now }) };
+    fake.inject("GET", /^600$/, { kind: "token_expired" });
+    expect(await runCampaignStep(deps, ORG, "c5")).toMatchObject({ kind: "stepped", event: "pause", result: { kind: "moved", to: "pausing" } });
+    expect(fake.campaigns.get("600")!.status).toBe("ACTIVE");
+    expect(await runCampaignStep(deps, ORG, "c5")).toMatchObject({ kind: "stepped", event: "paused", result: { kind: "moved", to: "paused" } });
+    expect(fake.campaigns.get("600")!.status).toBe("PAUSED");
+  });
+
   it("without an approval the guard refuses and Meta is never asked to activate anything", async () => {
     const w = createAdsWorld({ campaigns: [campaign("c3", "launching", { platform_refs: refs })], settings: SETTINGS, connections });
     const before = fake.requests.length;

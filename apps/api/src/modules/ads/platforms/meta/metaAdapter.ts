@@ -1,5 +1,5 @@
 import { adAreaSchema, type AdArea } from "@silvicom/shared";
-import type { PlatformAdapter, PlatformCampaignRef, PlatformOutcome, SpendCall } from "../adapter.js";
+import { NOT_ON_PLATFORM, type PlatformAdapter, type PlatformCampaignRef, type PlatformOutcome, type SpendCall } from "../adapter.js";
 import type { GraphFailure, MetaGraph } from "./graphClient.js";
 import { META_CUSTOM_LOCATION_MAX_MILES, META_EMPLOYMENT_MIN_MILES } from "./publisher.js";
 
@@ -44,7 +44,7 @@ function refs(c: PlatformCampaignRef, needAds: boolean): Refs | PlatformOutcome 
   const campaign = typeof r.meta_campaign_id === "string" ? r.meta_campaign_id : null;
   const adset = typeof r.meta_adset_id === "string" ? r.meta_adset_id : null;
   const ads = Array.isArray(r.meta_ad_ids) ? r.meta_ad_ids.filter((x): x is string => typeof x === "string") : [];
-  if (!campaign || !adset) return { ok: false, error_code: "no_platform_ref" };
+  if (!campaign || !adset) return { ok: false, error_code: NOT_ON_PLATFORM };
   if (needAds && ads.length === 0) return { ok: false, error_code: "no_ad_on_platform" };
   return { campaign, adset, ads };
 }
@@ -82,6 +82,19 @@ export function metaAdapter(deps: MetaAdapterDeps): PlatformAdapter {
         // Meta's own rule: "0" is no limit — which the guard must read as unknown, never as unlimited.
         const cents = Number(r.data.spend_cap);
         return Number.isFinite(cents) && cents > 0 ? cents : null;
+      },
+
+      async readSpendCents({ since, until }) {
+        // Insights `spend` is the account currency's MAJOR unit as a decimal string — unlike the
+        // account's `spend_cap` and `amount_spent`, which are cents. `data: []` means nothing was spent.
+        const r = await graph.get<{ data?: Array<{ spend?: string }> }>(`act_${deps.accountId}/insights`, {
+          fields: "spend", level: "account", time_range: JSON.stringify({ since, until }),
+        });
+        if (!r.ok || !Array.isArray(r.data.data)) return null;
+        const row = r.data.data[0];
+        if (!row) return 0;
+        const units = Number(row.spend);
+        return Number.isFinite(units) && units >= 0 ? Math.round(units * 100) : null;
       },
 
       async pause({ campaign }) {

@@ -69,6 +69,29 @@ describe("orchestratorTick — it only enqueues, one keyed step per campaign wit
   });
 });
 
+describe("orchestratorTick — the brake and unreadable settings stop delivery, never the pause", () => {
+  const live = () => [campaign("c1", "live"), campaign("c2", "composing"), campaign("c3", "launching"), campaign("c4", "pausing"), campaign("c5", "approved")];
+  const withPlatform: CampaignWorkers = { ...ALL, platform: async () => null };
+
+  it("under the brake every org is read as killed and only the pause path is queued; the settings are not even read", async () => {
+    const w = createAdsWorld({ campaigns: live() });
+    const l = ledger();
+    await orchestratorTick(w.admin, withPlatform, l.enqueue, "ADS_ENABLED is off");
+    expect(l.calls.map((c) => c.key).sort()).toEqual(["ads_step:c1:live", "ads_step:c3:launching", "ads_step:c4:pausing"]);
+    expect(w.rec.forTable("ads_settings_versions")).toHaveLength(0);
+  });
+
+  it("an org whose settings row does not parse is read as killed, and the tick carries on", async () => {
+    const w = createAdsWorld({ campaigns: [campaign("c1", "live")], settings: { not: "settings" } as never });
+    const l = ledger();
+    const quiet = vi.spyOn(console, "error").mockImplementation(() => {});
+    expect(await orchestratorTick(w.admin, withPlatform, l.enqueue)).toEqual({ campaigns: 1, queued: 1, conflicts: 0 });
+    expect(l.calls.map((c) => c.key)).toEqual(["ads_step:c1:live"]);
+    expect(quiet).toHaveBeenCalledWith(expect.stringMatching(/settings unreadable, treated as killed/));
+    quiet.mockRestore();
+  });
+});
+
 describe("adsStepEnqueue — what the queue is really handed", () => {
   it("an ads_step with the campaign and state in its payload, and dedup_key = campaign + state, never the (org, kind) slot", async () => {
     const env = { JOB_EXECUTION_MODE: "queue" } as Parameters<typeof adsStepEnqueue>[1];
@@ -90,13 +113,13 @@ describe("the ads-orchestrator scheduler", () => {
     expect(SCHEDULERS.filter((s) => s.name === "ads-orchestrator").map((s) => s.lane)).toEqual(["general"]);
   });
 
-  it("starts no timer unless ADS_ENABLED", () => {
+  it("ticks with ADS_ENABLED off too, because the off flag is a brake, not the end of our pauses", () => {
     vi.useFakeTimers();
     const env = { ADS_ENABLED: false, SUPABASE_URL: "http://x", SUPABASE_SERVICE_ROLE_KEY: "k" } as Parameters<typeof startAdsOrchestrator>[0];
     startAdsOrchestrator(env);
-    expect(vi.getTimerCount()).toBe(0);
-    startAdsOrchestrator({ ...env, ADS_ENABLED: true });
     expect(vi.getTimerCount()).toBe(2);
     vi.clearAllTimers();
+    startAdsOrchestrator({ ...env, SUPABASE_SERVICE_ROLE_KEY: undefined } as unknown as typeof env);
+    expect(vi.getTimerCount()).toBe(0);
   });
 });
