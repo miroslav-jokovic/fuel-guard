@@ -6,6 +6,7 @@ import { AppButton as BaseButton } from "@silvicom/ui";
 import SlideOver from "@/components/SlideOver.vue";
 import { BADGE_BASE, dqItemBadge, toneClass } from "@/lib/badges";
 import type { DropItem, OutstandingItem } from "@/composables/useFileDropItems";
+import { useOpens } from "@/composables/useOpens";
 import DocumentDropCard from "./DocumentDropCard.vue";
 import RequirementDrawer from "./RequirementDrawer.vue";
 import type { FileSubject } from "./fileSubject";
@@ -57,6 +58,15 @@ watch(
 );
 const dropOpen = computed(() => props.subject !== null && openKey.value === null);
 
+/**
+ * "Record" is offered only for an item this reader can file here — one of `items`, which already
+ * leaves out restricted kinds the role cannot record (D-DQ15) and anything outside the subject's
+ * catalogue. The rest stay listed, so the whole file is still in view, with no button the API refuses.
+ */
+const recordable = computed(() => new Set(props.items.map((i) => i.key)));
+/** The full-file link is shown exactly when its page opens for this reader (SP5, `useOpens`). */
+const opens = useOpens();
+
 function onFiled(payload: { documentId: string; name: string; key: string }): void {
   presetDoc.value = { id: payload.documentId, name: payload.name };
   openKey.value = payload.key;
@@ -92,12 +102,12 @@ function closeDrawer(): void {
               dqItemBadge(o.state).label
             }}</span>
             <span class="flex-1 text-ink">{{ o.label }}</span>
-            <BaseButton variant="ghost" size="sm" @click="record(o.key)">Record</BaseButton>
+            <BaseButton v-if="recordable.has(o.key)" variant="ghost" size="sm" @click="record(o.key)">Record</BaseButton>
           </li>
         </ul>
       </section>
 
-      <RouterLink :to="props.fileLink" class="inline-block text-sm font-medium text-link hover:text-link-hover">
+      <RouterLink v-if="opens(props.fileLink)" :to="props.fileLink" class="inline-block text-sm font-medium text-link hover:text-link-hover">
         Open the full file →
       </RouterLink>
     </div>

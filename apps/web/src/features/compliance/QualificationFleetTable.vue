@@ -261,8 +261,8 @@ const { sort, onSort } = useUrlSort(
   <div class="space-y-6">
     <DataWorkspace>
     <FilterBar
-      embedded
       v-model:search="search"
+      embedded
       search-placeholder="Search drivers…"
       :count="filtered.length"
       count-label="drivers"

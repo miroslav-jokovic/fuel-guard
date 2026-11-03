@@ -1,7 +1,10 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { mount } from "@vue/test-utils";
 import { DQ_ITEMS, EQUIPMENT_ITEMS } from "@silvicom/shared";
 import FileUploadDialog from "@/components/files/FileUploadDialog.vue";
+
+const closedDoors = new Set<string>();
+vi.mock("@/composables/useOpens", () => ({ useOpens: () => (to: string) => !closedDoors.has(to) }));
 
 /**
  * The list's upload dialog (DQ-FILE-COLUMN) is the file page's drop-first flow (D-DQ10) in a panel:
@@ -67,6 +70,29 @@ describe("FileUploadDialog", () => {
     expect(drawer.props("presetDocument")).toBeNull();
     drawer.vm.$emit("close");
     expect(w.emitted("close")).toHaveLength(1);
+  });
+
+  it("offers Record only for an item this reader can file, and keeps the rest in view", () => {
+    const w = mountDialog({
+      items: [{ key: "medical_card", label: "Medical card", evidenceKind: "medical_card" }],
+      outstanding: [
+        { key: "medical_card", label: "Medical card", state: "expired" },
+        { key: "drug_test_pre_employment", label: "Pre-employment drug test", state: "missing" },
+      ],
+    });
+    const rows = w.findAll('[data-test="upload-outstanding"] li');
+    expect(rows[0]!.find("button").exists()).toBe(true);
+    expect(rows[1]!.text()).toContain("Pre-employment drug test");
+    expect(rows[1]!.find("button").exists()).toBe(false);
+  });
+
+  it("hides the full-file link where that page does not open for this reader (SP5)", () => {
+    closedDoors.add("/compliance/d1");
+    try {
+      expect(mountDialog().find("a").exists()).toBe(false);
+    } finally {
+      closedDoors.delete("/compliance/d1");
+    }
   });
 
   it("looks a unit's keys up in the equipment catalogue", () => {
