@@ -9,6 +9,7 @@ import { inspectionsRouter, inspectionPrintingRouter } from "./inspections.js";
 import { inspectorsRouter } from "./inspectors.js";
 import { printProfilesRouter } from "./printProfiles.js";
 import { inventoryPartsRouter } from "./inventoryParts.js";
+import { inventoryPartUsageRouter } from "./inventoryPartUsage.js";
 import { inventoryLocationsRouter } from "./inventoryLocations.js";
 import { inventoryStockRouter } from "./inventoryStock.js";
 import { inventoryCountSessionsRouter } from "./inventoryCountSessions.js";
@@ -67,6 +68,7 @@ export function maintenanceRouter(): Router {
   // sub-routers under one prefix rather than one file, because the 500-line budget is a hard gate
   // and the seam is the plan's own: the catalogue, the places, and the shelves with their ledger.
   router.use("/inventory/parts", inventoryPartsRouter());
+  router.use("/inventory/part-usage", inventoryPartUsageRouter());
   router.use("/inventory/locations", inventoryLocationsRouter());
   // Mounted BEFORE the catch-all `/inventory` below. Express would fall through to this one anyway —
   // `inventoryStockRouter` has no `/count-sessions` route and calls next() — but relying on that
