@@ -264,6 +264,11 @@ const EnvSchema = z.object({
   // material in the clear. Nothing else depends on it, so an existing deploy keeps booting unchanged.
   // Rotating it makes previously-sealed values unreadable; they report which key id they need.
   SECRETS_ENCRYPTION_KEY: z.string().optional(),
+  // The key BEFORE the current one, during a rotation (2026-11-03 ads audit H2): values sealed under it
+  // still OPEN, and every new seal uses SECRETS_ENCRYPTION_KEY. Without it, rotating the key made every
+  // stored ad-platform token unreadable at once — and a live ad unpausable from here. Remove it once
+  // every credential has been re-entered (or re-sealed) under the new key.
+  SECRETS_ENCRYPTION_KEY_PREVIOUS: z.string().optional(),
 
   // ── Optional mutual TLS (client certificate) for the EFS SOAP endpoint ─────────────────────────
   // EFS has not yet confirmed whether their production endpoint requires a client certificate. This

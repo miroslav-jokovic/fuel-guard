@@ -33,6 +33,15 @@ import type { Env } from "../env.js";
  *       openssl rand -base64 32
  *   Unset → `isSecretBoxConfigured()` is false and the callers REFUSE to persist secret material
  *   (they do not silently fall back to plaintext). Fail closed, loudly, at the point of write.
+ *
+ * ROTATION
+ *   `SECRETS_ENCRYPTION_KEY_PREVIOUS` — the key being rotated away from, same format. `open` accepts a
+ *   value whose key id is EITHER key's; `seal` only ever uses the current one. So a rotation is: set
+ *   PREVIOUS to the old key and SECRETS_ENCRYPTION_KEY to the new one in one deploy, re-enter (or
+ *   re-seal) the credentials, then drop PREVIOUS. Before this (2026-11-03 ads audit H2) a rotation made
+ *   every sealed value unreadable at once, and for the ads module that meant no stored Meta token could
+ *   be opened — so a live ad could not be paused from here. HMAC subkeys derived from the current key
+ *   (`cardRefHmac`, the step-up token) are not covered: they still change with the key.
  */
 
 const VERSION = "v1";
@@ -64,7 +73,10 @@ const unb64url = (s: string): Buffer => Buffer.from(s, "base64url");
  * that. `cardRefHmac` and the step-up token subkey both call this rather than re-deriving the parse.
  */
 export function decodeSecretsKey(env: Env): Buffer {
-  const raw = env.SECRETS_ENCRYPTION_KEY;
+  return decodeKey(env.SECRETS_ENCRYPTION_KEY, "SECRETS_ENCRYPTION_KEY");
+}
+
+function decodeKey(raw: string | undefined, name: string): Buffer {
   if (!raw) {
     throw new SecretBoxError(
       "SECRETS_ENCRYPTION_KEY is not set — refusing to store secret material. Generate one with `openssl rand -base64 32`.",
@@ -77,7 +89,7 @@ export function decodeSecretsKey(env: Env): Buffer {
     : Buffer.from(trimmed, "base64");
   if (decoded.length !== KEY_BYTES) {
     throw new SecretBoxError(
-      `SECRETS_ENCRYPTION_KEY must decode to exactly ${KEY_BYTES} bytes (got ${decoded.length}). Use \`openssl rand -base64 32\`.`,
+      `${name} must decode to exactly ${KEY_BYTES} bytes (got ${decoded.length}). Use \`openssl rand -base64 32\`.`,
       "bad_key",
     );
   }
@@ -103,8 +115,28 @@ export function isSecretBoxConfigured(env: Env): boolean {
  * next to the ciphertext.
  */
 export function sealingKeyId(env: Env): string {
-  const inner = createHash("sha256").update(keyMaterial(env)).digest();
+  return keyIdOf(keyMaterial(env));
+}
+
+function keyIdOf(key: Buffer): string {
+  const inner = createHash("sha256").update(key).digest();
   return createHash("sha256").update(inner).digest("hex").slice(0, 8);
+}
+
+/** The key a value sealed under `keyId` opens with: the current one, or the previous during a rotation. */
+function openingKey(env: Env, keyId: string): Buffer {
+  const current = keyMaterial(env);
+  const currentId = keyIdOf(current);
+  if (keyId === currentId) return current;
+  // A malformed PREVIOUS throws `bad_key` here rather than being skipped: a rotation half-configured is
+  // a deploy mistake to surface, not a reason to report the row as sealed under an unknown key.
+  const previous = env.SECRETS_ENCRYPTION_KEY_PREVIOUS ? decodeKey(env.SECRETS_ENCRYPTION_KEY_PREVIOUS, "SECRETS_ENCRYPTION_KEY_PREVIOUS") : null;
+  if (previous && keyId === keyIdOf(previous)) return previous;
+  const held = previous ? `'${currentId}' (and previous '${keyIdOf(previous)}')` : `'${currentId}'`;
+  throw new SecretBoxError(
+    `Sealed with encryption key '${keyId}' but this deploy holds ${held} — SECRETS_ENCRYPTION_KEY changed. Set SECRETS_ENCRYPTION_KEY_PREVIOUS to the key it was sealed with, or re-enter the credential.`,
+    "wrong_key",
+  );
 }
 
 /**
@@ -121,8 +153,9 @@ export function seal(env: Env, plaintext: string, aad: string): string {
 }
 
 /**
- * Decrypt a sealed value. Throws SecretBoxError — `wrong_key` when the envelope was sealed under a
- * different KEK (rotation / wrong deploy), `tampered` when the ciphertext or its binding was altered.
+ * Decrypt a sealed value, under the current key or, during a rotation, the previous one. Throws
+ * SecretBoxError — `wrong_key` when the envelope was sealed under neither (a rotation without PREVIOUS
+ * set, or the wrong deploy), `tampered` when the ciphertext or its binding was altered.
  * The distinction matters operationally: one is "restore the old key or re-enter the credential", the
  * other is "someone edited the database".
  */
@@ -132,14 +165,7 @@ export function open(env: Env, sealed: string, aad: string): string {
     throw new SecretBoxError("Sealed value is malformed or not a v1 envelope.", "malformed");
   }
   const [, keyId, ivB64, tagB64, ctB64] = parts as [string, string, string, string, string];
-  const key = keyMaterial(env);
-  const currentId = sealingKeyId(env);
-  if (keyId !== currentId) {
-    throw new SecretBoxError(
-      `Sealed with encryption key '${keyId}' but this deploy holds '${currentId}' — SECRETS_ENCRYPTION_KEY changed. Restore the previous key or re-enter the credential.`,
-      "wrong_key",
-    );
-  }
+  const key = openingKey(env, keyId);
   const iv = unb64url(ivB64);
   const tag = unb64url(tagB64);
   if (iv.length !== IV_BYTES || tag.length !== TAG_BYTES) {

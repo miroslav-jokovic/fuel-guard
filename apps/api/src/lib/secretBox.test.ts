@@ -60,6 +60,26 @@ describe("secretBox — round trip", () => {
     }
   });
 
+  it("during a rotation, a value sealed under the previous key still opens, and every new seal uses the current key", () => {
+    const old = seal(envWith(KEY_A), PRIVATE_KEY, AAD);
+    const rotating = testEnv({ SECRETS_ENCRYPTION_KEY: KEY_B, SECRETS_ENCRYPTION_KEY_PREVIOUS: KEY_A });
+    expect(open(rotating, old, AAD)).toBe(PRIVATE_KEY);
+    const fresh = seal(rotating, PRIVATE_KEY, AAD);
+    expect(fresh.startsWith(`v1.${sealingKeyId(envWith(KEY_B))}.`)).toBe(true);
+    expect(open(envWith(KEY_B), fresh, AAD)).toBe(PRIVATE_KEY);
+    // The previous key opens; it is never a way around the AAD binding.
+    expect(() => open(rotating, old, secretAad(OTHER_ORG, "efs_soap_client_key.v1"))).toThrow(/failed authentication/);
+  });
+
+  it("a value sealed under neither key names both ids it looked for, and a malformed previous key is a loud deploy error", () => {
+    const KEY_C = randomBytes(32).toString("base64");
+    const old = seal(envWith(KEY_C), PRIVATE_KEY, AAD);
+    const rotating = testEnv({ SECRETS_ENCRYPTION_KEY: KEY_B, SECRETS_ENCRYPTION_KEY_PREVIOUS: KEY_A });
+    expect(() => open(rotating, old, AAD)).toThrow(new RegExp(`previous '${sealingKeyId(envWith(KEY_A))}'`));
+    const broken = testEnv({ SECRETS_ENCRYPTION_KEY: KEY_B, SECRETS_ENCRYPTION_KEY_PREVIOUS: "short" });
+    expect(() => open(broken, old, AAD)).toThrow(/SECRETS_ENCRYPTION_KEY_PREVIOUS must decode to exactly 32 bytes/);
+  });
+
   it("handles multi-KB PEM material and unicode", () => {
     const env = envWith(KEY_A);
     const big = PRIVATE_KEY.repeat(200);
