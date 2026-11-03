@@ -5,8 +5,10 @@ import { ref } from "vue";
 import type { PartDto } from "@silvicom/shared";
 
 /**
- * One part's summary card (D-US6): the facts are a `FactList`, so each label sits beside its value and
- * a blank is the list's em dash. The shelves and the ledger have their own drawers' suites.
+ * One part's summary card (D-US6): the facts are a `FactList`, so each label sits beside its value.
+ * Manufacturer, category and barcode are drawn only when set — FleetPal's catalogue carries none of
+ * them, so a dash on every part said nothing (D-SPU6). The shelves and the ledger have their own
+ * drawers' suites; how the part is used is `PartUsageSection.test.ts`'s.
  */
 const part = (over: Partial<PartDto> = {}): PartDto => ({
   id: "22222222-2222-4222-8222-222222222222",
@@ -46,7 +48,7 @@ vi.mock("vue-router", async (importOriginal) => ({
 const PartDetailPage = (await import("@/pages/PartDetailPage.vue")).default;
 const page = () =>
   mount(PartDetailPage, {
-    global: { stubs: { PartDrawer: true, StockLineDrawer: true, MovementDrawer: true, FileDropzone: true, DataTable: true, RouterLink: true } },
+    global: { stubs: { PartDrawer: true, StockLineDrawer: true, MovementDrawer: true, FileDropzone: true, DataTable: true, RouterLink: true, PartUsageSection: true } },
   });
 const pairs = (w: ReturnType<typeof page>) =>
   Object.fromEntries(w.get("dl").findAll("dl > div").map((d) => [d.get("dt").text(), d.get("dd").text()]));
@@ -57,13 +59,23 @@ beforeEach(() => {
 });
 
 describe("PartDetailPage — the summary's facts", () => {
-  it("pairs each fact with its label, and draws a dash for a category nobody set", () => {
+  it("pairs each fact with its label, and leaves out a category nobody set", () => {
     expect(pairs(page())).toEqual({
       Manufacturer: "Fleetguard",
-      Category: "—",
       "Counted in": "Each",
       Barcode: "0123456789",
     });
+  });
+
+  it("a FleetPal part with no manufacturer, category or barcode shows what it does have", () => {
+    detail.value = { part: part({ manufacturer: null, upc: null, fleetpalId: "fp-1" }), stock: [], photoUrl: null };
+    expect(pairs(page())).toEqual({ "Counted in": "Each", "Comes from": "FleetPal" });
+  });
+
+  it("hands the usage section this part, and whether FleetPal's repair orders can name it", () => {
+    detail.value = { part: part({ fleetpalId: "fp-1" }), stock: [], photoUrl: null };
+    const section = page().findComponent({ name: "PartUsageSection" });
+    expect(section.props()).toEqual({ partId: "22222222-2222-4222-8222-222222222222", fromFleetpal: true });
   });
 
   it("adds the notes as one more fact only when there are any", () => {
