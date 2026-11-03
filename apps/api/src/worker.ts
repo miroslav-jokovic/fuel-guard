@@ -101,6 +101,8 @@ const KIND_CAPS: Record<string, number> = {
   // One at a time: a pull pages every campaign's hourly insights with one account token, and the window is
   // re-read whole next hour, so two at once would only spend the account's Insights rate twice (B5a).
   ads_insights: 1,
+  // One at a time: a reconcile reads every object of ours and 28 days of insights with one account token (B5c).
+  ads_reconcile: 1,
   // sharp is CPU-bound; two at a time keeps a burst of uploads from starving the sync kinds.
   document_derive: 2,
 };

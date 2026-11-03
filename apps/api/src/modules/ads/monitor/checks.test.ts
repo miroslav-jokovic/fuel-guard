@@ -54,6 +54,7 @@ beforeEach(() => {
   resetGraphThrottles();
   forgetAllHours(fake);
   fake.accounts.get(SIMULATOR_ACCOUNT_ID)!.month_spend_cents = 0;
+  fake.requests.length = 0;
 });
 
 describe("the monitor's checks pause through the machine and ring the bell (B5b)", () => {
@@ -89,6 +90,8 @@ describe("the monitor's checks pause through the machine and ring the bell (B5b)
     expect(r.paused).toEqual([{ campaign_id: "c1", rule: "monthly_cap" }, { campaign_id: "c2", rule: "monthly_cap" }]);
     expect([w.byId("c1").state, w.byId("c2").state, w.byId("c3").state]).toEqual(["pausing", "pausing", "paused"]);
     expect(w.bell.map((b) => b.category)).toEqual(["ads_overspend", "ads_overspend"]);
+    // The monitor decides; the orchestrator's pausing step is the one that writes to Meta (A5, B5b header).
+    expect(fake.requests.filter((q) => q.method === "POST")).toEqual([]);
   });
 
   it("zero-lead spend past the minimum pauses with ads_no_leads — but not while Meta is still learning", async () => {
