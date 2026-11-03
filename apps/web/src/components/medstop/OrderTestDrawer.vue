@@ -294,7 +294,7 @@ const reviewFacts = computed((): Fact[] => {
           <BaseButton :disabled="off || searching || !/^\d{5}$/.test(zip.trim()) || (observed && !medstopId)" @click="find('zip')">Search</BaseButton>
           <BaseButton v-if="!applicant" :disabled="off || searching || !person" @click="find('truck')">Near the truck</BaseButton>
         </div>
-        <p v-if="near" class="text-xs text-ink-muted">{{ sites.length }} sites near {{ near }}, Med-Stop's own first.</p>
+        <p v-if="near" class="text-xs text-ink-muted">{{ sites.length }} {{ sites.length === 1 ? "site" : "sites" }} near {{ near }}, Med-Stop's own first.</p>
         <AppRadioGroup v-if="sites.length" v-model="siteId" :options="siteOptions" legend="Collection site" />
       </div>
 
