@@ -27,6 +27,11 @@ import {
  *   disconnect      clear both tokens. REFUSED while any campaign on the connection may be delivering:
  *                   pausing it needs the token, so disconnecting first would leave an ad running that
  *                   nothing here can stop — the kill switch included.
+ *   reconnect       connect again on the same slot. A new token for the SAME account and Page is always
+ *                   allowed (it is how a dead token is fixed). Moving the slot to ANOTHER account or Page
+ *                   is refused while a campaign on it may be delivering, the disconnect rule's reason:
+ *                   a campaign's connection never changes (AX031), so its Meta ids would be paused with a
+ *                   token for a different account, and fail (2026-11-03 audit H3).
  *
  * Every test writes one `ads_actions` row (`connection_test`), whoever ran it. Connect and disconnect also
  * write `audit_logs`: who handed the carrier's ad account to us, or took it back.
@@ -64,6 +69,8 @@ export async function listConnections(admin: SupabaseClient, orgId: string): Pro
 
 export async function connectMeta(deps: ConnectionDeps, orgId: string, actor: ConnectionActor, ask: AdsMetaConnect): Promise<ConnectOutcome> {
   const accountId = ask.account_id.replace(/^act_/, "");
+  const moved = await movesDeliveringSlot(deps.admin, orgId, ask.sandbox, accountId, ask.page_id);
+  if (moved) return moved;
   const graph = new MetaGraph({ token: ask.token, throttleKey: `connect:${orgId}`, baseUrl: deps.metaBaseUrl, now: deps.now });
   const target: ConnectionTarget = { accountId, pageId: ask.page_id };
   const { report, pageToken, tokenRefused } = await testMetaConnection(graph, target);
@@ -132,10 +139,7 @@ export async function testConnection(deps: ConnectionDeps, orgId: string, actor:
 export type DisconnectOutcome = { kind: "disconnected"; connection: AdsConnectionView } | { kind: "not_found" } | { kind: "refused"; error_code: "campaigns_delivering"; reason: string };
 
 export async function disconnect(deps: ConnectionDeps, orgId: string, actor: ConnectionActor, connectionId: string): Promise<DisconnectOutcome> {
-  const { data: live, error: lErr } = await deps.admin
-    .from("ads_campaigns").select("id").eq("org_id", orgId).eq("connection_id", connectionId).in("state", DELIVERING).limit(1);
-  if (lErr) throw new Error(`ads_campaigns: ${lErr.message}`);
-  if ((live ?? []).length > 0) {
+  if (await delivering(deps.admin, orgId, connectionId)) {
     return { kind: "refused", error_code: "campaigns_delivering", reason: "A campaign on this connection may still be delivering. Pause it first — pausing needs this connection." };
   }
   const { data, error } = await deps.admin
@@ -148,6 +152,30 @@ export async function disconnect(deps: ConnectionDeps, orgId: string, actor: Con
   if (!row) return { kind: "not_found" };
   await writeAudit(deps.admin, { orgId, actorId: actor.id, action: "ads.connection.disconnect", entity: "ads_platform_connections", entityId: connectionId, meta: { provider: row.provider, sandbox: row.is_sandbox } });
   return { kind: "disconnected", connection: row };
+}
+
+async function delivering(admin: SupabaseClient, orgId: string, connectionId: string): Promise<boolean> {
+  const { data, error } = await admin
+    .from("ads_campaigns").select("id").eq("org_id", orgId).eq("connection_id", connectionId).in("state", DELIVERING).limit(1);
+  if (error) throw new Error(`ads_campaigns: ${error.message}`);
+  return (data ?? []).length > 0;
+}
+
+/** The reconnect rule (header): a refusal when this connect would move a slot with delivering campaigns. */
+async function movesDeliveringSlot(admin: SupabaseClient, orgId: string, sandbox: boolean, accountId: string, pageId: string): Promise<ConnectOutcome | null> {
+  const { data, error } = await admin
+    .from("ads_platform_connections").select("id, account_ref, page_ref")
+    .eq("org_id", orgId).eq("provider", "meta").eq("is_sandbox", sandbox).maybeSingle();
+  if (error) throw new Error(`ads_platform_connections: ${error.message}`);
+  const slot = data as { id: string; account_ref: string | null; page_ref: string | null } | null;
+  if (!slot || (slot.account_ref === accountId && slot.page_ref === pageId)) return null;
+  if (!slot.account_ref && !slot.page_ref) return null;
+  if (!(await delivering(admin, orgId, slot.id))) return null;
+  return {
+    kind: "refused",
+    error_code: "campaigns_delivering",
+    reason: "A campaign on this connection may still be delivering on its current ad account. Pause it first — pausing needs this account — then connect the other one.",
+  };
 }
 
 /**

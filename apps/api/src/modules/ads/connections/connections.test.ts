@@ -120,7 +120,7 @@ describe("connectMeta — a token Meta accepts", () => {
     expect(out.kind === "saved" && Object.keys(out.connection)).not.toContain("token_sealed");
     for (const q of db.forTable("ads_platform_connections")) {
       const select = q.ops.find((o) => o.method === "select")?.args[0];
-      if (typeof select === "string" && select !== "id") expect([ADS_CONNECTION_VIEW_COLUMNS, "id, org_id, provider, is_sandbox, token_sealed, account_ref, page_ref, status"]).toContain(select);
+      if (typeof select === "string" && select !== "id") expect([ADS_CONNECTION_VIEW_COLUMNS, "id, org_id, provider, is_sandbox, token_sealed, account_ref, page_ref, status", "id, account_ref, page_ref"]).toContain(select);
     }
     expect((await listConnections(db.client, ORG)).every((c) => !("token_sealed" in c) && !("page_token_sealed" in c))).toBe(true);
     expect(ADS_CONNECTION_VIEW_COLUMNS).not.toMatch(/token_sealed/);
@@ -177,6 +177,26 @@ describe("testConnection and disconnect", () => {
     expect(out).toMatchObject({ kind: "saved", connection: { status: "failing" }, report: { error_code: "token_invalid" } });
     expect(actions.map((a) => a.status)).toEqual(["succeeded", "failed"]);
     expectNoTokenAnywhere(out);
+  });
+
+  it("reconnecting to another account or Page is refused while a campaign on the slot may be delivering; a fresh token for the same account never is", async () => {
+    await connectMeta(deps(), ORG, ADMIN, ask());
+    const id = String(rows[0]!.id);
+    for (const state of ["launching", "live", "pausing"]) {
+      campaigns = [{ id: "camp-1", org_id: ORG, connection_id: id, state }];
+      const before = meta.requests.length;
+      const sealed = rows[0]!.token_sealed;
+      for (const moved of [ask({ account_id: "act_1002" }), ask({ page_id: "200200" })]) {
+        expect(await connectMeta(deps(), ORG, ADMIN, moved)).toMatchObject({ kind: "refused", error_code: "campaigns_delivering" });
+      }
+      // Refused before Meta is asked anything, and the slot keeps the account its campaigns live on.
+      expect(meta.requests.length).toBe(before);
+      expect(rows[0]).toMatchObject({ account_ref: "1001", page_ref: PAGE.id, token_sealed: sealed });
+      expect(await connectMeta(deps(), ORG, ADMIN, ask())).toMatchObject({ kind: "saved" });
+    }
+    campaigns = [{ id: "camp-1", org_id: ORG, connection_id: id, state: "paused" }];
+    expect(await connectMeta(deps(), ORG, ADMIN, ask({ account_id: "act_1002" }))).not.toMatchObject({ kind: "refused" });
+    expect(rows[0]!.account_ref).toBe("1002");
   });
 
   it("disconnect is refused while a campaign on the connection may be delivering — pausing it needs the token", async () => {
