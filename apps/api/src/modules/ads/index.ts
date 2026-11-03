@@ -31,3 +31,5 @@ export { applyCampaignEvent } from "./orchestrator/transitions.js";
 export { pullConnectionInsights } from "./monitor/insightsPull.js";
 export type { InsightsResult } from "./monitor/insightsPull.js";
 export { adsInsightsDedupKey, startAdsInsights } from "./monitor/insightsTick.js";
+// B5b: the auto-pause checks the insights job runs after its pull (decisions: shared `monitorChecks`).
+export { checkConnection } from "./monitor/checks.js";

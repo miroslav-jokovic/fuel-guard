@@ -385,7 +385,7 @@ Q-AD1 is resolved by v5 (four platforms, Meta first). Still owed: **Q-AD4** Tens
 **Q-AD5** Indeed · **Q-AD6** mailbox · **Q-AD8** counsel (fallback defined, G12) · **Q-AD9**
 first opening · **Q-AD12** presets · **Q-AD13** real drivers · **Q-AD14** brand kit · **Q-AD16**
 baseline · **Q-AD18** budget vs floors · **Q-AD19** organic · **Q-AD20** Higgsfield key ·
-**Q-AD21** X · **Q-AD22** platform order · **Q-AD23** a launch delivered twice at once is paused (7d) · **Q-AD24** how we learn the Meta token's expiry (B1b). Each has its fallback in `ADS-AGENT-PLAN.md` §9 and its
+**Q-AD21** X · **Q-AD22** platform order · **Q-AD23** a launch delivered twice at once is paused (7d) · **Q-AD24** how we learn the Meta token's expiry (B1b). · **Q-AD25** Meta's rules vs the learning phase (B5b) · **Q-AD26** how the monitor learns an opening is filled (B5b). Each has its fallback in `ADS-AGENT-PLAN.md` §9 and its
 blocking step in §3 above.
 
 ---
@@ -999,3 +999,27 @@ blocking step in §3 above.
   - **M1 convert once (#1989 0561, #1990):** `claim_lead_conversion` before roster's create; the loser of a
     double click gets 409 `conversion_in_progress`; a claim lapses after 2 minutes; failures release it.
   14 mutants across the four PRs (4 + 2 + 4 + 4), all killed. Next for this track: `HANDOFF-2026-11-03-LEADS-FIRST.md`.
+- **2026-11-03, B5b — the auto-pause checks.** `packages/shared/src/ads/monitorChecks.ts` (pure) decides;
+  `apps/api/src/modules/ads/monitor/checks.ts` gathers and applies, run by the `ads_insights` job right after
+  its pull (even a partly failed one: a cap breached by the hours that did arrive must still pause). Rules,
+  read from the settings in force and compared as `adsRulesSpec.ts` tells Meta to (strictly greater, so "at"
+  the threshold never fires): `monthly_cap` (the guard's own fold, now exported as `platformSpend`, or Meta's
+  account figure, larger wins — every delivering campaign on the platform), `daily_cap` (today on the
+  ACCOUNT's clock), `no_lead_spend`, `cpl_max`, `frequency_max` (ad-set insights over 7 local days, today
+  included — Meta's `LAST_7_DAYS`). Caps first, one reason per campaign; only `launching`/`live` are judged.
+  - **Learning phase:** Meta's `learning_stage_info.status` (LEARNING / SUCCESS / FAIL; only some active ad
+    sets, some accounts). LEARNING or an unreadable stage → caps only; SUCCESS, FAIL or no stage returned →
+    every rule (otherwise an account Meta never reports stages for would switch the rules off silently).
+  - **A pause is the agent's `pause` through `applyCampaignEvent`** (actor `monitor`, cause = rule, measured,
+    threshold, settings version), so the orchestrator carries it to Meta with its retries and stuck-pause
+    alert; the monitor never calls an adapter write. Bell per plan §4b: caps → `ads_overspend` (critical),
+    zero-lead → `ads_no_leads` (warning), one per campaign, rule and local day; CPL and frequency pauses are
+    ledgered with no bell (the brief reports them).
+  - **Not built, recorded instead:** **Q-AD25** (B3b's Meta rules carry no learning filter, so Meta is
+    stricter than we are in the learning phase) and **Q-AD26** (`pause_when_filled` needs a recruiting seam,
+    D-AD17). Meta's "Creative fatigue" delivery flag is in no API page found; frequency is the signal.
+  - B5a's `localHours.ts` restated the clock arithmetic `calendarDay.ts` already owns; it now derives from
+    `wallClockInZone`/`wallClockToUtc` (a non-existent hour read back and refused). B5a's tests unchanged, green.
+  - Readiness: Monitor L0 still; B5b's tests pinned on its L1 row beside `notBuilt` B5c.
+  - Mutation: 22 mutants, all killed (every boundary at −1/0/+1, the learning gate both ways, the account-day
+    "today", the bell's dedupe, the org filter, checks after a partial pull).

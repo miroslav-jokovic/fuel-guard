@@ -24,6 +24,8 @@ export interface FakeAdSet {
   destination_type: string | null;
   promoted_object: Record<string, unknown> | null;
   targeting: Record<string, unknown>;
+  /** Meta returns it for some active ad sets only (B5b); absent = not returned. */
+  learning_stage_info?: { status: "LEARNING" | "SUCCESS" | "FAIL" };
 }
 
 export interface FakeAd {

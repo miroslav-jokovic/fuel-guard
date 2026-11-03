@@ -165,8 +165,9 @@ async function loadTarget(admin: SupabaseClient, orgId: string, campaignId: stri
  * One spend read per campaign — at most one row per hour, so ≤ 745 rows a month, under PostgREST's
  * 1,000-row cap by construction (a page cap would under-count spend, and under-counted spend is the
  * one error this file exists to prevent, so a full page throws instead of being trusted).
+ * Exported for the monitor's monthly-cap check (B5b): one fold, so the guard and the monitor never disagree.
  */
-async function platformSpend(admin: SupabaseClient, orgId: string, platform: AdPlatform, month: { start: string; end: string }) {
+export async function platformSpend(admin: SupabaseClient, orgId: string, platform: AdPlatform, month: { start: string; end: string }) {
   const { data: conns, error: cErr } = await admin.from("ads_platform_connections").select("id").eq("org_id", orgId).eq("provider", platform);
   if (cErr) throw new Error(`ads_platform_connections: ${cErr.message}`);
   const connIds = ((conns ?? []) as Array<{ id: string }>).map((c) => c.id);

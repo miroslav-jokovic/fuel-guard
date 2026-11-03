@@ -1,3 +1,4 @@
+import type { FakeMeta } from "./fakeMeta.js";
 import { graphError } from "./fakeMetaShapes.js";
 
 /**
@@ -27,6 +28,12 @@ import { graphError } from "./fakeMetaShapes.js";
  *     fake (like our reading of Meta) reports ONE bucket holding both; on a spring-forward day 02:00 has
  *     no bucket at all. A bucket is planted by local day + local hour, so a test plants exactly that.
  *   · An hour with no delivery has no row (the account insights' `data: []` rule, applied per bucket).
+ *
+ * AD-SET insights (B5b), the fatigue read: `GET /{adset_id}/insights?fields=frequency,reach,impressions
+ * &time_range={…}` → `{ data: [{ frequency: "3.2", reach, impressions, date_start, date_stop }] }`, `data: []`
+ * when nothing was delivered. Frequency is impressions per person reached over the range — so it is NOT an
+ * hourly figure and is read over the range whole (the Breakdowns page: no unique fields with an hourly
+ * breakdown). Planted per ad set with `plantFrequency`, the same for any range asked.
  *
  * Planted, never generated: a test (or a staging walk-through) plants each hour with `plantHour`, plants
  * it again lower to model Meta revising a number DOWN, and plants a new hour after a run to model a late
@@ -70,9 +77,36 @@ export function forgetHour(fake: object, campaignId: string, localDay: string, l
   storeOf(fake).get(campaignId)?.delete(`${localDay}|${String(localHour).padStart(2, "0")}`);
 }
 
-/** Every planted hour forgotten — a test's clean slate. */
+const frequencies = new WeakMap<object, Map<string, number>>();
+
+/** What Meta reports as an ad set's frequency for any range (B5b's fatigue read). */
+export function plantFrequency(fake: object, adsetId: string, frequency: number): void {
+  if (!frequencies.has(fake)) frequencies.set(fake, new Map());
+  frequencies.get(fake)!.set(adsetId, frequency);
+}
+
+/** Every planted hour and frequency forgotten — a test's clean slate. */
 export function forgetAllHours(fake: object): void {
   storeOf(fake).clear();
+  frequencies.get(fake)?.clear();
+}
+
+/** `GET /{id}/insights` for a campaign (hourly) or an ad set (frequency); anything else does not exist. */
+export function objectInsightsRoute(fake: FakeMeta, id: string, b: Record<string, string>, trace: string): { status: number; body: unknown } {
+  const camp = fake.campaigns.get(id);
+  if (camp) return campaignHourlyInsights(fake, camp.id, fake.accounts.get(camp.account_id)?.currency ?? "USD", b, trace);
+  if (!fake.adsets.has(id)) return graphError(400, 100, "GraphMethodException", `Unsupported get request. Object with ID '${id}' does not exist.`, trace, 33);
+  if (b.breakdowns) return graphError(400, 100, "OAuthException", "(#100) FakeMeta answers ad-set insights without breakdowns", trace);
+  let range: { since?: unknown; until?: unknown };
+  try {
+    range = JSON.parse(b.time_range ?? "null") ?? {};
+  } catch {
+    return graphError(400, 100, "OAuthException", "(#100) param time_range must be a JSON object", trace);
+  }
+  if (typeof range.since !== "string" || typeof range.until !== "string") return graphError(400, 100, "OAuthException", "(#100) time_range needs since and until", trace);
+  const f = frequencies.get(fake)?.get(id);
+  if (f === undefined) return { status: 200, body: { data: [] } };
+  return { status: 200, body: { data: [{ frequency: f.toFixed(6), reach: "1000", impressions: String(Math.round(f * 1000)), date_start: range.since, date_stop: range.until }] } };
 }
 
 export function campaignHourlyInsights(fake: object, campaignId: string, currency: string, b: Record<string, string>, trace: string): { status: number; body: unknown } {
