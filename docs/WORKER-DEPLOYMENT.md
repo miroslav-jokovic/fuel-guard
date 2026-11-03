@@ -149,7 +149,13 @@ Meta's request). In `inprocess` mode the receiving process runs the rows it queu
 (`drainKindNow`), and the general-lane drain (`inprocessDrain.ts`) claims any left over, including retries;
 in `queue` mode the consumer does. It is NOT gated on `ADS_ENABLED`: the gate is `META_APP_SECRET` (absent =
 every delivery 503, said at boot), because a lead from a live form is the carrier's whether or not the
-orchestrator is on. `ads-insights` and `ads-reconcile` are still planned (B5). The
+orchestrator is on. **`ads-insights`** is BUILT (B5a, 2026-11-03; `modules/ads/monitor/insightsTick.ts`): hourly, first tick
+7 min after boot (after the backfill's 5), one **`ads_insights`** job (`KIND_CAPS` 1) per `connected` or `failing` Meta or
+simulator connection — the backfill's own connection read (`metaConnectionsTick`) — `dedup_key` = `ads_insights:<connection>`.
+Each run re-reads the last three LOCAL days of every campaign of ours at hourly grain, in the zone Meta reports for the
+account at that run, and writes Meta's current answer to `ads_spend_hourly` (its one writer): late hours fill in, revisions
+down replace, an hour Meta stops reporting becomes zero, a failed read touches nothing. A payload `days` (≤ 28) widens one
+run. `ads-reconcile` is still planned (B5c). The
 `general` lane, not `egress`: `egress` exists for the one host WEX allowlists, and Meta, TikTok, X
 and Higgsfield check no caller address, so these follow FleetPal and Med-Stop's placement, not the
 EFS poller's. They follow FleetPal's three rules as well: **off** unless `ADS_ENABLED=true` on the
