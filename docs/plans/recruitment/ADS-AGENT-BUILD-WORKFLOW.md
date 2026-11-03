@@ -857,3 +857,11 @@ blocking step in §3 above.
   fails the job (lead ids only) when anything was not brought in. Readiness: Lead intake's L1 now pins the
   sink, backfill, handler and tick tests, with **B4b** (the webhook) as its last gap, so it still reads L0
   honestly. 8 mutants, all killed (one survived the first run: no test held the dedup key).
+- **2026-11-03, lead-path audit H3 (opt-out half) — a lead can be marked do-not-contact.** Ruled by the
+  owner in session: opt-out first; the Instant Form's consent box waits for counsel's wording (Q-RA6c),
+  and under D-RA2 nothing automated reaches a lead anyway. `POST/DELETE /recruitment/leads/:id/do-not-contact`
+  writes or lifts a `manual` hold in `sms_suppressions` (0376, recruiting's own table; no migration), naming
+  the applicant when the lead was converted. Every queue row carries `do_not_contact`, read from the
+  number, so a re-submission on any channel and a texted STOP show too. Lifting never lifts a STOP. Email
+  has no suppression list yet (RA 12.2), so an email-only lead is refused in words. 7 mutants, all killed
+  (the non-uuid id survived until the fake refused it as Postgres does, 22P02).

@@ -22,6 +22,7 @@ vi.mock("../../../lib/supabaseAdmin.js", () => ({ getSupabaseAdmin: () => holder
 const ORG = "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d";
 const LEAD = "50000000-0000-4000-8000-000000000001";
 const NAMELESS = "50000000-0000-4000-8000-000000000002";
+const EMAIL_ONLY = "50000000-0000-4000-8000-000000000003";
 const OPENING = "60000000-0000-4000-8000-000000000001";
 const PV = "70000000-0000-4000-8000-000000000001";
 const PV_OLD = "70000000-0000-4000-8000-000000000000";
@@ -45,19 +46,53 @@ const QUEUE_ROW = (id: string, at: string) => ({
   answers: {}, also: [], drivers: [],
 });
 
+const leadRows = postgrestFixture([
+  { id: LEAD, org_id: ORG, full_name: "Ray Driver", phone_e164: "+17082365732", email_lower: "ray@example.com", status: "new" },
+  { id: NAMELESS, org_id: ORG, full_name: null, phone_e164: "+17082365799", email_lower: null, status: "new" },
+  { id: EMAIL_ONLY, org_id: ORG, full_name: "Ana Lopez", phone_e164: null, email_lower: "ana@example.com", status: "new" },
+]);
+let suppressions: Array<Record<string, unknown>> = [];
+
 interface Seed {
+  conversions?: Array<Record<string, unknown>>;
+  suppressions?: Array<Record<string, unknown>>;
   ingest?: unknown;
   convertError?: string;
   queue?: unknown[];
   existingVerdicts?: unknown[];
 }
 function seed(over: Seed = {}): SupabaseRecorder {
+  suppressions = (over.suppressions ?? []).map((s) => ({ lifted_at: null, ...s }));
   rec = createSupabaseRecorder({
     tables: {
-      recruiting_leads: postgrestFixture([
-        { id: LEAD, org_id: ORG, full_name: "Ray Driver", phone_e164: "+17082365732", email_lower: "ray@example.com", status: "new" },
-        { id: NAMELESS, org_id: ORG, full_name: null, phone_e164: "+17082365799", email_lower: null, status: "new" },
-      ]),
+      // 0376's rule: one live row per (org, phone).
+      sms_suppressions: (q: RecordedQuery) => {
+        if (q.write?.method === "insert") {
+          const row: Record<string, unknown> = { id: `sup-${suppressions.length + 1}`, lifted_at: null, ...(q.write.payload as Record<string, unknown>) };
+          if (suppressions.some((s) => s.org_id === row.org_id && s.phone === row.phone && s.lifted_at === null)) {
+            const dup = { code: "23505", message: "duplicate key" };
+            return { data: null, error: dup, writeError: dup };
+          }
+          suppressions.push(row);
+          return [{ id: row.id }];
+        }
+        if (q.write?.method === "update") {
+          const hit = postgrestFixture(suppressions)({ ...q, ops: q.ops.filter((o) => o.method !== "select") });
+          for (const h of hit) Object.assign(suppressions.find((s) => s.id === h.id)!, q.write.payload as object);
+          return hit.map((h) => ({ id: h.id }));
+        }
+        return postgrestFixture(suppressions)(q);
+      },
+      lead_conversions: postgrestFixture(over.conversions ?? []),
+      // Postgres refuses a non-uuid id with 22P02 rather than answering "no row" — the fake does the same.
+      recruiting_leads: (q: RecordedQuery) => {
+        const id = q.filters().find((f) => f.col === "id")?.val;
+        if (typeof id === "string" && !/^[0-9a-f-]{36}$/i.test(id)) {
+          const bad = { code: "22P02", message: `invalid input syntax for type uuid: "${id}"` };
+          return { data: null, error: bad };
+        }
+        return leadRows(q);
+      },
       recruiting_opening_versions: postgrestFixture([
         { org_id: ORG, opening_id: OPENING, version: 1, profile_version_id: PV_OLD },
         { org_id: ORG, opening_id: OPENING, version: 2, profile_version_id: PV },
@@ -247,5 +282,60 @@ describe("converting a lead", () => {
   it("is refused to a view-only role", async () => {
     seed();
     expect((await post(`/leads/${LEAD}/convert`, "auditor", { driver_id: null })).status).toBe(403);
+  });
+});
+
+describe("a lead who asked not to be contacted (lead-path audit H3)", () => {
+  const PHONE = "+17082365732";
+  it("holds the number for this carrier, names the applicant the lead became, and is audited without the number", async () => {
+    seed({ conversions: [{ org_id: ORG, lead_id: LEAD, driver_id: APPLICANT }] });
+    const res = await post(`/leads/${LEAD}/do-not-contact`, "recruiter", {});
+    expect([res.status, await res.json()]).toEqual([200, { kind: "held", newly: true, applicant_id: APPLICANT }]);
+    expect(suppressions).toEqual([expect.objectContaining({ org_id: ORG, phone: PHONE, reason: "manual", driver_id: APPLICANT, lifted_at: null })]);
+    const audit = rec.writtenRows("audit_logs").at(-1) as { action: string; meta: Record<string, unknown> };
+    expect([audit.action, JSON.stringify(audit).includes("236")]).toEqual(["recruitment.lead_do_not_contact_held", false]);
+    expectOrgScoped(rec, ORG, PROFILE_EXEMPT);
+  });
+
+  it("asked twice is held once", async () => {
+    seed();
+    await post(`/leads/${LEAD}/do-not-contact`, "recruiter", {});
+    const again = (await (await post(`/leads/${LEAD}/do-not-contact`, "recruiter", {})).json()) as { newly: boolean };
+    expect([again.newly, suppressions.length]).toEqual([false, 1]);
+  });
+
+  it("every queue row with that number shows it — a re-submission on another channel included — and a STOP the person texted counts too", async () => {
+    seed({
+      suppressions: [{ id: "s1", org_id: ORG, phone: PHONE, reason: "manual" }, { id: "s2", org_id: ORG, phone: "+13125550100", reason: "stop" }],
+      queue: [
+        QUEUE_ROW("a", "2026-11-03T12:03:00Z"),
+        { ...QUEUE_ROW("b", "2026-11-03T12:02:00Z"), channel: "indeed" },
+        { ...QUEUE_ROW("c", "2026-11-03T12:01:00Z"), phone_e164: "+13125550100" },
+        { ...QUEUE_ROW("d", "2026-11-03T12:00:00Z"), phone_e164: "+13125550199" },
+        { ...QUEUE_ROW("e", "2026-11-03T11:59:00Z"), phone_e164: null },
+      ],
+    });
+    const body = (await (await call("/leads", "auditor")).json()) as { leads: Array<{ id: string; do_not_contact: boolean }> };
+    expect(body.leads.map((l) => [l.id, l.do_not_contact])).toEqual([["a", true], ["b", true], ["c", true], ["d", false], ["e", false]]);
+    expectOrgScoped(rec, ORG);
+  });
+
+  it("lifting ends the office's hold but never a STOP the person texted, and says which remains", async () => {
+    seed({ suppressions: [{ id: "s1", org_id: ORG, phone: PHONE, reason: "manual" }] });
+    expect(await (await call(`/leads/${LEAD}/do-not-contact`, "recruiter", { method: "DELETE" })).json()).toEqual({ kind: "lifted", lifted: 1, stop_remains: false });
+    expect(suppressions[0]!.lifted_at).not.toBeNull();
+    seed({ suppressions: [{ id: "s2", org_id: ORG, phone: PHONE, reason: "stop" }] });
+    expect(await (await call(`/leads/${LEAD}/do-not-contact`, "recruiter", { method: "DELETE" })).json()).toEqual({ kind: "lifted", lifted: 0, stop_remains: true });
+    expect(suppressions[0]!.lifted_at).toBeNull();
+  });
+
+  it("refuses in words: no phone to hold, another carrier's lead, a malformed id, a view-only role", async () => {
+    seed();
+    const noPhone = await post(`/leads/${EMAIL_ONLY}/do-not-contact`, "recruiter", {});
+    expect([noPhone.status, ((await noPhone.json()) as { error: { code: string } }).error.code]).toEqual([422, "no_phone"]);
+    expect((await post("/leads/50000000-0000-4000-8000-0000000000ff/do-not-contact", "recruiter", {})).status).toBe(404);
+    expect((await post("/leads/not-a-uuid/do-not-contact", "recruiter", {})).status).toBe(404);
+    expect((await post(`/leads/${LEAD}/do-not-contact`, "auditor", {})).status).toBe(403);
+    expect([suppressions, rec.writtenRows("audit_logs")]).toEqual([[], []]);
   });
 });

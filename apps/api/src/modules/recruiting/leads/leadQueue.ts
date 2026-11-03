@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { LEAD_STATUSES, OPEN_LEAD_STATUSES, type LeadMatchSummary, type LeadMatchVerdict, type LeadStatus } from "@silvicom/shared";
 import { createDriverRecord } from "../../roster/index.js";
+import { suppressedPhones } from "../smsSuppressions.js";
 import { readLeadVerdicts } from "./verdicts.js";
 
 /**
@@ -28,6 +29,11 @@ export interface LeadQueueRow {
   drivers: Array<{ id: string; status: string; archived: boolean }>;
   verdicts: LeadMatchVerdict[];
   summary: LeadMatchSummary | null;
+  /**
+   * The number is held from contact (`doNotContact.ts`): the person asked, on this lead or any other, or
+   * texted STOP. Read from the number's own record, so a re-submission shows it as the first row did.
+   */
+  do_not_contact: boolean;
 }
 
 export interface LeadQueuePage {
@@ -62,9 +68,13 @@ export async function readLeadQueue(
     p_org: orgId, p_statuses: q.statuses, p_before_at: q.beforeAt, p_before_id: q.beforeId, p_limit: q.limit,
   });
   if (error) throw new Error(`Could not read the lead queue: ${error.message}`);
-  const rows = (data ?? []) as Array<Omit<LeadQueueRow, "verdicts" | "summary">>;
+  const rows = (data ?? []) as Array<Omit<LeadQueueRow, "verdicts" | "summary" | "do_not_contact">>;
   const verdicts = await readLeadVerdicts(admin, orgId, rows.map((r) => r.id));
-  const leads = rows.map((r) => ({ ...r, verdicts: verdicts.get(r.id)?.verdicts ?? [], summary: verdicts.get(r.id)?.summary ?? null }));
+  const held = await suppressedPhones(admin, orgId, rows.map((r) => r.phone_e164 ?? ""));
+  const leads = rows.map((r) => ({
+    ...r, verdicts: verdicts.get(r.id)?.verdicts ?? [], summary: verdicts.get(r.id)?.summary ?? null,
+    do_not_contact: r.phone_e164 !== null && held.has(r.phone_e164),
+  }));
   const last = leads[leads.length - 1];
   return { leads, next: leads.length === q.limit && last ? { before_at: last.received_at, before_id: last.id } : null };
 }
