@@ -40,13 +40,13 @@ The earlier handoffs' traps and process (B2 §4–§5, D0 §4, B4b §4, B5 §4) 
 | progress log | #1983 | `4e4ae3d` | entries for all of the above |
 | M1 — headroom | #1986 | `b511a1b` | Account-limit fence reads `spend_cap − amount_spent` (`readAccountHeadroomCents`); 0 → `account_limit_reached` |
 | M5 — phones | #1988 | `5db33b9` | 0560: a number written with `+` keeps its country (never `+1`-defaulted), in `normalisePhone` and `phone_e164` alike |
-| M1 — convert once (db) | #1989 | SEE §1a | 0561 `claim_lead_conversion` / `release_lead_conversion` (claim lapses after 2 min) |
-| M1 — convert once (api) | #1990 | SEE §1a | `convertLead` claims before the create; the loser gets 409 `conversion_in_progress` |
+| M1 — convert once (db) | #1989 | `f5db30c` | 0561 `claim_lead_conversion` / `release_lead_conversion` (claim lapses after 2 min) |
+| M1 — convert once (api) | #1990 | `3af17dd` | `convertLead` claims before the create; the loser gets 409 `conversion_in_progress` |
 
 ### 1a. Position at handoff
-- #1989 and #1990 were green-pending at the time of writing; **check them first** (§6). #1990 must merge only
-  after 0561 has reached staging (`pnpm verify:live staging`), then be retargeted to `main` if still stacked.
-- **Newest migration on main: `0560_phone_e164_plus_is_international.sql`, `0561` once #1989 lands.** Confirm by NAME.
+- Every PR of this track is merged; 0560 and 0561 are applied on staging (`migrate-staging` green for both).
+- **Newest migration on main: `0561_lead_conversion_claim.sql`.** The ads chat is merging B5 (the monitor)
+  today and may add more — confirm by NAME.
 - **Scorecard (`pnpm ads:readiness`, unchanged by this track):** Orchestrator L3, Budget guard L3, Lead intake L1,
   Security L1, everything else L0.
 - Worktree `../FuelGuard-ads-safety` holds this track's branches; all pushed. Remove it when done.
@@ -147,11 +147,8 @@ and approval of the next release, which now carries everything in §1.
 ## 6. First action in the new chat
 
 1. Read §0.
-2. `gh pr view 1989` and `gh pr view 1990`: if #1989 is green and open, merge it; once 0561 shows on staging
-   (`pnpm verify:live staging`), retarget #1990 to `main` if needed, check its `build`, merge it. Update §1's
-   two rows in the next docs PR.
-3. Confirm main's HEAD and the newest migration **by name**; list open PRs and confirm none touches
+2. Confirm main's HEAD and the newest migration **by name**; list open PRs and confirm none touches
    `modules/recruiting/leads/`, `recruiting_contacts` or `notificationsContract.ts` (the ads chat merges all day).
-4. Run `pnpm ads:readiness`; it must match §1a.
-5. Propose D2a's shape in one short message (route, body, status move, audit row, writer registration), then
+3. Run `pnpm ads:readiness`; it must match §1a (the ads chat's B5 may have moved Monitor up — that is fine).
+4. Propose D2a's shape in one short message (route, body, status move, audit row, writer registration), then
    build it.
