@@ -1204,3 +1204,23 @@ SQL, counts only). Nothing was ordered.
     matched on the exact reference), and the request's new status is mirrored at once.
   - **Order again** opens the order drawer filled from the closed order: same applicant, its ZIP searched,
     its site picked if Med-Stop still offers it.
+- 2026-11-03 — **MSO3 built (D-MSO4; no migration, no new write).**
+  - A negative-dilute DRUG result offers **Order a recollection**:
+    - on Safety › Drug & Alcohol › Results;
+    - on the hiring step, for pre-employment.
+  - Only a reader of testing records who may order sees it. The step only ever receives an outcome when its
+    reader may read it (`personTests.ts`), so a recruiter never sees the button.
+  - The api refuses `recollectionOf`, or `observed: true`, from anyone who does not read results (403, before
+    anything else). It also refuses an observed site search from them, since the observer's gender would reveal it.
+  - The recollection repeats the original test's reason. It names the test it repeats (`recollectionOf`), and
+    the api checks the mirror before anything is billed: this person's, a drug test, MRO-verified
+    negative-dilute (`medstopTestOutcome`), this org's.
+  - A random test's recollection needs no selection: it repeats the dilute test, not the draw.
+  - The drawer's **Observed collection** switch is off by default and appears only on a recollection. On, it
+    takes UX5d's path: the donor's gender is read live and never sent, an observer of that gender is searched
+    for, and `observedreason` cites 49 CFR 40.197(b)(1).
+  - The switch only adds observation. Return-to-duty and follow-up drug tests stay observed under §40.67(b)
+    whatever it says.
+  - The schema refuses `observed: true` without `recollectionOf`: observation outside §40.67's cases is not
+    the employer's to choose.
+  - Nothing orders itself and nothing blocks; no carrier-wide setting is stored.

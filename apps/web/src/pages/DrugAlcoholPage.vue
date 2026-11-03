@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import { canOrderDrugTests, type RandomDraw } from "@silvicom/shared";
+import { canOrderDrugTests, type MedstopOrderReason, type RandomDraw } from "@silvicom/shared";
 import { AppButton as BaseButton, AppCallout, AppTabs, QueryState, useQueryState } from "@silvicom/ui";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import InProgressTab from "@/features/drugAlcohol/InProgressTab.vue";
@@ -42,6 +42,11 @@ function openOrder(selection?: RandomDraw): void {
     selection && selection.person.medstopId && selection.service !== "other"
       ? { kind: "selection", selectionId: selection.selectionId, medstopId: selection.person.medstopId, name: selection.person.name, service: selection.service }
       : null;
+  ordering.value = true;
+}
+// MSO3 (D-MSO4): a negative-dilute result's recollection, seeded from its row.
+function openRecollection(r: { testId: string; medstopId: string; name: string; reason: MedstopOrderReason; collectedOn: string | null }): void {
+  seed.value = { kind: "recollection", ...r };
   ordering.value = true;
 }
 
@@ -107,7 +112,7 @@ const stale = computed(() => {
 
         <RandomTab v-if="tab === 'random' && p.selections" :draws="p.selections.draws" :current-period="p.selections.currentPeriod" :dispatch="p.selections.dispatch" :pools="p.pools" :can-order="canOrder" @order="openOrder" />
         <InProgressTab v-else-if="tab === 'progress'" :rows="p.inProgress" />
-        <ResultsTab v-else-if="tab === 'results' && p.results" :recent="p.results.recent" :history="p.results.history" />
+        <ResultsTab v-else-if="tab === 'results' && p.results" :recent="p.results.recent" :history="p.results.history" :can-order="canOrder" @recollect="openRecollection" />
         <MedicalTab v-else-if="tab === 'medical'" :medical="p.medical" />
         <RosterTab v-else-if="tab === 'roster'" :not-in-pool="p.roster.notInPool" :left-but-in-pool="p.roster.leftButInPool" />
       </template>

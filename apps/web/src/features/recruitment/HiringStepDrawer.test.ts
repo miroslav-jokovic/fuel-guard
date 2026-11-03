@@ -59,8 +59,8 @@ const STUBS = {
   // drawer, which the page opens in place of this one.
   MedstopTestCard: {
     name: "MedstopTestCard",
-    emits: ["order", "closeOrder"],
-    template: `<div><button data-medstop @click="$emit('order', 'EE-APP')" /><button data-medstop-close @click="$emit('closeOrder', { requestId: 'REQ-77', status: 'NO SHOW' })" /></div>`,
+    emits: ["order", "closeOrder", "recollect"],
+    template: `<div><button data-medstop @click="$emit('order', 'EE-APP')" /><button data-medstop-close @click="$emit('closeOrder', { requestId: 'REQ-77', status: 'NO SHOW' })" /><button data-medstop-recollect @click="$emit('recollect', { testId: 'T-DIL' })" /></div>`,
   },
   // §14 OF3: the road test's own suite is `RoadTestPanel.test.ts`; here only which drawer it opens in.
   RoadTestPanel: stub("road-test"),
@@ -312,6 +312,13 @@ describe("the three recorded acts D1 built (D-HM6)", () => {
     const root = await openOn("drug_test");
     (root.querySelector("[data-medstop-close]") as HTMLButtonElement).click();
     expect(wrapper!.emitted("closeOrder")).toEqual([[{ requestId: "REQ-77", status: "NO SHOW" }]]);
+  });
+
+  /** MSO3: the recollection opens the page's order drawer too. */
+  it("hands the Med-Stop card's recollection up to the page, with the dilute test", async () => {
+    const root = await openOn("drug_test");
+    (root.querySelector("[data-medstop-recollect]") as HTMLButtonElement).click();
+    expect(wrapper!.emitted("recollect")).toEqual([[{ testId: "T-DIL" }]]);
   });
 
   /** The consent's reading IS the row's state: "waiting on them" is no consent on file (D-AW5). */

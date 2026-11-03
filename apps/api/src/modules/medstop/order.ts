@@ -10,6 +10,7 @@ import {
   medstopSiteObserved,
   medstopRequestIsOpen,
   medstopRequestService,
+  medstopTestOutcome,
   type CalendarDay,
   type MedstopDonorGender,
   type MedstopOrderInput,
@@ -36,7 +37,10 @@ import { readRosterDrivers } from "./sync.js";
  *   4. Med-Stop holds no unfinished order for that person and test — asked LIVE, because the mirror is
  *      up to an hour old and a second order is a second bill (§7A.4: "refuses a second open order").
  *   5. The collection day is today … +30 (`medstopOrderRefusal`).
- *   6. An observed order (return-to-duty, follow-up drug test — UX5d) is for a donor whose gender
+ *   5b. A recollection (MSO3, D-MSO4) repeats THIS person's negative-dilute DRUG test — read from the mirror,
+ *       never taken on the browser's word, so "observed by choice" cannot be bolted onto any order.
+ *   6. An observed order (return-to-duty, follow-up drug test — UX5d — or a recollection the office chose
+ *      to have observed) is for a donor whose gender
  *      Med-Stop's own record holds, read LIVE and never kept (Q-MSUX10): without it no site can be
  *      matched to an observer, so the order is refused before it is billed.
  *
@@ -121,7 +125,7 @@ export async function siteObservedFor(
   admin: SupabaseClient,
   client: MedstopClient,
   orgId: string,
-  q: Pick<MedstopOrderInput, "reason" | "service"> & { medstopId?: string },
+  q: Pick<MedstopOrderInput, "reason" | "service" | "observed"> & { medstopId?: string },
 ): Promise<{ observed: "N" | "M" | "F"; eeid?: string } | { refusal: OrderRefusal }> {
   if (!medstopOrderIsObserved(q)) return { observed: "N" };
   if (!q.medstopId) return refuse(400, "bad_request", "Pick the driver first — an observed collection's site depends on who is tested.");
@@ -174,6 +178,19 @@ export async function prepareOrder(
         ? "This applicant is not on Med-Stop's applicant roster with a licence or date-of-birth match, so a pre-employment test cannot be ordered from here. Add them in Med-Stop first."
         : "This person is not on Med-Stop's active roster with a licence or date-of-birth match, so a test cannot be ordered from here.",
     );
+
+  if (input.recollectionOf) {
+    const { data, error } = await admin
+      .from("medstop_tests")
+      .select("employee_medstop_id, service, status, result")
+      .eq("org_id", orgId)
+      .eq("medstop_id", input.recollectionOf)
+      .maybeSingle();
+    if (error) throw new Error(`medstop_tests read failed: ${error.message}`);
+    const t = data as { employee_medstop_id: string | null; service: string | null; status: string | null; result: string | null } | null;
+    if (!t || t.employee_medstop_id !== input.medstopId || medstopRequestService({ service: t.service }) !== "drug" || medstopTestOutcome(t) !== "negative_dilute")
+      return refuse(409, "medstop_recollection_not_dilute", "A recollection is ordered on this person's own negative-dilute drug result, and that is not one.");
+  }
 
   if (input.selectionId) {
     const { data, error } = await admin

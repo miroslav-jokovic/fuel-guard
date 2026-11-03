@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { MEDSTOP_OUTCOME_LABELS, type MedstopResultRow, type MedstopTestOutcome } from "@silvicom/shared";
-import { DataTable, type DataTableColumn, DataWorkspace, FilterBar, TablePagination, useQueryState } from "@silvicom/ui";
+import { MEDSTOP_OUTCOME_LABELS, MEDSTOP_ORDER_REASONS, type MedstopOrderReason, type MedstopResultRow, type MedstopTestOutcome } from "@silvicom/shared";
+import { AppButton as BaseButton, DataTable, type DataTableColumn, DataWorkspace, FilterBar, TablePagination, useQueryState } from "@silvicom/ui";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
 import ListIntro from "@/features/drugAlcohol/ListIntro.vue";
 import PersonCell from "@/features/drugAlcohol/PersonCell.vue";
@@ -15,7 +15,23 @@ import { formatDate } from "@/lib/format";
  * a choice of WHICH list, not a second table under the first — the owner's review found two stacked
  * tables confusing. That choice is Show, so "Clear filters" keeps it (§5.5 rule 5).
  */
-const props = defineProps<{ recent: MedstopResultRow[]; history: MedstopResultRow[] }>();
+const props = defineProps<{ recent: MedstopResultRow[]; history: MedstopResultRow[]; canOrder?: boolean }>();
+/**
+ * MSO3 (D-MSO4): a negative-dilute DRUG result offers "Order a recollection" to whoever reads it AND may order.
+ * It never orders anything by itself and never blocks: the office decides, and decides whether it is observed.
+ * Only a reason the drawer orders is offered (an "OTHER" test has no reason to repeat it under).
+ */
+const emit = defineEmits<{ recollect: [row: { testId: string; medstopId: string; name: string; reason: MedstopOrderReason; collectedOn: string | null }] }>();
+const recollectable = (r: MedstopResultRow): MedstopOrderReason | null => {
+  const reason = (r.reason ?? "").toUpperCase() as MedstopOrderReason;
+  return props.canOrder && r.source === "test" && r.kind === "drug" && r.outcome === "negative_dilute" && r.person.medstopId && MEDSTOP_ORDER_REASONS.includes(reason)
+    ? reason
+    : null;
+};
+function recollect(r: MedstopResultRow): void {
+  const reason = recollectable(r);
+  if (reason) emit("recollect", { testId: r.medstopId, medstopId: r.person.medstopId!, name: r.person.name, reason, collectedOn: r.collectedOn });
+}
 
 const LISTS = {
   recent: {
@@ -104,6 +120,7 @@ const { search, page, sort, onSort, filtered, pageRows, activeCount, clearAll, p
         <template #cell-collectedOn="{ row }">{{ row.collectedOn ? formatDate(row.collectedOn) : "—" }}</template>
         <template #cell-outcome="{ row }">
           <span :class="[BADGE_BASE, medstopOutcomeTone(row.outcome)]">{{ MEDSTOP_OUTCOME_LABELS[row.outcome as MedstopTestOutcome] }}</span>
+          <BaseButton v-if="recollectable(row)" size="sm" variant="link" class="ml-2" @click="recollect(row)">Order a recollection</BaseButton>
         </template>
         <template #footer>
           <TablePagination :page="page" :page-size="pageSize" :total="filtered.length" @update:page="page = $event" />
