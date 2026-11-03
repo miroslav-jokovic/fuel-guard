@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   buildMedstopOrderPayload,
   medstopDefaultGoBy,
+  MEDSTOP_RECOLLECTION_OBSERVED_REASON,
   medstopOrderInputSchema,
   medstopOrderRefusal,
   medstopRequestIsOpen,
@@ -159,6 +160,39 @@ describe("medstopDefaultGoBy (D-MSO2)", () => {
     expect(medstopDefaultGoBy("2026-11-07").requestDate).toBe("2026-11-09"); // Sat → Mon
     expect(medstopDefaultGoBy("2026-11-08").requestDate).toBe("2026-11-09"); // Sun → Mon
     expect(medstopDefaultGoBy("2026-12-31").requestDate).toBe("2027-01-01"); // over the year end
+  });
+});
+
+describe("a recollection after a negative-dilute result (MSO3, D-MSO4)", () => {
+  const recollect = { medstopId: "EE-1", service: "drug", reason: "PRE-EMPLOYMENT", locationId: "L", requestDate: "2026-11-04", requestTime: "16:00", notifyBy: "PHONE CALL", recollectionOf: "T-9" } as const;
+  const office = { email: "o@x.test", phone: "3125550100" };
+
+  it("is unobserved unless the office chooses it, and then cites §40.197(b)(1)", () => {
+    expect(buildMedstopOrderPayload(medstopOrderInputSchema.parse(recollect), office)).toMatchObject({ observed: "N" });
+    const chosen = buildMedstopOrderPayload(medstopOrderInputSchema.parse({ ...recollect, observed: true }), office);
+    expect(chosen).toMatchObject({ observed: "Y", observedreason: MEDSTOP_RECOLLECTION_OBSERVED_REASON });
+    expect(chosen.observedreason).toContain("40.197(b)(1)");
+  });
+
+  it("never lets the switch remove what the reason forces: a return-to-duty drug test stays observed under §40.67(b)", () => {
+    expect(medstopOrderIsObserved({ reason: "RETURN TO DUTY", service: "drug", observed: false })).toBe(true);
+    const p = buildMedstopOrderPayload(medstopOrderInputSchema.parse({ ...recollect, reason: "RETURN TO DUTY", observed: false }), office);
+    expect(p).toMatchObject({ observed: "Y" });
+    expect(p.observedreason).toContain("40.67(b)");
+  });
+
+  it("refuses observation by choice anywhere but a recollection, and a recollection of anything but a drug test", () => {
+    const { recollectionOf: _r, ...plain } = recollect;
+    expect(medstopOrderInputSchema.safeParse({ ...plain, observed: true }).success).toBe(false);
+    expect(medstopOrderInputSchema.safeParse({ ...recollect, service: "alcohol" }).success).toBe(false);
+    expect(medstopOrderInputSchema.safeParse({ ...recollect, observed: false }).success).toBe(true);
+  });
+
+  it("lets a random test's recollection go without a selection — it repeats the dilute test, not the draw", () => {
+    expect(medstopOrderInputSchema.safeParse({ ...recollect, reason: "RANDOM" }).success).toBe(true);
+    const { recollectionOf: _r, ...plain } = recollect;
+    expect(medstopOrderInputSchema.safeParse({ ...plain, reason: "RANDOM" }).success).toBe(false);
+    expect(medstopOrderInputSchema.safeParse({ ...recollect, reason: "RANDOM", selectionId: "S-1" }).success).toBe(false);
   });
 });
 

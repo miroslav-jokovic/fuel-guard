@@ -91,6 +91,13 @@ export const isConvertError = (v: unknown): v is ConvertError => typeof v === "o
  * If the attach fails after roster's create, the applicant exists without the conversion. The next queue read
  * lists them as a match for this lead (same phone or email), and the recruiter attaches instead of creating a
  * second applicant — 0554's header has the reasoning.
+ *
+ * ⚠ CLAIMED BEFORE THE CREATE (0561; 2026-11-03 lead-path audit M1). Two requests at once — a double click,
+ * two recruiters — used to both pass the status check and both create an applicant, leaving the loser's as
+ * an orphan. Now the create path claims the lead first (`claim_lead_conversion`, one conditional UPDATE), so
+ * exactly one request creates; the other is told a conversion is under way. Any failure after the claim gives
+ * it back, and a claim nobody gave back lapses after two minutes. Attaching to an existing applicant needs
+ * no claim: it creates nothing, and `convert_lead` already serialises it.
  */
 export async function convertLead(
   admin: SupabaseClient,
@@ -109,21 +116,44 @@ export async function convertLead(
   const row = lead as { id: string; full_name: string | null; phone_e164: string | null; email_lower: string | null; status: string } | null;
   if (!row) return { status: 404, code: "not_found", message: "Lead not found" };
 
-  let target = driverId;
-  let created = false;
-  if (!target) {
-    if (row.status === "converted") {
-      return { status: 409, code: "already_converted", message: "This lead is already an applicant." };
-    }
-    if (!row.full_name) return { status: 422, code: "name_required", message: "Add the person's name before making them an applicant." };
+  if (driverId) return attachLead(admin, orgId, actor, leadId, driverId, false);
+  if (row.status === "converted") return ALREADY_CONVERTED;
+  if (!row.full_name) return { status: 422, code: "name_required", message: "Add the person's name before making them an applicant." };
+
+  const { data: claim, error: claimError } = await admin.rpc("claim_lead_conversion", { p_org: orgId, p_lead: leadId });
+  if (claimError) {
+    if ((claimError as { code?: string }).code === "RL020") return { status: 404, code: "not_found", message: "Lead not found" };
+    throw new Error(`claim_lead_conversion failed: ${claimError.message}`);
+  }
+  if (claim === "converted") return ALREADY_CONVERTED;
+  if (claim !== "claimed") {
+    return { status: 409, code: "conversion_in_progress", message: "This lead is already being made an applicant. Refresh in a moment." };
+  }
+  let done = false;
+  try {
     const made = await createDriverRecord(admin, orgId, actor.userId, {
       full_name: row.full_name, phone: row.phone_e164, email: row.email_lower, status: "applicant",
     });
     if ("error" in made) throw new Error("Could not create the applicant");
-    target = made.driver.id;
-    created = true;
+    const result = await attachLead(admin, orgId, actor, leadId, made.driver.id, true);
+    done = !isConvertError(result);
+    return result;
+  } finally {
+    if (!done) await admin.rpc("release_lead_conversion", { p_org: orgId, p_lead: leadId });
   }
+}
 
+const ALREADY_CONVERTED: ConvertError = { status: 409, code: "already_converted", message: "This lead is already an applicant." };
+
+/** `convert_lead` (0554): the lead → applicant record, and its refusals in words. */
+async function attachLead(
+  admin: SupabaseClient,
+  orgId: string,
+  actor: { userId: string; name: string },
+  leadId: string,
+  target: string,
+  created: boolean,
+): Promise<{ conversion_id: string; driver_id: string; created_applicant: boolean } | ConvertError> {
   const { data: conv, error: ce } = await admin.rpc("convert_lead", {
     p_org: orgId, p_lead: leadId, p_driver: target, p_actor: actor.userId, p_actor_name: actor.name,
   });

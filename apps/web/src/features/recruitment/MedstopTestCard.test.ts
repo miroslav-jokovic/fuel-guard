@@ -150,4 +150,18 @@ describe("MedstopTestCard", () => {
     answer.value = { connected: true, matched: false, applicantMedstopId: null, applicantCreate: null, orders: [], tests: [], outcomesVisible: false };
     expect((await render()).text()).not.toContain("Add this applicant in Med-Stop first");
   });
+
+  it("offers the DER 'Order a recollection' on a negative-dilute pre-employment result, and emits that test (MSO3)", async () => {
+    who.role = "safety_manager";
+    const dilute = { testId: "t7", kind: "drug", reason: "PRE-EMPLOYMENT", stage: "Result reported", collectedOn: "2026-10-30", expectedOn: null, outcome: "negative_dilute" };
+    answer.value = { ...tests("negative"), orders: [], tests: [dilute], applicantMedstopId: "EE-APP" };
+    const w = await render();
+    await w.findAll("button").find((b) => b.text() === "Order a recollection")!.trigger("click");
+    expect(w.emitted("recollect")).toEqual([[{ testId: "t7", medstopId: "EE-APP", collectedOn: "2026-10-30", zip: "60601" }]]);
+    // A recruiter is never SENT the outcome (personTests.ts), so the same test offers nothing.
+    who.role = "recruiter";
+    answer.value = { ...tests(null), orders: [], tests: [{ ...dilute, outcome: null }], applicantMedstopId: "EE-APP" };
+    expect((await render()).text()).not.toContain("Order a recollection");
+  });
 });
+

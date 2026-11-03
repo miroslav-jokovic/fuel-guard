@@ -98,6 +98,9 @@ const KIND_CAPS: Record<string, number> = {
   // One at a time: each is one Graph read with a Page token, and a burst of leads is a burst of reads
   // against that Page's rate; the backfill is the net, so a short queue costs nothing (B4b).
   ads_lead_fetch: 1,
+  // One at a time: a pull pages every campaign's hourly insights with one account token, and the window is
+  // re-read whole next hour, so two at once would only spend the account's Insights rate twice (B5a).
+  ads_insights: 1,
   // sharp is CPU-bound; two at a time keeps a burst of uploads from starving the sync kinds.
   document_derive: 2,
 };

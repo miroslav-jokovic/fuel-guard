@@ -6,6 +6,7 @@ import { FakeForms } from "./fakeMetaForms.js";
 import { FakeLeads } from "./fakeMetaLeads.js";
 import { FakeRules } from "./fakeMetaRules.js";
 import { accountInsights } from "./fakeMetaInsights.js";
+import { campaignHourlyInsights } from "./fakeMetaInsightsHourly.js";
 import { FakeWebhooks } from "./fakeMetaWebhooks.js";
 import { graphError, pick } from "./fakeMetaShapes.js";
 
@@ -58,7 +59,7 @@ import { graphError, pick } from "./fakeMetaShapes.js";
  *
  * ── NOT HERE YET, ON PURPOSE ───────────────────────────────────────────────────────────────────────
  * Instant Forms live in `fakeMetaForms.ts` (B2b), Automated Rules in `fakeMetaRules.ts` (B3b). Leads in `fakeMetaLeads.ts` (B4a), the
- * signed `leadgen` webhook and `subscribed_apps` in `fakeMetaWebhooks.ts` (B4b). Ads and creatives (B2c), insights (B5). Each joins
+ * signed `leadgen` webhook and `subscribed_apps` in `fakeMetaWebhooks.ts` (B4b), hourly insights in `fakeMetaInsightsHourly.ts` (B5a). Ads and creatives (B2c). Each joins
  * with the step that first calls it, so every endpoint here has a caller whose contract test reads it.
  *
  * In-memory: a simulator restart forgets every campaign. That is the simulator being honest about
@@ -113,6 +114,7 @@ export interface FakeMetaAccount {
   currency: string;
   /** What `act_{id}/insights` reports spent in any range this month (`fakeMetaInsights.ts`); default 0. */
   month_spend_cents?: number;
+  timezone_name?: string; // IANA zone `act_{id}` reports; insights hours are in it (B5a). Default America/Chicago.
 }
 
 export interface FakeMetaOptions {
@@ -286,6 +288,8 @@ export class FakeMeta {
     const insights = /^act_(\d+)\/insights$/.exec(path);
     const insightsOf = insights && method === "GET" ? this.accounts.get(insights[1]!) : undefined;
     if (insightsOf) return accountInsights(insightsOf, body, this.traceId());
+    const hourly = /^(\d+)\/insights$/.exec(path), camp = hourly && method === "GET" ? this.campaigns.get(hourly[1]!) : undefined;
+    if (camp) return campaignHourlyInsights(this, camp.id, this.accounts.get(camp.account_id)?.currency ?? "USD", body, this.traceId());
     const create = /^act_(\d+)\/campaigns$/.exec(path);
     if (create && method === "POST") return this.createCampaign(create[1]!, body);
     if (create && method === "GET") return this.list([...this.campaigns.values()].filter((c) => c.account_id === create[1]), body);
@@ -326,7 +330,7 @@ export class FakeMeta {
     if (!a) return graphError(400, 100, "GraphMethodException", `Unsupported get request. Object with ID 'act_${id}' does not exist.`, this.traceId(), 33);
     const full: Record<string, unknown> = {
       id: `act_${a.id}`, account_id: a.id, spend_cap: String(a.spend_cap_cents), amount_spent: String(a.amount_spent_cents),
-      account_status: a.account_status, currency: a.currency,
+      account_status: a.account_status, currency: a.currency, timezone_name: a.timezone_name ?? "America/Chicago",
     };
     return { status: 200, body: pick(full, fields, ["id", "account_id"]) };
   }

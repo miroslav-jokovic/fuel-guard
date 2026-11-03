@@ -245,5 +245,36 @@ describe("OrderTestDrawer", () => {
     expect(api.searched[0]).toMatchObject({ zip: "60601", reason: "PRE-EMPLOYMENT" });
     expect((document.body.querySelector('input[type="radio"][value="LOC-2"]') as HTMLInputElement | null)?.checked).toBe(true);
   });
+
+  it("orders a recollection of the dilute test, unobserved unless the switch is turned on — then observed and searched for this donor (MSO3)", async () => {
+    const seed: OrderSeed = { kind: "recollection", testId: "T-DIL", medstopId: "EE-APP", name: "Al Applicant", reason: "PRE-EMPLOYMENT", collectedOn: "2026-10-30", zip: "60601" };
+    await render(seed);
+    expect(document.body.textContent).toContain("Recollection · Al Applicant");
+    const sw = document.body.querySelector('[role="switch"]') as HTMLButtonElement;
+    expect(sw.getAttribute("aria-checked")).toBe("false");
+    button("Search")!.click();
+    await flushPromises();
+    expect(api.searched[0]).not.toHaveProperty("observed");
+    button("Review order")!.click();
+    await flushPromises();
+    expect(api.previewed[0]).toMatchObject({ reason: "PRE-EMPLOYMENT", service: "drug", recollectionOf: "T-DIL", observed: false });
+    expect(document.body.textContent).toContain("The negative-dilute drug test collected 10/30/2026");
+
+    sw.click();
+    await flushPromises();
+    // The sites found were for an unobserved collection; an observed one needs this donor's observer.
+    expect(document.body.textContent).not.toContain("Med-Stop Loop");
+    button("Search")!.click();
+    await flushPromises();
+    expect(api.searched[1]).toMatchObject({ observed: true, medstopId: "EE-APP" });
+    button("Review order")!.click();
+    await flushPromises();
+    expect(api.previewed[1]).toMatchObject({ recollectionOf: "T-DIL", observed: true });
+  });
+
+  it("shows no observed switch on any other order — observation by choice exists only on a recollection", async () => {
+    await render({ kind: "applicant", medstopId: "EE-APP", name: "Al Applicant", zip: "60601" });
+    expect(document.body.querySelector('[role="switch"]')).toBeNull();
+  });
 });
 

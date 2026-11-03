@@ -31,6 +31,8 @@ const emit = defineEmits<{
   order: [order: { medstopId: string; zip: string | null }];
   // MSO2 (D-MSO3): the page opens the close drawer — this card sits inside the step's SlideOver.
   closeOrder: [request: { requestId: string; status: MedstopCloseStatus }];
+  // MSO3 (D-MSO4): a negative-dilute result's recollection — the page opens the order drawer seeded with it.
+  recollect: [test: { testId: string; medstopId: string; collectedOn: string | null; zip: string | null }];
 }>();
 const session = useSessionStore();
 const canOrder = computed(() => canOrderDrugTests(session.role));
@@ -97,6 +99,15 @@ const kindText = (kind: string) => (kind === "drug" ? "Drug test" : kind === "al
             <span>· {{ t.stage }}</span>
             <span v-if="t.expectedOn">· result expected by {{ formatDate(t.expectedOn) }}</span>
             <span v-if="t.outcome && t.outcome !== 'pending'" :class="[BADGE_BASE, medstopOutcomeTone(t.outcome)]">{{ MEDSTOP_OUTCOME_LABELS[t.outcome] }}</span>
+            <!-- MSO3: only a reader of results is SENT an outcome (personTests.ts), so only they see this. -->
+            <BaseButton
+              v-if="canOrder && t.outcome === 'negative_dilute' && t.kind === 'drug' && data.applicantMedstopId && !openDrug"
+              size="sm"
+              variant="link"
+              @click="emit('recollect', { testId: t.testId, medstopId: data.applicantMedstopId, collectedOn: t.collectedOn, zip: data.homeZip })"
+            >
+              Order a recollection
+            </BaseButton>
           </li>
         </ul>
         <p v-if="openDrug" class="text-2xs text-ink-muted">

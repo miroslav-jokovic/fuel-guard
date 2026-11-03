@@ -14,6 +14,9 @@
   "ads_campaigns": [
     "apps/api/src/modules/ads/orchestrator/transitions.ts"
   ],
+  "ads_spend_hourly": [
+    "apps/api/src/modules/ads/monitor/insightsPull.ts"
+  ],
   "ads_settings_versions": [
     "apps/api/src/modules/ads/settings/settingsVersions.ts"
   ],

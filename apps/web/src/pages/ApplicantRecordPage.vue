@@ -171,6 +171,13 @@ function openOrder(order: { medstopId: string; zip: string | null; locationId?: 
   ordering.value = { kind: "applicant", medstopId: order.medstopId, zip: order.zip, locationId: order.locationId ?? null, name: driver.value?.full_name ?? "Applicant" };
 }
 
+/** MSO3 (D-MSO4): a pre-employment negative-dilute result's recollection, from the step (result readers only). */
+function openRecollection(test: { testId: string; medstopId: string; collectedOn: string | null; zip: string | null }): void {
+  openStepKey.value = null;
+  closing.value = null;
+  ordering.value = { kind: "recollection", reason: "PRE-EMPLOYMENT", name: driver.value?.full_name ?? "Applicant", ...test };
+}
+
 /** MSO2 (D-MSO3): closing the step's open order, swapped in the same way; "Order again" swaps to the order drawer. */
 const closing = ref<{ requestId: string; status: MedstopCloseStatus } | null>(null);
 function openClose(request: { requestId: string; status: MedstopCloseStatus }): void {
@@ -236,6 +243,7 @@ function openClose(request: { requestId: string; status: MedstopCloseStatus }): 
         @review="openReview"
         @order-test="openOrder"
         @close-order="openClose"
+        @recollect="openRecollection"
         @open-step="openStepKey = $event"
       />
 

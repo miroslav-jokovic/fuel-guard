@@ -345,7 +345,29 @@ export const READINESS = [
       L5: [{ need: "canary", gap: CANARY }],
     },
   },
-  { worker: "Monitor", levels: { L1: [notBuilt("B5 hourly insights, daily reconcile, external_change")], L2: later("L2"), L3: later("L3"), L4: [{ need: "insights from the sandbox", gap: STAGE2 }], L5: [{ need: "canary", gap: CANARY }] } },
+  {
+    worker: "Monitor",
+    levels: {
+      L1: [
+        {
+          need: "B5a hourly insights → ads_spend_hourly: a window re-read every hour, in the account's zone, revisions down replace, late hours fill in",
+          tests: [
+            { file: "apps/api/src/modules/ads/monitor/insightsPull.test.ts", titles: [
+              "an hour Meta revises DOWN replaces the stored hour on the next run",
+              "a late hour — not reported on one run — fills in on the next, beside the hours already held",
+              "the fall-back day lands on the right UTC hours: the doubled 01:00 on its first, 02:00 two hours later",
+              "an hour Meta stops reporting is written as zero — but a failed read leaves every stored hour alone",
+            ] },
+            { file: "apps/api/src/modules/ads/monitor/localHours.test.ts", titles: [
+              "on the spring-forward day 02:00 does not exist, and is said to not exist rather than guessed",
+            ] },
+          ],
+        },
+        notBuilt("B5b auto-pause checks, B5c daily reconcile + external_change"),
+      ],
+      L2: later("L2"), L3: later("L3"), L4: [{ need: "insights from the sandbox", gap: STAGE2 }], L5: [{ need: "canary", gap: CANARY }],
+    },
+  },
   {
     worker: "Lead intake",
     levels: {

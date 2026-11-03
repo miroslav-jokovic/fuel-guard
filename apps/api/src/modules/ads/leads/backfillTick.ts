@@ -24,7 +24,12 @@ const PAGE = 500;
 export const adsLeadsBackfillDedupKey = (connectionId: string): string => `ads_leads_backfill:${connectionId}`;
 export type BackfillEnqueue = (orgId: string, connectionId: string) => Promise<"queued" | "conflict">;
 
-export async function leadsBackfillTick(admin: SupabaseClient, enqueue: BackfillEnqueue): Promise<{ connections: number; queued: number; conflicts: number }> {
+/**
+ * Every Meta (or simulator) connection that is `connected` or `failing`, across carriers, handed to `enqueue`.
+ * The ONE tenant-wide read of the ads hourly jobs: the leads backfill here and the insights pull
+ * (`monitor/insightsTick.ts`, B5a) both start from it, so the two cannot disagree on which connections run.
+ */
+export async function metaConnectionsTick(admin: SupabaseClient, enqueue: BackfillEnqueue): Promise<{ connections: number; queued: number; conflicts: number }> {
   const result = { connections: 0, queued: 0, conflicts: 0 };
   for (let from = 0; ; from += PAGE) {
     const { data, error } = await admin
@@ -46,6 +51,8 @@ export async function leadsBackfillTick(admin: SupabaseClient, enqueue: Backfill
     if (rows.length < PAGE) return result;
   }
 }
+
+export const leadsBackfillTick = metaConnectionsTick;
 
 export function leadsBackfillEnqueue(admin: SupabaseClient, env: Env): BackfillEnqueue {
   return async (orgId, connectionId) => {

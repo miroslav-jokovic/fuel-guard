@@ -1,6 +1,6 @@
 import type { Router } from "express";
 import { z } from "zod";
-import { MEDSTOP_ORDER_REASONS, MEDSTOP_ORDER_ROLES, medstopDefaultGoBy, medstopOrderInputSchema, type CalendarDay, recordId } from "@silvicom/shared";
+import { MEDSTOP_ORDER_REASONS, MEDSTOP_ORDER_ROLES, canReadTestingRecords, medstopDefaultGoBy, medstopOrderInputSchema, type CalendarDay, recordId } from "@silvicom/shared";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { requireRole } from "../../../middleware/auth.js";
 import { apiError, asyncHandler } from "../../../lib/http.js";
@@ -20,7 +20,11 @@ import { followUpPlacedOrder, type FillOrderedAppointment } from "../orderFollow
  * ids, the reason, the site and the day — the office contact is the org's own).
  */
 // The reason (and, for an observed test, the person) decides which sites can collect — UX5d.
-const planned = { service: z.enum(["drug", "alcohol"]), reason: z.enum(MEDSTOP_ORDER_REASONS), medstopId: z.string().trim().min(1).optional(), requestDate: z.string(), requestTime: z.string() };
+const planned = {
+  service: z.enum(["drug", "alcohol"]), reason: z.enum(MEDSTOP_ORDER_REASONS), medstopId: z.string().trim().min(1).optional(), requestDate: z.string(), requestTime: z.string(),
+  // MSO3: a recollection the office chose to have observed searches for this donor's observer too.
+  observed: z.enum(["true", "false"]).transform((v) => v === "true").optional(),
+};
 const sitesQuery = z.union([
   z.object({ ...planned, zip: z.string().regex(/^\d{5}$/) }),
   z.object({ ...planned, driverId: recordId() }),
@@ -32,6 +36,14 @@ export interface OrderRouteDeps {
   /** Recruiting's appointment writer (MSO1), handed in by `app.ts` — see `orderFollowUp.ts` for why. */
   fillOrderedAppointment: FillOrderedAppointment;
 }
+
+/**
+ * MSO3 (D-MSO4): a recollection names a negative-dilute RESULT, and choosing observation reveals one — both are
+ * testing records (§382.401(a)). The recruiter still orders; only the result's readers order a recollection.
+ */
+const recollectionRefused = (role: Parameters<typeof canReadTestingRecords>[0], q: { recollectionOf?: string; observed?: boolean }): boolean =>
+  (q.recollectionOf !== undefined || q.observed === true) && !canReadTestingRecords(role);
+const RECOLLECTION_FORBIDDEN = "Only the people who read drug-test results order a recollection.";
 
 export function registerOrderRoutes(router: Router, deps: OrderRouteDeps): void {
   const orgToday = async (admin: SupabaseClient, orgId: string) => (await deps.orgClock(admin, orgId)).today;
@@ -71,6 +83,7 @@ export function registerOrderRoutes(router: Router, deps: OrderRouteDeps): void 
       const orgId = req.auth!.orgId!;
       const q = sitesQuery.safeParse(req.query);
       if (!q.success) return void res.status(400).json(apiError("bad_request", "Give the test, its reason, the day and time, and a 5-digit ZIP or the driver."));
+      if (recollectionRefused(req.auth!.role, q.data)) return void res.status(403).json(apiError("forbidden", RECOLLECTION_FORBIDDEN));
       const opened = await orderClient(admin, env, orgId);
       if ("refusal" in opened) return void refused(res, opened.refusal);
       let near: { zip: string } | { lat: number; lng: number };
@@ -98,6 +111,7 @@ export function registerOrderRoutes(router: Router, deps: OrderRouteDeps): void 
       const orgId = req.auth!.orgId!;
       const input = medstopOrderInputSchema.safeParse(req.body ?? {});
       if (!input.success) return void res.status(400).json(apiError("bad_request", input.error.issues[0]?.message ?? "Check the order."));
+      if (recollectionRefused(req.auth!.role, input.data)) return void res.status(403).json(apiError("forbidden", RECOLLECTION_FORBIDDEN));
       const opened = await orderClient(admin, env, orgId);
       if ("refusal" in opened) return void refused(res, opened.refusal);
       const preview = await prepareOrder(admin, opened.client, opened.contact, orgId, input.data, await orgToday(admin, orgId));
@@ -115,6 +129,7 @@ export function registerOrderRoutes(router: Router, deps: OrderRouteDeps): void 
       const orgId = req.auth!.orgId!;
       const input = medstopOrderInputSchema.safeParse(req.body ?? {});
       if (!input.success) return void res.status(400).json(apiError("bad_request", input.error.issues[0]?.message ?? "Check the order."));
+      if (recollectionRefused(req.auth!.role, input.data)) return void res.status(403).json(apiError("forbidden", RECOLLECTION_FORBIDDEN));
       const opened = await orderClient(admin, env, orgId);
       if ("refusal" in opened) return void refused(res, opened.refusal);
       const today = await orgToday(admin, orgId);

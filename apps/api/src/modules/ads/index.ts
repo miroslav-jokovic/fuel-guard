@@ -27,3 +27,7 @@ export { metaWebhookRouter } from "./routes/metaWebhook.js";
 export { fetchWebhookLead } from "./leads/leadFetch.js";
 export { META_WEBHOOK_PATH, metaWebhookBootWarning } from "./leads/leadgenWebhook.js";
 export { applyCampaignEvent } from "./orchestrator/transitions.js";
+// B5a: the monitor's hourly insights pull → ads_spend_hourly, and its scheduler.
+export { pullConnectionInsights } from "./monitor/insightsPull.js";
+export type { InsightsResult } from "./monitor/insightsPull.js";
+export { adsInsightsDedupKey, startAdsInsights } from "./monitor/insightsTick.js";

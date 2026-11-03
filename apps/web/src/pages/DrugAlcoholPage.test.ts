@@ -16,7 +16,7 @@ const state = vi.hoisted(() => ({ program: null as unknown, role: null as string
 // The order button reads the caller's role (UX3); null by default so the tabs' own tests are unchanged.
 vi.mock("@/stores/session", () => ({ useSessionStore: () => ({ get role() { return state.role; } }) }));
 vi.mock("@/components/medstop/OrderTestDrawer.vue", () => ({
-  default: { props: ["open", "seed"], template: `<div v-if="open" data-test="order-drawer">{{ seed ? "seeded:" + seed.selectionId : "unseeded" }}</div>` },
+  default: { props: ["open", "seed"], template: `<div v-if="open" data-test="order-drawer">{{ seed ? (seed.kind === "recollection" ? "recollect:" + seed.testId + ":" + seed.medstopId + ":" + seed.reason : "seeded:" + seed.selectionId) : "unseeded" }}</div>` },
 }));
 vi.mock("@/features/drugAlcohol/useDrugAlcoholProgram", () => ({
   useDrugAlcoholProgram: () => ({
@@ -274,4 +274,22 @@ describe("DrugAlcoholPage", () => {
     expect(w.find('[data-test="order-drawer"]').text()).toBe("unseeded");
     state.role = null;
   });
+
+  it("offers 'Order a recollection' on a negative-dilute drug result to a reader who may order, seeded with that test (MSO3)", async () => {
+    const row = (id: string, outcome: "negative_dilute" | "positive", kind: "drug" | "alcohol" = "drug", reason = "POST-ACCIDENT") =>
+      ({ source: "test" as const, medstopId: id, person: person(id, `Name ${id}`), kind, reason, collectedOn: "2026-10-09", outcome });
+    const results = { recent: [row("t1", "negative_dilute"), row("t2", "positive"), row("t3", "negative_dilute", "alcohol"), row("t4", "negative_dilute", "drug", "OTHER")], history: [] };
+    state.role = "safety_manager";
+    const w = await render(program({ results }), "/drug-alcohol?tab=results");
+    const buttons = w.findAll("button").filter((b) => b.text() === "Order a recollection");
+    expect(buttons).toHaveLength(1);
+    await buttons[0]!.trigger("click");
+    await flushPromises();
+    expect(w.find('[data-test="order-drawer"]').text()).toBe("recollect:t1:m-t1:POST-ACCIDENT");
+    state.role = "auditor";
+    const viewer = await render(program({ results }), "/drug-alcohol?tab=results");
+    expect(viewer.text()).not.toContain("Order a recollection");
+    state.role = null;
+  });
 });
+

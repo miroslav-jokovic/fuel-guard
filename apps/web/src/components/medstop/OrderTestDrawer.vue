@@ -8,6 +8,7 @@ import {
   MEDSTOP_NOTIFY_BY_LABEL,
   MEDSTOP_ORDER_MAX_DAYS_AHEAD,
   MEDSTOP_ORDER_REASON_LABEL,
+  formatDisplayDate,
   formatDisplayWallTime,
   medstopDefaultGoBy,
   medstopOrderIsObserved,
@@ -30,6 +31,7 @@ import {
   AppRadioGroup,
   AppSegmentedControl,
   AppSelect,
+  AppSwitch,
 } from "@silvicom/ui";
 import SlideOver from "@/components/SlideOver.vue";
 import { FactList, type Fact } from "@silvicom/ui";
@@ -56,7 +58,9 @@ import { searchSites, useOrderContext, useOrderPreview, usePlaceOrder } from "@/
  */
 export type OrderSeed =
   | { kind: "selection"; selectionId: string; medstopId: string; name: string; service: MedstopOrderService }
-  | { kind: "applicant"; medstopId: string; name: string; zip?: string | null; locationId?: string | null };
+  | { kind: "applicant"; medstopId: string; name: string; zip?: string | null; locationId?: string | null }
+  // MSO3 (D-MSO4): a negative-dilute drug result's recollection — its own reason, its person; drug only.
+  | { kind: "recollection"; testId: string; medstopId: string; name: string; reason: MedstopOrderReason; collectedOn: string | null; zip?: string | null };
 const props = defineProps<{ open: boolean; seed: OrderSeed | null }>();
 const emit = defineEmits<{ close: []; placed: [] }>();
 
@@ -74,6 +78,11 @@ const reason = ref<MedstopOrderReason>("POST-ACCIDENT");
 const requestDate = ref<string | null>(medstopDefaultGoBy(today.value).requestDate);
 const requestTime = ref(MEDSTOP_GO_BY_TIME);
 const goByTouched = ref(false);
+// MSO3 (D-MSO4): off by default; the office decides. Shown only on a recollection — observation outside
+// §40.67's cases is not the employer's to choose, and the api refuses it anywhere else.
+const observedChoice = ref(false);
+// Declared before the seed's watch, which runs at once and may search (`find` reads it).
+const recollection = computed(() => (props.seed?.kind === "recollection" ? props.seed : null));
 const notifyBy = ref<MedstopNotifyBy>("PHONE CALL");
 const zip = ref("");
 const sites = ref<MedstopSite[]>([]);
@@ -88,8 +97,9 @@ watch(
     if (!open) return;
     medstopId.value = seed?.medstopId ?? "";
     service.value = seed?.kind === "selection" ? seed.service : "drug";
-    reason.value = seed?.kind === "selection" ? "RANDOM" : seed?.kind === "applicant" ? "PRE-EMPLOYMENT" : "POST-ACCIDENT";
-    zip.value = seed?.kind === "applicant" ? (seed.zip ?? "") : "";
+    reason.value = seed?.kind === "selection" ? "RANDOM" : seed?.kind === "applicant" ? "PRE-EMPLOYMENT" : seed?.kind === "recollection" ? seed.reason : "POST-ACCIDENT";
+    zip.value = seed?.kind === "applicant" || seed?.kind === "recollection" ? (seed.zip ?? "") : "";
+    observedChoice.value = false;
     sites.value = [];
     siteId.value = "";
     near.value = null;
@@ -122,10 +132,11 @@ const people = computed(() => context.data.value?.people ?? []);
 const person = computed(() => people.value.find((p) => p.medstopId === medstopId.value) ?? null);
 const off = computed(() => context.data.value !== undefined && (!context.data.value.enabled || !context.data.value.contactSet));
 const reasonOptions = MEDSTOP_HEADER_ORDER_REASONS.map((r) => ({ value: r, label: MEDSTOP_ORDER_REASON_LABEL[r] }));
-const applicant = computed(() => props.seed?.kind === "applicant");
+const applicant = computed(() => props.seed?.kind === "applicant" || recollection.value?.reason === "PRE-EMPLOYMENT");
 const title = computed(() =>
   props.seed?.kind === "selection" ? `Random selection · ${props.seed.name}`
   : props.seed?.kind === "applicant" ? `Pre-employment · ${props.seed.name}`
+  : props.seed?.kind === "recollection" ? `Recollection · ${props.seed.name}`
   : "Drug or alcohol test through Med-Stop",
 );
 const notifyOptions = MEDSTOP_NOTIFY_BY.map((n) => ({ value: n, label: MEDSTOP_NOTIFY_BY_LABEL[n] }));
@@ -145,6 +156,7 @@ const input = computed((): MedstopOrderInput | null =>
         service: service.value,
         reason: reason.value,
         ...(props.seed?.kind === "selection" ? { selectionId: props.seed.selectionId } : {}),
+        ...(recollection.value ? { recollectionOf: recollection.value.testId, observed: observedChoice.value } : {}),
         locationId: siteId.value,
         requestDate: requestDate.value,
         requestTime: requestTime.value,
@@ -156,8 +168,8 @@ const input = computed((): MedstopOrderInput | null =>
 watch(input, () => (reviewed.value = null), { deep: true });
 // The sites found were for one test, reason and person: an observed drug test only lists sites with an
 // observer of the donor's gender (UX5d), so a search for anything else no longer applies.
-const observed = computed(() => medstopOrderIsObserved({ reason: reason.value, service: service.value }));
-watch([service, reason, medstopId], () => {
+const observed = computed(() => medstopOrderIsObserved({ reason: reason.value, service: service.value, observed: observedChoice.value }));
+watch([service, reason, medstopId, observedChoice], () => {
   sites.value = [];
   siteId.value = "";
   near.value = null;
@@ -167,7 +179,11 @@ async function find(by: "zip" | "truck"): Promise<void> {
   if (!requestDate.value) return;
   searching.value = true;
   try {
-    const base = { service: service.value, reason: reason.value, requestDate: requestDate.value, requestTime: requestTime.value, ...(medstopId.value ? { medstopId: medstopId.value } : {}) };
+    const base = {
+      service: service.value, reason: reason.value, requestDate: requestDate.value, requestTime: requestTime.value,
+      ...(medstopId.value ? { medstopId: medstopId.value } : {}),
+      ...(recollection.value && observedChoice.value ? { observed: true } : {}),
+    };
     const found = await searchSites(by === "zip" ? { ...base, zip: zip.value.trim() } : { ...base, driverId: person.value!.driverId });
     sites.value = found.sites;
     near.value = by === "truck" ? (found.near ?? "the truck's last position") : `ZIP ${zip.value.trim()}`;
@@ -215,6 +231,9 @@ const reviewFacts = computed((): Fact[] => {
     { label: applicant.value ? "Applicant" : "Driver", value: r.person.name },
     // An observed order says so, and says nothing more: the donor's gender is Med-Stop's, never shown here (Q-MSUX10).
     { label: "Test", value: `${p.category === "TD" ? "Drug" : "Alcohol"} · ${MEDSTOP_ORDER_REASON_LABEL[p.reason]} · DOT, ${p.observed === "Y" ? "observed (same-gender observer)" : "unobserved"}` },
+    ...(recollection.value
+      ? [{ label: "Recollects", value: `The negative-dilute drug test${recollection.value.collectedOn ? ` collected ${formatDisplayDate(recollection.value.collectedOn)}` : ""}` }]
+      : []),
     { label: "Go by", value: formatDisplayWallTime(`${p.requestdate}T${p.requesttime}`) },
     { label: "Where", value: site.value ? `${site.value.name}${site.value.city ? `, ${site.value.city}` : ""}` : p.locationid },
     { label: "Paid by", value: "Billed to the company's Med-Stop credit" },
@@ -234,7 +253,17 @@ const reviewFacts = computed((): Fact[] => {
         <AppCombobox :id="id" v-model="medstopId" :options="people.map((p) => ({ value: p.medstopId, label: p.name }))" placeholder="Search a name" :loading="context.isLoading.value" :disabled="off" />
       </FormField>
 
-      <AppSegmentedControl v-model="service" :options="serviceOptions" label="Test" :disabled="seed?.kind === 'selection' || off" />
+      <AppSegmentedControl v-model="service" :options="serviceOptions" label="Test" :disabled="seed?.kind === 'selection' || seed?.kind === 'recollection' || off" />
+
+      <div v-if="recollection" class="flex items-start justify-between gap-4 rounded-surface border border-edge p-3">
+        <div>
+          <p class="font-medium text-ink">Observed collection</p>
+          <p class="text-xs text-ink-muted">
+            Off unless you choose it. On, a same-gender observer watches the collection — what 49 CFR 40.197(b)(1) requires when the MRO directs an observed recollection.
+          </p>
+        </div>
+        <AppSwitch v-model="observedChoice" label="Observed collection" :disabled="off" />
+      </div>
 
       <FormField v-if="!seed" v-slot="{ id }" label="Reason" hint="Return-to-duty and follow-up drug tests are observed by a same-gender observer (49 CFR 40.67), so pick the driver before searching for a site.">
         <AppSelect :id="id" v-model="reason" :options="reasonOptions" :disabled="off" />
@@ -265,7 +294,7 @@ const reviewFacts = computed((): Fact[] => {
           <BaseButton :disabled="off || searching || !/^\d{5}$/.test(zip.trim()) || (observed && !medstopId)" @click="find('zip')">Search</BaseButton>
           <BaseButton v-if="!applicant" :disabled="off || searching || !person" @click="find('truck')">Near the truck</BaseButton>
         </div>
-        <p v-if="near" class="text-xs text-ink-muted">{{ sites.length }} sites near {{ near }}, Med-Stop's own first.</p>
+        <p v-if="near" class="text-xs text-ink-muted">{{ sites.length }} {{ sites.length === 1 ? "site" : "sites" }} near {{ near }}, Med-Stop's own first.</p>
         <AppRadioGroup v-if="sites.length" v-model="siteId" :options="siteOptions" legend="Collection site" />
       </div>
 

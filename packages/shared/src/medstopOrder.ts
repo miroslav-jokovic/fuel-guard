@@ -72,8 +72,16 @@ export const MEDSTOP_HEADER_ORDER_REASONS = MEDSTOP_ORDER_REASONS.filter((r) => 
  * reason is observed from this drawer: §40.67's other cases follow a laboratory, MRO or collector finding.
  */
 export const MEDSTOP_OBSERVED_REASONS = ["RETURN TO DUTY", "FOLLOW-UP"] as const satisfies readonly MedstopOrderReason[];
-export const medstopOrderIsObserved = (o: Pick<MedstopOrderInput, "reason" | "service">): boolean =>
+/** Observation the REASON forces (§40.67(b)) — no switch turns it off. */
+export const medstopReasonForcesObservation = (o: Pick<MedstopOrderInput, "reason" | "service">): boolean =>
   o.service === "drug" && (MEDSTOP_OBSERVED_REASONS as readonly string[]).includes(o.reason);
+/**
+ * Whether the order is observed: forced by its reason, or — MSO3, owner's ruling D-MSO4 — chosen by the office
+ * for a RECOLLECTION after a negative-dilute drug result (`observed: true`, allowed only with `recollectionOf`,
+ * see the schema). The choice adds observation; it can never remove what §40.67(b) forces.
+ */
+export const medstopOrderIsObserved = (o: Pick<MedstopOrderInput, "reason" | "service"> & { observed?: boolean }): boolean =>
+  medstopReasonForcesObservation(o) || (o.service === "drug" && o.observed === true);
 
 /**
  * The donor's gender, as Med-Stop's own employee record holds it (`gender`, capitals — measured
@@ -130,11 +138,28 @@ export const medstopOrderInputSchema = z
     requestDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
     requestTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
     notifyBy: z.enum(MEDSTOP_NOTIFY_BY),
+    /**
+     * MSO3 (D-MSO4): the Med-Stop TEST this order recollects — a negative-dilute drug result. The api checks it
+     * is that person's, a drug test, and negative-dilute; only a reader of testing records may send it.
+     */
+    recollectionOf: z.string().trim().min(1).optional(),
+    /** MSO3: the office's choice of a directly observed recollection (§40.197(b)(1)). Off unless chosen. */
+    observed: z.boolean().optional(),
   })
   .strict()
-  .refine((o) => (o.reason === "RANDOM") === (o.selectionId !== undefined), {
+  // A random test comes from its selection — except its recollection, which comes from the dilute test it repeats.
+  .refine((o) => (o.reason === "RANDOM" ? o.selectionId !== undefined || o.recollectionOf !== undefined : o.selectionId === undefined), {
     message: "A random test is ordered from its selection, and only a random test carries one.",
     path: ["selectionId"],
+  })
+  .refine((o) => o.recollectionOf === undefined || (o.service === "drug" && o.selectionId === undefined), {
+    message: "A recollection repeats a drug test, and is not ordered from a selection.",
+    path: ["recollectionOf"],
+  })
+  // Observation outside §40.67's cases is not the office's to choose: the switch exists only on a recollection.
+  .refine((o) => o.observed !== true || o.recollectionOf !== undefined, {
+    message: "A collection is observed by choice only when it recollects a negative-dilute result.",
+    path: ["observed"],
   });
 export type MedstopOrderInput = z.infer<typeof medstopOrderInputSchema>;
 
@@ -183,9 +208,11 @@ export function buildMedstopOrderPayload(input: MedstopOrderInput, contact: Meds
     category: MEDSTOP_ORDER_SERVICE_CODE[input.service],
     reason: input.reason,
     dotstatus: "Y",
-    ...(medstopOrderIsObserved(input)
+    ...(medstopReasonForcesObservation(input)
       ? { observed: "Y" as const, observedreason: `${MEDSTOP_ORDER_REASON_LABEL[input.reason]} drug test: directly observed collection required by 49 CFR 40.67(b).` }
-      : { observed: "N" as const }),
+      : medstopOrderIsObserved(input)
+        ? { observed: "Y" as const, observedreason: MEDSTOP_RECOLLECTION_OBSERVED_REASON }
+        : { observed: "N" as const }),
     requestdate: input.requestDate,
     requesttime: input.requestTime,
     locationid: input.locationId,
@@ -197,6 +224,10 @@ export function buildMedstopOrderPayload(input: MedstopOrderInput, contact: Meds
     toemail: contact.email,
   };
 }
+
+/** Why a recollection is observed, for the collector (D-MSO4: the office's choice, citing the rule it follows). */
+export const MEDSTOP_RECOLLECTION_OBSERVED_REASON =
+  "Recollection after a negative-dilute result: immediate recollection under direct observation, 49 CFR 40.197(b)(1).";
 
 /** Med-Stop's request statuses that are not finished — a second order beside one of these is refused. */
 const OPEN_REQUEST_STATUSES: ReadonlySet<string> = new Set(["PROCESSING", "OPEN", "ACTIVE", "PREPARE", "TESTING"]);

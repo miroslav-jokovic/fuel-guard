@@ -61,7 +61,10 @@ interface Seed {
   queue?: unknown[];
   existingVerdicts?: unknown[];
 }
+/** 0561's claim, as the database answers it: one live claim per lead; a release gives it back. */
+let claims: Set<string> = new Set();
 function seed(over: Seed = {}): SupabaseRecorder {
+  claims = new Set();
   suppressions = (over.suppressions ?? []).map((s) => ({ lifted_at: null, ...s }));
   rec = createSupabaseRecorder({
     tables: {
@@ -121,6 +124,16 @@ function seed(over: Seed = {}): SupabaseRecorder {
         return { conversion_id: "conv-1", lead_id: LEAD, driver_id: a.p_driver, created: true };
       }
       if (fn === "recruiting_lead_queue") return over.queue ?? [];
+      if (fn === "claim_lead_conversion") {
+        const a = args as { p_lead: string };
+        if (claims.has(a.p_lead)) return "busy";
+        claims.add(a.p_lead);
+        return "claimed";
+      }
+      if (fn === "release_lead_conversion") {
+        claims.delete((args as { p_lead: string }).p_lead);
+        return null;
+      }
       return null;
     },
   });
@@ -282,6 +295,32 @@ describe("converting a lead", () => {
   it("is refused to a view-only role", async () => {
     seed();
     expect((await post(`/leads/${LEAD}/convert`, "auditor", { driver_id: null })).status).toBe(403);
+  });
+
+  it("pressed twice at once makes ONE applicant: the second request is told a conversion is under way (audit M1, 0561)", async () => {
+    seed();
+    const [a, b] = await Promise.all([
+      post(`/leads/${LEAD}/convert`, "recruiter", { driver_id: null }),
+      post(`/leads/${LEAD}/convert`, "recruiter", { driver_id: null }),
+    ]);
+    expect([a.status, b.status].sort()).toEqual([201, 409]);
+    const loser = a.status === 409 ? a : b;
+    expect(((await loser.json()) as { error: { code: string } }).error.code).toBe("conversion_in_progress");
+    expect(rec.writtenRows("drivers")).toHaveLength(1);
+    expect(rec.rpcs().filter((c) => c.fn === "convert_lead")).toHaveLength(1);
+  });
+
+  it("a conversion that fails after its claim gives the claim back, so the retry is not made to wait", async () => {
+    seed({ convertError: "RL022" });
+    expect((await post(`/leads/${LEAD}/convert`, "recruiter", { driver_id: null })).status).toBe(409);
+    expect(rec.rpcs().map((c) => c.fn)).toEqual(["claim_lead_conversion", "convert_lead", "release_lead_conversion"]);
+    expect(claims.has(LEAD)).toBe(false);
+  });
+
+  it("attaching to an applicant already on the board takes no claim: it creates nothing", async () => {
+    seed();
+    await post(`/leads/${LEAD}/convert`, "recruiter", { driver_id: APPLICANT });
+    expect(rec.rpcs().map((c) => c.fn)).toEqual(["convert_lead"]);
   });
 });
 
