@@ -90,6 +90,7 @@ export * from "./applicantMessages.js";
 export * from "./recruitingMessages.js";
 export * from "./samsara/index.js";
 export * from "./ads/index.js";
+export * from "./recruiting/leads/index.js";
 export * from "./srgb.js";
 export * from "./recon/tankFuel.js";
 export * from "./recon/odometer.js";
