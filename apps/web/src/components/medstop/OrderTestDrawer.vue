@@ -2,11 +2,14 @@
 import { computed, ref, watch } from "vue";
 import {
   DEFAULT_ORG_TIMEZONE,
+  MEDSTOP_GO_BY_TIME,
   MEDSTOP_NOTIFY_BY,
   MEDSTOP_HEADER_ORDER_REASONS,
   MEDSTOP_NOTIFY_BY_LABEL,
   MEDSTOP_ORDER_MAX_DAYS_AHEAD,
   MEDSTOP_ORDER_REASON_LABEL,
+  formatDisplayWallTime,
+  medstopDefaultGoBy,
   medstopOrderIsObserved,
   shiftDay,
   todayInZone,
@@ -31,7 +34,6 @@ import {
 import SlideOver from "@/components/SlideOver.vue";
 import { FactList, type Fact } from "@silvicom/ui";
 import { useToastStore } from "@/stores/toast";
-import { formatDate } from "@/lib/format";
 import { searchSites, useOrderContext, useOrderPreview, usePlaceOrder } from "@/composables/useMedstopOrder";
 
 /**
@@ -46,24 +48,32 @@ import { searchSites, useOrderContext, useOrderPreview, usePlaceOrder } from "@/
  * same inputs, which the api rebuilds with the same function. Any change after the review clears it.
  * What the review must say, because the owner ruled it (answer 5): Med-Stop will not text or e-mail
  * the driver — its notices go to the office.
+ *
+ * MSO1 (§7A.21, D-MSO2): the day and time are a **"Go by"** deadline, not an appointment — the office's
+ * own orders are collected a median 2.2 h before the time they name, which clusters at 4 pm. So it
+ * defaults to the next business day at 4 pm on the CARRIER's clock (the api's `today` and zone, never
+ * the laptop's), and the hiring step's site search starts at the applicant's Part 1 home ZIP.
  */
 export type OrderSeed =
   | { kind: "selection"; selectionId: string; medstopId: string; name: string; service: MedstopOrderService }
-  | { kind: "applicant"; medstopId: string; name: string };
+  | { kind: "applicant"; medstopId: string; name: string; zip?: string | null };
 const props = defineProps<{ open: boolean; seed: OrderSeed | null }>();
-const emit = defineEmits<{ close: [] }>();
+const emit = defineEmits<{ close: []; placed: [] }>();
 
 const toast = useToastStore();
 const context = useOrderContext(computed(() => props.open));
 const preview = useOrderPreview();
 const place = usePlaceOrder();
 
-const today = todayInZone(new Date(), DEFAULT_ORG_TIMEZONE);
+// The carrier's today once the api answers; until then the column's own default zone, only so the
+// field is never empty — the "Go by" below is re-set from the api's answer as soon as it lands.
+const today = computed(() => context.data.value?.today ?? todayInZone(new Date(), DEFAULT_ORG_TIMEZONE));
 const medstopId = ref("");
 const service = ref<MedstopOrderService>("drug");
 const reason = ref<MedstopOrderReason>("POST-ACCIDENT");
-const requestDate = ref<string | null>(today);
-const requestTime = ref("09:00");
+const requestDate = ref<string | null>(medstopDefaultGoBy(today.value).requestDate);
+const requestTime = ref(MEDSTOP_GO_BY_TIME);
+const goByTouched = ref(false);
 const notifyBy = ref<MedstopNotifyBy>("PHONE CALL");
 const zip = ref("");
 const sites = ref<MedstopSite[]>([]);
@@ -79,13 +89,26 @@ watch(
     medstopId.value = seed?.medstopId ?? "";
     service.value = seed?.kind === "selection" ? seed.service : "drug";
     reason.value = seed?.kind === "selection" ? "RANDOM" : seed?.kind === "applicant" ? "PRE-EMPLOYMENT" : "POST-ACCIDENT";
+    zip.value = seed?.kind === "applicant" ? (seed.zip ?? "") : "";
     sites.value = [];
     siteId.value = "";
     near.value = null;
     reviewed.value = null;
+    goByTouched.value = false;
+    setGoBy();
   },
   { immediate: true },
 );
+
+function setGoBy(): void {
+  const goBy = context.data.value?.goBy ?? medstopDefaultGoBy(today.value);
+  requestDate.value = goBy.requestDate;
+  requestTime.value = goBy.requestTime;
+}
+// The api's carrier-clock default arrives after the drawer opens; it wins until the office edits the field.
+watch(() => context.data.value?.goBy, () => {
+  if (props.open && !goByTouched.value) setGoBy();
+});
 
 const people = computed(() => context.data.value?.people ?? []);
 const person = computed(() => people.value.find((p) => p.medstopId === medstopId.value) ?? null);
@@ -161,8 +184,13 @@ async function confirm(): Promise<void> {
   if (!input.value || !reviewed.value) return;
   try {
     const placed = await place.mutateAsync(input.value);
-    const where = applicant.value ? "in this step" : "under In progress";
-    toast.success("Test ordered", `Med-Stop request ${placed.requestId} for ${reviewed.value.person.name}. It appears ${where} after the next read.`);
+    const name = reviewed.value.person.name;
+    if (placed.appointment === "filled")
+      toast.success("Test ordered", `Med-Stop request ${placed.requestId} for ${name}. The step's appointment now holds the site, the deadline and the code — text it to the applicant from there.`);
+    else if (placed.appointment)
+      toast.success("Test ordered", `Med-Stop request ${placed.requestId} for ${name}. Med-Stop's site details could not be copied into the appointment, so write it in the step before texting the applicant.`);
+    else toast.success("Test ordered", `Med-Stop request ${placed.requestId} for ${name}. It is listed under In progress.`);
+    emit("placed");
     emit("close");
   } catch (e) {
     toast.error("The order was not placed", e instanceof Error ? e.message : undefined);
@@ -179,7 +207,7 @@ const reviewFacts = computed((): Fact[] => {
     { label: applicant.value ? "Applicant" : "Driver", value: r.person.name },
     // An observed order says so, and says nothing more: the donor's gender is Med-Stop's, never shown here (Q-MSUX10).
     { label: "Test", value: `${p.category === "TD" ? "Drug" : "Alcohol"} · ${MEDSTOP_ORDER_REASON_LABEL[p.reason]} · DOT, ${p.observed === "Y" ? "observed (same-gender observer)" : "unobserved"}` },
-    { label: "When", value: `${formatDate(p.requestdate)} at ${p.requesttime}` },
+    { label: "Go by", value: formatDisplayWallTime(`${p.requestdate}T${p.requesttime}`) },
     { label: "Where", value: site.value ? `${site.value.name}${site.value.city ? `, ${site.value.city}` : ""}` : p.locationid },
     { label: "Paid by", value: "Billed to the company's Med-Stop credit" },
     { label: "Notices", value: `Med-Stop will not text or e-mail the ${applicant.value ? "applicant" : "driver"}. Its notices go to ${p.toemail} and ${p.tosms}.` },
@@ -204,14 +232,22 @@ const reviewFacts = computed((): Fact[] => {
         <AppSelect :id="id" v-model="reason" :options="reasonOptions" :disabled="off" />
       </FormField>
 
-      <div class="grid grid-cols-2 gap-3">
-        <FormField v-slot="{ id }" label="Collection day">
-          <AppDateField :id="id" v-model="requestDate" :min-date="today" :max-date="shiftDay(today, MEDSTOP_ORDER_MAX_DAYS_AHEAD)" :disabled="off" />
+      <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <FormField v-slot="{ id }" label="Go by">
+          <AppDateField
+            :id="id"
+            v-model="requestDate"
+            :min-date="today"
+            :max-date="shiftDay(today, MEDSTOP_ORDER_MAX_DAYS_AHEAD)"
+            :disabled="off"
+            @update:model-value="goByTouched = true"
+          />
         </FormField>
         <FormField v-slot="{ id }" label="Time">
-          <BaseInput :id="id" v-model="requestTime" type="time" :disabled="off" />
+          <BaseInput :id="id" v-model="requestTime" type="time" :disabled="off" @update:model-value="goByTouched = true" />
         </FormField>
       </div>
+      <p class="-mt-3 text-xs text-ink-muted">{{ applicant ? "The applicant" : "The driver" }} may go any time before this. Times are the carrier's clock.</p>
 
       <div class="space-y-2">
         <div class="flex items-end gap-2">

@@ -60,7 +60,7 @@ import { drugAlcoholRouter } from "./modules/medstop/index.js";
 import { adsRouter } from "./modules/ads/index.js";
 import { roadsideInspectionsRouter } from "./modules/inspections/index.js";
 import { hazmatRouter, meHazmatRouter, publicHazmatRouter } from "./modules/hazmat/index.js";
-import { publicApplicationRouter, recruitmentRouter } from "./modules/recruiting/index.js";
+import { publicApplicationRouter, recordOrderedDrugTest, recruitmentRouter } from "./modules/recruiting/index.js";
 import { complianceRouter } from "./modules/evidence/index.js";
 import { driverAppSettingsRouter, meRouter } from "./modules/driver-app/index.js";
 import { chatRouters, notificationsRouter, messagesRouter } from "./modules/messaging/index.js";
@@ -263,7 +263,9 @@ function mountApiRouters(app: Express, env: Env): void {
   app.use("/api/livemap", liveMapRouter()); // the dispatcher's board (LM6) — gated dispatch:view
   app.use("/api/idle", idleRouter()); // the idle cost basis (Q9) — gated safety:view
   app.use("/api/ads", adsRouter()); // ads module guard: settings, kill switch, spend approvals (ADS A5)
-  app.use("/api/drug-alcohol", drugAlcoholRouter()); // Med-Stop program view (MEDSTOP MS1) — gated safety:view
+  // Med-Stop program view (MEDSTOP MS1) — gated safety:view. A pre-employment order fills the hiring step's
+  // appointment through recruiting's writer, handed in here because medstop may not import recruiting (MSO1).
+  app.use("/api/drug-alcohol", drugAlcoholRouter({ fillOrderedAppointment: recordOrderedDrugTest }));
   app.use("/api/roadside-inspections", roadsideInspectionsRouter()); // the inspections list + Roadside card (Q-FM7) — gated safety:view
   mountPublic(app); // M7 hazmat calculator + H5 application intake — both unauthenticated
   app.use("/api/hazmat", hazmatRouter());

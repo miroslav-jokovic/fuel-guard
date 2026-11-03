@@ -258,4 +258,10 @@ describe("smsDrugTestSite (D-AW6, C2d)", () => {
     const text = smsDrugTestSite("Silvicom Inc", { ...params, site_phone: null, window_end: null, donor_reference: null }, "America/Chicago", "CDT");
     expect(text).toBe("Silvicom Inc: Your drug test is at Concentra Joliet, 100 Main St, Joliet, IL, 09/28/2026 9:00 AM CDT. Bring your photo ID. Reply STOP to opt out.");
   });
+
+  it("names the end's day when the window runs past midnight — a Med-Stop order's 'go by' is tomorrow's 4 pm (MSO1)", () => {
+    const text = smsDrugTestSite("Silvicom Inc", { ...params, window_start: "2026-09-28T18:40:00.000Z", window_end: "2026-09-29T21:00:00.000Z" }, "America/Chicago", "CDT");
+    expect(text).toContain("09/28/2026 1:40 PM to 09/29/2026 4:00 PM CDT.");
+  });
+
 });

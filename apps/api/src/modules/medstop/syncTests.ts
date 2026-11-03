@@ -141,3 +141,23 @@ export async function sweepMedstopTests(
   await merge(admin, orgId, "tests", testRows);
   return { requests: requests.length, tests: tests.length, trails: trails.size, baseline };
 }
+
+/**
+ * One request just placed from the product, into the mirror at once (MSO1, G5) — so the hiring step shows
+ * the open order, not **Order pre-employment test**, without waiting up to an hour for the sweep. The
+ * SAME list and the SAME mapping the hourly sweep uses (a window from yesterday, which every new order's
+ * collection day is on or after), filtered to the one id: no second reading of Med-Stop's shape, and the
+ * next sweep writes the identical row. `false` when Med-Stop does not list it yet — the sweep will.
+ */
+export async function mirrorPlacedRequest(
+  admin: SupabaseClient,
+  client: MedstopClient,
+  orgId: string,
+  requestId: string,
+  today: CalendarDay,
+): Promise<boolean> {
+  const rows = await client.list(`/Request/list?requestedafter=${shiftDay(today, -1)}`, medstopRequestRow);
+  const placed = rows.filter((r) => r.id === requestId);
+  await merge(admin, orgId, "requests", placed.map(requestRecord));
+  return placed.length > 0;
+}

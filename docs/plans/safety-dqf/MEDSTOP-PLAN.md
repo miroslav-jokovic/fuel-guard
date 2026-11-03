@@ -1154,3 +1154,29 @@ SQL, counts only). Nothing was ordered.
   before it); tests near home. Gaps G1–G6, proposal MSO1–MSO3, questions Q-MSO1–Q-MSO4. Nothing built.
 - 2026-11-03 — Owner answered Q-MSO1–4 (D-MSO1–D-MSO4 under §7A.21). Build handed to a fresh chat:
   `docs/plans/safety-dqf/HANDOFF-2026-11-03-MEDSTOP-ORDERING.md` (branch `claude/medstop-order-fills-step`).
+- 2026-11-03 — **MSO1 built (D-MSO1, D-MSO2; no migration, no new Med-Stop write).**
+  - After **Place order**, a pre-employment order reads `GET /Request/{id}` back (`orderFollowUp.ts`). The step's
+    appointment is written from it through recruiting's own writer (`recordOrderedDrugTest` →
+    `arrangeDrugTest`): site (`location`), address (`address`, `address1`, city, state, zip), phone (`phone1` +
+    `ext1`), and the reference (`code`, plus `registrationnumber` when it differs). The window runs **from the
+    moment of the order until the "go by"**, on the carrier's clock. The office sends it with the appointment's
+    existing **Text it to the applicant** (outbox). `/notify` stays off `MEDSTOP_WRITES`.
+  - The writer is handed to medstop by `app.ts`: `recruiting -> medstop` is already an arrow, so the other way
+    would be a cycle.
+  - Nothing after the POST can fail the order. An unreadable request is `site_unread` and a refused fill is
+    `not_filled`; the toast tells the office to write the appointment by hand. Either way the request id comes back.
+  - The placed request goes into the mirror at once, through the sweep's own `/Request/list` and `requestRecord`
+    (window from yesterday, filtered to the id). So the step shows the open order, with its site and go-by,
+    **instead of** the Order button (G5). It still offers the drug order beside an open alcohol one.
+  - "Collection day / Time" is now **Go by**. It defaults to the next business day (Mon–Fri) at 16:00, computed by
+    the api on the carrier's clock (`medstopDefaultGoBy`). **Holidays are not modelled anywhere in the product;**
+    the office moves the day by hand.
+  - The site search's ZIP starts at the live invitation's Part 1 `postal_code` (5 digits), served with the step's
+    Med-Stop answer.
+  - `smsDrugTestSite` now names the end's date when the window crosses midnight. "1:00 PM to 4:00 PM" would have
+    told the applicant today.
+  - ⚠ **Correction to the handoff: the outbox has no Spanish.** The drug-test text is English only, and it is
+    not catalogue wording (§12 D-MT1: it carries rules). D-MSO1's "English/Spanish" would need a Spanish
+    `smsDrugTestSite` and the applicant's language on the invitation. That is not built, and it is not this work.
+  - [?] still open until the first real order: `requestdate`'s exact format (falls back to the deadline sent),
+    and whether `code` is what the site asks for.

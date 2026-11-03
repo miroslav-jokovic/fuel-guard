@@ -35,7 +35,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   close: [];
   review: [invitationId: string];
-  orderTest: [medstopId: string];
+  orderTest: [order: { medstopId: string; zip: string | null }];
   openStep: [key: HiringStep["key"]];
 }>();
 

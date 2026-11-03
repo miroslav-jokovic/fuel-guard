@@ -110,7 +110,7 @@ describe("texting it to the driver (C2d)", () => {
     state.appointments = [LIVE];
     const w = mountPanel();
     await settle(w);
-    await button(w, "Text it to the driver")!.trigger("click");
+    await button(w, "Text it to the applicant")!.trigger("click");
     await settle(w);
     expect(state.requests).toEqual([{ url: "/api/recruitment/applicants/d1/drug-test-appointments/a-1/send", method: "POST", body: undefined }]);
   });
@@ -119,9 +119,9 @@ describe("texting it to the driver (C2d)", () => {
     state.appointments = [{ ...LIVE, sentToDriverAt: "2026-10-01T12:00:00.000Z" }];
     const w = mountPanel();
     await settle(w);
-    expect(w.text()).toContain("Texted to the driver 10/01/2026 7:00 AM");
+    expect(w.text()).toContain("Texted to the applicant 10/01/2026 7:00 AM");
     expect(button(w, "Text it again")).toBeTruthy();
-    expect(button(w, "Text it to the driver")).toBeUndefined();
+    expect(button(w, "Text it to the applicant")).toBeUndefined();
   });
 
   it("offers no send to somebody who may only view the section", async () => {
@@ -129,7 +129,7 @@ describe("texting it to the driver (C2d)", () => {
     state.canManage = false;
     const w = mountPanel();
     await settle(w);
-    expect(button(w, "Text it to the driver")).toBeUndefined();
+    expect(button(w, "Text it to the applicant")).toBeUndefined();
   });
 });
 

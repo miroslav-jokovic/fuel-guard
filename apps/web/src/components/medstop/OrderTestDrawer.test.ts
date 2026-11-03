@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { mount, flushPromises } from "@vue/test-utils";
 import { createPinia, setActivePinia } from "pinia";
-import { computed, ref } from "vue";
+import { computed, ref, shallowRef } from "vue";
 import type { MedstopOrderInput } from "@silvicom/shared";
 
 /**
@@ -13,13 +13,23 @@ import type { MedstopOrderInput } from "@silvicom/shared";
  * and person (its sites are matched to the donor) and reviewed as observed — never naming a gender.
  */
 const api = vi.hoisted(() => ({
-  context: { enabled: true, contactSet: true, people: [{ medstopId: "EE-ANN", driverId: "d-ann", name: "Ann Pooled" }] } as unknown,
+  context: { enabled: true, contactSet: true, people: [{ medstopId: "EE-ANN", driverId: "d-ann", name: "Ann Pooled" }], today: "2026-11-06", timeZone: "America/Denver", goBy: { requestDate: "2026-11-10", requestTime: "16:00" } } as unknown,
   previewed: [] as MedstopOrderInput[],
   placed: [] as MedstopOrderInput[],
   searched: [] as Record<string, unknown>[],
+  placedAnswer: { requestId: "REQ-1", appointment: null } as { requestId: string; appointment: string | null },
+  toasts: [] as string[],
 }));
+vi.mock("@/stores/toast", () => ({
+  useToastStore: () => ({ success: (t: string, d?: string) => api.toasts.push(`${t}: ${d ?? ""}`), error: (t: string, d?: string) => api.toasts.push(`ERROR ${t}: ${d ?? ""}`) }),
+}));
+// The context is a ref the test can swap, because the api's answer may land after the drawer opens.
+const live = vi.hoisted(() => ({ context: null as { value: unknown } | null }));
 vi.mock("@/composables/useMedstopOrder", () => ({
-  useOrderContext: () => ({ data: computed(() => api.context), isLoading: ref(false) }),
+  useOrderContext: () => {
+    live.context = shallowRef(api.context);
+    return { data: computed(() => live.context!.value), isLoading: ref(false) };
+  },
   searchSites: async (q: Record<string, unknown>) => (api.searched.push(q), { sites: [{ id: "LOC-1", name: "Med-Stop Loop", address: "1 Main St", city: "Chicago", state: "IL", zip: "60601", distance: "1.2 mi", booked: 0 }], near: null }),
   useOrderPreview: () => ({
     isPending: ref(false),
@@ -33,7 +43,7 @@ vi.mock("@/composables/useMedstopOrder", () => ({
       };
     },
   }),
-  usePlaceOrder: () => ({ isPending: ref(false), mutateAsync: async (input: MedstopOrderInput) => (api.placed.push(input), { requestId: "REQ-1" }) }),
+  usePlaceOrder: () => ({ isPending: ref(false), mutateAsync: async (input: MedstopOrderInput) => (api.placed.push(input), api.placedAnswer) }),
 }));
 
 import OrderTestDrawer, { type OrderSeed } from "./OrderTestDrawer.vue";
@@ -52,7 +62,9 @@ beforeEach(() => {
   api.previewed = [];
   api.placed = [];
   api.searched = [];
-  api.context = { enabled: true, contactSet: true, people: [{ medstopId: "EE-ANN", driverId: "d-ann", name: "Ann Pooled" }] };
+  api.toasts = [];
+  api.context = { enabled: true, contactSet: true, people: [{ medstopId: "EE-ANN", driverId: "d-ann", name: "Ann Pooled" }], today: "2026-11-06", timeZone: "America/Denver", goBy: { requestDate: "2026-11-10", requestTime: "16:00" } };
+  api.placedAnswer = { requestId: "REQ-1", appointment: null };
   document.body.innerHTML = "";
 });
 
@@ -161,5 +173,65 @@ describe("OrderTestDrawer", () => {
     await render();
     expect(document.body.textContent).toContain("Ordering is switched off");
     expect(button("Review order")!.disabled).toBe(true);
+  });
+
+  it("asks for a 'Go by' deadline, defaulting to the api's next business day at 4 pm on the carrier's clock (D-MSO2)", async () => {
+    await render();
+    expect(document.body.textContent).toContain("Go by");
+    expect(document.body.textContent).toContain("may go any time before this");
+    expect(field('input[type="time"]').value).toBe("16:00");
+    await pickSite();
+    button("Review order")!.click();
+    await flushPromises();
+    // The api's answer, not the laptop's own computation (which would say Monday 11/09).
+    expect(api.previewed[0]).toMatchObject({ requestDate: "2026-11-10", requestTime: "16:00" });
+    expect(document.body.textContent).toContain("11/10/2026 4:00 PM");
+  });
+
+  it("takes the api's 'Go by' when it lands after the drawer opened, unless the office already changed it", async () => {
+    api.context = undefined;
+    await render();
+    live.context!.value = { enabled: true, contactSet: true, people: [], today: "2026-11-06", timeZone: "America/Denver", goBy: { requestDate: "2026-11-10", requestTime: "15:00" } };
+    await flushPromises();
+    expect(field('input[type="time"]').value).toBe("15:00");
+
+    api.context = undefined;
+    document.body.innerHTML = "";
+    await render();
+    const time = field('input[type="time"]');
+    time.value = "11:00";
+    time.dispatchEvent(new Event("input"));
+    await flushPromises();
+    live.context!.value = { enabled: true, contactSet: true, people: [], today: "2026-11-06", timeZone: "America/Denver", goBy: { requestDate: "2026-11-10", requestTime: "15:00" } };
+    await flushPromises();
+    expect(field('input[type="time"]').value).toBe("11:00");
+  });
+
+  it("starts the hiring step's site search at the applicant's Part 1 home ZIP (D-MSO2)", async () => {
+    await render({ kind: "applicant", medstopId: "EE-APP", name: "Al Applicant", zip: "73301" });
+    expect(field('input[placeholder="60601"]').value).toBe("73301");
+    button("Search")!.click();
+    await flushPromises();
+    expect(api.searched[0]).toMatchObject({ zip: "73301", reason: "PRE-EMPLOYMENT" });
+  });
+
+  it("says the step's appointment was filled from the order — or that it must be written by hand (D-MSO1)", async () => {
+    const order = async (appointment: string | null) => {
+      api.placedAnswer = { requestId: "REQ-1", appointment };
+      api.toasts = [];
+      const w = await render({ kind: "applicant", medstopId: "EE-APP", name: "Al Applicant", zip: "60601" });
+      button("Search")!.click();
+      await flushPromises();
+      button("Review order")!.click();
+      await flushPromises();
+      button("Place order")!.click();
+      await flushPromises();
+      return w;
+    };
+    const filled = await order("filled");
+    expect(api.toasts.join()).toContain("appointment now holds the site, the deadline and the code");
+    expect(filled.emitted("placed")).toHaveLength(1);
+    await order("site_unread");
+    expect(api.toasts.join()).toContain("could not be copied into the appointment");
   });
 });

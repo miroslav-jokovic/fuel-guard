@@ -12,6 +12,11 @@ export interface OrderContext {
   enabled: boolean;
   contactSet: boolean;
   people: MedstopOrderablePerson[];
+  /** Today and the carrier's zone — the drawer's days are the carrier's, never the laptop's (D-MSO2). */
+  today: string;
+  timeZone: string;
+  /** The default "Go by": the next business day at 4 pm on the carrier's clock (D-MSO2). */
+  goBy: { requestDate: string; requestTime: string };
 }
 
 const unwrap = async <T>(path: string, init: Parameters<typeof apiFetch>[1] | undefined, fallback: string): Promise<T> => {

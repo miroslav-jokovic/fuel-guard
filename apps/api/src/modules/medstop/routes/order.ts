@@ -1,6 +1,6 @@
 import type { Router } from "express";
 import { z } from "zod";
-import { MEDSTOP_ORDER_REASONS, MEDSTOP_ORDER_ROLES, medstopOrderInputSchema, type CalendarDay, recordId } from "@silvicom/shared";
+import { MEDSTOP_ORDER_REASONS, MEDSTOP_ORDER_ROLES, medstopDefaultGoBy, medstopOrderInputSchema, type CalendarDay, recordId } from "@silvicom/shared";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { requireRole } from "../../../middleware/auth.js";
 import { apiError, asyncHandler } from "../../../lib/http.js";
@@ -9,6 +9,7 @@ import { getAppLocals } from "../../../lib/appLocals.js";
 import { writeAudit } from "../../../lib/audit.js";
 import { getCredential } from "../credentials.js";
 import { findSites, orderablePeople, orderClient, placeOrder, prepareOrder, siteObservedFor, truckPositionOf, type OrderRefusal } from "../order.js";
+import { followUpPlacedOrder, type FillOrderedAppointment } from "../orderFollowUp.js";
 
 /**
  * Order a Med-Stop test (MEDSTOP-PLAN.md §7A.4, UX3). Gated on `MEDSTOP_ORDER_ROLES` (owner answer 1:
@@ -25,7 +26,15 @@ const sitesQuery = z.union([
   z.object({ ...planned, driverId: recordId() }),
 ]);
 
-export function registerOrderRoutes(router: Router, orgToday: (admin: SupabaseClient, orgId: string) => Promise<CalendarDay>): void {
+export interface OrderRouteDeps {
+  /** Today, and the zone it is today in, on the carrier's clock — a collection day is a calendar day there. */
+  orgClock: (admin: SupabaseClient, orgId: string) => Promise<{ today: CalendarDay; timeZone: string }>;
+  /** Recruiting's appointment writer (MSO1), handed in by `app.ts` — see `orderFollowUp.ts` for why. */
+  fillOrderedAppointment: FillOrderedAppointment;
+}
+
+export function registerOrderRoutes(router: Router, deps: OrderRouteDeps): void {
+  const orgToday = async (admin: SupabaseClient, orgId: string) => (await deps.orgClock(admin, orgId)).today;
   const canOrder = requireRole(...MEDSTOP_ORDER_ROLES);
   const refused = (res: Parameters<Parameters<typeof asyncHandler>[0]>[1], r: OrderRefusal) => res.status(r.status).json(apiError(r.code, r.message));
 
@@ -36,12 +45,18 @@ export function registerOrderRoutes(router: Router, orgToday: (admin: SupabaseCl
       const admin = getSupabaseAdmin(getAppLocals(req).env);
       const orgId = req.auth!.orgId!;
       const credential = await getCredential(admin, orgId);
+      const clock = await deps.orgClock(admin, orgId);
       res.json({
         ok: true,
         data: {
           enabled: credential?.ordersEnabled === true,
           contactSet: Boolean(credential?.orderContactEmail && credential?.orderContactPhone),
           people: await orderablePeople(admin, orgId),
+          // D-MSO2: the drawer's "Go by" starts at the next business day, 4 pm, on the CARRIER's clock —
+          // computed here so the office's laptop zone never moves it.
+          today: clock.today,
+          timeZone: clock.timeZone,
+          goBy: medstopDefaultGoBy(clock.today),
         },
       });
     }),
@@ -102,7 +117,8 @@ export function registerOrderRoutes(router: Router, orgToday: (admin: SupabaseCl
       if (!input.success) return void res.status(400).json(apiError("bad_request", input.error.issues[0]?.message ?? "Check the order."));
       const opened = await orderClient(admin, env, orgId);
       if ("refusal" in opened) return void refused(res, opened.refusal);
-      const placed = await placeOrder(admin, opened.client, opened.contact, orgId, input.data, await orgToday(admin, orgId));
+      const today = await orgToday(admin, orgId);
+      const placed = await placeOrder(admin, opened.client, opened.contact, orgId, input.data, today);
       if ("refusal" in placed) {
         // An unanswered POST may have been placed: that attempt is audited too, so the trail shows it.
         if (placed.refusal.code === "medstop_order_unknown")
@@ -117,7 +133,12 @@ export function registerOrderRoutes(router: Router, orgToday: (admin: SupabaseCl
         entityId: placed.requestId,
         meta: { ...input.data, requestId: placed.requestId, driverId: placed.person.driverId, payment: placed.payload.payment, sendsms: "N", sendemail: "N" },
       });
-      res.json({ ok: true, data: { requestId: placed.requestId } });
+      // After the audit, never before: the order is placed and recorded whatever the follow-up comes to.
+      const followed = await followUpPlacedOrder(
+        admin, opened.client, orgId, req.auth!.userId, input.data,
+        { requestId: placed.requestId, driverId: placed.person.driverId }, today, deps.fillOrderedAppointment,
+      );
+      res.json({ ok: true, data: followed });
     }),
   );
 }

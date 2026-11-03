@@ -26,6 +26,11 @@ import { readApplicantCreate } from "./applicantCreate.js";
  * The person is reached through a licence or name + date-of-birth match, as the dispatch door is
  * (`violations.ts`): a name-only match could show a recruiter somebody else's test.
  */
+/** `YYYY-MM-DDTHH:MM` off a timestamp-without-zone, or null when it carries no time of day. */
+const goByOf = (v: string | null): string | null => {
+  const m = /^(\d{4}-\d{2}-\d{2})[T ](\d{2}:\d{2})/.exec(v ?? "");
+  return m ? `${m[1]}T${m[2]}` : null;
+};
 const CERTAIN_MATCH = ["licence", "name_dob"];
 const SHOWN = 5;
 
@@ -64,7 +69,7 @@ export async function readMedstopTestsForDriver(
       .limit(SHOWN),
     admin
       .from("medstop_requests")
-      .select("medstop_id, service, reason, status, requested_local, test_medstop_id")
+      .select("medstop_id, service, reason, status, requested_local, location, test_medstop_id")
       .eq("org_id", orgId)
       .in("employee_medstop_id", ids)
       .order("requested_local", { ascending: false })
@@ -74,7 +79,7 @@ export async function readMedstopTestsForDriver(
   if (ordersRes.error) throw new Error(`medstop_requests read failed: ${ordersRes.error.message}`);
 
   type TestRow = { medstop_id: string; service: string | null; reason: string | null; status: string | null; result: string | null; collected_local: string | null };
-  type OrderRow = { medstop_id: string; service: string | null; reason: string | null; status: string | null; requested_local: string | null; test_medstop_id: string | null };
+  type OrderRow = { medstop_id: string; service: string | null; reason: string | null; status: string | null; requested_local: string | null; location: string | null; test_medstop_id: string | null };
 
   return {
     connected,
@@ -91,6 +96,10 @@ export async function readMedstopTestsForDriver(
         reason: o.reason,
         requestedOn: o.requested_local?.slice(0, 10) ?? null,
         status: o.status,
+        // MSO1: the open order's card shows where and by when. `requested_local` is Med-Stop's own
+        // wall clock (0464: timestamp WITHOUT zone) — the deadline the order was placed with.
+        site: o.location?.trim() || null,
+        goBy: goByOf(o.requested_local),
       })),
     tests: ((testsRes.data ?? []) as TestRow[]).map((t) => {
       const outcome = medstopTestOutcome(t);

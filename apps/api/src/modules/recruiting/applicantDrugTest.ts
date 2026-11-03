@@ -1,5 +1,14 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { DrugTestAppointment, DrugTestAppointmentBooking, DrugTestAppointmentList } from "@silvicom/shared";
+import {
+  DRUG_TEST_SITE_ADDRESS_MAX_LENGTH,
+  drugTestAppointmentSchema,
+  wallClockInZone,
+  type DrugTestAppointment,
+  type DrugTestAppointmentBooking,
+  type DrugTestAppointmentList,
+  type MedstopOrderedCollection,
+} from "@silvicom/shared";
+import { writeAudit } from "../../lib/audit.js";
 import { readLiveInvitation } from "./applicantChecklist.js";
 import { carrierZone, instantOf } from "./carrierClock.js";
 
@@ -177,4 +186,58 @@ export async function markDrugTestSent(admin: SupabaseClient, orgId: string, app
     .eq("org_id", orgId)
     .eq("id", appointmentId)
     .is("sent_to_driver_at", null);
+}
+
+const pad = (n: number): string => String(n).padStart(2, "0");
+
+/**
+ * The appointment a Med-Stop pre-employment order fills (MEDSTOP-PLAN §7A.21, MSO1, D-MSO1) — the same
+ * row the office would have typed, through the same writer, so "Change it", "Cancel it" and the outbox's
+ * Send work on it unchanged. Handed to medstop by `app.ts` (medstop may not import recruiting).
+ *
+ * The window is FROM NOW UNTIL the order's "go by" (D-MSO2): the office's orders are deadlines — people
+ * are collected a median 2.2 h before the requested time — so "any time until 4 pm tomorrow" is what the
+ * applicant is told, never "at 4 pm". A deadline already behind the carrier's clock (an order placed for
+ * today, late) is written as its moment alone rather than refused: the order is placed either way.
+ *
+ * Audited as the office's own arrangement (`recruiting.drug_test_arranged`), with the Med-Stop request it
+ * came from; never the reference, for the route's reason (it identifies a specimen at the lab).
+ */
+export async function recordOrderedDrugTest(
+  admin: SupabaseClient,
+  orgId: string,
+  userId: string,
+  driverId: string,
+  c: MedstopOrderedCollection,
+  now: Date = new Date(),
+): Promise<{ appointmentId: string } | { refused: string }> {
+  const zone = await carrierZone(admin, orgId);
+  const w = wallClockInZone(now, zone);
+  const start = `${w.year}-${pad(w.month)}-${pad(w.day)}T${pad(w.hour)}:${pad(w.minute)}`;
+  const booking = drugTestAppointmentSchema.safeParse({
+    site_name: c.siteName,
+    site_address: c.siteAddress.slice(0, DRUG_TEST_SITE_ADDRESS_MAX_LENGTH),
+    site_phone: c.sitePhone,
+    ...(c.goBy > start ? { window_start: start, window_end: c.goBy } : { window_start: c.goBy, window_end: null }),
+    donor_reference: c.reference,
+  });
+  if (!booking.success) return { refused: booking.error.issues[0]?.message ?? "The order's site did not fit an appointment." };
+  const result = await arrangeDrugTest(admin, orgId, userId, driverId, booking.data);
+  if (isDrugTestError(result)) return { refused: result.message };
+  await writeAudit(admin, {
+    orgId,
+    actorId: userId,
+    action: "recruiting.drug_test_arranged",
+    entity: "drug_test_appointments",
+    entityId: result.appointment.id,
+    meta: {
+      driverId,
+      invitationId: result.invitationId,
+      siteName: result.appointment.siteName,
+      windowStart: result.appointment.windowStart,
+      replaced: result.replaced,
+      medstopRequestId: c.requestId,
+    },
+  });
+  return { appointmentId: result.appointment.id };
 }

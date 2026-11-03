@@ -8,7 +8,7 @@ import type {
   EmployerVerificationCall,
   EmployerVerificationCallInput,
   EmployerVerificationList,
-  MedstopPersonTests,
+  MedstopStepTests,
 } from "@silvicom/shared";
 import { apiFetch } from "@/lib/api";
 import { applicantChecklistKey } from "@/features/recruitment/useApplicantChecklist";
@@ -40,6 +40,19 @@ function listQuery<T>(key: (id: string) => readonly unknown[], path: string, wha
   });
 }
 
+/**
+ * After a Med-Stop order from the drug-test step (MSO1): the order filled the appointment and is in
+ * Med-Stop's mirror at once, so both of the step's cards read again — the order drawer lives outside
+ * `features/` and knows neither key.
+ */
+export function useRefreshDrugTestStep(): (driverId: string) => void {
+  const qc = useQueryClient();
+  return (driverId) => {
+    void qc.invalidateQueries({ queryKey: drugTestKey(driverId) });
+    void qc.invalidateQueries({ queryKey: medstopTestsKey(driverId) });
+  };
+}
+
 function useScreeningWrite<I extends { driverId: string }, R>(
   key: (id: string) => readonly unknown[],
   send: (input: I) => Promise<R>,
@@ -62,7 +75,7 @@ export const useDrugTestAppointmentsQuery = (driverId: Ref<string>) =>
  * for a reader who may not see testing records — the API decides, so this composable cannot leak it.
  */
 export const useMedstopTestsQuery = (driverId: Ref<string>) =>
-  listQuery<MedstopPersonTests>(medstopTestsKey, "medstop-tests", "Med-Stop tests", driverId);
+  listQuery<MedstopStepTests>(medstopTestsKey, "medstop-tests", "Med-Stop tests", driverId);
 
 export function useArrangeDrugTest() {
   return useScreeningWrite(drugTestKey, async (input: { driverId: string; booking: DrugTestAppointmentBooking }) => {

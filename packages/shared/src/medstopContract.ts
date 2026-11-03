@@ -155,6 +155,10 @@ export interface MedstopOrderView {
   reason: string | null;
   requestedOn: string | null;
   status: string | null;
+  /** The collection site Med-Stop booked (its `location`), and the request's date and time as Med-Stop
+   *  holds it (`YYYY-MM-DDTHH:MM`) — the "go by" deadline (MSO1, D-MSO2). Null when Med-Stop gave none. */
+  site: string | null;
+  goBy: string | null;
 }
 
 /** The hiring drawer's drug-test step: what Med-Stop holds for this one person (F-4). */
@@ -176,6 +180,15 @@ export interface MedstopPersonTests {
   orders: MedstopOrderView[];
   tests: MedstopTestView[];
   outcomesVisible: boolean;
+}
+
+/**
+ * The drug-test step's answer (`GET /recruitment/applicants/:driverId/medstop-tests`): Med-Stop's half, and
+ * from recruiting's half the applicant's home ZIP from Part 1, which the order's site search starts from
+ * (D-MSO2 — applicants test near HOME, §7A.21). Null when Part 1 holds no 5-digit ZIP.
+ */
+export interface MedstopStepTests extends MedstopPersonTests {
+  homeZip: string | null;
 }
 
 /**

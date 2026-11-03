@@ -179,6 +179,16 @@ export function formatDisplayDateTime(
 }
 
 /**
+ * A WALL time with no zone — `YYYY-MM-DDTHH:MM` on the carrier's clock, as Med-Stop's request date and
+ * an order's "go by" are held (MSO1) — in the same `MM/DD/YYYY h:mm AM/PM`, read exactly as written.
+ * Read as UTC on purpose: the value names no instant, so no zone may move it.
+ */
+export function formatDisplayWallTime(value: string | null | undefined, fallback = EM_DASH): string {
+  const m = /^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})/.exec(value ?? "");
+  return m ? formatDisplayDateTime(`${m[1]}T${m[2]}:00Z`, fallback, "UTC") : fallback;
+}
+
+/**
  * `MM/DD` — the same date with the year dropped, for places where the year is already established by
  * the surrounding control and the space is genuinely scarce: chart axis ticks, dense timeline rails.
  *

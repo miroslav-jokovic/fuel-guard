@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { DONOR_GENDERS, type DonorGender, type MedstopApplicantFacts } from "@silvicom/shared";
+import { readLiveInvitation } from "./applicantChecklist.js";
 
 /**
  * The applicants Med-Stop should be told about (MEDSTOP-PLAN.md §7A.13, D-MS1, UX5c) — recruiting's
@@ -129,4 +130,23 @@ export async function invitationIdsOf(admin: SupabaseClient, orgId: string, driv
   const { data, error } = await admin.from("application_invitations").select("id").eq("org_id", orgId).eq("driver_id", driverId);
   if (error) throw new Error(`application_invitations read failed: ${error.message}`);
   return ((data ?? []) as { id: string }[]).map((r) => r.id);
+}
+
+/**
+ * The applicant's home ZIP from Part 1, for the order drawer's site search (MSO1, D-MSO2): applicants
+ * test near HOME — the office's 90 days of orders went to sites across the country (§7A.21). The LIVE
+ * invitation's intake only; the first five digits of a ZIP+4; null when Part 1 holds none.
+ */
+export async function partOneHomeZip(admin: SupabaseClient, orgId: string, driverId: string): Promise<string | null> {
+  const invitation = await readLiveInvitation(admin, orgId, driverId);
+  if (!invitation) return null;
+  const { data, error } = await admin
+    .from("application_intakes")
+    .select("postal_code")
+    .eq("org_id", orgId)
+    .eq("invitation_id", invitation.id)
+    .limit(1);
+  if (error) throw new Error(`application_intakes read failed: ${error.message}`);
+  const zip = /^\s*(\d{5})(?:-?\d{4})?\s*$/.exec(((data ?? [])[0] as { postal_code?: string | null } | undefined)?.postal_code ?? "");
+  return zip ? zip[1]! : null;
 }
