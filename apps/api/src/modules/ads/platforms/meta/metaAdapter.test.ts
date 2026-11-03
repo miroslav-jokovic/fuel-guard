@@ -93,6 +93,16 @@ describe("Meta adapter (B3) — launch, raise, area", () => {
     expect(await adapter().spend.changeArea({ campaign: ref(), area: { ...area, radius_miles: 60 }, idempotency_key: "k" })).toEqual({ ok: false, error_code: "area_outside_meta_limits" });
   });
 
+  it("this month's spend is the account's insights, read in dollars and answered in cents; nothing spent is 0 and an unreadable account is unknown", async () => {
+    const range = { since: "2026-11-01", until: "2026-11-15" };
+    expect(await adapter().safe.readSpendCents(range)).toBe(0);
+    meta.accounts.get(ACCOUNT)!.month_spend_cents = 140_001;
+    expect(await adapter().safe.readSpendCents(range)).toBe(140_001);
+    expect(meta.requests.at(-1)).toMatchObject({ method: "GET", path: expect.stringMatching(/\/act_\d+\/insights$/), body: { fields: "spend", level: "account", time_range: JSON.stringify(range) } });
+    meta.revokeToken();
+    expect(await adapter().safe.readSpendCents(range)).toBeNull();
+  });
+
   it("the account limit is Meta's spend_cap now; \"0\" (no limit) and an unreadable account are unknown, never unlimited", async () => {
     expect(await adapter().safe.readAccountLimitCents()).toBe(300_000);
     meta.accounts.get(ACCOUNT)!.spend_cap_cents = 0;

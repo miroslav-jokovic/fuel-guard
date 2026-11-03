@@ -14,6 +14,14 @@ import { monthlyCapFor, type AdsSettings } from "./settingsContract.js";
  * ≤ the cap, where "days left" counts today (a launch at 23:00 can still spend today's budget).
  * At the cap is allowed; a cent over is refused (boundary tests at −1/0/+1).
  *
+ * ── SPEND SO FAR IS THE LARGER OF OURS AND THE PLATFORM'S, AND THE PLATFORM'S MUST BE READ ──────────
+ * Our month-to-date is folded from `ads_spend_hourly`, which nothing writes until B5's monitor; and even
+ * then it holds only OUR campaigns, never what someone spent in the platform's own tool on the same
+ * account. A forecast from $0 would wave through a launch on an account that is already over the cap
+ * (2026-11-03 audit H4). So the guard also reads the account's spend this month from the platform NOW,
+ * and the forecast starts from the larger of the two. Unreadable refuses, as the account limit does:
+ * a spend fence that cannot see spend is not a fence.
+ *
  * ── THE PLATFORM'S OWN ACCOUNT LIMIT IS THE THIRD FENCE ────────────────────────────────────────────
  * The owner sets it by hand in the platform; our token never changes it (D-AD3.3). A launch is refused
  * while it is unknown, unset, or above our monthly cap — a limit looser than ours means the platform
@@ -33,6 +41,8 @@ export interface SpendRequest {
   current_daily_cents: number | null;
   /** This platform's spend so far this month (Central calendar month), from the spend fold. */
   month_to_date_cents: number;
+  /** The ad account's own spend this month as the platform reports it NOW; null when it could not be read. */
+  platform_month_to_date_cents: number | null;
   /** Daily budgets of the OTHER live campaigns on this platform. */
   other_live_daily_cents: number;
   /** Days left in the month, today included: 1 on the last day. */
@@ -46,6 +56,7 @@ export type SpendRefusal =
   | "kill_switch_on"
   | "caps_not_set"
   | "account_limit_unknown"
+  | "month_spend_unknown"
   | "account_limit_above_cap"
   | "daily_over_max"
   | "lifetime_over_max"
@@ -68,6 +79,7 @@ export function checkSpend(settings: AdsSettings, r: SpendRequest): SpendVerdict
   if (cap === null || dailyMax === null || lifetimeMax === null) refusals.push("caps_not_set");
   if (r.account_limit_cents === null) refusals.push("account_limit_unknown");
   else if (cap !== null && r.account_limit_cents > cap) refusals.push("account_limit_above_cap");
+  if (r.platform_month_to_date_cents === null) refusals.push("month_spend_unknown");
   if (dailyMax !== null && r.daily_cents > dailyMax) refusals.push("daily_over_max");
   if (lifetimeMax !== null && r.lifetime_cents > lifetimeMax) refusals.push("lifetime_over_max");
   if (r.lifetime_cents < r.daily_cents) refusals.push("lifetime_below_daily");
@@ -79,7 +91,8 @@ export function checkSpend(settings: AdsSettings, r: SpendRequest): SpendVerdict
   }
 
   const days = Math.max(1, Math.floor(r.days_left_in_month));
-  const forecast = r.month_to_date_cents + (r.other_live_daily_cents + r.daily_cents) * days;
+  const spent = Math.max(r.month_to_date_cents, r.platform_month_to_date_cents ?? 0);
+  const forecast = spent + (r.other_live_daily_cents + r.daily_cents) * days;
   if (cap !== null && forecast > cap) refusals.push("monthly_cap_forecast");
 
   if (refusals.length === 0 && cap !== null) return { ok: true, forecast_cents: forecast, cap_cents: cap };

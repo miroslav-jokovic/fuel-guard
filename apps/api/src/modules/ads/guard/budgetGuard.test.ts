@@ -57,13 +57,13 @@ function world(w: World = {}) {
   });
 }
 
-function platform(limit: number | null = 300_000, outcome: PlatformOutcome | Error = { ok: true, platform_refs: { ad_set: "s-1" } }) {
+function platform(limit: number | null = 300_000, outcome: PlatformOutcome | Error = { ok: true, platform_refs: { ad_set: "s-1" } }, spent: number | null = 0) {
   const act = vi.fn(async () => {
     if (outcome instanceof Error) throw outcome;
     return outcome;
   });
   return {
-    safe: { readAccountLimitCents: vi.fn(async () => limit), pause: vi.fn(async () => ({ ok: true as const })) },
+    safe: { readAccountLimitCents: vi.fn(async () => limit), readSpendCents: vi.fn(async (_r: { since: string; until: string }) => spent), pause: vi.fn(async () => ({ ok: true as const })) },
     spend: { launch: act, raiseDailyBudget: vi.fn(act), changeArea: vi.fn(act) },
   };
 }
@@ -121,6 +121,20 @@ describe("guardedSpend — the fences (each refusal is a row, and no platform ca
     const ok = world({ spendHours: [{ campaign_id: "camp-1", spend_cents: 140_000 }] });
     expect((await run(ok, platform())).kind).toBe("succeeded");
     expect(await refusedWith({ spendHours: [{ campaign_id: "camp-1", spend_cents: 140_001 }] })).toEqual(["monthly_cap_forecast"]);
+  });
+
+  it("spend the account reports this month counts even when our rows are empty, and it is read for the carrier's month so far", async () => {
+    // No `ads_spend_hourly` rows (nothing writes them before B5), but Meta says $1,400.01 was spent —
+    // in Ads Manager, say — so the same launch that fits on our rows alone is refused.
+    const p = platform(300_000, undefined, 140_001);
+    expect(await refusedWith({}, p)).toEqual(["monthly_cap_forecast"]);
+    expect(p.safe.readSpendCents).toHaveBeenCalledWith({ since: "2026-11-01", until: "2026-11-15" });
+    const ok = world({});
+    expect((await run(ok, platform(300_000, undefined, 140_000))).kind).toBe("succeeded");
+  });
+
+  it("an account whose spend cannot be read is refused, never forecast from zero", async () => {
+    expect(await refusedWith({}, platform(300_000, undefined, null))).toEqual(["month_spend_unknown"]);
   });
 
   it("the other live campaigns' daily budgets count in the forecast; a paused one does not", async () => {

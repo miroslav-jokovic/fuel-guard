@@ -850,3 +850,12 @@ blocking step in §3 above.
   - **B4a2** (next): job kind `ads_leads_backfill` (`KIND_CAPS` 1, dedup per connection), the hourly
     `ads-leads-backfill` scheduler (off unless `ADS_ENABLED`), the handler wiring `recruitingLeadSink`
     in, and the readiness pins.
+- **2026-11-03, audit fixes C — the guard reads spend from the platform** (audit H4). Nothing writes
+  `ads_spend_hourly` before B5, so the forecast always started from $0, and it never saw spend made in Ads
+  Manager on the same account. `PlatformSafe.readSpendCents` reads the account's insights for the
+  carrier's month so far (`monthContext`'s new `since_day`/`today`), and `checkSpend` forecasts from the
+  larger of our fold and the platform's figure; unreadable refuses `month_spend_unknown`. FakeMeta gains
+  `act_{id}/insights` (`fakeMetaInsights.ts`, an account's `month_spend_cents`). ⚠ The range is in the
+  org's zone; an ad account set to another zone can shift a few hours at the month's edges. 5 mutants,
+  all killed. Not done here: the account `spend_cap` is lifetime, so the limit fence should compare
+  `spend_cap − amount_spent` (audit M1) — left for its own step.

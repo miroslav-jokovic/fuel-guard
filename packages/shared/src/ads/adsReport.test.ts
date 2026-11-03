@@ -7,11 +7,11 @@ const row = (campaign_id: string, hour: string, spend_cents: number, leads = 0, 
 describe("monthContext — the carrier's month, in Central time", () => {
   it("the last evening of October in Chicago is still October, though it is November in UTC", () => {
     const m = monthContext(new Date("2026-11-01T03:30:00Z")); // 22:30 CDT on 10/31
-    expect(m).toEqual({ month: "2026-10", start: "2026-10-01T05:00:00.000Z", end: "2026-11-01T05:00:00.000Z", days_left: 1 });
+    expect(m).toEqual({ month: "2026-10", start: "2026-10-01T05:00:00.000Z", end: "2026-11-01T05:00:00.000Z", days_left: 1, since_day: "2026-10-01", today: "2026-10-31" });
   });
   it("November starts at 05:00Z (CDT) and ends at 06:00Z (CST) — DST lands inside the month", () => {
     const m = monthContext(new Date("2026-11-01T12:00:00Z"));
-    expect(m).toEqual({ month: "2026-11", start: "2026-11-01T05:00:00.000Z", end: "2026-12-01T06:00:00.000Z", days_left: 30 });
+    expect(m).toEqual({ month: "2026-11", start: "2026-11-01T05:00:00.000Z", end: "2026-12-01T06:00:00.000Z", days_left: 30, since_day: "2026-11-01", today: "2026-11-01" });
   });
   it("December rolls into January of the next year", () => {
     expect(monthContext(new Date("2026-12-31T18:00:00Z"))).toMatchObject({ month: "2026-12", end: "2027-01-01T06:00:00.000Z", days_left: 1 });
