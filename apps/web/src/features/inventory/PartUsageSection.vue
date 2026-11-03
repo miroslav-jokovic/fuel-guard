@@ -1,24 +1,49 @@
 <script setup lang="ts">
 import { computed, ref, toRef, watch } from "vue";
 import { RouterLink } from "vue-router";
-import { AppCard as BaseCard, DataTable, FactList, QueryState, TablePagination, type DataTableColumn, type Fact } from "@silvicom/ui";
-import { PART_HISTORY_PAGE_SIZE, REPEAT_WITHIN_DAYS, isRepeatOnUnit, type PartUseDto } from "@silvicom/shared";
+import {
+  AppCard as BaseCard,
+  DataTable,
+  FactList,
+  QueryState,
+  TablePagination,
+  columnsWithData,
+  type DataTableColumn,
+  type Fact,
+} from "@silvicom/ui";
+import {
+  PART_HISTORY_PAGE_SIZE,
+  PRICE_WELL_ABOVE_RATIO,
+  REPEAT_WITHIN_DAYS,
+  isPriceWellAbove,
+  isRepeatOnUnit,
+  usd2,
+  type PartUseDto,
+} from "@silvicom/shared";
 import { usePartUsageDetailQuery } from "./usePartUsage";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { formatDate } from "@/lib/format";
 
 /**
- * How the shop uses one part, and where it went (SHOP-PARTS-USAGE-PLAN.md SP-U2) — the part's page's
- * answer to "how many do we go through" and "which truck did it go on", from FleetPal's repair orders.
+ * How the shop uses one part, and where it went (SHOP-PARTS-USAGE-PLAN.md SP-U2, SP-U3) — the part's
+ * page's answer to "how many do we go through", "what do we pay" and "which truck did it go on", from
+ * FleetPal's repair orders.
+ *
+ * ── NOTHING DRAWN OVER NOTHING (D-SPU11, owner 2026-11-03) ────────────────────────────────────
+ * "Let's not have empty rows and columns if data does not exist." A fact is listed only when it has a
+ * value — no "None", no "0 in 12 months", no "Never" — and a part no repair order ever named gets one
+ * sentence and no "Where it went" table at all. In the table, a Price column every row on the page
+ * leaves empty is not drawn (`columnsWithData`).
+ *
+ * ── PRICES: UNIT, NEVER SUMMED (D-SPU10) ─────────────────────────────────────────────────────
+ * Last price, the 12-month typical (median, only on ≥ TYPICAL_PRICE_MIN_REPAIRS priced repairs) and the
+ * 12-month range; a repair at ≥ PRICE_WELL_ABOVE_RATIO × typical reads "Well above usual" — a reason to
+ * look at the bill, not a finding about it.
  *
  * ── "AGAIN AFTER 12 DAYS" IS A FACT, NOT A VERDICT (D-SPU5, Q-SPU2) ──────────────────────────
  * SQL measures the days since the same part went on the same unit; `isRepeatOnUnit` decides what is
- * "soon" (REPEAT_WITHIN_DAYS). The badge states the gap and nothing else: a tire on the same trailer
- * twice in a month may be another wheel, and a mechanic reading "repeat repair" would be told something
- * the data cannot know.
- *
- * ── NO PRICES (D-SPU4) ────────────────────────────────────────────────────────────────────────
- * D-FP4: no FleetPal money without its coverage ratio. Quantities and dates only, until Q-SPU1.
+ * "soon". The badge states the gap only: a tire on the same trailer twice in a month may be another
+ * wheel. It sits beside its unit, which is what it is about.
  *
  * A part typed here before F12 has no FleetPal id, so no repair order can name it — the section says
  * that rather than "never used", which would be a claim about the shop.
@@ -34,31 +59,44 @@ const { data, isLoading, isError, isFetching, refetch } = usePartUsageDetailQuer
 
 const summary = computed(() => data.value?.summary ?? null);
 const uses = computed(() => data.value?.uses ?? []);
+/** Loaded, and no repair order ever named this part. */
+const neverUsed = computed(() => Boolean(summary.value) && summary.value!.lastUsedAt === null && (data.value?.total ?? 0) === 0);
 
 const qty = new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 });
 const onRepairs = (quantity: number, repairs: number) =>
-  repairs === 0 ? "None" : `${qty.format(quantity)} on ${repairs} ${repairs === 1 ? "repair" : "repairs"}`;
+  `${qty.format(quantity)} on ${repairs} ${repairs === 1 ? "repair" : "repairs"}`;
 
 const facts = computed<Fact[]>(() => {
   const s = summary.value;
   if (!s) return [];
-  return [
-    { label: "Last 90 days", value: onRepairs(s.quantity90d, s.repairs90d) },
-    { label: "Last 12 months", value: onRepairs(s.quantity365d, s.repairs365d) },
-    { label: "Trucks and trailers", value: `${s.units365d} in 12 months` },
-    { label: "Last used", value: s.lastUsedAt ? formatDate(s.lastUsedAt) : "Never" },
-  ];
+  const out: Fact[] = [];
+  if (s.repairs90d > 0) out.push({ label: "Last 90 days", value: onRepairs(s.quantity90d, s.repairs90d) });
+  if (s.repairs365d > 0) out.push({ label: "Last 12 months", value: onRepairs(s.quantity365d, s.repairs365d) });
+  if (s.units365d > 0) out.push({ label: "Trucks and trailers", value: `${s.units365d} in 12 months` });
+  if (s.lastUsedAt) out.push({ label: "Last used", value: formatDate(s.lastUsedAt) });
+  if (s.lastPrice !== null) out.push({ label: "Last price", value: `${usd2(s.lastPrice)} each` });
+  if (s.typicalPrice !== null) out.push({ label: "Typical price", value: `${usd2(s.typicalPrice)} each` });
+  // One price is not a range; a range is drawn only when the year saw two different prices.
+  if (s.lowPrice365d !== null && s.highPrice365d !== null && s.lowPrice365d !== s.highPrice365d) {
+    out.push({ label: "Price range, 12 months", value: `${usd2(s.lowPrice365d)} – ${usd2(s.highPrice365d)}` });
+  }
+  return out;
 });
 
-// The "again" badge sits beside the unit it is about, not in a column of its own: on a phone card an
-// empty note column drew a dash under every row, and the badge means nothing apart from its unit.
 const COLUMNS: DataTableColumn[] = [
   { key: "usedAt", label: "Date", card: "meta", width: "md", cellClass: "text-ink-secondary" },
   { key: "unit", label: "Truck or trailer", card: "title" },
   { key: "quantity", label: "Quantity", card: "none", numeric: true, width: "sm" },
+  { key: "unitPrice", label: "Price each", card: "none", numeric: true },
   { key: "workOrderNumber", label: "Repair order", card: "sentence", cellClass: "text-ink-secondary" },
 ];
+const columns = computed(() =>
+  columnsWithData(COLUMNS, uses.value as unknown as Record<string, unknown>[], {
+    keep: ["usedAt", "unit", "quantity", "workOrderNumber"],
+  }),
+);
 
+const wellAbove = (row: PartUseDto) => isPriceWellAbove(row.unitPrice, summary.value?.typicalPrice ?? null);
 const rowKey = (r: PartUseDto) => `${r.workOrderNumber ?? "?"}:${r.usedAt ?? ""}:${r.unit.number ?? ""}`;
 const unitTo = (u: PartUseDto["unit"]) => (u.kind && u.id ? { name: "unit", params: { kind: u.kind, id: u.id } } : null);
 const dayWord = (n: number) => (n === 1 ? "day" : "days");
@@ -82,18 +120,20 @@ const dayWord = (n: number) => (n === 1 ? "day" : "days");
         loading-text="Loading how this part was used…"
         @retry="refetch()"
       >
-        <FactList class="mt-4" :facts="facts" />
+        <p v-if="neverUsed" class="text-sm text-ink-secondary">No repair order has used this part yet.</p>
+        <FactList v-else class="mt-4" :facts="facts" />
       </QueryState>
     </BaseCard>
 
-    <template v-if="fromFleetpal">
+    <template v-if="fromFleetpal && !neverUsed">
       <h2 class="text-sm font-semibold text-ink">Where it went</h2>
       <DataTable
-        :columns="COLUMNS"
+        :columns="columns"
         :rows="uses"
         :row-key="rowKey"
         :loading="isLoading"
         :error="isError ? 'Could not load the repairs that used this part.' : null"
+        empty-text="No repairs on this page — go back a page."
         @retry="refetch()"
       >
         <template #cell-usedAt="{ value }">{{ formatDate(value) }}</template>
@@ -115,14 +155,25 @@ const dayWord = (n: number) => (n === 1 ? "day" : "days");
           </span>
         </template>
         <template #cell-quantity="{ value }">{{ qty.format(value) }}</template>
+        <template #cell-unitPrice="{ row }">
+          <span v-if="row.unitPrice !== null">{{ usd2(row.unitPrice) }}</span>
+          <span
+            v-if="wellAbove(row)"
+            :class="[BADGE_BASE, toneClass('warning'), 'ml-2']"
+            data-test="price-well-above"
+            :title="`At least ${PRICE_WELL_ABOVE_RATIO}× the typical ${usd2(summary?.typicalPrice)}`"
+          >
+            Well above usual
+          </span>
+        </template>
         <template #cell-workOrderNumber="{ row }">
           <span v-if="row.workOrderNumber !== null">#{{ row.workOrderNumber }}</span>
-          <!-- The card has no Quantity column (below md), so its sentence carries the count. -->
-          <span class="md:hidden"> · {{ qty.format(row.quantity) }} used</span>
+          <!-- The card has no Quantity or Price column (below md), so its sentence carries both. -->
+          <span class="md:hidden">
+            · {{ qty.format(row.quantity) }} used<template v-if="row.unitPrice !== null"> · {{ usd2(row.unitPrice) }} each</template>
+          </span>
           <span v-if="row.workOrderStatus === 'OPEN'" :class="[BADGE_BASE, toneClass('info'), 'ml-2']">Still open</span>
-        </template>
-        <template #empty>
-          <p>No repair order has used this part yet.</p>
+          <span v-if="wellAbove(row)" :class="[BADGE_BASE, toneClass('warning'), 'ml-2 md:hidden']" data-test="price-well-above">Well above usual</span>
         </template>
         <template #footer>
           <TablePagination

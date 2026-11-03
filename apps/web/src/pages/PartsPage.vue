@@ -13,9 +13,10 @@ import {
   type DataTableColumn,
   TablePagination,
   sortRows,
+  columnsWithData,
 } from "@silvicom/ui";
 import { Cog6ToothIcon, ScanIcon } from "@silvicom/ui/icons";
-import { PART_USAGE_WINDOW_DAYS, type PartUsageSort, type StockLineDto } from "@silvicom/shared";
+import { PART_USAGE_WINDOW_DAYS, usd2, type PartUsageSort, type StockLineDto } from "@silvicom/shared";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
 import KebabMenu from "@/components/KebabMenu.vue";
@@ -44,9 +45,12 @@ import { useOpens } from "@/composables/useOpens";
  * presented a page-local order as the catalogue's. `shop_parts_list` (0557) sorts the whole filtered
  * list before paging, so these headers sort for real. No sort in the URL means "most used first".
  *
- * ── NO PRICES (D-SPU4) ────────────────────────────────────────────────────────────────────────
- * Unit prices exist in FleetPal's repair lines, and D-FP4 forbids printing FleetPal money without its
- * coverage ratio. The column waits for the owner's ruling (Q-SPU1); the API does not send prices.
+ * ── LAST PRICE, AND NO COLUMN OVER NOTHING (D-SPU10, D-SPU11) ──────────────────────────────
+ * The owner ruled 2026-11-03: unit prices show ("we can show everything"), and "let's not have empty
+ * rows and columns if data does not exist". So the last price paid per unit is a column, and a column
+ * every row on screen leaves empty is not drawn (`columnsWithData`) — a page of never-used parts under
+ * All parts shows no Used, Repairs, Last used or Last price, rather than four columns of zeros and
+ * "Never". Part number and description always show: they are what a row is.
  *
  * ── SAID ONCE, NOT ON EVERY ROW ───────────────────────────────────────────────────────────────
  * Every row of this list is FleetPal's, and the header says so; M8 also said "· From FleetPal" on every
@@ -88,14 +92,18 @@ const USAGE_SORT: Record<string, PartUsageSort> = {
   usedQuantity: "used",
   usedRepairs: "repairs",
   lastUsedAt: "last_used",
+  lastPrice: "last_price",
 };
 
 const USAGE_COLUMNS: DataTableColumn[] = [
   { key: "partNumber", label: "Part number", card: "title", sortable: true, cellClass: "font-mono text-xs text-ink", width: "md" },
   { key: "description", label: "Description", card: "sentence" },
-  { key: "usedQuantity", label: `Used, last ${PART_USAGE_WINDOW_DAYS} days`, card: "meta", sortable: true, numeric: true },
+  // A long FleetPal description wraps (`:nowrap="false"` below) so the Last price column stays on
+  // screen at 1280 px; measured in the browser 2026-11-03, it ran off the right edge unwrapped.
+  { key: "usedQuantity", label: `Used, ${PART_USAGE_WINDOW_DAYS} days`, card: "meta", sortable: true, numeric: true, cellClass: "whitespace-nowrap" },
   { key: "usedRepairs", label: "Repairs", card: "none", sortable: true, numeric: true },
-  { key: "lastUsedAt", label: "Last used", card: "none", sortable: true, cellClass: "text-ink-secondary" },
+  { key: "lastUsedAt", label: "Last used", card: "none", sortable: true, cellClass: "whitespace-nowrap text-ink-secondary" },
+  { key: "lastPrice", label: "Last price", card: "none", sortable: true, numeric: true, cellClass: "whitespace-nowrap" },
 ];
 
 const LOW_COLUMNS: DataTableColumn[] = [
@@ -126,9 +134,9 @@ function resetFilters() {
 // One sort parameter for both tables; a key the current table does not sort by reads as none.
 const SORTABLE = [...new Set([...USAGE_COLUMNS, ...LOW_COLUMNS].filter((c) => c.sortable).map((c) => c.key))];
 const { sort: urlSort, onSort } = useUrlSort(qs.param("sort", SORTABLE), qs.param("dir", SORT_DIRECTIONS));
-const columns = computed(() => (lowOnly.value ? LOW_COLUMNS : USAGE_COLUMNS));
+const tableColumns = computed(() => (lowOnly.value ? LOW_COLUMNS : USAGE_COLUMNS));
 const sort = computed(() =>
-  urlSort.value.key && columns.value.some((c) => c.sortable && c.key === urlSort.value.key)
+  urlSort.value.key && tableColumns.value.some((c) => c.sortable && c.key === urlSort.value.key)
     ? urlSort.value
     : { key: null, dir: "asc" as const },
 );
@@ -146,6 +154,16 @@ const low = useLowStockQuery();
 
 const rows = computed(() =>
   lowOnly.value ? sortRows(low.data.value?.lines ?? [], sort.value) : (usage.data.value?.rows ?? []),
+);
+// A usage count of 0 is no data for that column (D-SPU11); a blank price or date already is.
+const NOTHING = (v: unknown) => !v;
+const columns = computed(() =>
+  lowOnly.value
+    ? LOW_COLUMNS
+    : columnsWithData(USAGE_COLUMNS, rows.value as Record<string, unknown>[], {
+        keep: ["partNumber", "description"],
+        empty: { usedQuantity: NOTHING, usedRepairs: NOTHING },
+      }),
 );
 const total = computed(() => (lowOnly.value ? (low.data.value?.total ?? 0) : (usage.data.value?.total ?? 0)));
 const loading = computed(() => (lowOnly.value ? low.isLoading.value : usage.isLoading.value));
@@ -202,6 +220,7 @@ const shelvesShown = SHELF_COUNTING_SHOWN;
         :columns="columns"
         :rows="rows"
         :row-key="rowKey"
+        :nowrap="false"
         :loading="loading"
         :error="failed ? 'Could not load parts.' : null"
         :sort="sort"
@@ -222,6 +241,7 @@ const shelvesShown = SHELF_COUNTING_SHOWN;
           <span :class="value ? '' : 'text-ink-tertiary'">{{ value }}</span>
         </template>
         <template #cell-lastUsedAt="{ value }">{{ value ? formatDate(value) : "Never" }}</template>
+        <template #cell-lastPrice="{ value }">{{ usd2(value) }}</template>
         <template #cell-quantityOnHand="{ row }">
           <StockLevelCell :line="row as StockLineDto" />
         </template>
