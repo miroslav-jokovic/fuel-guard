@@ -832,3 +832,17 @@ blocking step in §3 above.
   next version through 0554, in the session's name; view reads, manage writes. 16 mutants, all killed.
   **D1 is complete.** Next: B4a (the hourly backfill → `recruitingLeadSink`), then B4b (the webhook,
   fail-closed until the owner's `META_APP_SECRET`).
+- **2026-11-03, audit fixes A — the brake** (out of order, ahead of B4; from the 2026-11-03 read-only
+  audit of the ads and lead path). Three ways an ad could keep delivering while we believed it stopped:
+  - A launch whose row is `failed` went `launching → paused` on the failure alone. A failed read-back after
+    a successful `campaign_active` leaves Meta delivering under a `paused` label that nothing pauses and
+    the kill switch skips. Now every failed launch except `NOT_ON_PLATFORM` goes `pause → pausing`, and a
+    pause the platform confirms ends it (`runner.ts` `fromLaunchRow`).
+  - `ADS_ENABLED=false` stopped the tick outright, and with it the kill switch's second half. Now it is a
+    brake (`orchestrator/brake.ts`): the tick and the step run, every org is read as killed, and only the
+    pause path is left. The readiness pin "starts no timer unless ADS_ENABLED" asserted the old behaviour
+    and is replaced in the registry.
+  - One org's unparseable settings row threw inside the tick and stopped every org's pauses. Unreadable
+    settings are now read as killed, per org.
+  4 mutants, all killed. Still open from that audit: alerts (B-fixes), the guard's month-to-date read
+  (no writer of `ads_spend_hourly` before B5), and the key-rotation and reconnect fences.

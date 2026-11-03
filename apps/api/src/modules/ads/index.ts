@@ -14,6 +14,8 @@ export type { GuardDeps, GuardOutcome, SpendAsk } from "./guard/budgetGuard.js";
 export { startAdsOrchestrator } from "./orchestrator/tick.js";
 export { runCampaignStep } from "./orchestrator/runner.js";
 export { adsWorkers } from "./orchestrator/workers.js";
+// 2026-11-03 audit: ADS_ENABLED off is a brake (pause only), never an off switch for the pause.
+export { brakeFor } from "./orchestrator/brake.js";
 // B3b: Meta Automated Rules follow the settings in force; the `ads_rules_sync` job runs this.
 export { syncOrgRules } from "./settings/rulesSyncJob.js";
 export { applyCampaignEvent } from "./orchestrator/transitions.js";

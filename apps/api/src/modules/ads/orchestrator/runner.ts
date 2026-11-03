@@ -2,7 +2,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { CampaignEvent, CampaignState } from "@silvicom/shared";
 import { completeAction, startAction } from "../actions/actionLedger.js";
 import type { GuardedPlatform } from "../guard/guardedPlatform.js";
-import { settingsInForce } from "../settings/settingsVersions.js";
+import { NOT_ON_PLATFORM } from "../platforms/adapter.js";
+import { brakeWorkers, killReason } from "./brake.js";
 import { applyCampaignEvent, loadCampaign, type CampaignRow, type TransitionAsk, type TransitionResult } from "./transitions.js";
 import { agentHasWork, type CampaignWorkers } from "./workers.js";
 
@@ -37,6 +38,8 @@ export interface RunnerDeps {
   admin: SupabaseClient;
   now: () => Date;
   workers: CampaignWorkers;
+  /** Set when every org must stop whatever its own switch says (`brake.ts`: `ADS_ENABLED` off). */
+  brake?: string | null;
 }
 
 export type StepOutcome =
@@ -54,10 +57,12 @@ export async function runCampaignStep(deps: RunnerDeps, orgId: string, campaignI
   // tick will queue the new state's job itself. Acting here would be acting on a stale read.
   if (expectedState && campaign.state !== expectedState) return { kind: "idle", state: campaign.state, reason: "state_moved" };
 
-  const inForce = await settingsInForce(deps.admin, orgId);
-  if (!agentHasWork(campaign.state, deps.workers, inForce.kill_switch)) return { kind: "idle", state: campaign.state, reason: "no_agent_work" };
+  const brake = deps.brake ?? null;
+  const kill = await killReason(deps.admin, orgId, brake);
+  const run = brake ? { ...deps, workers: brakeWorkers(deps.workers) } : deps;
+  if (!agentHasWork(campaign.state, run.workers, kill !== null)) return { kind: "idle", state: campaign.state, reason: "no_agent_work" };
 
-  const ask = await decide(deps, campaign, inForce.kill_switch ? (inForce.kill_reason ?? "kill switch on") : null);
+  const ask = await decide(run, campaign, kill);
   if (!ask) return { kind: "idle", state: campaign.state, reason: "no_platform" };
   const result = await applyCampaignEvent(deps.admin, campaign, { actor: ORCHESTRATOR, ...ask }, deps.now().toISOString());
   return { kind: "stepped", event: ask.event, result };
@@ -134,9 +139,23 @@ async function launchThisStint(admin: SupabaseClient, c: CampaignRow): Promise<L
   return ((data ?? []) as LaunchRow[])[0] ?? null;
 }
 
+/**
+ * ⚠ A LAUNCH THAT FAILED AT THE PLATFORM IS PAUSED, NOT MARKED STOPPED (2026-11-03 audit H1). A failed
+ * row says only that the adapter did not see the campaign come back ACTIVE — not that it is inactive:
+ * the `campaign_active` write can succeed and its read-back then be throttled or time out, and Meta
+ * delivers. `launch_failed` would record that campaign as `paused`, where nothing pauses it and the
+ * kill switch passes it by (it acts on `launching` and `live` only). So it goes the way an unknown
+ * outcome goes: `pause`, then a pause the platform confirms. A pause of a campaign that never went
+ * ACTIVE costs one idempotent call. The one failure that skips it is `NOT_ON_PLATFORM`: nothing was
+ * written, and with no platform ids a pause could never succeed either.
+ */
 function fromLaunchRow(row: LaunchRow): Ask {
   if (row.status === "succeeded") return { event: "launched", platform_refs: row.platform_refs };
-  if (row.status === "failed") return { event: "launch_failed", cause: row.error_code ?? "launch failed", error: row.error_code ?? "launch_failed" };
+  const code = row.error_code ?? "launch_failed";
+  if (row.status === "failed" && code === NOT_ON_PLATFORM) return { event: "launch_failed", cause: code, error: code };
+  if (row.status === "failed") {
+    return { event: "pause", cause: `launch failed at the platform (${code}) — paused and confirmed to be safe; launching again needs a new approval`, error: code };
+  }
   return { event: "pause", cause: "launch outcome unknown after a restart — paused to be safe; launching again needs a new approval" };
 }
 

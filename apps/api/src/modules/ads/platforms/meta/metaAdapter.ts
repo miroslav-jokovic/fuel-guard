@@ -1,5 +1,5 @@
 import { adAreaSchema, type AdArea } from "@silvicom/shared";
-import type { PlatformAdapter, PlatformCampaignRef, PlatformOutcome, SpendCall } from "../adapter.js";
+import { NOT_ON_PLATFORM, type PlatformAdapter, type PlatformCampaignRef, type PlatformOutcome, type SpendCall } from "../adapter.js";
 import type { GraphFailure, MetaGraph } from "./graphClient.js";
 import { META_CUSTOM_LOCATION_MAX_MILES, META_EMPLOYMENT_MIN_MILES } from "./publisher.js";
 
@@ -44,7 +44,7 @@ function refs(c: PlatformCampaignRef, needAds: boolean): Refs | PlatformOutcome 
   const campaign = typeof r.meta_campaign_id === "string" ? r.meta_campaign_id : null;
   const adset = typeof r.meta_adset_id === "string" ? r.meta_adset_id : null;
   const ads = Array.isArray(r.meta_ad_ids) ? r.meta_ad_ids.filter((x): x is string => typeof x === "string") : [];
-  if (!campaign || !adset) return { ok: false, error_code: "no_platform_ref" };
+  if (!campaign || !adset) return { ok: false, error_code: NOT_ON_PLATFORM };
   if (needAds && ads.length === 0) return { ok: false, error_code: "no_ad_on_platform" };
   return { campaign, adset, ads };
 }

@@ -67,7 +67,10 @@ export const READINESS = [
             { file: TICK, titles: [
               "an ads_step with the campaign and state in its payload, and dedup_key = campaign + state, never the (org, kind) slot",
               "is registered once, in the general lane (workflow §1.2-7)",
-              "starts no timer unless ADS_ENABLED",
+              // 2026-11-03 audit (M4): ADS_ENABLED off is a brake, not an off switch — the tick runs and
+              // only pauses. The old pin asserted the opposite, which left live ads unpausable.
+              "ticks with ADS_ENABLED off too, because the off flag is a brake, not the end of our pauses",
+              "under the brake every org is read as killed and only the pause path is queued; the settings are not even read",
             ] },
           ],
         },
