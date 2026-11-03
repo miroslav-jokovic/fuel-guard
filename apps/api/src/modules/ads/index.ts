@@ -33,3 +33,6 @@ export type { InsightsResult } from "./monitor/insightsPull.js";
 export { adsInsightsDedupKey, startAdsInsights } from "./monitor/insightsTick.js";
 // B5b: the auto-pause checks the insights job runs after its pull (decisions: shared `monitorChecks`).
 export { checkConnection } from "./monitor/checks.js";
+// B5c: the daily reconcile — Meta against our rows, each mismatch one external_change — and its scheduler.
+export { reconcileConnection } from "./monitor/reconcile.js";
+export { adsReconcileDedupKey, startAdsReconcile } from "./monitor/reconcileTick.js";

@@ -1023,3 +1023,25 @@ blocking step in §3 above.
   - Readiness: Monitor L0 still; B5b's tests pinned on its L1 row beside `notBuilt` B5c.
   - Mutation: 22 mutants, all killed (every boundary at −1/0/+1, the learning gate both ways, the account-day
     "today", the bell's dedupe, the org filter, checks after a partial pull).
+- **2026-11-03, B5c — the daily reconcile + `external_change`. B5 is complete; Monitor reads L1.**
+  `packages/shared/src/ads/adsReconcile.ts` (pure) compares; `apps/api/src/modules/ads/monitor/reconcile.ts`
+  reads and records, run by job `ads_reconcile` (`KIND_CAPS` 1, dedup per connection) from scheduler
+  `ads-reconcile` (daily, general lane, off unless `ADS_ENABLED`). Per run: 28 days of insights re-read first
+  (Meta's revision horizon; the hourly pull re-reads 3), then every campaign of ours that reached Meta read by
+  id (campaign `status`/`spend_cap`, ad set `status`/`daily_budget`) and the account's campaign list.
+  - Mismatches: `missing` (gone, DELETED or ARCHIVED, unless ours is archived too), `status` (live must be
+    ACTIVE, campaign and ad set; settled non-live must be PAUSED; `launching`/`pausing` either), `daily_budget`,
+    `spend_cap`, `overrun` (lifetime spend past the approved lifetime), `not_ours` (a campaign whose name does
+    not parse as ours — or does, with no row: marked `ours_by_name_unrecorded`). Critical when it can spend
+    unapproved money (delivering where we hold it paused, an amount raised or removed, an overrun, a stranger's
+    ACTIVE campaign); warning otherwise.
+  - **Once per fact, no new table:** each mismatch is an `ads_actions` row, kind `external_change`, actor
+    `platform`, idempotency key `external_change:<connection>:<object>:<field>:<Meta's value>`; the ledger's
+    unique key turns a repeat into `startAction`'s `"duplicate"` — no row, no bell. A new value is a new fact.
+  - **Never adopted:** no write to our rows or to Meta (a test asserts zero POSTs; B5b's checks now assert the
+    same). The machine's `platform_paused`/`platform_activated` rows stay unused: the handoff's rule is report,
+    never adopt. A read refused for anything but "does not exist" (100/33) is reported and left out of both
+    sides — a throttle is never called "missing".
+  - Readiness: **Monitor L1** (B5a/B5b/B5c pinned). L2/L3 stay `later`: §4R's 30 simulated days are not built.
+  - Mutation: 17 mutants; two survived the first run as test gaps (a paused campaign's ad set created PAUSED;
+    an ad-set budget removed), both now killed — 17 of 17.

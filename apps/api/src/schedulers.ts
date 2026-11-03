@@ -25,7 +25,7 @@ import { startSmsOutboxScheduler } from "./modules/recruiting/index.js";
 import { startBoardEtaRecorder } from "./modules/livemap/index.js";
 import { startFmcsaFeedScheduler } from "./modules/inspections/index.js";
 import { startMcleodRelinkScheduler } from "./modules/mcleod/index.js";
-import { startAdsInsights, startAdsLeadsBackfill, startAdsOrchestrator } from "./modules/ads/index.js";
+import { startAdsInsights, startAdsLeadsBackfill, startAdsOrchestrator, startAdsReconcile } from "./modules/ads/index.js";
 import { startInprocessJobDrain } from "./queue/inprocessDrain.js";
 import type { SchedulerLane } from "./schedulerLanes.js";
 import {
@@ -97,6 +97,7 @@ export const SCHEDULERS: readonly ScheduledTask[] = [
   { name: "ads-orchestrator", lane: "general", start: startAdsOrchestrator }, // A6 (D-AD16): every minute, one ads_step job per campaign with agent work; with ADS_ENABLED off it runs under the brake (pause only)
   { name: "ads-leads-backfill", lane: "general", start: startAdsLeadsBackfill }, // B4a2: hourly, one ads_leads_backfill job per connected Meta connection (48 h window → LeadSink); OFF unless ADS_ENABLED
   { name: "ads-insights", lane: "general", start: startAdsInsights }, // B5a: hourly, one ads_insights job per connected Meta connection (3 local days, hourly grain → ads_spend_hourly); OFF unless ADS_ENABLED
+  { name: "ads-reconcile", lane: "general", start: startAdsReconcile }, // B5c: daily, one ads_reconcile job per connected Meta connection (28-day insights re-read + Meta vs our rows → external_change); OFF unless ADS_ENABLED
 ];
 
 /** A lane's schedulers, in registration order. Pure; exported for the partition test. */

@@ -377,7 +377,21 @@ export const READINESS = [
             ] },
           ],
         },
-        notBuilt("B5c daily reconcile + external_change"),
+        {
+          need: "B5c daily reconcile: every planted mismatch flagged once as external_change, nothing on agreement, nothing adopted, nothing written to Meta",
+          tests: [
+            { file: "packages/shared/src/ads/adsReconcile.test.ts", titles: [
+              "two sides that agree flag nothing — live, paused, and moves in flight either way",
+              "an Ads-Manager status change: ACTIVE where we hold it paused is critical; PAUSED where we run it is a warning",
+              "a campaign someone made in Ads Manager is reported, never adopted — critical while it delivers; a name of ours without our row is marked",
+            ] },
+            { file: "apps/api/src/modules/ads/monitor/reconcile.test.ts", titles: [
+              "a run with no changes flags nothing, writes nothing, rings nothing",
+              "an Ads-Manager status change → exactly one external_change, by the platform, and one critical bell — and the next run adds none",
+              "never adopts: our campaign's state, budget and Meta's object are exactly as they were",
+            ] },
+          ],
+        },
       ],
       L2: later("L2"), L3: later("L3"), L4: [{ need: "insights from the sandbox", gap: STAGE2 }], L5: [{ need: "canary", gap: CANARY }],
     },

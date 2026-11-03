@@ -156,8 +156,12 @@ Each run re-reads the last three LOCAL days of every campaign of ours at hourly 
 account at that run, and writes Meta's current answer to `ads_spend_hourly` (its one writer): late hours fill in, revisions
 down replace, an hour Meta stops reporting becomes zero, a failed read touches nothing. A payload `days` (≤ 28) widens one
 run. After the pull the same job runs the auto-pause checks (B5b, `monitor/checks.ts`): a breach is the agent's
-`pause` through the campaign machine, which the orchestrator's next tick carries to Meta. `ads-reconcile` is still
-planned (B5c). The
+`pause` through the campaign machine, which the orchestrator's next tick carries to Meta. **`ads-reconcile`** is BUILT
+(B5c, 2026-11-03; `modules/ads/monitor/reconcileTick.ts`): daily (an interval from boot, first tick 15 min after), one
+**`ads_reconcile`** job (`KIND_CAPS` 1) per connection, `dedup_key` = `ads_reconcile:<connection>`. Each run re-reads 28
+days of insights, then compares Meta's campaigns and ad sets with our rows and records each mismatch once as an
+`ads_actions` `external_change` row + bell (the ledger's unique idempotency key is the "once"); it writes nothing to
+Meta and changes no row of ours. The
 `general` lane, not `egress`: `egress` exists for the one host WEX allowlists, and Meta, TikTok, X
 and Higgsfield check no caller address, so these follow FleetPal and Med-Stop's placement, not the
 EFS poller's. They follow FleetPal's three rules as well: **off** unless `ADS_ENABLED=true` on the
