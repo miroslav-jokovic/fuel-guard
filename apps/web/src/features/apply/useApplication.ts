@@ -1,6 +1,7 @@
 import { computed, type Ref } from "vue";
 import { takeServedForm } from "./servedForm";
 import { useMutation, useQuery } from "@tanstack/vue-query";
+import type { ApplicantOwedKind } from "@silvicom/shared";
 import type {
   ApplicationCaptureContentType,
   ApplicationCaptureSlot,
@@ -225,6 +226,8 @@ export interface ApplyInvitation {
   requiredQuestions?: string[] | null;
   /** §11 D-RS6: the documents Part 2 asks for. ⚠ Optional: absent reads as every slot. */
   offeredDocumentSlots?: ApplicationCaptureSlot[];
+  /** §13 D-SP2: what the applicant still owes, as kinds. ⚠ Optional: absent reads as nothing owed. */
+  owes?: ApplicantOwedKind[];
 }
 
 /**

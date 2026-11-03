@@ -10,6 +10,7 @@ import { sentenceCase } from "../sentenceCase";
 import { APPLY_FLOW_COPY_ES } from "./strings.es.flow";
 import { APPLY_HANDBOOK_COPY_ES } from "./strings.es.handbook";
 import { APPLY_VIDEOS_COPY_ES } from "./strings.es.videos";
+import { APPLY_STATUS_COPY_ES } from "./strings.es.status";
 import { APPLY_DOCUMENTS_COPY_ES } from "./strings.es.documents";
 import { APPLY_HISTORY_COPY_ES } from "./strings.es.history";
 import { APPLY_HUB_COPY_ES } from "./strings.es.hub";
@@ -298,6 +299,7 @@ export const APPLY_COPY_ES = {
   ...APPLY_SMS_COPY_ES,
   ...APPLY_HANDBOOK_COPY_ES,
   ...APPLY_VIDEOS_COPY_ES,
+  ...APPLY_STATUS_COPY_ES,
   ...APPLY_DOCUMENTS_COPY_ES,
   ...APPLY_QUESTIONS_COPY_ES,
 } satisfies ApplyCopy;

@@ -406,6 +406,18 @@ describe("opening the link", () => {
     expect(body.offeredDocumentSlots).toContain("ssn_card");
   });
 
+  it("§13 D-SP3: serves what is owed as kinds — never the drug test's site or time, the trip's times or its reference", async () => {
+    holder.client = seed({}, {
+      drug_test_appointments: [{ org_id: ORG, invitation_id: "inv-1", site_name: "Quest Joliet", site_address: "1 Main St",
+        window_start: "2099-01-12T14:00:00Z", window_end: null, donor_reference: "DR-7", cancelled_at: null }],
+      applicant_travel: [{ org_id: ORG, invitation_id: "inv-1", depart_at: "2099-01-13T14:00:00Z", confirmation_ref: "QX7K2P", cancelled_at: null }],
+    }).client;
+    const res = await call(`/${TOKEN}`);
+    const text = await res.text();
+    expect((JSON.parse(text) as { owes: string[] }).owes).toEqual(["drug_test", "trip"]);
+    for (const detail of ["Quest Joliet", "1 Main St", "DR-7", "QX7K2P", "2099-01-12", "2099-01-13"]) expect(text).not.toContain(detail);
+  });
+
   it("hands back what the office corrected, without naming who corrected it", async () => {
     // ⚠ D-AX12: the driver is about to certify that every entry is true, so they are owed the
     // changes somebody else made to their statement. Who typed it is the carrier's own record.

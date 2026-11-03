@@ -19,6 +19,7 @@ import { linkHandbookStatus } from "../handbookCeremony.js";
 import { carrierZone } from "../carrierClock.js";
 import { adoptionsForLink } from "../signatureAdoption.js";
 import { recruitingSettings } from "../recruitingSettings.js";
+import { applicantOwes } from "../applicantOwes.js";
 
 /**
  * `GET /api/public/apply/:token` — the bundle a link opens on.
@@ -113,6 +114,9 @@ export const applicationBundleHandler = asyncHandler(async (req, res) => {
     .then((s) => offeredCaptureSlots(s.offered_document_slots))
     .catch(() => offeredCaptureSlots(null));
 
+  // §13 SP1 (D-SP2/D-SP3): what the applicant still owes, as kinds — never a site, a time or a reference.
+  const owes = await applicantOwes(admin, invitation, new Date());
+
   res.json({
     // The carrier's name, and — since C3c1 — the one address §391.21(b)(1) puts on the application
     // itself ("The name and address of the employing motor carrier"), the same `legal_address` the filed
@@ -159,5 +163,6 @@ export const applicationBundleHandler = asyncHandler(async (req, res) => {
     // never the live setting. Null for an invitation sent before 0550's reader (the definition decides).
     requiredQuestions: requiredQuestionsOf(invitation.required_questions ?? null),
     offeredDocumentSlots,
+    owes,
   });
 });

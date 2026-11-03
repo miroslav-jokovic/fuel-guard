@@ -142,7 +142,7 @@ const emit = defineEmits<{
        the moment, and the screen says so rather than leaving them on a form with a spent button. -->
   <BaseCard v-else-if="awaitingReview">
     <ApplyScreenMark name="wait.review" />
-    <ApplyWaitScreen :token="token" :carrier="invitation.data.value?.carrier ?? ''" :heading="APPLY_COPY.handoff.waitingHeading" :note="APPLY_COPY.handoff.waitingNote"
+    <ApplyWaitScreen :token="token" :carrier="invitation.data.value?.carrier ?? ''" :phases="invitation.data.value?.phases ?? null" :owes="invitation.data.value?.owes ?? []" :heading="APPLY_COPY.handoff.waitingHeading" :note="APPLY_COPY.handoff.waitingNote"
       :body="APPLY_COPY.handoff.waitingBody(invitation.data.value?.carrier ?? '')" />
   </BaseCard>
 
@@ -202,7 +202,7 @@ const emit = defineEmits<{
   <!-- AF4 (plan §3.1 row 5): permissions in, form not sent. Before the unlock gate: nothing is shown. -->
   <BaseCard v-else-if="waitingForApplication">
     <ApplyScreenMark name="wait.permissions" />
-    <ApplyWaitScreen :token="token" :carrier="invitation.data.value?.carrier ?? ''" :heading="APPLY_COPY.permissionsReceived.heading" :note="APPLY_COPY.permissionsReceived.note"
+    <ApplyWaitScreen :token="token" :carrier="invitation.data.value?.carrier ?? ''" :phases="invitation.data.value?.phases ?? null" :owes="invitation.data.value?.owes ?? []" :heading="APPLY_COPY.permissionsReceived.heading" :note="APPLY_COPY.permissionsReceived.note"
       :body="APPLY_COPY.permissionsReceived.body(invitation.data.value?.carrier ?? '')">
       <!-- §6.2 screen 20: a v2 link's "done" — and what the driver can do meanwhile. -->
       <PartOneClearinghouse v-if="isPartOneLink" :carrier="invitation.data.value?.carrier ?? ''" />
@@ -213,7 +213,7 @@ const emit = defineEmits<{
        prints nothing of the application. -->
   <BaseCard v-else-if="awaitingOffice">
     <ApplyScreenMark name="wait.office" />
-    <ApplyWaitScreen :token="token" :carrier="invitation.data.value?.carrier ?? ''" :heading="APPLY_COPY.signInOffice.heading" :note="APPLY_COPY.signInOffice.note"
+    <ApplyWaitScreen :token="token" :carrier="invitation.data.value?.carrier ?? ''" :phases="invitation.data.value?.phases ?? null" :owes="invitation.data.value?.owes ?? []" :heading="APPLY_COPY.signInOffice.heading" :note="APPLY_COPY.signInOffice.note"
       :body="APPLY_COPY.signInOffice.body(invitation.data.value?.carrier ?? '')" />
   </BaseCard>
 
