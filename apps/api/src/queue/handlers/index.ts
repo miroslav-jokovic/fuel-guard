@@ -5,6 +5,7 @@ import { adsStepHandler } from "./adsStep.js";
 import { adsRulesSyncHandler } from "./adsRulesSync.js";
 import { adsLeadsBackfillHandler } from "./adsLeadsBackfill.js";
 import { adsLeadFetchHandler } from "./adsLeadFetch.js";
+import { adsInsightsHandler } from "./adsInsights.js";
 import { efsIngestHandler } from "./efsIngest.js";
 import { dataRetentionHandler } from "./retention.js";
 import { idleEngineHandler } from "./idleEngine.js";
@@ -98,4 +99,6 @@ export function registerAllHandlers(): void {
   registerHandler("ads_rules_sync", adsRulesSyncHandler);
   registerHandler("ads_leads_backfill", adsLeadsBackfillHandler);
   registerHandler("ads_lead_fetch", adsLeadFetchHandler);
+  // B5a: one connection's hourly insights → ads_spend_hourly; dedup-keyed per connection by its tick.
+  registerHandler("ads_insights", adsInsightsHandler);
 }

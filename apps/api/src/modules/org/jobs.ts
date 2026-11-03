@@ -104,6 +104,12 @@ export type JobKind =
    * duplicate delivery while one is queued is the ledger's own "already on it".
    */
   | "ads_lead_fetch"
+  /**
+   * One ads connection's hourly insights pull (B5a): every campaign of ours at hourly grain over the last
+   * three local days → `ads_spend_hourly`. Queued hourly by `ads-insights` with `dedup_key` =
+   * `ads_insights:<connection>`; a payload `days` (≤ 28) widens one run after an outage.
+   */
+  | "ads_insights"
   // One org's nightly copy of its Storage objects to the off-provider bucket (storageBackup.ts). A kind so a
   // failed night has a row, and so `/api/version` can read the last success from the ledger.
   | "storage_backup";

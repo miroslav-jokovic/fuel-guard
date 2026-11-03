@@ -967,3 +967,25 @@ blocking step in §3 above.
     shape-held and `text/plain`; ids are digits-only before they reach a Graph path or a filter; every query
     after the form→org lookup is org-scoped and read with that org's own Page token, and `form_id` must
     match; logs and job errors carry ids, never a person.
+- **2026-11-03, B5a — the hourly insights pull** (`modules/ads/monitor/`). `ads_spend_hourly` has its writer:
+  job `ads_insights` (`KIND_CAPS` 1, dedup `ads_insights:<connection>`), scheduler `ads-insights` (general lane,
+  hourly, off unless `ADS_ENABLED`), sharing the leads backfill's connection read (`metaConnectionsTick`). Per
+  run: the account's `timezone_name` read from Meta (never stored), then every non-archived campaign of ours
+  with a `meta_campaign_id`, `GET {campaign}/insights?level=campaign&breakdowns=hourly_stats_aggregated_by_advertiser_time_zone&time_increment=1`
+  over the last three LOCAL days, paged, each local hour converted to its UTC hour and upserted with every
+  column (composite conflict `campaign_id,hour`, so `lint:upserts` is satisfied with no RPC and no migration).
+  A window re-read whole, never a watermark: late hours fill in, revisions down replace, an hour Meta stops
+  reporting becomes zero — but only after a complete read; a failed or partial read leaves stored hours alone,
+  and fails the job. FakeMeta `fakeMetaInsightsHourly.ts` (planted per local day + hour; `fakeMeta.ts` now 450).
+  - **Where Meta's pages differed from the B5 handoff** (read 2026-11-03, cited in the fake's header): the hourly
+    bucket is a LOCAL wall-clock hour, so on the fall-back day one bucket holds two real hours — stored whole on
+    the first UTC hour (`localHours.ts`), the day's total exact, no split invented; spring-forward's 02:00 never
+    exists and is reported if it ever came. Leads in insights are attributed to the impression's hour by
+    default (`action_report_time`), so they will not match recruiting's lead times; B5b's zero-lead check must
+    read them over a window. Meta documents no "fatigue" flag: Automated Rules offer `frequency`, `ctr`, `cpm`,
+    `audience_reached_percentage`, and learning phase is the ad set's `learning_stage_info` — B5b's inputs.
+    `time_increment=1` with an hourly breakdown is undocumented: our reading, for L4 to confirm.
+  - Revisions older than three days are B5c's (a 28-day daily re-read; the payload `days` already allows it).
+  - Readiness: Monitor stays L0 — B5a's tests are pinned on its L1 row beside `notBuilt` B5b/B5c.
+  - Mutation: 14 mutants, all killed. One survived first (insert-or-skip instead of replace) because the test's
+    in-memory table ignored the upsert's options; the harness now applies `ignoreDuplicates` as PostgREST does.
