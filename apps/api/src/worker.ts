@@ -92,6 +92,9 @@ const KIND_CAPS: Record<string, number> = {
   ads_step: 2,
   // One at a time: a sync is a handful of Meta writes against one account's rate limit (B3b).
   ads_rules_sync: 1,
+  // One at a time: a backfill pages every form's leads with one Page token, and the window overlaps the
+  // next hour's, so running two would only spend Meta's per-Page rate on reads the sink already holds (B4a2).
+  ads_leads_backfill: 1,
   // sharp is CPU-bound; two at a time keeps a burst of uploads from starving the sync kinds.
   document_derive: 2,
 };
