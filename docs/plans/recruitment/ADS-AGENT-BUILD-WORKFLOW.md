@@ -850,3 +850,13 @@ blocking step in §3 above.
   - **B4a2** (next): job kind `ads_leads_backfill` (`KIND_CAPS` 1, dedup per connection), the hourly
     `ads-leads-backfill` scheduler (off unless `ADS_ENABLED`), the handler wiring `recruitingLeadSink`
     in, and the readiness pins.
+- **2026-11-03, audit fixes D — key rotation and reconnect** (audit H2/H3).
+  - `lib/secretBox.ts` gains `SECRETS_ENCRYPTION_KEY_PREVIOUS`: during a rotation, values sealed under
+    the previous key still open, and every new seal uses the current one. Before this, a rotation made
+    every stored Meta token unreadable at once, so `no_platform` on every pause. Platform-wide (EFS
+    certificates, Samsara and FleetPal tokens benefit too); the HMAC subkeys derived from the key are not
+    covered.
+  - `connectMeta` refuses to move a slot to another account or Page while a campaign on it is launching,
+    live or pausing (`campaigns_delivering`, the disconnect rule), before Meta is asked anything. A fresh
+    token for the same account and Page is always allowed — it is how a dead token is fixed.
+  5 mutants, all killed.
