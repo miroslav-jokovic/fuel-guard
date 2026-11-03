@@ -63,7 +63,7 @@ function platform(limit: number | null = 300_000, outcome: PlatformOutcome | Err
     return outcome;
   });
   return {
-    safe: { readAccountLimitCents: vi.fn(async () => limit), readSpendCents: vi.fn(async (_r: { since: string; until: string }) => spent), pause: vi.fn(async () => ({ ok: true as const })) },
+    safe: { readAccountHeadroomCents: vi.fn(async () => limit), readSpendCents: vi.fn(async (_r: { since: string; until: string }) => spent), pause: vi.fn(async () => ({ ok: true as const })) },
     spend: { launch: act, raiseDailyBudget: vi.fn(act), changeArea: vi.fn(act) },
   };
 }
