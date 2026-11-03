@@ -9,6 +9,7 @@ import { readFileSync, readdirSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
+import { LEAD_CONTACT_DIRECTIONS, LEAD_CONTACT_METHODS, LEAD_CONTACT_OUTCOMES } from "../../packages/shared/dist/index.js";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const SUPA = join(HERE, "..");
@@ -173,6 +174,17 @@ const contact = (l, by = ACTOR) => sqlstate(
    values ($1, $2, 'outbound', 'call', 'reached', $3, 'Dana')`, [ORG, l, by]);
 ok("a contact needs the person who made it (D-LS6: no system actor)", (await contact(L1, null)) === "23502");
 ok("a recruiter's call is recorded", (await contact(L1)) === null);
+const contactWith = (col, value) => {
+  const row = { direction: "outbound", method: "call", outcome: "reached", [col]: value };
+  return sqlstate(
+    `insert into recruiting_contacts (org_id, lead_id, direction, method, outcome, created_by, created_by_name)
+     values ($1, $2, $3, $4, $5, $6, 'Dana')`, [ORG, L1, row.direction, row.method, row.outcome, ACTOR]);
+};
+const refused = [];
+for (const [col, list] of [["direction", LEAD_CONTACT_DIRECTIONS], ["method", LEAD_CONTACT_METHODS], ["outcome", LEAD_CONTACT_OUTCOMES]]) {
+  for (const value of list) if ((await contactWith(col, value)) !== null) refused.push(`${col}=${value}`);
+}
+ok("every direction, method and outcome the shared contract offers passes 0553's CHECKs", refused.length === 0);
 await db.exec("set role service_role");
 ok("the service role cannot edit a contact (RL010)",
   (await sqlstate(`update recruiting_contacts set note = 'edited' where lead_id = $1`, [L1])) === "RL010");
