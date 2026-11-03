@@ -155,7 +155,9 @@ simulator connection — the backfill's own connection read (`metaConnectionsTic
 Each run re-reads the last three LOCAL days of every campaign of ours at hourly grain, in the zone Meta reports for the
 account at that run, and writes Meta's current answer to `ads_spend_hourly` (its one writer): late hours fill in, revisions
 down replace, an hour Meta stops reporting becomes zero, a failed read touches nothing. A payload `days` (≤ 28) widens one
-run. `ads-reconcile` is still planned (B5c). The
+run. After the pull the same job runs the auto-pause checks (B5b, `monitor/checks.ts`): a breach is the agent's
+`pause` through the campaign machine, which the orchestrator's next tick carries to Meta. `ads-reconcile` is still
+planned (B5c). The
 `general` lane, not `egress`: `egress` exists for the one host WEX allowlists, and Meta, TikTok, X
 and Higgsfield check no caller address, so these follow FleetPal and Med-Stop's placement, not the
 EFS poller's. They follow FleetPal's three rules as well: **off** unless `ADS_ENABLED=true` on the

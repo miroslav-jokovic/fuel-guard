@@ -798,6 +798,25 @@ rate, and Higgsfield credits per approved creative.
   stopgap only if the app secret is not sealed by 12/25: a 60-day token generated at the earliest
   Connect (Mon 11/09) lapses 01/08, and §7's alert is due 14 days before that. *Fallback:* null
   expiry, `failing` on first use.
+- **Q-AD25 · Meta's own rules pause a learning-phase ad set; ours do not** (us, found building B5b,
+  2026-11-03). §2a says never act on an ad set Meta marks as learning, except for the spend caps, and B5b's
+  checks hold that (`monitorChecks.ts`). But the Automated Rules B3b writes from the same settings
+  (`adsRulesSpec.ts`) carry no learning filter — no Ad Rules page we read documents one — so Meta itself
+  will pause a learning ad set on cost per lead, zero-lead spend or frequency, every 30 minutes. Candidates:
+  (a) keep sending all four rules and accept that Meta's are stricter in the learning phase; (b) send only
+  the caps (`daily_cap`) as Meta rules and leave the performance rules to our hourly monitor alone, losing
+  the second enforcer for them; (c) find a documented learning filter in the sandbox at L4 and add it.
+  **Recommendation: (c), with (a) until then**, because a too-early pause costs a relaunch while a missing
+  enforcer costs money, and L4 is when we can see what Meta's evaluator accepts. *Fallback:* (a).
+- **Q-AD26 · How the monitor learns an opening is filled** (us, found building B5b, 2026-11-03). The
+  `pause_when_filled` setting is the monitor's alone (`adsRulesSpec.ts` header), but the headcount is
+  recruiting's, and D-AD17 lets ads reach recruiting only through the two shared interfaces. Neither carries
+  "this opening is filled". Candidates: (a) a third interface, `BriefStatus` (`isOpen(brief_ref)`), owned by
+  recruiting, read by the monitor each run; (b) recruiting pushes an event when an opening closes, and the
+  composition root turns it into a `pause` on that brief's campaigns; (c) leave it to a person. **Recommendation:
+  (b)**, because closing an opening is already a recruiting write (`/openings/:id/status`) and a push pauses at
+  once rather than within the hour. It is not built in B5b: a seam is a design decision, not a detour.
+  *Fallback:* (c), and the brief (F1) lists live campaigns on closed openings.
 
 ---
 

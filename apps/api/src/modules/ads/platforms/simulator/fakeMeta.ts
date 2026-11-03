@@ -6,7 +6,7 @@ import { FakeForms } from "./fakeMetaForms.js";
 import { FakeLeads } from "./fakeMetaLeads.js";
 import { FakeRules } from "./fakeMetaRules.js";
 import { accountInsights } from "./fakeMetaInsights.js";
-import { campaignHourlyInsights } from "./fakeMetaInsightsHourly.js";
+import { objectInsightsRoute } from "./fakeMetaInsightsHourly.js";
 import { FakeWebhooks } from "./fakeMetaWebhooks.js";
 import { graphError, pick } from "./fakeMetaShapes.js";
 
@@ -59,7 +59,7 @@ import { graphError, pick } from "./fakeMetaShapes.js";
  *
  * ── NOT HERE YET, ON PURPOSE ───────────────────────────────────────────────────────────────────────
  * Instant Forms live in `fakeMetaForms.ts` (B2b), Automated Rules in `fakeMetaRules.ts` (B3b). Leads in `fakeMetaLeads.ts` (B4a), the
- * signed `leadgen` webhook and `subscribed_apps` in `fakeMetaWebhooks.ts` (B4b), hourly insights in `fakeMetaInsightsHourly.ts` (B5a). Ads and creatives (B2c). Each joins
+ * signed `leadgen` webhook and `subscribed_apps` in `fakeMetaWebhooks.ts` (B4b), hourly and ad-set insights in `fakeMetaInsightsHourly.ts` (B5a/b). Ads and creatives (B2c). Each joins
  * with the step that first calls it, so every endpoint here has a caller whose contract test reads it.
  *
  * In-memory: a simulator restart forgets every campaign. That is the simulator being honest about
@@ -288,8 +288,8 @@ export class FakeMeta {
     const insights = /^act_(\d+)\/insights$/.exec(path);
     const insightsOf = insights && method === "GET" ? this.accounts.get(insights[1]!) : undefined;
     if (insightsOf) return accountInsights(insightsOf, body, this.traceId());
-    const hourly = /^(\d+)\/insights$/.exec(path), camp = hourly && method === "GET" ? this.campaigns.get(hourly[1]!) : undefined;
-    if (camp) return campaignHourlyInsights(this, camp.id, this.accounts.get(camp.account_id)?.currency ?? "USD", body, this.traceId());
+    const objectInsights = /^(\d+)\/insights$/.exec(path);
+    if (objectInsights && method === "GET") return objectInsightsRoute(this, objectInsights[1]!, body, this.traceId());
     const create = /^act_(\d+)\/campaigns$/.exec(path);
     if (create && method === "POST") return this.createCampaign(create[1]!, body);
     if (create && method === "GET") return this.list([...this.campaigns.values()].filter((c) => c.account_id === create[1]), body);

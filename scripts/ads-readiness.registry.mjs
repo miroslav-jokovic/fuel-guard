@@ -363,7 +363,21 @@ export const READINESS = [
             ] },
           ],
         },
-        notBuilt("B5b auto-pause checks, B5c daily reconcile + external_change"),
+        {
+          need: "B5b auto-pause checks: each rule at its threshold (−1/0/+1), caps always, performance rules never while learning; a pause through the machine + its alert",
+          tests: [
+            { file: "packages/shared/src/ads/monitorChecks.test.ts", titles: [
+              "overspend: the month past the platform's cap pauses EVERY delivering campaign on it, at a cent over and not at the cap",
+              "zero-lead spend past the minimum fires, and at or below it does not; one lead stops it",
+              "a learning-phase ad set is not paused except by a cap — and an unread stage is held the same way",
+            ] },
+            { file: "apps/api/src/modules/ads/monitor/checks.test.ts", titles: [
+              "a forced overspend: today past the daily budget → the agent's `pause`, ledgered with its rule, and one critical ads_overspend",
+              "zero-lead spend past the minimum pauses with ads_no_leads — but not while Meta is still learning",
+            ] },
+          ],
+        },
+        notBuilt("B5c daily reconcile + external_change"),
       ],
       L2: later("L2"), L3: later("L3"), L4: [{ need: "insights from the sandbox", gap: STAGE2 }], L5: [{ need: "canary", gap: CANARY }],
     },

@@ -1,9 +1,9 @@
-import { pullConnectionInsights } from "../../modules/ads/index.js";
+import { checkConnection, pullConnectionInsights } from "../../modules/ads/index.js";
 import type { JobHandler } from "../types.js";
 
 /**
  * One connection's hourly insights pull (B5a): Meta's campaign insights at hourly grain → `ads_spend_hourly`
- * (`modules/ads/monitor/insightsPull.ts`). A payload `days` (1–28) widens one run's window — an operator
+ * (`modules/ads/monitor/insightsPull.ts`), then the auto-pause checks over what it brought (B5b, `checks.ts`). A payload `days` (1–28) widens one run's window — an operator
  * healing a longer outage; the scheduler sends none, so the run reads the default window.
  *
  * The job THROWS when anything was not brought in — a campaign Meta refused, a truncated window, a row we
@@ -15,10 +15,15 @@ export const adsInsightsHandler: JobHandler = async (ctx, job) => {
   if (typeof payload.connectionId !== "string" || !payload.connectionId) throw new Error("ads_insights: payload.connectionId is required");
   const days = typeof payload.days === "number" ? payload.days : undefined;
   const now = new Date();
-  const r = await pullConnectionInsights({ admin: ctx.admin, env: ctx.env, now: () => now }, job.org_id, payload.connectionId, { days });
-  if (r.failures.length) {
-    const line = r.failures.slice(0, 20).map((f) => `${f.campaign_id ? `${f.campaign_id} ` : ""}${f.reason}`).join("; ");
-    throw new Error(`ads_insights: ${r.failures.length} not brought in (${r.hours_written} hours written, ${r.hours_zeroed} zeroed) — ${line}`);
+  const deps = { admin: ctx.admin, env: ctx.env, now: () => now };
+  const r = await pullConnectionInsights(deps, job.org_id, payload.connectionId, { days });
+  // The checks run on whatever the pull brought in, even when part of it failed: a cap breached by the hours
+  // that did arrive must still pause. Without the account's zone there is no "today", so they wait an hour.
+  const checks = r.zone ? await checkConnection(deps, job.org_id, payload.connectionId, r.zone) : null;
+  const failures = [...r.failures, ...(checks?.failures ?? []).map((f) => ({ ...f, reason: `check:${f.reason}` }))];
+  if (failures.length) {
+    const line = failures.slice(0, 20).map((f) => `${f.campaign_id ? `${f.campaign_id} ` : ""}${f.reason}`).join("; ");
+    throw new Error(`ads_insights: ${failures.length} not brought in (${r.hours_written} hours written, ${r.hours_zeroed} zeroed, ${checks?.paused.length ?? 0} paused) — ${line}`);
   }
-  return { ok: true, detail: JSON.stringify(r) };
+  return { ok: true, detail: JSON.stringify({ ...r, checks }) };
 };
