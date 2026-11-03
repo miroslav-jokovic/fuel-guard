@@ -13,12 +13,16 @@ import { pageGraphForConnection, type RegistryDeps } from "../platforms/registry
  * needs only the Page token Connect already holds, so it is the path that works first — and once the
  * webhook exists it stays as the net under it.
  *
- * ── WHY A WINDOW, NOT A WATERMARK ────────────────────────────────────────────────────────────────
- * Every run reads the last `BACKFILL_WINDOW_HOURS` (48) whatever the last run saw, and the sink stores a
- * lead once by (provider, lead id) (`ingest_lead`, 0554), so a lead read again is free. No table remembers
- * "read up to", so there is nothing to get wrong after a crash, a deploy or a failed run: the next hour
- * reads the same window again. A gap longer than the window (the worker down for two days) is closed by
- * running the job with an explicit `since`. Meta keeps leads 90 days, so `since` is held to that.
+ * ── A WINDOW, REACHING BACK TO THE LAST RUN THAT BROUGHT EVERYTHING IN ──────────────────────────
+ * Every run reads at least the last `BACKFILL_WINDOW_HOURS` (48), and the sink stores a lead once by
+ * (provider, lead id) (`ingest_lead`, 0554), so a lead read again is free. The window alone was not enough
+ * (2026-11-03 audit of the lead path, H1): a Page token that died on Friday and was fixed on Monday left
+ * Friday's leads outside every later window, for good, and nothing said so. So the job handler reaches
+ * further back when it must — to the last run of this connection that finished with nothing missing,
+ * less an hour (`catchUpSince`). That fact is the jobs ledger's own (`status = 'done'`, kept 90 days —
+ * as long as Meta keeps leads), not a "read up to" column we write: a failed, crashed or released run is
+ * never `done`, so the next one reaches back past it by construction. With no such run on record (a new
+ * connection, or 90 days of failures) it reads everything Meta still keeps. `since` is held to 90 days.
  *
  * ── WHAT IS NEVER SILENT ─────────────────────────────────────────────────────────────────────────
  * A form that cannot be read, a form with more leads in the window than `PAGES_MAX` pages, and a lead the
@@ -51,9 +55,10 @@ export interface BackfillCampaign {
 }
 
 export interface BackfillFailure {
-  campaign_id: string;
-  form_id: string;
-  /** `graph:<error_code>`, `truncated`, `sink`, `shape` — what the job's failure line names. */
+  /** Absent on a failure of the whole connection (`connection:<status>`). */
+  campaign_id?: string;
+  form_id?: string;
+  /** `graph:<error_code>`, `truncated`, `sink`, `shape`, `connection:<status>` — what the job's failure line names. */
   reason: string;
   lead_id?: string;
 }
@@ -66,6 +71,21 @@ export interface BackfillResult {
   stored_new: number;
   duplicates: number;
   failures: BackfillFailure[];
+}
+
+/** Margin before the last complete run's start: Meta's own delay in listing a lead, and clock skew. */
+export const CATCH_UP_MARGIN_HOURS = 1;
+
+/**
+ * How far back a run reads (header): the 48-hour window, or further, back to an hour before the last run
+ * that brought everything in; everything Meta keeps when there was none. Pure.
+ */
+export function catchUpSince(now: Date, lastCompleteStartedAt: Date | null): Date {
+  const floor = new Date(now.getTime() - META_LEAD_RETENTION_DAYS * 86_400_000);
+  if (!lastCompleteStartedAt) return floor;
+  const window = now.getTime() - BACKFILL_WINDOW_HOURS * 3_600_000;
+  const resume = lastCompleteStartedAt.getTime() - CATCH_UP_MARGIN_HOURS * 3_600_000;
+  return new Date(Math.max(floor.getTime(), Math.min(window, resume)));
 }
 
 /** Meta's `+0000` offset as ISO's `+00:00`, which the lead contract reads. */
@@ -163,10 +183,17 @@ export async function backfillConnectionLeads(
     .maybeSingle();
   if (error) throw new Error(`ads_platform_connections: ${error.message}`);
   const c = conn as { id: string; org_id: string; provider: string; is_sandbox: boolean; token_sealed: string | null; page_token_sealed: string | null; status: string } | null;
-  if (!c || c.status !== "connected" || (c.provider !== "meta" && c.provider !== "simulator")) return result;
+  if (!c || (c.provider !== "meta" && c.provider !== "simulator")) return result;
 
   const campaigns = await campaignsWithForms(deps.admin, orgId, connectionId);
   if (campaigns.length === 0) return result;
+  // A `failing` connection is still read (audit H1): a scope or limit its test flagged does not stop a
+  // Page token reading leads, and a token that really is dead fails below, per form, loudly. Only a
+  // person's disconnect (tokens cleared) cannot be read — and with forms still on it, that is said too.
+  if (c.status === "disconnected") {
+    result.failures.push({ reason: "connection:disconnected" });
+    return result;
+  }
   const opened = await pageGraphForConnection(deps, c);
   if (!opened.ok) {
     for (const k of campaigns) result.failures.push({ campaign_id: k.id, form_id: k.form_id, reason: `graph:${opened.error_code}` });

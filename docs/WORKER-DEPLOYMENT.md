@@ -135,7 +135,10 @@ empty (B2c, C), so no campaign reaches `paused`, and so none reaches launch, una
 kind sits beside it: **`ads_rules_sync`** (B3b, `KIND_CAPS` 1). It is queued by the settings save door,
 not by a timer, and rewrites the account's Meta Automated Rules. **`ads-leads-backfill`** is BUILT (B4a2, 2026-11-03;
 `modules/ads/leads/backfillTick.ts`): hourly, first tick 5 min after boot, one **`ads_leads_backfill`** job
-(`KIND_CAPS` 1) per connected Meta or simulator connection, `dedup_key` = `ads_leads_backfill:<connection>`.
+(`KIND_CAPS` 1) per `connected` or `failing` Meta or simulator connection (`failing` since the 2026-11-03
+audit: skipped, a dead token's lost leads were silent), `dedup_key` = `ads_leads_backfill:<connection>`. Each run reads
+the last 48 h, or further back to an hour before that connection's last `done` run (the jobs ledger), so an
+outage closes itself once the connection works again.
 The job reads every form of ours for the last 48 h with the Page token and hands each lead to recruiting's
 `LeadSink` (`queue/handlers/adsLeadsBackfill.ts`, the one place the two modules meet); it fails, and is
 listed, when any form or lead was not brought in. `ads-insights` and `ads-reconcile` are still planned (B5). The

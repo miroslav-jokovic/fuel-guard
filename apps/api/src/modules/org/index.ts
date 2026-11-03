@@ -32,6 +32,8 @@ export { carrierCityStateZip, getCarrierIdentity } from "./carrierIdentity.js";
 export type { CarrierIdentity } from "./carrierIdentity.js";
 export { jobsRouter } from "./routes/jobs.js";
 export * from "./jobs.js";
+// 2026-11-03 lead-path audit H1: one keyed object's last good run (the ads leads backfill's catch-up).
+export { lastDoneJobByKey } from "./jobsByKey.js";
 export { runDataRetention } from "./dataRetention.js";
 export { generateAndSendDigest } from "./digest.js";
 export { startDigestScheduler, markFuelSweepComplete } from "./digestScheduler.js";

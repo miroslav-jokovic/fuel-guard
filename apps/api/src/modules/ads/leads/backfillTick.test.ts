@@ -27,21 +27,22 @@ const admin = () => createSupabaseRecorder({
       { id: "c2", org_id: "o1", provider: "simulator", status: "connected" },
       { id: "c3", org_id: "o2", provider: "meta", status: "connected" },
       { id: "c4", org_id: "o2", provider: "meta", status: "disconnected" },
+      { id: "c6", org_id: "o2", provider: "meta", status: "failing" },
       { id: "c5", org_id: "o2", provider: "higgsfield", status: "connected" },
     ]),
   },
 }).client as never;
 
 describe("ads-leads-backfill — the hourly tick", () => {
-  it("queues one job per connected Meta or simulator connection, each in its own slot, across carriers", async () => {
+  it("queues one job per connected or failing Meta or simulator connection, each in its own slot, across carriers", async () => {
     const l = ledger();
-    expect(await leadsBackfillTick(admin(), l.enqueue)).toEqual({ connections: 3, queued: 3, conflicts: 0 });
-    expect(l.calls).toEqual([{ org: "o1", conn: "c1" }, { org: "o1", conn: "c2" }, { org: "o2", conn: "c3" }]);
+    expect(await leadsBackfillTick(admin(), l.enqueue)).toEqual({ connections: 4, queued: 4, conflicts: 0 });
+    expect(l.calls).toEqual([{ org: "o1", conn: "c1" }, { org: "o1", conn: "c2" }, { org: "o2", conn: "c3" }, { org: "o2", conn: "c6" }]);
   });
   it("a connection whose last backfill still runs is skipped this hour, not doubled", async () => {
     const l = ledger();
     await leadsBackfillTick(admin(), l.enqueue);
-    expect(await leadsBackfillTick(admin(), l.enqueue)).toEqual({ connections: 3, queued: 0, conflicts: 3 });
+    expect(await leadsBackfillTick(admin(), l.enqueue)).toEqual({ connections: 4, queued: 0, conflicts: 4 });
   });
   it("the real enqueue keys each job by its connection, so a carrier's second connection does not wait behind its first", async () => {
     await leadsBackfillEnqueue({} as never, {} as never)("o1", "c2");
