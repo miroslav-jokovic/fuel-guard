@@ -9,7 +9,7 @@ import { MetaGraph, resetGraphThrottles } from "./graphClient.js";
  */
 const TOKEN = "EAAB-system-user-token-connection-test";
 const PAGE_TOKEN = "EAAB-page-token-derived-0001";
-const PAGE = { id: "200100", name: "Silvicom Trucking", access_token: PAGE_TOKEN, tasks: ["ADVERTISE", "ANALYZE"] };
+const PAGE = { id: "200100", name: "Silvicom Trucking", access_token: PAGE_TOKEN, tasks: ["ADVERTISE", "ANALYZE", "MODERATE"] };
 const ACCOUNT = { id: "1001", spend_cap_cents: 300_000, amount_spent_cents: 0, account_status: 1, currency: "USD" };
 let meta: FakeMeta | null = null;
 
@@ -33,7 +33,7 @@ describe("testMetaConnection — a ready connection", () => {
     expect(r.report.ok).toBe(true);
     expect(r.report.checks.map((c) => [c.key, c.ok])).toEqual(CONNECTION_CHECKS.map((k) => [k, true]));
     expect(r.pageToken).toBe(PAGE_TOKEN);
-    expect(r.report).toMatchObject({ account: { id: "1001", currency: "USD", spend_cap_cents: 300_000 }, page: { id: PAGE.id, tasks: ["ADVERTISE", "ANALYZE"] }, error_code: null });
+    expect(r.report).toMatchObject({ account: { id: "1001", currency: "USD", spend_cap_cents: 300_000 }, page: { id: PAGE.id, tasks: ["ADVERTISE", "ANALYZE", "MODERATE"] }, error_code: null });
     expect(r.report.scopes_granted).toEqual([...META_SCOPES].sort());
   });
 
@@ -96,5 +96,29 @@ describe("testMetaConnection — each check fails for its own reason", () => {
     const noAds = await run({ pages: [{ ...PAGE, tasks: ["ANALYZE"] }] });
     expect(check(noAds, "page")).toMatchObject({ ok: false, detail: expect.stringContaining("ADVERTISE") });
     expect(noAds.pageToken).toBeNull();
+  });
+});
+
+describe("testMetaConnection — the Page's leadgen subscription (B4b)", () => {
+  it("subscribes the Page to leadgen with the Page token, never the system user's", async () => {
+    const r = await run();
+    expect(check(r, "leadgen")).toMatchObject({ ok: true });
+    expect([...meta!.webhooks.subscriptions.get(PAGE.id)!]).toEqual(["leadgen"]);
+    const sub = meta!.requests.find((q) => q.path.endsWith(`/${PAGE.id}/subscribed_apps`))!;
+    expect(sub).toMatchObject({ method: "POST", body: { subscribed_fields: "leadgen" } });
+  });
+
+  it("a system user with no content or moderation task on the Page fails the check and is told which task to give", async () => {
+    const r = await run({ pages: [{ ...PAGE, tasks: ["ADVERTISE", "ANALYZE"] }] });
+    expect(check(r, "page")).toMatchObject({ ok: true });
+    expect(check(r, "leadgen")).toMatchObject({ ok: false, detail: expect.stringContaining("Moderate") });
+    expect(r.report.ok).toBe(false);
+    expect(meta!.webhooks.subscriptions.size).toBe(0);
+  });
+
+  it("is not asked for a Page that failed its own check", async () => {
+    const r = await run({}, { accountId: "1001", pageId: "777777" });
+    expect(check(r, "leadgen")).toMatchObject({ ok: null });
+    expect(meta!.requests.some((q) => q.path.includes("subscribed_apps"))).toBe(false);
   });
 });

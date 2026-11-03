@@ -98,6 +98,12 @@ export type JobKind =
    * carrier's connections each get a slot; a payload `since` widens the window after an outage.
    */
   | "ads_leads_backfill"
+  /**
+   * One lead Meta's leadgen webhook named (B4b): read by id with the Page token, through recruiting's
+   * LeadSink. Queued by `/api/webhooks/meta` with `dedup_key` = `ads_lead_fetch:<org>:<leadgen_id>`, so a
+   * duplicate delivery while one is queued is the ledger's own "already on it".
+   */
+  | "ads_lead_fetch"
   // One org's nightly copy of its Storage objects to the off-provider bucket (storageBackup.ts). A kind so a
   // failed night has a row, and so `/api/version` can read the last success from the ledger.
   | "storage_backup";

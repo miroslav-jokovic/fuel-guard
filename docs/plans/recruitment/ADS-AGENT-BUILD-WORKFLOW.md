@@ -143,7 +143,7 @@ else proceeds.
 
 | ID | Item | Type | Who | Blocks | Fallback if not cleared | Status |
 |---|---|---|---|---|---|---|
-| G1 | Meta: Business Manager owns the ad account + Page; payment method; **account spending limit set**; Business app with Marketing API + Lead Ads + Webhooks; app **Live** (privacy URL = `/privacy`); admin system user assigned to account, Page and app; token with `ads_management, ads_read, leads_retrieval, pages_manage_metadata, pages_read_engagement, pages_show_list`; Leads Access Manager grants the app; a **sandbox ad account** | O+V | owner (we write the click-path, O1) | B-live steps (B2–B6 live checks) | built and tested against recorded fixtures; **no production launch** | open |
+| G1 | Meta: Business Manager owns the ad account + Page; payment method; **account spending limit set**; Business app with Marketing API + Lead Ads + Webhooks; app **Live** (privacy URL = `/privacy`); admin system user assigned to account, Page and app (on the Page, the **Moderate** or Create content task as well as Advertise: `subscribed_apps` refuses without one, B4b); in the app's Webhooks product, the Page object's **`leadgen`** field subscribed with callback `<api origin>/api/webhooks/meta` and the verify token we set as `META_WEBHOOK_VERIFY_TOKEN`, and the **app secret** set as `META_APP_SECRET`; token with `ads_management, ads_read, leads_retrieval, pages_manage_metadata, pages_read_engagement, pages_show_list`; Leads Access Manager grants the app; a **sandbox ad account** | O+V | owner (we write the click-path, O1) | B-live steps (B2–B6 live checks) | built and tested against recorded fixtures; **no production launch** | open |
 | G2 | Higgsfield **API** account, prepaid balance, key (ID+secret) | O | owner | C3 live, C6 | creative studio runs on recorded responses; the "Generate" button is hidden | open (Q-AD20) |
 | G3 | Brand kit: vector logo, colours, company name as printed, phone, 5–10 real photos of our tractors and trailers | O | owner | C4 final look, C6 | no logo overlay; equipment drawn generically; P4 disabled | open (Q-AD14) |
 | G4 | First opening: pay basis + range, home time, equipment, lanes, yard + radius + reason | O | owner | first real campaign (G-launch) | nothing launches — by design (D-AD1) | open (Q-AD9) |
@@ -930,3 +930,40 @@ blocking step in §3 above.
   that became applicants. Named in `routeGateLedger.test.ts` beside the applicant purge. 8 SQL and 7 route
   mutants, all killed. Still owner track: Q-LS6 / Q-RA8, how long an unconverted lead lives before this
   runs on its own; counsel: whether contact notes on a purged lead should be redacted too.
+- **2026-11-03, B4b — the leadgen webhook.** `POST /api/webhooks/meta` (public; `modules/ads/routes/metaWebhook.ts`
+  over `leads/leadgenWebhook.ts`) believes only what Meta signed: `X-Hub-Signature-256` HMAC over the RAW
+  bytes `appHttp.ts` keeps, and — only for a body with non-ASCII — over its escaped-unicode form, which is
+  what Meta's Messenger webhooks page says it signs. No `META_APP_SECRET` → 503; bad/missing signature →
+  401; both counted and said at boot. A signed delivery queues one **`ads_lead_fetch`** row per lead
+  (`KIND_CAPS` 1, `dedup_key` `ads_lead_fetch:<org>:<leadgen_id>`) and answers 200; a form no campaign of
+  ours has is answered 200 and logged by id. The GET handshake echoes `hub.challenge` (as `text/plain`, held
+  to a token shape) only for `META_WEBHOOK_VERIFY_TOKEN`; unset → 503.
+  - **Read against Meta's pages (2026-11-03), where they differ from the handoff's §3:** Meta retries for
+    36 h and tells the receiver to dedupe (the dedup key does); one POST batches up to 1000 updates over
+    many entries and changes (all are read); the signature is over the escaped-unicode payload (above); the
+    retrieving guide's fields are `id,created_time,ad_id,form_id,field_data` (we also ask `campaign_id`,
+    as the backfill does, and `form_id` must match the delivery's); `subscribed_apps` needs a Page token
+    with CREATE_CONTENT/MANAGE/MODERATE plus `pages_manage_metadata`, and Meta delivers only when the
+    APP-level subscription is set too (App Dashboard, owner track — G1 now says so); the 90-day lead
+    retention is not on the retrieving page and stays an unconfirmed reading.
+  - **Why a row, not `dispatchJob`:** production is `JOB_EXECUTION_MODE=inprocess`, where `dispatchJob`
+    runs the handler inline — a Graph read per lead inside Meta's request. The receiver writes rows, answers,
+    then runs what it queued (`drainKindNow`, handed in by `app.ts`); the general-lane drain claims leftovers
+    and retries. Not gated on `ADS_ENABLED`: the gate is the secret.
+  - The job (`queue/handlers/adsLeadFetch.ts`, the second ads↔recruiting seam) finds the org's campaign by
+    form, reads `GET /{leadgen_id}` with the Page token, maps with the backfill's `platformLeadFromMeta`
+    (one mapping, so the two roads give the sink the same lead) and throws on anything not brought in.
+  - The connection test gains a 7th check, **`leadgen`**: it subscribes the Page with its Page token, and
+    fails with "give the system user the Moderate task" on Meta's code 200. ⚠ Unproven against the real
+    app until L4 — FakeMeta models the Page half only.
+  - FakeMeta: `fakeMetaWebhooks.ts` (subscriptions, a signed delivery it RETURNS so a test can send it
+    twice, forged, re-serialised or not at all) and `GET /{lead_id}` in `fakeMetaLeads.ts` (Page token only).
+  - 31 new tests; 17 mutants, all killed (the conflict path re-run after the boundary fix moved it onto
+    the queue driver). Readiness: **Lead intake L1.** L2 stays `later`: forged, duplicate, lost and
+    malformed are now tested, but "same person on two platforms" needs a second platform and "injection"
+    needs D3's extractor.
+  - **G-sec `/security-review` on the B4b diff: no finding.** Checked: signature before any read or write
+    (constant-time, strict header, raw bytes; the escaped form still needs the secret); the challenge echo is
+    shape-held and `text/plain`; ids are digits-only before they reach a Graph path or a filter; every query
+    after the form→org lookup is org-scoped and read with that org's own Page token, and `form_id` must
+    match; logs and job errors carry ids, never a person.

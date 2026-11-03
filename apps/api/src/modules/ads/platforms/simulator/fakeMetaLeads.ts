@@ -50,6 +50,20 @@ export class FakeLeads {
     return lead;
   }
 
+  /** The form a lead was collected on, or null if the id is not a lead. */
+  formOf(id: string): string | null {
+    return this.leads.find((l) => l.id === id)?.form_id ?? null;
+  }
+
+  /**
+   * GET /{v}/{lead_id}?fields=… (B4b) — one lead, read by the id a leadgen webhook carried: "You can use
+   * `leadgen_id` to retrieve data associated with the lead" (retrieving guide). Page token only.
+   */
+  read(id: string, fields?: string): Answer | null {
+    const l = this.leads.find((x) => x.id === id);
+    return l ? { status: 200, body: pick({ ...l }, fields, ["id"]) } : null;
+  }
+
   list(formId: string, b: Record<string, string>): Answer {
     let since: number | null = null;
     if (b.filtering) {

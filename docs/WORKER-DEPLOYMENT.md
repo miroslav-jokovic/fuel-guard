@@ -141,7 +141,15 @@ the last 48 h, or further back to an hour before that connection's last `done` r
 outage closes itself once the connection works again.
 The job reads every form of ours for the last 48 h with the Page token and hands each lead to recruiting's
 `LeadSink` (`queue/handlers/adsLeadsBackfill.ts`, the one place the two modules meet); it fails, and is
-listed, when any form or lead was not brought in. `ads-insights` and `ads-reconcile` are still planned (B5). The
+listed, when any form or lead was not brought in. A second non-scheduler kind, **`ads_lead_fetch`** (B4b,
+2026-11-03, `KIND_CAPS` 1), is queued by Meta's leadgen webhook (`POST /api/webhooks/meta`): one row per lead,
+`dedup_key` = `ads_lead_fetch:<org>:<leadgen_id>`, read by id with the Page token and handed to the same sink.
+It is born as a ROW, never through `dispatchJob` (which runs inline in `inprocess` mode — a Graph read inside
+Meta's request). In `inprocess` mode the receiving process runs the rows it queued right after answering
+(`drainKindNow`), and the general-lane drain (`inprocessDrain.ts`) claims any left over, including retries;
+in `queue` mode the consumer does. It is NOT gated on `ADS_ENABLED`: the gate is `META_APP_SECRET` (absent =
+every delivery 503, said at boot), because a lead from a live form is the carrier's whether or not the
+orchestrator is on. `ads-insights` and `ads-reconcile` are still planned (B5). The
 `general` lane, not `egress`: `egress` exists for the one host WEX allowlists, and Meta, TikTok, X
 and Higgsfield check no caller address, so these follow FleetPal and Med-Stop's placement, not the
 EFS poller's. They follow FleetPal's three rules as well: **off** unless `ADS_ENABLED=true` on the

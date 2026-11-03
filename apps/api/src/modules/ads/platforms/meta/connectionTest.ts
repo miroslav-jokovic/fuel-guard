@@ -20,6 +20,16 @@ import type { GraphFailure, MetaGraph } from "./graphClient.js";
  *                  and could never launch.
  *   page           the token can act for the Page, with the ADVERTISE task. Its Page token is handed back
  *                  to be SEALED, never put in the report (workflow §1.2-3: leads need a Page token).
+ *   leadgen        (B4b) the Page is subscribed to our app's `leadgen` webhook: `POST {page}/subscribed_apps
+ *                  ?subscribed_fields=leadgen` with that Page token, "A Page access token requested by a
+ *                  person who can perform" CREATE_CONTENT, MANAGE or MODERATE, plus `pages_manage_metadata`
+ *                  (https://developers.facebook.com/docs/graph-api/reference/page/subscribed_apps/, read
+ *                  2026-11-03). Idempotent — a second subscribe is the same `{ success: true }` — so every
+ *                  test repeats it, and a Page whose subscription was removed in Meta is put back by Test.
+ *                  ⚠ Meta delivers only for "fields with subscriptions at both the page and app levels": the
+ *                  APP-level half is the App Dashboard's (owner track) and cannot be checked with this token,
+ *                  so a pass here means the Page half only. Unproven against the real app until L4. A
+ *                  failure fails the connection: without it, leads arrive only by the hourly backfill.
  *
  * The Page token travels beside the report, not inside it, so the report can be stored and shown as it
  * is. Nothing in this file logs.
@@ -27,7 +37,7 @@ import type { GraphFailure, MetaGraph } from "./graphClient.js";
 
 export const META_SCOPES = ["ads_management", "ads_read", "leads_retrieval", "pages_manage_metadata", "pages_read_engagement", "pages_show_list"] as const;
 
-export const CONNECTION_CHECKS = ["token", "permissions", "ad_account", "currency", "spending_limit", "page"] as const;
+export const CONNECTION_CHECKS = ["token", "permissions", "ad_account", "currency", "spending_limit", "page", "leadgen"] as const;
 export type ConnectionCheckKey = (typeof CONNECTION_CHECKS)[number];
 
 export interface ConnectionCheck {
@@ -140,6 +150,15 @@ export async function testMetaConnection(graph: MetaGraph, target: ConnectionTar
       else if (!pageToken) fail("page", `Meta gave no Page token for ${p.name ?? target.pageId}.`, "page_token_missing");
       else checks.push({ key: "page", ok: true, detail: `${p.name ?? target.pageId}: may advertise; Page token received.` });
     }
+  }
+  // leadgen — only for a Page that passed, with the Page token it handed out.
+  if (check("page") && pageToken) {
+    const sub = await graph.withToken(pageToken).post<{ success?: boolean }>(`${target.pageId}/subscribed_apps`, { subscribed_fields: "leadgen" }, { idempotent: true });
+    // Meta's code 200 is a permission error: here, a system user with no content or moderation task on the Page.
+    const why = (f: GraphFailure) => (f.code === 200 ? " In Business settings, give the system user the Moderate (or Create content) task on the Page." : "");
+    if (!sub.ok) fail("leadgen", `The Page could not be subscribed to new leads: ${meta(sub.error)}.${why(sub.error)} Leads still arrive within the hour.`, sub.error.error_code);
+    else if (sub.data.success !== true) fail("leadgen", "Meta did not confirm the Page's subscription to new leads. Leads still arrive within the hour.", "leadgen_not_subscribed");
+    else checks.push({ key: "leadgen", ok: true, detail: "Subscribed to new leads (the app's own webhook setting is checked in Meta)." });
   }
   // A Page token is handed on only from a Page that passed: one we may not advertise for is not ours to keep.
   return finish(check("page") ? pageToken : null);

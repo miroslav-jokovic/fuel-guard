@@ -18,6 +18,7 @@ import { requestMetrics } from "./middleware/requestMetrics.js";
 import { applicationIntakeLimiter, isApplicationLink, packetCeremonyLimiter } from "./middleware/applicationLimits.js";
 import { errorResponder } from "./middleware/errorResponder.js";
 import { registerAllHandlers } from "./queue/handlers/index.js";
+import { drainKindNow } from "./queue/inprocessDrain.js";
 import { accessReviewRouter, invitesRouter, memberPasswordResetRouter, publicInvitesRouter, publicPasswordResetRouter, sectionAccessRouter, surfaceAccessRouter, surfaceClaimFor } from "./modules/org/index.js";
 import { displayNameFor } from "./lib/memberLabels.js";
 import { membersRouter } from "./modules/org/index.js";
@@ -57,7 +58,7 @@ import { dispatchRouter } from "./modules/loads/index.js";
 import { liveMapRouter } from "./modules/livemap/index.js";
 import { idleRouter } from "./modules/idle/index.js";
 import { drugAlcoholRouter } from "./modules/medstop/index.js";
-import { adsRouter } from "./modules/ads/index.js";
+import { adsRouter, META_WEBHOOK_PATH, metaWebhookBootWarning, metaWebhookRouter } from "./modules/ads/index.js";
 import { roadsideInspectionsRouter } from "./modules/inspections/index.js";
 import { hazmatRouter, meHazmatRouter, publicHazmatRouter } from "./modules/hazmat/index.js";
 import { publicApplicationRouter, recordOrderedDrugTest, recruitmentRouter } from "./modules/recruiting/index.js";
@@ -276,6 +277,9 @@ function mountApiRouters(app: Express, env: Env): void {
   // Say it at boot instead of leaving it to be measured six months later (SAMSARA-COLLECTION-PLAN S1).
   const samsaraWebhookWarning = samsaraWebhookBootWarning(env);
   if (samsaraWebhookWarning) console.warn(samsaraWebhookWarning);
+  const metaWebhookWarning = metaWebhookBootWarning(env);
+  if (metaWebhookWarning) console.warn(metaWebhookWarning);
+  app.use(META_WEBHOOK_PATH, metaWebhookRouter({ kick: (e, admin, n) => drainKindNow(e, admin, "ads_lead_fetch", n) })); // Meta leadgen (ads B4b): X-Hub-Signature-256; no user auth
   app.use("/api/webhooks", webhooksRouter()); // provider-signed; no user auth
 }
 

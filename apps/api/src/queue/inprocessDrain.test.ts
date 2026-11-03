@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { createSupabaseRecorder } from "../testing/supabaseRecorder.js";
 import { testEnv } from "../../src/testing/testEnv.js";
 import { clearHandlers, registerHandler } from "./registry.js";
-import { drainOnce, drainKinds } from "./inprocessDrain.js";
+import { drainKindNow, drainOnce, drainKinds } from "./inprocessDrain.js";
 
 /**
  * The drain's contract, proven against the recorder: it claims through the SAME 0095 RPCs the
@@ -64,13 +64,13 @@ describe("drainOnce", () => {
     const noEfs = testEnv({ EFS_SOAP_ENABLED: false });
     const rec = createSupabaseRecorder({ rpc: { claim_next_job: [] } });
     await drainOnce(noEfs, rec.client, "general");
-    expect((rec.rpcs()[0]!.args as Record<string, unknown>).p_kinds).toEqual(["financial_projection", "backfill"]);
+    expect((rec.rpcs()[0]!.args as Record<string, unknown>).p_kinds).toEqual(["financial_projection", "backfill", "ads_lead_fetch"]);
   });
 
   it("splits the drain by lane: the general lane never claims the EFS kind, even where EFS is on", async () => {
     const rec = createSupabaseRecorder({ rpc: { claim_next_job: [] } });
     await drainOnce(env, rec.client, "general");
-    expect((rec.rpcs()[0]!.args as Record<string, unknown>).p_kinds).toEqual(["financial_projection", "backfill"]);
+    expect((rec.rpcs()[0]!.args as Record<string, unknown>).p_kinds).toEqual(["financial_projection", "backfill", "ads_lead_fetch"]);
     expect(drainKinds(testEnv({ EFS_SOAP_ENABLED: false }), "egress")).toEqual([]);
   });
 
@@ -151,5 +151,34 @@ describe("drainOnce", () => {
     await drainOnce(env, rec.client, "egress");
     expect(rec.rpcs()).toHaveLength(1);
     expect(rec.writes()).toEqual([]);
+  });
+});
+
+/**
+ * B4b. Meta's leadgen receiver queues a ROW per lead (it must answer fast, and `dispatchJob` would run the
+ * Graph read inline in this mode), then kicks the rows it queued once it has answered.
+ */
+describe("drainKindNow", () => {
+  const leadRow = { ...claimedRow, kind: "ads_lead_fetch", payload: { leadgenId: "L1", formId: "F1" } };
+
+  it("runs queued rows of that one kind, at most as many as were queued", async () => {
+    let ran = 0;
+    registerHandler("ads_lead_fetch", async () => {
+      ran++;
+      return {};
+    });
+    const rec = createSupabaseRecorder({ rpc: { claim_next_job: [leadRow], complete_job: null, fail_job: "requeued" } });
+    expect(await drainKindNow(testEnv(), rec.client, "ads_lead_fetch", 2)).toBe(2);
+    const claims = rec.rpcs().filter((r) => r.fn === "claim_next_job");
+    expect([ran, claims.length, (claims[0]!.args as Record<string, unknown>).p_kinds]).toEqual([2, 2, ["ads_lead_fetch"]]);
+  });
+
+  it("stops at an empty queue, and does nothing at all in queue mode, where the consumer owns the table", async () => {
+    const empty = createSupabaseRecorder({ rpc: { claim_next_job: [] } });
+    expect(await drainKindNow(testEnv(), empty.client, "ads_lead_fetch", 5)).toBe(0);
+    expect(empty.rpcs()).toHaveLength(1);
+    const queued = createSupabaseRecorder({ rpc: { claim_next_job: [leadRow] } });
+    expect(await drainKindNow(testEnv({ JOB_EXECUTION_MODE: "queue" }), queued.client, "ads_lead_fetch", 5)).toBe(0);
+    expect(queued.rpcs()).toHaveLength(0);
   });
 });

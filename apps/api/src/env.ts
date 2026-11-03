@@ -71,6 +71,9 @@ const EnvSchema = z.object({
   // Base64 secret from the Samsara webhook config — used to verify incoming siphoning-alert webhooks.
   // When unset, the webhook endpoint rejects everything (fail-closed).
   SAMSARA_WEBHOOK_SECRET: z.string().optional(),
+  // Meta leadgen webhook (ads B4b): unset = that half answers 503; why in `modules/ads/leads/leadgenWebhook.ts`.
+  META_APP_SECRET: z.string().min(1).optional(),
+  META_WEBHOOK_VERIFY_TOKEN: z.string().min(1).optional(),
   // Background auto-sync. DEPRECATED as a cadence — kept only as a kill switch: SAMSARA_SYNC_HOURS=0
   // disables ALL Samsara schedulers (manual buttons still work). Cadence is now tiered below.
   SAMSARA_SYNC_HOURS: z.coerce.number().min(0).default(6),

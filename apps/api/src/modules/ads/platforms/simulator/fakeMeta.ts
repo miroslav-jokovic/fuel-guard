@@ -6,6 +6,7 @@ import { FakeForms } from "./fakeMetaForms.js";
 import { FakeLeads } from "./fakeMetaLeads.js";
 import { FakeRules } from "./fakeMetaRules.js";
 import { accountInsights } from "./fakeMetaInsights.js";
+import { FakeWebhooks } from "./fakeMetaWebhooks.js";
 import { graphError, pick } from "./fakeMetaShapes.js";
 
 /**
@@ -56,7 +57,8 @@ import { graphError, pick } from "./fakeMetaShapes.js";
  *   https://developers.facebook.com/docs/marketing-api/audiences/reference/basic-targeting/
  *
  * ── NOT HERE YET, ON PURPOSE ───────────────────────────────────────────────────────────────────────
- * Instant Forms live in `fakeMetaForms.ts` (B2b), Automated Rules in `fakeMetaRules.ts` (B3b). Leads in `fakeMetaLeads.ts` (B4a). Ads and creatives (B2c), the signed `leadgen` webhook (B4b), insights (B5). Each joins
+ * Instant Forms live in `fakeMetaForms.ts` (B2b), Automated Rules in `fakeMetaRules.ts` (B3b). Leads in `fakeMetaLeads.ts` (B4a), the
+ * signed `leadgen` webhook and `subscribed_apps` in `fakeMetaWebhooks.ts` (B4b). Ads and creatives (B2c), insights (B5). Each joins
  * with the step that first calls it, so every endpoint here has a caller whose contract test reads it.
  *
  * In-memory: a simulator restart forgets every campaign. That is the simulator being honest about
@@ -125,6 +127,8 @@ export interface FakeMetaOptions {
   permissions?: Record<string, "granted" | "declined" | "expired">;
   /** Pages the token can act for; each carries the Page token `me/accounts` hands out. */
   pages?: FakeMetaPage[];
+  /** The app secret leadgen deliveries are signed with (B4b). */
+  appSecret?: string;
 }
 
 export interface FakeMetaPage {
@@ -155,6 +159,8 @@ export class FakeMeta {
   readonly leads: FakeLeads;
   /** Automated Rules (B3b), in `fakeMetaRules.ts`. */
   readonly rules: FakeRules;
+  /** Page subscriptions and signed leadgen deliveries (B4b), in `fakeMetaWebhooks.ts`. */
+  readonly webhooks: FakeWebhooks;
   private revoked = false;
   readonly accounts: Map<string, FakeMetaAccount>;
   /** Every request, in order, for "exactly one create" assertions. */
@@ -174,6 +180,7 @@ export class FakeMeta {
     this.pages = (opts.pages ?? []).map((p) => ({ ...p, tasks: [...p.tasks] }));
     this.forms = new FakeForms(() => String(this.nextId++), () => this.traceId());
     this.leads = new FakeLeads(() => String(this.nextId++), () => this.traceId());
+    this.webhooks = new FakeWebhooks(opts.appSecret ?? "fake-meta-app-secret", () => this.traceId());
     this.rules = new FakeRules(() => String(this.nextId++), () => this.traceId());
     this.sets = new FakeAdSets(() => String(this.nextId++), () => this.traceId(), (id) => this.campaigns.get(id));
   }
@@ -251,8 +258,9 @@ export class FakeMeta {
   /** A Page's edges and its forms answer only that Page's token (Lead Ads guide); everything else the user's. */
   private expectedToken(path: string): string | undefined {
     const [head, edge] = path.split("/");
-    const pageId = edge === "leadgen_forms" ? head
-      : edge === undefined || edge === "leads" ? this.forms.pageOf(head ?? "") : null;
+    const pageId = edge === "leadgen_forms" || edge === "subscribed_apps" ? head
+      : edge === "leads" ? this.forms.pageOf(head ?? "")
+      : edge === undefined ? this.forms.pageOf(head ?? "") ?? this.forms.pageOf(this.leads.formOf(head ?? "") ?? "") : null;
     if (!pageId) return this.token;
     const page = this.pages.find((p) => p.id === pageId);
     return page && !this.revoked ? page.access_token : undefined;
@@ -296,9 +304,14 @@ export class FakeMeta {
     const pageForms = /^(\d+)\/leadgen_forms$/.exec(path);
     if (pageForms && method === "POST") return this.forms.create(pageForms[1]!, body);
     if (pageForms && method === "GET") return this.forms.list(pageForms[1]!, body.fields);
+    const subs = /^(\d+)\/subscribed_apps$/.exec(path);
+    const subPage = subs ? this.pages.find((p) => p.id === subs[1]) : undefined;
+    if (subPage) return method === "POST" ? this.webhooks.subscribe(subPage, body) : this.webhooks.list(subPage.id);
     const one = /^(\d+)$/.exec(path);
     const form = one && method === "GET" ? this.forms.read(one[1]!, body.fields) : null;
     if (form) return form;
+    const lead = one && method === "GET" ? this.leads.read(one[1]!, body.fields) : null;
+    if (lead) return lead;
     const rule = one && method === "POST" ? this.rules.update(one[1]!, body) : null;
     if (rule) return rule;
     const child = one ? this.sets.route(method, one[1]!, body) : null;

@@ -95,6 +95,9 @@ const KIND_CAPS: Record<string, number> = {
   // One at a time: a backfill pages every form's leads with one Page token, and the window overlaps the
   // next hour's, so running two would only spend Meta's per-Page rate on reads the sink already holds (B4a2).
   ads_leads_backfill: 1,
+  // One at a time: each is one Graph read with a Page token, and a burst of leads is a burst of reads
+  // against that Page's rate; the backfill is the net, so a short queue costs nothing (B4b).
+  ads_lead_fetch: 1,
   // sharp is CPU-bound; two at a time keeps a burst of uploads from starving the sync kinds.
   document_derive: 2,
 };
