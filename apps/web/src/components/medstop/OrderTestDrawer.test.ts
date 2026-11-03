@@ -30,7 +30,10 @@ vi.mock("@/composables/useMedstopOrder", () => ({
     live.context = shallowRef(api.context);
     return { data: computed(() => live.context!.value), isLoading: ref(false) };
   },
-  searchSites: async (q: Record<string, unknown>) => (api.searched.push(q), { sites: [{ id: "LOC-1", name: "Med-Stop Loop", address: "1 Main St", city: "Chicago", state: "IL", zip: "60601", distance: "1.2 mi", booked: 0 }], near: null }),
+  searchSites: async (q: Record<string, unknown>) => (api.searched.push(q), { sites: [
+    { id: "LOC-1", name: "Med-Stop Loop", address: "1 Main St", city: "Chicago", state: "IL", zip: "60601", distance: "1.2 mi", booked: 0 },
+    { id: "LOC-2", name: "Concentra Joliet", address: "1051 Essington Rd", city: "Joliet", state: "IL", zip: "60435", distance: "30 mi", booked: 0 },
+  ], near: null }),
   useOrderPreview: () => ({
     isPending: ref(false),
     mutateAsync: async (input: MedstopOrderInput) => {
@@ -234,4 +237,13 @@ describe("OrderTestDrawer", () => {
     await order("site_unread");
     expect(api.toasts.join()).toContain("could not be copied into the appointment");
   });
+
+  it("'Order again' searches the closed order's ZIP and picks its site when Med-Stop still offers it (MSO2)", async () => {
+    // The closed order's site is NOT the first one found: the pick has to be its own.
+    await render({ kind: "applicant", medstopId: "EE-APP", name: "Al Applicant", zip: "60601", locationId: "LOC-2" });
+    await flushPromises();
+    expect(api.searched[0]).toMatchObject({ zip: "60601", reason: "PRE-EMPLOYMENT" });
+    expect((document.body.querySelector('input[type="radio"][value="LOC-2"]') as HTMLInputElement | null)?.checked).toBe(true);
+  });
 });
+

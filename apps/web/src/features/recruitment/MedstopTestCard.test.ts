@@ -120,6 +120,17 @@ describe("MedstopTestCard", () => {
     expect(w.text()).not.toContain("holds where to go");
   });
 
+  it("offers the order roles 'Didn't go — mark no-show' and 'Cancel order' on the open order, and emits which (MSO2)", async () => {
+    const open = { requestId: "r9", kind: "drug", reason: "PRE-EMPLOYMENT", requestedOn: "2026-11-04", status: "OPEN", site: "Concentra Joliet", goBy: "2026-11-04T16:00" };
+    answer.value = { ...tests(null), tests: [], orders: [open], applicantMedstopId: "EE-APP" };
+    const w = await render();
+    await w.findAll("button").find((b) => b.text() === "Didn't go — mark no-show")!.trigger("click");
+    await w.findAll("button").find((b) => b.text() === "Cancel order")!.trigger("click");
+    expect(w.emitted("closeOrder")).toEqual([[{ requestId: "r9", status: "NO SHOW" }], [{ requestId: "r9", status: "CANCELED" }]]);
+    who.role = "dispatcher";
+    expect((await render()).text()).not.toContain("mark no-show");
+  });
+
   it("still offers the drug order beside an open ALCOHOL order", async () => {
     const alcohol = { requestId: "r8", kind: "alcohol", reason: "PRE-EMPLOYMENT", requestedOn: "2026-11-04", status: "OPEN", site: null, goBy: null };
     answer.value = { ...tests(null), tests: [], orders: [alcohol], applicantMedstopId: "EE-APP" };

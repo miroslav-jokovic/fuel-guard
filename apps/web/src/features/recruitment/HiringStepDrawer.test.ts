@@ -57,7 +57,11 @@ const STUBS = {
   EmployerCallsPanel: stub("calls"),
   // UX4: no `data-body` — Med-Stop's card is not a body the map chooses; it only asks for the order
   // drawer, which the page opens in place of this one.
-  MedstopTestCard: { name: "MedstopTestCard", emits: ["order"], template: `<button data-medstop @click="$emit('order', 'EE-APP')" />` },
+  MedstopTestCard: {
+    name: "MedstopTestCard",
+    emits: ["order", "closeOrder"],
+    template: `<div><button data-medstop @click="$emit('order', 'EE-APP')" /><button data-medstop-close @click="$emit('closeOrder', { requestId: 'REQ-77', status: 'NO SHOW' })" /></div>`,
+  },
   // §14 OF3: the road test's own suite is `RoadTestPanel.test.ts`; here only which drawer it opens in.
   RoadTestPanel: stub("road-test"),
   ApplicantPhotoStrip: stub("photos"),
@@ -301,6 +305,13 @@ describe("the three recorded acts D1 built (D-HM6)", () => {
     const root = await openOn("drug_test");
     (root.querySelector("[data-medstop]") as HTMLButtonElement).click();
     expect(wrapper!.emitted("orderTest")).toEqual([["EE-APP"]]);
+  });
+
+  /** MSO2: closing the open order is the page's drawer too, for the same reason. */
+  it("hands the Med-Stop card's close-order up to the page, with the order and the outcome", async () => {
+    const root = await openOn("drug_test");
+    (root.querySelector("[data-medstop-close]") as HTMLButtonElement).click();
+    expect(wrapper!.emitted("closeOrder")).toEqual([[{ requestId: "REQ-77", status: "NO SHOW" }]]);
   });
 
   /** The consent's reading IS the row's state: "waiting on them" is no consent on file (D-AW5). */

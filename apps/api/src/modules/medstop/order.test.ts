@@ -244,15 +244,20 @@ describe("observed orders (UX5d)", () => {
 });
 
 describe("MedstopClient.write — the allow-list", () => {
-  it("refuses every Med-Stop write but POST /Request/new and POST /Employee/new before anything is sent", async () => {
+  it("refuses every Med-Stop write but the three allowed before anything is sent — /notify and /noshow included", async () => {
     const { client, calls } = medstop();
-    for (const path of ["/Request/REQ-1/notify", "/Test/T-1/result", "/Employee/E-1/remove", "/Employee/E-1/hire", "/Employee/E-1/terminate", "/Request"])
+    for (const path of [
+      "/Request/REQ-1/notify", "/Request/noshow", "/Request/REQ-1/status/x", "/Request/a/b/status", "/Request//status", "/Request/REQ%2F1/status",
+      "/Test/T-1/result", "/Employee/E-1/remove", "/Employee/E-1/hire", "/Employee/E-1/terminate", "/Request",
+    ])
       await expect(client.write("POST", path, {})).rejects.toThrow(/not a Med-Stop write/);
     expect(calls).toHaveLength(0);
   });
 
-  it("allows exactly two writes — an order (UX3) and an applicant (UX5c)", async () => {
-    const { MEDSTOP_WRITES } = await import("./client.js");
-    expect([...MEDSTOP_WRITES].sort()).toEqual(["POST /Employee/new", "POST /Request/new"]);
+  it("allows exactly three writes — an order (UX3), an applicant (UX5c) and closing one order (MSO2)", async () => {
+    const { MEDSTOP_WRITES, medstopWriteAllowed } = await import("./client.js");
+    expect([...MEDSTOP_WRITES].sort()).toEqual(["POST /Employee/new", "POST /Request/new", "POST /Request/{id}/status"]);
+    expect(medstopWriteAllowed("POST", "/Request/1f2e-AB/status")).toBe(true);
+    expect(medstopWriteAllowed("GET", "/Request/1f2e-AB/status")).toBe(false);
   });
 });
