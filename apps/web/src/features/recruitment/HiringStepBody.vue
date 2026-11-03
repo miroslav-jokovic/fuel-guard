@@ -21,6 +21,7 @@ import EmploymentHistorySection from "@/features/recruitment/EmploymentHistorySe
 import EmployerInquirySection from "@/features/recruitment/EmployerInquirySection.vue";
 import PspRecordsSection from "@/features/recruitment/PspRecordsSection.vue";
 import RecordedActPanel from "@/features/recruitment/RecordedActPanel.vue";
+import VendorPortalCard from "@/features/recruitment/VendorPortalCard.vue";
 import RoadTestPanel from "@/features/recruitment/RoadTestPanel.vue";
 import HandbookPanel from "@/features/recruitment/HandbookPanel.vue";
 import TravelPanel from "@/features/recruitment/TravelPanel.vue";
@@ -236,6 +237,9 @@ const authorizationsQ = useAuthorizationsQuery(driverId);
          row wired to `"record"` without a kind behind it is a TYPE error here rather than a form
          that posts and 400s. `recordedActStep` is where that narrowing happens. -->
     <template v-else-if="body === 'record' && recordedActStep">
+      <!-- §14 D-OF8: the portal the act is done in (SambaSafety, the Clearinghouse), then the form below
+           files what it gave back. Nothing for the drug test, which is Med-Stop's card. -->
+      <VendorPortalCard :step="step.key" />
       <RecordedActPanel
         :driver-id="driverId"
         :step="recordedActStep"
