@@ -857,16 +857,3 @@ blocking step in §3 above.
   fails the job (lead ids only) when anything was not brought in. Readiness: Lead intake's L1 now pins the
   sink, backfill, handler and tick tests, with **B4b** (the webhook) as its last gap, so it still reads L0
   honestly. 8 mutants, all killed (one survived the first run: no test held the dedup key).
-- **2026-11-03, audit fix — the backfill never skips silently, and catches up** (lead-path audit H1, on
-  B4a as merged in #1966). Three holes:
-  - The tick queued only `connected` connections, so a `failing` one (a dead token; #1970 marks it so)
-    got no job, so no failed job — its leads went unread and nothing said so. It now queues `failing`
-    too; the run is attempted, and fails loudly every hour while the token is dead.
-  - `backfillConnectionLeads` returned an empty, green result for any connection not `connected`. Now
-    only a disconnected one is not read, and with forms still on it that is a failure
-    (`connection:disconnected`).
-  - The fixed 48 h window lost a longer outage's leads for good. The handler now reaches back to an hour
-    before this connection's last `done` run (`catchUpSince`; the jobs ledger's own fact, via org's new
-    `lastDoneJobByKey`, kept 90 days like Meta's leads), and to Meta's 90 days when there is none.
-  7 mutants, all killed. Not done: an alert when a connection's backfill has failed for N hours (the
-  failed job is listed, but nobody is rung); it needs a lead alert category.
