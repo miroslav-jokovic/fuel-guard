@@ -32,6 +32,11 @@ export interface HiringEvidenceInput {
   jurisdiction?: string | null;
   /** Optional: an act is recordable before its printout is to hand. */
   file: File | null;
+  /**
+   * A scan already registered and uploaded through this door — the MVR the AI check read (§14 OF6b), so the
+   * record cites the very bytes that were checked instead of uploading them a second time. Wins over `file`.
+   */
+  documentId?: string | null;
 }
 
 interface RegisterResponse {
@@ -47,45 +52,53 @@ export interface HiringEvidenceResult {
   kind: string;
 }
 
+const recordsBase = (driverId: string, step: HiringRecordedActStep) =>
+  `/api/recruitment/applicants/${encodeURIComponent(driverId)}/records/${step}`;
+
+/**
+ * Register a scan through this door and PUT its bytes — the first half of recording an act, and the whole of
+ * what the MVR's AI check needs before it reads (§14 OF6b). Returns the document id the record will cite.
+ */
+export async function uploadHiringEvidenceScan(driverId: string, step: HiringRecordedActStep, file: File): Promise<string> {
+  const contentType = await uploadContentType(file, DOCUMENT_CONTENT_TYPES);
+  if (!contentType) {
+    throw new Error("Upload a PDF or an image (JPEG, PNG, WebP or HEIC).");
+  }
+  const bytes = await file.arrayBuffer();
+
+  // Register first, then PUT, then file — the order every document path in this product uses.
+  // A scan in the bucket that no row points at is an orphan the reconciler sweeps; a row citing
+  // bytes that never arrived is a citation to nothing.
+  const registered = await apiFetch<RegisterResponse>(`${recordsBase(driverId, step)}/document`, {
+    method: "POST",
+    body: {
+      document_id: crypto.randomUUID(),
+      sha256: await sha256Hex(bytes),
+      bytes: file.size,
+      content_type: contentType,
+    },
+  });
+  if (!registered.ok || !registered.data) {
+    throw new Error(registered.error?.message ?? "Could not register the scan.");
+  }
+
+  const { error } = await supabase.storage
+    .from(DOCUMENTS_BUCKET)
+    .uploadToSignedUrl(registered.data.storagePath, registered.data.token, file, {
+      contentType,
+    });
+  // A 409 means the object is already there — a retry of an upload that in fact succeeded.
+  if (error && !/already exists|duplicate/i.test(error.message)) throw new Error(error.message);
+  return registered.data.documentId;
+}
+
 export function useRecordHiringAct() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (input: HiringEvidenceInput): Promise<HiringEvidenceResult> => {
-      const base = `/api/recruitment/applicants/${encodeURIComponent(input.driverId)}/records/${input.step}`;
-      let documentId: string | null = null;
-
-      if (input.file) {
-        const contentType = await uploadContentType(input.file, DOCUMENT_CONTENT_TYPES);
-        if (!contentType) {
-          throw new Error("Upload a PDF or an image (JPEG, PNG, WebP or HEIC).");
-        }
-        const bytes = await input.file.arrayBuffer();
-
-        // Register first, then PUT, then file — the order every document path in this product uses.
-        // A scan in the bucket that no row points at is an orphan the reconciler sweeps; a row citing
-        // bytes that never arrived is a citation to nothing.
-        const registered = await apiFetch<RegisterResponse>(`${base}/document`, {
-          method: "POST",
-          body: {
-            document_id: crypto.randomUUID(),
-            sha256: await sha256Hex(bytes),
-            bytes: input.file.size,
-            content_type: contentType,
-          },
-        });
-        if (!registered.ok || !registered.data) {
-          throw new Error(registered.error?.message ?? "Could not register the scan.");
-        }
-
-        const { error } = await supabase.storage
-          .from(DOCUMENTS_BUCKET)
-          .uploadToSignedUrl(registered.data.storagePath, registered.data.token, input.file, {
-            contentType,
-          });
-        // A 409 means the object is already there — a retry of an upload that in fact succeeded.
-        if (error && !/already exists|duplicate/i.test(error.message)) throw new Error(error.message);
-        documentId = registered.data.documentId;
-      }
+      const base = recordsBase(input.driverId, input.step);
+      const documentId: string | null =
+        input.documentId ?? (input.file ? await uploadHiringEvidenceScan(input.driverId, input.step, input.file) : null);
 
       const filed = await apiFetch<HiringEvidenceResult>(base, {
         method: "POST",

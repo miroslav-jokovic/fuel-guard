@@ -19,6 +19,7 @@ import {
 } from "@silvicom/ui";
 import { ClipboardDocumentCheckIcon } from "@silvicom/ui/icons";
 import FileDropzone from "@/components/ui/FileDropzone.vue";
+import MvrAiCheck from "@/features/recruitment/MvrAiCheck.vue";
 import { useSessionStore } from "@/stores/session";
 import { useToastStore } from "@/stores/toast";
 import { useDocumentsQuery, useQualificationRecordsQuery } from "@/composables/useCompliance";
@@ -87,12 +88,22 @@ const filed = computed<QualificationRecordRow[]>(() =>
 
 const form = reactive({ occurredOn: "", result: "", performedBy: "", reference: "", jurisdiction: "" });
 const scan = ref<File | null>(null);
+/** §14 OF6b: the MVR the AI check read, already uploaded — the record cites it instead of a second upload. */
+const checkedScan = ref<string | null>(null);
 const adding = ref(false);
 
 function reset(): void {
   Object.assign(form, { occurredOn: "", result: "", performedBy: "", reference: "", jurisdiction: "" });
   scan.value = null;
+  checkedScan.value = null;
   adding.value = false;
+}
+
+/** "Use these values below": the form is filled from what was read and is still the recruiter's to correct. */
+function useChecked(v: { documentId: string; occurredOn: string; jurisdiction: string; result: string; performedBy: string; reference: string }): void {
+  Object.assign(form, { occurredOn: v.occurredOn, jurisdiction: v.jurisdiction, result: v.result, performedBy: v.performedBy, reference: v.reference });
+  checkedScan.value = v.documentId;
+  scan.value = null;
 }
 watch(() => props.step, reset);
 
@@ -137,6 +148,7 @@ async function save(): Promise<void> {
       reference: form.reference.trim() || null,
       jurisdiction: asksJurisdiction.value ? form.jurisdiction.trim() || null : null,
       file: scan.value,
+      documentId: checkedScan.value,
     });
     toast.success(`${label.value} recorded`, "It is in the driver's qualification file.");
     reset();
@@ -226,6 +238,8 @@ const uploadAccept = acceptFor(DOCUMENT_CONTENT_TYPES);
     </BaseButton>
 
     <div v-if="showForm" class="space-y-4">
+      <!-- §14 OF6b: the AI check of a dropped MVR — it fills this form; the recruiter still records it. -->
+      <MvrAiCheck v-if="step === 'mvr'" :driver-id="driverId" @use="useChecked" />
       <FormField v-if="asksJurisdiction" v-slot="{ id }" label="State or authority" :hint="jurisdictionHint">
         <ComboSelect :id="id" v-model="form.jurisdiction" :options="jurisdictionOptions" />
       </FormField>
@@ -256,9 +270,9 @@ const uploadAccept = acceptFor(DOCUMENT_CONTENT_TYPES);
             :accept="uploadAccept"
             :busy="record.isPending.value"
             busy-label="Uploading…"
-            :label="scan ? scan.name : 'Drag & drop the scan here'"
+            :label="checkedScan && !scan ? 'The record you checked above' : scan ? scan.name : 'Drag & drop the scan here'"
             hint="PDF or photo. Uploads straight to storage and is never publicly reachable."
-            @files="scan = $event[0] ?? null"
+            @files="scan = $event[0] ?? null; checkedScan = null"
           />
         </div>
       </div>

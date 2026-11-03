@@ -1120,3 +1120,13 @@ drawers (portal + upload) → OF6 AI MVR reader → OF7 drug-test ordering (afte
   in force, no record found; **check** — another state or name, a violation or crash in three years (how many
   in a CMV), a withdrawal ended inside three years, anything it could not read. Nothing writes the profile yet:
   OF6b (the drawer's read) is its first writer. 19/19 mutants killed.
+- **2026-11-03** — OF5 merged (#1960). **OF6b** built (no migration; the first writer of 0555's `mvr_report`):
+  "Check it with AI" on the driving-record drawer. The dropped PDF is registered and uploaded ONCE as the
+  driver's `mvr` scan through the hiring-evidence door (`uploadHiringEvidenceScan`), `POST …/mvr-check` hands
+  those exact bytes (downloaded through evidence, hash-checked) to the reader (`intakeStoredBytes`, IC10's
+  shape; boundary edge `recruiting -> document-reading`), and `GET …/mvr-check/:documentId` answers by the same
+  sha256 with the read parsed through the profile and `mvrReportFindings` against the applicant — stops above
+  checks, then "Use these values below" fills the form (date as a day, state as its code) and the record cites
+  the checked document (`useRecordHiringAct`'s `documentId`) with no second upload. The poll ends after three
+  minutes (`MVR_CHECK_WAIT_MS`) — a file intake refuses never produces a read. Audit
+  `recruiting.mvr_check_started`. Seen in a browser at 1440. 18/18 mutants killed.
