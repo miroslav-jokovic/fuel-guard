@@ -857,12 +857,3 @@ blocking step in §3 above.
   fails the job (lead ids only) when anything was not brought in. Readiness: Lead intake's L1 now pins the
   sink, backfill, handler and tick tests, with **B4b** (the webhook) as its last gap, so it still reads L0
   honestly. 8 mutants, all killed (one survived the first run: no test held the dedup key).
-- **2026-11-03, lead-path audit H2 — a lead's personal details can be deleted on request.** 0558 (#1979)
-  adds `purge_lead`: it empties an unconverted lead (name, phone, email, answers, raw) and deletes its
-  verdicts, leaving an anonymous tombstone so Meta's backfill reads the next copy as a duplicate and the
-  contacts stay (D-RA12). The do-not-contact hold on the number stays. The route, a merge after it:
-  `POST /recruitment/leads/:id/purge`, admin only with a fresh sign-in (`canPurgeLead` = the applicant
-  purge's ruling), `same_person` sweeps the carrier's other leads with that phone or email and names any
-  that became applicants. Named in `routeGateLedger.test.ts` beside the applicant purge. 8 SQL and 7 route
-  mutants, all killed. Still owner track: Q-LS6 / Q-RA8, how long an unconverted lead lives before this
-  runs on its own; counsel: whether contact notes on a purged lead should be redacted too.
