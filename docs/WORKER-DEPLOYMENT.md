@@ -125,8 +125,11 @@ after boot, the `dq-export-sweeper` shape. A bounded indexed read that returns n
 2026-11-01, D-AD16/D-AD17, `docs/plans/recruitment/ADS-AGENT-BUILD-WORKFLOW.md` A6/B4/B5).**
 `ads-orchestrator` is BUILT (A6, 2026-11-02; `modules/ads/orchestrator/tick.ts`): every minute,
 first tick 90 s after boot, one `ads_step` job (`KIND_CAPS` 2 — a step makes at most one platform
-call) per campaign the agent has work in, `dedup_key` = `ads_step:<campaign>:<state>`. Off unless
-`ADS_ENABLED=true`. Since B3a (2026-11-02) its `platform` worker is real, so switched on it queues
+call) per campaign the agent has work in, `dedup_key` = `ads_step:<campaign>:<state>`. With
+`ADS_ENABLED` unset or `false` it still ticks, under the **brake** (`orchestrator/brake.ts`, 2026-11-03
+audit): every org is read as killed and only the pause path runs, so turning the flag off in an
+emergency stops the agent without stopping our pauses. On a host with nothing delivering that is one
+empty read a minute. An org whose settings row cannot be parsed is read as killed too. Since B3a (2026-11-02) its `platform` worker is real, so switched on it queues
 the launching and pausing steps, and a pause reaches Meta. `createPaused` and `compose` are still
 empty (B2c, C), so no campaign reaches `paused`, and so none reaches launch, unattended. One non-scheduler
 kind sits beside it: **`ads_rules_sync`** (B3b, `KIND_CAPS` 1). It is queued by the settings save door,
@@ -139,7 +142,7 @@ listed, when any form or lead was not brought in. `ads-insights` and `ads-reconc
 `general` lane, not `egress`: `egress` exists for the one host WEX allowlists, and Meta, TikTok, X
 and Higgsfield check no caller address, so these follow FleetPal and Med-Stop's placement, not the
 EFS poller's. They follow FleetPal's three rules as well: **off** unless `ADS_ENABLED=true` on the
-service that holds `general`; one `KIND_CAPS` entry per vendor kind in `worker.ts` (Meta and
+service that holds `general` (the orchestrator's pause path is the one exception, above); one `KIND_CAPS` entry per vendor kind in `worker.ts` (Meta and
 Higgsfield at 1); and every job that acts on ONE campaign, creative or generation carries
 `dedup_key` = that object's id. ⚠ That last rule is not style: the `jobs` ledger allows one
 active job per `(org_id, kind)` when `dedup_key` is null (`0095_jobs_queue.sql:21`), so without it

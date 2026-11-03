@@ -3,7 +3,7 @@ import { CAMPAIGN_STATES, type CampaignState } from "@silvicom/shared";
 import type { Env } from "../../../env.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { dispatchJob } from "../../../queue/dispatch.js";
-import { settingsInForce } from "../settings/settingsVersions.js";
+import { brakeFor, brakeWorkers, killReason } from "./brake.js";
 import { agentHasWork, adsWorkers, type CampaignWorkers } from "./workers.js";
 
 /**
@@ -21,6 +21,9 @@ import { agentHasWork, adsWorkers, type CampaignWorkers } from "./workers.js";
  * Every minute because the kill switch's second half lives here: a pressed switch reaches a live ad's
  * pause within one tick. The read is one query over the states the agent can act in, plus one settings
  * read per org found — nothing on almost every tick.
+ *
+ * With `ADS_ENABLED` off it still ticks, under the brake (`brake.ts`): every org read as killed, only
+ * the pause path left. Turning the flag off stops the agent; it never stops our ability to pause.
  */
 export const ADS_TICK_MS = 60_000;
 
@@ -34,8 +37,9 @@ export interface TickResult {
 
 const PAGE = 1000;
 
-export async function orchestratorTick(admin: SupabaseClient, workers: CampaignWorkers, enqueue: Enqueue): Promise<TickResult> {
+export async function orchestratorTick(admin: SupabaseClient, allWorkers: CampaignWorkers, enqueue: Enqueue, brake: string | null = null): Promise<TickResult> {
   const result: TickResult = { campaigns: 0, queued: 0, conflicts: 0 };
+  const workers = brake ? brakeWorkers(allWorkers) : allWorkers;
   const kill = new Map<string, boolean>();
   // The states the agent could have work in at all — with the switch pressed, the widest set — read
   // from `agentHasWork` rather than listed, so a worker that lands widens the tick by itself.
@@ -50,7 +54,7 @@ export async function orchestratorTick(admin: SupabaseClient, workers: CampaignW
     const rows = (data ?? []) as Array<{ id: string; org_id: string; state: CampaignState }>;
     for (const c of rows) {
       result.campaigns += 1;
-      if (!kill.has(c.org_id)) kill.set(c.org_id, (await settingsInForce(admin, c.org_id)).kill_switch);
+      if (!kill.has(c.org_id)) kill.set(c.org_id, (await killReason(admin, c.org_id, brake)) !== null);
       if (!agentHasWork(c.state, workers, kill.get(c.org_id)!)) continue;
       if ((await enqueue(c.org_id, c.id, c.state)) === "queued") result.queued += 1;
       else result.conflicts += 1;
@@ -71,16 +75,16 @@ export function adsStepEnqueue(admin: SupabaseClient, env: Env): Enqueue {
 }
 
 export function startAdsOrchestrator(env: Env): void {
-  if (!env.ADS_ENABLED) return;
   if (!env.SUPABASE_URL || !env.SUPABASE_SERVICE_ROLE_KEY) return;
+  const brake = brakeFor(env);
   let running = false;
   const run = async (): Promise<void> => {
     if (running) return;
     running = true;
     try {
       const admin = getSupabaseAdmin(env);
-      const r = await orchestratorTick(admin, adsWorkers({ admin, env, now: () => new Date() }), adsStepEnqueue(admin, env));
-      if (r.queued > 0) console.log(`[ads-orchestrator] ${r.queued} step(s) queued of ${r.campaigns} campaign(s) not at rest`);
+      const r = await orchestratorTick(admin, adsWorkers({ admin, env, now: () => new Date() }), adsStepEnqueue(admin, env), brake);
+      if (r.queued > 0) console.log(`[ads-orchestrator] ${r.queued} step(s) queued of ${r.campaigns} campaign(s) not at rest${brake ? ` (brake: ${brake})` : ""}`);
     } catch (error) {
       console.error(`[ads-orchestrator] tick failed — ${error instanceof Error ? error.message : String(error)}`);
     } finally {

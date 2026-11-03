@@ -94,7 +94,7 @@ export const SCHEDULERS: readonly ScheduledTask[] = [
   },
   { name: "realtime-probe", lane: "general", start: startRealtimeProbeScheduler }, // CHA4 (0515): every 15 min, a broadcast from the database must reach a subscriber; /api/version → realtime
   { name: "chat-export-sweeper", lane: "general", start: startChatExportSweeper }, // CHA3b (0517): an office chat export's files have a 7-day life; the record stays
-  { name: "ads-orchestrator", lane: "general", start: startAdsOrchestrator }, // A6 (D-AD16): every minute, one ads_step job per campaign with agent work; OFF unless ADS_ENABLED
+  { name: "ads-orchestrator", lane: "general", start: startAdsOrchestrator }, // A6 (D-AD16): every minute, one ads_step job per campaign with agent work; with ADS_ENABLED off it runs under the brake (pause only)
   { name: "ads-leads-backfill", lane: "general", start: startAdsLeadsBackfill }, // B4a2: hourly, one ads_leads_backfill job per connected Meta connection (48 h window → LeadSink); OFF unless ADS_ENABLED
 ];
 
