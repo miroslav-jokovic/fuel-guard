@@ -341,7 +341,42 @@ export const READINESS = [
     },
   },
   { worker: "Monitor", levels: { L1: [notBuilt("B5 hourly insights, daily reconcile, external_change")], L2: later("L2"), L3: later("L3"), L4: [{ need: "insights from the sandbox", gap: STAGE2 }], L5: [{ need: "canary", gap: CANARY }] } },
-  { worker: "Lead intake", levels: { L1: [notBuilt("B4 leadgen webhook + D1 ingest_lead")], L2: later("L2"), L3: later("L3"), L4: [{ need: "a test lead from Meta's lead-ads testing tool", gap: STAGE2 }], L5: [{ need: "canary", gap: CANARY }] } },
+  {
+    worker: "Lead intake",
+    levels: {
+      L1: [
+        {
+          need: "recruiting's sink (D1): stored once, verdicts written once and healed on a retry, a failed store thrown so the caller retries",
+          tests: [{ file: "apps/api/src/modules/recruiting/routes/leads.test.ts", titles: [
+            "stores the projection once and writes leadMatch's verdicts against the opening's profile",
+            "a repeat of a lead stored before its verdicts were (a crash between the two) writes them",
+            "throws when the store fails, so the caller retries rather than losing the lead",
+          ] }],
+        },
+        {
+          need: "the hourly backfill (B4a): a lost webhook's lead brought in once, nothing stored twice, nothing skipped quietly",
+          tests: [
+            { file: "apps/api/src/modules/ads/leads/backfill.test.ts", titles: [
+              "brings every lead in the window to the sink once, with its campaign, brief and answers",
+              "run again the next hour, every lead is a duplicate — none is stored twice",
+              "a form Meta refuses is reported by its error code, and the other forms are still read",
+              "a lead the sink refuses is reported by id, never by the person's details, and the rest are stored",
+            ] },
+            { file: "apps/api/src/queue/handlers/adsLeadsBackfill.test.ts", titles: [
+              "fails the job when anything was not brought in, naming the lead by id only",
+            ] },
+            { file: "apps/api/src/modules/ads/leads/backfillTick.test.ts", titles: [
+              "queues one job per connected Meta or simulator connection, each in its own slot, across carriers",
+            ] },
+          ],
+        },
+        notBuilt("B4b leadgen webhook: GET verify, POST HMAC over the raw body, 503 without META_APP_SECRET"),
+      ],
+      L2: later("L2"), L3: later("L3"),
+      L4: [{ need: "a test lead from Meta's lead-ads testing tool", gap: STAGE2 }],
+      L5: [{ need: "canary", gap: CANARY }],
+    },
+  },
   { worker: "Outcome feed", levels: { L1: [notBuilt("B6 Conversions API events per stage")], L2: later("L2"), L3: later("L3"), L4: [{ need: "events accepted by the sandbox", gap: STAGE2 }], L5: [{ need: "canary", gap: CANARY }] } },
   {
     worker: "Copywriter",

@@ -3,7 +3,7 @@ import { flushPromises, mount } from "@vue/test-utils";
 import { createMemoryHistory, createRouter, type Router } from "vue-router";
 import { createPinia, setActivePinia } from "pinia";
 import { ref } from "vue";
-import type { PartDto, StockLineDto } from "@silvicom/shared";
+import type { PartUsageListDto, PartUsageRowDto, StockLineDto } from "@silvicom/shared";
 import { ROUTE_TABLE } from "@/router/table";
 
 /**
@@ -20,20 +20,20 @@ import { ROUTE_TABLE } from "@/router/table";
  *      sort, page, the drawer's `new`) rather than the only query the page reads.
  *   3. **A row must be reachable without a mouse.** The kebab's "Open part" is the keyboard's path
  *      into a row; `@row-click` is the mouse's.
+ *   4. **The list asks the server for the order (SP-U2).** No sort = most used first; a header click
+ *      becomes `shop_parts_list`'s own sort word, and "All parts" widens the list — a page that sorted
+ *      its fifty rows itself would show a page-local order as the catalogue's.
  */
 
-const part = (over: Partial<PartDto> = {}): PartDto => ({
+const part = (over: Partial<PartUsageRowDto> = {}): PartUsageRowDto => ({
   id: "p1",
   partNumber: "LF9009",
   description: "Oil filter",
-  manufacturer: "Fleetguard",
-  category: "Filters",
   unitOfMeasure: "each",
-  upc: null,
-  imagePath: null,
-  lastCost: null,
-  active: true,
-  notes: null,
+  fleetpalId: "fp-1",
+  usedQuantity: 31,
+  usedRepairs: 31,
+  lastUsedAt: "2026-10-30T15:00:00.000Z",
   ...over,
 });
 
@@ -56,7 +56,9 @@ const line = (over: Partial<StockLineDto> = {}): StockLineDto => ({
   ...over,
 });
 
-const catalogue = ref<{ parts: PartDto[]; total: number }>({ parts: [], total: 0 });
+const catalogue = ref<PartUsageListDto>({ rows: [], total: 0, windowDays: 90 });
+// The last filter the page handed the usage query — what the server is asked for.
+const asked = vi.hoisted(() => ({ filter: null as null | { value: Record<string, unknown> } }));
 const low = ref<{ lines: StockLineDto[]; total: number }>({ lines: [], total: 0 });
 
 // The shelf-counting flag (Q-MX8) as a live getter, so one file tests the hidden page AND the kept code.
@@ -70,8 +72,16 @@ vi.mock("@/features/inventory/useInventory", async () => {
   const { ref: r } = await import("vue");
   return {
     INVENTORY_PAGE_SIZE: 50,
-    usePartsQuery: () => ({ data: catalogue, isLoading: r(false), error: r(null), refetch: vi.fn() }),
     useLowStockQuery: () => ({ data: low, isLoading: r(false), error: r(null), refetch: vi.fn() }),
+  };
+});
+vi.mock("@/features/inventory/usePartUsage", async () => {
+  const { ref: r } = await import("vue");
+  return {
+    usePartUsageListQuery: (filter: { value: Record<string, unknown> }) => {
+      asked.filter = filter;
+      return { data: catalogue, isLoading: r(false), error: r(null), refetch: vi.fn() };
+    },
   };
 });
 // The real shape (SP5): the Labels button asks whether the Labels screen opens (`useOpens`).
@@ -108,7 +118,7 @@ const clearButtons = (w: Mounted) =>
 
 beforeEach(() => {
   setActivePinia(createPinia());
-  catalogue.value = { parts: [part()], total: 1 };
+  catalogue.value = { rows: [part()], total: 1, windowDays: 90 };
   low.value = { lines: [line()], total: 1 };
 });
 
@@ -170,7 +180,7 @@ describe("the list in the URL (D-US2)", () => {
   it("writes the Stock choice and a header click to the URL", async () => {
     low.value = { lines, total: 3 };
     const w = await page();
-    w.findAllComponents(FilterSelect).find((c) => c.props("label") === "Show")!.vm.$emit("update:modelValue", "low");
+    w.findAllComponents(FilterSelect).find((c) => c.props("label") === "Stock")!.vm.$emit("update:modelValue", "low");
     await flushPromises();
     w.findComponent({ name: "DataTable" }).vm.$emit("sort", "locationName");
     await flushPromises();
@@ -207,25 +217,31 @@ describe("Shop parts as it ships: FleetPal's list, shelf counting hidden", () =>
 
   it("says where the list comes from and where it is changed, and offers no New part", async () => {
     const text = (await page()).text();
-    expect(text).toContain("The shop's parts catalogue, pulled from FleetPal every hour. Add and change parts in FleetPal.");
+    expect(text).toContain("Parts the shop puts on trucks and trailers, from FleetPal's repair orders. Add and change parts in FleetPal.");
     expect(text).not.toContain("New part");
     expect(text).not.toContain("Places");
     expect(text).not.toContain("Labels");
   });
 
-  it("draws no Running low filter, and opens an old ?stock=low link on the catalogue", async () => {
-    catalogue.value = { parts: [part()], total: 1 };
+  it("draws no Running low filter, and opens an old ?stock=low link on the list", async () => {
     low.value = { lines: [line({ locationId: "l1", locationName: "Main shelf" })], total: 1 };
     const w = await page("/shop/inventory?stock=low");
-    expect(w.findAllComponents(FilterSelect).find((c) => c.props("label") === "Show")).toBeUndefined();
-    expect(w.findComponent({ name: "DataTable" }).props("rows")).toEqual(catalogue.value.parts);
+    expect(w.findAllComponents(FilterSelect).find((c) => c.props("label") === "Stock")).toBeUndefined();
+    expect(w.findComponent({ name: "DataTable" }).props("rows")).toEqual(catalogue.value.rows);
   });
 
-  it("marks a FleetPal part From FleetPal, and a hand-typed one not", async () => {
-    catalogue.value = { parts: [part({ fleetpalId: "fp-1" }), part({ id: "p2", partNumber: "X1" })], total: 2 };
-    const marks = (await page()).findAll('[data-test="from-fleetpal"]');
+  it("labels only a hand-typed part — FleetPal's is every row, and the header says so once (D-SPU6)", async () => {
+    catalogue.value = { rows: [part({ fleetpalId: "fp-1" }), part({ id: "p2", partNumber: "X1", fleetpalId: null })], total: 2, windowDays: 90 };
+    const w = await page();
+    expect(w.findAll('[data-test="from-fleetpal"]')).toHaveLength(0);
+    const marks = w.findAll('[data-test="added-here"]');
     expect(marks).toHaveLength(1);
-    expect(marks[0]!.text()).toBe("· From FleetPal");
+    expect(marks[0]!.element.textContent).toBe(" · Added here");
+  });
+
+  it("shows no Manufacturer, Category or price column — blank on every FleetPal part, and money waits on D-FP4", async () => {
+    const labels = (await page()).findComponent({ name: "DataTable" }).props("columns").map((c: { label: string }) => c.label);
+    expect(labels).toEqual(["Part number", "Description", "Used, last 90 days", "Repairs", "Last used"]);
   });
 });
 
@@ -261,5 +277,59 @@ describe("opening a row", () => {
     table.vm.$emit("row-click", part());
     await w.vm.$nextTick();
     expect(push).toHaveBeenCalledWith({ name: "part", params: { id: "p1" } });
+  });
+});
+
+/** SP-U2: what the page asks the server for — the order and the width of the list are the server's. */
+describe("what the list asks for (SP-U2)", () => {
+  beforeEach(() => (flags.shown = false));
+  afterEach(() => (flags.shown = true));
+  const filter = () => asked.filter!.value;
+
+  it("opens on parts used in the last 90 days, most used first, with the Show chip unapplied", async () => {
+    const w = await page();
+    expect(filter()).toMatchObject({ show: "used", sort: "used", descending: true, page: 1 });
+    const showChip = w.findAllComponents(FilterSelect).find((c) => c.props("label") === "Show")!;
+    expect(showChip.props("modelValue")).toBe("");
+    expect(clearButtons(w)).toHaveLength(0);
+  });
+
+  it("All parts widens the list and is written to the URL", async () => {
+    const w = await page();
+    w.findAllComponents(FilterSelect).find((c) => c.props("label") === "Show")!.vm.$emit("update:modelValue", "all");
+    await flushPromises();
+    expect(urlQuery()).toEqual({ show: "all" });
+    expect(filter().show).toBe("all");
+  });
+
+  it("a header click becomes the server's own sort word, and the URL keeps it", async () => {
+    const w = await page();
+    w.findComponent({ name: "DataTable" }).vm.$emit("sort", "lastUsedAt");
+    await flushPromises();
+    expect(urlQuery()).toEqual({ sort: "lastUsedAt", dir: "asc" });
+    expect(filter()).toMatchObject({ sort: "last_used", descending: false });
+  });
+
+  it("a pasted link's sort and search reach the server; a shelf column's sort reads as none", async () => {
+    await page("/shop/inventory?sort=usedRepairs&dir=desc&search=%20brake%20");
+    expect(filter()).toMatchObject({ sort: "repairs", descending: true, search: "brake" });
+    const w = await page("/shop/inventory?sort=locationName&dir=desc");
+    expect(w.findComponent({ name: "DataTable" }).props("sort")).toEqual({ key: null, dir: "asc" });
+    expect(filter()).toMatchObject({ sort: "used", descending: true });
+  });
+
+  it("reads a never-used part as Never, and a fractional quantity without trailing zeros", async () => {
+    catalogue.value = { rows: [part({ lastUsedAt: null, usedQuantity: 0, usedRepairs: 0 }), part({ id: "p2", usedQuantity: 12.5 })], total: 2, windowDays: 90 };
+    const text = (await page("/shop/inventory?show=all")).text();
+    expect(text).toContain("Never");
+    expect(text).toContain("12.5");
+    expect(text).toContain("10/30/2026");
+  });
+
+  it("an empty used view says so and points at All parts, not 'no parts yet'", async () => {
+    catalogue.value = { rows: [], total: 0, windowDays: 90 };
+    const text = (await page()).text();
+    expect(text).toContain("No part went on a repair in the last 90 days");
+    expect(text).not.toContain("No parts yet");
   });
 });

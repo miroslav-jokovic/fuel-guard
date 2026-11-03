@@ -26,6 +26,7 @@ import PartDrawer from "@/features/inventory/PartDrawer.vue";
 import StockLineDrawer from "@/features/inventory/StockLineDrawer.vue";
 import MovementDrawer, { type DeskVerb } from "@/features/inventory/MovementDrawer.vue";
 import StockLevelCell from "@/features/inventory/StockLevelCell.vue";
+import PartUsageSection from "@/features/inventory/PartUsageSection.vue";
 import FileDropzone from "@/components/ui/FileDropzone.vue";
 import {
   INVENTORY_PAGE_SIZE,
@@ -105,8 +106,10 @@ const facts = computed<Fact[]>(() => {
   const p = part.value;
   if (!p) return [];
   return [
-    { label: "Manufacturer", value: p.manufacturer },
-    { label: "Category", value: p.category },
+    // FleetPal's catalogue carries neither (0 of 3,560 parts, 2026-11-03), so they are drawn only when
+    // somebody typed one — a pair of dashes on every part says nothing (D-SPU6).
+    ...(p.manufacturer ? [{ label: "Manufacturer", value: p.manufacturer }] : []),
+    ...(p.category ? [{ label: "Category", value: p.category }] : []),
     // An unmapped unit says FleetPal's own word, so the person deciding can see what it was (F12).
     {
       label: "Counted in",
@@ -116,7 +119,7 @@ const facts = computed<Fact[]>(() => {
           : UNIT_OF_MEASURE_LABELS[p.unitOfMeasure],
     },
     ...(p.fleetpalId ? [{ label: "Comes from", value: "FleetPal" }] : []),
-    { label: "Barcode", value: p.upc },
+    ...(p.upc ? [{ label: "Barcode", value: p.upc }] : []),
     ...(p.notes ? [{ label: "Notes", value: p.notes }] : []),
   ];
 });
@@ -270,6 +273,8 @@ const uploadAccept = acceptFor(INVENTORY_PHOTO_CONTENT_TYPES);
             @files="onPhoto"
           />
         </BaseCard>
+
+        <PartUsageSection :part-id="part.id" :from-fleetpal="Boolean(part.fleetpalId)" />
 
         <section v-if="shelvesShown" class="space-y-3">
           <div class="flex items-center justify-between gap-4">
