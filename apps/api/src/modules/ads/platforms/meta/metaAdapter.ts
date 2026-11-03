@@ -84,6 +84,19 @@ export function metaAdapter(deps: MetaAdapterDeps): PlatformAdapter {
         return Number.isFinite(cents) && cents > 0 ? cents : null;
       },
 
+      async readSpendCents({ since, until }) {
+        // Insights `spend` is the account currency's MAJOR unit as a decimal string — unlike the
+        // account's `spend_cap` and `amount_spent`, which are cents. `data: []` means nothing was spent.
+        const r = await graph.get<{ data?: Array<{ spend?: string }> }>(`act_${deps.accountId}/insights`, {
+          fields: "spend", level: "account", time_range: JSON.stringify({ since, until }),
+        });
+        if (!r.ok || !Array.isArray(r.data.data)) return null;
+        const row = r.data.data[0];
+        if (!row) return 0;
+        const units = Number(row.spend);
+        return Number.isFinite(units) && units >= 0 ? Math.round(units * 100) : null;
+      },
+
       async pause({ campaign }) {
         const ids = refs(campaign, false);
         if (!isRefs(ids)) return ids;

@@ -56,6 +56,13 @@ export interface PlatformSafe {
    */
   readAccountLimitCents(): Promise<number | null>;
   /**
+   * What the ad account has spent from `since` to `until` (days, inclusive), as the platform reports it
+   * NOW, in cents; null when unreadable (2026-11-03 audit H4). The guard's month-to-date until B5's
+   * monitor writes `ads_spend_hourly` — and after, the check on it: it counts spend made in the
+   * platform's own tool on the same account, which our rows never see.
+   */
+  readSpendCents(range: { since: string; until: string }): Promise<number | null>;
+  /**
    * Stop delivery (A6, 2026-11-02): the orchestrator's `pausing` step, and so the kill switch's second
    * half — the switch stops new spending at once (AX021), this stops what is already delivering. The
    * safe direction, so no guard and no approval; idempotent at the platform (pausing a paused

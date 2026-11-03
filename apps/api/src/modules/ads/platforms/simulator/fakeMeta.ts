@@ -5,6 +5,7 @@ import { FakeAdSets } from "./fakeMetaAdSets.js";
 import { FakeForms } from "./fakeMetaForms.js";
 import { FakeLeads } from "./fakeMetaLeads.js";
 import { FakeRules } from "./fakeMetaRules.js";
+import { accountInsights } from "./fakeMetaInsights.js";
 import { graphError, pick } from "./fakeMetaShapes.js";
 
 /**
@@ -108,6 +109,8 @@ export interface FakeMetaAccount {
   amount_spent_cents: number;
   account_status: number;
   currency: string;
+  /** What `act_{id}/insights` reports spent in any range this month (`fakeMetaInsights.ts`); default 0. */
+  month_spend_cents?: number;
 }
 
 export interface FakeMetaOptions {
@@ -272,6 +275,9 @@ export class FakeMeta {
     }
     const account = /^act_(\d+)$/.exec(path);
     if (account && method === "GET") return this.readAccount(account[1]!, body.fields);
+    const insights = /^act_(\d+)\/insights$/.exec(path);
+    const insightsOf = insights && method === "GET" ? this.accounts.get(insights[1]!) : undefined;
+    if (insightsOf) return accountInsights(insightsOf, body, this.traceId());
     const create = /^act_(\d+)\/campaigns$/.exec(path);
     if (create && method === "POST") return this.createCampaign(create[1]!, body);
     if (create && method === "GET") return this.list([...this.campaigns.values()].filter((c) => c.account_id === create[1]), body);

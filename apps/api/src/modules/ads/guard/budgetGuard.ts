@@ -13,7 +13,8 @@ import { findCoveringApproval } from "./approvals.js";
  * Before any launch or raise, in one pass, every refusal collected (the screen says all of what is
  * wrong at once): the campaign and its platform; the settings in force (kill switch, caps — unset
  * refuses); this platform's month-to-date spend and the other live campaigns' daily budgets, for the
- * forecast to month end (`checkSpend`); the account's own limit read from the platform NOW; and a
+ * forecast to month end (`checkSpend`); the account's own spend this month and its own limit, both read
+ * from the platform NOW (the spend because our rows start empty and never see Ads Manager); and a
  * standing, unused approval covering the amounts (`approvals.ts`). A refusal is an `ads_actions`
  * row (`refused`) — a cap nobody can see refusing is a cap nobody can trust — and no vendor call.
  *
@@ -81,6 +82,7 @@ export async function guardedSpend(deps: GuardDeps, ask: SpendAsk): Promise<Guar
     lifetime_cents: ask.lifetime_cents,
     current_daily_cents: campaign.daily_budget_cents,
     month_to_date_cents: fleet.month_to_date_cents,
+    platform_month_to_date_cents: await deps.safe.readSpendCents({ since: month.since_day, until: month.today }),
     other_live_daily_cents: fleet.live_daily_by_campaign.filter(([id]) => id !== campaign.id).reduce((s, [, d]) => s + d, 0),
     days_left_in_month: month.days_left,
     account_limit_cents: await deps.safe.readAccountLimitCents(),

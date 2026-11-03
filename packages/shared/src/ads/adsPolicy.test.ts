@@ -18,7 +18,7 @@ const settings = (patch: Partial<AdsSettings["limits"]> = {}, approvals: Partial
 // $3,000 cap; nothing spent; no other campaign; 30 days left: a $100/day launch forecasts exactly $3,000.
 const launch = (patch: Partial<SpendRequest> = {}): SpendRequest => ({
   act: "launch", platform: "meta", daily_cents: 10_000, lifetime_cents: 100_000, current_daily_cents: null,
-  month_to_date_cents: 0, other_live_daily_cents: 0, days_left_in_month: 30,
+  month_to_date_cents: 0, platform_month_to_date_cents: 0, other_live_daily_cents: 0, days_left_in_month: 30,
   account_limit_cents: 300_000, kill_switch: false, ...patch,
 });
 const refusals = (s: AdsSettings, r: SpendRequest) => { const v = checkSpend(s, r); return v.ok ? [] : v.refusals; };
@@ -34,6 +34,12 @@ describe("checkSpend — the monthly cap is a forecast to month end", () => {
   it("spend so far and the other live campaigns count against the same cap", () => {
     expect(refusals(settings(), launch({ month_to_date_cents: 1 }))).toEqual(["monthly_cap_forecast"]);
     expect(refusals(settings(), launch({ other_live_daily_cents: 1 }))).toEqual(["monthly_cap_forecast"]);
+  });
+  it("spend the platform reports counts too, the larger of ours and its, and an unreadable figure refuses", () => {
+    expect(refusals(settings(), launch({ platform_month_to_date_cents: 1 }))).toEqual(["monthly_cap_forecast"]);
+    expect(refusals(settings(), launch({ month_to_date_cents: 1, platform_month_to_date_cents: 0 }))).toEqual(["monthly_cap_forecast"]);
+    expect(checkSpend(settings(), launch({ days_left_in_month: 1, month_to_date_cents: 100, platform_month_to_date_cents: 290_000 })).ok).toBe(true);
+    expect(refusals(settings(), launch({ platform_month_to_date_cents: null }))).toEqual(["month_spend_unknown"]);
   });
   it("on the last day of the month only today's budget is forecast", () => {
     expect(checkSpend(settings(), launch({ days_left_in_month: 1, month_to_date_cents: 290_000 })).ok).toBe(true);
