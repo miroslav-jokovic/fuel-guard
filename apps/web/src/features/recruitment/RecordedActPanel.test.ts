@@ -108,7 +108,8 @@ vi.mock("@/stores/session", () => ({
 const mountPanel = (step: HiringRecordedActStep, done = false, outstandingJurisdictions: string[] = []) =>
   mount(RecordedActPanel, {
     props: { driverId: "00000000-0000-4000-8000-0000000000d1", step, done, outstandingJurisdictions },
-    global: { plugins: [VueQueryPlugin] },
+    // The gallery is `FileGallery`'s own suite; here only what this panel hands it.
+    global: { plugins: [VueQueryPlugin], stubs: { FileGallery: { name: "FileGallery", props: ["subject", "subjectLabel", "startId", "kinds"], template: "<div />" } } },
   });
 
 const settle = async (w: ReturnType<typeof mountPanel>) => {
@@ -160,8 +161,14 @@ describe("what is already on file", () => {
   it("offers the scan, and says so when a filed one will not sign", async () => {
     const w = mountPanel("mvr");
     await settle(w);
-    const link = w.findAll("a").find((a) => a.text().includes("Open the scan"));
-    expect(link?.attributes("href")).toBe("https://storage.example/signed/doc-1.pdf");
+    // §14 (owner, 2026-11-03): the scan opens in the vehicles' and trailers' gallery, on this act's papers.
+    const gallery = () => w.findComponent({ name: "FileGallery" });
+    expect(gallery().props("subject")).toBeNull();
+    await w.get("[data-testid=open-scan]").trigger("click");
+    expect(gallery().props("subject")).toEqual({ type: "driver", id: "00000000-0000-4000-8000-0000000000d1" });
+    expect(gallery().props("startId")).toBe("doc-1");
+    expect(gallery().props("kinds")).toEqual(["mvr"]);
+    expect(w.findAll("a").some((a) => a.text().includes("Open the scan"))).toBe(false);
     // `drug_test`'s row cites no document at all, which is a different sentence from a dead link.
     const other = mountPanel("drug_test");
     await settle(other);
