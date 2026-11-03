@@ -23,9 +23,11 @@ import { monthlyCapFor, type AdsSettings } from "./settingsContract.js";
  * a spend fence that cannot see spend is not a fence.
  *
  * ── THE PLATFORM'S OWN ACCOUNT LIMIT IS THE THIRD FENCE ────────────────────────────────────────────
- * The owner sets it by hand in the platform; our token never changes it (D-AD3.3). A launch is refused
- * while it is unknown, unset, or above our monthly cap — a limit looser than ours means the platform
- * would not stop us if we failed.
+ * The owner sets it by hand in the platform; our token never changes it (D-AD3.3). What counts is the
+ * HEADROOM it leaves (Meta's limit is a lifetime total; 2026-11-03 audit M1). A launch is refused while
+ * that is unknown or unset, zero (the platform would deliver nothing), or above our monthly cap — room
+ * looser than ours means the platform would not stop us if we failed. So each month the owner sets the
+ * limit to what the account has spent plus at most the cap.
  */
 
 export type SpendAct = "launch" | "raise_budget";
@@ -47,8 +49,11 @@ export interface SpendRequest {
   other_live_daily_cents: number;
   /** Days left in the month, today included: 1 on the last day. */
   days_left_in_month: number;
-  /** The platform account's spending limit as last read; null when it could not be read or is unset. */
-  account_limit_cents: number | null;
+  /**
+   * What the platform account's own spending limit still allows (limit less lifetime spend, read now); 0
+   * when reached; null when unset or unreadable. Headroom, not the raw limit: Meta's limit is lifetime.
+   */
+  account_headroom_cents: number | null;
   kill_switch: boolean;
 }
 
@@ -58,6 +63,7 @@ export type SpendRefusal =
   | "account_limit_unknown"
   | "month_spend_unknown"
   | "account_limit_above_cap"
+  | "account_limit_reached"
   | "daily_over_max"
   | "lifetime_over_max"
   | "lifetime_below_daily"
@@ -77,8 +83,9 @@ export function checkSpend(settings: AdsSettings, r: SpendRequest): SpendVerdict
 
   if (r.kill_switch) refusals.push("kill_switch_on");
   if (cap === null || dailyMax === null || lifetimeMax === null) refusals.push("caps_not_set");
-  if (r.account_limit_cents === null) refusals.push("account_limit_unknown");
-  else if (cap !== null && r.account_limit_cents > cap) refusals.push("account_limit_above_cap");
+  if (r.account_headroom_cents === null) refusals.push("account_limit_unknown");
+  else if (r.account_headroom_cents === 0) refusals.push("account_limit_reached");
+  else if (cap !== null && r.account_headroom_cents > cap) refusals.push("account_limit_above_cap");
   if (r.platform_month_to_date_cents === null) refusals.push("month_spend_unknown");
   if (dailyMax !== null && r.daily_cents > dailyMax) refusals.push("daily_over_max");
   if (lifetimeMax !== null && r.lifetime_cents > lifetimeMax) refusals.push("lifetime_over_max");

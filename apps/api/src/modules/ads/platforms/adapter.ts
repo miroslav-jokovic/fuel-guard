@@ -50,11 +50,16 @@ export interface PlatformSpend {
 
 export interface PlatformSafe {
   /**
-   * The ad account's own spending limit as the platform reports it NOW (D-AD3 fence 3), or null when
-   * it is unset or unreadable. Read before every launch and raise rather than from a stored copy: the
-   * owner changes it by hand in the platform, and a stale copy is the one fence that would lie.
+   * What the ad account's own spending limit still lets it spend, as the platform reports it NOW (D-AD3
+   * fence 3): the limit less what the account has already spent; 0 when the limit is reached; null when
+   * there is no limit or it cannot be read. Read before every launch and raise rather than from a stored
+   * copy: the owner changes the limit by hand in the platform, and a stale copy is the fence that lies.
+   *
+   * ⚠ HEADROOM, NOT THE LIMIT (2026-11-03 audit M1). Meta's account `spend_cap` is a LIFETIME total. Read
+   * raw, an account that had spent $50k needed a cap above $50k to deliver anything — so it was refused
+   * forever as "above our monthly cap" — and an account a few dollars from its cap looked roomy.
    */
-  readAccountLimitCents(): Promise<number | null>;
+  readAccountHeadroomCents(): Promise<number | null>;
   /**
    * What the ad account has spent from `since` to `until` (days, inclusive), as the platform reports it
    * NOW, in cents; null when unreadable (2026-11-03 audit H4). The guard's month-to-date until B5's
