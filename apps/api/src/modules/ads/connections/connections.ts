@@ -150,6 +150,23 @@ export async function disconnect(deps: ConnectionDeps, orgId: string, actor: Con
   return { kind: "disconnected", connection: row };
 }
 
+/**
+ * The pause path met a token the platform refuses, or one this deploy cannot open (2026-11-03 audit H2).
+ * Before this, the row stayed `connected` after a 190, so Settings showed a healthy connection while
+ * every pause on it failed. Only a `connected` row moves: a person's disconnect, or a test already
+ * recorded as failing, is not overwritten. `failing` does not stop pause attempts (`adapterForConnection`
+ * refuses only `disconnected`), so a token that comes back is used again at once.
+ */
+export async function markConnectionFailing(admin: SupabaseClient, orgId: string, connectionId: string, lastError: string, at: Date): Promise<boolean> {
+  const { data, error } = await admin
+    .from("ads_platform_connections")
+    .update({ status: "failing", last_error: lastError.slice(0, 1000), updated_at: at.toISOString() })
+    .eq("org_id", orgId).eq("id", connectionId).eq("status", "connected")
+    .select("id");
+  if (error) throw new Error(`ads_platform_connections: ${error.message}`);
+  return (data ?? []).length > 0;
+}
+
 // ── the writes ──────────────────────────────────────────────────────────────────────────────────
 
 function testColumns(report: ConnectionReport, at: Date): Record<string, unknown> {

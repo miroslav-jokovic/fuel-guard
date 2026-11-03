@@ -832,3 +832,13 @@ blocking step in §3 above.
   next version through 0554, in the session's name; view reads, manage writes. 16 mutants, all killed.
   **D1 is complete.** Next: B4a (the hourly backfill → `recruitingLeadSink`), then B4b (the webhook,
   fail-closed until the owner's `META_APP_SECRET`).
+- **2026-11-03, audit fixes B — alerts** (from the same audit, H2: nothing in `modules/ads` told anyone
+  anything). B1 widened the bell's CHECK with `ads_pause_failed` (0556). B2, after it, sends it:
+  `alerts/pauseAlerts.ts` runs after every `pause_failed` move, and at three failed pauses in a row it rings
+  the campaign's recipients (Settings › Ads control, else the org's active admins) with a critical "An ad
+  could not be paused — pause it in Meta Ads Manager", once an hour while it stays stuck. The count is read
+  from transition rows, not pause rows, because `no_platform` fails before any pause row is written.
+  `token_invalid` and `no_platform` also move the connection `connected → failing` (the connections
+  service's new `markConnectionFailing`) and send `ads_token_expiring` once a day. An alert that cannot be
+  sent never fails the step. New boundary edge `ads -> messaging` (notify()). 8 mutants, all killed (two
+  survived the first run as test gaps: a history with no older move, and a disconnected connection).
