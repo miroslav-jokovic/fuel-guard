@@ -2,7 +2,7 @@
 import { computed, ref, watch } from "vue";
 import { RouterLink } from "vue-router";
 import { DQ_ITEMS, EQUIPMENT_ITEMS } from "@silvicom/shared";
-import { AppButton as BaseButton } from "@silvicom/ui";
+import { AppButton as BaseButton, AppLinkArrow } from "@silvicom/ui";
 import SlideOver from "@/components/SlideOver.vue";
 import { BADGE_BASE, dqItemBadge, toneClass } from "@/lib/badges";
 import type { DropItem, OutstandingItem } from "@/composables/useFileDropItems";
@@ -107,8 +107,8 @@ function closeDrawer(): void {
         </ul>
       </section>
 
-      <RouterLink v-if="opens(props.fileLink)" :to="props.fileLink" class="inline-block text-sm font-medium text-link hover:text-link-hover">
-        Open the full file →
+      <RouterLink v-if="opens(props.fileLink)" :to="props.fileLink" class="group inline-flex items-center gap-1 text-sm font-medium text-link hover:text-link-hover">
+        Open the full file <AppLinkArrow />
       </RouterLink>
     </div>
   </SlideOver>

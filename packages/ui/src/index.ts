@@ -10,6 +10,7 @@ export { default as AppInput } from "./components/AppInput.vue";
 export { default as AppPasswordInput } from "./components/AppPasswordInput.vue";
 export { default as AppCard } from "./components/AppCard.vue";
 export { default as AppIcon } from "./components/AppIcon.vue";
+export { default as AppLinkArrow } from "./components/AppLinkArrow.vue";
 export { default as AppCheckbox } from "./components/AppCheckbox.vue";
 export { default as AppTextarea } from "./components/AppTextarea.vue";
 export { default as AppSelect } from "./components/AppSelect.vue";

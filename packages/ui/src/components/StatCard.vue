@@ -2,6 +2,7 @@
 import { computed } from "vue";
 import AppButton from "./AppButton.vue";
 import AppIcon from "./AppIcon.vue";
+import AppLinkArrow from "./AppLinkArrow.vue";
 import BaseCard from "./AppCard.vue";
 import AppDelta from "./AppDelta.vue";
 import AppIconChip from "./AppIconChip.vue";
@@ -332,7 +333,7 @@ const valueClass = computed(() =>
                  with a composed line and a tile with a plain one still line up. -->
             <p v-if="sub || $slots.sub" :class="['mt-0.5 flex items-center gap-1 text-xs', subTone ?? 'text-ink-tertiary']">
               <slot name="sub">{{ sub }}</slot>
-              <span v-if="link" class="text-brand-500 opacity-0 transition group-hover:opacity-100">&rarr;</span>
+              <span v-if="link" class="inline-flex text-brand-500 opacity-0 transition group-hover:opacity-100"><AppLinkArrow /></span>
             </p>
             <!-- A delta belongs under the value and above the caption: the caption is what the
                  delta is measured AGAINST ("vs previous 30 days"), so reading downward gives the

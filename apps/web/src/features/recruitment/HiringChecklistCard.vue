@@ -9,7 +9,7 @@ import {
   type HiringStepKey,
   type HiringStepState,
 } from "@silvicom/shared";
-import { AppButton as BaseButton, AppCard as BaseCard, AppIcon, QueryState } from "@silvicom/ui";
+import { AppButton as BaseButton, AppCard as BaseCard, AppIcon, AppLinkArrow, QueryState } from "@silvicom/ui";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { hiringStepStateBadge } from "@/lib/badges.recruiting";
 import { hiringArtifactLink } from "@/features/recruitment/hiringArtifacts";
@@ -280,9 +280,9 @@ const artifactOf = (row: HiringChecklistRow) => {
                 <router-link
                   v-if="artifactOf(item.row)!.to"
                   :to="artifactOf(item.row)!.to!"
-                  class="text-brand-700 underline underline-offset-2"
+                  class="group inline-flex items-center gap-1 text-brand-700 underline underline-offset-2"
                 >
-                  {{ artifactOf(item.row)!.label }} ↗
+                  {{ artifactOf(item.row)!.label }} <AppLinkArrow />
                 </router-link>
                 <!-- ⚠ Words with no link rather than a link to somewhere nearby. `hiringArtifacts.ts`
                      names the four artifacts that have no address yet and why; three of them are on

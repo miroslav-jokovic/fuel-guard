@@ -2,6 +2,7 @@
 import { computed, watch } from "vue";
 import { parseYmd } from "@silvicom/shared";
 import {
+  AppLinkArrow,
   useQueryState,
   DataWorkspace,
   FilterBar,
@@ -87,8 +88,8 @@ const touch = useTouchTargets();
     <div class="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
       <p class="text-sm text-ink-tertiary">What the books show was paid for repairs and the shop, line by line.</p>
       <template v-if="canReadFinance">
-        <RouterLink to="/fleet-report" class="text-sm font-medium text-link hover:text-link-hover" :class="touch && 'inline-flex min-h-12 items-center'">
-          Maintenance and tires on the fleet report →
+        <RouterLink to="/fleet-report" class="group inline-flex items-center gap-1 text-sm font-medium text-link hover:text-link-hover" :class="touch && 'min-h-12'">
+          Maintenance and tires on the fleet report <AppLinkArrow />
         </RouterLink>
       </template>
     </div>

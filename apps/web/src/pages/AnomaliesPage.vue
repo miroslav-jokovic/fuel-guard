@@ -14,6 +14,7 @@ import {
   BulkActionBar,
   DataWorkspace,
   AppCard as BaseCard,
+  AppLinkArrow,
 } from "@silvicom/ui";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
 import PageHeader from "@/components/ui/PageHeader.vue";
@@ -83,7 +84,7 @@ const VIEW_TABS: TabItem[] = [
           to="/settings/data"
           title="Check all fills again, or bring Samsara data in again, from Settings → Data & sync"
         >
-          Data &amp; sync →
+          Data &amp; sync <AppLinkArrow />
         </BaseButton>
       </template>
     </FilterBar>
