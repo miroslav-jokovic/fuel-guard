@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
-  APPLICANT_DOCUMENT_KINDS,
+  APPLICANT_RECORD_DOCUMENT_KINDS,
   APPLICANT_DOCUMENT_SLOTS,
   APPLICATION_CAPTURES_BUCKET,
   DOCUMENTS_BUCKET,
@@ -114,7 +114,8 @@ export async function listApplicantDocuments(
       .eq("subject_type", "driver")
       .eq("subject_id", driverId)
       .eq("variant", "original")
-      .in("kind", [...APPLICANT_DOCUMENT_KINDS]),
+      // The applicant's papers and the policy they signed with the packet (§15.2 D-DAP3).
+      .in("kind", [...APPLICANT_RECORD_DOCUMENT_KINDS]),
     loadPermissionGrants(admin, orgId),
   ]);
   const captures = (captureData ?? []) as CaptureRow[];

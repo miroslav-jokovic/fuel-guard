@@ -10,6 +10,7 @@ import {
 import {
   APPLICANT_DOCUMENT_OFFICE_LABELS,
   APPLICANT_DOCUMENT_SLOTS,
+  DQ_KIND_LABELS,
   formatDisplayDate,
   type ApplicantDocument,
   type PromotedCaptureSlot,
@@ -47,8 +48,9 @@ const canAdd = computed(() => session.can("recruitment"));
 const SLOT_OPTIONS = APPLICANT_DOCUMENT_SLOTS.map((value) => ({ value, label: APPLICANT_DOCUMENT_OFFICE_LABELS[value] }));
 const slot = ref<PromotedCaptureSlot | null>(null);
 
+// A row with no slot is a paper the packet filed — the signed policy (§15.2) — named as the driver's file names it.
 const labelOf = (d: ApplicantDocument): string =>
-  d.slot ? (APPLICANT_DOCUMENT_OFFICE_LABELS[d.slot as PromotedCaptureSlot] ?? d.kind) : d.kind;
+  d.slot ? (APPLICANT_DOCUMENT_OFFICE_LABELS[d.slot as PromotedCaptureSlot] ?? d.kind) : (DQ_KIND_LABELS[d.kind] ?? d.kind);
 const isImage = (d: ApplicantDocument): boolean => d.contentType.startsWith("image/");
 
 async function add(files: File[]): Promise<void> {
