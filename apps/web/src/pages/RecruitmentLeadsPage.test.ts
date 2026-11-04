@@ -81,6 +81,13 @@ describe("the lead queue", () => {
     expect(api.calls[0]).toBe("/api/recruitment/leads?limit=50");
   });
 
+  it("a requirement they told us they miss outranks what is still to check", async () => {
+    api.answer = () => ok({ leads: [{ ...ROW, summary: { hardUnmet: 1, unknown: 4, met: 1 } }], next: null });
+    const text = (await render("/recruitment/leads")).w.text();
+    expect(text).toContain("1 not met");
+    expect(text).not.toContain("to check");
+  });
+
   it("names a row with no details without claiming they were deleted", async () => {
     api.answer = () => ok({ leads: [{ ...ROW, full_name: null, phone_e164: null, email_lower: null, verdicts: [], summary: null }], next: null });
     const text = (await render("/recruitment/leads")).w.text();

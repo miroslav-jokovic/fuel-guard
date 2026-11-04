@@ -8,7 +8,7 @@ const v = (requirement: LeadRequirement, verdict: LeadMatchVerdict["verdict"], d
 
 describe("why a verdict is what it is", () => {
   it("has a sentence with no blanks for every verdict leadMatch can produce", () => {
-    const forms = [{}, { class_a_held: "yes", class_a_years: "lt1", hazmat_endorsement: "no" }, { class_a_held: "no", class_a_years: "2to5", hazmat_endorsement: "yes" }];
+    const forms: Array<Record<string, string>> = [{}, { class_a_held: "yes", class_a_years: "lt1", hazmat_endorsement: "no" }, { class_a_held: "no", class_a_years: "2to5", hazmat_endorsement: "yes" }];
     for (const answers of forms) {
       for (const verdict of leadMatch(HIRING_PROFILE_V1, leadFactsFromAnswers(answers), "2026-11-04")) {
         expect(leadVerdictWhy(verdict)).toMatch(/^[A-Z].*\.$/);
