@@ -116,7 +116,7 @@ export function adsRouter(deps: AdsRouterDeps): Router {
 
   mountConnectionRoutes(router, { section: BRIEF_SECTION, actorOf });
   mountBrandKitRoutes(router, { section: BRIEF_SECTION, actorOf });
-  mountCampaignRoutes(router, { section: BRIEF_SECTION, briefSourcesFor: deps.briefSourcesFor });
+  mountCampaignRoutes(router, { section: BRIEF_SECTION, briefSourcesFor: deps.briefSourcesFor, actorOf });
   return router;
 }
 

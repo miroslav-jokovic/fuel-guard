@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { recordId } from "../recordId.js";
 import type { AdBrief, CampaignState, CreativeState } from "./contracts.js";
+import { CAMPAIGN_EVENTS, type CampaignEvent } from "./campaignMachine.js";
 
 /**
  * The campaign doors' wire contracts (ADS-AGENT-BUILD-WORKFLOW Track S, S1b): what the campaign flow (E3)
@@ -84,3 +85,25 @@ export interface AdsCampaignView extends AdsCampaignSummary {
   /** Oldest first; a superseded creative stays, its successor names it. */
   creatives: AdsCreativeView[];
 }
+
+// ── S1c: the moves a person makes on a campaign ──────────────────────────────────────────────────
+/**
+ * The machine's events a person presses on the campaign page, minus two that have their own door:
+ *   · `creatives_approved` — needs the person's decision on each creative first (S1d's door records them);
+ *   · `kill` — the kill switch's own event, applied to every delivering campaign by `killSwitch.ts`.
+ * `launch` is not here either: it spends, so it is the approver's door below. Whether an event is
+ * legal from the campaign's state, and whether a person may cause it, is still the machine's to say.
+ */
+export const ADS_PERSON_DOOR_EXCLUDED: readonly CampaignEvent[] = ["creatives_approved", "kill", "launch"];
+export const adsCampaignMoveSchema = z.object({
+  event: z.enum(CAMPAIGN_EVENTS),
+  reason: z.string().trim().min(1).max(500).nullable().optional(),
+});
+export type AdsCampaignMove = z.infer<typeof adsCampaignMoveSchema>;
+
+/** Launch: the amounts an approver launches at. A standing approval must cover them (`ads_approvals`). */
+export const adsCampaignLaunchSchema = z.object({
+  daily_budget_cents: z.number().int().positive(),
+  lifetime_cap_cents: z.number().int().positive(),
+});
+export type AdsCampaignLaunch = z.infer<typeof adsCampaignLaunchSchema>;

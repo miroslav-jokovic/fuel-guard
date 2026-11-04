@@ -1,16 +1,17 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
-  adBriefSchema,
-  type AdBriefSource, type AdsCampaignCreate, type AdsCampaignCreateRefusal, type AdsCampaignSummary, type AdsCampaignView,
-  type AdsCreativeView,
+  ADS_PERSON_DOOR_EXCLUDED, adBriefSchema, stepCampaign,
+  type AdBriefSource, type AdsCampaignCreate, type AdsCampaignCreateRefusal, type AdsCampaignLaunch, type AdsCampaignMove,
+  type AdsCampaignSummary, type AdsCampaignView, type AdsCreativeView, type CampaignState,
 } from "@silvicom/shared";
 import { listBrandKits } from "../creative/kitVersions.js";
-import { insertCampaign } from "../orchestrator/transitions.js";
-import { settingsInForce } from "../settings/settingsVersions.js";
+import { findCoveringApproval } from "../guard/approvals.js";
+import { applyCampaignEvent, insertCampaign, loadCampaign, type TransitionResult } from "../orchestrator/transitions.js";
+import { settingsInForce, type Actor } from "../settings/settingsVersions.js";
 
 /**
  * The campaign doors behind `/api/ads/campaigns` (ADS-AGENT-BUILD-WORKFLOW Track S, S1b). Create, list, read.
- * The moves a person makes on a campaign (regenerate, launch, archive) are S1c; deciding a creative is S1d.
+ * And (S1c) the moves a person makes on a campaign, and the approver's launch. Deciding a creative is S1d.
  *
  * ── CREATE: EVERYTHING A CAMPAIGN NAMES IS CHECKED BEFORE THE ROW EXISTS ─────────────────────────
  *   · the brief, from the source the composition root handed in (D-AD17 — ads never reads an opening):
@@ -77,4 +78,63 @@ export async function readCampaign(admin: SupabaseClient, orgId: string, id: str
   const { data: cr, error: e2 } = await admin.from("ads_creatives").select(CREATIVE).eq("org_id", orgId).eq("campaign_id", id).order("created_at", { ascending: true });
   if (e2) throw new Error(`ads_creatives: ${e2.message}`);
   return { ...(data as unknown as Omit<AdsCampaignView, "creatives">), creatives: (cr ?? []) as unknown as AdsCreativeView[] };
+}
+
+// ── S1c: a person's moves, and the approver's launch ─────────────────────────────────────────────
+export type MoveOutcome =
+  | { kind: "moved"; to: CampaignState }
+  | { kind: "not_found" }
+  /** The machine said no (illegal from this state, or not a person's to cause), or the door excludes it. */
+  | { kind: "refused"; reason: "illegal_transition" | "actor_not_allowed" | "not_this_door" }
+  /** Someone else moved the campaign first (`state_moved`), or this exact move was already recorded. */
+  | { kind: "conflict" }
+  /** Launch only: no standing approval covers these amounts, or a second approver is still owed. */
+  | { kind: "needs_approval"; refusal: "no_standing_approval" | "second_approver_missing" };
+
+const fromTransition = (r: TransitionResult): MoveOutcome => {
+  switch (r.kind) {
+    case "moved": return { kind: "moved", to: r.to };
+    case "no_op": return { kind: "moved", to: r.state };
+    case "refused": return { kind: "refused", reason: r.reason };
+    case "state_moved": case "already_recorded": return { kind: "conflict" };
+  }
+};
+
+/**
+ * Regenerate, archive, pause, resume, create paused: whatever the machine lets a PERSON cause from the
+ * campaign's state, except the events with their own door (`ADS_PERSON_DOOR_EXCLUDED`). The move and its
+ * record are `applyCampaignEvent`'s, as an agent's are, so a person's press and the runner race safely.
+ */
+export async function personMove(admin: SupabaseClient, orgId: string, actor: Actor, campaignId: string, ask: AdsCampaignMove, at: Date): Promise<MoveOutcome> {
+  if (ADS_PERSON_DOOR_EXCLUDED.includes(ask.event)) return { kind: "refused", reason: "not_this_door" };
+  const c = await loadCampaign(admin, orgId, campaignId);
+  if (!c) return { kind: "not_found" };
+  return fromTransition(await applyCampaignEvent(admin, c, {
+    event: ask.event, actor: { kind: "person", id: actor.id, name: actor.name }, cause: ask.reason ?? `${actor.name}: ${ask.event}`,
+  }, at.toISOString()));
+}
+
+/**
+ * `paused → launching` by an approver, at the amounts given. The approval itself is a separate act
+ * (`POST /campaigns/:id/approvals`, one yes per person, and two people above the second-approver line):
+ * this door checks that a standing approval covers these amounts with the guard's own rule
+ * (`findCoveringApproval`), and moves only then — so a launch that a second approver still owes never
+ * leaves `paused`. The guard checks again at the platform call, against the caps then in force; that
+ * check, not this one, is the one that can spend.
+ */
+export async function launchCampaign(admin: SupabaseClient, orgId: string, actor: Actor, campaignId: string, ask: AdsCampaignLaunch, at: Date): Promise<MoveOutcome> {
+  const c = await loadCampaign(admin, orgId, campaignId);
+  if (!c) return { kind: "not_found" };
+  const step = stepCampaign(c.state, "launch", "approver");
+  if (!step.ok) return { kind: "refused", reason: step.reason };
+  const { settings } = await settingsInForce(admin, orgId);
+  const verdict = await findCoveringApproval(admin, orgId, settings, {
+    campaignId, kind: "launch", daily_cents: ask.daily_budget_cents, lifetime_cents: ask.lifetime_cap_cents,
+  });
+  if (!verdict.ok) return { kind: "needs_approval", refusal: verdict.refusal };
+  return fromTransition(await applyCampaignEvent(admin, c, {
+    event: "launch", actor: { kind: "approver", id: actor.id, name: actor.name },
+    cause: `${actor.name} launched at ${ask.daily_budget_cents} cents a day, ${ask.lifetime_cap_cents} cents in all`,
+    budget: { daily_budget_cents: ask.daily_budget_cents, lifetime_cap_cents: ask.lifetime_cap_cents },
+  }, at.toISOString()));
 }

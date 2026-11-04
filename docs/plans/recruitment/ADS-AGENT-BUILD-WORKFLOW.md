@@ -1437,3 +1437,24 @@ blocking step in §3 above.
     whose details all failed to read; two matching applicants read as "matching applicant 1" and "2", because
     `lead.drivers` carries no names; manual add reports "phone or email" only once the channel and name are valid.
   - Open from this track: Q-AD30 and Q-AD31 (plan §9). Next is owner-made campaigns, raised with the ads chat first.
+- **2026-11-04, S1c — a person's moves and the approver's launch (Track S).** No migration. **Security L2.**
+  - **`POST /api/ads/campaigns/:id/moves {event, reason?}`** (manage on the brief's section): whatever the machine lets a
+    PERSON cause from the campaign's state — regenerate, pause, archive, resume compose/create, create paused — through
+    `applyCampaignEvent`, so a person's press is recorded and races the runner exactly as an agent's move does. Three
+    events have their own door and are refused here before any campaign is read (`ADS_PERSON_DOOR_EXCLUDED`, shared):
+    `launch` (spends), `kill` (the switch's own event, `killSwitch.ts`), `creatives_approved` (needs S1d's decisions).
+    Legality and who may cause it stay the machine's (`stepCampaign`), not a list in the door.
+  - **`POST /api/ads/campaigns/:id/launch {daily_budget_cents, lifetime_cap_cents}`** (`ads.spend`, admin only, fresh
+    sign-in): refuses a campaign not `paused` as such (before any approval lookup, so the reason is the true one); then
+    asks the guard's own `findCoveringApproval` whether a standing yes covers THESE amounts — including the second
+    approver above the settings' line — and moves only then, so a launch still owed a second approver never leaves
+    `paused`. The budget is written in the move's compare-and-set (`TransitionAsk.budget`, `transitions.ts`), so it lands
+    exactly when the move does; the runner's `launchStep` reads it from the row and the guard checks again at the
+    platform call against the caps then in force. Approving stays its own act (`/campaigns/:id/approvals`, one row per
+    person), which the screen calls before Launch.
+  - Readiness: Security L2's last need, "a non-admin hitting Launch", is pinned to `campaignMoves.test.ts`.
+  - Tests: `campaignMoves.test.ts` (15, through the app over `adsWorld`). Mutation: 10 mutants (door exclusions, the actor
+    kind, the approval check, the state pre-check, the amounts asked, the budget written, the launch gate ×2, the moves
+    gate, not-found) — 10 of 10 killed. The state pre-check first SURVIVED: its test had an approval on file, so the
+    machine refused the move anyway with the same answer; the test now has none, which is the case the pre-check is
+    for (the true reason, not "approve first").
