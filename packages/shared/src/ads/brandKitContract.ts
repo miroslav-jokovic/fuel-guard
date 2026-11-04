@@ -127,8 +127,12 @@ export function templateSlots(template: string): string[] {
 export const adPresetRecipeSchema = z.object({
   name: z.string().trim().min(2).max(80),
   hook_formula: z.string().trim().min(5).max(500),
-  /** The copy's slots, in reading order ("hook", "pay", "home_time", "cta"). */
-  copy_slots: z.array(slotName).min(1).max(8),
+  /**
+   * The copy's slots, in reading order ("hook", "pay", "cta"), each with the most characters it may hold
+   * in either language. The limit is the preset's (an overlay line, a Meta headline), so the copywriter's
+   * tool schema carries it and an answer that runs over is refused, never trimmed (C2).
+   */
+  copy_slots: z.array(z.object({ name: slotName, max_chars: z.number().int().min(10).max(500) })).min(1).max(8),
   image_prompt_template: z.string().trim().min(10).max(2000),
   image_slots: z.array(slotName).max(8),
   starts_from: z.enum(["equipment_photo", "text_only"]),
@@ -143,7 +147,7 @@ export const adPresetRecipeSchema = z.object({
   for (const s of used) if (!declared.has(s)) ctx.addIssue({ code: "custom", path: ["image_prompt_template"], message: `{${s}} is not one of image_slots` });
   for (const s of declared) if (!used.includes(s)) ctx.addIssue({ code: "custom", path: ["image_slots"], message: `${s} is never used in the template` });
   if (new Set(r.image_slots).size !== r.image_slots.length) ctx.addIssue({ code: "custom", path: ["image_slots"], message: "a slot is listed twice" });
-  if (new Set(r.copy_slots).size !== r.copy_slots.length) ctx.addIssue({ code: "custom", path: ["copy_slots"], message: "a slot is listed twice" });
+  if (new Set(r.copy_slots.map((c) => c.name)).size !== r.copy_slots.length) ctx.addIssue({ code: "custom", path: ["copy_slots"], message: "a slot is listed twice" });
   if (new Set(r.formats).size !== r.formats.length) ctx.addIssue({ code: "custom", path: ["formats"], message: "a format is listed twice" });
   if (r.starts_from === "text_only" && (r.shows_equipment || r.shows_people)) {
     ctx.addIssue({ code: "custom", path: ["starts_from"], message: "a scene with equipment or a person starts from a real photo (D-AD9)" });

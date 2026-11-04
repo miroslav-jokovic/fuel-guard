@@ -33,6 +33,7 @@ const PUBLISHER = "apps/api/src/modules/ads/platforms/meta/publisher.test.ts";
 const META_ADAPTER = "apps/api/src/modules/ads/platforms/meta/metaAdapter.test.ts";
 const META_PATH = "apps/api/src/modules/ads/orchestrator/metaPath.test.ts";
 const RULES_SYNC = "apps/api/src/modules/ads/platforms/meta/rulesSync.test.ts";
+const COPYWRITER = "apps/api/src/modules/ads/workers/copywriter/copywriter.test.ts";
 
 export const SCENARIO_DIR = "packages/ads-golden/scenarios";
 
@@ -473,9 +474,28 @@ export const READINESS = [
             "the Spanish phrasing of an unlisted promise is refused too",
           ] }],
         },
-        notBuilt("C2 copywriter prompt pack + schema + fixtures"),
+        {
+          need: "the worker, through the A4 rail, with every recorded answer replayed and every string claim-checked",
+          tests: [{ file: COPYWRITER, titles: [
+            "has model recordings under the prompt in force and planted defects beside them",
+            "planted-invented-figure",
+            "planted-invented-promise",
+            "planted-forbidden-wording",
+            "planted-spelled-spanish-number",
+            "planted-slot-over-limit",
+            "refuses the planted invented figure in both languages, naming each slot",
+            "asks once per creative and attempt, as the copywriter, under the prompt version in force",
+            "asks no model when the copywriter is switched off",
+          ] }],
+        },
       ],
-      L2: later("L2"), L3: later("L3"),
+      L2: [
+        {
+          need: "§4R's faults: a brief with no pay, a brief in Spanish, an instruction inside the brief, slots too short",
+          tests: [{ file: COPYWRITER, titles: ["no-pay-in-brief", "spanish-subject", "instruction-in-subject", "short-slots"] }],
+        },
+      ],
+      L3: [{ need: "the evaluation set (≥ 40 briefs × presets, EN + ES) at its bar; human-rated approve-without-edit baseline", gap: "C2 recorded 10 briefs (pnpm ads:eval copywriter: 9 of 10, baseline.json); the set grows to 40 and a person rates it" }],
       L4: [{ need: "not applicable to a model worker beyond the eval set", gap: "decided with C2: whether a Claude worker has an L4 at all" }],
       L5: [{ need: "canary", gap: CANARY }],
     },

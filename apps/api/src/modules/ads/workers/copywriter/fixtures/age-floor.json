@@ -1,0 +1,81 @@
+{
+  "name": "age-floor",
+  "about": "A legal age floor listed as an age quantity — the only way an age may appear.",
+  "input": {
+    "brief": {
+      "source": "fixture",
+      "ref": "fixture-opening",
+      "subject": "Class A OTR driver",
+      "claims": [
+        {
+          "kind": "money",
+          "cents": 65,
+          "per": "mile"
+        },
+        {
+          "kind": "quantity",
+          "value": 23,
+          "unit": "age"
+        }
+      ],
+      "area": {
+        "label": "Fixture Yard, IL",
+        "latitude": 41.85,
+        "longitude": -87.65,
+        "radius_miles": 75,
+        "reason": "Fixture: drivers within a day's drive of the yard."
+      },
+      "form_questions": [],
+      "landing_url": null
+    },
+    "recipe": {
+      "name": "Fixture: the number",
+      "hook_formula": "Open with the pay figure, then who the job is for.",
+      "copy_slots": [
+        {
+          "name": "hook",
+          "max_chars": 60
+        },
+        {
+          "name": "body",
+          "max_chars": 220
+        },
+        {
+          "name": "cta",
+          "max_chars": 30
+        }
+      ],
+      "image_prompt_template": "A late-model tractor at {time_of_day}, no text, no logos, no lettering",
+      "image_slots": [
+        "time_of_day"
+      ],
+      "starts_from": "equipment_photo",
+      "shows_equipment": true,
+      "shows_people": false,
+      "motion_template": null,
+      "formats": [
+        "1:1",
+        "4:5"
+      ]
+    }
+  },
+  "expect": "ready",
+  "recorded": {
+    "source": "model",
+    "prompt_version": "copywriter@1",
+    "model": "claude-sonnet-4-6",
+    "recorded_at": "2026-11-04T05:02:04.351Z",
+    "output": {
+      "en": {
+        "hook": "$0.65/mile for Class A OTR drivers.",
+        "body": "Hit the open road and earn $0.65 per mile as a Class A OTR driver. You must be 23+ to apply. Join a team that values your time behind the wheel.",
+        "cta": "Apply today."
+      },
+      "es": {
+        "hook": "$0.65 por milla para conductores Clase A.",
+        "body": "Gana $0.65 por milla como conductor Clase A en ruta larga. Debes ser mayor de 23 años para aplicar. Únete a nuestro equipo hoy.",
+        "cta": "Aplica ahora."
+      }
+    }
+  }
+}

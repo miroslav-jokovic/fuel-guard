@@ -1,0 +1,80 @@
+{
+  "name": "pay-per-mile-home-weekly",
+  "about": "The plain case: a per-mile rate and weekly home time.",
+  "input": {
+    "brief": {
+      "source": "fixture",
+      "ref": "fixture-opening",
+      "subject": "Class A regional truck driver",
+      "claims": [
+        {
+          "kind": "money",
+          "cents": 68,
+          "per": "mile"
+        },
+        {
+          "kind": "term",
+          "term": "home weekly"
+        }
+      ],
+      "area": {
+        "label": "Fixture Yard, IL",
+        "latitude": 41.85,
+        "longitude": -87.65,
+        "radius_miles": 75,
+        "reason": "Fixture: drivers within a day's drive of the yard."
+      },
+      "form_questions": [],
+      "landing_url": null
+    },
+    "recipe": {
+      "name": "Fixture: the number",
+      "hook_formula": "Open with the pay figure, then who the job is for.",
+      "copy_slots": [
+        {
+          "name": "hook",
+          "max_chars": 60
+        },
+        {
+          "name": "body",
+          "max_chars": 220
+        },
+        {
+          "name": "cta",
+          "max_chars": 30
+        }
+      ],
+      "image_prompt_template": "A late-model tractor at {time_of_day}, no text, no logos, no lettering",
+      "image_slots": [
+        "time_of_day"
+      ],
+      "starts_from": "equipment_photo",
+      "shows_equipment": true,
+      "shows_people": false,
+      "motion_template": null,
+      "formats": [
+        "1:1",
+        "4:5"
+      ]
+    }
+  },
+  "expect": "ready",
+  "recorded": {
+    "source": "model",
+    "prompt_version": "copywriter@1",
+    "model": "claude-sonnet-4-6",
+    "recorded_at": "2026-11-04T05:02:23.773Z",
+    "output": {
+      "en": {
+        "hook": "$0.68/mile for Class A regional drivers.",
+        "body": "Drive regional routes and get home weekly. If you hold a Class A CDL and want consistent miles with solid pay, this opportunity is built for you. Join our team and keep moving forward.",
+        "cta": "Apply today and join us."
+      },
+      "es": {
+        "hook": "$0.68 por milla para conductores regionales Clase A.",
+        "body": "Rutas regionales con regreso a casa cada semana. Si tienes CDL Clase A y buscas pago sólido con millas constantes, esta es tu oportunidad. Únete a nuestro equipo.",
+        "cta": "Aplica hoy y únete."
+      }
+    }
+  }
+}

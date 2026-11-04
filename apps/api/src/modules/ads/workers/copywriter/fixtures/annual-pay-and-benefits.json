@@ -1,0 +1,88 @@
+{
+  "name": "annual-pay-and-benefits",
+  "about": "A yearly figure and listed benefits, including the 401k term whose digits are a term.",
+  "input": {
+    "brief": {
+      "source": "fixture",
+      "ref": "fixture-opening",
+      "subject": "Class A dedicated driver",
+      "claims": [
+        {
+          "kind": "money",
+          "cents": 8500000,
+          "per": "year"
+        },
+        {
+          "kind": "term",
+          "term": "health insurance"
+        },
+        {
+          "kind": "term",
+          "term": "401k"
+        },
+        {
+          "kind": "term",
+          "term": "dedicated"
+        }
+      ],
+      "area": {
+        "label": "Fixture Yard, IL",
+        "latitude": 41.85,
+        "longitude": -87.65,
+        "radius_miles": 75,
+        "reason": "Fixture: drivers within a day's drive of the yard."
+      },
+      "form_questions": [],
+      "landing_url": null
+    },
+    "recipe": {
+      "name": "Fixture: the number",
+      "hook_formula": "Open with the pay figure, then who the job is for.",
+      "copy_slots": [
+        {
+          "name": "hook",
+          "max_chars": 60
+        },
+        {
+          "name": "body",
+          "max_chars": 220
+        },
+        {
+          "name": "cta",
+          "max_chars": 30
+        }
+      ],
+      "image_prompt_template": "A late-model tractor at {time_of_day}, no text, no logos, no lettering",
+      "image_slots": [
+        "time_of_day"
+      ],
+      "starts_from": "equipment_photo",
+      "shows_equipment": true,
+      "shows_people": false,
+      "motion_template": null,
+      "formats": [
+        "1:1",
+        "4:5"
+      ]
+    }
+  },
+  "expect": "ready",
+  "recorded": {
+    "source": "model",
+    "prompt_version": "copywriter@1",
+    "model": "claude-sonnet-4-6",
+    "recorded_at": "2026-11-04T05:02:09.706Z",
+    "output": {
+      "en": {
+        "hook": "$85,000/year for Class A dedicated drivers.",
+        "body": "This dedicated route gives you steady, reliable work. Benefits include health insurance and a 401k plan. If you hold a Class A CDL and want consistency, this seat is worth a look.",
+        "cta": "Apply today and join us."
+      },
+      "es": {
+        "hook": "$85,000 al año para conductores Class A dedicados.",
+        "body": "Esta ruta dedicada ofrece trabajo estable y constante. Los beneficios incluyen seguro médico y plan 401k. Si tiene CDL Class A y busca consistencia, esta posición es para usted.",
+        "cta": "Postúlese hoy con nosotros."
+      }
+    }
+  }
+}

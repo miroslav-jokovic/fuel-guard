@@ -1080,3 +1080,42 @@ blocking step in §3 above.
   - Readiness: unchanged (C1 is no worker's level; Renderer's L1 waits on C3 + C4).
   - Mutation: 19 mutants; one survived the first run as a test gap (an archived preset taking a version), now
     killed — 19 of 19.
+- **2026-11-03, C2a — the Copywriter's prompt pack, the replay, `pnpm ads:eval` and `lint:agent-fixtures`.**
+  C2 is two PRs: C2a the Copywriter plus the shared tooling, C2b the Art director on the same tooling. Done-when
+  met: a planted invented figure (`$0.75/mile` against a `$0.68` brief) fails the claim check, in both languages,
+  naming each slot; the fixture agreement is recorded as the baseline.
+  - `modules/ads/workers/copywriter/`: `prompt.v1.md`; `copywriter.ts` (`writeCopy` through the A4 rail, key
+    `copy:<creative>:<attempt>`, `buildCopyRequest` + `judgeCopy` exported so the eval asks and judges exactly
+    as the worker does); 15 fixtures (10 recorded from the model, 5 planted and labelled `planted`); the replay
+    `copywriter.test.ts`; `baseline.json`.
+  - **The model sees** the brief's subject and claims and the recipe's hook formula and slots, as JSON called
+    data; never the area or landing URL. **The check decides**: every string of both languages through
+    `checkClaims`, and each slot against its limit (`too_long`). One finding anywhere → `refused` with the
+    findings; nothing is trimmed.
+  - **Measured, then fixed (2026-11-03, `pnpm ads:eval copywriter`, claude-sonnet-4-6):** first run 8/10. (1) Told
+    the real slot limit, the model ran over by 1–11 characters in 3 of 10 answers, mostly in Spanish → it is now
+    told 85 % (`TOLD_LIMIT_SHARE`), the check holds the real limit, and the length moved out of the tool schema
+    into the copy check (D-AD12 §1 "the length fits"), so an overrun is a recorded answer refused `too_long`,
+    not an `off_schema` failure. (2) "mayor de 23 años" — the correct singular Spanish age floor — was read as
+    a bare "23 años" and refused; `adClaims`' AGE pattern now reads it (still only as an `age` claim; pinned both
+    ways). (3) With no pay in the brief the model wrote "No pay figure listed" → the prompt now says never to
+    mention a missing fact. **Baseline: 9 of 10 (0.9).** The miss is the checker being right: a `$1,500/week`
+    brief, copy saying "weekly pay" — a promise to pay weekly the brief does not make.
+  - **C1 contract change, before any version exists:** a recipe's `copy_slots` is now `{ name, max_chars }[]`
+    (was names only) — §4R's "a preset whose slots are too short" needs the limit to mean anything. No row has
+    been saved yet (no editor until E2), so nothing stored is reshaped.
+  - **`pnpm ads:eval <worker> [--record]`** (`apps/api/src/scripts/adsEval.ts`) calls the real model with the
+    developer's key via `callForcedTool` — no org, no budget, no ledger row, said in its header: it is a
+    measurement, not a worker. Planted fixtures are skipped. `--record` rewrites recordings, sets each `expect`
+    to the verdict its answer gets, and writes `baseline.json`.
+  - **`lint:agent-fixtures`** (new, in `ci.yml` `gates`, same PR): each worker reads its NEWEST prompt and names
+    `<worker>@<N>`; every fixture parses, is named for its file, recorded under that version; model recordings
+    are real; ≥ 1 model and ≥ 1 planted; the baseline counts exactly these fixtures under that version; the
+    replay exists and skips nothing. Self-test plants 8 violations.
+  - **`compose` stays null** (`orchestrator/workers.ts`): wiring the copy alone would move a campaign to review
+    with no visual or render check. It is filled when C5 completes the chain.
+  - Readiness: **Copywriter L2** (L1 the worker + replay + planted refusals; L2 §4R's four faults each a replayed
+    fixture). L3 open: the set is 10 briefs, the bar is ≥ 40 with a person's approve-without-edit rating.
+  - Mutation: 9 mutants (Spanish skipped, length unchecked, key without attempt, area sent, real limit told,
+    verdict ignored, wrong agent, claims unchecked, the age pattern reverted), all killed; the gate's own
+    checks are its 8-case self-test.

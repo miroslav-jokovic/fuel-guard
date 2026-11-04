@@ -27,6 +27,7 @@ describe("checkClaims — copy that only says what the opening says passes", () 
     "Home weekends and a 401(k).",
     "1 year of Class A experience required.",
     "68 CPM, home weekends.",
+    "Debes ser mayor de 23 años.",
   ])("%s", (copy) => {
     expect(kinds(copy)).toEqual([]);
   });
@@ -44,6 +45,7 @@ describe("checkClaims — a planted figure fails, however it is written", () => 
     ["Get two weeks off.", "quantity_not_in_brief:two weeks"],
     ["En casa cada diez días.", "quantity_not_in_brief:diez días"],
     ["Must be 21+.", "age_not_in_brief:21+"],
+    ["Debes ser mayor de 21 años.", "age_not_in_brief:mayor de 21 años"],
     ["Run 48 states.", "quantity_not_in_brief:48 states"],
     ["Earn up to 85 on every run.", "unrecognised_number:85"],
     ["Call 815-555-0100 today.", "unrecognised_number:815"],

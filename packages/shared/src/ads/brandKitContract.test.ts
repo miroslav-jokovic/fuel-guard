@@ -8,7 +8,7 @@ const KIT: AdBrandKit = {
   logo: null, equipment_photos: [], overlays: {}, people_policy: "none", forbidden_marks: [],
 };
 const RECIPE: AdPresetRecipe = {
-  name: "Fixture", hook_formula: "Lead with the figure.", copy_slots: ["hook", "cta"],
+  name: "Fixture", hook_formula: "Lead with the figure.", copy_slots: [{ name: "hook", max_chars: 60 }, { name: "cta", max_chars: 30 }],
   image_prompt_template: "A {vehicle} at {time_of_day}, no text, no logos, no lettering", image_slots: ["vehicle", "time_of_day"],
   starts_from: "equipment_photo", shows_equipment: true, shows_people: false, motion_template: null, formats: ["1:1"],
 };
@@ -61,6 +61,6 @@ describe("preset recipe contract", () => {
 
   it("refuses a format or a slot listed twice", () => {
     expect(adPresetRecipeSchema.safeParse({ ...RECIPE, formats: ["1:1", "1:1"] }).success).toBe(false);
-    expect(adPresetRecipeSchema.safeParse({ ...RECIPE, copy_slots: ["hook", "hook"] }).success).toBe(false);
+    expect(adPresetRecipeSchema.safeParse({ ...RECIPE, copy_slots: [{ name: "hook", max_chars: 60 }, { name: "hook", max_chars: 60 }] }).success).toBe(false);
   });
 });
