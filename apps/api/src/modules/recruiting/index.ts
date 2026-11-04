@@ -27,5 +27,8 @@ export { returnToDutyBlocked, returnToDutyStanding } from "./returnToDuty.js";
 export { partOneFactsForMedstop } from "./medstopApplicantFacts.js";
 // The LeadSink every platform lead enters by (D-AD17): the ads module's intake (B4) is handed this, never a table.
 export { recruitingLeadSink } from "./leads/leadSink.js";
+export type { ConfiguredRecipients } from "./leads/leadNotify.js";
+// D2c: the alarm on a lead nobody has contacted, and its scheduler.
+export { startLeadUncontacted, sweepUncontactedLeads } from "./leads/leadUncontacted.js";
 // MSO1: a Med-Stop pre-employment order fills the step's appointment — handed to medstop by app.ts.
 export { recordOrderedDrugTest, releaseOrderedDrugTest } from "./applicantDrugTest.js";

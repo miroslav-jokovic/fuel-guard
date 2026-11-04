@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { AdsAlertCategory } from "@silvicom/shared";
+import type { AdsAlertCategory, NotificationSeverity } from "@silvicom/shared";
 import { notify } from "../../messaging/index.js";
 import { sectionManagerIds } from "../../org/index.js";
 
@@ -24,21 +24,30 @@ import { sectionManagerIds } from "../../org/index.js";
 
 export type ConfiguredRecipients = (orgId: string, category: AdsAlertCategory) => Promise<string[]>;
 
-async function recipients(admin: SupabaseClient, orgId: string, configured: ConfiguredRecipients): Promise<string[]> {
-  const chosen = await configured(orgId, "lead_new");
+type LeadAlert = { category: "lead_new" | "lead_uncontacted"; title: string; body: string; severity: NotificationSeverity };
+
+async function recipients(admin: SupabaseClient, orgId: string, category: LeadAlert["category"], configured: ConfiguredRecipients): Promise<string[]> {
+  const chosen = await configured(orgId, category);
   return chosen.length > 0 ? chosen : sectionManagerIds(admin, orgId, "recruitment");
 }
 
-export async function ringNewLead(admin: SupabaseClient, orgId: string, leadId: string, configured: ConfiguredRecipients): Promise<void> {
+/** The dedupe key of a lead's alert: one bell item per lead per category, per person. */
+export const leadAlertKey = (category: LeadAlert["category"], leadId: string): string => `${category}:${leadId}`;
+
+export async function ringLead(admin: SupabaseClient, orgId: string, leadId: string, alert: LeadAlert, configured: ConfiguredRecipients): Promise<void> {
   try {
-    const users = await recipients(admin, orgId, configured);
+    const users = await recipients(admin, orgId, alert.category, configured);
     if (users.length === 0) console.error(`[lead-notify] org ${orgId}: lead ${leadId} has nobody to tell — nobody holds recruitment manage`);
     await Promise.all(users.map((userId) => notify(admin, {
-      orgId, userId, category: "lead_new", title: "New ad lead",
-      body: "A new lead is in the queue, waiting for a first contact.",
-      entityType: "recruiting_leads", entityId: leadId, dedupeKey: `lead_new:${leadId}`,
+      orgId, userId, ...alert, entityType: "recruiting_leads", entityId: leadId, dedupeKey: leadAlertKey(alert.category, leadId),
     })));
   } catch (err) {
     console.error(`[lead-notify] org ${orgId}: lead ${leadId} rang nobody: ${err instanceof Error ? err.message : String(err)}`);
   }
 }
+
+export const ringNewLead = (admin: SupabaseClient, orgId: string, leadId: string, configured: ConfiguredRecipients): Promise<void> =>
+  ringLead(admin, orgId, leadId, {
+    category: "lead_new", title: "New ad lead", severity: "info",
+    body: "A new lead is in the queue, waiting for a first contact.",
+  }, configured);

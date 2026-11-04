@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { AdsAlertCategory, NotificationCategory, NotificationSeverity } from "@silvicom/shared";
+import { ADS_SETTINGS_UNSET, type AdsAlertCategory, type NotificationCategory, type NotificationSeverity } from "@silvicom/shared";
 import { notify } from "../../messaging/index.js";
 import { settingsInForce } from "../settings/settingsVersions.js";
 
@@ -53,6 +53,15 @@ async function chosenFrom(admin: SupabaseClient, orgId: string, category: AdsAle
  */
 export async function configuredAlertRecipients(admin: SupabaseClient, orgId: string, category: AdsAlertCategory): Promise<string[]> {
   return chosenFrom(admin, orgId, category, await activeMembers(admin, orgId));
+}
+
+/** How long a lead may wait for a first contact. Settings that cannot be read give the default, never no alarm. */
+export async function uncontactedLeadMinutes(admin: SupabaseClient, orgId: string): Promise<number> {
+  try {
+    return (await settingsInForce(admin, orgId)).settings.alerts.uncontacted_lead_minutes;
+  } catch {
+    return ADS_SETTINGS_UNSET.alerts.uncontacted_lead_minutes;
+  }
 }
 
 export async function alertRecipients(admin: SupabaseClient, orgId: string, category: AdsAlert["category"]): Promise<string[]> {

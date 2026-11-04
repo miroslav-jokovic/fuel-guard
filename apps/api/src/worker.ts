@@ -103,6 +103,8 @@ const KIND_CAPS: Record<string, number> = {
   ads_insights: 1,
   // One at a time: a reconcile reads every object of ours and 28 days of insights with one account token (B5c).
   ads_reconcile: 1,
+  // One at a time: a sweep is a few reads and a bell item per overdue lead, and the next tick is minutes away (D2c).
+  lead_uncontacted: 1,
   // sharp is CPU-bound; two at a time keeps a burst of uploads from starving the sync kinds.
   document_derive: 2,
 };
