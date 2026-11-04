@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { LeadContactInput, LeadStatus } from "@silvicom/shared";
+import type { LeadContactInput, LeadContactRecord, LeadStatus } from "@silvicom/shared";
 
 /**
  * Writing down a call, text or email a person made to a lead (D2a) — the first writer of
@@ -61,4 +61,46 @@ export async function logLeadContact(
   // No row moved means the lead was past `new`, or another request moved it first; the contact stands either way.
   const status = (moved as Array<{ status: LeadStatus }> | null)?.[0]?.status ?? lead.status;
   return { kind: "logged", contact_id: (contact as { id: string }).id, status };
+}
+
+/** More than any one lead should ever gather; a bound on the read, not a page anybody is expected to reach. */
+export const LEAD_CONTACTS_MAX = 200;
+
+export type LeadContactsRead =
+  | { kind: "read"; contacts: LeadContactRecord[] }
+  | { kind: "refused"; status: number; code: string; message: string };
+
+/**
+ * Who already reached a lead, newest first (E4a) — the reader of `recruiting_contacts`, so the drawer can show
+ * who called before a second recruiter calls again.
+ *
+ * A purged lead still answers, unlike the writer above: its contacts are the evidence a TCPA or discrimination
+ * claim is answered from (D-RA12), and who called, when, how and with what outcome name nobody.
+ *
+ * ⚠ ITS NOTES ARE WITHHELD, pending counsel (LEADS-FIRST handoff §2: whether a contact note on a purged lead
+ * is redacted too). 0558 keeps the note because that question is not a migration's to answer, but until this
+ * read existed nothing served it. The note is a recruiter's sentence that may name a person who asked for their
+ * details to go, and `recruitment` view reaches a tombstone through the queue's `lost` status, so serving it
+ * would hand those details back to everyone with view. Withholding changes no stored row, so the ruling can
+ * still go either way; if counsel rules the note stays readable, this one condition goes.
+ */
+export async function readLeadContacts(admin: SupabaseClient, orgId: string, leadId: string): Promise<LeadContactsRead> {
+  const { data, error } = await admin
+    .from("recruiting_leads").select("id, purged_at").eq("org_id", orgId).eq("id", leadId).maybeSingle();
+  if (error) throw new Error(`Could not read the lead: ${error.message}`);
+  const lead = data as { id: string; purged_at: string | null } | null;
+  if (!lead) return { kind: "refused", status: 404, code: "not_found", message: "Lead not found" };
+
+  const { data: rows, error: ce } = await admin
+    .from("recruiting_contacts")
+    .select("id, direction, method, outcome, note, created_by_name, contacted_at")
+    .eq("org_id", orgId).eq("lead_id", leadId)
+    .order("contacted_at", { ascending: false }).order("id", { ascending: false })
+    .limit(LEAD_CONTACTS_MAX);
+  if (ce) throw new Error(`Could not read the lead's contacts: ${ce.message}`);
+  const contacts = ((rows ?? []) as Array<Omit<LeadContactRecord, "note_withheld">>).map((row) => {
+    const withheld = lead.purged_at !== null && row.note !== null;
+    return { ...row, note: withheld ? null : row.note, note_withheld: withheld };
+  });
+  return { kind: "read", contacts };
 }
