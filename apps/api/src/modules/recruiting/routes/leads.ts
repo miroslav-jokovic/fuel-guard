@@ -11,7 +11,7 @@ import { displayNameFor } from "../../../lib/memberLabels.js";
 import { ingestLead } from "../leads/leadSink.js";
 import { logLeadContact, readLeadContacts } from "../leads/leadContacts.js";
 import { liftDoNotContact, markDoNotContact, type DoNotContactOutcome } from "../leads/doNotContact.js";
-import { convertLead, isConvertError, parseQueueQuery, readLeadQueue } from "../leads/leadQueue.js";
+import { convertLead, isConvertError, parseQueueQuery, readLead, readLeadQueue } from "../leads/leadQueue.js";
 
 /**
  * The lead queue, office side (ADS-AGENT-BUILD-WORKFLOW.md D1; 0553/0554).
@@ -53,6 +53,24 @@ export function recruitmentLeadsRouter(): Router {
         return;
       }
       res.json(await readLeadQueue(getSupabaseAdmin(getAppLocals(req).env), req.auth!.orgId!, q));
+    }),
+  );
+
+  // One lead by id, for a notification's link and the drawer (E4b). A purged lead answers as its tombstone.
+  router.get(
+    "/leads/:leadId",
+    requireOrg,
+    canView,
+    asyncHandler(async (req, res) => {
+      const leadId = String(req.params.leadId ?? "");
+      const lead = recordId().safeParse(leadId).success
+        ? await readLead(getSupabaseAdmin(getAppLocals(req).env), req.auth!.orgId!, leadId)
+        : null;
+      if (!lead) {
+        res.status(404).json(apiError("not_found", "Lead not found"));
+        return;
+      }
+      res.json(lead);
     }),
   );
 

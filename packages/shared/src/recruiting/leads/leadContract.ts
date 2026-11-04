@@ -2,6 +2,7 @@ import { z } from "zod";
 import { isRecordId, recordId } from "../../recordId.js";
 import type { PlatformLead } from "../../ads/contracts.js";
 import { META_FORM_CATALOGUE } from "../../ads/metaLeadForm.js";
+import type { LeadMatchSummary, LeadMatchVerdict } from "./leadMatch.js";
 import { normalisePhone } from "../../smsConsentContract.js";
 
 /**
@@ -189,4 +190,48 @@ export interface LeadContactRecord {
   note_withheld: boolean;
   created_by_name: string;
   contacted_at: string;
+}
+
+/**
+ * One row of the recruiter's queue (`GET /recruitment/leads`; `recruiting_lead_queue`, 0554): one person per
+ * row, with their later leads riding as `also`.
+ */
+export interface LeadQueueRow {
+  id: string;
+  channel: string;
+  source: string | null;
+  campaign_ref: string | null;
+  opening_id: string | null;
+  full_name: string | null;
+  phone_e164: string | null;
+  email_lower: string | null;
+  status: LeadStatus;
+  assigned_to: string | null;
+  received_at: string;
+  answers: Record<string, string>;
+  also: Array<{ id: string; channel: string; campaign_ref: string | null; received_at: string }>;
+  drivers: Array<{ id: string; status: string; archived: boolean }>;
+  verdicts: LeadMatchVerdict[];
+  summary: LeadMatchSummary | null;
+  /**
+   * The number is held from contact (`doNotContact.ts`): the person asked, on this lead or any other, or
+   * texted STOP. Read from the number's own record, so a re-submission shows it as the first row did.
+   */
+  do_not_contact: boolean;
+}
+
+export interface LeadQueuePage {
+  leads: LeadQueueRow[];
+  /** The cursor for the next page, or null when this page was the last. */
+  next: { before_at: string; before_id: string } | null;
+}
+
+/**
+ * One lead by its id (`GET /recruitment/leads/:id`, E4b), whatever its status, which is what a notification or
+ * a person's other lead links to. It is not a queue row: `also` here is every other lead of the person, earlier
+ * ones and closed ones included (`recruiting_lead_matches`), and `purged_at` says the details were deleted.
+ */
+export interface LeadRecord extends Omit<LeadQueueRow, "also"> {
+  also: Array<{ id: string; channel: string; status: LeadStatus; received_at: string }>;
+  purged_at: string | null;
 }

@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { LEAD_STATUSES, OPEN_LEAD_STATUSES, type LeadMatchSummary, type LeadMatchVerdict, type LeadStatus } from "@silvicom/shared";
+import { LEAD_STATUSES, OPEN_LEAD_STATUSES, type LeadQueuePage, type LeadQueueRow, type LeadRecord, type LeadStatus } from "@silvicom/shared";
 import { createDriverRecord } from "../../roster/index.js";
 import { suppressedPhones } from "../smsSuppressions.js";
 import { readLeadVerdicts } from "./verdicts.js";
@@ -11,36 +11,6 @@ import { readLeadVerdicts } from "./verdicts.js";
  * skip or repeat rows as leads arrive. Each row carries its newest verdicts and their summary; ordering BY
  * match is the queue screen's step (E-phase), because a sort by match cannot share a keyset with freshness.
  */
-
-export interface LeadQueueRow {
-  id: string;
-  channel: string;
-  source: string | null;
-  campaign_ref: string | null;
-  opening_id: string | null;
-  full_name: string | null;
-  phone_e164: string | null;
-  email_lower: string | null;
-  status: LeadStatus;
-  assigned_to: string | null;
-  received_at: string;
-  answers: Record<string, string>;
-  also: Array<{ id: string; channel: string; campaign_ref: string | null; received_at: string }>;
-  drivers: Array<{ id: string; status: string; archived: boolean }>;
-  verdicts: LeadMatchVerdict[];
-  summary: LeadMatchSummary | null;
-  /**
-   * The number is held from contact (`doNotContact.ts`): the person asked, on this lead or any other, or
-   * texted STOP. Read from the number's own record, so a re-submission shows it as the first row did.
-   */
-  do_not_contact: boolean;
-}
-
-export interface LeadQueuePage {
-  leads: LeadQueueRow[];
-  /** The cursor for the next page, or null when this page was the last. */
-  next: { before_at: string; before_id: string } | null;
-}
 
 export const LEAD_QUEUE_MAX = 100;
 
@@ -59,6 +29,22 @@ export function parseQueueQuery(q: Record<string, unknown>):
   return { statuses, beforeAt, beforeId, limit };
 }
 
+type Derived = "verdicts" | "summary" | "do_not_contact";
+
+/** What a lead row carries beyond its own columns, read the same way for a page of the queue and for one lead. */
+async function withVerdictsAndHolds<T extends { id: string; phone_e164: string | null }>(
+  admin: SupabaseClient,
+  orgId: string,
+  rows: T[],
+): Promise<Array<T & Pick<LeadQueueRow, Derived>>> {
+  const verdicts = await readLeadVerdicts(admin, orgId, rows.map((r) => r.id));
+  const held = await suppressedPhones(admin, orgId, rows.map((r) => r.phone_e164 ?? ""));
+  return rows.map((r) => ({
+    ...r, verdicts: verdicts.get(r.id)?.verdicts ?? [], summary: verdicts.get(r.id)?.summary ?? null,
+    do_not_contact: r.phone_e164 !== null && held.has(r.phone_e164),
+  }));
+}
+
 export async function readLeadQueue(
   admin: SupabaseClient,
   orgId: string,
@@ -68,15 +54,31 @@ export async function readLeadQueue(
     p_org: orgId, p_statuses: q.statuses, p_before_at: q.beforeAt, p_before_id: q.beforeId, p_limit: q.limit,
   });
   if (error) throw new Error(`Could not read the lead queue: ${error.message}`);
-  const rows = (data ?? []) as Array<Omit<LeadQueueRow, "verdicts" | "summary" | "do_not_contact">>;
-  const verdicts = await readLeadVerdicts(admin, orgId, rows.map((r) => r.id));
-  const held = await suppressedPhones(admin, orgId, rows.map((r) => r.phone_e164 ?? ""));
-  const leads = rows.map((r) => ({
-    ...r, verdicts: verdicts.get(r.id)?.verdicts ?? [], summary: verdicts.get(r.id)?.summary ?? null,
-    do_not_contact: r.phone_e164 !== null && held.has(r.phone_e164),
-  }));
+  const leads = await withVerdictsAndHolds(admin, orgId, (data ?? []) as Array<Omit<LeadQueueRow, Derived>>);
   const last = leads[leads.length - 1];
   return { leads, next: leads.length === q.limit && last ? { before_at: last.received_at, before_id: last.id } : null };
+}
+
+/**
+ * One lead by id, whatever its status (E4b). The queue cannot answer this: it is paged, it holds open leads
+ * unless asked otherwise, and a person's later leads are not rows of it, so a notification about any of those
+ * would open on nothing. Who else the lead may be comes from `recruiting_lead_matches` (0554), the same-person
+ * rule `ingest_lead` answers with, rather than a second copy of it here.
+ */
+export async function readLead(admin: SupabaseClient, orgId: string, leadId: string): Promise<LeadRecord | null> {
+  const { data, error } = await admin
+    .from("recruiting_leads")
+    .select("id, channel, source, campaign_ref, opening_id, full_name, phone_e164, email_lower, status, assigned_to, received_at, answers, purged_at")
+    .eq("org_id", orgId).eq("id", leadId).maybeSingle();
+  if (error) throw new Error(`Could not read the lead: ${error.message}`);
+  const lead = data as Omit<LeadRecord, Derived | "also" | "drivers"> | null;
+  if (!lead) return null;
+
+  const { data: matches, error: me } = await admin.rpc("recruiting_lead_matches", { p_org: orgId, p_lead: leadId });
+  if (me) throw new Error(`Could not read who the lead may be: ${me.message}`);
+  const found = matches as Pick<LeadRecord, "drivers"> & { leads: LeadRecord["also"] };
+  const [row] = await withVerdictsAndHolds(admin, orgId, [{ ...lead, also: found.leads, drivers: found.drivers }]);
+  return row!;
 }
 
 // ── a lead becomes an applicant ──────────────────────────────────────────────────────────────────
