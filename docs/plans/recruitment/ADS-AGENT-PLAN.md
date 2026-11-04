@@ -844,6 +844,20 @@ rate, and Higgsfield credits per approved creative.
   and the version a creative used stays on the creative. By the deploy-window rule the column merges alone
   (S1a) and its first reader — the create door — in the next merge (S1b); compose reading it is Track W's
   file and follows S1b. **Built as (a)** in S1a; the owner may still overrule before S1b.
+- **Q-AD29 · Which image a lead ad shows in each placement** (us, found building B2c1, 2026-11-04). A creative
+  holds an image per format (1:1, 4:5, 9:16) per language; a lead ad's `link_data` takes ONE `image_hash` (Lead
+  Ads "create" guide). Meta's way to give each placement its own image is placement asset customization
+  (`asset_feed_spec` + `asset_customization_rules`), and its page (read 2026-11-04) never mentions lead ads or
+  `lead_gen_form_id`. Built as: each ad shows the feed image (4:5, else 1:1); a creative with neither is refused
+  (`no_feed_image`); the 9:16 image is stored and unused. Candidates: (a) keep the feed image; (b) placement
+  asset customization in one ad per creative and language, once the sandbox (L4) accepts it with a lead form;
+  (c) a separate ad per format, which Meta would place anywhere (a 9:16 image in the feed). **Recommendation:
+  (a) now, (b) at L4** — (b) is the documented mechanism for the right outcome, only its lead-ad support is
+  unproven, and (c) puts the wrong shape in the wrong place. Labelled in `platforms/meta/publisherAds.ts`.
+  Two contract changes came with B2c1 and are decided, not open: a Spanish ad opens a Spanish form, so a
+  campaign has one form per language and `naming.ts` names the form and the ad with their language; and the
+  preset names which copy slots Meta shows beside the image (`platform_slots`: primary text, headline) — the
+  preset editor (E2) asks for them as it asks for `overlay_slots`, and the publisher refuses a preset without.
 
 ---
 

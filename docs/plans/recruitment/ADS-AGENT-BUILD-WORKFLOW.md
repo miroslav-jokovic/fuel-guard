@@ -1342,3 +1342,33 @@ blocking step in §3 above.
   - **Found, not built here:** recruiting's `AdBriefSource` (D-AD17) is declared in `ads/contracts.ts` and
     has no implementation. The create door needs it; S1b adds it as a read-only file in
     `modules/recruiting/leads/`, handed to the ads router by the composition root as `LeadSink` is.
+- **2026-11-04, B2c split + B2c1** — Track W (the workers), from `HANDOFF-2026-11-04-ADS-STAGE1-TRACKS.md`. C5b2
+  (#2021) was already merged (`a605402`). Main `43ef245` at start (rebased on `cde0c14`), newest migration `0566_ads_campaign_brand_kit.sql` (Track S's S1a). No
+  migration here. B2c is two PRs: **B2c1** the image, the ad creative and the ad, on FakeMeta; **B2c2** lead intake
+  reads every form, then `createPaused`.
+  - `platforms/meta/publisherAds.ts`: for every APPROVED creative (D-AD12) in every language, three steps:
+    - upload the feed image (`act_/adimages`, base64 `bytes`);
+    - make the ad creative (`object_story_spec.link_data`: `image_hash`, `link` `https://fb.me/`, primary text,
+      headline, APPLY_NOW → that language's `lead_gen_form_id`);
+    - make the ad, PAUSED, in the campaign's one ad set.
+    The creative and the ad are `ensure` levels like the campaign's: find by name, adopt one, refuse two, read back
+    by id and compare (image, words, form, Page; the ad's creative and ad set). The upload is re-sendable instead:
+    Meta answers one hash per set of bytes (our reading, marked in FakeMeta). `platform_refs` gains
+    `meta_ad_ids`, which launch already turns on.
+  - **Found and decided, not routed around:**
+    - **A form per language.** A Spanish ad must open a Spanish form, so a campaign has two. `naming.ts` names
+      the form and the ad with their language (`…|EN`). Only the simulator had named a form.
+    - **Which words Meta shows.** The preset now names them: `platform_slots {primary_text, headline}`, never an
+      overlay slot. Without it the publisher refuses (`no_platform_slots`) rather than guess from slot order. It
+      is `nullish` rather than defaulted, so recipe literals typed before it (Track S's route tests) still
+      compile. **Track S:** E2's preset editor asks for it, as it asks for `overlay_slots`.
+    - **Q-AD29, which image** (plan §9): a lead ad's `link_data` takes one image, and Meta's placement-
+      customization page never mentions lead ads. Each ad shows 4:5, else 1:1; the 9:16 waits for L4.
+  - **Why `createPaused` is still null:** lead intake finds a campaign by ONE `platform_refs->>meta_form_id`
+    (`leadgenWebhook.ts`, `leadFetch.ts`, `backfill.ts`). Wired now, every Spanish lead would match no campaign.
+    B2c2 teaches intake `meta_form_ids`, then wires.
+  - FakeMeta: `fakeMetaAds.ts` holds images, creatives and ads (hash on the account, fb.me link, the six CTAs, the
+    form on the creative's Page). Readiness: Publisher L1's B2c gap becomes pinned tests plus the wiring gap (still
+    L0); L2 gains the image/creative/ad faults, and keeps the alert gap.
+  - Mutation: 18 publisher/fake mutants plus 6 naming/contract mutants. 23 killed. The survivor was a no-op: a
+    surplus-field check the name's round-trip already makes. The line was deleted.

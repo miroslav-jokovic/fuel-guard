@@ -1,6 +1,7 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import type { AddressInfo } from "node:net";
 import { META_GRAPH_VERSION } from "../meta/graphClient.js";
+import { FakeAds } from "./fakeMetaAds.js";
 import { FakeAdSets } from "./fakeMetaAdSets.js";
 import { FakeForms } from "./fakeMetaForms.js";
 import { FakeLeads } from "./fakeMetaLeads.js";
@@ -59,7 +60,7 @@ import { graphError, pick } from "./fakeMetaShapes.js";
  *
  * ── NOT HERE YET, ON PURPOSE ───────────────────────────────────────────────────────────────────────
  * Instant Forms live in `fakeMetaForms.ts` (B2b), Automated Rules in `fakeMetaRules.ts` (B3b). Leads in `fakeMetaLeads.ts` (B4a), the
- * signed `leadgen` webhook and `subscribed_apps` in `fakeMetaWebhooks.ts` (B4b), hourly and ad-set insights in `fakeMetaInsightsHourly.ts` (B5a/b). Ads and creatives (B2c). Each joins
+ * signed `leadgen` webhook and `subscribed_apps` in `fakeMetaWebhooks.ts` (B4b), hourly and ad-set insights in `fakeMetaInsightsHourly.ts` (B5a/b), images, creatives and ads in `fakeMetaAds.ts` (B2c). Each joins
  * with the step that first calls it, so every endpoint here has a caller whose contract test reads it.
  *
  * In-memory: a simulator restart forgets every campaign. That is the simulator being honest about
@@ -155,6 +156,8 @@ export class FakeMeta {
   readonly campaigns = new Map<string, FakeCampaign>();
   /** Ad sets (B2a) and ads (their status, B3; their creation is B2c's), in `fakeMetaAdSets.ts`. */
   readonly sets: FakeAdSets;
+  /** Ad images, ad creatives and ad creation (B2c). */
+  readonly ads: FakeAds;
   /** Instant Forms (B2b), made and read with a Page's token. */
   readonly forms: FakeForms;
   /** The leads a form collected (B4a), read with the form's Page token, in `fakeMetaLeads.ts`. */
@@ -185,6 +188,7 @@ export class FakeMeta {
     this.webhooks = new FakeWebhooks(opts.appSecret ?? "fake-meta-app-secret", () => this.traceId());
     this.rules = new FakeRules(() => String(this.nextId++), () => this.traceId());
     this.sets = new FakeAdSets(() => String(this.nextId++), () => this.traceId(), (id) => this.campaigns.get(id));
+    this.ads = new FakeAds(() => String(this.nextId++), () => this.traceId(), this.sets, this.forms);
   }
 
   async start(): Promise<string> {
@@ -300,6 +304,8 @@ export class FakeMeta {
     if (adsets && method === "POST") return this.accounts.has(adsets[1]!) ? this.sets.create(adsets[1]!, body) : graphError(400, 100, "OAuthException", "(#100) Ad account does not exist", this.traceId());
     const children = /^(\d+)\/adsets$/.exec(path);
     if (children && method === "GET") return this.list([...this.sets.adsets.values()].filter((a) => a.campaign_id === children[1]), body);
+    const adPart = this.ads.route(method, path, body);
+    if (adPart) return adPart;
     const formLeads = /^(\d+)\/leads$/.exec(path);
     if (formLeads && method === "GET") {
       return this.forms.pageOf(formLeads[1]!) ? this.leads.list(formLeads[1]!, body)
