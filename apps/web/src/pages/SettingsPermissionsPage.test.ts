@@ -103,6 +103,17 @@ vi.mock("@/features/permissions/usePermissions", async () => {
     useSetMemberSurface: () => mutation(calls.setMemberSurface),
   };
 });
+// §15.1: the Roles tab's "Sensitive papers" card reads its own query; NamedPermissionsCard.test.ts pins it.
+vi.mock("@/features/permissions/useNamedPermissions", async () => {
+  const { ref: r } = await import("vue");
+  return {
+    useNamedPermissionsQuery: () => ({
+      data: r({ permissions: [], grants: {}, editableRoles: [] }), isPending: r(false), error: r(null),
+      isFetching: r(false), refetch: vi.fn(),
+    }),
+    useSetNamedPermission: () => ({ isPending: r(false), mutateAsync: vi.fn() }),
+  };
+});
 vi.mock("@/composables/useModules", () => ({ useModulesQuery: () => ({ data: ref(null) }) }));
 vi.mock("@/stores/toast", () => ({
   useToastStore: () => ({
