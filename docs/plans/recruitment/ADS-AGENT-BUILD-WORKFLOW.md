@@ -1537,3 +1537,9 @@ blocking step in §3 above.
     reset, blank cap, separators, the refusal's words, who edits, an invalid form sent, who presses, who clears, the
     reason, clear sent as press) — 12 of 12 killed. One first "killed" by referring to a name that did not exist; it
     was re-run as a real change.
+- **2026-11-04, #2036 merged; Track W handoff 2** — #2036 (`a84fb3c`): `decideCreative` and compose reading
+  `brand_kit_id`. Its first CI run failed `test-api (3)` on `creative/brandAssets.test.ts`, "refuses a file that
+  starts like a PNG but is cut short": sharp read a half-cut 200×200 PNG as `ready`. #2036 does not touch that file
+  or sharp. The test passed 20 of 20 in isolation and passes on main. The job was re-run and passed. This is a second
+  flaky test beside the OCR one, unfixed: make the cut deterministic (for example, stop inside IDAT). Track W
+  continues from `HANDOFF-2026-11-04-ADS-TRACK-W-2.md`; next is image-to-image from the kit photo (D-AD9).
