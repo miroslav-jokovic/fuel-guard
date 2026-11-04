@@ -3,6 +3,7 @@ import { computed, watch } from "vue";
 import type { DispatchBoardRow } from "@silvicom/shared";
 import {
   AppCallout,
+  AppLinkArrow,
   AppTabs,
   AppButton as BaseButton,
   FilterBar,
@@ -258,9 +259,9 @@ const emptyText = computed(() =>
               v-if="board && board.uncoveredCount > 0"
               variant="link"
               :to="{ name: 'loads', query: { queue: 'uncovered', scope: 'all' } }"
-              class="text-sm font-medium"
+              class="group text-sm font-medium"
             >
-              {{ board.uncoveredCount }} uncovered {{ board.uncoveredCount === 1 ? "load" : "loads" }} →
+              {{ board.uncoveredCount }} uncovered {{ board.uncoveredCount === 1 ? "load" : "loads" }} <AppLinkArrow />
             </BaseButton>
             <SavedViewMenu
               :built-ins="viewMenu.builtIns"

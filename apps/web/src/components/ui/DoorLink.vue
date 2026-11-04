@@ -9,6 +9,7 @@
  */
 import { computed } from "vue";
 import { RouterLink } from "vue-router";
+import { AppLinkArrow } from "@silvicom/ui";
 import { useOpens } from "@/composables/useOpens";
 
 const props = defineProps<{ to: string }>();
@@ -20,8 +21,8 @@ const shown = computed(() => opens(props.to));
   <RouterLink
     v-if="shown"
     :to="to"
-    class="whitespace-nowrap rounded-control px-1.5 py-0.5 text-xs font-medium text-link hover:text-link-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
+    class="group inline-flex items-center gap-1 whitespace-nowrap rounded-control px-1.5 py-0.5 text-xs font-medium text-link hover:text-link-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
   >
-    <slot /> →
+    <slot /><AppLinkArrow />
   </RouterLink>
 </template>

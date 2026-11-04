@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { hiringVendorPortal, type HiringStepKey } from "@silvicom/shared";
+import { AppLinkArrow } from "@silvicom/ui";
 
 /**
  * Where a step is done when it is done in a vendor's portal — SambaSafety for the driving record, FMCSA's
@@ -26,9 +27,9 @@ const portal = computed(() => hiringVendorPortal(props.step));
       :href="portal.url"
       target="_blank"
       rel="noopener noreferrer"
-      class="inline-flex min-h-11 items-center gap-1 text-sm font-medium text-action-primary underline"
+      class="group inline-flex min-h-11 items-center gap-1 text-sm font-medium text-action-primary underline"
       data-testid="vendor-portal-link"
-    >Open {{ portal.name }} in a new tab ↗</a>
+    >Open {{ portal.name }} in a new tab <AppLinkArrow external /></a>
     <ol class="list-decimal space-y-1 pl-5 text-xs text-ink-secondary">
       <li v-for="(s, i) in portal.steps" :key="i">{{ s }}</li>
     </ol>

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { AppButton as BaseButton, AppIcon, AppCard as BaseCard, QueryState } from "@silvicom/ui";
+import { AppButton as BaseButton, AppIcon, AppLinkArrow, AppCard as BaseCard, QueryState } from "@silvicom/ui";
 import {
   CheckCircleIcon,
   ChevronDownIcon,
@@ -133,9 +133,9 @@ const textTone = (r: Row) =>
               <RouterLink
                 v-if="isGap(r) && opens(r.to)"
                 :to="r.to"
-                class="rounded-control text-xs font-medium text-link hover:text-link-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
+                class="group inline-flex items-center gap-1 rounded-control text-xs font-medium text-link hover:text-link-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
               >
-                Fix →
+                Fix <AppLinkArrow />
               </RouterLink>
               <AppIcon v-else-if="!isGap(r)" :icon="CheckCircleIcon" class="size-4 text-success-500" aria-hidden="true" />
             </span>

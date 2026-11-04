@@ -8,6 +8,7 @@ import {
   type DataTableColumn,
   QueryState,
   StatCard,
+  AppLinkArrow,
 } from "@silvicom/ui";
 import {
   ArrowDownTrayIcon,
@@ -225,7 +226,7 @@ async function sendDigest() {
             <span class="text-xs text-ink-tertiary">(range {{ pct(recall.recallLow) }}–{{ pct(recall.recallHigh) }}, from {{ recall.audited }} audits)</span>
           </template>
           <span v-else class="text-ink-tertiary">not yet audited</span>
-          <RouterLink v-if="opens('/recall-audit')" to="/recall-audit" class="ml-auto text-xs font-medium text-link hover:text-link-hover">Review cleared fills →</RouterLink>
+          <RouterLink v-if="opens('/recall-audit')" to="/recall-audit" class="group ml-auto inline-flex items-center gap-1 text-xs font-medium text-link hover:text-link-hover">Review cleared fills <AppLinkArrow /></RouterLink>
         </div>
         <p class="mt-3 text-xs text-ink-tertiary">
           Precision and recall are both measured, not asserted — intervals widen on small samples. Recall is

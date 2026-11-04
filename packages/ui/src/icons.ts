@@ -70,6 +70,12 @@ export {
   ArrowRight01Icon            as ChevronRightIcon,
   ArrowUpDownIcon             as ChevronUpDownIcon,             // ⚠ verify
   ArrowDataTransferHorizontalIcon as ArrowsRightLeftIcon,       // ⚠ verify
+  // A link's trailing arrow, drawn only through `AppLinkArrow` (2026-11-04): a page in this app
+  // gets the straight arrow, a page that opens in a new tab gets the diagonal one. They replace
+  // the typed `→` / `↗` / `&rarr;` glyphs, which took the body font's weight and baseline and so
+  // looked different on every link that used them.
+  ArrowRight02Icon            as ArrowRightIcon,
+  ArrowUpRight01Icon          as ArrowUpRightIcon,
   PanelLeftCloseIcon          as PanelLeftCloseIcon,
   PanelLeftOpenIcon           as PanelLeftOpenIcon,
 
