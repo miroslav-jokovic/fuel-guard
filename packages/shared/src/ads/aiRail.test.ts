@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { withinBudget } from "../ai.js";
-import { adsTokensLeft, aiGate } from "./aiRail.js";
+import { adsTokensLeft, aiGate, creditGate } from "./aiRail.js";
 import { AD_AI_AGENTS } from "./contracts.js";
 import { ADS_SETTINGS_UNSET, adsSettingsSchema, type AdsSettings } from "./settingsContract.js";
 
@@ -68,5 +68,18 @@ describe("settings contract — agents_enabled", () => {
   it("an agent the contract does not name is refused at save", () => {
     const bad = { ...ADS_SETTINGS_UNSET, budgets: { ...ADS_SETTINGS_UNSET.budgets, agents_enabled: { publisher: true } } };
     expect(adsSettingsSchema.safeParse(bad).success).toBe(false);
+  });
+});
+
+describe("creditGate — Higgsfield credits (C3)", () => {
+  const s = (budget: number | null, on = true) => ({ ...ADS_SETTINGS_UNSET, budgets: { ...ADS_SETTINGS_UNSET.budgets, higgsfield_credits_monthly: budget, agents_enabled: { renderer: on } } });
+  it("refuses an unpriced model, a switched-off renderer and an unset budget, in that order of reasons", () => {
+    expect(creditGate(s(100, false), "renderer", 0, 10)).toEqual({ open: false, refusal: "agent_off" });
+    expect(creditGate(s(100), "renderer", 0, null)).toEqual({ open: false, refusal: "price_unknown" });
+    expect(creditGate(s(null), "renderer", 0, 10)).toEqual({ open: false, refusal: "budget_unset" });
+  });
+  it("opens only when the price fits what is left: used + price ≤ budget", () => {
+    expect(creditGate(s(100), "renderer", 90, 10)).toEqual({ open: true });
+    expect(creditGate(s(100), "renderer", 91, 10)).toEqual({ open: false, refusal: "budget_spent" });
   });
 });
