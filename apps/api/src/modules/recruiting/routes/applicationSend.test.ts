@@ -60,11 +60,14 @@ const seed = (over: {
   settings?: Record<string, unknown>;
   /** §12 MT2: the carrier's saved wording rows, read newest first by message key. */
   wording?: Record<string, unknown>[];
+  /** §15.3 CQ2: the carrier's own questions, as 0567's rows. */
+  questions?: Record<string, unknown>[];
 } = {}): SupabaseRecorder =>
   createSupabaseRecorder({
     tables: {
       sms_consents: over.consents ?? [],
       recruiting_settings: over.settings ? [over.settings] : [],
+      recruiting_carrier_questions: over.questions ?? [],
       sms_outbox: (q: RecordedQuery) => (q.write?.method === "insert" ? [{ id: "o-1" }] : []),
       application_invitations: over.invitation === null ? [] : [invitation(over.invitation)],
       organizations: [{ name: "Silvicom Inc" }],
@@ -264,6 +267,41 @@ describe("the office sends the application", () => {
     expect((await send()).status).toBe(201);
     const args = rec.rpcs().find((r) => r.fn === "send_application_invitation")!.args as Record<string, unknown>;
     expect(args.p_required_questions).toEqual([]);
+  });
+
+  it("§15.3 D-CQ2: stamps the carrier's own live questions as the applicant will be asked them", async () => {
+    mail.fn.mockClear();
+    const q = (id: string, over: Record<string, unknown> = {}) => ({
+      id, org_id: ORG, wording: `Question ${id.slice(-1)}`, hint: null, kind: "boolean", choices: null, required: false,
+      position: 0, created_at: "2026-11-04T00:00:00Z", retired_at: null, ...over,
+    });
+    const rec = seed({
+      questions: [
+        q("91000000-0000-4000-8000-000000000001", { hint: "Any kind", required: true }),
+        q("91000000-0000-4000-8000-000000000002", { kind: "select", choices: ["East", "West"], position: 1 }),
+        // The recorder does not filter: a retired row reaching the stamp is the TS layer's to drop.
+        q("91000000-0000-4000-8000-000000000003", { retired_at: "2026-11-04T09:00:00Z" }),
+      ],
+    });
+    holder.client = rec.client;
+    expect((await send()).status).toBe(201);
+    const args = rec.rpcs().find((r) => r.fn === "send_application_invitation")!.args as Record<string, unknown>;
+    expect(args.p_carrier_questions).toEqual([
+      { id: "91000000-0000-4000-8000-000000000001", wording: "Question 1", hint: "Any kind", kind: "boolean", choices: null, required: true },
+      { id: "91000000-0000-4000-8000-000000000002", wording: "Question 2", hint: null, kind: "select", choices: ["East", "West"], required: false },
+    ]);
+    const read = rec.forTable("recruiting_carrier_questions")[0]!;
+    expect(read.filters()).toEqual(expect.arrayContaining([expect.objectContaining({ col: "retired_at" })]));
+    expectOrgScoped(rec, ORG);
+  });
+
+  it("§15.3 D-CQ2: stamps an empty array for a carrier with no questions of its own", async () => {
+    mail.fn.mockClear();
+    const rec = seed();
+    holder.client = rec.client;
+    expect((await send()).status).toBe(201);
+    const args = rec.rpcs().find((r) => r.fn === "send_application_invitation")!.args as Record<string, unknown>;
+    expect(args.p_carrier_questions).toEqual([]);
   });
 
   it("emails the new link, and tells the applicant the old one is dead", async () => {
