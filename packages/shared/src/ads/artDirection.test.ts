@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { NO_LETTERING, artDirection, artPrecheck, composeImagePrompt, judgeArt } from "./artDirection.js";
+import { NO_LETTERING, REGENERATION_CLAUSES, artDirection, artPrecheck, composeImagePrompt, judgeArt, withRegenerationClauses } from "./artDirection.js";
 import type { AdBrandKit, AdPresetRecipe } from "./brandKitContract.js";
 
 /** Fixtures only — never a real brand value or preset (Q-AD14, Q-AD12). */
@@ -66,3 +66,19 @@ describe("composeImagePrompt — every prompt ends with the no-lettering clause,
     expect(artDirection({ slots: { time_of_day: "dawn" }, reference_photo: "b".repeat(64) }, recipe(), k).reference?.sha256).toBe("b".repeat(64));
   });
 });
+
+describe("withRegenerationClauses — the failure added to a regeneration's prompt (D-AD12)", () => {
+  const prompt = composeImagePrompt("A white tractor on a highway at {time}", { time: "dusk" });
+  it("adds our fixed phrase for each failed check, in checklist order, still ending with the clause once", () => {
+    const out = withRegenerationClauses(prompt, ["safe_zone_clear", "no_glyphs"]);
+    expect(out).toBe(`A white tractor on a highway at dusk, ${REGENERATION_CLAUSES.no_glyphs}, ${REGENERATION_CLAUSES.safe_zone_clear}, ${NO_LETTERING}`);
+    expect(out.split(NO_LETTERING)).toHaveLength(2);
+  });
+  it("leaves the prompt unchanged when nothing failed", () => {
+    expect(withRegenerationClauses(prompt, [])).toBe(prompt);
+  });
+  it("no clause holds a digit or a quotation, so a regeneration cannot ask for lettering", () => {
+    for (const c of Object.values(REGENERATION_CLAUSES)) expect(c).not.toMatch(/[0-9"“”']/);
+  });
+});
+

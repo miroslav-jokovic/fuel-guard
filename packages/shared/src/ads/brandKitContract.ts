@@ -141,6 +141,13 @@ export const adPresetRecipeSchema = z.object({
   /** Null = a still-only preset (C6 owns motion). */
   motion_template: z.string().trim().min(10).max(2000).nullable(),
   formats: z.array(z.enum(AD_FORMATS)).min(1).max(AD_FORMATS.length),
+  /**
+   * Which copy slots the overlay draws (C5b): the headline (≤ 2 lines) and the call to action. The other
+   * slots are the platform's text (B2c). Null = not said, and compose refuses the preset by name
+   * (`no_overlay_slots`) rather than guess from a slot's name. Nullable with a default so a preset saved
+   * before C5b still parses — `newestVersions` throws on a stored body that does not.
+   */
+  overlay_slots: z.object({ headline: slotName, cta: slotName }).strict().nullable().default(null),
 }).superRefine((r, ctx) => {
   const used = templateSlots(r.image_prompt_template);
   const declared = new Set(r.image_slots);
@@ -148,6 +155,13 @@ export const adPresetRecipeSchema = z.object({
   for (const s of declared) if (!used.includes(s)) ctx.addIssue({ code: "custom", path: ["image_slots"], message: `${s} is never used in the template` });
   if (new Set(r.image_slots).size !== r.image_slots.length) ctx.addIssue({ code: "custom", path: ["image_slots"], message: "a slot is listed twice" });
   if (new Set(r.copy_slots.map((c) => c.name)).size !== r.copy_slots.length) ctx.addIssue({ code: "custom", path: ["copy_slots"], message: "a slot is listed twice" });
+  const copyNames = new Set(r.copy_slots.map((c) => c.name));
+  if (r.overlay_slots) {
+    for (const role of ["headline", "cta"] as const) {
+      if (!copyNames.has(r.overlay_slots[role])) ctx.addIssue({ code: "custom", path: ["overlay_slots", role], message: `${r.overlay_slots[role]} is not one of copy_slots` });
+    }
+    if (r.overlay_slots.headline === r.overlay_slots.cta) ctx.addIssue({ code: "custom", path: ["overlay_slots"], message: "the headline and the call to action are different slots" });
+  }
   if (new Set(r.formats).size !== r.formats.length) ctx.addIssue({ code: "custom", path: ["formats"], message: "a format is listed twice" });
   if (r.starts_from === "text_only" && (r.shows_equipment || r.shows_people)) {
     ctx.addIssue({ code: "custom", path: ["starts_from"], message: "a scene with equipment or a person starts from a real photo (D-AD9)" });

@@ -144,3 +144,25 @@ export async function mismatchedAssets(admin: SupabaseClient, orgId: string, ref
   }));
   return [...new Set(bad.filter((s): s is string => s !== null))];
 }
+
+/** An asset's bytes from `ad-assets`, refused (thrown) when the stored file is not the one the ref names. */
+export async function readAdAsset(admin: SupabaseClient, orgId: string, ref: Pick<AdAssetRef, "sha256" | "format">): Promise<Buffer> {
+  const { data: blob, error } = await admin.storage.from(AD_ASSETS_BUCKET).download(assetKey(orgId, ref));
+  if (error || !blob) throw new Error(`ad-assets: ${ref.sha256} could not be read (${error?.message ?? "missing"})`);
+  const bytes = Buffer.from(await blob.arrayBuffer());
+  if (sha256(bytes) !== ref.sha256) throw new Error(`ad-assets: ${ref.sha256} holds other bytes`);
+  return bytes;
+}
+
+/**
+ * Bytes we made (an overlay render, C5b) stored by their hash. The same bytes twice is the same file, so
+ * "already exists" is success — a compose re-run after a crash stores nothing new.
+ */
+export async function storeAdAsset(admin: SupabaseClient, orgId: string, bytes: Buffer): Promise<AdAssetRef> {
+  const prepared = await prepareAsset(bytes);
+  if (prepared.kind !== "ready") throw new Error(`ad-assets: our own image was refused (${prepared.code})`);
+  const { error } = await admin.storage.from(AD_ASSETS_BUCKET).upload(assetKey(orgId, prepared.ref), prepared.bytes, { contentType: `image/${prepared.ref.format}`, upsert: false });
+  if (error && !/already exists|409/.test(`${error.message} ${(error as { statusCode?: unknown }).statusCode ?? ""}`)) throw new Error(`ad-assets: ${error.message}`);
+  return prepared.ref;
+}
+

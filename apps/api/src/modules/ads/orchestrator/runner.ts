@@ -16,6 +16,7 @@ import { agentHasWork, type CampaignWorkers } from "./workers.js";
  *
  *   draft      → compose                          (once C-phase's workers exist)
  *   composing  → the workers write + check        → creatives_ready | compose_failed
+ *                (a compose not finished — a render still drawing — answers `pending`: no move, no row)
  *   approved   → create_paused                    (once B2's publisher exists)
  *   creating   → the publisher, paused            → created | create_failed
  *   launching  → `GuardedPlatform.launch` (every fence of A5's guard; never an adapter) → launched | launch_failed
@@ -65,6 +66,7 @@ export async function runCampaignStep(deps: RunnerDeps, orgId: string, campaignI
 
   const ask = await decide(run, campaign, kill);
   if (!ask) return { kind: "idle", state: campaign.state, reason: "no_platform" };
+  if ("wait" in ask) return { kind: "idle", state: campaign.state, reason: `pending: ${ask.wait}` };
   const result = await applyCampaignEvent(deps.admin, campaign, { actor: ORCHESTRATOR, ...ask }, deps.now().toISOString());
   if (ask.event === "pause_failed" && result.kind === "moved") await alertQuietly(deps, campaign, ask.error ?? "pause_failed");
   return { kind: "stepped", event: ask.event, result };
@@ -83,9 +85,11 @@ async function alertQuietly(deps: RunnerDeps, c: CampaignRow, code: string): Pro
 }
 
 type Ask = Omit<TransitionAsk, "actor">;
+/** A worker that is not finished: no move, no row (`WorkerResult` `pending`). */
+type Wait = { wait: string };
 
 /** The side effect of one state, and the event it ends in. Null = nothing to do after all. */
-async function decide(deps: RunnerDeps, c: CampaignRow, killReason: string | null): Promise<Ask | null> {
+async function decide(deps: RunnerDeps, c: CampaignRow, killReason: string | null): Promise<Ask | Wait | null> {
   const key = `${c.id}:${c.state_changed_at}`;
   const { workers } = deps;
   if (killReason && (c.state === "launching" || c.state === "live")) return { event: "kill", cause: `kill switch: ${killReason}` };
@@ -94,7 +98,9 @@ async function decide(deps: RunnerDeps, c: CampaignRow, killReason: string | nul
       return { event: "compose" };
     case "composing": {
       const r = await attempt(() => workers.compose!(c, key));
-      return r.ok ? { event: "creatives_ready" } : { event: "compose_failed", cause: r.error, error: r.error };
+      if (r.ok) return { event: "creatives_ready" };
+      if ("pending" in r) return { wait: r.why };
+      return { event: "compose_failed", cause: r.error, error: r.error };
     }
     case "approved":
       return { event: "create_paused" };

@@ -1,4 +1,4 @@
-import type { AdBrandKit, AdAssetRef, AdPresetRecipe } from "./brandKitContract.js";
+import { AD_VISUAL_CHECKS, type AdBrandKit, type AdAssetRef, type AdPresetRecipe, type AdVisualCheck } from "./brandKitContract.js";
 
 /**
  * The Art director's rules, pure (ADS-AGENT-PLAN D-AD9, D-AD11; workflow §4R's Art director row: "every
@@ -88,3 +88,30 @@ export function artDirection(answer: ArtAnswer, recipe: Pick<AdPresetRecipe, "im
   const reference = answer.reference_photo === null ? null : kit.equipment_photos.find((p) => p.asset.sha256 === answer.reference_photo)!.asset;
   return { prompt: composeImagePrompt(recipe.image_prompt_template, answer.slots), reference, slots: answer.slots };
 }
+
+/**
+ * What a regeneration adds to the image prompt for each visual check that failed (D-AD12: "regenerates
+ * once with the failure added to the prompt"). Fixed phrases, ours, never the checker's reason: the reason
+ * is model text, and nothing a model wrote may reach the image model unchecked (a reason quoting the
+ * lettering it saw would ASK for that lettering). `people_policy_met` only fails where people are not
+ * allowed, so its clause can say so.
+ */
+export const REGENERATION_CLAUSES: Record<AdVisualCheck, string> = {
+  no_glyphs: "absolutely no writing, letters, numbers or signs anywhere in the image",
+  no_foreign_logos: "plain unbranded surfaces with no emblems or company marks",
+  equipment_matches_reference: "the same type of truck as the reference photo, unchanged",
+  no_malformed_people_or_vehicles: "physically correct vehicles with the right number of wheels and axles",
+  people_policy_met: "no people anywhere, including inside the cab",
+  // Format-neutral on purpose: the band sits low in 1:1 and 4:5 but mid-frame in 9:16, and one render
+  // serves every format the preset has.
+  safe_zone_clear: "the subject smaller in the frame, with wide empty road, ground or sky around it",
+};
+
+/** The prompt with the clauses for `failed` inserted before `NO_LETTERING`, which it still ends with. */
+export function withRegenerationClauses(prompt: string, failed: readonly AdVisualCheck[]): string {
+  const clauses = AD_VISUAL_CHECKS.filter((c) => failed.includes(c)).map((c) => REGENERATION_CLAUSES[c]);
+  if (clauses.length === 0) return prompt;
+  const body = prompt.endsWith(`, ${NO_LETTERING}`) ? prompt.slice(0, -(NO_LETTERING.length + 2)) : prompt;
+  return `${body}, ${clauses.join(", ")}, ${NO_LETTERING}`;
+}
+

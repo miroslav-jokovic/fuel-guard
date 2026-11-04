@@ -1268,3 +1268,31 @@ blocking step in §3 above.
   - Mutation: 18 mutants (rail hash/bytes/size, ledger storing bytes, applicability, n/a vs fail, a gap read as a
     pass, the band's axis, the band and the reference not sent, fit never/always re-encoding, the key's format,
     `people_allowed`, a non-strict schema, `agrees` accepting any refusal) — 18 of 18 killed.
+- **2026-11-04, C5b1 — one creative composed, and compose may answer "not yet".** `compose/composeCreative.ts`
+  moves one `ads_creatives` row as far as it can per run: copy (attempt 1) → art → render → per format the still
+  framed (`frameStill`, the overlay's own crop, now exported so the checker sees the ad's exact pixels) → overlay
+  in EN and ES (the render check) → the visual check with the band the overlay actually covered (union of both
+  languages' boxes) → `ready` with copy, assets (`{format, language, sha256, path, width, height}` per PNG,
+  stored by hash; "already exists" is success) and checks, or `check_failed` with the reason in `last_error`.
+  Every call is keyed, so a re-run replays. Not wired yet (C5b2).
+  - **Runner `pending`** (C5 handoff §3 gap 2): `WorkerResult` gains `{ok:false, pending:true, why}`; the runner
+    answers `idle` / `pending: <why>`, no move and no row. The tick re-queues it: `idx_jobs_active_dedup` (0095)
+    holds a dedup key only while `queued`/`running`. No machine change.
+  - **Regeneration = visual only** (D-AD12 item 2). A copy refusal, an overlay refusal, a budget, a switched-off
+    agent or a priced-nowhere model (`price_unknown`, every render until V4) stops at once, visibly. "The failure
+    added to the prompt" is OUR fixed clause per failed check (`REGENERATION_CLAUSES`, shared `artDirection.ts`,
+    inserted before `NO_LETTERING`), never the checker's reason — a reason quoting the lettering it saw would ask
+    for it. The `safe_zone_clear` clause is format-neutral (the band is low in 1:1/4:5, mid-frame in 9:16).
+  - **New contract field `overlay_slots: {headline, cta}`** on the preset recipe: nothing said which copy slot
+    the overlay draws. Nullable with default null (stored presets still parse); compose refuses
+    `no_overlay_slots` rather than guess from slot names. E2's preset editor must ask for it.
+  - A stopped creative is `check_failed`: 0537 has no state for "the workers stopped", and leaving it
+    `generating` would show work that is not happening. Said in the file.
+  - `ads_creatives`' first writer pinned in `table-writers.json`; its producer waiver retired.
+  - **Not built, said so:** the render still does not START from the kit photo (D-AD9 image-to-image; the
+    Higgsfield upload docs are unread). `ads_render` (C3's job) has no producer yet: compose takes a `render`
+    function, and C5b2 decides whether compose calls `renderStep` directly or queues the job.
+  - Mutation: 21 mutants (bounds of the attempt loop, clauses dropped / not carried / unordered, pending turned
+    into a stop, a finished creative reworked, the overlay-slot guard, copy and overlay refusals ignored, a visual
+    fail ignored, the unframed image checked, no reference, one language, the regeneration count, both state
+    guards, the band's union, the runner's pending, both `overlay_slots` refinements) — 21 of 21 killed.

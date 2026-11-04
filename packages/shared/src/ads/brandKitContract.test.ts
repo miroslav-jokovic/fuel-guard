@@ -11,6 +11,7 @@ const RECIPE: AdPresetRecipe = {
   name: "Fixture", hook_formula: "Lead with the figure.", copy_slots: [{ name: "hook", max_chars: 60 }, { name: "cta", max_chars: 30 }],
   image_prompt_template: "A {vehicle} at {time_of_day}, no text, no logos, no lettering", image_slots: ["vehicle", "time_of_day"],
   starts_from: "equipment_photo", shows_equipment: true, shows_people: false, motion_template: null, formats: ["1:1"],
+  overlay_slots: null,
 };
 const ASSET = { sha256: "a".repeat(64), format: "png", source_format: "svg", width: 10, height: 10, byte_size: 99 } as const;
 
@@ -43,6 +44,15 @@ describe("brand kit contract", () => {
 });
 
 describe("preset recipe contract", () => {
+  it("names the overlay's headline and call to action among its copy slots, or leaves them unsaid", () => {
+    // A preset saved before C5b has no such key: it still parses, as "not said".
+    const { overlay_slots: _absent, ...savedBefore } = RECIPE;
+    expect(adPresetRecipeSchema.parse(savedBefore).overlay_slots).toBeNull();
+    expect(adPresetRecipeSchema.safeParse({ ...RECIPE, overlay_slots: { headline: "hook", cta: "cta" } }).success).toBe(true);
+    expect(adPresetRecipeSchema.safeParse({ ...RECIPE, overlay_slots: { headline: "pay", cta: "cta" } }).success).toBe(false);
+    expect(adPresetRecipeSchema.safeParse({ ...RECIPE, overlay_slots: { headline: "cta", cta: "cta" } }).success).toBe(false);
+  });
+
   it("accepts a recipe whose template uses exactly its declared slots", () => {
     expect(templateSlots(RECIPE.image_prompt_template)).toEqual(["vehicle", "time_of_day"]);
     expect(adPresetRecipeSchema.safeParse(RECIPE).success).toBe(true);

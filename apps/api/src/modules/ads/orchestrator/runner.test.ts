@@ -89,6 +89,20 @@ describe("runCampaignStep — the happy path, one step per job", () => {
   });
 });
 
+describe("runCampaignStep — a compose still under way (C5b)", () => {
+  it("a pending compose moves nothing and writes no row, and the next step with the same key finishes it", async () => {
+    const w = createAdsWorld({ campaigns: [campaign("c1", "composing")] });
+    const f = fakes(w);
+    f.compose.mockResolvedValueOnce({ ok: false, pending: true, why: "render cr-1 still drawing" });
+    expect(await step(w, f.workers)).toEqual({ kind: "idle", state: "composing", reason: "pending: render cr-1 still drawing" });
+    expect(w.byId("c1").state).toBe("composing");
+    expect(w.actions).toEqual([]);
+    await step(w, f.workers);
+    expect(w.byId("c1").state).toBe("review");
+    expect(f.compose.mock.calls[0]![1]).toBe(f.compose.mock.calls[1]![1]);
+  });
+});
+
 describe("runCampaignStep — a crashed step resumes once (at-least-once delivery, idempotent work)", () => {
   it("compose done, crash before the move: the retry hands the worker the SAME key and moves once", async () => {
     const w = createAdsWorld({ campaigns: [campaign("c1", "composing")] });

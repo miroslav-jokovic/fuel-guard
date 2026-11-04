@@ -26,7 +26,13 @@ export interface CampaignWorkers {
   platform: ((orgId: string, connectionId: string) => Promise<GuardedPlatform | null>) | null;
 }
 
-export type WorkerResult = { ok: true } | { ok: false; error: string };
+/**
+ * `pending` (C5b): the work is under way and not finished — a render Higgsfield is still drawing. The
+ * runner moves nothing and records nothing; the campaign stays in its state, and the next tick queues
+ * the step again (its dedup slot only holds while a job is active). The worker must therefore be
+ * idempotent on `key`: the re-run replays what is done and polls what is not, never asks again.
+ */
+export type WorkerResult = { ok: true } | { ok: false; error: string } | { ok: false; pending: true; why: string };
 
 /**
  * The workers this build has. A6 (2026-11-02): none — the adapters arrive in B1–B2 (and the simulator
