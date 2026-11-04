@@ -6,6 +6,7 @@ import type { PlatformOutcome } from "../platforms/adapter.js";
 import { runCampaignStep } from "../orchestrator/runner.js";
 import type { CampaignWorkers } from "../orchestrator/workers.js";
 import { STUCK_AFTER } from "./pauseAlerts.js";
+import { configuredAlertRecipients } from "./adsAlerts.js";
 
 /**
  * The 2026-11-03 audit's H2 over the real runner: a pause the platform keeps refusing reaches a person.
@@ -63,6 +64,15 @@ describe("a pause the platform keeps refusing reaches a person (audit H2)", () =
     const gone = createAdsWorld({ campaigns: [campaign("c1", "pausing")], settings, members: [members[0]!] });
     await steps(gone, pausing(gone, async () => ({ ok: false, error_code: "meta_2" })), STUCK_AFTER);
     expect(gone.bell.map((b) => b.user)).toEqual([ADMIN_USER]);
+  });
+
+  it("a lead category reads the same list with no admin fallback: recruiting's alert has its own (D2b)", async () => {
+    const settings = { ...LIVE_SETTINGS, alerts: { ...LIVE_SETTINGS.alerts, recipients: { lead_new: [RECRUITER] } } };
+    const admin = { org_id: ORG, user_id: ADMIN_USER, role: "admin", suspended_at: null };
+    const chosen = createAdsWorld({ campaigns: [], settings, members: [admin, { org_id: ORG, user_id: RECRUITER, role: "recruiter", suspended_at: null }] });
+    expect(await configuredAlertRecipients(chosen.admin, ORG, "lead_new")).toEqual([RECRUITER]);
+    const gone = createAdsWorld({ campaigns: [], settings, members: [admin] });
+    expect(await configuredAlertRecipients(gone.admin, ORG, "lead_new")).toEqual([]);
   });
 
   it("a revoked token marks the connection failing and says so once a day, beside the stuck-pause alert", async () => {

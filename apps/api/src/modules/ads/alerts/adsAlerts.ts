@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { NotificationCategory, NotificationSeverity } from "@silvicom/shared";
+import type { AdsAlertCategory, NotificationCategory, NotificationSeverity } from "@silvicom/shared";
 import { notify } from "../../messaging/index.js";
 import { settingsInForce } from "../settings/settingsVersions.js";
 
@@ -28,18 +28,36 @@ export interface AdsAlert {
   dedupeKey: string;
 }
 
-export async function alertRecipients(admin: SupabaseClient, orgId: string, category: AdsAlert["category"]): Promise<string[]> {
+type ActiveMember = { user_id: string; role: string };
+
+async function activeMembers(admin: SupabaseClient, orgId: string): Promise<ActiveMember[]> {
+  const { data, error } = await admin.from("memberships").select("user_id, role").eq("org_id", orgId).is("suspended_at", null);
+  if (error) throw new Error(`memberships: ${error.message}`);
+  return (data ?? []) as ActiveMember[];
+}
+
+async function chosenFrom(admin: SupabaseClient, orgId: string, category: AdsAlertCategory, members: ActiveMember[]): Promise<string[]> {
   let configured: string[];
   try {
     configured = (await settingsInForce(admin, orgId)).settings.alerts.recipients[category] ?? [];
   } catch {
     configured = [];
   }
-  const { data, error } = await admin.from("memberships").select("user_id, role").eq("org_id", orgId).is("suspended_at", null);
-  if (error) throw new Error(`memberships: ${error.message}`);
-  const members = (data ?? []) as Array<{ user_id: string; role: string }>;
   const active = new Set(members.map((m) => m.user_id));
-  const chosen = configured.filter((id) => active.has(id));
+  return configured.filter((id) => active.has(id));
+}
+
+/**
+ * The carrier's own list for a category, active members only, with no fallback: for a caller whose fallback
+ * is not the admins. Recruiting's lead alerts are that caller, handed this at the composition root (D-AD17).
+ */
+export async function configuredAlertRecipients(admin: SupabaseClient, orgId: string, category: AdsAlertCategory): Promise<string[]> {
+  return chosenFrom(admin, orgId, category, await activeMembers(admin, orgId));
+}
+
+export async function alertRecipients(admin: SupabaseClient, orgId: string, category: AdsAlert["category"]): Promise<string[]> {
+  const members = await activeMembers(admin, orgId);
+  const chosen = await chosenFrom(admin, orgId, category, members);
   return chosen.length > 0 ? chosen : members.filter((m) => m.role === "admin").map((m) => m.user_id);
 }
 

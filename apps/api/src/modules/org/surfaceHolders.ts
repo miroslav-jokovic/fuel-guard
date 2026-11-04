@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { SURFACES, whoHasAccess } from "@silvicom/shared";
+import { SURFACES, sectionManagers, whoHasAccess, type AppSection } from "@silvicom/shared";
 import { loadAccessReviewState } from "./routes/accessReview.js";
 
 /**
@@ -18,4 +18,10 @@ export async function surfaceHolders(admin: SupabaseClient, orgId: string, surfa
   if (!surface) throw new Error(`surfaceHolders("${surfaceKey}") names no surface in the catalogue`);
   const { state } = await loadAccessReviewState(admin, orgId);
   return whoHasAccess(state, { kind: "screen", surface }).holders.map((r) => r.member.userId);
+}
+
+/** Who can act in a section today (the same resolver), for a notice that asks a person to do something. */
+export async function sectionManagerIds(admin: SupabaseClient, orgId: string, section: AppSection): Promise<string[]> {
+  const { state } = await loadAccessReviewState(admin, orgId);
+  return sectionManagers(state, section).map((m) => m.userId);
 }

@@ -1,6 +1,6 @@
 import { adsLeadsBackfillDedupKey, backfillConnectionLeads, catchUpSince } from "../../modules/ads/index.js";
 import { lastDoneJobByKey } from "../../modules/org/index.js";
-import { recruitingLeadSink } from "../../modules/recruiting/index.js";
+import { leadSinkFor } from "./leadSinkFor.js";
 import type { JobHandler } from "../types.js";
 
 /**
@@ -23,7 +23,7 @@ export const adsLeadsBackfillHandler: JobHandler = async (ctx, job) => {
   const last = asked ? null : await lastDoneJobByKey(ctx.admin, job.org_id, "ads_leads_backfill", adsLeadsBackfillDedupKey(payload.connectionId));
   const since = asked ?? catchUpSince(now, last?.started_at ? new Date(last.started_at) : null);
   const r = await backfillConnectionLeads(
-    { admin: ctx.admin, env: ctx.env, now: () => now, sink: recruitingLeadSink(ctx.admin) },
+    { admin: ctx.admin, env: ctx.env, now: () => now, sink: leadSinkFor(ctx.admin) },
     job.org_id, payload.connectionId, { since },
   );
   if (r.failures.length) {

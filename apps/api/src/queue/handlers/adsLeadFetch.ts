@@ -1,5 +1,5 @@
 import { fetchWebhookLead } from "../../modules/ads/index.js";
-import { recruitingLeadSink } from "../../modules/recruiting/index.js";
+import { leadSinkFor } from "./leadSinkFor.js";
 import type { JobHandler } from "../types.js";
 
 /**
@@ -18,7 +18,7 @@ export const adsLeadFetchHandler: JobHandler = async (ctx, job) => {
     throw new Error("ads_lead_fetch: payload.leadgenId and payload.formId are required");
   }
   const r = await fetchWebhookLead(
-    { admin: ctx.admin, env: ctx.env, now: () => new Date(), sink: recruitingLeadSink(ctx.admin) },
+    { admin: ctx.admin, env: ctx.env, now: () => new Date(), sink: leadSinkFor(ctx.admin) },
     job.org_id, { leadgenId: p.leadgenId, formId: p.formId },
   );
   return { ok: true, detail: JSON.stringify(r) };
