@@ -186,6 +186,13 @@ export function whoHasAccess(
   };
 }
 
+/** Who can act in a section, not only read it: the active office members `whoHasAccess` answers Manage for. */
+export function sectionManagers(state: AccessReviewState, section: AppSection): AccessReviewMember[] {
+  return whoHasAccess(state, { kind: "section", section }).holders
+    .filter((r) => r.answer.answer === ACCESS_LABELS.manage)
+    .map((r) => r.member);
+}
+
 export const ACCESS_REVIEW_COLUMNS = ["Name", "Email", "Role", "Type", "Item", "Key", "Answer", "Answered by"] as const;
 
 /**

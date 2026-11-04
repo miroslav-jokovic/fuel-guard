@@ -5,6 +5,7 @@ import { adsStepHandler } from "./adsStep.js";
 import { adsRulesSyncHandler } from "./adsRulesSync.js";
 import { adsLeadsBackfillHandler } from "./adsLeadsBackfill.js";
 import { adsLeadFetchHandler } from "./adsLeadFetch.js";
+import { leadUncontactedHandler } from "./leadUncontacted.js";
 import { adsInsightsHandler } from "./adsInsights.js";
 import { adsReconcileHandler } from "./adsReconcile.js";
 import { adsRenderHandler } from "./adsRender.js";
@@ -105,5 +106,7 @@ export function registerAllHandlers(): void {
   registerHandler("ads_insights", adsInsightsHandler);
   // B5c: one connection's daily reconcile; dedup-keyed per connection by its tick.
   registerHandler("ads_reconcile", adsReconcileHandler);
+  // D2c: one carrier's sweep for leads nobody has contacted; dedup-keyed per org by its tick.
+  registerHandler("lead_uncontacted", leadUncontactedHandler);
   registerHandler("ads_render", adsRenderHandler);
 }

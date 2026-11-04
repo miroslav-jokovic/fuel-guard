@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { leadFromPlatform, type LeadProjection, type LeadSink } from "@silvicom/shared";
 import { recordLeadVerdicts } from "./verdicts.js";
+import { ringNewLead, type ConfiguredRecipients } from "./leadNotify.js";
 
 /**
  * Recruiting's `LeadSink` (D-AD17; ADS-AGENT-BUILD-WORKFLOW.md D1): the one door every lead comes in by,
@@ -9,6 +10,10 @@ import { recordLeadVerdicts } from "./verdicts.js";
  * `ingest_lead` (0554) stores the lead once per (org, channel, ref) and says who else it may be; this adds
  * the verdicts. It THROWS when the store fails: the caller is a webhook or a backfill that must retry, and a
  * lead reported as accepted that was not stored is the one failure §4R's Lead intake row forbids ("0 lost").
+ *
+ * `accept` also rings `lead_new` on a lead stored for the first time (`leadNotify.ts`). That is here and not
+ * in `ingestLead` because a lead a recruiter typed in goes through `ingestLead` too, and that person already
+ * knows about it.
  */
 
 export interface LeadMatches {
@@ -39,10 +44,15 @@ export async function ingestLead(
   return result;
 }
 
-export function recruitingLeadSink(admin: SupabaseClient, clock: () => Date = () => new Date()): LeadSink {
+export function recruitingLeadSink(
+  admin: SupabaseClient,
+  configured: ConfiguredRecipients,
+  clock: () => Date = () => new Date(),
+): LeadSink {
   return {
     async accept(orgId, lead) {
       const r = await ingestLead(admin, orgId, leadFromPlatform(lead), clock());
+      if (r.stored === "new") await ringNewLead(admin, orgId, r.lead_id, configured);
       return { stored: r.stored, ref: r.lead_id };
     },
   };

@@ -7,12 +7,12 @@ import { postgrestFixture, type FixtureRow } from "../../testing/postgrestFixtur
  * that reported green while a lead was not brought in would be the "lost lead" §4R forbids, so any failure
  * fails it — naming lead ids, never a person.
  */
-const ads = vi.hoisted(() => ({ backfillConnectionLeads: vi.fn() }));
+const ads = vi.hoisted(() => ({ backfillConnectionLeads: vi.fn(), alertBackfillStale: vi.fn() }));
 const sinkMarker = vi.hoisted(() => ({ sink: { accept: vi.fn() } }));
 // The real `catchUpSince` and dedup key: how far back a run reaches is what the catch-up tests are about.
 vi.mock("../../modules/ads/index.js", async () => {
   const { catchUpSince } = await import("../../modules/ads/leads/backfill.js");
-  return { backfillConnectionLeads: ads.backfillConnectionLeads, catchUpSince, adsLeadsBackfillDedupKey: (c: string) => `ads_leads_backfill:${c}` };
+  return { backfillConnectionLeads: ads.backfillConnectionLeads, alertBackfillStale: ads.alertBackfillStale, catchUpSince, adsLeadsBackfillDedupKey: (c: string) => `ads_leads_backfill:${c}` };
 });
 vi.mock("../../modules/recruiting/index.js", () => ({ recruitingLeadSink: () => sinkMarker.sink }));
 
@@ -83,6 +83,40 @@ describe("adsLeadsBackfillHandler", () => {
   it("fails the job when anything was not brought in, naming the lead by id only", async () => {
     ads.backfillConnectionLeads.mockResolvedValue({ ...ok, failures: [{ campaign_id: "k1", form_id: "f1", reason: "sink", lead_id: "L9" }] });
     await expect(adsLeadsBackfillHandler(ctx, job({ connectionId: "c1" }), vi.fn())).rejects.toThrow("ads_leads_backfill: 1 not brought in (1 new, 1 already stored) — k1/f1/L9 sink");
+  });
+
+  describe("a run that failed asks whether the connection has been failing for hours (D2d)", () => {
+    const NOW = new Date("2026-11-03T15:00:00Z");
+    const LAST = "2026-11-03T09:00:00Z";
+    beforeEach(() => vi.useFakeTimers({ now: NOW, toFake: ["Date"] }));
+    afterEach(() => vi.useRealTimers());
+    const asked = () => ads.alertBackfillStale.mock.calls.map((c) => [c[1], c[2], (c[3] as Date | null)?.toISOString() ?? null, c[4]]);
+
+    it("with this connection's last done run, when the run reports failures", async () => {
+      jobs = [done("c1", LAST), done("c2", "2026-11-03T14:00:00Z")];
+      ads.backfillConnectionLeads.mockResolvedValue({ ...ok, failures: [{ reason: "connection:disconnected" }] });
+      await expect(adsLeadsBackfillHandler(ctx, job({ connectionId: "c1" }), vi.fn())).rejects.toThrow("connection:disconnected");
+      expect(asked()).toEqual([["org-1", "c1", "2026-11-03T09:00:00.000Z", NOW]]);
+    });
+
+    it("when the run throws, and the job still fails with the run's own error", async () => {
+      ads.backfillConnectionLeads.mockRejectedValue(new Error("graph down"));
+      await expect(adsLeadsBackfillHandler(ctx, job({ connectionId: "c1" }), vi.fn())).rejects.toThrow("graph down");
+      expect(asked()).toEqual([["org-1", "c1", null, NOW]]);
+    });
+
+    it("with an operator's explicit since too, because the outage is the same outage", async () => {
+      jobs = [done("c1", LAST)];
+      ads.backfillConnectionLeads.mockResolvedValue({ ...ok, failures: [{ reason: "x" }] });
+      await expect(adsLeadsBackfillHandler(ctx, job({ connectionId: "c1", since: "2026-10-01T00:00:00Z" }), vi.fn())).rejects.toThrow();
+      expect(asked()[0]![2]).toBe("2026-11-03T09:00:00.000Z");
+    });
+
+    it("a run that worked asks nothing", async () => {
+      ads.backfillConnectionLeads.mockResolvedValue(ok);
+      await adsLeadsBackfillHandler(ctx, job({ connectionId: "c1" }), vi.fn());
+      expect(ads.alertBackfillStale).not.toHaveBeenCalled();
+    });
   });
 
   it("refuses a job without a connection", async () => {

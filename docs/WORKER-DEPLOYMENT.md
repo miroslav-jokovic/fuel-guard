@@ -162,6 +162,12 @@ run. After the pull the same job runs the auto-pause checks (B5b, `monitor/check
 days of insights, then compares Meta's campaigns and ad sets with our rows and records each mismatch once as an
 `ads_actions` `external_change` row + bell (the ledger's unique idempotency key is the "once"); it writes nothing to
 Meta and changes no row of ours. The
+**Uncontacted leads (`lead-uncontacted`, general lane, D2c)** (`modules/recruiting/leads/leadUncontacted.ts`): every 5 min, first
+tick 6 min after boot, one **`lead_uncontacted`** job (`KIND_CAPS` 1) per carrier with a `new` lead, `dedup_key` =
+`lead_uncontacted:<org>`. The job rings each platform lead still `new` past `alerts.uncontacted_lead_minutes`, once per lead.
+It talks to no vendor. Off unless `ADS_ENABLED`, like the ads schedulers. Any hour (owner, 2026-11-04): only each person's own
+quiet hours and mutes hold a ring back.
+
 `general` lane, not `egress`: `egress` exists for the one host WEX allowlists, and Meta, TikTok, X
 and Higgsfield check no caller address, so these follow FleetPal and Med-Stop's placement, not the
 EFS poller's. They follow FleetPal's three rules as well: **off** unless `ADS_ENABLED=true` on the

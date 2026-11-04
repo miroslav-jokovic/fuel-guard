@@ -108,6 +108,8 @@ export type JobKind =
   | "ads_insights"
   // One connection's daily reconcile → `external_change` rows (B5c); dedup `ads_reconcile:<connection>`.
   | "ads_reconcile"
+  // One carrier's sweep for leads nobody has contacted (D2c); dedup `lead_uncontacted:<org>`.
+  | "lead_uncontacted"
   | "ads_render" // one Higgsfield render, one step (C3); polled by retry; dedup `ads_render:<creative>:<attempt>`
   // One org's nightly copy of its Storage objects to the off-provider bucket (storageBackup.ts). A kind so a
   // failed night has a row, and so `/api/version` can read the last success from the ledger.

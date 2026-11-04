@@ -126,9 +126,9 @@ describe("settings contract", () => {
   it("the unset settings are a valid save", () => {
     expect(adsSettingsSchema.parse(ADS_SETTINGS_UNSET)).toEqual(ADS_SETTINGS_UNSET);
   });
-  it("alert recipients are keyed by the bell's ads categories, read from the contract", () => {
+  it("alert recipients are keyed by the bell's ads and lead categories, read from the contract", () => {
     expect([...ADS_ALERT_CATEGORIES].sort()).toEqual(
-      ["ads_brief", "ads_external_change", "ads_no_leads", "ads_overspend", "ads_pause_failed", "ads_rejected", "ads_token_expiring"],
+      ["ads_brief", "ads_external_change", "ads_no_leads", "ads_overspend", "ads_pause_failed", "ads_rejected", "ads_token_expiring", "lead_intake_failing", "lead_new", "lead_uncontacted"],
     );
   });
   it("a cap of zero, a negative cap and more than five regenerations are refused", () => {

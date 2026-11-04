@@ -101,7 +101,11 @@ export function messagesRouter(): Router {
     "/:id/read",
     asyncHandler(async (req, res) => {
       const admin = getSupabaseAdmin(getAppLocals(req).env);
-      await markThreadRead(admin, param(req, "id"), req.auth!.userId);
+      const result = await markThreadRead(admin, req.auth!.orgId!, param(req, "id"), req.auth!.userId);
+      if (!result.ok) {
+        res.status(result.status).json(apiError(result.code, result.message));
+        return;
+      }
       res.json({ ok: true });
     }),
   );

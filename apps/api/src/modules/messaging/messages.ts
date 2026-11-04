@@ -76,7 +76,35 @@ async function nameMap(admin: SupabaseClient, orgId: string, userIds: string[]):
   return m;
 }
 
-/** Every thread this user participates in, newest first, with their own unread count. */
+/**
+ * The one `message_threads.kind` this router serves. Since office chat (OFFICE-CHAT-PLAN D-CHAT1,
+ * migration 0511) the same three tables also hold `direct`, `group` and `channel` conversations,
+ * which belong to `/api/chat` and its rules — sequence numbers, the office write budget, mentions,
+ * mute, `left_at`. Before this filter `listThreads` read every thread the caller was in, so the
+ * dispatch inbox at `/messages` listed office DMs as driver conversations, counted them in its
+ * badge, and let a reply from that page post into an office chat around all of chat's rules
+ * (measured 2026-11-04: production's only four threads were office DMs). The value is 0511's
+ * `message_threads_kind_check` literal.
+ */
+const DRIVER_THREAD_KIND = "driver";
+
+/**
+ * Whether `threadId` is a driver thread of this org. The write paths ask it before anything else,
+ * and answer 404 rather than 403 for an office conversation, the same as for a thread the caller
+ * is not in: this router does not confirm that any other kind of conversation exists.
+ */
+async function isDriverThread(admin: SupabaseClient, orgId: string, threadId: string): Promise<boolean> {
+  const { data } = await admin
+    .from("message_threads")
+    .select("id")
+    .eq("org_id", orgId)
+    .eq("id", threadId)
+    .eq("kind", DRIVER_THREAD_KIND)
+    .maybeSingle();
+  return Boolean(data);
+}
+
+/** Every driver thread this user participates in, newest first, with their own unread count. */
 export async function listThreads(
   admin: SupabaseClient,
   orgId: string,
@@ -90,18 +118,29 @@ export async function listThreads(
 
   const rows = (mine ?? []) as { thread_id: string; last_read_at: string | null }[];
   if (rows.length === 0) return { threads: [], unread_total: 0 };
-  const threadIds = rows.map((r) => r.thread_id);
 
-  const [threadsRes, participantsRes, messagesRes] = await Promise.all([
+  // Narrow to driver threads FIRST, so an office conversation's participants and messages are
+  // never read here at all — not merely dropped after reading.
+  const threadsRes = await admin
+    .from("message_threads")
+    .select("id, subject, load_id, status, last_message_at, created_at, loads(ref)")
+    .eq("org_id", orgId)
+    .eq("kind", DRIVER_THREAD_KIND)
+    .in("id", rows.map((r) => r.thread_id))
+    .order("last_message_at", { ascending: false });
+  const threadIds = ((threadsRes.data ?? []) as { id: string }[]).map((t) => t.id);
+  if (threadIds.length === 0) return { threads: [], unread_total: 0 };
+
+  const [participantsRes, messagesRes] = await Promise.all([
     admin
-      .from("message_threads")
-      .select("id, subject, load_id, status, last_message_at, created_at, loads(ref)")
-      .in("id", threadIds)
-      .order("last_message_at", { ascending: false }),
-    admin.from("thread_participants").select("thread_id, user_id, role, last_read_at").in("thread_id", threadIds),
+      .from("thread_participants")
+      .select("thread_id, user_id, role, last_read_at")
+      .eq("org_id", orgId)
+      .in("thread_id", threadIds),
     admin
       .from("messages")
       .select("id, thread_id, sender_user_id, body, created_at, edited_at, deleted_at")
+      .eq("org_id", orgId)
       .in("thread_id", threadIds)
       .order("created_at", { ascending: true }),
   ]);
@@ -166,6 +205,7 @@ export async function getThread(
   const { data } = await admin
     .from("messages")
     .select("id, thread_id, sender_user_id, body, created_at, edited_at, deleted_at")
+    .eq("org_id", orgId)
     .eq("thread_id", threadId)
     .order("created_at", { ascending: true });
 
@@ -257,9 +297,13 @@ export async function sendMessage(
   threadId: string,
   input: SendMessageRequest,
 ): Promise<MessageResult> {
+  if (!(await isDriverThread(admin, orgId, threadId))) {
+    return { ok: false, status: 404, code: "not_found", message: "That conversation does not exist" };
+  }
   const { data: participant } = await admin
     .from("thread_participants")
     .select("user_id")
+    .eq("org_id", orgId)
     .eq("thread_id", threadId)
     .eq("user_id", actorUserId)
     .maybeSingle();
@@ -287,6 +331,7 @@ export async function sendMessage(
   const { data: others } = await admin
     .from("thread_participants")
     .select("user_id")
+    .eq("org_id", orgId)
     .eq("thread_id", threadId)
     .neq("user_id", actorUserId);
   const senderName = (await nameMap(admin, orgId, [actorUserId])).get(actorUserId) ?? "Dispatch";
@@ -309,15 +354,24 @@ export async function sendMessage(
   return { ok: true, threadId };
 }
 
-/** Move this user's read boundary — the unread badge, and dispatch's "the driver has seen it". */
+/**
+ * Move this user's read boundary — the unread badge, and dispatch's "the driver has seen it".
+ * Driver threads only: an office conversation's read state is `read_seq`, moved by `/api/chat`.
+ */
 export async function markThreadRead(
   admin: SupabaseClient,
+  orgId: string,
   threadId: string,
   userId: string,
-): Promise<void> {
+): Promise<MessageResult> {
+  if (!(await isDriverThread(admin, orgId, threadId))) {
+    return { ok: false, status: 404, code: "not_found", message: "That conversation does not exist" };
+  }
   await admin
     .from("thread_participants")
     .update({ last_read_at: new Date().toISOString() })
+    .eq("org_id", orgId)
     .eq("thread_id", threadId)
     .eq("user_id", userId);
+  return { ok: true, threadId };
 }
