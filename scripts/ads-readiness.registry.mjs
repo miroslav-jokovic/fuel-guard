@@ -34,6 +34,7 @@ const META_ADAPTER = "apps/api/src/modules/ads/platforms/meta/metaAdapter.test.t
 const META_PATH = "apps/api/src/modules/ads/orchestrator/metaPath.test.ts";
 const RULES_SYNC = "apps/api/src/modules/ads/platforms/meta/rulesSync.test.ts";
 const COPYWRITER = "apps/api/src/modules/ads/workers/copywriter/copywriter.test.ts";
+const ART_DIRECTOR = "apps/api/src/modules/ads/workers/artDirector/artDirector.test.ts";
 
 export const SCENARIO_DIR = "packages/ads-golden/scenarios";
 
@@ -500,7 +501,42 @@ export const READINESS = [
       L5: [{ need: "canary", gap: CANARY }],
     },
   },
-  { worker: "Art director", levels: { L1: [notBuilt("C2 art director prompt pack")], L2: later("L2"), L3: later("L3"), L4: [{ need: "a render through the real Higgsfield API", gap: STAGE2 }], L5: [{ need: "canary", gap: CANARY }] } },
+  {
+    worker: "Art director",
+    levels: {
+      L1: [
+        {
+          need: "the worker, through the A4 rail, with every recorded answer replayed and nothing that becomes letters let through",
+          tests: [
+            { file: ART_DIRECTOR, titles: [
+              "has model recordings under the prompt in force and planted defects beside them",
+              "planted-digit-in-slot", "planted-lettering", "planted-foreign-photo", "planted-photo-on-text-only", "planted-quote-in-slot",
+              "hands on a prompt ending with the no-lettering clause and the kit photo it starts from",
+              "asks once per creative and attempt, as the art director, sending no brief and no company name",
+            ] },
+            { file: "packages/shared/src/ads/artDirection.test.ts", titles: [
+              "ends with it when the template already does, without saying it twice",
+              "adds it when the template does not",
+              "refuses a photo that is not this kit's, none for an equipment scene, and one for a text-only scene",
+            ] },
+          ],
+        },
+      ],
+      L2: [
+        {
+          need: "§4R's faults: a brand kit missing photos; a preset showing people while the people policy is none (and an instruction inside a photo label)",
+          tests: [{ file: ART_DIRECTOR, titles: [
+            "refuses a scene with equipment when the brand kit has no photos, asking no model",
+            "refuses a preset showing people while the people policy is none, asking no model",
+            "instruction-in-label",
+          ] }],
+        },
+      ],
+      L3: [{ need: "the evaluation set at its bar: every prompt ends with the clause and starts from a reference photo when the preset shows equipment", gap: "C2 measured 10 of 10 (pnpm ads:eval artDirector, baseline.json) on fixture presets; §4R sets no set size — it is re-run on P1–P5 once the owner approves them (Q-AD12)" }],
+      L4: [{ need: "a render through the real Higgsfield API", gap: STAGE2 }],
+      L5: [{ need: "canary", gap: CANARY }],
+    },
+  },
   {
     worker: "Checker",
     levels: {

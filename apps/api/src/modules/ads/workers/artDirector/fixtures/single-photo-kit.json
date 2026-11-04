@@ -1,0 +1,73 @@
+{
+  "name": "single-photo-kit",
+  "about": "A kit with one photo: it is the only reference to name.",
+  "input": {
+    "recipe": {
+      "name": "Fixture concept",
+      "hook_formula": "Lead with the figure.",
+      "copy_slots": [
+        {
+          "name": "hook",
+          "max_chars": 60
+        }
+      ],
+      "image_prompt_template": "Our tractor on an open highway at {time_of_day}, {light}, photographed from {viewpoint}, no text, no logos, no lettering",
+      "image_slots": [
+        "time_of_day",
+        "light",
+        "viewpoint"
+      ],
+      "starts_from": "equipment_photo",
+      "shows_equipment": true,
+      "shows_people": false,
+      "motion_template": null,
+      "formats": [
+        "4:5"
+      ]
+    },
+    "kit": {
+      "company_name": "Fixture Carrier",
+      "phone": null,
+      "colors": [
+        {
+          "name": "primary",
+          "hex": "#0B3D2E"
+        }
+      ],
+      "logo": null,
+      "equipment_photos": [
+        {
+          "label": "blue tractor, front view",
+          "asset": {
+            "sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+            "format": "jpeg",
+            "source_format": "jpeg",
+            "width": 4032,
+            "height": 3024,
+            "byte_size": 2400000
+          }
+        }
+      ],
+      "overlays": {},
+      "people_policy": "none",
+      "forbidden_marks": [
+        "Other Freight Co"
+      ]
+    }
+  },
+  "expect": "ready",
+  "recorded": {
+    "source": "model",
+    "prompt_version": "artDirector@1",
+    "model": "claude-sonnet-4-6",
+    "recorded_at": "2026-11-04T05:15:33.042Z",
+    "output": {
+      "slots": {
+        "time_of_day": "mid-morning",
+        "light": "clear natural daylight from a low angle ahead",
+        "viewpoint": "a low roadside angle facing the front of the tractor"
+      },
+      "reference_photo": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+    }
+  }
+}
