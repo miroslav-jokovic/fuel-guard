@@ -137,6 +137,12 @@ export const NOTIFICATION_CATEGORIES = [
    */
   "lead_new",
   "lead_uncontacted",
+  /**
+   * Leads have stopped reaching us on time: a connection's backfill has not succeeded for hours, or a webhook
+   * lead took past the plan's five minutes to land (workflow D2d). The leads are late, not lost, because
+   * the backfill reaches back. Mirrored in the CHECK (0563); nothing writes it until the alert sender's merge.
+   */
+  "lead_intake_failing",
 ] as const;
 export type NotificationCategory = (typeof NOTIFICATION_CATEGORIES)[number];
 
@@ -185,6 +191,7 @@ export const NOTIFICATION_CATEGORY_LABELS: Record<NotificationCategory, string> 
   ads_pause_failed: "Ads that could not be paused",
   lead_new: "New ad leads",
   lead_uncontacted: "Ad leads waiting for contact",
+  lead_intake_failing: "Ad leads not arriving",
 };
 
 /**

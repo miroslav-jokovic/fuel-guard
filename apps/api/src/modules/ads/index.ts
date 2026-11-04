@@ -28,7 +28,7 @@ export { fetchWebhookLead } from "./leads/leadFetch.js";
 export { META_WEBHOOK_PATH, metaWebhookBootWarning } from "./leads/leadgenWebhook.js";
 export { applyCampaignEvent } from "./orchestrator/transitions.js";
 // D2b: who the carrier chose to hear a category; recruiting's lead alerts read it through the composition root.
-export { configuredAlertRecipients } from "./alerts/adsAlerts.js";
+export { configuredAlertRecipients, uncontactedLeadMinutes } from "./alerts/adsAlerts.js";
 // B5a: the monitor's hourly insights pull → ads_spend_hourly, and its scheduler.
 export { pullConnectionInsights } from "./monitor/insightsPull.js";
 export type { InsightsResult } from "./monitor/insightsPull.js";
