@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { platformLeadSchema, type LeadSink, type PlatformLead } from "@silvicom/shared";
 import type { MetaGraph } from "../platforms/meta/graphClient.js";
 import { pageGraphForConnection, type RegistryDeps } from "../platforms/registry.js";
+import { campaignFormIds } from "./formRefs.js";
 
 /**
  * The hourly leads backfill (ADS-AGENT-BUILD-WORKFLOW.md B4a; §4R Lead intake: "webhook lost — the backfill
@@ -155,9 +156,9 @@ async function campaignsWithForms(admin: SupabaseClient, orgId: string, connecti
       .range(from, from + 999);
     if (error) throw new Error(`ads_campaigns: ${error.message}`);
     const rows = (data ?? []) as Array<{ id: string; brief_source: string; brief_ref: string; platform_refs: Record<string, unknown> | null }>;
+    // Every language's form (`formRefs.ts`): a Spanish form's leads are read like the English one's.
     for (const r of rows) {
-      const form = r.platform_refs?.meta_form_id;
-      if (typeof form === "string" && form) out.push({ id: r.id, brief_source: r.brief_source, brief_ref: r.brief_ref, form_id: form });
+      for (const { form_id } of campaignFormIds(r.platform_refs)) out.push({ id: r.id, brief_source: r.brief_source, brief_ref: r.brief_ref, form_id });
     }
     if (rows.length < 1000) return out;
   }

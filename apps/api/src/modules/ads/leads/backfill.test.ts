@@ -57,8 +57,8 @@ function seed(over: { status?: string; campaigns?: Array<Record<string, unknown>
         { id: CONN, org_id: OTHER_ORG, provider: "simulator", is_sandbox: true, token_sealed: null, page_token_sealed: null, status: "connected" },
       ]),
       ads_campaigns: postgrestFixture(over.campaigns ?? [
-        { id: CAMP_A, org_id: ORG, connection_id: CONN, brief_source: "recruiting_opening", brief_ref: `${OPENING}@v2`, platform_refs: { meta_form_id: formA } },
-        { id: CAMP_B, org_id: ORG, connection_id: CONN, brief_source: "recruiting_opening", brief_ref: `${OPENING}@v2`, platform_refs: { meta_form_id: formB } },
+        { id: CAMP_A, org_id: ORG, connection_id: CONN, brief_source: "recruiting_opening", brief_ref: `${OPENING}@v2`, platform_refs: { meta_form_ids: { en: formA } } },
+        { id: CAMP_B, org_id: ORG, connection_id: CONN, brief_source: "recruiting_opening", brief_ref: `${OPENING}@v2`, platform_refs: { meta_form_ids: { en: formB } } },
         // Not yet created at Meta (no form): nothing to read.
         { id: "00000000-0000-4000-8000-00000000aa03", org_id: ORG, connection_id: CONN, brief_source: "recruiting_opening", brief_ref: "x", platform_refs: {} },
       ]),
@@ -94,6 +94,16 @@ describe("the hourly backfill — a lead the webhook never delivered", () => {
       .toEqual(["simulator", CAMP_A, "recruiting_opening", `${OPENING}@v2`, "yes"]);
     expect(ray.created_at).toBe("2026-11-03T14:00:00+00:00");
     expectOrgScoped(rec, ORG);
+  });
+
+  it("reads every language's form of a campaign: the Spanish form's leads come in beside the English one's (B2c2)", async () => {
+    fake.leads.submit(formA, { full_name: "Ray Driver" }, hoursAgo(1));
+    fake.leads.submit(formB, { full_name: "Ana Lopez" }, hoursAgo(2));
+    seed({ campaigns: [{ id: CAMP_A, org_id: ORG, connection_id: CONN, brief_source: "recruiting_opening", brief_ref: `${OPENING}@v2`, platform_refs: { meta_form_ids: { en: formA, es: formB } } }] });
+    const { sink, stored } = memorySink();
+    const r = await backfillConnectionLeads(deps(sink), ORG, CONN);
+    expect([r.forms, r.stored_new]).toEqual([2, 2]);
+    expect([...stored.values()].map((l) => l.campaign_id)).toEqual([CAMP_A, CAMP_A]);
   });
 
   it("run again the next hour, every lead is a duplicate — none is stored twice", async () => {
