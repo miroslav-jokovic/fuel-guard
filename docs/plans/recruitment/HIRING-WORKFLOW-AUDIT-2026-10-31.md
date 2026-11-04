@@ -994,6 +994,16 @@ not the application's.
 | D-CQ3 | Answers live in the payload as `carrier_answers` (question id → answer), validated per kind from the stamp; a required one has no skip; an optional one offers "I'd rather not say". | Same rules as the built-in questions (D-RS5). |
 | D-CQ4 | Shown on the questions screen after the built-in ones, **in the carrier's words on the Spanish page too** (Q-MT1's ruling: no translation now); the page marks them neither. | The carrier wrote them in one language. |
 | D-CQ5 | At most 20 live questions, wording ≤ 300, hint ≤ 300, ≤ 20 choices of ≤ 80. | Bounded like every other carrier list. |
+| D-CQ6 | **The stamp IS a questionnaire definition** (`carrierQuestionnaire(stamp)`, id `carrier`, version `stamp`): optional questions carry the built-in `RATHER_NOT_SAY` skip, a `select` is keyed by its own frozen words. The wizard's fields (`QuestionnaireFields source="carrier"`), the answer schema, `isAnswered`, the review summary, the office drawer and the filed summary all read it as they read the built-in one; the per-answer check is `carrierAnswerIssues`, shared by the page's per-screen check, the schema's refinement and submit. | One reader for every question, so a carrier question cannot be drawn, checked or printed differently from a built-in one. |
+
+**Open.**
+- **Q-CQ7 — may the office correct an answer to a carrier question?** Not in CQ2: the draft holds the answers
+  (`carrier_answers`) but not the stamp, so the drawer's correction list (`editableFields`) has no label to offer
+  them under, and they are in its `NOT_AN_ANSWER` set — the office reads them in the drawer and sends the
+  applicant back to change one. Candidates: (a) leave it — a carrier question is the applicant's own answer
+  and rarely a typo; (b) hand `editableFields` the review's `carrierQuestions` so each answer is offered under
+  its stamped wording (no schema; the edit path already writes any draft path). **Recommendation: (a) until an
+  office asks**, then (b).
 
 **Build.** **CQ1** — migration: `recruiting_carrier_questions` (CQ010 never deleted, CQ011 frozen columns),
 `application_invitations.carrier_questions`, `send_application_invitation` widened with a defaulted
@@ -1300,3 +1310,20 @@ at submit, the review, the office drawer and the filed PDF.
   `DRUG_ALCOHOL_POLICY_CORRECTIONS`; the transcription keeps the scan's "Vermeda". `DRUG_ALCOHOL_POLICY_VERSION`
   changes with it, so any staging p28 signed under the old text files no policy (logged, D-DAP5's rule) —
   nothing in production, which has not yet received DAP2. Q-DAP2 (proofread) is still the owner's.
+- **2026-11-04** — **CQ2 built** (the reader; branch `claude/cq2-carrier-questions-reader`). Contract
+  (`carrierQuestionsContract.ts`, D-CQ6); `GET/POST /carrier-questions`, `PATCH /carrier-questions/:id`
+  (view for recruitment view, writes for manage, CQ013 → 409 `questions_full`); Send stamps the live list;
+  the bundle and the office's review serve the invitation's stamp; submit overlays it, cuts the answers to it
+  and checks them. Applicant's page: `servedCarrierQuestions`, asked after the built-in questions in the
+  carrier's words with the skip in the page's language (`withSkipWordsIn`, derived from the built-in Spanish
+  skip), checked per screen, autosaved under `carrier_answers`, counted on the task list and listed on the
+  review's missing list. Office drawer prints the stamp with the answers. Filed documents: a "questions the
+  carrier added" section on the §391.21 summary, and an APPENDED packet sheet "The carrier's own questions"
+  after the continuation sheet, dressed by the furniture both now share (`addFurnishedPage`); the preview and
+  the reading copy lay the invitation's stamp over the draft. Settings → Recruiting → "The application form"
+  gains "Your own questions" (add, hint, required, reorder, remove; the frozen columns and the 20-limit
+  said plainly). Producer waiver gone. Mutation-proved: API 16/16; web and PDF 25/26. Two first survived and
+  were the tests' fault: a `/No/` that "Not answered." also matched, and a sheet layout fixture whose uniform
+  items landed clear of the footer under a broken page break (now eight shifted fixtures). The survivor
+  (`carrier_answers` in `editableFields`' `NOT_AN_ANSWER`) is a no-op mutant, because the walk already skips a
+  non-scalar value; the entry states intent (Q-CQ7).

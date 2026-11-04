@@ -2,17 +2,7 @@ import { rgb, type PDFDocument, type PDFPage } from "pdf-lib";
 import { embedPdfFace, pdfUnicodeText } from "../../../../lib/pdfFonts.js";
 import type { PacketFieldOverflow } from "./packetGrid.js";
 import { clipped, fitted, wrap } from "./packetContinuationText.js";
-import {
-  FOOTER_BAND,
-  LETTERHEAD_BAND,
-  PAGE_HEIGHT,
-  PAGE_NUMBER_BASELINE,
-  PAGE_NUMBER_INK,
-  PAGE_NUMBER_SIZE,
-  PAGE_NUMBER_X,
-  PAGE_WIDTH,
-  carrierFurniture,
-} from "./packetContinuationFurniture.js";
+import { TEXT_BLOCK, addFurnishedPage, carrierFurniture } from "./packetContinuationFurniture.js";
 
 // ⚠ Re-exported, not redeclared: the measuring helpers and the carrier's furniture moved to their
 // own modules in C1 (2026-09-26), and `packetContinuation.test.ts` still reads these three from here.
@@ -67,8 +57,8 @@ export { FURNITURE_SOURCE_PAGE, LETTERHEAD_BAND } from "./packetContinuationFurn
  */
 
 /** The carrier's own text margin, measured off their pages — x51.4 to x553.6. */
-const LEFT = 51.4;
-const RIGHT = 553.6;
+const LEFT = TEXT_BLOCK.left;
+const RIGHT = TEXT_BLOCK.right;
 /**
  * ⚠ **Both moved inward by AUD-6 to clear the carrier's own furniture** (2026-09-19). The sheet
  * used the whole page because it carried no letterhead and no footer; it now carries both, lifted
@@ -91,8 +81,8 @@ const RIGHT = 553.6;
  * or employers past what the carrier's grids hold. An ordinary packet pays nothing for the sheet
  * becoming identifiable once separated, and that is the whole of AUD-6.
  */
-const TOP = 665;
-const BOTTOM = 104;
+const TOP = TEXT_BLOCK.top;
+const BOTTOM = TEXT_BLOCK.bottom;
 
 const INK = rgb(0.1, 0.1, 0.1);
 const RULE = rgb(0.45, 0.45, 0.45);
@@ -182,34 +172,15 @@ export async function appendContinuationSheet(
   const furniture = await carrierFurniture(doc);
 
   const newPage = (): Cursor => {
-    const page = doc.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
+    /**
+     * ⚠ **The carrier's furniture first, so everything else is drawn on top of it** (AUD-6): letterhead,
+     * footer and the page number continuing the carrier's sequence, each at the y it occupies on page 31.
+     * Drawn by `addFurnishedPage`, which the carrier's-questions sheet (§15.3) shares. The page number
+     * only continues their sequence because their printed footer number equals the PDF index on every
+     * page, which `packetContinuation.test.ts` asserts for all thirty-one.
+     */
+    const page = addFurnishedPage(doc, furniture, bold);
     added += 1;
-
-    /**
-     * ⚠ **The carrier's furniture first, so everything else is drawn on top of it** (AUD-6). Until
-     * now this sheet carried no letterhead, no footer and no page number while all thirty-one pages
-     * it is attached to carried all three — on the ONE sheet in the packet that is designed to be
-     * separated, and whose own heading says so.
-     *
-     * ⚠ Each band is drawn at the y it occupies on page 31, not at a position of ours, so the sheet
-     * and the pages around it line up when the packet is flicked through.
-     */
-    page.drawPage(furniture.letterhead, { x: LETTERHEAD_BAND.left, y: LETTERHEAD_BAND.bottom });
-    page.drawPage(furniture.footer, { x: FOOTER_BAND.left, y: FOOTER_BAND.bottom });
-    /**
-     * ⚠ **`getPageCount()` AFTER `addPage`, so this is the sheet's own 1-based number** — and it
-     * continues the carrier's sequence rather than starting one. That only holds because their
-     * printed footer number equals the PDF index on every one of their pages, which
-     * `packetContinuation.test.ts` now asserts for all thirty-one rather than assuming;
-     * `packetTemplate.ts` had recorded it as believed and not proved.
-     */
-    page.drawText(String(doc.getPageCount()), {
-      x: PAGE_NUMBER_X,
-      y: PAGE_NUMBER_BASELINE,
-      size: PAGE_NUMBER_SIZE,
-      font: bold,
-      color: PAGE_NUMBER_INK,
-    });
 
     let y = TOP;
     page.drawText("CONTINUATION SHEET", { x: LEFT, y, size: TITLE_SIZE, font: bold, color: INK });

@@ -6,6 +6,7 @@ import RecruitingSettingsForm from "@/features/recruitment/RecruitingSettingsFor
 import OrientationVideosEditor from "@/features/recruitment/OrientationVideosEditor.vue";
 import CarrierStepsEditor from "@/features/recruitment/CarrierStepsEditor.vue";
 import ApplicationFormSettings from "@/features/recruitment/ApplicationFormSettings.vue";
+import CarrierQuestionsEditor from "@/features/recruitment/CarrierQuestionsEditor.vue";
 import ApplicantMessagesSettings from "@/features/recruitment/ApplicantMessagesSettings.vue";
 
 /**
@@ -40,7 +41,8 @@ import ApplicantMessagesSettings from "@/features/recruitment/ApplicantMessagesS
  *
  * ── THE APPLICATION FORM (§11 S2, 0550) ───────────────────────────────────────────────────────
  * The questions an applicant must answer and the documents the application asks for, after the hiring
- * steps: both shape what the office sends, and each applicant keeps what they were sent (D-RS3).
+ * steps: both shape what the office sends, and each applicant keeps what they were sent (D-RS3). Under them,
+ * the carrier's own questions (§15.3 D-CQ1, 0567) — in the same card, because they are the same form.
  *
  * ── MESSAGES (§12 MT2, 0551) ──────────────────────────────────────────────────────────────────
  * The carrier's own words in the invitation, "your application is ready", the reminder and the videos
@@ -72,10 +74,13 @@ import ApplicantMessagesSettings from "@/features/recruitment/ApplicantMessagesS
 
     <SettingsSection
       title="The application form"
-      description="Which of your questions an applicant must answer, and which documents the application asks for."
+      description="Which questions an applicant must answer, the documents the application asks for, and questions of your own."
     >
-      <div class="rounded-surface bg-surface p-4 ring-1 ring-edge">
+      <div class="space-y-6 rounded-surface bg-surface p-4 ring-1 ring-edge">
         <ApplicationFormSettings />
+        <div class="border-t border-edge pt-4">
+          <CarrierQuestionsEditor />
+        </div>
       </div>
     </SettingsSection>
 

@@ -75,6 +75,8 @@ interface InvitationRow {
   org_id: string;
   driver_id: string;
   submitted_at: string | null;
+  /** §15.3 D-CQ2 (0567): the carrier's own questions stamped at the first Send; null before CQ2. */
+  carrier_questions?: unknown;
 }
 
 export interface ApplicationPreview {
@@ -146,7 +148,8 @@ export async function applicationPreviewPdf(
     // The service role bypasses RLS, so the org filter is the only thing between two carriers.
     // ⚠ The two phase stamps came out with A2: they fed the summary's progress line, and the
     // carrier's packet has no page for it. `submitted_at` stays — it is the already-filed refusal.
-    .select("id, org_id, driver_id, submitted_at")
+    // §15.3: and the carrier's own questions stamped at Send, which the draft does not carry.
+    .select("id, org_id, driver_id, submitted_at, carrier_questions")
     .eq("org_id", orgId)
     .eq("id", invitationId)
     .maybeSingle();
@@ -193,7 +196,9 @@ export async function applicationPreviewPdf(
      * the failure `packetDraw.ts`'s `blank()`/`?? []` discipline exists to prevent. The office is
      * owed the document as it stands, gaps and all. The BINDING parse happens at certification.
      */
-    application: payload as DriverApplication,
+    // §15.3 D-CQ2: the invitation's stamp laid over the draft — a draft holds the answers, never the
+    // questions — so the reading copy and the preview print the sheet the filing will.
+    application: { ...payload, carrier_questions: invitation.carrier_questions ?? null } as DriverApplication,
     /**
      * ⚠ TODAY, since C3s5 — the owner's D-AW17: *"all places … prefilled properly. We can review these
      * documents prefilled."* Until then this was empty, on the argument that page 1's `Date:` is the

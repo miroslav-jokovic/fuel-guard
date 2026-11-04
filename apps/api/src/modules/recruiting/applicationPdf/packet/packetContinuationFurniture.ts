@@ -1,4 +1,4 @@
-import { rgb, type PDFDocument, type PDFEmbeddedPage } from "pdf-lib";
+import { rgb, type PDFDocument, type PDFEmbeddedPage, type PDFFont, type PDFPage } from "pdf-lib";
 
 /**
  * The continuation sheet's paper and the carrier's furniture on it — page size, letterhead, footer,
@@ -91,3 +91,33 @@ export const carrierFurniture = async (doc: PDFDocument): Promise<CarrierFurnitu
   letterhead: await doc.embedPage(doc.getPage(FURNITURE_SOURCE_PAGE - 1), LETTERHEAD_BAND),
   footer: await doc.embedPage(doc.getPage(FURNITURE_SOURCE_PAGE - 1), FOOTER_BAND),
 });
+
+/**
+ * The carrier's own text block, measured off their pages (AUD-6; the reasons are at `packetContinuation.ts`'s
+ * `TOP`): x51.4 to x553.6, from y665 down to y104. Every sheet we append sets its type inside it, so it
+ * begins and ends on the same lines as the pages it is stapled to.
+ */
+export const TEXT_BLOCK = { left: 51.4, right: 553.6, top: 665, bottom: 104 } as const;
+
+/**
+ * A sheet appended at the back of the packet, wearing the carrier's letterhead and footer and the next
+ * number in their sequence (AUD-6) — shared by the continuation sheet and the carrier's-questions sheet
+ * (§15.3), so two appended sheets cannot drift apart in how they are dressed.
+ *
+ * ⚠ APPENDED, never inserted: the carrier's page numbers are PDF indices, and an inserted page moves every
+ * signature after it (`packetContinuation.ts`'s header). ⚠ The number is `getPageCount()` AFTER `addPage`,
+ * so it is this sheet's own 1-based number.
+ */
+export function addFurnishedPage(doc: PDFDocument, furniture: CarrierFurniture, numberFont: PDFFont): PDFPage {
+  const page = doc.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
+  page.drawPage(furniture.letterhead, { x: LETTERHEAD_BAND.left, y: LETTERHEAD_BAND.bottom });
+  page.drawPage(furniture.footer, { x: FOOTER_BAND.left, y: FOOTER_BAND.bottom });
+  page.drawText(String(doc.getPageCount()), {
+    x: PAGE_NUMBER_X,
+    y: PAGE_NUMBER_BASELINE,
+    size: PAGE_NUMBER_SIZE,
+    font: numberFont,
+    color: PAGE_NUMBER_INK,
+  });
+  return page;
+}

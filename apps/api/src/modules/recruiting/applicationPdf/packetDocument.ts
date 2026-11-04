@@ -123,5 +123,8 @@ export async function renderPacketDocument(input: PacketDocumentInput): Promise<
     drawnMark: input.drawnMark ?? null,
     initialsMark: input.initialsMark ?? null,
     band: input.band ?? null,
+    // §15.3 D-CQ2: the stamp the payload carries — the filed one's own, or the invitation's laid over the
+    // draft by `preview.ts` — and the answers, under the one key a draft and a filing share.
+    carrierQuestions: { stamp: a.carrier_questions, answers: a.carrier_answers },
   });
 }

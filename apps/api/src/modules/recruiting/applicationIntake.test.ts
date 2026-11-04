@@ -7,7 +7,7 @@ import {
   packetPlacementById,
 } from "@silvicom/shared";
 import { loadEnv } from "../../env.js";
-import { createSupabaseRecorder } from "../../testing/supabaseRecorder.js";
+import { createSupabaseRecorder, type SupabaseRecorder } from "../../testing/supabaseRecorder.js";
 import {
   hashInvitationToken,
   isIntakeError,
