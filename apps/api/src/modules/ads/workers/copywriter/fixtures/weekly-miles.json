@@ -1,0 +1,81 @@
+{
+  "name": "weekly-miles",
+  "about": "A quantity with a unit (miles per week) beside the rate.",
+  "input": {
+    "brief": {
+      "source": "fixture",
+      "ref": "fixture-opening",
+      "subject": "Class A regional driver",
+      "claims": [
+        {
+          "kind": "money",
+          "cents": 62,
+          "per": "mile"
+        },
+        {
+          "kind": "quantity",
+          "value": 2500,
+          "unit": "mile"
+        }
+      ],
+      "area": {
+        "label": "Fixture Yard, IL",
+        "latitude": 41.85,
+        "longitude": -87.65,
+        "radius_miles": 75,
+        "reason": "Fixture: drivers within a day's drive of the yard."
+      },
+      "form_questions": [],
+      "landing_url": null
+    },
+    "recipe": {
+      "name": "Fixture: the number",
+      "hook_formula": "Open with the pay figure, then who the job is for.",
+      "copy_slots": [
+        {
+          "name": "hook",
+          "max_chars": 60
+        },
+        {
+          "name": "body",
+          "max_chars": 220
+        },
+        {
+          "name": "cta",
+          "max_chars": 30
+        }
+      ],
+      "image_prompt_template": "A late-model tractor at {time_of_day}, no text, no logos, no lettering",
+      "image_slots": [
+        "time_of_day"
+      ],
+      "starts_from": "equipment_photo",
+      "shows_equipment": true,
+      "shows_people": false,
+      "motion_template": null,
+      "formats": [
+        "1:1",
+        "4:5"
+      ]
+    }
+  },
+  "expect": "ready",
+  "recorded": {
+    "source": "model",
+    "prompt_version": "copywriter@1",
+    "model": "claude-sonnet-4-6",
+    "recorded_at": "2026-11-04T05:02:39.891Z",
+    "output": {
+      "en": {
+        "hook": "$0.62/mile for Class A regional drivers.",
+        "body": "Run up to 2,500 miles per week and earn $0.62 for every mile you drive. If you hold a Class A CDL and want consistent regional work, this role is built for you. Come join our team.",
+        "cta": "Apply today."
+      },
+      "es": {
+        "hook": "$0.62 por milla para conductores regionales Clase A.",
+        "body": "Conduce hasta 2,500 millas por semana y gana $0.62 por cada milla. Si tienes CDL Clase A y buscas trabajo regional estable, esta posición es para ti. Únete a nuestro equipo.",
+        "cta": "Postúlate hoy."
+      }
+    }
+  }
+}

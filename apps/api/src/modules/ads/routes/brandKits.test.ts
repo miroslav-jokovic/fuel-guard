@@ -32,7 +32,7 @@ const KIT: AdBrandKit = {
   people_policy: "none", forbidden_marks: [],
 };
 const RECIPE: AdPresetRecipe = {
-  name: "Fixture preset", hook_formula: "Lead with the pay figure.", copy_slots: ["hook", "pay", "cta"],
+  name: "Fixture preset", hook_formula: "Lead with the pay figure.", copy_slots: [{ name: "hook", max_chars: 60 }, { name: "pay", max_chars: 40 }, { name: "cta", max_chars: 30 }],
   image_prompt_template: "An empty highway at {time_of_day}, no text, no logos, no lettering", image_slots: ["time_of_day"],
   starts_from: "text_only", shows_equipment: false, shows_people: false, motion_template: null, formats: ["4:5"],
 };
