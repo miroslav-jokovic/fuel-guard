@@ -1,7 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { markConnectionFailing } from "../connections/connections.js";
 import type { CampaignRow } from "../orchestrator/transitions.js";
 import { sendAdsAlert } from "./adsAlerts.js";
+import { alertConnectionUnusable } from "./connectionAlerts.js";
 
 /**
  * What a failed pause tells a person (2026-11-03 audit H2). The runner calls this after every
@@ -17,12 +17,10 @@ import { sendAdsAlert } from "./adsAlerts.js";
  * enough that a stuck pause overnight is seen in the morning, not one per minute per recipient.
  *
  * A token the platform refuses (`token_invalid`) or none we can use (`no_platform`) also marks the
- * connection `failing` and sends `ads_token_expiring` once a day per connection, so Settings stops
- * saying "connected" about a connection nothing can use.
+ * connection `failing` and sends `ads_token_expiring` once a day per connection
+ * (`connectionAlerts.ts`, shared with the create step since B2c2).
  */
 export const STUCK_AFTER = 3;
-
-const CONNECTION_CODES = new Set(["token_invalid", "no_platform"]);
 
 export interface PauseAlertResult {
   stuck: boolean;
@@ -33,20 +31,8 @@ export async function afterPauseFailed(admin: SupabaseClient, now: Date, c: Camp
   const result: PauseAlertResult = { stuck: false, connection_marked: false };
   const at = now.toISOString();
   const hour = at.slice(0, 13);
-  const day = at.slice(0, 10);
 
-  if (CONNECTION_CODES.has(code)) {
-    result.connection_marked = await markConnectionFailing(admin, c.org_id, c.connection_id, `pause: ${code}`, now);
-    await sendAdsAlert(admin, c.org_id, {
-      category: "ads_token_expiring",
-      title: "An ad account connection stopped working",
-      body: `Pausing an ad failed because the connection cannot be used (${code}). Test or reconnect it on Settings › Ads control. Until then nothing here can pause or launch ads on it.`,
-      severity: "critical",
-      entityType: "ads_platform_connection",
-      entityId: c.connection_id,
-      dedupeKey: `ads_token_expiring:${c.connection_id}:${day}`,
-    });
-  }
+  result.connection_marked = await alertConnectionUnusable(admin, now, c, code, "pause");
 
   const { data, error } = await admin
     .from("ads_actions").select("request")

@@ -14,13 +14,11 @@ import { creativeRefusal, publishAds, type PublishCreative, type PublishedAd } f
  * and, for every approved creative in every language, its image, ad creative and ad, PAUSED
  * (`publisherAds.ts`, B2c). A form is made with the PAGE's token (`pageGraph`), not the system user's.
  *
- * ── WHY THIS IS NOT IN `workers.ts` YET ──────────────────────────────────────────────────────────
- * B2c1 (2026-11-04) makes the chain whole, and still does not wire it: lead intake finds a campaign by
- * ONE `platform_refs.meta_form_id` (`leads/leadgenWebhook.ts`, `leadFetch.ts`, `backfill.ts`), and a
- * campaign now has a form per language (`meta_form_ids`). Wiring before intake reads every form would
- * lose each Spanish lead. B2c2 teaches intake the form ids, then fills `createPaused`. Until then the
- * chain is proven directly against FakeMeta — "each language's ad is PAUSED in the one ad set" and its
- * neighbours in `publisher.test.ts`.
+ * ── HOW IT IS CALLED ─────────────────────────────────────────────────────────────────────────────
+ * `publishCampaign.ts` reads our rows into a `PublishInput` and is the orchestrator's `createPaused`
+ * (B2c2). It was wired only after lead intake learned to find a campaign by EVERY language's form
+ * (`leads/formRefs.ts`): a campaign has a form per language (`meta_form_ids`), and intake reading one
+ * would have lost each Spanish lead.
  *
  * ── RESUME, NEVER DUPLICATE ──────────────────────────────────────────────────────────────────────
  * Meta takes no idempotency key on a create, and `MetaGraph` never re-sends one whose answer was lost

@@ -8,25 +8,25 @@ import { adNameFor, byName, ensure, failureBody, type Found, type Listing, type 
  *
  * ── WHAT THE AD SAYS ─────────────────────────────────────────────────────────────────────────────
  * The image already carries the overlay's headline and call to action (C5b). The words Meta shows beside
- * it are two OTHER copy slots, named by the preset's \`platform_slots\` — primary text above the image,
- * headline under it. A preset that does not name them is refused (\`no_platform_slots\`), never guessed
+ * it are two OTHER copy slots, named by the preset's `platform_slots` — primary text above the image,
+ * headline under it. A preset that does not name them is refused (`no_platform_slots`), never guessed
  * from the slots' order: which sentence a person reads first is the preset author's choice, not ours.
- * The button is APPLY_NOW, one of the six the Lead Ads guide allows; the link is \`https://fb.me/\`, the
+ * The button is APPLY_NOW, one of the six the Lead Ads guide allows; the link is `https://fb.me/`, the
  * only value the guide allows a lead ad.
  *
  * ── WHICH IMAGE (Q-AD29) ─────────────────────────────────────────────────────────────────────────
- * A creative holds an image per format (1:1, 4:5, 9:16) per language. A lead ad's \`link_data\` takes ONE
- * \`image_hash\`. Meta's way to give each placement its own image is placement asset customization
- * (\`asset_feed_spec\`), and its page (read 2026-11-04) never mentions lead ads or \`lead_gen_form_id\`. So
+ * A creative holds an image per format (1:1, 4:5, 9:16) per language. A lead ad's `link_data` takes ONE
+ * `image_hash`. Meta's way to give each placement its own image is placement asset customization
+ * (`asset_feed_spec`), and its page (read 2026-11-04) never mentions lead ads or `lead_gen_form_id`. So
  * this publisher uses the feed image — 4:5, else 1:1 — and a creative with neither is refused
- * (\`no_feed_image\`). The 9:16 image waits, unused and stored, for Q-AD29: placement customization proven
+ * (`no_feed_image`). The 9:16 image waits, unused and stored, for Q-AD29: placement customization proven
  * on the sandbox (L4), then added here. Feed placements show 4:5 and 1:1 as made; Stories crop them.
  *
  * ── RESUME, NEVER DUPLICATE ──────────────────────────────────────────────────────────────────────
- * The creative and the ad are levels like the campaign's (\`ensure\`): find by our name, adopt one, create
+ * The creative and the ad are levels like the campaign's (`ensure`): find by our name, adopt one, create
  * none, refuse two; read back by id and compare. The image is not: Meta answers the same hash for the
  * same bytes (FakeMeta's header marks that our reading), so an upload whose answer was lost is simply
- * sent again (\`idempotent: true\`) and makes nothing twice. Its hash is on the creative's ledger row.
+ * sent again (`idempotent: true`) and makes nothing twice. Its hash is on the creative's ledger row.
  */
 
 /** The feed formats, best first: Meta's feed shows 4:5 tallest, and 1:1 everywhere. */
@@ -40,11 +40,11 @@ export interface PublishCreative {
   id: string;
   /** Its preset's key (P1…), for the ad's name. */
   preset_key: string;
-  /** \`ads_creatives.copy\`: per language, slot → text. */
+  /** `ads_creatives.copy`: per language, slot → text. */
   copy: Partial<Record<AdNameLanguage, Record<string, string>>>;
-  /** \`ads_creatives.assets\`: one PNG per format per language. */
+  /** `ads_creatives.assets`: one PNG per format per language. */
   assets: ReadonlyArray<{ format: AdFormat; language: AdNameLanguage; sha256: string }>;
-  /** The preset version's \`platform_slots\`; null = not said. */
+  /** The preset version's `platform_slots`; null = not said. */
   platform_slots: { primary_text: string; headline: string } | null;
 }
 

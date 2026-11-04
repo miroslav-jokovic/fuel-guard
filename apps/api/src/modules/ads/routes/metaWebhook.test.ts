@@ -106,7 +106,7 @@ beforeEach(() => {
   db = createSupabaseRecorder({
     tables: {
       ads_platform_connections: postgrestFixture([{ id: CONN, org_id: ORG, provider: "simulator", is_sandbox: true, token_sealed: null, page_token_sealed: null, status: "connected" }]),
-      ads_campaigns: postgrestFixture([{ id: CAMP, org_id: ORG, connection_id: CONN, brief_source: "recruiting_opening", brief_ref: "op@v1", platform_refs: { meta_form_id: form } }]),
+      ads_campaigns: postgrestFixture([{ id: CAMP, org_id: ORG, connection_id: CONN, brief_source: "recruiting_opening", brief_ref: "op@v1", platform_refs: { meta_form_ids: { en: form } } }]),
     },
   });
 });
@@ -205,6 +205,13 @@ describe("POST — what a signed delivery queues", () => {
     expect(queue.jobs.length).toBe(2);
     expect(await fetchWebhookLead(deps, ORG, queue.jobs[1]!.payload)).toMatchObject({ outcome: "duplicate" });
     expect(stored.size).toBe(1);
+  });
+
+  it("a lead on a campaign's Spanish form finds its carrier like an English one (B2c2: a form per language)", async () => {
+    const lead = submit("Ana");
+    db = createSupabaseRecorder({ tables: { ads_campaigns: postgrestFixture([{ id: CAMP, org_id: ORG, connection_id: CONN, brief_source: "recruiting_opening", brief_ref: "op@v1", platform_refs: { meta_form_ids: { en: "990000000777", es: form } } }]) } });
+    const r = await post(configured, delivery([lead]).body, delivery([lead]).signature);
+    expect([r.status, queue.jobs.map((j) => [j.orgId, j.payload.leadgenId]), leadgenWebhookCounts().unknown_form]).toEqual([200, [[ORG, lead.id]], 0]);
   });
 
   it("a form we do not own is answered 200, counted, and nothing is queued or stored", async () => {

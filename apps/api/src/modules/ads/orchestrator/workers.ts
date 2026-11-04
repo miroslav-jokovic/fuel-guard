@@ -8,6 +8,7 @@ import type { CampaignRow } from "./transitions.js";
 import { anthropicClient } from "../../../lib/anthropic.js";
 import { composeCampaign } from "../compose/composeCampaign.js";
 import { readAdAsset, storeAdAsset } from "../creative/brandAssets.js";
+import { publishCampaign } from "../platforms/meta/publishCampaign.js";
 import { HIGGSFIELD_CREDIT_PRICES, HIGGSFIELD_STILL_MODEL } from "../creative/higgsfield/prices.js";
 import { renderStatus, type RenderInput, type RenderOutcome } from "../creative/higgsfield/render.js";
 import { pgQueueDriver } from "../../../queue/pgDriver.js";
@@ -47,14 +48,14 @@ export type WorkerResult = { ok: true } | { ok: false; error: string } | { ok: f
  * steps fills its line here. With `ADS_ENABLED` off everywhere until then, the tick finds nothing.
  *
  * B3 (2026-11-02) fills `platform`: pause reaches Meta (or the simulator), and launch goes through the
- * guard. `createPaused` is still null, so nothing reaches `paused` by the agent yet, and so no launch.
+ * guard.
  *
  * C5b2 (2026-11-04) fills `compose` (`compose/composeCampaign.ts`).
  *
- * B2a (2026-11-02) built the publisher's first half (`platforms/meta/publisher.ts`: campaign + ad set,
- * paused) and deliberately leaves `createPaused` null. `created` moves a campaign to `paused`, where a
- * person presses Launch; a campaign with no ad yet has nothing to launch, so wiring half a publisher
- * would show a state that is not true. B2c fills it once the form and the ad complete the chain.
+ * B2a (2026-11-02) built the publisher's first half and left `createPaused` null: `created` moves a
+ * campaign to `paused`, where a person presses Launch, and half a publisher would show a state that is
+ * not true. B2c1 completed the chain (forms per language, an ad per approved creative and language);
+ * B2c2 (2026-11-04) taught lead intake every form id, then filled `createPaused`.
  */
 export function adsWorkers(deps: WorkerDeps): CampaignWorkers {
   return {
@@ -67,7 +68,12 @@ export function adsWorkers(deps: WorkerDeps): CampaignWorkers {
       readAsset: (orgId, ref) => readAdAsset(deps.admin, orgId, ref),
       storeAsset: (orgId, bytes) => storeAdAsset(deps.admin, orgId, bytes),
     }, campaign),
-    createPaused: null,
+    // B2c2: the campaign, its ad set, a form per language and an ad per approved creative and language,
+    // all PAUSED (`platforms/meta/publishCampaign.ts`). Its `meta_ad_ids` are what launch turns on.
+    createPaused: (campaign, key) => publishCampaign({
+      admin: deps.admin, env: deps.env, now: deps.now,
+      readAsset: (orgId, ref) => readAdAsset(deps.admin, orgId, ref),
+    }, campaign, key),
     // B3: the connection's Meta adapter (or the simulator's, off production), its spend half closed
     // inside the guard. With it, a pausing campaign — the kill switch's second half — reaches Meta.
     platform: async (orgId, connectionId) => {

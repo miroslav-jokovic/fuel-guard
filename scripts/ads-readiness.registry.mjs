@@ -325,7 +325,19 @@ export const READINESS = [
             "FakeMeta holds the lead ad's rules: an image not on the account, a link other than fb.me, or another Page's form is refused",
           ] }],
         },
-        { need: "`createPaused` wired: the runner's `creating` step publishes the campaign's approved creatives", gap: "B2c2 — lead intake must first find a campaign by every one of its forms (`meta_form_ids`, one per language), or each Spanish lead is lost" },
+        {
+          need: "`createPaused` wired (B2c2): the runner's `creating` step publishes only approved creatives, and intake finds a lead on every language's form",
+          tests: [
+            { file: "apps/api/src/modules/ads/orchestrator/createPath.test.ts", titles: [
+              "creating publishes the approved creative as two paused ads and moves the campaign to paused holding every id launch needs",
+              "then an approved launch turns on exactly the ads it made, and the campaign last",
+              "a creative still waiting for a person is never published: no approved creative fails the step before Meta is asked anything",
+            ] },
+            { file: "apps/api/src/modules/ads/leads/leadFetch.test.ts", titles: ["a lead on the campaign's Spanish form is found as that campaign's (B2c2: a form per language)"] },
+            { file: "apps/api/src/modules/ads/leads/backfill.test.ts", titles: ["reads every language's form of a campaign: the Spanish form's leads come in beside the English one's (B2c2)"] },
+            { file: "apps/api/src/modules/ads/routes/metaWebhook.test.ts", titles: ["a lead on a campaign's Spanish form finds its carrier like an English one (B2c2: a form per language)"] },
+          ],
+        },
       ],
       L2: [
         {
@@ -362,7 +374,13 @@ export const READINESS = [
             "a creative with our name that shows another image is refused, never adopted; an ad with our name running is refused",
           ] }],
         },
-        { need: "token revoked → an alert to an admin", gap: "the alert lands when the publisher is wired into the runner (B2c2)" },
+        {
+          need: "token revoked → stops + an alert to an admin (B2c2)",
+          tests: [{ file: "apps/api/src/modules/ads/orchestrator/createPath.test.ts", titles: [
+            "a revoked token stops the create as token_invalid, marks the connection failing and tells an admin once",
+            "a disconnected connection fails the create as no_platform, with the same alert, and nothing is sent",
+          ] }],
+        },
       ],
       L3: later("L3"),
       L4: [{ need: "contract suite on Meta's sandbox", gap: STAGE2 }],
