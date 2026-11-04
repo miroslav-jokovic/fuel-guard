@@ -137,6 +137,19 @@ ok("a campaign's state moves (transitions are the machine's, not the database's)
   (await sqlstate(`update ads_campaigns set state = 'composing' where id = $1`, [CAMP])) === null);
 ok("an unknown campaign state is refused (23514)",
   (await sqlstate(`update ads_campaigns set state = 'running' where id = $1`, [CAMP])) === "23514");
+// 0566 (Q-AD28): the campaign names its brand kit; never another carrier's, never a kit that does not exist.
+const KIT_OTHER = (await one(`insert into ad_brand_kits (org_id, name) values ($1, 'Theirs') returning id`, [OTHER])).id;
+ok("a campaign names its own carrier's brand kit (0566)",
+  (await sqlstate(`insert into ads_campaigns (org_id, connection_id, brief_source, brief_ref, brief_snapshot, name, settings_version_id, brand_kit_id) values ($1, $2, 'recruiting_opening', 'x', '{}', 'n', $3, $4)`, [ORG, CONN, SV1, KIT])) === null);
+ok("a campaign naming another carrier's brand kit is refused (23503)",
+  (await sqlstate(`insert into ads_campaigns (org_id, connection_id, brief_source, brief_ref, brief_snapshot, name, settings_version_id, brand_kit_id) values ($1, $2, 'recruiting_opening', 'x', '{}', 'n', $3, $4)`, [ORG, CONN, SV1, KIT_OTHER])) === "23503");
+// A kit with no version, so the only thing holding it is the campaign's reference (0566's restrict = 23001).
+const KIT_BARE = (await one(`insert into ad_brand_kits (org_id, name) values ($1, 'Bare') returning id`, [ORG])).id;
+await db.query(`insert into ads_campaigns (org_id, connection_id, brief_source, brief_ref, brief_snapshot, name, settings_version_id, brand_kit_id) values ($1, $2, 'recruiting_opening', 'y', '{}', 'n', $3, $4)`, [ORG, CONN, SV1, KIT_BARE]);
+ok("a brand kit a campaign names cannot be deleted (23001)",
+  (await sqlstate(`delete from ad_brand_kits where id = $1`, [KIT_BARE])) === "23001");
+ok("a brand kit no campaign names can be deleted (the restrict is the campaign's, not the kit's)",
+  (await sqlstate(`delete from ad_brand_kits where id = $1`, [KIT_OTHER])) === null);
 
 // ── creatives: content freezes when it leaves the workers ─────────────────────────────────────
 const CR = (await one(`insert into ads_creatives (org_id, campaign_id, preset_version_id, brand_kit_version_id) values ($1, $2, $3, $4) returning id`, [ORG, CAMP, PV, KV])).id;
