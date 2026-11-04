@@ -90,8 +90,8 @@ describe("POST /campaigns/:id/moves — what the machine lets a person press", (
     expect(w.byId(C).state).toBe("composing");
   });
 
-  it.each(["launch", "kill", "creatives_approved"])("%s has its own door and is refused here before any campaign is read", async (event) => {
-    world(event === "launch" ? "paused" : event === "kill" ? "live" : "review");
+  it.each(["launch", "kill"])("%s has its own door and is refused here before any campaign is read", async (event) => {
+    world(event === "launch" ? "paused" : "live");
     const res = await call(`${C}/moves`, { event });
     expect(await code(res)).toBe("not_this_door");
     expect(w.rec.queries.filter((q) => q.table.startsWith("ads_"))).toEqual([]);

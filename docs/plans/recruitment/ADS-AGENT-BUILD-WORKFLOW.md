@@ -1543,3 +1543,23 @@ blocking step in §3 above.
   or sharp. The test passed 20 of 20 in isolation and passes on main. The job was re-run and passed. This is a second
   flaky test beside the OCR one, unfixed: make the cut deterministic (for example, stop inside IDAT). Track W
   continues from `HANDOFF-2026-11-04-ADS-TRACK-W-2.md`; next is image-to-image from the kit photo (D-AD9).
+- **2026-11-04, S1d — a person approves or rejects one ad (Track S).** No migration. Track W's `decideCreative` (#2036)
+  is the other half; this is the door.
+  - **`POST /api/ads/campaigns/:id/creatives/:creativeId/decision {decision, reason?}`** (manage on the brief's section:
+    `ADS_AUTHORITY.approve_creative` is a person's, and approving words and a picture spends nothing). A rejection needs
+    a reason (shared `adsCreativeDecisionSchema`). Three owners, each its own part: the door refuses what cannot apply
+    BEFORE writing anything (campaign not in `review`, ad not `ready`, another carrier's or another campaign's ad); then
+    `guard/approvals.ts` records an `approve_creative` / `reject_creative` row naming the creative (`recordApproval`
+    widened, 0537's CHECK already requires `creative_id` on those kinds); then `decideCreative` moves the ad on that
+    row's id, compare-and-set. The same decision twice answers the same and records nothing new. If two people press at
+    once and the other decision lands, the door WITHDRAWS its own row (append-only: a new row naming it, reason
+    `did not apply: …`), so the ledger never shows a decision that did not apply.
+  - **`creatives_approved` joins the person door** (`ADS_PERSON_DOOR_EXCLUDED` is now `kill`, `launch`), behind one
+    condition: at least one ad of the campaign is `approved` — "the creatives are approved" is a claim about rows.
+  - With S1d, every campaign door E3 needs exists: create (S1b) → review: decide each ad (S1d), Regenerate (S1c) →
+    approve the campaign (S1d) → create paused (runner / S1c) → approve the spend + Launch (A5 + S1c).
+  - Tests: `creativeDecisions.test.ts` (10, through the app, the real approvals writer and the real `decideCreative`;
+    the store applies the UPDATE's filters, so the compare-and-set is its answer). Mutation: 12 mutants (creative id
+    not written, both pre-checks, re-recording an already-decided ad, no withdrawal on a lost race, approve recorded as
+    reject, both scopes, the campaign-approval check, a rejected ad counted, a reject without reason, the gate) — 12 of
+    12 killed.
