@@ -9,6 +9,7 @@ import { displayNameFor } from "../../../lib/memberLabels.js";
 import { recordApproval } from "../guard/approvals.js";
 import { setKillSwitch } from "../guard/killSwitch.js";
 import { mountConnectionRoutes } from "./connections.js";
+import { mountBrandKitRoutes } from "./brandKits.js";
 import { dispatchJob } from "../../../queue/dispatch.js";
 import { saveSettingsVersion, settingsInForce, type Actor } from "../settings/settingsVersions.js";
 
@@ -110,6 +111,7 @@ export function adsRouter(): Router {
   );
 
   mountConnectionRoutes(router, { section: BRIEF_SECTION, actorOf });
+  mountBrandKitRoutes(router, { section: BRIEF_SECTION, actorOf });
   return router;
 }
 

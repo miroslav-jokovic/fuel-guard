@@ -16,3 +16,4 @@ export * from "./guardContract.js";
 export * from "./connectionContract.js";
 export * from "./monitorChecks.js";
 export * from "./adsReconcile.js";
+export * from "./brandKitContract.js";

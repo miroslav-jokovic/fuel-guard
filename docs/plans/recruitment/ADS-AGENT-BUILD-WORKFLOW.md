@@ -1045,3 +1045,38 @@ blocking step in §3 above.
   - Readiness: **Monitor L1** (B5a/B5b/B5c pinned). L2/L3 stay `later`: §4R's 30 simulated days are not built.
   - Mutation: 17 mutants; two survived the first run as test gaps (a paused campaign's ad set created PAUSED;
     an ad-set budget removed), both now killed — 17 of 17.
+- **2026-11-03, C1 — brand kit + presets API.** Versioned, uploads sniffed by content, SVG rasterised, assets by
+  sha256. Done-when met: a `.png` that is really a PDF is refused (`unsupported_format`, "This file is a PDF").
+  - **The A3 contract written:** `packages/shared/src/ads/brandKitContract.ts` is the shape 0537's `kit` and
+    `recipe` jsonb hold (0537 named it; A3 never wrote it). Kit: company name, phone, colours, logo, equipment
+    photos (D-AD9), overlays per format (a zone may only TIGHTEN `renderGeometry`'s safe zone), people policy
+    (`none` | `varied`, D-AD8), forbidden marks; `AD_VISUAL_CHECKS` is C5's closed checklist. Recipe: hook
+    formula, copy slots, image-prompt template whose `{slots}` must equal `image_slots`, `starts_from` (a scene
+    with equipment or a person cannot be `text_only`, D-AD9), motion template, formats. No values in code:
+    tests use fixtures; **P1–P5 are NOT seeded** (Q-AD12 is the owner's — the producer waiver's "seeds P1–P5"
+    was wrong and is gone with the waiver).
+  - **The sniffer needed no move:** `document-reading/pages/sniff.ts` only re-exports `sniffFormat` from
+    `@silvicom/shared` (`documentFormats.ts`), so ads imports it from shared; no boundary is crossed, nothing
+    copied. SVG (text, no magic number) is recognised by its root element in `creative/brandAssets.ts`.
+  - **Uploads:** signed URL → `<org>/incoming/<id>` → `POST /api/ads/brand-kits/assets` reads it once, decodes
+    every pixel (`stats()`, so a truncated file is refused here), stores at `<org>/<sha256>.<ext>` with
+    `upsert: false` (same file twice = same object), removes the incoming object either way. Bucket
+    `ad-assets` is **migration 0562** (private, 15 MB, no storage policy — the `chat-files` pattern).
+  - **SVG:** refused when it declares entities, holds script or foreignObject, `@import`s, or has any `href` /
+    `url()` that is not `#fragment` or an embedded raster `data:` image (librsvg resolves `file:` against the
+    server's disk); else rasterised to PNG at a 2048 px long edge. Only the PNG is stored.
+  - **A save re-reads its assets:** each ref is downloaded and its hash, size, format and dimensions compared,
+    so a version's record of a file is the file's, not the page's (`assets_mismatch`, 422).
+  - **Versions:** a save is an INSERT only (0537's triggers refuse the rest); 23505 → `conflict` (409), never
+    retried; a kit's name is set when it is made (a rename is not a save); a parent made by a save whose
+    version 1 is refused is removed again. Writers pinned in `table-writers.json`; the four producer waivers
+    retired.
+  - **Who:** read = view recruitment; write = new named grant `ads.brand-kit` (admin only, ADS_AUTHORITY
+    `edit_settings_brand_kit_presets`), no fresh sign-in — nothing here spends.
+  - **Left for later, said here so nobody finds it by accident:** a brand FONT is not in the kit (images only —
+    C4 owns the canvas and decides with Q-AD14's "font, if any"); HEIC is refused with its name (an iPhone photo
+    must be exported as JPEG until a decoder is reached through `document-reading`'s public index — say so if
+    the owner's photos arrive as HEIC); archive / rename are not doors yet (E2).
+  - Readiness: unchanged (C1 is no worker's level; Renderer's L1 waits on C3 + C4).
+  - Mutation: 19 mutants; one survived the first run as a test gap (an archived preset taking a version), now
+    killed — 19 of 19.
