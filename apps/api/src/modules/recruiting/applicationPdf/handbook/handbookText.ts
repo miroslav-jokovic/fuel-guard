@@ -33,7 +33,23 @@ export type HandbookField = "name" | "signature" | "date" | "ssn";
 
 export type HandbookBlock =
   /** A paragraph as the carrier set it: runs bold (`b`) or underlined (`u`), centred or not. */
-  | { k: "p"; runs: HandbookRun[]; align?: "center"; size?: "title" | "subtitle"; heading?: boolean }
+  | {
+      k: "p";
+      runs: HandbookRun[];
+      align?: "center";
+      size?: "title" | "subtitle";
+      heading?: boolean;
+      /** A heading inside a section (the drug-and-alcohol policy's PRE-EMPLOYMENT TESTING, …). */
+      subheading?: boolean;
+      /** Set in from the margin, as the carrier indented it (the policy's definitions, its contact). */
+      indent?: boolean;
+      /** No space after: one line of a stacked list (an address, the absenteeism figures). */
+      tight?: boolean;
+    }
+  /** One numbered clause with a hanging number — the policy's refusal list, its safety-sensitive duties. */
+  | { k: "item"; n: string; runs: HandbookRun[] }
+  /** Words the carrier set in columns (the policy's signs and symptoms): rows of cells, empty cells kept. */
+  | { k: "grid"; rows: string[][] }
   /** One of the nine numbered fuel rules: a bold head, then its body. Word put a line break between. */
   | { k: "rule"; title: HandbookRun[]; body: HandbookRun[] }
   /** The fines schedule (with the carrier's header) and the inspection bonus (without one). */
