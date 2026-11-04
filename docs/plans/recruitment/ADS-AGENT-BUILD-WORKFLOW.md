@@ -1196,3 +1196,43 @@ blocking step in §3 above.
   - Readiness: **Renderer / Higgsfield client L2** (L1 = C3 + C4, L2 = C3's four faults).
   - Mutation: 11 mutants; one survived the first run (a sampling grid thinned to every 400th pixel still caught
     the sky) — the stripe test now kills it — 11 of 11.
+- **2026-11-04, D2 — a lead reaches a person: contacts, `lead_new`, `lead_uncontacted`, intake health.** The leads-first
+  path's steps 1–4 (`HANDOFF-2026-11-03-LEADS-FIRST.md` §3), one docs entry merged last. No readiness row moved: Lead
+  intake reads L1, and nothing here has met a real Meta lead. D2's done-when is **not met yet**: latency is measured
+  in code but not on staging, and the escalation has not fired there, because both need a live Meta connection.
+  - **D2a, a contact is logged** (#1996, `d969a1b`). `POST /recruitment/leads/:id/contacts` (`leads/leadContacts.ts`),
+    recruitment manage: the first writer of `recruiting_contacts`. The contact is inserted BEFORE the conditional
+    `new → contacted`, so a failure cannot leave a lead marked contacted with no record. Every contact moves a `new`
+    lead, `no_answer` included: the status answers "has anybody tried". A purged lead is refused (409 `lead_purged`),
+    because a note would put personal details back on a row the purge cannot reach. Audited by lead id, never
+    the note. A double press writes two rows and the table is append-only, so E4 disables the button in flight.
+    5 mutants killed; a sixth survived on a redundant early return, which was removed.
+  - **D2b, `lead_new`** (#2001, `066e044`). `recruitingLeadSink.accept` rings on `stored === "new"`, not `ingestLead`,
+    so a lead a recruiter typed in rings nobody. The carrier's `alerts.recipients.lead_new`, else `sectionManagers`
+    (new in `accessReview.ts`, derived from `whoHasAccess`: view-only holders are out). `alerts.recipients` now takes
+    `lead_*` categories; recruiting may not import ads (D-AD17), so `queue/handlers/leadSinkFor.ts` hands the reader
+    across. **Differs from the handoff:** no assignee tier, because nothing writes `assigned_to` and a lead stored a
+    moment ago cannot have one. A failed ring is logged and lost: a retry reads a duplicate, so D2c is its only
+    backstop. No deep link until E4. 7 mutants killed.
+  - **D2c, `lead_uncontacted`** (#2004, which carried #2003's commits; #2003 closed). Scheduler `lead-uncontacted`
+    (general lane, 5 min, off unless `ADS_ENABLED`), one `lead_uncontacted` job per carrier with a `new` lead
+    (`leads/leadUncontacted.ts`). **Ruled by the owner 2026-11-04: any hour.** No business-hours rule; a person's own
+    quiet hours and mutes apply, which is why it is `warning`, not `critical`. This rules the alarm only: the plans'
+    "speed to first contact (median, business hours)" report is unchanged. Left out: manual channels, a lead with a
+    contact row (D2a's failure case), a number held from contact. The clock is `received_at`, ours, so a late
+    backfilled lead gets its full window. No age ceiling: the first sweep after switch-on rings every old lead once.
+    A lead counts as rung once anybody got it, so somebody in quiet hours then does not get it later. 10 mutants killed.
+  - **D2d, intake health** (0563 in #2004, `66525f1`; sender #2007, `b9d8a8b`, a later merge per 0559/#1970).
+    `lead_intake_failing`, `modules/ads/alerts/intakeAlerts.ts`, `warning` because the backfill reaches back and leads
+    are late, not lost. A failed backfill run, reported or thrown, rings when the last `done` run is at least
+    `BACKFILL_STALE_HOURS` (3) old or there is none; once a day per connection. **3 is a default, not a ruling.** A new
+    webhook lead's `latency_ms` (Meta's `created_time` to the sink's answer) rides on the `ads_lead_fetch` job's stats, the
+    only place that knows a lead came by webhook; over 5 min rings, once a day per connection. The carrier's list,
+    else the admins, who can repair a connection. An alert never changes a job's outcome. **Not covered:** a backfill
+    that never runs (dead worker, `ADS_ENABLED` off) cannot report itself. 12 mutants killed.
+  - **Merge notes.** A local merge of main that hit conflicts was committed with its markers by a script that did
+    not stop; it failed the gates and was rebuilt, never pushed. Check a merge's exit code before `git add -A`.
+    GitHub said CONFLICTING on #2004 where `git merge-tree` was clean (§4's trap again). A branch that resolved a
+    conflict in a later PR can land an earlier PR's work: #2003 had nothing left, proved by the merge's tree
+    equalling main's. **Open:** #2009 (`claude/idp1-role-permissions`) also uses the number `0563`, now taken on main
+    and applied on staging, so it must renumber before it merges.
