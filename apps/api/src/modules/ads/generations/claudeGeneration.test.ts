@@ -1,7 +1,8 @@
+import { createHash } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 import { ADS_SETTINGS_UNSET, type AdsSettings } from "@silvicom/shared";
-import type { ForcedTool, MessagesClient } from "../../../lib/anthropic.js";
+import { MAX_IMAGE_BYTES, type ForcedTool, type MessagesClient } from "../../../lib/anthropic.js";
 import { createSupabaseRecorder, expectOrgScoped, type RecordedQuery } from "../../../testing/supabaseRecorder.js";
 import { generateWithClaude, type ClaudeGenerationRequest } from "./claudeGeneration.js";
 import type { GenerationRow } from "./generationLedger.js";
@@ -194,3 +195,44 @@ describe("generateWithClaude — the call and its provenance", () => {
     expectOrgScoped(rec, ORG);
   });
 });
+
+describe("generateWithClaude — an image in the user turn (C5a)", () => {
+  const png = (fill: number) => new Uint8Array(64).fill(fill);
+  const withImage = (bytes: Uint8Array) => ({ ...req, user: [{ type: "text" as const, text: "check this" }, { type: "image" as const, format: "png" as const, bytes }] });
+  const runWith = (rec: ReturnType<typeof world>, client: MessagesClient, bytes: Uint8Array) => generateWithClaude({ admin: rec.client, client, now: () => NOW }, withImage(bytes));
+
+  it("the model gets our bytes as base64 and the ledger keeps only their sha256", async () => {
+    const rec = world();
+    const { client, create } = claude();
+    await runWith(rec, client, png(7));
+    const body = create.mock.calls[0]![0] as { messages: Array<{ content: unknown }> };
+    expect(body.messages[0]!.content).toEqual([
+      { type: "text", text: "check this" },
+      { type: "image", source: { type: "base64", media_type: "image/png", data: Buffer.from(png(7)).toString("base64") } },
+    ]);
+    const [started] = inserts(rec);
+    expect((started!.request as { user: unknown }).user).toEqual([
+      { type: "text", text: "check this" },
+      { type: "image", format: "png", sha256: createHash("sha256").update(png(7)).digest("hex"), byte_size: 64 },
+    ]);
+    expect(JSON.stringify(started!.request)).not.toContain(Buffer.from(png(7)).toString("base64"));
+  });
+
+  it("two images under the same words hash to two requests", async () => {
+    const hashOf = async (fill: number) => {
+      const rec = world();
+      await runWith(rec, claude().client, png(fill));
+      return inserts(rec)[0]!.input_hash;
+    };
+    expect(await hashOf(1)).not.toBe(await hashOf(2));
+  });
+
+  it("an image over the API's limit is refused before any row or call", async () => {
+    const rec = world();
+    const { client, create } = claude();
+    await expect(runWith(rec, client, new Uint8Array(MAX_IMAGE_BYTES + 1))).rejects.toThrow(/over the 5242880-byte limit/);
+    expect(create).not.toHaveBeenCalled();
+    expect(inserts(rec)).toEqual([]);
+  });
+});
+

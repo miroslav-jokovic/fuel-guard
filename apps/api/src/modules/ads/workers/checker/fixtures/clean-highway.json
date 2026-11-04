@@ -1,0 +1,66 @@
+{
+  "name": "clean-highway",
+  "about": "A plain white conventional tractor and dry van on a prairie highway at dusk, truck in the upper half, grass under the text band.",
+  "input": {
+    "image": "clean-highway.jpg",
+    "reference": {
+      "image": "reference.jpg",
+      "label": "white conventional sleeper tractor, front three-quarter"
+    },
+    "scene": {
+      "shows_equipment": true,
+      "shows_people": false
+    },
+    "kit": {
+      "people_policy": "none",
+      "forbidden_marks": [
+        "ACME Logistics"
+      ]
+    },
+    "text_band": {
+      "x": 0.06,
+      "y": 0.62,
+      "width": 0.88,
+      "height": 0.32
+    }
+  },
+  "truth": {
+    "planted": null,
+    "how": "Generated clean: no text, no logo, conventional tractor-trailer like the reference, nothing in the band."
+  },
+  "expect": "ready",
+  "recorded": {
+    "source": "model",
+    "prompt_version": "checker@1",
+    "model": "claude-sonnet-4-6",
+    "recorded_at": "2026-11-04T15:32:32.303Z",
+    "output": {
+      "checks": {
+        "no_glyphs": {
+          "reason": "No letters, numbers, digits, or text-like shapes are visible anywhere in the image. The trailer and cab surfaces are plain and unmarked.",
+          "verdict": "pass"
+        },
+        "no_foreign_logos": {
+          "reason": "No company names, emblems, or logos appear on the trailer, cab, or any other element. The trailer is completely blank white. No forbidden marks are present.",
+          "verdict": "pass"
+        },
+        "equipment_matches_reference": {
+          "reason": "Image 1 shows a white long-nose conventional sleeper tractor pulling a dry-van trailer, matching the reference type: white conventional sleeper tractor-trailer. Cab style and colour align.",
+          "verdict": "pass"
+        },
+        "no_malformed_people_or_vehicles": {
+          "reason": "The truck appears physically plausible with correct wheel placement, normal proportions on cab and trailer, and no merged, duplicated, or distorted parts visible.",
+          "verdict": "pass"
+        },
+        "people_policy_met": {
+          "reason": "People are not allowed and no person or recognisable body part is visible anywhere in the image, including in the cab windows.",
+          "verdict": "pass"
+        },
+        "safe_zone_clear": {
+          "reason": "Image 3 shows only roadside grass, ground vegetation, and a small strip of road/white line. No vehicle parts or people are present in this band.",
+          "verdict": "pass"
+        }
+      }
+    }
+  }
+}

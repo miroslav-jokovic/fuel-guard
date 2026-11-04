@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { APIError } from "@anthropic-ai/sdk";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { aiGate, canonicalJson, type AdAiAgent, type AiGateRefusal } from "@silvicom/shared";
-import { callForcedTool, toolInputSchema, type ForcedTool, type MessagesClient } from "../../../lib/anthropic.js";
+import { callForcedTool, describeUserContent, toolInputSchema, type ForcedTool, type MessagesClient, type UserContent } from "../../../lib/anthropic.js";
 import { settingsInForce } from "../settings/settingsVersions.js";
 import {
   anthropicTokensThisMonth,
@@ -46,7 +46,8 @@ export interface ClaudeGenerationRequest<T> {
   /** From `AI_MODELS` (`packages/shared/src/ai.ts`) — the one place model names live. */
   model: string;
   system: string;
-  user: string;
+  /** Text, or text and images as bytes we stored (`UserContent`, C5a); the ledger keeps each image's sha256, not its bytes. */
+  user: UserContent;
   tool: ForcedTool<T>;
   maxTokens: number;
 }
@@ -78,7 +79,9 @@ export async function generateWithClaude<T>(deps: ClaudeGenerationDeps, req: Cla
   const request = {
     model: req.model,
     system: req.system,
-    user: req.user,
+    // Images go in as their sha256 and size (`describeUserContent`), so the hash names the exact
+    // bytes shown and the row holds no base64.
+    user: describeUserContent(req.user),
     tool: { name: req.tool.name, description: req.tool.description, input_schema: toolInputSchema(req.tool) },
     max_tokens: req.maxTokens,
   };

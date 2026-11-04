@@ -1,0 +1,70 @@
+{
+  "name": "defect-person",
+  "about": "A driver poses in front of the truck while the kit's people policy is none.",
+  "input": {
+    "image": "planted-person.jpg",
+    "reference": {
+      "image": "reference.jpg",
+      "label": "white conventional sleeper tractor, front three-quarter"
+    },
+    "scene": {
+      "shows_equipment": true,
+      "shows_people": false
+    },
+    "kit": {
+      "people_policy": "none",
+      "forbidden_marks": [
+        "ACME Logistics"
+      ]
+    },
+    "text_band": {
+      "x": 0.06,
+      "y": 0.62,
+      "width": 0.88,
+      "height": 0.32
+    }
+  },
+  "truth": {
+    "planted": "people_policy_met",
+    "how": "Prompted for a waist-up driver portrait; the kit says people_policy none."
+  },
+  "expect": "refused",
+  "expect_findings": [
+    "people_policy_met",
+    "safe_zone_clear"
+  ],
+  "recorded": {
+    "source": "model",
+    "prompt_version": "checker@1",
+    "model": "claude-sonnet-4-6",
+    "recorded_at": "2026-11-04T15:33:17.710Z",
+    "output": {
+      "checks": {
+        "no_glyphs": {
+          "reason": "No readable text, letters, numbers, or text-like shapes are visible anywhere in the image. No licence plate text is legible.",
+          "verdict": "pass"
+        },
+        "no_foreign_logos": {
+          "reason": "No company names, emblems, or logos appear on the trailer, cab, clothing, or background. No forbidden marks such as ACME Logistics are present.",
+          "verdict": "pass"
+        },
+        "equipment_matches_reference": {
+          "reason": "The truck in image 1 is a white long-nose conventional sleeper tractor, matching the type shown in image 2. Cab style and colour align; both are tractor units without trailers attached.",
+          "verdict": "pass"
+        },
+        "no_malformed_people_or_vehicles": {
+          "reason": "The person appears physically normal with a natural face and visible hands in plausible positions. The truck behind shows a coherent cab and front end with no obvious deformities.",
+          "verdict": "pass"
+        },
+        "people_policy_met": {
+          "reason": "People_allowed is false, but a person is prominently featured in the foreground of image 1, clearly visible from head to torso.",
+          "verdict": "fail"
+        },
+        "safe_zone_clear": {
+          "reason": "Image 3 shows the torso of a person wearing a jacket, occupying the full frame of the text band. A person's body is clearly present in this zone.",
+          "verdict": "fail"
+        }
+      }
+    }
+  }
+}

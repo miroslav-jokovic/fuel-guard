@@ -809,6 +809,17 @@ rate, and Higgsfield credits per approved creative.
   **Recommendation: (c), with (a) until then**, because a too-early pause costs a relaunch while a missing
   enforcer costs money, and L4 is when we can see what Meta's evaluator accepts. *Fallback:* (a).
 - **Q-AD26 · How the monitor learns an opening is filled** (us, found building B5b, 2026-11-03). The
+- **Q-AD27 · What the visual check counts as a foreign logo and a matching truck** (us, found building C5a,
+  2026-11-04). D-AD12's checklist says "no foreign logos" and "equipment matches reference type"; neither says
+  what a vehicle maker's grille badge is, nor whether the make counts. Measured with `pnpm ads:eval checker`:
+  every generated truck carries a maker's badge, and a prompt that compared makes failed every clean image whose
+  generated truck was not the reference photo's make (a Kenworth photo, a Freightliner render). Built as:
+  (a) a maker's grille badge on the truck is neither writing nor a foreign logo, whichever maker; (b) the
+  equipment item compares TYPE — cab style, sleeper or day cab, colour, tractor-trailer — not make.
+  Candidates: keep (a)+(b); or (c) the badge must match the reference photo's make, which would also need the
+  render to keep the photo's make (image-to-image, D-AD9, not built until compose). **Recommendation: keep
+  (a)+(b)** until image-to-image lands, then re-measure (c) on real renders from our photos; a person approves
+  every creative meanwhile. Labelled at `workers/checker/checker.ts` and in `prompt.v1.md`.
   `pause_when_filled` setting is the monitor's alone (`adsRulesSpec.ts` header), but the headcount is
   recruiting's, and D-AD17 lets ads reach recruiting only through the two shared interfaces. Neither carries
   "this opening is filled". Candidates: (a) a third interface, `BriefStatus` (`isOpen(brief_ref)`), owned by

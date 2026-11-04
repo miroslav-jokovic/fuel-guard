@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
 import type { Env } from "../env.js";
@@ -52,10 +53,60 @@ export type ForcedToolResult<T> =
 /** The one method used, so a test can hand in a fake without an SDK instance. */
 export type MessagesClient = { messages: Pick<Anthropic["messages"], "create"> };
 
+/**
+ * What the user turn holds: plain text, or parts — text and images (ads C5a, the Checker's vision call).
+ *
+ * An image is BYTES we hold, never a URL: the model must see exactly the file we stored and hashed, and
+ * a provider's URL (Higgsfield's CloudFront output, say) is a file somebody else can change or expire.
+ * `describeUserContent` is what a ledger stores and hashes in its place — the image's sha256 and size,
+ * computed here from the bytes rather than taken from the caller, so a row cannot name one image while
+ * the model was shown another, and no row carries megabytes of base64.
+ *
+ * ⚠ The rail forces its tool (`tool_choice: {type: "tool"}`). `AI_MODELS.deep` is claude-sonnet-4-6, which
+ * accepts that, with images. Claude Opus 5.5, Sonnet 5.5 and Fable 5.1 answer a forced tool_choice with a
+ * 400 (claude-api skill, read 2026-11-04): moving `AI_MODELS` to one of them is a change to this function
+ * (auto + strict tool), not a model-name edit.
+ */
+export type UserPart =
+  | { type: "text"; text: string }
+  | { type: "image"; format: ImageFormat; bytes: Uint8Array };
+export type UserContent = string | UserPart[];
+export type ImageFormat = "png" | "jpeg" | "webp";
+const MEDIA_TYPE = { png: "image/png", jpeg: "image/jpeg", webp: "image/webp" } as const;
+
+/** The Messages API's per-image ceiling (5 MB, base64 source). A larger image is the caller's to shrink, never truncated here. */
+export const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+
+export type DescribedPart = { type: "text"; text: string } | { type: "image"; format: ImageFormat; sha256: string; byte_size: number };
+
+/** The user turn as a ledger may keep it: every image replaced by its sha256 and size. */
+export function describeUserContent(user: UserContent): string | DescribedPart[] {
+  if (typeof user === "string") return user;
+  return user.map((p) => {
+    if (p.type === "text") return p;
+    assertImageFits(p.bytes);
+    return { type: "image", format: p.format, sha256: createHash("sha256").update(p.bytes).digest("hex"), byte_size: p.bytes.byteLength };
+  });
+}
+
+/** Thrown, not trimmed: the ads rail describes the request before it writes its `started` row, so an oversized image fails with no row and no call. */
+function assertImageFits(bytes: Uint8Array): void {
+  if (bytes.byteLength > MAX_IMAGE_BYTES) throw new Error(`image of ${bytes.byteLength} bytes is over the ${MAX_IMAGE_BYTES}-byte limit`);
+}
+
+function messageContent(user: UserContent): string | Anthropic.ContentBlockParam[] {
+  if (typeof user === "string") return user;
+  return user.map((p) => {
+    if (p.type === "text") return { type: "text", text: p.text };
+    assertImageFits(p.bytes);
+    return { type: "image", source: { type: "base64", media_type: MEDIA_TYPE[p.format], data: Buffer.from(p.bytes).toString("base64") } };
+  });
+}
+
 export interface ForcedToolRequest<T> {
   model: string;
   system: string;
-  user: string;
+  user: UserContent;
   tool: ForcedTool<T>;
   maxTokens: number;
 }
@@ -73,7 +124,7 @@ export async function callForcedTool<T>(client: MessagesClient, req: ForcedToolR
     system: req.system,
     tools: [{ name: req.tool.name, description: req.tool.description, input_schema: toolInputSchema(req.tool) }],
     tool_choice: { type: "tool", name: req.tool.name },
-    messages: [{ role: "user", content: req.user }],
+    messages: [{ role: "user", content: messageContent(req.user) }],
   });
   const usage = { input: resp.usage.input_tokens, output: resp.usage.output_tokens };
   const block = resp.content.find((b) => b.type === "tool_use" && b.name === req.tool.name);

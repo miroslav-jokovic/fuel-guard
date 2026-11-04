@@ -1,0 +1,63 @@
+{
+  "name": "planted-answer-extra-item",
+  "about": "A text-only scene answered with the equipment item it was never asked: refused by the strict schema.",
+  "input": {
+    "image": "clean-empty-road.jpg",
+    "reference": null,
+    "scene": {
+      "shows_equipment": false,
+      "shows_people": false
+    },
+    "kit": {
+      "people_policy": "none",
+      "forbidden_marks": [
+        "ACME Logistics"
+      ]
+    },
+    "text_band": {
+      "x": 0.08,
+      "y": 0.42,
+      "width": 0.84,
+      "height": 0.22
+    }
+  },
+  "truth": {
+    "planted": null,
+    "how": "Not about the image: the answer is written by a person to prove the judge."
+  },
+  "expect": "off_schema",
+  "recorded": {
+    "source": "planted",
+    "prompt_version": "checker@1",
+    "model": "none (written by a person)",
+    "recorded_at": "2026-11-04T15:30:00Z",
+    "output": {
+      "checks": {
+        "no_glyphs": {
+          "reason": "No writing anywhere in the frame.",
+          "verdict": "pass"
+        },
+        "no_foreign_logos": {
+          "reason": "No branding beyond the maker's grille badge.",
+          "verdict": "pass"
+        },
+        "equipment_matches_reference": {
+          "reason": "A white conventional sleeper tractor, as in image 2.",
+          "verdict": "pass"
+        },
+        "no_malformed_people_or_vehicles": {
+          "reason": "Wheels, axles and cab are plausible.",
+          "verdict": "pass"
+        },
+        "people_policy_met": {
+          "reason": "No person appears.",
+          "verdict": "pass"
+        },
+        "safe_zone_clear": {
+          "reason": "Only grass and road inside the band.",
+          "verdict": "pass"
+        }
+      }
+    }
+  }
+}

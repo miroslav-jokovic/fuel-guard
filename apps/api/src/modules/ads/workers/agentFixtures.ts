@@ -1,9 +1,10 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { z } from "zod";
-import { adBrandKitSchema, adBriefSchema, adPresetRecipeSchema, judgeArt, type ArtAnswer } from "@silvicom/shared";
+import { AD_PEOPLE_POLICIES, AD_VISUAL_CHECKS, adBrandKitSchema, adBriefSchema, adPresetRecipeSchema, judgeArt, type ArtAnswer, type AdVisualCheck } from "@silvicom/shared";
 import type { ForcedToolRequest } from "../../../lib/anthropic.js";
 import { COPYWRITER_PROMPT_VERSION, buildCopyRequest, judgeCopy, type AdCopy } from "./copywriter/copywriter.js";
 import { ART_DIRECTOR_PROMPT_VERSION, buildArtRequest } from "./artDirector/artDirector.js";
+import { CHECKER_PROMPT_VERSION, applicableChecks, buildVisualRequest, judgeVisual, prepareSubject, visualTool, type VisualAnswer, type VisualSubject } from "./checker/checker.js";
 
 /**
  * The model workers' fixtures (workflow C2; §4R "Claude replay + live eval"). One JSON file per case in
@@ -49,10 +50,17 @@ export interface EvalWorker<F, T> {
   parse: (raw: unknown) => F;
   name: (f: F) => string;
   source: (f: F) => "model" | "planted";
-  request: (f: F) => ForcedToolRequest<T>;
+  /** May be async: the checker cuts its text band out of the image first. */
+  request: (f: F) => ForcedToolRequest<T> | Promise<ForcedToolRequest<T>>;
   /** The verdict the worker would reach on `output`, in the fixture's `expect` vocabulary. */
   judge: (f: F, output: unknown) => { verdict: string; findings: string[] };
   withRecording: (f: F, recording: z.infer<typeof recordingSchema>) => F;
+  /**
+   * Whether a live verdict is the RIGHT one. Absent = it must be `ready` (a generator: every brief
+   * deserves usable copy). A judge (the checker) is right when it refuses what was planted and passes
+   * what was clean, so it supplies its own.
+   */
+  agrees?: (f: F, verdict: string, findings: string[]) => boolean;
 }
 
 export const COPYWRITER_EVAL: EvalWorker<CopywriterFixture, AdCopy> = {
@@ -97,7 +105,57 @@ export const ART_DIRECTOR_EVAL: EvalWorker<ArtDirectorFixture, ArtAnswer> = {
   withRecording: (f, recorded) => ({ ...f, recorded }),
 };
 
-export const EVAL_WORKERS = { copywriter: COPYWRITER_EVAL, artDirector: ART_DIRECTOR_EVAL } as const;
+/**
+ * The checker's cases are IMAGES (§4R's planted-defect corpus): `fixtures/images/*.jpg`, generated with the
+ * developer's Higgsfield login on 2026-11-04 (gpt_image_2_5, medium, 1k; downscaled to 768 px, JPEG q72),
+ * each made to carry at most one defect, which `truth` names. `truth` is what the image IS; `expect` is
+ * what the recorded answer reached — they differ exactly where the model was wrong, and `ads:eval`
+ * counts the cases where they agree.
+ */
+const fraction = z.number().min(0).max(1);
+export const checkerFixtureSchema = z.object({
+  name: z.string().regex(/^[a-z0-9][a-z0-9-]{1,60}$/),
+  about: z.string().min(10),
+  input: z.object({
+    image: z.string().regex(/^[a-z0-9-]+\.jpg$/),
+    reference: z.object({ image: z.string().regex(/^[a-z0-9-]+\.jpg$/), label: z.string().min(2) }).nullable(),
+    scene: z.object({ shows_equipment: z.boolean(), shows_people: z.boolean() }).strict(),
+    kit: z.object({ people_policy: z.enum(AD_PEOPLE_POLICIES), forbidden_marks: z.array(z.string()) }).strict(),
+    text_band: z.object({ x: fraction, y: fraction, width: fraction, height: fraction }).strict(),
+  }).strict(),
+  truth: z.object({ planted: z.enum(AD_VISUAL_CHECKS).nullable(), how: z.string().min(10) }).strict(),
+  expect: z.enum(["ready", "refused", "off_schema"]),
+  expect_findings: z.array(z.string()).optional(),
+  recorded: recordingSchema,
+}).strict();
+export type CheckerFixture = z.infer<typeof checkerFixtureSchema>;
+
+const CHECKER_DIR = new URL("./checker/fixtures/", import.meta.url);
+/** The fixture's images, read from the corpus. */
+export function checkerSubject(f: CheckerFixture): VisualSubject {
+  const read = (file: string) => ({ format: "jpeg" as const, bytes: new Uint8Array(readFileSync(new URL(`images/${file}`, CHECKER_DIR))) });
+  const { image, reference, ...rest } = f.input;
+  return { ...rest, image: read(image), reference: reference ? { label: reference.label, image: read(reference.image) } : null };
+}
+
+export const CHECKER_EVAL: EvalWorker<CheckerFixture, VisualAnswer> = {
+  promptVersion: CHECKER_PROMPT_VERSION,
+  dir: CHECKER_DIR,
+  parse: (raw) => checkerFixtureSchema.parse(raw),
+  name: (f) => f.name,
+  source: (f) => f.recorded.source,
+  request: async (f) => buildVisualRequest(await prepareSubject(checkerSubject(f))),
+  judge: (f, output) => {
+    const parsed = visualTool(applicableChecks(f.input.scene)).schema.safeParse(output);
+    if (!parsed.success) return { verdict: "off_schema", findings: [] };
+    const v = judgeVisual(parsed.data, f.input.scene);
+    return v.ok ? { verdict: "ready", findings: [] } : { verdict: "refused", findings: v.results.filter((r) => r.verdict === "fail").map((r) => r.check).sort() };
+  },
+  withRecording: (f, recorded) => ({ ...f, recorded }),
+  agrees: (f, verdict, findings) => (f.truth.planted === null ? verdict === "ready" : verdict === "refused" && findings.includes(f.truth.planted as AdVisualCheck)),
+};
+
+export const EVAL_WORKERS = { copywriter: COPYWRITER_EVAL, artDirector: ART_DIRECTOR_EVAL, checker: CHECKER_EVAL } as const;
 
 /** Every fixture of a worker, parsed, in file-name order; a file whose `name` is not its file name throws. */
 export function loadFixtures<F, T>(w: EvalWorker<F, T>): Array<{ file: URL; fixture: F }> {

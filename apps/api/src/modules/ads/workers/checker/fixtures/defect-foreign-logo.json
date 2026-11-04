@@ -1,0 +1,71 @@
+{
+  "name": "defect-foreign-logo",
+  "about": "The trailer carries a red emblem and the name ACME Logistics, which the kit lists as a forbidden mark.",
+  "input": {
+    "image": "planted-foreign-logo.jpg",
+    "reference": {
+      "image": "reference.jpg",
+      "label": "white conventional sleeper tractor, front three-quarter"
+    },
+    "scene": {
+      "shows_equipment": true,
+      "shows_people": false
+    },
+    "kit": {
+      "people_policy": "none",
+      "forbidden_marks": [
+        "ACME Logistics"
+      ]
+    },
+    "text_band": {
+      "x": 0.06,
+      "y": 0.62,
+      "width": 0.88,
+      "height": 0.32
+    }
+  },
+  "truth": {
+    "planted": "no_foreign_logos",
+    "how": "Prompted for a large ACME LOGISTICS emblem on the trailer; kit forbidden_marks lists it."
+  },
+  "expect": "refused",
+  "expect_findings": [
+    "no_foreign_logos",
+    "no_glyphs",
+    "safe_zone_clear"
+  ],
+  "recorded": {
+    "source": "model",
+    "prompt_version": "checker@1",
+    "model": "claude-sonnet-4-6",
+    "recorded_at": "2026-11-04T15:32:49.768Z",
+    "output": {
+      "checks": {
+        "no_glyphs": {
+          "reason": "The trailer displays 'ACME LOGISTICS' in large letters, and the cab shows a number '7294' and a readable licence plate. Multiple instances of text are clearly visible.",
+          "verdict": "fail"
+        },
+        "no_foreign_logos": {
+          "reason": "'ACME LOGISTICS' with its red circular emblem appears prominently on the trailer side. This is listed in forbidden_marks and constitutes a foreign logo/branding.",
+          "verdict": "fail"
+        },
+        "equipment_matches_reference": {
+          "reason": "Image 1 shows a white long-nose conventional sleeper tractor pulling a trailer, matching the type in image 2 (white conventional sleeper tractor-trailer). Cab style and colour align.",
+          "verdict": "pass"
+        },
+        "no_malformed_people_or_vehicles": {
+          "reason": "The truck and trailer appear physically plausible with normal wheel count, axle placement, and no merged or distorted parts visible.",
+          "verdict": "pass"
+        },
+        "people_policy_met": {
+          "reason": "People are not allowed per policy. No person or recognisable body part is visible anywhere in the image, including cab windows.",
+          "verdict": "pass"
+        },
+        "safe_zone_clear": {
+          "reason": "Image 3 shows the lower portion of the truck including wheels, tyres, chassis undercarriage, and bumper on the left side — vehicle parts clearly occupy the text band.",
+          "verdict": "fail"
+        }
+      }
+    }
+  }
+}
