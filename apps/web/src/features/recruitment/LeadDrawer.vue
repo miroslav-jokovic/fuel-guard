@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, toRef, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import { AppButton as BaseButton, AppCallout, FactList, QueryState } from "@silvicom/ui";
+import { AppButton as BaseButton, AppCallout, AppCheckbox, FactList, QueryState } from "@silvicom/ui";
 import {
   LEAD_CONTACT_METHOD_LABELS,
   LEAD_CONTACT_OUTCOME_LABELS,
@@ -9,12 +9,15 @@ import {
   LEAD_REQUIREMENT_LABELS,
   LEAD_STATUS_LABELS,
   LEAD_VERDICT_LABELS,
+  canPurgeLead,
   leadAnswerRows,
   leadChannelLabel,
   leadVerdictWhy,
   type LeadContactInput,
 } from "@silvicom/shared";
 import SlideOver from "@/components/SlideOver.vue";
+import StepUpPrompt from "@/components/StepUpPrompt.vue";
+import { useStepUpRetry } from "@/composables/useStepUpRetry";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { leadStatusTone, leadVerdictTone } from "@/lib/badges.recruiting";
 import { formatDateTime, formatPhone } from "@/lib/format";
@@ -22,7 +25,7 @@ import { useSessionStore } from "@/stores/session";
 import { useToastStore } from "@/stores/toast";
 import LeadContactForm from "./LeadContactForm.vue";
 import LeadConvertForm from "./LeadConvertForm.vue";
-import { NEW_APPLICANT, useLeadActions, type LeadHoldAnswer } from "./useLeadActions";
+import { NEW_APPLICANT, useLeadActions, type LeadHoldAnswer, type LeadPurgeAnswer } from "./useLeadActions";
 import { useLeadContactsQuery, useLeadQuery } from "./useLeads";
 
 /**
@@ -38,6 +41,8 @@ import { useLeadContactsQuery, useLeadQuery } from "./useLeads";
  * Working a lead (E4b3) needs `recruitment` manage, and a purged lead has nothing left to work, so either way the
  * footer is not there at all. Each act replaces the body (contract §6.2), the question on do-not-contact included:
  * `useConfirm`'s dialog over this one counts as a press outside it, which closes the drawer and loses the lead.
+ * Delete details is the admin's (`canPurgeLead`, derived, never a role list), and its password prompt replaces the
+ * body the same way.
  */
 const props = defineProps<{ leadId: string }>();
 const emit = defineEmits<{ close: [] }>();
@@ -65,24 +70,31 @@ const CONTACT_FORM = "lead-contact-form";
 const router = useRouter();
 const session = useSessionStore();
 const toast = useToastStore();
-const { logContact, convert, setHold } = useLeadActions(id);
+const { logContact, convert, setHold, purge } = useLeadActions(id);
+const { stepUpFor, holdForStepUp, confirmed, cancel: cancelStepUp } = useStepUpRetry();
 
 const canWork = computed(() => session.can("recruitment") && lead.value !== null && lead.value.purged_at === null);
-const working = ref<"contact" | "convert" | "hold" | null>(null);
+const canDelete = computed(() => canPurgeLead(session.role) && lead.value !== null && lead.value.purged_at === null);
+const working = ref<"contact" | "convert" | "hold" | "purge" | null>(null);
+function stopWork(): void {
+  working.value = null;
+  cancelStepUp();
+}
 // A person's other lead opens in this same drawer, and a refusal can reveal the details were deleted meanwhile.
-watch([id, canWork], () => (working.value = null));
+watch([id, canWork, canDelete], stopWork);
 
 /**
  * Set at once, not read from a mutation's `isPending`, which vue-query reports a tick later: a double press in that
  * tick would write two append-only contact rows.
  */
 const busy = ref(false);
-async function act(failed: string, run: () => Promise<void>): Promise<void> {
+async function act(failed: string, run: () => Promise<void>, retry?: () => Promise<void>): Promise<void> {
   if (busy.value) return;
   busy.value = true;
   try {
     await run();
   } catch (e) {
+    if (retry && holdForStepUp(e, retry)) return;
     toast.error(failed, e instanceof Error ? e.message : undefined);
   } finally {
     busy.value = false;
@@ -130,6 +142,27 @@ const runHold = () =>
     working.value = null;
     holdToast(answer);
   });
+
+const samePerson = ref(false);
+function startPurge(): void {
+  samePerson.value = false;
+  working.value = "purge";
+}
+function purgeToast(answer: LeadPurgeAnswer): void {
+  const skipped = answer.skipped_applicants.length;
+  if (skipped > 0) {
+    const kept = skipped === 1 ? "1 other lead became an applicant, so it stays." : `${skipped} other leads became applicants, so they stay.`;
+    toast.warning("Details deleted, with leads left", `${kept} Delete the applicant to remove it.`);
+  } else if (answer.purged.length > 1) toast.success("Details deleted", `${answer.purged.length} leads were emptied.`);
+  else if (answer.purged.length === 1) toast.success("Details deleted");
+  else toast.info("Already deleted", "This lead's details were deleted before.");
+}
+const runPurge = (): Promise<void> =>
+  act("Could not delete the details", async () => {
+    const answer = await purge.mutateAsync(samePerson.value);
+    working.value = null;
+    purgeToast(answer);
+  }, runPurge);
 </script>
 
 <template>
@@ -143,6 +176,12 @@ const runHold = () =>
       loading-text="Loading the lead…"
       @retry="leadQ.refetch()"
     />
+    <StepUpPrompt v-else-if="stepUpFor" :reason="stepUpFor" @confirmed="confirmed" @cancel="cancelStepUp" />
+    <div v-else-if="working === 'purge'" class="space-y-4 text-sm text-ink-secondary" data-test="purge-form">
+      <p>This deletes the name, phone, email and answers on this lead. It can't be undone.</p>
+      <p>The record of who contacted them stays, and any notes on it are withheld.</p>
+      <AppCheckbox v-if="lead.also.length > 0" v-model="samePerson" label="Also delete their other leads with this phone or email" data-test="same-person" />
+    </div>
     <LeadContactForm v-else-if="working === 'contact'" :form-id="CONTACT_FORM" @save="saveContact" />
     <LeadConvertForm
       v-else-if="working === 'convert'"
@@ -256,11 +295,14 @@ const runHold = () =>
       </section>
     </div>
 
-    <template v-if="canWork" #footer>
+    <template v-if="(canWork || canDelete) && !stepUpFor" #footer>
       <div v-if="working" class="flex items-center justify-end gap-3">
-        <BaseButton :disabled="busy" @click="working = null">Cancel</BaseButton>
+        <BaseButton :disabled="busy" @click="stopWork">Cancel</BaseButton>
         <BaseButton v-if="working === 'contact'" variant="primary" type="submit" :form="CONTACT_FORM" :disabled="busy" data-test="save-contact">
           {{ busy ? "Saving…" : "Save contact" }}
+        </BaseButton>
+        <BaseButton v-else-if="working === 'purge'" variant="danger" :disabled="busy" data-test="save-purge" @click="runPurge">
+          {{ busy ? "Deleting…" : "Delete details" }}
         </BaseButton>
         <BaseButton v-else-if="working === 'hold'" variant="primary" :disabled="busy" data-test="save-hold" @click="runHold">
           {{ busy ? "Saving…" : holding ? "Mark do not contact" : "Lift do not contact" }}
@@ -270,9 +312,12 @@ const runHold = () =>
         </BaseButton>
       </div>
       <div v-else class="flex flex-wrap items-center justify-end gap-3">
-        <BaseButton :disabled="busy" data-test="hold" @click="working = 'hold'">{{ lead?.do_not_contact ? "Lift do not contact" : "Do not contact" }}</BaseButton>
-        <BaseButton v-if="lead?.status !== 'converted'" :disabled="busy" data-test="convert" @click="startConvert">Make applicant</BaseButton>
-        <BaseButton variant="primary" :disabled="busy" data-test="log-contact" @click="working = 'contact'">Log a contact</BaseButton>
+        <BaseButton v-if="canDelete" variant="danger" :disabled="busy" data-test="purge" @click="startPurge">Delete details</BaseButton>
+        <template v-if="canWork">
+          <BaseButton :disabled="busy" data-test="hold" @click="working = 'hold'">{{ lead?.do_not_contact ? "Lift do not contact" : "Do not contact" }}</BaseButton>
+          <BaseButton v-if="lead?.status !== 'converted'" :disabled="busy" data-test="convert" @click="startConvert">Make applicant</BaseButton>
+          <BaseButton variant="primary" :disabled="busy" data-test="log-contact" @click="working = 'contact'">Log a contact</BaseButton>
+        </template>
       </div>
     </template>
   </SlideOver>

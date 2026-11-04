@@ -19,6 +19,13 @@ export const OPENING_EQUIPMENT = ["dry_van", "reefer", "flatbed", "tanker", "int
 export const OPENING_STATUSES = ["open", "paused", "filled", "closed"] as const;
 export type OpeningStatus = (typeof OPENING_STATUSES)[number];
 
+/** What a picker reads from `GET /recruitment/openings`: `current` is the newest version, null until one is saved. */
+export interface OpeningListItem {
+  id: string;
+  status: OpeningStatus;
+  current: { title: string } | null;
+}
+
 export const openingFactsSchema = z
   .object({
     pay: z

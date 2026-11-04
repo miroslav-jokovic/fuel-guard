@@ -1,7 +1,8 @@
 import type { Ref } from "vue";
 import { useMutation, useQueryClient } from "@tanstack/vue-query";
-import type { LeadContactInput } from "@silvicom/shared";
+import type { LeadContactInput, ManualLead } from "@silvicom/shared";
 import { apiFetch } from "@/lib/api";
+import { apiRefusal } from "@/composables/useStepUpRetry";
 
 /** The convert form's answer for "a new record", beside the driver ids it can also answer. */
 export const NEW_APPLICANT = "new";
@@ -15,9 +16,15 @@ export interface LeadConversion {
 export type LeadHoldAnswer =
   | { kind: "held"; newly: boolean; applicant_id: string | null }
   | { kind: "lifted"; lifted: number; stop_remains: boolean };
+export interface LeadPurgeAnswer {
+  purged: string[];
+  already: string[];
+  /** Other leads of the same person that became applicants, left in place. */
+  skipped_applicants: string[];
+}
 
 /**
- * Working a lead (E4b3): log a contact, make them an applicant, hold or lift do-not-contact.
+ * Working a lead (E4b3, E4b4): log a contact, make them an applicant, hold or lift do-not-contact, delete details.
  *
  * Each refreshes on settling, not on success: a refusal such as `lead_purged` or `already_converted` means the
  * drawer was showing something out of date, and the fresh read is what takes the buttons away.
@@ -56,5 +63,28 @@ export function useLeadActions(leadId: Ref<string>) {
     onSettled: () => refresh(),
   });
 
-  return { logContact, convert, setHold };
+  // Thrown as `apiRefusal` so the drawer can tell the password prompt from a refusal (`useStepUpRetry`).
+  const purge = useMutation({
+    mutationFn: async (samePerson: boolean): Promise<LeadPurgeAnswer> => {
+      const res = await apiFetch<LeadPurgeAnswer>(path("purge"), { method: "POST", body: { same_person: samePerson } });
+      if (!res.ok || !res.data) throw apiRefusal(res.error, "Could not delete the details.");
+      return res.data;
+    },
+    onSettled: () => refresh(),
+  });
+
+  return { logContact, convert, setHold, purge };
+}
+
+/** A lead typed in by hand. It rings nobody, by design (`recruitingLeadSink.accept` is the only ringer). */
+export function useAddLead() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: ManualLead): Promise<{ lead_id: string }> => {
+      const res = await apiFetch<{ lead_id: string }>("/api/recruitment/leads", { method: "POST", body: input });
+      if (!res.ok || !res.data) throw new Error(res.error?.message ?? "Could not add the lead.");
+      return res.data;
+    },
+    onSettled: () => void qc.invalidateQueries({ queryKey: ["recruitment", "leads"] }),
+  });
 }
