@@ -194,7 +194,7 @@ describe("GET /api/ads/campaigns(/:id) — the list and the review screen's read
     const body = (await (await call("GET", `campaigns/${NEW_ID}`)).json()) as { campaign: { brief_snapshot: AdBrief; creatives: Array<{ id: string; last_error: string | null }> } };
     expect(body.campaign.brief_snapshot.ref).toBe(`${OPENING}@v2`);
     expect(body.campaign.creatives.map((c) => c.id)).toEqual(["c1", "c2"]);
-    expect(body.campaign.creatives[1].last_error).toBe("visual: a foreign logo");
+    expect(body.campaign.creatives[1]?.last_error).toBe("visual: a foreign logo");
     expectOrgScoped(db, ORG);
   });
 

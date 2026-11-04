@@ -1401,3 +1401,8 @@ blocking step in §3 above.
     (status, newest version, org scope ×4, source lookup, settings, connection, kit ×2, settings version, duplicate ×2,
     kit written, the manage gate, creative filter and order, the brief's eight rules, `promiseTermOf` ×2) — 27 of 27
     killed.
+  - **Found by the gates: the route-gate ledger could not see a router that takes arguments.**
+    `routeGateLedger.test.ts` found mounts with a regex requiring an empty `xRouter()`, so `adsRouter({ briefSourcesFor })`
+    made every `/api/ads` route vanish (its three admin-only keys turned up as "guarding no route"), and
+    `/api/drug-alcohol` (`drugAlcoholRouter({ … })`, on main since DAP) had been invisible the same way. The
+    regex now accepts arguments; both mounts are walked, and every route under them is gated.
