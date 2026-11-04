@@ -66,6 +66,24 @@ export type RenderOutcome =
 
 export const renderKey = (creativeId: string | null, attempt: number, model: string) => `render:${creativeId ?? "none"}:${attempt}:${model}`.slice(0, 200);
 
+/**
+ * Where a render stands, READ-ONLY (C5b2): what compose asks before queueing an `ads_render` job. A finished
+ * row answers as a replay; a `started` row is `pending`; no row is `absent` — unless the render could never
+ * start, which `renderStep` refuses WITHOUT writing a row (a model nobody priced, the renderer switched off).
+ * Those two are answered here from the same `creditGate`, so a caller that only queues jobs and reads rows
+ * cannot wait forever for a row that will never be written. The budget is not judged here: the job's own
+ * gate does that and records its answer as a row.
+ */
+export async function renderStatus(admin: SupabaseClient, prices: Readonly<Record<string, number>>, input: RenderInput): Promise<RenderOutcome | { kind: "absent" }> {
+  const prior = await generationByKey(admin, input.orgId, renderKey(input.creativeId, input.attempt, input.model));
+  if (prior && prior.status !== "started") return replayed(prior);
+  if (prior) return { kind: "pending", generationId: prior.id, retryAfterSeconds: null, why: "rendering" };
+  const { settings } = await settingsInForce(admin, input.orgId);
+  const gate = creditGate(settings, "renderer", 0, prices[input.model] ?? null);
+  if (!gate.open && (gate.refusal === "agent_off" || gate.refusal === "price_unknown")) return { kind: "refused", refusal: gate.refusal };
+  return { kind: "absent" };
+}
+
 export async function renderStep(deps: RenderDeps, input: RenderInput): Promise<RenderOutcome> {
   const { admin, orgId } = { admin: deps.admin, orgId: input.orgId };
   const key = renderKey(input.creativeId, input.attempt, input.model);

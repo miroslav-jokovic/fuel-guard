@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { stepCampaign, type CampaignActor, type CampaignEvent, type CampaignState } from "@silvicom/shared";
+import { stepCampaign, type CampaignActor, type CampaignEvent, type CampaignState, type PresetDraw } from "@silvicom/shared";
 import { completeAction, recordFinished, startAction, type ActionRow } from "../actions/actionLedger.js";
 
 /**
@@ -181,3 +181,18 @@ export async function settleOpenTransitions(admin: SupabaseClient, campaign: Cam
 const sameInstant = (a: string, b: string): boolean => Date.parse(a) === Date.parse(b);
 
 const clip = (s: string | null): string | null => (s === null ? null : s.length > 1000 ? `${s.slice(0, 997)}…` : s);
+
+/**
+ * The campaign's preset draw (D-AD11; C5b2's compose), stored once: written only while `preset_draw` is null,
+ * so of two compose runs racing, the first draw stands and the second reads it back. Here because this file
+ * is `ads_campaigns`' one writer; it is not a transition and moves no state.
+ */
+export async function storePresetDraw(admin: SupabaseClient, c: CampaignRow, draw: PresetDraw): Promise<PresetDraw> {
+  const { data, error } = await admin.from("ads_campaigns").update({ preset_draw: draw }).eq("org_id", c.org_id).eq("id", c.id).is("preset_draw", null).select("preset_draw");
+  if (error) throw new Error(`ads_campaigns ${c.id}: ${error.message}`);
+  if ((data ?? []).length > 0) return draw;
+  // Another run stored its draw first; that one is the campaign's.
+  const { data: row, error: e2 } = await admin.from("ads_campaigns").select("preset_draw").eq("org_id", c.org_id).eq("id", c.id).single();
+  if (e2) throw new Error(`ads_campaigns ${c.id}: ${e2.message}`);
+  return (row as { preset_draw: PresetDraw }).preset_draw;
+}
