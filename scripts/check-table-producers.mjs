@@ -97,6 +97,7 @@ const WAIVERS = new Map([
   // ads_campaigns, ads_platform_connections and ads_spend_hourly left with them: guard/budgetGuard.ts READS
   // all three (the campaign, its platform, the month's spend), and a read is producer evidence here.
   // Their writers are still owed, each named in the workflow: A6 creates campaigns, B1 connects, B5 pulls spend.
+  ["org_role_permissions", "HIRING-WORKFLOW-AUDIT-2026-10-31 §15.1 IDP2 — modules/org writes it behind Settings → Permissions' named permissions (schema-only IDP1, 0564)"],
   ["ads_creatives", "ADS-AGENT-BUILD-WORKFLOW.md C2–C5 — the copywriter, renderer and checker write each creative (schema-only A2, 0537)"],
   ["ads_outcome_events", "ADS-AGENT-BUILD-WORKFLOW.md B6 — the outcome feed queues a stage event from the LeadSink (schema-only A2, 0537)"],
   // orientation_videos (0539, HIRING-WORKFLOW-AUDIT-2026-10-31 HW8a) left on 2026-11-01 in HW8a's second PR:

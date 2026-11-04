@@ -80,6 +80,7 @@
 "org_disclosures",
 "org_modules",
 "org_role_surface_access",
+"org_role_permissions",
 "org_section_access",
 "org_usage_month",
 "orientation_video_attestations",

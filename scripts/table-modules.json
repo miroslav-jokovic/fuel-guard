@@ -2323,6 +2323,17 @@
         "why": "no rows in production 2026-09-21; bounded by the number of orgs."
       }
     },
+    "org_role_permissions": {
+      "module": "org",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "unmeasured",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "new in 0564 (2026-11-04); one row per role a carrier switches away from a named permission's default \u2014 a handful per carrier, deleted only with the organization."
+      }
+    },
     "org_section_access": {
       "module": "org",
       "layer": "core",
