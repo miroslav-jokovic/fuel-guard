@@ -809,6 +809,14 @@ rate, and Higgsfield credits per approved creative.
   **Recommendation: (c), with (a) until then**, because a too-early pause costs a relaunch while a missing
   enforcer costs money, and L4 is when we can see what Meta's evaluator accepts. *Fallback:* (a).
 - **Q-AD26 · How the monitor learns an opening is filled** (us, found building B5b, 2026-11-03). The
+  `pause_when_filled` setting is the monitor's alone (`adsRulesSpec.ts` header), but the headcount is
+  recruiting's, and D-AD17 lets ads reach recruiting only through the two shared interfaces. Neither carries
+  "this opening is filled". Candidates: (a) a third interface, `BriefStatus` (`isOpen(brief_ref)`), owned by
+  recruiting, read by the monitor each run; (b) recruiting pushes an event when an opening closes, and the
+  composition root turns it into a `pause` on that brief's campaigns; (c) leave it to a person. **Recommendation:
+  (b)**, because closing an opening is already a recruiting write (`/openings/:id/status`) and a push pauses at
+  once rather than within the hour. It is not built in B5b: a seam is a design decision, not a detour.
+  *Fallback:* (c), and the brief (F1) lists live campaigns on closed openings.
 - **Q-AD27 · What the visual check counts as a foreign logo and a matching truck** (us, found building C5a,
   2026-11-04). D-AD12's checklist says "no foreign logos" and "equipment matches reference type"; neither says
   what a vehicle maker's grille badge is, nor whether the make counts. Measured with `pnpm ads:eval checker`:
@@ -820,14 +828,22 @@ rate, and Higgsfield credits per approved creative.
   render to keep the photo's make (image-to-image, D-AD9, not built until compose). **Recommendation: keep
   (a)+(b)** until image-to-image lands, then re-measure (c) on real renders from our photos; a person approves
   every creative meanwhile. Labelled at `workers/checker/checker.ts` and in `prompt.v1.md`.
-  `pause_when_filled` setting is the monitor's alone (`adsRulesSpec.ts` header), but the headcount is
-  recruiting's, and D-AD17 lets ads reach recruiting only through the two shared interfaces. Neither carries
-  "this opening is filled". Candidates: (a) a third interface, `BriefStatus` (`isOpen(brief_ref)`), owned by
-  recruiting, read by the monitor each run; (b) recruiting pushes an event when an opening closes, and the
-  composition root turns it into a `pause` on that brief's campaigns; (c) leave it to a person. **Recommendation:
-  (b)**, because closing an opening is already a recruiting write (`/openings/:id/status`) and a push pauses at
-  once rather than within the hour. It is not built in B5b: a seam is a design decision, not a detour.
-  *Fallback:* (c), and the brief (F1) lists live campaigns on closed openings.
+- **Q-AD28 · Which brand kit a campaign uses** (us, found starting Track S's campaign doors, 2026-11-04).
+  0537 lets an org keep several kits (`ad_brand_kits`, one row per kit, each versioned), and each creative
+  records the kit VERSION it was made with (`ads_creatives.brand_kit_version_id`), but the campaign says
+  nothing about which kit. Compose (C5b2) therefore refuses with more than one kit ("which one this campaign
+  uses is not chosen") — correctly, since every alternative is a guess. Candidates: (a) a column
+  `ads_campaigns.brand_kit_id`, chosen by the person who creates the campaign (the create door asks for it;
+  the screen preselects the only kit when there is one), read by compose, which then uses that kit's
+  newest version for each creative it makes; (b) always the newest kit, which turns "the last kit anybody
+  saved" into a silent campaign-wide choice and makes "why is this ad red?" unanswerable from the row;
+  (c) one kit per org by rule, which forbids a second brand (a carrier with two DBAs, or D-AD17's second
+  brief source) to dodge a column. **Recommendation: (a)**, nullable (0537 has no writer, so no row exists
+  anywhere), with a composite FK to `ad_brand_kits (org_id, id)` like every other ads reference. The KIT,
+  not the version: a person who corrects the phone number in a kit should not have to rebuild the campaign,
+  and the version a creative used stays on the creative. By the deploy-window rule the column merges alone
+  (S1a) and its first reader — the create door — in the next merge (S1b); compose reading it is Track W's
+  file and follows S1b. **Built as (a)** in S1a; the owner may still overrule before S1b.
 
 ---
 

@@ -1323,3 +1323,22 @@ blocking step in §3 above.
   - Mutation: 19 mutants (seed, re-draw, live exclusion, exhausted, kit count ×2, batch size, stint identity ×2,
     supersedes, the insert race, pending, the ≥ 1-ready verdict, the regeneration setting, the draw's guard, a
     refusal queued, the job's dedup key, `renderStatus`'s refusals, the null model) — 19 of 19 killed.
+- **2026-11-04, S1a — a campaign names its brand kit (Track S, migration only).** Track S's first step is the
+  campaign doors; nothing writes an `ads_campaigns` row yet. Compose refuses an org with more than one kit
+  ("which one this campaign uses is not chosen"), so which kit a campaign uses had to be decided before the
+  create door could be: plan §9 **Q-AD28**, candidates (a) a column, (b) always the newest kit, (c) one kit per
+  org, **recommendation (a)**, built as (a).
+  - `0566_ads_campaign_brand_kit.sql`: `ads_campaigns.brand_kit_id`, nullable, composite FK to
+    `ad_brand_kits (org_id, id)` `on delete restrict`, partial index. The KIT, not a version: a kit's next
+    version (a corrected phone) reaches the campaign's next creative; the version a creative used stays on
+    the creative (`brand_kit_version_id`).
+  - **Deploy window:** a new column on an existing table, so its first reader (S1b's create door and
+    campaign read, in `transitions.ts` and `routes/`) is the next merge. Compose reading it is Track W's file
+    (`compose/composeCampaign.ts`) and follows S1b.
+  - Also: Q-AD27 had been inserted in the middle of Q-AD26's paragraph (C5a); Q-AD26 is whole again.
+  - Matrix `ads-foundation.test.mjs` +4 (own kit accepted, another carrier's refused 23503, a named kit
+    cannot be deleted 23001, an unnamed one can). Mutation: no FK (2 fail), `set null` (1 fail), id-only FK
+    (chain fails, no RESULT) — 3 of 3 killed.
+  - **Found, not built here:** recruiting's `AdBriefSource` (D-AD17) is declared in `ads/contracts.ts` and
+    has no implementation. The create door needs it; S1b adds it as a read-only file in
+    `modules/recruiting/leads/`, handed to the ads router by the composition root as `LeadSink` is.
