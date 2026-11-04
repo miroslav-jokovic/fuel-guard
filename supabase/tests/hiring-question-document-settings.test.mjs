@@ -117,9 +117,11 @@ ok("…and is not stamped", (await stamp(X)).r === null);
 // ── the function's door ─────────────────────────────────────────────────────────────────────────
 const fns = (await db.query(`select pg_get_function_identity_arguments(p.oid) a from pg_proc p join pg_namespace n on n.oid = p.pronamespace
   where n.nspname = 'public' and p.proname = 'send_application_invitation'`)).rows;
-ok("one send_application_invitation, the 5-argument one (no ambiguous overload)", fns.length === 1 && /text\[\]/.test(fns[0].a));
+// 0567 (§15.3 CQ1) widened it again with a defaulted sixth argument; still exactly one, still taking the set.
+ok("one send_application_invitation, taking the required set (no ambiguous overload)", fns.length === 1 && /text\[\]/.test(fns[0].a));
 for (const role of ["anon", "authenticated"]) {
-  const can = (await one(`select has_function_privilege($1, 'public.send_application_invitation(uuid, uuid, text, int, text[])', 'execute') c`, [role])).c;
+  const can = (await one(`select bool_or(has_function_privilege($1::name, p.oid, 'execute')) c from pg_proc p
+    join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname = 'send_application_invitation'`, [role])).c;
   ok(`${role} may not execute send_application_invitation`, can === false);
 }
 

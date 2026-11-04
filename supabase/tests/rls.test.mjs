@@ -2354,6 +2354,10 @@ async function main() {
         `select '${org}', i.driver_id, i.id, v.id from i, v`,
       // 0545 (§10 CE1): a record must name a step of this carrier and a driver of this carrier (CS022/CS024)
       // — a chain the seeder, which makes every parent independently, cannot build.
+      // 0567 (§15.3 CQ1): `kind` is one of six and a choice question needs its choices — a CHECK the seeder's
+      // generic values cannot meet.
+      recruiting_carrier_questions: (org) =>
+        `insert into recruiting_carrier_questions (org_id, wording, kind) values ('${org}', 'rls', 'text')`,
       hiring_carrier_steps: (org) =>
         `insert into hiring_carrier_steps (org_id, label, after_step) values ('${org}', 'rls', 'road_test')`,
       hiring_carrier_step_records: (org) =>

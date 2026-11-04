@@ -1388,6 +1388,17 @@
         "why": "new in 0553 (2026-11-03); one row per lead from every channel, bounded by ad spend and job-board volume; operational and prunable (D-LS7) once Q-REC7 sets the window, never while converted."
       }
     },
+    "recruiting_carrier_questions": {
+      "module": "recruiting",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "unmeasured",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "new in 0567 (2026-11-04); the carrier's own application questions, at most 20 live per org; retired, never deleted."
+      }
+    },
     "recruiting_contacts": {
       "module": "recruiting",
       "layer": "core",

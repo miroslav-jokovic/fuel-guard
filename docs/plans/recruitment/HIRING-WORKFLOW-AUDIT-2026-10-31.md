@@ -1286,3 +1286,13 @@ at submit, the review, the office drawer and the filed PDF.
   (signed)". **Departure:** the walk's link names no page count — a number in the web copy would restate the
   renderer's. 21/21 mutants killed. **Next:** once DAP2 has been in production a release, a migration drops the
   13-argument `record_packet_mark` (D-DAP4); Q-DAP3 still the owner's.
+- **2026-11-04** — **CQ1, migration `0567_recruiting_carrier_questions`** (schema only; CQ2 is its reader) — numbered
+  0567, not 0566: the ads chat merged `0566_ads_campaign_brand_kit` minutes after 0566 was checked free; renumbered by name.
+  `recruiting_carrier_questions`: wording ≤300, hint ≤300, kind one of the questionnaire's own six (`QUESTION_KINDS`
+  less `table`, so CQ2 reuses the questionnaire's fields, schema and PDF page), choices only on `select` (2..20 of 1..80,
+  checked by an immutable helper), `required`, `position`. Never deleted (CQ010); wording, kind and choices frozen
+  (CQ011) — hint, required and position stay editable; retiring one-way (CQ012); ≤20 live per carrier under an
+  advisory lock (CQ013). `application_invitations.carrier_questions jsonb` (an array of ≤20), stamped by
+  `send_application_invitation`'s new defaulted sixth argument on the first Send only; the 5-argument call still
+  resolves and stamps nothing. 29-case matrix; 24/25 mutants killed — the survivor (dropping the REVOKE) is
+  equivalent, because 0412 already closes new functions to clients. Producer waiver until CQ2.

@@ -114,6 +114,10 @@ const WAIVERS = new Map([
   // schema-only first PR only.
   // Ads D0 (0553)'s four profile and opening tables left on 2026-11-03 in D1a (0554): `save_hiring_profile_version`
   // and `save_opening_version` write them. Their API caller follows in D1c.
+  // recruiting_carrier_questions (0567, HIRING-WORKFLOW-AUDIT-2026-10-31 §15.3 CQ1) ships schema-only: a migration
+  // and its first reader never share a merge. It leaves in CQ2, whose Settings → Recruiting "Your own questions"
+  // list writes it (recruiting/carrierQuestions.ts).
+  ["recruiting_carrier_questions", "HIRING-WORKFLOW-AUDIT-2026-10-31 §15.3 CQ2 — Settings → Recruiting's question list writes it (schema-only, 0567)"],
 ]);
 
 const files = readdirSync(MIGRATIONS).filter((f) => f.endsWith(".sql")).sort();
