@@ -47,3 +47,22 @@ export function aiGate(settings: AdsSettings, agent: AdAiAgent, usedTokens: numb
   if (left <= 0) return { open: false, refusal: "budget_spent" };
   return { open: true, tokens_left: left };
 }
+
+// ── Higgsfield credits (C3; D-AD13) ─────────────────────────────────────────────────────────────
+export type CreditGateRefusal = AiGateRefusal | "price_unknown";
+
+/**
+ * May `agent` submit a render that costs `priceCredits` now? The anthropic gate's rules (switch, then a
+ * null budget refuses) with one difference: the test is "used + price ≤ budget", not "used < budget".
+ * A render's price is known before it is asked (a token count is not), and `used` counts renders still
+ * in flight at their price (`higgsfieldCreditsThisMonth`), so the month cannot overshoot at all.
+ * A null price is a model nobody has priced (V4) — refused, never guessed.
+ */
+export function creditGate(settings: AdsSettings, agent: AdAiAgent, usedCredits: number, priceCredits: number | null): { open: true } | { open: false; refusal: CreditGateRefusal } {
+  if (settings.budgets.agents_enabled[agent] !== true) return { open: false, refusal: "agent_off" };
+  if (priceCredits == null) return { open: false, refusal: "price_unknown" };
+  const budget = settings.budgets.higgsfield_credits_monthly;
+  if (budget == null) return { open: false, refusal: "budget_unset" };
+  if (usedCredits + priceCredits > budget) return { open: false, refusal: "budget_spent" };
+  return { open: true };
+}

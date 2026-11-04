@@ -1,0 +1,93 @@
+{
+  "name": "empty-cab-interior",
+  "about": "A text-only cab interior: no person, no photo.",
+  "input": {
+    "recipe": {
+      "name": "Fixture concept",
+      "hook_formula": "Lead with the figure.",
+      "copy_slots": [
+        {
+          "name": "hook",
+          "max_chars": 60
+        }
+      ],
+      "image_prompt_template": "The empty driver's seat of a modern truck cab at {time_of_day}, {light}",
+      "image_slots": [
+        "time_of_day",
+        "light"
+      ],
+      "starts_from": "text_only",
+      "shows_equipment": false,
+      "shows_people": false,
+      "motion_template": null,
+      "formats": [
+        "4:5"
+      ]
+    },
+    "kit": {
+      "company_name": "Fixture Carrier",
+      "phone": null,
+      "colors": [
+        {
+          "name": "primary",
+          "hex": "#0B3D2E"
+        }
+      ],
+      "logo": null,
+      "equipment_photos": [
+        {
+          "label": "white tractor, front three-quarter view, parked at the yard",
+          "asset": {
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "format": "jpeg",
+            "source_format": "jpeg",
+            "width": 4032,
+            "height": 3024,
+            "byte_size": 2400000
+          }
+        },
+        {
+          "label": "white tractor with a 53 ft dry van, side view",
+          "asset": {
+            "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "format": "jpeg",
+            "source_format": "jpeg",
+            "width": 4032,
+            "height": 3024,
+            "byte_size": 2400000
+          }
+        },
+        {
+          "label": "reefer trailer, rear view, doors closed",
+          "asset": {
+            "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+            "format": "jpeg",
+            "source_format": "jpeg",
+            "width": 4032,
+            "height": 3024,
+            "byte_size": 2400000
+          }
+        }
+      ],
+      "overlays": {},
+      "people_policy": "none",
+      "forbidden_marks": [
+        "Other Freight Co"
+      ]
+    }
+  },
+  "expect": "ready",
+  "recorded": {
+    "source": "model",
+    "prompt_version": "artDirector@1",
+    "model": "claude-sonnet-4-6",
+    "recorded_at": "2026-11-04T05:15:19.922Z",
+    "output": {
+      "slots": {
+        "time_of_day": "early morning",
+        "light": "soft warm light coming through the windshield"
+      },
+      "reference_photo": null
+    }
+  }
+}

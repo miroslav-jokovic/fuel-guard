@@ -105,6 +105,8 @@ const KIND_CAPS: Record<string, number> = {
   ads_reconcile: 1,
   // One at a time: a sweep is a few reads and a bell item per overdue lead, and the next tick is minutes away (D2c).
   lead_uncontacted: 1,
+  // One at a time: renders spend the carrier's prepaid Higgsfield credits; one in flight keeps the month exact (C3).
+  ads_render: 1,
   // sharp is CPU-bound; two at a time keeps a burst of uploads from starving the sync kinds.
   document_derive: 2,
 };

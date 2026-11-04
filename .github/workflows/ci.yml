@@ -325,6 +325,11 @@ jobs:
       - name: The ads readiness tests are in force
         run: pnpm lint:ads-readiness
 
+      # Added 2026-11-03 (ADS-AGENT-BUILD-WORKFLOW C2). The model workers' replay proves recorded answers reach
+      # their verdicts; this proves those recordings, and the eval baseline, were made under the prompt that ships.
+      - name: The ads agent fixtures match their prompts
+        run: pnpm lint:agent-fixtures
+
       # Added 2026-09-20. D-DS17 pinned MM/dd/yyyy on 2026-08-31 but stated it for a COMPONENT, so
       # only the two date pickers obeyed it and nothing could see the drift: 13 duplicate fmtDate
       # definitions, ~30 inline toLocaleDateString calls handing the ordering to the viewer's browser,

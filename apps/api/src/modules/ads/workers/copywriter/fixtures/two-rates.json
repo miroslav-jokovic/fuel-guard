@@ -1,0 +1,85 @@
+{
+  "name": "two-rates",
+  "about": "Two money facts (a starting and a top rate); each may be stated, nothing between them.",
+  "input": {
+    "brief": {
+      "source": "fixture",
+      "ref": "fixture-opening",
+      "subject": "Class A regional driver",
+      "claims": [
+        {
+          "kind": "money",
+          "cents": 60,
+          "per": "mile"
+        },
+        {
+          "kind": "money",
+          "cents": 72,
+          "per": "mile"
+        },
+        {
+          "kind": "term",
+          "term": "weekly pay"
+        }
+      ],
+      "area": {
+        "label": "Fixture Yard, IL",
+        "latitude": 41.85,
+        "longitude": -87.65,
+        "radius_miles": 75,
+        "reason": "Fixture: drivers within a day's drive of the yard."
+      },
+      "form_questions": [],
+      "landing_url": null
+    },
+    "recipe": {
+      "name": "Fixture: the number",
+      "hook_formula": "Open with the pay figure, then who the job is for.",
+      "copy_slots": [
+        {
+          "name": "hook",
+          "max_chars": 60
+        },
+        {
+          "name": "body",
+          "max_chars": 220
+        },
+        {
+          "name": "cta",
+          "max_chars": 30
+        }
+      ],
+      "image_prompt_template": "A late-model tractor at {time_of_day}, no text, no logos, no lettering",
+      "image_slots": [
+        "time_of_day"
+      ],
+      "starts_from": "equipment_photo",
+      "shows_equipment": true,
+      "shows_people": false,
+      "motion_template": null,
+      "formats": [
+        "1:1",
+        "4:5"
+      ]
+    }
+  },
+  "expect": "ready",
+  "recorded": {
+    "source": "model",
+    "prompt_version": "copywriter@1",
+    "model": "claude-sonnet-4-6",
+    "recorded_at": "2026-11-04T05:02:35.575Z",
+    "output": {
+      "en": {
+        "hook": "$0.60–$0.72/mile for Class A regional drivers.",
+        "body": "Earn between $0.60 and $0.72 per mile as a Class A regional driver. Pay comes weekly, so you always know when your money arrives. Join a team that values your time on the road.",
+        "cta": "Apply today and join us."
+      },
+      "es": {
+        "hook": "$0.60–$0.72 por milla para conductores regionales Clase A.",
+        "body": "Como conductor regional Clase A, puedes ganar entre $0.60 y $0.72 por milla con pago semanal. Tu esfuerzo tiene recompensa puntual cada semana. Únete a nuestro equipo.",
+        "cta": "Aplica hoy y únete."
+      }
+    }
+  }
+}

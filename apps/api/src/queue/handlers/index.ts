@@ -8,6 +8,7 @@ import { adsLeadFetchHandler } from "./adsLeadFetch.js";
 import { leadUncontactedHandler } from "./leadUncontacted.js";
 import { adsInsightsHandler } from "./adsInsights.js";
 import { adsReconcileHandler } from "./adsReconcile.js";
+import { adsRenderHandler } from "./adsRender.js";
 import { efsIngestHandler } from "./efsIngest.js";
 import { dataRetentionHandler } from "./retention.js";
 import { idleEngineHandler } from "./idleEngine.js";
@@ -107,4 +108,5 @@ export function registerAllHandlers(): void {
   registerHandler("ads_reconcile", adsReconcileHandler);
   // D2c: one carrier's sweep for leads nobody has contacted; dedup-keyed per org by its tick.
   registerHandler("lead_uncontacted", leadUncontactedHandler);
+  registerHandler("ads_render", adsRenderHandler);
 }

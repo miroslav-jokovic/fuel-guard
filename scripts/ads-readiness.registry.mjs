@@ -33,6 +33,9 @@ const PUBLISHER = "apps/api/src/modules/ads/platforms/meta/publisher.test.ts";
 const META_ADAPTER = "apps/api/src/modules/ads/platforms/meta/metaAdapter.test.ts";
 const META_PATH = "apps/api/src/modules/ads/orchestrator/metaPath.test.ts";
 const RULES_SYNC = "apps/api/src/modules/ads/platforms/meta/rulesSync.test.ts";
+const COPYWRITER = "apps/api/src/modules/ads/workers/copywriter/copywriter.test.ts";
+const ART_DIRECTOR = "apps/api/src/modules/ads/workers/artDirector/artDirector.test.ts";
+const RENDER = "apps/api/src/modules/ads/creative/higgsfield/render.test.ts";
 
 export const SCENARIO_DIR = "packages/ads-golden/scenarios";
 
@@ -473,14 +476,68 @@ export const READINESS = [
             "the Spanish phrasing of an unlisted promise is refused too",
           ] }],
         },
-        notBuilt("C2 copywriter prompt pack + schema + fixtures"),
+        {
+          need: "the worker, through the A4 rail, with every recorded answer replayed and every string claim-checked",
+          tests: [{ file: COPYWRITER, titles: [
+            "has model recordings under the prompt in force and planted defects beside them",
+            "planted-invented-figure",
+            "planted-invented-promise",
+            "planted-forbidden-wording",
+            "planted-spelled-spanish-number",
+            "planted-slot-over-limit",
+            "refuses the planted invented figure in both languages, naming each slot",
+            "asks once per creative and attempt, as the copywriter, under the prompt version in force",
+            "asks no model when the copywriter is switched off",
+          ] }],
+        },
       ],
-      L2: later("L2"), L3: later("L3"),
+      L2: [
+        {
+          need: "§4R's faults: a brief with no pay, a brief in Spanish, an instruction inside the brief, slots too short",
+          tests: [{ file: COPYWRITER, titles: ["no-pay-in-brief", "spanish-subject", "instruction-in-subject", "short-slots"] }],
+        },
+      ],
+      L3: [{ need: "the evaluation set (≥ 40 briefs × presets, EN + ES) at its bar; human-rated approve-without-edit baseline", gap: "C2 recorded 10 briefs (pnpm ads:eval copywriter: 9 of 10, baseline.json); the set grows to 40 and a person rates it" }],
       L4: [{ need: "not applicable to a model worker beyond the eval set", gap: "decided with C2: whether a Claude worker has an L4 at all" }],
       L5: [{ need: "canary", gap: CANARY }],
     },
   },
-  { worker: "Art director", levels: { L1: [notBuilt("C2 art director prompt pack")], L2: later("L2"), L3: later("L3"), L4: [{ need: "a render through the real Higgsfield API", gap: STAGE2 }], L5: [{ need: "canary", gap: CANARY }] } },
+  {
+    worker: "Art director",
+    levels: {
+      L1: [
+        {
+          need: "the worker, through the A4 rail, with every recorded answer replayed and nothing that becomes letters let through",
+          tests: [
+            { file: ART_DIRECTOR, titles: [
+              "has model recordings under the prompt in force and planted defects beside them",
+              "planted-digit-in-slot", "planted-lettering", "planted-foreign-photo", "planted-photo-on-text-only", "planted-quote-in-slot",
+              "hands on a prompt ending with the no-lettering clause and the kit photo it starts from",
+              "asks once per creative and attempt, as the art director, sending no brief and no company name",
+            ] },
+            { file: "packages/shared/src/ads/artDirection.test.ts", titles: [
+              "ends with it when the template already does, without saying it twice",
+              "adds it when the template does not",
+              "refuses a photo that is not this kit's, none for an equipment scene, and one for a text-only scene",
+            ] },
+          ],
+        },
+      ],
+      L2: [
+        {
+          need: "§4R's faults: a brand kit missing photos; a preset showing people while the people policy is none (and an instruction inside a photo label)",
+          tests: [{ file: ART_DIRECTOR, titles: [
+            "refuses a scene with equipment when the brand kit has no photos, asking no model",
+            "refuses a preset showing people while the people policy is none, asking no model",
+            "instruction-in-label",
+          ] }],
+        },
+      ],
+      L3: [{ need: "the evaluation set at its bar: every prompt ends with the clause and starts from a reference photo when the preset shows equipment", gap: "C2 measured 10 of 10 (pnpm ads:eval artDirector, baseline.json) on fixture presets; §4R sets no set size — it is re-run on P1–P5 once the owner approves them (Q-AD12)" }],
+      L4: [{ need: "a render through the real Higgsfield API", gap: STAGE2 }],
+      L5: [{ need: "canary", gap: CANARY }],
+    },
+  },
   {
     worker: "Checker",
     levels: {
@@ -502,7 +559,54 @@ export const READINESS = [
     },
   },
   { worker: "Analyst", levels: { L1: [notBuilt("F1 daily brief + cohort report")], L2: later("L2"), L3: later("L3"), L4: [{ need: "a brief over sandbox insights", gap: STAGE2 }], L5: [{ need: "canary", gap: CANARY }] } },
-  { worker: "Renderer / Higgsfield client", levels: { L1: [notBuilt("C3 Higgsfield client (on FakeHiggsfield, #1923) + C4 overlay renderer")], L2: later("L2"), L3: later("L3"), L4: [{ need: "a small real Higgsfield API budget", gap: STAGE2 }], L5: [{ need: "canary", gap: CANARY }] } },
+  {
+    worker: "Renderer / Higgsfield client",
+    levels: {
+      L1: [
+        {
+          need: "the Higgsfield client: key sealed, submit under the row's id, output copied to our storage, credits checked before the submit",
+          tests: [
+            { file: RENDER, titles: [
+              "copies the image into ad-assets by its hash and records our path and the price — no Higgsfield URL anywhere",
+              "refuses a model nobody has priced, with no row and no submit",
+              "refuses when the renderer is switched off, with no row and no submit",
+            ] },
+            { file: "apps/api/src/modules/ads/creative/higgsfield/higgsfieldKey.test.ts", titles: [
+              "seals to an envelope that holds neither half in plaintext, and opens back to both halves",
+              "a key sealed for another org cannot be opened here",
+            ] },
+          ],
+        },
+        {
+          need: "the overlay renderer (stills): golden images per format, text from the brief only, a too-long line refuses",
+          tests: [{ file: "apps/api/src/modules/ads/creative/overlay/overlay.test.ts", titles: [
+            "1:1 matches its golden image",
+            "4:5 matches its golden image",
+            "9:16 matches its golden image",
+            "a headline that needs a third line refuses, naming it, with no image",
+            "one word wider than the zone refuses as an overflow, never shrunk",
+            "a figure the brief does not hold is refused here too, whatever checked it before",
+            "one narrow bright stripe behind the words fails, though the rest of the zone is dark",
+            "a format with no overlay in the brand kit refuses — no colour is invented",
+          ] }],
+        },
+      ],
+      L2: [
+        {
+          need: "§4R's faults: webhook never arrives (poll recovers); output URL expired; replay with the same idempotency key; credit budget exhausted",
+          tests: [{ file: RENDER, titles: [
+            "submits once under the row's id, polls until done, and a replay after that asks Higgsfield nothing",
+            "an answer lost after Higgsfield charged is found again under the same key, not made twice",
+            "a completed render whose file is already gone fails as output_expired, charged, and stores nothing",
+            "writes budget_exhausted instead of submitting when the month cannot pay the price, counting renders still in flight",
+          ] }],
+        },
+      ],
+      L3: later("L3"),
+      L4: [{ need: "a small real Higgsfield API budget", gap: STAGE2 }],
+      L5: [{ need: "canary", gap: CANARY }],
+    },
+  },
   {
     worker: "Security (all)",
     levels: {

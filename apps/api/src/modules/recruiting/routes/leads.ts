@@ -1,6 +1,7 @@
-import { Router } from "express";
+import { Router, type Request } from "express";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
-import { leadFromManual, manualLeadSchema, recordId, type ManualLead } from "@silvicom/shared";
+import { leadContactSchema, leadFromManual, manualLeadSchema, recordId, type LeadContactInput, type ManualLead } from "@silvicom/shared";
 import { requireAuth, requireOrg, requireSection } from "../../../middleware/auth.js";
 import { apiError, asyncHandler, validateBody } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
@@ -8,6 +9,7 @@ import { getAppLocals } from "../../../lib/appLocals.js";
 import { writeAudit } from "../../../lib/audit.js";
 import { displayNameFor } from "../../../lib/memberLabels.js";
 import { ingestLead } from "../leads/leadSink.js";
+import { logLeadContact } from "../leads/leadContacts.js";
 import { liftDoNotContact, markDoNotContact, type DoNotContactOutcome } from "../leads/doNotContact.js";
 import { convertLead, isConvertError, parseQueueQuery, readLeadQueue } from "../leads/leadQueue.js";
 
@@ -20,11 +22,18 @@ import { convertLead, isConvertError, parseQueueQuery, readLeadQueue } from "../
  * route already admits `recruitment: manage` (`canWriteDriver`) for exactly this person.
  *
  * Nothing here contacts a lead (D-LS6, ruled 2026-09-25): no route sends to one, and the queue is a list a
- * person works through. `do-not-contact` records that a person asked not to be contacted, and lifts the
+ * person works through. `contacts` records a call a person already made (`leads/leadContacts.ts`).
+ * `do-not-contact` records that a person asked not to be contacted, and lifts the
  * office's own record of it (`leads/doNotContact.ts`). The audit rows name the lead and the channel, never the person's details — the audit
  * log is readable by admins outside hiring (`notes.ts`' reason).
  */
 const convertSchema = z.object({ driver_id: recordId().nullable() });
+
+/** The name a person's act is recorded under; both evidence rows that carry one need it not blank (0553). */
+async function actorName(req: Request, admin: SupabaseClient, orgId: string): Promise<string> {
+  const name = (await displayNameFor(admin, req.auth!.userId, orgId, req.auth!.role ?? null)) ?? req.auth!.email ?? "An office user";
+  return name.trim().slice(0, 200) || "An office user";
+}
 
 export function recruitmentLeadsRouter(): Router {
   const router = Router();
@@ -73,9 +82,8 @@ export function recruitmentLeadsRouter(): Router {
       const admin = getSupabaseAdmin(getAppLocals(req).env);
       const orgId = req.auth!.orgId!;
       const leadId = String(req.params.leadId ?? "");
-      const name = (await displayNameFor(admin, req.auth!.userId, orgId, req.auth!.role ?? null)) ?? req.auth!.email ?? "An office user";
       const result = await convertLead(
-        admin, orgId, { userId: req.auth!.userId, name: name.trim().slice(0, 200) || "An office user" },
+        admin, orgId, { userId: req.auth!.userId, name: await actorName(req, admin, orgId) },
         leadId, (res.locals.body as z.infer<typeof convertSchema>).driver_id,
       );
       if (isConvertError(result)) {
@@ -88,6 +96,36 @@ export function recruitmentLeadsRouter(): Router {
         meta: { driverId: result.driver_id, createdApplicant: result.created_applicant },
       });
       res.status(result.created_applicant ? 201 : 200).json(result);
+    }),
+  );
+
+  // A call, text or email a person made (D2a). Audited by lead id and the kind of contact, never the note:
+  // it may name the person, and the audit log is read outside hiring.
+  router.post(
+    "/leads/:leadId/contacts",
+    requireOrg,
+    canManage,
+    validateBody(leadContactSchema),
+    asyncHandler(async (req, res) => {
+      const leadId = String(req.params.leadId ?? "");
+      if (!recordId().safeParse(leadId).success) {
+        res.status(404).json(apiError("not_found", "Lead not found"));
+        return;
+      }
+      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      const orgId = req.auth!.orgId!;
+      const input = res.locals.body as LeadContactInput;
+      const out = await logLeadContact(admin, orgId, { userId: req.auth!.userId, name: await actorName(req, admin, orgId) }, leadId, input, new Date());
+      if (out.kind === "refused") {
+        res.status(out.status).json(apiError(out.code, out.message));
+        return;
+      }
+      await writeAudit(admin, {
+        orgId, actorId: req.auth!.userId, action: "recruitment.lead_contact_logged",
+        entity: "recruiting_leads", entityId: leadId,
+        meta: { contactId: out.contact_id, direction: input.direction, method: input.method, outcome: input.outcome, status: out.status },
+      });
+      res.status(201).json({ contact_id: out.contact_id, status: out.status });
     }),
   );
 

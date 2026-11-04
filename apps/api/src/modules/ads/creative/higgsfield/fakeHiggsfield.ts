@@ -1,4 +1,5 @@
-import { createHmac, randomUUID } from "node:crypto";
+import { createHash, createHmac, randomUUID } from "node:crypto";
+import { crc32, deflateSync } from "node:zlib";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import type { AddressInfo } from "node:net";
 
@@ -169,7 +170,7 @@ export class FakeHiggsfield {
       if (this.fileExpired(fileMatch[1]!)) return send(res, 404, { detail: "Not Found" }, corr);
       res.statusCode = 200;
       res.setHeader("content-type", fileMatch[2] === "mp4" ? "video/mp4" : "image/png");
-      return void res.end(Buffer.from(`fake-${fileMatch[1]}`));
+      return void res.end(fileMatch[2] === "png" ? pngFor(fileMatch[1]!) : Buffer.from(`fake-${fileMatch[1]}`));
     }
     if (req.headers.authorization !== `Key ${this.opts.keyId}:${this.opts.keySecret}`) return send(res, 401, { detail: "Invalid credentials" }, corr);
 
@@ -293,4 +294,29 @@ async function readBody(req: IncomingMessage): Promise<string> {
   const chunks: Buffer[] = [];
   for await (const chunk of req) chunks.push(chunk as Buffer);
   return Buffer.concat(chunks).toString("utf8");
+}
+
+/**
+ * A real 2×2 PNG whose colour is derived from the request id (C3): the client copies the file into our
+ * storage and decodes it, so the fake must serve an image, and two renders must not share one sha256.
+ */
+function pngFor(requestId: string): Buffer {
+  const [r, g, b] = createHash("sha256").update(requestId).digest();
+  const chunk = (type: string, data: Buffer) => {
+    const body = Buffer.concat([Buffer.from(type, "latin1"), data]);
+    const out = Buffer.alloc(body.length + 8);
+    out.writeUInt32BE(data.length, 0);
+    body.copy(out, 4);
+    out.writeUInt32BE(crc32(body), body.length + 4);
+    return out;
+  };
+  const ihdr = Buffer.alloc(13);
+  ihdr.writeUInt32BE(2, 0);
+  ihdr.writeUInt32BE(2, 4);
+  ihdr.set([8, 2, 0, 0, 0], 8);
+  const row = Buffer.from([0, r!, g!, b!, r!, g!, b!]);
+  return Buffer.concat([
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    chunk("IHDR", ihdr), chunk("IDAT", deflateSync(Buffer.concat([row, row]))), chunk("IEND", Buffer.alloc(0)),
+  ]);
 }

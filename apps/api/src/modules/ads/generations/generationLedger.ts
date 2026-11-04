@@ -72,13 +72,18 @@ export interface GenerationCompletion {
   cost_units: number | null;
   error_code: string | null;
   finished_at: string;
+  /** What `cost_units` counts: Claude bills tokens (the default), Higgsfield credits (C3). */
+  cost_unit?: "tokens" | "credits";
+  /** C3: the stored asset — our copy, never the provider's URL. */
+  asset_sha256?: string | null;
+  asset_path?: string | null;
 }
 
 /** The one move AX011 allows. Filtered on `status = started` so a second completion matches nothing. */
 export async function completeGeneration(admin: SupabaseClient, orgId: string, id: string, c: GenerationCompletion): Promise<void> {
   const { error } = await admin
     .from("ad_generations")
-    .update({ ...c, cost_unit: c.cost_units == null ? null : "tokens" })
+    .update({ ...c, cost_unit: c.cost_units == null ? null : (c.cost_unit ?? "tokens") })
     .eq("org_id", orgId)
     .eq("id", id)
     .eq("status", "started");
@@ -116,6 +121,33 @@ export async function anthropicTokensThisMonth(admin: SupabaseClient, orgId: str
     if (error) throw new Error(`ad_generations month: ${error.message}`);
     const rows = (data ?? []) as Array<{ id: string; cost_units: number | string | null }>;
     for (const r of rows) total += Number(r.cost_units ?? 0);
+    if (rows.length < TOKEN_FOLD_PAGE) return total;
+    after = rows[rows.length - 1]!.id;
+  }
+}
+
+/**
+ * Higgsfield credits the ads module has committed in the carrier's month (C3, D-AD13): a finished render at
+ * what it cost (0 for `failed`/`nsfw` — Higgsfield does not charge them), and a render still `started` at the
+ * price recorded on its row when it was submitted. Counting the in-flight ones is what lets `creditGate`
+ * promise the month never overshoots. Same keyset fold as the tokens' above.
+ */
+export async function higgsfieldCreditsThisMonth(admin: SupabaseClient, orgId: string, now: Date): Promise<number> {
+  const month = monthContext(now);
+  let total = 0;
+  for (let after: string | null = null; ; ) {
+    let q = admin
+      .from("ad_generations")
+      .select("id, status, cost_units, price:request->>price_credits")
+      .eq("org_id", orgId)
+      .eq("provider", "higgsfield")
+      .gte("started_at", month.start)
+      .lt("started_at", month.end);
+    if (after !== null) q = q.gt("id", after);
+    const { data, error } = await q.order("id", { ascending: true }).limit(TOKEN_FOLD_PAGE);
+    if (error) throw new Error(`ad_generations month: ${error.message}`);
+    const rows = (data ?? []) as Array<{ id: string; status: string; cost_units: number | string | null; price: string | null }>;
+    for (const r of rows) total += Number((r.status === "started" ? r.price : r.cost_units) ?? 0);
     if (rows.length < TOKEN_FOLD_PAGE) return total;
     after = rows[rows.length - 1]!.id;
   }
