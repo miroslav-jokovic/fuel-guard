@@ -1,6 +1,4 @@
 import { describe, expect, it } from "vitest";
-import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
 import {
   answersToStamp,
   carrierAnswerIssues,
@@ -31,11 +29,8 @@ describe("the kinds a carrier may ask", () => {
     expect(CARRIER_QUESTION_KINDS).toEqual(["text", "longtext", "boolean", "select", "date", "number"]);
   });
 
-  it("are exactly the six 0567 admits", () => {
-    const sql = readFileSync(fileURLToPath(new URL("../../../supabase/migrations/0567_recruiting_carrier_questions.sql", import.meta.url)), "utf8");
-    const listed = /kind in \(([^)]*)\)/.exec(sql)![1]!.split(",").map((k) => k.trim().replace(/'/g, ""));
-    expect(listed).toEqual([...CARRIER_QUESTION_KINDS]);
-  });
+  // Compared with 0567's `kind in (…)` in `apps/api/src/modules/recruiting/carrierQuestions.test.ts`: this
+  // package has no Node types to read a migration with.
 });
 
 describe("a new question", () => {
