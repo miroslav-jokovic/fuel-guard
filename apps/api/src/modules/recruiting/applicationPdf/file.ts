@@ -8,6 +8,7 @@ import {
 import { renderApplicationPdf, type ApplicationPdfInput } from "./render.js";
 import { packetMarksFor, renderPacketDocument } from "./packetDocument.js";
 import { authorizationsFor, carrierOf, esignConsentFor, signatureMarkBytes } from "./sources.js";
+import { fileDrugAlcoholPolicy } from "./drugAlcoholPolicy/drugAlcoholPolicyCopy.js";
 
 /**
  * Rendering the application and filing it (A6).
@@ -213,7 +214,10 @@ export async function ensureDriverFiledApplication(
       .eq("id", existingId)
       .maybeSingle();
     const filed = doc as { id: string; storage_path: string } | null;
-    if (filed) return { documentId: filed.id, storagePath: filed.storage_path, rendered: false };
+    if (filed) {
+      await fileThePolicyToo(admin, application);
+      return { documentId: filed.id, storagePath: filed.storage_path, rendered: false };
+    }
   }
 
   const pdf = await renderFiledDocument(admin, application);
@@ -246,6 +250,34 @@ export async function ensureDriverFiledApplication(
     p_application: applicationId,
     p_document: documentId,
   });
+  await fileThePolicyToo(admin, application);
 
   return { documentId, storagePath: path, rendered: true };
+}
+
+/**
+ * The signed drug-and-alcohol policy files with the packet (DAP2, D-DAP3), on both of the paths above:
+ * the filing that rendered the packet, and every later call that finds it filed — so a policy whose
+ * filing failed heals the next time anybody asks for the application, as the packet itself does.
+ *
+ * ⚠ Best effort, for D-APP9's reason: the receipt is the p28 row, committed before this runs, and the
+ * policy is regenerable from it. A failure costs a derivative, never the application, so it is logged
+ * and swallowed. `no_receipt` (a §391.21 summary) and `receipt_before_0565` (D-DAP5) are not failures and
+ * say nothing.
+ */
+async function fileThePolicyToo(admin: SupabaseClient, application: ApplicationRow): Promise<void> {
+  try {
+    const result = await fileDrugAlcoholPolicy(admin, application);
+    // ⚠ `signed_under_other_text` IS said: the policy's text changed between the driver's p28 and this
+    // filing (a release in between), so the office holds a receipt with no policy beside it — §15.2's
+    // open question for whoever reads the log, never something to paper over by printing today's text.
+    if (!result.filed && (result.reason === "storage_failed" || result.reason === "signed_under_other_text")) {
+      console.warn("[drug-alcohol-policy] not filed", { application: application.id, reason: result.reason });
+    }
+  } catch (e) {
+    console.warn("[drug-alcohol-policy] not filed", {
+      application: application.id,
+      error: e instanceof Error ? e.message : String(e),
+    });
+  }
 }

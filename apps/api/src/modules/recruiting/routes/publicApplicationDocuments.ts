@@ -7,6 +7,7 @@ import { applicantReadingCopy } from "../applicationReadingCopy.js";
 import { applicantPermissionInstrument } from "../applicationPermissionInstrument.js";
 import { applicantRoadTestCertificate } from "../applicationRoadTestCopy.js";
 import { isIntakeError } from "../applicationIntake.js";
+import { applicantDrugAlcoholPolicyPdf } from "../applicantDrugAlcoholPolicy.js";
 
 /**
  * What an application link will hand back as a DOCUMENT — split out of `publicApplication.ts` ahead
@@ -146,6 +147,29 @@ export function publicApplicationDocumentsRouter(): Router {
       }
       res.setHeader("content-type", "application/pdf");
       res.setHeader("content-disposition", `inline; filename="${result.filename}"`);
+      res.setHeader("cache-control", "no-store, private");
+      res.send(result.pdf);
+    }),
+  );
+
+  /**
+   * The carrier's drug-and-alcohol policy, given to the driver at page 28 (DAP2, D-DAP2). Bytes, for
+   * `/:token/packet`'s reason; the filed copy once the packet is filed. On the ceremony's per-link bucket
+   * (`applicationLimits.ts`). Only a dead link refuses: the policy is the carrier's handout, owed at
+   * any point on a live link (`applicantDrugAlcoholPolicy.ts`).
+   */
+  router.get(
+    "/:token/drug-alcohol-policy.pdf",
+    asyncHandler(async (req, res) => {
+      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      const result = await applicantDrugAlcoholPolicyPdf(admin, String(req.params.token ?? ""), new Date());
+      if (isIntakeError(result)) {
+        res.status(result.code === "invalid_link" ? 404 : 409).json(apiError(result.code, result.message));
+        return;
+      }
+      res.setHeader("content-type", "application/pdf");
+      res.setHeader("content-disposition", `inline; filename="${result.filename}"`);
+      // The receipt lands on it at page 28, so a cached copy would show the line blank after signing.
       res.setHeader("cache-control", "no-store, private");
       res.send(result.pdf);
     }),

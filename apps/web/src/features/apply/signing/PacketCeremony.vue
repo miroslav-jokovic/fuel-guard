@@ -194,6 +194,18 @@ function changeHere(): void {
  */
 const packetSrc = computed(() => `/api/public/application/${encodeURIComponent(props.token)}/packet`);
 
+/**
+ * Page 28 GIVES the driver the carrier's drug and alcohol policy (§15.2, D-DAP2): its placement says
+ * `gives`, the same fact the API stamps the policy's version from, so Sign stays off there until the
+ * policy has been opened — §382.601(a)'s "provide" before (d)'s "received a copy".
+ *
+ * ⚠ Client state, and that is the whole of it: the API cannot know whether a tab was read, only that the
+ * text it stamps is the text this link serves (0565, DR039). A driver who reloads opens it again.
+ */
+const givesPolicy = computed(() => ceremony.current.value?.gives === "drug_alcohol_policy");
+const policyOpened = ref(false);
+const policySrc = computed(() => `/api/public/application/${encodeURIComponent(props.token)}/drug-alcohol-policy.pdf`);
+
 async function signCurrent(): Promise<void> {
   await ceremony.sign();
   if (ceremony.complete.value) emit("done", ceremony.adoptedName.value.trim());
@@ -224,6 +236,7 @@ async function signCurrent(): Promise<void> {
     :tag-label="ceremony.current.value.mark === 'initials' ? copy.initialAction : copy.signAction"
     :working-label="copy.working"
     :working="ceremony.working.value"
+    :sign-blocked="givesPolicy && !policyOpened"
     @sign="signCurrent"
   >
     <template #header>
@@ -241,6 +254,19 @@ async function signCurrent(): Promise<void> {
     <p class="rounded-surface bg-surface-muted p-4 text-base text-ink">
       {{ ceremony.current.value.what }}
     </p>
+
+    <!-- Page 28: the policy this place receipts, opened before Sign (D-DAP2). A new tab, so the walk
+         keeps its place. -->
+    <div v-if="givesPolicy" data-test="policy">
+      <p v-if="!policyOpened" class="text-sm text-ink-secondary">{{ copy.readPolicyFirst }}</p>
+      <a
+        :href="policySrc"
+        target="_blank"
+        rel="noopener"
+        class="mt-1 inline-flex min-h-11 items-center text-sm font-medium text-action-primary underline"
+        @click="policyOpened = true"
+      >{{ copy.readPolicy }}</a>
+    </div>
 
     <!-- ⚠ The mark this stop takes, not the signature. A page asking for initials that previewed the
          full name would be showing the driver something other than what lands on the paper — and a

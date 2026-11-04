@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { PACKET_PLACEMENTS } from "@silvicom/shared";
 import blocks from "./drugAlcoholPolicyText.json" with { type: "json" };
 import { correctHandbook, type HandbookBlock } from "../handbook/handbookText.js";
 import { DRUG_ALCOHOL_POLICY_CORRECTIONS } from "./drugAlcoholPolicyCorrections.js";
@@ -43,3 +44,18 @@ export const DRUG_ALCOHOL_POLICY_DOCUMENT: FlowedDocument = {
   name: "Drug and alcohol abuse policy",
   version: DRUG_ALCOHOL_POLICY_VERSION,
 };
+
+/**
+ * The packet place that gives the driver this policy — `p28`, the §382.601(d) receipt — read from the
+ * inventory's `gives`, never restated (DAP2). The policy's own DRIVER SIGNATURE / DATE place carries the
+ * same id, so the one act signs the packet's receipt and the policy's last page; if either side moves
+ * without the other this throws at import rather than filing a policy with a blank signature line.
+ */
+export const DRUG_ALCOHOL_POLICY_PLACEMENT_ID: string = (() => {
+  const given = PACKET_PLACEMENTS.filter((p) => p.gives === "drug_alcohol_policy").map((p) => p.id);
+  const signs = DRUG_ALCOHOL_POLICY_BLOCKS.flatMap((b) => (b.k === "sign" ? [b.id] : []));
+  if (given.length !== 1 || signs.length !== 1 || given[0] !== signs[0]) {
+    throw new Error(`drug-and-alcohol policy: the packet gives it at [${given.join(", ")}], the policy is signed at [${signs.join(", ")}]`);
+  }
+  return given[0]!;
+})();

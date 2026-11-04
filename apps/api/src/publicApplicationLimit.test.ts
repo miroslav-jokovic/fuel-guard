@@ -149,6 +149,20 @@ describe("the applicant's bucket", () => {
     expect((await fetch(`${baseUrl}${PATH}`)).status).not.toBe(429);
   });
 
+  /**
+   * DAP2 (§15.2, D-DAP2): the drug-and-alcohol policy is opened on the packet walk's page-28 screen, at
+   * the same desk, so it rides the ceremony's per-link bucket like the permission documents.
+   */
+  it("serves the drug-and-alcohol policy from the ceremony's bucket and leaves the intake's untouched", async () => {
+    const baseUrl = await freshApp();
+    const policy = () => fetch(`${baseUrl}/api/public/application/${TOKEN}/drug-alcohol-policy.pdf`);
+    const codes: number[] = [];
+    for (let i = 0; i < PACKET_CEREMONY_LIMIT; i += 1) codes.push((await policy()).status);
+    expect(codes.some((c) => c === 429)).toBe(false);
+    expect((await policy()).status).toBe(429);
+    expect((await fetch(`${baseUrl}${PATH}`)).status).not.toBe(429);
+  });
+
   it("counts a GET that only resembles a permission PDF against the intake", async () => {
     const baseUrl = await freshApp();
     const lookalike = `${baseUrl}/api/public/application/${TOKEN}/permission/psp`;

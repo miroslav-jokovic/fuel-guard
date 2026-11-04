@@ -107,9 +107,20 @@ function isPacketReadingCopy(req: Request): boolean {
   return req.method === "GET" && /^\/[^/]+\/packet\/?$/.test(req.path);
 }
 
+/**
+ * Is this the drug-and-alcohol policy the packet walk gives the driver at page 28 (DAP2, D-DAP2)?
+ *
+ * ⚠ The permission documents' reason: fetched on the signing screen, at the desk, where several drivers
+ * share the office's address — on the intake's 20 a minute it would compete with the walk it is part of.
+ */
+function isDrugAlcoholPolicy(req: Request): boolean {
+  return req.method === "GET" && /^\/[^/]+\/drug-alcohol-policy\.pdf$/.test(req.path);
+}
+
 /** Everything the ceremony's per-link bucket takes, and the intake's therefore skips. */
 export function isCeremonyRequest(req: Request): boolean {
-  return isPacketMark(req) || isPermissionDocument(req) || isHandbookCeremony(req) || isPacketReadingCopy(req);
+  return isPacketMark(req) || isPermissionDocument(req) || isHandbookCeremony(req) || isPacketReadingCopy(req)
+    || isDrugAlcoholPolicy(req);
 }
 
 /**
