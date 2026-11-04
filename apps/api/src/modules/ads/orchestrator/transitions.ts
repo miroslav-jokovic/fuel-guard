@@ -58,6 +58,12 @@ export interface TransitionAsk {
   error?: string | null;
   /** Merged into `platform_refs` with the move (what `created` / `launched` learned). */
   platform_refs?: Record<string, unknown> | null;
+  /**
+   * Written WITH the move (S1c): the amounts an approver launches at. In the same compare-and-set as the
+   * state, so a launch can never move a campaign whose budget is someone else's, nor set a budget on a
+   * campaign that did not move. The runner's `launchStep` reads them from the row.
+   */
+  budget?: { daily_budget_cents: number; lifetime_cap_cents: number } | null;
 }
 
 export type TransitionResult =
@@ -119,6 +125,7 @@ export async function applyCampaignEvent(admin: SupabaseClient, campaign: Campai
 
   const patch: Record<string, unknown> = { state: to, state_changed_at: toAt, last_error: clip(ask.error ?? null) };
   if (ask.platform_refs) patch.platform_refs = { ...campaign.platform_refs, ...ask.platform_refs };
+  if (ask.budget) Object.assign(patch, ask.budget);
   const { data, error } = await admin
     .from("ads_campaigns")
     .update(patch)

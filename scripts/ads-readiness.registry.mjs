@@ -721,7 +721,13 @@ export const READINESS = [
             "testing a connection is the admin's, without a password prompt; a manager may not",
           ] }],
         },
-        { need: "a non-admin hitting Launch", gap: "the Launch route arrives with E3; the approve-spend door is pinned at L1" },
+        {
+          need: "a non-admin hitting Launch (S1c)",
+          tests: [{ file: "apps/api/src/modules/ads/routes/campaignMoves.test.ts", titles: [
+            "a non-admin hitting Launch is refused, with or without a fresh sign-in, and nothing moves",
+            "an admin without a fresh sign-in is asked to sign in again",
+          ] }],
+        },
       ],
       L3: later("L3"),
       L4: [{ need: "a token scrape over a sandbox run's logs", gap: STAGE2 }],
