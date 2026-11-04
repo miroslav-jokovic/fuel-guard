@@ -25,8 +25,11 @@ import { composeCreative, type ComposeDeps, type CreativeRow } from "./composeCr
  *   5. THE VERDICT. At least one `ready` → `creatives_ready` (review shows every creative, failed ones with
  *      their reasons). None → `compose_failed`, the reasons joined, for a person to read.
  *
- * Stops before any creative, as `compose_failed` with the reason: no brand kit (Q-AD14), more than one
- * (which one a campaign uses is E3's choice, not ours to guess), a draw with nothing eligible.
+ * Stops before any creative, as `compose_failed` with the reason: the campaign names no brand kit, or one that
+ * is archived or has no saved version (Q-AD28: the kit is the campaign's `brand_kit_id`, chosen at creation —
+ * never "the only one" or "the newest", which would be a second rule beside the column), or a draw with
+ * nothing eligible. Each creative is made with the kit's NEWEST version and records it, so correcting a phone
+ * number in the kit reaches the next creative without a new campaign.
  */
 
 /** How many concepts enter at once (plan v4, §2b.2). */
@@ -37,22 +40,24 @@ export interface ComposeCampaignDeps extends ComposeDeps {
   admin: SupabaseClient;
 }
 
-interface CampaignExtra { brief_ref: string; brief_snapshot: unknown; preset_draw: PresetDraw | null }
+interface CampaignExtra { brief_ref: string; brief_snapshot: unknown; preset_draw: PresetDraw | null; brand_kit_id: string | null }
 interface CreativeRead extends CreativeRow { preset_version_id: string; created_at: string; last_error: string | null }
 
 export async function composeCampaign(deps: ComposeCampaignDeps, c: CampaignRow): Promise<WorkerResult> {
   const { admin } = deps;
-  const { data: extra, error } = await admin.from("ads_campaigns").select("brief_ref, brief_snapshot, preset_draw").eq("org_id", c.org_id).eq("id", c.id).maybeSingle();
+  const { data: extra, error } = await admin.from("ads_campaigns").select("brief_ref, brief_snapshot, preset_draw, brand_kit_id").eq("org_id", c.org_id).eq("id", c.id).maybeSingle();
   if (error) throw new Error(`ads_campaigns ${c.id}: ${error.message}`);
   if (!extra) return { ok: false, error: "campaign not found" };
   const campaign = extra as CampaignExtra;
   const brief = adBriefSchema.safeParse(campaign.brief_snapshot);
   if (!brief.success) return { ok: false, error: "the campaign's brief does not parse" };
 
-  const kits = (await listBrandKits(admin, c.org_id)).filter((k) => !k.archived_at && k.current);
-  if (kits.length === 0) return { ok: false, error: "no brand kit saved yet (Q-AD14)" };
-  if (kits.length > 1) return { ok: false, error: `${kits.length} brand kits: which one this campaign uses is not chosen` };
-  const kit = kits[0]!.current!;
+  if (!campaign.brand_kit_id) return { ok: false, error: "the campaign names no brand kit (Q-AD28)" };
+  const chosen = (await listBrandKits(admin, c.org_id)).find((k) => k.id === campaign.brand_kit_id);
+  if (!chosen) return { ok: false, error: "the campaign's brand kit no longer exists" };
+  if (chosen.archived_at) return { ok: false, error: "the campaign's brand kit is archived" };
+  if (!chosen.current) return { ok: false, error: "the campaign's brand kit has no saved version (Q-AD14)" };
+  const kit = chosen.current;
 
   const presets = (await listPresets(admin, c.org_id)).filter((p) => !p.archived_at && p.current);
   const draw = campaign.preset_draw ?? await storePresetDraw(admin, c, drawPresets(c.id, presets.map((p) => ({ version_id: p.current!.id, key: p.key, enabled: p.current!.enabled })), await liveKeys(admin, c, campaign.brief_ref, presets)));

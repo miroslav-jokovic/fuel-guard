@@ -1494,3 +1494,24 @@ blocking step in §3 above.
     reaches it. `receiveLeadgenDelivery` drops it first, because the carrier is found through a campaign. Finding it by
     `ads_platform_connections.page_ref` is the likely answer. Not built, not tested.
   - Scorecard on `01aeee1`: as the handoff's §1a, except Security L2 (was L1; the ads chat's #2033).
+- **2026-11-04, B2c2 merged; the two halves Track S waits on** — #2034 (`5c5687e`), Publisher L2. This PR holds
+  the two `compose/` changes Track S's log names as blocked on Track W. No migration.
+  - **`compose/decideCreative.ts` (S1d's other half).** A person's decision moves one creative `ready →
+    approved | rejected`, compare-and-set, only while the campaign is in `review`. It moves ONLY on a recorded
+    act: the door passes the `ads_approvals` row id, and the row must be this org's, name this creative and
+    campaign, be of the decision's kind (`approve_creative` / `reject_creative`), and not be withdrawn.
+    - Writing that row stays with `guard/approvals.ts`, the table's writer (Track S's S1d door extends it).
+      `decideCreative` reads it and never writes it.
+    - The same decision twice is `already`, even after the campaign has moved on. Two people at once: the
+      landed write wins and the other is told `not_ready` with the winning state.
+    - The publisher's "approved creatives only" (B2c2) now has the gate it trusts.
+  - **Compose reads `ads_campaigns.brand_kit_id` (Q-AD28 (a), S1a's column; S1b's create door its first
+    writer).** The kit is the campaign's choice. Compose stops with the reason when the campaign names none, a
+    missing kit, an archived one, or one with no saved version. Each creative still records the kit's NEWEST
+    version. The "more than one kit" refusal is gone: an org may now keep two kits.
+  - Mutation:
+    - decideCreative: 10 mutants. Two survived the first pass. One was redundant code (an early `ready` check
+      the compare-and-set already makes), now deleted. The other was a fixture that ignored the update's
+      filter, so the compare-and-set was untested; fixed. A third pass found an `already` case the tests
+      lacked: a retry after the campaign moved on. Now 9 of 9 killed.
+    - Kit choice: 3 of 3 killed.
