@@ -123,8 +123,49 @@ function paragraph(doc: PDFKit.PDFDocument, b: Extract<HandbookBlock, { k: "p" }
     doc.moveDown(0.3);
     return;
   }
-  runs(doc, b.runs, { x: MARGIN, width: CONTENT_WIDTH, align: b.align === "center" ? "center" : "left" });
-  doc.moveDown(0.2);
+  if (b.subheading) {
+    doc.moveDown(0.3);
+    runs(doc, b.runs.map((r) => ({ ...r, b: true })), { x: MARGIN, width: CONTENT_WIDTH });
+    doc.moveDown(0.15);
+    return;
+  }
+  const inset = b.indent ? INDENT : 0;
+  runs(doc, b.runs, { x: MARGIN + inset, width: CONTENT_WIDTH - inset, align: b.align === "center" ? "center" : "left" });
+  if (!b.tight) doc.moveDown(0.2);
+}
+
+const INDENT = 18;
+
+/** A numbered clause: the number hangs in the margin, the text wraps under itself. */
+function item(doc: PDFKit.PDFDocument, b: Extract<HandbookBlock, { k: "item" }>): void {
+  ensureRoom(doc, 2 * BODY);
+  const y = doc.y;
+  doc.fillColor(INK).font("Helvetica").fontSize(BODY).text(pdfkitText(doc, b.n), MARGIN + INDENT, y, { width: INDENT, lineBreak: false });
+  doc.y = y;
+  runs(doc, b.runs, { x: MARGIN + 2 * INDENT, width: CONTENT_WIDTH - 2 * INDENT });
+  doc.moveDown(0.15);
+}
+
+/** Words the carrier set in columns: as many even columns as the widest row, no rules — its own look. */
+function grid(doc: PDFKit.PDFDocument, b: Extract<HandbookBlock, { k: "grid" }>): void {
+  const cols = Math.max(...b.rows.map((r) => r.length));
+  const w = (CONTENT_WIDTH - INDENT) / cols;
+  doc.font("Helvetica").fontSize(BODY);
+  for (const row of b.rows) {
+    // A cell wider than its column (the PCP "Increased heart rate, sweating…" line) spans the rest.
+    const spans = row.map((_c, i) => (i === row.length - 1 || row.slice(i + 1).every((n) => n === "") ? cols - i : 1));
+    const h = Math.max(...row.map((c, i) => doc.heightOfString(pdfkitText(doc, c || " "), { width: w * spans[i]! - 6 })));
+    ensureRoom(doc, h + 2);
+    const y = doc.y;
+    row.forEach((c, i) => {
+      if (!c) return;
+      doc.fillColor(INK).font("Helvetica").fontSize(BODY)
+        .text(pdfkitText(doc, c), MARGIN + INDENT + i * w, y, { width: w * spans[i]! - 6 });
+    });
+    doc.y = y + h + 1;
+  }
+  doc.x = MARGIN;
+  doc.moveDown(0.3);
 }
 
 /** One numbered fuel rule: the bold head on its own line, the body indented under it. */
@@ -222,13 +263,13 @@ function signBlockHeight(doc: PDFKit.PDFDocument, b: Extract<HandbookBlock, { k:
  * signature (its affirmation, or the last clause of what is signed) now moves WITH the block when
  * the two will not share the page.
  */
-function keepWithSignature(doc: PDFKit.PDFDocument, at: number): void {
-  const b = HANDBOOK_BLOCKS[at]!;
+function keepWithSignature(doc: PDFKit.PDFDocument, blocks: readonly HandbookBlock[], at: number): void {
+  const b = blocks[at]!;
   if (b.k !== "p" || b.size || b.heading) return;
   let next = at + 1;
   let gaps = 0;
-  while (HANDBOOK_BLOCKS[next]?.k === "gap") { next++; gaps++; }
-  const sign = HANDBOOK_BLOCKS[next];
+  while (blocks[next]?.k === "gap") { next++; gaps++; }
+  const sign = blocks[next];
   if (sign?.k !== "sign") return;
   doc.font("Helvetica").fontSize(BODY);
   const text = pdfkitText(doc, b.runs.map((r) => r.t).join(""));
@@ -294,7 +335,7 @@ function signBlock(doc: PDFKit.PDFDocument, b: Extract<HandbookBlock, { k: "sign
  * Every page: which document, which text version, and page x of y — stamped once the count is known —
  * and the office preview's band, in the top margin, on the same pass.
  */
-function footers(doc: PDFKit.PDFDocument, carrier: string, band: string | null): void {
+function footers(doc: PDFKit.PDFDocument, carrier: string, band: string | null, name: string, version: string): void {
   const range = doc.bufferedPageRange();
   for (let i = range.start; i < range.start + range.count; i++) {
     doc.switchToPage(i);
@@ -304,26 +345,44 @@ function footers(doc: PDFKit.PDFDocument, carrier: string, band: string | null):
     // margin for the stamp is what lets it write there.
     doc.page.margins.bottom = 0;
     doc.fillColor(MUTED).font("Helvetica").fontSize(7.5).text(
-      pdfkitText(doc, `${carrier} · Driver handbook · text ${HANDBOOK_VERSION} · page ${i - range.start + 1} of ${range.count}`),
+      pdfkitText(doc, `${carrier} · ${name} · text ${version} · page ${i - range.start + 1} of ${range.count}`),
       MARGIN, PAGE_HEIGHT - MARGIN - 4, { width: CONTENT_WIDTH, align: "center", lineBreak: false },
     );
   }
 }
 
-export async function handbookPdf(input: HandbookDocumentInput): Promise<Buffer> {
-  const { doc, done } = newDrawing(`Driver handbook — ${input.driverName}`, { bufferPages: true });
-  for (const [i, b] of HANDBOOK_BLOCKS.entries()) {
+/**
+ * What a flowed carrier document is: its blocks, the name its footer and PDF title carry, and the text
+ * version derived from those blocks. The handbook is one; the drug-and-alcohol policy (§15.2) is the
+ * other — the same renderer, so the two read as one carrier's papers.
+ */
+export interface FlowedDocument {
+  blocks: readonly HandbookBlock[];
+  name: string;
+  version: string;
+}
+
+export const HANDBOOK_DOCUMENT: FlowedDocument = { blocks: HANDBOOK_BLOCKS, name: "Driver handbook", version: HANDBOOK_VERSION };
+
+/** Draw a flowed carrier document with the marks made so far (blank rules where none is). */
+export async function flowedDocumentPdf(document: FlowedDocument, input: HandbookDocumentInput): Promise<Buffer> {
+  const { doc, done } = newDrawing(`${document.name} — ${input.driverName}`, { bufferPages: true });
+  for (const [i, b] of document.blocks.entries()) {
     if (b.k === "p") {
-      keepWithSignature(doc, i);
+      keepWithSignature(doc, document.blocks, i);
       paragraph(doc, b);
     }
     else if (b.k === "rule") rule(doc, b);
     else if (b.k === "table") table(doc, b);
+    else if (b.k === "item") item(doc, b);
+    else if (b.k === "grid") grid(doc, b);
     else if (b.k === "sign") signBlock(doc, b, input);
     else if (b.k === "gap") doc.moveDown(0.5);
     else doc.addPage();
   }
-  footers(doc, input.carrier.name, input.band ?? null);
+  footers(doc, input.carrier.name, input.band ?? null, document.name, document.version);
   doc.end();
   return done;
 }
+
+export const handbookPdf = (input: HandbookDocumentInput): Promise<Buffer> => flowedDocumentPdf(HANDBOOK_DOCUMENT, input);

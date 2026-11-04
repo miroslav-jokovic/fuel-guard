@@ -148,9 +148,17 @@ export const ROADSIDE_DOCUMENT_KINDS = [
 export type RoadsideDocumentKind = (typeof ROADSIDE_DOCUMENT_KINDS)[number];
 /** An equipment bill's scan or PDF (0530, M10a), filed only against an `equipment_purchase` subject. */
 export const EQUIPMENT_PURCHASE_DOCUMENT_KINDS = ["equipment_invoice"] as const;
-/** Every kind `documents` admits — mirrors the SQL check constraint exactly (0476, 0484, 0490, 0530, 0534). */
+/**
+ * The carrier's §382.601 drug-and-alcohol policy as the driver signed for it (0565, HIRING-WORKFLOW-AUDIT
+ * §15.2): drawn from the carrier's text with the page-28 receipt on its signature line, and filed on the
+ * driver with the packet. It belongs to the drug-and-alcohol programme (§382.401), not the DQ file
+ * (§391.51), so no qualification record cites it and the driver file lists it on its own.
+ */
+export const CARRIER_POLICY_DOCUMENT_KINDS = ["drug_alcohol_policy"] as const;
+/** Every kind `documents` admits — mirrors the SQL check constraint exactly (0476, 0484, 0490, 0530, 0534, 0565). */
 export const DOCUMENT_KINDS = [
   ...COMPLIANCE_DOCUMENT_KINDS, ...ROADSIDE_DOCUMENT_KINDS, ...EQUIPMENT_PURCHASE_DOCUMENT_KINDS,
+  ...CARRIER_POLICY_DOCUMENT_KINDS,
 ] as const;
 export const documentKindSchema = z.enum(DOCUMENT_KINDS);
 export type DocumentKind = (typeof DOCUMENT_KINDS)[number];

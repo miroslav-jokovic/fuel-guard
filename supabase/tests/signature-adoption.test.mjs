@@ -221,6 +221,7 @@ ok("record_packet_mark: the new key set resolves to exactly one function",
 
 const NEW_SIGNATURES = [
   "record_packet_mark(uuid,uuid,text,int,text,text,text,text,text,text,int,text,uuid)",
+  "record_packet_mark(uuid,uuid,text,int,text,text,text,text,text,text,int,text,uuid,text)",
   "record_driver_release(uuid,uuid,uuid,text,text,text,text,text,text,text,int,uuid)",
   "record_signature_adoption(uuid,uuid,uuid,text,text,text,text,text,text)",
 ];
@@ -234,7 +235,9 @@ for (const sig of NEW_SIGNATURES) {
   ok(`${name} (new signature): no parameter has a default`, g.d === 0);
 }
 ok("the old signatures are gone (M2b): one function each",
-  (await count(`select count(*) n from pg_proc where proname = 'record_packet_mark' and pronamespace = 'public'::regnamespace`)) === 1 &&
+  // 0565 (§15.2 DAP1) adds the 14-argument overload beside the 13-argument one, for the deploy window: two,
+  // until the follow-up migration drops the 13 once DAP2 is its only caller.
+  (await count(`select count(*) n from pg_proc where proname = 'record_packet_mark' and pronamespace = 'public'::regnamespace`)) === 2 &&
   (await count(`select count(*) n from pg_proc where proname = 'record_driver_release' and pronamespace = 'public'::regnamespace`)) === 1 &&
   (await count(`select count(*) n from pg_proc where proname = 'save_application_draft' and pronamespace = 'public'::regnamespace`)) === 1);
 

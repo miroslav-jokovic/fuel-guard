@@ -967,20 +967,18 @@ show were given — the receipt an auditor reads first and the one thing it cann
 
 | ID | Decision | Why |
 |---|---|---|
-| D-DAP1 | **The carrier files its written policy once, in Settings → Recruiting → "Drug and alcohol policy"**, as a PDF, with the name and phone of the person designated to answer questions (§382.601(b)(1)). Each upload is a **new version**; the newest is in force; nothing is replaced or deleted. Stored as a `documents` row (`subject_type = 'organization'`, new kind `drug_alcohol_policy`) through evidence's `registerDocument`, and a row in a new append-only `drug_alcohol_policies` table (org, document id, sha256, designated person, who, when). | The product does not write the policy (D-PKT11: the carrier's text is counsel's work), and Part 382 is the carrier's programme — usually its consortium's template. Versions, because a driver signed for the one in force that day. |
-| D-DAP2 | **The driver is given the policy on p28's screen**: "Read the drug and alcohol policy (PDF)" opens the in-force version on the applicant's own token, and the Sign button stays off until it has been opened. The same PDF is sent to the applicant's email when the mark is made, so they keep a copy. | §382.601(a) is "provide", (d) is "received a copy". Opened on the screen and kept by email is both. |
-| D-DAP3 | **The mark records which policy it receipts**: `application_packet_marks.policy_document_id` (+ its sha256), written by `record_packet_mark` for `p28` only. The filed packet's page 28 prints "Policy received: version of {date}, {sha256 short}", and the policy PDF is filed on the driver as `drug_alcohol_policy` beside the application. | A receipt that names its document is the only kind an auditor can check. |
-| D-DAP4 | **No policy on file → p28 cannot be signed** (409 `drug_alcohol_policy_missing`, and the walk says "Your company has not put its drug and alcohol policy in the system yet — ask the office"). The office sees it before it happens: Send for signing warns, and Settings → Recruiting shows the missing policy as the top item. | Signing a receipt for nothing is exactly the defect. ⚠ **Consequence:** once the reader is on production, no packet can be completed until the owner uploads the policy — so the owner uploads it on staging and on production BEFORE the release that carries DAP2. |
-| D-DAP5 | A packet whose signing opened before DAP2 keeps today's behaviour for its p28 if already signed; an unsigned p28 follows D-DAP4. | A filed mark is never rewritten. |
+| D-DAP1 | ~~The carrier uploads its policy as a PDF in Settings → Recruiting, versioned in a `drug_alcohol_policies` table.~~ **Revised 2026-11-04** after the owner supplied the policy ("add it properly as document in our system … same design and layout as other documents"): **the policy is the handbook's kind of document** — the carrier's text in code (`applicationPdf/drugAlcoholPolicy/drugAlcoholPolicyText.json`, transcribed from the 18-page scan, which has no text layer), drawn by the handbook's renderer (now shared as `flowedDocumentPdf`), versioned by a hash of what prints (`dap-…`, as the handbook is `hb-…`). No upload, no table. | One look for the carrier's papers; one versioning rule; the text is reviewed in a PR like the handbook. |
+| D-DAP2 | **The driver is given the policy on p28's screen**: "Read the drug and alcohol policy" opens it on the applicant's own token, and Sign stays off until it has been opened. | §382.601(a) "provide", (d) "received a copy". |
+| D-DAP3 | **The p28 mark records the policy version** (`application_packet_marks.policy_version`, 0565): required on p28 (DR039), refused on every other mark (DR041). The policy's own "DRIVER SIGNATURE / DATE" place is placement `p28`, so the one act signs both the packet's receipt page and the policy's last page. The signed policy files on the driver as `documents.kind = 'drug_alcohol_policy'` with the packet. | A receipt that names its text is the only kind an auditor can check. |
+| D-DAP4 | Which version is current is the code's to say (the API stamps the one it serves); SQL checks the shape. A 14-argument `record_packet_mark` sits beside the 13-argument one for the deploy window; the 13 is dropped once DAP2 is its only caller. | `packet_version`'s arrangement. |
+| D-DAP5 | A p28 mark made before DAP2 keeps its null version; nothing filed is rewritten. | A filed mark is never rewritten. |
+| D-DAP6 | **What prints is corrected, on record.** The transcription keeps the scan's words; `DRUG_ALCOHOL_POLICY_CORRECTIONS` (spelling, punctuation, regulation citations, and drafting — a clause typed twice, a double negative that said the opposite of 49 CFR 382.505, a "however" clause copied from the paragraph above) is applied on top and fails at import if an entry stops fitting. No rule, number, period, cost or consequence changes. Owner, 2026-11-04: "yes correct this, we have to make sure all documents are really professional and precise". The cover's clip-art and the per-page INITIALS boxes are not drawn. | The handbook's register (D-HB6), widened to drafting by the owner's ruling. |
 
-**Open, the owner's:** Q-DAP1 — **the policy itself.** The carrier's written policy, or the
-consortium/C-TPA that supplied it (they issue one as part of membership). Nothing in the product can be
-signed at p28 until it is uploaded.
+**Open, the owner's:**
+- **Q-DAP2 — proofread.** The transcription is from a scan; the owner reads the rendered proof against the paper.
+- **Q-DAP3 — the representative's name.** The policy names the Designated Employer Representative "Marija **Vermeda**"; the product's applicant records spell "Marija **Varmeda**". One is wrong.
 
-**Build.** **DAP1** — migration: kind `drug_alcohol_policy` on `documents`, `drug_alcohol_policies`,
-`application_packet_marks.policy_document_id` + `policy_sha256`, `record_packet_mark` widened (defaulted
-arguments, so code served before DAP2 keeps working). **DAP2** — the reader: settings upload, the
-token-served PDF, the walk's gate, the stamp on the mark, the filed page and copy, the warning.
+**Build.** **DAP1** (#2018) — migration 0565 (kind, `policy_version`, the 14-argument function), the policy text, its corrections and the shared renderer. **DAP2** — the reader: the token-served policy, p28's gate and stamp, the filed copy, the office preview.
 
 ### 15.3 Questions the carrier writes itself (Q-RS2)
 
@@ -1271,3 +1269,7 @@ at submit, the review, the office drawer and the filed PDF.
   table, so a switch and its audit row land in one transaction. 22-case matrix, 6/6 mutants killed. **IDP2 (#2016)**: the
   Sensitive papers card on Settings → Permissions → Roles; both picture readers read the org's switches per request;
   **departure:** a failed read is closed, not the default (D-IDP3 amended). 9/9 mutants killed.
+- **2026-11-04** — **§15.2 revised.** The owner supplied the policy (18-page scan) and asked for it as a document like the
+  others: D-DAP1 now makes it the handbook's kind of document, not an upload. #2018 reworked to match (0565: `policy_version`
+  on the mark, no table). Owner ruled the typos be corrected (D-DAP6): every correction on record, none changing a rule.
+  Q-DAP2 (proofread) and Q-DAP3 (Vermeda vs Varmeda) are the owner's.

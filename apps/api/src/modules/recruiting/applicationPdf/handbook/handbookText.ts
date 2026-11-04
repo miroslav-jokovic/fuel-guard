@@ -33,7 +33,23 @@ export type HandbookField = "name" | "signature" | "date" | "ssn";
 
 export type HandbookBlock =
   /** A paragraph as the carrier set it: runs bold (`b`) or underlined (`u`), centred or not. */
-  | { k: "p"; runs: HandbookRun[]; align?: "center"; size?: "title" | "subtitle"; heading?: boolean }
+  | {
+      k: "p";
+      runs: HandbookRun[];
+      align?: "center";
+      size?: "title" | "subtitle";
+      heading?: boolean;
+      /** A heading inside a section (the drug-and-alcohol policy's PRE-EMPLOYMENT TESTING, …). */
+      subheading?: boolean;
+      /** Set in from the margin, as the carrier indented it (the policy's definitions, its contact). */
+      indent?: boolean;
+      /** No space after: one line of a stacked list (an address, the absenteeism figures). */
+      tight?: boolean;
+    }
+  /** One numbered clause with a hanging number — the policy's refusal list, its safety-sensitive duties. */
+  | { k: "item"; n: string; runs: HandbookRun[] }
+  /** Words the carrier set in columns (the policy's signs and symptoms): rows of cells, empty cells kept. */
+  | { k: "grid"; rows: string[][] }
   /** One of the nine numbered fuel rules: a bold head, then its body. Word put a line break between. */
   | { k: "rule"; title: HandbookRun[]; body: HandbookRun[] }
   /** The fines schedule (with the carrier's header) and the inspection bonus (without one). */
@@ -54,9 +70,9 @@ export const HANDBOOK_SOURCE_BLOCKS = blocks as readonly HandbookBlock[];
  */
 export function correctHandbook(
   source: readonly HandbookBlock[],
-  register: readonly HandbookSpelling[] = HANDBOOK_SPELLING,
+  register: readonly Pick<HandbookSpelling, "wrong" | "right" | "times">[] = HANDBOOK_SPELLING,
 ): HandbookBlock[] {
-  const hits = new Map<HandbookSpelling, number>();
+  const hits = new Map<(typeof register)[number], number>();
   const fix = (text: string): string => {
     let out = text;
     for (const e of register) {
@@ -78,12 +94,14 @@ export function correctHandbook(
       };
     }
     if (b.k === "sign") return { ...b, fields: b.fields.map((f) => ({ ...f, label: fix(f.label) })) };
+    if (b.k === "item") return { ...b, runs: runs(b.runs) };
+    if (b.k === "grid") return { ...b, rows: b.rows.map((r) => r.map(fix)) };
     return b;
   });
   const wrong = register.filter((e) => (hits.get(e) ?? 0) !== (e.times ?? 1));
   if (wrong.length > 0) {
     throw new Error(
-      `handbook spelling register does not fit the text: ${wrong
+      `correction register does not fit the text: ${wrong
         .map((e) => `"${e.wrong}" landed ${hits.get(e) ?? 0}× (expected ${e.times ?? 1})`)
         .join("; ")}`,
     );
