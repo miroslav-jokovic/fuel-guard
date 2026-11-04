@@ -155,8 +155,12 @@ const QUANTITY = new RegExp(String.raw`\b(${NUM})(?:\.(\d+))?\s?(%|[a-z]+)`, "g"
  * "word word" pattern cannot consume the number together with the word before it ("get two weeks").
  */
 const SPELLED_QUANTITY = new RegExp(String.raw`\b(${Object.keys(SPELLED).join("|")})\s([a-z]+)\b`, "g");
-/** An age floor: "23+", "age 23", "23 years old", "mayores de 23", "23 anos de edad". */
-const AGE = /\b(\d{2})\s?\+|\bage\s(\d{2})\b|\b(\d{2})\s(?:years?\sold|anos\sde\sedad)\b|\bmayores\sde\s(\d{2})\b/g;
+/**
+ * An age floor: "23+", "age 23", "23 years old", "mayores de 23", "mayor de 23 años", "23 anos de edad".
+ * "mayor de 23 años" (singular, with the unit) is how a Spanish ad addresses one reader; before C2's eval
+ * it was read as a bare "23 años" — a quantity of years — and refused (measured 2026-11-03).
+ */
+const AGE = /\b(\d{2})\s?\+|\bage\s(\d{2})\b|\b(\d{2})\s(?:years?\sold|anos\sde\sedad)\b|\bmayor(?:es)?\sde\s(\d{2})(?:\sanos)?\b/g;
 
 function moneyMatches(claims: AdClaim[], cents: number, per: string | null): boolean {
   return claims.some((c) => c.kind === "money" && c.cents === cents && (per === null || c.per === per));

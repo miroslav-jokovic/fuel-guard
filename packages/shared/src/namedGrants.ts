@@ -101,6 +101,12 @@ export const ADMIN_ONLY_CAPABILITIES = [
     why: "Connects the carrier's Meta ad account with a token that can create and pause its ads, tests that connection, and disconnects it. Connecting and disconnecting each ask for a fresh sign-in.",
   },
   {
+    // C1 (2026-11-03): ADS_AUTHORITY.edit_settings_brand_kit_presets is admin's; listed with its routes.
+    key: "ads.brand-kit",
+    label: "Ad brand kit and concept presets",
+    why: "Uploads the logo and equipment photos every generated ad is built from, and saves new versions of the brand kit and of the concept presets the ads agent composes into. Every version is kept and names who saved it.",
+  },
+  {
     key: "hazmat.policy",
     label: "HazmatGuard policy",
     why: "Sets the organisation-wide rules every hazmat load is analysed against; the database's own write policy is admin-only too.",

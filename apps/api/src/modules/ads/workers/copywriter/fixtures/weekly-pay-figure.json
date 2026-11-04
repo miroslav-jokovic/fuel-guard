@@ -1,0 +1,87 @@
+{
+  "name": "weekly-pay-figure",
+  "about": "A weekly gross figure and drop and hook freight.",
+  "input": {
+    "brief": {
+      "source": "fixture",
+      "ref": "fixture-opening",
+      "subject": "Class A local driver",
+      "claims": [
+        {
+          "kind": "money",
+          "cents": 150000,
+          "per": "week"
+        },
+        {
+          "kind": "term",
+          "term": "drop and hook"
+        },
+        {
+          "kind": "term",
+          "term": "home daily"
+        }
+      ],
+      "area": {
+        "label": "Fixture Yard, IL",
+        "latitude": 41.85,
+        "longitude": -87.65,
+        "radius_miles": 75,
+        "reason": "Fixture: drivers within a day's drive of the yard."
+      },
+      "form_questions": [],
+      "landing_url": null
+    },
+    "recipe": {
+      "name": "Fixture: the number",
+      "hook_formula": "Open with the pay figure, then who the job is for.",
+      "copy_slots": [
+        {
+          "name": "hook",
+          "max_chars": 60
+        },
+        {
+          "name": "body",
+          "max_chars": 220
+        },
+        {
+          "name": "cta",
+          "max_chars": 30
+        }
+      ],
+      "image_prompt_template": "A late-model tractor at {time_of_day}, no text, no logos, no lettering",
+      "image_slots": [
+        "time_of_day"
+      ],
+      "starts_from": "equipment_photo",
+      "shows_equipment": true,
+      "shows_people": false,
+      "motion_template": null,
+      "formats": [
+        "1:1",
+        "4:5"
+      ]
+    }
+  },
+  "expect": "refused",
+  "recorded": {
+    "source": "model",
+    "prompt_version": "copywriter@1",
+    "model": "claude-sonnet-4-6",
+    "recorded_at": "2026-11-04T05:02:45.752Z",
+    "output": {
+      "en": {
+        "hook": "$1,500/week for Class A local drivers.",
+        "body": "This local route gets you home daily, so you keep your life on your schedule. Work is drop and hook, keeping you moving without the wait. If you hold a Class A and want steady weekly pay, we want you on our team.",
+        "cta": "Apply today and join us."
+      },
+      "es": {
+        "hook": "$1,500 por semana para conductores locales Clase A.",
+        "body": "Esta ruta local te permite llegar a casa todos los días. El trabajo es drop and hook, sin largas esperas. Si tienes licencia Clase A y buscas pago semanal estable, únete a nuestro equipo.",
+        "cta": "Postúlate hoy con nosotros."
+      }
+    }
+  },
+  "expect_findings": [
+    "term_not_in_brief"
+  ]
+}

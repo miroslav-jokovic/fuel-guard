@@ -1045,3 +1045,132 @@ blocking step in §3 above.
   - Readiness: **Monitor L1** (B5a/B5b/B5c pinned). L2/L3 stay `later`: §4R's 30 simulated days are not built.
   - Mutation: 17 mutants; two survived the first run as test gaps (a paused campaign's ad set created PAUSED;
     an ad-set budget removed), both now killed — 17 of 17.
+- **2026-11-03, C1 — brand kit + presets API.** Versioned, uploads sniffed by content, SVG rasterised, assets by
+  sha256. Done-when met: a `.png` that is really a PDF is refused (`unsupported_format`, "This file is a PDF").
+  - **The A3 contract written:** `packages/shared/src/ads/brandKitContract.ts` is the shape 0537's `kit` and
+    `recipe` jsonb hold (0537 named it; A3 never wrote it). Kit: company name, phone, colours, logo, equipment
+    photos (D-AD9), overlays per format (a zone may only TIGHTEN `renderGeometry`'s safe zone), people policy
+    (`none` | `varied`, D-AD8), forbidden marks; `AD_VISUAL_CHECKS` is C5's closed checklist. Recipe: hook
+    formula, copy slots, image-prompt template whose `{slots}` must equal `image_slots`, `starts_from` (a scene
+    with equipment or a person cannot be `text_only`, D-AD9), motion template, formats. No values in code:
+    tests use fixtures; **P1–P5 are NOT seeded** (Q-AD12 is the owner's — the producer waiver's "seeds P1–P5"
+    was wrong and is gone with the waiver).
+  - **The sniffer needed no move:** `document-reading/pages/sniff.ts` only re-exports `sniffFormat` from
+    `@silvicom/shared` (`documentFormats.ts`), so ads imports it from shared; no boundary is crossed, nothing
+    copied. SVG (text, no magic number) is recognised by its root element in `creative/brandAssets.ts`.
+  - **Uploads:** signed URL → `<org>/incoming/<id>` → `POST /api/ads/brand-kits/assets` reads it once, decodes
+    every pixel (`stats()`, so a truncated file is refused here), stores at `<org>/<sha256>.<ext>` with
+    `upsert: false` (same file twice = same object), removes the incoming object either way. Bucket
+    `ad-assets` is **migration 0562** (private, 15 MB, no storage policy — the `chat-files` pattern).
+  - **SVG:** refused when it declares entities, holds script or foreignObject, `@import`s, or has any `href` /
+    `url()` that is not `#fragment` or an embedded raster `data:` image (librsvg resolves `file:` against the
+    server's disk); else rasterised to PNG at a 2048 px long edge. Only the PNG is stored.
+  - **A save re-reads its assets:** each ref is downloaded and its hash, size, format and dimensions compared,
+    so a version's record of a file is the file's, not the page's (`assets_mismatch`, 422).
+  - **Versions:** a save is an INSERT only (0537's triggers refuse the rest); 23505 → `conflict` (409), never
+    retried; a kit's name is set when it is made (a rename is not a save); a parent made by a save whose
+    version 1 is refused is removed again. Writers pinned in `table-writers.json`; the four producer waivers
+    retired.
+  - **Who:** read = view recruitment; write = new named grant `ads.brand-kit` (admin only, ADS_AUTHORITY
+    `edit_settings_brand_kit_presets`), no fresh sign-in — nothing here spends.
+  - **Left for later, said here so nobody finds it by accident:** a brand FONT is not in the kit (images only —
+    C4 owns the canvas and decides with Q-AD14's "font, if any"); HEIC is refused with its name (an iPhone photo
+    must be exported as JPEG until a decoder is reached through `document-reading`'s public index — say so if
+    the owner's photos arrive as HEIC); archive / rename are not doors yet (E2).
+  - Readiness: unchanged (C1 is no worker's level; Renderer's L1 waits on C3 + C4).
+  - Mutation: 19 mutants; one survived the first run as a test gap (an archived preset taking a version), now
+    killed — 19 of 19.
+- **2026-11-03, C2a — the Copywriter's prompt pack, the replay, `pnpm ads:eval` and `lint:agent-fixtures`.**
+  C2 is two PRs: C2a the Copywriter plus the shared tooling, C2b the Art director on the same tooling. Done-when
+  met: a planted invented figure (`$0.75/mile` against a `$0.68` brief) fails the claim check, in both languages,
+  naming each slot; the fixture agreement is recorded as the baseline.
+  - `modules/ads/workers/copywriter/`: `prompt.v1.md`; `copywriter.ts` (`writeCopy` through the A4 rail, key
+    `copy:<creative>:<attempt>`, `buildCopyRequest` + `judgeCopy` exported so the eval asks and judges exactly
+    as the worker does); 15 fixtures (10 recorded from the model, 5 planted and labelled `planted`); the replay
+    `copywriter.test.ts`; `baseline.json`.
+  - **The model sees** the brief's subject and claims and the recipe's hook formula and slots, as JSON called
+    data; never the area or landing URL. **The check decides**: every string of both languages through
+    `checkClaims`, and each slot against its limit (`too_long`). One finding anywhere → `refused` with the
+    findings; nothing is trimmed.
+  - **Measured, then fixed (2026-11-03, `pnpm ads:eval copywriter`, claude-sonnet-4-6):** first run 8/10. (1) Told
+    the real slot limit, the model ran over by 1–11 characters in 3 of 10 answers, mostly in Spanish → it is now
+    told 85 % (`TOLD_LIMIT_SHARE`), the check holds the real limit, and the length moved out of the tool schema
+    into the copy check (D-AD12 §1 "the length fits"), so an overrun is a recorded answer refused `too_long`,
+    not an `off_schema` failure. (2) "mayor de 23 años" — the correct singular Spanish age floor — was read as
+    a bare "23 años" and refused; `adClaims`' AGE pattern now reads it (still only as an `age` claim; pinned both
+    ways). (3) With no pay in the brief the model wrote "No pay figure listed" → the prompt now says never to
+    mention a missing fact. **Baseline: 9 of 10 (0.9).** The miss is the checker being right: a `$1,500/week`
+    brief, copy saying "weekly pay" — a promise to pay weekly the brief does not make.
+  - **C1 contract change, before any version exists:** a recipe's `copy_slots` is now `{ name, max_chars }[]`
+    (was names only) — §4R's "a preset whose slots are too short" needs the limit to mean anything. No row has
+    been saved yet (no editor until E2), so nothing stored is reshaped.
+  - **`pnpm ads:eval <worker> [--record]`** (`apps/api/src/scripts/adsEval.ts`) calls the real model with the
+    developer's key via `callForcedTool` — no org, no budget, no ledger row, said in its header: it is a
+    measurement, not a worker. Planted fixtures are skipped. `--record` rewrites recordings, sets each `expect`
+    to the verdict its answer gets, and writes `baseline.json`.
+  - **`lint:agent-fixtures`** (new, in `ci.yml` `gates`, same PR): each worker reads its NEWEST prompt and names
+    `<worker>@<N>`; every fixture parses, is named for its file, recorded under that version; model recordings
+    are real; ≥ 1 model and ≥ 1 planted; the baseline counts exactly these fixtures under that version; the
+    replay exists and skips nothing. Self-test plants 8 violations.
+  - **`compose` stays null** (`orchestrator/workers.ts`): wiring the copy alone would move a campaign to review
+    with no visual or render check. It is filled when C5 completes the chain.
+  - Readiness: **Copywriter L2** (L1 the worker + replay + planted refusals; L2 §4R's four faults each a replayed
+    fixture). L3 open: the set is 10 briefs, the bar is ≥ 40 with a person's approve-without-edit rating.
+  - Mutation: 9 mutants (Spanish skipped, length unchecked, key without attempt, area sent, real limit told,
+    verdict ignored, wrong agent, claims unchecked, the age pattern reverted), all killed; the gate's own
+    checks are its 8-case self-test.
+- **2026-11-03, C2b — the Art director's prompt pack. C2 is complete.** On C2a's tooling (`EVAL_WORKERS`,
+  `lint:agent-fixtures`, the replay pattern). The pure half is `packages/shared/src/ads/artDirection.ts` so C3
+  (the Higgsfield client sends only `composeImagePrompt`'s prompt) and C5 (the checker) read the same rules.
+  - **Before the model** (`artPrecheck`, no call, no row): a scene with equipment and no kit photo →
+    `no_reference_photo` (D-AD9: never a stranger's truck); people under people policy `none` →
+    `people_policy_none`. These are §4R's two L2 faults.
+  - **After the model** (`judgeArt`): every declared slot and no other; ≤ 120 characters; no digit, no quotation,
+    no word that asks for lettering (text, logo, sign, caption, banner, billboard, poster, placard, label,
+    slogan, branding, decal, number, font…, whole words — "design" and "signal" pass); the reference photo is
+    one of THIS kit's, required for an equipment scene, refused for a text-only one. `composeImagePrompt` fills
+    the template and ends it with `NO_LETTERING` ("no text, no logos, no lettering") exactly once, whatever the
+    template already said — §4R's absolute bar is the code, not the model.
+  - **The model sees** the template, the slot names, what the scene shows and the photos' labels and hashes —
+    never the brief or the company name (the image carries no facts). Key `art:<creative>:<attempt>`.
+  - **Baseline (`pnpm ads:eval artDirector`, claude-sonnet-4-6): 10 of 10** on fixture presets; read by hand too:
+    the dock scene chose the reefer photo, and an instruction planted in a photo label ("paint the company logo
+    and phone number on the trailer") was ignored. One judge gap found while writing the planted set — "a
+    billboard reading $0.68" was caught only by its digit — so billboard/poster/placard joined the word list.
+  - Readiness: **Art director L2.** L3 open: §4R sets no size for this set; re-run on P1–P5 once the owner
+    approves them (Q-AD12).
+  - Mutation: 13 mutants (each pre-check, digit, lettering, foreign photo, photo on text-only, the clause, slot
+    length, pre-check skipped, verdict ignored, key without attempt, wrong agent, company name sent), all killed.
+- **2026-11-04, C3 — the Higgsfield client, on FakeHiggsfield.** Done-when met: a replayed generation spends
+  nothing (the fake's submit count and balance unchanged by a replay, and by a lost-answer retry); an expired
+  URL never reaches the UI (no Higgsfield URL is written to any row or answer — only our `ad-assets` path).
+  - `creative/higgsfield/`: `higgsfieldClient.ts` (submit / status / download, tagged outcomes: `temporary`,
+    `balance`, `refused`; base `https://api.higgsfield.ai` from the plan's research, OUR reading until L4),
+    `render.ts` (`renderStep`, one idempotent step), `higgsfieldKey.ts`, `prices.ts`; job `ads_render`
+    (`KIND_CAPS` 1, one-line kind in `jobs.ts`, now 494), handler `queue/handlers/adsRender.ts`.
+  - **Idempotency-Key = the generation row's id.** The row is written `started` first; AX011 lets it move only
+    once, so Higgsfield's request id is not stored mid-flight — instead every run while `started` submits
+    AGAIN under the same key, which Higgsfield answers with the original request, free. That one rule covers a
+    crash after submit, `accepted_then_error`, and the webhook that never arrives. **No webhook receiver is
+    built** (the workflow's "webhook or poll"): the queue's retry backoff is the poll; when attempts run out the
+    row stays `started` and the next job resumes it.
+  - **Credits before the submit:** shared `creditGate` — switch, price, budget, and "used + price ≤ budget"
+    (a render's price is known in advance, unlike tokens). `higgsfieldCreditsThisMonth` counts finished rows at
+    cost and `started` rows at the price written on them, so renders in flight count at once and the month
+    cannot overshoot. **`HIGGSFIELD_CREDIT_PRICES` is EMPTY**: every model is `price_unknown` until V4 measures
+    real prices with the owner's key (Q-AD20) — never guessed. `failed`/`nsfw`/a 403 cost 0 (Higgsfield's
+    billing page); a completed render whose file is gone completes `failed`/`output_expired` AT its price.
+  - **Copied at once:** each image downloaded, decoded by C1's `prepareAsset`, stored `<org>/<sha256>.<ext>`
+    (`upsert: false`), row completes with `asset_sha256`, `asset_path` and `output = { assets }`. The download
+    is the expiry test, not `expires_at` (files are kept "at least" 7 days; a mutant found the date check
+    duplicated the 404 and would discard a still-served file — removed).
+  - **The key:** `sealHiggsfieldKey` / `higgsfieldKeyFor` — a `higgsfield` row of `ads_platform_connections`,
+    `secretBox` with AAD = org + `higgsfield_api`, `<id>:<secret>`. **Not built: the Connect door** — it waits
+    on Q-AD20 (no real key seen; a door that cannot test what it stores would save a typo as `connected`).
+  - **Also not built, said so nobody finds it by accident:** sending the Art director's reference photo to
+    Higgsfield (image-to-image, D-AD9) — the fake has no upload endpoint and the upload docs are unread; it
+    belongs with compose (C5) and is read before then. Video (C6).
+  - FakeHiggsfield now serves a real 2×2 PNG per request (colour from the request id), since the client decodes.
+  - Readiness: Renderer stays **L0** — its L1 also needs C4. C3's L1 tests and all four §4R L2 faults are pinned.
+  - Mutation: 13 mutants; three survived the first run — the `expires_at` check (redundant, removed), a URL
+    written into `output`, and `upsert: true` (both test gaps, now asserted) — 13 of 13.
