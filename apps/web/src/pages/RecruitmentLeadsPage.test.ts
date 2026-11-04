@@ -10,6 +10,8 @@ import RecruitmentLeadsPage from "@/pages/RecruitmentLeadsPage.vue";
  * The lead queue and drawer (E4b) over a stubbed `apiFetch`: what each read shows, and that the URL drives it.
  * A notification's link is the case the drawer's own read exists for, so the lead it opens here is on no page.
  */
+const session = vi.hoisted(() => ({ role: "recruiter", can: (_s: string): boolean => false }));
+vi.mock("@/stores/session", () => ({ useSessionStore: () => session }));
 const api = vi.hoisted(() => ({ calls: [] as string[], answer: null as null | ((path: string) => unknown) }));
 vi.mock("@/lib/api", () => ({
   apiFetch: vi.fn(async (path: string) => {
@@ -57,7 +59,7 @@ async function render(at: string) {
   await router.push(at);
   await router.isReady();
   const w = mount(RecruitmentLeadsPage, {
-    global: { plugins: [router, [VueQueryPlugin, { queryClient: new QueryClient({ defaultOptions: { queries: { retry: false } } }) }]], stubs: { PageHeader: { template: "<div />" }, SlideOver: SlideOverStub } },
+    global: { plugins: [router, [VueQueryPlugin, { queryClient: new QueryClient({ defaultOptions: { queries: { retry: false } } }) }]], stubs: { PageHeader: { template: "<div><slot name='actions' /></div>" }, SlideOver: SlideOverStub } },
   });
   for (let i = 0; i < 12; i++) {
     await w.vm.$nextTick();
@@ -73,6 +75,13 @@ beforeEach(() => {
 });
 
 describe("the lead queue", () => {
+  it("a role that manages recruitment can add a lead, and a view-only one cannot", async () => {
+    expect((await render("/recruitment/leads")).w.find('[data-test="add-lead"]').exists()).toBe(false);
+    session.can = () => true;
+    expect((await render("/recruitment/leads")).w.find('[data-test="add-lead"]').exists()).toBe(true);
+    session.can = () => false;
+  });
+
   it("lists a lead with its source, match and status, and links to its drawer", async () => {
     const { w } = await render("/recruitment/leads");
     const text = w.text();

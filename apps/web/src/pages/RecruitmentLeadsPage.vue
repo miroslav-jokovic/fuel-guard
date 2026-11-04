@@ -1,21 +1,23 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import { useRoute } from "vue-router";
-import { DataTable, DataWorkspace, FilterBar, TablePagination, useQueryState, type DataTableColumn } from "@silvicom/ui";
+import { AppButton as BaseButton, DataTable, DataWorkspace, FilterBar, TablePagination, useQueryState, type DataTableColumn } from "@silvicom/ui";
 import { LEAD_STATUSES, LEAD_STATUS_LABELS, leadChannelLabel, type LeadQueueRow } from "@silvicom/shared";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { leadMatchBadge, leadStatusTone } from "@/lib/badges.recruiting";
 import { formatDateTime, formatPhone } from "@/lib/format";
+import AddLeadDrawer from "@/features/recruitment/AddLeadDrawer.vue";
 import LeadDrawer from "@/features/recruitment/LeadDrawer.vue";
 import RecruitmentTabs from "@/features/recruitment/RecruitmentTabs.vue";
 import { LEADS_OPEN, LEADS_PAGE_SIZE, useLeadQueueQuery } from "@/features/recruitment/useLeads";
+import { useSessionStore } from "@/stores/session";
 
 /**
  * The lead queue (E4b): people who answered an ad or were typed in, one person per row, newest first.
  *
- * Working a lead happens in its drawer (`LeadDrawer.vue`). Delete details and adding by hand are the next slice.
+ * Working a lead happens in its drawer (`LeadDrawer.vue`); adding one by hand is `AddLeadDrawer.vue`.
  *
  * It lives under `recruitment`, not `ads`, because the section, its doors and its people are recruitment's
  * (the workflow's Phase E line said `features/ads/`; corrected with this page).
@@ -34,6 +36,13 @@ const statusOptions = [
 const show = qs.param("show", statusOptions.map((o) => o.value), LEADS_OPEN);
 const openLead = qs.param("lead");
 const openLeadId = computed(() => openLead.value ?? "");
+
+const session = useSessionStore();
+const adding = ref(false);
+function added(leadId: string): void {
+  adding.value = false;
+  openLead.value = leadId;
+}
 
 const query = useLeadQueueQuery(show);
 const page = ref(1);
@@ -72,7 +81,11 @@ const personName = (row: LeadQueueRow) => row.full_name ?? (row.phone_e164 || ro
 
 <template>
   <div class="space-y-6">
-    <PageHeader description="People who answered an ad or were added by hand, before they become applicants" />
+    <PageHeader description="People who answered an ad or were added by hand, before they become applicants">
+      <template v-if="session.can('recruitment')" #actions>
+        <BaseButton variant="primary" data-test="add-lead" @click="adding = true">Add a lead</BaseButton>
+      </template>
+    </PageHeader>
     <RecruitmentTabs />
 
     <DataWorkspace>
@@ -123,5 +136,6 @@ const personName = (row: LeadQueueRow) => row.full_name ?? (row.phone_e164 || ro
     </DataWorkspace>
 
     <LeadDrawer :lead-id="openLeadId" @close="openLead = ''" />
+    <AddLeadDrawer :open="adding" @close="adding = false" @added="added" />
   </div>
 </template>

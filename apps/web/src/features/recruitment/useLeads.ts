@@ -1,6 +1,6 @@
 import { computed, type Ref } from "vue";
 import { useInfiniteQuery, useQuery } from "@tanstack/vue-query";
-import type { LeadContactRecord, LeadQueuePage, LeadRecord } from "@silvicom/shared";
+import type { LeadContactRecord, LeadQueuePage, LeadRecord, OpeningListItem } from "@silvicom/shared";
 import { apiFetch } from "@/lib/api";
 
 /** The office's reads of the lead queue (E4). "open" is the api's own default, so it sends no status at all. */
@@ -46,6 +46,18 @@ export function useLeadContactsQuery(leadId: Ref<string>) {
       const res = await apiFetch<{ contacts: LeadContactRecord[] }>(`/api/recruitment/leads/${encodeURIComponent(leadId.value)}/contacts`);
       if (!res.ok || !res.data) throw new Error(res.error?.message ?? "Could not load who contacted this lead.");
       return res.data.contacts;
+    },
+  });
+}
+
+/** The openings a lead can be added to: only those still open, and only those with a title to show. */
+export function useOpenOpeningsQuery() {
+  return useQuery({
+    queryKey: ["recruitment", "openings"],
+    queryFn: async (): Promise<Array<{ value: string; label: string }>> => {
+      const res = await apiFetch<{ openings: OpeningListItem[] }>("/api/recruitment/openings");
+      if (!res.ok || !res.data) throw new Error(res.error?.message ?? "Could not load the openings.");
+      return res.data.openings.flatMap((o) => (o.status === "open" && o.current ? [{ value: o.id, label: o.current.title }] : []));
     },
   });
 }

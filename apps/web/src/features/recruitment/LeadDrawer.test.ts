@@ -26,7 +26,7 @@ vi.mock("@/lib/api", () => ({
     return api.answer!(path, method);
   }),
 }));
-const session = vi.hoisted(() => ({ can: (_s: string): boolean => true }));
+const session = vi.hoisted(() => ({ role: "recruiter" as string, can: (_s: string): boolean => true }));
 vi.mock("@/stores/session", () => ({ useSessionStore: () => session }));
 
 const LEAD: LeadRecord = {
@@ -67,6 +67,7 @@ beforeEach(() => {
   setActivePinia(createPinia());
   api.writes = [];
   api.held = null;
+  session.role = "recruiter";
   session.can = () => true;
 });
 
@@ -225,5 +226,87 @@ describe("do not contact", () => {
     expect(toast.variant).toBe("warning");
     expect(toast.title).toBe("The number stays held");
     expect(toast.message).toContain("texted STOP");
+  });
+});
+
+describe("deleting details", () => {
+  const OTHER = { id: "lead-2", channel: "walk_in", status: "lost" as const, received_at: "2026-10-01T15:00:00Z" };
+  const GONE = { purged: ["lead-1"], already: [], skipped_applicants: [] };
+  const open = async (w: Awaited<ReturnType<typeof render>>["w"]) => {
+    await w.find('[data-test="purge"]').trigger("click");
+    await settle();
+  };
+
+  it("shows for an admin and no other role, whatever they manage", async () => {
+    expect(has((await render()).w, "purge")).toBe(false);
+    session.role = "admin";
+    expect(has((await render()).w, "purge")).toBe(true);
+    expect(has((await render({ ...LEAD, purged_at: "2026-11-01T00:00:00Z" })).w, "purge")).toBe(false);
+  });
+
+  it("says what it does, offers the person's other leads only when there are some, and sends the choice", async () => {
+    session.role = "admin";
+    const { w, invalidated } = await render({ ...LEAD, also: [OTHER] }, () => ok({ ...GONE, purged: ["lead-1", "lead-2"] }));
+    await open(w);
+    expect(w.find('[data-test="purge-form"]').text()).toContain("can't be undone");
+    await w.find('input[type="checkbox"]').setValue(true);
+    await w.find('[data-test="save-purge"]').trigger("click");
+    await settle();
+    expect(api.writes).toEqual([{ path: "/api/recruitment/leads/lead-1/purge", method: "POST", body: { same_person: true } }]);
+    expect(toasts()[0]).toContain("2 leads were emptied");
+    expect(invalidated).toHaveBeenCalledWith({ queryKey: ["recruitment", "leads"] });
+
+    const alone = (await render()).w;
+    await open(alone);
+    expect(alone.find('input[type="checkbox"]').exists()).toBe(false);
+  });
+
+  it("asks for the password, and the same delete runs once it is given", async () => {
+    session.role = "admin";
+    let fresh = false;
+    const { w } = await render(LEAD, () => (fresh ? ok(GONE) : { ok: false, error: { code: "step_up_required", message: "Confirm your password." } }));
+    await open(w);
+    await w.find('[data-test="save-purge"]').trigger("click");
+    await settle();
+    expect(w.text()).toContain("Confirm your password.");
+    expect(has(w, "save-purge")).toBe(false);
+    expect(toasts()).toEqual([]);
+    fresh = true;
+    w.findComponent({ name: "StepUpPrompt" }).vm.$emit("confirmed");
+    await settle();
+    expect(api.writes).toHaveLength(2);
+    expect(toasts()[0]).toContain("Details deleted");
+  });
+
+  it("cancelling the password prompt deletes nothing and does not retry later", async () => {
+    session.role = "admin";
+    const { w } = await render(LEAD, () => ({ ok: false, error: { code: "step_up_required", message: "Confirm your password." } }));
+    await open(w);
+    await w.find('[data-test="save-purge"]').trigger("click");
+    await settle();
+    w.findComponent({ name: "StepUpPrompt" }).vm.$emit("cancel");
+    await settle();
+    expect(api.writes).toHaveLength(1);
+    expect(has(w, "save-purge")).toBe(true);
+  });
+
+  it("names a lead left behind because it became an applicant", async () => {
+    session.role = "admin";
+    const { w } = await render(LEAD, () => ok({ ...GONE, skipped_applicants: ["lead-2"] }));
+    await open(w);
+    await w.find('[data-test="save-purge"]').trigger("click");
+    await settle();
+    expect(useToastStore().toasts[0]!.variant).toBe("warning");
+    expect(toasts()[0]).toContain("1 other lead became an applicant");
+  });
+
+  it("says became_applicant in the api's words", async () => {
+    session.role = "admin";
+    const sentence = "This lead became an applicant. Delete the applicant instead; that removes the lead with them.";
+    const { w } = await render({ ...LEAD, status: "converted" }, () => ({ ok: false, error: { code: "became_applicant", message: sentence } }));
+    await open(w);
+    await w.find('[data-test="save-purge"]').trigger("click");
+    await settle();
+    expect(toasts()[0]).toContain(sentence);
   });
 });
