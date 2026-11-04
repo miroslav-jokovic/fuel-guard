@@ -1174,3 +1174,25 @@ blocking step in §3 above.
   - Readiness: Renderer stays **L0** — its L1 also needs C4. C3's L1 tests and all four §4R L2 faults are pinned.
   - Mutation: 13 mutants; three survived the first run — the `expires_at` check (redundant, removed), a URL
     written into `output`, and `upsert: true` (both test gaps, now asserted) — 13 of 13.
+- **2026-11-04, C4 — the overlay renderer (stills).** `creative/overlay/overlay.ts` (`renderOverlay`): one format and
+  one language per call, bytes in, PNG out (storing it on the creative is compose's, C5). Done-when met: golden
+  images per format (`__golden__/1x1.png`, `4x5.png`, `9x16.png`, ~45 KB each, looked at before committing);
+  a headline needing a third line refuses, naming it, with no image.
+  - **Template:** a stack anchored to the bottom of the text zone (the kit's zone, else `safeZone`): headline
+    (bold, ≤ 2 lines), call to action (bold, 1 line), the EEO line (1 line); the logo at the zone's top left.
+    Sizes fixed per format (64–70 / 44–48 / 26–28 px) and never reduced: too many lines, a word wider than the
+    zone (`overflows`) or a stack taller than the zone REFUSES.
+  - **Text from the brief only:** every line drawn is re-checked with `checkClaims` here, whatever checked it
+    before. `EEO_LINE` (EN "Equal Opportunity Employer", ES "Empleador con igualdad de oportunidades") is D-AD9's
+    fixed legal line — counsel confirms the wording with G12 / Q-AD8.
+  - **Contrast under the words:** the image and plate are composed first, every 4th pixel under each box is
+    sampled from that, and shared `checkRender` judges the worst. Tests: white text over a bright sky with no
+    plate fails while the same text over the dark field passes; one 24 px bright stripe behind the words fails.
+  - **Nothing invented:** a format the kit has no overlay for refuses `no_template` (no default colours); fonts are
+    the bundled Liberation Sans from `lib/pdfFonts.ts`, registered from its bytes, and a character it cannot draw
+    (`canDraw`, e.g. an emoji) refuses instead of printing an empty box.
+  - Goldens compare with a tolerance (< 0.5 % of pixels off by > 48 levels) for Skia's antialiasing between
+    macOS and Linux; `UPDATE_GOLDEN=1` rewrites them, and CI refuses a missing golden instead of writing one.
+  - Readiness: **Renderer / Higgsfield client L2** (L1 = C3 + C4, L2 = C3's four faults).
+  - Mutation: 11 mutants; one survived the first run (a sampling grid thinned to every 400th pixel still caught
+    the sky) — the stripe test now kills it — 11 of 11.

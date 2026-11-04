@@ -577,7 +577,19 @@ export const READINESS = [
             ] },
           ],
         },
-        notBuilt("C4 overlay renderer (stills, golden images per format)"),
+        {
+          need: "the overlay renderer (stills): golden images per format, text from the brief only, a too-long line refuses",
+          tests: [{ file: "apps/api/src/modules/ads/creative/overlay/overlay.test.ts", titles: [
+            "1:1 matches its golden image",
+            "4:5 matches its golden image",
+            "9:16 matches its golden image",
+            "a headline that needs a third line refuses, naming it, with no image",
+            "one word wider than the zone refuses as an overflow, never shrunk",
+            "a figure the brief does not hold is refused here too, whatever checked it before",
+            "one narrow bright stripe behind the words fails, though the rest of the zone is dark",
+            "a format with no overlay in the brand kit refuses — no colour is invented",
+          ] }],
+        },
       ],
       L2: [
         {
