@@ -151,6 +151,12 @@ describe("composeCreative — what stops at once, never regenerated", () => {
     expect(h.creativeWrites().at(-1)!.write!.payload).toMatchObject({ state: "check_failed", last_error: "render: price_unknown" });
   });
 
+  it("with no still model chosen yet (V4) it stops at the render, asking Higgsfield nothing", async () => {
+    const h = harness();
+    expect(await composeCreative({ ...h.deps, renderModel: null }, h.input())).toEqual({ kind: "check_failed", reason: "render: no still model chosen yet (V4)" });
+    expect(h.render).not.toHaveBeenCalled();
+  });
+
   it("a format the brand kit has no overlay for stops as the render check, with no visual check asked", async () => {
     const h = harness();
     const out = await h.run({ kit: { ...KIT, overlays: {} } });

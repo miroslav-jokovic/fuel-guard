@@ -45,16 +45,16 @@ describe("orchestratorTick — it only enqueues, one keyed step per campaign wit
     expect(await orchestratorTick(w.admin, ALL, l.enqueue)).toEqual({ campaigns: 1, queued: 0, conflicts: 1 });
   });
 
-  it("with this build's workers (the platform only, B3), launching and pausing are queued; composing waits, live waits for the kill switch", async () => {
+  it("with this build's workers (compose C5b2, the platform B3), composing, launching and pausing are queued; live waits for the kill switch", async () => {
     const live = [campaign("c1", "live"), campaign("c2", "composing"), campaign("c3", "launching"), campaign("c4", "pausing")];
     const quiet = ledger();
     const w1 = createAdsWorld({ campaigns: live });
     await orchestratorTick(w1.admin, adsWorkers({ admin: w1.admin, env: loadEnv({ NODE_ENV: "test" } as NodeJS.ProcessEnv), now: w1.now }), quiet.enqueue);
-    expect(quiet.calls.map((c) => c.key).sort()).toEqual(["ads_step:c3:launching", "ads_step:c4:pausing"]);
+    expect(quiet.calls.map((c) => c.key).sort()).toEqual(["ads_step:c2:composing", "ads_step:c3:launching", "ads_step:c4:pausing"]);
     const pressed = ledger();
     const w2 = createAdsWorld({ campaigns: live, kill: true });
     await orchestratorTick(w2.admin, adsWorkers({ admin: w2.admin, env: loadEnv({ NODE_ENV: "test" } as NodeJS.ProcessEnv), now: w2.now }), pressed.enqueue);
-    expect(pressed.calls.map((c) => c.key).sort()).toEqual(["ads_step:c1:live", "ads_step:c3:launching", "ads_step:c4:pausing"]);
+    expect(pressed.calls.map((c) => c.key).sort()).toEqual(["ads_step:c1:live", "ads_step:c2:composing", "ads_step:c3:launching", "ads_step:c4:pausing"]);
   });
 
   it("asks the database only for states the agent can act in, and nothing at all when there are none", async () => {

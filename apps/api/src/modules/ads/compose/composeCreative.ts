@@ -44,8 +44,8 @@ export interface CreativeRow {
 
 export interface ComposeDeps extends ClaudeGenerationDeps {
   render: (input: RenderInput) => Promise<RenderOutcome>;
-  /** Higgsfield's model path for stills; refused `price_unknown` by the credit gate until V4 prices it. */
-  renderModel: string;
+  /** Higgsfield's model path for stills. Null until V4 chooses and prices one: compose stops, visibly. */
+  renderModel: string | null;
   readAsset: (orgId: string, ref: Pick<AdAssetRef, "sha256" | "format">) => Promise<Buffer>;
   storeAsset: (orgId: string, bytes: Buffer) => Promise<AdAssetRef>;
 }
@@ -120,6 +120,7 @@ async function oneAttempt(deps: ComposeDeps, input: ComposeInput, copy: AdCopy, 
   if (art.kind === "refused") return { kind: "stop", reason: `art check: ${art.findings.map((f) => f.kind).join(", ")}` };
   if (art.kind !== "ready") return { kind: "stop", reason: `art: ${stopCode(art)}` };
 
+  if (!deps.renderModel) return { kind: "stop", reason: "render: no still model chosen yet (V4)" };
   const prompt = withRegenerationClauses(art.direction.prompt, failedBefore);
   const render = await deps.render({ ...ids, attempt, model: deps.renderModel, params: { prompt } });
   if (render.kind === "pending") return { kind: "pending", why: `render ${attempt}: ${render.why}` };

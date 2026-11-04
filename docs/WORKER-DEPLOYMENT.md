@@ -187,7 +187,9 @@ unknown name is treated as production.
 
 **`ads_render`** (C3, 2026-11-04; `modules/ads/creative/higgsfield/render.ts`) is a job kind with NO scheduler: one
 Higgsfield render moved one step (`KIND_CAPS` 1 — renders spend the carrier's prepaid credits, and one at a time
-keeps the month exact). Enqueued by the compose step (C5, not built), `dedup_key` = `ads_render:<creative>:<attempt>`.
+keeps the month exact). Enqueued by the compose step (C5b2, `orchestrator/workers.ts` `queuedRender`) as a queue row, never
+`dispatchJob` (in-process mode would render inside the step), `dedup_key` = `ads_render:<creative>:<attempt>`. Compose itself
+never calls Higgsfield: `ads_step` runs two at a time, and two renders at once could both pass the month's credit gate.
 "Not finished" throws, so the queue's retry backoff IS the poll; when its attempts run out the ledger row stays
 `started` and the next job resumes it free (same Idempotency-Key). No webhook receiver: polling recovers every case.
 

@@ -582,7 +582,19 @@ export const READINESS = [
             "a pending compose moves nothing and writes no row, and the next step with the same key finishes it",
           ] }],
         },
-        notBuilt("C5b2: the campaign's compose step wired — the preset draw, a creative per drawn preset, the campaign's verdict"),
+        {
+          need: "the campaign's compose step wired (C5b2): the seeded draw stored once, a creative per drawn preset in this stint, renders only through the one-at-a-time job, the campaign's verdict",
+          tests: [{ file: "apps/api/src/modules/ads/compose/composeCampaign.test.ts", titles: [
+            "draws with the campaign id as the seed, stores the draw while none is stored, and composes the first two in its order",
+            "leaves out a preset a live campaign for the same brief runs",
+            "a creative that ended badly in an earlier stint is superseded by a new one in this stint",
+            "any creative still under way keeps the campaign composing",
+            "none ready fails the compose with every creative's reason",
+          ] }, { file: "apps/api/src/modules/ads/orchestrator/queuedRender.test.ts", titles: [
+            "no render yet: queues one ads_render job for this creative and attempt, and answers pending",
+            "a model nobody priced, or the renderer switched off, is refused at once — never a job that writes no row",
+          ] }],
+        },
       ],
       L2: [
         {

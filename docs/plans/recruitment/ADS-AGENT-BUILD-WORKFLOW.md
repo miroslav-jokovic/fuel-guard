@@ -1296,3 +1296,30 @@ blocking step in §3 above.
     into a stop, a finished creative reworked, the overlay-slot guard, copy and overlay refusals ignored, a visual
     fail ignored, the unframed image checked, no reference, one language, the regeneration count, both state
     guards, the band's union, the runner's pending, both `overlay_slots` refinements) — 21 of 21 killed.
+- **2026-11-04, C5b2 — compose wired: the campaign's part.** `compose/composeCampaign.ts` is the orchestrator's
+  `compose` worker (`workers.ts`). C5's done-when is met: a planted glyph image fails, a planted foreign logo fails
+  (C5a), a second failure stops with the reason (C5b1). **Checker L2.**
+  - **The draw (D-AD11)** with seed = the campaign id, excluding presets a `launching`/`live` campaign for the same
+    brief runs (its approved/live creatives' preset keys), stored once in `ads_campaigns.preset_draw`
+    (`storePresetDraw` in `transitions.ts`, `ads_campaigns`' one writer; guarded `is null`, a racing run reads the
+    first draw back). The first `BATCH` = 2 presets of the order (plan v4). A drawn version no longer the newest is
+    read by id.
+  - **A creative per preset per stint.** The row id is derived from campaign + preset + `state_changed_at`, so a
+    racing insert collides (23505 → read the winner), and "made in this stint" is the id, not a DB-clock vs
+    app-clock comparison. A row that ended `check_failed`/`rejected` in an earlier stint (Resume, Regenerate) is
+    superseded (`supersedes_id`); anything else is kept.
+  - **Verdict:** any creative pending → `pending`; ≥ 1 ready → `creatives_ready` (review shows the failed ones with
+    reasons); none → `compose_failed` with every reason. Stops first with no brand kit (Q-AD14), or with more than
+    one (which kit a campaign uses is E3's to choose, not ours to guess).
+  - **Renders stay one at a time.** Found while wiring: calling `renderStep` from compose would run under
+    `ads_step`'s cap (2), and `creditGate` counts renders in flight, so two at once could both pass the month and
+    overspend it by one render — the reason C3 capped `ads_render` at 1. So compose's render is `queuedRender`:
+    read the row (`renderStatus`, new, read-only), queue `ads_render` as a queue row if it is not finished (never
+    `dispatchJob`: in-process mode would render inline), answer `pending`. `renderStatus` also answers the two
+    refusals `renderStep` makes WITHOUT a row (`price_unknown`, renderer off), so compose cannot wait forever for a
+    row that will never be written.
+  - **`HIGGSFIELD_STILL_MODEL = null`** (`prices.ts`): which model draws stills is V4's, with its price. Until then
+    every compose stops at the render, visibly ("no still model chosen yet (V4)").
+  - Mutation: 19 mutants (seed, re-draw, live exclusion, exhausted, kit count ×2, batch size, stint identity ×2,
+    supersedes, the insert race, pending, the ≥ 1-ready verdict, the regeneration setting, the draw's guard, a
+    refusal queued, the job's dedup key, `renderStatus`'s refusals, the null model) — 19 of 19 killed.

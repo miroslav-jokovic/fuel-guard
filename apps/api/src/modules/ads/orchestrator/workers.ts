@@ -5,6 +5,13 @@ import { guardPlatform, type GuardedPlatform } from "../guard/guardedPlatform.js
 import { adapterForConnection } from "../platforms/registry.js";
 import type { PlatformOutcome } from "../platforms/adapter.js";
 import type { CampaignRow } from "./transitions.js";
+import { anthropicClient } from "../../../lib/anthropic.js";
+import { composeCampaign } from "../compose/composeCampaign.js";
+import { readAdAsset, storeAdAsset } from "../creative/brandAssets.js";
+import { HIGGSFIELD_CREDIT_PRICES, HIGGSFIELD_STILL_MODEL } from "../creative/higgsfield/prices.js";
+import { renderStatus, type RenderInput, type RenderOutcome } from "../creative/higgsfield/render.js";
+import { pgQueueDriver } from "../../../queue/pgDriver.js";
+import type { QueueDriver } from "../../../queue/types.js";
 
 /**
  * What the orchestrator hands work to (D-AD16: "small single-job workers under one orchestrator").
@@ -42,6 +49,8 @@ export type WorkerResult = { ok: true } | { ok: false; error: string } | { ok: f
  * B3 (2026-11-02) fills `platform`: pause reaches Meta (or the simulator), and launch goes through the
  * guard. `createPaused` is still null, so nothing reaches `paused` by the agent yet, and so no launch.
  *
+ * C5b2 (2026-11-04) fills `compose` (`compose/composeCampaign.ts`).
+ *
  * B2a (2026-11-02) built the publisher's first half (`platforms/meta/publisher.ts`: campaign + ad set,
  * paused) and deliberately leaves `createPaused` null. `created` moves a campaign to `paused`, where a
  * person presses Launch; a campaign with no ad yet has nothing to launch, so wiring half a publisher
@@ -49,7 +58,15 @@ export type WorkerResult = { ok: true } | { ok: false; error: string } | { ok: f
  */
 export function adsWorkers(deps: WorkerDeps): CampaignWorkers {
   return {
-    compose: null,
+    // C5b2: the presets drawn, one creative per preset in the batch, each through copy → art → render →
+    // overlay → the three checks (`compose/`). The render itself is NOT done here: see `queuedRender`.
+    compose: (campaign) => composeCampaign({
+      admin: deps.admin, now: deps.now, client: anthropicClient(deps.env),
+      renderModel: HIGGSFIELD_STILL_MODEL,
+      render: queuedRender(deps.admin),
+      readAsset: (orgId, ref) => readAdAsset(deps.admin, orgId, ref),
+      storeAsset: (orgId, bytes) => storeAdAsset(deps.admin, orgId, bytes),
+    }, campaign),
     createPaused: null,
     // B3: the connection's Meta adapter (or the simulator's, off production), its spend half closed
     // inside the guard. With it, a pausing campaign — the kill switch's second half — reaches Meta.
@@ -57,6 +74,25 @@ export function adsWorkers(deps: WorkerDeps): CampaignWorkers {
       const found = await adapterForConnection({ admin: deps.admin, env: deps.env, now: deps.now }, orgId, connectionId);
       return found ? guardPlatform(deps.admin, deps.now, found.platform, found.adapter) : null;
     },
+  };
+}
+
+/**
+ * Compose's render: read where it stands, and if it is not finished, make sure an `ads_render` job is
+ * queued for it, then answer `pending`. The job, not this step, calls Higgsfield, because the job runs ONE
+ * AT A TIME (`KIND_CAPS.ads_render` 1) and `creditGate` counts renders in flight: two submitted at once
+ * could both pass the month's budget and overspend it by one render. `ads_step` runs two at a time, so a
+ * render called from here would reopen that race. The job's dedup key holds one job per creative and
+ * attempt; a job whose retries ran out leaves its row `started`, and the next step queues it again.
+ * The job goes in as a queue row (`pgQueueDriver`), never `dispatchJob`, which in production's in-process
+ * mode would run the render inline, inside this step (B4b's trap).
+ */
+export function queuedRender(admin: SupabaseClient, driver: QueueDriver = pgQueueDriver(admin), prices: Readonly<Record<string, number>> = HIGGSFIELD_CREDIT_PRICES): (input: RenderInput) => Promise<RenderOutcome> {
+  return async (input) => {
+    const status = await renderStatus(admin, prices, input);
+    if (status.kind !== "absent" && status.kind !== "pending") return status;
+    const r = await driver.enqueue("ads_render", { orgId: input.orgId, payload: { ...input }, dedupKey: `ads_render:${input.creativeId}:${input.attempt}` });
+    return { kind: "pending", generationId: status.kind === "pending" ? status.generationId : "", retryAfterSeconds: null, why: "conflict" in r ? "render queued" : "render job queued" };
   };
 }
 
