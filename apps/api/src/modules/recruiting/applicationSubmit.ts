@@ -13,6 +13,9 @@ import {
   driverPlacementIds,
   packetDriverMarkCount,
   questionnaireRequiredIssues,
+  answersToStamp,
+  carrierAnswerIssues,
+  carrierStampOf,
   requiredQuestionsOf,
 } from "@silvicom/shared";
 import type { Env } from "../../env.js";
@@ -308,8 +311,22 @@ export async function submitApplication(
    * the carrier-question rules run again (`questionnaireRequiredIssues`), so the rules that refused or
    * passed on the page are the same rules judged here, with the server's own set. Null (sent before 0550's reader) leaves the definition's flags.
    */
-  const stamped = { ...body.application, questionnaire_required: requiredQuestionsOf(invitation.required_questions ?? null) };
-  const unanswered = questionnaireRequiredIssues(stamped);
+  /**
+   * §15.3 D-CQ2/D-CQ3: likewise the carrier's OWN questions — the invitation's stamp replaces the page's
+   * copy, the answers are cut to that stamp's ids, and they are judged against it here. An invitation with
+   * no stamp files no carrier questions at all, whatever the body carried.
+   */
+  const carrierStamp = carrierStampOf(invitation.carrier_questions);
+  const stamped = {
+    ...body.application,
+    questionnaire_required: requiredQuestionsOf(invitation.required_questions ?? null),
+    carrier_questions: carrierStamp.length > 0 ? carrierStamp : null,
+    carrier_answers: carrierStamp.length > 0 ? answersToStamp(carrierStamp, body.application.carrier_answers) : null,
+  };
+  const unanswered = [
+    ...questionnaireRequiredIssues(stamped),
+    ...carrierAnswerIssues(stamped.carrier_questions, stamped.carrier_answers).map((i) => ({ path: i.path.join("."), message: i.message })),
+  ];
   if (unanswered.length > 0) return applicationIncomplete(unanswered);
 
   let certified: ApplicationSubmit["application"] = stamped;

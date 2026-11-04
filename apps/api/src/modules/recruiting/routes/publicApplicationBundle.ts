@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { offeredCaptureSlots, requiredQuestionsOf, todayInZone } from "@silvicom/shared";
+import { carrierStampOf, offeredCaptureSlots, requiredQuestionsOf, todayInZone } from "@silvicom/shared";
 import { apiError, asyncHandler } from "../../../lib/http.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
@@ -162,6 +162,9 @@ export const applicationBundleHandler = asyncHandler(async (req, res) => {
     // §11 D-RS3/D-RS4: the questions THIS applicant must answer, as stamped at the office's first Send —
     // never the live setting. Null for an invitation sent before 0550's reader (the definition decides).
     requiredQuestions: requiredQuestionsOf(invitation.required_questions ?? null),
+    // §15.3 D-CQ2: the carrier's own questions as stamped at the first Send — the set this page asks and
+    // the API checks at filing. Empty for an invitation sent before CQ2, or a carrier with none.
+    carrierQuestions: carrierStampOf(invitation.carrier_questions),
     offeredDocumentSlots,
     owes,
   });
