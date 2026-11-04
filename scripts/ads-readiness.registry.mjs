@@ -35,6 +35,7 @@ const META_PATH = "apps/api/src/modules/ads/orchestrator/metaPath.test.ts";
 const RULES_SYNC = "apps/api/src/modules/ads/platforms/meta/rulesSync.test.ts";
 const COPYWRITER = "apps/api/src/modules/ads/workers/copywriter/copywriter.test.ts";
 const ART_DIRECTOR = "apps/api/src/modules/ads/workers/artDirector/artDirector.test.ts";
+const RENDER = "apps/api/src/modules/ads/creative/higgsfield/render.test.ts";
 
 export const SCENARIO_DIR = "packages/ads-golden/scenarios";
 
@@ -558,7 +559,42 @@ export const READINESS = [
     },
   },
   { worker: "Analyst", levels: { L1: [notBuilt("F1 daily brief + cohort report")], L2: later("L2"), L3: later("L3"), L4: [{ need: "a brief over sandbox insights", gap: STAGE2 }], L5: [{ need: "canary", gap: CANARY }] } },
-  { worker: "Renderer / Higgsfield client", levels: { L1: [notBuilt("C3 Higgsfield client (on FakeHiggsfield, #1923) + C4 overlay renderer")], L2: later("L2"), L3: later("L3"), L4: [{ need: "a small real Higgsfield API budget", gap: STAGE2 }], L5: [{ need: "canary", gap: CANARY }] } },
+  {
+    worker: "Renderer / Higgsfield client",
+    levels: {
+      L1: [
+        {
+          need: "the Higgsfield client: key sealed, submit under the row's id, output copied to our storage, credits checked before the submit",
+          tests: [
+            { file: RENDER, titles: [
+              "copies the image into ad-assets by its hash and records our path and the price — no Higgsfield URL anywhere",
+              "refuses a model nobody has priced, with no row and no submit",
+              "refuses when the renderer is switched off, with no row and no submit",
+            ] },
+            { file: "apps/api/src/modules/ads/creative/higgsfield/higgsfieldKey.test.ts", titles: [
+              "seals to an envelope that holds neither half in plaintext, and opens back to both halves",
+              "a key sealed for another org cannot be opened here",
+            ] },
+          ],
+        },
+        notBuilt("C4 overlay renderer (stills, golden images per format)"),
+      ],
+      L2: [
+        {
+          need: "§4R's faults: webhook never arrives (poll recovers); output URL expired; replay with the same idempotency key; credit budget exhausted",
+          tests: [{ file: RENDER, titles: [
+            "submits once under the row's id, polls until done, and a replay after that asks Higgsfield nothing",
+            "an answer lost after Higgsfield charged is found again under the same key, not made twice",
+            "a completed render whose file is already gone fails as output_expired, charged, and stores nothing",
+            "writes budget_exhausted instead of submitting when the month cannot pay the price, counting renders still in flight",
+          ] }],
+        },
+      ],
+      L3: later("L3"),
+      L4: [{ need: "a small real Higgsfield API budget", gap: STAGE2 }],
+      L5: [{ need: "canary", gap: CANARY }],
+    },
+  },
   {
     worker: "Security (all)",
     levels: {

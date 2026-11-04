@@ -103,6 +103,8 @@ const KIND_CAPS: Record<string, number> = {
   ads_insights: 1,
   // One at a time: a reconcile reads every object of ours and 28 days of insights with one account token (B5c).
   ads_reconcile: 1,
+  // One at a time: renders spend the carrier's prepaid Higgsfield credits; one in flight keeps the month exact (C3).
+  ads_render: 1,
   // sharp is CPU-bound; two at a time keeps a burst of uploads from starving the sync kinds.
   document_derive: 2,
 };

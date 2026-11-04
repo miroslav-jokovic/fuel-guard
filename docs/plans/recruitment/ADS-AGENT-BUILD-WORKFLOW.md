@@ -1141,3 +1141,36 @@ blocking step in §3 above.
     approves them (Q-AD12).
   - Mutation: 13 mutants (each pre-check, digit, lettering, foreign photo, photo on text-only, the clause, slot
     length, pre-check skipped, verdict ignored, key without attempt, wrong agent, company name sent), all killed.
+- **2026-11-04, C3 — the Higgsfield client, on FakeHiggsfield.** Done-when met: a replayed generation spends
+  nothing (the fake's submit count and balance unchanged by a replay, and by a lost-answer retry); an expired
+  URL never reaches the UI (no Higgsfield URL is written to any row or answer — only our `ad-assets` path).
+  - `creative/higgsfield/`: `higgsfieldClient.ts` (submit / status / download, tagged outcomes: `temporary`,
+    `balance`, `refused`; base `https://api.higgsfield.ai` from the plan's research, OUR reading until L4),
+    `render.ts` (`renderStep`, one idempotent step), `higgsfieldKey.ts`, `prices.ts`; job `ads_render`
+    (`KIND_CAPS` 1, one-line kind in `jobs.ts`, now 494), handler `queue/handlers/adsRender.ts`.
+  - **Idempotency-Key = the generation row's id.** The row is written `started` first; AX011 lets it move only
+    once, so Higgsfield's request id is not stored mid-flight — instead every run while `started` submits
+    AGAIN under the same key, which Higgsfield answers with the original request, free. That one rule covers a
+    crash after submit, `accepted_then_error`, and the webhook that never arrives. **No webhook receiver is
+    built** (the workflow's "webhook or poll"): the queue's retry backoff is the poll; when attempts run out the
+    row stays `started` and the next job resumes it.
+  - **Credits before the submit:** shared `creditGate` — switch, price, budget, and "used + price ≤ budget"
+    (a render's price is known in advance, unlike tokens). `higgsfieldCreditsThisMonth` counts finished rows at
+    cost and `started` rows at the price written on them, so renders in flight count at once and the month
+    cannot overshoot. **`HIGGSFIELD_CREDIT_PRICES` is EMPTY**: every model is `price_unknown` until V4 measures
+    real prices with the owner's key (Q-AD20) — never guessed. `failed`/`nsfw`/a 403 cost 0 (Higgsfield's
+    billing page); a completed render whose file is gone completes `failed`/`output_expired` AT its price.
+  - **Copied at once:** each image downloaded, decoded by C1's `prepareAsset`, stored `<org>/<sha256>.<ext>`
+    (`upsert: false`), row completes with `asset_sha256`, `asset_path` and `output = { assets }`. The download
+    is the expiry test, not `expires_at` (files are kept "at least" 7 days; a mutant found the date check
+    duplicated the 404 and would discard a still-served file — removed).
+  - **The key:** `sealHiggsfieldKey` / `higgsfieldKeyFor` — a `higgsfield` row of `ads_platform_connections`,
+    `secretBox` with AAD = org + `higgsfield_api`, `<id>:<secret>`. **Not built: the Connect door** — it waits
+    on Q-AD20 (no real key seen; a door that cannot test what it stores would save a typo as `connected`).
+  - **Also not built, said so nobody finds it by accident:** sending the Art director's reference photo to
+    Higgsfield (image-to-image, D-AD9) — the fake has no upload endpoint and the upload docs are unread; it
+    belongs with compose (C5) and is read before then. Video (C6).
+  - FakeHiggsfield now serves a real 2×2 PNG per request (colour from the request id), since the client decodes.
+  - Readiness: Renderer stays **L0** — its L1 also needs C4. C3's L1 tests and all four §4R L2 faults are pinned.
+  - Mutation: 13 mutants; three survived the first run — the `expires_at` check (redundant, removed), a URL
+    written into `output`, and `upsert: true` (both test gaps, now asserted) — 13 of 13.
