@@ -5,3 +5,4 @@ export * from "./opening.js";
 export * from "./leadContract.js";
 export * from "./leadMatch.js";
 export * from "./leadDisplay.js";
+export * from "./openingBrief.js";

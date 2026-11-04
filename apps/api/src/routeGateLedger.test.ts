@@ -96,7 +96,10 @@ function walkRoutes(stack: Layer[], prefix: string, inherited: string[], out: Ma
 /** Discover mounts from app.ts source — the same detector routeGates.test.ts uses, same reason. */
 function mountedApiRouters(): string[] {
   const src = readFileSync(new URL("./app.ts", import.meta.url), "utf8");
-  const re = /app\.use\("(\/api[^"]*)"\s*,[^\n]*?\w+Router\(\)[^\n]*\)/g;
+  // A router factory may take its dependencies (`adsRouter({ briefSourcesFor })`, `drugAlcoholRouter({ … })`):
+  // matching only an empty `Router()` made both mounts invisible here, every route under them unaudited
+  // (found 2026-11-04, Track S S1b, when /api/ads gained an argument and its admin-only keys went "unused").
+  const re = /app\.use\("(\/api[^"]*)"\s*,[^\n]*?\w+Router\([^\n]*\)/g;
   return [...new Set([...src.matchAll(re)].map((m) => m[1]!))];
 }
 

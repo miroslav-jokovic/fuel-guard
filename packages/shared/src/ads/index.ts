@@ -18,3 +18,4 @@ export * from "./monitorChecks.js";
 export * from "./adsReconcile.js";
 export * from "./brandKitContract.js";
 export * from "./artDirection.js";
+export * from "./campaignContract.js";
