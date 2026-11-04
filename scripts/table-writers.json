@@ -1,4 +1,16 @@
 {
+  "ad_brand_kit_versions": [
+    "apps/api/src/modules/ads/creative/kitVersions.ts"
+  ],
+  "ad_brand_kits": [
+    "apps/api/src/modules/ads/creative/kitVersions.ts"
+  ],
+  "ad_concept_preset_versions": [
+    "apps/api/src/modules/ads/creative/kitVersions.ts"
+  ],
+  "ad_concept_presets": [
+    "apps/api/src/modules/ads/creative/kitVersions.ts"
+  ],
   "ad_generations": [
     "apps/api/src/modules/ads/generations/generationLedger.ts"
   ],
