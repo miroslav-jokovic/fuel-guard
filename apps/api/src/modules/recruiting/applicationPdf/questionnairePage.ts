@@ -1,4 +1,6 @@
 import {
+  carrierQuestionnaire,
+  carrierStampOf,
   choiceLabel,
   questionnaireByRef,
   readableAnswers,
@@ -79,8 +81,14 @@ const yesNo = (v: boolean): string => (v ? "Yes" : "No");
  * that was — which is the only other thing that matters about it.
  */
 export function questionnaireSection(doc: PDFKit.PDFDocument, input: ApplicationPdfInput): void {
+  const printed = builtInQuestions(doc, input);
+  carrierQuestionsSection(doc, input, printed);
+}
+
+/** The built-in questionnaire; whether it printed a page (a definition this build carries). */
+function builtInQuestions(doc: PDFKit.PDFDocument, input: ApplicationPdfInput): boolean {
   const definition = questionnaireByRef(input.application.questionnaire_version);
-  if (!definition) return;
+  if (!definition) return false;
   const answers = readableAnswers(input.application.questionnaire_answers as Record<string, unknown>);
 
   doc.addPage();
@@ -100,6 +108,29 @@ export function questionnaireSection(doc: PDFKit.PDFDocument, input: Application
       questionnaireTable(doc, question, value);
       continue;
     }
+    field(doc, question.label, unanswered(value) ? NOT_ANSWERED : scalarAnswer(choiceLabel(question, value)));
+  }
+  return true;
+}
+
+/**
+ * The questions the CARRIER wrote itself (HIRING-WORKFLOW-AUDIT-2026-10-31 §15.3, D-CQ2), printed from the
+ * stamp the filed payload carries — the words this applicant was asked, never the carrier's list today, so
+ * a question retired since still prints on the application that asked it. AUD-22's rule holds: every
+ * question prints, an unanswered one as "Not answered.". Under the built-in questions when those printed;
+ * on a page of its own otherwise, so it never runs on under the permission instruments.
+ *
+ * ⚠ The stamp is read through `carrierStampOf`: historical jsonb, and a malformed one prints nothing.
+ */
+function carrierQuestionsSection(doc: PDFKit.PDFDocument, input: ApplicationPdfInput, afterBuiltIn: boolean): void {
+  const stamp = carrierStampOf(input.application.carrier_questions);
+  if (stamp.length === 0) return;
+  const answers = (input.application.carrier_answers ?? {}) as Record<string, unknown>;
+  if (!afterBuiltIn) doc.addPage();
+  heading(doc, `${input.carrier.name} — questions the carrier added`);
+  caption(doc, "Worded by the carrier and asked as worded when the application was sent. Not part of 49 CFR §391.21.");
+  for (const question of carrierQuestionnaire(stamp).questions) {
+    const value = answers[question.id];
     field(doc, question.label, unanswered(value) ? NOT_ANSWERED : scalarAnswer(choiceLabel(question, value)));
   }
 }

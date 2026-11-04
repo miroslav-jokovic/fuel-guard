@@ -116,6 +116,32 @@ describe("what the office reads", () => {
   });
 
   /**
+   * §15.3 D-CQ2: the carrier's own questions print from the invitation's STAMP, the words this applicant
+   * was asked — a question the carrier retired since still prints, and the skip reads as the applicant chose it.
+   */
+  it("prints the carrier's own questions from the invitation's stamp, with the answers given", async () => {
+    apiFetch.mockResolvedValue({
+      ok: true,
+      data: review({
+        payload: { ...PAYLOAD, carrier_answers: { "q-pet": true, "q-lane": "I'd rather not say" } },
+        carrierQuestions: [
+          { id: "q-pet", wording: "Do you own a pet?", hint: null, kind: "boolean", choices: null, required: true },
+          { id: "q-lane", wording: "Preferred lane", hint: null, kind: "select", choices: ["East", "West"], required: false },
+        ],
+      }),
+    });
+    const w = drawer();
+    await settle(w);
+    const text = w.text();
+    expect(text).toContain("Do you own a pet?");
+    expect(text).toContain("Preferred lane");
+    expect(text).toMatch(/Do you own a pet\?\s*Yes/);
+    expect(text).toMatch(/Preferred lane\s*I'd rather not say/);
+    // Not offered as a correction: the draft does not carry the stamp that labels them (Q-CQ7).
+    expect(w.find("[id^='apply-carrier_answers']").exists()).toBe(false);
+  });
+
+  /**
    * C3c2c2 (Q-AW34): a v2 application is read as filing will compose it — Part 1's phone, not the draft's
    * retyped copy — with the applicant's note above the answers, and no box offered for an answer filing
    * takes from Part 1 (the correction would be filed over).

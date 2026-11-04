@@ -89,4 +89,9 @@ export interface PacketOverlayInput {
    * drawn in exactly the ink they will be filed in and the sheet says what it is in a sentence.
    */
   band?: string | null;
+  /**
+   * §15.3: the carrier's OWN questions — the invitation's stamp and the answers — drawn on a sheet appended
+   * after the continuation sheet (`packetCarrierQuestions.ts`). Absent or an empty stamp: no sheet.
+   */
+  carrierQuestions?: { stamp: unknown; answers: Record<string, unknown> | null | undefined } | null;
 }

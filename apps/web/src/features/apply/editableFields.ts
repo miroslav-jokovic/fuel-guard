@@ -56,6 +56,10 @@ const NOT_AN_ANSWER = new Set([
   "questionnaire_required",
   // C3c2c2: the applicant's note to the office. Theirs to write; the drawer shows it, never corrects it.
   "correction_note",
+  // §15.3: the answers to the carrier's OWN questions. Labelled only by the invitation's stamp, which the
+  // draft does not carry, so a correction could not say which question it changes; they go back to the
+  // applicant (HIRING-WORKFLOW-AUDIT §15.3 Q-CQ7). The stamp itself is never in a draft.
+  "carrier_answers",
 ]);
 
 /** The carrier's own answers, which live under one key and are labelled by their question. */

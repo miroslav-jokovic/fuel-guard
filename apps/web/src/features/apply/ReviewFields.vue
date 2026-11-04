@@ -6,7 +6,7 @@ import {
   type ApplicationSection,
 } from "@silvicom/shared";
 import type { ApplicationDraft } from "@/features/apply/draft";
-import { applicantQuestionnaire } from "@/features/apply/questionnaireCopy";
+import { applicantCarrierQuestionnaire, applicantQuestionnaire } from "@/features/apply/questionnaireCopy";
 import { buildReviewSummary } from "@/features/apply/reviewSummary";
 import { missingAnswers } from "@/features/apply/missingAnswers";
 import type { SectionIssue } from "@/features/apply/useApplicationWizard";
@@ -46,6 +46,7 @@ const sections = computed(() =>
   buildReviewSummary({
     draft: props.draft,
     questionnaire: applicantQuestionnaire(props.draft.questionnaire_version),
+    carrier: applicantCarrierQuestionnaire(),
     captures: props.captures ?? [],
   }),
 );

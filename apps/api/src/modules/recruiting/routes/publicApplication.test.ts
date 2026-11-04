@@ -406,6 +406,23 @@ describe("opening the link", () => {
     expect(body.offeredDocumentSlots).toContain("ssn_card");
   });
 
+  it("§15.3 D-CQ2: serves the invitation's stamped carrier questions — never the live list — and none for an old invitation", async () => {
+    const stamp = [
+      { id: "91000000-0000-4000-8000-000000000001", wording: "Do you own a pet?", hint: null, kind: "boolean", choices: null, required: true },
+    ];
+    holder.client = seed(
+      { carrier_questions: stamp },
+      { recruiting_carrier_questions: [{ id: "91000000-0000-4000-8000-000000000009", org_id: ORG, wording: "Added later", hint: null, kind: "text", choices: null, required: true, position: 0, created_at: "x", retired_at: null }] },
+    ).client;
+    const body = (await (await call(`/${TOKEN}`)).json()) as { carrierQuestions: unknown[] };
+    expect(body.carrierQuestions).toEqual(stamp);
+
+    holder.client = seed({}).client;
+    expect(((await (await call(`/${TOKEN}`)).json()) as { carrierQuestions: unknown[] }).carrierQuestions).toEqual([]);
+    holder.client = seed({ carrier_questions: [{ id: "not-a-question" }] }).client;
+    expect(((await (await call(`/${TOKEN}`)).json()) as { carrierQuestions: unknown[] }).carrierQuestions).toEqual([]);
+  });
+
   it("§13 D-SP3: serves what is owed as kinds — never the drug test's site or time, the trip's times or its reference", async () => {
     holder.client = seed({}, {
       drug_test_appointments: [{ org_id: ORG, invitation_id: "inv-1", site_name: "Quest Joliet", site_address: "1 Main St",

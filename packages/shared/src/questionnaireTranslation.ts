@@ -2,6 +2,7 @@ import {
   APPLYING_AS_QUESTION_ID,
   SILVICOM_DRIVER_V2,
   SILVICOM_DRIVER_V3,
+  RATHER_NOT_SAY,
   type QuestionnaireDefinition,
   type QuestionnaireQuestion,
 } from "./questionnaireContract.js";
@@ -146,5 +147,27 @@ export function translateQuestionnaire(definition: QuestionnaireDefinition, lang
     title: words.title,
     intro: words.intro,
     questions: definition.questions.map((q) => translateQuestion(q, words.questions[q.id])),
+  };
+}
+
+/**
+ * The skips' words in a language, by stored value — what the built-in translations above already say.
+ * Derived from `SKIP_ES`, never restated, so the carrier's own optional question and a built-in one offer
+ * the same words.
+ */
+const SKIP_WORDS: Record<string, Record<string, string>> = { es: { [RATHER_NOT_SAY.value]: SKIP_ES.rather } };
+
+/**
+ * The carrier's OWN questions (§15.3 D-CQ4) as the page shows them: the carrier's words in every language
+ * (Q-MT1 — the carrier wrote them in one), with only the skip — which is the product's, not the carrier's —
+ * in the page's language. Its stored value stays the English words, as on the built-in questions.
+ */
+export function withSkipWordsIn(definition: QuestionnaireDefinition, language: string): QuestionnaireDefinition {
+  const words = SKIP_WORDS[language];
+  if (!words) return definition;
+  return {
+    ...definition,
+    questions: definition.questions.map((q) =>
+      q.skip && words[q.skip.value] ? { ...q, skip: { ...q.skip, label: words[q.skip.value]! } } : q),
   };
 }

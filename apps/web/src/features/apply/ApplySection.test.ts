@@ -6,6 +6,8 @@ import ApplySection from "./ApplySection.vue";
 import ApplyEmploymentFields from "./ApplyEmploymentFields.vue";
 import AddressHistoryFields from "./AddressHistoryFields.vue";
 import { APPLY_COPY } from "./strings";
+import QuestionnaireFields from "./QuestionnaireFields.vue";
+import { takeServedForm } from "./servedForm";
 
 /** The review screen opens with the §391.21(d) notice (C3c2a); no other screen carries it. */
 const at = (section: "review" | "identity") =>
@@ -37,5 +39,19 @@ describe("ApplySection", () => {
       }).findComponent(AddressHistoryFields).props("v2AsOf");
     expect(day("2026-09-26")).toBe("2026-09-26");
     expect(day(null)).toBeNull();
+  });
+
+  it("asks the carrier's own questions after the built-in ones, and only when some were stamped (§15.3)", () => {
+    const sources = () =>
+      mount(ApplySection, {
+        props: { modelValue: emptyDraft(), section: "questions", token: "t", captures: [], asOf: "2026-09-26", identityLockedBy: null },
+      }).findAllComponents(QuestionnaireFields).map((f) => f.props("source"));
+    expect(sources()).toEqual(["builtin"]);
+    takeServedForm({ carrierQuestions: [{ id: "91000000-0000-4000-8000-000000000001", wording: "Pets?", hint: null, kind: "boolean", choices: null, required: false }] });
+    try {
+      expect(sources()).toEqual(["builtin", "carrier"]);
+    } finally {
+      takeServedForm({});
+    }
   });
 });

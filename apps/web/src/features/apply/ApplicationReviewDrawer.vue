@@ -3,6 +3,7 @@ import { computed, ref, toRef, watch } from "vue";
 import { AppButton as BaseButton, AppCallout, QueryState } from "@silvicom/ui";
 import {
   APPLICATION_REVIEW_STATE_LABELS,
+  carrierQuestionnaire,
   formatDisplayDate,
   questionnaireForApplicant,
   type ApplicationPath,
@@ -81,6 +82,8 @@ const summary = computed(() => {
   return buildReviewSummary({
     draft,
     questionnaire: questionnaireForApplicant(),
+    // §15.3 D-CQ2: the questions THIS applicant was asked, from the invitation's stamp — never the live list.
+    carrier: carrierQuestionnaire(review.data.value?.carrierQuestions ?? []),
     captures: [],
   });
 });

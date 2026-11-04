@@ -124,10 +124,16 @@ function answerText(question: QuestionnaireQuestion, raw: unknown): string {
 export interface ReviewInput {
   draft: ApplicationDraft;
   questionnaire: QuestionnaireDefinition;
+  /**
+   * §15.3: the carrier's OWN questions as stamped on this invitation (`carrierQuestionnaire`), answered in
+   * `draft.carrier_answers` and listed after the built-in ones — the same place the form asks them.
+   * Absent or empty: none were stamped.
+   */
+  carrier?: QuestionnaireDefinition;
   captures: readonly ApplicationCaptureView[];
 }
 
-export function buildReviewSummary({ draft, questionnaire, captures }: ReviewInput): ReviewSection[] {
+export function buildReviewSummary({ draft, questionnaire, carrier, captures }: ReviewInput): ReviewSection[] {
   const c = APPLY_COPY;
   const answers = readableAnswers(draft.questionnaire);
 
@@ -274,14 +280,14 @@ export function buildReviewSummary({ draft, questionnaire, captures }: ReviewInp
     },
   ];
 
+  const entriesFor = (def: QuestionnaireDefinition, given: Record<string, unknown>): ReviewEntry[] =>
+    def.questions.map((q) => ({
+      label: q.label,
+      value: answerText(q, given[q.id]),
+      muted: given[q.id] === undefined || given[q.id] === null || given[q.id] === "",
+    }));
   const questions: ReviewGroup[] = [
-    {
-      entries: questionnaire.questions.map((q) => ({
-        label: q.label,
-        value: answerText(q, answers[q.id]),
-        muted: answers[q.id] === undefined || answers[q.id] === null || answers[q.id] === "",
-      })),
-    },
+    { entries: [...entriesFor(questionnaire, answers), ...(carrier ? entriesFor(carrier, draft.carrier_answers) : [])] },
   ];
 
   // §9 P9: a paper that comes in several says how many ("Received (2)") — two training certificates are two.

@@ -3,6 +3,7 @@ import { isoDateSchema, requiredDateOfBirthSchema } from "./rosterContract.js";
 // ⚠ The rules that span fields live in their own module since 2026-09-11 (the 500-line budget), and
 // they import this file's TYPE only — `import type` is erased, so there is no runtime cycle.
 import { APPLICATION_CROSS_FIELD_RULES, ruleIssuePath } from "./applicationRules.js";
+import { carrierAnswerIssues, carrierQuestionStampSchema } from "./carrierQuestionsContract.js";
 import { questionnaireForApplicant } from "./questionnaireContract.js";
 import { questionnaireAnswersSchema } from "./questionnaireAnswers.js";
 import { applicationEmployerSchema, applicationEmploymentGapSchema } from "./applicationEmployerContract.js";
@@ -324,6 +325,19 @@ export const driverApplicationObject = z
      * business, and they do read the version.
      */
     questionnaire_answers: (questionnaireAnswersSchema(questionnaireForApplicant()) as z.ZodType<Record<string, unknown>>).nullish(),
+    /**
+     * §15.3 D-CQ2: the questions the CARRIER wrote, as stamped on this applicant's invitation at the first
+     * Send (0567). The page lays the bundle's copy on so its checks match the API's; `submitApplication`
+     * overwrites it with the invitation's own before filing, so the filed record says exactly what was
+     * asked. Null = an invitation sent before CQ2, or a carrier with no questions of its own.
+     */
+    carrier_questions: carrierQuestionStampSchema.nullish(),
+    /**
+     * D-CQ3: the answers, keyed by the stamped question's id. Checked against `carrier_questions` by the
+     * cross-field rules below (`carrierAnswerIssues`), not by a static shape — the questions are per
+     * applicant. Projected nowhere, like `questionnaire_answers`; printed on the filed document.
+     */
+    carrier_answers: z.record(z.string(), z.unknown()).nullish(),
     // The certification. §391.21(b) closes by requiring the applicant to sign that everything is
     // true and complete, and that sentence is the whole legal weight of the document.
     certified: z.literal(true),
@@ -381,6 +395,10 @@ const crossFieldRules = (v: object, ctx: z.RefinementCtx): void => {
   const fields = v as Partial<DriverApplicationFields>;
   for (const rule of APPLICATION_CROSS_FIELD_RULES) {
     if (!rule.check(fields)) ctx.addIssue({ code: "custom", message: rule.message, path: ruleIssuePath(rule) });
+  }
+  // §15.3 D-CQ3: the carrier's own questions, judged against the stamp the document carries.
+  for (const issue of carrierAnswerIssues(fields.carrier_questions, fields.carrier_answers)) {
+    ctx.addIssue({ code: "custom", message: issue.message, path: issue.path });
   }
 };
 

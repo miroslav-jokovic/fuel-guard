@@ -1,12 +1,14 @@
 import {
+  carrierQuestionnaire,
   questionnaireByRef,
   questionnaireForApplicant,
   translateQuestionnaire,
   withRequiredQuestions,
+  withSkipWordsIn,
   type QuestionnaireDefinition,
 } from "@silvicom/shared";
 import { applyLanguage } from "./language";
-import { servedRequiredQuestions } from "./servedForm";
+import { servedCarrierQuestions, servedRequiredQuestions } from "./servedForm";
 
 /**
  * The carrier's questions as the applicant's screens show them: the definition the draft's answers are
@@ -21,3 +23,10 @@ export const applicantQuestionnaire = (version?: string | null): QuestionnaireDe
     withRequiredQuestions(questionnaireByRef(version) ?? questionnaireForApplicant(), servedRequiredQuestions.value),
     applyLanguage.value,
   );
+
+/**
+ * The carrier's OWN questions (§15.3), as stamped on this invitation: in the carrier's words on every page
+ * (D-CQ4, Q-MT1), with only the product's skip in the page's language. Empty when none were stamped.
+ */
+export const applicantCarrierQuestionnaire = (): QuestionnaireDefinition =>
+  withSkipWordsIn(carrierQuestionnaire(servedCarrierQuestions.value), applyLanguage.value);

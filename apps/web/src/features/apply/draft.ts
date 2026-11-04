@@ -19,7 +19,7 @@ import {
   type DraftViolation,
 } from "./draftShape";
 import { employerRecord } from "@/components/employment/employerRow";
-import { servedRequiredQuestions } from "./servedForm";
+import { servedCarrierQuestions, servedRequiredQuestions } from "./servedForm";
 
 // The form's working shape — the `Draft*` types, `ApplicationDraft` and the `empty*` factories —
 // lives in `draftShape.ts` since C1 (2026-09-26); re-exported so no import path changed.
@@ -167,6 +167,7 @@ export function toApplication(draft: ApplicationDraft): unknown {
      * answers cannot disagree within a session.
      */
     ...questionnaireFields(draft),
+    ...carrierFields(draft),
     certified: draft.certified,
     signed_name: draft.signed_name.trim(),
   } satisfies Record<keyof DriverApplication | string, unknown>;
@@ -186,6 +187,18 @@ function questionnaireFields(draft: ApplicationDraft): Record<string, unknown> {
     questionnaire_answers: answers,
     questionnaire_required,
   };
+}
+
+/**
+ * §15.3 D-CQ2/D-CQ3: the carrier's own questions as the bundle served them, and the answers given — so the
+ * page's check (the shared cross-field rule) judges the same stamp the API lays over at filing. Null when
+ * none were stamped, which is what the API files then too.
+ */
+function carrierFields(draft: ApplicationDraft): Record<string, unknown> {
+  const stamp = servedCarrierQuestions.value;
+  if (stamp.length === 0) return { carrier_questions: null, carrier_answers: null };
+  const answers = cleanQuestionnaire(draft.carrier_answers);
+  return { carrier_questions: [...stamp], carrier_answers: Object.keys(answers).length > 0 ? answers : null };
 }
 
 /** The text a job can hold. The two booleans are defaults, not answers, so they do not count. */
@@ -269,6 +282,9 @@ export function toDraftPayload(draft: ApplicationDraft): Record<string, unknown>
     questionnaire: draft.questionnaire,
     // §9 P8: the version the answers above are being given against, so a reload keeps it.
     questionnaire_version: draft.questionnaire_version,
+    // §15.3: the answers to the carrier's own questions — listed, `prior_failed_pre_employment_test`'s
+    // reason: a key missing here is an answer lost on reload.
+    carrier_answers: draft.carrier_answers,
     // C3c2c2: the note to the office. A message, not an answer — so it is saved and never filed.
     correction_note: draft.correction_note,
     // `certified` and `signed_name` are deliberately absent too, for a different reason: §391.21(b)'s
@@ -365,6 +381,10 @@ export function fromDraftPayload(payload: Record<string, unknown> | null | undef
     correction_note: str("correction_note"),
     questionnaire,
     questionnaire_version: questionnaireVersionOf(payload, questionnaire),
+    carrier_answers:
+      payload.carrier_answers && typeof payload.carrier_answers === "object" && !Array.isArray(payload.carrier_answers)
+        ? (payload.carrier_answers as Record<string, unknown>)
+        : base.carrier_answers,
   };
 }
 

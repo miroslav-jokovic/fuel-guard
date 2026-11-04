@@ -7,7 +7,7 @@ import {
   packetPlacementById,
 } from "@silvicom/shared";
 import { loadEnv } from "../../env.js";
-import { createSupabaseRecorder } from "../../testing/supabaseRecorder.js";
+import { createSupabaseRecorder, type SupabaseRecorder } from "../../testing/supabaseRecorder.js";
 import {
   hashInvitationToken,
   isIntakeError,
@@ -534,6 +534,64 @@ describe("submitting", () => {
     const result = await submitApplication(rec.client, env(), TOKEN, APPLICATION, CTX, NOW);
     // No answers and no version: the served v3's seven, as before §11.
     expect(isIntakeError(result) && result.code).toBe("application_incomplete");
+  });
+
+  /**
+   * §15.3 D-CQ2/D-CQ3: the carrier's own questions are judged and filed against the INVITATION's stamp —
+   * the page's copy of the questions is replaced, and its answers are cut to the stamp's ids.
+   */
+  const CQ_PET = "91000000-0000-4000-8000-000000000001";
+  const CQ_LANE = "91000000-0000-4000-8000-000000000002";
+  const CQ_STAMP = [
+    { id: CQ_PET, wording: "Do you own a pet?", hint: null, kind: "boolean", choices: null, required: true },
+    { id: CQ_LANE, wording: "Preferred lane", hint: null, kind: "select", choices: ["East", "West"], required: false },
+  ];
+  const withCarrier = (carrier: Record<string, unknown>) =>
+    ({ ...APPLICATION, application: { ...APPLICATION.application, ...carrier } }) as typeof APPLICATION;
+  const filedPayload = (rec: SupabaseRecorder) =>
+    (rec.rpcs()[0]!.args as { p_payload: Record<string, unknown> }).p_payload;
+
+  it("§15.3: files the invitation's stamp over the page's copy, and drops answers to questions it never asked", async () => {
+    const rec = seed(submittableInvitation({ carrier_questions: CQ_STAMP }));
+    const result = await submitApplication(rec.client, env(), TOKEN, withCarrier({
+      carrier_questions: [{ ...CQ_STAMP[0], wording: "Edited by the page" }],
+      carrier_answers: { [CQ_PET]: false, [CQ_LANE]: "West", "91000000-0000-4000-8000-0000000000ff": "smuggled" },
+    }), CTX, NOW);
+    expect(isIntakeError(result)).toBe(false);
+    const payload = filedPayload(rec);
+    expect(payload.carrier_questions).toEqual(CQ_STAMP);
+    expect(payload.carrier_answers).toEqual({ [CQ_PET]: false, [CQ_LANE]: "West" });
+  });
+
+  it("§15.3: refuses a required carrier question left unanswered, and an answer outside a list's choices", async () => {
+    let rec = seed(submittableInvitation({ carrier_questions: CQ_STAMP }));
+    let result = await submitApplication(rec.client, env(), TOKEN, withCarrier({ carrier_answers: { [CQ_LANE]: "East" } }), CTX, NOW);
+    expect(isIntakeError(result) && result.code).toBe("application_incomplete");
+    expect(isIntakeError(result) && result.message).toContain("Do you own a pet?");
+    expect(rec.rpcs()).toHaveLength(0);
+
+    rec = seed(submittableInvitation({ carrier_questions: CQ_STAMP }));
+    result = await submitApplication(rec.client, env(), TOKEN, withCarrier({ carrier_answers: { [CQ_PET]: true, [CQ_LANE]: "North" } }), CTX, NOW);
+    expect(isIntakeError(result) && result.code).toBe("application_incomplete");
+    expect(isIntakeError(result) && result.message).toContain("Preferred lane");
+    expect(rec.rpcs()).toHaveLength(0);
+  });
+
+  it("§15.3: the page cannot excuse a required question by sending a stamp without it", async () => {
+    const rec = seed(submittableInvitation({ carrier_questions: CQ_STAMP }));
+    const result = await submitApplication(rec.client, env(), TOKEN, withCarrier({ carrier_questions: [CQ_STAMP[1]], carrier_answers: {} }), CTX, NOW);
+    expect(isIntakeError(result) && result.code).toBe("application_incomplete");
+  });
+
+  it("§15.3: an invitation with no stamp files no carrier questions, whatever the page sent", async () => {
+    const rec = seed(submittableInvitation({ carrier_questions: null }));
+    const result = await submitApplication(rec.client, env(), TOKEN, withCarrier({
+      carrier_questions: CQ_STAMP, carrier_answers: { [CQ_PET]: true },
+    }), CTX, NOW);
+    expect(isIntakeError(result)).toBe(false);
+    const payload = filedPayload(rec);
+    expect(payload.carrier_questions).toBeNull();
+    expect(payload.carrier_answers).toBeNull();
   });
 
   /** The FOR UPDATE lock's two verdicts, each turned into the answer that fits it. */

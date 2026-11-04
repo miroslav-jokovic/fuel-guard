@@ -125,6 +125,11 @@ interface InvitationRow {
    */
   required_questions?: string[] | null;
   /**
+   * §15.3 D-CQ2 (0567): the carrier-written questions this applicant is asked, stamped at the first Send.
+   * Null — or absent — means none. Read through `carrierStampOf`, never trusted raw.
+   */
+  carrier_questions?: unknown;
+  /**
    * WHICH hash the presented token matched — set by `resolveInvitation`, never read from the row. The
    * three doors open the same session (A5b), and until C3s3a nothing needed to tell them apart; the
    * sent link's 72 hours and its unlock counter are that link's, not the invitation's (D-AW14).
@@ -287,7 +292,7 @@ export async function resolveInvitation(
     .select(
       "id, org_id, driver_id, token_hash, sign_token_hash, sms_token_hash, expires_at, revoked_at, consented_at, "
       + "intake_completed_at, releases_completed_at, application_sent_at, review_requested_at, approved_at, signing_opened_at, "
-      + "submitted_at, handbook_filed_at, sign_link_expires_at, unlock_failures, required_questions",
+      + "submitted_at, handbook_filed_at, sign_link_expires_at, unlock_failures, required_questions, carrier_questions",
     )
     .or(`token_hash.eq.${hash},sign_token_hash.eq.${hash},sms_token_hash.eq.${hash}`)
     .maybeSingle();

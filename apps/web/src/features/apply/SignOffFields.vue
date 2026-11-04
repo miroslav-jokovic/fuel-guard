@@ -3,7 +3,7 @@ import { computed } from "vue";
 import { AppCallout, AppInput as BaseInput } from "@silvicom/ui";
 import type { ApplicationCaptureView } from "@silvicom/shared";
 import ApplyField from "./ApplyField.vue";
-import { applicantQuestionnaire } from "./questionnaireCopy";
+import { applicantCarrierQuestionnaire, applicantQuestionnaire } from "./questionnaireCopy";
 import { buildReviewSummary } from "./reviewSummary";
 import { describeField } from "./fieldLabels";
 import { APPLY_COPY } from "./strings";
@@ -40,6 +40,7 @@ const summary = computed(() =>
   buildReviewSummary({
     draft: draft.value,
     questionnaire: applicantQuestionnaire(draft.value.questionnaire_version),
+    carrier: applicantCarrierQuestionnaire(),
     captures: props.captures,
   }),
 );

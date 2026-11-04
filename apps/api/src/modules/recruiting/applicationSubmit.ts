@@ -13,6 +13,9 @@ import {
   driverPlacementIds,
   packetDriverMarkCount,
   questionnaireRequiredIssues,
+  answersToStamp,
+  carrierAnswerIssues,
+  carrierStampOf,
   requiredQuestionsOf,
 } from "@silvicom/shared";
 import type { Env } from "../../env.js";
@@ -302,14 +305,7 @@ export async function submitApplication(
    * is filed, so the rules and the file cannot judge two different texts. A legacy invitation (no Part
    * 1 row) is asked nothing new and files what it certified, as before.
    */
-  /**
-   * §11 D-RS4: the carrier questions this applicant must answer are the ones stamped on THEIR invitation,
-   * never the copy the page sent — a body that named fewer would otherwise file blanks. Laid over and
-   * the carrier-question rules run again (`questionnaireRequiredIssues`), so the rules that refused or
-   * passed on the page are the same rules judged here, with the server's own set. Null (sent before 0550's reader) leaves the definition's flags.
-   */
-  const stamped = { ...body.application, questionnaire_required: requiredQuestionsOf(invitation.required_questions ?? null) };
-  const unanswered = questionnaireRequiredIssues(stamped);
+  const { stamped, unanswered } = withInvitationStamps(body.application, invitation);
   if (unanswered.length > 0) return applicationIncomplete(unanswered);
 
   let certified: ApplicationSubmit["application"] = stamped;
@@ -418,4 +414,36 @@ export async function submitApplication(
   }
 
   return { applicationId, driverId: invitation.driver_id };
+}
+
+/**
+ * The invitation's two stamps laid over what the page sent, and what is unanswered against them.
+ *
+ * §11 D-RS4: the carrier questions this applicant must answer are the ones stamped on THEIR invitation,
+ * never the copy the page sent — a body that named fewer would otherwise file blanks. Laid over and the
+ * carrier-question rules run again (`questionnaireRequiredIssues`), so the rules that refused or passed on
+ * the page are the same rules judged here, with the server's own set. Null (sent before 0550's reader)
+ * leaves the definition's flags.
+ *
+ * §15.3 D-CQ2/D-CQ3: likewise the carrier's OWN questions — the invitation's stamp replaces the page's
+ * copy, the answers are cut to that stamp's ids, and they are judged against it here. An invitation with
+ * no stamp files no carrier questions at all, whatever the body carried. (Lifted out of `submitApplication`
+ * when CQ2 took it past the 200-line function budget.)
+ */
+function withInvitationStamps(
+  application: ApplicationSubmit["application"],
+  invitation: { required_questions?: string[] | null; carrier_questions?: unknown },
+): { stamped: ApplicationSubmit["application"]; unanswered: { path: string; message: string }[] } {
+  const carrierStamp = carrierStampOf(invitation.carrier_questions);
+  const stamped = {
+    ...application,
+    questionnaire_required: requiredQuestionsOf(invitation.required_questions ?? null),
+    carrier_questions: carrierStamp.length > 0 ? carrierStamp : null,
+    carrier_answers: carrierStamp.length > 0 ? answersToStamp(carrierStamp, application.carrier_answers) : null,
+  };
+  const unanswered = [
+    ...questionnaireRequiredIssues(stamped),
+    ...carrierAnswerIssues(stamped.carrier_questions, stamped.carrier_answers).map((i) => ({ path: i.path.join("."), message: i.message })),
+  ];
+  return { stamped, unanswered };
 }

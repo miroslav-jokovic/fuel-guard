@@ -170,6 +170,20 @@ describe("reading an application for review", () => {
     expect(legacy.partOne).toBeNull();
   });
 
+  /** §15.3 D-CQ2: the drawer labels the draft's carrier answers with the stamp THIS applicant was asked. */
+  it("hands the office the invitation's stamped carrier questions, and none for an invitation sent before them", async () => {
+    const stamp = [{ id: "91000000-0000-4000-8000-000000000001", wording: "Do you own a pet?", hint: null, kind: "boolean", choices: null, required: true }];
+    const rec = seed({ invitation: invitation({ carrier_questions: stamp }) });
+    const stamped = await applicationForReview(rec.client, ORG, INV);
+    if (isReviewError(stamped)) throw new Error(stamped.message);
+    expect(stamped.carrierQuestions).toEqual(stamp);
+    expect(rec.forTable("application_invitations")[0]!.ops.find((o) => o.method === "select")!.args[0]).toContain("carrier_questions");
+
+    const old = await applicationForReview(seed().client, ORG, INV);
+    if (isReviewError(old)) throw new Error(old.message);
+    expect(old.carrierQuestions).toEqual([]);
+  });
+
   it("scopes a v2 application's Part 1 reads to the reader's own org", async () => {
     const rec = seed({ v2: true });
     await applicationForReview(rec.client, ORG, INV);

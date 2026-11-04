@@ -338,8 +338,8 @@ export const SILVICOM_DRIVER_V2: QuestionnaireDefinition = {
   ],
 };
 
-/** A skip that says the applicant chose not to answer. */
-const RATHER_NOT_SAY: QuestionChoice = { value: "I'd rather not say", label: "I'd rather not say" };
+/** A skip that says the applicant chose not to answer. Shared with the carrier's own questions (D-CQ3). */
+export const RATHER_NOT_SAY: QuestionChoice = { value: "I'd rather not say", label: "I'd rather not say" };
 /** A skip that says the question is not about them. */
 const DOES_NOT_APPLY: QuestionChoice = { value: "Doesn't apply", label: "Doesn't apply" };
 
