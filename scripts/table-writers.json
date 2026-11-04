@@ -26,6 +26,9 @@
   "ads_campaigns": [
     "apps/api/src/modules/ads/orchestrator/transitions.ts"
   ],
+  "ads_creatives": [
+    "apps/api/src/modules/ads/compose/composeCreative.ts"
+  ],
   "ads_spend_hourly": [
     "apps/api/src/modules/ads/monitor/insightsPull.ts"
   ],

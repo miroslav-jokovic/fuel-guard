@@ -110,6 +110,15 @@ function samplesUnder(ctx: SKRSContext2D, box: Rect): Rgb[] {
   return out;
 }
 
+/**
+ * The image as it fills `format`'s frame, before any text: what the overlay draws on, and what the visual
+ * check looks at (C5b) — one function, so the checker sees exactly the pixels the ad is made of.
+ */
+export async function frameStill(image: Buffer, format: AdFormat): Promise<Buffer> {
+  const { width, height } = FORMAT_SIZE[format];
+  return sharp(image).resize(width, height, { fit: "cover" }).png().toBuffer();
+}
+
 export async function renderOverlay(input: OverlayInput): Promise<OverlayOutcome> {
   const { format, language } = input;
   const overlay = input.kit.overlays[format];
@@ -161,7 +170,7 @@ export async function renderOverlay(input: OverlayInput): Promise<OverlayOutcome
   }
 
   // 3. Compose the background: the image covered to the frame, the plate behind the stack, the logo.
-  const base = await loadImage(await sharp(input.base).resize(W, H, { fit: "cover" }).png().toBuffer());
+  const base = await loadImage(await frameStill(input.base, format));
   ctx.drawImage(base, 0, 0, W, H);
   if (plate) {
     const top = blocks[0]!.box.y - t.pad;

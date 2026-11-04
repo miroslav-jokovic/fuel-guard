@@ -570,7 +570,19 @@ export const READINESS = [
             ] },
           ],
         },
-        notBuilt("C5b compose: the three checks per creative, one regeneration with the failure added, then stop with the reason"),
+        {
+          need: "one creative composed (C5b1): the three checks, one regeneration with the failure added, then stop with the reason",
+          tests: [{ file: "apps/api/src/modules/ads/compose/composeCreative.test.ts", titles: [
+            "a visual fail regenerates once with our fixed clause in the prompt, under new keys, and a pass then is ready",
+            "a second visual fail stops with the reason, and no third render is asked",
+            "copy with a figure the brief does not hold stops before any art or render",
+            "a format the brand kit has no overlay for stops as the render check, with no visual check asked",
+            "the image checked is the framed still, before any text, beside the reference photo and the band the text covers",
+          ] }, { file: "apps/api/src/modules/ads/orchestrator/runner.test.ts", titles: [
+            "a pending compose moves nothing and writes no row, and the next step with the same key finishes it",
+          ] }],
+        },
+        notBuilt("C5b2: the campaign's compose step wired — the preset draw, a creative per drawn preset, the campaign's verdict"),
       ],
       L2: [
         {
