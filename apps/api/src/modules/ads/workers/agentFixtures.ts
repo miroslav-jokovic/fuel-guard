@@ -1,8 +1,9 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { z } from "zod";
-import { adBriefSchema, adPresetRecipeSchema } from "@silvicom/shared";
+import { adBrandKitSchema, adBriefSchema, adPresetRecipeSchema, judgeArt, type ArtAnswer } from "@silvicom/shared";
 import type { ForcedToolRequest } from "../../../lib/anthropic.js";
 import { COPYWRITER_PROMPT_VERSION, buildCopyRequest, judgeCopy, type AdCopy } from "./copywriter/copywriter.js";
+import { ART_DIRECTOR_PROMPT_VERSION, buildArtRequest } from "./artDirector/artDirector.js";
 
 /**
  * The model workers' fixtures (workflow C2; §4R "Claude replay + live eval"). One JSON file per case in
@@ -70,7 +71,33 @@ export const COPYWRITER_EVAL: EvalWorker<CopywriterFixture, AdCopy> = {
   withRecording: (f, recorded) => ({ ...f, recorded }),
 };
 
-export const EVAL_WORKERS = { copywriter: COPYWRITER_EVAL } as const;
+export const artDirectorFixtureSchema = z.object({
+  name: z.string().regex(/^[a-z0-9][a-z0-9-]{1,60}$/),
+  about: z.string().min(10),
+  input: z.object({ recipe: adPresetRecipeSchema, kit: adBrandKitSchema }),
+  expect: z.enum(["ready", "refused", "off_schema"]),
+  expect_findings: z.array(z.string()).optional(),
+  recorded: recordingSchema,
+}).strict();
+export type ArtDirectorFixture = z.infer<typeof artDirectorFixtureSchema>;
+
+export const ART_DIRECTOR_EVAL: EvalWorker<ArtDirectorFixture, ArtAnswer> = {
+  promptVersion: ART_DIRECTOR_PROMPT_VERSION,
+  dir: new URL("./artDirector/fixtures/", import.meta.url),
+  parse: (raw) => artDirectorFixtureSchema.parse(raw),
+  name: (f) => f.name,
+  source: (f) => f.recorded.source,
+  request: (f) => buildArtRequest(f.input.recipe, f.input.kit),
+  judge: (f, output) => {
+    const parsed = buildArtRequest(f.input.recipe, f.input.kit).tool.schema.safeParse(output);
+    if (!parsed.success) return { verdict: "off_schema", findings: [] };
+    const found = judgeArt(parsed.data, f.input.recipe, f.input.kit);
+    return found.length === 0 ? { verdict: "ready", findings: [] } : { verdict: "refused", findings: [...new Set(found.map((x) => x.kind))].sort() };
+  },
+  withRecording: (f, recorded) => ({ ...f, recorded }),
+};
+
+export const EVAL_WORKERS = { copywriter: COPYWRITER_EVAL, artDirector: ART_DIRECTOR_EVAL } as const;
 
 /** Every fixture of a worker, parsed, in file-name order; a file whose `name` is not its file name throws. */
 export function loadFixtures<F, T>(w: EvalWorker<F, T>): Array<{ file: URL; fixture: F }> {
