@@ -419,6 +419,7 @@ export const SURFACES: readonly Surface[] = [
    * owner ruled the admin keeps this register (APPLICATION-FLOW-V2-PLAN.md §12, 2026-09-28).
    */
   { key: "admin.recruiting", label: "Recruiting", path: "/settings/recruiting", group: "admin", gate: section("recruitment"), reachedFrom: "admin.settings", startsOnFor: [] },
+  { key: "admin.recruiting.ads", label: "Ads control", path: "/settings/recruiting/ads", group: "admin", gate: section("recruitment"), reachedFrom: "admin.settings", startsOnFor: [] },
   { key: "admin.settings.data", label: "Data & sync", path: "/settings/data", group: "admin", gate: manage("settings"), reachedFrom: "admin.settings", startsOnFor: [] },
   // Whose McLeod fleet is whose (DISPATCH-BOARD-PLAN DB2, 2026-10-10). `settings: view` to read and
   // the API's `settings: manage` to edit — Q-DB3's "admin + fleet manager" IS that section, so the gate

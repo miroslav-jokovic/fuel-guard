@@ -1515,3 +1515,25 @@ blocking step in §3 above.
       filter, so the compare-and-set was untested; fixed. A third pass found an `already` case the tests
       lacked: a retry after the campaign moved on. Now 9 of 9 killed.
     - Kit choice: 3 of 3 killed.
+- **2026-11-04, E1a — Settings › Ads control: limits, pauses, approvals, AI budgets, kill switch (Track S).** No API
+  change, no migration. E1 is three PRs: **E1a** this page; **E1b** who hears each alert + the platform connections and
+  their test; **E1c** spend so far against the caps, which needs a new read over the D-AD5 fold.
+  - `/settings/recruiting/ads` (plan §4b's path), catalogue `admin.recruiting.ads` — the same gate, card and start as
+    Settings › Recruiting (`section("recruitment")`, `startsOnFor: []`), so who sees it is the Permissions page's to
+    set, not a rule written here. Saving and clearing the switch are offered only to an admin (`session.admin`, the
+    same `isAdmin` the API's `requireAdminOnly` asks) and go through `useStepUpRetry`; pressing the switch is anyone
+    who manages recruiting, with no password prompt. A reason is required both ways.
+  - `adsSettingsForm.ts` (pure): blank is "not set" (null), never 0; dollars are stored as cents; the contract's schema
+    judges the result, so the page's errors are its bounds; the alerts (E1b's) pass through a save untouched; only the
+    agents switched on are stored (absent = off, so a saved version reads back as itself).
+  - The benchmark beside the automatic pauses is a shared constant, `ADS_BENCHMARK_SUGGESTIONS` (plan §2a.7, with its
+    source), shown as a hint and never saved by itself.
+  - **Browser pass** (build + preview, dev bypass, 1280 and 390): fail (Retry, the page's sentence), empty ("Nothing
+    saved yet, so nothing can launch."), saved with the switch on. **Found:** `AppSwitch`'s `label` is only an
+    accessible name, so every switch drew unlabelled; each now sits in a row with its words, pinned by a test. The
+    STAGING pass follows the merge (staging serves the page only then), as the fleet-manager test member — who manages
+    recruiting but is not an admin.
+  - Tests: `adsSettingsForm.test.ts` (12), `AdsControl.test.ts` (10). Mutation: 12 mutants (blank → 0, cents, alerts
+    reset, blank cap, separators, the refusal's words, who edits, an invalid form sent, who presses, who clears, the
+    reason, clear sent as press) — 12 of 12 killed. One first "killed" by referring to a name that did not exist; it
+    was re-run as a real change.

@@ -1,5 +1,6 @@
 import {
   AdjustmentsHorizontalIcon,
+  AdsIcon,
   BellIcon,
   BooksCheckIcon,
   BuildingOffice2Icon,
@@ -56,6 +57,8 @@ export const SETTINGS_CARDS: readonly SettingsCard[] = [
   // The only way in: under Settings, not in the sidebar (owner's ruling 2026-09-28). A recruiter holds
   // `settings: none`, cannot open this page, and does not need the card.
   { key: "admin.recruiting", icon: BooksCheckIcon, desc: "How long application links stay open, the reminder, and who signs the handbook and the road test.", block: "config" },
+
+  { key: "admin.recruiting.ads", icon: AdsIcon, desc: "What the recruiting ads may spend, when they pause themselves, and the switch that stops them.", block: "config" },
   { key: "admin.settings.data", icon: DatabaseSyncIcon, desc: "Samsara sync, re-sync, rebuild anomalies, and data-integrity status.", block: "config" },
   { key: "admin.settings.efs", icon: ConnectIcon, desc: "SOAP credentials, connection test, and per-feed sync for the direct EFS webservice.", block: "config" },
   { key: "admin.settings.mcleod-fleets", icon: ConnectIcon, desc: "Which McLeod dispatcher runs each fleet, and who each dispatcher is here. Builds the dispatch board's My fleet.", block: "config" },

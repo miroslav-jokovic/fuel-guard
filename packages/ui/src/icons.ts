@@ -262,5 +262,8 @@ export {
   // a star reads as "favourite" or a rating, and this is a place you keep within reach.
   PinIcon                     as PinIcon,
   PinOffIcon                  as UnpinIcon,
+  // Settings › Ads control (ADS-AGENT-PLAN §4b, Track S E1): the recruiting ads agent's caps, rules and kill
+  // switch. Its own glyph: no other card or menu item wears a megaphone.
+  Megaphone01Icon             as AdsIcon,
 
 } from "@hugeicons/core-free-icons";
