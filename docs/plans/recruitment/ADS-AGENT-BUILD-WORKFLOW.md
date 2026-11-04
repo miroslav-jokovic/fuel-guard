@@ -1406,3 +1406,34 @@ blocking step in §3 above.
     made every `/api/ads` route vanish (its three admin-only keys turned up as "guarding no route"), and
     `/api/drug-alcohol` (`drugAlcoholRouter({ … })`, on main since DAP) had been invisible the same way. The
     regex now accepts arguments; both mounts are walked, and every route under them is gated.
+- **2026-11-04, E4 — the leads screen: read, then work.** The leads track's E4a and E4b1–4
+  (`HANDOFF-2026-11-04-LEADS-E4.md`, `HANDOFF-2026-11-04-LEADS-E4B3.md`), one docs entry merged last. No readiness row
+  moved: nothing here has met a real Meta lead, and **nobody has used the screen on staging as a recruiter.** Every
+  browser pass was an admin on stubbed data, and the step-up route was stubbed too, so the real password check on
+  Delete details has not run.
+  - **E4a, who already called** (#2015, `4decc9b`). `GET /recruitment/leads/:id/contacts`, recruitment view, newest
+    first, at most 200. Purged leads are included, their notes withheld (`note: null, note_withheld: true`; Q-AD30).
+  - **E4b1, one lead by id** (#2019, `f126b77`). `GET /recruitment/leads/:id`, any status, so a notification can open a
+    lead the loaded queue does not hold. `also` comes from `recruiting_lead_matches`.
+  - **E4b2, the screen, reading only** (#2020, `4306819`). Leads tab, `recruitment.leads` surface, queue and drawer,
+    `deepLinkFor` for `lead_new` and `lead_uncontacted`. Phase E's line corrected to `features/recruitment/`.
+  - **E4b3, working a lead** (#2026, `3f30e30`). Web only: log a contact, make an applicant, hold or lift
+    do-not-contact, for `session.can("recruitment")` and never on a purged lead.
+    - A double press is stopped by a flag set at once, not `isPending`, which vue-query reports a tick late.
+    - The outcome starts empty, so a skipped default cannot become a false append-only row.
+    - With an open applicant matched, nothing is preselected: a match only means "may be the same person".
+    - Each act refreshes on settling, not success: a refusal means the drawer was out of date.
+    - Lifting answers `stop_remains`, and the toast then says the number stays held.
+  - **E4b4, delete details and manual add** (#2028, `19cd96f`). Delete details shows by `canPurgeLead(session.role)`,
+    says what it does, then `StepUpPrompt` through `useStepUpRetry`. Manual add validates with `manualLeadSchema`, and
+    also refuses a mistyped phone beside a good email, which the schema passes and the api would store as nothing.
+    `OpeningListItem` joined `opening.ts`, the one change outside web.
+  - **Found by the browser pass, not the unit test:** `useConfirm` over a `SlideOver` counts as a press outside it. The
+    drawer closed, the lead id cleared, and the request went out as `DELETE /leads//do-not-contact`. The unit test had
+    mocked the dialog. Every question in the drawer now replaces its body, as contract §6.2 says.
+  - **Left out on purpose:** no search (the api has none, and searching a loaded page says "no match" for a person one
+    page on); the opening's title is not on a row (a row has only `opening_id`).
+  - **Known limits:** a queue row has no `purged_at`, so it says "No details on file" for a purged lead and for a form
+    whose details all failed to read; two matching applicants read as "matching applicant 1" and "2", because
+    `lead.drivers` carries no names; manual add reports "phone or email" only once the channel and name are valid.
+  - Open from this track: Q-AD30 and Q-AD31 (plan §9). Next is owner-made campaigns, raised with the ads chat first.

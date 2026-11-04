@@ -858,6 +858,17 @@ rate, and Higgsfield credits per approved creative.
   campaign has one form per language and `naming.ts` names the form and the ad with their language; and the
   preset names which copy slots Meta shows beside the image (`platform_slots`: primary text, headline) — the
   preset editor (E2) asks for them as it asks for `overlay_slots`, and the publisher refuses a preset without.
+- **Q-AD30 · Whether a purged lead's contact notes stay withheld** (counsel; owner's interim ruling 2026-11-04). A
+  note is a recruiter's own words and may name the person, so deleting a lead's details and then showing the note
+  would undo part of the deletion. But contacts are evidence (D-RA12) and the row is never changed. **Ruled for now:
+  withheld until counsel rules.** `readLeadContacts` serves `note: null, note_withheld: true`, and no stored row
+  changes. Question for counsel: may those notes stay readable to the office after a deletion request? If yes, one
+  condition goes; if they must go too, that is a new act on an evidence table and needs its own ruling.
+- **Q-AD31 · Whether the lead queue sorts by match** (owner, found building E4b2, 2026-11-04). `leadQueue.ts` calls
+  that the screen's step, but a match sort cannot share a keyset with freshness, and sorting one loaded page would
+  mislead. It ships newest first. Candidates: (a) leave it; (b) a server-side match order with its own cursor, which
+  needs a migration. **Recommendation: (a) until recruiters have worked real leads** — speed to first contact favours
+  newest first, and the row already shows the match.
 
 ---
 
