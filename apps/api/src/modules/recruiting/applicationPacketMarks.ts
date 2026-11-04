@@ -13,6 +13,7 @@ import { draftApplyingAs } from "./applicantApplyingAs.js";
 import { ADOPTION_NAME_MISMATCH, adoptionForMark } from "./documentAdoption.js";
 import { loadCarrierWording } from "./carrierWording.js";
 import { packetTextVersion } from "./applicationPdf/packet/packetTextVersion.js";
+import { DRUG_ALCOHOL_POLICY_VERSION } from "./applicationPdf/drugAlcoholPolicy/drugAlcoholPolicyText.js";
 import {
   isIntakeError,
   requireEsignConsent,
@@ -321,6 +322,12 @@ export async function recordPacketMark(
      */
     p_packet_version: await packetTextVersion(),
     p_adoption_id: adoption?.id ?? null,
+    /**
+     * §15.2 (D-DAP3, DAP2): the place that GIVES the policy (`p28`, the §382.601(d) receipt) names the
+     * text this process serves on the same screen — the fourteenth argument, which selects 0565's
+     * overload. Every other place passes null: 0565 refuses a version on a mark that receipts none (DR041).
+     */
+    p_policy_version: placement.gives === "drug_alcohol_policy" ? DRUG_ALCOHOL_POLICY_VERSION : null,
   });
   if (error) {
     if (error.code === "DR034" || /packet_mark_already_made/.test(error.message)) {

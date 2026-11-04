@@ -98,6 +98,9 @@ export const DQ_KIND_LABELS: Record<string, string> = {
   orientation: "Driver safety training (orientation)",
   handbook: "Signed driver handbook",
   clearinghouse_portal_consent: "Clearinghouse consent (portal)",
+  // A document kind no record cites (0565, §15.2): the §382.601 policy as the driver signed for it,
+  // filed with the packet and listed in the driver's file under this name.
+  drug_alcohol_policy: "Drug and alcohol policy (signed)",
   other: "Other document",
 };
 

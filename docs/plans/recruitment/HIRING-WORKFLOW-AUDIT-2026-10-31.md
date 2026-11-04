@@ -1273,3 +1273,16 @@ at submit, the review, the office drawer and the filed PDF.
   others: D-DAP1 now makes it the handbook's kind of document, not an upload. #2018 reworked to match (0565: `policy_version`
   on the mark, no table). Owner ruled the typos be corrected (D-DAP6): every correction on record, none changing a rule.
   Q-DAP2 (proofread) and Q-DAP3 (Vermeda vs Varmeda) are the owner's.
+- **2026-11-04** — **DAP1 merged (#2018, `d122c0e`)**; 0565 checked free by name first; main's CI and `migrate-staging`
+  green. **DAP2 (the reader, no migration):** `GET /api/public/application/:token/drug-alcohol-policy.pdf` on the
+  ceremony's per-link bucket (any live link; the FILED copy once the packet is filed). `p28` now carries
+  `gives: "drug_alcohol_policy"` in `PACKET_PLACEMENTS` — the one fact the API stamps from (`record_packet_mark`'s 14th
+  argument: `DRUG_ALCOHOL_POLICY_VERSION` on p28, null elsewhere) and the walk gates on ("Read the drug and alcohol
+  policy"; Sign off until opened; Spanish label says the policy is in English, Q-MT1). The policy's own sign place is
+  derived to the same id and throws at import if they part. Filing: `ensureDriverFiledApplication` files it as
+  `drug_alcohol_policy` through `fileGeneratedDocument` under `derivedUuid("drug-alcohol-policy:<application>")` —
+  idempotent, and healed by the next call that finds the packet filed; best effort (D-APP9). Nothing is filed for a
+  summary, a pre-0565 p28 (D-DAP5), or a p28 for another text (logged). Driver's file label "Drug and alcohol policy
+  (signed)". **Departure:** the walk's link names no page count — a number in the web copy would restate the
+  renderer's. 21/21 mutants killed. **Next:** once DAP2 has been in production a release, a migration drops the
+  13-argument `record_packet_mark` (D-DAP4); Q-DAP3 still the owner's.

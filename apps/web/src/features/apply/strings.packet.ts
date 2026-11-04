@@ -285,5 +285,13 @@ export const APPLY_PACKET_COPY = {
     tooFast:
       "That went faster than we could record it. Wait about a minute, then press the button again — "
       + "nothing you have already signed is lost.",
+    /**
+     * Page 28 is the receipt for the carrier's drug and alcohol policy (§382.601(d)), so the policy is
+     * GIVEN here, on the driver's own link, and Sign stays off until it has been opened (§15.2, D-DAP2).
+     * ⚠ No page count: the renderer decides how many pages the policy runs to, and a number written
+     * here would be a copy of it that goes stale with the next correction.
+     */
+    readPolicy: "Read the drug and alcohol policy",
+    readPolicyFirst: "This place says you received the carrier's drug and alcohol policy. Open it before you sign.",
   },
 } as const;

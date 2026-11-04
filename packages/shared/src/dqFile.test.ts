@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { DQ_KIND_LABELS } from "./dqCatalogue.js";
-import { QUALIFICATION_RECORD_KINDS } from "./complianceContract.js";
+import { CARRIER_POLICY_DOCUMENT_KINDS, QUALIFICATION_RECORD_KINDS } from "./complianceContract.js";
 import { hiringGapsAfterHire } from "./hireHandoff.js";
 import { returnToDutyCause } from "./returnToDuty.js";
 import {
@@ -144,6 +144,13 @@ describe("the return-to-duty requirement", () => {
  */
 describe("every qualification-record kind has a name", () => {
   it.each([...QUALIFICATION_RECORD_KINDS])("%s", (kind) => {
+    expect(DQ_KIND_LABELS[kind], `${kind} has no label`).toBeTruthy();
+  });
+});
+
+/** The same guard for the papers no record cites but the driver's file lists (0565, DAP2). */
+describe("every carrier-policy document kind has a name", () => {
+  it.each([...CARRIER_POLICY_DOCUMENT_KINDS])("%s", (kind) => {
     expect(DQ_KIND_LABELS[kind], `${kind} has no label`).toBeTruthy();
   });
 });

@@ -3,6 +3,7 @@ import { driverPlacements, packetPlacementById } from "@silvicom/shared";
 import { createSupabaseRecorder, expectOrgScoped } from "../../testing/supabaseRecorder.js";
 import { hashInvitationToken, isIntakeError } from "./applicationIntake.js";
 import { adoptedPacketMarks, packetStops, recordPacketMark } from "./applicationPacketMarks.js";
+import { DRUG_ALCOHOL_POLICY_VERSION } from "./applicationPdf/drugAlcoholPolicy/drugAlcoholPolicyText.js";
 
 /**
  * The twenty-two marks on the carrier's packet (P5, D-PKT6).
@@ -156,6 +157,31 @@ describe("recording one mark", () => {
  * complaint. Twenty-two of the twenty-eight placements are the driver's; the other six are refused
  * here or nowhere.
  */
+/**
+ * DAP2 (§15.2, D-DAP3): page 28 is the §382.601(d) receipt, so its mark names the policy text served on
+ * the same screen. 0565 refuses p28 without a version (DR039) and a version anywhere else (DR041), so the
+ * argument is ALWAYS sent — its presence is what selects the fourteen-argument overload.
+ */
+describe("the drug-and-alcohol policy receipt", () => {
+  it("stamps page 28 with the version of the policy this process serves", async () => {
+    const rec = seed();
+    await recordPacketMark(rec.client, TOKEN, body("p28"), CTX, NOW);
+    const args = rec.rpcs()[0]!.args as Record<string, unknown>;
+    expect(args.p_policy_version).toBe(DRUG_ALCOHOL_POLICY_VERSION);
+    expect(DRUG_ALCOHOL_POLICY_VERSION).toMatch(/^dap-[0-9a-f]{16}$/);
+  });
+
+  it("sends a null version on every other place, never omits it", async () => {
+    for (const id of driverPlacements(null).map((p) => p.id).filter((id) => id !== "p28")) {
+      const rec = seed();
+      await recordPacketMark(rec.client, TOKEN, body(id, packetPlacementById(id)!.mark === "initials" ? "MV" : "Marija Varmeda"), CTX, NOW);
+      const args = rec.rpcs()[0]!.args as Record<string, unknown>;
+      expect(Object.keys(args)).toContain("p_policy_version");
+      expect(args.p_policy_version, id).toBeNull();
+    }
+  });
+});
+
 describe("a stop that is not the driver's", () => {
   it.each([
     ["p18c", "the carrier's countersignature on page 18"],

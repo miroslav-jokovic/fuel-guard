@@ -104,6 +104,15 @@ export interface PacketPlacement {
    * is decided in `driverPlacements`, from what they said they are applying as.
    */
   capacity?: "owner_operator";
+  /**
+   * A document the driver is GIVEN at this place, and must open before signing it (§15.2, D-DAP2).
+   *
+   * ⚠ Only `p28`: it is the §382.601(d) receipt — "I received a copy of the carrier's drug and alcohol
+   * policy" — and since DAP2 the copy is served on the driver's own link, so the receipt is signed for a
+   * text the driver was actually handed. A fact about the paper, like `capacity`: the API stamps the
+   * policy's version on the mark from it (0565, DR039), and the walk keeps Sign off until it is opened.
+   */
+  gives?: "drug_alcohol_policy";
 }
 
 /**
@@ -178,7 +187,7 @@ export const PACKET_PLACEMENTS: readonly PacketPlacement[] = [
   { id: "p27", page: 27, party: "driver", mark: "signature", anchor: "Signature",
     what: "Who may ride with you, and how off-duty time is logged" },
   { id: "p28", page: 28, party: "driver", mark: "signature", anchor: "Signature",
-    what: "The alcohol and drug abuse policy" },
+    what: "The alcohol and drug abuse policy", gives: "drug_alcohol_policy" },
   // ⚠ Page 31 takes THREE marks and they are three different people: the driver, the owner-operator
   // and a witness. They are frequently the same person for the first two and the packet does not
   // assume it, so neither does this. The witness is neither the applicant nor the carrier, which is

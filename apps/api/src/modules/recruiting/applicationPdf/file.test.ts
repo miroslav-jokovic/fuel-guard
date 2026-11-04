@@ -4,6 +4,9 @@ import { pdfText } from "../../../testing/pdfText.js";
 import { ensureApplicationPdf, ensureDriverFiledApplication } from "./file.js";
 import { APPLICATION_CAPTURE_MARK_SLOT, driverPlacements } from "@silvicom/shared";
 import { PDFDocument } from "pdf-lib";
+import { postgrestFixture } from "../../../testing/postgrestFixture.js";
+import { DRUG_ALCOHOL_POLICY_VERSION } from "./drugAlcoholPolicy/drugAlcoholPolicyText.js";
+import { filedPolicyDocumentId } from "./drugAlcoholPolicy/drugAlcoholPolicyCopy.js";
 
 /**
  * Filing the rendered application (A6, D-APP9).
@@ -67,10 +70,13 @@ const seed = (over: {
   application?: Record<string, unknown> | null;
   record?: Record<string, unknown> | null;
   document?: Record<string, unknown> | null;
-  marks?: Array<Record<string, unknown>>;
+  /** A flat list, or a `postgrestFixture` when a test needs the p28 read to find p28 (DAP2). */
+  marks?: Array<Record<string, unknown>> | ReturnType<typeof postgrestFixture>;
   /** Q-HB1: the countersignature row `ensureApplicationPdf` asks for first, and the documents by id. */
   countersignature?: Record<string, unknown>;
   documentsById?: Record<string, Record<string, unknown>>;
+  /** Storage handlers, by method, for a test that needs an upload to fail. */
+  storage?: Record<string, (...args: unknown[]) => unknown>;
 } = {}) =>
   createSupabaseRecorder({
     tables: {
@@ -91,6 +97,7 @@ const seed = (over: {
       application_packet_marks: over.marks ?? [],
     },
     rpc: { attach_application_document: true },
+    storage: over.storage,
   });
 
 describe("filing the application PDF", () => {
@@ -503,5 +510,58 @@ describe("which document an application files", () => {
     const filed = await ensureApplicationPdf(rec.client, ORG, APP_ID);
     expect(filed?.rendered).toBe(true);
     expect(rec.forTable("application_packet_marks")).toHaveLength(0);
+  });
+});
+
+/**
+ * DAP2 (§15.2, D-DAP3): the signed drug-and-alcohol policy files on the driver with the packet, on the
+ * filing that renders the packet and on every later call that finds it filed (the heal).
+ */
+describe("the drug-and-alcohol policy filed with the packet", () => {
+  /** The packet signed through, with page 28 stamped as DAP2 stamps it — or as a pre-0565 p28 was. */
+  const packetWithReceipt = (policyVersion: string | null) =>
+    postgrestFixture(signedPacket().map((m) => ({
+      ...m, org_id: ORG, invitation_id: "inv-1", policy_version: m.placement_id === "p28" ? policyVersion : null,
+    })));
+  const kindsFiled = (rec: ReturnType<typeof seed>) =>
+    (rec.writtenRows("documents") as Array<Record<string, unknown>>).map((r) => r.kind);
+
+  it("files the signed policy beside the packet when page 28 was signed for this policy's text", async () => {
+    const rec = seed({ marks: packetWithReceipt(DRUG_ALCOHOL_POLICY_VERSION) });
+    await ensureApplicationPdf(rec.client, ORG, APP_ID);
+    expect(kindsFiled(rec)).toEqual(["employment_application", "drug_alcohol_policy"]);
+    const policy = (rec.writtenRows("documents") as Array<Record<string, unknown>>)[1]!;
+    expect(policy).toMatchObject({ id: filedPolicyDocumentId(APP_ID), subject_id: DRIVER, org_id: ORG });
+  });
+
+  it("files no policy for a packet whose page 28 named no text (D-DAP5)", async () => {
+    const rec = seed({ marks: packetWithReceipt(null) });
+    await ensureApplicationPdf(rec.client, ORG, APP_ID);
+    expect(kindsFiled(rec)).toEqual(["employment_application"]);
+  });
+
+  it("files the policy on a later call when the packet is filed and the policy is not — the heal", async () => {
+    const rec = seed({
+      marks: packetWithReceipt(DRUG_ALCOHOL_POLICY_VERSION),
+      record: { document_id: "doc-1" },
+      documentsById: { "doc-1": { id: "doc-1", storage_path: "org/driver/doc-1.pdf" } },
+    });
+    const filed = await ensureDriverFiledApplication(rec.client, ORG, APP_ID);
+    expect(filed?.rendered).toBe(false);
+    expect(kindsFiled(rec)).toEqual(["drug_alcohol_policy"]);
+  });
+
+  it("still files the packet when the policy cannot be filed", async () => {
+    let uploads = 0;
+    // The second upload is the policy's: refuse it, and the packet's filing must stand.
+    const rec = seed({
+      marks: packetWithReceipt(DRUG_ALCOHOL_POLICY_VERSION),
+      storage: {
+        upload: (path: unknown) => (++uploads === 2 ? { data: null, error: { message: "boom" } } : { data: { path }, error: null }),
+      },
+    });
+    const filed = await ensureApplicationPdf(rec.client, ORG, APP_ID);
+    expect(filed?.rendered).toBe(true);
+    expect(kindsFiled(rec)).toEqual(["employment_application"]);
   });
 });

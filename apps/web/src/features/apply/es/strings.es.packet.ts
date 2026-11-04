@@ -108,5 +108,8 @@ export const APPLY_PACKET_COPY_ES = {
     tooFast:
       "Eso fue más rápido de lo que pudimos registrarlo. Espere alrededor de un minuto y vuelva a presionar el botón; "
       + "nada de lo que ya firmó se pierde.",
+    // Q-MT1: the policy itself is the carrier's English text; only these two lines are translated.
+    readPolicy: "Leer la política de drogas y alcohol (en inglés)",
+    readPolicyFirst: "Este lugar dice que recibió la política de drogas y alcohol de la empresa. Ábrala antes de firmar.",
   },
 } satisfies Localized<typeof APPLY_PACKET_COPY>;

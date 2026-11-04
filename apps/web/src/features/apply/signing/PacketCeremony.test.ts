@@ -51,3 +51,60 @@ describe("the packet on the one signing walk (D-HB12)", () => {
     expect(JSON.parse(String((marks[0]![1] as RequestInit).body)).placement_id).toBe(first.id);
   });
 });
+
+/**
+ * §15.2 (D-DAP2): page 28 is the receipt for the carrier's drug and alcohol policy, so the policy is given
+ * on the screen and Sign stays off until it has been opened. Every place before p28 is already signed, so
+ * the walk resumes there.
+ */
+describe("page 28 gives the drug and alcohol policy", () => {
+  const atPolicy = () => {
+    const all = driverPlacements(null);
+    const at = all.findIndex((p) => p.gives === "drug_alcohol_policy");
+    return all.map((p, i) => ({ ...p, signedAt: i < at ? "2026-11-04T15:00:00Z" : null }));
+  };
+  const mountAtPolicy = async () => {
+    const w = mount(PacketCeremony, {
+      props: {
+        token: TOKEN, stops: atPolicy(), carrier: "Silvicom Inc",
+        adoptedMarks: { signature: "Susan Godfrey", initials: "SG" },
+        adoptions: { signature: "Susan Godfrey", initials: "SG" },
+      },
+    });
+    await flushPromises();
+    // A resumed link: the marks are pinned, and the driver carries on with them.
+    await w.findAll("button").find((b) => b.text() === "Carry on signing")!.trigger("click");
+    await flushPromises();
+    return w;
+  };
+  const signButtons = (w: Awaited<ReturnType<typeof mountAtPolicy>>) =>
+    w.findAll("button").filter((b) => b.text() === "Sign here");
+
+  it("offers the policy on the driver's own link, and keeps Sign off until it is opened", async () => {
+    const walk = await mountAtPolicy();
+    expect(walk.find("[data-viewer]").attributes("data-tag")).toBe("p28");
+    const link = walk.find("[data-test=policy] a");
+    expect(link.attributes("href")).toBe(`/api/public/application/${TOKEN}/drug-alcohol-policy.pdf`);
+    expect(link.attributes("target")).toBe("_blank");
+    expect(signButtons(walk).length).toBeGreaterThan(0);
+    expect(signButtons(walk).every((b) => b.attributes("disabled") !== undefined)).toBe(true);
+
+    await link.trigger("click");
+    expect(signButtons(walk).every((b) => b.attributes("disabled") === undefined)).toBe(true);
+    await signButtons(walk)[0]!.trigger("click");
+    await flushPromises();
+    const marks = fetchMock.mock.calls.filter(([url]) => String(url).endsWith("/mark"));
+    expect(JSON.parse(String((marks[0]![1] as RequestInit).body)).placement_id).toBe("p28");
+  });
+
+  it("asks for nothing to be opened at any other place", async () => {
+    const w = mount(PacketCeremony, {
+      props: { token: TOKEN, stops: stops(), carrier: "Silvicom Inc", adoptions: { signature: "Susan Godfrey", initials: "SG" } },
+    });
+    await flushPromises();
+    await w.findAll("button").find((b) => b.text() === "Use it")!.trigger("click");
+    await flushPromises();
+    expect(w.find("[data-test=policy]").exists()).toBe(false);
+    expect(w.find("[data-viewer] button").attributes("disabled")).toBeUndefined();
+  });
+});

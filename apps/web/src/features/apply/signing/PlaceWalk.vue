@@ -43,6 +43,11 @@ const props = defineProps<{
   tagLabel: string;
   workingLabel: string;
   working: boolean;
+  /**
+   * Sign is off for a reason the caller owns — the packet's page 28 until the driver has opened the
+   * drug and alcohol policy it receipts (§15.2, D-DAP2). The caller's slot says why.
+   */
+  signBlocked?: boolean;
 }>();
 const emit = defineEmits<{ sign: []; failed: [] }>();
 
@@ -113,7 +118,7 @@ function onLocated(places: LocatedPlaces): void {
           @failed="viewer = 'failed'; emit('failed')"
         >
           <template #tag>
-            <BaseButton variant="primary" size="sm" class="sign-here-tag" :disabled="working" @click="emit('sign')">
+            <BaseButton variant="primary" size="sm" class="sign-here-tag" :disabled="working || signBlocked" @click="emit('sign')">
               {{ working ? workingLabel : tagLabel }}
             </BaseButton>
           </template>
@@ -141,7 +146,7 @@ function onLocated(places: LocatedPlaces): void {
     <slot />
 
     <div v-if="needsButton" class="flex justify-end">
-      <BaseButton variant="primary" :disabled="working" @click="emit('sign')">
+      <BaseButton variant="primary" :disabled="working || signBlocked" @click="emit('sign')">
         {{ working ? workingLabel : tagLabel }}
       </BaseButton>
     </div>
