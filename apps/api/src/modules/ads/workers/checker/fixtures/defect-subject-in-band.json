@@ -1,0 +1,69 @@
+{
+  "name": "defect-subject-in-band",
+  "about": "The truck fills the bottom third of the frame, exactly where the overlay text will sit.",
+  "input": {
+    "image": "planted-subject-in-band.jpg",
+    "reference": {
+      "image": "reference.jpg",
+      "label": "white conventional sleeper tractor, front three-quarter"
+    },
+    "scene": {
+      "shows_equipment": true,
+      "shows_people": false
+    },
+    "kit": {
+      "people_policy": "none",
+      "forbidden_marks": [
+        "ACME Logistics"
+      ]
+    },
+    "text_band": {
+      "x": 0.06,
+      "y": 0.62,
+      "width": 0.88,
+      "height": 0.32
+    }
+  },
+  "truth": {
+    "planted": "safe_zone_clear",
+    "how": "Prompted for the truck across the bottom third with empty sky above."
+  },
+  "expect": "refused",
+  "expect_findings": [
+    "safe_zone_clear"
+  ],
+  "recorded": {
+    "source": "model",
+    "prompt_version": "checker@1",
+    "model": "claude-sonnet-4-6",
+    "recorded_at": "2026-11-04T15:33:27.420Z",
+    "output": {
+      "checks": {
+        "no_glyphs": {
+          "reason": "No letters, numbers, digits, or text-like shapes are visible anywhere in image 1. The grille badge is a small maker's emblem, not writing.",
+          "verdict": "pass"
+        },
+        "no_foreign_logos": {
+          "reason": "No company names, emblems, or branding from any outside company appear on the truck, trailer, clothing, or background. The small grille badge is the vehicle maker's own and is exempt.",
+          "verdict": "pass"
+        },
+        "equipment_matches_reference": {
+          "reason": "Image 1 shows a white long-nose conventional sleeper tractor, matching the reference in cab style (long-nose conventional), sleeper configuration, and white colour. Both are bobtail tractors.",
+          "verdict": "pass"
+        },
+        "no_malformed_people_or_vehicles": {
+          "reason": "The truck appears physically plausible: wheels, axles, mirrors, and body panels are all in normal positions with no distortion, duplication, or merging visible.",
+          "verdict": "pass"
+        },
+        "people_policy_met": {
+          "reason": "People are not allowed and no person or recognisable body part appears anywhere in image 1, including in the cab windows.",
+          "verdict": "pass"
+        },
+        "safe_zone_clear": {
+          "reason": "Image 3 shows the full cab body, hood, bumper, wheels, and chassis of the truck filling the text band. Vehicle parts occupy most of this zone, which fails the requirement for plain background only.",
+          "verdict": "fail"
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,59 @@
+{
+  "name": "clean-empty-road",
+  "about": "A text-only scene: an empty highway through wheat fields at sunrise (9:16), no vehicle, no person.",
+  "input": {
+    "image": "clean-empty-road.jpg",
+    "reference": null,
+    "scene": {
+      "shows_equipment": false,
+      "shows_people": false
+    },
+    "kit": {
+      "people_policy": "none",
+      "forbidden_marks": [
+        "ACME Logistics"
+      ]
+    },
+    "text_band": {
+      "x": 0.08,
+      "y": 0.42,
+      "width": 0.84,
+      "height": 0.22
+    }
+  },
+  "truth": {
+    "planted": null,
+    "how": "Generated clean: a road and sky only, so there is nothing to letter, brand or misshape."
+  },
+  "expect": "ready",
+  "recorded": {
+    "source": "model",
+    "prompt_version": "checker@1",
+    "model": "claude-sonnet-4-6",
+    "recorded_at": "2026-11-04T15:32:23.186Z",
+    "output": {
+      "checks": {
+        "no_glyphs": {
+          "reason": "The image shows only a road, fields, sky, and sunset. No letters, numbers, signs, or text-like shapes are visible anywhere.",
+          "verdict": "pass"
+        },
+        "no_foreign_logos": {
+          "reason": "No company names, emblems, logos, or branding appear anywhere in the image. No forbidden marks such as ACME Logistics are present.",
+          "verdict": "pass"
+        },
+        "no_malformed_people_or_vehicles": {
+          "reason": "No people or vehicles appear in the image. The scene is a road, fields, and sky, all physically plausible and well-rendered.",
+          "verdict": "pass"
+        },
+        "people_policy_met": {
+          "reason": "People are not allowed and no person or recognisable part of a person appears anywhere in the image, including any reflections or shadows.",
+          "verdict": "pass"
+        },
+        "safe_zone_clear": {
+          "reason": "Image 3 shows road surface, golden fields, and a sunset horizon. No vehicle parts or people are present in this band.",
+          "verdict": "pass"
+        }
+      }
+    }
+  }
+}

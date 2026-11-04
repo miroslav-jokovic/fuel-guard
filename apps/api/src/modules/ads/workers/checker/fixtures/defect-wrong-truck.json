@@ -1,0 +1,70 @@
+{
+  "name": "defect-wrong-truck",
+  "about": "A flat-front box delivery truck with no trailer, where the reference is a conventional sleeper tractor.",
+  "input": {
+    "image": "planted-wrong-truck.jpg",
+    "reference": {
+      "image": "reference.jpg",
+      "label": "white conventional sleeper tractor, front three-quarter"
+    },
+    "scene": {
+      "shows_equipment": true,
+      "shows_people": false
+    },
+    "kit": {
+      "people_policy": "none",
+      "forbidden_marks": [
+        "ACME Logistics"
+      ]
+    },
+    "text_band": {
+      "x": 0.06,
+      "y": 0.62,
+      "width": 0.88,
+      "height": 0.32
+    }
+  },
+  "truth": {
+    "planted": "equipment_matches_reference",
+    "how": "Prompted for a European cab-over rigid box lorry instead of the reference's conventional tractor."
+  },
+  "expect": "refused",
+  "expect_findings": [
+    "equipment_matches_reference",
+    "safe_zone_clear"
+  ],
+  "recorded": {
+    "source": "model",
+    "prompt_version": "checker@1",
+    "model": "claude-sonnet-4-6",
+    "recorded_at": "2026-11-04T15:33:37.125Z",
+    "output": {
+      "checks": {
+        "no_glyphs": {
+          "reason": "No letters, numbers, digits, or text-like shapes are visible anywhere in the generated image. The truck body and surroundings are blank.",
+          "verdict": "pass"
+        },
+        "no_foreign_logos": {
+          "reason": "No company names, emblems, or branding appear on the truck, buildings, or any surface. No forbidden marks such as 'ACME Logistics' are present.",
+          "verdict": "pass"
+        },
+        "equipment_matches_reference": {
+          "reason": "Image 1 shows a flat-front cab-over box truck, while image 2 shows a long-nose conventional sleeper tractor. These are entirely different cab styles and vehicle types.",
+          "verdict": "fail"
+        },
+        "no_malformed_people_or_vehicles": {
+          "reason": "The box truck appears physically plausible with normal wheel placement and no melted or duplicated parts. No anomalies detected.",
+          "verdict": "pass"
+        },
+        "people_policy_met": {
+          "reason": "People are not allowed and no person or recognisable part of a person is visible anywhere in the image, including cab windows.",
+          "verdict": "pass"
+        },
+        "safe_zone_clear": {
+          "reason": "Image 3 shows the lower portion of the truck's front wheel, bumper, and chassis clearly occupying the left side of the band. Vehicle parts are present in the text zone.",
+          "verdict": "fail"
+        }
+      }
+    }
+  }
+}

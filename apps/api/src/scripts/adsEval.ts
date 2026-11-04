@@ -12,6 +12,8 @@
  * Planted fixtures (an answer a person wrote to plant a defect) are skipped: they say nothing about the
  * model. A model fixture is AGREED when the live answer reaches the verdict the worker needs — `ready` —
  * for its input (a recorded `refused` is a case the old model got wrong; the live model should do better).
+ * A judge says what "right" is itself (`EvalWorker.agrees`): the checker agrees when it refuses the defect
+ * an image was made to carry and passes a clean one (C5a), so its agreement IS its recall on the corpus.
  *
  * `--record` replaces each model fixture's recording with today's answer, keeping its `expect` honest by
  * setting it to the verdict that answer gets, and writes `baseline.json` beside the fixtures: prompt
@@ -44,13 +46,14 @@ async function run<F, T>(name: string, w: EvalWorker<F, T>, record: boolean, jso
   let agreed = 0;
   let model = "";
   for (const { file, fixture } of asked) {
-    const req = w.request(fixture);
+    const req = await w.request(fixture);
     model = req.model;
     const out = await callForcedTool(client, req);
     const output = out.kind === "ok" ? out.value : out.kind === "off_schema" ? out.raw : null;
     const { verdict, findings } = out.kind === "no_tool_use" ? { verdict: "off_schema", findings: [] } : w.judge(fixture, output);
-    if (verdict === "ready") agreed += 1;
-    if (!json) console.log(`${verdict === "ready" ? "✓" : "✗"} ${w.name(fixture)}  ${verdict}${findings.length ? ` (${findings.join(", ")})` : ""}`);
+    const right = w.agrees ? w.agrees(fixture, verdict, findings) : verdict === "ready";
+    if (right) agreed += 1;
+    if (!json) console.log(`${right ? "✓" : "✗"} ${w.name(fixture)}  ${verdict}${findings.length ? ` (${findings.join(", ")})` : ""}`);
     if (record) {
       const next = w.withRecording(fixture, { source: "model", prompt_version: w.promptVersion, model: req.model, recorded_at: new Date().toISOString(), output });
       const withExpect = { ...(next as object), expect: verdict, ...(verdict === "refused" ? { expect_findings: findings } : { expect_findings: undefined }) };

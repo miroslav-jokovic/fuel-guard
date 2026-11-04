@@ -1,0 +1,70 @@
+{
+  "name": "defect-lettering",
+  "about": "The trailer side carries huge painted hiring copy with a pay figure — the defect D-AD9 exists to keep out.",
+  "input": {
+    "image": "planted-lettering.jpg",
+    "reference": {
+      "image": "reference.jpg",
+      "label": "white conventional sleeper tractor, front three-quarter"
+    },
+    "scene": {
+      "shows_equipment": true,
+      "shows_people": false
+    },
+    "kit": {
+      "people_policy": "none",
+      "forbidden_marks": [
+        "ACME Logistics"
+      ]
+    },
+    "text_band": {
+      "x": 0.06,
+      "y": 0.62,
+      "width": 0.88,
+      "height": 0.32
+    }
+  },
+  "truth": {
+    "planted": "no_glyphs",
+    "how": "Prompted for the words NOW HIRING CDL DRIVERS 0.68 PER MILE CALL TODAY on the trailer."
+  },
+  "expect": "refused",
+  "expect_findings": [
+    "no_glyphs",
+    "safe_zone_clear"
+  ],
+  "recorded": {
+    "source": "model",
+    "prompt_version": "checker@1",
+    "model": "claude-sonnet-4-6",
+    "recorded_at": "2026-11-04T15:32:58.862Z",
+    "output": {
+      "checks": {
+        "no_glyphs": {
+          "reason": "The trailer side displays large readable text: 'NOW HIRING CDL DRIVERS 0.68 PER MILE CALL TODAY'. Numbers '7294' and '5327' also appear on the cab and trailer. This is clearly legible writing.",
+          "verdict": "fail"
+        },
+        "no_foreign_logos": {
+          "reason": "No competitor or third-party company branding is visible. The truck appears unbranded aside from the hiring text. No marks resembling any forbidden name are present.",
+          "verdict": "pass"
+        },
+        "equipment_matches_reference": {
+          "reason": "Image 1 shows a white long-nose conventional sleeper tractor pulling a trailer, matching the type in Image 2 (white conventional sleeper tractor-trailer). Cab style and colour are consistent.",
+          "verdict": "pass"
+        },
+        "no_malformed_people_or_vehicles": {
+          "reason": "The truck and trailer appear physically plausible with normal wheel count, proportions, and no melted or duplicated parts visible.",
+          "verdict": "pass"
+        },
+        "people_policy_met": {
+          "reason": "People are not allowed per policy. No person or recognisable body part is visible anywhere in the image, including the cab windows.",
+          "verdict": "pass"
+        },
+        "safe_zone_clear": {
+          "reason": "Image 3 shows the top-left corner contains wheels and the undercarriage/chassis of the truck and trailer, which are vehicle parts intruding into the text safe zone.",
+          "verdict": "fail"
+        }
+      }
+    }
+  }
+}

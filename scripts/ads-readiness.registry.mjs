@@ -36,6 +36,7 @@ const RULES_SYNC = "apps/api/src/modules/ads/platforms/meta/rulesSync.test.ts";
 const COPYWRITER = "apps/api/src/modules/ads/workers/copywriter/copywriter.test.ts";
 const ART_DIRECTOR = "apps/api/src/modules/ads/workers/artDirector/artDirector.test.ts";
 const RENDER = "apps/api/src/modules/ads/creative/higgsfield/render.test.ts";
+const CHECKER = "apps/api/src/modules/ads/workers/checker/checker.test.ts";
 
 export const SCENARIO_DIR = "packages/ads-golden/scenarios";
 
@@ -551,9 +552,37 @@ export const READINESS = [
             "a block with no background measured is a finding, never a pass",
           ] }],
         },
-        notBuilt("C5 checker (copy + vision checklist + render)"),
+        {
+          need: "the visual check (C5a): Claude vision through the A4 rail, one verdict per checklist item, any fail fails, images hashed not stored",
+          tests: [
+            { file: CHECKER, titles: [
+              "has model recordings of every planted defect under the prompt in force",
+              "planted-answer-one-fail",
+              "planted-answer-missing-item",
+              "an asked item the answer lacks is a fail, never a pass",
+              "asks no equipment item of a text-only scene, and records it not applicable",
+              "sends the image, the reference and the cut band as base64, and the ledger keeps only their hashes",
+              "the band is cut from exactly the fractions given",
+            ] },
+            { file: "apps/api/src/modules/ads/generations/claudeGeneration.test.ts", titles: [
+              "the model gets our bytes as base64 and the ledger keeps only their sha256",
+              "an image over the API's limit is refused before any row or call",
+            ] },
+          ],
+        },
+        notBuilt("C5b compose: the three checks per creative, one regeneration with the failure added, then stop with the reason"),
       ],
-      L2: later("L2"), L3: later("L3"),
+      L2: [
+        {
+          need: "§4R's planted-defect corpus: lettering, a foreign logo, the wrong truck type, malformed shapes, people under a none policy, a subject in the text band (and an instruction inside a photo label)",
+          tests: [{ file: CHECKER, titles: [
+            "defect-lettering", "defect-foreign-logo", "defect-wrong-truck", "defect-malformed", "defect-person", "defect-subject-in-band",
+            "instruction-in-label", "clean-highway",
+            "every model recording refuses the defect its image was made with, and passes the clean ones",
+          ] }],
+        },
+      ],
+      L3: [{ need: "pure checks catch 100 % of planted defects; the vision checklist's recall per defect type measured, at an owner-set threshold", gap: "C5a measured recall 10 of 10 on a 10-image corpus, twice (pnpm ads:eval checker, baseline.json, 2026-11-04); the owner sets the threshold, and the corpus grows past one image per defect" }],
       L4: [{ need: "the planted-defect corpus re-run on real renders", gap: STAGE2 }],
       L5: [{ need: "canary", gap: CANARY }],
     },

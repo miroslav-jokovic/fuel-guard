@@ -1196,3 +1196,35 @@ blocking step in §3 above.
   - Readiness: **Renderer / Higgsfield client L2** (L1 = C3 + C4, L2 = C3's four faults).
   - Mutation: 11 mutants; one survived the first run (a sampling grid thinned to every 400th pixel still caught
     the sky) — the stripe test now kills it — 11 of 11.
+- **2026-11-04, C5a — the visual check.** `workers/checker/` (`checkVisual`, prompt `checker@1`): Claude vision over
+  the still as it fills the format's frame, BEFORE any text (our overlay is writing, so `no_glyphs` must not see
+  it), answering each `AD_VISUAL_CHECKS` item `pass`/`fail` with the reason first. Any fail is `check_failed` (the
+  creative state's name — `failed` is the rail's, a call that errored). The tool's schema holds exactly the items
+  that apply, strict, so an item cannot be skipped or added; one that does not apply (`equipment_matches_reference`
+  for a scene with no equipment) is recorded `not_applicable` by us, so all six are stored. A scene with equipment
+  and no reference photo is refused before any call (`no_reference`).
+  - **The AI rail takes images** (§3 gap 1 of the C5 handoff): `UserContent` = a string or text/image parts, an
+    image being BYTES we hold (never a URL). `describeUserContent` puts each image's sha256 + size in the ledger's
+    `request` and its hash, computed by the rail from the bytes; an image over the API's 5 MB is refused before the
+    `started` row. One rail, one row. ⚠ The rail forces its tool, which `claude-sonnet-4-6` accepts; Opus 5.5,
+    Sonnet 5.5 and Fable 5.1 answer a forced `tool_choice` with 400 — noted at `callForcedTool`'s types.
+  - **The text band is cut out by us, not located by the model.** Measured: told the band as fractions, the model
+    placed it wrong both ways (wheels at 0.4 of the height "in" a band from 0.62; a truck truly in the band "above"
+    it). Now `cutBand` crops it (sharp) and sends it as image 3; the model only says what the crop shows.
+  - **Corpus:** 10 images generated 2026-11-04 with the developer's Higgsfield login (`gpt_image_2_5`, medium, 1k,
+    0.5 credits each), stored at 768 px JPEG (~1 MB total) in `fixtures/images/`: a reference photo, three clean
+    scenes, and one per checklist item (lettering, an ACME Logistics mark, a box truck, a melted cab, a driver under
+    `people_policy: none`, a truck across the band) plus an instruction typed into the photo label. `truth.planted`
+    says what each image IS; `expect` what the recording reached. Three hand-written answers prove the judge (one
+    fail fails; a missing item and an extra item are off-schema).
+  - **`ads:eval checker` = recall.** `EvalWorker.agrees` (new, optional): a judge is right when it refuses the
+    planted defect and passes a clean image. Prompt iterations, all measured: 8/10 (a 400-character reason cap threw
+    away two right answers → cap 1000, ask < 300; make compared → type only), 9/10 (band located by fractions),
+    **10/10, twice** with the cut band. Real defect images also fail items nobody planted (the trucks' wheels sit
+    in the band); the recordings show it.
+  - **Q-AD27** (new, plan): the maker's-badge and type-not-make rules are our reading; recommendation recorded.
+  - Readiness: **Checker stays L0** — its L1 is C5a (pinned now) plus C5b (compose: three checks, one regeneration,
+    stop with the reason), so the `notBuilt` line names C5b; L2 (the corpus) is pinned. No migration.
+  - Mutation: 18 mutants (rail hash/bytes/size, ledger storing bytes, applicability, n/a vs fail, a gap read as a
+    pass, the band's axis, the band and the reference not sent, fit never/always re-encoding, the key's format,
+    `people_allowed`, a non-strict schema, `agrees` accepting any refusal) — 18 of 18 killed.
