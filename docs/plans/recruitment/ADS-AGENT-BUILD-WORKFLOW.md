@@ -1372,3 +1372,32 @@ blocking step in §3 above.
     L0); L2 gains the image/creative/ad faults, and keeps the alert gap.
   - Mutation: 18 publisher/fake mutants plus 6 naming/contract mutants. 23 killed. The survivor was a no-op: a
     surplus-field check the name's round-trip already makes. The line was deleted.
+- **2026-11-04, S1b — a campaign can be made from an opening (Track S).** The first writer of an `ads_campaigns`
+  row, and the first reader of S1a's `brand_kit_id`.
+  - **Recruiting's `AdBriefSource`** (`recruiting/leads/adBriefSource.ts`, read-only; D-AD17): an OPEN opening's
+    newest version and its profile version → the shared `openingBrief`, handed to the ads router by `app.ts` as
+    `LeadSink` is, so ads never imports recruiting. **The mapping, decided here (no plan step specified it):** claims
+    are only facts a person saved: pay bottom (+ top when it differs), the profile's age floor (the ad says "23+",
+    plan §1), Class A years when > 0, and home time as a `term` only when the text IS a `PROMISE_TERMS` phrasing
+    (`promiseTermOf`, new in `adClaims.ts`, beside the vocabulary). Equipment and lanes are subject matter, not
+    claims. The form asks Class A always, years when there is a floor, hazmat only when required (G12 catalogue).
+    `landing_url` null (Stage 1 collects through the platform form).
+  - **`POST /api/ads/campaigns`** (manage on the brief's section: a recruiter creates; creating spends nothing):
+    `{id, brief_source, brief_ref, connection_id, brand_kit_id, name?}`. Refused with a reason before any row: unknown
+    source, no brief (not open / nothing saved / another org), no settings saved, connection not `connected`, kit
+    archived or unsaved. The insert is `insertCampaign` in `transitions.ts` (the one writer), in `draft` — the
+    orchestrator's `draft → compose` is the first recorded transition. The id is the browser's: a second delivery of
+    one Create is answered from the first row (23505 → same org, same brief → `existing`), any other collision is
+    `id_taken`.
+  - **`GET /api/ads/campaigns`** (newest 200) and **`/campaigns/:id`** (brief, settings version, creatives oldest
+    first with assets, checks, `last_error`) — view on the section. Which buttons a campaign offers is the machine's
+    `campaignEventsFrom`, not a list in the view.
+  - **Not built, said so:** regenerate / archive / launch (with the daily budget and lifetime cap the runner's
+    `launchStep` requires on the row) are **S1c**. Approving or rejecting a creative writes `ads_creatives.state`, whose
+    writers are `compose/` (Track W's): **S1d waits for Track W's `decideCreative`** (ready → approved/rejected,
+    compare-and-set). Compose still refuses an org with two kits until it reads `brand_kit_id` (Track W, now unblocked).
+  - Tests: `openingBrief.test.ts` (9, against the real claim checker: the opening's figures pass, a figure it does not
+    hold is refused), `campaigns.test.ts` (16, through the app and recruiting's real brief source). Mutation: 27 mutants
+    (status, newest version, org scope ×4, source lookup, settings, connection, kit ×2, settings version, duplicate ×2,
+    kit written, the manage gate, creative filter and order, the brief's eight rules, `promiseTermOf` ×2) — 27 of 27
+    killed.
