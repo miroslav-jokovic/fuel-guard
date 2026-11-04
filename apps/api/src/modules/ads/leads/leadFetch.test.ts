@@ -46,6 +46,9 @@ function seed(over: { status?: string } = {}) {
       ads_platform_connections: postgrestFixture([
         { id: CONN, org_id: ORG, provider: "simulator", is_sandbox: true, token_sealed: null, page_token_sealed: null, status: over.status ?? "connected" },
       ]),
+      memberships: postgrestFixture([{ org_id: ORG, user_id: "u-admin", role: "admin", suspended_at: null }]),
+      ads_settings_versions: [],
+      driver_app_features: [],
       ads_campaigns: postgrestFixture([
         { id: CAMP, org_id: ORG, connection_id: CONN, brief_source: "recruiting_opening", brief_ref: `${OPENING}@v2`, platform_refs: { meta_form_id: form } },
         // Another carrier's campaign on a form of the same id must never be the one found.
@@ -76,7 +79,7 @@ describe("fetchWebhookLead — the lead a webhook named", () => {
     const { sink, stored } = memorySink();
     const before = fake.requests.length;
     const r = await fetchWebhookLead(deps(sink), ORG, { leadgenId: lead.id, formId: form });
-    expect(r).toEqual({ outcome: "stored", lead_id: lead.id, campaign_id: CAMP });
+    expect(r).toEqual({ outcome: "stored", lead_id: lead.id, campaign_id: CAMP, latency_ms: 60_000 });
     expect([...stored.values()][0]).toMatchObject({
       provider: "simulator", platform_lead_ref: lead.id, campaign_id: CAMP, brief_source: "recruiting_opening", brief_ref: `${OPENING}@v2`,
       answers: { full_name: "Ray Driver", phone_number: "+13125550100" },
@@ -84,6 +87,27 @@ describe("fetchWebhookLead — the lead a webhook named", () => {
     // FakeMeta answers a lead only to its form's Page token (190 otherwise), so a read that succeeded used it.
     expect(fake.requests.slice(before).map((q) => q.path)).toEqual([`/v26.0/${lead.id}`]);
     expectOrgScoped(rec, ORG);
+  });
+
+  const rung = () => rec.rpcs().filter((c) => c.fn === "emit_notification").map((c) => c.args as Record<string, unknown>);
+
+  it("past five minutes a new lead is stored, and rings the connection's late-lead alert", async () => {
+    const lead = fake.leads.submit(form, { full_name: "Ray Driver" }, new Date(NOW.getTime() - 6 * 60_000));
+    seed();
+    const r = await fetchWebhookLead(deps(memorySink().sink), ORG, { leadgenId: lead.id, formId: form });
+    expect(r).toMatchObject({ outcome: "stored", latency_ms: 360_000 });
+    expect(rung()).toEqual([expect.objectContaining({ p_user: "u-admin", p_category: "lead_intake_failing", p_dedupe_key: `lead_intake_failing:webhook:${CONN}:2026-11-03` })]);
+  });
+
+  it("at five minutes, and for a lead already stored, nothing rings; a lead dated ahead of our clock reads as zero", async () => {
+    const onTime = fake.leads.submit(form, { full_name: "Ray Driver" }, new Date(NOW.getTime() - 5 * 60_000));
+    seed();
+    const { sink } = memorySink();
+    await fetchWebhookLead(deps(sink), ORG, { leadgenId: onTime.id, formId: form });
+    const again = await fetchWebhookLead({ ...deps(sink), now: () => new Date(NOW.getTime() + 3_600_000) }, ORG, { leadgenId: onTime.id, formId: form });
+    expect([again.outcome, rung()]).toEqual(["duplicate", []]);
+    const ahead = fake.leads.submit(form, { full_name: "Ana Lopez" }, new Date(NOW.getTime() + 30_000));
+    expect(await fetchWebhookLead(deps(sink), ORG, { leadgenId: ahead.id, formId: form })).toMatchObject({ latency_ms: 0 });
   });
 
   it("the same lead from the webhook and from the backfill is stored once", async () => {

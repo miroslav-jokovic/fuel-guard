@@ -1,6 +1,7 @@
 import type { LeadSink } from "@silvicom/shared";
 import { pageGraphForConnection, type RegistryDeps } from "../platforms/registry.js";
 import { platformLeadFromMeta, type MetaLead } from "./backfill.js";
+import { alertWebhookLate, WEBHOOK_LATE_MS } from "../alerts/intakeAlerts.js";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 /**
@@ -17,6 +18,12 @@ import type { SupabaseClient } from "@supabase/supabase-js";
  * Everything here is org-scoped (the service role bypasses RLS); the org came from `leadgenWebhook.ts`.
  * It THROWS on anything that did not bring the lead in, so the job is failed, retried with backoff, and
  * listed — and the hourly backfill reads the same lead regardless.
+ *
+ * ── WEBHOOK-TO-LEDGER LATENCY (ADS-AGENT-PLAN "speed to lead"; workflow D2d) ───────────────────────
+ * A new lead's `latency_ms` is from Meta's `created_time` to the sink's answer, and it rides on the job's
+ * stats, so it is measured from the jobs ledger. It is taken here and nowhere else: this is the only place
+ * that knows a lead came by webhook (a lead row does not say), and a backfilled lead is an hour late by design.
+ * Meta's clock and ours are not the same clock, so a small negative reads as zero.
  */
 
 const LEAD_FIELDS = "id,created_time,field_data,ad_id,campaign_id,form_id";
@@ -29,7 +36,8 @@ export interface LeadFetchDeps extends RegistryDeps {
 }
 
 export type LeadFetchResult =
-  | { outcome: "stored" | "duplicate"; lead_id: string; campaign_id: string }
+  | { outcome: "stored"; lead_id: string; campaign_id: string; latency_ms: number }
+  | { outcome: "duplicate"; lead_id: string; campaign_id: string }
   /** No campaign of this org has the form (any more): acknowledged, nothing to store. */
   | { outcome: "not_ours"; lead_id: string; form_id: string };
 
@@ -80,5 +88,9 @@ export async function fetchWebhookLead(deps: LeadFetchDeps, orgId: string, ask: 
     // The sink's message may carry the person's details; the failure names the lead by id only.
     throw new LeadFetchError("sink", ask.leadgenId);
   }
-  return { outcome: stored === "new" ? "stored" : "duplicate", lead_id: ask.leadgenId, campaign_id: campaign.id };
+  if (stored !== "new") return { outcome: "duplicate", lead_id: ask.leadgenId, campaign_id: campaign.id };
+  const now = deps.now();
+  const latencyMs = Math.max(0, now.getTime() - Date.parse(lead.created_at));
+  if (latencyMs > WEBHOOK_LATE_MS) await alertWebhookLate(deps.admin, orgId, c.id, latencyMs, now);
+  return { outcome: "stored", lead_id: ask.leadgenId, campaign_id: campaign.id, latency_ms: latencyMs };
 }

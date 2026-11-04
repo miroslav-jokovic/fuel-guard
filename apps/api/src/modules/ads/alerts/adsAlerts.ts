@@ -18,7 +18,7 @@ import { settingsInForce } from "../settings/settingsVersions.js";
  */
 
 export interface AdsAlert {
-  category: Extract<NotificationCategory, `ads_${string}`>;
+  category: Extract<NotificationCategory, `ads_${string}` | "lead_intake_failing">;
   title: string;
   body: string;
   severity: NotificationSeverity;
