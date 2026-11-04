@@ -1458,3 +1458,13 @@ blocking step in §3 above.
     gate, not-found) — 10 of 10 killed. The state pre-check first SURVIVED: its test had an approval on file, so the
     machine refused the move anyway with the same answer; the test now has none, which is the case the pre-check is
     for (the true reason, not "approve first").
+- **2026-11-04, owner-made campaigns: settled, and blocked** — the leads track, from
+  `HANDOFF-2026-11-04-LEADS-OWNER-CAMPAIGNS.md` §3 step 1. Main `01aeee1`, newest migration
+  `0567_recruiting_carrier_questions.sql`. No code, no migration.
+  - **Who changes the form lookup:** B2c2 (#2034) lands first; anything here builds on its `formRefs.ts`.
+  - **Reconcile:** Q-AD33, ruled. Leave the alert until the owner runs a campaign, then a mark of their own. Nothing built.
+  - **Consent:** Q-AD32, ruled a blocker until counsel answers. Step 2 (owner-form intake) does not start.
+  - **Found, for whoever builds step 2:** the handoff points at `fetchWebhookLead`'s `not_ours`, but an unknown form never
+    reaches it. `receiveLeadgenDelivery` drops it first, because the carrier is found through a campaign. Finding it by
+    `ads_platform_connections.page_ref` is the likely answer. Not built, not tested.
+  - Scorecard on `01aeee1`: as the handoff's §1a, except Security L2 (was L1; the ads chat's #2033).

@@ -869,6 +869,19 @@ rate, and Higgsfield credits per approved creative.
   mislead. It ships newest first. Candidates: (a) leave it; (b) a server-side match order with its own cursor, which
   needs a migration. **Recommendation: (a) until recruiters have worked real leads** — speed to first contact favours
   newest first, and the row already shows the match.
+- **Q-AD32 · Whether leads from a form the owner wrote may be taken in** (counsel; owner's ruling 2026-11-04: a
+  blocker until counsel answers). Our forms carry our wording and ask only the G12 fallback questions (Class A, years,
+  hazmat). A form made in Ads Manager carries whatever was typed, so its consent wording is not ours and its questions
+  may fall outside G12, and intake would store those answers and show them to recruiters. **Ruled for now: no owner-form
+  intake is built.** Goes to counsel beside Q-AD8. Question for counsel: may such a lead be worked like one of ours, and
+  must its form keep to the G12 questions? When it is answered, two things are already known: the webhook drops an
+  unknown form in `receiveLeadgenDelivery`, before `fetchWebhookLead` runs, and the only org lookup there is by campaign,
+  so it needs a second way to find the carrier (`ads_platform_connections.page_ref` holds the Page; a delivery names it).
+- **Q-AD33 · What reconcile does with a campaign the owner made on purpose** (owner, ruled 2026-11-04). An ACTIVE
+  `not_ours` campaign reports as `critical` because it spends from the same account. **Ruled: leave it, one true alert
+  per campaign, until the owner actually runs one. Then the owner marks a campaign as theirs, which lowers the alert and
+  keeps it counted; that needs a new record.** Dropping the severity for all of them is refused: it hides spend nobody
+  here approved. Nothing is built now. Reconcile is the ads chat's file.
 
 ---
 
