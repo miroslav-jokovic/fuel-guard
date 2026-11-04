@@ -1,7 +1,7 @@
 import { computed, type Ref } from "vue";
 import { takeServedForm } from "./servedForm";
 import { useMutation, useQuery } from "@tanstack/vue-query";
-import type { ApplicantOwedKind } from "@silvicom/shared";
+import type { ApplicantOwedKind, CarrierQuestionStamp } from "@silvicom/shared";
 import type {
   ApplicationCaptureContentType,
   ApplicationCaptureSlot,
@@ -224,6 +224,8 @@ export interface ApplyInvitation {
    * null = sent before the stamp. ⚠ Optional, `identityComplete`'s reason.
    */
   requiredQuestions?: string[] | null;
+  /** §15.3 D-CQ2: the carrier's own questions as stamped at the first Send. ⚠ Optional: absent reads as none. */
+  carrierQuestions?: CarrierQuestionStamp;
   /** §11 D-RS6: the documents Part 2 asks for. ⚠ Optional: absent reads as every slot. */
   offeredDocumentSlots?: ApplicationCaptureSlot[];
   /** §13 D-SP2: what the applicant still owes, as kinds. ⚠ Optional: absent reads as nothing owed. */

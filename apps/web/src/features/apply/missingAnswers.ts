@@ -3,10 +3,11 @@ import {
   isAnswered,
   isAsked,
   sectionOwningPath,
+  type QuestionnaireDefinition,
 } from "@silvicom/shared";
 import { toApplication, type ApplicationDraft } from "./draft";
 import { describeField, fieldId, type FieldPath } from "./fieldLabels";
-import { applicantQuestionnaire } from "./questionnaireCopy";
+import { applicantCarrierQuestionnaire, applicantQuestionnaire } from "./questionnaireCopy";
 import { APPLY_COPY } from "./strings";
 import { issuesFromParse, v2FilingIssues, type SectionIssue } from "./useApplicationWizard";
 
@@ -38,16 +39,29 @@ export function documentIssues(draft: ApplicationDraft, v2AsOf: string | null): 
   return parsed.success ? v2FilingIssues(draft, v2AsOf) : issuesFromParse(parsed.error.issues, candidate);
 }
 
-/** The optional carrier questions still unanswered and not skipped, as issues the list can link to. */
+/**
+ * The optional carrier questions still unanswered and not skipped, as issues the list can link to — the
+ * built-in ones, then the carrier's own (§15.3), each under the contract key a refusal would name.
+ */
 function unansweredOptional(draft: ApplicationDraft): SectionIssue[] {
-  const answers = draft.questionnaire;
-  return applicantQuestionnaire(draft.questionnaire_version).questions
+  return [
+    ...unansweredIn(applicantQuestionnaire(draft.questionnaire_version), draft.questionnaire, "questionnaire_answers"),
+    ...unansweredIn(applicantCarrierQuestionnaire(), draft.carrier_answers, "carrier_answers"),
+  ];
+}
+
+function unansweredIn(
+  definition: QuestionnaireDefinition,
+  answers: Record<string, unknown>,
+  key: "questionnaire_answers" | "carrier_answers",
+): SectionIssue[] {
+  return definition.questions
     .filter((q) => q.skip && !q.required && isAsked(q, answers) && !isAnswered(answers[q.id]))
     .map((q) => {
-      const path: FieldPath = ["questionnaire_answers", q.id];
+      const path: FieldPath = [key, q.id];
       return {
         path,
-        key: "questionnaire_answers",
+        key,
         message: "optional question unanswered",
         label: describeField(path),
         say: APPLY_COPY.carrierQuestions.answerOrSkip(q.skip!.label),

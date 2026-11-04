@@ -1,5 +1,5 @@
 import { ref } from "vue";
-import { APPLICATION_CAPTURE_REQUESTED, type ApplicationCaptureSlot } from "@silvicom/shared";
+import { APPLICATION_CAPTURE_REQUESTED, type ApplicationCaptureSlot, type CarrierQuestionStamp } from "@silvicom/shared";
 
 /**
  * What the carrier asks of THIS applicant, as the bundle served it (HIRING-WORKFLOW-AUDIT §11).
@@ -15,17 +15,25 @@ import { APPLICATION_CAPTURE_REQUESTED, type ApplicationCaptureSlot } from "@sil
  */
 /** The required questions stamped on the invitation; null = sent before the stamp (the definition decides). */
 export const servedRequiredQuestions = ref<readonly string[] | null>(null);
+/**
+ * §15.3 D-CQ2: the carrier's OWN questions as stamped on this invitation — asked after the built-in ones,
+ * sent back with the answers so the page's check is the API's, and replaced by the API's own copy at filing.
+ */
+export const servedCarrierQuestions = ref<CarrierQuestionStamp>([]);
 /** The documents Part 2 asks for (D-RS6); every slot until a bundle says otherwise. */
 export const servedDocumentSlots = ref<readonly ApplicationCaptureSlot[]>(APPLICATION_CAPTURE_REQUESTED);
 
 /**
  * Taken from each bundle as it arrives. ⚠ Both optional: a bundle served before §11's reader has neither
- * key, and reads as "nothing stamped, every document" — what that server enforces.
+ * key, and reads as "nothing stamped, every document" — what that server enforces. A bundle before CQ2 has
+ * no `carrierQuestions` and reads as none.
  */
 export function takeServedForm(bundle: {
   requiredQuestions?: readonly string[] | null;
   offeredDocumentSlots?: readonly ApplicationCaptureSlot[];
+  carrierQuestions?: CarrierQuestionStamp;
 }): void {
   servedRequiredQuestions.value = bundle.requiredQuestions ?? null;
+  servedCarrierQuestions.value = bundle.carrierQuestions ?? [];
   servedDocumentSlots.value = bundle.offeredDocumentSlots ?? APPLICATION_CAPTURE_REQUESTED;
 }

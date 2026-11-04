@@ -4,6 +4,7 @@ import {
   APPLICATION_FILLING_SECTIONS,
   APPLICATION_SECTION_KEYS,
   applicationV2FilingIssues,
+  carrierAnswerIssues,
   driverApplicationObject,
   isApplicationSection,
   ruleIssuePath,
@@ -135,6 +136,14 @@ export function validateSection(
           candidate,
         ),
       );
+    }
+  }
+  // §15.3 D-CQ3: the carrier's OWN questions, judged against the stamp the candidate carries — the shared
+  // check the schema's refinement runs at filing, which a `.pick()` of the unrefined object never reaches.
+  const candidateFields = candidate as Partial<DriverApplicationFields>;
+  for (const issue of carrierAnswerIssues(candidateFields.carrier_questions, candidateFields.carrier_answers)) {
+    if (sectionOwningPath(issue.path) === section) {
+      issues.push(toSectionIssue({ code: "custom", message: issue.message, path: issue.path }, section, candidate));
     }
   }
   // Only once the contract is satisfied: "Enter the city" and "Say why you left" about the same blank
