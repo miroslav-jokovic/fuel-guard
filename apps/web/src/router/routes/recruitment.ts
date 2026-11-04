@@ -51,4 +51,11 @@ export const recruitmentRoutes: RouteRecordRaw[] = [
     component: () => import("@/pages/RecruitmentTemplatesPage.vue"),
     meta: { requiresAuth: true, title: "Templates", parent: "/recruitment" },
   },
+  {
+    // E4b: people who answered an ad or were typed in, before any of them is an applicant.
+    path: "/recruitment/leads",
+    name: "recruitment-leads",
+    component: () => import("@/pages/RecruitmentLeadsPage.vue"),
+    meta: { requiresAuth: true, title: "Leads", parent: "/recruitment" },
+  },
 ];

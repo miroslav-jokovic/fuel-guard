@@ -262,6 +262,11 @@ exports[`the route table survives being split by area > resolution 1`] = `
     "url": "/recruitment/templates",
   },
   {
+    "name": "recruitment-leads",
+    "params": {},
+    "url": "/recruitment/leads",
+  },
+  {
     "name": "applicant-record",
     "params": {
       "id": "ap_1",
@@ -1221,6 +1226,16 @@ exports[`the route table survives being split by area > route table 1`] = `
     },
     "name": "inquiry-queue",
     "path": "/recruitment/inquiries",
+    "redirect": null,
+  },
+  {
+    "meta": {
+      "parent": "/recruitment",
+      "requiresAuth": true,
+      "title": "Leads",
+    },
+    "name": "recruitment-leads",
+    "path": "/recruitment/leads",
     "redirect": null,
   },
   {

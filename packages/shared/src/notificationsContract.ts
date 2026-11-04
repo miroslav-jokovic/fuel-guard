@@ -291,6 +291,9 @@ export function deepLinkFor(
       return "/more";
     case "duty_auto_closed":
       return "/home";
+    case "lead_new":
+    case "lead_uncontacted":
+      return entityId ? `/recruitment/leads?lead=${entityId}` : "/recruitment/leads";
     default:
       return null;
   }

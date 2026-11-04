@@ -233,7 +233,7 @@ template headings, the mutation that went red, CI green, merged by hand, staging
 | **D3** | Indeed mailbox (Graph, existing `graphMail.ts`): raw stored, extractor → `proposed` lead, recruiter confirms | D1, G15 | One real Indeed email → one proposed lead |
 | **D4** | Tenstreet listener: accept/reject protocol, raw stored, switch **off** | D1 | Contract test against Tenstreet's published protocol; switch-on waits G13 |
 
-### Phase E — screens (`apps/web/src/features/ads/`; `docs/DESIGN-SYSTEM-CONTRACT.md` first; `packages/ui` only)
+### Phase E — screens (`apps/web/src/features/ads/`, except E4, which is the `recruitment` section's and sits in `features/recruitment/`; `docs/DESIGN-SYSTEM-CONTRACT.md` first; `packages/ui` only)
 
 | Step | What | Blocked by | Done when |
 |---|---|---|---|
