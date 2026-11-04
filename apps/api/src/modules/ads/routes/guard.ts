@@ -10,6 +10,7 @@ import { recordApproval } from "../guard/approvals.js";
 import { setKillSwitch } from "../guard/killSwitch.js";
 import { mountConnectionRoutes } from "./connections.js";
 import { mountBrandKitRoutes } from "./brandKits.js";
+import { mountCampaignRoutes, type CampaignRouteDeps } from "./campaigns.js";
 import { dispatchJob } from "../../../queue/dispatch.js";
 import { saveSettingsVersion, settingsInForce, type Actor } from "../settings/settingsVersions.js";
 
@@ -40,7 +41,10 @@ function conflict(res: Response): void {
   res.status(409).json(apiError("ads_settings_conflict", "Someone saved the ads settings at the same moment. Reload and try again."));
 }
 
-export function adsRouter(): Router {
+/** What the composition root hands in: the brief sources (D-AD17), so ads never imports recruiting. */
+export type AdsRouterDeps = Pick<CampaignRouteDeps, "briefSourcesFor">;
+
+export function adsRouter(deps: AdsRouterDeps): Router {
   const router = Router();
   router.use(requireAuth, requireOrg);
   const spend = [requireAdminOnly("ads.spend"), requireFreshAuth()] as const;
@@ -112,6 +116,7 @@ export function adsRouter(): Router {
 
   mountConnectionRoutes(router, { section: BRIEF_SECTION, actorOf });
   mountBrandKitRoutes(router, { section: BRIEF_SECTION, actorOf });
+  mountCampaignRoutes(router, { section: BRIEF_SECTION, briefSourcesFor: deps.briefSourcesFor });
   return router;
 }
 

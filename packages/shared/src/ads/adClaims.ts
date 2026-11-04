@@ -112,6 +112,19 @@ export const PROMISE_TERMS: Record<string, readonly string[]> = {
   "dedicated": ["dedicated", "dedicada", "dedicado"],
 };
 
+/**
+ * The listed term a whole phrase IS ("Home weekly" → "home weekly"), or null. For a brief source turning a
+ * person's free text into a `term` claim (recruiting's `openingBrief`): exact phrasings only, so text that
+ * merely mentions a promise never becomes one. Whitespace is collapsed; case and accents fold as above.
+ */
+export function promiseTermOf(text: string): string | null {
+  const t = fold(text.replace(/\s+/g, " ").trim());
+  for (const [term, phrasings] of Object.entries(PROMISE_TERMS)) {
+    if (fold(term) === t || phrasings.some((p) => fold(p) === t)) return term;
+  }
+  return null;
+}
+
 // ── forbidden wording ───────────────────────────────────────────────────────────────────────────
 export type ForbiddenRule = "age" | "gender" | "health" | "criminal_history" | "national_origin";
 

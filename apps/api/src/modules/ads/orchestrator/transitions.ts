@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { stepCampaign, type CampaignActor, type CampaignEvent, type CampaignState, type PresetDraw } from "@silvicom/shared";
+import { stepCampaign, type AdBrief, type CampaignActor, type CampaignEvent, type CampaignState, type PresetDraw } from "@silvicom/shared";
 import { completeAction, recordFinished, startAction, type ActionRow } from "../actions/actionLedger.js";
 
 /**
@@ -181,6 +181,49 @@ export async function settleOpenTransitions(admin: SupabaseClient, campaign: Cam
 const sameInstant = (a: string, b: string): boolean => Date.parse(a) === Date.parse(b);
 
 const clip = (s: string | null): string | null => (s === null ? null : s.length > 1000 ? `${s.slice(0, 997)}…` : s);
+
+export interface NewCampaign {
+  id: string;
+  org_id: string;
+  connection_id: string;
+  brand_kit_id: string;
+  settings_version_id: string;
+  brief: AdBrief;
+  name: string;
+  created_by: string;
+}
+
+export type InsertCampaignResult =
+  | { kind: "created"; id: string }
+  /** The same create delivered twice (a double press): the first one's row, untouched. */
+  | { kind: "existing"; id: string }
+  /** The id names a row that is not this create's (another org's, or another brief's). */
+  | { kind: "id_taken" };
+
+/**
+ * A new campaign, in `draft` (Track S, S1b): the create door's write, here because this file is
+ * `ads_campaigns`' one writer. It moves no state, so no `ads_actions` row: the orchestrator's first
+ * move (`draft → compose`) is the campaign's first transition and is recorded as every move is.
+ *
+ * The brief is frozen as it arrives (AX031): `brief_ref` is the source's versioned ref, so the claim
+ * checker reads the facts in force when a person pressed Create, never a later edit of the opening.
+ * The id is the browser's (one per Create), so a second delivery collides on the primary key (23505)
+ * and is answered from the first row — when it is this org's row for the same brief.
+ */
+export async function insertCampaign(admin: SupabaseClient, c: NewCampaign): Promise<InsertCampaignResult> {
+  const row = {
+    id: c.id, org_id: c.org_id, connection_id: c.connection_id, brand_kit_id: c.brand_kit_id,
+    settings_version_id: c.settings_version_id, brief_source: c.brief.source, brief_ref: c.brief.ref,
+    brief_snapshot: c.brief, name: clip(c.name)!.slice(0, 200), created_by: c.created_by,
+  };
+  const { error } = await admin.from("ads_campaigns").insert(row).select("id").single();
+  if (!error) return { kind: "created", id: c.id };
+  if ((error as { code?: string }).code !== "23505") throw new Error(`ads_campaigns: ${error.message}`);
+  const { data, error: e2 } = await admin.from("ads_campaigns").select("id, brief_source, brief_ref").eq("org_id", c.org_id).eq("id", c.id).maybeSingle();
+  if (e2) throw new Error(`ads_campaigns: ${e2.message}`);
+  const prior = data as { brief_source: string; brief_ref: string } | null;
+  return prior && prior.brief_source === c.brief.source && prior.brief_ref === c.brief.ref ? { kind: "existing", id: c.id } : { kind: "id_taken" };
+}
 
 /**
  * The campaign's preset draw (D-AD11; C5b2's compose), stored once: written only while `preset_draw` is null,
