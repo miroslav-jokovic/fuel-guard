@@ -19,6 +19,7 @@ import {
 } from "@silvicom/shared";
 import { registerDocument } from "../evidence/index.js";
 import { labelOf, memberLabels } from "../../lib/memberLabels.js";
+import { loadPermissionGrants } from "../org/index.js";
 
 /**
  * The applicant's papers on their record, and the office's upload beside them (HIRING-WORKFLOW-AUDIT-
@@ -99,7 +100,8 @@ export async function listApplicantDocuments(
 ): Promise<ApplicantDocument[] | ApplicantDocumentsError> {
   if (!(await driverInOrg(admin, orgId, driverId))) return NOT_FOUND;
 
-  const [{ data: captureData }, { data: documentData }] = await Promise.all([
+  // §15.1 (Q-WF4b): the carrier's switch for identity pictures, read for this request (closed on a failed read).
+  const [{ data: captureData }, { data: documentData }, grants] = await Promise.all([
     admin
       .from("application_captures")
       .select("id, slot, storage_path, content_type, captured_at, promoted_document_id")
@@ -113,6 +115,7 @@ export async function listApplicantDocuments(
       .eq("subject_id", driverId)
       .eq("variant", "original")
       .in("kind", [...APPLICANT_DOCUMENT_KINDS]),
+    loadPermissionGrants(admin, orgId),
   ]);
   const captures = (captureData ?? []) as CaptureRow[];
   const slotOf = new Map(captures.map((c) => [c.id, c.slot]));
@@ -131,15 +134,15 @@ export async function listApplicantDocuments(
 
   const stagedKind = (c: CaptureRow) => applicantDocumentKind(c.slot as PromotedCaptureSlot);
   const [stagedUrls, filedUrls, labels] = await Promise.all([
-    sign(admin, APPLICATION_CAPTURES_BUCKET, staged.filter((c) => canSeePaperImage(stagedKind(c), role)).map((c) => c.storage_path)),
-    sign(admin, DOCUMENTS_BUCKET, filed.filter((d) => canSeePaperImage(d.kind, role)).map((d) => d.storage_path)),
+    sign(admin, APPLICATION_CAPTURES_BUCKET, staged.filter((c) => canSeePaperImage(stagedKind(c), role, grants)).map((c) => c.storage_path)),
+    sign(admin, DOCUMENTS_BUCKET, filed.filter((d) => canSeePaperImage(d.kind, role, grants)).map((d) => d.storage_path)),
     memberLabels(admin, orgId, filed.map((d) => d.uploaded_by).filter((u): u is string => typeof u === "string")),
   ]);
 
   const rows: ApplicantDocument[] = [
     ...staged.map((c): ApplicantDocument => {
       const kind = stagedKind(c);
-      const withheld = !canSeePaperImage(kind, role);
+      const withheld = !canSeePaperImage(kind, role, grants);
       return {
         id: c.id, slot: c.slot, kind, contentType: c.content_type, at: c.captured_at,
         source: "applicant", addedBy: null, staged: true,
@@ -147,7 +150,7 @@ export async function listApplicantDocuments(
       };
     }),
     ...filed.map((d): ApplicantDocument => {
-      const withheld = !canSeePaperImage(d.kind, role);
+      const withheld = !canSeePaperImage(d.kind, role, grants);
       return {
         id: d.id, slot: slotOf.get(d.id) ?? applicantDocumentSlot(d.kind, d.page ?? 1), kind: d.kind,
         contentType: d.content_type, at: d.created_at,

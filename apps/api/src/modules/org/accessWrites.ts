@@ -29,8 +29,13 @@ export function errorCode(error: unknown): string | undefined {
   return (error as { code?: string } | null)?.code;
 }
 
-/** The four access tables `write_access_cell` accepts (0395 refuses any other name with 22023). */
-export type AccessTable = "org_section_access" | "user_section_access" | "org_role_surface_access" | "user_surface_access";
+/** The access tables `write_access_cell` accepts (0395's four, and 0564's named permissions; any other name is 22023). */
+export type AccessTable =
+  | "org_section_access"
+  | "user_section_access"
+  | "org_role_surface_access"
+  | "user_surface_access"
+  | "org_role_permissions";
 
 export interface AccessCellWrite {
   table: AccessTable;

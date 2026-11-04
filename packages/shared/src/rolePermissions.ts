@@ -1,0 +1,121 @@
+import { z } from "zod";
+import { EDITABLE_ROLES } from "./auth.js";
+import type { UserRole } from "./constants.js";
+
+// ── Named permissions a carrier switches per role (HIRING-WORKFLOW-AUDIT-2026-10-31 §15.1, D-IDP1..4) ──
+//
+// Settings → Permissions edits two things per role: a SECTION's level (0291) and a SCREEN's switch (0296).
+// Neither fits a question like "may this role see a photograph of a Social Security card": it is not a
+// page, and a recruiter who manages recruitment may still be refused it. So the unit is a NAMED
+// permission, one switch per role, stored sparse in `org_role_permissions` (0564) — no row means the
+// shipped default below.
+//
+// ⚠ Only a permission no regulation assigns belongs here. The restricted readers (drug and alcohol
+// results, Clearinghouse, PSP, employer inquiries) stay bare role tests in auth.ts for ever (D-PERM9):
+// §40.321, §382.401 and §391.53 say who reads them, so no carrier may widen them. A picture of an
+// identity number is the carrier's own privacy choice, which is why the owner made it a setting
+// (Q-WF4b, 2026-11-04).
+//
+// The admin holds every permission permanently and the driver none: neither role is an org's to edit
+// (D-PERM7/D-PERM8, the same two CHECKs as 0291's), so the resolver answers them before any row.
+
+export interface EditablePermission {
+  /** `area.name` — the shape 0564's CHECK accepts. */
+  key: string;
+  /** What the switch says on Settings → Permissions. */
+  label: string;
+  /** One sentence under it: what the switch hands over. */
+  description: string;
+  /** The editable roles it starts ON for; every other editable role starts off. */
+  shippedRoles: readonly UserRole[];
+}
+
+export const IDENTITY_NUMBER_IMAGES_PERMISSION = "recruitment.identity_number_images";
+
+export const EDITABLE_PERMISSIONS = [
+  {
+    key: IDENTITY_NUMBER_IMAGES_PERMISSION,
+    label: "See SSN-card and passport pictures",
+    description:
+      "Open the picture of an applicant's or driver's Social Security card or passport. Without it the paper is listed as on file and its picture is withheld.",
+    // Owner, Q-WF4b (2026-11-04): "basically safety and recruiting".
+    shippedRoles: ["safety_manager", "recruiter"],
+  },
+] as const satisfies readonly EditablePermission[];
+
+export type EditablePermissionKey = (typeof EDITABLE_PERMISSIONS)[number]["key"];
+export const EDITABLE_PERMISSION_KEYS = EDITABLE_PERMISSIONS.map((p) => p.key) as EditablePermissionKey[];
+
+export const isEditablePermissionKey = (key: string): key is EditablePermissionKey =>
+  (EDITABLE_PERMISSION_KEYS as string[]).includes(key);
+
+/** Sparse, like `SectionOverrides`: a missing entry is the shipped default, never "denied". */
+export type PermissionGrants = Partial<Record<UserRole, Partial<Record<EditablePermissionKey, boolean>>>>;
+
+/**
+ * What a failed read of the org's rows answers: every editable role OFF, the admin still on.
+ *
+ * ⚠ Closed, not the shipped default (a departure from §15.1 D-IDP3 as first written, recorded there).
+ * The shipped default includes the recruiter, so an org that switched the recruiter off would, on a
+ * failed read, hand the recruiter the picture it had refused. A picture withheld for one request is a
+ * retry; a picture shown against the carrier's setting cannot be taken back.
+ */
+export const CLOSED_PERMISSION_GRANTS: PermissionGrants = Object.fromEntries(
+  EDITABLE_ROLES.map((r) => [r, Object.fromEntries(EDITABLE_PERMISSION_KEYS.map((k) => [k, false]))]),
+);
+
+/** The shipped answer, before any org row. */
+export function shippedPermission(role: UserRole | null | undefined, key: EditablePermissionKey): boolean {
+  if (role === "admin") return true;
+  if (!role || !(EDITABLE_ROLES as string[]).includes(role)) return false;
+  const entry = EDITABLE_PERMISSIONS.find((p) => p.key === key);
+  return !!entry && (entry.shippedRoles as readonly string[]).includes(role);
+}
+
+/** The one resolver every reader asks: admin always, driver never, else the org's row, else shipped. */
+export function effectivePermission(
+  role: UserRole | null | undefined,
+  key: EditablePermissionKey,
+  grants: PermissionGrants,
+): boolean {
+  if (role === "admin") return true;
+  if (!role || !(EDITABLE_ROLES as string[]).includes(role)) return false;
+  return grants[role]?.[key] ?? shippedPermission(role, key);
+}
+
+export interface RolePermissionRow {
+  role: string;
+  permission: string;
+  allowed: boolean;
+}
+
+/**
+ * Rows → the sparse grants. A row naming a role or a permission this build does not offer is skipped,
+ * never trusted: 0564's CHECKs and the PUT's schema refuse it first, so reaching one means something
+ * else wrote it — honouring it could widen a permission the page cannot even show.
+ */
+export function toPermissionGrants(rows: readonly RolePermissionRow[]): PermissionGrants {
+  const out: PermissionGrants = {};
+  for (const r of rows) {
+    if (!(EDITABLE_ROLES as string[]).includes(r.role)) continue;
+    if (!isEditablePermissionKey(r.permission)) continue;
+    if (typeof r.allowed !== "boolean") continue;
+    (out[r.role as UserRole] ??= {})[r.permission] = r.allowed;
+  }
+  return out;
+}
+
+/** `PUT /api/role-permissions` — one switch. `allowed: null` puts the role back on the shipped default. */
+export const rolePermissionSetSchema = z.object({
+  role: z.string().refine((r) => (EDITABLE_ROLES as string[]).includes(r), "That role cannot be changed"),
+  permission: z.string().refine(isEditablePermissionKey, "Unknown permission"),
+  allowed: z.boolean().nullable(),
+});
+export type RolePermissionSetRequest = z.infer<typeof rolePermissionSetSchema>;
+
+/** `GET /api/role-permissions` — the org's switches and the catalogue they are read against (D-PERM4). */
+export interface RolePermissionsResponse {
+  permissions: { key: EditablePermissionKey; label: string; description: string; shippedRoles: UserRole[] }[];
+  grants: PermissionGrants;
+  editableRoles: UserRole[];
+}

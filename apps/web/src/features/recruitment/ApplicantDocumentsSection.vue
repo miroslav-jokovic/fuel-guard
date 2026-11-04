@@ -142,7 +142,7 @@ async function photograph(): Promise<void> {
               Open
             </a>
             <p v-else-if="d.imageWithheld" class="text-xs text-ink-muted" data-image-withheld>
-              Only an administrator or a safety manager can open this.
+              Your role cannot open this picture. An administrator can change that in Settings → Permissions.
             </p>
           </li>
         </ul>
