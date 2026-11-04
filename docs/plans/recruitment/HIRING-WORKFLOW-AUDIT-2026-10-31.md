@@ -943,7 +943,7 @@ readers stay as they are; Q-WF4b's provisional derivation from them is what goes
 |---|---|---|
 | D-IDP1 | A **named permission** "See SSN-card and passport pictures", one switch per role in Settings → Permissions, in its own card under the sections. Stored in a new table `org_role_permissions (org_id, role, permission, allowed, updated_by, updated_at)`, primary key `(org_id, role, permission)`; the permission key is shape-checked, not listed (§10 D-CE3's rule; the catalogue is `EDITABLE_PERMISSIONS` in `packages/shared`). RLS on, no client policies. | A section cell is the wrong unit (it is not a page), and a column per permission on another table is a schema change per switch. One table, sparse like 0291: no row = the shipped default. |
 | D-IDP2 | **Shipped default = the owner's ruling: admin, safety manager, recruiter.** Admin is locked on (the admin role is not editable, D-PERM7); every other role starts off and may be switched on. | "Basically safety and recruiting." |
-| D-IDP3 | **Read at request time from the table, not from the JWT.** The two readers (compliance documents, the applicant's Documents section) load the org's rows once per request; a failed read answers the shipped default. | A claim would wait for the next token refresh; a picture withheld or shown a minute late is a privacy bug either way, and the read is one indexed row set. |
+| D-IDP3 | **Read at request time from the table, not from the JWT.** The two readers (compliance documents, the applicant's Documents section) load the org's rows once per request. ~~A failed read answers the shipped default.~~ **A failed read answers CLOSED — every editable role off, the admin on** (changed building IDP2: the default includes the recruiter, so a failed read would override an org that had switched the recruiter off). | A claim would wait for the next token refresh; a picture withheld or shown a minute late is a privacy bug either way, and the read is one indexed row set. |
 | D-IDP4 | The admin edits it (the Permissions page is admin-only today); every change writes an audit row naming the role, the permission and the new value. | Same gate as every other cell on that page. |
 
 **Build.** **IDP1** — migration: `org_role_permissions`. **IDP2** — the reader: `EDITABLE_PERMISSIONS`,
@@ -1266,3 +1266,8 @@ at submit, the review, the office drawer and the filed PDF.
 - **2026-11-04** — The owner ruled Q-WF4b, Q-MT1, Q-OR7, Q-CE1/CE2 and Q-RS2. §15 written: identity pictures as
   a carrier permission (IDP1/2), the §382.601 policy filed, shown and named by the p28 receipt (DAP1/2), and the
   carrier's own questions stamped at Send (CQ1/2). Q-DAP1 (the policy text) is the owner's.
+- **2026-11-04** — **IDP1 merged (#2009), migration `0564_org_role_permissions`** — numbered 0564, not 0563: the leads chat took
+  0563 (`lead_intake_failing_alert`) while it was in CI; renumbered by name. It also gives `write_access_cell` (0395) the
+  table, so a switch and its audit row land in one transaction. 22-case matrix, 6/6 mutants killed. **IDP2 (#2016)**: the
+  Sensitive papers card on Settings → Permissions → Roles; both picture readers read the org's switches per request;
+  **departure:** a failed read is closed, not the default (D-IDP3 amended). 9/9 mutants killed.

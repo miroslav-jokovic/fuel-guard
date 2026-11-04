@@ -3,7 +3,7 @@ import express, { type NextFunction, type Request, type Response } from "express
 import type { AddressInfo } from "node:net";
 import type { Server } from "node:http";
 import { closeTestServer } from "../../../testing/httpServer.js";
-import { createSupabaseRecorder, type RecordedQuery, type SupabaseRecorder } from "../../../testing/supabaseRecorder.js";
+import { expectOrgScoped, createSupabaseRecorder, type RecordedQuery, type SupabaseRecorder } from "../../../testing/supabaseRecorder.js";
 
 /**
  * `/api/compliance/documents` is the `roster` section's route, and since 0476 `documents` also holds a
@@ -123,13 +123,15 @@ describe("/api/compliance/documents keeps a roadside inspection's paper out (047
  */
 describe("/api/compliance/documents withholds an identity paper's picture (Q-WF4)", () => {
   const PASSPORT = "d0000003-0000-4000-8000-000000000000";
-  const withPassport = () => {
+  const withPassport = (permissions: Record<string, unknown>[] = []) => {
     const docs = [row(PASSPORT, "driver", DRIVER, "passport"), row(DRIVER_DOC, "driver", DRIVER, "other")];
     rec = createSupabaseRecorder({
       tables: {
         documents: (q) => (q.write ? [] : docs.filter((d) => val(q, "id") === undefined || d.id === val(q, "id"))),
         drivers: [{ full_name: "Jovana Petrović" }],
         audit_logs: [],
+        // §15.1 (Q-WF4b): the carrier's identity-picture switches; none = the shipped default.
+        org_role_permissions: permissions,
       },
       storage: {
         createSignedUrl: (path: string) => ({ data: { signedUrl: `https://storage.test/download/${path}` }, error: null }),
@@ -159,6 +161,19 @@ describe("/api/compliance/documents withholds an identity paper's picture (Q-WF4
     const res = await send("GET", `/documents/${PASSPORT}/download`);
     expect(res.status).toBe(403);
     expect(res.body.url).toBeUndefined();
+    expect(rec.writtenRows("audit_logs")).toHaveLength(0);
+  });
+  it("follows the carrier's switch: a fleet manager switched on gets the picture, a recruiter switched off does not (Q-WF4b)", async () => {
+    const KEY = "recruitment.identity_number_images";
+    withPassport([{ role: "fleet_manager", permission: KEY, allowed: true }]);
+    role = "fleet_manager";
+    expect((await listed()).find((d) => d.id === PASSPORT)?.url).toBeTruthy();
+    expectOrgScoped(rec, ORG);
+
+    withPassport([{ role: "recruiter", permission: KEY, allowed: false }]);
+    role = "recruiter";
+    const res = await send("GET", `/documents/${PASSPORT}/download`);
+    expect(res.status).toBe(403);
     expect(rec.writtenRows("audit_logs")).toHaveLength(0);
   });
 });

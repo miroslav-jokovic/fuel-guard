@@ -29,6 +29,7 @@ import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
 import { writeAudit } from "../../../lib/audit.js";
 import { returnToDutyStanding } from "../../recruiting/index.js";
+import { loadPermissionGrants } from "../../org/index.js";
 import {
   insertCertification,
   listCertifications,
@@ -266,7 +267,8 @@ export function complianceRouter(): Router {
       // see by the same two rules the documents list below applies — the paper's section (D-UF5)
       // and the restricted-kind rule (Phase G). Only this route asks for papers.
       const withPapers = (kind: string) => mayFile(req, "view", "driver", kind) && canReadRestrictedKind(kind, req.auth!.role);
-      const imageVisible = (kind: string) => canSeePaperImage(kind, req.auth!.role);
+      const grants = await loadPermissionGrants(admin, orgId); // §15.1: the carrier's identity-picture switch
+      const imageVisible = (kind: string) => canSeePaperImage(kind, req.auth!.role, grants);
       res.json(await getComplianceOverview(admin, orgId, today, { medstopViolations, withPapers, imageVisible }));
     }),
   );
@@ -364,8 +366,9 @@ export function complianceRouter(): Router {
       const readable = result.rows.filter((d) => mayFile(req, "view", q.subjectType, d.kind));
       // Q-WF4 (§9 P9): an SSN card's or a passport's row is listed and its picture is not handed over —
       // every URL to it is dropped here, before the response, for a role `canSeePaperImage` refuses.
+      const grants = await loadPermissionGrants(admin, req.auth!.orgId!); // §15.1 (Q-WF4b)
       const documents = filterRestrictedRows(readable, req.auth!.role).map((d) =>
-        canSeePaperImage(d.kind, req.auth!.role) ? d : { ...d, url: null, thumbUrl: null, normalizedUrl: null });
+        canSeePaperImage(d.kind, req.auth!.role, grants) ? d : { ...d, url: null, thumbUrl: null, normalizedUrl: null });
       res.json({ documents });
     }),
   );
@@ -397,8 +400,8 @@ export function complianceRouter(): Router {
         res.status(403).json(apiError("forbidden", "Downloading restricted records requires a safety manager or admin."));
         return;
       }
-      if (!canSeePaperImage(result.kind, req.auth!.role)) {
-        res.status(403).json(apiError("forbidden", "Only an administrator or a safety manager can open this document."));
+      if (!canSeePaperImage(result.kind, req.auth!.role, await loadPermissionGrants(admin, orgId))) {
+        res.status(403).json(apiError("forbidden", "Your role cannot open SSN-card or passport pictures. An administrator can change that in Settings → Permissions."));
         return;
       }
       await writeAudit(admin, {

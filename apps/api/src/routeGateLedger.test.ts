@@ -214,7 +214,8 @@ describe("the admin-only acts are one named list, and the API gates exactly that
    */
   it("a bare admin-role gate appears only on Users/Permissions endpoints and three named record acts", () => {
     // `/api/access-review` is the Permissions page's "Who has access" tab and its CSV (SP10).
-    const USERS_AND_PERMISSIONS = ["/api/invites", "/api/members", "/api/section-access", "/api/surface-access", "/api/access-review"];
+    // `/api/role-permissions` is the Roles tab's "Sensitive papers" card (§15.1, Q-WF4b).
+    const USERS_AND_PERMISSIONS = ["/api/invites", "/api/members", "/api/section-access", "/api/surface-access", "/api/role-permissions", "/api/access-review"];
     const NAMED = new Map<string, string>([
       ["POST /api/maintenance/:id/delete-record", "destroys an inspection record; a technician certifies inspections and does not erase them (maintenance/routes/inspections.ts)"],
       ["POST /api/recruitment/applicants/:driverId/purge", "`canPurgeApplicant` — the audited service-role purge of an applicant's file, with a fresh sign-in (recruiting/routes/purge.ts)"],

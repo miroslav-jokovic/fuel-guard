@@ -185,6 +185,7 @@ export * from "./applicationCaptureContract.js";
 export * from "./applicantDocumentsContract.js";
 // Q-WF4: who may open an SSN card's or a passport's picture.
 export * from "./identityPaperImages.js";
+export * from "./rolePermissions.js";
 export * from "./signatureAdoptionContract.js";
 export * from "./applicationSections.js";
 export * from "./applicationScreens.js";

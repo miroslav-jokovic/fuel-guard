@@ -11,6 +11,7 @@ import { useModulesQuery } from "@/composables/useModules";
 import { useToastStore } from "@/stores/toast";
 import AccessCard from "./AccessCard.vue";
 import RoleAccessStrip from "./RoleAccessStrip.vue";
+import NamedPermissionsCard from "./NamedPermissionsCard.vue";
 import ScreenRows from "./ScreenRows.vue";
 import SectionRows, { type SectionRowModel } from "./SectionRows.vue";
 import SidebarPreview from "./SidebarPreview.vue";
@@ -281,6 +282,8 @@ const previewSurfaces = computed(() => (role.value ? (surfaces.data.value?.overr
               Widen a section above and its screens appear here.
             </p>
           </AccessCard>
+
+          <NamedPermissionsCard :role="role" :hold-for-step-up="props.holdForStepUp" />
         </div>
 
         <aside class="xl:sticky xl:top-6" aria-label="What this role sees">

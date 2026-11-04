@@ -39,9 +39,11 @@ const doc = (id: string, kind: string, over: Record<string, unknown> = {}) => ({
   uploaded_by: null, ...over,
 });
 
-const seed = (): SupabaseRecorder =>
+const seed = (permissions: Record<string, unknown>[] = []): SupabaseRecorder =>
   createSupabaseRecorder({
     tables: {
+      // §15.1 (Q-WF4b): the carrier's identity-picture switches; none = the shipped default.
+      org_role_permissions: postgrestFixture(permissions),
       drivers: postgrestFixture([{ id: DRIVER, org_id: ORG }]),
       application_captures: postgrestFixture([
         capture("cap-ssn", "ssn_card"),
@@ -117,18 +119,38 @@ describe("the applicant's documents on the record (§9 P9)", () => {
     expectOrgScoped(rec, ORG);
   });
 
-  it("shows a recruiter the SSN card and the passport rows, and never signs their pictures (Q-WF4)", async () => {
-    const rec = seed();
+  const pictureCheck = async (role: string, permissions: Record<string, unknown>[] = []) => {
+    const rec = seed(permissions);
     holder.client = rec.client;
-    const { documents } = (await (await call("GET", "recruiter")).json()) as { documents: Row[] };
+    const { documents } = (await (await call("GET", role)).json()) as { documents: Row[] };
+    const signedPaths = rec.storageCalls().filter((c) => c.fn === "createSignedUrls").flatMap((c) => c.args[0] as string[]);
+    return { rec, documents, signedPaths, identitySigned: signedPaths.some((p) => p.includes("cap-ssn") || p.includes("doc-pass")) };
+  };
+
+  it("shows a role the carrier has not switched on the SSN card and passport rows, never their pictures (Q-WF4b)", async () => {
+    const { documents, signedPaths, identitySigned } = await pictureCheck("auditor");
     for (const id of ["cap-ssn", "doc-pass"]) {
       expect(documents.find((d) => d.id === id), id).toMatchObject({ imageWithheld: true, url: null });
     }
     expect(documents.find((d) => d.id === "cap-tc")).toMatchObject({ imageWithheld: false });
-    // Enforced where the URL is minted: no path of either paper was ever handed to Storage to sign.
-    const signedPaths = rec.storageCalls().filter((c) => c.fn === "createSignedUrls").flatMap((c) => c.args[0] as string[]);
-    expect(signedPaths.some((p) => p.includes("cap-ssn") || p.includes("doc-pass"))).toBe(false);
+    // Enforced where the URL is minted: no path to either paper is ever handed to Storage to sign.
+    expect(identitySigned).toBe(false);
     expect(signedPaths.length).toBeGreaterThan(0);
+  });
+
+  it("shows the recruiter the pictures by default — the owner's ruling (Q-WF4b)", async () => {
+    const { documents, identitySigned } = await pictureCheck("recruiter");
+    for (const id of ["cap-ssn", "doc-pass"]) expect(documents.find((d) => d.id === id), id).toMatchObject({ imageWithheld: false });
+    expect(identitySigned).toBe(true);
+  });
+
+  it("withholds them from a recruiter the carrier switched off, reading the switch org-scoped (Q-WF4b)", async () => {
+    const off = [{ org_id: ORG, role: "recruiter", permission: "recruitment.identity_number_images", allowed: false }];
+    const { rec, documents, identitySigned } = await pictureCheck("recruiter", off);
+    for (const id of ["cap-ssn", "doc-pass"]) expect(documents.find((d) => d.id === id), id).toMatchObject({ imageWithheld: true, url: null });
+    expect(identitySigned).toBe(false);
+    expect(rec.queries.some((q) => q.table === "org_role_permissions")).toBe(true);
+    expectOrgScoped(rec, ORG);
   });
 
   it("is the recruitment section's — an auditor reads it, a dispatcher does not", async () => {
