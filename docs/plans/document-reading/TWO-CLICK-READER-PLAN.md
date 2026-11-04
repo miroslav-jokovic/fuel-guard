@@ -540,3 +540,15 @@ slower reader on warm-booted reads, which is the measurement that would make the
   removing the branch fails it; the hard block refuses a 200-character override; `resolveVehicleKind` over every trailer
   type × tank data × none (unsure only when neither is on file); the form asks for T-9 and not for a van or no trailer.
   Not tested: the orchestrate early return (no harness exists for that path; it retires in TC4.1).
+- **2026-10-29 — TC1.4 MERGED as #1844.**
+- **2026-10-29 — TC1.5 split in two; TC1.5a: `/calc` behind the view gate, `evaluatedAt` server-set, dataset parsed once.**
+  The step's catalogue half (D-TC13) is its own PR next (TC1.5b): rule ids reach three screens — the review queue's
+  flag labels ("Rule violation: segregation_prohibited"), `not_evaluated` messages quoting field paths, and `internal:`
+  citation chips. Here: `POST /api/hazmat/calc` gains `canView` (the one route of the router without a section gate;
+  the page is `section("hazmat")` in the surface catalogue; the public calculator's route is separate and unchanged).
+  `computeCalc` spreads the caller's load BEFORE `evaluatedAt`, so a body cannot date the verdict. `loadDataset` parses
+  each version once per process and deep-freezes it (4.2 ms → ~0 per call warm on a laptop; 10–30 ms measured on
+  production's host): engine, golden and the 538 API hazmat/document-reading tests pass with it frozen, so nothing
+  writes into it. Tests: the gate admits `hazmat:view`, refuses `dispatch:view` (removing it fails); `computeCalc`'s
+  engine input is dated by the server (spread order reversed fails — a first test that read the verdict could not see
+  it and was replaced); same object per version, frozen to the leaves, a write throws.
