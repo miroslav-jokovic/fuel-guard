@@ -1,6 +1,6 @@
 /**
- * The Higgsfield REST client (ADS-AGENT-BUILD-WORKFLOW C3; plan D-AD13). Three calls and nothing else:
- * submit, status, and fetching an output file. The shapes are the ones `fakeHiggsfield.ts` documents, with
+ * The Higgsfield REST client (ADS-AGENT-BUILD-WORKFLOW C3; plan D-AD13). Four calls and nothing else:
+ * submit, status, fetching an output file, and (D-AD9, 2026-11-04) uploading an input image. The shapes are the ones `fakeHiggsfield.ts` documents, with
  * the docs pages it cites (read 2026-11-02); the base URL is ADS-AGENT-PLAN's research (2026-10-31). Both are
  * OUR reading until L4 re-runs this against the real API with the owner's key (Q-AD20).
  *
@@ -45,6 +45,35 @@ export class HiggsfieldClient {
   /** POST /{model}. `idempotencyKey` is our generation id: a retry returns the original request, free. */
   submit(model: string, params: Record<string, unknown>, idempotencyKey: string): Promise<HfAnswer<{ request_id: string }>> {
     return this.call("POST", `/${model.replace(/^\//, "")}`, { "Idempotency-Key": idempotencyKey, "content-type": "application/json" }, JSON.stringify(params));
+  }
+
+  /**
+   * An input image, uploaded the two-step way `fakeHiggsfield.ts` cites (file-uploads.md, read 2026-11-04):
+   * ask for a presigned URL for this content type, then PUT the bytes there with EVERY header it returned —
+   * and without our credentials, which the docs say never go to the storage URL. The answer is the
+   * `public_url` a model's image field takes. Uploads are not idempotent (idempotency.md): `render.ts`
+   * makes sure one is done once per render, by writing its URL on the ledger row before the submit.
+   */
+  async upload(bytes: Buffer, contentType: string): Promise<HfAnswer<{ public_url: string }>> {
+    const made = await this.call<{ public_url?: unknown; upload_url?: unknown; upload_headers?: unknown }>(
+      "POST", "/files/generate-upload-url", { "content-type": "application/json" }, JSON.stringify({ content_type: contentType }),
+    );
+    if (!made.ok) return made;
+    const { public_url, upload_url, upload_headers } = made.value;
+    if (typeof public_url !== "string" || typeof upload_url !== "string") return { ok: false, kind: "temporary", retryAfterSeconds: null, detail: "upload url answer without its URLs" };
+    // Exactly the headers it signed — a Content-Type of our own beside theirs would be sent twice, joined.
+    const signed = Object.entries((upload_headers ?? {}) as Record<string, unknown>).map(([k, v]) => [k, String(v)] as [string, string]);
+    const headers = signed.some(([k]) => k.toLowerCase() === "content-type") ? signed : [...signed, ["content-type", contentType] as [string, string]];
+    try {
+      const res = await fetch(upload_url, { method: "PUT", headers, body: new Uint8Array(bytes), signal: AbortSignal.timeout(TIMEOUT_MS) });
+      if (!res.ok) return res.status >= 500 || res.status === 429 || res.status === 403
+        // 403 from a presigned URL is one that expired (an hour, the docs say): a fresh one fixes it.
+        ? { ok: false, kind: "temporary", retryAfterSeconds: null, detail: `upload ${res.status}` }
+        : { ok: false, kind: "refused", status: res.status, detail: `upload ${res.status}` };
+    } catch (e) {
+      return { ok: false, kind: "temporary", retryAfterSeconds: null, detail: e instanceof Error ? e.message : String(e) };
+    }
+    return { ok: true, value: { public_url } };
   }
 
   status(requestId: string): Promise<HfAnswer<HfRequestState>> {
