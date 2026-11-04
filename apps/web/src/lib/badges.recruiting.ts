@@ -1,6 +1,6 @@
 import {
   HIRING_PHASE_LABELS, HIRING_STEP_STATE_LABELS,
-  type HiringPhase, type HiringStepState,
+  type HiringPhase, type HiringStepState, type LeadMatchSummary, type LeadStatus, type Verdict,
 } from "@silvicom/shared";
 import { CheckCircleIcon, ClockIcon, ExclamationTriangleIcon, NoSymbolIcon } from "@silvicom/ui/icons";
 import type { Icon } from "@silvicom/ui/icons";
@@ -264,4 +264,28 @@ export function employmentInquiryBadge(status: string): DqBadge {
     default:
       return { label: status, tone: "neutral" };
   }
+}
+
+/** A lead's status (E4b): `new` is the one somebody still owes a call. */
+export function leadStatusTone(status: LeadStatus): string {
+  const tones: Record<LeadStatus, BadgeTone> = {
+    new: "info", contacted: "brand", qualified: "success", not_qualified: "neutral", converted: "success", lost: "neutral",
+  };
+  return toneClass(tones[status]);
+}
+
+export function leadVerdictTone(verdict: Verdict): string {
+  return toneClass(verdict === "meets" ? "success" : verdict === "does_not_meet" ? "danger" : "neutral");
+}
+
+/**
+ * A lead's match in one badge (E4b). A hard miss leads because it ends the conversation, and "to check" is the
+ * ordinary state of a form lead: most requirements can't be answered on a form. No summary means nothing was
+ * matched: a lead with no opening, or one whose details were deleted, and never a lead that failed.
+ */
+export function leadMatchBadge(summary: LeadMatchSummary | null): DqBadge {
+  if (!summary) return { label: "Not matched", tone: "neutral" };
+  if (summary.hardUnmet > 0) return { label: `${summary.hardUnmet} not met`, tone: "danger" };
+  if (summary.unknown > 0) return { label: `${summary.unknown} to check`, tone: "warning" };
+  return { label: "Meets all", tone: "success" };
 }

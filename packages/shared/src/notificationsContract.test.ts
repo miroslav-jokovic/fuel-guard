@@ -123,6 +123,12 @@ describe("deepLinkFor — a notification that lands on Home wasted its moment", 
     expect(deepLinkFor("duty_auto_closed", null)).toBe("/home");
   });
 
+  it("opens the lead a lead alert is about, and the queue without one", () => {
+    expect(deepLinkFor("lead_new", "abc")).toBe("/recruitment/leads?lead=abc");
+    expect(deepLinkFor("lead_uncontacted", "abc")).toBe("/recruitment/leads?lead=abc");
+    expect(deepLinkFor("lead_uncontacted", null)).toBe("/recruitment/leads");
+  });
+
   it("covers every category without throwing", () => {
     for (const c of NOTIFICATION_CATEGORIES) {
       expect(() => deepLinkFor(c, "x")).not.toThrow();
