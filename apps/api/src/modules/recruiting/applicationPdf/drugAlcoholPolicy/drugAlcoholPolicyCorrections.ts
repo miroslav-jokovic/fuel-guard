@@ -223,4 +223,6 @@ export const DRUG_ALCOHOL_POLICY_CORRECTIONS: readonly PolicyCorrection[] = [
   ),
   d("Any driver who has engaged in conduct prohibited in this Section", "Any driver who has engaged in conduct prohibited by this policy", "Section 10 prohibits nothing; Section 3 does"),
   s("please feel free to contact us at SILVICOM INC at:", "please feel free to contact SILVICOM INC at:"),
+  // Q-DAP3, owner 2026-11-04: "representative is Varmeda" — the scan misspells the §382.601(b)(1) contact.
+  s("Designated Employer Representative: Marija Vermeda", "Designated Employer Representative: Marija Varmeda"),
 ];
