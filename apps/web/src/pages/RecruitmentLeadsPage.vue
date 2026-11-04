@@ -15,7 +15,7 @@ import { LEADS_OPEN, LEADS_PAGE_SIZE, useLeadQueueQuery } from "@/features/recru
 /**
  * The lead queue (E4b): people who answered an ad or were typed in, one person per row, newest first.
  *
- * ⚠ THIS SLICE ONLY READS. Contacted, Convert and Do not contact are the next slice.
+ * Working a lead happens in its drawer (`LeadDrawer.vue`). Delete details and adding by hand are the next slice.
  *
  * It lives under `recruitment`, not `ads`, because the section, its doors and its people are recruitment's
  * (the workflow's Phase E line said `features/ads/`; corrected with this page).
