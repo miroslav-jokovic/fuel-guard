@@ -24,7 +24,9 @@ describe("the drug and alcohol abuse policy (§15.2)", () => {
 
   it("names the person who answers drivers' questions and the consortium — §382.601(b)(1)", () => {
     const text = words(DRUG_ALCOHOL_POLICY_BLOCKS);
-    expect(text).toContain("Designated Employer Representative: Marija Vermeda");
+    expect(text).toContain("Designated Employer Representative: Marija Varmeda");
+    // Q-DAP3 (owner, 2026-11-04): the scan's "Vermeda" is a misspelling and never prints.
+    expect(text).not.toContain("Vermeda");
     expect(text).toContain("Phone: (708) 236-5732 (Safety)");
     expect(text).toContain("The company's consortium is Med-Stop, Elk Grove Village, IL.");
   });

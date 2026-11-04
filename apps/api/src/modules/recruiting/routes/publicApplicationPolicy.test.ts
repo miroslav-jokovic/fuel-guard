@@ -22,7 +22,8 @@ vi.mock("../../../lib/supabaseAdmin.js", () => ({ getSupabaseAdmin: () => holder
 const ORG = "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d";
 const DRIVER = "77777777-8888-4999-8aaa-bbbbbbbbbbbb";
 const APP_ID = "11111111-2222-4333-8444-555555555555";
-const NAME = "Marija Varmeda";
+// Not the representative's name, which the policy itself prints (Q-DAP3): the signer must be someone else.
+const NAME = "Susan Godfrey";
 const FILED = Buffer.from("%PDF-1.7 the filed policy");
 
 let n = 0;

@@ -976,7 +976,7 @@ show were given — the receipt an auditor reads first and the one thing it cann
 
 **Open, the owner's:**
 - **Q-DAP2 — proofread.** The transcription is from a scan; the owner reads the rendered proof against the paper.
-- **Q-DAP3 — the representative's name.** The policy names the Designated Employer Representative "Marija **Vermeda**"; the product's applicant records spell "Marija **Varmeda**". One is wrong.
+- ~~**Q-DAP3 — the representative's name.**~~ **Answered 2026-11-04: Varmeda** (a correction entry; the scan stays verbatim). The policy names the Designated Employer Representative "Marija **Vermeda**"; the product's applicant records spell "Marija **Varmeda**". One is wrong.
 
 **Build.** **DAP1** (#2018) — migration 0565 (kind, `policy_version`, the 14-argument function), the policy text, its corrections and the shared renderer. **DAP2** — the reader: the token-served policy, p28's gate and stamp, the filed copy, the office preview.
 
@@ -1296,3 +1296,7 @@ at submit, the review, the office drawer and the filed PDF.
   `send_application_invitation`'s new defaulted sixth argument on the first Send only; the 5-argument call still
   resolves and stamps nothing. 29-case matrix; 24/25 mutants killed — the survivor (dropping the REVOKE) is
   equivalent, because 0412 already closes new functions to clients. Producer waiver until CQ2.
+- **2026-11-04** — **Q-DAP3 answered by the owner: "representative is Varmeda".** One spelling entry in
+  `DRUG_ALCOHOL_POLICY_CORRECTIONS`; the transcription keeps the scan's "Vermeda". `DRUG_ALCOHOL_POLICY_VERSION`
+  changes with it, so any staging p28 signed under the old text files no policy (logged, D-DAP5's rule) —
+  nothing in production, which has not yet received DAP2. Q-DAP2 (proofread) is still the owner's.
