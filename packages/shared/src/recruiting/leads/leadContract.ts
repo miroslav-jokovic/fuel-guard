@@ -172,3 +172,21 @@ export const leadContactSchema = z.object({
   note: z.string().trim().max(2000).nullable().default(null).transform((v) => v || null),
 });
 export type LeadContactInput = z.infer<typeof leadContactSchema>;
+
+/**
+ * A contact as the lead drawer reads it (`GET /recruitment/leads/:id/contacts`, E4a). `created_by` stays
+ * behind: the drawer names the person, and the name was frozen on the row when they wrote it.
+ *
+ * `note_withheld` says a note exists on a purged lead and is not being served, so the drawer can say so rather
+ * than show a contact that seems to have no note (`readLeadContacts` has why).
+ */
+export interface LeadContactRecord {
+  id: string;
+  direction: (typeof LEAD_CONTACT_DIRECTIONS)[number];
+  method: (typeof LEAD_CONTACT_METHODS)[number];
+  outcome: (typeof LEAD_CONTACT_OUTCOMES)[number] | null;
+  note: string | null;
+  note_withheld: boolean;
+  created_by_name: string;
+  contacted_at: string;
+}

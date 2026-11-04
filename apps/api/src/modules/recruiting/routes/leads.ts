@@ -9,7 +9,7 @@ import { getAppLocals } from "../../../lib/appLocals.js";
 import { writeAudit } from "../../../lib/audit.js";
 import { displayNameFor } from "../../../lib/memberLabels.js";
 import { ingestLead } from "../leads/leadSink.js";
-import { logLeadContact } from "../leads/leadContacts.js";
+import { logLeadContact, readLeadContacts } from "../leads/leadContacts.js";
 import { liftDoNotContact, markDoNotContact, type DoNotContactOutcome } from "../leads/doNotContact.js";
 import { convertLead, isConvertError, parseQueueQuery, readLeadQueue } from "../leads/leadQueue.js";
 
@@ -22,7 +22,8 @@ import { convertLead, isConvertError, parseQueueQuery, readLeadQueue } from "../
  * route already admits `recruitment: manage` (`canWriteDriver`) for exactly this person.
  *
  * Nothing here contacts a lead (D-LS6, ruled 2026-09-25): no route sends to one, and the queue is a list a
- * person works through. `contacts` records a call a person already made (`leads/leadContacts.ts`).
+ * person works through. `contacts` records a call a person already made, and reads back who already made one
+ * (`leads/leadContacts.ts`).
  * `do-not-contact` records that a person asked not to be contacted, and lifts the
  * office's own record of it (`leads/doNotContact.ts`). The audit rows name the lead and the channel, never the person's details — the audit
  * log is readable by admins outside hiring (`notes.ts`' reason).
@@ -96,6 +97,26 @@ export function recruitmentLeadsRouter(): Router {
         meta: { driverId: result.driver_id, createdApplicant: result.created_applicant },
       });
       res.status(result.created_applicant ? 201 : 200).json(result);
+    }),
+  );
+
+  // Who already reached this lead (E4a), for anyone who can view the queue it sits in.
+  router.get(
+    "/leads/:leadId/contacts",
+    requireOrg,
+    canView,
+    asyncHandler(async (req, res) => {
+      const leadId = String(req.params.leadId ?? "");
+      if (!recordId().safeParse(leadId).success) {
+        res.status(404).json(apiError("not_found", "Lead not found"));
+        return;
+      }
+      const out = await readLeadContacts(getSupabaseAdmin(getAppLocals(req).env), req.auth!.orgId!, leadId);
+      if (out.kind === "refused") {
+        res.status(out.status).json(apiError(out.code, out.message));
+        return;
+      }
+      res.json({ contacts: out.contacts });
     }),
   );
 
