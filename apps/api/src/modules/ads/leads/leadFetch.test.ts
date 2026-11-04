@@ -40,7 +40,7 @@ function memorySink(opts: { refuse?: boolean } = {}) {
   return { sink, stored };
 }
 
-function seed(over: { status?: string } = {}) {
+function seed(over: { status?: string; formIds?: Record<string, string> } = {}) {
   rec = createSupabaseRecorder({
     tables: {
       ads_platform_connections: postgrestFixture([
@@ -50,9 +50,9 @@ function seed(over: { status?: string } = {}) {
       ads_settings_versions: [],
       driver_app_features: [],
       ads_campaigns: postgrestFixture([
-        { id: CAMP, org_id: ORG, connection_id: CONN, brief_source: "recruiting_opening", brief_ref: `${OPENING}@v2`, platform_refs: { meta_form_id: form } },
+        { id: CAMP, org_id: ORG, connection_id: CONN, brief_source: "recruiting_opening", brief_ref: `${OPENING}@v2`, platform_refs: { meta_form_ids: over.formIds ?? { en: form } } },
         // Another carrier's campaign on a form of the same id must never be the one found.
-        { id: "00000000-0000-4000-8000-00000000ff01", org_id: OTHER_ORG, connection_id: CONN, brief_source: "recruiting_opening", brief_ref: "other@v1", platform_refs: { meta_form_id: form } },
+        { id: "00000000-0000-4000-8000-00000000ff01", org_id: OTHER_ORG, connection_id: CONN, brief_source: "recruiting_opening", brief_ref: "other@v1", platform_refs: { meta_form_ids: { en: form } } },
       ]),
     },
   });
@@ -87,6 +87,12 @@ describe("fetchWebhookLead — the lead a webhook named", () => {
     // FakeMeta answers a lead only to its form's Page token (190 otherwise), so a read that succeeded used it.
     expect(fake.requests.slice(before).map((q) => q.path)).toEqual([`/v26.0/${lead.id}`]);
     expectOrgScoped(rec, ORG);
+  });
+
+  it("a lead on the campaign's Spanish form is found as that campaign's (B2c2: a form per language)", async () => {
+    const lead = fake.leads.submit(form, { full_name: "Ana Lopez" }, new Date(NOW.getTime() - 60_000));
+    seed({ formIds: { en: "990000000777", es: form } });
+    expect(await fetchWebhookLead(deps(memorySink().sink), ORG, { leadgenId: lead.id, formId: form })).toMatchObject({ outcome: "stored", campaign_id: CAMP });
   });
 
   const rung = () => rec.rpcs().filter((c) => c.fn === "emit_notification").map((c) => c.args as Record<string, unknown>);

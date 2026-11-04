@@ -2,6 +2,7 @@ import { createHmac } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Env } from "../../../env.js";
 import { safeEqual } from "../../../lib/secretBox.js";
+import { FORM_ID_PATHS } from "./formRefs.js";
 
 /**
  * Meta's leadgen webhook, the receiving half (ADS-AGENT-BUILD-WORKFLOW.md B4b; §4R Lead intake). The route
@@ -37,7 +38,7 @@ import { safeEqual } from "../../../lib/secretBox.js";
  *
  * ── THE ONE QUERY THAT IS NOT ORG-SCOPED ────────────────────────────────────────────────────────────
  * A delivery names a Page and a form, not a carrier, so the org is FOUND here: `ads_campaigns` by
- * `platform_refs->>meta_form_id`. That is the lookup's whole purpose, and it runs only after the signature
+ * every language's form id (`formRefs.ts`). That is the lookup's whole purpose, and it runs only after the signature
  * proved Meta sent the ids. Everything after it is org-scoped again (`leadFetch.ts`).
  */
 
@@ -128,17 +129,20 @@ export interface WebhookAnswer {
 /** Which carrier owns each form — see the header: the one lookup that is not org-scoped, by design. */
 async function ownersOfForms(admin: SupabaseClient, formIds: string[]): Promise<Map<string, Set<string>>> {
   const owners = new Map<string, Set<string>>();
-  for (let i = 0; i < formIds.length; i += LOOKUP_CHUNK) {
-    const { data, error } = await admin
-      .from("ads_campaigns")
-      .select("org_id, platform_refs->>meta_form_id")
-      .in("platform_refs->>meta_form_id", formIds.slice(i, i + LOOKUP_CHUNK));
-    if (error) throw new Error(`ads_campaigns: ${error.message}`);
-    for (const r of (data ?? []) as Array<{ org_id: string; meta_form_id: string | null }>) {
-      if (!r.meta_form_id) continue;
-      const set = owners.get(r.meta_form_id) ?? new Set<string>();
-      set.add(r.org_id);
-      owners.set(r.meta_form_id, set);
+  for (const { path } of FORM_ID_PATHS) {
+    for (let i = 0; i < formIds.length; i += LOOKUP_CHUNK) {
+      const { data, error } = await admin
+        .from("ads_campaigns")
+        .select(`org_id, form_id:${path}`)
+        .in(path, formIds.slice(i, i + LOOKUP_CHUNK));
+      if (error) throw new Error(`ads_campaigns: ${error.message}`);
+      // The select is built from the path, which supabase-js's typed parser cannot read: the row shape is ours.
+      for (const r of (data ?? []) as unknown as Array<{ org_id: string; form_id: string | null }>) {
+        if (!r.form_id) continue;
+        const set = owners.get(r.form_id) ?? new Set<string>();
+        set.add(r.org_id);
+        owners.set(r.form_id, set);
+      }
     }
   }
   return owners;

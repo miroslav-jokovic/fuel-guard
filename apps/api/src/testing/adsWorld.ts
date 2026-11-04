@@ -63,6 +63,13 @@ export function createAdsWorld(opts: {
   clock?: () => Date;
   /** Active members (`memberships`), for alert recipients; default one admin. */
   members?: FixtureRow[];
+  /**
+   * Read-only rows for tables the world does not model (B2c2: `ads_creatives`, the preset tables the
+   * publisher reads). Filtered as PostgREST would, never written.
+   */
+  extraTables?: Record<string, FixtureRow[]>;
+  /** Storage handlers by method (`download`…), passed to the recorder — the publisher reads ad images. */
+  storage?: Record<string, (...args: never[]) => unknown>;
 }) {
   const campaigns = opts.campaigns.map((c) => ({ ...c }));
   const actions: FixtureRow[] = (opts.actions ?? []).map((a) => ({ ...a }));
@@ -143,7 +150,9 @@ export function createAdsWorld(opts: {
       },
       memberships: postgrestFixture(members),
       ads_spend_hourly: postgrestFixture(spend),
+      ...Object.fromEntries(Object.entries(opts.extraTables ?? {}).map(([t, rows]) => [t, postgrestFixture(rows.map((r) => ({ ...r })))])),
     },
+    ...(opts.storage ? { storage: opts.storage as Record<string, (...args: unknown[]) => unknown> } : {}),
     rpc: (fn, args) => {
       if (fn !== "emit_notification") return null;
       const a = args as { p_user: string; p_category: string; p_title: string; p_severity: string; p_dedupe_key: string | null };

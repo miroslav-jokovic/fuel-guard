@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { CampaignEvent, CampaignState } from "@silvicom/shared";
 import { completeAction, startAction } from "../actions/actionLedger.js";
+import { alertConnectionUnusable } from "../alerts/connectionAlerts.js";
 import { afterPauseFailed } from "../alerts/pauseAlerts.js";
 import type { GuardedPlatform } from "../guard/guardedPlatform.js";
 import { NOT_ON_PLATFORM } from "../platforms/adapter.js";
@@ -68,19 +69,22 @@ export async function runCampaignStep(deps: RunnerDeps, orgId: string, campaignI
   if (!ask) return { kind: "idle", state: campaign.state, reason: "no_platform" };
   if ("wait" in ask) return { kind: "idle", state: campaign.state, reason: `pending: ${ask.wait}` };
   const result = await applyCampaignEvent(deps.admin, campaign, { actor: ORCHESTRATOR, ...ask }, deps.now().toISOString());
-  if (ask.event === "pause_failed" && result.kind === "moved") await alertQuietly(deps, campaign, ask.error ?? "pause_failed");
+  if (ask.event === "pause_failed" && result.kind === "moved") await alertQuietly(campaign, () => afterPauseFailed(deps.admin, deps.now(), campaign, ask.error ?? "pause_failed"));
+  // B2c2: a create that met a dead connection (§4R Publisher L2, "token revoked → stops + alert").
+  if (ask.event === "create_failed" && result.kind === "moved") await alertQuietly(campaign, () => alertConnectionUnusable(deps.admin, deps.now(), campaign, ask.error ?? "", "create"));
   return { kind: "stepped", event: ask.event, result };
 }
 
 /**
- * A stuck pause is told to a person (`alerts/pauseAlerts.ts`, audit H2). Telling is never worth failing
- * the step: the move is recorded, and a throw here would only re-run a pause the next tick runs anyway.
+ * A stuck pause, or a create that met a dead connection, is told to a person (`alerts/`, audit H2, B2c2).
+ * Telling is never worth failing the step: the move is recorded, and a throw here would only re-run a
+ * step the next tick (or a person's Resume) runs anyway.
  */
-async function alertQuietly(deps: RunnerDeps, c: CampaignRow, code: string): Promise<void> {
+async function alertQuietly(c: CampaignRow, tell: () => Promise<unknown>): Promise<void> {
   try {
-    await afterPauseFailed(deps.admin, deps.now(), c, code);
+    await tell();
   } catch (err) {
-    console.error(`[ads-orchestrator] campaign ${c.id}: the pause alert failed — ${err instanceof Error ? err.message : String(err)}`);
+    console.error(`[ads-orchestrator] campaign ${c.id}: an alert failed — ${err instanceof Error ? err.message : String(err)}`);
   }
 }
 

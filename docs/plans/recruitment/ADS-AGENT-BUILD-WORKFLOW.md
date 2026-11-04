@@ -1458,3 +1458,29 @@ blocking step in §3 above.
     gate, not-found) — 10 of 10 killed. The state pre-check first SURVIVED: its test had an approval on file, so the
     machine refused the move anyway with the same answer; the test now has none, which is the case the pre-check is
     for (the true reason, not "approve first").
+- **2026-11-04, B2c1 merged; B2c2** — #2027 (`5613e11`). **B2c2** wires `createPaused`, so an approved campaign
+  reaches `paused` with ads to launch. No migration (newest on main `0567_recruiting_carrier_questions.sql`).
+  - **Intake first.** The webhook, the fetch and the backfill read every language's form
+    (`leads/formRefs.ts`, the paths derived from `AD_NAME_LANGUAGES`) instead of one `meta_form_id`, which no
+    campaign ever held. A Spanish lead is found like an English one; a test in each of the three pins it.
+  - **`platforms/meta/publishCampaign.ts`** is `createPaused`. Every read is org-scoped:
+    - the campaign's brief snapshot (area, form questions);
+    - its connection (account, Page, both Graph clients from the registry);
+    - its **approved** creatives only, with the preset key and `platform_slots` of the preset VERSION each was
+      made with.
+    The privacy page is `WEB_APP_URL` + `/privacy`; a host that is not https is refused by the preflight. A
+    missing, disconnected or unopenable connection answers `no_platform`.
+  - **Token revoked → stops + alert** (§4R Publisher L2). The pause alert's connection half moved to
+    `alerts/connectionAlerts.ts`. The runner calls it after `create_failed` as after `pause_failed`: the
+    connection is marked `failing`, and admins get `ads_token_expiring` once a day per connection.
+  - `orchestrator/createPath.test.ts` drives runner → publisher → simulator. It covers:
+    - `creating` → `paused` with `meta_ad_ids`, then an approved launch turning those ads on;
+    - a `ready` (unapproved) creative never published;
+    - a revoked token, and a disconnected connection.
+    `adsWorld` gained read-only `extraTables` and `storage`.
+  - **Still inert on every host.** `ADS_ENABLED` is off, so the tick runs under the brake (`createPaused` null).
+    Nothing writes `ads_creatives.state = 'approved'` yet either: that is the approve door. Track S's S1d needs a
+    writer in `compose/` (the table's owner) — Track W's next step, `decideCreative`.
+  - Scorecard: **Publisher L0 → L2.**
+  - Mutation: 10 mutants. The first pass left one survivor: approved vs ready. The test had seeded no creative,
+    not a `ready` one. Fixed, and now 10 of 10 killed.

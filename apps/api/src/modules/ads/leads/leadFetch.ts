@@ -3,6 +3,7 @@ import { pageGraphForConnection, type RegistryDeps } from "../platforms/registry
 import { platformLeadFromMeta, type MetaLead } from "./backfill.js";
 import { alertWebhookLate, WEBHOOK_LATE_MS } from "../alerts/intakeAlerts.js";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { FORM_ID_PATHS } from "./formRefs.js";
 
 /**
  * One lead a leadgen webhook named, read by id and handed to the sink (B4b; the `ads_lead_fetch` job). The
@@ -48,15 +49,20 @@ export class LeadFetchError extends Error {
 }
 
 export async function fetchWebhookLead(deps: LeadFetchDeps, orgId: string, ask: { leadgenId: string; formId: string }): Promise<LeadFetchResult> {
-  const { data: rows, error } = await deps.admin
-    .from("ads_campaigns")
-    .select("id, connection_id, brief_source, brief_ref")
-    .eq("org_id", orgId)
-    .eq("platform_refs->>meta_form_id", ask.formId)
-    .order("id")
-    .limit(1);
-  if (error) throw new Error(`ads_campaigns: ${error.message}`);
-  const campaign = ((rows ?? []) as Array<{ id: string; connection_id: string | null; brief_source: string; brief_ref: string }>)[0];
+  // The form is one of the campaign's, in whichever language (`formRefs.ts`).
+  let campaign: { id: string; connection_id: string | null; brief_source: string; brief_ref: string } | undefined;
+  for (const { path } of FORM_ID_PATHS) {
+    const { data: rows, error } = await deps.admin
+      .from("ads_campaigns")
+      .select("id, connection_id, brief_source, brief_ref")
+      .eq("org_id", orgId)
+      .eq(path, ask.formId)
+      .order("id")
+      .limit(1);
+    if (error) throw new Error(`ads_campaigns: ${error.message}`);
+    campaign = ((rows ?? []) as Array<NonNullable<typeof campaign>>)[0];
+    if (campaign) break;
+  }
   if (!campaign) return { outcome: "not_ours", lead_id: ask.leadgenId, form_id: ask.formId };
   if (!campaign.connection_id) throw new LeadFetchError("campaign has no connection", ask.leadgenId);
 
