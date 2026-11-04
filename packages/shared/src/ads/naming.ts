@@ -5,7 +5,8 @@ import { AD_PLATFORMS, type AdPlatform } from "./contracts.js";
  * The name every object we create on a platform carries (plan §4.2 `naming.ts`).
  *
  *   S360|META|campaign|recruiting_opening|op-1@v3|ALL|20261102|ab12cd34
- *   S360|META|ad|recruiting_opening|op-1@v3|P2|20261102|ab12cd34|9f8e7d6c
+ *   S360|META|form|recruiting_opening|op-1@v3|ALL|20261102|ab12cd34|ES
+ *   S360|META|ad|recruiting_opening|op-1@v3|P2|20261102|ab12cd34|9f8e7d6c|ES
  *
  * Two jobs, both load-bearing:
  * 1. **Reconcile (D-AD4).** A campaign on the account whose name does not parse is one we did not
@@ -30,6 +31,13 @@ import { AD_PLATFORMS, type AdPlatform } from "./contracts.js";
  * Meta takes no idempotency key on a create (`graphClient.ts`). The publisher finds what an earlier,
  * lost create made by reading the account for this exact name, so the name must be a pure function of
  * our rows: the same campaign builds the same string on every attempt, on every host.
+ *
+ * ── THE LANGUAGE IS A FORM'S AND AN AD'S (B2c, 2026-11-04) ───────────────────────────────────────
+ * Compose writes every creative in English and Spanish (C5b), and a Spanish ad must open a Spanish form
+ * (`META_FORM_LOCALES`): so one campaign has one form PER LANGUAGE and one ad per creative per language.
+ * Two forms or two ads with one name would make the publisher's find-by-name refuse its own work
+ * (`duplicate_on_platform`), so the language is part of the name at those two levels, last, and at no
+ * level above them. Only the simulator had named a form when this changed.
  */
 
 /** What every level above `ad` carries in the preset field. */
@@ -52,7 +60,13 @@ export interface AdNameParts {
   campaign_short: string;
   /** Only on the `ad` level: the creative's short id. */
   creative_short?: string;
+  /** Only on the `form` and `ad` levels: the language the form asks in and the ad speaks. */
+  language?: AdNameLanguage;
 }
+
+export const AD_NAME_LANGUAGES = ["en", "es"] as const;
+export type AdNameLanguage = (typeof AD_NAME_LANGUAGES)[number];
+const hasLanguage = (level: AdNameLevel) => level === "form" || level === "ad";
 
 const SHORT = /^[0-9a-f]{8}$/;
 const SOURCE = /^[a-z][a-z0-9_]{1,62}$/;
@@ -84,10 +98,12 @@ export function buildAdName(p: AdNameParts): string {
   if (!SHORT.test(p.campaign_short)) problems.push("campaign_short");
   if ((p.level === "ad") !== (p.creative_short !== undefined)) problems.push("creative_short");
   if (p.creative_short !== undefined && !SHORT.test(p.creative_short)) problems.push("creative_short");
+  if (hasLanguage(p.level) !== (p.language !== undefined) || (p.language !== undefined && !(AD_NAME_LANGUAGES as readonly string[]).includes(p.language))) problems.push("language");
   if (problems.length) throw new Error(`buildAdName: invalid ${problems.join(", ")}`);
   const fields = [
     AD_NAME_PREFIX, PLATFORM_CODES[p.platform], p.level, p.brief_source, p.brief_ref, p.preset_key,
     p.day.replace(/-/g, ""), p.campaign_short, ...(p.creative_short ? [p.creative_short] : []),
+    ...(p.language ? [p.language.toUpperCase()] : []),
   ];
   return fields.join("|");
 }
@@ -96,8 +112,13 @@ export function buildAdName(p: AdNameParts): string {
 export function parseAdName(name: string): AdNameParts | null {
   if (name.length > AD_NAME_MAX) return null;
   const f = name.split("|");
-  if (f[0] !== AD_NAME_PREFIX || (f.length !== 8 && f.length !== 9)) return null;
-  const [, code, level, brief_source, brief_ref, preset_key, ymd, campaign_short, creative_short] = f as string[];
+  if (f[0] !== AD_NAME_PREFIX || f.length < 8 || f.length > 10) return null;
+  const [, code, level, brief_source, brief_ref, preset_key, ymd, campaign_short] = f as string[];
+  // After the campaign: the ad's creative, then the language of a form or an ad. Which fields follow is
+  // the level's, so a field in the wrong place or one too many does not parse (the round-trip below says so).
+  const rest = f.slice(8);
+  const creative_short = level === "ad" ? rest.shift() : undefined;
+  const lang = rest.shift();
   const platform = CODE_PLATFORMS[code!];
   if (!platform || !(AD_PLATFORMS as readonly string[]).includes(platform)) return null;
   if (!(AD_NAME_LEVELS as readonly string[]).includes(level!)) return null;
@@ -107,6 +128,7 @@ export function parseAdName(name: string): AdNameParts | null {
     platform, level: level as AdNameLevel, brief_source: brief_source!, brief_ref: brief_ref!,
     preset_key: preset_key!, day, campaign_short: campaign_short!,
     ...(creative_short !== undefined ? { creative_short } : {}),
+    ...(lang !== undefined ? { language: lang.toLowerCase() as AdNameLanguage } : {}),
   };
   // Valid only if it would be built back to exactly the same string.
   try {

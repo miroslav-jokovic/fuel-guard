@@ -148,6 +148,15 @@ export const adPresetRecipeSchema = z.object({
    * before C5b still parses — `newestVersions` throws on a stored body that does not.
    */
   overlay_slots: z.object({ headline: slotName, cta: slotName }).strict().nullable().default(null),
+  /**
+   * Which copy slots the platform shows as text beside the image (B2c): Meta's primary text (`message`,
+   * above the image) and its headline (`name`, under it). Neither may be an overlay slot — those words
+   * are already IN the image. Null = not said, and the publisher refuses the creative by name
+   * (`no_platform_slots`) rather than guess from the slots' order or names. Absent and null both mean "not
+   * said": optional rather than defaulted (as `overlay_slots` is) so a recipe typed before B2c still
+   * compiles — a default makes the parsed type require the key in every literal.
+   */
+  platform_slots: z.object({ primary_text: slotName, headline: slotName }).strict().nullish(),
 }).superRefine((r, ctx) => {
   const used = templateSlots(r.image_prompt_template);
   const declared = new Set(r.image_slots);
@@ -161,6 +170,15 @@ export const adPresetRecipeSchema = z.object({
       if (!copyNames.has(r.overlay_slots[role])) ctx.addIssue({ code: "custom", path: ["overlay_slots", role], message: `${r.overlay_slots[role]} is not one of copy_slots` });
     }
     if (r.overlay_slots.headline === r.overlay_slots.cta) ctx.addIssue({ code: "custom", path: ["overlay_slots"], message: "the headline and the call to action are different slots" });
+  }
+  if (r.platform_slots) {
+    const overlay = new Set(r.overlay_slots ? [r.overlay_slots.headline, r.overlay_slots.cta] : []);
+    for (const role of ["primary_text", "headline"] as const) {
+      const slot = r.platform_slots[role];
+      if (!copyNames.has(slot)) ctx.addIssue({ code: "custom", path: ["platform_slots", role], message: `${slot} is not one of copy_slots` });
+      else if (overlay.has(slot)) ctx.addIssue({ code: "custom", path: ["platform_slots", role], message: `${slot} is drawn on the image; the platform's text is another slot` });
+    }
+    if (r.platform_slots.primary_text === r.platform_slots.headline) ctx.addIssue({ code: "custom", path: ["platform_slots"], message: "the primary text and the headline are different slots" });
   }
   if (new Set(r.formats).size !== r.formats.length) ctx.addIssue({ code: "custom", path: ["formats"], message: "a format is listed twice" });
   if (r.starts_from === "text_only" && (r.shows_equipment || r.shows_people)) {

@@ -1,22 +1,51 @@
+import { createHash } from "node:crypto";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { parseAdName } from "@silvicom/shared";
 import { expectOrgScoped } from "../../../../testing/supabaseRecorder.js";
 import { campaign, CONN, createAdsWorld, ORG, type AdsWorld } from "../../../../testing/adsWorld.js";
 import { FakeMeta } from "../simulator/fakeMeta.js";
 import { MetaGraph, resetGraphThrottles } from "./graphClient.js";
-import { nameFor, publishPaused, type PublishInput } from "./publisher.js";
+import { adNameFor, nameFor, publishPaused, type PublishInput } from "./publisher.js";
+import type { PublishCreative } from "./publisherAds.js";
 
 /**
  * The Meta publisher's first half (B2a) against FakeMeta over real HTTP and the stateful ads world.
  * L1: what it sends, and what it refuses before sending. L2 (§4R, Publisher row): 429/5xx/timeout on
  * each create step, a half-created campaign resumed and never duplicated, a revoked token, a crash
- * between a create and its ledger row, and the same step delivered twice at once.
+ * between a create and its ledger row, and the same step delivered twice at once. B2c: the forms per
+ * language, and per approved creative and language its image, ad creative and ad.
  */
 const TOKEN = "EAAB-publisher-token-0123456789";
 const ACCOUNT = "2001";
 const PAGE = "3001";
 const CAMPAIGN = "ab12cd34-0000-4000-8000-000000000001";
 const PAGE_TOKEN = "EAAB-page-token-9876543210";
+const CREATIVE = "9f8e7d6c-0000-4000-8000-0000000000c1";
+
+/** A PNG's first 24 bytes as FakeMeta reads them (signature, IHDR, width, height), then a tag. */
+function png(width: number, height: number, tag: string): Buffer {
+  const head = Buffer.alloc(24);
+  Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]).copy(head, 0);
+  head.writeUInt32BE(13, 8);
+  head.write("IHDR", 12, "ascii");
+  head.writeUInt32BE(width, 16);
+  head.writeUInt32BE(height, 20);
+  return Buffer.concat([head, Buffer.from(tag)]);
+}
+const STORE = new Map<string, Buffer>([
+  ["a".repeat(64), png(1080, 1350, "en 4:5")], ["b".repeat(64), png(1080, 1350, "es 4:5")],
+  ["c".repeat(64), png(1080, 1080, "en 1:1")], ["d".repeat(64), png(1080, 1920, "en 9:16")],
+]);
+const creative = (patch: Partial<PublishCreative> = {}): PublishCreative => ({
+  id: CREATIVE, preset_key: "P2",
+  copy: { en: { hook: "Home every weekend", cta: "Apply now", body: "Regional lanes out of Joliet.", title: "Class A drivers" },
+          es: { hook: "En casa cada fin de semana", cta: "Aplica ya", body: "Rutas regionales desde Joliet.", title: "Choferes Clase A" } },
+  assets: [
+    { format: "4:5", language: "en", sha256: "a".repeat(64) }, { format: "4:5", language: "es", sha256: "b".repeat(64) },
+    { format: "1:1", language: "en", sha256: "c".repeat(64) }, { format: "9:16", language: "en", sha256: "d".repeat(64) },
+  ],
+  platform_slots: { primary_text: "body", headline: "title" }, ...patch,
+});
 
 let meta: FakeMeta;
 let base: string;
@@ -36,11 +65,17 @@ const input = (patch: Partial<PublishInput> = {}): PublishInput => ({
   brief_source: "recruiting_opening", brief_ref: "op-1@v3", created_at: "2026-11-02T15:00:00Z",
   area: { label: "Joliet yard", latitude: 41.525, longitude: -88.0817, radius_miles: 25, reason: "Drivers report to the Joliet yard daily" },
   daily_budget_cents: 5_000, lifetime_cap_cents: 50_000, key: `${CAMPAIGN}:stint-1`,
-  form_questions: ["class_a_held", "class_a_years", "hazmat_endorsement"], locale: "en", privacy_url: "https://app.silvicom360.com/privacy", ...patch,
+  form_questions: ["class_a_held", "class_a_years", "hazmat_endorsement"], creatives: [creative()], privacy_url: "https://app.silvicom360.com/privacy", ...patch,
 });
 
 const graph = (token = TOKEN) => new MetaGraph({ token, throttleKey: "conn-pub", baseUrl: base, timeoutMs: 300, sleep: async () => {} });
-const publish = (patch: Partial<PublishInput> = {}) => publishPaused({ admin: w.admin, graph: graph(), pageGraph: graph(PAGE_TOKEN), now: w.now }, input(patch));
+const readAsset = async (_org: string, ref: { sha256: string }) => {
+  const b = STORE.get(ref.sha256);
+  if (!b) throw new Error(`no asset ${ref.sha256}`);
+  return b;
+};
+const publish = (patch: Partial<PublishInput> = {}) => publishPaused({ admin: w.admin, graph: graph(), pageGraph: graph(PAGE_TOKEN), readAsset, now: w.now }, input(patch));
+const levels = () => creates().map((x) => (x.request as { level: string }).level);
 const posts = (re: RegExp) => meta.requests.filter((r) => r.method === "POST" && re.test(r.path)).length;
 const creates = () => w.actions.filter((a) => a.kind === "create_paused");
 
@@ -53,7 +88,8 @@ describe("Meta publisher (B2a) — what it sends", () => {
     expect(c).toMatchObject({ status: "PAUSED", objective: "OUTCOME_LEADS", special_ad_categories: ["EMPLOYMENT"], special_ad_category_country: ["US"], spend_cap: "50000" });
     const a = meta.adsets.get(r.platform_refs.meta_adset_id)!;
     expect(a).toMatchObject({ campaign_id: c.id, status: "PAUSED", daily_budget: "5000", optimization_goal: "LEAD_GENERATION", destination_type: "ON_AD", promoted_object: { page_id: PAGE } });
-    expect(creates().map((x) => [x.request && (x.request as { level: string }).level, x.status])).toEqual([["campaign", "succeeded"], ["adset", "succeeded"], ["form", "succeeded"]]);
+    expect(levels()).toEqual(["campaign", "adset", "form:en", "form:es", "creative:9f8e7d6c:EN", "ad:9f8e7d6c:EN", "creative:9f8e7d6c:ES", "ad:9f8e7d6c:ES"]);
+    expect(creates().every((x) => x.status === "succeeded")).toBe(true);
     expectOrgScoped(w.rec, ORG);
   });
 
@@ -126,7 +162,7 @@ describe("Meta publisher (B2a) — resume, never duplicate (§4R Publisher L2)",
     expect([meta.campaigns.size, meta.adsets.size]).toEqual([1, 1]);
     expect(posts(/campaigns$/)).toBe(1);
     const stint2 = creates().filter((a) => String(a.idempotency_key).includes("stint-2"));
-    expect(stint2.map((a) => a.response)).toEqual([{ adopted: true }, null, null]);
+    expect(stint2.map((a) => a.response)).toEqual([{ adopted: true }, ...Array(stint2.length - 1).fill(null)]);
   });
 
   it.each([
@@ -170,7 +206,8 @@ describe("Meta publisher (B2a) — resume, never duplicate (§4R Publisher L2)",
   it("the same step delivered twice at once creates each object once", async () => {
     const [a, b] = await Promise.all([publish(), publish()]);
     expect([a.ok, b.ok].filter(Boolean)).toHaveLength(1);
-    expect([meta.campaigns.size, meta.adsets.size, meta.forms.forms.size, posts(/campaigns$/), posts(/adsets$/), posts(/leadgen_forms$/)]).toEqual([1, 1, 1, 1, 1, 1]);
+    expect([meta.campaigns.size, meta.adsets.size, meta.forms.forms.size, posts(/campaigns$/), posts(/adsets$/), posts(/leadgen_forms$/)]).toEqual([1, 1, 2, 1, 1, 2]);
+    expect([meta.ads.creatives.size, meta.sets.ads.size, posts(/adcreatives$/), posts(/act_\d+\/ads$/)]).toEqual([2, 2, 2, 2]);
   });
 
   it("two objects carrying our name are refused, never a guess; one found active is refused, never adopted", async () => {
@@ -191,18 +228,19 @@ describe("Meta publisher (B2b) — the Instant Form", () => {
   it("makes the form on the Page with the Page's token: contact, then the catalogue's questions, our privacy page, shown only from the ad", async () => {
     const r = await publish();
     if (!r.ok) throw new Error(r.error_code);
-    const f = meta.forms.forms.get(r.platform_refs.meta_form_id)!;
+    const f = meta.forms.forms.get(r.platform_refs.meta_form_ids.en)!;
     expect(f).toMatchObject({ page_id: PAGE, status: "ACTIVE", locale: "EN_US", privacy_policy_url: "https://app.silvicom360.com/privacy" });
     expect(f.questions.map((q) => q.key)).toEqual(["full_name", "phone", "email", "class_a_held", "class_a_years", "hazmat_endorsement"]);
-    expect(parseAdName(f.name)).toMatchObject({ level: "form", preset_key: "ALL", campaign_short: "ab12cd34" });
+    expect(parseAdName(f.name)).toMatchObject({ level: "form", preset_key: "ALL", campaign_short: "ab12cd34", language: "en" });
     const sent = meta.requests.find((q) => q.method === "POST" && q.path.endsWith("/leadgen_forms"))!;
     expect(JSON.parse(sent.body.block_display_for_non_targeted_viewer!)).toBe(true);
   });
 
   it("a Spanish ad gets a Spanish form with the same question keys", async () => {
-    const r = await publish({ locale: "es" });
+    const r = await publish();
     if (!r.ok) throw new Error(r.error_code);
-    const f = meta.forms.forms.get(r.platform_refs.meta_form_id)!;
+    const f = meta.forms.forms.get(r.platform_refs.meta_form_ids.es)!;
+    expect(f.questions.map((q) => q.key)).toEqual(meta.forms.forms.get(r.platform_refs.meta_form_ids.en)!.questions.map((q) => q.key));
     expect(f.locale).toBe("ES_LA");
     expect(f.questions[3]!.label).toMatch(/Clase A/);
   });
@@ -216,19 +254,116 @@ describe("Meta publisher (B2b) — the Instant Form", () => {
     meta.inject("POST", /leadgen_forms$/, { kind: "hang" });
     expect(await publish()).toEqual({ ok: false, error_code: "create_outcome_unknown" });
     expect((await publish({ key: `${CAMPAIGN}:stint-2` })).ok).toBe(true);
-    expect([meta.campaigns.size, meta.adsets.size, meta.forms.forms.size, posts(/campaigns$/), posts(/adsets$/)]).toEqual([1, 1, 1, 1, 1]);
+    expect([meta.campaigns.size, meta.adsets.size, meta.forms.forms.size, posts(/campaigns$/), posts(/adsets$/)]).toEqual([1, 1, 2, 1, 1]);
   });
 
   it("a form create Meta applied but answered 5xx is found on the Page by name, never made twice", async () => {
     meta.inject("POST", /leadgen_forms$/, { kind: "applied_then_temporary" });
     expect((await publish()).ok).toBe(true);
-    expect([meta.forms.forms.size, posts(/leadgen_forms$/)]).toEqual([1, 1]);
+    expect([meta.forms.forms.size, posts(/leadgen_forms$/)]).toEqual([2, 2]);
   });
 
   it("a form with our name that asks other questions is refused, never adopted", async () => {
-    const name = nameFor(input(), "form");
+    const name = nameFor(input(), "form", "en");
     meta.forms.forms.set("777", { id: "777", page_id: PAGE, name, status: "ACTIVE", locale: "EN_US", privacy_policy_url: "https://app.silvicom360.com/privacy", questions: [{ type: "EMAIL", key: "email" }] });
     expect(await publish()).toMatchObject({ ok: false, error_code: "readback_mismatch", response: { id: "777", fields: ["questions"] } });
     expect(posts(/leadgen_forms$/)).toBe(0);
+  });
+});
+
+describe("Meta publisher (B2c) — the image, the ad creative and the ad, per approved creative and language", () => {
+  const md5 = (b: Buffer) => createHash("md5").update(b).digest("hex");
+
+  it("each language's ad is PAUSED in the one ad set and shows the feed image, the platform slots' words and that language's form", async () => {
+    const r = await publish();
+    if (!r.ok) throw new Error(r.error_code);
+    expect(r.platform_refs.meta_ad_ids).toHaveLength(2);
+    for (const [language, sha, body, title] of [["en", "a", "Regional lanes out of Joliet.", "Class A drivers"], ["es", "b", "Rutas regionales desde Joliet.", "Choferes Clase A"]] as const) {
+      const placed = r.platform_refs.ads.find((a) => a.language === language)!;
+      const ad = meta.sets.ads.get(placed.meta_ad_id)!;
+      expect(ad).toMatchObject({ adset_id: r.platform_refs.meta_adset_id, status: "PAUSED", creative: { id: placed.meta_creative_id } });
+      expect(parseAdName(ad.name)).toMatchObject({ level: "ad", preset_key: "P2", creative_short: "9f8e7d6c", language });
+      const spec = meta.ads.creatives.get(placed.meta_creative_id)!.object_story_spec;
+      expect(spec).toEqual({ page_id: PAGE, link_data: {
+        image_hash: md5(STORE.get(sha.repeat(64))!), link: "https://fb.me/", message: body, name: title,
+        call_to_action: { type: "APPLY_NOW", value: { lead_gen_form_id: r.platform_refs.meta_form_ids[language] } },
+      } });
+    }
+    // The overlay's words are in the image; the 9:16 image waits for Q-AD28 and is never sent.
+    expect([...meta.ads.images.values()].map((i) => i.height).sort()).toEqual([1350, 1350]);
+  });
+
+  it("a creative with no 4:5 image runs its 1:1", async () => {
+    const c = creative({ assets: [{ format: "1:1", language: "en", sha256: "c".repeat(64) }, { format: "4:5", language: "es", sha256: "b".repeat(64) }] });
+    const r = await publish({ creatives: [c] });
+    if (!r.ok) throw new Error(r.error_code);
+    const en = r.platform_refs.ads.find((a) => a.language === "en")!;
+    expect(en.image_hash).toBe(md5(STORE.get("c".repeat(64))!));
+  });
+
+  it.each([
+    ["no_approved_creative", { creatives: [] }],
+    ["no_platform_slots", { creatives: [creative({ platform_slots: null })] }],
+    ["creative_copy_missing", { creatives: [creative({ copy: { en: creative().copy.en } })] }],
+    ["no_feed_image", { creatives: [creative({ assets: [{ format: "9:16", language: "en", sha256: "d".repeat(64) }, { format: "4:5", language: "es", sha256: "b".repeat(64) }] })] }],
+  ] as const)("refuses before calling Meta: %s — nothing is made, not even the campaign", async (code, patch) => {
+    expect(await publish(patch as Partial<PublishInput>)).toEqual({ ok: false, error_code: code });
+    expect(meta.requests).toHaveLength(0);
+  });
+
+  it("half-created (creative yes, ad no): the next stint adopts the creative and makes the ad once", async () => {
+    meta.inject("POST", /^act_\d+\/ads$/, { kind: "hang" });
+    expect(await publish()).toEqual({ ok: false, error_code: "create_outcome_unknown" });
+    expect([meta.ads.creatives.size, meta.sets.ads.size]).toEqual([1, 0]);
+    expect((await publish({ key: `${CAMPAIGN}:stint-2` })).ok).toBe(true);
+    expect([meta.ads.creatives.size, meta.sets.ads.size, posts(/adcreatives$/)]).toEqual([2, 2, 2]);
+  });
+
+  it("a creative create Meta applied but answered 5xx is found by its name, never made twice", async () => {
+    meta.inject("POST", /adcreatives$/, { kind: "applied_then_temporary" });
+    expect((await publish()).ok).toBe(true);
+    expect([meta.ads.creatives.size, posts(/adcreatives$/)]).toEqual([2, 2]);
+  });
+
+  it("an image upload whose answer was lost is sent again and answers the same hash: one image per set of bytes", async () => {
+    meta.inject("POST", /adimages$/, { kind: "applied_then_temporary" });
+    expect((await publish()).ok).toBe(true);
+    expect([meta.ads.images.size, posts(/adimages$/)]).toEqual([2, 3]);
+  });
+
+  it("a 429 on the ad create stops the step as rate_limited and makes nothing after it", async () => {
+    meta.inject("POST", /^act_\d+\/ads$/, { kind: "throttle" });
+    expect(await publish()).toMatchObject({ ok: false, error_code: "rate_limited" });
+    expect([meta.sets.ads.size, posts(/adcreatives$/)]).toEqual([0, 1]);
+  });
+
+  it("a creative with our name that shows another image is refused, never adopted; an ad with our name running is refused", async () => {
+    const first = await publish();
+    if (!first.ok) throw new Error(first.error_code);
+    const en = first.platform_refs.ads.find((a) => a.language === "en")!;
+    meta.ads.creatives.get(en.meta_creative_id)!.object_story_spec.link_data.image_hash = "0".repeat(32);
+    expect(await publish({ key: "k2" })).toMatchObject({ ok: false, error_code: "readback_mismatch", response: { id: en.meta_creative_id, fields: ["image_hash"] } });
+
+    meta.ads.creatives.get(en.meta_creative_id)!.object_story_spec.link_data.image_hash = en.image_hash;
+    meta.sets.ads.get(en.meta_ad_id)!.status = "ACTIVE";
+    expect(await publish({ key: "k3" })).toMatchObject({ ok: false, error_code: "found_not_paused" });
+    expect([meta.ads.creatives.size, meta.sets.ads.size]).toEqual([2, 2]);
+  });
+
+  it("the ledger names the creative on its creative and ad rows; the ad's name is a pure function of the rows", async () => {
+    await publish();
+    expect(creates().filter((a) => a.creative_id === CREATIVE).map((a) => (a.request as { level: string }).level)).toEqual(["creative:9f8e7d6c:EN", "ad:9f8e7d6c:EN", "creative:9f8e7d6c:ES", "ad:9f8e7d6c:ES"]);
+    expect(adNameFor(input({ key: "other" }), creative(), "es")).toBe(adNameFor(input(), creative(), "es"));
+  });
+
+  it("FakeMeta holds the lead ad's rules: an image not on the account, a link other than fb.me, or another Page's form is refused", async () => {
+    const r = await publish();
+    if (!r.ok) throw new Error(r.error_code);
+    const ok = meta.ads.creatives.get(r.platform_refs.ads[0]!.meta_creative_id)!.object_story_spec;
+    const tryCreative = (link_data: Record<string, unknown>) => graph().post(`act_${ACCOUNT}/adcreatives`, { name: "x", object_story_spec: { page_id: PAGE, link_data } }, { idempotent: false });
+    for (const bad of [{ image_hash: "f".repeat(32) }, { link: "https://example.com/" }, { call_to_action: { type: "APPLY_NOW", value: { lead_gen_form_id: "123" } } }]) {
+      expect((await tryCreative({ ...ok.link_data, ...bad })).ok).toBe(false);
+    }
+    expect((await tryCreative(ok.link_data)).ok).toBe(true);
   });
 });

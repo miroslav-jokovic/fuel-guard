@@ -315,7 +315,17 @@ export const READINESS = [
             ] },
           ],
         },
-        { need: "the creative and the ad (B2c, which also wires `createPaused`)", gap: "not built yet — B2c, after C3 (Higgsfield client) and C4 (overlay renderer)" },
+        {
+          need: "the creative and the ad (B2c1): per approved creative and language, the feed image, an ad creative opening that language's form, the ad PAUSED",
+          tests: [{ file: PUBLISHER, titles: [
+            "each language's ad is PAUSED in the one ad set and shows the feed image, the platform slots' words and that language's form",
+            "a creative with no 4:5 image runs its 1:1",
+            "a Spanish ad gets a Spanish form with the same question keys",
+            "the ledger names the creative on its creative and ad rows; the ad's name is a pure function of the rows",
+            "FakeMeta holds the lead ad's rules: an image not on the account, a link other than fb.me, or another Page's form is refused",
+          ] }],
+        },
+        { need: "`createPaused` wired: the runner's `creating` step publishes the campaign's approved creatives", gap: "B2c2 — lead intake must first find a campaign by every one of its forms (`meta_form_ids`, one per language), or each Spanish lead is lost" },
       ],
       L2: [
         {
@@ -342,7 +352,17 @@ export const READINESS = [
             "a disconnected connection gives no platform: the step fails no_platform rather than guessing",
           ] }],
         },
-        { need: "token revoked → an alert to an admin, and the same faults on the creative and ad calls", gap: "the alert lands when the publisher is wired into the runner (B2c); the creative and ad calls with B2c" },
+        {
+          need: "the same faults on the image, creative and ad calls (B2c1)",
+          tests: [{ file: PUBLISHER, titles: [
+            "half-created (creative yes, ad no): the next stint adopts the creative and makes the ad once",
+            "a creative create Meta applied but answered 5xx is found by its name, never made twice",
+            "an image upload whose answer was lost is sent again and answers the same hash: one image per set of bytes",
+            "a 429 on the ad create stops the step as rate_limited and makes nothing after it",
+            "a creative with our name that shows another image is refused, never adopted; an ad with our name running is refused",
+          ] }],
+        },
+        { need: "token revoked → an alert to an admin", gap: "the alert lands when the publisher is wired into the runner (B2c2)" },
       ],
       L3: later("L3"),
       L4: [{ need: "contract suite on Meta's sandbox", gap: STAGE2 }],

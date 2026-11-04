@@ -2,7 +2,7 @@ import type { FakeCampaign } from "./fakeMeta.js";
 import { graphError, pick } from "./fakeMetaShapes.js";
 
 /**
- * FakeMeta's ad sets (B2a) and ads (B3 changes their status; B2c will create them), apart from
+ * FakeMeta's ad sets (B2a) and ads (B3 changes their status; `fakeMetaAds.ts` creates them, B2c), apart from
  * `fakeMeta.ts` for the file budget. The shapes and Meta's employment rules are cited in
  * `fakeMeta.ts`'s header; updates follow the Ad Set reference: `POST /{id}` with `status`
  * (ACTIVE, PAUSED, DELETED, ARCHIVED), `daily_budget`, `targeting` → `{ success: true }`.
@@ -33,6 +33,8 @@ export interface FakeAd {
   adset_id: string;
   name: string;
   status: FakeCampaign["status"];
+  /** The creative it shows (B2c, `fakeMetaAds.ts`); absent on an ad a test placed by hand. */
+  creative?: { id: string };
 }
 
 export class FakeAdSets {

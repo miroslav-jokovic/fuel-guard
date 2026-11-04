@@ -12,6 +12,7 @@ const RECIPE: AdPresetRecipe = {
   image_prompt_template: "A {vehicle} at {time_of_day}, no text, no logos, no lettering", image_slots: ["vehicle", "time_of_day"],
   starts_from: "equipment_photo", shows_equipment: true, shows_people: false, motion_template: null, formats: ["1:1"],
   overlay_slots: null,
+  platform_slots: null,
 };
 const ASSET = { sha256: "a".repeat(64), format: "png", source_format: "svg", width: 10, height: 10, byte_size: 99 } as const;
 
@@ -51,6 +52,16 @@ describe("preset recipe contract", () => {
     expect(adPresetRecipeSchema.safeParse({ ...RECIPE, overlay_slots: { headline: "hook", cta: "cta" } }).success).toBe(true);
     expect(adPresetRecipeSchema.safeParse({ ...RECIPE, overlay_slots: { headline: "pay", cta: "cta" } }).success).toBe(false);
     expect(adPresetRecipeSchema.safeParse({ ...RECIPE, overlay_slots: { headline: "cta", cta: "cta" } }).success).toBe(false);
+  });
+
+  it("names the platform's primary text and headline among the copy slots the overlay does not draw, or leaves them unsaid", () => {
+    const four = { ...RECIPE, copy_slots: [...RECIPE.copy_slots, { name: "body", max_chars: 200 }, { name: "title", max_chars: 40 }], overlay_slots: { headline: "hook", cta: "cta" } };
+    const { platform_slots: _absent, ...savedBefore } = four;
+    expect(adPresetRecipeSchema.parse(savedBefore).platform_slots ?? null).toBeNull();
+    expect(adPresetRecipeSchema.safeParse({ ...four, platform_slots: { primary_text: "body", headline: "title" } }).success).toBe(true);
+    expect(adPresetRecipeSchema.safeParse({ ...four, platform_slots: { primary_text: "pay", headline: "title" } }).success).toBe(false);
+    expect(adPresetRecipeSchema.safeParse({ ...four, platform_slots: { primary_text: "body", headline: "hook" } }).success).toBe(false);
+    expect(adPresetRecipeSchema.safeParse({ ...four, platform_slots: { primary_text: "body", headline: "body" } }).success).toBe(false);
   });
 
   it("accepts a recipe whose template uses exactly its declared slots", () => {

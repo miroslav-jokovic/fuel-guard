@@ -5,14 +5,24 @@ const campaign: AdNameParts = {
   platform: "meta", level: "campaign", brief_source: "recruiting_opening", brief_ref: "op-1@v3",
   preset_key: "ALL", day: "2026-11-02", campaign_short: shortId("AB12CD34-0000-4000-8000-000000000001"),
 };
-const ad: AdNameParts = { ...campaign, level: "ad", preset_key: "P2", creative_short: "9f8e7d6c" };
+const ad: AdNameParts = { ...campaign, level: "ad", preset_key: "P2", creative_short: "9f8e7d6c", language: "es" };
+const form: AdNameParts = { ...campaign, level: "form", language: "en" };
 
 describe("ad names", () => {
   it("a campaign name reads as the opening, the preset and the day", () => {
     expect(buildAdName(campaign)).toBe("S360|META|campaign|recruiting_opening|op-1@v3|ALL|20261102|ab12cd34");
   });
 
-  it.each([campaign, ad, { ...campaign, platform: "simulator" as const, level: "adset" as const }])(
+  it("a form and an ad end with their language; nothing above them carries one", () => {
+    expect(buildAdName(form)).toBe("S360|META|form|recruiting_opening|op-1@v3|ALL|20261102|ab12cd34|EN");
+    expect(buildAdName(ad)).toBe("S360|META|ad|recruiting_opening|op-1@v3|P2|20261102|ab12cd34|9f8e7d6c|ES");
+    expect(buildAdName({ ...ad, language: "en" })).not.toBe(buildAdName(ad));
+    expect(() => buildAdName({ ...campaign, language: "en" })).toThrow(/language/);
+    expect(() => buildAdName({ ...form, language: undefined })).toThrow(/language/);
+    expect(() => buildAdName({ ...ad, language: "fr" as never })).toThrow(/language/);
+  });
+
+  it.each([campaign, ad, form, { ...campaign, platform: "simulator" as const, level: "adset" as const }])(
     "round-trips: parse(build(x)) is x (%#)", (parts) => {
       expect(parseAdName(buildAdName(parts))).toEqual(parts);
     },
@@ -23,6 +33,11 @@ describe("ad names", () => {
     "S360|META|campaign|recruiting_opening|op-1@v3|ALL|20261102",
     "S360|META|campaign|recruiting_opening|op-1@v3|ALL|20261102|ab12cd34|9f8e7d6c",
     "S360|META|ad|recruiting_opening|op-1@v3|P2|20261102|ab12cd34",
+    "S360|META|ad|recruiting_opening|op-1@v3|P2|20261102|ab12cd34|9f8e7d6c",
+    "S360|META|ad|recruiting_opening|op-1@v3|P2|20261102|ab12cd34|9f8e7d6c|es",
+    "S360|META|form|recruiting_opening|op-1@v3|ALL|20261102|ab12cd34",
+    "S360|META|form|recruiting_opening|op-1@v3|ALL|20261102|ab12cd34|9f8e7d6c|EN",
+    "S360|META|adset|recruiting_opening|op-1@v3|ALL|20261102|ab12cd34|EN",
     "S360|GOOGLE|campaign|recruiting_opening|op-1@v3|ALL|20261102|ab12cd34",
     "S360|META|campaign|recruiting_opening|op-1@v3|ALL|20261302|ab12cd34",
     "S360|META|campaign|recruiting_opening|op-1@v3|all|20261102|ab12cd34",
@@ -46,7 +61,7 @@ describe("ad names", () => {
     expect(() => buildAdName({ ...campaign, level: "adset", preset_key: "P2" })).toThrow(/preset_key/);
     expect(() => buildAdName({ ...ad, preset_key: AD_NAME_ALL_PRESETS })).toThrow(/preset_key/);
     expect(parseAdName("S360|META|campaign|recruiting_opening|op-1@v3|P2|20261102|ab12cd34")).toBeNull();
-    expect(parseAdName("S360|META|ad|recruiting_opening|op-1@v3|ALL|20261102|ab12cd34|9f8e7d6c")).toBeNull();
+    expect(parseAdName("S360|META|ad|recruiting_opening|op-1@v3|ALL|20261102|ab12cd34|9f8e7d6c|EN")).toBeNull();
   });
 
   it("a short id is the uuid's first 8 hex, lower case", () => {
