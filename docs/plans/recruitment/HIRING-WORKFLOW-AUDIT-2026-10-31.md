@@ -488,9 +488,12 @@ Each has a recommendation; none is mine to rule.
   (b) admin only; (c) every role that manages recruitment (the recruiter included — Q-WF4 (b)).
   Whichever is chosen is one line in `packages/shared/src/auth.ts`; every service-role path that
   signs a paper's URL already asks `canSeePaperImage`.
+  **Ruled by the owner, 2026-11-04: safety and recruiting, as a setting in Settings → Permissions** — §15.1.
 - **Carried, still open:** Q-OR7 (the drug-and-alcohol policy document is not on file — page 28's
   receipt points at nothing); PSP-PLAN Q10 (may PSP-derived data be kept after the hiring decision —
   governs whether suggestions may be stored or only shown).
+  **Q-OR7: the owner, 2026-11-04, "analyze and solve this properly"** — §15.2 (the policy text itself is
+  still the owner's to supply, Q-DAP1).
 
 ---
 
@@ -671,8 +674,12 @@ steps, someone ticks it (or files its paper), and the hire waits for it when the
 - **Q-CE1 — Rename or reorder the built-in steps?** (a) never — a carrier step placed after one is the
   only way to change the order *(recommended for now, D-CE4)*; (b) a label override per carrier, words
   only, the order kept; (c) full reorder (breaks the advised-order edges).
+  **Ruled by the owner, 2026-11-04: as proposed — (a).** The built-in steps keep their names and
+  order (D-CE4); a carrier step placed after one is the way to change the order. Nothing to build.
 - **Q-CE2 — More proofs?** A date ("hair test collected on"), a signed form, a value ("fuel card
   number"). Recommend waiting until a carrier asks for one; each is a column, not a redesign.
+  **Ruled by the owner, 2026-11-04: as proposed.** Two proofs (a tick, a filed document) until a carrier
+  asks for a third; each is then a column on `hiring_carrier_steps` and a branch in the step's drawer.
 - **Q-CE3 — Who edits the list?** CE2 uses the gate Settings → Recruiting already uses. Recommend
   keeping it; a separate permission is a matrix row nobody has asked for.
 
@@ -721,6 +728,7 @@ moment the applicant is served the form.
 - **Q-RS2 — Carrier-written questions** (a question the carrier types itself)? Not in this step: that is
   a per-carrier questionnaire definition — `questionnaireForApplicant`'s header already names it as an
   `organizations` column and an argument. Recommend waiting for a second carrier whose form differs.
+  **Ruled by the owner, 2026-11-04: add it in Settings as an option** — §15.3.
 - **Q-RS3 — Should the applicant's existing hole close too?** The client sends `questionnaire_version`
   and the API believes it, so a hand-made body naming v2 skips v3's required flags. D-RS4 closes it for
   every invitation stamped after S2 (the stamp decides, whatever version is named); invitations stamped
@@ -777,6 +785,8 @@ the Spanish (C4) is the page's only.
 - **Q-MT1 — Spanish messages?** An applicant who read the page in Spanish still gets English email and
   texts. Recommend: a later step that stamps the page's language on the invitation and sends the C4
   translations, with a Spanish wording per message (then a `language` column). Waits for the owner.
+  **Ruled by the owner, 2026-11-04: no Spanish messages for now; maybe later.** D-MT8 stands. The
+  capture errors served in English only (S2's departure) stay as they are under the same ruling.
 - **Q-MT2 — More messages in the catalogue?** The approval notice is the likeliest next one; the sign
   link and the drug-test site carry rules. Recommend adding a message when a carrier asks — each is a
   catalogue entry and a reader, no migration.
@@ -904,6 +914,93 @@ message."* Each step in his words, and what the product does now:
 | — | AI as the checking layer for PSP and MVR | MVR: AI read + rules (#1962, #1965). PSP: structured data, read by rules on the PSP drawer | Done |
 | — | Remove "How this is calculated" | Removed (D-OF7) | Done |
 | — | Leads page | The parallel chat's | Theirs |
+
+---
+
+## 15. The owner's rulings of 2026-11-04 — identity images, the drug-and-alcohol policy, carrier questions
+
+On 2026-11-04 the owner answered the open questions: **Q-WF4b** "basically safety and recruiting, but in
+Settings → Permissions we should add a permission setting for this"; **Q-MT1** no Spanish messages for now;
+**Q-OR7** "analyze and solve this properly"; **Q-CE1/CE2** as proposed; **Q-RS2** "we can add this in
+settings as an option". Q-MT1, Q-CE1 and Q-CE2 need nothing built (recorded at each question). The other
+three are §15.1–§15.3, each a migration and its reader in two merges.
+
+### 15.1 Who sees SSN-card and passport pictures — a permission the carrier sets (Q-WF4b)
+
+**Measured at `origin/main` `85ac2bc`.** The rule is `canSeeIdentityNumberImages(role)` =
+`canReadAllRestricted(role)` (`identityPaperImages.ts:25`), a bare role test: admin + safety manager.
+Callers take `req.auth.role` only (`evidence/routes/compliance.ts:269,368,400`,
+`recruiting/applicantDocuments.ts:134-150`); the web renders the API's `imageWithheld`. Settings →
+Permissions edits section cells (0291) and screens (0296) and nothing else — no capability is editable.
+
+**Why this is not D-PERM9's territory.** D-PERM9 keeps the RESTRICTED readers (drug and alcohol results,
+Clearinghouse, PSP, employer inquiries — §40.321, §382.401, §391.53) bare role tests for ever, because the
+regulation names who reads them. No regulation names who may see a photograph of a Social Security card or a
+passport: that is the carrier's privacy choice, which is why the owner wants it a setting. The restricted
+readers stay as they are; Q-WF4b's provisional derivation from them is what goes.
+
+| ID | Decision | Why |
+|---|---|---|
+| D-IDP1 | A **named permission** "See SSN-card and passport pictures", one switch per role in Settings → Permissions, in its own card under the sections. Stored in a new table `org_role_permissions (org_id, role, permission, allowed, updated_by, updated_at)`, primary key `(org_id, role, permission)`; the permission key is shape-checked, not listed (§10 D-CE3's rule; the catalogue is `EDITABLE_PERMISSIONS` in `packages/shared`). RLS on, no client policies. | A section cell is the wrong unit (it is not a page), and a column per permission on another table is a schema change per switch. One table, sparse like 0291: no row = the shipped default. |
+| D-IDP2 | **Shipped default = the owner's ruling: admin, safety manager, recruiter.** Admin is locked on (the admin role is not editable, D-PERM7); every other role starts off and may be switched on. | "Basically safety and recruiting." |
+| D-IDP3 | **Read at request time from the table, not from the JWT.** The two readers (compliance documents, the applicant's Documents section) load the org's rows once per request; a failed read answers the shipped default. | A claim would wait for the next token refresh; a picture withheld or shown a minute late is a privacy bug either way, and the read is one indexed row set. |
+| D-IDP4 | The admin edits it (the Permissions page is admin-only today); every change writes an audit row naming the role, the permission and the new value. | Same gate as every other cell on that page. |
+
+**Build.** **IDP1** — migration: `org_role_permissions`. **IDP2** — the reader: `EDITABLE_PERMISSIONS`,
+`effectivePermission(role, key, rows)` in shared, `canSeePaperImage(kind, allowed)`, `GET/PUT
+/api/role-permissions`, the card on Settings → Permissions, both readers switched.
+
+### 15.2 The drug-and-alcohol policy the driver signs for (Q-OR7)
+
+**Measured.** Page 28 of the carrier's packet (`packet/assets/application-11.pdf`) is a header, the title
+"ALCOHOL AND DRUG ABUSE POLICY", a "sample only … obtain legal counsel" disclaimer, and Name / Signature /
+Date. The driver signs `p28` ("The alcohol and drug abuse policy") on that page in the packet walk
+(`PacketCeremony.vue`); the walk shows the page and nothing else. **The policy itself is nowhere** — not in
+the packet, not in the handbook (ORIENTATION-PLAN Q-OR7), not on file.
+
+**What the law asks** (49 CFR §382.601): (a) the carrier gives every driver, before the first test and on
+hire, materials explaining Part 382 and its own policy; (b) eleven required contents, first among them the
+person designated to answer drivers' questions; (c) any stricter company rule marked as the carrier's own
+authority; (d) **each driver signs a statement certifying that he or she received a copy**, and the carrier
+keeps the original. So today the file holds a §382.601(d) certificate for materials the product cannot
+show were given — the receipt an auditor reads first and the one thing it cannot prove.
+
+| ID | Decision | Why |
+|---|---|---|
+| D-DAP1 | **The carrier files its written policy once, in Settings → Recruiting → "Drug and alcohol policy"**, as a PDF, with the name and phone of the person designated to answer questions (§382.601(b)(1)). Each upload is a **new version**; the newest is in force; nothing is replaced or deleted. Stored as a `documents` row (`subject_type = 'organization'`, new kind `drug_alcohol_policy`) through evidence's `registerDocument`, and a row in a new append-only `drug_alcohol_policies` table (org, document id, sha256, designated person, who, when). | The product does not write the policy (D-PKT11: the carrier's text is counsel's work), and Part 382 is the carrier's programme — usually its consortium's template. Versions, because a driver signed for the one in force that day. |
+| D-DAP2 | **The driver is given the policy on p28's screen**: "Read the drug and alcohol policy (PDF)" opens the in-force version on the applicant's own token, and the Sign button stays off until it has been opened. The same PDF is sent to the applicant's email when the mark is made, so they keep a copy. | §382.601(a) is "provide", (d) is "received a copy". Opened on the screen and kept by email is both. |
+| D-DAP3 | **The mark records which policy it receipts**: `application_packet_marks.policy_document_id` (+ its sha256), written by `record_packet_mark` for `p28` only. The filed packet's page 28 prints "Policy received: version of {date}, {sha256 short}", and the policy PDF is filed on the driver as `drug_alcohol_policy` beside the application. | A receipt that names its document is the only kind an auditor can check. |
+| D-DAP4 | **No policy on file → p28 cannot be signed** (409 `drug_alcohol_policy_missing`, and the walk says "Your company has not put its drug and alcohol policy in the system yet — ask the office"). The office sees it before it happens: Send for signing warns, and Settings → Recruiting shows the missing policy as the top item. | Signing a receipt for nothing is exactly the defect. ⚠ **Consequence:** once the reader is on production, no packet can be completed until the owner uploads the policy — so the owner uploads it on staging and on production BEFORE the release that carries DAP2. |
+| D-DAP5 | A packet whose signing opened before DAP2 keeps today's behaviour for its p28 if already signed; an unsigned p28 follows D-DAP4. | A filed mark is never rewritten. |
+
+**Open, the owner's:** Q-DAP1 — **the policy itself.** The carrier's written policy, or the
+consortium/C-TPA that supplied it (they issue one as part of membership). Nothing in the product can be
+signed at p28 until it is uploaded.
+
+**Build.** **DAP1** — migration: kind `drug_alcohol_policy` on `documents`, `drug_alcohol_policies`,
+`application_packet_marks.policy_document_id` + `policy_sha256`, `record_packet_mark` widened (defaulted
+arguments, so code served before DAP2 keeps working). **DAP2** — the reader: settings upload, the
+token-served PDF, the walk's gate, the stamp on the mark, the filed page and copy, the warning.
+
+### 15.3 Questions the carrier writes itself (Q-RS2)
+
+**Measured.** The questionnaire is code (`SILVICOM_DRIVER_V3`); a definition is immutable once answered and
+versioned by `id@version`; the API's checks are built at start-up from v3; the filed PDF skips a
+questionnaire it cannot look up (`questionnairePage.ts:83`); the office drawer reads the served definition,
+not the application's.
+
+| ID | Decision | Why |
+|---|---|---|
+| D-CQ1 | Settings → Recruiting → "The application form" gets **"Your own questions"**: a carrier adds a question with its wording, an optional hint, a kind (short answer, long answer, yes/no, one of a list, date, number) and its choices, and whether it is required. Stored in `recruiting_carrier_questions`, ordered by `position`, **retired, never deleted**; wording, kind and choices are **frozen** once saved (a different question is a new row). | §10's pattern (D-CE5): an answer must stay readable beside exactly the question asked. |
+| D-CQ2 | **The set is stamped on the invitation at the first Send** (`application_invitations.carrier_questions jsonb`: id, wording, hint, kind, choices, required) — the twin of D-RS3. The applicant answers the stamp; the API validates against the stamp, never the client's copy; the filed PDF, the office drawer and the review print the stamp. | A question added on Tuesday must not refuse Monday's applicant, and a question retired later must still print on the application that asked it. |
+| D-CQ3 | Answers live in the payload as `carrier_answers` (question id → answer), validated per kind from the stamp; a required one has no skip; an optional one offers "I'd rather not say". | Same rules as the built-in questions (D-RS5). |
+| D-CQ4 | Shown on the questions screen after the built-in ones, **in the carrier's words on the Spanish page too** (Q-MT1's ruling: no translation now); the page marks them neither. | The carrier wrote them in one language. |
+| D-CQ5 | At most 20 live questions, wording ≤ 300, hint ≤ 300, ≤ 20 choices of ≤ 80. | Bounded like every other carrier list. |
+
+**Build.** **CQ1** — migration: `recruiting_carrier_questions` (CQ010 never deleted, CQ011 frozen columns),
+`application_invitations.carrier_questions`, `send_application_invitation` widened with a defaulted
+`p_carrier_questions`. **CQ2** — the reader: contract, settings list, stamp at Send, the wizard, validation
+at submit, the review, the office drawer and the filed PDF.
 
 ---
 
@@ -1166,3 +1263,6 @@ message."* Each step in his words, and what the product does now:
   by step. Step 3's "same viewer as vehicles and trailers" was still a new-tab link for a filed scan; it now opens
   in `FileGallery` (this merge). Drug-test ordering measured against the office's real orders: MEDSTOP-PLAN
   §7A.21 (never switched on; one order in three cancelled; the time is a 4 pm deadline; questions Q-MSO1–4).
+- **2026-11-04** — The owner ruled Q-WF4b, Q-MT1, Q-OR7, Q-CE1/CE2 and Q-RS2. §15 written: identity pictures as
+  a carrier permission (IDP1/2), the §382.601 policy filed, shown and named by the p28 receipt (DAP1/2), and the
+  carrier's own questions stamped at Send (CQ1/2). Q-DAP1 (the policy text) is the owner's.
