@@ -70,9 +70,9 @@ export const HANDBOOK_SOURCE_BLOCKS = blocks as readonly HandbookBlock[];
  */
 export function correctHandbook(
   source: readonly HandbookBlock[],
-  register: readonly HandbookSpelling[] = HANDBOOK_SPELLING,
+  register: readonly Pick<HandbookSpelling, "wrong" | "right" | "times">[] = HANDBOOK_SPELLING,
 ): HandbookBlock[] {
-  const hits = new Map<HandbookSpelling, number>();
+  const hits = new Map<(typeof register)[number], number>();
   const fix = (text: string): string => {
     let out = text;
     for (const e of register) {
@@ -94,12 +94,14 @@ export function correctHandbook(
       };
     }
     if (b.k === "sign") return { ...b, fields: b.fields.map((f) => ({ ...f, label: fix(f.label) })) };
+    if (b.k === "item") return { ...b, runs: runs(b.runs) };
+    if (b.k === "grid") return { ...b, rows: b.rows.map((r) => r.map(fix)) };
     return b;
   });
   const wrong = register.filter((e) => (hits.get(e) ?? 0) !== (e.times ?? 1));
   if (wrong.length > 0) {
     throw new Error(
-      `handbook spelling register does not fit the text: ${wrong
+      `correction register does not fit the text: ${wrong
         .map((e) => `"${e.wrong}" landed ${hits.get(e) ?? 0}× (expected ${e.times ?? 1})`)
         .join("; ")}`,
     );
