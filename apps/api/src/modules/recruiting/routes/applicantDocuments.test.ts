@@ -59,6 +59,8 @@ const seed = (permissions: Record<string, unknown>[] = []): SupabaseRecorder =>
         doc("doc-mark", "other", { content_type: "image/png" }),
         doc("doc-pass", "passport", { uploaded_by: "u-office", created_at: "2026-10-31T10:00:00Z" }),
         doc("doc-mvr", "mvr"),
+        // §15.2 D-DAP3: the policy they signed for, filed with the packet — on their list, with no slot.
+        doc("doc-dap", "drug_alcohol_policy", { content_type: "application/pdf", created_at: "2026-10-29T10:00:00Z" }),
         doc("doc-stranger", "passport", { org_id: OTHER }),
       ]),
       audit_logs: [],
@@ -113,6 +115,7 @@ describe("the applicant's documents on the record (§9 P9)", () => {
       ["cap-ssn", "ssn_card", "applicant", null, true],
       ["doc-pass", "passport", "office", "Dana Office", false],
       ["doc-cdl", "cdl_front", "applicant", null, false],
+      ["doc-dap", null, "applicant", null, false],
     ]);
     // The admin holds both restricted halves, so the SSN card's picture is signed for them.
     expect(documents.find((d) => d.id === "cap-ssn")).toMatchObject({ imageWithheld: false, url: `https://signed.test/${ORG}/${INVITE}/cap-ssn` });
