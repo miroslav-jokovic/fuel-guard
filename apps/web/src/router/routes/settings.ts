@@ -71,6 +71,15 @@ export const settingsRoutes: RouteRecordRaw[] = [
     meta: { requiresAuth: true, title: "Recruiting", parent: "/settings" },
   },
   {
+    // Settings › Ads control (ADS-AGENT-PLAN §4b, E1). No section meta: `admin.recruiting.ads` in the
+    // surface catalogue says `recruitment: view`, as Recruiting's own settings does, and the guard reads it.
+    path: "/settings/recruiting/ads",
+    name: "ads-control-settings",
+    component: () => import("@/pages/AdsControlPage.vue"),
+    meta: { requiresAuth: true, title: "Ads control", parent: "/settings" },
+  },
+
+  {
     path: "/settings/thresholds",
     name: "thresholds",
     component: () => import("@/pages/ThresholdsPage.vue"),

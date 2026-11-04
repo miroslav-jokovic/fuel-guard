@@ -574,6 +574,11 @@ exports[`the route table survives being split by area > resolution 1`] = `
     "url": "/settings/recruiting",
   },
   {
+    "name": "ads-control-settings",
+    "params": {},
+    "url": "/settings/recruiting/ads",
+  },
+  {
     "name": "efs-soap",
     "params": {},
     "url": "/settings/efs-soap",
@@ -1506,6 +1511,16 @@ exports[`the route table survives being split by area > route table 1`] = `
     },
     "name": "recruiting-settings",
     "path": "/settings/recruiting",
+    "redirect": null,
+  },
+  {
+    "meta": {
+      "parent": "/settings",
+      "requiresAuth": true,
+      "title": "Ads control",
+    },
+    "name": "ads-control-settings",
+    "path": "/settings/recruiting/ads",
     "redirect": null,
   },
   {
