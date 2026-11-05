@@ -202,7 +202,7 @@ There are 22 features. For each one:
 
 ### F11 Driver qualification (DQF)
 - **Pages:**
-  - `/compliance` → `CompliancePage` (200)
+  - `/compliance` → `CompliancePage` (200): **being retired into Drivers**, `safety-dqf/DQ-INTO-DRIVERS-PLAN.md`
   - Sections inside `DriverDetailPage`
 - **Components:** `features/compliance`: QualificationFleetTable, QualificationSection, RequirementTable, RequirementDrawer, CertificationHistory, DocumentDropCard, ExportHistory, QualificationSeedPanel
 - **API:** `/api/compliance` · module `evidence`

@@ -1,0 +1,191 @@
+# Driver Qualification folds into Drivers — plan (2026-11-05)
+
+**Status: PLANNED.** Owner ruling 2026-11-05: *"proceed as proposed and suggested"*. Every
+recommendation in §3 and both questions put that day (Q-DD1, Q-DD2) are accepted.
+
+## 1. Why
+
+The owner's words, 2026-11-05: the Drivers page and its table already upload and preview a driver's
+papers and already carry the expiry columns, so the Driver Qualification page is unnecessary, and
+other pages that need a driver's file should land on Drivers.
+
+That is correct, and most of it has already happened, one step at a time, without anyone retiring
+the page it made redundant:
+
+| What `/compliance` (`CompliancePage`) does | Already on Drivers? |
+| --- | --- |
+| One driver's §391.51 file | **Yes.** `/compliance/:id` has redirected into `/drivers/:id?section=qualification` since D1/D2 |
+| File column, `FileGallery`, `FileUploadDialog` (7ce0e89, 2026-11-03) | **Yes.** Same components on both lists |
+| CDL / Medical / Hazmat expiry columns | **Yes.** Only on Drivers |
+| File and Due filters | **Yes.** Same shared predicate (`matchesDqFilters`, `fileFilterOptions`) |
+| Dashboard "Driver files" widget | Already opens `/drivers?file=…` |
+| Hiring's "hired" artifact, a unit's driver link (`UnitRelationStrip`) | Already open `/drivers/:id?section=qualification` |
+| Five attention tiles | No |
+| Worst-file-first order; a row expanding to its outstanding items | No. The expiry columns are not sortable |
+| **Fleet binder** (select up to `DQ_EXPORT_MAX_DRIVERS` = 25) | **No.** Only the one-driver binder on the driver page |
+| **Exports ledger** (`ExportHistory`) | **No** |
+| **Set up files** (`QualificationSeedPanel`) | No |
+| **Carrier records** (`CertManager` on the organization) | **No** |
+
+The roster programme already asked this question. On 2026-08-31, R8 (`roster/DRIVER-ROSTER-PLAN.md`,
+"What shipped") kept the page for exactly five things the roster could not do: the seed panel, the
+exports ledger, carrier `CertManager`, the attention counts, and multi-driver binder selection. That
+list is this plan's scope: DD1 to DD3 give each of the five a home (or, for the seed panel, show it is
+no longer needed), and DD4 is R8's retirement on R8's own terms.
+
+Two lists answering "which drivers are behind on their file" is the drift D-DQ6 was written to
+forbid: today they agree only because both import the same predicate, and the 11/03 work had to be
+built twice (once per list) to stay that way.
+
+## 2. Measurements (production, 2026-11-05)
+
+- **A1 — permission overrides on the two surfaces.** One row in `org_role_surface_access`: Silvicom
+  Inc, `dispatcher`, `safety.driver-qualification`, `allowed = false`, set 2026-10-15. No rows on
+  `fleet.drivers`, none in `user_surface_access`. So that company's dispatchers already see the
+  Drivers list, its File column and its expiry columns; the override hid a page, not the data. The
+  binder and the exports ledger are refused to a dispatcher by the API (`roster: manage` and
+  `safety: view`; a dispatcher holds `roster: view`, `safety: none`), so moving them onto Drivers
+  hands a dispatcher nothing new. → Q-DD3.
+- **A2 — drivers whose file is empty** (`state = not_started`: no live certification and no
+  qualification record, active/on-leave, non-EFS). Silvicom Inc: **0 of 183**. The 3-driver test org: 2.
+  "Set up files" has nothing left to set up; the synced CDL and medical credentials seed every file.
+  **But 183 of 183 drivers have no scanned paper at all.** The work the safety manager
+  actually has is papers, not seeding. → §6.
+- **Binders ever built** (`dq_exports`): **0**. Nothing in the ledger to keep findable.
+- **Carrier records** (`certifications` / `documents` where `subject_type = 'organization'`): **0**.
+  Insurance and IFTA count toward every tractor's file (worst state wins), so every truck
+  reads "missing" on those two until the carrier files them — and the only screen that files them
+  is the one this plan retires.
+
+## 3. Decisions
+
+**D-DQ16 · Drivers is the one driver-file list.** `/compliance` stops being a page. It redirects to
+DD1's built-in view (`/drivers?file=attention&sort=soonest`). That is not identical to the old
+default, which listed every driver; it is the drivers someone came to `/compliance` to act on, with
+"Clear filters" one click from the rest. `/compliance/:id` keeps its
+redirect. It is load-bearing: notifications already sent and the PDFs of binders (none yet, but every
+future one) cite it.
+
+**D-DQ17 · Nothing moves until its new home exists.** The retirement is the last step, and it deletes
+only what the earlier steps have already re-homed. A page removed before its binder, ledger and
+carrier records have somewhere to live strands them. The order in §4 is that rule.
+
+**D-DQ18 · Counts live in the File filter, not in tiles** (Q-DD2 (a)). Each option reads "Expired (4)",
+counted with the same `matchesFileFilter(fileChip(row), f)` the filter applies, so a count and the
+rows it reveals cannot disagree. No tiles on Drivers: the dashboard's "Driver files" widget already
+shows the counts and opens the filtered list, and a third rendering of the same five numbers is a copy.
+
+**D-DQ19 · The fleet binder moves to the Drivers table.** Row checkboxes and a "Build audit binder" bar,
+shown only to a reader with `roster: manage` (the API's own gate, read from the matrix, not restated).
+The restricted-pages opt-in keeps D-DQ15's rule (`session.restrictedAccess`). The exports ledger opens
+from an "Audit binders" header button into a `SlideOver`, shown only with `safety: view`. Both come
+out of `QualificationFleetTable` into components the Drivers page composes. `DriversPage.vue` is at
+399/500 lines, so none of it is written inline.
+
+**D-DQ20 · Carrier records become their own Settings screen** (Q-DD1 (a), with the shape corrected
+below). New surface `safety.carrier-records`, path `/settings/carrier-records`, `gate: section("roster")`,
+`reachedFrom: "admin.settings"`. That is the pattern "Who can inspect" and "Printers & scanners"
+already use for a Settings card owned by a department.
+- **Deviation from what the owner approved, and why:** the proposal said "a section of Settings ›
+  Organization opened to the roster role". `/settings/org` is ONE surface with ONE gate,
+  `manage("settings")`, and a safety manager holds `settings: none`. One section of a page cannot
+  carry a different permission than the page, so "a section open to roster" would mean opening the
+  whole Organization screen to every roster manager. A separate card beside it delivers what the
+  owner asked for (the safety manager keeps filing these) without that side effect.
+- **Q-SET2 tension, decided here:** Q-SET2 (2026-09-30) makes every grantable Settings screen
+  admin-only by default (`startsOnFor: []`). Applied literally, the safety manager loses carrier
+  records, which is exactly what Q-DD1 rules against. The owner's 2026-11-05 ruling is the later and
+  more specific of the two, so this surface carries `startsOnFor: ["fleet_manager", "safety_manager"]`,
+  the two roles that hold `roster: manage` and file these today. The surface's catalogue comment cites
+  both rulings.
+
+**D-DQ21 · "Set up files" is deleted, not moved** (A2: 0 of 183 drivers need it). `QualificationSeedPanel`
+is removed with the page. That leaves the API's bulk-seed route (`routes/compliance.ts`, H-CS) and
+shared `complianceSeed.ts` with no caller; DD4 removes them too, since an endpoint nothing calls is
+surface nobody watches. A future bulk import (§6) is a paper upload, not this form.
+
+**D-DQ22 · The expanding row is not rebuilt.** A driver's outstanding items appear in the File cell's
+hover card (it already lists papers) and in `FileUploadDialog`'s `outstanding` list. An expander would
+make the Drivers table a second qualification table, the thing this plan removes.
+
+## 4. Steps — each one PR, in this order
+
+### DD1 — Drivers answers "who is behind, soonest first"
+
+- CDL / Medical / Hazmat expiry columns sortable. The value lives on the overview row, not on
+  `Driver`, so the sort reads a derived key (`dqSoonest` / the per-requirement date), not a new
+  field on the driver query.
+- A "Soonest due" sort, worst state first then nearest date: `QualificationFleetTable`'s
+  `worst`/`soonest` rank moved to `@silvicom/shared` so the two lists rank identically until DD4
+  deletes the old one.
+- File filter options carry counts (D-DQ18).
+- File cell hover card lists outstanding items (D-DQ22).
+- A built-in saved view "Qualification: needs attention" (`file=attention&sort=soonest`).
+
+**Done when:** a safety manager can open Drivers, choose the view, and see the same drivers in the
+same order `/compliance` shows, with counts beside every File option. Tests pin the shared rank and
+the count = filtered-rows equality.
+
+### DD2 — Binder and exports on Drivers
+
+- Selection column + binder bar (D-DQ19), cap and toast copy carried over from `QualificationFleetTable`.
+- "Audit binders" header button → `SlideOver` with `ExportHistory`.
+- After a build, the panel opens on the new job instead of switching tabs.
+
+**Done when:** a binder is built from Drivers on staging, appears in the panel and downloads; a
+dispatcher login sees neither control (`staging-test-members`).
+
+### DD3 — Carrier records screen
+
+- Surface `safety.carrier-records` (D-DQ20), route, Settings directory card, `CertManager
+  subject-type="organization"` as the screen's body.
+- A callout on the screen while insurance or IFTA is missing: those two hold every truck's file at
+  "missing" (§2).
+
+**Done when:** a safety manager reaches it from Settings on staging, files an insurance record, and a
+tractor's File cell on Vehicles stops counting insurance as missing.
+
+### DD4 — Retire the page
+
+- Delete `CompliancePage.vue`, `QualificationFleetTable.vue` (+ test), `attentionStrip.ts` (+ test),
+  `QualificationSeedPanel.vue`, `compliancePageTilesInUrl.test.ts`; `/compliance` → redirect (D-DQ16).
+- `surfaceCatalogue`: remove `safety.driver-qualification` and its `.detail` child; `navIcons.ts` entry.
+  An org's stored `surface_key` for a removed key grants and denies nothing (0296's header), so the
+  Silvicom dispatcher row is inert and is left alone.
+- `notificationRoute.ts`: `dq_*` → `/drivers/:id?section=qualification` directly.
+- `DriverRosterTable` kebab: drop "Open qualification file…" (duplicates opening the driver).
+- `HazmatLoadDetailPage`: "Fix the record in Compliance" → a link to the driver's qualification section.
+- `DESIGN-SYSTEM-CONTRACT.md` cites `CompliancePage.vue` as an example (§ in-cell link, kebab note);
+  repoint those to live files in the same PR.
+- `FEATURE-INVENTORY.md` F11: page line updated.
+
+**Done when:** `/compliance` and `/compliance/:id` both land on Drivers; `routeReachability`,
+`routeTable` and `complianceRedirect` tests updated, not deleted; no file imports a removed component;
+`lint:surfaces` / `lint:capabilities` green.
+
+## 5. Open questions
+
+- **Q-DD1 — where do carrier records live?** ANSWERED 2026-11-05: (a) Settings, open to the roster role.
+  Shape corrected to its own Settings screen, see D-DQ20.
+- **Q-DD2 — tiles or counts?** ANSWERED 2026-11-05: (a) counts inside the File filter (D-DQ18).
+- **Q-DD3 — should Silvicom's dispatchers keep seeing File and expiry columns on Drivers?** OPEN, not
+  blocking. Their 2026-10-15 override hid the qualification *page*; the same facts have been on Drivers
+  for them throughout. Candidates: (a) leave as is: a dispatcher legitimately needs "is this driver's
+  medical expired" before dispatching, and the API already withholds restricted papers from them;
+  (b) hide the File column and the three expiry columns for roles without `safety: view`.
+  **Recommendation: (a).** Ask the owner before DD4 ships, since DD4 is when the override stops
+  having anything to hide.
+
+## 6. Found while planning, not in this plan's scope
+
+**183 of 183 drivers have no scanned paper.** The file states are carried entirely by synced
+credentials (Samsara/McLeod CDL and medical dates). That is Q6 of `roster/DRIVER-ROSTER-PLAN.md` §6 ("a synced
+credential reads `current` with no scan on file"), now measured fleet-wide. The bulk upload that
+already files truck and trailer papers (UNIT-FILES-PLAN UF7) is the tool for it. Whether driver papers
+come from McLeod's imaging the way unit papers did (1,359 filed on 2026-10-20) is the first thing to
+check. Recorded here so it is not lost; it is its own plan.
+
+## 7. Progress log
+
+- 2026-11-05: plan written; A1, A2, binder and carrier-record counts measured on production (§2).
+  Owner accepted §3 and Q-DD1/Q-DD2. Next: DD1.

@@ -509,6 +509,10 @@ against the roster grid + saved views. Some are genuinely fleet-wide queues that
 cannot replace; some are a saved view wearing a page. Decide **per page, with the inbound links
 enumerated**, and redirect rather than delete.
 
+> **2026-11-05:** R8 kept `CompliancePage` for five things this roster lacked (see "What shipped").
+> The owner has since ruled the page redundant; `safety-dqf/DQ-INTO-DRIVERS-PLAN.md` re-homes those
+> five and then retires it on R8's own terms (inbound links enumerated, redirect not delete).
+
 **Done when:** every retired path 301s to its replacement; `notificationRoute.ts` still resolves
 every category it claims to; no bookmark 404s.
 
