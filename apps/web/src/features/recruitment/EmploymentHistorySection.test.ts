@@ -42,6 +42,9 @@ vi.mock("@/features/recruitment/useEmploymentGaps", () => ({
   useRecordEmploymentGap: mutation(gapMutations.record),
   useWithdrawEmploymentGap: mutation(gapMutations.withdraw),
 }));
+// HW6b: the PSP read, as the tests below set it (its gate and URL are pinned in OfficeJobsSection.test.ts).
+const psp = ref<unknown>(undefined);
+vi.mock("@/composables/usePspEmployment", () => ({ usePspEmploymentQuery: () => ({ data: psp }) }));
 const EmploymentHistorySection = (await import("./EmploymentHistorySection.vue")).default;
 
 const SlideOverStub = {
@@ -58,6 +61,7 @@ const press = async (w: ReturnType<typeof section>, label: string) => {
 beforeEach(() => {
   setActivePinia(createPinia());
   rows.value = [];
+  psp.value = undefined;
   for (const m of Object.values(mutations)) m.mockReset().mockResolvedValue({});
 });
 
@@ -193,5 +197,63 @@ describe("HW5c: gaps after signing", () => {
     expect(box.get("[data-gap-recorded] p").classes()).toContain("line-through");
     expect(box.text()).toContain("Not explained yet.");
     expect(box.findAll("button").some((b) => b.text() === "Withdraw")).toBe(false);
+  });
+});
+
+describe("HW6b: the PSP record's suggestions on the record", () => {
+  const SUGGESTIONS = {
+    report: { requestId: "psp-1", pulledOn: "2026-08-20" },
+    unlisted: [
+      { usdotNumber: "513264", carrierName: null, firstSeen: "2024-09-11", lastSeen: "2024-11-15", inspections: 0, crashes: 2, owedTo: "b11" },
+    ],
+    employers: [{ key: ROW.id, index: 0, match: "corroborated", inspections: 2, crashes: 0 }],
+    inspectionWindowStart: "2023-08-20",
+    crashWindowStart: "2021-08-20",
+  };
+
+  it("names the carrier PSP saw and marks the listed job it backs up", async () => {
+    rows.value = [ROW, { ...ROW, id: "other", employer_name: "Other" }];
+    psp.value = SUGGESTIONS;
+    const w = section();
+    await flushPromises();
+    expect(w.get('[data-testid="psp-suggestions"]').text()).toContain(
+      "PSP shows 2 crashes under DOT 513264, between 09/11/2024 and 11/15/2024 — not on their list.",
+    );
+    expect(w.get('[data-testid="psp-suggestions"]').text()).toContain("3 to 10 years ago");
+    expect(w.get(`[data-job="${ROW.id}"] [data-seen-in-psp]`).text()).toBe("Seen in PSP");
+    expect(w.find('[data-job="other"] [data-seen-in-psp]').exists()).toBe(false);
+    w.unmount();
+  });
+
+  it("saves a carrier added from PSP as found in the PSP record, and the next plain add as the office's", async () => {
+    psp.value = SUGGESTIONS;
+    const w = section();
+    await flushPromises();
+    await w.get('[data-psp-carrier="513264"]').findAll("button").find((b) => b.text() === "Add as a job")!.trigger("click");
+    await flushPromises();
+    expect((w.get("#record-employer-usdot_number").element as HTMLInputElement).value).toBe("513264");
+    await w.find("#record-employer-employer_name").setValue("Legal Name Trucking");
+    await press(w, "Save this job");
+    expect(mutations.add.mock.calls[0]![0]).toMatchObject({
+      source: "psp_discovery", usdot_number: "513264", started_on: "2024-09-11", ended_on: "2024-11-15",
+      employer_name: "Legal Name Trucking",
+    });
+
+    await press(w, "Add employer");
+    await w.find("#record-employer-employer_name").setValue("Werner");
+    w.findAllComponents({ name: "AppDateField" }).find((d) => d.html().includes('id="record-employer-started_on"'))!
+      .vm.$emit("update:modelValue", "2023-03-01");
+    await flushPromises();
+    await press(w, "Save this job");
+    expect(mutations.add.mock.calls[1]![0]).toMatchObject({ source: "manual", employer_name: "Werner" });
+    w.unmount();
+  });
+
+  it("draws nothing without a machine-readable report", async () => {
+    psp.value = { report: null, unlisted: [], employers: [], inspectionWindowStart: null, crashWindowStart: null };
+    const w = section();
+    await flushPromises();
+    expect(w.find('[data-testid="psp-suggestions"]').exists()).toBe(false);
+    w.unmount();
   });
 });
