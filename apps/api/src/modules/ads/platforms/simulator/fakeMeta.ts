@@ -3,6 +3,8 @@ import type { AddressInfo } from "node:net";
 import { META_GRAPH_VERSION } from "../meta/graphClient.js";
 import { FakeAds } from "./fakeMetaAds.js";
 import { FakeAdSets } from "./fakeMetaAdSets.js";
+import { FakeCampaigns, listByName, type FakeCampaign } from "./fakeMetaCampaigns.js";
+import { FaultBook, faultAnswer, type FakeMetaFault } from "./fakeMetaFaults.js";
 import { FakeForms } from "./fakeMetaForms.js";
 import { FakeLeads } from "./fakeMetaLeads.js";
 import { FakeRules } from "./fakeMetaRules.js";
@@ -10,6 +12,9 @@ import { accountInsights } from "./fakeMetaInsights.js";
 import { objectInsightsRoute } from "./fakeMetaInsightsHourly.js";
 import { FakeWebhooks } from "./fakeMetaWebhooks.js";
 import { graphError, pick } from "./fakeMetaShapes.js";
+
+export type { FakeCampaign } from "./fakeMetaCampaigns.js";
+export type { FakeMetaFault } from "./fakeMetaFaults.js";
 
 /**
  * FakeMeta — an in-process `node:http` server that answers the Marketing API calls our Meta adapter
@@ -59,7 +64,8 @@ import { graphError, pick } from "./fakeMetaShapes.js";
  *   https://developers.facebook.com/docs/marketing-api/audiences/reference/basic-targeting/
  *
  * ── NOT HERE YET, ON PURPOSE ───────────────────────────────────────────────────────────────────────
- * Instant Forms live in `fakeMetaForms.ts` (B2b), Automated Rules in `fakeMetaRules.ts` (B3b). Leads in `fakeMetaLeads.ts` (B4a), the
+ * Campaigns live in `fakeMetaCampaigns.ts` and the faults in `fakeMetaFaults.ts` (split out at Publisher L3, shared with the
+ * contract suite's fault proxy). Instant Forms live in `fakeMetaForms.ts` (B2b), Automated Rules in `fakeMetaRules.ts` (B3b). Leads in `fakeMetaLeads.ts` (B4a), the
  * signed `leadgen` webhook and `subscribed_apps` in `fakeMetaWebhooks.ts` (B4b), hourly and ad-set insights in `fakeMetaInsightsHourly.ts` (B5a/b), images, creatives and ads in `fakeMetaAds.ts` (B2c). Each joins
  * with the step that first calls it, so every endpoint here has a caller whose contract test reads it.
  *
@@ -70,41 +76,6 @@ import { graphError, pick } from "./fakeMetaShapes.js";
 
 /** The client's version, read, not restated (B1a): the fake answers only the version production calls. */
 export const FAKE_META_VERSION = META_GRAPH_VERSION;
-
-export type FakeMetaFault =
-  /** 80004 / 2446079, with the usage header at 100 %. */
-  | { kind: "throttle"; regainMinutes?: number }
-  /** code 1 or 2, HTTP 500. */
-  | { kind: "temporary"; code?: 1 | 2 }
-  /** 190 / 463: the token expired or was revoked. */
-  | { kind: "token_expired" }
-  /** Holds the response until the caller gives up (the request is never answered). */
-  | { kind: "hang" }
-  /** The act HAPPENS, then the answer is an error — the half-created object the adapter must resume. */
-  | { kind: "applied_then_temporary" }
-  /** `{ success: true }` and nothing changes — why the adapter answers from a read-back, not the 200 (B3). */
-  | { kind: "accepted_not_applied" };
-
-interface FaultRule {
-  method: "GET" | "POST";
-  /** Matches the path after the version, e.g. `act_1/campaigns` or a campaign id. */
-  path: RegExp;
-  fault: FakeMetaFault;
-  times: number;
-}
-
-export interface FakeCampaign {
-  id: string;
-  account_id: string;
-  name: string;
-  objective: string | null;
-  status: "ACTIVE" | "PAUSED" | "DELETED" | "ARCHIVED";
-  special_ad_categories: string[];
-  /** Read back as sent; Meta defaults it to the account's tax country when absent (Special Ad Category page). */
-  special_ad_category_country: string[] | null;
-  spend_cap: string | null;
-  daily_budget: string | null;
-}
 
 export interface FakeMetaAccount {
   id: string;
@@ -144,16 +115,13 @@ export interface FakeMetaPage {
 /** The scopes the workflow's §6 click-path tells the owner to grant — the fake's default user has them. */
 const DEFAULT_PERMISSIONS = ["ads_management", "ads_read", "leads_retrieval", "pages_manage_metadata", "pages_read_engagement", "pages_show_list"];
 
-const STATUSES = ["ACTIVE", "PAUSED", "DELETED", "ARCHIVED"] as const;
-const SPECIAL = ["NONE", "EMPLOYMENT", "HOUSING", "CREDIT", "ISSUES_ELECTIONS_POLITICS", "ONLINE_GAMBLING_AND_GAMING", "FINANCIAL_PRODUCTS_SERVICES"];
-const SPEND_CAP_MIN_CENTS = 10_000;
-
 export class FakeMeta {
   private server: Server | null = null;
-  private faults: FaultRule[] = [];
+  private readonly faults = new FaultBook();
   private nextId = 120_000_000_000_000;
   private trace = 0;
-  readonly campaigns = new Map<string, FakeCampaign>();
+  /** Campaigns (B2a), in `fakeMetaCampaigns.ts`; `campaigns` is their map, the tests' view. */
+  readonly camps: FakeCampaigns;
   /** Ad sets (B2a) and ads (their status, B3; their creation is B2c's), in `fakeMetaAdSets.ts`. */
   readonly sets: FakeAdSets;
   /** Ad images, ad creatives and ad creation (B2c). */
@@ -183,6 +151,7 @@ export class FakeMeta {
     this.user = opts.user ?? { id: "61550000000001", name: "Silvicom ads system user" };
     this.permissions = { ...(opts.permissions ?? Object.fromEntries(DEFAULT_PERMISSIONS.map((p) => [p, "granted" as const]))) };
     this.pages = (opts.pages ?? []).map((p) => ({ ...p, tasks: [...p.tasks] }));
+    this.camps = new FakeCampaigns(() => String(this.nextId++), () => this.traceId(), this.accounts);
     this.forms = new FakeForms(() => String(this.nextId++), () => this.traceId());
     this.leads = new FakeLeads(() => String(this.nextId++), () => this.traceId());
     this.webhooks = new FakeWebhooks(opts.appSecret ?? "fake-meta-app-secret", () => this.traceId());
@@ -213,7 +182,12 @@ export class FakeMeta {
 
   /** The next `times` requests matching method + path get this fault instead of their answer. */
   inject(method: "GET" | "POST", path: RegExp, fault: FakeMetaFault, times = 1): void {
-    this.faults.push({ method, path, fault, times });
+    this.faults.inject(method, path, fault, times);
+  }
+
+  /** Campaigns by id — the tests' view of what the publisher made. */
+  get campaigns(): Map<string, FakeCampaign> {
+    return this.camps.campaigns;
   }
 
   /** The owner revokes our access in Business Settings: every call from now on is 190/463. */
@@ -251,7 +225,7 @@ export class FakeMeta {
     const token = body.access_token ?? bearer(req);
     if (token !== this.expectedToken(path)) return this.error(res, 400, 190, "OAuthException", "Error validating access token: The session has been invalidated.", 463);
 
-    const fault = this.takeFault(method, path);
+    const fault = this.faults.take(method, path);
     if (fault?.kind === "hang") return; // never answered; the caller's timeout is what is under test
     if (fault?.kind === "accepted_not_applied") return send(res, 200, { success: true });
     if (fault && fault.kind !== "applied_then_temporary") return this.fault(res, fault);
@@ -272,13 +246,6 @@ export class FakeMeta {
     return page && !this.revoked ? page.access_token : undefined;
   }
 
-  private takeFault(method: string, path: string): FakeMetaFault | null {
-    const rule = this.faults.find((f) => f.method === method && f.path.test(path) && f.times > 0);
-    if (!rule) return null;
-    rule.times -= 1;
-    return rule.fault;
-  }
-
   private route(method: string, path: string, body: Record<string, string>): { status: number; body: unknown } {
     if (method === "GET" && path === "me") return { status: 200, body: pick({ ...this.user }, body.fields, ["id"]) };
     if (method === "GET" && path === "me/permissions") {
@@ -295,15 +262,15 @@ export class FakeMeta {
     const objectInsights = /^(\d+)\/insights$/.exec(path);
     if (objectInsights && method === "GET") return objectInsightsRoute(this, objectInsights[1]!, body, this.traceId());
     const create = /^act_(\d+)\/campaigns$/.exec(path);
-    if (create && method === "POST") return this.createCampaign(create[1]!, body);
-    if (create && method === "GET") return this.list([...this.campaigns.values()].filter((c) => c.account_id === create[1]), body);
+    if (create && method === "POST") return this.camps.create(create[1]!, body);
+    if (create && method === "GET") return this.camps.listOf(create[1]!, body);
     const rules = /^act_(\d+)\/adrules_library$/.exec(path);
     if (rules && method === "POST") return this.rules.create(rules[1]!, body);
     if (rules && method === "GET") return this.rules.list(rules[1]!, body.fields);
     const adsets = /^act_(\d+)\/adsets$/.exec(path);
     if (adsets && method === "POST") return this.accounts.has(adsets[1]!) ? this.sets.create(adsets[1]!, body) : graphError(400, 100, "OAuthException", "(#100) Ad account does not exist", this.traceId());
     const children = /^(\d+)\/adsets$/.exec(path);
-    if (children && method === "GET") return this.list([...this.sets.adsets.values()].filter((a) => a.campaign_id === children[1]), body);
+    if (children && method === "GET") return listByName([...this.sets.adsets.values()].filter((a) => a.campaign_id === children[1]), body, () => this.traceId());
     const adPart = this.ads.route(method, path, body);
     if (adPart) return adPart;
     const formLeads = /^(\d+)\/leads$/.exec(path);
@@ -326,8 +293,8 @@ export class FakeMeta {
     if (rule) return rule;
     const child = one ? this.sets.route(method, one[1]!, body) : null;
     if (child) return child;
-    if (one && method === "GET") return this.readCampaign(one[1]!, body.fields);
-    if (one && method === "POST") return this.updateCampaign(one[1]!, body);
+    if (one && method === "GET") return this.camps.read(one[1]!, body.fields);
+    if (one && method === "POST") return this.camps.update(one[1]!, body);
     return graphError(400, 100, "GraphMethodException", `Unsupported ${method} request. Object with ID '${path}' does not exist.`, this.traceId(), 33);
   }
 
@@ -341,77 +308,10 @@ export class FakeMeta {
     return { status: 200, body: pick(full, fields, ["id", "account_id"]) };
   }
 
-  private createCampaign(accountId: string, b: Record<string, string>) {
-    if (!this.accounts.has(accountId)) return graphError(400, 100, "OAuthException", "(#100) Ad account does not exist", this.traceId());
-    let categories: unknown;
-    try {
-      categories = b.special_ad_categories === undefined ? undefined : JSON.parse(b.special_ad_categories);
-    } catch {
-      categories = null;
-    }
-    if (!Array.isArray(categories) || categories.some((c) => !SPECIAL.includes(String(c)))) {
-      return graphError(400, 100, "OAuthException", "(#100) The parameter special_ad_categories is required", this.traceId());
-    }
-    if (b.status !== undefined && b.status !== "ACTIVE" && b.status !== "PAUSED") {
-      return graphError(400, 100, "OAuthException", "(#100) Only ACTIVE and PAUSED are valid during creation", this.traceId());
-    }
-    if (b.spend_cap !== undefined && !(Number(b.spend_cap) >= SPEND_CAP_MIN_CENTS)) {
-      return graphError(400, 100, "OAuthException", "(#100) spend_cap must be at least $100", this.traceId());
-    }
-    const id = String(this.nextId++);
-    this.campaigns.set(id, {
-      id, account_id: accountId, name: b.name ?? "", objective: b.objective ?? null, status: (b.status as FakeCampaign["status"]) ?? "ACTIVE",
-      special_ad_categories: (categories as string[]).map(String), special_ad_category_country: countries(b.special_ad_category_country), spend_cap: b.spend_cap ?? null, daily_budget: b.daily_budget ?? null,
-    });
-    return { status: 200, body: { id, success: true } };
-  }
-
-  /** An edge read: `{ data }`, narrowed by a name-EQUAL `filtering` (the one filter our callers send). */
-  private list(rows: Array<{ name: string }>, b: Record<string, string>) {
-    let filters: unknown;
-    try {
-      filters = b.filtering === undefined ? [] : JSON.parse(b.filtering);
-    } catch {
-      filters = null;
-    }
-    if (!Array.isArray(filters)) return graphError(400, 100, "OAuthException", "(#100) filtering must be an array", this.traceId());
-    let out = rows;
-    for (const f of filters as Array<{ field?: unknown; operator?: unknown; value?: unknown }>) {
-      if (f.field !== "name" || f.operator !== "EQUAL") return graphError(400, 100, "OAuthException", `(#100) FakeMeta filters only name EQUAL, got ${String(f.field)} ${String(f.operator)}`, this.traceId());
-      out = out.filter((r) => r.name === f.value);
-    }
-    return { status: 200, body: { data: out.map((r) => pick({ ...r }, b.fields, ["id"])) } };
-  }
-
-  private readCampaign(id: string, fields?: string) {
-    const c = this.campaigns.get(id);
-    if (!c) return graphError(400, 100, "GraphMethodException", `Unsupported get request. Object with ID '${id}' does not exist.`, this.traceId(), 33);
-    const effective = c.status;
-    return { status: 200, body: pick({ ...c, effective_status: effective }, fields, ["id"]) };
-  }
-
-  private updateCampaign(id: string, b: Record<string, string>) {
-    const c = this.campaigns.get(id);
-    if (!c) return graphError(400, 100, "GraphMethodException", `Unsupported post request. Object with ID '${id}' does not exist.`, this.traceId(), 33);
-    if (b.status !== undefined) {
-      if (!(STATUSES as readonly string[]).includes(b.status)) return graphError(400, 100, "OAuthException", "(#100) Invalid status", this.traceId());
-      c.status = b.status as FakeCampaign["status"];
-    }
-    if (b.daily_budget !== undefined) c.daily_budget = b.daily_budget;
-    if (b.spend_cap !== undefined) c.spend_cap = b.spend_cap;
-    return { status: 200, body: { success: true } };
-  }
-
-  private fault(res: ServerResponse, f: Exclude<FakeMetaFault, { kind: "hang" } | { kind: "applied_then_temporary" } | { kind: "accepted_not_applied" }>): void {
-    if (f.kind === "throttle") {
-      res.setHeader("X-Business-Use-Case-Usage", JSON.stringify({
-        [this.businessId]: [{ type: "ads_management", call_count: 100, total_cputime: 34, total_time: 41, estimated_time_to_regain_access: f.regainMinutes ?? 5 }],
-      }));
-      return this.error(res, 400, 80004, "OAuthException", "(#80004) There have been too many calls to this ad-account.", 2446079);
-    }
-    if (f.kind === "token_expired") return this.error(res, 400, 190, "OAuthException", "Error validating access token: Session has expired.", 463);
-    const code = f.code ?? 2;
-    return this.error(res, 500, code, "OAuthException", code === 1 ? "An unknown error occurred" : "An unexpected error has occurred. Please retry your request later.");
+  private fault(res: ServerResponse, f: Parameters<typeof faultAnswer>[0]): void {
+    const answer = faultAnswer(f, this.businessId, this.traceId());
+    for (const [k, v] of Object.entries(answer.headers)) res.setHeader(k, v);
+    send(res, answer.status, answer.body);
   }
 
   private error(res: ServerResponse, status: number, code: number, type: string, message: string, subcode?: number): void {
@@ -421,15 +321,6 @@ export class FakeMeta {
 
   private traceId(): string {
     return `FakeTrace${String(++this.trace).padStart(6, "0")}`;
-  }
-}
-
-function countries(raw: string | undefined): string[] | null {
-  try {
-    const v: unknown = raw === undefined ? null : JSON.parse(raw);
-    return Array.isArray(v) ? v.map(String) : null;
-  } catch {
-    return null;
   }
 }
 

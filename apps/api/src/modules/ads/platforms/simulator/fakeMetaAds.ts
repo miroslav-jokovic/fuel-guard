@@ -21,6 +21,9 @@ import { graphError, pick } from "./fakeMetaShapes.js";
  *                                        (the same guide, Step 5).
  *   GET  /{v}/act_{id}/adcreatives,     lists, narrowed by name EQUAL as the other edges are (B2a).
  *        /{v}/{adset_id}/ads
+ *   GET  /{v}/act_{id}/adimages         `hashes=["<hash>", …]` → `{ data: [{ hash, width, height, … }] }` — the
+ *                                        image read back (Publisher L3's contract suite reads every object it
+ *                                        made). Same reference page, read 2026-11-05.
  *
  * ⚠ OUR reading, not Meta's word — L4 re-runs the contract suite on the sandbox to settle each:
  *   · the key inside `images` is not named by the page: this fake keys by `bytes`, and the publisher
@@ -65,6 +68,7 @@ export class FakeAds {
       const [, account, edge] = acct;
       return edge === "adimages" ? this.upload(account!, b) : edge === "adcreatives" ? this.createCreative(account!, b) : this.createAd(account!, b);
     }
+    if (acct && method === "GET" && acct[2] === "adimages") return this.readImages(acct[1]!, b);
     if (acct && method === "GET" && acct[2] === "adcreatives") return this.list([...this.creatives.values()].filter((c) => c.account_id === acct[1]), b);
     const children = /^(\d+)\/ads$/.exec(path);
     if (children && method === "GET") return this.list([...this.sets.ads.values()].filter((a) => a.adset_id === children[1]), b);
@@ -87,6 +91,19 @@ export class FakeAds {
     const height = bytes.readUInt32BE(20);
     this.images.set(hash, { hash, account_id: accountId, width, height, bytes: bytes.length });
     return { status: 200, body: { images: { bytes: { hash, url: `https://fake-meta.invalid/i/${hash}.png`, width, height, name: "bytes" } } } };
+  }
+
+  /** The account's images whose hash is in `hashes` (a JSON array); an unparseable list is Meta's 100. */
+  private readImages(accountId: string, b: Record<string, string>): Answer {
+    let hashes: unknown;
+    try {
+      hashes = JSON.parse(b.hashes ?? "[]");
+    } catch {
+      hashes = null;
+    }
+    if (!Array.isArray(hashes)) return this.bad("hashes must be an array");
+    const rows = [...this.images.values()].filter((i) => i.account_id === accountId && hashes.includes(i.hash));
+    return { status: 200, body: { data: rows.map((i) => pick({ ...i }, b.fields, ["hash"])) } };
   }
 
   private createCreative(accountId: string, b: Record<string, string>): Answer {

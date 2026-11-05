@@ -20,6 +20,8 @@ export interface FakeAdSet {
   status: FakeCampaign["status"];
   daily_budget: string;
   billing_event: string;
+  /** As sent; Meta defaults it to LOWEST_COST_WITHOUT_CAP (ad set reference) — read back by the L3 contract suite. */
+  bid_strategy?: string; // absent only on an ad set a test planted
   optimization_goal: string;
   destination_type: string | null;
   promoted_object: Record<string, unknown> | null;
@@ -101,7 +103,7 @@ export class FakeAdSets {
     const id = this.ids();
     this.adsets.set(id, {
       id, account_id: accountId, campaign_id: campaign.id, name: b.name, status: b.status, daily_budget: b.daily_budget!,
-      billing_event: b.billing_event, optimization_goal: b.optimization_goal, destination_type: b.destination_type ?? null,
+      billing_event: b.billing_event, bid_strategy: b.bid_strategy ?? "LOWEST_COST_WITHOUT_CAP", optimization_goal: b.optimization_goal, destination_type: b.destination_type ?? null,
       promoted_object: promoted, targeting,
     });
     return { status: 200, body: { id } };
