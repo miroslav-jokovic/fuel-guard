@@ -56,15 +56,15 @@
     "source": "model",
     "prompt_version": "analyst@1",
     "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-05T02:56:44.249Z",
+    "recorded_at": "2026-11-05T14:31:03.450Z",
     "output": {
-      "headline": "On 2026-11-03, 1 campaign ran and delivered 3 leads at a cost per lead of $25.00.",
+      "headline": "On 2026-11-03, 1 campaign ran and delivered 3 leads at $25.00 each.",
       "points": [
-        "Regional Class A — Joliet was the only campaign active, spending $75.00 to generate 3,900 impressions, 48 clicks, and 3 leads at a 1.2% click rate.",
-        "Month-to-date spend on Meta stands at $225.00 for 2026-11, with 28 days left in the month.",
-        "The 2026-10-19 cohort has 9 leads: 8 contacted, 4 qualified, 2 applied, 1 hired, and 0 lost — still too young to judge rates.",
+        "Regional Class A — Joliet was the only campaign active, spending $75.00 to generate 3,900 impressions, 48 clicks, and 3 leads at a click rate of 1.2%.",
+        "Month-to-date spend on Meta through 2026-11 sits at $225.00, with 28 days left in the month.",
+        "The 2026-10-19 cohort has 9 leads: 8 contacted, 4 qualified, 2 applied, 1 hired, and 0 lost — it is still young, so no rates yet.",
         "The 2026-10-26 cohort has 14 leads: 10 contacted, 3 qualified, 1 applied, 0 hired, and 2 lost — also too young to judge rates.",
-        "Both cohorts are still moving and worth watching as leads continue to progress through the funnel."
+        "Both cohorts are still moving, so watch them before drawing conclusions on funnel performance."
       ]
     }
   }

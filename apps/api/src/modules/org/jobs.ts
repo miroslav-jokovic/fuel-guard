@@ -108,6 +108,8 @@ export type JobKind =
   | "ads_insights"
   // One connection's daily reconcile → `external_change` rows (B5c); dedup `ads_reconcile:<connection>`.
   | "ads_reconcile"
+  // One carrier's morning brief (F1b): yesterday's fold, the analyst's narration, the `ads_brief` bell; dedup `ads_daily_brief:<org>`.
+  | "ads_daily_brief"
   // One carrier's sweep for leads nobody has contacted (D2c); dedup `lead_uncontacted:<org>`.
   | "lead_uncontacted"
   | "ads_render" // one Higgsfield render, one step (C3); polled by retry; dedup `ads_render:<creative>:<attempt>`

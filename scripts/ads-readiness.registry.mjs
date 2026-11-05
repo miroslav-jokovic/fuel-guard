@@ -40,6 +40,8 @@ const CHECKER = "apps/api/src/modules/ads/workers/checker/checker.test.ts";
 const MONITOR_GOLDEN = "apps/api/src/modules/ads/monitor/golden.test.ts";
 const ANALYST = "apps/api/src/modules/ads/workers/analyst/analyst.test.ts";
 const BRIEF = "packages/shared/src/ads/analystBrief.test.ts";
+const DAILY_BRIEF = "apps/api/src/modules/ads/workers/analyst/dailyBrief.test.ts";
+const BRIEF_FOLD = "apps/api/src/modules/ads/workers/analyst/briefFold.test.ts";
 
 export const SCENARIO_DIR = "packages/ads-golden/scenarios";
 
@@ -770,6 +772,22 @@ export const READINESS = [
             "asks no model when the analyst is switched off",
           ] }],
         },
+        {
+          need: "the brief read from stored hours (F1b) and delivered once a day: the checked narration, else the plain figures",
+          tests: [
+            { file: BRIEF_FOLD, titles: [
+              "folds only yesterday's hours into the day, and the month up to yesterday's end into the month",
+              "on the 1st it reports the last day of the month before, with that month's spend and no day left",
+              "pages past PostgREST's 1,000-row cap, so a busy month is never cut short",
+            ] },
+            { file: DAILY_BRIEF, titles: [
+              "sends the analyst's checked narration to the admins, once, under the day's key",
+              "a narration refused twice is never sent: the plain figures go instead, after one retry under a new key",
+              "a day already sent stops before any read or model call",
+            ] },
+            { file: BRIEF, titles: ["states every figure as the sheet holds it, so it passes the same check a narration must"] },
+          ],
+        },
       ],
       L2: [
         {
@@ -786,7 +804,7 @@ export const READINESS = [
           ],
         },
       ],
-      L3: [{ need: "the evaluation set at its bar: 0 numbers in the narration that the fold did not produce", gap: "F1a measured 8 of 8 live briefs passing the number check, twice (pnpm ads:eval analyst, baseline.json, 2026-11-04) on 8 fixture folds; the brief is not yet read from stored rows or delivered (F1b), and the set grows over real folds" }],
+      L3: [{ need: "the evaluation set at its bar: 0 numbers in the narration that the fold did not produce", gap: "F1b measured 9 of 9 live briefs passing the number check, twice (pnpm ads:eval analyst, baseline.json, 2026-11-05) on 9 fixture folds; the cohort report waits on Q-AD34 (no seam carries a lead's stages to ads), and the set grows over real folds" }],
       L4: [{ need: "a brief over sandbox insights", gap: STAGE2 }],
       L5: [{ need: "canary", gap: CANARY }],
     },

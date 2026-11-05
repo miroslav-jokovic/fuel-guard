@@ -3,7 +3,7 @@ why: >
   adsReconcile.ts: missing is a campaign or ad set we recorded that Meta no longer has (or has deleted / archived); it
   costs reach, not money, so a warning. A campaign gone is one fact: its ad set is not then reported as well.
   The job's own re-read also asks Meta for the deleted campaign's insights, and insightsPull.ts reports a campaign
-  Meta refuses, so the run ends failed with the mismatch recorded (see Q-AD34: the fake's answer is unconfirmed).
+  Meta refuses, so the run ends failed with the mismatch recorded (see Q-AD35: the fake's answer is unconfirmed).
 covers: [missing]
 verifiedBy: "Claude (Monitor L3), from adsReconcile.ts"
 campaigns:

@@ -68,16 +68,16 @@
     "source": "model",
     "prompt_version": "analyst@1",
     "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-05T02:56:39.666Z",
+    "recorded_at": "2026-11-05T14:30:58.660Z",
     "output": {
       "headline": "On 2026-11-02, 1 campaign ran and delivered 2 leads at $55.45 each from $110.90 in spend.",
       "points": [
-        "Regional Class A — Joliet was the only campaign active, pulling 70 clicks from 6,015 impressions at a 1.2% click rate.",
-        "The 2 leads it produced came at $55.45 cost per lead, which accounts for all of the day's $110.90 spend.",
-        "Month-to-date spend on Meta for 2026-11 sits at $198.00, with 29 days still remaining in the month.",
-        "The mature cohort from the week of 2026-09-28 continues to show solid funnel movement: 40 leads, with 36 contacted (90.0%), 20 qualified (50.0%), 12 applied (30.0%), 5 hired (12.5%), and 9 lost (22.5%).",
-        "The mature cohort from the week of 2026-09-21 had 38 leads, with 33 contacted (86.8%), 17 qualified (44.7%), 10 applied (26.3%), 4 hired (10.5%), and 8 lost (21.1%).",
-        "The cohort from the week of 2026-10-26 has 12 leads with 9 contacted, 3 qualified, 1 applied, 1 lost, and 0 hired so far — it is too young to judge rates."
+        "Regional Class A — Joliet was the only campaign active, generating 6,015 impressions, 70 clicks, and a click rate of 1.2%.",
+        "Both leads came from Regional Class A — Joliet at a cost per lead of $55.45.",
+        "Month-to-date spend on Meta for 2026-11 sits at $198.00 with 29 days left in the month.",
+        "The 2026-09-28 cohort (40 leads) is the strongest mature group: contact rate 90.0%, qualified rate 50.0%, hired rate 12.5%.",
+        "The 2026-09-21 cohort (38 leads) shows a contact rate of 86.8%, a qualified rate of 44.7%, and a hired rate of 10.5%.",
+        "The 2026-10-26 cohort has 12 leads — 9 contacted, 3 qualified, 1 applied, and 1 lost — but it is too young to judge its rates."
       ]
     }
   }

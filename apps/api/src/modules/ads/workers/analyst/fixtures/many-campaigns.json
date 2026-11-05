@@ -98,16 +98,16 @@
     "source": "model",
     "prompt_version": "analyst@1",
     "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-05T02:56:13.533Z",
+    "recorded_at": "2026-11-05T14:30:24.467Z",
     "output": {
       "headline": "On 2026-11-03, 4 campaigns delivered 67 leads across 161,223 impressions at a cost per lead of $38.51.",
       "points": [
-        "Total spend for the day was $2,580.48, with 2,323 clicks and an overall click rate of 1.4%.",
-        "Regional Class A — Joliet was the day's largest campaign: $1,456.78 spent, 92,400 impressions, 1,310 clicks, 41 leads, and a cost per lead of $35.53 at a 1.4% click rate.",
-        "Recent graduates was the strongest performer on click rate at 1.7%, generating 17 leads at $35.89 each from $610.20 in spend across 40,118 impressions.",
-        "Dedicated night runs spent $389.00 for 9 leads at $43.22 per lead, with a 1.2% click rate across 21,005 impressions.",
-        "Owner operators spent $124.50 across 7,700 impressions and 51 clicks but produced no leads, so there is no cost per lead to report; its 0.7% click rate was the lowest of the 4 campaigns.",
-        "Month-to-date spend on Meta stands at $12,534.06 for 2026-11, with 28 days left in the month."
+        "Regional Class A — Joliet was the day's dominant campaign: $1,456.78 spent, 92,400 impressions, 1,310 clicks, 41 leads at $35.53 cost per lead and a 1.4% click rate.",
+        "Recent graduates was the second-largest lead source with 17 leads at $35.89 cost per lead, the lowest on the day alongside Joliet, on a 1.7% click rate — the highest click rate across all 4 campaigns.",
+        "Owner operators spent $124.50 and drew 51 clicks at a 0.7% click rate but produced no leads, so there is no cost per lead to report.",
+        "Dedicated night runs returned 9 leads at $43.22 cost per lead, the highest of any campaign, on a 1.2% click rate and $389.00 in spend.",
+        "Month-to-date spend on Meta stands at $12,534.06 with 28 days left in 2026-11.",
+        "The 2026-10-26 lead cohort is too young to judge: 12 leads so far, with 9 contacted, 3 qualified, 1 applied, and 1 lost — rates will be available once it matures."
       ]
     }
   }
