@@ -48,6 +48,12 @@ const props = defineProps<{
   pageSize: number;
   /** Total rows behind the pagination, i.e. the filtered count, not `rows.length`. */
   total: number;
+  /**
+   * Row checkboxes for the audit binder (DQ-INTO-DRIVERS-PLAN DD2). The page turns them on only for a
+   * reader who may build one, so a dispatcher's roster has no column of boxes that lead nowhere.
+   */
+  selectable?: boolean;
+  selected?: Set<string>;
 }>();
 
 const emit = defineEmits<{
@@ -64,6 +70,7 @@ const emit = defineEmits<{
   "upload-file": [driver: Driver, file: File];
   /** The File cell's outstanding control (DQ-INTO-DRIVERS-PLAN DD1): the page picks where it leads. */
   outstanding: [driver: Driver];
+  "update:selected": [selected: Set<string>];
 }>();
 
 const session = useSessionStore();
@@ -150,6 +157,9 @@ const assignedUnits = (driverId: string) => unitsByDriver.value.get(driverId)?.j
     :retrying="props.retrying"
     :sort="props.sort"
     :empty-text="props.emptyText"
+    :selectable="props.selectable"
+    :selected="props.selected"
+    @update:selected="emit('update:selected', $event)"
     @sort="emit('sort', $event)"
     @retry="emit('retry')"
   >

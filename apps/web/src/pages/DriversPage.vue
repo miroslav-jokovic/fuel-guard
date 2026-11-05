@@ -23,6 +23,9 @@ import { describeDriverEdit } from "@/lib/format";
 import DriverReconcilePanel from "@/features/roster/DriverReconcilePanel.vue";
 import DriverAccessModal from "@/features/roster/DriverAccessModal.vue";
 import DriverRosterTable from "@/features/roster/DriverRosterTable.vue";
+import DriverBinderBar from "@/features/roster/DriverBinderBar.vue";
+import { capSelection } from "@/features/roster/binderSelection";
+import ExportHistory from "@/features/compliance/ExportHistory.vue";
 import { DRIVER_ROSTER_COLUMNS } from "@/features/roster/driverRosterColumns";
 import ColumnPicker from "@/components/ui/ColumnPicker.vue";
 import SavedViewMenu from "@/components/ui/SavedViewMenu.vue";
@@ -35,6 +38,7 @@ import { useTableColumns } from "@/composables/useTableColumns";
 import {
   SAVED_VIEW_TABLES,
   canManageDriverIdentity,
+  DQ_EXPORT_MAX_DRIVERS,
   seatedDriverIds,
   dqDueFilterOptions,
   fileFilterOptions,
@@ -88,6 +92,22 @@ const saving = computed(() => createDriver.isPending.value || updateDriver.isPen
 
 // ── Reconcile duplicate / name-only drivers with Samsara (its own panel) ────────────────────────
 const reconcileOpen = ref(false);
+
+/**
+ * The audit binder and its ledger (DQ-INTO-DRIVERS-PLAN DD2, D-DQ19), moved here from the Driver
+ * Qualification list. Each control asks the API's own gate: building is `roster: manage`
+ * (`POST /exports/binder`), the ledger is `safety: view` (`GET /exports`). A dispatcher holds neither,
+ * so their roster gains no checkboxes and no button.
+ */
+const canBuildBinder = computed(() => session.can("roster"));
+const canSeeBinders = computed(() => session.canView("safety"));
+const selected = ref<Set<string>>(new Set());
+function select(next: Set<string>) {
+  const { selected: kept, capped } = capSelection(next);
+  selected.value = kept;
+  if (capped) toast.warning("Binder limit reached", `A binder holds up to ${DQ_EXPORT_MAX_DRIVERS} drivers. Build this one, then select the rest.`);
+}
+const bindersOpen = ref(false);
 
 /**
  * The id this table is known by, in the one place it is spelled (`SAVED_VIEW_TABLES`).
@@ -278,6 +298,8 @@ async function onSubmit(input: DriverInput) {
       description="Drivers in your fleet. Assign drivers to vehicles from the Vehicles page."
     >
       <template #actions>
+        <!-- Outside the roster-manage block: an auditor reads the ledger (`safety: view`) and builds nothing. -->
+        <BaseButton v-if="canSeeBinders" @click="bindersOpen = true">Audit binders</BaseButton>
         <template v-if="session.can('roster')">
           <!-- Merging drivers is irreversible and granted by NAME (DRIVER_IDENTITY_ROLES, SP11), so a
                safety manager — who manages the roster — is not offered a button the API refuses. -->
@@ -336,7 +358,16 @@ async function onSubmit(input: DriverInput) {
       </template>
     </FilterBar>
 
+    <DriverBinderBar
+      v-if="canBuildBinder"
+      :selected="selected"
+      @clear="selected = new Set()"
+      @built="bindersOpen = canSeeBinders"
+    />
     <DriverRosterTable
+      :selectable="canBuildBinder"
+      :selected="selected"
+      @update:selected="select"
       :rows="pageRows"
       :columns="rosterColumns.visible.value"
       :loading="isLoading"
@@ -361,6 +392,11 @@ async function onSubmit(input: DriverInput) {
       @restore="setArchived($event, false)"
     />
     </DataWorkspace>
+
+    <!-- The ledger of binders built (DQ-BINDER-PLAN), opened from the header or by a build. -->
+    <SlideOver :open="bindersOpen" size="xl" title="Audit binders" @close="bindersOpen = false">
+      <ExportHistory />
+    </SlideOver>
 
     <DriverReconcilePanel :open="reconcileOpen" :drivers="drivers ?? []" @close="reconcileOpen = false" />
 

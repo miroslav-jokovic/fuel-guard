@@ -116,7 +116,15 @@ vi.mock("@/composables/useSavedViews", () => ({
   }),
 }));
 vi.mock("@/stores/toast", () => ({
-  useToastStore: () => ({ success: vi.fn(), error: vi.fn() }),
+  useToastStore: () => ({ success: vi.fn(), error: vi.fn(), warning: vi.fn() }),
+}));
+// DD2: the binder bar and the Audit binders ledger. Their own suites pin what they send and show;
+// this file pins who is offered them and what opens them.
+const requestBinder = { mutateAsync: vi.fn(async () => ({ exportId: "e1" })), isPending: ref(false) };
+vi.mock("@/composables/useDqExports", () => ({
+  useRequestBinder: () => requestBinder,
+  useExportsQuery: () => ({ data: ref([]), isLoading: ref(false), isError: ref(false), isFetching: ref(false), error: ref(null), refetch: vi.fn() }),
+  openBinder: vi.fn(),
 }));
 
 const base = (over: Partial<Driver>): Driver => ({
@@ -584,6 +592,70 @@ describe("DriversPage roster table", () => {
     } finally {
       session.role = "admin";
     }
+  });
+
+  /**
+   * DQ-INTO-DRIVERS-PLAN DD2, D-DQ19: the audit binder and its ledger moved here. Each control asks the
+   * API's own gate — build is `roster: manage`, the ledger is `safety: view` — so a role sees exactly
+   * what the API will do for it.
+   */
+  const asRole = async (role: import("@silvicom/shared").UserRole) => {
+    const { __session: session } = (await import("@/stores/session")) as unknown as {
+      __session: import("@/testing/fakeSession").FakeSession;
+    };
+    session.role = role;
+    return () => void (session.role = "admin");
+  };
+  const header = (w: Awaited<ReturnType<typeof mountPage>>) => w.find("header").text();
+
+  it("gives a roster manager row checkboxes, and the binder bar once a driver is ticked", async () => {
+    const restore = await asRole("safety_manager");
+    try {
+      const w = await mountPage();
+      expect(w.findAll("tbody input[type=checkbox]").length).toBeGreaterThan(0);
+      expect(w.text()).not.toContain("Build audit binder");
+      await w.findAll("tbody input[type=checkbox]")[0]!.setValue(true);
+      expect(w.text()).toContain("1 selected");
+      expect(w.text()).toContain("Build audit binder");
+      expect(header(w)).toContain("Audit binders");
+    } finally {
+      restore();
+    }
+  });
+
+  it("offers a dispatcher neither the checkboxes nor the ledger", async () => {
+    const restore = await asRole("dispatcher");
+    try {
+      const w = await mountPage();
+      expect(w.findAll("tbody input[type=checkbox]")).toHaveLength(0);
+      expect(header(w)).not.toContain("Audit binders");
+    } finally {
+      restore();
+    }
+  });
+
+  it("lets an auditor read the ledger without offering a build", async () => {
+    const restore = await asRole("auditor");
+    try {
+      const w = await mountPage();
+      expect(w.findAll("tbody input[type=checkbox]")).toHaveLength(0);
+      const open = w.find("header").findAll("button").find((b) => b.text() === "Audit binders")!;
+      await open.trigger("click");
+      expect(w.find("[role=dialog]").text()).toContain("No binders yet");
+    } finally {
+      restore();
+    }
+  });
+
+  it("opens the ledger on the new job once a binder is queued", async () => {
+    const w = await mountPage();
+    await w.findAll("tbody input[type=checkbox]")[0]!.setValue(true);
+    await w.findAll("button").find((b) => b.text().includes("Build audit binder"))!.trigger("click");
+    await flushPromises();
+    expect(requestBinder.mutateAsync).toHaveBeenCalledWith(expect.objectContaining({ driverIds: ["d-1"] }));
+    expect(w.find("[role=dialog]").text()).toContain("No binders yet");
+    // The selection is spent: the bar is gone and no box is still ticked.
+    expect(w.text()).not.toContain("1 selected");
   });
 
   it("hides a column from the table when the picker turns it off", async () => {

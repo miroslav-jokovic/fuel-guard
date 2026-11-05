@@ -45,7 +45,6 @@ interface Row extends DqExportRow {
 const rows = computed<Row[]>(() =>
   (query.data.value ?? []).map((e) => ({
     ...e,
-    as_at: formatDate(e.as_at),
     what:
       e.kind === "document"
         ? `${requirementLabel(e.requirement_key)} — ${e.driver_names[0] ?? "unknown driver"}`
@@ -54,12 +53,18 @@ const rows = computed<Row[]>(() =>
           : `Qualification files — ${e.driver_names.length} drivers`,
     who: e.requested_by_email ?? "—",
     when: formatDateTime(e.created_at),
-    detail:
+    // "As at" rides the detail line rather than its own column (DQ-INTO-DRIVERS-PLAN DD2): the ledger
+    // now opens in a side panel on the Drivers page, and six columns did not fit one.
+    detail: [
+      `As at ${formatDate(e.as_at)}`,
       e.status === "failed"
         ? (e.error ?? "No reason recorded.")
         : e.status === "done"
           ? `${e.pages ?? 0} pages · ${e.documents_count ?? 0} scans · ${e.gaps_count ?? 0} gaps`
           : "",
+    ]
+      .filter(Boolean)
+      .join(" · "),
   })),
 );
 
@@ -67,13 +72,12 @@ const columns: DataTableColumn[] = [
   {
     key: "what",
     label: "Exported",
-    width: "2xl",
+    width: "xl",
     cellClass: "font-medium text-ink",
   },
-  { key: "as_at", label: "As at", headerClass: "w-28", cellClass: "text-ink-secondary" },
-  { key: "who", label: "By", width: "xl", cellClass: "text-ink-secondary" },
-  { key: "when", label: "Requested", headerClass: "w-40", cellClass: "text-ink-secondary" },
-  { key: "status", label: "Status", headerClass: "w-32" },
+  // When and by whom, stacked in one column: the reader asks "who sent this out, and when" as one question.
+  { key: "when", label: "Requested", width: "lg", cellClass: "text-ink-secondary" },
+  { key: "status", label: "Status", width: "sm" },
 ];
 
 async function open(row: Row): Promise<void> {
@@ -99,12 +103,16 @@ async function open(row: Row): Promise<void> {
         : null
     "
     :retrying="query.isFetching.value"
-    empty-text="Nothing has been exported yet. Select drivers on the All drivers tab to build a binder."
+    empty-text="No binders yet. Tick drivers on the Drivers list and choose Build audit binder."
     @retry="query.refetch()"
   >
     <template #cell-what="{ row }">
       <span class="text-ink">{{ row.what }}</span>
       <span v-if="row.detail" class="mt-0.5 block text-xs text-ink-tertiary">{{ row.detail }}</span>
+    </template>
+    <template #cell-when="{ row }">
+      <span>{{ row.when }}</span>
+      <span class="mt-0.5 block text-xs text-ink-tertiary">{{ row.who }}</span>
     </template>
     <template #cell-status="{ row }">
       <span :class="[BADGE_BASE, toneClass(STATUS_TONE[row.status])]">{{

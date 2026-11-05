@@ -81,7 +81,7 @@ exports[`DataTable rendering, pinned across the R3b extraction > renders the wid
       </thead>
       <tbody class="divide-y divide-edge-subtle">
         <tr class="hover:bg-surface-subtle bg-brand-50/40">
-          <td class="w-10 pl-6 pr-2 py-3"><input type="checkbox" class="size-4 rounded-control border-edge-control accent-brand-600" checked="" aria-label="Select row Unit 204"></td>
+          <td class="w-10 pl-6 pr-2 py-3"><input type="checkbox" class="size-4 rounded-control border-edge-control accent-brand-600" checked="" aria-label="Select Unit 204"></td>
           <td class="px-4 py-3 text-left font-medium text-ink">Unit 204</td>
           <td class="px-4 py-3 text-left">Marcus Reyes</td>
           <td class="px-4 py-3 text-right tabular-nums">118.4</td>
@@ -94,7 +94,7 @@ exports[`DataTable rendering, pinned across the R3b extraction > renders the wid
           </td>
         </tr>
         <tr class="hover:bg-surface-subtle">
-          <td class="w-10 pl-6 pr-2 py-3"><input type="checkbox" class="size-4 rounded-control border-edge-control accent-brand-600" aria-label="Select row Unit 991"></td>
+          <td class="w-10 pl-6 pr-2 py-3"><input type="checkbox" class="size-4 rounded-control border-edge-control accent-brand-600" aria-label="Select Unit 991"></td>
           <td class="px-4 py-3 text-left font-medium text-ink">Unit 991</td>
           <td class="px-4 py-3 text-left"><span class="text-ink-tertiary">—</span></td>
           <td class="px-4 py-3 text-right tabular-nums"><span class="text-ink-tertiary">—</span></td>

@@ -272,6 +272,17 @@ const skeletonCols = computed(
 );
 
 const cellValue = (row: Row, key: string) => row[key];
+/**
+ * A row checkbox's name, read from the first column — what the reader sees on that row, and what the
+ * narrow card layout already says ("Select Marcus Reyes"). Until DQ-INTO-DRIVERS-PLAN DD2 (2026-11-05)
+ * the wide table said "Select row " + the row key, which on the Drivers roster is a database id, so a
+ * screen reader announced "Select row 3f1c…" on every row. Falls back to the key when the first column
+ * has no plain value (a slot-only column).
+ */
+const selectLabel = (row: Row): string => {
+  const first = props.columns[0] ? cellValue(row, props.columns[0].key) : null;
+  return `Select ${first != null && first !== "" ? String(first) : `row ${keyOf(row)}`}`;
+};
 const isExpanded = (row: Row) => props.expanded?.has(keyOf(row)) ?? false;
 
 /* ── narrow screens get cards, not a table ────────────────────────────────────────────────────────
@@ -382,7 +393,7 @@ const isWide = useMediaQuery("(min-width: 768px)");
                   type="checkbox"
                   class="size-4 rounded-control border-edge-control accent-brand-600"
                   :checked="isSelected(row)"
-                  :aria-label="`Select row ${keyOf(row)}`"
+                  :aria-label="selectLabel(row)"
                   @change="toggleRow(row)"
                 />
               </td>

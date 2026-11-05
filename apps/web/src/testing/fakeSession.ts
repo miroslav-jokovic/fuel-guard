@@ -1,6 +1,7 @@
 import {
   callerCanManage,
   callerCanView,
+  canReadAllRestricted,
   canReadRestrictedKind,
   isAdmin,
   isReadOnly,
@@ -32,6 +33,8 @@ export interface FakeSession {
   canView: (section: AppSection) => boolean;
   /** The restricted-kind reader test, per kind — `stores/session.ts`'s, from the same shared predicate. */
   canReadKind: (kind: string) => boolean;
+  /** May this role read every restricted kind — the binder's opt-in (D-DQ15); the store's own predicate. */
+  readonly restrictedAccess: boolean;
 }
 
 export function fakeSession(role: UserRole | null = "admin"): FakeSession {
@@ -48,6 +51,9 @@ export function fakeSession(role: UserRole | null = "admin"): FakeSession {
     can: (section) => callerCanManage(s.role, section, s.sections),
     canView: (section) => callerCanView(s.role, section, s.sections),
     canReadKind: (kind) => canReadRestrictedKind(kind, s.role),
+    get restrictedAccess() {
+      return canReadAllRestricted(s.role);
+    },
   };
   return s;
 }

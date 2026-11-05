@@ -148,7 +148,8 @@ const toast = useToastStore();
 const requestBinder = useRequestBinder();
 async function exportWholeFile(): Promise<void> {
   await requestBinder.mutateAsync({ driverIds: [id.value], asAt: null });
-  toast.success("Building the file", "It appears under Exports on the qualification page shortly.");
+  // Where the ledger now lives (DQ-INTO-DRIVERS-PLAN DD2): the Drivers page's Audit binders panel.
+  toast.success("Building the file", "It appears under Audit binders on the Drivers page shortly.");
 }
 const PAGE = 500;
 
