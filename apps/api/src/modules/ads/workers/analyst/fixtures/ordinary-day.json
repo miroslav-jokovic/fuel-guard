@@ -1,0 +1,94 @@
+{
+  "name": "ordinary-day",
+  "about": "Two campaigns with leads, a month's spend and two mature cohorts beside a young one.",
+  "input": {
+    "fold": {
+      "day": "2026-11-03",
+      "month": {
+        "month": "2026-11",
+        "days_left": 28
+      },
+      "campaigns": [
+        {
+          "campaign_id": "c1",
+          "name": "Regional Class A — Joliet",
+          "spend_cents": 18450,
+          "impressions": 9120,
+          "clicks": 141,
+          "leads": 6,
+          "cost_per_lead_cents": 3075,
+          "ctr": 0.015460526315789473
+        },
+        {
+          "campaign_id": "c2",
+          "name": "Dedicated night runs",
+          "spend_cents": 9975,
+          "impressions": 5480,
+          "clicks": 62,
+          "leads": 1,
+          "cost_per_lead_cents": 9975,
+          "ctr": 0.011313868613138687
+        }
+      ],
+      "month_to_date": {
+        "meta": 61230
+      },
+      "cohorts": [
+        {
+          "week": "2026-09-21",
+          "leads": 38,
+          "reached": {
+            "contacted": 33,
+            "qualified": 17,
+            "applied": 10,
+            "hired": 4,
+            "lost": 8
+          },
+          "mature": true
+        },
+        {
+          "week": "2026-09-28",
+          "leads": 40,
+          "reached": {
+            "contacted": 36,
+            "qualified": 20,
+            "applied": 12,
+            "hired": 5,
+            "lost": 9
+          },
+          "mature": true
+        },
+        {
+          "week": "2026-10-26",
+          "leads": 12,
+          "reached": {
+            "contacted": 9,
+            "qualified": 3,
+            "applied": 1,
+            "hired": 0,
+            "lost": 1
+          },
+          "mature": false
+        }
+      ]
+    }
+  },
+  "expect": "ready",
+  "recorded": {
+    "source": "model",
+    "prompt_version": "analyst@1",
+    "model": "claude-sonnet-4-6",
+    "recorded_at": "2026-11-05T02:56:33.194Z",
+    "output": {
+      "headline": "On 2026-11-03, 2 campaigns delivered 7 leads across 14,600 impressions at a combined cost per lead of $40.61.",
+      "points": [
+        "Total spend for the day was $284.25 across 203 clicks and a click rate of 1.4%.",
+        "Regional Class A — Joliet was the stronger performer, bringing in 6 of the day's leads at $30.75 cost per lead on $184.50 spend, 9,120 impressions, 141 clicks, and a 1.5% click rate.",
+        "Dedicated night runs spent $99.75 for 1 lead at $99.75 cost per lead, with 5,480 impressions, 62 clicks, and a 1.1% click rate — worth keeping an eye on given the gap in cost per lead between the 2 campaigns.",
+        "Month-to-date spend on Meta stands at $612.30 for 2026-11, with 28 days left in the month.",
+        "The mature 2026-09-21 cohort shows 38 leads with a hire rate of 10.5% and a contact rate of 86.8%; the 2026-09-28 cohort of 40 leads reached a 12.5% hire rate and 90.0% contact rate.",
+        "The 2026-10-26 cohort has 12 leads — 9 contacted, 3 qualified, 1 applied, and 1 lost — but it is too young to judge its rates."
+      ]
+    }
+  }
+}

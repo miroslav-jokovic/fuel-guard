@@ -1,0 +1,94 @@
+{
+  "name": "name-with-digits",
+  "about": "A campaign's name carries digits (a year, a radius) that are the advertiser's words, not figures.",
+  "input": {
+    "fold": {
+      "day": "2026-11-03",
+      "month": {
+        "month": "2026-11",
+        "days_left": 28
+      },
+      "campaigns": [
+        {
+          "campaign_id": "c1",
+          "name": "CDL-A 2026 Joliet 75mi",
+          "spend_cents": 15340,
+          "impressions": 8800,
+          "clicks": 120,
+          "leads": 5,
+          "cost_per_lead_cents": 3068,
+          "ctr": 0.013636363636363636
+        },
+        {
+          "campaign_id": "c2",
+          "name": "Team drivers I-80",
+          "spend_cents": 6610,
+          "impressions": 3050,
+          "clicks": 30,
+          "leads": 0,
+          "cost_per_lead_cents": null,
+          "ctr": 0.009836065573770493
+        }
+      ],
+      "month_to_date": {
+        "meta": 48700
+      },
+      "cohorts": [
+        {
+          "week": "2026-09-21",
+          "leads": 38,
+          "reached": {
+            "contacted": 33,
+            "qualified": 17,
+            "applied": 10,
+            "hired": 4,
+            "lost": 8
+          },
+          "mature": true
+        },
+        {
+          "week": "2026-09-28",
+          "leads": 40,
+          "reached": {
+            "contacted": 36,
+            "qualified": 20,
+            "applied": 12,
+            "hired": 5,
+            "lost": 9
+          },
+          "mature": true
+        },
+        {
+          "week": "2026-10-26",
+          "leads": 12,
+          "reached": {
+            "contacted": 9,
+            "qualified": 3,
+            "applied": 1,
+            "hired": 0,
+            "lost": 1
+          },
+          "mature": false
+        }
+      ]
+    }
+  },
+  "expect": "ready",
+  "recorded": {
+    "source": "model",
+    "prompt_version": "analyst@1",
+    "model": "claude-sonnet-4-6",
+    "recorded_at": "2026-11-05T02:56:20.289Z",
+    "output": {
+      "headline": "On 2026-11-03, 2 campaigns spent $219.50 and delivered 5 leads at $43.90 each across 11,850 impressions.",
+      "points": [
+        "CDL-A 2026 Joliet 75mi drove all 5 leads of the day on $153.40 spent, with a cost per lead of $30.68 and a click rate of 1.4% from 8,800 impressions and 120 clicks.",
+        "Team drivers I-80 spent $66.10 across 3,050 impressions and 30 clicks at a 1.0% click rate, but brought no leads yet, so there is no cost per lead to report.",
+        "Month-to-date through 2026-11 with 28 days left, Meta spend stands at $487.00.",
+        "The 2026-09-21 cohort is mature at 38 leads: 33 contacted (86.8%), 17 qualified (44.7%), 10 applied (26.3%), 4 hired (10.5%), and 8 lost (21.1%).",
+        "The 2026-09-28 cohort is also mature at 40 leads: 36 contacted (90.0%), 20 qualified (50.0%), 12 applied (30.0%), 5 hired (12.5%), and 9 lost (22.5%).",
+        "The 2026-10-26 cohort has 12 leads with 9 contacted, 3 qualified, 1 applied, and 1 lost, but it is too young to judge rates yet."
+      ]
+    }
+  }
+}
