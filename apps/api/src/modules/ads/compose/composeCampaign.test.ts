@@ -33,15 +33,15 @@ const PRESETS = ["P1", "P2", "P3"].map((key, i) => ({ id: `p-${i}`, key, version
 const isWrite = (q: RecordedQuery) => q.write !== null;
 const has = (q: RecordedQuery, col: string) => q.filters().some((f) => f.col === col);
 
-function world(opts: { draw?: unknown; kits?: number; creatives?: unknown[]; liveCampaigns?: string[]; liveCreatives?: unknown[]; insertError?: unknown; enabled?: boolean } = {}) {
+function world(opts: { draw?: unknown; kits?: number; kitId?: string | null; archived?: boolean; creatives?: unknown[]; liveCampaigns?: string[]; liveCreatives?: unknown[]; insertError?: unknown; enabled?: boolean } = {}) {
   const rec = createSupabaseRecorder({
     tables: {
       ads_campaigns: (q) => {
         if (q.write) return [{ preset_draw: (q.write.payload as { preset_draw: unknown }).preset_draw }];
         if (has(q, "brief_ref")) return (opts.liveCampaigns ?? []).map((id) => ({ id }));
-        return [{ brief_ref: "fixture-opening@v1", brief_snapshot: copyFx.input.brief, preset_draw: opts.draw ?? null }];
+        return [{ brief_ref: "fixture-opening@v1", brief_snapshot: copyFx.input.brief, preset_draw: opts.draw ?? null, brand_kit_id: opts.kitId === undefined ? "k-1" : opts.kitId }];
       },
-      ad_brand_kits: Array.from({ length: opts.kits ?? 1 }, (_, i) => ({ id: `k-${i}`, name: "Kit", archived_at: null })),
+      ad_brand_kits: Array.from({ length: opts.kits ?? 2 }, (_, i) => ({ id: `k-${i}`, name: "Kit", archived_at: opts.archived && i === 1 ? NOW.toISOString() : null })),
       ad_brand_kit_versions: (q) => {
         const ids = (q.filters().find((f) => f.col === "kit_id")?.val ?? []) as string[];
         return ids.map((id) => ({ id: `kv-${id}`, kit_id: id, version: 1, kit: { ...artFx.input.kit, overlays: { "4:5": { zone: null, text_color: "#FFFFFF", plate_color: "#0B3D2E" } } }, created_at: NOW.toISOString(), created_by_name: "X" }));
@@ -106,9 +106,18 @@ describe("composeCampaign — the draw and the batch (D-AD11)", () => {
     expect(composed).toEqual([]);
   });
 
-  it("stops with no brand kit, or with more than one, before drawing anything", async () => {
-    expect(await composeCampaign(deps(world({ kits: 0 })), campaign)).toEqual({ ok: false, error: "no brand kit saved yet (Q-AD14)" });
-    expect(await composeCampaign(deps(world({ kits: 2 })), campaign)).toEqual({ ok: false, error: "2 brand kits: which one this campaign uses is not chosen" });
+  it("uses the kit the campaign names, with two kits in the org, and records that kit's newest version on each creative (Q-AD28)", async () => {
+    const rec = world();
+    expect(await composeCampaign(deps(rec), campaign)).toEqual({ ok: true });
+    const inserted = rec.forTable("ads_creatives").filter((q) => q.write?.method === "insert").map((q) => (q.write!.payload as { brand_kit_version_id: string }).brand_kit_version_id);
+    expect(inserted.length).toBe(BATCH);
+    expect(new Set(inserted)).toEqual(new Set(["kv-k-1"]));
+  });
+
+  it("stops before drawing anything when the campaign names no kit, a missing kit, or an archived one", async () => {
+    expect(await composeCampaign(deps(world({ kitId: null })), campaign)).toEqual({ ok: false, error: "the campaign names no brand kit (Q-AD28)" });
+    expect(await composeCampaign(deps(world({ kits: 1 })), campaign)).toEqual({ ok: false, error: "the campaign's brand kit no longer exists" });
+    expect(await composeCampaign(deps(world({ archived: true })), campaign)).toEqual({ ok: false, error: "the campaign's brand kit is archived" });
     expect(composed).toEqual([]);
   });
 });
@@ -119,7 +128,7 @@ describe("composeCampaign — a creative per preset in this stint", () => {
     await composeCampaign(deps(rec), campaign);
     const rows = rec.writtenRows("ads_creatives");
     expect(rows.map((r) => r.id)).toEqual(order.slice(0, BATCH).map((p) => stintCreativeId("c-1", p, STINT)));
-    expect(rows[0]).toMatchObject({ campaign_id: "c-1", state: "generating", brand_kit_version_id: "kv-k-0", supersedes_id: null });
+    expect(rows[0]).toMatchObject({ campaign_id: "c-1", state: "generating", brand_kit_version_id: "kv-k-1", supersedes_id: null });
   });
 
   it("an insert another run won (23505) reads that run's row instead of failing", async () => {

@@ -200,7 +200,8 @@ export const APPLICATION_SECTION_KEYS: Record<
   ],
   // The two fields A9 added — the only place in this map where a screen owns keys that discharge no
   // §391.21(b) paragraph at all, which is exactly what D-APP12 separated them out to be.
-  questions: ["questionnaire_version", "questionnaire_answers", "questionnaire_required"],
+  // §15.3 D-CQ4: and the carrier's OWN questions — the stamp and its answers — asked after the built-in ones.
+  questions: ["questionnaire_version", "questionnaire_answers", "questionnaire_required", "carrier_questions", "carrier_answers"],
   // Nothing of its own: photographs are staged in `application_captures`, not in the certified
   // payload, so this screen owns no §391.21(b) field (A8, D-APP10).
   documents: [],

@@ -26,6 +26,7 @@ import { recruitmentNotesRouter } from "./notes.js";
 import { recruitmentEmploymentGapsRouter } from "./employmentGaps.js";
 import { recruitmentOrientationVideosRouter } from "./orientationVideos.js";
 import { recruitmentCarrierStepsRouter } from "./carrierSteps.js";
+import { recruitmentCarrierQuestionsRouter } from "./carrierQuestions.js";
 import { recruitmentApplicantDocumentsRouter } from "./applicantDocuments.js";
 import { recruitmentMessageWordingRouter } from "./messageWording.js";
 import { recruitmentLeadsRouter } from "./leads.js";
@@ -69,6 +70,7 @@ export function recruitmentRouter(): Router {
   router.use(recruitmentEmploymentGapsRouter()); // gaps the office records after signing (HW5c, 0538)
   router.use(recruitmentOrientationVideosRouter()); // the carrier's video links and an applicant's "I watched these" (HW8a)
   router.use(recruitmentCarrierStepsRouter()); // the carrier's own hiring steps and the office's tick on each (§10 CE2, 0545)
+  router.use(recruitmentCarrierQuestionsRouter()); // the carrier's own application questions (§15.3 CQ2, 0567)
   router.use(recruitmentApplicantDocumentsRouter()); // the applicant's papers, and the office's upload (§9 P9)
   router.use(recruitmentMessageWordingRouter()); // the carrier's wording for the messages an applicant is sent (§12 MT2, 0551)
   router.use(recruitmentLeadsRouter()); // the lead queue, a lead entered by hand, and a lead made an applicant (ads D1, 0553/0554)

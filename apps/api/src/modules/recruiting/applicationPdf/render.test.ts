@@ -469,10 +469,11 @@ describe("the drawn signature mark", () => {
  * is a coordinate. `valueBeside` reads it out of the stream.
  */
 describe("the questionnaire section", () => {
-  const answered = (over: Record<string, unknown> = {}) =>
+  const answered = (over: Record<string, unknown> = {}, extra: Record<string, unknown> = {}) =>
     input({
       application: {
         ...APPLICATION,
+        ...extra,
         questionnaire_version: "silvicom_driver@v1",
         questionnaire_answers: {
           position: "Company driver",
@@ -676,6 +677,50 @@ describe("the questionnaire section", () => {
     const after = lines.filter((l) => l.page === heading.page && l.y > heading.y);
     // ⚠ Not "something follows it" — the FOOTER always does. The first row of its own grid must.
     expect(after.map((l) => l.text)).toContain("Full name");
+  });
+
+  /**
+   * §15.3 D-CQ2: the questions the carrier wrote itself print from the STAMP the filed payload carries,
+   * every one of them (AUD-22), after the built-in ones — or on a page of their own when those did not print.
+   */
+  const CARRIER_STAMP = [
+    { id: "91000000-0000-4000-8000-000000000001", wording: "Do you own a pet?", hint: null, kind: "boolean", choices: null, required: true },
+    { id: "91000000-0000-4000-8000-000000000002", wording: "Preferred lane", hint: null, kind: "select", choices: ["East", "West"], required: false },
+    { id: "91000000-0000-4000-8000-000000000003", wording: "Years at your last address", hint: null, kind: "number", choices: null, required: false },
+  ];
+  it("prints the carrier's added questions from the stamp: a no, a choice and an unanswered one", async () => {
+    const lines = await pdfDrawnLines(await renderApplicationPdf(answered({}, {
+      carrier_questions: CARRIER_STAMP,
+      carrier_answers: { [CARRIER_STAMP[0]!.id]: false, [CARRIER_STAMP[1]!.id]: "West" },
+    })));
+    expect(lines.some((l) => l.text.includes("questions the carrier added"))).toBe(true);
+    expect(valueBeside(lines, "Do you own a pet?")).toBe("No");
+    expect(valueBeside(lines, "Preferred lane")).toBe("West");
+    expect(valueBeside(lines, "Years at your last address")).toBe("Not answered.");
+    // After the built-in questions, on the same sheet.
+    const builtIn = lines.find((l) => l.text.includes("the carrier's own questions"))!;
+    const added = lines.find((l) => l.text.includes("questions the carrier added"))!;
+    expect(added.page).toBe(builtIn.page);
+    expect(added.y).toBeGreaterThan(builtIn.y);
+  });
+
+  it("prints the added questions on a page of their own when the built-in ones did not print, and nothing for no stamp", async () => {
+    const lines = await pdfDrawnLines(await renderApplicationPdf(input({
+      application: {
+        ...APPLICATION,
+        questionnaire_version: "silvicom_driver@v99",
+        carrier_questions: CARRIER_STAMP,
+        carrier_answers: { [CARRIER_STAMP[0]!.id]: true },
+      } as unknown as DriverApplication,
+    })));
+    const added = lines.find((l) => l.text.includes("questions the carrier added"))!;
+    expect(added).toBeDefined();
+    expect(lines.filter((l) => l.page === added.page && l.y < added.y && !/^\s*$/.test(l.text))
+      .every((l) => l.y < 80 || l.text.includes(added.text))).toBe(true);
+    expect(valueBeside(lines, "Do you own a pet?")).toBe("Yes");
+
+    const none = await pdfText(await renderApplicationPdf(answered({}, { carrier_questions: [{ id: "broken" }] })));
+    expect(none).not.toContain("questions the carrier added");
   });
 
   /**

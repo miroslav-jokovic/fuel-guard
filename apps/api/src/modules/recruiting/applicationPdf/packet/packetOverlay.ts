@@ -6,6 +6,7 @@ import { fieldTableFor } from "./packetFieldGeometry.js";
 import { drawFieldValues, fitText, mergeOverflow } from "./packetFit.js";
 import type { PacketOverlayInput } from "./packetOverlayInput.js";
 import { appendContinuationSheet, continuationNoticeFor } from "./packetContinuation.js";
+import { appendCarrierQuestionsSheet } from "./packetCarrierQuestions.js";
 import { drawWithdrawalNotices } from "./packetWithdrawals.js";
 import { correctedPacketTemplate } from "./packetTemplate.js";
 
@@ -371,6 +372,10 @@ export async function renderPacketOverlay(input: PacketOverlayInput): Promise<Bu
       overflow,
       applicantName: input.applicantName ?? "",
     });
+  }
+  // §15.3: the carrier's own questions, appended after the continuation sheet — never inserted.
+  if (input.carrierQuestions) {
+    await appendCarrierQuestionsSheet(doc, { ...input.carrierQuestions, applicantName: input.applicantName ?? "" });
   }
 
   /**

@@ -6,7 +6,7 @@ import {
   type ApplicationCaptureSlot,
   type PromotedCaptureSlot,
 } from "./applicationCaptureContract.js";
-import { DOCUMENT_CONTENT_TYPES, type DocumentKind } from "./complianceContract.js";
+import { CARRIER_POLICY_DOCUMENT_KINDS, DOCUMENT_CONTENT_TYPES, type DocumentKind } from "./complianceContract.js";
 import { recordId } from "./recordId.js";
 
 /**
@@ -36,6 +36,14 @@ export const applicantDocumentPage = (slot: PromotedCaptureSlot): number => APPL
 
 /** Every kind the list can produce — what the record's read shows from the driver's file. */
 export const APPLICANT_DOCUMENT_KINDS: readonly DocumentKind[] = [...new Set(APPLICANT_DOCUMENT_SLOTS.map(applicantDocumentKind))];
+
+/**
+ * What the applicant's Documents section lists: the papers they send (`APPLICANT_DOCUMENT_KINDS`), and the
+ * carrier's policies they signed for, filed with the packet (§15.2 D-DAP3 — the signed drug-and-alcohol
+ * policy). Derived from both lists, never restated. ⚠ Not what the office may UPLOAD here: a signed policy
+ * is filed by the packet, never sent or added by hand, so the upload stays on `APPLICANT_DOCUMENT_SLOTS`.
+ */
+export const APPLICANT_RECORD_DOCUMENT_KINDS: readonly DocumentKind[] = [...APPLICANT_DOCUMENT_KINDS, ...CARRIER_POLICY_DOCUMENT_KINDS];
 
 /**
  * The slot a filed paper answers, from its kind and page — the inverse of the table above, so an

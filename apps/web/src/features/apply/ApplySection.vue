@@ -12,6 +12,7 @@ import EmployerCheckNotice from "@/features/apply/EmployerCheckNotice.vue";
 import type { ApplicationDraft } from "@/features/apply/draft";
 import type { SectionIssue } from "@/features/apply/useApplicationWizard";
 import { useApplyScreen } from "@/features/apply/useScreenEvents";
+import { servedCarrierQuestions } from "@/features/apply/servedForm";
 
 /**
  * One screen of the application, chosen by section — moved out of `ApplyPage.vue` whole on 2026-09-27
@@ -46,8 +47,12 @@ useApplyScreen(() => `part2.${props.section}`);
   <LicenceFields v-else-if="section === 'licence'" v-model="draft" :locked-by="identityLockedBy" :part-one="partOne" />
   <ApplyEmploymentFields v-else-if="section === 'employment'" v-model="draft" :as-of="asOf" :v2-as-of="v2AsOf" />
   <SafetyHistoryFields v-else-if="section === 'safety'" v-model="draft" :ask-prior-test="!partOne" />
-  <!-- A9: the carrier's own questions, which discharge no CFR paragraph and block nothing. -->
-  <QuestionnaireFields v-else-if="section === 'questions'" v-model="draft" />
+  <!-- A9: the carrier's own questions, which discharge no CFR paragraph. §15.3 D-CQ4: then the ones the
+       carrier wrote itself, as stamped on this invitation — the same fields, after the built-in ones. -->
+  <div v-else-if="section === 'questions'" class="space-y-5">
+    <QuestionnaireFields v-model="draft" />
+    <QuestionnaireFields v-if="servedCarrierQuestions.length > 0" v-model="draft" source="carrier" />
+  </div>
   <!-- A8: photographs, not answers. They are staged against the invitation rather than saved into
        the draft, which is why this screen takes the token and not the form. -->
   <DocumentCaptureFields v-else-if="section === 'documents'" :token="token" :captures="captures" />

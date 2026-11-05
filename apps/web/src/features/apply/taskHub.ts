@@ -10,7 +10,7 @@ import {
 import { emptyDraft, toApplication, type ApplicationDraft } from "./draft";
 import { validateSection } from "./useApplicationWizard";
 import { APPLY_COPY, APPLY_SECTION_TITLES } from "./strings";
-import { applicantQuestionnaire } from "./questionnaireCopy";
+import { applicantCarrierQuestionnaire, applicantQuestionnaire } from "./questionnaireCopy";
 
 /**
  * Part 2 as a task list (APPLICATION-FLOW-V2-PLAN.md §6.4, D-AW11, C3c2a) — which tasks there are, and
@@ -55,11 +55,16 @@ export const OPTIONAL_TASKS: readonly ApplicationSection[] = ["documents"];
 /** The last row, and the only one that can be shut. */
 export const SEND_TASK: ApplicationSection = "review";
 
-const EMPTY = toApplication(emptyDraft()) as Record<string, unknown>;
-
-/** Would anything on this screen be filed? Compared on the filed shape, so blank rows do not count. */
+/**
+ * Would anything on this screen be filed? Compared on the filed shape, so blank rows do not count.
+ *
+ * ⚠ The empty document is built per call, never at module load (§15.3): `toApplication` carries what the
+ * bundle served — the required set (§11) and the carrier's own questions — and an empty draft built before
+ * the bundle arrived carries neither, so every questions screen would read as touched once one was served.
+ */
 function touched(section: ApplicationSection, filed: Record<string, unknown>): boolean {
-  return APPLICATION_SECTION_KEYS[section].some((key) => JSON.stringify(filed[key]) !== JSON.stringify(EMPTY[key]));
+  const empty = toApplication(emptyDraft()) as Record<string, unknown>;
+  return APPLICATION_SECTION_KEYS[section].some((key) => JSON.stringify(filed[key]) !== JSON.stringify(empty[key]));
 }
 
 /**
@@ -86,6 +91,13 @@ export function taskStatus(
   return validateSection(section, draft, v2AsOf).length === 0 ? "completed" : "in_progress";
 }
 
+/** The questions screen's count: the built-in questions, plus the carrier's own as stamped (§15.3). */
+function questionsAnswered(draft: ApplicationDraft): { answered: number; total: number } {
+  const builtIn = questionnaireProgress(applicantQuestionnaire(draft.questionnaire_version), "questions", draft.questionnaire);
+  const own = questionnaireProgress(applicantCarrierQuestionnaire(), "questions", draft.carrier_answers);
+  return { answered: builtIn.answered + own.answered, total: builtIn.total + own.total };
+}
+
 /** Every task, in the order §6.4 lists them, ending with "Before you send". */
 export function hubTasks(
   draft: ApplicationDraft,
@@ -98,7 +110,7 @@ export function hubTasks(
     status: taskStatus(section, draft, v2AsOf, captures),
     optional: OPTIONAL_TASKS.includes(section),
     ...(section === "questions"
-      ? { answered: questionnaireProgress(applicantQuestionnaire(draft.questionnaire_version), section, draft.questionnaire) }
+      ? { answered: questionsAnswered(draft) }
       : {}),
   }));
   /**

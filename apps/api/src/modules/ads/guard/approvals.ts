@@ -1,5 +1,16 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { needsSecondApprover, type AdsSettings, type AdsSpendApproval } from "@silvicom/shared";
+
+/**
+ * A person's decision on one creative (S1d; D-AD12), recorded here because this file is `ads_approvals`'
+ * writer. It moves no money and asks no fresh sign-in; `compose/decideCreative.ts` moves the creative only
+ * on the strength of this row (0537: such a row must name its creative).
+ */
+export interface CreativeDecisionRecord {
+  kind: "approve_creative" | "reject_creative";
+  creative_id: string;
+  reason?: string | null;
+}
 import type { Actor } from "../settings/settingsVersions.js";
 import { settingsInForce } from "../settings/settingsVersions.js";
 
@@ -95,7 +106,7 @@ export async function recordApproval(
   orgId: string,
   approver: Actor,
   campaignId: string,
-  body: AdsSpendApproval,
+  body: AdsSpendApproval | CreativeDecisionRecord,
 ): Promise<RecordApprovalResult> {
   const { data: campaign, error } = await admin
     .from("ads_campaigns").select("id").eq("org_id", orgId).eq("id", campaignId).maybeSingle();
@@ -121,6 +132,7 @@ export async function recordApproval(
     daily_budget_cents: "daily_budget_cents" in body ? body.daily_budget_cents : null,
     lifetime_cap_cents: "lifetime_cap_cents" in body ? body.lifetime_cap_cents : null,
     withdraws_id: body.kind === "withdraw" ? body.withdraws_id : null,
+    creative_id: "creative_id" in body ? body.creative_id : null,
     settings_version_id: inForce.version_id,
     reason: body.reason ?? null,
     approved_by: approver.id,

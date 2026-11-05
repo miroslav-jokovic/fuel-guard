@@ -88,13 +88,14 @@ export interface AdsCampaignView extends AdsCampaignSummary {
 
 // ── S1c: the moves a person makes on a campaign ──────────────────────────────────────────────────
 /**
- * The machine's events a person presses on the campaign page, minus two that have their own door:
- *   · `creatives_approved` — needs the person's decision on each creative first (S1d's door records them);
+ * The machine's events a person presses on the campaign page, minus the ones with their own door:
  *   · `kill` — the kill switch's own event, applied to every delivering campaign by `killSwitch.ts`.
+ * `creatives_approved` IS here since S1d, behind one more condition the door checks: at least one creative
+ * a person approved (each decision is its own door, `…/creatives/:id/decision`).
  * `launch` is not here either: it spends, so it is the approver's door below. Whether an event is
  * legal from the campaign's state, and whether a person may cause it, is still the machine's to say.
  */
-export const ADS_PERSON_DOOR_EXCLUDED: readonly CampaignEvent[] = ["creatives_approved", "kill", "launch"];
+export const ADS_PERSON_DOOR_EXCLUDED: readonly CampaignEvent[] = ["kill", "launch"];
 export const adsCampaignMoveSchema = z.object({
   event: z.enum(CAMPAIGN_EVENTS),
   reason: z.string().trim().min(1).max(500).nullable().optional(),
@@ -107,3 +108,11 @@ export const adsCampaignLaunchSchema = z.object({
   lifetime_cap_cents: z.number().int().positive(),
 });
 export type AdsCampaignLaunch = z.infer<typeof adsCampaignLaunchSchema>;
+
+// ── S1d: a person's decision on one creative ────────────────────────────────────────────────────
+export const adsCreativeDecisionSchema = z.object({
+  decision: z.enum(["approve", "reject"]),
+  /** Required to reject — the record of why an ad was turned down — and optional to approve. */
+  reason: z.string().trim().min(1).max(1000).nullable().optional(),
+}).refine((d) => d.decision === "approve" || Boolean(d.reason), { message: "Say why the ad is rejected.", path: ["reason"] });
+export type AdsCreativeDecision = z.infer<typeof adsCreativeDecisionSchema>;

@@ -11,6 +11,7 @@
     "fleetpal:smoke": "tsx src/scripts/fleetpalSmoke.ts",
     "doc:corpus": "tsx src/scripts/pullDocumentCorpus.ts",
     "doc:corpus:files": "tsx src/scripts/addFilesToDocumentCorpus.ts",
+    "doc:bol-corpus": "tsx src/scripts/pullBolCorpus.ts",
     "doc:score": "tsx src/scripts/scoreDocumentCorpus.ts",
     "doc:replay": "tsx src/scripts/replayDocumentReads.ts",
     "ads:eval": "node --env-file-if-exists=.env --import tsx src/scripts/adsEval.ts",

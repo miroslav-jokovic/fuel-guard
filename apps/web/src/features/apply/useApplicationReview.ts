@@ -1,6 +1,6 @@
 import { computed, type Ref } from "vue";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/vue-query";
-import type { ApplicationEdit, ApplicationPath, ApplicationReviewState, PartOneCorrection, PartOneFactsView } from "@silvicom/shared";
+import type { ApplicationEdit, ApplicationPath, ApplicationReviewState, CarrierQuestionStamp, PartOneCorrection, PartOneFactsView } from "@silvicom/shared";
 import { apiFetch } from "@/lib/api";
 
 /**
@@ -39,6 +39,8 @@ export interface ApplicationReview {
    * document filing will compose, not the draft's copy. Optional: an API older than C3c2c2 sends none.
    */
   partOne?: PartOneFactsView | null;
+  /** §15.3 D-CQ2: the carrier's own questions as stamped on this invitation. Optional: an API before CQ2 sends none. */
+  carrierQuestions?: CarrierQuestionStamp;
   edits: ApplicationEditRow[];
 }
 

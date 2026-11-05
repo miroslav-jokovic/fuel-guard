@@ -7,10 +7,12 @@ import {
   withEmployerKeys,
   applicationReviewState,
   applicationDraftPayloadSchema,
+  carrierStampOf,
   type ApplicationEdit,
   type ApplicationPath,
   type ApplicationPhases,
   type ApplicationReviewState,
+  type CarrierQuestionStamp,
   type PartOneFactsView,
 } from "@silvicom/shared";
 import { writeAudit } from "../../lib/audit.js";
@@ -86,6 +88,8 @@ interface InvitationRow {
   approved_at: string | null;
   signing_opened_at: string | null;
   submitted_at: string | null;
+  /** §15.3 D-CQ2 (0567): the carrier's own questions stamped at the first Send. Read through `carrierStampOf`. */
+  carrier_questions?: unknown;
 }
 
 const phasesOf = (row: InvitationRow): ApplicationPhases => ({
@@ -104,7 +108,7 @@ async function invitation(
   const { data } = await admin
     .from("application_invitations")
     // The service role bypasses RLS, so the org filter is the only thing between two carriers.
-    .select("id, org_id, driver_id, email, application_sent_at, review_requested_at, approved_at, signing_opened_at, submitted_at")
+    .select("id, org_id, driver_id, email, application_sent_at, review_requested_at, approved_at, signing_opened_at, submitted_at, carrier_questions")
     .eq("org_id", orgId)
     .eq("id", invitationId)
     .maybeSingle();
@@ -124,6 +128,11 @@ export interface ApplicationForReview {
    * document filing will (`composeFiledApplication`) rather than showing the draft's retyped copy.
    */
   partOne: PartOneFactsView | null;
+  /**
+   * §15.3 D-CQ2: the carrier's own questions THIS applicant was asked — the invitation's stamp, never the
+   * live list — so the drawer labels the draft's `carrier_answers` with the words the applicant read.
+   */
+  carrierQuestions: CarrierQuestionStamp;
   edits: Array<{ path: ApplicationPath; before: unknown; after: unknown; editedAt: string; editedBy: string | null }>;
 }
 
@@ -160,6 +169,7 @@ export async function applicationForReview(
     // §9 P5: the revision the office is looking at, sent back with every edit.
     revision: ((draft as { revision?: number | null } | null)?.revision) ?? 0,
     partOne: await partOneFactsView(admin, orgId, inv, new Date()),
+    carrierQuestions: carrierStampOf(inv.carrier_questions),
     edits: (edits ?? []).map((e) => {
       const row = e as { path: ApplicationPath; before: unknown; after: unknown; edited_at: string; edited_by: string | null };
       return { path: row.path, before: row.before, after: row.after, editedAt: row.edited_at, editedBy: row.edited_by };

@@ -105,6 +105,14 @@ describe("the list", () => {
     expect(w.find('[data-document="a"]').text()).toContain("10/30/2026");
   });
 
+  it("lists the drug and alcohol policy they signed with the packet, named as the driver's file names it (§15.2)", async () => {
+    state.docs = [row({ id: "dap", slot: null, kind: "drug_alcohol_policy", contentType: "application/pdf" })];
+    const w = mountSection();
+    await settle(w);
+    expect(w.find('[data-document="dap"]').text()).toContain("Drug and alcohol policy (signed)");
+    expect(w.find('[data-document="dap"]').text()).not.toContain("drug_alcohol_policy");
+  });
+
   it("shows a recruiter the SSN card row and not its picture (Q-WF4)", async () => {
     state.docs = [row({ id: "ssn", slot: "ssn_card", kind: "ssn_card", url: null, imageWithheld: true })];
     const w = mountSection();

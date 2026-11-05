@@ -145,6 +145,11 @@ export interface ApplicationDraft {
    */
   questionnaire_version: string;
   /**
+   * §15.3 D-CQ3: the answers to the carrier's OWN questions, keyed by the stamped question's id — their own
+   * key, never mixed into `questionnaire`, whose keys are a versioned definition's ids.
+   */
+  carrier_answers: Record<string, unknown>;
+  /**
    * "Something wrong? Tell us" (C3c2c2, Q-AW34): a v2 applicant's note to the office about a Part 1 fact
    * they are shown and cannot edit. Autosaved like an answer, never filed (`toApplication` leaves it out;
    * the contract is strict), shown on the office's drawer.
@@ -207,6 +212,7 @@ export const emptyDraft = (): ApplicationDraft => ({
   additional_licences: [],
   questionnaire: {},
   questionnaire_version: questionnaireRef(questionnaireForApplicant()),
+  carrier_answers: {},
   correction_note: "",
   ssn: "",
 });

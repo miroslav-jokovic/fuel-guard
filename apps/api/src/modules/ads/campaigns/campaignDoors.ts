@@ -8,6 +8,7 @@ import { listBrandKits } from "../creative/kitVersions.js";
 import { findCoveringApproval } from "../guard/approvals.js";
 import { applyCampaignEvent, insertCampaign, loadCampaign, type TransitionResult } from "../orchestrator/transitions.js";
 import { settingsInForce, type Actor } from "../settings/settingsVersions.js";
+import { hasApprovedCreative } from "./creativeDecisions.js";
 
 /**
  * The campaign doors behind `/api/ads/campaigns` (ADS-AGENT-BUILD-WORKFLOW Track S, S1b). Create, list, read.
@@ -85,7 +86,7 @@ export type MoveOutcome =
   | { kind: "moved"; to: CampaignState }
   | { kind: "not_found" }
   /** The machine said no (illegal from this state, or not a person's to cause), or the door excludes it. */
-  | { kind: "refused"; reason: "illegal_transition" | "actor_not_allowed" | "not_this_door" }
+  | { kind: "refused"; reason: "illegal_transition" | "actor_not_allowed" | "not_this_door" | "no_approved_creative" }
   /** Someone else moved the campaign first (`state_moved`), or this exact move was already recorded. */
   | { kind: "conflict" }
   /** Launch only: no standing approval covers these amounts, or a second approver is still owed. */
@@ -109,6 +110,8 @@ export async function personMove(admin: SupabaseClient, orgId: string, actor: Ac
   if (ADS_PERSON_DOOR_EXCLUDED.includes(ask.event)) return { kind: "refused", reason: "not_this_door" };
   const c = await loadCampaign(admin, orgId, campaignId);
   if (!c) return { kind: "not_found" };
+  // S1d: "the creatives are approved" is a claim about rows — at least one a person approved — not a button.
+  if (ask.event === "creatives_approved" && !(await hasApprovedCreative(admin, orgId, campaignId))) return { kind: "refused", reason: "no_approved_creative" };
   return fromTransition(await applyCampaignEvent(admin, c, {
     event: ask.event, actor: { kind: "person", id: actor.id, name: actor.name }, cause: ask.reason ?? `${actor.name}: ${ask.event}`,
   }, at.toISOString()));

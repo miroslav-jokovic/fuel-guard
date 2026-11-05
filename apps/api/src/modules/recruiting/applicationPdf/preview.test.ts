@@ -164,6 +164,73 @@ describe("previewing an application before it is signed", () => {
   });
 
   /**
+   * §15.3 D-CQ2: the carrier's own questions are an APPENDED sheet — last, after the continuation sheet,
+   * never among the carrier's pages — printed from the INVITATION's stamp over the draft on the preview
+   * and the reading copy, and from the filed payload's own stamp at filing. Same paper either way.
+   */
+  const CQ_STAMP = [
+    { id: "91000000-0000-4000-8000-000000000001", wording: "Do you own a pet?", hint: null, kind: "boolean", choices: null, required: true },
+    { id: "91000000-0000-4000-8000-000000000002", wording: "Preferred lane", hint: null, kind: "select", choices: ["East", "West"], required: false },
+  ];
+  const CQ_ANSWERS = { [CQ_STAMP[0]!.id]: false };
+
+  it("appends the carrier's own questions last, from the invitation's stamp, on the preview and the filing alike", async () => {
+    const payload = { ...PAYLOAD, accidents: FOUR_ACCIDENTS, carrier_answers: CQ_ANSWERS };
+    const preview = await applicationPreviewPdf(seed({ payload, invitation: invitation({ carrier_questions: CQ_STAMP }) }).client, ORG, INV);
+    if (isPreviewError(preview)) throw new Error(preview.message);
+    const pages = await pdfPageTexts(preview.pdf);
+    const last = pages.at(-1)!;
+    expect(last).toContain("THE CARRIER'S OWN QUESTIONS");
+    expect(last).toContain("Susan Godfrey");
+    // `No(?!t)`: "Not answered." also begins with "No" — the answer must be the word itself.
+    expect(last).toMatch(/Do you own a pet\?\s*No(?!t)/);
+    expect(last).toMatch(/Preferred lane\s*Not answered\./);
+    // After the continuation sheet, which follows the carrier's thirty-one pages.
+    expect(pages.at(-2)).toContain("CONTINUATION SHEET");
+    expect(pages.length).toBe(TEMPLATE_PAGES + 2);
+    // Its page number continues the carrier's sequence.
+    expect(last).toContain(String(TEMPLATE_PAGES + 2));
+
+    const filed = await renderPacketDocument({
+      marks: [],
+      application: { ...payload, carrier_questions: CQ_STAMP } as never,
+      certifiedAt: "2026-09-12T10:00:00Z",
+      signedName: ADOPTED,
+    });
+    expect(await pageCount(filed)).toBe(pages.length);
+    expect((await pdfPageTexts(filed)).at(-1)).toMatch(/Do you own a pet\?\s*No(?!t)/);
+  });
+
+  it("never parts a carrier question from its answer across a page of the sheet", async () => {
+    // Twenty questions of uneven length (1 to 4 lines each): the sheet runs to a second page, and where
+    // an item ends never falls in step with the page — a uniform fixture let a loose break pass by luck.
+    const long = Array.from({ length: 20 }, (_, i) => ({
+      id: `91000000-0000-4000-8000-0000000001${String(i).padStart(2, "0")}`,
+      wording: `Q${String(i).padStart(2, "0")} ${"Tell us about the routes and the freight you have hauled most often. ".repeat(4)}`.slice(0, 60 + ((i * 37) % 230)),
+      hint: null, kind: "text", choices: null, required: false,
+    }));
+    const filed = await renderPacketDocument({
+      marks: [],
+      application: { ...PAYLOAD, carrier_questions: long } as never,
+      certifiedAt: "2026-09-12T10:00:00Z",
+      signedName: ADOPTED,
+    });
+    const sheet = (await pdfPageTexts(filed)).slice(TEMPLATE_PAGES);
+    expect(sheet.length).toBeGreaterThan(1);
+    for (const page of sheet) {
+      // Every question begun on a page is answered on that page.
+      expect((page.match(/Q\d\d /g) ?? []).length).toBe((page.match(/Not answered\./g) ?? []).length);
+    }
+  });
+
+  it("appends no sheet for an invitation sent before the carrier's questions, whatever the draft holds", async () => {
+    const preview = await applicationPreviewPdf(seed({ payload: { ...PAYLOAD, carrier_answers: CQ_ANSWERS } }).client, ORG, INV);
+    if (isPreviewError(preview)) throw new Error(preview.message);
+    expect(await pageCount(preview.pdf)).toBe(TEMPLATE_PAGES);
+    expect(await textOf(preview.pdf)).not.toContain("THE CARRIER'S OWN QUESTIONS");
+  });
+
+  /**
    * ⚠ The one line of this module that could forge something. `signedName` is drawn on page 22's
    * `Driver name Print`, beside the signature lines, and the applicant's own name sits two fields
    * away in the payload this module is holding — so a preview that passed it would print a name

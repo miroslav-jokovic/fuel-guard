@@ -100,3 +100,17 @@ export const ADS_SETTINGS_UNSET: AdsSettings = {
 export function monthlyCapFor(settings: AdsSettings, platform: AdPlatform): number | null {
   return settings.limits.monthly_cap_cents[platform] ?? null;
 }
+
+/**
+ * The starting figures Settings › Ads control shows BESIDE the auto-pause fields (plan §2a.7, G5): a
+ * suggestion with its source, never a value in force. Nothing here is saved or read by the guard or the
+ * monitor; a carrier's own four weeks of data replaces it (plan §8). Boostpoint's 2026 benchmark for CDL
+ * drivers on Meta, 891 campaigns: median $26.86 per applicant, middle half $17.00–$42.31 — so "above $42
+ * after 5 leads" is the top of the middle half, and $85 spent with no lead is about two of those.
+ */
+export const ADS_BENCHMARK_SUGGESTIONS = {
+  source: "Boostpoint 2026 benchmark, CDL drivers on Meta",
+  cpl_max_cents: 4_200,
+  cpl_min_leads: 5,
+  no_lead_spend_cents: 8_500,
+} as const;

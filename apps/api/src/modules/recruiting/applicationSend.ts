@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
+  carrierQuestionsToStamp,
   requiredQuestionsToStamp,
   APPLICATION_SEND_WARNS_ON,
   renderApplicantEmail,
@@ -14,6 +15,7 @@ import { deliverApplicationMail, type ApplicationInviteDelivery } from "./applic
 import { messageInputs } from "./messageWording.js";
 import { sendOrQueueSms, type OutboxOutcome } from "./smsOutbox.js";
 import { recruitingSettings } from "./recruitingSettings.js";
+import { listCarrierQuestions } from "./carrierQuestions.js";
 
 /**
  * The office sends the applicant the application form (AF4, D-AF5, D-AF7).
@@ -98,6 +100,9 @@ export async function sendApplication(
   // §11 D-RS3: and the questions this applicant will be held to, resolved here (the carrier's set, or
   // the standard seven) and stamped by the function on the FIRST Send only — a resend keeps the first.
   const { invite_ttl_days: days, required_questions: required } = await recruitingSettings(admin, orgId);
+  // §15.3 D-CQ2: and the carrier's own questions, copied as they stand now — the function writes them on
+  // the first Send only, so a question added or retired later never changes what this applicant is asked.
+  const carrierQuestions = carrierQuestionsToStamp(await listCarrierQuestions(admin, orgId));
   const { token, hash } = mintInvitationToken();
   const { data: sentAt, error } = await admin.rpc("send_application_invitation", {
     p_org: orgId,
@@ -105,6 +110,7 @@ export async function sendApplication(
     p_token_hash: hash,
     p_extend_days: days,
     p_required_questions: requiredQuestionsToStamp(required),
+    p_carrier_questions: carrierQuestions,
   });
   if (error) {
     if (error.code === "AI002") {

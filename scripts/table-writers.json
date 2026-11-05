@@ -28,7 +28,8 @@
   ],
   "ads_creatives": [
     "apps/api/src/modules/ads/compose/composeCampaign.ts",
-    "apps/api/src/modules/ads/compose/composeCreative.ts"
+    "apps/api/src/modules/ads/compose/composeCreative.ts",
+    "apps/api/src/modules/ads/compose/decideCreative.ts"
   ],
   "ads_spend_hourly": [
     "apps/api/src/modules/ads/monitor/insightsPull.ts"
@@ -348,6 +349,9 @@
   ],
   "hiring_carrier_steps": [
     "apps/api/src/modules/recruiting/carrierSteps.ts"
+  ],
+  "recruiting_carrier_questions": [
+    "apps/api/src/modules/recruiting/carrierQuestions.ts"
   ],
   "hos_duty_segments": [
     "apps/api/src/modules/samsara/hosSync.ts"

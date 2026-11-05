@@ -17,9 +17,11 @@ export function computeCalc(body: HazmatCalcRequest): HazmatCalcResponse | CalcE
     return { code: "unknown_dataset", message: `Unknown hazmat dataset version "${version}".` };
   }
   const dataset = loadDataset(version);
+  // `evaluatedAt` is the server's, AFTER the caller's load (TWO-CLICK-READER-PLAN TC1.5): spread second, a body that
+  // carried its own `evaluatedAt` dated the verdict — a record of WHEN the engine answered is not the caller's to say.
   const input = {
-    evaluatedAt: new Date().toISOString(),
     ...(body.load as Record<string, unknown>),
+    evaluatedAt: new Date().toISOString(),
     dataset,
   } as unknown as LoadInput;
 

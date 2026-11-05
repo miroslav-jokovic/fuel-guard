@@ -1494,6 +1494,75 @@ blocking step in §3 above.
     reaches it. `receiveLeadgenDelivery` drops it first, because the carrier is found through a campaign. Finding it by
     `ads_platform_connections.page_ref` is the likely answer. Not built, not tested.
   - Scorecard on `01aeee1`: as the handoff's §1a, except Security L2 (was L1; the ads chat's #2033).
+- **2026-11-04, B2c2 merged; the two halves Track S waits on** — #2034 (`5c5687e`), Publisher L2. This PR holds
+  the two `compose/` changes Track S's log names as blocked on Track W. No migration.
+  - **`compose/decideCreative.ts` (S1d's other half).** A person's decision moves one creative `ready →
+    approved | rejected`, compare-and-set, only while the campaign is in `review`. It moves ONLY on a recorded
+    act: the door passes the `ads_approvals` row id, and the row must be this org's, name this creative and
+    campaign, be of the decision's kind (`approve_creative` / `reject_creative`), and not be withdrawn.
+    - Writing that row stays with `guard/approvals.ts`, the table's writer (Track S's S1d door extends it).
+      `decideCreative` reads it and never writes it.
+    - The same decision twice is `already`, even after the campaign has moved on. Two people at once: the
+      landed write wins and the other is told `not_ready` with the winning state.
+    - The publisher's "approved creatives only" (B2c2) now has the gate it trusts.
+  - **Compose reads `ads_campaigns.brand_kit_id` (Q-AD28 (a), S1a's column; S1b's create door its first
+    writer).** The kit is the campaign's choice. Compose stops with the reason when the campaign names none, a
+    missing kit, an archived one, or one with no saved version. Each creative still records the kit's NEWEST
+    version. The "more than one kit" refusal is gone: an org may now keep two kits.
+  - Mutation:
+    - decideCreative: 10 mutants. Two survived the first pass. One was redundant code (an early `ready` check
+      the compare-and-set already makes), now deleted. The other was a fixture that ignored the update's
+      filter, so the compare-and-set was untested; fixed. A third pass found an `already` case the tests
+      lacked: a retry after the campaign moved on. Now 9 of 9 killed.
+    - Kit choice: 3 of 3 killed.
+- **2026-11-04, E1a — Settings › Ads control: limits, pauses, approvals, AI budgets, kill switch (Track S).** No API
+  change, no migration. E1 is three PRs: **E1a** this page; **E1b** who hears each alert + the platform connections and
+  their test; **E1c** spend so far against the caps, which needs a new read over the D-AD5 fold.
+  - `/settings/recruiting/ads` (plan §4b's path), catalogue `admin.recruiting.ads` — the same gate, card and start as
+    Settings › Recruiting (`section("recruitment")`, `startsOnFor: []`), so who sees it is the Permissions page's to
+    set, not a rule written here. Saving and clearing the switch are offered only to an admin (`session.admin`, the
+    same `isAdmin` the API's `requireAdminOnly` asks) and go through `useStepUpRetry`; pressing the switch is anyone
+    who manages recruiting, with no password prompt. A reason is required both ways.
+  - `adsSettingsForm.ts` (pure): blank is "not set" (null), never 0; dollars are stored as cents; the contract's schema
+    judges the result, so the page's errors are its bounds; the alerts (E1b's) pass through a save untouched; only the
+    agents switched on are stored (absent = off, so a saved version reads back as itself).
+  - The benchmark beside the automatic pauses is a shared constant, `ADS_BENCHMARK_SUGGESTIONS` (plan §2a.7, with its
+    source), shown as a hint and never saved by itself.
+  - **Browser pass** (build + preview, dev bypass, 1280 and 390): fail (Retry, the page's sentence), empty ("Nothing
+    saved yet, so nothing can launch."), saved with the switch on. **Found:** `AppSwitch`'s `label` is only an
+    accessible name, so every switch drew unlabelled; each now sits in a row with its words, pinned by a test. The
+    STAGING pass follows the merge (staging serves the page only then), as the fleet-manager test member — who manages
+    recruiting but is not an admin.
+  - Tests: `adsSettingsForm.test.ts` (12), `AdsControl.test.ts` (10). Mutation: 12 mutants (blank → 0, cents, alerts
+    reset, blank cap, separators, the refusal's words, who edits, an invalid form sent, who presses, who clears, the
+    reason, clear sent as press) — 12 of 12 killed. One first "killed" by referring to a name that did not exist; it
+    was re-run as a real change.
+- **2026-11-04, #2036 merged; Track W handoff 2** — #2036 (`a84fb3c`): `decideCreative` and compose reading
+  `brand_kit_id`. Its first CI run failed `test-api (3)` on `creative/brandAssets.test.ts`, "refuses a file that
+  starts like a PNG but is cut short": sharp read a half-cut 200×200 PNG as `ready`. #2036 does not touch that file
+  or sharp. The test passed 20 of 20 in isolation and passes on main. The job was re-run and passed. This is a second
+  flaky test beside the OCR one, unfixed: make the cut deterministic (for example, stop inside IDAT). Track W
+  continues from `HANDOFF-2026-11-04-ADS-TRACK-W-2.md`; next is image-to-image from the kit photo (D-AD9).
+- **2026-11-04, S1d — a person approves or rejects one ad (Track S).** No migration. Track W's `decideCreative` (#2036)
+  is the other half; this is the door.
+  - **`POST /api/ads/campaigns/:id/creatives/:creativeId/decision {decision, reason?}`** (manage on the brief's section:
+    `ADS_AUTHORITY.approve_creative` is a person's, and approving words and a picture spends nothing). A rejection needs
+    a reason (shared `adsCreativeDecisionSchema`). Three owners, each its own part: the door refuses what cannot apply
+    BEFORE writing anything (campaign not in `review`, ad not `ready`, another carrier's or another campaign's ad); then
+    `guard/approvals.ts` records an `approve_creative` / `reject_creative` row naming the creative (`recordApproval`
+    widened, 0537's CHECK already requires `creative_id` on those kinds); then `decideCreative` moves the ad on that
+    row's id, compare-and-set. The same decision twice answers the same and records nothing new. If two people press at
+    once and the other decision lands, the door WITHDRAWS its own row (append-only: a new row naming it, reason
+    `did not apply: …`), so the ledger never shows a decision that did not apply.
+  - **`creatives_approved` joins the person door** (`ADS_PERSON_DOOR_EXCLUDED` is now `kill`, `launch`), behind one
+    condition: at least one ad of the campaign is `approved` — "the creatives are approved" is a claim about rows.
+  - With S1d, every campaign door E3 needs exists: create (S1b) → review: decide each ad (S1d), Regenerate (S1c) →
+    approve the campaign (S1d) → create paused (runner / S1c) → approve the spend + Launch (A5 + S1c).
+  - Tests: `creativeDecisions.test.ts` (10, through the app, the real approvals writer and the real `decideCreative`;
+    the store applies the UPDATE's filters, so the compare-and-set is its answer). Mutation: 12 mutants (creative id
+    not written, both pre-checks, re-recording an already-decided ad, no withdrawal on a lost race, approve recorded as
+    reject, both scopes, the campaign-approval check, a rejected ad counted, a reject without reason, the gate) — 12 of
+    12 killed.
 - **2026-11-04, Lead intake L2; the climb moves to the leads track** — by the owner's yes. **Track W:** Lead intake and
   Monitor L2–L3 (your step 5) are now the leads track's, so do not start them; Copywriter, Renderer and Publisher's climb
   stay yours. No migration.

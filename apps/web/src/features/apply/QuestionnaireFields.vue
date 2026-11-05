@@ -15,7 +15,7 @@ import {
 } from "@silvicom/shared";
 import ApplyField from "@/features/apply/ApplyField.vue";
 import QuestionnaireTable from "@/features/apply/QuestionnaireTable.vue";
-import { applicantQuestionnaire } from "@/features/apply/questionnaireCopy";
+import { applicantCarrierQuestionnaire, applicantQuestionnaire } from "@/features/apply/questionnaireCopy";
 import { APPLY_COPY } from "@/features/apply/strings";
 import type { ApplicationDraft } from "@/features/apply/draft";
 
@@ -51,22 +51,39 @@ const draft = defineModel<ApplicationDraft>({ required: true });
  * says which screen each question belongs on, because the carrier's own paper says so: five of these
  * are on its page 1, beside the name and the address.
  */
-const props = withDefaults(defineProps<{ section?: ApplicationSection }>(), { section: "questions" });
+const props = withDefaults(
+  defineProps<{
+    section?: ApplicationSection;
+    /**
+     * §15.3 D-CQ4: `carrier` draws the questions the CARRIER wrote, as stamped on this invitation, after the
+     * built-in ones — the same fields, answered into `carrier_answers` and refused under that path. The
+     * stamp is the carrier's own list, so it has no screens of its own and no intro: the page marks them
+     * as neither the carrier's nor untranslated (D-CQ4).
+     */
+    source?: "builtin" | "carrier";
+  }>(),
+  { section: "questions", source: "builtin" },
+);
+const carrier = props.source === "carrier";
+/** Where this instance's answers live in the draft, and the contract key a refusal names. */
+const ANSWERS_KEY = carrier ? "carrier_answers" : "questionnaire";
+const PATH_KEY = carrier ? "carrier_answers" : "questionnaire_answers";
 
 // The definition this draft's answers are being given against (§9 P8): v2 for a draft started before v3.
-const definition = applicantQuestionnaire(draft.value.questionnaire_version);
+const definition = carrier ? applicantCarrierQuestionnaire() : applicantQuestionnaire(draft.value.questionnaire_version);
 
-const answer = (id: string): unknown => draft.value.questionnaire[id];
+const answers = (): Record<string, unknown> => draft.value[ANSWERS_KEY];
+const answer = (id: string): unknown => answers()[id];
 /**
  * Set one answer — and clear any question asked only on the answer this one had (AF-6): a "When?"
  * typed after a "yes" that is then changed to "no" is an answer to a question no longer asked.
  */
 const set = (id: string, value: unknown): void => {
-  const next: Record<string, unknown> = { ...draft.value.questionnaire, [id]: value };
+  const next: Record<string, unknown> = { ...answers(), [id]: value };
   for (const q of definition.questions) {
     if (q.askedWhen?.question === id && !isAsked(q, next)) delete next[q.id];
   }
-  draft.value.questionnaire = next;
+  draft.value[ANSWERS_KEY] = next;
 };
 
 /**
@@ -99,11 +116,11 @@ const rowsFor = (id: string): Record<string, unknown>[] => {
 
 /** This screen's questions that are asked, given the answers so far (`askedWhen`). */
 const questions = computed(() =>
-  questionsForScreen(definition, props.section).filter((q) => isAsked(q, draft.value.questionnaire)),
+  questionsForScreen(definition, props.section).filter((q) => isAsked(q, answers())),
 );
 
 /** The contract path of one answer — what a refusal names and what `ApplyField` derives its id from. */
-const pathOf = (question: QuestionnaireQuestion): [string, string] => ["questionnaire_answers", question.id];
+const pathOf = (question: QuestionnaireQuestion): [string, string] => [PATH_KEY, question.id];
 
 /**
  * A `select`'s options. A keyed question (`choices`, Q-HM14's `applying_as`) stores the KEY and shows
@@ -120,7 +137,7 @@ const selectOptions = (question: QuestionnaireQuestion): Array<{ value: string; 
     <!-- Only on the screen that IS the carrier's questions. On `identity` and `employment` these sit
          among the regulation's own fields and a paragraph explaining that they are not part of the
          federal application would be introducing a distinction the driver has no use for there. -->
-    <p v-if="section === 'questions'" class="text-sm text-ink-muted">{{ definition.intro }}</p>
+    <p v-if="section === 'questions' && !carrier" class="text-sm text-ink-muted">{{ definition.intro }}</p>
 
     <!-- ⚠ A grid, and the reason is what these questions now sit beside (D-AX7). Rendered one per
          row, a two-word answer like "Position you are applying for" took a 680px input on a desktop
