@@ -347,6 +347,7 @@ async function approveIt(): Promise<void> {
         <OfficeJobsSection
           v-if="invitationId && (employers.length || editable)"
           :invitation-id="invitationId"
+          :driver-id="review.data.value?.driverId ?? null"
           :employers="employers"
           :given-gaps="givenGaps"
           :revision="revision"

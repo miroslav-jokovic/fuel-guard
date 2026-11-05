@@ -1713,3 +1713,49 @@ blocking step in §3 above.
   - **The rating:** a sheet of the 40 ads, both languages slot by slot, is posted on the PR for the owner. The rate
     they give is recorded in the registry and the Copywriter reaches L3.
   - Mutation: 5 mutants (each new age form, the short-slot bound and share, the told limit), all killed.
+- **2026-11-05, E1b: Settings › Ads control — alerts and ad accounts**, Track S. No migration, no new route.
+  - **Alerts** are a section of the E1a form, saved in the same version (one save of one object; two saves
+    would each write a version). Per `ADS_ALERT_CATEGORIES` category: the people chosen, an "Add someone"
+    picker, and, when nobody is chosen, who hears it by default. An emptied list is left out, so a saved version
+    reads back as itself. `uncontacted_lead_minutes` 5–1440, judged by the contract.
+  - **The default audience is derived, not restated:** shared `ADS_LEAD_CALL_ALERTS` (`lead_new`,
+    `lead_uncontacted` → recruitment managers; every other → the admins). `adsAlerts.ts`'s `AdsAlert.category`
+    and `leadNotify.ts`'s `LeadAlert.category` are now typed from it, so the page and the bell cannot disagree.
+  - **People** come from the Users page's `useMembersQuery` (`GET /api/members`, admin-only), asked by
+    `AdsControlPage.vue` (one feature may not import another) and only for an admin. A non-admin sees
+    "2 people chosen", never names. Suspended members are not offered; an id that left reads "Someone no
+    longer in the company".
+  - **Ad accounts** card over `/api/ads/connections`: list (status, refs, last test), Test, Disconnect (with a
+    confirm), Connect the simulator (only while none is live), Connect a Meta account (form judged by
+    `adsMetaConnectSchema`, then "Test and connect"). Admin-only acts, by the route's gates; step-ups through
+    `useStepUpRetry`. A refused connect's report (nothing stored) is shown from the 422's body.
+  - **The test report's shape moved to shared** (`AdsConnectionReport`, `ADS_CONNECTION_CHECKS` in
+    `connectionContract.ts`; `connectionTest.ts` aliases them), so `last_test` is typed rather than `unknown`.
+  - **Browser pass** (build + preview, dev bypass; fail / empty / saved / ad-accounts-fail, 1280 + 390). It found
+    and fixed: a full-width picker per row; a failing account saying its failure twice; seven "Passed" rows per
+    healthy account (now one line); **connect buttons offered while the list failed to load**. Staging pass
+    owed: staging's web still calls the dead `uat` API (`STAGING_VITE_API_URL`, the 11/04 blocker).
+  - Mutation: 21 mutants, 20 killed; the survivor (`admin &&` before `connecting`) was a no-op guard, removed.
+- **2026-11-05, Renderer L3: a render cut short anywhere is charged once and stores true bytes**, Track W. No migration,
+  no production code. **Renderer / Higgsfield client L2 → L3.**
+  - **The bar is §4R's:** 0 double charges across replays (the fake counts submits), and every stored asset matches its
+    sha256. Until now it was held by a handful of named cases in `render.test.ts`. `render.sweep.test.ts` holds it over
+    every way a render can be cut short. Each case runs one render to its end as the `ads_render` job does, and runs
+    with and without a kit photo (D-AD9).
+    - **Killed:** the process dies once, just after a side effect and before the step hears of it: the photo
+      uploaded, the ledger row written, the submit accepted, the first and a later status read, the file downloaded,
+      the file stored, the row completed.
+    - **Faulted:** every transient fault FakeHiggsfield can inject (queue full, server error, unavailable, accepted
+      then the answer lost), on the upload URL, the submit and the status read.
+    - **What every case must end with:** the image stored; one submit; the price taken once; one ledger row. Every
+      object in the bucket holds the bytes its name's hash says, and the row's `asset_sha256`, `asset_path` and
+      output name those same bytes.
+    - **The guards against a vacuous case:** a kill case asserts its kill point was reached, and a fault case asserts
+      the job waited on the faulted call.
+  - **The one thing a crash may repeat is the photo upload.** It repeats only when the process dies between the upload
+    and the ledger row: nothing was submitted or charged yet, so the first submit's fresh URL is not "same key,
+    different URLs". After the row exists, the upload never repeats. The sweep checks both.
+  - 30 cases. A finished render replayed again asks Higgsfield nothing.
+  - Mutation: 7 mutants, all killed: a replay under a fresh key, the row's params ignored, the photo re-uploaded
+    with a row, a stored-file conflict treated as a failure, the row naming another hash, the replay read skipped, and
+    a file stored under a hash its bytes do not have.

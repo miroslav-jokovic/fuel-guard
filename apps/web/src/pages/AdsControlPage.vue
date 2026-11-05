@@ -1,30 +1,43 @@
 <script setup lang="ts">
+import { computed } from "vue";
 import { QueryState } from "@silvicom/ui";
 import PageHeader from "@/components/ui/PageHeader.vue";
+import AdsConnectionsCard from "@/features/ads/AdsConnectionsCard.vue";
 import AdsKillSwitchCard from "@/features/ads/AdsKillSwitchCard.vue";
 import AdsSettingsForm from "@/features/ads/AdsSettingsForm.vue";
 import { useAdsSettings } from "@/features/ads/useAdsSettings";
+import { useMembersQuery } from "@/features/permissions/usePermissions";
+import { useSessionStore } from "@/stores/session";
 
 /**
  * Settings › Ads control (ADS-AGENT-PLAN §4b; ADS-AGENT-BUILD-WORKFLOW E1). The recruiting ads agent's
- * limits, automatic pauses, approvals, AI budgets and kill switch, on one page.
+ * limits, automatic pauses, approvals, AI budgets, alerts, ad accounts and kill switch, on one page.
  *
  * ── WHO REACHES IT ────────────────────────────────────────────────────────────────────────────
  * The catalogue's `admin.recruiting.ads`, `section("recruitment")`, as Settings › Recruiting is: anyone
  * who can view recruiting reads it (plan §4b, "readable by recruiters"); writes are the API's to refuse
- * and the page's to hide by the same rules — saving and clearing the switch are an admin's, freshly
- * signed in; pressing the switch is anyone who manages recruiting.
+ * and the page's to hide by the same rules — saving, clearing the switch and every ad-account act are an
+ * admin's; pressing the switch is anyone who manages recruiting.
  *
- * ── STILL TO COME (E1b, E1c) ──────────────────────────────────────────────────────────────────
- * Who hears each alert and the platform connections with their test are E1b; spend so far against the
- * caps (the D-AD5 fold) is E1c, which needs its own read.
+ * ── THE PEOPLE LIST (E1b) ─────────────────────────────────────────────────────────────────────
+ * Who hears each alert is chosen from the Users page's own read (`useMembersQuery`, `GET /api/members`),
+ * asked here — the page, not the ads feature, because one feature may not reach into another
+ * (`lint:boundaries`). That read is admin-only at the API, so it is asked only for an admin: anyone else
+ * would get a 403 for a list the alerts section then shows only as a count.
+ *
+ * ── STILL TO COME (E1c) ───────────────────────────────────────────────────────────────────────
+ * Spend so far against the caps (the D-AD5 fold) is E1c, which needs its own read.
  */
+const session = useSessionStore();
 const settings = useAdsSettings();
+const members = session.admin ? useMembersQuery() : null;
+const memberList = computed(() => members?.data.value ?? null);
+const membersFailed = computed(() => Boolean(members?.error.value));
 </script>
 
 <template>
   <div class="space-y-6">
-    <PageHeader description="How much the ads may spend, when they pause themselves, and the switch that stops them all." />
+    <PageHeader description="How much the ads may spend, when they pause themselves, who hears about it, and the switch that stops them all." />
     <QueryState
       :loading="settings.isLoading.value"
       :error="settings.error.value"
@@ -34,7 +47,8 @@ const settings = useAdsSettings();
     >
       <div v-if="settings.data.value" class="space-y-6">
         <AdsKillSwitchCard :view="settings.data.value" />
-        <AdsSettingsForm :view="settings.data.value" />
+        <AdsConnectionsCard />
+        <AdsSettingsForm :view="settings.data.value" :members="memberList" :members-failed="membersFailed" />
       </div>
     </QueryState>
   </div>
