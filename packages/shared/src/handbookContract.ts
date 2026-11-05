@@ -93,6 +93,18 @@ export const handbookCountersignSchema = z.object({
 });
 export type HandbookCountersign = z.infer<typeof handbookCountersignSchema>;
 
+/**
+ * `GET /api/recruitment/drug-alcohol-policy` — which text of the carrier's drug-and-alcohol policy is in use
+ * (HIRING-WORKFLOW-AUDIT §15.2 DAP2's office preview). The policy is the handbook's kind of document
+ * (D-DAP1), so its contract sits beside the handbook's. `version` is the `dap-…` hash of what prints — the
+ * one a p28 receipt names — computed by the API from the text; Settings → Recruiting shows it, never restates it.
+ */
+export const drugAlcoholPolicyInfoSchema = z.object({
+  name: z.string(),
+  version: z.string().regex(/^dap-[0-9a-f]{16}$/),
+});
+export type DrugAlcoholPolicyInfo = z.infer<typeof drugAlcoholPolicyInfoSchema>;
+
 /** `POST /api/recruitment/representatives` — the office adds somebody who may sign for the carrier. */
 export const carrierRepresentativeCreateSchema = z.object({
   full_name: z.string().trim().min(2).max(120),

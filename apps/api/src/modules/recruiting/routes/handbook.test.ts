@@ -7,6 +7,8 @@ import { loadEnv } from "../../../env.js";
 import { createSupabaseRecorder, expectOrgScoped, type SupabaseRecorder } from "../../../testing/supabaseRecorder.js";
 import { closeTestServer } from "../../../testing/httpServer.js";
 import { HANDBOOK_VERSION } from "../applicationPdf/handbook/handbookText.js";
+import { DRUG_ALCOHOL_POLICY_VERSION } from "../applicationPdf/drugAlcoholPolicy/drugAlcoholPolicyText.js";
+import { pdfText } from "../../../testing/pdfText.js";
 
 // Q-HB1: the packet's countersignature runs first in the same press and has its own tests
 // (`packetCountersign.test.ts`). Here it succeeds and hands back the Representative it was given, so
@@ -120,6 +122,33 @@ describe("the office's handbook preview (D-AW17, C3s5)", () => {
     holder.client = seed({ application_invitations: [{ id: "inv-1", submitted_at: "t", signing_opened_at: "t", handbook_filed_at: "t" }] }).client;
     const res = await send("GET", `/applicants/${DRIVER}/handbook/preview.pdf`, "recruiter");
     expect(res.status).toBe(409);
+  });
+});
+
+describe("the office's blank drug-and-alcohol policy (§15.2 DAP2)", () => {
+  it("streams the policy under its DRAFT band to recruitment view, scoped to the caller's carrier", async () => {
+    const rec = seed({ organizations: [{ name: "Silvicom Inc", legal_address: null }] });
+    holder.client = rec.client;
+    const res = await send("GET", "/drug-alcohol-policy/preview.pdf", "recruiter");
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toBe("application/pdf");
+    expect(res.headers.get("content-disposition")).toContain(`drug-alcohol-policy-${DRUG_ALCOHOL_POLICY_VERSION}-preview.pdf`);
+    const text = await pdfText(Buffer.from(await res.arrayBuffer()));
+    expect(text).toContain("DRAFT - NOT A SIGNED POLICY");
+    expect(rec.forTable("organizations")[0]!.filters()).toEqual(expect.arrayContaining([{ col: "id", val: ORG }]));
+  });
+
+  it("names the text version in use", async () => {
+    holder.client = seed().client;
+    const res = await send("GET", "/drug-alcohol-policy", "recruiter");
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ policy: { name: "Drug and alcohol abuse policy", version: DRUG_ALCOHOL_POLICY_VERSION } });
+  });
+
+  it("is refused, both doors, to a role that cannot see recruitment", async () => {
+    holder.client = seed().client;
+    expect((await send("GET", "/drug-alcohol-policy/preview.pdf", "dispatcher")).status).toBe(403);
+    expect((await send("GET", "/drug-alcohol-policy", "dispatcher")).status).toBe(403);
   });
 });
 

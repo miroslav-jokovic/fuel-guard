@@ -26,6 +26,7 @@ import {
   type HandbookError,
 } from "../handbookSigning.js";
 import { handbookPreviewPdf } from "../handbookPreview.js";
+import { drugAlcoholPolicyInfo, drugAlcoholPolicyPreviewPdf } from "../drugAlcoholPolicyPreview.js";
 
 /**
  * The driver handbook and the Representatives who sign it for the carrier — HANDBOOK-SIGNING-PLAN.md
@@ -136,6 +137,31 @@ export function recruitmentHandbookRouter(): Router {
         res.status(handbookStatusCode(result)).json(apiError(result.code, result.message));
         return;
       }
+      res.setHeader("content-type", "application/pdf");
+      res.setHeader("content-disposition", `inline; filename="${result.filename}"`);
+      res.send(result.pdf);
+    }),
+  );
+
+  // §15.2 DAP2's office preview: the blank drug-and-alcohol policy from Settings → Recruiting, here beside
+  // the handbook's because it is the handbook's kind of document (D-DAP1) drawn by the same renderer. On the
+  // view door: reading the carrier's handout changes nothing. The JSON names the text in use for the card.
+  router.get(
+    "/drug-alcohol-policy",
+    requireOrg,
+    requireSection("recruitment", "view"),
+    (_req: Request, res: Response) => {
+      res.json({ policy: drugAlcoholPolicyInfo() });
+    },
+  );
+
+  router.get(
+    "/drug-alcohol-policy/preview.pdf",
+    requireOrg,
+    requireSection("recruitment", "view"),
+    asyncHandler(async (req: Request, res: Response) => {
+      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      const result = await drugAlcoholPolicyPreviewPdf(admin, req.auth!.orgId!);
       res.setHeader("content-type", "application/pdf");
       res.setHeader("content-disposition", `inline; filename="${result.filename}"`);
       res.send(result.pdf);
