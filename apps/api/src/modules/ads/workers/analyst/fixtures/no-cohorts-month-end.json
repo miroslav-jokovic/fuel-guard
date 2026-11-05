@@ -1,0 +1,56 @@
+{
+  "name": "no-cohorts-month-end",
+  "about": "The shape production sends until Q-AD34: no cohorts at all, on the last day of the month (0 days left).",
+  "input": {
+    "fold": {
+      "day": "2026-10-31",
+      "month": {
+        "month": "2026-10",
+        "days_left": 0
+      },
+      "campaigns": [
+        {
+          "campaign_id": "c1",
+          "name": "Regional Class A — Joliet",
+          "spend_cents": 18450,
+          "impressions": 9120,
+          "clicks": 141,
+          "leads": 6,
+          "cost_per_lead_cents": 3075,
+          "ctr": 0.015460526315789473
+        },
+        {
+          "campaign_id": "c2",
+          "name": "Dedicated night runs",
+          "spend_cents": 9975,
+          "impressions": 5480,
+          "clicks": 62,
+          "leads": 1,
+          "cost_per_lead_cents": 9975,
+          "ctr": 0.011313868613138687
+        }
+      ],
+      "month_to_date": {
+        "meta": 812450
+      },
+      "cohorts": []
+    }
+  },
+  "expect": "ready",
+  "recorded": {
+    "source": "model",
+    "prompt_version": "analyst@1",
+    "model": "claude-sonnet-4-6",
+    "recorded_at": "2026-11-05T14:30:43.888Z",
+    "output": {
+      "headline": "On 2026-10-31, 2 campaigns closed out the month with $284.25 spent, 7 leads, and a $40.61 cost per lead across 14,600 impressions.",
+      "points": [
+        "Regional Class A — Joliet was the stronger performer, delivering 6 of the day's 7 leads at $30.75 per lead on $184.50 spend, 9,120 impressions, 141 clicks, and a 1.5% click rate.",
+        "Dedicated night runs brought in 1 lead at a cost per lead of $99.75, with $99.75 spent, 5,480 impressions, 62 clicks, and a 1.1% click rate — worth keeping an eye on given the gap from the other campaign.",
+        "Combined for the day: 203 clicks on 14,600 impressions at a 1.4% click rate.",
+        "2026-10 is now closed with 0 days left; total Meta spend for the month came to $8,124.50.",
+        "No cohort data was reported for this period, so there is nothing to review on lead progression stages."
+      ]
+    }
+  }
+}

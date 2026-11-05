@@ -45,7 +45,7 @@ const stageCounts = z.object({ contacted: z.number().int(), qualified: z.number(
 export const briefFoldSchema = z.object({
   /** The day reported, zone-local "YYYY-MM-DD" (yesterday, when the brief runs in the morning). */
   day: z.iso.date(),
-  month: z.object({ month: z.string().regex(/^\d{4}-\d{2}$/), days_left: z.number().int().min(1) }).strict() satisfies z.ZodType<Pick<MonthContext, "month" | "days_left">>,
+  month: z.object({ month: z.string().regex(/^\d{4}-\d{2}$/), days_left: z.number().int().min(0) }).strict() satisfies z.ZodType<Pick<MonthContext, "month" | "days_left">>,
   campaigns: z.array(fold),
   month_to_date: z.partialRecord(z.enum(AD_PLATFORMS), z.number().int()),
   cohorts: z.array(z.object({ week: z.iso.date(), leads: z.number().int(), reached: stageCounts, mature: z.boolean() }).strict() satisfies z.ZodType<Cohort>),
@@ -98,6 +98,26 @@ export function briefFacts(f: BriefFold): BriefFacts {
       const rates = cohortRates(c);
       return { week: c.week, mature: c.mature, leads: showCount(c.leads), reached: showStages(c.reached, showCount), rates: rates && showStages(rates, showShare) };
     }),
+  };
+}
+
+/**
+ * The brief with no model: the day's figures in fixed sentences, every one copied from the sheet. Sent when
+ * the analyst is switched off or out of budget, or when its narration was refused twice — the office still
+ * gets yesterday's numbers, and a narration that stated a figure the fold did not produce is never what
+ * stands in for them.
+ */
+export function plainBrief(f: BriefFacts): { headline: string; points: string[] } {
+  const t = f.day_totals;
+  const each = (c: Figures) => `${c.spend} spent, ${c.leads} leads${c.cost_per_lead ? ` at ${c.cost_per_lead} per lead` : ""}, ${c.impressions} impressions, ${c.clicks} clicks`;
+  const spend = Object.entries(f.month.spend_by_platform).map(([p, v]) => `${p} ${v}`).join(", ");
+  return {
+    headline: `${f.day}, campaigns that ran: ${t.campaigns_ran}. Together: ${each(t)}.`,
+    points: [
+      ...f.campaigns.map((c) => `${c.name}: ${each(c)}.`),
+      `Spend so far in ${f.month.month}: ${spend || "none"}, with ${f.month.days_left} days left.`,
+      ...f.cohorts.map((c) => `Leads from the week of ${c.week}: ${c.leads}, ${c.reached.hired} hired${c.rates ? ` (${c.rates.hired})` : ", too young to judge"}.`),
+    ],
   };
 }
 

@@ -103,6 +103,8 @@ const KIND_CAPS: Record<string, number> = {
   ads_insights: 1,
   // One at a time: a reconcile reads every object of ours and 28 days of insights with one account token (B5c).
   ads_reconcile: 1,
+  // One at a time: each brief is one Claude call against the carrier's month of tokens (F1b).
+  ads_daily_brief: 1,
   // One at a time: a sweep is a few reads and a bell item per overdue lead, and the next tick is minutes away (D2c).
   lead_uncontacted: 1,
   // One at a time: renders spend the carrier's prepaid Higgsfield credits; one in flight keeps the month exact (C3).

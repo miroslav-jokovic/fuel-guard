@@ -78,16 +78,16 @@
     "source": "model",
     "prompt_version": "analyst@1",
     "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-05T02:56:51.042Z",
+    "recorded_at": "2026-11-05T14:31:10.019Z",
     "output": {
-      "headline": "On 2026-11-03, 2 campaigns ran and spent $42.10 across 2,300 impressions and 19 clicks, but produced no leads.",
+      "headline": "On 2026-11-03, 2 campaigns ran spending $42.10 total across 2,300 impressions and 19 clicks, but neither produced any leads.",
       "points": [
-        "All activity came from Dedicated night runs, which delivered all 2,300 impressions, all 19 clicks, and a click rate of 0.8% at a spend of $42.10 — with no leads, there is no cost per lead.",
-        "Regional Class A — Joliet served no impressions and recorded no clicks or spend, so it had no activity at all on this day.",
-        "Month-to-date spend for 2026-11 sits at $42.10, all on Meta, with 28 days still left in the month.",
+        "All activity came from Dedicated night runs, which delivered 2,300 impressions, 19 clicks, and a 0.8% click rate on $42.10 in spend — no leads yet, so no cost per lead.",
+        "Regional Class A — Joliet served no impressions and recorded no clicks or spend, so it was effectively dark on the day.",
+        "Month-to-date for 2026-11, all $42.10 in spend has run through Meta with 28 days still remaining in the month.",
         "The 2026-09-21 cohort brought in 38 leads: 33 contacted (86.8%), 17 qualified (44.7%), 10 applied (26.3%), 4 hired (10.5%), and 8 lost (21.1%).",
         "The 2026-09-28 cohort brought in 40 leads: 36 contacted (90.0%), 20 qualified (50.0%), 12 applied (30.0%), 5 hired (12.5%), and 9 lost (22.5%).",
-        "The 2026-10-26 cohort has 12 leads so far — 9 contacted, 3 qualified, 1 applied, and 1 lost — but it is too young to judge its rates yet."
+        "The 2026-10-26 cohort has 12 leads so far — 9 contacted, 3 qualified, 1 applied, and 1 lost — but it is too young to judge rates."
       ]
     }
   }

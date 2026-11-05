@@ -161,7 +161,14 @@ run. After the pull the same job runs the auto-pause checks (B5b, `monitor/check
 **`ads_reconcile`** job (`KIND_CAPS` 1) per connection, `dedup_key` = `ads_reconcile:<connection>`. Each run re-reads 28
 days of insights, then compares Meta's campaigns and ad sets with our rows and records each mismatch once as an
 `ads_actions` `external_change` row + bell (the ledger's unique idempotency key is the "once"); it writes nothing to
-Meta and changes no row of ours. The
+Meta and changes no row of ours. **`ads-daily-brief`** is BUILT (F1b, 2026-11-05;
+`modules/ads/workers/analyst/briefTick.ts`): hourly from 07:00 Central (first tick 9 min after boot), one
+**`ads_daily_brief`** job (`KIND_CAPS` 1) per carrier with a `connected` or `failing` Meta or simulator connection —
+the same connection read — `dedup_key` = `ads_daily_brief:<org>`. Each run stops at once for a day whose `ads_brief`
+bell was already sent (the notification ledger), else reads yesterday's hours from `ads_spend_hourly`, asks the
+analyst (one Claude call, retried once under a new key if its numbers are refused) and rings `ads_brief` with the
+checked narration or, failing that, the plain figures. Every hour from 07:00, not once at 07:00, so a deploy in that
+hour delays the brief rather than losing it. It writes nothing but the analyst's `ad_generations` rows and the bell. The
 **Uncontacted leads (`lead-uncontacted`, general lane, D2c)** (`modules/recruiting/leads/leadUncontacted.ts`): every 5 min, first
 tick 6 min after boot, one **`lead_uncontacted`** job (`KIND_CAPS` 1) per carrier with a `new` lead, `dedup_key` =
 `lead_uncontacted:<org>`. The job rings each platform lead still `new` past `alerts.uncontacted_lead_minutes`, once per lead.

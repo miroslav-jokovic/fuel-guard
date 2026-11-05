@@ -78,16 +78,16 @@
     "source": "model",
     "prompt_version": "analyst@1",
     "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-05T02:56:33.194Z",
+    "recorded_at": "2026-11-05T14:30:51.768Z",
     "output": {
       "headline": "On 2026-11-03, 2 campaigns delivered 7 leads across 14,600 impressions at a combined cost per lead of $40.61.",
       "points": [
-        "Total spend for the day was $284.25 across 203 clicks and a click rate of 1.4%.",
-        "Regional Class A — Joliet was the stronger performer, bringing in 6 of the day's leads at $30.75 cost per lead on $184.50 spend, 9,120 impressions, 141 clicks, and a 1.5% click rate.",
-        "Dedicated night runs spent $99.75 for 1 lead at $99.75 cost per lead, with 5,480 impressions, 62 clicks, and a 1.1% click rate — worth keeping an eye on given the gap in cost per lead between the 2 campaigns.",
+        "Regional Class A — Joliet was the stronger performer, drawing 6 of the day's 7 leads at $30.75 cost per lead from 9,120 impressions and a 1.5% click rate on $184.50 spent.",
+        "Dedicated night runs brought in 1 lead at $99.75 cost per lead — the full day's spend on that campaign — with 5,480 impressions and a 1.1% click rate.",
+        "Overall day totals: $284.25 spent, 203 clicks, and a 1.4% click rate across both campaigns.",
         "Month-to-date spend on Meta stands at $612.30 for 2026-11, with 28 days left in the month.",
-        "The mature 2026-09-21 cohort shows 38 leads with a hire rate of 10.5% and a contact rate of 86.8%; the 2026-09-28 cohort of 40 leads reached a 12.5% hire rate and 90.0% contact rate.",
-        "The 2026-10-26 cohort has 12 leads — 9 contacted, 3 qualified, 1 applied, and 1 lost — but it is too young to judge its rates."
+        "The mature 2026-09-21 cohort shows 38 leads, a contact rate of 86.8%, a hire rate of 10.5%, and 4 hired so far.",
+        "The mature 2026-09-28 cohort shows 40 leads, a contact rate of 90.0%, a hire rate of 12.5%, and 5 hired; the 2026-10-26 cohort has 12 leads with 9 contacted and 1 applied, but it is too young to judge its rates."
       ]
     }
   }

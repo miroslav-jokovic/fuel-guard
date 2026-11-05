@@ -884,6 +884,17 @@ rate, and Higgsfield credits per approved creative.
   per campaign, until the owner actually runs one. Then the owner marks a campaign as theirs, which lowers the alert and
   keeps it counted; that needs a new record.** Dropping the severity for all of them is refused: it hides spend nobody
   here approved. Nothing is built now. Reconcile is the ads chat's file.
+- **Q-AD34 · Where the cohort report learns which stages a lead reached** (us, found building F1b, 2026-11-05). The
+  brief's cohort half (`foldLeadCohorts`: leads by arrival week, how many were contacted, qualified, applied, hired or
+  lost) needs each ad lead's arrival time and stages. Those are recruiting's (`recruiting_leads`, its contacts and
+  conversions), and D-AD17 lets ads reach recruiting only through `BriefSource` and `LeadSink`. Neither carries an
+  outcome, and `ads_outcome_events` (ads-owned, per stage) has no writer until B6. Candidates: (a) a third shared
+  interface, `LeadOutcomes` (`outcomesSince(org, since) → LeadOutcomeRow[]`), owned by recruiting and handed to the
+  brief at the composition root; (b) wait for B6 and fold `ads_outcome_events`, adding the lead's arrival time to it;
+  (c) let ads read `recruiting_leads` directly. **Recommendation: (a)**, because B6 needs the same stage feed to send its
+  events, so one interface serves both, and the shape (`LeadOutcomeRow`) already exists in shared. (c) is refused: it
+  is the boundary D-AD17 draws. **Built meanwhile:** the brief reports spend and leads, and its `cohorts` is empty.
+  The plain fallback and the prompt both handle an empty list, and an eval fixture of that shape passes.
 
 ---
 

@@ -1664,3 +1664,30 @@ blocking step in §3 above.
       nothing calls `writeBrief`.
   - Mutation: 14 mutants (the young-cohort null, the name blanking, the kind split, the number words, the day
     totals, the points check, the key, the sheet sent rather than the fold, the agent). All 14 killed.
+- **2026-11-05, F1b: the morning brief is read from stored hours and rung once a day**, Track W. No migration. Analyst
+  stays **L2**; L3 waits on a growing eval set and Q-AD34.
+  - **The read (`workers/analyst/briefFold.ts`):** yesterday, the whole Central day before now, and that day's month,
+    from `ads_spend_hourly` through the shared folds. So the brief, the settings page and the caps share one figure.
+    - On 1 November it reports 31 October and October's spend. `days_left` counts the days after the reported one.
+    - Hours are compared as instants (PostgREST answers `+00:00`, not `Z`).
+    - It pages past the 1,000-row cap.
+  - **The job (`ads_daily_brief`, `dailyBrief.ts`):**
+    - A day whose `ads_brief` bell was already sent stops before any read (`keysAlreadySent`). A day with no spend
+      this month sends nothing.
+    - It asks the analyst; a refused narration is asked once more under a new key.
+    - Refused twice, switched off, out of budget or failed: the **plain brief** goes instead (`plainBrief`, shared).
+      It is the same figures in fixed sentences, and a test holds every line of it to the number check.
+    - A call in flight fails the job, so the next run takes the answer from the ledger.
+    - Recipients are Settings › Ads control's for `ads_brief`, else the admins (`sendAdsAlert`).
+  - **The scheduler (`ads-daily-brief`, `briefTick.ts`):** hourly from 07:00 Central, one job per carrier
+    (`dedup_key` = `ads_daily_brief:<org>`). Hourly so a deploy in the 07:00 hour delays the brief rather than losing
+    it. Off unless `ADS_ENABLED`. It is in `WORKER-DEPLOYMENT.md`.
+  - **Not built: the cohort report.** A lead's stages are recruiting's, and D-AD17 gives ads no seam to them; that is
+    **Q-AD34** (recommendation: a `LeadOutcomes` interface owned by recruiting, which B6 needs too). `cohorts` is
+    empty until then.
+    - An eval fixture of that shape (no cohorts, the month's last day) was added and the set re-recorded: 9 of 9,
+      and 9 of 9 again on a second run.
+  - Mutation: 18 mutants (yesterday's offset, the reported day's month, `days_left`, comparing hours as strings, the
+    paging, the month's end, bigint text, the already-sent stop, the nothing-to-report stop, the retry, the in-flight
+    throw, the bell's key, the 07:00 bound, the per-carrier dedup, the `ADS_ENABLED` brake, the plain brief's missing
+    cost per lead). All 18 killed.

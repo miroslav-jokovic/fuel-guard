@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { cohortRates, type Cohort } from "./adsReport.js";
-import { briefFacts, briefFoldSchema, checkNarration, showMoney, type BriefFold } from "./analystBrief.js";
+import { briefFacts, briefFoldSchema, checkNarration, plainBrief, showMoney, type BriefFold } from "./analystBrief.js";
 
 const reached = (contacted: number, qualified: number, applied: number, hired: number, lost: number) => ({ contacted, qualified, applied, hired, lost });
 const FOLD: BriefFold = briefFoldSchema.parse({
@@ -81,5 +81,15 @@ describe("checkNarration — every figure in the narration is on the sheet", () 
 
   it("a date the sheet does not hold is a figure the fold did not produce", () => {
     expect(kinds("Since 2026-11-01 spend is $3,000.00.")).toEqual([["number_not_in_fold", "2026-11-01"]]);
+  });
+});
+
+describe("plainBrief — the figures with no model", () => {
+  it("states every figure as the sheet holds it, so it passes the same check a narration must", () => {
+    const plain = plainBrief(FACTS);
+    expect(plain.headline).toBe("2026-11-03, campaigns that ran: 2. Together: $1,234.56 spent, 30 leads at $41.15 per lead, 42,100 impressions, 610 clicks.");
+    expect(plain.points).toContain("Owner operators: $0.00 spent, 0 leads, 0 impressions, 0 clicks.");
+    expect(plain.points).toContain("Leads from the week of 2026-10-26: 12, 0 hired, too young to judge.");
+    for (const line of [plain.headline, ...plain.points]) expect(checkNarration(line, FACTS), line).toEqual([]);
   });
 });
