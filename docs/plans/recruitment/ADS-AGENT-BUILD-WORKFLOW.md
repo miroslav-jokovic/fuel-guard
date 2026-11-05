@@ -317,7 +317,7 @@ a PR that review sees.
 | `FakeClock` | Drives schedulers and the orchestrator through simulated days in seconds | — |
 | `packages/ads-golden` | Scenario package: each scenario is a JSON timeline (settings, opening, platform events, insight curves, leads, faults) + the expected ledger and alerts. Runs in CI | `packages/hazmat-golden` |
 | Claude replay + live eval | CI replays recorded model outputs (deterministic, free). `pnpm ads:eval <worker>` calls the real model on the evaluation set and reports agreement; required before a prompt or model version ships | `apps/api/src/scripts/replayDocumentReads.ts` |
-| **Simulator platform** | An adapter backed by `FakeMeta`, selectable only on a positively non-production environment, fail-closed (§1.2-8; a test proves production and an unknown name cannot select it). The whole product runs end to end on staging, so the owner walks it before any credential exists | — |
+| **Simulator platform** | An adapter backed by `FakeMeta`, selectable only on a positively non-production environment, fail-closed (§1.2-8; a test proves production and an unknown name cannot select it). The whole product runs end to end on staging, so the owner walks it before any credential exists Since 2026-11-05 it renders too: a simulator campaign draws through the real client and ledger against an in-process FakeHiggsfield (`simulatedRender.ts`), behind the same gate. | — |
 
 ### What each worker must survive (L2) and score (L3)
 
@@ -1785,3 +1785,16 @@ blocking step in §3 above.
   - **Still loud:** the first hourly run and the first reconcile after a deletion fail, and `deleted-object-settles.yaml`
     states that. L4 only has to say which way Meta answers; neither answer needs more code.
   - Mutation: 17 mutants on the rule, the pull, the checks and the ledger key, all killed.
+- **2026-11-05, the simulator renders.** No migration. Found by the 2026-11-05 audit, and §3 did not name it: only Meta had a
+  simulator, so with `HIGGSFIELD_STILL_MODEL` null every compose stopped at the render, and Stage 1's staging walk could not
+  reach review, approval or launch.
+  - **Built:** `creative/higgsfield/simulatedRender.ts`. A campaign on a `simulator` connection draws with
+    `simulator/still` through the real `HiggsfieldClient`, `renderStep`, ledger and month budget, against an in-process
+    FakeHiggsfield. `simulatorGate` is asked when compose chooses and again when the job runs, so production refuses it at both.
+  - **Unchanged:** a campaign on a real connection still stops at "no still model chosen yet (V4)", on staging too.
+  - **The picture:** the kit photo for a scene with equipment, a drawn empty road otherwise. Copy, art and the visual
+    check stay real Claude, so a kit photo with writing on it fails `no_glyphs`, as it should. Nothing on the image says
+    simulated, because that would be writing; the ledger row's model says it.
+  - **Not measured:** the real vision check has not judged the drawn road yet. The first staging walk will. A walk also
+    needs `ADS_ENABLED` on, the renderer switched on and a monthly credit budget saved in Settings › Ads control.
+  - Security's L2 now pins "a simulated render reaching production". Mutation: 10 mutants, all killed by a named test.

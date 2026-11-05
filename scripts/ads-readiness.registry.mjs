@@ -930,6 +930,15 @@ export const READINESS = [
           ],
         },
         {
+          need: "a simulated render reaching production",
+          tests: [
+            { file: "apps/api/src/modules/ads/creative/higgsfield/simulatedRender.test.ts", titles: [
+              "a simulator connection in production, or on a nameless built server, keeps the real choice",
+              "the simulated model is refused in production, whatever queued it",
+            ] },
+          ],
+        },
+        {
           need: "a token in a log line, or in an API response (B1b)",
           tests: [
             { file: "apps/api/src/modules/ads/connections/connections.test.ts", titles: [

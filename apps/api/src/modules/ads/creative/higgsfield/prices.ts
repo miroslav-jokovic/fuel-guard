@@ -10,11 +10,17 @@ export const HIGGSFIELD_CREDIT_PRICES: Readonly<Record<string, number>> = {};
 /**
  * The Higgsfield model compose renders stills with (C5b2). NULL ON PURPOSE, for the same reason the price
  * table is empty: which model draws our trucks best, and at what price, is V4's measurement with the owner's
- * key (Q-AD20). Until then every compose stops at the render with "no still model chosen yet (V4)" — a
- * visible refusal, never a model somebody picked by name. Set it with its price, in the same PR.
+ * key (Q-AD20). Until then every compose on a real connection stops at the render with "no still model chosen
+ * yet (V4)" — a visible refusal, never a model somebody picked by name. Set it with its price, in the same PR. A
+ * simulator connection off production draws with `SIMULATED_STILL_MODEL` instead (`simulatedRender.ts`).
  */
 export const HIGGSFIELD_STILL_MODEL: string | null = null;
 
+/**
+ * The simulator's still model (`simulatedRender.ts`), named here because `render.ts` reads the table below. Not a
+ * Higgsfield path: nothing but the in-process fake answers it, and only off production.
+ */
+export const SIMULATED_STILL_MODEL = "simulator/still";
 
 /**
  * Where each still model takes an input image (D-AD9 image-to-image), read from the model's own page on
@@ -38,4 +44,6 @@ export const HIGGSFIELD_IMAGE_INPUT: Readonly<Record<string, { field: string; sh
   "xai/grok-imagine-image-2.0": { field: "image_urls", shape: "list" },
   "alibaba/qwen-image-3/edit": { field: "image_urls", shape: "list" },
   "ideogram/v4.0": { field: "image_url", shape: "single" },
+  // Ours, not a fact read from Higgsfield: the simulator takes the kit photo as the list models do.
+  [SIMULATED_STILL_MODEL]: { field: "image_urls", shape: "list" },
 };

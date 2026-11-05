@@ -9,7 +9,8 @@ import { anthropicClient } from "../../../lib/anthropic.js";
 import { composeCampaign } from "../compose/composeCampaign.js";
 import { readAdAsset, storeAdAsset } from "../creative/brandAssets.js";
 import { publishCampaign } from "../platforms/meta/publishCampaign.js";
-import { HIGGSFIELD_CREDIT_PRICES, HIGGSFIELD_STILL_MODEL } from "../creative/higgsfield/prices.js";
+import { HIGGSFIELD_CREDIT_PRICES } from "../creative/higgsfield/prices.js";
+import { renderChoiceFor } from "../creative/higgsfield/simulatedRender.js";
 import { renderStatus, type RenderInput, type RenderOutcome } from "../creative/higgsfield/render.js";
 import { pgQueueDriver } from "../../../queue/pgDriver.js";
 import type { QueueDriver } from "../../../queue/types.js";
@@ -61,13 +62,17 @@ export function adsWorkers(deps: WorkerDeps): CampaignWorkers {
   return {
     // C5b2: the presets drawn, one creative per preset in the batch, each through copy → art → render →
     // overlay → the three checks (`compose/`). The render itself is NOT done here: see `queuedRender`.
-    compose: (campaign) => composeCampaign({
-      admin: deps.admin, now: deps.now, client: anthropicClient(deps.env),
-      renderModel: HIGGSFIELD_STILL_MODEL,
-      render: queuedRender(deps.admin),
-      readAsset: (orgId, ref) => readAdAsset(deps.admin, orgId, ref),
-      storeAsset: (orgId, bytes) => storeAdAsset(deps.admin, orgId, bytes),
-    }, campaign),
+    // Which model draws it follows the campaign's connection: a simulator campaign draws in the simulator.
+    compose: async (campaign) => {
+      const choice = await renderChoiceFor(deps.admin, campaign.org_id, campaign.connection_id);
+      return composeCampaign({
+        admin: deps.admin, now: deps.now, client: anthropicClient(deps.env),
+        renderModel: choice.model,
+        render: queuedRender(deps.admin, undefined, choice.prices),
+        readAsset: (orgId, ref) => readAdAsset(deps.admin, orgId, ref),
+        storeAsset: (orgId, bytes) => storeAdAsset(deps.admin, orgId, bytes),
+      }, campaign);
+    },
     // B2c2: the campaign, its ad set, a form per language and an ad per approved creative and language,
     // all PAUSED (`platforms/meta/publishCampaign.ts`). Its `meta_ad_ids` are what launch turns on.
     createPaused: (campaign, key) => publishCampaign({
