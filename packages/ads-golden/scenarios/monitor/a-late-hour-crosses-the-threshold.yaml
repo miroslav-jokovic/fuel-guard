@@ -1,0 +1,19 @@
+name: "An hour Meta reports late is read on the next run, and it is the run that fires"
+why: >
+  insightsPull.ts re-reads the whole window every hour, so a late hour lands beside those already held, and the
+  checks read what the pull brought. 5000 is at the budget; the late cent passes it on run 2, and a run with
+  nothing new does not pause twice.
+covers: [daily_cap]
+verifiedBy: "Claude (Monitor L3), from monitorChecks.ts and insightsPull.ts"
+campaigns:
+  - { id: c1 }
+timeline:
+  - meta_reports: { campaign: c1, hour: 9, spend_cents: 5000, leads: 1 }
+  - hourly_job: true
+  - meta_reports: { campaign: c1, hour: 8, spend_cents: 1 }
+  - hourly_job: true
+  - hourly_job: true
+expect:
+  states: { c1: pausing }
+  pauses: ["run 2: c1 daily_cap 5001 > 5000"]
+  bell: ["ads_overspend critical"]

@@ -884,6 +884,15 @@ rate, and Higgsfield credits per approved creative.
   per campaign, until the owner actually runs one. Then the owner marks a campaign as theirs, which lowers the alert and
   keeps it counted; that needs a new record.** Dropping the severity for all of them is refused: it hides spend nobody
   here approved. Nothing is built now. Reconcile is the ads chat's file.
+- **Q-AD34 · Whether a campaign deleted at Meta should fail the monitor's jobs** (found building Monitor L3, 2026-11-04;
+  answered at L4). Reconcile flags it `missing` and rings once, as it should. But `insightsPull.ts` still asks Meta for
+  that campaign's insights, the simulator refuses with "does not exist", and the pull reports it as a failure. So
+  `ads_reconcile` and `ads_insights` both throw on every run until a person archives the campaign, though
+  `adsReconcile.ts`'s handler says a "does not exist" is not a failure. **Unknown:** whether real Meta refuses that read
+  or still returns the history; no page we read says, and the simulator's answer is ours. Candidates: (a) the pull treats
+  "does not exist" as nothing to read, and keeps the stored hours; (b) leave it, a failed job being loud and safe.
+  **Recommendation: (a), once L4 shows Meta's answer.** No money is at risk meanwhile: the mismatch is recorded, the
+  checks still run. `reconcile-missing.yaml` states today's behaviour, and changes with the ruling.
 
 ---
 

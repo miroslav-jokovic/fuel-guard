@@ -1,0 +1,24 @@
+name: "The campaign's spend cap a cent either side of ours is flagged; lowered warns, raised or removed is critical"
+why: >
+  adsReconcile.ts: spend_cap compares the campaign's lifetime cap with our approved amount; "a cap removed in Ads
+  Manager is the most serious edit of all". A campaign we hold no lifetime amount for has nothing to compare.
+covers: [spend_cap]
+verifiedBy: "Claude (Monitor L3), from adsReconcile.ts"
+campaigns:
+  - { id: lower }
+  - { id: same }
+  - { id: higher }
+  - { id: removed }
+  - { id: ours-unset, lifetime_cap_cents: null }
+timeline:
+  - ads_manager: { campaign: lower, spend_cap_cents: 49999 }
+  - ads_manager: { campaign: higher, spend_cap_cents: 50001 }
+  - ads_manager: { campaign: removed, spend_cap_cents: null }
+  - daily_reconcile: true
+expect:
+  states: { lower: live, same: live, higher: live, removed: live, ours-unset: live }
+  flags:
+    - "run 1: lower campaign spend_cap 50000 -> 49999 warning"
+    - "run 1: higher campaign spend_cap 50000 -> 50001 critical"
+    - "run 1: removed campaign spend_cap 50000 -> none critical"
+  bell: ["ads_external_change warning", "ads_external_change critical", "ads_external_change critical"]

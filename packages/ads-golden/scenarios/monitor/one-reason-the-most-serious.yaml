@@ -1,0 +1,23 @@
+name: "A campaign past several rules is paused once, for the first of them in order"
+why: >
+  monitorChecks.ts, "one reason per campaign, the most serious": MONITOR_RULES order is monthly_cap, daily_cap,
+  no_lead_spend, cpl_max, frequency_max. Each campaign here is past the rule named and every one after it that can
+  apply. Past no_lead_spend means 0 leads, so cpl_max cannot apply there.
+covers: [daily_cap, no_lead_spend, cpl_max]
+verifiedBy: "Claude (Monitor L3), from monitorChecks.ts"
+campaigns:
+  - { id: capped, frequency: 4.1 }
+  - { id: silent, frequency: 4.1, daily_budget_cents: 10000 }
+  - { id: dear, frequency: 4.1, daily_budget_cents: 20000 }
+timeline:
+  - meta_reports: { campaign: capped, spend_cents: 7600 }
+  - meta_reports: { campaign: silent, spend_cents: 7600 }
+  - meta_reports: { campaign: dear, spend_cents: 12603, leads: 3 }
+  - hourly_job: true
+expect:
+  states: { capped: pausing, silent: pausing, dear: pausing }
+  pauses:
+    - "run 1: capped daily_cap 7600 > 5000"
+    - "run 1: silent no_lead_spend 7600 > 7500"
+    - "run 1: dear cpl_max 4201 > 4200"
+  bell: ["ads_overspend critical", "ads_no_leads warning"]

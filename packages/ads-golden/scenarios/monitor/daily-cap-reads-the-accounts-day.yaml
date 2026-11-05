@@ -1,0 +1,19 @@
+name: "Today is the account's local day: last night's spend does not count toward it"
+why: >
+  checks.ts header: "today being the ACCOUNT's local day". 23:00 on the 11th and 00:00 on the 12th are an hour
+  apart and two days apart, so 4000 + 2000 passes no budget; the same 12th, hours apart, adds up.
+covers: [daily_cap]
+verifiedBy: "Claude (Monitor L3), from monitorChecks.ts and checks.ts"
+campaigns:
+  - { id: across }
+  - { id: within }
+timeline:
+  - meta_reports: { campaign: across, day: 2026-11-11, hour: 23, spend_cents: 4000, leads: 1 }
+  - meta_reports: { campaign: across, hour: 0, spend_cents: 2000 }
+  - meta_reports: { campaign: within, hour: 0, spend_cents: 3000, leads: 1 }
+  - meta_reports: { campaign: within, hour: 13, spend_cents: 2001 }
+  - hourly_job: true
+expect:
+  states: { across: live, within: pausing }
+  pauses: ["run 1: within daily_cap 5001 > 5000"]
+  bell: ["ads_overspend critical"]

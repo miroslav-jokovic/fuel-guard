@@ -1,0 +1,24 @@
+name: "A rule the settings switch off never fires, however far past its old threshold the numbers go"
+why: >
+  monitorChecks.ts checks each rule only when its setting is there: a null threshold, or pause_at_daily_cap false,
+  is no rule. The monthly cap stays, and is well away here.
+covers: [daily_cap, no_lead_spend, cpl_max, frequency_max]
+verifiedBy: "Claude (Monitor L3), from monitorChecks.ts"
+settings:
+  cpl_max_cents: null
+  cpl_min_leads: null
+  no_lead_spend_cents: null
+  frequency_max: null
+  pause_at_daily_cap: false
+campaigns:
+  - { id: spender }
+  - { id: silent }
+  - { id: dear }
+  - { id: tired, frequency: 9 }
+timeline:
+  - meta_reports: { campaign: spender, spend_cents: 9000, leads: 1 }
+  - meta_reports: { campaign: silent, spend_cents: 9000 }
+  - meta_reports: { campaign: dear, spend_cents: 30000, leads: 3 }
+  - hourly_job: true
+expect:
+  states: { spender: live, silent: live, dear: live, tired: live }

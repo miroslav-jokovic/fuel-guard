@@ -1,0 +1,26 @@
+name: "Lifetime spend at the approved amount is not an overrun; a cent past it is, once, however far it climbs"
+why: >
+  adsReconcile.ts: overrun is lifetime spend > the approved lifetime, critical, keyed on the cap: "one fact however
+  far past it the spend climbs". The spend is from three weeks ago, so only the job's 28-day re-read brings it, and
+  it reaches the comparison through the pull. An overrun rings ads_overspend (reconcile.ts).
+covers: [overrun]
+verifiedBy: "Claude (Monitor L3), from adsReconcile.ts and reconcile.ts"
+campaigns:
+  - { id: under }
+  - { id: at }
+  - { id: over }
+  - { id: climbing }
+timeline:
+  - meta_reports: { campaign: under, day: 2026-10-20, spend_cents: 49999, leads: 1 }
+  - meta_reports: { campaign: at, day: 2026-10-20, spend_cents: 50000, leads: 1 }
+  - meta_reports: { campaign: over, day: 2026-10-20, spend_cents: 50001, leads: 1 }
+  - meta_reports: { campaign: climbing, day: 2026-10-20, spend_cents: 50001, leads: 1 }
+  - daily_reconcile: true
+  - meta_reports: { campaign: climbing, day: 2026-10-20, spend_cents: 60000, leads: 1 }
+  - daily_reconcile: true
+expect:
+  states: { under: live, at: live, over: live, climbing: live }
+  flags:
+    - "run 1: over campaign overrun 50000 -> 50001 critical"
+    - "run 1: climbing campaign overrun 50000 -> 50001 critical"
+  bell: ["ads_overspend critical", "ads_overspend critical"]

@@ -1,0 +1,32 @@
+name: "While Meta is learning only the caps act; each performance rule fires the run its ad set stops learning"
+why: >
+  monitorChecks.ts, "caps always; performance rules never while Meta is still learning". All four ad sets learn, and
+  each is past a rule. Run 1: only the daily cap acts. silent leaves learning with SUCCESS, so run 2 pauses it. For
+  dear Meta stops reporting a stage, which is read as not learning, so run 3 pauses it. tired is still learning at
+  run 4, when the month passes its cap, and a cap does not wait.
+covers: [learning, daily_cap, monthly_cap, no_lead_spend, cpl_max, frequency_max]
+verifiedBy: "Claude (Monitor L3), from monitorChecks.ts"
+campaigns:
+  - { id: capped, stage: LEARNING }
+  - { id: silent, stage: LEARNING, daily_budget_cents: 10000 }
+  - { id: dear, stage: LEARNING, daily_budget_cents: 20000 }
+  - { id: tired, stage: LEARNING, frequency: 4.1 }
+timeline:
+  - meta_reports: { campaign: capped, spend_cents: 5001, leads: 1 }
+  - meta_reports: { campaign: silent, spend_cents: 7501 }
+  - meta_reports: { campaign: dear, spend_cents: 12603, leads: 3 }
+  - hourly_job: true
+  - stage: { campaign: silent, stage: SUCCESS }
+  - hourly_job: true
+  - stage: { campaign: dear, stage: none }
+  - hourly_job: true
+  - account_month: 300001
+  - hourly_job: true
+expect:
+  states: { capped: pausing, silent: pausing, dear: pausing, tired: pausing }
+  pauses:
+    - "run 1: capped daily_cap 5001 > 5000"
+    - "run 2: silent no_lead_spend 7501 > 7500"
+    - "run 3: dear cpl_max 4201 > 4200"
+    - "run 4: tired monthly_cap 300001 > 300000"
+  bell: ["ads_overspend critical", "ads_no_leads warning", "ads_overspend critical"]
