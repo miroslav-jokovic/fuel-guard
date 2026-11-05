@@ -51,21 +51,32 @@ export async function policyReceipt(admin: SupabaseClient, orgId: string, invita
 export const receiptIsForThisText = (receipt: PolicyReceipt | null): receipt is PolicyReceipt =>
   receipt?.policyVersion === DRUG_ALCOHOL_POLICY_VERSION;
 
-/** The policy, with the receipt on its signature line when it was signed for this text. */
+/**
+ * The policy, with the receipt on its signature line when it was signed for this text.
+ *
+ * ⚠ ONE DRAWING FOR EVERY READER. The applicant's link, the filed copy and the office's blank preview
+ * in Settings → Recruiting (`drugAlcoholPolicyPreview.ts`) all come through here, so the office reads the
+ * pages the driver is given — the handbook preview's rule (A2's lesson). The preview passes no link,
+ * which is what leaves the signature line blank, and a `band`, which only the office's copy carries
+ * (`PreviewAudience.band`'s reason).
+ */
 export async function drugAlcoholPolicyPdf(
   admin: SupabaseClient,
   orgId: string,
-  invitationId: string,
+  invitationId: string | null,
   receipt: PolicyReceipt | null,
+  band: string | null = null,
 ): Promise<Buffer> {
+  // A receipt prints only on the link that made it, and only for the text it was signed against.
+  const signedOn = invitationId !== null && receiptIsForThisText(receipt) ? invitationId : null;
   const marks = new Map<string, HandbookMarkPrint>();
-  if (receiptIsForThisText(receipt)) {
+  if (signedOn !== null && receipt) {
     marks.set(DRUG_ALCOHOL_POLICY_PLACEMENT_ID, { signedName: receipt.signedName, signedAt: receipt.signedAt });
   }
   const [carrier, driverSignature] = await Promise.all([
     carrierOf(admin, orgId),
     // The packet's adoption: p28 is a packet mark, so the policy prints the picture page 28 prints.
-    marks.size > 0 ? signatureMarkBytes(admin, orgId, invitationId, "signature", "packet") : Promise.resolve(null),
+    signedOn !== null ? signatureMarkBytes(admin, orgId, signedOn, "signature", "packet") : Promise.resolve(null),
   ]);
   return flowedDocumentPdf(DRUG_ALCOHOL_POLICY_DOCUMENT, {
     carrier: { name: carrier.name },
@@ -75,6 +86,7 @@ export async function drugAlcoholPolicyPdf(
     marks,
     driverSignature,
     countersign: null,
+    band,
   });
 }
 

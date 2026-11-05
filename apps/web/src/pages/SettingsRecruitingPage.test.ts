@@ -51,6 +51,7 @@ vi.mock("@/lib/api", () => ({
         ? { ok: true, data: { settings: state.settings, isDefault: false, updatedAt: "2026-09-27T09:00:00Z" } }
         : { ok: true, data: { settings: { invite_ttl_days: 14, reminders_enabled: true, reminder_after_hours: 48, handbook_blocks_hire: false, videos_block_hire: false }, isDefault: true, updatedAt: null } };
     }
+    if (url.endsWith("/drug-alcohol-policy")) return { ok: true, data: { policy: { name: "Drug and alcohol abuse policy", version: "dap-0123456789abcdef" } } };
     throw new Error(`unexpected GET ${url}`);
   }),
 }));
@@ -429,5 +430,15 @@ describe("orientation videos (HW8a)", () => {
     expect(videosPart(w).text()).toContain("Pre-trip");
     expect(videosPart(w).find('[data-testid="add-video"]').exists()).toBe(false);
     expect(videosPart(w).findAll("button").some((b) => b.text() === "Remove")).toBe(false);
+  });
+});
+
+describe("the drug and alcohol policy (§15.2 DAP2)", () => {
+  it("has its own section, naming the text in use and offering the blank preview", async () => {
+    asRole("auditor");
+    const w = await page();
+    const part = section(w, "Drug and alcohol policy");
+    expect(part.text()).toContain("Text in use: dap-0123456789abcdef");
+    expect(part.findAll("button").some((b) => b.text() === "Preview the policy")).toBe(true);
   });
 });
