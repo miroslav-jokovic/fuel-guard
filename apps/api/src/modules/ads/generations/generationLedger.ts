@@ -21,9 +21,11 @@ export interface GenerationRow {
   output: unknown;
   error_code: string | null;
   started_at: string;
+  /** What was asked (render: the model, the FINAL params, the price). A replay submits these, never re-derives them. */
+  request: unknown;
 }
 
-const ROW_COLUMNS = "id, status, output, error_code, started_at";
+const ROW_COLUMNS = "id, status, output, error_code, started_at, request";
 
 export async function generationByKey(admin: SupabaseClient, orgId: string, key: string): Promise<GenerationRow | null> {
   const { data, error } = await admin

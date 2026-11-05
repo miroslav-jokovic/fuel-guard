@@ -234,3 +234,40 @@ describe("FakeHiggsfield — injected faults", () => {
     await expect(fetch(`${base}/${MODEL}`, { method: "POST", headers: AUTH, body: "{}", signal: AbortSignal.timeout(150) })).rejects.toThrow();
   });
 });
+
+describe("FakeHiggsfield — input image uploads (file-uploads.md, read 2026-11-04)", () => {
+  const BYTES = Buffer.from([0xff, 0xd8, 0xff, 0x00, 0x01, 0x02]);
+  const ask = async (type = "image/jpeg") => {
+    const res = await fetch(`${base}/files/generate-upload-url`, { method: "POST", headers: { ...AUTH, "content-type": "application/json" }, body: JSON.stringify({ content_type: type }) });
+    return { status: res.status, body: (await res.json()) as { public_url: string; upload_url: string; upload_headers: Record<string, string> } };
+  };
+  const put = (url: string, headers: Record<string, string>) => fetch(url, { method: "PUT", headers, body: BYTES });
+
+  it("hands out a presigned URL, takes the PUT with exactly its headers, and serves the bytes at the public URL", async () => {
+    const { status, body } = await ask();
+    expect(status).toBe(200);
+    expect(body.upload_headers).toEqual({ "Content-Type": "image/jpeg", "x-amz-tagging": "retention=temporary" });
+    expect((await fetch(body.public_url)).status).toBe(404);
+    expect((await put(body.upload_url, body.upload_headers)).status).toBe(200);
+    const got = await fetch(body.public_url);
+    expect(Buffer.from(await got.arrayBuffer()).equals(BYTES)).toBe(true);
+  });
+
+  it("refuses a PUT carrying our credentials, a different Content-Type, a missing tag, or a URL past its hour", async () => {
+    const { body } = await ask();
+    expect((await put(body.upload_url, { ...body.upload_headers, ...AUTH })).status).toBe(400);
+    expect((await put(body.upload_url, { ...body.upload_headers, "Content-Type": "image/png" })).status).toBe(403);
+    expect((await put(body.upload_url, { "Content-Type": "image/jpeg" })).status).toBe(403);
+    clock.advance({ minutes: 61 });
+    expect((await put(body.upload_url, body.upload_headers)).status).toBe(403);
+    expect([...hf.uploads.values()][0]!.bytes).toBeNull();
+  });
+
+  it("refuses an unsupported type, and a submit naming an input whose PUT never arrived", async () => {
+    expect((await ask("application/pdf")).status).toBe(422);
+    const { body } = await ask();
+    const res = await fetch(`${base}/${MODEL}`, { method: "POST", headers: { ...AUTH, "content-type": "application/json" }, body: JSON.stringify({ prompt: "p", image_urls: [body.public_url] }) });
+    expect(res.status).toBe(422);
+    expect(hf.submits).toBe(0);
+  });
+});

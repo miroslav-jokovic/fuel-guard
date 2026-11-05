@@ -30,8 +30,11 @@ import { checkVisual, type FractionRect, type VisualResult } from "../workers/ch
  * reason in `last_error`: 0537 has no other end state for "the workers stopped", and leaving it in
  * `generating` would show work under way that is not.
  *
- * ⚠ NOT BUILT, said so: the render does not yet START from the kit photo (D-AD9 image-to-image) — the
- * Higgsfield upload docs are unread (C3 log). The visual check still compares against that photo.
+ * ── THE RENDER STARTS FROM THE PHOTO THE CHECK COMPARES AGAINST (D-AD9, 2026-11-04) ─────────────────
+ * The Art director's `reference` is one kit photo; the render is image-to-image from it (`render.ts`
+ * uploads it once and names it in the model's image field) and the visual check compares the result with
+ * the same photo. That the photo is in this kit is the Art director's check (`reference_not_in_kit`), not
+ * repeated here.
  */
 
 export interface CreativeRow {
@@ -122,7 +125,8 @@ async function oneAttempt(deps: ComposeDeps, input: ComposeInput, copy: AdCopy, 
 
   if (!deps.renderModel) return { kind: "stop", reason: "render: no still model chosen yet (V4)" };
   const prompt = withRegenerationClauses(art.direction.prompt, failedBefore);
-  const render = await deps.render({ ...ids, attempt, model: deps.renderModel, params: { prompt } });
+  const ref = art.direction.reference;
+  const render = await deps.render({ ...ids, attempt, model: deps.renderModel, params: { prompt }, reference: ref ? { sha256: ref.sha256, format: ref.format } : null });
   if (render.kind === "pending") return { kind: "pending", why: `render ${attempt}: ${render.why}` };
   if (render.kind === "refused") return { kind: "stop", reason: `render: ${render.refusal}` };
   if (render.kind !== "stored") return { kind: "stop", reason: `render: ${render.kind === "failed" ? render.errorCode : render.refusal}` };
@@ -131,7 +135,7 @@ async function oneAttempt(deps: ComposeDeps, input: ComposeInput, copy: AdCopy, 
 
   const base = await deps.readAsset(cr.org_id, render.assets[0]!);
   const logo = kit.logo ? await deps.readAsset(cr.org_id, kit.logo) : null;
-  const photo = art.direction.reference ? kit.equipment_photos.find((p) => p.asset.sha256 === art.direction.reference!.sha256) ?? null : null;
+  const photo = ref ? kit.equipment_photos.find((p) => p.asset.sha256 === ref.sha256) ?? null : null;
   const reference = photo ? { label: photo.label, image: { format: photo.asset.format, bytes: new Uint8Array(await deps.readAsset(cr.org_id, photo.asset)) } } : null;
 
   const visual: Record<string, VisualResult[]> = {};

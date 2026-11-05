@@ -11,7 +11,7 @@ import { queuedRender } from "./workers.js";
  */
 const ORG = "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d";
 const MODEL = "fixture/still";
-const input: RenderInput = { orgId: ORG, campaignId: "c-1", creativeId: "cr-1", attempt: 2, model: MODEL, params: { prompt: "a road, no text, no logos, no lettering" } };
+const input: RenderInput = { orgId: ORG, campaignId: "c-1", creativeId: "cr-1", attempt: 2, model: MODEL, params: { prompt: "a road, no text, no logos, no lettering" }, reference: null };
 const settings = (on: boolean): AdsSettings => ({ ...ADS_SETTINGS_UNSET, budgets: { ...ADS_SETTINGS_UNSET.budgets, higgsfield_credits_monthly: 100, agents_enabled: { renderer: on } } });
 
 function world(row: Record<string, unknown> | null, on = true) {

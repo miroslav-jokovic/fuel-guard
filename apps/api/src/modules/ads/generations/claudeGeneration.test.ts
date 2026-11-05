@@ -109,7 +109,7 @@ describe("generateWithClaude — the per-agent switch (D-RA9)", () => {
 
 describe("generateWithClaude — replay (unique org + idempotency key)", () => {
   const row = (status: GenerationRow["status"], extra: Partial<GenerationRow> = {}): GenerationRow => ({
-    id: "gen-old", status, output: null, error_code: null, started_at: "2026-11-15T17:00:00Z", ...extra,
+    id: "gen-old", status, output: null, error_code: null, started_at: "2026-11-15T17:00:00Z", request: {}, ...extra,
   });
 
   it("a replayed key that succeeded returns the stored answer and asks no model", async () => {

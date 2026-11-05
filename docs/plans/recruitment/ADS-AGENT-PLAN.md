@@ -827,7 +827,9 @@ rate, and Higgsfield credits per approved creative.
   Candidates: keep (a)+(b); or (c) the badge must match the reference photo's make, which would also need the
   render to keep the photo's make (image-to-image, D-AD9, not built until compose). **Recommendation: keep
   (a)+(b)** until image-to-image lands, then re-measure (c) on real renders from our photos; a person approves
-  every creative meanwhile. Labelled at `workers/checker/checker.ts` and in `prompt.v1.md`.
+  every creative meanwhile. Labelled at `workers/checker/checker.ts` and in `prompt.v1.md`. **2026-11-04 (D9):**
+  image-to-image is built (the render starts from the Art director's kit photo); (c) is re-measured once V4 makes
+  real renders with the owner's key — none exist before then.
 - **Q-AD28 · Which brand kit a campaign uses** (us, found starting Track S's campaign doors, 2026-11-04).
   0537 lets an org keep several kits (`ad_brand_kits`, one row per kit, each versioned), and each creative
   records the kit VERSION it was made with (`ads_creatives.brand_kit_version_id`), but the campaign says
