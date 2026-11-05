@@ -1,0 +1,27 @@
+name: "Today's spend at the daily budget runs on, and a cent over it pauses, delivering campaigns only"
+why: >
+  monitorChecks.ts: daily_cap fires when today's spend > the campaign's daily budget, "exactly at the threshold
+  does not fire; a cent over does". Spread over two hours, the sum is what counts. Only launching and live are
+  judged: a campaign already paused is left alone however much Meta reports. A cap rings ads_overspend, critical.
+covers: [daily_cap]
+verifiedBy: "Claude (Monitor L3), from monitorChecks.ts"
+campaigns:
+  - { id: under }
+  - { id: at }
+  - { id: over }
+  - { id: going, state: launching }
+  - { id: held, state: paused }
+timeline:
+  - meta_reports: { campaign: under, spend_cents: 4999, leads: 1 }
+  - meta_reports: { campaign: at, spend_cents: 5000, leads: 1 }
+  - meta_reports: { campaign: over, hour: 9, spend_cents: 3000, leads: 1 }
+  - meta_reports: { campaign: over, hour: 10, spend_cents: 2001 }
+  - meta_reports: { campaign: going, spend_cents: 5001, leads: 1 }
+  - meta_reports: { campaign: held, spend_cents: 9000, leads: 1 }
+  - hourly_job: true
+expect:
+  states: { under: live, at: live, over: pausing, going: pausing, held: paused }
+  pauses:
+    - "run 1: over daily_cap 5001 > 5000"
+    - "run 1: going daily_cap 5001 > 5000"
+  bell: ["ads_overspend critical", "ads_overspend critical"]

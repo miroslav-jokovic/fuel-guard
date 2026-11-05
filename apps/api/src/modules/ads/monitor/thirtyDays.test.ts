@@ -17,7 +17,7 @@ import { checkConnection } from "./checks.js";
  * out from the settings below, never read off a run.
  *
  * The spend is written straight to `ads_spend_hourly`: what Meta's numbers do on the way there (late, missing,
- * revised down) is `insightsPull.test.ts`.
+ * revised down) is `insightsPull.test.ts`, and `golden.test.ts` runs the rules through the pull itself.
  */
 
 const ZONE = "America/Chicago";

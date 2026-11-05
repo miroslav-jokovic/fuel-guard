@@ -1,0 +1,44 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# ADS MONITOR SCENARIO TEMPLATE — copy to a new name (one scenario per file). Skipped by the loader.
+#
+# THE INDEPENDENCE RULE: write `expect` from monitorChecks.ts and adsReconcile.ts, never by running the
+# jobs and pasting what they did. Then break the rule (one line) and watch the scenario go red.
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: "One sentence a reader understands: what Meta reports and what must follow"
+why: >
+  The rule the expectation comes from, citing the file and its header section.
+covers: [daily_cap]           # monthly_cap · daily_cap · no_lead_spend · cpl_max · frequency_max · learning ·
+                              # missing · status · daily_budget · spend_cap · overrun · not_ours · clean_run
+verifiedBy: "Who wrote the expectation, and from what"
+
+# start: 2026-11-12T20:00:00.000Z   # 14:00 in Chicago; omit unless the case is about the clock
+# settings:                         # the defaults; a null switches that rule off
+#   monthly_cap_cents: 300000
+#   cpl_max_cents: 4200
+#   cpl_min_leads: 3
+#   no_lead_spend_cents: 7500
+#   frequency_max: 4
+#   pause_at_daily_cap: true
+
+campaigns:                    # state live, daily_budget_cents 5000, lifetime_cap_cents 50000, stage SUCCESS unless given
+  - { id: c1, stage: LEARNING, frequency: 2 }
+
+timeline:
+  - meta_reports: { campaign: c1, spend_cents: 5001, leads: 1 }   # day (default today), hour (default 9)
+  # meta_forgets: { campaign: c1, hour: 9 }
+  # account_month: 300001
+  # stage: { campaign: c1, stage: SUCCESS }                       # LEARNING · SUCCESS · FAIL · none
+  # frequency: { campaign: c1, value: 4.1 }
+  # ads_manager: { campaign: c1, status: ACTIVE }                 # or adset_status, daily_budget_cents,
+  #                                                               # spend_cap_cents (null removes), remove
+  # foreign_campaign: { id: stranger, status: ACTIVE }            # named_as_ours: true
+  # advance: { days: 1 }
+  - hourly_job: true          # the pull, then the checks
+  # daily_reconcile: true     # the 28-day re-read, then the comparison
+
+expect:
+  states: { c1: pausing }
+  pauses: ["run 1: c1 daily_cap 5001 > 5000"]        # every pause, whole
+  flags: []                                          # "run 1: c1 adset daily_budget 5000 -> 6000 critical", whole
+  bell: ["ads_overspend critical"]                   # every alert, whole

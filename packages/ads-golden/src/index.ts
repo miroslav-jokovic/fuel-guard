@@ -4,4 +4,5 @@
  * (`src/testing/adsGolden.ts`); `schema.ts` says why.
  */
 export * from "./schema.js";
+export * from "./monitorSchema.js";
 export * from "./load.js";

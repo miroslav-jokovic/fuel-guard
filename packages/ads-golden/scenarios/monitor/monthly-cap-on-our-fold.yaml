@@ -1,0 +1,24 @@
+name: "Our own month, summed across campaigns, at the cap runs on; a cent over pauses them all"
+why: >
+  monitorChecks.ts: the month is the larger of our fold and Meta's figure, and "a sum across campaigns" is why this
+  rule is ours and not Meta's. Meta's figure stays 0, so only the fold of what the pull brought can fire it. Each
+  step is Meta revising one hour, so the pull must replace it. Budgets are high enough to keep daily_cap out.
+covers: [monthly_cap]
+verifiedBy: "Claude (Monitor L3), from monitorChecks.ts and insightsPull.ts"
+campaigns:
+  - { id: one, daily_budget_cents: 400000 }
+  - { id: two, daily_budget_cents: 400000 }
+timeline:
+  - meta_reports: { campaign: one, spend_cents: 200000, leads: 1 }
+  - meta_reports: { campaign: two, spend_cents: 99999, leads: 1 }
+  - hourly_job: true
+  - meta_reports: { campaign: two, spend_cents: 100000, leads: 1 }
+  - hourly_job: true
+  - meta_reports: { campaign: two, spend_cents: 100001, leads: 1 }
+  - hourly_job: true
+expect:
+  states: { one: pausing, two: pausing }
+  pauses:
+    - "run 3: one monthly_cap 300001 > 300000"
+    - "run 3: two monthly_cap 300001 > 300000"
+  bell: ["ads_overspend critical", "ads_overspend critical"]

@@ -1,0 +1,29 @@
+name: "An object of ours Meta no longer has, or has deleted or archived, is missing, and warns"
+why: >
+  adsReconcile.ts: missing is a campaign or ad set we recorded that Meta no longer has (or has deleted / archived); it
+  costs reach, not money, so a warning. A campaign gone is one fact: its ad set is not then reported as well.
+  The job's own re-read also asks Meta for the deleted campaign's insights, and insightsPull.ts reports a campaign
+  Meta refuses, so the run ends failed with the mismatch recorded (see Q-AD35: the fake's answer is unconfirmed).
+covers: [missing]
+verifiedBy: "Claude (Monitor L3), from adsReconcile.ts"
+campaigns:
+  - { id: fine }
+  - { id: marked }
+  - { id: shelved }
+  - { id: no-adset }
+  - { id: deleted }
+timeline:
+  - ads_manager: { campaign: marked, status: DELETED }
+  - ads_manager: { campaign: shelved, adset_status: ARCHIVED }
+  - ads_manager: { campaign: no-adset, remove: adset }
+  - ads_manager: { campaign: deleted, remove: campaign }
+  - daily_reconcile: true
+expect:
+  states: { fine: live, marked: live, shelved: live, no-adset: live, deleted: live }
+  flags:
+    - "run 1: marked campaign missing live -> DELETED warning"
+    - "run 1: shelved adset missing live -> ARCHIVED warning"
+    - "run 1: no-adset adset missing live -> none warning"
+    - "run 1: deleted campaign missing live -> none warning"
+  bell: ["ads_external_change warning", "ads_external_change warning", "ads_external_change warning", "ads_external_change warning"]
+  failures: ["reconcile 1: deleted insights:graph:meta_100"]

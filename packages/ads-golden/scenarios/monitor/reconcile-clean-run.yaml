@@ -1,0 +1,23 @@
+name: "Two sides that agree flag nothing, on any state, however often it runs"
+why: >
+  adsReconcile.ts: live must be ACTIVE; every settled state that is not live must be PAUSED; launching and pausing
+  are moves in flight, so either answer is expected; an archived campaign Meta also dropped is the same fact twice.
+  A pause stops the campaign alone, so a paused campaign's ad set stays ACTIVE. §4R: "and nothing else".
+covers: [clean_run]
+verifiedBy: "Claude (Monitor L3), from adsReconcile.ts"
+campaigns:
+  - { id: running }
+  - { id: stopped, state: paused }
+  - { id: starting, state: launching }
+  - { id: starting-yet, state: launching }
+  - { id: stopping, state: pausing }
+  - { id: stopped-already, state: pausing }
+  - { id: retired, state: archived }
+timeline:
+  - ads_manager: { campaign: starting-yet, status: PAUSED }
+  - ads_manager: { campaign: stopped-already, status: PAUSED }
+  - ads_manager: { campaign: retired, remove: campaign }
+  - daily_reconcile: true
+  - daily_reconcile: true
+expect:
+  states: { running: live, stopped: paused, starting: launching, starting-yet: launching, stopping: pausing, stopped-already: pausing, retired: archived }

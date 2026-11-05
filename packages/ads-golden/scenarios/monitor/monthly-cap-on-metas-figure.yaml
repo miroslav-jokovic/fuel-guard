@@ -1,0 +1,24 @@
+name: "Meta's own month at the cap runs on; a cent over pauses every delivering campaign, learning or not"
+why: >
+  monitorChecks.ts: monthly_cap fires when the month > the platform's cap, the month being the larger of our fold
+  and the account's figure, and a cap holds while Meta is learning. It pauses every delivering campaign on the
+  platform; a paused one stays out of it. Our fold is 0 here, so only Meta's figure can fire it.
+covers: [monthly_cap, learning]
+verifiedBy: "Claude (Monitor L3), from monitorChecks.ts"
+campaigns:
+  - { id: steady }
+  - { id: young, stage: LEARNING }
+  - { id: held, state: paused }
+timeline:
+  - account_month: 299999
+  - hourly_job: true
+  - account_month: 300000
+  - hourly_job: true
+  - account_month: 300001
+  - hourly_job: true
+expect:
+  states: { steady: pausing, young: pausing, held: paused }
+  pauses:
+    - "run 3: steady monthly_cap 300001 > 300000"
+    - "run 3: young monthly_cap 300001 > 300000"
+  bell: ["ads_overspend critical", "ads_overspend critical"]

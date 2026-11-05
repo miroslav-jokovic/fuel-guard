@@ -1,0 +1,23 @@
+name: "Hours Meta revised down or stopped reporting no longer count: the rule reads Meta's number now"
+why: >
+  insightsPull.ts: a number Meta revised, down as well as up, replaces ours; an hour it no longer reports is
+  written as zero. Each campaign is at 5000, then gains 1500. On the stale hours that is 6500 and a pause. On Meta's
+  numbers now it is 4500 in both, so nothing fires.
+covers: [daily_cap]
+verifiedBy: "Claude (Monitor L3), from monitorChecks.ts and insightsPull.ts"
+campaigns:
+  - { id: revised }
+  - { id: forgotten }
+timeline:
+  - meta_reports: { campaign: revised, hour: 9, spend_cents: 3000, leads: 1 }
+  - meta_reports: { campaign: revised, hour: 10, spend_cents: 2000 }
+  - meta_reports: { campaign: forgotten, hour: 9, spend_cents: 3000, leads: 1 }
+  - meta_reports: { campaign: forgotten, hour: 10, spend_cents: 2000 }
+  - hourly_job: true
+  - meta_reports: { campaign: revised, hour: 9, spend_cents: 1000, leads: 1 }
+  - meta_reports: { campaign: revised, hour: 11, spend_cents: 1500 }
+  - meta_forgets: { campaign: forgotten, hour: 10 }
+  - meta_reports: { campaign: forgotten, hour: 11, spend_cents: 1500 }
+  - hourly_job: true
+expect:
+  states: { revised: live, forgotten: live }

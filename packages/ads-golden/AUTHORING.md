@@ -19,6 +19,20 @@ switch, a missing approval, a budget exhausted mid-step, settings changed mid-ru
 `@hazmat/golden` can import its engine because that engine is a package. The ads engine is a service
 module in `apps/api`, and a package may not import an app, so the runner lives beside it.
 
+## The monitor's scenarios
+
+`scenarios/monitor/*.yaml` are the Monitor's L3 bar. They are a different shape: what Meta reports and which
+job reads it, not a campaign's walk through the machine. So they have their own schema (`src/monitorSchema.ts`),
+runner (`apps/api/src/testing/adsMonitorGolden.ts`) and test (`apps/api/src/modules/ads/monitor/golden.test.ts`).
+`loadScenarios` does not descend into the folder, so the orchestrator's suite never meets them.
+
+- `hourly_job` is the pull then the checks; `daily_reconcile` is the 28-day re-read then the comparison. Spend
+  goes in as `meta_reports`, so it reaches `ads_spend_hourly` through the real pull.
+- `expect.pauses`, `flags`, `bell` and `failures` are each the WHOLE list. Write `expect` from `monitorChecks.ts`
+  and `adsReconcile.ts`.
+- Start from `scenarios/monitor/TEMPLATE.yaml`. A rule's scenario holds a campaign a cent under, at, and over.
+- Run `pnpm --filter @silvicom/api exec vitest run src/modules/ads/monitor/golden.test.ts`.
+
 ## The independence rule
 
 `expect` is written from the rules, never pasted from a run:

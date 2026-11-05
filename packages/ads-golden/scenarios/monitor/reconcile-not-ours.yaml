@@ -1,0 +1,22 @@
+name: "A campaign on the account with no row of ours is reported, marked if its name is ours, and never adopted"
+why: >
+  adsReconcile.ts: not_ours is a campaign whose id we did not record; critical while ACTIVE, warning otherwise; a name
+  that parses as ours is marked ours_by_name_unrecorded. A DELETED or ARCHIVED one spends nothing and is not reported.
+covers: [not_ours]
+verifiedBy: "Claude (Monitor L3), from adsReconcile.ts"
+campaigns:
+  - { id: ours }
+timeline:
+  - foreign_campaign: { id: stranger, status: ACTIVE }
+  - foreign_campaign: { id: idle, status: PAUSED }
+  - foreign_campaign: { id: lost, status: ACTIVE, named_as_ours: true }
+  - foreign_campaign: { id: dropped, status: DELETED }
+  - foreign_campaign: { id: shelved, status: ARCHIVED }
+  - daily_reconcile: true
+expect:
+  states: { ours: live }
+  flags:
+    - "run 1: stranger campaign not_ours none -> ACTIVE critical"
+    - "run 1: idle campaign not_ours none -> PAUSED warning"
+    - "run 1: lost campaign not_ours ours_by_name_unrecorded -> ACTIVE critical"
+  bell: ["ads_external_change critical", "ads_external_change warning", "ads_external_change critical"]

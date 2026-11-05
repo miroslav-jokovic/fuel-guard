@@ -1,0 +1,21 @@
+name: "Spend with no lead at the minimum runs on; a cent over pauses; one lead stops the rule"
+why: >
+  monitorChecks.ts: no_lead_spend fires when lifetime spend > no_lead_spend_cents with 0 leads. It rings
+  ads_no_leads as a warning. Budgets are raised so daily_cap cannot be what fires.
+covers: [no_lead_spend]
+verifiedBy: "Claude (Monitor L3), from monitorChecks.ts"
+campaigns:
+  - { id: under, daily_budget_cents: 10000 }
+  - { id: at, daily_budget_cents: 10000 }
+  - { id: over, daily_budget_cents: 10000 }
+  - { id: one-lead, daily_budget_cents: 10000 }
+timeline:
+  - meta_reports: { campaign: under, spend_cents: 7499 }
+  - meta_reports: { campaign: at, spend_cents: 7500 }
+  - meta_reports: { campaign: over, spend_cents: 7501 }
+  - meta_reports: { campaign: one-lead, spend_cents: 9000, leads: 1 }
+  - hourly_job: true
+expect:
+  states: { under: live, at: live, over: pausing, one-lead: live }
+  pauses: ["run 1: over no_lead_spend 7501 > 7500"]
+  bell: ["ads_no_leads warning"]

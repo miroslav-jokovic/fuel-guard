@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { loadScenarios } from "./load.js";
+import { loadMonitorScenarios, loadScenarios } from "./load.js";
+import { parseMonitorScenario } from "./monitorSchema.js";
 import { parseScenario } from "./schema.js";
 
 /**
@@ -59,5 +60,37 @@ describe("@silvicom/ads-golden — the schema refuses what would make a scenario
 
   it("a vendor answer outside the vocabulary", () => {
     refuses({ vendor: { launch: ["maybe"] } }, /invalid/);
+  });
+});
+
+describe("@silvicom/ads-golden — the monitor scenarios", () => {
+  const monitor = {
+    name: "n", why: "w", covers: ["daily_cap"], verifiedBy: "v",
+    campaigns: [{ id: "c1" }],
+    timeline: [{ hourly_job: true }],
+    expect: { states: { c1: "live" } },
+  };
+  const refuses = (patch: Record<string, unknown>, why: RegExp) =>
+    expect(() => parseMonitorScenario({ ...monitor, ...patch }, "bad.yaml")).toThrow(why);
+
+  it("every monitor file parses, and the orchestrator's loader never reads them", () => {
+    const files = loadMonitorScenarios().map((l) => l.file);
+    expect(files.length).toBeGreaterThanOrEqual(20);
+    expect(loadScenarios().map((l) => l.file).filter((f) => files.includes(f))).toEqual([]);
+  });
+
+  it("a minimal scenario parses with the documented defaults", () => {
+    const s = parseMonitorScenario(monitor, "minimal");
+    expect(s.settings).toEqual({ monthly_cap_cents: 300_000, cpl_max_cents: 4_200, cpl_min_leads: 3, no_lead_spend_cents: 7_500, frequency_max: 4, pause_at_daily_cap: true });
+    expect(s.campaigns[0]).toEqual({ id: "c1", state: "live", daily_budget_cents: 5_000, lifetime_cap_cents: 50_000, stage: "SUCCESS" });
+    expect(s.expect).toEqual({ states: { c1: "live" }, pauses: [], flags: [], bell: [], failures: [] });
+  });
+
+  it("refuses what would make one pass for the wrong reason", () => {
+    refuses({ timeline: [{ account_month: 1 }] }, /runs no job/);
+    refuses({ timeline: [{ hourly_job: true }, { stage: { campaign: "c9", stage: "FAIL" } }] }, /names campaign "c9"/);
+    refuses({ campaigns: [{ id: "c1" }, { id: "c2" }] }, /campaign "c2"'s final state/);
+    refuses({ timeline: [{ hourly_job: true }, { ads_manager: { campaign: "c1", status: "PAUSED", spend_cap_cents: 1 } }] }, /one edit per step/);
+    refuses({ verifiedBy: "" }, /verifiedBy/);
   });
 });

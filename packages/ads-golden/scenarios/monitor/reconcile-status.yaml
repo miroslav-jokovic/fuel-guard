@@ -1,0 +1,28 @@
+name: "Status edits made in Ads Manager are flagged by what they can cost, and in-flight states are not"
+why: >
+  adsReconcile.ts: delivering where we hold it paused is critical; a pause we did not make is a warning, it costs
+  reach, not money. A live campaign's ad set must be ACTIVE too; a paused campaign's ad set is not owed anything.
+  launching and pausing take either answer. A status edit is never adopted, so every state stands.
+covers: [status]
+verifiedBy: "Claude (Monitor L3), from adsReconcile.ts"
+campaigns:
+  - { id: woken, state: paused }
+  - { id: stopped }
+  - { id: set-stopped }
+  - { id: set-stopped-too, state: paused }
+  - { id: stopping, state: pausing }
+  - { id: starting, state: launching }
+timeline:
+  - ads_manager: { campaign: woken, status: ACTIVE }
+  - ads_manager: { campaign: stopped, status: PAUSED }
+  - ads_manager: { campaign: set-stopped, adset_status: PAUSED }
+  - ads_manager: { campaign: set-stopped-too, adset_status: PAUSED }
+  - ads_manager: { campaign: starting, status: PAUSED }
+  - daily_reconcile: true
+expect:
+  states: { woken: paused, stopped: live, set-stopped: live, set-stopped-too: paused, stopping: pausing, starting: launching }
+  flags:
+    - "run 1: woken campaign status PAUSED -> ACTIVE critical"
+    - "run 1: stopped campaign status ACTIVE -> PAUSED warning"
+    - "run 1: set-stopped adset status ACTIVE -> PAUSED warning"
+  bell: ["ads_external_change critical", "ads_external_change warning", "ads_external_change warning"]

@@ -1,0 +1,24 @@
+name: "The ad set's budget a cent either side of ours is flagged; lowered warns, raised or removed is critical"
+why: >
+  adsReconcile.ts: daily_budget compares the ad set's against our approved amount, and critical is an edit that can
+  spend money nobody approved. A campaign we hold no budget for has nothing to compare.
+covers: [daily_budget]
+verifiedBy: "Claude (Monitor L3), from adsReconcile.ts"
+campaigns:
+  - { id: lower }
+  - { id: same }
+  - { id: higher }
+  - { id: removed }
+  - { id: ours-unset, daily_budget_cents: null }
+timeline:
+  - ads_manager: { campaign: lower, daily_budget_cents: 4999 }
+  - ads_manager: { campaign: higher, daily_budget_cents: 5001 }
+  - ads_manager: { campaign: removed, daily_budget_cents: null }
+  - daily_reconcile: true
+expect:
+  states: { lower: live, same: live, higher: live, removed: live, ours-unset: live }
+  flags:
+    - "run 1: lower adset daily_budget 5000 -> 4999 warning"
+    - "run 1: higher adset daily_budget 5000 -> 5001 critical"
+    - "run 1: removed adset daily_budget 5000 -> none critical"
+  bell: ["ads_external_change warning", "ads_external_change critical", "ads_external_change critical"]

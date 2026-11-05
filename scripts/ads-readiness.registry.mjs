@@ -37,6 +37,7 @@ const COPYWRITER = "apps/api/src/modules/ads/workers/copywriter/copywriter.test.
 const ART_DIRECTOR = "apps/api/src/modules/ads/workers/artDirector/artDirector.test.ts";
 const RENDER = "apps/api/src/modules/ads/creative/higgsfield/render.test.ts";
 const CHECKER = "apps/api/src/modules/ads/workers/checker/checker.test.ts";
+const MONITOR_GOLDEN = "apps/api/src/modules/ads/monitor/golden.test.ts";
 const ANALYST = "apps/api/src/modules/ads/workers/analyst/analyst.test.ts";
 const BRIEF = "packages/shared/src/ads/analystBrief.test.ts";
 const DAILY_BRIEF = "apps/api/src/modules/ads/workers/analyst/dailyBrief.test.ts";
@@ -461,7 +462,35 @@ export const READINESS = [
           ] }],
         },
       ],
-      L3: later("L3"), L4: [{ need: "insights from the sandbox", gap: STAGE2 }], L5: [{ need: "canary", gap: CANARY }],
+      L3: [
+        {
+          need: "golden scenarios: each rule fires exactly at its threshold and minimum spend (−1/0/+1), through the real pull and checks",
+          tests: [{ file: MONITOR_GOLDEN, titles: [
+            "ads monitor golden scenarios — every one, through the real pull, checks and reconcile",
+            "every rule and every reconcile field has at least one scenario",
+            "a wrong state, a pause or flag or bell the scenario left out, and a failed job each fail",
+          ] }],
+          scenarios: [
+            "monitor/daily-cap-at-its-threshold.yaml", "monitor/daily-cap-reads-the-accounts-day.yaml", "monitor/monthly-cap-on-metas-figure.yaml",
+            "monitor/monthly-cap-on-our-fold.yaml", "monitor/no-lead-spend-at-its-threshold.yaml", "monitor/cost-per-lead-at-its-threshold.yaml",
+            "monitor/frequency-at-its-threshold.yaml", "monitor/rules-switched-off-do-not-fire.yaml", "monitor/one-reason-the-most-serious.yaml",
+            "monitor/a-late-hour-crosses-the-threshold.yaml", "monitor/numbers-revised-down-do-not-fire.yaml",
+          ],
+        },
+        {
+          need: "never on a learning-phase ad set except caps",
+          scenarios: ["monitor/learning-ad-sets-are-held-except-by-a-cap.yaml", "monitor/monthly-cap-on-metas-figure.yaml"],
+        },
+        {
+          need: "reconcile flags every planted mismatch and nothing else",
+          tests: [{ file: MONITOR_GOLDEN, titles: ["every rule and every reconcile field has at least one scenario"] }],
+          scenarios: [
+            "monitor/reconcile-clean-run.yaml", "monitor/reconcile-every-mismatch-once.yaml", "monitor/reconcile-missing.yaml", "monitor/reconcile-status.yaml",
+            "monitor/reconcile-daily-budget.yaml", "monitor/reconcile-spend-cap.yaml", "monitor/reconcile-overrun.yaml", "monitor/reconcile-not-ours.yaml",
+          ],
+        },
+      ],
+      L4: [{ need: "insights from the sandbox", gap: STAGE2 }], L5: [{ need: "canary", gap: CANARY }],
     },
   },
   {

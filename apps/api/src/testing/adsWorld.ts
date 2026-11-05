@@ -51,7 +51,7 @@ export function createAdsWorld(opts: {
   settings?: AdsSettings;
   approvals?: FixtureRow[];
   actions?: FixtureRow[];
-  /** Spend rows (`ads_spend_hourly`) — the guard's month-to-date. */
+  /** Spend rows (`ads_spend_hourly`) — the guard's month-to-date; the insights pull's upserts land here. */
   spend?: FixtureRow[];
   /** The org's connections (B3: a simulator row lets the real adapter run); default one bare Meta row. */
   connections?: FixtureRow[];
@@ -149,7 +149,20 @@ export function createAdsWorld(opts: {
         return postgrestFixture(connections)(q);
       },
       memberships: postgrestFixture(members),
-      ads_spend_hourly: postgrestFixture(spend),
+      ads_spend_hourly: (q) => {
+        // As PostgREST applies the pull's upsert: one row per (campaign, hour), the newest write replacing the
+        // last, unless the call asked to skip duplicates (the one option that would keep a revised hour stale).
+        if (q.write?.method === "upsert") {
+          const skip = (q.ops.find((o) => o.method === "upsert")?.args[1] as { ignoreDuplicates?: boolean } | undefined)?.ignoreDuplicates === true;
+          for (const row of ([] as FixtureRow[]).concat(q.write.payload as FixtureRow[])) {
+            const at = spend.findIndex((r) => r.campaign_id === row.campaign_id && Date.parse(String(r.hour)) === Date.parse(String(row.hour)));
+            if (at < 0) spend.push({ ...row });
+            else if (!skip) spend[at] = { ...row };
+          }
+          return [];
+        }
+        return postgrestFixture(spend)(q);
+      },
       ...Object.fromEntries(Object.entries(opts.extraTables ?? {}).map(([t, rows]) => [t, postgrestFixture(rows.map((r) => ({ ...r })))])),
     },
     ...(opts.storage ? { storage: opts.storage as Record<string, (...args: unknown[]) => unknown> } : {}),

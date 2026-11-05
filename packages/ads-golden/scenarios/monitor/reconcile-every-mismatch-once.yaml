@@ -1,0 +1,42 @@
+name: "Every kind of mismatch planted at once is flagged once and a campaign beside them is not; a new value is a new fact"
+why: >
+  §4R: "reconcile flags every planted mismatch and nothing else". adsReconcile.ts, "once per fact": the key is the
+  object, the field and Meta's value, so run 2 adds nothing, and run 3 adds only the budget that moved again.
+covers: [clean_run, missing, status, daily_budget, spend_cap, overrun, not_ours]
+verifiedBy: "Claude (Monitor L3), from adsReconcile.ts"
+campaigns:
+  - { id: clean }
+  - { id: marked }
+  - { id: woken, state: paused }
+  - { id: budget }
+  - { id: cap }
+  - { id: spent }
+timeline:
+  - ads_manager: { campaign: marked, status: DELETED }
+  - ads_manager: { campaign: woken, status: ACTIVE }
+  - ads_manager: { campaign: budget, daily_budget_cents: 6000 }
+  - ads_manager: { campaign: cap, spend_cap_cents: null }
+  - meta_reports: { campaign: spent, day: 2026-11-02, spend_cents: 50001, leads: 1 }
+  - foreign_campaign: { id: stranger, status: ACTIVE }
+  - daily_reconcile: true
+  - daily_reconcile: true
+  - ads_manager: { campaign: budget, daily_budget_cents: 7000 }
+  - daily_reconcile: true
+expect:
+  states: { clean: live, marked: live, woken: paused, budget: live, cap: live, spent: live }
+  flags:
+    - "run 1: marked campaign missing live -> DELETED warning"
+    - "run 1: woken campaign status PAUSED -> ACTIVE critical"
+    - "run 1: budget adset daily_budget 5000 -> 6000 critical"
+    - "run 1: cap campaign spend_cap 50000 -> none critical"
+    - "run 1: spent campaign overrun 50000 -> 50001 critical"
+    - "run 1: stranger campaign not_ours none -> ACTIVE critical"
+    - "run 3: budget adset daily_budget 5000 -> 7000 critical"
+  bell:
+    - "ads_external_change warning"
+    - "ads_external_change critical"
+    - "ads_external_change critical"
+    - "ads_external_change critical"
+    - "ads_overspend critical"
+    - "ads_external_change critical"
+    - "ads_external_change critical"

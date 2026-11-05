@@ -1,0 +1,26 @@
+name: "Cost per lead at the setting runs on, past it pauses, and below the minimum leads it is not judged"
+why: >
+  monitorChecks.ts: cpl_max fires when spend / leads > cpl_max_cents, once leads >= cpl_min_leads. At 3 leads,
+  12597 / 12600 / 12603 are 4199 / 4200 / 4201. The comparison is on the exact quotient, so 12601 (4200.33) fires
+  too, and because measured is rounded for the ledger it reads "4200 > 4200". Two leads at 6000 each is under the
+  minimum. No bell: a cost-per-lead pause is read in the brief (MONITOR_RULE_ALERT).
+covers: [cpl_max]
+verifiedBy: "Claude (Monitor L3), from monitorChecks.ts"
+campaigns:
+  - { id: under, daily_budget_cents: 20000 }
+  - { id: at, daily_budget_cents: 20000 }
+  - { id: over, daily_budget_cents: 20000 }
+  - { id: fraction, daily_budget_cents: 20000 }
+  - { id: too-few, daily_budget_cents: 20000 }
+timeline:
+  - meta_reports: { campaign: under, spend_cents: 12597, leads: 3 }
+  - meta_reports: { campaign: at, spend_cents: 12600, leads: 3 }
+  - meta_reports: { campaign: over, spend_cents: 12603, leads: 3 }
+  - meta_reports: { campaign: fraction, spend_cents: 12601, leads: 3 }
+  - meta_reports: { campaign: too-few, spend_cents: 12000, leads: 2 }
+  - hourly_job: true
+expect:
+  states: { under: live, at: live, over: pausing, fraction: pausing, too-few: live }
+  pauses:
+    - "run 1: over cpl_max 4201 > 4200"
+    - "run 1: fraction cpl_max 4200 > 4200"

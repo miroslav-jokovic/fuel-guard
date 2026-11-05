@@ -1,0 +1,16 @@
+name: "Frequency at the setting runs on, past it pauses, and an ad set with none reported is not judged"
+why: >
+  monitorChecks.ts: frequency_max fires when the 7-day frequency > frequency_max; null (nothing delivered) is not
+  judged. No bell: fatigue is read in the brief (MONITOR_RULE_ALERT).
+covers: [frequency_max]
+verifiedBy: "Claude (Monitor L3), from monitorChecks.ts"
+campaigns:
+  - { id: under, frequency: 3.9 }
+  - { id: at, frequency: 4 }
+  - { id: over, frequency: 4.1 }
+  - { id: unreported }
+timeline:
+  - hourly_job: true
+expect:
+  states: { under: live, at: live, over: pausing, unreported: live }
+  pauses: ["run 1: over frequency_max 4.1 > 4"]
