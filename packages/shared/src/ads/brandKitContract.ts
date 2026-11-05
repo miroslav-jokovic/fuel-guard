@@ -113,7 +113,7 @@ export function kitAssets(kit: AdBrandKit): AdAssetRef[] {
 }
 
 // ── concept presets (D-AD11) ────────────────────────────────────────────────────────────────────
-const slotName = z.string().regex(/^[a-z][a-z0-9_]{1,30}$/);
+const slotName = z.string().regex(/^[a-z][a-z0-9_]{1,30}$/, "a slot's name is lower-case letters, digits and underscores, like hook");
 const SLOT_IN_TEMPLATE = /\{([a-z][a-z0-9_]{1,30})\}/g;
 
 /** The `{slot}` names a template uses, in order of first appearance. */
@@ -208,7 +208,7 @@ export type AdBrandKitSave = z.infer<typeof adBrandKitSaveSchema>;
 
 /** A preset save adds the next version of the preset with this key, creating the preset on its first save. */
 export const adPresetSaveSchema = z.object({
-  key: z.string().regex(/^[A-Z][A-Z0-9_]{0,15}$/),
+  key: z.string().regex(/^[A-Z][A-Z0-9_]{0,15}$/, "a preset's key is capitals, digits and underscores, like P2"),
   enabled: z.boolean(),
   recipe: adPresetRecipeSchema,
 });
