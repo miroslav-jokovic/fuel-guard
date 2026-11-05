@@ -1822,3 +1822,13 @@ blocking step in §3 above.
     storing another `billing_event`, the image read, the write-only waiver, 80004 not counted as a throttle, a creative
     not found by its name, and the token alert. The first hang mutant survived (a timeout and a 5xx looked alike), so
     the ledger's fault kind is now pinned.
+- **2026-11-05, Q-AD34 ruled; blocked on Q-AD37**, Track W. No code, no migration.
+  - **Ruled:** the orchestrator took Q-AD34 (a), a recruiting-owned `LeadOutcomes` interface injected into ads, as
+    recorded in plan §9.
+  - **Blocked before building it:** the step's rule says to stop if the stages are not derivable from existing tables,
+    and one is not. Contacted, applied, hired and lost-after-conversion each have a dated record (plan §9 Q-AD37 names
+    them). `qualified`, which D-AD14 defines as a recruiter's confirmation, has no writer anywhere, and neither does a
+    lead closed before conversion (`not_qualified` / `lost`).
+  - Filling those with 0 would put a false figure on the analyst's fact sheet. Q-AD37 records three candidates and
+    recommends reading "qualified" as the conversion, worded as such, until recruiting builds a lead close-out.
+  - The brief's `cohorts` stays empty. Analyst stays **L2**; its eval was not re-run, because no cohort fold can be built yet.
