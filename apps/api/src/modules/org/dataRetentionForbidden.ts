@@ -314,6 +314,7 @@ export const RETENTION_FORBIDDEN = [
   "mcleod_movements",
   "mcleod_gl_accounts",
   "mcleod_gl_days",
+  "mcleod_gl_key_lines",
   "mcleod_gl_totals",
   /**
    * The ads module's ledgers (0537, ADS-AGENT-BUILD-WORKFLOW A2). `ads_actions` is the money audit

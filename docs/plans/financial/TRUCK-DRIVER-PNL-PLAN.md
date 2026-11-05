@@ -356,3 +356,11 @@ per-driver P&L on the recommended answer to every question below, Q-TP1 through 
   four readers that count loads (per-truck, per-dispatcher, weekly, billed miles by month). Q-TP6's
   DRS measurement done: every DRS line has a payee through its check; $42k of July's $104k is driver
   pay, the rest is repairs and charge-backs passed through settlements.
+- 2026-10-21 · P0c started. Sandbox, July 2026, company TMS: no posting key in BILL, SET, SETV or
+  FUEL spans two dates, and each key posts exactly one line to its control account (BILL 1,522 on
+  12000000; SET 2,723 on 205000xx; SETV 46 on 20500010; FUEL 2,274 on 20550000), so a per-key join is
+  exact. P0c ships in two merges, because a caller of a new function follows it into production:
+  **P0c-a** `0568` `mcleod_gl_key_lines` (written as 0509; renumbered 2026-11-04 because main had used 0509) and its month-replace function (15,183 rows for July, every
+  account of each posting kept), then **P0c-b** the sweep, the ingest and the per-key ties for BILL,
+  SET and SETV. FUEL's per-key tie needs McLeod's `fuel_detail` staged (collector step C1); until
+  then the fuel tie stays the account-level F12.
