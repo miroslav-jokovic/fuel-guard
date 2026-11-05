@@ -895,6 +895,47 @@ rate, and Higgsfield credits per approved creative.
   events, so one interface serves both, and the shape (`LeadOutcomeRow`) already exists in shared. (c) is refused: it
   is the boundary D-AD17 draws. **Built meanwhile:** the brief reports spend and leads, and its `cohorts` is empty.
   The plain fallback and the prompt both handle an empty list, and an eval fixture of that shape passes.
+  **Ruled 2026-11-05 (orchestrator): recruiting-owned `LeadOutcomes`, injected** — option (a): the interface and its
+  zod shape in `packages/shared/src/ads/`, recruiting's implementation in `recruiting/leads/`, handed to the brief at
+  the composition root as `briefSourcesFor` is; B6 reuses it. **Not built yet: blocked on Q-AD37** (one of the five
+  stages has no record to read).
+- **Q-AD37 · Nothing records that a recruiter confirmed a lead qualified, or that a lead was lost before it became an
+  applicant** (us, found building Q-AD34, 2026-11-05). `LeadOutcomes` must say which stages each ad lead reached and
+  when, from rows that exist. Four of the five stages have a record today:
+  - **contacted:** the lead's first `recruiting_contacts` row (`contacted_at`; append-only, D-LS6). This is recruiting's
+    own meaning (any attempt moves a `new` lead, `leadContacts.ts`).
+  - **applied:** the applicant the lead became (`lead_conversions.driver_id`) filed the application
+    (`driver_applications.certified_at`, 0220).
+  - **hired:** that driver's `status = 'active'` with its `hire_date` (`hire_applicant`, 0218; 0238's header says this
+    is the one record of a hire).
+  - **lost, after conversion:** an `applicant_dispositions` row (`declined`, `withdrawn`, `no_response`, `decided_on`; 0238).
+
+  Two are not recorded anywhere:
+  - **qualified.** D-AD14 and §5 define it as "a recruiter's confirmation" (Class A plus experience). `recruiting_leads`
+    allows a `qualified` status, but nothing writes it: the six lead routes list, read, create, convert and log
+    contacts, and `convert_lead` jumps straight to `converted`. `lead_match_verdicts` are the machine's match, not a
+    person's confirmation, and for a Meta lead they are `unknown` by design.
+  - **lost, before conversion.** `not_qualified` and `lost` have no writer either, so a lead a recruiter closed without
+    converting is indistinguishable from one nobody has finished.
+
+  Writing `0` for these would put a false number on the fact sheet: the analyst may narrate only what the fold
+  produced, and the fold would claim no lead was ever qualified. The candidates:
+  - **(a)** Recruiting gives a lead a qualify / not-qualified / lost act. It needs a route, a UI and a dated record:
+    the status column is overwritten by conversion, so it cannot keep history. That means a migration, e.g. an
+    append-only lead-status table or `qualified_at` / `closed_at` columns. Recruiting's work, sized as one step.
+  - **(b)** Read "qualified" as the conversion: the recruiter chose to make the lead an applicant, which is the only
+    deliberate act on a lead the product records today. It is derivable now, with no migration (`lead_conversions.created_at`).
+    The cost is that D-AD14's wording changes from "confirmed qualified" to "converted", and that a lead lost before
+    conversion still cannot be counted, so `lost` covers applicants only and the fold must say so.
+  - **(c)** Make `qualified` and pre-conversion `lost` "not recorded" in the contract: the shared `Cohort` counts become
+    nullable, and the fold, fact sheet, plain brief and prompt say "not recorded" instead of a number. That is an
+    honest seam now, but it touches the shared fold the guard and the screens read.
+
+  **Recommendation: (b) now, (a) when recruiting builds its lead close-out.** (b) is honest if the words change with
+  it: the brief and the plan say "converted (a recruiter chose to make them an applicant)", never "qualified". It
+  serves B6 too, since Meta needs a stage that 1–40 % of leads reach. (a) replaces it without changing the interface.
+  (c) is refused as a first step: it changes a shared fold to describe a gap that (b) closes. Owner or orchestrator to
+  rule. Until then `cohorts` stays empty, as Q-AD34 left it.
 - **Q-AD35 · Whether a campaign deleted at Meta should fail the monitor's jobs** (found building Monitor L3, 2026-11-04;
   **ruled by the owner 2026-11-05: fixed, not left for L4**). Reconcile flagged it `missing` and rang once, but the
   insights read and the ad-set checks kept failing on every run. **Ruling:** a refusal stops being a failure only when
