@@ -54,6 +54,7 @@ const linkTo = (id: string) => ({ query: { ...route.query, campaign: id } });
           <BaseButton v-if="canManage" variant="primary" data-test="new-campaign" @click="creating = true">New campaign</BaseButton>
         </template>
       </FilterBar>
+      <!-- ui-adoption: unpaged — the door answers a carrier's newest 200 campaigns (CAMPAIGN_LIST_LIMIT) in one read. -->
       <DataTable
         :columns="columns"
         :rows="campaigns.data.value ?? []"

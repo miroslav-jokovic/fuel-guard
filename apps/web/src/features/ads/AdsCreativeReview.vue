@@ -31,11 +31,9 @@ const tone = computed(() => (props.creative.state === "check_failed" || props.cr
           <figcaption class="text-xs text-ink-muted">{{ a.format }}</figcaption>
         </figure>
       </div>
-      <dl class="space-y-1">
-        <div v-for="c in copyLines(creative.copy, l)" :key="c.slot" class="text-sm">
-          <dt class="inline text-ink-muted">{{ c.slot }}: </dt><dd class="inline text-ink">{{ c.text }}</dd>
-        </div>
-      </dl>
+      <div class="space-y-1">
+        <p v-for="c in copyLines(creative.copy, l)" :key="c.slot" class="text-sm text-ink"><span class="text-ink-muted">{{ c.slot }}: </span>{{ c.text }}</p>
+      </div>
     </section>
     <div v-if="canDecide && creative.state === 'ready'" class="space-y-2">
       <FormField v-if="rejecting" v-slot="{ id }" label="Why is this ad rejected?" required>
